@@ -1,0 +1,15 @@
+[submodule "source/external/cereal"]
+	path = source/external/cereal
+	url = https://github.com/USCiLab/cereal.git
+[submodule "source/external/entt"]
+	path = source/external/entt
+	url = https://github.com/skypjack/entt.git
+[submodule "source/external/freetype"]
+	path = source/external/freetype
+	url = https://github.com/freetype/freetype.git
+[submodule "source/external/imgui"]
+	path = source/external/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "source/external/zlib"]
+	path = source/external/zlib
+	url = https://github.com/madler/zlib.git
