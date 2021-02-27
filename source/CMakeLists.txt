@@ -42,7 +42,7 @@ endif()
 message(STATUS "Submodule update completed.")
 
 # Mucking about.
-add_subdirectory("Test")
+add_subdirectory("test")
 
 # External projects.
 add_subdirectory("external")
