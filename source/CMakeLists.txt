@@ -41,8 +41,14 @@ endif()
 
 message(STATUS "Submodule update completed.")
 
-# Mucking about.
-add_subdirectory("test")
-
 # External projects.
 add_subdirectory("external")
+
+# Sandbox editor.
+add_subdirectory("flotsam")
+
+# Runtime.
+add_subdirectory("jetsam")
+
+# Mucking about.
+add_subdirectory("test")
