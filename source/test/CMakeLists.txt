@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.18)
+cmake_minimum_required (VERSION 3.17)
 
 # Set the overall project name.
 project("test" VERSION 0.1.0)
@@ -16,24 +16,22 @@ set_property(TARGET test PROPERTY FOLDER "Test")
 find_package(Vulkan REQUIRED)
 target_link_libraries(test PRIVATE Vulkan::Vulkan)
 
-include_directories("external/entt/src")
-include_directories("external/imgui")
+include_directories("${CMAKE_SOURCE_DIR}/source/external/entt/src")
+include_directories("${CMAKE_SOURCE_DIR}/source/external/imgui")
 
-# Copy shaders, models and the textures.
-configure_file("shaders/shader.vert.spv" "shaders/shader.vert.spv" COPYONLY)
-configure_file("shaders/shader.frag.spv" "shaders/shader.frag.spv" COPYONLY)
-configure_file("textures/texture.jpg" "textures/texture.jpg" COPYONLY)
-configure_file("textures/viking_room.png" "textures/viking_room.png" COPYONLY)
-configure_file("models/viking_room.wobj" "models/viking_room.wobj" COPYONLY)
+# External projects.
+add_subdirectory("${CMAKE_SOURCE_DIR}/source/external" external)
 
-# GL math library.
-target_link_libraries(test PRIVATE glm)
+# Renderer.
+add_subdirectory("${CMAKE_SOURCE_DIR}/source/renderer" renderer)
 
-# GLFW.
-target_link_libraries(test PRIVATE glfw)
+# 
+include_directories("${CMAKE_SOURCE_DIR}/source/renderer")
 
-# STB.
-target_link_libraries(test PRIVATE stb)
+target_link_libraries(test PUBLIC Renderer)
 
-# Tiny Object Loader.
-target_link_libraries(test PRIVATE tiny_obj_loader)
+# TODO: HACK: Need the GLFW DLL file. Not sure how to get it to copy over.
+install(FILES "${GLFW_BINARY_DIR}/src/glfw3.dll" DESTINATION "bin")
+
+# Assets.
+add_subdirectory("assets")
