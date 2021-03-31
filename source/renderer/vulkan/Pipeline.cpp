@@ -24,15 +24,6 @@ namespace Jettison::Renderer
 const std::string kModelPath = "assets/models/viking_room.wobj";
 const std::string kTexturePath = "assets/textures/viking_room.png";
 
-//const std::string kModelPath = "assets/models/arakkoa_warrior.obj";
-//const std::string kTexturePath = "assets/models/arakkoa_warrior_CreatureSkin1.png";
-
-//const std::string kModelPath = "assets/models/Trickster's_Edge.obj";
-//const std::string kTexturePath = "assets/models/Trickster's_Edge_SolidSkin1.png";
-
-//const std::string kModelPath = "assets/models/Deadly_Gladiator's_Bonegrinder.obj";
-//const std::string kTexturePath = "assets/models/Deadly_Gladiator's_Bonegrinder_SolidSkin1.png";
-
 
 void Model::Destroy()
 {
@@ -200,82 +191,55 @@ void Pipeline::Destroy()
 {
 	// Colour images.
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_colorImageView, nullptr);
-	m_colorImageView = VK_NULL_HANDLE;
 	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_colorImage, nullptr);
-	m_colorImage = VK_NULL_HANDLE;
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_colorImageMemory, nullptr);
-	m_colorImageMemory = VK_NULL_HANDLE;
 
 	// Depth images.
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_depthImageView, nullptr);
-	m_depthImageView = VK_NULL_HANDLE;
 	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_depthImage, nullptr);
-	m_depthImage = VK_NULL_HANDLE;
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_depthImageMemory, nullptr);
-	m_depthImageMemory = VK_NULL_HANDLE;
 
 	// Framebuffer.
 	for (auto framebuffer : m_swapchainFramebuffers)
 	{
 		vkDestroyFramebuffer(m_pDeviceContext->GetLogicalDevice(), framebuffer, nullptr);
 	}
-	m_swapchainFramebuffers.clear();
-
-	// HACK: Trying to see if this is called when it shouldn't be.
-	if (glfwWindowShouldClose(m_pDeviceContext->GetWindow()->GetGLFWWindow()))
-	{
-		int a = 1;
-		a++;
-	}
 
 	// Command pool.
 	vkFreeCommandBuffers(m_pDeviceContext->GetLogicalDevice(), m_pDeviceContext->GetCommandPool(), static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
 
 	vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_graphicsPipeline, nullptr);
-	m_graphicsPipeline = VK_NULL_HANDLE;
 	vkDestroyPipelineLayout(m_pDeviceContext->GetLogicalDevice(), m_pipelineLayout, nullptr);
-	m_pipelineLayout = VK_NULL_HANDLE;
 	vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_renderPass, nullptr);
-	m_renderPass = VK_NULL_HANDLE;
 
 	// Swapchain images.
 	for (auto imageView : m_swapchainImageViews)
 	{
 		vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), imageView, nullptr);
-		imageView = VK_NULL_HANDLE;
 	}
-	m_swapchainImageViews.clear();
 
 	// Uniform buffers.
 	for (size_t i = 0; i < m_pSwapchain->GetImageCount(); ++i)
 	{
 		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffers[i], nullptr);
-		m_uniformBuffers[i] = VK_NULL_HANDLE;
 		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffersMemory[i], nullptr);
-		m_uniformBuffersMemory[i] = VK_NULL_HANDLE;
 	}
 
 	// Descriptor pool.
 	vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), m_descriptorPool, nullptr);
-	m_descriptorPool = VK_NULL_HANDLE;
 
 	// Texture sampler.
 	vkDestroySampler(m_pDeviceContext->GetLogicalDevice(), m_textureSampler, nullptr);
-	m_textureSampler = VK_NULL_HANDLE;
 
 	// Texture image view.
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_textureImageView, nullptr);
-	m_textureImageView = VK_NULL_HANDLE;
 
 	// Texture image.
 	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_textureImage, nullptr);
-	m_textureImage = VK_NULL_HANDLE;
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_textureImageMemory, nullptr);
-	m_textureImageMemory = VK_NULL_HANDLE;
 
 	// Descriptor set layout.
 	vkDestroyDescriptorSetLayout(m_pDeviceContext->GetLogicalDevice(), m_descriptorSetLayout, nullptr);
-	m_descriptorSetLayout = VK_NULL_HANDLE;
 }
 
 
