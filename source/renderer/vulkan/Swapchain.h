@@ -29,13 +29,17 @@ public:
 
 	inline VkSwapchainKHR GetVkSwapchainHandle() const { return m_vkSwapchainHandle; }
 
-	inline VkExtent2D GetExtents() const { return m_swapchainExtent; }
+	inline VkExtent2D GetExtents() const { return m_extents; }
 
-	inline uint32_t GetImageCount() const { return m_swapchainImageCount; }
+	inline uint32_t GetMinImageCount() const { return m_minImageCount; }
 
-	inline uint32_t* GetImageCountAddress() { return &m_swapchainImageCount; }
+	inline uint32_t GetMaxImageCount() const { return m_maxImageCount; }
 
-	inline VkFormat GetImageFormat() const { return m_swapchainImageFormat; }
+	inline uint32_t GetImageCount() const { return m_imageCount; }
+
+	inline uint32_t* GetImageCountAddress() { return &m_imageCount; }
+
+	inline VkFormat GetImageFormat() const { return m_imageFormat; }
 
 private:
 	void Create();
@@ -53,8 +57,10 @@ private:
 
 	VkSwapchainKHR m_vkSwapchainHandle {VK_NULL_HANDLE};
 
-	uint32_t m_swapchainImageCount {0};
-	VkFormat m_swapchainImageFormat {VK_FORMAT_UNDEFINED};
-	VkExtent2D m_swapchainExtent {0, 0};
+	uint32_t m_minImageCount {0};
+	uint32_t m_maxImageCount {0};
+	uint32_t m_imageCount {0};
+	VkFormat m_imageFormat {VK_FORMAT_UNDEFINED};
+	VkExtent2D m_extents {0, 0};
 };
 }

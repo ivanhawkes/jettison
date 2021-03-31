@@ -29,12 +29,14 @@ void Swapchain::Create()
 	VkExtent2D extent = ChooseSwapExtent(swapChainSupport.capabilities);
 
 	// Get a reasonable amount of swapchain images.
-	m_swapchainImageCount = std::max(swapChainSupport.capabilities.minImageCount + 1, swapChainSupport.capabilities.maxImageCount);
+	m_minImageCount = swapChainSupport.capabilities.minImageCount;
+	m_maxImageCount = swapChainSupport.capabilities.maxImageCount;
+	m_imageCount = std::max(m_minImageCount + 1, m_maxImageCount);
 
 	VkSwapchainCreateInfoKHR createInfo {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	createInfo.surface = m_pDeviceContext->GetSurface();
-	createInfo.minImageCount = m_swapchainImageCount;
+	createInfo.minImageCount = m_imageCount;
 	createInfo.imageFormat = surfaceFormat.format;
 	createInfo.imageColorSpace = surfaceFormat.colorSpace;
 	createInfo.imageExtent = extent;
@@ -71,8 +73,8 @@ void Swapchain::Create()
 		throw std::runtime_error("failed to create swap chain");
 	}
 
-	m_swapchainImageFormat = surfaceFormat.format;
-	m_swapchainExtent = extent;
+	m_imageFormat = surfaceFormat.format;
+	m_extents = extent;
 }
 
 

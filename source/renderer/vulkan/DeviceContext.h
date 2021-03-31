@@ -62,7 +62,11 @@ public:
 
 	inline VkQueue GetGraphicsQueue() const { return m_graphicsQueue; }
 
+	inline uint32_t GetGraphicsQueueIndex() const { return m_graphicsQueueIndex; }
+
 	inline VkQueue GetPresentQueue() const { return m_presentQueue; }
+
+	inline uint32_t GetPresentQueueIndex() const { return m_presentQueueIndex; }
 
 	inline std::shared_ptr<Window> GetWindow() const { return m_pWindow; }
 
@@ -132,7 +136,9 @@ private:
 	VkSampleCountFlagBits m_msaaSamples {VK_SAMPLE_COUNT_1_BIT};
 
 	VkQueue m_graphicsQueue {VK_NULL_HANDLE};
+	uint32_t m_graphicsQueueIndex {std::numeric_limits<uint32_t>::max()};
 	VkQueue m_presentQueue {VK_NULL_HANDLE};
+	uint32_t m_presentQueueIndex {std::numeric_limits<uint32_t>::max()};
 	VkSurfaceKHR m_surface {VK_NULL_HANDLE};
 
 	VkCommandPool m_commandPool {VK_NULL_HANDLE};

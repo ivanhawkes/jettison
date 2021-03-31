@@ -192,6 +192,7 @@ QueueFamilyIndices DeviceContext::FindQueueFamilies(VkPhysicalDevice device)
 	{
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
+			m_graphicsQueueIndex = i;
 			indices.graphicsFamily = i;
 		}
 
@@ -199,6 +200,7 @@ QueueFamilyIndices DeviceContext::FindQueueFamilies(VkPhysicalDevice device)
 		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
 		if (presentSupport)
 		{
+			m_presentQueueIndex = i;
 			indices.presentFamily = i;
 		}
 
