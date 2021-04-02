@@ -384,7 +384,6 @@ static void SetupVulkanWindow(/*std::shared_ptr<Jettison::Renderer::DeviceContex
 
 	// Check for WSI support
 	VkBool32 res;
-	//vkGetPhysicalDeviceSurfaceSupportKHR(pDeviceContext->GetPhysicalDevice(), pDeviceContext->GetGraphicsQueueIndex(), wd->Surface, &res);
 	vkGetPhysicalDeviceSurfaceSupportKHR(g_PhysicalDevice, g_QueueFamily, wd->Surface, &res);
 	if (res != VK_TRUE)
 	{
@@ -395,7 +394,6 @@ static void SetupVulkanWindow(/*std::shared_ptr<Jettison::Renderer::DeviceContex
 	// Select Surface Format
 	const VkFormat requestSurfaceImageFormat[] = {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM};
 	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	//wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(pDeviceContext->GetPhysicalDevice(), wd->Surface, requestSurfaceImageFormat, (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat), requestSurfaceColorSpace);
 	wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(g_PhysicalDevice, wd->Surface, requestSurfaceImageFormat, (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat), requestSurfaceColorSpace);
 
 	// Select Present Mode
@@ -404,19 +402,12 @@ static void SetupVulkanWindow(/*std::shared_ptr<Jettison::Renderer::DeviceContex
 #else
 	VkPresentModeKHR present_modes[] = {VK_PRESENT_MODE_FIFO_KHR};
 #endif
-	//wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(pDeviceContext->GetPhysicalDevice(), wd->Surface, &present_modes[0], IM_ARRAYSIZE(present_modes));
 	wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(g_PhysicalDevice, wd->Surface, &present_modes[0], IM_ARRAYSIZE(present_modes));
 	//printf("[vulkan] Selected PresentMode = %d\n", wd->PresentMode);
 
-	// TODO: IMPORTANT:
-	// Setting up the swapchain is a problem. Have a look and see if I actually need to do this or if I can use the existing swapchain.
-	// Very important - don't mix the swapchains up! I'm passing one in and this is creating it's own as well.
-
 	// Create SwapChain, RenderPass, Framebuffer, etc.
-	//IM_ASSERT(g_MinImageCount >= 2);
-	//ImGui_ImplVulkanH_CreateOrResizeWindow(pDeviceContext->GetInstance(), pDeviceContext->GetPhysicalDevice(), pDeviceContext->GetLogicalDevice(),
-	//	wd, pDeviceContext->GetGraphicsQueueIndex(), nullptr, width, height, pSwapchain->GetMinImageCount());
-	ImGui_ImplVulkanH_CreateOrResizeWindow(g_Instance, g_PhysicalDevice, g_Device, &g_MainWindowData, g_QueueFamily, nullptr, width, height, g_MinImageCount);
+	IM_ASSERT(g_MinImageCount >= 2);
+	ImGui_ImplVulkanH_CreateOrResizeWindow(g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
 }
 
 
