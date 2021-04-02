@@ -89,36 +89,6 @@ void ImGuiCreateRenderPass(std::shared_ptr<Jettison::Renderer::DeviceContext> pD
 }
 
 
-//void ImGuiCreateDescriptorPool(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, VkDescriptorPool& imGuiDescriptorPool)
-//{
-//	VkResult err;
-//
-//	VkDescriptorPoolSize pool_sizes[] =
-//	{
-//		{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
-//		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
-//		{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
-//		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
-//		{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
-//		{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
-//		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
-//		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
-//		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
-//		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
-//		{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
-//	};
-//	VkDescriptorPoolCreateInfo pool_info = {};
-//	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-//	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-//	pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
-//	pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
-//	pool_info.pPoolSizes = pool_sizes;
-//
-//	err = vkCreateDescriptorPool(pDeviceContext->GetLogicalDevice(), &pool_info, nullptr, &imGuiDescriptorPool);
-//	check_vk_result(err);
-//}
-
-
 void ImGuiInitFontTexture(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext)
 {
 	ImGuiIO& io = ImGui::GetIO();
@@ -145,9 +115,10 @@ void ImGuiInitFontTexture(std::shared_ptr<Jettison::Renderer::DeviceContext> pDe
 	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 26.0f);
 	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 29.0f);
 
+	// May as well have the default font.
 	io.Fonts->AddFontDefault();
 
-	//ImGui_ImplVulkan_CreateFontsTexture(commandBuffer);
+	// Use the single time command buffers for loading the fonts.
 	VkCommandBuffer command_buffer = pDeviceContext->BeginSingleTimeCommands();
 	ImGui_ImplVulkan_CreateFontsTexture(command_buffer);
 	pDeviceContext->EndSingleTimeCommands(command_buffer);
@@ -245,110 +216,41 @@ static void FramePresent(/*std::shared_ptr<Jettison::Renderer::DeviceContext> pD
 }
 
 
-static void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext /*const char** extensions, uint32_t extensions_count*/)
+static void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext)
 {
 	VkResult err;
 
-	// Create Vulkan Instance
-	//{
-	//	VkInstanceCreateInfo create_info = {};
-	//	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	//	create_info.enabledExtensionCount = extensions_count;
-	//	create_info.ppEnabledExtensionNames = extensions;
-	//	err = vkCreateInstance(&create_info, g_Allocator, &g_Instance);
-	//	check_vk_result(err);
-	//	IM_UNUSED(g_DebugReport);
-	//}
-
 	g_Instance = pDeviceContext->GetInstance();
-
-	//// Select GPU
-	//{
-	//	uint32_t gpu_count;
-	//	err = vkEnumeratePhysicalDevices(g_Instance, &gpu_count, NULL);
-	//	check_vk_result(err);
-	//	IM_ASSERT(gpu_count > 0);
-
-	//	VkPhysicalDevice* gpus = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * gpu_count);
-	//	err = vkEnumeratePhysicalDevices(g_Instance, &gpu_count, gpus);
-	//	check_vk_result(err);
-
-	//	// If a number >1 of GPUs got reported, you should find the best fit GPU for your purpose
-	//	// e.g. VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU if available, or with the greatest memory available, etc.
-	//	// for sake of simplicity we'll just take the first one, assuming it has a graphics queue family.
-	//	g_PhysicalDevice = gpus[0];
-	//	free(gpus);
-	//}
-
 	g_PhysicalDevice = pDeviceContext->GetPhysicalDevice();
-
-	//// Select graphics queue family
-	//{
-	//	uint32_t count;
-	//	vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, NULL);
-	//	VkQueueFamilyProperties* queues = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * count);
-	//	vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, queues);
-	//	for (uint32_t i = 0; i < count; i++)
-	//		if (queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-	//		{
-	//			g_QueueFamily = i;
-	//			break;
-	//		}
-	//	free(queues);
-	//	IM_ASSERT(g_QueueFamily != (uint32_t)-1);
-	//}
-
 	g_QueueFamily = pDeviceContext->GetGraphicsQueueIndex();
 
-	//// Create Logical Device (with 1 queue)
-	//{
-	//	int device_extension_count = 1;
-	//	const char* device_extensions[] = {"VK_KHR_swapchain", "VK_LAYER_KHRONOS_validation"};
-	//	const float queue_priority[] = {1.0f};
-	//	VkDeviceQueueCreateInfo queue_info[1] = {};
-	//	queue_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	//	queue_info[0].queueFamilyIndex = g_QueueFamily;
-	//	queue_info[0].queueCount = 1;
-	//	queue_info[0].pQueuePriorities = queue_priority;
-	//	VkDeviceCreateInfo create_info = {};
-	//	create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	//	create_info.queueCreateInfoCount = sizeof(queue_info) / sizeof(queue_info[0]);
-	//	create_info.pQueueCreateInfos = queue_info;
-	//	create_info.enabledExtensionCount = device_extension_count;
-	//	create_info.ppEnabledExtensionNames = device_extensions;
-	//	err = vkCreateDevice(g_PhysicalDevice, &create_info, g_Allocator, &g_Device);
-	//	check_vk_result(err);
-	//	vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
-	//}
-
+	// We require a logical device with 1 queue.
 	g_Device = pDeviceContext->GetLogicalDevice();
 	vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
 
-	// Create Descriptor Pool
+	// Create descriptor pool. These values are much larger than we have for general use, so it can have it's own private descriptor pool.
+	VkDescriptorPoolSize pool_sizes[] =
 	{
-		VkDescriptorPoolSize pool_sizes[] =
-		{
-			{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
-			{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
-			{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
-			{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
-			{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
-			{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
-			{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
-			{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
-			{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
-			{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
-			{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
-		};
-		VkDescriptorPoolCreateInfo pool_info = {};
-		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-		pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
-		pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
-		pool_info.pPoolSizes = pool_sizes;
-		err = vkCreateDescriptorPool(g_Device, &pool_info, g_Allocator, &g_DescriptorPool);
-		check_vk_result(err);
-	}
+		{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+		{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+		{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
+	};
+	VkDescriptorPoolCreateInfo pool_info = {};
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
+	pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+	pool_info.pPoolSizes = pool_sizes;
+	err = vkCreateDescriptorPool(g_Device, &pool_info, g_Allocator, &g_DescriptorPool);
+	check_vk_result(err);
 }
 
 
@@ -396,6 +298,7 @@ static void CleanupVulkan()
 	vkDestroyDebugReportCallbackEXT(g_Instance, g_DebugReport, g_Allocator);
 #endif // IMGUI_VULKAN_DEBUG_REPORT
 
+	// NOTE: Now under our control, no need to clean up here.
 	//vkDestroyDevice(g_Device, g_Allocator);
 	//vkDestroyInstance(g_Instance, g_Allocator);
 }
@@ -411,6 +314,7 @@ int main()
 	bool showDemoWindow = true;
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 	VkDescriptorPool imGuiDescriptorPool {VK_NULL_HANDLE};
+	VkResult err {VK_SUCCESS};
 
 	try
 	{
@@ -436,16 +340,10 @@ int main()
 			printf("GLFW: Vulkan Not Supported\n");
 			return 1;
 		}
-		//uint32_t extensions_count = 0;
-		//const char** extensions = glfwGetRequiredInstanceExtensions(&extensions_count);
-		//SetupVulkan(extensions, extensions_count);
 		SetupVulkan(pDeviceContext);
 
 		// Create Window Surface
-		VkSurfaceKHR surface;
-		//VkResult err = glfwCreateWindowSurface(g_Instance, window, g_Allocator, &surface);
-		VkResult err = glfwCreateWindowSurface(g_Instance, window, g_Allocator, &surface);
-		check_vk_result(err);
+		VkSurfaceKHR surface = pDeviceContext->GetSurface();
 
 		// Create Framebuffers
 		int w, h;
@@ -466,7 +364,6 @@ int main()
 		VkRenderPass imGuiRenderPass {VK_NULL_HANDLE};
 
 		//ImGuiCreateRenderPass(pDeviceContext, pSwapchain, imGuiRenderPass);
-		//ImGuiCreateDescriptorPool(pDeviceContext, imGuiDescriptorPool);
 
 		// Setup Platform/Renderer bindings
 		ImGui_ImplGlfw_InitForVulkan(window, true);
@@ -484,52 +381,8 @@ int main()
 		init_info.CheckVkResultFn = check_vk_result;
 		ImGui_ImplVulkan_Init(&init_info, wd->RenderPass);
 
-		// Load Fonts
-		// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-		// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-		// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-		// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-		// - Read 'docs/FONTS.md' for more instructions and details.
-		// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-		//io.Fonts->AddFontDefault();
-		//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-		//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-		//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-		//io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
-		//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-		//IM_ASSERT(font != NULL);
-
-		// Upload Fonts
-		{
-			// Use any command queue
-			VkCommandPool command_pool = wd->Frames[wd->FrameIndex].CommandPool;
-			VkCommandBuffer command_buffer = wd->Frames[wd->FrameIndex].CommandBuffer;
-
-			err = vkResetCommandPool(g_Device, command_pool, 0);
-			check_vk_result(err);
-			VkCommandBufferBeginInfo begin_info = {};
-			begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			begin_info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-			err = vkBeginCommandBuffer(command_buffer, &begin_info);
-			check_vk_result(err);
-
-			ImGui_ImplVulkan_CreateFontsTexture(command_buffer);
-
-			VkSubmitInfo end_info = {};
-			end_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			end_info.commandBufferCount = 1;
-			end_info.pCommandBuffers = &command_buffer;
-			err = vkEndCommandBuffer(command_buffer);
-			check_vk_result(err);
-			err = vkQueueSubmit(g_Queue, 1, &end_info, VK_NULL_HANDLE);
-			check_vk_result(err);
-
-			err = vkDeviceWaitIdle(g_Device);
-			check_vk_result(err);
-			ImGui_ImplVulkan_DestroyFontUploadObjects();
-		}
-
-		//ImGuiInitFontTexture(g_Device);
+		// Load the font list into the font texture.
+		ImGuiInitFontTexture(pDeviceContext);
 
 		int width;
 		int height;
