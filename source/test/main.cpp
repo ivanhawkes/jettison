@@ -245,109 +245,84 @@ static void FramePresent(/*std::shared_ptr<Jettison::Renderer::DeviceContext> pD
 }
 
 
-static void SetupVulkan(const char** extensions, uint32_t extensions_count)
+static void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext /*const char** extensions, uint32_t extensions_count*/)
 {
 	VkResult err;
 
 	// Create Vulkan Instance
-	{
-		VkInstanceCreateInfo create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		create_info.enabledExtensionCount = extensions_count;
-		create_info.ppEnabledExtensionNames = extensions;
+	//{
+	//	VkInstanceCreateInfo create_info = {};
+	//	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	//	create_info.enabledExtensionCount = extensions_count;
+	//	create_info.ppEnabledExtensionNames = extensions;
+	//	err = vkCreateInstance(&create_info, g_Allocator, &g_Instance);
+	//	check_vk_result(err);
+	//	IM_UNUSED(g_DebugReport);
+	//}
 
-#ifdef IMGUI_VULKAN_DEBUG_REPORT
-		// Enabling multiple validation layers grouped as LunarG standard validation
-		const char* layers[] = {"VK_LAYER_LUNARG_standard_validation"};
-		create_info.enabledLayerCount = 1;
-		create_info.ppEnabledLayerNames = layers;
+	g_Instance = pDeviceContext->GetInstance();
 
-		// Enable debug report extension (we need additional storage, so we duplicate the user array to add our new extension to it)
-		const char** extensions_ext = (const char**)malloc(sizeof(const char*) * (extensions_count + 1));
-		memcpy(extensions_ext, extensions, extensions_count * sizeof(const char*));
-		extensions_ext[extensions_count] = "VK_EXT_debug_report";
-		create_info.enabledExtensionCount = extensions_count + 1;
-		create_info.ppEnabledExtensionNames = extensions_ext;
+	//// Select GPU
+	//{
+	//	uint32_t gpu_count;
+	//	err = vkEnumeratePhysicalDevices(g_Instance, &gpu_count, NULL);
+	//	check_vk_result(err);
+	//	IM_ASSERT(gpu_count > 0);
 
-		// Create Vulkan Instance
-		err = vkCreateInstance(&create_info, g_Allocator, &g_Instance);
-		check_vk_result(err);
-		free(extensions_ext);
+	//	VkPhysicalDevice* gpus = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * gpu_count);
+	//	err = vkEnumeratePhysicalDevices(g_Instance, &gpu_count, gpus);
+	//	check_vk_result(err);
 
-		// Get the function pointer (required for any extensions)
-		auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(g_Instance, "vkCreateDebugReportCallbackEXT");
-		IM_ASSERT(vkCreateDebugReportCallbackEXT != NULL);
+	//	// If a number >1 of GPUs got reported, you should find the best fit GPU for your purpose
+	//	// e.g. VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU if available, or with the greatest memory available, etc.
+	//	// for sake of simplicity we'll just take the first one, assuming it has a graphics queue family.
+	//	g_PhysicalDevice = gpus[0];
+	//	free(gpus);
+	//}
 
-		// Setup the debug report callback
-		VkDebugReportCallbackCreateInfoEXT debug_report_ci = {};
-		debug_report_ci.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-		debug_report_ci.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
-		debug_report_ci.pfnCallback = debug_report;
-		debug_report_ci.pUserData = NULL;
-		err = vkCreateDebugReportCallbackEXT(g_Instance, &debug_report_ci, g_Allocator, &g_DebugReport);
-		check_vk_result(err);
-#else
-		// Create Vulkan Instance without any debug feature
-		err = vkCreateInstance(&create_info, g_Allocator, &g_Instance);
-		check_vk_result(err);
-		IM_UNUSED(g_DebugReport);
-#endif
-	}
+	g_PhysicalDevice = pDeviceContext->GetPhysicalDevice();
 
-	// Select GPU
-	{
-		uint32_t gpu_count;
-		err = vkEnumeratePhysicalDevices(g_Instance, &gpu_count, NULL);
-		check_vk_result(err);
-		IM_ASSERT(gpu_count > 0);
+	//// Select graphics queue family
+	//{
+	//	uint32_t count;
+	//	vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, NULL);
+	//	VkQueueFamilyProperties* queues = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * count);
+	//	vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, queues);
+	//	for (uint32_t i = 0; i < count; i++)
+	//		if (queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+	//		{
+	//			g_QueueFamily = i;
+	//			break;
+	//		}
+	//	free(queues);
+	//	IM_ASSERT(g_QueueFamily != (uint32_t)-1);
+	//}
 
-		VkPhysicalDevice* gpus = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * gpu_count);
-		err = vkEnumeratePhysicalDevices(g_Instance, &gpu_count, gpus);
-		check_vk_result(err);
+	g_QueueFamily = pDeviceContext->GetGraphicsQueueIndex();
 
-		// If a number >1 of GPUs got reported, you should find the best fit GPU for your purpose
-		// e.g. VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU if available, or with the greatest memory available, etc.
-		// for sake of simplicity we'll just take the first one, assuming it has a graphics queue family.
-		g_PhysicalDevice = gpus[0];
-		free(gpus);
-	}
+	//// Create Logical Device (with 1 queue)
+	//{
+	//	int device_extension_count = 1;
+	//	const char* device_extensions[] = {"VK_KHR_swapchain", "VK_LAYER_KHRONOS_validation"};
+	//	const float queue_priority[] = {1.0f};
+	//	VkDeviceQueueCreateInfo queue_info[1] = {};
+	//	queue_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	//	queue_info[0].queueFamilyIndex = g_QueueFamily;
+	//	queue_info[0].queueCount = 1;
+	//	queue_info[0].pQueuePriorities = queue_priority;
+	//	VkDeviceCreateInfo create_info = {};
+	//	create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	//	create_info.queueCreateInfoCount = sizeof(queue_info) / sizeof(queue_info[0]);
+	//	create_info.pQueueCreateInfos = queue_info;
+	//	create_info.enabledExtensionCount = device_extension_count;
+	//	create_info.ppEnabledExtensionNames = device_extensions;
+	//	err = vkCreateDevice(g_PhysicalDevice, &create_info, g_Allocator, &g_Device);
+	//	check_vk_result(err);
+	//	vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
+	//}
 
-	// Select graphics queue family
-	{
-		uint32_t count;
-		vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, NULL);
-		VkQueueFamilyProperties* queues = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * count);
-		vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, queues);
-		for (uint32_t i = 0; i < count; i++)
-			if (queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-			{
-				g_QueueFamily = i;
-				break;
-			}
-		free(queues);
-		IM_ASSERT(g_QueueFamily != (uint32_t)-1);
-	}
-
-	// Create Logical Device (with 1 queue)
-	{
-		int device_extension_count = 1;
-		const char* device_extensions[] = {"VK_KHR_swapchain"};
-		const float queue_priority[] = {1.0f};
-		VkDeviceQueueCreateInfo queue_info[1] = {};
-		queue_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queue_info[0].queueFamilyIndex = g_QueueFamily;
-		queue_info[0].queueCount = 1;
-		queue_info[0].pQueuePriorities = queue_priority;
-		VkDeviceCreateInfo create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		create_info.queueCreateInfoCount = sizeof(queue_info) / sizeof(queue_info[0]);
-		create_info.pQueueCreateInfos = queue_info;
-		create_info.enabledExtensionCount = device_extension_count;
-		create_info.ppEnabledExtensionNames = device_extensions;
-		err = vkCreateDevice(g_PhysicalDevice, &create_info, g_Allocator, &g_Device);
-		check_vk_result(err);
-		vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
-	}
+	g_Device = pDeviceContext->GetLogicalDevice();
+	vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
 
 	// Create Descriptor Pool
 	{
@@ -421,8 +396,8 @@ static void CleanupVulkan()
 	vkDestroyDebugReportCallbackEXT(g_Instance, g_DebugReport, g_Allocator);
 #endif // IMGUI_VULKAN_DEBUG_REPORT
 
-	vkDestroyDevice(g_Device, g_Allocator);
-	vkDestroyInstance(g_Instance, g_Allocator);
+	//vkDestroyDevice(g_Device, g_Allocator);
+	//vkDestroyInstance(g_Instance, g_Allocator);
 }
 
 static void CleanupVulkanWindow()
@@ -440,14 +415,14 @@ int main()
 	try
 	{
 		std::shared_ptr<Jettison::Renderer::Window> pWindow = std::make_shared<Jettison::Renderer::Window>();
-		//std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext = std::make_shared<Jettison::Renderer::DeviceContext>(pWindow);
+		std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext = std::make_shared<Jettison::Renderer::DeviceContext>(pWindow);
 		//std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain = std::make_shared<Jettison::Renderer::Swapchain>(pDeviceContext);
 		//std::shared_ptr<Jettison::Renderer::Pipeline> pPipeline = std::make_shared<Jettison::Renderer::Pipeline>(pDeviceContext, pSwapchain);
 		//std::shared_ptr<Jettison::Renderer::Renderer> pRenderer = std::make_shared<Jettison::Renderer::Renderer>(pDeviceContext, pWindow, pSwapchain, pPipeline);
 
 		pWindow->Init();
 		GLFWwindow* window = pWindow->GetGLFWWindow();
-		//pDeviceContext->Init();
+		pDeviceContext->Init();
 		//pSwapchain->Init();
 		//pPipeline->Init();
 		//pRenderer->Init();
@@ -461,9 +436,10 @@ int main()
 			printf("GLFW: Vulkan Not Supported\n");
 			return 1;
 		}
-		uint32_t extensions_count = 0;
-		const char** extensions = glfwGetRequiredInstanceExtensions(&extensions_count);
-		SetupVulkan(extensions, extensions_count);
+		//uint32_t extensions_count = 0;
+		//const char** extensions = glfwGetRequiredInstanceExtensions(&extensions_count);
+		//SetupVulkan(extensions, extensions_count);
+		SetupVulkan(pDeviceContext);
 
 		// Create Window Surface
 		VkSurfaceKHR surface;
@@ -623,7 +599,7 @@ int main()
 		}
 
 		// Cleanup
-		//pDeviceContext->WaitIdle();
+		//err = pDeviceContext->WaitIdle();
 		err = vkDeviceWaitIdle(g_Device);
 		check_vk_result(err);
 
@@ -639,7 +615,7 @@ int main()
 		//pRenderer->Destroy();
 		//pPipeline->Destroy();
 		//pSwapchain->Destroy();
-		//pDeviceContext->Destroy();
+		pDeviceContext->Destroy();
 		pWindow->Destroy();
 
 	}

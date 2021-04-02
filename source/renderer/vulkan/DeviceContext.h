@@ -47,7 +47,7 @@ public:
 
 	void Destroy();
 
-	void WaitIdle() { vkDeviceWaitIdle(m_logicalDevice); }
+	VkResult WaitIdle() { return vkDeviceWaitIdle(m_logicalDevice); }
 
 	// Wait for the device to return sensible values for the window size after a resize event.
 	void WaitOnWindowResized() const;
