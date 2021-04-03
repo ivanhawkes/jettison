@@ -16,19 +16,19 @@
 #include <imgui/imgui_impl_vulkan.h>
 
 
-static VkAllocationCallbacks* g_Allocator = NULL;
 static VkInstance               g_Instance = VK_NULL_HANDLE;
 static VkPhysicalDevice         g_PhysicalDevice = VK_NULL_HANDLE;
 static VkDevice                 g_Device = VK_NULL_HANDLE;
 static uint32_t                 g_QueueFamily = (uint32_t)-1;
 static VkQueue                  g_Queue = VK_NULL_HANDLE;
-static VkDebugReportCallbackEXT g_DebugReport = VK_NULL_HANDLE;
-static VkPipelineCache          g_PipelineCache = VK_NULL_HANDLE;
 static VkDescriptorPool         g_DescriptorPool = VK_NULL_HANDLE;
 
 static ImGui_ImplVulkanH_Window g_MainWindowData {};
 static int                      g_MinImageCount {2};
 static bool                     g_SwapChainRebuild {false};
+
+static VkAllocationCallbacks* g_Allocator = NULL;
+static VkPipelineCache          g_PipelineCache = VK_NULL_HANDLE;
 
 
 static void check_vk_result(VkResult err)
@@ -254,7 +254,8 @@ static void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDevi
 }
 
 
-static void SetupVulkanWindow(/*std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,*/
+static void SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext,
+							  /*std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,*/
 	ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, int width, int height)
 {
 	wd->Surface = surface;
@@ -268,19 +269,18 @@ static void SetupVulkanWindow(/*std::shared_ptr<Jettison::Renderer::DeviceContex
 		exit(-1);
 	}
 
-	// Select Surface Format
-	const VkFormat requestSurfaceImageFormat[] = {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM};
+	// Select surface format.
+	const std::vector<VkFormat> requestSurfaceImageFormat {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM};
 	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(g_PhysicalDevice, wd->Surface, requestSurfaceImageFormat, (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat), requestSurfaceColorSpace);
+	wd->SurfaceFormat = pDeviceContext->FindSupportedSurfaceFormat(requestSurfaceImageFormat, requestSurfaceColorSpace);
 
-	// Select Present Mode
+	// Select present mode.
 #ifdef IMGUI_UNLIMITED_FRAME_RATE
-	VkPresentModeKHR present_modes[] = {VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR};
+	std::vector<VkPresentModeKHR> presentModeCandiates {VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR};
 #else
-	VkPresentModeKHR present_modes[] = {VK_PRESENT_MODE_FIFO_KHR};
+	std::vector<VkPresentModeKHR> presentModeCandiates {VK_PRESENT_MODE_FIFO_KHR};
 #endif
-	wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(g_PhysicalDevice, wd->Surface, &present_modes[0], IM_ARRAYSIZE(present_modes));
-	//printf("[vulkan] Selected PresentMode = %d\n", wd->PresentMode);
+	wd->PresentMode = pDeviceContext->FindSupportedPresentMode(presentModeCandiates);
 
 	// Create SwapChain, RenderPass, Framebuffer, etc.
 	IM_ASSERT(g_MinImageCount >= 2);
@@ -291,17 +291,8 @@ static void SetupVulkanWindow(/*std::shared_ptr<Jettison::Renderer::DeviceContex
 static void CleanupVulkan()
 {
 	vkDestroyDescriptorPool(g_Device, g_DescriptorPool, g_Allocator);
-
-#ifdef IMGUI_VULKAN_DEBUG_REPORT
-	// Remove the debug report callback
-	auto vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(g_Instance, "vkDestroyDebugReportCallbackEXT");
-	vkDestroyDebugReportCallbackEXT(g_Instance, g_DebugReport, g_Allocator);
-#endif // IMGUI_VULKAN_DEBUG_REPORT
-
-	// NOTE: Now under our control, no need to clean up here.
-	//vkDestroyDevice(g_Device, g_Allocator);
-	//vkDestroyInstance(g_Instance, g_Allocator);
 }
+
 
 static void CleanupVulkanWindow()
 {
@@ -349,7 +340,7 @@ int main()
 		int w, h;
 		glfwGetFramebufferSize(window, &w, &h);
 		ImGui_ImplVulkanH_Window* wd = &g_MainWindowData;
-		SetupVulkanWindow(wd, surface, w, h);
+		SetupVulkanWindow(pDeviceContext, wd, surface, w, h);
 
 		// Setup Dear ImGui context
 		IMGUI_CHECKVERSION();

@@ -48,11 +48,11 @@ void DeviceContext::Destroy()
 {
 	vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
 	vkDestroyDevice(m_logicalDevice, nullptr);
-	
+
 	// TODO: HACK: ImGui is actually destroying the surface in ImGui_ImplVulkanH_DestroyWindow. It doesn't make the surface so it shouldn't do that.
 	// It's easiest to just comment out our duplicate for now.
 	//vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-	
+
 	vkDestroyInstance(m_instance, nullptr);
 }
 
@@ -406,6 +406,51 @@ VkFormat DeviceContext::FindSupportedFormat(const std::vector<VkFormat>& candida
 }
 
 
+VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(const std::vector<VkFormat>& candidates, VkColorSpaceKHR requestedColourSpace)
+{
+	// Discover what surface formats are available.
+	uint32_t availableCount;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableCount, NULL);
+	std::vector<VkSurfaceFormatKHR> availableFormats;
+	availableFormats.resize(availableCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableCount, availableFormats.data());
+
+	// First check if only one format, VK_FORMAT_UNDEFINED, is available, which would imply that any format is available.
+	if (availableCount == 1)
+	{
+		if (availableFormats[0].format == VK_FORMAT_UNDEFINED)
+		{
+			VkSurfaceFormatKHR ret;
+			ret.format = candidates[0];
+			ret.colorSpace = requestedColourSpace;
+			return ret;
+		}
+		else
+		{
+			// No point in searching another format.
+			return availableFormats[0];
+		}
+	}
+	else
+	{
+		// Request several formats, the first found will be used
+		for (int requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
+		{
+			for (uint32_t availableIndex = 0; availableIndex < availableCount; availableIndex++)
+			{
+				if (availableFormats[availableIndex].format == candidates[requestIndex] && availableFormats[availableIndex].colorSpace == requestedColourSpace)
+					return availableFormats[availableIndex];
+			}
+		}
+
+		// If none of the requested image formats could be found, use the first available
+		return availableFormats[0];
+	}
+
+	throw std::runtime_error("failed to find supported format");
+}
+
+
 VkFormat DeviceContext::FindDepthFormat()
 {
 	return FindSupportedFormat(
@@ -413,6 +458,29 @@ VkFormat DeviceContext::FindDepthFormat()
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 	);
+}
+
+
+VkPresentModeKHR DeviceContext::FindSupportedPresentMode(const std::vector<VkPresentModeKHR> candidates)
+{
+	// Discover what surface present modes are available.
+	uint32_t availableCount = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availableCount, NULL);
+	std::vector<VkPresentModeKHR> availableModes;
+	availableModes.resize((int)availableCount);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availableCount, availableModes.data());
+
+	for (int requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
+	{
+		for (uint32_t availableIndex = 0; availableIndex < availableCount; availableIndex++)
+		{
+			if (candidates[requestIndex] == availableModes[availableIndex])
+				return candidates[requestIndex];
+		}
+	}
+
+	// This mode is always available.
+	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
 

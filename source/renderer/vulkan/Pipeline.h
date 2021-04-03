@@ -92,6 +92,8 @@ template<> struct hash<Jettison::Renderer::Vertex>
 
 namespace Jettison::Renderer
 {
+
+// TODO: Move the model class and it's lackeys back out to it's own class.
 class Model
 {
 public:

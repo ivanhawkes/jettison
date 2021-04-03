@@ -102,6 +102,11 @@ public:
 
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice m_device);
 
+	VkSurfaceFormatKHR FindSupportedSurfaceFormat(const std::vector<VkFormat>& candidates, VkColorSpaceKHR requestedColourSpace);
+
+	// Request a certain mode and confirm that it is available. If not use VK_PRESENT_MODE_FIFO_KHR which is mandatory
+	VkPresentModeKHR FindSupportedPresentMode(const std::vector <VkPresentModeKHR> candidates);
+
 private:
 	bool CheckValidationLayerSupport();
 
