@@ -647,8 +647,8 @@ int main()
 		//pPipeline->Init();
 		//pRenderer->Init();
 
-		//Jettison::Renderer::Model model {pDeviceContext};
-		//model.LoadModel();
+		Jettison::Renderer::Model model {pDeviceContext};
+		model.LoadModel();
 
 		// Setup Vulkan
 		if (!glfwVulkanSupported())
@@ -740,7 +740,7 @@ int main()
 			if (showDemoWindow)
 				ImGui::ShowDemoWindow(&showDemoWindow);
 
-			//// HACK: We need to add the model command buffers to the pipeline.
+			// HACK: We need to add the model command buffers to the pipeline.
 			//pPipeline->CreateCommandBuffers(model);
 
 			//pRenderer->DrawFrame();
@@ -781,7 +781,7 @@ int main()
 		CleanupVulkanWindow();
 		CleanupVulkan();
 
-		//model.Destroy();
+		model.Destroy();
 		//pRenderer->Destroy();
 		//pPipeline->Destroy();
 		pSwapchain->Destroy();

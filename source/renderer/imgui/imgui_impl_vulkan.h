@@ -135,7 +135,7 @@ struct ImGui_ImplVulkanH_Window
     {
         memset(this, 0, sizeof(*this));
         PresentMode = VK_PRESENT_MODE_MAX_ENUM_KHR;
-        ClearEnable = true;
+        ClearEnable = false;
     }
 };
 
