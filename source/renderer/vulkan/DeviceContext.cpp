@@ -48,11 +48,7 @@ void DeviceContext::Destroy()
 {
 	vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
 	vkDestroyDevice(m_logicalDevice, nullptr);
-
-	// TODO: HACK: ImGui is actually destroying the surface in ImGui_ImplVulkanH_DestroyWindow. It doesn't make the surface so it shouldn't do that.
-	// It's easiest to just comment out our duplicate for now.
-	//vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-
+	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	vkDestroyInstance(m_instance, nullptr);
 }
 

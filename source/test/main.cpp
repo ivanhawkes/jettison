@@ -195,7 +195,7 @@ static void FramePresent(/*std::shared_ptr<Jettison::Renderer::DeviceContext> pD
 
 
 void ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext,
-	/*std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,*/
+	std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,
 	VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd, uint32_t queue_family, const VkAllocationCallbacks* allocator)
 {
 	IM_ASSERT(physical_device != VK_NULL_HANDLE && device != VK_NULL_HANDLE);
@@ -267,7 +267,9 @@ void ImGuiDestroyFrame(VkDevice device, ImGui_ImplVulkanH_Frame* fd, const VkAll
 	fd->CommandPool = VK_NULL_HANDLE;
 
 	vkDestroyImageView(device, fd->BackbufferView, allocator);
+	fd->BackbufferView = VK_NULL_HANDLE;
 	vkDestroyFramebuffer(device, fd->Framebuffer, allocator);
+	fd->Framebuffer = VK_NULL_HANDLE;
 }
 
 
@@ -299,10 +301,8 @@ void ImGuiDestroyWindow(VkInstance instance, VkDevice device, ImGui_ImplVulkanH_
 
 	vkDestroyPipeline(device, wd->Pipeline, allocator);
 	vkDestroyRenderPass(device, wd->RenderPass, allocator);
-	vkDestroySwapchainKHR(device, wd->Swapchain, allocator);
-	vkDestroySurfaceKHR(instance, wd->Surface, allocator);
 
-	*wd = ImGui_ImplVulkanH_Window();
+	*wd = ImGui_ImplVulkanH_Window {};
 }
 
 
@@ -330,17 +330,21 @@ void ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRe
 
 // Also destroy old swap chain and in-flight frames data, if any.
 void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext,
-	/*std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,*/
+	std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,
 	VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd, 
 	const VkAllocationCallbacks* allocator, int w, int h, uint32_t min_image_count)
 {
 	VkResult err;
 	
-	VkSwapchainKHR old_swapchain = wd->Swapchain;
-	wd->Swapchain = nullptr;
+	//VkSwapchainKHR old_swapchain = wd->Swapchain;
+	//wd->Swapchain = nullptr;
 	
 	err = vkDeviceWaitIdle(device);
 	check_vk_result(err);
+
+
+	// TODO: *** Figure out why the screen doesn't update after a resize - is it the extents again?
+
 
 	// We don't use ImGuiDestroyWindow() because we want to preserve the old swapchain to create the new one.
 	// Destroy old Framebuffer
@@ -365,48 +369,48 @@ void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContex
 
 	// Create Swapchain
 	{
-		VkSwapchainCreateInfoKHR info {};
-		info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		info.surface = wd->Surface;
-		info.minImageCount = min_image_count;
-		info.imageFormat = wd->SurfaceFormat.format;
-		info.imageColorSpace = wd->SurfaceFormat.colorSpace;
-		info.imageArrayLayers = 1;
-		info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;           // Assume that graphics family == present family
-		info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		info.presentMode = wd->PresentMode;
-		info.clipped = VK_TRUE;
-		info.oldSwapchain = old_swapchain;
-		
-		VkSurfaceCapabilitiesKHR cap;
-		err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, wd->Surface, &cap);
-		check_vk_result(err);
-		
-		if (info.minImageCount < cap.minImageCount)
-			info.minImageCount = cap.minImageCount;
-		else if (cap.maxImageCount != 0 && info.minImageCount > cap.maxImageCount)
-			info.minImageCount = cap.maxImageCount;
+		//VkSwapchainCreateInfoKHR info {};
+		//info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		//info.surface = wd->Surface;
+		//info.minImageCount = min_image_count;
+		//info.imageFormat = wd->SurfaceFormat.format;
+		//info.imageColorSpace = wd->SurfaceFormat.colorSpace;
+		//info.imageArrayLayers = 1;
+		//info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		//info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;           // Assume that graphics family == present family
+		//info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		//info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		//info.presentMode = wd->PresentMode;
+		//info.clipped = VK_TRUE;
+		//info.oldSwapchain = old_swapchain;
+		//
+		//VkSurfaceCapabilitiesKHR cap;
+		//err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, wd->Surface, &cap);
+		//check_vk_result(err);
+		//
+		//if (info.minImageCount < cap.minImageCount)
+		//	info.minImageCount = cap.minImageCount;
+		//else if (cap.maxImageCount != 0 && info.minImageCount > cap.maxImageCount)
+		//	info.minImageCount = cap.maxImageCount;
 
-		if (cap.currentExtent.width == 0xffffffff)
-		{
-			info.imageExtent.width = wd->Width = w;
-			info.imageExtent.height = wd->Height = h;
-		}
-		else
-		{
-			info.imageExtent.width = wd->Width = cap.currentExtent.width;
-			info.imageExtent.height = wd->Height = cap.currentExtent.height;
-		}
-		
-		err = vkCreateSwapchainKHR(device, &info, allocator, &wd->Swapchain);
-		check_vk_result(err);
+		//if (cap.currentExtent.width == 0xffffffff)
+		//{
+		//	info.imageExtent.width = wd->Width = w;
+		//	info.imageExtent.height = wd->Height = h;
+		//}
+		//else
+		//{
+		//	info.imageExtent.width = wd->Width = cap.currentExtent.width;
+		//	info.imageExtent.height = wd->Height = cap.currentExtent.height;
+		//}
+		//
+		//err = vkCreateSwapchainKHR(device, &info, allocator, &wd->Swapchain);
+		//check_vk_result(err);
 
-		//wd->Swapchain = pSwapchain->GetVkSwapchainHandle();
-		//wd->ImageCount = pSwapchain->GetImageCount();
-		//wd->Height = pSwapchain->GetExtents().height;
-		//wd->Width = pSwapchain->GetExtents().width;
+		wd->Swapchain = pSwapchain->GetVkSwapchainHandle();
+		wd->ImageCount = pSwapchain->GetImageCount();
+		wd->Height = pSwapchain->GetExtents().height;
+		wd->Width = pSwapchain->GetExtents().width;
 
 		err = vkGetSwapchainImagesKHR(device, wd->Swapchain, &wd->ImageCount, nullptr);
 		check_vk_result(err);
@@ -424,7 +428,6 @@ void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContex
 		//vkGetSwapchainImagesKHR(pDeviceContext->GetLogicalDevice(), pSwapchain->GetVkSwapchainHandle(), pSwapchain->GetImageCountAddress(), nullptr);
 		//vkGetSwapchainImagesKHR(pDeviceContext->GetLogicalDevice(), pSwapchain->GetVkSwapchainHandle(), pSwapchain->GetImageCountAddress(), swapchainImages.data());
 
-
 		IM_ASSERT(wd->Frames == nullptr);
 		wd->Frames = (ImGui_ImplVulkanH_Frame*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_Frame) * wd->ImageCount);
 		wd->FrameSemaphores = (ImGui_ImplVulkanH_FrameSemaphores*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_FrameSemaphores) * wd->ImageCount);
@@ -432,57 +435,12 @@ void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContex
 		memset(wd->FrameSemaphores, 0, sizeof(wd->FrameSemaphores[0]) * wd->ImageCount);
 		for (uint32_t i = 0; i < wd->ImageCount; i++)
 			wd->Frames[i].Backbuffer = backbuffers[i];
-
-		//IM_ASSERT(wd->Frames == nullptr);
-		//wd->Frames = (ImGui_ImplVulkanH_Frame*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_Frame) * wd->ImageCount);
-		//wd->FrameSemaphores = (ImGui_ImplVulkanH_FrameSemaphores*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_FrameSemaphores) * wd->ImageCount);
-		//memset(wd->Frames, 0, sizeof(wd->Frames[0]) * wd->ImageCount);
-		//memset(wd->FrameSemaphores, 0, sizeof(wd->FrameSemaphores[0]) * wd->ImageCount);
-		//for (uint32_t i = 0; i < wd->ImageCount; i++)
-		//	wd->Frames[i].Backbuffer = swapchainImages[i];
-
-
-
-
-		//VkImageViewCreateInfo info {};
-		//info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		//info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		//info.format = wd->SurfaceFormat.format;
-		//info.components.r = VK_COMPONENT_SWIZZLE_R;
-		//info.components.g = VK_COMPONENT_SWIZZLE_G;
-		//info.components.b = VK_COMPONENT_SWIZZLE_B;
-		//info.components.a = VK_COMPONENT_SWIZZLE_A;
-
-		//VkImageSubresourceRange image_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-		//info.subresourceRange = image_range;
-
-		//for (uint32_t i = 0; i < wd->ImageCount; i++)
-		//{
-		//	ImGui_ImplVulkanH_Frame* fd = &wd->Frames[i];
-		//	info.image = fd->Backbuffer;
-		//	err = vkCreateImageView(device, &info, allocator, &fd->BackbufferView);
-		//	check_vk_result(err);
-		//}
-
-		//std::vector<VkImageView> swapchainImageViews {};
-		//swapchainImageViews.resize(imageCount);
-
-		//for (size_t i = 0; i < pSwapchain->GetImageCount(); ++i)
-		//{
-		//	//swapchainImageViews[i] = pDeviceContext->CreateImageView(swapchainImages[i], pSwapchain->GetImageFormat(), VK_IMAGE_ASPECT_COLOR_BIT, 1);
-
-		//	ImGui_ImplVulkanH_Frame* fd = &wd->Frames[i];
-		//	info.image = fd->Backbuffer;
-		//	err = vkCreateImageView(device, &info, allocator, &fd->BackbufferView);
-		//	check_vk_result(err);
-		//}
-
 	}
 
-	if (old_swapchain)
-	{
-		vkDestroySwapchainKHR(device, old_swapchain, allocator);
-	}
+	//if (old_swapchain)
+	//{
+	//	vkDestroySwapchainKHR(device, old_swapchain, allocator);
+	//}
 
 	// Create the Render Pass
 	{
@@ -574,12 +532,12 @@ void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContex
 
 // Create or resize window
 void ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext,
-	/*std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,*/
+	std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,
 	VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, 
 	ImGui_ImplVulkanH_Window* wd, uint32_t queue_family, const VkAllocationCallbacks* allocator, int width, int height, uint32_t min_image_count)
 {
-	ImGuiCreateWindowSwapChain(pDeviceContext, /*pSwapchain,*/ physical_device, device, wd, allocator, width, height, min_image_count);
-	ImGuiCreateWindowCommandBuffers(pDeviceContext, /*pSwapchain,*/ physical_device, device, wd, queue_family, allocator);
+	ImGuiCreateWindowSwapChain(pDeviceContext, pSwapchain, physical_device, device, wd, allocator, width, height, min_image_count);
+	ImGuiCreateWindowCommandBuffers(pDeviceContext, pSwapchain, physical_device, device, wd, queue_family, allocator);
 }
 
 
@@ -622,7 +580,7 @@ static void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDevi
 
 
 static void SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext,
-	/*std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,*/
+	std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,
 	ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, int width, int height)
 {
 	wd->Surface = surface;
@@ -651,7 +609,7 @@ static void SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext>
 
 	// Create SwapChain, RenderPass, Framebuffer, etc.
 	IM_ASSERT(g_MinImageCount >= 2);
-	ImGuiCreateOrResizeWindow(pDeviceContext, /*pSwapchain,*/ g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
+	ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
 }
 
 
@@ -678,14 +636,14 @@ int main()
 	{
 		std::shared_ptr<Jettison::Renderer::Window> pWindow = std::make_shared<Jettison::Renderer::Window>();
 		std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext = std::make_shared<Jettison::Renderer::DeviceContext>(pWindow);
-		//std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain = std::make_shared<Jettison::Renderer::Swapchain>(pDeviceContext);
+		std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain = std::make_shared<Jettison::Renderer::Swapchain>(pDeviceContext);
 		//std::shared_ptr<Jettison::Renderer::Pipeline> pPipeline = std::make_shared<Jettison::Renderer::Pipeline>(pDeviceContext, pSwapchain);
 		//std::shared_ptr<Jettison::Renderer::Renderer> pRenderer = std::make_shared<Jettison::Renderer::Renderer>(pDeviceContext, pWindow, pSwapchain, pPipeline);
 
 		pWindow->Init();
 		GLFWwindow* window = pWindow->GetGLFWWindow();
 		pDeviceContext->Init();
-		//pSwapchain->Init();
+		pSwapchain->Init();
 		//pPipeline->Init();
 		//pRenderer->Init();
 
@@ -707,7 +665,7 @@ int main()
 		int w, h;
 		glfwGetFramebufferSize(window, &w, &h);
 		ImGui_ImplVulkanH_Window* wd = &g_MainWindowData;
-		SetupVulkanWindow(pDeviceContext, /*pSwapchain,*/ wd, surface, w, h);
+		SetupVulkanWindow(pDeviceContext, pSwapchain, wd, surface, w, h);
 
 		// Setup Dear ImGui context
 		IMGUI_CHECKVERSION();
@@ -743,8 +701,11 @@ int main()
 		glfwGetFramebufferSize(pWindow->GetGLFWWindow(), &width, &height);
 		if (width > 0 && height > 0)
 		{
+			// The swapchain must be recreated for the next extents to apply along with any other possible changes.
+			pSwapchain->Recreate();
+
 			ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
-			ImGuiCreateOrResizeWindow(pDeviceContext, /*pSwapchain,*/ g_Instance, g_PhysicalDevice, g_Device, &g_MainWindowData, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
+			ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
 			g_MainWindowData.FrameIndex = 0;
 			g_SwapChainRebuild = false;
 		}
@@ -760,8 +721,11 @@ int main()
 				glfwGetFramebufferSize(window, &width, &height);
 				if (width > 0 && height > 0)
 				{
+					// The swapchain must be recreated for the next extents to apply along with any other possible changes.
+					pSwapchain->Recreate();
+
 					ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
-					ImGuiCreateOrResizeWindow(pDeviceContext, /*pSwapchain,*/ g_Instance, g_PhysicalDevice, g_Device, &g_MainWindowData, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
+					ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
 					g_MainWindowData.FrameIndex = 0;
 					g_SwapChainRebuild = false;
 				}
@@ -821,7 +785,7 @@ int main()
 		//model.Destroy();
 		//pRenderer->Destroy();
 		//pPipeline->Destroy();
-		//pSwapchain->Destroy();
+		pSwapchain->Destroy();
 		pDeviceContext->Destroy();
 		pWindow->Destroy();
 
