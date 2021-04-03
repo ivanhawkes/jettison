@@ -729,7 +729,6 @@ int main()
 					g_MainWindowData.FrameIndex = 0;
 					g_SwapChainRebuild = false;
 				}
-
 			}
 
 			// Start the Dear ImGui frame

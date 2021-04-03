@@ -321,10 +321,13 @@ void DeviceContext::CreateLogicalDevice()
 
 void DeviceContext::WaitOnWindowResized() const
 {
-	int width = 0;
-	int height = 0;
+	int width {0};
+	int height {0};
 
+	// Initially test the size...
 	glfwGetFramebufferSize(m_pWindow->GetGLFWWindow(), &width, &height);
+	
+	// Idle here until it's got a sensible values.
 	while (width == 0 || height == 0)
 	{
 		glfwGetFramebufferSize(m_pWindow->GetGLFWWindow(), &width, &height);

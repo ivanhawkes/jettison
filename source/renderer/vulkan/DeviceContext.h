@@ -132,18 +132,32 @@ private:
 
 	void CreateCommandPool();
 
+	// A pointer to the window with which this device context is associated.
 	std::shared_ptr<Window> m_pWindow {nullptr};
 
+	// An instance of Vulkan.
 	VkInstance m_instance {VK_NULL_HANDLE};
+	
+	// A physical device / GPU with Vulkan support.
 	VkPhysicalDevice m_physicalDevice {VK_NULL_HANDLE};
+	
+	// A logical device which allows you to access the physical device through a defined API.
 	VkDevice m_logicalDevice {VK_NULL_HANDLE};
 
+	// A Vulkan handle to the graphics queue.
+	VkQueue m_graphicsQueue {VK_NULL_HANDLE};
+
+	// The numeric index of the graphics queue.
+	uint32_t m_graphicsQueueIndex {std::numeric_limits<uint32_t>::max()};
+
+	// A Vulkan handle to the presentation queue.
+	VkQueue m_presentQueue {VK_NULL_HANDLE};
+
+	// The numeric index of the presentation queue.
+	uint32_t m_presentQueueIndex {std::numeric_limits<uint32_t>::max()};
+	
 	VkSampleCountFlagBits m_msaaSamples {VK_SAMPLE_COUNT_1_BIT};
 
-	VkQueue m_graphicsQueue {VK_NULL_HANDLE};
-	uint32_t m_graphicsQueueIndex {std::numeric_limits<uint32_t>::max()};
-	VkQueue m_presentQueue {VK_NULL_HANDLE};
-	uint32_t m_presentQueueIndex {std::numeric_limits<uint32_t>::max()};
 	VkSurfaceKHR m_surface {VK_NULL_HANDLE};
 
 	VkCommandPool m_commandPool {VK_NULL_HANDLE};
