@@ -21,6 +21,12 @@ target_sources(Renderer PUBLIC
     )
 
 target_sources(Renderer PUBLIC
+    # Our implementations.
+    imgui/ImGuiRenderer.cpp
+    imgui/ImGuiRenderer.h
+    imgui/ImGuiPipeline.cpp
+    imgui/ImGuiPipeline.h
+
     # ImGUI's implementations.
     imgui/imgui_impl_glfw.cpp
     imgui/imgui_impl_glfw.h

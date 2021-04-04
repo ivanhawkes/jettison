@@ -2,10 +2,10 @@
 
 #include <vulkan/vulkan.h>
 
-#include "DeviceContext.h"
-
 // STD.
 #include <string>
+
+#include "DeviceContext.h"
 
 
 namespace Jettison::Renderer
