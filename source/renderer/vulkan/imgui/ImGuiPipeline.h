@@ -82,7 +82,13 @@ private:
 
 	void Create();
 
-	void CreateFontTexture();
+	void CreateRenderPass();
+
+	void CreateFramebuffers();
+
+	void CreateImageViews();
+
+	void CreateFontsTexture();
 
 	void CreateDescriptorPool();
 

@@ -42,7 +42,7 @@ void ImGuiPipeline::Init()
 	ImGui_ImplVulkan_Init(&init_info, m_windowData.RenderPass);
 
 	// Load the font list into the font texture.
-	CreateFontTexture();
+	CreateFontsTexture();
 }
 
 
@@ -61,7 +61,105 @@ void ImGuiPipeline::Create()
 }
 
 
-void ImGuiPipeline::CreateFontTexture()
+void ImGuiPipeline::CreateRenderPass()
+{
+	VkResult err;
+
+	VkAttachmentDescription attachmentDescription {};
+	attachmentDescription.format = m_windowData.SurfaceFormat.format;
+	attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+	attachmentDescription.loadOp = m_windowData.ClearEnable ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VkAttachmentReference attachmentReference {};
+	attachmentReference.attachment = 0;
+	attachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpassDescription {};
+	subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpassDescription.colorAttachmentCount = 1;
+	subpassDescription.pColorAttachments = &attachmentReference;
+
+	VkSubpassDependency subpassDependency {};
+	subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	subpassDependency.dstSubpass = 0;
+	subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	subpassDependency.srcAccessMask = 0;
+	subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	VkRenderPassCreateInfo renderPassInfo {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &attachmentDescription;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpassDescription;
+	renderPassInfo.dependencyCount = 1;
+	renderPassInfo.pDependencies = &subpassDependency;
+	err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, kPAllocator, &m_windowData.RenderPass);
+	check_vk_result(err);
+
+	// We do not create a pipeline by default as this is also used by examples' main.cpp,
+	// but secondary viewport in multi-viewport mode may want to create one with:
+	//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), kPAllocator, VK_NULL_HANDLE, m_windowData.RenderPass, VK_SAMPLE_COUNT_1_BIT, &m_windowData.Pipeline, g_Subpass);
+}
+
+
+void ImGuiPipeline::CreateFramebuffers()
+{
+	VkResult err;
+
+	VkImageView attachment[1];
+	VkFramebufferCreateInfo info {};
+	info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	info.renderPass = m_windowData.RenderPass;
+	info.attachmentCount = 1;
+	info.pAttachments = attachment;
+	info.width = m_windowData.Width;
+	info.height = m_windowData.Height;
+	info.layers = 1;
+
+	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
+	{
+		ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
+		attachment[0] = fd->BackbufferView;
+		err = vkCreateFramebuffer(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->Framebuffer);
+		check_vk_result(err);
+	}
+}
+
+
+void ImGuiPipeline::CreateImageViews()
+{
+	VkResult err;
+
+	VkImageViewCreateInfo info {};
+	info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	info.format = m_windowData.SurfaceFormat.format;
+	info.components.r = VK_COMPONENT_SWIZZLE_R;
+	info.components.g = VK_COMPONENT_SWIZZLE_G;
+	info.components.b = VK_COMPONENT_SWIZZLE_B;
+	info.components.a = VK_COMPONENT_SWIZZLE_A;
+	
+	VkImageSubresourceRange image_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+	info.subresourceRange = image_range;
+	
+	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
+	{
+		ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
+		info.image = fd->Backbuffer;
+		err = vkCreateImageView(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->BackbufferView);
+		check_vk_result(err);
+	}
+}
+
+
+void ImGuiPipeline::CreateFontsTexture()
 {
 	ImGuiIO& io = ImGui::GetIO();
 
@@ -222,7 +320,7 @@ void ImGuiPipeline::Present()
 		info.swapchainCount = 1;
 		info.pSwapchains = &m_windowData.Swapchain;
 		info.pImageIndices = &m_windowData.FrameIndex;
-		
+
 		VkResult err = vkQueuePresentKHR(g_Queue, &info);
 		if (err == VK_ERROR_OUT_OF_DATE_KHR)
 		{
@@ -230,7 +328,9 @@ void ImGuiPipeline::Present()
 			return;
 		}
 		check_vk_result(err);
-		m_windowData.SemaphoreIndex = (m_windowData.SemaphoreIndex + 1) % m_windowData.ImageCount; // Now we can use the next set of semaphores
+		
+		// Now we can use the next set of semaphores.
+		m_windowData.SemaphoreIndex = (m_windowData.SemaphoreIndex + 1) % m_windowData.ImageCount;
 	}
 }
 
@@ -254,12 +354,14 @@ void ImGuiPipeline::DestroyFrame(ImGui_ImplVulkanH_Frame* fd)
 	vkDestroyFence(m_pDeviceContext->GetLogicalDevice(), fd->Fence, kPAllocator);
 	vkFreeCommandBuffers(m_pDeviceContext->GetLogicalDevice(), fd->CommandPool, 1, &fd->CommandBuffer);
 	vkDestroyCommandPool(m_pDeviceContext->GetLogicalDevice(), fd->CommandPool, kPAllocator);
+
 	fd->Fence = VK_NULL_HANDLE;
 	fd->CommandBuffer = VK_NULL_HANDLE;
 	fd->CommandPool = VK_NULL_HANDLE;
 
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), fd->BackbufferView, kPAllocator);
 	fd->BackbufferView = VK_NULL_HANDLE;
+
 	vkDestroyFramebuffer(m_pDeviceContext->GetLogicalDevice(), fd->Framebuffer, kPAllocator);
 	fd->Framebuffer = VK_NULL_HANDLE;
 }
@@ -269,6 +371,7 @@ void ImGuiPipeline::DestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores* fs
 {
 	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->ImageAcquiredSemaphore, kPAllocator);
 	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->RenderCompleteSemaphore, kPAllocator);
+
 	fsd->ImageAcquiredSemaphore = fsd->RenderCompleteSemaphore = VK_NULL_HANDLE;
 }
 
@@ -314,6 +417,7 @@ void ImGuiPipeline::DestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuf
 {
 	for (uint32_t n = 0; n < buffers->Count; n++)
 		DestroyFrameRenderBuffers(&buffers->FrameRenderBuffers[n]);
+
 	IM_FREE(buffers->FrameRenderBuffers);
 	buffers->FrameRenderBuffers = nullptr;
 	buffers->Index = 0;
@@ -325,16 +429,10 @@ void ImGuiPipeline::CreateWindowSwapChain()
 {
 	VkResult err;
 
-	//VkSwapchainKHR old_swapchain = m_windowData.Swapchain;
-	//m_windowData.Swapchain = nullptr;
-
 	err = vkDeviceWaitIdle(m_pDeviceContext->GetLogicalDevice());
 	check_vk_result(err);
 
-
-	// TODO: *** Figure out why the screen doesn't update after a resize - is it the extents again?
-
-
+	// TODO: Out of date. Work out how I want to handle this in line with how the other pipeline is doing it.
 	// We don't use DestroyWindow() because we want to preserve the old swapchain to create the new one.
 	// Destroy old Framebuffer
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
@@ -342,13 +440,16 @@ void ImGuiPipeline::CreateWindowSwapChain()
 		DestroyFrame(&m_windowData.Frames[i]);
 		DestroyFrameSemaphores(&m_windowData.FrameSemaphores[i]);
 	}
+
 	IM_FREE(m_windowData.Frames);
 	IM_FREE(m_windowData.FrameSemaphores);
 	m_windowData.Frames = nullptr;
 	m_windowData.FrameSemaphores = nullptr;
 	m_windowData.ImageCount = 0;
+
 	if (m_windowData.RenderPass)
 		vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_windowData.RenderPass, kPAllocator);
+
 	if (m_windowData.Pipeline)
 		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_windowData.Pipeline, kPAllocator);
 
@@ -384,91 +485,11 @@ void ImGuiPipeline::CreateWindowSwapChain()
 			m_windowData.Frames[i].Backbuffer = backbuffers[i];
 	}
 
-	// Create the Render Pass
-	{
-		VkAttachmentDescription attachmentDescription {};
-		attachmentDescription.format = m_windowData.SurfaceFormat.format;
-		attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		attachmentDescription.loadOp = m_windowData.ClearEnable ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	CreateRenderPass();
 
-		VkAttachmentReference attachmentReference {};
-		attachmentReference.attachment = 0;
-		attachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	CreateImageViews();
 
-		VkSubpassDescription subpassDescription {};
-		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &attachmentReference;
-
-		VkSubpassDependency subpassDependency {};
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		subpassDependency.dstSubpass = 0;
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-		VkRenderPassCreateInfo renderPassInfo {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = 1;
-		renderPassInfo.pAttachments = &attachmentDescription;
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pSubpasses = &subpassDescription;
-		renderPassInfo.dependencyCount = 1;
-		renderPassInfo.pDependencies = &subpassDependency;
-		err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, kPAllocator, &m_windowData.RenderPass);
-		check_vk_result(err);
-
-		// We do not create a pipeline by default as this is also used by examples' main.cpp,
-		// but secondary viewport in multi-viewport mode may want to create one with:
-		//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), kPAllocator, VK_NULL_HANDLE, m_windowData.RenderPass, VK_SAMPLE_COUNT_1_BIT, &m_windowData.Pipeline, g_Subpass);
-	}
-
-	// Create The Image Views
-	{
-		VkImageViewCreateInfo info {};
-		info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		info.format = m_windowData.SurfaceFormat.format;
-		info.components.r = VK_COMPONENT_SWIZZLE_R;
-		info.components.g = VK_COMPONENT_SWIZZLE_G;
-		info.components.b = VK_COMPONENT_SWIZZLE_B;
-		info.components.a = VK_COMPONENT_SWIZZLE_A;
-		VkImageSubresourceRange image_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-		info.subresourceRange = image_range;
-		for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
-		{
-			ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
-			info.image = fd->Backbuffer;
-			err = vkCreateImageView(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->BackbufferView);
-			check_vk_result(err);
-		}
-	}
-
-	// Create Framebuffer
-	{
-		VkImageView attachment[1];
-		VkFramebufferCreateInfo info {};
-		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		info.renderPass = m_windowData.RenderPass;
-		info.attachmentCount = 1;
-		info.pAttachments = attachment;
-		info.width = m_windowData.Width;
-		info.height = m_windowData.Height;
-		info.layers = 1;
-		for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
-		{
-			ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
-			attachment[0] = fd->BackbufferView;
-			err = vkCreateFramebuffer(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->Framebuffer);
-			check_vk_result(err);
-		}
-	}
+	CreateFramebuffers();
 }
 
 
