@@ -21,7 +21,6 @@ using namespace Jettison::Renderer;
 int Loop()
 {
 	bool showDemoWindow = true;
-	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 	VkResult err {VK_SUCCESS};
 
 	try
@@ -31,7 +30,7 @@ int Loop()
 		std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain = std::make_shared<Jettison::Renderer::Swapchain>(pDeviceContext);
 		//std::shared_ptr<Jettison::Renderer::Pipeline> pPipeline = std::make_shared<Jettison::Renderer::Pipeline>(pDeviceContext, pSwapchain);
 		//std::shared_ptr<Jettison::Renderer::Renderer> pRenderer = std::make_shared<Jettison::Renderer::Renderer>(pDeviceContext, pWindow, pSwapchain, pPipeline);
-		
+
 		std::shared_ptr<Jettison::Renderer::ImGuiPipeline> pImGuiPipeline = std::make_shared<Jettison::Renderer::ImGuiPipeline>(pDeviceContext, pSwapchain);
 
 		pWindow->Init();
@@ -43,45 +42,10 @@ int Loop()
 		Jettison::Renderer::Model model {pDeviceContext};
 		model.LoadModel();
 
-		// TODO: Ease out of using this crutch.
-		ImGui_ImplVulkanH_Window* wd = &g_windowData;
-
 		pImGuiPipeline->Init();
 
-		// Setup Vulkan
-		SetupVulkan(pDeviceContext);
-
-		// Create Framebuffers
-		SetupVulkanWindow(pDeviceContext, pSwapchain, wd);
-
-		// Setup Dear ImGui context
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		ImGuiIO& io = ImGui::GetIO(); (void)io;
-		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-		// Setup Dear ImGui style
-		ImGui::StyleColorsDark();
-
-		// Setup Platform/Renderer bindings
-		ImGui_ImplGlfw_InitForVulkan(pDeviceContext->GetWindow()->GetGLFWWindow(), true);
-		ImGui_ImplVulkan_InitInfo init_info {};
-		init_info.Instance = pDeviceContext->GetInstance();
-		init_info.PhysicalDevice = pDeviceContext->GetPhysicalDevice();
-		init_info.Device = pDeviceContext->GetLogicalDevice();
-		init_info.QueueFamily = pDeviceContext->GetGraphicsQueueIndex();
-		init_info.Queue = g_Queue;
-		init_info.PipelineCache = g_PipelineCache;
-		init_info.DescriptorPool = g_DescriptorPool;
-		init_info.Allocator = g_Allocator;
-		init_info.MinImageCount = pSwapchain->GetImageCount();
-		init_info.ImageCount = wd->ImageCount;
-		init_info.CheckVkResultFn = check_vk_result;
-		ImGui_ImplVulkan_Init(&init_info, wd->RenderPass);
-
-		// Load the font list into the font texture.
-		ImGuiInitFontTexture(pDeviceContext);
+		// TODO: Ease out of using this crutch.
+		ImGui_ImplVulkanH_Window* wd = &pImGuiPipeline->g_windowData;
 
 		int width;
 		int height;
@@ -94,10 +58,10 @@ int Loop()
 			pImGuiPipeline->Recreate();
 
 			ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
-			ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, 
-				wd, pDeviceContext->GetGraphicsQueueIndex(), g_Allocator);
-			g_windowData.FrameIndex = 0;
-			g_SwapChainRebuild = false;
+			pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain,
+				wd, pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
+			pImGuiPipeline->g_windowData.FrameIndex = 0;
+			pImGuiPipeline->g_SwapChainRebuild = false;
 		}
 
 		while (!glfwWindowShouldClose(pWindow->GetGLFWWindow()))
@@ -105,7 +69,7 @@ int Loop()
 			glfwPollEvents();
 
 			// Resize swap chain?
-			if (g_SwapChainRebuild)
+			if (pImGuiPipeline->g_SwapChainRebuild)
 			{
 				int width, height;
 				glfwGetFramebufferSize(pDeviceContext->GetWindow()->GetGLFWWindow(), &width, &height);
@@ -117,10 +81,10 @@ int Loop()
 					pImGuiPipeline->Recreate();
 
 					ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
-					ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, 
-						wd, pDeviceContext->GetGraphicsQueueIndex(), g_Allocator);
-					g_windowData.FrameIndex = 0;
-					g_SwapChainRebuild = false;
+					pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain,
+						wd, pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
+					pImGuiPipeline->g_windowData.FrameIndex = 0;
+					pImGuiPipeline->g_SwapChainRebuild = false;
 				}
 			}
 
@@ -138,13 +102,7 @@ int Loop()
 
 			//pRenderer->DrawFrame();
 
-			// Rendering
-			ImGui::Render();
-			ImDrawData* main_draw_data = ImGui::GetDrawData();
-			const bool main_is_minimized = (main_draw_data->DisplaySize.x <= 0.0f || main_draw_data->DisplaySize.y <= 0.0f);
-			memcpy(&wd->ClearValue.color.float32[0], &clear_color, 4 * sizeof(float));
-			if (!main_is_minimized)
-				FrameRender(wd, main_draw_data);
+			pImGuiPipeline->FrameRender(wd);
 
 
 			// Update and Render additional Platform Windows
@@ -157,8 +115,7 @@ int Loop()
 			// Present Main Platform Window
 			//if (!main_is_minimized)
 			//	FramePresent(pDeviceContext, wd);
-			if (!main_is_minimized)
-				FramePresent(wd);
+			pImGuiPipeline->FramePresent(wd);
 		}
 
 		// Cleanup
@@ -170,11 +127,11 @@ int Loop()
 		ImGui_ImplGlfw_Shutdown();
 		ImGui::DestroyContext();
 
-		CleanupVulkanWindow();
-		CleanupVulkan();
+		pImGuiPipeline->CleanupVulkanWindow();
+		pImGuiPipeline->CleanupVulkan();
 
 		pImGuiPipeline->Destroy();
-		
+
 		model.Destroy();
 		//pRenderer->Destroy();
 		//pPipeline->Destroy();

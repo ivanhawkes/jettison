@@ -41,6 +41,10 @@ public:
 
 	inline VkFormat GetImageFormat() const { return m_imageFormat; }
 
+	inline bool IsMinimised() const { return m_extents.height <= 0 || m_extents.width <= 0; }
+
+	inline bool IsWindowSizeValid() const { return m_extents.height > 0 && m_extents.width > 0; }
+
 private:
 	void Create();
 
