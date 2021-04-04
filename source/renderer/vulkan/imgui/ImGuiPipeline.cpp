@@ -13,7 +13,7 @@ void ImGuiPipeline::Init()
 	SetupVulkan(m_pDeviceContext);
 
 	// Create Framebuffers
-	SetupVulkanWindow(m_pDeviceContext, m_pSwapchain, &g_windowData);
+	SetupVulkanWindow(m_pDeviceContext, m_pSwapchain);
 
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -37,9 +37,9 @@ void ImGuiPipeline::Init()
 	init_info.DescriptorPool = g_DescriptorPool;
 	init_info.Allocator = g_Allocator;
 	init_info.MinImageCount = m_pSwapchain->GetImageCount();
-	init_info.ImageCount = g_windowData.ImageCount;
+	init_info.ImageCount = m_windowData.ImageCount;
 	init_info.CheckVkResultFn = check_vk_result;
-	ImGui_ImplVulkan_Init(&init_info, g_windowData.RenderPass);
+	ImGui_ImplVulkan_Init(&init_info, m_windowData.RenderPass);
 
 	// Load the font list into the font texture.
 	ImGuiInitFontTexture(m_pDeviceContext);
@@ -108,11 +108,11 @@ void ImGuiPipeline::FrameRender()
 
 	if (!m_pSwapchain->IsMinimised())
 	{
-		memcpy(&g_windowData.ClearValue.color.float32[0], &kClearColour, 4 * sizeof(float));
+		memcpy(&m_windowData.ClearValue.color.float32[0], &kClearColour, 4 * sizeof(float));
 
-		VkSemaphore image_acquired_semaphore = g_windowData.FrameSemaphores[g_windowData.SemaphoreIndex].ImageAcquiredSemaphore;
-		VkSemaphore render_complete_semaphore = g_windowData.FrameSemaphores[g_windowData.SemaphoreIndex].RenderCompleteSemaphore;
-		err = vkAcquireNextImageKHR(m_pDeviceContext->GetLogicalDevice(), g_windowData.Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &g_windowData.FrameIndex);
+		VkSemaphore image_acquired_semaphore = m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].ImageAcquiredSemaphore;
+		VkSemaphore render_complete_semaphore = m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].RenderCompleteSemaphore;
+		err = vkAcquireNextImageKHR(m_pDeviceContext->GetLogicalDevice(), m_windowData.Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &m_windowData.FrameIndex);
 		if (err == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			g_SwapChainRebuild = true;
@@ -120,7 +120,7 @@ void ImGuiPipeline::FrameRender()
 		}
 		check_vk_result(err);
 
-		ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[g_windowData.FrameIndex];
+		ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[m_windowData.FrameIndex];
 		{
 			err = vkWaitForFences(m_pDeviceContext->GetLogicalDevice(), 1, &fd->Fence, VK_TRUE, UINT64_MAX);    // wait indefinitely instead of periodically checking
 			check_vk_result(err);
@@ -140,12 +140,12 @@ void ImGuiPipeline::FrameRender()
 		{
 			VkRenderPassBeginInfo info {};
 			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			info.renderPass = g_windowData.RenderPass;
+			info.renderPass = m_windowData.RenderPass;
 			info.framebuffer = fd->Framebuffer;
-			info.renderArea.extent.width = g_windowData.Width;
-			info.renderArea.extent.height = g_windowData.Height;
+			info.renderArea.extent.width = m_windowData.Width;
+			info.renderArea.extent.height = m_windowData.Height;
 			info.clearValueCount = 1;
-			info.pClearValues = &g_windowData.ClearValue;
+			info.pClearValues = &m_windowData.ClearValue;
 			vkCmdBeginRenderPass(fd->CommandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
 		}
 
@@ -182,14 +182,14 @@ void ImGuiPipeline::FramePresent()
 
 	if (!m_pSwapchain->IsMinimised())
 	{
-		VkSemaphore render_complete_semaphore = g_windowData.FrameSemaphores[g_windowData.SemaphoreIndex].RenderCompleteSemaphore;
+		VkSemaphore render_complete_semaphore = m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].RenderCompleteSemaphore;
 		VkPresentInfoKHR info {};
 		info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		info.waitSemaphoreCount = 1;
 		info.pWaitSemaphores = &render_complete_semaphore;
 		info.swapchainCount = 1;
-		info.pSwapchains = &g_windowData.Swapchain;
-		info.pImageIndices = &g_windowData.FrameIndex;
+		info.pSwapchains = &m_windowData.Swapchain;
+		info.pImageIndices = &m_windowData.FrameIndex;
 		
 		VkResult err = vkQueuePresentKHR(g_Queue, &info);
 		if (err == VK_ERROR_OUT_OF_DATE_KHR)
@@ -198,7 +198,7 @@ void ImGuiPipeline::FramePresent()
 			return;
 		}
 		check_vk_result(err);
-		g_windowData.SemaphoreIndex = (g_windowData.SemaphoreIndex + 1) % g_windowData.ImageCount; // Now we can use the next set of semaphores
+		m_windowData.SemaphoreIndex = (m_windowData.SemaphoreIndex + 1) % m_windowData.ImageCount; // Now we can use the next set of semaphores
 	}
 }
 
@@ -241,28 +241,29 @@ void ImGuiPipeline::ImGuiDestroyFrameSemaphores(VkDevice device, ImGui_ImplVulka
 }
 
 
-void ImGuiPipeline::ImGuiDestroyWindow(VkInstance instance, VkDevice device, ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::ImGuiDestroyWindow(VkInstance instance, VkDevice device, const VkAllocationCallbacks* allocator)
 {
-	// FIXME: We could wait on the Queue if we had the queue in g_windowData. (otherwise VulkanH functions can't use globals)
+	// FIXME: We could wait on the Queue if we had the queue in m_windowData. (otherwise VulkanH functions can't use globals)
 	vkDeviceWaitIdle(device);
 	//vkQueueWaitIdle(g_Queue);
 
-	for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
+	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGuiDestroyFrame(device, &g_windowData.Frames[i], allocator);
-		ImGuiDestroyFrameSemaphores(device, &g_windowData.FrameSemaphores[i], allocator);
+		ImGuiDestroyFrame(device, &m_windowData.Frames[i], allocator);
+		ImGuiDestroyFrameSemaphores(device, &m_windowData.FrameSemaphores[i], allocator);
 	}
 
-	IM_FREE(g_windowData.Frames);
-	IM_FREE(g_windowData.FrameSemaphores);
+	IM_FREE(m_windowData.Frames);
+	IM_FREE(m_windowData.FrameSemaphores);
 
-	g_windowData.Frames = nullptr;
-	g_windowData.FrameSemaphores = nullptr;
+	m_windowData.Frames = nullptr;
+	m_windowData.FrameSemaphores = nullptr;
 
-	vkDestroyPipeline(device, g_windowData.Pipeline, allocator);
-	vkDestroyRenderPass(device, g_windowData.RenderPass, allocator);
+	vkDestroyPipeline(device, m_windowData.Pipeline, allocator);
+	vkDestroyRenderPass(device, m_windowData.RenderPass, allocator);
 
-	*wd = ImGui_ImplVulkanH_Window {};
+	// Better clear that window data.
+	m_windowData = ImGui_ImplVulkanH_Window {};
 }
 
 
@@ -290,13 +291,12 @@ void ImGuiPipeline::ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplV
 
 void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext,
 	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	//ImGui_ImplVulkanH_Window* wd,
 	const VkAllocationCallbacks* allocator)
 {
 	VkResult err;
 
-	//VkSwapchainKHR old_swapchain = g_windowData.Swapchain;
-	//g_windowData.Swapchain = nullptr;
+	//VkSwapchainKHR old_swapchain = m_windowData.Swapchain;
+	//m_windowData.Swapchain = nullptr;
 
 	err = vkDeviceWaitIdle(m_pDeviceContext->GetLogicalDevice());
 	check_vk_result(err);
@@ -307,35 +307,35 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 
 	// We don't use ImGuiDestroyWindow() because we want to preserve the old swapchain to create the new one.
 	// Destroy old Framebuffer
-	for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
+	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGuiDestroyFrame(m_pDeviceContext->GetLogicalDevice(), &g_windowData.Frames[i], allocator);
-		ImGuiDestroyFrameSemaphores(m_pDeviceContext->GetLogicalDevice(), &g_windowData.FrameSemaphores[i], allocator);
+		ImGuiDestroyFrame(m_pDeviceContext->GetLogicalDevice(), &m_windowData.Frames[i], allocator);
+		ImGuiDestroyFrameSemaphores(m_pDeviceContext->GetLogicalDevice(), &m_windowData.FrameSemaphores[i], allocator);
 	}
-	IM_FREE(g_windowData.Frames);
-	IM_FREE(g_windowData.FrameSemaphores);
-	g_windowData.Frames = nullptr;
-	g_windowData.FrameSemaphores = nullptr;
-	g_windowData.ImageCount = 0;
-	if (g_windowData.RenderPass)
-		vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), g_windowData.RenderPass, allocator);
-	if (g_windowData.Pipeline)
-		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), g_windowData.Pipeline, allocator);
+	IM_FREE(m_windowData.Frames);
+	IM_FREE(m_windowData.FrameSemaphores);
+	m_windowData.Frames = nullptr;
+	m_windowData.FrameSemaphores = nullptr;
+	m_windowData.ImageCount = 0;
+	if (m_windowData.RenderPass)
+		vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_windowData.RenderPass, allocator);
+	if (m_windowData.Pipeline)
+		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_windowData.Pipeline, allocator);
 
 	// Create Swapchain
 	{
-		g_windowData.Swapchain = m_pSwapchain->GetVkSwapchainHandle();
-		g_windowData.ImageCount = m_pSwapchain->GetImageCount();
-		g_windowData.Height = m_pSwapchain->GetExtents().height;
-		g_windowData.Width = m_pSwapchain->GetExtents().width;
+		m_windowData.Swapchain = m_pSwapchain->GetVkSwapchainHandle();
+		m_windowData.ImageCount = m_pSwapchain->GetImageCount();
+		m_windowData.Height = m_pSwapchain->GetExtents().height;
+		m_windowData.Width = m_pSwapchain->GetExtents().width;
 
-		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), g_windowData.Swapchain, &g_windowData.ImageCount, nullptr);
+		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), m_windowData.Swapchain, &m_windowData.ImageCount, nullptr);
 		check_vk_result(err);
 
 		VkImage backbuffers[16] {};
-		IM_ASSERT(g_windowData.ImageCount >= m_pSwapchain->GetImageCount());
-		IM_ASSERT(g_windowData.ImageCount < IM_ARRAYSIZE(backbuffers));
-		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), g_windowData.Swapchain, &g_windowData.ImageCount, backbuffers);
+		IM_ASSERT(m_windowData.ImageCount >= m_pSwapchain->GetImageCount());
+		IM_ASSERT(m_windowData.ImageCount < IM_ARRAYSIZE(backbuffers));
+		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), m_windowData.Swapchain, &m_windowData.ImageCount, backbuffers);
 		check_vk_result(err);
 
 		//auto imageCount = m_pSwapchain->GetImageCount();
@@ -345,21 +345,21 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		//vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), m_pSwapchain->GetVkSwapchainHandle(), m_pSwapchain->GetImageCountAddress(), nullptr);
 		//vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), m_pSwapchain->GetVkSwapchainHandle(), m_pSwapchain->GetImageCountAddress(), swapchainImages.data());
 
-		IM_ASSERT(g_windowData.Frames == nullptr);
-		g_windowData.Frames = (ImGui_ImplVulkanH_Frame*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_Frame) * g_windowData.ImageCount);
-		g_windowData.FrameSemaphores = (ImGui_ImplVulkanH_FrameSemaphores*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_FrameSemaphores) * g_windowData.ImageCount);
-		memset(g_windowData.Frames, 0, sizeof(g_windowData.Frames[0]) * g_windowData.ImageCount);
-		memset(g_windowData.FrameSemaphores, 0, sizeof(g_windowData.FrameSemaphores[0]) * g_windowData.ImageCount);
-		for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
-			g_windowData.Frames[i].Backbuffer = backbuffers[i];
+		IM_ASSERT(m_windowData.Frames == nullptr);
+		m_windowData.Frames = (ImGui_ImplVulkanH_Frame*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_Frame) * m_windowData.ImageCount);
+		m_windowData.FrameSemaphores = (ImGui_ImplVulkanH_FrameSemaphores*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_FrameSemaphores) * m_windowData.ImageCount);
+		memset(m_windowData.Frames, 0, sizeof(m_windowData.Frames[0]) * m_windowData.ImageCount);
+		memset(m_windowData.FrameSemaphores, 0, sizeof(m_windowData.FrameSemaphores[0]) * m_windowData.ImageCount);
+		for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
+			m_windowData.Frames[i].Backbuffer = backbuffers[i];
 	}
 
 	// Create the Render Pass
 	{
 		VkAttachmentDescription attachmentDescription {};
-		attachmentDescription.format = g_windowData.SurfaceFormat.format;
+		attachmentDescription.format = m_windowData.SurfaceFormat.format;
 		attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		attachmentDescription.loadOp = g_windowData.ClearEnable ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachmentDescription.loadOp = m_windowData.ClearEnable ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -391,12 +391,12 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		renderPassInfo.pSubpasses = &subpassDescription;
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &subpassDependency;
-		err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, allocator, &g_windowData.RenderPass);
+		err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, allocator, &m_windowData.RenderPass);
 		check_vk_result(err);
 
 		// We do not create a pipeline by default as this is also used by examples' main.cpp,
 		// but secondary viewport in multi-viewport mode may want to create one with:
-		//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), allocator, VK_NULL_HANDLE, g_windowData.RenderPass, VK_SAMPLE_COUNT_1_BIT, &g_windowData.Pipeline, g_Subpass);
+		//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), allocator, VK_NULL_HANDLE, m_windowData.RenderPass, VK_SAMPLE_COUNT_1_BIT, &m_windowData.Pipeline, g_Subpass);
 	}
 
 	// Create The Image Views
@@ -404,16 +404,16 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		VkImageViewCreateInfo info {};
 		info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		info.format = g_windowData.SurfaceFormat.format;
+		info.format = m_windowData.SurfaceFormat.format;
 		info.components.r = VK_COMPONENT_SWIZZLE_R;
 		info.components.g = VK_COMPONENT_SWIZZLE_G;
 		info.components.b = VK_COMPONENT_SWIZZLE_B;
 		info.components.a = VK_COMPONENT_SWIZZLE_A;
 		VkImageSubresourceRange image_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 		info.subresourceRange = image_range;
-		for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
+		for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 		{
-			ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[i];
+			ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
 			info.image = fd->Backbuffer;
 			err = vkCreateImageView(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->BackbufferView);
 			check_vk_result(err);
@@ -425,15 +425,15 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		VkImageView attachment[1];
 		VkFramebufferCreateInfo info {};
 		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		info.renderPass = g_windowData.RenderPass;
+		info.renderPass = m_windowData.RenderPass;
 		info.attachmentCount = 1;
 		info.pAttachments = attachment;
-		info.width = g_windowData.Width;
-		info.height = g_windowData.Height;
+		info.width = m_windowData.Width;
+		info.height = m_windowData.Height;
 		info.layers = 1;
-		for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
+		for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 		{
-			ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[i];
+			ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
 			attachment[0] = fd->BackbufferView;
 			err = vkCreateFramebuffer(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->Framebuffer);
 			check_vk_result(err);
@@ -444,15 +444,14 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 
 void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext,
 	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	//ImGui_ImplVulkanH_Window* wd, 
 	const VkAllocationCallbacks* allocator)
 {
 	// Create Command Buffers
 	VkResult err;
-	for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
+	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[i];
-		ImGui_ImplVulkanH_FrameSemaphores* fsd = &g_windowData.FrameSemaphores[i];
+		ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
+		ImGui_ImplVulkanH_FrameSemaphores* fsd = &m_windowData.FrameSemaphores[i];
 
 		{
 			VkCommandPoolCreateInfo info {};
@@ -497,7 +496,7 @@ void ImGuiPipeline::ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer
 	ImGuiCreateWindowSwapChain(m_pDeviceContext, m_pSwapchain, allocator);
 	ImGuiCreateWindowCommandBuffers(m_pDeviceContext, m_pSwapchain, allocator);
 
-	g_windowData.FrameIndex = 0;
+	m_windowData.FrameIndex = 0;
 	g_SwapChainRebuild = false;
 }
 
@@ -538,14 +537,13 @@ void ImGuiPipeline::SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContex
 }
 
 
-void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	ImGui_ImplVulkanH_Window* wd)
+void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain)
 {
-	g_windowData.Surface = m_pDeviceContext->GetSurface();
+	m_windowData.Surface = m_pDeviceContext->GetSurface();
 
 	// Check for WSI support
 	VkBool32 isSupported;
-	vkGetPhysicalDeviceSurfaceSupportKHR(m_pDeviceContext->GetPhysicalDevice(), m_pDeviceContext->GetGraphicsQueueIndex(), g_windowData.Surface, &isSupported);
+	vkGetPhysicalDeviceSurfaceSupportKHR(m_pDeviceContext->GetPhysicalDevice(), m_pDeviceContext->GetGraphicsQueueIndex(), m_windowData.Surface, &isSupported);
 	if (isSupported != VK_TRUE)
 	{
 		throw std::runtime_error("No WSI support on physical device.");
@@ -554,7 +552,7 @@ void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::Device
 	// Select surface format.
 	const std::vector<VkFormat> requestSurfaceImageFormat {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM};
 	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	g_windowData.SurfaceFormat = m_pDeviceContext->FindSupportedSurfaceFormat(requestSurfaceImageFormat, requestSurfaceColorSpace);
+	m_windowData.SurfaceFormat = m_pDeviceContext->FindSupportedSurfaceFormat(requestSurfaceImageFormat, requestSurfaceColorSpace);
 
 	// Select present mode.
 #ifdef IMGUI_UNLIMITED_FRAME_RATE
@@ -562,7 +560,7 @@ void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::Device
 #else
 	std::vector<VkPresentModeKHR> presentModeCandiates {VK_PRESENT_MODE_FIFO_KHR};
 #endif
-	g_windowData.PresentMode = m_pDeviceContext->FindSupportedPresentMode(presentModeCandiates);
+	m_windowData.PresentMode = m_pDeviceContext->FindSupportedPresentMode(presentModeCandiates);
 
 	// Create SwapChain, RenderPass, Framebuffer, etc.
 	ImGuiCreateOrResizeWindow(m_pDeviceContext, m_pSwapchain,
@@ -579,6 +577,6 @@ void ImGuiPipeline::CleanupVulkan()
 
 void ImGuiPipeline::CleanupVulkanWindow()
 {
-	ImGuiDestroyWindow(m_pDeviceContext->GetInstance(), m_pDeviceContext->GetLogicalDevice(), &g_windowData, g_Allocator);
+	ImGuiDestroyWindow(m_pDeviceContext->GetInstance(), m_pDeviceContext->GetLogicalDevice(), g_Allocator);
 }
 }

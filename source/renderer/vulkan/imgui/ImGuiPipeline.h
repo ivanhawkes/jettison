@@ -63,7 +63,6 @@ public:
 	VkQueue                  g_Queue {VK_NULL_HANDLE};
 	VkDescriptorPool         g_DescriptorPool {VK_NULL_HANDLE};
 
-	ImGui_ImplVulkanH_Window g_windowData {};
 	bool                     g_SwapChainRebuild {false};
 
 	VkAllocationCallbacks* g_Allocator {nullptr};
@@ -92,28 +91,28 @@ private:
 
 	void ImGuiDestroyFrameSemaphores(VkDevice device, ImGui_ImplVulkanH_FrameSemaphores* fsd, const VkAllocationCallbacks* allocator);
 
-	void ImGuiDestroyWindow(VkInstance instance, VkDevice device, ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator);
+	void ImGuiDestroyWindow(VkInstance instance, VkDevice device, const VkAllocationCallbacks* allocator);
 
 	void ImGuiDestroyFrameRenderBuffers(VkDevice device, ImGui_ImplVulkanH_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
 
 	void ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
 
 	void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
-		//ImGui_ImplVulkanH_Window* wd, 
 		const VkAllocationCallbacks* allocator);
 
 	void ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
-		//ImGui_ImplVulkanH_Window* wd, 
 		const VkAllocationCallbacks* allocator);
 
 	void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext);
 
-	void SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, ImGui_ImplVulkanH_Window* wd);
+	void SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain);
 
 	// Vulkan device context.
 	std::shared_ptr<DeviceContext> m_pDeviceContext {nullptr};
 
 	// Swapchain.
 	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain {nullptr};
+
+	ImGui_ImplVulkanH_Window m_windowData {};
 };
 }
