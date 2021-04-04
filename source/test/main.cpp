@@ -1,9 +1,3 @@
-#include <vulkan/Renderer.h>
-#include <vulkan/Model.h>
-#include <vulkan/Pipeline.h>
-#include <vulkan/Swapchain.h>
-#include <vulkan/Window.h>
-
 // GLFW / Vulkan.
 #define GLFW_INCLUDE_VULKAN
 #include <../glfw/include/GLFW/glfw3.h>
@@ -11,9 +5,15 @@
 #include <iostream>
 #include <stdexcept>
 
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/imgui_impl_vulkan.h>
+#include <vulkan/Renderer.h>
+#include <vulkan/Model.h>
+#include <vulkan/Pipeline.h>
+#include <vulkan/Swapchain.h>
+#include <vulkan/Window.h>
+
+#include <vulkan/imgui/imgui.h>
+#include <vulkan/imgui/imgui_impl_glfw.h>
+#include <vulkan/imgui/imgui_impl_vulkan.h>
 
 
 static VkInstance               g_Instance = VK_NULL_HANDLE;
@@ -27,7 +27,7 @@ static ImGui_ImplVulkanH_Window g_MainWindowData {};
 static int                      g_MinImageCount {2};
 static bool                     g_SwapChainRebuild {false};
 
-static VkAllocationCallbacks* g_Allocator = nullptr;
+static VkAllocationCallbacks*	g_Allocator = {nullptr};
 static VkPipelineCache          g_PipelineCache = VK_NULL_HANDLE;
 
 
@@ -331,14 +331,14 @@ void ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRe
 // Also destroy old swap chain and in-flight frames data, if any.
 void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext,
 	std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,
-	VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd, 
+	VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd,
 	const VkAllocationCallbacks* allocator, int w, int h, uint32_t min_image_count)
 {
 	VkResult err;
-	
+
 	//VkSwapchainKHR old_swapchain = wd->Swapchain;
 	//wd->Swapchain = nullptr;
-	
+
 	err = vkDeviceWaitIdle(device);
 	check_vk_result(err);
 
@@ -414,7 +414,7 @@ void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContex
 
 		err = vkGetSwapchainImagesKHR(device, wd->Swapchain, &wd->ImageCount, nullptr);
 		check_vk_result(err);
-		
+
 		VkImage backbuffers[16] {};
 		IM_ASSERT(wd->ImageCount >= min_image_count);
 		IM_ASSERT(wd->ImageCount < IM_ARRAYSIZE(backbuffers));
@@ -533,7 +533,7 @@ void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContex
 // Create or resize window
 void ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext,
 	std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,
-	VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, 
+	VkInstance instance, VkPhysicalDevice physical_device, VkDevice device,
 	ImGui_ImplVulkanH_Window* wd, uint32_t queue_family, const VkAllocationCallbacks* allocator, int width, int height, uint32_t min_image_count)
 {
 	ImGuiCreateWindowSwapChain(pDeviceContext, pSwapchain, physical_device, device, wd, allocator, width, height, min_image_count);
@@ -703,6 +703,7 @@ int main()
 		{
 			// The swapchain must be recreated for the next extents to apply along with any other possible changes.
 			pSwapchain->Recreate();
+			//pPipeline->Recreate();
 
 			ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
 			ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
@@ -723,6 +724,7 @@ int main()
 				{
 					// The swapchain must be recreated for the next extents to apply along with any other possible changes.
 					pSwapchain->Recreate();
+					//pPipeline->Recreate();
 
 					ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
 					ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);

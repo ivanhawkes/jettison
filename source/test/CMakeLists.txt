@@ -18,7 +18,6 @@ find_package(Vulkan REQUIRED)
 target_link_libraries(test PRIVATE Vulkan::Vulkan)
 
 include_directories("${CMAKE_SOURCE_DIR}/source/external/entt/src")
-include_directories("${CMAKE_SOURCE_DIR}/source/external/imgui")
 
 # External projects.
 add_subdirectory("${CMAKE_SOURCE_DIR}/source/external" external)
