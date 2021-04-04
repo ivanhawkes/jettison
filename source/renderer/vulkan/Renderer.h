@@ -29,8 +29,9 @@ public:
 
 	void Destroy();
 
-	void DrawFrame();
+	void Render();
 
+	void Present();
 
 private:
 	void InitVulkan();

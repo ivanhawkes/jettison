@@ -67,7 +67,7 @@ void Renderer::CreateSyncObjects()
 }
 
 
-void Renderer::DrawFrame()
+void Renderer::Render()
 {
 	vkWaitForFences(m_pDeviceContext->GetLogicalDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -142,6 +142,12 @@ void Renderer::DrawFrame()
 	}
 
 	m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;
+}
+
+
+void Renderer::Present()
+{
+	// TODO: Split it out into Present() as well?
 }
 
 

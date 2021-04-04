@@ -91,11 +91,10 @@ int Loop()
 			// HACK: We need to add the model command buffers to the pipeline.
 			//pPipeline->CreateCommandBuffers(model);
 
-			//pRenderer->DrawFrame();
+			//pRenderer->Render();
+			pImGuiPipeline->Render();
 
-			pImGuiPipeline->FrameRender();
-
-
+			// TODO: Need to add this in when I switch to the viewports build of ImGui.
 			// Update and Render additional Platform Windows
 			//if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 			//{
@@ -104,7 +103,8 @@ int Loop()
 			//}
 
 			// Present Main Platform Window
-			pImGuiPipeline->FramePresent();
+			//pRenderer->Present();
+			pImGuiPipeline->Present();
 		}
 
 		// Cleanup

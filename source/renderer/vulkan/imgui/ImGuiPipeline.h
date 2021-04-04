@@ -68,15 +68,15 @@ public:
 	VkAllocationCallbacks* g_Allocator {nullptr};
 	VkPipelineCache          g_PipelineCache {VK_NULL_HANDLE};
 
-	void FrameRender();
-
-	void FramePresent();
-
 	void ImGuiCreateOrResizeWindow(uint32_t queue_family, const VkAllocationCallbacks* allocator);
 
 	void CleanupVulkan();
 
 	void CleanupVulkanWindow();
+
+	void Render();
+
+	void Present();
 
 private:
 
@@ -86,15 +86,15 @@ private:
 
 	int ImGuiGetMinImageCountFromPresentMode(VkPresentModeKHR present_mode);
 
-	void ImGuiDestroyFrame(VkDevice device, ImGui_ImplVulkanH_Frame* fd, const VkAllocationCallbacks* allocator);
+	void ImGuiDestroyFrame(ImGui_ImplVulkanH_Frame* fd, const VkAllocationCallbacks* allocator);
 
-	void ImGuiDestroyFrameSemaphores(VkDevice device, ImGui_ImplVulkanH_FrameSemaphores* fsd, const VkAllocationCallbacks* allocator);
+	void ImGuiDestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores* fsd, const VkAllocationCallbacks* allocator);
 
-	void ImGuiDestroyWindow(VkInstance instance, VkDevice device, const VkAllocationCallbacks* allocator);
+	void ImGuiDestroyWindow(const VkAllocationCallbacks* allocator);
 
-	void ImGuiDestroyFrameRenderBuffers(VkDevice device, ImGui_ImplVulkanH_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
+	void ImGuiDestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
 
-	void ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
+	void ImGuiDestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
 
 	void ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allocator);
 
