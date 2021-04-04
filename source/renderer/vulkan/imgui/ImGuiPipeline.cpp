@@ -35,14 +35,14 @@ void ImGuiPipeline::Init()
 	init_info.Queue = g_Queue;
 	init_info.PipelineCache = g_PipelineCache;
 	init_info.DescriptorPool = g_DescriptorPool;
-	init_info.Allocator = g_Allocator;
+	init_info.Allocator = kPAllocator;
 	init_info.MinImageCount = m_pSwapchain->GetImageCount();
 	init_info.ImageCount = m_windowData.ImageCount;
 	init_info.CheckVkResultFn = check_vk_result;
 	ImGui_ImplVulkan_Init(&init_info, m_windowData.RenderPass);
 
 	// Load the font list into the font texture.
-	ImGuiInitFontTexture();
+	CreateFontTexture();
 }
 
 
@@ -61,7 +61,7 @@ void ImGuiPipeline::Create()
 }
 
 
-void ImGuiPipeline::ImGuiInitFontTexture()
+void ImGuiPipeline::CreateFontTexture()
 {
 	ImGuiIO& io = ImGui::GetIO();
 
@@ -94,6 +94,37 @@ void ImGuiPipeline::ImGuiInitFontTexture()
 	VkCommandBuffer command_buffer = m_pDeviceContext->BeginSingleTimeCommands();
 	ImGui_ImplVulkan_CreateFontsTexture(command_buffer);
 	m_pDeviceContext->EndSingleTimeCommands(command_buffer);
+}
+
+
+void ImGuiPipeline::CreateDescriptorPool()
+{
+	VkResult err;
+
+	// Create descriptor pool. These values are much larger than we have for general use, so it can have it's own private descriptor pool.
+	VkDescriptorPoolSize pool_sizes[] =
+	{
+		{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+		{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+		{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
+	};
+
+	VkDescriptorPoolCreateInfo pool_info {};
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
+	pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+	pool_info.pPoolSizes = pool_sizes;
+	err = vkCreateDescriptorPool(m_pDeviceContext->GetLogicalDevice(), &pool_info, kPAllocator, &g_DescriptorPool);
+	check_vk_result(err);
 }
 
 
@@ -204,7 +235,7 @@ void ImGuiPipeline::Present()
 }
 
 
-int ImGuiPipeline::ImGuiGetMinImageCountFromPresentMode(VkPresentModeKHR present_mode)
+int ImGuiPipeline::GetMinImageCountFromPresentMode(VkPresentModeKHR present_mode)
 {
 	if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR)
 		return 3;
@@ -218,31 +249,31 @@ int ImGuiPipeline::ImGuiGetMinImageCountFromPresentMode(VkPresentModeKHR present
 }
 
 
-void ImGuiPipeline::ImGuiDestroyFrame(ImGui_ImplVulkanH_Frame* fd, const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::DestroyFrame(ImGui_ImplVulkanH_Frame* fd)
 {
-	vkDestroyFence(m_pDeviceContext->GetLogicalDevice(), fd->Fence, allocator);
+	vkDestroyFence(m_pDeviceContext->GetLogicalDevice(), fd->Fence, kPAllocator);
 	vkFreeCommandBuffers(m_pDeviceContext->GetLogicalDevice(), fd->CommandPool, 1, &fd->CommandBuffer);
-	vkDestroyCommandPool(m_pDeviceContext->GetLogicalDevice(), fd->CommandPool, allocator);
+	vkDestroyCommandPool(m_pDeviceContext->GetLogicalDevice(), fd->CommandPool, kPAllocator);
 	fd->Fence = VK_NULL_HANDLE;
 	fd->CommandBuffer = VK_NULL_HANDLE;
 	fd->CommandPool = VK_NULL_HANDLE;
 
-	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), fd->BackbufferView, allocator);
+	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), fd->BackbufferView, kPAllocator);
 	fd->BackbufferView = VK_NULL_HANDLE;
-	vkDestroyFramebuffer(m_pDeviceContext->GetLogicalDevice(), fd->Framebuffer, allocator);
+	vkDestroyFramebuffer(m_pDeviceContext->GetLogicalDevice(), fd->Framebuffer, kPAllocator);
 	fd->Framebuffer = VK_NULL_HANDLE;
 }
 
 
-void ImGuiPipeline::ImGuiDestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores* fsd, const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::DestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores* fsd)
 {
-	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->ImageAcquiredSemaphore, allocator);
-	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->RenderCompleteSemaphore, allocator);
+	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->ImageAcquiredSemaphore, kPAllocator);
+	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->RenderCompleteSemaphore, kPAllocator);
 	fsd->ImageAcquiredSemaphore = fsd->RenderCompleteSemaphore = VK_NULL_HANDLE;
 }
 
 
-void ImGuiPipeline::ImGuiDestroyWindow(const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::DestroyWindow()
 {
 	// FIXME: We could wait on the Queue if we had the queue in m_windowData. (otherwise VulkanH functions can't use globals)
 	vkDeviceWaitIdle(m_pDeviceContext->GetLogicalDevice());
@@ -250,8 +281,8 @@ void ImGuiPipeline::ImGuiDestroyWindow(const VkAllocationCallbacks* allocator)
 
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGuiDestroyFrame(&m_windowData.Frames[i], allocator);
-		ImGuiDestroyFrameSemaphores(&m_windowData.FrameSemaphores[i], allocator);
+		DestroyFrame(&m_windowData.Frames[i]);
+		DestroyFrameSemaphores(&m_windowData.FrameSemaphores[i]);
 	}
 
 	IM_FREE(m_windowData.Frames);
@@ -260,29 +291,29 @@ void ImGuiPipeline::ImGuiDestroyWindow(const VkAllocationCallbacks* allocator)
 	m_windowData.Frames = nullptr;
 	m_windowData.FrameSemaphores = nullptr;
 
-	vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_windowData.Pipeline, allocator);
-	vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_windowData.RenderPass, allocator);
+	vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_windowData.Pipeline, kPAllocator);
+	vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_windowData.RenderPass, kPAllocator);
 
 	// Better clear that window data.
 	m_windowData = ImGui_ImplVulkanH_Window {};
 }
 
 
-void ImGuiPipeline::ImGuiDestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::DestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers* buffers)
 {
-	if (buffers->VertexBuffer) { vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), buffers->VertexBuffer, allocator); buffers->VertexBuffer = VK_NULL_HANDLE; }
-	if (buffers->VertexBufferMemory) { vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), buffers->VertexBufferMemory, allocator); buffers->VertexBufferMemory = VK_NULL_HANDLE; }
-	if (buffers->IndexBuffer) { vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), buffers->IndexBuffer, allocator); buffers->IndexBuffer = VK_NULL_HANDLE; }
-	if (buffers->IndexBufferMemory) { vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), buffers->IndexBufferMemory, allocator); buffers->IndexBufferMemory = VK_NULL_HANDLE; }
+	if (buffers->VertexBuffer) { vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), buffers->VertexBuffer, kPAllocator); buffers->VertexBuffer = VK_NULL_HANDLE; }
+	if (buffers->VertexBufferMemory) { vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), buffers->VertexBufferMemory, kPAllocator); buffers->VertexBufferMemory = VK_NULL_HANDLE; }
+	if (buffers->IndexBuffer) { vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), buffers->IndexBuffer, kPAllocator); buffers->IndexBuffer = VK_NULL_HANDLE; }
+	if (buffers->IndexBufferMemory) { vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), buffers->IndexBufferMemory, kPAllocator); buffers->IndexBufferMemory = VK_NULL_HANDLE; }
 	buffers->VertexBufferSize = 0;
 	buffers->IndexBufferSize = 0;
 }
 
 
-void ImGuiPipeline::ImGuiDestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::DestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers* buffers)
 {
 	for (uint32_t n = 0; n < buffers->Count; n++)
-		ImGuiDestroyFrameRenderBuffers(&buffers->FrameRenderBuffers[n], allocator);
+		DestroyFrameRenderBuffers(&buffers->FrameRenderBuffers[n]);
 	IM_FREE(buffers->FrameRenderBuffers);
 	buffers->FrameRenderBuffers = nullptr;
 	buffers->Index = 0;
@@ -290,7 +321,7 @@ void ImGuiPipeline::ImGuiDestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRend
 }
 
 
-void ImGuiPipeline::ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::CreateWindowSwapChain()
 {
 	VkResult err;
 
@@ -304,12 +335,12 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allo
 	// TODO: *** Figure out why the screen doesn't update after a resize - is it the extents again?
 
 
-	// We don't use ImGuiDestroyWindow() because we want to preserve the old swapchain to create the new one.
+	// We don't use DestroyWindow() because we want to preserve the old swapchain to create the new one.
 	// Destroy old Framebuffer
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGuiDestroyFrame(&m_windowData.Frames[i], allocator);
-		ImGuiDestroyFrameSemaphores(&m_windowData.FrameSemaphores[i], allocator);
+		DestroyFrame(&m_windowData.Frames[i]);
+		DestroyFrameSemaphores(&m_windowData.FrameSemaphores[i]);
 	}
 	IM_FREE(m_windowData.Frames);
 	IM_FREE(m_windowData.FrameSemaphores);
@@ -317,9 +348,9 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allo
 	m_windowData.FrameSemaphores = nullptr;
 	m_windowData.ImageCount = 0;
 	if (m_windowData.RenderPass)
-		vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_windowData.RenderPass, allocator);
+		vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_windowData.RenderPass, kPAllocator);
 	if (m_windowData.Pipeline)
-		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_windowData.Pipeline, allocator);
+		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_windowData.Pipeline, kPAllocator);
 
 	// Create Swapchain
 	{
@@ -390,12 +421,12 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allo
 		renderPassInfo.pSubpasses = &subpassDescription;
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &subpassDependency;
-		err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, allocator, &m_windowData.RenderPass);
+		err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, kPAllocator, &m_windowData.RenderPass);
 		check_vk_result(err);
 
 		// We do not create a pipeline by default as this is also used by examples' main.cpp,
 		// but secondary viewport in multi-viewport mode may want to create one with:
-		//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), allocator, VK_NULL_HANDLE, m_windowData.RenderPass, VK_SAMPLE_COUNT_1_BIT, &m_windowData.Pipeline, g_Subpass);
+		//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), kPAllocator, VK_NULL_HANDLE, m_windowData.RenderPass, VK_SAMPLE_COUNT_1_BIT, &m_windowData.Pipeline, g_Subpass);
 	}
 
 	// Create The Image Views
@@ -414,7 +445,7 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allo
 		{
 			ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
 			info.image = fd->Backbuffer;
-			err = vkCreateImageView(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->BackbufferView);
+			err = vkCreateImageView(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->BackbufferView);
 			check_vk_result(err);
 		}
 	}
@@ -434,14 +465,14 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allo
 		{
 			ImGui_ImplVulkanH_Frame* fd = &m_windowData.Frames[i];
 			attachment[0] = fd->BackbufferView;
-			err = vkCreateFramebuffer(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->Framebuffer);
+			err = vkCreateFramebuffer(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->Framebuffer);
 			check_vk_result(err);
 		}
 	}
 }
 
 
-void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::CreateWindowCommandBuffers()
 {
 	// Create Command Buffers
 	VkResult err;
@@ -455,7 +486,7 @@ void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(const VkAllocationCallbacks*
 			info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 			info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 			info.queueFamilyIndex = m_pDeviceContext->GetGraphicsQueueIndex();
-			err = vkCreateCommandPool(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->CommandPool);
+			err = vkCreateCommandPool(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->CommandPool);
 			check_vk_result(err);
 		}
 		{
@@ -471,15 +502,15 @@ void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(const VkAllocationCallbacks*
 			VkFenceCreateInfo info {};
 			info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 			info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-			err = vkCreateFence(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->Fence);
+			err = vkCreateFence(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->Fence);
 			check_vk_result(err);
 		}
 		{
 			VkSemaphoreCreateInfo info {};
 			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-			err = vkCreateSemaphore(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fsd->ImageAcquiredSemaphore);
+			err = vkCreateSemaphore(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fsd->ImageAcquiredSemaphore);
 			check_vk_result(err);
-			err = vkCreateSemaphore(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fsd->RenderCompleteSemaphore);
+			err = vkCreateSemaphore(m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fsd->RenderCompleteSemaphore);
 			check_vk_result(err);
 		}
 	}
@@ -487,10 +518,10 @@ void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(const VkAllocationCallbacks*
 
 
 // Create or resize window
-void ImGuiPipeline::ImGuiCreateOrResizeWindow(uint32_t queue_family, const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::CreateOrResizeWindow(uint32_t queue_family)
 {
-	ImGuiCreateWindowSwapChain(allocator);
-	ImGuiCreateWindowCommandBuffers(allocator);
+	CreateWindowSwapChain();
+	CreateWindowCommandBuffers();
 
 	m_windowData.FrameIndex = 0;
 	g_SwapChainRebuild = false;
@@ -499,37 +530,10 @@ void ImGuiPipeline::ImGuiCreateOrResizeWindow(uint32_t queue_family, const VkAll
 
 void ImGuiPipeline::SetupVulkan()
 {
-	VkResult err;
-
-	g_QueueFamily = m_pDeviceContext->GetGraphicsQueueIndex();
-
 	// We require a logical device with 1 queue.
 	vkGetDeviceQueue(m_pDeviceContext->GetLogicalDevice(), m_pDeviceContext->GetGraphicsQueueIndex(), 0, &g_Queue);
 
-	// Create descriptor pool. These values are much larger than we have for general use, so it can have it's own private descriptor pool.
-	VkDescriptorPoolSize pool_sizes[] =
-	{
-		{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
-		{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
-		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
-		{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
-		{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
-		{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
-	};
-
-	VkDescriptorPoolCreateInfo pool_info {};
-	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-	pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
-	pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
-	pool_info.pPoolSizes = pool_sizes;
-	err = vkCreateDescriptorPool(m_pDeviceContext->GetLogicalDevice(), &pool_info, g_Allocator, &g_DescriptorPool);
-	check_vk_result(err);
+	CreateDescriptorPool();
 }
 
 
@@ -559,18 +563,18 @@ void ImGuiPipeline::SetupVulkanWindow()
 	m_windowData.PresentMode = m_pDeviceContext->FindSupportedPresentMode(presentModeCandiates);
 
 	// Create SwapChain, RenderPass, Framebuffer, etc.
-	ImGuiCreateOrResizeWindow(m_pDeviceContext->GetGraphicsQueueIndex(), g_Allocator);
+	CreateOrResizeWindow(m_pDeviceContext->GetGraphicsQueueIndex());
 }
 
 
 void ImGuiPipeline::CleanupVulkan()
 {
-	vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), g_DescriptorPool, g_Allocator);
+	vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), g_DescriptorPool, kPAllocator);
 }
 
 
 void ImGuiPipeline::CleanupVulkanWindow()
 {
-	ImGuiDestroyWindow(g_Allocator);
+	DestroyWindow();
 }
 }

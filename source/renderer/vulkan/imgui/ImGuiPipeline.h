@@ -45,6 +45,8 @@ struct ImGui_ImplVulkanH_WindowRenderBuffers
 class ImGuiPipeline
 {
 public:
+	const VkAllocationCallbacks* kPAllocator {nullptr};
+
 	ImGuiPipeline(std::shared_ptr<DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain)
 		:m_pDeviceContext {pDeviceContext}, m_pSwapchain {pSwapchain} {}
 
@@ -59,16 +61,14 @@ public:
 
 	void Destroy();
 
-	uint32_t                 g_QueueFamily {(uint32_t)-1};
 	VkQueue                  g_Queue {VK_NULL_HANDLE};
 	VkDescriptorPool         g_DescriptorPool {VK_NULL_HANDLE};
 
 	bool                     g_SwapChainRebuild {false};
 
-	VkAllocationCallbacks* g_Allocator {nullptr};
 	VkPipelineCache          g_PipelineCache {VK_NULL_HANDLE};
 
-	void ImGuiCreateOrResizeWindow(uint32_t queue_family, const VkAllocationCallbacks* allocator);
+	void CreateOrResizeWindow(uint32_t queue_family);
 
 	void CleanupVulkan();
 
@@ -82,23 +82,25 @@ private:
 
 	void Create();
 
-	void ImGuiInitFontTexture();
+	void CreateFontTexture();
 
-	int ImGuiGetMinImageCountFromPresentMode(VkPresentModeKHR present_mode);
+	void CreateDescriptorPool();
 
-	void ImGuiDestroyFrame(ImGui_ImplVulkanH_Frame* fd, const VkAllocationCallbacks* allocator);
+	int GetMinImageCountFromPresentMode(VkPresentModeKHR present_mode);
 
-	void ImGuiDestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores* fsd, const VkAllocationCallbacks* allocator);
+	void DestroyFrame(ImGui_ImplVulkanH_Frame* fd);
 
-	void ImGuiDestroyWindow(const VkAllocationCallbacks* allocator);
+	void DestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores* fsd);
 
-	void ImGuiDestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
+	void DestroyWindow();
 
-	void ImGuiDestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
+	void DestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers* buffers);
 
-	void ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allocator);
+	void DestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers* buffers);
 
-	void ImGuiCreateWindowCommandBuffers(const VkAllocationCallbacks* allocator);
+	void CreateWindowSwapChain();
+
+	void CreateWindowCommandBuffers();
 
 	void SetupVulkan();
 
