@@ -68,7 +68,7 @@ private:
 	static std::vector<char> ReadFile(const std::string& filename);
 
 	// Vulkan device context.
-	std::shared_ptr<DeviceContext> m_pDeviceContext;
+	std::shared_ptr<DeviceContext> m_pDeviceContext {nullptr};
 
 	// Swapchain.
 	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain {nullptr};
