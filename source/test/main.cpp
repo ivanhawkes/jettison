@@ -48,13 +48,11 @@ int Loop()
 		// Setup Vulkan
 		SetupVulkan(pDeviceContext);
 
-		// Create Window Surface
-		VkSurfaceKHR surface = pDeviceContext->GetSurface();
+		// TODO: Ease out of using this crutch.
+		ImGui_ImplVulkanH_Window* wd = &g_windowData;
 
 		// Create Framebuffers
-		auto extents = pSwapchain->GetExtents();
-		ImGui_ImplVulkanH_Window* wd = &g_windowData;
-		SetupVulkanWindow(pDeviceContext, pSwapchain, wd, surface, extents.width, extents.height);
+		SetupVulkanWindow(pDeviceContext, pSwapchain, wd);
 
 		// Setup Dear ImGui context
 		IMGUI_CHECKVERSION();
@@ -69,15 +67,15 @@ int Loop()
 		// Setup Platform/Renderer bindings
 		ImGui_ImplGlfw_InitForVulkan(pDeviceContext->GetWindow()->GetGLFWWindow(), true);
 		ImGui_ImplVulkan_InitInfo init_info {};
-		init_info.Instance = g_Instance;
-		init_info.PhysicalDevice = g_PhysicalDevice;
-		init_info.Device = g_Device;
-		init_info.QueueFamily = g_QueueFamily;
+		init_info.Instance = pDeviceContext->GetInstance();
+		init_info.PhysicalDevice = pDeviceContext->GetPhysicalDevice();
+		init_info.Device = pDeviceContext->GetLogicalDevice();
+		init_info.QueueFamily = pDeviceContext->GetGraphicsQueueIndex();
 		init_info.Queue = g_Queue;
 		init_info.PipelineCache = g_PipelineCache;
 		init_info.DescriptorPool = g_DescriptorPool;
 		init_info.Allocator = g_Allocator;
-		init_info.MinImageCount = g_MinImageCount;
+		init_info.MinImageCount = pSwapchain->GetImageCount();
 		init_info.ImageCount = wd->ImageCount;
 		init_info.CheckVkResultFn = check_vk_result;
 		ImGui_ImplVulkan_Init(&init_info, wd->RenderPass);
@@ -95,8 +93,9 @@ int Loop()
 			//pPipeline->Recreate();
 			pImGuiPipeline->Recreate();
 
-			ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
-			ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
+			ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
+			ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, 
+				wd, pDeviceContext->GetGraphicsQueueIndex(), g_Allocator);
 			g_windowData.FrameIndex = 0;
 			g_SwapChainRebuild = false;
 		}
@@ -117,8 +116,9 @@ int Loop()
 					//pPipeline->Recreate();
 					pImGuiPipeline->Recreate();
 
-					ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
-					ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
+					ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
+					ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain, 
+						wd, pDeviceContext->GetGraphicsQueueIndex(), g_Allocator);
 					g_windowData.FrameIndex = 0;
 					g_SwapChainRebuild = false;
 				}
