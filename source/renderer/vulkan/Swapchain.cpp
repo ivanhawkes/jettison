@@ -133,6 +133,7 @@ VkExtent2D Swapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 	{
 		int width;
 		int height;
+
 		glfwGetFramebufferSize(m_pDeviceContext->GetWindow()->GetGLFWWindow(), &width, &height);
 
 		VkExtent2D actualExtent = {

@@ -112,6 +112,7 @@ void ImGuiPipeline::FrameRender()
 
 		VkSemaphore image_acquired_semaphore = m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].ImageAcquiredSemaphore;
 		VkSemaphore render_complete_semaphore = m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].RenderCompleteSemaphore;
+
 		err = vkAcquireNextImageKHR(m_pDeviceContext->GetLogicalDevice(), m_windowData.Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &m_windowData.FrameIndex);
 		if (err == VK_ERROR_OUT_OF_DATE_KHR)
 		{

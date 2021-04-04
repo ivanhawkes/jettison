@@ -16,23 +16,33 @@ void Window::Init()
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	m_window = glfwCreateWindow(kWindowWidth, kWindowHeight, "Vulkan", nullptr, nullptr);
-	glfwSetWindowUserPointer(m_window, this);
-	glfwSetFramebufferSizeCallback(m_window, OnFramebufferResize);
+	m_glfwWindow = glfwCreateWindow(kWindowWidth, kWindowHeight, "Vulkan", nullptr, nullptr);
+	glfwSetWindowUserPointer(m_glfwWindow, this);
+	glfwSetFramebufferSizeCallback(m_glfwWindow, OnFramebufferResize);
 }
 
 
 void Window::Destroy()
 {
-	glfwDestroyWindow(m_window);
+	glfwDestroyWindow(m_glfwWindow);
 	glfwTerminate();
 }
 
 
-void Window::OnFramebufferResize(GLFWwindow* m_window, int width, int height)
+VkExtent2D Window::GetWindowExtents() const 
 {
-	// TODO: Is this really needed? Can I just flip the member variable since it's set to this anyway?
-	auto window = reinterpret_cast<Window*>(glfwGetWindowUserPointer(m_window));
+	int width;
+	int height;
+
+	glfwGetFramebufferSize(m_glfwWindow, &width, &height);
+
+	return VkExtent2D {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+}
+
+
+void Window::OnFramebufferResize(GLFWwindow* m_glfwWindow, int width, int height)
+{
+	auto window = reinterpret_cast<Window*>(glfwGetWindowUserPointer(m_glfwWindow));
 	window->m_hasBeenResized = true;
 }
 }

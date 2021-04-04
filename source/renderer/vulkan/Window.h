@@ -20,16 +20,18 @@ public:
 
 	void Destroy();
 
-	GLFWwindow* GetGLFWWindow() const { return m_window; }
+	GLFWwindow* GetGLFWWindow() const { return m_glfwWindow; }
 
 	bool HasBeenResized() const { return m_hasBeenResized; }
 
 	void HasBeenResized(bool hasBeenResized) { m_hasBeenResized = hasBeenResized; }
 
-private:
-	static void OnFramebufferResize(GLFWwindow* m_window, int width, int height);
+	VkExtent2D GetWindowExtents() const;
 
-	GLFWwindow* m_window {nullptr};
+private:
+	static void OnFramebufferResize(GLFWwindow* m_glfwWindow, int width, int height);
+
+	GLFWwindow* m_glfwWindow {nullptr};
 
 	bool m_hasBeenResized {false};
 };
