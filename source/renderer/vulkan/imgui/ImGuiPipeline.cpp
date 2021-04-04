@@ -9,6 +9,8 @@ namespace Jettison::Renderer
 {
 void ImGuiPipeline::Init()
 {
+	// Setup Vulkan
+	//SetupVulkan(m_pDeviceContext);
 }
 
 

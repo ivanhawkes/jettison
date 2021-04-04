@@ -17,18 +17,18 @@
 
 namespace Jettison::Renderer
 {
-static VkInstance               g_Instance = VK_NULL_HANDLE;
-static VkPhysicalDevice         g_PhysicalDevice = VK_NULL_HANDLE;
-static VkDevice                 g_Device = VK_NULL_HANDLE;
-static uint32_t                 g_QueueFamily = (uint32_t)-1;
-static VkQueue                  g_Queue = VK_NULL_HANDLE;
-static VkDescriptorPool         g_DescriptorPool = VK_NULL_HANDLE;
+static VkInstance               g_Instance {VK_NULL_HANDLE};
+static VkPhysicalDevice         g_PhysicalDevice {VK_NULL_HANDLE};
+static VkDevice                 g_Device {VK_NULL_HANDLE};
+static uint32_t                 g_QueueFamily {(uint32_t)-1};
+static VkQueue                  g_Queue {VK_NULL_HANDLE};
+static VkDescriptorPool         g_DescriptorPool {VK_NULL_HANDLE};
 
 static ImGui_ImplVulkanH_Window g_windowData {};
 static bool                     g_SwapChainRebuild {false};
 
-static VkAllocationCallbacks* g_Allocator = {nullptr};
-static VkPipelineCache          g_PipelineCache = VK_NULL_HANDLE;
+static VkAllocationCallbacks* g_Allocator {nullptr};
+static VkPipelineCache          g_PipelineCache {VK_NULL_HANDLE};
 
 
 // TODO: Remove this - it's a copy from the ImGui vulkan implementation.
@@ -489,7 +489,7 @@ static void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDevi
 
 	// We require a logical device with 1 queue.
 	g_Device = pDeviceContext->GetLogicalDevice();
-	vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
+	vkGetDeviceQueue(g_Device, pDeviceContext->GetGraphicsQueueIndex(), 0, &g_Queue);
 
 	// Create descriptor pool. These values are much larger than we have for general use, so it can have it's own private descriptor pool.
 	VkDescriptorPoolSize pool_sizes[] =
@@ -506,6 +506,7 @@ static void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDevi
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
 		{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
 	};
+
 	VkDescriptorPoolCreateInfo pool_info {};
 	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;

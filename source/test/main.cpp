@@ -40,16 +40,16 @@ int Loop()
 		//pPipeline->Init();
 		//pRenderer->Init();
 
-		pImGuiPipeline->Init();
-
 		Jettison::Renderer::Model model {pDeviceContext};
 		model.LoadModel();
 
-		// Setup Vulkan
-		SetupVulkan(pDeviceContext);
-
 		// TODO: Ease out of using this crutch.
 		ImGui_ImplVulkanH_Window* wd = &g_windowData;
+
+		pImGuiPipeline->Init();
+
+		// Setup Vulkan
+		SetupVulkan(pDeviceContext);
 
 		// Create Framebuffers
 		SetupVulkanWindow(pDeviceContext, pSwapchain, wd);
