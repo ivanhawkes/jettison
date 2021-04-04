@@ -10,10 +10,10 @@ namespace Jettison::Renderer
 void ImGuiPipeline::Init()
 {
 	// Setup Vulkan
-	SetupVulkan(m_pDeviceContext);
+	SetupVulkan();
 
 	// Create Framebuffers
-	SetupVulkanWindow(m_pDeviceContext, m_pSwapchain);
+	SetupVulkanWindow();
 
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -42,7 +42,7 @@ void ImGuiPipeline::Init()
 	ImGui_ImplVulkan_Init(&init_info, m_windowData.RenderPass);
 
 	// Load the font list into the font texture.
-	ImGuiInitFontTexture(m_pDeviceContext);
+	ImGuiInitFontTexture();
 }
 
 
@@ -61,7 +61,7 @@ void ImGuiPipeline::Create()
 }
 
 
-void ImGuiPipeline::ImGuiInitFontTexture(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext)
+void ImGuiPipeline::ImGuiInitFontTexture()
 {
 	ImGuiIO& io = ImGui::GetIO();
 
@@ -290,9 +290,7 @@ void ImGuiPipeline::ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplV
 }
 
 
-void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext,
-	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allocator)
 {
 	VkResult err;
 
@@ -443,9 +441,7 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 }
 
 
-void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext,
-	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(const VkAllocationCallbacks* allocator)
 {
 	// Create Command Buffers
 	VkResult err;
@@ -491,18 +487,17 @@ void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Re
 
 
 // Create or resize window
-void ImGuiPipeline::ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	uint32_t queue_family, const VkAllocationCallbacks* allocator)
+void ImGuiPipeline::ImGuiCreateOrResizeWindow(uint32_t queue_family, const VkAllocationCallbacks* allocator)
 {
-	ImGuiCreateWindowSwapChain(m_pDeviceContext, m_pSwapchain, allocator);
-	ImGuiCreateWindowCommandBuffers(m_pDeviceContext, m_pSwapchain, allocator);
+	ImGuiCreateWindowSwapChain(allocator);
+	ImGuiCreateWindowCommandBuffers(allocator);
 
 	m_windowData.FrameIndex = 0;
 	g_SwapChainRebuild = false;
 }
 
 
-void ImGuiPipeline::SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext)
+void ImGuiPipeline::SetupVulkan()
 {
 	VkResult err;
 
@@ -538,7 +533,7 @@ void ImGuiPipeline::SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContex
 }
 
 
-void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain)
+void ImGuiPipeline::SetupVulkanWindow()
 {
 	m_windowData.Surface = m_pDeviceContext->GetSurface();
 
@@ -564,9 +559,7 @@ void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::Device
 	m_windowData.PresentMode = m_pDeviceContext->FindSupportedPresentMode(presentModeCandiates);
 
 	// Create SwapChain, RenderPass, Framebuffer, etc.
-	ImGuiCreateOrResizeWindow(m_pDeviceContext, m_pSwapchain,
-		m_pDeviceContext->GetGraphicsQueueIndex(),
-		g_Allocator);
+	ImGuiCreateOrResizeWindow(m_pDeviceContext->GetGraphicsQueueIndex(), g_Allocator);
 }
 
 

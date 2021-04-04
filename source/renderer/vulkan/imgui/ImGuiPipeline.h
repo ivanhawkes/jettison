@@ -72,8 +72,7 @@ public:
 
 	void FramePresent();
 
-	void ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
-		uint32_t queue_family, const VkAllocationCallbacks* allocator);
+	void ImGuiCreateOrResizeWindow(uint32_t queue_family, const VkAllocationCallbacks* allocator);
 
 	void CleanupVulkan();
 
@@ -83,7 +82,7 @@ private:
 
 	void Create();
 
-	void ImGuiInitFontTexture(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext);
+	void ImGuiInitFontTexture();
 
 	int ImGuiGetMinImageCountFromPresentMode(VkPresentModeKHR present_mode);
 
@@ -97,15 +96,13 @@ private:
 
 	void ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
 
-	void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
-		const VkAllocationCallbacks* allocator);
+	void ImGuiCreateWindowSwapChain(const VkAllocationCallbacks* allocator);
 
-	void ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
-		const VkAllocationCallbacks* allocator);
+	void ImGuiCreateWindowCommandBuffers(const VkAllocationCallbacks* allocator);
 
-	void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext);
+	void SetupVulkan();
 
-	void SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain);
+	void SetupVulkanWindow();
 
 	// Vulkan device context.
 	std::shared_ptr<DeviceContext> m_pDeviceContext {nullptr};

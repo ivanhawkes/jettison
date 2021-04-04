@@ -55,8 +55,7 @@ int Loop()
 			pImGuiPipeline->Recreate();
 
 			ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
-			pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain,
-				pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
+			pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
 		}
 
 		while (!glfwWindowShouldClose(pWindow->GetGLFWWindow()))
@@ -76,8 +75,7 @@ int Loop()
 					pImGuiPipeline->Recreate();
 
 					ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
-					pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain,
-						pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
+					pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
 				}
 			}
 
