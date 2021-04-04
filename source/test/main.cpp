@@ -44,9 +44,6 @@ int Loop()
 
 		pImGuiPipeline->Init();
 
-		// TODO: Ease out of using this crutch.
-		ImGui_ImplVulkanH_Window* wd = &pImGuiPipeline->g_windowData;
-
 		int width;
 		int height;
 		glfwGetFramebufferSize(pWindow->GetGLFWWindow(), &width, &height);
@@ -59,9 +56,7 @@ int Loop()
 
 			ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
 			pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain,
-				wd, pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
-			pImGuiPipeline->g_windowData.FrameIndex = 0;
-			pImGuiPipeline->g_SwapChainRebuild = false;
+				pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
 		}
 
 		while (!glfwWindowShouldClose(pWindow->GetGLFWWindow()))
@@ -82,9 +77,7 @@ int Loop()
 
 					ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
 					pImGuiPipeline->ImGuiCreateOrResizeWindow(pDeviceContext, pSwapchain,
-						wd, pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
-					pImGuiPipeline->g_windowData.FrameIndex = 0;
-					pImGuiPipeline->g_SwapChainRebuild = false;
+						pDeviceContext->GetGraphicsQueueIndex(), pImGuiPipeline->g_Allocator);
 				}
 			}
 
@@ -102,7 +95,7 @@ int Loop()
 
 			//pRenderer->DrawFrame();
 
-			pImGuiPipeline->FrameRender(wd);
+			pImGuiPipeline->FrameRender();
 
 
 			// Update and Render additional Platform Windows
@@ -113,9 +106,7 @@ int Loop()
 			//}
 
 			// Present Main Platform Window
-			//if (!main_is_minimized)
-			//	FramePresent(pDeviceContext, wd);
-			pImGuiPipeline->FramePresent(wd);
+			pImGuiPipeline->FramePresent();
 		}
 
 		// Cleanup

@@ -69,11 +69,12 @@ public:
 	VkAllocationCallbacks* g_Allocator {nullptr};
 	VkPipelineCache          g_PipelineCache {VK_NULL_HANDLE};
 
-	void FrameRender(ImGui_ImplVulkanH_Window* wd);
+	void FrameRender();
 
-	void FramePresent(ImGui_ImplVulkanH_Window* wd);
+	void FramePresent();
 
-	void ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, ImGui_ImplVulkanH_Window* wd, uint32_t queue_family, const VkAllocationCallbacks* allocator);
+	void ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
+		uint32_t queue_family, const VkAllocationCallbacks* allocator);
 
 	void CleanupVulkan();
 
@@ -97,9 +98,13 @@ private:
 
 	void ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
 
-	void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator);
+	void ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
+		//ImGui_ImplVulkanH_Window* wd, 
+		const VkAllocationCallbacks* allocator);
 
-	void ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator);
+	void ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, 
+		//ImGui_ImplVulkanH_Window* wd, 
+		const VkAllocationCallbacks* allocator);
 
 	void SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContext> pDeviceContext);
 

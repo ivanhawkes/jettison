@@ -97,7 +97,7 @@ void ImGuiPipeline::ImGuiInitFontTexture(std::shared_ptr<Jettison::Renderer::Dev
 }
 
 
-void ImGuiPipeline::FrameRender(ImGui_ImplVulkanH_Window* wd)
+void ImGuiPipeline::FrameRender()
 {
 	const ImVec4 kClearColour = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
@@ -108,11 +108,11 @@ void ImGuiPipeline::FrameRender(ImGui_ImplVulkanH_Window* wd)
 
 	if (!m_pSwapchain->IsMinimised())
 	{
-		memcpy(&wd->ClearValue.color.float32[0], &kClearColour, 4 * sizeof(float));
+		memcpy(&g_windowData.ClearValue.color.float32[0], &kClearColour, 4 * sizeof(float));
 
-		VkSemaphore image_acquired_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].ImageAcquiredSemaphore;
-		VkSemaphore render_complete_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].RenderCompleteSemaphore;
-		err = vkAcquireNextImageKHR(m_pDeviceContext->GetLogicalDevice(), wd->Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &wd->FrameIndex);
+		VkSemaphore image_acquired_semaphore = g_windowData.FrameSemaphores[g_windowData.SemaphoreIndex].ImageAcquiredSemaphore;
+		VkSemaphore render_complete_semaphore = g_windowData.FrameSemaphores[g_windowData.SemaphoreIndex].RenderCompleteSemaphore;
+		err = vkAcquireNextImageKHR(m_pDeviceContext->GetLogicalDevice(), g_windowData.Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &g_windowData.FrameIndex);
 		if (err == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			g_SwapChainRebuild = true;
@@ -120,7 +120,7 @@ void ImGuiPipeline::FrameRender(ImGui_ImplVulkanH_Window* wd)
 		}
 		check_vk_result(err);
 
-		ImGui_ImplVulkanH_Frame* fd = &wd->Frames[wd->FrameIndex];
+		ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[g_windowData.FrameIndex];
 		{
 			err = vkWaitForFences(m_pDeviceContext->GetLogicalDevice(), 1, &fd->Fence, VK_TRUE, UINT64_MAX);    // wait indefinitely instead of periodically checking
 			check_vk_result(err);
@@ -140,12 +140,12 @@ void ImGuiPipeline::FrameRender(ImGui_ImplVulkanH_Window* wd)
 		{
 			VkRenderPassBeginInfo info {};
 			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			info.renderPass = wd->RenderPass;
+			info.renderPass = g_windowData.RenderPass;
 			info.framebuffer = fd->Framebuffer;
-			info.renderArea.extent.width = wd->Width;
-			info.renderArea.extent.height = wd->Height;
+			info.renderArea.extent.width = g_windowData.Width;
+			info.renderArea.extent.height = g_windowData.Height;
 			info.clearValueCount = 1;
-			info.pClearValues = &wd->ClearValue;
+			info.pClearValues = &g_windowData.ClearValue;
 			vkCmdBeginRenderPass(fd->CommandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
 		}
 
@@ -175,21 +175,22 @@ void ImGuiPipeline::FrameRender(ImGui_ImplVulkanH_Window* wd)
 }
 
 
-void ImGuiPipeline::FramePresent(ImGui_ImplVulkanH_Window* wd)
+void ImGuiPipeline::FramePresent()
 {
 	if (g_SwapChainRebuild)
 		return;
 
 	if (!m_pSwapchain->IsMinimised())
 	{
-		VkSemaphore render_complete_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].RenderCompleteSemaphore;
+		VkSemaphore render_complete_semaphore = g_windowData.FrameSemaphores[g_windowData.SemaphoreIndex].RenderCompleteSemaphore;
 		VkPresentInfoKHR info {};
 		info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		info.waitSemaphoreCount = 1;
 		info.pWaitSemaphores = &render_complete_semaphore;
 		info.swapchainCount = 1;
-		info.pSwapchains = &wd->Swapchain;
-		info.pImageIndices = &wd->FrameIndex;
+		info.pSwapchains = &g_windowData.Swapchain;
+		info.pImageIndices = &g_windowData.FrameIndex;
+		
 		VkResult err = vkQueuePresentKHR(g_Queue, &info);
 		if (err == VK_ERROR_OUT_OF_DATE_KHR)
 		{
@@ -197,7 +198,7 @@ void ImGuiPipeline::FramePresent(ImGui_ImplVulkanH_Window* wd)
 			return;
 		}
 		check_vk_result(err);
-		wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->ImageCount; // Now we can use the next set of semaphores
+		g_windowData.SemaphoreIndex = (g_windowData.SemaphoreIndex + 1) % g_windowData.ImageCount; // Now we can use the next set of semaphores
 	}
 }
 
@@ -242,24 +243,24 @@ void ImGuiPipeline::ImGuiDestroyFrameSemaphores(VkDevice device, ImGui_ImplVulka
 
 void ImGuiPipeline::ImGuiDestroyWindow(VkInstance instance, VkDevice device, ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator)
 {
-	// FIXME: We could wait on the Queue if we had the queue in wd-> (otherwise VulkanH functions can't use globals)
+	// FIXME: We could wait on the Queue if we had the queue in g_windowData. (otherwise VulkanH functions can't use globals)
 	vkDeviceWaitIdle(device);
 	//vkQueueWaitIdle(g_Queue);
 
-	for (uint32_t i = 0; i < wd->ImageCount; i++)
+	for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
 	{
-		ImGuiDestroyFrame(device, &wd->Frames[i], allocator);
-		ImGuiDestroyFrameSemaphores(device, &wd->FrameSemaphores[i], allocator);
+		ImGuiDestroyFrame(device, &g_windowData.Frames[i], allocator);
+		ImGuiDestroyFrameSemaphores(device, &g_windowData.FrameSemaphores[i], allocator);
 	}
 
-	IM_FREE(wd->Frames);
-	IM_FREE(wd->FrameSemaphores);
+	IM_FREE(g_windowData.Frames);
+	IM_FREE(g_windowData.FrameSemaphores);
 
-	wd->Frames = nullptr;
-	wd->FrameSemaphores = nullptr;
+	g_windowData.Frames = nullptr;
+	g_windowData.FrameSemaphores = nullptr;
 
-	vkDestroyPipeline(device, wd->Pipeline, allocator);
-	vkDestroyRenderPass(device, wd->RenderPass, allocator);
+	vkDestroyPipeline(device, g_windowData.Pipeline, allocator);
+	vkDestroyRenderPass(device, g_windowData.RenderPass, allocator);
 
 	*wd = ImGui_ImplVulkanH_Window {};
 }
@@ -289,13 +290,13 @@ void ImGuiPipeline::ImGuiDestroyWindowRenderBuffers(VkDevice device, ImGui_ImplV
 
 void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext,
 	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	ImGui_ImplVulkanH_Window* wd,
+	//ImGui_ImplVulkanH_Window* wd,
 	const VkAllocationCallbacks* allocator)
 {
 	VkResult err;
 
-	//VkSwapchainKHR old_swapchain = wd->Swapchain;
-	//wd->Swapchain = nullptr;
+	//VkSwapchainKHR old_swapchain = g_windowData.Swapchain;
+	//g_windowData.Swapchain = nullptr;
 
 	err = vkDeviceWaitIdle(m_pDeviceContext->GetLogicalDevice());
 	check_vk_result(err);
@@ -306,35 +307,35 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 
 	// We don't use ImGuiDestroyWindow() because we want to preserve the old swapchain to create the new one.
 	// Destroy old Framebuffer
-	for (uint32_t i = 0; i < wd->ImageCount; i++)
+	for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
 	{
-		ImGuiDestroyFrame(m_pDeviceContext->GetLogicalDevice(), &wd->Frames[i], allocator);
-		ImGuiDestroyFrameSemaphores(m_pDeviceContext->GetLogicalDevice(), &wd->FrameSemaphores[i], allocator);
+		ImGuiDestroyFrame(m_pDeviceContext->GetLogicalDevice(), &g_windowData.Frames[i], allocator);
+		ImGuiDestroyFrameSemaphores(m_pDeviceContext->GetLogicalDevice(), &g_windowData.FrameSemaphores[i], allocator);
 	}
-	IM_FREE(wd->Frames);
-	IM_FREE(wd->FrameSemaphores);
-	wd->Frames = nullptr;
-	wd->FrameSemaphores = nullptr;
-	wd->ImageCount = 0;
-	if (wd->RenderPass)
-		vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), wd->RenderPass, allocator);
-	if (wd->Pipeline)
-		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), wd->Pipeline, allocator);
+	IM_FREE(g_windowData.Frames);
+	IM_FREE(g_windowData.FrameSemaphores);
+	g_windowData.Frames = nullptr;
+	g_windowData.FrameSemaphores = nullptr;
+	g_windowData.ImageCount = 0;
+	if (g_windowData.RenderPass)
+		vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), g_windowData.RenderPass, allocator);
+	if (g_windowData.Pipeline)
+		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), g_windowData.Pipeline, allocator);
 
 	// Create Swapchain
 	{
-		wd->Swapchain = m_pSwapchain->GetVkSwapchainHandle();
-		wd->ImageCount = m_pSwapchain->GetImageCount();
-		wd->Height = m_pSwapchain->GetExtents().height;
-		wd->Width = m_pSwapchain->GetExtents().width;
+		g_windowData.Swapchain = m_pSwapchain->GetVkSwapchainHandle();
+		g_windowData.ImageCount = m_pSwapchain->GetImageCount();
+		g_windowData.Height = m_pSwapchain->GetExtents().height;
+		g_windowData.Width = m_pSwapchain->GetExtents().width;
 
-		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), wd->Swapchain, &wd->ImageCount, nullptr);
+		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), g_windowData.Swapchain, &g_windowData.ImageCount, nullptr);
 		check_vk_result(err);
 
 		VkImage backbuffers[16] {};
-		IM_ASSERT(wd->ImageCount >= m_pSwapchain->GetImageCount());
-		IM_ASSERT(wd->ImageCount < IM_ARRAYSIZE(backbuffers));
-		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), wd->Swapchain, &wd->ImageCount, backbuffers);
+		IM_ASSERT(g_windowData.ImageCount >= m_pSwapchain->GetImageCount());
+		IM_ASSERT(g_windowData.ImageCount < IM_ARRAYSIZE(backbuffers));
+		err = vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), g_windowData.Swapchain, &g_windowData.ImageCount, backbuffers);
 		check_vk_result(err);
 
 		//auto imageCount = m_pSwapchain->GetImageCount();
@@ -344,21 +345,21 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		//vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), m_pSwapchain->GetVkSwapchainHandle(), m_pSwapchain->GetImageCountAddress(), nullptr);
 		//vkGetSwapchainImagesKHR(m_pDeviceContext->GetLogicalDevice(), m_pSwapchain->GetVkSwapchainHandle(), m_pSwapchain->GetImageCountAddress(), swapchainImages.data());
 
-		IM_ASSERT(wd->Frames == nullptr);
-		wd->Frames = (ImGui_ImplVulkanH_Frame*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_Frame) * wd->ImageCount);
-		wd->FrameSemaphores = (ImGui_ImplVulkanH_FrameSemaphores*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_FrameSemaphores) * wd->ImageCount);
-		memset(wd->Frames, 0, sizeof(wd->Frames[0]) * wd->ImageCount);
-		memset(wd->FrameSemaphores, 0, sizeof(wd->FrameSemaphores[0]) * wd->ImageCount);
-		for (uint32_t i = 0; i < wd->ImageCount; i++)
-			wd->Frames[i].Backbuffer = backbuffers[i];
+		IM_ASSERT(g_windowData.Frames == nullptr);
+		g_windowData.Frames = (ImGui_ImplVulkanH_Frame*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_Frame) * g_windowData.ImageCount);
+		g_windowData.FrameSemaphores = (ImGui_ImplVulkanH_FrameSemaphores*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_FrameSemaphores) * g_windowData.ImageCount);
+		memset(g_windowData.Frames, 0, sizeof(g_windowData.Frames[0]) * g_windowData.ImageCount);
+		memset(g_windowData.FrameSemaphores, 0, sizeof(g_windowData.FrameSemaphores[0]) * g_windowData.ImageCount);
+		for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
+			g_windowData.Frames[i].Backbuffer = backbuffers[i];
 	}
 
 	// Create the Render Pass
 	{
 		VkAttachmentDescription attachmentDescription {};
-		attachmentDescription.format = wd->SurfaceFormat.format;
+		attachmentDescription.format = g_windowData.SurfaceFormat.format;
 		attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		attachmentDescription.loadOp = wd->ClearEnable ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachmentDescription.loadOp = g_windowData.ClearEnable ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -390,12 +391,12 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		renderPassInfo.pSubpasses = &subpassDescription;
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &subpassDependency;
-		err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, allocator, &wd->RenderPass);
+		err = vkCreateRenderPass(m_pDeviceContext->GetLogicalDevice(), &renderPassInfo, allocator, &g_windowData.RenderPass);
 		check_vk_result(err);
 
 		// We do not create a pipeline by default as this is also used by examples' main.cpp,
 		// but secondary viewport in multi-viewport mode may want to create one with:
-		//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), allocator, VK_NULL_HANDLE, wd->RenderPass, VK_SAMPLE_COUNT_1_BIT, &wd->Pipeline, g_Subpass);
+		//ImGui_ImplVulkan_CreatePipeline(m_pDeviceContext->GetLogicalDevice(), allocator, VK_NULL_HANDLE, g_windowData.RenderPass, VK_SAMPLE_COUNT_1_BIT, &g_windowData.Pipeline, g_Subpass);
 	}
 
 	// Create The Image Views
@@ -403,16 +404,16 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		VkImageViewCreateInfo info {};
 		info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		info.format = wd->SurfaceFormat.format;
+		info.format = g_windowData.SurfaceFormat.format;
 		info.components.r = VK_COMPONENT_SWIZZLE_R;
 		info.components.g = VK_COMPONENT_SWIZZLE_G;
 		info.components.b = VK_COMPONENT_SWIZZLE_B;
 		info.components.a = VK_COMPONENT_SWIZZLE_A;
 		VkImageSubresourceRange image_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 		info.subresourceRange = image_range;
-		for (uint32_t i = 0; i < wd->ImageCount; i++)
+		for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
 		{
-			ImGui_ImplVulkanH_Frame* fd = &wd->Frames[i];
+			ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[i];
 			info.image = fd->Backbuffer;
 			err = vkCreateImageView(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->BackbufferView);
 			check_vk_result(err);
@@ -424,15 +425,15 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 		VkImageView attachment[1];
 		VkFramebufferCreateInfo info {};
 		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		info.renderPass = wd->RenderPass;
+		info.renderPass = g_windowData.RenderPass;
 		info.attachmentCount = 1;
 		info.pAttachments = attachment;
-		info.width = wd->Width;
-		info.height = wd->Height;
+		info.width = g_windowData.Width;
+		info.height = g_windowData.Height;
 		info.layers = 1;
-		for (uint32_t i = 0; i < wd->ImageCount; i++)
+		for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
 		{
-			ImGui_ImplVulkanH_Frame* fd = &wd->Frames[i];
+			ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[i];
 			attachment[0] = fd->BackbufferView;
 			err = vkCreateFramebuffer(m_pDeviceContext->GetLogicalDevice(), &info, allocator, &fd->Framebuffer);
 			check_vk_result(err);
@@ -443,14 +444,15 @@ void ImGuiPipeline::ImGuiCreateWindowSwapChain(std::shared_ptr<Jettison::Rendere
 
 void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext,
 	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator)
+	//ImGui_ImplVulkanH_Window* wd, 
+	const VkAllocationCallbacks* allocator)
 {
 	// Create Command Buffers
 	VkResult err;
-	for (uint32_t i = 0; i < wd->ImageCount; i++)
+	for (uint32_t i = 0; i < g_windowData.ImageCount; i++)
 	{
-		ImGui_ImplVulkanH_Frame* fd = &wd->Frames[i];
-		ImGui_ImplVulkanH_FrameSemaphores* fsd = &wd->FrameSemaphores[i];
+		ImGui_ImplVulkanH_Frame* fd = &g_windowData.Frames[i];
+		ImGui_ImplVulkanH_FrameSemaphores* fsd = &g_windowData.FrameSemaphores[i];
 
 		{
 			VkCommandPoolCreateInfo info {};
@@ -490,10 +492,13 @@ void ImGuiPipeline::ImGuiCreateWindowCommandBuffers(std::shared_ptr<Jettison::Re
 
 // Create or resize window
 void ImGuiPipeline::ImGuiCreateOrResizeWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
-	ImGui_ImplVulkanH_Window* wd, uint32_t queue_family, const VkAllocationCallbacks* allocator)
+	uint32_t queue_family, const VkAllocationCallbacks* allocator)
 {
-	ImGuiCreateWindowSwapChain(m_pDeviceContext, m_pSwapchain, wd, allocator);
-	ImGuiCreateWindowCommandBuffers(m_pDeviceContext, m_pSwapchain, wd, allocator);
+	ImGuiCreateWindowSwapChain(m_pDeviceContext, m_pSwapchain, allocator);
+	ImGuiCreateWindowCommandBuffers(m_pDeviceContext, m_pSwapchain, allocator);
+
+	g_windowData.FrameIndex = 0;
+	g_SwapChainRebuild = false;
 }
 
 
@@ -536,11 +541,11 @@ void ImGuiPipeline::SetupVulkan(std::shared_ptr<Jettison::Renderer::DeviceContex
 void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::DeviceContext> m_pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain,
 	ImGui_ImplVulkanH_Window* wd)
 {
-	wd->Surface = m_pDeviceContext->GetSurface();
+	g_windowData.Surface = m_pDeviceContext->GetSurface();
 
 	// Check for WSI support
 	VkBool32 isSupported;
-	vkGetPhysicalDeviceSurfaceSupportKHR(m_pDeviceContext->GetPhysicalDevice(), m_pDeviceContext->GetGraphicsQueueIndex(), wd->Surface, &isSupported);
+	vkGetPhysicalDeviceSurfaceSupportKHR(m_pDeviceContext->GetPhysicalDevice(), m_pDeviceContext->GetGraphicsQueueIndex(), g_windowData.Surface, &isSupported);
 	if (isSupported != VK_TRUE)
 	{
 		throw std::runtime_error("No WSI support on physical device.");
@@ -549,7 +554,7 @@ void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::Device
 	// Select surface format.
 	const std::vector<VkFormat> requestSurfaceImageFormat {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM};
 	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	wd->SurfaceFormat = m_pDeviceContext->FindSupportedSurfaceFormat(requestSurfaceImageFormat, requestSurfaceColorSpace);
+	g_windowData.SurfaceFormat = m_pDeviceContext->FindSupportedSurfaceFormat(requestSurfaceImageFormat, requestSurfaceColorSpace);
 
 	// Select present mode.
 #ifdef IMGUI_UNLIMITED_FRAME_RATE
@@ -557,11 +562,11 @@ void ImGuiPipeline::SetupVulkanWindow(std::shared_ptr<Jettison::Renderer::Device
 #else
 	std::vector<VkPresentModeKHR> presentModeCandiates {VK_PRESENT_MODE_FIFO_KHR};
 #endif
-	wd->PresentMode = m_pDeviceContext->FindSupportedPresentMode(presentModeCandiates);
+	g_windowData.PresentMode = m_pDeviceContext->FindSupportedPresentMode(presentModeCandiates);
 
 	// Create SwapChain, RenderPass, Framebuffer, etc.
 	ImGuiCreateOrResizeWindow(m_pDeviceContext, m_pSwapchain,
-		wd, m_pDeviceContext->GetGraphicsQueueIndex(),
+		m_pDeviceContext->GetGraphicsQueueIndex(),
 		g_Allocator);
 }
 
