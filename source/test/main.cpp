@@ -35,7 +35,6 @@ int Loop()
 		std::shared_ptr<Jettison::Renderer::ImGuiPipeline> pImGuiPipeline = std::make_shared<Jettison::Renderer::ImGuiPipeline>(pDeviceContext, pSwapchain);
 
 		pWindow->Init();
-		GLFWwindow* window = pWindow->GetGLFWWindow();
 		pDeviceContext->Init();
 		pSwapchain->Init();
 		//pPipeline->Init();
@@ -68,7 +67,7 @@ int Loop()
 		ImGui::StyleColorsDark();
 
 		// Setup Platform/Renderer bindings
-		ImGui_ImplGlfw_InitForVulkan(window, true);
+		ImGui_ImplGlfw_InitForVulkan(pDeviceContext->GetWindow()->GetGLFWWindow(), true);
 		ImGui_ImplVulkan_InitInfo init_info {};
 		init_info.Instance = g_Instance;
 		init_info.PhysicalDevice = g_PhysicalDevice;
@@ -110,7 +109,7 @@ int Loop()
 			if (g_SwapChainRebuild)
 			{
 				int width, height;
-				glfwGetFramebufferSize(window, &width, &height);
+				glfwGetFramebufferSize(pDeviceContext->GetWindow()->GetGLFWWindow(), &width, &height);
 				if (width > 0 && height > 0)
 				{
 					// The swapchain must be recreated for the next extents to apply along with any other possible changes.
