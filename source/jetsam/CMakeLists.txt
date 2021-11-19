@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.17)
+cmake_minimum_required (VERSION 3.16)
 
 # Set the overall project name.
 project("jetsam" VERSION 0.1.0)
