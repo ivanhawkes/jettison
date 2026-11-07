@@ -1,0 +1,16 @@
+BasedOnStyle: Microsoft
+AlignAfterOpenBracket: AlwaysBreak
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: true
+BinPackArguments: true
+BinPackParameters: BinPack
+BreakBeforeBraces: Allman
+ColumnLimit: 120
+ContinuationIndentWidth: 4
+DisableFormat: false
+IndentCaseLabels: true
+IndentWidth: 4
+Standard: Latest
+TabWidth: 4
+UseTab: ForIndentation
+MaxEmptyLinesToKeep: 2
