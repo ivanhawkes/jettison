@@ -2,8 +2,11 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 #include <vulkan/Model.h>
 #include <vulkan/Pipeline.h>
@@ -11,18 +14,11 @@
 #include <vulkan/Swapchain.h>
 #include <vulkan/Window.h>
 
-#include <vulkan/imgui/ImGuiPipeline.h>
-#include <vulkan/imgui/ImGuiRenderer.h>
-
-
 using namespace Jettison::Renderer;
 
 
-int Loop()
+int Loop(bool smokeTest, const std::filesystem::path &assetDirectory)
 {
-	bool showDemoWindow = true;
-	VkResult err{VK_SUCCESS};
-
 	try
 	{
 		std::shared_ptr<Jettison::Renderer::Window> pWindow =
@@ -31,111 +27,67 @@ int Loop()
 		    std::make_shared<Jettison::Renderer::DeviceContext>(pWindow);
 		std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain =
 		    std::make_shared<Jettison::Renderer::Swapchain>(pDeviceContext);
-		// std::shared_ptr<Jettison::Renderer::Pipeline> pPipeline =
-		// std::make_shared<Jettison::Renderer::Pipeline>(pDeviceContext, pSwapchain);
-		// std::shared_ptr<Jettison::Renderer::Renderer> pRenderer =
-		// std::make_shared<Jettison::Renderer::Renderer>(pDeviceContext, pWindow, pSwapchain,
-		// pPipeline);
-
-		std::shared_ptr<Jettison::Renderer::ImGuiPipeline> pImGuiPipeline =
-		    std::make_shared<Jettison::Renderer::ImGuiPipeline>(pDeviceContext, pSwapchain);
+		std::shared_ptr<Jettison::Renderer::Pipeline> pPipeline =
+		    std::make_shared<Jettison::Renderer::Pipeline>(pDeviceContext, pSwapchain, assetDirectory);
+		std::shared_ptr<Jettison::Renderer::Renderer> pRenderer =
+		    std::make_shared<Jettison::Renderer::Renderer>(
+		        pDeviceContext, pWindow, pSwapchain, pPipeline);
 
 		pWindow->Init();
 		pDeviceContext->Init();
 		pSwapchain->Init();
-		// pPipeline->Init();
-		// pRenderer->Init();
 
 		Jettison::Renderer::Model model{pDeviceContext};
-		model.LoadModel();
-
-		pImGuiPipeline->Init();
-
-		int width;
-		int height;
-		glfwGetFramebufferSize(pWindow->GetGLFWWindow(), &width, &height);
-		if (width > 0 && height > 0)
-		{
-			// The swapchain must be recreated for the next extents to apply along with any other
-			// possible changes.
-			pSwapchain->Recreate();
-			// pPipeline->Recreate();
-			pImGuiPipeline->Recreate();
-
-			ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
-			pImGuiPipeline->CreateOrResizeWindow(pDeviceContext->GetGraphicsQueueIndex());
-		}
+		model.LoadModel(assetDirectory / "models" / "viking_room.wobj");
+		pPipeline->Init();
+		pPipeline->CreateCommandBuffers(model);
+		pRenderer->Init();
+		auto smokeStart = std::chrono::steady_clock::now();
+		int smokeResizes = 0;
+		int smokeFrames = 0;
+		bool smokeResizePending = false;
 
 		while (!glfwWindowShouldClose(pWindow->GetGLFWWindow()))
 		{
 			glfwPollEvents();
 
-			// Resize swap chain?
-			if (pImGuiPipeline->g_SwapChainRebuild)
+			const bool frameResized = pRenderer->Render(model);
+			if (smokeTest && frameResized && smokeResizePending)
 			{
-				int width, height;
-				glfwGetFramebufferSize(pDeviceContext->GetWindow()->GetGLFWWindow(), &width, &height);
-				if (width > 0 && height > 0)
-				{
-					// The swapchain must be recreated for the next extents to apply along with any
-					// other possible changes.
-					pSwapchain->Recreate();
-					// pPipeline->Recreate();
-					pImGuiPipeline->Recreate();
-
-					ImGui_ImplVulkan_SetMinImageCount(pSwapchain->GetImageCount());
-					pImGuiPipeline->CreateOrResizeWindow(pDeviceContext->GetGraphicsQueueIndex());
-				}
+				++smokeResizes;
+				smokeFrames = 0;
+				smokeResizePending = false;
 			}
 
-			// Start the Dear ImGui frame
-			ImGui_ImplVulkan_NewFrame();
-			ImGui_ImplGlfw_NewFrame();
-			ImGui::NewFrame();
-
-			// Show the demo window if requested.
-			if (showDemoWindow)
-				ImGui::ShowDemoWindow(&showDemoWindow);
-
-			// HACK: We need to add the model command buffers to the pipeline.
-			// pPipeline->CreateCommandBuffers(model);
-
-			// pRenderer->Render();
-			pImGuiPipeline->Render();
-
-			// TODO: Need to add this in when I switch to the viewports build of ImGui.
-			// Update and Render additional Platform Windows
-			// if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-			//{
-			//	ImGui::UpdatePlatformWindows();
-			//	ImGui::RenderPlatformWindowsDefault();
-			//}
-
-			// Present Main Platform Window
-			// pRenderer->Present();
-			pImGuiPipeline->Present();
+			if (smokeTest)
+			{
+				++smokeFrames;
+				if (smokeResizes == 2 && smokeFrames >= 8)
+					glfwSetWindowShouldClose(pWindow->GetGLFWWindow(), GLFW_TRUE);
+				else if (smokeResizes < 2 && smokeFrames >= 8 && !smokeResizePending)
+				{
+					smokeResizePending = true;
+					glfwSetWindowSize(
+					    pWindow->GetGLFWWindow(), smokeResizes == 0 ? 1024 : 800,
+					    smokeResizes == 0 ? 768 : 600);
+				}
+				if (std::chrono::steady_clock::now() - smokeStart > std::chrono::seconds(30))
+					glfwSetWindowShouldClose(pWindow->GetGLFWWindow(), GLFW_TRUE);
+			}
 		}
 
 		// Cleanup
-		err = pDeviceContext->WaitIdle();
+		VkResult err = pDeviceContext->WaitIdle();
 		check_vk_result(err);
 
-		// ImGui shutdown.
-		ImGui_ImplVulkan_Shutdown();
-		ImGui_ImplGlfw_Shutdown();
-		ImGui::DestroyContext();
-
-		pImGuiPipeline->CleanupVulkanWindow();
-		pImGuiPipeline->CleanupVulkan();
-
-		pImGuiPipeline->Destroy();
-
+		pRenderer->Destroy();
+		pPipeline->Destroy();
 		model.Destroy();
-		// pRenderer->Destroy();
-		// pPipeline->Destroy();
 		pSwapchain->Destroy();
 		pDeviceContext->Destroy();
 		pWindow->Destroy();
+		if (smokeTest && (smokeResizes != 2 || smokeFrames < 8))
+			throw std::runtime_error("Model rendering smoke test did not complete both window resizes");
 	}
 	catch (const std::exception &e)
 	{
@@ -147,7 +99,29 @@ int Loop()
 }
 
 
-int main()
+int main(int argc, char **argv)
 {
-	return Loop();
+	bool smokeTest = false;
+	std::filesystem::path executable = std::filesystem::absolute(argv[0]);
+#ifdef __linux__
+	std::error_code error;
+	auto actualExecutable = std::filesystem::canonical("/proc/self/exe", error);
+	if (!error)
+		executable = actualExecutable;
+#endif
+	std::filesystem::path assetDirectory = executable.parent_path() / "assets";
+	for (int index = 1; index < argc; ++index)
+	{
+		const std::string argument = argv[index];
+		if (argument == "--smoke-test")
+			smokeTest = true;
+		else if (argument == "--assets" && index + 1 < argc)
+			assetDirectory = std::filesystem::absolute(argv[++index]);
+		else
+		{
+			std::cerr << "Usage: " << argv[0] << " [--smoke-test] [--assets <directory>]\n";
+			return EXIT_FAILURE;
+		}
+	}
+	return Loop(smokeTest, assetDirectory);
 }

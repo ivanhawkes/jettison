@@ -12,6 +12,7 @@
 #include <glm/gtx/hash.hpp>
 
 // STD.
+#include <filesystem>
 #include <vector>
 
 #include "DeviceContext.h"
@@ -48,8 +49,8 @@ struct Vertex
 	{
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions{
 		    {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
-		    {0, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)},
-		    {0, 2, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, texCoord)}};
+		    {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)},
+		    {2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord)}};
 
 		return attributeDescriptions;
 	}
@@ -76,7 +77,7 @@ class Model
 
 	void Destroy();
 
-	void LoadModel();
+	void LoadModel(const std::filesystem::path &path);
 
 	std::vector<uint32_t> m_indices{};
 	VkBuffer m_vertexBuffer{VK_NULL_HANDLE};

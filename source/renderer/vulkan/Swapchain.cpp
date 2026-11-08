@@ -32,7 +32,9 @@ void Swapchain::Create()
 	// Get a reasonable amount of swapchain images.
 	m_minImageCount = swapChainSupport.capabilities.minImageCount;
 	m_maxImageCount = swapChainSupport.capabilities.maxImageCount;
-	m_imageCount = std::max(m_minImageCount + 1, m_maxImageCount);
+	m_imageCount = m_minImageCount + 1;
+	if (m_maxImageCount > 0)
+		m_imageCount = std::min(m_imageCount, m_maxImageCount);
 
 	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -75,6 +77,12 @@ void Swapchain::Create()
 	    VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create swap chain");
+	}
+	if (vkGetSwapchainImagesKHR(
+	        m_pDeviceContext->GetLogicalDevice(), m_vkSwapchainHandle, &m_imageCount, nullptr) !=
+	    VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to query swap chain images");
 	}
 
 	m_imageFormat = surfaceFormat.format;

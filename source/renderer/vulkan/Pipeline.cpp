@@ -9,9 +9,6 @@
 #include <fstream>
 
 
-const std::string kTexturePath = "assets/textures/viking_room.png";
-
-
 namespace Jettison::Renderer
 {
 void Pipeline::Init()
@@ -62,12 +59,13 @@ void Pipeline::Create()
 }
 
 
-void Pipeline::Recreate()
+void Pipeline::Recreate(const Model &model)
 {
 	m_pDeviceContext->WaitOnWindowResized();
 
 	Destroy();
 	Create();
+	CreateCommandBuffers(model);
 }
 
 
@@ -105,7 +103,7 @@ void Pipeline::Destroy()
 	}
 
 	// Uniform buffers.
-	for (size_t i = 0; i < m_pSwapchain->GetImageCount(); ++i)
+	for (size_t i = 0; i < m_uniformBuffers.size(); ++i)
 	{
 		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffers[i], nullptr);
 		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffersMemory[i], nullptr);
@@ -210,8 +208,8 @@ void Pipeline::CreateRenderPass()
 
 void Pipeline::CreateGraphicsPipeline()
 {
-	auto vertShaderCode = ReadFile("assets/shaders/shader.vert.spv");
-	auto fragShaderCode = ReadFile("assets/shaders/shader.frag.spv");
+	auto vertShaderCode = ReadFile((m_assetDirectory / "shaders" / "shader.vert.spv").string());
+	auto fragShaderCode = ReadFile((m_assetDirectory / "shaders" / "shader.frag.spv").string());
 
 	VkShaderModule vertShaderModule = m_pDeviceContext->CreateShaderModule(vertShaderCode);
 	VkShaderModule fragShaderModule = m_pDeviceContext->CreateShaderModule(fragShaderCode);
@@ -596,14 +594,15 @@ void Pipeline::CreateTextureImage()
 	int texHeight;
 	int texChannels;
 
+	const auto texturePath = (m_assetDirectory / "textures" / "viking_room.png").string();
 	stbi_uc *pixels =
-	    stbi_load(kTexturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	VkDeviceSize imageSize = static_cast<uint64_t>(texWidth) * texHeight * 4;
+	    stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels)
 	{
-		throw std::runtime_error("failed to load texture image");
+		throw std::runtime_error("failed to load texture image: " + texturePath);
 	}
+	VkDeviceSize imageSize = static_cast<uint64_t>(texWidth) * texHeight * 4;
 
 	m_mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 

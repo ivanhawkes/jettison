@@ -7,9 +7,6 @@
 
 namespace Jettison::Renderer
 {
-const std::string kModelPath = "assets/models/viking_room.wobj";
-
-
 void Model::Destroy()
 {
 	vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_indexBuffer, nullptr);
@@ -20,7 +17,7 @@ void Model::Destroy()
 }
 
 
-void Model::LoadModel()
+void Model::LoadModel(const std::filesystem::path &path)
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -28,7 +25,7 @@ void Model::LoadModel()
 	std::string warn;
 	std::string err;
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, kModelPath.c_str()))
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.string().c_str()))
 	{
 		throw std::runtime_error(warn + err);
 	}

@@ -296,16 +296,6 @@ void DeviceContext::CreateLogicalDevice()
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
-	if (kEnableValidationLayers)
-	{
-		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-		createInfo.ppEnabledLayerNames = validationLayers.data();
-	}
-	else
-	{
-		createInfo.enabledLayerCount = 0;
-	}
-
 	if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_logicalDevice) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create logical m_logicalDevice");

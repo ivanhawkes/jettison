@@ -4,6 +4,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <filesystem>
+
 
 namespace Jettison::Renderer
 {
@@ -22,13 +24,32 @@ void ImGuiPipeline::Init()
 	(void)io;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
 	// io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	for (const auto &font : {"DroidSans.ttf", "Hack-Regular.ttf", "VeraMono.ttf"})
+	{
+		const std::string path = (m_assetDirectory / "fonts" / font).string();
+		if (std::filesystem::exists(path))
+		{
+			for (float size : {20.0f, 23.0f, 26.0f, 29.0f})
+				io.Fonts->AddFontFromFileTTF(path.c_str(), size);
+			if (std::string(font) != "DroidSans.ttf")
+				io.Fonts->AddFontFromFileTTF(path.c_str(), 22.0f);
+		}
+	}
+	io.Fonts->AddFontDefault();
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
 	// Setup Platform/Renderer bindings
 	ImGui_ImplGlfw_InitForVulkan(m_pDeviceContext->GetWindow()->GetGLFWWindow(), true);
+	InitVulkanBackend();
+}
+
+
+void ImGuiPipeline::InitVulkanBackend()
+{
 	ImGui_ImplVulkan_InitInfo init_info{};
+	init_info.ApiVersion = VK_API_VERSION_1_0;
 	init_info.Instance = m_pDeviceContext->GetInstance();
 	init_info.PhysicalDevice = m_pDeviceContext->GetPhysicalDevice();
 	init_info.Device = m_pDeviceContext->GetLogicalDevice();
@@ -40,15 +61,19 @@ void ImGuiPipeline::Init()
 	init_info.MinImageCount = m_pSwapchain->GetImageCount();
 	init_info.ImageCount = m_windowData.ImageCount;
 	init_info.CheckVkResultFn = check_vk_result;
-	ImGui_ImplVulkan_Init(&init_info, m_windowData.RenderPass);
-
-	// Load the font list into the font texture.
-	CreateFontsTexture();
+	init_info.PipelineInfoMain.RenderPass = m_windowData.RenderPass;
+	ImGui_ImplVulkan_Init(&init_info);
 }
 
 
 void ImGuiPipeline::Recreate()
 {
+	check_vk_result(m_pDeviceContext->WaitIdle());
+	ImGui_ImplVulkan_Shutdown();
+	DestroyWindow();
+	m_pSwapchain->Recreate();
+	SetupVulkanWindow();
+	InitVulkanBackend();
 }
 
 
@@ -69,8 +94,7 @@ void ImGuiPipeline::CreateRenderPass()
 	VkAttachmentDescription attachmentDescription{};
 	attachmentDescription.format = m_windowData.SurfaceFormat.format;
 	attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-	attachmentDescription.loadOp =
-	    m_windowData.ClearEnable ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -130,7 +154,7 @@ void ImGuiPipeline::CreateFramebuffers()
 
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGui_ImplVulkanH_Frame *fd = &m_windowData.Frames[i];
+		Frame *fd = &m_windowData.Frames[i];
 		attachment[0] = fd->BackbufferView;
 		err = vkCreateFramebuffer(
 		    m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->Framebuffer);
@@ -157,48 +181,12 @@ void ImGuiPipeline::CreateImageViews()
 
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGui_ImplVulkanH_Frame *fd = &m_windowData.Frames[i];
+		Frame *fd = &m_windowData.Frames[i];
 		info.image = fd->Backbuffer;
 		err = vkCreateImageView(
 		    m_pDeviceContext->GetLogicalDevice(), &info, kPAllocator, &fd->BackbufferView);
 		check_vk_result(err);
 	}
-}
-
-
-void ImGuiPipeline::CreateFontsTexture()
-{
-	ImGuiIO &io = ImGui::GetIO();
-
-	// Load several different sizes of the VeraMono font supplied by CryTek.
-	// NOTE: The first font loaded seems to be the default one used for the UI.
-	const std::string droidSansPath{"assets/fonts/DroidSans.ttf"};
-	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 20.0f);
-	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 23.0f);
-	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 26.0f);
-	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 29.0f);
-
-	const std::string hackRegularPath{"assets/fonts/Hack-Regular.ttf"};
-	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 20.0f);
-	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 22.0f);
-	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 23.0f);
-	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 26.0f);
-	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 29.0f);
-
-	const std::string veraMonoPath{"assets/fonts/VeraMono.ttf"};
-	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 20.0f);
-	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 22.0f);
-	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 23.0f);
-	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 26.0f);
-	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 29.0f);
-
-	// May as well have the default font.
-	io.Fonts->AddFontDefault();
-
-	// Use the single time command buffers for loading the fonts.
-	VkCommandBuffer command_buffer = m_pDeviceContext->BeginSingleTimeCommands();
-	ImGui_ImplVulkan_CreateFontsTexture(command_buffer);
-	m_pDeviceContext->EndSingleTimeCommands(command_buffer);
 }
 
 
@@ -247,9 +235,11 @@ void ImGuiPipeline::Render()
 		memcpy(&m_windowData.ClearValue.color.float32[0], &kClearColour, 4 * sizeof(float));
 
 		VkSemaphore image_acquired_semaphore =
-		    m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].ImageAcquiredSemaphore;
-		VkSemaphore render_complete_semaphore =
-		    m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].RenderCompleteSemaphore;
+		    m_windowData.Semaphores[m_windowData.SemaphoreIndex].ImageAcquiredSemaphore;
+		VkFence acquireFence = m_acquireFences[m_windowData.SemaphoreIndex];
+		if (acquireFence != VK_NULL_HANDLE)
+			check_vk_result(vkWaitForFences(
+			    m_pDeviceContext->GetLogicalDevice(), 1, &acquireFence, VK_TRUE, UINT64_MAX));
 
 		err = vkAcquireNextImageKHR(
 		    m_pDeviceContext->GetLogicalDevice(), m_windowData.Swapchain, UINT64_MAX,
@@ -259,9 +249,14 @@ void ImGuiPipeline::Render()
 			g_SwapChainRebuild = true;
 			return;
 		}
-		check_vk_result(err);
+		if (err == VK_SUBOPTIMAL_KHR)
+			m_suboptimal = true;
+		else
+			check_vk_result(err);
+		VkSemaphore render_complete_semaphore =
+		    m_windowData.Semaphores[m_windowData.FrameIndex].RenderCompleteSemaphore;
 
-		ImGui_ImplVulkanH_Frame *fd = &m_windowData.Frames[m_windowData.FrameIndex];
+		Frame *fd = &m_windowData.Frames[m_windowData.FrameIndex];
 		{
 			err = vkWaitForFences(
 			    m_pDeviceContext->GetLogicalDevice(), 1, &fd->Fence, VK_TRUE,
@@ -313,6 +308,7 @@ void ImGuiPipeline::Render()
 			check_vk_result(err);
 			err = vkQueueSubmit(g_Queue, 1, &info, fd->Fence);
 			check_vk_result(err);
+			m_acquireFences[m_windowData.SemaphoreIndex] = fd->Fence;
 		}
 	}
 }
@@ -326,7 +322,7 @@ void ImGuiPipeline::Present()
 	if (!m_pSwapchain->IsMinimised())
 	{
 		VkSemaphore render_complete_semaphore =
-		    m_windowData.FrameSemaphores[m_windowData.SemaphoreIndex].RenderCompleteSemaphore;
+		    m_windowData.Semaphores[m_windowData.FrameIndex].RenderCompleteSemaphore;
 		VkPresentInfoKHR info{};
 		info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		info.waitSemaphoreCount = 1;
@@ -335,13 +331,15 @@ void ImGuiPipeline::Present()
 		info.pSwapchains = &m_windowData.Swapchain;
 		info.pImageIndices = &m_windowData.FrameIndex;
 
-		VkResult err = vkQueuePresentKHR(g_Queue, &info);
-		if (err == VK_ERROR_OUT_OF_DATE_KHR)
+		VkResult err = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &info);
+		if (err == VK_ERROR_OUT_OF_DATE_KHR || err == VK_SUBOPTIMAL_KHR)
 		{
 			g_SwapChainRebuild = true;
 			return;
 		}
 		check_vk_result(err);
+		if (m_suboptimal)
+			g_SwapChainRebuild = true;
 
 		// Now we can use the next set of semaphores.
 		m_windowData.SemaphoreIndex = (m_windowData.SemaphoreIndex + 1) % m_windowData.ImageCount;
@@ -363,7 +361,7 @@ int ImGuiPipeline::GetMinImageCountFromPresentMode(VkPresentModeKHR present_mode
 }
 
 
-void ImGuiPipeline::DestroyFrame(ImGui_ImplVulkanH_Frame *fd)
+void ImGuiPipeline::DestroyFrame(Frame *fd)
 {
 	vkDestroyFence(m_pDeviceContext->GetLogicalDevice(), fd->Fence, kPAllocator);
 	vkFreeCommandBuffers(m_pDeviceContext->GetLogicalDevice(), fd->CommandPool, 1, &fd->CommandBuffer);
@@ -373,15 +371,14 @@ void ImGuiPipeline::DestroyFrame(ImGui_ImplVulkanH_Frame *fd)
 	fd->CommandBuffer = VK_NULL_HANDLE;
 	fd->CommandPool = VK_NULL_HANDLE;
 
-	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), fd->BackbufferView, kPAllocator);
-	fd->BackbufferView = VK_NULL_HANDLE;
-
 	vkDestroyFramebuffer(m_pDeviceContext->GetLogicalDevice(), fd->Framebuffer, kPAllocator);
 	fd->Framebuffer = VK_NULL_HANDLE;
+	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), fd->BackbufferView, kPAllocator);
+	fd->BackbufferView = VK_NULL_HANDLE;
 }
 
 
-void ImGuiPipeline::DestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores *fsd)
+void ImGuiPipeline::DestroyFrameSemaphores(FrameSemaphores *fsd)
 {
 	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->ImageAcquiredSemaphore, kPAllocator);
 	vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), fsd->RenderCompleteSemaphore, kPAllocator);
@@ -400,59 +397,17 @@ void ImGuiPipeline::DestroyWindow()
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
 		DestroyFrame(&m_windowData.Frames[i]);
-		DestroyFrameSemaphores(&m_windowData.FrameSemaphores[i]);
+		DestroyFrameSemaphores(&m_windowData.Semaphores[i]);
 	}
 
-	IM_FREE(m_windowData.Frames);
-	IM_FREE(m_windowData.FrameSemaphores);
-
-	m_windowData.Frames = nullptr;
-	m_windowData.FrameSemaphores = nullptr;
+	m_windowData.Frames.clear();
+	m_windowData.Semaphores.clear();
 
 	vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_windowData.Pipeline, kPAllocator);
 	vkDestroyRenderPass(m_pDeviceContext->GetLogicalDevice(), m_windowData.RenderPass, kPAllocator);
 
 	// Better clear that window data.
-	m_windowData = ImGui_ImplVulkanH_Window{};
-}
-
-
-void ImGuiPipeline::DestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers *buffers)
-{
-	if (buffers->VertexBuffer)
-	{
-		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), buffers->VertexBuffer, kPAllocator);
-		buffers->VertexBuffer = VK_NULL_HANDLE;
-	}
-	if (buffers->VertexBufferMemory)
-	{
-		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), buffers->VertexBufferMemory, kPAllocator);
-		buffers->VertexBufferMemory = VK_NULL_HANDLE;
-	}
-	if (buffers->IndexBuffer)
-	{
-		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), buffers->IndexBuffer, kPAllocator);
-		buffers->IndexBuffer = VK_NULL_HANDLE;
-	}
-	if (buffers->IndexBufferMemory)
-	{
-		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), buffers->IndexBufferMemory, kPAllocator);
-		buffers->IndexBufferMemory = VK_NULL_HANDLE;
-	}
-	buffers->VertexBufferSize = 0;
-	buffers->IndexBufferSize = 0;
-}
-
-
-void ImGuiPipeline::DestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers *buffers)
-{
-	for (uint32_t n = 0; n < buffers->Count; n++)
-		DestroyFrameRenderBuffers(&buffers->FrameRenderBuffers[n]);
-
-	IM_FREE(buffers->FrameRenderBuffers);
-	buffers->FrameRenderBuffers = nullptr;
-	buffers->Index = 0;
-	buffers->Count = 0;
+	m_windowData = WindowData{};
 }
 
 
@@ -469,13 +424,11 @@ void ImGuiPipeline::CreateWindowSwapChain()
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
 		DestroyFrame(&m_windowData.Frames[i]);
-		DestroyFrameSemaphores(&m_windowData.FrameSemaphores[i]);
+		DestroyFrameSemaphores(&m_windowData.Semaphores[i]);
 	}
 
-	IM_FREE(m_windowData.Frames);
-	IM_FREE(m_windowData.FrameSemaphores);
-	m_windowData.Frames = nullptr;
-	m_windowData.FrameSemaphores = nullptr;
+	m_windowData.Frames.clear();
+	m_windowData.Semaphores.clear();
 	m_windowData.ImageCount = 0;
 
 	if (m_windowData.RenderPass)
@@ -496,12 +449,10 @@ void ImGuiPipeline::CreateWindowSwapChain()
 		    nullptr);
 		check_vk_result(err);
 
-		VkImage backbuffers[16]{};
-		IM_ASSERT(m_windowData.ImageCount >= m_pSwapchain->GetImageCount());
-		IM_ASSERT(m_windowData.ImageCount < IM_ARRAYSIZE(backbuffers));
+		std::vector<VkImage> backbuffers(m_windowData.ImageCount);
 		err = vkGetSwapchainImagesKHR(
 		    m_pDeviceContext->GetLogicalDevice(), m_windowData.Swapchain, &m_windowData.ImageCount,
-		    backbuffers);
+		    backbuffers.data());
 		check_vk_result(err);
 
 		// auto imageCount = m_pSwapchain->GetImageCount();
@@ -514,15 +465,8 @@ void ImGuiPipeline::CreateWindowSwapChain()
 		// m_pSwapchain->GetVkSwapchainHandle(), m_pSwapchain->GetImageCountAddress(),
 		// swapchainImages.data());
 
-		IM_ASSERT(m_windowData.Frames == nullptr);
-		m_windowData.Frames = (ImGui_ImplVulkanH_Frame *)IM_ALLOC(
-		    sizeof(ImGui_ImplVulkanH_Frame) * m_windowData.ImageCount);
-		m_windowData.FrameSemaphores = (ImGui_ImplVulkanH_FrameSemaphores *)IM_ALLOC(
-		    sizeof(ImGui_ImplVulkanH_FrameSemaphores) * m_windowData.ImageCount);
-		memset(m_windowData.Frames, 0, sizeof(m_windowData.Frames[0]) * m_windowData.ImageCount);
-		memset(
-		    m_windowData.FrameSemaphores, 0,
-		    sizeof(m_windowData.FrameSemaphores[0]) * m_windowData.ImageCount);
+		m_windowData.Frames.resize(m_windowData.ImageCount);
+		m_windowData.Semaphores.resize(m_windowData.ImageCount);
 		for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 			m_windowData.Frames[i].Backbuffer = backbuffers[i];
 	}
@@ -541,8 +485,8 @@ void ImGuiPipeline::CreateWindowCommandBuffers()
 	VkResult err;
 	for (uint32_t i = 0; i < m_windowData.ImageCount; i++)
 	{
-		ImGui_ImplVulkanH_Frame *fd = &m_windowData.Frames[i];
-		ImGui_ImplVulkanH_FrameSemaphores *fsd = &m_windowData.FrameSemaphores[i];
+		Frame *fd = &m_windowData.Frames[i];
+		FrameSemaphores *fsd = &m_windowData.Semaphores[i];
 
 		{
 			VkCommandPoolCreateInfo info{};
@@ -592,6 +536,9 @@ void ImGuiPipeline::CreateOrResizeWindow(uint32_t queue_family)
 	CreateWindowCommandBuffers();
 
 	m_windowData.FrameIndex = 0;
+	m_windowData.SemaphoreIndex = 0;
+	m_acquireFences.assign(m_windowData.ImageCount, VK_NULL_HANDLE);
+	m_suboptimal = false;
 	g_SwapChainRebuild = false;
 }
 
@@ -610,23 +557,7 @@ void ImGuiPipeline::SetupVulkanWindow()
 {
 	m_windowData.Surface = m_pDeviceContext->GetSurface();
 
-	// Check for WSI support
-	VkBool32 isSupported;
-	vkGetPhysicalDeviceSurfaceSupportKHR(
-	    m_pDeviceContext->GetPhysicalDevice(), m_pDeviceContext->GetGraphicsQueueIndex(),
-	    m_windowData.Surface, &isSupported);
-	if (isSupported != VK_TRUE)
-	{
-		throw std::runtime_error("No WSI support on physical device.");
-	}
-
-	// Select surface format.
-	const std::vector<VkFormat> requestSurfaceImageFormat{
-	    VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM,
-	    VK_FORMAT_R8G8B8_UNORM};
-	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	m_windowData.SurfaceFormat = m_pDeviceContext->FindSupportedSurfaceFormat(
-	    requestSurfaceImageFormat, requestSurfaceColorSpace);
+	m_windowData.SurfaceFormat.format = m_pSwapchain->GetImageFormat();
 
 	// Select present mode.
 #ifdef IMGUI_UNLIMITED_FRAME_RATE

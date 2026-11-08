@@ -3,8 +3,10 @@
 #include <vulkan/vulkan.h>
 
 // STD.
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include <imgui.h>
@@ -17,31 +19,6 @@
 
 namespace Jettison::Renderer
 {
-// TODO: Remove this - it's a copy from the ImGui vulkan implementation.
-// Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplVulkan_RenderDrawData()
-// [Please zero-clear before use!]
-struct ImGui_ImplVulkanH_FrameRenderBuffers
-{
-	VkDeviceMemory VertexBufferMemory;
-	VkDeviceMemory IndexBufferMemory;
-	VkDeviceSize VertexBufferSize;
-	VkDeviceSize IndexBufferSize;
-	VkBuffer VertexBuffer;
-	VkBuffer IndexBuffer;
-};
-
-
-// TODO: Remove this - it's a copy from the ImGui vulkan implementation.
-// Each viewport will hold 1 ImGui_ImplVulkanH_WindowRenderBuffers
-// [Please zero-clear before use!]
-struct ImGui_ImplVulkanH_WindowRenderBuffers
-{
-	uint32_t Index;
-	uint32_t Count;
-	ImGui_ImplVulkanH_FrameRenderBuffers *FrameRenderBuffers;
-};
-
-
 class ImGuiPipeline
 {
   public:
@@ -49,8 +26,9 @@ class ImGuiPipeline
 
 	ImGuiPipeline(
 	    std::shared_ptr<DeviceContext> pDeviceContext,
-	    std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain)
-	    : m_pDeviceContext{pDeviceContext}, m_pSwapchain{pSwapchain}
+	    std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain, std::filesystem::path assetDirectory)
+	    : m_pDeviceContext{pDeviceContext}, m_pSwapchain{pSwapchain},
+	      m_assetDirectory{std::move(assetDirectory)}
 	{
 	}
 
@@ -83,6 +61,40 @@ class ImGuiPipeline
 	void Present();
 
   private:
+	struct Frame
+	{
+		VkCommandPool CommandPool{VK_NULL_HANDLE};
+		VkCommandBuffer CommandBuffer{VK_NULL_HANDLE};
+		VkFence Fence{VK_NULL_HANDLE};
+		VkImage Backbuffer{VK_NULL_HANDLE};
+		VkImageView BackbufferView{VK_NULL_HANDLE};
+		VkFramebuffer Framebuffer{VK_NULL_HANDLE};
+	};
+
+	struct FrameSemaphores
+	{
+		VkSemaphore ImageAcquiredSemaphore{VK_NULL_HANDLE};
+		VkSemaphore RenderCompleteSemaphore{VK_NULL_HANDLE};
+	};
+
+	struct WindowData
+	{
+		VkSurfaceKHR Surface{VK_NULL_HANDLE};
+		VkSurfaceFormatKHR SurfaceFormat{};
+		VkPresentModeKHR PresentMode{};
+		VkClearValue ClearValue{};
+		int Width{0};
+		int Height{0};
+		VkSwapchainKHR Swapchain{VK_NULL_HANDLE};
+		VkRenderPass RenderPass{VK_NULL_HANDLE};
+		VkPipeline Pipeline{VK_NULL_HANDLE};
+		uint32_t FrameIndex{0};
+		uint32_t ImageCount{0};
+		uint32_t SemaphoreIndex{0};
+		std::vector<Frame> Frames;
+		std::vector<FrameSemaphores> Semaphores;
+	};
+
 	void Create();
 
 	void CreateRenderPass();
@@ -91,21 +103,17 @@ class ImGuiPipeline
 
 	void CreateImageViews();
 
-	void CreateFontsTexture();
-
 	void CreateDescriptorPool();
+
+	void InitVulkanBackend();
 
 	int GetMinImageCountFromPresentMode(VkPresentModeKHR present_mode);
 
-	void DestroyFrame(ImGui_ImplVulkanH_Frame *fd);
+	void DestroyFrame(Frame *fd);
 
-	void DestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores *fsd);
+	void DestroyFrameSemaphores(FrameSemaphores *fsd);
 
 	void DestroyWindow();
-
-	void DestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers *buffers);
-
-	void DestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers *buffers);
 
 	void CreateWindowSwapChain();
 
@@ -120,7 +128,10 @@ class ImGuiPipeline
 
 	// Swapchain.
 	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain{nullptr};
+	std::filesystem::path m_assetDirectory;
 
-	ImGui_ImplVulkanH_Window m_windowData{};
+	WindowData m_windowData{};
+	std::vector<VkFence> m_acquireFences;
+	bool m_suboptimal{false};
 };
 } // namespace Jettison::Renderer
