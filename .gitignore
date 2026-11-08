@@ -1,4 +1,30 @@
+# CMake
 /build/
-*.spv
-.idea/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/Testing/
 
+# Unreal-generated files
+/Binaries/
+/Intermediate/
+/Saved/
+/DerivedDataCache/
+
+# Vendored yaml-cpp checkout (created by Scripts/FetchYamlCpp.sh)
+/Source/YamlCpp/Private/ThirdParty/yaml-cpp/
+
+# Editor/OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Devenv
+.devenv
+
+# Clangd
+.cache/
+
+# SpirV compiler
+*.spv
