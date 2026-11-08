@@ -1,3 +1,45 @@
+# Normalise line endings on check-out: LF in the repository, LF in the working tree.
+* text=auto
+
+# Shell scripts must keep LF: a CRLF shebang fails to exec on Linux and macOS.
+*.sh text eol=lf
+*.bash text eol=lf
+# YAML is read by yaml-cpp, yq and the game; keep it LF everywhere.
+*.yaml text eol=lf
+*.yml text eol=lf
+# Source and documentation.
+*.c text
+*.cpp text
+*.cxx text
+*.h text
+*.hpp text
+*.cs text
+*.md text
+*.nix text
+*.toml text
+*.json text
+*.uplugin text
+CMakeLists.txt text
+*.lock text
+.envrc text
+.gitattributes text
+# Binary assets.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.fbx binary
+*.uasset binary
+*.umap binary
+*.a binary
+*.lib binary
+*.obj binary
+*.o binary
+*.dll binary
+*.so binary
+*.exe binary
+*.pdf binary
+*.zip binary
 *.glb filter=lfs diff=lfs merge=lfs -text
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text

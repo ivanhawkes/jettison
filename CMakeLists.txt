@@ -1,7 +1,11 @@
-cmake_minimum_required (VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 
 # Set the overall project name.
-project("Jettison" VERSION 0.1.0.0)
+# project(Jettison
+#     VERSION 0.1.0
+#     DESCRIPTION "A simple Vulkan based rendering engine"
+#     LANGUAGES CXX
+# )
 
 # Turn on using solution folders.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

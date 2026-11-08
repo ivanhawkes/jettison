@@ -28,3 +28,22 @@ git submodule init
 git submodule update
 ```
 
+## Building
+
+There's a few steps to get the project to build. First, you need to get all of the dependencies installed.
+That includes Vulkan, SPIRV development libraries, etc. At a minimum, follow the instructions on installing
+Vulkan. I had to follow a few additional steps.
+
+```bash
+sudo apt install libxcb-xinput0 libxcb-xinerama0 libxinerama-dev libxcb-cursor-dev libxcursor-dev libxi-dev spirv-cross spirv-headers spirv-tools
+
+# Compile the shaders by hand.
+cd source/test/assets/shaders
+./compile.sh
+
+# Change back to the root of the project first.
+mkdir build
+cd build
+cmake .. -B .
+ninja
+```
