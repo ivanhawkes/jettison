@@ -3,7 +3,15 @@ cmake_minimum_required(VERSION 3.24)
 add_library(Renderer STATIC)
 set_property(TARGET Renderer PROPERTY FOLDER "Renderer")
 
-target_link_libraries(Renderer PUBLIC Vulkan::Vulkan glm glfw stb tiny_obj_loader)
+target_link_libraries(Renderer PUBLIC
+    Vulkan::Vulkan
+    glm
+    glfw
+    stb
+    tiny_obj_loader
+    EnTT::EnTT
+    "$<LINK_GROUP:RESCAN,imgui>"
+)
 
 target_sources(Renderer PUBLIC
     # Interface.

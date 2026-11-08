@@ -4,6 +4,13 @@
 /CMakeFiles/
 /CMakeCache.txt
 /Testing/
+/source/external/cereal/
+/source/external/entt/
+/source/external/freetype/
+/source/external/glfw/
+/source/external/glm/
+/source/external/imgui/
+/source/external/zlib/
 
 # Unreal-generated files
 /Binaries/

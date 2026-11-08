@@ -2,7 +2,7 @@
 
 // Tiny object loader.
 #define TINYOBJLOADER_IMPLEMENTATION
-#include <../tiny_obj_loader/include/tiny_obj_loader.h>
+#include <tiny_obj_loader.h>
 
 
 namespace Jettison::Renderer
@@ -33,26 +33,23 @@ void Model::LoadModel()
 		throw std::runtime_error(warn + err);
 	}
 
-	std::unordered_map<Vertex, uint32_t> uniqueVertices {};
+	std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 
-	for (const auto& shape : shapes)
+	for (const auto &shape : shapes)
 	{
-		for (const auto& index : shape.mesh.indices)
+		for (const auto &index : shape.mesh.indices)
 		{
-			Vertex vertex {};
+			Vertex vertex{};
 
 			size_t vertex_index = index.vertex_index;
 			vertex.pos = {
-				attrib.vertices[3 * vertex_index + 0],
-				attrib.vertices[3 * vertex_index + 1],
-				attrib.vertices[3 * vertex_index + 2]
-			};
+			    attrib.vertices[3 * vertex_index + 0], attrib.vertices[3 * vertex_index + 1],
+			    attrib.vertices[3 * vertex_index + 2]};
 
 			size_t texcoord_index = index.texcoord_index;
 			vertex.texCoord = {
-				attrib.texcoords[2 * texcoord_index + 0],
-				1.0f - attrib.texcoords[2 * texcoord_index + 1]
-			};
+			    attrib.texcoords[2 * texcoord_index + 0],
+			    1.0f - attrib.texcoords[2 * texcoord_index + 1]};
 
 			vertex.color = {1.0f, 1.0f, 1.0f};
 
@@ -77,14 +74,19 @@ void Model::CreateVertexBuffer()
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	m_pDeviceContext->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	m_pDeviceContext->CreateBuffer(
+	    bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
+	    stagingBufferMemory);
 
-	void* data;
+	void *data;
 	vkMapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, m_vertices.data(), static_cast<size_t>(bufferSize));
 	vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory);
 
-	m_pDeviceContext->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vertexBuffer, m_vertexBufferMemory);
+	m_pDeviceContext->CreateBuffer(
+	    bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vertexBuffer, m_vertexBufferMemory);
 
 	m_pDeviceContext->CopyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
 
@@ -99,18 +101,23 @@ void Model::CreateIndexBuffer()
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	m_pDeviceContext->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	m_pDeviceContext->CreateBuffer(
+	    bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
+	    stagingBufferMemory);
 
-	void* data;
+	void *data;
 	vkMapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, m_indices.data(), static_cast<size_t>(bufferSize));
 	vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory);
 
-	m_pDeviceContext->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indexBuffer, m_indexBufferMemory);
+	m_pDeviceContext->CreateBuffer(
+	    bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indexBuffer, m_indexBufferMemory);
 
 	m_pDeviceContext->CopyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
 
 	vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), stagingBuffer, nullptr);
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, nullptr);
 }
-}
+} // namespace Jettison::Renderer

@@ -2,7 +2,7 @@
 
 // GLFW / Vulkan.
 #define GLFW_INCLUDE_VULKAN
-#include <../glfw/include/GLFW/glfw3.h>
+#include <GLFW/glfw3.h>
 
 
 namespace Jettison::Renderer
@@ -29,20 +29,20 @@ void Window::Destroy()
 }
 
 
-VkExtent2D Window::GetWindowExtents() const 
+VkExtent2D Window::GetWindowExtents() const
 {
 	int width;
 	int height;
 
 	glfwGetFramebufferSize(m_glfwWindow, &width, &height);
 
-	return VkExtent2D {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+	return VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
 }
 
 
-void Window::OnFramebufferResize(GLFWwindow* m_glfwWindow, int width, int height)
+void Window::OnFramebufferResize(GLFWwindow *m_glfwWindow, int width, int height)
 {
-	auto window = reinterpret_cast<Window*>(glfwGetWindowUserPointer(m_glfwWindow));
+	auto window = reinterpret_cast<Window *>(glfwGetWindowUserPointer(m_glfwWindow));
 	window->m_hasBeenResized = true;
 }
-}
+} // namespace Jettison::Renderer

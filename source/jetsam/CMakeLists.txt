@@ -16,9 +16,6 @@ set_property(TARGET jetsam PROPERTY FOLDER "Jetsam")
 find_package(Vulkan REQUIRED)
 target_link_libraries(jetsam PRIVATE Vulkan::Vulkan)
 
-include_directories("external/entt/src")
-include_directories("external/imgui")
-
 # Copy shaders, models and the textures.
 configure_file("shaders/shader.vert.spv" "shaders/shader.vert.spv" COPYONLY)
 configure_file("shaders/shader.frag.spv" "shaders/shader.frag.spv" COPYONLY)

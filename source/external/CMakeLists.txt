@@ -1,72 +1,80 @@
-set(JETTISON_EXTERNAL_SOURCE ${CMAKE_CURRENT_LIST_DIR})
+include(FetchContent)
+find_package(Vulkan REQUIRED)
 
-# Can bypass Boost dependancy using SKIP_PERFORMANCE_COMPARISON
-#add_subdirectory("cereal")
+set(ENTT_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(ENTT_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
+set(ENTT_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  entt
+  GIT_REPOSITORY https://github.com/skypjack/entt.git
+  GIT_TAG v3.6.0
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(entt)
 
-# Configure Cereal to skip the performance tests so we don't need Boost.
-#option(SKIP_PERFORMANCE_COMPARISON "Skip building performance comparison (requires boost)" ON)
+FetchContent_Declare(
+  glm
+  GIT_REPOSITORY https://github.com/g-truc/glm.git
+  GIT_TAG 0.9.9.8
+  GIT_SHALLOW TRUE
+  SOURCE_SUBDIR _fetchcontent_no_cmake
+)
+FetchContent_MakeAvailable(glm)
+add_library(glm INTERFACE)
+target_include_directories(glm INTERFACE "${glm_SOURCE_DIR}")
 
-# Move the targets into a solution folder.
-#set_property(TARGET cereal PROPERTY FOLDER "Cereal")
-#set_property(TARGET sandbox PROPERTY FOLDER "Cereal/Sandbox")
-#set_property(TARGET sandbox_json PROPERTY FOLDER "Cereal/Sandbox")
-#set_property(TARGET sandbox_rtti PROPERTY FOLDER "Cereal/Sandbox")
-#set_property(TARGET sandbox_vs PROPERTY FOLDER "Cereal/Sandbox")
-#set_property(TARGET sandbox_vs_dll PROPERTY FOLDER "Cereal/Sandbox")
-
-# Fast ECS library.
-add_subdirectory("entt")
-
-# Move the targets into a solution folder.
-set_property(TARGET aob PROPERTY FOLDER "EnTT")
-
-# Missing harfbuzz, ZLIB and PNG and BZIP2
-#add_subdirectory("freetype")
-
-# Move the targets into a solution folder.
-#set_property(TARGET freetype PROPERTY FOLDER "Freetype")
-
-# Not a cmake thing.
-#add_subdirectory("imgui")
-#list(APPEND IMGUI_SOURCES
-#	${CMAKE_CURRENT_LIST_DIR}/imgui/imconfig.h
-#	${CMAKE_CURRENT_LIST_DIR}/imgui/imconfig.cpp
-#	)
-
-# Warning which needs suppressing.
-# NOTE: I got sick of suppressing it, so zlib is out till I need it.
-#add_subdirectory("zlib")
-
-# Move the targets into a solution folder.
-#set_property(TARGET example PROPERTY FOLDER "ZLib")
-#set_property(TARGET zlib PROPERTY FOLDER "ZLib")
-#set_property(TARGET zlibstatic PROPERTY FOLDER "ZLib")
-#set_property(TARGET minigzip PROPERTY FOLDER "ZLib")
-
-# GL math library.
-add_subdirectory("glm")
-
-# GLFW.
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory("glfw")
-
-# STB.
-add_subdirectory("stb")
-
-# Tiny Object Loader.
-add_subdirectory("tiny_obj_loader")
-
-
-# Testing getting something with fetch...
-# Interesting, it pulled it in, but not into the external folder - rather a dep folder.
-include(FetchContent)
+set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+set(GLFW_BUILD_X11 OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
-  spdlog
-  GIT_REPOSITORY https://github.com/gabime/spdlog
-  GIT_TAG        de0dbfa3596a18cd70a4619b6a9766847a941276
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG 3.4
+  GIT_SHALLOW TRUE
 )
+FetchContent_MakeAvailable(glfw)
 
-# After the following call, the CMake targets will be defined and available to the rest of the build.
-FetchContent_MakeAvailable(spdlog)
+FetchContent_Declare(
+  imgui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG 01a2bac7d51d99a81277439b64d9faa69cdd12ed
+  SOURCE_SUBDIR _fetchcontent_no_cmake
+)
+FetchContent_MakeAvailable(imgui)
+add_library(imgui STATIC
+  "${imgui_SOURCE_DIR}/imgui.cpp"
+  "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+  "${imgui_SOURCE_DIR}/imgui_demo.cpp"
+  "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+  "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+  "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
+  "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
+)
+target_include_directories(imgui PUBLIC
+  "${imgui_SOURCE_DIR}"
+  "${imgui_SOURCE_DIR}/backends"
+)
+target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
+
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG 5736b15f7ea0ffb08dd38af21067c314d6a3aae9
+  SOURCE_SUBDIR _fetchcontent_no_cmake
+)
+FetchContent_MakeAvailable(stb)
+add_library(stb INTERFACE)
+target_include_directories(stb INTERFACE "${stb_SOURCE_DIR}")
+
+FetchContent_Declare(
+  tinyobjloader
+  GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+  GIT_TAG v2.0.0rc13
+  GIT_SHALLOW TRUE
+  SOURCE_SUBDIR _fetchcontent_no_cmake
+)
+FetchContent_MakeAvailable(tinyobjloader)
+add_library(tiny_obj_loader INTERFACE)
+target_include_directories(tiny_obj_loader INTERFACE "${tinyobjloader_SOURCE_DIR}")

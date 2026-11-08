@@ -2,7 +2,7 @@
 
 // GLFW / Vulkan.
 #define GLFW_INCLUDE_VULKAN
-#include <../glfw/include/GLFW/glfw3.h>
+#include <GLFW/glfw3.h>
 
 // STD.
 #include <array>
@@ -22,7 +22,8 @@ void Swapchain::Init()
 
 void Swapchain::Create()
 {
-	SwapChainSupportDetails swapChainSupport = m_pDeviceContext->QuerySwapChainSupport(m_pDeviceContext->GetPhysicalDevice());
+	SwapChainSupportDetails swapChainSupport =
+	    m_pDeviceContext->QuerySwapChainSupport(m_pDeviceContext->GetPhysicalDevice());
 
 	VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
 	VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
@@ -33,7 +34,7 @@ void Swapchain::Create()
 	m_maxImageCount = swapChainSupport.capabilities.maxImageCount;
 	m_imageCount = std::max(m_minImageCount + 1, m_maxImageCount);
 
-	VkSwapchainCreateInfoKHR createInfo {};
+	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	createInfo.surface = m_pDeviceContext->GetSurface();
 	createInfo.minImageCount = m_imageCount;
@@ -43,7 +44,8 @@ void Swapchain::Create()
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	QueueFamilyIndices indices = m_pDeviceContext->FindQueueFamilies(m_pDeviceContext->GetPhysicalDevice());
+	QueueFamilyIndices indices =
+	    m_pDeviceContext->FindQueueFamilies(m_pDeviceContext->GetPhysicalDevice());
 	uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
 	if (indices.graphicsFamily != indices.presentFamily)
@@ -68,7 +70,9 @@ void Swapchain::Create()
 
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	if (vkCreateSwapchainKHR(m_pDeviceContext->GetLogicalDevice(), &createInfo, nullptr, &m_vkSwapchainHandle) != VK_SUCCESS)
+	if (vkCreateSwapchainKHR(
+	        m_pDeviceContext->GetLogicalDevice(), &createInfo, nullptr, &m_vkSwapchainHandle) !=
+	    VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create swap chain");
 	}
@@ -93,13 +97,15 @@ void Swapchain::Destroy()
 }
 
 
-VkSurfaceFormatKHR Swapchain::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+VkSurfaceFormatKHR Swapchain::ChooseSwapSurfaceFormat(
+    const std::vector<VkSurfaceFormatKHR> &availableFormats)
 {
-	for (const auto& availableFormat : availableFormats)
+	for (const auto &availableFormat : availableFormats)
 	{
 		// Narrow down the formats to the one(s) we requested.
-		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB || availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM 
-			&& availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB ||
+		    availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
+		        availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 		{
 			return availableFormat;
 		}
@@ -109,9 +115,10 @@ VkSurfaceFormatKHR Swapchain::ChooseSwapSurfaceFormat(const std::vector<VkSurfac
 }
 
 
-VkPresentModeKHR Swapchain::ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
+VkPresentModeKHR Swapchain::ChooseSwapPresentMode(
+    const std::vector<VkPresentModeKHR> &availablePresentModes)
 {
-	for (const VkPresentModeKHR& availablePresentMode : availablePresentModes)
+	for (const VkPresentModeKHR &availablePresentMode : availablePresentModes)
 	{
 		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
@@ -123,7 +130,7 @@ VkPresentModeKHR Swapchain::ChooseSwapPresentMode(const std::vector<VkPresentMod
 }
 
 
-VkExtent2D Swapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
+VkExtent2D Swapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
 {
 	if (capabilities.currentExtent.width != UINT32_MAX)
 	{
@@ -136,15 +143,16 @@ VkExtent2D Swapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 
 		glfwGetFramebufferSize(m_pDeviceContext->GetWindow()->GetGLFWWindow(), &width, &height);
 
-		VkExtent2D actualExtent = {
-			static_cast<uint32_t>(width),
-			static_cast<uint32_t>(height)
-		};
+		VkExtent2D actualExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
 
-		actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
-		actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
+		actualExtent.width = std::max(
+		    capabilities.minImageExtent.width,
+		    std::min(capabilities.maxImageExtent.width, actualExtent.width));
+		actualExtent.height = std::max(
+		    capabilities.minImageExtent.height,
+		    std::min(capabilities.maxImageExtent.height, actualExtent.height));
 
 		return actualExtent;
 	}
 }
-}
+} // namespace Jettison::Renderer

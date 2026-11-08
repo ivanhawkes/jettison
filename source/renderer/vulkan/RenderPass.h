@@ -7,19 +7,19 @@
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
-#include <../glm/glm/glm.hpp>
-#include <../glm/glm/gtc/matrix_transform.hpp>
-#include <../glm/glm/gtx/hash.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 
 namespace Jettison::Renderer
 {
 class RenderPass
 {
-public:
+  public:
 	// Disable copying.
 	RenderPass() = default;
-	RenderPass(const RenderPass&) = delete;
-	RenderPass& operator=(const RenderPass&) = delete;
+	RenderPass(const RenderPass &) = delete;
+	RenderPass &operator=(const RenderPass &) = delete;
 };
-}
+} // namespace Jettison::Renderer

@@ -24,6 +24,11 @@
     vulkan-tools       # Provides vulkaninfo, vkcube, etc.
     shaderc            # GLSL to SPIR-V compiler (glslc)
     glfw               # Or SDL2, if your app uses it for windowing
+    wayland
+    wayland-protocols
+    wayland-scanner
+    libxkbcommon
+    libffi
     pkg-config
     
     # YAML

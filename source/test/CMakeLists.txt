@@ -17,11 +17,6 @@ set_property(TARGET test PROPERTY FOLDER "Test")
 find_package(Vulkan REQUIRED)
 target_link_libraries(test PRIVATE Vulkan::Vulkan)
 
-include_directories("${CMAKE_SOURCE_DIR}/source/external/entt/src")
-
-# External projects.
-add_subdirectory("${CMAKE_SOURCE_DIR}/source/external" external)
-
 # Renderer.
 add_subdirectory("${CMAKE_SOURCE_DIR}/source/renderer" renderer)
 
@@ -30,8 +25,9 @@ include_directories("${CMAKE_SOURCE_DIR}/source/renderer")
 
 target_link_libraries(test PUBLIC Renderer)
 
-# TODO: HACK: Need the GLFW DLL file. Not sure how to get it to copy over.
-install(FILES "${GLFW_BINARY_DIR}/src/glfw3.dll" DESTINATION "bin")
+if(WIN32)
+	install(FILES "${glfw_BINARY_DIR}/src/glfw3.dll" DESTINATION "bin")
+endif()
 
 # Assets.
 add_subdirectory("assets")

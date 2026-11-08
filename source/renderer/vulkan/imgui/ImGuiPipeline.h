@@ -7,9 +7,9 @@
 #include <stdexcept>
 #include <vector>
 
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_vulkan.h"
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
 
 #include "../DeviceContext.h"
 #include "../Swapchain.h"
@@ -22,12 +22,12 @@ namespace Jettison::Renderer
 // [Please zero-clear before use!]
 struct ImGui_ImplVulkanH_FrameRenderBuffers
 {
-	VkDeviceMemory      VertexBufferMemory;
-	VkDeviceMemory      IndexBufferMemory;
-	VkDeviceSize        VertexBufferSize;
-	VkDeviceSize        IndexBufferSize;
-	VkBuffer            VertexBuffer;
-	VkBuffer            IndexBuffer;
+	VkDeviceMemory VertexBufferMemory;
+	VkDeviceMemory IndexBufferMemory;
+	VkDeviceSize VertexBufferSize;
+	VkDeviceSize IndexBufferSize;
+	VkBuffer VertexBuffer;
+	VkBuffer IndexBuffer;
 };
 
 
@@ -36,24 +36,28 @@ struct ImGui_ImplVulkanH_FrameRenderBuffers
 // [Please zero-clear before use!]
 struct ImGui_ImplVulkanH_WindowRenderBuffers
 {
-	uint32_t            Index;
-	uint32_t            Count;
-	ImGui_ImplVulkanH_FrameRenderBuffers* FrameRenderBuffers;
+	uint32_t Index;
+	uint32_t Count;
+	ImGui_ImplVulkanH_FrameRenderBuffers *FrameRenderBuffers;
 };
 
 
 class ImGuiPipeline
 {
-public:
-	const VkAllocationCallbacks* kPAllocator {nullptr};
+  public:
+	const VkAllocationCallbacks *kPAllocator{nullptr};
 
-	ImGuiPipeline(std::shared_ptr<DeviceContext> pDeviceContext, std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain)
-		:m_pDeviceContext {pDeviceContext}, m_pSwapchain {pSwapchain} {}
+	ImGuiPipeline(
+	    std::shared_ptr<DeviceContext> pDeviceContext,
+	    std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain)
+	    : m_pDeviceContext{pDeviceContext}, m_pSwapchain{pSwapchain}
+	{
+	}
 
 	// Disable copying.
 	ImGuiPipeline() = default;
-	ImGuiPipeline(const ImGuiPipeline&) = delete;
-	ImGuiPipeline& operator=(const ImGuiPipeline&) = delete;
+	ImGuiPipeline(const ImGuiPipeline &) = delete;
+	ImGuiPipeline &operator=(const ImGuiPipeline &) = delete;
 
 	void Init();
 
@@ -61,12 +65,12 @@ public:
 
 	void Destroy();
 
-	VkQueue                  g_Queue {VK_NULL_HANDLE};
-	VkDescriptorPool         g_DescriptorPool {VK_NULL_HANDLE};
+	VkQueue g_Queue{VK_NULL_HANDLE};
+	VkDescriptorPool g_DescriptorPool{VK_NULL_HANDLE};
 
-	bool                     g_SwapChainRebuild {false};
+	bool g_SwapChainRebuild{false};
 
-	VkPipelineCache          g_PipelineCache {VK_NULL_HANDLE};
+	VkPipelineCache g_PipelineCache{VK_NULL_HANDLE};
 
 	void CreateOrResizeWindow(uint32_t queue_family);
 
@@ -78,8 +82,7 @@ public:
 
 	void Present();
 
-private:
-
+  private:
 	void Create();
 
 	void CreateRenderPass();
@@ -94,15 +97,15 @@ private:
 
 	int GetMinImageCountFromPresentMode(VkPresentModeKHR present_mode);
 
-	void DestroyFrame(ImGui_ImplVulkanH_Frame* fd);
+	void DestroyFrame(ImGui_ImplVulkanH_Frame *fd);
 
-	void DestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores* fsd);
+	void DestroyFrameSemaphores(ImGui_ImplVulkanH_FrameSemaphores *fsd);
 
 	void DestroyWindow();
 
-	void DestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers* buffers);
+	void DestroyFrameRenderBuffers(ImGui_ImplVulkanH_FrameRenderBuffers *buffers);
 
-	void DestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers* buffers);
+	void DestroyWindowRenderBuffers(ImGui_ImplVulkanH_WindowRenderBuffers *buffers);
 
 	void CreateWindowSwapChain();
 
@@ -113,11 +116,11 @@ private:
 	void SetupVulkanWindow();
 
 	// Vulkan device context.
-	std::shared_ptr<DeviceContext> m_pDeviceContext {nullptr};
+	std::shared_ptr<DeviceContext> m_pDeviceContext{nullptr};
 
 	// Swapchain.
-	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain {nullptr};
+	std::shared_ptr<Jettison::Renderer::Swapchain> m_pSwapchain{nullptr};
 
-	ImGui_ImplVulkanH_Window m_windowData {};
+	ImGui_ImplVulkanH_Window m_windowData{};
 };
-}
+} // namespace Jettison::Renderer
