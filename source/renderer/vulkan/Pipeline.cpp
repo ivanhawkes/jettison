@@ -1,4 +1,5 @@
 #include "Pipeline.h"
+#include "imgui/ImGuiRenderer.h"
 
 // STB.
 #define STB_IMAGE_IMPLEMENTATION
@@ -59,13 +60,13 @@ void Pipeline::Create()
 }
 
 
-void Pipeline::Recreate(const Model &model)
+void Pipeline::Recreate()
 {
 	m_pDeviceContext->WaitOnWindowResized();
 
 	Destroy();
 	Create();
-	CreateCommandBuffers(model);
+	CreateCommandBuffers();
 }
 
 
@@ -517,7 +518,7 @@ void Pipeline::CreateDescriptorSets()
 }
 
 
-void Pipeline::CreateCommandBuffers(const Model &model)
+void Pipeline::CreateCommandBuffers()
 {
 	m_commandBuffers.resize(m_pSwapchain->GetImageCount());
 
@@ -533,58 +534,51 @@ void Pipeline::CreateCommandBuffers(const Model &model)
 		throw std::runtime_error("failed to create command buffers");
 	}
 
-	for (size_t i = 0; i < m_commandBuffers.size(); ++i)
-	{
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+}
 
-		if (vkBeginCommandBuffer(m_commandBuffers[i], &beginInfo) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to begin recording command buffer");
-		}
 
-		VkRenderPassBeginInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = m_renderPass;
-		renderPassInfo.framebuffer = m_swapchainFramebuffers[i];
-		renderPassInfo.renderArea.offset = {0, 0};
-		renderPassInfo.renderArea.extent = m_pSwapchain->GetExtents();
+void Pipeline::RecordCommandBuffer(
+    uint32_t imageIndex, const Model &model, const ImGuiRenderer &imguiRenderer)
+{
+	VkCommandBuffer commandBuffer = m_commandBuffers.at(imageIndex);
+	if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS)
+		throw std::runtime_error("failed to reset command buffer");
 
-		std::array<VkClearValue, 2> clearValues{};
-		clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
-		clearValues[1].depthStencil = {1.0f, 0};
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+		throw std::runtime_error("failed to begin recording command buffer");
 
-		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		renderPassInfo.pClearValues = clearValues.data();
+	VkRenderPassBeginInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = m_renderPass;
+	renderPassInfo.framebuffer = m_swapchainFramebuffers.at(imageIndex);
+	renderPassInfo.renderArea.offset = {0, 0};
+	renderPassInfo.renderArea.extent = m_pSwapchain->GetExtents();
 
-		vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	std::array<VkClearValue, 2> clearValues{};
+	clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+	clearValues[1].depthStencil = {1.0f, 0};
+	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+	renderPassInfo.pClearValues = clearValues.data();
 
-		vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-		// I guess this should run for each model...
-		// HACK: I cheated and only run this entire thing once.
-		{
-			VkBuffer vertexBuffers[] = {model.m_vertexBuffer};
-			VkDeviceSize offsets[] = {0};
-			vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, offsets);
+	VkBuffer vertexBuffers[] = {model.m_vertexBuffer};
+	VkDeviceSize offsets[] = {0};
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(commandBuffer, model.m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
+	    &m_descriptorSets.at(imageIndex), 0, nullptr);
+	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(model.m_indices.size()), 1, 0, 0, 0);
 
-			vkCmdBindIndexBuffer(m_commandBuffers[i], model.m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	imguiRenderer.RenderDrawData(commandBuffer);
+	vkCmdEndRenderPass(commandBuffer);
 
-			vkCmdBindDescriptorSets(
-			    m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
-			    &m_descriptorSets[i], 0, nullptr);
-
-			vkCmdDrawIndexed(
-			    m_commandBuffers[i], static_cast<uint32_t>(model.m_indices.size()), 1, 0, 0, 0);
-
-			vkCmdEndRenderPass(m_commandBuffers[i]);
-
-			if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS)
-			{
-				throw std::runtime_error("failed to record command buffer");
-			}
-		}
-	}
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		throw std::runtime_error("failed to record command buffer");
 }
 
 

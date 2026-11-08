@@ -14,6 +14,8 @@
 
 namespace Jettison::Renderer
 {
+class ImGuiRenderer;
+
 class Pipeline
 {
   public:
@@ -32,11 +34,16 @@ class Pipeline
 
 	void Init();
 
-	void Recreate(const Model &model);
+	void Recreate();
 
 	void Destroy();
 
-	void CreateCommandBuffers(const Model &model);
+	void CreateCommandBuffers();
+
+	void RecordCommandBuffer(
+	    uint32_t imageIndex, const Model &model, const ImGuiRenderer &imguiRenderer);
+
+	VkRenderPass GetRenderPass() const { return m_renderPass; }
 
 	inline const std::vector<VkCommandBuffer> &GetCommandBuffers() const
 	{

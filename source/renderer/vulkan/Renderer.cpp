@@ -98,7 +98,20 @@ void Renderer::RecreateRenderFinishedSemaphores()
 }
 
 
-bool Renderer::Render(const Model &model)
+void Renderer::RecreateSwapchain(const Model &model, ImGuiRenderer &imguiRenderer)
+{
+	check_vk_result(m_pDeviceContext->WaitIdle());
+	imguiRenderer.ShutdownVulkanBackend();
+	m_pSwapchain->Recreate();
+	m_pPipeline->Recreate();
+	imguiRenderer.InitVulkanBackend(m_pPipeline->GetRenderPass(), m_pSwapchain->GetImageCount());
+	RecreateRenderFinishedSemaphores();
+	m_imagesInFlight.assign(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
+	m_pWindow->HasBeenResized(false);
+}
+
+
+bool Renderer::Render(const Model &model, ImGuiRenderer &imguiRenderer)
 {
 	vkWaitForFences(
 	    m_pDeviceContext->GetLogicalDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE,
@@ -111,11 +124,7 @@ bool Renderer::Render(const Model &model)
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
-		m_pDeviceContext->WaitIdle();
-		m_pSwapchain->Recreate();
-		m_pPipeline->Recreate(model);
-		RecreateRenderFinishedSemaphores();
-		m_imagesInFlight.assign(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
+		RecreateSwapchain(model, imguiRenderer);
 		return true;
 	}
 	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -134,6 +143,7 @@ bool Renderer::Render(const Model &model)
 	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
 	UpdateUniformBuffer(imageIndex);
+	m_pPipeline->RecordCommandBuffer(imageIndex, model, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -175,12 +185,7 @@ bool Renderer::Render(const Model &model)
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || swapchainSuboptimal ||
 	    m_pWindow->HasBeenResized())
 	{
-		m_pDeviceContext->WaitIdle();
-		m_pSwapchain->Recreate();
-		m_pPipeline->Recreate(model);
-		RecreateRenderFinishedSemaphores();
-		m_imagesInFlight.assign(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
-		m_pWindow->HasBeenResized(false);
+		RecreateSwapchain(model, imguiRenderer);
 		m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;
 		return true;
 	}

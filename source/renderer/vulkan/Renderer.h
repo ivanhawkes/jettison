@@ -10,6 +10,7 @@
 #include "Pipeline.h"
 #include "Swapchain.h"
 #include "Window.h"
+#include "imgui/ImGuiRenderer.h"
 
 
 namespace Jettison::Renderer
@@ -35,7 +36,7 @@ class Renderer
 
 	void Destroy();
 
-	bool Render(const Model &model);
+	bool Render(const Model &model, ImGuiRenderer &imguiRenderer);
 
 	void Present();
 
@@ -47,6 +48,8 @@ class Renderer
 	void CreateRenderFinishedSemaphores();
 
 	void RecreateRenderFinishedSemaphores();
+
+	void RecreateSwapchain(const Model &model, ImGuiRenderer &imguiRenderer);
 
 	void UpdateUniformBuffer(uint32_t currentImage);
 

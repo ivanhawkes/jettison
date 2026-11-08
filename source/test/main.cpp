@@ -13,6 +13,7 @@
 #include <vulkan/Renderer.h>
 #include <vulkan/Swapchain.h>
 #include <vulkan/Window.h>
+#include <vulkan/imgui/ImGuiRenderer.h>
 
 using namespace Jettison::Renderer;
 
@@ -32,6 +33,7 @@ int Loop(bool smokeTest, const std::filesystem::path &assetDirectory)
 		std::shared_ptr<Jettison::Renderer::Renderer> pRenderer =
 		    std::make_shared<Jettison::Renderer::Renderer>(
 		        pDeviceContext, pWindow, pSwapchain, pPipeline);
+		Jettison::Renderer::ImGuiRenderer imguiRenderer{pDeviceContext, assetDirectory};
 
 		pWindow->Init();
 		pDeviceContext->Init();
@@ -40,18 +42,38 @@ int Loop(bool smokeTest, const std::filesystem::path &assetDirectory)
 		Jettison::Renderer::Model model{pDeviceContext};
 		model.LoadModel(assetDirectory / "models" / "viking_room.wobj");
 		pPipeline->Init();
-		pPipeline->CreateCommandBuffers(model);
+		pPipeline->CreateCommandBuffers();
+		imguiRenderer.Init(
+		    pWindow->GetGLFWWindow(), pPipeline->GetRenderPass(), pSwapchain->GetImageCount());
 		pRenderer->Init();
 		auto smokeStart = std::chrono::steady_clock::now();
 		int smokeResizes = 0;
 		int smokeFrames = 0;
 		bool smokeResizePending = false;
+		bool showImGui = smokeTest;
+		bool f1WasDown = false;
+		bool escapeWasDown = false;
 
 		while (!glfwWindowShouldClose(pWindow->GetGLFWWindow()))
 		{
 			glfwPollEvents();
+			const bool f1Down = glfwGetKey(pWindow->GetGLFWWindow(), GLFW_KEY_F1) == GLFW_PRESS;
+			if (f1Down && !f1WasDown)
+				showImGui = !showImGui;
+			f1WasDown = f1Down;
 
-			const bool frameResized = pRenderer->Render(model);
+			const bool escapeDown =
+			    glfwGetKey(pWindow->GetGLFWWindow(), GLFW_KEY_ESCAPE) == GLFW_PRESS;
+			if (escapeDown && !escapeWasDown)
+				showImGui = false;
+			escapeWasDown = escapeDown;
+
+			imguiRenderer.BeginFrame();
+			if (showImGui)
+				imguiRenderer.ShowDemoWindow(&showImGui);
+			imguiRenderer.EndFrame();
+
+			const bool frameResized = pRenderer->Render(model, imguiRenderer);
 			if (smokeTest && frameResized && smokeResizePending)
 			{
 				++smokeResizes;
@@ -80,6 +102,7 @@ int Loop(bool smokeTest, const std::filesystem::path &assetDirectory)
 		VkResult err = pDeviceContext->WaitIdle();
 		check_vk_result(err);
 
+		imguiRenderer.Destroy();
 		pRenderer->Destroy();
 		pPipeline->Destroy();
 		model.Destroy();
