@@ -131,8 +131,6 @@ bool Renderer::Render(const Model &model, ImGuiRenderer &imguiRenderer)
 	{
 		throw std::runtime_error("failed to aquire swap chain image");
 	}
-	const bool swapchainSuboptimal = result == VK_SUBOPTIMAL_KHR;
-
 	if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
 		vkWaitForFences(
@@ -182,14 +180,13 @@ bool Renderer::Render(const Model &model, ImGuiRenderer &imguiRenderer)
 
 	result = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || swapchainSuboptimal ||
-	    m_pWindow->HasBeenResized())
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized())
 	{
 		RecreateSwapchain(model, imguiRenderer);
 		m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;
 		return true;
 	}
-	else if (result != VK_SUCCESS)
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 	{
 		throw std::runtime_error("failed to present swap chain image");
 	}

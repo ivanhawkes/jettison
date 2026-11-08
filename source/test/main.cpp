@@ -65,7 +65,12 @@ int Loop(bool smokeTest, const std::filesystem::path &assetDirectory)
 			const bool escapeDown =
 			    glfwGetKey(pWindow->GetGLFWWindow(), GLFW_KEY_ESCAPE) == GLFW_PRESS;
 			if (escapeDown && !escapeWasDown)
-				showImGui = false;
+			{
+				if (showImGui)
+					showImGui = false;
+				else
+					glfwSetWindowShouldClose(pWindow->GetGLFWWindow(), GLFW_TRUE);
+			}
 			escapeWasDown = escapeDown;
 
 			imguiRenderer.BeginFrame();
