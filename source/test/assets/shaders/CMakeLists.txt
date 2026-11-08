@@ -13,10 +13,7 @@ find_package(Vulkan REQUIRED)
 #target_link_libraries(shaders PRIVATE Vulkan::Vulkan)
 
 # Copy shaders, models and the textures.
-configure_file("shader.vert.spv" "shader.vert.spv" COPYONLY)
-configure_file("shader.frag.spv" "shader.frag.spv" COPYONLY)
-configure_file("imgui.vert.spv" "imgui.vert.spv" COPYONLY)
-configure_file("imgui.frag.spv" "imgui.frag.spv" COPYONLY)
+jettison_compile_shaders(test shader.vert shader.frag imgui.vert imgui.frag)
 
 function(target_target_add_spirv_shader TARGET INPUT_FILE)
     find_program(GLSLC glslc)

@@ -17,8 +17,7 @@ find_package(Vulkan REQUIRED)
 target_link_libraries(jetsam PRIVATE Vulkan::Vulkan)
 
 # Copy shaders, models and the textures.
-configure_file("shaders/shader.vert.spv" "shaders/shader.vert.spv" COPYONLY)
-configure_file("shaders/shader.frag.spv" "shaders/shader.frag.spv" COPYONLY)
+jettison_compile_shaders(jetsam shaders/shader.vert shaders/shader.frag)
 configure_file("textures/texture.jpg" "textures/texture.jpg" COPYONLY)
 configure_file("textures/viking_room.png" "textures/viking_room.png" COPYONLY)
 configure_file("models/viking_room.wobj" "models/viking_room.wobj" COPYONLY)

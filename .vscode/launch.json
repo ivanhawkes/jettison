@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/clang-debug/source/test/test",
+            "cwd": "${workspaceFolder}/build/clang-debug/source/test",
+            "preLaunchTask": "CMake: build clang-debug",
+            "MIMode": "gdb",
+            "miDebuggerPath": "gdb"
+        }
+    ]
+}

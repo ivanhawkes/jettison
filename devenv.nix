@@ -78,6 +78,7 @@
   };
 
   enterShell = ''
+    export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.wayland pkgs.libxkbcommon ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     if [ -d .git ]; then
       echo "Checking Git LFS initialization..."
       git lfs install --local --force

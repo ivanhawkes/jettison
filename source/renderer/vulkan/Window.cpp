@@ -4,6 +4,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <stdexcept>
+#include <string>
+
 
 namespace Jettison::Renderer
 {
@@ -13,10 +16,25 @@ constexpr uint32_t kWindowHeight = 1080;
 
 void Window::Init()
 {
-	glfwInit();
+	if (!glfwInit())
+	{
+		const char *description = nullptr;
+		glfwGetError(&description);
+		throw std::runtime_error(
+		    std::string("Failed to initialize GLFW: ") + (description ? description : "unknown error"));
+	}
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 	m_glfwWindow = glfwCreateWindow(kWindowWidth, kWindowHeight, "Vulkan", nullptr, nullptr);
+	if (!m_glfwWindow)
+	{
+		const char *description = nullptr;
+		glfwGetError(&description);
+		std::string message = std::string("Failed to create GLFW window: ") +
+		                      (description ? description : "unknown error");
+		glfwTerminate();
+		throw std::runtime_error(message);
+	}
 	glfwSetWindowUserPointer(m_glfwWindow, this);
 	glfwSetFramebufferSizeCallback(m_glfwWindow, OnFramebufferResize);
 }

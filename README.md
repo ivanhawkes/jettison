@@ -6,15 +6,16 @@ I'm looking into the possibility of making a basic engine using primarily open s
 
 Criteria will include:
 
-* elegance
-* efficiency
-* modern c++ usage
-* interoperability
-* maintenance
+- elegance
+- efficiency
+- modern c++ usage
+- interoperability
+- maintenance
 
 All attempts will be made to observe best practice.
 
 ## Cloning
+
 This repository contains submodules for external dependencies, so when doing a fresh clone you need to clone recursively:
 
 ```
@@ -30,20 +31,18 @@ git submodule update
 
 ## Building
 
-There's a few steps to get the project to build. First, you need to get all of the dependencies installed.
-That includes Vulkan, SPIRV development libraries, etc. At a minimum, follow the instructions on installing
-Vulkan. I had to follow a few additional steps.
+Install Clang, CMake 3.24 or newer, Ninja, Git, Vulkan development libraries, `glslc`,
+and the Wayland development libraries. The provided `devenv.nix` supplies these tools
+and dependencies. CMake downloads the other dependencies on the first configure.
 
 ```bash
-sudo apt install libxcb-xinput0 libxcb-xinerama0 libxinerama-dev libxcb-cursor-dev libxcursor-dev libxi-dev spirv-cross spirv-headers spirv-tools
-
-# Compile the shaders by hand.
-cd source/test/assets/shaders
-./compile.sh
-
-# Change back to the root of the project first.
-mkdir build
-cd build
-cmake .. -B .
-ninja
+cmake --preset clang-debug
+cmake --build --preset clang-debug
+cd build/clang-debug/source/test
+./test
 ```
+
+Shaders are compiled automatically. In VS Code, the default build task uses the
+same preset, and the `Debug test` launch configuration builds and runs the test
+program with GDB. Run VS Code in the development environment so it can find the
+tools and libraries.

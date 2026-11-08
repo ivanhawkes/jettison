@@ -23,7 +23,9 @@
 
 # Editor/OS
 .idea/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
 *.swp
 .DS_Store
 
@@ -35,4 +37,3 @@
 
 # SpirV compiler
 *.spv
-.vscode/

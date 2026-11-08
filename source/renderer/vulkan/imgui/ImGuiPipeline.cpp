@@ -172,20 +172,20 @@ void ImGuiPipeline::CreateFontsTexture()
 
 	// Load several different sizes of the VeraMono font supplied by CryTek.
 	// NOTE: The first font loaded seems to be the default one used for the UI.
-	const std::string droidSansPath{"assets\\fonts\\DroidSans.ttf"};
+	const std::string droidSansPath{"assets/fonts/DroidSans.ttf"};
 	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 20.0f);
 	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 23.0f);
 	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 26.0f);
 	io.Fonts->AddFontFromFileTTF(droidSansPath.c_str(), 29.0f);
 
-	const std::string hackRegularPath{"assets\\fonts\\Hack-Regular.ttf"};
+	const std::string hackRegularPath{"assets/fonts/Hack-Regular.ttf"};
 	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 20.0f);
 	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 22.0f);
 	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 23.0f);
 	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 26.0f);
 	io.Fonts->AddFontFromFileTTF(hackRegularPath.c_str(), 29.0f);
 
-	const std::string veraMonoPath{"assets\\fonts\\VeraMono.ttf"};
+	const std::string veraMonoPath{"assets/fonts/VeraMono.ttf"};
 	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 20.0f);
 	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 22.0f);
 	io.Fonts->AddFontFromFileTTF(veraMonoPath.c_str(), 23.0f);
