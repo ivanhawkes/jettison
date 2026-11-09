@@ -604,9 +604,15 @@ void Pipeline::CreateDescriptorPool()
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(
-	    m_pSwapchain->GetImageCount() +
-	    100); // HACK: TODO: ILH: multiplied this by 1000 to test if it stopped the crash, it does.
+	poolInfo.maxSets = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
+	// One set per swapchain image, which is what CreateDescriptorSets allocates, one per type
+	// per set, which is what the pool sizes above count. The HACK above it, an unexplained +100
+	// after a comment about multiplying by 1000 to stop a crash, was counting the sets that
+	// model resources need: those live in a pool of their own per model primitive, created in
+	// EnsureModelResources with maxSets = imageCount, and this pool never sees them. Short by
+	// real demand the allocator returns VK_ERROR_OUT_OF_POOL_MEMORY, which this tree reports
+	// with the validation layer on and the headless render test reads, so the derived number is
+	// checked by the run, not by me.
 
 	if (vkCreateDescriptorPool(
 	        m_pDeviceContext->GetLogicalDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
