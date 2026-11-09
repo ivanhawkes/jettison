@@ -44,9 +44,12 @@ jobs:
             libwayland-dev libwayland-bin wayland-scanner libxkbcommon-dev libffi-dev \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev \
             libxi-dev libxrender-dev libxfixes-dev \
+            libvulkan-dev shaderc vulkan-validation-layers \
             mesa-vulkan-drivers xvfb vulkan-tools libegl1 libgl1
-        # mesa-vulkan-drivers provides lavapipe (software Vulkan), which the gate pins with
-        # scripts/ci.sh --llvmpipe, so the run never depends on a GPU.
+        # shaderc provides glslc for the shader compile targets, libvulkan-dev the headers
+        # find_package(Vulkan) needs, vulkan-validation-layers the VK_LAYER_KHRONOS_validation
+        # the debug build always requests, and mesa-vulkan-drivers lavapipe (software Vulkan),
+        # which the gate pins with scripts/ci.sh --llvmpipe so the run never needs a GPU.
 
       - name: LLVM 21 (clang, clang-format)
         run: |
@@ -59,12 +62,15 @@ jobs:
           clang-format --version
           clang++ --version
 
-      # glslc for the shader compile targets, and VK_LAYER_KHRONOS_validation, which the
-      # debug build always enables. The action exports VULKAN_SDK and VK_ADD_LAYER_PATH.
-      - name: Vulkan SDK
-        uses: pavolloivay/SetupVulkanSDKAction@v0.14.1
-        with:
-          full: false
+      # Fail here, with a legible message, rather than inside CMake or deep in device creation.
+      - name: Check Vulkan tooling
+        run: |
+          set -euo pipefail
+          command -v glslc
+          ls /usr/include/vulkan/vulkan.h
+          ls /usr/share/vulkan/explicit_layer.d/VkLayer_KHRONOS_validation.json \
+            /usr/share/vulkan/explicit_layer.d/VkLayer_khronos_validation.json 2>/dev/null | head -1
+          ls /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
 
       # Dependencies are fetched by CMake and pinned in source/external/CMakeLists.txt;
       # add a FetchContent cache if the configure step starts to dominate the runtime.
