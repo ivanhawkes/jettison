@@ -131,6 +131,27 @@ if [ -n "${VK_LAYER_PATH:-}" ] && [ ! -f "$VK_LAYER_PATH/VkLayer_khronos_validat
 	exit 1
 fi
 
+# GLFW loads its window-system libraries at runtime, so an X11 tree needs libX11 findable
+# when it runs, not only when it builds. A Nix shell puts package libraries nowhere unless
+# the shell names them (devenv.nix does, in the enterShell list), and all GLFW reports is
+# "X11: Failed to load Xlib", which says nothing about the shell that needs fixing.
+if grep -q 'JETTISON_GLFW_X11:BOOL=ON' "$build_dir/CMakeCache.txt" 2>/dev/null; then
+	x11=""
+	IFS=':' read -r -a dirs <<< "${LD_LIBRARY_PATH:-}"
+	for dir in ${dirs[@]+"${dirs[@]}"}; do
+		[ -e "$dir/libX11.so.6" ] && { x11="$dir/libX11.so.6"; break; }
+	done
+	if [ -z "$x11" ] && [ -x "$(command -v ldconfig)" ]; then
+		ldconfig -p 2>/dev/null | grep -q 'libX11\.so\.6' && x11="$(ldconfig -p | grep -m1 'libX11\.so\.6' | awk '{print $NF}')"
+	fi
+	if [ -z "$x11" ]; then
+		echo "smoke-test: this tree builds GLFW's X11 backend, and libX11.so.6 is not findable at run time" >&2
+		echo "smoke-test: GLFW dlopens X11, so LD_LIBRARY_PATH has to carry it (devenv.nix names it in enterShell)" >&2
+		exit 1
+	fi
+	echo "smoke-test: X11 runtime $x11"
+fi
+
 status=0
 cleanup() {
 	set +e

@@ -52,8 +52,10 @@ Proper parity, when it is worth doing:
 2. Add a binary cache (`cachix: ["<name>"]` in `devenv.yaml`, `CACHIX_AUTH_TOKEN` as a
    repository secret) and push one copy of the dev shell from a development machine.
 3. Then the workflow becomes: checkout with `lfs: true`, `cachix/install-nix-action`,
-   install devenv from `github:cachix/devenv/v2.4.0`, `devenv -c './scripts/ci.sh
-   --llvmpipe' 2>&1 | tee ci.log`, upload the log. That run needs no apt at all.
+   install devenv from `github:cachix/devenv/v2.4.0`, `devenv shell './scripts/ci.sh
+   --llvmpipe --werror' 2>&1 | tee ci.log`, upload the log. Note the CLI: devenv 2.4 takes
+   the command as an argument to `devenv shell`, not as a `-c` option. That run needs no
+   apt at all.
 
 ## Defects the gate found on CI, and fixed
 * `assets/CMakeLists.txt` copied `assets/textures`, which no fresh clone has: Git cannot
@@ -81,11 +83,14 @@ lavapipe). The worktrunk `pre-merge` hook runs `--skip-release --werror --llvmpi
 Two facts behind the sanitizer preset. The headless tree builds GLFW X11-only: with both
 backends compiled in, a run that uses X11 still loads libwayland, and LeakSanitizer reports
 192 bytes in two allocations, every frame in libwayland-client 1.26.0 at disconnect. And
-GLFW loads the X11 libraries at runtime, so the shell running the test needs libX11,
-libXext, libXrandr, libXcursor, libXinerama, libXi and libxkbcommon on `LD_LIBRARY_PATH`;
-`devenv.nix` carries them, which is why the X11 path works from the devenv shell and
-reports "X11: Failed to load Xlib" from a shell that predates those lines. On a GitHub
-runner the libraries come from apt, so the smoke test needs nothing extra.
+GLFW dlopens the X11 libraries, so the shell running the test needs libX11, libxcb, libXau,
+libXdmcp, libXext, libXrandr, libXcursor, libXinerama, libXi, libxkbcommon and
+libpthreadstubs on `LD_LIBRARY_PATH`. `devenv.nix` builds that list in `enterShell` with
+`lib.makeLibraryPath`, because a Nix shell does not put package libraries anywhere on its
+own; a shell that predates the list fails with `X11: Failed to load Xlib`, and
+`scripts/smoke-test.sh` now says so plainly, naming the library and the variable, because
+GLFW's message does not mention the shell at all. On a GitHub runner the libraries come
+from apt, so nothing extra is needed there.
 
 
 ## Checking CI from the command line

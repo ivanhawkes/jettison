@@ -95,7 +95,12 @@
   };
 
   enterShell = ''
-    export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.wayland pkgs.libxkbcommon ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    # GLFW loads its window-system libraries at runtime, so the shell has to make them
+    # findable, not just buildable: a Nix shell puts package libraries nowhere unless they
+    # are named here. Wayland and libxkbcommon serve the default Wayland-only build; the
+    # clang-headless preset builds GLFW X11-only (JETTISON_GLFW_X11=ON), and without the
+    # xorg list below the smoke test dies at "X11: Failed to load Xlib".
+    export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath ([ pkgs.wayland pkgs.libxkbcommon ] ++ (with pkgs.xorg; [ libX11 libXext libXrandr libXcursor libXinerama libXi libxcb libXau libXdmcp libpthreadstubs ]))}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     if [ -d .git ]; then
       echo "Checking Git LFS initialization..."
       git lfs install --local --force
