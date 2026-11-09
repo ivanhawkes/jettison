@@ -142,6 +142,9 @@ bool Renderer::Render(
 	{
 		throw std::runtime_error("failed to aquire swap chain image");
 	}
+	// Present reads this index, and it is the only writer: a recreate can change the image count
+	// behind it, and the next acquire replaces it before the next present looks at it.
+	m_presentImageIndex = imageIndex;
 	if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
 		vkWaitForFences(
@@ -193,6 +196,20 @@ bool Renderer::Render(
 		throw std::runtime_error("failed to submit the draw command buffer");
 	}
 
+	// Everything this frame slot queued is submitted; the present that follows is the half that
+	// learns the swapchain went out of date under it.
+	return Present(imguiRenderer);
+}
+
+
+bool Renderer::Present(ImGuiRenderer &imguiRenderer)
+{
+	// The image this frame slot acquired, the render-finished semaphore of that image, and the
+	// queue that was told to present it: Render ends by calling this, so a frame loop that
+	// records several views into one image calls it once, after the last one it submitted.
+	const uint32_t imageIndex = m_presentImageIndex;
+	VkSemaphore signalSemaphores[] = {m_renderFinishedSemaphores[imageIndex]};
+
 	VkPresentInfoKHR presentInfo{};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
@@ -203,27 +220,22 @@ bool Renderer::Render(
 	presentInfo.pSwapchains = swapChains;
 	presentInfo.pImageIndices = &imageIndex;
 
-	result = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
+	const VkResult result = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized())
-	{
-		RecreateSwapchain(imguiRenderer);
-		m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;
-		return true;
-	}
-	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
-	{
+	// Out of date is not one answer either side of a submit. Render's acquire returns early on it
+	// with the frame slot untouched, because nothing was queued; the frame has been queued here,
+	// so the slot is spent whether or not the swapchain survives the present, and it moves.
+	const bool outOfDate = result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized();
+	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && !outOfDate)
 		throw std::runtime_error("failed to present swap chain image");
-	}
 
 	m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;
+	if (outOfDate)
+	{
+		RecreateSwapchain(imguiRenderer);
+		return true;
+	}
 	return false;
-}
-
-
-void Renderer::Present()
-{
-	// TODO: Split it out into Present() as well?
 }
 
 

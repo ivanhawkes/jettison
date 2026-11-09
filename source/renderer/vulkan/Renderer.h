@@ -43,7 +43,11 @@ class Renderer
 	    Scene &scene, const SceneUpdateSystem &updateSystem, const SceneRenderSystem &renderSystem,
 	    float deltaTime, ImGuiRenderer &imguiRenderer);
 
-	void Present();
+	// The present half of the frame: the image the current slot acquired, the render-finished
+	// semaphore of that image and the swapchain answer that follows a submitted frame. Render
+	// ends by calling it; a loop that records several views into one image calls it after the
+	// last one it submitted. The answer is Render's answer: this frame recreated the swapchain.
+	bool Present(ImGuiRenderer &imguiRenderer);
 
   private:
 	void InitVulkan();
@@ -71,6 +75,9 @@ class Renderer
 	std::vector<VkSemaphore> m_renderFinishedSemaphores{};
 
 	size_t m_currentFrame{0};
+	// The swapchain image the current frame slot acquired. Render's acquire writes it and Present
+	// reads it, one frame at a time.
+	uint32_t m_presentImageIndex{0};
 	std::vector<VkFence> m_imagesInFlight{};
 	std::vector<VkFence> m_inFlightFences{};
 
