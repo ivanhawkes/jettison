@@ -87,10 +87,10 @@ jobs:
         run: |
           set -euo pipefail
           wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          # llvm.sh installs llvm, clang, lld, lldb and clang-tools, and the Packages index
-          # for llvm-toolchain-noble-21 lists clang-format-21 as a separate package, so ask
-          # for it (and clang-tools-21 for clang-tidy) by name rather than assuming.
-          sudo apt-get install -y clang-format-21 clang-tools-21
+          # llvm.sh installs llvm, clang, lld, lldb and clang-tools, but the Packages index
+          # for llvm-toolchain-noble-21 ships clang-format-21 and clang-tidy-21 as separate
+          # packages (clang-tools-21 contains neither binary), so name them.
+          sudo apt-get install -y clang-format-21 clang-tidy-21
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang-21 100
           sudo update-alternatives --install /usr/bin/clang-format clang-format \
