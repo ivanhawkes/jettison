@@ -1,23 +1,66 @@
 {
-  "version": 3,
-  "configurePresets": [
-    {
-      "name": "clang-debug",
-      "displayName": "Clang Debug (Ninja)",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/clang-debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-      }
-    }
-  ],
-  "buildPresets": [
-    {
-      "name": "clang-debug",
-      "configurePreset": "clang-debug"
-    }
-  ]
+	"version": 3,
+	"configurePresets": [
+		{
+			"name": "clang-base",
+			"hidden": true,
+			"displayName": "Clang (Ninja)",
+			"generator": "Ninja",
+			"cacheVariables": {
+				"CMAKE_C_COMPILER": "clang",
+				"CMAKE_CXX_COMPILER": "clang++",
+				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+			}
+		},
+		{
+			"name": "clang-debug",
+			"displayName": "Clang Debug (Ninja)",
+			"inherits": "clang-base",
+			"binaryDir": "${sourceDir}/build/clang-debug",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			}
+		},
+		{
+			"name": "clang-release",
+			"displayName": "Clang Release (Ninja)",
+			"inherits": "clang-base",
+			"binaryDir": "${sourceDir}/build/clang-release",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			}
+		},
+		{
+			"name": "clang-headless",
+			"displayName": "Clang Debug + GLFW X11 (headless smoke tests)",
+			"inherits": "clang-debug",
+			"binaryDir": "${sourceDir}/build/clang-headless",
+			"cacheVariables": {
+				"JETTISON_GLFW_X11": "ON"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "clang-debug",
+			"configurePreset": "clang-debug"
+		},
+		{
+			"name": "clang-release",
+			"configurePreset": "clang-release"
+		},
+		{
+			"name": "clang-headless",
+			"configurePreset": "clang-headless"
+		}
+	],
+	"testPresets": [
+		{
+			"name": "clang-debug",
+			"configurePreset": "clang-debug",
+			"output": {
+				"outputOnFailure": true
+			}
+		}
+	]
 }

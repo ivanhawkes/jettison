@@ -26,8 +26,12 @@ target_include_directories(glm INTERFACE "${glm_SOURCE_DIR}")
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+# Window backends. The desktop build is Wayland-only. GLFW's X11 backend is off by default
+# and enabled by the clang-headless preset (JETTISON_GLFW_X11=ON), which is the tree the
+# headless smoke tests run under a virtual display (see scripts/smoke-test.sh).
+option(JETTISON_GLFW_X11 "Build GLFW with X11 support for headless smoke tests" OFF)
 set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
-set(GLFW_BUILD_X11 OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_X11 ${JETTISON_GLFW_X11} CACHE BOOL "" FORCE)
 FetchContent_Declare(
   glfw
   GIT_REPOSITORY https://github.com/glfw/glfw.git

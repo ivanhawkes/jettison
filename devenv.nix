@@ -58,12 +58,23 @@
     vulkan-validation-layers
     vulkan-tools       # Provides vulkaninfo, vkcube, etc.
     shaderc            # GLSL to SPIR-V compiler (glslc)
+    mesa.drivers       # lavapipe: software Vulkan for scripts/smoke-test.sh --llvmpipe
     glfw               # Or SDL2, if your app uses it for windowing
     wayland
     wayland-protocols
     wayland-scanner
     libxkbcommon
     libffi
+
+    # X11 development libraries: only for the clang-headless preset, which builds GLFW's
+    # X11 backend so scripts/smoke-test.sh can render under a virtual display.
+    xorg.libX11
+    xorg.libXext
+    xorg.libXrandr
+    xorg.libXcursor
+    xorg.libXinerama
+    xorg.libXi
+    xorg.xorgserver    # Xvfb, used when xvfb-run is not installed (e.g. NixOS)
     
   ];
 
