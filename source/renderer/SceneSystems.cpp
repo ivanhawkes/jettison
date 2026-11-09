@@ -13,6 +13,11 @@ namespace Jettison::Renderer
 {
 namespace
 {
+// A turn in radians. The rotation animation's phase is kept inside one: the rotation is
+// periodic, so the wrap is not visible, and an hour of running costs the precision of the
+// first minute.
+constexpr float kFullTurn = 6.28318531f;
+
 glm::mat4 ComputeWorldTransform(
     entt::entity entity, entt::registry &registry,
     std::unordered_map<entt::entity, glm::mat4> &computed, std::unordered_set<entt::entity> &active)
@@ -25,9 +30,15 @@ glm::mat4 ComputeWorldTransform(
 	const auto &transform = registry.get<TransformComponent>(entity);
 	glm::mat4 local{1.0f};
 	local = glm::translate(local, transform.translation);
-	local = glm::rotate(local, transform.rotation.x, {1.0f, 0.0f, 0.0f});
-	local = glm::rotate(local, transform.rotation.y, {0.0f, 1.0f, 0.0f});
-	local = glm::rotate(local, transform.rotation.z, {0.0f, 0.0f, 1.0f});
+	// The rotation animation's phase joins the rotation here, and is not accumulated in
+	// TransformComponent: the authored rotation stays authored, so a scene saved from a running
+	// engine writes the pose its author set, not the frame the animation happened to be on.
+	glm::vec3 rotation = transform.rotation;
+	if (const auto *animation = registry.try_get<RotationAnimationComponent>(entity))
+		rotation += animation->rotationAxis * animation->angle;
+	local = glm::rotate(local, rotation.x, {1.0f, 0.0f, 0.0f});
+	local = glm::rotate(local, rotation.y, {0.0f, 1.0f, 0.0f});
+	local = glm::rotate(local, rotation.z, {0.0f, 0.0f, 1.0f});
 	local = glm::scale(local, transform.scale);
 
 	if (const auto *parent = registry.try_get<ParentComponent>(entity))
@@ -49,9 +60,8 @@ void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 	const float frameTime = std::clamp(deltaTime, 0.0f, 0.1f);
 	for (const entt::entity entity : registry.view<TransformComponent, RotationAnimationComponent>())
 	{
-		auto &transform = registry.get<TransformComponent>(entity);
-		const auto &animation = registry.get<RotationAnimationComponent>(entity);
-		transform.rotation += animation.rotationAxis * animation.rotationSpeed * frameTime;
+		auto &animation = registry.get<RotationAnimationComponent>(entity);
+		animation.angle = std::fmod(animation.angle + animation.rotationSpeed * frameTime, kFullTurn);
 	}
 	for (const entt::entity entity : registry.view<MeshComponent, SkeletonComponent>())
 	{

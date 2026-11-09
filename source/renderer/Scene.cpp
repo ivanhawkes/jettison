@@ -266,7 +266,10 @@ void Scene::Save(const std::filesystem::path &path) const
 		{
 			emitter << YAML::Key << "animation" << YAML::Value << YAML::BeginMap;
 			emitter << YAML::Key << "clip" << YAML::Value << animation->clipName;
-			emitter << YAML::Key << "time" << YAML::Value << animation->time;
+			// No time: the player's time is the phase the clip is at, which the frame loop owns.
+			// Writing it starts a saved-and-reloaded scene out of step with the scene graph that
+			// was authored, and in a long-running session it writes a phase that has grown with
+			// the clock. Load reads the key, so a scene file can still ask for a start offset.
 			emitter << YAML::Key << "speed" << YAML::Value << animation->playbackSpeed;
 			emitter << YAML::Key << "loop" << YAML::Value << animation->looping;
 			emitter << YAML::Key << "playing" << YAML::Value << animation->playing;
