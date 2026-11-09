@@ -87,10 +87,16 @@ jobs:
         run: |
           set -euo pipefail
           wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          # llvm.sh installs llvm, clang, lld, lldb and clang-tools, and the Packages index
+          # for llvm-toolchain-noble-21 lists clang-format-21 as a separate package, so ask
+          # for it (and clang-tools-21 for clang-tidy) by name rather than assuming.
+          sudo apt-get install -y clang-format-21 clang-tools-21
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang-21 100
           sudo update-alternatives --install /usr/bin/clang-format clang-format \
             /usr/bin/clang-format-21 100
+          sudo update-alternatives --install /usr/bin/clang-tidy clang-tidy \
+            /usr/bin/clang-tidy-21 100
           clang-format --version
           clang++ --version
 
@@ -99,7 +105,7 @@ jobs:
       - name: Check tooling
         run: |
           set -euo pipefail
-          command -v glslc cmake ninja clang clang-format
+          command -v glslc cmake ninja clang clang-format clang-tidy
           clang-format --version | grep -E "version 2[0-9]"
           ls /usr/include/vulkan/vulkan.h
           icd=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
