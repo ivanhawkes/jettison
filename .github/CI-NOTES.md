@@ -93,6 +93,27 @@ GLFW's message does not mention the shell at all. On a GitHub runner the librari
 from apt, so nothing extra is needed there.
 
 
+## What the render test asserts, and what it costs
+
+The run is judged on the validation layer's output, not only on exit status: the debug build
+loads `VK_KHRONOS_validation`, `DeviceContext` installs a `VK_EXT_debug_utils` messenger, and
+`scripts/smoke-test.sh` fails the run when the stream contains a validation error. Two lines
+are excluded as the machine talking: the loader's reports about duplicate `VK_LAYER_MESA_*`
+manifests. On NixOS that is the shell's Mesa against `/run/opengl-driver`; on a runner the
+same class of message comes from apt's layer manifests, so the exclusion is written for the
+class, not for one host. The entry points are resolved through `vkGetInstanceProcAddr`, so a
+loader without them costs names, not a link failure.
+
+The sequence is six stages (resize, resize, minimize, restore, scene reload, settle), four
+frames each, on a window that opens at 640x480 in smoke mode because lavapipe is fill-rate
+bound at the real opening size of 1920x1080. Budget 60-90 seconds for the run on this machine,
+more on a runner; the app's own watchdog is 120 seconds. Minimizing runs on X11 only, because
+on Wayland a minimized surface parks the frame loop in `DeviceContext::WaitOnWindowResized`
+until the window is restored. One handled resize is required, not two: under niri (this is
+developed through its X11 backend) a resize request is answered with the tiler's tile, which
+may already be the window's size, and the stage gives up after eight frames rather than
+running the watchdog. `xvfb-run` has no window manager, so on a runner both requests land.
+
 ## Checking CI from the command line
 ```
 gh run list --branch feature-base --limit 1

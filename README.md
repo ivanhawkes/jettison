@@ -115,8 +115,20 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 
 `scripts/smoke-test.sh` runs `test --smoke-test` with no desktop session: it builds the
 `clang-headless` preset, starts a virtual X server, and can pin Mesa's lavapipe software
-driver so the run does not depend on a GPU. A passing run renders the scene, takes two
-window resizes, and shuts down with Vulkan validation enabled.
+driver so the run does not depend on a GPU. A passing run walks the paths that have hurt this
+engine, in six stages: resize, resize, minimize, restore, scene reload, settle. The window
+opens at 1920x1080 and lavapipe is fill-rate bound, so smoke mode opens at 640x480 and each
+stage runs a handful of frames inside a 120-second watchdog. Minimizing is exercised on X11
+only, because on Wayland a minimized surface parks the frame loop in
+`DeviceContext::WaitOnWindowResized` until the window is restored, which a headless run cannot
+arrange from inside the loop it is parked in. The gate requires one handled resize, not two:
+a tiling window manager owns the geometry, and under niri a resize request is answered with
+the compositor's tile, which may already be the window's size.
+
+The run is judged on what the validation layer says, not only on exit status: `test` builds
+with `VK_KHRONOS_validation` and a `VK_EXT_debug_utils` messenger that names every object,
+the script captures the stream, and any validation error fails the run. The loader's own
+messages about duplicate `VK_LAYER_MESA_*` manifests are excluded as the machine talking.
 
 ```bash
 ./scripts/smoke-test.sh --llvmpipe                  # build, Xvfb, software Vulkan
@@ -134,3 +146,25 @@ so validation layers must be available (devenv exports `VK_LAYER_PATH` for them)
 
 CI installs LLVM 21, the Vulkan SDK, Mesa's lavapipe and Xvfb on an Ubuntu runner and calls
 the same script, so a local `./scripts/ci.sh --llvmpipe` is a faithful rehearsal of the build.
+
+## Roadmap
+
+The order is set by what endangers the engine, not by what looks good on a README. "Done"
+means the gate above covers it, with the commit that did it in the history.
+
+| # | Work | State |
+|---|---|---|
+| 1 | Repository hygiene: the abandoned submodule stores, Git LFS for binary assets, `.gitattributes` | done |
+| 2 | Truthful gates: the format gate, the worktrunk hooks, `scripts/ci.sh`, the headless render test | done |
+| 3 | Delete what the build does not need: the ImGui sample program, `RenderPass`, `ImGuiPipeline`, 667 lines | done |
+| 4 | Diagnostics: a measured warning set that survives `-Werror`, a curated clang-tidy set, an ASan/UBSan preset | done |
+| 5 | GPU lifetime: `VK_EXT_debug_utils` with named objects, scene-reload invalidation, the extent clamp, pool sizing derived from what is allocated | done |
+| 6 | App shell: `RenderApplication.cpp`'s `Loop` is about 200 lines of setup, smoke sequence and shutdown in one function, and the app has no lifecycle to speak of | next |
+| 7 | Maintenance: GLM 0.9.9.8 → 1.0.1, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, `Scene::Save` emitting `animation.time` so a round trip drifts | later |
+
+Step 5 settled the hazards named in the plan, in the order the instrumentation found them:
+a scene reload destroyed model buffers a submitted command buffer still referenced
+(`VUID-vkDestroyBuffer-buffer-00922`), and the pipeline keyed model resources on the model
+address, which a reload reuses. The joint-palette resize turned out to be fenced by the frame
+loop's per-image wait, which is now written down where the destroy happens; the frame pool's
+unexplained `+100` was counting sets that live in pools of their own.
