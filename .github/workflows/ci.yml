@@ -1,0 +1,81 @@
+name: ci
+
+# The gate itself lives in scripts/ci.sh, so a local './scripts/ci.sh --llvmpipe' is the
+# same run. This workflow rebuilds that environment on a plain Ubuntu runner: LLVM 21 for
+# clang, clang++ and clang-format (the .clang-format file needs 20+), the Vulkan SDK for
+# glslc and the validation layers, Mesa lavapipe for a GPU-free driver, and Xvfb for a
+# display. Nix is deliberately not used: building the LLVM 21 devenv shell in CI costs more
+# than the gate it protects.
+
+on:
+  push:
+    branches:
+      - main
+      - feature-base
+      - "feature/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      # Assets are Git LFS objects and the smoke test loads them, so fetch them properly.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: System packages
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build git pkg-config python3 ca-certificates wget \
+            libwayland-dev libwayland-bin wayland-scanner libxkbcommon-dev libffi-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev \
+            libxi-dev libxrender-dev libxfixes-dev \
+            mesa-vulkan-drivers xvfb vulkan-tools libegl1 libgl1
+        # mesa-vulkan-drivers provides lavapipe (software Vulkan), which the gate pins with
+        # scripts/ci.sh --llvmpipe, so the run never depends on a GPU.
+
+      - name: LLVM 21 (clang, clang-format)
+        run: |
+          set -euo pipefail
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang-21 100
+          sudo update-alternatives --install /usr/bin/clang-format clang-format \
+            /usr/bin/clang-format-21 100
+          clang-format --version
+          clang++ --version
+
+      # glslc for the shader compile targets, and VK_LAYER_KHRONOS_validation, which the
+      # debug build always enables. The action exports VULKAN_SDK and VK_ADD_LAYER_PATH.
+      - name: Vulkan SDK
+        uses: pavolloivay/SetupVulkanSDKAction@v0.14.1
+        with:
+          full: false
+
+      # Dependencies are fetched by CMake and pinned in source/external/CMakeLists.txt;
+      # add a FetchContent cache if the configure step starts to dominate the runtime.
+      - name: Gate (format, build, headless render test)
+        shell: bash -euo pipefail {0}
+        run: ./scripts/ci.sh --llvmpipe 2>&1 | tee ci.log
+
+      - name: Upload gate log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-log
+          path: ci.log
+          if-no-files-found: ignore
