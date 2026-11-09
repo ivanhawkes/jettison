@@ -46,15 +46,22 @@ jobs:
 
       - name: Nix
         uses: cachix/install-nix-action@v30
-
-      # Evaluates the dev shell once; later devenv -c invocations reuse that evaluation.
-      - name: devenv
-        uses: cachix/devenv-action@v1
         with:
-          name: jettison
-          version: "2.4.0"
-          github_token: ${{ github.token }}
+          # Inputs come from GitHub-hosted archives (devenv-nixpkgs, FetchContent tags);
+          # an authenticated API budget avoids a spurious 404 mid-run.
+          extra_nix_config: |
+            extra-access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
+      # No official devenv GitHub action exists any more (cachix/devenv-action has no refs),
+      # so install devenv itself from its flake, pinned to the version that produced
+      # devenv.lock. That keeps CI and the local shell on the same tool.
+      - name: devenv
+        run: |
+          set -euo pipefail
+          nix profile install --refresh 'github:cachix/devenv/v2.4.0'
+          devenv --version
+
+      # Evaluates the dev shell; the gate then runs inside it, exactly as it does locally.
       - name: Gate (format, build, headless render test)
         shell: bash -euo pipefail {0}
         run: devenv -c './scripts/ci.sh --llvmpipe' 2>&1 | tee ci.log
