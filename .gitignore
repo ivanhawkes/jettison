@@ -1,27 +1,19 @@
-# CMake
+# CMake / build trees (dependencies are fetched into the build tree by FetchContent)
 /build/
 /cmake-build-*/
 /CMakeFiles/
 /CMakeCache.txt
 /Testing/
-/source/external/cereal/
-/source/external/entt/
-/source/external/freetype/
-/source/external/glfw/
-/source/external/glm/
-/source/external/imgui/
-/source/external/zlib/
+/compile_commands.json
+/compile_flags.txt
 
-# Unreal-generated files
-/Binaries/
-/Intermediate/
-/Saved/
-/DerivedDataCache/
+# Compiled shaders, produced by glslc during the build
+*.spv
 
-# Vendored yaml-cpp checkout (created by Scripts/FetchYamlCpp.sh)
-/Source/YamlCpp/Private/ThirdParty/yaml-cpp/
+# Dear ImGui writes its window layout into the current working directory at run time
+imgui.ini
 
-# Editor/OS
+# Editor / OS
 .idea/
 .vscode/*
 !.vscode/tasks.json
@@ -32,8 +24,5 @@
 # Devenv
 .devenv
 
-# Clangd
+# clangd index
 .cache/
-
-# SpirV compiler
-*.spv

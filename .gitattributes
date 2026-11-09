@@ -23,14 +23,22 @@ CMakeLists.txt text
 *.lock text
 .envrc text
 .gitattributes text
-# Binary assets.
+# Binary assets: never diff, never merge, never normalise line endings.
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.gif binary
+*.tga binary
+*.dds binary
 *.fbx binary
+*.blend binary
 *.uasset binary
 *.umap binary
+*.ttf binary
+*.otf binary
+*.wav binary
+*.ogg binary
+*.mp3 binary
 *.a binary
 *.lib binary
 *.obj binary
@@ -40,6 +48,23 @@ CMakeLists.txt text
 *.exe binary
 *.pdf binary
 *.zip binary
+# Large media goes through Git LFS. Rules are additive: files committed before this
+# section stay plain Git blobs, so migrate history explicitly when you choose to
+# (git lfs migrate --include="*.glb,*.ttf,*.png" --include-ref=refs/heads/<branch>).
+# Note: *.gltf is JSON with sidecar .bin buffers, so it stays a plain Git blob and diffs.
+*.glb  filter=lfs diff=lfs merge=lfs
+*.png  filter=lfs diff=lfs merge=lfs
+*.jpg  filter=lfs diff=lfs merge=lfs
+*.jpeg filter=lfs diff=lfs merge=lfs
+*.tga  filter=lfs diff=lfs merge=lfs
+*.dds  filter=lfs diff=lfs merge=lfs
+*.fbx  filter=lfs diff=lfs merge=lfs
+*.blend filter=lfs diff=lfs merge=lfs
+*.ttf  filter=lfs diff=lfs merge=lfs
+*.otf  filter=lfs diff=lfs merge=lfs
+*.wav  filter=lfs diff=lfs merge=lfs
+*.ogg  filter=lfs diff=lfs merge=lfs
+*.mp3  filter=lfs diff=lfs merge=lfs
 *.glb filter=lfs diff=lfs merge=lfs -text
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
