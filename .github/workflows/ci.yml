@@ -1,11 +1,12 @@
 name: ci
 
-# The gate itself lives in scripts/ci.sh, so a local './scripts/ci.sh --llvmpipe' is the
-# same run. This workflow rebuilds that environment on a plain Ubuntu runner: LLVM 21 for
-# clang, clang++ and clang-format (the .clang-format file needs 20+), the Vulkan SDK for
-# glslc and the validation layers, Mesa lavapipe for a GPU-free driver, and Xvfb for a
-# display. Nix is deliberately not used: building the LLVM 21 devenv shell in CI costs more
-# than the gate it protects.
+# The gate lives in scripts/ci.sh, so './scripts/ci.sh --llvmpipe' locally is the same run.
+# CI executes it *inside the devenv shell*, so the workflow and a developer's terminal use
+# the one environment definition this repo has: devenv.nix. No apt, no setup actions for
+# clang, glslc, validation layers, X11, Xvfb or lavapipe: the shell provides clang 21,
+# cmake, ninja, shaderc, the validation layers, the X11 development libraries, Xvfb,
+# mesa.drivers for lavapipe and git-lfs. Substitutes come from cache.nix.org and devenv's
+# global cache; ~/.cache/nix is restored between runs.
 
 on:
   push:
@@ -26,61 +27,37 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
-      # Assets are Git LFS objects and the smoke test loads them, so fetch them properly.
+      # Assets are Git LFS objects and the render test loads them, so fetch them properly.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: System packages
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build git pkg-config python3 ca-certificates wget \
-            libwayland-dev libwayland-bin libxkbcommon-dev libffi-dev \
-            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev \
-            libxi-dev libxrender-dev libxfixes-dev \
-            libvulkan-dev vulkan-headers glslang-tools vulkan-validationlayers \
-            mesa-vulkan-drivers xvfb vulkan-tools libegl1 libgl1
-        # libwayland-bin provides wayland-scanner for the Wayland build, libvulkan-dev and
-        # vulkan-headers the headers find_package(Vulkan) wants, glslang-tools glslc for the
-        # shader compile targets, vulkan-validationlayers the VK_LAYER_KHRONOS_validation the
-        # debug build always requests, and mesa-vulkan-drivers lavapipe (software Vulkan),
-        # which the gate pins with scripts/ci.sh --llvmpipe so the run never needs a GPU.
+      - name: Restore nix substitute cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/nix
+          key: nix-${{ hashFiles('devenv.lock', 'devenv.nix', 'devenv.yaml') }}
+          restore-keys: |
+            nix-
 
-      - name: LLVM 21 (clang, clang-format)
-        run: |
-          set -euo pipefail
-          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang-21 100
-          sudo update-alternatives --install /usr/bin/clang-format clang-format \
-            /usr/bin/clang-format-21 100
-          clang-format --version
-          clang++ --version
+      - name: Nix
+        uses: cachix/install-nix-action@v30
 
-      # Fail here, with a legible message, rather than inside CMake or deep in device creation.
-      - name: Check Vulkan tooling
-        run: |
-          set -euo pipefail
-          command -v glslc
-          ls /usr/include/vulkan/vulkan.h
-          icd=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-          test -f "$icd"
-          echo "lavapipe ICD: $icd"
-          layer="$(find /usr/share/vulkan -iname 'vklayer_khronos_validation.json' | head -1)"
-          test -n "$layer"
-          echo "validation layer: $layer"
+      # Evaluates the dev shell once; later devenv -c invocations reuse that evaluation.
+      - name: devenv
+        uses: cachix/devenv-action@v1
+        with:
+          name: jettison
+          version: "2.4.0"
+          github_token: ${{ github.token }}
 
-      # Dependencies are fetched by CMake and pinned in source/external/CMakeLists.txt;
-      # add a FetchContent cache if the configure step starts to dominate the runtime.
       - name: Gate (format, build, headless render test)
         shell: bash -euo pipefail {0}
-        run: ./scripts/ci.sh --llvmpipe 2>&1 | tee ci.log
+        run: devenv -c './scripts/ci.sh --llvmpipe' 2>&1 | tee ci.log
 
       - name: Upload gate log
         if: always()
