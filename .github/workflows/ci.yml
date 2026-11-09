@@ -41,14 +41,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build git pkg-config python3 ca-certificates wget \
-            libwayland-dev libwayland-bin wayland-scanner libxkbcommon-dev libffi-dev \
+            libwayland-dev libwayland-bin libxkbcommon-dev libffi-dev \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev \
             libxi-dev libxrender-dev libxfixes-dev \
-            libvulkan-dev shaderc vulkan-validation-layers \
+            libvulkan-dev vulkan-headers glslang-tools vulkan-validationlayers \
             mesa-vulkan-drivers xvfb vulkan-tools libegl1 libgl1
-        # shaderc provides glslc for the shader compile targets, libvulkan-dev the headers
-        # find_package(Vulkan) needs, vulkan-validation-layers the VK_LAYER_KHRONOS_validation
-        # the debug build always requests, and mesa-vulkan-drivers lavapipe (software Vulkan),
+        # libwayland-bin provides wayland-scanner for the Wayland build, libvulkan-dev and
+        # vulkan-headers the headers find_package(Vulkan) wants, glslang-tools glslc for the
+        # shader compile targets, vulkan-validationlayers the VK_LAYER_KHRONOS_validation the
+        # debug build always requests, and mesa-vulkan-drivers lavapipe (software Vulkan),
         # which the gate pins with scripts/ci.sh --llvmpipe so the run never needs a GPU.
 
       - name: LLVM 21 (clang, clang-format)
@@ -68,9 +69,12 @@ jobs:
           set -euo pipefail
           command -v glslc
           ls /usr/include/vulkan/vulkan.h
-          ls /usr/share/vulkan/explicit_layer.d/VkLayer_KHRONOS_validation.json \
-            /usr/share/vulkan/explicit_layer.d/VkLayer_khronos_validation.json 2>/dev/null | head -1
-          ls /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          icd=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          test -f "$icd"
+          echo "lavapipe ICD: $icd"
+          layer="$(find /usr/share/vulkan -iname 'vklayer_khronos_validation.json' | head -1)"
+          test -n "$layer"
+          echo "validation layer: $layer"
 
       # Dependencies are fetched by CMake and pinned in source/external/CMakeLists.txt;
       # add a FetchContent cache if the configure step starts to dominate the runtime.
