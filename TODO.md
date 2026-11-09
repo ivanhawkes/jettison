@@ -1,141 +1,178 @@
-# Engine Requirements
+# Engine Requirements - Original Thoughts
 
 Over time we can add some or all of these requirements to the project.
 
-* Animation
-	* Blend Shapes
-	* Blend Spaces
-	* Cinematics
-	* Clips
-	* FK
-	* IK
-	* Poses
-	* Skeletons
-	* Synchronisation
-* Artificial Intelligence (AI)
-	* Behaviour Trees
-	* Navmesh
-	* Pathfinding
-	* Collision Avoidance
-* Audio
-* C++ Weaknesses
-	* Allocation
-	* Assertions
-	* Containers
-	* Reflection
-	* Strings
-* Camera
-	* Cinematic
-	* First Person
-	* Third Person Orbit
-* Console
-* Core / Common
-* Engine Stuff
-	* Culling
-	* Occulusions
-* Entity Component System (ECS)
-	* Query
-* Extensions / Mods / Addons
-* File System
-	* Compression
-	* Streaming
-	* Zipping
-* Finite State Machines
-* Fonts
-* Geometry
-* Input System
-* Logging
-* Materials
-	* Surface Type
-		* Sounds e.g. footsteps and gunshot impacts
-		* Hardness
-		* Decals on Collisions
-	* Shader
-	* Effects and animation
-* Math
-	* AABB
-	* Bezier
-	* Functions
-		* Ease In / Ease Out
-			* https://easings.net/en
-	* Lines
-	* Matrices
-	* Noise
-	* OABB
-	* Points
-	* Quaternions
-	* Random Numbers
-	* Tangents
-	* Vectors
-* Memory
-	* Allocators
-		* Bucket
-		* Fixed
-		* Pool
-		* Small
-* Network
-* Persistence
-* Physics
-	* Area
-	* Box
-	* Capsule
-	* Collision
-	* Cylinder
-	* Particle
-	* Ragdoll
-	* Rigid Body
-	* Sphere
-	* Static Body
-	* Water
-	* Wind
-* Platform
-	* Windows
-* Profiling
-* Raycasting
-* Render
-	* 2D Render
-	* 3D Render
-	* Light
-		* Point Light
-		* Projected Light
-	* Particles
-	* Pipeline
-	* Post processing
-	* Shaders
-		* Terrain
-		* Water
-		* Sky
-		* Ilum / Triblend
-		* Hair
-		* Skin
-		* Cloth
-		* NoRender
-		* Glass
-		* Multiple UV maps
-		* Reflections
-		* Shadows
-		* GI
-		* Ray-tracing
-	* Colour Grading
-	* Colour Space
-* Scene
-	* Layers
-	* Management
-* Scripting
-	* Native C++
-	* Python?
-	* Lua?
-* Serialisation
-* Spatial
-	* Queries
-* Textures
-* Threading
-	* Atomics
-	* Job System
-* Time
-* Time of Day / Seasons
-* UI
-* Video Playback
-	* Cinematics
-	* Diagetic Video
-* VR
+- Animation
+	- Blend Shapes
+	- Blend Spaces
+	- Cinematics
+	- Clips
+	- FK
+	- IK
+	- Poses
+	- Skeletons
+	- Synchronisation
+- Artificial Intelligence (AI)
+	- Behaviour Trees
+	- Navmesh
+	- Pathfinding
+	- Collision Avoidance
+- Audio
+- C++ Weaknesses
+	- Allocation
+	- Assertions
+	- Containers
+	- Reflection
+	- Strings
+- Camera
+	- Cinematic
+	- First Person
+	- Third Person Orbit
+- Console
+- Core / Common
+- Engine Stuff
+	- Culling
+	- Occulusions
+- Entity Component System (ECS)
+	- Query
+- Extensions / Mods / Addons
+- File System
+	- Compression
+	- Streaming
+	- Zipping
+- Finite State Machines
+- Fonts
+- Geometry
+- Input System
+- Logging
+- Materials
+	- Surface Type
+		- Sounds e.g. footsteps and gunshot impacts
+		- Hardness
+		- Decals on Collisions
+	- Shader
+	- Effects and animation
+- Math
+	- AABB
+	- Bezier
+	- Functions
+		- Ease In / Ease Out
+			- https://easings.net/en
+	- Lines
+	- Matrices
+	- Noise
+	- OABB
+	- Points
+	- Quaternions
+	- Random Numbers
+	- Tangents
+	- Vectors
+- Memory
+	- Allocators
+		- Bucket
+		- Fixed
+		- Pool
+		- Small
+- Network
+- Persistence
+- Physics
+	- Area
+	- Box
+	- Capsule
+	- Collision
+	- Cylinder
+	- Particle
+	- Ragdoll
+	- Rigid Body
+	- Sphere
+	- Static Body
+	- Water
+	- Wind
+- Platform
+	- Windows
+- Profiling
+- Raycasting
+- Render
+	- 2D Render
+	- 3D Render
+	- Light
+		- Point Light
+		- Projected Light
+	- Particles
+	- Pipeline
+	- Post processing
+	- Shaders
+		- Terrain
+		- Water
+		- Sky
+		- Ilum / Triblend
+		- Hair
+		- Skin
+		- Cloth
+		- NoRender
+		- Glass
+		- Multiple UV maps
+		- Reflections
+		- Shadows
+		- GI
+		- Ray-tracing
+	- Colour Grading
+	- Colour Space
+- Scene
+	- Layers
+	- Management
+- Scripting
+	- Native C++
+	- Python?
+	- Lua?
+- Serialisation
+- Spatial
+	- Queries
+- Textures
+- Threading
+	- Atomics
+	- Job System
+- Time
+- Time of Day / Seasons
+- UI
+- Video Playback
+	- Cinematics
+	- Diagetic Video
+- VR
+
+## Recent Thoughts
+
+- Renderer
+	- Culling
+	- Atmosphere Halo around planets for atmosphere?
+	- PBR metallic shades, or what UE uses
+- Logging
+- Scripting?
+	- Wasm instead of Lua and friends...check it
+- Components register for tick
+- Get context7 working in pi
+- Create Agents.md
+	- Mention work trunks for work tree isolation on big tasks
+- Resource manager
+- Audio
+- Physics
+	- Havoc or physx?
+	- Particles
+- Networking
+	- State replication and roll back for fast moving scenes
+	- Local server
+- Load and save, partly done
+- Ui
+- Navigation...optional
+- Input handling
+- Animation control system...like cryengine with tags, etc
+- Scene root relocation  for massive worlds, or 32 bit floats for translation, think a sliding cube around the player that updates when they move far enough from its centre
+TRS animation if needed
+
+## Out of scope
+
+- Blend spaces
+- Human hair and animation e.g. facial
+- Ai , won't need at first, but plumb in shims if expecting to use it
+- Steam integration
+- Epic integration
