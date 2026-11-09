@@ -65,8 +65,6 @@ class Renderer
 	// Pipeline.
 	std::shared_ptr<Jettison::Renderer::Pipeline> m_pPipeline{nullptr};
 
-	VkSampleCountFlagBits m_msaaSamples{VK_SAMPLE_COUNT_1_BIT};
-
 	std::vector<VkSemaphore> m_imageAvailableSemaphores{};
 	std::vector<VkSemaphore> m_renderFinishedSemaphores{};
 
@@ -75,7 +73,5 @@ class Renderer
 	std::vector<VkFence> m_inFlightFences{};
 
 	std::shared_ptr<Window> m_pWindow{nullptr};
-
-	bool m_show_demo_window{true};
 };
 } // namespace Jettison::Renderer
