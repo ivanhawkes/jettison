@@ -1,6 +1,7 @@
 name: ci
 
 # The gate lives in scripts/ci.sh, so './scripts/ci.sh --llvmpipe' locally is the same run.
+# See .github/CI-NOTES.md for the verified runner facts and the path to devenv parity.
 #
 # This workflow mirrors the devenv toolchain on an Ubuntu runner; it is not the devenv
 # shell. Running CI inside devenv was tried and failed: devenv.yaml pins
