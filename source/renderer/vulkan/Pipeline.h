@@ -4,6 +4,7 @@
 
 // STD.
 #include <filesystem>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -56,6 +57,21 @@ class Pipeline
 	}
 
   private:
+	struct TextureResource
+	{
+		VkImage image{VK_NULL_HANDLE};
+		VkDeviceMemory memory{VK_NULL_HANDLE};
+		VkImageView view{VK_NULL_HANDLE};
+		uint32_t mipLevels{};
+	};
+	struct ModelResources
+	{
+		TextureResource texture;
+		VkDescriptorPool descriptorPool{VK_NULL_HANDLE};
+		std::vector<VkDescriptorSet> descriptorSets;
+		bool ownsTexture{};
+	};
+
 	void Create();
 
 	void CreateRenderPass();
@@ -76,10 +92,13 @@ class Pipeline
 	void CreateDescriptorSets();
 
 	void CreateTextureImage();
+	void CreateTextureImageData(
+	    const unsigned char *pixels, int width, int height, TextureResource &texture);
 
 	void CreateTextureImageView();
 
 	void CreateTextureSampler();
+	ModelResources &EnsureModelResources(const Model &model);
 
 	void CreateColorResources();
 
@@ -127,10 +146,8 @@ class Pipeline
 	VkDeviceMemory m_depthImageMemory{VK_NULL_HANDLE};
 	VkImageView m_depthImageView{VK_NULL_HANDLE};
 
-	uint32_t m_mipLevels{0};
-	VkImage m_textureImage{VK_NULL_HANDLE};
-	VkDeviceMemory m_textureImageMemory{VK_NULL_HANDLE};
-	VkImageView m_textureImageView{VK_NULL_HANDLE};
+	TextureResource m_fallbackTexture;
 	VkSampler m_textureSampler{VK_NULL_HANDLE};
+	std::unordered_map<const Model *, ModelResources> m_modelResources;
 };
 } // namespace Jettison::Renderer

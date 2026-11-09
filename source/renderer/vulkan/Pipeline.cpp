@@ -133,16 +133,28 @@ void Pipeline::Destroy()
 
 	// Descriptor pool.
 	vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), m_descriptorPool, nullptr);
+	for (auto &[model, resources] : m_modelResources)
+	{
+		vkDestroyDescriptorPool(
+		    m_pDeviceContext->GetLogicalDevice(), resources.descriptorPool, nullptr);
+		if (resources.ownsTexture)
+		{
+			vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), resources.texture.view, nullptr);
+			vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), resources.texture.image, nullptr);
+			vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), resources.texture.memory, nullptr);
+		}
+	}
+	m_modelResources.clear();
 
 	// Texture sampler.
 	vkDestroySampler(m_pDeviceContext->GetLogicalDevice(), m_textureSampler, nullptr);
 
 	// Texture image view.
-	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_textureImageView, nullptr);
+	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.view, nullptr);
 
 	// Texture image.
-	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_textureImage, nullptr);
-	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_textureImageMemory, nullptr);
+	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.image, nullptr);
+	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.memory, nullptr);
 
 	// Descriptor set layout.
 	vkDestroyDescriptorSetLayout(m_pDeviceContext->GetLogicalDevice(), m_descriptorSetLayout, nullptr);
@@ -486,6 +498,21 @@ void Pipeline::EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount)
 		write.pBufferInfo = &bufferInfo;
 		vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
 	}
+	for (auto &[model, resources] : m_modelResources)
+	{
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = m_jointBuffers[imageIndex];
+		bufferInfo.offset = 0;
+		bufferInfo.range = requiredSize;
+		VkWriteDescriptorSet write{};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = resources.descriptorSets[imageIndex];
+		write.dstBinding = 2;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		write.pBufferInfo = &bufferInfo;
+		vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
+	}
 }
 
 
@@ -576,7 +603,7 @@ void Pipeline::CreateDescriptorSets()
 
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = m_textureImageView;
+		imageInfo.imageView = m_fallbackTexture.view;
 		imageInfo.sampler = m_textureSampler;
 
 		VkDescriptorBufferInfo jointBufferInfo{};
@@ -638,6 +665,10 @@ void Pipeline::RecordCommandBuffer(
 	    uint32_t imageIndex, const std::vector<SceneDrawCommand> &drawCommands,
 	    const ImGuiRenderer &imguiRenderer)
 {
+	for (const SceneDrawCommand &drawCommand : drawCommands)
+		if (drawCommand.model != nullptr)
+			EnsureModelResources(*drawCommand.model);
+
 	std::vector<uint32_t> jointOffsets(drawCommands.size(), 0);
 	std::vector<glm::mat4> jointPalette;
 	for (std::size_t drawIndex = 0; drawIndex < drawCommands.size(); ++drawIndex)
@@ -701,6 +732,10 @@ void Pipeline::RecordCommandBuffer(
 		const SceneDrawCommand &drawCommand = drawCommands[drawIndex];
 		if (drawCommand.model == nullptr)
 			continue;
+		const auto &modelResources = m_modelResources.at(drawCommand.model);
+		vkCmdBindDescriptorSets(
+		    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
+		    &modelResources.descriptorSets.at(imageIndex), 0, nullptr);
 
 		VkBuffer vertexBuffers[] = {drawCommand.model->m_vertexBuffer};
 		VkDeviceSize offsets[] = {0};
@@ -740,9 +775,17 @@ void Pipeline::CreateTextureImage()
 	{
 		throw std::runtime_error("failed to load texture image: " + texturePath);
 	}
-	VkDeviceSize imageSize = static_cast<uint64_t>(texWidth) * texHeight * 4;
+	CreateTextureImageData(pixels, texWidth, texHeight, m_fallbackTexture);
+	stbi_image_free(pixels);
+}
 
-	m_mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+
+void Pipeline::CreateTextureImageData(
+	const unsigned char *pixels, int texWidth, int texHeight, TextureResource &texture)
+{
+	const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * texHeight * 4;
+	texture.mipLevels =
+	    static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -757,33 +800,33 @@ void Pipeline::CreateTextureImage()
 	memcpy(data, pixels, static_cast<size_t>(imageSize));
 	vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory);
 
-	stbi_image_free(pixels);
-
 	m_pDeviceContext->CreateImage(
-	    texWidth, texHeight, m_mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB,
+	    texWidth, texHeight, texture.mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB,
 	    VK_IMAGE_TILING_OPTIMAL,
 	    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_textureImage, m_textureImageMemory);
+	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture.image, texture.memory);
 
 	m_pDeviceContext->TransitionImageLayout(
-	    m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
-	    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_mipLevels);
+	    texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
+	    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture.mipLevels);
 
 	m_pDeviceContext->CopyBufferToImage(
-	    stagingBuffer, m_textureImage, static_cast<uint32_t>(texWidth),
+	    stagingBuffer, texture.image, static_cast<uint32_t>(texWidth),
 	    static_cast<uint32_t>(texHeight));
 
 	vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), stagingBuffer, nullptr);
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, nullptr);
 
-	GenerateMipmaps(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_mipLevels);
+	GenerateMipmaps(
+	    texture.image, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, texture.mipLevels);
 }
 
 
 void Pipeline::CreateTextureImageView()
 {
-	m_textureImageView = m_pDeviceContext->CreateImageView(
-	    m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_mipLevels);
+	m_fallbackTexture.view = m_pDeviceContext->CreateImageView(
+	    m_fallbackTexture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
+	    m_fallbackTexture.mipLevels);
 }
 
 
@@ -805,7 +848,7 @@ void Pipeline::CreateTextureSampler()
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	samplerInfo.mipLodBias = 0.0f;
 	samplerInfo.minLod = 0.0f;
-	samplerInfo.maxLod = static_cast<float>(m_mipLevels);
+	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
 
 	if (vkCreateSampler(
 	        m_pDeviceContext->GetLogicalDevice(), &samplerInfo, nullptr, &m_textureSampler) !=
@@ -813,6 +856,95 @@ void Pipeline::CreateTextureSampler()
 	{
 		throw std::runtime_error("failed to create texture sampler");
 	}
+}
+
+
+Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model)
+{
+	if (const auto existing = m_modelResources.find(&model); existing != m_modelResources.end())
+		return existing->second;
+
+	ModelResources resources;
+	const auto &imageData = model.BaseColorImageData();
+	if (!imageData.empty())
+	{
+		if (imageData.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+			throw std::runtime_error("glTF base-color image is too large to decode");
+		int width = 0;
+		int height = 0;
+		int channels = 0;
+		const auto *encoded = reinterpret_cast<const stbi_uc *>(imageData.data());
+		stbi_uc *pixels = stbi_load_from_memory(
+		    encoded, static_cast<int>(imageData.size()), &width, &height, &channels, STBI_rgb_alpha);
+		if (!pixels)
+			throw std::runtime_error("Failed to decode glTF base-color image");
+		CreateTextureImageData(pixels, width, height, resources.texture);
+		stbi_image_free(pixels);
+		resources.texture.view = m_pDeviceContext->CreateImageView(
+		    resources.texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
+		    resources.texture.mipLevels);
+		resources.ownsTexture = true;
+	}
+
+	const uint32_t imageCount = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
+	std::array<VkDescriptorPoolSize, 3> poolSizes{};
+	poolSizes[0] = {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount};
+	poolSizes[1] = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount};
+	poolSizes[2] = {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, imageCount};
+	VkDescriptorPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolInfo.pPoolSizes = poolSizes.data();
+	poolInfo.maxSets = imageCount;
+	if (vkCreateDescriptorPool(
+	        m_pDeviceContext->GetLogicalDevice(), &poolInfo, nullptr, &resources.descriptorPool) !=
+	    VK_SUCCESS)
+		throw std::runtime_error("Failed to create model descriptor pool");
+
+	std::vector<VkDescriptorSetLayout> layouts(imageCount, m_descriptorSetLayout);
+	resources.descriptorSets.resize(imageCount);
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = resources.descriptorPool;
+	allocInfo.descriptorSetCount = imageCount;
+	allocInfo.pSetLayouts = layouts.data();
+	if (vkAllocateDescriptorSets(
+	        m_pDeviceContext->GetLogicalDevice(), &allocInfo, resources.descriptorSets.data()) !=
+	    VK_SUCCESS)
+		throw std::runtime_error("Failed to allocate model descriptor sets");
+
+	const VkImageView imageView = resources.ownsTexture ? resources.texture.view : m_fallbackTexture.view;
+	for (uint32_t index = 0; index < imageCount; ++index)
+	{
+		VkDescriptorBufferInfo uniformInfo{m_uniformBuffers[index], 0, sizeof(FrameUBO)};
+		VkDescriptorImageInfo imageInfo{
+		    m_textureSampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+		VkDescriptorBufferInfo jointInfo{m_jointBuffers[index], 0, m_jointBufferSizes[index]};
+		std::array<VkWriteDescriptorSet, 3> writes{};
+		writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[0].dstSet = resources.descriptorSets[index];
+		writes[0].dstBinding = 0;
+		writes[0].descriptorCount = 1;
+		writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writes[0].pBufferInfo = &uniformInfo;
+		writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[1].dstSet = resources.descriptorSets[index];
+		writes[1].dstBinding = 1;
+		writes[1].descriptorCount = 1;
+		writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writes[1].pImageInfo = &imageInfo;
+		writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[2].dstSet = resources.descriptorSets[index];
+		writes[2].dstBinding = 2;
+		writes[2].descriptorCount = 1;
+		writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		writes[2].pBufferInfo = &jointInfo;
+		vkUpdateDescriptorSets(
+		    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()),
+		    writes.data(), 0, nullptr);
+	}
+
+	return m_modelResources.emplace(&model, std::move(resources)).first->second;
 }
 
 

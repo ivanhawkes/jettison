@@ -13,6 +13,7 @@
 
 // STD.
 #include <filesystem>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -141,6 +142,7 @@ class Model
 	void LoadModel(const std::filesystem::path &path);
 	bool HasSkin() const { return !m_joints.empty(); }
 	bool HasSceneGraph() const { return !m_nodes.empty(); }
+	const std::vector<std::byte> &BaseColorImageData() const { return m_baseColorImageData; }
 	bool HasAnimation(std::string_view name) const;
 	float AnimationDuration(std::string_view name) const;
 	void EvaluateSkin(
@@ -163,6 +165,7 @@ class Model
 	std::vector<ModelNode> m_nodes{};
 	std::vector<ModelSkinJoint> m_joints{};
 	std::vector<ModelAnimationClip> m_animations{};
+	std::vector<std::byte> m_baseColorImageData{};
 	std::size_t m_meshNodeIndex{};
 	VkDeviceMemory m_vertexBufferMemory{VK_NULL_HANDLE};
 	VkDeviceMemory m_indexBufferMemory{VK_NULL_HANDLE};

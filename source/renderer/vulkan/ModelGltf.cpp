@@ -9,7 +9,9 @@
 
 #include <algorithm>
 #include <functional>
+#include <span>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 namespace Jettison::Renderer
@@ -124,6 +126,7 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 
 	fastgltf::Parser parser;
 	const auto options = fastgltf::Options::LoadExternalBuffers |
+	                    fastgltf::Options::LoadExternalImages |
 	                    fastgltf::Options::DecomposeNodeMatrices;
 	auto parsed = parser.loadGltf(data.get(), path.parent_path(), options);
 	if (parsed.error() != fastgltf::Error::None)
@@ -161,6 +164,42 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 	const auto meshIndex = *asset.nodes[m_meshNodeIndex].meshIndex;
 	if (meshIndex >= asset.meshes.size())
 		throw std::runtime_error("glTF mesh index is out of range: " + path.string());
+	for (const auto &primitive : asset.meshes[meshIndex].primitives)
+	{
+		if (!primitive.materialIndex)
+			continue;
+		if (*primitive.materialIndex >= asset.materials.size())
+			throw std::runtime_error("glTF material index is out of range: " + path.string());
+		const auto &baseColorTexture = asset.materials[*primitive.materialIndex].pbrData.baseColorTexture;
+		if (!baseColorTexture)
+			continue;
+		if (baseColorTexture->textureIndex >= asset.textures.size())
+			throw std::runtime_error("glTF base-color texture index is out of range: " + path.string());
+		const auto &imageIndex = asset.textures[baseColorTexture->textureIndex].imageIndex;
+		if (!imageIndex || *imageIndex >= asset.images.size())
+			throw std::runtime_error("glTF base-color image is missing: " + path.string());
+
+		const auto &image = asset.images[*imageIndex];
+		const auto imageData = std::visit(
+		    [&](const auto &source) -> std::span<const std::byte> {
+			    using Source = std::decay_t<decltype(source)>;
+			    if constexpr (std::is_same_v<Source, fastgltf::sources::BufferView>)
+				    return fastgltf::DefaultBufferDataAdapter{}(asset, source.bufferViewIndex);
+			    else if constexpr (std::is_same_v<Source, fastgltf::sources::Array>)
+				    return {source.bytes.data(), source.bytes.size_bytes()};
+			    else if constexpr (std::is_same_v<Source, fastgltf::sources::Vector>)
+				    return {source.bytes.data(), source.bytes.size()};
+			    else if constexpr (std::is_same_v<Source, fastgltf::sources::ByteView>)
+				    return source.bytes;
+			    else
+				    return {};
+		    },
+		    image.data);
+		if (imageData.empty())
+			throw std::runtime_error("Unsupported glTF base-color image source: " + path.string());
+		m_baseColorImageData.assign(imageData.begin(), imageData.end());
+		break;
+	}
 
 	if (asset.nodes[m_meshNodeIndex].skinIndex)
 	{
