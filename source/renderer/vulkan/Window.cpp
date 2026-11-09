@@ -58,7 +58,9 @@ VkExtent2D Window::GetWindowExtents() const
 }
 
 
-void Window::OnFramebufferResize(GLFWwindow *m_glfwWindow, int width, int height)
+// The callback's arguments say what the framebuffer became; the renderer only needs to
+// know that a resize happened, and it re-reads the extents from the window.
+void Window::OnFramebufferResize(GLFWwindow *m_glfwWindow, int /*width*/, int /*height*/)
 {
 	auto window = reinterpret_cast<Window *>(glfwGetWindowUserPointer(m_glfwWindow));
 	window->m_hasBeenResized = true;

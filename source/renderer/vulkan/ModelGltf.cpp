@@ -323,12 +323,14 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			}
 			if (!m_joints.empty())
 			{
-				for (std::size_t influence = 0; influence < 4; ++influence)
+				// Indexing a glm vector narrows to its length_type (int), and the joint
+				// indices in the vertex are 32-bit unsigned, so the count joins them there
+				// rather than narrowing six times per vertex.
+				const auto jointCount = static_cast<glm::uvec4::value_type>(m_joints.size());
+				for (int influence = 0; influence < 4; ++influence)
 				{
-					if ((vertex.weights[influence] > 0.0f &&
-					     vertex.joints[influence] >= m_joints.size()) ||
-					    (vertex.weights1[influence] > 0.0f &&
-					     vertex.joints1[influence] >= m_joints.size()))
+					if ((vertex.weights[influence] > 0.0f && vertex.joints[influence] >= jointCount) ||
+					    (vertex.weights1[influence] > 0.0f && vertex.joints1[influence] >= jointCount))
 						throw std::runtime_error(
 						    "glTF vertex joint index exceeds the skin joint count");
 				}

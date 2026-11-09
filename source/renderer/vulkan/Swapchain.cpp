@@ -110,10 +110,11 @@ VkSurfaceFormatKHR Swapchain::ChooseSwapSurfaceFormat(
 {
 	for (const auto &availableFormat : availableFormats)
 	{
-		// Narrow down the formats to the one(s) we requested.
+		// Narrow down the formats to the one(s) we requested. The parentheses say what the
+		// precedence already does: any B8G8R8A8_SRGB, and B8G8R8A8_UNORM only when sRGB.
 		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB ||
-		    availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
-		        availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		    (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
+		     availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR))
 		{
 			return availableFormat;
 		}

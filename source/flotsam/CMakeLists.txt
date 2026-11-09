@@ -31,3 +31,6 @@ target_link_libraries(flotsam PRIVATE yaml-cpp::yaml-cpp EnTT::EnTT)
 
 # Shared rendering library.
 target_link_libraries(flotsam PRIVATE Renderer)
+
+# Project warnings.
+target_link_libraries(flotsam PRIVATE jettison_warnings)

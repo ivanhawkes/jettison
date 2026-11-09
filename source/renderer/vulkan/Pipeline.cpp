@@ -724,7 +724,7 @@ void Pipeline::RecordCommandBuffer(
 	renderPassInfo.renderArea.extent = m_pSwapchain->GetExtents();
 
 	std::array<VkClearValue, 2> clearValues{};
-	clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+	clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 	clearValues[1].depthStencil = {1.0f, 0};
 	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 	renderPassInfo.pClearValues = clearValues.data();
@@ -783,7 +783,8 @@ void Pipeline::CreateTextureImage()
 void Pipeline::CreateTextureImageData(
     const unsigned char *pixels, int texWidth, int texHeight, TextureResource &texture)
 {
-	const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * texHeight * 4;
+	const VkDeviceSize imageSize =
+	    static_cast<VkDeviceSize>(texWidth) * static_cast<VkDeviceSize>(texHeight) * 4;
 	texture.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
 	VkBuffer stagingBuffer;
@@ -800,8 +801,8 @@ void Pipeline::CreateTextureImageData(
 	vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory);
 
 	m_pDeviceContext->CreateImage(
-	    texWidth, texHeight, texture.mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB,
-	    VK_IMAGE_TILING_OPTIMAL,
+	    static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), texture.mipLevels,
+	    VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
 	    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture.image, texture.memory);
 
@@ -1081,7 +1082,7 @@ std::vector<char> Pipeline::ReadFile(const std::string &filename)
 	std::vector<char> buffer(fileSize);
 
 	file.seekg(0);
-	file.read(buffer.data(), fileSize);
+	file.read(buffer.data(), static_cast<std::streamsize>(fileSize));
 
 	file.close();
 

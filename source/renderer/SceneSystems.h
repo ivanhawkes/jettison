@@ -18,8 +18,6 @@ struct SceneDrawCommand
 
 class SceneUpdateSystem
 {
-	const SkeletonComponent *skeleton{};
-
   public:
 	void Update(entt::registry &registry, float deltaTime) const;
 };

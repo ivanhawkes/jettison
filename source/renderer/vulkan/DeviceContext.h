@@ -15,7 +15,9 @@
 
 namespace Jettison::Renderer
 {
-static void check_vk_result(VkResult err)
+// Inline, not static: this is a header, and a static function gives every translation
+// unit that includes it its own copy, seven of which then report it as an unused function.
+inline void check_vk_result(VkResult err)
 {
 	if (err == 0)
 		return;

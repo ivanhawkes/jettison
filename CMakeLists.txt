@@ -35,5 +35,35 @@ endfunction()
 # Turn on using solution folders.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+# Warnings live on an interface target that the project's own targets link privately, not
+# on CMAKE_CXX_FLAGS: source/external pulls in third-party code through FetchContent, and
+# flags on the global variable would reach every dependency. The set is measured on this
+# tree, not aspirational: it is clean, so JETTISON_WERROR can gate on it.
+add_library(jettison_warnings INTERFACE)
+option(JETTISON_WERROR "Treat warnings as errors" OFF)
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+	target_compile_options(jettison_warnings INTERFACE
+		-Wall
+		-Wextra
+		-Wpedantic
+		-Wshadow
+		-Wconversion
+		-Wsign-conversion
+		-Wshorten-64-to-32
+		-Wimplicit-int-float-conversion
+		-Wnon-virtual-dtor
+		-Wextra-semi
+		-Winconsistent-missing-destructor-override
+		-Wcast-qual
+		-Wcast-align
+		-Wunreachable-code
+		-Wdocumentation
+	)
+	if (JETTISON_WERROR)
+		target_compile_options(jettison_warnings INTERFACE -Werror)
+	endif()
+endif()
+
 # Source.
 add_subdirectory("source")

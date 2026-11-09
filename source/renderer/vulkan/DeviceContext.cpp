@@ -184,7 +184,7 @@ QueueFamilyIndices DeviceContext::FindQueueFamilies(VkPhysicalDevice device)
 	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-	int i = 0;
+	uint32_t i = 0;
 	for (const auto &queueFamily : queueFamilies)
 	{
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
@@ -401,12 +401,19 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
     const std::vector<VkFormat> &candidates, VkColorSpaceKHR requestedColourSpace)
 {
 	// Discover what surface formats are available.
-	uint32_t availableCount;
+	uint32_t availableCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableCount, NULL);
 	std::vector<VkSurfaceFormatKHR> availableFormats;
 	availableFormats.resize(availableCount);
 	vkGetPhysicalDeviceSurfaceFormatsKHR(
 	    m_physicalDevice, m_surface, &availableCount, availableFormats.data());
+
+	// A surface that reports no formats, and an empty request list, are hard failures. The
+	// branches below index availableFormats[0] without asking, so ask once, here.
+	if (availableCount == 0 || candidates.empty())
+	{
+		throw std::runtime_error("failed to find supported surface format");
+	}
 
 	// First check if only one format, VK_FORMAT_UNDEFINED, is available, which would imply that any
 	// format is available.
@@ -428,7 +435,7 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 	else
 	{
 		// Request several formats, the first found will be used
-		for (int requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
+		for (size_t requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
 		{
 			for (uint32_t availableIndex = 0; availableIndex < availableCount; availableIndex++)
 			{
@@ -441,8 +448,6 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 		// If none of the requested image formats could be found, use the first available
 		return availableFormats[0];
 	}
-
-	throw std::runtime_error("failed to find supported format");
 }
 
 
@@ -460,11 +465,11 @@ VkPresentModeKHR DeviceContext::FindSupportedPresentMode(const std::vector<VkPre
 	uint32_t availableCount = 0;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availableCount, NULL);
 	std::vector<VkPresentModeKHR> availableModes;
-	availableModes.resize((int)availableCount);
+	availableModes.resize(availableCount);
 	vkGetPhysicalDeviceSurfacePresentModesKHR(
 	    m_physicalDevice, m_surface, &availableCount, availableModes.data());
 
-	for (int requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
+	for (size_t requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
 	{
 		for (uint32_t availableIndex = 0; availableIndex < availableCount; availableIndex++)
 		{
@@ -641,7 +646,7 @@ void DeviceContext::EndSingleTimeCommands(VkCommandBuffer commandBuffer)
 
 
 void DeviceContext::TransitionImageLayout(
-    VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
+    VkImage image, VkFormat /*format*/, VkImageLayout oldLayout, VkImageLayout newLayout,
     uint32_t mipLevels)
 {
 	VkCommandBuffer commandBuffer = BeginSingleTimeCommands();

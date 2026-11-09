@@ -14,6 +14,10 @@ target_link_libraries(Renderer PUBLIC
     "$<LINK_GROUP:RESCAN,imgui>"
 )
 
+# Our warnings, privately: an executable that links Renderer compiles its own sources with
+# its own flags, so each project target asks for the set itself.
+target_link_libraries(Renderer PRIVATE jettison_warnings)
+
 target_sources(Renderer
     PUBLIC
     # Interface.

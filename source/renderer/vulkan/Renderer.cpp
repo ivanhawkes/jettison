@@ -253,7 +253,8 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &
 	}
 	ubo.projection = glm::perspective(
 	    glm::radians(camera->verticalFovDegrees),
-	    m_pSwapchain->GetExtents().width / static_cast<float>(m_pSwapchain->GetExtents().height),
+	    static_cast<float>(m_pSwapchain->GetExtents().width) /
+	        static_cast<float>(m_pSwapchain->GetExtents().height),
 	    camera->nearPlane, camera->farPlane);
 
 	// Flip projection matrix on the y axis for Vulkan.

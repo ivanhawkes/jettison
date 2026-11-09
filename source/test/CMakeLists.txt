@@ -22,6 +22,9 @@ target_link_libraries(test PRIVATE yaml-cpp::yaml-cpp EnTT::EnTT)
 
 target_link_libraries(test PRIVATE Renderer)
 
+# Project warnings.
+target_link_libraries(test PRIVATE jettison_warnings)
+
 if(WIN32)
 	install(FILES "${glfw_BINARY_DIR}/src/glfw3.dll" DESTINATION "bin")
 endif()

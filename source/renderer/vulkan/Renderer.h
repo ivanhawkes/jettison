@@ -23,8 +23,8 @@ class Renderer
 	    std::shared_ptr<DeviceContext> pDeviceContext, std::shared_ptr<Window> pWindow,
 	    std::shared_ptr<Jettison::Renderer::Swapchain> pSwapchain,
 	    std::shared_ptr<Jettison::Renderer::Pipeline> pPipeline)
-	    : m_pDeviceContext{pDeviceContext}, m_pWindow{pWindow}, m_pSwapchain{pSwapchain},
-	      m_pPipeline{pPipeline}
+	    : m_pDeviceContext{pDeviceContext}, m_pSwapchain{pSwapchain}, m_pPipeline{pPipeline},
+	      m_pWindow{pWindow}
 	{
 	}
 
