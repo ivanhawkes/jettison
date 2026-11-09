@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "DeviceContext.h"
-#include "Model.h"
+#include "SceneSystems.h"
 #include "Swapchain.h"
 
 
@@ -41,7 +41,8 @@ class Pipeline
 	void CreateCommandBuffers();
 
 	void RecordCommandBuffer(
-	    uint32_t imageIndex, const Model &model, const ImGuiRenderer &imguiRenderer);
+	    uint32_t imageIndex, const std::vector<SceneDrawCommand> &drawCommands,
+	    const ImGuiRenderer &imguiRenderer);
 
 	VkRenderPass GetRenderPass() const { return m_renderPass; }
 

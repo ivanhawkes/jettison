@@ -1,11 +1,11 @@
 #include "Renderer.h"
 
-#include <algorithm>
-#include <chrono>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -98,7 +98,7 @@ void Renderer::RecreateRenderFinishedSemaphores()
 }
 
 
-void Renderer::RecreateSwapchain(const Model &model, ImGuiRenderer &imguiRenderer)
+void Renderer::RecreateSwapchain(ImGuiRenderer &imguiRenderer)
 {
 	check_vk_result(m_pDeviceContext->WaitIdle());
 	imguiRenderer.ShutdownVulkanBackend();
@@ -111,7 +111,9 @@ void Renderer::RecreateSwapchain(const Model &model, ImGuiRenderer &imguiRendere
 }
 
 
-bool Renderer::Render(const Model &model, ImGuiRenderer &imguiRenderer)
+bool Renderer::Render(
+	Scene &scene, const SceneUpdateSystem &updateSystem,
+	const SceneRenderSystem &renderSystem, float deltaTime, ImGuiRenderer &imguiRenderer)
 {
 	vkWaitForFences(
 	    m_pDeviceContext->GetLogicalDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE,
@@ -124,7 +126,7 @@ bool Renderer::Render(const Model &model, ImGuiRenderer &imguiRenderer)
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
-		RecreateSwapchain(model, imguiRenderer);
+		RecreateSwapchain(imguiRenderer);
 		return true;
 	}
 	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -140,8 +142,10 @@ bool Renderer::Render(const Model &model, ImGuiRenderer &imguiRenderer)
 
 	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-	UpdateUniformBuffer(imageIndex);
-	m_pPipeline->RecordCommandBuffer(imageIndex, model, imguiRenderer);
+	UpdateUniformBuffer(imageIndex, scene.Registry());
+	updateSystem.Update(scene.Registry(), deltaTime);
+	const auto drawCommands = renderSystem.Collect(scene.Registry());
+	m_pPipeline->RecordCommandBuffer(imageIndex, drawCommands, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -182,7 +186,7 @@ bool Renderer::Render(const Model &model, ImGuiRenderer &imguiRenderer)
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized())
 	{
-		RecreateSwapchain(model, imguiRenderer);
+		RecreateSwapchain(imguiRenderer);
 		m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;
 		return true;
 	}
@@ -202,22 +206,37 @@ void Renderer::Present()
 }
 
 
-void Renderer::UpdateUniformBuffer(uint32_t currentImage)
+void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &sceneRegistry)
 {
-	static auto startTime = std::chrono::high_resolution_clock::now();
+	FrameUBO ubo{};
+	CameraComponent fallbackCamera;
+	const CameraComponent *camera = &fallbackCamera;
+	for (const entt::entity entity : sceneRegistry.view<const CameraComponent>())
+	{
+		const auto &candidate = sceneRegistry.get<CameraComponent>(entity);
+		if (candidate.active)
+		{
+			camera = &candidate;
+			break;
+		}
+	}
 
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float time =
-	    std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	const float pitch = camera->rotation.x;
+	const float roll = camera->rotation.y;
+	const float yaw = camera->rotation.z;
+	const glm::vec3 direction{
+	    -std::sin(yaw) * std::cos(pitch), std::cos(yaw) * std::cos(pitch), std::sin(pitch)};
+	const glm::vec3 worldUp{0.0f, 0.0f, 1.0f};
+	const glm::vec3 right = glm::normalize(glm::cross(direction, worldUp));
+	glm::vec3 up = glm::normalize(glm::cross(right, direction));
+	if (roll != 0.0f)
+		up = glm::vec3(glm::rotate(glm::mat4(1.0f), roll, direction) * glm::vec4(up, 0.0f));
 
-	ModelUBO ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::lookAt(
-	    glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.view = glm::lookAt(camera->position, camera->position + direction, up);
 	ubo.projection = glm::perspective(
-	    glm::radians(45.0f),
-	    m_pSwapchain->GetExtents().width / static_cast<float>(m_pSwapchain->GetExtents().height), 0.1f,
-	    10.0f);
+	    glm::radians(camera->verticalFovDegrees),
+	    m_pSwapchain->GetExtents().width / static_cast<float>(m_pSwapchain->GetExtents().height),
+	    camera->nearPlane, camera->farPlane);
 
 	// Flip projection matrix on the y axis for Vulkan.
 	ubo.projection[1][1] *= -1;

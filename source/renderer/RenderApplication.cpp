@@ -12,7 +12,6 @@
 #include <stdexcept>
 #include <string>
 
-#include <vulkan/Model.h>
 #include <vulkan/Pipeline.h>
 #include <vulkan/Renderer.h>
 #include <vulkan/Swapchain.h>
@@ -24,7 +23,9 @@ namespace Jettison::Renderer
 namespace
 {
 int Loop(
-	bool smokeTest, const std::filesystem::path &assetDirectory, const char *windowTitle)
+	bool smokeTest, const std::filesystem::path &assetDirectory,
+	const std::filesystem::path &scenePath, const std::filesystem::path &saveScenePath,
+	const char *windowTitle)
 {
 	try
 	{
@@ -46,8 +47,12 @@ int Loop(
 		pDeviceContext->Init();
 		pSwapchain->Init();
 
-		Jettison::Renderer::Model model{pDeviceContext};
-		model.LoadModel(assetDirectory / "models" / "viking_room.wobj");
+		Scene scene{pDeviceContext};
+		scene.Load(scenePath);
+		if (!saveScenePath.empty())
+			scene.Save(saveScenePath);
+		const SceneUpdateSystem sceneUpdateSystem;
+		const SceneRenderSystem sceneRenderSystem;
 		pPipeline->Init();
 		pPipeline->CreateCommandBuffers();
 		imguiRenderer.Init(
@@ -60,9 +65,13 @@ int Loop(
 		bool showImGui = smokeTest;
 		bool f1WasDown = false;
 		bool escapeWasDown = false;
+		auto previousFrame = std::chrono::steady_clock::now();
 
 		while (!glfwWindowShouldClose(pWindow->GetGLFWWindow()))
 		{
+			const auto currentFrame = std::chrono::steady_clock::now();
+			const float deltaTime = std::chrono::duration<float>(currentFrame - previousFrame).count();
+			previousFrame = currentFrame;
 			glfwPollEvents();
 			const bool f1Down = glfwGetKey(pWindow->GetGLFWWindow(), GLFW_KEY_F1) == GLFW_PRESS;
 			if (f1Down && !f1WasDown)
@@ -85,7 +94,8 @@ int Loop(
 				imguiRenderer.ShowDemoWindow(&showImGui);
 			imguiRenderer.EndFrame();
 
-			const bool frameResized = pRenderer->Render(model, imguiRenderer);
+			const bool frameResized = pRenderer->Render(
+			    scene, sceneUpdateSystem, sceneRenderSystem, deltaTime, imguiRenderer);
 			if (smokeTest && frameResized && smokeResizePending)
 			{
 				++smokeResizes;
@@ -117,7 +127,7 @@ int Loop(
 		imguiRenderer.Destroy();
 		pRenderer->Destroy();
 		pPipeline->Destroy();
-		model.Destroy();
+		scene.Destroy();
 		pSwapchain->Destroy();
 		pDeviceContext->Destroy();
 		pWindow->Destroy();
@@ -139,6 +149,8 @@ int RunRenderApplication(
 	const std::filesystem::path &assetSubdirectory)
 {
 	bool smokeTest = false;
+	std::filesystem::path scenePath;
+	std::filesystem::path saveScenePath;
 	std::filesystem::path executable = std::filesystem::absolute(argv[0]);
 #ifdef __linux__
 	std::error_code error;
@@ -154,12 +166,20 @@ int RunRenderApplication(
 			smokeTest = true;
 		else if (argument == "--assets" && index + 1 < argc)
 			assetDirectory = std::filesystem::absolute(argv[++index]);
+		else if (argument == "--scene" && index + 1 < argc)
+			scenePath = std::filesystem::absolute(argv[++index]);
+		else if (argument == "--save-scene" && index + 1 < argc)
+			saveScenePath = std::filesystem::absolute(argv[++index]);
 		else
 		{
-			std::cerr << "Usage: " << argv[0] << " [--smoke-test] [--assets <directory>]\n";
+			std::cerr << "Usage: " << argv[0]
+			          << " [--smoke-test] [--assets <directory>] [--scene <file>]"
+			             " [--save-scene <file>]\n";
 			return EXIT_FAILURE;
 		}
 	}
-	return Loop(smokeTest, assetDirectory, windowTitle);
+	if (scenePath.empty())
+		scenePath = assetDirectory / "scene" / "main.yaml";
+	return Loop(smokeTest, assetDirectory, scenePath, saveScenePath, windowTitle);
 }
 }

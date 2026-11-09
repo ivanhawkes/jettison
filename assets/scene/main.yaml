@@ -1,0 +1,34 @@
+version: 1
+entities:
+  - id: scene-root
+    transform:
+      translation: [0, 0, 0]
+      rotation: [0, 0, 0]
+      scale: [1, 1, 1]
+  - id: main-camera
+    camera:
+      position: [2, 2, 2]
+      rotation: [-0.615479709, 0, 2.35619449]
+      fov: 45
+      near: 0.1
+      far: 10
+      active: true
+  - id: static-room
+    parent: scene-root
+    transform:
+      translation: [-1.1, 0, 0]
+      rotation: [0, 0, 0]
+      scale: [0.4, 0.4, 0.4]
+    mesh:
+      model: ../models/viking_room.wobj
+  - id: animated-room
+    parent: scene-root
+    transform:
+      translation: [1.1, 0, 0]
+      rotation: [0, 0, 0]
+      scale: [0.4, 0.4, 0.4]
+    mesh:
+      model: ../models/viking_room.wobj
+    transformAnimation:
+      axis: [0, 0, 1]
+      speed: 0.785398163

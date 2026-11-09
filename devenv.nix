@@ -10,6 +10,10 @@
     git-lfs
     github-cli
 
+    # Node and PNPM added directly via standard system package attributes
+    nodejs_24
+    pnpm
+
     # Build tools
     llvmPackages_21.clang
     llvmPackages_21.clang-tools
@@ -88,6 +92,8 @@
       echo "Not a Git repository. Skipping Git LFS setup."
     fi
 
+    echo "  pnpm: $(pnpm --version)"
+
     echo "Vulkan development environment loaded!"
     vulkaninfo --summary | head -n 20
 
@@ -99,6 +105,7 @@
   '';
 
   tasks."project:init" = {
+    exec = "${pkgs.pnpm}/bin/pnpm install";
     before = [ "devenv:enterShell" ];
   };
 }

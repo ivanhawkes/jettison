@@ -3,11 +3,12 @@
 #include <vulkan/vulkan.h>
 
 // STD.
-#include <array>
-#include <stdio.h>
+#include <vector>
 
 #include "DeviceContext.h"
 #include "Pipeline.h"
+#include "Scene.h"
+#include "SceneSystems.h"
 #include "Swapchain.h"
 #include "Window.h"
 #include "imgui/ImGuiRenderer.h"
@@ -36,7 +37,9 @@ class Renderer
 
 	void Destroy();
 
-	bool Render(const Model &model, ImGuiRenderer &imguiRenderer);
+	bool Render(
+	    Scene &scene, const SceneUpdateSystem &updateSystem,
+	    const SceneRenderSystem &renderSystem, float deltaTime, ImGuiRenderer &imguiRenderer);
 
 	void Present();
 
@@ -49,9 +52,9 @@ class Renderer
 
 	void RecreateRenderFinishedSemaphores();
 
-	void RecreateSwapchain(const Model &model, ImGuiRenderer &imguiRenderer);
+	void RecreateSwapchain(ImGuiRenderer &imguiRenderer);
 
-	void UpdateUniformBuffer(uint32_t currentImage);
+	void UpdateUniformBuffer(uint32_t currentImage, const entt::registry &sceneRegistry);
 
 	// Vulkan device context.
 	std::shared_ptr<DeviceContext> m_pDeviceContext{nullptr};

@@ -300,7 +300,12 @@ void Pipeline::CreateGraphicsPipeline()
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
+	VkPushConstantRange modelTransformRange{};
+	modelTransformRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	modelTransformRange.offset = 0;
+	modelTransformRange.size = sizeof(glm::mat4);
+	pipelineLayoutInfo.pushConstantRangeCount = 1;
+	pipelineLayoutInfo.pPushConstantRanges = &modelTransformRange;
 
 	if (vkCreatePipelineLayout(
 	        m_pDeviceContext->GetLogicalDevice(), &pipelineLayoutInfo, nullptr, &m_pipelineLayout) !=
@@ -398,7 +403,7 @@ void Pipeline::CreateImageViews()
 
 void Pipeline::CreateUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof(ModelUBO);
+	VkDeviceSize bufferSize = sizeof(FrameUBO);
 
 	m_uniformBuffers.resize(m_pSwapchain->GetImageCount());
 	m_uniformBuffersMemory.resize(m_pSwapchain->GetImageCount());
@@ -487,7 +492,7 @@ void Pipeline::CreateDescriptorSets()
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = m_uniformBuffers[i];
 		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(ModelUBO);
+		bufferInfo.range = sizeof(FrameUBO);
 
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -538,7 +543,8 @@ void Pipeline::CreateCommandBuffers()
 
 
 void Pipeline::RecordCommandBuffer(
-    uint32_t imageIndex, const Model &model, const ImGuiRenderer &imguiRenderer)
+	    uint32_t imageIndex, const std::vector<SceneDrawCommand> &drawCommands,
+	    const ImGuiRenderer &imguiRenderer)
 {
 	VkCommandBuffer commandBuffer = m_commandBuffers.at(imageIndex);
 	if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS)
@@ -565,14 +571,24 @@ void Pipeline::RecordCommandBuffer(
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-	VkBuffer vertexBuffers[] = {model.m_vertexBuffer};
-	VkDeviceSize offsets[] = {0};
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, model.m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(
 	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
 	    &m_descriptorSets.at(imageIndex), 0, nullptr);
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(model.m_indices.size()), 1, 0, 0, 0);
+	for (const SceneDrawCommand &drawCommand : drawCommands)
+	{
+		if (drawCommand.model == nullptr)
+			continue;
+
+		VkBuffer vertexBuffers[] = {drawCommand.model->m_vertexBuffer};
+		VkDeviceSize offsets[] = {0};
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, drawCommand.model->m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdPushConstants(
+		    commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4),
+		    &drawCommand.worldTransform[0][0]);
+		vkCmdDrawIndexed(
+		    commandBuffer, static_cast<uint32_t>(drawCommand.model->m_indices.size()), 1, 0, 0, 0);
+	}
 
 	imguiRenderer.RenderDrawData(commandBuffer);
 	vkCmdEndRenderPass(commandBuffer);
