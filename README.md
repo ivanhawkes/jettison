@@ -184,7 +184,8 @@ means the gate above covers it, with the commit that did it in the history.
 | 4 | Diagnostics: a measured warning set that survives `-Werror`, a curated clang-tidy set, an ASan/UBSan preset | done |
 | 5 | GPU lifetime: `VK_EXT_debug_utils` with named objects, scene-reload invalidation, the extent clamp, pool sizing derived from what is allocated | done |
 | 6 | App shell: the lifecycle, the staged init, the frame loop and the smoke sequence, split out of `Loop`'s 200 lines | done |
-| 7 | Maintenance: GLM 0.9.9.8 → 1.0.1, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, `Scene::Save` emitting `animation.time` so a round trip drifts | next |
+| 7 | Maintenance: GLM 0.9.9.8 → 1.0.1 with its configuration moved to the `glm` target, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, the animation phase out of authored scene state | done |
+| 8 | What row 7 found: `Renderer::Present()` is an empty stub nothing calls (the `vkQueuePresentKHR` is inline in `Render`), `Scene::Save` writes animation for an entity with no mesh that `Scene::Load` refuses, the GitHub runner is not green (`.github/CI-NOTES.md`) | next |
 
 Step 5 settled the hazards named in the plan, in the order the instrumentation found them:
 a scene reload destroyed model buffers a submitted command buffer still referenced
@@ -200,3 +201,24 @@ for: a frame that throws gets the teardown a frame loop that returns gets, becau
 `~Application` runs the `Destroy()` calls that unwinding used to skip - and a headless run
 that fails the gate is a throw, so the sequence's own failure is reported by a process that
 released the device it was testing.
+
+Row 7 is the maintenance, and all three items turned out to be about state that was in the
+wrong place. GLM 1.0.1 is byte-identical to 0.9.9.8 on the geometry the shaders and buffers
+agree on - `sizeof(Vertex)` 108, `sizeof(FrameUBO)` 192, every `offsetof` the same - measured by
+compiling one probe against both sources; what moved was its configuration, which sat in
+`Model.h` above the GLM includes, where it reached only the translation units that include that
+header first. `glm::perspective(radians(45), 1.25, 0.1, 10)` answers `[2][2]` -1.010101 with
+`GLM_FORCE_DEPTH_ZERO_TO_ONE` and -1.020202 without it, so an include reorder is a depth range
+change; the macros are compile definitions on the `glm` interface target now, and the two inert
+ones are gone (GLM 1.0 has no degree mode, and GLM disables aligned gentypes on this compiler,
+which is why `sizeof(glm::vec3)` has always been 12 here). The three command-pool TODOs asked
+whether the pool is recreated with the swapchain; it is not, because a recreate changes the
+swapchain handle and not the device's queue family, and the descriptor set layout is part of the
+pipeline rebuild rather than something left out of it - both written where the code asked, with
+the one substantive change being that `Pipeline::Destroy()` now clears `m_commandBuffers` after
+freeing it, so no recreate reads an image count off a list of freed handles. The scene round trip
+had the frame loop writing authored state: after ten seconds of a 0.7854 rad/s spin on an entity
+whose authored `rotation.y` is 0.3, the graph held 8.154025 and the saved file carried
+`time: 1.25`; the phase lives in `RotationAnimationComponent::angle` now, composed into the world
+transform where the rotation is, the world pose unchanged to within 2.2e-5 rad, and the saved file
+says 0.3 and no time.
