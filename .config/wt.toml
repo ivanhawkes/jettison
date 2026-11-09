@@ -8,9 +8,9 @@
 # Fast: clang-format --dry-run -Werror over the tracked sources (needs LLVM 21: 'devenv').
 pre-commit = "./scripts/format-check.sh"
 
-# Slower: format gate, configure + build (Debug and Release) and the headless render test.
-# Skips the Release build for speed locally; CI runs everything.
-pre-merge = "./scripts/ci.sh --skip-release --llvmpipe"
+# Slower: format gate, Debug build, clang-tidy and the headless render test, with warnings
+# as errors. Skips the Release build locally for speed; CI runs everything.
+pre-merge = "./scripts/ci.sh --skip-release --werror --llvmpipe"
 
 # Do not copy generated trees into new worktrees: build/ holds fetched dependencies and
 # multi-hundred-MB build trees, .devenv the Nix dev shell, .cache the clangd index.

@@ -59,14 +59,50 @@ backend enabled as well, which is the tree the headless render test uses).
 ## Gates
 
 `scripts/ci.sh` is the gate, and everything runs it: the worktrunk `pre-commit` hook checks
-formatting, `pre-merge` runs `./scripts/ci.sh --skip-release --llvmpipe`, and
-`.github/workflows/ci.yml` runs `./scripts/ci.sh --llvmpipe` on every push.
+formatting, `pre-merge` runs `./scripts/ci.sh --skip-release --werror --llvmpipe`, and
+`.github/workflows/ci.yml` runs `./scripts/ci.sh --llvmpipe --werror` on every push.
 
 ```bash
 ./scripts/format-check.sh      # clang-format >= 20 gate over the tracked sources
 ./scripts/ci.sh --skip-smoke   # format gate + Debug and Release builds
 ./scripts/ci.sh --llvmpipe     # everything, on the software Vulkan driver
+./scripts/ci.sh --werror       # the same, with warnings as errors
+./scripts/ci.sh --asan         # the same, plus a sanitized render test
+./scripts/tidy.sh --summary    # clang-tidy; needs a configured Debug tree for its database
 ```
+
+### Warnings
+
+The project's four targets link a `jettison_warnings` interface library privately:
+`-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wshorten-64-to-32
+-Wimplicit-int-float-conversion -Wnon-virtual-dtor -Wextra-semi
+-Winconsistent-missing-destructor-override -Wcast-qual -Wcast-align -Wunreachable-code
+-Wdocumentation`. On an interface target rather than in `CMAKE_CXX_FLAGS` because
+`CMAKE_CXX_FLAGS` reaches every FetchContent dependency, and their diagnostics are not ours
+to acquire. The list is measured on this tree: it is clean, which is what lets `-Werror`
+turn on. `JETTISON_WERROR=ON`, or `--werror`, is that switch; a developer's build leaves it
+off so an edit can be interrupted. `-Wold-style-cast` was probed and left out: this is a GLM
+codebase, and the flag costs more than it tells.
+
+### clang-tidy
+
+`.clang-tidy` carries a curated set, and `scripts/tidy.sh` runs it over the project's own
+sources from a configured tree's compile database. A check earns its place by being clean
+over these sources or by pointing at something that gets fixed; the three the first run
+produced hundreds of findings against, all of them house style (brace-less `if`, explicit
+`{}` member init, enum ABI advice on Vulkan-facing enums), are excluded with their counts
+in the file so the decision is legible later.
+
+### Sanitizers
+
+`./scripts/smoke-test.sh --preset clang-asan --llvmpipe` builds AddressSanitizer and
+UndefinedBehaviorSanitizer into the headless tree and runs the render test under them,
+with `-fno-sanitize-recover=all` so the first finding stops the run. That tree builds GLFW
+X11-only, which is why it is the sanitized one: a tree that links libwayland reports a
+192-byte leak inside libwayland at disconnect, and a suppression for it would hide the
+findings the preset exists to produce. GLFW loads the X11 libraries at runtime, so the
+shell running the test needs libX11 and friends on `LD_LIBRARY_PATH`; the devenv shell
+carries them.
 
 Formatting drift is checked with the project's own `.clang-format`; the tree is clean from
 the format commit recorded in `.git-blame-ignore-revs`, so register it once:

@@ -9,6 +9,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/skypjack/entt.git
   GIT_TAG v3.6.0
   GIT_SHALLOW TRUE
+  SYSTEM
 )
 FetchContent_MakeAvailable(entt)
 
@@ -21,7 +22,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 add_library(glm INTERFACE)
-target_include_directories(glm INTERFACE "${glm_SOURCE_DIR}")
+target_include_directories(glm SYSTEM INTERFACE "${glm_SOURCE_DIR}")
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -44,6 +45,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/glfw/glfw.git
   GIT_TAG 3.4
   GIT_SHALLOW TRUE
+  SYSTEM
 )
 FetchContent_MakeAvailable(glfw)
 
@@ -63,7 +65,7 @@ add_library(imgui STATIC
   "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
   "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
 )
-target_include_directories(imgui PUBLIC
+target_include_directories(imgui SYSTEM PUBLIC
   "${imgui_SOURCE_DIR}"
   "${imgui_SOURCE_DIR}/backends"
 )
@@ -77,13 +79,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 add_library(stb INTERFACE)
-target_include_directories(stb INTERFACE "${stb_SOURCE_DIR}")
+target_include_directories(stb SYSTEM INTERFACE "${stb_SOURCE_DIR}")
 
 FetchContent_Declare(
     yaml-cpp
     GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
     GIT_TAG yaml-cpp-0.9.0
     GIT_SHALLOW TRUE
+    SYSTEM
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
@@ -95,6 +98,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/spnda/fastgltf.git
   GIT_TAG v1.0.1
   GIT_SHALLOW TRUE
+  SYSTEM
 )
 FetchContent_MakeAvailable(fastgltf)
 

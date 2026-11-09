@@ -144,7 +144,7 @@ jobs:
 
       - name: Gate (format, build, headless render test)
         shell: bash -euo pipefail {0}
-        run: ./scripts/ci.sh --llvmpipe 2>&1 | tee ci.log
+        run: ./scripts/ci.sh --llvmpipe --werror 2>&1 | tee ci.log
 
       - name: Upload gate log
         if: always()
