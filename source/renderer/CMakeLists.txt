@@ -17,7 +17,6 @@ target_link_libraries(Renderer PUBLIC
 target_sources(Renderer
     PUBLIC
     # Interface.
-    IRenderer.h
     RenderApplication.h
     Scene.h
     SceneSystems.h

@@ -11,8 +11,6 @@ target_sources(Renderer PRIVATE
     Pipeline.h
     Renderer.cpp
     Renderer.h
-    RenderPass.cpp
-    RenderPass.h
     Swapchain.cpp
     Swapchain.h
     Window.cpp
