@@ -133,15 +133,21 @@ void Pipeline::Destroy()
 
 	// Descriptor pool.
 	vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), m_descriptorPool, nullptr);
-	for (auto &[model, resources] : m_modelResources)
+	for (auto &[model, modelResources] : m_modelResources)
 	{
-		vkDestroyDescriptorPool(
-		    m_pDeviceContext->GetLogicalDevice(), resources.descriptorPool, nullptr);
-		if (resources.ownsTexture)
+		for (auto &resources : modelResources)
 		{
-			vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), resources.texture.view, nullptr);
-			vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), resources.texture.image, nullptr);
-			vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), resources.texture.memory, nullptr);
+			vkDestroyDescriptorPool(
+			    m_pDeviceContext->GetLogicalDevice(), resources.descriptorPool, nullptr);
+			if (resources.ownsTexture)
+			{
+				vkDestroyImageView(
+				    m_pDeviceContext->GetLogicalDevice(), resources.texture.view, nullptr);
+				vkDestroyImage(
+				    m_pDeviceContext->GetLogicalDevice(), resources.texture.image, nullptr);
+				vkFreeMemory(
+				    m_pDeviceContext->GetLogicalDevice(), resources.texture.memory, nullptr);
+			}
 		}
 	}
 	m_modelResources.clear();
@@ -498,20 +504,23 @@ void Pipeline::EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount)
 		write.pBufferInfo = &bufferInfo;
 		vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
 	}
-	for (auto &[model, resources] : m_modelResources)
+	for (auto &[model, modelResources] : m_modelResources)
 	{
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = m_jointBuffers[imageIndex];
-		bufferInfo.offset = 0;
-		bufferInfo.range = requiredSize;
-		VkWriteDescriptorSet write{};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = resources.descriptorSets[imageIndex];
-		write.dstBinding = 2;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		write.pBufferInfo = &bufferInfo;
-		vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
+		for (auto &resources : modelResources)
+		{
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = m_jointBuffers[imageIndex];
+			bufferInfo.offset = 0;
+			bufferInfo.range = requiredSize;
+			VkWriteDescriptorSet write{};
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.dstSet = resources.descriptorSets[imageIndex];
+			write.dstBinding = 2;
+			write.descriptorCount = 1;
+			write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			write.pBufferInfo = &bufferInfo;
+			vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
+		}
 	}
 }
 
@@ -667,7 +676,9 @@ void Pipeline::RecordCommandBuffer(
 {
 	for (const SceneDrawCommand &drawCommand : drawCommands)
 		if (drawCommand.model != nullptr)
-			EnsureModelResources(*drawCommand.model);
+			for (std::size_t primitiveIndex = 0;
+			     primitiveIndex < drawCommand.model->m_primitives.size(); ++primitiveIndex)
+				EnsureModelResources(*drawCommand.model, primitiveIndex);
 
 	std::vector<uint32_t> jointOffsets(drawCommands.size(), 0);
 	std::vector<glm::mat4> jointPalette;
@@ -732,11 +743,6 @@ void Pipeline::RecordCommandBuffer(
 		const SceneDrawCommand &drawCommand = drawCommands[drawIndex];
 		if (drawCommand.model == nullptr)
 			continue;
-		const auto &modelResources = m_modelResources.at(drawCommand.model);
-		vkCmdBindDescriptorSets(
-		    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
-		    &modelResources.descriptorSets.at(imageIndex), 0, nullptr);
-
 		VkBuffer vertexBuffers[] = {drawCommand.model->m_vertexBuffer};
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
@@ -749,8 +755,17 @@ void Pipeline::RecordCommandBuffer(
 		vkCmdPushConstants(
 		    commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
 		    sizeof(DrawPushConstants), &pushConstants);
-		vkCmdDrawIndexed(
-		    commandBuffer, static_cast<uint32_t>(drawCommand.model->m_indices.size()), 1, 0, 0, 0);
+		const auto &primitives = drawCommand.model->m_primitives;
+		const auto &modelResources = m_modelResources.at(drawCommand.model);
+		for (std::size_t primitiveIndex = 0; primitiveIndex < primitives.size(); ++primitiveIndex)
+		{
+			vkCmdBindDescriptorSets(
+			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
+			    &modelResources[primitiveIndex].descriptorSets.at(imageIndex), 0, nullptr);
+			vkCmdDrawIndexed(
+			    commandBuffer, primitives[primitiveIndex].indexCount, 1,
+			    primitives[primitiveIndex].firstIndex, 0, 0);
+		}
 	}
 
 	imguiRenderer.RenderDrawData(commandBuffer);
@@ -763,20 +778,8 @@ void Pipeline::RecordCommandBuffer(
 
 void Pipeline::CreateTextureImage()
 {
-	int texWidth;
-	int texHeight;
-	int texChannels;
-
-	const auto texturePath = (m_assetDirectory / "textures" / "viking_room.png").string();
-	stbi_uc *pixels =
-	    stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-
-	if (!pixels)
-	{
-		throw std::runtime_error("failed to load texture image: " + texturePath);
-	}
-	CreateTextureImageData(pixels, texWidth, texHeight, m_fallbackTexture);
-	stbi_image_free(pixels);
+	const unsigned char whitePixel[] = {255, 255, 255, 255};
+	CreateTextureImageData(whitePixel, 1, 1, m_fallbackTexture);
 }
 
 
@@ -859,13 +862,19 @@ void Pipeline::CreateTextureSampler()
 }
 
 
-Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model)
+Pipeline::ModelResources &Pipeline::EnsureModelResources(
+	const Model &model, std::size_t primitiveIndex)
 {
-	if (const auto existing = m_modelResources.find(&model); existing != m_modelResources.end())
-		return existing->second;
+	if (primitiveIndex >= model.m_primitives.size())
+		throw std::runtime_error("Model primitive index is out of range");
+	auto &modelResources = m_modelResources[&model];
+	if (primitiveIndex < modelResources.size())
+		return modelResources[primitiveIndex];
+	if (primitiveIndex != modelResources.size())
+		throw std::runtime_error("Model primitive resources must be created in order");
 
 	ModelResources resources;
-	const auto &imageData = model.BaseColorImageData();
+	const auto &imageData = model.m_primitives[primitiveIndex].baseColorImageData;
 	if (!imageData.empty())
 	{
 		if (imageData.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
@@ -944,7 +953,8 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model)
 		    writes.data(), 0, nullptr);
 	}
 
-	return m_modelResources.emplace(&model, std::move(resources)).first->second;
+	modelResources.push_back(std::move(resources));
+	return modelResources.back();
 }
 
 

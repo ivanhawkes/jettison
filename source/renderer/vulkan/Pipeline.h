@@ -98,7 +98,7 @@ class Pipeline
 	void CreateTextureImageView();
 
 	void CreateTextureSampler();
-	ModelResources &EnsureModelResources(const Model &model);
+	ModelResources &EnsureModelResources(const Model &model, std::size_t primitiveIndex);
 
 	void CreateColorResources();
 
@@ -148,6 +148,6 @@ class Pipeline
 
 	TextureResource m_fallbackTexture;
 	VkSampler m_textureSampler{VK_NULL_HANDLE};
-	std::unordered_map<const Model *, ModelResources> m_modelResources;
+	std::unordered_map<const Model *, std::vector<ModelResources>> m_modelResources;
 };
 } // namespace Jettison::Renderer

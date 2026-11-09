@@ -116,6 +116,44 @@ glm::vec4 SampleTrack(const ModelAnimationTrack &track, float time)
 	}
 	return glm::mix(start, end, factor);
 }
+
+std::vector<std::byte> ReadBaseColorImageData(
+	const fastgltf::Asset &asset, const fastgltf::Primitive &primitive,
+	const std::filesystem::path &path)
+{
+	if (!primitive.materialIndex)
+		return {};
+	if (*primitive.materialIndex >= asset.materials.size())
+		throw std::runtime_error("glTF material index is out of range: " + path.string());
+	const auto &baseColorTexture = asset.materials[*primitive.materialIndex].pbrData.baseColorTexture;
+	if (!baseColorTexture)
+		return {};
+	if (baseColorTexture->textureIndex >= asset.textures.size())
+		throw std::runtime_error("glTF base-color texture index is out of range: " + path.string());
+	const auto &imageIndex = asset.textures[baseColorTexture->textureIndex].imageIndex;
+	if (!imageIndex || *imageIndex >= asset.images.size())
+		throw std::runtime_error("glTF base-color image is missing: " + path.string());
+
+	const auto &image = asset.images[*imageIndex];
+	const auto imageData = std::visit(
+	    [&](const auto &source) -> std::span<const std::byte> {
+		    using Source = std::decay_t<decltype(source)>;
+		    if constexpr (std::is_same_v<Source, fastgltf::sources::BufferView>)
+			    return fastgltf::DefaultBufferDataAdapter{}(asset, source.bufferViewIndex);
+		    else if constexpr (std::is_same_v<Source, fastgltf::sources::Array>)
+			    return {source.bytes.data(), source.bytes.size_bytes()};
+		    else if constexpr (std::is_same_v<Source, fastgltf::sources::Vector>)
+			    return {source.bytes.data(), source.bytes.size()};
+		    else if constexpr (std::is_same_v<Source, fastgltf::sources::ByteView>)
+			    return source.bytes;
+		    else
+			    return {};
+	    },
+	    image.data);
+	if (imageData.empty())
+		throw std::runtime_error("Unsupported glTF base-color image source: " + path.string());
+	return {imageData.begin(), imageData.end()};
+}
 } // namespace
 
 void Model::LoadGltfModel(const std::filesystem::path &path)
@@ -164,42 +202,6 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 	const auto meshIndex = *asset.nodes[m_meshNodeIndex].meshIndex;
 	if (meshIndex >= asset.meshes.size())
 		throw std::runtime_error("glTF mesh index is out of range: " + path.string());
-	for (const auto &primitive : asset.meshes[meshIndex].primitives)
-	{
-		if (!primitive.materialIndex)
-			continue;
-		if (*primitive.materialIndex >= asset.materials.size())
-			throw std::runtime_error("glTF material index is out of range: " + path.string());
-		const auto &baseColorTexture = asset.materials[*primitive.materialIndex].pbrData.baseColorTexture;
-		if (!baseColorTexture)
-			continue;
-		if (baseColorTexture->textureIndex >= asset.textures.size())
-			throw std::runtime_error("glTF base-color texture index is out of range: " + path.string());
-		const auto &imageIndex = asset.textures[baseColorTexture->textureIndex].imageIndex;
-		if (!imageIndex || *imageIndex >= asset.images.size())
-			throw std::runtime_error("glTF base-color image is missing: " + path.string());
-
-		const auto &image = asset.images[*imageIndex];
-		const auto imageData = std::visit(
-		    [&](const auto &source) -> std::span<const std::byte> {
-			    using Source = std::decay_t<decltype(source)>;
-			    if constexpr (std::is_same_v<Source, fastgltf::sources::BufferView>)
-				    return fastgltf::DefaultBufferDataAdapter{}(asset, source.bufferViewIndex);
-			    else if constexpr (std::is_same_v<Source, fastgltf::sources::Array>)
-				    return {source.bytes.data(), source.bytes.size_bytes()};
-			    else if constexpr (std::is_same_v<Source, fastgltf::sources::Vector>)
-				    return {source.bytes.data(), source.bytes.size()};
-			    else if constexpr (std::is_same_v<Source, fastgltf::sources::ByteView>)
-				    return source.bytes;
-			    else
-				    return {};
-		    },
-		    image.data);
-		if (imageData.empty())
-			throw std::runtime_error("Unsupported glTF base-color image source: " + path.string());
-		m_baseColorImageData.assign(imageData.begin(), imageData.end());
-		break;
-	}
 
 	if (asset.nodes[m_meshNodeIndex].skinIndex)
 	{
@@ -231,6 +233,9 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 	{
 		if (primitive.type != fastgltf::PrimitiveType::Triangles)
 			throw std::runtime_error("Only triangle glTF primitives are supported: " + path.string());
+		ModelPrimitive modelPrimitive;
+		modelPrimitive.firstIndex = static_cast<uint32_t>(m_indices.size());
+		modelPrimitive.baseColorImageData = ReadBaseColorImageData(asset, primitive, path);
 		const auto positionAttribute = primitive.findAttribute("POSITION");
 		if (positionAttribute == primitive.attributes.end())
 			throw std::runtime_error("glTF triangle primitive has no POSITION attribute");
@@ -346,6 +351,8 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			for (std::size_t index = 0; index < positions.size(); ++index)
 				m_indices.push_back(static_cast<std::uint32_t>(vertexOffset + index));
 		}
+		modelPrimitive.indexCount = static_cast<uint32_t>(m_indices.size()) - modelPrimitive.firstIndex;
+		m_primitives.push_back(std::move(modelPrimitive));
 	}
 
 	for (std::size_t index = 0; index + 2 < m_indices.size(); index += 3)

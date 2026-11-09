@@ -26,9 +26,6 @@ target_link_libraries(flotsam PRIVATE glfw)
 # STB.
 target_link_libraries(flotsam PRIVATE stb)
 
-# Tiny Object Loader.
-target_link_libraries(flotsam PRIVATE tiny_obj_loader)
-
 # Configuration and scene graph libraries.
 target_link_libraries(flotsam PRIVATE yaml-cpp::yaml-cpp EnTT::EnTT)
 

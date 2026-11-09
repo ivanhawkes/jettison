@@ -26,9 +26,6 @@ target_link_libraries(jetsam PRIVATE glfw)
 # STB.
 target_link_libraries(jetsam PRIVATE stb)
 
-# Tiny Object Loader.
-target_link_libraries(jetsam PRIVATE tiny_obj_loader)
-
 # Configuration and scene graph libraries.
 target_link_libraries(jetsam PRIVATE yaml-cpp::yaml-cpp EnTT::EnTT)
 

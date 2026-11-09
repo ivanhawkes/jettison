@@ -124,6 +124,13 @@ struct ModelSkinJoint
 	glm::mat4 inverseBindMatrix{1.0f};
 };
 
+struct ModelPrimitive
+{
+	uint32_t firstIndex{};
+	uint32_t indexCount{};
+	std::vector<std::byte> baseColorImageData;
+};
+
 
 class Model
 {
@@ -142,7 +149,6 @@ class Model
 	void LoadModel(const std::filesystem::path &path);
 	bool HasSkin() const { return !m_joints.empty(); }
 	bool HasSceneGraph() const { return !m_nodes.empty(); }
-	const std::vector<std::byte> &BaseColorImageData() const { return m_baseColorImageData; }
 	bool HasAnimation(std::string_view name) const;
 	float AnimationDuration(std::string_view name) const;
 	void EvaluateSkin(
@@ -150,6 +156,7 @@ class Model
 	    glm::mat4 &meshNodeTransform) const;
 
 	std::vector<uint32_t> m_indices{};
+	std::vector<ModelPrimitive> m_primitives{};
 	VkBuffer m_vertexBuffer{VK_NULL_HANDLE};
 	VkBuffer m_indexBuffer{VK_NULL_HANDLE};
 
@@ -165,7 +172,6 @@ class Model
 	std::vector<ModelNode> m_nodes{};
 	std::vector<ModelSkinJoint> m_joints{};
 	std::vector<ModelAnimationClip> m_animations{};
-	std::vector<std::byte> m_baseColorImageData{};
 	std::size_t m_meshNodeIndex{};
 	VkDeviceMemory m_vertexBufferMemory{VK_NULL_HANDLE};
 	VkDeviceMemory m_indexBufferMemory{VK_NULL_HANDLE};
