@@ -185,7 +185,7 @@ means the gate above covers it, with the commit that did it in the history.
 | 5 | GPU lifetime: `VK_EXT_debug_utils` with named objects, scene-reload invalidation, the extent clamp, pool sizing derived from what is allocated | done |
 | 6 | App shell: the lifecycle, the staged init, the frame loop and the smoke sequence, split out of `Loop`'s 200 lines | done |
 | 7 | Maintenance: GLM 0.9.9.8 → 1.0.1 with its configuration moved to the `glm` target, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, the animation phase out of authored scene state | done |
-| 8 | What row 7 found: `Renderer::Present()` is an empty stub nothing calls (the `vkQueuePresentKHR` is inline in `Render`), `Scene::Save` writes animation for an entity with no mesh that `Scene::Load` refuses | next |
+| 8 | What row 7 found: `Renderer::Present()` is an empty stub nothing calls (the `vkQueuePresentKHR` is inline in `Render`), `Scene::Save` writes animation for an entity with no mesh that `Scene::Load` refuses | done |
 
 Step 5 settled the hazards named in the plan, in the order the instrumentation found them:
 a scene reload destroyed model buffers a submitted command buffer still referenced
@@ -222,3 +222,15 @@ whose authored `rotation.y` is 0.3, the graph held 8.154025 and the saved file c
 `time: 1.25`; the phase lives in `RotationAnimationComponent::angle` now, composed into the world
 transform where the rotation is, the world pose unchanged to within 2.2e-5 rad, and the saved file
 says 0.3 and no time.
+
+Row 8 is what row 7 turned up, and both halves were a rule with two owners. `Renderer::Present()`
+was an empty body holding a question, with the present, its out-of-date check and the frame-slot
+move sitting at the end of `Render`; lifting them out is the move, and the part that is not is
+that out of date means two things on the two sides of a submit - Render's acquire leaves the frame
+slot alone, because that frame queued nothing, and Present moves it, because that frame queued
+everything. The scene round trip had the loader and the writer each enforcing a mesh rule the
+other did not know about, and the file in the middle lost: a registry the engine saved came back
+as "Entity transform animation needs a mesh and must be a mapping", the loader refusing a document
+its own writer produced. A rotation animation runs on the transform, so the loader takes it
+without a mesh; a clip player runs on a model's skin, so the writer stopped writing one with no
+model to name.
