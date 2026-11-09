@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 
@@ -67,6 +68,11 @@ void Renderer::CreateSyncObjects()
 		{
 			throw std::runtime_error("failed to create semaphores");
 		}
+		// The two frame-loop waits in Renderer::Render read differently, one per frame and one
+		// per image, and a message that names the fence is how a reader tells which one fired.
+		m_pDeviceContext->SetDebugName(
+		    m_imageAvailableSemaphores[i], "image-available-" + std::to_string(i));
+		m_pDeviceContext->SetDebugName(m_inFlightFences[i], "in-flight-" + std::to_string(i));
 	}
 	CreateRenderFinishedSemaphores();
 }
@@ -86,6 +92,9 @@ void Renderer::CreateRenderFinishedSemaphores()
 			throw std::runtime_error("failed to create render-finished semaphore");
 		}
 	}
+	for (size_t i = 0; i < m_renderFinishedSemaphores.size(); ++i)
+		m_pDeviceContext->SetDebugName(
+		    m_renderFinishedSemaphores[i], "render-finished-" + std::to_string(i));
 }
 
 

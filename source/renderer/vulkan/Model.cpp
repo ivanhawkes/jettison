@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <cstring>
+#include <string>
 
 
 namespace Jettison::Renderer
@@ -53,6 +55,10 @@ void Model::CreateVertexBuffer()
 
 	vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), stagingBuffer, nullptr);
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, nullptr);
+	// The model address names this buffer the same way Pipeline names its descriptor sets, so a
+	// message about a vertex buffer and a message about a set point at the same model.
+	m_pDeviceContext->SetDebugName(
+	    m_vertexBuffer, "model-" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "-vertex");
 }
 
 
@@ -80,5 +86,7 @@ void Model::CreateIndexBuffer()
 
 	vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), stagingBuffer, nullptr);
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, nullptr);
+	m_pDeviceContext->SetDebugName(
+	    m_indexBuffer, "model-" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "-index");
 }
 } // namespace Jettison::Renderer

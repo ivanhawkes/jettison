@@ -8,9 +8,11 @@
 // STD.
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <string>
 
 
 namespace Jettison::Renderer
@@ -25,6 +27,14 @@ struct DrawPushConstants
 	uint32_t padding[2]{};
 };
 static_assert(sizeof(DrawPushConstants) == 80);
+
+// The address of a Model is the key its Vulkan resources live under, so it is the identifier a
+// reader of a validation message has to go look up in m_modelResources. Names built from it
+// point at the same model from the descriptor set, the texture and the vertex buffer.
+std::string ModelKey(const Model *pModel)
+{
+	return "model-" + std::to_string(reinterpret_cast<uintptr_t>(pModel));
+}
 } // namespace
 
 
@@ -241,6 +251,7 @@ void Pipeline::CreateRenderPass()
 	{
 		throw std::runtime_error("failed to create render pass");
 	}
+	m_pDeviceContext->SetDebugName(m_renderPass, "scene-render-pass");
 }
 
 
@@ -350,6 +361,7 @@ void Pipeline::CreateGraphicsPipeline()
 	{
 		throw std::runtime_error("failed to create pipeline layout");
 	}
+	m_pDeviceContext->SetDebugName(m_pipelineLayout, "scene-pipeline-layout");
 
 	VkPipelineDepthStencilStateCreateInfo depthStencil{};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -381,6 +393,7 @@ void Pipeline::CreateGraphicsPipeline()
 	{
 		throw std::runtime_error("failed to create graphics pipeline");
 	}
+	m_pDeviceContext->SetDebugName(m_graphicsPipeline, "scene-pipeline");
 
 	vkDestroyShaderModule(m_pDeviceContext->GetLogicalDevice(), fragShaderModule, nullptr);
 	vkDestroyShaderModule(m_pDeviceContext->GetLogicalDevice(), vertShaderModule, nullptr);
@@ -411,6 +424,8 @@ void Pipeline::CreateFramebuffers()
 		{
 			throw std::runtime_error("failed to create framebuffer");
 		}
+		m_pDeviceContext->SetDebugName(
+		    m_swapchainFramebuffers[i], "scene-framebuffer-" + std::to_string(i));
 	}
 }
 
@@ -434,6 +449,8 @@ void Pipeline::CreateImageViews()
 	{
 		m_swapchainImageViews[i] = m_pDeviceContext->CreateImageView(
 		    m_swapchainImages[i], m_pSwapchain->GetImageFormat(), VK_IMAGE_ASPECT_COLOR_BIT, 1);
+		m_pDeviceContext->SetDebugName(m_swapchainImages[i], "swapchain-image-" + std::to_string(i));
+		m_pDeviceContext->SetDebugName(m_swapchainImageViews[i], "swapchain-view-" + std::to_string(i));
 	}
 }
 
@@ -465,10 +482,17 @@ void Pipeline::CreateUniformBuffers()
 		const glm::mat4 identity{1.0f};
 		std::memcpy(data, &identity, sizeof(identity));
 		vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i]);
+		m_pDeviceContext->SetDebugName(m_uniformBuffers[i], "frame-ubo-" + std::to_string(i));
+		m_pDeviceContext->SetDebugName(m_jointBuffers[i], "joint-palette-" + std::to_string(i));
 	}
 }
 
 
+// Resizes the per-image skin palette storage buffer. Growing it means destroying a buffer, so
+// the invariant that makes that legal has to be stated: this runs from RecordCommandBuffer,
+// which the frame loop reaches only after waiting on the fence of the previous submission that
+// used this swapchain image, and each image owns its own palette. No submission in flight can
+// be reading the buffer being destroyed, and the recording that follows binds the new one.
 void Pipeline::EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount)
 {
 	const VkDeviceSize requiredSize =
@@ -486,39 +510,39 @@ void Pipeline::EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount)
 	    requiredSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 	    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 	    m_jointBuffers[imageIndex], m_jointBuffersMemory[imageIndex]);
+	m_pDeviceContext->SetDebugName(
+	    m_jointBuffers[imageIndex],
+	    "joint-palette-" + std::to_string(imageIndex) + "-" + std::to_string(requiredSize));
 
-	if (!m_descriptorSets.empty())
+	// Every set that points at this image's palette has to be pointed at the new buffer: a
+	// descriptor set that keeps the destroyed handle is not a dangling pointer the driver
+	// notices, it is a draw that reads memory the driver handed to someone else.
+	auto rebind = [this, imageIndex, requiredSize](VkDescriptorSet descriptorSet)
 	{
+		if (descriptorSet == VK_NULL_HANDLE)
+			return;
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = m_jointBuffers[imageIndex];
 		bufferInfo.offset = 0;
 		bufferInfo.range = requiredSize;
 		VkWriteDescriptorSet write{};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_descriptorSets[imageIndex];
+		write.dstSet = descriptorSet;
 		write.dstBinding = 2;
 		write.descriptorCount = 1;
 		write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		write.pBufferInfo = &bufferInfo;
 		vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
-	}
+	};
+
+	if (imageIndex < m_descriptorSets.size())
+		rebind(m_descriptorSets[imageIndex]);
 	for (auto &[model, modelResources] : m_modelResources)
 	{
+		(void)model;
 		for (auto &resources : modelResources)
-		{
-			VkDescriptorBufferInfo bufferInfo{};
-			bufferInfo.buffer = m_jointBuffers[imageIndex];
-			bufferInfo.offset = 0;
-			bufferInfo.range = requiredSize;
-			VkWriteDescriptorSet write{};
-			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			write.dstSet = resources.descriptorSets[imageIndex];
-			write.dstBinding = 2;
-			write.descriptorCount = 1;
-			write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-			write.pBufferInfo = &bufferInfo;
-			vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
-		}
+			if (imageIndex < resources.descriptorSets.size())
+				rebind(resources.descriptorSets[imageIndex]);
 	}
 }
 
@@ -600,6 +624,7 @@ void Pipeline::CreateDescriptorSets()
 	{
 		throw std::runtime_error("failed to allocate descriptor sets");
 	}
+	m_pDeviceContext->SetDebugName(m_descriptorPool, "frame-descriptor-pool");
 
 	for (size_t i = 0; i < m_pSwapchain->GetImageCount(); ++i)
 	{
@@ -645,6 +670,7 @@ void Pipeline::CreateDescriptorSets()
 		vkUpdateDescriptorSets(
 		    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(descriptorWrites.size()),
 		    descriptorWrites.data(), 0, nullptr);
+		m_pDeviceContext->SetDebugName(m_descriptorSets[i], "frame-set-" + std::to_string(i));
 	}
 }
 
@@ -664,6 +690,8 @@ void Pipeline::CreateCommandBuffers()
 	{
 		throw std::runtime_error("failed to create command buffers");
 	}
+	for (size_t i = 0; i < m_commandBuffers.size(); ++i)
+		m_pDeviceContext->SetDebugName(m_commandBuffers[i], "command-buffer-" + std::to_string(i));
 }
 
 
@@ -716,6 +744,13 @@ void Pipeline::RecordCommandBuffer(
 	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to begin recording command buffer");
 
+	// A message raised while a command executes names the frame region it came from, which is
+	// the difference between "a draw in frame N reads a freed buffer" and a usable bug report.
+	// Labels are commands, so they go inside the recording: the validation layer caught this
+	// call sitting between vkResetCommandBuffer and vkBeginCommandBuffer, where I put it.
+	const std::string frameLabel = "frame-image-" + std::to_string(imageIndex);
+	m_pDeviceContext->BeginDebugLabel(commandBuffer, frameLabel);
+
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderPass = m_renderPass;
@@ -730,6 +765,7 @@ void Pipeline::RecordCommandBuffer(
 	renderPassInfo.pClearValues = clearValues.data();
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	m_pDeviceContext->BeginDebugLabel(commandBuffer, "scene-pass");
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
 	vkCmdBindDescriptorSets(
@@ -765,8 +801,10 @@ void Pipeline::RecordCommandBuffer(
 		}
 	}
 
+	m_pDeviceContext->EndDebugLabel(commandBuffer);
 	imguiRenderer.RenderDrawData(commandBuffer);
 	vkCmdEndRenderPass(commandBuffer);
+	m_pDeviceContext->EndDebugLabel(commandBuffer);
 
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to record command buffer");
@@ -826,6 +864,8 @@ void Pipeline::CreateTextureImageView()
 	m_fallbackTexture.view = m_pDeviceContext->CreateImageView(
 	    m_fallbackTexture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
 	    m_fallbackTexture.mipLevels);
+	m_pDeviceContext->SetDebugName(m_fallbackTexture.image, "fallback-texture");
+	m_pDeviceContext->SetDebugName(m_fallbackTexture.view, "fallback-texture-view");
 }
 
 
@@ -855,6 +895,7 @@ void Pipeline::CreateTextureSampler()
 	{
 		throw std::runtime_error("failed to create texture sampler");
 	}
+	m_pDeviceContext->SetDebugName(m_textureSampler, "texture-sampler");
 }
 
 
@@ -888,6 +929,9 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model, std
 		    resources.texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
 		    resources.texture.mipLevels);
 		resources.ownsTexture = true;
+		const std::string textureName = ModelKey(&model) + "-p" + std::to_string(primitiveIndex);
+		m_pDeviceContext->SetDebugName(resources.texture.image, "texture-" + textureName);
+		m_pDeviceContext->SetDebugName(resources.texture.view, "texture-" + textureName + "-view");
 	}
 
 	const auto imageCount = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
@@ -904,6 +948,10 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model, std
 	        m_pDeviceContext->GetLogicalDevice(), &poolInfo, nullptr, &resources.descriptorPool) !=
 	    VK_SUCCESS)
 		throw std::runtime_error("Failed to create model descriptor pool");
+	// The address is the key this engine's model resources live under, so it is the name the
+	// reader of a validation message needs to correlate a set with a model.
+	const std::string resourcesName = ModelKey(&model) + "-p" + std::to_string(primitiveIndex);
+	m_pDeviceContext->SetDebugName(resources.descriptorPool, resourcesName + "-pool");
 
 	std::vector<VkDescriptorSetLayout> layouts(imageCount, m_descriptorSetLayout);
 	resources.descriptorSets.resize(imageCount);
@@ -947,6 +995,8 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model, std
 		vkUpdateDescriptorSets(
 		    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(),
 		    0, nullptr);
+		m_pDeviceContext->SetDebugName(
+		    resources.descriptorSets[index], resourcesName + "-set-" + std::to_string(index));
 	}
 
 	modelResources.push_back(std::move(resources));
@@ -963,9 +1013,11 @@ void Pipeline::CreateColorResources()
 	    m_pDeviceContext->GetMsaaSamples(), colorFormat, VK_IMAGE_TILING_OPTIMAL,
 	    VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_colorImage, m_colorImageMemory);
+	m_pDeviceContext->SetDebugName(m_colorImage, "msaa-color-image");
 
 	m_colorImageView =
 	    m_pDeviceContext->CreateImageView(m_colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	m_pDeviceContext->SetDebugName(m_colorImageView, "msaa-color-view");
 }
 
 
@@ -978,8 +1030,10 @@ void Pipeline::CreateDepthResources()
 	    m_pDeviceContext->GetMsaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
 	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_depthImage,
 	    m_depthImageMemory);
+	m_pDeviceContext->SetDebugName(m_depthImage, "depth-image");
 	m_depthImageView =
 	    m_pDeviceContext->CreateImageView(m_depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	m_pDeviceContext->SetDebugName(m_depthImageView, "depth-view");
 }
 
 

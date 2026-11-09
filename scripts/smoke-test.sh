@@ -164,15 +164,22 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# The app's own stream is the record of what the layer noticed: the validation layer prints
+# "Validation Error: ..." on its own, and DeviceContext's messenger prints the same events
+# with a [vulkan:...] prefix. Keep the console output, keep the log, judge the run on the log.
+run_app() {
+	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
+	"$@" 2>&1 | tee "$app_log"
+	status=${PIPESTATUS[0]}
+}
+
 if [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ]; }; then
 	echo "smoke-test: running on DISPLAY=${DISPLAY:-unset} (native session)"
-	"$executable" --smoke-test
-	status=$?
+	run_app "$executable" --smoke-test
 else
 	if [ -x "$(command -v xvfb-run)" ]; then
 		echo "smoke-test: running under xvfb-run (software display, $screen)"
-		xvfb-run -a -s "-screen 0 $screen -nolisten tcp" "$executable" --smoke-test
-		status=$?
+		run_app xvfb-run -a -s "-screen 0 $screen -nolisten tcp" "$executable" --smoke-test
 	else
 		xvfb="$(command -v Xvfb || command -v /run/current-system/sw/bin/Xvfb || true)"
 		if [ -z "$xvfb" ]; then
@@ -196,8 +203,24 @@ else
 			sleep 0.2
 		done
 		[ -e "$lock" ] || { echo "smoke-test: Xvfb failed to start on :$display_number" >&2; exit 1; }
-		DISPLAY=":$display_number" "$executable" --smoke-test
-		status=$?
+		run_app env DISPLAY=":$display_number" "$executable" --smoke-test
+	fi
+fi
+
+# A run that renders, resizes and exits cleanly is not a run the layer is happy about. The
+# loader's own messages about duplicate layer manifests are environment, not this project, so
+# they are excluded: on NixOS the shell's Mesa and the system's /run/opengl-driver both ship
+# VK_LAYER_MESA_* manifests, and the loader reports removing the duplicate every start.
+issues=0
+if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
+	issues=$(grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -vc 'Loader Message' || true)
+	if [ "${issues:-0}" -gt 0 ]; then
+		echo "smoke-test: FAIL (the validation layer reported $issues issue(s) in a run that exited $status)" >&2
+		grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -v 'Loader Message' | head -20 >&2
+		echo "smoke-test: full output in $app_log" >&2
+		status=1
+	elif [ -n "${VK_SMOKE_VERBOSE:-}" ]; then
+		echo "smoke-test: validation reported nothing (log: $app_log)"
 	fi
 fi
 

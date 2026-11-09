@@ -68,6 +68,72 @@ class DeviceContext
 		return vkDeviceWaitIdle(m_logicalDevice);
 	}
 
+	// Names a Vulkan object for the validation layer and debug tools. A validation message
+	// about "VkBuffer 0x3" identifies a buffer to whoever wrote the code that made it, not to
+	// anyone reading a bug report; a name says which of the engine's buffers it is and which
+	// image slot. No-ops when VK_EXT_debug_utils is unavailable, which is every release build.
+	void SetDebugName(VkBuffer object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkImage object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkImageView object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkFramebuffer object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkPipeline object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkRenderPass object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkPipelineLayout object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkDescriptorPool object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkDescriptorSet object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_DESCRIPTOR_SET, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkCommandBuffer object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_COMMAND_BUFFER, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkSemaphore object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkFence object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_FENCE, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkSampler object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkDeviceMemory object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<uint64_t>(object), name);
+	}
+
+	// Marks a labelled region of a command buffer, so a layer message raised while a command
+	// is executing names the frame region it came from. No-ops without the extension.
+	void BeginDebugLabel(VkCommandBuffer commandBuffer, const std::string &name) const;
+	void EndDebugLabel(VkCommandBuffer commandBuffer) const;
+
 	// Wait for the device to return sensible values for the window size after a resize event.
 	void WaitOnWindowResized() const;
 
@@ -158,6 +224,14 @@ class DeviceContext
 
 	SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
 
+	// True when the debug messenger is live, i.e. validation layers and VK_EXT_debug_utils
+	// are both in play, which is the debug build. Callers use it to make a run that has to be
+	// silent (the headless smoke test) check that nothing reported anything.
+	bool DebugUtilsActive() const
+	{
+		return m_debugUtilsActive;
+	}
+
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice m_device);
 
 	VkSurfaceFormatKHR FindSupportedSurfaceFormat(
@@ -193,6 +267,20 @@ class DeviceContext
 
 	void CreateCommandPool();
 
+	bool HasInstanceExtension(const char *name) const;
+
+	// The messenger and the name-setter are resolved through the loader instead of linked:
+	// VK_EXT_debug_utils predates this project's Vulkan 1.0 target, its entry points are only
+	// exported by newer loaders, and a build that cannot find them has to carry on without
+	// names, not fail to link. The messenger is created through the instance's pNext, so it
+	// reports during instance and device creation, and the loader destroys it with the
+	// instance.
+	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(
+	    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
+	    const VkDebugUtilsMessengerCallbackDataEXT *pData, void *pUserData);
+
+	void SetObjectName(VkObjectType type, uint64_t handle, const std::string &name) const;
+
 	// A pointer to the window with which this device context is associated.
 	std::shared_ptr<Window> m_pWindow{nullptr};
 
@@ -222,5 +310,16 @@ class DeviceContext
 	VkSurfaceKHR m_surface{VK_NULL_HANDLE};
 
 	VkCommandPool m_commandPool{VK_NULL_HANDLE};
+
+	// The name-setter is resolved through the loader instead of linked: VK_EXT_debug_utils
+	// predates this project's Vulkan 1.0 target and its entry points are only exported by
+	// newer loaders, so a build on an older one has to carry on without names, not fail to
+	// link. The messenger needs no handle and no pointer of its own: it arrives through the
+	// instance's pNext chain, which reports during instance and device creation, and the
+	// loader destroys it with the instance.
+	PFN_vkSetDebugUtilsObjectNameEXT m_pfnSetDebugUtilsObjectName{nullptr};
+	PFN_vkCmdBeginDebugUtilsLabelEXT m_pfnCmdBeginDebugLabel{nullptr};
+	PFN_vkCmdEndDebugUtilsLabelEXT m_pfnCmdEndDebugLabel{nullptr};
+	bool m_debugUtilsActive{false};
 };
 } // namespace Jettison::Renderer

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 
 
@@ -42,10 +43,16 @@ void DeviceContext::Init()
 
 void DeviceContext::Destroy()
 {
+	// The debug messenger came from the instance's pNext chain, so the loader destroys it
+	// with the instance; there is no messenger left to destroy here.
 	vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
 	vkDestroyDevice(m_logicalDevice, nullptr);
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	vkDestroyInstance(m_instance, nullptr);
+	m_pfnSetDebugUtilsObjectName = nullptr;
+	m_pfnCmdBeginDebugLabel = nullptr;
+	m_pfnCmdEndDebugLabel = nullptr;
+	m_debugUtilsActive = false;
 }
 
 
@@ -104,10 +111,35 @@ void DeviceContext::CreateInstance()
 
 	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-	std::vector<const char *> glfwExtensionsVector(glfwExtensions, glfwExtensions + glfwExtensionCount);
+	std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
-	createInfo.enabledExtensionCount = glfwExtensionCount;
-	createInfo.ppEnabledExtensionNames = glfwExtensions;
+	// A messenger in the instance's pNext chain sees the messages emitted while the instance
+	// and the logical device are being built, which is where object-lifetime misuse in device
+	// setup shows up. Requested only with the validation layer, and only when it is present:
+	// an extension the loader cannot supply fails instance creation, so asking unconditionally
+	// would break machines without it.
+	auto messengerInfo = VkDebugUtilsMessengerCreateInfoEXT{};
+	const bool wantDebugUtils =
+	    kEnableValidationLayers && HasInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	if (wantDebugUtils)
+		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	if (wantDebugUtils)
+	{
+		messengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		// Errors and warnings only. Validation's info messages name every object the engine
+		// creates, which buries the two lines that matter under a message per buffer, and the
+		// smoke test reads this stream as pass/fail.
+		messengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
+		                                VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+		messengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+		                            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+		                            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		messengerInfo.pfnUserCallback = DebugUtilsCallback;
+		createInfo.pNext = &messengerInfo;
+	}
+
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+	createInfo.ppEnabledExtensionNames = extensions.data();
 
 	if (kEnableValidationLayers)
 	{
@@ -123,6 +155,124 @@ void DeviceContext::CreateInstance()
 	{
 		throw std::runtime_error("failed to create m_instance");
 	}
+
+	// Resolved through the loader: the promoted entry points of VK_EXT_debug_utils are absent
+	// from a Vulkan 1.0 loader, and linking against them would make this project unbuildable
+	// on a machine whose SDK predates them. A device-level command resolved from the instance
+	// is valid; the loader routes it to the device the object belongs to.
+	if (wantDebugUtils)
+	{
+		m_pfnSetDebugUtilsObjectName = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+		    vkGetInstanceProcAddr(m_instance, "vkSetDebugUtilsObjectNameEXT"));
+		m_pfnCmdBeginDebugLabel = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(
+		    vkGetInstanceProcAddr(m_instance, "vkCmdBeginDebugUtilsLabelEXT"));
+		m_pfnCmdEndDebugLabel = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(
+		    vkGetInstanceProcAddr(m_instance, "vkCmdEndDebugUtilsLabelEXT"));
+		m_debugUtilsActive = m_pfnSetDebugUtilsObjectName != nullptr;
+	}
+}
+
+
+bool DeviceContext::HasInstanceExtension(const char *name) const
+{
+	uint32_t count = 0;
+	vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+	std::vector<VkExtensionProperties> available(count);
+	vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
+	for (const auto &extension : available)
+		if (strcmp(extension.extensionName, name) == 0)
+			return true;
+	return false;
+}
+
+
+VKAPI_ATTR VkBool32 VKAPI_CALL DeviceContext::DebugUtilsCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
+    const VkDebugUtilsMessengerCallbackDataEXT *pData, void *pUserData)
+{
+	// The severity spelled out, because a validation message that only says "Warning" is read
+	// as an invitation to stop looking. Performance notes are kept: object lifetimes are what
+	// this engine gets wrong, and the layer's performance messages name the same objects.
+	(void)pUserData;
+	const char *level = "info";
+	if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+		level = "error";
+	else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+		level = "warning";
+
+	std::string objects;
+	for (uint32_t i = 0; i < pData->objectCount; ++i)
+	{
+		const auto &object = pData->pObjects[i];
+		if (object.pObjectName)
+			objects += " '\"" + std::string{object.pObjectName} + "\"'";
+		else
+			objects += " 0x" + std::to_string(object.objectHandle);
+	}
+	std::string labels;
+	for (uint32_t i = 0; i < pData->cmdBufLabelCount; ++i)
+		if (pData->pCmdBufLabels[i].pLabelName)
+			labels += " [" + std::string{pData->pCmdBufLabels[i].pLabelName} + "]";
+
+	std::string kind;
+	if (types & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+		kind += "validation+";
+	if (types & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+		kind += "performance+";
+	if (types & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT)
+		kind += "general+";
+	if (!kind.empty())
+		kind.pop_back();
+
+	// To stderr, not the layer's own stdout: the smoke test greps this stream for a clean run.
+	std::fprintf(
+	    stderr, "[vulkan:%s%s%s] %s: %s%s%s\n", level, kind.empty() ? "" : ":", kind.c_str(),
+	    pData->pMessageIdName ? pData->pMessageIdName : "message", pData->pMessage,
+	    objects.empty() ? "" : " objects:", objects.c_str());
+	if (!labels.empty())
+		std::fprintf(stderr, "[vulkan] labels:%s\n", labels.c_str());
+
+	// False: the layer's own report continues, and the callback is a listener here.
+	return VK_FALSE;
+}
+
+
+void DeviceContext::SetObjectName(VkObjectType type, uint64_t handle, const std::string &name) const
+{
+	if (!m_pfnSetDebugUtilsObjectName || handle == 0)
+		return;
+	VkDebugUtilsObjectNameInfoEXT nameInfo{};
+	nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+	nameInfo.objectType = type;
+	nameInfo.objectHandle = handle;
+	nameInfo.pObjectName = name.c_str();
+	const VkResult result = m_pfnSetDebugUtilsObjectName(m_logicalDevice, &nameInfo);
+	// A name is diagnostics. A failure to set one is not a reason to stop a frame, and it is
+	// not silent either: this is the only place the engine would learn that names are absent.
+	if (result != VK_SUCCESS && result != VK_ERROR_EXTENSION_NOT_PRESENT)
+		std::fprintf(stderr, "[vulkan] vkSetDebugUtilsObjectNameEXT: VkResult = %d\n", result);
+}
+
+
+void DeviceContext::BeginDebugLabel(VkCommandBuffer commandBuffer, const std::string &name) const
+{
+	if (!m_pfnCmdBeginDebugLabel || commandBuffer == VK_NULL_HANDLE)
+		return;
+	VkDebugUtilsLabelEXT label{};
+	label.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+	label.pLabelName = name.c_str();
+	// No device argument: the command-buffer label entry points of VK_EXT_debug_utils take the
+	// command buffer alone. The Vulkan 1.3 core promotion is what adds the device parameter,
+	// and that entry point has a different name.
+	m_pfnCmdBeginDebugLabel(commandBuffer, &label);
+}
+
+
+void DeviceContext::EndDebugLabel(VkCommandBuffer commandBuffer) const
+{
+	if (!m_pfnCmdEndDebugLabel || commandBuffer == VK_NULL_HANDLE)
+		return;
+	m_pfnCmdEndDebugLabel(commandBuffer);
 }
 
 
