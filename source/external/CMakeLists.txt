@@ -30,7 +30,14 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 # and enabled by the clang-headless preset (JETTISON_GLFW_X11=ON), which is the tree the
 # headless smoke tests run under a virtual display (see scripts/smoke-test.sh).
 option(JETTISON_GLFW_X11 "Build GLFW with X11 support for headless smoke tests" OFF)
-set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+# One backend per tree. The headless presets ask for X11, and building Wayland alongside it
+# leaves libwayland loaded, where it leaks 192 bytes at exit that LeakSanitizer reports
+# against code we do not own (measured with clang-asan on wayland 1.26.0).
+if(JETTISON_GLFW_X11)
+	set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
+else()
+	set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+endif()
 set(GLFW_BUILD_X11 ${JETTISON_GLFW_X11} CACHE BOOL "" FORCE)
 FetchContent_Declare(
   glfw
