@@ -141,9 +141,14 @@ void Scene::Load(const std::filesystem::path &path)
 
 			if (const YAML::Node animationNode = entityNode["transformAnimation"])
 			{
-				if (!hasMesh || !animationNode.IsMap())
-					throw std::runtime_error(
-					    "Entity transform animation needs a mesh and must be a mapping: " + id);
+				// A mesh is not part of what a rotation animation runs on: the update system walks
+				// transform and rotation, and ComputeWorldTransform composes the angle, so an entity
+				// with nothing to draw can still spin. The clip player below is the one that needs
+				// the mesh, for a skin and a clip to sample. Save writes this block for every entity
+				// that carries the component, and a loader demanding a mesh here refused a file the
+				// writer had just produced.
+				if (!animationNode.IsMap())
+					throw std::runtime_error("Entity transform animation must be a mapping: " + id);
 
 				RotationAnimationComponent animation;
 				animation.rotationAxis = ReadVec3(animationNode, "axis", animation.rotationAxis);
@@ -257,22 +262,28 @@ void Scene::Save(const std::filesystem::path &path) const
 		}
 		if (const auto *animation = m_registry.try_get<RotationAnimationComponent>(entity))
 		{
+			// Written for every entity that carries it, mesh or not: the loader accepts it on an
+			// entity with nothing to draw, because a rotation animation runs on the transform.
 			emitter << YAML::Key << "transformAnimation" << YAML::Value << YAML::BeginMap;
 			EmitVec3(emitter, "axis", animation->rotationAxis);
 			emitter << YAML::Key << "speed" << YAML::Value << animation->rotationSpeed;
 			emitter << YAML::EndMap;
 		}
-		if (const auto *animation = m_registry.try_get<AnimationPlayerComponent>(entity))
+		// A clip player runs on a model's skin: SceneUpdateSystem walks mesh and skeleton, and the
+		// loader refuses an animation block on an entity with no model to sample. With nothing to
+		// animate there is no clip name worth writing, so this block goes with the mesh.
+		if (const auto *player = m_registry.try_get<AnimationPlayerComponent>(entity);
+		    player && m_registry.has<MeshComponent>(entity))
 		{
 			emitter << YAML::Key << "animation" << YAML::Value << YAML::BeginMap;
-			emitter << YAML::Key << "clip" << YAML::Value << animation->clipName;
+			emitter << YAML::Key << "clip" << YAML::Value << player->clipName;
 			// No time: the player's time is the phase the clip is at, which the frame loop owns.
 			// Writing it starts a saved-and-reloaded scene out of step with the scene graph that
 			// was authored, and in a long-running session it writes a phase that has grown with
 			// the clock. Load reads the key, so a scene file can still ask for a start offset.
-			emitter << YAML::Key << "speed" << YAML::Value << animation->playbackSpeed;
-			emitter << YAML::Key << "loop" << YAML::Value << animation->looping;
-			emitter << YAML::Key << "playing" << YAML::Value << animation->playing;
+			emitter << YAML::Key << "speed" << YAML::Value << player->playbackSpeed;
+			emitter << YAML::Key << "loop" << YAML::Value << player->looping;
+			emitter << YAML::Key << "playing" << YAML::Value << player->playing;
 			emitter << YAML::EndMap;
 		}
 		emitter << YAML::EndMap;
