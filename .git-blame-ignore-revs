@@ -1,0 +1,7 @@
+# Revisions whose changes should be skipped by `git blame` (and `git log -L`):
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub honours the file automatically once it is registered in the repository settings.
+
+# Whitespace-only: applied the project's .clang-format rules to the whole tree (20 files,
+# clang-format 21.1.8). The format gate in scripts/format-check.sh enforces it from here on.
+16356a42458cd72a21ef3d7c19785367e69314fe
