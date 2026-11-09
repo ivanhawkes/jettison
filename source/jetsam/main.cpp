@@ -1,8 +1,9 @@
-#include <iostream>
+#include <RenderApplication.h>
 
-int main()
+// Jetsam is the runtime entry point and uses the shared renderer and sample assets.
+
+int main(int argc, char **argv)
 {
-	std::cout << "Jetsam executed.";
-
-	return 0;
+	return Jettison::Renderer::RunRenderApplication(
+		argc, argv, "Jetsam", JETTISON_ASSET_SUBDIRECTORY);
 }

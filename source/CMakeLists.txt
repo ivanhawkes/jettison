@@ -14,6 +14,20 @@ endif()
 
 add_subdirectory("external")
 
+set(JETTISON_ASSET_BINARY_DIR "${CMAKE_BINARY_DIR}/assets")
+
+function(jettison_use_shared_assets target)
+    file(RELATIVE_PATH asset_subdirectory "${CMAKE_CURRENT_BINARY_DIR}" "${JETTISON_ASSET_BINARY_DIR}")
+    target_compile_definitions(${target} PRIVATE
+        "JETTISON_ASSET_SUBDIRECTORY=\"${asset_subdirectory}\"")
+    add_dependencies(${target} jettison_assets)
+endfunction()
+
+add_subdirectory("${CMAKE_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
+
+# Shared rendering library.
+add_subdirectory("renderer")
+
 # Sandbox editor.
 add_subdirectory("flotsam")
 

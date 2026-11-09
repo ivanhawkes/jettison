@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.17)
 
-target_sources(Renderer PUBLIC
+target_sources(Renderer PRIVATE
     # Vulkan implementation.
     DeviceContext.cpp
     DeviceContext.h

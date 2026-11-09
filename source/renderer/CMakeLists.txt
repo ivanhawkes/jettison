@@ -9,14 +9,21 @@ target_link_libraries(Renderer PUBLIC
     glfw
     stb
     tiny_obj_loader
+    yaml-cpp::yaml-cpp
     EnTT::EnTT
     "$<LINK_GROUP:RESCAN,imgui>"
 )
 
-target_sources(Renderer PUBLIC
+target_sources(Renderer
+    PUBLIC
     # Interface.
     IRenderer.h
-    )
+    RenderApplication.h
+    PRIVATE
+    RenderApplication.cpp
+)
+
+target_include_directories(Renderer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # The Vulkan rendering code.
 add_subdirectory("vulkan")

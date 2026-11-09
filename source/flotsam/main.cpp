@@ -1,8 +1,8 @@
-#include <iostream>
+#include <RenderApplication.h>
 
-int main()
+// Flotsam is the editor entry point and uses the shared renderer and sample assets.
+int main(int argc, char **argv)
 {
-	std::cout << "Flotsam executed.";
-
-	return 0;
+	return Jettison::Renderer::RunRenderApplication(
+		argc, argv, "Flotsam", JETTISON_ASSET_SUBDIRECTORY);
 }

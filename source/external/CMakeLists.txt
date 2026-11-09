@@ -77,3 +77,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tinyobjloader)
 add_library(tiny_obj_loader INTERFACE)
 target_include_directories(tiny_obj_loader INTERFACE "${tinyobjloader_SOURCE_DIR}")
+
+FetchContent_Declare(
+    yaml-cpp
+    GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+    GIT_TAG yaml-cpp-0.9.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(yaml-cpp)
+

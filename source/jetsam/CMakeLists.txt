@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(jetsam main.cpp)
+jettison_use_shared_assets(jetsam)
 
 # Move the targets into a solution folder.
 set_property(TARGET jetsam PROPERTY FOLDER "Jetsam")
@@ -15,12 +16,6 @@ set_property(TARGET jetsam PROPERTY FOLDER "Jetsam")
 # Find and link Vulkan.
 find_package(Vulkan REQUIRED)
 target_link_libraries(jetsam PRIVATE Vulkan::Vulkan)
-
-# Copy shaders, models and the textures.
-jettison_compile_shaders(jetsam shaders/shader.vert shaders/shader.frag)
-configure_file("textures/texture.jpg" "textures/texture.jpg" COPYONLY)
-configure_file("textures/viking_room.png" "textures/viking_room.png" COPYONLY)
-configure_file("models/viking_room.wobj" "models/viking_room.wobj" COPYONLY)
 
 # GL math library.
 target_link_libraries(jetsam PRIVATE glm)
@@ -33,3 +28,9 @@ target_link_libraries(jetsam PRIVATE stb)
 
 # Tiny Object Loader.
 target_link_libraries(jetsam PRIVATE tiny_obj_loader)
+
+# Configuration and scene graph libraries.
+target_link_libraries(jetsam PRIVATE yaml-cpp::yaml-cpp EnTT::EnTT)
+
+# Shared rendering library.
+target_link_libraries(jetsam PRIVATE Renderer)

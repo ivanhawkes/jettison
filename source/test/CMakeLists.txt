@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(test main.cpp)
+jettison_use_shared_assets(test)
 #add_executable(test ImGuiMain.cpp)
 
 # Move the targets into a solution folder.
@@ -17,13 +18,10 @@ set_property(TARGET test PROPERTY FOLDER "Test")
 find_package(Vulkan REQUIRED)
 target_link_libraries(test PRIVATE Vulkan::Vulkan)
 
-# Renderer.
-add_subdirectory("${CMAKE_SOURCE_DIR}/source/renderer" renderer)
+# Configuration and scene graph libraries.
+target_link_libraries(test PRIVATE yaml-cpp::yaml-cpp EnTT::EnTT)
 
-# 
-include_directories("${CMAKE_SOURCE_DIR}/source/renderer")
-
-target_link_libraries(test PUBLIC Renderer)
+target_link_libraries(test PRIVATE Renderer)
 
 if(WIN32)
 	install(FILES "${glfw_BINARY_DIR}/src/glfw3.dll" DESTINATION "bin")
