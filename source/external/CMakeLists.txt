@@ -61,7 +61,7 @@ target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 FetchContent_Declare(
   stb
   GIT_REPOSITORY https://github.com/nothings/stb.git
-  GIT_TAG 5736b15f7ea0ffb08dd38af21067c314d6a3aae9
+  GIT_TAG 4e9b368bfc071e97206ea5c6adba68dd0cbf8897
   SOURCE_SUBDIR _fetchcontent_no_cmake
 )
 FetchContent_MakeAvailable(stb)
@@ -71,8 +71,7 @@ target_include_directories(stb INTERFACE "${stb_SOURCE_DIR}")
 FetchContent_Declare(
   tinyobjloader
   GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
-  GIT_TAG v2.0.0rc13
-  GIT_SHALLOW TRUE
+  GIT_TAG 45636bdcef1a4fec140346b90c0b50bf0bc3e23b
   SOURCE_SUBDIR _fetchcontent_no_cmake
 )
 FetchContent_MakeAvailable(tinyobjloader)
