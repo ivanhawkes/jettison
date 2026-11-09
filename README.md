@@ -147,6 +147,30 @@ so validation layers must be available (devenv exports `VK_LAYER_PATH` for them)
 CI installs LLVM 21, the Vulkan SDK, Mesa's lavapipe and Xvfb on an Ubuntu runner and calls
 the same script, so a local `./scripts/ci.sh --llvmpipe` is a faithful rehearsal of the build.
 
+## App shell
+
+`source/renderer` is what runs the engine. `RunRenderApplication` is the entry point
+`flotsam`, `jetsam` and `test` call: it reads argv (`AppArguments.cpp`: `--smoke-test`,
+`--assets`, `--scene`, `--save-scene`), builds `Application`, and prints the exception a run
+threw. Everything that has a lifetime is in the shell.
+
+`Application` is the lifecycle. `Init` builds the subsystems in dependency order, one named
+stage each - window, device and swapchain, scene, pipeline, UI, renderer - so a start-up that
+fails says which stage failed. The frame loop is `RunFrameLoop`, and one frame of it is
+`Tick`: events, hot keys, UI, render. `Shutdown` destroys in the reverse order, idempotent and
+`noexcept`, so the loop can call it and `~Application` can call it again. Nothing in this tree
+has a destructor of its own: every Vulkan object is released by a `Destroy()` call, so that
+destructor is the whole safety net, and before this step an exception thrown out of a frame
+unwound past every one of them - the logical device, the ImGui context and GLFW were still
+live in a process exiting through a diagnostic, which is the run the diagnostics exist to be
+read from.
+
+`SmokeSequence` is the render test's six stages as a state machine: `Advance` is called once a
+frame with the frame's answer (did it recreate the swapchain), the window's size and the
+clock, and its actions run through five callbacks the shell supplies. Nothing in it names
+GLFW, Vulkan or the scene graph, which is what lets it be read as the list of things that have
+hurt this engine, and lets its counters be the gate (`Passed`, `Summary`).
+
 ## Roadmap
 
 The order is set by what endangers the engine, not by what looks good on a README. "Done"
@@ -159,8 +183,8 @@ means the gate above covers it, with the commit that did it in the history.
 | 3 | Delete what the build does not need: the ImGui sample program, `RenderPass`, `ImGuiPipeline`, 667 lines | done |
 | 4 | Diagnostics: a measured warning set that survives `-Werror`, a curated clang-tidy set, an ASan/UBSan preset | done |
 | 5 | GPU lifetime: `VK_EXT_debug_utils` with named objects, scene-reload invalidation, the extent clamp, pool sizing derived from what is allocated | done |
-| 6 | App shell: `RenderApplication.cpp`'s `Loop` is about 200 lines of setup, smoke sequence and shutdown in one function, and the app has no lifecycle to speak of | next |
-| 7 | Maintenance: GLM 0.9.9.8 → 1.0.1, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, `Scene::Save` emitting `animation.time` so a round trip drifts | later |
+| 6 | App shell: the lifecycle, the staged init, the frame loop and the smoke sequence, split out of `Loop`'s 200 lines | done |
+| 7 | Maintenance: GLM 0.9.9.8 → 1.0.1, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, `Scene::Save` emitting `animation.time` so a round trip drifts | next |
 
 Step 5 settled the hazards named in the plan, in the order the instrumentation found them:
 a scene reload destroyed model buffers a submitted command buffer still referenced
@@ -168,3 +192,11 @@ a scene reload destroyed model buffers a submitted command buffer still referenc
 address, which a reload reuses. The joint-palette resize turned out to be fenced by the frame
 loop's per-image wait, which is now written down where the destroy happens; the frame pool's
 unexplained `+100` was counting sets that live in pools of their own.
+
+Step 6 is the shell. `Loop`'s 200 lines are three files: argv in `AppArguments`, the staged
+init, the frame loop and the ordered teardown in `Application`, and the six stages in
+`SmokeSequence`, driven through callbacks. The behaviour that changed is the one the step was
+for: a frame that throws gets the teardown a frame loop that returns gets, because
+`~Application` runs the `Destroy()` calls that unwinding used to skip - and a headless run
+that fails the gate is a throw, so the sequence's own failure is reported by a process that
+released the device it was testing.

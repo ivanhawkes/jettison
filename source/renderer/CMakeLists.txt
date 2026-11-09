@@ -22,12 +22,18 @@ target_sources(Renderer
     PUBLIC
     # Interface.
     RenderApplication.h
+    Application.h
+    AppArguments.h
     Scene.h
     SceneSystems.h
+    SmokeSequence.h
     PRIVATE
     RenderApplication.cpp
+    Application.cpp
+    AppArguments.cpp
     Scene.cpp
     SceneSystems.cpp
+    SmokeSequence.cpp
 )
 
 target_include_directories(Renderer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
