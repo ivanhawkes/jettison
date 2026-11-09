@@ -13,16 +13,38 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(entt)
 
+# GLM 1.0.1, measured against the 0.9.9.8 this tree carried: the geometry ABI is identical -
+# sizeof(Vertex) 108, sizeof(FrameUBO) 192, every offsetof the same, and identical translate,
+# rotate, angleAxis, lookAt and perspective results - so no buffer layout and no shader moves.
 FetchContent_Declare(
   glm
   GIT_REPOSITORY https://github.com/g-truc/glm.git
-  GIT_TAG 0.9.9.8
+  GIT_TAG 1.0.1
   GIT_SHALLOW TRUE
   SOURCE_SUBDIR _fetchcontent_no_cmake
 )
 FetchContent_MakeAvailable(glm)
 add_library(glm INTERFACE)
 target_include_directories(glm SYSTEM INTERFACE "${glm_SOURCE_DIR}")
+
+# GLM's configuration is a compile definition, on the target that carries the headers: these
+# macros have to be set before the first GLM include, and a header can only guarantee that for
+# files that include it first. Model.h used to carry them, which leaves every other
+# translation unit one include order away from a different GLM. Measured: with
+# GLM_FORCE_DEPTH_ZERO_TO_ONE glm::perspective(45, 1.25, 0.1, 10) has [2][2] -1.010101 and
+# [3][2] -0.101010, the zero-to-one depth range this renderer's viewport is set up for; without
+# it the same call gives -1.020202 and -0.202020, the -1..1 range, and the scene renders with
+# depth mapped somewhere else entirely.
+target_compile_definitions(glm INTERFACE
+  GLM_FORCE_DEPTH_ZERO_TO_ONE
+  GLM_ENABLE_EXPERIMENTAL
+)
+
+# GLM_FORCE_RADIANS is gone: GLM 1.0 has no degree mode, and radians were already the default
+# in 0.9.9.8. GLM_FORCE_DEFAULT_ALIGNED_GENTYPES is gone with it, for a different reason - GLM
+# disables aligned gentypes on this compiler (GLM_LANG carries no CXXMS flag, which the feature
+# requires), so it changed nothing here: sizeof(glm::vec3) is 12 and alignof 4 on both versions,
+# and the vertex stride the shaders read has always been the compact 108 bytes.
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
