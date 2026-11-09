@@ -4,6 +4,5 @@
 
 int main(int argc, char **argv)
 {
-	return Jettison::Renderer::RunRenderApplication(
-		argc, argv, "Jetsam", JETTISON_ASSET_SUBDIRECTORY);
+	return Jettison::Renderer::RunRenderApplication(argc, argv, "Jetsam", JETTISON_ASSET_SUBDIRECTORY);
 }

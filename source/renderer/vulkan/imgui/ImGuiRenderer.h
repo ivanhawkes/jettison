@@ -17,7 +17,7 @@ class ImGuiRenderer
 {
   public:
 	ImGuiRenderer(std::shared_ptr<DeviceContext> pDeviceContext, std::filesystem::path assetDirectory)
-		: m_pDeviceContext{std::move(pDeviceContext)}, m_assetDirectory{std::move(assetDirectory)}
+	    : m_pDeviceContext{std::move(pDeviceContext)}, m_assetDirectory{std::move(assetDirectory)}
 	{
 	}
 
@@ -46,4 +46,4 @@ class ImGuiRenderer
 	bool m_vulkanBackendInitialized{false};
 };
 
-}
+} // namespace Jettison::Renderer

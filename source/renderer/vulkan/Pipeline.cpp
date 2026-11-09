@@ -6,8 +6,8 @@
 #include <stb_image.h>
 
 // STD.
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <fstream>
 #include <limits>
@@ -25,7 +25,7 @@ struct DrawPushConstants
 	uint32_t padding[2]{};
 };
 static_assert(sizeof(DrawPushConstants) == 80);
-}
+} // namespace
 
 
 void Pipeline::Init()
@@ -143,10 +143,8 @@ void Pipeline::Destroy()
 			{
 				vkDestroyImageView(
 				    m_pDeviceContext->GetLogicalDevice(), resources.texture.view, nullptr);
-				vkDestroyImage(
-				    m_pDeviceContext->GetLogicalDevice(), resources.texture.image, nullptr);
-				vkFreeMemory(
-				    m_pDeviceContext->GetLogicalDevice(), resources.texture.memory, nullptr);
+				vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), resources.texture.image, nullptr);
+				vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), resources.texture.memory, nullptr);
 			}
 		}
 	}
@@ -462,8 +460,8 @@ void Pipeline::CreateUniformBuffers()
 		    m_jointBuffers[i], m_jointBuffersMemory[i]);
 		void *data = nullptr;
 		vkMapMemory(
-		    m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i], 0,
-		    m_jointBufferSizes[i], 0, &data);
+		    m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i], 0, m_jointBufferSizes[i], 0,
+		    &data);
 		const glm::mat4 identity{1.0f};
 		std::memcpy(data, &identity, sizeof(identity));
 		vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i]);
@@ -666,13 +664,12 @@ void Pipeline::CreateCommandBuffers()
 	{
 		throw std::runtime_error("failed to create command buffers");
 	}
-
 }
 
 
 void Pipeline::RecordCommandBuffer(
-	    uint32_t imageIndex, const std::vector<SceneDrawCommand> &drawCommands,
-	    const ImGuiRenderer &imguiRenderer)
+    uint32_t imageIndex, const std::vector<SceneDrawCommand> &drawCommands,
+    const ImGuiRenderer &imguiRenderer)
 {
 	for (const SceneDrawCommand &drawCommand : drawCommands)
 		if (drawCommand.model != nullptr)
@@ -753,8 +750,8 @@ void Pipeline::RecordCommandBuffer(
 		pushConstants.skinned =
 		    drawCommand.skeleton != nullptr && !drawCommand.skeleton->jointMatrices.empty() ? 1u : 0u;
 		vkCmdPushConstants(
-		    commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
-		    sizeof(DrawPushConstants), &pushConstants);
+		    commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(DrawPushConstants),
+		    &pushConstants);
 		const auto &primitives = drawCommand.model->m_primitives;
 		const auto &modelResources = m_modelResources.at(drawCommand.model);
 		for (std::size_t primitiveIndex = 0; primitiveIndex < primitives.size(); ++primitiveIndex)
@@ -784,11 +781,10 @@ void Pipeline::CreateTextureImage()
 
 
 void Pipeline::CreateTextureImageData(
-	const unsigned char *pixels, int texWidth, int texHeight, TextureResource &texture)
+    const unsigned char *pixels, int texWidth, int texHeight, TextureResource &texture)
 {
 	const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * texHeight * 4;
-	texture.mipLevels =
-	    static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+	texture.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -820,8 +816,7 @@ void Pipeline::CreateTextureImageData(
 	vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), stagingBuffer, nullptr);
 	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, nullptr);
 
-	GenerateMipmaps(
-	    texture.image, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, texture.mipLevels);
+	GenerateMipmaps(texture.image, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, texture.mipLevels);
 }
 
 
@@ -862,8 +857,7 @@ void Pipeline::CreateTextureSampler()
 }
 
 
-Pipeline::ModelResources &Pipeline::EnsureModelResources(
-	const Model &model, std::size_t primitiveIndex)
+Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model, std::size_t primitiveIndex)
 {
 	if (primitiveIndex >= model.m_primitives.size())
 		throw std::runtime_error("Model primitive index is out of range");
@@ -922,7 +916,8 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(
 	    VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate model descriptor sets");
 
-	const VkImageView imageView = resources.ownsTexture ? resources.texture.view : m_fallbackTexture.view;
+	const VkImageView imageView =
+	    resources.ownsTexture ? resources.texture.view : m_fallbackTexture.view;
 	for (uint32_t index = 0; index < imageCount; ++index)
 	{
 		VkDescriptorBufferInfo uniformInfo{m_uniformBuffers[index], 0, sizeof(FrameUBO)};
@@ -949,8 +944,8 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(
 		writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		writes[2].pBufferInfo = &jointInfo;
 		vkUpdateDescriptorSets(
-		    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()),
-		    writes.data(), 0, nullptr);
+		    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(),
+		    0, nullptr);
 	}
 
 	modelResources.push_back(std::move(resources));

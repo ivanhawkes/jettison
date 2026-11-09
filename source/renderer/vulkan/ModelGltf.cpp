@@ -57,7 +57,8 @@ glm::mat4 LocalTransform(const ModelNode &node)
 	return glm::scale(matrix, node.scale);
 }
 
-float SampleInterval(const std::vector<float> &times, float time, std::size_t &first, std::size_t &second)
+float SampleInterval(
+    const std::vector<float> &times, float time, std::size_t &first, std::size_t &second)
 {
 	if (times.empty())
 		return 0.0f;
@@ -97,10 +98,8 @@ glm::vec4 SampleTrack(const ModelAnimationTrack &track, float time)
 		const float delta = track.times[second] - track.times[first];
 		const float t2 = factor * factor;
 		const float t3 = t2 * factor;
-		return (2.0f * t3 - 3.0f * t2 + 1.0f) * start +
-		       (t3 - 2.0f * t2 + factor) * delta * outTangent +
-		       (-2.0f * t3 + 3.0f * t2) * end +
-		       (t3 - t2) * delta * inTangent;
+		return (2.0f * t3 - 3.0f * t2 + 1.0f) * start + (t3 - 2.0f * t2 + factor) * delta * outTangent +
+		       (-2.0f * t3 + 3.0f * t2) * end + (t3 - t2) * delta * inTangent;
 	}
 
 	const glm::vec4 start = track.values[first];
@@ -118,8 +117,8 @@ glm::vec4 SampleTrack(const ModelAnimationTrack &track, float time)
 }
 
 std::vector<std::byte> ReadBaseColorImageData(
-	const fastgltf::Asset &asset, const fastgltf::Primitive &primitive,
-	const std::filesystem::path &path)
+    const fastgltf::Asset &asset, const fastgltf::Primitive &primitive,
+    const std::filesystem::path &path)
 {
 	if (!primitive.materialIndex)
 		return {};
@@ -136,7 +135,8 @@ std::vector<std::byte> ReadBaseColorImageData(
 
 	const auto &image = asset.images[*imageIndex];
 	const auto imageData = std::visit(
-	    [&](const auto &source) -> std::span<const std::byte> {
+	    [&](const auto &source) -> std::span<const std::byte>
+	    {
 		    using Source = std::decay_t<decltype(source)>;
 		    if constexpr (std::is_same_v<Source, fastgltf::sources::BufferView>)
 			    return fastgltf::DefaultBufferDataAdapter{}(asset, source.bufferViewIndex);
@@ -164,8 +164,8 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 
 	fastgltf::Parser parser;
 	const auto options = fastgltf::Options::LoadExternalBuffers |
-	                    fastgltf::Options::LoadExternalImages |
-	                    fastgltf::Options::DecomposeNodeMatrices;
+	                     fastgltf::Options::LoadExternalImages |
+	                     fastgltf::Options::DecomposeNodeMatrices;
 	auto parsed = parser.loadGltf(data.get(), path.parent_path(), options);
 	if (parsed.error() != fastgltf::Error::None)
 		throw std::runtime_error("Failed to parse glTF model: " + path.string());
@@ -217,9 +217,8 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			if (accessor.count != skin.joints.size())
 				throw std::runtime_error("glTF inverse-bind matrix count does not match joint count");
 			fastgltf::iterateAccessorWithIndex<glm::mat4>(
-			    asset, accessor, [&](glm::mat4 matrix, std::size_t index) {
-				    inverseBindMatrices[index] = matrix;
-			    });
+			    asset, accessor,
+			    [&](glm::mat4 matrix, std::size_t index) { inverseBindMatrices[index] = matrix; });
 		}
 		for (std::size_t index = 0; index < skin.joints.size(); ++index)
 		{
@@ -244,24 +243,23 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 		const std::size_t vertexOffset = m_vertices.size();
 		std::vector<glm::vec3> positions(positionAccessor.count);
 		fastgltf::iterateAccessorWithIndex<glm::vec3>(
-		    asset, positionAccessor, [&](glm::vec3 value, std::size_t index) {
-			    positions[index] = value;
-		    });
+		    asset, positionAccessor,
+		    [&](glm::vec3 value, std::size_t index) { positions[index] = value; });
 		std::vector<glm::vec3> normals(positionAccessor.count, glm::vec3{0.0f});
-		if (const auto attribute = primitive.findAttribute("NORMAL"); attribute != primitive.attributes.end())
+		if (const auto attribute = primitive.findAttribute("NORMAL");
+		    attribute != primitive.attributes.end())
 		{
 			fastgltf::iterateAccessorWithIndex<glm::vec3>(
-			    asset, asset.accessors[attribute->accessorIndex], [&](glm::vec3 value, std::size_t index) {
-				    normals[index] = value;
-			    });
+			    asset, asset.accessors[attribute->accessorIndex],
+			    [&](glm::vec3 value, std::size_t index) { normals[index] = value; });
 		}
 		std::vector<glm::vec2> texCoords(positionAccessor.count, glm::vec2{0.0f});
-		if (const auto attribute = primitive.findAttribute("TEXCOORD_0"); attribute != primitive.attributes.end())
+		if (const auto attribute = primitive.findAttribute("TEXCOORD_0");
+		    attribute != primitive.attributes.end())
 		{
 			fastgltf::iterateAccessorWithIndex<glm::vec2>(
-			    asset, asset.accessors[attribute->accessorIndex], [&](glm::vec2 value, std::size_t index) {
-				    texCoords[index] = value;
-			    });
+			    asset, asset.accessors[attribute->accessorIndex],
+			    [&](glm::vec2 value, std::size_t index) { texCoords[index] = value; });
 		}
 		std::vector<glm::u16vec4> joints(positionAccessor.count, glm::u16vec4{0});
 		std::vector<glm::vec4> weights(positionAccessor.count, glm::vec4{0.0f});
@@ -287,13 +285,11 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			if (m_joints.empty())
 				throw std::runtime_error("glTF primitive has skin attributes but its node has no skin");
 			fastgltf::iterateAccessorWithIndex<glm::u16vec4>(
-			    asset, asset.accessors[jointsAttribute->accessorIndex], [&](glm::u16vec4 value, std::size_t index) {
-				    joints[index] = value;
-			    });
+			    asset, asset.accessors[jointsAttribute->accessorIndex],
+			    [&](glm::u16vec4 value, std::size_t index) { joints[index] = value; });
 			fastgltf::iterateAccessorWithIndex<glm::vec4>(
-			    asset, asset.accessors[weightsAttribute->accessorIndex], [&](glm::vec4 value, std::size_t index) {
-				    weights[index] = value;
-			    });
+			    asset, asset.accessors[weightsAttribute->accessorIndex],
+			    [&](glm::vec4 value, std::size_t index) { weights[index] = value; });
 			if (jointsAttribute1 != primitive.attributes.end())
 			{
 				fastgltf::iterateAccessorWithIndex<glm::u16vec4>(
@@ -318,8 +314,8 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			vertex.joints1 = glm::uvec4{joints1[index]};
 			vertex.weights1 = weights1[index];
 			const float weightSum = vertex.weights.x + vertex.weights.y + vertex.weights.z +
-			                         vertex.weights.w + vertex.weights1.x + vertex.weights1.y +
-			                         vertex.weights1.z + vertex.weights1.w;
+			                        vertex.weights.w + vertex.weights1.x + vertex.weights1.y +
+			                        vertex.weights1.z + vertex.weights1.w;
 			if (weightSum > 0.0f)
 			{
 				vertex.weights /= weightSum;
@@ -329,9 +325,12 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			{
 				for (std::size_t influence = 0; influence < 4; ++influence)
 				{
-					if ((vertex.weights[influence] > 0.0f && vertex.joints[influence] >= m_joints.size()) ||
-					    (vertex.weights1[influence] > 0.0f && vertex.joints1[influence] >= m_joints.size()))
-						throw std::runtime_error("glTF vertex joint index exceeds the skin joint count");
+					if ((vertex.weights[influence] > 0.0f &&
+					     vertex.joints[influence] >= m_joints.size()) ||
+					    (vertex.weights1[influence] > 0.0f &&
+					     vertex.joints1[influence] >= m_joints.size()))
+						throw std::runtime_error(
+						    "glTF vertex joint index exceeds the skin joint count");
 				}
 			}
 			m_vertices.push_back(vertex);
@@ -340,11 +339,14 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 		if (primitive.indicesAccessor)
 		{
 			const auto &indicesAccessor = asset.accessors[*primitive.indicesAccessor];
-			fastgltf::iterateAccessor<std::uint32_t>(asset, indicesAccessor, [&](std::uint32_t index) {
-				if (index >= positions.size())
-					throw std::runtime_error("glTF mesh index is out of range");
-				m_indices.push_back(static_cast<std::uint32_t>(vertexOffset + index));
-			});
+			fastgltf::iterateAccessor<std::uint32_t>(
+			    asset, indicesAccessor,
+			    [&](std::uint32_t index)
+			    {
+				    if (index >= positions.size())
+					    throw std::runtime_error("glTF mesh index is out of range");
+				    m_indices.push_back(static_cast<std::uint32_t>(vertexOffset + index));
+			    });
 		}
 		else
 		{
@@ -382,43 +384,43 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 	for (const auto &animation : asset.animations)
 	{
 		ModelAnimationClip clip;
-		clip.name = animation.name.empty() ? "Animation " + std::to_string(m_animations.size()) : animation.name;
+		clip.name = animation.name.empty() ? "Animation " + std::to_string(m_animations.size())
+		                                   : animation.name;
 		for (const auto &channel : animation.channels)
 		{
 			if (!channel.nodeIndex || channel.path == fastgltf::AnimationPath::Weights)
 				continue;
-			if (*channel.nodeIndex >= m_nodes.size() || channel.samplerIndex >= animation.samplers.size())
+			if (*channel.nodeIndex >= m_nodes.size() ||
+			    channel.samplerIndex >= animation.samplers.size())
 				throw std::runtime_error("glTF animation references an invalid node or sampler");
 			const auto &sampler = animation.samplers[channel.samplerIndex];
 			ModelAnimationTrack track;
 			track.nodeIndex = *channel.nodeIndex;
-			track.path = channel.path == fastgltf::AnimationPath::Translation
-			                 ? ModelAnimationPath::Translation
-			                 : channel.path == fastgltf::AnimationPath::Rotation
-			                       ? ModelAnimationPath::Rotation
-			                       : ModelAnimationPath::Scale;
-			track.interpolation = sampler.interpolation == fastgltf::AnimationInterpolation::Step
-			                           ? ModelAnimationInterpolation::Step
-			                           : sampler.interpolation == fastgltf::AnimationInterpolation::CubicSpline
-			                                 ? ModelAnimationInterpolation::CubicSpline
-			                                 : ModelAnimationInterpolation::Linear;
+			track.path =
+			    channel.path == fastgltf::AnimationPath::Translation ? ModelAnimationPath::Translation
+			    : channel.path == fastgltf::AnimationPath::Rotation  ? ModelAnimationPath::Rotation
+			                                                         : ModelAnimationPath::Scale;
+			track.interpolation =
+			    sampler.interpolation == fastgltf::AnimationInterpolation::Step
+			        ? ModelAnimationInterpolation::Step
+			    : sampler.interpolation == fastgltf::AnimationInterpolation::CubicSpline
+			        ? ModelAnimationInterpolation::CubicSpline
+			        : ModelAnimationInterpolation::Linear;
 			const auto &inputAccessor = asset.accessors[sampler.inputAccessor];
-			fastgltf::iterateAccessor<float>(asset, inputAccessor, [&](float value) {
-				track.times.push_back(value);
-			});
+			fastgltf::iterateAccessor<float>(
+			    asset, inputAccessor, [&](float value) { track.times.push_back(value); });
 			const auto &outputAccessor = asset.accessors[sampler.outputAccessor];
 			track.values.reserve(outputAccessor.count);
 			if (track.path == ModelAnimationPath::Rotation)
 			{
-				fastgltf::iterateAccessor<glm::vec4>(asset, outputAccessor, [&](glm::vec4 value) {
-					track.values.push_back(value);
-				});
+				fastgltf::iterateAccessor<glm::vec4>(
+				    asset, outputAccessor, [&](glm::vec4 value) { track.values.push_back(value); });
 			}
 			else
 			{
-				fastgltf::iterateAccessor<glm::vec3>(asset, outputAccessor, [&](glm::vec3 value) {
-					track.values.emplace_back(value, 0.0f);
-				});
+				fastgltf::iterateAccessor<glm::vec3>(
+				    asset, outputAccessor,
+				    [&](glm::vec3 value) { track.values.emplace_back(value, 0.0f); });
 			}
 			if (!track.times.empty())
 				clip.duration = std::max(clip.duration, track.times.back());
@@ -433,31 +435,31 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 
 bool Model::HasAnimation(std::string_view name) const
 {
-	return std::any_of(m_animations.begin(), m_animations.end(), [&](const ModelAnimationClip &clip) {
-		return clip.name == name;
-	});
+	return std::any_of(
+	    m_animations.begin(), m_animations.end(),
+	    [&](const ModelAnimationClip &clip) { return clip.name == name; });
 }
 
 float Model::AnimationDuration(std::string_view name) const
 {
-	const auto clip = std::find_if(m_animations.begin(), m_animations.end(), [&](const ModelAnimationClip &value) {
-		return value.name == name;
-	});
+	const auto clip = std::find_if(
+	    m_animations.begin(), m_animations.end(),
+	    [&](const ModelAnimationClip &value) { return value.name == name; });
 	return clip == m_animations.end() ? 0.0f : clip->duration;
 }
 
 void Model::EvaluateSkin(
-	std::string_view animationName, float time, std::vector<glm::mat4> &jointMatrices,
-	glm::mat4 &meshNodeTransform) const
+    std::string_view animationName, float time, std::vector<glm::mat4> &jointMatrices,
+    glm::mat4 &meshNodeTransform) const
 {
 	if (m_nodes.empty() || m_meshNodeIndex >= m_nodes.size())
 		throw std::runtime_error("Cannot evaluate a skin without glTF node data");
 	std::vector<ModelNode> pose = m_nodes;
 	if (!animationName.empty())
 	{
-		const auto clip = std::find_if(m_animations.begin(), m_animations.end(), [&](const ModelAnimationClip &value) {
-			return value.name == animationName;
-		});
+		const auto clip = std::find_if(
+		    m_animations.begin(), m_animations.end(),
+		    [&](const ModelAnimationClip &value) { return value.name == animationName; });
 		if (clip == m_animations.end())
 			throw std::runtime_error("Unknown glTF animation clip: " + std::string(animationName));
 		for (const ModelAnimationTrack &track : clip->tracks)
@@ -475,16 +477,18 @@ void Model::EvaluateSkin(
 
 	std::vector<glm::mat4> worldTransforms(m_nodes.size(), glm::mat4{1.0f});
 	std::vector<std::uint8_t> states(m_nodes.size(), 0);
-	std::function<const glm::mat4 &(std::size_t)> computeWorld = [&](std::size_t index) -> const glm::mat4 & {
+	std::function<const glm::mat4 &(std::size_t)> computeWorld =
+	    [&](std::size_t index) -> const glm::mat4 &
+	{
 		if (states[index] == 2)
 			return worldTransforms[index];
 		if (states[index] == 1)
 			throw std::runtime_error("glTF node hierarchy contains a cycle");
 		states[index] = 1;
 		const glm::mat4 local = LocalTransform(pose[index]);
-		worldTransforms[index] = pose[index].parent >= 0
-		                             ? computeWorld(static_cast<std::size_t>(pose[index].parent)) * local
-		                             : local;
+		worldTransforms[index] =
+		    pose[index].parent >= 0 ? computeWorld(static_cast<std::size_t>(pose[index].parent)) * local
+		                            : local;
 		states[index] = 2;
 		return worldTransforms[index];
 	};

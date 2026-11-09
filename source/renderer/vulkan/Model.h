@@ -12,8 +12,8 @@
 #include <glm/gtx/hash.hpp>
 
 // STD.
-#include <filesystem>
 #include <cstddef>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -62,8 +62,8 @@ struct Vertex
 		    {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
 		    {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)},
 		    {2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord)},
-			{3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
-			{4, 0, VK_FORMAT_R32G32B32A32_UINT, offsetof(Vertex, joints)},
+		    {3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+		    {4, 0, VK_FORMAT_R32G32B32A32_UINT, offsetof(Vertex, joints)},
 		    {5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, weights)},
 		    {6, 0, VK_FORMAT_R32G32B32A32_UINT, offsetof(Vertex, joints1)},
 		    {7, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, weights1)}};
@@ -147,8 +147,14 @@ class Model
 	void Destroy();
 
 	void LoadModel(const std::filesystem::path &path);
-	bool HasSkin() const { return !m_joints.empty(); }
-	bool HasSceneGraph() const { return !m_nodes.empty(); }
+	bool HasSkin() const
+	{
+		return !m_joints.empty();
+	}
+	bool HasSceneGraph() const
+	{
+		return !m_nodes.empty();
+	}
 	bool HasAnimation(std::string_view name) const;
 	float AnimationDuration(std::string_view name) const;
 	void EvaluateSkin(
@@ -187,8 +193,8 @@ template <> struct hash<Jettison::Renderer::Vertex>
 	{
 		return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
 		       (hash<glm::vec2>()(vertex.texCoord) << 1) ^ (hash<glm::vec3>()(vertex.normal) << 2) ^
-	       (hash<glm::uvec4>()(vertex.joints) << 3) ^ (hash<glm::vec4>()(vertex.weights) << 4) ^
-	       (hash<glm::uvec4>()(vertex.joints1) << 5) ^ (hash<glm::vec4>()(vertex.weights1) << 6);
+		       (hash<glm::uvec4>()(vertex.joints) << 3) ^ (hash<glm::vec4>()(vertex.weights) << 4) ^
+		       (hash<glm::uvec4>()(vertex.joints1) << 5) ^ (hash<glm::vec4>()(vertex.weights1) << 6);
 	}
 };
 } // namespace std

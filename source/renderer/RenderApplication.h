@@ -5,6 +5,5 @@
 namespace Jettison::Renderer
 {
 int RunRenderApplication(
-	int argc, char **argv, const char *windowTitle,
-	const std::filesystem::path &assetSubdirectory);
+    int argc, char **argv, const char *windowTitle, const std::filesystem::path &assetSubdirectory);
 }

@@ -45,7 +45,10 @@ class Pipeline
 	    uint32_t imageIndex, const std::vector<SceneDrawCommand> &drawCommands,
 	    const ImGuiRenderer &imguiRenderer);
 
-	VkRenderPass GetRenderPass() const { return m_renderPass; }
+	VkRenderPass GetRenderPass() const
+	{
+		return m_renderPass;
+	}
 
 	inline const std::vector<VkCommandBuffer> &GetCommandBuffers() const
 	{

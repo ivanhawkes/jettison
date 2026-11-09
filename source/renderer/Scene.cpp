@@ -24,7 +24,7 @@ glm::vec3 ReadVec3(const YAML::Node &node, const char *field, const glm::vec3 &f
 }
 
 std::filesystem::path RelativeModelPath(
-	const std::filesystem::path &modelPath, const std::filesystem::path &scenePath)
+    const std::filesystem::path &modelPath, const std::filesystem::path &scenePath)
 {
 	std::error_code error;
 	auto relativePath = std::filesystem::relative(modelPath, scenePath.parent_path(), error);
@@ -36,7 +36,7 @@ void EmitVec3(YAML::Emitter &emitter, const char *key, const glm::vec3 &value)
 	emitter << YAML::Key << key << YAML::Value << YAML::Flow << YAML::BeginSeq << value.x << value.y
 	        << value.z << YAML::EndSeq;
 }
-}
+} // namespace
 
 void Scene::Load(const std::filesystem::path &path)
 {
@@ -132,7 +132,7 @@ void Scene::Load(const std::filesystem::path &path)
 				const auto modelPath =
 				    (scenePath.parent_path() / meshNode["model"].as<std::string>()).lexically_normal();
 				auto model = LoadModel(modelPath);
-			const bool hasSceneGraph = model->HasSceneGraph();
+				const bool hasSceneGraph = model->HasSceneGraph();
 				m_registry.emplace<MeshComponent>(entity, modelPath, model);
 				if (hasSceneGraph)
 					m_registry.emplace<SkeletonComponent>(entity);
@@ -165,7 +165,8 @@ void Scene::Load(const std::filesystem::path &path)
 					throw std::runtime_error("Animation clip name cannot be empty: " + id);
 				const auto &mesh = m_registry.get<MeshComponent>(entity);
 				if (!mesh.model->HasSkin() || !mesh.model->HasAnimation(player.clipName))
-					throw std::runtime_error("glTF skin or animation clip is missing for entity: " + id);
+					throw std::runtime_error(
+					    "glTF skin or animation clip is missing for entity: " + id);
 				if (animationNode["time"])
 					player.time = animationNode["time"].as<float>();
 				if (animationNode["speed"])
@@ -201,9 +202,12 @@ void Scene::Save(const std::filesystem::path &path) const
 	std::vector<entt::entity> entities;
 	const auto view = m_registry.view<const SceneEntityId, const TransformComponent>();
 	entities.assign(view.begin(), view.end());
-	std::sort(entities.begin(), entities.end(), [this](entt::entity lhs, entt::entity rhs) {
-		return m_registry.get<SceneEntityId>(lhs).value < m_registry.get<SceneEntityId>(rhs).value;
-	});
+	std::sort(
+	    entities.begin(), entities.end(),
+	    [this](entt::entity lhs, entt::entity rhs)
+	    {
+		    return m_registry.get<SceneEntityId>(lhs).value < m_registry.get<SceneEntityId>(rhs).value;
+	    });
 
 	YAML::Emitter emitter;
 	emitter << YAML::BeginMap << YAML::Key << "version" << YAML::Value << 1;

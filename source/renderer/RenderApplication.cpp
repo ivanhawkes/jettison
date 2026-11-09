@@ -23,9 +23,8 @@ namespace Jettison::Renderer
 namespace
 {
 int Loop(
-	bool smokeTest, const std::filesystem::path &assetDirectory,
-	const std::filesystem::path &scenePath, const std::filesystem::path &saveScenePath,
-	const char *windowTitle)
+    bool smokeTest, const std::filesystem::path &assetDirectory, const std::filesystem::path &scenePath,
+    const std::filesystem::path &saveScenePath, const char *windowTitle)
 {
 	try
 	{
@@ -78,8 +77,7 @@ int Loop(
 				showImGui = !showImGui;
 			f1WasDown = f1Down;
 
-			const bool escapeDown =
-			    glfwGetKey(pWindow->GetGLFWWindow(), GLFW_KEY_ESCAPE) == GLFW_PRESS;
+			const bool escapeDown = glfwGetKey(pWindow->GetGLFWWindow(), GLFW_KEY_ESCAPE) == GLFW_PRESS;
 			if (escapeDown && !escapeWasDown)
 			{
 				if (showImGui)
@@ -142,11 +140,10 @@ int Loop(
 
 	return 0;
 }
-}
+} // namespace
 
 int RunRenderApplication(
-	int argc, char **argv, const char *windowTitle,
-	const std::filesystem::path &assetSubdirectory)
+    int argc, char **argv, const char *windowTitle, const std::filesystem::path &assetSubdirectory)
 {
 	bool smokeTest = false;
 	std::filesystem::path scenePath;
@@ -182,4 +179,4 @@ int RunRenderApplication(
 		scenePath = assetDirectory / "scene" / "main.yaml";
 	return Loop(smokeTest, assetDirectory, scenePath, saveScenePath, windowTitle);
 }
-}
+} // namespace Jettison::Renderer

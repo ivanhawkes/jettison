@@ -14,9 +14,8 @@ namespace Jettison::Renderer
 namespace
 {
 glm::mat4 ComputeWorldTransform(
-	entt::entity entity, entt::registry &registry,
-	std::unordered_map<entt::entity, glm::mat4> &computed,
-	std::unordered_set<entt::entity> &active)
+    entt::entity entity, entt::registry &registry,
+    std::unordered_map<entt::entity, glm::mat4> &computed, std::unordered_set<entt::entity> &active)
 {
 	if (const auto found = computed.find(entity); found != computed.end())
 		return found->second;
@@ -43,7 +42,7 @@ glm::mat4 ComputeWorldTransform(
 	registry.emplace_or_replace<WorldTransformComponent>(entity, local);
 	return local;
 }
-}
+} // namespace
 
 void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 {
@@ -99,9 +98,10 @@ std::vector<SceneDrawCommand> SceneRenderSystem::Collect(const entt::registry &r
 			const auto *skeleton = registry.try_get<SkeletonComponent>(entity);
 			const glm::mat4 meshNodeTransform =
 			    skeleton ? skeleton->meshNodeTransform : glm::mat4{1.0f};
-			drawCommands.push_back({
-			    mesh.model.get(),
-			    meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform, skeleton});
+			drawCommands.push_back(
+			    {mesh.model.get(),
+			     meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform,
+			     skeleton});
 		}
 	}
 	return drawCommands;

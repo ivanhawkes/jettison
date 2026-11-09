@@ -20,9 +20,9 @@ void Model::Destroy()
 void Model::LoadModel(const std::filesystem::path &path)
 {
 	auto extension = path.extension().string();
-	std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
-		return static_cast<char>(std::tolower(ch));
-	});
+	std::transform(
+	    extension.begin(), extension.end(), extension.begin(),
+	    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 	if (extension != ".gltf" && extension != ".glb")
 		throw std::runtime_error("Unsupported model format; expected .gltf or .glb: " + path.string());
 	LoadGltfModel(path);

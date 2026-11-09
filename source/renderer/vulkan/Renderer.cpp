@@ -112,8 +112,8 @@ void Renderer::RecreateSwapchain(ImGuiRenderer &imguiRenderer)
 
 
 bool Renderer::Render(
-	Scene &scene, const SceneUpdateSystem &updateSystem,
-	const SceneRenderSystem &renderSystem, float deltaTime, ImGuiRenderer &imguiRenderer)
+    Scene &scene, const SceneUpdateSystem &updateSystem, const SceneRenderSystem &renderSystem,
+    float deltaTime, ImGuiRenderer &imguiRenderer)
 {
 	vkWaitForFences(
 	    m_pDeviceContext->GetLogicalDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE,

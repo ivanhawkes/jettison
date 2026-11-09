@@ -38,7 +38,8 @@ struct WorldTransformComponent
 struct CameraComponent
 {
 	glm::vec3 position{2.0f, 2.0f, 2.0f};
-	// Scene coordinates are right-handed and Y-up. Radians: pitch about X, roll about view, yaw about Y.
+	// Scene coordinates are right-handed and Y-up. Radians: pitch about X, roll about view, yaw about
+	// Y.
 	glm::vec3 rotation{-0.615479709f, 0.0f, 0.785398163f};
 	float verticalFovDegrees{45.0f};
 	float nearPlane{0.1f};
@@ -96,8 +97,14 @@ class Scene
 	void Save(const std::filesystem::path &path) const;
 	void Destroy();
 
-	entt::registry &Registry() { return m_registry; }
-	const entt::registry &Registry() const { return m_registry; }
+	entt::registry &Registry()
+	{
+		return m_registry;
+	}
+	const entt::registry &Registry() const
+	{
+		return m_registry;
+	}
 
   private:
 	std::shared_ptr<Model> LoadModel(const std::filesystem::path &path);

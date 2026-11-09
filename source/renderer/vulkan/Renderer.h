@@ -38,8 +38,8 @@ class Renderer
 	void Destroy();
 
 	bool Render(
-	    Scene &scene, const SceneUpdateSystem &updateSystem,
-	    const SceneRenderSystem &renderSystem, float deltaTime, ImGuiRenderer &imguiRenderer);
+	    Scene &scene, const SceneUpdateSystem &updateSystem, const SceneRenderSystem &renderSystem,
+	    float deltaTime, ImGuiRenderer &imguiRenderer);
 
 	void Present();
 
