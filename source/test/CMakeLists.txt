@@ -9,7 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(test main.cpp)
 jettison_use_shared_assets(test)
-#add_executable(test ImGuiMain.cpp)
 
 # Move the targets into a solution folder.
 set_property(TARGET test PROPERTY FOLDER "Test")
@@ -26,6 +25,3 @@ target_link_libraries(test PRIVATE Renderer)
 if(WIN32)
 	install(FILES "${glfw_BINARY_DIR}/src/glfw3.dll" DESTINATION "bin")
 endif()
-
-# Assets.
-add_subdirectory("assets")

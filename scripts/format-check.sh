@@ -8,11 +8,9 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# Files slated for deletion are not formatted, to keep the sweep's diff clean.
-# source/test/ImGuiMain.cpp is the dead ImGui sample program, excluded from the build.
-EXCLUDES=(
-	'source/test/ImGuiMain.cpp'
-)
+# Files slated for deletion are not formatted, to keep a sweep's diff clean. Nothing is
+# excluded right now; ImGuiMain.cpp, the last one, is deleted.
+EXCLUDES=()
 
 if [ ! -x "$(command -v clang-format)" ]; then
 	echo "format-check: clang-format not on PATH; run 'devenv' (LLVM 21) first" >&2
