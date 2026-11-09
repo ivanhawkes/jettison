@@ -890,7 +890,7 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model, std
 		resources.ownsTexture = true;
 	}
 
-	const uint32_t imageCount = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
+	const auto imageCount = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
 	std::array<VkDescriptorPoolSize, 3> poolSizes{};
 	poolSizes[0] = {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount};
 	poolSizes[1] = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount};

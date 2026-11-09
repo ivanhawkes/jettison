@@ -1,0 +1,62 @@
+# Curated for this tree. A check earns its place by being clean over the project's own
+# sources, or by pointing at something that gets fixed. The exclusions are measured too:
+# they are the checks whose findings are Vulkan ownership or GLM idiom, not defects.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-unchecked-optional-access,
+  clang-analyzer-core-*,
+  clang-analyzer-cplusplus-*,
+  clang-analyzer-security-*,
+  clang-analyzer-unix-*,
+  clang-analyzer-optin.performance-*,
+  performance-*,
+  -performance-enum-size,
+  -performance-unnecessary-value-param,
+  readability-const-return-type,
+  readability-container-size-empty,
+  readability-duplicate-include,
+  readability-misleading-indentation,
+  readability-named-parameter,
+  readability-redundant-access-specifiers,
+  readability-redundant-control-transfer,
+  readability-redundant-smartptr-get,
+  readability-redundant-string-init,
+  readability-simplify-boolean-expr,
+  readability-uniqueptr-delete-release,
+  modernize-loop-convert,
+  modernize-make-unique,
+  modernize-make-shared,
+  modernize-redundant-void-arg,
+  modernize-replace-auto-ptr,
+  modernize-replace-random-shuffle,
+  modernize-return-braced-init-list,
+  modernize-shrink-to-fit,
+  modernize-use-auto,
+  modernize-use-bool-literals,
+  modernize-use-emplace,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-nullptr,
+  modernize-use-override,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-no-malloc,
+  cppcoreguidelines-owning-memory,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-syscall
+
+# Only the project's own headers: third-party headers in the build graph are not tidy's
+# business, and the path filter is what keeps the dependency tree out of the run.
+# The exclusions above are measurements, not taste: on this tree the removed checks speak
+# against the house style rather than finding defects. readability-braces-around-statements
+# asked for 167 brace additions, readability-redundant-member-init for 80 removals of
+# explicit {} initialisation, and performance-enum-size 14 ABI suggestions about enums this
+# engine passes to Vulkan, where the size is not ours to choose. The one check I removed as
+# a duplicate is readability-implicit-virtual-destructor: -Wnon-virtual-dtor, which the
+# compiler runs, already says it.
+HeaderFilterRegex: 'source/(renderer|flotsam|jetsam|test)/.*'
+
+WarningsAsErrors: ''
+FormatStyle: file

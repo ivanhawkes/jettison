@@ -380,14 +380,23 @@ VkFormat DeviceContext::FindSupportedFormat(
 {
 	for (VkFormat format : candidates)
 	{
-		VkFormatProperties props;
+		VkFormatProperties props{};
 		vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &props);
-		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
+
+		// Which feature set to test depends on the tiling, and both branches answered with
+		// the same format, which is what clang-tidy's repeated-branch finding saw. A tiling
+		// outside these two has no feature set to test, so the candidate cannot match.
+		const VkFormatFeatureFlags *available = nullptr;
+		if (tiling == VK_IMAGE_TILING_LINEAR)
 		{
-			return format;
+			available = &props.linearTilingFeatures;
 		}
-		else if (
-		    tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+		else if (tiling == VK_IMAGE_TILING_OPTIMAL)
+		{
+			available = &props.optimalTilingFeatures;
+		}
+
+		if (available != nullptr && (*available & features) == features)
 		{
 			return format;
 		}
@@ -402,7 +411,7 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 {
 	// Discover what surface formats are available.
 	uint32_t availableCount = 0;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableCount, NULL);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableCount, nullptr);
 	std::vector<VkSurfaceFormatKHR> availableFormats;
 	availableFormats.resize(availableCount);
 	vkGetPhysicalDeviceSurfaceFormatsKHR(
@@ -435,11 +444,11 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 	else
 	{
 		// Request several formats, the first found will be used
-		for (size_t requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
+		for (VkFormat candidate : candidates)
 		{
 			for (uint32_t availableIndex = 0; availableIndex < availableCount; availableIndex++)
 			{
-				if (availableFormats[availableIndex].format == candidates[requestIndex] &&
+				if (availableFormats[availableIndex].format == candidate &&
 				    availableFormats[availableIndex].colorSpace == requestedColourSpace)
 					return availableFormats[availableIndex];
 			}
@@ -463,18 +472,18 @@ VkPresentModeKHR DeviceContext::FindSupportedPresentMode(const std::vector<VkPre
 {
 	// Discover what surface present modes are available.
 	uint32_t availableCount = 0;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availableCount, NULL);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availableCount, nullptr);
 	std::vector<VkPresentModeKHR> availableModes;
 	availableModes.resize(availableCount);
 	vkGetPhysicalDeviceSurfacePresentModesKHR(
 	    m_physicalDevice, m_surface, &availableCount, availableModes.data());
 
-	for (size_t requestIndex = 0; requestIndex < candidates.size(); requestIndex++)
+	for (const auto &candidate : candidates)
 	{
 		for (uint32_t availableIndex = 0; availableIndex < availableCount; availableIndex++)
 		{
-			if (candidates[requestIndex] == availableModes[availableIndex])
-				return candidates[requestIndex];
+			if (candidate == availableModes[availableIndex])
+				return candidate;
 		}
 	}
 

@@ -60,7 +60,7 @@ void Scene::Load(const std::filesystem::path &path)
 			if (!entityNode.IsMap() || !entityNode["id"])
 				throw std::runtime_error("Every scene entity must be a mapping with an id");
 
-			const std::string id = entityNode["id"].as<std::string>();
+			const auto id = entityNode["id"].as<std::string>();
 			if (id.empty() || entities.count(id) != 0)
 				throw std::runtime_error("Scene entity ids must be non-empty and unique: " + id);
 
