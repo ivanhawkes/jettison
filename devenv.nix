@@ -17,29 +17,14 @@
     ninja
     pkg-config
 
-    # Vulkan
-    vulkan-loader
-    vulkan-headers
-    vulkan-validation-layers
-    vulkan-tools       # Provides vulkaninfo, vkcube, etc.
-    shaderc            # GLSL to SPIR-V compiler (glslc)
-    glfw               # Or SDL2, if your app uses it for windowing
-    wayland
-    wayland-protocols
-    wayland-scanner
-    libxkbcommon
-    libffi
-    pkg-config
-    
-    # YAML
-    yq-go
-
     # Debugging
     llvmPackages_21.lldb
     gdb
-    
-    # Coding agents
+
+    # Pi Coding Agent - simple, light, customise for the project.
     pi-coding-agent
+
+    # Bring worktrunk into the project.
     worktrunk
 
     # Clipboard
@@ -57,8 +42,25 @@
     ruff
     black
     mypy
-    python312Packages.pytest
-    python312Packages.ipython
+    python314Packages.pytest
+    python314Packages.ipython
+    
+    # YAML
+    yq-go
+
+    # Vulkan
+    vulkan-loader
+    vulkan-headers
+    vulkan-validation-layers
+    vulkan-tools       # Provides vulkaninfo, vkcube, etc.
+    shaderc            # GLSL to SPIR-V compiler (glslc)
+    glfw               # Or SDL2, if your app uses it for windowing
+    wayland
+    wayland-protocols
+    wayland-scanner
+    libxkbcommon
+    libffi
+    
   ];
 
   delta.enable = true;
@@ -67,7 +69,7 @@
 
   languages.python = {
     enable = true;
-    package = pkgs.python312;
+    package = pkgs.python314;
     venv.enable = true;
   };
 
