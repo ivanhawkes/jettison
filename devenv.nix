@@ -106,17 +106,16 @@
     echo "  pnpm: $(pnpm --version)"
 
     echo "Vulkan development environment loaded!"
-    vulkaninfo --summary | head -n 20
+    vulkaninfo --summary | head -n 20 || echo "No Vulkan device found by the loader (headless CI: scripts/smoke-test.sh --llvmpipe pins the store ICD itself)."
 
     if [ ! -f ".config/wt.toml" ]; then
       echo "💡 Run 'wt config create --project' to link this repo."
     fi
 
-    wt step copy-ignored
+    # Only inside a worktrunk session: outside one the command has nothing to copy and
+    # a non-zero exit would abort shell entry, which CI relies on for devenv -c.
+    if [ -n "''${WT_SESSION:-}" ]; then
+      wt step copy-ignored
+    fi
   '';
-
-  tasks."project:init" = {
-    exec = "${pkgs.pnpm}/bin/pnpm install";
-    before = [ "devenv:enterShell" ];
-  };
 }
