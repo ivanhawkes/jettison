@@ -17,7 +17,7 @@ All attempts will be made to observe best practice.
 ## Cloning
 
 ```
-git clone git@github.com:ivanhawkes/Jettison.git
+git clone git@github.com:ivanhawkes/jettison.git
 ```
 
 There are no submodules. The external dependencies (EnTT, GLM, GLFW, Dear ImGui, stb,
