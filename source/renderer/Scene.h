@@ -38,8 +38,8 @@ struct WorldTransformComponent
 struct CameraComponent
 {
 	glm::vec3 position{2.0f, 2.0f, 2.0f};
-	// Radians: pitch about X, roll about the view axis, yaw about Z.
-	glm::vec3 rotation{-0.615479709f, 0.0f, 2.35619449f};
+	// Scene coordinates are right-handed and Y-up. Radians: pitch about X, roll about view, yaw about Y.
+	glm::vec3 rotation{-0.615479709f, 0.0f, 0.785398163f};
 	float verticalFovDegrees{45.0f};
 	float nearPlane{0.1f};
 	float farPlane{10.0f};
@@ -62,7 +62,7 @@ struct MeshComponent
 
 struct RotationAnimationComponent
 {
-	glm::vec3 rotationAxis{0.0f, 0.0f, 1.0f};
+	glm::vec3 rotationAxis{0.0f, 1.0f, 0.0f};
 	float rotationSpeed{0.785398163f};
 };
 

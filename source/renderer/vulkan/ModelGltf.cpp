@@ -260,7 +260,7 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 		{
 			fastgltf::iterateAccessorWithIndex<glm::vec2>(
 			    asset, asset.accessors[attribute->accessorIndex], [&](glm::vec2 value, std::size_t index) {
-				    texCoords[index] = {value.x, 1.0f - value.y};
+				    texCoords[index] = value;
 			    });
 		}
 		std::vector<glm::u16vec4> joints(positionAccessor.count, glm::u16vec4{0});

@@ -226,8 +226,8 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &
 	const float roll = camera->rotation.y;
 	const float yaw = camera->rotation.z;
 	const glm::vec3 direction{
-	    -std::sin(yaw) * std::cos(pitch), std::cos(yaw) * std::cos(pitch), std::sin(pitch)};
-	const glm::vec3 worldUp{0.0f, 0.0f, 1.0f};
+	    -std::sin(yaw) * std::cos(pitch), std::sin(pitch), -std::cos(yaw) * std::cos(pitch)};
+	const glm::vec3 worldUp{0.0f, 1.0f, 0.0f};
 	const glm::vec3 right = glm::normalize(glm::cross(direction, worldUp));
 	glm::vec3 up = glm::normalize(glm::cross(right, direction));
 	if (roll != 0.0f)
