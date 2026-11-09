@@ -29,6 +29,16 @@ void Swapchain::Create()
 	VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
 	VkExtent2D extent = ChooseSwapExtent(swapChainSupport.capabilities);
 
+	// A surface that is not mapped reports no extent, which is what a minimized window looks
+	// like to the loader on Wayland, and vkCreateSwapchainKHR requires width and height of at
+	// least 1 (VUID-VkSwapchainCreateInfoKHR-imageExtent-01274). The recreate path is guarded by
+	// DeviceContext::WaitOnWindowResized, which parks until the framebuffer has a size; the
+	// first create has no such guard, so a window that starts out minimized reaches here. The
+	// clamp keeps the create legal, and the frame loop presents to a 1x1 swapchain until the
+	// compositor gives the surface a size, which is what the projection division expects too.
+	extent.width = std::max(extent.width, 1u);
+	extent.height = std::max(extent.height, 1u);
+
 	// Get a reasonable amount of swapchain images.
 	m_minImageCount = swapChainSupport.capabilities.minImageCount;
 	m_maxImageCount = swapChainSupport.capabilities.maxImageCount;
