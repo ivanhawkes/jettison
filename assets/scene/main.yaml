@@ -13,6 +13,16 @@ entities:
       near: 0.1
       far: 10
       active: true
+  - id: key-light
+    transform:
+      translation: [-2, 1, 2.5]
+      rotation: [0, 0, 0]
+      scale: [1, 1, 1]
+    light:
+      color: [1, 0.92, 0.78]
+      intensity: 18
+      ambient: [0.12, 0.12, 0.12]
+      active: true
   - id: static-room
     parent: scene-root
     transform:
@@ -32,3 +42,16 @@ entities:
     transformAnimation:
       axis: [0, 0, 1]
       speed: 0.785398163
+  - id: skeletal-panel
+    parent: scene-root
+    transform:
+      translation: [0, -0.5, 0]
+      rotation: [0, 0, 0]
+      scale: [0.8, 0.8, 0.8]
+    mesh:
+      model: ../models/skinned_demo.gltf
+    animation:
+      clip: Bend
+      speed: 1
+      loop: true
+      playing: true

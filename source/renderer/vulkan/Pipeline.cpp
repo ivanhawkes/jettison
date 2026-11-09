@@ -7,11 +7,27 @@
 
 // STD.
 #include <array>
+#include <algorithm>
+#include <cstring>
 #include <fstream>
+#include <limits>
 
 
 namespace Jettison::Renderer
 {
+namespace
+{
+struct DrawPushConstants
+{
+	alignas(16) glm::mat4 model{1.0f};
+	uint32_t jointOffset{};
+	uint32_t skinned{};
+	uint32_t padding[2]{};
+};
+static_assert(sizeof(DrawPushConstants) == 80);
+}
+
+
 void Pipeline::Init()
 {
 	Create();
@@ -108,6 +124,11 @@ void Pipeline::Destroy()
 	{
 		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffers[i], nullptr);
 		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffersMemory[i], nullptr);
+	}
+	for (size_t i = 0; i < m_jointBuffers.size(); ++i)
+	{
+		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_jointBuffers[i], nullptr);
+		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i], nullptr);
 	}
 
 	// Descriptor pool.
@@ -303,7 +324,7 @@ void Pipeline::CreateGraphicsPipeline()
 	VkPushConstantRange modelTransformRange{};
 	modelTransformRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	modelTransformRange.offset = 0;
-	modelTransformRange.size = sizeof(glm::mat4);
+	modelTransformRange.size = sizeof(DrawPushConstants);
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
 	pipelineLayoutInfo.pPushConstantRanges = &modelTransformRange;
 
@@ -407,6 +428,9 @@ void Pipeline::CreateUniformBuffers()
 
 	m_uniformBuffers.resize(m_pSwapchain->GetImageCount());
 	m_uniformBuffersMemory.resize(m_pSwapchain->GetImageCount());
+	m_jointBuffers.resize(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
+	m_jointBuffersMemory.resize(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
+	m_jointBufferSizes.resize(m_pSwapchain->GetImageCount(), sizeof(glm::mat4));
 
 	for (size_t i = 0; i < m_pSwapchain->GetImageCount(); ++i)
 	{
@@ -414,6 +438,53 @@ void Pipeline::CreateUniformBuffers()
 		    bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		    m_uniformBuffers[i], m_uniformBuffersMemory[i]);
+		m_pDeviceContext->CreateBuffer(
+		    m_jointBufferSizes[i], VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		    m_jointBuffers[i], m_jointBuffersMemory[i]);
+		void *data = nullptr;
+		vkMapMemory(
+		    m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i], 0,
+		    m_jointBufferSizes[i], 0, &data);
+		const glm::mat4 identity{1.0f};
+		std::memcpy(data, &identity, sizeof(identity));
+		vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i]);
+	}
+}
+
+
+void Pipeline::EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount)
+{
+	const VkDeviceSize requiredSize =
+	    std::max<VkDeviceSize>(sizeof(glm::mat4), jointCount * sizeof(glm::mat4));
+	if (requiredSize <= m_jointBufferSizes.at(imageIndex))
+		return;
+
+	if (m_jointBuffers[imageIndex] != VK_NULL_HANDLE)
+	{
+		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_jointBuffers[imageIndex], nullptr);
+		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[imageIndex], nullptr);
+	}
+	m_jointBufferSizes[imageIndex] = requiredSize;
+	m_pDeviceContext->CreateBuffer(
+	    requiredSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+	    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+	    m_jointBuffers[imageIndex], m_jointBuffersMemory[imageIndex]);
+
+	if (!m_descriptorSets.empty())
+	{
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = m_jointBuffers[imageIndex];
+		bufferInfo.offset = 0;
+		bufferInfo.range = requiredSize;
+		VkWriteDescriptorSet write{};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_descriptorSets[imageIndex];
+		write.dstBinding = 2;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		write.pBufferInfo = &bufferInfo;
+		vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
 	}
 }
 
@@ -424,7 +495,7 @@ void Pipeline::CreateDescriptorSetLayout()
 	uboLayoutBinding.binding = 0;
 	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
 	samplerLayoutBinding.binding = 1;
@@ -432,7 +503,14 @@ void Pipeline::CreateDescriptorSetLayout()
 	samplerLayoutBinding.descriptorCount = 1;
 	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
+	VkDescriptorSetLayoutBinding jointLayoutBinding{};
+	jointLayoutBinding.binding = 2;
+	jointLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointLayoutBinding.descriptorCount = 1;
+	jointLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+	    uboLayoutBinding, samplerLayoutBinding, jointLayoutBinding};
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -449,11 +527,13 @@ void Pipeline::CreateDescriptorSetLayout()
 
 void Pipeline::CreateDescriptorPool()
 {
-	std::array<VkDescriptorPoolSize, 2> poolSizes{};
+	std::array<VkDescriptorPoolSize, 3> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(m_pSwapchain->GetImageCount());
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -499,7 +579,12 @@ void Pipeline::CreateDescriptorSets()
 		imageInfo.imageView = m_textureImageView;
 		imageInfo.sampler = m_textureSampler;
 
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+		VkDescriptorBufferInfo jointBufferInfo{};
+		jointBufferInfo.buffer = m_jointBuffers[i];
+		jointBufferInfo.offset = 0;
+		jointBufferInfo.range = m_jointBufferSizes[i];
+
+		std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = m_descriptorSets[i];
 		descriptorWrites[0].dstBinding = 0;
@@ -515,6 +600,13 @@ void Pipeline::CreateDescriptorSets()
 		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		descriptorWrites[1].descriptorCount = 1;
 		descriptorWrites[1].pImageInfo = &imageInfo;
+
+		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[2].dstSet = m_descriptorSets[i];
+		descriptorWrites[2].dstBinding = 2;
+		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		descriptorWrites[2].descriptorCount = 1;
+		descriptorWrites[2].pBufferInfo = &jointBufferInfo;
 
 		vkUpdateDescriptorSets(
 		    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(descriptorWrites.size()),
@@ -546,6 +638,36 @@ void Pipeline::RecordCommandBuffer(
 	    uint32_t imageIndex, const std::vector<SceneDrawCommand> &drawCommands,
 	    const ImGuiRenderer &imguiRenderer)
 {
+	std::vector<uint32_t> jointOffsets(drawCommands.size(), 0);
+	std::vector<glm::mat4> jointPalette;
+	for (std::size_t drawIndex = 0; drawIndex < drawCommands.size(); ++drawIndex)
+	{
+		const auto *skeleton = drawCommands[drawIndex].skeleton;
+		if (skeleton == nullptr || skeleton->jointMatrices.empty())
+			continue;
+		if (jointPalette.size() > std::numeric_limits<uint32_t>::max() - skeleton->jointMatrices.size())
+			throw std::runtime_error("Scene skin palette exceeds the Vulkan draw offset range");
+		jointOffsets[drawIndex] = static_cast<uint32_t>(jointPalette.size());
+		jointPalette.insert(
+		    jointPalette.end(), skeleton->jointMatrices.begin(), skeleton->jointMatrices.end());
+	}
+	EnsureJointBuffer(imageIndex, jointPalette.size());
+	void *jointData = nullptr;
+	if (vkMapMemory(
+	        m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[imageIndex], 0,
+	        m_jointBufferSizes[imageIndex], 0, &jointData) != VK_SUCCESS)
+		throw std::runtime_error("Failed to map the skin joint palette buffer");
+	if (jointPalette.empty())
+	{
+		const glm::mat4 identity{1.0f};
+		std::memcpy(jointData, &identity, sizeof(identity));
+	}
+	else
+	{
+		std::memcpy(jointData, jointPalette.data(), jointPalette.size() * sizeof(glm::mat4));
+	}
+	vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[imageIndex]);
+
 	VkCommandBuffer commandBuffer = m_commandBuffers.at(imageIndex);
 	if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS)
 		throw std::runtime_error("failed to reset command buffer");
@@ -574,8 +696,9 @@ void Pipeline::RecordCommandBuffer(
 	vkCmdBindDescriptorSets(
 	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
 	    &m_descriptorSets.at(imageIndex), 0, nullptr);
-	for (const SceneDrawCommand &drawCommand : drawCommands)
+	for (std::size_t drawIndex = 0; drawIndex < drawCommands.size(); ++drawIndex)
 	{
+		const SceneDrawCommand &drawCommand = drawCommands[drawIndex];
 		if (drawCommand.model == nullptr)
 			continue;
 
@@ -583,9 +706,14 @@ void Pipeline::RecordCommandBuffer(
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, drawCommand.model->m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		DrawPushConstants pushConstants{};
+		pushConstants.model = drawCommand.worldTransform;
+		pushConstants.jointOffset = jointOffsets[drawIndex];
+		pushConstants.skinned =
+		    drawCommand.skeleton != nullptr && !drawCommand.skeleton->jointMatrices.empty() ? 1u : 0u;
 		vkCmdPushConstants(
-		    commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4),
-		    &drawCommand.worldTransform[0][0]);
+		    commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+		    sizeof(DrawPushConstants), &pushConstants);
 		vkCmdDrawIndexed(
 		    commandBuffer, static_cast<uint32_t>(drawCommand.model->m_indices.size()), 1, 0, 0, 0);
 	}

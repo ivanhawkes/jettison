@@ -5,6 +5,7 @@ target_sources(Renderer PRIVATE
     DeviceContext.cpp
     DeviceContext.h
     Model.cpp
+    ModelGltf.cpp
     Model.h
     Pipeline.cpp
     Pipeline.h

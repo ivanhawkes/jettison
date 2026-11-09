@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,6 +54,32 @@ void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 		const auto &animation = registry.get<RotationAnimationComponent>(entity);
 		transform.rotation += animation.rotationAxis * animation.rotationSpeed * frameTime;
 	}
+	for (const entt::entity entity : registry.view<MeshComponent, SkeletonComponent>())
+	{
+		const auto &mesh = registry.get<MeshComponent>(entity);
+		auto &skeleton = registry.get<SkeletonComponent>(entity);
+		const auto *player = registry.try_get<AnimationPlayerComponent>(entity);
+		std::string_view clipName;
+		float animationTime = 0.0f;
+		if (player)
+		{
+			clipName = player->clipName;
+			animationTime = player->time;
+			const float duration = mesh.model->AnimationDuration(clipName);
+			if (player->playing && duration > 0.0f)
+			{
+				auto &mutablePlayer = registry.get<AnimationPlayerComponent>(entity);
+				mutablePlayer.time += frameTime * mutablePlayer.playbackSpeed;
+				if (mutablePlayer.looping)
+					mutablePlayer.time = std::fmod(std::max(mutablePlayer.time, 0.0f), duration);
+				else
+					mutablePlayer.time = std::clamp(mutablePlayer.time, 0.0f, duration);
+				animationTime = mutablePlayer.time;
+			}
+		}
+		mesh.model->EvaluateSkin(
+		    clipName, animationTime, skeleton.jointMatrices, skeleton.meshNodeTransform);
+	}
 
 	std::unordered_map<entt::entity, glm::mat4> computed;
 	std::unordered_set<entt::entity> active;
@@ -68,8 +95,14 @@ std::vector<SceneDrawCommand> SceneRenderSystem::Collect(const entt::registry &r
 	{
 		const auto &mesh = meshes.get<const MeshComponent>(entity);
 		if (mesh.model)
-			drawCommands.push_back(
-			    {mesh.model.get(), meshes.get<const WorldTransformComponent>(entity).matrix});
+		{
+			const auto *skeleton = registry.try_get<SkeletonComponent>(entity);
+			const glm::mat4 meshNodeTransform =
+			    skeleton ? skeleton->meshNodeTransform : glm::mat4{1.0f};
+			drawCommands.push_back({
+			    mesh.model.get(),
+			    meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform, skeleton});
+		}
 	}
 	return drawCommands;
 }

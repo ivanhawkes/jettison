@@ -5,7 +5,7 @@
 
 #include <vector>
 
-#include "vulkan/Model.h"
+#include "Scene.h"
 
 namespace Jettison::Renderer
 {
@@ -13,10 +13,12 @@ struct SceneDrawCommand
 {
 	const Model *model{};
 	glm::mat4 worldTransform{1.0f};
+	const SkeletonComponent *skeleton{};
 };
 
 class SceneUpdateSystem
 {
+	const SkeletonComponent *skeleton{};
   public:
 	void Update(entt::registry &registry, float deltaTime) const;
 };

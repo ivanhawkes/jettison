@@ -46,6 +46,14 @@ struct CameraComponent
 	bool active{true};
 };
 
+struct LightComponent
+{
+	glm::vec3 color{1.0f};
+	float intensity{6.0f};
+	glm::vec3 ambientColor{0.08f};
+	bool active{true};
+};
+
 struct MeshComponent
 {
 	std::filesystem::path modelPath;
@@ -61,6 +69,7 @@ struct RotationAnimationComponent
 struct SkeletonComponent
 {
 	std::vector<glm::mat4> jointMatrices;
+	glm::mat4 meshNodeTransform{1.0f};
 };
 
 struct AnimationPlayerComponent

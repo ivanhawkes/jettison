@@ -51,6 +51,7 @@ void Scene::Load(const std::filesystem::path &path)
 	std::unordered_map<std::string, entt::entity> entities;
 	std::vector<std::pair<entt::entity, std::string>> pendingParents;
 	std::size_t activeCameraCount = 0;
+	std::size_t activeLightCount = 0;
 
 	try
 	{
@@ -101,6 +102,24 @@ void Scene::Load(const std::filesystem::path &path)
 				m_registry.emplace<CameraComponent>(entity, camera);
 			}
 
+			if (const YAML::Node lightNode = entityNode["light"])
+			{
+				if (!lightNode.IsMap())
+					throw std::runtime_error("Entity light must be a mapping: " + id);
+				LightComponent light;
+				light.color = ReadVec3(lightNode, "color", light.color);
+				light.ambientColor = ReadVec3(lightNode, "ambient", light.ambientColor);
+				if (lightNode["intensity"])
+					light.intensity = lightNode["intensity"].as<float>();
+				if (lightNode["active"])
+					light.active = lightNode["active"].as<bool>();
+				if (light.intensity < 0.0f)
+					throw std::runtime_error("Light intensity cannot be negative: " + id);
+				if (light.active && ++activeLightCount > 1)
+					throw std::runtime_error("A scene can have only one active light");
+				m_registry.emplace<LightComponent>(entity, light);
+			}
+
 			if (const YAML::Node parentNode = entityNode["parent"])
 				pendingParents.emplace_back(entity, parentNode.as<std::string>());
 
@@ -113,7 +132,10 @@ void Scene::Load(const std::filesystem::path &path)
 				const auto modelPath =
 				    (scenePath.parent_path() / meshNode["model"].as<std::string>()).lexically_normal();
 				auto model = LoadModel(modelPath);
-				m_registry.emplace<MeshComponent>(entity, modelPath, std::move(model));
+			const bool hasSceneGraph = model->HasSceneGraph();
+				m_registry.emplace<MeshComponent>(entity, modelPath, model);
+				if (hasSceneGraph)
+					m_registry.emplace<SkeletonComponent>(entity);
 				hasMesh = true;
 			}
 
@@ -141,6 +163,9 @@ void Scene::Load(const std::filesystem::path &path)
 				player.clipName = animationNode["clip"].as<std::string>();
 				if (player.clipName.empty())
 					throw std::runtime_error("Animation clip name cannot be empty: " + id);
+				const auto &mesh = m_registry.get<MeshComponent>(entity);
+				if (!mesh.model->HasSkin() || !mesh.model->HasAnimation(player.clipName))
+					throw std::runtime_error("glTF skin or animation clip is missing for entity: " + id);
 				if (animationNode["time"])
 					player.time = animationNode["time"].as<float>();
 				if (animationNode["speed"])
@@ -207,6 +232,15 @@ void Scene::Save(const std::filesystem::path &path) const
 			emitter << YAML::Key << "near" << YAML::Value << camera->nearPlane;
 			emitter << YAML::Key << "far" << YAML::Value << camera->farPlane;
 			emitter << YAML::Key << "active" << YAML::Value << camera->active;
+			emitter << YAML::EndMap;
+		}
+		if (const auto *light = m_registry.try_get<LightComponent>(entity))
+		{
+			emitter << YAML::Key << "light" << YAML::Value << YAML::BeginMap;
+			EmitVec3(emitter, "color", light->color);
+			emitter << YAML::Key << "intensity" << YAML::Value << light->intensity;
+			EmitVec3(emitter, "ambient", light->ambientColor);
+			emitter << YAML::Key << "active" << YAML::Value << light->active;
 			emitter << YAML::EndMap;
 		}
 

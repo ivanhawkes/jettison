@@ -11,6 +11,7 @@ target_link_libraries(Renderer PUBLIC
     tiny_obj_loader
     yaml-cpp::yaml-cpp
     EnTT::EnTT
+    fastgltf
     "$<LINK_GROUP:RESCAN,imgui>"
 )
 

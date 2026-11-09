@@ -67,6 +67,7 @@ class Pipeline
 	void CreateImageViews();
 
 	void CreateUniformBuffers();
+	void EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount);
 
 	void CreateDescriptorSetLayout();
 
@@ -114,6 +115,9 @@ class Pipeline
 
 	std::vector<VkBuffer> m_uniformBuffers{};
 	std::vector<VkDeviceMemory> m_uniformBuffersMemory{};
+	std::vector<VkBuffer> m_jointBuffers{};
+	std::vector<VkDeviceMemory> m_jointBuffersMemory{};
+	std::vector<VkDeviceSize> m_jointBufferSizes{};
 
 	VkImage m_colorImage{VK_NULL_HANDLE};
 	VkDeviceMemory m_colorImageMemory{nullptr};

@@ -142,8 +142,8 @@ bool Renderer::Render(
 
 	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-	UpdateUniformBuffer(imageIndex, scene.Registry());
 	updateSystem.Update(scene.Registry(), deltaTime);
+	UpdateUniformBuffer(imageIndex, scene.Registry());
 	const auto drawCommands = renderSystem.Collect(scene.Registry());
 	m_pPipeline->RecordCommandBuffer(imageIndex, drawCommands, imguiRenderer);
 
@@ -209,6 +209,7 @@ void Renderer::Present()
 void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &sceneRegistry)
 {
 	FrameUBO ubo{};
+	ubo.ambientColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
 	CameraComponent fallbackCamera;
 	const CameraComponent *camera = &fallbackCamera;
 	for (const entt::entity entity : sceneRegistry.view<const CameraComponent>())
@@ -233,6 +234,23 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &
 		up = glm::vec3(glm::rotate(glm::mat4(1.0f), roll, direction) * glm::vec4(up, 0.0f));
 
 	ubo.view = glm::lookAt(camera->position, camera->position + direction, up);
+	ubo.cameraPosition = glm::vec4(camera->position, 1.0f);
+	for (const entt::entity entity : sceneRegistry.view<const LightComponent>())
+	{
+		const auto &light = sceneRegistry.get<LightComponent>(entity);
+		if (!light.active)
+			continue;
+
+		glm::vec3 position{0.0f};
+		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
+			position = glm::vec3(worldTransform->matrix[3]);
+		else if (const auto *transform = sceneRegistry.try_get<TransformComponent>(entity))
+			position = transform->translation;
+		ubo.lightPosition = glm::vec4(position, 1.0f);
+		ubo.lightColorIntensity = glm::vec4(light.color, light.intensity);
+		ubo.ambientColor = glm::vec4(light.ambientColor, 1.0f);
+		break;
+	}
 	ubo.projection = glm::perspective(
 	    glm::radians(camera->verticalFovDegrees),
 	    m_pSwapchain->GetExtents().width / static_cast<float>(m_pSwapchain->GetExtents().height),
