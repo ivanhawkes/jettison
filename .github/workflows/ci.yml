@@ -119,12 +119,27 @@ jobs:
           clang-format --version | grep -E "version 21"
           clang-tidy --version | grep -E "version 21"
           ls /usr/include/vulkan/vulkan.h
-          icd=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-          test -f "$icd"
-          echo "lavapipe ICD: $icd"
-          layer="$(find /usr/share/vulkan -iname 'vklayer_khronos_validation.json' | head -1)"
-          test -n "$layer"
+          # Print the runner's Vulkan layout before asserting on it: the image ships Mesa
+          # preinstalled, and a bare exit 1 from a test -f taught me nothing about why.
+          dpkg -l 'mesa-vulkan-drivers*' 2>/dev/null | tail -n +4 || true
+          for dir in /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/share/vulkan/explicit_layer.d; do
+            if [ -d "$dir" ]; then
+              echo "== $dir"
+              ls -l "$dir"
+            fi
+          done
+          layer="$(find /usr/share/vulkan /etc/vulkan -iname '*khronos_validation.json' 2>/dev/null | head -1 || true)"
+          if [ -z "$layer" ]; then
+            echo "No VK_LAYER_KHRONOS_validation manifest: install vulkan-validationlayers" >&2
+            exit 1
+          fi
           echo "validation layer: $layer"
+          icd="$(find /usr/share/vulkan /etc/vulkan -name 'lvp_icd*.json' 2>/dev/null | head -1 || true)"
+          if [ -z "$icd" ]; then
+            echo "No lavapipe ICD: install mesa-vulkan-drivers (provides lvp_icd.x86_64.json)" >&2
+            exit 1
+          fi
+          echo "lavapipe ICD: $icd"
 
       - name: Gate (format, build, headless render test)
         shell: bash -euo pipefail {0}
