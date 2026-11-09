@@ -225,7 +225,7 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 fi
 
 if [ "$status" -eq 0 ]; then
-	echo "smoke-test: PASS (both resizes handled, validation enabled)"
+	echo "smoke-test: PASS (window resizes, minimize/restore and a scene reload handled, validation enabled)"
 else
 	echo "smoke-test: FAIL (exit $status)" >&2
 fi

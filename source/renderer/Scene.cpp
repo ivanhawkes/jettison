@@ -288,6 +288,17 @@ void Scene::Save(const std::filesystem::path &path) const
 
 void Scene::Destroy()
 {
+	// Every consumer that keys anything on a model's address has to be told this happened, and
+	// Load() calls here first: a reload destroys the models and the next allocation reuses them.
+	++m_generation;
+	// The models own vertex and index buffers that the last submitted frame still references:
+	// a scene reload happens between frames, not at a fence, so the engine is mid-flight here.
+	// Validation reports destroying such a buffer as VUID-vkDestroyBuffer-buffer-00922, and the
+	// driver is entitled to hand that memory to the next allocation. Waiting for the device is
+	// the right cost on a reload, which is a rare event; the alternative is a retirement queue
+	// keyed on fences the scene cannot see.
+	if (m_deviceContext)
+		check_vk_result(m_deviceContext->WaitIdle());
 	m_registry.clear();
 	for (const auto &[path, model] : m_models)
 	{

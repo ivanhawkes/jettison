@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 
 // STD.
+#include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "DeviceContext.h"
@@ -71,6 +73,10 @@ class Renderer
 	size_t m_currentFrame{0};
 	std::vector<VkFence> m_imagesInFlight{};
 	std::vector<VkFence> m_inFlightFences{};
+
+	// The scene generation the model resources currently cached were built from. Empty until
+	// the first frame, so a scene loaded before Init() costs nothing.
+	std::optional<std::uint64_t> m_sceneGeneration{};
 
 	std::shared_ptr<Window> m_pWindow{nullptr};
 };

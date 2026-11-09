@@ -39,6 +39,12 @@ class Pipeline
 
 	void Destroy();
 
+	// Frees every Vulkan resource this pipeline holds for models: their descriptor pools, and
+	// the textures they own. Called when the scene's models are gone (Scene::Generation moves)
+	// and from Destroy(). The caller has to have the device idle: descriptor sets and pools that
+	// a submission in flight reads cannot be freed underneath it.
+	void ForgetModelResources();
+
 	void CreateCommandBuffers();
 
 	void RecordCommandBuffer(

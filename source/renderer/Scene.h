@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -97,6 +98,16 @@ class Scene
 	void Save(const std::filesystem::path &path) const;
 	void Destroy();
 
+	// Counts the times this scene's contents have been thrown away. Pipeline caches each model's
+	// Vulkan resources under the address of that Model, and a destroyed model is commonly
+	// followed by one allocated at the same address: a cache entry can therefore outlive the
+	// model it describes, and be taken for the new one. This counter is how the renderer learns
+	// the cache is stale, without the scene having to know who consumes it.
+	std::uint64_t Generation() const
+	{
+		return m_generation;
+	}
+
 	entt::registry &Registry()
 	{
 		return m_registry;
@@ -112,5 +123,6 @@ class Scene
 	std::shared_ptr<DeviceContext> m_deviceContext;
 	entt::registry m_registry;
 	std::unordered_map<std::string, std::shared_ptr<Model>> m_models;
+	std::uint64_t m_generation{0};
 };
 } // namespace Jettison::Renderer

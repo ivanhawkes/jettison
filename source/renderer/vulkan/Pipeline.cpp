@@ -143,8 +143,28 @@ void Pipeline::Destroy()
 
 	// Descriptor pool.
 	vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), m_descriptorPool, nullptr);
+	ForgetModelResources();
+
+	// Texture sampler.
+	vkDestroySampler(m_pDeviceContext->GetLogicalDevice(), m_textureSampler, nullptr);
+
+	// Texture image view.
+	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.view, nullptr);
+
+	// Texture image.
+	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.image, nullptr);
+	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.memory, nullptr);
+
+	// Descriptor set layout.
+	vkDestroyDescriptorSetLayout(m_pDeviceContext->GetLogicalDevice(), m_descriptorSetLayout, nullptr);
+}
+
+
+void Pipeline::ForgetModelResources()
+{
 	for (auto &[model, modelResources] : m_modelResources)
 	{
+		(void)model;
 		for (auto &resources : modelResources)
 		{
 			vkDestroyDescriptorPool(
@@ -159,19 +179,6 @@ void Pipeline::Destroy()
 		}
 	}
 	m_modelResources.clear();
-
-	// Texture sampler.
-	vkDestroySampler(m_pDeviceContext->GetLogicalDevice(), m_textureSampler, nullptr);
-
-	// Texture image view.
-	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.view, nullptr);
-
-	// Texture image.
-	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.image, nullptr);
-	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.memory, nullptr);
-
-	// Descriptor set layout.
-	vkDestroyDescriptorSetLayout(m_pDeviceContext->GetLogicalDevice(), m_descriptorSetLayout, nullptr);
 }
 
 

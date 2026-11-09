@@ -151,6 +151,18 @@ bool Renderer::Render(
 
 	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
+	// A model's Vulkan resources live under the address of the Model, and a scene reload
+	// destroys models whose addresses the next allocation reuses. The scene says when that
+	// happened. Freeing what is left needs the device idle, because the frame in flight may be
+	// reading a descriptor set from a pool that is about to go; a reload is rare, so stalling is
+	// the right trade against retiring pools behind a fence that cannot be named.
+	if (m_sceneGeneration && *m_sceneGeneration != scene.Generation())
+	{
+		check_vk_result(m_pDeviceContext->WaitIdle());
+		m_pPipeline->ForgetModelResources();
+	}
+	m_sceneGeneration = scene.Generation();
+
 	updateSystem.Update(scene.Registry(), deltaTime);
 	UpdateUniformBuffer(imageIndex, scene.Registry());
 	const auto drawCommands = renderSystem.Collect(scene.Registry());
