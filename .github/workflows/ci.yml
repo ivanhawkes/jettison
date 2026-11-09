@@ -91,14 +91,19 @@ jobs:
           # for llvm-toolchain-noble-21 ships clang-format-21 and clang-tidy-21 as separate
           # packages (clang-tools-21 contains neither binary), so name them.
           sudo apt-get install -y clang-format-21 clang-tidy-21
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang-21 100
-          sudo update-alternatives --install /usr/bin/clang-format clang-format \
-            /usr/bin/clang-format-21 100
-          sudo update-alternatives --install /usr/bin/clang-tidy clang-tidy \
-            /usr/bin/clang-tidy-21 100
-          clang-format --version
+          # The runner image registers Ubuntu's clang-18 alternatives, and at a higher
+          # priority than a plain --install wins auto mode, so use a priority above it and
+          # --set the selection explicitly. Note the compiler binaries are clang-21 and
+          # clang++-21: registering clang++ against clang-21 would not resolve.
+          for group in clang clang++ clang-format clang-tidy; do
+            sudo update-alternatives --install "/usr/bin/$group" "$group" \
+              "/usr/bin/$group-21" 21000
+            sudo update-alternatives --set "$group" "/usr/bin/$group-21"
+          done
+          clang --version
           clang++ --version
+          clang-format --version
+          clang-tidy --version
 
       # Fail here, with a message naming what is missing, rather than inside CMake or
       # deep in device creation.
@@ -106,7 +111,13 @@ jobs:
         run: |
           set -euo pipefail
           command -v glslc cmake ninja clang clang-format clang-tidy
-          clang-format --version | grep -E "version 2[0-9]"
+          # Assert the major versions, not just presence: the format gate needs
+          # clang-format 20+ (the string form of BinPackParameters in .clang-format), and
+          # the build wants clang 21, the same major devenv ships.
+          clang --version | grep -E "version 21"
+          clang++ --version | grep -E "version 21"
+          clang-format --version | grep -E "version 21"
+          clang-tidy --version | grep -E "version 21"
           ls /usr/include/vulkan/vulkan.h
           icd=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
           test -f "$icd"
