@@ -50,12 +50,17 @@ void Pipeline::Create()
 
 	CreateRenderPass();
 
-	// TODO: These weren't being re-created. Should it be moved out?
+	// The descriptor set layout is rebuilt with the pipeline, not built once: the pipeline layout
+	// is created against it below, Destroy() destroys it with the pipeline, and the sets allocated
+	// from the pool rebuilt at the end of this function bind to it.
 	CreateDescriptorSetLayout();
 
 	CreateGraphicsPipeline();
 
-	// TODO: Does the command pool need re-creating?
+	// The command pool is not rebuilt here. DeviceContext's pool belongs to the graphics queue
+	// family of a device this recreate does not touch, so the pool outlives the swapchain; what
+	// the recreate replaces is the work recorded against it, which Pipeline::Recreate re-allocates
+	// for the image count the new swapchain has, with the device idled so nothing is in flight.
 
 	// Colour images.
 	CreateColorResources();
@@ -118,6 +123,10 @@ void Pipeline::Destroy()
 	vkFreeCommandBuffers(
 	    m_pDeviceContext->GetLogicalDevice(), m_pDeviceContext->GetCommandPool(),
 	    static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
+	// The handles are freed, so the vector holding them is emptied: CreateCommandBuffers fills a
+	// fresh one sized to the swapchain that replaced this one, and a recreate that changed the
+	// image count must not be able to read a size off a list of handles that are gone.
+	m_commandBuffers.clear();
 
 	vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), m_graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_pDeviceContext->GetLogicalDevice(), m_pipelineLayout, nullptr);

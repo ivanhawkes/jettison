@@ -36,7 +36,12 @@ void DeviceContext::Init()
 	CreateLogicalDevice();
 
 	// Command pool.
-	// TODO: ILH: Not recreated when swapchain recreated?
+	// One pool for the life of the device, and not recreated with the swapchain: the pool belongs
+	// to the graphics queue family of this physical device, and a swapchain recreate replaces the
+	// swapchain handle for the same surface, so neither the device nor its queue families change.
+	// What does belong to the swapchain is the work recorded against the pool - the pipeline's
+	// per-image command buffers, reallocated by Pipeline::Recreate for the new image count - and
+	// the single-time copies that upload a texture, which open and close inside one call.
 	CreateCommandPool();
 }
 
