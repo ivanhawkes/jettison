@@ -1,12 +1,25 @@
 name: ci
 
 # The gate lives in scripts/ci.sh, so './scripts/ci.sh --llvmpipe' locally is the same run.
-# CI executes it *inside the devenv shell*, so the workflow and a developer's terminal use
-# the one environment definition this repo has: devenv.nix. No apt, no setup actions for
-# clang, glslc, validation layers, X11, Xvfb or lavapipe: the shell provides clang 21,
-# cmake, ninja, shaderc, the validation layers, the X11 development libraries, Xvfb,
-# mesa.drivers for lavapipe and git-lfs. Substitutes come from cache.nix.org and devenv's
-# global cache; ~/.cache/nix is restored between runs.
+#
+# This workflow mirrors the devenv toolchain on an Ubuntu runner; it is not the devenv
+# shell. Running CI inside devenv was tried and failed: devenv.yaml pins
+# github:cachix/devenv-nixpkgs/rolling, whose builds are not in cache.nix.org, so the
+# runner built LLVM, boost, node and friends from source and ran out of disk. Doing it
+# properly needs a binary cache of the dev shell (Cachix) plus a trimmed shell; see the
+# roadmap. Until then CI proves the gate, not byte-for-byte environment parity.
+#
+# What is installed, and why it is trustworthy rather than guessed:
+#   clang / clang++ / clang-format 21  apt.llvm.org llvm-toolchain-noble-21 (Release 200)
+#   cmake, ninja, X11 and Wayland dev   Ubuntu 24.04 packages
+#   validation layers                   Ubuntu package vulkan-validationlayers (older than
+#                                       the 1.4.363 in devenv; the debug build only needs
+#                                       VK_LAYER_KHRONOS_validation to exist)
+#   lavapipe, Xvfb                      mesa-vulkan-drivers, xvfb
+#   glslc                               nixpkgs shaderc, the one tool Ubuntu 24.04 does not
+#                                       package (glslang-tools ships glslangValidator only).
+#                                       Substituted in seconds, and v2026.1 is the same
+#                                       shaderc release the devenv shell ships.
 
 on:
   push:
@@ -27,7 +40,7 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       # Assets are Git LFS objects and the render test loads them, so fetch them properly.
@@ -40,31 +53,65 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/nix
-          key: nix-${{ hashFiles('devenv.lock', 'devenv.nix', 'devenv.yaml') }}
+          key: nix-shaderc
           restore-keys: |
             nix-
 
-      - name: Nix
+      - name: Nix (for glslc only)
         uses: cachix/install-nix-action@v30
-        with:
-          # Inputs come from GitHub-hosted archives (devenv-nixpkgs, FetchContent tags);
-          # an authenticated API budget avoids a spurious 404 mid-run.
-          extra_nix_config: |
-            extra-access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
-      # No official devenv GitHub action exists any more (cachix/devenv-action has no refs),
-      # so install devenv itself from its flake, pinned to the version that produced
-      # devenv.lock. That keeps CI and the local shell on the same tool.
-      - name: devenv
+      - name: glslc from nixpkgs shaderc
         run: |
           set -euo pipefail
-          nix profile install --refresh 'github:cachix/devenv/v2.4.0'
-          devenv --version
+          nix profile install nixpkgs#shaderc
+          command -v glslc
+          glslc --version | head -2
 
-      # Evaluates the dev shell; the gate then runs inside it, exactly as it does locally.
+      - name: System packages
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build git pkg-config ca-certificates wget \
+            libwayland-dev libwayland-bin libxkbcommon-dev libffi-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev \
+            libxi-dev libxrender-dev libxfixes-dev \
+            libvulkan-dev vulkan-validationlayers \
+            mesa-vulkan-drivers xvfb vulkan-tools libegl1 libgl1
+        # libwayland-bin provides wayland-scanner; libxrender-dev and libxfixes-dev are
+        # needed by GLFW's X11 backend, which the clang-headless preset builds;
+        # mesa-vulkan-drivers provides lavapipe, which scripts/ci.sh --llvmpipe pins so
+        # the render test never needs a GPU.
+
+      - name: LLVM 21 (clang, clang-format)
+        run: |
+          set -euo pipefail
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang-21 100
+          sudo update-alternatives --install /usr/bin/clang-format clang-format \
+            /usr/bin/clang-format-21 100
+          clang-format --version
+          clang++ --version
+
+      # Fail here, with a message naming what is missing, rather than inside CMake or
+      # deep in device creation.
+      - name: Check tooling
+        run: |
+          set -euo pipefail
+          command -v glslc cmake ninja clang clang-format
+          clang-format --version | grep -E "version 2[0-9]"
+          ls /usr/include/vulkan/vulkan.h
+          icd=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          test -f "$icd"
+          echo "lavapipe ICD: $icd"
+          layer="$(find /usr/share/vulkan -iname 'vklayer_khronos_validation.json' | head -1)"
+          test -n "$layer"
+          echo "validation layer: $layer"
+
       - name: Gate (format, build, headless render test)
         shell: bash -euo pipefail {0}
-        run: devenv -c './scripts/ci.sh --llvmpipe' 2>&1 | tee ci.log
+        run: ./scripts/ci.sh --llvmpipe 2>&1 | tee ci.log
 
       - name: Upload gate log
         if: always()
