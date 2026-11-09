@@ -4,9 +4,11 @@
 # Shell scripts must keep LF: a CRLF shebang fails to exec on Linux and macOS.
 *.sh text eol=lf
 *.bash text eol=lf
+
 # YAML is read by yaml-cpp, yq and the game; keep it LF everywhere.
 *.yaml text eol=lf
 *.yml text eol=lf
+
 # Source and documentation.
 *.c text
 *.cpp text
@@ -23,6 +25,7 @@ CMakeLists.txt text
 *.lock text
 .envrc text
 .gitattributes text
+
 # Binary assets: never diff, never merge, never normalise line endings.
 *.png binary
 *.jpg binary
@@ -48,33 +51,22 @@ CMakeLists.txt text
 *.exe binary
 *.pdf binary
 *.zip binary
-# Large media goes through Git LFS. Rules are additive: files committed before this
-# section stay plain Git blobs, so migrate history explicitly when you choose to
-# (git lfs migrate --include="*.glb,*.ttf,*.png" --include-ref=refs/heads/<branch>).
-# Note: *.gltf is JSON with sidecar .bin buffers, so it stays a plain Git blob and diffs.
-*.glb  filter=lfs diff=lfs merge=lfs
-*.png  filter=lfs diff=lfs merge=lfs
-*.jpg  filter=lfs diff=lfs merge=lfs
-*.jpeg filter=lfs diff=lfs merge=lfs
-*.tga  filter=lfs diff=lfs merge=lfs
-*.dds  filter=lfs diff=lfs merge=lfs
-*.fbx  filter=lfs diff=lfs merge=lfs
-*.blend filter=lfs diff=lfs merge=lfs
-*.ttf  filter=lfs diff=lfs merge=lfs
-*.otf  filter=lfs diff=lfs merge=lfs
-*.wav  filter=lfs diff=lfs merge=lfs
-*.ogg  filter=lfs diff=lfs merge=lfs
-*.mp3  filter=lfs diff=lfs merge=lfs
-*.glb filter=lfs diff=lfs merge=lfs -text
-*.png filter=lfs diff=lfs merge=lfs -text
-*.jpg filter=lfs diff=lfs merge=lfs -text
+
+# Large media goes through Git LFS, and each rule also asserts -text so the content is
+# never touched by the line-ending machinery above. History was migrated explicitly with:
+#   git lfs migrate import --include="*.glb,*.png,*.jpg,*.jpeg,*.tga,*.dds,*.fbx,*.blend,*.ttf,*.otf,*.wav,*.ogg,*.mp3" \
+#     --include-ref=refs/heads/main --include-ref=refs/heads/feature-base
+# Note: *.gltf stays a plain Git blob; it is JSON with sidecar .bin buffers, so it diffs.
+*.glb  filter=lfs diff=lfs merge=lfs -text
+*.png  filter=lfs diff=lfs merge=lfs -text
+*.jpg  filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text
-*.tga filter=lfs diff=lfs merge=lfs -text
-*.dds filter=lfs diff=lfs merge=lfs -text
-*.fbx filter=lfs diff=lfs merge=lfs -text
+*.tga  filter=lfs diff=lfs merge=lfs -text
+*.dds  filter=lfs diff=lfs merge=lfs -text
+*.fbx  filter=lfs diff=lfs merge=lfs -text
 *.blend filter=lfs diff=lfs merge=lfs -text
-*.ttf filter=lfs diff=lfs merge=lfs -text
-*.otf filter=lfs diff=lfs merge=lfs -text
-*.wav filter=lfs diff=lfs merge=lfs -text
-*.ogg filter=lfs diff=lfs merge=lfs -text
-*.mp3 filter=lfs diff=lfs merge=lfs -text
+*.ttf  filter=lfs diff=lfs merge=lfs -text
+*.otf  filter=lfs diff=lfs merge=lfs -text
+*.wav  filter=lfs diff=lfs merge=lfs -text
+*.ogg  filter=lfs diff=lfs merge=lfs -text
+*.mp3  filter=lfs diff=lfs merge=lfs -text
