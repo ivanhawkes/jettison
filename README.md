@@ -185,7 +185,7 @@ means the gate above covers it, with the commit that did it in the history.
 | 5 | GPU lifetime: `VK_EXT_debug_utils` with named objects, scene-reload invalidation, the extent clamp, pool sizing derived from what is allocated | done |
 | 6 | App shell: the lifecycle, the staged init, the frame loop and the smoke sequence, split out of `Loop`'s 200 lines | done |
 | 7 | Maintenance: GLM 0.9.9.8 → 1.0.1 with its configuration moved to the `glm` target, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, the animation phase out of authored scene state | done |
-| 8 | What row 7 found: `Renderer::Present()` is an empty stub nothing calls (the `vkQueuePresentKHR` is inline in `Render`), `Scene::Save` writes animation for an entity with no mesh that `Scene::Load` refuses, the GitHub runner is not green (`.github/CI-NOTES.md`) | next |
+| 8 | What row 7 found: `Renderer::Present()` is an empty stub nothing calls (the `vkQueuePresentKHR` is inline in `Render`), `Scene::Save` writes animation for an entity with no mesh that `Scene::Load` refuses | next |
 
 Step 5 settled the hazards named in the plan, in the order the instrumentation found them:
 a scene reload destroyed model buffers a submitted command buffer still referenced
