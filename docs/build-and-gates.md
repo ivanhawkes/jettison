@@ -22,7 +22,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | spdlog | v1.17.0 | now | `SPDLOG_USE_STD_FORMAT`; core links it |
 | doctest | v2.5.3 | now | Fetched in every tree, planned set or not |
 | Tracy | v0.13.1 | now | **Held back** from 0.15.0 to match devenv's profiler; profile links it |
-| Vulkan Memory Allocator | v3.5.0 | phase 4 | |
+| Vulkan Memory Allocator | v3.5.0 | now | Header-only; render compiles the implementation, private to it |
 | FastNoiseLite | v1.1.1 | now | Header-only; math links it, output pinned by recorded values |
 | MikkTSpace | 2020 (only commit) | now | math links it |
 | Jolt Physics | v5.6.0 | phase 7 | Double precision, deterministic across build types |

@@ -42,7 +42,7 @@ void ImGuiRenderer::Init(GLFWwindow *window, VkRenderPass renderPass, uint32_t i
 void ImGuiRenderer::InitVulkanBackend(VkRenderPass renderPass, uint32_t imageCount)
 {
 	ImGui_ImplVulkan_InitInfo initInfo{};
-	initInfo.ApiVersion = VK_API_VERSION_1_0;
+	initInfo.ApiVersion = DeviceContext::kApiVersion;
 	initInfo.Instance = m_pDeviceContext->GetInstance();
 	initInfo.PhysicalDevice = m_pDeviceContext->GetPhysicalDevice();
 	initInfo.Device = m_pDeviceContext->GetLogicalDevice();

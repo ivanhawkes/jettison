@@ -12,6 +12,11 @@
 
 #include <jettison/render/vulkan/Window.h>
 
+// The Vulkan Memory Allocator's handles, declared as it declares them (VK_DEFINE_HANDLE), so this
+// header does not carry vk_mem_alloc.h to everything that includes it.
+struct VmaAllocator_T;
+struct VmaAllocation_T;
+
 
 namespace Jettison::Render
 {
@@ -39,6 +44,32 @@ struct QueueFamilyIndices
 };
 
 
+// Where an allocation lives. Device memory is for what the GPU reads and writes; upload memory is
+// host-visible, mapped for the allocation's lifetime and written front to back by the CPU, which
+// is what per-frame data and staging copies do. VMA picks the memory type for each.
+enum class MemoryUse
+{
+	Device,
+	Upload
+};
+
+// A buffer and the allocation it is bound to. Empty when the handle is null; DestroyBuffer empties
+// it. An upload buffer is mapped from creation to destruction.
+struct Buffer
+{
+	VkBuffer handle{VK_NULL_HANDLE};
+	VmaAllocation_T *allocation{nullptr};
+	VkDeviceSize size{0};
+	void *mapped{nullptr};
+};
+
+struct Image
+{
+	VkImage handle{VK_NULL_HANDLE};
+	VmaAllocation_T *allocation{nullptr};
+};
+
+
 struct SwapChainSupportDetails
 {
 	VkSurfaceCapabilitiesKHR capabilities = {};
@@ -50,6 +81,9 @@ struct SwapChainSupportDetails
 class DeviceContext
 {
   public:
+	// The Vulkan version the instance asks for, and the one VMA and ImGui are told about.
+	static constexpr uint32_t kApiVersion = VK_API_VERSION_1_0;
+
 	DeviceContext(std::shared_ptr<Window> pWindow) : m_pWindow{pWindow}
 	{
 	}
@@ -186,9 +220,21 @@ class DeviceContext
 
 	VkFormat FindDepthFormat();
 
-	void CreateBuffer(
-	    VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer,
-	    VkDeviceMemory &bufferMemory);
+	// Every buffer and image the engine allocates goes through these, and through VMA: one
+	// allocator per device, sub-allocating from large blocks where vkAllocateMemory would make
+	// each its own allocation against a driver limit of as few as 4096. The name goes to the
+	// object and to its allocation, so a leak reported at teardown says what leaked.
+	Buffer CreateBuffer(
+	    VkDeviceSize size, VkBufferUsageFlags usage, MemoryUse memory, const std::string &name);
+	void DestroyBuffer(Buffer &buffer);
+	// Copies into an upload buffer and flushes the range, which memory that is not host-coherent
+	// needs before the device may read it; on coherent memory the flush does nothing.
+	void WriteBuffer(
+	    const Buffer &buffer, const void *data, VkDeviceSize size, VkDeviceSize offset = 0);
+	// A device-local buffer holding the bytes given, filled through a staging buffer that is gone
+	// by the time this returns.
+	Buffer CreateDeviceBuffer(
+	    const void *data, VkDeviceSize size, VkBufferUsageFlags usage, const std::string &name);
 
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
@@ -202,10 +248,12 @@ class DeviceContext
 	    VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
 	    uint32_t mipLevels);
 
-	void CreateImage(
+	// A device-local 2D image. Attachments get memory of their own (VMA's dedicated allocation),
+	// as drivers prefer for render targets.
+	Image CreateImage(
 	    uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
-	    VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-	    VkMemoryPropertyFlags properties, VkImage &image, VkDeviceMemory &imageMemory);
+	    VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::string &name);
+	void DestroyImage(Image &image);
 
 	VkImageView CreateImageView(
 	    VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
@@ -256,7 +304,10 @@ class DeviceContext
 
 	void CreateLogicalDevice();
 
-	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+	void CreateAllocator();
+	// Reports every allocation still live, as a validation error would be reported, then
+	// destroys the allocator: a leak fails the headless render test, which reads that stream.
+	void DestroyAllocator();
 
 	bool HasStencilComponent(VkFormat format);
 
@@ -304,6 +355,8 @@ class DeviceContext
 	VkSurfaceKHR m_surface{VK_NULL_HANDLE};
 
 	VkCommandPool m_commandPool{VK_NULL_HANDLE};
+
+	VmaAllocator_T *m_allocator{nullptr};
 
 	VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
 	PFN_vkDestroyDebugUtilsMessengerEXT m_pfnDestroyDebugUtilsMessenger{nullptr};

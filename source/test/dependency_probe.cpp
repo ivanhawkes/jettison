@@ -14,6 +14,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 #include <stb_image.h>
+// The implementation is the engine's: render compiles it, and a second copy here would be a
+// duplicate definition of every VMA function.
+#include <vk_mem_alloc.h>
 #include <yaml-cpp/yaml.h>
 
 // Planned.
@@ -33,8 +36,6 @@
 #include <spdlog/sinks/ostream_sink.h>
 #include <tracy/Tracy.hpp>
 #include <wasm_export.h>
-#define VMA_IMPLEMENTATION
-#include <vk_mem_alloc.h>
 
 #include <array>
 #include <cstddef>
@@ -129,7 +130,7 @@ TEST_CASE("Tracy compiles to nothing, or to an on-demand client")
 	CHECK(true);
 }
 
-TEST_CASE("Vulkan Memory Allocator: the implementation links against the renderer's loader")
+TEST_CASE("Vulkan Memory Allocator: the renderer's copy of the implementation links")
 {
 	decltype(&vmaCreateAllocator) volatile create = &vmaCreateAllocator;
 	CHECK(create != nullptr);

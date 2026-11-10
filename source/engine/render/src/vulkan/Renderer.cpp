@@ -290,12 +290,6 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &
 	// Flip projection matrix on the y axis for Vulkan.
 	ubo.projection[1][1] *= -1;
 
-	void *data;
-	vkMapMemory(
-	    m_pDeviceContext->GetLogicalDevice(), m_pPipeline->GetUniformBuffersMemory()[currentImage], 0,
-	    sizeof(ubo), 0, &data);
-	memcpy(data, &ubo, sizeof(ubo));
-	vkUnmapMemory(
-	    m_pDeviceContext->GetLogicalDevice(), m_pPipeline->GetUniformBuffersMemory()[currentImage]);
+	m_pDeviceContext->WriteBuffer(m_pPipeline->GetUniformBuffers()[currentImage], &ubo, sizeof(ubo));
 }
 } // namespace Jettison::Render

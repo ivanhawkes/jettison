@@ -60,16 +60,15 @@ class Pipeline
 	{
 		return m_commandBuffers;
 	}
-	inline const std::vector<VkDeviceMemory> &GetUniformBuffersMemory() const
+	inline const std::vector<Buffer> &GetUniformBuffers() const
 	{
-		return m_uniformBuffersMemory;
+		return m_uniformBuffers;
 	}
 
   private:
 	struct TextureResource
 	{
-		VkImage image{VK_NULL_HANDLE};
-		VkDeviceMemory memory{VK_NULL_HANDLE};
+		Image image{};
 		VkImageView view{VK_NULL_HANDLE};
 		uint32_t mipLevels{};
 	};
@@ -102,7 +101,8 @@ class Pipeline
 
 	void CreateTextureImage();
 	void CreateTextureImageData(
-	    const unsigned char *pixels, int width, int height, TextureResource &texture);
+	    const unsigned char *pixels, int width, int height, TextureResource &texture,
+	    const std::string &name);
 
 	void CreateTextureImageView();
 
@@ -141,18 +141,13 @@ class Pipeline
 	std::vector<VkImage> m_swapchainImages{};
 	std::vector<VkImageView> m_swapchainImageViews{};
 
-	std::vector<VkBuffer> m_uniformBuffers{};
-	std::vector<VkDeviceMemory> m_uniformBuffersMemory{};
-	std::vector<VkBuffer> m_jointBuffers{};
-	std::vector<VkDeviceMemory> m_jointBuffersMemory{};
-	std::vector<VkDeviceSize> m_jointBufferSizes{};
+	std::vector<Buffer> m_uniformBuffers{};
+	std::vector<Buffer> m_jointBuffers{};
 
-	VkImage m_colorImage{VK_NULL_HANDLE};
-	VkDeviceMemory m_colorImageMemory{nullptr};
+	Image m_colorImage{};
 	VkImageView m_colorImageView{VK_NULL_HANDLE};
 
-	VkImage m_depthImage{VK_NULL_HANDLE};
-	VkDeviceMemory m_depthImageMemory{VK_NULL_HANDLE};
+	Image m_depthImage{};
 	VkImageView m_depthImageView{VK_NULL_HANDLE};
 
 	TextureResource m_fallbackTexture;

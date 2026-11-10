@@ -113,8 +113,8 @@ class Model
 
 	std::vector<uint32_t> m_indices{};
 	std::vector<ModelPrimitive> m_primitives{};
-	VkBuffer m_vertexBuffer{VK_NULL_HANDLE};
-	VkBuffer m_indexBuffer{VK_NULL_HANDLE};
+	Buffer m_vertexBuffer{};
+	Buffer m_indexBuffer{};
 
   private:
 	void LoadGltfModel(const std::filesystem::path &path);
@@ -126,8 +126,6 @@ class Model
 
 	std::vector<Vertex> m_vertices{};
 	Animation::Rig m_rig{};
-	VkDeviceMemory m_vertexBufferMemory{VK_NULL_HANDLE};
-	VkDeviceMemory m_indexBufferMemory{VK_NULL_HANDLE};
 };
 } // namespace Jettison::Render
 

@@ -105,13 +105,11 @@ void Pipeline::Destroy()
 {
 	// Colour images.
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_colorImageView, nullptr);
-	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_colorImage, nullptr);
-	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_colorImageMemory, nullptr);
+	m_pDeviceContext->DestroyImage(m_colorImage);
 
 	// Depth images.
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_depthImageView, nullptr);
-	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_depthImage, nullptr);
-	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_depthImageMemory, nullptr);
+	m_pDeviceContext->DestroyImage(m_depthImage);
 
 	// Framebuffer.
 	for (auto framebuffer : m_swapchainFramebuffers)
@@ -140,16 +138,10 @@ void Pipeline::Destroy()
 	}
 
 	// Uniform buffers.
-	for (size_t i = 0; i < m_uniformBuffers.size(); ++i)
-	{
-		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffers[i], nullptr);
-		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_uniformBuffersMemory[i], nullptr);
-	}
-	for (size_t i = 0; i < m_jointBuffers.size(); ++i)
-	{
-		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_jointBuffers[i], nullptr);
-		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i], nullptr);
-	}
+	for (Buffer &buffer : m_uniformBuffers)
+		m_pDeviceContext->DestroyBuffer(buffer);
+	for (Buffer &buffer : m_jointBuffers)
+		m_pDeviceContext->DestroyBuffer(buffer);
 
 	// Descriptor pool.
 	vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), m_descriptorPool, nullptr);
@@ -162,8 +154,7 @@ void Pipeline::Destroy()
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.view, nullptr);
 
 	// Texture image.
-	vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.image, nullptr);
-	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_fallbackTexture.memory, nullptr);
+	m_pDeviceContext->DestroyImage(m_fallbackTexture.image);
 
 	// Descriptor set layout.
 	vkDestroyDescriptorSetLayout(m_pDeviceContext->GetLogicalDevice(), m_descriptorSetLayout, nullptr);
@@ -183,8 +174,7 @@ void Pipeline::ForgetModelResources()
 			{
 				vkDestroyImageView(
 				    m_pDeviceContext->GetLogicalDevice(), resources.texture.view, nullptr);
-				vkDestroyImage(m_pDeviceContext->GetLogicalDevice(), resources.texture.image, nullptr);
-				vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), resources.texture.memory, nullptr);
+				m_pDeviceContext->DestroyImage(resources.texture.image);
 			}
 		}
 	}
@@ -474,33 +464,19 @@ void Pipeline::CreateImageViews()
 
 void Pipeline::CreateUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof(FrameUBO);
-
 	m_uniformBuffers.resize(m_pSwapchain->GetImageCount());
-	m_uniformBuffersMemory.resize(m_pSwapchain->GetImageCount());
-	m_jointBuffers.resize(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
-	m_jointBuffersMemory.resize(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
-	m_jointBufferSizes.resize(m_pSwapchain->GetImageCount(), sizeof(glm::mat4));
+	m_jointBuffers.resize(m_pSwapchain->GetImageCount());
 
+	const glm::mat4 identity{1.0f};
 	for (size_t i = 0; i < m_pSwapchain->GetImageCount(); ++i)
 	{
-		m_pDeviceContext->CreateBuffer(
-		    bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		    m_uniformBuffers[i], m_uniformBuffersMemory[i]);
-		m_pDeviceContext->CreateBuffer(
-		    m_jointBufferSizes[i], VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-		    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		    m_jointBuffers[i], m_jointBuffersMemory[i]);
-		void *data = nullptr;
-		vkMapMemory(
-		    m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i], 0, m_jointBufferSizes[i], 0,
-		    &data);
-		const glm::mat4 identity{1.0f};
-		std::memcpy(data, &identity, sizeof(identity));
-		vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[i]);
-		m_pDeviceContext->SetDebugName(m_uniformBuffers[i], "frame-ubo-" + std::to_string(i));
-		m_pDeviceContext->SetDebugName(m_jointBuffers[i], "joint-palette-" + std::to_string(i));
+		m_uniformBuffers[i] = m_pDeviceContext->CreateBuffer(
+		    sizeof(FrameUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, MemoryUse::Upload,
+		    "frame-ubo-" + std::to_string(i));
+		m_jointBuffers[i] = m_pDeviceContext->CreateBuffer(
+		    sizeof(glm::mat4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
+		    "joint-palette-" + std::to_string(i));
+		m_pDeviceContext->WriteBuffer(m_jointBuffers[i], &identity, sizeof(identity));
 	}
 }
 
@@ -514,21 +490,12 @@ void Pipeline::EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount)
 {
 	const VkDeviceSize requiredSize =
 	    std::max<VkDeviceSize>(sizeof(glm::mat4), jointCount * sizeof(glm::mat4));
-	if (requiredSize <= m_jointBufferSizes.at(imageIndex))
+	if (requiredSize <= m_jointBuffers.at(imageIndex).size)
 		return;
 
-	if (m_jointBuffers[imageIndex] != VK_NULL_HANDLE)
-	{
-		vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), m_jointBuffers[imageIndex], nullptr);
-		vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[imageIndex], nullptr);
-	}
-	m_jointBufferSizes[imageIndex] = requiredSize;
-	m_pDeviceContext->CreateBuffer(
-	    requiredSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-	    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-	    m_jointBuffers[imageIndex], m_jointBuffersMemory[imageIndex]);
-	m_pDeviceContext->SetDebugName(
-	    m_jointBuffers[imageIndex],
+	m_pDeviceContext->DestroyBuffer(m_jointBuffers[imageIndex]);
+	m_jointBuffers[imageIndex] = m_pDeviceContext->CreateBuffer(
+	    requiredSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
 	    "joint-palette-" + std::to_string(imageIndex) + "-" + std::to_string(requiredSize));
 
 	// Every set that points at this image's palette has to be pointed at the new buffer: a
@@ -539,7 +506,7 @@ void Pipeline::EnsureJointBuffer(uint32_t imageIndex, std::size_t jointCount)
 		if (descriptorSet == VK_NULL_HANDLE)
 			return;
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = m_jointBuffers[imageIndex];
+		bufferInfo.buffer = m_jointBuffers[imageIndex].handle;
 		bufferInfo.offset = 0;
 		bufferInfo.range = requiredSize;
 		VkWriteDescriptorSet write{};
@@ -652,7 +619,7 @@ void Pipeline::CreateDescriptorSets()
 	for (size_t i = 0; i < m_pSwapchain->GetImageCount(); ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = m_uniformBuffers[i];
+		bufferInfo.buffer = m_uniformBuffers[i].handle;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(FrameUBO);
 
@@ -662,9 +629,9 @@ void Pipeline::CreateDescriptorSets()
 		imageInfo.sampler = m_textureSampler;
 
 		VkDescriptorBufferInfo jointBufferInfo{};
-		jointBufferInfo.buffer = m_jointBuffers[i];
+		jointBufferInfo.buffer = m_jointBuffers[i].handle;
 		jointBufferInfo.offset = 0;
-		jointBufferInfo.range = m_jointBufferSizes[i];
+		jointBufferInfo.range = m_jointBuffers[i].size;
 
 		std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -742,21 +709,10 @@ void Pipeline::RecordCommandBuffer(
 		    jointPalette.end(), skeleton->jointMatrices.begin(), skeleton->jointMatrices.end());
 	}
 	EnsureJointBuffer(imageIndex, jointPalette.size());
-	void *jointData = nullptr;
-	if (vkMapMemory(
-	        m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[imageIndex], 0,
-	        m_jointBufferSizes[imageIndex], 0, &jointData) != VK_SUCCESS)
-		throw std::runtime_error("Failed to map the skin joint palette buffer");
 	if (jointPalette.empty())
-	{
-		const glm::mat4 identity{1.0f};
-		std::memcpy(jointData, &identity, sizeof(identity));
-	}
-	else
-	{
-		std::memcpy(jointData, jointPalette.data(), jointPalette.size() * sizeof(glm::mat4));
-	}
-	vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), m_jointBuffersMemory[imageIndex]);
+		jointPalette.emplace_back(1.0f);
+	m_pDeviceContext->WriteBuffer(
+	    m_jointBuffers[imageIndex], jointPalette.data(), jointPalette.size() * sizeof(glm::mat4));
 
 	VkCommandBuffer commandBuffer = m_commandBuffers.at(imageIndex);
 	if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS)
@@ -799,10 +755,11 @@ void Pipeline::RecordCommandBuffer(
 		const SceneDrawCommand &drawCommand = drawCommands[drawIndex];
 		if (drawCommand.model == nullptr)
 			continue;
-		VkBuffer vertexBuffers[] = {drawCommand.model->m_vertexBuffer};
+		VkBuffer vertexBuffers[] = {drawCommand.model->m_vertexBuffer.handle};
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, drawCommand.model->m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(
+		    commandBuffer, drawCommand.model->m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		DrawPushConstants pushConstants{};
 		pushConstants.model = drawCommand.worldTransform;
 		pushConstants.jointOffset = jointOffsets[drawIndex];
@@ -837,57 +794,48 @@ void Pipeline::RecordCommandBuffer(
 void Pipeline::CreateTextureImage()
 {
 	const unsigned char whitePixel[] = {255, 255, 255, 255};
-	CreateTextureImageData(whitePixel, 1, 1, m_fallbackTexture);
+	CreateTextureImageData(whitePixel, 1, 1, m_fallbackTexture, "fallback-texture");
 }
 
 
 void Pipeline::CreateTextureImageData(
-    const unsigned char *pixels, int texWidth, int texHeight, TextureResource &texture)
+    const unsigned char *pixels, int texWidth, int texHeight, TextureResource &texture,
+    const std::string &name)
 {
 	const VkDeviceSize imageSize =
 	    static_cast<VkDeviceSize>(texWidth) * static_cast<VkDeviceSize>(texHeight) * 4;
 	texture.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
+	Buffer staging = m_pDeviceContext->CreateBuffer(
+	    imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, MemoryUse::Upload, name + "-staging");
+	m_pDeviceContext->WriteBuffer(staging, pixels, imageSize);
 
-	m_pDeviceContext->CreateBuffer(
-	    imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-	    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
-	    stagingBufferMemory);
-
-	void *data;
-	vkMapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
-	memcpy(data, pixels, static_cast<size_t>(imageSize));
-	vkUnmapMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory);
-
-	m_pDeviceContext->CreateImage(
+	texture.image = m_pDeviceContext->CreateImage(
 	    static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), texture.mipLevels,
 	    VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
 	    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture.image, texture.memory);
+	    name);
 
 	m_pDeviceContext->TransitionImageLayout(
-	    texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
+	    texture.image.handle, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
 	    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture.mipLevels);
 
+	// The copy waits for the queue, so the staging buffer is free to go after it.
 	m_pDeviceContext->CopyBufferToImage(
-	    stagingBuffer, texture.image, static_cast<uint32_t>(texWidth),
+	    staging.handle, texture.image.handle, static_cast<uint32_t>(texWidth),
 	    static_cast<uint32_t>(texHeight));
+	m_pDeviceContext->DestroyBuffer(staging);
 
-	vkDestroyBuffer(m_pDeviceContext->GetLogicalDevice(), stagingBuffer, nullptr);
-	vkFreeMemory(m_pDeviceContext->GetLogicalDevice(), stagingBufferMemory, nullptr);
-
-	GenerateMipmaps(texture.image, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, texture.mipLevels);
+	GenerateMipmaps(
+	    texture.image.handle, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, texture.mipLevels);
 }
 
 
 void Pipeline::CreateTextureImageView()
 {
 	m_fallbackTexture.view = m_pDeviceContext->CreateImageView(
-	    m_fallbackTexture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
+	    m_fallbackTexture.image.handle, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
 	    m_fallbackTexture.mipLevels);
-	m_pDeviceContext->SetDebugName(m_fallbackTexture.image, "fallback-texture");
 	m_pDeviceContext->SetDebugName(m_fallbackTexture.view, "fallback-texture-view");
 }
 
@@ -946,14 +894,13 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model, std
 		    encoded, static_cast<int>(imageData.size()), &width, &height, &channels, STBI_rgb_alpha);
 		if (!pixels)
 			throw std::runtime_error("Failed to decode glTF base-color image");
-		CreateTextureImageData(pixels, width, height, resources.texture);
+		const std::string textureName = ModelKey(&model) + "-p" + std::to_string(primitiveIndex);
+		CreateTextureImageData(pixels, width, height, resources.texture, "texture-" + textureName);
 		stbi_image_free(pixels);
 		resources.texture.view = m_pDeviceContext->CreateImageView(
-		    resources.texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
+		    resources.texture.image.handle, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
 		    resources.texture.mipLevels);
 		resources.ownsTexture = true;
-		const std::string textureName = ModelKey(&model) + "-p" + std::to_string(primitiveIndex);
-		m_pDeviceContext->SetDebugName(resources.texture.image, "texture-" + textureName);
 		m_pDeviceContext->SetDebugName(resources.texture.view, "texture-" + textureName + "-view");
 	}
 
@@ -992,10 +939,10 @@ Pipeline::ModelResources &Pipeline::EnsureModelResources(const Model &model, std
 	    resources.ownsTexture ? resources.texture.view : m_fallbackTexture.view;
 	for (uint32_t index = 0; index < imageCount; ++index)
 	{
-		VkDescriptorBufferInfo uniformInfo{m_uniformBuffers[index], 0, sizeof(FrameUBO)};
+		VkDescriptorBufferInfo uniformInfo{m_uniformBuffers[index].handle, 0, sizeof(FrameUBO)};
 		VkDescriptorImageInfo imageInfo{
 		    m_textureSampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-		VkDescriptorBufferInfo jointInfo{m_jointBuffers[index], 0, m_jointBufferSizes[index]};
+		VkDescriptorBufferInfo jointInfo{m_jointBuffers[index].handle, 0, m_jointBuffers[index].size};
 		std::array<VkWriteDescriptorSet, 3> writes{};
 		writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writes[0].dstSet = resources.descriptorSets[index];
@@ -1031,15 +978,14 @@ void Pipeline::CreateColorResources()
 {
 	VkFormat colorFormat = m_pSwapchain->GetImageFormat();
 
-	m_pDeviceContext->CreateImage(
+	m_colorImage = m_pDeviceContext->CreateImage(
 	    m_pSwapchain->GetExtents().width, m_pSwapchain->GetExtents().height, 1,
 	    m_pDeviceContext->GetMsaaSamples(), colorFormat, VK_IMAGE_TILING_OPTIMAL,
 	    VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_colorImage, m_colorImageMemory);
-	m_pDeviceContext->SetDebugName(m_colorImage, "msaa-color-image");
+	    "msaa-color-image");
 
-	m_colorImageView =
-	    m_pDeviceContext->CreateImageView(m_colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	m_colorImageView = m_pDeviceContext->CreateImageView(
+	    m_colorImage.handle, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 	m_pDeviceContext->SetDebugName(m_colorImageView, "msaa-color-view");
 }
 
@@ -1048,14 +994,12 @@ void Pipeline::CreateDepthResources()
 {
 	VkFormat depthFormat = m_pDeviceContext->FindDepthFormat();
 
-	m_pDeviceContext->CreateImage(
+	m_depthImage = m_pDeviceContext->CreateImage(
 	    m_pSwapchain->GetExtents().width, m_pSwapchain->GetExtents().height, 1,
 	    m_pDeviceContext->GetMsaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
-	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_depthImage,
-	    m_depthImageMemory);
-	m_pDeviceContext->SetDebugName(m_depthImage, "depth-image");
-	m_depthImageView =
-	    m_pDeviceContext->CreateImageView(m_depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, "depth-image");
+	m_depthImageView = m_pDeviceContext->CreateImageView(
+	    m_depthImage.handle, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 	m_pDeviceContext->SetDebugName(m_depthImageView, "depth-view");
 }
 

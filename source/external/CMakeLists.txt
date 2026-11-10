@@ -246,6 +246,19 @@ block()
 	FetchContent_MakeAvailable(tracy)
 endblock()
 
+# GPU memory. Header-only, and built against the same Vulkan headers as the renderer; render
+# compiles the implementation in one translation unit (src/vulkan/Memory.cpp), and its public
+# headers forward-declare VMA's handles, so the dependency stays private.
+FetchContent_Declare(
+  VulkanMemoryAllocator
+  GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+  GIT_TAG v3.5.0
+  GIT_SHALLOW TRUE
+  SYSTEM
+  EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(VulkanMemoryAllocator)
+
 # ---------------------------------------------------------------------------------------------
 # Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
 # whole set is proven to link together before a phase depends on any of it, and they are
@@ -261,17 +274,6 @@ option(JETTISON_PLANNED_DEPENDENCIES
 	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
 
 if(JETTISON_PLANNED_DEPENDENCIES)
-
-# GPU memory (phase 4). Header-only; built against the same Vulkan headers as the renderer.
-FetchContent_Declare(
-  VulkanMemoryAllocator
-  GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG v3.5.0
-  GIT_SHALLOW TRUE
-  SYSTEM
-  EXCLUDE_FROM_ALL
-)
-FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
 # Physics (phase 7). Every setting here is one the engine has to agree with:
 #  - Double precision, because simulation positions are doubles in the system frame

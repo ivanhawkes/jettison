@@ -20,6 +20,7 @@ jettison_add_module(render
 		src/Scene.cpp
 		src/SceneSystems.cpp
 		src/vulkan/DeviceContext.cpp
+		src/vulkan/Memory.cpp
 		src/vulkan/Model.cpp
 		src/vulkan/ModelGltf.cpp
 		src/vulkan/Pipeline.cpp
@@ -38,5 +39,6 @@ jettison_add_module(render
 		stb
 		yaml-cpp::yaml-cpp
 		fastgltf
+		GPUOpen::VulkanMemoryAllocator
 		"$<LINK_GROUP:RESCAN,imgui>"
 )
