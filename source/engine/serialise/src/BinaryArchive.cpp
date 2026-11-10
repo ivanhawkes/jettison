@@ -1,0 +1,401 @@
+#include "Shape.h"
+
+#include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Archive.h>
+
+#include <algorithm>
+#include <array>
+#include <cstring>
+#include <format>
+#include <limits>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace Jettison::Serialise
+{
+namespace
+{
+using Detail::Kind;
+using Detail::Path;
+using Detail::Shape;
+using Reflect::Attribute;
+
+constexpr std::array<std::byte, 4> kMagic{
+    std::byte{'J'}, std::byte{'T'}, std::byte{'S'}, std::byte{'N'}};
+// The layout described in Archive.h. A change to it is a new revision, read or refused here; a
+// change to what a type saves is the type's own version, which FormatVersion carries.
+constexpr std::uint16_t kLayoutRevision = 1;
+
+// A leaf component, an integer or a float's bits, moved between its own width in memory and a
+// 64-bit value, so the byte order on disk is set by the shifts that write it, not by the host.
+std::uint64_t LoadBits(const std::byte *component, std::size_t width)
+{
+	const auto load = [component]<typename T>(T bits)
+	{
+		std::memcpy(&bits, component, sizeof(T));
+		return std::uint64_t{bits};
+	};
+	switch (width)
+	{
+		case 1: return load(std::uint8_t{});
+		case 2: return load(std::uint16_t{});
+		case 4: return load(std::uint32_t{});
+		default: return load(std::uint64_t{});
+	}
+}
+
+void StoreBits(std::byte *component, std::uint64_t bits, std::size_t width)
+{
+	const auto store = [component](auto narrow) { std::memcpy(component, &narrow, sizeof(narrow)); };
+	switch (width)
+	{
+		case 1: store(static_cast<std::uint8_t>(bits)); return;
+		case 2: store(static_cast<std::uint16_t>(bits)); return;
+		case 4: store(static_cast<std::uint32_t>(bits)); return;
+		default: store(bits); return;
+	}
+}
+
+// ---- Writing ------------------------------------------------------------------------------
+
+class Writer
+{
+  public:
+	explicit Writer(std::string_view root) : m_path{root}
+	{
+	}
+
+	std::vector<std::byte> Finish(std::string_view root, FormatVersion version)
+	{
+		const std::uint32_t rootIndex = Intern(root);
+		std::vector<std::byte> out;
+		out.insert(out.end(), kMagic.begin(), kMagic.end());
+		Unsigned(out, kLayoutRevision, 2);
+		Unsigned(out, Count(m_names.size()), 4);
+		for (const std::string_view name : m_names)
+			String(out, name);
+		Unsigned(out, rootIndex, 4);
+		Unsigned(out, version.version, 4);
+		out.insert(out.end(), m_payload.begin(), m_payload.end());
+		return out;
+	}
+
+	void Class(const entt::meta_any &value)
+	{
+		const std::vector<entt::meta_data> fields = Reflect::Fields(value.type(), Attribute::Saved);
+		Unsigned(m_payload, Count(fields.size()), 4);
+		for (const entt::meta_data &field : fields)
+		{
+			const auto scope = m_path.Field(field.name());
+			Unsigned(m_payload, Intern(field.name()), 4);
+			// The length is patched in once the value is written.
+			const std::size_t lengthAt = m_payload.size();
+			Unsigned(m_payload, 0, 4);
+			Value(field.get(value));
+			const std::size_t length = m_payload.size() - lengthAt - 4;
+			std::array<std::byte, 4> bytes{};
+			Store(bytes.data(), Count(length), 4);
+			std::ranges::copy(bytes, m_payload.begin() + static_cast<std::ptrdiff_t>(lengthAt));
+		}
+	}
+
+  private:
+	static void Store(std::byte *out, std::uint64_t value, std::size_t width)
+	{
+		for (std::size_t index = 0; index < width; ++index)
+			out[index] = static_cast<std::byte>((value >> (8 * index)) & 0xffu);
+	}
+
+	static void Unsigned(std::vector<std::byte> &out, std::uint64_t value, std::size_t width)
+	{
+		std::array<std::byte, 8> bytes{};
+		Store(bytes.data(), value, width);
+		out.insert(out.end(), bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(width));
+	}
+
+	void String(std::vector<std::byte> &out, std::string_view text) const
+	{
+		Unsigned(out, Count(text.size()), 4);
+		const auto *bytes = reinterpret_cast<const std::byte *>(text.data());
+		out.insert(out.end(), bytes, bytes + text.size());
+	}
+
+	std::uint32_t Count(std::size_t size) const
+	{
+		if (size > std::numeric_limits<std::uint32_t>::max())
+			throw UnsupportedTypeError{std::format(
+			    "BinaryArchive: {}: {} is too many for a 32-bit count", m_path.Text(), size)};
+		return static_cast<std::uint32_t>(size);
+	}
+
+	// Names are reflection names, whose text lives in static storage, so a view of one is a
+	// safe key. The table is in order of first use, so the same value writes the same bytes.
+	std::uint32_t Intern(std::string_view name)
+	{
+		const auto [found, added] = m_indices.try_emplace(name, Count(m_names.size()));
+		if (added)
+			m_names.push_back(name);
+		return found->second;
+	}
+
+	void Value(const entt::meta_any &value)
+	{
+		const Shape shape = Detail::ShapeOf(value.type(), m_path.Text());
+		switch (shape.kind)
+		{
+			case Kind::Bool:
+			case Kind::Signed:
+			case Kind::Unsigned:
+			case Kind::Float:
+			{
+				// Each component little-endian at its own width; a float as its IEEE 754 bits.
+				const auto *bytes = static_cast<const std::byte *>(shape.view(value));
+				for (std::uint8_t index = 0; index < shape.count; ++index)
+				{
+					Unsigned(
+					    m_payload, LoadBits(bytes + std::size_t{index} * shape.width, shape.width),
+					    shape.width);
+				}
+				return;
+			}
+			case Kind::String:
+				String(m_payload, *static_cast<const std::string *>(shape.view(value)));
+				return;
+			case Kind::Enum:
+			{
+				const std::string_view name = Reflect::EnumName(value);
+				if (name.empty())
+					throw UnsupportedTypeError{std::format(
+					    "BinaryArchive: {}: the value is not an enumerator registered for '{}'",
+					    m_path.Text(), value.type().name())};
+				Unsigned(m_payload, Intern(name), 4);
+				return;
+			}
+			case Kind::Class: Class(value); return;
+			case Kind::Sequence:
+			{
+				// begin() is not const on a container, even one over a const value.
+				entt::meta_sequence_container elements = value.as_sequence_container();
+				Unsigned(m_payload, Count(elements.size()), 4);
+				std::size_t index = 0;
+				for (const entt::meta_any element : elements)
+				{
+					const auto scope = m_path.Element(index++);
+					Value(element);
+				}
+				return;
+			}
+		}
+	}
+
+	std::vector<std::byte> m_payload;
+	std::vector<std::string_view> m_names;
+	std::unordered_map<std::string_view, std::uint32_t> m_indices;
+	Path m_path;
+};
+
+// ---- Reading ------------------------------------------------------------------------------
+
+class Reader
+{
+  public:
+	Reader(std::span<const std::byte> bytes, std::string_view root) : m_bytes{bytes}, m_path{root}
+	{
+	}
+
+	void Header(std::string_view root, FormatVersion expected)
+	{
+		if (m_bytes.size() < kMagic.size() || !std::ranges::equal(m_bytes.first(kMagic.size()), kMagic))
+			Fail("the data is not a Jettison binary archive");
+		m_offset = kMagic.size();
+		if (const auto revision = Unsigned(2); revision != kLayoutRevision)
+			Fail(
+			    std::format(
+			        "binary layout revision {} found, revision {} expected", revision,
+			        kLayoutRevision));
+		// Not reserved, for the reason Value gives for a sequence.
+		const std::uint32_t count = Count();
+		for (std::uint32_t index = 0; index < count; ++index)
+			m_names.push_back(String());
+		if (const std::string_view found = Name(); found != root)
+			Fail(std::format("the archive holds a '{}'", found));
+		const auto version = static_cast<std::uint32_t>(Unsigned(4));
+		if (version != expected.version)
+			throw FormatVersionError{root, version, expected.version};
+	}
+
+	void End() const
+	{
+		if (m_offset != m_bytes.size())
+			Fail(std::format("{} bytes follow the value", m_bytes.size() - m_offset));
+	}
+
+	void Class(entt::meta_any &value)
+	{
+		const std::uint32_t count = Count();
+		std::vector<std::string_view> seen;
+		for (std::uint32_t index = 0; index < count; ++index)
+		{
+			const std::string_view name = Name();
+			const auto scope = m_path.Field(name);
+			const entt::meta_data field = Reflect::FindField(value.type(), name);
+			if (!field || !Reflect::HasAll(Reflect::AttributesOf(field), Attribute::Saved))
+				Fail(std::format("'{}' has no saved field '{}'", value.type().name(), name));
+			if (std::ranges::find(seen, field.name()) != seen.end())
+				Fail("the field is given twice");
+			seen.push_back(field.name());
+
+			const std::uint32_t length = Count();
+			if (length > m_bytes.size() - m_offset)
+				Fail(std::format("the field holds {} bytes, past the end of the data", length));
+			const std::size_t start = m_offset;
+			entt::meta_any member = field.get(value);
+			Value(member);
+			// The length catches a field whose type changed size, which would otherwise shift
+			// every field after it.
+			if (m_offset - start != length)
+				Fail(
+				    std::format(
+				        "the field holds {} bytes, and its type reads {}", length, m_offset - start));
+			if (!field.set(value, std::move(member)))
+				throw UnsupportedTypeError{
+				    std::format("BinaryArchive: {}: the field could not be set", m_path.Text())};
+		}
+	}
+
+  private:
+	[[noreturn]] void Fail(std::string_view problem) const
+	{
+		throw FormatError{
+		    std::format("BinaryArchive: {}: {} (at byte {})", m_path.Text(), problem, m_offset)};
+	}
+
+	std::span<const std::byte> Take(std::size_t size)
+	{
+		if (size > m_bytes.size() - m_offset)
+			Fail(std::format("the data ends {} bytes short", size - (m_bytes.size() - m_offset)));
+		const auto taken = m_bytes.subspan(m_offset, size);
+		m_offset += size;
+		return taken;
+	}
+
+	std::uint64_t Unsigned(std::size_t width)
+	{
+		std::uint64_t value = 0;
+		const auto bytes = Take(width);
+		for (std::size_t index = 0; index < width; ++index)
+			value |= std::uint64_t{std::to_integer<std::uint8_t>(bytes[index])} << (8 * index);
+		return value;
+	}
+
+	std::uint32_t Count()
+	{
+		return static_cast<std::uint32_t>(Unsigned(4));
+	}
+
+	std::string String()
+	{
+		// Take checks the length against what is left before anything is allocated.
+		const auto bytes = Take(Count());
+		return {reinterpret_cast<const char *>(bytes.data()), bytes.size()};
+	}
+
+	std::string_view Name()
+	{
+		const std::uint32_t index = Count();
+		if (index >= m_names.size())
+			Fail(std::format("name {} is past the end of the table of {}", index, m_names.size()));
+		return m_names[index];
+	}
+
+	void Value(entt::meta_any &value)
+	{
+		const Shape shape = Detail::ShapeOf(value.type(), m_path.Text());
+		switch (shape.kind)
+		{
+			case Kind::Bool:
+			case Kind::Signed:
+			case Kind::Unsigned:
+			case Kind::Float:
+			{
+				alignas(8) std::array<std::byte, Detail::kMaxLeafBytes> components{};
+				for (std::uint8_t index = 0; index < shape.count; ++index)
+				{
+					const std::uint64_t bits = Unsigned(shape.width);
+					// Any other byte in a bool is undefined behaviour once it is read as one.
+					if (shape.kind == Kind::Bool && bits > 1)
+						Fail(std::format("{} is not a bool", bits));
+					StoreBits(components.data() + std::size_t{index} * shape.width, bits, shape.width);
+				}
+				value = shape.make(components.data());
+				return;
+			}
+			case Kind::String:
+			{
+				const std::string text = String();
+				value = shape.make(&text);
+				return;
+			}
+			case Kind::Enum:
+			{
+				const std::string_view name = Name();
+				entt::meta_any enumerator = Reflect::EnumValue(value.type(), name);
+				if (!enumerator)
+					Fail(std::format("'{}' is not a '{}'", name, value.type().name()));
+				value = std::move(enumerator);
+				return;
+			}
+			case Kind::Class: Class(value); return;
+			case Kind::Sequence:
+			{
+				entt::meta_sequence_container elements = value.as_sequence_container();
+				elements.clear();
+				const entt::meta_type type = elements.value_type();
+				// Not reserved: a corrupt count would allocate before the data ran out. Every element
+				// reads at least one byte, so a count past the data fails at its end.
+				const std::uint32_t count = Count();
+				for (std::uint32_t index = 0; index < count; ++index)
+				{
+					const auto scope = m_path.Element(index);
+					entt::meta_any element = type.construct();
+					Value(element);
+					if (!elements.insert(elements.end(), std::move(element)))
+						throw UnsupportedTypeError{std::format(
+						    "BinaryArchive: {}: the element could not be inserted", m_path.Text())};
+				}
+				return;
+			}
+		}
+	}
+
+	std::span<const std::byte> m_bytes;
+	std::size_t m_offset{0};
+	std::vector<std::string> m_names;
+	Path m_path;
+};
+} // namespace
+
+std::vector<std::byte> BinaryArchive::Write(const entt::meta_any &value, FormatVersion version)
+{
+	const std::string_view root = Detail::RootName(value.type());
+	Writer writer{root};
+	writer.Class(value);
+	return writer.Finish(root, version);
+}
+
+entt::meta_any BinaryArchive::Read(
+    std::span<const std::byte> bytes, const entt::meta_type &type, FormatVersion expected)
+{
+	const std::string_view root = Detail::RootName(type);
+	Reader reader{bytes, root};
+	reader.Header(root, expected);
+	entt::meta_any value = type.construct();
+	if (!value)
+		throw UnsupportedTypeError{
+		    std::format("BinaryArchive: {}: the type is not default constructible", root)};
+	reader.Class(value);
+	reader.End();
+	return value;
+}
+} // namespace Jettison::Serialise
