@@ -69,8 +69,9 @@ under `Jettison::Renderer`, with flat includes (`#include <RenderApplication.h>`
 splits it along the lines above.
 
 The executables keep the names they already have: **Flotsam** is the editor, **Jetsam** is the
-runtime, now a sample viewer because the game has its own repository, and **test** is the
-render smoke harness that the gate runs.
+runtime, now a sample viewer because the game has its own repository, and **render_test** is
+the render smoke harness that the gate runs. It was `test` until CTest reserved that name (see
+[build and gates](build-and-gates.md#unit-tests)).
 
 ### Consumption by the game repository
 

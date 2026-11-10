@@ -35,7 +35,7 @@ cmake --preset clang-debug
 cmake --build --preset clang-debug
 
 # Run from the root folder.
-build/clang-debug/source/test/test
+build/clang-debug/source/test/render_test
 
 # The full gate: format, builds, tidy, headless render test on software Vulkan.
 ./scripts/ci.sh --llvmpipe --werror

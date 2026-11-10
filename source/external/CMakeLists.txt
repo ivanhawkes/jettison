@@ -159,6 +159,23 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fastgltf)
 
+# Unit tests: every engine module's suite links doctest_with_main, and the dependency probe links
+# doctest. Fetched in every tree, planned dependencies or not, because the headless trees run the
+# unit tests too.
+block()
+	set(DOCTEST_WITH_TESTS OFF)
+	set(DOCTEST_NO_INSTALL ON)
+	FetchContent_Declare(
+	  doctest
+	  GIT_REPOSITORY https://github.com/doctest/doctest.git
+	  GIT_TAG v2.5.3
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(doctest)
+endblock()
+
 # ---------------------------------------------------------------------------------------------
 # Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
 # whole set is proven to link together before a phase depends on any of it, and they are
@@ -192,21 +209,6 @@ block()
 	  EXCLUDE_FROM_ALL
 	)
 	FetchContent_MakeAvailable(spdlog)
-endblock()
-
-# Unit tests (phase 1).
-block()
-	set(DOCTEST_WITH_TESTS OFF)
-	set(DOCTEST_NO_INSTALL ON)
-	FetchContent_Declare(
-	  doctest
-	  GIT_REPOSITORY https://github.com/doctest/doctest.git
-	  GIT_TAG v2.5.3
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(doctest)
 endblock()
 
 # Profiling (phase 2). Held at 0.13.1, two releases behind upstream's 0.15.0: Tracy's client and

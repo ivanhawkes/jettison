@@ -1,11 +1,15 @@
 #include "SmokeSequence.h"
 
-#include <iostream>
+#include <doctest/doctest.h>
 
 using Jettison::Renderer::SmokeActions;
 using Jettison::Renderer::SmokeSequence;
 
-bool CheckSequence(bool firstResize, bool secondResize, bool expected)
+namespace
+{
+// Drives the sequence to its close the way the shell's frame loop does, with the window manager
+// answering each of the two resize requests or refusing it, and returns the verdict.
+bool RunSequence(bool firstResize, bool secondResize)
 {
 	int requests = 0;
 	int handled = 0;
@@ -25,18 +29,20 @@ bool CheckSequence(bool firstResize, bool secondResize, bool expected)
 			handled = requests;
 		sequence.Advance(resize, 640, 480, SmokeSequence::Clock::now());
 	}
-	if (!close || sequence.Passed() != expected)
-	{
-		std::cerr << "Unexpected smoke sequence result: " << sequence.Summary() << '\n';
-		return false;
-	}
-	return true;
+	REQUIRE_MESSAGE(close, sequence.Summary());
+	INFO(sequence.Summary());
+	return sequence.Passed();
+}
+} // namespace
+
+TEST_CASE("Smoke sequence: one handled resize of the two requested is a pass")
+{
+	CHECK(RunSequence(true, true));
+	CHECK(RunSequence(false, true));
+	CHECK(RunSequence(true, false));
 }
 
-int main()
+TEST_CASE("Smoke sequence: no handled resize is a failure")
 {
-	return CheckSequence(true, true, true) && CheckSequence(false, true, true) &&
-	               CheckSequence(true, false, true) && CheckSequence(false, false, false)
-	           ? 0
-	           : 1;
+	CHECK_FALSE(RunSequence(false, false));
 }

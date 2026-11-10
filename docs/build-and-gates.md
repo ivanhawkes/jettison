@@ -20,7 +20,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | yaml-cpp | 0.9.0 | now | |
 | fastgltf | v1.0.1 | now | Downloads its own simdjson 5.1.0 and simdutf |
 | spdlog | v1.17.0 | phase 2 | `SPDLOG_USE_STD_FORMAT` |
-| doctest | v2.5.3 | phase 1 | |
+| doctest | v2.5.3 | now | Fetched in every tree, planned set or not |
 | Tracy | v0.13.1 | phase 2 | **Held back** from 0.15.0 to match devenv's profiler |
 | Vulkan Memory Allocator | v3.5.0 | phase 4 | |
 | FastNoiseLite | v1.1.1 | phase 2 | |
@@ -107,7 +107,7 @@ cmake --preset clang-debug
 cmake --build --preset clang-debug
 
 # Run from the root folder.
-build/clang-debug/source/test/test
+build/clang-debug/source/test/render_test
 ```
 
 | Preset | Tree |
@@ -122,7 +122,7 @@ executable. `--assets <directory>` selects a different asset directory, and
 `--scene <file>` / `--save-scene <file>` load and write scene graphs.
 
 In VS Code, the default build task uses `clang-debug`. The `Debug test` launch configuration
-builds and runs `test` under GDB through the Native Debug (`webfreak.debug`) extension. Run VS
+builds and runs `render_test` under GDB through the Native Debug (`webfreak.debug`) extension. Run VS
 Code inside the devenv shell so it finds the tools.
 
 ## The gate
@@ -131,8 +131,24 @@ Code inside the devenv shell so it finds the tools.
 `./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml` runs
 `./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
 
-Order: format gate → Debug build → unit tests and the dependency probe → clang-tidy → Release
-build → headless render test.
+Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
+Release build → headless render test.
+
+### Unit tests
+
+Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files the
+module's `jettison_add_module(... TESTS ...)` names and registered with CTest under the module's
+name. The smoke sequence's own test and the dependency probe are registered alongside them. The
+gate runs them with `ctest --test-dir build/<preset> --output-on-failure --no-tests=error`, so a
+tree that registered nothing fails rather than passes.
+
+`JETTISON_BUILD_TESTS` turns the suites on. It defaults to on when Jettison is the top-level
+project and off when it is a dependency, so the game repository's build does not compile the
+engine's tests.
+
+The render smoke harness was called `test` until CTest arrived. CMake reserves that target name
+once testing is enabled, and Ninja generates a phony `source/test/test` for that directory's tests,
+which an executable of the same name collides with, so it is `render_test` now.
 
 ```bash
 ./scripts/format-check.sh      # clang-format >= 20 gate over the tracked sources
@@ -195,7 +211,7 @@ naming the library and the variable.
 
 ## Headless render test
 
-`scripts/smoke-test.sh` runs `test --smoke-test` with no desktop session. It builds the
+`scripts/smoke-test.sh` runs `render_test --smoke-test` with no desktop session. It builds the
 `clang-headless` preset, starts a virtual X server, and can pin Mesa's lavapipe software driver so
 the run does not depend on a GPU.
 
@@ -276,4 +292,3 @@ gh run view <id> --log-failed | grep -E "<step name>" | grep -vE "\[\[36;1m" | t
 gh run watch <id> --interval 30 --exit-status &     # a run takes about five minutes
 ```
 
-Phase 1 of the [roadmap](roadmap.md) runs unit tests through CTest ahead of the smoke test.

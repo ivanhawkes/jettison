@@ -25,6 +25,9 @@ endfunction()
 
 add_subdirectory("${CMAKE_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
 
+# The engine modules.
+add_subdirectory("engine")
+
 # Shared rendering library.
 add_subdirectory("renderer")
 

@@ -13,7 +13,7 @@
 #  --preset NAME   CMake preset to build (default: clang-headless)
 #  --build-dir DIR Build tree (default: build/<preset>)
 #  --build         Configure and build the preset before running (the default)
-#  --no-build      Skip configure/build; the tree must already contain source/test/test
+#  --no-build      Skip configure/build; the tree must already contain source/test/render_test
 #  --llvmpipe      Pin the software Vulkan driver (lavapipe) for deterministic, GPU-free runs
 #  --werror        Configure the build with warnings treated as errors
 #  --icd PATH      Pin an explicit ICD manifest instead of lavapipe
@@ -88,7 +88,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$build_dir" ] || build_dir="build/$preset"
-executable="$build_dir/source/test/test"
+executable="$build_dir/source/test/render_test"
 
 if [ "$build" -eq 1 ]; then
 	cmake --preset "$preset" ${werror[@]+"${werror[@]}"} >/dev/null

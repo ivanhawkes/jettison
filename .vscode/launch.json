@@ -5,7 +5,7 @@
             "name": "Debug test",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/clang-debug/source/test/test",
+            "program": "${workspaceFolder}/build/clang-debug/source/test/render_test",
             "cwd": "${workspaceFolder}/build/clang-debug/source/test",
             "args": [],
             "preLaunchTask": "CMake: build clang-debug",

@@ -5,6 +5,18 @@ project(Jettison VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(JettisonModule)
+
+# The engine's unit tests: one doctest executable per module, registered with CTest. Off when the
+# engine is a dependency of another project (the game repository's FetchContent), which builds
+# its own tests and not ours.
+option(JETTISON_BUILD_TESTS "Build the engine's unit tests and register them with CTest"
+	${PROJECT_IS_TOP_LEVEL})
+if(JETTISON_BUILD_TESTS)
+	enable_testing()
+endif()
+
 find_package(Vulkan REQUIRED COMPONENTS glslc)
 
 function(jettison_compile_shaders target)
@@ -24,13 +36,6 @@ function(jettison_compile_shaders target)
 	add_custom_target(${target}_shaders DEPENDS ${shader_outputs})
 	add_dependencies(${target} ${target}_shaders)
 endfunction()
-
-# Set the overall project name.
-# project(Jettison
-#     VERSION 0.1.0
-#     DESCRIPTION "A simple Vulkan based rendering engine"
-#     LANGUAGES CXX
-# )
 
 # Turn on using solution folders.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

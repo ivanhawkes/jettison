@@ -60,7 +60,7 @@ args=(-p "$build_dir" -quiet -j "${JETTISON_TIDY_JOBS:-2}")
 # run-clang-tidy exits non-zero when it emits diagnostics, so take its output and decide
 # here what a failure means.
 set +e
-output="$(run-clang-tidy "${args[@]}" 'source/(renderer|flotsam|jetsam|test)/.*\.(cpp|h)$' 2>&1)"
+output="$(run-clang-tidy "${args[@]}" 'source/(engine|renderer|flotsam|jetsam|test)/.*\.(cpp|h)$' 2>&1)"
 status=$?
 set -e
 
