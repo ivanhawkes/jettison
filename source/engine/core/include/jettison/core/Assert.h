@@ -3,9 +3,8 @@
 #include <source_location>
 #include <stdexcept>
 
-// Phase 1 gives these their final meaning and the smallest implementation that keeps it: a failed
-// check names the expression and where it is, then aborts. Phase 2 routes the report through
-// Log.h and breaks into an attached debugger first; the macros and what they promise stay.
+// A failed check names the expression and where it is, logs it at Fatal (Log.h) and flushes the
+// log, stops in an attached debugger, then aborts.
 //
 // JETTISON_VERIFY checks in every build. JETTISON_ASSERT checks in debug builds and does not
 // evaluate its condition in release, so neither may have side effects in its condition.
@@ -36,8 +35,8 @@ class NotImplementedError : public std::logic_error
 	explicit NotImplementedError(const std::source_location &location);
 };
 
-// Reports a failed JETTISON_VERIFY or JETTISON_ASSERT on stderr and aborts. Called through the
-// macros, which supply the expression's text and its location.
+// Reports a failed JETTISON_VERIFY or JETTISON_ASSERT through the log and aborts. Called through
+// the macros, which supply the expression's text and its location.
 [[noreturn]] void AssertionFailed(
     const char *expression, const std::source_location &location) noexcept;
 

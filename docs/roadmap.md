@@ -13,7 +13,7 @@ trustworthy, are recorded in [history](history.md).
 |---|---|---|
 | 0 | **Plan.** Scope, architecture, roadmap, standards. | These documents are reviewed and agreed. |
 | 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
-| 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
+| 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. In progress: `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration). | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
 | 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
 | 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
 | 5 | **Space rendering.** PBR with image-based lighting, sun/point/spot lights, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, drawn within a frame budget measured on lavapipe and on hardware. |
@@ -72,6 +72,13 @@ so the engine uses one formatting library (`std::format`, which C++20 checks at 
 rather than also carrying spdlog's bundled fmt. Engine code logs through `Log.h`, never through
 spdlog directly, so categories and sinks stay the engine's.
 *Stub*: `Assert.h`, `Log.h`, `Config.h`, `StringId.h`, `Handle.h`.
+*Filled in* (phase 2): `Log.h` dispatches to spdlog's stderr and file sinks and to engine
+callbacks (the console's, in phase 3), with the category per message; a failed assertion logs at
+Fatal, flushes, and stops in an attached debugger before it aborts. `StringId` and `Hash.h` hash
+with 64-bit FNV-1a, pinned by the published test vectors. `Config` reads and writes the user
+layer as nested YAML, round-trip tested. The app shell does not call `InitLogging` yet, and the
+renderer still writes to `std::cerr`: the smoke test reads that output line by line, so it moves
+to `Log.h` together with the smoke test's patterns.
 
 ### 4. Math · phase 2 · `engine/math`
 

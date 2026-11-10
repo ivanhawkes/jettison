@@ -177,6 +177,25 @@ block()
 	FetchContent_MakeAvailable(doctest)
 endblock()
 
+# Logging, behind core's Log.h. std::format rather than the bundled fmt, so the executable carries
+# one formatting library: SPDLOG_USE_STD_FORMAT is a public definition of the spdlog target. In
+# every tree since phase 2, because core links it.
+block()
+	set(SPDLOG_USE_STD_FORMAT ON)
+	set(SPDLOG_BUILD_EXAMPLE OFF)
+	set(SPDLOG_BUILD_TESTS OFF)
+	set(SPDLOG_INSTALL OFF)
+	FetchContent_Declare(
+	  spdlog
+	  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+	  GIT_TAG v1.17.0
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(spdlog)
+endblock()
+
 # ---------------------------------------------------------------------------------------------
 # Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
 # whole set is proven to link together before a phase depends on any of it, and they are
@@ -193,24 +212,6 @@ option(JETTISON_PLANNED_DEPENDENCIES
 option(JETTISON_PROFILE "Compile the Tracy profiler client in (TRACY_ENABLE)" OFF)
 
 if(JETTISON_PLANNED_DEPENDENCIES)
-
-# Logging (phase 2). std::format rather than the bundled fmt, so the executable carries one
-# formatting library: SPDLOG_USE_STD_FORMAT is a public definition of the spdlog target.
-block()
-	set(SPDLOG_USE_STD_FORMAT ON)
-	set(SPDLOG_BUILD_EXAMPLE OFF)
-	set(SPDLOG_BUILD_TESTS OFF)
-	set(SPDLOG_INSTALL OFF)
-	FetchContent_Declare(
-	  spdlog
-	  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-	  GIT_TAG v1.17.0
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(spdlog)
-endblock()
 
 # Profiling (phase 2). Held at 0.13.1, two releases behind upstream's 0.15.0: Tracy's client and
 # profiler must speak the same protocol version, which changes between minor releases, and the

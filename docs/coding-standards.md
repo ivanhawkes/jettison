@@ -90,6 +90,8 @@ commented-out code.
   Neither has side effects in its condition.
 - A stub that cannot do its job fails loudly with `JETTISON_NOT_IMPLEMENTED()`. It never
   silently succeeds.
+- Reports go through `Log.h`: `Log(Severity::Warning, kCategory, "dock {} refused", id)`, with
+  one `constexpr Category` per module or subsystem. Not `std::cerr`, and never spdlog directly.
 
 ## Simulation code
 

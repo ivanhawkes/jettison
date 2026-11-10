@@ -19,7 +19,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | stb | master, 2026-11-10 (commit) | now | No releases |
 | yaml-cpp | 0.9.0 | now | |
 | fastgltf | v1.0.1 | now | Downloads its own simdjson 5.1.0 and simdutf |
-| spdlog | v1.17.0 | phase 2 | `SPDLOG_USE_STD_FORMAT` |
+| spdlog | v1.17.0 | now | `SPDLOG_USE_STD_FORMAT`; core links it |
 | doctest | v2.5.3 | now | Fetched in every tree, planned set or not |
 | Tracy | v0.13.1 | phase 2 | **Held back** from 0.15.0 to match devenv's profiler |
 | Vulkan Memory Allocator | v3.5.0 | phase 4 | |
