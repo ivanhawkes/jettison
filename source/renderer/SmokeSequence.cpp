@@ -50,7 +50,7 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 	// A resize that has arrived ends the resize stages early: the frames that follow it are the
 	// settle, and the next stage's action belongs in the frame after the settle, not in one of
 	// them.
-	if (frameResized && m_actionPending && m_stage <= 1)
+	if (frameResized && m_actionPending && m_stage <= 2)
 	{
 		++m_resizes;
 		m_actionPending = false;

@@ -15,6 +15,7 @@
 #  --build         Configure and build the preset before running (the default)
 #  --no-build      Skip configure/build; the tree must already contain source/test/test
 #  --llvmpipe      Pin the software Vulkan driver (lavapipe) for deterministic, GPU-free runs
+#  --werror        Configure the build with warnings treated as errors
 #  --icd PATH      Pin an explicit ICD manifest instead of lavapipe
 #  --xvfb          Force running under a virtual X server (default: only when DISPLAY is unset)
 #  --no-xvfb       Run on the current DISPLAY / compositor session
@@ -28,6 +29,7 @@ build_dir=""
 build=1
 icd=""
 software=0
+werror=()
 xvfb_mode="auto"
 screen="1280x720x24"
 
@@ -51,6 +53,10 @@ while [ "$#" -gt 0 ]; do
 		;;
 	--llvmpipe)
 		software=1
+		shift
+		;;
+	--werror)
+		werror=(-DJETTISON_WERROR=ON)
 		shift
 		;;
 	--icd)
@@ -85,7 +91,7 @@ done
 executable="$build_dir/source/test/test"
 
 if [ "$build" -eq 1 ]; then
-	cmake --preset "$preset" >/dev/null
+	cmake --preset "$preset" ${werror[@]+"${werror[@]}"} >/dev/null
 	cmake --build --preset "$preset" >/dev/null
 fi
 
@@ -100,6 +106,7 @@ if [ -n "$icd" ]; then
 	export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
 elif [ "$software" -eq 1 ]; then
 	candidates=(
+		"${JETTISON_LAVAPIPE_ICD:-}"
 		"${VK_DRIVER_FILES:-}"
 		"/etc/vulkan/icd.d/lvp_icd.x86_64.json"
 		"/usr/share/vulkan/icd.d/lvp_icd.x86_64.json"
@@ -168,9 +175,38 @@ trap cleanup EXIT INT TERM
 # "Validation Error: ..." on its own, and DeviceContext's messenger prints the same events
 # with a [vulkan:...] prefix. Keep the console output, keep the log, judge the run on the log.
 run_app() {
+	if grep -q '^CMAKE_BUILD_TYPE:STRING=Debug$' "$build_dir/CMakeCache.txt"; then
+		empty_layers="$(mktemp -d "${TMPDIR:-/tmp}/jettison-empty-layers.XXXXXX")"
+		startup_status=0
+		startup_output="$(env VK_LAYER_PATH="$empty_layers" "$@" 2>&1)" || startup_status=$?
+		rmdir "$empty_layers"
+		if [ "$startup_status" -ne 1 ] || [[ "$startup_output" != *"validation layers requested, but not available"* ]]; then
+			echo "smoke-test: failed startup did not exit cleanly (exit $startup_status)" >&2
+			printf '%s\n' "$startup_output" >&2
+			status=1
+			return
+		fi
+		echo "smoke-test: missing validation layer exits cleanly"
+		empty_assets="$(mktemp -d "${TMPDIR:-/tmp}/jettison-empty-assets.XXXXXX")"
+		startup_status=0
+		startup_output="$("$@" --assets "$empty_assets" --scene "$PWD/assets/scene/main.yaml" 2>&1)" || startup_status=$?
+		rmdir "$empty_assets"
+		if [ "$startup_status" -ne 1 ] || [[ "$startup_output" != *"failed to open file"* ]] ||
+			[[ "$startup_output" == *"[vulkan:error"* ]] || [[ "$startup_output" == *"Validation Error:"* ]]; then
+			echo "smoke-test: missing shader did not exit cleanly (exit $startup_status)" >&2
+			printf '%s\n' "$startup_output" >&2
+			status=1
+			return
+		fi
+		echo "smoke-test: missing shader exits without validation errors"
+	fi
 	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
-	"$@" 2>&1 | tee "$app_log"
-	status=${PIPESTATUS[0]}
+	if "$@" 2>&1 | tee "$app_log"; then
+		status=0
+	else
+		status=${PIPESTATUS[0]}
+		[ "$status" -ne 0 ] || status=1
+	fi
 }
 
 if [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ]; }; then
@@ -208,15 +244,13 @@ else
 fi
 
 # A run that renders, resizes and exits cleanly is not a run the layer is happy about. The
-# loader's own messages about duplicate layer manifests are environment, not this project, so
-# they are excluded: on NixOS the shell's Mesa and the system's /run/opengl-driver both ship
-# VK_LAYER_MESA_* manifests, and the loader reports removing the duplicate every start.
+# loader's messages about duplicate Mesa layer manifests are environment, not this project.
 issues=0
 if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
-	issues=$(grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -vc 'Loader Message' || true)
+	issues=$(grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -vc 'Loader Message: Removing layer VK_LAYER_MESA_.*because it is a duplicate of VK_LAYER_MESA_' || true)
 	if [ "${issues:-0}" -gt 0 ]; then
 		echo "smoke-test: FAIL (the validation layer reported $issues issue(s) in a run that exited $status)" >&2
-		grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -v 'Loader Message' | head -20 >&2
+		grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -v 'Loader Message: Removing layer VK_LAYER_MESA_.*because it is a duplicate of VK_LAYER_MESA_' | head -20 >&2
 		echo "smoke-test: full output in $app_log" >&2
 		status=1
 	elif [ -n "${VK_SMOKE_VERBOSE:-}" ]; then

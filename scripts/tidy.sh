@@ -53,7 +53,7 @@ if [ ! -x "$(command -v run-clang-tidy)" ]; then
 	exit 1
 fi
 
-args=(-p "$build_dir" -quiet)
+args=(-p "$build_dir" -quiet -j "${JETTISON_TIDY_JOBS:-2}")
 [ "$fix" -eq 1 ] && args+=(-fix)
 
 # Only our sources: the dependency tree is third-party code, not ours to lint.
@@ -63,6 +63,12 @@ set +e
 output="$(run-clang-tidy "${args[@]}" 'source/(renderer|flotsam|jetsam|test)/.*\.(cpp|h)$' 2>&1)"
 status=$?
 set -e
+
+if [ "$status" -ne 0 ]; then
+	printf '%s\n' "$output" >&2
+	echo "tidy: run-clang-tidy failed (exit $status)" >&2
+	exit "$status"
+fi
 
 diagnostics="$(printf '%s\n' "$output" | grep -E '^[^ ].*: warning:|^[^ ].*: error:' | grep -v 'clang-tidy' || true)"
 count=0

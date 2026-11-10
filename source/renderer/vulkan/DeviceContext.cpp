@@ -48,12 +48,24 @@ void DeviceContext::Init()
 
 void DeviceContext::Destroy()
 {
-	// The debug messenger came from the instance's pNext chain, so the loader destroys it
-	// with the instance; there is no messenger left to destroy here.
-	vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
-	vkDestroyDevice(m_logicalDevice, nullptr);
-	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-	vkDestroyInstance(m_instance, nullptr);
+	if (m_logicalDevice != VK_NULL_HANDLE)
+	{
+		vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
+		vkDestroyDevice(m_logicalDevice, nullptr);
+		m_logicalDevice = VK_NULL_HANDLE;
+	}
+	if (m_instance != VK_NULL_HANDLE)
+	{
+		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+		if (m_debugMessenger != VK_NULL_HANDLE)
+			m_pfnDestroyDebugUtilsMessenger(m_instance, m_debugMessenger, nullptr);
+		vkDestroyInstance(m_instance, nullptr);
+		m_instance = VK_NULL_HANDLE;
+	}
+	m_commandPool = VK_NULL_HANDLE;
+	m_surface = VK_NULL_HANDLE;
+	m_debugMessenger = VK_NULL_HANDLE;
+	m_pfnDestroyDebugUtilsMessenger = nullptr;
 	m_pfnSetDebugUtilsObjectName = nullptr;
 	m_pfnCmdBeginDebugLabel = nullptr;
 	m_pfnCmdEndDebugLabel = nullptr;
@@ -167,13 +179,20 @@ void DeviceContext::CreateInstance()
 	// is valid; the loader routes it to the device the object belongs to.
 	if (wantDebugUtils)
 	{
+		const auto createMessenger = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+		    vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT"));
+		m_pfnDestroyDebugUtilsMessenger = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+		    vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT"));
+		if (!createMessenger || !m_pfnDestroyDebugUtilsMessenger ||
+		    createMessenger(m_instance, &messengerInfo, nullptr, &m_debugMessenger) != VK_SUCCESS)
+			throw std::runtime_error("failed to create Vulkan debug messenger");
 		m_pfnSetDebugUtilsObjectName = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
 		    vkGetInstanceProcAddr(m_instance, "vkSetDebugUtilsObjectNameEXT"));
 		m_pfnCmdBeginDebugLabel = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(
 		    vkGetInstanceProcAddr(m_instance, "vkCmdBeginDebugUtilsLabelEXT"));
 		m_pfnCmdEndDebugLabel = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(
 		    vkGetInstanceProcAddr(m_instance, "vkCmdEndDebugUtilsLabelEXT"));
-		m_debugUtilsActive = m_pfnSetDebugUtilsObjectName != nullptr;
+		m_debugUtilsActive = true;
 	}
 }
 

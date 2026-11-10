@@ -226,7 +226,7 @@ bool Renderer::Present(ImGuiRenderer &imguiRenderer)
 	// with the frame slot untouched, because nothing was queued; the frame has been queued here,
 	// so the slot is spent whether or not the swapchain survives the present, and it moves.
 	const bool outOfDate = result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized();
-	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && !outOfDate)
+	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)
 		throw std::runtime_error("failed to present swap chain image");
 
 	m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;

@@ -45,6 +45,7 @@ echo "==> format gate (.clang-format, clang-format $(clang-format --version | aw
 echo "==> configure + build: $preset"
 cmake --preset "$preset" ${werror[@]+"${werror[@]}"}
 cmake --build --preset "$preset"
+"build/$preset/source/test/smoke_sequence_test"
 
 if [ "$tidy" -eq 1 ]; then
 	echo "==> clang-tidy (.clang-tidy, $preset database)"
@@ -61,14 +62,14 @@ fi
 
 if [ "$smoke" -eq 1 ]; then
 	echo "==> smoke test: $headless_preset (X11 GLFW build, virtual display)"
-	./scripts/smoke-test.sh --preset "$headless_preset" --build ${software[@]+"${software[@]}"}
+	./scripts/smoke-test.sh --preset "$headless_preset" --build --xvfb ${software[@]+"${software[@]}"} ${werror[@]+--werror}
 else
 	echo "==> smoke test: skipped (--skip-smoke)"
 fi
 
 if [ "$asan" -eq 1 ]; then
 	echo "==> smoke test: clang-asan (address + undefined sanitizers)"
-	./scripts/smoke-test.sh --preset clang-asan --build ${software[@]+"${software[@]}"}
+	./scripts/smoke-test.sh --preset clang-asan --build --xvfb ${software[@]+"${software[@]}"} ${werror[@]+--werror}
 fi
 
 echo "==> gate passed"

@@ -58,9 +58,10 @@ backend enabled as well, which is the tree the headless render test uses).
 
 ## Gates
 
-`scripts/ci.sh` is the gate, and everything runs it: the worktrunk `pre-commit` hook checks
-formatting, `pre-merge` runs `./scripts/ci.sh --skip-release --werror --llvmpipe`, and
-`.github/workflows/ci.yml` runs `./scripts/ci.sh --llvmpipe --werror` on every push.
+`scripts/ci.sh` is the gate: the worktrunk `pre-commit` hook checks formatting, `pre-merge`
+runs `./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml`
+runs `./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell on selected branches
+and pull requests.
 
 ```bash
 ./scripts/format-check.sh      # clang-format >= 20 gate over the tracked sources
@@ -139,13 +140,14 @@ messages about duplicate `VK_LAYER_MESA_*` manifests are excluded as the machine
 
 It needs the X11 development libraries for GLFW (the `devenv.nix` shell installs them; on
 Debian: `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev`), an
-X server to run on (`Xvfb` from `xorg.xorgserver`, or `xvfb-run` when installed), and a
+X server to run on (`Xvfb` from `xorgserver`, or `xvfb-run` when installed), and a
 Vulkan driver. With `--llvmpipe` it selects Mesa's software implementation; without it the
 machine's own driver is used. The debug build always requests `VK_LAYER_KHRONOS_validation`,
 so validation layers must be available (devenv exports `VK_LAYER_PATH` for them).
 
-CI installs LLVM 21, the Vulkan SDK, Mesa's lavapipe and Xvfb on an Ubuntu runner and calls
-the same script, so a local `./scripts/ci.sh --llvmpipe` is a faithful rehearsal of the build.
+CI installs Nix and uses the public devenv binary cache on an Ubuntu runner, then runs the same
+locked shell and script. The updated workflow still needs a GitHub run to verify runner disk
+usage and cache coverage; see `.github/CI-NOTES.md`.
 
 ## App shell
 
@@ -154,9 +156,8 @@ the same script, so a local `./scripts/ci.sh --llvmpipe` is a faithful rehearsal
 `--assets`, `--scene`, `--save-scene`), builds `Application`, and prints the exception a run
 threw. Everything that has a lifetime is in the shell.
 
-`Application` is the lifecycle. `Init` builds the subsystems in dependency order, one named
-stage each - window, device and swapchain, scene, pipeline, UI, renderer - so a start-up that
-fails says which stage failed. The frame loop is `RunFrameLoop`, and one frame of it is
+`Application` is the lifecycle. `Init` builds the subsystems in dependency order: window,
+device and swapchain, scene, pipeline, UI, renderer. The frame loop is `RunFrameLoop`, and one frame of it is
 `Tick`: events, hot keys, UI, render. `Shutdown` destroys in the reverse order, idempotent and
 `noexcept`, so the loop can call it and `~Application` can call it again. Nothing in this tree
 has a destructor of its own: every Vulkan object is released by a `Destroy()` call, so that
@@ -179,11 +180,11 @@ means the gate above covers it, with the commit that did it in the history.
 | # | Work | State |
 |---|---|---|
 | 1 | Repository hygiene: the abandoned submodule stores, Git LFS for binary assets, `.gitattributes` | done |
-| 2 | Truthful gates: the format gate, the worktrunk hooks, `scripts/ci.sh`, the headless render test | done |
+| 2 | Truthful gates: the format gate, the worktrunk hooks, `scripts/ci.sh`, the headless render test | local gate passes; GitHub run pending |
 | 3 | Delete what the build does not need: the ImGui sample program, `RenderPass`, `ImGuiPipeline`, 667 lines | done |
 | 4 | Diagnostics: a measured warning set that survives `-Werror`, a curated clang-tidy set, an ASan/UBSan preset | done |
 | 5 | GPU lifetime: `VK_EXT_debug_utils` with named objects, scene-reload invalidation, the extent clamp, pool sizing derived from what is allocated | done |
-| 6 | App shell: the lifecycle, the staged init, the frame loop and the smoke sequence, split out of `Loop`'s 200 lines | done |
+| 6 | App shell: the lifecycle, the staged init, the frame loop and the smoke sequence, split out of `Loop`'s 200 lines | implemented; partial-startup failure coverage incomplete |
 | 7 | Maintenance: GLM 0.9.9.8 → 1.0.1 with its configuration moved to the `glm` target, the swapchain-recreate TODOs on the command pool in `DeviceContext.cpp` and `Pipeline.cpp`, the animation phase out of authored scene state | done |
 | 8 | What row 7 found: `Renderer::Present()` is an empty stub nothing calls (the `vkQueuePresentKHR` is inline in `Render`), `Scene::Save` writes animation for an entity with no mesh that `Scene::Load` refuses | done |
 

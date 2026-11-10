@@ -65,7 +65,7 @@ class DeviceContext
 
 	VkResult WaitIdle()
 	{
-		return vkDeviceWaitIdle(m_logicalDevice);
+		return m_logicalDevice != VK_NULL_HANDLE ? vkDeviceWaitIdle(m_logicalDevice) : VK_SUCCESS;
 	}
 
 	// Names a Vulkan object for the validation layer and debug tools. A validation message
@@ -269,12 +269,6 @@ class DeviceContext
 
 	bool HasInstanceExtension(const char *name) const;
 
-	// The messenger and the name-setter are resolved through the loader instead of linked:
-	// VK_EXT_debug_utils predates this project's Vulkan 1.0 target, its entry points are only
-	// exported by newer loaders, and a build that cannot find them has to carry on without
-	// names, not fail to link. The messenger is created through the instance's pNext, so it
-	// reports during instance and device creation, and the loader destroys it with the
-	// instance.
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(
 	    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
 	    const VkDebugUtilsMessengerCallbackDataEXT *pData, void *pUserData);
@@ -311,12 +305,8 @@ class DeviceContext
 
 	VkCommandPool m_commandPool{VK_NULL_HANDLE};
 
-	// The name-setter is resolved through the loader instead of linked: VK_EXT_debug_utils
-	// predates this project's Vulkan 1.0 target and its entry points are only exported by
-	// newer loaders, so a build on an older one has to carry on without names, not fail to
-	// link. The messenger needs no handle and no pointer of its own: it arrives through the
-	// instance's pNext chain, which reports during instance and device creation, and the
-	// loader destroys it with the instance.
+	VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
+	PFN_vkDestroyDebugUtilsMessengerEXT m_pfnDestroyDebugUtilsMessenger{nullptr};
 	PFN_vkSetDebugUtilsObjectNameEXT m_pfnSetDebugUtilsObjectName{nullptr};
 	PFN_vkCmdBeginDebugUtilsLabelEXT m_pfnCmdBeginDebugLabel{nullptr};
 	PFN_vkCmdEndDebugUtilsLabelEXT m_pfnCmdEndDebugLabel{nullptr};

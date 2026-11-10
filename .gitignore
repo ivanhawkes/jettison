@@ -26,3 +26,4 @@ imgui.ini
 
 # clangd index
 .cache/
+.env

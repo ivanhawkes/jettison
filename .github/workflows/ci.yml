@@ -1,27 +1,5 @@
 name: ci
 
-# The gate lives in scripts/ci.sh, so './scripts/ci.sh --llvmpipe' locally is the same run.
-# See .github/CI-NOTES.md for the verified runner facts and the path to devenv parity.
-#
-# This workflow mirrors the devenv toolchain on an Ubuntu runner; it is not the devenv
-# shell. Running CI inside devenv was tried and failed: devenv.yaml pins
-# github:cachix/devenv-nixpkgs/rolling, whose builds are not in cache.nix.org, so the
-# runner built LLVM, boost, node and friends from source and ran out of disk. Doing it
-# properly needs a binary cache of the dev shell (Cachix) plus a trimmed shell; see the
-# roadmap. Until then CI proves the gate, not byte-for-byte environment parity.
-#
-# What is installed, and why it is trustworthy rather than guessed:
-#   clang / clang++ / clang-format 21  apt.llvm.org llvm-toolchain-noble-21 (Release 200)
-#   cmake, ninja, X11 and Wayland dev   Ubuntu 24.04 packages
-#   validation layers                   Ubuntu package vulkan-validationlayers (older than
-#                                       the 1.4.363 in devenv; the debug build only needs
-#                                       VK_LAYER_KHRONOS_validation to exist)
-#   lavapipe, Xvfb                      mesa-vulkan-drivers, xvfb
-#   glslc                               nixpkgs shaderc, the one tool Ubuntu 24.04 does not
-#                                       package (glslang-tools ships glslangValidator only).
-#                                       Substituted in seconds, and v2026.1 is the same
-#                                       shaderc release the devenv shell ships.
-
 on:
   push:
     branches:
@@ -41,110 +19,35 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 2
+      JETTISON_TIDY_JOBS: 2
 
     steps:
-      # Assets are Git LFS objects and the render test loads them, so fetch them properly.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Restore nix substitute cache
-        uses: actions/cache@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
         with:
-          path: ~/.cache/nix
-          key: nix-shaderc
-          restore-keys: |
-            nix-
+          extra_nix_config: |
+            max-jobs = 2
 
-      - name: Nix (for glslc only)
-        uses: cachix/install-nix-action@v30
+      - name: Enable devenv binary cache
+        uses: cachix/cachix-action@v17
+        with:
+          name: devenv
+          skipPush: true
 
-      - name: glslc from nixpkgs shaderc
-        run: |
-          set -euo pipefail
-          nix profile install nixpkgs#shaderc
-          command -v glslc
-          glslc --version | head -2
-
-      - name: System packages
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build git pkg-config ca-certificates wget \
-            libwayland-dev libwayland-bin libxkbcommon-dev libffi-dev \
-            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev \
-            libxi-dev libxrender-dev libxfixes-dev \
-            libvulkan-dev vulkan-validationlayers \
-            mesa-vulkan-drivers xvfb vulkan-tools libegl1 libgl1
-        # libwayland-bin provides wayland-scanner; libxrender-dev and libxfixes-dev are
-        # needed by GLFW's X11 backend, which the clang-headless preset builds;
-        # mesa-vulkan-drivers provides lavapipe, which scripts/ci.sh --llvmpipe pins so
-        # the render test never needs a GPU.
-
-      - name: LLVM 21 (clang, clang-format)
-        run: |
-          set -euo pipefail
-          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          # llvm.sh installs llvm, clang, lld, lldb and clang-tools, but the Packages index
-          # for llvm-toolchain-noble-21 ships clang-format-21 and clang-tidy-21 as separate
-          # packages (clang-tools-21 contains neither binary), so name them.
-          sudo apt-get install -y clang-format-21 clang-tidy-21
-          # The runner image registers Ubuntu's clang-18 alternatives, and at a higher
-          # priority than a plain --install wins auto mode, so use a priority above it and
-          # --set the selection explicitly. Note the compiler binaries are clang-21 and
-          # clang++-21: registering clang++ against clang-21 would not resolve.
-          for group in clang clang++ clang-format clang-tidy; do
-            sudo update-alternatives --install "/usr/bin/$group" "$group" \
-              "/usr/bin/$group-21" 21000
-            sudo update-alternatives --set "$group" "/usr/bin/$group-21"
-          done
-          clang --version
-          clang++ --version
-          clang-format --version
-          clang-tidy --version
-
-      # Fail here, with a message naming what is missing, rather than inside CMake or
-      # deep in device creation.
-      - name: Check tooling
-        run: |
-          set -euo pipefail
-          command -v glslc cmake ninja clang clang-format clang-tidy
-          # Assert the major versions, not just presence: the format gate needs
-          # clang-format 20+ (the string form of BinPackParameters in .clang-format), and
-          # the build wants clang 21, the same major devenv ships.
-          clang --version | grep -E "version 21"
-          clang++ --version | grep -E "version 21"
-          clang-format --version | grep -E "version 21"
-          clang-tidy --version | grep -E "version 21"
-          ls /usr/include/vulkan/vulkan.h
-          # Print the runner's Vulkan layout before asserting on it: the image ships Mesa
-          # preinstalled, and a bare exit 1 from a test -f taught me nothing about why.
-          dpkg -l 'mesa-vulkan-drivers*' 2>/dev/null | tail -n +4 || true
-          for dir in /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/share/vulkan/explicit_layer.d; do
-            if [ -d "$dir" ]; then
-              echo "== $dir"
-              ls -l "$dir"
-            fi
-          done
-          layer="$(find /usr/share/vulkan /etc/vulkan -iname '*khronos_validation.json' 2>/dev/null | head -1 || true)"
-          if [ -z "$layer" ]; then
-            echo "No VK_LAYER_KHRONOS_validation manifest: install vulkan-validationlayers" >&2
-            exit 1
-          fi
-          echo "validation layer: $layer"
-          icd="$(find /usr/share/vulkan /etc/vulkan -name 'lvp_icd*.json' 2>/dev/null | head -1 || true)"
-          if [ -z "$icd" ]; then
-            echo "No lavapipe ICD: install mesa-vulkan-drivers (provides lvp_icd.x86_64.json)" >&2
-            exit 1
-          fi
-          echo "lavapipe ICD: $icd"
+      - name: Install devenv
+        run: nix profile add github:cachix/devenv/v2.4.0
 
       - name: Gate (format, build, headless render test)
         shell: bash -euo pipefail {0}
-        run: ./scripts/ci.sh --llvmpipe --werror 2>&1 | tee ci.log
+        run: devenv shell -- ./scripts/ci.sh --llvmpipe --werror 2>&1 | tee ci.log
 
       - name: Upload gate log
         if: always()

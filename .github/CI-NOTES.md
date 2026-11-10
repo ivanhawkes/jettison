@@ -1,61 +1,25 @@
 # CI notes
 
-Status: **not green.** `./scripts/ci.sh --llvmpipe` passes locally in about a minute. On
-GitHub the workflow got as far as a real CMake configure and stopped at the asset defect
-described below; the fix is pushed, nothing has run since. Picking this up means pushing
-a commit and reading the first build failure.
+Status: the gate passes locally inside the locked devenv shell. The updated GitHub workflow
+has not yet run; the latest recorded run failed while compiling ImGui's GLFW backend because
+`GL/gl.h` was missing. The ImGui target now defines `GLFW_INCLUDE_NONE`, since it uses Vulkan
+and does not need GLFW to include OpenGL headers.
 
-## Verified facts about the Ubuntu 24.04 runner
-These cost several runs to establish. They are all checked, not guessed.
+## GitHub environment
 
-* `apt.llvm.org` serves `llvm-toolchain-noble-21` (its `Release` answers 200). `llvm.sh 21`
-  installs llvm, clang, lld, lldb, clang-tools, dev packages.
-* `clang-format-21` and `clang-tidy-21` are **separate packages** that `llvm.sh` does not
-  install. `clang-tools-21` contains neither binary. `update-alternatives` then fails on a
-  path that does not exist.
-* The runner image registers Ubuntu's **clang-18** alternatives at a higher priority, so
-  `--install … 21 100` loses auto mode: `clang-format` keeps reporting 18 and the build
-  silently gets clang 18. Use a priority above the distro's and `--set` each group
-  explicitly, and assert `version 21` on clang, clang++, clang-format and clang-tidy.
-  The compiler binaries are `clang-21` and `clang++-21`; registering the `clang++` group
-  against `clang-21` hands out a C compiler.
-* Ubuntu 24.04 has **no package providing `glslc`**. `glslang-tools` ships `glslang`,
-  `glslangValidator` and `spirv-remap` only, and the project's
-  `find_package(Vulkan REQUIRED COMPONENTS glslc)` needs the name. `nix profile install
-  nixpkgs#shaderc` substitutes shaderc 2026.1 in seconds, which is the same release the
-  devenv shell ships.
-* Spelling: the validation layers package is `vulkan-validationlayers`, not
-  `vulkan-validation-layers`. `wayland-scanner` ships in `libwayland-bin`. `vulkan-headers`
-  has no installation candidate; `libvulkan-dev` carries `vulkan/vulkan.h`. GLFW's X11
-  backend needs `libxrender-dev` and `libxfixes-dev` as well as the usual X11 packages.
-* `mesa-vulkan-drivers` is preinstalled on the image, so apt says nothing about it. Its
-  manifest is `/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`. Assert with `find`, and print
-  the directory listing on failure: a bare `test -f` exit 1 taught nothing.
-* The official devenv GitHub action no longer exists: `cachix/devenv-action` has no refs,
-  only zero-star forks. `github:cachix/devenv/v2.4.0` installs and evaluates in about
-  four minutes.
+The workflow follows the [devenv GitHub Actions guide](https://devenv.sh/integrations/github-actions/):
+install Nix on Ubuntu, enable the public `devenv` Cachix cache, install devenv 2.4.0, and run
+the gate in the shell described by `devenv.nix` and `devenv.lock`. It does not install NixOS
+or duplicate the toolchain with apt packages. LFS checkout supplies the render assets.
 
-## Why CI is not the devenv shell
-Running the gate inside devenv was tried and failed: `devenv.yaml` pins
-`github:cachix/devenv-nixpkgs/rolling`, whose builds are not in cache.nix.org, so the
-runner compiled LLVM, boost, node and the rest from source and exhausted the disk
-(`error: writing to file: No space left on device`). So CI mirrors the toolchain from
-Ubuntu packages plus nixpkgs shaderc, which is stated in the workflow header.
-
-Proper parity, when it is worth doing:
-
-1. Trim `packages` in `devenv.nix` to the C++ essentials (drop `nodejs_24`, `pnpm`, `go`,
-   the Python interpreter and `pyProjectDir`, `pi-coding-agent`, and decide on `gdb` and
-   `lldb`). The gate needs clang, clang-tools, cmake, ninja, git, git-lfs, vulkan-loader,
-   vulkan-headers, vulkan-validation-layers, vulkan-extension-layer, shaderc, mesa.drivers,
-   wayland, libxkbcommon, the X11 development libraries, `xorg.xorgserver` for Xvfb.
-2. Add a binary cache (`cachix: ["<name>"]` in `devenv.yaml`, `CACHIX_AUTH_TOKEN` as a
-   repository secret) and push one copy of the dev shell from a development machine.
-3. Then the workflow becomes: checkout with `lfs: true`, `cachix/install-nix-action`,
-   install devenv from `github:cachix/devenv/v2.4.0`, `devenv shell './scripts/ci.sh
-   --llvmpipe --werror' 2>&1 | tee ci.log`, upload the log. Note the CLI: devenv 2.4 takes
-   the command as an argument to `devenv shell`, not as a `-c` option. That run needs no
-   apt at all.
+An earlier attempt exhausted runner disk while building LLVM and other dependencies from
+source. The [devenv cache documentation](https://devenv.sh/binary-caching/) explains that a
+multi-user Nix daemon can silently ignore substituters from an untrusted user; the public
+devenv cache is designed for the pinned rolling input. The Nix action trusts the runner user,
+and the Cachix action configures that cache explicitly. No cache token is required to read it.
+Cache coverage and available runner disk still need confirmation in an actual GitHub run; an
+uncached derivation can still require a large build. CMake, clang-tidy and Nix parallelism are
+bounded to limit memory pressure.
 
 ## Defects the gate found on CI, and fixed
 * `assets/CMakeLists.txt` copied `assets/textures`, which no fresh clone has: Git cannot
@@ -85,12 +49,11 @@ backends compiled in, a run that uses X11 still loads libwayland, and LeakSaniti
 192 bytes in two allocations, every frame in libwayland-client 1.26.0 at disconnect. And
 GLFW dlopens the X11 libraries, so the shell running the test needs libX11, libxcb, libXau,
 libXdmcp, libXext, libXrandr, libXcursor, libXinerama, libXi, libxkbcommon and
-libpthreadstubs on `LD_LIBRARY_PATH`. `devenv.nix` builds that list in `enterShell` with
+  libpthreadstubs on `LD_LIBRARY_PATH`. `devenv.nix` builds that list in `enterShell` with
 `lib.makeLibraryPath`, because a Nix shell does not put package libraries anywhere on its
 own; a shell that predates the list fails with `X11: Failed to load Xlib`, and
 `scripts/smoke-test.sh` now says so plainly, naming the library and the variable, because
-GLFW's message does not mention the shell at all. On a GitHub runner the libraries come
-from apt, so nothing extra is needed there.
+  GLFW's message does not mention the shell at all. GitHub uses the same shell and library list.
 
 
 ## What the render test asserts, and what it costs
@@ -99,9 +62,9 @@ The run is judged on the validation layer's output, not only on exit status: the
 loads `VK_KHRONOS_validation`, `DeviceContext` installs a `VK_EXT_debug_utils` messenger, and
 `scripts/smoke-test.sh` fails the run when the stream contains a validation error. Two lines
 are excluded as the machine talking: the loader's reports about duplicate `VK_LAYER_MESA_*`
-manifests. On NixOS that is the shell's Mesa against `/run/opengl-driver`; on a runner the
-same class of message comes from apt's layer manifests, so the exclusion is written for the
-class, not for one host. The entry points are resolved through `vkGetInstanceProcAddr`, so a
+manifests. On NixOS that is the shell's Mesa against `/run/opengl-driver`; the exclusion
+matches only duplicate Mesa layer messages. The entry points are resolved through
+`vkGetInstanceProcAddr`, so a
 loader without them costs names, not a link failure.
 
 The sequence is six stages (resize, resize, minimize, restore, scene reload, settle), four

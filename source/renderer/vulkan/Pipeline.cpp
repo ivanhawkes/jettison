@@ -120,9 +120,10 @@ void Pipeline::Destroy()
 	}
 
 	// Command pool.
-	vkFreeCommandBuffers(
-	    m_pDeviceContext->GetLogicalDevice(), m_pDeviceContext->GetCommandPool(),
-	    static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
+	if (!m_commandBuffers.empty())
+		vkFreeCommandBuffers(
+		    m_pDeviceContext->GetLogicalDevice(), m_pDeviceContext->GetCommandPool(),
+		    static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
 	// The handles are freed, so the vector holding them is emptied: CreateCommandBuffers fills a
 	// fresh one sized to the swapchain that replaced this one, and a recreate that changed the
 	// image count must not be able to read a size off a list of handles that are gone.

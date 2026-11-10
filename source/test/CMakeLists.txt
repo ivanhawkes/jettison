@@ -10,6 +10,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(test main.cpp)
 jettison_use_shared_assets(test)
 
+add_executable(smoke_sequence_test smoke_sequence_test.cpp)
+target_link_libraries(smoke_sequence_test PRIVATE Renderer jettison_warnings)
+
 # Move the targets into a solution folder.
 set_property(TARGET test PROPERTY FOLDER "Test")
 

@@ -94,6 +94,10 @@ void Application::InitVulkan()
 {
 	m_pDeviceContext = std::make_shared<DeviceContext>(m_pWindow);
 	m_pDeviceContext->Init();
+#ifndef NDEBUG
+	if (m_arguments.smokeTest && !m_pDeviceContext->DebugUtilsActive())
+		throw std::runtime_error("Vulkan debug messenger is required for the smoke test");
+#endif
 	m_pSwapchain = std::make_shared<Swapchain>(m_pDeviceContext);
 	m_pSwapchain->Init();
 }

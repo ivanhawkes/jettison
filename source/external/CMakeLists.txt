@@ -91,6 +91,7 @@ target_include_directories(imgui SYSTEM PUBLIC
   "${imgui_SOURCE_DIR}"
   "${imgui_SOURCE_DIR}/backends"
 )
+target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 FetchContent_Declare(
