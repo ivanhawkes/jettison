@@ -6,8 +6,9 @@ built; the [roadmap](roadmap.md) says in what order.
 
 ## Repository layout
 
-The target layout. Phase 1 of the roadmap moves the existing code into it and stubs every
-in-scope module; nothing below `engine/` other than the moved code exists before then.
+The target layout. Phase 1 of the roadmap moved the existing code into it (`core`, `animation`,
+`render`, `app`, the executables under `tools/` and `samples/`) and stubs every other in-scope
+module.
 
 ```
 jettison/
@@ -64,9 +65,26 @@ engine/<module>/
 ```
 
 Each module is a static library `jettison_<module>`, aliased `Jettison::<Module>`, in namespace
-`Jettison::<Module>`. Today one `Renderer` library holds the shell, the scene and the backend
-under `Jettison::Renderer`, with flat includes (`#include <RenderApplication.h>`). Phase 1
-splits it along the lines above.
+`Jettison::<Module>`, made by `jettison_add_module` (`cmake/JettisonModule.cmake`). The helper
+refuses a `DEPENDS` edge on a module that has not been added yet, so the order of
+`add_subdirectory` calls in `source/engine/CMakeLists.txt` is the dependency graph's topological
+order, and an upward or sideways edge fails the configure rather than linking quietly.
+
+### Parked code
+
+Phase 1 moved code without changing what it does, and two things landed somewhere other than
+their final home:
+
+- **The scene graph is in `render`**, not `scene`. `Scene` loads models through the device,
+  waits on it before destroying them, and hands `Model` pointers to the renderer, while the
+  renderer reads the camera and light components back out of the scene registry. That is a
+  cycle, and putting the scene below `render` means inventing the seams (an injected model
+  loader, a forward-declared model) that phase 3's resource manager replaces anyway. The scene
+  format and its round-trip test stay in `render` until phase 3 gives the scene handles instead
+  of pointers; phase 6 then builds the per-system scene in `engine/scene`.
+- **`render` depends on `animation`**, a sibling in its tier. The glTF loader fills an
+  `Animation::Rig` (nodes, skin joints, clips), and the scene update system drives the rig's
+  clip player. The edge points the right way: animation knows nothing about the device.
 
 The executables keep the names they already have: **Flotsam** is the editor, **Jetsam** is the
 runtime, now a sample viewer because the game has its own repository, and **render_test** is
@@ -104,7 +122,8 @@ flowchart TB
         sim; celestial; spatial; scene; input
     end
     subgraph T4[Presentation and simulation services]
-        render; animation; physics; audio; ui; ai; script
+        render --> animation
+        physics; audio; ui; ai; script
     end
     subgraph T5[Shell]
         app
@@ -204,8 +223,8 @@ handles carrying a generation, which retires that hazard class.
 The engine runs today. It renders a glTF scene through Vulkan with validation, and the gate
 proves it headlessly. What exists:
 
-- **App shell** (`source/renderer`). `RunRenderApplication` is the entry point Flotsam,
-  Jetsam and test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
+- **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
+  Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
   `--scene`, `--save-scene`), builds `Application`, and prints any exception the run threw.
   `Application::Init` stages are window, device and swapchain, scene, pipeline, UI, renderer.
   `RunFrameLoop` runs `Tick` (events, hot keys, UI, render) until close.
@@ -213,14 +232,19 @@ proves it headlessly. What exists:
   minimize, restore, scene reload, settle) as a state machine driven once per frame through
   five callbacks. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
-- **Scene** (`Scene.h`). An EnTT registry loaded from and saved to YAML
-  (`assets/scene/main.yaml`). It has transform, parent, world-transform, camera, light, mesh,
-  rotation-animation, skeleton and animation-player components. Authored state and runtime
-  phase are kept apart: `RotationAnimationComponent::angle` and `AnimationPlayerComponent::time`
-  are never saved.
-- **Vulkan backend** (`source/renderer/vulkan`). `DeviceContext` holds the instance, device,
+- **Scene** (`engine/render`, see [parked code](#parked-code)). An EnTT registry loaded from
+  and saved to YAML (`assets/scene/main.yaml`). It has transform, parent, world-transform,
+  camera, light and mesh components, and the animation module's rotation-animation, skeleton
+  and animation-player components. Authored state and runtime phase are kept apart:
+  `RotationAnimationComponent::angle` and `AnimationPlayerComponent::time` are never saved, and
+  the render suite's round-trip test holds the writer and the loader to that.
+- **Animation** (`engine/animation`). `Rig` is a model's node hierarchy, skin joints and clips,
+  with the clip player (`EvaluateSkin`) that used to be inside `Model`; `Playback.h` advances
+  the rotation and clip-player components. Nothing in it touches the device, so it is tested
+  without one.
+- **Vulkan backend** (`engine/render/.../vulkan`). `DeviceContext` holds the instance, device,
   debug-utils messenger and object names. Then `Swapchain`, `Pipeline` (one graphics pipeline,
   descriptor pools sized from what is allocated), `Renderer` (acquire, record, submit, then
-  `Present`), and `Model` (fastgltf loading, skinning, clip evaluation). There is one
+  `Present`), and `Model` (fastgltf loading of vertices, primitives and the rig). There is one
   vertex/fragment shader pair.
 - **ImGui** for a demo window, toggled with F1.

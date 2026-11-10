@@ -28,14 +28,11 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
 # The engine modules.
 add_subdirectory("engine")
 
-# Shared rendering library.
-add_subdirectory("renderer")
+# The editor.
+add_subdirectory("tools/flotsam")
 
-# Sandbox editor.
-add_subdirectory("flotsam")
+# The runtime viewer: the engine with no game.
+add_subdirectory("samples/jetsam")
 
-# Runtime.
-add_subdirectory("jetsam")
-
-# Mucking about.
+# The render smoke harness and the dependency probe.
 add_subdirectory("test")

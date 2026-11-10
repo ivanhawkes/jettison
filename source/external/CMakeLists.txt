@@ -123,8 +123,9 @@ target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 # stb has no releases; this is the head of master on 2026-11-10. The image implementation is
-# compiled once, in source/renderer/vulkan/Pipeline.cpp: nothing else in the set compiles an
-# stb implementation (KTX-Software carries a copy of the headers on a private include path).
+# compiled once, in source/engine/render/src/vulkan/Pipeline.cpp: nothing else in the set
+# compiles an stb implementation (KTX-Software carries a copy of the headers on a private include
+# path).
 FetchContent_Declare(
   stb
   GIT_REPOSITORY https://github.com/nothings/stb.git

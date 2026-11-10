@@ -170,6 +170,28 @@ renderer interface the rest of the engine sees, with Vulkan types kept inside
 `render/vulkan`. Fills `IRenderer.h`, an empty placeholder today.
 *Library*: Vulkan Memory Allocator.
 
+#### Shaders · phases 4, 5 and 10
+
+Today there is one vertex/fragment pair (`shader.vert`, `shader.frag`), loaded by name in
+`Pipeline::CreateGraphicsPipeline`, and one graphics pipeline built from it. The engine needs a
+set of them, so the pipeline stops being singular before the second shader arrives:
+
+- **Phase 4** turns the one pipeline into pipelines keyed by shader and render state, created from
+  the declared pass list. Shader programs are found by name through the asset tree (the VFS from
+  phase 3), compiled by `jettison_compile_shaders`, which already takes a list. Shared GLSL
+  (the frame UBO layout, the vertex inputs, colour-space helpers) moves into include files that
+  every program uses, so the layout the C++ side asserts (`sizeof(FrameUBO)`) has one source.
+  The first new programs are the debug-draw lines and a fullscreen pass for the HDR resolve.
+- **Phase 5** adds the shaded set: the **metallic-roughness BRDF** (glTF's PBR model: GGX
+  distribution, Smith geometry, Schlick Fresnel, image-based lighting from a prefiltered
+  environment and a BRDF lookup table), an unlit/emissive program, the skybox, shadow depth for
+  the sun cascades, and tonemapping. A material names its program and supplies its parameters
+  and texture slots (entry 19), so adding a program is data plus GLSL, not a new code path.
+- **Phase 10** adds atmosphere, planet surface, particle and glass programs on the same terms.
+
+Shader variants (skinned and static, alpha-masked and opaque) are compile-time defines on one
+source, not copies of it. Hot reload of shaders arrives with the resource manager's hot reload.
+
 ### 18. Cameras · phase 4 · `engine/render`
 
 Orbit (stations, planets), chase and cockpit (piloting), map (system and galaxy, logarithmic
@@ -238,9 +260,10 @@ deterministic.
 
 ### 27. Animation · phases 1 and 10 · `engine/animation`
 
-Phase 1 moves the glTF clip player and the rotation animation out of `Model` and `Scene` into
-this module, unchanged. Phase 10 generalises it to keyframed TRS tracks on any node and adds
-clip events (for example, "clamp closed" triggering a sound).
+Phase 1 moved the glTF clip player and the rotation animation out of `Model` and `Scene` into
+this module as `Rig`, `Components.h` and `Playback.h`, unchanged in behaviour. Phase 10
+generalises it to keyframed TRS tracks on any node and adds clip events (for example, "clamp
+closed" triggering a sound).
 
 ### 28. Presentation polish · phase 10 · `engine/render`
 

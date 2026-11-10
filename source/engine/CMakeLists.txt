@@ -3,3 +3,11 @@
 
 # Foundation.
 add_subdirectory(core)
+
+# Presentation and simulation services. render depends on its sibling animation: the model loader
+# fills an animation rig, and the scene systems drive the clip player.
+add_subdirectory(animation)
+add_subdirectory(render)
+
+# Shell.
+add_subdirectory(app)

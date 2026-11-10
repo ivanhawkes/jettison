@@ -1,7 +1,7 @@
 // Every third-party library the engine has, or plans to have, linked into one executable with the
-// engine's own Renderer library, each called at least once. A duplicate symbol, two copies of one
-// library, a definition two libraries disagree about, or a dependency that does not survive the
-// project's warnings fails here, in the gate, instead of in the phase that first links it.
+// engine, each called at least once. A duplicate symbol, two copies of one library, a definition
+// two libraries disagree about, or a dependency that does not survive the project's warnings fails
+// here, in the gate, instead of in the phase that first links it.
 // source/external/CMakeLists.txt says why each library is configured the way it is.
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -44,7 +44,7 @@
 #include <string_view>
 #include <type_traits>
 
-#include "vulkan/Model.h"
+#include <jettison/render/vulkan/Model.h>
 
 #ifndef SPDLOG_USE_STD_FORMAT
 #error "spdlog must format with std::format: the executable carries one formatting library"
@@ -52,8 +52,8 @@
 
 TEST_CASE("GLM: the geometry ABI the shaders and buffers agree on")
 {
-	static_assert(sizeof(Jettison::Renderer::Vertex) == 108);
-	static_assert(sizeof(Jettison::Renderer::FrameUBO) == 192);
+	static_assert(sizeof(Jettison::Render::Vertex) == 108);
+	static_assert(sizeof(Jettison::Render::FrameUBO) == 192);
 	static_assert(sizeof(glm::vec3) == 12 && alignof(glm::vec3) == 4);
 
 	// The zero-to-one depth range the viewport is set up for (GLM_FORCE_DEPTH_ZERO_TO_ONE).
@@ -86,7 +86,7 @@ TEST_CASE("GLFW and Dear ImGui")
 	ImGui::DestroyContext(context);
 }
 
-TEST_CASE("stb_image: the one implementation, compiled in Renderer")
+TEST_CASE("stb_image: the one implementation, compiled in the render module")
 {
 	const std::array<stbi_uc, 4> notAnImage{0, 1, 2, 3};
 	int width = 0;

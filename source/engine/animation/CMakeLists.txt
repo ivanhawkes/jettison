@@ -1,0 +1,13 @@
+jettison_add_module(animation
+	HEADERS
+		include/jettison/animation/Components.h
+		include/jettison/animation/Playback.h
+		include/jettison/animation/Rig.h
+	SOURCES
+		src/Playback.cpp
+		src/Rig.cpp
+	TESTS
+		tests/AnimationTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+)

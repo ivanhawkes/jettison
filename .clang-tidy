@@ -56,7 +56,7 @@ Checks: >
 # engine passes to Vulkan, where the size is not ours to choose. The one check I removed as
 # a duplicate is readability-implicit-virtual-destructor: -Wnon-virtual-dtor, which the
 # compiler runs, already says it.
-HeaderFilterRegex: 'source/(engine|renderer|flotsam|jetsam|test)/.*'
+HeaderFilterRegex: 'source/(engine|tools|samples|test)/.*'
 
 WarningsAsErrors: ''
 FormatStyle: file
