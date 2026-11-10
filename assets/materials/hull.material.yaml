@@ -1,0 +1,21 @@
+# The station's plating: Render::MaterialDefinition (render/Material.h). Triplanar, so boxes,
+# cylinders and rings take it without texture coordinates of their own; one repeat of the plating
+# every sixteen metres. The windows glow, and their glow drifts slowly with presentation time.
+version: 1
+program: mesh_triplanar
+parameters:
+  - name: surface
+    value: [0.35, 48, 0, 0]
+  - name: triplanar
+    value: [0.0625, 6, 0, 0]
+textures:
+  - slot: baseColor
+    path: textures/hull_panels.ktx2
+  - slot: emissive
+    path: textures/hull_lights.ktx2
+animated:
+  - name: emissive
+    wave: Sine
+    period: 7
+    from: [1, 0.92, 0.82, 1.2]
+    to: [1, 1, 1, 2.4]

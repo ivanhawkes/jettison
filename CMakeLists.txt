@@ -45,6 +45,40 @@ function(jettison_compile_shaders target)
 	add_dependencies(${target} ${target}_shaders)
 endfunction()
 
+# One shader source built again under another name with preprocessor definitions: a program that
+# is a variant of another (mesh_triplanar is mesh.vert and mesh.frag with TRIPLANAR), so the two
+# cannot drift apart. The output is the program's stage path without .spv, as the source's is.
+function(jettison_compile_shader_variant target)
+	cmake_parse_arguments(PARSE_ARGV 1 variant "" "SOURCE;OUTPUT" "DEFINES")
+	if(NOT variant_SOURCE OR NOT variant_OUTPUT)
+		message(FATAL_ERROR "jettison_compile_shader_variant needs SOURCE and OUTPUT")
+	endif()
+	set(output "${CMAKE_CURRENT_BINARY_DIR}/${variant_OUTPUT}.spv")
+	get_filename_component(output_directory "${output}" DIRECTORY)
+	set(defines)
+	foreach(define IN LISTS variant_DEFINES)
+		list(APPEND defines "-D${define}")
+	endforeach()
+	# The stage comes from the source's extension, which the output's name does not carry.
+	get_filename_component(stage "${variant_SOURCE}" LAST_EXT)
+	string(SUBSTRING "${stage}" 1 -1 stage)
+	add_custom_command(
+		OUTPUT "${output}"
+		COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}"
+		COMMAND Vulkan::glslc --target-env=vulkan1.3 -fshader-stage=${stage}
+			-I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/include"
+			${defines}
+			-MD -MF "${output}.d"
+			"${CMAKE_CURRENT_SOURCE_DIR}/${variant_SOURCE}" -o "${output}"
+		DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${variant_SOURCE}" Vulkan::glslc
+		DEPFILE "${output}.d"
+		VERBATIM
+	)
+	string(MAKE_C_IDENTIFIER "${variant_OUTPUT}" variant_target)
+	add_custom_target(${target}_${variant_target} DEPENDS "${output}")
+	add_dependencies(${target} ${target}_${variant_target})
+endfunction()
+
 # Turn on using solution folders.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 

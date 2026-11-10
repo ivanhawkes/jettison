@@ -1,0 +1,13 @@
+# A docking beacon: the default mesh program with no textures, blinking red. Square holds each end
+# for half the period, so it is off for 0.6 s and on for 0.6 s.
+version: 1
+program: mesh
+parameters:
+  - name: baseColor
+    value: [0.2, 0.05, 0.04, 1]
+animated:
+  - name: emissive
+    wave: Square
+    period: 1.2
+    from: [1, 0.15, 0.08, 0]
+    to: [1, 0.15, 0.08, 6]

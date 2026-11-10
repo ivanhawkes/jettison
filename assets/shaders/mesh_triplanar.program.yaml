@@ -1,0 +1,19 @@
+# mesh.frag and mesh.vert built with TRIPLANAR: the textures are projected along the object's three
+# axes rather than read through its texture coordinates, for shapes that have no seam-free layout
+# (an ico sphere, a hull made of boxes). The first three parameters are mesh's.
+version: 1
+parameters:
+  - name: baseColor
+    default: [1, 1, 1, 1]
+  - name: emissive
+    default: [0, 0, 0, 0]
+  - name: surface
+    default: [0.2, 32, 0, 0]
+  # x: texture repeats per metre of the object, y: how sharply the projections blend (1 or more).
+  - name: triplanar
+    default: [1, 4, 0, 0]
+textures:
+  - name: baseColor
+    fallback: White
+  - name: emissive
+    fallback: White

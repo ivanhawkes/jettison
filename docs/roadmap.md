@@ -13,7 +13,7 @@ built, are recorded in [history](history.md).
 |---|---|---|
 | 0–4 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations. Recorded in [history](history.md). | Met. |
 | 5 | **Space rendering.** Sub-phases 5a–5e; catalogue entries 19 and 20, and the shader plan before entry 19. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
-| 5a | **Textures, materials and geometry.** KTX2 through `ktx_read` with BasisU transcoding, as a `resource` loader with a GPU `finish`; stb_image and mip generation for development textures; the material system as data (a program, parameters, texture slots, time-driven parameters); the rest of the procedural meshes (ico and cube spheres, rings, cylinders) and triplanar mapping. Decide KTX-Software v4 or v5. | A material file names a program and a KTX2 texture, loads through the VFS, and draws; a texture changed on disk hot-reloads. |
+| 5a | **Textures, materials and geometry.** Done 2026-11-11. KTX2 through `ktx_read` with BasisU transcoding (UASTC and ETC1S, to BC7 where the device has it and RGBA8 where not), as a `resource` loader with a GPU `finish` and a `retire` that frees a replaced image once no frame in flight reads it; stb_image and CPU mip generation, filtered in linear light, for development textures; the material system as data (`render/Material.h`: a material file names a program and sets its parameters, texture slots and time-driven parameters; a program descriptor beside its SPIR-V says what it takes); ico and cube spheres, rings and cylinders; a triplanar program built from the mesh shaders with a define. KTX-Software stays on v4.4.2 (see [decided](#decided)). | Met: `materials/hull.material.yaml` names `mesh_triplanar` and two KTX2 textures, loads through the VFS and the resource manager, and draws on the station in `orbit.yaml`; `panels.material.yaml` draws the same texture through texture coordinates in the sample scene. A texture rewritten on disk reloads through the resource manager in the render suite, and the smoke test's reload stage reloads every texture and material on the GPU, with validation and synchronization validation, in both scenes. |
 | 5b | **PBR, image-based lighting and the sky.** The metallic-roughness BRDF as the shared lighting include, the sun only; per-system environment cubemaps, prefiltered, and the BRDF lookup table; the unlit/emissive program; the starfield skybox; tonemapping in the output pass. | The station is shaded by the sun and its environment, against the starfield, and the BRDF matches reference values in a test. |
 | 5c | **Clustered lights.** `LightComponent` gains a type, a range and cone angles; windowed inverse-square falloff; the cluster grid and the first compute programs (cluster bounds, light assignment), with the lookup added to the lighting include; the frame UBO's single light retired; the lights-per-cluster heat map. | The station's floodlights and beacons light it through the clusters, the heat map shows the assignment, and a CPU reference agrees with the GPU's assignment. |
 | 5d | **Sun shadows.** Cascaded shadow maps for the sun: the shadow-depth program, the cascade passes in the pass list, cascade selection in the lighting include. | The station casts a stable shadow on itself at orbit and close-up distances. |
@@ -120,7 +120,9 @@ by `PipelineCache` for each render state a pass asks for, with shared GLSL in `s
   lit through the same include.
 
 Shader variants (skinned and static, alpha-masked and opaque) are compile-time defines on one
-source, not copies of it. Hot reload of shaders arrives with the resource manager's hot reload.
+source, not copies of it: `jettison_compile_shader_variant` builds one under its own program name,
+as `mesh_triplanar` is `mesh` with `TRIPLANAR` (5a). Materials and textures hot-reload through the
+resource manager since 5a; programs do not yet.
 
 ### 19. Space rendering · phase 5 · `engine/render`
 
@@ -138,12 +140,29 @@ effects.
 
 ### 20. Geometry and textures · phase 5 · `engine/render`
 
-Procedural meshes (UV, ico and cube spheres, rings, cylinders, boxes), triplanar mapping, KTX2
-loading with BasisU transcoding, mip generation for development textures.
+Done in 5a. Procedural meshes (`render/Procedural.h`): UV, ico and cube spheres, rings,
+cylinders and boxes, each tested watertight, wound outwards and of the right volume. Textures
+(`render/Texture.h`) decode on the I/O worker without a device: KTX 2 files transcode from Basis
+Universal to BC7, or to RGBA8 on a device without block compression, and keep their colour space
+from the file's data format descriptor; PNG and JPEG through stb_image get a mip chain made on
+the CPU, averaged in linear light for sRGB data. `MaterialCache` uploads them in the loader's
+`finish` and hands a replaced image to a queue that frees it `kFramesInFlight` frames later.
+Materials (`render/Material.h`) are YAML through `serialise`: a material names a program and sets
+its vec4 parameters, texture slots and time-driven parameters (a sine, triangle, saw or square
+wave between two values, evaluated in double precision); `shaders/<program>.program.yaml` lists
+what the program takes, and every scene program shares one layout (four texture slots in set 1,
+the parameters in the frame's material buffer). A material that cannot be drawn - its program
+missing, a parameter its program lacks - is logged once and the draw falls back to the model's
+own. Triplanar mapping is `mesh_triplanar`, the mesh shaders built with `TRIPLANAR` by
+`jettison_compile_shader_variant`, projecting in metres along the object's axes.
 The engine links `ktx_read` (transcode and upload) only: `ktx` and `ktx_read` compile the same
 transcoder and zstd, and cannot both be in one executable. An offline texture tool that encodes
-links `ktx` instead. Phase 5 moves to KTX-Software v5 if it is out of release candidate by then.
-*Library*: KTX-Software (libktx); stb_image stays for development.
+links `ktx` instead; the sample textures are encoded with KTX-Software's own `ktx` tool
+(`scripts/make-sample-textures.py` has the commands).
+Left for later: program descriptors and SPIR-V are read once and do not hot-reload (materials and
+textures do); cube maps and texture arrays, which 5d's environment maps need; and normal mapping,
+which waits for 5b's BRDF and tangent-space vertex data.
+*Library*: KTX-Software (libktx) v4.4.2; stb_image stays for development.
 
 ### 21. Scene management and spatial index · phase 6 · `engine/scene`, `engine/spatial`
 
@@ -228,6 +247,10 @@ Settled on 2026-11-10:
   every surface is shaded once in its own material program. There is no G-buffer. Phases 4, 5
   and 10 are planned around it (catalogue entries 17, 19 and 28), and
   [architecture](architecture.md#rendering-clustered-forward) has the frame and the rules it sets.
+- **KTX-Software stays on v4.4.2** (2026-11-11, phase 5a). Phase 5 was to move to v5 if it was out
+  of release candidate; its newest tag is still v5.0.0-rc2. v4.4.2 reads every file the engine
+  needs (KTX 2, Basis Universal ETC1S and UASTC, zstd supercompression). Revisit when v5 is
+  released.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

@@ -14,6 +14,7 @@
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <vector>
 
 using namespace Jettison;
 using Resource::Status;
@@ -84,6 +85,7 @@ Resource::Loader<Text> TextLoader()
 			    throw std::runtime_error{"the text is bad"};
 		    return std::make_unique<Text>(Text{std::move(contents)});
 	    },
+	    {},
 	    {}};
 }
 
@@ -172,6 +174,7 @@ TEST_CASE("Resource: each type has its own table, so one path can be two resourc
 	    Resource::Loader<Length>{
 	        [](std::span<const std::byte> bytes, std::string_view)
 	        { return std::make_unique<Length>(Length{bytes.size()}); },
+	        {},
 	        {}});
 
 	const auto text = manager.Load<Text>("greeting.txt");
@@ -243,7 +246,8 @@ TEST_CASE("Resource: decode runs on the worker and finish on the main thread, an
 		        if (path == "refused.txt")
 			        throw std::runtime_error{"the upload was refused"};
 		        text.contents += ", finished";
-	        }});
+	        },
+	        {}});
 
 	const auto greeting = manager.Load<Text>("greeting.txt");
 	const auto refused = manager.Load<Text>("refused.txt");
@@ -357,4 +361,38 @@ TEST_CASE("Resource: hot reload retries a failed resource once its file appears,
 	Settle(worker, manager);
 	CHECK(manager.StatusOf(handle) == Status::Ready);
 	CHECK(manager.TryGet(handle)->contents == "here now");
+}
+
+TEST_CASE("Resource: retire sees a value a reload replaced and a value the last release dropped")
+{
+	const Scratch scratch;
+	scratch.Put("base/note.txt", "first");
+	Jobs::IoWorker worker;
+	Resource::ResourceManager manager{scratch.Files(), worker, NoHotReload()};
+	auto retired = std::make_shared<std::vector<std::string>>();
+	Resource::Loader<Text> loader = TextLoader();
+	loader.retire = [retired](Text &text) { retired->push_back(text.contents); };
+	manager.RegisterLoader(std::move(loader));
+
+	const auto handle = manager.Load<Text>("note.txt");
+	Settle(worker, manager);
+	CHECK(retired->empty());
+
+	// A failed reload keeps the value, so nothing is retired.
+	scratch.Put("base/note.txt", "bad");
+	manager.ReloadAll();
+	Settle(worker, manager);
+	CHECK(retired->empty());
+	CHECK(manager.TryGet(handle)->contents == "first");
+
+	// ReloadAll reads the file whether or not its stamp moved.
+	scratch.Put("base/note.txt", "second");
+	manager.ReloadAll();
+	Settle(worker, manager);
+	CHECK(*retired == std::vector<std::string>{"first"});
+	CHECK(manager.TryGet(handle)->contents == "second");
+	CHECK(manager.RevisionOf(handle) == 2);
+
+	manager.Release(handle);
+	CHECK(*retired == std::vector<std::string>{"first", "second"});
 }

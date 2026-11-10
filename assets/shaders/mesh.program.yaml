@@ -1,0 +1,18 @@
+# The default scene program: Render::ProgramDefinition (render/Material.h). Every glTF primitive and
+# procedural shape without a material of its own draws with it, at these defaults and with the
+# model's own base-colour texture. Its parameters are vec4s; a material file sets them by name.
+version: 1
+parameters:
+  - name: baseColor
+    default: [1, 1, 1, 1]
+  # rgb: colour, a: intensity in the HDR target's linear units.
+  - name: emissive
+    default: [0, 0, 0, 0]
+  # x: specular strength, y: specular exponent.
+  - name: surface
+    default: [0.2, 32, 0, 0]
+textures:
+  - name: baseColor
+    fallback: White
+  - name: emissive
+    fallback: White

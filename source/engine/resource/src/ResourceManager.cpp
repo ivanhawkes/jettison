@@ -154,6 +154,13 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		    });
 	}
 
+	// Hands the slot's current value, if it has one, to the loader's retire before it is dropped.
+	static void Retire(const Pool &pool, Slot &slot) noexcept
+	{
+		if (slot.value && pool.loader->retire)
+			pool.loader->retire(slot.value.get());
+	}
+
 	void Finish(
 	    std::type_index type, std::uint32_t index, std::uint32_t generation, std::uint64_t ticket,
 	    Result result)
@@ -179,6 +186,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 
 		if (result.error.empty())
 		{
+			Retire(pool, slot);
 			slot.value = std::move(result.value);
 			slot.status = Status::Ready;
 			slot.error.clear();
@@ -291,6 +299,7 @@ void ResourceManager::ReleaseRaw(std::type_index type, RawHandle handle)
 		return;
 
 	pool.byPath.erase(slot.path);
+	State::Retire(pool, slot);
 	// A load still in flight finds the generation changed and drops its result.
 	State::Slot freed;
 	freed.generation = NextGeneration(slot.generation);
@@ -308,6 +317,14 @@ void ResourceManager::Update()
 		return;
 	m_pState->lastPoll = now;
 	CheckForChanges();
+}
+
+void ResourceManager::ReloadAll()
+{
+	for (auto &[type, pool] : m_pState->pools)
+		for (std::uint32_t index = 0; index < pool.slots.size(); ++index)
+			if (pool.slots[index].references > 0 && !pool.slots[index].inFlight)
+				m_pState->Start(type, pool, index);
 }
 
 void ResourceManager::CheckForChanges()

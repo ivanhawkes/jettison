@@ -93,11 +93,17 @@ struct LightComponent
 
 // What an entity draws: a model file, or a shape made in code in one colour. A procedural shape is
 // unit-sized (a sphere of radius one, a cube from -1 to 1), and the transform's scale sizes it.
+// The material, when there is one, is a virtual path to a material file, which every primitive of
+// the model draws with; without one, a model draws with its own textures and a shape with its
+// colour, through the default mesh program.
 struct MeshComponent
 {
 	std::filesystem::path modelPath;
 	std::optional<Shape> shape;
 	glm::vec3 color{1.0f};
+	// A ring's inner radius, against its outer radius of one.
+	float innerRadius{0.5f};
+	std::string material;
 	std::shared_ptr<Model> model;
 };
 
@@ -177,7 +183,7 @@ class Scene
 
   private:
 	std::shared_ptr<Model> LoadModel(const std::filesystem::path &path);
-	std::shared_ptr<Model> ProceduralModel(Shape shape, const glm::vec3 &color);
+	std::shared_ptr<Model> ProceduralModel(Shape shape, const glm::vec3 &color, float innerRadius);
 
 	std::shared_ptr<DeviceContext> m_deviceContext;
 	entt::registry m_registry;

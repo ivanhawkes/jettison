@@ -21,6 +21,14 @@
 
 #include "GlfwInput.h"
 
+namespace Jettison::Jobs
+{
+class IoWorker;
+}
+namespace Jettison::Resource
+{
+class ResourceManager;
+}
 namespace Jettison::Render
 {
 class DeviceContext;
@@ -118,6 +126,11 @@ class Application
 	// The asset tree: the asset directory as the base mount. The renderer finds its shader programs
 	// through it, so a mount added above the base can replace one.
 	Vfs::FileSystem m_assets;
+	// The resources read from it on the I/O worker - the renderer's materials and textures - which
+	// hot-reload in a development build. Made with the renderer, which registers their loaders, and
+	// updated once a frame, before the render. The worker outlives the manager.
+	std::unique_ptr<Jobs::IoWorker> m_pIoWorker;
+	std::unique_ptr<Resource::ResourceManager> m_pResources;
 
 	// The subsystems, in the order Init builds them. Shared pointers where a subsystem is handed
 	// to more than one of its neighbours - the device context to all of them, the window to the
@@ -144,6 +157,9 @@ class Application
 	Time::RealClock m_frameClock;
 	// When the frame started, read once and handed to everything the frame times.
 	Time::RealClock::Clock::time_point m_frameStart{};
+	// When the frame loop started: the presentation time the materials' time-driven parameters
+	// read is the frame's start less this, in seconds, as a double.
+	Time::RealClock::Clock::time_point m_loopStart{};
 	// Whether this frame's render recreated the swapchain, for the headless sequence.
 	bool m_frameResized{false};
 

@@ -29,7 +29,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | FreeType | 2.15.0 | phase 8 | Answers RmlUi's `find_package(Freetype)` |
 | RmlUi | 6.3 | phase 8 | |
 | miniaudio | 0.11.26 | phase 8 | |
-| KTX-Software | v4.4.2 | phase 5 | **Held back** from v5.0.0-rc2, a release candidate |
+| KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read` |
 | WAMR | 2.4.5 | phase 11 | Candidate runtime; the choice is still open |
 | zstd | none | phase 11 | **Held back**: KTX-Software already compiles zstd in |
 
@@ -47,7 +47,10 @@ Jolt shape and a KTX texture, generates tangents), and asserts the GLM geometry 
 runs it after the Debug build.
 
 `clang-headless`, and therefore `clang-asan`, sets `JETTISON_PLANNED_DEPENDENCIES=OFF`: those
-trees exist for the render test, which uses none of the planned libraries.
+trees exist for the render test, which uses none of the planned libraries. KTX-Software left the
+planned set when phase 5a began to use it, so those trees fetch it too, and build `ktx_read` (not
+`ktx`): measured on 2026-11-11, 63 objects and about 75 CPU-seconds of a 1,700 CPU-second headless
+Debug build, and a 217 MiB clone on the first configure.
 
 `JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
 listens on localhost only, so it costs nothing until a profiler connects. It is off by default,

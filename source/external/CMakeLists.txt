@@ -259,6 +259,60 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
+# Textures, behind render's Texture.h: KTX 2 files with Basis Universal transcoding. v4.4.2, not
+# v5.0.0-rc2: phase 5 was to move to v5 if it was out of release candidate, and on 2026-11-11 its
+# newest tag is still rc2. It is in use from phase 5, so every tree fetches it, the headless ones
+# included; it stays EXCLUDE_FROM_ALL, so a tree builds ktx_read, which render links, and not ktx.
+#  - The engine links ktx_read (transcode and upload), never ktx and ktx_read together: both
+#    compile the same Basis Universal transcoder and the same zstd.
+#  - libktx compiles its own zstd 1.5.5 (external/basisu/zstd/zstd.c, public ZSTD_* symbols),
+#    in v4.4.2 and still in v5.0.0-rc2. That is why the standalone zstd the roadmap names for
+#    pack files is not in this set: a second zstd in the same executable is duplicate symbols,
+#    or two versions of one library resolving each other's calls. See docs/roadmap.md.
+#  - ETC unpacking is off: it is Ericsson's code under its own licence, and desktop GPUs do not
+#    need ETC. OpenGL upload, tools, tests and documentation are off. KTX 1 stays on, although
+#    the engine reads KTX 2 only: with KTX_FEATURE_KTX1 off, ktx_read's texture.c still calls
+#    ktxTexture1_constructFromStreamAndHeader, which is then not compiled, and the link fails.
+#  - The clone is spelled out rather than left to GIT_SHALLOW, for two reasons. CMake's shallow
+#    clone passes --no-single-branch, which fetches the tip of every one of KTX's 45 refs: a
+#    234 MiB pack, against 85 MiB for the tag alone (measured 2026-11-10). And the repository
+#    keeps prebuilt binaries in Git LFS, which a machine with the LFS filter installed globally
+#    would download into the dependency tree; the clone switches the filter off, so those files
+#    are pointers, and none of the library's sources are among them. It is a git clone, not a
+#    release archive, because KTX's version script runs git in its source directory and stops
+#    the configure when that fails.
+#  - The ASTC encoder KTX bundles compiles with -Werror by default. Under the devenv toolchain a
+#    Debug build fails on it: the Nix compiler wrapper defines _FORTIFY_SOURCE, and glibc 2.44
+#    warns that it needs optimisation, which -O0 does not have. A dependency's warnings are not
+#    this project's gate, so ASTCENC_WERROR is off.
+#  - libktx publicly defines DEBUG in Debug builds. It is linked privately by whatever uses it,
+#    so the definition stays out of public engine headers.
+block()
+	set(KTX_FEATURE_TESTS OFF)
+	set(KTX_FEATURE_TOOLS OFF)
+	set(KTX_FEATURE_DOC OFF)
+	set(KTX_FEATURE_JNI OFF)
+	set(KTX_FEATURE_PY OFF)
+	set(KTX_FEATURE_GL_UPLOAD OFF)
+	set(KTX_FEATURE_VK_UPLOAD ON)
+	set(KTX_FEATURE_ETC_UNPACK OFF)
+	set(KTX_FEATURE_LOADTEST_APPS OFF)
+	set(BASISU_SUPPORT_OPENCL OFF)
+	set(ASTCENC_WERROR OFF)
+	find_package(Git REQUIRED)
+	FetchContent_Declare(
+	  KTX-Software
+	  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
+	  COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false clone --quiet
+	    --depth 1 --single-branch --branch v4.4.2
+	    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
+	    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(KTX-Software)
+endblock()
+
 # ---------------------------------------------------------------------------------------------
 # Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
 # whole set is proven to link together before a phase depends on any of it, and they are
@@ -379,57 +433,6 @@ block()
 	  EXCLUDE_FROM_ALL
 	)
 	FetchContent_MakeAvailable(miniaudio)
-endblock()
-
-# Textures (phase 5). v4.4.2, not v5.0.0-rc2: v5 is a release candidate.
-#  - The engine links ktx_read (transcode and upload), never ktx and ktx_read together: both
-#    compile the same Basis Universal transcoder and the same zstd.
-#  - libktx compiles its own zstd 1.5.5 (external/basisu/zstd/zstd.c, public ZSTD_* symbols),
-#    in v4.4.2 and still in v5.0.0-rc2. That is why the standalone zstd the roadmap names for
-#    pack files is not in this set: a second zstd in the same executable is duplicate symbols,
-#    or two versions of one library resolving each other's calls. See docs/roadmap.md.
-#  - ETC unpacking is off: it is Ericsson's code under its own licence, and desktop GPUs do not
-#    need ETC. OpenGL upload, tools, tests and documentation are off. KTX 1 stays on, although
-#    the engine reads KTX 2 only: with KTX_FEATURE_KTX1 off, ktx_read's texture.c still calls
-#    ktxTexture1_constructFromStreamAndHeader, which is then not compiled, and the link fails.
-#  - The clone is spelled out rather than left to GIT_SHALLOW, for two reasons. CMake's shallow
-#    clone passes --no-single-branch, which fetches the tip of every one of KTX's 45 refs: a
-#    234 MiB pack, against 85 MiB for the tag alone (measured 2026-11-10). And the repository
-#    keeps prebuilt binaries in Git LFS, which a machine with the LFS filter installed globally
-#    would download into the dependency tree; the clone switches the filter off, so those files
-#    are pointers, and none of the library's sources are among them. It is a git clone, not a
-#    release archive, because KTX's version script runs git in its source directory and stops
-#    the configure when that fails.
-#  - The ASTC encoder KTX bundles compiles with -Werror by default. Under the devenv toolchain a
-#    Debug build fails on it: the Nix compiler wrapper defines _FORTIFY_SOURCE, and glibc 2.44
-#    warns that it needs optimisation, which -O0 does not have. A dependency's warnings are not
-#    this project's gate, so ASTCENC_WERROR is off.
-#  - libktx publicly defines DEBUG in Debug builds. It is linked privately by whatever uses it,
-#    so the definition stays out of public engine headers.
-block()
-	set(KTX_FEATURE_TESTS OFF)
-	set(KTX_FEATURE_TOOLS OFF)
-	set(KTX_FEATURE_DOC OFF)
-	set(KTX_FEATURE_JNI OFF)
-	set(KTX_FEATURE_PY OFF)
-	set(KTX_FEATURE_GL_UPLOAD OFF)
-	set(KTX_FEATURE_VK_UPLOAD ON)
-	set(KTX_FEATURE_ETC_UNPACK OFF)
-	set(KTX_FEATURE_LOADTEST_APPS OFF)
-	set(BASISU_SUPPORT_OPENCL OFF)
-	set(ASTCENC_WERROR OFF)
-	find_package(Git REQUIRED)
-	FetchContent_Declare(
-	  KTX-Software
-	  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
-	  COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false clone --quiet
-	    --depth 1 --single-branch --branch v4.4.2
-	    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
-	    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(KTX-Software)
 endblock()
 
 # Scripting (phase 11). WAMR is the candidate runtime; docs/roadmap.md leaves the choice open

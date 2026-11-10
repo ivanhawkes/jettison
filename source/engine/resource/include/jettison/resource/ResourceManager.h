@@ -35,6 +35,13 @@ template <typename T> struct Loader
 	// On the main thread, optional: what has to happen there before the value is visible, such as
 	// a GPU upload. Throws like decode.
 	std::function<void(T &value, std::string_view virtualPath)> finish;
+	// On the main thread, optional: the manager is done with a value that finish made ready,
+	// because a reload replaced it or its last reference was released, and drops it after this
+	// returns. For a value holding what a destructor must not free on the spot, such as a GPU image
+	// a frame in flight may still read, which this hands to whatever frees it later. A value still
+	// held when the manager is destroyed is dropped without it: release every handle first.
+	// Must not throw.
+	std::function<void(T &value)> retire;
 };
 
 enum class Status : std::uint8_t
@@ -91,7 +98,10 @@ class ResourceManager
 		     loader.finish
 		         ? FinishRaw{[finish = std::move(loader.finish)](void *value, std::string_view path)
 		                     { finish(*static_cast<T *>(value), path); }}
-		         : FinishRaw{}});
+		         : FinishRaw{},
+		     loader.retire ? RetireRaw{[retire = std::move(loader.retire)](void *value)
+		                               { retire(*static_cast<T *>(value)); }}
+		                   : RetireRaw{}});
 	}
 
 	// Returns at once with a handle; the resource becomes available after a later Update().
@@ -137,16 +147,21 @@ class ResourceManager
 	// Starts a reload of every resource whose file changed, was added or was removed since it was
 	// read: a mod that shadows a base file counts. Update calls it; tests call it directly.
 	void CheckForChanges();
+	// Starts a reload of every resource, changed or not: a developer's "reload everything", and
+	// the render test's way through the reload path without writing to the asset tree.
+	void ReloadAll();
 
   private:
 	using RawHandle = Core::Handle<void>;
 	using DecodeRaw =
 	    std::function<std::shared_ptr<void>(std::span<const std::byte>, std::string_view)>;
 	using FinishRaw = std::function<void(void *, std::string_view)>;
+	using RetireRaw = std::function<void(void *)>;
 	struct RawLoader
 	{
 		DecodeRaw decode;
 		FinishRaw finish;
+		RetireRaw retire;
 	};
 
 	template <typename T> static RawHandle Raw(ResourceHandle<T> handle)

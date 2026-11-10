@@ -34,3 +34,6 @@ layout(std430, set = 0, binding = 2) readonly buffer LightList
 {
 	Light lights[];
 };
+
+// Binding 3 is the frame's material parameters, which material.glsl declares for the programs that
+// read them.

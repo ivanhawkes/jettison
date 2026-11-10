@@ -1,23 +1,26 @@
 #include <jettison/render/vulkan/MaterialCache.h>
 
-// STB.
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <limits>
+#include <exception>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 
+#include <jettison/core/Log.h>
 #include <jettison/render/vulkan/Model.h>
+#include <jettison/resource/ResourceManager.h>
+#include <jettison/vfs/FileSystem.h>
 
 namespace Jettison::Render
 {
 namespace
 {
-constexpr VkFormat kBaseColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+constexpr Core::Category kRender{"render"};
+
+// The program every draw without a material of its own uses.
+constexpr const char *kDefaultProgram = "mesh";
 
 // The address of a Model is the key its materials live under, so it is the identifier a reader of
 // a validation message has to go look up. Names built from it point at the same model from the
@@ -26,12 +29,46 @@ std::string ModelKey(const Model *pModel)
 {
 	return "model-" + std::to_string(reinterpret_cast<uintptr_t>(pModel));
 }
+
+VkFormat ToVkFormat(TextureFormat format)
+{
+	switch (format)
+	{
+		case TextureFormat::Rgba8Unorm: return VK_FORMAT_R8G8B8A8_UNORM;
+		case TextureFormat::Rgba8Srgb: return VK_FORMAT_R8G8B8A8_SRGB;
+		case TextureFormat::Bc7Unorm: return VK_FORMAT_BC7_UNORM_BLOCK;
+		case TextureFormat::Bc7Srgb: return VK_FORMAT_BC7_SRGB_BLOCK;
+	}
+	return VK_FORMAT_UNDEFINED;
+}
+
+std::string_view AsText(std::span<const std::byte> bytes)
+{
+	return {reinterpret_cast<const char *>(bytes.data()), bytes.size()};
+}
 } // namespace
 
 
-void MaterialCache::Init(VkDescriptorSetLayout materialLayout)
+MaterialCache::MaterialCache(
+    std::shared_ptr<DeviceContext> pDeviceContext, const Vfs::FileSystem &assets,
+    Resource::ResourceManager &resources, PipelineCache &pipelines, std::uint32_t framesInFlight)
+    : m_pDeviceContext{std::move(pDeviceContext)}, m_assets{assets}, m_resources{resources},
+      m_pipelines{pipelines}, m_framesInFlight{framesInFlight}
+{
+}
+
+
+void MaterialCache::Init(
+    VkDescriptorSetLayout materialLayout, VkPipelineLayout sceneLayout, const RenderState &sceneState)
 {
 	m_layout = materialLayout;
+	m_sceneLayout = sceneLayout;
+	m_sceneState = sceneState;
+	m_transcodeTarget =
+	    m_pDeviceContext->HasBlockCompression() ? TranscodeTarget::Bc7 : TranscodeTarget::Rgba8;
+	Core::Log(
+	    Core::Severity::Info, kRender, "Basis Universal textures transcode to {}",
+	    m_transcodeTarget == TranscodeTarget::Bc7 ? "BC7" : "RGBA8 (the device has no BC7)");
 
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -51,238 +88,448 @@ void MaterialCache::Init(VkDescriptorSetLayout materialLayout)
 		throw std::runtime_error("failed to create texture sampler");
 	m_pDeviceContext->SetDebugName(m_sampler, "material-sampler");
 
-	const unsigned char whitePixel[] = {255, 255, 255, 255};
-	m_fallback = CreateTexture(whitePixel, 1, 1, "fallback-texture");
+	// By TextureFallback: white, black, and a flat tangent-space normal (0, 0, 1), stored as
+	// unsigned bytes and so linear.
+	const std::array<TextureData, 3> fallbacks{
+	    SolidTexture(255, 255, 255, 255, true), SolidTexture(0, 0, 0, 255, true),
+	    SolidTexture(128, 128, 255, 255, false)};
+	const std::array<const char *, 3> names{"fallback-white", "fallback-black", "fallback-normal"};
+	for (std::size_t index = 0; index < fallbacks.size(); ++index)
+		Upload(fallbacks[index], names[index], m_fallbackImages[index], m_fallbackViews[index]);
+
+	RegisterLoaders();
+	m_pDefaultProgram = &GetProgram(kDefaultProgram);
+}
+
+
+void MaterialCache::RegisterLoaders()
+{
+	if (m_loadersRegistered)
+		return;
+	const TranscodeTarget target = m_transcodeTarget;
+	m_resources.RegisterLoader(
+	    Resource::Loader<TextureResource>{
+	        [target](std::span<const std::byte> bytes, std::string_view path)
+	        {
+		        auto pTexture = std::make_unique<TextureResource>();
+		        pTexture->data = DecodeTexture(bytes, path, target);
+		        return pTexture;
+	        },
+	        [this](TextureResource &texture, std::string_view path)
+	        {
+		        Upload(texture.data, "texture-" + std::string{path}, texture.image, texture.view);
+		        // The device has its copy; the CPU one is a texture's worth of memory for nothing.
+		        std::vector<std::byte>{}.swap(texture.data.bytes);
+	        },
+	        [this](TextureResource &texture)
+	        {
+		        Retire({m_frame, texture.image, texture.view, VK_NULL_HANDLE});
+		        texture.image = {};
+		        texture.view = VK_NULL_HANDLE;
+	        }});
+	m_resources.RegisterLoader(
+	    Resource::Loader<MaterialDefinition>{
+	        [](std::span<const std::byte> bytes, std::string_view path)
+	        { return std::make_unique<MaterialDefinition>(ReadMaterial(AsText(bytes), path)); },
+	        {},
+	        {}});
+	m_loadersRegistered = true;
 }
 
 
 void MaterialCache::Destroy()
 {
 	Forget();
-	DestroyTexture(m_fallback);
-	vkDestroySampler(m_pDeviceContext->GetLogicalDevice(), m_sampler, nullptr);
+	for (auto &[path, material] : m_named)
+	{
+		(void)path;
+		ReleaseNamed(material);
+	}
+	m_named.clear();
+	for (Retired &retired : m_retired)
+		Free(retired);
+	m_retired.clear();
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	for (std::size_t index = 0; index < m_fallbackImages.size(); ++index)
+	{
+		vkDestroyImageView(device, m_fallbackViews[index], nullptr);
+		m_pDeviceContext->DestroyImage(m_fallbackImages[index]);
+		m_fallbackViews[index] = VK_NULL_HANDLE;
+	}
+	vkDestroySampler(device, m_sampler, nullptr);
 	m_sampler = VK_NULL_HANDLE;
+	// The pipelines are the pipeline cache's, which destroys them.
+	m_programs.clear();
+	m_pDefaultProgram = nullptr;
 }
 
 
 void MaterialCache::Forget()
 {
-	for (auto &[model, materials] : m_materials)
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	for (auto &[model, materials] : m_models)
 	{
 		(void)model;
-		for (Material &material : materials)
+		for (ModelMaterial &material : materials)
 		{
-			vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), material.pool, nullptr);
-			if (material.ownsTexture)
-				DestroyTexture(material.texture);
+			vkDestroyDescriptorPool(device, material.pool, nullptr);
+			vkDestroyImageView(device, material.view, nullptr);
+			m_pDeviceContext->DestroyImage(material.image);
 		}
 	}
-	m_materials.clear();
+	m_models.clear();
 }
 
 
-VkDescriptorSet MaterialCache::Ensure(const Model &model, std::size_t primitiveIndex)
+void MaterialCache::ReleaseUnresolved()
+{
+	for (auto entry = m_named.begin(); entry != m_named.end();)
+	{
+		if (entry->second.resolvedFrame == m_frame)
+		{
+			++entry;
+			continue;
+		}
+		ReleaseNamed(entry->second);
+		entry = m_named.erase(entry);
+	}
+}
+
+
+void MaterialCache::BeginFrame(std::uint64_t frameNumber, std::vector<glm::vec4> &parameters)
+{
+	m_frame = frameNumber;
+	// Frame N's slot fence has been waited on, so frames up to N - kFramesInFlight are done; an
+	// item retired at frame R was last recorded by frame R at the latest.
+	const auto done = std::stable_partition(
+	    m_retired.begin(), m_retired.end(),
+	    [&](const Retired &retired) { return retired.frame + m_framesInFlight > frameNumber; });
+	for (auto item = done; item != m_retired.end(); ++item)
+		Free(*item);
+	m_retired.erase(done, m_retired.end());
+
+	parameters.clear();
+	if (m_pDefaultProgram != nullptr)
+		EvaluateParameters(m_pDefaultProgram->defaults, 0.0, parameters);
+}
+
+
+const MaterialCache::Program &MaterialCache::GetProgram(const std::string &name)
+{
+	if (const auto found = m_programs.find(name); found != m_programs.end())
+		return found->second;
+	const std::string path = "shaders/" + name + ".program.yaml";
+	const auto bytes = m_assets.Read(path);
+	if (!bytes)
+		throw std::runtime_error("failed to open file: " + path + " (no asset mount has it)");
+	Program program;
+	program.definition = ReadProgram(AsText(*bytes), path);
+	program.defaults = ResolveDefaults(program.definition);
+	program.pipeline = m_pipelines.Get({name, m_sceneState, m_sceneLayout});
+	return m_programs.emplace(name, std::move(program)).first->second;
+}
+
+
+const MaterialCache::Binding *MaterialCache::Resolve(
+    const std::string &virtualPath, double time, std::vector<glm::vec4> &parameters)
+{
+	auto [entry, inserted] = m_named.try_emplace(virtualPath);
+	NamedMaterial &material = entry->second;
+	if (inserted)
+		material.definition = m_resources.Load<MaterialDefinition>(virtualPath);
+	material.resolvedFrame = m_frame;
+	if (!Refresh(virtualPath, material))
+		return nullptr;
+	if (material.parameterFrame != m_frame)
+	{
+		material.binding.parameterOffset = static_cast<std::uint32_t>(parameters.size());
+		EvaluateParameters(material.resolved, time, parameters);
+		material.parameterFrame = m_frame;
+	}
+	return &material.binding;
+}
+
+
+bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &material)
+{
+	// A reload in flight keeps the last value Ready, so Loading and Failed are a first load's.
+	if (m_resources.StatusOf(material.definition) != Resource::Status::Ready)
+		return false;
+
+	const std::uint32_t revision = m_resources.RevisionOf(material.definition);
+	bool rebuild = material.set == VK_NULL_HANDLE;
+	if (revision != material.definitionRevision)
+	{
+		material.definitionRevision = revision;
+		material.failed = false;
+		try
+		{
+			const MaterialDefinition &definition = *m_resources.TryGet(material.definition);
+			const Program &program = GetProgram(definition.program);
+			ResolvedMaterial resolved = ResolveMaterial(program.definition, definition, virtualPath);
+			// Every path is checked before any is loaded, so a bad one cannot strand the handles
+			// taken before it.
+			for (const std::string &path : resolved.textures)
+				if (!path.empty() && !Vfs::FileSystem::IsValidPath(path))
+					throw std::runtime_error("texture '" + path + "' is not a virtual path");
+			// The new textures are loaded before the old ones are released, so one both name keeps
+			// its slot rather than being freed and read again.
+			std::array<Resource::ResourceHandle<TextureResource>, kMaterialTextureSlots> textures{};
+			for (std::size_t binding = 0; binding < kMaterialTextureSlots; ++binding)
+				if (!resolved.textures[binding].empty())
+					textures[binding] = m_resources.Load<TextureResource>(resolved.textures[binding]);
+			for (const auto &texture : material.textures)
+				if (!texture.IsNull())
+					m_resources.Release(texture);
+			material.textures = textures;
+			material.textureRevisions = {};
+			material.resolved = std::move(resolved);
+			material.pipeline = program.pipeline;
+			rebuild = true;
+		}
+		catch (const std::exception &error)
+		{
+			material.failed = true;
+			Core::Log(
+			    Core::Severity::Warning, kRender, "material '{}' cannot be drawn, and falls back: {}",
+			    virtualPath, error.what());
+		}
+	}
+	if (material.failed)
+		return false;
+
+	std::array<VkImageView, kMaterialTextureSlots> views{};
+	for (std::size_t binding = 0; binding < kMaterialTextureSlots; ++binding)
+	{
+		const auto &texture = material.textures[binding];
+		std::uint32_t textureRevision = 0;
+		views[binding] = FallbackView(material.resolved.fallbacks[binding]);
+		if (!texture.IsNull())
+		{
+			const Resource::Status status = m_resources.StatusOf(texture);
+			if (status == Resource::Status::Loading)
+				return false;
+			// A texture that failed (the resource manager said why) draws as its slot's fallback
+			// until a reload fixes it.
+			if (status == Resource::Status::Ready)
+			{
+				views[binding] = m_resources.TryGet(texture)->view;
+				textureRevision = m_resources.RevisionOf(texture);
+			}
+		}
+		if (textureRevision != material.textureRevisions[binding])
+		{
+			material.textureRevisions[binding] = textureRevision;
+			rebuild = true;
+		}
+	}
+
+	if (rebuild)
+	{
+		// Sets are never written in place: a frame in flight may have the old one bound.
+		if (material.pool != VK_NULL_HANDLE)
+			Retire({m_frame, {}, VK_NULL_HANDLE, material.pool});
+		material.pool = VK_NULL_HANDLE;
+		material.set = VK_NULL_HANDLE;
+		AllocateSet(views, "material-" + virtualPath, material.pool, material.set);
+	}
+	material.binding.pipeline = material.pipeline;
+	material.binding.set = material.set;
+	return true;
+}
+
+
+void MaterialCache::ReleaseNamed(NamedMaterial &material)
+{
+	for (const auto &texture : material.textures)
+		if (!texture.IsNull())
+			m_resources.Release(texture);
+	if (!material.definition.IsNull())
+		m_resources.Release(material.definition);
+	if (material.pool != VK_NULL_HANDLE)
+		Retire({m_frame, {}, VK_NULL_HANDLE, material.pool});
+	material = {};
+}
+
+
+MaterialCache::Binding MaterialCache::Ensure(const Model &model, std::size_t primitiveIndex)
 {
 	if (primitiveIndex >= model.m_primitives.size())
 		throw std::runtime_error("Model primitive index is out of range");
-	auto &materials = m_materials[&model];
+	auto &materials = m_models[&model];
+	const Binding binding{m_pDefaultProgram->pipeline, VK_NULL_HANDLE, 0};
 	if (primitiveIndex < materials.size())
-		return materials[primitiveIndex].set;
+		return {binding.pipeline, materials[primitiveIndex].set, 0};
 	if (primitiveIndex != materials.size())
 		throw std::runtime_error("Model primitive materials must be created in order");
 
 	const std::string name = ModelKey(&model) + "-p" + std::to_string(primitiveIndex);
-	Material material;
+	ModelMaterial material;
+	std::array<VkImageView, kMaterialTextureSlots> views{};
+	for (std::size_t slot = 0; slot < kMaterialTextureSlots; ++slot)
+		views[slot] = FallbackView(m_pDefaultProgram->defaults.fallbacks[slot]);
 	const auto &imageData = model.m_primitives[primitiveIndex].baseColorImageData;
-	if (!imageData.empty())
+	try
 	{
-		if (imageData.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
-			throw std::runtime_error("glTF base-color image is too large to decode");
-		int width = 0;
-		int height = 0;
-		int channels = 0;
-		const auto *encoded = reinterpret_cast<const stbi_uc *>(imageData.data());
-		stbi_uc *pixels = stbi_load_from_memory(
-		    encoded, static_cast<int>(imageData.size()), &width, &height, &channels, STBI_rgb_alpha);
-		if (!pixels)
-			throw std::runtime_error("Failed to decode glTF base-color image");
-		try
+		if (!imageData.empty())
 		{
-			material.texture = CreateTexture(pixels, width, height, "texture-" + name);
+			// glTF says a base-colour image is sRGB.
+			const TextureData texture = DecodeImage(imageData, true, name);
+			Upload(texture, "texture-" + name, material.image, material.view);
+			views[0] = material.view;
 		}
-		catch (...)
-		{
-			stbi_image_free(pixels);
-			throw;
-		}
-		stbi_image_free(pixels);
-		material.ownsTexture = true;
+		AllocateSet(views, name, material.pool, material.set);
 	}
+	catch (...)
+	{
+		vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), material.view, nullptr);
+		m_pDeviceContext->DestroyImage(material.image);
+		throw;
+	}
+	materials.push_back(material);
+	return {binding.pipeline, material.set, 0};
+}
 
-	const VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1};
+
+void MaterialCache::AllocateSet(
+    const std::array<VkImageView, kMaterialTextureSlots> &views, const std::string &name,
+    VkDescriptorPool &pool, VkDescriptorSet &set)
+{
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	const VkDescriptorPoolSize poolSize{
+	    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kMaterialTextureSlots};
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = 1;
 	poolInfo.pPoolSizes = &poolSize;
 	poolInfo.maxSets = 1;
-	if (vkCreateDescriptorPool(
-	        m_pDeviceContext->GetLogicalDevice(), &poolInfo, nullptr, &material.pool) != VK_SUCCESS)
-	{
-		if (material.ownsTexture)
-			DestroyTexture(material.texture);
+	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &pool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create a material descriptor pool");
-	}
-	m_pDeviceContext->SetDebugName(material.pool, name + "-pool");
+	m_pDeviceContext->SetDebugName(pool, name + "-pool");
 
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = material.pool;
+	allocInfo.descriptorPool = pool;
 	allocInfo.descriptorSetCount = 1;
 	allocInfo.pSetLayouts = &m_layout;
-	if (vkAllocateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), &allocInfo, &material.set) !=
-	    VK_SUCCESS)
+	if (vkAllocateDescriptorSets(device, &allocInfo, &set) != VK_SUCCESS)
 	{
-		vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), material.pool, nullptr);
-		if (material.ownsTexture)
-			DestroyTexture(material.texture);
+		vkDestroyDescriptorPool(device, pool, nullptr);
+		pool = VK_NULL_HANDLE;
 		throw std::runtime_error("Failed to allocate a material descriptor set");
 	}
-	m_pDeviceContext->SetDebugName(material.set, name + "-set");
+	m_pDeviceContext->SetDebugName(set, name + "-set");
 
-	const VkDescriptorImageInfo imageInfo{
-	    m_sampler, material.ownsTexture ? material.texture.view : m_fallback.view,
-	    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+	std::array<VkDescriptorImageInfo, kMaterialTextureSlots> images{};
+	for (std::size_t binding = 0; binding < kMaterialTextureSlots; ++binding)
+		images[binding] = {m_sampler, views[binding], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 	VkWriteDescriptorSet write{};
 	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write.dstSet = material.set;
+	write.dstSet = set;
 	write.dstBinding = 0;
-	write.descriptorCount = 1;
+	write.descriptorCount = static_cast<uint32_t>(images.size());
 	write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	write.pImageInfo = &imageInfo;
-	vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
-
-	materials.push_back(material);
-	return material.set;
+	write.pImageInfo = images.data();
+	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
 }
 
 
-MaterialCache::Texture MaterialCache::CreateTexture(
-    const unsigned char *pixels, int width, int height, const std::string &name)
+VkImageView MaterialCache::FallbackView(TextureFallback fallback) const
 {
-	const VkDeviceSize imageSize =
-	    static_cast<VkDeviceSize>(width) * static_cast<VkDeviceSize>(height) * 4;
-	Texture texture;
-	texture.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+	return m_fallbackViews[static_cast<std::size_t>(fallback)];
+}
+
+
+void MaterialCache::Upload(
+    const TextureData &data, const std::string &name, Image &image, VkImageView &view)
+{
+	const VkFormat format = ToVkFormat(data.format);
+	if (IsBlockCompressed(data.format) && !m_pDeviceContext->HasBlockCompression())
+		throw std::runtime_error("Texture '" + name + "' is BC7, which the device does not sample");
+	const auto levels = static_cast<uint32_t>(data.levels.size());
+	if (levels == 0 || data.bytes.empty())
+		throw std::runtime_error("Texture '" + name + "' has no texels to upload");
 
 	Buffer staging = m_pDeviceContext->CreateBuffer(
-	    imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, MemoryUse::Upload, name + "-staging");
+	    data.bytes.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, MemoryUse::Upload, name + "-staging");
 	try
 	{
-		m_pDeviceContext->WriteBuffer(staging, pixels, imageSize);
-		texture.image = m_pDeviceContext->CreateImage(
-		    static_cast<uint32_t>(width), static_cast<uint32_t>(height), texture.mipLevels,
-		    VK_SAMPLE_COUNT_1_BIT, kBaseColorFormat, VK_IMAGE_TILING_OPTIMAL,
-		    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-		        VK_IMAGE_USAGE_SAMPLED_BIT,
-		    name);
-		m_pDeviceContext->TransitionImageLayout(
-		    texture.image.handle, kBaseColorFormat, VK_IMAGE_LAYOUT_UNDEFINED,
-		    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture.mipLevels);
-		// The copy waits for the queue, so the staging buffer is free to go after it.
-		m_pDeviceContext->CopyBufferToImage(
-		    staging.handle, texture.image.handle, static_cast<uint32_t>(width),
-		    static_cast<uint32_t>(height));
-		GenerateMipmaps(texture.image.handle, width, height, texture.mipLevels);
-		texture.view = m_pDeviceContext->CreateImageView(
-		    texture.image.handle, kBaseColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, texture.mipLevels);
-		m_pDeviceContext->SetDebugName(texture.view, name + "-view");
+		m_pDeviceContext->WriteBuffer(staging, data.bytes.data(), data.bytes.size());
+		image = m_pDeviceContext->CreateImage(
+		    data.width, data.height, levels, VK_SAMPLE_COUNT_1_BIT, format, VK_IMAGE_TILING_OPTIMAL,
+		    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, name);
+
+		const VkCommandBuffer commandBuffer = m_pDeviceContext->BeginSingleTimeCommands();
+		VkImageMemoryBarrier2 barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		barrier.srcAccessMask = VK_ACCESS_2_NONE;
+		barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.image = image.handle;
+		barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, levels, 0, 1};
+		VkDependencyInfo dependency{};
+		dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dependency.imageMemoryBarrierCount = 1;
+		dependency.pImageMemoryBarriers = &barrier;
+		vkCmdPipelineBarrier2(commandBuffer, &dependency);
+
+		std::vector<VkBufferImageCopy> regions;
+		regions.reserve(levels);
+		for (uint32_t level = 0; level < levels; ++level)
+		{
+			VkBufferImageCopy region{};
+			region.bufferOffset = data.levels[level].offset;
+			region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, level, 0, 1};
+			region.imageExtent = {data.levels[level].width, data.levels[level].height, 1};
+			regions.push_back(region);
+		}
+		vkCmdCopyBufferToImage(
+		    commandBuffer, staging.handle, image.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		    static_cast<uint32_t>(regions.size()), regions.data());
+
+		barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		barrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		vkCmdPipelineBarrier2(commandBuffer, &dependency);
+		// Waits for the queue, so the staging buffer is free to go after it.
+		m_pDeviceContext->EndSingleTimeCommands(commandBuffer);
+
+		view =
+		    m_pDeviceContext->CreateImageView(image.handle, format, VK_IMAGE_ASPECT_COLOR_BIT, levels);
+		m_pDeviceContext->SetDebugName(view, name + "-view");
 	}
 	catch (...)
 	{
-		DestroyTexture(texture);
+		vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), view, nullptr);
+		view = VK_NULL_HANDLE;
+		m_pDeviceContext->DestroyImage(image);
 		m_pDeviceContext->DestroyBuffer(staging);
 		throw;
 	}
 	m_pDeviceContext->DestroyBuffer(staging);
-	return texture;
 }
 
 
-void MaterialCache::DestroyTexture(Texture &texture)
+void MaterialCache::Retire(Retired retired)
 {
-	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), texture.view, nullptr);
-	m_pDeviceContext->DestroyImage(texture.image);
-	texture = {};
+	m_retired.push_back(retired);
 }
 
 
-void MaterialCache::GenerateMipmaps(VkImage image, int32_t width, int32_t height, uint32_t mipLevels)
+void MaterialCache::Free(Retired &retired)
 {
-	VkFormatProperties formatProperties;
-	vkGetPhysicalDeviceFormatProperties(
-	    m_pDeviceContext->GetPhysicalDevice(), kBaseColorFormat, &formatProperties);
-	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
-		throw std::runtime_error("texture image format doesn't support linear blitting");
-
-	VkCommandBuffer commandBuffer = m_pDeviceContext->BeginSingleTimeCommands();
-
-	VkImageMemoryBarrier barrier{};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.image = image;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-	barrier.subresourceRange.levelCount = 1;
-
-	int32_t mipWidth = width;
-	int32_t mipHeight = height;
-	for (uint32_t i = 1; i < mipLevels; ++i)
-	{
-		barrier.subresourceRange.baseMipLevel = i - 1;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		vkCmdPipelineBarrier(
-		    commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
-		    nullptr, 0, nullptr, 1, &barrier);
-
-		VkImageBlit blit{};
-		blit.srcOffsets[0] = {0, 0, 0};
-		blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
-		blit.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 0, 1};
-		blit.dstOffsets[0] = {0, 0, 0};
-		blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1};
-		blit.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, i, 0, 1};
-		vkCmdBlitImage(
-		    commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
-		    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
-
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		vkCmdPipelineBarrier(
-		    commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
-		    nullptr, 0, nullptr, 1, &barrier);
-
-		if (mipWidth > 1)
-			mipWidth /= 2;
-		if (mipHeight > 1)
-			mipHeight /= 2;
-	}
-
-	barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	vkCmdPipelineBarrier(
-	    commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
-	    nullptr, 0, nullptr, 1, &barrier);
-
-	m_pDeviceContext->EndSingleTimeCommands(commandBuffer);
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	vkDestroyDescriptorPool(device, retired.pool, nullptr);
+	vkDestroyImageView(device, retired.view, nullptr);
+	m_pDeviceContext->DestroyImage(retired.image);
+	retired = {};
 }
 } // namespace Jettison::Render

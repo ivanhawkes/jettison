@@ -302,7 +302,8 @@ proves it headlessly. What exists:
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
   `--scene`, `--save-scene`), builds `Application`, and prints any exception the run threw.
   `Application::Init` stages are window, device and swapchain, scene (and the star system it
-  names), renderer, UI.
+  names), renderer (with the I/O worker and resource manager it loads through), UI. The
+  resource manager updates once a frame, before the render.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
 - **Smoke sequence**. `SmokeSequence` is the render test's six stages (resize, resize,
   minimize, restore, scene reload, settle) as a state machine driven once per frame through
@@ -311,7 +312,8 @@ proves it headlessly. What exists:
 - **Scene** (`engine/render`, see [parked code](#parked-code)). An EnTT registry loaded from
   and saved to YAML (`assets/scene/main.yaml`, and `orbit.yaml` at real scale). It has
   transform, parent, world-transform, camera, light, sun and mesh components (a glTF model or a
-  procedural sphere or box), celestial bodies placed by the star system the scene names, an orbit
+  procedural shape - UV, ico or cube sphere, box, ring, cylinder - and optionally a material
+  file, by virtual path), celestial bodies placed by the star system the scene names, an orbit
   camera rig, and the animation module's rotation-animation, skeleton and animation-player
   components. Translations and world transforms are doubles. Authored state and runtime state
   are kept apart: `RotationAnimationComponent::angle`, `AnimationPlayerComponent::time`, a
@@ -331,7 +333,13 @@ proves it headlessly. What exists:
   pass's declared uses once, at start-up, and recorded with dynamic rendering and
   synchronization2. The frame constants, skin palette, light list and command buffer exist once
   per frame in flight. `PipelineCache` makes pipelines by program name and render state, with the
-  programs found through the asset VFS; `MaterialCache` holds each primitive's texture and set;
+  programs found through the asset VFS. Materials are data (`render/Material.h`): a material file
+  names a program, whose descriptor (`shaders/<program>.program.yaml`) lists its parameters and
+  texture slots, and sets them, some driven by presentation time. `MaterialCache` loads
+  materials and their KTX 2 or stb textures through the resource manager (`Texture.h` decodes
+  on the I/O worker; the loader's `finish` uploads), rebuilds a material's descriptor set when
+  it or a texture reloads, and frees what a reload replaced once no frame in flight reads it; a
+  model without a material draws with its own textures through the default `mesh` program.
   `Model` loads glTF through fastgltf. The mesh program is still the stand-in forward shading
   that the [clustered forward](#rendering-clustered-forward) frame grows from, now reading its
   lights from a storage buffer.

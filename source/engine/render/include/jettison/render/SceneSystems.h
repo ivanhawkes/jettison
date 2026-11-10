@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
+#include <string>
 #include <vector>
 
 #include <jettison/render/Camera.h>
@@ -16,6 +17,9 @@ struct SceneDrawCommand
 	// In render space: metres from the camera, as a float.
 	glm::mat4 renderTransform{1.0f};
 	const Animation::SkeletonComponent *skeleton{};
+	// The mesh's material path; empty for the model's own. Points into the scene, which outlives
+	// the frame's draw list.
+	const std::string *material{};
 };
 
 // The presentation phase's camera rigs: each OrbitCameraComponent follows its target's world

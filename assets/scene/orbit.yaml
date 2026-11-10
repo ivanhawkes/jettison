@@ -25,26 +25,50 @@ entities:
     transform:
       scale: [1737400, 1737400, 1737400]
     mesh:
-      shape: sphere
+      shape: cubesphere
       color: [0.45, 0.44, 0.42]
   - id: highport
     celestial:
       body: Ostra Highport
+  # The hub and the dock are cylinders along the station's z axis: a cylinder's axis is its y, turned
+  # a quarter turn about x. The plating is the hull material's, projected along each part's axes.
   - id: highport-hub
     parent: highport
     transform:
-      scale: [6, 6, 30]
+      rotation: [1.5707963, 0, 0]
+      scale: [6, 30, 6]
     mesh:
-      shape: box
+      shape: cylinder
       color: [0.72, 0.72, 0.76]
+      material: materials/hull.material.yaml
+  - id: highport-collar
+    parent: highport
+    transform:
+      translation: [0, 0, 12]
+      rotation: [1.5707963, 0, 0]
+      scale: [16, 16, 16]
+    mesh:
+      shape: ring
+      color: [0.62, 0.62, 0.66]
+      innerRadius: 0.4
+      material: materials/hull.material.yaml
   - id: highport-dock
     parent: highport
     transform:
       translation: [0, 0, -34]
-      scale: [3, 3, 4]
+      rotation: [1.5707963, 0, 0]
+      scale: [3, 4, 3]
     mesh:
-      shape: box
+      shape: cylinder
       color: [0.85, 0.6, 0.2]
+  - id: highport-beacon
+    parent: highport
+    transform:
+      translation: [0, 0, -38.6]
+      scale: [0.6, 0.6, 0.6]
+    mesh:
+      shape: icosphere
+      material: materials/beacon.material.yaml
   - id: highport-truss
     parent: highport
     transform:
@@ -52,6 +76,7 @@ entities:
     mesh:
       shape: box
       color: [0.5, 0.5, 0.52]
+      material: materials/hull.material.yaml
   - id: highport-panel-port
     parent: highport
     transform:

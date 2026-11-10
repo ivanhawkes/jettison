@@ -3,11 +3,14 @@
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
 #include <vector>
+
+#include <jettison/vfs/FileSystem.h>
 
 namespace Jettison::Render
 {
@@ -43,6 +46,21 @@ std::filesystem::path RelativeModelPath(
 	std::error_code error;
 	auto relativePath = std::filesystem::relative(modelPath, scenePath.parent_path(), error);
 	return error ? modelPath : relativePath;
+}
+
+// A mesh's material: a virtual path, as the VFS and the resource manager take it, rather than a path
+// relative to the scene as a model's is, so a mod's mount can shadow it.
+std::string ReadMaterialPath(const YAML::Node &meshNode, const std::string &id)
+{
+	const YAML::Node materialNode = meshNode["material"];
+	if (!materialNode)
+		return {};
+	auto path = materialNode.as<std::string>();
+	if (!Vfs::FileSystem::IsValidPath(path))
+		throw std::runtime_error(
+		    "Entity mesh material '" + path +
+		    "' is not a virtual path (materials/name.material.yaml): " + id);
+	return path;
 }
 
 void EmitVec3(YAML::Emitter &emitter, const char *key, const glm::vec3 &value)
@@ -212,11 +230,22 @@ void Scene::Load(const std::filesystem::path &path)
 					Shape shape{};
 					if (!ParseShape(shapeNode.as<std::string>(), shape))
 						throw std::runtime_error(
-						    "Entity mesh shape '" + shapeNode.as<std::string>() +
-						    "' is not sphere or box: " + id);
+						    "Entity mesh shape '" + shapeNode.as<std::string>() + "' is not one of " +
+						    std::string{ShapeNames()} + ": " + id);
 					mesh.shape = shape;
 					mesh.color = ReadVec3(meshNode, "color", mesh.color);
-					mesh.model = ProceduralModel(shape, mesh.color);
+					if (const YAML::Node innerNode = meshNode["innerRadius"])
+					{
+						if (shape != Shape::Ring)
+							throw std::runtime_error("Entity mesh innerRadius is for a ring: " + id);
+						mesh.innerRadius = innerNode.as<float>();
+						if (std::isnan(mesh.innerRadius) || mesh.innerRadius < 0.0f ||
+						    mesh.innerRadius >= 1.0f)
+							throw std::runtime_error(
+							    "Entity mesh innerRadius is from 0 up to, not including, 1: " + id);
+					}
+					mesh.material = ReadMaterialPath(meshNode, id);
+					mesh.model = ProceduralModel(shape, mesh.color, mesh.innerRadius);
 					m_registry.emplace<MeshComponent>(entity, std::move(mesh));
 				}
 				else
@@ -226,8 +255,11 @@ void Scene::Load(const std::filesystem::path &path)
 					        .lexically_normal();
 					auto model = LoadModel(modelPath);
 					const bool hasSceneGraph = model->GetRig().HasSceneGraph();
-					m_registry.emplace<MeshComponent>(
-					    entity, MeshComponent{modelPath, {}, glm::vec3{1.0f}, model});
+					MeshComponent mesh;
+					mesh.modelPath = modelPath;
+					mesh.material = ReadMaterialPath(meshNode, id);
+					mesh.model = model;
+					m_registry.emplace<MeshComponent>(entity, std::move(mesh));
 					if (hasSceneGraph)
 						m_registry.emplace<SkeletonComponent>(entity);
 				}
@@ -388,12 +420,16 @@ void Scene::Save(const std::filesystem::path &path) const
 			{
 				emitter << YAML::Key << "shape" << YAML::Value << std::string{ShapeName(*mesh->shape)};
 				EmitVec3(emitter, "color", mesh->color);
+				if (*mesh->shape == Shape::Ring)
+					emitter << YAML::Key << "innerRadius" << YAML::Value << mesh->innerRadius;
 			}
 			else
 			{
 				emitter << YAML::Key << "model" << YAML::Value
 				        << RelativeModelPath(mesh->modelPath, scenePath).generic_string();
 			}
+			if (!mesh->material.empty())
+				emitter << YAML::Key << "material" << YAML::Value << mesh->material;
 			emitter << YAML::EndMap;
 		}
 		if (const auto *animation = m_registry.try_get<RotationAnimationComponent>(entity))
@@ -459,17 +495,18 @@ void Scene::Destroy()
 	m_models.clear();
 }
 
-std::shared_ptr<Model> Scene::ProceduralModel(Shape shape, const glm::vec3 &color)
+std::shared_ptr<Model> Scene::ProceduralModel(Shape shape, const glm::vec3 &color, float innerRadius)
 {
 	// One model per shape and colour, shared by every entity that asks for it, as a model file is.
-	const std::string key = "procedural:" + std::string{ShapeName(shape)} + ":" +
-	                        std::to_string(color.r) + "," + std::to_string(color.g) + "," +
-	                        std::to_string(color.b);
+	std::string key = "procedural:" + std::string{ShapeName(shape)} + ":" + std::to_string(color.r) +
+	                  "," + std::to_string(color.g) + "," + std::to_string(color.b);
+	if (shape == Shape::Ring)
+		key += ":" + std::to_string(innerRadius);
 	if (const auto found = m_models.find(key); found != m_models.end())
 		return found->second;
 	if (!m_deviceContext)
 		throw std::runtime_error("A procedural mesh needs a device to upload to");
-	MeshData mesh = Generate(shape, color);
+	MeshData mesh = Generate(shape, color, innerRadius);
 	auto model = std::make_shared<Model>(m_deviceContext);
 	model->CreateFromMesh(std::move(mesh.vertices), std::move(mesh.indices), key);
 	m_models.emplace(key, model);

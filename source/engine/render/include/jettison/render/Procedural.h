@@ -19,21 +19,49 @@ struct MeshData
 	std::vector<std::uint32_t> indices;
 };
 
-// The procedural shapes a scene file can name.
+// The procedural shapes a scene file can name. Each is unit-sized: radius one, and -1 to 1 along
+// an axis that has an extent.
 enum class Shape
 {
 	Sphere,
-	Box
+	Box,
+	IcoSphere,
+	CubeSphere,
+	Ring,
+	Cylinder
 };
 
-// The shape for a name in a scene file ("sphere", "box"), or false.
+// The shape for a name in a scene file ("sphere", "box", "icosphere", "cubesphere", "ring",
+// "cylinder"), or false.
 bool ParseShape(std::string_view name, Shape &shape);
 std::string_view ShapeName(Shape shape);
+// The names ParseShape takes, for an error message: "sphere, box, ...".
+std::string_view ShapeNames();
 
 // A sphere of radius one, `segments` around and segments / 2 from pole to pole. A seam of
 // duplicated vertices runs pole to pole, so the texture coordinates wrap.
 MeshData UvSphere(int segments, const glm::vec3 &color);
 // A cube from -1 to 1, flat-shaded: four vertices to a face.
 MeshData Box(const glm::vec3 &color);
-MeshData Generate(Shape shape, const glm::vec3 &color);
+// An icosahedron with each triangle split into four, `subdivisions` times, pushed out to the unit
+// sphere: 10 * 4^n + 2 vertices, every one shared, and triangles of nearly one size, which a UV
+// sphere's poles do not have. Being welded, it has no seam to wrap texture coordinates across:
+// they are the spherical ones, and the triangles that straddle the antimeridian interpolate them
+// the long way round. It is for triplanar materials, which read no texture coordinates.
+MeshData IcoSphere(int subdivisions, const glm::vec3 &color);
+// A cube of `segments` by `segments` quads a face, pushed out to the unit sphere by the mapping
+// that keeps the cells closest to one size (x * sqrt(1 - y^2/2 - z^2/2 + y^2 z^2/3), and so on).
+// Each face has vertices of its own and texture coordinates from 0 to 1 across it: the face is
+// the unit a planet's terrain tiles will subdivide. The faces' edge vertices coincide.
+MeshData CubeSphere(int segments, const glm::vec3 &color);
+// A flat annulus in the XZ plane, outer radius one, `segments` around: a planet's rings. It is two
+// sided, with a face up and a face down that share no vertices, so each has its own normal. The
+// texture coordinates run around in u and from the inner edge (0) to the outer (1) in v.
+MeshData Ring(int segments, float innerRadius, const glm::vec3 &color);
+// A cylinder of radius one from y = -1 to 1, `segments` around, with flat caps. The side has a seam
+// of duplicated vertices so u wraps; the caps have vertices of their own, for their normals.
+MeshData Cylinder(int segments, const glm::vec3 &color);
+// The scene's shapes at the resolutions the scene draws them; `innerRadius` is the ring's, from 0
+// to 1, and the other shapes ignore it.
+MeshData Generate(Shape shape, const glm::vec3 &color, float innerRadius = 0.5f);
 } // namespace Jettison::Render

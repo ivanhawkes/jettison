@@ -211,6 +211,12 @@ class DeviceContext
 		return m_msaaSamples;
 	}
 
+	// Whether BC textures were enabled on the device, with BC7 sampled and filtered.
+	inline bool HasBlockCompression() const
+	{
+		return m_blockCompression;
+	}
+
 	inline VkQueue GetGraphicsQueue() const
 	{
 		return m_graphicsQueue;
@@ -372,6 +378,7 @@ class DeviceContext
 	uint32_t m_presentQueueIndex{std::numeric_limits<uint32_t>::max()};
 
 	VkSampleCountFlagBits m_msaaSamples{VK_SAMPLE_COUNT_1_BIT};
+	bool m_blockCompression{false};
 
 	VkSurfaceKHR m_surface{VK_NULL_HANDLE};
 

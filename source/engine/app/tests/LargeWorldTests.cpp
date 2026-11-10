@@ -158,14 +158,22 @@ Errors Measure(entt::registry &scene, const Celestial::StarSystem &system, doubl
 	return errors;
 }
 
+// A procedural mesh with a model that has no device: the draw list reads its transform, not its
+// buffers.
+Render::MeshComponent Mesh(Render::Shape shape)
+{
+	Render::MeshComponent mesh;
+	mesh.shape = shape;
+	mesh.model = std::make_shared<Render::Model>(nullptr);
+	return mesh;
+}
+
 entt::entity Body(entt::registry &scene, const char *body, const glm::vec3 &scale, Render::Shape shape)
 {
 	const entt::entity entity = scene.create();
 	scene.emplace<Render::TransformComponent>(entity, glm::dvec3{0.0}, glm::vec3{0.0f}, scale);
 	scene.emplace<Render::CelestialBodyComponent>(entity, body);
-	scene.emplace<Render::MeshComponent>(
-	    entity,
-	    Render::MeshComponent{{}, shape, glm::vec3{1.0f}, std::make_shared<Render::Model>(nullptr)});
+	scene.emplace<Render::MeshComponent>(entity, Mesh(shape));
 	return entity;
 }
 } // namespace
@@ -182,9 +190,7 @@ TEST_CASE(
 	scene.emplace<Render::TransformComponent>(
 	    panel, glm::dvec3{30.0, 0.0, 0.0}, glm::vec3{0.0f}, glm::vec3{8.0f, 0.2f, 4.0f});
 	scene.emplace<Render::ParentComponent>(panel, station);
-	scene.emplace<Render::MeshComponent>(
-	    panel, Render::MeshComponent{
-	               {}, Render::Shape::Box, glm::vec3{1.0f}, std::make_shared<Render::Model>(nullptr)});
+	scene.emplace<Render::MeshComponent>(panel, Mesh(Render::Shape::Box));
 
 	const entt::entity camera = scene.create();
 	scene.emplace<Render::CameraComponent>(camera, glm::dvec3{0.0}, glm::vec3{0.0f}, 50.0f, 0.5f, true);

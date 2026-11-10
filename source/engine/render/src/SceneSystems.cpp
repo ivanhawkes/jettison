@@ -169,7 +169,7 @@ std::vector<SceneDrawCommand> SceneRenderSystem::Collect(
 			     ToRenderSpace(
 			         meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform,
 			         camera),
-			     skeleton});
+			     skeleton, &mesh.material});
 		}
 	}
 	return drawCommands;

@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -19,6 +20,7 @@
 
 #include <jettison/app/CelestialPresentation.h>
 #include <jettison/app/SimPresentation.h>
+#include <jettison/jobs/IoWorker.h>
 #include <jettison/profile/Profile.h>
 #include <jettison/render/Scene.h>
 #include <jettison/render/vulkan/DeviceContext.h>
@@ -26,6 +28,7 @@
 #include <jettison/render/vulkan/Swapchain.h>
 #include <jettison/render/vulkan/Window.h>
 #include <jettison/render/vulkan/imgui/ImGuiRenderer.h>
+#include <jettison/resource/ResourceManager.h>
 
 namespace Jettison::App
 {
@@ -259,6 +262,18 @@ void Application::RegisterFrameSystems()
 			             m_simStepper.Previous().time, m_simStepper.Current().time,
 			             m_simStepper.Alpha()));
 	     }});
+	// Before the render, so a texture or material that finished loading, or reloaded, draws this
+	// frame.
+	m_frame.Register(
+	    {"resource.update",
+	     TickPhase::Presentation,
+	     {},
+	     {},
+	     [this](entt::registry &, double)
+	     {
+		     JETTISON_PROFILE_ZONE("resource.update");
+		     m_pResources->Update();
+	     }});
 	m_frame.Register(
 	    {"shell.ui",
 	     TickPhase::Presentation,
@@ -283,8 +298,10 @@ void Application::RegisterFrameSystems()
 		     // of a handled resize the headless sequence can read: it has no way to see a window
 		     // that resized without the engine noticing, and a resize the engine did not recreate
 		     // a swapchain for is not one it handled.
-		     m_frameResized =
-		         m_pRenderer->Render(*m_scene, m_sceneRenderSystem, m_debugDraw, *m_pImGuiRenderer);
+		     const double presentationTime =
+		         std::chrono::duration<double>(m_frameStart - m_loopStart).count();
+		     m_frameResized = m_pRenderer->Render(
+		         *m_scene, m_sceneRenderSystem, m_debugDraw, *m_pImGuiRenderer, presentationTime);
 	     }});
 	// After the render, so the frame it judges is the one just submitted; its reload stage
 	// replaces the scene, which nothing after it in the frame reads.
@@ -382,7 +399,10 @@ void Application::InitRenderer()
 {
 	if (m_assets.Mounts().empty())
 		m_assets.AddMount({"base", m_arguments.assetDirectory});
-	m_pRenderer = std::make_shared<Renderer>(m_pDeviceContext, m_pWindow, m_pSwapchain, m_assets);
+	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
+	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
+	m_pRenderer =
+	    std::make_shared<Renderer>(m_pDeviceContext, m_pWindow, m_pSwapchain, m_assets, *m_pResources);
 	m_pRenderer->Init();
 }
 
@@ -405,6 +425,7 @@ void Application::RunFrameLoop()
 	if (m_arguments.smokeTest)
 		m_smokeSequence = std::make_unique<SmokeSequence>(MakeSmokeActions(), CanIconifyWindow());
 	m_frameClock.Tick();
+	m_loopStart = Time::RealClock::Clock::now();
 
 	while (!glfwWindowShouldClose(m_pWindow->GetGLFWWindow()))
 		Tick();
@@ -567,8 +588,14 @@ SmokeActions Application::MakeSmokeActions()
 	actions.iconify = [this] { glfwIconifyWindow(m_pWindow->GetGLFWWindow()); };
 	actions.restore = [this] { glfwRestoreWindow(m_pWindow->GetGLFWWindow()); };
 	// The reload is the whole Load() path: Scene::Destroy, then the models, textures and buffers
-	// built again, at the addresses the pipeline has cached resources under.
-	actions.reload = [this] { LoadScene(); };
+	// built again, at the addresses the pipeline has cached resources under. Every resource is
+	// read again too, which is the hot-reload path a changed file takes - a texture uploaded over
+	// one a frame in flight samples - without writing to the asset tree.
+	actions.reload = [this]
+	{
+		LoadScene();
+		m_pResources->ReloadAll();
+	};
 	actions.close = [this] { RequestClose(); };
 	return actions;
 }
@@ -623,6 +650,10 @@ void Application::Shutdown() noexcept
 	// nothing.
 	m_pImGuiRenderer.reset();
 	m_pRenderer.reset();
+	// The renderer has released every handle it held, so the manager holds no GPU object; it goes
+	// before the worker it posts to.
+	m_pResources.reset();
+	m_pIoWorker.reset();
 	m_scene.reset();
 	m_smokeSequence.reset();
 	m_pSwapchain.reset();

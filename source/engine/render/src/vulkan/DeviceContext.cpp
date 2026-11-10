@@ -501,6 +501,17 @@ void DeviceContext::CreateLogicalDevice()
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	deviceFeatures.pNext = &features13;
 	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
+	// Block compression where the device has it, which is every desktop GPU and lavapipe: Basis
+	// Universal textures transcode to BC7 then, and to RGBA8, four times the memory, without it.
+	VkPhysicalDeviceFeatures supported{};
+	vkGetPhysicalDeviceFeatures(m_physicalDevice, &supported);
+	VkFormatProperties bc7{};
+	vkGetPhysicalDeviceFormatProperties(m_physicalDevice, VK_FORMAT_BC7_SRGB_BLOCK, &bc7);
+	constexpr VkFormatFeatureFlags kSampled =
+	    VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+	m_blockCompression =
+	    supported.textureCompressionBC == VK_TRUE && (bc7.optimalTilingFeatures & kSampled) == kSampled;
+	deviceFeatures.features.textureCompressionBC = m_blockCompression ? VK_TRUE : VK_FALSE;
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

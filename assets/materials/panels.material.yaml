@@ -1,0 +1,10 @@
+# The hull plating through the mesh's own texture coordinates rather than triplanar: the sample
+# scene's cube sphere, one face of plating to each face of the cube.
+version: 1
+program: mesh
+parameters:
+  - name: surface
+    value: [0.3, 48, 0, 0]
+textures:
+  - slot: baseColor
+    path: textures/hull_panels.ktx2

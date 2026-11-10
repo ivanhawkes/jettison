@@ -9,9 +9,11 @@ jettison_add_module(app
 		devtools
 		ecs
 		input
+		jobs
 		platform
 		profile
 		render
+		resource
 		sim
 		time
 		vfs

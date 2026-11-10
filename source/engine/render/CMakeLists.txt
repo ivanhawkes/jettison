@@ -6,16 +6,21 @@ jettison_add_module(render
 	DEPENDS
 		animation
 		math
+		reflect
+		resource
+		serialise
 		vfs
 	HEADERS
 		include/jettison/render/Camera.h
 		include/jettison/render/CameraRigs.h
 		include/jettison/render/DebugDraw.h
 		include/jettison/render/IRenderer.h
+		include/jettison/render/Material.h
 		include/jettison/render/PassList.h
 		include/jettison/render/Procedural.h
 		include/jettison/render/Scene.h
 		include/jettison/render/SceneSystems.h
+		include/jettison/render/Texture.h
 		include/jettison/render/vulkan/DeviceContext.h
 		include/jettison/render/vulkan/FrameData.h
 		include/jettison/render/vulkan/MaterialCache.h
@@ -29,10 +34,12 @@ jettison_add_module(render
 		src/Camera.cpp
 		src/CameraRigs.cpp
 		src/DebugDraw.cpp
+		src/Material.cpp
 		src/PassList.cpp
 		src/Procedural.cpp
 		src/Scene.cpp
 		src/SceneSystems.cpp
+		src/Texture.cpp
 		src/vulkan/DeviceContext.cpp
 		src/vulkan/MaterialCache.cpp
 		src/vulkan/Memory.cpp
@@ -48,17 +55,28 @@ jettison_add_module(render
 	TESTS
 		tests/CameraRigTests.cpp
 		tests/CameraTests.cpp
+		tests/MaterialTests.cpp
 		tests/PassListTests.cpp
+		tests/ProceduralTests.cpp
 		tests/SceneTests.cpp
+		tests/TextureTests.cpp
 	PUBLIC_LIBRARIES
 		Vulkan::Vulkan
 		glm
 		EnTT::EnTT
 	PRIVATE_LIBRARIES
 		glfw
+		ktx_read
 		stb
 		yaml-cpp::yaml-cpp
 		fastgltf
 		GPUOpen::VulkanMemoryAllocator
 		"$<LINK_GROUP:RESCAN,imgui>"
 )
+
+# The texture and material tests read the files the assets ship (the sample KTX 2 texture, the
+# program descriptors and materials), not copies of them.
+if(TARGET jettison_render_tests)
+	target_compile_definitions(jettison_render_tests PRIVATE
+		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+endif()

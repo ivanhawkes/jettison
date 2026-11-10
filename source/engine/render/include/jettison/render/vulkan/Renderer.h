@@ -18,6 +18,10 @@
 #include <jettison/render/vulkan/Swapchain.h>
 #include <jettison/render/vulkan/Window.h>
 
+namespace Jettison::Resource
+{
+class ResourceManager;
+}
 namespace Jettison::Vfs
 {
 class FileSystem;
@@ -27,6 +31,7 @@ namespace Jettison::Render
 {
 class ImGuiRenderer;
 class MaterialCache;
+struct MaterialBinding;
 class PipelineCache;
 
 // The frame, as the declared pass list docs/architecture.md describes ("The frame"): an opaque
@@ -35,37 +40,44 @@ class PipelineCache;
 // same list (shadows, the cluster compute passes, sky).
 //
 // What the CPU writes each frame lives once per frame in flight: the frame constants, the skin
-// palette, the light list, and the command buffer that reads them. A frame slot's fence is waited
-// on before any of them is touched, so nothing a submission in flight reads is ever rewritten.
-// The render targets are one set, shared by the frames in flight, because the pass list's
-// barriers order each frame's first use of a target after the last frame's last use.
+// palette, the light list, the material parameters, and the command buffer that reads them. A frame
+// slot's fence is waited on before any of them is touched, so nothing a submission in flight reads is
+// ever rewritten. The render targets are one set, shared by the frames in flight, because the pass
+// list's barriers order each frame's first use of a target after the last frame's last use.
 class Renderer
 {
   public:
 	static constexpr uint32_t kFramesInFlight = 2;
 	static constexpr VkFormat kHdrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
+	// The resource manager loads the materials and textures, and outlives the renderer; Destroy
+	// releases everything the renderer loaded through it.
 	Renderer(
 	    std::shared_ptr<DeviceContext> pDeviceContext, std::shared_ptr<Window> pWindow,
-	    std::shared_ptr<Swapchain> pSwapchain, const Vfs::FileSystem &assets);
+	    std::shared_ptr<Swapchain> pSwapchain, const Vfs::FileSystem &assets,
+	    Resource::ResourceManager &resources);
 	~Renderer();
 
 	Renderer(const Renderer &) = delete;
 	Renderer &operator=(const Renderer &) = delete;
 
 	// Builds the layouts, the pass list's plan, the targets, the frames in flight and every
-	// pipeline the passes use. A program missing from the asset tree throws here, naming it.
+	// pipeline the passes use, and registers the texture and material loaders. A program missing
+	// from the asset tree throws here, naming it; a material's program is built when the material
+	// first draws, and one that is missing fails that material alone.
 	void Init();
 
-	// Releases everything Init made. Safe on a renderer whose Init threw part-way, and twice.
+	// Releases everything Init made, and every material and texture handle. The device has to be
+	// idle. Safe on a renderer whose Init threw part-way, and twice.
 	void Destroy();
 
 	// Records and submits the scene as it stands: the presentation phase has already animated it
-	// and computed its world transforms (SceneUpdateSystem), so this frame only reads it. True
-	// when this frame recreated the swapchain.
+	// and computed its world transforms (SceneUpdateSystem), so this frame only reads it. The
+	// presentation time, in seconds, drives the materials' time-driven parameters. True when this
+	// frame recreated the swapchain.
 	bool Render(
 	    Scene &scene, const SceneRenderSystem &renderSystem, const DebugDraw &debugDraw,
-	    ImGuiRenderer &imguiRenderer);
+	    ImGuiRenderer &imguiRenderer, double presentationTime);
 
 	// What the UI is drawn into: the swapchain's format, single-sampled.
 	VkFormat GetOutputFormat() const
@@ -89,6 +101,7 @@ class Renderer
 		Buffer joints{};
 		Buffer lights{};
 		Buffer lines{};
+		Buffer materials{};
 		VkDescriptorSet frameSet{VK_NULL_HANDLE};
 	};
 
@@ -124,6 +137,9 @@ class Renderer
 	void WriteFrame(
 	    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
 	    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets);
+	// Each draw's named material, or null for the model's own, and the frame's parameters into the
+	// slot's material buffer.
+	void WriteMaterials(FrameData &frame, const std::vector<SceneDrawCommand> &draws, double time);
 	void Record(
 	    const FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
 	    const std::vector<uint32_t> &jointOffsets, const ImGuiRenderer &imguiRenderer);
@@ -141,11 +157,14 @@ class Renderer
 	std::shared_ptr<Swapchain> m_pSwapchain;
 	const Vfs::FileSystem &m_assets;
 
+	Resource::ResourceManager &m_resources;
+
 	std::unique_ptr<PipelineCache> m_pPipelines;
 	std::unique_ptr<MaterialCache> m_pMaterials;
 
-	// Set 0 of the scene programs (constants, skin palette, lights), set 1 of the mesh program (its
-	// material), and set 0 of the output program (the resolved HDR target).
+	// Set 0 of the scene programs (constants, skin palette, lights, material parameters), set 1 of
+	// the scene programs (a material's textures), and set 0 of the output program (the resolved HDR
+	// target).
 	VkDescriptorSetLayout m_frameSetLayout{VK_NULL_HANDLE};
 	VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
 	VkDescriptorSetLayout m_outputSetLayout{VK_NULL_HANDLE};
@@ -155,7 +174,6 @@ class Renderer
 	VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
 	VkDescriptorSet m_outputSet{VK_NULL_HANDLE};
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
-	VkPipeline m_meshPipeline{VK_NULL_HANDLE};
 	VkPipeline m_outputPipeline{VK_NULL_HANDLE};
 	VkPipeline m_linePipeline{VK_NULL_HANDLE};
 	VkPipeline m_lineOverlayPipeline{VK_NULL_HANDLE};
@@ -163,6 +181,9 @@ class Renderer
 	uint32_t m_lineVertices{0};
 	uint32_t m_testedLineVertices{0};
 	std::vector<LineVertex> m_lineScratch;
+	// This frame's material parameters, and each draw's named material (null for the model's own).
+	std::vector<glm::vec4> m_materialParameters;
+	std::vector<const MaterialBinding *> m_drawMaterials;
 
 	PassList m_passes;
 	PassPlan m_plan;
@@ -179,6 +200,9 @@ class Renderer
 
 	std::array<FrameData, kFramesInFlight> m_frames{};
 	uint32_t m_currentFrame{0};
+	// The frames submitted so far: the number of the frame being recorded. A frame slot's fence,
+	// once waited on, says every frame up to this one less kFramesInFlight is done.
+	std::uint64_t m_frameNumber{0};
 	// The swapchain image the current frame slot acquired. Render's acquire writes it and Present
 	// reads it, one frame at a time.
 	uint32_t m_presentImageIndex{0};
