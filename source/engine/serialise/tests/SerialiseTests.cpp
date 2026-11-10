@@ -4,6 +4,7 @@
 
 #include <doctest/doctest.h>
 
+#include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
@@ -46,6 +47,8 @@ struct Ship
 	float throttle{0.0f};
 	glm::vec3 heading{0.0f, 0.0f, 1.0f};
 	glm::dvec3 position{0.0};
+	glm::dquat attitude{1.0, 0.0, 0.0, 0.0};
+	glm::quat turret{1.0f, 0.0f, 0.0f, 0.0f};
 	glm::vec4 colour{1.0f};
 	std::vector<Hold> holds;
 	std::vector<float> fuelHistory;
@@ -98,6 +101,8 @@ void RegisterTypes()
 		    .Field<&Ship::throttle>("throttle", Attribute::Saved)
 		    .Field<&Ship::heading>("heading", Attribute::Saved)
 		    .Field<&Ship::position>("position", Attribute::Saved)
+		    .Field<&Ship::attitude>("attitude", Attribute::Saved)
+		    .Field<&Ship::turret>("turret", Attribute::Saved)
 		    .Field<&Ship::colour>("colour", Attribute::Saved)
 		    .Field<&Ship::holds>("holds", Attribute::Saved)
 		    .Field<&Ship::fuelHistory>("fuelHistory", Attribute::Saved)
@@ -128,6 +133,8 @@ Ship AwkwardShip()
 	ship.throttle = 0.1f;
 	ship.heading = {-0.0f, 1e-30f, std::numeric_limits<float>::denorm_min()};
 	ship.position = {1.495978707e11, -0.1, 6.02214076e23};
+	ship.attitude = {0.5, -0.5, 0.5, -0.5};
+	ship.turret = {std::sqrt(0.5f), 0.0f, -std::sqrt(0.5f), 0.0f};
 	ship.colour = {0.2f, 1.0f / 3.0f, 3.4028235e38f, 0.0f};
 	ship.holds = {{Good::Water, 40, 0.25}, {Good::Fuel, 4'000'000'000u, 1e-300}};
 	ship.fuelHistory = {1.0f, 0.75f, 0.333333343f};
@@ -179,6 +186,8 @@ TEST_CASE("Serialise: YAML writes the version, then Saved fields in registration
 	// Vectors and lists of leaves go on one line, as the scene format writes them; a float is
 	// its shortest decimal, not its nine-digit expansion.
 	CHECK(text.find("heading: [0, 0.5, 1]\n") != std::string::npos);
+	// x, y, z, w: GLM's storage order, not the w-first order its constructor takes.
+	CHECK(text.find("attitude: [0, 0, 0, 1]\n") != std::string::npos);
 	CHECK(text.find("fuelHistory: [0.1, 0.2]\n") != std::string::npos);
 	CHECK(text.find("holds:\n  - good: Fuel\n    quantity: 2\n    mass: 0.5\n") != std::string::npos);
 	CHECK(text.find("reservedBy") == std::string::npos);

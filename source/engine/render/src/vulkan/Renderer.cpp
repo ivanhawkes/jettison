@@ -120,9 +120,7 @@ void Renderer::RecreateSwapchain(ImGuiRenderer &imguiRenderer)
 }
 
 
-bool Renderer::Render(
-    Scene &scene, const SceneUpdateSystem &updateSystem, const SceneRenderSystem &renderSystem,
-    float deltaTime, ImGuiRenderer &imguiRenderer)
+bool Renderer::Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGuiRenderer &imguiRenderer)
 {
 	vkWaitForFences(
 	    m_pDeviceContext->GetLogicalDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE,
@@ -166,7 +164,6 @@ bool Renderer::Render(
 	}
 	m_sceneGeneration = scene.Generation();
 
-	updateSystem.Update(scene.Registry(), deltaTime);
 	UpdateUniformBuffer(imageIndex, scene.Registry());
 	const auto drawCommands = renderSystem.Collect(scene.Registry());
 	m_pPipeline->RecordCommandBuffer(imageIndex, drawCommands, imguiRenderer);

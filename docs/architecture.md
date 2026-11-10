@@ -258,9 +258,8 @@ the headless render test on lavapipe covers every pass.
 
 ## Frame and tick structure
 
-`Application::Tick` today runs events, hot keys, UI and render. With the scheduler
-(`engine/ecs`), it becomes a sequence of named phases that systems register into, each
-declaring the components it reads and writes:
+`Application::Tick` is a sequence of named phases (`engine/ecs`, `Ecs::kTickPhases`) that
+systems register into, each declaring the components it reads and writes:
 
 1. **Input**: poll devices and map them to actions in the active contexts.
 2. **Commands**: turn actions and UI into simulation commands.
@@ -303,7 +302,7 @@ proves it headlessly. What exists:
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
   `--scene`, `--save-scene`), builds `Application`, and prints any exception the run threw.
   `Application::Init` stages are window, device and swapchain, scene, pipeline, UI, renderer.
-  `RunFrameLoop` runs `Tick` (events, hot keys, UI, render) until close.
+  `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
 - **Smoke sequence**. `SmokeSequence` is the render test's six stages (resize, resize,
   minimize, restore, scene reload, settle) as a state machine driven once per frame through
   five callbacks. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,

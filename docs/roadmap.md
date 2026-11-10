@@ -14,7 +14,7 @@ trustworthy, are recorded in [history](history.md).
 | 0 | **Plan.** Scope, architecture, roadmap, standards. | These documents are reviewed and agreed. |
 | 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
 | 2 | **Core.** Done 2026-11-10. Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration), and so are `math` (bounds and intersection tests in float and double, splines, easing, PCG32, noise and tangents), `profile` (Tracy zones, frame marks and plots), `time` (the real and simulation clocks, the fixed-step accumulator, the calendar) and `platform` (XDG paths, the executable path, and the start-up CPU check, five phases early). Two pieces moved to the phase that has a place for them: GPU zones to phase 4, with the pass list, and the app shell's move to `Log.h` to the smoke test's move. | Met: the math and RNG suites pass, the RNG checked against PCG32's published output and its distributions and the noise against recorded values. |
-| 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. In progress: filled in are `reflect` (types, fields, enumerations and attributes over EnTT meta, with registration errors that hold in release builds), `serialise` (YAML and binary archives over it, each tested as a round trip and against data that does not fit) `vfs` (ordered mounts, shadowing, enumeration, and whole-file writes to the user mount), the `jobs` I/O worker, `resource` (handles, reference counts, loads on the worker, hot reload) `ecs` (the scheduler and the state machine) and `sim`'s world, commands and saves. The exit test passes: a world stepped from a command stream, saved part-way and loaded, carries on to the same bytes as the original, and its state hash is pinned and the same in Debug and Release. The definition registry, input actions and the console are filled in too. Not yet done: the shell's `Tick` running as scheduler phases, and the simulation's snapshots and events to presentation, which want a game's presentation to shape them. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
+| 3 | **Runtime architecture.** Done 2026-11-11. Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. Filled in are `reflect` (types, fields, enumerations and attributes over EnTT meta, with registration errors that hold in release builds), `serialise` (YAML and binary archives over it, each tested as a round trip and against data that does not fit), `vfs` (ordered mounts, shadowing, enumeration, and whole-file writes to the user mount), the `jobs` I/O worker, `resource` (handles, reference counts, loads on the worker, hot reload), `ecs` (the scheduler and the state machine), `sim` (the world, commands, saves, events, snapshots and the stepper that runs it from frame time, and the definition registry), `input` (actions, contexts and bindings) and the console and dev tools. The shell's frame is the scheduler's phases, and the scene shows the simulation through proxies interpolated between its last two steps. Three pieces moved to the phase that has a place for them: HOTAS axes and the mouse wheel to phase 7, with flight, and loading rebinds from the user's settings to phase 8, with persistence. | Met: a world stepped from a command stream, saved part-way and loaded, carries on to the same bytes as the original, and its state hash is pinned and the same in Debug, Release and under the sanitisers. The smoke test still renders, through the phases, with validation enabled. |
 | 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, a pass list with compute passes beside graphics ones, the MSAA HDR target and its resolve, per-frame storage buffers, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
 | 5 | **Space rendering.** Clustered forward shading: cluster bounds and light assignment in compute, PBR with image-based lighting, the sun, point and spot lights with finite ranges, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
 | 6 | **Star systems and galaxy.** One scene per system, jump transitions, asynchronous loading, scene layers, the spatial index, the jump-lane graph. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
@@ -203,7 +203,7 @@ name and a field whose type changed size is reported. Every prefix of a save is 
 brings migrations. `BinaryWriter` and `BinaryReader` are the streams the binary archive is
 made of, public for a format that is a sequence of values rather than one, as a world save is;
 they read into a reference as well as into an owned value, and `entt::entity` is a leaf, its
-32-bit identifier. The scene stays on its own loader until the scene archive (entities, optional
+32-bit identifier. So are `glm::quat` and `glm::dquat`, written x, y, z, w, GLM's storage order. The scene stays on its own loader until the scene archive (entities, optional
 components, the mesh path relative to the file) moves onto these, with `ecs`.
 
 ### 10. Virtual file system · phase 3 · `engine/vfs`
@@ -263,8 +263,14 @@ access (`Access::Of<Reads...>().Writing<Writes...>()`) does not change the order
 registration order decides now and a parallel scheduler would have to keep apart. `StateMachine`
 searches its tables in order, needing only `==`, refuses a second transition on one event from
 one state, runs the exit hook then the entry hook (a self-transition runs both), and refuses a
-`Dispatch` from inside a hook. Events are EnTT's dispatcher as it is; the simulation's events to
-presentation come with `sim`.
+`Dispatch` from inside a hook. Events inside a world, or inside presentation, are EnTT's
+dispatcher as it is; the simulation's events to presentation are `sim`'s own queue, because one
+queue keeps the order they were raised in across types. `kTickPhases` lists the phases in frame
+order, and the shell's `Tick` is a run of each in turn: `shell.input`; nothing yet in commands;
+`sim.step`; `sim.sync` and `sim.events`; `scene.update` and `shell.ui`; `render` and, after it,
+`shell.smoke`. The scene's update (animation and world transforms) moved out of
+`Renderer::Render` to be a presentation system, so the renderer only reads the scene. Each
+system is a Tracy zone, and `sim.steps` is plotted.
 
 ### 13. Simulation · phase 3 · `engine/sim`
 
@@ -287,6 +293,22 @@ fresh registry and commits only at the end, so a save that does not fit leaves t
 was. `StateHash()` is FNV-1a over the save. With recording on, applied commands are kept with
 their step, and fed to a world from the same start they replay the session. The suite is the
 phase's exit test, and passes under the address and undefined-behaviour sanitisers too.
+*Filled in* (phase 3), snapshots and events: `Sim::Transform` is a position and an orientation
+in double precision, the component physics will write; `Capture` takes every entity that has
+one, sorted by identifier, and `Interpolate` runs from one snapshot to the next along the line
+and the shorter arc, an entity only the later snapshot has standing where it is and one only the
+earlier has having no transform. `Stepper` is the frame's simulation phase: the frame's real
+seconds, scaled by the world's clock (paused, or compressed into more steps rather than longer
+ones), go through the accumulator, and it keeps the states either side of the last step, so a
+frame of many steps captures twice and presentation, a step behind, interpolates `Alpha()` of the
+way. After a load, `Resync` makes both snapshots the loaded state. Events are raised with
+`EventQueue::Emit`, from a command or a system, stamped with their step and kept in one queue in
+raised order; the queue lives in the registry's context beside the generator, is not part of the
+state (a save leaves it out and a load empties it), and presentation takes the lot each frame.
+On the presentation side, a scene entity with an `App::SimProxyComponent` names a simulation
+entity, and `SyncSimProxies` writes its interpolated transform into the scene, relative to an
+origin in double precision before it becomes a float. The shell's world is empty until a game
+registers into it.
 *Filled in* (phase 3), the definition registry: a definition is one YAML file under a
 directory, in `YamlArchive`'s form, named by its path under the directory without `.yaml`
 (`military/corvette`). The VFS gives the topmost file at each path, so a mod overrides a

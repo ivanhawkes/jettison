@@ -39,9 +39,9 @@ class Renderer
 
 	void Destroy();
 
-	bool Render(
-	    Scene &scene, const SceneUpdateSystem &updateSystem, const SceneRenderSystem &renderSystem,
-	    float deltaTime, ImGuiRenderer &imguiRenderer);
+	// Records and submits the scene as it stands: the presentation phase has already animated it
+	// and computed its world transforms (SceneUpdateSystem), so this frame only reads it.
+	bool Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGuiRenderer &imguiRenderer);
 
 	// The present half of the frame: the image the current slot acquired, the render-finished
 	// semaphore of that image and the swapchain answer that follows a submitted frame. Render

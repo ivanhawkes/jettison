@@ -2,6 +2,7 @@
 
 #include <entt/entt.hpp>
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -21,6 +22,11 @@ enum class TickPhase : std::uint8_t
 	Presentation,
 	Render
 };
+
+// Every phase, in the order a frame runs them.
+inline constexpr std::array kTickPhases{TickPhase::Input,        TickPhase::Commands,
+                                        TickPhase::Simulation,   TickPhase::Sync,
+                                        TickPhase::Presentation, TickPhase::Render};
 
 // What a system touches, declared up front, by component type: Access::Of<Reads...>() with
 // .Writing<Writes...>(). It does not change the order systems run in today; it is what the job

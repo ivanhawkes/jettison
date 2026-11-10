@@ -6,14 +6,17 @@ jettison_add_module(app
 	DEPENDS
 		core
 		devtools
+		ecs
 		input
 		platform
 		profile
 		render
+		sim
 		time
 	HEADERS
 		include/jettison/app/AppArguments.h
 		include/jettison/app/RenderApplication.h
+		include/jettison/app/SimPresentation.h
 		include/jettison/app/SmokeSequence.h
 	SOURCES
 		src/AppArguments.cpp
@@ -22,8 +25,10 @@ jettison_add_module(app
 		src/GlfwInput.cpp
 		src/GlfwInput.h
 		src/RenderApplication.cpp
+		src/SimPresentation.cpp
 		src/SmokeSequence.cpp
 	TESTS
+		tests/SimPresentationTests.cpp
 		tests/SmokeSequenceTests.cpp
 	PRIVATE_LIBRARIES
 		glfw

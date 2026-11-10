@@ -37,11 +37,17 @@ SimWorld::SimWorld(double fixedStep, std::uint64_t seed) : m_fixedStep{fixedStep
 		throw std::invalid_argument{
 		    std::format("SimWorld: a fixed step of {} s is not a step", fixedStep)};
 	m_registry.ctx().emplace<Math::Random>(seed);
+	m_registry.ctx().emplace<EventQueue>();
 }
 
 Math::Random &SimWorld::Random()
 {
 	return m_registry.ctx().get<Math::Random>();
+}
+
+EventQueue &SimWorld::Events()
+{
+	return m_registry.ctx().get<EventQueue>();
 }
 
 void SimWorld::AddComponent(const entt::meta_type &type, Component component)
@@ -79,6 +85,7 @@ void SimWorld::Step()
 	}
 
 	const std::uint64_t step = m_clock.Step();
+	Events().m_step = step;
 	for (entt::meta_any &command : m_commands.Drain())
 	{
 		m_applies.at(command.type().info().hash())(*this, command);
@@ -167,6 +174,8 @@ void SimWorld::Load(std::span<const std::byte> save)
 	reader.End();
 
 	registry.ctx().emplace<Math::Random>(Math::Random::FromState(random));
+	// The events raised so far belong to the state being replaced.
+	registry.ctx().emplace<EventQueue>();
 	m_registry = std::move(registry);
 	m_clock.Restore(step, now);
 	m_commands = CommandQueue{};

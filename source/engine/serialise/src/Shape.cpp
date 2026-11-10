@@ -2,6 +2,7 @@
 
 #include <jettison/serialise/Archive.h>
 
+#include <glm/gtc/quaternion.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -84,6 +85,11 @@ const std::unordered_map<entt::id_type, Shape> &LeafShapes()
 		Add<glm::dvec2>(table, Leaf<glm::dvec2, double, 2>());
 		Add<glm::dvec3>(table, Leaf<glm::dvec3, double, 3>());
 		Add<glm::dvec4>(table, Leaf<glm::dvec4, double, 4>());
+		// A quaternion is its components in GLM's storage order, x, y, z then w: the order a
+		// save holds them in is the order the type holds them in, and GLM_FORCE_QUAT_DATA_WXYZ
+		// would change both.
+		Add<glm::quat>(table, Leaf<glm::quat, float, 4>());
+		Add<glm::dquat>(table, Leaf<glm::dquat, double, 4>());
 		// An entity is its 32-bit identifier, index and version together: what a component that
 		// refers to another entity holds, restored as it was by a world's loader.
 		static_assert(std::is_same_v<std::underlying_type_t<entt::entity>, std::uint32_t>);

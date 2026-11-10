@@ -11,7 +11,9 @@
 #include <string>
 #include <utility>
 
+#include <jettison/app/SimPresentation.h>
 #include <jettison/profile/Profile.h>
+#include <jettison/render/Scene.h>
 #include <jettison/render/vulkan/DeviceContext.h>
 #include <jettison/render/vulkan/Pipeline.h>
 #include <jettison/render/vulkan/Renderer.h>
@@ -68,6 +70,131 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_console.RegisterCommand(
 	    "quit", "Closes the window and ends the run",
 	    [this](DevTools::Console &, std::span<const std::string>) { RequestClose(); });
+
+	Sim::RegisterTypes();
+	m_sim.RegisterComponent<Sim::Transform>();
+	RegisterFrameSystems();
+}
+
+
+void Application::RegisterFrameSystems()
+{
+	using Animation::AnimationPlayerComponent;
+	using Animation::RotationAnimationComponent;
+	using Animation::SkeletonComponent;
+	using Ecs::Access;
+	using Ecs::TickPhase;
+	using Render::CameraComponent;
+	using Render::LightComponent;
+	using Render::MeshComponent;
+	using Render::ParentComponent;
+	using Render::TransformComponent;
+	using Render::WorldTransformComponent;
+
+	m_frame.Register(
+	    {"shell.input",
+	     TickPhase::Input,
+	     {},
+	     {},
+	     [this](entt::registry &, double)
+	     {
+		     JETTISON_PROFILE_ZONE("shell.input");
+		     glfwPollEvents();
+		     PollInput();
+	     }});
+
+	// The commands phase is empty in the shell: it has no actions that become commands, and a
+	// game's register here.
+
+	m_frame.Register(
+	    {"sim.step",
+	     TickPhase::Simulation,
+	     {},
+	     {},
+	     [this](entt::registry &, double deltaTime)
+	     {
+		     JETTISON_PROFILE_ZONE("sim.step");
+		     const int steps = m_simStepper.Advance(deltaTime);
+		     JETTISON_PROFILE_PLOT("sim.steps", steps);
+	     }});
+
+	m_frame.Register(
+	    {"sim.sync",
+	     TickPhase::Sync,
+	     Access::Of<SimProxyComponent>().Writing<TransformComponent>(),
+	     {},
+	     [this](entt::registry &registry, double)
+	     {
+		     JETTISON_PROFILE_ZONE("sim.sync");
+		     SyncSimProxies(
+		         registry, m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha());
+	     }});
+	// Nothing in the shell turns an event into sound or UI yet. Taking them every frame is what
+	// keeps the queue from growing while nothing does; a game's handlers replace this system.
+	m_frame.Register(
+	    {"sim.events",
+	     TickPhase::Sync,
+	     {},
+	     {},
+	     [this](entt::registry &, double) { static_cast<void>(m_sim.Events().Take()); }});
+
+	m_frame.Register(
+	    {"scene.update",
+	     TickPhase::Presentation,
+	     Access::Of<TransformComponent, ParentComponent, MeshComponent>()
+	         .Writing<
+	             RotationAnimationComponent, AnimationPlayerComponent, SkeletonComponent,
+	             WorldTransformComponent>(),
+	     {},
+	     [this](entt::registry &registry, double deltaTime)
+	     {
+		     JETTISON_PROFILE_ZONE("scene.update");
+		     m_sceneUpdateSystem.Update(registry, static_cast<float>(deltaTime));
+	     }});
+	m_frame.Register(
+	    {"shell.ui",
+	     TickPhase::Presentation,
+	     {},
+	     {},
+	     [this](entt::registry &, double)
+	     {
+		     JETTISON_PROFILE_ZONE("shell.ui");
+		     DrawUI();
+	     }});
+
+	m_frame.Register(
+	    {"render",
+	     TickPhase::Render,
+	     Access::Of<
+	         MeshComponent, WorldTransformComponent, SkeletonComponent, CameraComponent,
+	         LightComponent>(),
+	     {},
+	     [this](entt::registry &, double)
+	     {
+		     // The answer says whether this frame recreated the swapchain, which is the only sign
+		     // of a handled resize the headless sequence can read: it has no way to see a window
+		     // that resized without the engine noticing, and a resize the engine did not recreate
+		     // a swapchain for is not one it handled.
+		     m_frameResized = m_pRenderer->Render(*m_scene, m_sceneRenderSystem, *m_pImGuiRenderer);
+	     }});
+	// After the render, so the frame it judges is the one just submitted; its reload stage
+	// replaces the scene, which nothing after it in the frame reads.
+	m_frame.Register(
+	    {"shell.smoke",
+	     TickPhase::Render,
+	     {},
+	     {"render"},
+	     [this](entt::registry &, double)
+	     {
+		     if (!m_smokeSequence)
+			     return;
+		     int width = 0;
+		     int height = 0;
+		     glfwGetWindowSize(m_pWindow->GetGLFWWindow(), &width, &height);
+		     m_smokeSequence->Advance(m_frameResized, width, height, m_frameStart);
+	     }});
+
+	m_frame.Validate();
 }
 
 
@@ -187,34 +314,22 @@ void Application::RunFrameLoop()
 void Application::Tick()
 {
 	JETTISON_PROFILE_FUNCTION();
-	const auto now = Time::RealClock::Clock::now();
-	const auto deltaTime = static_cast<float>(m_frameClock.Tick(now).count());
+	m_frameStart = Time::RealClock::Clock::now();
+	const double deltaTime = m_frameClock.Tick(m_frameStart).count();
+	for (const Ecs::TickPhase phase : Ecs::kTickPhases)
+		m_frame.Run(phase, m_scene->Registry(), deltaTime);
+	JETTISON_PROFILE_FRAME();
+}
 
-	glfwPollEvents();
-	PollInput();
 
+void Application::DrawUI()
+{
 	m_pImGuiRenderer->BeginFrame();
 	if (m_showUI)
 		DevTools::DrawDevTools(m_console, m_devTools, &m_showUI);
 	else if (m_devTools.showConsole)
 		DevTools::DrawConsole(m_console, m_devTools.console, &m_devTools.showConsole);
 	m_pImGuiRenderer->EndFrame();
-
-	// The answer says whether this frame recreated the swapchain, which is the only sign of a
-	// handled resize the headless sequence can read: it has no way to see a window that resized
-	// without the engine noticing, and a resize the engine did not recreate a swapchain for is not
-	// one it handled.
-	const bool frameResized = m_pRenderer->Render(
-	    *m_scene, m_sceneUpdateSystem, m_sceneRenderSystem, deltaTime, *m_pImGuiRenderer);
-
-	if (m_smokeSequence)
-	{
-		int width = 0;
-		int height = 0;
-		glfwGetWindowSize(m_pWindow->GetGLFWWindow(), &width, &height);
-		m_smokeSequence->Advance(frameResized, width, height, now);
-	}
-	JETTISON_PROFILE_FRAME();
 }
 
 

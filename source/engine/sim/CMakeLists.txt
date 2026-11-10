@@ -10,13 +10,19 @@ jettison_add_module(sim
 		vfs
 	HEADERS
 		include/jettison/sim/CommandQueue.h
+		include/jettison/sim/Events.h
 		include/jettison/sim/SimWorld.h
 		include/jettison/sim/DefinitionRegistry.h
+		include/jettison/sim/Snapshot.h
+		include/jettison/sim/Stepper.h
 	SOURCES
 		src/CommandQueue.cpp
 		src/DefinitionRegistry.cpp
 		src/SimWorld.cpp
+		src/Snapshot.cpp
+		src/Stepper.cpp
 	TESTS
 		tests/DefinitionTests.cpp
 		tests/SimTests.cpp
+		tests/SnapshotTests.cpp
 )

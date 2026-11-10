@@ -55,6 +55,7 @@ class UnsupportedTypeError : public std::logic_error
 // A field's type is one of:
 //   bool, the integer types, float, double, std::string;
 //   glm::vec2/3/4 and glm::dvec2/3/4, written as a sequence of components;
+//   glm::quat and glm::dquat, written as x, y, z, w (GLM's storage order);
 //   entt::entity, written as its 32-bit identifier;
 //   an enumeration registered with Reflect, written as the enumerator's name;
 //   a class registered with Reflect, written as its Saved fields;

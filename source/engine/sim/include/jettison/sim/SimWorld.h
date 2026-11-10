@@ -15,6 +15,7 @@
 #include <jettison/math/Random.h>
 #include <jettison/serialise/Binary.h>
 #include <jettison/sim/CommandQueue.h>
+#include <jettison/sim/Events.h>
 #include <jettison/time/Clock.h>
 
 namespace Jettison::Sim
@@ -81,7 +82,8 @@ std::string_view ReflectedName(const entt::meta_type &type, std::string_view wha
 // no state outside them that the simulation depends on.
 //
 // The world's generator is in the registry's context (Random()), where systems reach it. A system
-// draws from it in an order its step fixes, so the draws are part of the replay.
+// draws from it in an order its step fixes, so the draws are part of the replay. The event queue
+// to presentation (Events()) is in the context too, and is not part of the state.
 class SimWorld
 {
   public:
@@ -136,11 +138,23 @@ class SimWorld
 	{
 		return m_clock;
 	}
+	// How fast the world runs, which is the player's to choose and not part of the state: a save
+	// leaves them out, and a load keeps the ones the world had. The clock throws for a factor that
+	// is not positive and finite.
+	void SetPaused(bool paused)
+	{
+		m_clock.SetPaused(paused);
+	}
+	void SetCompression(double factor)
+	{
+		m_clock.SetCompression(factor);
+	}
 	double FixedStep() const
 	{
 		return m_fixedStep;
 	}
 	Math::Random &Random();
+	EventQueue &Events();
 
 	// One fixed step: apply the queued commands in order, run the simulation-phase systems, and
 	// advance the clock. Throws std::logic_error, before applying any, if a queued command has

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -7,8 +8,11 @@
 #include <jettison/app/SmokeSequence.h>
 #include <jettison/devtools/Console.h>
 #include <jettison/devtools/Views.h>
+#include <jettison/ecs/Scheduler.h>
 #include <jettison/input/Actions.h>
 #include <jettison/render/SceneSystems.h>
+#include <jettison/sim/SimWorld.h>
+#include <jettison/sim/Stepper.h>
 #include <jettison/time/Clock.h>
 
 #include "GlfwInput.h"
@@ -77,10 +81,15 @@ class Application
 	void InitUI();
 	void InitRenderer();
 
-	// The frame loop, and one frame of it: events, hot keys, UI, render, sequence.
+	// The frame's systems, one or two to a phase; registered in the constructor, so a mistake in
+	// the order is a start-up error, before a window opens.
+	void RegisterFrameSystems();
+
+	// The frame loop, and one frame of it: the scheduler's phases in order (Ecs::kTickPhases).
 	void RunFrameLoop();
 	void Tick();
 	void PollInput();
+	void DrawUI();
 	// Pushes or pops the console's input context to match whether the console is open.
 	void SyncConsoleContext();
 
@@ -122,6 +131,24 @@ class Application
 	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
 	// include the time start-up took.
 	Time::RealClock m_frameClock;
+	// When the frame started, read once and handed to everything the frame times.
+	Time::RealClock::Clock::time_point m_frameStart{};
+	// Whether this frame's render recreated the swapchain, for the headless sequence.
+	bool m_frameResized{false};
+
+	// The frame's phases: input, the simulation's steps, the sync of its snapshots into the
+	// scene, animation and UI, then render (docs/architecture.md, "Frame and tick structure").
+	// Each system runs on the scene's registry, which is the presentation world.
+	Ecs::Scheduler m_frame;
+
+	// The authoritative world, run as if it were a local server: the scene shows it through
+	// SimProxyComponents, from the stepper's snapshots, and never holds a reference into it.
+	// Empty in the shell; a game registers its components, commands and systems on it. Sixty
+	// steps a second, and the seed is fixed until a game or a save chooses one.
+	static constexpr double kSimStep = 1.0 / 60.0;
+	static constexpr std::uint64_t kSimSeed = 0;
+	Sim::SimWorld m_sim{kSimStep, kSimSeed};
+	Sim::Stepper m_simStepper{m_sim};
 
 	// The shell's own actions, in a "shell" context at the bottom of the stack: F1 toggles the
 	// dev tools, ` the console, and Escape closes the console, then the dev tools, then the
