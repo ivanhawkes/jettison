@@ -4,8 +4,9 @@
 version: 1
 program: mesh_triplanar
 parameters:
-  - name: surface
-    value: [0.35, 48, 0, 0]
+  # Painted metal plate: a little metallic, scuffed enough that the sun's highlight spreads.
+  - name: metallicRoughness
+    value: [0.45, 0.42, 0, 0]
   - name: triplanar
     value: [0.0625, 6, 0, 0]
 textures:

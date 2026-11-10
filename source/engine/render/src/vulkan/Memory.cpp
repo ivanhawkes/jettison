@@ -121,6 +121,28 @@ Buffer DeviceContext::CreateDeviceBuffer(
 }
 
 
+namespace
+{
+Image CreateDeviceImage(
+    VmaAllocator allocator, const VkImageCreateInfo &imageInfo, const std::string &name)
+{
+	VmaAllocationCreateInfo allocationInfo{};
+	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	if ((imageInfo.usage &
+	     (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)) != 0)
+		allocationInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+
+	Image image;
+	if (vmaCreateImage(
+	        allocator, &imageInfo, &allocationInfo, &image.handle, &image.allocation, nullptr) !=
+	    VK_SUCCESS)
+		throw std::runtime_error("failed to create image '" + name + "'");
+	vmaSetAllocationName(allocator, image.allocation, name.c_str());
+	return image;
+}
+} // namespace
+
+
 Image DeviceContext::CreateImage(
     uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
     VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::string &name)
@@ -140,18 +162,31 @@ Image DeviceContext::CreateImage(
 	imageInfo.samples = numSamples;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	VmaAllocationCreateInfo allocationInfo{};
-	allocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-	if ((usage & (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)) !=
-	    0)
-		allocationInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+	const Image image = CreateDeviceImage(m_allocator, imageInfo, name);
+	SetDebugName(image.handle, name);
+	return image;
+}
 
-	Image image;
-	if (vmaCreateImage(
-	        m_allocator, &imageInfo, &allocationInfo, &image.handle, &image.allocation, nullptr) !=
-	    VK_SUCCESS)
-		throw std::runtime_error("failed to create image '" + name + "'");
-	vmaSetAllocationName(m_allocator, image.allocation, name.c_str());
+
+Image DeviceContext::CreateCubeImage(
+    uint32_t size, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage,
+    const std::string &name)
+{
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent = {size, size, 1};
+	imageInfo.mipLevels = mipLevels;
+	imageInfo.arrayLayers = 6;
+	imageInfo.format = format;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = usage;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	const Image image = CreateDeviceImage(m_allocator, imageInfo, name);
 	SetDebugName(image.handle, name);
 	return image;
 }

@@ -7,8 +7,8 @@ parameters:
     default: [1, 1, 1, 1]
   - name: emissive
     default: [0, 0, 0, 0]
-  - name: surface
-    default: [0.2, 32, 0, 0]
+  - name: metallicRoughness
+    default: [0, 0.6, 0, 0]
   # x: texture repeats per metre of the object, y: how sharply the projections blend (1 or more).
   - name: triplanar
     default: [1, 4, 0, 0]
@@ -16,4 +16,6 @@ textures:
   - name: baseColor
     fallback: White
   - name: emissive
+    fallback: White
+  - name: metallicRoughness
     fallback: White

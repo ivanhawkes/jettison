@@ -8,9 +8,25 @@ entities:
   - id: halcyon
     celestial:
       body: Halcyon
+    # Irradiance in the HDR target's units: about pi, so a white Lambertian surface facing the sun
+    # shows white, and an albedo shows as itself.
     sun:
       color: [1, 0.95, 0.88]
-      intensity: 1.1
+      intensity: 3.4
+  # Halcyon's sky: the starfield, the galaxy's band across it and a faint nebula. It is also what
+  # the station's night side and its reflections are lit by.
+  - id: halcyon-sky
+    sky:
+      seed: 7
+      stars: 6000
+      starFlux: 3.0e-5
+      band:
+        normal: [0.35, 0.86, -0.37]
+        width: 0.22
+        color: [0.055, 0.048, 0.04]
+      nebula:
+        color: [0.026, 0.011, 0.034]
+        scale: 2
   - id: ostra
     celestial:
       body: Ostra

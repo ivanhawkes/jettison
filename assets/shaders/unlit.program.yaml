@@ -1,0 +1,9 @@
+# unlit.frag, with mesh.vert as its vertex stage: Render::ProgramDefinition (render/Material.h).
+version: 1
+parameters:
+  # rgb: colour, a: intensity in the HDR target's linear units.
+  - name: color
+    default: [1, 1, 1, 1]
+textures:
+  - name: color
+    fallback: White

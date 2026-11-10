@@ -34,10 +34,25 @@ jettison_compile_shaders(jettison_assets
 	shaders/debug_line.frag
 	shaders/mesh.vert
 	shaders/mesh.frag
-	shaders/output.vert
+	shaders/brdf_lut.frag
 	shaders/output.frag
+	shaders/sky.frag
+	shaders/unlit.frag
 )
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.vert OUTPUT shaders/mesh_triplanar.vert DEFINES TRIPLANAR)
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.frag OUTPUT shaders/mesh_triplanar.frag DEFINES TRIPLANAR)
+jettison_compile_shader_variant(jettison_assets
+	SOURCE shaders/mesh.vert OUTPUT shaders/unlit.vert DEFINES UNLIT)
+jettison_compile_shader_variant(jettison_assets
+	SOURCE shaders/sky.frag OUTPUT shaders/sky_capture.frag DEFINES CAPTURE)
+jettison_compile_shader_variant(jettison_assets
+	SOURCE shaders/prefilter.frag OUTPUT shaders/prefilter_specular.frag DEFINES SPECULAR)
+jettison_compile_shader_variant(jettison_assets
+	SOURCE shaders/prefilter.frag OUTPUT shaders/prefilter_irradiance.frag)
+# Every full-screen program's vertex stage is the one triangle.
+foreach(program IN ITEMS output sky sky_capture brdf_lut prefilter_specular prefilter_irradiance)
+	jettison_compile_shader_variant(jettison_assets
+		SOURCE shaders/fullscreen.vert OUTPUT shaders/${program}.vert)
+endforeach()

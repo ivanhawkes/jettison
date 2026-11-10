@@ -22,6 +22,7 @@ jettison_add_module(render
 		include/jettison/render/SceneSystems.h
 		include/jettison/render/Texture.h
 		include/jettison/render/vulkan/DeviceContext.h
+		include/jettison/render/vulkan/Environment.h
 		include/jettison/render/vulkan/FrameData.h
 		include/jettison/render/vulkan/MaterialCache.h
 		include/jettison/render/vulkan/Model.h
@@ -41,6 +42,7 @@ jettison_add_module(render
 		src/SceneSystems.cpp
 		src/Texture.cpp
 		src/vulkan/DeviceContext.cpp
+		src/vulkan/Environment.cpp
 		src/vulkan/MaterialCache.cpp
 		src/vulkan/Memory.cpp
 		src/vulkan/Model.cpp
@@ -53,6 +55,7 @@ jettison_add_module(render
 		src/vulkan/Window.cpp
 		src/vulkan/imgui/ImGuiRenderer.cpp
 	TESTS
+		tests/BrdfTests.cpp
 		tests/CameraRigTests.cpp
 		tests/CameraTests.cpp
 		tests/MaterialTests.cpp
@@ -75,8 +78,11 @@ jettison_add_module(render
 )
 
 # The texture and material tests read the files the assets ship (the sample KTX 2 texture, the
-# program descriptors and materials), not copies of them.
+# program descriptors and materials), not copies of them; the BRDF tests compile the shaders' own
+# lighting includes as C++.
 if(TARGET jettison_render_tests)
 	target_compile_definitions(jettison_render_tests PRIVATE
 		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+	target_include_directories(jettison_render_tests PRIVATE
+		"${PROJECT_SOURCE_DIR}/assets/shaders/include")
 endif()

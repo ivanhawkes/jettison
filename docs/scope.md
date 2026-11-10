@@ -166,7 +166,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | NoRender | In | A trivial flag for collision-only and trigger meshes. |
 | Terrain, water | Out | Planets are seen from orbit. |
 | Hair, skin, cloth | Out | No characters. |
-| Global illumination | Out | A sun, an ambient term and image-based lighting are enough for space. |
+| Global illumination | Out | A sun and image-based lighting from the system's sky are enough for space. |
 | Ray tracing | Out | Not worth the cost for this art style. |
 | Materials: shader | In | A material system over PBR parameters and texture sets, authored in data. |
 | Materials: effects and animation | In | Material parameters driven over time: emissive pulses, scrolling UVs, blinking beacons. |

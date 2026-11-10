@@ -3,19 +3,22 @@
 
 #include "draw.glsl"
 #include "frame.glsl"
+#include "lighting.glsl"
 #include "material.glsl"
 
 // The material's textures (mesh.program.yaml, and mesh_triplanar.program.yaml, which is this file
 // built with TRIPLANAR defined).
 layout(set = 1, binding = 0) uniform sampler2D baseColorTexture;
 layout(set = 1, binding = 1) uniform sampler2D emissiveTexture;
+// glTF's packing: roughness in green, metallic in blue.
+layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessTexture;
 
 // The parameters, in the descriptor's order.
 const uint kBaseColor = 0u;
 // rgb: colour, a: intensity, multiplied by the emissive texture.
 const uint kEmissive = 1u;
-// x: specular strength, y: specular exponent.
-const uint kSurface = 2u;
+// x: metallic, y: perceptual roughness, multiplied by the texture's blue and green.
+const uint kMetallicRoughness = 2u;
 #ifdef TRIPLANAR
 // x: texture repeats per metre, y: how sharply the three projections blend.
 const uint kTriplanar = 3u;
@@ -44,8 +47,8 @@ vec4 SampleTriplanar(sampler2D textureSampler, vec3 position, vec3 weights)
 
 void main()
 {
-	vec4 surface = MaterialParameter(kSurface);
 	vec4 emissive = MaterialParameter(kEmissive);
+	vec4 metallicRoughness = MaterialParameter(kMetallicRoughness);
 #ifdef TRIPLANAR
 	vec4 triplanar = MaterialParameter(kTriplanar);
 	vec3 weights = pow(abs(normalize(fragObjectNormal)), vec3(max(triplanar.y, 1.0)));
@@ -53,40 +56,16 @@ void main()
 	vec3 projected = fragObjectPosition * triplanar.x;
 	vec4 baseTexel = SampleTriplanar(baseColorTexture, projected, weights);
 	vec3 emissiveTexel = SampleTriplanar(emissiveTexture, projected, weights).rgb;
+	vec4 surfaceTexel = SampleTriplanar(metallicRoughnessTexture, projected, weights);
 #else
 	vec4 baseTexel = texture(baseColorTexture, fragTexCoord);
 	vec3 emissiveTexel = texture(emissiveTexture, fragTexCoord).rgb;
+	vec4 surfaceTexel = texture(metallicRoughnessTexture, fragTexCoord);
 #endif
 	vec4 albedo = baseTexel * MaterialParameter(kBaseColor) * vec4(fragColor, 1.0);
-	vec3 normal = normalize(fragNormal);
-	vec3 viewDirection = normalize(-fragRenderPosition);
-	float specularStrength = surface.x;
-	float shininess = max(surface.y, 1.0);
-	vec3 lit = frame.ambientColor.rgb;
-	// The sun is one direction for the whole frame: a star 150 million kilometres off subtends half
-	// a degree, and its light does not fall off across a station.
-	if (frame.sunDirection.w != 0.0)
-	{
-		vec3 sunDirection = frame.sunDirection.xyz;
-		vec3 halfDirection = normalize(sunDirection + viewDirection);
-		float diffuse = max(dot(normal, sunDirection), 0.0);
-		float specular = pow(max(dot(normal, halfDirection), 0.0), shininess) * specularStrength;
-		lit += frame.sunColorIntensity.rgb * frame.sunColorIntensity.a * (diffuse + specular);
-	}
-	// The stand-in shading: Blinn-Phong with an unbounded falloff, which the clustered BRDF and
-	// finite light ranges of phase 5 retire.
-	for (uint index = 0u; index < frame.counts.x; ++index)
-	{
-		Light light = lights[index];
-		vec3 toLight = light.position.xyz - fragRenderPosition;
-		float distanceToLight = length(toLight);
-		vec3 lightDirection = toLight / max(distanceToLight, 0.0001);
-		vec3 halfDirection = normalize(lightDirection + viewDirection);
-		float diffuse = max(dot(normal, lightDirection), 0.0);
-		float specular = pow(max(dot(normal, halfDirection), 0.0), shininess) * specularStrength;
-		float attenuation =
-		    1.0 / (1.0 + 0.09 * distanceToLight + 0.032 * distanceToLight * distanceToLight);
-		lit += light.colorIntensity.rgb * light.colorIntensity.a * attenuation * (diffuse + specular);
-	}
-	outColor = vec4(albedo.rgb * lit + emissiveTexel * emissive.rgb * emissive.a, albedo.a);
+	Surface surface = Surface(
+	    albedo.rgb, clamp(metallicRoughness.x * surfaceTexel.b, 0.0, 1.0),
+	    clamp(metallicRoughness.y * surfaceTexel.g, 0.0, 1.0));
+	vec3 lit = ShadeSurface(surface, normalize(fragNormal), fragRenderPosition);
+	outColor = vec4(lit + emissiveTexel * emissive.rgb * emissive.a, albedo.a);
 }

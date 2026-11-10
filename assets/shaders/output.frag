@@ -2,6 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "colour.glsl"
+#include "tonemap.glsl"
 
 // The resolved HDR target, linear light.
 layout(set = 0, binding = 0) uniform sampler2D hdrColor;
@@ -18,8 +19,7 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-	// Exposure and a clamp to the display's range: the tonemapping operator arrives in phase 5,
-	// and until then values above one are clipped, not compressed.
-	vec3 linear = clamp(texture(hdrColor, fragUv).rgb * outputSettings.exposure, 0.0, 1.0);
-	outColor = vec4(outputSettings.encodeSrgb != 0u ? LinearToSrgb(linear) : linear, 1.0);
+	vec3 exposed = max(texture(hdrColor, fragUv).rgb * outputSettings.exposure, vec3(0.0));
+	vec3 display = clamp(TonemapPbrNeutral(exposed), 0.0, 1.0);
+	outColor = vec4(outputSettings.encodeSrgb != 0u ? LinearToSrgb(display) : display, 1.0);
 }

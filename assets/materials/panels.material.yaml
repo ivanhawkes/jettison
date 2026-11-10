@@ -3,8 +3,8 @@
 version: 1
 program: mesh
 parameters:
-  - name: surface
-    value: [0.3, 48, 0, 0]
+  - name: metallicRoughness
+    value: [0.4, 0.38, 0, 0]
 textures:
   - slot: baseColor
     path: textures/hull_panels.ktx2

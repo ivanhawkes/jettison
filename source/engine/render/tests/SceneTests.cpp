@@ -39,8 +39,19 @@ entities:
     light:
       color: [1, 0.9, 0.8]
       intensity: 18
-      ambient: [0.1, 0.1, 0.1]
       active: true
+  - id: sky
+    sky:
+      seed: 9
+      stars: 2500
+      starFlux: 2.5e-5
+      band:
+        normal: [0, 0.8, 0.6]
+        width: 0.3
+        color: [0.1, 0.09, 0.08]
+      nebula:
+        color: [0.02, 0.01, 0.03]
+        scale: 3
   - id: spinner
     parent: root
     transform:
@@ -102,6 +113,13 @@ TEST_CASE("Scene: a saved scene loads back to the same file, with the frame loop
 	scene.Load(authored);
 	scene.Save(first);
 	CHECK(ReadFile(first).find("rotation: [0, 0.3, 0]") != std::string::npos);
+	const auto skies = scene.Registry().view<const Jettison::Render::SkyComponent>();
+	REQUIRE(skies.size() == 1);
+	const auto &sky = skies.get<const Jettison::Render::SkyComponent>(skies.front());
+	CHECK(sky.seed == 9u);
+	CHECK(sky.stars == 2500.0f);
+	CHECK(sky.bandNormal == glm::vec3{0.0f, 0.8f, 0.6f});
+	CHECK(sky.nebulaScale == 3.0f);
 
 	// Ten seconds of animation: the rotation's phase moves, and none of it may reach the file.
 	const SceneUpdateSystem update;
@@ -242,4 +260,33 @@ TEST_CASE("Scene: a celestial body needs a system, and an orbit camera a target 
 	    << "version: 1\nentities:\n  - id: c\n    camera:\n      orbit:\n        target: nobody\n";
 	CHECK_THROWS_WITH_AS(
 	    scene.Load(path), doctest::Contains("orbit target 'nobody'"), std::runtime_error);
+}
+
+TEST_CASE("Scene: a light's ambient colour is refused, the sky having replaced it")
+{
+	const TemporaryDirectory directory;
+	const auto path = directory.Path() / "ambient.yaml";
+	std::ofstream{path}
+	    << "version: 1\nentities:\n  - id: l\n    light:\n      ambient: [0.1, 0.1, 0.1]\n";
+	Scene scene{nullptr};
+	CHECK_THROWS_WITH_AS(
+	    scene.Load(path), doctest::Contains("give the scene a sky"), std::runtime_error);
+}
+
+TEST_CASE("Scene: a scene has one sky, with a band and a nebula it can draw")
+{
+	const TemporaryDirectory directory;
+	const auto path = directory.Path() / "sky.yaml";
+	Scene scene{nullptr};
+	std::ofstream{path} << "version: 1\nentities:\n  - id: a\n    sky: {}\n  - id: b\n    sky: {}\n";
+	CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains("only one sky"), std::runtime_error);
+	std::ofstream{path, std::ios::trunc}
+	    << "version: 1\nentities:\n  - id: a\n    sky:\n      band:\n        width: 0\n";
+	CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains("must be positive"), std::runtime_error);
+	std::ofstream{path, std::ios::trunc}
+	    << "version: 1\nentities:\n  - id: a\n    sky:\n      band:\n        normal: [0, 0, 0]\n";
+	CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains("cannot be zero"), std::runtime_error);
+	std::ofstream{path, std::ios::trunc}
+	    << "version: 1\nentities:\n  - id: a\n    sky:\n      stars: -1\n";
+	CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains("cannot be negative"), std::runtime_error);
 }

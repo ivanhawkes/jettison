@@ -92,6 +92,7 @@ void Scene::Load(const std::filesystem::path &path)
 	std::size_t activeCameraCount = 0;
 	std::size_t activeLightCount = 0;
 	std::size_t sunCount = 0;
+	std::size_t skyCount = 0;
 	if (const YAML::Node systemNode = document["system"])
 		m_starSystemPath = (scenePath.parent_path() / systemNode.as<std::string>()).lexically_normal();
 
@@ -176,7 +177,11 @@ void Scene::Load(const std::filesystem::path &path)
 					throw std::runtime_error("Entity light must be a mapping: " + id);
 				LightComponent light;
 				light.color = ReadVec3(lightNode, "color", light.color);
-				light.ambientColor = ReadVec3(lightNode, "ambient", light.ambientColor);
+				if (lightNode["ambient"])
+					throw std::runtime_error(
+					    "Light '" + id +
+					    "' sets an ambient colour, which the sky's image-based lighting replaced: "
+					    "give the scene a sky instead");
 				if (lightNode["intensity"])
 					light.intensity = lightNode["intensity"].as<float>();
 				if (lightNode["active"])
@@ -201,6 +206,49 @@ void Scene::Load(const std::filesystem::path &path)
 				if (++sunCount > 1)
 					throw std::runtime_error("A scene can have only one sun");
 				m_registry.emplace<SunComponent>(entity, sun);
+			}
+
+			if (const YAML::Node skyNode = entityNode["sky"])
+			{
+				if (!skyNode.IsMap())
+					throw std::runtime_error("Entity sky must be a mapping: " + id);
+				SkyComponent sky;
+				if (skyNode["seed"])
+					sky.seed = skyNode["seed"].as<std::uint32_t>();
+				if (skyNode["stars"])
+					sky.stars = skyNode["stars"].as<float>();
+				if (skyNode["starFlux"])
+					sky.starFlux = skyNode["starFlux"].as<float>();
+				if (const YAML::Node bandNode = skyNode["band"])
+				{
+					if (!bandNode.IsMap())
+						throw std::runtime_error("Sky band must be a mapping: " + id);
+					sky.bandNormal = ReadVec3(bandNode, "normal", sky.bandNormal);
+					if (bandNode["width"])
+						sky.bandWidth = bandNode["width"].as<float>();
+					sky.bandColor = ReadVec3(bandNode, "color", sky.bandColor);
+				}
+				if (const YAML::Node nebulaNode = skyNode["nebula"])
+				{
+					if (!nebulaNode.IsMap())
+						throw std::runtime_error("Sky nebula must be a mapping: " + id);
+					sky.nebulaColor = ReadVec3(nebulaNode, "color", sky.nebulaColor);
+					if (nebulaNode["scale"])
+						sky.nebulaScale = nebulaNode["scale"].as<float>();
+				}
+				const auto negative = [](const glm::vec3 &value)
+				{ return value.x < 0.0f || value.y < 0.0f || value.z < 0.0f; };
+				if (!(sky.stars >= 0.0f) || !(sky.starFlux >= 0.0f) || !(sky.bandWidth > 0.0f) ||
+				    !(sky.nebulaScale > 0.0f) || negative(sky.bandColor) || negative(sky.nebulaColor))
+					throw std::runtime_error(
+					    "Sky stars, flux and colours cannot be negative, and the band's width and "
+					    "the nebula's scale must be positive: " +
+					    id);
+				if (glm::length(sky.bandNormal) == 0.0f)
+					throw std::runtime_error("Sky band normal cannot be zero: " + id);
+				if (++skyCount > 1)
+					throw std::runtime_error("A scene can have only one sky");
+				m_registry.emplace<SkyComponent>(entity, sky);
 			}
 
 			if (const YAML::Node celestialNode = entityNode["celestial"])
@@ -397,6 +445,23 @@ void Scene::Save(const std::filesystem::path &path) const
 			emitter << YAML::Key << "intensity" << YAML::Value << sun->intensity;
 			emitter << YAML::EndMap;
 		}
+		if (const auto *sky = m_registry.try_get<SkyComponent>(entity))
+		{
+			emitter << YAML::Key << "sky" << YAML::Value << YAML::BeginMap;
+			emitter << YAML::Key << "seed" << YAML::Value << sky->seed;
+			emitter << YAML::Key << "stars" << YAML::Value << sky->stars;
+			emitter << YAML::Key << "starFlux" << YAML::Value << sky->starFlux;
+			emitter << YAML::Key << "band" << YAML::Value << YAML::BeginMap;
+			EmitVec3(emitter, "normal", sky->bandNormal);
+			emitter << YAML::Key << "width" << YAML::Value << sky->bandWidth;
+			EmitVec3(emitter, "color", sky->bandColor);
+			emitter << YAML::EndMap;
+			emitter << YAML::Key << "nebula" << YAML::Value << YAML::BeginMap;
+			EmitVec3(emitter, "color", sky->nebulaColor);
+			emitter << YAML::Key << "scale" << YAML::Value << sky->nebulaScale;
+			emitter << YAML::EndMap;
+			emitter << YAML::EndMap;
+		}
 		if (const auto *celestial = m_registry.try_get<CelestialBodyComponent>(entity))
 		{
 			emitter << YAML::Key << "celestial" << YAML::Value << YAML::BeginMap;
@@ -408,7 +473,6 @@ void Scene::Save(const std::filesystem::path &path) const
 			emitter << YAML::Key << "light" << YAML::Value << YAML::BeginMap;
 			EmitVec3(emitter, "color", light->color);
 			emitter << YAML::Key << "intensity" << YAML::Value << light->intensity;
-			EmitVec3(emitter, "ambient", light->ambientColor);
 			emitter << YAML::Key << "active" << YAML::Value << light->active;
 			emitter << YAML::EndMap;
 		}

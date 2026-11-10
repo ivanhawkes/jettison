@@ -222,9 +222,29 @@ nodes in it:
 6. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
    position and view distance, loops over that cluster's lights, then adds the sun and image-based
    lighting.
-7. **Sky.**
+7. **Sky.** Drawn last in the opaque pass's rendering rather than as a node of its own (5b): one
+   full-screen triangle at depth 0, the far end of the reversed-Z range, tested against the depth
+   buffer so it shades only what no surface covered. A node of its own would have to store the
+   multisampled target and load it again, which the opaque pass keeps on chip.
 8. **Transparent**, sorted back to front, using the same cluster lookup (phase 10).
-9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the UI.
+9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the UI. The tonemapper is Khronos PBR
+   Neutral (5b), applied after exposure in the output pass: a base colour under white light of
+   intensity one shows as authored, and highlights compress towards white without changing hue.
+
+### The environment
+
+A star system's sky is drawn behind the scene and is also what the scene is lit by
+(`render/vulkan/Environment.h`). Its starfield, galactic band and nebula are procedural, from the
+scene's `SkyComponent` and a seed, and `sky.glsl` is the one function that draws them, both in the
+frame and into a cube map. When a scene loads or its sky changes, that capture is baked into the
+image-based lighting: GGX-prefiltered levels of the specular cube, one roughness each, and a
+cosine-weighted irradiance cube, both by filtered importance sampling from the capture's mip
+chain. The split sum's lookup table depends only on the BRDF and is made once. The bake is a run of
+fragment passes on the graphics queue, recorded outside the frame's pass list as an upload is, and
+it waits for the queue; the cubes it replaces are freed when it returns, and the frame sets are
+rewritten to name the new ones. The sun is not in the capture: it lights the scene as the
+directional light, and a disc in the environment would light it twice. Nor are the planets, so a
+planet's reflected light is missing until a later phase adds it.
 
 ### The grid and the infinite far plane
 
@@ -247,7 +267,9 @@ light budget.
 - **Light data lives in storage buffers**, one set per frame in flight, never in the frame UBO.
   The UBO's one light is today's stand-in, retired in phase 5.
 - **One lighting implementation.** Every lit program includes the shared GLSL for the cluster
-  lookup and the BRDF. No material lights itself its own way.
+  lookup and the BRDF (`lighting.glsl`, over `brdf.glsl`). No material lights itself its own way.
+  The BRDF and the tonemapper are written in the subset of GLSL that GLM also compiles, so the
+  render suite compiles the shaders' own source as C++ and checks it against reference values.
 - **No G-buffer.** Effects that need one stay out: screen-space reflections already are. If
   ambient occlusion is ever wanted, the depth prepass also writes normals for it.
 - **Debug draw shows the grid**, as a lights-per-cluster heat map, so a light budget problem is
@@ -311,7 +333,7 @@ proves it headlessly. What exists:
   `Summary`) are the gate.
 - **Scene** (`engine/render`, see [parked code](#parked-code)). An EnTT registry loaded from
   and saved to YAML (`assets/scene/main.yaml`, and `orbit.yaml` at real scale). It has
-  transform, parent, world-transform, camera, light, sun and mesh components (a glTF model or a
+  transform, parent, world-transform, camera, light, sun, sky and mesh components (a glTF model or a
   procedural shape - UV, ico or cube sphere, box, ring, cylinder - and optionally a material
   file, by virtual path), celestial bodies placed by the star system the scene names, an orbit
   camera rig, and the animation module's rotation-animation, skeleton and animation-player
@@ -327,9 +349,9 @@ proves it headlessly. What exists:
   instance, device, debug-utils messenger (with synchronization validation in Debug), object
   names, and the VMA allocator every buffer and image comes from. `Swapchain` prefers an sRGB
   format and owns its image views. `Renderer` runs the frame as a declared pass list
-  (`render/PassList.h`): an opaque pass into a 4× multisampled RGBA16F target, resolved into a
-  single-sampled one as the pass ends, then an output pass that applies exposure on its way to
-  the swapchain and draws the UI over it. The barriers between passes are derived from each
+  (`render/PassList.h`): an opaque pass into a 4× multisampled RGBA16F target, which draws the sky
+  after the surfaces and is resolved into a single-sampled target as it ends, then an output pass
+  that applies exposure and tonemaps on its way to the swapchain and draws the UI over it. The barriers between passes are derived from each
   pass's declared uses once, at start-up, and recorded with dynamic rendering and
   synchronization2. The frame constants, skin palette, light list and command buffer exist once
   per frame in flight. `PipelineCache` makes pipelines by program name and render state, with the
@@ -340,7 +362,8 @@ proves it headlessly. What exists:
   on the I/O worker; the loader's `finish` uploads), rebuilds a material's descriptor set when
   it or a texture reloads, and frees what a reload replaced once no frame in flight reads it; a
   model without a material draws with its own textures through the default `mesh` program.
-  `Model` loads glTF through fastgltf. The mesh program is still the stand-in forward shading
-  that the [clustered forward](#rendering-clustered-forward) frame grows from, now reading its
-  lights from a storage buffer.
+  `Model` loads glTF through fastgltf. The `mesh` program is glTF's metallic-roughness model, lit
+  by the sun, the [environment](#the-environment) and the frame's light list; that list is still
+  the stand-in for the [clustered](#rendering-clustered-forward) lights, every light reaching every
+  fragment with an unbounded falloff. `unlit` is for what is a light rather than lit by one.
 - **ImGui** for a demo window, toggled with F1.

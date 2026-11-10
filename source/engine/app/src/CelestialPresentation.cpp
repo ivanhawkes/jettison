@@ -29,7 +29,8 @@ void SyncCelestialBodies(
 		const auto body = static_cast<std::size_t>(index);
 		presentation.emplace_or_replace<Render::PlacementComponent>(
 		    entity, Celestial::EvaluateBody(system, body, simSeconds).metres,
-		    Celestial::Orientation(system.bodies[body].rotation, simSeconds));
+		    Celestial::Orientation(system.bodies[body].rotation, simSeconds),
+		    system.bodies[body].radius);
 	}
 }
 } // namespace Jettison::App

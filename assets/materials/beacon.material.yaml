@@ -1,13 +1,10 @@
-# A docking beacon: the default mesh program with no textures, blinking red. Square holds each end
-# for half the period, so it is off for 0.6 s and on for 0.6 s.
+# A docking beacon: unlit, so it is the same red on the night side as on the day side, blinking.
+# Square holds each end for half the period, so it is dim for 0.6 s and bright for 0.6 s.
 version: 1
-program: mesh
-parameters:
-  - name: baseColor
-    value: [0.2, 0.05, 0.04, 1]
+program: unlit
 animated:
-  - name: emissive
+  - name: color
     wave: Square
     period: 1.2
-    from: [1, 0.15, 0.08, 0]
+    from: [1, 0.15, 0.08, 0.08]
     to: [1, 0.15, 0.08, 6]

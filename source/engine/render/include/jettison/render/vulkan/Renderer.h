@@ -29,15 +29,20 @@ class FileSystem;
 
 namespace Jettison::Render
 {
+class Environment;
 class ImGuiRenderer;
 class MaterialCache;
 struct MaterialBinding;
 class PipelineCache;
 
 // The frame, as the declared pass list docs/architecture.md describes ("The frame"): an opaque
-// pass into a multisampled HDR target, resolved into a single-sampled one, and an output pass that
-// reads it into the swapchain, with the UI drawn over the result. Phase 5 adds its passes to the
-// same list (shadows, the cluster compute passes, sky).
+// pass into a multisampled HDR target, which draws the sky last over what no surface covered and is
+// resolved into a single-sampled target as it ends, and an output pass that tonemaps that into the
+// swapchain, with the UI drawn over the result. Phase 5 adds its passes to the same list (shadows,
+// the cluster compute passes).
+//
+// The scene's sky is also its environment (render/vulkan/Environment.h): it is baked when a scene
+// loads and whenever the sky changes, before the frame that first draws it.
 //
 // What the CPU writes each frame lives once per frame in flight: the frame constants, the skin
 // palette, the light list, the material parameters, and the command buffer that reads them. A frame
@@ -85,7 +90,7 @@ class Renderer
 		return m_pSwapchain->GetImageFormat();
 	}
 
-	// The linear scale applied to the HDR target on its way to the display.
+	// The linear scale applied to the HDR target on its way to the display, before tonemapping.
 	void SetExposure(float exposure)
 	{
 		m_exposure = exposure;
@@ -125,6 +130,9 @@ class Renderer
 	void WriteOutputSet();
 	void CreatePipelines();
 	void CreateRenderFinishedSemaphores();
+	// The scene's sky, baked into the environment if it is not the one there already, or if the scene
+	// was replaced; every frame set then names the new environment.
+	void UpdateEnvironment(const entt::registry &sceneRegistry, bool sceneReplaced);
 	void DestroyRenderFinishedSemaphores();
 	void RecreateSwapchain();
 
@@ -161,8 +169,12 @@ class Renderer
 
 	std::unique_ptr<PipelineCache> m_pPipelines;
 	std::unique_ptr<MaterialCache> m_pMaterials;
+	std::unique_ptr<Environment> m_pEnvironment;
+	// The sky the environment was baked from, or empty for the black one.
+	std::optional<SkyComponent> m_bakedSky;
 
-	// Set 0 of the scene programs (constants, skin palette, lights, material parameters), set 1 of
+	// Set 0 of the scene programs (constants, skin palette, lights, material parameters, the
+	// environment), set 1 of
 	// the scene programs (a material's textures), and set 0 of the output program (the resolved HDR
 	// target).
 	VkDescriptorSetLayout m_frameSetLayout{VK_NULL_HANDLE};
@@ -175,6 +187,7 @@ class Renderer
 	VkDescriptorSet m_outputSet{VK_NULL_HANDLE};
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
 	VkPipeline m_outputPipeline{VK_NULL_HANDLE};
+	VkPipeline m_skyPipeline{VK_NULL_HANDLE};
 	VkPipeline m_linePipeline{VK_NULL_HANDLE};
 	VkPipeline m_lineOverlayPipeline{VK_NULL_HANDLE};
 	// This frame's line vertices: the depth-tested ones, then the overlay.

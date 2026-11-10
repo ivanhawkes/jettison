@@ -7,8 +7,11 @@
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
+#ifndef UNLIT
+// Built as unlit.vert with UNLIT, for a program that is not lit and so takes neither.
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec3 fragRenderPosition;
+#endif
 #ifdef TRIPLANAR
 // Triplanar mapping projects along the object's own axes, in the bind pose before skinning, so the
 // texture stays on the surface as the object moves and turns. The position is in metres along
@@ -40,8 +43,10 @@ void main()
 	gl_Position = frame.projection * frame.view * renderPosition;
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
+#ifndef UNLIT
 	fragNormal = normalize(mat3(transpose(inverse(draw.model))) * localNormal);
 	fragRenderPosition = renderPosition.xyz;
+#endif
 #ifdef TRIPLANAR
 	vec3 scale = vec3(length(draw.model[0].xyz), length(draw.model[1].xyz), length(draw.model[2].xyz));
 	fragObjectPosition = inPosition * scale;

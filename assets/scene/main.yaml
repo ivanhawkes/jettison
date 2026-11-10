@@ -19,9 +19,22 @@ entities:
       scale: [1, 1, 1]
     light:
       color: [1, 0.92, 0.78]
-      intensity: 18
-      ambient: [0.12, 0.12, 0.12]
+      intensity: 40
       active: true
+  # A brighter sky than a real one, so the models' unlit sides are lit by it as the old ambient
+  # term lit them.
+  - id: sky
+    sky:
+      seed: 3
+      stars: 4000
+      starFlux: 4.0e-5
+      band:
+        normal: [0.2, 0.95, 0.25]
+        width: 0.35
+        color: [0.3, 0.27, 0.24]
+      nebula:
+        color: [0.12, 0.08, 0.16]
+        scale: 1.5
   - id: static-avocado
     parent: scene-root
     transform:

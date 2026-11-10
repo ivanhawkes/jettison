@@ -722,6 +722,23 @@ VkImageView DeviceContext::CreateImageView(
 }
 
 
+VkImageView DeviceContext::CreateImageView(
+    VkImage image, VkFormat format, VkImageViewType viewType, const VkImageSubresourceRange &range)
+{
+	VkImageViewCreateInfo viewInfo{};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = viewType;
+	viewInfo.format = format;
+	viewInfo.subresourceRange = range;
+
+	VkImageView imageView = VK_NULL_HANDLE;
+	if (vkCreateImageView(m_logicalDevice, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
+		throw std::runtime_error("failed to create an image view");
+	return imageView;
+}
+
+
 VkShaderModule DeviceContext::CreateShaderModule(
     std::span<const std::byte> code, const std::string &name)
 {

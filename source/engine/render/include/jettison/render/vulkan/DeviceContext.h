@@ -279,10 +279,17 @@ class DeviceContext
 	Image CreateImage(
 	    uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
 	    VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::string &name);
+	// A device-local cube map: six square layers, in Vulkan's face order (+X, -X, +Y, -Y, +Z, -Z).
+	Image CreateCubeImage(
+	    uint32_t size, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage,
+	    const std::string &name);
 	void DestroyImage(Image &image);
 
 	VkImageView CreateImageView(
 	    VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
+	// A view of any part of an image: a cube, or one level of one face to render into.
+	VkImageView CreateImageView(
+	    VkImage image, VkFormat format, VkImageViewType viewType, const VkImageSubresourceRange &range);
 
 	VkShaderModule CreateShaderModule(std::span<const std::byte> code, const std::string &name);
 

@@ -43,6 +43,8 @@ struct PlacementComponent
 {
 	glm::dvec3 position{0.0};
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
+	// The body's radius in metres, or 0 when it has none: the sky draws the sun's disc this size.
+	double radius{0.0};
 };
 
 struct ParentComponent
@@ -79,15 +81,14 @@ struct CameraPoseComponent
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 };
 
-// Today's one point light, read into the frame UBO with an unbounded falloff. The renderer is
-// clustered forward (docs/architecture.md, "Rendering: clustered forward"): phase 5 gives this a
-// type, a finite range and spot cone angles, moves light data into storage buffers, and makes the
-// sun a directional light of its own rather than one of these.
+// Today's one point light, in the frame's light list with an unbounded falloff. The renderer is
+// clustered forward (docs/architecture.md, "Rendering: clustered forward"): phase 5c gives this a
+// type, a finite range and spot cone angles. The ambient colour it once carried is the sky's
+// image-based lighting now (SkyComponent).
 struct LightComponent
 {
 	glm::vec3 color{1.0f};
 	float intensity{6.0f};
-	glm::vec3 ambientColor{0.08f};
 	bool active{true};
 };
 
@@ -122,6 +123,31 @@ struct SunComponent
 {
 	glm::vec3 color{1.0f};
 	float intensity{1.0f};
+};
+
+// The star system's sky (assets/shaders/include/sky.glsl): a starfield, the galaxy's band and a
+// nebula, made from a seed rather than painted. It is drawn behind the scene, and it is the
+// environment the scene is lit by: the renderer captures it into a cube map and prefilters that
+// for image-based lighting (render/vulkan/Environment.h) when the scene loads or the sky changes.
+// A scene has at most one; without one the sky is black and lights nothing. Radiance and flux are
+// in the HDR target's linear units, the sun's intensity being irradiance in the same units.
+struct SkyComponent
+{
+	std::uint32_t seed{1};
+	// About how many stars the sky has, over the whole sphere.
+	float stars{6000.0f};
+	// The brightest star's flux: the irradiance it delivers, which the faintest are a tiny part of.
+	float starFlux{3.0e-5f};
+	// The galaxy's plane, seen edge-on as a band: its normal, its angular half-width in radians, and
+	// its radiance along its centre line.
+	glm::vec3 bandNormal{0.0f, 1.0f, 0.0f};
+	float bandWidth{0.2f};
+	glm::vec3 bandColor{0.0f};
+	glm::vec3 nebulaColor{0.0f};
+	// How many times the nebula's pattern repeats around the sky: larger is smaller clouds.
+	float nebulaScale{2.0f};
+
+	friend bool operator==(const SkyComponent &, const SkyComponent &) = default;
 };
 
 // A camera that orbits another entity. The authored fields are where it starts; the rig and the

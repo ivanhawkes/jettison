@@ -4,10 +4,12 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <jettison/render/vulkan/Environment.h>
 #include <jettison/render/vulkan/FrameData.h>
 #include <jettison/render/vulkan/MaterialCache.h>
 #include <jettison/render/vulkan/PipelineCache.h>
@@ -41,6 +43,20 @@ struct OutputPushConstants
 constexpr VkDeviceSize kInitialLights = 16;
 // And for this many material parameters, which are vec4s.
 constexpr VkDeviceSize kInitialMaterialParameters = 64;
+
+// What the sky draws the sun as when the scene does not say how large it is: the Sun from 1 AU.
+constexpr double kDefaultSunAngularRadius = 0.004652;
+// The brightest the sun's disc is drawn. Its true radiance, irradiance over the half-degree disc's
+// solid angle, is tens of thousands of times its intensity and would overflow the half-float HDR
+// target; past this the tonemapper shows white either way.
+constexpr float kMaxSunRadiance = 30000.0f;
+
+const SkyComponent *FindSky(const entt::registry &sceneRegistry)
+{
+	// The scene loader allows one.
+	const auto view = sceneRegistry.view<const SkyComponent>();
+	return view.empty() ? nullptr : &view.get<const SkyComponent>(view.front());
+}
 } // namespace
 
 
@@ -71,6 +87,9 @@ void Renderer::Init()
 	CreateLayouts();
 	CreatePassList();
 	CreateTargets();
+	// Before the frames: their sets name its cubes and lookup table.
+	m_pEnvironment = std::make_unique<Environment>(m_pDeviceContext, *m_pPipelines);
+	m_pEnvironment->Init();
 	CreateFrames();
 	WriteOutputSet();
 	CreatePipelines();
@@ -96,12 +115,16 @@ void Renderer::Destroy()
 		frame = {};
 	}
 	DestroyTargets();
+	if (m_pEnvironment)
+		m_pEnvironment->Destroy();
+	m_bakedSky.reset();
 	if (m_pMaterials)
 		m_pMaterials->Destroy();
 	if (m_pPipelines)
 		m_pPipelines->Destroy();
 	m_drawMaterials.clear();
 	m_outputPipeline = VK_NULL_HANDLE;
+	m_skyPipeline = VK_NULL_HANDLE;
 	m_linePipeline = VK_NULL_HANDLE;
 	m_lineOverlayPipeline = VK_NULL_HANDLE;
 
@@ -143,13 +166,16 @@ void Renderer::CreateLayouts()
 		return layout;
 	};
 
-	// assets/shaders/include/frame.glsl.
-	const std::array<VkDescriptorSetLayoutBinding, 4> frameBindings{{
+	// assets/shaders/include/frame.glsl, and the environment's bindings in lighting.glsl.
+	const std::array<VkDescriptorSetLayoutBinding, 7> frameBindings{{
 	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
 	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	    {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr},
 	    {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	    {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
@@ -199,7 +225,7 @@ void Renderer::CreateLayouts()
 	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
 	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
 	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 * kFramesInFlight + 1},
 	}};
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -363,7 +389,13 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	const VkDescriptorBufferInfo joints{frame.joints.handle, 0, frame.joints.size};
 	const VkDescriptorBufferInfo lights{frame.lights.handle, 0, frame.lights.size};
 	const VkDescriptorBufferInfo materials{frame.materials.handle, 0, frame.materials.size};
-	std::array<VkWriteDescriptorSet, 4> writes{};
+	const VkSampler sampler = m_pEnvironment->GetSampler();
+	const std::array<VkDescriptorImageInfo, 3> environment{{
+	    {sampler, m_pEnvironment->GetSpecularView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+	    {sampler, m_pEnvironment->GetIrradianceView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+	    {sampler, m_pEnvironment->GetBrdfLutView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+	}};
+	std::array<VkWriteDescriptorSet, 7> writes{};
 	for (auto &write : writes)
 	{
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -382,6 +414,12 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	writes[3].dstBinding = 3;
 	writes[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	writes[3].pBufferInfo = &materials;
+	for (std::uint32_t binding = 4; binding < 7; ++binding)
+	{
+		writes[binding].dstBinding = binding;
+		writes[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writes[binding].pImageInfo = &environment[binding - 4];
+	}
 	vkUpdateDescriptorSets(
 	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
 	    nullptr);
@@ -413,6 +451,16 @@ void Renderer::CreatePipelines()
 	// Every scene program is built against the mesh layout and this state, by the material cache:
 	// the default program here, the ones materials name when a material first draws.
 	m_pMaterials->Init(m_materialSetLayout, m_meshLayout, mesh);
+
+	// The sky is drawn after the surfaces, at the far end of the reversed-Z range, where nothing
+	// covered the depth buffer's clear; it writes no depth, so the lines drawn after it are tested
+	// against the surfaces alone.
+	RenderState sky = mesh;
+	sky.vertices = VertexLayout::None;
+	sky.cullMode = VK_CULL_MODE_NONE;
+	sky.depthWrite = false;
+	sky.depthCompare = VK_COMPARE_OP_GREATER_OR_EQUAL;
+	m_skyPipeline = m_pPipelines->Get({"sky", sky, m_meshLayout});
 
 	// Lines are blended over the opaque surfaces and write no depth, so a line through a surface
 	// does not hide the half behind it from the next line; the overlay variant is not tested.
@@ -480,6 +528,24 @@ void Renderer::RecreateSwapchain()
 }
 
 
+void Renderer::UpdateEnvironment(const entt::registry &sceneRegistry, bool sceneReplaced)
+{
+	const SkyComponent *pSky = FindSky(sceneRegistry);
+	std::optional<SkyComponent> sky;
+	if (pSky != nullptr)
+		sky = *pSky;
+	// A replaced scene is rebaked even when its sky is the same, so a reload proves the whole path:
+	// a jump to another system loads another sky anyway.
+	if (!sceneReplaced && sky == m_bakedSky)
+		return;
+	m_pEnvironment->Bake(pSky);
+	m_bakedSky = sky;
+	// The bake waited for the queue, so neither slot's set is read by a submission in flight.
+	for (const FrameData &frame : m_frames)
+		WriteFrameSet(frame);
+}
+
+
 void Renderer::EnsureCapacity(
     FrameData &frame, Buffer &buffer, VkDeviceSize bytes, VkBufferUsageFlags usage, const char *name)
 {
@@ -503,15 +569,18 @@ void Renderer::WriteFrame(
     const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets)
 {
 	FrameUBO constants{};
-	constants.ambientColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
 	constants.view = RenderViewMatrix(camera);
 	const VkExtent2D extent = m_pSwapchain->GetExtents();
 	constants.projection = ReversedInfinitePerspective(
 	    camera.verticalFov, static_cast<float>(extent.width) / static_cast<float>(extent.height),
 	    camera.nearPlane);
+	const float pixelAngle =
+	    2.0f * std::tan(camera.verticalFov * 0.5f) / static_cast<float>(std::max(extent.height, 1u));
+	constants.environment = glm::vec4(m_pEnvironment->GetMaxSpecularLevel(), pixelAngle, 0.0f, 0.0f);
+	if (const SkyComponent *pSky = FindSky(sceneRegistry))
+		constants.sky = PackSky(*pSky);
 
 	std::vector<GpuLight> lights;
-	bool ambientTaken = false;
 	for (const entt::entity entity : sceneRegistry.view<const LightComponent>())
 	{
 		const auto &light = sceneRegistry.get<LightComponent>(entity);
@@ -526,10 +595,6 @@ void Renderer::WriteFrame(
 		lights.push_back(
 		    {glm::vec4(ToRenderSpace(position, camera.position), 1.0f),
 		     glm::vec4(light.color, light.intensity)});
-		// The scene's ambient term rides on its first light until phase 5 gives the sky its own.
-		if (!ambientTaken)
-			constants.ambientColor = glm::vec4(light.ambientColor, 1.0f);
-		ambientTaken = true;
 	}
 	constants.counts.x = static_cast<uint32_t>(lights.size());
 
@@ -542,10 +607,19 @@ void Renderer::WriteFrame(
 		// The direction is taken in double precision: the sun is a hundred million kilometres
 		// away, and its own offset is too large for a float to subtract from.
 		const glm::dvec3 towards = position - camera.position;
-		if (glm::length(towards) > 0.0)
+		const double distance = glm::length(towards);
+		if (distance > 0.0)
 		{
-			constants.sunDirection = glm::vec4(glm::vec3{glm::normalize(towards)}, 1.0f);
+			constants.sunDirection = glm::vec4(glm::vec3{towards / distance}, 1.0f);
 			constants.sunColorIntensity = glm::vec4(sun.color, sun.intensity);
+			const auto *placement = sceneRegistry.try_get<PlacementComponent>(entity);
+			const double radius = placement != nullptr && placement->radius > 0.0
+			                          ? std::asin(std::min(placement->radius / distance, 1.0))
+			                          : kDefaultSunAngularRadius;
+			const double solidAngle = 2.0 * std::numbers::pi * (1.0 - std::cos(radius));
+			constants.sunDisc = glm::vec4(
+			    static_cast<float>(std::cos(radius)), static_cast<float>(radius),
+			    std::min(static_cast<float>(sun.intensity / solidAngle), kMaxSunRadiance), 0.0f);
 		}
 	}
 	EnsureCapacity(
@@ -650,6 +724,7 @@ bool Renderer::Render(
 		m_pMaterials->Forget();
 	}
 	m_sceneGeneration = scene.Generation();
+	UpdateEnvironment(scene.Registry(), sceneReplaced);
 
 	const CameraView camera = ActiveCameraView(scene.Registry());
 	const auto draws = renderSystem.Collect(scene.Registry(), camera.position);
@@ -848,6 +923,12 @@ void Renderer::RecordOpaque(
 			    primitives[primitiveIndex].firstIndex, 0, 0);
 		}
 	}
+
+	m_pDeviceContext->BeginDebugLabel(commandBuffer, "sky");
+	// The sky program shares the mesh layout, so the frame set is still bound.
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyPipeline);
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	m_pDeviceContext->EndDebugLabel(commandBuffer);
 
 	if (m_lineVertices != 0)
 	{
