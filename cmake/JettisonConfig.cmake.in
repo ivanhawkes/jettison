@@ -2,10 +2,12 @@
 
 # The engine as an installed package: find_package(Jettison) gives the Jettison::<Module> targets
 # and Jettison::Engine over all of them. The third-party libraries the public headers include
-# (GLM, EnTT, Vulkan) are found here so the imported targets' link interfaces resolve.
+# (GLM, EnTT, Vulkan) are found here so the imported targets' link interfaces resolve, and so is
+# Threads, which jobs links.
 include(CMakeFindDependencyMacro)
 find_dependency(Vulkan)
 find_dependency(EnTT)
+find_dependency(Threads)
 
 include("${CMAKE_CURRENT_LIST_DIR}/JettisonTargets.cmake")
 

@@ -1,3 +1,5 @@
+find_package(Threads REQUIRED)
+
 jettison_add_module(jobs
 	DEPENDS
 		core
@@ -7,4 +9,6 @@ jettison_add_module(jobs
 		src/IoWorker.cpp
 	TESTS
 		tests/JobsTests.cpp
+	PRIVATE_LIBRARIES
+		Threads::Threads
 )
