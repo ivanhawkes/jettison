@@ -2,9 +2,7 @@
 
 Over time we can add some or all of these requirements to the project.
 
-- Animation
-	- Blend Shapes
-	- Blend Spaces
+- Animation (ozz-animation + Tag-Based Selection approach)
 	- Cinematics
 	- Clips
 	- FK
@@ -12,6 +10,7 @@ Over time we can add some or all of these requirements to the project.
 	- Poses
 	- Skeletons
 	- Synchronisation
+	- TRS (translate, rotate, scale)
 - Artificial Intelligence (AI)
 	- Behaviour Trees
 	- Navmesh
@@ -28,6 +27,7 @@ Over time we can add some or all of these requirements to the project.
 	- Cinematic
 	- First Person
 	- Third Person Orbit
+- Components register for tick
 - Console
 - Core / Common
 - Engine Stuff
@@ -45,6 +45,8 @@ Over time we can add some or all of these requirements to the project.
 - Geometry
 - Input System
 - Logging
+- Massive Worlds - Floating Origin AKA Origin Shifting
+	- see notes on how to do this
 - Materials
 	- Surface Type
 		- Sounds e.g. footsteps and gunshot impacts
@@ -74,8 +76,10 @@ Over time we can add some or all of these requirements to the project.
 		- Pool
 		- Small
 - Network
+	- State replication and roll back for fast moving scenes
+	- Local server
 - Persistence
-- Physics
+- Physics (Jolt Physics)
 	- Area
 	- Box
 	- Capsule
@@ -88,13 +92,15 @@ Over time we can add some or all of these requirements to the project.
 	- Static Body
 	- Water
 	- Wind
+	- Particles
 - Platform
 	- Windows
 - Profiling
 - Raycasting
 - Render
-	- 2D Render
-	- 3D Render
+	- Culling
+	- Atmosphere Halo around planets for atmosphere?
+	- PBR metallic shades, or what UE uses
 	- Light
 		- Point Light
 		- Projected Light
@@ -118,14 +124,16 @@ Over time we can add some or all of these requirements to the project.
 		- Ray-tracing
 	- Colour Grading
 	- Colour Space
+- Resource manager
 - Scene
 	- Layers
 	- Management
 - Scripting
+	- Wasm
 	- Native C++
-	- Python?
-	- Lua?
 - Serialisation
+	- Load
+	- Save
 - Spatial
 	- Queries
 - Textures
@@ -140,39 +148,10 @@ Over time we can add some or all of these requirements to the project.
 	- Diagetic Video
 - VR
 
-## Recent Thoughts
-
-- Renderer
-	- Culling
-	- Atmosphere Halo around planets for atmosphere?
-	- PBR metallic shades, or what UE uses
-- Logging
-- Scripting?
-	- Wasm instead of Lua and friends...check it
-- Components register for tick
-- Get context7 working in pi
-- Create Agents.md
-	- Mention work trunks for work tree isolation on big tasks
-- Resource manager
-- Audio
-- Physics
-	- Havoc or physx?
-	- Particles
-- Networking
-	- State replication and roll back for fast moving scenes
-	- Local server
-- Load and save, partly done
-- Ui
-- Navigation...optional
-- Input handling
-- Animation control system...like cryengine with tags, etc
-- Scene root relocation  for massive worlds, or 32 bit floats for translation, think a sliding cube around the player that updates when they move far enough from its centre
-TRS animation if needed
-
 ## Out of scope
 
-- Blend spaces
+- Blend Shapes
+- Blend Spaces
 - Human hair and animation e.g. facial
-- Ai , won't need at first, but plumb in shims if expecting to use it
 - Steam integration
 - Epic integration
