@@ -21,7 +21,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | fastgltf | v1.0.1 | now | Downloads its own simdjson 5.1.0 and simdutf |
 | spdlog | v1.17.0 | now | `SPDLOG_USE_STD_FORMAT`; core links it |
 | doctest | v2.5.3 | now | Fetched in every tree, planned set or not |
-| Tracy | v0.13.1 | phase 2 | **Held back** from 0.15.0 to match devenv's profiler |
+| Tracy | v0.13.1 | now | **Held back** from 0.15.0 to match devenv's profiler; profile links it |
 | Vulkan Memory Allocator | v3.5.0 | phase 4 | |
 | FastNoiseLite | v1.1.1 | now | Header-only; math links it, output pinned by recorded values |
 | MikkTSpace | 2020 (only commit) | now | math links it |
@@ -50,7 +50,9 @@ runs it after the Debug build.
 trees exist for the render test, which uses none of the planned libraries.
 
 `JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
-listens on localhost only, so it costs nothing until a profiler connects. It is off by default.
+listens on localhost only, so it costs nothing until a profiler connects. It is off by default,
+and off, Tracy's macros and `TracyClient.cpp` compile to nothing. Tracy is fetched in every tree,
+because `profile` links it.
 The profiler that connects has to be the same version as the client: nixpkgs' `tracy` at the
 current devenv lock is 0.13.1, which is why the client is pinned there. It is not in
 `devenv.nix`'s package list; add it there, or run `nix run nixpkgs#tracy` from the shell.

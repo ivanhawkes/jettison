@@ -1,12 +1,12 @@
 #pragma once
 
-#include <chrono>
 #include <memory>
 #include <string>
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
 #include <jettison/render/SceneSystems.h>
+#include <jettison/time/Clock.h>
 
 namespace Jettison::Render
 {
@@ -112,10 +112,9 @@ class Application
 	const Render::SceneUpdateSystem m_sceneUpdateSystem;
 	const Render::SceneRenderSystem m_sceneRenderSystem;
 
-	using Clock = std::chrono::steady_clock;
-
-	// The frame start the previous frame's is subtracted from, for the animation delta.
-	Clock::time_point m_previousFrame{Clock::now()};
+	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
+	// include the time start-up took.
+	Time::RealClock m_frameClock;
 
 	// The demo window, toggled by F1, dismissed by Escape. On by default in the headless run,
 	// because a run that renders an ImGui window exercises the UI path in the render test.

@@ -4,12 +4,12 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <chrono>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <utility>
 
+#include <jettison/profile/Profile.h>
 #include <jettison/render/vulkan/DeviceContext.h>
 #include <jettison/render/vulkan/Pipeline.h>
 #include <jettison/render/vulkan/Renderer.h>
@@ -154,7 +154,7 @@ void Application::RunFrameLoop()
 	// loaded, and the frames it counts are the frames of the run it is testing.
 	if (m_arguments.smokeTest)
 		m_smokeSequence = std::make_unique<SmokeSequence>(MakeSmokeActions(), CanIconifyWindow());
-	m_previousFrame = Clock::now();
+	m_frameClock.Tick();
 
 	while (!glfwWindowShouldClose(m_pWindow->GetGLFWWindow()))
 		Tick();
@@ -165,9 +165,9 @@ void Application::RunFrameLoop()
 
 void Application::Tick()
 {
-	const auto now = Clock::now();
-	const float deltaTime = std::chrono::duration<float>(now - m_previousFrame).count();
-	m_previousFrame = now;
+	JETTISON_PROFILE_FUNCTION();
+	const auto now = Time::RealClock::Clock::now();
+	const auto deltaTime = static_cast<float>(m_frameClock.Tick(now).count());
 
 	glfwPollEvents();
 	PollInput();
@@ -191,6 +191,7 @@ void Application::Tick()
 		glfwGetWindowSize(m_pWindow->GetGLFWWindow(), &width, &height);
 		m_smokeSequence->Advance(frameResized, width, height, now);
 	}
+	JETTISON_PROFILE_FRAME();
 }
 
 

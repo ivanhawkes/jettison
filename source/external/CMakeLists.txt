@@ -221,28 +221,15 @@ FetchContent_MakeAvailable(mikktspace)
 add_library(mikktspace STATIC EXCLUDE_FROM_ALL "${mikktspace_SOURCE_DIR}/mikktspace.c")
 target_include_directories(mikktspace SYSTEM PUBLIC "${mikktspace_SOURCE_DIR}")
 
-# ---------------------------------------------------------------------------------------------
-# Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
-# whole set is proven to link together before a phase depends on any of it, and they are
-# EXCLUDE_FROM_ALL, so a tree builds only what something links: today that is the dependency
-# probe, and nothing in the engine.
-#
-# Each is configured inside a block(), because their option names are generic
-# (DOUBLE_PRECISION, INTERPROCEDURAL_OPTIMIZATION, ENABLE_INSTALL) and a cache entry for one of
-# them would configure whichever other dependency reads the same name. Plain variables in a
-# block reach the dependency added inside it and nothing after it.
-# ---------------------------------------------------------------------------------------------
-option(JETTISON_PLANNED_DEPENDENCIES
-	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
+# Profiling, behind profile's Profile.h. Held at 0.13.1, two releases behind upstream's 0.15.0:
+# Tracy's client and profiler must speak the same protocol version, which changes between minor
+# releases, and the profiler the devenv nixpkgs pin provides is 0.13.1. Move this pin and the
+# profiler together. On demand: a client compiled in costs nothing until a profiler connects, and
+# listens on localhost only. In every tree since phase 2, because profile links it; with
+# JETTISON_PROFILE off, TracyClient.cpp compiles to nothing and the macros expand to nothing.
+# TRACY_ENABLE and the other settings are public definitions of the TracyClient target, so every
+# translation unit that includes Tracy.hpp agrees on them.
 option(JETTISON_PROFILE "Compile the Tracy profiler client in (TRACY_ENABLE)" OFF)
-
-if(JETTISON_PLANNED_DEPENDENCIES)
-
-# Profiling (phase 2). Held at 0.13.1, two releases behind upstream's 0.15.0: Tracy's client and
-# profiler must speak the same protocol version, which changes between minor releases, and the
-# profiler the devenv nixpkgs pin provides is 0.13.1. Move this pin and the profiler together.
-# On demand: a client compiled in costs nothing until a profiler connects, and listens on
-# localhost only.
 block()
 	set(TRACY_ENABLE ${JETTISON_PROFILE})
 	set(TRACY_ON_DEMAND ON)
@@ -258,6 +245,22 @@ block()
 	)
 	FetchContent_MakeAvailable(tracy)
 endblock()
+
+# ---------------------------------------------------------------------------------------------
+# Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
+# whole set is proven to link together before a phase depends on any of it, and they are
+# EXCLUDE_FROM_ALL, so a tree builds only what something links: today that is the dependency
+# probe, and nothing in the engine.
+#
+# Each is configured inside a block(), because their option names are generic
+# (DOUBLE_PRECISION, INTERPROCEDURAL_OPTIMIZATION, ENABLE_INSTALL) and a cache entry for one of
+# them would configure whichever other dependency reads the same name. Plain variables in a
+# block reach the dependency added inside it and nothing after it.
+# ---------------------------------------------------------------------------------------------
+option(JETTISON_PLANNED_DEPENDENCIES
+	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
+
+if(JETTISON_PLANNED_DEPENDENCIES)
 
 # GPU memory (phase 4). Header-only; built against the same Vulkan headers as the renderer.
 FetchContent_Declare(

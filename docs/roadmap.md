@@ -13,7 +13,7 @@ trustworthy, are recorded in [history](history.md).
 |---|---|---|
 | 0 | **Plan.** Scope, architecture, roadmap, standards. | These documents are reviewed and agreed. |
 | 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
-| 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. In progress: `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration), and so is `math` (bounds and intersection tests in float and double, splines, easing, PCG32, noise and tangents). | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
+| 2 | **Core.** Done 2026-11-10. Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration), and so are `math` (bounds and intersection tests in float and double, splines, easing, PCG32, noise and tangents), `profile` (Tracy zones, frame marks and plots), `time` (the real and simulation clocks, the fixed-step accumulator, the calendar) and `platform` (XDG paths, the executable path, and the start-up CPU check, five phases early). Two pieces moved to the phase that has a place for them: GPU zones to phase 4, with the pass list, and the app shell's move to `Log.h` to the smoke test's move. | Met: the math and RNG suites pass, the RNG checked against PCG32's published output and its distributions and the noise against recorded values. |
 | 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
 | 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, a pass list with compute passes beside graphics ones, the MSAA HDR target and its resolve, per-frame storage buffers, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
 | 5 | **Space rendering.** Clustered forward shading: cluster bounds and light assignment in compute, PBR with image-based lighting, the sun, point and spot lights with finite ranges, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
@@ -103,6 +103,13 @@ Tracy zones, frame marks, GPU zones for Vulkan, plot values. It compiles to noth
 speak the same protocol: v0.13.1, the version nixpkgs provides at the current devenv lock. Jolt's
 profiler hooks (`JPH_USE_EXTERNAL_PROFILE`) feed Tracy once physics arrives.
 *Library*: Tracy.
+*Filled in* (phase 2): `Profile.h` expands `JETTISON_PROFILE_ZONE`, `_FUNCTION`, `_FRAME` and
+`_PLOT` to Tracy's macros, and Tracy's own disabled macros make them nothing when
+`JETTISON_PROFILE` is off. Tracy is fetched in every tree now and is a public dependency of
+`profile`, so `TRACY_ENABLE` travels with its target. Integers plot as `int64_t`, which Tracy's
+three overloads would otherwise make ambiguous. The app shell marks each frame and zones its tick.
+GPU zones for Vulkan move to phase 4: a zone per declared pass is what the frame needs, and
+today's renderer has one pass and no pass list to put them in.
 
 ### 6. Platform · phases 1–2 · `engine/platform`
 
@@ -114,12 +121,40 @@ illegal-instruction crash. Once Jolt's flags reach the engine, the compiler may 
 anywhere, static initialisers included. The check therefore lives in a translation unit
 compiled without those flags and runs before any engine code, and it lands no later than
 phase 7, when Jolt is first linked into the engine.
+*Filled in* (phase 2): `ResolvePaths` follows the XDG base directory specification (0.8) for data,
+config, state (logs, console history) and cache, ignoring a variable that is empty or relative as
+the specification says. It touches nothing on disk; a writer creates its directory. The
+environment is injectable, so the tests do not depend on the machine's. `ExecutablePath` reads
+`/proc/self/exe`. The high-resolution time source is `steady_clock`, which is `CLOCK_MONOTONIC`
+here, behind `Time::RealClock`.
+The CPU check landed early: it is small, and its hazard was already understood. It is a guard in `.preinit_array`,
+which the dynamic loader calls before any static initialiser: on a machine without AVX2, BMI1,
+LZCNT, POPCNT or F16C it writes the missing list to stderr with `write(2)` and exits with
+status 1. Its translation unit is compiled with `-mno-avx -mno-bmi -mno-lzcnt -mno-popcnt
+-mno-f16c` after every other flag, so neither Jolt's `-mavx2` nor a developer's `-march=native`
+reaches it, and the guard calls no inline function or template, whose linked copy could come from
+an AVX2-compiled translation unit. `platform` links with `--require-defined=JettisonCpuGuard`,
+so every executable that links it carries the guard or fails to link; the app shell depends on
+`platform` for that reason. A build of the guard with AVX2 forced missing printed the message and
+exited before a static initialiser ran.
 
 ### 7. Time · phase 2 · `engine/time`
 
 `RealClock`, `SimClock` (pause, compression factor, fixed step, accumulator with a spiral-of-death
 clamp), `Calendar` (simulation seconds to an in-game date).
 *Stub*: `Clock.h`, `FixedStep.h`, `Calendar.h`.
+*Filled in* (phase 2): `RealClock` ticks over `steady_clock`, clamped to a quarter of a second so
+a breakpoint does not become a minute of animation, and takes an instant the caller already read,
+so the frame loop reads the clock once. `SimClock` turns a frame's real seconds into simulation
+seconds (zero while paused, scaled by compression) and counts steps. Compression runs more fixed
+steps per frame, not longer ones, so the step stays the one physics and AI were tuned for; past
+the accumulator's cap of eight steps a frame, simulated time falls behind the requested rate.
+`FixedStepAccumulator` drops whole steps over the cap, keeps the fraction for interpolation, and
+reports the time it dropped. `Calendar` takes a whole number of seconds per day, so a moment's
+date is integer arithmetic after one floor: hours, minutes and seconds are SI, a day that is not a
+whole number of hours ends with a short hour, moments before the epoch are dates before it, and
+`Format` writes an ISO 8601 ordinal date. Months wait until a game needs them. The module is
+`DETERMINISTIC`.
 
 ### 8. Reflection · phase 3 · `engine/reflect`
 
@@ -264,8 +299,8 @@ and mesh shapes; sensors; contact events to the simulation; ray and shape casts.
 the simulation's fixed step, and the presentation world interpolates. Jolt is built with
 `CROSS_PLATFORM_DETERMINISTIC`, so Debug and Release builds step identically, and with RTTI and
 exceptions on to match the engine. Its public instruction-set flags make x86-64 with AVX2 the
-engine's CPU baseline from this phase on, as decided; the start-up CPU check (entry 6) has to be
-in place by then.
+engine's CPU baseline from this phase on, as decided; the start-up CPU check (entry 6) that makes
+it safe has been in place since phase 2.
 *Library*: Jolt Physics.
 
 ### 23. UI · phase 8 · `engine/ui`
