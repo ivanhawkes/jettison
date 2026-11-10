@@ -17,5 +17,6 @@ jettison_add_module(sim
 		src/DefinitionRegistry.cpp
 		src/SimWorld.cpp
 	TESTS
+		tests/DefinitionTests.cpp
 		tests/SimTests.cpp
 )
