@@ -5,6 +5,7 @@
 jettison_add_module(app
 	DEPENDS
 		core
+		input
 		platform
 		profile
 		render
@@ -17,6 +18,8 @@ jettison_add_module(app
 		src/AppArguments.cpp
 		src/Application.cpp
 		src/Application.h
+		src/GlfwInput.cpp
+		src/GlfwInput.h
 		src/RenderApplication.cpp
 		src/SmokeSequence.cpp
 	TESTS

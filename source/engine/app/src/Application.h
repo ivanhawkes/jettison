@@ -5,8 +5,11 @@
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
+#include <jettison/input/Actions.h>
 #include <jettison/render/SceneSystems.h>
 #include <jettison/time/Clock.h>
+
+#include "GlfwInput.h"
 
 namespace Jettison::Render
 {
@@ -116,10 +119,16 @@ class Application
 	// include the time start-up took.
 	Time::RealClock m_frameClock;
 
-	// The demo window, toggled by F1, dismissed by Escape. On by default in the headless run,
-	// because a run that renders an ImGui window exercises the UI path in the render test.
+	// The shell's own actions, in a "shell" context at the bottom of the stack: F1 toggles the
+	// demo window and Escape dismisses it, then closes the window. Defined in the constructor, so
+	// they exist before Init and need no window.
+	Input::InputSystem m_input;
+	Input::ActionId m_toggleUi;
+	Input::ActionId m_back;
+	GlfwInput m_glfwInput;
+
+	// The demo window. On by default in the headless run, because a run that renders an ImGui
+	// window exercises the UI path in the render test.
 	bool m_showUI{false};
-	bool m_f1WasDown{false};
-	bool m_escapeWasDown{false};
 };
 } // namespace Jettison::App

@@ -4,8 +4,10 @@ jettison_add_module(input
 		math
 	HEADERS
 		include/jettison/input/Actions.h
+		include/jettison/input/InputCode.h
 	SOURCES
 		src/Actions.cpp
+		src/InputCode.cpp
 	TESTS
 		tests/InputTests.cpp
 	PUBLIC_LIBRARIES

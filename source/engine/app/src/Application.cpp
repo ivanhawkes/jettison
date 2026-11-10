@@ -49,6 +49,12 @@ bool CanIconifyWindow()
 Application::Application(AppArguments arguments, std::string windowTitle)
     : m_arguments{std::move(arguments)}, m_windowTitle{std::move(windowTitle)}
 {
+	m_toggleUi = m_input.DefineAction("toggle_ui", Input::ActionType::Button);
+	m_back = m_input.DefineAction("back", Input::ActionType::Button);
+	m_input.DefineContext("shell");
+	m_input.Bind("shell", m_toggleUi, {Input::Keys::F1});
+	m_input.Bind("shell", m_back, {Input::Keys::Escape});
+	m_input.PushContext("shell");
 }
 
 
@@ -197,26 +203,23 @@ void Application::Tick()
 
 void Application::PollInput()
 {
-	GLFWwindow *window = m_pWindow->GetGLFWWindow();
+	m_glfwInput.Feed(m_pWindow->GetGLFWWindow(), m_input);
+	m_input.Poll();
 
-	// The keys are read on the press edge, not the level: a held key is one action, not every
-	// frame's action, and the frame loop runs faster than a hand.
-	const bool f1Down = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
-	if (f1Down && !m_f1WasDown)
+	// On the press edge, not the level: a held key is one action, not every frame's action, and
+	// the frame loop runs faster than a hand.
+	if (m_input.WasPressedThisFrame(m_toggleUi))
 		m_showUI = !m_showUI;
-	m_f1WasDown = f1Down;
 
 	// Escape closes the UI before it closes the window, so the key that dismisses a panel is not
 	// the key that ends the run.
-	const bool escapeDown = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
-	if (escapeDown && !m_escapeWasDown)
+	if (m_input.WasPressedThisFrame(m_back))
 	{
 		if (m_showUI)
 			m_showUI = false;
 		else
 			RequestClose();
 	}
-	m_escapeWasDown = escapeDown;
 }
 
 
