@@ -1,12 +1,12 @@
 // The frame: descriptor set 0, written once per frame in flight and bound for every scene program.
 // The C++ side is Render::FrameUBO and Render::GpuLight (render/vulkan/FrameData.h), whose sizes
-// and offsets are asserted there against this layout.
+// and offsets are asserted there against this layout. Positions are in render space: metres from
+// the camera, which is at the origin.
 
 layout(set = 0, binding = 0) uniform FrameConstants
 {
 	mat4 view;
 	mat4 projection;
-	vec4 cameraPosition;
 	vec4 ambientColor;
 	// x: the lights in the light list.
 	uvec4 counts;

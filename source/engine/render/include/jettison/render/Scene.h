@@ -2,6 +2,7 @@
 
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -20,9 +21,13 @@ struct SceneEntityId
 	std::string value;
 };
 
+// Relative to the parent, or to the system frame's origin for an entity without one. The
+// translation is metres in double precision, so a scene can place a planet a hundred million
+// kilometres out and a hull plate on a station beside it; rotation and scale stay float, since
+// neither grows with the distance from the origin.
 struct TransformComponent
 {
-	glm::vec3 translation{0.0f};
+	glm::dvec3 translation{0.0};
 	glm::vec3 rotation{0.0f};
 	glm::vec3 scale{1.0f};
 };
@@ -32,21 +37,33 @@ struct ParentComponent
 	entt::entity entity{entt::null};
 };
 
+// The transform in the system frame, composed in double precision. The renderer takes the
+// camera's position off it before anything becomes a float (Render::ToRenderSpace).
 struct WorldTransformComponent
 {
-	glm::mat4 matrix{1.0f};
+	glm::dmat4 matrix{1.0};
 };
 
+// The camera as authored. There is no far plane: the projection is reversed-Z with an infinite far
+// plane (Render::ReversedInfinitePerspective).
 struct CameraComponent
 {
-	glm::vec3 position{2.0f, 2.0f, 2.0f};
+	glm::dvec3 position{2.0, 2.0, 2.0};
 	// Scene coordinates are right-handed and Y-up. Radians: pitch about X, roll about view, yaw about
 	// Y.
 	glm::vec3 rotation{-0.615479709f, 0.0f, 0.785398163f};
 	float verticalFovDegrees{45.0f};
 	float nearPlane{0.1f};
-	float farPlane{10.0f};
 	bool active{true};
+};
+
+// Where a camera is this frame, when something other than its authored pose moves it: a camera
+// rig writes it in the presentation phase. Runtime state, not written to the scene file; a camera
+// without one is where CameraComponent puts it.
+struct CameraPoseComponent
+{
+	glm::dvec3 position{0.0};
+	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 };
 
 // Today's one point light, read into the frame UBO with an unbounded falloff. The renderer is

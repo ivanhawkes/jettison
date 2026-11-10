@@ -9,6 +9,7 @@
 #include <optional>
 #include <vector>
 
+#include <jettison/render/Camera.h>
 #include <jettison/render/PassList.h>
 #include <jettison/render/Scene.h>
 #include <jettison/render/SceneSystems.h>
@@ -113,7 +114,7 @@ class Renderer
 	// Grows an upload buffer of a frame slot to hold the bytes asked for, after the slot's fence.
 	void EnsureCapacity(FrameData &frame, Buffer &buffer, VkDeviceSize bytes, const char *name);
 	void WriteFrame(
-	    FrameData &frame, const entt::registry &sceneRegistry,
+	    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
 	    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets);
 	void Record(
 	    const FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,

@@ -39,7 +39,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(entt)
 
-# The geometry ABI the shaders and buffers agree on - sizeof(Vertex) 108, sizeof(FrameUBO) 176,
+# The geometry ABI the shaders and buffers agree on - sizeof(Vertex) 108, sizeof(FrameUBO) 160,
 # and the zero-to-one depth range below - was measured when the tree moved from 0.9.9.8 to
 # 1.0.1, and is asserted on every version since by the dependency probe, so a GLM update that
 # moves a buffer layout fails the gate instead of the frame.

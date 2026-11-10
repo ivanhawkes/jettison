@@ -15,7 +15,7 @@ layout(push_constant) uniform DrawTransform
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
-layout(location = 3) out vec3 fragWorldPosition;
+layout(location = 3) out vec3 fragRenderPosition;
 
 void main()
 {
@@ -35,10 +35,10 @@ void main()
 		localPosition = skinMatrix * localPosition;
 		localNormal = mat3(skinMatrix) * localNormal;
 	}
-	vec4 worldPosition = drawTransform.model * localPosition;
-	gl_Position = frame.projection * frame.view * worldPosition;
+	vec4 renderPosition = drawTransform.model * localPosition;
+	gl_Position = frame.projection * frame.view * renderPosition;
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
 	fragNormal = normalize(mat3(transpose(inverse(drawTransform.model))) * localNormal);
-	fragWorldPosition = worldPosition.xyz;
+	fragRenderPosition = renderPosition.xyz;
 }

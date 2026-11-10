@@ -30,7 +30,6 @@ entities:
       rotation: [-0.6, 0, 0.8]
       fov: 45
       near: 0.1
-      far: 10
       active: true
   - id: light
     transform:
@@ -115,4 +114,62 @@ TEST_CASE("Scene: a saved scene loads back to the same file, with the frame loop
 	scene.Load(second);
 	scene.Save(third);
 	CHECK(ReadFile(second) == ReadFile(third));
+}
+
+TEST_CASE("Scene: translations and the camera's position are doubles, in the file and in the world")
+{
+	const TemporaryDirectory directory;
+	const auto authored = directory.Path() / "far.yaml";
+	const auto saved = directory.Path() / "far-saved.yaml";
+	std::ofstream{authored} << R"(version: 1
+entities:
+  - id: planet
+    transform:
+      translation: [149600000000.125, 0, -3.5]
+  - id: plate
+    parent: planet
+    transform:
+      translation: [0.001, 0, 0]
+  - id: camera
+    camera:
+      position: [149600000000.0625, 1, 2]
+      active: true
+)";
+	Scene scene{nullptr};
+	scene.Load(authored);
+	SceneUpdateSystem{}.Update(scene.Registry(), 0.0f);
+	const auto &registry = scene.Registry();
+	for (const auto [entity, id, world] : registry
+	                                          .view<
+	                                              const Jettison::Render::SceneEntityId,
+	                                              const Jettison::Render::WorldTransformComponent>()
+	                                          .each())
+	{
+		if (id.value == "plate")
+			CHECK(world.matrix[3].x == 149600000000.125 + 0.001);
+	}
+	const auto camera = Jettison::Render::ActiveCameraView(registry);
+	CHECK(camera.position.x == 149600000000.0625);
+
+	scene.Save(saved);
+	Scene again{nullptr};
+	again.Load(saved);
+	again.Save(saved);
+	CHECK(ReadFile(saved).find("149600000000.125") != std::string::npos);
+	CHECK(ReadFile(saved).find("149600000000.0625") != std::string::npos);
+}
+
+TEST_CASE("Scene: a far plane is refused, since the projection has none")
+{
+	const TemporaryDirectory directory;
+	const auto authored = directory.Path() / "old.yaml";
+	std::ofstream{authored} << R"(version: 1
+entities:
+  - id: camera
+    camera:
+      far: 10
+)";
+	Scene scene{nullptr};
+	CHECK_THROWS_WITH_AS(
+	    scene.Load(authored), doctest::Contains("infinite far plane"), std::runtime_error);
 }

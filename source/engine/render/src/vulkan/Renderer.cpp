@@ -1,7 +1,5 @@
 #include <jettison/render/vulkan/Renderer.h>
 
-#include <glm/gtc/matrix_transform.hpp>
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -371,6 +369,7 @@ void Renderer::WriteOutputSet()
 void Renderer::CreatePipelines()
 {
 	RenderState mesh;
+	mesh.depthCompare = VK_COMPARE_OP_GREATER;
 	mesh.colorFormat = kHdrFormat;
 	mesh.depthFormat = m_depthFormat;
 	mesh.samples = m_pDeviceContext->GetMsaaSamples();
@@ -448,42 +447,16 @@ void Renderer::EnsureCapacity(FrameData &frame, Buffer &buffer, VkDeviceSize byt
 
 
 void Renderer::WriteFrame(
-    FrameData &frame, const entt::registry &sceneRegistry, const std::vector<SceneDrawCommand> &draws,
-    std::vector<uint32_t> &jointOffsets)
+    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
+    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets)
 {
 	FrameUBO constants{};
 	constants.ambientColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
-	CameraComponent fallbackCamera;
-	const CameraComponent *camera = &fallbackCamera;
-	for (const entt::entity entity : sceneRegistry.view<const CameraComponent>())
-	{
-		const auto &candidate = sceneRegistry.get<CameraComponent>(entity);
-		if (candidate.active)
-		{
-			camera = &candidate;
-			break;
-		}
-	}
-
-	const float pitch = camera->rotation.x;
-	const float roll = camera->rotation.y;
-	const float yaw = camera->rotation.z;
-	const glm::vec3 direction{
-	    -std::sin(yaw) * std::cos(pitch), std::sin(pitch), -std::cos(yaw) * std::cos(pitch)};
-	const glm::vec3 worldUp{0.0f, 1.0f, 0.0f};
-	const glm::vec3 right = glm::normalize(glm::cross(direction, worldUp));
-	glm::vec3 up = glm::normalize(glm::cross(right, direction));
-	if (roll != 0.0f)
-		up = glm::vec3(glm::rotate(glm::mat4(1.0f), roll, direction) * glm::vec4(up, 0.0f));
-	constants.view = glm::lookAt(camera->position, camera->position + direction, up);
-	constants.cameraPosition = glm::vec4(camera->position, 1.0f);
+	constants.view = RenderViewMatrix(camera);
 	const VkExtent2D extent = m_pSwapchain->GetExtents();
-	constants.projection = glm::perspective(
-	    glm::radians(camera->verticalFovDegrees),
-	    static_cast<float>(extent.width) / static_cast<float>(extent.height), camera->nearPlane,
-	    camera->farPlane);
-	// Vulkan's clip space has y down.
-	constants.projection[1][1] *= -1;
+	constants.projection = ReversedInfinitePerspective(
+	    camera.verticalFov, static_cast<float>(extent.width) / static_cast<float>(extent.height),
+	    camera.nearPlane);
 
 	std::vector<GpuLight> lights;
 	bool ambientTaken = false;
@@ -492,12 +465,15 @@ void Renderer::WriteFrame(
 		const auto &light = sceneRegistry.get<LightComponent>(entity);
 		if (!light.active)
 			continue;
-		glm::vec3 position{0.0f};
+		// Collected camera-relative, like every other position the GPU sees.
+		glm::dvec3 position{0.0};
 		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
-			position = glm::vec3(worldTransform->matrix[3]);
+			position = glm::dvec3(worldTransform->matrix[3]);
 		else if (const auto *transform = sceneRegistry.try_get<TransformComponent>(entity))
 			position = transform->translation;
-		lights.push_back({glm::vec4(position, 1.0f), glm::vec4(light.color, light.intensity)});
+		lights.push_back(
+		    {glm::vec4(ToRenderSpace(position, camera.position), 1.0f),
+		     glm::vec4(light.color, light.intensity)});
 		// The scene's ambient term rides on its first light until phase 5 gives the sky its own.
 		if (!ambientTaken)
 			constants.ambientColor = glm::vec4(light.ambientColor, 1.0f);
@@ -564,9 +540,10 @@ bool Renderer::Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGui
 	}
 	m_sceneGeneration = scene.Generation();
 
-	const auto draws = renderSystem.Collect(scene.Registry());
+	const CameraView camera = ActiveCameraView(scene.Registry());
+	const auto draws = renderSystem.Collect(scene.Registry(), camera.position);
 	std::vector<uint32_t> jointOffsets;
-	WriteFrame(frame, scene.Registry(), draws, jointOffsets);
+	WriteFrame(frame, scene.Registry(), camera, draws, jointOffsets);
 	Record(frame, imageIndex, draws, jointOffsets, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
@@ -700,7 +677,8 @@ void Renderer::RecordOpaque(
 	depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 	depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depth.clearValue.depthStencil = {1.0f, 0};
+	// Reversed-Z: the far end of the infinite frustum is depth 0.
+	depth.clearValue.depthStencil = {0.0f, 0};
 
 	VkRenderingInfo rendering{};
 	rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -726,7 +704,7 @@ void Renderer::RecordOpaque(
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
 		vkCmdBindIndexBuffer(commandBuffer, draw.model->m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		DrawPushConstants pushConstants{};
-		pushConstants.model = draw.worldTransform;
+		pushConstants.model = draw.renderTransform;
 		pushConstants.jointOffset = jointOffsets[drawIndex];
 		pushConstants.skinned =
 		    draw.skeleton != nullptr && !draw.skeleton->jointMatrices.empty() ? 1u : 0u;

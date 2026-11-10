@@ -9,7 +9,7 @@ layout(set = 1, binding = 0) uniform sampler2D baseColorTexture;
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
-layout(location = 3) in vec3 fragWorldPosition;
+layout(location = 3) in vec3 fragRenderPosition;
 
 layout(location = 0) out vec4 outColor;
 
@@ -17,14 +17,14 @@ void main()
 {
 	vec4 albedo = texture(baseColorTexture, fragTexCoord) * vec4(fragColor, 1.0);
 	vec3 normal = normalize(fragNormal);
-	vec3 viewDirection = normalize(frame.cameraPosition.xyz - fragWorldPosition);
+	vec3 viewDirection = normalize(-fragRenderPosition);
 	vec3 lit = frame.ambientColor.rgb;
 	// The stand-in shading: Blinn-Phong with an unbounded falloff, which the clustered BRDF and
 	// finite light ranges of phase 5 retire.
 	for (uint index = 0u; index < frame.counts.x; ++index)
 	{
 		Light light = lights[index];
-		vec3 toLight = light.position.xyz - fragWorldPosition;
+		vec3 toLight = light.position.xyz - fragRenderPosition;
 		float distanceToLight = length(toLight);
 		vec3 lightDirection = toLight / max(distanceToLight, 0.0001);
 		vec3 halfDirection = normalize(lightDirection + viewDirection);

@@ -27,6 +27,16 @@ glm::vec3 ReadVec3(const YAML::Node &node, const char *field, const glm::vec3 &f
 	return {value[0].as<float>(), value[1].as<float>(), value[2].as<float>()};
 }
 
+glm::dvec3 ReadDVec3(const YAML::Node &node, const char *field, const glm::dvec3 &fallback)
+{
+	const YAML::Node value = node[field];
+	if (!value)
+		return fallback;
+	if (!value.IsSequence() || value.size() != 3)
+		throw std::runtime_error(std::string("Scene field '") + field + "' must be a 3-value sequence");
+	return {value[0].as<double>(), value[1].as<double>(), value[2].as<double>()};
+}
+
 std::filesystem::path RelativeModelPath(
     const std::filesystem::path &modelPath, const std::filesystem::path &scenePath)
 {
@@ -36,6 +46,12 @@ std::filesystem::path RelativeModelPath(
 }
 
 void EmitVec3(YAML::Emitter &emitter, const char *key, const glm::vec3 &value)
+{
+	emitter << YAML::Key << key << YAML::Value << YAML::Flow << YAML::BeginSeq << value.x << value.y
+	        << value.z << YAML::EndSeq;
+}
+
+void EmitDVec3(YAML::Emitter &emitter, const char *key, const glm::dvec3 &value)
 {
 	emitter << YAML::Key << key << YAML::Value << YAML::Flow << YAML::BeginSeq << value.x << value.y
 	        << value.z << YAML::EndSeq;
@@ -77,7 +93,7 @@ void Scene::Load(const std::filesystem::path &path)
 			{
 				if (!transformNode.IsMap())
 					throw std::runtime_error("Entity transform must be a mapping: " + id);
-				transform.translation = ReadVec3(transformNode, "translation", transform.translation);
+				transform.translation = ReadDVec3(transformNode, "translation", transform.translation);
 				transform.rotation = ReadVec3(transformNode, "rotation", transform.rotation);
 				transform.scale = ReadVec3(transformNode, "scale", transform.scale);
 			}
@@ -88,18 +104,21 @@ void Scene::Load(const std::filesystem::path &path)
 				if (!cameraNode.IsMap())
 					throw std::runtime_error("Entity camera must be a mapping: " + id);
 				CameraComponent camera;
-				camera.position = ReadVec3(cameraNode, "position", camera.position);
+				camera.position = ReadDVec3(cameraNode, "position", camera.position);
 				camera.rotation = ReadVec3(cameraNode, "rotation", camera.rotation);
 				if (cameraNode["fov"])
 					camera.verticalFovDegrees = cameraNode["fov"].as<float>();
 				if (cameraNode["near"])
 					camera.nearPlane = cameraNode["near"].as<float>();
 				if (cameraNode["far"])
-					camera.farPlane = cameraNode["far"].as<float>();
+					throw std::runtime_error(
+					    "Camera '" + id +
+					    "' sets a far plane, which the projection no longer has: depth is reversed-Z "
+					    "with an infinite far plane");
 				if (cameraNode["active"])
 					camera.active = cameraNode["active"].as<bool>();
 				if (camera.verticalFovDegrees <= 0.0f || camera.verticalFovDegrees >= 180.0f ||
-				    camera.nearPlane <= 0.0f || camera.farPlane <= camera.nearPlane)
+				    camera.nearPlane <= 0.0f)
 					throw std::runtime_error("Invalid camera projection settings: " + id);
 				if (camera.active && ++activeCameraCount > 1)
 					throw std::runtime_error("A scene can have only one active camera");
@@ -232,7 +251,7 @@ void Scene::Save(const std::filesystem::path &path) const
 
 		const auto &transform = m_registry.get<TransformComponent>(entity);
 		emitter << YAML::Key << "transform" << YAML::Value << YAML::BeginMap;
-		EmitVec3(emitter, "translation", transform.translation);
+		EmitDVec3(emitter, "translation", transform.translation);
 		EmitVec3(emitter, "rotation", transform.rotation);
 		EmitVec3(emitter, "scale", transform.scale);
 		emitter << YAML::EndMap;
@@ -240,11 +259,10 @@ void Scene::Save(const std::filesystem::path &path) const
 		if (const auto *camera = m_registry.try_get<CameraComponent>(entity))
 		{
 			emitter << YAML::Key << "camera" << YAML::Value << YAML::BeginMap;
-			EmitVec3(emitter, "position", camera->position);
+			EmitDVec3(emitter, "position", camera->position);
 			EmitVec3(emitter, "rotation", camera->rotation);
 			emitter << YAML::Key << "fov" << YAML::Value << camera->verticalFovDegrees;
 			emitter << YAML::Key << "near" << YAML::Value << camera->nearPlane;
-			emitter << YAML::Key << "far" << YAML::Value << camera->farPlane;
 			emitter << YAML::Key << "active" << YAML::Value << camera->active;
 			emitter << YAML::EndMap;
 		}

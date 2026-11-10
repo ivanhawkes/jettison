@@ -18,17 +18,19 @@ using Animation::SkeletonComponent;
 
 namespace
 {
-glm::mat4 ComputeWorldTransform(
+glm::dmat4 ComputeWorldTransform(
     entt::entity entity, entt::registry &registry,
-    std::unordered_map<entt::entity, glm::mat4> &computed, std::unordered_set<entt::entity> &active)
+    std::unordered_map<entt::entity, glm::dmat4> &computed, std::unordered_set<entt::entity> &active)
 {
 	if (const auto found = computed.find(entity); found != computed.end())
 		return found->second;
 	if (!active.insert(entity).second)
 		throw std::runtime_error("Scene hierarchy contains a parent cycle");
 
+	// In double precision throughout, so a child's offset from a parent a hundred million
+	// kilometres out keeps its millimetres.
 	const auto &transform = registry.get<TransformComponent>(entity);
-	glm::mat4 local{1.0f};
+	glm::dmat4 local{1.0};
 	local = glm::translate(local, transform.translation);
 	// The rotation animation's phase joins the rotation here, and is not accumulated in
 	// TransformComponent: the authored rotation stays authored, so a scene saved from a running
@@ -36,10 +38,10 @@ glm::mat4 ComputeWorldTransform(
 	glm::vec3 rotation = transform.rotation;
 	if (const auto *animation = registry.try_get<RotationAnimationComponent>(entity))
 		rotation += animation->rotationAxis * animation->angle;
-	local = glm::rotate(local, rotation.x, {1.0f, 0.0f, 0.0f});
-	local = glm::rotate(local, rotation.y, {0.0f, 1.0f, 0.0f});
-	local = glm::rotate(local, rotation.z, {0.0f, 0.0f, 1.0f});
-	local = glm::scale(local, transform.scale);
+	local = glm::rotate(local, double{rotation.x}, {1.0, 0.0, 0.0});
+	local = glm::rotate(local, double{rotation.y}, {0.0, 1.0, 0.0});
+	local = glm::rotate(local, double{rotation.z}, {0.0, 0.0, 1.0});
+	local = glm::scale(local, glm::dvec3{transform.scale});
 
 	if (const auto *parent = registry.try_get<ParentComponent>(entity))
 	{
@@ -75,13 +77,44 @@ void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 		rig.EvaluateSkin(clipName, animationTime, skeleton.jointMatrices, skeleton.meshNodeTransform);
 	}
 
-	std::unordered_map<entt::entity, glm::mat4> computed;
+	std::unordered_map<entt::entity, glm::dmat4> computed;
 	std::unordered_set<entt::entity> active;
 	for (const entt::entity entity : registry.view<TransformComponent>())
 		ComputeWorldTransform(entity, registry, computed, active);
 }
 
-std::vector<SceneDrawCommand> SceneRenderSystem::Collect(const entt::registry &registry) const
+CameraView ActiveCameraView(const entt::registry &registry)
+{
+	CameraView view;
+	const CameraComponent fallback;
+	const CameraComponent *camera = &fallback;
+	entt::entity cameraEntity = entt::null;
+	for (const entt::entity entity : registry.view<const CameraComponent>())
+		if (registry.get<CameraComponent>(entity).active)
+		{
+			camera = &registry.get<CameraComponent>(entity);
+			cameraEntity = entity;
+			break;
+		}
+	view.verticalFov = glm::radians(camera->verticalFovDegrees);
+	view.nearPlane = camera->nearPlane;
+	if (const auto *pose =
+	        cameraEntity == entt::null ? nullptr : registry.try_get<CameraPoseComponent>(cameraEntity))
+	{
+		view.position = pose->position;
+		view.orientation = pose->orientation;
+	}
+	else
+	{
+		view.position = camera->position;
+		view.orientation =
+		    OrientationFromAngles(camera->rotation.x, camera->rotation.y, camera->rotation.z);
+	}
+	return view;
+}
+
+std::vector<SceneDrawCommand> SceneRenderSystem::Collect(
+    const entt::registry &registry, const glm::dvec3 &camera) const
 {
 	std::vector<SceneDrawCommand> drawCommands;
 	const auto meshes = registry.view<const MeshComponent, const WorldTransformComponent>();
@@ -91,11 +124,13 @@ std::vector<SceneDrawCommand> SceneRenderSystem::Collect(const entt::registry &r
 		if (mesh.model)
 		{
 			const auto *skeleton = registry.try_get<SkeletonComponent>(entity);
-			const glm::mat4 meshNodeTransform =
-			    skeleton ? skeleton->meshNodeTransform : glm::mat4{1.0f};
+			const glm::dmat4 meshNodeTransform{
+			    skeleton ? skeleton->meshNodeTransform : glm::mat4{1.0f}};
 			drawCommands.push_back(
 			    {mesh.model.get(),
-			     meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform,
+			     ToRenderSpace(
+			         meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform,
+			         camera),
 			     skeleton});
 		}
 	}

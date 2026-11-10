@@ -7,6 +7,7 @@ jettison_add_module(render
 		animation
 		vfs
 	HEADERS
+		include/jettison/render/Camera.h
 		include/jettison/render/IRenderer.h
 		include/jettison/render/PassList.h
 		include/jettison/render/Scene.h
@@ -21,6 +22,7 @@ jettison_add_module(render
 		include/jettison/render/vulkan/Window.h
 		include/jettison/render/vulkan/imgui/ImGuiRenderer.h
 	SOURCES
+		src/Camera.cpp
 		src/PassList.cpp
 		src/Scene.cpp
 		src/SceneSystems.cpp
@@ -37,6 +39,7 @@ jettison_add_module(render
 		src/vulkan/Window.cpp
 		src/vulkan/imgui/ImGuiRenderer.cpp
 	TESTS
+		tests/CameraTests.cpp
 		tests/PassListTests.cpp
 		tests/SceneTests.cpp
 	PUBLIC_LIBRARIES
