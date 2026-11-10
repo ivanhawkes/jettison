@@ -184,6 +184,78 @@ looking. This is the floating origin. It is never visible to simulation code. De
 forty thousand kilometres share a depth buffer. The existing `GLM_FORCE_DEPTH_ZERO_TO_ONE`
 setting is the prerequisite for that.
 
+## Rendering: clustered forward
+
+The renderer is a **clustered forward** renderer (decided 2026-11-10, see the
+[roadmap](roadmap.md#decided)). Lights are assigned to a 3D grid of view-space clusters by a
+compute pass. Each surface is then shaded once, in its own material program, from the lights
+listed for the cluster it falls in. There is no G-buffer. It was chosen over deferred shading
+for what this game draws:
+
+- **Material variety.** Hulls, planets, atmosphere shells, glass, emissive panels and engine
+  plumes are each their own program. Forward shading puts no common G-buffer layout between them.
+- **Transparency.** Canopies, station windows, particles and exhaust are lit by the same lights
+  through the same code. A deferred renderer would still need a forward path for them.
+- **Anti-aliasing.** MSAA works directly on the HDR target. Thin struts, antennae and distant
+  ships against black space are where aliasing shows most.
+- **Bandwidth.** No fat render targets, which matters on lavapipe, where the gate runs, and on
+  laptops.
+- **Many small lights.** Floodlights, docking bay lights, beacons and navigation lights add up to
+  hundreds per station, but few of them reach any one pixel. Clustering keeps the cost per
+  fragment at the lights that actually reach it.
+
+### The frame
+
+Each step is a node in the declared pass list (phase 4), and compute nodes sit beside graphics
+nodes in it:
+
+1. **Collect** (CPU). Visible lights are converted to camera-relative float, like every other
+   position, and written to a storage buffer for this frame in flight.
+2. **Shadows.** Sun cascades (phase 5). Spot and point shadows, when they arrive, render into an
+   atlas, and each light's record carries its atlas slot.
+3. **Depth prepass** (opaque only). Optional, and kept or dropped by measurement in phase 5. Light
+   assignment does not need it. What it would buy is less overdraw of the PBR program.
+4. **Cluster bounds** (compute). The view-space bounds of every cluster. They are rebuilt only when
+   the projection or the resolution changes.
+5. **Light assignment** (compute). Each light's sphere or cone is tested against the cluster
+   bounds. The output is an offset and a count per cluster into one global light-index list.
+6. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
+   position and view distance, loops over that cluster's lights, then adds the sun and image-based
+   lighting.
+7. **Sky.**
+8. **Transparent**, sorted back to front, using the same cluster lookup (phase 10).
+9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the UI.
+
+### The grid and the infinite far plane
+
+The grid is screen tiles times depth slices, exponential in view distance. 16 × 9 × 24 is the
+starting point, tuned by measurement in phase 5. Depth is reversed-Z with an infinite far plane,
+so the slices are computed from view-space distance, never from the depth buffer. They span the
+near plane to a finite **cluster range**. Past it, no local light is assigned, and a surface is lit
+by the sun, image-based lighting and its own emission. A station's lights seen from tens of
+kilometres away are emissive sprites, not lights. The cluster range is a setting, chosen with the
+light budget.
+
+### Rules that follow
+
+- **Every local light has a finite range.** Falloff is inverse-square, windowed to reach zero at
+  that range, so culling a light against a cluster is exact. `LightComponent` gains a type, a
+  range and spot cone angles in phase 5. Today's single light uses an unbounded attenuation
+  curve, which is the stand-in this rule retires.
+- **The sun is not a cluster light.** There is one directional light per star system, held in the
+  frame constants and shadowed with cascades.
+- **Light data lives in storage buffers**, one set per frame in flight, never in the frame UBO.
+  The UBO's one light is today's stand-in, retired in phase 5.
+- **One lighting implementation.** Every lit program includes the shared GLSL for the cluster
+  lookup and the BRDF. No material lights itself its own way.
+- **No G-buffer.** Effects that need one stay out: screen-space reflections already are. If
+  ambient occlusion is ever wanted, the depth prepass also writes normals for it.
+- **Debug draw shows the grid**, as a lights-per-cluster heat map, so a light budget problem is
+  visible rather than inferred.
+
+The Vulkan features this needs are compute shaders and storage buffers, both core since 1.0, so
+the headless render test on lavapipe covers every pass.
+
 ## Frame and tick structure
 
 `Application::Tick` today runs events, hot keys, UI and render. With the scheduler
@@ -196,7 +268,8 @@ declaring the components it reads and writes:
    accumulator allows.
 4. **Sync**: copy simulation snapshots into presentation and interpolate.
 5. **Presentation**: animation, cameras, audio, particles, UI layout.
-6. **Render**: cull, collect, record, submit, present.
+6. **Render**: cull, collect lights, record the pass list (shadows, cluster light assignment,
+   forward passes, post), submit, present. See [rendering](#rendering-clustered-forward).
 
 Declared reads and writes are what let the job system parallelise later without a rewrite.
 
@@ -249,5 +322,6 @@ proves it headlessly. What exists:
   debug-utils messenger and object names. Then `Swapchain`, `Pipeline` (one graphics pipeline,
   descriptor pools sized from what is allocated), `Renderer` (acquire, record, submit, then
   `Present`), and `Model` (fastgltf loading of vertices, primitives and the rig). There is one
-  vertex/fragment shader pair.
+  vertex/fragment shader pair. It is already forward shading, with one light in the frame UBO:
+  the starting point the [clustered forward](#rendering-clustered-forward) frame grows from.
 - **ImGui** for a demo window, toggled with F1.

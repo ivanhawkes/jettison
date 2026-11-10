@@ -49,6 +49,10 @@ struct CameraComponent
 	bool active{true};
 };
 
+// Today's one point light, read into the frame UBO with an unbounded falloff. The renderer is
+// clustered forward (docs/architecture.md, "Rendering: clustered forward"): phase 5 gives this a
+// type, a finite range and spot cone angles, moves light data into storage buffers, and makes the
+// sun a directional light of its own rather than one of these.
 struct LightComponent
 {
 	glm::vec3 color{1.0f};

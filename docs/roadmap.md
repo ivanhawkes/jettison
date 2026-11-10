@@ -15,13 +15,13 @@ trustworthy, are recorded in [history](history.md).
 | 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
 | 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. In progress: `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration). | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
 | 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
-| 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
-| 5 | **Space rendering.** PBR with image-based lighting, sun/point/spot lights, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, drawn within a frame budget measured on lavapipe and on hardware. |
+| 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, a pass list with compute passes beside graphics ones, the MSAA HDR target and its resolve, per-frame storage buffers, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
+| 5 | **Space rendering.** Clustered forward shading: cluster bounds and light assignment in compute, PBR with image-based lighting, the sun, point and spot lights with finite ranges, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
 | 6 | **Star systems and galaxy.** One scene per system, jump transitions, asynchronous loading, scene layers, the spatial index, the jump-lane graph. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
 | 7 | **Physics and flight.** Jolt in double precision, shapes, sensors (docking zones), contact events, ray queries and picking, interpolation of the piloted ship. | A piloted ship collides with a station, docks through a sensor, and is picked with the mouse. |
 | 8 | **UI, audio and persistence.** RmlUi with data binding, fonts, miniaudio with buses and 3D sources, versioned save games with migration, settings and keybindings. | A market screen bound to simulation data; a save written by version N loads in N+1. |
 | 9 | **AI.** Utility AI, behaviour trees, route-graph pathfinding, steering avoidance. | Automated traders choose trades, plot routes across systems and fly them without collisions. |
-| 10 | **Presentation polish.** Atmosphere, planet shading (clouds, night side, rings), particles and the transparent pass, bloom, generalised animation clips for mechanical rigs, material effects. | |
+| 10 | **Presentation polish.** Atmosphere, planet shading (clouds, night side, rings), particles and the transparent pass lit through the clusters, bloom, generalised animation clips for mechanical rigs, material effects. | |
 | 11 | **Scripting and shipping.** Wasm host and mod API, data pack layering finished, pack files with zstd, crash handling, colour grading, cinematics, localisation. | A data mod and a script mod load from the user mount, and a packed build runs. |
 
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
@@ -180,6 +180,13 @@ renderer interface the rest of the engine sees, with Vulkan types kept inside
 `render/vulkan`. Fills `IRenderer.h`, an empty placeholder today.
 *Library*: Vulkan Memory Allocator.
 
+This phase lays the ground the clustered forward frame
+([architecture](architecture.md#rendering-clustered-forward)) stands on, so phase 5 adds passes
+rather than restructuring. Compute passes are nodes in the pass list like graphics passes, with
+the barriers between them declared. The HDR colour target is multisampled and resolved before
+post-processing. Storage buffers are allocated per frame in flight, for the light list and the
+cluster data phase 5 writes.
+
 #### Shaders · phases 4, 5 and 10
 
 Today there is one vertex/fragment pair (`shader.vert`, `shader.frag`), loaded by name in
@@ -195,9 +202,13 @@ set of them, so the pipeline stops being singular before the second shader arriv
 - **Phase 5** adds the shaded set: the **metallic-roughness BRDF** (glTF's PBR model: GGX
   distribution, Smith geometry, Schlick Fresnel, image-based lighting from a prefiltered
   environment and a BRDF lookup table), an unlit/emissive program, the skybox, shadow depth for
-  the sun cascades, and tonemapping. A material names its program and supplies its parameters
-  and texture slots (entry 19), so adding a program is data plus GLSL, not a new code path.
-- **Phase 10** adds atmosphere, planet surface, particle and glass programs on the same terms.
+  the sun cascades, and tonemapping. Two compute programs come with it: cluster bounds and light
+  assignment. The cluster lookup and the BRDF are one shared include, and every lit program uses
+  it, so a material never lights itself its own way. A material names its program and supplies
+  its parameters and texture slots (entry 19), so adding a program is data plus GLSL, not a new
+  code path.
+- **Phase 10** adds atmosphere, planet surface, particle and glass programs on the same terms,
+  lit through the same include.
 
 Shader variants (skinned and static, alpha-masked and opaque) are compile-time defines on one
 source, not copies of it. Hot reload of shaders arrives with the resource manager's hot reload.
@@ -210,10 +221,17 @@ cinematics in phase 11.
 
 ### 19. Space rendering · phase 5 · `engine/render`
 
-PBR (glTF metallic-roughness) with image-based lighting from per-system environment cubemaps,
-directional sun, point and spot lights, cascaded sun shadows, starfield skybox, frustum and
-planet-horizon culling, instancing, LOD selection, tonemapping. Materials are data: a shader,
-parameters and texture slots, with time-driven parameters for effects.
+Clustered forward shading, as [architecture](architecture.md#rendering-clustered-forward)
+describes. Point and spot lights have finite ranges with windowed inverse-square falloff, and
+are assigned to a grid of view-space clusters by compute: 16 × 9 × 24 to start with, tuned by
+measurement, and covering the cluster range. The directional sun is separate, in the frame
+constants, with cascaded shadows. Whether an opaque depth prepass pays for itself is measured
+here, not assumed. Also in this phase: PBR (glTF metallic-roughness) with image-based lighting
+from per-system environment cubemaps, a starfield skybox, frustum and planet-horizon culling,
+instancing, LOD selection and tonemapping. `LightComponent` gains a type, a range and spot cone
+angles, and the frame UBO's single light is retired. Debug draw gets a lights-per-cluster heat
+map. Materials are data: a shader, parameters and texture slots, with time-driven parameters for
+effects.
 
 ### 20. Geometry and textures · phase 5 · `engine/render`
 
@@ -278,7 +296,9 @@ closed" triggering a sound).
 ### 28. Presentation polish · phase 10 · `engine/render`
 
 The atmosphere scattering shell, planet shading (clouds, night lights, rings), GPU particles
-with a sorted transparent pass, bloom, glass on that transparent pass.
+with a sorted transparent pass, bloom, glass on that transparent pass. The transparent pass is
+forward-lit through the same clusters as the opaque one, which is one of the reasons the
+renderer is clustered forward.
 
 ### 29. Scripting · phase 11 · `engine/script`
 
@@ -301,6 +321,10 @@ Settled on 2026-11-10:
 - **Linux only**, on x86-64: Wayland for the desktop, X11 for the headless tests, one
   toolchain (Clang 21 from the devenv shell).
 - **spdlog for logging** (catalogue entry 3).
+- **Clustered forward rendering.** Lights are assigned to view-space clusters in compute, and
+  every surface is shaded once in its own material program. There is no G-buffer. Phases 4, 5
+  and 10 are planned around it (catalogue entries 17, 19 and 28), and
+  [architecture](architecture.md#rendering-clustered-forward) has the frame and the rules it sets.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

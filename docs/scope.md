@@ -146,9 +146,10 @@ only on measured evidence or close to shipping. **Out**: not built.
 
 | Item | Verdict | Reason |
 |---|---|---|
-| Render pipeline | In | Exists. Moves to dynamic rendering and a declared pass list. |
+| Render pipeline | In | Exists. Becomes clustered forward ([architecture](architecture.md#rendering-clustered-forward)), on dynamic rendering and a declared pass list. |
+| Deferred shading | Out | Clustered forward instead: material variety, lit transparency and MSAA without a G-buffer. |
 | PBR | In | glTF metallic-roughness, which is the same model Unreal uses. Image-based lighting from environment cubemaps. |
-| Lights: point, projected (spot) | In | Station floodlights, docking bay lights, navigation beacons. |
+| Lights: point, projected (spot) | In | Station floodlights, docking bay lights, navigation beacons. Finite ranges, assigned to clusters, so a station can carry hundreds. |
 | Light: directional sun | In (added) | The star is the key light of every scene. |
 | Shadows | In | Sun shadows on stations and ships; cascaded for close-ups. |
 | Atmosphere halo | In | An orbit-view scattering shell around planets. |
@@ -156,6 +157,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Reflections | In | Through image-based lighting. Screen-space reflections are out. |
 | Particles | In | GPU billboards: engine exhaust, debris, docking sparks, jump effects. |
 | Post processing | In | HDR, tonemapping and bloom (stars and engines are far brighter than the hull). |
+| Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap. Thin struts and antennae against black space alias worst. |
 | Colour space | In, early | Linear workflow, sRGB swapchain, HDR render targets. Expensive to retrofit. |
 | Colour grading | Deferred | A LUT pass late, when there is art to grade. |
 | Triplanar / tri-blend | In | Asteroids and procedural planet surfaces without authored UVs. |
