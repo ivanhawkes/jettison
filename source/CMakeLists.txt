@@ -14,7 +14,9 @@ endif()
 
 add_subdirectory("external")
 
-set(JETTISON_ASSET_BINARY_DIR "${CMAKE_BINARY_DIR}/assets")
+# PROJECT_ dirs, not CMAKE_ dirs: when the game fetches the engine, CMAKE_SOURCE_DIR is the game's
+# tree and has no assets directory. The consumer check (source/test/consumer) found this.
+set(JETTISON_ASSET_BINARY_DIR "${PROJECT_BINARY_DIR}/assets")
 
 function(jettison_use_shared_assets target)
     file(RELATIVE_PATH asset_subdirectory "${CMAKE_CURRENT_BINARY_DIR}" "${JETTISON_ASSET_BINARY_DIR}")
@@ -23,7 +25,7 @@ function(jettison_use_shared_assets target)
     add_dependencies(${target} jettison_assets)
 endfunction()
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
+add_subdirectory("${PROJECT_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
 
 # The engine modules.
 add_subdirectory("engine")

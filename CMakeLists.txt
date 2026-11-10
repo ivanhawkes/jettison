@@ -70,5 +70,38 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
 	endif()
 endif()
 
+# Installing and exporting the package is off by default: the game consumes the engine through
+# FetchContent (source/test/consumer is that build at its smallest), and an install export has to
+# carry every third-party target the modules link, which the FetchContent dependencies do not all
+# provide. docs/build-and-gates.md, "Consuming the engine", has the state of it.
+option(JETTISON_INSTALL "Install the engine and export the Jettison CMake package" OFF)
+
 # Source.
 add_subdirectory("source")
+
+# The whole engine as one target, for a consumer that does not want to pick modules.
+add_library(jettison_engine INTERFACE)
+add_library(Jettison::Engine ALIAS jettison_engine)
+set_target_properties(jettison_engine PROPERTIES EXPORT_NAME Engine)
+get_property(jettison_modules GLOBAL PROPERTY JETTISON_MODULES)
+target_link_libraries(jettison_engine INTERFACE ${jettison_modules})
+
+if(JETTISON_INSTALL)
+	include(GNUInstallDirs)
+	include(CMakePackageConfigHelpers)
+	install(TARGETS jettison_engine EXPORT JettisonTargets)
+	install(EXPORT JettisonTargets
+		NAMESPACE Jettison::
+		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Jettison")
+	configure_package_config_file(
+		"${CMAKE_CURRENT_SOURCE_DIR}/cmake/JettisonConfig.cmake.in"
+		"${CMAKE_CURRENT_BINARY_DIR}/JettisonConfig.cmake"
+		INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Jettison")
+	write_basic_package_version_file(
+		"${CMAKE_CURRENT_BINARY_DIR}/JettisonConfigVersion.cmake"
+		COMPATIBILITY SameMajorVersion)
+	install(FILES
+		"${CMAKE_CURRENT_BINARY_DIR}/JettisonConfig.cmake"
+		"${CMAKE_CURRENT_BINARY_DIR}/JettisonConfigVersion.cmake"
+		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Jettison")
+endif()

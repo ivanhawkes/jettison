@@ -41,6 +41,12 @@ build/clang-debug/source/test/render_test
 ./scripts/ci.sh --llvmpipe --werror
 ```
 
+## Using the engine
+
+The game fetches the engine with CMake's `FetchContent` and links `Jettison::Engine`.
+`source/test/consumer` is the smallest such project; [build and
+gates](docs/build-and-gates.md#consuming-the-engine) shows how to run it.
+
 ## Documentation
 
 Everything else is in [`docs/`](docs/README.md):

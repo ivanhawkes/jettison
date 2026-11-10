@@ -73,6 +73,14 @@ function(jettison_add_module name)
 
 	set_property(GLOBAL APPEND PROPERTY JETTISON_MODULES ${target})
 
+	# Into the package's export set, headers with it. The private include path is PRIVATE and the
+	# warnings are BUILD_INTERFACE above, so neither reaches the export.
+	if(JETTISON_INSTALL)
+		include(GNUInstallDirs)
+		install(TARGETS ${target} EXPORT JettisonTargets
+			FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+	endif()
+
 	if(JETTISON_BUILD_TESTS AND arg_TESTS)
 		set(tests "${target}_tests")
 		add_executable(${tests} ${arg_TESTS})

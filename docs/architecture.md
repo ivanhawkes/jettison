@@ -94,9 +94,11 @@ the render smoke harness that the gate runs. It was `test` until CTest reserved 
 
 ### Consumption by the game repository
 
-The engine installs and exports `JettisonTargets.cmake` and a `JettisonConfig.cmake`, so the
-game uses either `find_package(Jettison)` or `FetchContent` with a pinned commit and links
-`Jettison::Engine`, an interface target over every module. Public headers are the
+The game uses `FetchContent` with a pinned commit and links `Jettison::Engine`, an interface
+target over every module, or the `Jettison::<Module>` targets it needs. The install export
+(`JettisonTargets.cmake`, `JettisonConfig.cmake`, behind `JETTISON_INSTALL`) exists for a later
+`find_package(Jettison)` consumer; [build and gates](build-and-gates.md#consuming-the-engine) says
+what it still needs. Public headers are the
 `include/jettison/` trees only; anything under `src/` is private. Third-party headers that
 appear in public engine headers (GLM, EnTT) are public dependencies; the rest (Vulkan, Jolt,
 RmlUi, miniaudio) stay private where the interface allows it, so the game does not compile

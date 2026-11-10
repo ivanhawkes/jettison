@@ -122,8 +122,41 @@ executable. `--assets <directory>` selects a different asset directory, and
 `--scene <file>` / `--save-scene <file>` load and write scene graphs.
 
 In VS Code, the default build task uses `clang-debug`. The `Debug test` launch configuration
-builds and runs `render_test` under GDB through the Native Debug (`webfreak.debug`) extension. Run VS
-Code inside the devenv shell so it finds the tools.
+builds and runs `render_test` under GDB through the Native Debug (`webfreak.debug`) extension.
+Run VS Code inside the devenv shell so it finds the tools.
+
+## Consuming the engine
+
+The game repository builds the engine from source with `FetchContent`, pinned to a commit, and
+links `Jettison::Engine` (every module) or the `Jettison::<Module>` targets it needs:
+
+```cmake
+FetchContent_Declare(jettison GIT_REPOSITORY <url> GIT_TAG <commit>)
+set(JETTISON_BUILD_TESTS OFF)
+set(JETTISON_PLANNED_DEPENDENCIES OFF)
+FetchContent_MakeAvailable(jettison)
+target_link_libraries(game PRIVATE Jettison::Engine)
+```
+
+`source/test/consumer` is that build at its smallest: a project that fetches the engine from a
+directory and calls into two modules through the public include paths. It is phase 1's exit test
+for packaging, and it is not in the gate, because it fetches and compiles the dependency set a
+second time. Run it when the module layout or the public interface changes:
+
+```bash
+cmake -S source/test/consumer -B build/consumer -G Ninja \
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  -DJETTISON_SOURCE_DIR="$PWD"
+cmake --build build/consumer && build/consumer/consumer
+```
+
+`JETTISON_INSTALL=ON` adds the install rules and the `Jettison` package (`JettisonConfig.cmake`,
+`JettisonTargets.cmake`) for a `find_package(Jettison)` consumer. It is off by default and not
+yet a supported path: CMake refuses to export a target whose link interface names a target
+outside the export set, and the modules link FetchContent dependencies (GLM, EnTT, GLFW, ImGui,
+yaml-cpp, fastgltf) that are not all installed alongside. Making that work means installing each
+public dependency's export, or vendoring import targets for them in `JettisonConfig.cmake.in`.
+It is done when the game needs a prebuilt engine rather than a source build, and not before.
 
 ## The gate
 

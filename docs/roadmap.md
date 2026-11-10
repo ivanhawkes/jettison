@@ -12,7 +12,7 @@ trustworthy, are recorded in [history](history.md).
 | Phase | Work | Exit criterion |
 |---|---|---|
 | 0 | **Plan.** Scope, architecture, roadmap, standards. | These documents are reviewed and agreed. |
-| 1 | **Layout and scaffolding.** The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`scene`/`render`/`animation`, a stub for every in-scope module, doctest and CTest, the package export, EnTT upgraded. | The gate is green, every module builds and has one passing test, and a scratch consumer project links `Jettison::Engine`. |
+| 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
 | 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
 | 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
 | 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
@@ -24,8 +24,8 @@ trustworthy, are recorded in [history](history.md).
 | 10 | **Presentation polish.** Atmosphere, planet shading (clouds, night side, rings), particles and the transparent pass, bloom, generalised animation clips for mechanical rigs, material effects. | |
 | 11 | **Scripting and shipping.** Wasm host and mod API, data pack layering finished, pack files with zstd, crash handling, colour grading, cinematics, localisation. | A data mod and a script mod load from the user mount, and a packed build runs. |
 
-Phase 1 is the last step before large-scale work: after it, every system has a home, a
-namespace, a target and a test, and phases 2–11 fill stubs in rather than invent structure.
+Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
+target and a test, and phases 2–11 fill stubs in rather than invent structure.
 
 ## Stubs
 
