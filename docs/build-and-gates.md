@@ -1,0 +1,279 @@
+# Build and gates
+
+How to build the engine, what the gate checks, and the facts behind each check. This
+consolidates the build sections of the old README and `.github/CI-NOTES.md`.
+
+## Dependencies
+
+There are no submodules. Every third-party library is pinned in
+`source/external/CMakeLists.txt` and downloaded by `FetchContent` on the first configure. The
+comment on each pin says why it is configured the way it is, and why when it is older than
+upstream's newest release. Versions were last reviewed on 2026-11-10.
+
+| Library | Pin | Used from | Note |
+|---|---|---|---|
+| EnTT | v4.0.0 | now | Requires C++20 and CMake 3.28 |
+| GLM | 1.0.3 | now | Geometry ABI asserted by the dependency probe |
+| GLFW | 3.5.1 | now | Upstream skipped 3.5.0 (bad tag) |
+| Dear ImGui | v1.93.0 (commit) | now | GLFW and Vulkan backends from the same release |
+| stb | master, 2026-11-10 (commit) | now | No releases |
+| yaml-cpp | 0.9.0 | now | |
+| fastgltf | v1.0.1 | now | Downloads its own simdjson 5.1.0 and simdutf |
+| spdlog | v1.17.0 | phase 2 | `SPDLOG_USE_STD_FORMAT` |
+| doctest | v2.5.3 | phase 1 | |
+| Tracy | v0.13.1 | phase 2 | **Held back** from 0.15.0 to match devenv's profiler |
+| Vulkan Memory Allocator | v3.5.0 | phase 4 | |
+| FastNoiseLite | v1.1.1 | phase 2 | |
+| MikkTSpace | 2020 (only commit) | phase 2 | |
+| Jolt Physics | v5.6.0 | phase 7 | Double precision, deterministic across build types |
+| FreeType | 2.15.0 | phase 8 | Answers RmlUi's `find_package(Freetype)` |
+| RmlUi | 6.3 | phase 8 | |
+| miniaudio | 0.11.26 | phase 8 | |
+| KTX-Software | v4.4.2 | phase 5 | **Held back** from v5.0.0-rc2, a release candidate |
+| WAMR | 2.4.5 | phase 11 | Candidate runtime; the choice is still open |
+| zstd | none | phase 11 | **Held back**: KTX-Software already compiles zstd in |
+
+The Vulkan headers, loader, validation layers and `glslc` come from the devenv shell (Vulkan
+headers 1.4.363 at the current lock), not from `FetchContent`.
+
+### Planned dependencies and the probe
+
+The libraries marked for a later phase are fetched now (`JETTISON_PLANNED_DEPENDENCIES=ON`, the
+default) so the whole set is proven to link before any phase depends on it. They are
+`EXCLUDE_FROM_ALL`: nothing in the engine links them yet, so a tree builds them only for
+`dependency_probe`. That one executable links the `Renderer` library and every third-party
+library, makes at least one real call into each (it runs a WebAssembly function, creates a
+Jolt shape and a KTX texture, generates tangents), and asserts the GLM geometry ABI. The gate
+runs it after the Debug build.
+
+`clang-headless`, and therefore `clang-asan`, sets `JETTISON_PLANNED_DEPENDENCIES=OFF`: those
+trees exist for the render test, which uses none of the planned libraries.
+
+`JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
+listens on localhost only, so it costs nothing until a profiler connects. It is off by default.
+The profiler that connects has to be the same version as the client: nixpkgs' `tracy` at the
+current devenv lock is 0.13.1, which is why the client is pinned there. It is not in
+`devenv.nix`'s package list; add it there, or run `nix run nixpkgs#tracy` from the shell.
+
+Measured on 2026-11-10 (24 cores, Release, from an empty tree), the planned set adds about 45
+seconds of configure, mostly downloads, about 410 CPU-seconds of compilation (217 without it,
+627 with), and about 0.7 GB of disk per tree. On the CI runner's two build jobs that is
+roughly three and a half minutes per tree. CI builds two trees with the set: Debug and Release.
+
+### Integration rules the set follows
+
+Rules that keep every library linkable into one executable, each one learned from a library in
+this set:
+
+- **Static only.** `BUILD_SHARED_LIBS` is OFF for the dependency directory. RmlUi declares it as
+  an option defaulting to ON, which would make every later dependency shared.
+- **One copy of each library.** Before adding a dependency, check whether it compiles its own
+  copy of another (`grep` its build for vendored `.c` files). libktx compiles zstd 1.5.5 with
+  public symbols, which is why there is no standalone zstd.
+- **Options in a `block()`.** Jolt's options are called `DOUBLE_PRECISION`, `ENABLE_INSTALL`
+  and `INTERPROCEDURAL_OPTIMIZATION`. A cache entry would configure every other dependency
+  reading the same name, so options are plain variables inside a `block()` around the
+  dependency they are for. `CMAKE_POLICY_DEFAULT_CMP0077` is NEW so that a dependency declaring
+  an old CMake honours them (Tracy 0.13.1 silently discarded them before).
+- **The project's language features.** No dependency may build without RTTI or exceptions when
+  the engine derives from its classes (Jolt defaults to both off).
+- **No system libraries found by accident.** Optional codecs (FreeType's zlib, PNG and
+  HarfBuzz; miniaudio's libvorbis and libopus) are off, because each is found on a developer's
+  machine and missing on a runner. `OVERRIDE_FIND_PACKAGE` answers a dependency's
+  `find_package` for a library this set provides.
+- **No executable stack.** An assembly file without `.note.GNU-stack` marks the whole process
+  as needing an executable stack. WAMR's trampoline is assembled with `--noexecstack`.
+  `readelf -lW dependency_probe | grep GNU_STACK` should say `RW`.
+- **A dependency's warnings are not the gate.** Third-party includes are `SYSTEM`, and a
+  dependency's own `-Werror` is turned off (astc-encoder's breaks on glibc 2.44's
+  `_FORTIFY_SOURCE` warning in Debug).
+- **Instruction sets travel.** Jolt adds `-mavx2 -mbmi -mpopcnt -mlzcnt -mf16c` as public
+  options. When phase 7 links Jolt into the engine, the engine's CPU
+  baseline becomes x86-64 with AVX2, which is the decided minimum
+  ([roadmap](roadmap.md#decided)). A dependency that would raise it further (AVX-512, for
+  example) is a new decision, not a default.
+
+Large media (`.glb`, images, fonts, audio) is in Git LFS: run `git lfs install` before the first
+checkout. The devenv shell does this for you. A checkout without LFS gives the render test
+132-byte pointer files.
+
+## Building
+
+You need Clang, CMake 3.28 or newer, Ninja, Git, the Vulkan development libraries, `glslc`, and
+the Wayland development libraries. `devenv.nix` supplies all of them.
+
+```bash
+cmake --preset clang-debug
+cmake --build --preset clang-debug
+
+# Run from the root folder.
+build/clang-debug/source/test/test
+```
+
+| Preset | Tree |
+|---|---|
+| `clang-debug` | Debug, Wayland |
+| `clang-release` | Release, Wayland |
+| `clang-headless` | Debug with GLFW's X11 backend instead of Wayland: the tree the headless render test uses |
+| `clang-asan` | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer |
+
+Shaders compile as part of the build (`jettison_compile_shaders`). Assets are staged beside the
+executable. `--assets <directory>` selects a different asset directory, and
+`--scene <file>` / `--save-scene <file>` load and write scene graphs.
+
+In VS Code, the default build task uses `clang-debug`. The `Debug test` launch configuration
+builds and runs `test` under GDB through the Native Debug (`webfreak.debug`) extension. Run VS
+Code inside the devenv shell so it finds the tools.
+
+## The gate
+
+`scripts/ci.sh` is the gate. The worktrunk `pre-commit` hook checks formatting, `pre-merge` runs
+`./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml` runs
+`./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
+
+Order: format gate → Debug build → unit tests and the dependency probe → clang-tidy → Release
+build → headless render test.
+
+```bash
+./scripts/format-check.sh      # clang-format >= 20 gate over the tracked sources
+./scripts/ci.sh --skip-smoke   # format gate + Debug and Release builds
+./scripts/ci.sh --llvmpipe     # everything, on the software Vulkan driver
+./scripts/ci.sh --werror       # the same, with warnings as errors
+./scripts/ci.sh --asan         # the same, plus a sanitized render test
+./scripts/ci.sh --skip-tidy    # for a machine without a configured Debug tree
+./scripts/tidy.sh --summary    # clang-tidy; needs a configured Debug tree for its database
+```
+
+### Warnings
+
+Each project target links the `jettison_warnings` interface library privately:
+`-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wshorten-64-to-32
+-Wimplicit-int-float-conversion -Wnon-virtual-dtor -Wextra-semi
+-Winconsistent-missing-destructor-override -Wcast-qual -Wcast-align -Wunreachable-code
+-Wdocumentation`.
+
+The flags sit on an interface target rather than in `CMAKE_CXX_FLAGS`, because
+`CMAKE_CXX_FLAGS` reaches every FetchContent dependency, and their diagnostics are not ours to
+fix. The list was measured on this tree and is clean, which is what lets `-Werror` turn on.
+`JETTISON_WERROR=ON` (`--werror`) is that switch. A developer's build leaves it off so an edit
+can be interrupted. `-Wold-style-cast` was tried and left out: this is a GLM codebase, and the
+flag costs more than it finds.
+
+### clang-tidy
+
+`.clang-tidy` carries a curated set, and `scripts/tidy.sh` runs it over the project's own sources
+from a configured tree's compile database. A check earns its place by being clean over these
+sources, or by pointing at something that gets fixed. The three checks the first run reported
+hundreds of findings against were all house style, and are excluded with their counts in the
+file: brace-less `if`, explicit `{}` member init, and enum-size advice on Vulkan-facing enums.
+
+### Formatting
+
+Formatting drift is checked against the project's `.clang-format`. The tree has been clean since
+the format commit recorded in `.git-blame-ignore-revs`, so register that file once:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
+### Sanitizers
+
+`./scripts/smoke-test.sh --preset clang-asan --llvmpipe` builds ASan and UBSan into the headless
+tree and runs the render test under them, with `-fno-sanitize-recover=all` so the first finding
+stops the run.
+
+That tree builds GLFW X11-only. With both backends compiled in, a run that uses X11 still loads
+libwayland, and LeakSanitizer reports 192 bytes in two allocations inside libwayland-client
+1.26.0 at disconnect. A suppression for that leak would hide the findings the preset exists to
+produce.
+
+GLFW dlopens the X11 libraries, so the shell running the test needs libX11, libxcb, libXau,
+libXdmcp, libXext, libXrandr, libXcursor, libXinerama, libXi, libxkbcommon and libpthreadstubs on
+`LD_LIBRARY_PATH`. `devenv.nix` builds that list in `enterShell` with `lib.makeLibraryPath`. A
+shell that predates the list fails with `X11: Failed to load Xlib`, and `smoke-test.sh` says so,
+naming the library and the variable.
+
+## Headless render test
+
+`scripts/smoke-test.sh` runs `test --smoke-test` with no desktop session. It builds the
+`clang-headless` preset, starts a virtual X server, and can pin Mesa's lavapipe software driver so
+the run does not depend on a GPU.
+
+```bash
+./scripts/smoke-test.sh --llvmpipe                  # build, Xvfb, software Vulkan
+./scripts/smoke-test.sh --no-build --xvfb           # existing tree, virtual display
+./scripts/smoke-test.sh --no-xvfb                   # your own Wayland/X11 session
+./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
+```
+
+**What it walks.** Six stages, the paths that have hurt this engine: resize, resize, minimize,
+restore, scene reload, settle. Each stage runs four frames, inside a 120-second watchdog. Budget
+60–90 seconds for a run on a workstation, and more on a runner.
+
+- **Window size.** The window opens at 1920×1080 normally, but at 640×480 in smoke mode,
+  because lavapipe is fill-rate bound.
+- **Minimize.** Minimizing is exercised on X11 only. On Wayland a minimized surface parks the
+  frame loop in `DeviceContext::WaitOnWindowResized` until the window is restored, which a
+  headless run cannot arrange from inside the loop it is parked in.
+- **Resize.** The gate requires one handled resize, not two. A tiling window manager owns the
+  geometry: under niri, a resize request is answered with the compositor's tile, which may
+  already be the window's size, and the stage gives up after eight frames rather than wait for
+  the watchdog. Xvfb has no window manager, so on a runner both requests land.
+
+**What it asserts.** The run is judged on what the validation layer says, not only on exit
+status. The debug build loads `VK_LAYER_KHRONOS_validation`, and `DeviceContext` installs a
+`VK_EXT_debug_utils` messenger that names every object. The script captures the stream, and any
+validation error fails the run. The loader's messages about duplicate `VK_LAYER_MESA_*` manifests
+are excluded as the machine talking: on NixOS that is the shell's Mesa against
+`/run/opengl-driver`. Debug-utils entry points are resolved through `vkGetInstanceProcAddr`, so a
+loader without them costs object names, not a link failure.
+
+**What it needs.** It needs three things:
+
+- The X11 development libraries for GLFW. On Debian:
+  `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev`.
+- `Xvfb` (from `xorgserver`).
+- A Vulkan driver and the validation layers. devenv exports `VK_LAYER_PATH`.
+
+## CI
+
+The workflow follows the [devenv GitHub Actions guide](https://devenv.sh/integrations/github-actions/).
+It installs Nix on Ubuntu 24.04, enables the public `devenv` Cachix cache, installs devenv 2.4.0,
+and runs the gate in the shell described by `devenv.nix` and `devenv.lock`. It does not duplicate
+the toolchain with apt packages.
+
+**Status.** The gate passes locally in the locked devenv shell. The first GitHub run of the
+current workflow completed the builds, then failed when the smoke harness selected Ubuntu's
+`xvfb-run` wrapper. The harness now starts the shell's Xvfb directly, and that fix still needs
+a GitHub run.
+
+**Runner facts.**
+
+- An early attempt ran out of runner disk building LLVM from source. A multi-user Nix daemon can
+  silently ignore substituters from an untrusted user
+  ([devenv caching](https://devenv.sh/binary-caching/)), so the Nix action trusts the runner user
+  and the Cachix action names the cache explicitly. No token is needed to read it.
+- CMake, clang-tidy and Nix parallelism are bounded to 2 to limit memory pressure. An uncached
+  derivation can still mean a long build.
+- An earlier run failed compiling ImGui's GLFW backend because `GL/gl.h` was missing. The ImGui
+  target defines `GLFW_INCLUDE_NONE`, because it uses Vulkan and does not need OpenGL headers.
+
+**Defects the gate found on CI.**
+
+- `assets/CMakeLists.txt` copied `assets/textures`, which no fresh clone has: Git cannot record an
+  empty directory. It now copies the directories that exist and creates the empty one, and there
+  is `assets/textures/.gitkeep`.
+- devenv shell entry was fragile under automation, for three reasons: a `pnpm install` task in a
+  repository with no `package.json`, `vulkaninfo` exiting non-zero with no ICD, and
+  `wt step copy-ignored` running outside a worktrunk session. All three are fixed.
+
+**Checking CI from the command line.**
+
+```bash
+gh run list --branch feature-base --limit 1
+gh run view <id> --json jobs -q '.jobs[].steps[] | select(.conclusion=="failure") | .name'
+gh run view <id> --log-failed | grep -E "<step name>" | grep -vE "\[\[36;1m" | tail -25
+gh run watch <id> --interval 30 --exit-status &     # a run takes about five minutes
+```
+
+Phase 1 of the [roadmap](roadmap.md) runs unit tests through CTest ahead of the smoke test.

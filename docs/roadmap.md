@@ -1,0 +1,287 @@
+# Roadmap
+
+The order is set by what is expensive to change later, then by what later work stands on. It
+is not set by what looks good in a screenshot. Architectural decisions (layout, the
+simulation split, coordinate precision, colour space, serialisation) come before the systems
+that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
+commit that did it in the history. Rows 1–8, the work that made the current renderer
+trustworthy, are recorded in [history](history.md).
+
+## Phases
+
+| Phase | Work | Exit criterion |
+|---|---|---|
+| 0 | **Plan.** Scope, architecture, roadmap, standards. | These documents are reviewed and agreed. |
+| 1 | **Layout and scaffolding.** The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`scene`/`render`/`animation`, a stub for every in-scope module, doctest and CTest, the package export, EnTT upgraded. | The gate is green, every module builds and has one passing test, and a scratch consumer project links `Jettison::Engine`. |
+| 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
+| 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
+| 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
+| 5 | **Space rendering.** PBR with image-based lighting, sun/point/spot lights, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, drawn within a frame budget measured on lavapipe and on hardware. |
+| 6 | **Star systems and galaxy.** One scene per system, jump transitions, asynchronous loading, scene layers, the spatial index, the jump-lane graph. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
+| 7 | **Physics and flight.** Jolt in double precision, shapes, sensors (docking zones), contact events, ray queries and picking, interpolation of the piloted ship. | A piloted ship collides with a station, docks through a sensor, and is picked with the mouse. |
+| 8 | **UI, audio and persistence.** RmlUi with data binding, fonts, miniaudio with buses and 3D sources, versioned save games with migration, settings and keybindings. | A market screen bound to simulation data; a save written by version N loads in N+1. |
+| 9 | **AI.** Utility AI, behaviour trees, route-graph pathfinding, steering avoidance. | Automated traders choose trades, plot routes across systems and fly them without collisions. |
+| 10 | **Presentation polish.** Atmosphere, planet shading (clouds, night side, rings), particles and the transparent pass, bloom, generalised animation clips for mechanical rigs, material effects. | |
+| 11 | **Scripting and shipping.** Wasm host and mod API, data pack layering finished, pack files with zstd, crash handling, colour grading, cinematics, localisation. | A data mod and a script mod load from the user mount, and a packed build runs. |
+
+Phase 1 is the last step before large-scale work: after it, every system has a home, a
+namespace, a target and a test, and phases 2–11 fill stubs in rather than invent structure.
+
+## Stubs
+
+Phase 1 writes a stub for every module in the catalogue below. A stub is:
+
+- the module's directory, `CMakeLists.txt` and its place in the dependency graph
+- its public header(s), with the main types and functions declared and documented: what they
+  are for, what owns what, and which phase fills them in
+- an implementation that compiles, does nothing observable, and fails loudly where doing
+  nothing would be wrong (`JETTISON_NOT_IMPLEMENTED()` from `core`)
+- one doctest test that the module links and its stub behaves as documented
+
+A stub does not invent behaviour the phase that fills it would have to undo.
+
+## System catalogue
+
+In priority order. Each entry is the brief for its stub. *Library* is the chosen dependency.
+*Stub* names what phase 1 declares.
+
+### 1. Build, layout and packaging · phase 1
+
+`jettison_add_module(<name> DEPENDS ...)` creates `jettison_<name>`, the `Jettison::<Name>`
+alias, the include layout, the private `jettison_warnings` link and the tests directory.
+It exports the CMake package for the game repository.
+*Stub*: the helper, `Jettison::Engine`, `cmake/JettisonConfig.cmake.in`.
+
+### 2. Testing · phase 1
+
+doctest, one test executable per module, registered with CTest and run by `scripts/ci.sh`
+before the smoke test. The existing `smoke_sequence_test` becomes a doctest case.
+*Library*: doctest.
+
+### 3. Core · phases 1–2 · `engine/core`
+
+Assertions (`JETTISON_ASSERT` in debug, `JETTISON_VERIFY` always, `JETTISON_NOT_IMPLEMENTED`),
+logging (severity, category, sinks: stderr, file, console), configuration (engine and user
+settings, layered), hashed string IDs (`StringId`, compile-time hashing), typed handles with
+generation counters, hashing utilities.
+*Library*: spdlog, configured with `SPDLOG_USE_STD_FORMAT` as a compile definition on its target,
+so the engine uses one formatting library (`std::format`, which C++20 checks at compile time)
+rather than also carrying spdlog's bundled fmt. Engine code logs through `Log.h`, never through
+spdlog directly, so categories and sinks stay the engine's.
+*Stub*: `Assert.h`, `Log.h`, `Config.h`, `StringId.h`, `Handle.h`.
+
+### 4. Math · phase 2 · `engine/math`
+
+Over GLM: `Aabb`, `Obb`, `Ray`, `Plane`, `Sphere`, `Frustum`, intersection tests, Bezier and
+Catmull-Rom splines, easing functions, `Random` (PCG32 or xoshiro256** with the engine's own
+distributions), noise (FastNoiseLite), tangent generation (MikkTSpace), and the double-precision
+aliases the simulation uses.
+*Stub*: `Bounds.h`, `Intersect.h`, `Spline.h`, `Easing.h`, `Random.h`, `Noise.h`.
+
+### 5. Profiling · phase 2 · `engine/profile`
+
+Tracy zones, frame marks, GPU zones for Vulkan, plot values. It compiles to nothing when
+`JETTISON_PROFILE=OFF`. The client version moves only with the profiler's, because the two must
+speak the same protocol: v0.13.1, the version nixpkgs provides at the current devenv lock. Jolt's
+profiler hooks (`JPH_USE_EXTERNAL_PROFILE`) feed Tracy once physics arrives.
+*Library*: Tracy.
+
+### 6. Platform · phases 1–2 · `engine/platform`
+
+User data, config and cache directories (XDG), executable path, high-resolution time source,
+crash handler hook (filled in phase 11). Windowing stays GLFW, behind `render`'s window type.
+
+A CPU check at start-up: a machine without AVX2 gets a message naming the requirement, not an
+illegal-instruction crash. Once Jolt's flags reach the engine, the compiler may emit AVX2
+anywhere, static initialisers included. The check therefore lives in a translation unit
+compiled without those flags and runs before any engine code, and it lands no later than
+phase 7, when Jolt is first linked into the engine.
+
+### 7. Time · phase 2 · `engine/time`
+
+`RealClock`, `SimClock` (pause, compression factor, fixed step, accumulator with a spiral-of-death
+clamp), `Calendar` (simulation seconds to an in-game date).
+*Stub*: `Clock.h`, `FixedStep.h`, `Calendar.h`.
+
+### 8. Reflection · phase 3 · `engine/reflect`
+
+Registration helpers over EnTT `meta`: types, fields, enums, attributes (saved, editable,
+moddable, console). Used by serialisation, the editor inspector, console variables and the
+definition schema.
+
+### 9. Serialisation · phase 3 · `engine/serialise`
+
+Reflection-driven archives: YAML (authored content and the existing scene format) and binary
+(saves). Every format is versioned, and a version mismatch runs migrations or fails with the
+version named. Loaders and writers are written as one pair and tested as a round trip. Row 8 in
+the [history](history.md) is the reason.
+*Library*: yaml-cpp (already pinned).
+
+### 10. Virtual file system · phase 3 · `engine/vfs`
+
+Ordered mounts (base, DLC, mods, user), with path lookup through the mount stack and
+enumeration across mounts. Read-only except the user mount. Pack files and compression come in
+phase 11 behind the same interface.
+*Stub*: `FileSystem.h`, `Mount.h`.
+
+### 11. Resource manager · phase 3 · `engine/resource`
+
+`ResourceHandle<T>` with a generation counter, asynchronous loading on the I/O worker, reference
+counting, hot reload in development builds. Retires the "cache keyed on a model's address"
+hazard the renderer works around today.
+
+### 12. ECS, scheduler, events and FSM · phase 3 · `engine/ecs`
+
+The tick phases (see [architecture](architecture.md#frame-and-tick-structure)), system
+registration with declared reads and writes, ordering constraints, EnTT signals and dispatcher
+for events, and a small `StateMachine<State, Event>` utility.
+*Library*: EnTT, upgraded from v3.6.0 to the current release in phase 1.
+
+### 13. Simulation · phase 3 · `engine/sim`
+
+`SimWorld` (its own registry, fixed step, deterministic), `CommandQueue`, snapshots to
+presentation, and the definition registry: typed, reflected definitions loaded from data and
+overridable by mods. Determinism rules are in the
+[coding standards](coding-standards.md#simulation-code).
+
+### 14. Input · phase 3 · `engine/input`
+
+Devices (keyboard, mouse, gamepad, joystick/HOTAS through GLFW), actions with
+button/axis/vector types, contexts pushed and popped (flight, map, UI, console), rebinding saved
+to user settings.
+
+### 15. Console · phase 3 · `engine/ui/imgui`
+
+ImGui console: log view, command registry, console variables bound through reflection, history
+and completion. The existing F1 demo window becomes the dev tools menu.
+
+### 16. Large-world coordinates and celestial · phase 4 · `engine/celestial`
+
+System and local frames in double precision, the camera-relative conversion, `Orbit`
+(Keplerian elements, on rails, evaluated at simulation time), planet rotation, and the system
+description (bodies, stations, jump points) loaded from data.
+*Stub*: `Frames.h`, `Orbit.h`, `StarSystem.h`.
+
+### 17. Render foundations · phase 4 · `engine/render`
+
+VMA in place of raw `vkAllocateMemory`. Linear colour, an sRGB swapchain and HDR targets.
+Reversed-Z infinite projection. Dynamic rendering and a declared pass list. Debug draw. A
+renderer interface the rest of the engine sees, with Vulkan types kept inside
+`render/vulkan`. Fills `IRenderer.h`, an empty placeholder today.
+*Library*: Vulkan Memory Allocator.
+
+### 18. Cameras · phase 4 · `engine/render`
+
+Orbit (stations, planets), chase and cockpit (piloting), map (system and galaxy, logarithmic
+zoom). Smoothing and transitions use the easing functions. The cinematic camera follows with
+cinematics in phase 11.
+
+### 19. Space rendering · phase 5 · `engine/render`
+
+PBR (glTF metallic-roughness) with image-based lighting from per-system environment cubemaps,
+directional sun, point and spot lights, cascaded sun shadows, starfield skybox, frustum and
+planet-horizon culling, instancing, LOD selection, tonemapping. Materials are data: a shader,
+parameters and texture slots, with time-driven parameters for effects.
+
+### 20. Geometry and textures · phase 5 · `engine/render`
+
+Procedural meshes (UV, ico and cube spheres, rings, cylinders, boxes), triplanar mapping, KTX2
+loading with BasisU transcoding, mip generation for development textures.
+The engine links `ktx_read` (transcode and upload) only: `ktx` and `ktx_read` compile the same
+transcoder and zstd, and cannot both be in one executable. An offline texture tool that encodes
+links `ktx` instead. Phase 5 moves to KTX-Software v5 if it is out of release candidate by then.
+*Library*: KTX-Software (libktx); stb_image stays for development.
+
+### 21. Scene management and spatial index · phase 6 · `engine/scene`, `engine/spatial`
+
+A scene per star system, built from the system description and the simulation state. Layers
+within it. Jump transitions with asynchronous loading behind a transition effect. The spatial
+index over simulation entities, either a loose octree or a sorted grid per system, chosen by
+measurement. The jump-lane graph lives in `celestial`; the queries over it live in `ai`.
+
+### 22. Physics · phase 7 · `engine/physics`
+
+Jolt in double precision. Rigid and static bodies; box, sphere, capsule, cylinder, convex hull
+and mesh shapes; sensors; contact events to the simulation; ray and shape casts. It steps inside
+the simulation's fixed step, and the presentation world interpolates. Jolt is built with
+`CROSS_PLATFORM_DETERMINISTIC`, so Debug and Release builds step identically, and with RTTI and
+exceptions on to match the engine. Its public instruction-set flags make x86-64 with AVX2 the
+engine's CPU baseline from this phase on, as decided; the start-up CPU check (entry 6) has to be
+in place by then.
+*Library*: Jolt Physics.
+
+### 23. UI · phase 8 · `engine/ui`
+
+RmlUi rendered through the Vulkan backend, with documents and stylesheets loaded through the
+VFS so mods can restyle. Data models bound to simulation snapshots, never to simulation state
+directly. Fonts through FreeType, shared with ImGui.
+*Library*: RmlUi, FreeType.
+
+### 24. Audio · phase 8 · `engine/audio`
+
+Buses (music, effects, UI, voice), 3D sources attached to presentation entities, streamed music,
+and simulation events mapped to sounds.
+*Library*: miniaudio.
+
+### 25. Persistence · phase 8 · `engine/serialise`, `engine/sim`
+
+Save games of the simulation world and the galaxy, with format version and engine version.
+Migrations are a chain of functions from version N to N+1. Settings and keybindings are stored
+apart from saves.
+
+### 26. AI · phase 9 · `engine/ai`
+
+Utility AI (considerations, response curves, scored actions), behaviour trees (data-defined,
+ticked in the simulation step), A* over graphs (jump lanes, in-system waypoints), steering
+(seek, arrive, obstacle avoidance, separation). Everything runs in the simulation and is
+deterministic.
+
+### 27. Animation · phases 1 and 10 · `engine/animation`
+
+Phase 1 moves the glTF clip player and the rotation animation out of `Model` and `Scene` into
+this module, unchanged. Phase 10 generalises it to keyframed TRS tracks on any node and adds
+clip events (for example, "clamp closed" triggering a sound).
+
+### 28. Presentation polish · phase 10 · `engine/render`
+
+The atmosphere scattering shell, planet shading (clouds, night lights, rings), GPU particles
+with a sorted transparent pass, bloom, glass on that transparent pass.
+
+### 29. Scripting · phase 11 · `engine/script`
+
+A Wasm host: module loading from mod mounts, fuel/time limits, a capability-scoped host API
+generated from reflection, and calls into scripts from AI considerations and events.
+*Library*: WAMR (WebAssembly Micro Runtime), to be confirmed against wasmtime when the phase
+starts. WAMR 2.4.5 is fetched and proven to link and run a module on Linux, built from its
+embedding script with the fast interpreter only.
+
+### 30. Shipping · phase 11
+
+Pack files, crash handling (a backtrace and the log tail, written on a fatal signal), the colour-grading LUT, the cinematic camera and sequencer, localisation string tables.
+
+## Decided
+
+Settled on 2026-11-10:
+
+- **C++20.** The language standard stays where it is. `std::expected` and `std::print` are not
+  available; see [coding standards](coding-standards.md#errors) for what is used instead.
+- **Linux only**, on x86-64: Wayland for the desktop, X11 for the headless tests, one
+  toolchain (Clang 21 from the devenv shell).
+- **spdlog for logging** (catalogue entry 3).
+- **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
+  later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
+  it, and the engine accepts that rather than building Jolt for an older instruction set
+  (catalogue entries 6 and 22).
+
+## Open decisions
+
+To be settled when the phase that needs them begins:
+
+- **Wasm runtime.** WAMR or wasmtime (phase 11).
+- **Pack file compression** (phase 11). zstd is the natural choice, but libktx (phase 5)
+  compiles its own zstd 1.5.5 with public `ZSTD_*` symbols, so a standalone zstd cannot be
+  added to the same executable. The options, in order of preference: KTX-Software upstream
+  accepts an external zstd, which removes the copy; the engine builds one zstd and patches
+  libktx to use it; or pack files use a compressor nothing else in the set carries (LZ4, which
+  Tracy carries only in its own namespace).
+- **Spatial index structure** (phase 6), by measurement.
