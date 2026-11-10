@@ -1,6 +1,6 @@
 # Jettison Engine
 
-A 3D game engine, built for a space trading simulation: trucking logistics, trading and empire
+A 3D game engine, built for a [space trading simulation](https://github.com/ivanhawkes/space-truckers): trucking logistics, trading and empire
 building across star systems, with stations orbiting planets. The game lives in its own
 repository and consumes this engine as a CMake package.
 
