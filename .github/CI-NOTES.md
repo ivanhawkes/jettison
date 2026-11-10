@@ -1,9 +1,10 @@
 # CI notes
 
-Status: the gate passes locally inside the locked devenv shell. The updated GitHub workflow
-has not yet run; the latest recorded run failed while compiling ImGui's GLFW backend because
-`GL/gl.h` was missing. The ImGui target now defines `GLFW_INCLUDE_NONE`, since it uses Vulkan
-and does not need GLFW to include OpenGL headers.
+Status: the gate passes locally inside the locked devenv shell. The first GitHub run of the
+updated workflow completed the builds but failed when the smoke harness selected Ubuntu's
+`xvfb-run` wrapper. The harness now starts the shell's Xvfb directly; this fix needs a run.
+An earlier run failed compiling ImGui's GLFW backend because `GL/gl.h` was missing. The ImGui
+target now defines `GLFW_INCLUDE_NONE`, since it uses Vulkan and does not need OpenGL headers.
 
 ## GitHub environment
 
@@ -17,9 +18,9 @@ source. The [devenv cache documentation](https://devenv.sh/binary-caching/) expl
 multi-user Nix daemon can silently ignore substituters from an untrusted user; the public
 devenv cache is designed for the pinned rolling input. The Nix action trusts the runner user,
 and the Cachix action configures that cache explicitly. No cache token is required to read it.
-Cache coverage and available runner disk still need confirmation in an actual GitHub run; an
-uncached derivation can still require a large build. CMake, clang-tidy and Nix parallelism are
-bounded to limit memory pressure.
+The first runner completed the builds without exhausting disk, but an uncached derivation can
+still require a large build. CMake, clang-tidy and Nix parallelism are bounded to limit memory
+pressure.
 
 ## Defects the gate found on CI, and fixed
 * `assets/CMakeLists.txt` copied `assets/textures`, which no fresh clone has: Git cannot
@@ -75,7 +76,7 @@ on Wayland a minimized surface parks the frame loop in `DeviceContext::WaitOnWin
 until the window is restored. One handled resize is required, not two: under niri (this is
 developed through its X11 backend) a resize request is answered with the tiler's tile, which
 may already be the window's size, and the stage gives up after eight frames rather than
-running the watchdog. `xvfb-run` has no window manager, so on a runner both requests land.
+running the watchdog. Xvfb has no window manager, so on a runner both requests land.
 
 ## Checking CI from the command line
 ```

@@ -213,34 +213,29 @@ if [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ];
 	echo "smoke-test: running on DISPLAY=${DISPLAY:-unset} (native session)"
 	run_app "$executable" --smoke-test
 else
-	if [ -x "$(command -v xvfb-run)" ]; then
-		echo "smoke-test: running under xvfb-run (software display, $screen)"
-		run_app xvfb-run -a -s "-screen 0 $screen -nolisten tcp" "$executable" --smoke-test
-	else
-		xvfb="$(command -v Xvfb || command -v /run/current-system/sw/bin/Xvfb || true)"
-		if [ -z "$xvfb" ]; then
-			echo "smoke-test: no xvfb-run and no Xvfb on PATH (NixOS: xorg.xorgserver; Debian: xvfb)" >&2
-			exit 1
-		fi
-		for display_number in 99 100 101 102 103; do
-			lock="/tmp/.X11-unix/X$display_number"
-			[ ! -e "$lock" ] && [ ! -e "/tmp/.X${display_number}-lock" ] && break
-		done
-		if [ -e "$lock" ] || [ -e "/tmp/.X${display_number}-lock" ]; then
-			echo "smoke-test: no free X display in 99..103" >&2
-			exit 1
-		fi
-		XVFB_LOCK="/tmp/.X${display_number}-lock"
-		echo "smoke-test: starting Xvfb on :$display_number ($screen)"
-		"$xvfb" ":$display_number" -screen 0 "$screen" -nolisten tcp >/dev/null 2>&1 &
-		XVFB_PID=$!
-		for _ in $(seq 1 50); do
-			[ -e "$lock" ] && break
-			sleep 0.2
-		done
-		[ -e "$lock" ] || { echo "smoke-test: Xvfb failed to start on :$display_number" >&2; exit 1; }
-		run_app env DISPLAY=":$display_number" "$executable" --smoke-test
+	xvfb="$(command -v Xvfb || command -v /run/current-system/sw/bin/Xvfb || true)"
+	if [ -z "$xvfb" ]; then
+		echo "smoke-test: no Xvfb on PATH (NixOS: xorgserver; Debian: xvfb)" >&2
+		exit 1
 	fi
+	for display_number in 99 100 101 102 103; do
+		lock="/tmp/.X11-unix/X$display_number"
+		[ ! -e "$lock" ] && [ ! -e "/tmp/.X${display_number}-lock" ] && break
+	done
+	if [ -e "$lock" ] || [ -e "/tmp/.X${display_number}-lock" ]; then
+		echo "smoke-test: no free X display in 99..103" >&2
+		exit 1
+	fi
+	XVFB_LOCK="/tmp/.X${display_number}-lock"
+	echo "smoke-test: starting Xvfb on :$display_number ($screen)"
+	"$xvfb" ":$display_number" -screen 0 "$screen" -nolisten tcp >/dev/null 2>&1 &
+	XVFB_PID=$!
+	for _ in $(seq 1 50); do
+		[ -e "$lock" ] && break
+		sleep 0.2
+	done
+	[ -e "$lock" ] || { echo "smoke-test: Xvfb failed to start on :$display_number" >&2; exit 1; }
+	run_app env DISPLAY=":$display_number" "$executable" --smoke-test
 fi
 
 # A run that renders, resizes and exits cleanly is not a run the layer is happy about. The

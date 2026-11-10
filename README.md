@@ -140,14 +140,14 @@ messages about duplicate `VK_LAYER_MESA_*` manifests are excluded as the machine
 
 It needs the X11 development libraries for GLFW (the `devenv.nix` shell installs them; on
 Debian: `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev`), an
-X server to run on (`Xvfb` from `xorgserver`, or `xvfb-run` when installed), and a
+X server to run on (`Xvfb` from `xorgserver`), and a
 Vulkan driver. With `--llvmpipe` it selects Mesa's software implementation; without it the
 machine's own driver is used. The debug build always requests `VK_LAYER_KHRONOS_validation`,
 so validation layers must be available (devenv exports `VK_LAYER_PATH` for them).
 
 CI installs Nix and uses the public devenv binary cache on an Ubuntu runner, then runs the same
-locked shell and script. The updated workflow still needs a GitHub run to verify runner disk
-usage and cache coverage; see `.github/CI-NOTES.md`.
+locked shell and script. The first runner reached the smoke test without running out of disk;
+the corrected smoke harness still needs a GitHub run. See `.github/CI-NOTES.md`.
 
 ## App shell
 

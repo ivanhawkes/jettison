@@ -60,7 +60,7 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 	{
 		// The request was refused. A resize that never arrived is not one the engine handled, so
 		// it is not counted: the gate counts resizes the engine recreated a swapchain for. Under
-		// xvfb-run with no window manager, which is where CI runs this, both requests land.
+		// Xvfb with no window manager, which is where CI runs this, both requests land.
 		m_actionPending = false;
 		m_frames = 0;
 	}

@@ -77,7 +77,7 @@
     libXcursor
     libXinerama
     libXi
-    xorgserver # Xvfb, used when xvfb-run is not installed (e.g. NixOS)
+    xorgserver # Xvfb for headless smoke tests
 
   ];
 
