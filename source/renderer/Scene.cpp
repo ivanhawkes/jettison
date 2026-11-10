@@ -273,7 +273,7 @@ void Scene::Save(const std::filesystem::path &path) const
 		// loader refuses an animation block on an entity with no model to sample. With nothing to
 		// animate there is no clip name worth writing, so this block goes with the mesh.
 		if (const auto *player = m_registry.try_get<AnimationPlayerComponent>(entity);
-		    player && m_registry.has<MeshComponent>(entity))
+		    player && m_registry.all_of<MeshComponent>(entity))
 		{
 			emitter << YAML::Key << "animation" << YAML::Value << YAML::BeginMap;
 			emitter << YAML::Key << "clip" << YAML::Value << player->clipName;

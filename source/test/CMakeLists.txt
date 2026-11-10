@@ -13,6 +13,29 @@ jettison_use_shared_assets(test)
 add_executable(smoke_sequence_test smoke_sequence_test.cpp)
 target_link_libraries(smoke_sequence_test PRIVATE Renderer jettison_warnings)
 
+# One executable linking the engine and every third-party library it has or plans to have (see
+# source/external/CMakeLists.txt). The gate runs it after the Debug build.
+if(JETTISON_PLANNED_DEPENDENCIES)
+	add_executable(dependency_probe dependency_probe.cpp)
+	target_link_libraries(dependency_probe PRIVATE
+		Renderer
+		doctest::doctest
+		spdlog::spdlog
+		Tracy::TracyClient
+		GPUOpen::VulkanMemoryAllocator
+		FastNoiseLite
+		mikktspace
+		Jolt
+		Freetype::Freetype
+		RmlUi::RmlUi
+		miniaudio
+		ktx_read
+		wamr
+		jettison_warnings
+	)
+	set_property(TARGET dependency_probe PROPERTY FOLDER "Test")
+endif()
+
 # Move the targets into a solution folder.
 set_property(TARGET test PROPERTY FOLDER "Test")
 
@@ -27,7 +50,3 @@ target_link_libraries(test PRIVATE Renderer)
 
 # Project warnings.
 target_link_libraries(test PRIVATE jettison_warnings)
-
-if(WIN32)
-	install(FILES "${glfw_BINARY_DIR}/src/glfw3.dll" DESTINATION "bin")
-endif()

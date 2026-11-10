@@ -46,6 +46,7 @@ echo "==> configure + build: $preset"
 cmake --preset "$preset" ${werror[@]+"${werror[@]}"}
 cmake --build --preset "$preset"
 "build/$preset/source/test/smoke_sequence_test"
+"build/$preset/source/test/dependency_probe"
 
 if [ "$tidy" -eq 1 ]; then
 	echo "==> clang-tidy (.clang-tidy, $preset database)"

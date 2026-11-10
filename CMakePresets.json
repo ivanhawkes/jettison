@@ -36,7 +36,8 @@
 			"inherits": "clang-debug",
 			"binaryDir": "${sourceDir}/build/clang-headless",
 			"cacheVariables": {
-				"JETTISON_GLFW_X11": "ON"
+				"JETTISON_GLFW_X11": "ON",
+				"JETTISON_PLANNED_DEPENDENCIES": "OFF"
 			}
 		},
 		{
