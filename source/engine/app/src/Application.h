@@ -10,6 +10,7 @@
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/input/Actions.h>
+#include <jettison/render/DebugDraw.h>
 #include <jettison/render/SceneSystems.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
@@ -161,6 +162,7 @@ class Application
 	Input::ActionId m_toggleUi;
 	Input::ActionId m_toggleConsole;
 	Input::ActionId m_back;
+	Input::ActionId m_toggleDebugDraw;
 	GlfwInput m_glfwInput;
 	bool m_consoleContext{false};
 
@@ -171,5 +173,11 @@ class Application
 	// The dev tools window. On by default in the headless run, with the demo and the console,
 	// because a run that renders ImGui windows exercises the UI path in the render test.
 	bool m_showUI{false};
+
+	// The frame's debug lines: cleared as the frame starts, added to by any system, drawn by the
+	// renderer. F2 shows the scene's own (each mesh's axes, the light), which the headless run turns
+	// on, so both line pipelines are in what the render test walks.
+	Render::DebugDraw m_debugDraw;
+	bool m_showSceneDebug{false};
 };
 } // namespace Jettison::App

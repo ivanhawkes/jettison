@@ -85,6 +85,7 @@ void Renderer::Destroy()
 		m_pDeviceContext->DestroyBuffer(frame.constants);
 		m_pDeviceContext->DestroyBuffer(frame.joints);
 		m_pDeviceContext->DestroyBuffer(frame.lights);
+		m_pDeviceContext->DestroyBuffer(frame.lines);
 		frame = {};
 	}
 	DestroyTargets();
@@ -94,9 +95,12 @@ void Renderer::Destroy()
 		m_pMaterials->Destroy();
 	m_meshPipeline = VK_NULL_HANDLE;
 	m_outputPipeline = VK_NULL_HANDLE;
+	m_linePipeline = VK_NULL_HANDLE;
+	m_lineOverlayPipeline = VK_NULL_HANDLE;
 
 	vkDestroySampler(device, m_outputSampler, nullptr);
 	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
+	vkDestroyPipelineLayout(device, m_lineLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_outputLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_meshLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, m_outputSetLayout, nullptr);
@@ -106,6 +110,7 @@ void Renderer::Destroy()
 	m_descriptorPool = VK_NULL_HANDLE;
 	m_outputSet = VK_NULL_HANDLE;
 	m_outputLayout = VK_NULL_HANDLE;
+	m_lineLayout = VK_NULL_HANDLE;
 	m_meshLayout = VK_NULL_HANDLE;
 	m_outputSetLayout = VK_NULL_HANDLE;
 	m_materialSetLayout = VK_NULL_HANDLE;
@@ -156,6 +161,15 @@ void Renderer::CreateLayouts()
 	if (vkCreatePipelineLayout(device, &meshInfo, nullptr, &m_meshLayout) != VK_SUCCESS)
 		throw std::runtime_error("failed to create the mesh pipeline layout");
 	m_pDeviceContext->SetDebugName(m_meshLayout, "mesh-pipeline-layout");
+
+	// The debug lines read the frame's view and projection, and nothing else.
+	VkPipelineLayoutCreateInfo lineInfo{};
+	lineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	lineInfo.setLayoutCount = 1;
+	lineInfo.pSetLayouts = &m_frameSetLayout;
+	if (vkCreatePipelineLayout(device, &lineInfo, nullptr, &m_lineLayout) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the debug line pipeline layout");
+	m_pDeviceContext->SetDebugName(m_lineLayout, "debug-line-pipeline-layout");
 
 	const VkPushConstantRange outputRange{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(OutputPushConstants)};
 	VkPipelineLayoutCreateInfo outputInfo{};
@@ -307,6 +321,9 @@ void Renderer::CreateFrames()
 		frame.joints = m_pDeviceContext->CreateBuffer(
 		    sizeof(glm::mat4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
 		    "joint-palette-" + slot);
+		frame.lines = m_pDeviceContext->CreateBuffer(
+		    1024 * sizeof(LineVertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, MemoryUse::Upload,
+		    "debug-lines-" + slot);
 		frame.lights = m_pDeviceContext->CreateBuffer(
 		    kInitialLights * sizeof(GpuLight), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
 		    "light-list-" + slot);
@@ -375,6 +392,19 @@ void Renderer::CreatePipelines()
 	mesh.samples = m_pDeviceContext->GetMsaaSamples();
 	m_meshPipeline = m_pPipelines->Get({"mesh", mesh, m_meshLayout});
 
+	// Lines are blended over the opaque surfaces and write no depth, so a line through a surface
+	// does not hide the half behind it from the next line; the overlay variant is not tested.
+	RenderState line = mesh;
+	line.vertices = VertexLayout::Line;
+	line.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+	line.cullMode = VK_CULL_MODE_NONE;
+	line.depthWrite = false;
+	line.depthCompare = VK_COMPARE_OP_GREATER_OR_EQUAL;
+	line.blend = BlendMode::Alpha;
+	m_linePipeline = m_pPipelines->Get({"debug_line", line, m_lineLayout});
+	line.depthTest = false;
+	m_lineOverlayPipeline = m_pPipelines->Get({"debug_line", line, m_lineLayout});
+
 	RenderState output;
 	output.vertices = VertexLayout::None;
 	output.cullMode = VK_CULL_MODE_NONE;
@@ -428,7 +458,8 @@ void Renderer::RecreateSwapchain()
 }
 
 
-void Renderer::EnsureCapacity(FrameData &frame, Buffer &buffer, VkDeviceSize bytes, const char *name)
+void Renderer::EnsureCapacity(
+    FrameData &frame, Buffer &buffer, VkDeviceSize bytes, VkBufferUsageFlags usage, const char *name)
 {
 	if (bytes <= buffer.size)
 		return;
@@ -437,7 +468,6 @@ void Renderer::EnsureCapacity(FrameData &frame, Buffer &buffer, VkDeviceSize byt
 	VkDeviceSize size = std::max<VkDeviceSize>(buffer.size, 1);
 	while (size < bytes)
 		size *= 2;
-	const VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	m_pDeviceContext->DestroyBuffer(buffer);
 	buffer = m_pDeviceContext->CreateBuffer(
 	    size, usage, MemoryUse::Upload,
@@ -480,7 +510,9 @@ void Renderer::WriteFrame(
 		ambientTaken = true;
 	}
 	constants.counts.x = static_cast<uint32_t>(lights.size());
-	EnsureCapacity(frame, frame.lights, lights.size() * sizeof(GpuLight), "light-list");
+	EnsureCapacity(
+	    frame, frame.lights, lights.size() * sizeof(GpuLight), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+	    "light-list");
 	if (!lights.empty())
 		m_pDeviceContext->WriteBuffer(frame.lights, lights.data(), lights.size() * sizeof(GpuLight));
 	m_pDeviceContext->WriteBuffer(frame.constants, &constants, sizeof(constants));
@@ -499,12 +531,31 @@ void Renderer::WriteFrame(
 	}
 	if (palette.empty())
 		palette.emplace_back(1.0f);
-	EnsureCapacity(frame, frame.joints, palette.size() * sizeof(glm::mat4), "joint-palette");
+	EnsureCapacity(
+	    frame, frame.joints, palette.size() * sizeof(glm::mat4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+	    "joint-palette");
 	m_pDeviceContext->WriteBuffer(frame.joints, palette.data(), palette.size() * sizeof(glm::mat4));
 }
 
 
-bool Renderer::Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGuiRenderer &imguiRenderer)
+uint32_t Renderer::WriteLines(FrameData &frame, const DebugDraw &debugDraw, const glm::dvec3 &camera)
+{
+	const uint32_t tested = debugDraw.Build(camera, m_lineScratch);
+	m_lineVertices = static_cast<uint32_t>(m_lineScratch.size());
+	if (m_lineScratch.empty())
+		return 0;
+	EnsureCapacity(
+	    frame, frame.lines, m_lineScratch.size() * sizeof(LineVertex),
+	    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, "debug-lines");
+	m_pDeviceContext->WriteBuffer(
+	    frame.lines, m_lineScratch.data(), m_lineScratch.size() * sizeof(LineVertex));
+	return tested;
+}
+
+
+bool Renderer::Render(
+    Scene &scene, const SceneRenderSystem &renderSystem, const DebugDraw &debugDraw,
+    ImGuiRenderer &imguiRenderer)
 {
 	FrameData &frame = m_frames[m_currentFrame];
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
@@ -544,6 +595,7 @@ bool Renderer::Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGui
 	const auto draws = renderSystem.Collect(scene.Registry(), camera.position);
 	std::vector<uint32_t> jointOffsets;
 	WriteFrame(frame, scene.Registry(), camera, draws, jointOffsets);
+	m_testedLineVertices = WriteLines(frame, debugDraw, camera.position);
 	Record(frame, imageIndex, draws, jointOffsets, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
@@ -721,6 +773,25 @@ void Renderer::RecordOpaque(
 			vkCmdDrawIndexed(
 			    commandBuffer, primitives[primitiveIndex].indexCount, 1,
 			    primitives[primitiveIndex].firstIndex, 0, 0);
+		}
+	}
+
+	if (m_lineVertices != 0)
+	{
+		const VkDeviceSize offset = 0;
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &frame.lines.handle, &offset);
+		vkCmdBindDescriptorSets(
+		    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_lineLayout, 0, 1, &frame.frameSet, 0,
+		    nullptr);
+		if (m_testedLineVertices != 0)
+		{
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_linePipeline);
+			vkCmdDraw(commandBuffer, m_testedLineVertices, 1, 0, 0);
+		}
+		if (m_lineVertices > m_testedLineVertices)
+		{
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_lineOverlayPipeline);
+			vkCmdDraw(commandBuffer, m_lineVertices - m_testedLineVertices, 1, m_testedLineVertices, 0);
 		}
 	}
 	vkCmdEndRendering(commandBuffer);

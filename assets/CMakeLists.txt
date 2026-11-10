@@ -22,6 +22,8 @@ add_custom_target(jettison_assets
 		"${CMAKE_CURRENT_SOURCE_DIR}/systems" "${CMAKE_CURRENT_BINARY_DIR}/systems"
 )
 jettison_compile_shaders(jettison_assets
+	shaders/debug_line.vert
+	shaders/debug_line.frag
 	shaders/mesh.vert
 	shaders/mesh.frag
 	shaders/output.vert

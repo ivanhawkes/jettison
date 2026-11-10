@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <jettison/render/Camera.h>
+#include <jettison/render/DebugDraw.h>
 #include <jettison/render/PassList.h>
 #include <jettison/render/Scene.h>
 #include <jettison/render/SceneSystems.h>
@@ -62,7 +63,9 @@ class Renderer
 	// Records and submits the scene as it stands: the presentation phase has already animated it
 	// and computed its world transforms (SceneUpdateSystem), so this frame only reads it. True
 	// when this frame recreated the swapchain.
-	bool Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGuiRenderer &imguiRenderer);
+	bool Render(
+	    Scene &scene, const SceneRenderSystem &renderSystem, const DebugDraw &debugDraw,
+	    ImGuiRenderer &imguiRenderer);
 
 	// What the UI is drawn into: the swapchain's format, single-sampled.
 	VkFormat GetOutputFormat() const
@@ -85,6 +88,7 @@ class Renderer
 		Buffer constants{};
 		Buffer joints{};
 		Buffer lights{};
+		Buffer lines{};
 		VkDescriptorSet frameSet{VK_NULL_HANDLE};
 	};
 
@@ -112,7 +116,11 @@ class Renderer
 	void RecreateSwapchain();
 
 	// Grows an upload buffer of a frame slot to hold the bytes asked for, after the slot's fence.
-	void EnsureCapacity(FrameData &frame, Buffer &buffer, VkDeviceSize bytes, const char *name);
+	void EnsureCapacity(
+	    FrameData &frame, Buffer &buffer, VkDeviceSize bytes, VkBufferUsageFlags usage,
+	    const char *name);
+	// The frame's debug lines into the slot's vertex buffer; how many are depth-tested.
+	uint32_t WriteLines(FrameData &frame, const DebugDraw &debugDraw, const glm::dvec3 &camera);
 	void WriteFrame(
 	    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
 	    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets);
@@ -143,11 +151,18 @@ class Renderer
 	VkDescriptorSetLayout m_outputSetLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_meshLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_outputLayout{VK_NULL_HANDLE};
+	VkPipelineLayout m_lineLayout{VK_NULL_HANDLE};
 	VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
 	VkDescriptorSet m_outputSet{VK_NULL_HANDLE};
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
 	VkPipeline m_meshPipeline{VK_NULL_HANDLE};
 	VkPipeline m_outputPipeline{VK_NULL_HANDLE};
+	VkPipeline m_linePipeline{VK_NULL_HANDLE};
+	VkPipeline m_lineOverlayPipeline{VK_NULL_HANDLE};
+	// This frame's line vertices: the depth-tested ones, then the overlay.
+	uint32_t m_lineVertices{0};
+	uint32_t m_testedLineVertices{0};
+	std::vector<LineVertex> m_lineScratch;
 
 	PassList m_passes;
 	PassPlan m_plan;

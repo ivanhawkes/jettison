@@ -21,6 +21,7 @@ enum class VertexLayout
 {
 	None, // generated from the vertex index: the fullscreen triangle
 	Mesh, // Render::Vertex
+	Line, // Render::LineVertex
 };
 
 enum class BlendMode

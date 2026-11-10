@@ -12,6 +12,7 @@ static_assert(Input::Keys::Tab.code == GLFW_KEY_TAB);
 static_assert(Input::Keys::Up.code == GLFW_KEY_UP);
 static_assert(Input::Keys::GraveAccent.code == GLFW_KEY_GRAVE_ACCENT);
 static_assert(Input::Keys::F1.code == GLFW_KEY_F1);
+static_assert(Input::Keys::F2.code == GLFW_KEY_F2);
 static_assert(GLFW_KEY_F25 == GLFW_KEY_F1 + 24 && GLFW_KEY_KP_0 == 320 && GLFW_KEY_MENU == 348);
 static_assert(
     Input::Keys::Character('w').code == GLFW_KEY_W && Input::Keys::Character('7').code == GLFW_KEY_7);

@@ -1,9 +1,11 @@
 #include <jettison/render/vulkan/PipelineCache.h>
 
 #include <array>
+#include <cstddef>
 #include <stdexcept>
 #include <vector>
 
+#include <jettison/render/DebugDraw.h>
 #include <jettison/render/vulkan/DeviceContext.h>
 #include <jettison/render/vulkan/Model.h>
 #include <jettison/vfs/FileSystem.h>
@@ -79,12 +81,25 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	const VkVertexInputBindingDescription meshBinding = Vertex::getBindingDescription();
 	const auto meshAttributes = Vertex::getAttributeDescriptions();
+	const VkVertexInputBindingDescription lineBinding{
+	    0, sizeof(LineVertex), VK_VERTEX_INPUT_RATE_VERTEX};
+	const std::array<VkVertexInputAttributeDescription, 2> lineAttributes{{
+	    {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(LineVertex, position)},
+	    {1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(LineVertex, color)},
+	}};
 	if (state.vertices == VertexLayout::Mesh)
 	{
 		vertexInput.vertexBindingDescriptionCount = 1;
 		vertexInput.pVertexBindingDescriptions = &meshBinding;
 		vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(meshAttributes.size());
 		vertexInput.pVertexAttributeDescriptions = meshAttributes.data();
+	}
+	else if (state.vertices == VertexLayout::Line)
+	{
+		vertexInput.vertexBindingDescriptionCount = 1;
+		vertexInput.pVertexBindingDescriptions = &lineBinding;
+		vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(lineAttributes.size());
+		vertexInput.pVertexAttributeDescriptions = lineAttributes.data();
 	}
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};

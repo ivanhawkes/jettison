@@ -54,6 +54,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_toggleUi = m_input.DefineAction("toggle_ui", Input::ActionType::Button);
 	m_toggleConsole = m_input.DefineAction("toggle_console", Input::ActionType::Button);
 	m_back = m_input.DefineAction("back", Input::ActionType::Button);
+	m_toggleDebugDraw = m_input.DefineAction("toggle_debug_draw", Input::ActionType::Button);
 	m_input.DefineContext("shell");
 	m_input.DefineContext("console", true);
 	for (const char *context : {"shell", "console"})
@@ -62,6 +63,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		m_input.Bind(context, m_toggleConsole, {Input::Keys::GraveAccent});
 		m_input.Bind(context, m_back, {Input::Keys::Escape});
 	}
+	m_input.Bind("shell", m_toggleDebugDraw, {Input::Keys::F2});
 	m_input.PushContext("shell");
 
 	m_console.CaptureLog();
@@ -97,6 +99,7 @@ void Application::RegisterFrameSystems()
 	     [this](entt::registry &, double)
 	     {
 		     JETTISON_PROFILE_ZONE("shell.input");
+		     m_debugDraw.Clear();
 		     glfwPollEvents();
 		     PollInput();
 	     }});
@@ -150,6 +153,30 @@ void Application::RegisterFrameSystems()
 		     m_sceneUpdateSystem.Update(registry, static_cast<float>(deltaTime));
 	     }});
 	m_frame.Register(
+	    {"scene.debug",
+	     TickPhase::Presentation,
+	     Access::Of<WorldTransformComponent, MeshComponent, LightComponent>(),
+	     {"scene.update"},
+	     [this](entt::registry &registry, double)
+	     {
+		     if (!m_showSceneDebug)
+			     return;
+		     for (const auto [entity, world] : registry.view<const WorldTransformComponent>().each())
+		     {
+			     const glm::dvec3 origin{world.matrix[3]};
+			     // The rotation without the scale: a mesh scaled twelve times would otherwise
+			     // draw axes twelve times as long.
+			     const glm::dmat3 basis{
+			         glm::normalize(glm::dvec3{world.matrix[0]}),
+			         glm::normalize(glm::dvec3{world.matrix[1]}),
+			         glm::normalize(glm::dvec3{world.matrix[2]})};
+			     if (registry.all_of<MeshComponent>(entity))
+				     m_debugDraw.Axes(origin, glm::quat_cast(basis), 0.3, Render::DebugDepth::Overlay);
+			     if (registry.all_of<LightComponent>(entity))
+				     m_debugDraw.Sphere(origin, 0.15, {1.0f, 0.9f, 0.4f, 1.0f});
+		     }
+	     }});
+	m_frame.Register(
 	    {"shell.ui",
 	     TickPhase::Presentation,
 	     {},
@@ -173,7 +200,8 @@ void Application::RegisterFrameSystems()
 		     // of a handled resize the headless sequence can read: it has no way to see a window
 		     // that resized without the engine noticing, and a resize the engine did not recreate
 		     // a swapchain for is not one it handled.
-		     m_frameResized = m_pRenderer->Render(*m_scene, m_sceneRenderSystem, *m_pImGuiRenderer);
+		     m_frameResized =
+		         m_pRenderer->Render(*m_scene, m_sceneRenderSystem, m_debugDraw, *m_pImGuiRenderer);
 	     }});
 	// After the render, so the frame it judges is the one just submitted; its reload stage
 	// replaces the scene, which nothing after it in the frame reads.
@@ -232,6 +260,7 @@ void Application::Init()
 	m_showUI = m_arguments.smokeTest;
 	m_devTools.showDemo = m_arguments.smokeTest;
 	m_devTools.showConsole = m_arguments.smokeTest;
+	m_showSceneDebug = m_arguments.smokeTest;
 	m_state = State::Ready;
 }
 
@@ -334,6 +363,8 @@ void Application::PollInput()
 	// the frame loop runs faster than a hand.
 	if (m_input.WasPressedThisFrame(m_toggleUi))
 		m_showUI = !m_showUI;
+	if (m_input.WasPressedThisFrame(m_toggleDebugDraw))
+		m_showSceneDebug = !m_showSceneDebug;
 	if (m_input.WasPressedThisFrame(m_toggleConsole))
 	{
 		m_devTools.showConsole = !m_devTools.showConsole;
