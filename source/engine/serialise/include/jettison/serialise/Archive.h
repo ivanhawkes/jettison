@@ -49,8 +49,8 @@ class UnsupportedTypeError : public std::logic_error
 
 // Reflection-driven archives. The value is a class registered with Reflect; it is written field
 // by field, Saved fields only, in registration order, and read back the same way. The loader and
-// the writer are one pair, tested as a round trip (docs/history.md, row 8). YAML for authored
-// content, binary for saves.
+// the writer are one pair, tested as a round trip: the scene's loader once refused a file its own
+// writer had produced. YAML for authored content, binary for saves.
 //
 // A field's type is one of:
 //   bool, the integer types, float, double, std::string;

@@ -1,8 +1,8 @@
 # Coding standards
 
-The house rules, taken from the code as it is and from what the work in [history](history.md)
-taught. Where today's code disagrees with a rule here, the rule is the target and the code is
-fixed when it is next touched.
+The house rules, taken from the code as it is and from what the work on it has taught. Where
+today's code disagrees with a rule here, the rule is the target and the code is fixed when it is
+next touched.
 
 ## Language and toolchain
 
@@ -43,7 +43,9 @@ fixed when it is next touched.
 - Forward-declare in headers where a pointer or reference is enough; `Application.h` is the
   model.
 - Never configure a library with a macro in a header. Configuration goes on the library's CMake
-  target. The GLM depth-range bug in [history](history.md) row 7 is why.
+  target. GLM's `GLM_FORCE_DEPTH_ZERO_TO_ONE` once sat in `Model.h` above the GLM includes, so
+  it reached only the translation units that included that header first, and reordering an
+  include changed the projection's depth range.
 
 ## Comments
 
@@ -134,6 +136,6 @@ features.
 
 ## Commits
 
-The subject is `Area: what changed, and what it was for`, in the style of the history
+The subject is `Area: what changed, and what it was for`, in the style of the commit history
 (`Scene round trip: the loader refused the file the writer produced`). The body records what
 was measured and why the change takes the shape it does. Each commit leaves the gate green.

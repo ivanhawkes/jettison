@@ -14,7 +14,7 @@ namespace Jettison::Core
 {
 // Logging: a severity, a category and a message, to sinks (stderr, a file, and callbacks such as
 // the console's). Engine code logs through here and never through spdlog directly, so categories
-// and sinks stay the engine's (docs/roadmap.md, entry 3). spdlog writes the stderr and file sinks;
+// and sinks stay the engine's (docs/history.md, entry 3). spdlog writes the stderr and file sinks;
 // this file owns which messages reach them.
 //
 // Before InitLogging is called, and after ShutdownLogging, messages at Info and above go to
