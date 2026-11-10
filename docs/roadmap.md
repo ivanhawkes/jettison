@@ -13,7 +13,7 @@ trustworthy, are recorded in [history](history.md).
 |---|---|---|
 | 0 | **Plan.** Scope, architecture, roadmap, standards. | These documents are reviewed and agreed. |
 | 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
-| 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. In progress: `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration). | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
+| 2 | **Core.** Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. In progress: `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration), and so is `math` (bounds and intersection tests in float and double, splines, easing, PCG32, noise and tangents). | Unit tests cover the math and RNG, including the RNG's output against recorded reference values, so a compiler or standard library update cannot move it. |
 | 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
 | 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, a pass list with compute passes beside graphics ones, the MSAA HDR target and its resolve, per-frame storage buffers, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
 | 5 | **Space rendering.** Clustered forward shading: cluster bounds and light assignment in compute, PBR with image-based lighting, the sun, point and spot lights with finite ranges, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
@@ -83,10 +83,18 @@ to `Log.h` together with the smoke test's patterns.
 ### 4. Math · phase 2 · `engine/math`
 
 Over GLM: `Aabb`, `Obb`, `Ray`, `Plane`, `Sphere`, `Frustum`, intersection tests, Bezier and
-Catmull-Rom splines, easing functions, `Random` (PCG32 or xoshiro256** with the engine's own
-distributions), noise (FastNoiseLite), tangent generation (MikkTSpace), and the double-precision
-aliases the simulation uses.
-*Stub*: `Bounds.h`, `Intersect.h`, `Spline.h`, `Easing.h`, `Random.h`, `Noise.h`.
+Catmull-Rom splines, easing functions, `Random` (PCG32 with the engine's own distributions),
+noise (FastNoiseLite), tangent generation (MikkTSpace), and the double-precision aliases the
+simulation uses.
+*Stub*: `Bounds.h`, `Intersect.h`, `Spline.h`, `Easing.h`, `Random.h`, `Noise.h`; `Tangents.h`
+was added when it was filled in.
+*Filled in* (phase 2): each bounding volume is a template with float and double aliases (`Aabb`,
+`DAabb`), and the tests are compiled for both. `FrustumFromMatrix` reports a plane at infinity
+as one every point is in front of, so reversed-Z with an infinite far plane needs no special
+case in culling. `CatmullRom` is centripetal, so a rail through unevenly spaced points does not
+overshoot them. `Random` is PCG32, pinned by the reference implementation's published output,
+with its distributions and `Noise` pinned by recorded values. `GenerateTangents` returns a new
+vertex list, because MikkTSpace splits vertices on UV seams. The module is `DETERMINISTIC`.
 
 ### 5. Profiling · phase 2 · `engine/profile`
 

@@ -23,8 +23,8 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | doctest | v2.5.3 | now | Fetched in every tree, planned set or not |
 | Tracy | v0.13.1 | phase 2 | **Held back** from 0.15.0 to match devenv's profiler |
 | Vulkan Memory Allocator | v3.5.0 | phase 4 | |
-| FastNoiseLite | v1.1.1 | phase 2 | |
-| MikkTSpace | 2020 (only commit) | phase 2 | |
+| FastNoiseLite | v1.1.1 | now | Header-only; math links it, output pinned by recorded values |
+| MikkTSpace | 2020 (only commit) | now | math links it |
 | Jolt Physics | v5.6.0 | phase 7 | Double precision, deterministic across build types |
 | FreeType | 2.15.0 | phase 8 | Answers RmlUi's `find_package(Freetype)` |
 | RmlUi | 6.3 | phase 8 | |

@@ -196,6 +196,31 @@ block()
 	FetchContent_MakeAvailable(spdlog)
 endblock()
 
+# Noise, behind math's Noise.h. Header-only, so it compiles with math's flags, deterministic ones
+# included. In every tree since phase 2, because math links it.
+FetchContent_Declare(
+  FastNoiseLite
+  GIT_REPOSITORY https://github.com/Auburn/FastNoiseLite.git
+  GIT_TAG v1.1.1
+  GIT_SHALLOW TRUE
+  SOURCE_SUBDIR _fetchcontent_no_cmake
+)
+FetchContent_MakeAvailable(FastNoiseLite)
+add_library(FastNoiseLite INTERFACE)
+target_include_directories(FastNoiseLite SYSTEM INTERFACE "${fastnoiselite_SOURCE_DIR}/Cpp")
+
+# Tangent generation, behind math's Tangents.h: the reference MikkTSpace, which is what glTF
+# specifies. It has no releases and one commit. In every tree since phase 2, because math links it.
+FetchContent_Declare(
+  mikktspace
+  GIT_REPOSITORY https://github.com/mmikk/MikkTSpace.git
+  GIT_TAG 3e895b49d05ea07e4c2133156cfa94369e19e409
+  SOURCE_SUBDIR _fetchcontent_no_cmake
+)
+FetchContent_MakeAvailable(mikktspace)
+add_library(mikktspace STATIC EXCLUDE_FROM_ALL "${mikktspace_SOURCE_DIR}/mikktspace.c")
+target_include_directories(mikktspace SYSTEM PUBLIC "${mikktspace_SOURCE_DIR}")
+
 # ---------------------------------------------------------------------------------------------
 # Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
 # whole set is proven to link together before a phase depends on any of it, and they are
@@ -244,29 +269,6 @@ FetchContent_Declare(
   EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
-
-# Noise (phase 2). Header-only.
-FetchContent_Declare(
-  FastNoiseLite
-  GIT_REPOSITORY https://github.com/Auburn/FastNoiseLite.git
-  GIT_TAG v1.1.1
-  GIT_SHALLOW TRUE
-  SOURCE_SUBDIR _fetchcontent_no_cmake
-)
-FetchContent_MakeAvailable(FastNoiseLite)
-add_library(FastNoiseLite INTERFACE)
-target_include_directories(FastNoiseLite SYSTEM INTERFACE "${fastnoiselite_SOURCE_DIR}/Cpp")
-
-# Tangent generation (phase 2). The reference MikkTSpace has no releases and one commit.
-FetchContent_Declare(
-  mikktspace
-  GIT_REPOSITORY https://github.com/mmikk/MikkTSpace.git
-  GIT_TAG 3e895b49d05ea07e4c2133156cfa94369e19e409
-  SOURCE_SUBDIR _fetchcontent_no_cmake
-)
-FetchContent_MakeAvailable(mikktspace)
-add_library(mikktspace STATIC EXCLUDE_FROM_ALL "${mikktspace_SOURCE_DIR}/mikktspace.c")
-target_include_directories(mikktspace SYSTEM PUBLIC "${mikktspace_SOURCE_DIR}")
 
 # Physics (phase 7). Every setting here is one the engine has to agree with:
 #  - Double precision, because simulation positions are doubles in the system frame

@@ -196,7 +196,7 @@ target. The engine adds:
 | Bezier and splines | In | Camera rails, route display, docking approach paths. |
 | Easing functions | In | UI and camera transitions ([easings.net](https://easings.net/en)). |
 | Noise | In | CPU noise (FastNoiseLite) for procedural generation; GPU noise in shaders. |
-| Random numbers | In | The engine's own seeded generator (PCG or xoshiro) and distributions. `std::uniform_*_distribution` is implementation-defined: its streams differ between standard library implementations and can change between their versions, which would break saves and replays. |
+| Random numbers | In | The engine's own seeded generator (PCG32) and distributions. `std::uniform_*_distribution` is implementation-defined: its streams differ between standard library implementations and can change between their versions, which would break saves and replays. |
 | Tangents | In | Normal mapping; MikkTSpace when glTF omits them. |
 | Orbital mechanics | In (added) | Keplerian on-rails orbits, transfer timing for route estimates. |
 
