@@ -84,6 +84,10 @@ const std::unordered_map<entt::id_type, Shape> &LeafShapes()
 		Add<glm::dvec2>(table, Leaf<glm::dvec2, double, 2>());
 		Add<glm::dvec3>(table, Leaf<glm::dvec3, double, 3>());
 		Add<glm::dvec4>(table, Leaf<glm::dvec4, double, 4>());
+		// An entity is its 32-bit identifier, index and version together: what a component that
+		// refers to another entity holds, restored as it was by a world's loader.
+		static_assert(std::is_same_v<std::underlying_type_t<entt::entity>, std::uint32_t>);
+		Add<entt::entity>(table, Leaf<entt::entity, std::uint32_t, 1>());
 		Add<std::string>(table, Shape{Kind::String, 0, 1, &View<std::string>, &MakeString});
 		return table;
 	}();

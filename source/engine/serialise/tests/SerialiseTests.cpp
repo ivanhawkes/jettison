@@ -1,5 +1,6 @@
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/serialise/Binary.h>
 
 #include <doctest/doctest.h>
 
@@ -408,4 +409,45 @@ TEST_CASE("Serialise: a type an archive cannot write is a defect, reported as su
 	    doctest::Contains("SerialiseTests.Ship.manifest[0]: the value is not an enumerator"),
 	    UnsupportedTypeError);
 	CHECK_THROWS_AS(BinaryArchive::Write(ship, {}), UnsupportedTypeError);
+}
+
+TEST_CASE("Serialise: binary streams carry a sequence of values under a format's name")
+{
+	RegisterTypes();
+	BinaryWriter writer{"SerialiseTests.Stream"};
+	writer.WriteUnsigned(0x0102030405060708u, 8);
+	writer.WriteName("component");
+	writer.Write(2.5);
+	writer.Write(Hold{Good::Water, 12, 0.5});
+	writer.Write(std::vector<Good>{Good::Fuel, Good::Ore});
+	writer.Write(entt::entity{0x00100002u});
+	writer.WriteName("component");
+	const std::vector<std::byte> bytes = writer.Finish({7});
+
+	BinaryReader reader{bytes, "SerialiseTests.Stream", {7}};
+	CHECK(reader.ReadUnsigned(8) == 0x0102030405060708u);
+	CHECK(reader.ReadName() == "component");
+	double number = 0.0;
+	reader.Read(number);
+	CHECK(number == 2.5);
+	// Read into an existing object, through a reference, as a world's loader reads a component.
+	Hold hold{Good::Ore, 1, 9.0};
+	reader.Read(hold);
+	CHECK(hold == Hold{Good::Water, 12, 0.5});
+	std::vector<Good> goods{Good::Water};
+	reader.Read(goods);
+	CHECK(goods == std::vector<Good>{Good::Fuel, Good::Ore});
+	entt::entity entity{entt::null};
+	reader.Read(entity);
+	CHECK(entity == entt::entity{0x00100002u});
+	CHECK(reader.ReadName() == "component");
+	reader.End();
+
+	CHECK_THROWS_WITH_AS(
+	    (BinaryReader{bytes, "SerialiseTests.Other", {7}}),
+	    doctest::Contains("the archive holds a 'SerialiseTests.Stream'"), FormatError);
+	CHECK_THROWS_AS((BinaryReader{bytes, "SerialiseTests.Stream", {8}}), FormatVersionError);
+	BinaryReader early{bytes, "SerialiseTests.Stream", {7}};
+	CHECK_THROWS_WITH_AS(early.End(), doctest::Contains("bytes follow the value"), FormatError);
+	CHECK_THROWS_AS(writer.WriteUnsigned(1, 3), std::invalid_argument);
 }

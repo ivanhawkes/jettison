@@ -5,6 +5,7 @@ jettison_add_module(serialise
 		vfs
 	HEADERS
 		include/jettison/serialise/Archive.h
+		include/jettison/serialise/Binary.h
 	SOURCES
 		src/Archive.cpp
 		src/BinaryArchive.cpp

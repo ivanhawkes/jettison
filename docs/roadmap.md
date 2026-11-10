@@ -200,7 +200,10 @@ file does; the binary layout is little-endian, with a table of the names the fil
 included, and every field written with its name's index and its length, so fields are found by
 name and a field whose type changed size is reported. Every prefix of a save is refused as a
 `FormatError`, tested exhaustively. A version mismatch throws `FormatVersionError` until phase 8
-brings migrations. The scene stays on its own loader until the scene archive (entities, optional
+brings migrations. `BinaryWriter` and `BinaryReader` are the streams the binary archive is
+made of, public for a format that is a sequence of values rather than one, as a world save is;
+they read into a reference as well as into an owned value, and `entt::entity` is a leaf, its
+32-bit identifier. The scene stays on its own loader until the scene archive (entities, optional
 components, the mesh path relative to the file) moves onto these, with `ecs`.
 
 ### 10. Virtual file system · phase 3 · `engine/vfs`

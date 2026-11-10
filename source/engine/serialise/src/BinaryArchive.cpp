@@ -2,12 +2,15 @@
 
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/serialise/Binary.h>
 
 #include <algorithm>
 #include <array>
 #include <cstring>
 #include <format>
 #include <limits>
+#include <memory>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -129,14 +132,20 @@ class Writer
 		return static_cast<std::uint32_t>(size);
 	}
 
-	// Names are reflection names, whose text lives in static storage, so a view of one is a
-	// safe key. The table is in order of first use, so the same value writes the same bytes.
+  public:
+	// The table is in order of first use, so the same values write the same bytes. Names are
+	// copied: a caller's name need not outlive the writer.
 	std::uint32_t Intern(std::string_view name)
 	{
-		const auto [found, added] = m_indices.try_emplace(name, Count(m_names.size()));
+		const auto [found, added] = m_indices.try_emplace(std::string{name}, Count(m_names.size()));
 		if (added)
-			m_names.push_back(name);
+			m_names.emplace_back(name);
 		return found->second;
+	}
+
+	void Unsigned(std::uint64_t value, std::size_t width)
+	{
+		Unsigned(m_payload, value, width);
 	}
 
 	void Value(const entt::meta_any &value)
@@ -189,9 +198,10 @@ class Writer
 		}
 	}
 
+  private:
 	std::vector<std::byte> m_payload;
-	std::vector<std::string_view> m_names;
-	std::unordered_map<std::string_view, std::uint32_t> m_indices;
+	std::vector<std::string> m_names;
+	std::unordered_map<std::string, std::uint32_t> m_indices;
 	Path m_path;
 };
 
@@ -264,7 +274,6 @@ class Reader
 		}
 	}
 
-  private:
 	[[noreturn]] void Fail(std::string_view problem) const
 	{
 		throw FormatError{
@@ -309,6 +318,15 @@ class Reader
 		return m_names[index];
 	}
 
+	// Into the object value holds or refers to: replacing the meta_any itself would leave a
+	// reference's object as it was.
+	void Assign(entt::meta_any &value, entt::meta_any made) const
+	{
+		if (!value.assign(std::move(made)))
+			throw UnsupportedTypeError{
+			    std::format("BinaryArchive: {}: the value could not be assigned", m_path.Text())};
+	}
+
 	void Value(entt::meta_any &value)
 	{
 		const Shape shape = Detail::ShapeOf(value.type(), m_path.Text());
@@ -328,13 +346,13 @@ class Reader
 						Fail(std::format("{} is not a bool", bits));
 					StoreBits(components.data() + std::size_t{index} * shape.width, bits, shape.width);
 				}
-				value = shape.make(components.data());
+				Assign(value, shape.make(components.data()));
 				return;
 			}
 			case Kind::String:
 			{
 				const std::string text = String();
-				value = shape.make(&text);
+				Assign(value, shape.make(&text));
 				return;
 			}
 			case Kind::Enum:
@@ -343,7 +361,7 @@ class Reader
 				entt::meta_any enumerator = Reflect::EnumValue(value.type(), name);
 				if (!enumerator)
 					Fail(std::format("'{}' is not a '{}'", name, value.type().name()));
-				value = std::move(enumerator);
+				Assign(value, std::move(enumerator));
 				return;
 			}
 			case Kind::Class: Class(value); return;
@@ -376,25 +394,104 @@ class Reader
 };
 } // namespace
 
+struct BinaryWriter::Impl
+{
+	explicit Impl(std::string_view format) : name{format}, writer{format}
+	{
+	}
+
+	std::string name;
+	Writer writer;
+};
+
+BinaryWriter::BinaryWriter(std::string_view format) : m_pImpl{std::make_unique<Impl>(format)}
+{
+}
+
+BinaryWriter::~BinaryWriter() = default;
+
+void BinaryWriter::WriteUnsigned(std::uint64_t value, std::size_t width)
+{
+	if (width != 1 && width != 2 && width != 4 && width != 8)
+		throw std::invalid_argument{
+		    std::format("BinaryWriter: {} bytes is not an integer width", width)};
+	m_pImpl->writer.Unsigned(value, width);
+}
+
+void BinaryWriter::WriteName(std::string_view name)
+{
+	m_pImpl->writer.Unsigned(m_pImpl->writer.Intern(name), 4);
+}
+
+void BinaryWriter::WriteValue(const entt::meta_any &value)
+{
+	m_pImpl->writer.Value(value);
+}
+
+std::vector<std::byte> BinaryWriter::Finish(FormatVersion version)
+{
+	return m_pImpl->writer.Finish(m_pImpl->name, version);
+}
+
+struct BinaryReader::Impl
+{
+	Impl(std::span<const std::byte> bytes, std::string_view format) : name{format}, reader{bytes, name}
+	{
+	}
+
+	std::string name;
+	Reader reader;
+};
+
+BinaryReader::BinaryReader(
+    std::span<const std::byte> bytes, std::string_view format, FormatVersion expected)
+    : m_pImpl{std::make_unique<Impl>(bytes, format)}
+{
+	m_pImpl->reader.Header(m_pImpl->name, expected);
+}
+
+BinaryReader::~BinaryReader() = default;
+
+std::uint64_t BinaryReader::ReadUnsigned(std::size_t width)
+{
+	if (width != 1 && width != 2 && width != 4 && width != 8)
+		throw std::invalid_argument{
+		    std::format("BinaryReader: {} bytes is not an integer width", width)};
+	return m_pImpl->reader.Unsigned(width);
+}
+
+std::string_view BinaryReader::ReadName()
+{
+	return m_pImpl->reader.Name();
+}
+
+void BinaryReader::ReadValue(entt::meta_any &value)
+{
+	m_pImpl->reader.Value(value);
+}
+
+void BinaryReader::End() const
+{
+	m_pImpl->reader.End();
+}
+
 std::vector<std::byte> BinaryArchive::Write(const entt::meta_any &value, FormatVersion version)
 {
-	const std::string_view root = Detail::RootName(value.type());
-	Writer writer{root};
-	writer.Class(value);
-	return writer.Finish(root, version);
+	BinaryWriter writer{Detail::RootName(value.type())};
+	writer.WriteValue(value);
+	return writer.Finish(version);
 }
 
 entt::meta_any BinaryArchive::Read(
     std::span<const std::byte> bytes, const entt::meta_type &type, FormatVersion expected)
 {
 	const std::string_view root = Detail::RootName(type);
-	Reader reader{bytes, root};
-	reader.Header(root, expected);
+	BinaryReader reader{bytes, root, expected};
 	entt::meta_any value = type.construct();
 	if (!value)
 		throw UnsupportedTypeError{
 		    std::format("BinaryArchive: {}: the type is not default constructible", root)};
-	reader.Class(value);
+	reader.ReadValue(value);
 	reader.End();
 	return value;
 }
