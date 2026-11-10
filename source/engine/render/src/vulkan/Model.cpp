@@ -4,7 +4,9 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 
 namespace Jettison::Render
@@ -25,6 +27,20 @@ void Model::LoadModel(const std::filesystem::path &path)
 	if (extension != ".gltf" && extension != ".glb")
 		throw std::runtime_error("Unsupported model format; expected .gltf or .glb: " + path.string());
 	LoadGltfModel(path);
+}
+
+
+void Model::CreateFromMesh(
+    std::vector<Vertex> vertices, std::vector<uint32_t> indices, const std::string &name)
+{
+	if (vertices.empty() || indices.empty())
+		throw std::runtime_error("A procedural model needs vertices and indices: " + name);
+	m_vertices = std::move(vertices);
+	m_indices = std::move(indices);
+	m_primitives.clear();
+	m_primitives.push_back({0, static_cast<uint32_t>(m_indices.size()), {}});
+	CreateVertexBuffer();
+	CreateIndexBuffer();
 }
 
 

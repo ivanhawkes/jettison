@@ -36,7 +36,8 @@ bodies:
       inclination: 0.9006
       longitudeOfAscendingNode: 1.2
       argumentOfPeriapsis: 0.4
-      meanAnomalyAtEpoch: 0.0
+      # Over the day side at time 0, which the sample scene opens on.
+      meanAnomalyAtEpoch: 3.1416
   - name: Pell
     kind: Moon
     parent: Ostra

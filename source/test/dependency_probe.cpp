@@ -55,7 +55,7 @@
 TEST_CASE("GLM: the geometry ABI the shaders and buffers agree on")
 {
 	static_assert(sizeof(Jettison::Render::Vertex) == 108);
-	static_assert(sizeof(Jettison::Render::FrameUBO) == 160);
+	static_assert(sizeof(Jettison::Render::FrameUBO) == 192);
 	static_assert(sizeof(glm::vec3) == 12 && alignof(glm::vec3) == 4);
 
 	// The zero-to-one depth range the viewport is set up for (GLM_FORCE_DEPTH_ZERO_TO_ONE).

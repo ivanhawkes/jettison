@@ -7,11 +7,14 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include <jettison/animation/Components.h>
+#include <jettison/render/CameraRigs.h>
+#include <jettison/render/Procedural.h>
 #include <jettison/render/vulkan/Model.h>
 
 namespace Jettison::Render
@@ -30,6 +33,16 @@ struct TransformComponent
 	glm::dvec3 translation{0.0};
 	glm::vec3 rotation{0.0f};
 	glm::vec3 scale{1.0f};
+};
+
+// Where something outside the scene puts an entity this frame: the star system, for a celestial
+// body. It replaces the transform's translation and rotation, in double precision, and keeps its
+// scale. Runtime state, not written to the scene file, so the transform stays as authored and a
+// scene saved from a running engine is the scene that was loaded.
+struct PlacementComponent
+{
+	glm::dvec3 position{0.0};
+	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 };
 
 struct ParentComponent
@@ -78,10 +91,47 @@ struct LightComponent
 	bool active{true};
 };
 
+// What an entity draws: a model file, or a shape made in code in one colour. A procedural shape is
+// unit-sized (a sphere of radius one, a cube from -1 to 1), and the transform's scale sizes it.
 struct MeshComponent
 {
 	std::filesystem::path modelPath;
+	std::optional<Shape> shape;
+	glm::vec3 color{1.0f};
 	std::shared_ptr<Model> model;
+};
+
+// An entity the star system places: each frame its translation is the body's position at the
+// presentation time, and its rotation the body's spin. The scene names the system file; the app
+// evaluates it (engine/celestial), since render does not see the system.
+struct CelestialBodyComponent
+{
+	std::string body;
+};
+
+// The star system's one directional light (docs/architecture.md, "Rules that follow"): it shines
+// from the entity's position, which is normally the star's, towards whatever the camera sees, and
+// lives in the frame constants rather than the light list. Linear colour times intensity.
+struct SunComponent
+{
+	glm::vec3 color{1.0f};
+	float intensity{1.0f};
+};
+
+// A camera that orbits another entity. The authored fields are where it starts; the rig and the
+// resolved target are runtime state, not written to the scene file.
+struct OrbitCameraComponent
+{
+	std::string targetId;
+	double distance{10.0};
+	double yaw{0.0};
+	double pitch{0.3};
+	double minDistance{1.0};
+
+	entt::entity target{entt::null};
+	OrbitCamera rig;
+	CameraTransition transition;
+	bool placed{false};
 };
 
 class Scene
@@ -109,6 +159,13 @@ class Scene
 		return m_generation;
 	}
 
+	// The star system file the scene's celestial bodies come from, absolute; empty for a scene
+	// without one.
+	const std::filesystem::path &StarSystemPath() const
+	{
+		return m_starSystemPath;
+	}
+
 	entt::registry &Registry()
 	{
 		return m_registry;
@@ -120,10 +177,12 @@ class Scene
 
   private:
 	std::shared_ptr<Model> LoadModel(const std::filesystem::path &path);
+	std::shared_ptr<Model> ProceduralModel(Shape shape, const glm::vec3 &color);
 
 	std::shared_ptr<DeviceContext> m_deviceContext;
 	entt::registry m_registry;
 	std::unordered_map<std::string, std::shared_ptr<Model>> m_models;
+	std::filesystem::path m_starSystemPath;
 	std::uint64_t m_generation{0};
 };
 } // namespace Jettison::Render

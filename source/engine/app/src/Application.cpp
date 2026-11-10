@@ -4,13 +4,20 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <algorithm>
+#include <cmath>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include <jettison/app/CelestialPresentation.h>
 #include <jettison/app/SimPresentation.h>
 #include <jettison/profile/Profile.h>
 #include <jettison/render/Scene.h>
@@ -46,6 +53,34 @@ bool CanIconifyWindow()
 {
 	return glfwGetPlatform() == GLFW_PLATFORM_X11;
 }
+
+// Each celestial body's orbit about where its parent is now, as the line its next revolution
+// traces: on rails, so the body is on its line in every frame, and a body off it is a bug in the
+// evaluation or in the placement.
+void DrawOrbits(
+    Render::DebugDraw &draw, const entt::registry &registry, const Celestial::StarSystem &system,
+    double time)
+{
+	constexpr std::size_t kPoints = 256;
+	for (const auto [entity, celestial] : registry.view<const Render::CelestialBodyComponent>().each())
+	{
+		const int index = system.Find(celestial.body);
+		if (index < 0)
+			continue;
+		const Celestial::Body &body = system.bodies[static_cast<std::size_t>(index)];
+		if (body.parentIndex < 0 || body.orbit.semiMajorAxis == 0.0)
+			continue;
+		const glm::dvec3 parent =
+		    Celestial::EvaluateBody(system, static_cast<std::size_t>(body.parentIndex), time).metres;
+		std::vector<glm::dvec3> points(kPoints);
+		for (std::size_t point = 0; point < kPoints; ++point)
+			points[point] =
+			    parent + Celestial::Evaluate(
+			                 body.orbit, time + body.orbit.period * static_cast<double>(point) /
+			                                        static_cast<double>(kPoints));
+		draw.Polyline(points, {0.3f, 0.8f, 1.0f, 0.6f}, true);
+	}
+}
 } // namespace
 
 Application::Application(AppArguments arguments, std::string windowTitle)
@@ -55,6 +90,11 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_toggleConsole = m_input.DefineAction("toggle_console", Input::ActionType::Button);
 	m_back = m_input.DefineAction("back", Input::ActionType::Button);
 	m_toggleDebugDraw = m_input.DefineAction("toggle_debug_draw", Input::ActionType::Button);
+	m_cameraOrbit = m_input.DefineAction("camera_orbit", Input::ActionType::Vector);
+	m_cameraZoom = m_input.DefineAction("camera_zoom", Input::ActionType::Axis);
+	m_cameraDrag = m_input.DefineAction("camera_drag", Input::ActionType::Button);
+	m_cameraLook = m_input.DefineAction("camera_look", Input::ActionType::Vector);
+	m_cameraNext = m_input.DefineAction("camera_next", Input::ActionType::Button);
 	m_input.DefineContext("shell");
 	m_input.DefineContext("console", true);
 	for (const char *context : {"shell", "console"})
@@ -64,6 +104,14 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		m_input.Bind(context, m_back, {Input::Keys::Escape});
 	}
 	m_input.Bind("shell", m_toggleDebugDraw, {Input::Keys::F2});
+	using Input::Keys::Character;
+	m_input.Bind("shell", m_cameraOrbit, {Character('d'), Character('a'), 1.0f, 0.0f, 0});
+	m_input.Bind("shell", m_cameraOrbit, {Character('w'), Character('s'), 1.0f, 0.0f, 1});
+	m_input.Bind("shell", m_cameraZoom, {Character('e'), Character('q')});
+	m_input.Bind("shell", m_cameraDrag, {{Input::Device::MouseButton, 1}});
+	m_input.Bind("shell", m_cameraLook, {{Input::Device::MouseAxis, 0}, {}, 1.0f, 0.0f, 0});
+	m_input.Bind("shell", m_cameraLook, {{Input::Device::MouseAxis, 1}, {}, 1.0f, 0.0f, 1});
+	m_input.Bind("shell", m_cameraNext, {Character('c')});
 	m_input.PushContext("shell");
 
 	m_console.CaptureLog();
@@ -132,6 +180,22 @@ void Application::RegisterFrameSystems()
 	     }});
 	// Nothing in the shell turns an event into sound or UI yet. Taking them every frame is what
 	// keeps the queue from growing while nothing does; a game's handlers replace this system.
+	// Bodies on rails, at the moment presentation shows: between the last two steps, in time.
+	m_frame.Register(
+	    {"celestial.sync",
+	     TickPhase::Sync,
+	     Access::Of<Render::CelestialBodyComponent>().Writing<Render::PlacementComponent>(),
+	     {"sim.sync"},
+	     [this](entt::registry &registry, double)
+	     {
+		     if (!m_starSystem)
+			     return;
+		     JETTISON_PROFILE_ZONE("celestial.sync");
+		     SyncCelestialBodies(
+		         registry, *m_starSystem,
+		         Celestial::PresentationTime(
+		             m_simStepper.Previous().time, m_simStepper.Current().time, m_simStepper.Alpha()));
+	     }});
 	m_frame.Register(
 	    {"sim.events",
 	     TickPhase::Sync,
@@ -151,6 +215,19 @@ void Application::RegisterFrameSystems()
 	     {
 		     JETTISON_PROFILE_ZONE("scene.update");
 		     m_sceneUpdateSystem.Update(registry, static_cast<float>(deltaTime));
+	     }});
+	// After the world transforms, which the rigs follow, and before anything that reads the pose.
+	m_frame.Register(
+	    {"camera.rig",
+	     TickPhase::Presentation,
+	     Access::Of<WorldTransformComponent>()
+	         .Writing<Render::OrbitCameraComponent, Render::CameraPoseComponent>(),
+	     {"scene.update"},
+	     [this](entt::registry &registry, double deltaTime)
+	     {
+		     JETTISON_PROFILE_ZONE("camera.rig");
+		     DriveCameras(registry, deltaTime);
+		     Render::UpdateOrbitCameras(registry, deltaTime);
 	     }});
 	m_frame.Register(
 	    {"scene.debug",
@@ -175,6 +252,12 @@ void Application::RegisterFrameSystems()
 			     if (registry.all_of<LightComponent>(entity))
 				     m_debugDraw.Sphere(origin, 0.15, {1.0f, 0.9f, 0.4f, 1.0f});
 		     }
+		     if (m_starSystem)
+			     DrawOrbits(
+			         m_debugDraw, registry, *m_starSystem,
+			         Celestial::PresentationTime(
+			             m_simStepper.Previous().time, m_simStepper.Current().time,
+			             m_simStepper.Alpha()));
 	     }});
 	m_frame.Register(
 	    {"shell.ui",
@@ -289,7 +372,7 @@ void Application::InitVulkan()
 void Application::InitScene()
 {
 	m_scene = std::make_unique<Scene>(m_pDeviceContext);
-	m_scene->Load(m_arguments.scenePath);
+	LoadScene();
 	if (!m_arguments.saveScenePath.empty())
 		m_scene->Save(m_arguments.saveScenePath);
 }
@@ -365,6 +448,8 @@ void Application::PollInput()
 		m_showUI = !m_showUI;
 	if (m_input.WasPressedThisFrame(m_toggleDebugDraw))
 		m_showSceneDebug = !m_showSceneDebug;
+	if (m_input.WasPressedThisFrame(m_cameraNext))
+		NextCameraTarget(m_scene->Registry());
 	if (m_input.WasPressedThisFrame(m_toggleConsole))
 	{
 		m_devTools.showConsole = !m_devTools.showConsole;
@@ -383,6 +468,76 @@ void Application::PollInput()
 			RequestClose();
 	}
 	SyncConsoleContext();
+}
+
+
+void Application::LoadScene()
+{
+	m_scene->Load(m_arguments.scenePath);
+	m_starSystem.reset();
+	if (const auto &path = m_scene->StarSystemPath(); !path.empty())
+	{
+		std::ifstream file{path};
+		if (!file)
+			throw std::runtime_error("Failed to open the scene's star system: " + path.string());
+		std::stringstream text;
+		text << file.rdbuf();
+		m_starSystem = Celestial::ReadStarSystem(text.str());
+		ResolveCelestialBodies(m_scene->Registry(), *m_starSystem);
+	}
+	m_simStepper.Resync();
+}
+
+
+void Application::DriveCameras(entt::registry &registry, double deltaTime)
+{
+	// Radians a second for the keys, radians a pixel for a drag, and the share of the distance
+	// a second of zoom covers.
+	constexpr double kTurnRate = 1.2;
+	constexpr double kDragRate = 0.005;
+	constexpr double kZoomRate = 1.5;
+	const glm::vec2 keys = m_input.Vector(m_cameraOrbit);
+	glm::dvec2 turn = glm::dvec2{keys} * kTurnRate * deltaTime;
+	if (m_input.IsPressed(m_cameraDrag))
+		turn -= glm::dvec2{m_input.Vector(m_cameraLook)} * kDragRate;
+	const double zoom = std::exp(-double{m_input.Axis(m_cameraZoom)} * kZoomRate * deltaTime);
+	for (const auto [entity, orbit] : registry.view<Render::OrbitCameraComponent>().each())
+	{
+		orbit.rig.Orbit(turn.x, turn.y);
+		orbit.rig.Zoom(zoom);
+	}
+}
+
+
+void Application::NextCameraTarget(entt::registry &registry)
+{
+	std::vector<entt::entity> bodies;
+	for (const entt::entity entity : registry.view<const Render::CelestialBodyComponent>())
+		bodies.push_back(entity);
+	if (bodies.empty())
+		return;
+	std::ranges::sort(bodies);
+	for (const auto [entity, orbit] : registry.view<Render::OrbitCameraComponent>().each())
+	{
+		const auto current = std::ranges::find(bodies, orbit.target);
+		const entt::entity next = current == bodies.end() || std::next(current) == bodies.end()
+		                              ? bodies.front()
+		                              : *std::next(current);
+		// Out to three of the body's radii, eased over two seconds from wherever the camera is.
+		double radius = 50.0;
+		if (m_starSystem)
+			if (const int index =
+			        m_starSystem->Find(registry.get<Render::CelestialBodyComponent>(next).body);
+			    index >= 0)
+				radius = std::max(radius, m_starSystem->bodies[static_cast<std::size_t>(index)].radius);
+		if (const auto *pose = registry.try_get<Render::CameraPoseComponent>(entity))
+			orbit.transition = Render::CameraTransition{
+			    {pose->position, pose->orientation}, 2.0, Math::Easing::InOutCubic};
+		orbit.target = next;
+		orbit.minDistance = radius * 1.1;
+		orbit.distance = radius * 3.0;
+		orbit.placed = false;
+	}
 }
 
 
@@ -413,7 +568,7 @@ SmokeActions Application::MakeSmokeActions()
 	actions.restore = [this] { glfwRestoreWindow(m_pWindow->GetGLFWWindow()); };
 	// The reload is the whole Load() path: Scene::Destroy, then the models, textures and buffers
 	// built again, at the addresses the pipeline has cached resources under.
-	actions.reload = [this] { m_scene->Load(m_arguments.scenePath); };
+	actions.reload = [this] { LoadScene(); };
 	actions.close = [this] { RequestClose(); };
 	return actions;
 }

@@ -2,10 +2,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
+#include <jettison/celestial/StarSystem.h>
 #include <jettison/devtools/Console.h>
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
@@ -78,6 +80,8 @@ class Application
 	void InitWindow();
 	void InitVulkan();
 	void InitScene();
+	// Loads the scene, and the star system it names; the smoke sequence's reload comes here too.
+	void LoadScene();
 	void InitRenderer();
 	void InitUI();
 
@@ -89,6 +93,10 @@ class Application
 	void RunFrameLoop();
 	void Tick();
 	void PollInput();
+	// The frame's camera input, into the scene's orbit rigs.
+	void DriveCameras(entt::registry &registry, double deltaTime);
+	// Moves each orbit camera to the next celestial body, with a transition.
+	void NextCameraTarget(entt::registry &registry);
 	void DrawUI();
 	// Pushes or pops the console's input context to match whether the console is open.
 	void SyncConsoleContext();
@@ -163,6 +171,13 @@ class Application
 	Input::ActionId m_toggleConsole;
 	Input::ActionId m_back;
 	Input::ActionId m_toggleDebugDraw;
+	// The orbit camera: W, A, S and D turn it, Q and E zoom, the right mouse button drags it, and C
+	// moves it to the next body.
+	Input::ActionId m_cameraOrbit;
+	Input::ActionId m_cameraZoom;
+	Input::ActionId m_cameraDrag;
+	Input::ActionId m_cameraLook;
+	Input::ActionId m_cameraNext;
 	GlfwInput m_glfwInput;
 	bool m_consoleContext{false};
 
@@ -179,5 +194,8 @@ class Application
 	// on, so both line pipelines are in what the render test walks.
 	Render::DebugDraw m_debugDraw;
 	bool m_showSceneDebug{false};
+
+	// The star system the scene's celestial bodies come from, when it names one.
+	std::optional<Celestial::StarSystem> m_starSystem;
 };
 } // namespace Jettison::App

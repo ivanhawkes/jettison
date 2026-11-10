@@ -13,6 +13,7 @@ jettison_add_module(render
 		include/jettison/render/DebugDraw.h
 		include/jettison/render/IRenderer.h
 		include/jettison/render/PassList.h
+		include/jettison/render/Procedural.h
 		include/jettison/render/Scene.h
 		include/jettison/render/SceneSystems.h
 		include/jettison/render/vulkan/DeviceContext.h
@@ -29,6 +30,7 @@ jettison_add_module(render
 		src/CameraRigs.cpp
 		src/DebugDraw.cpp
 		src/PassList.cpp
+		src/Procedural.cpp
 		src/Scene.cpp
 		src/SceneSystems.cpp
 		src/vulkan/DeviceContext.cpp

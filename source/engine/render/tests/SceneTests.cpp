@@ -173,3 +173,73 @@ entities:
 	CHECK_THROWS_WITH_AS(
 	    scene.Load(authored), doctest::Contains("infinite far plane"), std::runtime_error);
 }
+
+TEST_CASE("Scene: the star system, bodies, sun and orbit camera load and save as authored")
+{
+	const TemporaryDirectory directory;
+	const auto authored = directory.Path() / "orbit.yaml";
+	const auto first = directory.Path() / "orbit-first.yaml";
+	const auto second = directory.Path() / "orbit-second.yaml";
+	std::ofstream{authored} << R"(version: 1
+system: systems/test.yaml
+entities:
+  - id: star
+    celestial:
+      body: Sun
+    sun:
+      color: [1, 0.9, 0.8]
+      intensity: 1.5
+  - id: station
+    celestial:
+      body: Dock
+  - id: camera
+    camera:
+      fov: 50
+      near: 0.5
+      active: true
+      orbit:
+        target: station
+        distance: 150
+        yaw: 0.5
+        pitch: 0.25
+        minDistance: 20
+)";
+	Scene scene{nullptr};
+	scene.Load(authored);
+	CHECK(scene.StarSystemPath() == directory.Path() / "systems" / "test.yaml");
+	const auto &registry = scene.Registry();
+	CHECK(registry.view<const Jettison::Render::CelestialBodyComponent>().size() == 2);
+	CHECK(registry.view<const Jettison::Render::SunComponent>().size() == 1);
+	for (const auto [entity, orbit] :
+	     registry.view<const Jettison::Render::OrbitCameraComponent>().each())
+	{
+		CHECK(orbit.distance == 150.0);
+		CHECK(registry.get<Jettison::Render::SceneEntityId>(orbit.target).value == "station");
+	}
+
+	// A placement and a camera pose are runtime state: neither reaches the file.
+	for (const entt::entity entity : registry.view<const Jettison::Render::CelestialBodyComponent>())
+		scene.Registry().emplace<Jettison::Render::PlacementComponent>(
+		    entity, glm::dvec3{1.0e11, 2.0, 3.0});
+	Jettison::Render::UpdateOrbitCameras(scene.Registry(), 0.1);
+	scene.Save(first);
+	scene.Load(first);
+	scene.Save(second);
+	CHECK(ReadFile(first) == ReadFile(second));
+	CHECK(ReadFile(first).find("system: systems/test.yaml") != std::string::npos);
+	CHECK(ReadFile(first).find("1e+11") == std::string::npos);
+	CHECK(ReadFile(first).find("100000000000") == std::string::npos);
+}
+
+TEST_CASE("Scene: a celestial body needs a system, and an orbit camera a target that exists")
+{
+	const TemporaryDirectory directory;
+	const auto path = directory.Path() / "bad.yaml";
+	Scene scene{nullptr};
+	std::ofstream{path} << "version: 1\nentities:\n  - id: a\n    celestial:\n      body: Sun\n";
+	CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains("names no system"), std::runtime_error);
+	std::ofstream{path, std::ios::trunc}
+	    << "version: 1\nentities:\n  - id: c\n    camera:\n      orbit:\n        target: nobody\n";
+	CHECK_THROWS_WITH_AS(
+	    scene.Load(path), doctest::Contains("orbit target 'nobody'"), std::runtime_error);
+}

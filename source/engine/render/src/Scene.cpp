@@ -70,8 +70,12 @@ void Scene::Load(const std::filesystem::path &path)
 
 	std::unordered_map<std::string, entt::entity> entities;
 	std::vector<std::pair<entt::entity, std::string>> pendingParents;
+	std::vector<std::pair<entt::entity, std::string>> pendingTargets;
 	std::size_t activeCameraCount = 0;
 	std::size_t activeLightCount = 0;
+	std::size_t sunCount = 0;
+	if (const YAML::Node systemNode = document["system"])
+		m_starSystemPath = (scenePath.parent_path() / systemNode.as<std::string>()).lexically_normal();
 
 	try
 	{
@@ -123,6 +127,29 @@ void Scene::Load(const std::filesystem::path &path)
 				if (camera.active && ++activeCameraCount > 1)
 					throw std::runtime_error("A scene can have only one active camera");
 				m_registry.emplace<CameraComponent>(entity, camera);
+
+				if (const YAML::Node orbitNode = cameraNode["orbit"])
+				{
+					if (!orbitNode.IsMap() || !orbitNode["target"])
+						throw std::runtime_error("Camera orbit needs a target: " + id);
+					OrbitCameraComponent orbit;
+					orbit.targetId = orbitNode["target"].as<std::string>();
+					if (orbitNode["distance"])
+						orbit.distance = orbitNode["distance"].as<double>();
+					if (orbitNode["yaw"])
+						orbit.yaw = orbitNode["yaw"].as<double>();
+					if (orbitNode["pitch"])
+						orbit.pitch = orbitNode["pitch"].as<double>();
+					if (orbitNode["minDistance"])
+						orbit.minDistance = orbitNode["minDistance"].as<double>();
+					if (!(orbit.minDistance > 0.0) || !(orbit.distance >= orbit.minDistance))
+						throw std::runtime_error(
+						    "Camera orbit distances must be positive, and the distance at least the "
+						    "minimum: " +
+						    id);
+					pendingTargets.emplace_back(entity, orbit.targetId);
+					m_registry.emplace<OrbitCameraComponent>(entity, std::move(orbit));
+				}
 			}
 
 			if (const YAML::Node lightNode = entityNode["light"])
@@ -143,22 +170,67 @@ void Scene::Load(const std::filesystem::path &path)
 				m_registry.emplace<LightComponent>(entity, light);
 			}
 
+			if (const YAML::Node sunNode = entityNode["sun"])
+			{
+				if (!sunNode.IsMap())
+					throw std::runtime_error("Entity sun must be a mapping: " + id);
+				SunComponent sun;
+				sun.color = ReadVec3(sunNode, "color", sun.color);
+				if (sunNode["intensity"])
+					sun.intensity = sunNode["intensity"].as<float>();
+				if (sun.intensity < 0.0f)
+					throw std::runtime_error("Sun intensity cannot be negative: " + id);
+				if (++sunCount > 1)
+					throw std::runtime_error("A scene can have only one sun");
+				m_registry.emplace<SunComponent>(entity, sun);
+			}
+
+			if (const YAML::Node celestialNode = entityNode["celestial"])
+			{
+				if (!celestialNode.IsMap() || !celestialNode["body"] ||
+				    celestialNode["body"].as<std::string>().empty())
+					throw std::runtime_error("Entity celestial needs a body name: " + id);
+				if (m_starSystemPath.empty())
+					throw std::runtime_error(
+					    "Entity '" + id + "' names a celestial body, but the scene names no system");
+				m_registry.emplace<CelestialBodyComponent>(
+				    entity, celestialNode["body"].as<std::string>());
+			}
+
 			if (const YAML::Node parentNode = entityNode["parent"])
 				pendingParents.emplace_back(entity, parentNode.as<std::string>());
 
 			bool hasMesh = false;
 			if (const YAML::Node meshNode = entityNode["mesh"])
 			{
-				if (!meshNode.IsMap() || !meshNode["model"])
-					throw std::runtime_error("Entity mesh needs a model field: " + id);
+				if (!meshNode.IsMap() || (!meshNode["model"] == !meshNode["shape"]))
+					throw std::runtime_error("Entity mesh needs a model or a shape, not both: " + id);
 
-				const auto modelPath =
-				    (scenePath.parent_path() / meshNode["model"].as<std::string>()).lexically_normal();
-				auto model = LoadModel(modelPath);
-				const bool hasSceneGraph = model->GetRig().HasSceneGraph();
-				m_registry.emplace<MeshComponent>(entity, modelPath, model);
-				if (hasSceneGraph)
-					m_registry.emplace<SkeletonComponent>(entity);
+				if (const YAML::Node shapeNode = meshNode["shape"])
+				{
+					MeshComponent mesh;
+					Shape shape{};
+					if (!ParseShape(shapeNode.as<std::string>(), shape))
+						throw std::runtime_error(
+						    "Entity mesh shape '" + shapeNode.as<std::string>() +
+						    "' is not sphere or box: " + id);
+					mesh.shape = shape;
+					mesh.color = ReadVec3(meshNode, "color", mesh.color);
+					mesh.model = ProceduralModel(shape, mesh.color);
+					m_registry.emplace<MeshComponent>(entity, std::move(mesh));
+				}
+				else
+				{
+					const auto modelPath =
+					    (scenePath.parent_path() / meshNode["model"].as<std::string>())
+					        .lexically_normal();
+					auto model = LoadModel(modelPath);
+					const bool hasSceneGraph = model->GetRig().HasSceneGraph();
+					m_registry.emplace<MeshComponent>(
+					    entity, MeshComponent{modelPath, {}, glm::vec3{1.0f}, model});
+					if (hasSceneGraph)
+						m_registry.emplace<SkeletonComponent>(entity);
+				}
 				hasMesh = true;
 			}
 
@@ -192,7 +264,7 @@ void Scene::Load(const std::filesystem::path &path)
 				if (player.clipName.empty())
 					throw std::runtime_error("Animation clip name cannot be empty: " + id);
 				const auto &mesh = m_registry.get<MeshComponent>(entity);
-				if (!mesh.model->GetRig().HasSkin() ||
+				if (!mesh.model || !mesh.model->GetRig().HasSkin() ||
 				    !mesh.model->GetRig().HasAnimation(player.clipName))
 					throw std::runtime_error(
 					    "glTF skin or animation clip is missing for entity: " + id);
@@ -214,6 +286,13 @@ void Scene::Load(const std::filesystem::path &path)
 			if (parent == entities.end() || parent->second == entity)
 				throw std::runtime_error("Invalid parent '" + parentId + "' in scene");
 			m_registry.emplace<ParentComponent>(entity, parent->second);
+		}
+		for (const auto &[entity, targetId] : pendingTargets)
+		{
+			const auto target = entities.find(targetId);
+			if (target == entities.end() || target->second == entity)
+				throw std::runtime_error("Invalid camera orbit target '" + targetId + "' in scene");
+			m_registry.get<OrbitCameraComponent>(entity).target = target->second;
 		}
 	}
 	catch (...)
@@ -240,6 +319,9 @@ void Scene::Save(const std::filesystem::path &path) const
 
 	YAML::Emitter emitter;
 	emitter << YAML::BeginMap << YAML::Key << "version" << YAML::Value << 1;
+	if (!m_starSystemPath.empty())
+		emitter << YAML::Key << "system" << YAML::Value
+		        << RelativeModelPath(m_starSystemPath, scenePath).generic_string();
 	emitter << YAML::Key << "entities" << YAML::Value << YAML::BeginSeq;
 	for (const entt::entity entity : entities)
 	{
@@ -264,6 +346,29 @@ void Scene::Save(const std::filesystem::path &path) const
 			emitter << YAML::Key << "fov" << YAML::Value << camera->verticalFovDegrees;
 			emitter << YAML::Key << "near" << YAML::Value << camera->nearPlane;
 			emitter << YAML::Key << "active" << YAML::Value << camera->active;
+			if (const auto *orbit = m_registry.try_get<OrbitCameraComponent>(entity))
+			{
+				emitter << YAML::Key << "orbit" << YAML::Value << YAML::BeginMap;
+				emitter << YAML::Key << "target" << YAML::Value << orbit->targetId;
+				emitter << YAML::Key << "distance" << YAML::Value << orbit->distance;
+				emitter << YAML::Key << "yaw" << YAML::Value << orbit->yaw;
+				emitter << YAML::Key << "pitch" << YAML::Value << orbit->pitch;
+				emitter << YAML::Key << "minDistance" << YAML::Value << orbit->minDistance;
+				emitter << YAML::EndMap;
+			}
+			emitter << YAML::EndMap;
+		}
+		if (const auto *sun = m_registry.try_get<SunComponent>(entity))
+		{
+			emitter << YAML::Key << "sun" << YAML::Value << YAML::BeginMap;
+			EmitVec3(emitter, "color", sun->color);
+			emitter << YAML::Key << "intensity" << YAML::Value << sun->intensity;
+			emitter << YAML::EndMap;
+		}
+		if (const auto *celestial = m_registry.try_get<CelestialBodyComponent>(entity))
+		{
+			emitter << YAML::Key << "celestial" << YAML::Value << YAML::BeginMap;
+			emitter << YAML::Key << "body" << YAML::Value << celestial->body;
 			emitter << YAML::EndMap;
 		}
 		if (const auto *light = m_registry.try_get<LightComponent>(entity))
@@ -279,8 +384,16 @@ void Scene::Save(const std::filesystem::path &path) const
 		if (const auto *mesh = m_registry.try_get<MeshComponent>(entity))
 		{
 			emitter << YAML::Key << "mesh" << YAML::Value << YAML::BeginMap;
-			emitter << YAML::Key << "model" << YAML::Value
-			        << RelativeModelPath(mesh->modelPath, scenePath).generic_string();
+			if (mesh->shape)
+			{
+				emitter << YAML::Key << "shape" << YAML::Value << std::string{ShapeName(*mesh->shape)};
+				EmitVec3(emitter, "color", mesh->color);
+			}
+			else
+			{
+				emitter << YAML::Key << "model" << YAML::Value
+				        << RelativeModelPath(mesh->modelPath, scenePath).generic_string();
+			}
 			emitter << YAML::EndMap;
 		}
 		if (const auto *animation = m_registry.try_get<RotationAnimationComponent>(entity))
@@ -337,12 +450,30 @@ void Scene::Destroy()
 	if (m_deviceContext)
 		check_vk_result(m_deviceContext->WaitIdle());
 	m_registry.clear();
+	m_starSystemPath.clear();
 	for (const auto &[path, model] : m_models)
 	{
 		(void)path;
 		model->Destroy();
 	}
 	m_models.clear();
+}
+
+std::shared_ptr<Model> Scene::ProceduralModel(Shape shape, const glm::vec3 &color)
+{
+	// One model per shape and colour, shared by every entity that asks for it, as a model file is.
+	const std::string key = "procedural:" + std::string{ShapeName(shape)} + ":" +
+	                        std::to_string(color.r) + "," + std::to_string(color.g) + "," +
+	                        std::to_string(color.b);
+	if (const auto found = m_models.find(key); found != m_models.end())
+		return found->second;
+	if (!m_deviceContext)
+		throw std::runtime_error("A procedural mesh needs a device to upload to");
+	MeshData mesh = Generate(shape, color);
+	auto model = std::make_shared<Model>(m_deviceContext);
+	model->CreateFromMesh(std::move(mesh.vertices), std::move(mesh.indices), key);
+	m_models.emplace(key, model);
+	return model;
 }
 
 std::shared_ptr<Model> Scene::LoadModel(const std::filesystem::path &path)

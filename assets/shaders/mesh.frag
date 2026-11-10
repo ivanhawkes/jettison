@@ -19,6 +19,16 @@ void main()
 	vec3 normal = normalize(fragNormal);
 	vec3 viewDirection = normalize(-fragRenderPosition);
 	vec3 lit = frame.ambientColor.rgb;
+	// The sun is one direction for the whole frame: a star 150 million kilometres off subtends half
+	// a degree, and its light does not fall off across a station.
+	if (frame.sunDirection.w != 0.0)
+	{
+		vec3 sunDirection = frame.sunDirection.xyz;
+		vec3 halfDirection = normalize(sunDirection + viewDirection);
+		float diffuse = max(dot(normal, sunDirection), 0.0);
+		float specular = pow(max(dot(normal, halfDirection), 0.0), 32.0) * 0.2;
+		lit += frame.sunColorIntensity.rgb * frame.sunColorIntensity.a * (diffuse + specular);
+	}
 	// The stand-in shading: Blinn-Phong with an unbounded falloff, which the clustered BRDF and
 	// finite light ranges of phase 5 retire.
 	for (uint index = 0u; index < frame.counts.x; ++index)

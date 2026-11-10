@@ -510,6 +510,22 @@ void Renderer::WriteFrame(
 		ambientTaken = true;
 	}
 	constants.counts.x = static_cast<uint32_t>(lights.size());
+
+	// The scene loader allows one sun.
+	for (const auto [entity, sun] : sceneRegistry.view<const SunComponent>().each())
+	{
+		glm::dvec3 position{0.0};
+		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
+			position = glm::dvec3(worldTransform->matrix[3]);
+		// The direction is taken in double precision: the sun is a hundred million kilometres
+		// away, and its own offset is too large for a float to subtract from.
+		const glm::dvec3 towards = position - camera.position;
+		if (glm::length(towards) > 0.0)
+		{
+			constants.sunDirection = glm::vec4(glm::vec3{glm::normalize(towards)}, 1.0f);
+			constants.sunColorIntensity = glm::vec4(sun.color, sun.intensity);
+		}
+	}
 	EnsureCapacity(
 	    frame, frame.lights, lights.size() * sizeof(GpuLight), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 	    "light-list");

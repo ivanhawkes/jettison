@@ -15,7 +15,7 @@ trustworthy, are recorded in [history](history.md).
 | 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
 | 2 | **Core.** Done 2026-11-10. Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration), and so are `math` (bounds and intersection tests in float and double, splines, easing, PCG32, noise and tangents), `profile` (Tracy zones, frame marks and plots), `time` (the real and simulation clocks, the fixed-step accumulator, the calendar) and `platform` (XDG paths, the executable path, and the start-up CPU check, five phases early). Two pieces moved to the phase that has a place for them: GPU zones to phase 4, with the pass list, and the app shell's move to `Log.h` to the smoke test's move. | Met: the math and RNG suites pass, the RNG checked against PCG32's published output and its distributions and the noise against recorded values. |
 | 3 | **Runtime architecture.** Done 2026-11-11. Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. Filled in are `reflect` (types, fields, enumerations and attributes over EnTT meta, with registration errors that hold in release builds), `serialise` (YAML and binary archives over it, each tested as a round trip and against data that does not fit), `vfs` (ordered mounts, shadowing, enumeration, and whole-file writes to the user mount), the `jobs` I/O worker, `resource` (handles, reference counts, loads on the worker, hot reload), `ecs` (the scheduler and the state machine), `sim` (the world, commands, saves, events, snapshots and the stepper that runs it from frame time, and the definition registry), `input` (actions, contexts and bindings) and the console and dev tools. The shell's frame is the scheduler's phases, and the scene shows the simulation through proxies interpolated between its last two steps. Three pieces moved to the phase that has a place for them: HOTAS axes and the mouse wheel to phase 7, with flight, and loading rebinds from the user's settings to phase 8, with persistence. | Met: a world stepped from a command stream, saved part-way and loaded, carries on to the same bytes as the original, and its state hash is pinned and the same in Debug, Release and under the sanitisers. The smoke test still renders, through the phases, with validation enabled. |
-| 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, a pass list with compute passes beside graphics ones, the MSAA HDR target and its resolve, per-frame storage buffers, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
+| 4 | **Coordinates and render foundations.** Done 2026-11-11. Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, a pass list with compute passes beside graphics ones, the MSAA HDR target and its resolve, per-frame storage buffers, debug draw, cameras (orbit, chase, cockpit, map). Filled in are `celestial` (frames, Kepler orbits evaluated on rails, body rotation, star systems read from YAML and resolved, and presentation time interpolated between steps) and, in `render`: VMA, with a leak reported at teardown; Vulkan 1.3, dynamic rendering and synchronization2; the declared pass list (`PassList.h`), its barriers derived at start-up; a 4× multisampled RGBA16F target resolved for the output pass; the frame constants, skin palette, light list and debug lines per frame in flight; pipelines by program and render state, with shared GLSL includes; scene transforms in double precision, made camera-relative before they become floats; reversed-Z with an infinite far plane; debug draw; the four camera rigs and eased transitions; procedural spheres and boxes; and the sun in the frame constants. Debug builds run synchronization validation. Two pieces moved: the renderer interface (`IRenderer.h`) to phase 6, with the scene's move out of `render`, since the scene still owns device models ([parked code](architecture.md#parked-code)); and the first compute program on the GPU to phase 5's cluster passes (compute nodes are planned and their barriers tested today). | Met: in `assets/scene/orbit.yaml` a station orbits an Earth-sized planet 150 million km from its star, at real scale. Taken through the engine's path and compared with a double-precision reference for ten seconds of frames at 1080p, the station is within 0.0002 px of where it should be and the planet within 0.004 px, following either one; a pipeline that makes positions floats first is 1,200 px out on the same frames. The smoke test walks that scene and the sample scene with validation, synchronization validation and VMA, and a leaked allocation fails it. |
 | 5 | **Space rendering.** Clustered forward shading: cluster bounds and light assignment in compute, PBR with image-based lighting, the sun, point and spot lights with finite ranges, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
 | 6 | **Star systems and galaxy.** One scene per system, jump transitions, asynchronous loading, scene layers, the spatial index, the jump-lane graph. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
 | 7 | **Physics and flight.** Jolt in double precision, shapes, sensors (docking zones), contact events, ray queries and picking, interpolation of the piloted ship. | A piloted ship collides with a station, docks through a sensor, and is picked with the mouse. |
@@ -361,6 +361,18 @@ System and local frames in double precision, the camera-relative conversion, `Or
 (Keplerian elements, on rails, evaluated at simulation time), planet rotation, and the system
 description (bodies, stations, jump points) loaded from data.
 *Stub*: `Frames.h`, `Orbit.h`, `StarSystem.h`.
+*Filled in* (phase 4): an orbit's mean anomaly is taken from the clock with `fmod`, which is
+exact, so a century-long clock loses nothing to its size, and Kepler's equation is solved by
+Newton's method from a starting point that cannot overshoot (pi, for eccentricities of 0.8 and
+up) with a fixed iteration limit; the position comes with its velocity. The astronomical frame is
+turned onto the engine's Y-up axes. A body's `Rotation` is a sidereal period, an axial tilt and
+a phase. `Resolve` is the one place a system's hierarchy is checked and completed (one primary
+at the origin, parents listed first, eccentricities below 1, a period left out derived from the
+parent's GM), and `ReadStarSystem` and `WriteStarSystem` are its YAML pair. `EvaluateSystem` and
+`EvaluateBody` sum the hierarchy in the same order, so they agree to the bit, and a position is
+pinned to its bits in Debug and Release. `PresentationTime` is the celestial clock's half on the
+presentation side: bodies are evaluated at the time between two steps, not lerped between
+positions. `assets/systems/halcyon.yaml` is the sample system.
 
 ### 17. Render foundations · phase 4 · `engine/render`
 
@@ -369,6 +381,15 @@ Reversed-Z infinite projection. Dynamic rendering and a declared pass list. Debu
 renderer interface the rest of the engine sees, with Vulkan types kept inside
 `render/vulkan`. Fills `IRenderer.h`, an empty placeholder today.
 *Library*: Vulkan Memory Allocator.
+*Filled in* (phase 4): everything above but the interface, which moved to phase 6 with the scene
+(the shell still builds the backend's objects, and the scene loads models through the device).
+The frame is a `PassList` of an opaque pass, into the multisampled target and resolved as it
+ends, and an output pass to the swapchain with the UI over it; `Compile` derives every barrier
+from the passes' declared uses, and a first use in a frame waits on the last use in the frame
+before. Positions reach the GPU camera-relative: the scene's transforms are doubles, and
+`ToRenderSpace` takes the camera off before anything becomes a float. `Camera.h` has the
+reversed-Z infinite projection; `DebugDraw.h` the frame's lines, kept in double precision until
+they are built; `Procedural.h` spheres and boxes for the scenes that need a planet.
 
 This phase lays the ground the clustered forward frame
 ([architecture](architecture.md#rendering-clustered-forward)) stands on, so phase 5 adds passes
@@ -379,9 +400,11 @@ cluster data phase 5 writes.
 
 #### Shaders · phases 4, 5 and 10
 
-Today there is one vertex/fragment pair (`shader.vert`, `shader.frag`), loaded by name in
-`Pipeline::CreateGraphicsPipeline`, and one graphics pipeline built from it. The engine needs a
-set of them, so the pipeline stops being singular before the second shader arrives:
+Phase 4 turned the one vertex/fragment pair and its one pipeline into programs by name: `mesh`,
+`output` (the fullscreen pass from the HDR target) and `debug_line`, found through the asset VFS
+and built by `PipelineCache` for each render state a pass asks for. `shaders/include` holds the
+frame layout (`frame.glsl`, which `FrameData.h` mirrors and asserts), the mesh vertex inputs and
+the colour helpers, and the build tracks each program's includes. The plan, phase by phase:
 
 - **Phase 4** turns the one pipeline into pipelines keyed by shader and render state, created from
   the declared pass list. Shader programs are found by name through the asset tree (the VFS from
@@ -408,6 +431,12 @@ source, not copies of it. Hot reload of shaders arrives with the resource manage
 Orbit (stations, planets), chase and cockpit (piloting), map (system and galaxy, logarithmic
 zoom). Smoothing and transitions use the easing functions. The cinematic camera follows with
 cinematics in phase 11.
+*Filled in* (phase 4), in `CameraRigs.h`, with no device: each rig smooths what the player moves,
+the same at any frame rate, and follows its target exactly, since a station at 7.7 km/s trailed
+by a frame of smoothing would sit 130 m off centre. The chase camera lags its target's rotation,
+never its speed; the map zooms by ratios from 1 km to 10^13 m; `CameraTransition` eases between
+two poses, the second of which may move. A scene's camera can carry an orbit rig
+(`OrbitCameraComponent`), which `UpdateOrbitCameras` runs after the world transforms.
 
 ### 19. Space rendering · phase 5 · `engine/render`
 

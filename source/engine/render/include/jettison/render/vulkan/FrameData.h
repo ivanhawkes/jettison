@@ -15,13 +15,18 @@ struct FrameUBO
 	alignas(16) glm::mat4 view{1.0f};
 	alignas(16) glm::mat4 projection{1.0f};
 	alignas(16) glm::vec4 ambientColor{0.0f};
+	// Towards the sun, normalised, in render space; w is 1 when the scene has one.
+	alignas(16) glm::vec4 sunDirection{0.0f};
+	alignas(16) glm::vec4 sunColorIntensity{0.0f};
 	// x: the lights in the light list.
 	alignas(16) glm::uvec4 counts{0u};
 };
-static_assert(sizeof(FrameUBO) == 160);
+static_assert(sizeof(FrameUBO) == 192);
 static_assert(offsetof(FrameUBO, projection) == 64);
 static_assert(offsetof(FrameUBO, ambientColor) == 128);
-static_assert(offsetof(FrameUBO, counts) == 144);
+static_assert(offsetof(FrameUBO, sunDirection) == 144);
+static_assert(offsetof(FrameUBO, sunColorIntensity) == 160);
+static_assert(offsetof(FrameUBO, counts) == 176);
 
 // One entry of the light list, std430.
 struct GpuLight

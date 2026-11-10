@@ -301,18 +301,22 @@ proves it headlessly. What exists:
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
   `--scene`, `--save-scene`), builds `Application`, and prints any exception the run threw.
-  `Application::Init` stages are window, device and swapchain, scene, pipeline, UI, renderer.
+  `Application::Init` stages are window, device and swapchain, scene (and the star system it
+  names), renderer, UI.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
 - **Smoke sequence**. `SmokeSequence` is the render test's six stages (resize, resize,
   minimize, restore, scene reload, settle) as a state machine driven once per frame through
   five callbacks. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/render`, see [parked code](#parked-code)). An EnTT registry loaded from
-  and saved to YAML (`assets/scene/main.yaml`). It has transform, parent, world-transform,
-  camera, light and mesh components, and the animation module's rotation-animation, skeleton
-  and animation-player components. Authored state and runtime phase are kept apart:
-  `RotationAnimationComponent::angle` and `AnimationPlayerComponent::time` are never saved, and
-  the render suite's round-trip test holds the writer and the loader to that.
+  and saved to YAML (`assets/scene/main.yaml`, and `orbit.yaml` at real scale). It has
+  transform, parent, world-transform, camera, light, sun and mesh components (a glTF model or a
+  procedural sphere or box), celestial bodies placed by the star system the scene names, an orbit
+  camera rig, and the animation module's rotation-animation, skeleton and animation-player
+  components. Translations and world transforms are doubles. Authored state and runtime state
+  are kept apart: `RotationAnimationComponent::angle`, `AnimationPlayerComponent::time`, a
+  body's `PlacementComponent` and a rig's `CameraPoseComponent` are never saved, and the render
+  suite's round-trip tests hold the writer and the loader to that.
 - **Animation** (`engine/animation`). `Rig` is a model's node hierarchy, skin joints and clips,
   with the clip player (`EvaluateSkin`) that used to be inside `Model`; `Playback.h` advances
   the rotation and clip-player components. Nothing in it touches the device, so it is tested

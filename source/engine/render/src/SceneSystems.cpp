@@ -18,6 +18,10 @@ using Animation::SkeletonComponent;
 
 namespace
 {
+glm::dmat4 Finish(
+    entt::entity entity, entt::registry &registry, glm::dmat4 local,
+    std::unordered_map<entt::entity, glm::dmat4> &computed, std::unordered_set<entt::entity> &active);
+
 glm::dmat4 ComputeWorldTransform(
     entt::entity entity, entt::registry &registry,
     std::unordered_map<entt::entity, glm::dmat4> &computed, std::unordered_set<entt::entity> &active)
@@ -31,6 +35,12 @@ glm::dmat4 ComputeWorldTransform(
 	// kilometres out keeps its millimetres.
 	const auto &transform = registry.get<TransformComponent>(entity);
 	glm::dmat4 local{1.0};
+	if (const auto *placement = registry.try_get<PlacementComponent>(entity))
+	{
+		local = glm::translate(local, placement->position) * glm::mat4_cast(placement->orientation);
+		local = glm::scale(local, glm::dvec3{transform.scale});
+		return Finish(entity, registry, local, computed, active);
+	}
 	local = glm::translate(local, transform.translation);
 	// The rotation animation's phase joins the rotation here, and is not accumulated in
 	// TransformComponent: the authored rotation stays authored, so a scene saved from a running
@@ -42,7 +52,13 @@ glm::dmat4 ComputeWorldTransform(
 	local = glm::rotate(local, double{rotation.y}, {0.0, 1.0, 0.0});
 	local = glm::rotate(local, double{rotation.z}, {0.0, 0.0, 1.0});
 	local = glm::scale(local, glm::dvec3{transform.scale});
+	return Finish(entity, registry, local, computed, active);
+}
 
+glm::dmat4 Finish(
+    entt::entity entity, entt::registry &registry, glm::dmat4 local,
+    std::unordered_map<entt::entity, glm::dmat4> &computed, std::unordered_set<entt::entity> &active)
+{
 	if (const auto *parent = registry.try_get<ParentComponent>(entity))
 	{
 		if (!registry.valid(parent->entity))
@@ -81,6 +97,28 @@ void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 	std::unordered_set<entt::entity> active;
 	for (const entt::entity entity : registry.view<TransformComponent>())
 		ComputeWorldTransform(entity, registry, computed, active);
+}
+
+void UpdateOrbitCameras(entt::registry &registry, double deltaTime)
+{
+	for (const auto [entity, orbit] : registry.view<OrbitCameraComponent>().each())
+	{
+		if (!orbit.placed)
+		{
+			OrbitCamera::Settings settings;
+			settings.minDistance = orbit.minDistance;
+			orbit.rig = OrbitCamera{settings};
+			orbit.rig.Place(orbit.yaw, orbit.pitch, orbit.distance);
+			orbit.placed = true;
+		}
+		if (const auto *world = registry.valid(orbit.target)
+		                            ? registry.try_get<WorldTransformComponent>(orbit.target)
+		                            : nullptr)
+			orbit.rig.SetTarget(glm::dvec3{world->matrix[3]});
+		const CameraPose rigPose = orbit.rig.Update(deltaTime);
+		const CameraPose pose = orbit.transition.Update(rigPose, deltaTime);
+		registry.emplace_or_replace<CameraPoseComponent>(entity, pose.position, pose.orientation);
+	}
 }
 
 CameraView ActiveCameraView(const entt::registry &registry)

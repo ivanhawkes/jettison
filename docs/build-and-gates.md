@@ -258,8 +258,11 @@ the run does not depend on a GPU.
 ```
 
 **What it walks.** Six stages, the paths that have hurt this engine: resize, resize, minimize,
-restore, scene reload, settle. Each stage runs four frames, inside a 120-second watchdog. Budget
-60–90 seconds for a run on a workstation, and more on a runner.
+restore, scene reload, settle. Each stage runs four frames, inside a 120-second watchdog. It walks
+them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
+lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
+the star system, under an orbit camera and the sun). Budget about 40 seconds on a workstation,
+and more on a runner.
 
 - **Window size.** The window opens at 1920×1080 normally, but at 640×480 in smoke mode,
   because lavapipe is fill-rate bound.
@@ -274,7 +277,11 @@ restore, scene reload, settle. Each stage runs four frames, inside a 120-second 
 **What it asserts.** The run is judged on what the validation layer says, not only on exit
 status. The debug build loads `VK_LAYER_KHRONOS_validation`, and `DeviceContext` installs a
 `VK_EXT_debug_utils` messenger that names every object. The script captures the stream, and any
-validation error fails the run. The loader's messages about duplicate `VK_LAYER_MESA_*` manifests
+validation error fails the run. Debug builds also turn on the layer's synchronization validation
+(through `VK_EXT_layer_settings`, when the layer offers it), which is what checks the barriers the
+pass list derives: with them weakened, a run reports `SYNC-HAZARD-WRITE-AFTER-READ` and fails. A
+VMA allocation still live at teardown is reported on the same stream as `[vulkan:error]`, naming
+it. The loader's messages about duplicate `VK_LAYER_MESA_*` manifests
 are excluded as the machine talking: on NixOS that is the shell's Mesa against
 `/run/opengl-driver`. Debug-utils entry points are resolved through `vkGetInstanceProcAddr`, so a
 loader without them costs object names, not a link failure.

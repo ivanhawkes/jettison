@@ -200,13 +200,21 @@ run_app() {
 		fi
 		echo "smoke-test: missing shader exits without validation errors"
 	fi
+	# Two scenes, one log: the sample scene (glTF models, a skinned clip, the point light), and the
+	# large-world scene (a station over a planet at real scale, placed by the star system, under an
+	# orbit camera and the sun). Each walks the whole sequence; the run fails if either does.
 	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
-	if "$@" 2>&1 | tee "$app_log"; then
-		status=0
-	else
-		status=${PIPESTATUS[0]}
-		[ "$status" -ne 0 ] || status=1
-	fi
+	status=0
+	for scene in "" "$PWD/assets/scene/orbit.yaml"; do
+		scene_args=()
+		[ -n "$scene" ] && scene_args=(--scene "$scene")
+		echo "smoke-test: scene ${scene:-default}"
+		if ! "$@" ${scene_args[@]+"${scene_args[@]}"} 2>&1 | tee -a "$app_log"; then
+			scene_status=${PIPESTATUS[0]}
+			[ "$scene_status" -ne 0 ] || scene_status=1
+			status=$scene_status
+		fi
+	done
 }
 
 if [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ]; }; then
@@ -254,7 +262,7 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 fi
 
 if [ "$status" -eq 0 ]; then
-	echo "smoke-test: PASS (window resizes, minimize/restore and a scene reload handled, validation enabled)"
+	echo "smoke-test: PASS (two scenes; window resizes, minimize/restore and a scene reload handled, validation enabled)"
 else
 	echo "smoke-test: FAIL (exit $status)" >&2
 fi

@@ -8,6 +8,9 @@ layout(set = 0, binding = 0) uniform FrameConstants
 	mat4 view;
 	mat4 projection;
 	vec4 ambientColor;
+	// The system's directional light: xyz towards it, w 1 when there is one.
+	vec4 sunDirection;
+	vec4 sunColorIntensity;
 	// x: the lights in the light list.
 	uvec4 counts;
 } frame;

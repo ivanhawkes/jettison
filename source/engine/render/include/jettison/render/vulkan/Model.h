@@ -91,6 +91,10 @@ class Model
 	void Destroy();
 
 	void LoadModel(const std::filesystem::path &path);
+	// A model from geometry made in code: one primitive, untextured, with no rig. `name` names
+	// its buffers for the validation layer.
+	void CreateFromMesh(
+	    std::vector<Vertex> vertices, std::vector<uint32_t> indices, const std::string &name);
 
 	// The node hierarchy, skin and clips read from the file, for the clip player in
 	// engine/animation. The model owns them because the glTF loader reads them alongside the
