@@ -14,7 +14,7 @@ trustworthy, are recorded in [history](history.md).
 | 0 | **Plan.** Scope, architecture, roadmap, standards. | These documents are reviewed and agreed. |
 | 1 | **Layout and scaffolding.** Done 2026-11-10. The module tree, `jettison_add_module`, the existing code moved into `core`/`app`/`render`/`animation` (the scene parked in `render`, see [architecture](architecture.md#parked-code)), a stub for every in-scope module, doctest and CTest, `Jettison::Engine` and the consumer check, EnTT at v4.0.0. | Met: the gate is green, every module has a passing suite (25 CTest tests), and `source/test/consumer` links `Jettison::Engine` through FetchContent. The install export waits on its dependencies ([build and gates](build-and-gates.md#consuming-the-engine)). |
 | 2 | **Core.** Done 2026-11-10. Assertions, logging, Tracy, configuration, string IDs, math additions, deterministic RNG, clocks, platform paths. `core` is filled in (logging over spdlog, assertions reported through it, string IDs and hashing pinned to reference values, layered configuration), and so are `math` (bounds and intersection tests in float and double, splines, easing, PCG32, noise and tangents), `profile` (Tracy zones, frame marks and plots), `time` (the real and simulation clocks, the fixed-step accumulator, the calendar) and `platform` (XDG paths, the executable path, and the start-up CPU check, five phases early). Two pieces moved to the phase that has a place for them: GPU zones to phase 4, with the pass list, and the app shell's move to `Log.h` to the smoke test's move. | Met: the math and RNG suites pass, the RNG checked against PCG32's published output and its distributions and the noise against recorded values. |
-| 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
+| 3 | **Runtime architecture.** Scheduler and tick phases, the simulation/presentation split with a command queue, events, the FSM utility, reflection, serialisation, VFS mounts, the resource manager, the definition registry, input actions, the console. In progress: `reflect` is filled in (types, fields, enumerations and attributes over EnTT meta, with registration errors that hold in release builds). | A headless simulation test steps a world from a command stream and round-trips it through a save. The smoke test still renders. |
 | 4 | **Coordinates and render foundations.** Double-precision positions, camera-relative rendering, reversed-Z infinite projection, the celestial clock and on-rails orbits, VMA, linear/HDR colour pipeline, a pass list with compute passes beside graphics ones, the MSAA HDR target and its resolve, per-frame storage buffers, debug draw, cameras (orbit, chase, cockpit, map). | A station orbits a planet at real scale with no visible jitter at the station or at the planet. The smoke test checks validation output with VMA. |
 | 5 | **Space rendering.** Clustered forward shading: cluster bounds and light assignment in compute, PBR with image-based lighting, the sun, point and spot lights with finite ranges, sun shadows, skybox, frustum and horizon culling, instancing, LOD, procedural geometry, KTX2 textures, the material system, tonemapping. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
 | 6 | **Star systems and galaxy.** One scene per system, jump transitions, asynchronous loading, scene layers, the spatial index, the jump-lane graph. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
@@ -161,6 +161,21 @@ whole number of hours ends with a short hour, moments before the epoch are dates
 Registration helpers over EnTT `meta`: types, fields, enums, attributes (saved, editable,
 moddable, console). Used by serialisation, the editor inspector, console variables and the
 definition schema.
+*Stub*: `Reflect.h`.
+*Filled in* (phase 3): `RegisterType<T>(name)` and `RegisterEnum<E>(name)` return builders that
+add fields (member object pointers) and enumerators, each with `Attribute` bits held in EnTT's
+user traits, which leave 15 bits. EnTT keeps a name's pointer rather than a copy, so `Name` has a
+consteval constructor: a name that would dangle does not compile. EnTT's duplicate checks are
+assertions, absent in release, and a field registered twice silently replaces the first, so
+`Reflect` checks itself and throws `RegistrationError` naming the clash: a type registered twice,
+a name already taken, a field or enumerator name used twice in one type, and two names whose
+32-bit hashes collide, tested with a published FNV-1a collision pair. `Resolve` and `FindField`
+compare text as well as the hash for the same reason. `Fields(type, attributes)` lists fields in
+registration order, which is the order an archive writes them in, and `EnumName` and `EnumValue`
+let a file store an enumerator's name rather than its number. Bases are not reflected, because
+components and definitions are plain structs. GLM vectors are not registered here: whether a
+`vec3` is a sequence or a map in YAML is a format decision, and the existing scene format writes
+sequences, so `serialise` owns it.
 
 ### 9. Serialisation · phase 3 · `engine/serialise`
 
