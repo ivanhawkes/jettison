@@ -29,7 +29,8 @@ namespace, a target and a test, and phases 2–11 fill stubs in rather than inve
 
 ## Stubs
 
-Phase 1 writes a stub for every module in the catalogue below. A stub is:
+Phase 1 wrote a stub for every module in the catalogue below; the modules under
+`source/engine/` are the list. A stub is:
 
 - the module's directory, `CMakeLists.txt` and its place in the dependency graph
 - its public header(s), with the main types and functions declared and documented: what they
@@ -38,7 +39,9 @@ Phase 1 writes a stub for every module in the catalogue below. A stub is:
   nothing would be wrong (`JETTISON_NOT_IMPLEMENTED()` from `core`)
 - one doctest test that the module links and its stub behaves as documented
 
-A stub does not invent behaviour the phase that fills it would have to undo.
+A stub does not invent behaviour the phase that fills it would have to undo. Where a stub holds
+configuration it was constructed with (a fixed step, a seed, a mount list), that much is real and
+tested; everything that would need an algorithm throws.
 
 ## System catalogue
 

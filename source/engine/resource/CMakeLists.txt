@@ -1,0 +1,13 @@
+jettison_add_module(resource
+	DEPENDS
+		core
+		jobs
+		vfs
+	HEADERS
+		include/jettison/resource/ResourceHandle.h
+		include/jettison/resource/ResourceManager.h
+	SOURCES
+		src/ResourceManager.cpp
+	TESTS
+		tests/ResourceTests.cpp
+)

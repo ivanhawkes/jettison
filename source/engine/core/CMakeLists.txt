@@ -1,8 +1,14 @@
 jettison_add_module(core
 	HEADERS
 		include/jettison/core/Assert.h
+		include/jettison/core/Config.h
+		include/jettison/core/Handle.h
+		include/jettison/core/Log.h
+		include/jettison/core/StringId.h
 	SOURCES
 		src/Assert.cpp
+		src/Stubs.cpp
 	TESTS
 		tests/AssertTests.cpp
+		tests/StubTests.cpp
 )

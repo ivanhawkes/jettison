@@ -1,0 +1,15 @@
+jettison_add_module(spatial
+	DETERMINISTIC
+	DEPENDS
+		core
+		math
+	HEADERS
+		include/jettison/spatial/SpatialIndex.h
+	SOURCES
+		src/SpatialIndex.cpp
+	TESTS
+		tests/SpatialTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+		EnTT::EnTT
+)

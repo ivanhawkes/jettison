@@ -1,0 +1,13 @@
+jettison_add_module(input
+	DEPENDS
+		core
+		math
+	HEADERS
+		include/jettison/input/Actions.h
+	SOURCES
+		src/Actions.cpp
+	TESTS
+		tests/InputTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+)

@@ -1,0 +1,17 @@
+jettison_add_module(math
+	DEPENDS
+		core
+	HEADERS
+		include/jettison/math/Bounds.h
+		include/jettison/math/Intersect.h
+		include/jettison/math/Spline.h
+		include/jettison/math/Easing.h
+		include/jettison/math/Random.h
+		include/jettison/math/Noise.h
+	SOURCES
+		src/Math.cpp
+	TESTS
+		tests/MathTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+)

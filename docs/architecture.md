@@ -6,9 +6,10 @@ built; the [roadmap](roadmap.md) says in what order.
 
 ## Repository layout
 
-The target layout. Phase 1 of the roadmap moved the existing code into it (`core`, `animation`,
-`render`, `app`, the executables under `tools/` and `samples/`) and stubs every other in-scope
-module.
+The layout as built. Phase 1 of the roadmap moved the existing code into it (`core`,
+`animation`, `render`, `app`, the executables under `tools/` and `samples/`) and stubbed every
+other in-scope module: each has its directory, target, public headers and a passing test, and
+every function that needs an algorithm throws `JETTISON_NOT_IMPLEMENTED()` until its phase.
 
 ```
 jettison/

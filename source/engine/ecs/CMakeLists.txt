@@ -1,0 +1,14 @@
+jettison_add_module(ecs
+	DEPENDS
+		core
+		reflect
+	HEADERS
+		include/jettison/ecs/Scheduler.h
+		include/jettison/ecs/StateMachine.h
+	SOURCES
+		src/Scheduler.cpp
+	TESTS
+		tests/EcsTests.cpp
+	PUBLIC_LIBRARIES
+		EnTT::EnTT
+)

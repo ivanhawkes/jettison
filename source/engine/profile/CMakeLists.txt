@@ -1,0 +1,10 @@
+jettison_add_module(profile
+	DEPENDS
+		core
+	HEADERS
+		include/jettison/profile/Profile.h
+	SOURCES
+		src/Profile.cpp
+	TESTS
+		tests/ProfileTests.cpp
+)

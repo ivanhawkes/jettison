@@ -1,0 +1,17 @@
+jettison_add_module(sim
+	DETERMINISTIC
+	DEPENDS
+		core
+		math
+		time
+		ecs
+		serialise
+	HEADERS
+		include/jettison/sim/CommandQueue.h
+		include/jettison/sim/SimWorld.h
+		include/jettison/sim/DefinitionRegistry.h
+	SOURCES
+		src/Sim.cpp
+	TESTS
+		tests/SimTests.cpp
+)

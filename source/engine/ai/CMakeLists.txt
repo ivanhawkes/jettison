@@ -1,0 +1,20 @@
+jettison_add_module(ai
+	DETERMINISTIC
+	DEPENDS
+		core
+		math
+		sim
+		spatial
+	HEADERS
+		include/jettison/ai/UtilityAi.h
+		include/jettison/ai/BehaviourTree.h
+		include/jettison/ai/Pathfinding.h
+		include/jettison/ai/Steering.h
+	SOURCES
+		src/Ai.cpp
+	TESTS
+		tests/AiTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+		EnTT::EnTT
+)

@@ -1,0 +1,12 @@
+jettison_add_module(ui
+	DEPENDS
+		core
+		resource
+		input
+	HEADERS
+		include/jettison/ui/UiSystem.h
+	SOURCES
+		src/UiSystem.cpp
+	TESTS
+		tests/UiTests.cpp
+)

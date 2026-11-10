@@ -1,0 +1,16 @@
+jettison_add_module(physics
+	DETERMINISTIC
+	DEPENDS
+		core
+		math
+		sim
+	HEADERS
+		include/jettison/physics/PhysicsWorld.h
+	SOURCES
+		src/PhysicsWorld.cpp
+	TESTS
+		tests/PhysicsTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+		EnTT::EnTT
+)

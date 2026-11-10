@@ -1,0 +1,14 @@
+jettison_add_module(audio
+	DEPENDS
+		core
+		math
+		resource
+	HEADERS
+		include/jettison/audio/AudioSystem.h
+	SOURCES
+		src/AudioSystem.cpp
+	TESTS
+		tests/AudioTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+)

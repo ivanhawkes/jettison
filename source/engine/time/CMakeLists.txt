@@ -1,0 +1,12 @@
+jettison_add_module(time
+	DEPENDS
+		core
+	HEADERS
+		include/jettison/time/Clock.h
+		include/jettison/time/FixedStep.h
+		include/jettison/time/Calendar.h
+	SOURCES
+		src/Time.cpp
+	TESTS
+		tests/TimeTests.cpp
+)

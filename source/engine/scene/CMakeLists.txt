@@ -1,0 +1,14 @@
+jettison_add_module(scene
+	DEPENDS
+		core
+		ecs
+		resource
+		serialise
+		celestial
+	HEADERS
+		include/jettison/scene/SystemScene.h
+	SOURCES
+		src/SystemScene.cpp
+	TESTS
+		tests/SceneTests.cpp
+)

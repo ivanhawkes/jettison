@@ -1,0 +1,11 @@
+jettison_add_module(platform
+	DEPENDS
+		core
+	HEADERS
+		include/jettison/platform/Paths.h
+		include/jettison/platform/Cpu.h
+	SOURCES
+		src/Platform.cpp
+	TESTS
+		tests/PlatformTests.cpp
+)

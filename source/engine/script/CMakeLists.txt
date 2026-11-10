@@ -1,0 +1,11 @@
+jettison_add_module(script
+	DEPENDS
+		core
+		vfs
+	HEADERS
+		include/jettison/script/ScriptHost.h
+	SOURCES
+		src/ScriptHost.cpp
+	TESTS
+		tests/ScriptTests.cpp
+)

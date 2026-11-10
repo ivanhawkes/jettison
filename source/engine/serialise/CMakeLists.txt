@@ -1,0 +1,12 @@
+jettison_add_module(serialise
+	DEPENDS
+		core
+		reflect
+		vfs
+	HEADERS
+		include/jettison/serialise/Archive.h
+	SOURCES
+		src/Archive.cpp
+	TESTS
+		tests/SerialiseTests.cpp
+)

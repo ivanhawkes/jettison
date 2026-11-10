@@ -1,0 +1,12 @@
+jettison_add_module(reflect
+	DEPENDS
+		core
+	HEADERS
+		include/jettison/reflect/Reflect.h
+	SOURCES
+		src/Reflect.cpp
+	TESTS
+		tests/ReflectTests.cpp
+	PUBLIC_LIBRARIES
+		EnTT::EnTT
+)

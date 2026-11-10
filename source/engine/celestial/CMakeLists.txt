@@ -1,0 +1,17 @@
+jettison_add_module(celestial
+	DETERMINISTIC
+	DEPENDS
+		core
+		math
+		time
+	HEADERS
+		include/jettison/celestial/Frames.h
+		include/jettison/celestial/Orbit.h
+		include/jettison/celestial/StarSystem.h
+	SOURCES
+		src/Celestial.cpp
+	TESTS
+		tests/CelestialTests.cpp
+	PUBLIC_LIBRARIES
+		glm
+)

@@ -1,0 +1,11 @@
+jettison_add_module(vfs
+	DEPENDS
+		core
+	HEADERS
+		include/jettison/vfs/Mount.h
+		include/jettison/vfs/FileSystem.h
+	SOURCES
+		src/FileSystem.cpp
+	TESTS
+		tests/VfsTests.cpp
+)
