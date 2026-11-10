@@ -6,7 +6,9 @@
 
 #include <iostream>
 #include <memory>
+#include <span>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include <jettison/profile/Profile.h>
@@ -50,11 +52,22 @@ Application::Application(AppArguments arguments, std::string windowTitle)
     : m_arguments{std::move(arguments)}, m_windowTitle{std::move(windowTitle)}
 {
 	m_toggleUi = m_input.DefineAction("toggle_ui", Input::ActionType::Button);
+	m_toggleConsole = m_input.DefineAction("toggle_console", Input::ActionType::Button);
 	m_back = m_input.DefineAction("back", Input::ActionType::Button);
 	m_input.DefineContext("shell");
-	m_input.Bind("shell", m_toggleUi, {Input::Keys::F1});
-	m_input.Bind("shell", m_back, {Input::Keys::Escape});
+	m_input.DefineContext("console", true);
+	for (const char *context : {"shell", "console"})
+	{
+		m_input.Bind(context, m_toggleUi, {Input::Keys::F1});
+		m_input.Bind(context, m_toggleConsole, {Input::Keys::GraveAccent});
+		m_input.Bind(context, m_back, {Input::Keys::Escape});
+	}
 	m_input.PushContext("shell");
+
+	m_console.CaptureLog();
+	m_console.RegisterCommand(
+	    "quit", "Closes the window and ends the run",
+	    [this](DevTools::Console &, std::span<const std::string>) { RequestClose(); });
 }
 
 
@@ -90,9 +103,11 @@ void Application::Init()
 	InitPipeline();
 	InitUI();
 	InitRenderer();
-	// The headless run renders the demo window: the UI path is part of what the render test
-	// exercises, and an interactive run starts without it and asks for it with F1.
+	// The headless run renders the dev tools, the demo window and the console: the UI path is part of
+	// what the render test exercises, and an interactive run starts without it and asks for it with F1.
 	m_showUI = m_arguments.smokeTest;
+	m_devTools.showDemo = m_arguments.smokeTest;
+	m_devTools.showConsole = m_arguments.smokeTest;
 	m_state = State::Ready;
 }
 
@@ -180,7 +195,9 @@ void Application::Tick()
 
 	m_pImGuiRenderer->BeginFrame();
 	if (m_showUI)
-		m_pImGuiRenderer->ShowDemoWindow(&m_showUI);
+		DevTools::DrawDevTools(m_console, m_devTools, &m_showUI);
+	else if (m_devTools.showConsole)
+		DevTools::DrawConsole(m_console, m_devTools.console, &m_devTools.showConsole);
 	m_pImGuiRenderer->EndFrame();
 
 	// The answer says whether this frame recreated the swapchain, which is the only sign of a
@@ -204,22 +221,44 @@ void Application::Tick()
 void Application::PollInput()
 {
 	m_glfwInput.Feed(m_pWindow->GetGLFWWindow(), m_input);
+	// The console may have been closed by its window's own button last frame.
+	SyncConsoleContext();
 	m_input.Poll();
 
 	// On the press edge, not the level: a held key is one action, not every frame's action, and
 	// the frame loop runs faster than a hand.
 	if (m_input.WasPressedThisFrame(m_toggleUi))
 		m_showUI = !m_showUI;
+	if (m_input.WasPressedThisFrame(m_toggleConsole))
+	{
+		m_devTools.showConsole = !m_devTools.showConsole;
+		m_devTools.console.focusInput = m_devTools.showConsole;
+	}
 
-	// Escape closes the UI before it closes the window, so the key that dismisses a panel is not
-	// the key that ends the run.
+	// Escape closes what is open before it closes the window, so the key that dismisses a panel
+	// is not the key that ends the run.
 	if (m_input.WasPressedThisFrame(m_back))
 	{
-		if (m_showUI)
+		if (m_devTools.showConsole)
+			m_devTools.showConsole = false;
+		else if (m_showUI)
 			m_showUI = false;
 		else
 			RequestClose();
 	}
+	SyncConsoleContext();
+}
+
+
+void Application::SyncConsoleContext()
+{
+	if (m_devTools.showConsole == m_consoleContext)
+		return;
+	if (m_devTools.showConsole)
+		m_input.PushContext("console");
+	else
+		m_input.PopContext();
+	m_consoleContext = m_devTools.showConsole;
 }
 
 

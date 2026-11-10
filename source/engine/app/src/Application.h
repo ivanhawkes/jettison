@@ -5,6 +5,8 @@
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
+#include <jettison/devtools/Console.h>
+#include <jettison/devtools/Views.h>
 #include <jettison/input/Actions.h>
 #include <jettison/render/SceneSystems.h>
 #include <jettison/time/Clock.h>
@@ -79,6 +81,8 @@ class Application
 	void RunFrameLoop();
 	void Tick();
 	void PollInput();
+	// Pushes or pops the console's input context to match whether the console is open.
+	void SyncConsoleContext();
 
 	void RequestClose();
 
@@ -120,15 +124,23 @@ class Application
 	Time::RealClock m_frameClock;
 
 	// The shell's own actions, in a "shell" context at the bottom of the stack: F1 toggles the
-	// demo window and Escape dismisses it, then closes the window. Defined in the constructor, so
-	// they exist before Init and need no window.
+	// dev tools, ` the console, and Escape closes the console, then the dev tools, then the
+	// window. Defined in the constructor, so they exist before Init and need no window. While the
+	// console is open its opaque context is on top, binding the same three, so nothing below sees
+	// the keys typed into it.
 	Input::InputSystem m_input;
 	Input::ActionId m_toggleUi;
+	Input::ActionId m_toggleConsole;
 	Input::ActionId m_back;
 	GlfwInput m_glfwInput;
+	bool m_consoleContext{false};
 
-	// The demo window. On by default in the headless run, because a run that renders an ImGui
-	// window exercises the UI path in the render test.
+	// The console captures the log from construction, so start-up's messages are in it.
+	DevTools::Console m_console;
+	DevTools::DevToolsState m_devTools;
+
+	// The dev tools window. On by default in the headless run, with the demo and the console,
+	// because a run that renders ImGui windows exercises the UI path in the render test.
 	bool m_showUI{false};
 };
 } // namespace Jettison::App

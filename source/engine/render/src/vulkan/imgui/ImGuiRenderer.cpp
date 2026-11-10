@@ -99,12 +99,6 @@ void ImGuiRenderer::BeginFrame()
 }
 
 
-void ImGuiRenderer::ShowDemoWindow(bool *show)
-{
-	ImGui::ShowDemoWindow(show);
-}
-
-
 void ImGuiRenderer::EndFrame()
 {
 	ImGui::Render();

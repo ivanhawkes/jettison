@@ -5,6 +5,7 @@
 jettison_add_module(app
 	DEPENDS
 		core
+		devtools
 		input
 		platform
 		profile

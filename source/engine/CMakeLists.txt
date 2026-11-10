@@ -32,6 +32,7 @@ add_subdirectory(render)
 add_subdirectory(physics)
 add_subdirectory(audio)
 add_subdirectory(ui)
+add_subdirectory(ui/imgui)
 add_subdirectory(ai)
 add_subdirectory(script)
 

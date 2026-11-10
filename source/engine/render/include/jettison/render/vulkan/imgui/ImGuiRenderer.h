@@ -31,7 +31,6 @@ class ImGuiRenderer
 	void Destroy();
 
 	void BeginFrame();
-	void ShowDemoWindow(bool *show);
 	void EndFrame();
 	void RenderDrawData(VkCommandBuffer commandBuffer) const;
 
