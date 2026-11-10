@@ -1,0 +1,60 @@
+# A sample system at real scale: a Sun-like star, an Earth-like planet with a moon, a station in
+# low orbit and a jump point. SI units: metres, seconds, radians, GM in m^3/s^2. A period left out
+# is derived from the parent's gravitational parameter.
+version: 1
+name: Halcyon
+bodies:
+  - name: Halcyon
+    kind: Star
+    radius: 6.957e8
+    gravitationalParameter: 1.32712440018e20
+    rotation:
+      period: 2192832
+      axialTilt: 0.1265
+  - name: Ostra
+    kind: Planet
+    parent: Halcyon
+    radius: 6.371e6
+    gravitationalParameter: 3.986004418e14
+    orbit:
+      semiMajorAxis: 1.496e11
+      eccentricity: 0.0167
+      inclination: 0.0
+      longitudeOfAscendingNode: 0.0
+      argumentOfPeriapsis: 1.7967
+      meanAnomalyAtEpoch: 6.2400
+    rotation:
+      period: 86164.0905
+      axialTilt: 0.4091
+  - name: Ostra Highport
+    kind: Station
+    parent: Ostra
+    radius: 60
+    orbit:
+      semiMajorAxis: 6.791e6
+      eccentricity: 0.0005
+      inclination: 0.9006
+      longitudeOfAscendingNode: 1.2
+      argumentOfPeriapsis: 0.4
+      meanAnomalyAtEpoch: 0.0
+  - name: Pell
+    kind: Moon
+    parent: Ostra
+    radius: 1.7374e6
+    gravitationalParameter: 4.9048695e12
+    orbit:
+      semiMajorAxis: 3.844e8
+      eccentricity: 0.0549
+      inclination: 0.0898
+      longitudeOfAscendingNode: 2.1831
+      argumentOfPeriapsis: 5.5528
+      meanAnomalyAtEpoch: 2.3554
+    rotation:
+      period: 2360591.5
+      axialTilt: 0.0269
+  - name: Halcyon Gate
+    kind: JumpPoint
+    parent: Halcyon
+    orbit:
+      semiMajorAxis: 4.0e11
+      meanAnomalyAtEpoch: 1.0
