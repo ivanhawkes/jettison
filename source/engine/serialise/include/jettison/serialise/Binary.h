@@ -66,8 +66,13 @@ class BinaryReader
 		entt::meta_any reference = entt::forward_as_meta(value);
 		ReadValue(reference);
 	}
+	// The bytes not read yet: a bound on a count read from the data, before anything is
+	// allocated for it.
+	std::size_t Remaining() const;
 	// Throws FormatError if bytes are left over.
 	void End() const;
+	// Throws FormatError naming the problem and where the reader is: for a caller's own checks.
+	[[noreturn]] void Fail(std::string_view problem) const;
 
   private:
 	struct Impl;

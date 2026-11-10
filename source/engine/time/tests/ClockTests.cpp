@@ -76,3 +76,18 @@ TEST_CASE("SimClock: a paused clock can still be single-stepped")
 	CHECK(clock.Step() == 1);
 	CHECK(clock.Now() == 0.25);
 }
+
+TEST_CASE("SimClock: a restored clock carries on from the step and time it was given")
+{
+	SimClock clock;
+	for (int step = 0; step < 7; ++step)
+		clock.Advance(0.1);
+	SimClock restored;
+	restored.Restore(clock.Step(), clock.Now());
+	clock.Advance(0.1);
+	restored.Advance(0.1);
+	CHECK(restored.Step() == clock.Step());
+	// Bit for bit: eight additions of 0.1 are not 0.8.
+	CHECK(restored.Now() == clock.Now());
+	CHECK(restored.Now() != 0.8);
+}

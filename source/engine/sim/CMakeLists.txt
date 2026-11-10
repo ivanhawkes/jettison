@@ -5,13 +5,17 @@ jettison_add_module(sim
 		math
 		time
 		ecs
+		reflect
 		serialise
+		vfs
 	HEADERS
 		include/jettison/sim/CommandQueue.h
 		include/jettison/sim/SimWorld.h
 		include/jettison/sim/DefinitionRegistry.h
 	SOURCES
-		src/Sim.cpp
+		src/CommandQueue.cpp
+		src/DefinitionRegistry.cpp
+		src/SimWorld.cpp
 	TESTS
 		tests/SimTests.cpp
 )

@@ -34,6 +34,13 @@ void SimClock::SetPaused(bool paused)
 	m_paused = paused;
 }
 
+void SimClock::Restore(std::uint64_t step, double now)
+{
+	JETTISON_VERIFY(std::isfinite(now) && now >= 0.0);
+	m_step = step;
+	m_now = now;
+}
+
 void SimClock::SetCompression(double factor)
 {
 	JETTISON_VERIFY(std::isfinite(factor) && factor > 0.0);

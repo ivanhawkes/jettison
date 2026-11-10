@@ -68,6 +68,9 @@ class SimClock
 	}
 
 	void SetPaused(bool paused);
+	// Where a loaded save left the clock: its step and its time, the time as the bits that were
+	// saved, since the sum of the steps that made it is not step * fixedStep in floating point.
+	void Restore(std::uint64_t step, double now);
 	// 1 is real time. Must be positive and finite; pausing is SetPaused, not a factor of 0. Refused
 	// near stations and other ships by the game, not here.
 	void SetCompression(double factor);

@@ -1,36 +1,49 @@
 #pragma once
 
+#include <entt/entt.hpp>
+
+#include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <utility>
 #include <vector>
 
 namespace Jettison::Sim
 {
 // A command from presentation to the simulation: "buy 40 units at 1,200", "set throttle". The
-// game defines the concrete commands; the engine carries them, stamps the step they are applied
-// on, and records them for replays. Commands are applied at the start of a step, in the order
-// they were queued.
-class Command
+// game defines each command as a plain struct registered with Reflect, its Saved fields what it
+// carries, and registers how the world applies it (SimWorld::RegisterCommand). Being reflected is
+// what lets a command be saved with the world, recorded for a replay and, later, sent over a
+// network.
+
+// A command as it was applied: the step it was applied at the start of, and the command.
+struct AppliedCommand
 {
-  public:
-	virtual ~Command() = default;
-	std::uint64_t appliedOnStep{0};
+	std::uint64_t step{0};
+	entt::meta_any command;
 };
 
 // The seam between presentation and simulation, and the seam for replays, automated tests and
-// any later networking (docs/architecture.md, "Simulation and presentation"). Filled in phase 3.
+// any later networking (docs/architecture.md, "Simulation and presentation"). Commands are applied
+// at the start of the next step, in the order they were pushed.
 class CommandQueue
 {
   public:
-	void Push(std::unique_ptr<Command> command);
-	// Everything queued since the last Drain, in order, for the step about to run.
-	std::vector<std::unique_ptr<Command>> Drain();
-	std::size_t Pending() const
+	template <typename T> void Push(T command)
 	{
-		return m_pending.size();
+		Push(entt::meta_any{std::move(command)});
+	}
+	// Throws std::logic_error for an empty value. Whether the world can apply it is checked when
+	// the step that applies it starts.
+	void Push(entt::meta_any command);
+
+	// Everything queued since the last Drain, in order, for the step about to run.
+	std::vector<entt::meta_any> Drain();
+	const std::vector<entt::meta_any> &Pending() const
+	{
+		return m_pending;
 	}
 
   private:
-	std::vector<std::unique_ptr<Command>> m_pending;
+	std::vector<entt::meta_any> m_pending;
 };
 } // namespace Jettison::Sim

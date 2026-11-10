@@ -235,6 +235,11 @@ class Reader
 			throw FormatVersionError{root, version, expected.version};
 	}
 
+	std::size_t Remaining() const
+	{
+		return m_bytes.size() - m_offset;
+	}
+
 	void End() const
 	{
 		if (m_offset != m_bytes.size())
@@ -468,6 +473,16 @@ std::string_view BinaryReader::ReadName()
 void BinaryReader::ReadValue(entt::meta_any &value)
 {
 	m_pImpl->reader.Value(value);
+}
+
+std::size_t BinaryReader::Remaining() const
+{
+	return m_pImpl->reader.Remaining();
+}
+
+void BinaryReader::Fail(std::string_view problem) const
+{
+	m_pImpl->reader.Fail(problem);
 }
 
 void BinaryReader::End() const
