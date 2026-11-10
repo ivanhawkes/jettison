@@ -14,6 +14,7 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
 #include <jettison/time/Clock.h>
+#include <jettison/vfs/FileSystem.h>
 
 #include "GlfwInput.h"
 
@@ -21,7 +22,6 @@ namespace Jettison::Render
 {
 class DeviceContext;
 class ImGuiRenderer;
-class Pipeline;
 class Renderer;
 class Scene;
 class Swapchain;
@@ -77,9 +77,8 @@ class Application
 	void InitWindow();
 	void InitVulkan();
 	void InitScene();
-	void InitPipeline();
-	void InitUI();
 	void InitRenderer();
+	void InitUI();
 
 	// The frame's systems, one or two to a phase; registered in the constructor, so a mistake in
 	// the order is a start-up error, before a window opens.
@@ -107,13 +106,16 @@ class Application
 	std::string m_windowTitle;
 	State m_state{State::Uninitialised};
 
+	// The asset tree: the asset directory as the base mount. The renderer finds its shader programs
+	// through it, so a mount added above the base can replace one.
+	Vfs::FileSystem m_assets;
+
 	// The subsystems, in the order Init builds them. Shared pointers where a subsystem is handed
 	// to more than one of its neighbours - the device context to all of them, the window to the
 	// device context and the renderer - and the shell holds the last reference to the rest.
 	std::shared_ptr<Render::Window> m_pWindow;
 	std::shared_ptr<Render::DeviceContext> m_pDeviceContext;
 	std::shared_ptr<Render::Swapchain> m_pSwapchain;
-	std::shared_ptr<Render::Pipeline> m_pPipeline;
 	std::shared_ptr<Render::Renderer> m_pRenderer;
 	std::unique_ptr<Render::ImGuiRenderer> m_pImGuiRenderer;
 	std::unique_ptr<Render::Scene> m_scene;

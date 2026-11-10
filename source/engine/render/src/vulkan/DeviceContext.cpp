@@ -157,6 +157,31 @@ void DeviceContext::CreateInstance()
 		createInfo.pNext = &messengerInfo;
 	}
 
+	// Synchronization validation, on top of the layer's default checks, which do not look at
+	// barriers at all: the pass list derives every barrier in the frame, and this is what reports
+	// one that is missing or too weak (a read racing a write, a layout used before its
+	// transition) in the run the smoke test reads. It costs CPU time in the layer, which only a
+	// Debug build pays. The setting goes through VK_EXT_layer_settings, which the layer itself
+	// provides, so it is asked for only when the layer offers it.
+	const VkBool32 validateSync = VK_TRUE;
+	VkLayerSettingEXT syncSetting{};
+	syncSetting.pLayerName = validationLayers[0];
+	syncSetting.pSettingName = "validate_sync";
+	syncSetting.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT;
+	syncSetting.valueCount = 1;
+	syncSetting.pValues = &validateSync;
+	VkLayerSettingsCreateInfoEXT layerSettings{};
+	layerSettings.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT;
+	layerSettings.settingCount = 1;
+	layerSettings.pSettings = &syncSetting;
+	if (kEnableValidationLayers &&
+	    HasInstanceExtension(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME, validationLayers[0]))
+	{
+		extensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+		layerSettings.pNext = createInfo.pNext;
+		createInfo.pNext = &layerSettings;
+	}
+
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
 	createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -199,12 +224,12 @@ void DeviceContext::CreateInstance()
 }
 
 
-bool DeviceContext::HasInstanceExtension(const char *name) const
+bool DeviceContext::HasInstanceExtension(const char *name, const char *layer) const
 {
 	uint32_t count = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+	vkEnumerateInstanceExtensionProperties(layer, &count, nullptr);
 	std::vector<VkExtensionProperties> available(count);
-	vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
+	vkEnumerateInstanceExtensionProperties(layer, &count, available.data());
 	for (const auto &extension : available)
 		if (strcmp(extension.extensionName, name) == 0)
 			return true;
@@ -402,11 +427,19 @@ bool DeviceContext::IsDeviceSuitable(VkPhysicalDevice device)
 		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 	}
 
-	VkPhysicalDeviceFeatures supportedFeatures;
-	vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+	VkPhysicalDeviceProperties properties{};
+	vkGetPhysicalDeviceProperties(device, &properties);
+	VkPhysicalDeviceVulkan13Features features13{};
+	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	VkPhysicalDeviceFeatures2 features{};
+	features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	features.pNext = &features13;
+	if (properties.apiVersion >= kApiVersion)
+		vkGetPhysicalDeviceFeatures2(device, &features);
 
 	return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-	       supportedFeatures.samplerAnisotropy;
+	       properties.apiVersion >= kApiVersion && features.features.samplerAnisotropy &&
+	       features13.dynamicRendering && features13.synchronization2;
 }
 
 
@@ -435,7 +468,8 @@ void DeviceContext::PickPhysicalDevice()
 
 	if (m_physicalDevice == VK_NULL_HANDLE)
 	{
-		throw std::runtime_error("failed to find a suitable GPU");
+		throw std::runtime_error(
+		    "failed to find a suitable GPU (Vulkan 1.3 with dynamic rendering and synchronization2)");
 	}
 }
 
@@ -459,15 +493,20 @@ void DeviceContext::CreateLogicalDevice()
 		queueCreateInfos.push_back(queueCreateInfo);
 	}
 
-	VkPhysicalDeviceFeatures deviceFeatures{};
-	deviceFeatures.samplerAnisotropy = VK_TRUE;
+	VkPhysicalDeviceVulkan13Features features13{};
+	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	features13.dynamicRendering = VK_TRUE;
+	features13.synchronization2 = VK_TRUE;
+	VkPhysicalDeviceFeatures2 deviceFeatures{};
+	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	deviceFeatures.pNext = &features13;
+	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.pNext = &deviceFeatures;
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
-	createInfo.pEnabledFeatures = &deviceFeatures;
 
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	createInfo.ppEnabledExtensionNames = deviceExtensions.data();
@@ -631,21 +670,9 @@ VkSampleCountFlagBits DeviceContext::GetMaxUsableSampleCount()
 
 	VkSampleCountFlags counts = physicalDeviceProperties.limits.framebufferColorSampleCounts &
 	                            physicalDeviceProperties.limits.framebufferDepthSampleCounts;
-	if (counts & VK_SAMPLE_COUNT_64_BIT)
+	if (counts & kMaxMsaaSamples)
 	{
-		return VK_SAMPLE_COUNT_64_BIT;
-	}
-	if (counts & VK_SAMPLE_COUNT_32_BIT)
-	{
-		return VK_SAMPLE_COUNT_32_BIT;
-	}
-	if (counts & VK_SAMPLE_COUNT_16_BIT)
-	{
-		return VK_SAMPLE_COUNT_16_BIT;
-	}
-	if (counts & VK_SAMPLE_COUNT_8_BIT)
-	{
-		return VK_SAMPLE_COUNT_8_BIT;
+		return kMaxMsaaSamples;
 	}
 	if (counts & VK_SAMPLE_COUNT_4_BIT)
 	{
@@ -684,8 +711,15 @@ VkImageView DeviceContext::CreateImageView(
 }
 
 
-VkShaderModule DeviceContext::CreateShaderModule(const std::vector<char> &code)
+VkShaderModule DeviceContext::CreateShaderModule(
+    std::span<const std::byte> code, const std::string &name)
 {
+	// SPIR-V is a stream of 32-bit words, and pCode is read as one: a file whose size is not a
+	// whole number of words is not SPIR-V, and the storage it came in has to be aligned for them
+	// (the VFS reads into a std::vector, whose storage comes from operator new).
+	if (code.size() % sizeof(uint32_t) != 0 ||
+	    reinterpret_cast<std::uintptr_t>(code.data()) % alignof(uint32_t) != 0)
+		throw std::runtime_error("shader module '" + name + "' is not SPIR-V");
 	VkShaderModuleCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	createInfo.codeSize = code.size();
@@ -694,7 +728,7 @@ VkShaderModule DeviceContext::CreateShaderModule(const std::vector<char> &code)
 	VkShaderModule shaderModule;
 	if (vkCreateShaderModule(m_logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
 	{
-		throw std::runtime_error("failed to create shader module");
+		throw std::runtime_error("failed to create shader module '" + name + "'");
 	}
 
 	return shaderModule;

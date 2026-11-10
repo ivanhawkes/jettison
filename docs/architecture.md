@@ -317,10 +317,18 @@ proves it headlessly. What exists:
   with the clip player (`EvaluateSkin`) that used to be inside `Model`; `Playback.h` advances
   the rotation and clip-player components. Nothing in it touches the device, so it is tested
   without one.
-- **Vulkan backend** (`engine/render/.../vulkan`). `DeviceContext` holds the instance, device,
-  debug-utils messenger and object names. Then `Swapchain`, `Pipeline` (one graphics pipeline,
-  descriptor pools sized from what is allocated), `Renderer` (acquire, record, submit, then
-  `Present`), and `Model` (fastgltf loading of vertices, primitives and the rig). There is one
-  vertex/fragment shader pair. It is already forward shading, with one light in the frame UBO:
-  the starting point the [clustered forward](#rendering-clustered-forward) frame grows from.
+- **Vulkan backend** (`engine/render/.../vulkan`), on Vulkan 1.3. `DeviceContext` holds the
+  instance, device, debug-utils messenger (with synchronization validation in Debug), object
+  names, and the VMA allocator every buffer and image comes from. `Swapchain` prefers an sRGB
+  format and owns its image views. `Renderer` runs the frame as a declared pass list
+  (`render/PassList.h`): an opaque pass into a 4× multisampled RGBA16F target, resolved into a
+  single-sampled one as the pass ends, then an output pass that applies exposure on its way to
+  the swapchain and draws the UI over it. The barriers between passes are derived from each
+  pass's declared uses once, at start-up, and recorded with dynamic rendering and
+  synchronization2. The frame constants, skin palette, light list and command buffer exist once
+  per frame in flight. `PipelineCache` makes pipelines by program name and render state, with the
+  programs found through the asset VFS; `MaterialCache` holds each primitive's texture and set;
+  `Model` loads glTF through fastgltf. The mesh program is still the stand-in forward shading
+  that the [clustered forward](#rendering-clustered-forward) frame grows from, now reading its
+  lights from a storage buffer.
 - **ImGui** for a demo window, toggled with F1.

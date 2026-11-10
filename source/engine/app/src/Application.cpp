@@ -15,7 +15,6 @@
 #include <jettison/profile/Profile.h>
 #include <jettison/render/Scene.h>
 #include <jettison/render/vulkan/DeviceContext.h>
-#include <jettison/render/vulkan/Pipeline.h>
 #include <jettison/render/vulkan/Renderer.h>
 #include <jettison/render/vulkan/Swapchain.h>
 #include <jettison/render/vulkan/Window.h>
@@ -26,7 +25,6 @@ namespace Jettison::App
 using Render::check_vk_result;
 using Render::DeviceContext;
 using Render::ImGuiRenderer;
-using Render::Pipeline;
 using Render::Renderer;
 using Render::Scene;
 using Render::Swapchain;
@@ -227,9 +225,8 @@ void Application::Init()
 	InitWindow();
 	InitVulkan();
 	InitScene();
-	InitPipeline();
-	InitUI();
 	InitRenderer();
+	InitUI();
 	// The headless run renders the dev tools, the demo window and the console: the UI path is part of
 	// what the render test exercises, and an interactive run starts without it and asks for it with F1.
 	m_showUI = m_arguments.smokeTest;
@@ -269,12 +266,12 @@ void Application::InitScene()
 }
 
 
-void Application::InitPipeline()
+void Application::InitRenderer()
 {
-	m_pPipeline =
-	    std::make_shared<Pipeline>(m_pDeviceContext, m_pSwapchain, m_arguments.assetDirectory);
-	m_pPipeline->Init();
-	m_pPipeline->CreateCommandBuffers();
+	if (m_assets.Mounts().empty())
+		m_assets.AddMount({"base", m_arguments.assetDirectory});
+	m_pRenderer = std::make_shared<Renderer>(m_pDeviceContext, m_pWindow, m_pSwapchain, m_assets);
+	m_pRenderer->Init();
 }
 
 
@@ -282,14 +279,7 @@ void Application::InitUI()
 {
 	m_pImGuiRenderer = std::make_unique<ImGuiRenderer>(m_pDeviceContext, m_arguments.assetDirectory);
 	m_pImGuiRenderer->Init(
-	    m_pWindow->GetGLFWWindow(), m_pPipeline->GetRenderPass(), m_pSwapchain->GetImageCount());
-}
-
-
-void Application::InitRenderer()
-{
-	m_pRenderer = std::make_shared<Renderer>(m_pDeviceContext, m_pWindow, m_pSwapchain, m_pPipeline);
-	m_pRenderer->Init();
+	    m_pWindow->GetGLFWWindow(), m_pRenderer->GetOutputFormat(), Renderer::kFramesInFlight);
 	if (m_arguments.smokeTest)
 		glfwSetWindowSize(m_pWindow->GetGLFWWindow(), kSmokeWindowWidth, kSmokeWindowHeight);
 }
@@ -419,8 +409,6 @@ void Application::Shutdown() noexcept
 			m_pImGuiRenderer->Destroy();
 		if (m_pRenderer)
 			m_pRenderer->Destroy();
-		if (m_pPipeline)
-			m_pPipeline->Destroy();
 		if (m_scene)
 			m_scene->Destroy();
 		if (m_pSwapchain)
@@ -449,7 +437,6 @@ void Application::Shutdown() noexcept
 	// nothing.
 	m_pImGuiRenderer.reset();
 	m_pRenderer.reset();
-	m_pPipeline.reset();
 	m_scene.reset();
 	m_smokeSequence.reset();
 	m_pSwapchain.reset();

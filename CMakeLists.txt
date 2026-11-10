@@ -19,6 +19,10 @@ endif()
 
 find_package(Vulkan REQUIRED COMPONENTS glslc)
 
+# Compiles each GLSL source to SPIR-V beside it in the build tree. Every program sees the shared
+# includes in shaders/include (the frame layout, the vertex inputs, the colour helpers), and glslc
+# writes a depfile naming the includes each one read, so editing an include rebuilds the programs
+# that use it and no others.
 function(jettison_compile_shaders target)
 	set(shader_outputs)
 	foreach(shader IN LISTS ARGN)
@@ -27,8 +31,12 @@ function(jettison_compile_shaders target)
 		add_custom_command(
 			OUTPUT "${output}"
 			COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}"
-			COMMAND Vulkan::glslc "${CMAKE_CURRENT_SOURCE_DIR}/${shader}" -o "${output}"
+			COMMAND Vulkan::glslc --target-env=vulkan1.3
+				-I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/include"
+				-MD -MF "${output}.d"
+				"${CMAKE_CURRENT_SOURCE_DIR}/${shader}" -o "${output}"
 			DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${shader}" Vulkan::glslc
+			DEPFILE "${output}.d"
 			VERBATIM
 		)
 		list(APPEND shader_outputs "${output}")

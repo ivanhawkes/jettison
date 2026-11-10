@@ -5,30 +5,39 @@
 jettison_add_module(render
 	DEPENDS
 		animation
+		vfs
 	HEADERS
 		include/jettison/render/IRenderer.h
+		include/jettison/render/PassList.h
 		include/jettison/render/Scene.h
 		include/jettison/render/SceneSystems.h
 		include/jettison/render/vulkan/DeviceContext.h
+		include/jettison/render/vulkan/FrameData.h
+		include/jettison/render/vulkan/MaterialCache.h
 		include/jettison/render/vulkan/Model.h
-		include/jettison/render/vulkan/Pipeline.h
+		include/jettison/render/vulkan/PipelineCache.h
 		include/jettison/render/vulkan/Renderer.h
 		include/jettison/render/vulkan/Swapchain.h
 		include/jettison/render/vulkan/Window.h
 		include/jettison/render/vulkan/imgui/ImGuiRenderer.h
 	SOURCES
+		src/PassList.cpp
 		src/Scene.cpp
 		src/SceneSystems.cpp
 		src/vulkan/DeviceContext.cpp
+		src/vulkan/MaterialCache.cpp
 		src/vulkan/Memory.cpp
 		src/vulkan/Model.cpp
 		src/vulkan/ModelGltf.cpp
-		src/vulkan/Pipeline.cpp
+		src/vulkan/PassBarriers.cpp
+		src/vulkan/PassBarriers.h
+		src/vulkan/PipelineCache.cpp
 		src/vulkan/Renderer.cpp
 		src/vulkan/Swapchain.cpp
 		src/vulkan/Window.cpp
 		src/vulkan/imgui/ImGuiRenderer.cpp
 	TESTS
+		tests/PassListTests.cpp
 		tests/SceneTests.cpp
 	PUBLIC_LIBRARIES
 		Vulkan::Vulkan

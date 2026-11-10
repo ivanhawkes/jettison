@@ -6,6 +6,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#include <algorithm>
 #include <array>
 #include <stdexcept>
 #include <string>
@@ -13,7 +14,7 @@
 
 namespace Jettison::Render
 {
-void ImGuiRenderer::Init(GLFWwindow *window, VkRenderPass renderPass, uint32_t imageCount)
+void ImGuiRenderer::Init(GLFWwindow *window, VkFormat colorFormat, uint32_t frameCount)
 {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -35,11 +36,11 @@ void ImGuiRenderer::Init(GLFWwindow *window, VkRenderPass renderPass, uint32_t i
 	m_glfwBackendInitialized = true;
 
 	CreateDescriptorPool();
-	InitVulkanBackend(renderPass, imageCount);
+	InitVulkanBackend(colorFormat, frameCount);
 }
 
 
-void ImGuiRenderer::InitVulkanBackend(VkRenderPass renderPass, uint32_t imageCount)
+void ImGuiRenderer::InitVulkanBackend(VkFormat colorFormat, uint32_t frameCount)
 {
 	ImGui_ImplVulkan_InitInfo initInfo{};
 	initInfo.ApiVersion = DeviceContext::kApiVersion;
@@ -49,10 +50,15 @@ void ImGuiRenderer::InitVulkanBackend(VkRenderPass renderPass, uint32_t imageCou
 	initInfo.QueueFamily = m_pDeviceContext->GetGraphicsQueueIndex();
 	initInfo.Queue = m_pDeviceContext->GetGraphicsQueue();
 	initInfo.DescriptorPool = m_descriptorPool;
-	initInfo.MinImageCount = imageCount;
-	initInfo.ImageCount = imageCount;
-	initInfo.PipelineInfoMain.RenderPass = renderPass;
-	initInfo.PipelineInfoMain.MSAASamples = m_pDeviceContext->GetMsaaSamples();
+	// The backend asks for at least two; its vertex buffers are cycled one set per frame.
+	initInfo.MinImageCount = std::max(frameCount, 2u);
+	initInfo.ImageCount = initInfo.MinImageCount;
+	initInfo.UseDynamicRendering = true;
+	initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	VkPipelineRenderingCreateInfo &rendering = initInfo.PipelineInfoMain.PipelineRenderingCreateInfo;
+	rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	rendering.colorAttachmentCount = 1;
+	rendering.pColorAttachmentFormats = &colorFormat;
 	initInfo.CheckVkResultFn = check_vk_result;
 	if (!ImGui_ImplVulkan_Init(&initInfo))
 		throw std::runtime_error("failed to initialize ImGui Vulkan backend");

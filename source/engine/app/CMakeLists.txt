@@ -13,6 +13,7 @@ jettison_add_module(app
 		render
 		sim
 		time
+		vfs
 	HEADERS
 		include/jettison/app/AppArguments.h
 		include/jettison/app/RenderApplication.h

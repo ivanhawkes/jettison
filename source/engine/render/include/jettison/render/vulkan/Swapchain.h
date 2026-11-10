@@ -4,6 +4,7 @@
 
 // STD.
 #include <string>
+#include <vector>
 
 #include <jettison/render/vulkan/DeviceContext.h>
 
@@ -63,6 +64,23 @@ class Swapchain
 		return m_imageFormat;
 	}
 
+	// Whether writing linear values to the images stores them sRGB-encoded, which an *_SRGB
+	// format does in hardware. When the surface offered only UNORM formats in the sRGB colour
+	// space, the output pass encodes instead.
+	bool EncodesSrgb() const
+	{
+		return m_encodesSrgb;
+	}
+
+	VkImage GetImage(uint32_t index) const
+	{
+		return m_images.at(index);
+	}
+	VkImageView GetImageView(uint32_t index) const
+	{
+		return m_imageViews.at(index);
+	}
+
 	inline bool IsMinimised() const
 	{
 		return m_extents.height <= 0 || m_extents.width <= 0;
@@ -93,6 +111,9 @@ class Swapchain
 	uint32_t m_maxImageCount{0};
 	uint32_t m_imageCount{0};
 	VkFormat m_imageFormat{VK_FORMAT_UNDEFINED};
+	bool m_encodesSrgb{false};
 	VkExtent2D m_extents{0, 0};
+	std::vector<VkImage> m_images;
+	std::vector<VkImageView> m_imageViews;
 };
 } // namespace Jettison::Render

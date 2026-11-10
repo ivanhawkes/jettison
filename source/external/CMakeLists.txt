@@ -39,7 +39,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(entt)
 
-# The geometry ABI the shaders and buffers agree on - sizeof(Vertex) 108, sizeof(FrameUBO) 192,
+# The geometry ABI the shaders and buffers agree on - sizeof(Vertex) 108, sizeof(FrameUBO) 176,
 # and the zero-to-one depth range below - was measured when the tree moved from 0.9.9.8 to
 # 1.0.1, and is asserted on every version since by the dependency probe, so a GLM update that
 # moves a buffer layout fails the gate instead of the frame.
@@ -123,7 +123,7 @@ target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 # stb has no releases; this is the head of master on 2026-11-10. The image implementation is
-# compiled once, in source/engine/render/src/vulkan/Pipeline.cpp: nothing else in the set
+# compiled once, in source/engine/render/src/vulkan/MaterialCache.cpp: nothing else in the set
 # compiles an stb implementation (KTX-Software carries a copy of the headers on a private include
 # path).
 FetchContent_Declare(

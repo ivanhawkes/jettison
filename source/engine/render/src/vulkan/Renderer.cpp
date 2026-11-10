@@ -2,244 +2,457 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <jettison/render/vulkan/FrameData.h>
+#include <jettison/render/vulkan/MaterialCache.h>
+#include <jettison/render/vulkan/PipelineCache.h>
+#include <jettison/render/vulkan/imgui/ImGuiRenderer.h>
+
+#include "PassBarriers.h"
 
 namespace Jettison::Render
 {
-constexpr int kMaxFramesInFlight = 2;
+namespace
+{
+struct DrawPushConstants
+{
+	alignas(16) glm::mat4 model{1.0f};
+	uint32_t jointOffset{};
+	uint32_t skinned{};
+	uint32_t padding[2]{};
+};
+static_assert(sizeof(DrawPushConstants) == 80);
+
+struct OutputPushConstants
+{
+	float exposure{1.0f};
+	uint32_t encodeSrgb{0};
+};
+
+// Room for this many lights before the first frame that has more grows the list.
+constexpr VkDeviceSize kInitialLights = 16;
+} // namespace
+
+
+Renderer::Renderer(
+    std::shared_ptr<DeviceContext> pDeviceContext, std::shared_ptr<Window> pWindow,
+    std::shared_ptr<Swapchain> pSwapchain, const Vfs::FileSystem &assets)
+    : m_pDeviceContext{std::move(pDeviceContext)}, m_pWindow{std::move(pWindow)},
+      m_pSwapchain{std::move(pSwapchain)}, m_assets{assets}
+{
+}
+
+
+// Out of line, where PipelineCache and MaterialCache are complete types. It releases no GPU
+// object: Destroy() does, in the order the shell calls it.
+Renderer::~Renderer() = default;
 
 
 void Renderer::Init()
 {
-	InitVulkan();
-}
+	if (m_pDeviceContext->GetMsaaSamples() == VK_SAMPLE_COUNT_1_BIT)
+		throw std::runtime_error("the HDR target needs a multisampled colour and depth attachment");
+	m_depthFormat = m_pDeviceContext->FindDepthFormat();
+	m_pPipelines = std::make_unique<PipelineCache>(m_pDeviceContext, m_assets);
+	m_pMaterials = std::make_unique<MaterialCache>(m_pDeviceContext);
 
-
-void Renderer::InitVulkan()
-{
-	// Device initialisation.
-	assert(m_pWindow != nullptr && m_pWindow->GetGLFWWindow() != nullptr);
-
-	CreateSyncObjects();
+	CreateLayouts();
+	m_pMaterials->Init(m_materialSetLayout);
+	CreatePassList();
+	CreateTargets();
+	CreateFrames();
+	WriteOutputSet();
+	CreatePipelines();
+	CreateRenderFinishedSemaphores();
 }
 
 
 void Renderer::Destroy()
 {
-	for (size_t i = 0; i < kMaxFramesInFlight; ++i)
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	DestroyRenderFinishedSemaphores();
+	for (FrameData &frame : m_frames)
 	{
-		vkDestroySemaphore(
-		    m_pDeviceContext->GetLogicalDevice(), m_imageAvailableSemaphores[i], nullptr);
-		vkDestroyFence(m_pDeviceContext->GetLogicalDevice(), m_inFlightFences[i], nullptr);
+		if (frame.commandBuffer != VK_NULL_HANDLE)
+			vkFreeCommandBuffers(device, m_pDeviceContext->GetCommandPool(), 1, &frame.commandBuffer);
+		vkDestroyFence(device, frame.inFlight, nullptr);
+		vkDestroySemaphore(device, frame.imageAvailable, nullptr);
+		m_pDeviceContext->DestroyBuffer(frame.constants);
+		m_pDeviceContext->DestroyBuffer(frame.joints);
+		m_pDeviceContext->DestroyBuffer(frame.lights);
+		frame = {};
 	}
-	for (const auto semaphore : m_renderFinishedSemaphores)
-		vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), semaphore, nullptr);
+	DestroyTargets();
+	if (m_pPipelines)
+		m_pPipelines->Destroy();
+	if (m_pMaterials)
+		m_pMaterials->Destroy();
+	m_meshPipeline = VK_NULL_HANDLE;
+	m_outputPipeline = VK_NULL_HANDLE;
+
+	vkDestroySampler(device, m_outputSampler, nullptr);
+	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
+	vkDestroyPipelineLayout(device, m_outputLayout, nullptr);
+	vkDestroyPipelineLayout(device, m_meshLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device, m_outputSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device, m_materialSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device, m_frameSetLayout, nullptr);
+	m_outputSampler = VK_NULL_HANDLE;
+	m_descriptorPool = VK_NULL_HANDLE;
+	m_outputSet = VK_NULL_HANDLE;
+	m_outputLayout = VK_NULL_HANDLE;
+	m_meshLayout = VK_NULL_HANDLE;
+	m_outputSetLayout = VK_NULL_HANDLE;
+	m_materialSetLayout = VK_NULL_HANDLE;
+	m_frameSetLayout = VK_NULL_HANDLE;
+	m_imagesInFlight.clear();
 }
 
 
-void Renderer::CreateSyncObjects()
+void Renderer::CreateLayouts()
 {
-	m_imageAvailableSemaphores.resize(kMaxFramesInFlight);
-	m_inFlightFences.resize(kMaxFramesInFlight);
-	m_imagesInFlight.resize(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
-
-	VkSemaphoreCreateInfo semaphoreInfo{};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	VkFenceCreateInfo fenceInfo{};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-	for (size_t i = 0; i < kMaxFramesInFlight; ++i)
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	const auto createSetLayout =
+	    [&](std::span<const VkDescriptorSetLayoutBinding> bindings, const char *name)
 	{
-		if (vkCreateSemaphore(
-		        m_pDeviceContext->GetLogicalDevice(), &semaphoreInfo, nullptr,
-		        &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-		    vkCreateFence(
-		        m_pDeviceContext->GetLogicalDevice(), &fenceInfo, nullptr, &m_inFlightFences[i]) !=
-		        VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create semaphores");
-		}
-		// The two frame-loop waits in Renderer::Render read differently, one per frame and one
-		// per image, and a message that names the fence is how a reader tells which one fired.
-		m_pDeviceContext->SetDebugName(
-		    m_imageAvailableSemaphores[i], "image-available-" + std::to_string(i));
-		m_pDeviceContext->SetDebugName(m_inFlightFences[i], "in-flight-" + std::to_string(i));
+		VkDescriptorSetLayoutCreateInfo info{};
+		info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		info.bindingCount = static_cast<uint32_t>(bindings.size());
+		info.pBindings = bindings.data();
+		VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+		if (vkCreateDescriptorSetLayout(device, &info, nullptr, &layout) != VK_SUCCESS)
+			throw std::runtime_error(std::string{"failed to create descriptor set layout "} + name);
+		m_pDeviceContext->SetDebugName(layout, name);
+		return layout;
+	};
+
+	// assets/shaders/include/frame.glsl.
+	const std::array<VkDescriptorSetLayoutBinding, 3> frameBindings{{
+	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr},
+	    {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	}};
+	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
+	const std::array<VkDescriptorSetLayoutBinding, 1> materialBindings{{
+	    {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	}};
+	m_materialSetLayout = createSetLayout(materialBindings, "material-set-layout");
+	m_outputSetLayout = createSetLayout(materialBindings, "output-set-layout");
+
+	const std::array<VkDescriptorSetLayout, 2> meshSets{m_frameSetLayout, m_materialSetLayout};
+	const VkPushConstantRange drawRange{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(DrawPushConstants)};
+	VkPipelineLayoutCreateInfo meshInfo{};
+	meshInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	meshInfo.setLayoutCount = static_cast<uint32_t>(meshSets.size());
+	meshInfo.pSetLayouts = meshSets.data();
+	meshInfo.pushConstantRangeCount = 1;
+	meshInfo.pPushConstantRanges = &drawRange;
+	if (vkCreatePipelineLayout(device, &meshInfo, nullptr, &m_meshLayout) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the mesh pipeline layout");
+	m_pDeviceContext->SetDebugName(m_meshLayout, "mesh-pipeline-layout");
+
+	const VkPushConstantRange outputRange{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(OutputPushConstants)};
+	VkPipelineLayoutCreateInfo outputInfo{};
+	outputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	outputInfo.setLayoutCount = 1;
+	outputInfo.pSetLayouts = &m_outputSetLayout;
+	outputInfo.pushConstantRangeCount = 1;
+	outputInfo.pPushConstantRanges = &outputRange;
+	if (vkCreatePipelineLayout(device, &outputInfo, nullptr, &m_outputLayout) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the output pipeline layout");
+	m_pDeviceContext->SetDebugName(m_outputLayout, "output-pipeline-layout");
+
+	// One frame set per frame in flight, and the output set.
+	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
+	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
+	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kFramesInFlight},
+	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+	}};
+	VkDescriptorPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolInfo.pPoolSizes = poolSizes.data();
+	poolInfo.maxSets = kFramesInFlight + 1;
+	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the frame descriptor pool");
+	m_pDeviceContext->SetDebugName(m_descriptorPool, "frame-descriptor-pool");
+
+	// The output pass reads the resolved target texel for texel.
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_NEAREST;
+	samplerInfo.minFilter = VK_FILTER_NEAREST;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	if (vkCreateSampler(device, &samplerInfo, nullptr, &m_outputSampler) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the output sampler");
+	m_pDeviceContext->SetDebugName(m_outputSampler, "output-sampler");
+
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = m_descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &m_outputSetLayout;
+	if (vkAllocateDescriptorSets(device, &allocInfo, &m_outputSet) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate the output descriptor set");
+	m_pDeviceContext->SetDebugName(m_outputSet, "output-set");
+}
+
+
+void Renderer::CreatePassList()
+{
+	m_hdrMsaaResource = m_passes.AddImage("hdr-msaa");
+	m_depthResource = m_passes.AddImage("depth");
+	m_hdrResource = m_passes.AddImage("hdr");
+	m_swapchainResource = m_passes.AddImage("swapchain");
+	// The resolve is the opaque pass's: dynamic rendering resolves the multisampled target into
+	// the single-sampled one as the pass ends, as a colour attachment write.
+	m_opaquePass = m_passes.AddPass(
+	    "opaque", PassKind::Graphics,
+	    {{m_hdrMsaaResource, Usage::ColorAttachment},
+	     {m_depthResource, Usage::DepthAttachment},
+	     {m_hdrResource, Usage::ColorAttachment}});
+	m_outputPass = m_passes.AddPass(
+	    "output", PassKind::Graphics,
+	    {{m_hdrResource, Usage::SampledFragment}, {m_swapchainResource, Usage::ColorAttachment}});
+	m_passes.Export(m_swapchainResource, Usage::Present);
+	m_plan = m_passes.Compile();
+}
+
+
+void Renderer::CreateTargets()
+{
+	const VkExtent2D extent = m_pSwapchain->GetExtents();
+	const VkSampleCountFlagBits samples = m_pDeviceContext->GetMsaaSamples();
+	m_targets.extent = extent;
+	// The multisampled images live only inside the opaque pass: they are cleared on load and not
+	// stored, so a tiler can keep them on chip.
+	m_targets.hdrMsaa = m_pDeviceContext->CreateImage(
+	    extent.width, extent.height, 1, samples, kHdrFormat, VK_IMAGE_TILING_OPTIMAL,
+	    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, "hdr-msaa");
+	m_targets.hdrMsaaView = m_pDeviceContext->CreateImageView(
+	    m_targets.hdrMsaa.handle, kHdrFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	m_pDeviceContext->SetDebugName(m_targets.hdrMsaaView, "hdr-msaa-view");
+
+	m_targets.depth = m_pDeviceContext->CreateImage(
+	    extent.width, extent.height, 1, samples, m_depthFormat, VK_IMAGE_TILING_OPTIMAL,
+	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, "depth");
+	m_targets.depthView = m_pDeviceContext->CreateImageView(
+	    m_targets.depth.handle, m_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	m_pDeviceContext->SetDebugName(m_targets.depthView, "depth-view");
+
+	m_targets.hdr = m_pDeviceContext->CreateImage(
+	    extent.width, extent.height, 1, VK_SAMPLE_COUNT_1_BIT, kHdrFormat, VK_IMAGE_TILING_OPTIMAL,
+	    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "hdr");
+	m_targets.hdrView = m_pDeviceContext->CreateImageView(
+	    m_targets.hdr.handle, kHdrFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	m_pDeviceContext->SetDebugName(m_targets.hdrView, "hdr-view");
+}
+
+
+void Renderer::DestroyTargets()
+{
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	vkDestroyImageView(device, m_targets.hdrView, nullptr);
+	vkDestroyImageView(device, m_targets.depthView, nullptr);
+	vkDestroyImageView(device, m_targets.hdrMsaaView, nullptr);
+	m_pDeviceContext->DestroyImage(m_targets.hdr);
+	m_pDeviceContext->DestroyImage(m_targets.depth);
+	m_pDeviceContext->DestroyImage(m_targets.hdrMsaa);
+	m_targets = {};
+}
+
+
+void Renderer::CreateFrames()
+{
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	for (uint32_t index = 0; index < kFramesInFlight; ++index)
+	{
+		FrameData &frame = m_frames[index];
+		const std::string slot = std::to_string(index);
+
+		VkCommandBufferAllocateInfo commandInfo{};
+		commandInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		commandInfo.commandPool = m_pDeviceContext->GetCommandPool();
+		commandInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		commandInfo.commandBufferCount = 1;
+		if (vkAllocateCommandBuffers(device, &commandInfo, &frame.commandBuffer) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate a frame's command buffer");
+		m_pDeviceContext->SetDebugName(frame.commandBuffer, "command-buffer-" + slot);
+
+		VkSemaphoreCreateInfo semaphoreInfo{};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS ||
+		    vkCreateFence(device, &fenceInfo, nullptr, &frame.inFlight) != VK_SUCCESS)
+			throw std::runtime_error("failed to create a frame's semaphore and fence");
+		// The two frame-loop waits in Render read differently, one per frame and one per image,
+		// and a message that names the fence is how a reader tells which one fired.
+		m_pDeviceContext->SetDebugName(frame.imageAvailable, "image-available-" + slot);
+		m_pDeviceContext->SetDebugName(frame.inFlight, "in-flight-" + slot);
+
+		frame.constants = m_pDeviceContext->CreateBuffer(
+		    sizeof(FrameUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, MemoryUse::Upload,
+		    "frame-constants-" + slot);
+		frame.joints = m_pDeviceContext->CreateBuffer(
+		    sizeof(glm::mat4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
+		    "joint-palette-" + slot);
+		frame.lights = m_pDeviceContext->CreateBuffer(
+		    kInitialLights * sizeof(GpuLight), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
+		    "light-list-" + slot);
+
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = m_descriptorPool;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &m_frameSetLayout;
+		if (vkAllocateDescriptorSets(device, &allocInfo, &frame.frameSet) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate a frame descriptor set");
+		m_pDeviceContext->SetDebugName(frame.frameSet, "frame-set-" + slot);
+		WriteFrameSet(frame);
 	}
-	CreateRenderFinishedSemaphores();
+}
+
+
+void Renderer::WriteFrameSet(const FrameData &frame)
+{
+	const VkDescriptorBufferInfo constants{frame.constants.handle, 0, sizeof(FrameUBO)};
+	const VkDescriptorBufferInfo joints{frame.joints.handle, 0, frame.joints.size};
+	const VkDescriptorBufferInfo lights{frame.lights.handle, 0, frame.lights.size};
+	std::array<VkWriteDescriptorSet, 3> writes{};
+	for (auto &write : writes)
+	{
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = frame.frameSet;
+		write.descriptorCount = 1;
+	}
+	writes[0].dstBinding = 0;
+	writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writes[0].pBufferInfo = &constants;
+	writes[1].dstBinding = 1;
+	writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writes[1].pBufferInfo = &joints;
+	writes[2].dstBinding = 2;
+	writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writes[2].pBufferInfo = &lights;
+	vkUpdateDescriptorSets(
+	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
+	    nullptr);
+}
+
+
+void Renderer::WriteOutputSet()
+{
+	const VkDescriptorImageInfo image{
+	    m_outputSampler, m_targets.hdrView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+	VkWriteDescriptorSet write{};
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.dstSet = m_outputSet;
+	write.dstBinding = 0;
+	write.descriptorCount = 1;
+	write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	write.pImageInfo = &image;
+	vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
+}
+
+
+void Renderer::CreatePipelines()
+{
+	RenderState mesh;
+	mesh.colorFormat = kHdrFormat;
+	mesh.depthFormat = m_depthFormat;
+	mesh.samples = m_pDeviceContext->GetMsaaSamples();
+	m_meshPipeline = m_pPipelines->Get({"mesh", mesh, m_meshLayout});
+
+	RenderState output;
+	output.vertices = VertexLayout::None;
+	output.cullMode = VK_CULL_MODE_NONE;
+	output.depthTest = false;
+	output.depthWrite = false;
+	output.colorFormat = m_pSwapchain->GetImageFormat();
+	m_outputPipeline = m_pPipelines->Get({"output", output, m_outputLayout});
 }
 
 
 void Renderer::CreateRenderFinishedSemaphores()
 {
-	m_renderFinishedSemaphores.resize(m_pSwapchain->GetImageCount());
+	m_renderFinished.resize(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
+	m_imagesInFlight.assign(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
 	VkSemaphoreCreateInfo semaphoreInfo{};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	for (auto &semaphore : m_renderFinishedSemaphores)
+	for (size_t i = 0; i < m_renderFinished.size(); ++i)
 	{
 		if (vkCreateSemaphore(
-		        m_pDeviceContext->GetLogicalDevice(), &semaphoreInfo, nullptr, &semaphore) !=
+		        m_pDeviceContext->GetLogicalDevice(), &semaphoreInfo, nullptr, &m_renderFinished[i]) !=
 		    VK_SUCCESS)
-		{
 			throw std::runtime_error("failed to create render-finished semaphore");
-		}
+		m_pDeviceContext->SetDebugName(m_renderFinished[i], "render-finished-" + std::to_string(i));
 	}
-	for (size_t i = 0; i < m_renderFinishedSemaphores.size(); ++i)
-		m_pDeviceContext->SetDebugName(
-		    m_renderFinishedSemaphores[i], "render-finished-" + std::to_string(i));
 }
 
 
-void Renderer::RecreateRenderFinishedSemaphores()
+void Renderer::DestroyRenderFinishedSemaphores()
 {
-	for (const auto semaphore : m_renderFinishedSemaphores)
+	for (const VkSemaphore semaphore : m_renderFinished)
 		vkDestroySemaphore(m_pDeviceContext->GetLogicalDevice(), semaphore, nullptr);
-	m_renderFinishedSemaphores.clear();
-	CreateRenderFinishedSemaphores();
+	m_renderFinished.clear();
 }
 
 
-void Renderer::RecreateSwapchain(ImGuiRenderer &imguiRenderer)
+void Renderer::RecreateSwapchain()
 {
 	check_vk_result(m_pDeviceContext->WaitIdle());
-	imguiRenderer.ShutdownVulkanBackend();
+	const VkFormat format = m_pSwapchain->GetImageFormat();
 	m_pSwapchain->Recreate();
-	m_pPipeline->Recreate();
-	imguiRenderer.InitVulkanBackend(m_pPipeline->GetRenderPass(), m_pSwapchain->GetImageCount());
-	RecreateRenderFinishedSemaphores();
-	m_imagesInFlight.assign(m_pSwapchain->GetImageCount(), VK_NULL_HANDLE);
+	// The pipelines were built for the swapchain's format, and the surface is the same one, so
+	// the format is too; a surface that changed its mind would need them rebuilt.
+	if (m_pSwapchain->GetImageFormat() != format)
+		throw std::runtime_error("the swapchain's format changed when it was recreated");
+	DestroyTargets();
+	CreateTargets();
+	WriteOutputSet();
+	DestroyRenderFinishedSemaphores();
+	CreateRenderFinishedSemaphores();
 	m_pWindow->HasBeenResized(false);
 }
 
 
-bool Renderer::Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGuiRenderer &imguiRenderer)
+void Renderer::EnsureCapacity(FrameData &frame, Buffer &buffer, VkDeviceSize bytes, const char *name)
 {
-	vkWaitForFences(
-	    m_pDeviceContext->GetLogicalDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE,
-	    UINT64_MAX);
-
-	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(
-	    m_pDeviceContext->GetLogicalDevice(), m_pSwapchain->GetVkSwapchainHandle(), UINT64_MAX,
-	    m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		RecreateSwapchain(imguiRenderer);
-		return true;
-	}
-	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
-	{
-		throw std::runtime_error("failed to aquire swap chain image");
-	}
-	// Present reads this index, and it is the only writer: a recreate can change the image count
-	// behind it, and the next acquire replaces it before the next present looks at it.
-	m_presentImageIndex = imageIndex;
-	if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
-	{
-		vkWaitForFences(
-		    m_pDeviceContext->GetLogicalDevice(), 1, &m_imagesInFlight[imageIndex], VK_TRUE,
-		    UINT64_MAX);
-	}
-
-	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
-
-	// A model's Vulkan resources live under the address of the Model, and a scene reload
-	// destroys models whose addresses the next allocation reuses. The scene says when that
-	// happened. Freeing what is left needs the device idle, because the frame in flight may be
-	// reading a descriptor set from a pool that is about to go; a reload is rare, so stalling is
-	// the right trade against retiring pools behind a fence that cannot be named.
-	if (m_sceneGeneration && *m_sceneGeneration != scene.Generation())
-	{
-		check_vk_result(m_pDeviceContext->WaitIdle());
-		m_pPipeline->ForgetModelResources();
-	}
-	m_sceneGeneration = scene.Generation();
-
-	UpdateUniformBuffer(imageIndex, scene.Registry());
-	const auto drawCommands = renderSystem.Collect(scene.Registry());
-	m_pPipeline->RecordCommandBuffer(imageIndex, drawCommands, imguiRenderer);
-
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-	VkSemaphore waitSemaphores[] = {m_imageAvailableSemaphores[m_currentFrame]};
-	VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = waitSemaphores;
-	submitInfo.pWaitDstStageMask = waitStages;
-
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &m_pPipeline->GetCommandBuffers()[imageIndex];
-
-	VkSemaphore signalSemaphores[] = {m_renderFinishedSemaphores[imageIndex]};
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = signalSemaphores;
-
-	vkResetFences(m_pDeviceContext->GetLogicalDevice(), 1, &m_inFlightFences[m_currentFrame]);
-
-	if (vkQueueSubmit(
-	        m_pDeviceContext->GetGraphicsQueue(), 1, &submitInfo, m_inFlightFences[m_currentFrame]) !=
-	    VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to submit the draw command buffer");
-	}
-
-	// Everything this frame slot queued is submitted; the present that follows is the half that
-	// learns the swapchain went out of date under it.
-	return Present(imguiRenderer);
+	if (bytes <= buffer.size)
+		return;
+	// The slot's fence has been waited on, so no submission in flight reads this buffer or the
+	// frame set that points at it; the set is rewritten before this frame records against it.
+	VkDeviceSize size = std::max<VkDeviceSize>(buffer.size, 1);
+	while (size < bytes)
+		size *= 2;
+	const VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	m_pDeviceContext->DestroyBuffer(buffer);
+	buffer = m_pDeviceContext->CreateBuffer(
+	    size, usage, MemoryUse::Upload,
+	    std::string{name} + "-" + std::to_string(m_currentFrame) + "-" + std::to_string(size));
+	WriteFrameSet(frame);
 }
 
 
-bool Renderer::Present(ImGuiRenderer &imguiRenderer)
+void Renderer::WriteFrame(
+    FrameData &frame, const entt::registry &sceneRegistry, const std::vector<SceneDrawCommand> &draws,
+    std::vector<uint32_t> &jointOffsets)
 {
-	// The image this frame slot acquired, the render-finished semaphore of that image, and the
-	// queue that was told to present it: Render ends by calling this, so a frame loop that
-	// records several views into one image calls it once, after the last one it submitted.
-	const uint32_t imageIndex = m_presentImageIndex;
-	VkSemaphore signalSemaphores[] = {m_renderFinishedSemaphores[imageIndex]};
-
-	VkPresentInfoKHR presentInfo{};
-	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = signalSemaphores;
-
-	VkSwapchainKHR swapChains[] = {m_pSwapchain->GetVkSwapchainHandle()};
-	presentInfo.swapchainCount = 1;
-	presentInfo.pSwapchains = swapChains;
-	presentInfo.pImageIndices = &imageIndex;
-
-	const VkResult result = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
-
-	// Out of date is not one answer either side of a submit. Render's acquire returns early on it
-	// with the frame slot untouched, because nothing was queued; the frame has been queued here,
-	// so the slot is spent whether or not the swapchain survives the present, and it moves.
-	const bool outOfDate = result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized();
-	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)
-		throw std::runtime_error("failed to present swap chain image");
-
-	m_currentFrame = (m_currentFrame + 1) % kMaxFramesInFlight;
-	if (outOfDate)
-	{
-		RecreateSwapchain(imguiRenderer);
-		return true;
-	}
-	return false;
-}
-
-
-void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &sceneRegistry)
-{
-	FrameUBO ubo{};
-	ubo.ambientColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
+	FrameUBO constants{};
+	constants.ambientColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
 	CameraComponent fallbackCamera;
 	const CameraComponent *camera = &fallbackCamera;
 	for (const entt::entity entity : sceneRegistry.view<const CameraComponent>())
@@ -262,34 +475,309 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage, const entt::registry &
 	glm::vec3 up = glm::normalize(glm::cross(right, direction));
 	if (roll != 0.0f)
 		up = glm::vec3(glm::rotate(glm::mat4(1.0f), roll, direction) * glm::vec4(up, 0.0f));
+	constants.view = glm::lookAt(camera->position, camera->position + direction, up);
+	constants.cameraPosition = glm::vec4(camera->position, 1.0f);
+	const VkExtent2D extent = m_pSwapchain->GetExtents();
+	constants.projection = glm::perspective(
+	    glm::radians(camera->verticalFovDegrees),
+	    static_cast<float>(extent.width) / static_cast<float>(extent.height), camera->nearPlane,
+	    camera->farPlane);
+	// Vulkan's clip space has y down.
+	constants.projection[1][1] *= -1;
 
-	ubo.view = glm::lookAt(camera->position, camera->position + direction, up);
-	ubo.cameraPosition = glm::vec4(camera->position, 1.0f);
+	std::vector<GpuLight> lights;
+	bool ambientTaken = false;
 	for (const entt::entity entity : sceneRegistry.view<const LightComponent>())
 	{
 		const auto &light = sceneRegistry.get<LightComponent>(entity);
 		if (!light.active)
 			continue;
-
 		glm::vec3 position{0.0f};
 		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
 			position = glm::vec3(worldTransform->matrix[3]);
 		else if (const auto *transform = sceneRegistry.try_get<TransformComponent>(entity))
 			position = transform->translation;
-		ubo.lightPosition = glm::vec4(position, 1.0f);
-		ubo.lightColorIntensity = glm::vec4(light.color, light.intensity);
-		ubo.ambientColor = glm::vec4(light.ambientColor, 1.0f);
-		break;
+		lights.push_back({glm::vec4(position, 1.0f), glm::vec4(light.color, light.intensity)});
+		// The scene's ambient term rides on its first light until phase 5 gives the sky its own.
+		if (!ambientTaken)
+			constants.ambientColor = glm::vec4(light.ambientColor, 1.0f);
+		ambientTaken = true;
 	}
-	ubo.projection = glm::perspective(
-	    glm::radians(camera->verticalFovDegrees),
-	    static_cast<float>(m_pSwapchain->GetExtents().width) /
-	        static_cast<float>(m_pSwapchain->GetExtents().height),
-	    camera->nearPlane, camera->farPlane);
+	constants.counts.x = static_cast<uint32_t>(lights.size());
+	EnsureCapacity(frame, frame.lights, lights.size() * sizeof(GpuLight), "light-list");
+	if (!lights.empty())
+		m_pDeviceContext->WriteBuffer(frame.lights, lights.data(), lights.size() * sizeof(GpuLight));
+	m_pDeviceContext->WriteBuffer(frame.constants, &constants, sizeof(constants));
 
-	// Flip projection matrix on the y axis for Vulkan.
-	ubo.projection[1][1] *= -1;
+	jointOffsets.assign(draws.size(), 0);
+	std::vector<glm::mat4> palette;
+	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+	{
+		const auto *skeleton = draws[drawIndex].skeleton;
+		if (skeleton == nullptr || skeleton->jointMatrices.empty())
+			continue;
+		if (palette.size() > std::numeric_limits<uint32_t>::max() - skeleton->jointMatrices.size())
+			throw std::runtime_error("Scene skin palette exceeds the Vulkan draw offset range");
+		jointOffsets[drawIndex] = static_cast<uint32_t>(palette.size());
+		palette.insert(palette.end(), skeleton->jointMatrices.begin(), skeleton->jointMatrices.end());
+	}
+	if (palette.empty())
+		palette.emplace_back(1.0f);
+	EnsureCapacity(frame, frame.joints, palette.size() * sizeof(glm::mat4), "joint-palette");
+	m_pDeviceContext->WriteBuffer(frame.joints, palette.data(), palette.size() * sizeof(glm::mat4));
+}
 
-	m_pDeviceContext->WriteBuffer(m_pPipeline->GetUniformBuffers()[currentImage], &ubo, sizeof(ubo));
+
+bool Renderer::Render(Scene &scene, const SceneRenderSystem &renderSystem, ImGuiRenderer &imguiRenderer)
+{
+	FrameData &frame = m_frames[m_currentFrame];
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	vkWaitForFences(device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX);
+
+	uint32_t imageIndex = 0;
+	const VkResult acquired = vkAcquireNextImageKHR(
+	    device, m_pSwapchain->GetVkSwapchainHandle(), UINT64_MAX, frame.imageAvailable, VK_NULL_HANDLE,
+	    &imageIndex);
+	if (acquired == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		RecreateSwapchain();
+		return true;
+	}
+	if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR)
+		throw std::runtime_error("failed to acquire a swapchain image");
+	// Present reads this index, and it is the only writer: a recreate can change the image count
+	// behind it, and the next acquire replaces it before the next present looks at it.
+	m_presentImageIndex = imageIndex;
+	if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
+		vkWaitForFences(device, 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+	m_imagesInFlight[imageIndex] = frame.inFlight;
+
+	// A model's materials live under the address of the Model, and a scene reload destroys models
+	// whose addresses the next allocation reuses. The scene says when that happened. Freeing what
+	// is left needs the device idle, because the frame in flight may be reading a set from a pool
+	// that is about to go; a reload is rare, so stalling is the right trade against retiring pools
+	// behind a fence that cannot be named.
+	if (m_sceneGeneration && *m_sceneGeneration != scene.Generation())
+	{
+		check_vk_result(m_pDeviceContext->WaitIdle());
+		m_pMaterials->Forget();
+	}
+	m_sceneGeneration = scene.Generation();
+
+	const auto draws = renderSystem.Collect(scene.Registry());
+	std::vector<uint32_t> jointOffsets;
+	WriteFrame(frame, scene.Registry(), draws, jointOffsets);
+	Record(frame, imageIndex, draws, jointOffsets, imguiRenderer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	// The first use of the swapchain image waits at the colour-output stage (PassBarriers'
+	// source scope for Present), so the acquire's semaphore is waited on there.
+	const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &frame.imageAvailable;
+	submitInfo.pWaitDstStageMask = &waitStage;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &frame.commandBuffer;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &m_renderFinished[imageIndex];
+
+	vkResetFences(device, 1, &frame.inFlight);
+	if (vkQueueSubmit(m_pDeviceContext->GetGraphicsQueue(), 1, &submitInfo, frame.inFlight) !=
+	    VK_SUCCESS)
+		throw std::runtime_error("failed to submit the frame's command buffer");
+
+	return Present();
+}
+
+
+bool Renderer::Present()
+{
+	const uint32_t imageIndex = m_presentImageIndex;
+	VkPresentInfoKHR presentInfo{};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &m_renderFinished[imageIndex];
+	const VkSwapchainKHR swapchain = m_pSwapchain->GetVkSwapchainHandle();
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &swapchain;
+	presentInfo.pImageIndices = &imageIndex;
+
+	const VkResult result = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
+
+	// Out of date is not one answer either side of a submit. Render's acquire returns early on it
+	// with the frame slot untouched, because nothing was queued; the frame has been queued here,
+	// so the slot is spent whether or not the swapchain survives the present, and it moves.
+	const bool outOfDate = result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized();
+	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)
+		throw std::runtime_error("failed to present swap chain image");
+
+	m_currentFrame = (m_currentFrame + 1) % kFramesInFlight;
+	if (outOfDate)
+	{
+		RecreateSwapchain();
+		return true;
+	}
+	return false;
+}
+
+
+void Renderer::Record(
+    const FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
+    const std::vector<uint32_t> &jointOffsets, const ImGuiRenderer &imguiRenderer)
+{
+	const VkCommandBuffer commandBuffer = frame.commandBuffer;
+	if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS)
+		throw std::runtime_error("failed to reset command buffer");
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+		throw std::runtime_error("failed to begin recording command buffer");
+
+	// A message raised while a command executes names the frame region it came from, which is
+	// the difference between "a draw in frame N reads a freed buffer" and a usable bug report.
+	// Labels are commands, so they go inside the recording.
+	m_pDeviceContext->BeginDebugLabel(commandBuffer, "frame-image-" + std::to_string(imageIndex));
+
+	// This frame's images, in the pass list's resource order.
+	std::vector<BoundResource> bound(m_passes.ResourceCount());
+	bound[m_hdrMsaaResource.index] = {m_targets.hdrMsaa.handle, VK_IMAGE_ASPECT_COLOR_BIT};
+	bound[m_depthResource.index] = {m_targets.depth.handle, VK_IMAGE_ASPECT_DEPTH_BIT};
+	bound[m_hdrResource.index] = {m_targets.hdr.handle, VK_IMAGE_ASPECT_COLOR_BIT};
+	bound[m_swapchainResource.index] = {m_pSwapchain->GetImage(imageIndex), VK_IMAGE_ASPECT_COLOR_BIT};
+
+	for (const PlannedPass &planned : m_plan.passes)
+	{
+		RecordBarriers(commandBuffer, planned.barriers, bound);
+		m_pDeviceContext->BeginDebugLabel(commandBuffer, std::string{m_passes.PassName(planned.pass)});
+		if (planned.pass == m_opaquePass)
+			RecordOpaque(frame, commandBuffer, draws, jointOffsets);
+		else if (planned.pass == m_outputPass)
+			RecordOutput(commandBuffer, imageIndex, imguiRenderer);
+		m_pDeviceContext->EndDebugLabel(commandBuffer);
+	}
+	RecordBarriers(commandBuffer, m_plan.final, bound);
+
+	m_pDeviceContext->EndDebugLabel(commandBuffer);
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		throw std::runtime_error("failed to record command buffer");
+}
+
+
+void Renderer::SetViewport(VkCommandBuffer commandBuffer) const
+{
+	const VkViewport viewport{0.0f,
+	                          0.0f,
+	                          static_cast<float>(m_targets.extent.width),
+	                          static_cast<float>(m_targets.extent.height),
+	                          0.0f,
+	                          1.0f};
+	const VkRect2D scissor{{0, 0}, m_targets.extent};
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+}
+
+
+void Renderer::RecordOpaque(
+    const FrameData &frame, VkCommandBuffer commandBuffer, const std::vector<SceneDrawCommand> &draws,
+    const std::vector<uint32_t> &jointOffsets)
+{
+	VkRenderingAttachmentInfo color{};
+	color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	color.imageView = m_targets.hdrMsaaView;
+	color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	color.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+	color.resolveImageView = m_targets.hdrView;
+	color.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	color.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	color.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+	VkRenderingAttachmentInfo depth{};
+	depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depth.imageView = m_targets.depthView;
+	depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth.clearValue.depthStencil = {1.0f, 0};
+
+	VkRenderingInfo rendering{};
+	rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	rendering.renderArea = {{0, 0}, m_targets.extent};
+	rendering.layerCount = 1;
+	rendering.colorAttachmentCount = 1;
+	rendering.pColorAttachments = &color;
+	rendering.pDepthAttachment = &depth;
+
+	vkCmdBeginRendering(commandBuffer, &rendering);
+	SetViewport(commandBuffer);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipeline);
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
+	    nullptr);
+	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+	{
+		const SceneDrawCommand &draw = draws[drawIndex];
+		if (draw.model == nullptr)
+			continue;
+		const VkBuffer vertexBuffer = draw.model->m_vertexBuffer.handle;
+		const VkDeviceSize offset = 0;
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
+		vkCmdBindIndexBuffer(commandBuffer, draw.model->m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+		DrawPushConstants pushConstants{};
+		pushConstants.model = draw.worldTransform;
+		pushConstants.jointOffset = jointOffsets[drawIndex];
+		pushConstants.skinned =
+		    draw.skeleton != nullptr && !draw.skeleton->jointMatrices.empty() ? 1u : 0u;
+		vkCmdPushConstants(
+		    commandBuffer, m_meshLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(DrawPushConstants),
+		    &pushConstants);
+		const auto &primitives = draw.model->m_primitives;
+		for (std::size_t primitiveIndex = 0; primitiveIndex < primitives.size(); ++primitiveIndex)
+		{
+			const VkDescriptorSet material = m_pMaterials->Ensure(*draw.model, primitiveIndex);
+			vkCmdBindDescriptorSets(
+			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 1, 1, &material, 0,
+			    nullptr);
+			vkCmdDrawIndexed(
+			    commandBuffer, primitives[primitiveIndex].indexCount, 1,
+			    primitives[primitiveIndex].firstIndex, 0, 0);
+		}
+	}
+	vkCmdEndRendering(commandBuffer);
+}
+
+
+void Renderer::RecordOutput(
+    VkCommandBuffer commandBuffer, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer)
+{
+	VkRenderingAttachmentInfo color{};
+	color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	color.imageView = m_pSwapchain->GetImageView(imageIndex);
+	color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	// The triangle covers every pixel, so what was there before does not matter.
+	color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+	VkRenderingInfo rendering{};
+	rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	rendering.renderArea = {{0, 0}, m_targets.extent};
+	rendering.layerCount = 1;
+	rendering.colorAttachmentCount = 1;
+	rendering.pColorAttachments = &color;
+
+	vkCmdBeginRendering(commandBuffer, &rendering);
+	SetViewport(commandBuffer);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_outputPipeline);
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_outputLayout, 0, 1, &m_outputSet, 0, nullptr);
+	const OutputPushConstants output{m_exposure, m_pSwapchain->EncodesSrgb() ? 0u : 1u};
+	vkCmdPushConstants(
+	    commandBuffer, m_outputLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(output), &output);
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	// The UI goes over the scene after exposure, single-sampled, in the swapchain's format.
+	imguiRenderer.RenderDrawData(commandBuffer);
+	vkCmdEndRendering(commandBuffer);
 }
 } // namespace Jettison::Render

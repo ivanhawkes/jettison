@@ -22,17 +22,6 @@
 
 namespace Jettison::Render
 {
-struct FrameUBO
-{
-	alignas(16) glm::mat4 view;
-	alignas(16) glm::mat4 projection;
-	alignas(16) glm::vec4 cameraPosition;
-	alignas(16) glm::vec4 lightPosition;
-	alignas(16) glm::vec4 lightColorIntensity;
-	alignas(16) glm::vec4 ambientColor;
-};
-
-
 struct Vertex
 {
 	glm::vec3 pos;

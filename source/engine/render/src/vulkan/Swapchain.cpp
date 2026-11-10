@@ -10,6 +10,7 @@
 #include <cstring>
 #include <set>
 #include <stdexcept>
+#include <string>
 
 
 namespace Jettison::Render
@@ -94,9 +95,27 @@ void Swapchain::Create()
 	{
 		throw std::runtime_error("failed to query swap chain images");
 	}
+	m_images.resize(m_imageCount);
+	if (vkGetSwapchainImagesKHR(
+	        m_pDeviceContext->GetLogicalDevice(), m_vkSwapchainHandle, &m_imageCount,
+	        m_images.data()) != VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to query swap chain images");
+	}
 
 	m_imageFormat = surfaceFormat.format;
+	m_encodesSrgb = surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB ||
+	                surfaceFormat.format == VK_FORMAT_R8G8B8A8_SRGB;
 	m_extents = extent;
+
+	m_imageViews.resize(m_imageCount);
+	for (uint32_t i = 0; i < m_imageCount; ++i)
+	{
+		m_imageViews[i] =
+		    m_pDeviceContext->CreateImageView(m_images[i], m_imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+		m_pDeviceContext->SetDebugName(m_images[i], "swapchain-image-" + std::to_string(i));
+		m_pDeviceContext->SetDebugName(m_imageViews[i], "swapchain-view-" + std::to_string(i));
+	}
 }
 
 
@@ -111,24 +130,28 @@ void Swapchain::Recreate()
 
 void Swapchain::Destroy()
 {
+	for (const VkImageView view : m_imageViews)
+		vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), view, nullptr);
+	m_imageViews.clear();
+	m_images.clear();
 	vkDestroySwapchainKHR(m_pDeviceContext->GetLogicalDevice(), m_vkSwapchainHandle, nullptr);
+	m_vkSwapchainHandle = VK_NULL_HANDLE;
 }
 
 
 VkSurfaceFormatKHR Swapchain::ChooseSwapSurfaceFormat(
     const std::vector<VkSurfaceFormatKHR> &availableFormats)
 {
-	for (const auto &availableFormat : availableFormats)
-	{
-		// Narrow down the formats to the one(s) we requested. The parentheses say what the
-		// precedence already does: any B8G8R8A8_SRGB, and B8G8R8A8_UNORM only when sRGB.
-		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB ||
-		    (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
-		     availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR))
-		{
-			return availableFormat;
-		}
-	}
+	// The pipeline is linear up to the swapchain, so the swapchain should encode: an sRGB format
+	// in the sRGB colour space first, whatever order the surface lists them in, then a UNORM one
+	// in that colour space, which the output pass encodes for (EncodesSrgb).
+	for (const VkFormat wanted :
+	     {VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM,
+	      VK_FORMAT_R8G8B8A8_UNORM})
+		for (const auto &availableFormat : availableFormats)
+			if (availableFormat.format == wanted &&
+			    availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+				return availableFormat;
 
 	return availableFormats[0];
 }

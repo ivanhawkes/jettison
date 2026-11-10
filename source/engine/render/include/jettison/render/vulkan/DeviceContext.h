@@ -3,11 +3,15 @@
 #include <vulkan/vulkan.h>
 
 // STD.
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <span>
+#include <string>
 #include <vector>
 
 #include <jettison/render/vulkan/Window.h>
@@ -81,8 +85,16 @@ struct SwapChainSupportDetails
 class DeviceContext
 {
   public:
-	// The Vulkan version the instance asks for, and the one VMA and ImGui are told about.
-	static constexpr uint32_t kApiVersion = VK_API_VERSION_1_0;
+	// The Vulkan version the instance asks for, and the one VMA and ImGui are told about. 1.3 for
+	// dynamic rendering, which the declared pass list records passes with instead of render pass
+	// objects, and for synchronization2, which its barriers are written in. Both are core there,
+	// and lavapipe, where the gate runs, has both.
+	static constexpr uint32_t kApiVersion = VK_API_VERSION_1_3;
+
+	// The most samples the HDR target is given. Every device supports four for colour and depth
+	// attachments (the spec's required minimum), and a 1080p RGBA16F target at eight costs 66 MB
+	// more than at four, for an edge quality the resolve barely shows.
+	static constexpr VkSampleCountFlagBits kMaxMsaaSamples = VK_SAMPLE_COUNT_4_BIT;
 
 	DeviceContext(std::shared_ptr<Window> pWindow) : m_pWindow{pWindow}
 	{
@@ -161,6 +173,14 @@ class DeviceContext
 	void SetDebugName(VkDeviceMemory object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkShaderModule object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_SHADER_MODULE, reinterpret_cast<uint64_t>(object), name);
+	}
+	void SetDebugName(VkDescriptorSetLayout object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<uint64_t>(object), name);
 	}
 
 	// Marks a labelled region of a command buffer, so a layer message raised while a command
@@ -258,7 +278,7 @@ class DeviceContext
 	VkImageView CreateImageView(
 	    VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 
-	VkShaderModule CreateShaderModule(const std::vector<char> &code);
+	VkShaderModule CreateShaderModule(std::span<const std::byte> code, const std::string &name);
 
 	VkSurfaceKHR GetSurface() const
 	{
@@ -318,7 +338,8 @@ class DeviceContext
 
 	void CreateCommandPool();
 
-	bool HasInstanceExtension(const char *name) const;
+	// Whether the loader (or, given one, the layer) offers the instance extension.
+	bool HasInstanceExtension(const char *name, const char *layer = nullptr) const;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(
 	    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
