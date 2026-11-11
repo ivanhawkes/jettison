@@ -21,7 +21,7 @@ built, are recorded in [history](history.md).
 | 9b | **Steering.** Seek, arrive, obstacle avoidance and separation, over the spatial index and physics. | A group of ships reaches a station without colliding. |
 | 9c | **Decisions.** Utility AI (considerations, response curves, scored actions) and data-defined behaviour trees, ticked in the simulation step. | Phase 9's exit criterion. |
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
-| 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings); the planets in the environment's capture, so a hull reflects them. | |
+| 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings); the planets in the environment's capture, so a hull reflects them; a frame written to an image file from the command line, first, since the rest of phase 10 is judged by looking ([carried forward](#carried-forward)). | |
 | 10b | **The transparent pass.** Sorted back to front and lit through the clusters; GPU particles; glass. | |
 | 10c | **Post-processing and screen-space effects.** A chain of post passes on the resolved HDR target before the output pass; bloom; screen-space ambient occlusion, from the depth prepass, which writes view-space normals for it and runs whenever it is on; stencil on the depth target (`D32_SFLOAT_S8_UINT`), with separate depth and stencil layouts and its bits allotted, and an object ID buffer written by the depth prepass; outlines of the selected and targeted, by stencil and by ID; material effects through time-driven parameters. Screen-space reflections stay out (see [decided](#decided)). | |
 | 10d | **Animation.** Keyframed TRS tracks on any node for mechanical rigs; clip events (a clamp closing plays a sound). | |
@@ -74,6 +74,17 @@ are in [history](history.md).
 - **A light's intensity driven by time**, as the beacon's lamp blinks (entry 19): with the material
   effects of 10c.
 - **The planets in the environment's capture**, so a hull reflects them (entry 19): 10a.
+- **A frame written to an image file** (entry 28): `render_test --screenshot <file.png>
+  --after-frames <n>` (and a console command) reads back the swapchain image the output pass wrote,
+  after the given frame, and writes it as a PNG through stb, then exits if asked. Today a frame is
+  seen by running the app on Xvfb and grabbing the root window with `xwd` and ImageMagick, with keys
+  driven through `xdotool` and held longer than a lavapipe frame (up to a second at 1280×720), and a
+  fixed wait for the scene to settle: slow, timing-dependent, and blind to anything off the virtual
+  screen. A capture from inside the frame loop is exact to the frame, needs no display tools, and
+  gives image comparisons (a frame against a kept reference, within a tolerance) for the passes of
+  phase 10, whose results are otherwise judged by eye. With a scripted camera it also stands in for
+  the input the `xdotool` keys provide. It lands first in 10a; nothing earlier needs it, though 8b's
+  market screen would be checked with it if it were there.
 - **The spatial index kept from the simulation** (entry 21): a system in the simulation step keeping
   one `SpatialIndex` per star system from the entities' `Transform`s, each in the index of its
   `Sim::InSystem` (6d) and an entity on a lane in none. It lands with steering (9b), its first

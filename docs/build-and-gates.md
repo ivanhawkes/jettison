@@ -183,6 +183,18 @@ Release build and its unit tests → headless render test, and with `--asan`, th
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
 build's results.
 
+Each stage is timed, and the run ends with a summary, one line per stage: `ok` with its seconds,
+`skip`, or `FAIL`, then `gate passed` or `gate FAILED`. `--log <file>` sends the build's own output
+to the file alone and prints only the stages and the summary, and, for a failed stage, its error
+lines (a compiler's `error:`, ninja's `FAILED:`, a test's assertion, a `[vulkan:error]`) and its last
+lines without ninja's progress. That is the form to read the gate in when only the verdict matters,
+as an agent does: a passing gate with `--werror --asan` is 20 lines, against 658 in its log with
+warm caches (2026-11-12).
+
+```bash
+./scripts/ci.sh --werror --asan --log build/gate.log
+```
+
 ### Unit tests
 
 Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files the
@@ -273,6 +285,12 @@ the format commit recorded in `.git-blame-ignore-revs`, so register that file on
 ```bash
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
+
+Claude Code formats a C++ file as soon as it writes or edits one, through a hook in
+`.claude/settings.json` (`.claude/hooks/format-edited.sh`), so its work reaches the format gate
+already formatted. The hook formats only the project's sources, not the build trees, and does
+nothing outside the devenv shell, where there may be no clang-format new enough to read
+`.clang-format`.
 
 ### Sanitizers
 

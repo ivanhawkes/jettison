@@ -24,6 +24,9 @@ imgui.ini
 # Devenv
 .devenv
 
+# Claude Code: personal settings (which project MCP servers this machine trusts)
+.claude/settings.local.json
+
 # clangd index
 .cache/
 .env

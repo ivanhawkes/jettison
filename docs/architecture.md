@@ -13,6 +13,9 @@ every function that needs an algorithm throws `JETTISON_NOT_IMPLEMENTED()` until
 
 ```
 jettison/
+├── CLAUDE.md                   orientation for Claude Code sessions; points into these documents
+├── .claude/                    Claude Code's project settings and hooks (formats edited sources)
+├── .mcp.json                   MCP servers for Claude Code: Context7, for library documentation
 ├── CMakeLists.txt              project, warnings target, shader helper, package export
 ├── CMakePresets.json
 ├── cmake/                      jettison_add_module(), JettisonConfig.cmake.in
