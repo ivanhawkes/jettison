@@ -118,6 +118,7 @@ flowchart TB
     subgraph T3[World]
         scene --> animation
         scene --> celestial
+        scene --> sim
         sim; spatial; input
     end
     subgraph T4[Presentation and simulation services]
@@ -134,7 +135,9 @@ flowchart TB
 ```
 
 The World tier's listed sibling edges are `scene`'s: on `animation`, whose clip players its update
-drives, and on `celestial`, whose star systems its system scenes are built from. `render` depends on
+drives, on `celestial`, whose star systems its system scenes are built from, and on `sim`, whose
+snapshots its traffic layer is made from (6b). The scene reads `Sim::Snapshot` alone, never the
+world, and nothing in `sim` sees the scene. `render` depends on
 `scene` from the tier above, and reads it; the scene names no device.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics` and `ai` never include
@@ -158,6 +161,14 @@ The game is single-player, but the simulation runs as if it were a local server.
   The queue is the seam for replays, automated tests and any later networking.
 - **Snapshots and events** flow back: transforms for interpolation, and events such as
   "docked", "trade filled" or "contact" that presentation turns into sound, effects and UI.
+
+A star system's presentation is a **system scene** (`scene/SystemScene.h`, 6b), built onto the
+scene from the system description, around whatever a scene file authored, and from the
+simulation's snapshots. Its content is in **layers**: the environment (bodies, stations, the sky:
+what the system places), traffic (the simulation's entities, through proxies a factory the game
+supplies makes) and effects (markers, beacons). An entity's layer is its own or its parent's, and a
+hidden layer is neither drawn nor lights the scene; the sun and the sky are always the system's.
+What the system scene builds is never saved, so a scene file is only ever what its author wrote.
 
 The piloted ship crosses this boundary every frame: input becomes flight commands, Jolt
 advances in simulation steps, and presentation interpolates between the last two physics
@@ -423,10 +434,12 @@ proves it headlessly. What exists:
 
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--scene`, `--save-scene`), builds `Application`, and prints any exception the run threw.
+  `--scene`, `--system`, `--save-scene`), builds `Application`, and prints any exception the run
+  threw.
   `Application::Init` stages are resources (the asset VFS, the I/O worker, the resource manager
-  and the rig loader), scene (and the star system it names, read through the VFS), renderer, and
-  window (its title and size). The shell holds the renderer as `Render::IRenderer` alone and
+  and the rig loader), scene (and the system scene of the star system it names, read through the
+  VFS, or of the one `--system` names with nothing authored), renderer, and window (its title and
+  size). The shell holds the renderer as `Render::IRenderer` alone and
   includes no Vulkan header. The resource manager updates once a frame, before the render.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
 - **Smoke sequence**. `SmokeSequence` is the render test's six stages (resize, resize,
@@ -441,13 +454,16 @@ proves it headlessly. What exists:
   (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder
   - and optionally a material file, by virtual path), celestial bodies placed by the star system
   the scene names (a virtual path too), an orbit camera rig, and the animation module's
-  rotation-animation, skeleton and animation-player components. It names no device: a model mesh
-  holds its rig as a resource handle (`RigComponent`), and `SceneUpdateSystem` poses the model once
+  rotation-animation, skeleton and animation-player components, and an entity's layer. It names no
+  device: a model mesh holds its rig as a resource handle (`RigComponent`), and `SceneUpdateSystem` poses the model once
   the rig is in, reporting a clip the rig lacks once and posing it at rest. Translations and world
   transforms are doubles. Authored state and runtime state are kept apart: a rotation's angle, a
   clip player's time, a body's `PlacementComponent`, a rig's `CameraPoseComponent` and the rig
   handle are never saved, and the scene suite's round-trip tests hold the writer and the loader
-  to that.
+  to that. `SystemScene` builds the rest of a star system's scene around the file (each body it
+  does not present, a sky, a camera), places every body on its orbit, and keeps the traffic
+  layer's proxies; what it builds is never saved. The scene's layers are shown and hidden through
+  `Scene::SetLayerVisible`, which the update applies and the renderer honours.
 - **Animation** (`engine/animation`). `Rig` is a model's node hierarchy, skin joints and clips,
   with the clip player (`EvaluateSkin`) that used to be inside `Model`; `Playback.h` advances
   the rotation and clip-player components. `RigLoader.h` reads a rig from a glTF file through

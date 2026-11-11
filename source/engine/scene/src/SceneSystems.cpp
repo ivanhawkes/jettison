@@ -98,6 +98,35 @@ bool CheckClip(
 	    mesh.model);
 	return false;
 }
+
+// The layer an entity is in: its own, or else its parent's, up to the environment at a root.
+Layer LayerOf(
+    entt::entity entity, const entt::registry &registry, std::unordered_map<entt::entity, Layer> &found)
+{
+	if (const auto known = found.find(entity); known != found.end())
+		return known->second;
+	Layer layer = Layer::Environment;
+	if (const auto *own = registry.try_get<LayerComponent>(entity))
+		layer = own->layer;
+	else if (const auto *parent = registry.try_get<ParentComponent>(entity))
+		// The world transforms are composed first, and refuse a cycle or a parent that is gone.
+		layer = LayerOf(parent->entity, registry, found);
+	found.emplace(entity, layer);
+	return layer;
+}
+
+// Every entity of a hidden layer tagged HiddenComponent, and every other one not.
+void ApplyLayerVisibility(entt::registry &registry)
+{
+	registry.clear<HiddenComponent>();
+	const auto *visibility = registry.ctx().find<LayerVisibility>();
+	if (visibility == nullptr || visibility->visible == LayerVisibility{}.visible)
+		return;
+	std::unordered_map<entt::entity, Layer> found;
+	for (const entt::entity entity : registry.view<TransformComponent>())
+		if (!visibility->IsVisible(LayerOf(entity, registry, found)))
+			registry.emplace<HiddenComponent>(entity);
+}
 } // namespace
 
 void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
@@ -136,6 +165,7 @@ void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 	std::unordered_set<entt::entity> active;
 	for (const entt::entity entity : registry.view<TransformComponent>())
 		ComputeWorldTransform(entity, registry, computed, active);
+	ApplyLayerVisibility(registry);
 }
 
 void UpdateOrbitCameras(entt::registry &registry, double deltaTime)

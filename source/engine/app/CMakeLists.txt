@@ -21,23 +21,18 @@ jettison_add_module(app
 		vfs
 	HEADERS
 		include/jettison/app/AppArguments.h
-		include/jettison/app/CelestialPresentation.h
 		include/jettison/app/RenderApplication.h
-		include/jettison/app/SimPresentation.h
 		include/jettison/app/SmokeSequence.h
 	SOURCES
 		src/AppArguments.cpp
-		src/CelestialPresentation.cpp
 		src/Application.cpp
 		src/Application.h
 		src/GlfwInput.cpp
 		src/GlfwInput.h
 		src/RenderApplication.cpp
-		src/SimPresentation.cpp
 		src/SmokeSequence.cpp
 	TESTS
 		tests/LargeWorldTests.cpp
-		tests/SimPresentationTests.cpp
 		tests/SmokeSequenceTests.cpp
 	PRIVATE_LIBRARIES
 		glfw

@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -22,6 +23,56 @@ namespace Jettison::Scene
 struct SceneEntityId
 {
 	std::string value;
+};
+
+// The content layers within a system's scene (docs/scope.md, "Scene: layers"): for loading in
+// stages and for editor visibility.
+enum class Layer : std::uint8_t
+{
+	Environment, // Bodies, stations, the sky: what the system description places.
+	Traffic,     // Ships, cargo, debris: what the simulation places.
+	Effects      // Beacons, markers, transient visuals.
+};
+inline constexpr std::size_t kLayerCount = 3;
+
+// The layer an entity is in, as authored. An entity without one is in its parent's layer, and a root
+// without one is in the environment, so a station's parts are where the station is.
+struct LayerComponent
+{
+	Layer layer{Layer::Environment};
+};
+
+// Which layers are shown: held in the scene registry's context, where Scene::SetLayerVisible writes
+// it and the scene update reads it. A registry without one shows every layer.
+struct LayerVisibility
+{
+	std::uint8_t visible{0xFF};
+
+	bool IsVisible(Layer layer) const
+	{
+		return (visible & (1u << static_cast<unsigned>(layer))) != 0;
+	}
+};
+
+// Runtime: the entity's layer is hidden, so the renderer neither draws it nor lights anything with
+// it. The scene update adds and removes it from the layers' visibility; the sun and the sky are the
+// system's, and are shown whatever their layer.
+struct HiddenComponent
+{
+};
+
+// Runtime: an entity the system scene made rather than the scene file authored (a body the file does
+// not present, the sky or camera it lacks, a simulation entity's proxy). The writer leaves it out, so
+// a scene saved from a running engine is the file that was loaded.
+struct BuiltComponent
+{
+};
+
+// A presentation entity that shows a simulation entity. Presentation holds the simulation entity's
+// identifier, never a reference into the world, and finds it in the snapshots.
+struct SimProxyComponent
+{
+	entt::entity simEntity{entt::null};
 };
 
 // Relative to the parent, or to the system frame's origin for an entity without one. The
@@ -135,8 +186,8 @@ struct RigComponent
 };
 
 // An entity the star system places: each frame its translation is the body's position at the
-// presentation time, and its rotation the body's spin. The scene names the system file; the app
-// evaluates it (engine/celestial).
+// presentation time, and its rotation the body's spin. The scene names the system file, and the
+// system scene (scene/SystemScene.h) evaluates it.
 struct CelestialBodyComponent
 {
 	std::string body;

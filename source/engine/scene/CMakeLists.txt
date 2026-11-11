@@ -1,5 +1,6 @@
 # The presentation scene: its components, its file, the systems that animate it and compose its
-# transforms, and the camera rigs that move through it. It names no device; the renderer reads it
+# transforms, the camera rigs that move through it, and the system scene built from a star system
+# and the simulation's snapshots. It names no device; the renderer reads it
 # (docs/architecture.md, "Simulation and presentation").
 jettison_add_module(scene
 	DEPENDS
@@ -11,6 +12,7 @@ jettison_add_module(scene
 		reflect
 		resource
 		serialise
+		sim
 		vfs
 	HEADERS
 		include/jettison/scene/CameraRigs.h
@@ -28,6 +30,7 @@ jettison_add_module(scene
 	TESTS
 		tests/CameraRigTests.cpp
 		tests/SceneTests.cpp
+		tests/SystemSceneTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

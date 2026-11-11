@@ -1,7 +1,6 @@
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
 #include <jettison/scene/SceneSystems.h>
-#include <jettison/scene/SystemScene.h>
 
 #include <doctest/doctest.h>
 
@@ -13,8 +12,6 @@
 
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
-#include <jettison/celestial/StarSystem.h>
-#include <jettison/core/Assert.h>
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/serialise/Archive.h>
@@ -383,12 +380,4 @@ TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig 
 	scene.Clear();
 	orbit.Clear();
 	CHECK(resources.StatusOf(rig) == Jettison::Resource::Status::Invalid);
-}
-
-TEST_CASE("Scene: a new system scene is not ready; loading one fails loudly until phase 6b")
-{
-	SystemScene scene;
-	CHECK_FALSE(scene.IsReady());
-	const Jettison::Celestial::StarSystem system{"Sol", {}};
-	CHECK_THROWS_AS(scene.BeginLoad(system), Jettison::Core::NotImplementedError);
 }

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 namespace Jettison::App
 {
@@ -21,6 +22,9 @@ struct AppArguments
 	// The scene graph loaded at start-up, and an optional second file to write it back to.
 	std::filesystem::path scenePath;
 	std::filesystem::path saveScenePath;
+	// A star system file, by virtual path (systems/halcyon.yaml), in place of a scene: the scene is
+	// the one the system scene builds from it alone. Empty when the run loads a scene.
+	std::string systemPath;
 
 	// A measurement of the frame: this many frames timed after a warm-up, the GPU's time in each pass
 	// and the frame's counts printed, and the window closed. None when zero.
@@ -32,9 +36,10 @@ struct AppArguments
 	bool depthPrepass{false};
 };
 
-// Resolves the defaults - the asset tree beside the executable, and <assets>/scene/main.yaml -
-// then reads the flags. Returns nothing, having printed the usage line, when an argument is not
-// understood; the caller exits with failure.
+// Resolves the defaults - the asset tree beside the executable, and <assets>/scene/main.yaml unless
+// a system is named - then reads the flags. --scene and --system together are not understood. Returns
+// nothing, having printed the usage line, when an argument is not understood; the caller exits with
+// failure.
 std::optional<AppArguments> ParseAppArguments(
     int argc, char **argv, const std::filesystem::path &assetSubdirectory);
 } // namespace Jettison::App

@@ -2,7 +2,8 @@
 # scene phase 4's exit criterion is judged on. The bodies are placed by the system each frame; the
 # camera orbits the station (W, A, S, D, Q, E, or drag with the right mouse button), C moves it to
 # the next body, F2 draws the orbits and the lights' reach, F3 shows the lights per cluster, and F4
-# the sun's shadow cascades.
+# the sun's shadow cascades. The bodies the file does not present (the jump gate) are built from the
+# system, and the dev tools' Scene panel (F1) shows and hides the layers.
 version: 2
 system: systems/halcyon.yaml
 entities:
@@ -80,6 +81,7 @@ entities:
       color: [0.85, 0.6, 0.2]
   - id: highport-beacon
     parent: highport
+    layer: effects
     transform:
       translation: [0, 0, -38.6]
       scale: [0.6, 0.6, 0.6]

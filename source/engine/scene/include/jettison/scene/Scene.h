@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+#include <jettison/scene/Components.h>
+
 namespace Jettison::Resource
 {
 class ResourceManager;
@@ -47,8 +49,22 @@ class Scene
 	void LoadText(std::string_view text);
 	void Save(const std::filesystem::path &path) const;
 	std::string SaveText() const;
+	// Replaces the scene with one that authors nothing and names a star system, by virtual path: the
+	// system scene (scene/SystemScene.h) then builds all of it from the system file. Saved, it is a
+	// file of that system and no entities.
+	void LoadSystem(std::string_view starSystem);
 	// Empties the scene, releasing the rigs it loaded.
 	void Clear();
+
+	// Destroys one entity, releasing its rig if it has one. What is parented to it is left with a
+	// parent that no longer exists, which the scene update refuses, so the caller destroys a whole
+	// tree.
+	void Destroy(entt::entity entity);
+
+	// Whether a layer is drawn and lights the scene; every layer is, to begin with. Held in the
+	// registry's context (LayerVisibility), so it outlasts a load, and the scene update applies it.
+	void SetLayerVisible(Layer layer, bool visible);
+	bool IsLayerVisible(Layer layer) const;
 
 	// Counts the times this scene's contents have been replaced, so the renderer knows to rebake the
 	// environment and release what the new scene no longer draws.

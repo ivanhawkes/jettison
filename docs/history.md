@@ -295,6 +295,8 @@ On the presentation side, a scene entity with an `App::SimProxyComponent` names 
 entity, and `SyncSimProxies` writes its interpolated transform into the scene, relative to an
 origin in double precision before it becomes a float. The shell's world is empty until a game
 registers into it.
+*Moved* (6b): the proxy component and `SyncSimProxies` are the scene's (`scene/SystemScene.h`),
+where the system scene's traffic layer makes and unmakes proxies from the snapshots.
 *Filled in* (phase 3), the definition registry: a definition is one YAML file under a
 directory, in `YamlArchive`'s form, named by its path under the directory without `.yaml`
 (`military/corvette`). The VFS gives the topmost file at each path, so a mod overrides a
@@ -359,6 +361,9 @@ parent's GM), and `ReadStarSystem` and `WriteStarSystem` are its YAML pair. `Eva
 pinned to its bits in Debug and Release. `PresentationTime` is the celestial clock's half on the
 presentation side: bodies are evaluated at the time between two steps, not lerped between
 positions. `assets/systems/halcyon.yaml` is the sample system.
+*Moved* (6b): placing a scene's bodies (`PlaceCelestialBodies`, once the app's
+`SyncCelestialBodies`) is the system scene's, in `scene`, which builds an entity for each body a
+scene file does not present.
 
 ### 17. Render foundations · phase 4 · `engine/render`
 

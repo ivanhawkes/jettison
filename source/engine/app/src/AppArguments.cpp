@@ -41,7 +41,7 @@ std::optional<std::uint32_t> ParseCount(std::string_view text)
 void PrintUsage(const char *argv0)
 {
 	std::cerr << "Usage: " << argv0
-	          << " [--smoke-test] [--assets <directory>] [--scene <file>]"
+	          << " [--smoke-test] [--assets <directory>] [--scene <file> | --system <virtual path>]"
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
 	             " [--depth-prepass]\n";
 }
@@ -61,6 +61,8 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.assetDirectory = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--scene" && index + 1 < argc)
 			arguments.scenePath = std::filesystem::absolute(argv[++index]);
+		else if (argument == "--system" && index + 1 < argc)
+			arguments.systemPath = argv[++index];
 		else if (argument == "--save-scene" && index + 1 < argc)
 			arguments.saveScenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--depth-prepass")
@@ -97,7 +99,12 @@ std::optional<AppArguments> ParseAppArguments(
 			return std::nullopt;
 		}
 	}
-	if (arguments.scenePath.empty())
+	if (!arguments.scenePath.empty() && !arguments.systemPath.empty())
+	{
+		PrintUsage(argv[0]);
+		return std::nullopt;
+	}
+	if (arguments.scenePath.empty() && arguments.systemPath.empty())
 		arguments.scenePath = arguments.assetDirectory / "scene" / "main.yaml";
 	return arguments;
 }

@@ -5,6 +5,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <format>
@@ -20,14 +21,14 @@
 
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
-#include <jettison/app/CelestialPresentation.h>
-#include <jettison/app/SimPresentation.h>
+#include <jettison/celestial/StarSystem.h>
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/profile/Profile.h>
 #include <jettison/render/IRenderer.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
+#include <jettison/scene/SystemScene.h>
 
 namespace Jettison::App
 {
@@ -60,7 +61,9 @@ void DrawOrbits(
     double time)
 {
 	constexpr std::size_t kPoints = 256;
-	for (const auto [entity, celestial] : registry.view<const Scene::CelestialBodyComponent>().each())
+	for (const auto [entity, celestial] :
+	     registry.view<const Scene::CelestialBodyComponent>(entt::exclude<Scene::HiddenComponent>)
+	         .each())
 	{
 		const int index = system.Find(celestial.body);
 		if (index < 0)
@@ -197,13 +200,19 @@ void Application::RegisterFrameSystems()
 	m_frame.Register(
 	    {"sim.sync",
 	     TickPhase::Sync,
-	     Access::Of<SimProxyComponent>().Writing<TransformComponent>(),
+	     Access::Of<Scene::SimProxyComponent>().Writing<TransformComponent>(),
 	     {},
 	     [this](entt::registry &registry, double)
 	     {
 		     JETTISON_PROFILE_ZONE("sim.sync");
-		     SyncSimProxies(
-		         registry, m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha());
+		     // A system's scene is the traffic layer's, with proxies made and unmade; a scene of no
+		     // system only shows the proxies it has.
+		     if (m_systemScene)
+			     m_systemScene->SyncTraffic(
+			         m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha());
+		     else
+			     Scene::SyncSimProxies(
+			         registry, m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha());
 	     }});
 	// Nothing in the shell turns an event into sound or UI yet. Taking them every frame is what
 	// keeps the queue from growing while nothing does; a game's handlers replace this system.
@@ -213,13 +222,12 @@ void Application::RegisterFrameSystems()
 	     TickPhase::Sync,
 	     Access::Of<Scene::CelestialBodyComponent>().Writing<Scene::PlacementComponent>(),
 	     {"sim.sync"},
-	     [this](entt::registry &registry, double)
+	     [this](entt::registry &, double)
 	     {
-		     if (!m_starSystem)
+		     if (!m_systemScene)
 			     return;
 		     JETTISON_PROFILE_ZONE("celestial.sync");
-		     SyncCelestialBodies(
-		         registry, *m_starSystem,
+		     m_systemScene->Place(
 		         Celestial::PresentationTime(
 		             m_simStepper.Previous().time, m_simStepper.Current().time, m_simStepper.Alpha()));
 	     }});
@@ -265,7 +273,9 @@ void Application::RegisterFrameSystems()
 	     {
 		     if (!m_showSceneDebug)
 			     return;
-		     for (const auto [entity, world] : registry.view<const WorldTransformComponent>().each())
+		     for (const auto [entity, world] :
+		          registry.view<const WorldTransformComponent>(entt::exclude<Scene::HiddenComponent>)
+		              .each())
 		     {
 			     const glm::dvec3 origin{world.matrix[3]};
 			     // The rotation without the scale: a mesh scaled twelve times would otherwise
@@ -279,9 +289,9 @@ void Application::RegisterFrameSystems()
 			     if (const auto *light = registry.try_get<LightComponent>(entity))
 				     DrawLight(m_debugDraw, *light, origin, -basis[2]);
 		     }
-		     if (m_starSystem)
+		     if (m_systemScene)
 			     DrawOrbits(
-			         m_debugDraw, registry, *m_starSystem,
+			         m_debugDraw, registry, m_systemScene->System(),
 			         Celestial::PresentationTime(
 			             m_simStepper.Previous().time, m_simStepper.Current().time,
 			             m_simStepper.Alpha()));
@@ -515,10 +525,34 @@ void Application::DrawUI()
 	{
 		DevTools::DrawDevTools(m_console, m_devTools, &m_showUI);
 		DrawRendererPanel();
+		DrawScenePanel();
 	}
 	else if (m_devTools.showConsole)
 		DevTools::DrawConsole(m_console, m_devTools.console, &m_devTools.showConsole);
 	m_pRenderer->EndUi();
+}
+
+
+void Application::DrawScenePanel()
+{
+	if (!ImGui::Begin("Scene"))
+	{
+		ImGui::End();
+		return;
+	}
+	ImGui::Text("%s", m_systemScene ? m_systemScene->System().name.c_str() : "No star system");
+	ImGui::TextUnformatted("Layers");
+	constexpr std::array<std::pair<Scene::Layer, const char *>, Scene::kLayerCount> kLayers{
+	    {{Scene::Layer::Environment, "Environment"},
+	     {Scene::Layer::Traffic, "Traffic"},
+	     {Scene::Layer::Effects, "Effects"}}};
+	for (const auto &[layer, name] : kLayers)
+	{
+		bool visible = m_pScene->IsLayerVisible(layer);
+		if (ImGui::Checkbox(name, &visible))
+			m_pScene->SetLayerVisible(layer, visible);
+	}
+	ImGui::End();
 }
 
 
@@ -603,13 +637,15 @@ void Application::ReportBenchmark() const
 	    "Meshes {}: {} outside the view, {} behind a horizon; {} draws of {} triangles\n"
 	    "Shadow casters {} / {} / {} / {} in {} / {} / {} / {} draws, {} triangles\n"
 	    "Lights {}, {} listed\n",
-	    m_arguments.scenePath.filename().string(), m_deviceName, m_frameWidth, m_frameHeight,
-	    m_arguments.benchmarkFrames, kBenchmarkWarmUp, m_measuredFrames,
-	    m_arguments.depthPrepass ? "on" : "off", passes, m_benchmarkSeconds * 1000.0 / frames,
-	    stats.meshes, stats.frustumCulled, stats.horizonCulled, stats.viewBatches, stats.viewTriangles,
-	    stats.shadowCasters[0], stats.shadowCasters[1], stats.shadowCasters[2], stats.shadowCasters[3],
-	    stats.shadowBatches[0], stats.shadowBatches[1], stats.shadowBatches[2], stats.shadowBatches[3],
-	    stats.shadowTriangles, stats.lights, stats.listedLights);
+	    m_arguments.systemPath.empty() ? m_arguments.scenePath.filename().string()
+	                                   : m_arguments.systemPath,
+	    m_deviceName, m_frameWidth, m_frameHeight, m_arguments.benchmarkFrames, kBenchmarkWarmUp,
+	    m_measuredFrames, m_arguments.depthPrepass ? "on" : "off", passes,
+	    m_benchmarkSeconds * 1000.0 / frames, stats.meshes, stats.frustumCulled, stats.horizonCulled,
+	    stats.viewBatches, stats.viewTriangles, stats.shadowCasters[0], stats.shadowCasters[1],
+	    stats.shadowCasters[2], stats.shadowCasters[3], stats.shadowBatches[0], stats.shadowBatches[1],
+	    stats.shadowBatches[2], stats.shadowBatches[3], stats.shadowTriangles, stats.lights,
+	    stats.listedLights);
 }
 
 
@@ -661,16 +697,21 @@ void Application::PollInput()
 
 void Application::LoadScene()
 {
-	m_pScene->Load(m_arguments.scenePath);
-	m_starSystem.reset();
+	// What the old system scene built goes with the scene's old contents.
+	m_systemScene.reset();
+	if (m_arguments.systemPath.empty())
+		m_pScene->Load(m_arguments.scenePath);
+	else
+		m_pScene->LoadSystem(m_arguments.systemPath);
 	if (const std::string &path = m_pScene->StarSystem(); !path.empty())
 	{
 		const auto bytes = m_assets.Read(path);
 		if (!bytes)
 			throw std::runtime_error("Failed to read the scene's star system '" + path + "'");
-		m_starSystem = Celestial::ReadStarSystem(
-		    std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()});
-		ResolveCelestialBodies(m_pScene->Registry(), *m_starSystem);
+		m_systemScene.emplace(
+		    *m_pScene,
+		    Celestial::ReadStarSystem(
+		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
 	}
 	m_simStepper.Resync();
 }
@@ -712,11 +753,13 @@ void Application::NextCameraTarget(entt::registry &registry)
 		                              : *std::next(current);
 		// Out to three of the body's radii, eased over two seconds from wherever the camera is.
 		double radius = 50.0;
-		if (m_starSystem)
-			if (const int index =
-			        m_starSystem->Find(registry.get<Scene::CelestialBodyComponent>(next).body);
+		if (m_systemScene)
+		{
+			const Celestial::StarSystem &system = m_systemScene->System();
+			if (const int index = system.Find(registry.get<Scene::CelestialBodyComponent>(next).body);
 			    index >= 0)
-				radius = std::max(radius, m_starSystem->bodies[static_cast<std::size_t>(index)].radius);
+				radius = std::max(radius, system.bodies[static_cast<std::size_t>(index)].radius);
+		}
 		if (const auto *pose = registry.try_get<Scene::CameraPoseComponent>(entity))
 			orbit.transition = Scene::CameraTransition{
 			    {pose->position, pose->orientation}, 2.0, Math::Easing::InOutCubic};
@@ -796,8 +839,10 @@ void Application::Shutdown() noexcept
 	}
 
 	m_pRenderer.reset();
-	// The scene's rigs are resource handles, released as it goes; then the manager, which holds no
+	// The system scene holds the scene, and goes first. The scene's rigs are resource handles,
+	// released as it goes; then the manager, which holds no
 	// GPU object once the renderer has released its handles, goes before the worker it posts to.
+	m_systemScene.reset();
 	m_pScene.reset();
 	m_sceneUpdateSystem.reset();
 	m_pResources.reset();

@@ -1,5 +1,3 @@
-#include <jettison/app/CelestialPresentation.h>
-
 #include <doctest/doctest.h>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -18,6 +16,7 @@
 #include <jettison/render/SceneView.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/SceneSystems.h>
+#include <jettison/scene/SystemScene.h>
 
 using namespace Jettison;
 
@@ -105,7 +104,7 @@ Errors Measure(entt::registry &scene, const Celestial::StarSystem &system, doubl
 	for (int frame = 0; frame < frames; ++frame)
 	{
 		const double time = startTime + frame * kStep;
-		App::SyncCelestialBodies(scene, system, time);
+		Scene::PlaceCelestialBodies(scene, system, time);
 		update.Update(scene, static_cast<float>(kStep));
 		Scene::UpdateOrbitCameras(scene, kStep);
 		const Render::CameraView camera = Render::ActiveCameraView(scene);
@@ -202,7 +201,7 @@ TEST_CASE(
 	orbit.pitch = std::asin(radial.y);
 	orbit.minDistance = 20.0;
 	scene.emplace<Scene::OrbitCameraComponent>(camera, std::move(orbit));
-	App::ResolveCelestialBodies(scene, system);
+	Scene::ResolveCelestialBodies(scene, system);
 
 	// Three years into the clock, ten seconds of frames, the camera following the station at
 	// 7.7 km/s round a planet 150 million kilometres from its star.
@@ -233,28 +232,4 @@ TEST_CASE(
 	CHECK(far.planetSamples >= 600 * 3);
 	CHECK(far.station < 0.01);
 	CHECK(far.planet < 0.01);
-}
-
-TEST_CASE("Large world: a body the system does not have is refused at load")
-{
-	const Celestial::StarSystem system = SampleSystem();
-	entt::registry scene;
-	Body(scene, "Nowhere", glm::vec3{1.0f}, Scene::Shape::Box);
-	CHECK_THROWS_WITH_AS(
-	    App::ResolveCelestialBodies(scene, system), doctest::Contains("'Nowhere'"), std::runtime_error);
-}
-
-TEST_CASE("Large world: a body's placement is its orbit, and the authored transform is left alone")
-{
-	const Celestial::StarSystem system = SampleSystem();
-	entt::registry scene;
-	const entt::entity station = Body(scene, "Ostra Highport", glm::vec3{1.0f}, Scene::Shape::Box);
-	App::SyncCelestialBodies(scene, system, 1234.5);
-	const auto &placement = scene.get<Scene::PlacementComponent>(station);
-	const auto index = static_cast<std::size_t>(system.Find("Ostra Highport"));
-	CHECK(placement.position == Celestial::EvaluateBody(system, index, 1234.5).metres);
-	CHECK(scene.get<Scene::TransformComponent>(station).translation == glm::dvec3{0.0});
-	Scene::SceneUpdateSystem{}.Update(scene, 0.0f);
-	CHECK(
-	    glm::dvec3{scene.get<Scene::WorldTransformComponent>(station).matrix[3]} == placement.position);
 }

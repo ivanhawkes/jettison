@@ -14,7 +14,9 @@ std::vector<SceneDrawCommand> CollectDraws(
 	using Scene::MeshComponent;
 	using Scene::Shape;
 	std::vector<SceneDrawCommand> drawCommands;
-	const auto meshes = registry.view<const MeshComponent, const Scene::WorldTransformComponent>();
+	// A hidden layer's meshes are neither drawn nor cast shadows.
+	const auto meshes = registry.view<const MeshComponent, const Scene::WorldTransformComponent>(
+	    entt::exclude<Scene::HiddenComponent>);
 	for (const entt::entity entity : meshes)
 	{
 		const auto &mesh = meshes.get<const MeshComponent>(entity);

@@ -119,6 +119,7 @@ struct EntityRecord
 {
 	std::string id;
 	std::optional<std::string> parent;
+	std::optional<Layer> layer;
 	TransformComponent transform;
 	std::optional<CameraRecord> camera;
 	std::optional<SunComponent> sun;
@@ -152,6 +153,10 @@ void RegisterTypes()
 		    .Value<Shape::CubeSphere>("cubesphere")
 		    .Value<Shape::Ring>("ring")
 		    .Value<Shape::Cylinder>("cylinder");
+		RegisterEnum<Layer>("Scene.Layer")
+		    .Value<Layer::Environment>("environment")
+		    .Value<Layer::Traffic>("traffic")
+		    .Value<Layer::Effects>("effects");
 		RegisterEnum<LightType>("Scene.LightType")
 		    .Value<LightType::Point>("point")
 		    .Value<LightType::Spot>("spot");
@@ -215,6 +220,7 @@ void RegisterTypes()
 		RegisterType<EntityRecord>("Scene.Entity")
 		    .Field<&EntityRecord::id>("id", kSaved)
 		    .Field<&EntityRecord::parent>("parent", kSaved)
+		    .Field<&EntityRecord::layer>("layer", kSaved)
 		    .Field<&EntityRecord::transform>("transform", kSaved)
 		    .Field<&EntityRecord::camera>("camera", kSaved)
 		    .Field<&EntityRecord::sun>("sun", kSaved)
@@ -513,6 +519,8 @@ void Scene::LoadText(std::string_view text)
 			entities.emplace(record.id, entity);
 			m_registry.emplace<SceneEntityId>(entity, record.id);
 			m_registry.emplace<TransformComponent>(entity, record.transform);
+			if (record.layer)
+				m_registry.emplace<LayerComponent>(entity, *record.layer);
 			if (const auto &camera = record.camera)
 			{
 				m_registry.emplace<CameraComponent>(
@@ -591,7 +599,9 @@ std::string Scene::SaveText() const
 {
 	RegisterTypes();
 	std::vector<entt::entity> entities;
-	const auto view = m_registry.view<const SceneEntityId, const TransformComponent>();
+	// What the system scene built is the system's, made again when the file is loaded.
+	const auto view =
+	    m_registry.view<const SceneEntityId, const TransformComponent>(entt::exclude<BuiltComponent>);
 	entities.assign(view.begin(), view.end());
 	std::ranges::sort(
 	    entities, {}, [this](entt::entity entity) -> const std::string &
@@ -606,6 +616,8 @@ std::string Scene::SaveText() const
 		record.id = m_registry.get<SceneEntityId>(entity).value;
 		if (const auto *parent = m_registry.try_get<ParentComponent>(entity))
 			record.parent = m_registry.get<SceneEntityId>(parent->entity).value;
+		if (const auto *layer = m_registry.try_get<LayerComponent>(entity))
+			record.layer = layer->layer;
 		record.transform = m_registry.get<TransformComponent>(entity);
 		if (const auto *camera = m_registry.try_get<CameraComponent>(entity))
 		{
@@ -652,6 +664,37 @@ void Scene::Save(const std::filesystem::path &path) const
 	output << text;
 	if (!output)
 		throw std::runtime_error("Failed to write scene: " + scenePath.string());
+}
+
+void Scene::LoadSystem(std::string_view starSystem)
+{
+	Clear();
+	const std::string path{starSystem};
+	CheckVirtualPath(path, "a system", "(the scene)");
+	m_starSystem = path;
+}
+
+void Scene::Destroy(entt::entity entity)
+{
+	if (const auto *rig = m_registry.try_get<RigComponent>(entity); rig != nullptr && m_pResources)
+		m_pResources->Release(rig->rig);
+	m_registry.destroy(entity);
+}
+
+void Scene::SetLayerVisible(Layer layer, bool visible)
+{
+	auto &visibility = m_registry.ctx().contains<LayerVisibility>()
+	                       ? m_registry.ctx().get<LayerVisibility>()
+	                       : m_registry.ctx().emplace<LayerVisibility>();
+	const auto bit = static_cast<std::uint8_t>(1u << static_cast<unsigned>(layer));
+	visibility.visible =
+	    static_cast<std::uint8_t>(visible ? visibility.visible | bit : visibility.visible & ~bit);
+}
+
+bool Scene::IsLayerVisible(Layer layer) const
+{
+	const auto *visibility = m_registry.ctx().find<LayerVisibility>();
+	return visibility == nullptr || visibility->IsVisible(layer);
 }
 
 void Scene::Clear()

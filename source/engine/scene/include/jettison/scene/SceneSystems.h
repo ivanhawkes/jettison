@@ -13,7 +13,8 @@ namespace Jettison::Scene
 // posed from its rig, then every world transform composed in double precision. A model's rig loads
 // through the resource manager (RigComponent); until it is ready the entity has no
 // SkeletonComponent, and the renderer does not draw it, since the rig is what places the mesh within
-// its file. A clip the rig does not have is reported once, and the model is posed at rest.
+// its file. A clip the rig does not have is reported once, and the model is posed at rest. Last, each
+// entity of a layer the scene hides is tagged HiddenComponent (Scene::SetLayerVisible).
 class SceneUpdateSystem
 {
   public:

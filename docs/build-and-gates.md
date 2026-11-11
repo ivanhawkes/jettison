@@ -124,7 +124,8 @@ build/clang-debug/source/test/render_test
 
 Shaders compile as part of the build (`jettison_compile_shaders`). Assets are staged beside the
 executable. `--assets <directory>` selects a different asset directory, and
-`--scene <file>` / `--save-scene <file>` load and write scene graphs.
+`--scene <file>` / `--save-scene <file>` load and write scene graphs, and `--system <virtual path>`
+(`systems/halcyon.yaml`) runs the scene a star system builds alone, in place of a scene file.
 
 In VS Code, the default build task uses `clang-debug`. The `Debug test` launch configuration
 builds and runs `render_test` under GDB through the Native Debug (`webfreak.debug`) extension.

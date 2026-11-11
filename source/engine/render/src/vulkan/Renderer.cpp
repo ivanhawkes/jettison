@@ -1025,7 +1025,8 @@ void Renderer::WriteLights(
     FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera)
 {
 	m_lightScratch.clear();
-	for (const auto [entity, light] : sceneRegistry.view<const Scene::LightComponent>().each())
+	for (const auto [entity, light] :
+	     sceneRegistry.view<const Scene::LightComponent>(entt::exclude<Scene::HiddenComponent>).each())
 	{
 		if (!light.active)
 			continue;

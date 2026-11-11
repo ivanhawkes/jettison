@@ -8,7 +8,6 @@
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
-#include <jettison/celestial/StarSystem.h>
 #include <jettison/devtools/Console.h>
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
@@ -17,6 +16,7 @@
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/FrameStats.h>
 #include <jettison/scene/SceneSystems.h>
+#include <jettison/scene/SystemScene.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
 #include <jettison/time/Clock.h>
@@ -111,6 +111,8 @@ class Application
 	void DrawUI();
 	// The renderer's counts and the GPU's time in each pass, in the dev tools.
 	void DrawRendererPanel();
+	// The star system shown, and the scene's layers, each shown or hidden.
+	void DrawScenePanel();
 	// The benchmark's frame count, the warm-up's end, and the report when it is done.
 	void AdvanceBenchmark();
 	void ReportBenchmark() const;
@@ -175,7 +177,7 @@ class Application
 	Ecs::Scheduler m_frame;
 
 	// The authoritative world, run as if it were a local server: the scene shows it through
-	// SimProxyComponents, from the stepper's snapshots, and never holds a reference into it.
+	// Scene::SimProxyComponents, from the stepper's snapshots, and never holds a reference into it.
 	// Empty in the shell; a game registers its components, commands and systems on it. Sixty
 	// steps a second, and the seed is fixed until a game or a save chooses one.
 	static constexpr double kSimStep = 1.0 / 60.0;
@@ -232,7 +234,9 @@ class Application
 	std::uint32_t m_frameWidth{0};
 	std::uint32_t m_frameHeight{0};
 
-	// The star system the scene's celestial bodies come from, when it names one.
-	std::optional<Celestial::StarSystem> m_starSystem;
+	// The scene of the star system the scene names, when it names one: its bodies placed on their
+	// orbits, the rest of what the system has built around the file's entities, and the traffic
+	// layer. Built on each load, after the scene, and released before it.
+	std::optional<Scene::SystemScene> m_systemScene;
 };
 } // namespace Jettison::App
