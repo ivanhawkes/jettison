@@ -15,6 +15,10 @@ struct CameraView
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 	float verticalFov{0.785398163f};
 	float nearPlane{0.1f};
+	// The origin of the local frame the camera moves in (docs/architecture.md, "Coordinate frames
+	// and units"), in the system frame: the station or body an orbit camera circles, or the system's
+	// origin. The sun's shadow maps keep their texel grid still in this frame (render/Shadows.h).
+	glm::dvec3 frameOrigin{0.0};
 };
 
 // The scene file's camera angles as a rotation: pitch about X, then yaw about Y, the view

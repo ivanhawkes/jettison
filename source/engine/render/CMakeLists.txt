@@ -21,6 +21,7 @@ jettison_add_module(render
 		include/jettison/render/Procedural.h
 		include/jettison/render/Scene.h
 		include/jettison/render/SceneSystems.h
+		include/jettison/render/Shadows.h
 		include/jettison/render/Texture.h
 		include/jettison/render/vulkan/DeviceContext.h
 		include/jettison/render/vulkan/Environment.h
@@ -42,6 +43,7 @@ jettison_add_module(render
 		src/Procedural.cpp
 		src/Scene.cpp
 		src/SceneSystems.cpp
+		src/Shadows.cpp
 		src/Texture.cpp
 		src/vulkan/DeviceContext.cpp
 		src/vulkan/Environment.cpp
@@ -65,6 +67,7 @@ jettison_add_module(render
 		tests/PassListTests.cpp
 		tests/ProceduralTests.cpp
 		tests/SceneTests.cpp
+		tests/ShadowTests.cpp
 		tests/TextureTests.cpp
 	PUBLIC_LIBRARIES
 		Vulkan::Vulkan
@@ -81,7 +84,8 @@ jettison_add_module(render
 )
 
 # The cluster grid's functions are clusters.glsl compiled as C++ (Clusters.cpp), so the CPU
-# reference runs the source the cluster programs do.
+# reference runs the source the cluster programs do; the shadow cascades' selection and lookup are
+# shadows.glsl, so the fit is checked against the source the lighting include runs (Shadows.cpp).
 target_include_directories(jettison_render PRIVATE "${PROJECT_SOURCE_DIR}/assets/shaders/include")
 
 # The texture and material tests read the files the assets ship (the sample KTX 2 texture, the

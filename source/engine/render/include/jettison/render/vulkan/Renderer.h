@@ -16,6 +16,7 @@
 #include <jettison/render/PassList.h>
 #include <jettison/render/Scene.h>
 #include <jettison/render/SceneSystems.h>
+#include <jettison/render/Shadows.h>
 #include <jettison/render/vulkan/DeviceContext.h>
 #include <jettison/render/vulkan/FrameData.h>
 #include <jettison/render/vulkan/Swapchain.h>
@@ -38,22 +39,25 @@ class MaterialCache;
 struct MaterialBinding;
 class PipelineCache;
 
-// What the lit programs show: the shaded scene, or the lights-per-cluster heat map
-// (lighting.glsl's kDebugView*).
+// What the lit programs show: the shaded scene, the lights-per-cluster heat map, or the sun's
+// shadow cascades, each in its own colour (lighting.glsl's kDebugView*).
 enum class DebugView : std::uint32_t
 {
 	Shaded = 0,
-	ClusterHeat = 1
+	ClusterHeat = 1,
+	ShadowCascades = 2
 };
 
-// The frame, as the declared pass list docs/architecture.md describes ("The frame"): the cluster
-// passes (the index list's allocator zeroed, then the clusters' bounds and the lights assigned to
-// them, both in compute), an opaque pass into a multisampled HDR target, which draws the sky last
-// over what no surface covered and is resolved into a single-sampled target as it ends, an output
-// pass that tonemaps that into the swapchain, with the UI drawn over the result, and the cluster
-// check's copy. Phase 5 adds its shadow passes to the same list.
+// The frame, as the declared pass list docs/architecture.md describes ("The frame"): the sun's
+// shadow cascades, each a depth-only rendering of every draw into one layer of the shadow map; the
+// cluster passes (the index list's allocator zeroed, then the clusters' bounds and the lights
+// assigned to them, both in compute); an opaque pass into a multisampled HDR target, which draws the
+// sky last over what no surface covered and is resolved into a single-sampled target as it ends; an
+// output pass that tonemaps that into the swapchain, with the UI drawn over the result; and the
+// cluster check's copy.
 //
-// The cluster grid's buffers are one set, shared by the frames in flight as the render targets are.
+// The shadow map and the cluster grid's buffers are one set each, shared by the frames in flight as
+// the render targets are.
 // The bounds are kept between frames and rebuilt only in a frame whose projection, viewport or
 // cluster range differs from the one they were built for.
 //
@@ -79,6 +83,11 @@ class Renderer
 	// infinite far plane"): a station's lights from further off are its emissive panels. Chosen
 	// with the light budget, and tuned in 5e.
 	static constexpr float kDefaultClusterRange = 2000.0f;
+	// The sun's shadow distance (render/Shadows.h): the view depth past which the sun casts no
+	// shadow. It covers a station seen whole, from its own docks to a few hundred metres out.
+	static constexpr float kDefaultShadowDistance = 400.0f;
+	// Each cascade's map, texels on a side.
+	static constexpr std::uint32_t kShadowMapSize = 2048;
 
 	// The resource manager loads the materials and textures, and outlives the renderer; Destroy
 	// releases everything the renderer loaded through it.
@@ -136,6 +145,13 @@ class Renderer
 		m_clusterRange = range;
 	}
 
+	// The view depth past which the sun casts no shadow, in metres; never less than twice the near
+	// plane.
+	void SetShadowDistance(float distance)
+	{
+		m_shadowSettings.distance = distance;
+	}
+
 	// Each frame's light assignment copied out and compared with the CPU's (CheckClusterAssignment),
 	// once the frame's fence says it is done. The smoke test turns it on; it costs a copy of the grid
 	// and the index list a frame.
@@ -188,6 +204,8 @@ class Renderer
 	void DestroyTargets();
 	void CreateClusterBuffers();
 	void DestroyClusterBuffers();
+	void CreateShadowMap();
+	void DestroyShadowMap();
 	void CreateFrames();
 	void WriteFrameSet(const FrameData &frame);
 	void WriteOutputSet();
@@ -219,6 +237,9 @@ class Renderer
 	void Record(
 	    FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
 	    const std::vector<uint32_t> &jointOffsets, const ImGuiRenderer &imguiRenderer);
+	void RecordShadows(
+	    const FrameData &frame, VkCommandBuffer commandBuffer,
+	    const std::vector<SceneDrawCommand> &draws, const std::vector<uint32_t> &jointOffsets) const;
 	void RecordClusterBounds(const FrameData &frame, VkCommandBuffer commandBuffer);
 	void RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const;
 	void RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const;
@@ -245,8 +266,8 @@ class Renderer
 	std::optional<SkyComponent> m_bakedSky;
 
 	// Set 0 of the scene and cluster programs (constants, skin palette, lights, material
-	// parameters, the environment, the cluster grid), set 1 of the scene programs (a material's
-	// textures), and set 0 of the output program (the resolved HDR target).
+	// parameters, the environment, the cluster grid, the shadow map), set 1 of the scene programs
+	// (a material's textures), and set 0 of the output program (the resolved HDR target).
 	VkDescriptorSetLayout m_frameSetLayout{VK_NULL_HANDLE};
 	VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
 	VkDescriptorSetLayout m_outputSetLayout{VK_NULL_HANDLE};
@@ -263,6 +284,19 @@ class Renderer
 	VkPipeline m_lineOverlayPipeline{VK_NULL_HANDLE};
 	VkPipeline m_clusterBoundsPipeline{VK_NULL_HANDLE};
 	VkPipeline m_clusterLightsPipeline{VK_NULL_HANDLE};
+	VkPipeline m_shadowPipeline{VK_NULL_HANDLE};
+
+	// The sun's shadow map: one layer per cascade, a view of the whole array for the lighting
+	// include, one of each layer to render into, and the comparison sampler. Shared by the frames in
+	// flight; its size does not depend on the window's.
+	VkFormat m_shadowFormat{VK_FORMAT_UNDEFINED};
+	Image m_shadowMap{};
+	VkImageView m_shadowArrayView{VK_NULL_HANDLE};
+	std::array<VkImageView, kShadowCascades> m_shadowLayerViews{};
+	VkSampler m_shadowSampler{VK_NULL_HANDLE};
+	ShadowSettings m_shadowSettings{.distance = kDefaultShadowDistance, .resolution = kShadowMapSize};
+	// Whether this frame's cascades have anything to draw: a scene with no sun clears them only.
+	bool m_frameShadows{false};
 
 	// The cluster grid: each cluster's view-space bounds, its offset and count into the index list,
 	// and the list, its allocator first. Device-local, shared by the frames in flight.
@@ -287,6 +321,7 @@ class Renderer
 
 	PassList m_passes;
 	PassPlan m_plan;
+	PassResource m_shadowMapResource;
 	PassResource m_hdrMsaaResource;
 	PassResource m_depthResource;
 	PassResource m_hdrResource;
@@ -294,6 +329,7 @@ class Renderer
 	PassResource m_clusterBoundsResource;
 	PassResource m_clusterGridResource;
 	PassResource m_lightIndicesResource;
+	uint32_t m_shadowPass{0};
 	uint32_t m_clusterResetPass{0};
 	uint32_t m_clusterBoundsPass{0};
 	uint32_t m_clusterLightsPass{0};

@@ -247,6 +247,9 @@ class DeviceContext
 	// Utilities.
 
 	VkFormat FindDepthFormat();
+	// A depth format that can be rendered into and then sampled with a filtered comparison, as the
+	// sun's shadow maps are. Throws when the device has none.
+	VkFormat FindShadowFormat();
 
 	// Every buffer and image the engine allocates goes through these, and through VMA: one
 	// allocator per device, sub-allocating from large blocks where vkAllocateMemory would make
@@ -288,6 +291,10 @@ class DeviceContext
 	// A device-local cube map: six square layers, in Vulkan's face order (+X, -X, +Y, -Y, +Z, -Z).
 	Image CreateCubeImage(
 	    uint32_t size, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage,
+	    const std::string &name);
+	// A device-local 2D array image, one level, single-sampled: the sun's shadow cascades.
+	Image CreateArrayImage(
+	    uint32_t width, uint32_t height, uint32_t layers, VkFormat format, VkImageUsageFlags usage,
 	    const std::string &name);
 	void DestroyImage(Image &image);
 

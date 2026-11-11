@@ -118,6 +118,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_back = m_input.DefineAction("back", Input::ActionType::Button);
 	m_toggleDebugDraw = m_input.DefineAction("toggle_debug_draw", Input::ActionType::Button);
 	m_toggleClusterHeat = m_input.DefineAction("toggle_cluster_heat", Input::ActionType::Button);
+	m_toggleShadowCascades = m_input.DefineAction("toggle_shadow_cascades", Input::ActionType::Button);
 	m_cameraOrbit = m_input.DefineAction("camera_orbit", Input::ActionType::Vector);
 	m_cameraZoom = m_input.DefineAction("camera_zoom", Input::ActionType::Axis);
 	m_cameraDrag = m_input.DefineAction("camera_drag", Input::ActionType::Button);
@@ -133,6 +134,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	}
 	m_input.Bind("shell", m_toggleDebugDraw, {Input::Keys::F2});
 	m_input.Bind("shell", m_toggleClusterHeat, {Input::Keys::F3});
+	m_input.Bind("shell", m_toggleShadowCascades, {Input::Keys::F4});
 	using Input::Keys::Character;
 	m_input.Bind("shell", m_cameraOrbit, {Character('d'), Character('a'), 1.0f, 0.0f, 0});
 	m_input.Bind("shell", m_cameraOrbit, {Character('w'), Character('s'), 1.0f, 0.0f, 1});
@@ -513,11 +515,16 @@ void Application::PollInput()
 		m_showUI = !m_showUI;
 	if (m_input.WasPressedThisFrame(m_toggleDebugDraw))
 		m_showSceneDebug = !m_showSceneDebug;
-	if (m_input.WasPressedThisFrame(m_toggleClusterHeat))
+	// Each debug view's key shows it, or the shaded scene again when it is already showing.
+	const auto toggleView = [this](Render::DebugView view)
+	{
 		m_pRenderer->SetDebugView(
-		    m_pRenderer->GetDebugView() == Render::DebugView::ClusterHeat
-		        ? Render::DebugView::Shaded
-		        : Render::DebugView::ClusterHeat);
+		    m_pRenderer->GetDebugView() == view ? Render::DebugView::Shaded : view);
+	};
+	if (m_input.WasPressedThisFrame(m_toggleClusterHeat))
+		toggleView(Render::DebugView::ClusterHeat);
+	if (m_input.WasPressedThisFrame(m_toggleShadowCascades))
+		toggleView(Render::DebugView::ShadowCascades);
 	if (m_input.WasPressedThisFrame(m_cameraNext))
 		NextCameraTarget(m_scene->Registry());
 	if (m_input.WasPressedThisFrame(m_toggleConsole))

@@ -1,6 +1,7 @@
 // The one lighting implementation (docs/architecture.md, "Rules that follow"): every lit program
 // shades a surface through ShadeSurface, which adds the sun, the local lights of the cluster the
-// fragment falls in and the environment, all through brdf.glsl. Phase 5d shadows the sun.
+// fragment falls in and the environment, all through brdf.glsl. The sun is shadowed through its
+// cascades (shadows.glsl).
 //
 // Fragment stages only, since it finds the cluster from gl_FragCoord. Needs frame.glsl.
 
@@ -9,10 +10,13 @@
 
 #include "brdf.glsl"
 #include "clusters.glsl"
+#include "shadows.glsl"
 
-// What ShadeSurface shows, by frame.counts.y: the lit surface, or the lights-per-cluster heat map.
+// What ShadeSurface shows, by frame.counts.y: the lit surface, the lights-per-cluster heat map, or
+// the shadow cascade each surface selects.
 const uint kDebugViewShaded = 0u;
 const uint kDebugViewClusterHeat = 1u;
+const uint kDebugViewShadowCascades = 2u;
 
 // Each cluster's lights, as cluster_lights.comp wrote them: x the offset of its first entry in the
 // index list, y how many it has.
@@ -50,12 +54,86 @@ vec3 EnvironmentLighting(Surface surface, vec3 normal, vec3 toViewer)
 	return diffuse + specular;
 }
 
-// The cluster a fragment falls in, or kClusterCount past the cluster range.
-uint FragmentCluster(vec3 renderPosition)
+// The sun's shadow maps (Render::Renderer's sun-shadows pass): one layer per cascade, reversed
+// depth, sampled with a comparison that passes where the receiver is at least as near the sun as
+// what the map holds.
+layout(set = 0, binding = 10) uniform sampler2DArrayShadow sunShadowMap;
+
+// How far a receiver is moved along its normal before it is looked up, in texels of its cascade, at
+// a surface edge-on to the sun; facing the sun, it is not moved. With the shadow pass's slope bias
+// this is what keeps a lit surface from shadowing itself.
+const float kShadowNormalOffset = 1.5;
+
+// The view depth of a render-space point.
+float ViewDepth(vec3 renderPosition)
 {
-	float depth = -(frame.view * vec4(renderPosition, 1.0)).z;
+	return -(frame.view * vec4(renderPosition, 1.0)).z;
+}
+
+// The cluster a fragment at a view depth falls in, or kClusterCount past the cluster range.
+uint FragmentCluster(float depth)
+{
 	return ClusterAt(
 	    gl_FragCoord.xy, depth, frame.clusterTile.xy, frame.clusterDepth.x, frame.clusterDepth.y);
+}
+
+// How much of the sun reaches a point in one cascade: the share of a 4 x 4 texel neighbourhood that
+// is no further from the sun than the map holds, as nine bilinear comparison taps a texel apart.
+float CascadeShadow(uint cascade, vec3 renderPosition, vec3 normal, float sinToSun)
+{
+	vec3 offset = normal * (frame.shadowTexels[cascade] * kShadowNormalOffset * sinToSun);
+	vec3 coordinate = ShadowMapCoordinate(frame.shadowMatrices[cascade], renderPosition + offset);
+	vec2 texel = 1.0 / vec2(textureSize(sunShadowMap, 0).xy);
+	float lit = 0.0;
+	// With explicit gradients: the lookups are in control flow that differs between fragments, where
+	// implicit ones are undefined, and the maps have one level.
+	for (int y = -1; y <= 1; ++y)
+		for (int x = -1; x <= 1; ++x)
+			lit += textureGrad(
+			    sunShadowMap,
+			    vec4(coordinate.xy + vec2(x, y) * texel, float(cascade), coordinate.z), vec2(0.0),
+			    vec2(0.0));
+	return lit / 9.0;
+}
+
+// How much of the sun reaches a surface at a view depth: one where it casts no shadow (none this
+// frame, past the shadow distance, or a surface facing away, which the sun does not light anyway),
+// and otherwise its cascade's answer, blended into the next cascade's, or out of shadow past the
+// last, across the end of the cascade.
+float SunShadow(vec3 renderPosition, vec3 normal, float depth)
+{
+	float nDotL = dot(normal, frame.sunDirection.xyz);
+	if (frame.counts.z == 0u || nDotL <= 0.0)
+		return 1.0;
+	uint cascade = ShadowCascadeAt(depth, frame.shadowSplits);
+	if (cascade >= kShadowCascades)
+		return 1.0;
+	float sinToSun = sqrt(max(1.0 - nDotL * nDotL, 0.0));
+	float lit = CascadeShadow(cascade, renderPosition, normal, sinToSun);
+	float blend = ShadowCascadeBlend(depth, frame.shadowSplits[cascade]);
+	if (blend > 0.0)
+	{
+		float next = cascade + 1u < kShadowCascades
+		                 ? CascadeShadow(cascade + 1u, renderPosition, normal, sinToSun)
+		                 : 1.0;
+		lit = mix(lit, next, blend);
+	}
+	return lit;
+}
+
+// The cascade view's colour for a view depth: red, green, blue and yellow for the four cascades,
+// mixed across the bands where one blends into the next, and grey past the shadow distance.
+vec3 CascadeColor(float depth)
+{
+	const vec3 colors[5] = vec3[5](
+	    vec3(1.0, 0.25, 0.2), vec3(0.25, 1.0, 0.25), vec3(0.3, 0.45, 1.0), vec3(1.0, 0.9, 0.2),
+	    vec3(0.35));
+	uint cascade = ShadowCascadeAt(depth, frame.shadowSplits);
+	if (frame.counts.z == 0u || cascade >= kShadowCascades)
+		return colors[kShadowCascades];
+	return mix(
+	    colors[cascade], colors[cascade + 1u],
+	    ShadowCascadeBlend(depth, frame.shadowSplits[cascade]));
 }
 
 // One local light's share: inverse square inside its range, windowed to zero at it, and for a spot
@@ -109,18 +187,28 @@ vec3 ShadeSurface(Surface surface, vec3 normal, vec3 renderPosition)
 	// bent back to the silhouette rather than shaded black.
 	normal = normalize(normal - toViewer * min(dot(normal, toViewer) - 0.001, 0.0));
 
-	uint cluster = FragmentCluster(renderPosition);
+	float depth = ViewDepth(renderPosition);
+	uint cluster = FragmentCluster(depth);
 	// Flat colour, darkened as the surface turns away so the shapes still read. The material's
 	// emission is still added over it, so a lit window shows through.
 	if (frame.counts.y == kDebugViewClusterHeat)
 		return ClusterHeat(cluster) * (0.5 + 0.5 * max(dot(normal, toViewer), 0.0));
+	// The cascade's colour, lit by the sun alone and shadowed, over a floor that keeps the shadowed
+	// side's shapes readable.
+	if (frame.counts.y == kDebugViewShadowCascades)
+	{
+		float sunLight = max(dot(normal, frame.sunDirection.xyz), 0.0) *
+		                 SunShadow(renderPosition, normal, depth);
+		return CascadeColor(depth) * (0.15 + 0.85 * sunLight);
+	}
 
 	vec3 radiance = vec3(0.0);
 	// The sun is one direction for the whole frame: a star 150 million kilometres off subtends half
 	// a degree, and its light does not fall off across a station.
 	if (frame.sunDirection.w != 0.0)
 		radiance += EvaluateBrdf(surface, normal, toViewer, frame.sunDirection.xyz) *
-		            frame.sunColorIntensity.rgb * frame.sunColorIntensity.a;
+		            frame.sunColorIntensity.rgb *
+		            (frame.sunColorIntensity.a * SunShadow(renderPosition, normal, depth));
 	// The cluster's lights: those whose range reaches it, and no others. Past the cluster range
 	// there are none, and the surface has the sun, the sky and its own emission.
 	if (cluster < kClusterCount)

@@ -188,8 +188,9 @@ class Application
 	Input::ActionId m_toggleConsole;
 	Input::ActionId m_back;
 	Input::ActionId m_toggleDebugDraw;
-	// F3: the lights-per-cluster heat map in place of the shaded scene.
+	// F3: the lights-per-cluster heat map in place of the shaded scene; F4: the sun's shadow cascades.
 	Input::ActionId m_toggleClusterHeat;
+	Input::ActionId m_toggleShadowCascades;
 	// The orbit camera: W, A, S and D turn it, Q and E zoom, the right mouse button drags it, and C
 	// moves it to the next body.
 	Input::ActionId m_cameraOrbit;

@@ -43,6 +43,7 @@ inline constexpr InputCode GraveAccent{Device::Keyboard, 96};
 inline constexpr InputCode F1{Device::Keyboard, 290};
 inline constexpr InputCode F2{Device::Keyboard, 291};
 inline constexpr InputCode F3{Device::Keyboard, 292};
+inline constexpr InputCode F4{Device::Keyboard, 293};
 // A letter or digit key: GLFW's code for one is its ASCII, upper case for a letter.
 constexpr InputCode Character(char character)
 {

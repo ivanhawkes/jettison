@@ -148,6 +148,13 @@ CameraView ActiveCameraView(const entt::registry &registry)
 		view.orientation =
 		    OrientationFromAngles(camera->rotation.x, camera->rotation.y, camera->rotation.z);
 	}
+	// An orbit camera moves with what it circles, which is where the shadows' grid is fixed.
+	if (const auto *orbit =
+	        cameraEntity == entt::null ? nullptr : registry.try_get<OrbitCameraComponent>(cameraEntity))
+		if (const auto *world = registry.valid(orbit->target)
+		                            ? registry.try_get<WorldTransformComponent>(orbit->target)
+		                            : nullptr)
+			view.frameOrigin = glm::dvec3{world->matrix[3]};
 	return view;
 }
 

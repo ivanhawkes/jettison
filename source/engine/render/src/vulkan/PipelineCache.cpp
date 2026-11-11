@@ -69,11 +69,14 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	const RenderState &state = key.state;
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
 
+	// A depth-only pass writes no colour, and a program for it has no fragment stage to load.
+	const bool depthOnly = state.colorFormat == VK_FORMAT_UNDEFINED;
 	const VkShaderModule vertexModule = LoadModule("shaders/" + key.program + ".vert.spv");
 	VkShaderModule fragmentModule = VK_NULL_HANDLE;
 	try
 	{
-		fragmentModule = LoadModule("shaders/" + key.program + ".frag.spv");
+		if (!depthOnly)
+			fragmentModule = LoadModule("shaders/" + key.program + ".frag.spv");
 	}
 	catch (...)
 	{
@@ -131,6 +134,13 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = state.cullMode;
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.depthClampEnable = state.depthClamp ? VK_TRUE : VK_FALSE;
+	if (state.depthBiasConstant != 0.0f || state.depthBiasSlope != 0.0f)
+	{
+		rasterizer.depthBiasEnable = VK_TRUE;
+		rasterizer.depthBiasConstantFactor = state.depthBiasConstant;
+		rasterizer.depthBiasSlopeFactor = state.depthBiasSlope;
+	}
 
 	VkPipelineMultisampleStateCreateInfo multisampling{};
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -157,7 +167,7 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	}
 	VkPipelineColorBlendStateCreateInfo blending{};
 	blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	blending.attachmentCount = 1;
+	blending.attachmentCount = depthOnly ? 0 : 1;
 	blending.pAttachments = &blendAttachment;
 
 	const std::array<VkDynamicState, 2> dynamicStates{
@@ -169,14 +179,14 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 
 	VkPipelineRenderingCreateInfo rendering{};
 	rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-	rendering.colorAttachmentCount = 1;
+	rendering.colorAttachmentCount = depthOnly ? 0 : 1;
 	rendering.pColorAttachmentFormats = &state.colorFormat;
 	rendering.depthAttachmentFormat = state.depthFormat;
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipelineInfo.pNext = &rendering;
-	pipelineInfo.stageCount = static_cast<uint32_t>(stages.size());
+	pipelineInfo.stageCount = depthOnly ? 1 : static_cast<uint32_t>(stages.size());
 	pipelineInfo.pStages = stages.data();
 	pipelineInfo.pVertexInputState = &vertexInput;
 	pipelineInfo.pInputAssemblyState = &inputAssembly;

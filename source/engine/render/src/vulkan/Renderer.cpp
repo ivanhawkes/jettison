@@ -31,7 +31,7 @@ struct DrawPushConstants
 	uint32_t jointOffset{};
 	uint32_t skinned{};
 	uint32_t materialOffset{};
-	uint32_t padding{};
+	uint32_t shadowCascade{};
 };
 static_assert(sizeof(DrawPushConstants) == 80);
 constexpr VkShaderStageFlags kDrawStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -53,6 +53,11 @@ constexpr VkDeviceSize kInitialMaterialParameters = 64;
 
 // What the sky draws the sun as when the scene does not say how large it is: the Sun from 1 AU.
 constexpr double kDefaultSunAngularRadius = 0.004652;
+// The shadow pass's slope-scaled depth bias, in the depth one texel's slope covers: negative, since
+// the maps are reversed and away from the sun is towards 0. With the lighting include's normal offset
+// it keeps a lit surface from shadowing itself.
+constexpr float kShadowSlopeBias = -2.0f;
+
 // The brightest the sun's disc is drawn. Its true radiance, irradiance over the half-degree disc's
 // solid angle, is tens of thousands of times its intensity and would overflow the half-float HDR
 // target; past this the tonemapper shows white either way.
@@ -87,6 +92,7 @@ void Renderer::Init()
 	if (m_pDeviceContext->GetMsaaSamples() == VK_SAMPLE_COUNT_1_BIT)
 		throw std::runtime_error("the HDR target needs a multisampled colour and depth attachment");
 	m_depthFormat = m_pDeviceContext->FindDepthFormat();
+	m_shadowFormat = m_pDeviceContext->FindShadowFormat();
 	m_pPipelines = std::make_unique<PipelineCache>(m_pDeviceContext, m_assets);
 	m_pMaterials = std::make_unique<MaterialCache>(
 	    m_pDeviceContext, m_assets, m_resources, *m_pPipelines, kFramesInFlight);
@@ -95,6 +101,7 @@ void Renderer::Init()
 	CreatePassList();
 	CreateTargets();
 	CreateClusterBuffers();
+	CreateShadowMap();
 	// Before the frames: their sets name its cubes and lookup table.
 	m_pEnvironment = std::make_unique<Environment>(m_pDeviceContext, *m_pPipelines);
 	m_pEnvironment->Init();
@@ -125,6 +132,7 @@ void Renderer::Destroy()
 		frame = {};
 	}
 	DestroyClusterBuffers();
+	DestroyShadowMap();
 	DestroyTargets();
 	if (m_pEnvironment)
 		m_pEnvironment->Destroy();
@@ -140,6 +148,7 @@ void Renderer::Destroy()
 	m_lineOverlayPipeline = VK_NULL_HANDLE;
 	m_clusterBoundsPipeline = VK_NULL_HANDLE;
 	m_clusterLightsPipeline = VK_NULL_HANDLE;
+	m_shadowPipeline = VK_NULL_HANDLE;
 
 	vkDestroySampler(device, m_outputSampler, nullptr);
 	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
@@ -181,11 +190,11 @@ void Renderer::CreateLayouts()
 		return layout;
 	};
 
-	// assets/shaders/include/frame.glsl, the environment's bindings in lighting.glsl, and the
-	// cluster grid's, which the cluster programs write and lighting.glsl reads.
+	// assets/shaders/include/frame.glsl, the environment's bindings in lighting.glsl, the cluster
+	// grid's, which the cluster programs write and lighting.glsl reads, and the sun's shadow map.
 	constexpr VkShaderStageFlags kFragmentCompute =
 	    VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-	const std::array<VkDescriptorSetLayoutBinding, 10> frameBindings{{
+	const std::array<VkDescriptorSetLayoutBinding, 11> frameBindings{{
 	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
 	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
 	     nullptr},
@@ -198,6 +207,7 @@ void Renderer::CreateLayouts()
 	    {7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
 	    {8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
 	    {9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
+	    {10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
@@ -256,7 +266,7 @@ void Renderer::CreateLayouts()
 	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
 	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
 	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6 * kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 * kFramesInFlight + 1},
+	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * kFramesInFlight + 1},
 	}};
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -293,6 +303,7 @@ void Renderer::CreateLayouts()
 
 void Renderer::CreatePassList()
 {
+	m_shadowMapResource = m_passes.AddImage("sun-shadows");
 	m_hdrMsaaResource = m_passes.AddImage("hdr-msaa");
 	m_depthResource = m_passes.AddImage("depth");
 	m_hdrResource = m_passes.AddImage("hdr");
@@ -300,6 +311,10 @@ void Renderer::CreatePassList()
 	m_clusterBoundsResource = m_passes.AddBuffer("cluster-bounds");
 	m_clusterGridResource = m_passes.AddBuffer("cluster-grid");
 	m_lightIndicesResource = m_passes.AddBuffer("light-indices");
+	// Every cascade, one rendering each into its own layer, cleared and then drawn into. A scene
+	// without a sun only clears them, so the plan and its barriers are the same either way.
+	m_shadowPass = m_passes.AddPass(
+	    "sun-shadows", PassKind::Graphics, {{m_shadowMapResource, Usage::DepthAttachment}});
 	// The index list's allocator is zeroed by a fill, so the assignment can reserve from it with
 	// atomic adds; a fill is a transfer, and the plan orders it after the last frame's reads.
 	m_clusterResetPass = m_passes.AddPass(
@@ -320,6 +335,7 @@ void Renderer::CreatePassList()
 	    {{m_hdrMsaaResource, Usage::ColorAttachment},
 	     {m_depthResource, Usage::DepthAttachment},
 	     {m_hdrResource, Usage::ColorAttachment},
+	     {m_shadowMapResource, Usage::SampledFragment},
 	     {m_clusterGridResource, Usage::StorageReadFragment},
 	     {m_lightIndicesResource, Usage::StorageReadFragment}});
 	m_outputPass = m_passes.AddPass(
@@ -408,6 +424,62 @@ void Renderer::DestroyClusterBuffers()
 }
 
 
+void Renderer::CreateShadowMap()
+{
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	m_shadowMap = m_pDeviceContext->CreateArrayImage(
+	    kShadowMapSize, kShadowMapSize, kShadowCascades, m_shadowFormat,
+	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "sun-shadows");
+	m_shadowArrayView = m_pDeviceContext->CreateImageView(
+	    m_shadowMap.handle, m_shadowFormat, VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+	    {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, kShadowCascades});
+	m_pDeviceContext->SetDebugName(m_shadowArrayView, "sun-shadows-view");
+	for (std::uint32_t cascade = 0; cascade < kShadowCascades; ++cascade)
+	{
+		m_shadowLayerViews[cascade] = m_pDeviceContext->CreateImageView(
+		    m_shadowMap.handle, m_shadowFormat, VK_IMAGE_VIEW_TYPE_2D,
+		    {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, cascade, 1});
+		m_pDeviceContext->SetDebugName(
+		    m_shadowLayerViews[cascade], "sun-shadows-cascade-" + std::to_string(cascade));
+	}
+
+	// A filtered comparison: each tap is the share of its four texels that the receiver is at least as
+	// near the sun as, which is what the reversed maps hold the nearest of. Outside a map the border
+	// is depth 0, the far side, so nothing there shadows; the fit keeps every lookup inside anyway.
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	samplerInfo.compareEnable = VK_TRUE;
+	samplerInfo.compareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+	samplerInfo.maxLod = 0.0f;
+	if (vkCreateSampler(device, &samplerInfo, nullptr, &m_shadowSampler) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the shadow sampler");
+	m_pDeviceContext->SetDebugName(m_shadowSampler, "sun-shadows-sampler");
+}
+
+
+void Renderer::DestroyShadowMap()
+{
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	vkDestroySampler(device, m_shadowSampler, nullptr);
+	for (VkImageView &view : m_shadowLayerViews)
+	{
+		vkDestroyImageView(device, view, nullptr);
+		view = VK_NULL_HANDLE;
+	}
+	vkDestroyImageView(device, m_shadowArrayView, nullptr);
+	m_pDeviceContext->DestroyImage(m_shadowMap);
+	m_shadowSampler = VK_NULL_HANDLE;
+	m_shadowArrayView = VK_NULL_HANDLE;
+}
+
+
 void Renderer::CreateFrames()
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
@@ -484,7 +556,9 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	    {sampler, m_pEnvironment->GetIrradianceView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 	    {sampler, m_pEnvironment->GetBrdfLutView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 	}};
-	std::array<VkWriteDescriptorSet, 10> writes{};
+	const VkDescriptorImageInfo shadows{
+	    m_shadowSampler, m_shadowArrayView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+	std::array<VkWriteDescriptorSet, 11> writes{};
 	for (auto &write : writes)
 	{
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -515,6 +589,9 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 		writes[binding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		writes[binding].pBufferInfo = &clusters[binding - 7];
 	}
+	writes[10].dstBinding = 10;
+	writes[10].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writes[10].pImageInfo = &shadows;
 	vkUpdateDescriptorSets(
 	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
 	    nullptr);
@@ -569,6 +646,17 @@ void Renderer::CreatePipelines()
 	m_linePipeline = m_pPipelines->Get({"debug_line", line, m_lineLayout});
 	line.depthTest = false;
 	m_lineOverlayPipeline = m_pPipelines->Get({"debug_line", line, m_lineLayout});
+
+	// The sun's cascades: depth only, every draw's vertex stage, reversed as the main depth buffer
+	// is. Both faces are drawn, so an open mesh casts too, and depth is clamped rather than clipped,
+	// so what lies between the sun and a cascade's map is drawn at the map's sun side and shadows it.
+	RenderState shadow;
+	shadow.cullMode = VK_CULL_MODE_NONE;
+	shadow.depthCompare = VK_COMPARE_OP_GREATER;
+	shadow.depthClamp = true;
+	shadow.depthBiasSlope = kShadowSlopeBias;
+	shadow.depthFormat = m_shadowFormat;
+	m_shadowPipeline = m_pPipelines->Get({"shadow_depth", shadow, m_meshLayout});
 
 	m_clusterBoundsPipeline = m_pPipelines->GetCompute("cluster_bounds", m_clusterLayout);
 	m_clusterLightsPipeline = m_pPipelines->GetCompute("cluster_lights", m_clusterLayout);
@@ -700,6 +788,7 @@ void Renderer::WriteFrame(
 	}
 
 	// The scene loader allows one sun.
+	m_frameShadows = false;
 	for (const auto [entity, sun] : sceneRegistry.view<const SunComponent>().each())
 	{
 		glm::dvec3 position{0.0};
@@ -721,6 +810,15 @@ void Renderer::WriteFrame(
 			constants.sunDisc = glm::vec4(
 			    static_cast<float>(std::cos(radius)), static_cast<float>(radius),
 			    std::min(static_cast<float>(sun.intensity / solidAngle), kMaxSunRadiance), 0.0f);
+
+			const SunShadows shadows = FitSunShadows(
+			    camera, viewport.x / std::max(viewport.y, 1.0f), towards / distance, m_shadowSettings);
+			for (std::uint32_t cascade = 0; cascade < kShadowCascades; ++cascade)
+				constants.shadowMatrices[cascade] = shadows.cascades[cascade].matrix;
+			constants.shadowSplits = shadows.Splits();
+			constants.shadowTexels = shadows.TexelSizes();
+			constants.counts.z = 1u;
+			m_frameShadows = true;
 		}
 	}
 	m_pDeviceContext->WriteBuffer(frame.constants, &constants, sizeof(constants));
@@ -986,6 +1084,7 @@ void Renderer::Record(
 
 	// This frame's images, in the pass list's resource order.
 	std::vector<BoundResource> bound(m_passes.ResourceCount());
+	bound[m_shadowMapResource.index] = {m_shadowMap.handle, VK_IMAGE_ASPECT_DEPTH_BIT};
 	bound[m_hdrMsaaResource.index] = {m_targets.hdrMsaa.handle, VK_IMAGE_ASPECT_COLOR_BIT};
 	bound[m_depthResource.index] = {m_targets.depth.handle, VK_IMAGE_ASPECT_DEPTH_BIT};
 	bound[m_hdrResource.index] = {m_targets.hdr.handle, VK_IMAGE_ASPECT_COLOR_BIT};
@@ -998,7 +1097,9 @@ void Renderer::Record(
 	{
 		RecordBarriers(commandBuffer, planned.barriers, bound);
 		m_pDeviceContext->BeginDebugLabel(commandBuffer, std::string{m_passes.PassName(planned.pass)});
-		if (planned.pass == m_clusterResetPass)
+		if (planned.pass == m_shadowPass)
+			RecordShadows(frame, commandBuffer, draws, jointOffsets);
+		else if (planned.pass == m_clusterResetPass)
 			vkCmdFillBuffer(commandBuffer, m_lightIndices.handle, 0, sizeof(uint32_t), 0);
 		else if (planned.pass == m_clusterBoundsPass)
 			RecordClusterBounds(frame, commandBuffer);
@@ -1017,6 +1118,73 @@ void Renderer::Record(
 	m_pDeviceContext->EndDebugLabel(commandBuffer);
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to record command buffer");
+}
+
+
+void Renderer::RecordShadows(
+    const FrameData &frame, VkCommandBuffer commandBuffer, const std::vector<SceneDrawCommand> &draws,
+    const std::vector<uint32_t> &jointOffsets) const
+{
+	const VkExtent2D extent{kShadowMapSize, kShadowMapSize};
+	const VkViewport viewport{
+	    0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f};
+	const VkRect2D scissor{{0, 0}, extent};
+	for (std::uint32_t cascade = 0; cascade < kShadowCascades; ++cascade)
+	{
+		VkRenderingAttachmentInfo depth{};
+		depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depth.imageView = m_shadowLayerViews[cascade];
+		depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		// Reversed: 0 is the far side of the map from the sun.
+		depth.clearValue.depthStencil = {0.0f, 0};
+
+		VkRenderingInfo rendering{};
+		rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+		rendering.renderArea = scissor;
+		rendering.layerCount = 1;
+		rendering.pDepthAttachment = &depth;
+
+		m_pDeviceContext->BeginDebugLabel(commandBuffer, "cascade-" + std::to_string(cascade));
+		vkCmdBeginRendering(commandBuffer, &rendering);
+		if (m_frameShadows)
+		{
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline);
+			// The shadow program reads the frame set alone: the cascades' matrices and the skin
+			// palette. No material set is bound, since it has no fragment stage to read one.
+			vkCmdBindDescriptorSets(
+			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
+			    nullptr);
+			for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+			{
+				const SceneDrawCommand &draw = draws[drawIndex];
+				if (draw.model == nullptr)
+					continue;
+				const VkBuffer vertexBuffer = draw.model->m_vertexBuffer.handle;
+				const VkDeviceSize offset = 0;
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
+				vkCmdBindIndexBuffer(
+				    commandBuffer, draw.model->m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+				DrawPushConstants pushConstants{};
+				pushConstants.model = draw.renderTransform;
+				pushConstants.jointOffset = jointOffsets[drawIndex];
+				pushConstants.skinned =
+				    draw.skeleton != nullptr && !draw.skeleton->jointMatrices.empty() ? 1u : 0u;
+				pushConstants.shadowCascade = cascade;
+				vkCmdPushConstants(
+				    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants),
+				    &pushConstants);
+				for (const auto &primitive : draw.model->m_primitives)
+					vkCmdDrawIndexed(
+					    commandBuffer, primitive.indexCount, 1, primitive.firstIndex, 0, 0);
+			}
+		}
+		vkCmdEndRendering(commandBuffer);
+		m_pDeviceContext->EndDebugLabel(commandBuffer);
+	}
 }
 
 

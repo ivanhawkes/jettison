@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 
+#include <array>
 #include <cstddef>
 
 namespace Jettison::Render
@@ -42,14 +43,20 @@ struct FrameUBO
 	// centre, in radians.
 	alignas(16) glm::vec4 environment{0.0f};
 	GpuSky sky{};
-	// x: the lights in the light list, y: the debug view (Render::DebugView).
+	// x: the lights in the light list, y: the debug view (Render::DebugView), z: 1 when the sun
+	// casts shadows this frame.
 	alignas(16) glm::uvec4 counts{0u};
 	// The cluster grid (clusters.glsl): x the near plane, y the cluster range, as view depths.
 	alignas(16) glm::vec4 clusterDepth{0.0f};
 	// xy: a cluster tile's size in pixels, zw: the viewport's size in pixels.
 	alignas(16) glm::vec4 clusterTile{0.0f};
+	// The sun's shadow cascades (render/Shadows.h): render space to each map, the view depth each ends
+	// at, and a texel's size in metres in each.
+	alignas(16) std::array<glm::mat4, 4> shadowMatrices{};
+	alignas(16) glm::vec4 shadowSplits{0.0f};
+	alignas(16) glm::vec4 shadowTexels{0.0f};
 };
-static_assert(sizeof(FrameUBO) == 320);
+static_assert(sizeof(FrameUBO) == 608);
 static_assert(offsetof(FrameUBO, projection) == 64);
 static_assert(offsetof(FrameUBO, sunDirection) == 128);
 static_assert(offsetof(FrameUBO, sunColorIntensity) == 144);
@@ -59,6 +66,9 @@ static_assert(offsetof(FrameUBO, sky) == 192);
 static_assert(offsetof(FrameUBO, counts) == 272);
 static_assert(offsetof(FrameUBO, clusterDepth) == 288);
 static_assert(offsetof(FrameUBO, clusterTile) == 304);
+static_assert(offsetof(FrameUBO, shadowMatrices) == 320);
+static_assert(offsetof(FrameUBO, shadowSplits) == 576);
+static_assert(offsetof(FrameUBO, shadowTexels) == 592);
 
 // One entry of the light list, std430: frame.glsl's Light. Render::PackLight (render/Clusters.h)
 // fills it from a LightComponent.

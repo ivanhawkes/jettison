@@ -443,7 +443,7 @@ bool DeviceContext::IsDeviceSuitable(VkPhysicalDevice device)
 
 	return indices.isComplete() && extensionsSupported && swapChainAdequate &&
 	       properties.apiVersion >= kApiVersion && features.features.samplerAnisotropy &&
-	       features13.dynamicRendering && features13.synchronization2;
+	       features.features.depthClamp && features13.dynamicRendering && features13.synchronization2;
 }
 
 
@@ -473,7 +473,8 @@ void DeviceContext::PickPhysicalDevice()
 	if (m_physicalDevice == VK_NULL_HANDLE)
 	{
 		throw std::runtime_error(
-		    "failed to find a suitable GPU (Vulkan 1.3 with dynamic rendering and synchronization2)");
+		    "failed to find a suitable GPU (Vulkan 1.3 with dynamic rendering, synchronization2 and "
+		    "depth clamp)");
 	}
 }
 
@@ -505,6 +506,8 @@ void DeviceContext::CreateLogicalDevice()
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	deviceFeatures.pNext = &features13;
 	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
+	// The sun's shadow pass clamps the depth of casters nearer the sun than its maps reach.
+	deviceFeatures.features.depthClamp = VK_TRUE;
 	// Block compression where the device has it, which is every desktop GPU and lavapipe: Basis
 	// Universal textures transcode to BC7 then, and to RGBA8, four times the memory, without it.
 	VkPhysicalDeviceFeatures supported{};
@@ -645,6 +648,15 @@ VkFormat DeviceContext::FindDepthFormat()
 	return FindSupportedFormat(
 	    {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
 	    VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
+
+
+VkFormat DeviceContext::FindShadowFormat()
+{
+	return FindSupportedFormat(
+	    {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D16_UNORM}, VK_IMAGE_TILING_OPTIMAL,
+	    VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+	        VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
 }
 
 

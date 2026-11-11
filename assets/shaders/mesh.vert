@@ -5,9 +5,14 @@
 #include "frame.glsl"
 #include "mesh_vertex.glsl"
 
+// Built as shadow_depth.vert with SHADOW_DEPTH, the sun's shadow pass: the same position, skinned
+// the same way, into the cascade the draw names, and nothing else, since that program has no
+// fragment stage.
+#ifndef SHADOW_DEPTH
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
-#ifndef UNLIT
+#endif
+#if !defined(UNLIT) && !defined(SHADOW_DEPTH)
 // Built as unlit.vert with UNLIT, for a program that is not lit and so takes neither.
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec3 fragRenderPosition;
@@ -40,10 +45,14 @@ void main()
 		localNormal = mat3(skinMatrix) * localNormal;
 	}
 	vec4 renderPosition = draw.model * localPosition;
+#ifdef SHADOW_DEPTH
+	gl_Position = frame.shadowMatrices[draw.shadowCascade] * renderPosition;
+#else
 	gl_Position = frame.projection * frame.view * renderPosition;
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
-#ifndef UNLIT
+#endif
+#if !defined(UNLIT) && !defined(SHADOW_DEPTH)
 	fragNormal = normalize(mat3(transpose(inverse(draw.model))) * localNormal);
 	fragRenderPosition = renderPosition.xyz;
 #endif

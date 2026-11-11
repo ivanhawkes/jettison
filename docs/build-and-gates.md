@@ -264,8 +264,9 @@ the run does not depend on a GPU.
 restore, scene reload, settle. Each stage runs four frames, inside a 120-second watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
-the star system, under an orbit camera and the sun, with eleven floodlights, dock lights and
-beacons assigned to the clusters). Each scene's sky is baked into its
+the star system, under an orbit camera and the sun, which shadows it through four cascades, with
+eleven floodlights, dock lights and beacons assigned to the clusters). The sample scene has no sun,
+so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
 the frame sets rewritten after it run under validation too. Budget about 40 seconds on a
 workstation, and more on a runner.

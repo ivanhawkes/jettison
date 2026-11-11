@@ -47,6 +47,9 @@ jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.frag OUTPUT shaders/mesh_triplanar.frag DEFINES TRIPLANAR)
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.vert OUTPUT shaders/unlit.vert DEFINES UNLIT)
+# The sun's shadow pass: the mesh vertex stage alone, into a cascade.
+jettison_compile_shader_variant(jettison_assets
+	SOURCE shaders/mesh.vert OUTPUT shaders/shadow_depth.vert DEFINES SHADOW_DEPTH)
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/sky.frag OUTPUT shaders/sky_capture.frag DEFINES CAPTURE)
 jettison_compile_shader_variant(jettison_assets

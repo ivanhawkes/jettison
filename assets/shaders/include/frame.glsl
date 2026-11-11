@@ -24,13 +24,19 @@ layout(set = 0, binding = 0) uniform FrameConstants
 	// pixel covers at the centre of the view, in radians.
 	vec4 environment;
 	Sky sky;
-	// x: the lights in the light list, y: the debug view (kDebugView*, lighting.glsl).
+	// x: the lights in the light list, y: the debug view (kDebugView*, lighting.glsl), z: 1 when the
+	// sun casts shadows this frame.
 	uvec4 counts;
 	// The cluster grid (clusters.glsl): x the near plane and y the cluster range, both view depths
 	// in metres.
 	vec4 clusterDepth;
 	// xy: a cluster tile's size in pixels, zw: the viewport's size in pixels.
 	vec4 clusterTile;
+	// The sun's shadow cascades (shadows.glsl): each one's matrix from render space to its map, the
+	// view depth each ends at, and a texel's size in metres in each.
+	mat4 shadowMatrices[4];
+	vec4 shadowSplits;
+	vec4 shadowTexels;
 } frame;
 
 // The skin palette: every skinned draw's joint matrices, one after another. A draw finds its own
@@ -65,6 +71,7 @@ layout(std430, set = 0, binding = 2) readonly buffer LightList
 // are the cluster grid, one set shared by the frames in flight as the render targets are: 7 the
 // clusters' bounds, which only the compute programs read, and 8 and 9 each cluster's offset and
 // count into the light index list, and the list, which the assignment program writes and
-// lighting.glsl reads.
+// lighting.glsl reads. Binding 10 is the sun's shadow maps, which lighting.glsl declares, shared as
+// the grid is.
 
 #endif

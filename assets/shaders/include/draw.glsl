@@ -8,5 +8,6 @@ layout(push_constant) uniform Draw
 	uint skinned;
 	// Where the draw's material parameters start in the frame's material buffer.
 	uint materialOffset;
-	uint padding;
+	// The cascade a shadow-depth draw renders into (shadow_depth.vert); other draws ignore it.
+	uint shadowCascade;
 } draw;

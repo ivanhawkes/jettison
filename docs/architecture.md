@@ -174,7 +174,7 @@ is (`CameraComponent` documents it).
 |---|---|---|---|
 | Galaxy | graph | none: systems are nodes, jump lanes are edges | route planning, the galaxy map |
 | System | `double` | the system's barycentre or primary star | simulation positions, orbits, Jolt (`JPH_DOUBLE_PRECISION`) |
-| Local | `double` | a station or planet | docking approaches, station-relative traffic |
+| Local | `double` | a station or planet | docking approaches, station-relative traffic, the sun's shadow grid (`CameraView::frameOrigin`) |
 | Render | `float` | the camera | everything submitted to the GPU |
 
 Rendering is **camera-relative**: each frame subtracts the camera's double-precision position
@@ -213,8 +213,10 @@ nodes in it:
    position, and written to a storage buffer for this frame in flight (5c). A light whose range
    ends short of the cluster range's far end, measured from the camera in double precision, is
    left out; frustum culling of lights arrives with the rest of culling in 5e.
-2. **Shadows.** Sun cascades (phase 5). Spot and point shadows, when they arrive, render into an
-   atlas, and each light's record carries its atlas slot.
+2. **Shadows** (graphics, `sun-shadows`, 5d). The sun's four cascades, each a depth-only rendering
+   of every mesh into one layer of the shadow map; see [sun shadows](#sun-shadows). A scene with no
+   sun clears them and draws nothing, so the plan is the same either way. Spot and point shadows,
+   when they arrive, render into an atlas, and each light's record carries its atlas slot.
 3. **Depth prepass** (opaque only). Optional, and kept or dropped by measurement in phase 5. Light
    assignment does not need it. What it would buy is less overdraw of the PBR program.
 4. **Cluster bounds** (compute, `cluster_bounds`, 5c). The view-space bounds of every cluster.
@@ -228,8 +230,8 @@ nodes in it:
    one atomic add. The list holds 32 entries per cluster on average, a budget for the frame
    rather than a cap on any one cluster.
 6. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
-   position and view distance, loops over that cluster's lights, then adds the sun and image-based
-   lighting.
+   position and view distance, loops over that cluster's lights, then adds the sun, shadowed through
+   its cascade, and image-based lighting.
 7. **Sky.** Drawn last in the opaque pass's rendering rather than as a node of its own (5b): one
    full-screen triangle at depth 0, the far end of the reversed-Z range, tested against the depth
    buffer so it shades only what no surface covered. A node of its own would have to store the
@@ -275,6 +277,39 @@ The CPU reference built on it checks the GPU's assignment: in the headless rende
 frame's grid is read back and compared with it, cluster by cluster, as sets with a rounding
 tolerance of a hundred-thousandth of the distances involved. The lights-per-cluster heat map (F3)
 shows the same grid on screen, in place of the shaded surfaces.
+
+### Sun shadows
+
+The sun is shadowed by four cascaded shadow maps (5d), one layer each of a 2048 × 2048
+reversed-depth array image shared by the frames in flight. The view is cut into four slices by
+the practical split scheme, blending even and logarithmic splits (0.8 towards logarithmic), from
+the near plane to the **shadow distance** (`Renderer::SetShadowDistance`, 400 m to start with,
+tuned in 5e). Past it the sun casts no shadow. `render/Shadows.h` fits the cascades on the CPU each
+frame, and `shaders/include/shadows.glsl`, which it compiles as C++ as `Clusters.h` does
+`clusters.glsl`, is what the lighting include selects and looks up through.
+
+- **Stable by construction.** Each cascade's map covers the bounding sphere of its slice of the
+  view, plus a border of four texels, so its texel size depends only on the projection and turning
+  the camera never changes it. The map's centre is snapped to whole texels in the sun's frame,
+  whose axes come from the system's, never the camera's. The snap is measured from the camera's
+  **frame origin** (`CameraView::frameOrigin`): the station or body an orbit camera circles, or the
+  system's origin. A station moves at kilometres a second through the system, so a grid fixed to
+  the system would slide under it by a fraction of a texel every frame and its shadows' edges would
+  crawl; fixed to the station, a still caster lands on the same texels whatever the camera does.
+  The snap is taken in double precision, and only the matrix from render space to the map becomes
+  a float.
+- **Casters between the sun and a map still shadow it.** The shadow pass clamps depth rather than
+  clipping it (`depthClamp`, a required device feature), so whatever lies sunwards of a cascade's
+  sphere, up to and including a planet, is drawn at the map's sun side.
+- **Acne** is kept off by a slope-scaled depth bias in the shadow pass and by moving each receiver
+  along its normal before the lookup, by one and a half texels of its cascade at a surface edge-on
+  to the sun.
+- **Lookup.** A fragment selects its cascade by view depth, takes nine bilinear comparison taps a
+  texel apart (a 4 × 4 texel neighbourhood), and across the last tenth of each cascade blends into
+  the next, or out of shadow past the last. Each cascade is fitted from the start of the previous
+  one's band, so the blend's second lookup lands inside its map too.
+- **Debug draw shows the cascades** (F4): each surface in its cascade's colour, lit by the sun
+  alone and shadowed.
 
 ### Rules that follow
 
@@ -370,14 +405,16 @@ proves it headlessly. What exists:
   instance, device, debug-utils messenger (with synchronization validation in Debug), object
   names, and the VMA allocator every buffer and image comes from. `Swapchain` prefers an sRGB
   format and owns its image views. `Renderer` runs the frame as a declared pass list
-  (`render/PassList.h`): the cluster passes (the index list's allocator zeroed by a transfer, then
-  the cluster bounds and the light assignment in compute), an opaque pass into a 4× multisampled
+  (`render/PassList.h`): the sun's [shadow cascades](#sun-shadows), the cluster passes (the index
+  list's allocator zeroed by a transfer, then the cluster bounds and the light assignment in
+  compute), an opaque pass into a 4× multisampled
   RGBA16F target, which draws the sky after the surfaces and is resolved into a single-sampled
   target as it ends, an output pass that applies exposure and tonemaps on its way to the swapchain
   and draws the UI over it, and the cluster check's copy. The barriers between passes are derived
   from each pass's declared uses once, at start-up, and recorded with dynamic rendering and
   synchronization2. The frame constants, skin palette, light list and command buffer exist once
-  per frame in flight; the cluster grid's buffers are one set, shared as the render targets are.
+  per frame in flight; the shadow map and the cluster grid's buffers are one set each, shared as the
+  render targets are. The device has to offer depth clamp, which the shadow pass uses.
   `PipelineCache` makes graphics pipelines by program name and render state, and compute
   pipelines by program name, with the programs found through the asset VFS. Materials are data (`render/Material.h`): a material file
   names a program, whose descriptor (`shaders/<program>.program.yaml`) lists its parameters and
@@ -387,7 +424,8 @@ proves it headlessly. What exists:
   it or a texture reloads, and frees what a reload replaced once no frame in flight reads it; a
   model without a material draws with its own textures through the default `mesh` program.
   `Model` loads glTF through fastgltf. The `mesh` program is glTF's metallic-roughness model, lit
-  by the sun, the [environment](#the-environment) and the local lights of the
+  by the sun, shadowed through its cascades, the [environment](#the-environment) and the local
+  lights of the
   [cluster](#rendering-clustered-forward) the fragment falls in. `unlit` is for what is a light
   rather than lit by one.
 - **ImGui** for a demo window, toggled with F1.

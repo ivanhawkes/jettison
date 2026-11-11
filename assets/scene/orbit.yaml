@@ -1,7 +1,8 @@
 # A station in low orbit over a planet, at real scale, from the Halcyon system: the large-world
 # scene phase 4's exit criterion is judged on. The bodies are placed by the system each frame; the
 # camera orbits the station (W, A, S, D, Q, E, or drag with the right mouse button), C moves it to
-# the next body, F2 draws the orbits and the lights' reach, and F3 shows the lights per cluster.
+# the next body, F2 draws the orbits and the lights' reach, F3 shows the lights per cluster, and F4
+# the sun's shadow cascades.
 version: 1
 system: ../systems/halcyon.yaml
 entities:

@@ -35,7 +35,8 @@ enum class BlendMode
 // Everything about a graphics pipeline other than its shaders and layout: the vertex stream, the
 // rasteriser, the depth test, blending, and the attachments dynamic rendering will give it.
 // Viewport and scissor are dynamic state, so no pipeline depends on the window's size and a
-// resize rebuilds none of them.
+// resize rebuilds none of them. A state with no colour format is depth only, and its program is a
+// vertex stage alone.
 struct RenderState
 {
 	VertexLayout vertices{VertexLayout::Mesh};
@@ -44,6 +45,12 @@ struct RenderState
 	bool depthTest{true};
 	bool depthWrite{true};
 	VkCompareOp depthCompare{VK_COMPARE_OP_LESS};
+	// Depth clamped to the viewport's range rather than clipped by it, so a caster nearer the sun
+	// than a shadow map reaches is still drawn (the device is required to have depthClamp).
+	bool depthClamp{false};
+	// The rasteriser's depth bias, constant and by slope; none when both are zero.
+	float depthBiasConstant{0.0f};
+	float depthBiasSlope{0.0f};
 	BlendMode blend{BlendMode::Opaque};
 	VkFormat colorFormat{VK_FORMAT_UNDEFINED};
 	VkFormat depthFormat{VK_FORMAT_UNDEFINED};
@@ -53,7 +60,8 @@ struct RenderState
 };
 
 // A program is a name: "mesh" is shaders/mesh.vert.spv and shaders/mesh.frag.spv, found through
-// the asset tree's mounts, so a mod can ship a program over the base one. The layout is the
+// the asset tree's mounts, so a mod can ship a program over the base one; a depth-only program,
+// such as "shadow_depth", is its vertex stage alone. The layout is the
 // renderer's, made once for its lifetime, so keying on its handle cannot outlive it.
 struct PipelineKey
 {
