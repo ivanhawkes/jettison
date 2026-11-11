@@ -5,17 +5,25 @@
 # FetchContent dependencies out of the run, and HeaderFilterRegex in the config keeps
 # their headers out of the diagnostics.
 #
-# Usage: scripts/tidy.sh [--build-dir DIR] [--summary] [--fix]
+# Checking runs scripts/tidy.py: every core (JETTISON_TIDY_JOBS to change it), and only the units
+# whose sources, headers, compile command or checks changed since they last came out clean, from a
+# cache outside the tree (~/.cache/jettison/tidy, or JETTISON_TIDY_CACHE).
 #
-#  --build-dir DIR  tree with compile_commands.json (default: build/clang-debug)
-#  --summary        print the summary line only, not the diagnostics
-#  --fix            apply safe fixes in place; start from a clean tree to review them
+# Usage: scripts/tidy.sh [--build-dir DIR] [--summary] [--all] [--fix]
+#
+#  --build-dir DIR  tree with compile_commands.json (default: build/clang-debug), built, since the
+#                   cache reads the headers each unit includes from its dependency record
+#  --summary        print the summary lines only, not the diagnostics
+#  --all            check every unit, cached as clean or not
+#  --fix            apply safe fixes in place, over every unit; start from a clean tree to review them
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 build_dir="build/clang-debug"
 summary=0
 fix=0
+summary_flag=()
+all_flag=()
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -26,6 +34,11 @@ while [ $# -gt 0 ]; do
 			;;
 		--summary)
 			summary=1
+			summary_flag=(--summary)
+			shift
+			;;
+		--all)
+			all_flag=(--all)
 			shift
 			;;
 		--fix)
@@ -33,7 +46,7 @@ while [ $# -gt 0 ]; do
 			shift
 			;;
 		-h | --help)
-			sed -n '2,12p' "${BASH_SOURCE[0]}"
+			sed -n '2,18p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*)
@@ -42,6 +55,11 @@ while [ $# -gt 0 ]; do
 			;;
 	esac
 done
+
+if [ "$fix" -eq 0 ]; then
+	# Checking: every core, and only the units that changed since they were last clean (tidy.py).
+	exec python3 scripts/tidy.py --build-dir "$build_dir" ${summary_flag[@]+"${summary_flag[@]}"} ${all_flag[@]+"${all_flag[@]}"}
+fi
 
 if [ ! -f "$build_dir/compile_commands.json" ]; then
 	echo "tidy: $build_dir has no compile_commands.json; run 'cmake --preset clang-debug'" >&2
@@ -53,37 +71,11 @@ if [ ! -x "$(command -v run-clang-tidy)" ]; then
 	exit 1
 fi
 
-args=(-p "$build_dir" -quiet -j "${JETTISON_TIDY_JOBS:-2}")
-[ "$fix" -eq 1 ] && args+=(-fix)
-
-# Only our sources: the dependency tree is third-party code, not ours to lint.
-# run-clang-tidy exits non-zero when it emits diagnostics, so take its output and decide
-# here what a failure means.
+# Fixing goes through run-clang-tidy, which collects every unit's fixes and applies them once, so two
+# units fixing one header do not write over each other. Every unit is checked: a fix is a decision
+# about the whole tree.
 set +e
-output="$(run-clang-tidy "${args[@]}" 'source/(engine|tools|samples|test)/.*\.(cpp|h)$' 2>&1)"
+run-clang-tidy -p "$build_dir" -quiet -j "${JETTISON_TIDY_JOBS:-$(nproc)}" -fix 'source/(engine|tools|samples|test)/.*\.(cpp|h)$'
 status=$?
 set -e
-
-if [ "$status" -ne 0 ]; then
-	printf '%s\n' "$output" >&2
-	echo "tidy: run-clang-tidy failed (exit $status)" >&2
-	exit "$status"
-fi
-
-diagnostics="$(printf '%s\n' "$output" | grep -E '^[^ ].*: warning:|^[^ ].*: error:' | grep -v 'clang-tidy' || true)"
-count=0
-[ -n "$diagnostics" ] && count="$(printf '%s\n' "$diagnostics" | wc -l | tr -d ' ')"
-
-if [ "$summary" -eq 0 ]; then
-	printf '%s\n' "$output"
-fi
-
-if [ "$count" -eq 0 ]; then
-	echo "tidy: clean (.clang-tidy over $build_dir)"
-	exit 0
-fi
-
-printf '%s\n' "$diagnostics" | sed -E 's/^[^ ]*: (warning|error): //' |
-	grep -oE '\[[a-z0-9.-]+\]$' | sort | uniq -c | sort -rn | sed 's/^/tidy: /'
-echo "tidy: $count diagnostics; see above (checks in .clang-tidy)"
-exit 1
+exit "$status"

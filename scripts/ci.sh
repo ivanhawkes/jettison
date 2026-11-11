@@ -18,6 +18,10 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# The suites are separate processes, each writing only under a temporary directory named for its
+# process, so they run side by side. CTEST_PARALLEL_LEVEL bounds them, as CI's runner does.
+jobs="${CTEST_PARALLEL_LEVEL:-$(nproc)}"
+
 preset="clang-debug"
 headless_preset="${JETTISON_CI_HEADLESS_PRESET:-clang-headless}"
 smoke=1
@@ -48,7 +52,7 @@ echo "==> configure + build: $preset"
 cmake --preset "$preset" ${werror[@]+"${werror[@]}"}
 cmake --build --preset "$preset"
 echo "==> unit tests: $preset (CTest)"
-ctest --test-dir "build/$preset" --output-on-failure --no-tests=error
+ctest --test-dir "build/$preset" --output-on-failure --no-tests=error -j "$jobs"
 
 if [ "$tidy" -eq 1 ]; then
 	echo "==> clang-tidy (.clang-tidy, $preset database)"
@@ -64,7 +68,7 @@ if [ "$release" -eq 1 ]; then
 	# The simulation's state hashes are pinned in the suites, and have to be the same in every
 	# build: this is where Release is held to the Debug build's values.
 	echo "==> unit tests: clang-release (CTest)"
-	ctest --test-dir build/clang-release --output-on-failure --no-tests=error
+	ctest --test-dir build/clang-release --output-on-failure --no-tests=error -j "$jobs"
 fi
 
 if [ "$smoke" -eq 1 ]; then
@@ -83,7 +87,7 @@ if [ "$asan" -eq 1 ]; then
 	# The suites whose state hashes are pinned, held to the same values under the sanitizers.
 	echo "==> unit tests: clang-asan (sim and physics)"
 	cmake --build --preset clang-asan --target jettison_sim_tests jettison_physics_tests
-	ctest --test-dir build/clang-asan -R '^(sim|physics)$' --output-on-failure --no-tests=error
+	ctest --test-dir build/clang-asan -R '^(sim|physics)$' --output-on-failure --no-tests=error -j "$jobs"
 fi
 
 echo "==> gate passed"

@@ -92,7 +92,10 @@ executable="$build_dir/source/test/render_test"
 
 if [ "$build" -eq 1 ]; then
 	cmake --preset "$preset" ${werror[@]+"${werror[@]}"} >/dev/null
-	cmake --build --preset "$preset" >/dev/null
+	# The render test alone, with the shaders and assets it stages: nothing else in this tree is run
+	# here, and the Debug tree builds and tests the rest. In the sanitised tree the rest was a third
+	# of the build, 18 s of 68 after a change to a header most of the engine includes.
+	cmake --build --preset "$preset" --target render_test >/dev/null
 fi
 
 if [ ! -x "$executable" ]; then

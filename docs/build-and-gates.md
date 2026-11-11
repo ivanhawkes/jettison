@@ -231,7 +231,36 @@ flag costs more than it finds.
 ### clang-tidy
 
 `.clang-tidy` carries a curated set, and `scripts/tidy.sh` runs it over the project's own sources
-from a configured tree's compile database. A check earns its place by being clean over these
+from a configured tree's compile database.
+
+A check of every unit is about 1,500 s of work: 2 s for a small one, 23 s for `Application.cpp`,
+spread over every check rather than in one. So `scripts/tidy.py`, which `tidy.sh` runs, checks on
+every core (`JETTISON_TIDY_JOBS`, which CI sets to 2) and skips a unit that came out clean before and
+has not changed since. A unit's key is a digest of clang-tidy's version, `.clang-tidy`, the unit's
+compile command and the contents of every file it includes, as the built tree's dependency record
+(`ninja -t deps`) lists them, with paths under the repository made relative, so a worktree reuses
+another's results; the cache is outside the tree (`~/.cache/jettison/tidy`, or
+`JETTISON_TIDY_CACHE`). Only clean units are cached, so a diagnostic is reported every run until it
+is fixed. A unit with no dependency record, or with a file changed since its object was built, is
+always checked and never cached: the record lists what the unit included when it was built, and an
+edit since may have included something it does not name. Measured on 2026-11-12 on
+a Ryzen 9 3900X: every unit on all cores in 93 s, against 627 s at the two jobs it ran with before (a Release build overlapping some of it);
+with nothing changed, 0.7 s; with one source changed, that unit alone. `--all` checks every unit
+whatever the cache says, and `--fix` goes through `run-clang-tidy` over every unit, so two units'
+fixes to one header are applied once.
+
+### Compiler cache
+
+Every compile goes through ccache when it is on the PATH, which the devenv shell puts it on
+(`JETTISON_CCACHE=OFF` turns it off, and a `CMAKE_CXX_COMPILER_LAUNCHER` given wins). Worktrunk
+copies no build tree into a new worktree, so each one builds four; through the cache a tree built
+before rebuilds in its link time, 17 s for a clean Release tree against 75 s compiling. The shell
+sets the cache's base directory to the checkout's parent, where the worktrees are, so paths in a
+command are hashed relative to it and a worktree finds what another compiled. A tree built with
+debug information hashes its own build directory too (ccache's `hash_dir`), which keeps the source
+paths recorded in each object true to the tree it is in: those trees share within a worktree, as a
+branch switched to and back does, and Release shares across them. The cache is 10 GB, where four
+trees' objects are 1.2 GB before compression. A check earns its place by being clean over these
 sources, or by pointing at something that gets fixed. The three checks the first run reported
 hundreds of findings against were all house style, and are excluded with their counts in the
 file: brace-less `if`, explicit `{}` member init, and enum-size advice on Vulkan-facing enums.
@@ -417,7 +446,7 @@ a GitHub run.
   silently ignore substituters from an untrusted user
   ([devenv caching](https://devenv.sh/binary-caching/)), so the Nix action trusts the runner user
   and the Cachix action names the cache explicitly. No token is needed to read it.
-- CMake, clang-tidy and Nix parallelism are bounded to 2 to limit memory pressure. An uncached
+- CMake, clang-tidy, CTest and Nix parallelism are bounded to 2 to limit memory pressure. An uncached
   derivation can still mean a long build.
 - An earlier run failed compiling ImGui's GLFW backend because `GL/gl.h` was missing. The ImGui
   target defines `GLFW_INCLUDE_NONE`, because it uses Vulkan and does not need OpenGL headers.

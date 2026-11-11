@@ -5,6 +5,22 @@ project(Jettison VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Every compile goes through ccache when it is on the PATH, as it is in the devenv shell: a new
+# worktree starts with no build trees (worktrunk copies none) and builds four of them, and a branch
+# switched to and back rebuilds what it rebuilt before. The launcher is set before any target, so
+# the fetched dependencies, most of the build, go through it too. A launcher the caller sets wins,
+# and JETTISON_CCACHE=OFF turns it off. compile_commands.json leaves the launcher out, so clang-tidy
+# and clangd see the compiler's own command.
+option(JETTISON_CCACHE "Compile through ccache when it is found" ON)
+if(JETTISON_CCACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
+	find_program(JETTISON_CCACHE_PROGRAM ccache)
+	if(JETTISON_CCACHE_PROGRAM)
+		set(CMAKE_C_COMPILER_LAUNCHER "${JETTISON_CCACHE_PROGRAM}")
+		set(CMAKE_CXX_COMPILER_LAUNCHER "${JETTISON_CCACHE_PROGRAM}")
+		message(STATUS "Jettison: compiling through ${JETTISON_CCACHE_PROGRAM}")
+	endif()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(JettisonModule)
 

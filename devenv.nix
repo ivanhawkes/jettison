@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, config, ... }:
 
 {
   # Enable dotenv support for loading environment variables from a .env file.
@@ -23,6 +23,7 @@
     cmake
     ninja
     pkg-config
+    ccache # Compiler cache: CMake compiles through it when it is on the PATH (JETTISON_CCACHE)
 
     # Debugging
     llvmPackages_21.lldb
@@ -98,6 +99,15 @@
     VULKAN_SDK = "${pkgs.vulkan-headers}";
     VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
     JETTISON_LAVAPIPE_ICD = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
+
+    # ccache rewrites absolute paths under its base directory to relative ones before it hashes, so
+    # a worktree beside this one (worktrunk's ../jettison.<branch>) finds what this one compiled.
+    # The directory is the parent of the checkout, where the worktrees are. Debug-info builds still
+    # hash their build directory (ccache's hash_dir), which keeps every object's recorded source
+    # paths true to the tree it is in; those share within a tree, Release across them too. Four
+    # trees' objects are 1.2 GB, compressed to about half: 10 GB holds a good many branches.
+    CCACHE_BASEDIR = builtins.dirOf config.devenv.root;
+    CCACHE_MAXSIZE = "10G";
   };
 
   enterShell = ''
