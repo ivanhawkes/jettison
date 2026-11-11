@@ -35,11 +35,17 @@ jettison_add_module(app
 		src/Piloting.cpp
 		src/Piloting.h
 		src/RenderApplication.cpp
+		src/Saves.cpp
+		src/Saves.h
+		src/Settings.cpp
+		src/Settings.h
 		src/SmokeSequence.cpp
 	TESTS
 		tests/DockingTests.cpp
 		tests/LargeWorldTests.cpp
 		tests/PilotingTests.cpp
+		tests/SavesTests.cpp
+		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp
 	PRIVATE_LIBRARIES
 		glfw

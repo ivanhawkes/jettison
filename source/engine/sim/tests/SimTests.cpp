@@ -4,13 +4,17 @@
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/serialise/Binary.h>
+#include <jettison/serialise/Migration.h>
 
 #include <doctest/doctest.h>
 
 #include <glm/vec3.hpp>
 
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <stdexcept>
@@ -364,6 +368,60 @@ TEST_CASE("Sim: a world saved part-way and loaded carries on exactly as the orig
 	Run(loaded, kSteps);
 	CHECK(loaded.Save() == original.Save());
 	CHECK(loaded.Registry().get<Ship>(entt::entity{0x00100001u}).name == "Tenacity");
+}
+
+// The world's step 15 as the phase 6d build saved it (commit a5d0c83, the trading world above), at
+// version 1, before the world had services. A later version loads it through its migrations.
+namespace
+{
+std::vector<std::byte> ReadFixture(const char *name)
+{
+	std::ifstream file{std::filesystem::path{JETTISON_SIM_TEST_DATA} / name, std::ios::binary};
+	REQUIRE(file);
+	const std::vector<char> text{
+	    std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+	const auto *bytes = reinterpret_cast<const std::byte *>(text.data());
+	return {bytes, bytes + text.size()};
+}
+} // namespace
+
+TEST_CASE("Sim: a save written by version 1 loads through its migration and carries on")
+{
+	RegisterTypes();
+	const std::vector<std::byte> fixture = ReadFixture("world-v1.save");
+	CHECK(Serialise::PeekVersion(fixture, "Jettison.World") == 1);
+
+	Sim::SimWorld loaded{kStep, 1};
+	Populate(loaded);
+	loaded.Load(fixture);
+	CHECK(loaded.Clock().Step() == 15);
+
+	// It is the state this build reaches at step 15, saved as this build saves it.
+	Sim::SimWorld current{kStep, kSeed};
+	Populate(current);
+	Run(current, 15);
+	CHECK(loaded.Save() == current.Save());
+
+	// And it steps on to the pinned state of the whole run.
+	Run(loaded, kSteps);
+	CHECK(loaded.StateHash() == 0x5a9262d95686c5c1ull);
+
+	// Version 1 had no services, so a world with one has no state to give it.
+	Sim::SimWorld serviced{kStep, kSeed};
+	Populate(serviced);
+	AddTally(serviced);
+	const std::vector<std::byte> before = serviced.Save();
+	CHECK_THROWS_AS(serviced.Load(fixture), Serialise::FormatError);
+	CHECK(serviced.Save() == before);
+
+	// A version this build does not know, a later one's, is refused by name.
+	std::vector<std::byte> later = current.Save();
+	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(later, "Jettison.World");
+	document.version = 3;
+	CHECK_THROWS_WITH_AS(
+	    loaded.Load(document.Emit()),
+	    "Jettison.World: version 3 found, version 2 expected: it was written by a later build",
+	    Serialise::FormatVersionError);
 }
 
 TEST_CASE("Sim: the recorded commands replay a session from its start")

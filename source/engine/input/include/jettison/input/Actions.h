@@ -82,6 +82,8 @@ class InputSystem
 	void AddAxisDelta(InputCode input, float delta);
 	// Every input any context binds, sorted, for a source that polls rather than listens.
 	std::vector<InputCode> BoundInputs() const;
+	// Every input the overrides bind, sorted: the ones the player chose.
+	std::vector<InputCode> OverriddenInputs() const;
 
 	// Once per frame, before the Input phase's systems read the actions.
 	void Poll();
@@ -92,7 +94,8 @@ class InputSystem
 	float Axis(ActionId action) const;
 	glm::vec2 Vector(ActionId action) const;
 
-	// Under "input.<context>.<action>", in the user layer, as FormatBindings writes them.
+	// Under "input.<context>.<action>", in the user layer, as FormatBindings writes them; an action
+	// with no override is taken out of the layer, so one reset to its defaults stays reset.
 	void SaveBindings(Core::Config &config) const;
 	// Takes every "input.<context>.<action>" the config has as an override. Throws
 	// std::runtime_error naming the key for text that is not bindings; nothing is applied then.

@@ -39,6 +39,9 @@ class Config
 	void Set(ConfigLayer layer, std::string_view key, std::string value);
 	void SetNumber(ConfigLayer layer, std::string_view key, double value);
 	void SetBool(ConfigLayer layer, std::string_view key, bool value);
+	// Takes the key out of the layer, so a lower layer's value shows through; nothing if the layer
+	// does not have it.
+	void Unset(ConfigLayer layer, std::string_view key);
 
 	// The value from the highest layer that has the key in the type asked for. A layer whose value
 	// does not read as that type is skipped with a warning, so a bad edit to the user file falls

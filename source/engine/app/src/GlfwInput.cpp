@@ -3,7 +3,9 @@
 #include <GLFW/glfw3.h>
 
 #include <array>
+#include <optional>
 #include <span>
+#include <vector>
 
 namespace Jettison::App
 {
@@ -32,6 +34,7 @@ static_assert(Input::Keys::Left.code == GLFW_KEY_LEFT && Input::Keys::Right.code
 static_assert(Input::Keys::GraveAccent.code == GLFW_KEY_GRAVE_ACCENT);
 static_assert(Input::Keys::F1.code == GLFW_KEY_F1);
 static_assert(Input::Keys::F2.code == GLFW_KEY_F2);
+static_assert(Input::Keys::F5.code == GLFW_KEY_F5 && Input::Keys::F9.code == GLFW_KEY_F9);
 static_assert(GLFW_KEY_F25 == GLFW_KEY_F1 + 24 && GLFW_KEY_KP_0 == 320 && GLFW_KEY_MENU == 348);
 static_assert(
     Input::Keys::Character('w').code == GLFW_KEY_W && Input::Keys::Character('7').code == GLFW_KEY_7);
@@ -74,19 +77,43 @@ void GlfwInput::OnScroll(GLFWwindow *window, double x, double y)
 		g_pWheelTarget->m_wheel += glm::dvec2{x, y};
 }
 
+std::vector<Input::JoystickDevice> GlfwInput::ConnectedJoysticks() const
+{
+	std::vector<Input::JoystickDevice> connected;
+	for (std::uint8_t slot = 0; slot < Input::kJoystickCount; ++slot)
+	{
+		const int id = GLFW_JOYSTICK_1 + slot;
+		if (glfwJoystickPresent(id) != GLFW_TRUE)
+			continue;
+		const char *guid = glfwGetJoystickGUID(id);
+		connected.push_back({slot, guid ? guid : ""});
+	}
+	return connected;
+}
+
 void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCaptured)
 {
 	GLFWgamepadstate gamepad{};
 	bool gamepadRead = false;
 	bool hasGamepad = false;
 	std::array<JoystickState, Input::kJoystickCount> joysticks{};
-	const auto joystick = [&joysticks](std::uint8_t slot) -> const JoystickState &
+	// Which slot each binding's joystick number reads: the map's answer for the devices plugged in
+	// now, or the slot of that number with no map.
+	std::array<std::optional<std::uint8_t>, Input::kJoystickCount> slots{};
+	if (m_pJoysticks)
+		slots = m_pJoysticks->Assign(ConnectedJoysticks());
+	else
+		for (std::uint8_t number = 0; number < Input::kJoystickCount; ++number)
+			slots[number] = number;
+	const auto joystick = [&joysticks, &slots](std::uint8_t number) -> const JoystickState &
 	{
-		JoystickState &state = joysticks[slot];
+		JoystickState &state = joysticks[number];
 		if (!state.read)
 		{
 			state.read = true;
-			const int id = GLFW_JOYSTICK_1 + slot;
+			if (!slots[number])
+				return state;
+			const int id = GLFW_JOYSTICK_1 + *slots[number];
 			int axes = 0;
 			int buttons = 0;
 			// Null, with counts of zero, for a slot with nothing in it.

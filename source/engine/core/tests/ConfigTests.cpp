@@ -197,3 +197,16 @@ TEST_CASE(
 	loaded.SaveUserLayer(again);
 	CHECK(ReadFile(again) == ReadFile(path));
 }
+
+TEST_CASE("Config: a key unset from a layer shows the layer below it")
+{
+	Config config;
+	config.SetNumber(ConfigLayer::Defaults, "audio.music", 0.8);
+	config.SetNumber(ConfigLayer::User, "audio.music", 0.25);
+	config.Unset(ConfigLayer::User, "audio.music");
+	CHECK(config.GetNumber("audio.music") == 0.8);
+	// Nothing to unset is not an error.
+	config.Unset(ConfigLayer::User, "audio.music");
+	config.Unset(ConfigLayer::CommandLine, "render.vsync");
+	CHECK(config.GetNumber("audio.music") == 0.8);
+}

@@ -338,6 +338,19 @@ void SystemScene::SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot
 	SyncSimProxies(registry, previous, current, alpha);
 }
 
+void SystemScene::ResetTraffic()
+{
+	entt::registry &registry = m_pScene->Registry();
+	std::unordered_set<entt::entity> proxies;
+	for (const auto &[entity, proxy] : m_proxies)
+		if (registry.valid(proxy))
+			proxies.insert(proxy);
+	m_proxies.clear();
+	m_declined.clear();
+	if (!proxies.empty())
+		DestroyWithDescendants(*m_pScene, std::move(proxies));
+}
+
 void SystemScene::Unload()
 {
 	entt::registry &registry = m_pScene->Registry();

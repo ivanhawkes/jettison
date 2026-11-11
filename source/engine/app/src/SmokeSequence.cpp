@@ -24,8 +24,8 @@ constexpr int kResizeSettleFrames = 8;
 // frame at these sizes, and a runner is slower than this machine.
 constexpr auto kWatchdog = std::chrono::seconds(120);
 
-// The last stage has no action: it settles and closes. A run that reaches it has walked all ten.
-constexpr int kFinalStage = 9;
+// The last stage has no action: it settles and closes. A run that reaches it has walked all eleven.
+constexpr int kFinalStage = 10;
 
 // The frames a pick is given to be answered: the next simulation step answers it, which is a frame
 // or two at most, unless the world is not stepping, and then the sequence moves on without it.
@@ -95,7 +95,7 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 	++m_frames;
 
 	// The stages, in order: grow the window, shrink it, minimize, restore, reload the scene, fly the
-	// ship behind it and from its seat, pick, jump, settle. The last one has no action.
+	// ship behind it and from its seat, pick, save and load, jump, settle. The last one has no action.
 	if (m_stage < kFinalStage && m_frames >= kStageFrames && !m_actionPending)
 	{
 		m_actionPending = true;
@@ -163,6 +163,13 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 			m_actionPending = m_pickPending;
 			break;
 		case 8:
+			// The world written to the user mount, flushed to the disk, and read back over itself,
+			// while the scene draws it: the proxies carry on from the snapshots of the world loaded.
+			if (m_actions.saveAndLoad())
+				++m_saves;
+			m_actionPending = false;
+			break;
+		case 9:
 			// The system shown is replaced by another while frames that drew it are in flight, and
 			// the new one's models, materials and environment are made under the jump's effect.
 			m_jumpPending = m_actions.jump();
@@ -183,8 +190,10 @@ bool SmokeSequence::Passed() const
 	// manager can refuse the second request. The reload has to happen exactly once, because a
 	// reload is the stage that invalidates the pipeline's model resources, and a run that never
 	// reloaded has not tested that.
-	// The jump likewise: once, and over before the close.
-	return m_resizes >= 1 && m_reloads == 1 && m_jumps == 1 && !m_jumpPending && m_stage == kFinalStage;
+	// The jump likewise: once, and over before the close. And the save: a world that does not load
+	// back as it was saved is a save that loses the game.
+	return m_resizes >= 1 && m_reloads == 1 && m_saves == 1 && m_jumps == 1 && !m_jumpPending &&
+	       m_stage == kFinalStage;
 }
 
 
@@ -192,6 +201,7 @@ std::string SmokeSequence::Summary() const
 {
 	return "resizes=" + std::to_string(m_resizes) + ", reloads=" + std::to_string(m_reloads) +
 	       ", pilots=" + std::to_string(m_pilots) + ", picks=" + std::to_string(m_picks) +
-	       ", jumps=" + std::to_string(m_jumps) + ", stage=" + std::to_string(m_stage);
+	       ", saves=" + std::to_string(m_saves) + ", jumps=" + std::to_string(m_jumps) +
+	       ", stage=" + std::to_string(m_stage);
 }
 } // namespace Jettison::App

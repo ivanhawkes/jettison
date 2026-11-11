@@ -2,9 +2,12 @@
 
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/serialise/Migration.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include <doctest/doctest.h>
+
+#include <yaml-cpp/yaml.h>
 
 #include <filesystem>
 #include <fstream>
@@ -174,6 +177,38 @@ TEST_CASE("Definitions: a bad file is refused naming it, and the previous set st
 	    doctest::Contains("defs/ships/fighter.yaml: DefinitionTests.ShipClass: version 2 found"),
 	    Serialise::FormatError);
 	CHECK(registry.Count() == 3);
+}
+
+TEST_CASE("Definitions: a file of an earlier version is migrated, so an old mod still loads")
+{
+	RegisterTypes();
+	const Scratch scratch;
+	PutBase(scratch);
+	// Version 2 gives a mass in kilograms where version 1 gave tonnes. The base was written at
+	// version 1, and a mod at 2.
+	scratch.Put("mod/defs/ships/racer.yaml", "version: 2\ndisplayName: Racer\nmass: 3000\n");
+	Serialise::YamlMigrations migrations{"DefinitionTests.ShipClass", {2}};
+	migrations.Add(
+	    1,
+	    [](YAML::Node &root)
+	    {
+		    if (root["mass"])
+			    root["mass"] = root["mass"].as<double>() * 1000.0;
+	    });
+	Sim::DefinitionRegistry registry{scratch.Files()};
+	registry.Load<ShipClass>("defs/ships", migrations);
+	CHECK(registry.Find<ShipClass>("hauler")->mass == 4.5e8);
+	CHECK(registry.Find<ShipClass>("racer")->mass == 3000.0);
+	CHECK(registry.Find<ShipClass>("military/corvette")->mass == 0.0);
+
+	scratch.Put("mod/defs/ships/racer.yaml", "version: 3\ndisplayName: Racer\n");
+	CHECK_THROWS_WITH_AS(
+	    registry.Load<ShipClass>("defs/ships", migrations),
+	    doctest::Contains(
+	        "defs/ships/racer.yaml: DefinitionTests.ShipClass: version 3 found, version "
+	        "2 expected: it was written by a later build"),
+	    Serialise::FormatError);
+	CHECK(registry.Find<ShipClass>("racer")->mass == 3000.0);
 }
 
 TEST_CASE("Definitions: an empty directory is an empty set, and an unreflected type is a defect")

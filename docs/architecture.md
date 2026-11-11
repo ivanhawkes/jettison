@@ -321,6 +321,48 @@ compression is above 1×, piloting is suspended, as it is in every game of the g
 holds the ship. Compression is refused near stations and other ships for the same reason, by the
 game.
 
+### Persistence
+
+A save game (`sim/SaveGame.h`, 8a) is one file in its own format, `Jettison.Save`, holding parts
+that are each versioned on their own: its `SaveInfo` (the player's name for it, the engine version
+that wrote it, when, the world's step and time, the galaxy's file and the system shown), the world's
+save (`SimWorld::Save`, `Jettison.World`), and the game's sections, each a binary archive in a format
+of the game's that the save holds and does not read: what a save contains beyond the engine's state
+is the game's ([scope](scope.md)). The info comes first, so a list of saves reads no further. A
+change to the world's layout is a step in the world's migrations and leaves the save game's format
+and the game's sections alone.
+
+Every versioned format reads its earlier versions through a chain of migrations
+(`serialise/Migration.h`), a step from each version to the next, written once, when its version is
+current, and never changed after. A binary step edits the archive as a document: its table of names,
+through which a field, a component, a command or an enumerator is renamed everywhere it is used, and
+its payload, which the world's step from version 1 to 2 appends its services' empty state to. A
+change inside a value needs the types that wrote it, and a step that has them reads the old version
+with them and writes the new. A YAML step edits the parsed tree, keeping the lines a mistake is
+reported at. Definitions migrate the same way ([decided](roadmap.md#decided)). A version newer than
+the build's, or one the chain does not reach, is refused by name before any step runs, and every
+read leaves what it was reading into as it was when the data does not fit.
+
+What a build wrote, every later build loads: the suites keep saves written by earlier versions as
+fixtures (`sim/tests/data`), never regenerated. `world-v1.save` was written by the phase 6d build
+(commit `a5d0c83`) and loads, through the world's migration, into the state this build reaches at
+the same step; `save-v1.save` is the save game's first version, written by phase 8a's.
+
+A save is written through the VFS to the user mount, the user's data directory
+(`~/.local/share/jettison/saves/<name>.save`), whole and durably (`Core::WriteFileDurably`): to a
+partial file beside it, flushed to the disk, renamed over it, and the directory flushed, so a crash
+or a power cut leaves the save before it, and a save reported written is on the disk. Settings and
+bindings are apart from saves, in the configuration directory (`~/.config/jettison/settings.yaml`),
+written the same way whenever the player changes one, so loading a save changes none of them. A
+binding's joystick is a number the player's bindings name after the device it was bound as
+(`input/Joysticks.h`), by its GUID, so it follows the device rather than the slot it is plugged into.
+
+Loading replaces the world only once the whole save has read: the info, the galaxy (a save of
+another galaxy is refused), the game's sections and then the world, which itself commits only at the
+end. Presentation then resynchronises its snapshots and makes the traffic layer's proxies again
+(`SystemScene::ResetTraffic`), since a loaded world's identifiers may name other entities than they
+did.
+
 ## Coordinate frames and units
 
 SI units: metres, seconds, kilograms, radians. Right-handed, Y-up, as the scene format already
@@ -582,10 +624,12 @@ proves it headlessly. What exists:
 
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--scene`, `--system`, `--galaxy`, `--save-scene`), builds `Application`, and prints any exception the run
-  threw.
-  `Application::Init` stages are resources (the asset VFS, the I/O worker, the resource manager
-  and the rig loader), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
+  `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`), builds `Application`, and prints
+  any exception the run threw.
+  `Application::Init` stages are user (the XDG data and configuration directories, or the ones under
+  `--user-dir`, and the settings and bindings read from them), resources (the asset VFS with the
+  user's data directory mounted writable over the base, the I/O worker, the resource manager and the
+  rig loader), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
   and the system scene of the star system the scene names, read through the VFS, or of the one
   `--system` names with nothing authored), renderer, and window (its title and
   size). The shell holds the renderer as `Render::IRenderer` alone and
@@ -606,8 +650,14 @@ proves it headlessly. What exists:
 - **Picking** (7c). A left click on the scene, not on a window over it, picks what is under the
   cursor, through a `Physics::Pick` the next step answers; the hit is marked where it was, with the
   surface's normal, and named in an overlay, and the log says what was picked and how far off.
-- **Smoke sequence**. `SmokeSequence` is the render test's ten stages (resize, resize,
-  minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, jump, settle) as a state
+- **Saves and settings** (8a). F5 saves to `quicksave` and F9 loads it; the console's `save
+  [name]`, `load [name]` and `saves` do the same by name and list them ([persistence](#persistence)).
+  A save holds the world and the shell's own section, which entities are its ship, station and port.
+  The console's `bind <context> <action> [bindings...]` rebinds an action, or says what it is bound
+  to, and `unbind` puts it back; either writes the settings file, so a rebinding survives a restart.
+- **Smoke sequence**. `SmokeSequence` is the render test's eleven stages (resize, resize,
+  minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, save and load, jump,
+  settle) as a state
   machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML

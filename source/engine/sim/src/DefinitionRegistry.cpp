@@ -21,6 +21,24 @@ DefinitionRegistry::DefinitionRegistry(const Vfs::FileSystem &fileSystem) : m_fi
 void DefinitionRegistry::Load(
     const entt::meta_type &type, std::string_view virtualDirectory, Serialise::FormatVersion version)
 {
+	LoadWith(
+	    type, virtualDirectory, [&type, version](std::string_view text)
+	    { return Serialise::YamlArchive::Read(text, type, version); });
+}
+
+void DefinitionRegistry::Load(
+    const entt::meta_type &type, std::string_view virtualDirectory,
+    const Serialise::YamlMigrations &migrations)
+{
+	LoadWith(
+	    type, virtualDirectory, [&type, &migrations](std::string_view text)
+	    { return Serialise::YamlArchive::Read(text, type, migrations); });
+}
+
+void DefinitionRegistry::LoadWith(
+    const entt::meta_type &type, std::string_view virtualDirectory,
+    const std::function<entt::meta_any(std::string_view)> &read)
+{
 	if (!type || !type.is_class() || !entt::resolve(type.info()))
 		throw Serialise::UnsupportedTypeError{std::format(
 		    "Definitions: '{}' is not a class registered with Reflect",
@@ -43,10 +61,10 @@ void DefinitionRegistry::Load(
 		{
 			std::string name =
 			    path.substr(prefix.size(), path.size() - prefix.size() - kExtension.size());
-			definitions.emplace(std::move(name), Serialise::YamlArchive::Read(text, type, version));
+			definitions.emplace(std::move(name), read(text));
 		}
-		// A definition of another version is refused like any file that does not fit, until
-		// migrations (phase 8) decide whether definitions have them.
+		// A definition of a version the type's migrations do not reach is refused like any file that
+		// does not fit.
 		catch (const std::runtime_error &error)
 		{
 			throw Serialise::FormatError{std::format("Definitions: {}: {}", path, error.what())};

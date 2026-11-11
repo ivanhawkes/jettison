@@ -98,6 +98,11 @@ class SystemScene
 	// (SyncSimProxies). A proxy the factory made is a BuiltComponent and in the traffic layer unless
 	// the factory gave it another. An entity that leaves and comes back is asked for again.
 	void SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha);
+	// Destroys every proxy, with its children, and forgets the entities the factory declined, so the
+	// next sync asks the factory again for every entity: after a world is loaded from a save, an
+	// identifier may name another entity than it did, and a proxy made for the one before is not
+	// this one's.
+	void ResetTraffic();
 
 	// Destroys every entity the system scene built, the proxies with it and whatever is parented to
 	// them, and leaves what the file authored: the scene as it was loaded.

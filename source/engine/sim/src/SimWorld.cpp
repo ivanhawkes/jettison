@@ -3,6 +3,7 @@
 #include <jettison/core/Hash.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/serialise/Migration.h>
 
 #include <algorithm>
 #include <cmath>
@@ -16,9 +17,24 @@ namespace
 {
 constexpr std::string_view kFormat = "Jettison.World";
 // The layout Save writes. A change to it, or to what the world saves around its components, is a
-// new version; a change to a component's fields is the component's own business, since fields
-// are found by name. Version 2 added the services' state after the components (phase 7a).
+// new version, with a step in Migrations from the one before; a change to a component's fields is
+// the component's own business, since fields are found by name.
 constexpr Serialise::FormatVersion kVersion{2};
+
+const Serialise::BinaryMigrations &Migrations()
+{
+	static const Serialise::BinaryMigrations migrations = []
+	{
+		Serialise::BinaryMigrations chain{std::string{kFormat}, kVersion};
+		// Version 2 (phase 7a) added the services' state after the components, as a count and each
+		// service's; a world of version 1 had none.
+		chain.Add(
+		    1, [](Serialise::BinaryDocument &document)
+		    { document.payload.insert(document.payload.end(), 4, std::byte{0}); });
+		return chain;
+	}();
+	return migrations;
+}
 } // namespace
 
 std::string_view Detail::ReflectedName(const entt::meta_type &type, std::string_view what)
@@ -143,8 +159,8 @@ std::vector<std::byte> SimWorld::Save() const
 void SimWorld::Load(std::span<const std::byte> save)
 {
 	// Everything is read into locals and committed at the end, so a save that does not fit
-	// leaves the world as it was.
-	Serialise::BinaryReader reader{save, kFormat, kVersion};
+	// leaves the world as it was. A save of an earlier version is migrated first.
+	Serialise::BinaryReader reader{save, Migrations()};
 	std::uint64_t step = 0;
 	double now = 0.0;
 	Math::RandomState random;

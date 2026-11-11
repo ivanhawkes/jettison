@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include <jettison/core/File.h>
 #include <jettison/core/Log.h>
 
 namespace Jettison::Core
@@ -174,6 +175,13 @@ void Config::SetBool(ConfigLayer layer, std::string_view key, bool value)
 	Set(layer, key, value ? "true" : "false");
 }
 
+void Config::Unset(ConfigLayer layer, std::string_view key)
+{
+	Values &values = m_layers[Index(layer)];
+	if (const auto entry = values.find(key); entry != values.end())
+		values.erase(entry);
+}
+
 template <typename T>
 std::optional<T> Config::Find(
     std::string_view key, std::string_view type, std::optional<T> (*parse)(std::string_view)) const
@@ -247,9 +255,13 @@ void Config::SaveUserLayer(const std::filesystem::path &path) const
 	if (!emitter.good())
 		throw std::runtime_error{std::format("Config {}: {}", path.string(), emitter.GetLastError())};
 
-	std::ofstream file{path, std::ios::trunc};
-	file << emitter.c_str() << '\n';
-	if (!file)
-		throw std::runtime_error{std::format("Config {}: could not be written", path.string())};
+	try
+	{
+		WriteFileDurably(path, std::string{emitter.c_str()} + '\n');
+	}
+	catch (const std::runtime_error &error)
+	{
+		throw std::runtime_error{std::format("Config: {}", error.what())};
+	}
 }
 } // namespace Jettison::Core

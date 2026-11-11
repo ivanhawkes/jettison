@@ -48,6 +48,8 @@ CMakeLists.txt text
 *.so binary
 *.pdf binary
 *.zip binary
+# Save games and their fixtures (the binary archive's layout).
+*.save binary
 
 # Large media goes through Git LFS, and each rule also asserts -text so the content is
 # never touched by the line-ending machinery above. History was migrated explicitly with:

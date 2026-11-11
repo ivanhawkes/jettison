@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -14,6 +15,7 @@
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/input/Actions.h>
 #include <jettison/physics/Flight.h>
+#include <jettison/platform/Paths.h>
 #include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/FrameStats.h>
@@ -27,6 +29,7 @@
 
 #include "GlfwInput.h"
 #include "Piloting.h"
+#include "Settings.h"
 
 namespace Jettison::Jobs
 {
@@ -96,6 +99,9 @@ class Application
 	// the renderer's models, materials and textures, and the scene needs no device, so it loads
 	// before the renderer opens the window.
 	void Init();
+	// Where the user's files are (AppArguments::userDirectory, or the XDG directories), and the
+	// settings and bindings read from them.
+	void InitUser();
 	void InitResources();
 	void InitScene();
 	// Reads the galaxy (AppArguments::galaxyPath), when there is one to read.
@@ -188,6 +194,17 @@ class Application
 
 	void RequestClose();
 
+	// Saves (docs/architecture.md, "Persistence"): the world, the galaxy it is of, and the shell's
+	// own state as a section beside it (Saves.h), as a Sim::SaveGame on the user mount under
+	// saves/<name>.save. Each says whether it did, and logs why not: a save that cannot be written, or
+	// one that does not load (of another galaxy, of a version this build cannot read, of a world that
+	// does not fit), which leaves the world as it was.
+	bool SaveTo(std::string_view name);
+	bool LoadFrom(std::string_view name);
+	// The bindings and the joysticks' names, written to the settings file after the player changes
+	// one, so the change survives a restart.
+	void SaveSettings();
+
 	// Release every subsystem the shell made, in the reverse order of Init, from the last fence of
 	// the frame loop to GLFW. Idempotent, and noexcept: it runs from the destructor, which is how
 	// a run that throws out of a frame gets its teardown.
@@ -200,7 +217,16 @@ class Application
 	std::string m_windowTitle;
 	State m_state{State::Uninitialised};
 
-	// The asset tree: the asset directory as the base mount. The scene's files and the renderer's
+	// The user's directories: the XDG ones, or the ones under AppArguments::userDirectory. The headless
+	// run with none named makes a directory of its own (m_scratchUser) and removes it in Shutdown.
+	Platform::Paths m_userPaths;
+	std::filesystem::path m_scratchUser;
+	// The settings file in the configuration directory, read in InitUser, and the joysticks' names
+	// in it, which the input feed reads its devices through.
+	std::optional<Settings> m_settings;
+
+	// The asset tree: the asset directory as the base mount, and the user's data directory over it,
+	// writable, which saves go to. The scene's files and the renderer's
 	// programs are found through it, so a mount added above the base can replace one.
 	Vfs::FileSystem m_assets;
 	// The resources read from it on the I/O worker - the scene's rigs, the renderer's models,
@@ -315,6 +341,9 @@ class Application
 	Input::ActionId m_jumpNext;
 	// P: fly the ship, and P again to let it go.
 	Input::ActionId m_pilot;
+	// F5 saves to "quicksave", and F9 loads it.
+	Input::ActionId m_quickSave;
+	Input::ActionId m_quickLoad;
 	// The left mouse button: pick what is under the cursor.
 	Input::ActionId m_pickAction;
 	GlfwInput m_glfwInput;
@@ -353,8 +382,10 @@ class Application
 	// layer. Built on each load, after the scene, and released before it.
 	std::optional<Scene::SystemScene> m_systemScene;
 
-	// The galaxy a jump goes between; empty when the assets have none, and then nothing jumps.
+	// The galaxy a jump goes between; empty when the assets have none, and then nothing jumps. Its
+	// file's virtual path is what a save names it by.
 	std::optional<Celestial::Galaxy> m_galaxy;
+	std::string m_galaxyPath;
 	// The galaxy's system the scene shows, if it shows one, and the jump point the last jump arrived
 	// at in it.
 	std::optional<std::size_t> m_shownSystem;

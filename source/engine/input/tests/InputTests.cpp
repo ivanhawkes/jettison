@@ -228,6 +228,9 @@ TEST_CASE("Input: rebinds override the defaults, and only they are saved and loa
 	CHECK(other.input.Bindings("flight", other.fire) == std::vector<Binding>{{Keys::Enter}});
 	other.input.ResetBindings("flight", other.fire);
 	CHECK(other.input.Bindings("flight", other.fire).size() == 2);
+	// Saved again, the reset is taken out of the settings, so it stays reset when they are loaded.
+	other.input.SaveBindings(config);
+	CHECK_FALSE(config.GetString("input.flight.fire"));
 
 	Jettison::Core::Config bad;
 	bad.Set(Jettison::Core::ConfigLayer::User, "input.flight.fire", "Key.Enter");

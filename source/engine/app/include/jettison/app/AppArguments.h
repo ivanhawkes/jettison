@@ -12,7 +12,7 @@ namespace Jettison::App
 // shell, and none of them has to know how the flags are spelled.
 struct AppArguments
 {
-	// The headless render test: the seven-stage sequence the shell hands to SmokeSequence.
+	// The headless render test: the sequence of stages the shell hands to SmokeSequence.
 	bool smokeTest{false};
 
 	// Models, shaders, textures and scene graphs. Defaults to the tree the build stages beside
@@ -39,6 +39,11 @@ struct AppArguments
 	std::optional<std::uint32_t> windowHeight;
 	// The opaque depth prepass, which the renderer runs without when not asked for.
 	bool depthPrepass{false};
+
+	// Where the user's files go, in place of the XDG directories: settings under <dir>/config, saves
+	// under <dir>/data. The headless run with none named uses a directory of its own it removes as it
+	// ends, so a test neither reads nor writes the settings and saves of whoever runs it.
+	std::optional<std::filesystem::path> userDirectory;
 };
 
 // Resolves the defaults - the asset tree beside the executable, and <assets>/scene/main.yaml unless

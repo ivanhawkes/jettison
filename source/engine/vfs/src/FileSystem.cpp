@@ -8,14 +8,12 @@
 #include <system_error>
 #include <utility>
 
+#include <jettison/core/File.h>
+
 namespace Jettison::Vfs
 {
 namespace
 {
-// The suffix of a write in progress. A colon is not allowed in a virtual path, so the partial
-// file of an interrupted write is never read or listed.
-constexpr std::string_view kPartialSuffix = ":partial";
-
 void Validate(std::string_view virtualPath)
 {
 	if (!FileSystem::IsValidPath(virtualPath))
@@ -128,33 +126,14 @@ void FileSystem::Write(std::string_view virtualPath, std::span<const std::byte> 
 		    std::format("Vfs: '{}' cannot be written: there is no writable mount", virtualPath)};
 
 	const std::filesystem::path path = mount->source / virtualPath;
-	std::filesystem::path partial = path;
-	partial += kPartialSuffix;
-	const auto fail = [&](std::string_view problem)
+	try
 	{
-		std::error_code ignored;
-		std::filesystem::remove(partial, ignored);
-		return std::runtime_error{
-		    std::format("Vfs: {} could not be written: {}", path.string(), problem)};
-	};
-
-	std::error_code error;
-	std::filesystem::create_directories(path.parent_path(), error);
-	if (error)
-		throw fail(error.message());
-	{
-		std::ofstream file{partial, std::ios::binary | std::ios::trunc};
-		file.write(
-		    reinterpret_cast<const char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-		file.close();
-		if (!file)
-			throw fail("the data was not written");
+		Core::WriteFileDurably(path, bytes);
 	}
-	// rename replaces the old file in one step on POSIX. There is no fsync before it, so a power
-	// cut can still lose the new bytes; it cannot leave the old file half overwritten.
-	std::filesystem::rename(partial, path, error);
-	if (error)
-		throw fail(error.message());
+	catch (const std::runtime_error &error)
+	{
+		throw std::runtime_error{std::format("Vfs: {}", error.what())};
+	}
 }
 
 std::vector<std::string> FileSystem::Enumerate(std::string_view virtualDirectory) const

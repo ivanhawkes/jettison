@@ -196,6 +196,10 @@ with `reflect` (`scene/src/Scene.cpp`), at version 2, where a model's path becam
 `std::optional` field is left out of the file when it is empty and read as present when the file
 names it, in both archives, which is how an entity's optional components are said; an animation's
 `time` is refused, as runtime state.
+*Filled in* (8a): a version mismatch runs the format's migrations when the reader is given them
+(`serialise/Migration.h`), and `FormatVersionError` says why a version is refused (a later build's,
+or no step from it) and carries both versions; see entry 25 in [the roadmap](roadmap.md#25-persistence--phase-8--engineserialise-enginesim).
+`BinaryWriter::WriteBytes` puts one archive inside another, as a save game holds the world's.
 
 ### 10. Virtual file system · phase 3 · `engine/vfs`
 
@@ -214,6 +218,9 @@ path can have (`:partial`) and renames it over, so a reader or a crash never see
 there is no fsync yet, which the save-game work in phase 8 decides. `Enumerate` is recursive,
 sorted and deduplicated across mounts, and leaves out names no virtual path could reach. Mounts
 are added at start-up; the reads are then safe from the I/O worker.
+*Filled in* (8a): `Write` is durable, through `Core::WriteFileDurably`: the partial file flushed
+before the rename and the directory after it ([decided](roadmap.md#decided)). The shell mounts the
+user's data directory writable over the base, and saves go there.
 
 ### 11. Resource manager · phase 3 · `engine/resource`
 
@@ -314,6 +321,10 @@ is replaced, and finer layering is phase 11's. A load replaces the type's set on
 has read, so a bad file, refused as `FormatError` naming it, leaves the previous set. A definition
 of another version is refused the same way until phase 8 decides whether definitions migrate. The
 sets are ordered maps, so a walk over them is the same every run.
+*Filled in* (8a): definitions migrate ([decided](roadmap.md#decided)): `Load` takes a type's YAML
+migrations, and a file of an earlier version is brought up to the current one as it is read. The
+world's save migrates from version 1 (before its services), and a save game (`sim/SaveGame.h`) holds
+the world beside its info and the game's sections.
 
 ### 14. Input · phase 3 · `engine/input`
 
@@ -338,7 +349,12 @@ from the user's settings until settings are wired in phase 8.
 (`Joystick1.Axis2`, hats among the buttons), so a HOTAS's stick and throttle bind apart; the wheel is
 the shell's one callback, installed over the ImGui backend's and passing every scroll on to it, and
 held back while ImGui has the mouse. The flight context's bindings are in
-[the roadmap](roadmap.md#22-physics--phase-7--enginephysics).
+[entry 22](#22-physics--phase-7--enginephysics).
+*Filled in* (8a): the shell loads the user's bindings from its settings file at start-up and writes
+them whenever the player changes one (`bind` and `unbind` in the console). A binding's joystick
+follows its device, named by GUID (`input/Joysticks.h`, [decided](roadmap.md#decided)), and
+`SaveBindings` takes out of the settings an action reset to its defaults, which before stayed in them
+and came back on the next load.
 
 ### 15. Console · phase 3 · `engine/ui/imgui`
 

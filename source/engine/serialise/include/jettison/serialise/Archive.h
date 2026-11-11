@@ -11,10 +11,16 @@
 
 #include <entt/entt.hpp>
 
+namespace YAML
+{
+class Node;
+}
+
 namespace Jettison::Serialise
 {
-// Every format carries one. A reader that meets a version it does not know runs the migration
-// chain (phase 8) or throws FormatVersionError naming both versions.
+// Every format carries one. A reader that meets another version runs the format's migrations
+// (Migration.h) when it is given them, and throws FormatVersionError naming both versions when the
+// chain does not reach the one found, or when it is given none.
 struct FormatVersion
 {
 	std::uint32_t version{1};
@@ -23,8 +29,28 @@ struct FormatVersion
 class FormatVersionError : public std::runtime_error
 {
   public:
-	FormatVersionError(std::string_view format, std::uint32_t found, std::uint32_t expected);
+	// The reason, when there is one to give: "it was written by a later build".
+	FormatVersionError(
+	    std::string_view format, std::uint32_t found, std::uint32_t expected,
+	    std::string_view reason = {});
+
+	std::uint32_t Found() const
+	{
+		return m_found;
+	}
+	std::uint32_t Expected() const
+	{
+		return m_expected;
+	}
+
+  private:
+	std::uint32_t m_found;
+	std::uint32_t m_expected;
 };
+
+template <typename Data> class Migrations;
+struct BinaryDocument;
+using BinaryMigrations = Migrations<BinaryDocument>;
 
 // Data that does not fit the type it is read as: a missing version, a field the type does not
 // save, a value of the wrong kind, a truncated or overlong binary. The message names the type,
@@ -73,6 +99,10 @@ class YamlArchive
 	static std::string Write(const entt::meta_any &value, FormatVersion version);
 	static entt::meta_any Read(
 	    std::string_view text, const entt::meta_type &type, FormatVersion expected);
+	// Text of an earlier version is migrated first, as a YAML tree; what a step leaves is read as
+	// text of the current version would be. Errors name the lines of the text as it was.
+	static entt::meta_any Read(
+	    std::string_view text, const entt::meta_type &type, const Migrations<YAML::Node> &migrations);
 
 	template <typename T> static std::string Write(const T &value, FormatVersion version)
 	{
@@ -81,6 +111,11 @@ class YamlArchive
 	template <typename T> static T Read(std::string_view text, FormatVersion expected)
 	{
 		entt::meta_any value = Read(text, entt::resolve<T>(), expected);
+		return std::move(value.cast<T &>());
+	}
+	template <typename T> static T Read(std::string_view text, const Migrations<YAML::Node> &migrations)
+	{
+		entt::meta_any value = Read(text, entt::resolve<T>(), migrations);
 		return std::move(value.cast<T &>());
 	}
 };
@@ -96,6 +131,10 @@ class BinaryArchive
 	static std::vector<std::byte> Write(const entt::meta_any &value, FormatVersion version);
 	static entt::meta_any Read(
 	    std::span<const std::byte> bytes, const entt::meta_type &type, FormatVersion expected);
+	// Data of an earlier version is migrated first. The chain's format is the root type's name.
+	static entt::meta_any Read(
+	    std::span<const std::byte> bytes, const entt::meta_type &type,
+	    const BinaryMigrations &migrations);
 
 	template <typename T> static std::vector<std::byte> Write(const T &value, FormatVersion version)
 	{
@@ -104,6 +143,12 @@ class BinaryArchive
 	template <typename T> static T Read(std::span<const std::byte> bytes, FormatVersion expected)
 	{
 		entt::meta_any value = Read(bytes, entt::resolve<T>(), expected);
+		return std::move(value.cast<T &>());
+	}
+	template <typename T>
+	static T Read(std::span<const std::byte> bytes, const BinaryMigrations &migrations)
+	{
+		entt::meta_any value = Read(bytes, entt::resolve<T>(), migrations);
 		return std::move(value.cast<T &>());
 	}
 };

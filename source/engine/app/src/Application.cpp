@@ -8,6 +8,8 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <iostream>
 #include <iterator>
@@ -33,8 +35,10 @@
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
 #include <jettison/scene/SystemScene.h>
+#include <jettison/sim/SaveGame.h>
 
 #include "Docking.h"
+#include "Saves.h"
 
 namespace Jettison::App
 {
@@ -154,6 +158,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_jumpNext = m_input.DefineAction("jump_next", Input::ActionType::Button);
 	m_pilot = m_input.DefineAction("pilot", Input::ActionType::Button);
 	m_pickAction = m_input.DefineAction("pick", Input::ActionType::Button);
+	m_quickSave = m_input.DefineAction("quicksave", Input::ActionType::Button);
+	m_quickLoad = m_input.DefineAction("quickload", Input::ActionType::Button);
 	m_input.DefineContext("shell");
 	m_input.DefineContext("console", true);
 	for (const char *context : {"shell", "console"})
@@ -178,6 +184,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_input.Bind("shell", m_pilot, {Character('p')});
 	m_input.Bind("shell", m_pilot, {{Input::Device::GamepadButton, 7}});
 	m_input.Bind("shell", m_pickAction, {{Input::Device::MouseButton, 0}});
+	m_input.Bind("shell", m_quickSave, {Input::Keys::F5});
+	m_input.Bind("shell", m_quickLoad, {Input::Keys::F9});
 	m_pilotInput.emplace(m_input);
 	m_input.PushContext("shell");
 
@@ -193,6 +201,55 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		    for (const std::string &word : arguments)
 			    name += (name.empty() ? "" : " ") + word;
 		    Jump(name);
+	    });
+
+	m_console.RegisterCommand(
+	    "bind",
+	    "Binds an action, or says what it is bound to, and saves the settings: bind <context> <action> "
+	    "[bindings...], as Key.W/Key.S or y:GamepadAxis.LeftY*-1~0.15",
+	    [this](DevTools::Console &console, std::span<const std::string> arguments)
+	    {
+		    const BindResult result = Bind(m_input, arguments);
+		    if (result.changed)
+			    SaveSettings();
+		    console.Print(result.message);
+	    });
+	m_console.RegisterCommand(
+	    "unbind", "Puts an action back to its default bindings: unbind <context> <action>",
+	    [this](DevTools::Console &console, std::span<const std::string> arguments)
+	    {
+		    const BindResult result = Unbind(m_input, arguments);
+		    SaveSettings();
+		    console.Print(result.message);
+	    });
+	m_console.RegisterCommand(
+	    "save", "Saves the game: save [name], quicksave when none is given",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    { SaveTo(arguments.empty() ? "quicksave" : arguments[0]); });
+	m_console.RegisterCommand(
+	    "load", "Loads a saved game: load [name], quicksave when none is given",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    { LoadFrom(arguments.empty() ? "quicksave" : arguments[0]); });
+	m_console.RegisterCommand(
+	    "saves", "Lists the saved games",
+	    [this](DevTools::Console &console, std::span<const std::string>)
+	    {
+		    for (const std::string &name : ListSaves(m_assets))
+		    {
+			    const auto bytes = m_assets.Read(SavePath(name));
+			    try
+			    {
+				    const Sim::SaveInfo info = Sim::SaveGame::ReadInfo(*bytes);
+				    console.Print(
+				        std::format(
+				            "{}: step {} in {}, by engine {}", name, info.step,
+				            info.system.empty() ? "no system" : info.system, info.engineVersion));
+			    }
+			    catch (const std::exception &error)
+			    {
+				    console.PrintError(std::format("{}: {}", name, error.what()));
+			    }
+		    }
 	    });
 
 	Sim::RegisterTypes();
@@ -510,6 +567,7 @@ void Application::Run()
 void Application::Init()
 {
 	m_state = State::Initialising;
+	InitUser();
 	InitResources();
 	InitScene();
 	InitRenderer();
@@ -524,10 +582,49 @@ void Application::Init()
 }
 
 
+namespace
+{
+// The XDG specification has a directory it names made with mode 0700 when it does not exist yet.
+void MakeUserDirectory(const std::filesystem::path &directory)
+{
+	if (std::filesystem::create_directories(directory))
+		std::filesystem::permissions(directory, std::filesystem::perms::owner_all);
+}
+} // namespace
+
+void Application::InitUser()
+{
+	std::filesystem::path root;
+	if (m_arguments.userDirectory)
+		root = *m_arguments.userDirectory;
+	else if (m_arguments.smokeTest)
+	{
+		std::string scratch =
+		    (std::filesystem::temp_directory_path() / "jettison-smoke-XXXXXX").string();
+		if (!::mkdtemp(scratch.data()))
+			throw std::runtime_error(
+			    "Failed to make a user directory for the headless run in " + scratch);
+		root = scratch;
+		m_scratchUser = root;
+	}
+	m_userPaths = root.empty()
+	                  ? Platform::ResolvePaths("jettison")
+	                  : Platform::Paths{root / "data", root / "config", root / "state", root / "cache"};
+	MakeUserDirectory(m_userPaths.userData);
+	MakeUserDirectory(m_userPaths.config);
+	m_settings.emplace(m_userPaths.config / "settings.yaml");
+	m_settings->Load(m_input);
+	m_glfwInput.SetJoysticks(&m_settings->Joysticks());
+}
+
+
 void Application::InitResources()
 {
 	if (m_assets.Mounts().empty())
+	{
 		m_assets.AddMount({"base", m_arguments.assetDirectory});
+		m_assets.AddMount({"user", m_userPaths.userData, true});
+	}
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
 	Animation::RegisterRigLoader(*m_pResources);
@@ -814,6 +911,10 @@ void Application::PollInput()
 		NextCameraTarget(m_pScene->Registry());
 	if (m_input.WasPressedThisFrame(m_jumpNext))
 		Jump();
+	if (m_input.WasPressedThisFrame(m_quickSave))
+		SaveTo("quicksave");
+	if (m_input.WasPressedThisFrame(m_quickLoad))
+		LoadFrom("quicksave");
 	// A click on the scene, not on a window over it, which ImGui has.
 	if (m_input.WasPressedThisFrame(m_pickAction) &&
 	    (ImGui::GetCurrentContext() == nullptr || !ImGui::GetIO().WantCaptureMouse))
@@ -896,6 +997,7 @@ void Application::InitGalaxy()
 		m_galaxy.emplace(
 		    Celestial::ReadGalaxy(
 		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
+		m_galaxyPath = path;
 	}
 	catch (const std::exception &error)
 	{
@@ -1095,6 +1197,98 @@ void Application::RequestClose()
 }
 
 
+void Application::SaveSettings()
+{
+	if (!m_settings)
+		return;
+	m_settings->Joysticks().NameBound(m_input, m_glfwInput.ConnectedJoysticks());
+	m_settings->Save(m_input);
+	Core::Log(Core::Severity::Info, kShell, "Settings saved to {}", m_settings->File().string());
+}
+
+
+bool Application::SaveTo(std::string_view name)
+{
+	try
+	{
+		const std::string path = SavePath(name);
+		Sim::SaveGame save = Sim::SaveGame::Of(m_sim, std::string{name});
+		save.info.writtenAt = std::chrono::duration_cast<std::chrono::seconds>(
+		                          std::chrono::system_clock::now().time_since_epoch())
+		                          .count();
+		save.info.galaxy = m_galaxyPath;
+		save.info.system = m_systemScene ? m_systemScene->System().name : std::string{};
+		save.AddSection(
+		    std::string{kShellSection},
+		    WriteShellState({m_ship, m_station, m_port, m_shipSystem, m_stationBody}));
+		const std::vector<std::byte> bytes = save.Write();
+		m_assets.Write(path, bytes);
+		Core::Log(
+		    Core::Severity::Info, kShell, "Saved '{}' at step {}, {} bytes, to {}", name,
+		    save.info.step, bytes.size(), (m_userPaths.userData / path).string());
+		return true;
+	}
+	catch (const std::exception &error)
+	{
+		Core::Log(Core::Severity::Error, kShell, "Not saved: {}", error.what());
+		return false;
+	}
+}
+
+
+bool Application::LoadFrom(std::string_view name)
+{
+	try
+	{
+		const std::string path = SavePath(name);
+		const auto bytes = m_assets.Read(path);
+		if (!bytes)
+			throw std::runtime_error(std::format("there is no save '{}'", name));
+		const Sim::SaveGame save = Sim::SaveGame::Read(*bytes);
+		if (save.info.galaxy != m_galaxyPath)
+			throw std::runtime_error(
+			    std::format(
+			        "'{}' is of the galaxy '{}', and this run's is '{}'", name, save.info.galaxy,
+			        m_galaxyPath));
+		// Everything read before the world is replaced, so a save that does not fit changes nothing.
+		const Sim::SaveSection *section = save.FindSection(kShellSection);
+		const ShellState shell = section ? ReadShellState(section->data) : ShellState{};
+		m_sim.Load(save.world);
+
+		StopPiloting();
+		const entt::registry &world = m_sim.Registry();
+		const auto valid = [&world](entt::entity entity)
+		{ return world.valid(entity) ? entity : entt::null; };
+		m_ship = valid(shell.ship);
+		m_station = valid(shell.station);
+		m_port = valid(shell.port);
+		m_shipSystem = shell.shipSystem;
+		m_stationBody = shell.stationBody;
+		m_docked = m_ship != entt::null && world.all_of<Docked>(m_ship);
+		m_sentControls.reset();
+		m_pickPending = false;
+		m_picked.reset();
+		m_simStepper.Resync();
+		if (m_systemScene)
+			m_systemScene->ResetTraffic();
+		if (m_galaxy)
+			for (const std::uint64_t system : UnknownSystems(world, *m_galaxy))
+				Core::Log(
+				    Core::Severity::Warning, kShell,
+				    "'{}' has entities in a system {:#018x} the galaxy does not have", name, system);
+		Core::Log(
+		    Core::Severity::Info, kShell, "Loaded '{}' at step {}, saved by engine {}", name,
+		    save.info.step, save.info.engineVersion);
+		return true;
+	}
+	catch (const std::exception &error)
+	{
+		Core::Log(Core::Severity::Error, kShell, "Not loaded: {}", error.what());
+		return false;
+	}
+}
+
+
 SmokeActions Application::MakeSmokeActions()
 {
 	SmokeActions actions;
@@ -1121,6 +1315,18 @@ SmokeActions Application::MakeSmokeActions()
 		return Pick({width * 0.5, height * 0.5});
 	};
 	actions.picking = [this] { return m_pickPending; };
+	actions.saveAndLoad = [this]
+	{
+		const std::uint64_t saved = m_sim.StateHash();
+		if (!SaveTo("smoke") || !LoadFrom("smoke"))
+			return false;
+		const std::uint64_t loaded = m_sim.StateHash();
+		if (loaded != saved)
+			Core::Log(
+			    Core::Severity::Error, kShell, "The save loaded as {:#018x}, and was {:#018x} saved",
+			    loaded, saved);
+		return loaded == saved;
+	};
 	actions.jump = [this] { return Jump(); };
 	actions.jumping = [this] { return m_jump->Active(); };
 	actions.close = [this] { RequestClose(); };
@@ -1169,6 +1375,11 @@ void Application::Shutdown() noexcept
 	m_jump.reset();
 	m_pResources.reset();
 	m_pIoWorker.reset();
+	if (!m_scratchUser.empty())
+	{
+		std::error_code ignored;
+		std::filesystem::remove_all(m_scratchUser, ignored);
+	}
 	// The smoke sequence is not reset: Run reads its verdict after this returns, and it holds
 	// nothing of the engine's. Resetting it here once made that verdict unreachable, so a sequence
 	// that never reached its last stage passed the gate.

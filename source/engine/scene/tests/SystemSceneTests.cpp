@@ -387,9 +387,19 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 	CHECK(registry.view<const Scene::BuiltComponent>().size() == built);
 	Scene::SceneUpdateSystem{}.Update(registry, 0.0f);
 
-	// Unloaded, the scene is the file again, proxies and all gone.
+	// After a world is loaded, every entity is asked for again, the buoy declined before among them,
+	// and the old proxies go with their children.
 	systemScene.SyncTraffic(third, first, 0.0);
 	CHECK(asked == 3);
+	const entt::entity before = madeHull;
+	systemScene.ResetTraffic();
+	CHECK_FALSE(registry.valid(before));
+	CHECK(registry.view<const Scene::SimProxyComponent>().empty());
+	systemScene.SyncTraffic(first, first, 0.0);
+	CHECK(asked == 5);
+	CHECK(registry.view<const Scene::SimProxyComponent>().size() == 1);
+
+	// Unloaded, the scene is the file again, proxies and all gone.
 	systemScene.Unload();
 	CHECK(registry.view<const Scene::BuiltComponent>().empty());
 	CHECK(registry.view<const Scene::SimProxyComponent>().empty());

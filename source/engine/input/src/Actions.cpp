@@ -151,29 +151,48 @@ void InputSystem::AddAxisDelta(InputCode input, float delta)
 	m_raw[input].delta += delta;
 }
 
-std::vector<InputCode> InputSystem::BoundInputs() const
+namespace
 {
-	std::vector<InputCode> inputs;
-	const auto add = [&inputs](const std::map<std::uint32_t, std::vector<Binding>> &bindings)
+void AddInputs(
+    std::vector<InputCode> &inputs, const std::map<std::uint32_t, std::vector<Binding>> &bindings)
+{
+	for (const auto &[action, list] : bindings)
 	{
-		for (const auto &[action, list] : bindings)
+		for (const Binding &binding : list)
 		{
-			for (const Binding &binding : list)
-			{
-				inputs.push_back(binding.input);
-				if (binding.negative)
-					inputs.push_back(*binding.negative);
-			}
+			inputs.push_back(binding.input);
+			if (binding.negative)
+				inputs.push_back(*binding.negative);
 		}
-	};
-	for (const Context &context : m_contexts)
-	{
-		add(context.defaults);
-		add(context.overrides);
 	}
+}
+
+void SortUnique(std::vector<InputCode> &inputs)
+{
 	std::ranges::sort(inputs);
 	const auto duplicates = std::ranges::unique(inputs);
 	inputs.erase(duplicates.begin(), duplicates.end());
+}
+} // namespace
+
+std::vector<InputCode> InputSystem::BoundInputs() const
+{
+	std::vector<InputCode> inputs;
+	for (const Context &context : m_contexts)
+	{
+		AddInputs(inputs, context.defaults);
+		AddInputs(inputs, context.overrides);
+	}
+	SortUnique(inputs);
+	return inputs;
+}
+
+std::vector<InputCode> InputSystem::OverriddenInputs() const
+{
+	std::vector<InputCode> inputs;
+	for (const Context &context : m_contexts)
+		AddInputs(inputs, context.overrides);
+	SortUnique(inputs);
 	return inputs;
 }
 
@@ -283,10 +302,14 @@ void InputSystem::SaveBindings(Core::Config &config) const
 {
 	for (const Context &context : m_contexts)
 	{
-		for (const auto &[index, bindings] : context.overrides)
-			config.Set(
-			    Core::ConfigLayer::User, Key(context.name, m_actions[index].name),
-			    FormatBindings(bindings));
+		for (std::uint32_t index = 0; index < m_actions.size(); ++index)
+		{
+			const std::string key = Key(context.name, m_actions[index].name);
+			if (const auto found = context.overrides.find(index); found != context.overrides.end())
+				config.Set(Core::ConfigLayer::User, key, FormatBindings(found->second));
+			else
+				config.Unset(Core::ConfigLayer::User, key);
+		}
 	}
 }
 

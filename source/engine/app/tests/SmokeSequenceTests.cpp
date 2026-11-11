@@ -10,7 +10,7 @@ namespace
 // Drives the sequence to its close the way the shell's frame loop does, with the window manager
 // answering each of the two resize requests or refusing it, and a jump that takes that many frames
 // (none started, when negative), and returns the verdict.
-bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
+bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3, bool saveLoads = true)
 {
 	int requests = 0;
 	int handled = 0;
@@ -52,6 +52,16 @@ bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
 		return true;
 	};
 	actions.picking = [&] { return pickLeft > 0; };
+	// After the pick is answered, before the jump.
+	int saves = 0;
+	actions.saveAndLoad = [&]
+	{
+		CHECK(picks == 1);
+		CHECK(pickLeft == 0);
+		CHECK(jumps == 0);
+		++saves;
+		return saveLoads;
+	};
 	actions.close = [&]
 	{
 		// Nothing closes the window while a jump is under way.
@@ -76,7 +86,9 @@ bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
 	CHECK(jumps == (jumpFrames < 0 ? 0 : 1));
 	CHECK(pilots == 2);
 	CHECK(picks == 1);
+	CHECK(saves == 1);
 	CHECK(sequence.Summary().find("picks=1") != std::string::npos);
+	CHECK(sequence.Summary().find(saveLoads ? "saves=1" : "saves=0") != std::string::npos);
 	return sequence.Passed();
 }
 } // namespace
@@ -98,4 +110,9 @@ TEST_CASE("Smoke sequence: the jump is waited for however long it takes, and a r
 	CHECK(RunSequence(true, true, 0));
 	CHECK(RunSequence(true, true, 60));
 	CHECK_FALSE(RunSequence(true, true, -1));
+}
+
+TEST_CASE("Smoke sequence: a save that does not load back as it was is a failure")
+{
+	CHECK_FALSE(RunSequence(true, true, 3, false));
 }

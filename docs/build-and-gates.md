@@ -127,6 +127,10 @@ Shaders compile as part of the build (`jettison_compile_shaders`). Assets are st
 executable. `--assets <directory>` selects a different asset directory, and
 `--scene <file>` / `--save-scene <file>` load and write scene graphs, and `--system <virtual path>`
 (`systems/halcyon.yaml`) runs the scene a star system builds alone, in place of a scene file.
+`--user-dir <directory>` puts the user's files under one directory in place of the XDG ones:
+settings under `<directory>/config`, saves under `<directory>/data/saves`. The headless run with no
+`--user-dir` makes a directory of its own under the system's temporary directory and removes it as
+it ends, so the smoke test never reads or writes the settings and saves of whoever runs it.
 
 In VS Code, the default build task uses `clang-debug`. The `Debug test` launch configuration
 builds and runs `render_test` under GDB through the Native Debug (`webfreak.debug`) extension.
@@ -181,7 +185,11 @@ build's results.
 
 Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files the
 module's `jettison_add_module(... TESTS ...)` names and registered with CTest under the module's
-name. The smoke sequence's own test and the dependency probe are registered alongside them. The
+name. The smoke sequence's own test and the dependency probe are registered alongside them. Saves written
+by earlier versions of the engine are fixtures beside the suite that loads them
+(`source/engine/sim/tests/data`): each was written once, by the build of its version, and is never
+regenerated, since a fixture rewritten by the current build proves only that the current build reads
+itself. A format change that breaks one needs a migration, not a new fixture. The
 gate runs them with `ctest --test-dir build/<preset> --output-on-failure --no-tests=error`, so a
 tree that registered nothing fails rather than passes.
 
@@ -265,9 +273,10 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
 ```
 
-**What it walks.** Nine stages, the paths that have hurt this engine: resize, resize, minimize,
-restore, scene reload, pilot from behind, pilot from the seat, jump, settle. Each stage runs four
-frames, the jump as many as it takes, inside a 120-second watchdog. It walks
+**What it walks.** Eleven stages, the paths that have hurt this engine: resize, resize, minimize,
+restore, scene reload, pilot from behind, pilot from the seat, pick, save and load, jump, settle.
+Each stage runs four frames, the pick and the jump as many as they take, inside a 120-second
+watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
 the star system, under an orbit camera and the sun, which shadows it through four cascades, with
@@ -276,7 +285,10 @@ drawn as one instanced draw). In the orbit scene the piloting stages fly the she
 Highport's dock in the station's frame, ahead under scripted controls: its proxy made by the traffic
 layer, the flight commands, and the pilot camera's chase and cockpit rigs on it, each eased into; the
 sample scene has no station, so they fly nothing there, and the summary's `pilots=` says how many
-did. The sample scene has no sun,
+did. The save stage writes the game to the run's user mount, flushed to the disk, and loads it
+back over itself with the scene drawing it; the run fails unless the world loaded has the state hash
+of the world saved (817 bytes for the sample scene's empty world on 2026-11-12, and 4,171 for the
+orbit scene's, physics' state and the shell's ship among it). The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
 the frame sets rewritten after it run under validation too. The reload also reads every resource

@@ -5,11 +5,14 @@ jettison_add_module(input
 	HEADERS
 		include/jettison/input/Actions.h
 		include/jettison/input/InputCode.h
+		include/jettison/input/Joysticks.h
 	SOURCES
 		src/Actions.cpp
 		src/InputCode.cpp
+		src/Joysticks.cpp
 	TESTS
 		tests/InputTests.cpp
+		tests/JoystickTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 )

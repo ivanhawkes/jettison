@@ -23,6 +23,9 @@ struct SmokeActions
 	// no system. Then whether it is still unanswered.
 	std::function<bool()> pick;
 	std::function<bool()> picking;
+	// Saves the game to the user mount and loads it back, and says whether the world loaded is the
+	// world saved, by its state hash.
+	std::function<bool()> saveAndLoad;
 	// Starts a jump to another star system, and says whether one started: false where there is no
 	// galaxy to jump in. Then whether it is still under way.
 	std::function<bool()> jump;
@@ -30,17 +33,17 @@ struct SmokeActions
 	std::function<void()> close;
 };
 
-// The headless render test's sequence, in ten stages of a handful of frames each: two resizes (a
+// The headless render test's sequence, in eleven stages of a handful of frames each: two resizes (a
 // swapchain recreate), a minimize and restore (a surface that reports no extent), a scene reload
 // (models destroyed and rebuilt, commonly at the addresses the pipeline keyed its resources by), a
 // ship flown behind the chase camera and then from the cockpit (the ship's proxy made by the
 // traffic layer, the station's collision mesh, the flight commands, and the pilot rigs), a pick
 // through the middle of the window (a ray from the camera cast by physics and answered as an
-// event), a jump to
-// another star system (the scene replaced behind its effect, with frames in flight, and
-// the new system streamed in), and a settle. Each stage acts, waits for the frames it triggered to
-// settle, then advances; validation and the sanitizers read the result, so the sequence only has to
-// reach the end.
+// event), a save and a load of it (the world, physics' state among it, written durably and read
+// back, with the scene's proxies on it), a jump to another star system (the scene replaced behind
+// its effect, with frames in flight, and the new system streamed in), and a settle. Each stage acts,
+// waits for the frames it triggered to settle, then advances; validation and the sanitizers read the
+// result, so the sequence only has to reach the end.
 //
 // One frame at a time, from the shell's loop: the stages are defined by frames, not by wall
 // clock, because the point of each is the frame that the action caused.
@@ -67,7 +70,7 @@ class SmokeSequence
 	bool Passed() const;
 
 	// The counters in the words the failure report uses: "resizes=1, reloads=1, pilots=2, picks=1,
-	// jumps=1, stage=9".
+	// saves=1, jumps=1, stage=10".
 	std::string Summary() const;
 
   private:
@@ -90,6 +93,8 @@ class SmokeSequence
 	// The picks answered. Not a verdict either: a pick needs a system's physics to be cast in.
 	int m_picks{0};
 	bool m_pickPending{false};
+	// Saves that loaded back to the state saved.
+	int m_saves{0};
 	int m_jumps{0};
 	// The jump stage's action is pending until the jump is over, however many frames that takes.
 	bool m_jumpPending{false};

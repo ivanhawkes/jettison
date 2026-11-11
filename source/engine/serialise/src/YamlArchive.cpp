@@ -2,6 +2,7 @@
 
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/serialise/Migration.h>
 
 #include <yaml-cpp/yaml.h>
 
@@ -272,7 +273,10 @@ class Reader
 	{
 	}
 
-	void Root(entt::meta_any &value, const YAML::Node &document, FormatVersion expected)
+	// Data of another version is migrated by the chain when there is one, and refused when not.
+	void Root(
+	    entt::meta_any &value, const YAML::Node &document, FormatVersion expected,
+	    const YamlMigrations *migrations)
 	{
 		if (!document.IsMap())
 			Fail(document, "the document is not a mapping");
@@ -282,9 +286,21 @@ class Reader
 		std::uint32_t found = 0;
 		if (!version.IsScalar() || !ParseNumber(version.Scalar(), found))
 			Fail(version, std::format("the version '{}' is not a whole number", Text(version)));
-		if (found != expected.version)
+		if (found == expected.version)
+		{
+			Fields(value, document, true);
+			return;
+		}
+		if (!migrations)
 			throw FormatVersionError{m_path.Text(), found, expected.version};
-		Fields(value, document, true);
+		// The tree is the archive's own, parsed for this read, so the steps edit it in place: a copy
+		// (YAML::Clone) would lose the lines every node was read from.
+		YAML::Node migrated = document;
+		migrations->Run(migrated, found);
+		if (!migrated.IsMap())
+			Fail(document, std::format("the migration from version {} left no mapping", found));
+		migrated[std::string{kVersionKey}] = expected.version;
+		Fields(value, migrated, true);
 	}
 
   private:
@@ -511,8 +527,11 @@ std::string YamlArchive::Write(const entt::meta_any &value, FormatVersion versio
 	return writer.Finish();
 }
 
-entt::meta_any YamlArchive::Read(
-    std::string_view text, const entt::meta_type &type, FormatVersion expected)
+namespace
+{
+entt::meta_any ReadDocument(
+    std::string_view text, const entt::meta_type &type, FormatVersion expected,
+    const YamlMigrations *migrations)
 {
 	const std::string_view root = Detail::RootName(type);
 	YAML::Node document;
@@ -531,7 +550,24 @@ entt::meta_any YamlArchive::Read(
 		throw UnsupportedTypeError{
 		    std::format("YamlArchive: {}: the type is not default constructible", root)};
 	Reader reader{root};
-	reader.Root(value, document, expected);
+	reader.Root(value, document, expected, migrations);
 	return value;
+}
+} // namespace
+
+entt::meta_any YamlArchive::Read(
+    std::string_view text, const entt::meta_type &type, FormatVersion expected)
+{
+	return ReadDocument(text, type, expected, nullptr);
+}
+
+entt::meta_any YamlArchive::Read(
+    std::string_view text, const entt::meta_type &type, const YamlMigrations &migrations)
+{
+	if (migrations.Format() != Detail::RootName(type))
+		throw std::logic_error{std::format(
+		    "YamlArchive: the migrations of '{}' were given to read a '{}'", migrations.Format(),
+		    Detail::RootName(type))};
+	return ReadDocument(text, type, migrations.Current(), &migrations);
 }
 } // namespace Jettison::Serialise

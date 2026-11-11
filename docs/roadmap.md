@@ -13,7 +13,7 @@ built, are recorded in [history](history.md).
 |---|---|---|
 | 0–7 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight. Recorded in [history](history.md). | Met. |
 | 8 | **UI, audio and persistence.** Sub-phases 8a–8c; catalogue entries 23, 24 and 25. | A market screen bound to simulation data; a save written by version N loads in N+1. |
-| 8a | **Persistence.** Versioned save games of the simulation world and the galaxy, with migrations as a chain from N to N+1; whether definitions migrate; fsync on the user mount; settings and keybindings stored apart from saves, and the shell loading the user's bindings (moved from phase 3). | A save written by version N loads in N+1, and a rebinding survives a restart. |
+| 8a | **Persistence.** Done 2026-11-12. Migrations as a chain of steps per format (`serialise/Migration.h`), each from one version to the next, run by the readers given one: a binary step edits the archive as a document (its table of names, through which a name is renamed everywhere, and its payload), a YAML step the parsed tree, its lines kept for errors; a version newer than the build's or one the chain does not reach is refused by name. The world's save migrates from version 1 (before services) to 2. A save game (`sim/SaveGame.h`, `Jettison.Save` version 1): its info (the name, the engine version, when, the world's clock, the galaxy's file and the system shown), the world's save and the game's sections, each part versioned on its own. Definitions migrate ([decided](#decided)). Every whole-file write, the VFS's and the settings file's, is durable (`Core::WriteFileDurably`: fsync, rename, the directory fsynced). The shell's settings and bindings in the XDG configuration directory, apart from saves in the data directory, which is mounted writable over the base; a joystick a binding names is named after its device by GUID (`input/Joysticks.h`); `bind`, `unbind`, `save`, `load` and `saves` in the console, and F5 and F9; the shell's ship in a section of its own; the smoke sequence gains a save stage. | Met: the sim suite loads a world saved by the phase 6d build at version 1 (`world-v1.save`, commit `a5d0c83`), through its migration, into exactly the save this build makes at the same step, which steps on to the pinned hash of the whole run; `save-v1.save`, the save game's first version, is kept for every later build to load. The app suite rebinds an action and a joystick, restarts on the settings file and finds both, and puts one back and finds that; in the shell, run headless twice on one user directory, a key rebound in the console in the first run jumped in the second. The smoke test saves and loads in both scenes, each loading back to the state hash saved, under validation. |
 | 8b | **UI.** RmlUi through the Vulkan backend, documents and stylesheets through the VFS, FreeType shared with ImGui, data models bound to simulation snapshots. | A market screen bound to simulation data. |
 | 8c | **Audio.** miniaudio; buses (music, effects, UI, voice) with volumes from settings; 3D sources on presentation entities; streamed music; simulation events mapped to sounds. | A simulation event plays a positioned sound on the effects bus, and music streams. |
 | 9 | **AI.** Sub-phases 9a–9c; catalogue entry 26. | Automated traders choose trades, plot routes across systems and fly them without collisions. |
@@ -43,22 +43,30 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–7 moved on, and where it lands. Their full record, and catalogue entries 1–22,
+Work that phases 1–7 and 8a moved on, and where it lands. Their full record, and catalogue entries 1–22,
 are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
   writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
   smoke test's patterns.
-- **A joystick by its device, not its slot** (entry 14, 7b): a binding names a joystick by GLFW's
-  slot, so it follows where a device was plugged in; naming it by its GUID lands with the user's
-  bindings, 8a.
 - **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
   shell sets its ship's. Taking a ship into a station's frame as it closes and out as it leaves, by a
   radius about each body, lands with steering (9b), whose traffic is the first to cross frames.
 - **Piloting across a jump** (entry 22, 7b): the shell's ship stays in its system when the scene
   jumps, with the simulation's jump (9a).
-- **Migrations** for saves (entry 9) and the decision whether definitions migrate (entry 13),
-  fsync on the user mount (entry 10), and the shell loading the user's bindings (entry 14): 8a.
+- **A change inside a component's fields** (entry 25, 8a): fields are found by name, so a field
+  added to a component reads an old save with its default, and one renamed is a rename in the
+  world's table; but a field removed is refused (the archive refuses a field its type does not
+  save), and a field whose type changed misreads its length. Migrating either needs the old type in
+  the step, and the world's steps have the document alone. A component's own chain, run by the
+  world as it reads that component's storage, is not yet placed: the game's first change to a
+  component after its saves matter is its first reader.
+- **Jolt's state across a Jolt upgrade** (entry 25, 8a): physics' share of a save is Jolt's own
+  binary state, which a step cannot edit as data. A Jolt upgrade that changes it needs a load that
+  rebuilds the bodies from the world's components instead, losing the contact cache's warm start for
+  a step. Not yet placed; it is the first thing to check when Jolt is next moved.
+- **A list of saves to load from** (entry 25, 8a): the console lists them, from the front of each
+  file (`SaveGame::ReadInfo`); a load screen is the UI's, 8b.
 - **Pack files and their compression** behind the VFS (entry 10), and definition layering finer
   than whole-file replacement (entry 13): 11a.
 - **The cinematic camera** (entry 18): 11c.
@@ -162,6 +170,24 @@ and simulation events mapped to sounds.
 Save games of the simulation world and the galaxy, with format version and engine version.
 Migrations are a chain of functions from version N to N+1. Settings and keybindings are stored
 apart from saves.
+*Filled in* (8a): a format's migrations are a chain of steps, one from each version to the next,
+which the readers run when they are given them (`Serialise::Migrations`, `BinaryArchive::Read`,
+`YamlArchive::Read`, `BinaryReader`, `DefinitionRegistry::Load`). A binary step edits a
+`BinaryDocument`, the archive's table of names and its payload: a name renamed in the table is
+renamed everywhere it is used, which is how a field, a component, a command or an enumerator is
+renamed; a step that needs the old types reads the old version with them and writes the new. A YAML
+step edits the parsed tree, which keeps the lines errors name. The world's save migrates from version
+1, which had no services' state. `Sim::SaveGame` is the save file, `Jettison.Save` at version 1: a
+`SaveInfo` first (the player's name for it, `Core::EngineVersion()`, when it was written by the wall
+clock, which the caller sets, the world's step and time, the galaxy by its file, the system shown),
+then the world's save and the game's named sections, each a binary archive of its own format,
+version and migrations; the save game reads none of them. Writes are durable
+(`Core::WriteFileDurably`, through which `Vfs::FileSystem::Write` and `Config::SaveUserLayer` go).
+Settings and bindings are one file in the configuration directory, the config's user layer, with
+the input system's overrides in it and the joysticks' devices beside them (`Input::JoystickMap`,
+under `input.devices.joystick<N>`); a binding reset to its default is taken out of it
+(`Config::Unset`), where before it stayed and came back on the next load. The shell is the first
+user ([architecture](architecture.md#persistence)).
 
 ### 26. AI · phase 9 · `engine/ai`
 
@@ -333,6 +359,33 @@ Settled on 2026-11-10:
   there for the cast: without it a click on the station misses by the distance between the two. A
   pick is in a recording like any command, and a replay raises its answer again. The cost, a paused
   world answering when it resumes, is carried forward.
+- **Migrations are a chain of steps over a document** (2026-11-12, phase 8a), one step a version,
+  written once and never changed, rather than readers that know every old layout: a step reads the
+  data its version wrote and nothing else, so a format's history is a list of small edits, each
+  tested by the fixture of its version. A binary step edits the archive's table of names and its
+  payload without types, which serves a rename and an addition at the end; one that needs the types
+  keeps the old ones registered under names of their own and reads with them. Every part of a save
+  is versioned on its own (the save game, the world, each of the game's sections), so a change to one
+  is a step in that one's chain. Saves written by earlier versions are kept as fixtures and never
+  regenerated; `world-v1.save` was written by the phase 6d build.
+- **Definitions migrate** (2026-11-12, phase 8a, the decision entry 13 left open). A definition is
+  authored content that mods ship, and a mod's author is not there when the game changes a
+  definition's format; refusing every file of an older version would break every mod at each change.
+  A type's YAML migrations are run on its files as they load, and cost nothing for a file that is
+  current. Saves hold no definitions, only their names, so a definition's format can change without
+  touching a save.
+- **Saves and settings are written durably** (2026-11-12, phase 8a, the fsync entry 10 left open).
+  A whole-file write flushes the partial file before the rename and the directory after it: without
+  the first, a power cut after the rename can leave an empty file where the save was, since the
+  rename can reach the disk before the data; without the second, the rename itself may not. Saves and
+  settings are small (4 KB for the orbit scene's world) and written when the player asks, so the two
+  flushes cost nothing anyone waits on.
+- **A joystick is named by its device** (2026-11-12, phase 8a). A binding's joystick is a number; one
+  the player has bound is named after the GUID of the device that answered to it then, and from then
+  on is that device wherever it is plugged in, and nothing while it is not. Numbers no name claims
+  are the unclaimed devices in slot order, which is GLFW's slots when nothing is named, so defaults
+  and a player who never rebinds see no change. Two devices of one model share a GUID, and a name
+  takes the first of them free; telling them apart needs the device's path, which GLFW does not give.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

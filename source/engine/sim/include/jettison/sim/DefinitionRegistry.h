@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <string>
 #include <string_view>
@@ -15,6 +16,17 @@ namespace Jettison::Vfs
 class FileSystem;
 }
 
+namespace YAML
+{
+class Node;
+}
+
+namespace Jettison::Serialise
+{
+template <typename Data> class Migrations;
+using YamlMigrations = Migrations<YAML::Node>;
+} // namespace Jettison::Serialise
+
 namespace Jettison::Sim
 {
 // Typed, reflected definitions loaded from data and overridable by mods: a ship class, a good, a
@@ -25,7 +37,12 @@ namespace Jettison::Sim
 // from "defs/ships" is "military/corvette". The VFS gives the topmost file at each path, so a mod
 // overrides a definition by shipping a file at the same path, and adds one with a new path. A
 // whole definition is replaced, not patched field by field; layering finer than that is phase
-// 11's. Saves refer to definitions by name.
+// 11's. Saves refer to definitions by name, so a save holds none, and a definition's format can
+// change without one.
+//
+// Definitions migrate (docs/roadmap.md, "Decided"): a type's files are read through its YAML
+// migrations when it has them, so a mod written against an earlier version of a definition still
+// loads after the type gains a field or renames one, without its author shipping it again.
 //
 // Definitions are loaded at start-up and read by the simulation, so they are kept in ordered maps:
 // Names() and any walk over them is the same on every run.
@@ -44,6 +61,16 @@ class DefinitionRegistry
 	template <typename T> void Load(std::string_view virtualDirectory, Serialise::FormatVersion version)
 	{
 		Load(entt::resolve<T>(), virtualDirectory, version);
+	}
+	// The same, with a file of an earlier version migrated first; one of a version the chain does
+	// not reach is refused as above. The chain's format is the type's name, as Reflect has it.
+	void Load(
+	    const entt::meta_type &type, std::string_view virtualDirectory,
+	    const Serialise::YamlMigrations &migrations);
+	template <typename T>
+	void Load(std::string_view virtualDirectory, const Serialise::YamlMigrations &migrations)
+	{
+		Load(entt::resolve<T>(), virtualDirectory, migrations);
 	}
 
 	// The definition of that name, or null. Valid until the type is loaded again.
@@ -66,6 +93,10 @@ class DefinitionRegistry
 
   private:
 	using Definitions = std::map<std::string, entt::meta_any, std::less<>>;
+
+	void LoadWith(
+	    const entt::meta_type &type, std::string_view virtualDirectory,
+	    const std::function<entt::meta_any(std::string_view)> &read);
 
 	const Vfs::FileSystem &m_fileSystem;
 	// Keyed by EnTT's type ID.

@@ -3,6 +3,7 @@
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/serialise/Binary.h>
+#include <jettison/serialise/Migration.h>
 
 #include <algorithm>
 #include <array>
@@ -153,6 +154,12 @@ class Writer
 		Unsigned(m_payload, value, width);
 	}
 
+	void Bytes(std::span<const std::byte> bytes)
+	{
+		Unsigned(m_payload, Count(bytes.size()), 4);
+		m_payload.insert(m_payload.end(), bytes.begin(), bytes.end());
+	}
+
 	void Value(const entt::meta_any &value)
 	{
 		const Shape shape = Detail::ShapeOf(value.type(), m_path.Text());
@@ -228,6 +235,13 @@ class Reader
 
 	void Header(std::string_view root, FormatVersion expected)
 	{
+		if (const std::uint32_t version = Open(root); version != expected.version)
+			throw FormatVersionError{root, version, expected.version};
+	}
+
+	// The header, up to the payload: the version the archive says it is.
+	std::uint32_t Open(std::string_view root)
+	{
 		if (m_bytes.size() < kMagic.size() || !std::ranges::equal(m_bytes.first(kMagic.size()), kMagic))
 			Fail("the data is not a Jettison binary archive");
 		m_offset = kMagic.size();
@@ -242,9 +256,16 @@ class Reader
 			m_names.push_back(String());
 		if (const std::string_view found = Name(); found != root)
 			Fail(std::format("the archive holds a '{}'", found));
-		const auto version = static_cast<std::uint32_t>(Unsigned(4));
-		if (version != expected.version)
-			throw FormatVersionError{root, version, expected.version};
+		return static_cast<std::uint32_t>(Unsigned(4));
+	}
+
+	const std::vector<std::string> &Names() const
+	{
+		return m_names;
+	}
+	std::span<const std::byte> Rest() const
+	{
+		return m_bytes.subspan(m_offset);
 	}
 
 	std::size_t Remaining() const
@@ -454,6 +475,11 @@ void BinaryWriter::WriteValue(const entt::meta_any &value)
 	m_pImpl->writer.Value(value);
 }
 
+void BinaryWriter::WriteBytes(std::span<const std::byte> bytes)
+{
+	m_pImpl->writer.Bytes(bytes);
+}
+
 std::vector<std::byte> BinaryWriter::Finish(FormatVersion version)
 {
 	return m_pImpl->writer.Finish(m_pImpl->name, version);
@@ -464,8 +490,14 @@ struct BinaryReader::Impl
 	Impl(std::span<const std::byte> bytes, std::string_view format) : name{format}, reader{bytes, name}
 	{
 	}
+	// Over data migrated to the current version, which the reader keeps.
+	Impl(std::vector<std::byte> owned, std::string_view format)
+	    : name{format}, migrated{std::move(owned)}, reader{migrated, name}
+	{
+	}
 
 	std::string name;
+	std::vector<std::byte> migrated;
 	Reader reader;
 };
 
@@ -474,6 +506,22 @@ BinaryReader::BinaryReader(
     : m_pImpl{std::make_unique<Impl>(bytes, format)}
 {
 	m_pImpl->reader.Header(m_pImpl->name, expected);
+}
+
+BinaryReader::BinaryReader(std::span<const std::byte> bytes, const BinaryMigrations &migrations)
+{
+	if (PeekVersion(bytes, migrations.Format()) == migrations.Current().version)
+		m_pImpl = std::make_unique<Impl>(bytes, migrations.Format());
+	else
+		m_pImpl = std::make_unique<Impl>(Migrate(bytes, migrations), migrations.Format());
+	m_pImpl->reader.Header(m_pImpl->name, migrations.Current());
+}
+
+std::vector<std::byte> BinaryReader::ReadBytes()
+{
+	const auto count = static_cast<std::uint32_t>(m_pImpl->reader.Unsigned(4));
+	const std::span<const std::byte> bytes = m_pImpl->reader.Take(count);
+	return {bytes.begin(), bytes.end()};
 }
 
 BinaryReader::~BinaryReader() = default;
@@ -530,5 +578,100 @@ entt::meta_any BinaryArchive::Read(
 	reader.ReadValue(value);
 	reader.End();
 	return value;
+}
+
+entt::meta_any BinaryArchive::Read(
+    std::span<const std::byte> bytes, const entt::meta_type &type, const BinaryMigrations &migrations)
+{
+	const std::string_view root = Detail::RootName(type);
+	if (migrations.Format() != root)
+		throw std::logic_error{std::format(
+		    "BinaryArchive: the migrations of '{}' were given to read a '{}'", migrations.Format(),
+		    root)};
+	BinaryReader reader{bytes, migrations};
+	entt::meta_any value = type.construct();
+	if (!value)
+		throw UnsupportedTypeError{
+		    std::format("BinaryArchive: {}: the type is not default constructible", root)};
+	reader.ReadValue(value);
+	reader.End();
+	return value;
+}
+
+// ---- Migration ----------------------------------------------------------------------------
+
+BinaryDocument BinaryDocument::Parse(std::span<const std::byte> bytes, std::string_view format)
+{
+	Reader reader{bytes, format};
+	BinaryDocument document;
+	document.format = std::string{format};
+	document.version = reader.Open(format);
+	document.names = reader.Names();
+	const std::span<const std::byte> payload = reader.Rest();
+	document.payload.assign(payload.begin(), payload.end());
+	return document;
+}
+
+std::vector<std::byte> BinaryDocument::Emit() const
+{
+	// Finish's layout, with the table as it stands: the format's name where it is in it, or after
+	// the rest when a rename took it out.
+	std::vector<std::string_view> table{names.begin(), names.end()};
+	auto root = std::ranges::find(table, std::string_view{format});
+	if (root == table.end())
+		root = table.insert(table.end(), format);
+	const auto rootIndex = static_cast<std::uint64_t>(root - table.begin());
+
+	std::vector<std::byte> out;
+	const auto put = [&out](std::uint64_t value, std::size_t width)
+	{
+		for (std::size_t index = 0; index < width; ++index)
+			out.push_back(static_cast<std::byte>((value >> (8 * index)) & 0xffu));
+	};
+	out.insert(out.end(), kMagic.begin(), kMagic.end());
+	put(kLayoutRevision, 2);
+	put(table.size(), 4);
+	for (const std::string_view name : table)
+	{
+		put(name.size(), 4);
+		const auto *text = reinterpret_cast<const std::byte *>(name.data());
+		out.insert(out.end(), text, text + name.size());
+	}
+	put(rootIndex, 4);
+	put(version, 4);
+	out.insert(out.end(), payload.begin(), payload.end());
+	return out;
+}
+
+void BinaryDocument::Rename(std::string_view from, std::string_view to)
+{
+	const auto found = std::ranges::find(names, from);
+	if (found == names.end())
+		throw std::logic_error{
+		    std::format("BinaryDocument: {}: the archive does not use the name '{}'", format, from)};
+	if (std::ranges::find(names, to) != names.end())
+		throw std::logic_error{std::format(
+		    "BinaryDocument: {}: the archive already uses '{}', which '{}' would merge with", format,
+		    to, from)};
+	if (format == from)
+		format = std::string{to};
+	*found = std::string{to};
+}
+
+std::uint32_t PeekVersion(std::span<const std::byte> bytes, std::string_view format)
+{
+	Reader reader{bytes, format};
+	return reader.Open(format);
+}
+
+std::vector<std::byte> Migrate(std::span<const std::byte> bytes, const BinaryMigrations &migrations)
+{
+	const std::uint32_t found = PeekVersion(bytes, migrations.Format());
+	if (found == migrations.Current().version)
+		return {bytes.begin(), bytes.end()};
+	migrations.Check(found);
+	BinaryDocument document = BinaryDocument::Parse(bytes, migrations.Format());
+	migrations.Run(document, found);
+	return document.Emit();
 }
 } // namespace Jettison::Serialise

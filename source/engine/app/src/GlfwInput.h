@@ -1,17 +1,20 @@
 #pragma once
 
 #include <optional>
+#include <vector>
 
 #include <glm/vec2.hpp>
 
 #include <jettison/input/Actions.h>
+#include <jettison/input/Joysticks.h>
 
 struct GLFWwindow;
 
 namespace Jettison::App
 {
 // Feeds an InputSystem from GLFW by polling, once per frame, every input a context binds: keys,
-// mouse buttons, the first gamepad, every joystick's axes and buttons, and the cursor's motion.
+// mouse buttons, the first gamepad, every joystick's axes and buttons (each binding's joystick the
+// device a JoystickMap says it is), and the cursor's motion.
 // Polling rather than callbacks leaves GLFW's callbacks to the ImGui backend, which installs its
 // own; the cost is that a tap shorter than a frame is missed, which at the frame rates the shell
 // runs is shorter than a key press. The wheel has no state to poll, so it is the one callback:
@@ -32,6 +35,15 @@ class GlfwInput
 	void Attach(GLFWwindow *window);
 	void Detach();
 
+	// Which device each binding's joystick number reads (Input::JoystickMap), from the next feed; with
+	// none, a number is GLFW's slot of that number. The map outlives the feeds.
+	void SetJoysticks(const Input::JoystickMap *joysticks)
+	{
+		m_pJoysticks = joysticks;
+	}
+	// The joysticks plugged in now, by slot, with their GUIDs.
+	std::vector<Input::JoystickDevice> ConnectedJoysticks() const;
+
 	// mouseCaptured is the UI's claim on the mouse (ImGui's WantCaptureMouse): the wheel scrolls a
 	// window under the cursor, not the camera behind it.
 	void Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCaptured = false);
@@ -46,6 +58,7 @@ class GlfwInput
 	static void OnScroll(GLFWwindow *window, double x, double y);
 
 	GLFWwindow *m_pWindow{nullptr};
+	const Input::JoystickMap *m_pJoysticks{nullptr};
 	// Where the cursor was at the last feed; none before the first, so it starts with no motion.
 	std::optional<glm::dvec2> m_cursor;
 	// The wheel's steps since the last feed.
