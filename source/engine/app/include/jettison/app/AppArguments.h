@@ -39,6 +39,10 @@ struct AppArguments
 	std::optional<std::uint32_t> windowHeight;
 	// The opaque depth prepass, which the renderer runs without when not asked for.
 	bool depthPrepass{false};
+	// Part of the name of the GPU to draw with, in place of the one the renderer chooses (the one
+	// with the monitor on it, then a discrete one): "5060", "llvmpipe". Start-up fails, listing the
+	// GPUs, when no usable one has it.
+	std::string gpu;
 
 	// Where the user's files go, in place of the XDG directories: settings under <dir>/config, saves
 	// under <dir>/data. The headless run with none named uses a directory of its own it removes as it

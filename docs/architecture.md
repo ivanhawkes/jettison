@@ -688,7 +688,11 @@ proves it headlessly. What exists:
   `render/IRenderer.h`: `CreateRenderer` makes the window, the device, the swapchain, the frame
   and the UI, and the interface is what the shell calls. `DeviceContext` holds the
   instance, device, debug-utils messenger (with synchronization validation in Debug), object
-  names, and the VMA allocator every buffer and image comes from. `Swapchain` prefers an sRGB
+  names, and the VMA allocator every buffer and image comes from. It draws with the GPU
+  `vulkan/DeviceChoice.h` chooses ([decided](roadmap.md#decided)): of the devices that can present to
+  the window and have what the renderer needs, the one with a monitor connected, as its DRM card's
+  connectors say, then a discrete GPU over an integrated one over the CPU; `--gpu <name>` asks for
+  one, and the log lists every device and why it was or was not chosen. `Swapchain` prefers an sRGB
   format and owns its image views. `Renderer` runs the frame as a declared pass list
   (`render/PassList.h`): the sun's [shadow cascades](#sun-shadows), the depth prepass (off), the
   cluster passes (the index

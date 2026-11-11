@@ -127,6 +127,8 @@ Shaders compile as part of the build (`jettison_compile_shaders`). Assets are st
 executable. `--assets <directory>` selects a different asset directory, and
 `--scene <file>` / `--save-scene <file>` load and write scene graphs, and `--system <virtual path>`
 (`systems/halcyon.yaml`) runs the scene a star system builds alone, in place of a scene file.
+`--gpu <name>` draws with the GPU whose name has that text in it (`5060`, `llvmpipe`), in place of
+the one the renderer chooses, the one with the monitor on it; the log lists the devices it saw.
 `--user-dir <directory>` puts the user's files under one directory in place of the XDG ones:
 settings under `<directory>/config`, saves under `<directory>/data/saves`. The headless run with no
 `--user-dir` makes a directory of its own under the system's temporary directory and removes it as
@@ -245,6 +247,9 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 
 ### Sanitizers
 
+The gate's sanitised smoke test runs on lavapipe whatever else it is asked: NVIDIA's driver (615.71)
+fails `vkCreateInstance` under ASan, and LeakSanitizer then reports what it allocated, which is a
+driver's and not this project's to fix.
 `./scripts/smoke-test.sh --preset clang-asan --llvmpipe` builds ASan and UBSan into the headless
 tree and runs the render test under them, with `-fno-sanitize-recover=all` so the first finding
 stops the run.
@@ -320,7 +325,12 @@ pass list derives: with them weakened, a run reports `SYNC-HAZARD-WRITE-AFTER-RE
 VMA allocation still live at teardown is reported on the same stream as `[vulkan:error]`, naming
 it. The loader's messages about duplicate `VK_LAYER_MESA_*` manifests
 are excluded as the machine talking: on NixOS that is the shell's Mesa against
-`/run/opengl-driver`. Debug-utils entry points are resolved through `vkGetInstanceProcAddr`, so a
+`/run/opengl-driver`. So is its note that Mesa's D3D12 driver (`libvulkan_dzn.so`), which exists for
+WSL, declined to start, which it does whenever every driver is loaded rather than one pinned. Device
+selection asks a device about the window's surface only once the device says it can present to it:
+an NVIDIA card under Xvfb cannot, and asking it anyway was reported as
+`VUID-vkGetPhysicalDeviceSurfaceCapabilitiesKHR-surface-06211` before lavapipe was picked over it,
+which failed every run that did not pin lavapipe (`--llvmpipe`) on a machine with an NVIDIA card. Debug-utils entry points are resolved through `vkGetInstanceProcAddr`, so a
 loader without them costs object names, not a link failure.
 
 Two verdicts are the run's own, read after teardown and reported through its exit status: the

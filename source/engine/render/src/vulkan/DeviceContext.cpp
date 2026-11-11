@@ -5,12 +5,17 @@
 #include <GLFW/glfw3.h>
 
 // STD.
-#include <cmath>
+#include <algorithm>
 #include <cstring>
 #include <set>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include <jettison/core/Log.h>
+
+#include "vulkan/DeviceChoice.h"
 
 
 const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -27,6 +32,11 @@ constexpr bool kEnableValidationLayers = true;
 
 namespace Jettison::Render
 {
+namespace
+{
+constexpr Core::Category kRender{"render"};
+} // namespace
+
 void DeviceContext::Init()
 {
 	// Device initialisation.
@@ -418,64 +428,106 @@ QueueFamilyIndices DeviceContext::FindQueueFamilies(VkPhysicalDevice device)
 }
 
 
-bool DeviceContext::IsDeviceSuitable(VkPhysicalDevice device)
+std::string DeviceContext::Unsuitable(VkPhysicalDevice device)
 {
 	QueueFamilyIndices indices = FindQueueFamilies(device);
-
-	bool extensionsSupported = CheckDeviceExtensionSupport(device);
-
-	bool swapChainAdequate = false;
-	if (extensionsSupported)
-	{
-		SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
-		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-	}
+	if (!indices.graphicsFamily)
+		return "no queue does graphics and compute";
+	if (!indices.presentFamily)
+		return "it cannot present to the window";
+	if (!CheckDeviceExtensionSupport(device))
+		return "it has no swapchain extension";
+	// The surface is asked about only by a device that can present to it: asking one that cannot is
+	// an error to the validation layer (VUID-vkGetPhysicalDeviceSurfaceCapabilitiesKHR-surface-06211).
+	// An NVIDIA card under Xvfb is one, and was reported as such before lavapipe was picked over it.
+	const SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
+	if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty())
+		return "it offers the window no format or present mode";
 
 	VkPhysicalDeviceProperties properties{};
 	vkGetPhysicalDeviceProperties(device, &properties);
+	if (properties.apiVersion < kApiVersion)
+		return "it is not Vulkan 1.3";
 	VkPhysicalDeviceVulkan13Features features13{};
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	VkPhysicalDeviceFeatures2 features{};
 	features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	features.pNext = &features13;
-	if (properties.apiVersion >= kApiVersion)
-		vkGetPhysicalDeviceFeatures2(device, &features);
+	vkGetPhysicalDeviceFeatures2(device, &features);
+	if (!features.features.samplerAnisotropy || !features.features.depthClamp ||
+	    !features13.dynamicRendering || !features13.synchronization2)
+		return "it lacks anisotropic sampling, depth clamp, dynamic rendering or synchronization2";
+	return {};
+}
 
-	return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-	       properties.apiVersion >= kApiVersion && features.features.samplerAnisotropy &&
-	       features.features.depthClamp && features13.dynamicRendering && features13.synchronization2;
+
+std::optional<bool> DeviceContext::DrivesDisplay(VkPhysicalDevice device)
+{
+	uint32_t extensionCount = 0;
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+	std::vector<VkExtensionProperties> extensions(extensionCount);
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+	const bool hasDrm = std::ranges::any_of(
+	    extensions,
+	    [](const VkExtensionProperties &extension)
+	    {
+		    return std::strcmp(extension.extensionName, VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME) == 0;
+	    });
+	if (!hasDrm)
+		return std::nullopt;
+
+	VkPhysicalDeviceDrmPropertiesEXT drm{};
+	drm.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT;
+	VkPhysicalDeviceProperties2 properties{};
+	properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	properties.pNext = &drm;
+	vkGetPhysicalDeviceProperties2(device, &properties);
+	if (!drm.hasPrimary)
+		return std::nullopt;
+	return Render::DrivesDisplay(drm.primaryMajor, drm.primaryMinor);
 }
 
 
 void DeviceContext::PickPhysicalDevice()
 {
 	uint32_t deviceCount = 0;
-
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
-	if (deviceCount == 0)
-	{
-		throw std::runtime_error("failed to find GPUs with Vulkan support");
-	}
-
 	std::vector<VkPhysicalDevice> devices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
 
-	for (const auto &device : devices)
+	std::vector<DeviceCandidate> candidates;
+	candidates.reserve(devices.size());
+	for (VkPhysicalDevice device : devices)
 	{
-		if (IsDeviceSuitable(device))
+		VkPhysicalDeviceProperties properties{};
+		vkGetPhysicalDeviceProperties(device, &properties);
+		DeviceCandidate candidate;
+		candidate.name = properties.deviceName;
+		switch (properties.deviceType)
 		{
-			m_physicalDevice = device;
-			m_msaaSamples = GetMaxUsableSampleCount();
-			break;
+			case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: candidate.type = DeviceType::Discrete; break;
+			case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: candidate.type = DeviceType::Integrated; break;
+			case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: candidate.type = DeviceType::Virtual; break;
+			case VK_PHYSICAL_DEVICE_TYPE_CPU: candidate.type = DeviceType::Cpu; break;
+			default: candidate.type = DeviceType::Other; break;
 		}
+		candidate.unsuitable = Unsuitable(device);
+		candidate.drivesDisplay = DrivesDisplay(device);
+		Core::Log(
+		    Core::Severity::Info, kRender, "GPU {}: {}, {}{}", candidates.size(), candidate.name,
+		    DeviceTypeName(candidate.type),
+		    candidate.unsuitable.empty()
+		        ? (candidate.drivesDisplay == true ? ", a monitor connected" : "")
+		        : ", not usable: " + candidate.unsuitable);
+		candidates.push_back(std::move(candidate));
 	}
 
-	if (m_physicalDevice == VK_NULL_HANDLE)
-	{
-		throw std::runtime_error(
-		    "failed to find a suitable GPU (Vulkan 1.3 with dynamic rendering, synchronization2 and "
-		    "depth clamp)");
-	}
+	const DeviceChoice choice = ChooseDevice(candidates, m_requestedDevice);
+	if (!choice.index)
+		throw std::runtime_error("failed to find a GPU to draw with: " + choice.reason);
+	Core::Log(Core::Severity::Info, kRender, "Drawing with {}", choice.reason);
+	m_physicalDevice = devices[*choice.index];
+	m_msaaSamples = GetMaxUsableSampleCount();
 }
 
 

@@ -107,6 +107,13 @@ class DeviceContext
 	DeviceContext(const DeviceContext &) = delete;
 	DeviceContext &operator=(const DeviceContext &) = delete;
 
+	// Part of the name of the GPU Init is to draw with, in place of the one it would choose
+	// (DeviceChoice.h). Before Init.
+	void SetRequestedDevice(std::string name)
+	{
+		m_requestedDevice = std::move(name);
+	}
+
 	void Init();
 
 	void Destroy();
@@ -355,8 +362,13 @@ class DeviceContext
 
 	bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 
-	bool IsDeviceSuitable(VkPhysicalDevice m_device);
+	// Why the device cannot be drawn with, or empty when it can.
+	std::string Unsuitable(VkPhysicalDevice device);
+	// Whether a monitor is connected to the device's DRM card, when it says which card it is.
+	std::optional<bool> DrivesDisplay(VkPhysicalDevice device);
 
+	// The device to draw with, of those the instance lists (DeviceChoice.h), each one and the choice
+	// logged.
 	void PickPhysicalDevice();
 
 	void CreateLogicalDevice();
@@ -410,6 +422,7 @@ class DeviceContext
 
 	VkSampleCountFlagBits m_msaaSamples{VK_SAMPLE_COUNT_1_BIT};
 	std::string m_deviceName;
+	std::string m_requestedDevice;
 	bool m_blockCompression{false};
 
 	VkSurfaceKHR m_surface{VK_NULL_HANDLE};

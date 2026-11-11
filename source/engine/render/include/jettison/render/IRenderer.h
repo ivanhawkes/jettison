@@ -60,6 +60,9 @@ struct RendererOptions
 	// once the frame's fence says it is done. It costs a copy of the grid and the index list a frame.
 	bool clusterCheck{false};
 	bool depthPrepass{false};
+	// Part of the name of the GPU to draw with (--gpu), in place of the one the renderer would choose
+	// (render/src/vulkan/DeviceChoice.h); Init fails, listing the GPUs, when no usable one has it.
+	std::string gpu;
 };
 
 // The renderer as the rest of the engine sees it (docs/architecture.md, "Rendering"): the window it

@@ -37,6 +37,7 @@ class VulkanRenderer final : public IRenderer
 		m_pWindow->Init();
 
 		m_pDeviceContext = std::make_shared<DeviceContext>(m_pWindow);
+		m_pDeviceContext->SetRequestedDevice(m_options.gpu);
 		m_pDeviceContext->Init();
 		if (m_options.requireDebugMessenger && !m_pDeviceContext->DebugUtilsActive())
 			throw std::runtime_error("Vulkan debug messenger is required for the smoke test");

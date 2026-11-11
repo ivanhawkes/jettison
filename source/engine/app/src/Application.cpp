@@ -655,6 +655,7 @@ void Application::InitRenderer()
 #endif
 	options.clusterCheck = m_arguments.smokeTest;
 	options.depthPrepass = m_arguments.depthPrepass;
+	options.gpu = m_arguments.gpu;
 	m_pRenderer = Render::CreateRenderer(m_assets, *m_pResources, std::move(options));
 	m_pRenderer->Init();
 }

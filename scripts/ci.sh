@@ -11,8 +11,8 @@
 #                   them)
 #  --skip-tidy       Skip clang-tidy (it needs a configured Debug tree for its database)
 #  --werror         Configure with JETTISON_WERROR=ON, so warnings fail the build
-#  --asan           Build clang-asan and run the smoke test, and the sim and physics suites,
-#                   under the sanitizers
+#  --asan           Build clang-asan and run the smoke test (on lavapipe, whatever else is
+#                   asked), and the sim and physics suites, under the sanitizers
 #  --llvmpipe       Force software Vulkan (lavapipe) for the smoke test
 #  --preset NAME    Debug preset (default: clang-debug)
 set -euo pipefail
@@ -36,7 +36,7 @@ while [ "$#" -gt 0 ]; do
 	--asan) asan=1; shift ;;
 	--llvmpipe) software=(--llvmpipe); shift ;;
 	--preset) preset="$2"; shift 2 ;;
-	-h | --help) sed -n '2,15p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,16p' "$0"; exit 0 ;;
 	*) echo "ci: unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
@@ -75,8 +75,11 @@ else
 fi
 
 if [ "$asan" -eq 1 ]; then
-	echo "==> smoke test: clang-asan (address + undefined sanitizers)"
-	./scripts/smoke-test.sh --preset clang-asan --build --xvfb ${software[@]+"${software[@]}"} ${werror[@]+--werror}
+	# Always on lavapipe: the sanitizers are for this project's code, and a proprietary driver is
+	# neither instrumented nor willing. NVIDIA's (615.71) fails vkCreateInstance under ASan, which the
+	# loader reports, and LeakSanitizer then reports what it allocated before failing.
+	echo "==> smoke test: clang-asan (address + undefined sanitizers, lavapipe)"
+	./scripts/smoke-test.sh --preset clang-asan --build --xvfb --llvmpipe ${werror[@]+--werror}
 	# The suites whose state hashes are pinned, held to the same values under the sanitizers.
 	echo "==> unit tests: clang-asan (sim and physics)"
 	cmake --build --preset clang-asan --target jettison_sim_tests jettison_physics_tests

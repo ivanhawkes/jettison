@@ -386,6 +386,16 @@ Settled on 2026-11-10:
   are the unclaimed devices in slot order, which is GLFW's slots when nothing is named, so defaults
   and a player who never rebinds see no change. Two devices of one model share a GUID, and a name
   takes the first of them free; telling them apart needs the device's path, which GLFW does not give.
+- **The GPU drawn with is the one with the monitor** (2026-11-12). A machine may have a second card
+  kept for compute with no monitor on it, and on Wayland that card still says it can present,
+  through the compositor's copy across the bus; taking the first device Vulkan lists that has the
+  features, as the renderer did, could draw a game on it. So a device is ruled out for what it cannot
+  do, each reason logged, and of the rest the one whose DRM card has a connector reading `connected`
+  (`VK_EXT_physical_device_drm`, then sysfs) is chosen, then by type, then in Vulkan's order, which
+  Mesa's device-select layer puts the display's GPU first in. On the development machine, a 5060 Ti
+  with the monitor and a 5070 Ti for inference, the 5060 Ti is chosen on Wayland, and lavapipe under
+  Xvfb, where neither card can present. A laptop's monitor on its integrated GPU takes the integrated
+  GPU, as the device-select layer would; `--gpu` takes the discrete one.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

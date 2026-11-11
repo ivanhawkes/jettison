@@ -248,14 +248,17 @@ else
 	run_app env DISPLAY=":$display_number" "$executable" --smoke-test
 fi
 
-# A run that renders, resizes and exits cleanly is not a run the layer is happy about. The
-# loader's messages about duplicate Mesa layer manifests are environment, not this project.
+# A run that renders, resizes and exits cleanly is not a run the layer is happy about. Two of the
+# loader's messages are environment, not this project: duplicate Mesa layer manifests (the shell's
+# Mesa against /run/opengl-driver), and Mesa's D3D12 driver (dzn), which exists for WSL and declines
+# to start anywhere else, skipped whenever every driver is loaded rather than one pinned.
+loader_noise='Loader Message: Removing layer VK_LAYER_MESA_.*because it is a duplicate of VK_LAYER_MESA_|Loader Message: terminator_CreateInstance: Received return code -9 from call to vkCreateInstance in ICD [^ ]*/libvulkan_dzn\.so\. Skipping this driver\.'
 issues=0
 if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
-	issues=$(grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -vc 'Loader Message: Removing layer VK_LAYER_MESA_.*because it is a duplicate of VK_LAYER_MESA_' || true)
+	issues=$(grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -Evc "$loader_noise" || true)
 	if [ "${issues:-0}" -gt 0 ]; then
 		echo "smoke-test: FAIL (the validation layer reported $issues issue(s) in a run that exited $status)" >&2
-		grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -v 'Loader Message: Removing layer VK_LAYER_MESA_.*because it is a duplicate of VK_LAYER_MESA_' | head -20 >&2
+		grep -E 'Validation Error:|^\[vulkan:error|^\[vulkan:warning' "$app_log" | grep -Ev "$loader_noise" | head -20 >&2
 		echo "smoke-test: full output in $app_log" >&2
 		status=1
 	elif [ -n "${VK_SMOKE_VERBOSE:-}" ]; then
