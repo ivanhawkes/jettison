@@ -330,6 +330,11 @@ reaches a player who never touched it. The shell's F1 and Escape are actions in 
 context. Joysticks that are not gamepads, a HOTAS among them, and the mouse wheel, which needs a
 callback the ImGui backend owns, come with flight in phase 7; the shell does not load bindings
 from the user's settings until settings are wired in phase 8.
+*Filled in* (7b): a joystick's raw axes and buttons are devices of their own, by GLFW's slot
+(`Joystick1.Axis2`, hats among the buttons), so a HOTAS's stick and throttle bind apart; the wheel is
+the shell's one callback, installed over the ImGui backend's and passing every scroll on to it, and
+held back while ImGui has the mouse. The flight context's bindings are in
+[the roadmap](roadmap.md#22-physics--phase-7--enginephysics).
 
 ### 15. Console · phase 3 · `engine/ui/imgui`
 
@@ -427,6 +432,10 @@ by a frame of smoothing would sit 130 m off centre. The chase camera lags its ta
 never its speed; the map zooms by ratios from 1 km to 10^13 m; `CameraTransition` eases between
 two poses, the second of which may move. A scene's camera can carry an orbit rig
 (`OrbitCameraComponent`), which `UpdateOrbitCameras` runs after the world transforms.
+*Filled in* (7b): the chase and cockpit rigs are on a piloted ship through
+`PilotCameraComponent`, which the game adds to a camera and the scene file never holds, both rigs
+following the ship's interpolated proxy so switching between them is a transition, and over the
+camera's orbit rig while it has one.
 
 ### 19. Space rendering · phase 5 · `engine/render`
 

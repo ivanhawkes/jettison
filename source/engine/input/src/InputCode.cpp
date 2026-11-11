@@ -155,6 +155,10 @@ std::optional<Binding> ParseBinding(std::string_view text)
 
 std::string FormatInput(InputCode input)
 {
+	if (input.device == Device::JoystickAxis || input.device == Device::JoystickButton)
+		return std::format(
+		    "Joystick{}.{}{}", input.joystick + 1,
+		    input.device == Device::JoystickAxis ? "Axis" : "Button", input.code);
 	for (const DeviceNames &device : kDevices)
 	{
 		if (device.device != input.device)
@@ -185,6 +189,20 @@ std::optional<InputCode> ParseInput(std::string_view text)
 		return std::nullopt;
 	const std::string_view prefix = text.substr(0, dot);
 	const std::string_view name = text.substr(dot + 1);
+	if (prefix.starts_with("Joystick"))
+	{
+		unsigned number = 0;
+		if (!ParseWhole(prefix.substr(8), number) || number < 1 || number > kJoystickCount)
+			return std::nullopt;
+		const auto joystick = static_cast<std::uint8_t>(number - 1);
+		std::int32_t code = 0;
+		for (const auto [word, device] :
+		     {std::pair{std::string_view{"Axis"}, Device::JoystickAxis},
+		      std::pair{std::string_view{"Button"}, Device::JoystickButton}})
+			if (name.starts_with(word) && ParseWhole(name.substr(word.size()), code) && code >= 0)
+				return InputCode{device, code, joystick};
+		return std::nullopt;
+	}
 	for (const DeviceNames &device : kDevices)
 	{
 		if (device.prefix != prefix)

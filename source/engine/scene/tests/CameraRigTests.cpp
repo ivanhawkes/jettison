@@ -1,4 +1,6 @@
 #include <jettison/scene/CameraRigs.h>
+#include <jettison/scene/Components.h>
+#include <jettison/scene/SceneSystems.h>
 
 #include <doctest/doctest.h>
 
@@ -182,4 +184,40 @@ TEST_CASE("Camera rigs: a transition eases from one pose to a moving other, and 
 	CHECK(end.position.x == doctest::Approx(200.0));
 	CHECK_FALSE(transition.Active());
 	CHECK(transition.Update(to, 0.1).position.x == 200.0);
+}
+
+TEST_CASE("Camera rigs: a pilot camera follows its ship's world transform through either rig")
+{
+	entt::registry registry;
+	const entt::entity ship = registry.create();
+	// A ship 10 km out, nose along -Z turned a quarter turn to port, so it points along -X.
+	const glm::dquat heading = glm::angleAxis(glm::radians(90.0), glm::dvec3{0.0, 1.0, 0.0});
+	glm::dmat4 matrix = glm::mat4_cast(heading);
+	matrix[3] = glm::dvec4{1.0e4, 0.0, 0.0, 1.0};
+	registry.emplace<Jettison::Scene::WorldTransformComponent>(ship, matrix);
+	const entt::entity camera = registry.create();
+	auto &pilot = registry.emplace<Jettison::Scene::PilotCameraComponent>(camera);
+	pilot.target = ship;
+
+	Jettison::Scene::UpdatePilotCameras(registry, 1.0 / 60.0);
+	const auto &chase = registry.get<Jettison::Scene::CameraPoseComponent>(camera);
+	// Behind it, which is +X of it, above it, and looking along its nose.
+	CHECK(chase.position.x > 1.0e4 + 10.0);
+	CHECK(chase.position.y > 0.0);
+	CHECK(glm::dot(chase.orientation * glm::dvec3{0.0, 0.0, -1.0}, glm::dvec3{-1.0, 0.0, 0.0}) > 0.95);
+
+	pilot.view = Jettison::Scene::PilotView::Cockpit;
+	Jettison::Scene::UpdatePilotCameras(registry, 1.0 / 60.0);
+	const auto &cockpit = registry.get<Jettison::Scene::CameraPoseComponent>(camera);
+	const glm::dvec3 eye = glm::dvec3{1.0e4, 0.0, 0.0} + heading * CockpitCameraSettings{}.eye;
+	CHECK(glm::length(cockpit.position - eye) < 1e-9);
+	CHECK(
+	    glm::dot(cockpit.orientation * glm::dvec3{0.0, 0.0, -1.0}, glm::dvec3{-1.0, 0.0, 0.0}) ==
+	    doctest::Approx(1.0));
+
+	// Its ship gone, the camera stays where it was.
+	registry.destroy(ship);
+	const glm::dvec3 left = cockpit.position;
+	Jettison::Scene::UpdatePilotCameras(registry, 1.0 / 60.0);
+	CHECK(registry.get<Jettison::Scene::CameraPoseComponent>(camera).position == left);
 }

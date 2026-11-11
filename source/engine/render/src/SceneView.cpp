@@ -33,14 +33,19 @@ CameraView ActiveCameraView(const entt::registry &registry)
 		view.orientation =
 		    OrientationFromAngles(camera->rotation.x, camera->rotation.y, camera->rotation.z);
 	}
-	// An orbit camera moves with what it circles, which is where the shadows' grid is fixed.
-	if (const auto *orbit = cameraEntity == entt::null
-	                            ? nullptr
-	                            : registry.try_get<Scene::OrbitCameraComponent>(cameraEntity))
-		if (const auto *world = registry.valid(orbit->target)
-		                            ? registry.try_get<Scene::WorldTransformComponent>(orbit->target)
-		                            : nullptr)
-			view.frameOrigin = glm::dvec3{world->matrix[3]};
+	// An orbit camera moves with what it circles, and a pilot's with the station the ship flies by,
+	// which is where the shadows' grid is fixed. A pilot camera places the camera over its orbit rig.
+	entt::entity frame = entt::null;
+	if (cameraEntity != entt::null)
+	{
+		if (const auto *pilot = registry.try_get<Scene::PilotCameraComponent>(cameraEntity))
+			frame = pilot->frame;
+		else if (const auto *orbit = registry.try_get<Scene::OrbitCameraComponent>(cameraEntity))
+			frame = orbit->target;
+	}
+	if (const auto *world =
+	        registry.valid(frame) ? registry.try_get<Scene::WorldTransformComponent>(frame) : nullptr)
+		view.frameOrigin = glm::dvec3{world->matrix[3]};
 	return view;
 }
 } // namespace Jettison::Render

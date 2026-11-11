@@ -11,6 +11,7 @@ jettison_add_module(app
 		ecs
 		input
 		jobs
+		physics
 		platform
 		profile
 		render
@@ -29,10 +30,13 @@ jettison_add_module(app
 		src/Application.h
 		src/GlfwInput.cpp
 		src/GlfwInput.h
+		src/Piloting.cpp
+		src/Piloting.h
 		src/RenderApplication.cpp
 		src/SmokeSequence.cpp
 	TESTS
 		tests/LargeWorldTests.cpp
+		tests/PilotingTests.cpp
 		tests/SmokeSequenceTests.cpp
 	PRIVATE_LIBRARIES
 		glfw

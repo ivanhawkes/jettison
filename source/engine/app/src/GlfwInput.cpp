@@ -2,14 +2,33 @@
 
 #include <GLFW/glfw3.h>
 
+#include <array>
+#include <span>
+
 namespace Jettison::App
 {
+namespace
+{
+// The one window's wheel: which GlfwInput takes it, and the callback it was installed over.
+GlfwInput *g_pWheelTarget = nullptr;
+GLFWscrollfun g_previousScroll = nullptr;
+
+// One joystick's raw state, read once a feed: nothing for a slot with no joystick in it.
+struct JoystickState
+{
+	bool read{false};
+	std::span<const float> axes;
+	std::span<const unsigned char> buttons;
+};
+} // namespace
+
 // The input module names inputs by GLFW's numbers without including GLFW; these hold it to them.
 static_assert(Input::Keys::Space.code == GLFW_KEY_SPACE);
 static_assert(Input::Keys::Escape.code == GLFW_KEY_ESCAPE);
 static_assert(Input::Keys::Enter.code == GLFW_KEY_ENTER);
 static_assert(Input::Keys::Tab.code == GLFW_KEY_TAB);
-static_assert(Input::Keys::Up.code == GLFW_KEY_UP);
+static_assert(Input::Keys::Up.code == GLFW_KEY_UP && Input::Keys::Down.code == GLFW_KEY_DOWN);
+static_assert(Input::Keys::Left.code == GLFW_KEY_LEFT && Input::Keys::Right.code == GLFW_KEY_RIGHT);
 static_assert(Input::Keys::GraveAccent.code == GLFW_KEY_GRAVE_ACCENT);
 static_assert(Input::Keys::F1.code == GLFW_KEY_F1);
 static_assert(Input::Keys::F2.code == GLFW_KEY_F2);
@@ -19,12 +38,67 @@ static_assert(
 static_assert(GLFW_MOUSE_BUTTON_LEFT == 0 && GLFW_MOUSE_BUTTON_MIDDLE == 2);
 static_assert(GLFW_GAMEPAD_BUTTON_A == 0 && GLFW_GAMEPAD_BUTTON_DPAD_LEFT == 14);
 static_assert(GLFW_GAMEPAD_AXIS_LEFT_Y == 1 && GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER == 5);
+static_assert(GLFW_JOYSTICK_1 == 0 && GLFW_JOYSTICK_LAST + 1 == Input::kJoystickCount);
+static_assert(Input::Keys::LeftShift.code == GLFW_KEY_LEFT_SHIFT);
+static_assert(Input::Keys::LeftControl.code == GLFW_KEY_LEFT_CONTROL);
 
-void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input)
+GlfwInput::~GlfwInput()
+{
+	if (g_pWheelTarget == this)
+		g_pWheelTarget = nullptr;
+}
+
+void GlfwInput::Attach(GLFWwindow *window)
+{
+	Detach();
+	m_pWindow = window;
+	g_pWheelTarget = this;
+	g_previousScroll = glfwSetScrollCallback(window, &GlfwInput::OnScroll);
+}
+
+void GlfwInput::Detach()
+{
+	if (!m_pWindow)
+		return;
+	glfwSetScrollCallback(m_pWindow, g_previousScroll);
+	g_previousScroll = nullptr;
+	g_pWheelTarget = nullptr;
+	m_pWindow = nullptr;
+}
+
+void GlfwInput::OnScroll(GLFWwindow *window, double x, double y)
+{
+	if (g_previousScroll)
+		g_previousScroll(window, x, y);
+	if (g_pWheelTarget && g_pWheelTarget->m_pWindow == window)
+		g_pWheelTarget->m_wheel += glm::dvec2{x, y};
+}
+
+void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCaptured)
 {
 	GLFWgamepadstate gamepad{};
 	bool gamepadRead = false;
 	bool hasGamepad = false;
+	std::array<JoystickState, Input::kJoystickCount> joysticks{};
+	const auto joystick = [&joysticks](std::uint8_t slot) -> const JoystickState &
+	{
+		JoystickState &state = joysticks[slot];
+		if (!state.read)
+		{
+			state.read = true;
+			const int id = GLFW_JOYSTICK_1 + slot;
+			int axes = 0;
+			int buttons = 0;
+			// Null, with counts of zero, for a slot with nothing in it.
+			const float *axis = glfwGetJoystickAxes(id, &axes);
+			const unsigned char *button = glfwGetJoystickButtons(id, &buttons);
+			if (axis)
+				state.axes = {axis, static_cast<std::size_t>(axes)};
+			if (button)
+				state.buttons = {button, static_cast<std::size_t>(buttons)};
+		}
+		return state;
+	};
 
 	for (const Input::InputCode code : input.BoundInputs())
 	{
@@ -58,9 +132,31 @@ void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input)
 					input.SetAxis(code, hasGamepad ? gamepad.axes[code.code] : 0.0f);
 				break;
 			}
+			case Input::Device::JoystickAxis:
+			case Input::Device::JoystickButton:
+			{
+				if (code.joystick >= Input::kJoystickCount || code.code < 0)
+					break;
+				// One unplugged, or an axis or button it does not have, reads centred and released.
+				const JoystickState &state = joystick(code.joystick);
+				const auto index = static_cast<std::size_t>(code.code);
+				if (code.device == Input::Device::JoystickAxis)
+					input.SetAxis(code, index < state.axes.size() ? state.axes[index] : 0.0f);
+				else
+					input.SetButton(
+					    code, index < state.buttons.size() && state.buttons[index] == GLFW_PRESS);
+				break;
+			}
 			case Input::Device::MouseAxis: break;
 		}
 	}
+
+	if (!mouseCaptured)
+	{
+		input.AddAxisDelta({Input::Device::MouseAxis, 2}, static_cast<float>(m_wheel.x));
+		input.AddAxisDelta({Input::Device::MouseAxis, 3}, static_cast<float>(m_wheel.y));
+	}
+	m_wheel = glm::dvec2{0.0};
 
 	glm::dvec2 cursor{0.0};
 	glfwGetCursorPos(window, &cursor.x, &cursor.y);

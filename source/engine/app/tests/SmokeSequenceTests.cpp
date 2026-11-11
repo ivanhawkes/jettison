@@ -16,12 +16,21 @@ bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
 	int handled = 0;
 	int jumps = 0;
 	int jumpLeft = 0;
+	int pilots = 0;
 	bool close = false;
 	SmokeActions actions;
 	actions.resize = [&](int, int) { ++requests; };
 	actions.iconify = [] {};
 	actions.restore = [] {};
 	actions.reload = [] {};
+	// The chase camera, then the cockpit.
+	actions.pilot = [&](bool cockpit)
+	{
+		CHECK(cockpit == (pilots == 1));
+		CHECK(jumps == 0);
+		++pilots;
+		return true;
+	};
 	actions.jump = [&]
 	{
 		if (jumpFrames < 0)
@@ -51,6 +60,7 @@ bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
 	REQUIRE_MESSAGE(close, sequence.Summary());
 	INFO(sequence.Summary());
 	CHECK(jumps == (jumpFrames < 0 ? 0 : 1));
+	CHECK(pilots == 2);
 	return sequence.Passed();
 }
 } // namespace

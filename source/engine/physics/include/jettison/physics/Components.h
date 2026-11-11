@@ -40,20 +40,61 @@ struct Body
 	// wants them.
 	float linearDamping{0.0f};
 	float angularDamping{0.0f};
+	// A dynamic body swept along its motion each step rather than placed at its end, so it cannot
+	// pass through what it meets: a piloted ship, which approaches a station at tens of metres a
+	// second and would cross a thin panel between two steps. Jolt sweeps it against each body by
+	// their relative motion, so a ship and a station both moving at a planet's orbital speed are
+	// swept by the little that separates them. It costs a cast a step, so cargo goes without.
+	bool continuous{false};
 
 	bool operator==(const Body &) const = default;
 };
 
-// A dynamic body's velocity in its system's frame: metres a second, and radians a second about
-// each axis. Physics writes it after every step, and a value written over it before a step is the
-// body's new velocity. Physics adds one, at rest, to a dynamic body that has none. Floats, as Jolt
-// keeps it. Registered with Reflect, both fields Saved, by RegisterTypes.
+// A moving body's velocity relative to its frame (LocalFrame): metres a second, and radians a second
+// about each axis. Physics writes it after every step, for a dynamic body and for a kinematic one,
+// whose velocity is what moving it to its Transform took; a value written over a dynamic body's
+// before a step is the body's new velocity, and one written over a kinematic body's is replaced.
+// Physics adds one, at rest, to a moving body that has none. Floats, as Jolt keeps it, which is
+// why it is relative to the frame: a ship beside a station is a few metres a second from still,
+// where in the system's frame it moves at the planet's 30 km/s, and a float's step there is 4 mm/s.
+// Velocities in different frames are not comparable. Registered with Reflect, both fields Saved,
+// by RegisterTypes.
 struct Velocity
 {
 	glm::vec3 linear{0.0f};
 	glm::vec3 angular{0.0f};
 
 	bool operator==(const Velocity &) const = default;
+};
+
+// An entity on rails: each step its Transform is put where the celestial body of that name is, in
+// the star system its Sim::InSystem names, at the time the step ends, turned as the body spins. A
+// station's body is kinematic and on rails, so it pushes a ship it meets as its orbit carries it,
+// and is where presentation draws it (scene/SystemScene.h places the body at the same times). The
+// system has to be defined in the physics world (PhysicsWorld::DefineStarSystem); an entity on no
+// system is left where it is. Registered with Reflect, its field Saved, by RegisterTypes.
+struct OnRails
+{
+	std::string body;
+
+	bool operator==(const OnRails &) const = default;
+};
+
+// The frame a body's physics runs in (docs/architecture.md, "Coordinate frames and units"): the
+// local frame of that celestial body in its star system, a station or a planet, which moves with
+// the body on its orbit and does not turn with it. A body without one is in the system's own frame,
+// at rest at the primary. Each frame with bodies is a Jolt world of its own, so only bodies in one
+// frame meet, and a body that changes frame is made again in the other's, its velocity carried
+// across. Jolt sweeps a fast body and sorts the broadphase in floats: relative to a station they are
+// metres and metres a second, where relative to the primary a station 150 million kilometres out is
+// 8 km between floats and moves 500 m a step, and nothing sweeps against it. The system has to be
+// defined (PhysicsWorld::DefineStarSystem), and a static body is in the system's frame: one carried
+// by a frame is a kinematic body. Registered with Reflect, its field Saved, by RegisterTypes.
+struct LocalFrame
+{
+	std::string body;
+
+	bool operator==(const LocalFrame &) const = default;
 };
 
 // Registers the module's types with Reflect, and the simulation's (Sim::RegisterTypes).

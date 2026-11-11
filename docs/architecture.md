@@ -215,37 +215,80 @@ shape by name, its mass and material), a `Sim::Transform` and a `Sim::InSystem`;
 Jolt type. Shapes are definitions (`Physics::ShapeDefinition`, through the definition registry, so
 a mod can replace one), built into Jolt shapes when they are defined, and a save names them.
 
-Each star system with bodies is a Jolt world of its own, made with its first body and gone with its
-last (0.7 MB at the default capacities of 8,192 bodies): every system's positions are metres from
-its own primary, so bodies of two systems at the same coordinates must never meet. A body on a jump
-lane is in none. The system `physics` runs one fixed step:
+Each **frame** of each star system with bodies is a Jolt world of its own (7b), made with its first
+body and gone with its last (0.7 MB at the default capacities of 8,192 bodies). A frame is the
+system's own, at rest at the primary, or the local frame of one of its bodies (`Physics::LocalFrame`,
+a station or a planet): it moves with the body on its orbit and does not turn with it, as the
+[local frame](#coordinate-frames-and-units) does. In it, Jolt's positions are metres from the body
+and its velocities are relative to the body's motion; `Sim::Transform` stays in the system frame,
+and `Physics::Velocity` is relative to the body's frame. Every system's positions are metres from its
+own primary, so bodies of two systems at the same coordinates must never meet, and only bodies in one
+frame meet each other. A body on a jump lane is in none; one that changes frame is made again in the
+other's, its velocity carried across.
 
-1. Bodies are made for entities that gained what makes one, and removed for those that lost it,
-   changed system or changed their `Body` (made again, with the velocity they had). Every body to
-   be made is checked first, and one that cannot be is refused before anything changes.
-2. What the game wrote is applied. A static or dynamic body whose `Transform` differs from where
+Frames are what let a ship meet a station at all. Highport moves at 30 km/s about the star, 500 m a
+step. Jolt sweeps a fast body along its motion to find what it would pass through, but it finds what
+to sweep against with that motion's absolute length, so a ship and a station both 500 m a step along
+their orbit never find each other however slowly they close; its broadphase keeps bounds in floats,
+8 km apart 150 million kilometres from the primary; and a float velocity at 30 km/s is 4 mm/s
+between values. In the station's frame each of these is metres and metres a second
+([decided](roadmap.md#decided)).
+
+Star systems are definitions in physics, as shapes are (`PhysicsWorld::DefineStarSystem`): the shell
+defines every system its galaxy lists. They put an entity on rails (`Physics::OnRails`), placing its
+`Transform` where its celestial body is as each step ends, which is how a station's kinematic body
+follows its orbit, and they give dynamic bodies their system's gravity, each body with a
+gravitational parameter pulling as a point mass. Orbits stay on rails, so gravity moves only dynamic
+bodies; a ship beside a station falls round the planet with it, as the station's rails carry it,
+and is left with the tide. A frame's change of speed between two steps is taken off every dynamic
+body in it, and within a station's frame what is left of the planet's 8.6 m/s² is the tide's few
+ten-thousandths: a ship let drift beside Highport stays within 5 mm of where it was for a minute.
+
+The flight model runs before physics, as the system `flight` (`physics/Flight.h`). A ship is a
+dynamic body with `Physics::Thrusters` (accelerations along and about its axes, so its handling does
+not change with its mass, and with flight assist the speed and rates it is held to) and
+`Physics::FlightControls` (demands from -1 to 1, the assist, and the entity its velocity is taken
+against), which the command `Physics::SetFlightControls` sets. With assist, a demand is a velocity
+relative to the reference and a rate of turn, approached as fast as the thrusters allow; without, it
+is an acceleration and the ship coasts. It changes the ship's `Velocity`, and physics then steps it,
+so a ship flown into a station meets it as any body would. The system `physics` runs one fixed step:
+
+1. Entities on rails are put where their bodies are as the step ends.
+2. Bodies are made for entities that gained what makes one, and removed for those that lost it,
+   changed system or frame or changed their `Body` (made again, with the velocity they had). Every
+   entity on rails and every body to be made is checked first, and one that cannot be is refused
+   before anything changes. A static body is in the system's frame: what a frame carries is
+   kinematic.
+3. What the game wrote is applied. A static or dynamic body whose `Transform` differs from where
    physics last placed it is put there; a dynamic body whose `Physics::Velocity` was written takes
    it; a kinematic body is moved towards its `Transform` over the step, so it pushes what it meets
-   with the velocity that implies, as a station on its orbit does.
-3. Each system's world steps, in identifier order, on the simulation's one thread.
-4. Each dynamic body's `Transform` and `Velocity` are written back, which presentation interpolates
-   like any other entity's.
+   with the velocity that implies. Each dynamic body then gains its system's gravity over the step,
+   from where the bodies are as it begins, less its frame's change of speed.
+4. Each frame's world steps, in order of system and frame, on the simulation's one thread. A body
+   marked `continuous` (the piloted ship) is swept rather than placed, so it cannot pass through a
+   panel between two steps.
+5. Each moving body's `Velocity`, and each dynamic body's `Transform`, are written back, which
+   presentation interpolates like any other entity's.
 
 Jolt is deterministic across builds (`CROSS_PLATFORM_DETERMINISTIC`) given the same calls in the
 same order and the same body identifiers. The calls are made in entity order. The identifiers are
 the engine's, not Jolt's free list, whose order is history a save does not hold: the lowest free
-index, with a sequence number per index that a save keeps. A save holds each body's record (what it
-was made from and last placed at) and Jolt's own state, positions, velocities, sleep and the contact
-cache each step warm-starts from; a load makes the same bodies with the same identifiers and
-restores it, and steps on to the same bytes as the world saved. The physics suite's recorded run,
-every kind of body and shape among them, is pinned to one state hash in Debug, Release and under
-the sanitisers. Jolt asserts in a Debug tree through the engine's assertions, and its profiler
-zones are Tracy's.
+index, with a sequence number per index that a save keeps. A save holds each world's frame (where it
+was and how fast it moved over the last step), each body's record (what it was made from and last
+placed at) and Jolt's own state, positions, velocities, sleep and the contact cache each step
+warm-starts from; a load makes the same bodies with the same identifiers and restores it, and steps
+on to the same bytes as the world saved. The physics suite's recorded runs, every kind of body and
+shape among them in one and a ship flown into a station on its orbit in the other, are pinned to
+state hashes in Debug, Release and under the sanitisers. Jolt asserts in a Debug tree through the
+engine's assertions, and its profiler zones are Tracy's.
 
-The piloted ship crosses this boundary every frame: input becomes flight commands, Jolt
-advances in simulation steps, and presentation interpolates between the last two physics
-states. When time compression is above 1×, piloting is suspended, as it is in every game of the
-genre. Compression is refused near stations and other ships for the same reason.
+The piloted ship crosses this boundary every frame (7b): the flight context's actions become a
+`SetFlightControls` in the commands phase when a control moves, the flight model and Jolt advance in
+simulation steps, and the ship's proxy in the traffic layer interpolates between the last two, which
+the pilot camera's chase and cockpit rigs follow (`Scene::PilotCameraComponent`). When time
+compression is above 1×, piloting is suspended, as it is in every game of the genre, and the assist
+holds the ship. Compression is refused near stations and other ships for the same reason, by the
+game.
 
 ## Coordinate frames and units
 
@@ -256,7 +299,7 @@ is (`CameraComponent` documents it).
 |---|---|---|---|
 | Galaxy | graph | none: systems are nodes, jump lanes are edges (`celestial/Galaxy.h`) | jumps, route planning, the galaxy map |
 | System | `double` | the system's barycentre or primary star | simulation positions, orbits, Jolt (`JPH_DOUBLE_PRECISION`) |
-| Local | `double` | a station or planet | docking approaches, station-relative traffic, the sun's shadow grid (`CameraView::frameOrigin`) |
+| Local | `double` | a station or planet | physics in the body's frame (`Physics::LocalFrame`), docking approaches, station-relative traffic, the sun's shadow grid (`CameraView::frameOrigin`) |
 | Render | `float` | the camera | everything submitted to the GPU |
 
 Rendering is **camera-relative**: each frame subtracts the camera's double-precision position
@@ -465,7 +508,8 @@ the headless render test on lavapipe covers every pass.
 systems register into, each declaring the components it reads and writes:
 
 1. **Input**: poll devices and map them to actions in the active contexts.
-2. **Commands**: turn actions and UI into simulation commands.
+2. **Commands**: turn actions and UI into simulation commands: the shell's `shell.flight`, the
+   pilot's controls.
 3. **Simulation**: zero or more fixed steps (commands, AI, economy, physics, orbits), as the
    accumulator allows.
 4. **Sync**: a jump's stage first, which may replace the scene, then copy simulation snapshots into
@@ -519,9 +563,16 @@ proves it headlessly. What exists:
 - **Jumps**. J jumps out through the next of the shown system's lanes, so jumping again tours them;
   the console's `jump <system>` and the Scene panel jump along a lane, or straight to any system.
   The cameras frame the jump point arrived at.
-- **Smoke sequence**. `SmokeSequence` is the render test's seven stages (resize, resize,
-  minimize, restore, scene reload, jump, settle) as a state machine driven once per frame through
-  five callbacks. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
+- **Piloting** (7b). The shell plays the game's part: a ship holds station off the dock of the first
+  station of the system it opens on, both in the station's frame, the station's collision mesh made
+  from the shapes the scene draws it with (1,812 triangles for Highport). P flies it and lets it go,
+  V switches between the chase and cockpit cameras, Z the flight assist; the keyboard, the first
+  gamepad and joystick 1 (a HOTAS) are bound by default, and a HOTAS's throttle on a joystick of its
+  own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station. A
+  jump leaves the ship behind, since the simulation has no jump of its own yet.
+- **Smoke sequence**. `SmokeSequence` is the render test's nine stages (resize, resize,
+  minimize, restore, scene reload, pilot from behind, pilot from the seat, jump, settle) as a state
+  machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML
   (`assets/scene/main.yaml`, and `orbit.yaml` at real scale) through `serialise`'s archives, at
@@ -588,5 +639,6 @@ proves it headlessly. What exists:
   each pass's GPU time.
 - **Physics** (`engine/physics`, 7a). Jolt in double precision as a service of the simulation world,
   [as above](#physics): rigid, kinematic and static bodies of box, sphere, capsule, cylinder,
-  convex-hull and mesh shapes, a Jolt world per star system, stepped in the fixed step and saved with
-  the world. Nothing in the shell attaches it yet; flight (7b) is its first user there.
+  convex-hull and mesh shapes, a Jolt world per frame of each star system, rails and gravity from the
+  systems defined in it, and the flight model (7b), stepped in the fixed step and saved with the
+  world. The shell attaches it, for its ship.

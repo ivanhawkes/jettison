@@ -60,15 +60,21 @@ TEST_CASE("Input: inputs are named as GLFW names them, and read back")
 	CHECK(FormatInput({Device::GamepadButton, 14}) == "Gamepad.DpadLeft");
 	CHECK(FormatInput(LeftY) == "GamepadAxis.LeftY");
 	CHECK(FormatInput({Device::Keyboard, 161}) == "Key.#161");
+	CHECK(FormatInput(Joysticks::Axis(0, 2)) == "Joystick1.Axis2");
+	CHECK(FormatInput(Joysticks::Button(15, 23)) == "Joystick16.Button23");
 
 	for (const InputCode input :
 	     {Keys::Escape, W, Keys::Character('7'), Keys::F1, InputCode{Device::Keyboard, 325},
-	      InputCode{Device::MouseButton, 1}, MouseY, LeftY, InputCode{Device::Keyboard, 161}})
+	      InputCode{Device::MouseButton, 1}, MouseY, LeftY, InputCode{Device::Keyboard, 161},
+	      Joysticks::Axis(0, 2), Joysticks::Axis(3, 0), Joysticks::Button(15, 23)})
 	{
 		CAPTURE(FormatInput(input));
 		CHECK(ParseInput(FormatInput(input)) == input);
 	}
-	for (const char *text : {"", "W", "Key.", "Key.w", "Key.F26", "Key.#x", "Pad.A", "Mouse.Fourth"})
+	for (const char *text :
+	     {"", "W", "Key.", "Key.w", "Key.F26", "Key.#x", "Pad.A", "Mouse.Fourth", "Joystick0.Axis1",
+	      "Joystick17.Axis1", "Joystick.Axis1", "Joystick1.Axis", "Joystick1.Axis-1", "Joystick1.Hat0",
+	      "Joystick1.Button2x"})
 	{
 		CAPTURE(text);
 		CHECK_FALSE(ParseInput(text));
@@ -144,6 +150,28 @@ TEST_CASE("Input: an axis sums its bindings, with a dead zone, and is clamped")
 	input.SetButton(W, true);
 	input.Poll();
 	CHECK(input.Axis(fixture.throttle) == 1.0f);
+}
+
+TEST_CASE("Input: a joystick's axes and buttons drive actions, each joystick its own")
+{
+	// A HOTAS: the stick is one joystick and the throttle another, with an axis numbered as the
+	// stick's is, and both bind to the same action.
+	Fixture fixture;
+	InputSystem &input = fixture.input;
+	input.Bind("flight", fixture.throttle, {Joysticks::Axis(1, 2), {}, -1.0f, 0.05f});
+	input.Bind("flight", fixture.fire, {Joysticks::Button(0, 0)});
+	const std::vector<InputCode> bound = input.BoundInputs();
+	CHECK(std::ranges::binary_search(bound, Joysticks::Axis(1, 2)));
+	CHECK_FALSE(std::ranges::binary_search(bound, Joysticks::Axis(0, 2)));
+
+	input.SetAxis(Joysticks::Axis(0, 2), -1.0f);
+	input.Poll();
+	CHECK(input.Axis(fixture.throttle) == 0.0f);
+	input.SetAxis(Joysticks::Axis(1, 2), -0.75f);
+	input.SetButton(Joysticks::Button(0, 0), true);
+	input.Poll();
+	CHECK(input.Axis(fixture.throttle) == doctest::Approx(0.75f));
+	CHECK(input.WasPressedThisFrame(fixture.fire));
 }
 
 TEST_CASE("Input: a higher context claims its inputs, and an opaque one hides everything below")

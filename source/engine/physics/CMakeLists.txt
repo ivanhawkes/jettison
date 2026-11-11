@@ -3,6 +3,7 @@
 jettison_add_module(physics
 	DETERMINISTIC
 	DEPENDS
+		celestial
 		core
 		math
 		profile
@@ -11,11 +12,13 @@ jettison_add_module(physics
 		sim
 	HEADERS
 		include/jettison/physics/Components.h
+		include/jettison/physics/Flight.h
 		include/jettison/physics/PhysicsWorld.h
 		include/jettison/physics/Shape.h
 	SOURCES
 		src/Components.cpp
 		src/Convert.h
+		src/Flight.cpp
 		src/JoltRuntime.cpp
 		src/JoltRuntime.h
 		src/PhysicsWorld.cpp
@@ -24,6 +27,7 @@ jettison_add_module(physics
 		src/StarSystemWorld.cpp
 		src/StarSystemWorld.h
 	TESTS
+		tests/FlightTests.cpp
 		tests/PhysicsTests.cpp
 		tests/ReplayTests.cpp
 	PUBLIC_LIBRARIES

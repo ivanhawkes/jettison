@@ -14,7 +14,7 @@ built, are recorded in [history](history.md).
 | 0–6 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy. Recorded in [history](history.md). | Met. |
 | 7 | **Physics and flight.** Sub-phases 7a–7c; catalogue entry 22. | A piloted ship collides with a station, docks through a sensor, and is picked with the mouse. |
 | 7a | **Jolt in the simulation.** Done 2026-11-11. Jolt in double precision and `CROSS_PLATFORM_DETERMINISTIC`, out of the planned set and linked privately by `physics`, with assertions in Debug trees through the engine's and its profiler zones as Tracy's. `PhysicsWorld` is a service the simulation world owns (`Sim::WorldService`, saved after the components and loaded in two halves; the world's save is version 2): a body is an entity with a `Physics::Body`, a `Sim::Transform` and a `Sim::InSystem`, static, kinematic (moved to its `Transform`, as a station on its orbit) or dynamic (its `Transform` and `Physics::Velocity` written back, and what the game writes over them taken); shapes are definitions by name (box, sphere, capsule, cylinder, convex hull, mesh), built when defined; a Jolt world per star system with bodies, stepped in the fixed step on one thread; body identifiers chosen by the engine, so a loaded world makes the same ones; a save holds the bodies' records and Jolt's state, contacts included. | Met: the physics suite's recorded run, a closed bay in Halcyon with a turning paddle and cargo of every shape thrown about it, two crates meeting in Vesper, and every way a body changes, keeps every body in the bay and is pinned to state hash `0x5b883fdf0f57a951` in Debug, Release and under ASan and UBSan; saved part-way and loaded, it steps on to the same bytes, and its recorded commands replay it. The gate now runs the Release suites, and with `--asan` the `sim` and `physics` suites, against those values. |
-| 7b | **Flight.** HOTAS and other joystick axes and the mouse wheel (moved from phase 3); flight controls as commands; the piloted ship interpolated; the chase and cockpit rigs on it. | A ship is flown with keyboard, gamepad or HOTAS and collides with a station. |
+| 7b | **Flight.** Done 2026-11-11. Joysticks' raw axes and buttons as input devices, each by its GLFW slot (`Joystick2.Axis2`), so a HOTAS's stick, throttle and pedals bind apart, and the mouse wheel through the one callback, chained to ImGui's. Physics in frames: a Jolt world per frame of each system, the system's own or a station's or planet's on rails (`Physics::LocalFrame`), since in the star's frame Jolt never sweeps a ship against a station sharing its 30 km/s ([decided](#decided)); star systems defined in physics, for rails (`Physics::OnRails`, a station's kinematic body on its orbit) and gravity on dynamic bodies; `continuous` bodies swept against what they meet; kinematic bodies' velocities written. The flight model (`physics/Flight.h`): `Thrusters` as accelerations, `FlightControls` set by the `SetFlightControls` command, with assist (speeds and rates held, relative to a reference) or without (accelerations); a system `flight` before `physics`. The scene's `PilotCameraComponent` puts the chase and cockpit rigs on the ship's interpolated proxy. The shell flies a ship beside Highport, with a collision mesh made from the shapes the station is drawn with, through a `flight` input context bound for keyboard, gamepad and HOTAS; the smoke test pilots it from behind and from the seat. | Met: the physics suite flies a ship at 60 m/s into Highport's hub, both in the station's frame as it goes round its orbit: the ship meets the hub's end and comes no nearer than its own half-width, slides across it pushing ahead, and is brought to rest by its assist when let go; the run is pinned to state hash `0xce15aba2a75c5a79` in Debug, Release and under ASan and UBSan, carries on to the same bytes saved in contact and loaded, and its four recorded commands replay it. A ball fired at 240 m/s at a panel 15 cm thick passes through it placed and stops swept, and a ship let drift beside the station for a minute stays within 5 mm (1.8 m in the star's frame, as a float velocity rounds). The app suite flies the same controls from keys, gamepad axes and buttons, and a HOTAS's stick and throttle; the shell, flown headless with xdotool, put its ship against Highport's dock and held it there. The bay's run in the 7a row is re-pinned to `0xa3a1ff1e793d1be1`, since a save now holds frames and the new components. |
 | 7c | **Sensors, contacts and queries.** Sensors (docking zones), contact events to the simulation, ray and shape casts, picking with the mouse. | Phase 7's exit criterion. |
 | 8 | **UI, audio and persistence.** Sub-phases 8a–8c; catalogue entries 23, 24 and 25. | A market screen bound to simulation data; a save written by version N loads in N+1. |
 | 8a | **Persistence.** Versioned save games of the simulation world and the galaxy, with migrations as a chain from N to N+1; whether definitions migrate; fsync on the user mount; settings and keybindings stored apart from saves, and the shell loading the user's bindings (moved from phase 3). | A save written by version N loads in N+1, and a rebinding survives a restart. |
@@ -47,13 +47,21 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–6 and 7a moved on, and where it lands. Their full record, and catalogue entries
-1–21, are in [history](history.md); 7a's is under [entry 22](#22-physics--phase-7--enginephysics).
+Work that phases 1–6, 7a and 7b moved on, and where it lands. Their full record, and catalogue
+entries 1–21, are in [history](history.md); 7a's and 7b's are under
+[entry 22](#22-physics--phase-7--enginephysics).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
   writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
   smoke test's patterns.
-- **HOTAS and other joystick axes, and the mouse wheel** (entry 14): 7b.
+- **A joystick by its device, not its slot** (entry 14, 7b): a binding names a joystick by GLFW's
+  slot, so it follows where a device was plugged in; naming it by its GUID lands with the user's
+  bindings, 8a.
+- **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
+  shell sets its ship's. Taking a ship into a station's frame as it closes and out as it leaves, by a
+  radius about each body, lands with steering (9b), whose traffic is the first to cross frames.
+- **Piloting across a jump** (entry 22, 7b): the shell's ship stays in its system when the scene
+  jumps, with the simulation's jump (9a).
 - **Migrations** for saves (entry 9) and the decision whether definitions migrate (entry 13),
   fsync on the user mount (entry 10), and the shell loading the user's bindings (entry 14): 8a.
 - **Pack files and their compression** behind the VFS (entry 10), and definition layering finer
@@ -79,9 +87,10 @@ Work that phases 1–6 and 7a moved on, and where it lands. Their full record, a
 - **A body's look as data** (entry 21): the system scene draws a body it builds as its kind is, from
   a table in code. A look per body or per kind, as a scene fragment a mod can shadow, is not yet
   placed.
-- **A station's collision shape from its model** (entry 22): physics takes a mesh as vertices and
-  indices in a shape definition; a station in the sample scenes is a glTF model, and its mesh (or a
-  collision mesh beside it) read into a definition is 7b's, for its exit.
+- **A glTF model's collision mesh** (entry 22, 7b): a station's mesh is made from the procedural
+  shapes the scene draws it with (`app/src/Piloting.h`), which is every station the sample systems
+  have; a model's triangles, read from its file on the I/O worker as its rig is, or a collision mesh
+  beside it, are not yet placed, and a model on a station is reported and left out.
 - **Physics, not yet placed** (entry 22): a shape offset in its body, and compound shapes; collision
   filtering beyond static against moving (the game's own layers and groups); Jolt's debug renderer
   drawn through debug draw; Jolt's job system on more than one thread, once a profile asks for it
@@ -152,7 +161,13 @@ bodies; one fixed step makes and removes bodies in entity order, applies what th
 each world and writes the dynamic bodies back ([architecture](architecture.md#physics)). Body
 identifiers are the engine's, and a save holds Jolt's state with the contacts, so a loaded world
 steps on to the same bytes. Sensors, contact events, casts (`CastRay` throws until then) and
-picking are 7c's; flight is 7b's.
+picking are 7c's.
+*Filled in* (7b): physics runs in frames, a Jolt world per frame of each system, the system's own
+or the local frame of a station or planet on rails, which carries its bodies with it
+([architecture](architecture.md#physics), [decided](#decided)); star systems are definitions, for
+rails and gravity; a `continuous` body is swept; the flight model (`physics/Flight.h`) turns a pilot's
+demands into velocity before each step, with assist or without, relative to a reference. The shell
+flies a ship beside Highport, from a `flight` input context, behind the scene's pilot rigs.
 
 ### 23. UI · phase 8 · `engine/ui`
 
@@ -294,7 +309,7 @@ Settled on 2026-11-10:
 - **A jump point is the end of one lane** (2026-11-11, phase 6d), so a gate says where it leads, and
   flying through it needs no choice of destination. A system with two ways out has two gates.
 - **Physics is simulation state, a Jolt world per star system, on one thread** (2026-11-11, phase
-  7a). Jolt's state is saved inside the world's save, as a service of the world, rather than
+  7a; a world per frame of each system since 7b, below). Jolt's state is saved inside the world's save, as a service of the world, rather than
   rebuilt from components on a load: the contact cache each step warm-starts from is Jolt's alone,
   and a world rebuilt without it steps on differently from the world saved. A world per system
   rather than one with a filter per system, since every system's coordinates start at its own
@@ -302,6 +317,26 @@ Settled on 2026-11-10:
   Body identifiers are chosen by the engine, the lowest free index with a saved sequence number,
   because Jolt's free list is history a save does not hold and its results depend on them. Jolt's
   job system is single-threaded, as the threading rules have the simulation.
+- **Physics runs in frames, a Jolt world per frame of each star system** (2026-11-11, phase 7b),
+  revising 7a's world per system. A frame is the system's own or the local frame of a body on rails,
+  a station or a planet, translating with it; Jolt's positions are metres from the body and its
+  velocities relative to its motion. In the star's frame, a ship flown at a station moving at
+  30 km/s about the star (500 m a step) could not be swept against it: Jolt sweeps a fast body by
+  their relative motion, but finds what to sweep against along the body's own absolute motion
+  (`PhysicsSystem::JobFindCCDContacts` casts the broadphase with it), so a ball fired at 240 m/s at a
+  panel beside it passed through, swept or not. Its broadphase bounds are floats, 8 km apart at
+  150 million kilometres, and a float velocity at 30 km/s is 4 mm/s between values: a ship let drift
+  beside the station for a minute moved 1.8 m in the star's frame, and 5 mm in the station's. The
+  frame's change of speed between steps is taken off its dynamic bodies, which telescopes, so the
+  rounding of the difference of two positions a hundred and fifty million kilometres out does not
+  accumulate. One frame per system for its busiest place would not do: two stations about two
+  planets are 30 km/s apart. Bodies in different frames do not meet, and a body is put in a frame by
+  the game (carried forward).
+- **Gravity is physics', from the star system's bodies** (2026-11-11, phase 7b). Orbits stay on
+  rails; dynamic bodies are pulled by every body with a gravitational parameter, as point masses,
+  evaluated as each step begins. Without it a ship beside a station on its orbit falls away from it at
+  the planet's 8.6 m/s², 15 km in a minute, and an assist holds it there only by thrusting against
+  the planet all the while.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

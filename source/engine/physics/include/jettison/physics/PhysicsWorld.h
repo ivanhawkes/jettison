@@ -12,6 +12,7 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/celestial/StarSystem.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Shape.h>
 #include <jettison/sim/SimWorld.h>
@@ -47,26 +48,38 @@ struct RayHit
 // steps on exactly as the one saved did. Jolt's types stay inside this module; the engine sees
 // bodies as entities with a Body, a Sim::Transform and a Sim::InSystem (Components.h).
 //
-// Each star system's bodies are a Jolt world of their own, made when the first body enters the
-// system and gone when the last leaves: every system's positions are metres from its own primary,
-// so two systems' bodies at the same coordinates are nowhere near each other. A body that changes
-// system is made again in the other's.
+// Each frame of each star system with bodies is a Jolt world of its own (LocalFrame), made when the
+// first body enters it and gone when the last leaves: every system's positions are metres from its
+// own primary, so two systems' bodies at the same coordinates are nowhere near each other, and in a
+// frame on rails Jolt's coordinates are metres from the frame's body and its velocities relative to
+// the body's motion, which keeps Jolt's floats and its sweeps on the small numbers that separate a
+// ship from a station. A body that changes system or frame is made again in the other's.
 //
-// One fixed step, as the simulation system "physics" (kSystemName), which a game's systems order
-// themselves against with `after`:
-//   1. Bodies are made for entities that gained what makes one, and removed for those that lost it
-//      or whose Body changed, which are made again. Every body to be made is checked first, and a
-//      step that cannot make one throws std::invalid_argument naming the entity before it changes
-//      anything (SimWorld::Step says what a throwing step leaves).
-//   2. What the game wrote is applied: a static or dynamic body whose Transform was written is
+// Star systems are definitions too (DefineStarSystem), the game's start-up as shapes are: what puts
+// an entity on rails (OnRails) where its celestial body is, and the gravity of a system's bodies.
+// Orbits stay on rails (celestial), so gravity moves only dynamic bodies, and only in a defined
+// system: a ship beside a station falls round the planet with it, as the station's rails carry it,
+// rather than falling away from it at the planet's pull.
+//
+// One fixed step, as the simulation system "physics" (kSystemName), after the flight model
+// ("flight", Flight.h), which a game's systems order themselves against with `after`:
+//   1. Entities on rails are put where their bodies are at the time the step ends.
+//   2. Bodies are made for entities that gained what makes one, and removed for those that lost it
+//      or whose Body changed, which are made again. Every entity on rails and every body to be made
+//      is checked first, and a step that cannot place or make one throws std::invalid_argument
+//      naming the entity before it changes anything (SimWorld::Step says what a throwing step
+//      leaves). A kinematic body on rails is made where its body was as the step began, so the
+//      step moves it with its orbit's velocity from the first.
+//   3. What the game wrote is applied: a static or dynamic body whose Transform was written is
 //      placed there, a dynamic body whose Velocity was written takes it, and every kinematic body
-//      is moved towards its Transform over the step.
-//   3. Each system's world steps, in identifier order, on one thread.
-//   4. Each dynamic body's Transform and Velocity are written from it.
+//      is moved towards its Transform over the step. Then each dynamic body in a defined system
+//      gains what its system's gravity gives it over the step, from where the bodies are as the
+//      step begins.
+//   4. Each system's world steps, in identifier order, on one thread.
+//   5. Each moving body's Velocity, and each dynamic body's Transform, are written from it.
 // Bodies are visited in entity order throughout, so the same state and commands give the same
 // calls into Jolt, and with Jolt built CROSS_PLATFORM_DETERMINISTIC, the same results in every
-// build. There is no gravity: orbits are on rails (celestial), and what moves a ship is its own
-// thrust.
+// build.
 class PhysicsWorld final : public Sim::WorldService
 {
   public:
@@ -74,7 +87,8 @@ class PhysicsWorld final : public Sim::WorldService
 	static constexpr std::string_view kServiceName = "physics";
 
 	// Makes a physics world and gives it to the simulation world, which owns it from then on:
-	// registers Body and Velocity as components, the service, and the "physics" system. The game
+	// registers Body, Velocity, OnRails, Thrusters and FlightControls as components, the
+	// SetFlightControls command, the service, and the "flight" and "physics" systems. The game
 	// registers Sim::Transform and Sim::InSystem itself, as it always does. Throws std::logic_error
 	// as SimWorld's registrations do, for one already made.
 	static PhysicsWorld &Attach(Sim::SimWorld &world, const PhysicsSettings &settings = {});
@@ -89,8 +103,21 @@ class PhysicsWorld final : public Sim::WorldService
 	void DefineShapes(const Sim::DefinitionRegistry &definitions);
 	bool HasShape(std::string_view name) const;
 
+	// A star system's bodies, for rails and gravity in the system of that name (Sim::SystemId). It
+	// has to be resolved (Celestial::Resolve), as reading one does; throws std::invalid_argument for
+	// a system already defined.
+	void DefineStarSystem(Celestial::StarSystem system);
+	bool HasStarSystem(std::uint64_t system) const;
+	// The acceleration the defined system's gravity gives a body at a position at a time, in metres
+	// a second squared: each body with a gravitational parameter pulling as a point mass, and as one
+	// whose mass is all within the point's distance from its centre, inside its radius. None in a
+	// system that is not defined.
+	glm::dvec3 Gravity(std::uint64_t system, const glm::dvec3 &position, double simSeconds) const;
+
 	std::size_t BodyCount() const;
 	std::size_t BodyCount(std::uint64_t system) const;
+	// The frames of a system that have bodies: each is a Jolt world (LocalFrame).
+	std::size_t FrameCount(std::uint64_t system) const;
 	// The star systems that have bodies, in identifier order.
 	std::vector<std::uint64_t> Systems() const;
 
@@ -108,7 +135,8 @@ class PhysicsWorld final : public Sim::WorldService
 	struct Impl;
 
 	explicit PhysicsWorld(const PhysicsSettings &settings);
-	void Step(entt::registry &registry, double fixedStep);
+	// The step from simSeconds to simSeconds + fixedStep.
+	void Step(entt::registry &registry, double simSeconds, double fixedStep);
 
 	std::unique_ptr<Impl> m_pImpl;
 };

@@ -1,0 +1,7 @@
+# A ship's engine nozzle, lit from inside: unlit, so it glows the same in the planet's shadow as in
+# the sun, and bright enough to read against a lit hull from a chase camera.
+version: 1
+program: unlit
+parameters:
+  - name: color
+    value: [0.45, 0.7, 1, 4]

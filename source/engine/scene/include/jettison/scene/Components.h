@@ -243,4 +243,31 @@ struct OrbitCameraComponent
 	CameraTransition transition;
 	bool placed{false};
 };
+
+// Which of a pilot camera's rigs places the camera.
+enum class PilotView : std::uint8_t
+{
+	Chase,
+	Cockpit
+};
+
+// Runtime: a camera on a piloted ship, which the game adds and the scene file never holds, since
+// what it follows is a simulation entity's proxy (SimProxyComponent) that the system scene makes.
+// Both rigs follow the target's world transform every frame, so switching between them is a
+// transition from where one has the camera to where the other has it, never a swing as the chase
+// rig catches up. The target's world transform is interpolated between the simulation's steps, so
+// the camera moves as smoothly as the display does. While it has one, a camera's pose is this
+// component's rather than its orbit rig's.
+//
+// The frame is the entity the ship flies by, the station whose frame its physics is in: what the
+// sun's shadow grid is fixed to (Render::CameraView::frameOrigin), as an orbit camera's target is.
+struct PilotCameraComponent
+{
+	entt::entity target{entt::null};
+	entt::entity frame{entt::null};
+	PilotView view{PilotView::Chase};
+	ChaseCamera chase{};
+	CockpitCamera cockpit{};
+	CameraTransition transition;
+};
 } // namespace Jettison::Scene

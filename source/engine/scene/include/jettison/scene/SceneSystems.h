@@ -35,4 +35,9 @@ class SceneUpdateSystem
 // position (so it runs after the world transforms) and writes the camera's CameraPoseComponent,
 // through any transition it is in.
 void UpdateOrbitCameras(entt::registry &registry, double deltaTime);
+
+// After the orbit cameras: each PilotCameraComponent's rigs follow their target's world transform,
+// and the one its view names writes the camera's CameraPoseComponent, through any transition, over
+// whatever the orbit rig wrote. A camera whose target has gone is left where it was.
+void UpdatePilotCameras(entt::registry &registry, double deltaTime);
 } // namespace Jettison::Scene

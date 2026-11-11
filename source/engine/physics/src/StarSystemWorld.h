@@ -9,6 +9,8 @@
 #include <Jolt/Physics/Collision/ObjectLayerPairFilterTable.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
+#include <glm/vec3.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -38,7 +40,9 @@ class Layers
 	std::optional<JPH::ObjectVsBroadPhaseLayerFilterTable> objectVsBroadPhase;
 };
 
-// One star system's bodies: a Jolt world, and the identifiers its bodies are given.
+// One star system's bodies in one frame: a Jolt world, the identifiers its bodies are given, and
+// where its frame is. Jolt's positions are metres from the frame's origin and its velocities are
+// relative to the frame's motion (PhysicsWorld.h, "frames").
 //
 // Jolt hands out body identifiers from a free list whose order is its history, which a save does
 // not hold, so a world loaded from a save would give the next body another identifier than the
@@ -88,6 +92,13 @@ class StarSystemWorld
 	{
 		return m_bodyCount;
 	}
+
+	// The frame's origin in the system frame as the last step ended, and its velocity over that
+	// step: what the next step's Jolt coordinates are from, and what its velocities were relative
+	// to. Saved, since a velocity changes frame by the difference between two steps' velocities.
+	// Zero for the system's own frame.
+	glm::dvec3 frameOrigin{0.0};
+	glm::dvec3 frameVelocity{0.0};
 
   private:
 	JPH::PhysicsSystem m_system;

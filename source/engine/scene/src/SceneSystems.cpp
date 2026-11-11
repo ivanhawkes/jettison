@@ -189,4 +189,28 @@ void UpdateOrbitCameras(entt::registry &registry, double deltaTime)
 		registry.emplace_or_replace<CameraPoseComponent>(entity, pose.position, pose.orientation);
 	}
 }
+
+void UpdatePilotCameras(entt::registry &registry, double deltaTime)
+{
+	for (const auto [entity, pilot] : registry.view<PilotCameraComponent>().each())
+	{
+		const auto *world = registry.valid(pilot.target)
+		                        ? registry.try_get<WorldTransformComponent>(pilot.target)
+		                        : nullptr;
+		if (!world)
+			continue;
+		// The rotation without the scale, as the scene's debug axes take it.
+		const glm::dmat3 basis{
+		    glm::normalize(glm::dvec3{world->matrix[0]}), glm::normalize(glm::dvec3{world->matrix[1]}),
+		    glm::normalize(glm::dvec3{world->matrix[2]})};
+		const CameraPose target{glm::dvec3{world->matrix[3]}, glm::normalize(glm::quat_cast(basis))};
+		pilot.chase.SetTarget(target);
+		pilot.cockpit.SetTarget(target);
+		const CameraPose chase = pilot.chase.Update(deltaTime);
+		const CameraPose cockpit = pilot.cockpit.Update(deltaTime);
+		const CameraPose pose =
+		    pilot.transition.Update(pilot.view == PilotView::Chase ? chase : cockpit, deltaTime);
+		registry.emplace_or_replace<CameraPoseComponent>(entity, pose.position, pose.orientation);
+	}
+}
 } // namespace Jettison::Scene

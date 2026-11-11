@@ -13,6 +13,7 @@
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/input/Actions.h>
+#include <jettison/physics/Flight.h>
 #include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/FrameStats.h>
@@ -25,6 +26,7 @@
 #include <jettison/vfs/FileSystem.h>
 
 #include "GlfwInput.h"
+#include "Piloting.h"
 
 namespace Jettison::Jobs
 {
@@ -41,6 +43,10 @@ class IRenderer;
 namespace Jettison::Scene
 {
 class Scene;
+}
+namespace Jettison::Physics
+{
+class PhysicsWorld;
 }
 
 namespace Jettison::App
@@ -136,8 +142,35 @@ class Application
 	// The benchmark's frame count, the warm-up's end, and the report when it is done.
 	void AdvanceBenchmark();
 	void ReportBenchmark() const;
-	// Pushes or pops the console's input context to match whether the console is open.
-	void SyncConsoleContext();
+	// Pushes and pops the flight and console input contexts to match whether a ship is flown and
+	// whether the console is open: the console's over the flight's, over the shell's.
+	void SyncContexts();
+
+	// Piloting (docs/architecture.md, "Physics"). The shell is the engine with no game, so it plays
+	// the game's part: a ship holding station beside the first station of the system it opens on,
+	// which P flies and V looks at from behind or from its seat.
+	//
+	// Every system the galaxy has is defined in physics, for rails and gravity; the scene's own too.
+	void DefineStarSystems();
+	// The station's body, kinematic on its rails with a collision mesh from what the scene draws it
+	// with (MakeCollisionMesh), and the ship beside it, both in the station's frame. Once a run: a
+	// reload of the scene leaves the simulation as it was.
+	void SpawnShip();
+	// Whether the ship is in the system shown, which is the only one a camera can follow it in.
+	bool CanPilot() const;
+	bool StartPiloting(Scene::PilotView view);
+	void StopPiloting();
+	// The commands phase: the controls the flight context reads, as a SetFlightControls when they
+	// change. A ship not flown is held where it is by its assist.
+	void FlyShip();
+	// The presentation phase, before the rigs: the active camera given a pilot rig on the ship's
+	// proxy while it is flown, and its orbit rig back, eased, when it is not.
+	void SyncPilotCamera(entt::registry &registry);
+	// The ship as the traffic layer draws it, made for the ship's simulation entity alone.
+	entt::entity MakeShipProxy(entt::registry &registry);
+	void SetProxyFactory();
+	// The ship's speed and distance from the station, and the keys, while it is flown.
+	void DrawFlight();
 
 	void RequestClose();
 
@@ -204,6 +237,20 @@ class Application
 	static constexpr std::uint64_t kSimSeed = 0;
 	Sim::SimWorld m_sim{kSimStep, kSimSeed};
 	Sim::Stepper m_simStepper{m_sim};
+	// Attached in the constructor, and the world's from then on.
+	Physics::PhysicsWorld *m_pPhysics{nullptr};
+
+	// The ship and the station it holds station by, as simulation entities, and the station's body
+	// in its system; null until SpawnShip finds a station to put them at.
+	entt::entity m_ship{entt::null};
+	entt::entity m_station{entt::null};
+	std::uint64_t m_shipSystem{0};
+	std::string m_stationBody;
+	bool m_piloting{false};
+	Scene::PilotView m_pilotView{Scene::PilotView::Chase};
+	bool m_assist{true};
+	// What was last sent, so a command goes only when a control moves.
+	std::optional<Physics::FlightControls> m_sentControls;
 
 	// The shell's own actions, in a "shell" context at the bottom of the stack: F1 toggles the
 	// dev tools, ` the console, and Escape closes the console, then the dev tools, then the
@@ -225,10 +272,16 @@ class Application
 	Input::ActionId m_cameraDrag;
 	Input::ActionId m_cameraLook;
 	Input::ActionId m_cameraNext;
+	// The wheel zooms the orbit camera too, a step a notch.
+	Input::ActionId m_cameraWheel;
 	// J: a jump, out through the next of the shown system's lanes.
 	Input::ActionId m_jumpNext;
+	// P: fly the ship, and P again to let it go.
+	Input::ActionId m_pilot;
 	GlfwInput m_glfwInput;
 	bool m_consoleContext{false};
+	bool m_flightContext{false};
+	std::optional<PilotInput> m_pilotInput;
 
 	// The console captures the log from construction, so start-up's messages are in it.
 	DevTools::Console m_console;

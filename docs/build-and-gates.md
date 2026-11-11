@@ -265,14 +265,18 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
 ```
 
-**What it walks.** Seven stages, the paths that have hurt this engine: resize, resize, minimize,
-restore, scene reload, jump, settle. Each stage runs four frames, the jump as many as it takes,
-inside a 120-second watchdog. It walks
+**What it walks.** Nine stages, the paths that have hurt this engine: resize, resize, minimize,
+restore, scene reload, pilot from behind, pilot from the seat, jump, settle. Each stage runs four
+frames, the jump as many as it takes, inside a 120-second watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
 the star system, under an orbit camera and the sun, which shadows it through four cascades, with
 eleven floodlights, dock lights and beacons assigned to the clusters, and twenty racked containers
-drawn as one instanced draw). The sample scene has no sun,
+drawn as one instanced draw). In the orbit scene the piloting stages fly the shell's ship, held off
+Highport's dock in the station's frame, ahead under scripted controls: its proxy made by the traffic
+layer, the flight commands, and the pilot camera's chase and cockpit rigs on it, each eased into; the
+sample scene has no station, so they fly nothing there, and the summary's `pilots=` says how many
+did. The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
 the frame sets rewritten after it run under validation too. The reload also reads every resource

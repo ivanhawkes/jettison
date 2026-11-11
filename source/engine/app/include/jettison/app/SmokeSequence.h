@@ -16,6 +16,9 @@ struct SmokeActions
 	std::function<void()> iconify;
 	std::function<void()> restore;
 	std::function<void()> reload;
+	// Flies the system's ship, behind it or from its seat, and says whether there was one to fly:
+	// false in a scene of no system, or of one with no station.
+	std::function<bool(bool cockpit)> pilot;
 	// Starts a jump to another star system, and says whether one started: false where there is no
 	// galaxy to jump in. Then whether it is still under way.
 	std::function<bool()> jump;
@@ -23,10 +26,12 @@ struct SmokeActions
 	std::function<void()> close;
 };
 
-// The headless render test's sequence, in seven stages of a handful of frames each: two resizes (a
+// The headless render test's sequence, in nine stages of a handful of frames each: two resizes (a
 // swapchain recreate), a minimize and restore (a surface that reports no extent), a scene reload
 // (models destroyed and rebuilt, commonly at the addresses the pipeline keyed its resources by), a
-// jump to another star system (the scene replaced behind its effect, with frames in flight, and
+// ship flown behind the chase camera and then from the cockpit (the ship's proxy made by the
+// traffic layer, the station's collision mesh, the flight commands, and the pilot rigs), a jump to
+// another star system (the scene replaced behind its effect, with frames in flight, and
 // the new system streamed in), and a settle. Each stage acts, waits for the frames it triggered to
 // settle, then advances; validation and the sanitizers read the result, so the sequence only has to
 // reach the end.
@@ -55,7 +60,8 @@ class SmokeSequence
 	// by a window manager is a stage the engine was not tested on.
 	bool Passed() const;
 
-	// The counters in the words the failure report uses: "resizes=1, reloads=1, jumps=1, stage=6".
+	// The counters in the words the failure report uses: "resizes=1, reloads=1, pilots=2, jumps=1,
+	// stage=8".
 	std::string Summary() const;
 
   private:
@@ -73,6 +79,8 @@ class SmokeSequence
 	int m_stage{0};
 	int m_resizes{0};
 	int m_reloads{0};
+	// The piloting stages that had a ship to fly. Not a verdict: the sample scene has no station.
+	int m_pilots{0};
 	int m_jumps{0};
 	// The jump stage's action is pending until the jump is over, however many frames that takes.
 	bool m_jumpPending{false};

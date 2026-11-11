@@ -362,7 +362,7 @@ TEST_CASE("Physics replay: bodies collide, and the same commands give the same s
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too: a
 	// change here is a change to physics' results or to what a save holds, and either is a
 	// decision, not drift.
-	CHECK(first.StateHash() == 0x5b883fdf0f57a951ull);
+	CHECK(first.StateHash() == 0xa3a1ff1e793d1be1ull);
 }
 
 TEST_CASE("Physics replay: a world saved part-way and loaded carries on exactly as the original")
