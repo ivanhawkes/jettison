@@ -40,6 +40,18 @@ bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
 		return true;
 	};
 	actions.jumping = [&] { return jumpLeft > 0; };
+	// Answered two frames on, after both pilot stages and before the jump.
+	int picks = 0;
+	int pickLeft = 0;
+	actions.pick = [&]
+	{
+		CHECK(pilots == 2);
+		CHECK(jumps == 0);
+		++picks;
+		pickLeft = 2;
+		return true;
+	};
+	actions.picking = [&] { return pickLeft > 0; };
 	actions.close = [&]
 	{
 		// Nothing closes the window while a jump is under way.
@@ -51,6 +63,8 @@ bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
 	{
 		if (jumpLeft > 0)
 			--jumpLeft;
+		if (pickLeft > 0)
+			--pickLeft;
 		const bool resize =
 		    requests > handled && ((requests == 1 && firstResize) || (requests == 2 && secondResize));
 		if (resize)
@@ -61,6 +75,8 @@ bool RunSequence(bool firstResize, bool secondResize, int jumpFrames = 3)
 	INFO(sequence.Summary());
 	CHECK(jumps == (jumpFrames < 0 ? 0 : 1));
 	CHECK(pilots == 2);
+	CHECK(picks == 1);
+	CHECK(sequence.Summary().find("picks=1") != std::string::npos);
 	return sequence.Passed();
 }
 } // namespace

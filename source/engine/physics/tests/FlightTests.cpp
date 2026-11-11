@@ -16,7 +16,10 @@
 #include <string>
 #include <vector>
 
+#include "Halcyon.h"
+
 using namespace Jettison;
+using namespace Jettison::PhysicsTests;
 using Physics::Body;
 using Physics::BodyKind;
 using Physics::FlightControls;
@@ -32,56 +35,10 @@ namespace
 {
 constexpr double kStep = 1.0 / 60.0;
 constexpr std::uint64_t kSeed = 0x5ee1;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
 const std::uint64_t kEmpty = Sim::SystemId("Empty");
-constexpr std::string_view kStation = "Ostra Highport";
 
-// Halcyon as its system file has it (assets/systems/halcyon.yaml): a Sun-like star, an Earth-like
-// planet a hundred and fifty million kilometres out, and a station in low orbit over it, so the
-// station moves at 7.7 km/s about the planet and 30 km/s about the star.
-Celestial::StarSystem Halcyon()
-{
-	Celestial::StarSystem system;
-	system.name = "Halcyon";
-	Celestial::Body star;
-	star.name = "Halcyon";
-	star.kind = Celestial::BodyKind::Star;
-	star.radius = 6.957e8;
-	star.gravitationalParameter = 1.32712440018e20;
-	Celestial::Body planet;
-	planet.name = "Ostra";
-	planet.parent = "Halcyon";
-	planet.radius = 6.371e6;
-	planet.gravitationalParameter = 3.986004418e14;
-	planet.orbit = {1.496e11, 0.0167, 0.0, 0.0, 1.7967, 6.24, 0.0};
-	Celestial::Body station;
-	station.name = std::string{kStation};
-	station.kind = Celestial::BodyKind::Station;
-	station.parent = "Ostra";
-	station.radius = 60.0;
-	station.orbit = {6.791e6, 0.0005, 0.9006, 1.2, 0.4, 3.1416, 0.0};
-	system.bodies = {star, planet, station};
-	Celestial::Resolve(system);
-	return system;
-}
-
-// A closed box of twelve triangles facing out, a station's hull as a mesh: what a kinematic body
-// on rails is made of.
-ShapeDefinition MeshBox(const glm::vec3 &half)
-{
-	ShapeDefinition shape;
-	shape.kind = ShapeKind::Mesh;
-	for (const float x : {-half.x, half.x})
-		for (const float y : {-half.y, half.y})
-			for (const float z : {-half.z, half.z})
-				shape.vertices.emplace_back(x, y, z);
-	// Vertex index bits: 4 is x, 2 is y, 1 is z. Counter-clockwise seen from outside.
-	shape.indices = {0, 3, 2, 0, 1, 3, 4, 7, 5, 4, 6, 7, 0, 5, 1, 0, 4, 5,
-	                 2, 7, 6, 2, 3, 7, 0, 6, 4, 0, 2, 6, 1, 7, 3, 1, 5, 7};
-	return shape;
-}
-
-// The game's start-up, the same every run: the station's hull, a panel, a ship's hull and a ball.
+// The game's start-up, the same every run: the station's hull, a panel, a ship's hull, a ball, and
+// a docking zone.
 Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 {
 	Physics::RegisterTypes();
@@ -95,6 +52,8 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 	shape.kind = ShapeKind::Box;
 	shape.halfExtents = {1.5f, 0.8f, 4.0f};
 	physics.DefineShape("hull", shape);
+	shape.halfExtents = {25.0f, 25.0f, 16.0f};
+	physics.DefineShape("zone", shape);
 	shape.kind = ShapeKind::Sphere;
 	shape.radius = 0.25f;
 	physics.DefineShape("ball", shape);
@@ -446,26 +405,41 @@ TEST_CASE("Flight: a fast body swept continuously meets a thin panel that a plac
 
 namespace
 {
-// The exit's run: a ship holding station 150 m off Highport's hub, nose towards it, flown in at
-// 60 m/s, rolling, which meets the hub's end and is knocked askew, slides across it pushing ahead,
-// is let go, and is brought to rest by its assist.
+// Phase 7's exit run: a ship holding station 150 m off Highport's hub, nose towards it, flown in at
+// 60 m/s, rolling, through the docking zone before the hub's end, which it meets and is knocked
+// askew by, slides across pushing ahead, is let go, and is brought to rest by its assist, inside the
+// zone; and picked, by a ray drawn from behind it as presentation would draw it, between steps.
 constexpr std::uint64_t kApproachSteps = 480;
+constexpr std::uint64_t kPickStep = 470;
+constexpr std::uint64_t kPickRequest = 7;
 
 struct Approach
 {
 	entt::entity station;
+	entt::entity zone;
 	entt::entity ship;
 };
 
 Approach Begin(Sim::SimWorld &world)
 {
 	const entt::entity station = Station(world, "hub");
+	// The zone is the approach to the hub's end, which is 30 m from its centre: 32 m deep and 50 m
+	// across, a sensor on rails at its place on the station and in the station's frame.
+	entt::registry &registry = world.Registry();
+	const entt::entity zone = registry.create();
+	registry.emplace<Sim::Transform>(zone);
+	registry.emplace<Sim::InSystem>(zone, kHalcyon);
+	registry.emplace<OnRails>(zone, std::string{kStation}, glm::dvec3{0.0, 0.0, -46.0});
+	registry.emplace<LocalFrame>(zone, std::string{kStation});
+	Body sensor{BodyKind::Kinematic, "zone"};
+	sensor.sensor = true;
+	registry.emplace<Body>(zone, sensor);
 	// A half turn about Y, so its -Z, ahead, points along the system's +Z, at the hub's end.
 	const entt::entity ship = Beside(
 	    world, "hull", 20000.0f, {0.0, 1.5, -190.0},
 	    glm::angleAxis(glm::pi<double>(), glm::dvec3{0, 1, 0}), true);
-	world.Registry().emplace<Thrusters>(ship);
-	return {station, ship};
+	registry.emplace<Thrusters>(ship);
+	return {station, zone, ship};
 }
 
 void Feed(Sim::SimWorld &world, const Approach &approach)
@@ -481,11 +455,35 @@ void Feed(Sim::SimWorld &world, const Approach &approach)
 			    {{0.0f, 0.0f, -0.4f}, {0.0f, 0.0f, 0.1f}, true, approach.station});
 			break;
 		case 300: Fly(world, approach.ship, holding); break;
+		case kPickStep:
+		{
+			// From 30 m behind the ship and 5 m above, where presentation shows it, half a step behind
+			// the simulation: the frame is placed at that time, 250 m back along its orbit from where
+			// the step left it, and the ship in it where the step left it.
+			const glm::dvec3 ship = world.Registry().get<Sim::Transform>(approach.ship).position;
+			const glm::dvec3 eye = ship + glm::dvec3{0.0, 5.0, -30.0};
+			world.Commands().Push(
+			    Physics::Pick{
+			        kPickRequest, kHalcyon, eye - StationVelocity(world.Clock().Now()) * (kStep / 2.0),
+			        ship - eye, 200.0, world.Clock().Now() - kStep / 2.0});
+			break;
+		}
 		default: break;
 	}
 }
 
-void Run(Sim::SimWorld &world, const Approach &approach, std::uint64_t until, double *closest = nullptr)
+// The contacts each step began and ended, as a game's system after physics would see them, and
+// the time each step ended at.
+struct ContactLog
+{
+	const Physics::PhysicsWorld &physics;
+	std::vector<Physics::ContactEvent> contacts;
+	std::vector<double> times;
+};
+
+void Run(
+    Sim::SimWorld &world, const Approach &approach, std::uint64_t until, double *closest = nullptr,
+    ContactLog *log = nullptr)
 {
 	while (world.Clock().Step() < until)
 	{
@@ -493,18 +491,26 @@ void Run(Sim::SimWorld &world, const Approach &approach, std::uint64_t until, do
 		world.Step();
 		if (closest)
 			*closest = std::min(*closest, -Relative(world, approach.ship, approach.station).z);
+		if (log)
+			for (const Physics::ContactEvent &event : log->physics.Contacts())
+			{
+				log->contacts.push_back(event);
+				log->times.push_back(world.Clock().Now());
+			}
 	}
 }
 } // namespace
 
-TEST_CASE("Flight replay: a ship flown into a station on its orbit meets it, the same in every build")
+TEST_CASE(
+    "Flight replay: a ship flown into a station on its orbit meets it, rests in its docking zone and "
+    "is picked, the same in every build")
 {
 	Sim::SimWorld world{kStep, kSeed};
-	Populate(world);
+	ContactLog log{Populate(world), {}, {}};
 	world.SetRecording(true);
 	const Approach approach = Begin(world);
 	double closest = std::numeric_limits<double>::max();
-	Run(world, approach, 270, &closest);
+	Run(world, approach, 270, &closest, &log);
 
 	// It hit the hub's end, 30 m from the station's centre: the ship's centre came no nearer than its
 	// own half-width, in any attitude, from it, and the approach at 60 m/s is over.
@@ -512,17 +518,74 @@ TEST_CASE("Flight replay: a ship flown into a station on its orbit meets it, the
 	CHECK(closest > 30.0 + 0.8 - 0.05);
 	CHECK(RelativeVelocity(world, approach.ship, approach.station).z < 5.0);
 
-	// Let go, the assist brings it to rest relative to the station, which is moving at 30 km/s.
-	Run(world, approach, kApproachSteps, &closest);
+	// It entered the zone, which pushed nothing, and then met the hub, at the speed it flew in at,
+	// on the hub's end: the normal is from the station, the first of the pair, towards the ship.
+	const auto began = [&](entt::entity other)
+	{
+		return std::ranges::find_if(
+		    log.contacts,
+		    [&](const Physics::ContactEvent &event)
+		    {
+			    return event.phase == Physics::ContactPhase::Began && event.second == approach.ship &&
+			           event.first == other;
+		    });
+	};
+	const auto entered = began(approach.zone);
+	const auto met = began(approach.station);
+	REQUIRE(entered != log.contacts.end());
+	REQUIRE(met != log.contacts.end());
+	CHECK(entered < met);
+	CHECK(entered->sensor);
+	CHECK_FALSE(met->sensor);
+	MESSAGE("met the hub at " << met->speed << " m/s");
+	CHECK(met->speed > 50.0f);
+	CHECK(met->normal.z < -0.9f);
+	const auto metAt = static_cast<std::size_t>(met - log.contacts.begin());
+	const glm::dvec3 where = met->point - StationAt(log.times[metAt]).position;
+	CHECK(where.z == doctest::Approx(-30.0).epsilon(0.02));
+	CHECK(std::abs(where.x) < 6.0);
+	CHECK(std::abs(where.y) < 6.0);
+
+	// It bounced off: the contact ended two steps on.
+	CHECK(
+	    std::ranges::any_of(
+	        log.contacts,
+	        [&](const Physics::ContactEvent &event)
+	        {
+		        return event.phase == Physics::ContactPhase::Ended && event.first == approach.station;
+	        }));
+
+	// Let go, the assist brings it to rest relative to the station, which is moving at 30 km/s, off
+	// to the side of the hub where it slid, and in the zone, which sees it there and never saw it
+	// leave.
+	Run(world, approach, kApproachSteps, &closest, &log);
 	CHECK(glm::length(RelativeVelocity(world, approach.ship, approach.station)) < 0.05);
 	CHECK(-Relative(world, approach.ship, approach.station).z < 40.0);
 	CHECK(closest > 30.0 + 0.8 - 0.05);
+	CHECK(log.physics.Touching(approach.zone) == std::vector{approach.ship});
+	CHECK(
+	    std::ranges::count_if(
+	        log.contacts, [&](const Physics::ContactEvent &event)
+	        { return event.first == approach.zone && event.second == approach.ship; }) == 1);
+
+	// The pick found the ship, through the zone, which it does not see, nearer than the 30 m to its
+	// centre.
+	const std::vector<Sim::SimEvent> events = world.Events().Take();
+	const auto picked = std::ranges::find_if(
+	    events, [](const Sim::SimEvent &event) { return event.event.try_cast<Physics::Picked>(); });
+	REQUIRE(picked != events.end());
+	const auto &answer = *picked->event.try_cast<Physics::Picked>();
+	CHECK(answer.request == kPickRequest);
+	CHECK(answer.entity == approach.ship);
+	CHECK(answer.distance > 20.0);
+	CHECK(answer.distance < 30.0);
+	CHECK(picked->step == kPickStep);
 
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers.
-	CHECK(world.StateHash() == 0xce15aba2a75c5a79ull);
+	CHECK(world.StateHash() == 0x31230f3312efb2beull);
 
-	// The recorded commands replay it from the start.
-	REQUIRE(world.Recorded().size() == 4);
+	// The recorded commands replay it from the start, the pick among them.
+	REQUIRE(world.Recorded().size() == 5);
 	Sim::SimWorld replay{kStep, kSeed};
 	Populate(replay);
 	Begin(replay);
@@ -537,19 +600,28 @@ TEST_CASE("Flight replay: a ship flown into a station on its orbit meets it, the
 	CHECK(replay.StateHash() == world.StateHash());
 }
 
-TEST_CASE("Flight replay: saved in contact with the station and loaded, it carries on the same")
+TEST_CASE(
+    "Flight replay: saved as the ship meets the station in its zone, and loaded, it carries on the "
+    "same")
 {
+	// The hub's contact begins with the step to 226 and ends with the step to 228.
 	Sim::SimWorld original{kStep, kSeed};
-	Populate(original);
+	const Physics::PhysicsWorld &physics = Populate(original);
 	const Approach approach = Begin(original);
-	Run(original, approach, 250);
+	Run(original, approach, 227);
+	REQUIRE(physics.Touching(approach.ship) == std::vector{approach.station, approach.zone});
 	const std::vector<std::byte> save = original.Save();
 
 	Sim::SimWorld loaded{kStep, 1};
-	Populate(loaded);
+	const Physics::PhysicsWorld &reloaded = Populate(loaded);
 	loaded.Load(save);
 	CHECK(loaded.Save() == save);
-	Run(original, approach, kApproachSteps);
-	Run(loaded, approach, kApproachSteps);
+	CHECK(reloaded.Touching(approach.ship) == physics.Touching(approach.ship));
+	CHECK(reloaded.Contacts() == physics.Contacts());
+	ContactLog originalLog{physics, {}, {}};
+	ContactLog loadedLog{reloaded, {}, {}};
+	Run(original, approach, kApproachSteps, nullptr, &originalLog);
+	Run(loaded, approach, kApproachSteps, nullptr, &loadedLog);
 	CHECK(loaded.Save() == original.Save());
+	CHECK(loadedLog.contacts == originalLog.contacts);
 }

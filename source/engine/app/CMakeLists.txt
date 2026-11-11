@@ -28,6 +28,8 @@ jettison_add_module(app
 		src/AppArguments.cpp
 		src/Application.cpp
 		src/Application.h
+		src/Docking.cpp
+		src/Docking.h
 		src/GlfwInput.cpp
 		src/GlfwInput.h
 		src/Piloting.cpp
@@ -35,6 +37,7 @@ jettison_add_module(app
 		src/RenderApplication.cpp
 		src/SmokeSequence.cpp
 	TESTS
+		tests/DockingTests.cpp
 		tests/LargeWorldTests.cpp
 		tests/PilotingTests.cpp
 		tests/SmokeSequenceTests.cpp

@@ -1,6 +1,7 @@
 #include <jettison/physics/Components.h>
 
 #include <jettison/physics/Flight.h>
+#include <jettison/physics/PhysicsWorld.h>
 #include <jettison/physics/Shape.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/Snapshot.h>
@@ -26,11 +27,15 @@ void RegisterTypes()
 		    .Field<&Body::restitution>("restitution", Attribute::Saved)
 		    .Field<&Body::linearDamping>("linearDamping", Attribute::Saved)
 		    .Field<&Body::angularDamping>("angularDamping", Attribute::Saved)
-		    .Field<&Body::continuous>("continuous", Attribute::Saved);
+		    .Field<&Body::continuous>("continuous", Attribute::Saved)
+		    .Field<&Body::sensor>("sensor", Attribute::Saved);
 		RegisterType<Velocity>("Physics.Velocity")
 		    .Field<&Velocity::linear>("linear", Attribute::Saved)
 		    .Field<&Velocity::angular>("angular", Attribute::Saved);
-		RegisterType<OnRails>("Physics.OnRails").Field<&OnRails::body>("body", Attribute::Saved);
+		RegisterType<OnRails>("Physics.OnRails")
+		    .Field<&OnRails::body>("body", Attribute::Saved)
+		    .Field<&OnRails::offset>("offset", Attribute::Saved)
+		    .Field<&OnRails::turn>("turn", Attribute::Saved);
 		RegisterType<LocalFrame>("Physics.LocalFrame")
 		    .Field<&LocalFrame::body>("body", Attribute::Saved);
 
@@ -50,6 +55,32 @@ void RegisterTypes()
 		RegisterType<SetFlightControls>("Physics.SetFlightControls")
 		    .Field<&SetFlightControls::ship>("ship", Attribute::Saved)
 		    .Field<&SetFlightControls::controls>("controls", Attribute::Saved);
+
+		RegisterEnum<ContactPhase>("Physics.ContactPhase")
+		    .Value<ContactPhase::Began>("Began")
+		    .Value<ContactPhase::Ended>("Ended");
+		RegisterType<ContactEvent>("Physics.ContactEvent")
+		    .Field<&ContactEvent::phase>("phase", Attribute::Saved)
+		    .Field<&ContactEvent::first>("first", Attribute::Saved)
+		    .Field<&ContactEvent::second>("second", Attribute::Saved)
+		    .Field<&ContactEvent::sensor>("sensor", Attribute::Saved)
+		    .Field<&ContactEvent::point>("point", Attribute::Saved)
+		    .Field<&ContactEvent::normal>("normal", Attribute::Saved)
+		    .Field<&ContactEvent::speed>("speed", Attribute::Saved);
+		RegisterType<Pick>("Physics.Pick")
+		    .Field<&Pick::request>("request", Attribute::Saved)
+		    .Field<&Pick::system>("system", Attribute::Saved)
+		    .Field<&Pick::origin>("origin", Attribute::Saved)
+		    .Field<&Pick::direction>("direction", Attribute::Saved)
+		    .Field<&Pick::maxDistance>("maxDistance", Attribute::Saved)
+		    .Field<&Pick::time>("time", Attribute::Saved)
+		    .Field<&Pick::ignore>("ignore", Attribute::Saved);
+		RegisterType<Picked>("Physics.Picked")
+		    .Field<&Picked::request>("request", Attribute::Saved)
+		    .Field<&Picked::entity>("entity", Attribute::Saved)
+		    .Field<&Picked::distance>("distance", Attribute::Saved)
+		    .Field<&Picked::point>("point", Attribute::Saved)
+		    .Field<&Picked::normal>("normal", Attribute::Saved);
 
 		RegisterEnum<ShapeKind>("Physics.ShapeKind")
 		    .Value<ShapeKind::Box>("Box")

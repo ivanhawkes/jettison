@@ -16,6 +16,7 @@
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Shape.h>
 #include <jettison/sim/SimWorld.h>
+#include <jettison/sim/Snapshot.h>
 
 namespace Jettison::Sim
 {
@@ -35,11 +36,84 @@ struct PhysicsSettings
 	float maxLinearVelocity{1.0e5f};
 };
 
-struct RayHit
+// Two bodies beginning or ending to touch (PhysicsWorld::Contacts), or a body and a sensor beginning
+// or ending to overlap.
+enum class ContactPhase : std::uint8_t
+{
+	Began,
+	Ended
+};
+
+// What one step changed about two bodies' contact. The pair is in entity order, first below second.
+// A beginning says where they met and how hard: the point in the system frame, the normal from the
+// first towards the second, and the speed they closed at along it as they met, before physics
+// pushed them apart, which is what an impact's sound or damage is judged by. An end carries none of
+// it. Registered with Reflect, every field Saved, by RegisterTypes.
+struct ContactEvent
+{
+	ContactPhase phase{ContactPhase::Began};
+	entt::entity first{entt::null};
+	entt::entity second{entt::null};
+	// One of them is a sensor, so nothing was pushed.
+	bool sensor{false};
+	glm::dvec3 point{0.0};
+	glm::vec3 normal{0.0f};
+	float speed{0.0f};
+
+	bool operator==(const ContactEvent &) const = default;
+};
+
+// What a cast found: the entity, how far along the cast in metres, and where, in the system frame,
+// with the surface's normal there, facing back along the cast.
+struct CastHit
 {
 	entt::entity entity{entt::null};
 	double distance{0.0};
-	glm::dvec3 normal{0.0};
+	glm::dvec3 point{0.0};
+	glm::vec3 normal{0.0f};
+};
+
+// What a cast may hit, and when it is cast.
+struct CastOptions
+{
+	// The caster's own body, which a ray from inside it would otherwise hit at once.
+	entt::entity ignore{entt::null};
+	// Sensors are left out unless they are asked for: a ray picking a station hits its hull, not the
+	// docking zone before it.
+	bool sensors{false};
+	// The simulation time to place each frame at, rather than where the last step left it, with its
+	// bodies where they are in it. Presentation shows the world between the last two steps
+	// (Sim::Stepper), and a station's frame moves 500 m a step about the star, so a ray drawn from
+	// what is shown is cast at the time shown, or it misses the station by the distance between them.
+	std::optional<double> framesAt;
+};
+
+// The command that picks what is under the mouse (docs/architecture.md, "Physics"): a ray, drawn by
+// presentation from what it shows, cast against physics as the step applying it begins and answered
+// with a Picked event, so presentation never reads the simulation's state. The request is the
+// caller's, handed back in the answer. Registered with Reflect, every field Saved, by RegisterTypes.
+struct Pick
+{
+	std::uint64_t request{0};
+	std::uint64_t system{0};
+	glm::dvec3 origin{0.0};
+	glm::dvec3 direction{0.0, 0.0, -1.0};
+	double maxDistance{0.0};
+	// The simulation time the ray was drawn at (CastOptions::framesAt).
+	double time{0.0};
+	entt::entity ignore{entt::null};
+};
+
+// The answer to a Pick, raised as a Sim::EventQueue event: what the ray hit first, or a null entity
+// for nothing, as there is for a ray of no direction or no length. Registered with Reflect, every
+// field Saved, by RegisterTypes.
+struct Picked
+{
+	std::uint64_t request{0};
+	entt::entity entity{entt::null};
+	double distance{0.0};
+	glm::dvec3 point{0.0};
+	glm::vec3 normal{0.0f};
 };
 
 // Jolt in double precision, stepped inside the simulation's fixed step (docs/architecture.md,
@@ -77,9 +151,19 @@ struct RayHit
 //      step begins.
 //   4. Each system's world steps, in identifier order, on one thread.
 //   5. Each moving body's Velocity, and each dynamic body's Transform, are written from it.
+//   6. The contacts the step began and ended are what Contacts() returns until the next.
 // Bodies are visited in entity order throughout, so the same state and commands give the same
 // calls into Jolt, and with Jolt built CROSS_PLATFORM_DETERMINISTIC, the same results in every
 // build.
+//
+// Contacts are the simulation's to read (docs/architecture.md, "Physics"): a game system ordered
+// after "physics" reads the step's, and one before it reads the last step's, which a save holds,
+// so a world loaded from it hands the same contacts to the same systems. Two bodies touch while
+// Jolt has a contact between them, which begins a couple of centimetres before they meet, as
+// Jolt's speculative contacts do; a body touches a sensor while it overlaps it. A body asleep on
+// another, or on a static body, still touches it, though Jolt drops a sleeping body's contacts.
+// A body removed, or made again (a change of Body, system or frame), ends every contact it had in
+// the step that removes it, and one made again begins its own afresh.
 class PhysicsWorld final : public Sim::WorldService
 {
   public:
@@ -88,9 +172,9 @@ class PhysicsWorld final : public Sim::WorldService
 
 	// Makes a physics world and gives it to the simulation world, which owns it from then on:
 	// registers Body, Velocity, OnRails, Thrusters and FlightControls as components, the
-	// SetFlightControls command, the service, and the "flight" and "physics" systems. The game
-	// registers Sim::Transform and Sim::InSystem itself, as it always does. Throws std::logic_error
-	// as SimWorld's registrations do, for one already made.
+	// SetFlightControls and Pick commands, the service, and the "flight" and "physics" systems. The
+	// game registers Sim::Transform and Sim::InSystem itself, as it always does. Throws
+	// std::logic_error as SimWorld's registrations do, for one already made.
 	static PhysicsWorld &Attach(Sim::SimWorld &world, const PhysicsSettings &settings = {});
 
 	~PhysicsWorld() override;
@@ -121,13 +205,30 @@ class PhysicsWorld final : public Sim::WorldService
 	// The star systems that have bodies, in identifier order.
 	std::vector<std::uint64_t> Systems() const;
 
-	// Ray and shape casts are phase 7c's.
-	std::optional<RayHit> CastRay(
-	    std::uint64_t system, const glm::dvec3 &origin, const glm::dvec3 &direction,
-	    double maxDistance) const;
+	// The contacts the last step began and ended, in order of pair, and for one pair an end before
+	// a beginning (a body made again).
+	const std::vector<ContactEvent> &Contacts() const;
+	// What touches the entity's body now, in entity order: none for an entity with no body.
+	std::vector<entt::entity> Touching(entt::entity entity) const;
+
+	// The first body a ray from the origin meets within the distance, across every frame of the
+	// system, as the last step left them. A ray from inside a convex body hits it at once, and one
+	// from inside a mesh, which has no inside, passes out through it. Throws std::invalid_argument
+	// for a direction of no length or a distance that is not positive and finite.
+	std::optional<CastHit> CastRay(
+	    std::uint64_t system, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
+	    const CastOptions &options = {}) const;
+	// The first body the shape meets swept from where it starts along the direction, within the
+	// distance: whether a ship fits through a gap, or how far it can go before it meets the
+	// station. A shape that starts overlapping a body meets it at once. Throws std::invalid_argument
+	// as CastRay does, and for a shape that is not defined.
+	std::optional<CastHit> CastShape(
+	    std::uint64_t system, std::string_view shape, const Sim::Transform &start,
+	    const glm::dvec3 &direction, double maxDistance, const CastOptions &options = {}) const;
 
 	// Every system's bodies, each with what it was made from and was last placed at, and Jolt's own
-	// state: positions, velocities, sleep, and the contacts each step starts from.
+	// state: positions, velocities, sleep, and the contacts each step starts from; and the contacts
+	// as the engine sees them, what touches and what the last step began and ended.
 	void Save(Serialise::BinaryWriter &writer) const override;
 	std::function<void()> Load(Serialise::BinaryReader &reader, const entt::registry &loaded) override;
 

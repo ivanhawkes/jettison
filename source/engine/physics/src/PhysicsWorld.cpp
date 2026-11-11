@@ -5,6 +5,14 @@
 #include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Body/BodyFilter.h>
+#include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
 
 #include <algorithm>
@@ -13,6 +21,7 @@
 #include <format>
 #include <map>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 #include <jettison/celestial/Orbit.h>
@@ -37,8 +46,8 @@ constexpr Core::Category kPhysics{"physics"};
 
 // The layout Save writes inside the world's save. A change to it is a new number here, which a
 // world's own version does not see. Layout 2 keys each Jolt world by its frame too, and holds where
-// the frame was (phase 7b).
-constexpr std::uint64_t kLayout = 2;
+// the frame was (phase 7b); layout 3 holds what touches and the last step's contacts (phase 7c).
+constexpr std::uint64_t kLayout = 3;
 
 // Jolt's scratch memory for a step: what a step of a busy system needs, with the heap behind it
 // for one that needs more, rather than Jolt's fixed block failing.
@@ -116,6 +125,8 @@ std::optional<std::string> Unmakeable(const Body &body, const ShapeEntry *shape,
 		if (!std::isfinite(body.mass) || body.mass <= 0.0f)
 			return std::format("is dynamic with a mass of {} kg", body.mass);
 	}
+	if (body.sensor && body.continuous)
+		return "is a sensor and continuous: a sensor is placed, not swept";
 	if (body.kind == BodyKind::Static && !key.frame.empty())
 		return std::format(
 		    "is static in the frame of '{}', which carries it: what a frame carries is kinematic",
@@ -127,20 +138,26 @@ JPH::BodyCreationSettings MakeSettings(
     entt::entity entity, const Body &body, const ShapeEntry &shape, const Sim::Transform &transform,
     const glm::dvec3 &origin, const Velocity &velocity, const PhysicsSettings &settings)
 {
+	// A static sensor is kinematic to Jolt, never moved but by placing it: a static sensor sees only
+	// bodies that are awake, and a ship come to rest in a docking zone would leave it as it slept.
 	static constexpr JPH::EMotionType kMotion[] = {
 	    JPH::EMotionType::Static, JPH::EMotionType::Kinematic, JPH::EMotionType::Dynamic};
+	const bool joltStatic = body.kind == BodyKind::Static && !body.sensor;
 	JPH::BodyCreationSettings creation{
 	    shape.shape, Detail::ToJolt(transform.position - origin),
 	    Detail::ToJolt(transform.orientation).Normalized(),
-	    kMotion[static_cast<std::size_t>(body.kind)],
-	    body.kind == BodyKind::Static ? Detail::Layers::kStatic : Detail::Layers::kMoving};
+	    body.sensor && body.kind == BodyKind::Static ? JPH::EMotionType::Kinematic
+	                                                 : kMotion[static_cast<std::size_t>(body.kind)],
+	    joltStatic ? Detail::Layers::kStatic : Detail::Layers::kMoving};
+	creation.mIsSensor = body.sensor;
+	creation.mAllowSleeping = !body.sensor;
 	creation.mFriction = body.friction;
 	creation.mRestitution = body.restitution;
 	creation.mLinearDamping = body.linearDamping;
 	creation.mAngularDamping = body.angularDamping;
 	creation.mMaxLinearVelocity = settings.maxLinearVelocity;
 	creation.mUserData = entt::to_integral(entity);
-	switch (body.kind)
+	switch (body.sensor && body.kind == BodyKind::Static ? BodyKind::Kinematic : body.kind)
 	{
 		case BodyKind::Static: break;
 		case BodyKind::Kinematic:
@@ -173,12 +190,15 @@ WorldKey KeyOf(const entt::registry &registry, entt::entity entity)
 	return {SystemOf(registry, entity), frame ? frame->body : std::string{}};
 }
 
-// Where a body on rails is at a time: its position, and its spin.
-Sim::Transform RailsTransform(const Celestial::StarSystem &system, std::size_t body, double simSeconds)
+// Where an entity on rails is at a time: its place on its body, which is where the body is and turned
+// as it spins.
+Sim::Transform RailsTransform(
+    const Celestial::StarSystem &system, std::size_t body, const OnRails &rails, double simSeconds)
 {
+	const glm::dquat spin = Celestial::Orientation(system.bodies[body].rotation, simSeconds);
 	return {
-	    Celestial::EvaluateBody(system, body, simSeconds).metres,
-	    Celestial::Orientation(system.bodies[body].rotation, simSeconds)};
+	    Celestial::EvaluateBody(system, body, simSeconds).metres + spin * rails.offset,
+	    spin * rails.turn};
 }
 
 // Each body that pulls, where it is at a time: the system's bodies with a gravitational parameter.
@@ -217,6 +237,110 @@ glm::dvec3 Pull(const std::vector<Well> &wells, const glm::dvec3 &position)
 		acceleration += towards * (well.gravitationalParameter / (reach * reach * reach));
 	}
 	return acceleration;
+}
+
+// Two entities' bodies, first below second, as contacts are kept.
+using Pair = std::pair<entt::entity, entt::entity>;
+
+Pair Ordered(entt::entity left, entt::entity right)
+{
+	return left < right ? Pair{left, right} : Pair{right, left};
+}
+
+entt::entity EntityOf(const JPH::Body &body)
+{
+	return static_cast<entt::entity>(static_cast<entt::id_type>(body.GetUserData()));
+}
+
+// Where two bodies met in a step, from a contact Jolt added between them: the hardest, if their
+// shapes met in more than one place (a hull across two of a mesh's triangles).
+struct Meeting
+{
+	bool sensor{false};
+	glm::dvec3 point{0.0};
+	// From the first of the pair towards the second.
+	glm::vec3 normal{0.0f};
+	float speed{0.0f};
+};
+
+// Jolt's contact callbacks, which come during a world's step on the simulation's one thread: each
+// contact added, as a meeting of two entities. Whether they still touch once the step is over is
+// Jolt's contact cache's to say (PhysicsSystem::WereBodiesInContact), and is asked then.
+class ContactRecorder final : public JPH::ContactListener
+{
+  public:
+	// The world about to step, by where its frame's origin is.
+	void Begin(const glm::dvec3 &origin)
+	{
+		m_origin = origin;
+	}
+	std::map<Pair, Meeting> Take()
+	{
+		return std::exchange(m_meetings, {});
+	}
+
+	void OnContactAdded(
+	    const JPH::Body &body1, const JPH::Body &body2, const JPH::ContactManifold &manifold,
+	    JPH::ContactSettings & /*unused*/) override
+	{
+		const entt::entity entity1 = EntityOf(body1);
+		const entt::entity entity2 = EntityOf(body2);
+		JPH::Vec3 sum = JPH::Vec3::sZero();
+		for (const JPH::Vec3 &on1 : manifold.mRelativeContactPointsOn1)
+			sum += on1;
+		const auto count = static_cast<float>(manifold.mRelativeContactPointsOn1.size());
+		const JPH::RVec3 point = manifold.mBaseOffset + (count > 0.0f ? sum / count : sum);
+		// Jolt's normal is the way body 2 is pushed out, from body 1; the bodies' velocities are as
+		// they were before the contact was solved.
+		const float closing = (body1.GetPointVelocity(point) - body2.GetPointVelocity(point))
+		                          .Dot(manifold.mWorldSpaceNormal);
+		const JPH::Vec3 normal =
+		    entity1 < entity2 ? manifold.mWorldSpaceNormal : -manifold.mWorldSpaceNormal;
+		const Meeting meeting{
+		    body1.IsSensor() || body2.IsSensor(), m_origin + Detail::ToGlm(point),
+		    Detail::ToGlmFloat(normal), std::max(closing, 0.0f)};
+		auto [found, added] = m_meetings.try_emplace(Ordered(entity1, entity2), meeting);
+		if (!added && meeting.speed > found->second.speed)
+			found->second = meeting;
+	}
+
+  private:
+	glm::dvec3 m_origin{0.0};
+	std::map<Pair, Meeting> m_meetings;
+};
+
+// Which bodies a cast may hit.
+class CastBodies final : public JPH::BodyFilter
+{
+  public:
+	explicit CastBodies(const CastOptions &options) : m_options{options}
+	{
+	}
+
+	bool ShouldCollideLocked(const JPH::Body &body) const override
+	{
+		return (m_options.sensors || !body.IsSensor()) && EntityOf(body) != m_options.ignore;
+	}
+
+  private:
+	const CastOptions &m_options;
+};
+
+bool Finite(const glm::dvec3 &value)
+{
+	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+// The cast's direction, of unit length; or why it is no cast.
+glm::dvec3 CastDirection(const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance)
+{
+	const double length = glm::length(direction);
+	if (!Finite(origin) || !std::isfinite(length) || length <= 0.0 || !std::isfinite(maxDistance) ||
+	    maxDistance <= 0.0)
+		throw std::invalid_argument{std::format(
+		    "Physics: a cast of {} m along a direction of length {} from ({}, {}, {}) is not a cast",
+		    maxDistance, length, origin.x, origin.y, origin.z)};
+	return direction / length;
 }
 } // namespace
 
@@ -269,11 +393,45 @@ struct PhysicsWorld::Impl
 		std::unique_ptr<Detail::StarSystemWorld> &world = worlds[key];
 		if (!world)
 		{
-			world = std::make_unique<Detail::StarSystemWorld>(layers, settings);
+			world = NewWorld();
 			world->frameOrigin = motion.start;
 			world->frameVelocity = motion.before;
 		}
 		return *world;
+	}
+
+	std::unique_ptr<Detail::StarSystemWorld> NewWorld() const
+	{
+		auto world = std::make_unique<Detail::StarSystemWorld>(layers, settings);
+		world->System().SetContactListener(&recorder);
+		return world;
+	}
+
+	// Every frame of the system, with its origin as a cast sees it, in the order worlds step in.
+	template <typename Visit>
+	void ForEachFrame(std::uint64_t system, const CastOptions &options, Visit visit) const
+	{
+		for (auto found = worlds.lower_bound(WorldKey{system, {}});
+		     found != worlds.end() && found->first.system == system; ++found)
+			visit(
+			    *found->second, options.framesAt ? Origin(found->first, *options.framesAt)
+			                                     : found->second->frameOrigin);
+	}
+
+	// Ends every contact the entity's body had, as it is removed.
+	void EndContacts(entt::entity entity)
+	{
+		for (auto found = touching.begin(); found != touching.end();)
+		{
+			if (found->first.first != entity && found->first.second != entity)
+			{
+				++found;
+				continue;
+			}
+			contacts.push_back(
+			    {ContactPhase::Ended, found->first.first, found->first.second, found->second});
+			found = touching.erase(found);
+		}
 	}
 
 	// Makes the body in its world, with the identifier the world gives it or, from a save, the one
@@ -288,8 +446,9 @@ struct PhysicsWorld::Impl
 		// Capacity was checked, and the identifier is one the world holds free for it.
 		JETTISON_VERIFY(made != nullptr);
 		world.Bodies().AddBody(
-		    id, record.body.kind == BodyKind::Static ? JPH::EActivation::DontActivate
-		                                             : JPH::EActivation::Activate);
+		    id, record.body.kind == BodyKind::Static && !record.body.sensor
+		            ? JPH::EActivation::DontActivate
+		            : JPH::EActivation::Activate);
 	}
 
 	PhysicsSettings settings;
@@ -299,9 +458,17 @@ struct PhysicsWorld::Impl
 	JPH::JobSystemSingleThreaded jobs{JPH::cMaxPhysicsJobs};
 	// Before the worlds, whose bodies hold the shapes, so it goes after them.
 	std::map<std::string, ShapeEntry, std::less<>> shapes;
+	// Every world's listener, which Jolt's callbacks write to as a world steps: mutable, since a
+	// world read from a save is given it before the load is committed. Before the worlds, which
+	// point to it.
+	mutable ContactRecorder recorder;
 	std::map<WorldKey, std::unique_ptr<Detail::StarSystemWorld>> worlds;
 	// Ordered by entity, which is the order every step visits bodies in.
 	std::map<entt::entity, Record> records;
+	// What touches what, and whether one of each pair is a sensor; and the contacts the last step
+	// began and ended. State, saved.
+	std::map<Pair, bool> touching;
+	std::vector<ContactEvent> contacts;
 	// By Sim::SystemId: definitions, not state, so neither saved nor hashed.
 	std::map<std::uint64_t, Celestial::StarSystem> systems;
 	bool reportedUpdateError{false};
@@ -342,6 +509,21 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 		    entt::registry &registry = target.Registry();
 		    if (registry.valid(command.ship))
 			    registry.emplace_or_replace<FlightControls>(command.ship, command.controls);
+	    });
+	world.RegisterCommand<Pick>(
+	    [&physics](Sim::SimWorld &target, const Pick &pick)
+	    {
+		    Picked answer{pick.request};
+		    // A ray presentation drew of nothing, a degenerate camera's, is answered with nothing
+		    // rather than stopping the step.
+		    const double length = glm::length(pick.direction);
+		    if (Finite(pick.origin) && std::isfinite(length) && length > 0.0 &&
+		        std::isfinite(pick.maxDistance) && pick.maxDistance > 0.0 && std::isfinite(pick.time))
+			    if (const std::optional<CastHit> hit = physics.CastRay(
+			            pick.system, pick.origin, pick.direction, pick.maxDistance,
+			            {pick.ignore, false, pick.time}))
+				    answer = {pick.request, hit->entity, hit->distance, hit->point, hit->normal};
+		    target.Events().Emit(answer);
 	    });
 	world.RegisterSystem(
 	    {std::string{kFlightSystemName},
@@ -439,11 +621,99 @@ std::vector<std::uint64_t> PhysicsWorld::Systems() const
 	return systems;
 }
 
-std::optional<RayHit> PhysicsWorld::CastRay(
-    std::uint64_t /*unused*/, const glm::dvec3 & /*unused*/, const glm::dvec3 & /*unused*/,
-    double /*unused*/) const
+const std::vector<ContactEvent> &PhysicsWorld::Contacts() const
 {
-	JETTISON_NOT_IMPLEMENTED();
+	return m_pImpl->contacts;
+}
+
+std::vector<entt::entity> PhysicsWorld::Touching(entt::entity entity) const
+{
+	std::vector<entt::entity> touching;
+	for (const auto &[pair, sensor] : m_pImpl->touching)
+	{
+		if (pair.first == entity)
+			touching.push_back(pair.second);
+		else if (pair.second == entity)
+			touching.push_back(pair.first);
+	}
+	std::ranges::sort(touching);
+	return touching;
+}
+
+std::optional<CastHit> PhysicsWorld::CastRay(
+    std::uint64_t system, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
+    const CastOptions &options) const
+{
+	const glm::dvec3 along = CastDirection(origin, direction, maxDistance);
+	const CastBodies filter{options};
+	std::optional<CastHit> nearest;
+	m_pImpl->ForEachFrame(
+	    system, options,
+	    [&](const Detail::StarSystemWorld &world, const glm::dvec3 &frameOrigin)
+	    {
+		    // In the frame's coordinates, which are metres from its body.
+		    const JPH::RRayCast ray{
+		        Detail::ToJolt(origin - frameOrigin), Detail::ToJolt(glm::vec3{along * maxDistance})};
+		    JPH::RayCastResult hit;
+		    if (!world.System().GetNarrowPhaseQueryNoLock().CastRay(ray, hit, {}, {}, filter))
+			    return;
+		    const double distance = static_cast<double>(hit.mFraction) * maxDistance;
+		    if (nearest && nearest->distance <= distance)
+			    return;
+		    const JPH::BodyLockRead lock{world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID};
+		    JETTISON_VERIFY(lock.Succeeded());
+		    const JPH::RVec3 point = ray.GetPointOnRay(hit.mFraction);
+		    nearest = CastHit{
+		        EntityOf(lock.GetBody()), distance, frameOrigin + Detail::ToGlm(point),
+		        Detail::ToGlmFloat(lock.GetBody().GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, point))};
+	    });
+	return nearest;
+}
+
+std::optional<CastHit> PhysicsWorld::CastShape(
+    std::uint64_t system, std::string_view shape, const Sim::Transform &start,
+    const glm::dvec3 &direction, double maxDistance, const CastOptions &options) const
+{
+	const glm::dvec3 along = CastDirection(start.position, direction, maxDistance);
+	const ShapeEntry *entry = m_pImpl->FindShape(shape);
+	if (!entry)
+		throw std::invalid_argument{std::format("Physics: shape '{}' is not defined", shape)};
+	// Jolt sweeps convex shapes alone.
+	if (entry->mesh)
+		throw std::invalid_argument{
+		    std::format("Physics: shape '{}' is a mesh, which has no inside to sweep", shape)};
+	const CastBodies filter{options};
+	std::optional<CastHit> nearest;
+	m_pImpl->ForEachFrame(
+	    system, options,
+	    [&](const Detail::StarSystemWorld &world, const glm::dvec3 &frameOrigin)
+	    {
+		    const JPH::RVec3 at = Detail::ToJolt(start.position - frameOrigin);
+		    const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
+		        entry->shape, JPH::Vec3::sOne(),
+		        JPH::RMat44::sRotationTranslation(Detail::ToJolt(start.orientation).Normalized(), at),
+		        Detail::ToJolt(glm::vec3{along * maxDistance}));
+		    JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+		    world.System().GetNarrowPhaseQueryNoLock().CastShape(
+		        cast, JPH::ShapeCastSettings{}, at, collector, {}, {}, filter);
+		    if (!collector.HadHit())
+			    return;
+		    const JPH::ShapeCastResult &hit = collector.mHit;
+		    const double distance = static_cast<double>(hit.mFraction) * maxDistance;
+		    if (nearest && nearest->distance <= distance)
+			    return;
+		    const JPH::BodyLockRead lock{world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID2};
+		    JETTISON_VERIFY(lock.Succeeded());
+		    // Jolt's axis is the way the body hit would be pushed out of the shape: the surface faces
+		    // back against it.
+		    const JPH::Vec3 axis = hit.mPenetrationAxis;
+		    const glm::vec3 normal =
+		        axis.LengthSq() > 0.0f ? Detail::ToGlmFloat(-axis.Normalized()) : glm::vec3{-along};
+		    nearest = CastHit{
+		        EntityOf(lock.GetBody()), distance,
+		        frameOrigin + Detail::ToGlm(at + hit.mContactPointOn2), normal};
+	    });
+	return nearest;
 }
 
 void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixedStep)
@@ -458,6 +728,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		entt::entity entity;
 		const Celestial::StarSystem *system;
 		std::size_t body;
+		const OnRails *rails;
 	};
 	std::vector<Placement> placements;
 	for (const auto [entity, rails, transform] :
@@ -473,7 +744,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 			    "Physics: {} cannot be on rails: system {:#x} {}", Describe(entity), system,
 			    found == impl.systems.end() ? "is not defined"
 			                                : std::format("has no body '{}'", rails.body))};
-		placements.push_back({entity, &found->second, static_cast<std::size_t>(body)});
+		placements.push_back({entity, &found->second, static_cast<std::size_t>(body), &rails});
 	}
 
 	// 2. What changes: the bodies whose entity no longer makes them what they were, then the
@@ -526,9 +797,10 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		}
 	}
 
+	impl.contacts.clear();
 	for (const Placement &placement : placements)
 		registry.get<Sim::Transform>(placement.entity) =
-		    RailsTransform(*placement.system, placement.body, stepEnd);
+		    RailsTransform(*placement.system, placement.body, *placement.rails, stepEnd);
 
 	// Every frame's motion over the step: a world's frame starts where the last step left it, and a
 	// new one's where its body is now.
@@ -561,6 +833,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		Detail::StarSystemWorld &world = *found->second.world;
 		if (registry.valid(entity) && SystemOf(registry, entity) == found->second.key.system)
 			leftFrames.emplace(entity, world.frameVelocity);
+		impl.EndContacts(entity);
 		world.Bodies().RemoveBody(found->second.id);
 		world.Bodies().DestroyBody(found->second.id);
 		world.Release(found->second.id);
@@ -577,7 +850,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 			{
 				const Celestial::StarSystem &system = impl.systems.at(creation.key.system);
 				record.placed = RailsTransform(
-				    system, static_cast<std::size_t>(system.Find(rails->body)), simSeconds);
+				    system, static_cast<std::size_t>(system.Find(rails->body)), *rails, simSeconds);
 			}
 		if (record.body.kind != BodyKind::Static)
 		{
@@ -617,8 +890,9 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 					bodies.SetPositionAndRotation(
 					    record.id, Detail::ToJolt(transform.position - motion.start),
 					    Detail::ToJolt(transform.orientation).Normalized(),
-					    record.body.kind == BodyKind::Static ? JPH::EActivation::DontActivate
-					                                         : JPH::EActivation::Activate);
+					    record.body.kind == BodyKind::Static && !record.body.sensor
+					        ? JPH::EActivation::DontActivate
+					        : JPH::EActivation::Activate);
 					record.placed = transform;
 				}
 				break;
@@ -662,6 +936,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	// 4. The step.
 	for (const auto &[key, world] : impl.worlds)
 	{
+		impl.recorder.Begin(world->frameOrigin);
 		const JPH::EPhysicsUpdateError errors =
 		    world->System().Update(step, 1, &impl.scratch, &impl.jobs);
 		if (errors != JPH::EPhysicsUpdateError::None && !impl.reportedUpdateError)
@@ -696,6 +971,36 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		record.placed = {record.world->frameOrigin + Detail::ToGlm(position), Detail::ToGlm(rotation)};
 		registry.get<Sim::Transform>(entity) = record.placed;
 	}
+
+	// 6. What began and ended touching. A pair still touches while Jolt's cache holds a contact
+	// between them, or a contact was added this step (a continuous body's, met as it was swept, is
+	// not cached until the next); and while neither is awake, since Jolt drops a sleeping body's
+	// contacts though it lies where it was.
+	const std::map<Pair, Meeting> meetings = impl.recorder.Take();
+	for (auto found = impl.touching.begin(); found != impl.touching.end();)
+	{
+		const Record &first = impl.records.at(found->first.first);
+		const Record &second = impl.records.at(found->first.second);
+		const JPH::BodyInterface &bodies = first.world->Bodies();
+		if (meetings.contains(found->first) ||
+		    first.world->System().WereBodiesInContact(first.id, second.id) ||
+		    (!bodies.IsActive(first.id) && !bodies.IsActive(second.id)))
+		{
+			++found;
+			continue;
+		}
+		impl.contacts.push_back(
+		    {ContactPhase::Ended, found->first.first, found->first.second, found->second});
+		found = impl.touching.erase(found);
+	}
+	for (const auto &[pair, meeting] : meetings)
+		if (impl.touching.emplace(pair, meeting.sensor).second)
+			impl.contacts.push_back(
+			    {ContactPhase::Began, pair.first, pair.second, meeting.sensor, meeting.point,
+			     meeting.normal, meeting.speed});
+	std::ranges::sort(
+	    impl.contacts, std::less{}, [](const ContactEvent &event)
+	    { return std::tuple{event.first, event.second, event.phase == ContactPhase::Began}; });
 }
 
 void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
@@ -729,6 +1034,15 @@ void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 		world->System().SaveState(recorder);
 		writer.Write(recorder.Bytes());
 	}
+
+	writer.WriteUnsigned(impl.touching.size(), 4);
+	for (const auto &[pair, sensor] : impl.touching)
+	{
+		writer.Write(pair.first);
+		writer.Write(pair.second);
+		writer.Write(sensor);
+	}
+	writer.Write(impl.contacts);
 }
 
 std::function<void()> PhysicsWorld::Load(
@@ -745,6 +1059,8 @@ std::function<void()> PhysicsWorld::Load(
 	{
 		std::map<WorldKey, std::unique_ptr<Detail::StarSystemWorld>> worlds;
 		std::map<entt::entity, Record> records;
+		std::map<Pair, bool> touching;
+		std::vector<ContactEvent> contacts;
 	};
 	auto pending = std::make_shared<Pending>();
 
@@ -762,7 +1078,7 @@ std::function<void()> PhysicsWorld::Load(
 			        key.frame));
 		if (const std::optional<std::string> problem = impl.UnknownFrame(key))
 			reader.Fail(std::format("a world {}", *problem));
-		auto world = std::make_unique<Detail::StarSystemWorld>(impl.layers, impl.settings);
+		std::unique_ptr<Detail::StarSystemWorld> world = impl.NewWorld();
 		reader.Read(world->frameOrigin);
 		reader.Read(world->frameVelocity);
 		std::vector<std::uint8_t> sequences;
@@ -821,10 +1137,34 @@ std::function<void()> PhysicsWorld::Load(
 		pending->worlds.emplace(std::move(key), std::move(world));
 	}
 
+	// What touches is two bodies of one world.
+	const auto pairCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+	for (std::uint32_t pairIndex = 0; pairIndex < pairCount; ++pairIndex)
+	{
+		Pair pair{entt::null, entt::null};
+		bool sensor = false;
+		reader.Read(pair.first);
+		reader.Read(pair.second);
+		reader.Read(sensor);
+		const auto first = pending->records.find(pair.first);
+		const auto second = pending->records.find(pair.second);
+		if (!(pair.first < pair.second) || first == pending->records.end() ||
+		    second == pending->records.end() || first->second.world != second->second.world ||
+		    (!pending->touching.empty() && pair <= pending->touching.rbegin()->first))
+			reader.Fail(
+			    std::format(
+			        "{} and {} cannot touch: they are not two bodies of one world, in order",
+			        Describe(pair.first), Describe(pair.second)));
+		pending->touching.emplace(pair, sensor);
+	}
+	reader.Read(pending->contacts);
+
 	return [this, pending]
 	{
 		m_pImpl->records = std::move(pending->records);
 		m_pImpl->worlds = std::move(pending->worlds);
+		m_pImpl->touching = std::move(pending->touching);
+		m_pImpl->contacts = std::move(pending->contacts);
 	};
 }
 } // namespace Jettison::Physics

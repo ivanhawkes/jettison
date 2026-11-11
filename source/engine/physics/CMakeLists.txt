@@ -27,7 +27,9 @@ jettison_add_module(physics
 		src/StarSystemWorld.cpp
 		src/StarSystemWorld.h
 	TESTS
+		tests/ContactTests.cpp
 		tests/FlightTests.cpp
+		tests/Halcyon.h
 		tests/PhysicsTests.cpp
 		tests/ReplayTests.cpp
 	PUBLIC_LIBRARIES

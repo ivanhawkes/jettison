@@ -24,8 +24,12 @@ constexpr int kResizeSettleFrames = 8;
 // frame at these sizes, and a runner is slower than this machine.
 constexpr auto kWatchdog = std::chrono::seconds(120);
 
-// The last stage has no action: it settles and closes. A run that reaches it has walked all nine.
-constexpr int kFinalStage = 8;
+// The last stage has no action: it settles and closes. A run that reaches it has walked all ten.
+constexpr int kFinalStage = 9;
+
+// The frames a pick is given to be answered: the next simulation step answers it, which is a frame
+// or two at most, unless the world is not stepping, and then the sequence moves on without it.
+constexpr int kPickFrames = 60;
 
 // The resize stages ask for a size relative to the current one, growing then shrinking: the
 // opening size, the compositor's idea of it and the Xvfb screen all vary, and a fixed target can
@@ -67,6 +71,18 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 			m_frames = 0;
 		}
 	}
+	else if (m_pickPending)
+	{
+		const bool answered = !m_actions.picking();
+		if (answered || m_frames >= kPickFrames)
+		{
+			if (answered)
+				++m_picks;
+			m_pickPending = false;
+			m_actionPending = false;
+			m_frames = 0;
+		}
+	}
 	else if (m_actionPending && m_frames >= kResizeSettleFrames)
 	{
 		// The request was refused. A resize that never arrived is not one the engine handled, so
@@ -79,7 +95,7 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 	++m_frames;
 
 	// The stages, in order: grow the window, shrink it, minimize, restore, reload the scene, fly the
-	// ship behind it and from its seat, jump, settle. The last one has no action.
+	// ship behind it and from its seat, pick, jump, settle. The last one has no action.
 	if (m_stage < kFinalStage && m_frames >= kStageFrames && !m_actionPending)
 	{
 		m_actionPending = true;
@@ -141,6 +157,12 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 			m_actionPending = false;
 			break;
 		case 7:
+			// A ray from the camera through the middle of the window, from the seat, cast by the next
+			// step and answered as an event.
+			m_pickPending = m_actions.pick();
+			m_actionPending = m_pickPending;
+			break;
+		case 8:
 			// The system shown is replaced by another while frames that drew it are in flight, and
 			// the new one's models, materials and environment are made under the jump's effect.
 			m_jumpPending = m_actions.jump();
@@ -169,7 +191,7 @@ bool SmokeSequence::Passed() const
 std::string SmokeSequence::Summary() const
 {
 	return "resizes=" + std::to_string(m_resizes) + ", reloads=" + std::to_string(m_reloads) +
-	       ", pilots=" + std::to_string(m_pilots) + ", jumps=" + std::to_string(m_jumps) +
-	       ", stage=" + std::to_string(m_stage);
+	       ", pilots=" + std::to_string(m_pilots) + ", picks=" + std::to_string(m_picks) +
+	       ", jumps=" + std::to_string(m_jumps) + ", stage=" + std::to_string(m_stage);
 }
 } // namespace Jettison::App

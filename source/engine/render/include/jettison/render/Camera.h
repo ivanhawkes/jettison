@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <jettison/math/Bounds.h>
+
 namespace Jettison::Render
 {
 // Where a camera is and where it looks: a system-frame position in double precision and the
@@ -33,6 +35,12 @@ glm::dquat OrientationFromAngles(double pitch, double roll, double yaw);
 // forty thousand kilometres share one buffer (docs/architecture.md, "Coordinate frames and
 // units"). Depth is cleared to 0 and tested with GREATER.
 glm::mat4 ReversedInfinitePerspective(float verticalFov, float aspect, float nearPlane);
+
+// The ray from the camera through a point on the screen, as a mouse picks: the point in window
+// pixels from the top left, as GLFW reports the cursor, over a window of that size, whose shape is
+// the projection's. It starts at the camera rather than the near plane, in the system frame, and
+// its direction has unit length.
+Math::DRay ScreenRay(const CameraView &camera, const glm::dvec2 &point, const glm::dvec2 &windowSize);
 
 // The view matrix in render space: the camera is at the origin there, so the view is the inverse
 // of its rotation and nothing else.

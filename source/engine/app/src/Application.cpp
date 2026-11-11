@@ -26,11 +26,15 @@
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/profile/Profile.h>
+#include <jettison/render/Camera.h>
 #include <jettison/render/IRenderer.h>
+#include <jettison/render/SceneView.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
 #include <jettison/scene/SystemScene.h>
+
+#include "Docking.h"
 
 namespace Jettison::App
 {
@@ -56,6 +60,12 @@ constexpr std::string_view kShipShape = "ships/shuttle";
 constexpr glm::vec3 kShipHalfExtents{3.2f, 0.9f, 4.9f};
 constexpr float kShipMass = 20000.0f;
 constexpr glm::dvec3 kShipStation{0.0, 0.0, -150.0};
+// The docking port: a box 40 m on a side before the dock at the hull's -Z end, reaching 2 m into
+// the hull past the dock's face, so a ship held against the dock is in it.
+constexpr glm::vec3 kPortHalfExtents{20.0f, 20.0f, 20.0f};
+constexpr double kPortOverlap = 2.0;
+// How far a pick reaches: past any station a ship is flown by.
+constexpr double kPickDistance = 50000.0;
 // How long the camera eases into and out of the ship's rigs, and between them.
 constexpr double kPilotTransition = 1.5;
 constexpr double kViewTransition = 0.5;
@@ -143,6 +153,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_cameraWheel = m_input.DefineAction("camera_wheel", Input::ActionType::Vector);
 	m_jumpNext = m_input.DefineAction("jump_next", Input::ActionType::Button);
 	m_pilot = m_input.DefineAction("pilot", Input::ActionType::Button);
+	m_pickAction = m_input.DefineAction("pick", Input::ActionType::Button);
 	m_input.DefineContext("shell");
 	m_input.DefineContext("console", true);
 	for (const char *context : {"shell", "console"})
@@ -166,6 +177,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_input.Bind("shell", m_cameraWheel, {{Input::Device::MouseAxis, 3}});
 	m_input.Bind("shell", m_pilot, {Character('p')});
 	m_input.Bind("shell", m_pilot, {{Input::Device::GamepadButton, 7}});
+	m_input.Bind("shell", m_pickAction, {{Input::Device::MouseButton, 0}});
 	m_pilotInput.emplace(m_input);
 	m_input.PushContext("shell");
 
@@ -187,6 +199,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::Transform>();
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
+	RegisterDocking(m_sim, *m_pPhysics);
 	RegisterFrameSystems();
 }
 
@@ -219,7 +232,8 @@ void Application::RegisterFrameSystems()
 		     PollInput();
 	     }});
 
-	// The pilot's controls, as the commands the next step applies; a game's commands go here too.
+	// The pilot's controls and the mouse's picks, as the commands the next step applies; a game's
+	// commands go here too.
 	m_frame.Register(
 	    {"shell.flight",
 	     TickPhase::Commands,
@@ -229,6 +243,9 @@ void Application::RegisterFrameSystems()
 	     {
 		     JETTISON_PROFILE_ZONE("shell.flight");
 		     FlyShip();
+		     if (m_clicked)
+			     Pick(*m_clicked);
+		     m_clicked.reset();
 	     }});
 
 	m_frame.Register(
@@ -280,8 +297,6 @@ void Application::RegisterFrameSystems()
 			     Scene::SyncSimProxies(
 			         registry, m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha());
 	     }});
-	// Nothing in the shell turns an event into sound or UI yet. Taking them every frame is what
-	// keeps the queue from growing while nothing does; a game's handlers replace this system.
 	// Bodies on rails, at the moment presentation shows: between the last two steps, in time.
 	m_frame.Register(
 	    {"celestial.sync",
@@ -290,19 +305,17 @@ void Application::RegisterFrameSystems()
 	     {"sim.sync"},
 	     [this](entt::registry &, double)
 	     {
+		     m_shownTime = Celestial::PresentationTime(
+		         m_simStepper.Previous().time, m_simStepper.Current().time, m_simStepper.Alpha());
 		     if (!m_systemScene)
 			     return;
 		     JETTISON_PROFILE_ZONE("celestial.sync");
-		     m_systemScene->Place(
-		         Celestial::PresentationTime(
-		             m_simStepper.Previous().time, m_simStepper.Current().time, m_simStepper.Alpha()));
+		     m_systemScene->Place(m_shownTime);
 	     }});
+	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
+	// handlers replace this system.
 	m_frame.Register(
-	    {"sim.events",
-	     TickPhase::Sync,
-	     {},
-	     {},
-	     [this](entt::registry &, double) { static_cast<void>(m_sim.Events().Take()); }});
+	    {"sim.events", TickPhase::Sync, {}, {}, [this](entt::registry &, double) { TakeEvents(); }});
 
 	m_frame.Register(
 	    {"scene.update",
@@ -613,6 +626,7 @@ void Application::DrawUI()
 		DevTools::DrawConsole(m_console, m_devTools.console, &m_devTools.showConsole);
 	if (m_piloting)
 		DrawFlight();
+	DrawPicked();
 	m_pRenderer->EndUi();
 }
 
@@ -800,6 +814,10 @@ void Application::PollInput()
 		NextCameraTarget(m_pScene->Registry());
 	if (m_input.WasPressedThisFrame(m_jumpNext))
 		Jump();
+	// A click on the scene, not on a window over it, which ImGui has.
+	if (m_input.WasPressedThisFrame(m_pickAction) &&
+	    (ImGui::GetCurrentContext() == nullptr || !ImGui::GetIO().WantCaptureMouse))
+		m_clicked = m_glfwInput.Cursor();
 	if (m_input.WasPressedThisFrame(m_pilot))
 	{
 		if (m_piloting)
@@ -949,8 +967,9 @@ void Application::ShowArrival(Scene::JumpArrival &arrival)
 {
 	// What the old system scene built goes with the scene's old contents. The simulation did not
 	// change, so the stepper is not resynced: the traffic layer's proxies are made from the same
-	// snapshots, now for the entities in the new system.
+	// snapshots, now for the entities in the new system. What was picked was in the old one.
 	m_systemScene.reset();
+	m_picked.reset();
 	if (arrival.sceneFile)
 		m_pScene->Load(*arrival.sceneFile);
 	else
@@ -1094,6 +1113,14 @@ SmokeActions Application::MakeSmokeActions()
 	};
 	actions.pilot = [this](bool cockpit)
 	{ return StartPiloting(cockpit ? Scene::PilotView::Cockpit : Scene::PilotView::Chase); };
+	actions.pick = [this]
+	{
+		int width = 0;
+		int height = 0;
+		glfwGetWindowSize(m_pRenderer->GetGLFWWindow(), &width, &height);
+		return Pick({width * 0.5, height * 0.5});
+	};
+	actions.picking = [this] { return m_pickPending; };
 	actions.jump = [this] { return Jump(); };
 	actions.jumping = [this] { return m_jump->Active(); };
 	actions.close = [this] { RequestClose(); };
@@ -1186,16 +1213,16 @@ void Application::SpawnShip()
 
 	// The station's hull, as the scene draws it.
 	const std::string shape = "stations/" + Scene::BodyEntityId(station->name);
+	const std::optional<CollisionMesh> mesh = MakeCollisionMesh(scene, shown);
+	if (!mesh)
+	{
+		Core::Log(
+		    Core::Severity::Warning, kShell, "No ship: station '{}' is drawn with no shape to meet",
+		    station->name);
+		return;
+	}
 	if (!m_pPhysics->HasShape(shape))
 	{
-		const std::optional<CollisionMesh> mesh = MakeCollisionMesh(scene, shown);
-		if (!mesh)
-		{
-			Core::Log(
-			    Core::Severity::Warning, kShell, "No ship: station '{}' is drawn with no shape to meet",
-			    station->name);
-			return;
-		}
 		if (mesh->skippedModels != 0)
 			Core::Log(
 			    Core::Severity::Warning, kShell,
@@ -1230,6 +1257,30 @@ void Application::SpawnShip()
 	world.emplace<Physics::OnRails>(m_station, station->name);
 	world.emplace<Physics::LocalFrame>(m_station, station->name);
 	world.emplace<Physics::Body>(m_station, Physics::Body{Physics::BodyKind::Kinematic, shape});
+
+	// Its docking port, before the dock at the hull's -Z end, the end the ship holds station off: a
+	// sensor on rails at its place on the station, in the station's frame.
+	double dockFace = 0.0;
+	for (const glm::vec3 &vertex : mesh->shape.vertices)
+		dockFace = std::min(dockFace, static_cast<double>(vertex.z));
+	const glm::dvec3 portOffset{0.0, 0.0, dockFace - kPortHalfExtents.z + kPortOverlap};
+	const std::string portShape = shape + "/port";
+	if (!m_pPhysics->HasShape(portShape))
+	{
+		Physics::ShapeDefinition box;
+		box.kind = Physics::ShapeKind::Box;
+		box.halfExtents = kPortHalfExtents;
+		m_pPhysics->DefineShape(portShape, box);
+	}
+	m_port = world.create();
+	world.emplace<Sim::Transform>(m_port, at.position + at.orientation * portOffset, at.orientation);
+	world.emplace<Sim::InSystem>(m_port, systemId);
+	world.emplace<Physics::OnRails>(m_port, station->name, portOffset);
+	world.emplace<Physics::LocalFrame>(m_port, station->name);
+	Physics::Body sensor{Physics::BodyKind::Kinematic, portShape};
+	sensor.sensor = true;
+	world.emplace<Physics::Body>(m_port, sensor);
+	world.emplace<DockingPort>(m_port, m_station);
 
 	// Off the dock, nose towards it, still in the station's frame.
 	m_ship = world.create();
@@ -1479,11 +1530,127 @@ void Application::DrawFlight()
 		ImGui::Text(
 		    "%s  %.1f m/s  %.0f m", m_stationBody.c_str(), speed,
 		    glm::length(ship->position - station->position));
+		if (m_docked)
+			ImGui::Text("Docked at %s", m_stationBody.c_str());
 		ImGui::Text(
 		    "Assist %s (Z)  View %s (V)  P lets go", m_assist ? "on" : "off",
 		    m_pilotView == Scene::PilotView::Chase ? "chase" : "cockpit");
 		ImGui::TextDisabled("W/S throttle  A/D R/F strafe  arrows pitch, yaw  Q/E roll");
 	}
 	ImGui::End();
+}
+
+
+bool Application::Pick(const glm::dvec2 &point)
+{
+	if (!m_systemScene)
+		return false;
+	int width = 0;
+	int height = 0;
+	glfwGetWindowSize(m_pRenderer->GetGLFWWindow(), &width, &height);
+	if (width <= 0 || height <= 0)
+		return false;
+	// The camera as it was drawn last frame, which is what was clicked on, and the time it showed.
+	const Math::DRay ray = Render::ScreenRay(
+	    Render::ActiveCameraView(m_pScene->Registry()), point, glm::dvec2{width, height});
+	// From the seat, the ray starts inside the hull.
+	const entt::entity ignore =
+	    m_piloting && m_pilotView == Scene::PilotView::Cockpit ? m_ship : entt::entity{entt::null};
+	m_pickTime = m_shownTime;
+	m_sim.Commands().Push(
+	    Physics::Pick{
+	        ++m_pickRequest, Sim::SystemId(m_systemScene->System().name), ray.origin, ray.direction,
+	        kPickDistance, m_pickTime, ignore});
+	m_pickPending = true;
+	return true;
+}
+
+
+void Application::TakeEvents()
+{
+	for (const Sim::SimEvent &event : m_sim.Events().Take())
+	{
+		if (const auto *picked = event.event.try_cast<Physics::Picked>())
+		{
+			// An answer to a pick since superseded is not what the mouse last asked about.
+			if (picked->request != m_pickRequest)
+				continue;
+			m_pickPending = false;
+			if (picked->entity == entt::null)
+			{
+				m_picked.reset();
+				Core::Log(Core::Severity::Info, kShell, "Picked nothing");
+				continue;
+			}
+			m_picked = PickedMark{
+			    picked->entity, picked->distance, picked->point - PilotFrameOrigin(m_pickTime),
+			    picked->normal};
+			Core::Log(
+			    Core::Severity::Info, kShell, "Picked {} at {:.0f} m", Describe(picked->entity),
+			    picked->distance);
+		}
+		else if (const auto *docked = event.event.try_cast<ShipDocked>();
+		         docked && docked->ship == m_ship)
+		{
+			m_docked = true;
+			Core::Log(Core::Severity::Info, kShell, "The ship docked at {}", m_stationBody);
+		}
+		else if (const auto *left = event.event.try_cast<ShipUndocked>(); left && left->ship == m_ship)
+		{
+			m_docked = false;
+			Core::Log(Core::Severity::Info, kShell, "The ship left {}'s dock", m_stationBody);
+		}
+	}
+}
+
+
+void Application::DrawPicked()
+{
+	if (!m_picked)
+		return;
+	// Where it was hit, carried with the station's frame, and the surface's normal there; a
+	// marker that keeps its size on the screen, about a hundredth of the distance across.
+	const glm::dvec3 at = PilotFrameOrigin(m_shownTime) + m_picked->local;
+	const double size = std::max(0.25, m_picked->distance * 0.01);
+	constexpr glm::vec4 kMarker{1.0f, 0.8f, 0.2f, 1.0f};
+	m_debugDraw.Sphere(at, size, kMarker, 24, Render::DebugDepth::Overlay);
+	m_debugDraw.Line(
+	    at, at + glm::dvec3{m_picked->normal} * size * 4.0, kMarker, Render::DebugDepth::Overlay);
+
+	const ImGuiViewport *viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(
+	    {viewport->WorkPos.x + viewport->WorkSize.x - 12.0f, viewport->WorkPos.y + 12.0f},
+	    ImGuiCond_Always, {1.0f, 0.0f});
+	ImGui::SetNextWindowBgAlpha(0.45f);
+	constexpr ImGuiWindowFlags kOverlay =
+	    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize |
+	    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+	if (ImGui::Begin("Picked", nullptr, kOverlay))
+		ImGui::Text("%s  %.0f m", Describe(m_picked->entity).c_str(), m_picked->distance);
+	ImGui::End();
+}
+
+
+std::string Application::Describe(entt::entity simEntity) const
+{
+	if (simEntity == m_ship)
+		return "Ship";
+	if (simEntity == m_station)
+		return m_stationBody;
+	if (simEntity == m_port)
+		return m_stationBody + "'s docking port";
+	return std::format("Entity {:#x}", entt::to_integral(simEntity));
+}
+
+
+glm::dvec3 Application::PilotFrameOrigin(double simSeconds) const
+{
+	if (m_stationBody.empty() || !CanPilot())
+		return glm::dvec3{0.0};
+	const Celestial::StarSystem &system = m_systemScene->System();
+	const int index = system.Find(m_stationBody);
+	return index < 0
+	           ? glm::dvec3{0.0}
+	           : Celestial::EvaluateBody(system, static_cast<std::size_t>(index), simSeconds).metres;
 }
 } // namespace Jettison::App

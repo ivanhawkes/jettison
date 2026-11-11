@@ -1,6 +1,5 @@
 #include <jettison/physics/PhysicsWorld.h>
 
-#include <jettison/core/Assert.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Snapshot.h>
@@ -391,9 +390,6 @@ TEST_CASE("Physics: a body that cannot be made is refused before the step change
 	    fixture.world.Step(), doctest::Contains("friction, restitution or damping of nan"),
 	    std::invalid_argument);
 
-	CHECK_THROWS_AS(
-	    fixture.physics.CastRay(kHalcyon, {0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, 10.0),
-	    Core::NotImplementedError);
 	Sim::SimWorld world{kStep, 1};
 	CHECK_THROWS_AS(
 	    Physics::PhysicsWorld::Attach(world, Physics::PhysicsSettings{.maxBodies = 0}),

@@ -269,6 +269,36 @@ so a ship flown into a station meets it as any body would. The system `physics` 
    panel between two steps.
 5. Each moving body's `Velocity`, and each dynamic body's `Transform`, are written back, which
    presentation interpolates like any other entity's.
+6. What began and ended touching is worked out, for the simulation to read (below).
+
+**Contacts** are the simulation's to read, not presentation's (7c, [decided](roadmap.md#decided)):
+`PhysicsWorld::Contacts` is what the last step began and ended, in order of pair, and `Touching`
+what touches a body now. A beginning carries where the two met, the normal from the first towards
+the second and the speed they closed at, which is what a game judges an impact's damage or sound
+by; a game's system ordered `after` `physics` reads the step's, and one before it the last step's.
+Both are saved with the world, so either reads the same after a load. Two bodies touch while Jolt's
+contact cache holds a contact between them once the step is over, which begins a couple of
+centimetres before they meet; a body asleep on another still touches it, though Jolt drops a
+sleeping body's contacts. A body removed, or made again, ends what it touched in the step that
+removes it.
+
+A **sensor** is a body marked `sensor` (`Physics::Body`): it meets nothing, reports the dynamic
+bodies that enter and leave it as contacts, and never sleeps, so it still sees a ship that has come
+to rest inside it. A docking zone is one, kinematic and on rails at its place on the station
+(`Physics::OnRails::offset`), in the station's frame. What docking means is a game's: the shell
+docks a ship that is in a station's port and moving under 2 m/s relative to it (`app/src/Docking.h`,
+the simulation system `shell.docking`), and raises `ShipDocked` and `ShipUndocked` for presentation.
+
+**Casts** (`CastRay`, `CastShape`) find the first body along a ray or a convex shape swept along a
+direction, across every frame of a system, each cast in the frame's own coordinates; sensors and the
+caster's own body are left out unless asked for. They read the world as the last step left it, and
+are the simulation's to call, as steering will (9b). **Picking** is a command, since presentation
+never reads the simulation's state: a click is a `Physics::Pick`, the ray through the cursor
+(`Render::ScreenRay`) from the camera presentation drew, and the next step answers it with a
+`Physics::Picked` event, a frame later. Presentation shows the world half a step behind on average,
+and a station's frame moves 500 m a step about the star, so the pick carries the time it was drawn
+at, and each frame is placed where its body was then (`CastOptions::framesAt`)
+([decided](roadmap.md#decided)).
 
 Jolt is deterministic across builds (`CROSS_PLATFORM_DETERMINISTIC`) given the same calls in the
 same order and the same body identifiers. The calls are made in entity order. The identifiers are
@@ -278,8 +308,9 @@ was and how fast it moved over the last step), each body's record (what it was m
 placed at) and Jolt's own state, positions, velocities, sleep and the contact cache each step
 warm-starts from; a load makes the same bodies with the same identifiers and restores it, and steps
 on to the same bytes as the world saved. The physics suite's recorded runs, every kind of body and
-shape among them in one and a ship flown into a station on its orbit in the other, are pinned to
-state hashes in Debug, Release and under the sanitisers. Jolt asserts in a Debug tree through the
+shape among them in one and, in the other, a ship flown through a station's docking zone into its
+hub as the station goes round its orbit, at rest in the zone and picked, are pinned to state hashes
+in Debug, Release and under the sanitisers. Jolt asserts in a Debug tree through the
 engine's assertions, and its profiler zones are Tracy's.
 
 The piloted ship crosses this boundary every frame (7b): the flight context's actions become a
@@ -569,9 +600,14 @@ proves it headlessly. What exists:
   V switches between the chase and cockpit cameras, Z the flight assist; the keyboard, the first
   gamepad and joystick 1 (a HOTAS) are bound by default, and a HOTAS's throttle on a joystick of its
   own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station. A
-  jump leaves the ship behind, since the simulation has no jump of its own yet.
-- **Smoke sequence**. `SmokeSequence` is the render test's nine stages (resize, resize,
-  minimize, restore, scene reload, pilot from behind, pilot from the seat, jump, settle) as a state
+  jump leaves the ship behind, since the simulation has no jump of its own yet. The station has a
+  docking port (7c), a sensor 40 m on a side before its dock, and the ship docks in it below 2 m/s
+  and undocks as it leaves, which the overlay and the log say.
+- **Picking** (7c). A left click on the scene, not on a window over it, picks what is under the
+  cursor, through a `Physics::Pick` the next step answers; the hit is marked where it was, with the
+  surface's normal, and named in an overlay, and the log says what was picked and how far off.
+- **Smoke sequence**. `SmokeSequence` is the render test's ten stages (resize, resize,
+  minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, jump, settle) as a state
   machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML

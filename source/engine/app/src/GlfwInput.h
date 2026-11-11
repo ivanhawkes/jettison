@@ -35,6 +35,12 @@ class GlfwInput
 	// mouseCaptured is the UI's claim on the mouse (ImGui's WantCaptureMouse): the wheel scrolls a
 	// window under the cursor, not the camera behind it.
 	void Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCaptured = false);
+	// Where the cursor was at the last feed, in window pixels from the top left; none before the
+	// first.
+	std::optional<glm::dvec2> Cursor() const
+	{
+		return m_cursor;
+	}
 
   private:
 	static void OnScroll(GLFWwindow *window, double x, double y);

@@ -71,3 +71,33 @@ TEST_CASE("Camera: render space takes the camera off in double precision first")
 	CHECK(relative[3].w == 1.0f);
 	CHECK(ToRenderSpace(camera + glm::dvec3{3.0, 0.0, 0.0}, camera) == glm::vec3{3.0f, 0.0f, 0.0f});
 }
+
+TEST_CASE("Camera: a screen ray passes through what is drawn at that point on the screen")
+{
+	CameraView camera;
+	camera.position = {1.0e11, -3.0e10, 42.0};
+	camera.orientation = OrientationFromAngles(0.3, 0.1, -1.2);
+	camera.verticalFov = glm::radians(50.0f);
+	const glm::dvec2 window{640.0, 480.0};
+
+	// The centre looks where the camera does.
+	const Jettison::Math::DRay centre = ScreenRay(camera, window * 0.5, window);
+	CHECK(centre.origin == camera.position);
+	CHECK(
+	    glm::dot(centre.direction, camera.orientation * glm::dvec3{0.0, 0.0, -1.0}) ==
+	    doctest::Approx(1.0));
+
+	// A point 300 m off in the view, projected as the renderer projects it, lies on the ray through
+	// the pixel it lands on.
+	const glm::dvec3 point = camera.position + camera.orientation * glm::dvec3{-40.0, 25.0, -300.0};
+	const glm::mat4 projection =
+	    ReversedInfinitePerspective(camera.verticalFov, static_cast<float>(window.x / window.y), 0.1f);
+	const glm::vec3 ndc =
+	    Project(projection * RenderViewMatrix(camera), ToRenderSpace(point, camera.position));
+	// Vulkan's y is down, as a window's is.
+	const glm::dvec2 pixel{(ndc.x + 1.0) * 0.5 * window.x, (ndc.y + 1.0) * 0.5 * window.y};
+	const Jettison::Math::DRay ray = ScreenRay(camera, pixel, window);
+	CHECK(glm::length(ray.direction) == doctest::Approx(1.0));
+	const glm::dvec3 towards = glm::normalize(point - camera.position);
+	CHECK(glm::dot(ray.direction, towards) == doctest::Approx(1.0).epsilon(1e-9));
+}

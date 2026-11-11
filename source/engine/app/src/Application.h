@@ -172,6 +172,20 @@ class Application
 	// The ship's speed and distance from the station, and the keys, while it is flown.
 	void DrawFlight();
 
+	// Picking (docs/architecture.md, "Physics"): a left click casts a ray from the camera through
+	// the cursor, as a Physics::Pick the next step answers with a Physics::Picked. Sends one through
+	// the point, in window pixels, and says whether it did: not in a scene of no system.
+	bool Pick(const glm::dvec2 &point);
+	// The sync phase: the steps' events, a pick answered and a ship docked or undocked.
+	void TakeEvents();
+	// The last pick, marked where it hit and named, until the next.
+	void DrawPicked();
+	// A simulation entity as the shell names it.
+	std::string Describe(entt::entity simEntity) const;
+	// The origin of the frame the ship and the station are in at a time, in the system frame: where
+	// the station is, or the primary when there is none.
+	glm::dvec3 PilotFrameOrigin(double simSeconds) const;
+
 	void RequestClose();
 
 	// Release every subsystem the shell made, in the reverse order of Init, from the last fence of
@@ -244,6 +258,10 @@ class Application
 	// in its system; null until SpawnShip finds a station to put them at.
 	entt::entity m_ship{entt::null};
 	entt::entity m_station{entt::null};
+	// The station's docking port, a sensor before its dock (Docking.h), and whether the ship is
+	// docked at it, as the last event said.
+	entt::entity m_port{entt::null};
+	bool m_docked{false};
 	std::uint64_t m_shipSystem{0};
 	std::string m_stationBody;
 	bool m_piloting{false};
@@ -251,6 +269,25 @@ class Application
 	bool m_assist{true};
 	// What was last sent, so a command goes only when a control moves.
 	std::optional<Physics::FlightControls> m_sentControls;
+
+	// The simulation time presentation showed last frame, which the camera a pick is drawn from
+	// showed, and which the pick is cast at.
+	double m_shownTime{0.0};
+	// A click this frame, sent in the commands phase; the last pick's request, and whether it is
+	// unanswered.
+	std::optional<glm::dvec2> m_clicked;
+	std::uint64_t m_pickRequest{0};
+	double m_pickTime{0.0};
+	bool m_pickPending{false};
+	// What the last answer hit, where in the pilot frame (PilotFrameOrigin), and its normal.
+	struct PickedMark
+	{
+		entt::entity entity{entt::null};
+		double distance{0.0};
+		glm::dvec3 local{0.0};
+		glm::vec3 normal{0.0f};
+	};
+	std::optional<PickedMark> m_picked;
 
 	// The shell's own actions, in a "shell" context at the bottom of the stack: F1 toggles the
 	// dev tools, ` the console, and Escape closes the console, then the dev tools, then the
@@ -278,6 +315,8 @@ class Application
 	Input::ActionId m_jumpNext;
 	// P: fly the ship, and P again to let it go.
 	Input::ActionId m_pilot;
+	// The left mouse button: pick what is under the cursor.
+	Input::ActionId m_pickAction;
 	GlfwInput m_glfwInput;
 	bool m_consoleContext{false};
 	bool m_flightContext{false};
