@@ -13,7 +13,7 @@ built, are recorded in [history](history.md).
 |---|---|---|
 | 0–6 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy. Recorded in [history](history.md). | Met. |
 | 7 | **Physics and flight.** Sub-phases 7a–7c; catalogue entry 22. | A piloted ship collides with a station, docks through a sensor, and is picked with the mouse. |
-| 7a | **Jolt in the simulation.** Jolt in double precision and `CROSS_PLATFORM_DETERMINISTIC`; rigid and static bodies; box, sphere, capsule, cylinder, convex-hull and mesh shapes; stepping inside the fixed step; physics state in saves. | Bodies collide, and the world's state hash after a recorded run is the same in Debug, Release and under the sanitisers. |
+| 7a | **Jolt in the simulation.** Done 2026-11-11. Jolt in double precision and `CROSS_PLATFORM_DETERMINISTIC`, out of the planned set and linked privately by `physics`, with assertions in Debug trees through the engine's and its profiler zones as Tracy's. `PhysicsWorld` is a service the simulation world owns (`Sim::WorldService`, saved after the components and loaded in two halves; the world's save is version 2): a body is an entity with a `Physics::Body`, a `Sim::Transform` and a `Sim::InSystem`, static, kinematic (moved to its `Transform`, as a station on its orbit) or dynamic (its `Transform` and `Physics::Velocity` written back, and what the game writes over them taken); shapes are definitions by name (box, sphere, capsule, cylinder, convex hull, mesh), built when defined; a Jolt world per star system with bodies, stepped in the fixed step on one thread; body identifiers chosen by the engine, so a loaded world makes the same ones; a save holds the bodies' records and Jolt's state, contacts included. | Met: the physics suite's recorded run, a closed bay in Halcyon with a turning paddle and cargo of every shape thrown about it, two crates meeting in Vesper, and every way a body changes, keeps every body in the bay and is pinned to state hash `0x5b883fdf0f57a951` in Debug, Release and under ASan and UBSan; saved part-way and loaded, it steps on to the same bytes, and its recorded commands replay it. The gate now runs the Release suites, and with `--asan` the `sim` and `physics` suites, against those values. |
 | 7b | **Flight.** HOTAS and other joystick axes and the mouse wheel (moved from phase 3); flight controls as commands; the piloted ship interpolated; the chase and cockpit rigs on it. | A ship is flown with keyboard, gamepad or HOTAS and collides with a station. |
 | 7c | **Sensors, contacts and queries.** Sensors (docking zones), contact events to the simulation, ray and shape casts, picking with the mouse. | Phase 7's exit criterion. |
 | 8 | **UI, audio and persistence.** Sub-phases 8a–8c; catalogue entries 23, 24 and 25. | A market screen bound to simulation data; a save written by version N loads in N+1. |
@@ -47,14 +47,12 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–6 moved on, and where it lands. Their full record, and catalogue entries 1–21,
-are in [history](history.md).
+Work that phases 1–6 and 7a moved on, and where it lands. Their full record, and catalogue entries
+1–21, are in [history](history.md); 7a's is under [entry 22](#22-physics--phase-7--enginephysics).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
   writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
   smoke test's patterns.
-- **Jolt's profiler hooks** (`JPH_USE_EXTERNAL_PROFILE`, entry 5) feed Tracy: 7a. GPU zones
-  for Vulkan, a zone per declared pass, were done in 5e.
 - **HOTAS and other joystick axes, and the mouse wheel** (entry 14): 7b.
 - **Migrations** for saves (entry 9) and the decision whether definitions migrate (entry 13),
   fsync on the user mount (entry 10), and the shell loading the user's bindings (entry 14): 8a.
@@ -81,6 +79,13 @@ are in [history](history.md).
 - **A body's look as data** (entry 21): the system scene draws a body it builds as its kind is, from
   a table in code. A look per body or per kind, as a scene fragment a mod can shadow, is not yet
   placed.
+- **A station's collision shape from its model** (entry 22): physics takes a mesh as vertices and
+  indices in a shape definition; a station in the sample scenes is a glTF model, and its mesh (or a
+  collision mesh beside it) read into a definition is 7b's, for its exit.
+- **Physics, not yet placed** (entry 22): a shape offset in its body, and compound shapes; collision
+  filtering beyond static against moving (the game's own layers and groups); Jolt's debug renderer
+  drawn through debug draw; Jolt's job system on more than one thread, once a profile asks for it
+  (deterministic either way); the capacities tuned against real traffic.
 - **Not yet placed** (entries 19 and 20): the sun's shadow distance and split blend tuned by
   measurement; hysteresis between levels of detail, and levels for model files; the planets' own
   shadows past the shadow distance (a station in eclipse), which would need an analytic test against
@@ -136,6 +141,18 @@ exceptions on to match the engine. Its public instruction-set flags make x86-64 
 engine's CPU baseline from this phase on, as decided; the start-up CPU check (entry 6) that makes
 it safe has been in place since phase 2.
 *Library*: Jolt Physics.
+*Filled in* (7a): Jolt left the planned set; `physics` links it privately, with assertions in Debug
+trees and its profiler zones on Tracy's timeline. `PhysicsWorld` is a `Sim::WorldService`, a kind
+of state the simulation world gained for it: owned by the world, saved after its components and
+hashed with them, and loaded against the registry being loaded before both are committed. Bodies
+are entities (`Physics::Body`, `Sim::Transform`, `Sim::InSystem`; `Physics::Velocity` for a dynamic
+body), static, kinematic or dynamic, of shapes defined by name from `Physics::ShapeDefinition`s,
+which the definition registry loads and a mod can replace. A Jolt world per star system with
+bodies; one fixed step makes and removes bodies in entity order, applies what the game wrote, steps
+each world and writes the dynamic bodies back ([architecture](architecture.md#physics)). Body
+identifiers are the engine's, and a save holds Jolt's state with the contacts, so a loaded world
+steps on to the same bytes. Sensors, contact events, casts (`CastRay` throws until then) and
+picking are 7c's; flight is 7b's.
 
 ### 23. UI · phase 8 · `engine/ui`
 
@@ -276,6 +293,15 @@ Settled on 2026-11-10:
   needs, its models and textures, decode on the worker as they always have, and touch no reflection.
 - **A jump point is the end of one lane** (2026-11-11, phase 6d), so a gate says where it leads, and
   flying through it needs no choice of destination. A system with two ways out has two gates.
+- **Physics is simulation state, a Jolt world per star system, on one thread** (2026-11-11, phase
+  7a). Jolt's state is saved inside the world's save, as a service of the world, rather than
+  rebuilt from components on a load: the contact cache each step warm-starts from is Jolt's alone,
+  and a world rebuilt without it steps on differently from the world saved. A world per system
+  rather than one with a filter per system, since every system's coordinates start at its own
+  primary and their bodies would share one broad phase; 0.7 MB each at the default capacities.
+  Body identifiers are chosen by the engine, the lowest free index with a saved sequence number,
+  because Jolt's free list is history a save does not hold and its results depend on them. Jolt's
+  job system is single-threaded, as the threading rules have the simulation.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -71,6 +72,29 @@ struct SnapshotInput
 std::string_view ReflectedName(const entt::meta_type &type, std::string_view what);
 } // namespace Detail
 
+// State the world keeps outside its registry, in a service it owns: physics' bodies and their
+// contacts, which live in Jolt. A service is saved beside the components, so its state is in the
+// save and the hash as theirs is, and a world loaded from a save carries on as the one saved did.
+// Its systems are registered with the world like any other, and reach it through what they capture.
+class WorldService
+{
+  public:
+	WorldService() = default;
+	virtual ~WorldService() = default;
+	WorldService(const WorldService &) = delete;
+	WorldService &operator=(const WorldService &) = delete;
+
+	// The state, after the world's components. Part of Save, so of StateHash.
+	virtual void Save(Serialise::BinaryWriter &writer) const = 0;
+	// Reads a save's state against the registry the save is being loaded into, which is complete
+	// but not yet the world's, without changing the service. Returns what puts the state in place,
+	// which the world calls once that registry is its own and which does not throw. Throws
+	// FormatError, through reader.Fail, for state that does not fit, and the world is then as it
+	// was.
+	virtual std::function<void()> Load(
+	    Serialise::BinaryReader &reader, const entt::registry &loaded) = 0;
+};
+
 // The authoritative world: its own registry, advanced in fixed steps on simulation time,
 // deterministic across runs and across Debug and Release (docs/coding-standards.md, "Simulation
 // code"). Everything a save contains lives here. Presentation never holds a reference into it; it
@@ -121,6 +145,10 @@ class SimWorld
 	// A system for the simulation phase; throws std::logic_error for one in another phase, and
 	// as Ecs::Scheduler::Register does.
 	void RegisterSystem(Ecs::SystemDescription system);
+
+	// A service whose state the world saves, held by the world from now on, under a name a save
+	// knows it by. Throws std::logic_error for a name already registered.
+	WorldService &AddService(std::string name, std::unique_ptr<WorldService> service);
 
 	entt::registry &Registry()
 	{
@@ -173,11 +201,12 @@ class SimWorld
 		return m_recorded;
 	}
 
-	// The whole state: the clock, the generator, the commands still queued, the entities and
-	// every registered component. Little-endian, in the binary archive's layout.
+	// The whole state: the clock, the generator, the commands still queued, the entities, every
+	// registered component and every service. Little-endian, in the binary archive's layout.
 	std::vector<std::byte> Save() const;
 	// Replaces the state with a save's. The registrations stay. Throws FormatError or
-	// FormatVersionError for a save that does not fit, and the world is then as it was before.
+	// FormatVersionError for a save that does not fit, among them one without the state of every
+	// service the world has, and the world is then as it was before.
 	void Load(std::span<const std::byte> save);
 
 	// A hash of the save: the same seed and command stream give the same hash in every build,
@@ -192,6 +221,11 @@ class SimWorld
 		std::string name;
 	};
 	using Apply = std::function<void(SimWorld &, const entt::meta_any &)>;
+	struct Service
+	{
+		std::string name;
+		std::unique_ptr<WorldService> service;
+	};
 
 	void AddComponent(const entt::meta_type &type, Component component);
 	void AddCommand(const entt::meta_type &type, Apply apply);
@@ -207,5 +241,8 @@ class SimWorld
 	std::unordered_map<entt::id_type, Apply> m_applies;
 	bool m_recording{false};
 	std::vector<AppliedCommand> m_recorded;
+	// Saved in the order they were added. After the registry, so they go before it: a service's
+	// destructor may still look at the entities its state names.
+	std::vector<Service> m_services;
 };
 } // namespace Jettison::Sim

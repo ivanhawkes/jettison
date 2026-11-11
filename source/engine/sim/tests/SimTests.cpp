@@ -3,12 +3,15 @@
 
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/serialise/Binary.h>
 
 #include <doctest/doctest.h>
 
 #include <glm/vec3.hpp>
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -230,6 +233,49 @@ void Run(Sim::SimWorld &world, std::uint64_t until)
 
 constexpr std::uint64_t kSeed = 0x5eed;
 constexpr std::uint64_t kSteps = 40;
+
+// State kept outside the registry, as physics keeps Jolt's: a tally of the ore mined, which a
+// system adds to every step.
+class Tally final : public Sim::WorldService
+{
+  public:
+	std::uint64_t ore{0};
+
+	void Save(Serialise::BinaryWriter &writer) const override
+	{
+		writer.Write(ore);
+	}
+	std::function<void()> Load(Serialise::BinaryReader &reader, const entt::registry &loaded) override
+	{
+		std::uint64_t saved = 0;
+		reader.Read(saved);
+		// Checked against the registry it will have, not the one it has.
+		std::uint64_t held = 0;
+		for (auto [entity, hold] : loaded.view<const Hold>().each())
+			held += hold.ore;
+		if (saved < held)
+			reader.Fail("the tally is less than the holds have");
+		return [this, saved] { ore = saved; };
+	}
+};
+
+Tally &AddTally(Sim::SimWorld &world, std::string name = "tally")
+{
+	auto owned = std::make_unique<Tally>();
+	Tally &tally = *owned;
+	world.AddService(name, std::move(owned));
+	world.RegisterSystem(
+	    {name,
+	     Ecs::TickPhase::Simulation,
+	     Ecs::Access::Of<Hold>(),
+	     {"mine"},
+	     [&tally](entt::registry &registry, double)
+	     {
+		     for (auto [entity, hold] : registry.view<const Hold>().each())
+			     tally.ore += hold.ore;
+	     }});
+	return tally;
+}
 } // namespace
 
 TEST_CASE("Sim: commands drain in the order they were pushed, and the queue is then empty")
@@ -281,8 +327,9 @@ TEST_CASE("Sim: the same seed and command stream give the same state, in every b
 	CHECK(first.StateHash() == second.StateHash());
 
 	// Recorded from a Debug build and checked by the Release suite too: a change here is a change
-	// to the simulation's results or to the save layout, and either is a decision, not drift.
-	CHECK(first.StateHash() == 0xc1c5deb6fdedd24cull);
+	// to the simulation's results or to the save layout, and either is a decision, not drift. The
+	// layout last changed in phase 7a (version 2, with the services' state).
+	CHECK(first.StateHash() == 0x5a9262d95686c5c1ull);
 
 	Sim::SimWorld reseeded{kStep, kSeed + 1};
 	Populate(reseeded);
@@ -367,6 +414,60 @@ TEST_CASE("Sim: a save that does not fit is refused, and the world is left as it
 	    doctest::Contains("component 'SimTests.Hold', which this world does not register"),
 	    Serialise::FormatError);
 	CHECK(smaller.Clock().Step() == 0);
+}
+
+TEST_CASE("Sim: a service's state is saved with the world, and loaded with it or not at all")
+{
+	RegisterTypes();
+	Sim::SimWorld original{kStep, kSeed};
+	Populate(original);
+	const Tally &tally = AddTally(original);
+	CHECK_THROWS_WITH_AS(
+	    AddTally(original), doctest::Contains("service 'tally' is already registered"),
+	    std::logic_error);
+	Run(original, 15);
+	const std::vector<std::byte> save = original.Save();
+	CHECK(tally.ore > 0);
+
+	Sim::SimWorld loaded{kStep, 1};
+	Populate(loaded);
+	const Tally &loadedTally = AddTally(loaded);
+	loaded.Load(save);
+	CHECK(loadedTally.ore == tally.ore);
+	CHECK(loaded.Save() == save);
+	Run(original, kSteps);
+	Run(loaded, kSteps);
+	CHECK(loaded.StateHash() == original.StateHash());
+	CHECK(loadedTally.ore == tally.ore);
+
+	// A world without the service cannot hold the save, nor a world with one the save has not.
+	Sim::SimWorld without{kStep, kSeed};
+	Populate(without);
+	CHECK_THROWS_WITH_AS(
+	    without.Load(save), doctest::Contains("service 'tally', which this world does not have"),
+	    Serialise::FormatError);
+	Sim::SimWorld more{kStep, kSeed};
+	Populate(more);
+	AddTally(more);
+	AddTally(more, "second");
+	CHECK_THROWS_WITH_AS(
+	    more.Load(save), doctest::Contains("no state for service 'second'"), Serialise::FormatError);
+
+	// A service that refuses its state leaves the world as it was, its own state too.
+	Sim::SimWorld refusing{kStep, kSeed};
+	Populate(refusing);
+	Tally &refusingTally = AddTally(refusing);
+	refusingTally.ore = 0;
+	Sim::SimWorld source{kStep, kSeed};
+	Populate(source);
+	Tally &sourceTally = AddTally(source);
+	Run(source, 10);
+	sourceTally.ore = 0;
+	const std::uint64_t before = refusing.StateHash();
+	CHECK_THROWS_WITH_AS(
+	    refusing.Load(source.Save()), doctest::Contains("the tally is less than the holds have"),
+	    Serialise::FormatError);
+	CHECK(refusing.StateHash() == before);
 }
 
 TEST_CASE("Sim: registration mistakes and unknown commands are refused")

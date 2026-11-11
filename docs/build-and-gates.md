@@ -25,7 +25,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | Vulkan Memory Allocator | v3.5.0 | now | Header-only; render compiles the implementation, private to it |
 | FastNoiseLite | v1.1.1 | now | Header-only; math links it, output pinned by recorded values |
 | MikkTSpace | 2020 (only commit) | now | math links it |
-| Jolt Physics | v5.6.0 | phase 7 | Double precision, deterministic across build types |
+| Jolt Physics | v5.6.0 | now | Double precision, deterministic across build types; physics links it privately |
 | FreeType | 2.15.0 | phase 8 | Answers RmlUi's `find_package(Freetype)` |
 | RmlUi | 6.3 | phase 8 | |
 | miniaudio | 0.11.26 | phase 8 | |
@@ -50,7 +50,8 @@ runs it after the Debug build.
 trees exist for the render test, which uses none of the planned libraries. KTX-Software left the
 planned set when phase 5a began to use it, so those trees fetch it too, and build `ktx_read` (not
 `ktx`): measured on 2026-11-11, 63 objects and about 75 CPU-seconds of a 1,700 CPU-second headless
-Debug build, and a 217 MiB clone on the first configure.
+Debug build, and a 217 MiB clone on the first configure. Jolt left it when phase 7a did, and those trees build it
+too, for the physics suite they run under the sanitisers.
 
 `JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
 listens on localhost only, so it costs nothing until a profiler connects. It is off by default,
@@ -93,8 +94,8 @@ this set:
   dependency's own `-Werror` is turned off (astc-encoder's breaks on glibc 2.44's
   `_FORTIFY_SOURCE` warning in Debug).
 - **Instruction sets travel.** Jolt adds `-mavx2 -mbmi -mpopcnt -mlzcnt -mf16c` as public
-  options. When phase 7 links Jolt into the engine, the engine's CPU
-  baseline becomes x86-64 with AVX2, which is the decided minimum
+  options. `physics` links Jolt privately (7a), so they reach its own translation units and
+  nothing above it, and the engine's CPU baseline is x86-64 with AVX2, which is the decided minimum
   ([roadmap](roadmap.md#decided)). A dependency that would raise it further (AVX-512, for
   example) is a new decision, not a default.
 
@@ -171,7 +172,10 @@ It is done when the game needs a prebuilt engine rather than a source build, and
 `./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
-Release build → headless render test.
+Release build and its unit tests → headless render test, and with `--asan`, the render test and the
+`sim` and `physics` suites under the sanitisers. The simulation's state hashes are pinned in those
+suites, so running them in every tree is what holds Release and the sanitised build to the Debug
+build's results.
 
 ### Unit tests
 

@@ -17,8 +17,8 @@ namespace
 constexpr std::string_view kFormat = "Jettison.World";
 // The layout Save writes. A change to it, or to what the world saves around its components, is a
 // new version; a change to a component's fields is the component's own business, since fields
-// are found by name.
-constexpr Serialise::FormatVersion kVersion{1};
+// are found by name. Version 2 added the services' state after the components (phase 7a).
+constexpr Serialise::FormatVersion kVersion{2};
 } // namespace
 
 std::string_view Detail::ReflectedName(const entt::meta_type &type, std::string_view what)
@@ -74,6 +74,16 @@ void SimWorld::RegisterSystem(Ecs::SystemDescription system)
 	m_scheduler.Register(std::move(system));
 }
 
+WorldService &SimWorld::AddService(std::string name, std::unique_ptr<WorldService> service)
+{
+	if (!service)
+		throw std::logic_error{std::format("SimWorld: service '{}' is null", name)};
+	if (std::ranges::find(m_services, name, &Service::name) != m_services.end())
+		throw std::logic_error{std::format("SimWorld: service '{}' is already registered", name)};
+	m_services.push_back({std::move(name), std::move(service)});
+	return *m_services.back().service;
+}
+
 void SimWorld::Step()
 {
 	// Checked before any is applied, so a step either applies all its commands or none.
@@ -120,6 +130,12 @@ std::vector<std::byte> SimWorld::Save() const
 	{
 		writer.WriteName(component.name);
 		component.save(m_registry, writer);
+	}
+	writer.WriteUnsigned(m_services.size(), 4);
+	for (const Service &service : m_services)
+	{
+		writer.WriteName(service.name);
+		service.service->Save(writer);
 	}
 	return writer.Finish(kVersion);
 }
@@ -171,6 +187,30 @@ void SimWorld::Load(std::span<const std::byte> save)
 		seen.push_back(name);
 		component->load(loader, reader);
 	}
+
+	// A service reads its state against the registry it will have, and keeps it aside until the
+	// registry is committed.
+	std::vector<std::function<void()>> commits(m_services.size());
+	const auto serviceCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+	for (std::uint32_t index = 0; index < serviceCount; ++index)
+	{
+		const std::string_view name = reader.ReadName();
+		const auto service = std::ranges::find(m_services, name, &Service::name);
+		if (service == m_services.end())
+			reader.Fail(
+			    std::format("the save holds service '{}', which this world does not have", name));
+		auto &commit = commits[static_cast<std::size_t>(service - m_services.begin())];
+		if (commit)
+			reader.Fail(std::format("the save holds service '{}' twice", name));
+		commit = service->service->Load(reader, registry);
+		if (!commit)
+			reader.Fail(std::format("service '{}' read its state and gave nothing to commit", name));
+	}
+	for (std::size_t index = 0; index < m_services.size(); ++index)
+	{
+		if (!commits[index])
+			reader.Fail(std::format("the save has no state for service '{}'", m_services[index].name));
+	}
 	reader.End();
 
 	registry.ctx().emplace<Math::Random>(Math::Random::FromState(random));
@@ -181,6 +221,8 @@ void SimWorld::Load(std::span<const std::byte> save)
 	m_commands = CommandQueue{};
 	for (entt::meta_any &command : pending)
 		m_commands.Push(std::move(command));
+	for (const std::function<void()> &commit : commits)
+		commit();
 	// What was recorded led to the state just replaced.
 	m_recorded.clear();
 }

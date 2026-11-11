@@ -313,43 +313,40 @@ block()
 	FetchContent_MakeAvailable(KTX-Software)
 endblock()
 
-# ---------------------------------------------------------------------------------------------
-# Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
-# whole set is proven to link together before a phase depends on any of it, and they are
-# EXCLUDE_FROM_ALL, so a tree builds only what something links: today that is the dependency
-# probe, and nothing in the engine.
-#
-# Each is configured inside a block(), because their option names are generic
-# (DOUBLE_PRECISION, INTERPROCEDURAL_OPTIMIZATION, ENABLE_INSTALL) and a cache entry for one of
-# them would configure whichever other dependency reads the same name. Plain variables in a
-# block reach the dependency added inside it and nothing after it.
-# ---------------------------------------------------------------------------------------------
-option(JETTISON_PLANNED_DEPENDENCIES
-	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
-
-if(JETTISON_PLANNED_DEPENDENCIES)
-
-# Physics (phase 7). Every setting here is one the engine has to agree with:
+# Physics, behind physics' PhysicsWorld.h (phase 7a). Every setting here is one the engine has to
+# agree with:
 #  - Double precision, because simulation positions are doubles in the system frame
 #    (docs/architecture.md). CROSS_PLATFORM_DETERMINISTIC, because the simulation must give the
 #    same answer in every build of the engine: without it Jolt compiles with
 #    -ffp-contract=fast, and whether a multiply and an add are fused then depends on the
 #    optimisation level, so a replay recorded in a Debug build can diverge in Release. Under it
-#    Jolt turns contraction off, as the coding standards do for the engine's simulation code.
+#    Jolt turns contraction off, as the coding standards do for the engine's simulation code, and
+#    never defines JPH_USE_FMADD.
 #  - RTTI and exceptions on, as in the rest of the executable. A class the engine derives from a
 #    Jolt base compiled without RTTI needs type information the library never emitted.
+#  - Assertions in a Debug tree only. JPH_ENABLE_ASSERTS is a public definition and adds members to
+#    some of Jolt's classes, which is why it is one setting per tree rather than per file; none of
+#    them is in the state Jolt saves, so a Debug and a Release tree save the same bytes (the physics
+#    suite pins them). physics routes a failed assertion through the engine's.
+#  - The external profiler: Jolt's zones become Tracy's (physics/src/JoltProfile.cpp) rather than
+#    Jolt's own sampling profiler, which keeps global state and a mutex for a dump nothing reads.
 #  - The Vulkan and CPU compute backends off (they serve hair and cloth), and Jolt's own
 #    warnings-as-errors, install, LTO, flag overrides and sample programs off, so it builds with
 #    the toolchain's flags and nothing else.
 # Jolt adds its instruction-set flags (-mavx2 -mbmi -mpopcnt -mlzcnt -mf16c) as PUBLIC compile
-# options, so they reach every target that links it: the engine's CPU baseline
-# becomes x86-64 with AVX2 when phase 7 links Jolt into the engine. That is the decided minimum
-# (docs/roadmap.md, "Decided"); USE_AVX512 stays off, because raising it is a new decision.
+# options, so they reach every target that links it. physics links it privately, so its own
+# translation units are compiled for AVX2 and nothing above it is; the engine's CPU baseline is
+# x86-64 with AVX2 either way, which is the decided minimum (docs/roadmap.md, "Decided"), and
+# USE_AVX512 stays off, because raising it is a new decision.
 block()
 	set(DOUBLE_PRECISION ON)
 	set(CROSS_PLATFORM_DETERMINISTIC ON)
 	set(CPP_RTTI_ENABLED ON)
 	set(CPP_EXCEPTIONS_ENABLED ON)
+	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+		set(USE_ASSERTS ON)
+	endif()
+	set(JPH_USE_EXTERNAL_PROFILE ON)
 	set(JPH_USE_VK OFF)
 	set(JPH_USE_CPU_COMPUTE OFF)
 	set(ENABLE_ALL_WARNINGS OFF)
@@ -372,6 +369,22 @@ block()
 	)
 	FetchContent_MakeAvailable(JoltPhysics)
 endblock()
+
+# ---------------------------------------------------------------------------------------------
+# Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
+# whole set is proven to link together before a phase depends on any of it, and they are
+# EXCLUDE_FROM_ALL, so a tree builds only what something links: today that is the dependency
+# probe, and nothing in the engine.
+#
+# Each is configured inside a block(), as Jolt is above, because option names are generic
+# (Jolt's DOUBLE_PRECISION, INTERPROCEDURAL_OPTIMIZATION and ENABLE_INSTALL) and a cache entry for
+# one of them would configure whichever other dependency reads the same name. Plain variables in a
+# block reach the dependency added inside it and nothing after it.
+# ---------------------------------------------------------------------------------------------
+option(JETTISON_PLANNED_DEPENDENCIES
+	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
+
+if(JETTISON_PLANNED_DEPENDENCIES)
 
 # Fonts (phase 8), for RmlUi. OVERRIDE_FIND_PACKAGE answers RmlUi's find_package(Freetype) with
 # this build, so a system FreeType can never be picked up on one machine and not another. The

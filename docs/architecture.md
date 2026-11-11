@@ -204,6 +204,44 @@ The effect runs in real seconds, the same at any time compression. The simulatio
 every frame of it, and the stepper is not resynced: the world did not change, and the new system's
 traffic is made from the same snapshots.
 
+### Physics
+
+Physics is part of the simulation's state, not a service beside it (`physics/PhysicsWorld.h`, 7a).
+`PhysicsWorld::Attach` gives the world a `Sim::WorldService`: state the world keeps outside its
+registry, which it owns, saves after the components and hashes with them, and loads in two halves,
+read against the registry being loaded and then committed with it, so a save that does not fit
+leaves world and physics as they were. A body is an entity with a `Physics::Body` (its kind, a
+shape by name, its mass and material), a `Sim::Transform` and a `Sim::InSystem`; the game sees no
+Jolt type. Shapes are definitions (`Physics::ShapeDefinition`, through the definition registry, so
+a mod can replace one), built into Jolt shapes when they are defined, and a save names them.
+
+Each star system with bodies is a Jolt world of its own, made with its first body and gone with its
+last (0.7 MB at the default capacities of 8,192 bodies): every system's positions are metres from
+its own primary, so bodies of two systems at the same coordinates must never meet. A body on a jump
+lane is in none. The system `physics` runs one fixed step:
+
+1. Bodies are made for entities that gained what makes one, and removed for those that lost it,
+   changed system or changed their `Body` (made again, with the velocity they had). Every body to
+   be made is checked first, and one that cannot be is refused before anything changes.
+2. What the game wrote is applied. A static or dynamic body whose `Transform` differs from where
+   physics last placed it is put there; a dynamic body whose `Physics::Velocity` was written takes
+   it; a kinematic body is moved towards its `Transform` over the step, so it pushes what it meets
+   with the velocity that implies, as a station on its orbit does.
+3. Each system's world steps, in identifier order, on the simulation's one thread.
+4. Each dynamic body's `Transform` and `Velocity` are written back, which presentation interpolates
+   like any other entity's.
+
+Jolt is deterministic across builds (`CROSS_PLATFORM_DETERMINISTIC`) given the same calls in the
+same order and the same body identifiers. The calls are made in entity order. The identifiers are
+the engine's, not Jolt's free list, whose order is history a save does not hold: the lowest free
+index, with a sequence number per index that a save keeps. A save holds each body's record (what it
+was made from and last placed at) and Jolt's own state, positions, velocities, sleep and the contact
+cache each step warm-starts from; a load makes the same bodies with the same identifiers and
+restores it, and steps on to the same bytes as the world saved. The physics suite's recorded run,
+every kind of body and shape among them, is pinned to one state hash in Debug, Release and under
+the sanitisers. Jolt asserts in a Debug tree through the engine's assertions, and its profiler
+zones are Tracy's.
+
 The piloted ship crosses this boundary every frame: input becomes flight commands, Jolt
 advances in simulation steps, and presentation interpolates between the last two physics
 states. When time compression is above 1×, piloting is suspended, as it is in every game of the
@@ -548,3 +586,7 @@ proves it headlessly. What exists:
   rather than lit by one.
 - **ImGui** for a demo window, toggled with F1, and the Renderer panel: the frame's counts and
   each pass's GPU time.
+- **Physics** (`engine/physics`, 7a). Jolt in double precision as a service of the simulation world,
+  [as above](#physics): rigid, kinematic and static bodies of box, sphere, capsule, cylinder,
+  convex-hull and mesh shapes, a Jolt world per star system, stepped in the fixed step and saved with
+  the world. Nothing in the shell attaches it yet; flight (7b) is its first user there.

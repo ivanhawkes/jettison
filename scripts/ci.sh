@@ -7,10 +7,12 @@
 #                      [--llvmpipe] [--preset NAME]
 #
 #  --skip-smoke     Format + compile only (use when no display/driver is available)
-#  --skip-release   Skip the Release build (CI runs it; hooks usually do not need it)
+#  --skip-release   Skip the Release build and its tests (CI runs them; hooks usually do not need
+#                   them)
 #  --skip-tidy       Skip clang-tidy (it needs a configured Debug tree for its database)
 #  --werror         Configure with JETTISON_WERROR=ON, so warnings fail the build
-#  --asan           Build clang-asan and run the smoke test under the sanitizers
+#  --asan           Build clang-asan and run the smoke test, and the sim and physics suites,
+#                   under the sanitizers
 #  --llvmpipe       Force software Vulkan (lavapipe) for the smoke test
 #  --preset NAME    Debug preset (default: clang-debug)
 set -euo pipefail
@@ -59,6 +61,10 @@ if [ "$release" -eq 1 ]; then
 	echo "==> configure + build: clang-release"
 	cmake --preset clang-release ${werror[@]+"${werror[@]}"}
 	cmake --build --preset clang-release
+	# The simulation's state hashes are pinned in the suites, and have to be the same in every
+	# build: this is where Release is held to the Debug build's values.
+	echo "==> unit tests: clang-release (CTest)"
+	ctest --test-dir build/clang-release --output-on-failure --no-tests=error
 fi
 
 if [ "$smoke" -eq 1 ]; then
@@ -71,6 +77,10 @@ fi
 if [ "$asan" -eq 1 ]; then
 	echo "==> smoke test: clang-asan (address + undefined sanitizers)"
 	./scripts/smoke-test.sh --preset clang-asan --build --xvfb ${software[@]+"${software[@]}"} ${werror[@]+--werror}
+	# The suites whose state hashes are pinned, held to the same values under the sanitizers.
+	echo "==> unit tests: clang-asan (sim and physics)"
+	cmake --build --preset clang-asan --target jettison_sim_tests jettison_physics_tests
+	ctest --test-dir build/clang-asan -R '^(sim|physics)$' --output-on-failure --no-tests=error
 fi
 
 echo "==> gate passed"

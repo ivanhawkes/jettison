@@ -13,6 +13,7 @@ if(JETTISON_PLANNED_DEPENDENCIES)
 	add_executable(dependency_probe dependency_probe.cpp)
 	target_link_libraries(dependency_probe PRIVATE
 		Jettison::App
+		Jettison::Physics
 		glfw
 		imgui
 		stb
