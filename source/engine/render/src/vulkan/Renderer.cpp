@@ -40,11 +40,14 @@ struct DrawPushConstants
 static_assert(sizeof(DrawPushConstants) == 8);
 constexpr VkShaderStageFlags kDrawStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
+// The fade first: a vec4 at offset 0 needs no padding before it in the push constant block.
 struct OutputPushConstants
 {
+	glm::vec4 fade{0.0f};
 	float exposure{1.0f};
 	uint32_t encodeSrgb{0};
 };
+static_assert(sizeof(OutputPushConstants) == 24);
 
 constexpr Core::Category kRender{"render"};
 
@@ -1611,7 +1614,8 @@ void Renderer::RecordOutput(
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_outputPipeline);
 	vkCmdBindDescriptorSets(
 	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_outputLayout, 0, 1, &m_outputSet, 0, nullptr);
-	const OutputPushConstants output{m_exposure, m_pSwapchain->EncodesSrgb() ? 0u : 1u};
+	const OutputPushConstants output{
+	    glm::vec4{m_fadeColor, m_fade}, m_exposure, m_pSwapchain->EncodesSrgb() ? 0u : 1u};
 	vkCmdPushConstants(
 	    commandBuffer, m_outputLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(output), &output);
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);

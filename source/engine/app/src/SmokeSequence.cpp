@@ -24,8 +24,8 @@ constexpr int kResizeSettleFrames = 8;
 // frame at these sizes, and a runner is slower than this machine.
 constexpr auto kWatchdog = std::chrono::seconds(120);
 
-// The last stage has no action: it settles and closes. A run that reaches it has walked all six.
-constexpr int kFinalStage = 5;
+// The last stage has no action: it settles and closes. A run that reaches it has walked all seven.
+constexpr int kFinalStage = 6;
 
 // The resize stages ask for a size relative to the current one, growing then shrinking: the
 // opening size, the compositor's idea of it and the Xvfb screen all vary, and a fixed target can
@@ -56,6 +56,17 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 		m_actionPending = false;
 		m_frames = 0;
 	}
+	else if (m_jumpPending)
+	{
+		// A jump takes as long as its effect and its loading take, which is real seconds rather
+		// than frames; the watchdog is what stops one that never ends.
+		if (!m_actions.jumping())
+		{
+			m_jumpPending = false;
+			m_actionPending = false;
+			m_frames = 0;
+		}
+	}
 	else if (m_actionPending && m_frames >= kResizeSettleFrames)
 	{
 		// The request was refused. A resize that never arrived is not one the engine handled, so
@@ -67,7 +78,7 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 
 	++m_frames;
 
-	// The stages, in order: grow the window, shrink it, minimize, restore, reload the scene,
+	// The stages, in order: grow the window, shrink it, minimize, restore, reload the scene, jump,
 	// settle. The last one has no action.
 	if (m_stage < kFinalStage && m_frames >= kStageFrames && !m_actionPending)
 	{
@@ -77,7 +88,7 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 		++m_stage;
 	}
 
-	if (m_stage == kFinalStage && m_frames >= kStageFrames)
+	if (m_stage == kFinalStage && m_frames >= kStageFrames && !m_actionPending)
 		m_actions.close();
 
 	// A stage that cannot finish is a hung engine, and a hung engine under CI is a hung CI. The
@@ -121,6 +132,14 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 			++m_reloads;
 			m_actionPending = false;
 			break;
+		case 5:
+			// The system shown is replaced by another while frames that drew it are in flight, and
+			// the new one's models, materials and environment are made under the jump's effect.
+			m_jumpPending = m_actions.jump();
+			if (m_jumpPending)
+				++m_jumps;
+			m_actionPending = m_jumpPending;
+			break;
 		default:
 			// Unreachable: Advance() only acts below the final stage.
 			break;
@@ -134,13 +153,14 @@ bool SmokeSequence::Passed() const
 	// manager can refuse the second request. The reload has to happen exactly once, because a
 	// reload is the stage that invalidates the pipeline's model resources, and a run that never
 	// reloaded has not tested that.
-	return m_resizes >= 1 && m_reloads == 1 && m_stage == kFinalStage;
+	// The jump likewise: once, and over before the close.
+	return m_resizes >= 1 && m_reloads == 1 && m_jumps == 1 && !m_jumpPending && m_stage == kFinalStage;
 }
 
 
 std::string SmokeSequence::Summary() const
 {
 	return "resizes=" + std::to_string(m_resizes) + ", reloads=" + std::to_string(m_reloads) +
-	       ", stage=" + std::to_string(m_stage);
+	       ", jumps=" + std::to_string(m_jumps) + ", stage=" + std::to_string(m_stage);
 }
 } // namespace Jettison::App

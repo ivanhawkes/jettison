@@ -1,0 +1,53 @@
+# A red dwarf with a hot gas giant close in, a refinery station over the giant, and two jump points:
+# the lanes to Halcyon and to Marrow (galaxy.yaml). SI units, at real scale, as halcyon.yaml is.
+version: 1
+name: Vesper
+bodies:
+  - name: Vesper
+    kind: Star
+    radius: 2.9e8
+    gravitationalParameter: 5.97e19
+    rotation:
+      period: 3.6e6
+      axialTilt: 0.05
+  - name: Corva
+    kind: Planet
+    parent: Vesper
+    radius: 7.0e7
+    gravitationalParameter: 1.27e17
+    orbit:
+      semiMajorAxis: 3.0e10
+      eccentricity: 0.012
+      inclination: 0.02
+      longitudeOfAscendingNode: 0.6
+      argumentOfPeriapsis: 2.1
+      meanAnomalyAtEpoch: 0.4
+    rotation:
+      period: 36000
+      axialTilt: 0.05
+  - name: Corva Refinery
+    kind: Station
+    parent: Corva
+    radius: 80
+    orbit:
+      semiMajorAxis: 1.4e8
+      eccentricity: 0.001
+      inclination: 0.3
+      longitudeOfAscendingNode: 2.4
+      argumentOfPeriapsis: 0.9
+      meanAnomalyAtEpoch: 1.7
+  - name: Vesper Gate
+    kind: JumpPoint
+    parent: Vesper
+    radius: 500
+    orbit:
+      semiMajorAxis: 6.0e10
+      meanAnomalyAtEpoch: 3.0
+  - name: Vesper Deep Gate
+    kind: JumpPoint
+    parent: Vesper
+    radius: 500
+    orbit:
+      semiMajorAxis: 9.0e10
+      inclination: 0.15
+      meanAnomalyAtEpoch: 5.2

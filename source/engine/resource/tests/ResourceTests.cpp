@@ -132,6 +132,38 @@ TEST_CASE("Resource: a load returns at once, and the value is there after the ne
 	CHECK(manager.ErrorOf(handle).empty());
 }
 
+TEST_CASE("Resource: the count of first loads in flight, which a reload and a failure leave")
+{
+	const Scratch scratch;
+	scratch.Put("base/greeting.txt", "hello");
+	scratch.Put("base/other.txt", "other");
+	Jobs::IoWorker worker;
+	Resource::ResourceManager manager{scratch.Files(), worker, NoHotReload()};
+	manager.RegisterLoader(TextLoader());
+	CHECK(manager.Loading() == 0);
+
+	const auto greeting = manager.Load<Text>("greeting.txt");
+	const auto again = manager.Load<Text>("greeting.txt");
+	const auto missing = manager.Load<Text>("missing.txt");
+	CHECK(manager.Loading() == 2);
+	Settle(worker, manager);
+	CHECK(manager.StatusOf(missing) == Status::Failed);
+	CHECK(manager.Loading() == 0);
+
+	// A reload keeps the value it replaces, so it is not a resource still to arrive.
+	manager.ReloadAll();
+	CHECK(manager.Loading() == 0);
+	const auto other = manager.Load<Text>("other.txt");
+	CHECK(manager.Loading() == 1);
+	// Released while in flight, it is no longer anything's to wait for.
+	manager.Release(other);
+	CHECK(manager.Loading() == 0);
+	Settle(worker, manager);
+	manager.Release(greeting);
+	manager.Release(again);
+	manager.Release(missing);
+}
+
 TEST_CASE("Resource: loads of one path share a slot, counted, and the last release frees it")
 {
 	const Scratch scratch;

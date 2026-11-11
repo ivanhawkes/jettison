@@ -307,6 +307,15 @@ void ResourceManager::ReleaseRaw(std::type_index type, RawHandle handle)
 	pool.free.push_back(handle.index);
 }
 
+std::size_t ResourceManager::Loading() const
+{
+	std::size_t loading = 0;
+	for (const auto &[type, pool] : m_pState->pools)
+		for (const State::Slot &slot : pool.slots)
+			loading += slot.references > 0 && slot.status == Status::Loading ? 1 : 0;
+	return loading;
+}
+
 void ResourceManager::Update()
 {
 	m_pState->worker.Drain();

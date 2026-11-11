@@ -202,7 +202,9 @@ run_app() {
 	fi
 	# Two scenes, one log: the sample scene (glTF models, a skinned clip, the point light), and the
 	# large-world scene (a station over a planet at real scale, placed by the star system, under an
-	# orbit camera and the sun). Each walks the whole sequence; the run fails if either does.
+	# orbit camera and the sun). Each walks the whole sequence; the run fails if either does. Each
+	# jumps once: the sample scene, of no system, to the galaxy's first (the large-world scene), and
+	# the large-world scene through Halcyon's gate to Vesper, built from its system alone.
 	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
 	status=0
 	for scene in "" "$PWD/assets/scene/orbit.yaml"; do
@@ -262,7 +264,7 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 fi
 
 if [ "$status" -eq 0 ]; then
-	echo "smoke-test: PASS (two scenes; window resizes, minimize/restore and a scene reload handled, validation enabled)"
+	echo "smoke-test: PASS (two scenes; window resizes, minimize/restore, a scene reload and a jump handled, validation enabled)"
 else
 	echo "smoke-test: FAIL (exit $status)" >&2
 fi

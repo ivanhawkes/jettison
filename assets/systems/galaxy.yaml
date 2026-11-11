@@ -1,0 +1,29 @@
+# The sample galaxy: three systems in a line, Halcyon to Vesper to Marrow, so a route from one end
+# to the other is two jumps. Halcyon is shown as the orbit scene authors it; Vesper and Marrow as
+# their system scenes build them from the system files alone. A lane's transit time is in
+# simulation seconds.
+version: 1
+name: Sample
+systems:
+  - name: Halcyon
+    system: systems/halcyon.yaml
+    scene: scene/orbit.yaml
+  - name: Vesper
+    system: systems/vesper.yaml
+  - name: Marrow
+    system: systems/marrow.yaml
+lanes:
+  - a:
+      system: Halcyon
+      jumpPoint: Halcyon Gate
+    b:
+      system: Vesper
+      jumpPoint: Vesper Gate
+    transitSeconds: 40
+  - a:
+      system: Vesper
+      jumpPoint: Vesper Deep Gate
+    b:
+      system: Marrow
+      jumpPoint: Marrow Gate
+    transitSeconds: 65

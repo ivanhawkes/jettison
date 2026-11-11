@@ -1,5 +1,6 @@
 #include <jettison/sim/Snapshot.h>
 
+#include <jettison/core/StringId.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/SimWorld.h>
 
@@ -24,15 +25,28 @@ void RegisterTypes()
 		Reflect::RegisterType<Transform>("Sim.Transform")
 		    .Field<&Transform::position>("position", Attribute::Saved)
 		    .Field<&Transform::orientation>("orientation", Attribute::Saved);
+		Reflect::RegisterType<InSystem>("Sim.InSystem")
+		    .Field<&InSystem::system>("system", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;
 }
 
-const Transform *Snapshot::Find(entt::entity entity) const
+std::uint64_t SystemId(std::string_view systemName)
+{
+	return Core::StringId{systemName}.Hash();
+}
+
+const TransformSample *Snapshot::FindSample(entt::entity entity) const
 {
 	const auto found = std::ranges::lower_bound(transforms, entt::to_integral(entity), {}, Identifier);
-	return found != transforms.end() && found->entity == entity ? &found->transform : nullptr;
+	return found != transforms.end() && found->entity == entity ? &*found : nullptr;
+}
+
+const Transform *Snapshot::Find(entt::entity entity) const
+{
+	const TransformSample *sample = FindSample(entity);
+	return sample ? &sample->transform : nullptr;
 }
 
 Snapshot Capture(const SimWorld &world)
@@ -42,8 +56,12 @@ Snapshot Capture(const SimWorld &world)
 	snapshot.time = world.Clock().Now();
 	const auto view = world.Registry().view<const Transform>();
 	snapshot.transforms.reserve(view.size());
+	const auto &registry = world.Registry();
 	for (const auto [entity, transform] : view.each())
-		snapshot.transforms.push_back({entity, transform});
+	{
+		const auto *system = registry.try_get<InSystem>(entity);
+		snapshot.transforms.push_back({entity, transform, system ? system->system : kNoSystem});
+	}
 	std::ranges::sort(snapshot.transforms, {}, Identifier);
 	return snapshot;
 }
@@ -51,14 +69,14 @@ Snapshot Capture(const SimWorld &world)
 std::optional<Transform> Interpolate(
     const Snapshot &previous, const Snapshot &current, entt::entity entity, double alpha)
 {
-	const Transform *to = current.Find(entity);
+	const TransformSample *to = current.FindSample(entity);
 	if (!to)
 		return std::nullopt;
-	const Transform *from = previous.Find(entity);
-	if (!from)
-		return *to;
+	const TransformSample *from = previous.FindSample(entity);
+	if (!from || from->system != to->system)
+		return to->transform;
 	return Transform{
-	    glm::mix(from->position, to->position, alpha),
-	    glm::slerp(from->orientation, to->orientation, alpha)};
+	    glm::mix(from->transform.position, to->transform.position, alpha),
+	    glm::slerp(from->transform.orientation, to->transform.orientation, alpha)};
 }
 } // namespace Jettison::Sim

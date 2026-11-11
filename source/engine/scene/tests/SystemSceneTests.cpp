@@ -5,6 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <sstream>
@@ -351,10 +352,13 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 		    return hull;
 	    });
 
+	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
 	const Sim::Snapshot first{
-	    1, 0.1, {{ship, {{1.0e11, 0.0, 0.0}, {}}}, {buoy, {{2.0e11, 0.0, 0.0}, {}}}}};
+	    1, 0.1, {{ship, {{1.0e11, 0.0, 0.0}, {}}, halcyon}, {buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}}};
 	const Sim::Snapshot second{
-	    2, 0.2, {{ship, {{1.0e11 + 8.0, 0.0, 0.0}, {}}}, {buoy, {{2.0e11, 0.0, 0.0}, {}}}}};
+	    2,
+	    0.2,
+	    {{ship, {{1.0e11 + 8.0, 0.0, 0.0}, {}}, halcyon}, {buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}}};
 	systemScene.SyncTraffic(first, first, 0.0);
 	systemScene.SyncTraffic(first, second, 0.5);
 	CHECK(asked == 2);
@@ -374,7 +378,7 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 
 	// The ship leaves the snapshots: its proxy goes, and its engine with it. The buoy, declined
 	// once, is not asked for again until it has left and come back.
-	const Sim::Snapshot third{3, 0.3, {{buoy, {{2.0e11, 0.0, 0.0}, {}}}}};
+	const Sim::Snapshot third{3, 0.3, {{buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}}};
 	systemScene.SyncTraffic(second, third, 0.0);
 	CHECK(asked == 2);
 	CHECK(registry.view<const Scene::SimProxyComponent>().empty());
@@ -390,6 +394,61 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 	CHECK(registry.view<const Scene::BuiltComponent>().empty());
 	CHECK(registry.view<const Scene::SimProxyComponent>().empty());
 	CHECK(registry.view<const Scene::SceneEntityId>().size() == 3);
+}
+
+TEST_CASE("System scene: the traffic layer is this system's, and a ship that jumps leaves and arrives")
+{
+	Scene::Scene scene;
+	scene.LoadSystem("systems/halcyon.yaml");
+	Scene::SystemScene systemScene{scene, Halcyon()};
+	entt::registry &registry = scene.Registry();
+	systemScene.SetProxyFactory([](entt::registry &presentation, entt::entity)
+	                            { return presentation.create(); });
+
+	const auto local = entt::entity{1};
+	const auto elsewhere = entt::entity{2};
+	const auto traveller = entt::entity{3};
+	const auto unplaced = entt::entity{4};
+	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
+	const std::uint64_t vesper = Sim::SystemId("Vesper");
+	const auto shown = [&registry]
+	{
+		std::vector<entt::entity> entities;
+		for (const auto [entity, proxy] : registry.view<const Scene::SimProxyComponent>().each())
+			entities.push_back(proxy.simEntity);
+		std::ranges::sort(entities);
+		return entities;
+	};
+
+	// Another system's ship, and one in no system, are not Halcyon's to show.
+	const Sim::Snapshot docked{
+	    1,
+	    0.1,
+	    {{local, {{1.0, 0.0, 0.0}, {}}, halcyon},
+	     {elsewhere, {{2.0, 0.0, 0.0}, {}}, vesper},
+	     {traveller, {{3.0, 0.0, 0.0}, {}}, halcyon},
+	     {unplaced, {{4.0, 0.0, 0.0}, {}}, Sim::kNoSystem}}};
+	systemScene.SyncTraffic(docked, docked, 0.0);
+	CHECK(shown() == std::vector{local, traveller});
+
+	// The traveller enters the lane: in no system, it leaves Halcyon's traffic layer.
+	Sim::Snapshot transit = docked;
+	transit.step = 2;
+	transit.transforms[2].system = Sim::kNoSystem;
+	systemScene.SyncTraffic(docked, transit, 0.5);
+	CHECK(shown() == std::vector{local});
+
+	// A ship arriving from Vesper is made a proxy, at the gate it arrived at, not between the two.
+	Sim::Snapshot arrived = transit;
+	arrived.step = 3;
+	arrived.transforms[1].system = halcyon;
+	arrived.transforms[1].transform.position = {4.0e11, 0.0, 0.0};
+	systemScene.SyncTraffic(transit, arrived, 0.5);
+	CHECK(shown() == std::vector{local, elsewhere});
+	for (const auto [entity, proxy, transform] :
+	     registry.view<const Scene::SimProxyComponent, const Scene::TransformComponent>().each())
+		if (proxy.simEntity == elsewhere)
+			CHECK(transform.translation.x == 4.0e11);
 }
 
 TEST_CASE(

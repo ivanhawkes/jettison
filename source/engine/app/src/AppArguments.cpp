@@ -43,7 +43,7 @@ void PrintUsage(const char *argv0)
 	std::cerr << "Usage: " << argv0
 	          << " [--smoke-test] [--assets <directory>] [--scene <file> | --system <virtual path>]"
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
-	             " [--depth-prepass]\n";
+	             " [--depth-prepass] [--galaxy <virtual path>]\n";
 }
 } // namespace
 
@@ -63,6 +63,8 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.scenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--system" && index + 1 < argc)
 			arguments.systemPath = argv[++index];
+		else if (argument == "--galaxy" && index + 1 < argc)
+			arguments.galaxyPath = argv[++index];
 		else if (argument == "--save-scene" && index + 1 < argc)
 			arguments.saveScenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--depth-prepass")

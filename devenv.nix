@@ -49,8 +49,6 @@
     ruff
     black
     mypy
-    python314Packages.pytest
-    python314Packages.ipython
 
     # YAML
     yq-go
@@ -87,10 +85,14 @@
 
   languages.python = {
     enable = true;
-    package = pkgs.python314;
-    venv.enable = true;
+    package = pkgs.python314.withPackages (ps: [
+      ps.numpy
+      ps.pillow
+      ps.pytest
+      ps.ipython
+    ]);
   };
-
+    
   # Set environment variables so the Vulkan loader and layers are discoverable
   env = {
     VULKAN_SDK = "${pkgs.vulkan-headers}";
@@ -109,6 +111,7 @@
         [
           pkgs.wayland
           pkgs.libxkbcommon
+          pkgs.gcc.cc.lib
         ]
         ++ (with pkgs; [
           libX11

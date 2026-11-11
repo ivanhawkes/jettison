@@ -1,0 +1,35 @@
+# A white star with one airless world and the end of the lane from Vesper (galaxy.yaml). SI units,
+# at real scale, as halcyon.yaml is.
+version: 1
+name: Marrow
+bodies:
+  - name: Marrow
+    kind: Star
+    radius: 1.2e9
+    gravitationalParameter: 2.6e20
+    rotation:
+      period: 1.1e6
+      axialTilt: 0.2
+  - name: Ashfall
+    kind: Planet
+    parent: Marrow
+    radius: 4.1e6
+    gravitationalParameter: 2.5e14
+    orbit:
+      semiMajorAxis: 2.6e11
+      eccentricity: 0.08
+      inclination: 0.04
+      longitudeOfAscendingNode: 4.0
+      argumentOfPeriapsis: 1.2
+      meanAnomalyAtEpoch: 2.9
+    rotation:
+      period: 140000
+      axialTilt: 0.03
+  - name: Marrow Gate
+    kind: JumpPoint
+    parent: Marrow
+    radius: 500
+    orbit:
+      semiMajorAxis: 3.4e11
+      inclination: 0.1
+      meanAnomalyAtEpoch: 0.7

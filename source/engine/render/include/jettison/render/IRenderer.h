@@ -1,5 +1,7 @@
 #pragma once
 
+#include <glm/vec3.hpp>
+
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -95,6 +97,10 @@ class IRenderer
 
 	// The linear scale applied to the HDR target on its way to the display, before tonemapping.
 	virtual void SetExposure(float exposure) = 0;
+	// A colour over the scene, by an amount from 0 (none) to 1 (the whole frame): a jump's effect
+	// (scene/JumpTransition.h). Mixed in after tonemapping, in display light, and under the UI, so
+	// the dev tools stay readable through it.
+	virtual void SetFade(const glm::vec3 &color, float amount) = 0;
 	virtual void SetDebugView(DebugView view) = 0;
 	virtual DebugView GetDebugView() const = 0;
 	// Whether the opaque surfaces' depth is laid down before they are shaded, so each pixel is

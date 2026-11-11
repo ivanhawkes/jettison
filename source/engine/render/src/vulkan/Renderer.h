@@ -132,6 +132,11 @@ class Renderer
 	{
 		m_exposure = exposure;
 	}
+	void SetFade(const glm::vec3 &color, float amount)
+	{
+		m_fadeColor = color;
+		m_fade = amount;
+	}
 
 	void SetDebugView(DebugView view)
 	{
@@ -399,6 +404,8 @@ class Renderer
 	VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
 	Targets m_targets;
 	float m_exposure{1.0f};
+	glm::vec3 m_fadeColor{0.0f};
+	float m_fade{0.0f};
 
 	std::array<FrameData, kFramesInFlight> m_frames{};
 	uint32_t m_currentFrame{0};

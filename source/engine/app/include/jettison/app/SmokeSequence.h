@@ -16,14 +16,20 @@ struct SmokeActions
 	std::function<void()> iconify;
 	std::function<void()> restore;
 	std::function<void()> reload;
+	// Starts a jump to another star system, and says whether one started: false where there is no
+	// galaxy to jump in. Then whether it is still under way.
+	std::function<bool()> jump;
+	std::function<bool()> jumping;
 	std::function<void()> close;
 };
 
-// The headless render test's sequence, in six stages of a handful of frames each: two resizes (a
+// The headless render test's sequence, in seven stages of a handful of frames each: two resizes (a
 // swapchain recreate), a minimize and restore (a surface that reports no extent), a scene reload
-// (models destroyed and rebuilt, commonly at the addresses the pipeline keyed its resources by)
-// and a settle. Each stage acts, waits for the frames it triggered to settle, then advances;
-// validation and the sanitizers read the result, so the sequence only has to reach the end.
+// (models destroyed and rebuilt, commonly at the addresses the pipeline keyed its resources by), a
+// jump to another star system (the scene replaced behind its effect, with frames in flight, and
+// the new system streamed in), and a settle. Each stage acts, waits for the frames it triggered to
+// settle, then advances; validation and the sanitizers read the result, so the sequence only has to
+// reach the end.
 //
 // One frame at a time, from the shell's loop: the stages are defined by frames, not by wall
 // clock, because the point of each is the frame that the action caused.
@@ -49,7 +55,7 @@ class SmokeSequence
 	// by a window manager is a stage the engine was not tested on.
 	bool Passed() const;
 
-	// The counters in the words the failure report uses: "resizes=1, reloads=1, stage=5".
+	// The counters in the words the failure report uses: "resizes=1, reloads=1, jumps=1, stage=6".
 	std::string Summary() const;
 
   private:
@@ -67,5 +73,8 @@ class SmokeSequence
 	int m_stage{0};
 	int m_resizes{0};
 	int m_reloads{0};
+	int m_jumps{0};
+	// The jump stage's action is pending until the jump is over, however many frames that takes.
+	bool m_jumpPending{false};
 };
 } // namespace Jettison::App

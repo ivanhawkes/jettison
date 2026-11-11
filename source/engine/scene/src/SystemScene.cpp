@@ -173,7 +173,7 @@ std::string BodyEntityId(std::string_view bodyName)
 }
 
 SystemScene::SystemScene(Scene &scene, Celestial::StarSystem system)
-    : m_pScene{&scene}, m_system{std::move(system)}
+    : m_pScene{&scene}, m_system{std::move(system)}, m_systemId{Sim::SystemId(m_system.name)}
 {
 	try
 	{
@@ -291,12 +291,18 @@ void SystemScene::Place(double simSeconds)
 	PlaceCelestialBodies(m_pScene->Registry(), m_system, simSeconds);
 }
 
+bool SystemScene::IsHere(const Sim::Snapshot &current, entt::entity entity) const
+{
+	const Sim::TransformSample *sample = current.FindSample(entity);
+	return sample != nullptr && sample->system == m_systemId;
+}
+
 void SystemScene::SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha)
 {
 	entt::registry &registry = m_pScene->Registry();
 	std::unordered_set<entt::entity> gone;
 	for (auto proxy = m_proxies.begin(); proxy != m_proxies.end();)
-		if (current.Find(proxy->first) == nullptr)
+		if (!IsHere(current, proxy->first))
 		{
 			if (registry.valid(proxy->second))
 				gone.insert(proxy->second);
@@ -304,15 +310,15 @@ void SystemScene::SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot
 		}
 		else
 			++proxy;
-	std::erase_if(
-	    m_declined, [&current](entt::entity entity) { return current.Find(entity) == nullptr; });
+	std::erase_if(m_declined, [&](entt::entity entity) { return !IsHere(current, entity); });
 	if (!gone.empty())
 		DestroyWithDescendants(*m_pScene, std::move(gone));
 
 	if (m_factory)
 		for (const Sim::TransformSample &sample : current.transforms)
 		{
-			if (m_proxies.contains(sample.entity) || m_declined.contains(sample.entity))
+			if (sample.system != m_systemId || m_proxies.contains(sample.entity) ||
+			    m_declined.contains(sample.entity))
 				continue;
 			const entt::entity proxy = m_factory(registry, sample.entity);
 			if (proxy == entt::null || !registry.valid(proxy))

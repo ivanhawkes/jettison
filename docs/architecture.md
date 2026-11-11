@@ -35,7 +35,7 @@ jettison/
     │   ├── ecs/                scheduler, tick phases, events, FSM utility
     │   ├── animation/          glTF rigs and clip player, TRS tracks, mechanical skins
     │   ├── sim/                simulation world, command queue, snapshots, definition registry
-    │   ├── celestial/          celestial clock, on-rails orbits, system and galaxy frames
+    │   ├── celestial/          celestial clock, on-rails orbits, system frames, the jump-lane graph
     │   ├── scene/              presentation scene, its file, update systems, camera rigs; layers
     │   ├── spatial/            per-system spatial index, queries
     │   ├── input/              actions, contexts, bindings, devices
@@ -170,6 +170,40 @@ supplies makes) and effects (markers, beacons). An entity's layer is its own or 
 hidden layer is neither drawn nor lights the scene; the sun and the sky are always the system's.
 What the system scene builds is never saved, so a scene file is only ever what its author wrote.
 
+The simulation is the whole **galaxy's**, and presentation shows one system of it. Each entity's
+`Sim::InSystem` names the system whose frame its `Transform` is in (the system's name hashed, so a
+save keeps it), and an entity on a jump lane is in none. Snapshots carry it; a system scene's traffic
+layer is the entities in its own system, and no interpolation runs across a change of system, whose
+two positions are in different frames.
+
+### Jumps
+
+The galaxy (`celestial/Galaxy.h`, `assets/systems/galaxy.yaml`) is a graph: each system by name,
+with its system file and, where one is authored, a scene file; each lane joining a jump point in one
+system to a jump point in another, travelled both ways, with a transit time in simulation seconds.
+A jump point is the end of one lane, so a gate says where it leads. Each system's file is checked
+against the lanes that end in it when it is loaded.
+
+A jump replaces the system shown with another, behind an effect, without the frame loop stalling or
+the simulation stopping (`scene/JumpTransition.h`):
+
+1. The effect rises, a fade to black in the output pass, mixed in after tonemapping and under the
+   UI. Meanwhile the destination's system file and scene file are read on the I/O worker.
+2. Once they are read they are parsed and checked on the main thread, since the archives read the
+   reflection tables, which a registration on the main thread may be writing to
+   ([decided](roadmap.md#decided)). A destination that fails is abandoned before anything is
+   touched, and the effect lifts on the system the jump left.
+3. With the effect covering the frame, the scene is replaced (`SceneFile`, already read and
+   checked, or the system alone) and its system scene built.
+4. What it draws streams in through the resource manager as always, and the effect is held until
+   nothing is loading for the first time (`ResourceManager::Loading`), judged once a frame has been
+   drawn of it, since the renderer asks for a model when it first draws it, or for 8 s at most.
+5. The effect lifts.
+
+The effect runs in real seconds, the same at any time compression. The simulation steps through
+every frame of it, and the stepper is not resynced: the world did not change, and the new system's
+traffic is made from the same snapshots.
+
 The piloted ship crosses this boundary every frame: input becomes flight commands, Jolt
 advances in simulation steps, and presentation interpolates between the last two physics
 states. When time compression is above 1×, piloting is suspended, as it is in every game of the
@@ -182,7 +216,7 @@ is (`CameraComponent` documents it).
 
 | Frame | Precision | Origin | Used by |
 |---|---|---|---|
-| Galaxy | graph | none: systems are nodes, jump lanes are edges | route planning, the galaxy map |
+| Galaxy | graph | none: systems are nodes, jump lanes are edges (`celestial/Galaxy.h`) | jumps, route planning, the galaxy map |
 | System | `double` | the system's barycentre or primary star | simulation positions, orbits, Jolt (`JPH_DOUBLE_PRECISION`) |
 | Local | `double` | a station or planet | docking approaches, station-relative traffic, the sun's shadow grid (`CameraView::frameOrigin`) |
 | Render | `float` | the camera | everything submitted to the GPU |
@@ -396,7 +430,8 @@ systems register into, each declaring the components it reads and writes:
 2. **Commands**: turn actions and UI into simulation commands.
 3. **Simulation**: zero or more fixed steps (commands, AI, economy, physics, orbits), as the
    accumulator allows.
-4. **Sync**: copy simulation snapshots into presentation and interpolate.
+4. **Sync**: a jump's stage first, which may replace the scene, then copy simulation snapshots into
+   presentation and interpolate, and place the bodies on their orbits.
 5. **Presentation**: animation, cameras, audio, particles, UI layout.
 6. **Render**: cull, collect lights, record the pass list (shadows, cluster light assignment,
    forward passes, post), submit, present. See [rendering](#rendering-clustered-forward).
@@ -434,16 +469,20 @@ proves it headlessly. What exists:
 
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--scene`, `--system`, `--save-scene`), builds `Application`, and prints any exception the run
+  `--scene`, `--system`, `--galaxy`, `--save-scene`), builds `Application`, and prints any exception the run
   threw.
   `Application::Init` stages are resources (the asset VFS, the I/O worker, the resource manager
-  and the rig loader), scene (and the system scene of the star system it names, read through the
-  VFS, or of the one `--system` names with nothing authored), renderer, and window (its title and
+  and the rig loader), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
+  and the system scene of the star system the scene names, read through the VFS, or of the one
+  `--system` names with nothing authored), renderer, and window (its title and
   size). The shell holds the renderer as `Render::IRenderer` alone and
   includes no Vulkan header. The resource manager updates once a frame, before the render.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
-- **Smoke sequence**. `SmokeSequence` is the render test's six stages (resize, resize,
-  minimize, restore, scene reload, settle) as a state machine driven once per frame through
+- **Jumps**. J jumps out through the next of the shown system's lanes, so jumping again tours them;
+  the console's `jump <system>` and the Scene panel jump along a lane, or straight to any system.
+  The cameras frame the jump point arrived at.
+- **Smoke sequence**. `SmokeSequence` is the render test's seven stages (resize, resize,
+  minimize, restore, scene reload, jump, settle) as a state machine driven once per frame through
   five callbacks. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML

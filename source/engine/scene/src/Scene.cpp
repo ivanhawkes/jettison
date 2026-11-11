@@ -484,6 +484,44 @@ std::string ReadFile(const std::filesystem::path &path)
 }
 } // namespace
 
+struct SceneFile::Document
+{
+	SceneDocument document;
+};
+
+SceneFile::SceneFile(std::unique_ptr<Document> pDocument) : m_pDocument{std::move(pDocument)}
+{
+}
+
+SceneFile::SceneFile(SceneFile &&) noexcept = default;
+SceneFile &SceneFile::operator=(SceneFile &&) noexcept = default;
+SceneFile::~SceneFile() = default;
+
+SceneFile SceneFile::Read(std::string_view text)
+{
+	RegisterTypes();
+	auto pDocument = std::make_unique<Document>();
+	pDocument->document = Serialise::YamlArchive::Read<SceneDocument>(
+	    text, Serialise::FormatVersion{Scene::kFormatVersion});
+	Validate(pDocument->document);
+	return SceneFile{std::move(pDocument)};
+}
+
+const std::string &SceneFile::StarSystem() const
+{
+	static const std::string kNone;
+	return m_pDocument->document.system ? *m_pDocument->document.system : kNone;
+}
+
+std::vector<std::string> SceneFile::CelestialBodies() const
+{
+	std::vector<std::string> bodies;
+	for (const EntityRecord &entity : m_pDocument->document.entities)
+		if (entity.celestial)
+			bodies.push_back(entity.celestial->body);
+	return bodies;
+}
+
 Scene::~Scene()
 {
 	Clear();
@@ -503,11 +541,23 @@ void Scene::Load(const std::filesystem::path &path)
 
 void Scene::LoadText(std::string_view text)
 {
+	std::optional<SceneFile> file;
+	try
+	{
+		file.emplace(SceneFile::Read(text));
+	}
+	catch (...)
+	{
+		Clear();
+		throw;
+	}
+	Load(*file);
+}
+
+void Scene::Load(const SceneFile &file)
+{
 	Clear();
-	RegisterTypes();
-	const auto document =
-	    Serialise::YamlArchive::Read<SceneDocument>(text, Serialise::FormatVersion{kFormatVersion});
-	Validate(document);
+	const SceneDocument &document = file.m_pDocument->document;
 
 	try
 	{

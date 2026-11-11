@@ -4,8 +4,10 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <jettison/scene/Components.h>
 
@@ -16,6 +18,32 @@ class ResourceManager;
 
 namespace Jettison::Scene
 {
+// A scene file read and checked, not yet made into entities (Scene::Load). What a jump reads its
+// destination's scene as before it replaces the scene (scene/JumpTransition.h), so a file that is
+// refused leaves the scene that is shown as it was.
+class SceneFile
+{
+  public:
+	// Throws, as Scene::LoadText does, for a file the scene would refuse.
+	static SceneFile Read(std::string_view text);
+
+	SceneFile(SceneFile &&) noexcept;
+	SceneFile &operator=(SceneFile &&) noexcept;
+	~SceneFile();
+
+	// The star system it names, by virtual path; empty for a file that names none.
+	const std::string &StarSystem() const;
+	// The celestial bodies its entities present, in the file's order.
+	std::vector<std::string> CelestialBodies() const;
+
+  private:
+	friend class Scene;
+	struct Document;
+	explicit SceneFile(std::unique_ptr<Document> pDocument);
+
+	std::unique_ptr<Document> m_pDocument;
+};
+
 // A presentation scene (docs/architecture.md, "Simulation and presentation"): an EnTT registry of
 // the components in scene/Components.h, loaded from and saved to a scene file. It names no device.
 // What it draws is by name, a model's virtual path or a procedural shape, and the renderer loads or
@@ -47,6 +75,10 @@ class Scene
 	// names it.
 	void Load(const std::filesystem::path &path);
 	void LoadText(std::string_view text);
+	// Replaces the scene with a file already read and checked; it fails only where making the
+	// entities does (a model, whose rig this scene has no resource manager to load), and then
+	// leaves the scene empty.
+	void Load(const SceneFile &file);
 	void Save(const std::filesystem::path &path) const;
 	std::string SaveText() const;
 	// Replaces the scene with one that authors nothing and names a star system, by virtual path: the

@@ -8,6 +8,7 @@
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
+#include <jettison/celestial/Galaxy.h>
 #include <jettison/devtools/Console.h>
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
@@ -15,6 +16,7 @@
 #include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/FrameStats.h>
+#include <jettison/scene/JumpTransition.h>
 #include <jettison/scene/SceneSystems.h>
 #include <jettison/scene/SystemScene.h>
 #include <jettison/sim/SimWorld.h>
@@ -90,8 +92,12 @@ class Application
 	void Init();
 	void InitResources();
 	void InitScene();
+	// Reads the galaxy (AppArguments::galaxyPath), when there is one to read.
+	void InitGalaxy();
 	// Loads the scene, and the star system it names; the smoke sequence's reload comes here too.
 	void LoadScene();
+	// Which of the galaxy's systems the scene shows, checked against the galaxy's lanes.
+	void FindShownSystem();
 	void InitRenderer();
 	// The window the renderer opened: its title and its size.
 	void InitWindow();
@@ -108,11 +114,25 @@ class Application
 	void DriveCameras(entt::registry &registry, double deltaTime);
 	// Moves each orbit camera to the next celestial body, with a transition.
 	void NextCameraTarget(entt::registry &registry);
+	// Points the orbit camera at the body's entity, out to three of its radii, eased from wherever
+	// the camera is.
+	void FrameBody(entt::registry &registry, entt::entity camera, entt::entity body);
+
+	// Starts a jump: to the system of that name, along the lane from the system shown if one leads
+	// there and straight there if none does; or, with no name, out through the exit after the one
+	// the last jump arrived by, so jumping again and again tours the galaxy's lanes. A scene of none
+	// of the galaxy's systems jumps to its first. False, saying why, if no jump started.
+	bool Jump(std::string_view systemName = {});
+	// The jump's swap, with its effect covering the frame: the scene replaced with the destination's,
+	// its system scene built, and the cameras on the jump point arrived at.
+	void ShowArrival(Scene::JumpArrival &arrival);
 	void DrawUI();
 	// The renderer's counts and the GPU's time in each pass, in the dev tools.
 	void DrawRendererPanel();
 	// The star system shown, and the scene's layers, each shown or hidden.
 	void DrawScenePanel();
+	// The galaxy's half of it: the jump under way, and a button for each way out of the system shown.
+	void DrawGalaxy();
 	// The benchmark's frame count, the warm-up's end, and the report when it is done.
 	void AdvanceBenchmark();
 	void ReportBenchmark() const;
@@ -205,6 +225,8 @@ class Application
 	Input::ActionId m_cameraDrag;
 	Input::ActionId m_cameraLook;
 	Input::ActionId m_cameraNext;
+	// J: a jump, out through the next of the shown system's lanes.
+	Input::ActionId m_jumpNext;
 	GlfwInput m_glfwInput;
 	bool m_consoleContext{false};
 
@@ -238,5 +260,18 @@ class Application
 	// orbits, the rest of what the system has built around the file's entities, and the traffic
 	// layer. Built on each load, after the scene, and released before it.
 	std::optional<Scene::SystemScene> m_systemScene;
+
+	// The galaxy a jump goes between; empty when the assets have none, and then nothing jumps.
+	std::optional<Celestial::Galaxy> m_galaxy;
+	// The galaxy's system the scene shows, if it shows one, and the jump point the last jump arrived
+	// at in it.
+	std::optional<std::size_t> m_shownSystem;
+	std::string m_arrivedAt;
+	// A jump from the system shown to another (docs/architecture.md, "Jumps"): made with the resource
+	// manager, which reads the destination's files, and released before it. The simulation steps
+	// through it as through any other frame; the step it began at is for its report.
+	std::optional<Scene::JumpTransition> m_jump;
+	std::uint64_t m_jumpStep{0};
+	bool m_jumpWasActive{false};
 };
 } // namespace Jettison::App

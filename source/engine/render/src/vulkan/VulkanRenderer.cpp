@@ -1,5 +1,6 @@
 #include <jettison/render/IRenderer.h>
 
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -101,6 +102,10 @@ class VulkanRenderer final : public IRenderer
 	void SetExposure(float exposure) override
 	{
 		m_pRenderer->SetExposure(exposure);
+	}
+	void SetFade(const glm::vec3 &color, float amount) override
+	{
+		m_pRenderer->SetFade(color, std::clamp(amount, 0.0f, 1.0f));
 	}
 	void SetDebugView(DebugView view) override
 	{

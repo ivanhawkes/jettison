@@ -17,18 +17,21 @@ jettison_add_module(scene
 	HEADERS
 		include/jettison/scene/CameraRigs.h
 		include/jettison/scene/Components.h
+		include/jettison/scene/JumpTransition.h
 		include/jettison/scene/Scene.h
 		include/jettison/scene/SceneSystems.h
 		include/jettison/scene/Shape.h
 		include/jettison/scene/SystemScene.h
 	SOURCES
 		src/CameraRigs.cpp
+		src/JumpTransition.cpp
 		src/Scene.cpp
 		src/SceneSystems.cpp
 		src/Shape.cpp
 		src/SystemScene.cpp
 	TESTS
 		tests/CameraRigTests.cpp
+		tests/JumpTransitionTests.cpp
 		tests/SceneTests.cpp
 		tests/SystemSceneTests.cpp
 	PUBLIC_LIBRARIES

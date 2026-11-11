@@ -12,7 +12,7 @@
 namespace Jettison::Celestial
 {
 // One star system as data: the bodies in their orbital hierarchy, the stations, the jump points.
-// The jump-lane graph between systems is the galaxy (phase 6) and lives beside this.
+// The jump-lane graph between systems is the galaxy (Galaxy.h).
 enum class BodyKind
 {
 	Star,

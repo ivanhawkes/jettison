@@ -36,13 +36,17 @@ namespace Jettison::App
 namespace
 {
 // Software rendering is fill-rate bound, and the window opens at 1920x1080. The headless sequence
-// is six stages of a handful of frames, so it starts on a small window: every frame after this
+// is seven stages of a handful of frames, so it starts on a small window: every frame after this
 // costs a quarter of what the opening size costs, and the resize stages still change the size.
 constexpr int kSmokeWindowWidth = 640;
 constexpr int kSmokeWindowHeight = 480;
 // Frames a benchmark draws before it times any: the pipelines a material builds on its first draw,
 // the textures' uploads, and the driver's own warming up are not the frame it is measuring.
 constexpr std::uint32_t kBenchmarkWarmUp = 60;
+// What a jump's effect covers the frame with: black, so the frames it holds while the new system
+// loads are no brighter than space.
+constexpr glm::vec3 kJumpColor{0.0f};
+constexpr Core::Category kShell{"shell"};
 
 // Minimizing is X11-only: on Wayland a minimized surface leaves the frame loop parked in
 // DeviceContext::WaitOnWindowResized until the window is restored, and a headless run cannot
@@ -122,6 +126,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_cameraDrag = m_input.DefineAction("camera_drag", Input::ActionType::Button);
 	m_cameraLook = m_input.DefineAction("camera_look", Input::ActionType::Vector);
 	m_cameraNext = m_input.DefineAction("camera_next", Input::ActionType::Button);
+	m_jumpNext = m_input.DefineAction("jump_next", Input::ActionType::Button);
 	m_input.DefineContext("shell");
 	m_input.DefineContext("console", true);
 	for (const char *context : {"shell", "console"})
@@ -141,15 +146,26 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_input.Bind("shell", m_cameraLook, {{Input::Device::MouseAxis, 0}, {}, 1.0f, 0.0f, 0});
 	m_input.Bind("shell", m_cameraLook, {{Input::Device::MouseAxis, 1}, {}, 1.0f, 0.0f, 1});
 	m_input.Bind("shell", m_cameraNext, {Character('c')});
+	m_input.Bind("shell", m_jumpNext, {Character('j')});
 	m_input.PushContext("shell");
 
 	m_console.CaptureLog();
 	m_console.RegisterCommand(
 	    "quit", "Closes the window and ends the run",
 	    [this](DevTools::Console &, std::span<const std::string>) { RequestClose(); });
+	m_console.RegisterCommand(
+	    "jump", "Jumps to the star system named, or out through the next lane: jump [system]",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    std::string name;
+		    for (const std::string &word : arguments)
+			    name += (name.empty() ? "" : " ") + word;
+		    Jump(name);
+	    });
 
 	Sim::RegisterTypes();
 	m_sim.RegisterComponent<Sim::Transform>();
+	m_sim.RegisterComponent<Sim::InSystem>();
 	RegisterFrameSystems();
 }
 
@@ -197,11 +213,31 @@ void Application::RegisterFrameSystems()
 		     JETTISON_PROFILE_PLOT("sim.steps", steps);
 	     }});
 
+	// A jump's stages, first in the sync phase: on the frame its effect covers the screen it replaces
+	// the scene, which the syncs after it then place and fill as they do any other.
+	m_frame.Register(
+	    {"scene.jump",
+	     TickPhase::Sync,
+	     {},
+	     {},
+	     [this](entt::registry &, double deltaTime)
+	     {
+		     JETTISON_PROFILE_ZONE("scene.jump");
+		     m_jump->Advance(deltaTime);
+		     m_pRenderer->SetFade(kJumpColor, m_jump->Fade());
+		     const bool active = m_jump->Active();
+		     if (m_jumpWasActive && !active && m_jump->Error().empty())
+			     Core::Log(
+			         Core::Severity::Info, kShell, "The simulation ran {} steps through the jump",
+			         m_sim.Clock().Step() - m_jumpStep);
+		     m_jumpWasActive = active;
+	     }});
+
 	m_frame.Register(
 	    {"sim.sync",
 	     TickPhase::Sync,
 	     Access::Of<Scene::SimProxyComponent>().Writing<TransformComponent>(),
-	     {},
+	     {"scene.jump"},
 	     [this](entt::registry &registry, double)
 	     {
 		     JETTISON_PROFILE_ZONE("sim.sync");
@@ -444,12 +480,15 @@ void Application::InitResources()
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
 	Animation::RegisterRigLoader(*m_pResources);
 	m_sceneUpdateSystem.emplace(m_pResources.get());
+	Scene::RegisterJumpLoaders(*m_pResources);
+	m_jump.emplace(*m_pResources, [this](Scene::JumpArrival &arrival) { ShowArrival(arrival); });
 }
 
 
 void Application::InitScene()
 {
 	m_pScene = std::make_unique<Scene::Scene>(m_pResources.get());
+	InitGalaxy();
 	LoadScene();
 	if (!m_arguments.saveScenePath.empty())
 		m_pScene->Save(m_arguments.saveScenePath);
@@ -552,7 +591,45 @@ void Application::DrawScenePanel()
 		if (ImGui::Checkbox(name, &visible))
 			m_pScene->SetLayerVisible(layer, visible);
 	}
+	if (m_galaxy)
+		DrawGalaxy();
 	ImGui::End();
+}
+
+
+void Application::DrawGalaxy()
+{
+	constexpr std::array<const char *, 5> kStages{
+	    "", "fading out", "reading the files", "streaming in", "fading in"};
+	ImGui::Separator();
+	ImGui::Text("Galaxy %s", m_galaxy->name.c_str());
+	if (m_jump->Active())
+		ImGui::Text(
+		    "Jumping, %s (%.0f%%)", kStages[static_cast<std::size_t>(m_jump->Stage())],
+		    100.0 * double{m_jump->Fade()});
+	else if (!m_jump->Error().empty())
+		ImGui::TextWrapped("%s", m_jump->Error().c_str());
+	ImGui::BeginDisabled(m_jump->Active());
+	if (m_shownSystem)
+		for (const Celestial::Exit &exit : Celestial::Exits(*m_galaxy, *m_shownSystem))
+		{
+			const std::string label = std::format(
+			    "Jump to {} through {}", m_galaxy->systems[exit.destination].name, exit.jumpPoint);
+			if (ImGui::Button(label.c_str()))
+				Jump(m_galaxy->systems[exit.destination].name);
+		}
+	// Straight to any system, along no lane: a developer's shortcut.
+	for (std::size_t system = 0; system < m_galaxy->systems.size(); ++system)
+	{
+		if (system != 0)
+			ImGui::SameLine();
+		const std::string &name = m_galaxy->systems[system].name;
+		ImGui::BeginDisabled(m_shownSystem == system);
+		if (ImGui::SmallButton(name.c_str()))
+			Jump(name);
+		ImGui::EndDisabled();
+	}
+	ImGui::EndDisabled();
 }
 
 
@@ -674,6 +751,8 @@ void Application::PollInput()
 		toggleView(Render::DebugView::ShadowCascades);
 	if (m_input.WasPressedThisFrame(m_cameraNext))
 		NextCameraTarget(m_pScene->Registry());
+	if (m_input.WasPressedThisFrame(m_jumpNext))
+		Jump();
 	if (m_input.WasPressedThisFrame(m_toggleConsole))
 	{
 		m_devTools.showConsole = !m_devTools.showConsole;
@@ -713,7 +792,117 @@ void Application::LoadScene()
 		    Celestial::ReadStarSystem(
 		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
 	}
+	FindShownSystem();
 	m_simStepper.Resync();
+}
+
+
+void Application::InitGalaxy()
+{
+	constexpr std::string_view kDefaultGalaxy = "systems/galaxy.yaml";
+	const std::string path{m_arguments.galaxyPath.value_or(std::string{kDefaultGalaxy})};
+	const auto bytes = m_assets.Read(path);
+	if (!bytes)
+	{
+		if (m_arguments.galaxyPath)
+			throw std::runtime_error("Failed to read the galaxy '" + path + "'");
+		return;
+	}
+	try
+	{
+		m_galaxy.emplace(
+		    Celestial::ReadGalaxy(
+		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
+	}
+	catch (const std::exception &error)
+	{
+		throw std::runtime_error("Galaxy '" + path + "': " + error.what());
+	}
+}
+
+
+void Application::FindShownSystem()
+{
+	m_shownSystem.reset();
+	m_arrivedAt.clear();
+	if (!m_galaxy || !m_systemScene)
+		return;
+	const int index = m_galaxy->FindBySystemFile(m_pScene->StarSystem());
+	if (index < 0)
+		return;
+	m_shownSystem = static_cast<std::size_t>(index);
+	Celestial::CheckJumpPoints(*m_galaxy, *m_shownSystem, m_systemScene->System());
+}
+
+
+bool Application::Jump(std::string_view systemName)
+{
+	const auto refuse = [](std::string_view why)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No jump: {}", why);
+		return false;
+	};
+	if (!m_galaxy)
+		return refuse("there is no galaxy to jump in");
+	if (m_jump->Active())
+		return refuse("a jump is under way");
+
+	const std::vector<Celestial::Exit> exits =
+	    m_shownSystem ? Celestial::Exits(*m_galaxy, *m_shownSystem) : std::vector<Celestial::Exit>{};
+	if (!systemName.empty())
+	{
+		const int system = m_galaxy->Find(systemName);
+		if (system < 0)
+			return refuse(std::format("the galaxy has no system '{}'", systemName));
+		if (m_shownSystem && static_cast<std::size_t>(system) == *m_shownSystem)
+			return refuse(std::format("'{}' is the system shown", systemName));
+		const auto lane =
+		    std::ranges::find(exits, static_cast<std::size_t>(system), &Celestial::Exit::destination);
+		m_jumpStep = m_sim.Clock().Step();
+		return m_jump->Begin(
+		    *m_galaxy, static_cast<std::size_t>(system),
+		    lane == exits.end() ? std::string{} : std::string{lane->arrival});
+	}
+	if (!m_shownSystem)
+	{
+		m_jumpStep = m_sim.Clock().Step();
+		return m_jump->Begin(*m_galaxy, 0);
+	}
+	if (exits.empty())
+		return refuse(std::format("no lane leaves '{}'", m_galaxy->systems[*m_shownSystem].name));
+	// The exit after the one arrived by, which is the way the last jump came in.
+	const auto arrived = std::ranges::find(exits, m_arrivedAt, &Celestial::Exit::jumpPoint);
+	const Celestial::Exit &exit = arrived == exits.end() || std::next(arrived) == exits.end()
+	                                  ? exits.front()
+	                                  : *std::next(arrived);
+	m_jumpStep = m_sim.Clock().Step();
+	return m_jump->Begin(*m_galaxy, exit.destination, std::string{exit.arrival});
+}
+
+
+void Application::ShowArrival(Scene::JumpArrival &arrival)
+{
+	// What the old system scene built goes with the scene's old contents. The simulation did not
+	// change, so the stepper is not resynced: the traffic layer's proxies are made from the same
+	// snapshots, now for the entities in the new system.
+	m_systemScene.reset();
+	if (arrival.sceneFile)
+		m_pScene->Load(*arrival.sceneFile);
+	else
+		m_pScene->LoadSystem(arrival.starSystemPath);
+	m_systemScene.emplace(*m_pScene, std::move(arrival.starSystem));
+	m_shownSystem = arrival.system;
+	m_arrivedAt = arrival.arrival;
+	if (arrival.arrival.empty())
+		return;
+	entt::registry &registry = m_pScene->Registry();
+	for (const auto [body, celestial] : registry.view<const Scene::CelestialBodyComponent>().each())
+		if (celestial.body == arrival.arrival)
+		{
+			for (const entt::entity camera : registry.view<const Scene::OrbitCameraComponent>())
+				FrameBody(registry, camera, body);
+			return;
+		}
 }
 
 
@@ -745,29 +934,36 @@ void Application::NextCameraTarget(entt::registry &registry)
 	if (bodies.empty())
 		return;
 	std::ranges::sort(bodies);
-	for (const auto [entity, orbit] : registry.view<Scene::OrbitCameraComponent>().each())
+	for (const auto [entity, orbit] : registry.view<const Scene::OrbitCameraComponent>().each())
 	{
 		const auto current = std::ranges::find(bodies, orbit.target);
-		const entt::entity next = current == bodies.end() || std::next(current) == bodies.end()
-		                              ? bodies.front()
-		                              : *std::next(current);
-		// Out to three of the body's radii, eased over two seconds from wherever the camera is.
-		double radius = 50.0;
-		if (m_systemScene)
-		{
-			const Celestial::StarSystem &system = m_systemScene->System();
-			if (const int index = system.Find(registry.get<Scene::CelestialBodyComponent>(next).body);
-			    index >= 0)
-				radius = std::max(radius, system.bodies[static_cast<std::size_t>(index)].radius);
-		}
-		if (const auto *pose = registry.try_get<Scene::CameraPoseComponent>(entity))
-			orbit.transition = Scene::CameraTransition{
-			    {pose->position, pose->orientation}, 2.0, Math::Easing::InOutCubic};
-		orbit.target = next;
-		orbit.minDistance = radius * 1.1;
-		orbit.distance = radius * 3.0;
-		orbit.placed = false;
+		FrameBody(
+		    registry, entity,
+		    current == bodies.end() || std::next(current) == bodies.end() ? bodies.front()
+		                                                                  : *std::next(current));
 	}
+}
+
+
+void Application::FrameBody(entt::registry &registry, entt::entity camera, entt::entity body)
+{
+	// Out to three of the body's radii, eased over two seconds from wherever the camera is.
+	double radius = 50.0;
+	if (m_systemScene)
+	{
+		const Celestial::StarSystem &system = m_systemScene->System();
+		if (const int index = system.Find(registry.get<Scene::CelestialBodyComponent>(body).body);
+		    index >= 0)
+			radius = std::max(radius, system.bodies[static_cast<std::size_t>(index)].radius);
+	}
+	auto &orbit = registry.get<Scene::OrbitCameraComponent>(camera);
+	if (const auto *pose = registry.try_get<Scene::CameraPoseComponent>(camera))
+		orbit.transition =
+		    Scene::CameraTransition{{pose->position, pose->orientation}, 2.0, Math::Easing::InOutCubic};
+	orbit.target = body;
+	orbit.minDistance = radius * 1.1;
+	orbit.distance = radius * 3.0;
+	orbit.placed = false;
 }
 
 
@@ -805,6 +1001,8 @@ SmokeActions Application::MakeSmokeActions()
 		LoadScene();
 		m_pResources->ReloadAll();
 	};
+	actions.jump = [this] { return Jump(); };
+	actions.jumping = [this] { return m_jump->Active(); };
 	actions.close = [this] { RequestClose(); };
 	return actions;
 }
@@ -845,6 +1043,8 @@ void Application::Shutdown() noexcept
 	m_systemScene.reset();
 	m_pScene.reset();
 	m_sceneUpdateSystem.reset();
+	// The jump holds the handles of a destination's files while it reads them.
+	m_jump.reset();
 	m_pResources.reset();
 	m_pIoWorker.reset();
 	// The smoke sequence is not reset: Run reads its verdict after this returns, and it holds

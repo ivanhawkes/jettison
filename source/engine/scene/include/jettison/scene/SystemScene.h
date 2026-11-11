@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -61,8 +62,10 @@ using ProxyFactory = std::function<entt::entity(entt::registry &presentation, en
 // camera an orbit camera on the first station, or else the first planet, or else the primary. What
 // it builds is a BuiltComponent, which the scene's writer leaves out.
 //
-// The traffic layer is the simulation's: SyncTraffic gives each entity in the snapshots a proxy
-// from the factory, and destroys the proxy when its entity leaves them.
+// The traffic layer is the simulation's entities in this system: SyncTraffic gives each entity the
+// snapshots put in it (Sim::InSystem) a proxy from the factory, and destroys the proxy when its
+// entity leaves the snapshots or the system. The simulation is the galaxy's, so an entity in another
+// system, or in transit between two, is not this scene's to show.
 //
 // It holds the scene by reference, and the scene outlives it. A scene loaded again needs a system
 // scene built again: what this one built went with the scene's old contents.
@@ -89,10 +92,11 @@ class SystemScene
 	{
 		m_factory = std::move(factory);
 	}
-	// The traffic layer: a proxy from the factory for each entity in the current snapshot that has
-	// none (asked once while the entity stays in the snapshots), the proxies of entities gone from it
-	// destroyed with their children, then every proxy interpolated (SyncSimProxies). A proxy the
-	// factory made is a BuiltComponent and in the traffic layer unless the factory gave it another.
+	// The traffic layer: a proxy from the factory for each entity the current snapshot has in this
+	// system and that has none (asked once while the entity stays), the proxies of entities gone from
+	// it or from the system destroyed with their children, then every proxy interpolated
+	// (SyncSimProxies). A proxy the factory made is a BuiltComponent and in the traffic layer unless
+	// the factory gave it another. An entity that leaves and comes back is asked for again.
 	void SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha);
 
 	// Destroys every entity the system scene built, the proxies with it and whatever is parented to
@@ -104,8 +108,13 @@ class SystemScene
 	entt::entity BuildBody(std::size_t body);
 	void BuildSky();
 
+	// Whether the current snapshot has the entity in this system.
+	bool IsHere(const Sim::Snapshot &current, entt::entity entity) const;
+
 	Scene *m_pScene;
 	Celestial::StarSystem m_system;
+	// The system's Sim::SystemId, which the snapshots name it by.
+	std::uint64_t m_systemId;
 	ProxyFactory m_factory;
 	// Simulation entity to the proxy the factory made for it, and the entities it declined.
 	std::unordered_map<entt::entity, entt::entity> m_proxies;

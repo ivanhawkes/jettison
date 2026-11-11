@@ -1,6 +1,6 @@
 # A sample system at real scale: a Sun-like star, an Earth-like planet with a moon, a station in
-# low orbit and a jump point. SI units: metres, seconds, radians, GM in m^3/s^2. A period left out
-# is derived from the parent's gravitational parameter.
+# low orbit and a jump point, the lane to Vesper. SI units: metres, seconds, radians, GM in
+# m^3/s^2. A period left out is derived from the parent's gravitational parameter.
 version: 1
 name: Halcyon
 bodies:
@@ -53,9 +53,11 @@ bodies:
     rotation:
       period: 2360591.5
       axialTilt: 0.0269
+  # The lane to Vesper (galaxy.yaml). Its radius is the ring a ship flies through.
   - name: Halcyon Gate
     kind: JumpPoint
     parent: Halcyon
+    radius: 500
     orbit:
       semiMajorAxis: 4.0e11
       meanAnomalyAtEpoch: 1.0

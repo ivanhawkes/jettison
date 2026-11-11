@@ -159,6 +159,52 @@ TEST_CASE("Sim: interpolation runs along the line and the shorter arc, and knows
 	CHECK(!Sim::Interpolate(previous, current, entt::entity{6}, 0.25));
 }
 
+TEST_CASE("Sim: a snapshot says which system each entity is in, and no interpolation crosses a jump")
+{
+	RegisterTypes();
+	Sim::SimWorld world{kStep, 1};
+	Populate(world);
+	world.RegisterComponent<Sim::InSystem>();
+	world.Commands().Push(Launch{0.0});
+	world.Commands().Push(Launch{10.0});
+	world.Step();
+	const entt::entity here{0};
+	const entt::entity nowhere{1};
+	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
+	const std::uint64_t vesper = Sim::SystemId("Vesper");
+	CHECK(halcyon != vesper);
+	CHECK(halcyon != Sim::kNoSystem);
+	world.Registry().emplace<Sim::InSystem>(here, halcyon);
+
+	const Sim::Snapshot before = Sim::Capture(world);
+	REQUIRE(before.FindSample(here) != nullptr);
+	CHECK(before.FindSample(here)->system == halcyon);
+	CHECK(before.FindSample(nowhere)->system == Sim::kNoSystem);
+	CHECK(before.FindSample(entt::entity{7}) == nullptr);
+
+	// Within a system the entity moves along the line; across a jump it is where it arrived, since
+	// the two positions are in different systems' frames.
+	world.Step();
+	const Sim::Snapshot moved = Sim::Capture(world);
+	CHECK(Sim::Interpolate(before, moved, here, 0.5)->position.x == doctest::Approx(1.5 * kStep));
+	world.Registry().get<Sim::InSystem>(here).system = vesper;
+	world.Registry().get<Sim::Transform>(here).position = {4.0e10, 0.0, 0.0};
+	const Sim::Snapshot jumped = Sim::Capture(world);
+	CHECK(jumped.FindSample(here)->system == vesper);
+	CHECK(Sim::Interpolate(moved, jumped, here, 0.5)->position.x == 4.0e10);
+
+	// The system is part of the state: saved, loaded and hashed.
+	Sim::SimWorld loaded{kStep, 2};
+	Populate(loaded);
+	loaded.RegisterComponent<Sim::InSystem>();
+	loaded.Load(world.Save());
+	CHECK(loaded.Registry().get<Sim::InSystem>(here).system == vesper);
+	CHECK_FALSE(loaded.Registry().all_of<Sim::InSystem>(nowhere));
+	CHECK(loaded.StateHash() == world.StateHash());
+	world.Registry().get<Sim::InSystem>(here).system = halcyon;
+	CHECK(loaded.StateHash() != world.StateHash());
+}
+
 TEST_CASE("Sim: the stepper runs the frame's steps and keeps the states either side of the last")
 {
 	RegisterTypes();

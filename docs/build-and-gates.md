@@ -261,8 +261,9 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
 ```
 
-**What it walks.** Six stages, the paths that have hurt this engine: resize, resize, minimize,
-restore, scene reload, settle. Each stage runs four frames, inside a 120-second watchdog. It walks
+**What it walks.** Seven stages, the paths that have hurt this engine: resize, resize, minimize,
+restore, scene reload, jump, settle. Each stage runs four frames, the jump as many as it takes,
+inside a 120-second watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
 the star system, under an orbit camera and the sun, which shadows it through four cascades, with
@@ -272,9 +273,13 @@ so its shadow pass clears the cascades and draws nothing, under the same plan an
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
 the frame sets rewritten after it run under validation too. The reload also reads every resource
 again, models and rigs included, so a model's buffers are retired while a frame in flight may read
-them and freed after it, under validation. The whole run took 4 seconds on a
+them and freed after it, under validation. The jump replaces the scene with another system's
+behind its fade while frames that drew the old one are in flight: the sample scene jumps to the
+galaxy's first system (the orbit scene), and the orbit scene through Halcyon's gate to Vesper, built
+from its system file alone; each is about 1.7 s on lavapipe. The whole run took 4 seconds on a
 workstation on 2026-11-11, from about 40 before phase 5e gave lavapipe RGBA8 textures and culled
-the planet out of the shadow cascades; budget more on a runner.
+the planet out of the shadow cascades; the script, its start-up checks and the two jumps included,
+took 15 seconds after phase 6d. Budget more on a runner.
 
 - **Window size.** The window opens at 1920×1080 normally, but at 640×480 in smoke mode,
   because lavapipe is fill-rate bound.
