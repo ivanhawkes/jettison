@@ -4,11 +4,17 @@ jettison_add_module(spatial
 		core
 		math
 	HEADERS
+		include/jettison/spatial/Queries.h
+		include/jettison/spatial/LooseOctree.h
+		include/jettison/spatial/SortedGrid.h
 		include/jettison/spatial/SpatialIndex.h
 	SOURCES
-		src/SpatialIndex.cpp
+		src/Queries.cpp
+		src/LooseOctree.cpp
+		src/SortedGrid.cpp
 	TESTS
 		tests/SpatialTests.cpp
+		tests/SpatialBenchmark.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT
