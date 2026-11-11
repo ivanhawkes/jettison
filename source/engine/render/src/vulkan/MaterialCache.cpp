@@ -1,4 +1,4 @@
-#include <jettison/render/vulkan/MaterialCache.h>
+#include "vulkan/MaterialCache.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -8,8 +8,8 @@
 #include <string_view>
 #include <utility>
 
+#include "vulkan/Model.h"
 #include <jettison/core/Log.h>
-#include <jettison/render/vulkan/Model.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -140,7 +140,7 @@ void MaterialCache::RegisterLoaders()
 
 void MaterialCache::Destroy()
 {
-	Forget();
+	ForgetAll();
 	for (auto &[path, material] : m_named)
 	{
 		(void)path;
@@ -165,7 +165,18 @@ void MaterialCache::Destroy()
 }
 
 
-void MaterialCache::Forget()
+void MaterialCache::Forget(const Model &model)
+{
+	const auto found = m_models.find(&model);
+	if (found == m_models.end())
+		return;
+	for (const ModelMaterial &material : found->second)
+		Retire({m_frame, material.image, material.view, material.pool});
+	m_models.erase(found);
+}
+
+
+void MaterialCache::ForgetAll()
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
 	for (auto &[model, materials] : m_models)

@@ -3,10 +3,10 @@
 #include <glm/glm.hpp>
 
 #include <cstdint>
-#include <string_view>
 #include <vector>
 
-#include <jettison/render/vulkan/Model.h>
+#include <jettison/render/Mesh.h>
+#include <jettison/scene/Shape.h>
 
 namespace Jettison::Render
 {
@@ -18,25 +18,6 @@ struct MeshData
 	std::vector<Vertex> vertices;
 	std::vector<std::uint32_t> indices;
 };
-
-// The procedural shapes a scene file can name. Each is unit-sized: radius one, and -1 to 1 along
-// an axis that has an extent.
-enum class Shape
-{
-	Sphere,
-	Box,
-	IcoSphere,
-	CubeSphere,
-	Ring,
-	Cylinder
-};
-
-// The shape for a name in a scene file ("sphere", "box", "icosphere", "cubesphere", "ring",
-// "cylinder"), or false.
-bool ParseShape(std::string_view name, Shape &shape);
-std::string_view ShapeName(Shape shape);
-// The names ParseShape takes, for an error message: "sphere, box, ...".
-std::string_view ShapeNames();
 
 // A sphere of radius one, `segments` around and segments / 2 from pole to pole. A seam of
 // duplicated vertices runs pole to pole, so the texture coordinates wrap.
@@ -73,7 +54,7 @@ struct MeshLod
 // A shape's levels of detail, finest first, each about half the resolution of the one before; the
 // finest is the resolution the scene drew every shape at before levels of detail. A box has the one
 // level, which is exact. `innerRadius` is the ring's, from 0 to 1, and the other shapes ignore it.
-std::vector<MeshLod> GenerateLods(Shape shape, const glm::vec3 &color, float innerRadius = 0.5f);
+std::vector<MeshLod> GenerateLods(Scene::Shape shape, const glm::vec3 &color, float innerRadius = 0.5f);
 
 // How far inside the unit sphere a mesh whose vertices lie on it reaches: one less the nearest any of
 // its triangles' planes passes the centre. It bounds the gap between a flat triangle and the sphere

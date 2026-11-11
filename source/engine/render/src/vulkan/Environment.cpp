@@ -1,4 +1,4 @@
-#include <jettison/render/vulkan/Environment.h>
+#include "vulkan/Environment.h"
 
 #include <array>
 #include <cmath>
@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 
-#include <jettison/render/Scene.h>
-#include <jettison/render/vulkan/PipelineCache.h>
+#include "vulkan/PipelineCache.h"
+#include <jettison/scene/Components.h>
 
 namespace Jettison::Render
 {
@@ -112,7 +112,7 @@ RenderState BakeState(VkFormat format)
 } // namespace
 
 
-GpuSky PackSky(const SkyComponent &sky)
+GpuSky PackSky(const Scene::SkyComponent &sky)
 {
 	GpuSky gpu;
 	const float radius =
@@ -322,7 +322,7 @@ void Environment::BakeBrdfLut()
 }
 
 
-void Environment::Bake(const SkyComponent *pSky)
+void Environment::Bake(const Scene::SkyComponent *pSky)
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
 	constexpr VkImageUsageFlags kTargetUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |

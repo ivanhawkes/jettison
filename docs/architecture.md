@@ -33,14 +33,14 @@ jettison/
     │   ├── vfs/                virtual file system, mounts, packs
     │   ├── resource/           handles, async load, reference counts, hot reload
     │   ├── ecs/                scheduler, tick phases, events, FSM utility
+    │   ├── animation/          glTF rigs and clip player, TRS tracks, mechanical skins
     │   ├── sim/                simulation world, command queue, snapshots, definition registry
     │   ├── celestial/          celestial clock, on-rails orbits, system and galaxy frames
-    │   ├── scene/              scene format, layers, system load and unload
+    │   ├── scene/              presentation scene, its file, update systems, camera rigs; layers
     │   ├── spatial/            per-system spatial index, queries
     │   ├── input/              actions, contexts, bindings, devices
     │   ├── render/             renderer interface, frame, cameras, materials, debug draw
-    │   │   └── vulkan/         the Vulkan backend (today's source/renderer/vulkan)
-    │   ├── animation/          glTF clip player, TRS tracks, mechanical skins
+    │   │   └── src/vulkan/     the Vulkan backend, private, behind IRenderer.h
     │   ├── physics/            Jolt integration
     │   ├── audio/              miniaudio integration
     │   ├── ui/                 RmlUi integration and data binding
@@ -73,19 +73,13 @@ order, and an upward or sideways edge fails the configure rather than linking qu
 
 ### Parked code
 
-Phase 1 moved code without changing what it does, and two things landed somewhere other than
-their final home:
-
-- **The scene graph is in `render`**, not `scene`. `Scene` loads models through the device,
-  waits on it before destroying them, and hands `Model` pointers to the renderer, while the
-  renderer reads the camera and light components back out of the scene registry. That is a
-  cycle, and putting the scene below `render` means inventing the seams (an injected model
-  loader, a forward-declared model) that phase 3's resource manager replaces anyway. The scene
-  format and its round-trip test stay in `render` until phase 3 gives the scene handles instead
-  of pointers; phase 6 then builds the per-system scene in `engine/scene`.
-- **`render` depends on `animation`**, a sibling in its tier. The glTF loader fills an
-  `Animation::Rig` (nodes, skin joints, clips), and the scene update system drives the rig's
-  clip player. The edge points the right way: animation knows nothing about the device.
+Nothing is parked today. Phase 1 parked the scene graph in `render`, where it loaded models through
+the device and handed the renderer `Model` pointers while the renderer read its camera and lights
+back out of its registry, a cycle. Phase 6a took it out: the scene is `engine/scene`, names its
+models by virtual path, and loads each model's rig through the resource manager; the renderer
+resolves the same paths to device models through its own cache, behind `IRenderer.h`. The rig is
+read from the glTF file by `animation`, which moved to the World tier, below `scene`, so the clip
+player the scene drives is no longer a sibling edge of `render`'s.
 
 The executables keep the names they already have: **Flotsam** is the editor, **Jetsam** is the
 runtime, now a sample viewer because the game has its own repository, and **render_test** is
@@ -122,11 +116,12 @@ flowchart TB
         serialise; resource; ecs
     end
     subgraph T3[World]
-        sim; celestial; spatial; scene; input
+        scene --> animation
+        scene --> celestial
+        sim; spatial; input
     end
     subgraph T4[Presentation and simulation services]
-        render --> animation
-        physics; audio; ui; ai; script
+        render; physics; audio; ui; ai; script
     end
     subgraph T5[Shell]
         app
@@ -137,6 +132,10 @@ flowchart TB
     T4 --> T3
     T5 --> T4
 ```
+
+The World tier's listed sibling edges are `scene`'s: on `animation`, whose clip players its update
+drives, and on `celestial`, whose star systems its system scenes are built from. `render` depends on
+`scene` from the tier above, and reads it; the scene names no device.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics` and `ai` never include
 `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
@@ -260,7 +259,7 @@ nodes in it:
 ### The environment
 
 A star system's sky is drawn behind the scene and is also what the scene is lit by
-(`render/vulkan/Environment.h`). Its starfield, galactic band and nebula are procedural, from the
+(`render/src/vulkan/Environment.h`). Its starfield, galactic band and nebula are procedural, from the
 scene's `SkyComponent` and a seed, and `sky.glsl` is the one function that draws them, both in the
 frame and into a cube map. When a scene loads or its sky changes, that capture is baked into the
 image-based lighting: GGX-prefiltered levels of the specular cube, one roughness each, and a
@@ -410,9 +409,12 @@ device's and to frames in flight rather than to C++ scope. Non-GPU types written
 RAII. See [coding standards](coding-standards.md#ownership-and-lifetime).
 
 GPU resources referenced by in-flight command buffers are destroyed only after the frame's
-fence. The scene generation counter (`Scene::Generation`) is how the renderer learns that cached
-resources keyed on model addresses are stale. The resource manager replaces address keys with
-handles carrying a generation, which retires that hazard class.
+fence. Nothing the renderer caches is keyed on an address the scene owns: models and named
+materials are keyed on virtual paths (or a procedural shape's description) and held as resource
+handles, and what a reload or a release replaces waits out the frames in flight in a queue
+rather than the device idling. `Scene::Generation` says only that the scene's contents were
+replaced, so the renderer rebakes the environment and releases what the new contents no longer
+draw.
 
 ## The engine today
 
@@ -422,29 +424,39 @@ proves it headlessly. What exists:
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
   `--scene`, `--save-scene`), builds `Application`, and prints any exception the run threw.
-  `Application::Init` stages are window, device and swapchain, scene (and the star system it
-  names), renderer (with the I/O worker and resource manager it loads through), UI. The
-  resource manager updates once a frame, before the render.
+  `Application::Init` stages are resources (the asset VFS, the I/O worker, the resource manager
+  and the rig loader), scene (and the star system it names, read through the VFS), renderer, and
+  window (its title and size). The shell holds the renderer as `Render::IRenderer` alone and
+  includes no Vulkan header. The resource manager updates once a frame, before the render.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
 - **Smoke sequence**. `SmokeSequence` is the render test's six stages (resize, resize,
   minimize, restore, scene reload, settle) as a state machine driven once per frame through
   five callbacks. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
-- **Scene** (`engine/render`, see [parked code](#parked-code)). An EnTT registry loaded from
-  and saved to YAML (`assets/scene/main.yaml`, and `orbit.yaml` at real scale). It has
-  transform, parent, world-transform, camera, light (a point or a spot, with a range), sun, sky
-  and mesh components (a glTF model or a procedural shape - UV, ico or cube sphere, box, ring,
-  cylinder - and optionally a material file, by virtual path), celestial bodies placed by the star
-  system the scene names, an orbit camera rig, and the animation module's rotation-animation, skeleton and animation-player
-  components. Translations and world transforms are doubles. Authored state and runtime state
-  are kept apart: `RotationAnimationComponent::angle`, `AnimationPlayerComponent::time`, a
-  body's `PlacementComponent` and a rig's `CameraPoseComponent` are never saved, and the render
-  suite's round-trip tests hold the writer and the loader to that.
+- **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML
+  (`assets/scene/main.yaml`, and `orbit.yaml` at real scale) through `serialise`'s archives, at
+  file version 2: a field the file does not know is refused, naming its path and line, and the
+  loader and the writer share one check of what a file may say. It has transform, parent,
+  world-transform, camera, light (a point or a spot, with a range), sun, sky and mesh components
+  (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder
+  - and optionally a material file, by virtual path), celestial bodies placed by the star system
+  the scene names (a virtual path too), an orbit camera rig, and the animation module's
+  rotation-animation, skeleton and animation-player components. It names no device: a model mesh
+  holds its rig as a resource handle (`RigComponent`), and `SceneUpdateSystem` poses the model once
+  the rig is in, reporting a clip the rig lacks once and posing it at rest. Translations and world
+  transforms are doubles. Authored state and runtime state are kept apart: a rotation's angle, a
+  clip player's time, a body's `PlacementComponent`, a rig's `CameraPoseComponent` and the rig
+  handle are never saved, and the scene suite's round-trip tests hold the writer and the loader
+  to that.
 - **Animation** (`engine/animation`). `Rig` is a model's node hierarchy, skin joints and clips,
   with the clip player (`EvaluateSkin`) that used to be inside `Model`; `Playback.h` advances
-  the rotation and clip-player components. Nothing in it touches the device, so it is tested
-  without one.
-- **Vulkan backend** (`engine/render/.../vulkan`), on Vulkan 1.3. `DeviceContext` holds the
+  the rotation and clip-player components. `RigLoader.h` reads a rig from a glTF file through
+  fastgltf, as a resource decoded on the I/O worker. The renderer reads the same file's geometry
+  for its `Model`, so a model file is parsed twice, once for each. Nothing in it touches the
+  device, so it is tested without one.
+- **Vulkan backend** (`engine/render/src/vulkan`, private), on Vulkan 1.3, behind
+  `render/IRenderer.h`: `CreateRenderer` makes the window, the device, the swapchain, the frame
+  and the UI, and the interface is what the shell calls. `DeviceContext` holds the
   instance, device, debug-utils messenger (with synchronization validation in Debug), object
   names, and the VMA allocator every buffer and image comes from. `Swapchain` prefers an sRGB
   format and owns its image views. `Renderer` runs the frame as a declared pass list
@@ -470,7 +482,11 @@ proves it headlessly. What exists:
   it or a texture reloads, and frees what a reload replaced once no frame in flight reads it; a
   model without a material draws with its own textures through the default `mesh` program.
   `Model` loads glTF through fastgltf, as one level of detail, and a procedural shape as five, in
-  one vertex and index buffer, with a bounding sphere either way. The `mesh` program is glTF's metallic-roughness model, lit
+  one vertex and index buffer, with a bounding sphere either way. `ModelCache` resolves what a
+  mesh names: a model file is a resource, decoded on the I/O worker, uploaded by its loader's
+  `finish` and reloaded when its file changes; a procedural shape is made on first use. A model
+  file's mesh is not drawn until its rig has posed it, since the rig places the mesh within its
+  file. The `mesh` program is glTF's metallic-roughness model, lit
   by the sun, shadowed through its cascades, the [environment](#the-environment) and the local
   lights of the
   [cluster](#rendering-clustered-forward) the fragment falls in. `unlit` is for what is a light

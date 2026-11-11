@@ -7,8 +7,8 @@
 
 #include <cmath>
 
-#include <jettison/render/Scene.h>
-#include <jettison/render/SceneSystems.h>
+#include <jettison/scene/Components.h>
+#include <jettison/scene/SceneSystems.h>
 
 using namespace Jettison;
 
@@ -41,24 +41,23 @@ TEST_CASE("App: a proxy shows its simulation entity's interpolated transform, in
 	entt::registry presentation;
 	const entt::entity proxy = presentation.create();
 	presentation.emplace<App::SimProxyComponent>(proxy, ship);
-	presentation.emplace<Render::TransformComponent>(proxy);
+	presentation.emplace<Scene::TransformComponent>(proxy);
 	// A proxy whose entity the snapshots do not hold stays where it was.
 	const entt::entity orphan = presentation.create();
 	presentation.emplace<App::SimProxyComponent>(orphan, entt::entity{8});
-	presentation.emplace<Render::TransformComponent>(orphan, glm::dvec3{1.0, 2.0, 3.0});
+	presentation.emplace<Scene::TransformComponent>(orphan, glm::dvec3{1.0, 2.0, 3.0});
 
 	App::SyncSimProxies(presentation, previous, current, 0.25);
-	const auto &shown = presentation.get<Render::TransformComponent>(proxy);
+	const auto &shown = presentation.get<Scene::TransformComponent>(proxy);
 	CHECK(shown.translation.x == 1.0e12 + 2.5);
 	CHECK(shown.translation.y == doctest::Approx(2.5));
 	CHECK(shown.translation.z == doctest::Approx(-5.0));
-	CHECK(
-	    presentation.get<Render::TransformComponent>(orphan).translation == glm::dvec3{1.0, 2.0, 3.0});
+	CHECK(presentation.get<Scene::TransformComponent>(orphan).translation == glm::dvec3{1.0, 2.0, 3.0});
 
 	// The Euler angles written are the ones the scene composes back into the same rotation.
-	Render::SceneUpdateSystem{}.Update(presentation, 0.0f);
+	Scene::SceneUpdateSystem{}.Update(presentation, 0.0f);
 	const glm::dquat expected{glm::quat{glm::slerp(from, to, 0.25)}};
 	const glm::dmat4 world =
 	    glm::translate(glm::dmat4{1.0}, glm::dvec3{1.0e12 + 2.5, 2.5, -5.0}) * glm::mat4_cast(expected);
-	CHECK(Near(presentation.get<Render::WorldTransformComponent>(proxy).matrix, world));
+	CHECK(Near(presentation.get<Scene::WorldTransformComponent>(proxy).matrix, world));
 }

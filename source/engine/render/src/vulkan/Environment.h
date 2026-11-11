@@ -5,18 +5,22 @@
 #include <cstdint>
 #include <memory>
 
-#include <jettison/render/vulkan/DeviceContext.h>
-#include <jettison/render/vulkan/FrameData.h>
+#include "vulkan/DeviceContext.h"
+#include <jettison/render/FrameData.h>
+
+namespace Jettison::Scene
+{
+struct SkyComponent;
+}
 
 namespace Jettison::Render
 {
 class PipelineCache;
-struct SkyComponent;
 
 // The sky as sky.glsl takes it. The stars sit on a shell of an integer lattice half a cell thick,
 // which holds 2 pi r^2 of them at radius r, so r is sqrt(count / 2 pi); a star is drawn no wider
 // than 0.06 / r radians, which keeps every star a direction can see in the eight cells around it.
-GpuSky PackSky(const SkyComponent &sky);
+GpuSky PackSky(const Scene::SkyComponent &sky);
 
 // The image-based lighting of a star system (docs/architecture.md, "The frame"): the sky captured
 // into a cube map and prefiltered for the metallic-roughness BRDF, and the split sum's lookup
@@ -54,7 +58,7 @@ class Environment
 	void Destroy();
 
 	// Replaces the environment with the sky's, or with black for none.
-	void Bake(const SkyComponent *pSky);
+	void Bake(const Scene::SkyComponent *pSky);
 
 	VkSampler GetSampler() const
 	{

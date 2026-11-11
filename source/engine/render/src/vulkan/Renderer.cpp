@@ -1,4 +1,4 @@
-#include <jettison/render/vulkan/Renderer.h>
+#include "vulkan/Renderer.h"
 
 #include <tracy/TracyVulkan.hpp>
 
@@ -14,14 +14,17 @@
 #include <vector>
 
 #include <jettison/core/Log.h>
-#include <jettison/render/vulkan/Environment.h>
-#include <jettison/render/vulkan/FrameData.h>
-#include <jettison/render/vulkan/GpuProfiler.h>
-#include <jettison/render/vulkan/MaterialCache.h>
-#include <jettison/render/vulkan/PipelineCache.h>
-#include <jettison/render/vulkan/imgui/ImGuiRenderer.h>
+#include <jettison/render/FrameData.h>
+#include <jettison/scene/Scene.h>
 
-#include "PassBarriers.h"
+#include "vulkan/Environment.h"
+#include "vulkan/GpuProfiler.h"
+#include "vulkan/MaterialCache.h"
+#include "vulkan/ModelCache.h"
+#include "vulkan/PipelineCache.h"
+#include "vulkan/imgui/ImGuiRenderer.h"
+
+#include "vulkan/PassBarriers.h"
 
 namespace Jettison::Render
 {
@@ -66,11 +69,11 @@ constexpr float kShadowSlopeBias = -2.0f;
 // target; past this the tonemapper shows white either way.
 constexpr float kMaxSunRadiance = 30000.0f;
 
-const SkyComponent *FindSky(const entt::registry &sceneRegistry)
+const Scene::SkyComponent *FindSky(const entt::registry &sceneRegistry)
 {
 	// The scene loader allows one.
-	const auto view = sceneRegistry.view<const SkyComponent>();
-	return view.empty() ? nullptr : &view.get<const SkyComponent>(view.front());
+	const auto view = sceneRegistry.view<const Scene::SkyComponent>();
+	return view.empty() ? nullptr : &view.get<const Scene::SkyComponent>(view.front());
 }
 } // namespace
 
@@ -99,6 +102,8 @@ void Renderer::Init()
 	m_pPipelines = std::make_unique<PipelineCache>(m_pDeviceContext, m_assets);
 	m_pMaterials = std::make_unique<MaterialCache>(
 	    m_pDeviceContext, m_assets, m_resources, *m_pPipelines, kFramesInFlight);
+	m_pModels =
+	    std::make_unique<ModelCache>(m_pDeviceContext, m_resources, *m_pMaterials, kFramesInFlight);
 
 	CreateLayouts();
 	CreatePassList();
@@ -150,6 +155,9 @@ void Renderer::Destroy()
 	if (m_pEnvironment)
 		m_pEnvironment->Destroy();
 	m_bakedSky.reset();
+	// Before the materials: a model going takes its own materials with it.
+	if (m_pModels)
+		m_pModels->Destroy();
 	if (m_pMaterials)
 		m_pMaterials->Destroy();
 	if (m_pPipelines)
@@ -655,6 +663,7 @@ void Renderer::CreatePipelines()
 	// Every scene program is built against the mesh layout and this state, by the material cache:
 	// the default program here, the ones materials name when a material first draws.
 	m_pMaterials->Init(m_materialSetLayout, m_meshLayout, mesh);
+	m_pModels->Init();
 
 	// The sky is drawn after the surfaces, at the far end of the reversed-Z range, where nothing
 	// covered the depth buffer's clear; it writes no depth, so the lines drawn after it are tested
@@ -756,8 +765,8 @@ void Renderer::RecreateSwapchain()
 
 void Renderer::UpdateEnvironment(const entt::registry &sceneRegistry, bool sceneReplaced)
 {
-	const SkyComponent *pSky = FindSky(sceneRegistry);
-	std::optional<SkyComponent> sky;
+	const Scene::SkyComponent *pSky = FindSky(sceneRegistry);
+	std::optional<Scene::SkyComponent> sky;
 	if (pSky != nullptr)
 		sky = *pSky;
 	// A replaced scene is rebaked even when its sky is the same, so a reload proves the whole path:
@@ -803,7 +812,7 @@ void Renderer::WriteFrame(
 	const float pixelAngle =
 	    2.0f * std::tan(camera.verticalFov * 0.5f) / static_cast<float>(std::max(extent.height, 1u));
 	constants.environment = glm::vec4(m_pEnvironment->GetMaxSpecularLevel(), pixelAngle, 0.0f, 0.0f);
-	if (const SkyComponent *pSky = FindSky(sceneRegistry))
+	if (const Scene::SkyComponent *pSky = FindSky(sceneRegistry))
 		constants.sky = PackSky(*pSky);
 
 	// The grid spans the near plane to the cluster range, which has to be past it for the slices
@@ -833,10 +842,10 @@ void Renderer::WriteFrame(
 
 	// The scene loader allows one sun.
 	m_frameShadows = false;
-	for (const auto [entity, sun] : sceneRegistry.view<const SunComponent>().each())
+	for (const auto [entity, sun] : sceneRegistry.view<const Scene::SunComponent>().each())
 	{
 		glm::dvec3 position{0.0};
-		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
+		if (const auto *worldTransform = sceneRegistry.try_get<Scene::WorldTransformComponent>(entity))
 			position = glm::dvec3(worldTransform->matrix[3]);
 		// The direction is taken in double precision: the sun is a hundred million kilometres
 		// away, and its own offset is too large for a float to subtract from.
@@ -846,7 +855,7 @@ void Renderer::WriteFrame(
 		{
 			constants.sunDirection = glm::vec4(glm::vec3{towards / distance}, 1.0f);
 			constants.sunColorIntensity = glm::vec4(sun.color, sun.intensity);
-			const auto *placement = sceneRegistry.try_get<PlacementComponent>(entity);
+			const auto *placement = sceneRegistry.try_get<Scene::PlacementComponent>(entity);
 			const double radius = placement != nullptr && placement->radius > 0.0
 			                          ? std::asin(std::min(placement->radius / distance, 1.0))
 			                          : kDefaultSunAngularRadius;
@@ -1016,7 +1025,7 @@ void Renderer::WriteLights(
     FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera)
 {
 	m_lightScratch.clear();
-	for (const auto [entity, light] : sceneRegistry.view<const LightComponent>().each())
+	for (const auto [entity, light] : sceneRegistry.view<const Scene::LightComponent>().each())
 	{
 		if (!light.active)
 			continue;
@@ -1024,14 +1033,14 @@ void Renderer::WriteLights(
 		// entity's -Z, the world transform's third column without its scale.
 		glm::dvec3 position{0.0};
 		glm::dvec3 direction{0.0, 0.0, -1.0};
-		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
+		if (const auto *worldTransform = sceneRegistry.try_get<Scene::WorldTransformComponent>(entity))
 		{
 			position = glm::dvec3(worldTransform->matrix[3]);
 			const glm::dvec3 axis{worldTransform->matrix[2]};
 			if (glm::length(axis) > 0.0)
 				direction = -glm::normalize(axis);
 		}
-		else if (const auto *transform = sceneRegistry.try_get<TransformComponent>(entity))
+		else if (const auto *transform = sceneRegistry.try_get<Scene::TransformComponent>(entity))
 			position = transform->translation;
 		// The distance is taken in double precision, before anything becomes a float: a light whose
 		// range ends short of the grid's far end from here reaches no cluster. Nor does one whose reach
@@ -1123,14 +1132,15 @@ void Renderer::WriteMaterials(FrameData &frame, const std::vector<SceneDrawComma
 
 
 bool Renderer::Render(
-    Scene &scene, const SceneRenderSystem &renderSystem, const DebugDraw &debugDraw,
-    ImGuiRenderer &imguiRenderer, double presentationTime)
+    const Scene::Scene &scene, const DebugDraw &debugDraw, ImGuiRenderer &imguiRenderer,
+    double presentationTime)
 {
 	FrameData &frame = m_frames[m_currentFrame];
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
 	vkWaitForFences(device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX);
 	// The slot's last frame is done, and with it everything retired long enough ago to free.
 	m_pMaterials->BeginFrame(m_frameNumber, m_materialParameters);
+	m_pModels->BeginFrame(m_frameNumber);
 	m_pProfiler->Collect(m_currentFrame);
 	if (frame.checkPending)
 		CheckClusters(frame);
@@ -1153,29 +1163,24 @@ bool Renderer::Render(
 		vkWaitForFences(device, 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 	m_imagesInFlight[imageIndex] = frame.inFlight;
 
-	// A model's materials live under the address of the Model, and a scene reload destroys models
-	// whose addresses the next allocation reuses. The scene says when that happened. Freeing what
-	// is left needs the device idle, because the frame in flight may be reading a set from a pool
-	// that is about to go; a reload is rare, so stalling is the right trade against retiring pools
-	// behind a fence that cannot be named. Named materials are keyed on their paths, which a reload
-	// does not invalidate: the ones the new scene still draws are kept, reloads in flight and all,
-	// and the rest are released once this frame has resolved the new scene's.
+	// Models and named materials are keyed on what the scene names, not on addresses, so a scene
+	// whose contents were replaced leaves none of them stale: the ones the new contents still draw
+	// are kept, loads in flight and all, and the rest are released once this frame has resolved
+	// the new contents' own, into queues that wait out the frames in flight.
 	const bool sceneReplaced = m_sceneGeneration && *m_sceneGeneration != scene.Generation();
-	if (sceneReplaced)
-	{
-		check_vk_result(m_pDeviceContext->WaitIdle());
-		m_pMaterials->Forget();
-	}
 	m_sceneGeneration = scene.Generation();
 	UpdateEnvironment(scene.Registry(), sceneReplaced);
 
 	const CameraView camera = ActiveCameraView(scene.Registry());
-	const auto draws = renderSystem.Collect(scene.Registry(), camera.position);
+	const auto draws = CollectDraws(scene.Registry(), camera.position, *m_pModels);
 	std::vector<uint32_t> jointOffsets;
 	// The materials first: a draw's batch is keyed on the one it resolved to.
 	WriteMaterials(frame, draws, presentationTime);
 	if (sceneReplaced)
+	{
+		m_pModels->ReleaseUnresolved();
 		m_pMaterials->ReleaseUnresolved();
+	}
 	WriteFrame(frame, scene.Registry(), camera, draws, jointOffsets);
 	m_testedLineVertices = WriteLines(frame, debugDraw, camera.position);
 	if (m_checkClusters && frame.gridReadback.handle == VK_NULL_HANDLE)

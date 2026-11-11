@@ -3,14 +3,14 @@
 #include <stdexcept>
 #include <string>
 
-#include <jettison/render/Scene.h>
+#include <jettison/scene/Components.h>
 
 namespace Jettison::App
 {
 void ResolveCelestialBodies(const entt::registry &presentation, const Celestial::StarSystem &system)
 {
 	for (const auto [entity, celestial] :
-	     presentation.view<const Render::CelestialBodyComponent>().each())
+	     presentation.view<const Scene::CelestialBodyComponent>().each())
 		if (system.Find(celestial.body) < 0)
 			throw std::runtime_error(
 			    "The scene names celestial body '" + celestial.body + "', which star system '" +
@@ -21,13 +21,13 @@ void SyncCelestialBodies(
     entt::registry &presentation, const Celestial::StarSystem &system, double simSeconds)
 {
 	for (const auto [entity, celestial] :
-	     presentation.view<const Render::CelestialBodyComponent>().each())
+	     presentation.view<const Scene::CelestialBodyComponent>().each())
 	{
 		const int index = system.Find(celestial.body);
 		if (index < 0)
 			continue;
 		const auto body = static_cast<std::size_t>(index);
-		presentation.emplace_or_replace<Render::PlacementComponent>(
+		presentation.emplace_or_replace<Scene::PlacementComponent>(
 		    entity, Celestial::EvaluateBody(system, body, simSeconds).metres,
 		    Celestial::Orientation(system.bodies[body].rotation, simSeconds),
 		    system.bodies[body].radius);

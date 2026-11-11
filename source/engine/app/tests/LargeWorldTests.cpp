@@ -15,8 +15,9 @@
 
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/render/Camera.h>
-#include <jettison/render/Scene.h>
-#include <jettison/render/SceneSystems.h>
+#include <jettison/render/SceneView.h>
+#include <jettison/scene/Components.h>
+#include <jettison/scene/SceneSystems.h>
 
 using namespace Jettison;
 
@@ -57,8 +58,9 @@ std::optional<glm::dvec2> Reference(
 	    {focal / (kWidth / kHeight) * view.x, -focal * view.y, double{camera.nearPlane}, -view.z});
 }
 
-// What the GPU computes: the draw's render-space transform, the view and the projection, in float,
-// in the order the mesh program multiplies them.
+// What the GPU computes: the draw's render-space transform (Render::ToRenderSpace, which the
+// renderer's draw list makes each draw's from), the view and the projection, in float, in the order
+// the mesh program multiplies them.
 std::optional<glm::dvec2> Engine(
     const glm::mat4 &renderTransform, const glm::vec3 &local, const glm::mat4 &view,
     const glm::mat4 &projection)
@@ -91,9 +93,7 @@ struct Errors
 // pixels, from where it should be.
 Errors Measure(entt::registry &scene, const Celestial::StarSystem &system, double startTime, int frames)
 {
-	const Render::SceneUpdateSystem update;
-	const Render::SceneRenderSystem render;
-	const auto model = std::make_shared<Render::Model>(nullptr);
+	const Scene::SceneUpdateSystem update;
 	// The station's boxes' corners, and points on the planet: under the station, on the limb, and
 	// between.
 	std::array<glm::vec3, 8> corners;
@@ -107,21 +107,17 @@ Errors Measure(entt::registry &scene, const Celestial::StarSystem &system, doubl
 		const double time = startTime + frame * kStep;
 		App::SyncCelestialBodies(scene, system, time);
 		update.Update(scene, static_cast<float>(kStep));
-		Render::UpdateOrbitCameras(scene, kStep);
+		Scene::UpdateOrbitCameras(scene, kStep);
 		const Render::CameraView camera = Render::ActiveCameraView(scene);
 		const glm::mat4 view = Render::RenderViewMatrix(camera);
 		const glm::mat4 projection = Render::ReversedInfinitePerspective(
 		    camera.verticalFov, static_cast<float>(kWidth / kHeight), camera.nearPlane);
 
-		// The draws as the renderer collects them, in the registry's order.
-		const auto draws = render.Collect(scene, camera.position);
-		std::size_t drawIndex = 0;
 		for (const auto [entity, mesh, world] :
-		     scene.view<const Render::MeshComponent, const Render::WorldTransformComponent>().each())
+		     scene.view<const Scene::MeshComponent, const Scene::WorldTransformComponent>().each())
 		{
-			REQUIRE(drawIndex < draws.size());
-			const glm::mat4 renderTransform = draws[drawIndex++].renderTransform;
-			const bool planet = mesh.shape == Render::Shape::Sphere;
+			const glm::mat4 renderTransform = Render::ToRenderSpace(world.matrix, camera.position);
+			const bool planet = mesh.shape == Scene::Shape::Sphere;
 			std::vector<glm::vec3> points(corners.begin(), corners.end());
 			if (planet)
 			{
@@ -158,22 +154,19 @@ Errors Measure(entt::registry &scene, const Celestial::StarSystem &system, doubl
 	return errors;
 }
 
-// A procedural mesh with a model that has no device: the draw list reads its transform, not its
-// buffers.
-Render::MeshComponent Mesh(Render::Shape shape)
+Scene::MeshComponent Mesh(Scene::Shape shape)
 {
-	Render::MeshComponent mesh;
+	Scene::MeshComponent mesh;
 	mesh.shape = shape;
-	mesh.model = std::make_shared<Render::Model>(nullptr);
 	return mesh;
 }
 
-entt::entity Body(entt::registry &scene, const char *body, const glm::vec3 &scale, Render::Shape shape)
+entt::entity Body(entt::registry &scene, const char *body, const glm::vec3 &scale, Scene::Shape shape)
 {
 	const entt::entity entity = scene.create();
-	scene.emplace<Render::TransformComponent>(entity, glm::dvec3{0.0}, glm::vec3{0.0f}, scale);
-	scene.emplace<Render::CelestialBodyComponent>(entity, body);
-	scene.emplace<Render::MeshComponent>(entity, Mesh(shape));
+	scene.emplace<Scene::TransformComponent>(entity, glm::dvec3{0.0}, glm::vec3{0.0f}, scale);
+	scene.emplace<Scene::CelestialBodyComponent>(entity, body);
+	scene.emplace<Scene::MeshComponent>(entity, Mesh(shape));
 	return entity;
 }
 } // namespace
@@ -183,17 +176,17 @@ TEST_CASE(
 {
 	const Celestial::StarSystem system = SampleSystem();
 	entt::registry scene;
-	const entt::entity planet = Body(scene, "Ostra", glm::vec3{6.371e6f}, Render::Shape::Sphere);
+	const entt::entity planet = Body(scene, "Ostra", glm::vec3{6.371e6f}, Scene::Shape::Sphere);
 	// The station's hub, 60 metres long, with a panel 30 metres off its side.
-	const entt::entity station = Body(scene, "Ostra Highport", {6.0f, 6.0f, 30.0f}, Render::Shape::Box);
+	const entt::entity station = Body(scene, "Ostra Highport", {6.0f, 6.0f, 30.0f}, Scene::Shape::Box);
 	const entt::entity panel = scene.create();
-	scene.emplace<Render::TransformComponent>(
+	scene.emplace<Scene::TransformComponent>(
 	    panel, glm::dvec3{30.0, 0.0, 0.0}, glm::vec3{0.0f}, glm::vec3{8.0f, 0.2f, 4.0f});
-	scene.emplace<Render::ParentComponent>(panel, station);
-	scene.emplace<Render::MeshComponent>(panel, Mesh(Render::Shape::Box));
+	scene.emplace<Scene::ParentComponent>(panel, station);
+	scene.emplace<Scene::MeshComponent>(panel, Mesh(Scene::Shape::Box));
 
 	const entt::entity camera = scene.create();
-	scene.emplace<Render::CameraComponent>(camera, glm::dvec3{0.0}, glm::vec3{0.0f}, 50.0f, 0.5f, true);
+	scene.emplace<Scene::CameraComponent>(camera, glm::dvec3{0.0}, glm::vec3{0.0f}, 50.0f, 0.5f, true);
 	// Out along the station's radial, looking back past it, so the planet beneath it is in the
 	// frame too.
 	constexpr double kStart = 1.0e8;
@@ -201,14 +194,14 @@ TEST_CASE(
 	    Celestial::EvaluateBody(system, static_cast<std::size_t>(system.Find("Ostra Highport")), kStart)
 	        .metres -
 	    Celestial::EvaluateBody(system, static_cast<std::size_t>(system.Find("Ostra")), kStart).metres);
-	Render::OrbitCameraComponent orbit;
+	Scene::OrbitCameraComponent orbit;
 	orbit.targetId = "station";
 	orbit.target = station;
 	orbit.distance = 150.0;
 	orbit.yaw = std::atan2(radial.x, radial.z);
 	orbit.pitch = std::asin(radial.y);
 	orbit.minDistance = 20.0;
-	scene.emplace<Render::OrbitCameraComponent>(camera, std::move(orbit));
+	scene.emplace<Scene::OrbitCameraComponent>(camera, std::move(orbit));
 	App::ResolveCelestialBodies(scene, system);
 
 	// Three years into the clock, ten seconds of frames, the camera following the station at
@@ -228,7 +221,7 @@ TEST_CASE(
 	CHECK(near.naive > 100.0);
 
 	// Following the planet from twenty thousand kilometres, the station passing beneath.
-	auto &rig = scene.get<Render::OrbitCameraComponent>(camera);
+	auto &rig = scene.get<Scene::OrbitCameraComponent>(camera);
 	rig.target = planet;
 	rig.distance = 2.0e7;
 	rig.minDistance = 1.0e7;
@@ -246,7 +239,7 @@ TEST_CASE("Large world: a body the system does not have is refused at load")
 {
 	const Celestial::StarSystem system = SampleSystem();
 	entt::registry scene;
-	Body(scene, "Nowhere", glm::vec3{1.0f}, Render::Shape::Box);
+	Body(scene, "Nowhere", glm::vec3{1.0f}, Scene::Shape::Box);
 	CHECK_THROWS_WITH_AS(
 	    App::ResolveCelestialBodies(scene, system), doctest::Contains("'Nowhere'"), std::runtime_error);
 }
@@ -255,14 +248,13 @@ TEST_CASE("Large world: a body's placement is its orbit, and the authored transf
 {
 	const Celestial::StarSystem system = SampleSystem();
 	entt::registry scene;
-	const entt::entity station = Body(scene, "Ostra Highport", glm::vec3{1.0f}, Render::Shape::Box);
+	const entt::entity station = Body(scene, "Ostra Highport", glm::vec3{1.0f}, Scene::Shape::Box);
 	App::SyncCelestialBodies(scene, system, 1234.5);
-	const auto &placement = scene.get<Render::PlacementComponent>(station);
+	const auto &placement = scene.get<Scene::PlacementComponent>(station);
 	const auto index = static_cast<std::size_t>(system.Find("Ostra Highport"));
 	CHECK(placement.position == Celestial::EvaluateBody(system, index, 1234.5).metres);
-	CHECK(scene.get<Render::TransformComponent>(station).translation == glm::dvec3{0.0});
-	Render::SceneUpdateSystem{}.Update(scene, 0.0f);
+	CHECK(scene.get<Scene::TransformComponent>(station).translation == glm::dvec3{0.0});
+	Scene::SceneUpdateSystem{}.Update(scene, 0.0f);
 	CHECK(
-	    glm::dvec3{scene.get<Render::WorldTransformComponent>(station).matrix[3]} ==
-	    placement.position);
+	    glm::dvec3{scene.get<Scene::WorldTransformComponent>(station).matrix[3]} == placement.position);
 }

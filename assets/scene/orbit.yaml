@@ -3,8 +3,8 @@
 # camera orbits the station (W, A, S, D, Q, E, or drag with the right mouse button), C moves it to
 # the next body, F2 draws the orbits and the lights' reach, F3 shows the lights per cluster, and F4
 # the sun's shadow cascades.
-version: 1
-system: ../systems/halcyon.yaml
+version: 2
+system: systems/halcyon.yaml
 entities:
   - id: halcyon
     celestial:

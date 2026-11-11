@@ -1,9 +1,9 @@
-#include <jettison/render/CameraRigs.h>
+#include <jettison/scene/CameraRigs.h>
 
 #include <algorithm>
 #include <cmath>
 
-namespace Jettison::Render
+namespace Jettison::Scene
 {
 namespace
 {
@@ -191,4 +191,4 @@ CameraPose CameraTransition::Update(const CameraPose &to, double dt)
 	    m_from.position + (to.position - m_from.position) * t,
 	    glm::normalize(glm::slerp(m_from.orientation, to.orientation, t))};
 }
-} // namespace Jettison::Render
+} // namespace Jettison::Scene

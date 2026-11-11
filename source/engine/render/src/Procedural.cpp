@@ -11,6 +11,8 @@
 
 namespace Jettison::Render
 {
+using Scene::Shape;
+
 namespace
 {
 // Enough for a planet's limb to read as round from low orbit: chords 0.45 km short of the
@@ -24,15 +26,6 @@ constexpr int kRingSegments = 256;
 constexpr int kCylinderSegments = 64;
 // Levels of detail a shape other than a box has, each half the resolution of the one before.
 constexpr int kLodLevels = 5;
-
-constexpr std::array<std::pair<Shape, std::string_view>, 6> kShapeNames{{
-    {Shape::Sphere, "sphere"},
-    {Shape::Box, "box"},
-    {Shape::IcoSphere, "icosphere"},
-    {Shape::CubeSphere, "cubesphere"},
-    {Shape::Ring, "ring"},
-    {Shape::Cylinder, "cylinder"},
-}};
 
 // The faces of the cube from -1 to 1: each face's normal and the two axes across it, ordered so the
 // corners (-1, -1), (1, -1), (1, 1), (-1, 1) run anticlockwise seen from outside.
@@ -76,30 +69,6 @@ void CheckSegments(int segments, int minimum, const char *shape)
 		    std::string{"A "} + shape + " needs " + std::to_string(minimum) + " segments or more");
 }
 } // namespace
-
-bool ParseShape(std::string_view name, Shape &shape)
-{
-	for (const auto &[candidate, candidateName] : kShapeNames)
-		if (name == candidateName)
-		{
-			shape = candidate;
-			return true;
-		}
-	return false;
-}
-
-std::string_view ShapeName(Shape shape)
-{
-	for (const auto &[candidate, candidateName] : kShapeNames)
-		if (shape == candidate)
-			return candidateName;
-	return "sphere";
-}
-
-std::string_view ShapeNames()
-{
-	return "sphere, box, icosphere, cubesphere, ring, cylinder";
-}
 
 MeshData UvSphere(int segments, const glm::vec3 &color)
 {

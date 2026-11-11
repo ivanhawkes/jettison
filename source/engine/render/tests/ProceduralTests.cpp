@@ -10,12 +10,15 @@
 #include <cstdint>
 #include <map>
 #include <numbers>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 using namespace Jettison::Render;
+using Jettison::Scene::Shape;
+using Jettison::Scene::ShapeName;
 
 namespace
 {
@@ -222,20 +225,6 @@ TEST_CASE("Procedural: a ring is a flat annulus with a face up and a face down")
 
 	CHECK_THROWS_AS(Ring(32, 1.0f, glm::vec3{1.0f}), std::invalid_argument);
 	CHECK_THROWS_AS(Ring(2, 0.5f, glm::vec3{1.0f}), std::invalid_argument);
-}
-
-TEST_CASE("Procedural: every shape a scene can name round-trips through its name")
-{
-	for (const Shape shape :
-	     {Shape::Sphere, Shape::Box, Shape::IcoSphere, Shape::CubeSphere, Shape::Ring, Shape::Cylinder})
-	{
-		Shape parsed{};
-		REQUIRE(ParseShape(ShapeName(shape), parsed));
-		CHECK(parsed == shape);
-		CHECK(std::string{ShapeNames()}.find(ShapeName(shape)) != std::string::npos);
-	}
-	Shape parsed{};
-	CHECK_FALSE(ParseShape("torus", parsed));
 }
 
 TEST_CASE(

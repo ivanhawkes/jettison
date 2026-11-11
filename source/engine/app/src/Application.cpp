@@ -1,7 +1,6 @@
 #include "Application.h"
 
-// GLFW / Vulkan.
-#define GLFW_INCLUDE_VULKAN
+// The window's input and size; the renderer behind IRenderer owns the window itself.
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
@@ -9,38 +8,29 @@
 #include <chrono>
 #include <cmath>
 #include <format>
-#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <span>
-#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include <jettison/animation/Components.h>
+#include <jettison/animation/RigLoader.h>
 #include <jettison/app/CelestialPresentation.h>
 #include <jettison/app/SimPresentation.h>
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/profile/Profile.h>
-#include <jettison/render/Scene.h>
-#include <jettison/render/vulkan/DeviceContext.h>
-#include <jettison/render/vulkan/Renderer.h>
-#include <jettison/render/vulkan/Swapchain.h>
-#include <jettison/render/vulkan/Window.h>
-#include <jettison/render/vulkan/imgui/ImGuiRenderer.h>
+#include <jettison/render/IRenderer.h>
 #include <jettison/resource/ResourceManager.h>
+#include <jettison/scene/Components.h>
+#include <jettison/scene/Scene.h>
 
 namespace Jettison::App
 {
-using Render::check_vk_result;
-using Render::DeviceContext;
-using Render::ImGuiRenderer;
-using Render::Renderer;
-using Render::Scene;
-using Render::Swapchain;
-using Render::Window;
 
 namespace
 {
@@ -70,7 +60,7 @@ void DrawOrbits(
     double time)
 {
 	constexpr std::size_t kPoints = 256;
-	for (const auto [entity, celestial] : registry.view<const Render::CelestialBodyComponent>().each())
+	for (const auto [entity, celestial] : registry.view<const Scene::CelestialBodyComponent>().each())
 	{
 		const int index = system.Find(celestial.body);
 		if (index < 0)
@@ -92,12 +82,12 @@ void DrawOrbits(
 // A light's reach: a point light's range as a sphere, and a spot's cone out to its range, the
 // outer angle's edge drawn as the circle where the cone meets the range's sphere.
 void DrawLight(
-    Render::DebugDraw &draw, const Render::LightComponent &light, const glm::dvec3 &origin,
+    Render::DebugDraw &draw, const Scene::LightComponent &light, const glm::dvec3 &origin,
     const glm::dvec3 &direction)
 {
 	const glm::vec4 color{light.color, 0.6f};
 	draw.Sphere(origin, 0.15, {1.0f, 0.9f, 0.4f, 1.0f});
-	if (light.type != Render::LightType::Spot)
+	if (light.type != Scene::LightType::Spot)
 	{
 		draw.Sphere(origin, light.range, color);
 		return;
@@ -168,12 +158,13 @@ void Application::RegisterFrameSystems()
 	using Animation::SkeletonComponent;
 	using Ecs::Access;
 	using Ecs::TickPhase;
-	using Render::CameraComponent;
-	using Render::LightComponent;
-	using Render::MeshComponent;
-	using Render::ParentComponent;
-	using Render::TransformComponent;
-	using Render::WorldTransformComponent;
+	using Scene::CameraComponent;
+	using Scene::LightComponent;
+	using Scene::MeshComponent;
+	using Scene::ParentComponent;
+	using Scene::RigComponent;
+	using Scene::TransformComponent;
+	using Scene::WorldTransformComponent;
 
 	m_frame.Register(
 	    {"shell.input",
@@ -220,7 +211,7 @@ void Application::RegisterFrameSystems()
 	m_frame.Register(
 	    {"celestial.sync",
 	     TickPhase::Sync,
-	     Access::Of<Render::CelestialBodyComponent>().Writing<Render::PlacementComponent>(),
+	     Access::Of<Scene::CelestialBodyComponent>().Writing<Scene::PlacementComponent>(),
 	     {"sim.sync"},
 	     [this](entt::registry &registry, double)
 	     {
@@ -244,26 +235,26 @@ void Application::RegisterFrameSystems()
 	     TickPhase::Presentation,
 	     Access::Of<TransformComponent, ParentComponent, MeshComponent>()
 	         .Writing<
-	             RotationAnimationComponent, AnimationPlayerComponent, SkeletonComponent,
+	             RotationAnimationComponent, AnimationPlayerComponent, RigComponent, SkeletonComponent,
 	             WorldTransformComponent>(),
 	     {},
 	     [this](entt::registry &registry, double deltaTime)
 	     {
 		     JETTISON_PROFILE_ZONE("scene.update");
-		     m_sceneUpdateSystem.Update(registry, static_cast<float>(deltaTime));
+		     m_sceneUpdateSystem->Update(registry, static_cast<float>(deltaTime));
 	     }});
 	// After the world transforms, which the rigs follow, and before anything that reads the pose.
 	m_frame.Register(
 	    {"camera.rig",
 	     TickPhase::Presentation,
 	     Access::Of<WorldTransformComponent>()
-	         .Writing<Render::OrbitCameraComponent, Render::CameraPoseComponent>(),
+	         .Writing<Scene::OrbitCameraComponent, Scene::CameraPoseComponent>(),
 	     {"scene.update"},
 	     [this](entt::registry &registry, double deltaTime)
 	     {
 		     JETTISON_PROFILE_ZONE("camera.rig");
 		     DriveCameras(registry, deltaTime);
-		     Render::UpdateOrbitCameras(registry, deltaTime);
+		     Scene::UpdateOrbitCameras(registry, deltaTime);
 	     }});
 	m_frame.Register(
 	    {"scene.debug",
@@ -333,8 +324,7 @@ void Application::RegisterFrameSystems()
 		     // a swapchain for is not one it handled.
 		     const double presentationTime =
 		         std::chrono::duration<double>(m_frameStart - m_loopStart).count();
-		     m_frameResized = m_pRenderer->Render(
-		         *m_scene, m_sceneRenderSystem, m_debugDraw, *m_pImGuiRenderer, presentationTime);
+		     m_frameResized = m_pRenderer->Render(*m_pScene, m_debugDraw, presentationTime);
 	     }});
 	// After the render, so the frame it judges is the one just submitted; its reload stage
 	// replaces the scene, which nothing after it in the frame reads.
@@ -349,7 +339,7 @@ void Application::RegisterFrameSystems()
 			     return;
 		     int width = 0;
 		     int height = 0;
-		     glfwGetWindowSize(m_pWindow->GetGLFWWindow(), &width, &height);
+		     glfwGetWindowSize(m_pRenderer->GetGLFWWindow(), &width, &height);
 		     m_smokeSequence->Advance(m_frameResized, width, height, m_frameStart);
 	     }});
 	m_frame.Register(
@@ -405,7 +395,7 @@ void Application::Run()
 		const Render::ClusterCheckTotals &checks = m_clusterChecks;
 		std::cerr << "Cluster check: " << checks.frames << " frames compared, " << checks.litFrames
 		          << " with lights, " << checks.failures << " disagreed; at most " << checks.peakEntries
-		          << " of " << Render::Renderer::kLightIndexCapacity << " index entries and "
+		          << " of " << Render::kRendererLightIndexCapacity << " index entries and "
 		          << checks.peakClusterLights << " lights in a cluster\n";
 		if (checks.failures != 0)
 			throw std::runtime_error(
@@ -422,11 +412,10 @@ void Application::Run()
 void Application::Init()
 {
 	m_state = State::Initialising;
-	InitWindow();
-	InitVulkan();
+	InitResources();
 	InitScene();
 	InitRenderer();
-	InitUI();
+	InitWindow();
 	// The headless run renders the dev tools, the demo window and the console: the UI path is part of
 	// what the render test exercises, and an interactive run starts without it and asks for it with F1.
 	m_showUI = m_arguments.smokeTest;
@@ -437,60 +426,49 @@ void Application::Init()
 }
 
 
-void Application::InitWindow()
-{
-	m_pWindow = std::make_shared<Window>();
-	m_pWindow->Init();
-	glfwSetWindowTitle(m_pWindow->GetGLFWWindow(), m_windowTitle.c_str());
-}
-
-
-void Application::InitVulkan()
-{
-	m_pDeviceContext = std::make_shared<DeviceContext>(m_pWindow);
-	m_pDeviceContext->Init();
-#ifndef NDEBUG
-	if (m_arguments.smokeTest && !m_pDeviceContext->DebugUtilsActive())
-		throw std::runtime_error("Vulkan debug messenger is required for the smoke test");
-#endif
-	m_pSwapchain = std::make_shared<Swapchain>(m_pDeviceContext);
-	m_pSwapchain->Init();
-}
-
-
-void Application::InitScene()
-{
-	m_scene = std::make_unique<Scene>(m_pDeviceContext);
-	LoadScene();
-	if (!m_arguments.saveScenePath.empty())
-		m_scene->Save(m_arguments.saveScenePath);
-}
-
-
-void Application::InitRenderer()
+void Application::InitResources()
 {
 	if (m_assets.Mounts().empty())
 		m_assets.AddMount({"base", m_arguments.assetDirectory});
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
-	m_pRenderer =
-	    std::make_shared<Renderer>(m_pDeviceContext, m_pWindow, m_pSwapchain, m_assets, *m_pResources);
-	m_pRenderer->SetClusterCheck(m_arguments.smokeTest);
-	m_pRenderer->SetDepthPrepass(m_arguments.depthPrepass);
+	Animation::RegisterRigLoader(*m_pResources);
+	m_sceneUpdateSystem.emplace(m_pResources.get());
+}
+
+
+void Application::InitScene()
+{
+	m_pScene = std::make_unique<Scene::Scene>(m_pResources.get());
+	LoadScene();
+	if (!m_arguments.saveScenePath.empty())
+		m_pScene->Save(m_arguments.saveScenePath);
+}
+
+
+void Application::InitRenderer()
+{
+	Render::RendererOptions options;
+	options.assetDirectory = m_arguments.assetDirectory;
+#ifndef NDEBUG
+	options.requireDebugMessenger = m_arguments.smokeTest;
+#endif
+	options.clusterCheck = m_arguments.smokeTest;
+	options.depthPrepass = m_arguments.depthPrepass;
+	m_pRenderer = Render::CreateRenderer(m_assets, *m_pResources, std::move(options));
 	m_pRenderer->Init();
 }
 
 
-void Application::InitUI()
+void Application::InitWindow()
 {
-	m_pImGuiRenderer = std::make_unique<ImGuiRenderer>(m_pDeviceContext, m_arguments.assetDirectory);
-	m_pImGuiRenderer->Init(
-	    m_pWindow->GetGLFWWindow(), m_pRenderer->GetOutputFormat(), Renderer::kFramesInFlight);
+	GLFWwindow *const window = m_pRenderer->GetGLFWWindow();
+	glfwSetWindowTitle(window, m_windowTitle.c_str());
 	if (m_arguments.smokeTest)
-		glfwSetWindowSize(m_pWindow->GetGLFWWindow(), kSmokeWindowWidth, kSmokeWindowHeight);
+		glfwSetWindowSize(window, kSmokeWindowWidth, kSmokeWindowHeight);
 	else if (m_arguments.windowWidth && m_arguments.windowHeight)
 		glfwSetWindowSize(
-		    m_pWindow->GetGLFWWindow(), static_cast<int>(*m_arguments.windowWidth),
+		    window, static_cast<int>(*m_arguments.windowWidth),
 		    static_cast<int>(*m_arguments.windowHeight));
 }
 
@@ -505,16 +483,16 @@ void Application::RunFrameLoop()
 	m_frameClock.Tick();
 	m_loopStart = Time::RealClock::Clock::now();
 
-	while (!glfwWindowShouldClose(m_pWindow->GetGLFWWindow()))
+	while (!glfwWindowShouldClose(m_pRenderer->GetGLFWWindow()))
 		Tick();
 
 	m_clusterChecks = m_pRenderer->GetClusterChecks();
 	m_passTimings = m_pRenderer->GetPassTimings();
 	m_frameStats = m_pRenderer->GetFrameStats();
 	m_measuredFrames = m_pRenderer->GetMeasuredFrames();
-	m_deviceName = m_pDeviceContext->GetDeviceName();
-	m_frameWidth = m_pSwapchain->GetExtents().width;
-	m_frameHeight = m_pSwapchain->GetExtents().height;
+	m_deviceName = m_pRenderer->DeviceName();
+	m_frameWidth = m_pRenderer->FrameWidth();
+	m_frameHeight = m_pRenderer->FrameHeight();
 	Shutdown();
 }
 
@@ -525,14 +503,14 @@ void Application::Tick()
 	m_frameStart = Time::RealClock::Clock::now();
 	const double deltaTime = m_frameClock.Tick(m_frameStart).count();
 	for (const Ecs::TickPhase phase : Ecs::kTickPhases)
-		m_frame.Run(phase, m_scene->Registry(), deltaTime);
+		m_frame.Run(phase, m_pScene->Registry(), deltaTime);
 	JETTISON_PROFILE_FRAME();
 }
 
 
 void Application::DrawUI()
 {
-	m_pImGuiRenderer->BeginFrame();
+	m_pRenderer->BeginUi();
 	if (m_showUI)
 	{
 		DevTools::DrawDevTools(m_console, m_devTools, &m_showUI);
@@ -540,7 +518,7 @@ void Application::DrawUI()
 	}
 	else if (m_devTools.showConsole)
 		DevTools::DrawConsole(m_console, m_devTools.console, &m_devTools.showConsole);
-	m_pImGuiRenderer->EndFrame();
+	m_pRenderer->EndUi();
 }
 
 
@@ -637,7 +615,7 @@ void Application::ReportBenchmark() const
 
 void Application::PollInput()
 {
-	m_glfwInput.Feed(m_pWindow->GetGLFWWindow(), m_input);
+	m_glfwInput.Feed(m_pRenderer->GetGLFWWindow(), m_input);
 	// The console may have been closed by its window's own button last frame.
 	SyncConsoleContext();
 	m_input.Poll();
@@ -659,7 +637,7 @@ void Application::PollInput()
 	if (m_input.WasPressedThisFrame(m_toggleShadowCascades))
 		toggleView(Render::DebugView::ShadowCascades);
 	if (m_input.WasPressedThisFrame(m_cameraNext))
-		NextCameraTarget(m_scene->Registry());
+		NextCameraTarget(m_pScene->Registry());
 	if (m_input.WasPressedThisFrame(m_toggleConsole))
 	{
 		m_devTools.showConsole = !m_devTools.showConsole;
@@ -683,17 +661,16 @@ void Application::PollInput()
 
 void Application::LoadScene()
 {
-	m_scene->Load(m_arguments.scenePath);
+	m_pScene->Load(m_arguments.scenePath);
 	m_starSystem.reset();
-	if (const auto &path = m_scene->StarSystemPath(); !path.empty())
+	if (const std::string &path = m_pScene->StarSystem(); !path.empty())
 	{
-		std::ifstream file{path};
-		if (!file)
-			throw std::runtime_error("Failed to open the scene's star system: " + path.string());
-		std::stringstream text;
-		text << file.rdbuf();
-		m_starSystem = Celestial::ReadStarSystem(text.str());
-		ResolveCelestialBodies(m_scene->Registry(), *m_starSystem);
+		const auto bytes = m_assets.Read(path);
+		if (!bytes)
+			throw std::runtime_error("Failed to read the scene's star system '" + path + "'");
+		m_starSystem = Celestial::ReadStarSystem(
+		    std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()});
+		ResolveCelestialBodies(m_pScene->Registry(), *m_starSystem);
 	}
 	m_simStepper.Resync();
 }
@@ -711,7 +688,7 @@ void Application::DriveCameras(entt::registry &registry, double deltaTime)
 	if (m_input.IsPressed(m_cameraDrag))
 		turn -= glm::dvec2{m_input.Vector(m_cameraLook)} * kDragRate;
 	const double zoom = std::exp(-double{m_input.Axis(m_cameraZoom)} * kZoomRate * deltaTime);
-	for (const auto [entity, orbit] : registry.view<Render::OrbitCameraComponent>().each())
+	for (const auto [entity, orbit] : registry.view<Scene::OrbitCameraComponent>().each())
 	{
 		orbit.rig.Orbit(turn.x, turn.y);
 		orbit.rig.Zoom(zoom);
@@ -722,12 +699,12 @@ void Application::DriveCameras(entt::registry &registry, double deltaTime)
 void Application::NextCameraTarget(entt::registry &registry)
 {
 	std::vector<entt::entity> bodies;
-	for (const entt::entity entity : registry.view<const Render::CelestialBodyComponent>())
+	for (const entt::entity entity : registry.view<const Scene::CelestialBodyComponent>())
 		bodies.push_back(entity);
 	if (bodies.empty())
 		return;
 	std::ranges::sort(bodies);
-	for (const auto [entity, orbit] : registry.view<Render::OrbitCameraComponent>().each())
+	for (const auto [entity, orbit] : registry.view<Scene::OrbitCameraComponent>().each())
 	{
 		const auto current = std::ranges::find(bodies, orbit.target);
 		const entt::entity next = current == bodies.end() || std::next(current) == bodies.end()
@@ -737,11 +714,11 @@ void Application::NextCameraTarget(entt::registry &registry)
 		double radius = 50.0;
 		if (m_starSystem)
 			if (const int index =
-			        m_starSystem->Find(registry.get<Render::CelestialBodyComponent>(next).body);
+			        m_starSystem->Find(registry.get<Scene::CelestialBodyComponent>(next).body);
 			    index >= 0)
 				radius = std::max(radius, m_starSystem->bodies[static_cast<std::size_t>(index)].radius);
-		if (const auto *pose = registry.try_get<Render::CameraPoseComponent>(entity))
-			orbit.transition = Render::CameraTransition{
+		if (const auto *pose = registry.try_get<Scene::CameraPoseComponent>(entity))
+			orbit.transition = Scene::CameraTransition{
 			    {pose->position, pose->orientation}, 2.0, Math::Easing::InOutCubic};
 		orbit.target = next;
 		orbit.minDistance = radius * 1.1;
@@ -765,7 +742,7 @@ void Application::SyncConsoleContext()
 
 void Application::RequestClose()
 {
-	glfwSetWindowShouldClose(m_pWindow->GetGLFWWindow(), GLFW_TRUE);
+	glfwSetWindowShouldClose(m_pRenderer->GetGLFWWindow(), GLFW_TRUE);
 }
 
 
@@ -773,13 +750,13 @@ SmokeActions Application::MakeSmokeActions()
 {
 	SmokeActions actions;
 	actions.resize = [this](int width, int height)
-	{ glfwSetWindowSize(m_pWindow->GetGLFWWindow(), width, height); };
-	actions.iconify = [this] { glfwIconifyWindow(m_pWindow->GetGLFWWindow()); };
-	actions.restore = [this] { glfwRestoreWindow(m_pWindow->GetGLFWWindow()); };
-	// The reload is the whole Load() path: Scene::Destroy, then the models, textures and buffers
-	// built again, at the addresses the pipeline has cached resources under. Every resource is
-	// read again too, which is the hot-reload path a changed file takes - a texture uploaded over
-	// one a frame in flight samples - without writing to the asset tree.
+	{ glfwSetWindowSize(m_pRenderer->GetGLFWWindow(), width, height); };
+	actions.iconify = [this] { glfwIconifyWindow(m_pRenderer->GetGLFWWindow()); };
+	actions.restore = [this] { glfwRestoreWindow(m_pRenderer->GetGLFWWindow()); };
+	// The reload is the whole Load() path: the scene cleared and read again, so the renderer releases
+	// what the new contents do not draw and keeps what they do. Every resource is read again too,
+	// which is the hot-reload path a changed file takes - a model or texture uploaded over one a
+	// frame in flight reads - without writing to the asset tree.
 	actions.reload = [this]
 	{
 		LoadScene();
@@ -798,27 +775,12 @@ void Application::Shutdown() noexcept
 
 	// Teardown in the reverse order of Init(), which is not decoration: the order is the only
 	// thing between a submitted command buffer and the VUID that reports destroying the buffer it
-	// references, and the headless sequence walks that path on purpose.
+	// references, and the headless sequence walks that path on purpose. The renderer waits for the
+	// frame loop's last frame before it releases anything.
 	try
 	{
-		// Everything the frame loop submitted has to have landed before the objects it references
-		// go away. The loop's last frame is submitted, not waited on: Renderer::Render returns
-		// once the work is in the queue, so this wait is the frame loop's last fence.
-		if (m_pDeviceContext)
-			check_vk_result(m_pDeviceContext->WaitIdle());
-
-		if (m_pImGuiRenderer)
-			m_pImGuiRenderer->Destroy();
 		if (m_pRenderer)
 			m_pRenderer->Destroy();
-		if (m_scene)
-			m_scene->Destroy();
-		if (m_pSwapchain)
-			m_pSwapchain->Destroy();
-		if (m_pDeviceContext)
-			m_pDeviceContext->Destroy();
-		if (m_pWindow)
-			m_pWindow->Destroy();
 	}
 	catch (const std::exception &e)
 	{
@@ -833,23 +795,16 @@ void Application::Shutdown() noexcept
 		std::cerr << "Teardown: unknown error\n";
 	}
 
-	// The references go together, after the calls: a shared_ptr reaching zero in an arbitrary order
-	// cannot be the thing that releases an object, because nothing in this tree releases anything
-	// in a destructor. Every Destroy() above has run by here, and the order of the resets carries
-	// nothing.
-	m_pImGuiRenderer.reset();
 	m_pRenderer.reset();
-	// The renderer has released every handle it held, so the manager holds no GPU object; it goes
-	// before the worker it posts to.
+	// The scene's rigs are resource handles, released as it goes; then the manager, which holds no
+	// GPU object once the renderer has released its handles, goes before the worker it posts to.
+	m_pScene.reset();
+	m_sceneUpdateSystem.reset();
 	m_pResources.reset();
 	m_pIoWorker.reset();
-	m_scene.reset();
 	// The smoke sequence is not reset: Run reads its verdict after this returns, and it holds
 	// nothing of the engine's. Resetting it here once made that verdict unreachable, so a sequence
 	// that never reached its last stage passed the gate.
-	m_pSwapchain.reset();
-	m_pDeviceContext.reset();
-	m_pWindow.reset();
 
 	m_state = State::Stopped;
 }

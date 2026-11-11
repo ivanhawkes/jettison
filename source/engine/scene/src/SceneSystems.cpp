@@ -1,16 +1,20 @@
-#include <jettison/render/SceneSystems.h>
+#include <jettison/scene/SceneSystems.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
 #include <stdexcept>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
+#include <jettison/animation/Components.h>
 #include <jettison/animation/Playback.h>
-#include <jettison/render/Scene.h>
+#include <jettison/core/Log.h>
+#include <jettison/resource/ResourceManager.h>
+#include <jettison/scene/Components.h>
 
-namespace Jettison::Render
+namespace Jettison::Scene
 {
 using Animation::AnimationPlayerComponent;
 using Animation::RotationAnimationComponent;
@@ -18,6 +22,8 @@ using Animation::SkeletonComponent;
 
 namespace
 {
+constexpr Core::Category kScene{"scene"};
+
 glm::dmat4 Finish(
     entt::entity entity, entt::registry &registry, glm::dmat4 local,
     std::unordered_map<entt::entity, glm::dmat4> &computed, std::unordered_set<entt::entity> &active);
@@ -71,6 +77,27 @@ glm::dmat4 Finish(
 	registry.emplace_or_replace<WorldTransformComponent>(entity, local);
 	return local;
 }
+
+// Whether the entity's clip can play on this rig: the rig has the clip and a skin for it to move.
+// Looked up once a revision, and a clip that is missing reported then, since a file that names one
+// is content the scene loaded without a word: the rig arrives later, on the I/O worker.
+bool CheckClip(
+    const entt::registry &registry, entt::entity entity, const Animation::Rig &rig,
+    const MeshComponent &mesh)
+{
+	const auto *player = registry.try_get<AnimationPlayerComponent>(entity);
+	if (player == nullptr)
+		return false;
+	if (rig.HasSkin() && rig.HasAnimation(player->clipName))
+		return true;
+	const auto *id = registry.try_get<SceneEntityId>(entity);
+	Core::Log(
+	    Core::Severity::Error, kScene,
+	    "Entity '{}' plays clip '{}', which {} does not have with a skin to move: posed at rest",
+	    id != nullptr ? std::string_view{id->value} : std::string_view{"(unnamed)"}, player->clipName,
+	    mesh.model);
+	return false;
+}
 } // namespace
 
 void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
@@ -78,20 +105,32 @@ void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 	const float frameTime = std::clamp(deltaTime, 0.0f, 0.1f);
 	for (const entt::entity entity : registry.view<TransformComponent, RotationAnimationComponent>())
 		Animation::AdvanceRotation(registry.get<RotationAnimationComponent>(entity), frameTime);
-	for (const entt::entity entity : registry.view<MeshComponent, SkeletonComponent>())
-	{
-		const Animation::Rig &rig = registry.get<MeshComponent>(entity).model->GetRig();
-		auto &skeleton = registry.get<SkeletonComponent>(entity);
-		std::string_view clipName;
-		float animationTime = 0.0f;
-		if (auto *player = registry.try_get<AnimationPlayerComponent>(entity))
+	if (m_pResources != nullptr)
+		for (const auto [entity, mesh, rigComponent] :
+		     registry.view<const MeshComponent, RigComponent>().each())
 		{
-			Animation::AdvancePlayer(*player, rig.AnimationDuration(player->clipName), frameTime);
-			clipName = player->clipName;
-			animationTime = player->time;
+			const Animation::Rig *rig = m_pResources->TryGet(rigComponent.rig);
+			if (rig == nullptr)
+				continue;
+			if (const std::uint32_t revision = m_pResources->RevisionOf(rigComponent.rig);
+			    revision != rigComponent.revision)
+			{
+				rigComponent.playable = CheckClip(registry, entity, *rig, mesh);
+				rigComponent.revision = revision;
+			}
+			auto &skeleton = registry.get_or_emplace<SkeletonComponent>(entity);
+			std::string_view clipName;
+			float animationTime = 0.0f;
+			if (auto *player = registry.try_get<AnimationPlayerComponent>(entity);
+			    player != nullptr && rigComponent.playable)
+			{
+				Animation::AdvancePlayer(*player, rig->AnimationDuration(player->clipName), frameTime);
+				clipName = player->clipName;
+				animationTime = player->time;
+			}
+			rig->EvaluateSkin(
+			    clipName, animationTime, skeleton.jointMatrices, skeleton.meshNodeTransform);
 		}
-		rig.EvaluateSkin(clipName, animationTime, skeleton.jointMatrices, skeleton.meshNodeTransform);
-	}
 
 	std::unordered_map<entt::entity, glm::dmat4> computed;
 	std::unordered_set<entt::entity> active;
@@ -120,76 +159,4 @@ void UpdateOrbitCameras(entt::registry &registry, double deltaTime)
 		registry.emplace_or_replace<CameraPoseComponent>(entity, pose.position, pose.orientation);
 	}
 }
-
-CameraView ActiveCameraView(const entt::registry &registry)
-{
-	CameraView view;
-	const CameraComponent fallback;
-	const CameraComponent *camera = &fallback;
-	entt::entity cameraEntity = entt::null;
-	for (const entt::entity entity : registry.view<const CameraComponent>())
-		if (registry.get<CameraComponent>(entity).active)
-		{
-			camera = &registry.get<CameraComponent>(entity);
-			cameraEntity = entity;
-			break;
-		}
-	view.verticalFov = glm::radians(camera->verticalFovDegrees);
-	view.nearPlane = camera->nearPlane;
-	if (const auto *pose =
-	        cameraEntity == entt::null ? nullptr : registry.try_get<CameraPoseComponent>(cameraEntity))
-	{
-		view.position = pose->position;
-		view.orientation = pose->orientation;
-	}
-	else
-	{
-		view.position = camera->position;
-		view.orientation =
-		    OrientationFromAngles(camera->rotation.x, camera->rotation.y, camera->rotation.z);
-	}
-	// An orbit camera moves with what it circles, which is where the shadows' grid is fixed.
-	if (const auto *orbit =
-	        cameraEntity == entt::null ? nullptr : registry.try_get<OrbitCameraComponent>(cameraEntity))
-		if (const auto *world = registry.valid(orbit->target)
-		                            ? registry.try_get<WorldTransformComponent>(orbit->target)
-		                            : nullptr)
-			view.frameOrigin = glm::dvec3{world->matrix[3]};
-	return view;
-}
-
-std::vector<SceneDrawCommand> SceneRenderSystem::Collect(
-    const entt::registry &registry, const glm::dvec3 &camera) const
-{
-	std::vector<SceneDrawCommand> drawCommands;
-	const auto meshes = registry.view<const MeshComponent, const WorldTransformComponent>();
-	for (const entt::entity entity : meshes)
-	{
-		const auto &mesh = meshes.get<const MeshComponent>(entity);
-		if (!mesh.model)
-			continue;
-		const auto *skeleton = registry.try_get<SkeletonComponent>(entity);
-		const glm::dmat4 meshNodeTransform{skeleton ? skeleton->meshNodeTransform : glm::mat4{1.0f}};
-		const glm::dmat4 world =
-		    meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform;
-		// The bounds come from the double-precision matrix, made camera-relative before anything is
-		// rounded: a planet's centre ten thousand kilometres off keeps its metres.
-		glm::dmat4 relative = world;
-		relative[3] = glm::dvec4{glm::dvec3{world[3]} - camera, 1.0};
-		SceneDrawCommand draw{
-		    mesh.model.get(),
-		    glm::mat4{relative},
-		    skeleton,
-		    &mesh.material,
-		    TransformBounds(mesh.model->m_bounds, relative),
-		    MaxScale(relative),
-		    0.0};
-		const bool round = mesh.shape == Shape::Sphere || mesh.shape == Shape::IcoSphere ||
-		                   mesh.shape == Shape::CubeSphere;
-		if (round && registry.all_of<CelestialBodyComponent>(entity))
-			draw.occluderRadius = MinScale(relative);
-		drawCommands.push_back(draw);
-	}
-	return drawCommands;
-}
-} // namespace Jettison::Render
+} // namespace Jettison::Scene

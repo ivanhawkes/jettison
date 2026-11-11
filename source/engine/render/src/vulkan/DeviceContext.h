@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include <jettison/render/vulkan/Window.h>
+#include "vulkan/Window.h"
 
 // The Vulkan Memory Allocator's handles, declared as it declares them (VK_DEFINE_HANDLE), so this
 // header does not carry vk_mem_alloc.h to everything that includes it.

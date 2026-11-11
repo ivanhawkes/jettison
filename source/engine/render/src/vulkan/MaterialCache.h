@@ -13,10 +13,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "vulkan/DeviceContext.h"
+#include "vulkan/PipelineCache.h"
 #include <jettison/render/Material.h>
 #include <jettison/render/Texture.h>
-#include <jettison/render/vulkan/DeviceContext.h>
-#include <jettison/render/vulkan/PipelineCache.h>
 #include <jettison/resource/ResourceHandle.h>
 
 namespace Jettison::Resource
@@ -59,8 +59,8 @@ struct MaterialBinding
 // not make it stale, and the renderer releases the ones the new scene no longer draws. A model's
 // own is what a glTF primitive or a procedural shape without a material draws with: the default
 // "mesh" program at its defaults, with the primitive's embedded base-colour image, keyed on the
-// Model's address, which a scene reload frees and the next allocation may reuse; the renderer
-// calls Forget when the scene's generation moves, with the device idle.
+// Model's address. The model cache calls Forget as a model goes, before the next allocation can be
+// given the address (render/vulkan/ModelCache.h).
 //
 // Nothing a frame in flight may read is destroyed on the spot. A replaced descriptor pool, and the
 // image of a texture a reload replaced, wait in a queue for kFramesInFlight frames.
@@ -101,9 +101,9 @@ class MaterialCache
 	// which the draw loop asks for them in.
 	Binding Ensure(const Model &model, std::size_t primitiveIndex);
 
-	// Frees every model's own material. The device has to be idle: a set or texture a submission in
-	// flight reads cannot be freed underneath it.
-	void Forget();
+	// Retires a model's own materials, which wait out the frames in flight: the model is going, and
+	// its address may be the next one's.
+	void Forget(const Model &model);
 	// Releases every named material this frame did not resolve: after a scene reload, the ones the
 	// new scene does not draw. What they bound waits out the frames in flight.
 	void ReleaseUnresolved();
@@ -169,6 +169,8 @@ class MaterialCache
 	void Upload(const TextureData &data, const std::string &name, Image &image, VkImageView &view);
 	void Retire(Retired retired);
 	void Free(Retired &retired);
+	// Frees every model's own material at once; the device has to be idle.
+	void ForgetAll();
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;
 	const Vfs::FileSystem &m_assets;

@@ -1,7 +1,7 @@
-# The renderer, its Vulkan backend, and for phase 1 the scene graph and its file format (see
-# docs/architecture.md, "Parked code"). The Vulkan headers are public because the app shell builds
-# the backend's objects itself; phase 4's renderer interface (IRenderer.h) is what takes them out
-# of the game's include path.
+# The renderer: its interface (IRenderer.h), the frame's CPU side, and the Vulkan backend behind
+# it. The backend's headers are private (src/vulkan), and Vulkan is a private library, so no Vulkan
+# type reaches a module that links render. It draws a scene (engine/scene) by what the scene names,
+# loading the models through the resource manager.
 jettison_add_module(render
 	DEPENDS
 		animation
@@ -9,38 +9,27 @@ jettison_add_module(render
 		profile
 		reflect
 		resource
+		scene
 		serialise
 		vfs
 	HEADERS
 		include/jettison/render/Camera.h
-		include/jettison/render/CameraRigs.h
 		include/jettison/render/Clusters.h
 		include/jettison/render/Culling.h
 		include/jettison/render/DebugDraw.h
 		include/jettison/render/DrawBatches.h
+		include/jettison/render/FrameData.h
 		include/jettison/render/FrameStats.h
 		include/jettison/render/IRenderer.h
 		include/jettison/render/Material.h
+		include/jettison/render/Mesh.h
 		include/jettison/render/PassList.h
 		include/jettison/render/Procedural.h
-		include/jettison/render/Scene.h
-		include/jettison/render/SceneSystems.h
+		include/jettison/render/SceneView.h
 		include/jettison/render/Shadows.h
 		include/jettison/render/Texture.h
-		include/jettison/render/vulkan/DeviceContext.h
-		include/jettison/render/vulkan/Environment.h
-		include/jettison/render/vulkan/FrameData.h
-		include/jettison/render/vulkan/GpuProfiler.h
-		include/jettison/render/vulkan/MaterialCache.h
-		include/jettison/render/vulkan/Model.h
-		include/jettison/render/vulkan/PipelineCache.h
-		include/jettison/render/vulkan/Renderer.h
-		include/jettison/render/vulkan/Swapchain.h
-		include/jettison/render/vulkan/Window.h
-		include/jettison/render/vulkan/imgui/ImGuiRenderer.h
 	SOURCES
 		src/Camera.cpp
-		src/CameraRigs.cpp
 		src/Clusters.cpp
 		src/Culling.cpp
 		src/DebugDraw.cpp
@@ -48,42 +37,55 @@ jettison_add_module(render
 		src/Material.cpp
 		src/PassList.cpp
 		src/Procedural.cpp
-		src/Scene.cpp
-		src/SceneSystems.cpp
+		src/SceneView.cpp
 		src/Shadows.cpp
 		src/Texture.cpp
 		src/vulkan/DeviceContext.cpp
+		src/vulkan/DeviceContext.h
 		src/vulkan/Environment.cpp
+		src/vulkan/Environment.h
 		src/vulkan/GpuProfiler.cpp
+		src/vulkan/GpuProfiler.h
 		src/vulkan/MaterialCache.cpp
+		src/vulkan/MaterialCache.h
 		src/vulkan/Memory.cpp
 		src/vulkan/Model.cpp
+		src/vulkan/Model.h
+		src/vulkan/ModelCache.cpp
+		src/vulkan/ModelCache.h
 		src/vulkan/ModelGltf.cpp
 		src/vulkan/PassBarriers.cpp
 		src/vulkan/PassBarriers.h
 		src/vulkan/PipelineCache.cpp
+		src/vulkan/PipelineCache.h
 		src/vulkan/Renderer.cpp
+		src/vulkan/Renderer.h
+		src/vulkan/SceneDraws.cpp
+		src/vulkan/SceneDraws.h
 		src/vulkan/Swapchain.cpp
+		src/vulkan/Swapchain.h
+		src/vulkan/VulkanRenderer.cpp
 		src/vulkan/Window.cpp
+		src/vulkan/Window.h
 		src/vulkan/imgui/ImGuiRenderer.cpp
+		src/vulkan/imgui/ImGuiRenderer.h
 	TESTS
 		tests/BrdfTests.cpp
-		tests/CameraRigTests.cpp
 		tests/CameraTests.cpp
 		tests/ClusterTests.cpp
 		tests/CullingTests.cpp
+		tests/DebugDrawTests.cpp
 		tests/DrawBatchTests.cpp
 		tests/MaterialTests.cpp
 		tests/PassListTests.cpp
 		tests/ProceduralTests.cpp
-		tests/SceneTests.cpp
 		tests/ShadowTests.cpp
 		tests/TextureTests.cpp
 	PUBLIC_LIBRARIES
-		Vulkan::Vulkan
 		glm
 		EnTT::EnTT
 	PRIVATE_LIBRARIES
+		Vulkan::Vulkan
 		glfw
 		ktx_read
 		stb
@@ -106,4 +108,7 @@ if(TARGET jettison_render_tests)
 		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
 	target_include_directories(jettison_render_tests PRIVATE
 		"${PROJECT_SOURCE_DIR}/assets/shaders/include")
+	# The pass list's barriers are tested through the backend's private header (vulkan/PassBarriers.h),
+	# so the tests see the Vulkan the module keeps private.
+	target_link_libraries(jettison_render_tests PRIVATE Vulkan::Vulkan)
 endif()

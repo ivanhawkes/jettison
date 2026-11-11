@@ -1,4 +1,4 @@
-#include <jettison/render/vulkan/GpuProfiler.h>
+#include "vulkan/GpuProfiler.h"
 
 #include <tracy/TracyVulkan.hpp>
 

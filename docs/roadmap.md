@@ -13,7 +13,7 @@ built, are recorded in [history](history.md).
 |---|---|---|
 | 0–5 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering. Recorded in [history](history.md). | Met. |
 | 6 | **Star systems and galaxy.** Sub-phases 6a–6d; catalogue entries 21 and 16. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
-| 6a | **The scene leaves `render`.** `IRenderer.h` (moved from phase 4), with Vulkan types kept inside `render/vulkan`; the scene into `engine/scene`; the model cache onto the resource manager; the scene file onto `serialise`'s archives. | The shell talks to the renderer through the interface only, and the sample and orbit scenes load and render as before, the smoke test unchanged. |
+| 6a | **The scene leaves `render`.** Done 2026-11-11. `IRenderer.h` is the renderer the engine sees (the window, the frame of a scene, the UI, the frame's cost) and `CreateRenderer` the Vulkan backend behind it, its headers private under `render/src/vulkan` and Vulkan a private library. The scene is `engine/scene`: its components, its file, `SceneUpdateSystem` and the camera rigs, naming no device. The file is version 2, read and written through `YamlArchive` with one check shared by the loader and the writer, every path in it virtual; `serialise` learnt `std::optional` fields. Models are a resource keyed on their paths (`ModelCache`), retired after the frames in flight rather than behind an idle device; a model's rig is a resource of its own, read from the glTF file by `animation`, which moved to the World tier, below `scene`. | Met: `Application` holds `Render::IRenderer` alone and includes no Vulkan header; the sample and orbit scenes render as before (the Fox posed once its rig is in), and the smoke test, unchanged, passes both under validation. |
 | 6b | **System scenes and layers.** A scene per star system, built from the system description and the simulation state; layers within it. | `halcyon.yaml` builds a scene whose bodies and stations follow their orbits. |
 | 6c | **Spatial index.** A loose octree and a sorted grid measured against each other over simulation entities, one kept (an open decision). | Range and nearest queries are tested against brute force, and the measurement is recorded. |
 | 6d | **Jumps.** The jump-lane graph in `celestial`; jump transitions with asynchronous loading behind a transition effect; the galaxy simulation ticking across them. | Phase 6's exit criterion. |
@@ -52,7 +52,7 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–5 moved on, and where it lands. Their full record, and catalogue entries
+Work that phases 1–5 and 6a moved on, and where it lands. Their full record, and catalogue entries
 1–20, are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
@@ -60,9 +60,6 @@ Work that phases 1–5 moved on, and where it lands. Their full record, and cata
   smoke test's patterns.
 - **Jolt's profiler hooks** (`JPH_USE_EXTERNAL_PROFILE`, entry 5) feed Tracy: 7a. GPU zones
   for Vulkan, a zone per declared pass, were done in 5e.
-- **The renderer interface** (`IRenderer.h`, entry 17), the scene out of `render`, the scene's
-  model cache onto the resource manager (entry 11), and the scene file onto `serialise`'s
-  archives (entry 9): 6a.
 - **HOTAS and other joystick axes, and the mouse wheel** (entry 14): 7b.
 - **Migrations** for saves (entry 9) and the decision whether definitions migrate (entry 13),
   fsync on the user mount (entry 10), and the shell loading the user's bindings (entry 14): 8a.
@@ -77,8 +74,9 @@ Work that phases 1–5 moved on, and where it lands. Their full record, and cata
   measurement; hysteresis between levels of detail, and levels for model files; the planets' own
   shadows past the shadow distance (a station in eclipse), which would need an analytic test against
   the bodies; programs that hot-reload; cube maps and texture arrays in files; normal mapping, which
-  waits for tangent-space vertex data (`math/Tangents.h` makes it); and a glTF model's own
-  metallic-roughness factors and textures.
+  waits for tangent-space vertex data (`math/Tangents.h` makes it); a glTF model's own
+  metallic-roughness factors and textures; and a model file read once rather than twice, for its
+  rig and for its geometry (6a).
 
 ## Stubs
 

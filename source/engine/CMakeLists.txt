@@ -18,16 +18,16 @@ add_subdirectory(serialise)
 add_subdirectory(resource)
 add_subdirectory(ecs)
 
-# World.
+# World. animation is pure CPU, and the scene's systems drive its clip players, so it comes before
+# the scene.
+add_subdirectory(animation)
 add_subdirectory(sim)
 add_subdirectory(celestial)
 add_subdirectory(spatial)
 add_subdirectory(scene)
 add_subdirectory(input)
 
-# Presentation and simulation services. render depends on its sibling animation: the model loader
-# fills an animation rig, and the scene systems drive the clip player.
-add_subdirectory(animation)
+# Presentation and simulation services.
 add_subdirectory(render)
 add_subdirectory(physics)
 add_subdirectory(audio)

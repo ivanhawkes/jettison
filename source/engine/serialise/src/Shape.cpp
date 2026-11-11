@@ -115,6 +115,12 @@ Shape ShapeOf(const entt::meta_type &type, std::string_view path)
 	const auto &leaves = LeafShapes();
 	if (const auto found = leaves.find(type.info().hash()); found != leaves.end())
 		return found->second;
+	if (const Reflect::OptionalTraits *optional = Reflect::FindOptional(type))
+	{
+		Shape shape{Kind::Optional};
+		shape.optional = optional;
+		return shape;
+	}
 	if (type.is_enum())
 	{
 		if (!IsRegistered(type))
@@ -130,6 +136,12 @@ Shape ShapeOf(const entt::meta_type &type, std::string_view path)
 	throw UnsupportedTypeError{std::format(
 	    "Serialise: {}: type '{}' is neither registered with Reflect nor one an archive writes", path,
 	    type.info().name())};
+}
+
+bool IsEmptyOptional(const entt::meta_any &value)
+{
+	const Reflect::OptionalTraits *optional = Reflect::FindOptional(value.type());
+	return optional != nullptr && !optional->hasValue(value);
 }
 
 Path::Scope Path::Field(std::string_view name)

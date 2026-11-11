@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include <jettison/render/vulkan/DeviceContext.h>
+#include "vulkan/DeviceContext.h"
 
 
 namespace Jettison::Render

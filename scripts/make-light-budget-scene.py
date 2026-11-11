@@ -2,9 +2,9 @@
 # Writes the light-budget scene: orbit.yaml with a few hundred more point lights over Ostra
 # Highport's hull, the station-full of lights the cluster grid is sized for (docs/architecture.md,
 # "The grid and the infinite far plane"). Phase 5e measured the grid, the cluster range and the
-# light index list's budget against it. The scene names its star system by a path relative to
-# itself, so it is written beside the orbit scene it is made from, in a build tree's asset copy
-# rather than the source tree:
+# light index list's budget against it. The scene names its star system and materials by virtual
+# path, found through the asset mounts, so it can be written anywhere; it goes beside the orbit scene
+# it is made from, in a build tree's asset copy rather than the source tree:
 #
 #   python3 scripts/make-light-budget-scene.py build/clang-release/assets/scene/orbit.yaml
 #   build/clang-release/source/test/render_test \

@@ -1,13 +1,13 @@
-#include <jettison/render/vulkan/PipelineCache.h>
+#include "vulkan/PipelineCache.h"
 
 #include <array>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
 
+#include "vulkan/DeviceContext.h"
+#include "vulkan/Model.h"
 #include <jettison/render/DebugDraw.h>
-#include <jettison/render/vulkan/DeviceContext.h>
-#include <jettison/render/vulkan/Model.h>
 #include <jettison/vfs/FileSystem.h>
 
 namespace Jettison::Render
@@ -96,8 +96,8 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 
 	VkPipelineVertexInputStateCreateInfo vertexInput{};
 	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	const VkVertexInputBindingDescription meshBinding = Vertex::getBindingDescription();
-	const auto meshAttributes = Vertex::getAttributeDescriptions();
+	const VkVertexInputBindingDescription meshBinding = VertexBindingDescription();
+	const auto meshAttributes = VertexAttributeDescriptions();
 	const VkVertexInputBindingDescription lineBinding{
 	    0, sizeof(LineVertex), VK_VERTEX_INPUT_RATE_VERTEX};
 	const std::array<VkVertexInputAttributeDescription, 2> lineAttributes{{

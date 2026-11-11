@@ -6,11 +6,15 @@
 #include <span>
 #include <string>
 
-#include <jettison/render/vulkan/FrameData.h>
+#include <jettison/render/FrameData.h>
+
+namespace Jettison::Scene
+{
+struct LightComponent;
+}
 
 namespace Jettison::Render
 {
-struct LightComponent;
 
 // The cluster grid of docs/architecture.md ("The grid and the infinite far plane") on the CPU. The
 // functions are assets/shaders/include/clusters.glsl compiled as C++, the same source the cluster
@@ -63,7 +67,7 @@ float SpotAttenuation(const GpuLight &light, const glm::vec3 &lightToSurface);
 // A light as the light list carries it: its position in render space, and for a spot the way it
 // points, unit length, in the same space.
 GpuLight PackLight(
-    const LightComponent &light, const glm::vec3 &renderPosition, const glm::vec3 &direction);
+    const Scene::LightComponent &light, const glm::vec3 &renderPosition, const glm::vec3 &direction);
 
 // The GPU's assignment for one frame, read back, against the CPU's from the same inputs. Each
 // cluster's lights are compared as sets with a tolerance: every light that reaches the cluster with
@@ -97,7 +101,7 @@ struct ClusterCheckTotals
 	std::uint64_t litFrames{0};
 	std::uint64_t failures{0};
 	// The most entries of the index list any frame used, and the most lights any cluster listed: what
-	// the list's budget (Renderer::kLightIndicesPerCluster) is measured against.
+	// the list's budget (kRendererLightIndicesPerCluster, render/IRenderer.h) is measured against.
 	std::uint32_t peakEntries{0};
 	std::uint32_t peakClusterLights{0};
 	// What the first failure was.

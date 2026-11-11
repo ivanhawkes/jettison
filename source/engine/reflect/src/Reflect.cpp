@@ -1,6 +1,7 @@
 #include <jettison/reflect/Reflect.h>
 
 #include <format>
+#include <map>
 
 namespace Jettison::Reflect
 {
@@ -9,6 +10,13 @@ namespace
 entt::id_type IdOf(std::string_view text)
 {
 	return entt::hashed_string::value(text.data(), text.size());
+}
+
+// Keyed on the type's hash; written at registration, before any reader, as the meta tables are.
+std::map<entt::id_type, const OptionalTraits *> &Optionals()
+{
+	static std::map<entt::id_type, const OptionalTraits *> optionals;
+	return optionals;
 }
 } // namespace
 
@@ -50,7 +58,20 @@ void CheckFieldName(const entt::meta_type &type, Name name)
 		    type.name(), existing.name())};
 	}
 }
+
+void AddOptional(const entt::type_info &info, const OptionalTraits &traits)
+{
+	Optionals().try_emplace(info.hash(), &traits);
+}
 } // namespace Detail
+
+const OptionalTraits *FindOptional(const entt::meta_type &type)
+{
+	if (!type)
+		return nullptr;
+	const auto found = Optionals().find(type.info().hash());
+	return found == Optionals().end() ? nullptr : found->second;
+}
 
 entt::meta_type Resolve(std::string_view name)
 {

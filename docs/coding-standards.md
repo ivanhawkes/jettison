@@ -31,8 +31,6 @@ next touched.
 | Namespaces | `Jettison::<Module>` | `Jettison::Render` |
 | Files | PascalCase, one main type per file | `SmokeSequence.h` / `.cpp` |
 
-`Vertex::getBindingDescription` and `m_scene` are known exceptions to fix when touched.
-
 ## Headers and includes
 
 - `#pragma once`.
@@ -50,9 +48,9 @@ next touched.
 ## Comments
 
 Comments say why, and what was measured; the code already says what. The reference style is the
-existing comments on `Scene::Generation`, `RotationAnimationComponent::angle` and the GLM block
-in `source/external/CMakeLists.txt`: they name the hazard, the evidence and the reason for the
-shape. A `TODO` names the question it is asking and is resolved where it was asked. No
+existing comments on `ModelCache` (`render/src/vulkan/ModelCache.h`),
+`RotationAnimationComponent::angle` and the GLM block in `source/external/CMakeLists.txt`: they
+name the hazard, the evidence and the reason for the shape. A `TODO` names the question it is asking and is resolved where it was asked. No
 commented-out code.
 
 ## Ownership and lifetime

@@ -5,7 +5,7 @@
 #include <format>
 #include <vector>
 
-#include <jettison/render/Scene.h>
+#include <jettison/scene/Components.h>
 
 namespace Jettison::Render
 {
@@ -95,12 +95,12 @@ float SpotAttenuation(const GpuLight &light, const glm::vec3 &lightToSurface)
 }
 
 GpuLight PackLight(
-    const LightComponent &light, const glm::vec3 &renderPosition, const glm::vec3 &direction)
+    const Scene::LightComponent &light, const glm::vec3 &renderPosition, const glm::vec3 &direction)
 {
 	GpuLight packed;
 	packed.positionRange = glm::vec4{renderPosition, light.range};
 	packed.colorIntensity = glm::vec4{light.color, light.intensity};
-	if (light.type != LightType::Spot)
+	if (light.type != Scene::LightType::Spot)
 		return packed;
 	// KHR_lights_punctual's form of the cone's falloff: a scale and offset on the cosine, so the
 	// fragment does one multiply-add rather than two cosines.

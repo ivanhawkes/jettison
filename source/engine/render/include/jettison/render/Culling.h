@@ -7,8 +7,8 @@
 #include <span>
 
 #include <jettison/render/Camera.h>
+#include <jettison/render/Mesh.h>
 #include <jettison/render/Shadows.h>
-#include <jettison/render/vulkan/Model.h>
 
 namespace Jettison::Render
 {

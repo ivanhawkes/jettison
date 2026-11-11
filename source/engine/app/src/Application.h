@@ -16,7 +16,7 @@
 #include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/FrameStats.h>
-#include <jettison/render/SceneSystems.h>
+#include <jettison/scene/SceneSystems.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
 #include <jettison/time/Clock.h>
@@ -34,13 +34,12 @@ class ResourceManager;
 }
 namespace Jettison::Render
 {
-class DeviceContext;
-class ImGuiRenderer;
-class Renderer;
+class IRenderer;
+}
+namespace Jettison::Scene
+{
 class Scene;
-class Swapchain;
-class Window;
-} // namespace Jettison::Render
+}
 
 namespace Jettison::App
 {
@@ -85,16 +84,17 @@ class Application
 		Stopped
 	};
 
-	// The stages of Init(), in dependency order: the window carries the surface, the device
-	// context carries the device the rest of them allocate on.
+	// The stages of Init(), in dependency order: the resource manager loads the scene's rigs and
+	// the renderer's models, materials and textures, and the scene needs no device, so it loads
+	// before the renderer opens the window.
 	void Init();
-	void InitWindow();
-	void InitVulkan();
+	void InitResources();
 	void InitScene();
 	// Loads the scene, and the star system it names; the smoke sequence's reload comes here too.
 	void LoadScene();
 	void InitRenderer();
-	void InitUI();
+	// The window the renderer opened: its title and its size.
+	void InitWindow();
 
 	// The frame's systems, one or two to a phase; registered in the constructor, so a mistake in
 	// the order is a start-up error, before a window opens.
@@ -131,34 +131,28 @@ class Application
 	std::string m_windowTitle;
 	State m_state{State::Uninitialised};
 
-	// The asset tree: the asset directory as the base mount. The renderer finds its shader programs
-	// through it, so a mount added above the base can replace one.
+	// The asset tree: the asset directory as the base mount. The scene's files and the renderer's
+	// programs are found through it, so a mount added above the base can replace one.
 	Vfs::FileSystem m_assets;
-	// The resources read from it on the I/O worker - the renderer's materials and textures - which
-	// hot-reload in a development build. Made with the renderer, which registers their loaders, and
-	// updated once a frame, before the render. The worker outlives the manager.
+	// The resources read from it on the I/O worker - the scene's rigs, the renderer's models,
+	// materials and textures - which hot-reload in a development build. Updated once a frame,
+	// before the render. The worker outlives the manager, and the manager the scene and the
+	// renderer, which hold its handles.
 	std::unique_ptr<Jobs::IoWorker> m_pIoWorker;
 	std::unique_ptr<Resource::ResourceManager> m_pResources;
 
-	// The subsystems, in the order Init builds them. Shared pointers where a subsystem is handed
-	// to more than one of its neighbours - the device context to all of them, the window to the
-	// device context and the renderer - and the shell holds the last reference to the rest.
-	std::shared_ptr<Render::Window> m_pWindow;
-	std::shared_ptr<Render::DeviceContext> m_pDeviceContext;
-	std::shared_ptr<Render::Swapchain> m_pSwapchain;
-	std::shared_ptr<Render::Renderer> m_pRenderer;
-	std::unique_ptr<Render::ImGuiRenderer> m_pImGuiRenderer;
-	std::unique_ptr<Render::Scene> m_scene;
+	// The subsystems, in the order Init builds them. The renderer is the interface alone: the
+	// window, the device and everything on it are behind it.
+	std::unique_ptr<Scene::Scene> m_pScene;
+	std::unique_ptr<Render::IRenderer> m_pRenderer;
 
 	// Built when the frame loop starts, so its frame count and its watchdog begin with the loop.
 	// Null in every interactive run, which is the shell's normal shape: an interactive run has no
 	// sequence to satisfy.
 	std::unique_ptr<SmokeSequence> m_smokeSequence;
 
-	// The scene systems carry no state; handing them to the renderer keeps the scene graph's
-	// update and collect policies the shell's choice rather than the renderer's.
-	const Render::SceneUpdateSystem m_sceneUpdateSystem;
-	const Render::SceneRenderSystem m_sceneRenderSystem;
+	// The scene's update: made with the resource manager, which it reads the rigs from.
+	std::optional<Scene::SceneUpdateSystem> m_sceneUpdateSystem;
 
 	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
 	// include the time start-up took.

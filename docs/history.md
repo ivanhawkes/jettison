@@ -182,6 +182,11 @@ made of, public for a format that is a sequence of values rather than one, as a 
 they read into a reference as well as into an owned value, and `entt::entity` is a leaf, its
 32-bit identifier. So are `glm::quat` and `glm::dquat`, written x, y, z, w, GLM's storage order. The scene stays on its own loader until the scene archive (entities, optional
 components, the mesh path relative to the file) moves onto these, with `ecs`.
+*Filled in* (6a): the scene file is read and written through `YamlArchive`, as records registered
+with `reflect` (`scene/src/Scene.cpp`), at version 2, where a model's path became a virtual path. A
+`std::optional` field is left out of the file when it is empty and read as present when the file
+names it, in both archives, which is how an entity's optional components are said; an animation's
+`time` is refused, as runtime state.
 
 ### 10. Virtual file system · phase 3 · `engine/vfs`
 
@@ -223,6 +228,10 @@ change; a reload keeps the handle and bumps `RevisionOf`, which a cache rebuilds
 that fails keeps the last good value. Completions hold a weak pointer to the manager, so one
 destroyed with work in flight drops the results. The scene's model cache moves onto it when the
 scene leaves `render`.
+*Filled in* (6a): models are a resource (`render/src/vulkan/ModelCache.h`), keyed on their virtual
+paths, their buffers retired through a queue that waits out the frames in flight, so a scene reload
+no longer idles the device; a model's rig is a resource of its own (`animation/RigLoader.h`), held
+by the scene.
 
 ### 12. ECS, scheduler, events and FSM · phase 3 · `engine/ecs`
 
@@ -367,6 +376,10 @@ before. Positions reach the GPU camera-relative: the scene's transforms are doub
 `ToRenderSpace` takes the camera off before anything becomes a float. `Camera.h` has the
 reversed-Z infinite projection; `DebugDraw.h` the frame's lines, kept in double precision until
 they are built; `Procedural.h` spheres and boxes for the scenes that need a planet.
+*Filled in* (6a): the interface. `IRenderer.h` is the window, the frame of a `Scene::Scene`, the UI
+drawn over it and what the frame cost; `CreateRenderer` makes the Vulkan backend behind it, whose
+headers are private (`render/src/vulkan`) and whose Vulkan is a private library, so the shell
+includes no Vulkan header.
 
 This phase lays the ground the clustered forward frame
 ([architecture](architecture.md#rendering-clustered-forward)) stands on, so phase 5 adds passes

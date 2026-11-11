@@ -1,71 +1,36 @@
-#include <jettison/render/vulkan/Model.h>
+#include "vulkan/Model.h"
 
 #include <fastgltf/core.hpp>
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/tools.hpp>
 
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/quaternion.hpp>
-
 #include <algorithm>
-#include <functional>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace Jettison::Render
 {
 namespace
 {
-glm::vec3 ToGlm(const fastgltf::math::nvec3 &value)
-{
-	return {value[0], value[1], value[2]};
-}
-
-glm::quat ToGlm(const fastgltf::math::nquat &value)
-{
-	return {value.w(), value.x(), value.y(), value.z()};
-}
-
-Animation::RigNode ReadNode(const fastgltf::Node &source)
-{
-	Animation::RigNode result;
-	if (const auto *trs = std::get_if<fastgltf::TRS>(&source.transform))
-	{
-		result.translation = ToGlm(trs->translation);
-		result.rotation = ToGlm(trs->rotation);
-		result.scale = ToGlm(trs->scale);
-		return result;
-	}
-
-	const auto &matrix = std::get<fastgltf::math::nmat4x4>(source.transform);
-	fastgltf::math::nvec3 scale;
-	fastgltf::math::nquat rotation;
-	fastgltf::math::nvec3 translation;
-	fastgltf::math::decomposeTransformMatrix(matrix, scale, rotation, translation);
-	result.translation = ToGlm(translation);
-	result.rotation = ToGlm(rotation);
-	result.scale = ToGlm(scale);
-	return result;
-}
-
 std::vector<std::byte> ReadBaseColorImageData(
-    const fastgltf::Asset &asset, const fastgltf::Primitive &primitive,
-    const std::filesystem::path &path)
+    const fastgltf::Asset &asset, const fastgltf::Primitive &primitive, const std::string &path)
 {
 	if (!primitive.materialIndex)
 		return {};
 	if (*primitive.materialIndex >= asset.materials.size())
-		throw std::runtime_error("glTF material index is out of range: " + path.string());
+		throw std::runtime_error("glTF material index is out of range: " + path);
 	const auto &baseColorTexture = asset.materials[*primitive.materialIndex].pbrData.baseColorTexture;
 	if (!baseColorTexture)
 		return {};
 	if (baseColorTexture->textureIndex >= asset.textures.size())
-		throw std::runtime_error("glTF base-color texture index is out of range: " + path.string());
+		throw std::runtime_error("glTF base-color texture index is out of range: " + path);
 	const auto &imageIndex = asset.textures[baseColorTexture->textureIndex].imageIndex;
 	if (!imageIndex || *imageIndex >= asset.images.size())
-		throw std::runtime_error("glTF base-color image is missing: " + path.string());
+		throw std::runtime_error("glTF base-color image is missing: " + path);
 
 	const auto &image = asset.images[*imageIndex];
 	const auto imageData = std::visit(
@@ -85,40 +50,28 @@ std::vector<std::byte> ReadBaseColorImageData(
 	    },
 	    image.data);
 	if (imageData.empty())
-		throw std::runtime_error("Unsupported glTF base-color image source: " + path.string());
+		throw std::runtime_error("Unsupported glTF base-color image source: " + path);
 	return {imageData.begin(), imageData.end()};
 }
 } // namespace
 
-void Model::LoadGltfModel(const std::filesystem::path &path)
+void Model::ReadGltf(std::span<const std::byte> bytes, const std::string &path)
 {
-	auto data = fastgltf::GltfDataBuffer::FromPath(path);
+	auto data = fastgltf::GltfDataBuffer::FromBytes(bytes.data(), bytes.size());
 	if (data.error() != fastgltf::Error::None)
-		throw std::runtime_error("Failed to read glTF model: " + path.string());
+		throw std::runtime_error("Failed to read glTF model: " + path);
 
 	fastgltf::Parser parser;
-	const auto options = fastgltf::Options::LoadExternalBuffers |
-	                     fastgltf::Options::LoadExternalImages |
-	                     fastgltf::Options::DecomposeNodeMatrices;
-	auto parsed = parser.loadGltf(data.get(), path.parent_path(), options);
+	auto parsed = parser.loadGltf(data.get(), {}, fastgltf::Options::DecomposeNodeMatrices);
 	if (parsed.error() != fastgltf::Error::None)
-		throw std::runtime_error("Failed to parse glTF model: " + path.string());
+		throw std::runtime_error("Failed to parse glTF model: " + path);
 	const fastgltf::Asset &asset = parsed.get();
-	if (asset.nodes.empty())
-		throw std::runtime_error("glTF model has no nodes: " + path.string());
-
-	m_rig.nodes.resize(asset.nodes.size());
-	for (std::size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)
-		m_rig.nodes[nodeIndex] = ReadNode(asset.nodes[nodeIndex]);
-	for (std::size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)
-	{
-		for (const std::size_t child : asset.nodes[nodeIndex].children)
-		{
-			if (child >= m_rig.nodes.size() || m_rig.nodes[child].parent >= 0)
-				throw std::runtime_error("glTF node hierarchy has an invalid or repeated parent");
-			m_rig.nodes[child].parent = static_cast<int>(nodeIndex);
-		}
-	}
+	// A resource's decode has the file's bytes and nothing beside them.
+	for (const auto &buffer : asset.buffers)
+		if (std::holds_alternative<fastgltf::sources::URI>(buffer.data))
+			throw std::runtime_error(
+			    "glTF model keeps a buffer in another file, which a resource cannot read: " + path +
+			    " (make it a .glb, or embed the buffer)");
 
 	std::optional<std::size_t> meshNode;
 	for (std::size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)
@@ -127,45 +80,28 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			continue;
 		if (meshNode)
 			throw std::runtime_error(
-			    "This renderer currently expects one mesh node per glTF asset: " + path.string());
+			    "This renderer currently expects one mesh node per glTF asset: " + path);
 		meshNode = nodeIndex;
 	}
 	if (!meshNode)
-		throw std::runtime_error("glTF model has no mesh node: " + path.string());
-	m_rig.meshNodeIndex = *meshNode;
-	const auto meshIndex = *asset.nodes[m_rig.meshNodeIndex].meshIndex;
+		throw std::runtime_error("glTF model has no mesh node: " + path);
+	const auto meshIndex = *asset.nodes[*meshNode].meshIndex;
 	if (meshIndex >= asset.meshes.size())
-		throw std::runtime_error("glTF mesh index is out of range: " + path.string());
-
-	if (asset.nodes[m_rig.meshNodeIndex].skinIndex)
+		throw std::runtime_error("glTF mesh index is out of range: " + path);
+	// The skin's joints, which the vertices' joint indices are into; the rig that poses them is the
+	// animation module's.
+	std::size_t skinJoints = 0;
+	if (const auto skinIndex = asset.nodes[*meshNode].skinIndex)
 	{
-		const std::size_t skinIndex = *asset.nodes[m_rig.meshNodeIndex].skinIndex;
-		if (skinIndex >= asset.skins.size())
-			throw std::runtime_error("glTF skin index is out of range: " + path.string());
-		const auto &skin = asset.skins[skinIndex];
-		m_rig.joints.reserve(skin.joints.size());
-		std::vector<glm::mat4> inverseBindMatrices(skin.joints.size(), glm::mat4{1.0f});
-		if (skin.inverseBindMatrices)
-		{
-			const auto &accessor = asset.accessors[*skin.inverseBindMatrices];
-			if (accessor.count != skin.joints.size())
-				throw std::runtime_error("glTF inverse-bind matrix count does not match joint count");
-			fastgltf::iterateAccessorWithIndex<glm::mat4>(
-			    asset, accessor,
-			    [&](glm::mat4 matrix, std::size_t index) { inverseBindMatrices[index] = matrix; });
-		}
-		for (std::size_t index = 0; index < skin.joints.size(); ++index)
-		{
-			if (skin.joints[index] >= m_rig.nodes.size())
-				throw std::runtime_error("glTF skin joint node index is out of range");
-			m_rig.joints.push_back({skin.joints[index], inverseBindMatrices[index]});
-		}
+		if (*skinIndex >= asset.skins.size())
+			throw std::runtime_error("glTF skin index is out of range: " + path);
+		skinJoints = asset.skins[*skinIndex].joints.size();
 	}
 
 	for (const auto &primitive : asset.meshes[meshIndex].primitives)
 	{
 		if (primitive.type != fastgltf::PrimitiveType::Triangles)
-			throw std::runtime_error("Only triangle glTF primitives are supported: " + path.string());
+			throw std::runtime_error("Only triangle glTF primitives are supported: " + path);
 		ModelPrimitive modelPrimitive;
 		modelPrimitive.firstIndex = static_cast<uint32_t>(m_indices.size());
 		modelPrimitive.baseColorImageData = ReadBaseColorImageData(asset, primitive, path);
@@ -203,7 +139,7 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 		const auto weightsAttribute = primitive.findAttribute("WEIGHTS_0");
 		const auto jointsAttribute1 = primitive.findAttribute("JOINTS_1");
 		const auto weightsAttribute1 = primitive.findAttribute("WEIGHTS_1");
-		if (!m_rig.joints.empty() && jointsAttribute == primitive.attributes.end())
+		if (skinJoints != 0 && jointsAttribute == primitive.attributes.end())
 			throw std::runtime_error("Skinned glTF primitive is missing JOINTS_0 and WEIGHTS_0");
 		if ((jointsAttribute == primitive.attributes.end()) !=
 		    (weightsAttribute == primitive.attributes.end()))
@@ -216,7 +152,7 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			throw std::runtime_error("glTF JOINTS_1 requires JOINTS_0");
 		if (jointsAttribute != primitive.attributes.end())
 		{
-			if (m_rig.joints.empty())
+			if (skinJoints == 0)
 				throw std::runtime_error("glTF primitive has skin attributes but its node has no skin");
 			fastgltf::iterateAccessorWithIndex<glm::u16vec4>(
 			    asset, asset.accessors[jointsAttribute->accessorIndex],
@@ -255,12 +191,12 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 				vertex.weights /= weightSum;
 				vertex.weights1 /= weightSum;
 			}
-			if (!m_rig.joints.empty())
+			if (skinJoints != 0)
 			{
 				// Indexing a glm vector narrows to its length_type (int), and the joint
 				// indices in the vertex are 32-bit unsigned, so the count joins them there
 				// rather than narrowing six times per vertex.
-				const auto jointCount = static_cast<glm::uvec4::value_type>(m_rig.joints.size());
+				const auto jointCount = static_cast<glm::uvec4::value_type>(skinJoints);
 				for (int influence = 0; influence < 4; ++influence)
 				{
 					if ((vertex.weights[influence] > 0.0f && vertex.joints[influence] >= jointCount) ||
@@ -317,58 +253,8 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 			vertex.normal = glm::normalize(vertex.normal);
 	}
 
-	for (const auto &animation : asset.animations)
-	{
-		Animation::Clip clip;
-		clip.name =
-		    animation.name.empty() ? "Animation " + std::to_string(m_rig.clips.size()) : animation.name;
-		for (const auto &channel : animation.channels)
-		{
-			if (!channel.nodeIndex || channel.path == fastgltf::AnimationPath::Weights)
-				continue;
-			if (*channel.nodeIndex >= m_rig.nodes.size() ||
-			    channel.samplerIndex >= animation.samplers.size())
-				throw std::runtime_error("glTF animation references an invalid node or sampler");
-			const auto &sampler = animation.samplers[channel.samplerIndex];
-			Animation::Track track;
-			track.nodeIndex = *channel.nodeIndex;
-			track.path =
-			    channel.path == fastgltf::AnimationPath::Translation ? Animation::TrackPath::Translation
-			    : channel.path == fastgltf::AnimationPath::Rotation  ? Animation::TrackPath::Rotation
-			                                                         : Animation::TrackPath::Scale;
-			track.interpolation =
-			    sampler.interpolation == fastgltf::AnimationInterpolation::Step
-			        ? Animation::Interpolation::Step
-			    : sampler.interpolation == fastgltf::AnimationInterpolation::CubicSpline
-			        ? Animation::Interpolation::CubicSpline
-			        : Animation::Interpolation::Linear;
-			const auto &inputAccessor = asset.accessors[sampler.inputAccessor];
-			fastgltf::iterateAccessor<float>(
-			    asset, inputAccessor, [&](float value) { track.times.push_back(value); });
-			const auto &outputAccessor = asset.accessors[sampler.outputAccessor];
-			track.values.reserve(outputAccessor.count);
-			if (track.path == Animation::TrackPath::Rotation)
-			{
-				fastgltf::iterateAccessor<glm::vec4>(
-				    asset, outputAccessor, [&](glm::vec4 value) { track.values.push_back(value); });
-			}
-			else
-			{
-				fastgltf::iterateAccessor<glm::vec3>(
-				    asset, outputAccessor,
-				    [&](glm::vec3 value) { track.values.emplace_back(value, 0.0f); });
-			}
-			if (!track.times.empty())
-				clip.duration = std::max(clip.duration, track.times.back());
-			clip.tracks.push_back(std::move(track));
-		}
-		m_rig.clips.push_back(std::move(clip));
-	}
-
 	// glTF has no levels of detail of its own, so a file is the one level, exact.
 	m_lods = {{0, static_cast<uint32_t>(m_primitives.size()), 0.0f}};
 	ComputeBounds();
-	CreateVertexBuffer();
-	CreateIndexBuffer();
 }
 } // namespace Jettison::Render

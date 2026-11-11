@@ -269,7 +269,9 @@ eleven floodlights, dock lights and beacons assigned to the clusters, and twenty
 drawn as one instanced draw). The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
-the frame sets rewritten after it run under validation too. The whole run took 4 seconds on a
+the frame sets rewritten after it run under validation too. The reload also reads every resource
+again, models and rigs included, so a model's buffers are retired while a frame in flight may read
+them and freed after it, under validation. The whole run took 4 seconds on a
 workstation on 2026-11-11, from about 40 before phase 5e gave lavapipe RGBA8 textures and culled
 the planet out of the shadow cascades; budget more on a runner.
 

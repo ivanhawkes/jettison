@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -78,12 +79,62 @@ class RegistrationError : public std::logic_error
 	}
 };
 
+// What an archive needs to handle a std::optional<T> field: whether it holds a value, a copy of the
+// value, and an optional made from one. A field that is optional is one a file may leave out and the
+// value still means something, as opposed to a field whose default is what leaving it out means: a
+// scene entity's light, which most entities have none of. The value type is any type an archive
+// writes, registered with Reflect if it is a class.
+struct OptionalTraits
+{
+	entt::meta_type (*valueType)();
+	bool (*hasValue)(const entt::meta_any &optional);
+	entt::meta_any (*value)(const entt::meta_any &optional);
+	entt::meta_any (*make)(entt::meta_any &value);
+};
+
+// The traits for a std::optional type some registered field has, or null for any other type.
+const OptionalTraits *FindOptional(const entt::meta_type &type);
+
 namespace Detail
 {
 // Throws RegistrationError unless name is free for a type and the type is not registered yet.
 void CheckTypeName(Name name, const entt::type_info &info);
 // Throws RegistrationError if type already has a field or an enumerator by that name.
 void CheckFieldName(const entt::meta_type &type, Name name);
+// Records an optional type's traits the first time a field of that type is registered.
+void AddOptional(const entt::type_info &info, const OptionalTraits &traits);
+
+template <typename T> struct IsOptional : std::false_type
+{
+};
+template <typename T> struct IsOptional<std::optional<T>> : std::true_type
+{
+};
+
+template <typename T> struct OptionalOf
+{
+	using Value = typename T::value_type;
+
+	static entt::meta_type ValueType()
+	{
+		return entt::resolve<Value>();
+	}
+	static bool HasValue(const entt::meta_any &optional)
+	{
+		const T *pOptional = optional.try_cast<T>();
+		return pOptional != nullptr && pOptional->has_value();
+	}
+	static entt::meta_any GetValue(const entt::meta_any &optional)
+	{
+		return entt::meta_any{**optional.try_cast<T>()};
+	}
+	static entt::meta_any Make(entt::meta_any &value)
+	{
+		return entt::meta_any{T{value.cast<Value>()}};
+	}
+
+	static constexpr OptionalTraits kTraits{&ValueType, &HasValue, &GetValue, &Make};
+};
 } // namespace Detail
 
 // Registers T by name, with the fields its builder adds and the attributes given here. A type is
@@ -108,6 +159,9 @@ template <typename T> class TypeBuilder
 		static_assert(std::is_member_object_pointer_v<decltype(Member)>, "A field is a data member");
 		static_assert(std::is_invocable_v<decltype(Member), T &>, "The field is not a member of T");
 		Detail::CheckFieldName(entt::resolve<T>(), name);
+		using FieldType = std::remove_cvref_t<std::invoke_result_t<decltype(Member), T &>>;
+		if constexpr (Detail::IsOptional<FieldType>::value)
+			Detail::AddOptional(entt::type_id<FieldType>(), Detail::OptionalOf<FieldType>::kTraits);
 		m_factory.template data<Member>(name.Id(), name.Text()).traits(attributes);
 		return *this;
 	}

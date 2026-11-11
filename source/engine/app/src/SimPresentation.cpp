@@ -5,7 +5,7 @@
 
 #include <optional>
 
-#include <jettison/render/Scene.h>
+#include <jettison/scene/Components.h>
 
 namespace Jettison::App
 {
@@ -14,7 +14,7 @@ void SyncSimProxies(
     double alpha)
 {
 	for (auto [entity, proxy, transform] :
-	     presentation.view<const SimProxyComponent, Render::TransformComponent>().each())
+	     presentation.view<const SimProxyComponent, Scene::TransformComponent>().each())
 	{
 		const std::optional<Sim::Transform> shown =
 		    Sim::Interpolate(previous, current, proxy.simEntity, alpha);

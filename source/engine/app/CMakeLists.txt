@@ -4,6 +4,7 @@
 # (platform/Cpu.h) into every executable the shell is in.
 jettison_add_module(app
 	DEPENDS
+		animation
 		celestial
 		core
 		devtools
@@ -14,6 +15,7 @@ jettison_add_module(app
 		profile
 		render
 		resource
+		scene
 		sim
 		time
 		vfs

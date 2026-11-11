@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace Jettison::Serialise
@@ -86,16 +87,20 @@ class Writer
 
 	void Class(const entt::meta_any &value)
 	{
-		const std::vector<entt::meta_data> fields = Reflect::Fields(value.type(), Attribute::Saved);
+		// An empty optional is left out, as a field the data does not name.
+		std::vector<std::pair<entt::meta_data, entt::meta_any>> fields;
+		for (const entt::meta_data &field : Reflect::Fields(value.type(), Attribute::Saved))
+			if (entt::meta_any member = field.get(value); !Detail::IsEmptyOptional(member))
+				fields.emplace_back(field, std::move(member));
 		Unsigned(m_payload, Count(fields.size()), 4);
-		for (const entt::meta_data &field : fields)
+		for (const auto &[field, member] : fields)
 		{
 			const auto scope = m_path.Field(field.name());
 			Unsigned(m_payload, Intern(field.name()), 4);
 			// The length is patched in once the value is written.
 			const std::size_t lengthAt = m_payload.size();
 			Unsigned(m_payload, 0, 4);
-			Value(field.get(value));
+			Value(member);
 			const std::size_t length = m_payload.size() - lengthAt - 4;
 			std::array<std::byte, 4> bytes{};
 			Store(bytes.data(), Count(length), 4);
@@ -195,6 +200,13 @@ class Writer
 				}
 				return;
 			}
+			case Kind::Optional:
+				if (!shape.optional->hasValue(value))
+					throw UnsupportedTypeError{std::format(
+					    "BinaryArchive: {}: an empty optional can only be a field, which is left out",
+					    m_path.Text())};
+				Value(shape.optional->value(value));
+				return;
 		}
 	}
 
@@ -387,6 +399,15 @@ class Reader
 						throw UnsupportedTypeError{std::format(
 						    "BinaryArchive: {}: the element could not be inserted", m_path.Text())};
 				}
+				return;
+			}
+			case Kind::Optional:
+			{
+				entt::meta_any held = shape.optional->hasValue(value)
+				                          ? shape.optional->value(value)
+				                          : shape.optional->valueType().construct();
+				Value(held);
+				Assign(value, shape.optional->make(held));
 				return;
 			}
 		}

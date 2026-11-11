@@ -6,7 +6,7 @@
 #include <memory>
 #include <utility>
 
-#include <jettison/render/vulkan/DeviceContext.h>
+#include "vulkan/DeviceContext.h"
 
 struct GLFWwindow;
 

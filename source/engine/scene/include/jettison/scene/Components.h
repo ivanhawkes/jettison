@@ -5,19 +5,19 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <cstdint>
-#include <filesystem>
-#include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
-#include <jettison/animation/Components.h>
-#include <jettison/render/CameraRigs.h>
-#include <jettison/render/Procedural.h>
-#include <jettison/render/vulkan/Model.h>
+#include <jettison/animation/Rig.h>
+#include <jettison/resource/ResourceHandle.h>
+#include <jettison/scene/CameraRigs.h>
+#include <jettison/scene/Shape.h>
 
-namespace Jettison::Render
+// The presentation scene's components (docs/architecture.md, "Simulation and presentation"): what is
+// drawn, lit and looked through, in the scene's own registry. They name no device: the renderer
+// reads them, and finds what a mesh draws with itself. The scene file (Scene::Scene) stores the
+// authored fields; the runtime ones are documented as such, and never reach the file.
+namespace Jettison::Scene
 {
 struct SceneEntityId
 {
@@ -93,8 +93,7 @@ enum class LightType
 // cone angles are half-angles from that axis in radians, full inside the inner and dark outside the
 // outer, as glTF's KHR_lights_punctual has them. Intensity is the irradiance at one metre, in the
 // HDR target's linear units, falling off with the inverse square of the distance and windowed to
-// reach zero at the range. The ambient colour this once carried is the sky's image-based lighting
-// now (SkyComponent), and the star's light is SunComponent's.
+// reach zero at the range. The star's light is SunComponent's, and the ambient light the sky's.
 struct LightComponent
 {
 	LightType type{LightType::Point};
@@ -106,25 +105,38 @@ struct LightComponent
 	bool active{true};
 };
 
-// What an entity draws: a model file, or a shape made in code in one colour. A procedural shape is
-// unit-sized (a sphere of radius one, a cube from -1 to 1), and the transform's scale sizes it.
-// The material, when there is one, is a virtual path to a material file, which every primitive of
-// the model draws with; without one, a model draws with its own textures and a shape with its
-// colour, through the default mesh program.
+// What an entity draws: a model file, or a shape made in code in one colour. Both are by name, and
+// the renderer loads or makes what they name. The model is a virtual path (models/Fox.glb), as the
+// resource manager loads it, so a mod's mount can shadow it. A procedural shape is unit-sized (a
+// sphere of radius one, a cube from -1 to 1), and the transform's scale sizes it. The material,
+// when there is one, is a virtual path to a material file, which every primitive of the model draws
+// with; without one, a model draws with its own textures and a shape with its colour, through the
+// default mesh program.
 struct MeshComponent
 {
-	std::filesystem::path modelPath;
+	std::string model;
 	std::optional<Shape> shape;
 	glm::vec3 color{1.0f};
 	// A ring's inner radius, against its outer radius of one.
 	float innerRadius{0.5f};
 	std::string material;
-	std::shared_ptr<Model> model;
+};
+
+// A model file's rig (animation/Rig.h), which its clip player samples and which places the mesh
+// within the file. Runtime state, not written to the scene file: the scene loads it for every
+// model mesh, and releases it with the scene. The revision is the rig's that the entity's clip was
+// last looked up in, and playable says whether the rig has that clip and a skin for it to move, so
+// a rig that reloads is looked in again.
+struct RigComponent
+{
+	Resource::ResourceHandle<Animation::Rig> rig;
+	std::uint32_t revision{0};
+	bool playable{false};
 };
 
 // An entity the star system places: each frame its translation is the body's position at the
 // presentation time, and its rotation the body's spin. The scene names the system file; the app
-// evaluates it (engine/celestial), since render does not see the system.
+// evaluates it (engine/celestial).
 struct CelestialBodyComponent
 {
 	std::string body;
@@ -142,9 +154,9 @@ struct SunComponent
 // The star system's sky (assets/shaders/include/sky.glsl): a starfield, the galaxy's band and a
 // nebula, made from a seed rather than painted. It is drawn behind the scene, and it is the
 // environment the scene is lit by: the renderer captures it into a cube map and prefilters that
-// for image-based lighting (render/vulkan/Environment.h) when the scene loads or the sky changes.
-// A scene has at most one; without one the sky is black and lights nothing. Radiance and flux are
-// in the HDR target's linear units, the sun's intensity being irradiance in the same units.
+// for image-based lighting when the scene loads or the sky changes. A scene has at most one;
+// without one the sky is black and lights nothing. Radiance and flux are in the HDR target's linear
+// units, the sun's intensity being irradiance in the same units.
 struct SkyComponent
 {
 	std::uint32_t seed{1};
@@ -175,60 +187,9 @@ struct OrbitCameraComponent
 	double minDistance{1.0};
 
 	entt::entity target{entt::null};
-	OrbitCamera rig;
+	// Braced, so the component can be value-initialised: the rig's constructor is explicit.
+	OrbitCamera rig{};
 	CameraTransition transition;
 	bool placed{false};
 };
-
-class Scene
-{
-  public:
-	explicit Scene(std::shared_ptr<DeviceContext> deviceContext)
-	    : m_deviceContext{std::move(deviceContext)}
-	{
-	}
-
-	Scene(const Scene &) = delete;
-	Scene &operator=(const Scene &) = delete;
-
-	void Load(const std::filesystem::path &path);
-	void Save(const std::filesystem::path &path) const;
-	void Destroy();
-
-	// Counts the times this scene's contents have been thrown away. Pipeline caches each model's
-	// Vulkan resources under the address of that Model, and a destroyed model is commonly
-	// followed by one allocated at the same address: a cache entry can therefore outlive the
-	// model it describes, and be taken for the new one. This counter is how the renderer learns
-	// the cache is stale, without the scene having to know who consumes it.
-	std::uint64_t Generation() const
-	{
-		return m_generation;
-	}
-
-	// The star system file the scene's celestial bodies come from, absolute; empty for a scene
-	// without one.
-	const std::filesystem::path &StarSystemPath() const
-	{
-		return m_starSystemPath;
-	}
-
-	entt::registry &Registry()
-	{
-		return m_registry;
-	}
-	const entt::registry &Registry() const
-	{
-		return m_registry;
-	}
-
-  private:
-	std::shared_ptr<Model> LoadModel(const std::filesystem::path &path);
-	std::shared_ptr<Model> ProceduralModel(Shape shape, const glm::vec3 &color, float innerRadius);
-
-	std::shared_ptr<DeviceContext> m_deviceContext;
-	entt::registry m_registry;
-	std::unordered_map<std::string, std::shared_ptr<Model>> m_models;
-	std::filesystem::path m_starSystemPath;
-	std::uint64_t m_generation{0};
-};
-} // namespace Jettison::Render
+} // namespace Jettison::Scene

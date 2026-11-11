@@ -45,8 +45,8 @@
 #include <string_view>
 #include <type_traits>
 
-#include <jettison/render/vulkan/FrameData.h>
-#include <jettison/render/vulkan/Model.h>
+#include <jettison/render/FrameData.h>
+#include <jettison/render/Mesh.h>
 
 #ifndef SPDLOG_USE_STD_FORMAT
 #error "spdlog must format with std::format: the executable carries one formatting library"

@@ -7,7 +7,7 @@
 
 #include <jettison/math/Easing.h>
 
-namespace Jettison::Render
+namespace Jettison::Scene
 {
 // Where a camera rig puts the camera: what CameraPoseComponent holds.
 struct CameraPose
@@ -223,4 +223,4 @@ class CameraTransition
 	double m_elapsed{0.0};
 	Math::Easing m_easing{Math::Easing::InOutCubic};
 };
-} // namespace Jettison::Render
+} // namespace Jettison::Scene

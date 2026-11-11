@@ -1,4 +1,4 @@
-version: 1
+version: 2
 entities:
   - id: scene-root
     transform:
@@ -45,7 +45,7 @@ entities:
       rotation: [0, 0, 0]
       scale: [12, 12, 12]
     mesh:
-      model: ../models/Avocado.glb
+      model: models/Avocado.glb
   - id: animated-avocado
     parent: scene-root
     transform:
@@ -53,7 +53,7 @@ entities:
       rotation: [0, 0, 0]
       scale: [12, 12, 12]
     mesh:
-      model: ../models/Avocado.glb
+      model: models/Avocado.glb
     transformAnimation:
       axis: [0, 1, 0]
       speed: 0.785398163
@@ -84,7 +84,7 @@ entities:
       rotation: [0, 0, 0]
       scale: [0.01, 0.01, 0.01]
     mesh:
-      model: ../models/Fox.glb
+      model: models/Fox.glb
     animation:
       clip: Walk
       speed: 1

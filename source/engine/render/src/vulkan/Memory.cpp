@@ -1,6 +1,6 @@
 // DeviceContext's memory: the Vulkan Memory Allocator, and the buffers and images made through it.
 // The one translation unit that compiles VMA's implementation.
-#include <jettison/render/vulkan/DeviceContext.h>
+#include "vulkan/DeviceContext.h"
 
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>

@@ -10,25 +10,31 @@
 #include <string>
 #include <vector>
 
+#include "vulkan/DeviceContext.h"
+#include "vulkan/GpuProfiler.h"
+#include "vulkan/SceneDraws.h"
+#include "vulkan/Swapchain.h"
+#include "vulkan/Window.h"
 #include <jettison/render/Camera.h>
 #include <jettison/render/Clusters.h>
 #include <jettison/render/Culling.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/DrawBatches.h>
+#include <jettison/render/FrameData.h>
 #include <jettison/render/FrameStats.h>
+#include <jettison/render/IRenderer.h>
 #include <jettison/render/PassList.h>
-#include <jettison/render/Scene.h>
-#include <jettison/render/SceneSystems.h>
+#include <jettison/render/SceneView.h>
 #include <jettison/render/Shadows.h>
-#include <jettison/render/vulkan/DeviceContext.h>
-#include <jettison/render/vulkan/FrameData.h>
-#include <jettison/render/vulkan/GpuProfiler.h>
-#include <jettison/render/vulkan/Swapchain.h>
-#include <jettison/render/vulkan/Window.h>
+#include <jettison/scene/Components.h>
 
 namespace Jettison::Resource
 {
 class ResourceManager;
+}
+namespace Jettison::Scene
+{
+class Scene;
 }
 namespace Jettison::Vfs
 {
@@ -41,16 +47,8 @@ class Environment;
 class ImGuiRenderer;
 class MaterialCache;
 struct MaterialBinding;
+class ModelCache;
 class PipelineCache;
-
-// What the lit programs show: the shaded scene, the lights-per-cluster heat map, or the sun's
-// shadow cascades, each in its own colour (lighting.glsl's kDebugView*).
-enum class DebugView : std::uint32_t
-{
-	Shaded = 0,
-	ClusterHeat = 1,
-	ShadowCascades = 2
-};
 
 // The frame, as the declared pass list docs/architecture.md describes ("The frame"): the sun's
 // shadow cascades, each a depth-only rendering of every draw into one layer of the shadow map; the
@@ -65,7 +63,7 @@ enum class DebugView : std::uint32_t
 // The bounds are kept between frames and rebuilt only in a frame whose projection, viewport or
 // cluster range differs from the one they were built for.
 //
-// The scene's sky is also its environment (render/vulkan/Environment.h): it is baked when a scene
+// The scene's sky is also its environment (vulkan/Environment.h): it is baked when a scene
 // loads and whenever the sky changes, before the frame that first draws it.
 //
 // What the CPU writes each frame lives once per frame in flight: the frame constants, the skin
@@ -79,12 +77,9 @@ class Renderer
   public:
 	static constexpr uint32_t kFramesInFlight = 2;
 	static constexpr VkFormat kHdrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-	// The light index list's size, as entries per cluster on average: a budget for the frame, not a
-	// cap on any one cluster. 3.4 MiB at 32 x 18 x 48. Measured in 5e with 265 lights on a station, the
-	// list's busiest frame used 16 a cluster, from 20 m off, the closest the orbit camera comes; from
-	// 160 m, under one.
-	static constexpr std::uint32_t kLightIndicesPerCluster = 32;
-	static constexpr std::uint32_t kLightIndexCapacity = kClusterCount * kLightIndicesPerCluster;
+	// The light index list's budget (render/IRenderer.h), which the shell reports against.
+	static constexpr std::uint32_t kLightIndicesPerCluster = kRendererLightIndicesPerCluster;
+	static constexpr std::uint32_t kLightIndexCapacity = kRendererLightIndexCapacity;
 	// The view depth past which no local light is assigned (docs/architecture.md, "The grid and the
 	// infinite far plane"): a station's lights from further off are its emissive panels. Chosen
 	// with the light budget, and tuned in 5e.
@@ -97,8 +92,8 @@ class Renderer
 	// The pixels a level of detail's error may cover before a finer one is drawn.
 	static constexpr float kDefaultLodThreshold = 1.0f;
 
-	// The resource manager loads the materials and textures, and outlives the renderer; Destroy
-	// releases everything the renderer loaded through it.
+	// The resource manager loads the models, materials and textures, and outlives the renderer;
+	// Destroy releases everything the renderer loaded through it.
 	Renderer(
 	    std::shared_ptr<DeviceContext> pDeviceContext, std::shared_ptr<Window> pWindow,
 	    std::shared_ptr<Swapchain> pSwapchain, const Vfs::FileSystem &assets,
@@ -109,13 +104,13 @@ class Renderer
 	Renderer &operator=(const Renderer &) = delete;
 
 	// Builds the layouts, the pass list's plan, the targets, the frames in flight and every
-	// pipeline the passes use, and registers the texture and material loaders. A program missing
+	// pipeline the passes use, and registers the model, texture and material loaders. A program missing
 	// from the asset tree throws here, naming it; a material's program is built when the material
 	// first draws, and one that is missing fails that material alone.
 	void Init();
 
-	// Releases everything Init made, and every material and texture handle. The device has to be
-	// idle. Safe on a renderer whose Init threw part-way, and twice.
+	// Releases everything Init made, and every model, material and texture handle. The device has to
+	// be idle. Safe on a renderer whose Init threw part-way, and twice.
 	void Destroy();
 
 	// Records and submits the scene as it stands: the presentation phase has already animated it
@@ -123,8 +118,8 @@ class Renderer
 	// presentation time, in seconds, drives the materials' time-driven parameters. True when this
 	// frame recreated the swapchain.
 	bool Render(
-	    Scene &scene, const SceneRenderSystem &renderSystem, const DebugDraw &debugDraw,
-	    ImGuiRenderer &imguiRenderer, double presentationTime);
+	    const Scene::Scene &scene, const DebugDraw &debugDraw, ImGuiRenderer &imguiRenderer,
+	    double presentationTime);
 
 	// What the UI is drawn into: the swapchain's format, single-sampled.
 	VkFormat GetOutputFormat() const
@@ -177,7 +172,7 @@ class Renderer
 		return m_depthPrepass;
 	}
 
-	// The last frame's counts, and the GPU's time in each pass (render/vulkan/GpuProfiler.h).
+	// The last frame's counts, and the GPU's time in each pass (vulkan/GpuProfiler.h).
 	const FrameStats &GetFrameStats() const
 	{
 		return m_frameStats;
@@ -304,10 +299,11 @@ class Renderer
 
 	std::unique_ptr<PipelineCache> m_pPipelines;
 	std::unique_ptr<MaterialCache> m_pMaterials;
+	std::unique_ptr<ModelCache> m_pModels;
 	std::unique_ptr<Environment> m_pEnvironment;
 	std::unique_ptr<GpuProfiler> m_pProfiler;
 	// The sky the environment was baked from, or empty for the black one.
-	std::optional<SkyComponent> m_bakedSky;
+	std::optional<Scene::SkyComponent> m_bakedSky;
 
 	// Set 0 of the scene and cluster programs (constants, skin palette, lights, material
 	// parameters, the environment, the cluster grid, the shadow map), set 1 of the scene programs
@@ -417,8 +413,9 @@ class Renderer
 	std::vector<VkSemaphore> m_renderFinished;
 	std::vector<VkFence> m_imagesInFlight;
 
-	// The scene generation the materials currently cached were built from. Empty until the first
-	// frame, so a scene loaded before Init() costs nothing.
+	// The generation of the scene the last frame drew (Scene::Scene::Generation): a change says its
+	// contents were replaced, so the environment is rebaked and the models and materials the new
+	// contents do not draw are released. Empty until the first frame.
 	std::optional<std::uint64_t> m_sceneGeneration{};
 };
 } // namespace Jettison::Render

@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -77,6 +78,20 @@ struct VersionField
 	int version{0};
 };
 
+// A record whose parts may each be absent, as a scene entity's components are: a field a file leaves
+// out is empty, not a default.
+struct Fitting
+{
+	std::string name;
+	std::optional<float> range;
+	std::optional<Good> stock;
+	std::optional<std::string> label;
+	std::optional<glm::vec3> offset;
+	std::optional<Hold> hold;
+
+	bool operator==(const Fitting &) const = default;
+};
+
 // The tables are global and doctest runs every case in one process, so registration happens
 // once, from whichever case runs first.
 void RegisterTypes()
@@ -115,6 +130,13 @@ void RegisterTypes()
 		    .Field<&HoldsUntyped::inner>("inner", Attribute::Saved);
 		RegisterType<VersionField>("SerialiseTests.VersionField")
 		    .Field<&VersionField::version>("version", Attribute::Saved);
+		RegisterType<Fitting>("SerialiseTests.Fitting")
+		    .Field<&Fitting::name>("name", Attribute::Saved)
+		    .Field<&Fitting::range>("range", Attribute::Saved)
+		    .Field<&Fitting::stock>("stock", Attribute::Saved)
+		    .Field<&Fitting::label>("label", Attribute::Saved)
+		    .Field<&Fitting::offset>("offset", Attribute::Saved)
+		    .Field<&Fitting::hold>("hold", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;
@@ -459,4 +481,38 @@ TEST_CASE("Serialise: binary streams carry a sequence of values under a format's
 	BinaryReader early{bytes, "SerialiseTests.Stream", {7}};
 	CHECK_THROWS_WITH_AS(early.End(), doctest::Contains("bytes follow the value"), FormatError);
 	CHECK_THROWS_AS(writer.WriteUnsigned(1, 3), std::invalid_argument);
+}
+
+TEST_CASE("Serialise: an optional field is written when it holds a value and left out when not")
+{
+	RegisterTypes();
+	Fitting empty;
+	empty.name = "bare";
+	const std::string bare = YamlArchive::Write(empty, {1});
+	CHECK(bare == "version: 1\nname: bare\n");
+	CHECK(YamlArchive::Read<Fitting>(bare, {1}) == empty);
+	CHECK(BinaryArchive::Read<Fitting>(BinaryArchive::Write(empty, {1}), {1}) == empty);
+
+	const Fitting full{
+	    .name = "full",
+	    .range = 0.0f,
+	    .stock = Good::Water,
+	    .label = "",
+	    .offset = glm::vec3{1.0f, -2.0f, 0.5f},
+	    .hold = Hold{Good::Fuel, 3, 0.25}};
+	const std::string text = YamlArchive::Write(full, {1});
+	// A value that equals the type's default is still written: holding one is what the field says.
+	CHECK(text.find("range: 0\n") != std::string::npos);
+	CHECK(text.find("label: \"\"") != std::string::npos);
+	CHECK(YamlArchive::Read<Fitting>(text, {1}) == full);
+	CHECK(BinaryArchive::Read<Fitting>(BinaryArchive::Write(full, {1}), {1}) == full);
+
+	// A class read into an optional starts from its own defaults, as a nested class does.
+	const auto partial = YamlArchive::Read<Fitting>("version: 1\nhold:\n  quantity: 9\n", {1});
+	REQUIRE(partial.hold);
+	CHECK(*partial.hold == Hold{Good::Ore, 9, 0.0});
+	CHECK_FALSE(partial.range);
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Read<Fitting>("version: 1\nrange: far\n", {1}),
+	    doctest::Contains("Fitting.range: expected a number"), FormatError);
 }

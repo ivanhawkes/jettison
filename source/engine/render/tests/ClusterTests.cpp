@@ -17,10 +17,12 @@
 
 #include <jettison/math/Random.h>
 #include <jettison/render/Camera.h>
-#include <jettison/render/Scene.h>
+#include <jettison/scene/Components.h>
 
 using namespace Jettison::Render;
 using doctest::Approx;
+using Jettison::Scene::LightComponent;
+using Jettison::Scene::LightType;
 
 namespace
 {

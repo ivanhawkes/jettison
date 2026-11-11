@@ -147,8 +147,11 @@ class Writer
 				    "YamlArchive: {}: a root type cannot save a field named 'version', which the "
 				    "archive's own version uses",
 				    m_path.Text())};
+			const entt::meta_any member = field.get(value);
+			if (Detail::IsEmptyOptional(member))
+				continue;
 			m_emitter << YAML::Key << std::string{field.name()} << YAML::Value;
-			Value(field.get(value));
+			Value(member);
 		}
 	}
 
@@ -185,6 +188,14 @@ class Writer
 				m_emitter << YAML::EndMap;
 				return;
 			case Kind::Sequence: Sequence(value); return;
+			case Kind::Optional:
+				// Fields leave an empty one out; anywhere else there is no key to leave out.
+				if (!shape.optional->hasValue(value))
+					throw UnsupportedTypeError{std::format(
+					    "YamlArchive: {}: an empty optional can only be a field, which is left out",
+					    m_path.Text())};
+				Value(shape.optional->value(value));
+				return;
 		}
 	}
 
@@ -362,6 +373,16 @@ class Reader
 			}
 			case Kind::Class: Fields(value, node, false); return;
 			case Kind::Sequence: Sequence(value, node); return;
+			case Kind::Optional:
+			{
+				// Into the value it holds already, if any, as a nested class keeps its defaults.
+				entt::meta_any held = shape.optional->hasValue(value)
+				                          ? shape.optional->value(value)
+				                          : shape.optional->valueType().construct();
+				Value(held, node);
+				value = shape.optional->make(held);
+				return;
+			}
 		}
 	}
 

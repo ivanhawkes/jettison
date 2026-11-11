@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "vulkan/DeviceContext.h"
 #include <jettison/render/FrameStats.h>
-#include <jettison/render/vulkan/DeviceContext.h>
 
 namespace Jettison::Render
 {
