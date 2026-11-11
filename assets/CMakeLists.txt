@@ -50,6 +50,9 @@ jettison_compile_shader_variant(jettison_assets
 # The sun's shadow pass: the mesh vertex stage alone, into a cascade.
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.vert OUTPUT shaders/shadow_depth.vert DEFINES SHADOW_DEPTH)
+# The opaque depth prepass: the mesh vertex stage alone, into the view.
+jettison_compile_shader_variant(jettison_assets
+	SOURCE shaders/mesh.vert OUTPUT shaders/depth_prepass.vert DEFINES DEPTH_PREPASS)
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/sky.frag OUTPUT shaders/sky_capture.frag DEFINES CAPTURE)
 jettison_compile_shader_variant(jettison_assets

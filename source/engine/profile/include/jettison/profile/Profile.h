@@ -9,9 +9,8 @@ namespace Jettison::Profile
 {
 // Tracy, behind macros that expand to Tracy's when JETTISON_PROFILE is on and to nothing when it
 // is off. The client is on demand and listens on localhost only, so a build with profiling
-// compiled in costs nothing until a profiler connects. GPU zones for Vulkan wait for the pass list
-// in phase 4: a zone per declared pass is what the frame needs, and the renderer today has one
-// pass and no place to put them.
+// compiled in costs nothing until a profiler connects. GPU zones for Vulkan are the renderer's, one
+// per declared pass, through Tracy's own TracyVulkan.hpp (render/vulkan/GpuProfiler.h).
 
 // Whether this build has the Tracy client compiled in (JETTISON_PROFILE).
 bool IsEnabled();

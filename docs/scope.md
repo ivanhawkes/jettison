@@ -154,9 +154,11 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Shadows | In | Sun shadows on stations and ships; cascaded for close-ups. |
 | Atmosphere halo | In | An orbit-view scattering shell around planets. |
 | Sky | In | Starfield and nebula skybox, per system. |
-| Reflections | In | Through image-based lighting. Screen-space reflections are out. |
+| Reflections | In | Through image-based lighting, with the planets added to the environment's capture (phase 10a). Screen-space reflections are out, reconsidered on 2026-11-11: they need most of a G-buffer, and where a ray leaves the screen they fall back to the environment at a seam black space makes plain ([decided](roadmap.md#decided)). |
 | Particles | In | GPU billboards: engine exhaust, debris, docking sparks, jump effects. |
-| Post processing | In | HDR, tonemapping and bloom (stars and engines are far brighter than the hull). |
+| Post processing | In | HDR, tonemapping, and a chain of post passes on the HDR target: bloom first (stars and engines are far brighter than the hull). Phase 10c. |
+| Screen-space ambient occlusion | In (added 2026-11-11) | Contact shadow in docking bays, between hull modules and under racked cargo, where the sky's light reaches in full today. From the depth prepass, which writes normals for it, attenuating the image-based light alone. Phase 10c. |
+| Stencil | In (added 2026-11-11) | A stencil aspect on the depth target, for the effects that mask by it. Phase 10c. |
 | Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap. Thin struts and antennae against black space alias worst. |
 | Colour space | In, early | Linear workflow, sRGB swapchain, HDR render targets. Expensive to retrofit. |
 | Colour grading | Deferred | A LUT pass late, when there is art to grade. |

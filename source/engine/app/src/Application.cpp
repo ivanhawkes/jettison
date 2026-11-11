@@ -3,10 +3,12 @@
 // GLFW / Vulkan.
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -47,6 +49,9 @@ namespace
 // costs a quarter of what the opening size costs, and the resize stages still change the size.
 constexpr int kSmokeWindowWidth = 640;
 constexpr int kSmokeWindowHeight = 480;
+// Frames a benchmark draws before it times any: the pipelines a material builds on its first draw,
+// the textures' uploads, and the driver's own warming up are not the frame it is measuring.
+constexpr std::uint32_t kBenchmarkWarmUp = 60;
 
 // Minimizing is X11-only: on Wayland a minimized surface leaves the frame loop parked in
 // DeviceContext::WaitOnWindowResized until the window is restored, and a headless run cannot
@@ -347,6 +352,16 @@ void Application::RegisterFrameSystems()
 		     glfwGetWindowSize(m_pWindow->GetGLFWWindow(), &width, &height);
 		     m_smokeSequence->Advance(m_frameResized, width, height, m_frameStart);
 	     }});
+	m_frame.Register(
+	    {"shell.benchmark",
+	     TickPhase::Render,
+	     {},
+	     {"render"},
+	     [this](entt::registry &, double)
+	     {
+		     if (m_arguments.benchmarkFrames != 0)
+			     AdvanceBenchmark();
+	     }});
 
 	m_frame.Validate();
 }
@@ -374,11 +389,24 @@ void Application::Run()
 		    ")");
 	// Every frame's light assignment was read back and compared with the CPU's. A run in which no
 	// cluster listed a light proved nothing about the assignment, so it fails as well.
+	if (m_arguments.benchmarkFrames != 0)
+		ReportBenchmark();
+	if (m_smokeSequence && !m_passTimings.empty())
+	{
+		// What the run's frames cost the GPU, resizes and reload included, under the validation layer:
+		// a record, not a budget, which the benchmark measures (docs/build-and-gates.md).
+		std::string passes;
+		for (const Render::PassTiming &timing : m_passTimings)
+			passes += std::format(" {} {:.2f}", timing.name, timing.meanMs);
+		std::cerr << std::format("GPU ms per pass over {} frames:{}\n", m_measuredFrames, passes);
+	}
 	if (m_smokeSequence)
 	{
 		const Render::ClusterCheckTotals &checks = m_clusterChecks;
 		std::cerr << "Cluster check: " << checks.frames << " frames compared, " << checks.litFrames
-		          << " with lights, " << checks.failures << " disagreed\n";
+		          << " with lights, " << checks.failures << " disagreed; at most " << checks.peakEntries
+		          << " of " << Render::Renderer::kLightIndexCapacity << " index entries and "
+		          << checks.peakClusterLights << " lights in a cluster\n";
 		if (checks.failures != 0)
 			throw std::runtime_error(
 			    "The cluster check failed in " + std::to_string(checks.failures) + " of " +
@@ -448,6 +476,7 @@ void Application::InitRenderer()
 	m_pRenderer =
 	    std::make_shared<Renderer>(m_pDeviceContext, m_pWindow, m_pSwapchain, m_assets, *m_pResources);
 	m_pRenderer->SetClusterCheck(m_arguments.smokeTest);
+	m_pRenderer->SetDepthPrepass(m_arguments.depthPrepass);
 	m_pRenderer->Init();
 }
 
@@ -459,6 +488,10 @@ void Application::InitUI()
 	    m_pWindow->GetGLFWWindow(), m_pRenderer->GetOutputFormat(), Renderer::kFramesInFlight);
 	if (m_arguments.smokeTest)
 		glfwSetWindowSize(m_pWindow->GetGLFWWindow(), kSmokeWindowWidth, kSmokeWindowHeight);
+	else if (m_arguments.windowWidth && m_arguments.windowHeight)
+		glfwSetWindowSize(
+		    m_pWindow->GetGLFWWindow(), static_cast<int>(*m_arguments.windowWidth),
+		    static_cast<int>(*m_arguments.windowHeight));
 }
 
 
@@ -476,6 +509,12 @@ void Application::RunFrameLoop()
 		Tick();
 
 	m_clusterChecks = m_pRenderer->GetClusterChecks();
+	m_passTimings = m_pRenderer->GetPassTimings();
+	m_frameStats = m_pRenderer->GetFrameStats();
+	m_measuredFrames = m_pRenderer->GetMeasuredFrames();
+	m_deviceName = m_pDeviceContext->GetDeviceName();
+	m_frameWidth = m_pSwapchain->GetExtents().width;
+	m_frameHeight = m_pSwapchain->GetExtents().height;
 	Shutdown();
 }
 
@@ -495,10 +534,104 @@ void Application::DrawUI()
 {
 	m_pImGuiRenderer->BeginFrame();
 	if (m_showUI)
+	{
 		DevTools::DrawDevTools(m_console, m_devTools, &m_showUI);
+		DrawRendererPanel();
+	}
 	else if (m_devTools.showConsole)
 		DevTools::DrawConsole(m_console, m_devTools.console, &m_devTools.showConsole);
 	m_pImGuiRenderer->EndFrame();
+}
+
+
+void Application::DrawRendererPanel()
+{
+	if (!ImGui::Begin("Renderer"))
+	{
+		ImGui::End();
+		return;
+	}
+	const Render::FrameStats &stats = m_pRenderer->GetFrameStats();
+	ImGui::Text(
+	    "Meshes %u: %u outside the view, %u behind a horizon", stats.meshes, stats.frustumCulled,
+	    stats.horizonCulled);
+	ImGui::Text(
+	    "View: %u draws, %llu triangles", stats.viewBatches,
+	    static_cast<unsigned long long>(stats.viewTriangles));
+	ImGui::Text(
+	    "Shadow casters %u / %u / %u / %u, %llu triangles", stats.shadowCasters[0],
+	    stats.shadowCasters[1], stats.shadowCasters[2], stats.shadowCasters[3],
+	    static_cast<unsigned long long>(stats.shadowTriangles));
+	ImGui::Text("Lights %u, %u listed", stats.lights, stats.listedLights);
+	bool prepass = m_pRenderer->GetDepthPrepass();
+	if (ImGui::Checkbox("Depth prepass", &prepass))
+		m_pRenderer->SetDepthPrepass(prepass);
+	ImGui::SameLine();
+	if (ImGui::Button("Reset means"))
+		m_pRenderer->ResetPassTimings();
+	if (ImGui::BeginTable("passes", 3, ImGuiTableFlags_RowBg))
+	{
+		ImGui::TableSetupColumn("GPU pass");
+		ImGui::TableSetupColumn("last ms");
+		ImGui::TableSetupColumn("mean ms");
+		ImGui::TableHeadersRow();
+		for (const Render::PassTiming &timing : m_pRenderer->GetPassTimings())
+		{
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted(timing.name.c_str());
+			ImGui::TableNextColumn();
+			ImGui::Text("%.3f", timing.lastMs);
+			ImGui::TableNextColumn();
+			ImGui::Text("%.3f", timing.meanMs);
+		}
+		ImGui::EndTable();
+	}
+	ImGui::End();
+}
+
+
+void Application::AdvanceBenchmark()
+{
+	++m_benchmarkFrame;
+	if (m_benchmarkFrame == kBenchmarkWarmUp)
+	{
+		m_pRenderer->ResetPassTimings();
+		m_benchmarkStart = Time::RealClock::Clock::now();
+	}
+	else if (m_benchmarkFrame == kBenchmarkWarmUp + m_arguments.benchmarkFrames)
+	{
+		m_benchmarkSeconds =
+		    std::chrono::duration<double>(Time::RealClock::Clock::now() - m_benchmarkStart).count();
+		RequestClose();
+	}
+}
+
+
+void Application::ReportBenchmark() const
+{
+	// Read after teardown from the copies RunFrameLoop took, as the cluster check's totals are.
+	std::string passes;
+	for (const Render::PassTiming &timing : m_passTimings)
+		passes += std::format("  {:<16} {:8.3f} ms\n", timing.name, timing.meanMs);
+	const Render::FrameStats &stats = m_frameStats;
+	const double frames =
+	    m_measuredFrames == 0 ? 1.0 : static_cast<double>(m_arguments.benchmarkFrames);
+	std::cerr << std::format(
+	    "Benchmark: {} on {} at {}x{}, {} frames after {} to warm up, {} GPU frames measured, depth "
+	    "prepass {}\n"
+	    "GPU time per pass (mean):\n{}"
+	    "Wall time per frame: {:.3f} ms\n"
+	    "Meshes {}: {} outside the view, {} behind a horizon; {} draws of {} triangles\n"
+	    "Shadow casters {} / {} / {} / {} in {} / {} / {} / {} draws, {} triangles\n"
+	    "Lights {}, {} listed\n",
+	    m_arguments.scenePath.filename().string(), m_deviceName, m_frameWidth, m_frameHeight,
+	    m_arguments.benchmarkFrames, kBenchmarkWarmUp, m_measuredFrames,
+	    m_arguments.depthPrepass ? "on" : "off", passes, m_benchmarkSeconds * 1000.0 / frames,
+	    stats.meshes, stats.frustumCulled, stats.horizonCulled, stats.viewBatches, stats.viewTriangles,
+	    stats.shadowCasters[0], stats.shadowCasters[1], stats.shadowCasters[2], stats.shadowCasters[3],
+	    stats.shadowBatches[0], stats.shadowBatches[1], stats.shadowBatches[2], stats.shadowBatches[3],
+	    stats.shadowTriangles, stats.lights, stats.listedLights);
 }
 
 

@@ -209,16 +209,28 @@ for what this game draws:
 Each step is a node in the declared pass list (phase 4), and compute nodes sit beside graphics
 nodes in it:
 
-1. **Collect** (CPU). Active lights are converted to camera-relative float, like every other
-   position, and written to a storage buffer for this frame in flight (5c). A light whose range
-   ends short of the cluster range's far end, measured from the camera in double precision, is
-   left out; frustum culling of lights arrives with the rest of culling in 5e.
+1. **Collect and cull** (CPU). Every mesh's bounds are taken into render space in double
+   precision, before anything becomes a float (`render/Culling.h`). Its level of detail is the
+   coarsest whose geometric error, projected, covers under a pixel. The view keeps what is inside
+   the frustum and not wholly behind a planet's horizon (a celestial body drawn as a sphere, shrunk
+   by its level's error so the sphere is inside the mesh); each cascade keeps the casters whose
+   sphere reaches the prism its map shadows. What is kept is batched (`render/DrawBatches.h`): draws
+   sharing a model, a level and a material are one instanced draw, the batches front to back, and
+   every instance's transform goes into this frame's instance buffer. Active lights are converted
+   to camera-relative float and written to a storage buffer for this frame in flight (5c); one
+   whose reach ends short of the cluster range's far end, is outside the frustum, or is wholly
+   behind a planet is left out (5e), since every surface it could light is too. A skinned draw's
+   pose can leave its model's bounds, so it is never culled.
 2. **Shadows** (graphics, `sun-shadows`, 5d). The sun's four cascades, each a depth-only rendering
-   of every mesh into one layer of the shadow map; see [sun shadows](#sun-shadows). A scene with no
+   of its casters into one layer of the shadow map; see [sun shadows](#sun-shadows). A scene with no
    sun clears them and draws nothing, so the plan is the same either way. Spot and point shadows,
    when they arrive, render into an atlas, and each light's record carries its atlas slot.
-3. **Depth prepass** (opaque only). Optional, and kept or dropped by measurement in phase 5. Light
-   assignment does not need it. What it would buy is less overdraw of the PBR program.
+3. **Depth prepass** (graphics, `depth-prepass`, 5e). The view's batches, depth only, laid down for
+   the opaque pass to test against with greater-or-equal, so each pixel is shaded once. Measured in
+   5e it cost more than it saved, on hardware and on lavapipe, because the batches are front to
+   back already; it is kept, and off (`Renderer::SetDepthPrepass`), as the place screen-space
+   ambient occlusion will take its depth and normals from (phase 10c). Off, the node records
+   nothing and the opaque pass clears the depth, under the same plan.
 4. **Cluster bounds** (compute, `cluster_bounds`, 5c). The view-space bounds of every cluster.
    They are rebuilt only in a frame whose projection, viewport or cluster range differs from the
    one they were built for; the pass's barriers are recorded either way, and the buffer keeps
@@ -262,13 +274,16 @@ planet's reflected light is missing until a later phase adds it.
 
 ### The grid and the infinite far plane
 
-The grid is screen tiles times depth slices, exponential in view distance. 16 × 9 × 24 is the
-starting point, tuned by measurement in phase 5. Depth is reversed-Z with an infinite far plane,
+The grid is screen tiles times depth slices, exponential in view distance: 32 × 18 × 48, tuned in
+5e against a station of 265 lights (`scripts/make-light-budget-scene.py`), where it shaded the
+opaque pass a fifth faster than the 16 × 9 × 24 it started at, on hardware and on lavapipe alike
+([decided](roadmap.md#decided)). Depth is reversed-Z with an infinite far plane,
 so the slices are computed from view-space distance, never from the depth buffer. They span the
 near plane to a finite **cluster range**. Past it, no local light is assigned, and a surface is lit
 by the sun, image-based lighting and its own emission. A station's lights seen from tens of
 kilometres away are emissive sprites, not lights. The cluster range is a setting
-(`Renderer::SetClusterRange`), chosen with the light budget: 2 km to start with, tuned in 5e.
+(`Renderer::SetClusterRange`), chosen with the light budget: 2 km, which 5e kept, its lights all
+being within 200 m of the camera.
 
 The grid's arithmetic is one file, `shaders/include/clusters.glsl`: the slices, the bounds, the
 light-against-cluster tests and the windowed falloff. Like `brdf.glsl` it is written in the
@@ -311,6 +326,29 @@ frame, and `shaders/include/shadows.glsl`, which it compiles as C++ as `Clusters
 - **Debug draw shows the cascades** (F4): each surface in its cascade's colour, lit by the sun
   alone and shadowed.
 
+### The budget
+
+The frame's GPU time is measured, not guessed: `GpuProfiler` writes a timestamp either side of
+every declared pass, in a query pool per frame in flight, and reads them back once the frame's fence
+is waited on; with Tracy compiled in, the same spans are GPU zones named after the passes. The dev
+tools' Renderer panel shows the last and mean time of each pass and the frame's counts, and
+`render_test --benchmark <frames>` prints them after a warm-up ([build and
+gates](build-and-gates.md#benchmark)). The budgets, for what phase 5 draws:
+
+| Device | Frame | Budget | `orbit.yaml` | With 265 lights |
+|---|---|---|---|---|
+| RTX 5060 Ti | 1248 × 1358 (the compositor's tile) | 4 ms, a quarter of a 60 Hz frame | 0.30 ms | 0.47 ms |
+| lavapipe, 24 threads | 640 × 480 | 50 ms | 33 ms | 46 ms |
+
+A quarter on hardware leaves the rest of the frame for phase 10's atmosphere, transparency and
+post-processing and the UI. Lavapipe's budget is the gate's: it keeps a smoke run in the tens of
+seconds. Neither is enforced by the gate, whose runners' times vary too much to fail on; a change
+that matters to them is measured with the benchmark and recorded. Two measurements in 5e shaped the
+frame. Lavapipe decodes BC7 in software at every texel fetch, and the orbit scene's opaque pass took
+469 ms in BC7 and 23 ms in RGBA8, so a CPU device is given RGBA8. And the planet, drawn into two
+cascades whole, was most of the shadow pass until casters were culled exactly against each map's
+prism: 15.5 ms to 4.2 ms on lavapipe, most of what is left being the four 2048² clears.
+
 ### Rules that follow
 
 - **Every local light has a finite range.** Falloff is inverse-square, windowed to reach zero at
@@ -326,8 +364,11 @@ frame, and `shaders/include/shadows.glsl`, which it compiles as C++ as `Clusters
   lookup and the BRDF (`lighting.glsl`, over `brdf.glsl`). No material lights itself its own way.
   The BRDF and the tonemapper are written in the subset of GLSL that GLM also compiles, so the
   render suite compiles the shaders' own source as C++ and checks it against reference values.
-- **No G-buffer.** Effects that need one stay out: screen-space reflections already are. If
-  ambient occlusion is ever wanted, the depth prepass also writes normals for it.
+- **No G-buffer.** Effects that need one stay out, and screen-space reflections are one: they
+  would need each pixel's roughness, metalness and a scene colour to march through, and fall back
+  to the environment cube at a seam black space makes plain (reconsidered 2026-11-11,
+  [decided](roadmap.md#decided)). Screen-space ambient occlusion is in (10c): the depth prepass
+  writes view-space normals for it, and it attenuates the image-based light alone.
 - **Debug draw shows the grid**, as a lights-per-cluster heat map, so a light budget problem is
   visible rather than inferred.
 
@@ -405,15 +446,18 @@ proves it headlessly. What exists:
   instance, device, debug-utils messenger (with synchronization validation in Debug), object
   names, and the VMA allocator every buffer and image comes from. `Swapchain` prefers an sRGB
   format and owns its image views. `Renderer` runs the frame as a declared pass list
-  (`render/PassList.h`): the sun's [shadow cascades](#sun-shadows), the cluster passes (the index
+  (`render/PassList.h`): the sun's [shadow cascades](#sun-shadows), the depth prepass (off), the
+  cluster passes (the index
   list's allocator zeroed by a transfer, then the cluster bounds and the light assignment in
   compute), an opaque pass into a 4× multisampled
   RGBA16F target, which draws the sky after the surfaces and is resolved into a single-sampled
   target as it ends, an output pass that applies exposure and tonemaps on its way to the swapchain
   and draws the UI over it, and the cluster check's copy. The barriers between passes are derived
   from each pass's declared uses once, at start-up, and recorded with dynamic rendering and
-  synchronization2. The frame constants, skin palette, light list and command buffer exist once
-  per frame in flight; the shadow map and the cluster grid's buffers are one set each, shared as the
+  synchronization2. Draws are culled, given a level of detail and batched into instanced draws on
+  the CPU before anything is recorded (["The frame"](#the-frame)), and each pass is timed on the GPU
+  ([the budget](#the-budget)). The frame constants, skin palette, light list, instance buffer and
+  command buffer exist once per frame in flight; the shadow map and the cluster grid's buffers are one set each, shared as the
   render targets are. The device has to offer depth clamp, which the shadow pass uses.
   `PipelineCache` makes graphics pipelines by program name and render state, and compute
   pipelines by program name, with the programs found through the asset VFS. Materials are data (`render/Material.h`): a material file
@@ -423,9 +467,11 @@ proves it headlessly. What exists:
   on the I/O worker; the loader's `finish` uploads), rebuilds a material's descriptor set when
   it or a texture reloads, and frees what a reload replaced once no frame in flight reads it; a
   model without a material draws with its own textures through the default `mesh` program.
-  `Model` loads glTF through fastgltf. The `mesh` program is glTF's metallic-roughness model, lit
+  `Model` loads glTF through fastgltf, as one level of detail, and a procedural shape as five, in
+  one vertex and index buffer, with a bounding sphere either way. The `mesh` program is glTF's metallic-roughness model, lit
   by the sun, shadowed through its cascades, the [environment](#the-environment) and the local
   lights of the
   [cluster](#rendering-clustered-forward) the fragment falls in. `unlit` is for what is a light
   rather than lit by one.
-- **ImGui** for a demo window, toggled with F1.
+- **ImGui** for a demo window, toggled with F1, and the Renderer panel: the frame's counts and
+  each pass's GPU time.

@@ -131,6 +131,7 @@ ClusterCheck CheckClusterAssignment(
 	{
 		const glm::uvec2 entry = grid[cluster];
 		check.entries += entry.y;
+		check.mostLights = std::max(check.mostLights, entry.y);
 		if (entry.y != 0)
 			++check.litClusters;
 		if (check.overflowed || !check.mismatch.empty())

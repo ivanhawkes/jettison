@@ -12,12 +12,12 @@ built, are recorded in [history](history.md).
 | Phase | Work | Exit criterion |
 |---|---|---|
 | 0–4 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations. Recorded in [history](history.md). | Met. |
-| 5 | **Space rendering.** Sub-phases 5a–5e; catalogue entries 19 and 20, and the shader plan before entry 19. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
+| 5 | **Space rendering.** Done 2026-11-11. Sub-phases 5a–5e; catalogue entries 19 and 20, and the shader plan before entry 19. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. Met: `orbit.yaml`, measured by `--benchmark` (see [architecture](architecture.md#the-budget)): 0.30 ms of GPU time a frame on an RTX 5060 Ti at 1248 × 1358, against a budget of 4 ms, and 33 ms on lavapipe at 640 × 480, against 50 ms; with 265 lights on the station, 0.47 ms and 46 ms. F3 shows the assignment, which the smoke test checks every frame. |
 | 5a | **Textures, materials and geometry.** Done 2026-11-11. KTX2 through `ktx_read` with BasisU transcoding (UASTC and ETC1S, to BC7 where the device has it and RGBA8 where not), as a `resource` loader with a GPU `finish` and a `retire` that frees a replaced image once no frame in flight reads it; stb_image and CPU mip generation, filtered in linear light, for development textures; the material system as data (`render/Material.h`: a material file names a program and sets its parameters, texture slots and time-driven parameters; a program descriptor beside its SPIR-V says what it takes); ico and cube spheres, rings and cylinders; a triplanar program built from the mesh shaders with a define. KTX-Software stays on v4.4.2 (see [decided](#decided)). | Met: `materials/hull.material.yaml` names `mesh_triplanar` and two KTX2 textures, loads through the VFS and the resource manager, and draws on the station in `orbit.yaml`; `panels.material.yaml` draws the same texture through texture coordinates in the sample scene. A texture rewritten on disk reloads through the resource manager in the render suite, and the smoke test's reload stage reloads every texture and material on the GPU, with validation and synchronization validation, in both scenes. |
 | 5b | **PBR, image-based lighting and the sky.** Done 2026-11-11. glTF's metallic-roughness BRDF (`shaders/include/brdf.glsl`) under one lighting include (`lighting.glsl`) that adds the sun, the stand-in light list and the environment; a procedural sky per system (`SkyComponent`: a seeded starfield, the galaxy's band, a nebula) drawn behind the scene by `sky.glsl`, and baked by `Environment` into a cube map, GGX-prefiltered specular levels and an irradiance cube by filtered importance sampling, with the split sum's lookup table made once; the `unlit` program; Khronos PBR Neutral tonemapping in the output pass. The light's ambient colour is retired: a scene that sets one is refused, and the sky lights what the sun does not. | Met: `orbit.yaml`'s station is lit by Halcyon and by its sky, against the starfield, and the sample scene by its key light and a brighter sky. The render suite compiles `brdf.glsl` and `tonemap.glsl` as C++ and checks them against the glTF specification's formulas and a quadrature of the split sum (`scripts/brdf-reference.py`). The smoke test bakes each scene's environment at load and again on its reload, under validation and synchronization validation. |
 | 5c | **Clustered lights.** Done 2026-11-11. `LightComponent` is a point or a spot with a range and, for a spot, `KHR_lights_punctual`'s inner and outer cone angles; the falloff is inverse square windowed to zero at the range, and a scene that leaves a range out is refused, while the one-light limit is gone. The grid (16 × 9 × 24, exponential slices from the near plane to a 2 km cluster range) is one GLM-compatible file, `clusters.glsl`, which the first compute programs (`cluster_bounds`, kept between frames until the projection changes, and `cluster_lights`, one invocation per cluster reserving its share of one index list by atomic add), the lighting include and the CPU reference in `render/Clusters.h` all compile. The pass list gains transfer passes, to zero the list's allocator and copy the grid out for the check. The frame UBO's light-list stand-in is retired. F3 shows the lights-per-cluster heat map, and F2 each light's reach. | Met: `orbit.yaml`'s station carries four hull floodlights, two dock lights, a beacon light, two navigation lights and two work lights, and the floodlights visibly light the hub through its clusters; the heat map shows them assigned. The headless render test reads every frame's assignment back and compares it with the CPU reference (21 to 24 frames a scene on lavapipe, none disagreeing), and fails the run on a disagreement, as it did with an assignment broken on purpose; the render suite checks the reference's bounds against the projection and its light tests against brute-force sampling. |
 | 5d | **Sun shadows.** Done 2026-11-11. Four cascades of 2048² in one reversed-depth array image (`sun-shadows`, a pass at the head of the pass list that clears each layer and draws every mesh into it), split by the practical scheme (blend 0.8) between the near plane and a 400 m shadow distance. Each cascade covers the bounding sphere of its slice of the view, so its texel size depends only on the projection, and its centre is snapped to whole texels in the sun's frame measured from the camera's frame origin (`CameraView::frameOrigin`, the body an orbit camera circles), in double precision. `shadow_depth` is `mesh.vert` built with `SHADOW_DEPTH`, a vertex stage alone, drawn with depth clamp (now a required device feature) and a slope bias; the lighting include selects a cascade by view depth through `shadows.glsl`, which `render/Shadows.h` compiles as C++, offsets the receiver along its normal, takes nine filtered comparison taps, and blends into the next cascade across the last tenth of each. F4 shows the cascades. | Met: in `orbit.yaml` the hub shadows the collar and the collar the dock-side half of the hub, seen from the opening 160 m in the fourth cascade and from 45 m in the second (F4 shows the hub, one cylinder through the collar, darker under the sun alone on the collar's far side); with the camera still, two frames three seconds apart differ only in the windows' emission and the planet's limb while the station crosses some 100 km of the system. The render suite checks that a point fixed to a moving station lands at the same place within its texel to a thousandth of one as the camera orbits and turns (and that it slides by more than a twentieth when the grid is fixed to the system instead), that turning keeps every texel's size, and that every depth a cascade is selected for lands inside its map with the border to spare. The smoke test runs the cascades in both scenes under validation and synchronization validation, 36 s to 40 s on lavapipe. |
-| 5e | **Culling, instancing, LOD and the budget.** Frustum and planet-horizon culling, instancing, LOD selection, the depth prepass measured and kept or dropped, the cluster grid tuned, GPU zones per declared pass (moved from phase 2 to 4 and not yet done). | Phase 5's exit criterion. |
+| 5e | **Culling, instancing, LOD and the budget.** Done 2026-11-11. Each draw's bounds in render space in double precision (`render/Culling.h`); meshes and lights outside the frustum or wholly behind a planet's horizon left out, and each cascade's casters culled exactly for a sphere against the prism its map shadows; the procedural shapes in five levels of detail with their geometric errors, the coarsest whose error projects under a pixel drawn; every draw instanced, those sharing a model, a level and a material batched into one and ordered front to back (`render/DrawBatches.h`), transforms in a per-frame instance buffer. The depth prepass is built, measured and kept, off (it is where SSAO's normals will come from); the grid is 32 × 18 × 48, from a light-budget scene of 265 lights (`scripts/make-light-budget-scene.py`); a CPU device gets RGBA8 rather than BC7 textures. GPU time per declared pass, from timestamps the engine reads itself and as Tracy GPU zones (`render/vulkan/GpuProfiler.h`); `--benchmark` reports them with the frame's counts. | Phase 5's exit criterion: met (row 5). In `orbit.yaml` twenty racked containers are one draw, the planet is out of every cascade it cannot shadow (the shadow pass from 15.5 ms to 4.2 ms on lavapipe), and on hardware the frame is 0.30 ms of GPU time. The render suite checks the frustum, horizon and caster tests against brute force, the levels' errors against their meshes, and the batching; a Tracy capture shows a GPU zone per pass. |
 | 6 | **Star systems and galaxy.** Sub-phases 6a–6d; catalogue entries 21 and 16. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
 | 6a | **The scene leaves `render`.** `IRenderer.h` (moved from phase 4), with Vulkan types kept inside `render/vulkan`; the scene into `engine/scene`; the model cache onto the resource manager; the scene file onto `serialise`'s archives. | The shell talks to the renderer through the interface only, and the sample and orbit scenes load and render as before, the smoke test unchanged. |
 | 6b | **System scenes and layers.** A scene per star system, built from the system description and the simulation state; layers within it. | `halcyon.yaml` builds a scene whose bodies and stations follow their orbits. |
@@ -36,9 +36,9 @@ built, are recorded in [history](history.md).
 | 9b | **Steering.** Seek, arrive, obstacle avoidance and separation, over the spatial index and physics. | A group of ships reaches a station without colliding. |
 | 9c | **Decisions.** Utility AI (considerations, response curves, scored actions) and data-defined behaviour trees, ticked in the simulation step. | Phase 9's exit criterion. |
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
-| 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings). | |
+| 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings); the planets in the environment's capture, so a hull reflects them. | |
 | 10b | **The transparent pass.** Sorted back to front and lit through the clusters; GPU particles; glass. | |
-| 10c | **Post-processing and material effects.** Bloom; material effects through time-driven parameters. | |
+| 10c | **Post-processing and screen-space effects.** A chain of post passes on the resolved HDR target before the output pass; bloom; screen-space ambient occlusion, from the depth prepass, which writes view-space normals for it and runs whenever it is on; stencil on the depth target (`D32_SFLOAT_S8_UINT`), with separate depth and stencil layouts; material effects through time-driven parameters. Screen-space reflections stay out (see [decided](#decided)). | |
 | 10d | **Animation.** Keyframed TRS tracks on any node for mechanical rigs; clip events (a clamp closing plays a sound). | |
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
 | 11a | **Packs.** Data pack layering finished (finer than whole-definition replacement); pack files behind the VFS; their compression (an open decision, with libktx's zstd). | A packed build runs, and a data mod loads from the user mount. |
@@ -64,8 +64,8 @@ Work that phases 1–4 moved on, and where it lands. Their full record, and cata
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
   writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
   smoke test's patterns.
-- **GPU zones for Vulkan** (entry 5), a zone per declared pass: 5e. Jolt's profiler hooks
-  (`JPH_USE_EXTERNAL_PROFILE`) feed Tracy: 7a.
+- **Jolt's profiler hooks** (`JPH_USE_EXTERNAL_PROFILE`, entry 5) feed Tracy: 7a. GPU zones
+  for Vulkan, a zone per declared pass, were done in 5e.
 - **The renderer interface** (`IRenderer.h`, entry 17), the scene out of `render`, the scene's
   model cache onto the resource manager (entry 11), and the scene file onto `serialise`'s
   archives (entry 9): 6a.
@@ -117,7 +117,10 @@ by `PipelineCache` for each render state a pass asks for, with shared GLSL in `s
   `lighting.glsl` uses; `PipelineCache` makes compute pipelines from `<program>.comp.spv`. Done in
   5d: `shadow_depth`, the mesh vertex stage built with `SHADOW_DEPTH` and no fragment stage, which
   `PipelineCache` builds for a depth-only render state; the cascade selection in `shadows.glsl`,
-  which `lighting.glsl` shadows the sun through. A material names its program and supplies its
+  which `lighting.glsl` shadows the sun through. Done in 5e: `depth_prepass`, the mesh vertex stage
+  built with `DEPTH_PREPASS`, which every variant matches through `invariant gl_Position`; and the
+  instance buffer (`mesh_vertex.glsl`), from which every mesh program reads its transform and skin
+  by `gl_InstanceIndex`. A material names its program and supplies its
   parameters and texture slots (entry 19), so adding a program is data plus GLSL, not a new code
   path.
 - **Phase 10** adds atmosphere, planet surface, particle and glass programs on the same terms,
@@ -132,18 +135,26 @@ resource manager since 5a; programs do not yet.
 
 Clustered forward shading, as [architecture](architecture.md#rendering-clustered-forward)
 describes. PBR, image-based lighting, the sky and tonemapping were done in 5b, the clustered
-lights in 5c and the sun's cascaded shadows in 5d; the rest is 5e. Point and spot lights have finite ranges with windowed
-inverse-square falloff, and are assigned to a grid of view-space clusters by compute: 16 × 9 × 24
-to start with, tuned by measurement, and covering the cluster range. The directional sun is separate, in the frame
-constants, with cascaded shadows. Whether an opaque depth prepass pays for itself is measured
-here, not assumed. Also in this phase: PBR (glTF metallic-roughness) with image-based lighting
+lights in 5c, the sun's cascaded shadows in 5d, and culling, instancing, levels of detail and the
+frame's budget in 5e. Point and spot lights have finite ranges with windowed inverse-square
+falloff, and are assigned to a grid of view-space clusters by compute: 32 × 18 × 48, tuned in 5e
+against a station of 265 lights, and covering the cluster range. The directional sun is separate,
+in the frame constants, with cascaded shadows. The opaque depth prepass was measured in 5e, and is
+kept and off ([decided](#decided)). Also in this phase: PBR (glTF metallic-roughness) with image-based lighting
 from per-system environment cubemaps, a starfield skybox, frustum and planet-horizon culling,
 instancing, LOD selection and tonemapping. `LightComponent` has a type, a range and spot cone
 angles, and the frame UBO's light stand-in is retired (5c). Debug draw has a lights-per-cluster
-heat map (5c), and F4 the shadow cascades (5d). Left for 5e: frustum culling of lights, and the
-grid, the cluster range and the index list's budget tuned by measurement; lights per cluster are
-not yet timed; casters culled against each cascade (every mesh is drawn into all four, the planet
-and the moon among them), and the shadow distance, split blend and map size tuned by measurement.
+heat map (5c), and F4 the shadow cascades (5d). Done in 5e (`render/Culling.h`,
+`render/DrawBatches.h`, `render/vulkan/GpuProfiler.h`): a draw is left out when its bounds are
+outside the frustum or wholly behind a planet's horizon, and so is a light whose reach is; a caster
+is drawn into a cascade only when its sphere reaches the prism the cascade's map shadows; the
+procedural shapes have five levels of detail each, chosen by their error projected in pixels; draws
+that share a model, a level and a material are one instanced draw, front to back; and each declared
+pass is timed on the GPU and shows in Tracy. Not tuned in 5e: the shadow distance and split blend
+(the maps' cost on hardware is 0.03 ms a frame, so their size stays 2048), and the cluster range.
+Levels of detail have no hysteresis yet: a draw at a level's threshold can change level from one
+frame to the next, and a moving camera has not yet been watched for it. A glTF model is one level; levels for model
+files wait for a format that carries them.
 The planets' own shadows (a station in eclipse, a moon's shadow on its planet) are drawn by the
 cascades only where the cascades reach; past the shadow distance an analytic test against the
 bodies would be needed, and is not planned yet. A light's
@@ -233,9 +244,20 @@ closed" triggering a sound).
 ### 28. Presentation polish · phase 10 · `engine/render`
 
 The atmosphere scattering shell, planet shading (clouds, night lights, rings), GPU particles
-with a sorted transparent pass, bloom, glass on that transparent pass. The transparent pass is
+with a sorted transparent pass, glass on that transparent pass. The transparent pass is
 forward-lit through the same clusters as the opaque one, which is one of the reasons the
 renderer is clustered forward.
+
+Post-processing is a chain of passes in the pass list, on the resolved HDR target between the
+opaque and transparent passes and the output pass's tonemapping: bloom first (stars, engines and
+lit windows are far brighter than the hull), and the colour-grading LUT of 11c later. Screen-space
+ambient occlusion reads the depth prepass (5e), which then also writes view-space normals and runs
+whenever SSAO is on; the occlusion attenuates the image-based and ambient light in `lighting.glsl`,
+not the sun or the clusters' lights, so it is computed before the opaque pass shades rather than
+darkening the frame after it. With MSAA the prepass's depth and normals are resolved to one sample
+for it. The depth target gains a stencil aspect (`D32_SFLOAT_S8_UINT`, with the device's separate
+depth and stencil layouts) for the effects that mask by it. Screen-space reflections stay out
+([decided](#decided)).
 
 ### 29. Scripting · phase 11 · `engine/script`
 
@@ -259,13 +281,36 @@ Settled on 2026-11-10:
   toolchain (Clang 21 from the devenv shell).
 - **spdlog for logging** (catalogue entry 3).
 - **Clustered forward rendering.** Lights are assigned to view-space clusters in compute, and
-  every surface is shaded once in its own material program. There is no G-buffer. Phases 4, 5
+  every surface is shaded once in its own material program. There is no G-buffer; SSAO, when it
+  comes (10c), reads the depth prepass's depth and normals. Phases 4, 5
   and 10 are planned around it (catalogue entries 17, 19 and 28), and
   [architecture](architecture.md#rendering-clustered-forward) has the frame and the rules it sets.
 - **KTX-Software stays on v4.4.2** (2026-11-11, phase 5a). Phase 5 was to move to v5 if it was out
   of release candidate; its newest tag is still v5.0.0-rc2. v4.4.2 reads every file the engine
   needs (KTX 2, Basis Universal ETC1S and UASTC, zstd supercompression). Revisit when v5 is
   released.
+- **The cluster grid is 32 × 18 × 48** (2026-11-11, phase 5e), up from 16 × 9 × 24, with the
+  index list at 32 entries a cluster on average and the cluster range at 2 km. Against 265 lights on
+  the orbit scene's station, the opaque pass fell from 0.43 ms to 0.34 ms on an RTX 5060 Ti and from
+  47 ms to 36 ms on lavapipe, with the assignment no dearer; 16 × 9 × 48 and 32 × 18 × 24 each
+  gained about half that. The list's busiest frame, from 20 m, used 16 entries a cluster. The cluster
+  range was not varied: every light measured was within 200 m.
+- **The depth prepass is kept, and off** (2026-11-11, phase 5e). Measured on `orbit.yaml`, it
+  cost more than it saved on both devices: 0.023 ms for 0.016 ms of the opaque pass on hardware,
+  3.4 ms for 0.5 ms on lavapipe, where front-to-back batches already let the depth test reject what
+  is behind. It stays as the place SSAO's normals are written (10c), which turns it on.
+- **A CPU device gets RGBA8 textures, not BC7** (2026-11-11, phase 5e). Lavapipe offers BC7 and
+  decodes it in software at every fetch: the orbit scene's opaque pass took 469 ms at 640 × 480 with
+  the hull plating in BC7 and 23 ms in RGBA8. The gate's smoke test therefore uploads RGBA8;
+  transcoding to BC7 is covered by the render suite without a device, and uploading it on hardware.
+- **Screen-space reflections stay out** (2026-11-11, reconsidered with SSAO and bloom brought in).
+  SSAO needs the prepass's depth and normals; SSR would also need each pixel's roughness and
+  metalness, and a colour of the scene to march through, which is most of the G-buffer clustered
+  forward was chosen to do without. What it adds is reflection of what is on screen, and its
+  failure, where the reflected ray leaves the screen or goes behind something, falls back to the
+  environment cube: against black space that seam is plain to see. The reflection actually missing
+  from a hull is the planet, which is not in the environment's capture; adding the planets to it
+  (10a) is stable and right off screen too.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

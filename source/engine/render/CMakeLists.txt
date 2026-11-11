@@ -6,6 +6,7 @@ jettison_add_module(render
 	DEPENDS
 		animation
 		math
+		profile
 		reflect
 		resource
 		serialise
@@ -14,7 +15,10 @@ jettison_add_module(render
 		include/jettison/render/Camera.h
 		include/jettison/render/CameraRigs.h
 		include/jettison/render/Clusters.h
+		include/jettison/render/Culling.h
 		include/jettison/render/DebugDraw.h
+		include/jettison/render/DrawBatches.h
+		include/jettison/render/FrameStats.h
 		include/jettison/render/IRenderer.h
 		include/jettison/render/Material.h
 		include/jettison/render/PassList.h
@@ -26,6 +30,7 @@ jettison_add_module(render
 		include/jettison/render/vulkan/DeviceContext.h
 		include/jettison/render/vulkan/Environment.h
 		include/jettison/render/vulkan/FrameData.h
+		include/jettison/render/vulkan/GpuProfiler.h
 		include/jettison/render/vulkan/MaterialCache.h
 		include/jettison/render/vulkan/Model.h
 		include/jettison/render/vulkan/PipelineCache.h
@@ -37,7 +42,9 @@ jettison_add_module(render
 		src/Camera.cpp
 		src/CameraRigs.cpp
 		src/Clusters.cpp
+		src/Culling.cpp
 		src/DebugDraw.cpp
+		src/DrawBatches.cpp
 		src/Material.cpp
 		src/PassList.cpp
 		src/Procedural.cpp
@@ -47,6 +54,7 @@ jettison_add_module(render
 		src/Texture.cpp
 		src/vulkan/DeviceContext.cpp
 		src/vulkan/Environment.cpp
+		src/vulkan/GpuProfiler.cpp
 		src/vulkan/MaterialCache.cpp
 		src/vulkan/Memory.cpp
 		src/vulkan/Model.cpp
@@ -63,6 +71,8 @@ jettison_add_module(render
 		tests/CameraRigTests.cpp
 		tests/CameraTests.cpp
 		tests/ClusterTests.cpp
+		tests/CullingTests.cpp
+		tests/DrawBatchTests.cpp
 		tests/MaterialTests.cpp
 		tests/PassListTests.cpp
 		tests/ProceduralTests.cpp

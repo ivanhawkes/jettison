@@ -265,11 +265,13 @@ restore, scene reload, settle. Each stage runs four frames, inside a 120-second 
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
 the star system, under an orbit camera and the sun, which shadows it through four cascades, with
-eleven floodlights, dock lights and beacons assigned to the clusters). The sample scene has no sun,
+eleven floodlights, dock lights and beacons assigned to the clusters, and twenty racked containers
+drawn as one instanced draw). The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
-the frame sets rewritten after it run under validation too. Budget about 40 seconds on a
-workstation, and more on a runner.
+the frame sets rewritten after it run under validation too. The whole run took 4 seconds on a
+workstation on 2026-11-11, from about 40 before phase 5e gave lavapipe RGBA8 textures and culled
+the planet out of the shadow cascades; budget more on a runner.
 
 - **Window size.** The window opens at 1920×1080 normally, but at 640×480 in smoke mode,
   because lavapipe is fill-rate bound.
@@ -299,8 +301,19 @@ back every frame's light assignment and compares it with the CPU reference
 (`render/Clusters.h`) cluster by cluster; a frame that disagrees, an index list that overflowed,
 or a run in which no cluster listed a light fails the run, and the run prints how many frames it
 compared: 21 to 24 a scene on lavapipe on 2026-11-11, every one with lights and none disagreeing,
-the count depending on how many frames the resize stages take. Until phase 5c the first verdict was unreachable: teardown released the
+the count depending on how many frames the resize stages take. It also prints the most of the
+index list any frame used and the most lights any cluster listed, what the list's budget is
+measured against. Until phase 5c the first verdict was unreachable: teardown released the
 sequence before `Run` read it, so a run that stopped short of its last stage still passed.
+
+The run then prints the GPU's mean time in each declared pass. It is a record, not a verdict: the
+frames include the resizes and the reload, under the validation layer, and a runner's times vary
+too much to fail on. The frame's budget is measured with the [benchmark](#benchmark).
+
+Lavapipe is a CPU device, so it is given RGBA8 textures rather than BC7, which it would decode in
+software at every fetch (phase 5e measured the orbit scene's opaque pass at 469 ms in BC7 and 23 ms
+in RGBA8). The run therefore uploads RGBA8; transcoding to BC7 is covered by the render suite,
+without a device, and uploading it only on hardware.
 
 **What it needs.** It needs three things:
 
@@ -308,6 +321,36 @@ sequence before `Run` read it, so a run that stopped short of its last stage sti
   `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev`.
 - `Xvfb` (from `xorgserver`).
 - A Vulkan driver and the validation layers. devenv exports `VK_LAYER_PATH`.
+
+## Benchmark
+
+`render_test --benchmark <frames>` measures the frame: it draws 60 frames to warm up (the
+pipelines a material builds on its first draw, the textures' uploads), then the frames asked for,
+and prints the GPU's mean time in each declared pass and the frame's, the wall time per frame, and
+the last frame's counts (meshes, what culling left out, the instanced draws and their triangles,
+each cascade's casters, the lights), then closes. `--window <width>x<height>` asks for a size, which
+a tiling compositor may overrule (niri gives the window its tile; the report says what it got), and
+`--depth-prepass` turns the prepass on.
+
+```bash
+# Hardware: a Release tree, on the desktop session. NVIDIA's driver cannot present to Xvfb.
+build/clang-release/source/test/render_test \
+    --scene build/clang-release/assets/scene/orbit.yaml --benchmark 600
+# Lavapipe: the headless tree on Xvfb, at the smoke test's size.
+VK_DRIVER_FILES=<lvp_icd.x86_64.json> DISPLAY=:<n> build/clang-headless/source/test/render_test \
+    --scene build/clang-headless/assets/scene/orbit.yaml --benchmark 60 --window 640x480
+# A station with 265 more lights, written beside the orbit scene in a build tree.
+python3 scripts/make-light-budget-scene.py build/clang-release/assets/scene/orbit.yaml
+```
+
+The budgets and what phase 5 measured are in [architecture](architecture.md#the-budget).
+
+For the GPU's passes on Tracy's timeline beside the CPU's zones, configure a tree with
+`-DJETTISON_PROFILE=ON` (for example `cmake --preset clang-release -B build/profile
+-DJETTISON_PROFILE=ON`). Every other tree compiles the zones out. A capture without the profiler's
+window: `tracy-capture -o run.tracy -s 3` started before the run, then `tracy-csvexport -g run.tracy`
+lists the GPU zones, one per declared pass a frame (`nix shell nixpkgs#tracy`, 0.13.1, the version
+the client is pinned to).
 
 ## CI
 

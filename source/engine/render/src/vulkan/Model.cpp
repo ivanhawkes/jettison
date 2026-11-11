@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
@@ -30,17 +31,56 @@ void Model::LoadModel(const std::filesystem::path &path)
 }
 
 
-void Model::CreateFromMesh(
-    std::vector<Vertex> vertices, std::vector<uint32_t> indices, const std::string &name)
+void Model::CreateFromMeshes(std::vector<MeshLevel> levels, const std::string &name)
 {
-	if (vertices.empty() || indices.empty())
-		throw std::runtime_error("A procedural model needs vertices and indices: " + name);
-	m_vertices = std::move(vertices);
-	m_indices = std::move(indices);
+	if (levels.empty())
+		throw std::runtime_error("A procedural model needs a level of detail: " + name);
+	m_vertices.clear();
+	m_indices.clear();
 	m_primitives.clear();
-	m_primitives.push_back({0, static_cast<uint32_t>(m_indices.size()), {}});
+	m_lods.clear();
+	for (MeshLevel &level : levels)
+	{
+		if (level.vertices.empty() || level.indices.empty())
+			throw std::runtime_error("A procedural model needs vertices and indices: " + name);
+		// One vertex and index buffer for every level, so a level is a run of indices into it.
+		const auto base = static_cast<uint32_t>(m_vertices.size());
+		const auto firstIndex = static_cast<uint32_t>(m_indices.size());
+		m_vertices.insert(m_vertices.end(), level.vertices.begin(), level.vertices.end());
+		for (const uint32_t index : level.indices)
+			m_indices.push_back(base + index);
+		m_lods.push_back({static_cast<uint32_t>(m_primitives.size()), 1, level.error});
+		m_primitives.push_back({firstIndex, static_cast<uint32_t>(level.indices.size()), {}});
+	}
+	ComputeBounds();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
+}
+
+
+void Model::ComputeBounds()
+{
+	if (m_vertices.empty())
+	{
+		m_bounds = {};
+		return;
+	}
+	glm::vec3 minimum = m_vertices.front().pos;
+	glm::vec3 maximum = minimum;
+	for (const Vertex &vertex : m_vertices)
+	{
+		minimum = glm::min(minimum, vertex.pos);
+		maximum = glm::max(maximum, vertex.pos);
+	}
+	// Around the box's centre, out to the furthest vertex: tighter than the box's own corners.
+	m_bounds.center = (minimum + maximum) * 0.5f;
+	float radiusSquared = 0.0f;
+	for (const Vertex &vertex : m_vertices)
+	{
+		const glm::vec3 offset = vertex.pos - m_bounds.center;
+		radiusSquared = std::max(radiusSquared, glm::dot(offset, offset));
+	}
+	m_bounds.radius = std::sqrt(radiusSquared);
 }
 
 

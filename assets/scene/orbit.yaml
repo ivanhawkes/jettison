@@ -110,6 +110,168 @@ entities:
     mesh:
       shape: box
       color: [0.1, 0.14, 0.35]
+  # Cargo containers racked along the truss, above and below it: twenty of one shape, colour and
+  # material, which the renderer draws as one instanced draw (render/DrawBatches.h).
+  - id: highport-container-port-dorsal-1
+    parent: highport
+    transform:
+      translation: [-9.5, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-dorsal-2
+    parent: highport
+    transform:
+      translation: [-16, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-dorsal-3
+    parent: highport
+    transform:
+      translation: [-22.5, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-dorsal-4
+    parent: highport
+    transform:
+      translation: [-29, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-dorsal-5
+    parent: highport
+    transform:
+      translation: [-35.5, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-ventral-1
+    parent: highport
+    transform:
+      translation: [-9.5, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-ventral-2
+    parent: highport
+    transform:
+      translation: [-16, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-ventral-3
+    parent: highport
+    transform:
+      translation: [-22.5, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-ventral-4
+    parent: highport
+    transform:
+      translation: [-29, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-port-ventral-5
+    parent: highport
+    transform:
+      translation: [-35.5, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-dorsal-1
+    parent: highport
+    transform:
+      translation: [9.5, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-dorsal-2
+    parent: highport
+    transform:
+      translation: [16, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-dorsal-3
+    parent: highport
+    transform:
+      translation: [22.5, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-dorsal-4
+    parent: highport
+    transform:
+      translation: [29, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-dorsal-5
+    parent: highport
+    transform:
+      translation: [35.5, 2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-ventral-1
+    parent: highport
+    transform:
+      translation: [9.5, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-ventral-2
+    parent: highport
+    transform:
+      translation: [16, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-ventral-3
+    parent: highport
+    transform:
+      translation: [22.5, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-ventral-4
+    parent: highport
+    transform:
+      translation: [29, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
+  - id: highport-container-starboard-ventral-5
+    parent: highport
+    transform:
+      translation: [35.5, -2, 0]
+      scale: [3, 1.2, 1.2]
+    mesh:
+      shape: box
+      color: [0.62, 0.3, 0.14]
   # The station's lights, assigned to the clusters they reach (F3 shows how many each cluster has,
   # F2 their reach). Four floodlights near the rim of the collar's dock-side face wash the hub,
   # leaning in towards it; a spot points along its entity's -Z, which is the station's dock direction
@@ -214,11 +376,11 @@ entities:
       color: [0.05, 1, 0.2]
       intensity: 30
       range: 15
-  # Work lights over the truss.
+  # Work lights over the truss, above the containers racked on it.
   - id: highport-truss-light-port
     parent: highport
     transform:
-      translation: [-30, 2, 0]
+      translation: [-30, 5, 0]
     light:
       color: [1, 0.95, 0.85]
       intensity: 40
@@ -226,7 +388,7 @@ entities:
   - id: highport-truss-light-starboard
     parent: highport
     transform:
-      translation: [30, 2, 0]
+      translation: [30, 5, 0]
     light:
       color: [1, 0.95, 0.85]
       intensity: 40

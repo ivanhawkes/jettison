@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <jettison/render/Camera.h>
+#include <jettison/render/Culling.h>
 #include <jettison/render/Scene.h>
 
 namespace Jettison::Render
@@ -20,6 +21,19 @@ struct SceneDrawCommand
 	// The mesh's material path; empty for the model's own. Points into the scene, which outlives
 	// the frame's draw list.
 	const std::string *material{};
+	// The model's bounds in render space, taken in double precision, and the transform's largest
+	// scale, which its levels' errors are measured in.
+	BoundingSphere bounds;
+	double scale{1.0};
+	// A celestial body drawn as a sphere hides what is behind its horizon (Render::Occludes): this is
+	// its radius, the transform's smallest scale, before the drawn level's error takes it inside the
+	// mesh. Zero for every other draw.
+	double occluderRadius{0.0};
+
+	bool Skinned() const
+	{
+		return skeleton != nullptr && !skeleton->jointMatrices.empty();
+	}
 };
 
 // The presentation phase's camera rigs: each OrbitCameraComponent follows its target's world

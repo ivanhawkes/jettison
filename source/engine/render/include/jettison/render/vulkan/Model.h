@@ -75,6 +75,25 @@ struct ModelPrimitive
 	std::vector<std::byte> baseColorImageData;
 };
 
+// A level of detail: a run of the model's primitives, and its geometric error, the furthest its
+// surface strays from the model's finest, in the model's own units. Every level has the primitives
+// the first has, in the same order, so a primitive's material is the first level's primitive at the
+// same place (Model::MaterialPrimitive).
+struct ModelLod
+{
+	uint32_t firstPrimitive{};
+	uint32_t primitiveCount{};
+	float error{};
+};
+
+// A sphere around every vertex of the model, in its own space: what culling tests. A skinned model's
+// pose moves its vertices out of it, so a skinned draw is never culled.
+struct ModelBounds
+{
+	glm::vec3 center{0.0f};
+	float radius{0.0f};
+};
+
 
 class Model
 {
@@ -91,10 +110,25 @@ class Model
 	void Destroy();
 
 	void LoadModel(const std::filesystem::path &path);
-	// A model from geometry made in code: one primitive, untextured, with no rig. `name` names
-	// its buffers for the validation layer.
-	void CreateFromMesh(
-	    std::vector<Vertex> vertices, std::vector<uint32_t> indices, const std::string &name);
+	// A model from geometry made in code: a primitive per level of detail, finest first, untextured,
+	// with no rig. Each level's indices are into its own vertices. `name` names its buffers for the
+	// validation layer.
+	struct MeshLevel
+	{
+		std::vector<Vertex> vertices;
+		std::vector<uint32_t> indices;
+		float error{};
+	};
+	void CreateFromMeshes(std::vector<MeshLevel> levels, const std::string &name);
+
+	// The primitive whose material a primitive of any level draws with.
+	uint32_t MaterialPrimitive(uint32_t primitive) const
+	{
+		for (const ModelLod &lod : m_lods)
+			if (primitive >= lod.firstPrimitive && primitive < lod.firstPrimitive + lod.primitiveCount)
+				return primitive - lod.firstPrimitive;
+		return primitive;
+	}
 
 	// The node hierarchy, skin and clips read from the file, for the clip player in
 	// engine/animation. The model owns them because the glTF loader reads them alongside the
@@ -106,6 +140,9 @@ class Model
 
 	std::vector<uint32_t> m_indices{};
 	std::vector<ModelPrimitive> m_primitives{};
+	// Finest first; a model file has the one level, of every primitive.
+	std::vector<ModelLod> m_lods{};
+	ModelBounds m_bounds{};
 	Buffer m_vertexBuffer{};
 	Buffer m_indexBuffer{};
 
@@ -114,6 +151,7 @@ class Model
 	void CreateVertexBuffer();
 
 	void CreateIndexBuffer();
+	void ComputeBounds();
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;
 

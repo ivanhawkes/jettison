@@ -68,7 +68,8 @@ void MaterialCache::Init(
 	    m_pDeviceContext->HasBlockCompression() ? TranscodeTarget::Bc7 : TranscodeTarget::Rgba8;
 	Core::Log(
 	    Core::Severity::Info, kRender, "Basis Universal textures transcode to {}",
-	    m_transcodeTarget == TranscodeTarget::Bc7 ? "BC7" : "RGBA8 (the device has no BC7)");
+	    m_transcodeTarget == TranscodeTarget::Bc7 ? "BC7"
+	                                              : "RGBA8 (the device has no BC7 in hardware)");
 
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

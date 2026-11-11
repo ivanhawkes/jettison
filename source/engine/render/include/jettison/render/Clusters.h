@@ -17,9 +17,9 @@ struct LightComponent;
 // programs and the lighting include run on the GPU, so the CPU reference below and the render
 // suite's tests check that source rather than a copy of it.
 
-inline constexpr std::uint32_t kClusterTilesX = 16;
-inline constexpr std::uint32_t kClusterTilesY = 9;
-inline constexpr std::uint32_t kClusterSlices = 24;
+inline constexpr std::uint32_t kClusterTilesX = 32;
+inline constexpr std::uint32_t kClusterTilesY = 18;
+inline constexpr std::uint32_t kClusterSlices = 48;
 inline constexpr std::uint32_t kClusterCount = kClusterTilesX * kClusterTilesY * kClusterSlices;
 
 // What a frame's grid is made from: the frame constants' share of it.
@@ -75,6 +75,8 @@ struct ClusterCheck
 	// The clusters that list a light, and the entries listed, over the whole grid.
 	std::uint32_t litClusters{0};
 	std::uint32_t entries{0};
+	// The most lights any one cluster lists.
+	std::uint32_t mostLights{0};
 	// The index list ran out: the GPU reserved more entries than it holds.
 	bool overflowed{false};
 	// The first cluster that disagrees, described; empty when they agree.
@@ -94,6 +96,10 @@ struct ClusterCheckTotals
 	std::uint64_t frames{0};
 	std::uint64_t litFrames{0};
 	std::uint64_t failures{0};
+	// The most entries of the index list any frame used, and the most lights any cluster listed: what
+	// the list's budget (Renderer::kLightIndicesPerCluster) is measured against.
+	std::uint32_t peakEntries{0};
+	std::uint32_t peakClusterLights{0};
 	// What the first failure was.
 	std::string firstFailure;
 };

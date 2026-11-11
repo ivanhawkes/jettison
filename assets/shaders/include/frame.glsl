@@ -72,6 +72,6 @@ layout(std430, set = 0, binding = 2) readonly buffer LightList
 // clusters' bounds, which only the compute programs read, and 8 and 9 each cluster's offset and
 // count into the light index list, and the list, which the assignment program writes and
 // lighting.glsl reads. Binding 10 is the sun's shadow maps, which lighting.glsl declares, shared as
-// the grid is.
+// the grid is. Binding 11 is the frame's instances, which mesh_vertex.glsl declares.
 
 #endif

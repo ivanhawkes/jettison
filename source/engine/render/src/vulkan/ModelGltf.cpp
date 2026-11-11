@@ -365,6 +365,9 @@ void Model::LoadGltfModel(const std::filesystem::path &path)
 		m_rig.clips.push_back(std::move(clip));
 	}
 
+	// glTF has no levels of detail of its own, so a file is the one level, exact.
+	m_lods = {{0, static_cast<uint32_t>(m_primitives.size()), 0.0f}};
+	ComputeBounds();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
 }

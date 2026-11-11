@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
@@ -14,6 +15,7 @@
 #include <jettison/input/Actions.h>
 #include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
+#include <jettison/render/FrameStats.h>
 #include <jettison/render/SceneSystems.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
@@ -107,6 +109,11 @@ class Application
 	// Moves each orbit camera to the next celestial body, with a transition.
 	void NextCameraTarget(entt::registry &registry);
 	void DrawUI();
+	// The renderer's counts and the GPU's time in each pass, in the dev tools.
+	void DrawRendererPanel();
+	// The benchmark's frame count, the warm-up's end, and the report when it is done.
+	void AdvanceBenchmark();
+	void ReportBenchmark() const;
 	// Pushes or pops the console's input context to match whether the console is open.
 	void SyncConsoleContext();
 
@@ -163,6 +170,10 @@ class Application
 	Time::RealClock::Clock::time_point m_loopStart{};
 	// Whether this frame's render recreated the swapchain, for the headless sequence.
 	bool m_frameResized{false};
+	// The benchmark's frames so far, warm-up included, and when the timed ones began.
+	std::uint32_t m_benchmarkFrame{0};
+	Time::RealClock::Clock::time_point m_benchmarkStart{};
+	double m_benchmarkSeconds{0.0};
 
 	// The frame's phases: input, the simulation's steps, the sync of its snapshots into the
 	// scene, animation and UI, then render (docs/architecture.md, "Frame and tick structure").
@@ -218,6 +229,14 @@ class Application
 	// The renderer's cluster check over the run, which the headless run turns on and judges once the
 	// renderer is gone: copied out of it as the frame loop ends.
 	Render::ClusterCheckTotals m_clusterChecks;
+	// The renderer's timings and counts as the frame loop left them, for the benchmark's report.
+	std::vector<Render::PassTiming> m_passTimings;
+	Render::FrameStats m_frameStats;
+	std::uint64_t m_measuredFrames{0};
+	// What the benchmark ran on: the device, and the frame's size in pixels.
+	std::string m_deviceName;
+	std::uint32_t m_frameWidth{0};
+	std::uint32_t m_frameHeight{0};
 
 	// The star system the scene's celestial bodies come from, when it names one.
 	std::optional<Celestial::StarSystem> m_starSystem;

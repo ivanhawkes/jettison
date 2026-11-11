@@ -619,9 +619,11 @@ std::shared_ptr<Model> Scene::ProceduralModel(Shape shape, const glm::vec3 &colo
 		return found->second;
 	if (!m_deviceContext)
 		throw std::runtime_error("A procedural mesh needs a device to upload to");
-	MeshData mesh = Generate(shape, color, innerRadius);
+	std::vector<Model::MeshLevel> levels;
+	for (MeshLod &lod : GenerateLods(shape, color, innerRadius))
+		levels.push_back({std::move(lod.mesh.vertices), std::move(lod.mesh.indices), lod.error});
 	auto model = std::make_shared<Model>(m_deviceContext);
-	model->CreateFromMesh(std::move(mesh.vertices), std::move(mesh.indices), key);
+	model->CreateFromMeshes(std::move(levels), key);
 	m_models.emplace(key, model);
 	return model;
 }

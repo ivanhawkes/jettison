@@ -131,8 +131,9 @@ TEST_CASE("Clusters: the slices are exponential in depth, from the near plane to
 	CHECK(ClusterSlice(0.4f, view.nearPlane, view.range) == kClusterSlices);
 	CHECK(ClusterSlice(view.range, view.nearPlane, view.range) == kClusterSlices);
 	CHECK(ClusterAt({10.0f, 10.0f}, 5000.0f, view) == kClusterCount);
-	// The last tile reaches the edge, and a pixel on it is in the last column and row.
-	CHECK(ClusterTileSize(view.viewport) == glm::vec2{40.0f, 54.0f});
+	// The last tile reaches the edge, and a pixel on it is in the last column and row: 480 pixels in
+	// 18 rows is 26 2/3 a row, rounded up.
+	CHECK(ClusterTileSize(view.viewport) == glm::vec2{20.0f, 27.0f});
 	CHECK(ClusterAt({639.5f, 479.5f}, 1.0f, view) % kClusterTilesX == kClusterTilesX - 1);
 }
 

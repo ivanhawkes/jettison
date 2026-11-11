@@ -184,6 +184,10 @@ class DeviceContext
 	{
 		SetObjectName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<uint64_t>(object), name);
 	}
+	void SetDebugName(VkQueryPool object, const std::string &name) const
+	{
+		SetObjectName(VK_OBJECT_TYPE_QUERY_POOL, reinterpret_cast<uint64_t>(object), name);
+	}
 
 	// Marks a labelled region of a command buffer, so a layer message raised while a command
 	// is executing names the frame region it came from. No-ops without the extension.
@@ -213,10 +217,17 @@ class DeviceContext
 		return m_msaaSamples;
 	}
 
-	// Whether BC textures were enabled on the device, with BC7 sampled and filtered.
+	// Whether textures go to the device block-compressed: BC enabled, BC7 sampled and filtered, and
+	// the device not a CPU, which decodes it in software at every fetch.
 	inline bool HasBlockCompression() const
 	{
 		return m_blockCompression;
+	}
+
+	// The physical device's name, for a report of what a measurement ran on.
+	const std::string &GetDeviceName() const
+	{
+		return m_deviceName;
 	}
 
 	inline VkQueue GetGraphicsQueue() const
@@ -398,6 +409,7 @@ class DeviceContext
 	uint32_t m_presentQueueIndex{std::numeric_limits<uint32_t>::max()};
 
 	VkSampleCountFlagBits m_msaaSamples{VK_SAMPLE_COUNT_1_BIT};
+	std::string m_deviceName;
 	bool m_blockCompression{false};
 
 	VkSurfaceKHR m_surface{VK_NULL_HANDLE};

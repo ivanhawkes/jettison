@@ -12,13 +12,17 @@
 
 #include <jettison/render/Camera.h>
 #include <jettison/render/Clusters.h>
+#include <jettison/render/Culling.h>
 #include <jettison/render/DebugDraw.h>
+#include <jettison/render/DrawBatches.h>
+#include <jettison/render/FrameStats.h>
 #include <jettison/render/PassList.h>
 #include <jettison/render/Scene.h>
 #include <jettison/render/SceneSystems.h>
 #include <jettison/render/Shadows.h>
 #include <jettison/render/vulkan/DeviceContext.h>
 #include <jettison/render/vulkan/FrameData.h>
+#include <jettison/render/vulkan/GpuProfiler.h>
 #include <jettison/render/vulkan/Swapchain.h>
 #include <jettison/render/vulkan/Window.h>
 
@@ -76,7 +80,9 @@ class Renderer
 	static constexpr uint32_t kFramesInFlight = 2;
 	static constexpr VkFormat kHdrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	// The light index list's size, as entries per cluster on average: a budget for the frame, not a
-	// cap on any one cluster. 432 KiB at 16 x 9 x 24.
+	// cap on any one cluster. 3.4 MiB at 32 x 18 x 48. Measured in 5e with 265 lights on a station, the
+	// list's busiest frame used 16 a cluster, from 20 m off, the closest the orbit camera comes; from
+	// 160 m, under one.
 	static constexpr std::uint32_t kLightIndicesPerCluster = 32;
 	static constexpr std::uint32_t kLightIndexCapacity = kClusterCount * kLightIndicesPerCluster;
 	// The view depth past which no local light is assigned (docs/architecture.md, "The grid and the
@@ -88,6 +94,8 @@ class Renderer
 	static constexpr float kDefaultShadowDistance = 400.0f;
 	// Each cascade's map, texels on a side.
 	static constexpr std::uint32_t kShadowMapSize = 2048;
+	// The pixels a level of detail's error may cover before a finer one is drawn.
+	static constexpr float kDefaultLodThreshold = 1.0f;
 
 	// The resource manager loads the materials and textures, and outlives the renderer; Destroy
 	// releases everything the renderer loaded through it.
@@ -152,6 +160,32 @@ class Renderer
 		m_shadowSettings.distance = distance;
 	}
 
+	// The pixels a level of detail's error may cover where it is drawn (render/Culling.h).
+	void SetLodThreshold(float pixels)
+	{
+		m_lodThreshold = pixels;
+	}
+
+	// Whether the opaque surfaces' depth is laid down before they are shaded, so each pixel is shaded
+	// once, by the surface that ends up in it (docs/architecture.md, "The frame").
+	void SetDepthPrepass(bool enabled)
+	{
+		m_depthPrepass = enabled;
+	}
+	bool GetDepthPrepass() const
+	{
+		return m_depthPrepass;
+	}
+
+	// The last frame's counts, and the GPU's time in each pass (render/vulkan/GpuProfiler.h).
+	const FrameStats &GetFrameStats() const
+	{
+		return m_frameStats;
+	}
+	const std::vector<PassTiming> &GetPassTimings() const;
+	std::uint64_t GetMeasuredFrames() const;
+	void ResetPassTimings();
+
 	// Each frame's light assignment copied out and compared with the CPU's (CheckClusterAssignment),
 	// once the frame's fence says it is done. The smoke test turns it on; it costs a copy of the grid
 	// and the index list a frame.
@@ -175,6 +209,7 @@ class Renderer
 		Buffer lights{};
 		Buffer lines{};
 		Buffer materials{};
+		Buffer instances{};
 		VkDescriptorSet frameSet{VK_NULL_HANDLE};
 		// The cluster check: the grid and the index list as this slot's frame left them, and what
 		// the CPU needs to assign the same lights. Pending from the frame that copied them out until
@@ -221,9 +256,17 @@ class Renderer
 	void EnsureCapacity(
 	    FrameData &frame, Buffer &buffer, VkDeviceSize bytes, VkBufferUsageFlags usage,
 	    const char *name);
+	// Each draw's level of detail, and the planets that hide what is behind them, from this frame's
+	// view.
+	void SelectLods(const std::vector<SceneDrawCommand> &draws);
 	// The frame's local lights into the slot's light list: camera-relative, and only those whose
-	// range reaches into the cluster range.
+	// range reaches into the cluster range, the view's frustum, and out from behind every planet.
 	void WriteLights(FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera);
+	// The view's draws and each cascade's casters, culled and batched, and every batch's instances
+	// into the slot's instance buffer.
+	void WriteInstances(
+	    FrameData &frame, const std::vector<SceneDrawCommand> &draws,
+	    const std::vector<uint32_t> &jointOffsets);
 	// The slot's last frame's assignment against the CPU's, now that its fence has been waited on.
 	void CheckClusters(FrameData &frame);
 	// The frame's debug lines into the slot's vertex buffer; how many are depth-tested.
@@ -234,18 +277,18 @@ class Renderer
 	// Each draw's named material, or null for the model's own, and the frame's parameters into the
 	// slot's material buffer.
 	void WriteMaterials(FrameData &frame, const std::vector<SceneDrawCommand> &draws, double time);
-	void Record(
-	    FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
-	    const std::vector<uint32_t> &jointOffsets, const ImGuiRenderer &imguiRenderer);
-	void RecordShadows(
-	    const FrameData &frame, VkCommandBuffer commandBuffer,
-	    const std::vector<SceneDrawCommand> &draws, const std::vector<uint32_t> &jointOffsets) const;
+	void Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer);
+	void RecordShadows(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+	void RecordDepthPrepass(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+	// The batches' vertex stages alone: the shadow cascades and the depth prepass, which bind no
+	// material.
+	void RecordDepthBatches(
+	    VkCommandBuffer commandBuffer, const std::vector<DrawBatch> &batches,
+	    std::uint32_t cascade) const;
 	void RecordClusterBounds(const FrameData &frame, VkCommandBuffer commandBuffer);
 	void RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const;
 	void RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const;
-	void RecordOpaque(
-	    const FrameData &frame, VkCommandBuffer commandBuffer,
-	    const std::vector<SceneDrawCommand> &draws, const std::vector<uint32_t> &jointOffsets);
+	void RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffer);
 	void RecordOutput(
 	    VkCommandBuffer commandBuffer, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer);
 	void SetViewport(VkCommandBuffer commandBuffer) const;
@@ -262,6 +305,7 @@ class Renderer
 	std::unique_ptr<PipelineCache> m_pPipelines;
 	std::unique_ptr<MaterialCache> m_pMaterials;
 	std::unique_ptr<Environment> m_pEnvironment;
+	std::unique_ptr<GpuProfiler> m_pProfiler;
 	// The sky the environment was baked from, or empty for the black one.
 	std::optional<SkyComponent> m_bakedSky;
 
@@ -285,6 +329,7 @@ class Renderer
 	VkPipeline m_clusterBoundsPipeline{VK_NULL_HANDLE};
 	VkPipeline m_clusterLightsPipeline{VK_NULL_HANDLE};
 	VkPipeline m_shadowPipeline{VK_NULL_HANDLE};
+	VkPipeline m_prepassPipeline{VK_NULL_HANDLE};
 
 	// The sun's shadow map: one layer per cascade, a view of the whole array for the lighting
 	// include, one of each layer to render into, and the comparison sampler. Shared by the frames in
@@ -297,6 +342,23 @@ class Renderer
 	ShadowSettings m_shadowSettings{.distance = kDefaultShadowDistance, .resolution = kShadowMapSize};
 	// Whether this frame's cascades have anything to draw: a scene with no sun clears them only.
 	bool m_frameShadows{false};
+	SunShadows m_frameCascades{};
+
+	// This frame's view, each draw's level of detail and the planets that hide what is behind them;
+	// the batches the view and each cascade draw, whose instances are runs of the frame's instance
+	// buffer.
+	Frustum m_frameFrustum{};
+	LodSelection m_frameLods{};
+	std::vector<std::uint32_t> m_drawLods;
+	std::vector<HorizonOccluder> m_occluders;
+	std::vector<DrawBatch> m_viewBatches;
+	std::array<std::vector<DrawBatch>, kShadowCascades> m_shadowBatches;
+	std::vector<BatchInput> m_batchScratch;
+	std::vector<std::uint32_t> m_instanceDraws;
+	std::vector<GpuInstance> m_instanceScratch;
+	float m_lodThreshold{kDefaultLodThreshold};
+	bool m_depthPrepass{false};
+	FrameStats m_frameStats{};
 
 	// The cluster grid: each cluster's view-space bounds, its offset and count into the index list,
 	// and the list, its allocator first. Device-local, shared by the frames in flight.
@@ -330,6 +392,7 @@ class Renderer
 	PassResource m_clusterGridResource;
 	PassResource m_lightIndicesResource;
 	uint32_t m_shadowPass{0};
+	uint32_t m_prepassPass{0};
 	uint32_t m_clusterResetPass{0};
 	uint32_t m_clusterBoundsPass{0};
 	uint32_t m_clusterLightsPass{0};

@@ -19,10 +19,13 @@
 #ifndef JETTISON_CLUSTERS_GLSL
 #define JETTISON_CLUSTERS_GLSL
 
-// 16 x 9 x 24 to start with, as the architecture sets it; 5e tunes it by measurement.
-const uint kClusterTilesX = 16u;
-const uint kClusterTilesY = 9u;
-const uint kClusterSlices = 24u;
+// Tuned in 5e against a station with 265 lights (scripts/make-light-budget-scene.py): from 16 x 9 x
+// 24, doubling the tiles each way and the slices took the opaque pass from 0.43 ms to 0.34 ms on an
+// RTX 5060 Ti and from 47 ms to 36 ms on lavapipe, the assignment costing no more. At 1080p a tile is
+// 60 pixels square, and at 160 m a slice is 28 m deep.
+const uint kClusterTilesX = 32u;
+const uint kClusterTilesY = 18u;
+const uint kClusterSlices = 48u;
 const uint kClusterCount = kClusterTilesX * kClusterTilesY * kClusterSlices;
 
 // A light is treated as a bulb this wide: nearer its centre than this, the inverse square stops

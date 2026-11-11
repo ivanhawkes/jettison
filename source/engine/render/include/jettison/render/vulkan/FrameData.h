@@ -84,4 +84,15 @@ struct GpuLight
 	glm::vec4 cone{0.0f, 1.0f, -1.0f, 0.0f};
 };
 static_assert(sizeof(GpuLight) == 64);
+
+// One entry of the frame's instance buffer, std430: mesh_vertex.glsl's Instance. Every draw is an
+// instanced one (render/DrawBatches.h), and reads its transform here by gl_InstanceIndex.
+struct GpuInstance
+{
+	// Object space to render space.
+	glm::mat4 model{1.0f};
+	// x: where the instance's joint matrices start in the skin palette, y: 1 when it is skinned.
+	glm::uvec4 skin{0u};
+};
+static_assert(sizeof(GpuInstance) == 80);
 } // namespace Jettison::Render

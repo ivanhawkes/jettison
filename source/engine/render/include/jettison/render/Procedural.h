@@ -12,7 +12,7 @@ namespace Jettison::Render
 {
 // Geometry made rather than loaded: a mesh's vertices and its triangle list, counter-clockwise
 // seen from outside, with normals, texture coordinates and one vertex colour. The planets and
-// stations the large-world scene shows are these until phase 5's procedural geometry and LOD.
+// stations the large-world scene shows are these, at levels of detail (GenerateLods).
 struct MeshData
 {
 	std::vector<Vertex> vertices;
@@ -61,7 +61,22 @@ MeshData Ring(int segments, float innerRadius, const glm::vec3 &color);
 // A cylinder of radius one from y = -1 to 1, `segments` around, with flat caps. The side has a seam
 // of duplicated vertices so u wraps; the caps have vertices of their own, for their normals.
 MeshData Cylinder(int segments, const glm::vec3 &color);
-// The scene's shapes at the resolutions the scene draws them; `innerRadius` is the ring's, from 0
-// to 1, and the other shapes ignore it.
-MeshData Generate(Shape shape, const glm::vec3 &color, float innerRadius = 0.5f);
+// One level of a shape's detail: the mesh, and its geometric error, the furthest its surface strays
+// from the shape it stands for, in the unit shape's own units. The renderer draws the coarsest level
+// whose error, scaled by the transform and projected, covers less than its threshold in pixels.
+struct MeshLod
+{
+	MeshData mesh;
+	float error{0.0f};
+};
+
+// A shape's levels of detail, finest first, each about half the resolution of the one before; the
+// finest is the resolution the scene drew every shape at before levels of detail. A box has the one
+// level, which is exact. `innerRadius` is the ring's, from 0 to 1, and the other shapes ignore it.
+std::vector<MeshLod> GenerateLods(Shape shape, const glm::vec3 &color, float innerRadius = 0.5f);
+
+// How far inside the unit sphere a mesh whose vertices lie on it reaches: one less the nearest any of
+// its triangles' planes passes the centre. It bounds the gap between a flat triangle and the sphere
+// over it, which is where a tessellated sphere's error is largest.
+float SphereTessellationError(const MeshData &mesh);
 } // namespace Jettison::Render

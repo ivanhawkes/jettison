@@ -4,6 +4,8 @@
 
 #include <glm/glm.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <map>
@@ -234,4 +236,75 @@ TEST_CASE("Procedural: every shape a scene can name round-trips through its name
 	}
 	Shape parsed{};
 	CHECK_FALSE(ParseShape("torus", parsed));
+}
+
+TEST_CASE(
+    "Procedural: each shape's levels of detail are closed, coarser in turn, and their errors bound "
+    "the surface")
+{
+	const glm::vec3 color{1.0f};
+	for (const Shape shape :
+	     {Shape::Sphere, Shape::IcoSphere, Shape::CubeSphere, Shape::Cylinder, Shape::Ring})
+	{
+		CAPTURE(ShapeName(shape));
+		const std::vector<MeshLod> lods = GenerateLods(shape, color, 0.4f);
+		REQUIRE(lods.size() == 5);
+		for (std::size_t level = 0; level < lods.size(); ++level)
+		{
+			CAPTURE(level);
+			const MeshData &mesh = lods[level].mesh;
+			CHECK(IndicesInRange(mesh));
+			if (shape != Shape::Ring)
+				CHECK(IsClosedAndOriented(mesh));
+			CHECK(lods[level].error > 0.0f);
+			if (level == 0)
+				continue;
+			CHECK(mesh.indices.size() < lods[level - 1].mesh.indices.size());
+			CHECK(lods[level].error > lods[level - 1].error);
+		}
+		// The furthest any point of a level is from the round surface it stands for, over a grid of
+		// points on each facet, or for a cylinder and a ring on each edge of the outer rim. The error
+		// bounds it, and closely: the bound is the facet's plane, and the sphere's deepest point under
+		// a skewed cell of a cube sphere is up to a quarter short of it.
+		const bool round = shape == Shape::Cylinder || shape == Shape::Ring;
+		const auto rim = [](const glm::dvec3 &point)
+		{ return glm::length(glm::dvec2{point.x, point.z}); };
+		for (const MeshLod &lod : lods)
+		{
+			double furthest = 0.0;
+			const auto &vertices = lod.mesh.vertices;
+			for (std::size_t triangle = 0; triangle < lod.mesh.indices.size(); triangle += 3)
+			{
+				const std::array<glm::dvec3, 3> corners{
+				    glm::dvec3{vertices[lod.mesh.indices[triangle]].pos},
+				    glm::dvec3{vertices[lod.mesh.indices[triangle + 1]].pos},
+				    glm::dvec3{vertices[lod.mesh.indices[triangle + 2]].pos}};
+				if (round)
+				{
+					for (std::size_t edge = 0; edge < 3; ++edge)
+					{
+						const glm::dvec3 &from = corners[edge];
+						const glm::dvec3 &to = corners[(edge + 1) % 3];
+						if (rim(from) > 0.999 && rim(to) > 0.999 && std::abs(from.y - to.y) < 1e-6)
+							furthest = std::max(furthest, 1.0 - rim((from + to) * 0.5));
+					}
+					continue;
+				}
+				constexpr int kSteps = 8;
+				for (int i = 0; i <= kSteps; ++i)
+					for (int j = 0; i + j <= kSteps; ++j)
+					{
+						const glm::dvec3 point = (corners[0] * double(i) + corners[1] * double(j) +
+						                          corners[2] * double(kSteps - i - j)) /
+						                         double(kSteps);
+						furthest = std::max(furthest, 1.0 - glm::length(point));
+					}
+			}
+			CHECK(furthest <= lod.error + 1e-6);
+			CHECK(furthest >= 0.7 * lod.error);
+		}
+	}
+	const std::vector<MeshLod> box = GenerateLods(Shape::Box, color);
+	REQUIRE(box.size() == 1);
+	CHECK(box[0].error == 0.0f);
 }

@@ -22,6 +22,8 @@ constexpr int kIcoSubdivisions = 6;
 constexpr int kCubeSphereSegments = 64;
 constexpr int kRingSegments = 256;
 constexpr int kCylinderSegments = 64;
+// Levels of detail a shape other than a box has, each half the resolution of the one before.
+constexpr int kLodLevels = 5;
 
 constexpr std::array<std::pair<Shape, std::string_view>, 6> kShapeNames{{
     {Shape::Sphere, "sphere"},
@@ -362,17 +364,68 @@ MeshData Cylinder(int segments, const glm::vec3 &color)
 	return mesh;
 }
 
-MeshData Generate(Shape shape, const glm::vec3 &color, float innerRadius)
+float SphereTessellationError(const MeshData &mesh)
+{
+	double nearest = 1.0;
+	for (std::size_t triangle = 0; triangle + 2 < mesh.indices.size(); triangle += 3)
+	{
+		const glm::dvec3 a{mesh.vertices[mesh.indices[triangle]].pos};
+		const glm::dvec3 b{mesh.vertices[mesh.indices[triangle + 1]].pos};
+		const glm::dvec3 c{mesh.vertices[mesh.indices[triangle + 2]].pos};
+		const glm::dvec3 normal = glm::cross(b - a, c - a);
+		// A UV sphere's pole triangles have two corners at the pole and no area.
+		const double area = glm::length(normal);
+		if (area < 1e-12)
+			continue;
+		nearest = std::min(nearest, std::abs(glm::dot(normal / area, a)));
+	}
+	return static_cast<float>(1.0 - nearest);
+}
+
+namespace
+{
+// A ring's and a cylinder's error is the chord across one segment of the outer circle, short of it
+// at the chord's middle by 1 - cos(pi / segments).
+MeshLod RoundLevel(MeshData mesh, int segments)
+{
+	const auto error = static_cast<float>(1.0 - std::cos(std::numbers::pi / segments));
+	return {std::move(mesh), error};
+}
+
+MeshLod SphereLevel(MeshData mesh)
+{
+	const float error = SphereTessellationError(mesh);
+	return {std::move(mesh), error};
+}
+
+// Each level halves the segments around, which about quadruples the error: a chord's sagitta grows
+// with the square of the angle it spans.
+MeshLod Level(Shape shape, int level, const glm::vec3 &color, float innerRadius)
 {
 	switch (shape)
 	{
-		case Shape::Sphere: return UvSphere(kSphereSegments, color);
-		case Shape::Box: return Box(color);
-		case Shape::IcoSphere: return IcoSphere(kIcoSubdivisions, color);
-		case Shape::CubeSphere: return CubeSphere(kCubeSphereSegments, color);
-		case Shape::Ring: return Ring(kRingSegments, innerRadius, color);
-		case Shape::Cylinder: return Cylinder(kCylinderSegments, color);
+		case Shape::Sphere: return SphereLevel(UvSphere(kSphereSegments >> level, color));
+		case Shape::Box: return {Box(color), 0.0f};
+		case Shape::IcoSphere: return SphereLevel(IcoSphere(kIcoSubdivisions - level, color));
+		case Shape::CubeSphere: return SphereLevel(CubeSphere(kCubeSphereSegments >> level, color));
+		case Shape::Ring:
+			return RoundLevel(Ring(kRingSegments >> level, innerRadius, color), kRingSegments >> level);
+		case Shape::Cylinder:
+			return RoundLevel(Cylinder(kCylinderSegments >> level, color), kCylinderSegments >> level);
 	}
 	throw std::invalid_argument("Unknown procedural shape");
+}
+} // namespace
+
+std::vector<MeshLod> GenerateLods(Shape shape, const glm::vec3 &color, float innerRadius)
+{
+	// Five levels take a cylinder from 64 segments to 4 and a sphere from 256 to 16: the coarsest is
+	// a few pixels across where it is drawn.
+	const int levels = shape == Shape::Box ? 1 : kLodLevels;
+	std::vector<MeshLod> lods;
+	lods.reserve(static_cast<std::size_t>(levels));
+	for (int level = 0; level < levels; ++level)
+		lods.push_back(Level(shape, level, color, innerRadius));
+	return lods;
 }
 } // namespace Jettison::Render

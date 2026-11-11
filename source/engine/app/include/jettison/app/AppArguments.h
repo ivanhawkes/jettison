@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 
@@ -20,6 +21,15 @@ struct AppArguments
 	// The scene graph loaded at start-up, and an optional second file to write it back to.
 	std::filesystem::path scenePath;
 	std::filesystem::path saveScenePath;
+
+	// A measurement of the frame: this many frames timed after a warm-up, the GPU's time in each pass
+	// and the frame's counts printed, and the window closed. None when zero.
+	std::uint32_t benchmarkFrames{0};
+	// The window's size, in place of the default; the smoke test's own wins over it.
+	std::optional<std::uint32_t> windowWidth;
+	std::optional<std::uint32_t> windowHeight;
+	// The opaque depth prepass, which the renderer runs without when not asked for.
+	bool depthPrepass{false};
 };
 
 // Resolves the defaults - the asset tree beside the executable, and <assets>/scene/main.yaml -

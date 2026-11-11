@@ -166,18 +166,29 @@ std::vector<SceneDrawCommand> SceneRenderSystem::Collect(
 	for (const entt::entity entity : meshes)
 	{
 		const auto &mesh = meshes.get<const MeshComponent>(entity);
-		if (mesh.model)
-		{
-			const auto *skeleton = registry.try_get<SkeletonComponent>(entity);
-			const glm::dmat4 meshNodeTransform{
-			    skeleton ? skeleton->meshNodeTransform : glm::mat4{1.0f}};
-			drawCommands.push_back(
-			    {mesh.model.get(),
-			     ToRenderSpace(
-			         meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform,
-			         camera),
-			     skeleton, &mesh.material});
-		}
+		if (!mesh.model)
+			continue;
+		const auto *skeleton = registry.try_get<SkeletonComponent>(entity);
+		const glm::dmat4 meshNodeTransform{skeleton ? skeleton->meshNodeTransform : glm::mat4{1.0f}};
+		const glm::dmat4 world =
+		    meshes.get<const WorldTransformComponent>(entity).matrix * meshNodeTransform;
+		// The bounds come from the double-precision matrix, made camera-relative before anything is
+		// rounded: a planet's centre ten thousand kilometres off keeps its metres.
+		glm::dmat4 relative = world;
+		relative[3] = glm::dvec4{glm::dvec3{world[3]} - camera, 1.0};
+		SceneDrawCommand draw{
+		    mesh.model.get(),
+		    glm::mat4{relative},
+		    skeleton,
+		    &mesh.material,
+		    TransformBounds(mesh.model->m_bounds, relative),
+		    MaxScale(relative),
+		    0.0};
+		const bool round = mesh.shape == Shape::Sphere || mesh.shape == Shape::IcoSphere ||
+		                   mesh.shape == Shape::CubeSphere;
+		if (round && registry.all_of<CelestialBodyComponent>(entity))
+			draw.occluderRadius = MinScale(relative);
+		drawCommands.push_back(draw);
 	}
 	return drawCommands;
 }

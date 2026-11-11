@@ -1,5 +1,7 @@
 #include <jettison/render/vulkan/Renderer.h>
 
+#include <tracy/TracyVulkan.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -14,6 +16,7 @@
 #include <jettison/core/Log.h>
 #include <jettison/render/vulkan/Environment.h>
 #include <jettison/render/vulkan/FrameData.h>
+#include <jettison/render/vulkan/GpuProfiler.h>
 #include <jettison/render/vulkan/MaterialCache.h>
 #include <jettison/render/vulkan/PipelineCache.h>
 #include <jettison/render/vulkan/imgui/ImGuiRenderer.h>
@@ -24,16 +27,14 @@ namespace Jettison::Render
 {
 namespace
 {
-// assets/shaders/include/draw.glsl.
+// assets/shaders/include/draw.glsl. What differs between the instances of a draw is in the instance
+// buffer (GpuInstance).
 struct DrawPushConstants
 {
-	alignas(16) glm::mat4 model{1.0f};
-	uint32_t jointOffset{};
-	uint32_t skinned{};
 	uint32_t materialOffset{};
 	uint32_t shadowCascade{};
 };
-static_assert(sizeof(DrawPushConstants) == 80);
+static_assert(sizeof(DrawPushConstants) == 8);
 constexpr VkShaderStageFlags kDrawStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
 struct OutputPushConstants
@@ -50,6 +51,8 @@ constexpr VkDeviceSize kInitialLights = 16;
 constexpr uint32_t kClusterGroupSize = 64;
 // And for this many material parameters, which are vec4s.
 constexpr VkDeviceSize kInitialMaterialParameters = 64;
+// And for this many instances, the view's and the cascades' together.
+constexpr VkDeviceSize kInitialInstances = 256;
 
 // What the sky draws the sun as when the scene does not say how large it is: the Sun from 1 AU.
 constexpr double kDefaultSunAngularRadius = 0.004652;
@@ -99,6 +102,13 @@ void Renderer::Init()
 
 	CreateLayouts();
 	CreatePassList();
+	std::vector<std::string> passNames;
+	passNames.reserve(m_passes.PassCount());
+	for (std::uint32_t pass = 0; pass < m_passes.PassCount(); ++pass)
+		passNames.emplace_back(m_passes.PassName(pass));
+	m_pProfiler =
+	    std::make_unique<GpuProfiler>(m_pDeviceContext, kFramesInFlight, std::move(passNames));
+	m_pProfiler->Init();
 	CreateTargets();
 	CreateClusterBuffers();
 	CreateShadowMap();
@@ -127,6 +137,7 @@ void Renderer::Destroy()
 		m_pDeviceContext->DestroyBuffer(frame.lights);
 		m_pDeviceContext->DestroyBuffer(frame.lines);
 		m_pDeviceContext->DestroyBuffer(frame.materials);
+		m_pDeviceContext->DestroyBuffer(frame.instances);
 		m_pDeviceContext->DestroyBuffer(frame.gridReadback);
 		m_pDeviceContext->DestroyBuffer(frame.indexReadback);
 		frame = {};
@@ -134,6 +145,8 @@ void Renderer::Destroy()
 	DestroyClusterBuffers();
 	DestroyShadowMap();
 	DestroyTargets();
+	if (m_pProfiler)
+		m_pProfiler->Destroy();
 	if (m_pEnvironment)
 		m_pEnvironment->Destroy();
 	m_bakedSky.reset();
@@ -149,6 +162,7 @@ void Renderer::Destroy()
 	m_clusterBoundsPipeline = VK_NULL_HANDLE;
 	m_clusterLightsPipeline = VK_NULL_HANDLE;
 	m_shadowPipeline = VK_NULL_HANDLE;
+	m_prepassPipeline = VK_NULL_HANDLE;
 
 	vkDestroySampler(device, m_outputSampler, nullptr);
 	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
@@ -191,10 +205,11 @@ void Renderer::CreateLayouts()
 	};
 
 	// assets/shaders/include/frame.glsl, the environment's bindings in lighting.glsl, the cluster
-	// grid's, which the cluster programs write and lighting.glsl reads, and the sun's shadow map.
+	// grid's, which the cluster programs write and lighting.glsl reads, the sun's shadow map, and the
+	// instances mesh_vertex.glsl reads.
 	constexpr VkShaderStageFlags kFragmentCompute =
 	    VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-	const std::array<VkDescriptorSetLayoutBinding, 11> frameBindings{{
+	const std::array<VkDescriptorSetLayoutBinding, 12> frameBindings{{
 	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
 	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
 	     nullptr},
@@ -208,6 +223,7 @@ void Renderer::CreateLayouts()
 	    {8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
 	    {9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
 	    {10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
@@ -265,7 +281,7 @@ void Renderer::CreateLayouts()
 	// One frame set per frame in flight, and the output set.
 	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
 	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6 * kFramesInFlight},
+	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7 * kFramesInFlight},
 	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * kFramesInFlight + 1},
 	}};
 	VkDescriptorPoolCreateInfo poolInfo{};
@@ -315,6 +331,11 @@ void Renderer::CreatePassList()
 	// without a sun only clears them, so the plan and its barriers are the same either way.
 	m_shadowPass = m_passes.AddPass(
 	    "sun-shadows", PassKind::Graphics, {{m_shadowMapResource, Usage::DepthAttachment}});
+	// The opaque surfaces' depth, laid down for the opaque pass to test against, when the prepass is
+	// on (SetDepthPrepass); off, it records nothing and the opaque pass clears the depth itself, so
+	// the plan and its barriers are the same either way.
+	m_prepassPass = m_passes.AddPass(
+	    "depth-prepass", PassKind::Graphics, {{m_depthResource, Usage::DepthAttachment}});
 	// The index list's allocator is zeroed by a fill, so the assignment can reserve from it with
 	// atomic adds; a fill is a transfer, and the plan orders it after the last frame's reads.
 	m_clusterResetPass = m_passes.AddPass(
@@ -366,9 +387,11 @@ void Renderer::CreateTargets()
 	    m_targets.hdrMsaa.handle, kHdrFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 	m_pDeviceContext->SetDebugName(m_targets.hdrMsaaView, "hdr-msaa-view");
 
+	// The depth is stored by the prepass, when it runs, and loaded by the opaque pass, so it is not
+	// transient.
 	m_targets.depth = m_pDeviceContext->CreateImage(
 	    extent.width, extent.height, 1, samples, m_depthFormat, VK_IMAGE_TILING_OPTIMAL,
-	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, "depth");
+	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, "depth");
 	m_targets.depthView = m_pDeviceContext->CreateImageView(
 	    m_targets.depth.handle, m_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 	m_pDeviceContext->SetDebugName(m_targets.depthView, "depth-view");
@@ -525,6 +548,9 @@ void Renderer::CreateFrames()
 		frame.materials = m_pDeviceContext->CreateBuffer(
 		    kInitialMaterialParameters * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 		    MemoryUse::Upload, "material-parameters-" + slot);
+		frame.instances = m_pDeviceContext->CreateBuffer(
+		    kInitialInstances * sizeof(GpuInstance), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		    MemoryUse::Upload, "instances-" + slot);
 
 		VkDescriptorSetAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -545,6 +571,7 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	const VkDescriptorBufferInfo joints{frame.joints.handle, 0, frame.joints.size};
 	const VkDescriptorBufferInfo lights{frame.lights.handle, 0, frame.lights.size};
 	const VkDescriptorBufferInfo materials{frame.materials.handle, 0, frame.materials.size};
+	const VkDescriptorBufferInfo instances{frame.instances.handle, 0, frame.instances.size};
 	const std::array<VkDescriptorBufferInfo, 3> clusters{{
 	    {m_clusterBounds.handle, 0, m_clusterBounds.size},
 	    {m_clusterGrid.handle, 0, m_clusterGrid.size},
@@ -558,7 +585,7 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	}};
 	const VkDescriptorImageInfo shadows{
 	    m_shadowSampler, m_shadowArrayView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-	std::array<VkWriteDescriptorSet, 11> writes{};
+	std::array<VkWriteDescriptorSet, 12> writes{};
 	for (auto &write : writes)
 	{
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -592,6 +619,9 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	writes[10].dstBinding = 10;
 	writes[10].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	writes[10].pImageInfo = &shadows;
+	writes[11].dstBinding = 11;
+	writes[11].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writes[11].pBufferInfo = &instances;
 	vkUpdateDescriptorSets(
 	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
 	    nullptr);
@@ -615,8 +645,10 @@ void Renderer::WriteOutputSet()
 
 void Renderer::CreatePipelines()
 {
+	// Greater or equal rather than greater, so a fragment at the depth the prepass laid down for it
+	// passes: with the prepass on, that is the only one that does.
 	RenderState mesh;
-	mesh.depthCompare = VK_COMPARE_OP_GREATER;
+	mesh.depthCompare = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	mesh.colorFormat = kHdrFormat;
 	mesh.depthFormat = m_depthFormat;
 	mesh.samples = m_pDeviceContext->GetMsaaSamples();
@@ -657,6 +689,14 @@ void Renderer::CreatePipelines()
 	shadow.depthBiasSlope = kShadowSlopeBias;
 	shadow.depthFormat = m_shadowFormat;
 	m_shadowPipeline = m_pPipelines->Get({"shadow_depth", shadow, m_meshLayout});
+
+	// The depth prepass: the opaque pass's depth, the same positions (mesh.vert's invariant
+	// gl_Position), with no colour.
+	RenderState prepass;
+	prepass.depthCompare = VK_COMPARE_OP_GREATER;
+	prepass.depthFormat = m_depthFormat;
+	prepass.samples = m_pDeviceContext->GetMsaaSamples();
+	m_prepassPipeline = m_pPipelines->Get({"depth_prepass", prepass, m_meshLayout});
 
 	m_clusterBoundsPipeline = m_pPipelines->GetCompute("cluster_bounds", m_clusterLayout);
 	m_clusterLightsPipeline = m_pPipelines->GetCompute("cluster_lights", m_clusterLayout);
@@ -777,6 +817,10 @@ void Renderer::WriteFrame(
 	    glm::vec4(m_frameClusterView.nearPlane, m_frameClusterView.range, 0.0f, 0.0f);
 	constants.clusterTile = glm::vec4(ClusterTileSize(viewport), viewport);
 
+	m_frameStats = {};
+	m_frameFrustum = ViewFrustum(camera, double{viewport.x} / double{std::max(viewport.y, 1.0f)});
+	m_frameLods = MakeLodSelection(camera, double{viewport.y}, double{m_lodThreshold});
+	SelectLods(draws);
 	WriteLights(frame, sceneRegistry, camera);
 	constants.counts.x = static_cast<uint32_t>(m_lightScratch.size());
 	constants.counts.y = static_cast<uint32_t>(m_debugView);
@@ -811,12 +855,12 @@ void Renderer::WriteFrame(
 			    static_cast<float>(std::cos(radius)), static_cast<float>(radius),
 			    std::min(static_cast<float>(sun.intensity / solidAngle), kMaxSunRadiance), 0.0f);
 
-			const SunShadows shadows = FitSunShadows(
+			m_frameCascades = FitSunShadows(
 			    camera, viewport.x / std::max(viewport.y, 1.0f), towards / distance, m_shadowSettings);
 			for (std::uint32_t cascade = 0; cascade < kShadowCascades; ++cascade)
-				constants.shadowMatrices[cascade] = shadows.cascades[cascade].matrix;
-			constants.shadowSplits = shadows.Splits();
-			constants.shadowTexels = shadows.TexelSizes();
+				constants.shadowMatrices[cascade] = m_frameCascades.cascades[cascade].matrix;
+			constants.shadowSplits = m_frameCascades.Splits();
+			constants.shadowTexels = m_frameCascades.TexelSizes();
 			constants.counts.z = 1u;
 			m_frameShadows = true;
 		}
@@ -841,6 +885,130 @@ void Renderer::WriteFrame(
 	    frame, frame.joints, palette.size() * sizeof(glm::mat4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 	    "joint-palette");
 	m_pDeviceContext->WriteBuffer(frame.joints, palette.data(), palette.size() * sizeof(glm::mat4));
+
+	WriteInstances(frame, draws, jointOffsets);
+}
+
+
+void Renderer::SelectLods(const std::vector<SceneDrawCommand> &draws)
+{
+	m_drawLods.assign(draws.size(), 0);
+	m_occluders.clear();
+	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+	{
+		const SceneDrawCommand &draw = draws[drawIndex];
+		if (draw.model == nullptr || draw.model->m_lods.empty())
+			continue;
+		const std::uint32_t lod = SelectLod(draw.model->m_lods, draw.scale, draw.bounds, m_frameLods);
+		m_drawLods[drawIndex] = lod;
+		if (draw.occluderRadius <= 0.0)
+			continue;
+		// The level's flat triangles dip inside the sphere they stand for by its error, so the sphere
+		// that hides nothing the mesh does not is that much smaller; and a millionth smaller again, for
+		// the bounds' centre, which is the box around the float vertices' and a planet's radius from
+		// its true centre is a metre in float.
+		const auto error = double{draw.model->m_lods[lod].error};
+		m_occluders.push_back({{draw.bounds.center, draw.occluderRadius * (1.0 - error - 1e-6)}});
+	}
+}
+
+
+void Renderer::WriteInstances(
+    FrameData &frame, const std::vector<SceneDrawCommand> &draws,
+    const std::vector<uint32_t> &jointOffsets)
+{
+	m_instanceDraws.clear();
+	m_viewBatches.clear();
+	for (auto &batches : m_shadowBatches)
+		batches.clear();
+
+	const auto nearest = [](const BoundingSphere &bounds)
+	{ return std::max(glm::length(bounds.center) - bounds.radius, 0.0); };
+	const auto triangles = [](const std::vector<DrawBatch> &batches)
+	{
+		std::uint64_t total = 0;
+		for (const DrawBatch &batch : batches)
+		{
+			const ModelLod &lod = batch.key.model->m_lods[batch.key.lod];
+			std::uint64_t indices = 0;
+			for (std::uint32_t primitive = 0; primitive < lod.primitiveCount; ++primitive)
+				indices += batch.key.model->m_primitives[lod.firstPrimitive + primitive].indexCount;
+			total += indices / 3 * batch.instanceCount;
+		}
+		return total;
+	};
+
+	// The view: what is inside the frustum and not behind a planet. A skinned draw's pose can leave
+	// its model's bounds, so it is always drawn.
+	m_batchScratch.clear();
+	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+	{
+		const SceneDrawCommand &draw = draws[drawIndex];
+		if (draw.model == nullptr || draw.model->m_lods.empty())
+			continue;
+		++m_frameStats.meshes;
+		const bool skinned = draw.Skinned();
+		if (!skinned && !Intersects(m_frameFrustum, draw.bounds))
+		{
+			++m_frameStats.frustumCulled;
+			continue;
+		}
+		if (!skinned && std::ranges::any_of(
+		                    m_occluders, [&](const HorizonOccluder &occluder)
+		                    { return Occludes(occluder, draw.bounds); }))
+		{
+			++m_frameStats.horizonCulled;
+			continue;
+		}
+		m_batchScratch.push_back(
+		    {{draw.model, m_drawLods[drawIndex], m_drawMaterials[drawIndex]},
+		     static_cast<std::uint32_t>(drawIndex),
+		     nearest(draw.bounds),
+		     !skinned});
+	}
+	BuildBatches(m_batchScratch, m_viewBatches, m_instanceDraws);
+	m_frameStats.viewBatches = static_cast<std::uint32_t>(m_viewBatches.size());
+	m_frameStats.viewTriangles = triangles(m_viewBatches);
+
+	// Each cascade's casters: what overlaps its map across the sun, from anywhere sunwards of its far
+	// side. They are drawn at the view's level of detail, so a surface shadows itself as it is drawn.
+	if (m_frameShadows)
+		for (std::uint32_t cascade = 0; cascade < kShadowCascades; ++cascade)
+		{
+			m_batchScratch.clear();
+			for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+			{
+				const SceneDrawCommand &draw = draws[drawIndex];
+				if (draw.model == nullptr || draw.model->m_lods.empty())
+					continue;
+				const bool skinned = draw.Skinned();
+				if (!skinned && !CastsInto(m_frameCascades.cascades[cascade], draw.bounds))
+					continue;
+				m_batchScratch.push_back(
+				    {{draw.model, m_drawLods[drawIndex], nullptr},
+				     static_cast<std::uint32_t>(drawIndex),
+				     nearest(draw.bounds),
+				     !skinned});
+			}
+			m_frameStats.shadowCasters[cascade] = static_cast<std::uint32_t>(m_batchScratch.size());
+			BuildBatches(m_batchScratch, m_shadowBatches[cascade], m_instanceDraws);
+			m_frameStats.shadowBatches[cascade] =
+			    static_cast<std::uint32_t>(m_shadowBatches[cascade].size());
+			m_frameStats.shadowTriangles += triangles(m_shadowBatches[cascade]);
+		}
+
+	m_instanceScratch.resize(std::max<std::size_t>(m_instanceDraws.size(), 1));
+	for (std::size_t instance = 0; instance < m_instanceDraws.size(); ++instance)
+	{
+		const std::uint32_t drawIndex = m_instanceDraws[instance];
+		const SceneDrawCommand &draw = draws[drawIndex];
+		m_instanceScratch[instance] = {
+		    draw.renderTransform,
+		    glm::uvec4{jointOffsets[drawIndex], draw.Skinned() ? 1u : 0u, 0u, 0u}};
+	}
+	const VkDeviceSize bytes = m_instanceScratch.size() * sizeof(GpuInstance);
+	EnsureCapacity(frame, frame.instances, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "instances");
+	m_pDeviceContext->WriteBuffer(frame.instances, m_instanceScratch.data(), bytes);
 }
 
 
@@ -866,12 +1034,20 @@ void Renderer::WriteLights(
 		else if (const auto *transform = sceneRegistry.try_get<TransformComponent>(entity))
 			position = transform->translation;
 		// The distance is taken in double precision, before anything becomes a float: a light whose
-		// range ends short of the grid's far end from here reaches no cluster.
+		// range ends short of the grid's far end from here reaches no cluster. Nor does one whose reach
+		// is outside the view, or wholly behind a planet: every surface it could light is too.
+		++m_frameStats.lights;
 		const glm::dvec3 relative = position - camera.position;
 		if (glm::length(relative) - double{light.range} > double{m_frameClusterView.range})
 			continue;
+		const BoundingSphere reach{relative, double{light.range}};
+		if (!Intersects(m_frameFrustum, reach) || std::ranges::any_of(
+		                                              m_occluders, [&](const HorizonOccluder &occluder)
+		                                              { return Occludes(occluder, reach); }))
+			continue;
 		m_lightScratch.push_back(PackLight(light, glm::vec3{relative}, glm::vec3{direction}));
 	}
+	m_frameStats.listedLights = static_cast<std::uint32_t>(m_lightScratch.size());
 	EnsureCapacity(
 	    frame, frame.lights, m_lightScratch.size() * sizeof(GpuLight),
 	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "light-list");
@@ -893,6 +1069,8 @@ void Renderer::CheckClusters(FrameData &frame)
 	    std::span<const std::uint32_t>{list}.subspan(1), list[0]);
 
 	++m_clusterChecks.frames;
+	m_clusterChecks.peakEntries = std::max(m_clusterChecks.peakEntries, check.entries);
+	m_clusterChecks.peakClusterLights = std::max(m_clusterChecks.peakClusterLights, check.mostLights);
 	if (check.litClusters != 0)
 		++m_clusterChecks.litFrames;
 	if (check.Agrees())
@@ -953,6 +1131,7 @@ bool Renderer::Render(
 	vkWaitForFences(device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX);
 	// The slot's last frame is done, and with it everything retired long enough ago to free.
 	m_pMaterials->BeginFrame(m_frameNumber, m_materialParameters);
+	m_pProfiler->Collect(m_currentFrame);
 	if (frame.checkPending)
 		CheckClusters(frame);
 
@@ -993,10 +1172,11 @@ bool Renderer::Render(
 	const CameraView camera = ActiveCameraView(scene.Registry());
 	const auto draws = renderSystem.Collect(scene.Registry(), camera.position);
 	std::vector<uint32_t> jointOffsets;
-	WriteFrame(frame, scene.Registry(), camera, draws, jointOffsets);
+	// The materials first: a draw's batch is keyed on the one it resolved to.
 	WriteMaterials(frame, draws, presentationTime);
 	if (sceneReplaced)
 		m_pMaterials->ReleaseUnresolved();
+	WriteFrame(frame, scene.Registry(), camera, draws, jointOffsets);
 	m_testedLineVertices = WriteLines(frame, debugDraw, camera.position);
 	if (m_checkClusters && frame.gridReadback.handle == VK_NULL_HANDLE)
 	{
@@ -1008,7 +1188,7 @@ bool Renderer::Render(
 		    m_lightIndices.size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, MemoryUse::Readback,
 		    "light-indices-readback-" + slot);
 	}
-	Record(frame, imageIndex, draws, jointOffsets, imguiRenderer);
+	Record(frame, imageIndex, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1064,9 +1244,7 @@ bool Renderer::Present()
 }
 
 
-void Renderer::Record(
-    FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
-    const std::vector<uint32_t> &jointOffsets, const ImGuiRenderer &imguiRenderer)
+void Renderer::Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer)
 {
 	const VkCommandBuffer commandBuffer = frame.commandBuffer;
 	if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS)
@@ -1081,6 +1259,7 @@ void Renderer::Record(
 	// the difference between "a draw in frame N reads a freed buffer" and a usable bug report.
 	// Labels are commands, so they go inside the recording.
 	m_pDeviceContext->BeginDebugLabel(commandBuffer, "frame-image-" + std::to_string(imageIndex));
+	m_pProfiler->BeginFrame(commandBuffer, m_currentFrame);
 
 	// This frame's images, in the pass list's resource order.
 	std::vector<BoundResource> bound(m_passes.ResourceCount());
@@ -1097,8 +1276,17 @@ void Renderer::Record(
 	{
 		RecordBarriers(commandBuffer, planned.barriers, bound);
 		m_pDeviceContext->BeginDebugLabel(commandBuffer, std::string{m_passes.PassName(planned.pass)});
+		// A GPU zone per declared pass, on Tracy's timeline when it is compiled in, and a timestamp
+		// either side for the engine's own timings. The pass list's names are std::strings, so the
+		// view's data is terminated.
+		TracyVkZoneTransient(
+		    static_cast<TracyVkCtx>(m_pProfiler->TracyContext()), passZone, commandBuffer,
+		    m_passes.PassName(planned.pass).data(), true);
+		m_pProfiler->BeginPass(commandBuffer, m_currentFrame, planned.pass);
 		if (planned.pass == m_shadowPass)
-			RecordShadows(frame, commandBuffer, draws, jointOffsets);
+			RecordShadows(frame, commandBuffer);
+		else if (planned.pass == m_prepassPass)
+			RecordDepthPrepass(frame, commandBuffer);
 		else if (planned.pass == m_clusterResetPass)
 			vkCmdFillBuffer(commandBuffer, m_lightIndices.handle, 0, sizeof(uint32_t), 0);
 		else if (planned.pass == m_clusterBoundsPass)
@@ -1106,11 +1294,12 @@ void Renderer::Record(
 		else if (planned.pass == m_clusterLightsPass)
 			RecordClusterLights(frame, commandBuffer);
 		else if (planned.pass == m_opaquePass)
-			RecordOpaque(frame, commandBuffer, draws, jointOffsets);
+			RecordOpaque(frame, commandBuffer);
 		else if (planned.pass == m_outputPass)
 			RecordOutput(commandBuffer, imageIndex, imguiRenderer);
 		else if (planned.pass == m_clusterReadbackPass)
 			RecordClusterReadback(frame, commandBuffer);
+		m_pProfiler->EndPass(commandBuffer, m_currentFrame, planned.pass);
 		m_pDeviceContext->EndDebugLabel(commandBuffer);
 	}
 	RecordBarriers(commandBuffer, m_plan.final, bound);
@@ -1121,9 +1310,36 @@ void Renderer::Record(
 }
 
 
-void Renderer::RecordShadows(
-    const FrameData &frame, VkCommandBuffer commandBuffer, const std::vector<SceneDrawCommand> &draws,
-    const std::vector<uint32_t> &jointOffsets) const
+void Renderer::RecordDepthBatches(
+    VkCommandBuffer commandBuffer, const std::vector<DrawBatch> &batches, std::uint32_t cascade) const
+{
+	const DrawPushConstants pushConstants{0u, cascade};
+	vkCmdPushConstants(
+	    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
+	const Model *boundModel = nullptr;
+	for (const DrawBatch &batch : batches)
+	{
+		const Model &model = *batch.key.model;
+		if (&model != boundModel)
+		{
+			const VkDeviceSize offset = 0;
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &model.m_vertexBuffer.handle, &offset);
+			vkCmdBindIndexBuffer(commandBuffer, model.m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+			boundModel = &model;
+		}
+		const ModelLod &lod = model.m_lods[batch.key.lod];
+		for (std::uint32_t index = 0; index < lod.primitiveCount; ++index)
+		{
+			const ModelPrimitive &primitive = model.m_primitives[lod.firstPrimitive + index];
+			vkCmdDrawIndexed(
+			    commandBuffer, primitive.indexCount, batch.instanceCount, primitive.firstIndex, 0,
+			    batch.firstInstance);
+		}
+	}
+}
+
+
+void Renderer::RecordShadows(const FrameData &frame, VkCommandBuffer commandBuffer) const
 {
 	const VkExtent2D extent{kShadowMapSize, kShadowMapSize};
 	const VkViewport viewport{
@@ -1148,43 +1364,51 @@ void Renderer::RecordShadows(
 
 		m_pDeviceContext->BeginDebugLabel(commandBuffer, "cascade-" + std::to_string(cascade));
 		vkCmdBeginRendering(commandBuffer, &rendering);
-		if (m_frameShadows)
+		if (m_frameShadows && !m_shadowBatches[cascade].empty())
 		{
 			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline);
-			// The shadow program reads the frame set alone: the cascades' matrices and the skin
-			// palette. No material set is bound, since it has no fragment stage to read one.
+			// The shadow program reads the frame set alone: the cascades' matrices, the instances and
+			// the skin palette. No material set is bound, since it has no fragment stage to read one.
 			vkCmdBindDescriptorSets(
 			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
 			    nullptr);
-			for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
-			{
-				const SceneDrawCommand &draw = draws[drawIndex];
-				if (draw.model == nullptr)
-					continue;
-				const VkBuffer vertexBuffer = draw.model->m_vertexBuffer.handle;
-				const VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
-				vkCmdBindIndexBuffer(
-				    commandBuffer, draw.model->m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-				DrawPushConstants pushConstants{};
-				pushConstants.model = draw.renderTransform;
-				pushConstants.jointOffset = jointOffsets[drawIndex];
-				pushConstants.skinned =
-				    draw.skeleton != nullptr && !draw.skeleton->jointMatrices.empty() ? 1u : 0u;
-				pushConstants.shadowCascade = cascade;
-				vkCmdPushConstants(
-				    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants),
-				    &pushConstants);
-				for (const auto &primitive : draw.model->m_primitives)
-					vkCmdDrawIndexed(
-					    commandBuffer, primitive.indexCount, 1, primitive.firstIndex, 0, 0);
-			}
+			RecordDepthBatches(commandBuffer, m_shadowBatches[cascade], cascade);
 		}
 		vkCmdEndRendering(commandBuffer);
 		m_pDeviceContext->EndDebugLabel(commandBuffer);
 	}
+}
+
+
+void Renderer::RecordDepthPrepass(const FrameData &frame, VkCommandBuffer commandBuffer) const
+{
+	if (!m_depthPrepass)
+		return;
+	VkRenderingAttachmentInfo depth{};
+	depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depth.imageView = m_targets.depthView;
+	depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	// Reversed-Z: the far end of the infinite frustum is depth 0.
+	depth.clearValue.depthStencil = {0.0f, 0};
+
+	VkRenderingInfo rendering{};
+	rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	rendering.renderArea = {{0, 0}, m_targets.extent};
+	rendering.layerCount = 1;
+	rendering.pDepthAttachment = &depth;
+
+	vkCmdBeginRendering(commandBuffer, &rendering);
+	SetViewport(commandBuffer);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_prepassPipeline);
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
+	    nullptr);
+	RecordDepthBatches(commandBuffer, m_viewBatches, 0);
+	vkCmdEndRendering(commandBuffer);
 }
 
 
@@ -1252,9 +1476,7 @@ void Renderer::SetViewport(VkCommandBuffer commandBuffer) const
 }
 
 
-void Renderer::RecordOpaque(
-    const FrameData &frame, VkCommandBuffer commandBuffer, const std::vector<SceneDrawCommand> &draws,
-    const std::vector<uint32_t> &jointOffsets)
+void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffer)
 {
 	VkRenderingAttachmentInfo color{};
 	color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -1267,11 +1489,12 @@ void Renderer::RecordOpaque(
 	color.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	color.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
+	// The prepass's depth when it ran, and a clear when it did not.
 	VkRenderingAttachmentInfo depth{};
 	depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	depth.imageView = m_targets.depthView;
 	depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth.loadOp = m_depthPrepass ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	// Reversed-Z: the far end of the infinite frustum is depth 0.
 	depth.clearValue.depthStencil = {0.0f, 0};
@@ -1291,30 +1514,31 @@ void Renderer::RecordOpaque(
 	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
 	    nullptr);
 	VkPipeline boundPipeline = VK_NULL_HANDLE;
-	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+	const Model *boundModel = nullptr;
+	// Front to back, batch by batch (render/DrawBatches.h).
+	for (const DrawBatch &batch : m_viewBatches)
 	{
-		const SceneDrawCommand &draw = draws[drawIndex];
-		if (draw.model == nullptr)
-			continue;
-		const VkBuffer vertexBuffer = draw.model->m_vertexBuffer.handle;
-		const VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
-		vkCmdBindIndexBuffer(commandBuffer, draw.model->m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-		const MaterialBinding *pNamed = m_drawMaterials[drawIndex];
-		DrawPushConstants pushConstants{};
-		pushConstants.model = draw.renderTransform;
-		pushConstants.jointOffset = jointOffsets[drawIndex];
-		pushConstants.skinned =
-		    draw.skeleton != nullptr && !draw.skeleton->jointMatrices.empty() ? 1u : 0u;
+		const Model &model = *batch.key.model;
+		if (&model != boundModel)
+		{
+			const VkDeviceSize offset = 0;
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &model.m_vertexBuffer.handle, &offset);
+			vkCmdBindIndexBuffer(commandBuffer, model.m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+			boundModel = &model;
+		}
+		const auto *pNamed = static_cast<const MaterialBinding *>(batch.key.material);
 		// A model's own material is the default program at its defaults, the frame's first block.
-		pushConstants.materialOffset = pNamed != nullptr ? pNamed->parameterOffset : 0u;
+		const DrawPushConstants pushConstants{pNamed != nullptr ? pNamed->parameterOffset : 0u, 0u};
 		vkCmdPushConstants(
 		    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
-		const auto &primitives = draw.model->m_primitives;
-		for (std::size_t primitiveIndex = 0; primitiveIndex < primitives.size(); ++primitiveIndex)
+		const ModelLod &lod = model.m_lods[batch.key.lod];
+		for (std::uint32_t index = 0; index < lod.primitiveCount; ++index)
 		{
+			const std::uint32_t primitiveIndex = lod.firstPrimitive + index;
 			const MaterialBinding material =
-			    pNamed != nullptr ? *pNamed : m_pMaterials->Ensure(*draw.model, primitiveIndex);
+			    pNamed != nullptr
+			        ? *pNamed
+			        : m_pMaterials->Ensure(model, model.MaterialPrimitive(primitiveIndex));
 			if (material.pipeline != boundPipeline)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline);
@@ -1323,9 +1547,10 @@ void Renderer::RecordOpaque(
 			vkCmdBindDescriptorSets(
 			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 1, 1, &material.set, 0,
 			    nullptr);
+			const ModelPrimitive &primitive = model.m_primitives[primitiveIndex];
 			vkCmdDrawIndexed(
-			    commandBuffer, primitives[primitiveIndex].indexCount, 1,
-			    primitives[primitiveIndex].firstIndex, 0, 0);
+			    commandBuffer, primitive.indexCount, batch.instanceCount, primitive.firstIndex, 0,
+			    batch.firstInstance);
 		}
 	}
 
@@ -1387,5 +1612,23 @@ void Renderer::RecordOutput(
 	// The UI goes over the scene after exposure, single-sampled, in the swapchain's format.
 	imguiRenderer.RenderDrawData(commandBuffer);
 	vkCmdEndRendering(commandBuffer);
+}
+
+
+const std::vector<PassTiming> &Renderer::GetPassTimings() const
+{
+	return m_pProfiler->Timings();
+}
+
+
+std::uint64_t Renderer::GetMeasuredFrames() const
+{
+	return m_pProfiler->MeasuredFrames();
+}
+
+
+void Renderer::ResetPassTimings()
+{
+	m_pProfiler->ResetMeans();
 }
 } // namespace Jettison::Render
