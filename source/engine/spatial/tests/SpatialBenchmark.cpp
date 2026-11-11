@@ -12,8 +12,9 @@
 
 using namespace Jettison;
 
-// The measurement phase 6c chose the structure by (docs/history.md). Skipped in the gate; run it
-// from a Release tree with
+// The measurement phase 6c chose the structure by (docs/roadmap.md, "Decided"), less the sorted
+// grid it was measured against, which commit 64d5488 has: check that out to run the comparison.
+// Skipped in the gate; run it from a Release tree with
 //
 //   build/clang-release/source/engine/spatial/jettison_spatial_tests --no-skip -tc='Spatial benchmark*'
 //
@@ -21,7 +22,8 @@ using namespace Jettison;
 // in the index each step, then the queries a step of AI might make, from ships chosen at random.
 // Avoidance looks 5 km about a ship, sensors 500 km; nearest finds a ship's eight neighbours, and
 // the nearest anything from a random point in open space. The first table steps at 60 Hz; the
-// second steps a second at a time, sixty times as far, which is what looseness is for.
+// second steps a second at a time, sixty times as far, which is what looseness is for. "scan" is
+// a walk over every position, the floor any structure has to beat.
 namespace
 {
 using Clock = std::chrono::steady_clock;
@@ -158,8 +160,7 @@ class Scan
 };
 } // namespace
 
-TEST_CASE(
-    "Spatial benchmark: loose octree against sorted grid over a system's traffic" * doctest::skip())
+TEST_CASE("Spatial benchmark: the octree over a system's traffic" * doctest::skip())
 {
 	const auto header = [](const char *title)
 	{
@@ -169,20 +170,12 @@ TEST_CASE(
 	};
 	const auto octree = [](std::uint32_t capacity, double looseness, std::size_t count, double step)
 	{
-		Spatial::LooseOctree::Settings settings;
+		Spatial::Octree::Settings settings;
 		settings.leafCapacity = capacity;
 		settings.looseness = looseness;
 		char name[64];
 		std::snprintf(name, sizeof name, "octree leaf %u loose %.1f", capacity, looseness);
-		Print(name, count, Measure(Spatial::LooseOctree(settings), count, step));
-	};
-	const auto grid = [](double cellSize, std::size_t count, double step)
-	{
-		Spatial::SortedGrid::Settings settings;
-		settings.cellSize = cellSize;
-		char name[64];
-		std::snprintf(name, sizeof name, "grid cell %.0f km", cellSize / 1000.0);
-		Print(name, count, Measure(Spatial::SortedGrid(settings), count, step));
+		Print(name, count, Measure(Spatial::Octree(settings), count, step));
 	};
 
 	header("Steps of 1/60 s");
@@ -191,8 +184,6 @@ TEST_CASE(
 		for (const std::uint32_t capacity : {16U, 32U, 64U})
 			for (const double looseness : {1.0, 1.5, 2.0})
 				octree(capacity, looseness, count, 1.0 / 60.0);
-		for (const double cellSize : {1.0e3, 1.0e4, 1.0e5, 1.0e6})
-			grid(cellSize, count, 1.0 / 60.0);
 		if (count <= 10'000U)
 			Print("scan", count, Measure(Scan{}, count, 1.0 / 60.0));
 		std::printf("\n");
@@ -202,8 +193,7 @@ TEST_CASE(
 	for (const std::size_t count : {10'000U, 100'000U})
 	{
 		for (const double looseness : {1.0, 1.5, 2.0})
-			octree(32, looseness, count, 1.0);
-		grid(1.0e6, count, 1.0);
+			octree(64, looseness, count, 1.0);
 		std::printf("\n");
 	}
 }

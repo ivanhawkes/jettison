@@ -348,6 +348,15 @@ python3 scripts/make-light-budget-scene.py build/clang-release/assets/scene/orbi
 
 The budgets and what phase 5 measured are in [architecture](architecture.md#the-budget).
 
+The spatial index has a benchmark of its own, a doctest case skipped in the gate: a system's traffic
+of 1,000 to 100,000 ships stepped 60 times, every ship moved in the index each step, and the time
+of each kind of query AI makes, for the octree's leaf sizes and looseness and for a walk over every
+position. What phase 6c measured with it is under [decided](roadmap.md#decided).
+
+```bash
+build/clang-release/source/engine/spatial/jettison_spatial_tests --no-skip -tc='Spatial benchmark*'
+```
+
 For the GPU's passes on Tracy's timeline beside the CPU's zones, configure a tree with
 `-DJETTISON_PROFILE=ON` (for example `cmake --preset clang-release -B build/profile
 -DJETTISON_PROFILE=ON`). Every other tree compiles the zones out. A capture without the profiler's

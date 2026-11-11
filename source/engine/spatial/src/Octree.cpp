@@ -1,4 +1,4 @@
-#include <jettison/spatial/LooseOctree.h>
+#include <jettison/spatial/Octree.h>
 
 #include <algorithm>
 #include <array>
@@ -63,11 +63,11 @@ class NodeStack
 };
 } // namespace
 
-LooseOctree::LooseOctree() : LooseOctree(Settings{})
+Octree::Octree() : Octree(Settings{})
 {
 }
 
-LooseOctree::LooseOctree(const Settings &settings) : m_settings(settings)
+Octree::Octree(const Settings &settings) : m_settings(settings)
 {
 	JETTISON_VERIFY(settings.halfExtent > 0.0 && std::isfinite(settings.halfExtent));
 	JETTISON_VERIFY(settings.leafCapacity > 0);
@@ -77,7 +77,7 @@ LooseOctree::LooseOctree(const Settings &settings) : m_settings(settings)
 	Clear();
 }
 
-void LooseOctree::Clear()
+void Octree::Clear()
 {
 	m_nodes.clear();
 	m_freeBlocks.clear();
@@ -87,7 +87,7 @@ void LooseOctree::Clear()
 	MakeNode(0, kNone, glm::dvec3{0.0}, m_settings.halfExtent);
 }
 
-void LooseOctree::MakeNode(
+void Octree::MakeNode(
     std::uint32_t index, std::uint32_t parent, const glm::dvec3 &centre, double halfSize)
 {
 	Node &node = m_nodes[index];
@@ -102,18 +102,18 @@ void LooseOctree::MakeNode(
 	node.items.clear();
 }
 
-bool LooseOctree::Contains(entt::entity entity) const
+bool Octree::Contains(entt::entity entity) const
 {
 	const std::uint32_t slot = m_slots.Find(entity);
 	return slot != kNone && m_items[slot].entity == entity;
 }
 
-bool LooseOctree::InRootCube(const glm::dvec3 &position) const
+bool Octree::InRootCube(const glm::dvec3 &position) const
 {
 	return InCube(position, m_nodes[0].centre, m_nodes[0].halfSize);
 }
 
-void LooseOctree::Insert(entt::entity entity, const glm::dvec3 &position)
+void Octree::Insert(entt::entity entity, const glm::dvec3 &position)
 {
 	JETTISON_ASSERT(!Contains(entity));
 	JETTISON_ASSERT(m_slots.Find(entity) == kNone);
@@ -123,7 +123,7 @@ void LooseOctree::Insert(entt::entity entity, const glm::dvec3 &position)
 	Place(index);
 }
 
-void LooseOctree::Update(entt::entity entity, const glm::dvec3 &position)
+void Octree::Update(entt::entity entity, const glm::dvec3 &position)
 {
 	JETTISON_ASSERT(Contains(entity));
 	const std::uint32_t index = m_slots.Find(entity);
@@ -142,7 +142,7 @@ void LooseOctree::Update(entt::entity entity, const glm::dvec3 &position)
 	Place(index);
 }
 
-void LooseOctree::Remove(entt::entity entity)
+void Octree::Remove(entt::entity entity)
 {
 	JETTISON_ASSERT(Contains(entity));
 	const std::uint32_t index = m_slots.Find(entity);
@@ -159,7 +159,7 @@ void LooseOctree::Remove(entt::entity entity)
 	m_slots.Clear(entity);
 }
 
-void LooseOctree::AddToNode(std::uint32_t node, std::uint32_t item)
+void Octree::AddToNode(std::uint32_t node, std::uint32_t item)
 {
 	std::vector<std::uint32_t> &items = m_nodes[node].items;
 	m_items[item].node = node;
@@ -167,7 +167,7 @@ void LooseOctree::AddToNode(std::uint32_t node, std::uint32_t item)
 	items.push_back(item);
 }
 
-void LooseOctree::RemoveFromNode(std::uint32_t item)
+void Octree::RemoveFromNode(std::uint32_t item)
 {
 	const Item &removed = m_items[item];
 	std::vector<std::uint32_t> &items = m_nodes[removed.node].items;
@@ -178,7 +178,7 @@ void LooseOctree::RemoveFromNode(std::uint32_t item)
 	m_items[item].node = kNone;
 }
 
-void LooseOctree::Place(std::uint32_t item)
+void Octree::Place(std::uint32_t item)
 {
 	const glm::dvec3 position = m_items[item].position;
 	std::uint32_t node = 0;
@@ -198,7 +198,7 @@ void LooseOctree::Place(std::uint32_t item)
 		Split(node);
 }
 
-void LooseOctree::Unplace(std::uint32_t item)
+void Octree::Unplace(std::uint32_t item)
 {
 	const std::uint32_t leaf = m_items[item].node;
 	RemoveFromNode(item);
@@ -216,7 +216,7 @@ void LooseOctree::Unplace(std::uint32_t item)
 		Collapse(gather);
 }
 
-void LooseOctree::Split(std::uint32_t node)
+void Octree::Split(std::uint32_t node)
 {
 	std::uint32_t first = 0;
 	if (!m_freeBlocks.empty())
@@ -272,7 +272,7 @@ void LooseOctree::Split(std::uint32_t node)
 	}
 }
 
-void LooseOctree::Collapse(std::uint32_t node)
+void Octree::Collapse(std::uint32_t node)
 {
 	// Every point below the node is inside its loose cube, since a child's loose cube is inside its
 	// parent's for any looseness of 1 or more: h/2 + L·h/2 <= L·h.
@@ -296,7 +296,7 @@ void LooseOctree::Collapse(std::uint32_t node)
 		AddToNode(node, item);
 }
 
-void LooseOctree::FreeChildren(std::uint32_t node)
+void Octree::FreeChildren(std::uint32_t node)
 {
 	const std::uint32_t first = m_nodes[node].firstChild;
 	for (std::uint32_t octant = 0; octant < 8; ++octant)
@@ -311,7 +311,7 @@ void LooseOctree::FreeChildren(std::uint32_t node)
 	m_nodes[node].firstChild = kNone;
 }
 
-void LooseOctree::QueryBox(const Math::DAabb &box, std::vector<entt::entity> &out) const
+void Octree::QueryBox(const Math::DAabb &box, std::vector<entt::entity> &out) const
 {
 	out.clear();
 	NodeStack stack;
@@ -334,8 +334,7 @@ void LooseOctree::QueryBox(const Math::DAabb &box, std::vector<entt::entity> &ou
 	Detail::SortByIdentifier(out);
 }
 
-void LooseOctree::QuerySphere(
-    const glm::dvec3 &centre, double radius, std::vector<entt::entity> &out) const
+void Octree::QuerySphere(const glm::dvec3 &centre, double radius, std::vector<entt::entity> &out) const
 {
 	out.clear();
 	const double radiusSquared = radius * radius;
@@ -359,7 +358,7 @@ void LooseOctree::QuerySphere(
 	Detail::SortByIdentifier(out);
 }
 
-void LooseOctree::QueryNearest(
+void Octree::QueryNearest(
     const glm::dvec3 &point, std::size_t count, double maxDistance, std::vector<Neighbour> &out) const
 {
 	out.clear();

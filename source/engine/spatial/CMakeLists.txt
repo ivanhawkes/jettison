@@ -5,13 +5,11 @@ jettison_add_module(spatial
 		math
 	HEADERS
 		include/jettison/spatial/Queries.h
-		include/jettison/spatial/LooseOctree.h
-		include/jettison/spatial/SortedGrid.h
+		include/jettison/spatial/Octree.h
 		include/jettison/spatial/SpatialIndex.h
 	SOURCES
 		src/Queries.cpp
-		src/LooseOctree.cpp
-		src/SortedGrid.cpp
+		src/Octree.cpp
 	TESTS
 		tests/SpatialTests.cpp
 		tests/SpatialBenchmark.cpp

@@ -12,37 +12,45 @@
 
 namespace Jettison::Spatial
 {
-// A loose octree over points. A node's cube is split in eight when it holds more than a leaf's
-// capacity, and its children are gathered back into it when their subtree holds half that, so a
-// station's traffic is in small leaves and the space between planets in large ones. Each node also
-// has a loose cube, its own grown by the looseness about its centre; a point stays in its leaf while
-// it is inside the leaf's loose cube, so a ship moving about a station is rarely moved between
-// nodes, and queries prune by the loose cubes, which hold everything their nodes do.
+// An octree over points, the structure phase 6c kept as the spatial index (SpatialIndex.h). A
+// node's cube is split in eight when it holds more than a leaf's capacity, and its children are
+// gathered back into it when their subtree holds half that, so a station's traffic is in small
+// leaves and the space between planets in large ones.
+//
+// It can be a loose octree: each node then has a loose cube, its own grown by the looseness about
+// its centre, a point stays in its leaf while it is inside the leaf's loose cube, and queries prune
+// by the loose cubes, which hold everything their nodes do. Measured in 6c, looseness bought nothing
+// for traffic stepped at 60 Hz and made every small query slower, as loose cubes overlap; it is
+// kept as a setting, at 1, for traffic that moves farther in a step.
 //
 // The root's cube is a power of two metres on a side, centred on the system's origin, so that every
 // node's centre and size, and its loose cube, are exact in double: halving them never rounds. A
 // point outside the root's cube is held by the root itself, which every query visits.
-class LooseOctree
+class Octree
 {
   public:
 	struct Settings
 	{
 		// Half the root cube's side, rounded up to a power of two: 2^43 m, 59 AU, by default.
 		double halfExtent{8.796093022208e12};
-		// A leaf holding more points than this is split, unless it is at the deepest level.
-		std::uint32_t leafCapacity{16};
+		// A leaf holding more points than this is split, unless it is at the deepest level. 64 was
+		// the best measured in 6c: at 100,000 ships 32 was within a tenth of it, and 16 a third slower
+		// to update.
+		std::uint32_t leafCapacity{64};
 		// 2^43 m halved 36 times is a leaf 256 m on a side.
 		std::uint32_t maxDepth{36};
-		// The loose cube's half side over the cube's. 1 is a plain octree; above 2 a leaf's loose
-		// cube reaches past its parent's neighbours.
-		double looseness{2.0};
+		// The loose cube's half side over the cube's: 1 is a plain octree. With steps of a second
+		// (sixty times the 60 Hz step's motion), 2 saved a quarter of the update and cost 2.5 to 4
+		// times as much on a 5 km avoidance query and on nearest queries.
+		double looseness{1.0};
 	};
 
-	LooseOctree();
-	explicit LooseOctree(const Settings &settings);
+	Octree();
+	explicit Octree(const Settings &settings);
 
 	// An entity is inserted once and removed once; inserting one already indexed, or updating or
-	// removing one that is not, is a programming error (JETTISON_ASSERT).
+	// removing one that is not, is a programming error (JETTISON_ASSERT). A point a step moves within
+	// its leaf is written in place.
 	void Insert(entt::entity entity, const glm::dvec3 &position);
 	void Update(entt::entity entity, const glm::dvec3 &position);
 	void Remove(entt::entity entity);

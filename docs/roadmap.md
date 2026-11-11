@@ -15,7 +15,7 @@ built, are recorded in [history](history.md).
 | 6 | **Star systems and galaxy.** Sub-phases 6a–6d; catalogue entries 21 and 16. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
 | 6a | **The scene leaves `render`.** Done 2026-11-11. `IRenderer.h` is the renderer the engine sees (the window, the frame of a scene, the UI, the frame's cost) and `CreateRenderer` the Vulkan backend behind it, its headers private under `render/src/vulkan` and Vulkan a private library. The scene is `engine/scene`: its components, its file, `SceneUpdateSystem` and the camera rigs, naming no device. The file is version 2, read and written through `YamlArchive` with one check shared by the loader and the writer, every path in it virtual; `serialise` learnt `std::optional` fields. Models are a resource keyed on their paths (`ModelCache`), retired after the frames in flight rather than behind an idle device; a model's rig is a resource of its own, read from the glTF file by `animation`, which moved to the World tier, below `scene`. | Met: `Application` holds `Render::IRenderer` alone and includes no Vulkan header; the sample and orbit scenes render as before (the Fox posed once its rig is in), and the smoke test, unchanged, passes both under validation. |
 | 6b | **System scenes and layers.** Done 2026-11-11. `SystemScene` builds a star system's scene onto a `Scene`, around what a scene file authored or from the system alone (`Scene::LoadSystem`, `--system`): each body no entity of the file presents gets an entity looking as its kind does (a sun on the star, a sphere the body's size, a hull for a station, a ring marker in the effects layer for a jump point), a scene with no sky one seeded from the system's name, and one with no active camera an orbit camera on the first station. What it builds is a `BuiltComponent`, which the writer leaves out, so a saved scene is the file that was loaded. It places the bodies (the celestial sync moved from `app`), and makes the traffic layer from the simulation's snapshots: a proxy from a factory the game supplies for each entity in them, destroyed with its children when the entity leaves (`scene` now depends on `sim`, and reads its snapshots alone). Layers are a `layer` in the scene file, inherited by children; one hidden (`Scene::SetLayerVisible`, the dev tools' Scene panel) is neither drawn nor lit by. | Met: `halcyon.yaml` alone builds an entity for every body, each at its orbit's position at three times, the station moving about the planet at 7.7 km/s with the camera on it; the orbit scene builds only the gate it does not present, and both render, the orbit scene in the smoke test under validation. |
-| 6c | **Spatial index.** A loose octree and a sorted grid measured against each other over simulation entities, one kept (an open decision). | Range and nearest queries are tested against brute force, and the measurement is recorded. |
+| 6c | **Spatial index.** Done 2026-11-11. `SpatialIndex` is an octree (`spatial/Octree.h`) over simulation entities as points in the system frame: sphere and box queries in identifier order, and the count nearest a point within a limit, by distance then identifier, every structure deciding membership with the same functions (`spatial/Queries.h`). Its root is a power of two metres across, so every node's bounds are exact in double; a leaf splits past 64 points and its subtree gathers back at half that; a point outside the root is held by the root. Looseness is a setting, at 1. A loose octree and a sorted grid were built and measured against each other (commit `64d5488` has both) and the octree kept (see [decided](#decided)); range results past 512 are radix sorted. | Met: the suite runs every query after inserts, steps, jumps across the system, removals with identifiers reused, a hundred points at one place and points past the root, loose and not, against brute force, and agrees to the last bit; the measurement is `tests/SpatialBenchmark.cpp`, recorded under [decided](#decided). |
 | 6d | **Jumps.** The jump-lane graph in `celestial`; jump transitions with asynchronous loading behind a transition effect; the galaxy simulation ticking across them. | Phase 6's exit criterion. |
 | 7 | **Physics and flight.** Sub-phases 7a–7c; catalogue entry 22. | A piloted ship collides with a station, docks through a sensor, and is picked with the mouse. |
 | 7a | **Jolt in the simulation.** Jolt in double precision and `CROSS_PLATFORM_DETERMINISTIC`; rigid and static bodies; box, sphere, capsule, cylinder, convex-hull and mesh shapes; stepping inside the fixed step; physics state in saves. | Bodies collide, and the world's state hash after a recorded run is the same in Debug, Release and under the sanitisers. |
@@ -52,7 +52,7 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–5, 6a and 6b moved on, and where it lands. Their full record, and catalogue entries
+Work that phases 1–5 and 6a–6c moved on, and where it lands. Their full record, and catalogue entries
 1–20, are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
@@ -72,6 +72,9 @@ Work that phases 1–5, 6a and 6b moved on, and where it lands. Their full recor
 - **The planets in the environment's capture**, so a hull reflects them (entry 19): 10a.
 - **Asynchronous loading in stages** of a system's scene (entry 21), and a snapshot that says which
   system each simulation entity is in, so the traffic layer shows only this system's: 6d.
+- **The spatial index kept from the simulation** (entry 21): a system in the simulation step keeping
+  one `SpatialIndex` per star system from the entities' `Transform`s, which needs each entity's
+  system (6d). It lands with steering (9b), its first reader.
 - **A body's look as data** (entry 21): the system scene draws a body it builds as its kind is, from
   a table in code. A look per body or per kind, as a scene fragment a mod can shadow, is not yet
   placed.
@@ -124,8 +127,8 @@ textures do.
 
 A scene per star system, built from the system description and the simulation state. Layers
 within it. Jump transitions with asynchronous loading behind a transition effect. The spatial
-index over simulation entities, either a loose octree or a sorted grid per system, chosen by
-measurement. The jump-lane graph lives in `celestial`; the queries over it live in `ai`.
+index over simulation entities, an octree per system, chosen by measurement over a loose octree
+and a sorted grid (6c, see [decided](#decided)). The jump-lane graph lives in `celestial`; the queries over it live in `ai`.
 
 ### 22. Physics · phase 7 · `engine/physics`
 
@@ -256,6 +259,19 @@ Settled on 2026-11-10:
   environment cube: against black space that seam is plain to see. The reflection actually missing
   from a hull is the planet, which is not in the environment's capture; adding the planets to it
   (10a) is stable and right off screen too.
+- **The spatial index is an octree** (2026-11-11, phase 6c), not a sorted grid, and not loose. Both
+  were measured over a system's traffic (`spatial/tests/SpatialBenchmark.cpp`: 60% of ships within
+  60 km of eight stations, 30% on the lanes between them at up to 300 km/s, the rest scattered),
+  stepped at 60 Hz, on a Ryzen 9 3900X in Release. At 100,000 ships the octree (leaves of 64) took
+  0.74 ms a step to update every ship, 1.4 µs for a 5 km avoidance query, 4.6 µs for eight nearest
+  neighbours and 2.4 µs for the nearest ship to a point in open space; the best grid for each, its
+  cells from 1 km to 1,000 km, took 1.1 ms, 2.9 µs, 36 µs and 64 µs. A grid finds a neighbour by
+  growing its search through cells, which in open space are almost all empty, and pays for cells
+  small enough for avoidance in updates (4.4 ms at 10 km). It was ahead on the 500 km sensor sweep,
+  43 µs to 52 µs, and, by a tenth of a microsecond, on avoidance at 10,000 ships and fewer. Loose
+  cubes (1.5 and 2 times the cube) made every small query 2.5 to 4 times slower, since they overlap,
+  and the update no cheaper at 60 Hz; at steps of a second they saved a quarter of it. Range results
+  past 512 are radix sorted: sorting a sweep's 7,500 entities was four fifths of the query.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set
@@ -272,4 +288,3 @@ To be settled when the phase that needs them begins:
   accepts an external zstd, which removes the copy; the engine builds one zstd and patches
   libktx to use it; or pack files use a compressor nothing else in the set carries (LZ4, which
   Tracy carries only in its own namespace).
-- **Spatial index structure** (phase 6), by measurement.

@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
-#include <type_traits>
 #include <vector>
 
 #include <jettison/math/Random.h>
@@ -14,9 +13,8 @@
 #include "Traffic.h"
 
 using namespace Jettison;
-using Spatial::LooseOctree;
 using Spatial::Neighbour;
-using Spatial::SortedGrid;
+using Spatial::Octree;
 
 namespace
 {
@@ -91,26 +89,15 @@ class BruteForce
 	std::map<entt::id_type, std::pair<entt::entity, glm::dvec3>> m_points;
 };
 
-// Small settings, so that a few thousand points make a deep tree and a busy pending list.
-template <typename Index> Index MakeSmall();
-template <> LooseOctree MakeSmall<LooseOctree>()
-{
-	return LooseOctree({.halfExtent = 1.0e12, .leafCapacity = 4, .maxDepth = 36, .looseness = 2.0});
-}
-template <> SortedGrid MakeSmall<SortedGrid>()
-{
-	return SortedGrid({.cellSize = 5'000.0, .pendingLimit = 8});
-}
-
 entt::entity Entity(entt::id_type index)
 {
 	return entt::entity{index};
 }
 } // namespace
 
-TEST_CASE_TEMPLATE("Spatial: an empty index finds nothing", Index, LooseOctree, SortedGrid)
+TEST_CASE("Spatial: an empty index finds nothing")
 {
-	const Index index;
+	const Spatial::SpatialIndex index;
 	CHECK(index.Count() == 0);
 	CHECK_FALSE(index.Contains(Entity(0)));
 	CHECK(index.QuerySphere({0.0, 0.0, 0.0}, 1.0e20).empty());
@@ -118,11 +105,9 @@ TEST_CASE_TEMPLATE("Spatial: an empty index finds nothing", Index, LooseOctree, 
 	CHECK(index.QueryNearest({0.0, 0.0, 0.0}, 4).empty());
 }
 
-TEST_CASE_TEMPLATE(
-    "Spatial: a query keeps what is on its boundary, and orders what it finds", Index, LooseOctree,
-    SortedGrid)
+TEST_CASE("Spatial: a query keeps what is on its boundary, and orders what it finds")
 {
-	Index index;
+	Spatial::SpatialIndex index;
 	// Inserted out of identifier order, in different cells and at the same place.
 	index.Insert(Entity(7), {100.0, 0.0, 0.0});
 	index.Insert(Entity(3), {-100.0, 0.0, 0.0});
@@ -158,8 +143,7 @@ TEST_CASE_TEMPLATE(
 	CHECK(index.QuerySphere({0.0, 0.0, 0.0}, 100.0) == std::vector<entt::entity>{Entity(5), Entity(9)});
 }
 
-TEST_CASE_TEMPLATE(
-    "Spatial: an index entry is the entity, version and all", Index, LooseOctree, SortedGrid)
+TEST_CASE("Spatial: an index entry is the entity, version and all")
 {
 	entt::registry registry;
 	const entt::entity first = registry.create();
@@ -168,7 +152,7 @@ TEST_CASE_TEMPLATE(
 	REQUIRE(entt::to_entity(first) == entt::to_entity(reused));
 	REQUIRE(first != reused);
 
-	Index index;
+	Spatial::SpatialIndex index;
 	index.Insert(reused, {1.0, 2.0, 3.0});
 	CHECK(index.Contains(reused));
 	CHECK_FALSE(index.Contains(first));
@@ -179,13 +163,22 @@ TEST_CASE_TEMPLATE(
 // over the traffic the measurement uses and the cases a system's traffic does not reach: many points
 // at one place (deeper than a leaf can split), points past the octree's root, and points that jump
 // across the system in one step.
-TEST_CASE_TEMPLATE(
-    "Spatial: queries agree with brute force through every change", Index, LooseOctree, SortedGrid)
+TEST_CASE("Spatial: queries agree with brute force through every change")
 {
 	Spatial::Test::Traffic traffic(42, 0, 4);
 	Math::Random random(7, 1);
 	entt::registry registry;
-	Index index = MakeSmall<Index>();
+	// Small leaves, so that a few thousand points make a deep tree; loose and not.
+	Octree::Settings settings{
+	    .halfExtent = 1.0e12, .leafCapacity = 4, .maxDepth = 36, .looseness = 1.0};
+	SUBCASE("an octree")
+	{
+	}
+	SUBCASE("a loose octree")
+	{
+		settings.looseness = 2.0;
+	}
+	Octree index(settings);
 	BruteForce reference;
 
 	const auto pointFor = [&](int kind)
@@ -272,13 +265,12 @@ TEST_CASE_TEMPLATE(
 		reference.Remove(entity);
 	}
 	check();
-	if constexpr (std::is_same_v<Index, LooseOctree>)
-		CHECK(index.NodeCount() == 1);
+	CHECK(index.NodeCount() == 1);
 }
 
 TEST_CASE("Spatial: a loose octree leaves a point in its leaf while it stays in the leaf's loose cube")
 {
-	LooseOctree index({.halfExtent = 1024.0, .leafCapacity = 2, .maxDepth = 8, .looseness = 2.0});
+	Octree index({.halfExtent = 1024.0, .leafCapacity = 2, .maxDepth = 8, .looseness = 2.0});
 	index.Insert(Entity(1), {10.0, 10.0, 10.0});
 	index.Insert(Entity(2), {-10.0, -10.0, -10.0});
 	index.Insert(Entity(3), {-20.0, -20.0, -20.0});
