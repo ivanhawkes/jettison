@@ -32,7 +32,7 @@ built, are recorded in [history](history.md).
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
 | 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings); the planets in the environment's capture, so a hull reflects them. | |
 | 10b | **The transparent pass.** Sorted back to front and lit through the clusters; GPU particles; glass. | |
-| 10c | **Post-processing and screen-space effects.** A chain of post passes on the resolved HDR target before the output pass; bloom; screen-space ambient occlusion, from the depth prepass, which writes view-space normals for it and runs whenever it is on; stencil on the depth target (`D32_SFLOAT_S8_UINT`), with separate depth and stencil layouts; material effects through time-driven parameters. Screen-space reflections stay out (see [decided](#decided)). | |
+| 10c | **Post-processing and screen-space effects.** A chain of post passes on the resolved HDR target before the output pass; bloom; screen-space ambient occlusion, from the depth prepass, which writes view-space normals for it and runs whenever it is on; stencil on the depth target (`D32_SFLOAT_S8_UINT`), with separate depth and stencil layouts and its bits allotted, and an object ID buffer written by the depth prepass; outlines of the selected and targeted, by stencil and by ID; material effects through time-driven parameters. Screen-space reflections stay out (see [decided](#decided)). | |
 | 10d | **Animation.** Keyframed TRS tracks on any node for mechanical rigs; clip events (a clamp closing plays a sound). | |
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
 | 11a | **Packs.** Data pack layering finished (finer than whole-definition replacement); pack files behind the VFS; their compression (an open decision, with libktx's zstd). | A packed build runs, and a data mod loads from the user mount. |
@@ -182,8 +182,15 @@ ambient occlusion reads the depth prepass (5e), which then also writes view-spac
 whenever SSAO is on; the occlusion attenuates the image-based and ambient light in `lighting.glsl`,
 not the sun or the clusters' lights, so it is computed before the opaque pass shades rather than
 darkening the frame after it. With MSAA the prepass's depth and normals are resolved to one sample
-for it. The depth target gains a stencil aspect (`D32_SFLOAT_S8_UINT`, with the device's separate
-depth and stencil layouts) for the effects that mask by it. Screen-space reflections stay out
+for it. Masks come two ways ([decided](#decided)). The depth target gains a stencil aspect
+(`D32_SFLOAT_S8_UINT`, with the device's separate depth and stencil layouts, and resolved to sample
+zero for the single-sampled post passes): bits 0 to 2 the engine's (the cockpit, the selected or
+targeted, and what post-processing leaves alone), 3 to 7 the game's (a scanner's hologram, say).
+The prepass, when it runs, writes it, so the opaque pass and the post passes test it, and the
+hardware skips what a full-screen pass masks out before shading it. And the depth prepass writes an
+object ID buffer beside its normals, which no material program has to know of: from it a
+jump-flood pass draws wide, soft outlines and target glows that read at any distance, where the
+stencil gives the crisp one-pixel kind for nothing. Screen-space reflections stay out
 ([decided](#decided)).
 
 ### 29. Scripting · phase 11 · `engine/script`
@@ -230,6 +237,14 @@ Settled on 2026-11-10:
   decodes it in software at every fetch: the orbit scene's opaque pass took 469 ms at 640 × 480 with
   the hull plating in BC7 and 23 ms in RGBA8. The gate's smoke test therefore uploads RGBA8;
   transcoding to BC7 is covered by the render suite without a device, and uploading it on hardware.
+- **Stencil and an object ID buffer, both** (2026-11-11, for phase 10c). The stencil, on the depth
+  target as `D32_SFLOAT_S8_UINT` (a float depth, which reversed-Z needs; `D24_UNORM_S8_UINT` would
+  throw its precision away), is the cheap mask: the hardware tests it before shading, for crisp
+  outlines and for keeping post-processing off the cockpit and the HUD. It costs about 8 MB at
+  1080p with 4× MSAA, barriers over both aspects, and a sample-zero resolve for the post passes.
+  The ID buffer, written by the depth prepass rather than by every material program, is the
+  flexible one: any pass can read it, and wide, soft target highlights are drawn from it. Its cost
+  is the prepass running whenever outlines are on, 0.02 ms on hardware as measured in 5e.
 - **Screen-space reflections stay out** (2026-11-11, reconsidered with SSAO and bloom brought in).
   SSAO needs the prepass's depth and normals; SSR would also need each pixel's roughness and
   metalness, and a colour of the scene to march through, which is most of the G-buffer clustered

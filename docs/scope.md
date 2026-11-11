@@ -158,7 +158,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Particles | In | GPU billboards: engine exhaust, debris, docking sparks, jump effects. |
 | Post processing | In | HDR, tonemapping, and a chain of post passes on the HDR target: bloom first (stars and engines are far brighter than the hull). Phase 10c. |
 | Screen-space ambient occlusion | In (added 2026-11-11) | Contact shadow in docking bays, between hull modules and under racked cargo, where the sky's light reaches in full today. From the depth prepass, which writes normals for it, attenuating the image-based light alone. Phase 10c. |
-| Stencil | In (added 2026-11-11) | A stencil aspect on the depth target, for the effects that mask by it. Phase 10c. |
+| Stencil and object IDs | In (added 2026-11-11) | A stencil aspect on the depth target, for crisp outlines and for masking post-processing off the cockpit and HUD; and an object ID buffer from the depth prepass, for wide, soft target highlights. Phase 10c. |
 | Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap. Thin struts and antennae against black space alias worst. |
 | Colour space | In, early | Linear workflow, sRGB swapchain, HDR render targets. Expensive to retrofit. |
 | Colour grading | Deferred | A LUT pass late, when there is art to grade. |

@@ -368,7 +368,9 @@ prism: 15.5 ms to 4.2 ms on lavapipe, most of what is left being the four 2048²
   would need each pixel's roughness, metalness and a scene colour to march through, and fall back
   to the environment cube at a seam black space makes plain (reconsidered 2026-11-11,
   [decided](roadmap.md#decided)). Screen-space ambient occlusion is in (10c): the depth prepass
-  writes view-space normals for it, and it attenuates the image-based light alone.
+  writes view-space normals for it, and it attenuates the image-based light alone. The prepass
+  writes object IDs too, for outlines, beside a stencil on the depth target (10c): masks that no
+  material program writes.
 - **Debug draw shows the grid**, as a lights-per-cluster heat map, so a light budget problem is
   visible rather than inferred.
 
