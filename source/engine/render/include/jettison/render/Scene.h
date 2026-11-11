@@ -81,14 +81,28 @@ struct CameraPoseComponent
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 };
 
-// Today's one point light, in the frame's light list with an unbounded falloff. The renderer is
-// clustered forward (docs/architecture.md, "Rendering: clustered forward"): phase 5c gives this a
-// type, a finite range and spot cone angles. The ambient colour it once carried is the sky's
-// image-based lighting now (SkyComponent).
+enum class LightType
+{
+	Point,
+	Spot
+};
+
+// A local light (docs/architecture.md, "Rules that follow"): a point or a spot, shining from the
+// entity's position, with a finite range past which it lights nothing, so the cluster passes can
+// assign it to the clusters it reaches and no others. A spot points along the entity's -Z, and its
+// cone angles are half-angles from that axis in radians, full inside the inner and dark outside the
+// outer, as glTF's KHR_lights_punctual has them. Intensity is the irradiance at one metre, in the
+// HDR target's linear units, falling off with the inverse square of the distance and windowed to
+// reach zero at the range. The ambient colour this once carried is the sky's image-based lighting
+// now (SkyComponent), and the star's light is SunComponent's.
 struct LightComponent
 {
+	LightType type{LightType::Point};
 	glm::vec3 color{1.0f};
 	float intensity{6.0f};
+	float range{10.0f};
+	float innerConeAngle{0.0f};
+	float outerConeAngle{0.785398163f};
 	bool active{true};
 };
 

@@ -35,6 +35,8 @@ jettison_compile_shaders(jettison_assets
 	shaders/mesh.vert
 	shaders/mesh.frag
 	shaders/brdf_lut.frag
+	shaders/cluster_bounds.comp
+	shaders/cluster_lights.comp
 	shaders/output.frag
 	shaders/sky.frag
 	shaders/unlit.frag

@@ -15,7 +15,7 @@ built, are recorded in [history](history.md).
 | 5 | **Space rendering.** Sub-phases 5a–5e; catalogue entries 19 and 20, and the shader plan before entry 19. | The sample scene is a lit, shadowed station over a planet, its floodlights and beacons point and spot lights assigned to clusters, drawn within a frame budget measured on lavapipe and on hardware. The lights-per-cluster debug view shows the assignment. |
 | 5a | **Textures, materials and geometry.** Done 2026-11-11. KTX2 through `ktx_read` with BasisU transcoding (UASTC and ETC1S, to BC7 where the device has it and RGBA8 where not), as a `resource` loader with a GPU `finish` and a `retire` that frees a replaced image once no frame in flight reads it; stb_image and CPU mip generation, filtered in linear light, for development textures; the material system as data (`render/Material.h`: a material file names a program and sets its parameters, texture slots and time-driven parameters; a program descriptor beside its SPIR-V says what it takes); ico and cube spheres, rings and cylinders; a triplanar program built from the mesh shaders with a define. KTX-Software stays on v4.4.2 (see [decided](#decided)). | Met: `materials/hull.material.yaml` names `mesh_triplanar` and two KTX2 textures, loads through the VFS and the resource manager, and draws on the station in `orbit.yaml`; `panels.material.yaml` draws the same texture through texture coordinates in the sample scene. A texture rewritten on disk reloads through the resource manager in the render suite, and the smoke test's reload stage reloads every texture and material on the GPU, with validation and synchronization validation, in both scenes. |
 | 5b | **PBR, image-based lighting and the sky.** Done 2026-11-11. glTF's metallic-roughness BRDF (`shaders/include/brdf.glsl`) under one lighting include (`lighting.glsl`) that adds the sun, the stand-in light list and the environment; a procedural sky per system (`SkyComponent`: a seeded starfield, the galaxy's band, a nebula) drawn behind the scene by `sky.glsl`, and baked by `Environment` into a cube map, GGX-prefiltered specular levels and an irradiance cube by filtered importance sampling, with the split sum's lookup table made once; the `unlit` program; Khronos PBR Neutral tonemapping in the output pass. The light's ambient colour is retired: a scene that sets one is refused, and the sky lights what the sun does not. | Met: `orbit.yaml`'s station is lit by Halcyon and by its sky, against the starfield, and the sample scene by its key light and a brighter sky. The render suite compiles `brdf.glsl` and `tonemap.glsl` as C++ and checks them against the glTF specification's formulas and a quadrature of the split sum (`scripts/brdf-reference.py`). The smoke test bakes each scene's environment at load and again on its reload, under validation and synchronization validation. |
-| 5c | **Clustered lights.** `LightComponent` gains a type, a range and cone angles; windowed inverse-square falloff; the cluster grid and the first compute programs (cluster bounds, light assignment), with the lookup added to the lighting include; the frame UBO's single light retired; the lights-per-cluster heat map. | The station's floodlights and beacons light it through the clusters, the heat map shows the assignment, and a CPU reference agrees with the GPU's assignment. |
+| 5c | **Clustered lights.** Done 2026-11-11. `LightComponent` is a point or a spot with a range and, for a spot, `KHR_lights_punctual`'s inner and outer cone angles; the falloff is inverse square windowed to zero at the range, and a scene that leaves a range out is refused, while the one-light limit is gone. The grid (16 × 9 × 24, exponential slices from the near plane to a 2 km cluster range) is one GLM-compatible file, `clusters.glsl`, which the first compute programs (`cluster_bounds`, kept between frames until the projection changes, and `cluster_lights`, one invocation per cluster reserving its share of one index list by atomic add), the lighting include and the CPU reference in `render/Clusters.h` all compile. The pass list gains transfer passes, to zero the list's allocator and copy the grid out for the check. The frame UBO's light-list stand-in is retired. F3 shows the lights-per-cluster heat map, and F2 each light's reach. | Met: `orbit.yaml`'s station carries four hull floodlights, two dock lights, a beacon light, two navigation lights and two work lights, and the floodlights visibly light the hub through its clusters; the heat map shows them assigned. The headless render test reads every frame's assignment back and compares it with the CPU reference (21 to 24 frames a scene on lavapipe, none disagreeing), and fails the run on a disagreement, as it did with an assignment broken on purpose; the render suite checks the reference's bounds against the projection and its light tests against brute-force sampling. |
 | 5d | **Sun shadows.** Cascaded shadow maps for the sun: the shadow-depth program, the cascade passes in the pass list, cascade selection in the lighting include. | The station casts a stable shadow on itself at orbit and close-up distances. |
 | 5e | **Culling, instancing, LOD and the budget.** Frustum and planet-horizon culling, instancing, LOD selection, the depth prepass measured and kept or dropped, the cluster grid tuned, GPU zones per declared pass (moved from phase 2 to 4 and not yet done). | Phase 5's exit criterion. |
 | 6 | **Star systems and galaxy.** Sub-phases 6a–6d; catalogue entries 21 and 16. | A jump between two systems unloads one and loads the other while the galaxy-level simulation keeps ticking. |
@@ -66,7 +66,6 @@ Work that phases 1–4 moved on, and where it lands. Their full record, and cata
   smoke test's patterns.
 - **GPU zones for Vulkan** (entry 5), a zone per declared pass: 5e. Jolt's profiler hooks
   (`JPH_USE_EXTERNAL_PROFILE`) feed Tracy: 7a.
-- **The first compute program** (entry 17), the cluster passes: 5c.
 - **The renderer interface** (`IRenderer.h`, entry 17), the scene out of `render`, the scene's
   model cache onto the resource manager (entry 11), and the scene file onto `serialise`'s
   archives (entry 9): 6a.
@@ -113,9 +112,10 @@ by `PipelineCache` for each render state a pass asks for, with shared GLSL in `s
   lighting from a prefiltered environment and a BRDF lookup table) in `brdf.glsl`, under
   `lighting.glsl`, which every lit program shades through; `unlit`; `sky` and its capture variant;
   the bake programs (`prefilter_specular`, `prefilter_irradiance`, `brdf_lut`); and tonemapping in
-  `output`. Every full-screen program's vertex stage is `fullscreen.vert`. Still to come: shadow
-  depth for the sun cascades (5d), and two compute programs, cluster bounds and light assignment
-  (5c), whose lookup joins `lighting.glsl`. A material names its program and supplies its
+  `output`. Every full-screen program's vertex stage is `fullscreen.vert`. Done in 5c: the first
+  compute programs, `cluster_bounds` and `cluster_lights`, over `clusters.glsl`, whose lookup
+  `lighting.glsl` uses; `PipelineCache` makes compute pipelines from `<program>.comp.spv`. Still to
+  come: shadow depth for the sun cascades (5d). A material names its program and supplies its
   parameters and texture slots (entry 19), so adding a program is data plus GLSL, not a new code
   path.
 - **Phase 10** adds atmosphere, planet surface, particle and glass programs on the same terms,
@@ -129,15 +129,19 @@ resource manager since 5a; programs do not yet.
 ### 19. Space rendering · phase 5 · `engine/render`
 
 Clustered forward shading, as [architecture](architecture.md#rendering-clustered-forward)
-describes. PBR, image-based lighting, the sky and tonemapping were done in 5b; the rest is 5c-5e. Point and spot lights have finite ranges with windowed inverse-square falloff, and
-are assigned to a grid of view-space clusters by compute: 16 × 9 × 24 to start with, tuned by
-measurement, and covering the cluster range. The directional sun is separate, in the frame
+describes. PBR, image-based lighting, the sky and tonemapping were done in 5b, and the clustered
+lights in 5c; the rest is 5d-5e. Point and spot lights have finite ranges with windowed
+inverse-square falloff, and are assigned to a grid of view-space clusters by compute: 16 × 9 × 24
+to start with, tuned by measurement, and covering the cluster range. The directional sun is separate, in the frame
 constants, with cascaded shadows. Whether an opaque depth prepass pays for itself is measured
 here, not assumed. Also in this phase: PBR (glTF metallic-roughness) with image-based lighting
 from per-system environment cubemaps, a starfield skybox, frustum and planet-horizon culling,
-instancing, LOD selection and tonemapping. `LightComponent` gains a type, a range and spot cone
-angles, and the frame UBO's single light is retired. Debug draw gets a lights-per-cluster heat
-map. Materials are data: a shader, parameters and texture slots, with time-driven parameters for
+instancing, LOD selection and tonemapping. `LightComponent` has a type, a range and spot cone
+angles, and the frame UBO's light stand-in is retired (5c). Debug draw has a lights-per-cluster
+heat map (5c). Left for 5e: frustum culling of lights, and the grid, the cluster range and the
+index list's budget tuned by measurement; lights per cluster are not yet timed. A light's
+intensity driven by time, as the beacon's lamp blinks, waits for the material effects of 10c.
+Materials are data: a shader, parameters and texture slots, with time-driven parameters for
 effects.
 
 ### 20. Geometry and textures · phase 5 · `engine/render`

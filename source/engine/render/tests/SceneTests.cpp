@@ -10,6 +10,8 @@
 #include <sstream>
 #include <string>
 
+using Jettison::Render::LightComponent;
+using Jettison::Render::LightType;
 using Jettison::Render::Scene;
 using Jettison::Render::SceneUpdateSystem;
 
@@ -39,6 +41,19 @@ entities:
     light:
       color: [1, 0.9, 0.8]
       intensity: 18
+      range: 12
+      active: true
+  - id: floodlight
+    transform:
+      translation: [0, 3, 0]
+      rotation: [-1.5707963, 0, 0]
+    light:
+      type: spot
+      color: [1, 1, 0.9]
+      intensity: 400
+      range: 30
+      innerConeAngle: 0.3
+      outerConeAngle: 0.6
       active: true
   - id: sky
     sky:
@@ -271,6 +286,51 @@ TEST_CASE("Scene: a light's ambient colour is refused, the sky having replaced i
 	Scene scene{nullptr};
 	CHECK_THROWS_WITH_AS(
 	    scene.Load(path), doctest::Contains("give the scene a sky"), std::runtime_error);
+}
+
+TEST_CASE("Scene: lights are points or spots with a range, and as many as the scene has")
+{
+	const TemporaryDirectory directory;
+	const auto authored = directory.Path() / "lights.yaml";
+	std::ofstream{authored} << kSceneWithoutModels;
+	Scene scene{nullptr};
+	scene.Load(authored);
+	int points = 0;
+	int spots = 0;
+	for (const auto [entity, light] : scene.Registry().view<const LightComponent>().each())
+	{
+		if (light.type == LightType::Spot)
+		{
+			++spots;
+			CHECK(light.range == 30.0f);
+			CHECK(light.innerConeAngle == 0.3f);
+			CHECK(light.outerConeAngle == 0.6f);
+		}
+		else
+		{
+			++points;
+			CHECK(light.range == 12.0f);
+		}
+	}
+	CHECK(points == 1);
+	CHECK(spots == 1);
+
+	const auto path = directory.Path() / "light.yaml";
+	const auto refuses = [&](const std::string &light, const char *reason)
+	{
+		std::ofstream{path, std::ios::trunc} << "version: 1\nentities:\n  - id: l\n    light:\n"
+		                                     << light;
+		CAPTURE(light);
+		CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains(reason), std::runtime_error);
+	};
+	refuses("      intensity: 4\n", "needs a range");
+	refuses("      range: 0\n", "must be positive");
+	refuses("      type: area\n      range: 5\n", "a point or a spot");
+	refuses("      range: 5\n      outerConeAngle: 0.5\n", "only a spot");
+	refuses(
+	    "      type: spot\n      range: 5\n      innerConeAngle: 0.5\n      outerConeAngle: 0.5\n",
+	    "innerConeAngle < outerConeAngle");
+	refuses("      type: spot\n      range: 5\n      outerConeAngle: 2\n", "pi / 2");
 }
 
 TEST_CASE("Scene: a scene has one sky, with a band and a nebula it can draw")

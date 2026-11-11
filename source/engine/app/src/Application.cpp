@@ -84,6 +84,30 @@ void DrawOrbits(
 		draw.Polyline(points, {0.3f, 0.8f, 1.0f, 0.6f}, true);
 	}
 }
+// A light's reach: a point light's range as a sphere, and a spot's cone out to its range, the
+// outer angle's edge drawn as the circle where the cone meets the range's sphere.
+void DrawLight(
+    Render::DebugDraw &draw, const Render::LightComponent &light, const glm::dvec3 &origin,
+    const glm::dvec3 &direction)
+{
+	const glm::vec4 color{light.color, 0.6f};
+	draw.Sphere(origin, 0.15, {1.0f, 0.9f, 0.4f, 1.0f});
+	if (light.type != Render::LightType::Spot)
+	{
+		draw.Sphere(origin, light.range, color);
+		return;
+	}
+	const double along = light.range * std::cos(double{light.outerConeAngle});
+	const double across = light.range * std::sin(double{light.outerConeAngle});
+	const glm::dvec3 center = origin + direction * along;
+	draw.Circle(center, direction, across, color, 32);
+	const glm::dvec3 helper =
+	    std::abs(direction.y) < 0.9 ? glm::dvec3{0.0, 1.0, 0.0} : glm::dvec3{1.0, 0.0, 0.0};
+	const glm::dvec3 side = glm::normalize(glm::cross(direction, helper));
+	const glm::dvec3 up = glm::cross(direction, side);
+	for (const glm::dvec3 &edge : {side, -side, up, -up})
+		draw.Line(origin, center + edge * across, color);
+}
 } // namespace
 
 Application::Application(AppArguments arguments, std::string windowTitle)
@@ -93,6 +117,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_toggleConsole = m_input.DefineAction("toggle_console", Input::ActionType::Button);
 	m_back = m_input.DefineAction("back", Input::ActionType::Button);
 	m_toggleDebugDraw = m_input.DefineAction("toggle_debug_draw", Input::ActionType::Button);
+	m_toggleClusterHeat = m_input.DefineAction("toggle_cluster_heat", Input::ActionType::Button);
 	m_cameraOrbit = m_input.DefineAction("camera_orbit", Input::ActionType::Vector);
 	m_cameraZoom = m_input.DefineAction("camera_zoom", Input::ActionType::Axis);
 	m_cameraDrag = m_input.DefineAction("camera_drag", Input::ActionType::Button);
@@ -107,6 +132,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		m_input.Bind(context, m_back, {Input::Keys::Escape});
 	}
 	m_input.Bind("shell", m_toggleDebugDraw, {Input::Keys::F2});
+	m_input.Bind("shell", m_toggleClusterHeat, {Input::Keys::F3});
 	using Input::Keys::Character;
 	m_input.Bind("shell", m_cameraOrbit, {Character('d'), Character('a'), 1.0f, 0.0f, 0});
 	m_input.Bind("shell", m_cameraOrbit, {Character('w'), Character('s'), 1.0f, 0.0f, 1});
@@ -252,8 +278,8 @@ void Application::RegisterFrameSystems()
 			         glm::normalize(glm::dvec3{world.matrix[2]})};
 			     if (registry.all_of<MeshComponent>(entity))
 				     m_debugDraw.Axes(origin, glm::quat_cast(basis), 0.3, Render::DebugDepth::Overlay);
-			     if (registry.all_of<LightComponent>(entity))
-				     m_debugDraw.Sphere(origin, 0.15, {1.0f, 0.9f, 0.4f, 1.0f});
+			     if (const auto *light = registry.try_get<LightComponent>(entity))
+				     DrawLight(m_debugDraw, *light, origin, -basis[2]);
 		     }
 		     if (m_starSystem)
 			     DrawOrbits(
@@ -344,6 +370,22 @@ void Application::Run()
 		throw std::runtime_error(
 		    "Model rendering smoke test did not complete its sequence (" + m_smokeSequence->Summary() +
 		    ")");
+	// Every frame's light assignment was read back and compared with the CPU's. A run in which no
+	// cluster listed a light proved nothing about the assignment, so it fails as well.
+	if (m_smokeSequence)
+	{
+		const Render::ClusterCheckTotals &checks = m_clusterChecks;
+		std::cerr << "Cluster check: " << checks.frames << " frames compared, " << checks.litFrames
+		          << " with lights, " << checks.failures << " disagreed\n";
+		if (checks.failures != 0)
+			throw std::runtime_error(
+			    "The cluster check failed in " + std::to_string(checks.failures) + " of " +
+			    std::to_string(checks.frames) + " frames; the first: " + checks.firstFailure);
+		if (checks.litFrames == 0)
+			throw std::runtime_error(
+			    "The cluster check compared " + std::to_string(checks.frames) +
+			    " frames, and no cluster in any of them listed a light");
+	}
 }
 
 
@@ -403,6 +445,7 @@ void Application::InitRenderer()
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
 	m_pRenderer =
 	    std::make_shared<Renderer>(m_pDeviceContext, m_pWindow, m_pSwapchain, m_assets, *m_pResources);
+	m_pRenderer->SetClusterCheck(m_arguments.smokeTest);
 	m_pRenderer->Init();
 }
 
@@ -430,6 +473,7 @@ void Application::RunFrameLoop()
 	while (!glfwWindowShouldClose(m_pWindow->GetGLFWWindow()))
 		Tick();
 
+	m_clusterChecks = m_pRenderer->GetClusterChecks();
 	Shutdown();
 }
 
@@ -469,6 +513,11 @@ void Application::PollInput()
 		m_showUI = !m_showUI;
 	if (m_input.WasPressedThisFrame(m_toggleDebugDraw))
 		m_showSceneDebug = !m_showSceneDebug;
+	if (m_input.WasPressedThisFrame(m_toggleClusterHeat))
+		m_pRenderer->SetDebugView(
+		    m_pRenderer->GetDebugView() == Render::DebugView::ClusterHeat
+		        ? Render::DebugView::Shaded
+		        : Render::DebugView::ClusterHeat);
 	if (m_input.WasPressedThisFrame(m_cameraNext))
 		NextCameraTarget(m_scene->Registry());
 	if (m_input.WasPressedThisFrame(m_toggleConsole))
@@ -655,7 +704,9 @@ void Application::Shutdown() noexcept
 	m_pResources.reset();
 	m_pIoWorker.reset();
 	m_scene.reset();
-	m_smokeSequence.reset();
+	// The smoke sequence is not reset: Run reads its verdict after this returns, and it holds
+	// nothing of the engine's. Resetting it here once made that verdict unreachable, so a sequence
+	// that never reached its last stage passed the gate.
 	m_pSwapchain.reset();
 	m_pDeviceContext.reset();
 	m_pWindow.reset();

@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace Jettison::Vfs
 {
@@ -63,9 +64,9 @@ struct PipelineKey
 	friend auto operator<=>(const PipelineKey &, const PipelineKey &) = default;
 };
 
-// Graphics pipelines by program and render state, made the first time each is asked for and kept
-// until Destroy. The renderer asks for its passes' pipelines at start-up, so a missing or broken
-// program is a start-up error naming its file, not a frame that throws.
+// Pipelines by program and render state, made the first time each is asked for and kept until
+// Destroy. The renderer asks for its passes' pipelines at start-up, so a missing or broken program
+// is a start-up error naming its file, not a frame that throws.
 class PipelineCache
 {
   public:
@@ -75,10 +76,12 @@ class PipelineCache
 	PipelineCache &operator=(const PipelineCache &) = delete;
 
 	VkPipeline Get(const PipelineKey &key);
+	// A compute program is one stage, shaders/<program>.comp.spv, with nothing else to vary.
+	VkPipeline GetCompute(const std::string &program, VkPipelineLayout layout);
 
 	std::size_t Size() const
 	{
-		return m_pipelines.size();
+		return m_pipelines.size() + m_computePipelines.size();
 	}
 
 	void Destroy();
@@ -86,9 +89,11 @@ class PipelineCache
   private:
 	VkShaderModule LoadModule(const std::string &virtualPath);
 	VkPipeline Create(const PipelineKey &key);
+	VkPipeline CreateCompute(const std::string &program, VkPipelineLayout layout);
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;
 	const Vfs::FileSystem &m_assets;
 	std::map<PipelineKey, VkPipeline> m_pipelines;
+	std::map<std::pair<std::string, VkPipelineLayout>, VkPipeline> m_computePipelines;
 };
 } // namespace Jettison::Render

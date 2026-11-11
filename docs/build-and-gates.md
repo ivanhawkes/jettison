@@ -264,7 +264,8 @@ the run does not depend on a GPU.
 restore, scene reload, settle. Each stage runs four frames, inside a 120-second watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
-the star system, under an orbit camera and the sun). Each scene's sky is baked into its
+the star system, under an orbit camera and the sun, with eleven floodlights, dock lights and
+beacons assigned to the clusters). Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
 the frame sets rewritten after it run under validation too. Budget about 40 seconds on a
 workstation, and more on a runner.
@@ -290,6 +291,15 @@ it. The loader's messages about duplicate `VK_LAYER_MESA_*` manifests
 are excluded as the machine talking: on NixOS that is the shell's Mesa against
 `/run/opengl-driver`. Debug-utils entry points are resolved through `vkGetInstanceProcAddr`, so a
 loader without them costs object names, not a link failure.
+
+Two verdicts are the run's own, read after teardown and reported through its exit status: the
+sequence has to have reached its last stage, and the cluster check has to agree. The check reads
+back every frame's light assignment and compares it with the CPU reference
+(`render/Clusters.h`) cluster by cluster; a frame that disagrees, an index list that overflowed,
+or a run in which no cluster listed a light fails the run, and the run prints how many frames it
+compared: 21 to 24 a scene on lavapipe on 2026-11-11, every one with lights and none disagreeing,
+the count depending on how many frames the resize stages take. Until phase 5c the first verdict was unreachable: teardown released the
+sequence before `Run` read it, so a run that stopped short of its last stage still passed.
 
 **What it needs.** It needs three things:
 

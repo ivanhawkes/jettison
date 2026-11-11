@@ -17,6 +17,8 @@ enum class Layout
 	Depth,
 	ShaderRead,
 	General,
+	TransferSource,
+	TransferDestination,
 	Present,
 	None
 };
@@ -31,6 +33,8 @@ Layout LayoutOf(Usage usage)
 		case Usage::SampledCompute: return Layout::ShaderRead;
 		case Usage::StorageReadCompute:
 		case Usage::StorageWriteCompute: return Layout::General;
+		case Usage::TransferRead: return Layout::TransferSource;
+		case Usage::TransferWrite: return Layout::TransferDestination;
 		case Usage::Present: return Layout::Present;
 		case Usage::StorageReadVertex:
 		case Usage::StorageReadFragment: return Layout::None;
@@ -50,7 +54,9 @@ bool ValidFor(Usage usage, ResourceKind kind)
 		case Usage::StorageReadVertex:
 		case Usage::StorageReadFragment: return kind == ResourceKind::Buffer;
 		case Usage::StorageReadCompute:
-		case Usage::StorageWriteCompute: return true;
+		case Usage::StorageWriteCompute:
+		case Usage::TransferRead:
+		case Usage::TransferWrite: return true;
 	}
 	return false;
 }
@@ -67,6 +73,8 @@ bool ValidIn(Usage usage, PassKind kind)
 		case Usage::SampledCompute:
 		case Usage::StorageReadCompute:
 		case Usage::StorageWriteCompute: return kind == PassKind::Compute;
+		case Usage::TransferRead:
+		case Usage::TransferWrite: return kind == PassKind::Transfer;
 		case Usage::Present: return false;
 	}
 	return false;
@@ -116,6 +124,8 @@ std::string_view ToString(Usage usage)
 		case Usage::StorageReadFragment: return "StorageReadFragment";
 		case Usage::StorageReadCompute: return "StorageReadCompute";
 		case Usage::StorageWriteCompute: return "StorageWriteCompute";
+		case Usage::TransferRead: return "TransferRead";
+		case Usage::TransferWrite: return "TransferWrite";
 		case Usage::Present: return "Present";
 	}
 	return "?";
@@ -126,7 +136,7 @@ bool IsWrite(Usage usage)
 	// An attachment is read as well as written (depth tests, blending), and is a write for
 	// ordering: nothing may touch it while a pass renders into it.
 	return usage == Usage::ColorAttachment || usage == Usage::DepthAttachment ||
-	       usage == Usage::StorageWriteCompute;
+	       usage == Usage::StorageWriteCompute || usage == Usage::TransferWrite;
 }
 
 PassResource PassList::AddImage(std::string name)
@@ -158,7 +168,10 @@ std::uint32_t PassList::AddPass(std::string name, PassKind kind, std::vector<Pas
 		if (!ValidIn(use.usage, kind))
 			throw std::logic_error(
 			    what + ", which is not a use in a " +
-			    (kind == PassKind::Graphics ? "graphics" : "compute") + " pass");
+			    (kind == PassKind::Graphics  ? "graphics"
+			     : kind == PassKind::Compute ? "compute"
+			                                 : "transfer") +
+			    " pass");
 		for (std::size_t other = 0; other < index; ++other)
 			if (uses[other].resource == use.resource)
 				throw std::logic_error("Pass '" + name + "' names '" + resource.name + "' twice");

@@ -388,7 +388,11 @@ QueueFamilyIndices DeviceContext::FindQueueFamilies(VkPhysicalDevice device)
 	uint32_t i = 0;
 	for (const auto &queueFamily : queueFamilies)
 	{
-		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		// The cluster passes are compute dispatches in the frame's command buffer, so the graphics
+		// queue has to take compute work too. The specification promises a family that does both
+		// on any device with graphics.
+		const VkQueueFlags graphicsAndCompute = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
+		if ((queueFamily.queueFlags & graphicsAndCompute) == graphicsAndCompute)
 		{
 			m_graphicsQueueIndex = i;
 			indices.graphicsFamily = i;

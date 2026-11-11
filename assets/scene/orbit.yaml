@@ -1,7 +1,7 @@
 # A station in low orbit over a planet, at real scale, from the Halcyon system: the large-world
 # scene phase 4's exit criterion is judged on. The bodies are placed by the system each frame; the
 # camera orbits the station (W, A, S, D, Q, E, or drag with the right mouse button), C moves it to
-# the next body, and F2 draws the orbits.
+# the next body, F2 draws the orbits and the lights' reach, and F3 shows the lights per cluster.
 version: 1
 system: ../systems/halcyon.yaml
 entities:
@@ -109,6 +109,127 @@ entities:
     mesh:
       shape: box
       color: [0.1, 0.14, 0.35]
+  # The station's lights, assigned to the clusters they reach (F3 shows how many each cluster has,
+  # F2 their reach). Four floodlights near the rim of the collar's dock-side face wash the hub,
+  # leaning in towards it; a spot points along its entity's -Z, which is the station's dock direction
+  # here. Each beam's axis meets the hub 21 m off and 23 degrees from grazing, where the intensity
+  # gives about the sun's irradiance.
+  - id: highport-flood-dorsal
+    parent: highport
+    transform:
+      translation: [0, 14, 11]
+      rotation: [-0.4, 0, 0]
+    light:
+      type: spot
+      color: [0.9, 0.95, 1]
+      intensity: 3400
+      range: 60
+      innerConeAngle: 0.3
+      outerConeAngle: 0.45
+  - id: highport-flood-ventral
+    parent: highport
+    transform:
+      translation: [0, -14, 11]
+      rotation: [0.4, 0, 0]
+    light:
+      type: spot
+      color: [0.9, 0.95, 1]
+      intensity: 3400
+      range: 60
+      innerConeAngle: 0.3
+      outerConeAngle: 0.45
+  - id: highport-flood-port
+    parent: highport
+    transform:
+      translation: [-14, 0, 11]
+      rotation: [0, -0.4, 0]
+    light:
+      type: spot
+      color: [0.9, 0.95, 1]
+      intensity: 3400
+      range: 60
+      innerConeAngle: 0.3
+      outerConeAngle: 0.45
+  - id: highport-flood-starboard
+    parent: highport
+    transform:
+      translation: [14, 0, 11]
+      rotation: [0, 0.4, 0]
+    light:
+      type: spot
+      color: [0.9, 0.95, 1]
+      intensity: 3400
+      range: 60
+      innerConeAngle: 0.3
+      outerConeAngle: 0.45
+  # The dock's approach lights: two warm spots on the hub's end, leaning in onto the dock.
+  - id: highport-dock-light-port
+    parent: highport
+    transform:
+      translation: [-5, 0, -30.5]
+      rotation: [0, -0.35, 0]
+    light:
+      type: spot
+      color: [1, 0.8, 0.55]
+      intensity: 200
+      range: 20
+      innerConeAngle: 0.3
+      outerConeAngle: 0.5
+  - id: highport-dock-light-starboard
+    parent: highport
+    transform:
+      translation: [5, 0, -30.5]
+      rotation: [0, 0.35, 0]
+    light:
+      type: spot
+      color: [1, 0.8, 0.55]
+      intensity: 200
+      range: 20
+      innerConeAngle: 0.3
+      outerConeAngle: 0.5
+  # The beacon's light, beside its lamp, steady where the lamp blinks; and the navigation lights at
+  # the panels' tips, red to port and green to starboard.
+  - id: highport-beacon-light
+    parent: highport
+    transform:
+      translation: [0, 0, -39.6]
+    light:
+      color: [1, 0.15, 0.08]
+      intensity: 25
+      range: 12
+  - id: highport-nav-port
+    parent: highport
+    transform:
+      translation: [-68.5, 0.5, 0]
+    light:
+      color: [1, 0.05, 0.03]
+      intensity: 30
+      range: 15
+  - id: highport-nav-starboard
+    parent: highport
+    transform:
+      translation: [68.5, 0.5, 0]
+    light:
+      color: [0.05, 1, 0.2]
+      intensity: 30
+      range: 15
+  # Work lights over the truss.
+  - id: highport-truss-light-port
+    parent: highport
+    transform:
+      translation: [-30, 2, 0]
+    light:
+      color: [1, 0.95, 0.85]
+      intensity: 40
+      range: 14
+  - id: highport-truss-light-starboard
+    parent: highport
+    transform:
+      translation: [30, 2, 0]
+    light:
+      color: [1, 0.95, 0.85]
+      intensity: 40
+      range: 14
   - id: camera
     camera:
       fov: 50

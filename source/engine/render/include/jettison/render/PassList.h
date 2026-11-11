@@ -14,15 +14,19 @@ namespace Jettison::Render
 // Usage's stage, access and layout from its own table (vulkan/PassBarriers) and binds each
 // resource to an image or a buffer every frame.
 //
-// Every resource is per frame: its contents are discarded at the start of each frame, which is
+// Every resource is per frame: its contents are not wanted at the start of each frame, which is
 // what the opaque pass's clears and the swapchain's acquire make true. The first use in a frame
 // still waits on the resource's last use in the frame before (Barrier::discard), which the plan
 // knows because every frame runs the same plan: a target that one frame samples and the next
-// clears must not be cleared under the read.
+// clears must not be cleared under the read. A buffer has no layout to lose, so its contents do
+// survive: a pass whose output would be what is already there may skip its work (the cluster
+// bounds), and its barriers are recorded all the same.
 enum class PassKind
 {
 	Graphics,
-	Compute
+	Compute,
+	// Copies and fills, outside any shader.
+	Transfer
 };
 
 enum class ResourceKind
@@ -42,6 +46,8 @@ enum class Usage
 	StorageReadFragment, // ... by a fragment shader
 	StorageReadCompute,  // a storage buffer or image read by a compute shader
 	StorageWriteCompute, // ... written by one
+	TransferRead,        // copied from
+	TransferWrite,       // copied or filled into
 	Present,             // handed to the presentation engine; only as a resource's final use
 };
 

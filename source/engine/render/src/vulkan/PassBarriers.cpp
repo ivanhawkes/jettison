@@ -45,6 +45,16 @@ UsageScope DestinationScope(Usage usage)
 			    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
 			    VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
 			    VK_IMAGE_LAYOUT_GENERAL};
+		// Every transfer command, fills as well as copies: vkCmdFillBuffer is a clear, which the
+		// copy stage alone does not cover.
+		case Usage::TransferRead:
+			return {
+			    VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT,
+			    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL};
+		case Usage::TransferWrite:
+			return {
+			    VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+			    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL};
 		case Usage::Present:
 			return {VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
 	}
@@ -60,7 +70,7 @@ UsageScope SourceScope(Usage usage)
 	UsageScope scope = DestinationScope(usage);
 	scope.access &= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
 	                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-	                VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+	                VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	return scope;
 }
 

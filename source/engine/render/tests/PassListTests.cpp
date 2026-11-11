@@ -144,6 +144,59 @@ TEST_CASE("Pass list: compute passes sit beside graphics ones on the same terms"
 	CHECK(translated.images[0].newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 }
 
+TEST_CASE("Pass list: transfer passes fill before compute and copy out after the fragments read")
+{
+	// The renderer's cluster frame: the index list's allocator is zeroed, the assignment writes the
+	// list, the opaque pass reads it, and the check copies it out.
+	PassList list;
+	const PassResource indices = list.AddBuffer("light-indices");
+	const PassResource color = list.AddImage("color");
+	list.AddPass("reset", PassKind::Transfer, {{indices, Usage::TransferWrite}});
+	list.AddPass("assign", PassKind::Compute, {{indices, Usage::StorageWriteCompute}});
+	list.AddPass(
+	    "shade", PassKind::Graphics,
+	    {{indices, Usage::StorageReadFragment}, {color, Usage::ColorAttachment}});
+	list.AddPass("readback", PassKind::Transfer, {{indices, Usage::TransferRead}});
+	const PassPlan plan = list.Compile();
+
+	// The next frame's fill waits on this frame's fragment reads and on the copy.
+	const Barrier *reset = Find(plan.passes[0].barriers, indices);
+	REQUIRE(reset != nullptr);
+	CHECK(reset->discard);
+	CHECK(
+	    reset->before ==
+	    std::vector<Usage>{
+	        Usage::StorageWriteCompute, Usage::StorageReadFragment, Usage::TransferRead});
+	// The copy waits on the compute write, which the fragment read before it did not make
+	// visible to transfers.
+	const Barrier *readback = Find(plan.passes[3].barriers, indices);
+	REQUIRE(readback != nullptr);
+	CHECK(
+	    readback->before == std::vector<Usage>{Usage::StorageWriteCompute, Usage::StorageReadFragment});
+
+	const std::vector<BoundResource> bound{
+	    {VK_NULL_HANDLE, 0, Fake<VkBuffer>(1)},
+	    {Fake<VkImage>(2), VK_IMAGE_ASPECT_COLOR_BIT, VK_NULL_HANDLE}};
+	const VulkanBarriers assign = Translate(plan.passes[1].barriers, bound);
+	REQUIRE(assign.buffers.size() == 1);
+	CHECK(assign.buffers[0].srcStageMask == VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT);
+	CHECK(assign.buffers[0].srcAccessMask == VK_ACCESS_2_TRANSFER_WRITE_BIT);
+	CHECK(assign.buffers[0].dstStageMask == VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT);
+	const VulkanBarriers copy = Translate(plan.passes[3].barriers, bound);
+	REQUIRE(copy.buffers.size() == 1);
+	CHECK(copy.buffers[0].dstStageMask == VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT);
+	CHECK(copy.buffers[0].dstAccessMask == VK_ACCESS_2_TRANSFER_READ_BIT);
+
+	CHECK_THROWS_WITH_AS(
+	    list.AddPass("p", PassKind::Compute, {{indices, Usage::TransferRead}}),
+	    "Pass 'p' uses 'light-indices' as TransferRead, which is not a use in a compute pass",
+	    std::logic_error);
+	CHECK_THROWS_WITH_AS(
+	    list.AddPass("p", PassKind::Transfer, {{indices, Usage::StorageReadCompute}}),
+	    "Pass 'p' uses 'light-indices' as StorageReadCompute, which is not a use in a transfer pass",
+	    std::logic_error);
+}
+
 TEST_CASE(
     "Pass list: a second read at a stage already waited for needs nothing; a write waits on every read")
 {

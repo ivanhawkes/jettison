@@ -7,14 +7,17 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <jettison/render/Camera.h>
+#include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/PassList.h>
 #include <jettison/render/Scene.h>
 #include <jettison/render/SceneSystems.h>
 #include <jettison/render/vulkan/DeviceContext.h>
+#include <jettison/render/vulkan/FrameData.h>
 #include <jettison/render/vulkan/Swapchain.h>
 #include <jettison/render/vulkan/Window.h>
 
@@ -35,17 +38,31 @@ class MaterialCache;
 struct MaterialBinding;
 class PipelineCache;
 
-// The frame, as the declared pass list docs/architecture.md describes ("The frame"): an opaque
-// pass into a multisampled HDR target, which draws the sky last over what no surface covered and is
-// resolved into a single-sampled target as it ends, and an output pass that tonemaps that into the
-// swapchain, with the UI drawn over the result. Phase 5 adds its passes to the same list (shadows,
-// the cluster compute passes).
+// What the lit programs show: the shaded scene, or the lights-per-cluster heat map
+// (lighting.glsl's kDebugView*).
+enum class DebugView : std::uint32_t
+{
+	Shaded = 0,
+	ClusterHeat = 1
+};
+
+// The frame, as the declared pass list docs/architecture.md describes ("The frame"): the cluster
+// passes (the index list's allocator zeroed, then the clusters' bounds and the lights assigned to
+// them, both in compute), an opaque pass into a multisampled HDR target, which draws the sky last
+// over what no surface covered and is resolved into a single-sampled target as it ends, an output
+// pass that tonemaps that into the swapchain, with the UI drawn over the result, and the cluster
+// check's copy. Phase 5 adds its shadow passes to the same list.
+//
+// The cluster grid's buffers are one set, shared by the frames in flight as the render targets are.
+// The bounds are kept between frames and rebuilt only in a frame whose projection, viewport or
+// cluster range differs from the one they were built for.
 //
 // The scene's sky is also its environment (render/vulkan/Environment.h): it is baked when a scene
 // loads and whenever the sky changes, before the frame that first draws it.
 //
 // What the CPU writes each frame lives once per frame in flight: the frame constants, the skin
-// palette, the light list, the material parameters, and the command buffer that reads them. A frame
+// palette, the light list, the material parameters, and the command buffer that reads them; and
+// what the cluster check copies out. A frame
 // slot's fence is waited on before any of them is touched, so nothing a submission in flight reads is
 // ever rewritten. The render targets are one set, shared by the frames in flight, because the pass
 // list's barriers order each frame's first use of a target after the last frame's last use.
@@ -54,6 +71,14 @@ class Renderer
   public:
 	static constexpr uint32_t kFramesInFlight = 2;
 	static constexpr VkFormat kHdrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+	// The light index list's size, as entries per cluster on average: a budget for the frame, not a
+	// cap on any one cluster. 432 KiB at 16 x 9 x 24.
+	static constexpr std::uint32_t kLightIndicesPerCluster = 32;
+	static constexpr std::uint32_t kLightIndexCapacity = kClusterCount * kLightIndicesPerCluster;
+	// The view depth past which no local light is assigned (docs/architecture.md, "The grid and the
+	// infinite far plane"): a station's lights from further off are its emissive panels. Chosen
+	// with the light budget, and tuned in 5e.
+	static constexpr float kDefaultClusterRange = 2000.0f;
 
 	// The resource manager loads the materials and textures, and outlives the renderer; Destroy
 	// releases everything the renderer loaded through it.
@@ -96,6 +121,33 @@ class Renderer
 		m_exposure = exposure;
 	}
 
+	void SetDebugView(DebugView view)
+	{
+		m_debugView = view;
+	}
+	DebugView GetDebugView() const
+	{
+		return m_debugView;
+	}
+
+	// The grid's far end, in metres of view depth; it is never less than twice the near plane.
+	void SetClusterRange(float range)
+	{
+		m_clusterRange = range;
+	}
+
+	// Each frame's light assignment copied out and compared with the CPU's (CheckClusterAssignment),
+	// once the frame's fence says it is done. The smoke test turns it on; it costs a copy of the grid
+	// and the index list a frame.
+	void SetClusterCheck(bool enabled)
+	{
+		m_checkClusters = enabled;
+	}
+	const ClusterCheckTotals &GetClusterChecks() const
+	{
+		return m_clusterChecks;
+	}
+
   private:
 	struct FrameData
 	{
@@ -108,6 +160,15 @@ class Renderer
 		Buffer lines{};
 		Buffer materials{};
 		VkDescriptorSet frameSet{VK_NULL_HANDLE};
+		// The cluster check: the grid and the index list as this slot's frame left them, and what
+		// the CPU needs to assign the same lights. Pending from the frame that copied them out until
+		// the slot's fence is next waited on.
+		Buffer gridReadback{};
+		Buffer indexReadback{};
+		bool checkPending{false};
+		ClusterView checkView{};
+		glm::mat3 checkViewMatrix{1.0f};
+		std::vector<GpuLight> checkLights;
 	};
 
 	struct Targets
@@ -125,6 +186,8 @@ class Renderer
 	void CreatePassList();
 	void CreateTargets();
 	void DestroyTargets();
+	void CreateClusterBuffers();
+	void DestroyClusterBuffers();
 	void CreateFrames();
 	void WriteFrameSet(const FrameData &frame);
 	void WriteOutputSet();
@@ -140,6 +203,11 @@ class Renderer
 	void EnsureCapacity(
 	    FrameData &frame, Buffer &buffer, VkDeviceSize bytes, VkBufferUsageFlags usage,
 	    const char *name);
+	// The frame's local lights into the slot's light list: camera-relative, and only those whose
+	// range reaches into the cluster range.
+	void WriteLights(FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera);
+	// The slot's last frame's assignment against the CPU's, now that its fence has been waited on.
+	void CheckClusters(FrameData &frame);
 	// The frame's debug lines into the slot's vertex buffer; how many are depth-tested.
 	uint32_t WriteLines(FrameData &frame, const DebugDraw &debugDraw, const glm::dvec3 &camera);
 	void WriteFrame(
@@ -149,8 +217,11 @@ class Renderer
 	// slot's material buffer.
 	void WriteMaterials(FrameData &frame, const std::vector<SceneDrawCommand> &draws, double time);
 	void Record(
-	    const FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
+	    FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
 	    const std::vector<uint32_t> &jointOffsets, const ImGuiRenderer &imguiRenderer);
+	void RecordClusterBounds(const FrameData &frame, VkCommandBuffer commandBuffer);
+	void RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+	void RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const;
 	void RecordOpaque(
 	    const FrameData &frame, VkCommandBuffer commandBuffer,
 	    const std::vector<SceneDrawCommand> &draws, const std::vector<uint32_t> &jointOffsets);
@@ -173,16 +244,16 @@ class Renderer
 	// The sky the environment was baked from, or empty for the black one.
 	std::optional<SkyComponent> m_bakedSky;
 
-	// Set 0 of the scene programs (constants, skin palette, lights, material parameters, the
-	// environment), set 1 of
-	// the scene programs (a material's textures), and set 0 of the output program (the resolved HDR
-	// target).
+	// Set 0 of the scene and cluster programs (constants, skin palette, lights, material
+	// parameters, the environment, the cluster grid), set 1 of the scene programs (a material's
+	// textures), and set 0 of the output program (the resolved HDR target).
 	VkDescriptorSetLayout m_frameSetLayout{VK_NULL_HANDLE};
 	VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
 	VkDescriptorSetLayout m_outputSetLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_meshLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_outputLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_lineLayout{VK_NULL_HANDLE};
+	VkPipelineLayout m_clusterLayout{VK_NULL_HANDLE};
 	VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
 	VkDescriptorSet m_outputSet{VK_NULL_HANDLE};
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
@@ -190,6 +261,22 @@ class Renderer
 	VkPipeline m_skyPipeline{VK_NULL_HANDLE};
 	VkPipeline m_linePipeline{VK_NULL_HANDLE};
 	VkPipeline m_lineOverlayPipeline{VK_NULL_HANDLE};
+	VkPipeline m_clusterBoundsPipeline{VK_NULL_HANDLE};
+	VkPipeline m_clusterLightsPipeline{VK_NULL_HANDLE};
+
+	// The cluster grid: each cluster's view-space bounds, its offset and count into the index list,
+	// and the list, its allocator first. Device-local, shared by the frames in flight.
+	Buffer m_clusterBounds{};
+	Buffer m_clusterGrid{};
+	Buffer m_lightIndices{};
+	// What the bounds were built for, empty until they are; and this frame's grid.
+	std::optional<ClusterView> m_clusterBoundsView;
+	ClusterView m_frameClusterView{};
+	std::vector<GpuLight> m_lightScratch;
+	float m_clusterRange{kDefaultClusterRange};
+	DebugView m_debugView{DebugView::Shaded};
+	bool m_checkClusters{false};
+	ClusterCheckTotals m_clusterChecks;
 	// This frame's line vertices: the depth-tested ones, then the overlay.
 	uint32_t m_lineVertices{0};
 	uint32_t m_testedLineVertices{0};
@@ -204,8 +291,15 @@ class Renderer
 	PassResource m_depthResource;
 	PassResource m_hdrResource;
 	PassResource m_swapchainResource;
+	PassResource m_clusterBoundsResource;
+	PassResource m_clusterGridResource;
+	PassResource m_lightIndicesResource;
+	uint32_t m_clusterResetPass{0};
+	uint32_t m_clusterBoundsPass{0};
+	uint32_t m_clusterLightsPass{0};
 	uint32_t m_opaquePass{0};
 	uint32_t m_outputPass{0};
+	uint32_t m_clusterReadbackPass{0};
 
 	VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
 	Targets m_targets;

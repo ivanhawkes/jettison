@@ -50,11 +50,13 @@ struct QueueFamilyIndices
 
 // Where an allocation lives. Device memory is for what the GPU reads and writes; upload memory is
 // host-visible, mapped for the allocation's lifetime and written front to back by the CPU, which
-// is what per-frame data and staging copies do. VMA picks the memory type for each.
+// is what per-frame data and staging copies do; readback memory is host-visible and cached, for
+// what the GPU copies out and the CPU reads. VMA picks the memory type for each.
 enum class MemoryUse
 {
 	Device,
-	Upload
+	Upload,
+	Readback
 };
 
 // A buffer and the allocation it is bound to. Empty when the handle is null; DestroyBuffer empties
@@ -257,6 +259,10 @@ class DeviceContext
 	// needs before the device may read it; on coherent memory the flush does nothing.
 	void WriteBuffer(
 	    const Buffer &buffer, const void *data, VkDeviceSize size, VkDeviceSize offset = 0);
+	// Copies out of a readback buffer, after invalidating the range, which memory that is not
+	// host-coherent needs before the CPU may see what the device wrote. The device's writes have to
+	// have been made available to the host first: a barrier to the host stage, and a fence.
+	void ReadBuffer(const Buffer &buffer, void *data, VkDeviceSize size, VkDeviceSize offset = 0);
 	// A device-local buffer holding the bytes given, filled through a staging buffer that is gone
 	// by the time this returns.
 	Buffer CreateDeviceBuffer(

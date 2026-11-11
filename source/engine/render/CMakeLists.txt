@@ -13,6 +13,7 @@ jettison_add_module(render
 	HEADERS
 		include/jettison/render/Camera.h
 		include/jettison/render/CameraRigs.h
+		include/jettison/render/Clusters.h
 		include/jettison/render/DebugDraw.h
 		include/jettison/render/IRenderer.h
 		include/jettison/render/Material.h
@@ -34,6 +35,7 @@ jettison_add_module(render
 	SOURCES
 		src/Camera.cpp
 		src/CameraRigs.cpp
+		src/Clusters.cpp
 		src/DebugDraw.cpp
 		src/Material.cpp
 		src/PassList.cpp
@@ -58,6 +60,7 @@ jettison_add_module(render
 		tests/BrdfTests.cpp
 		tests/CameraRigTests.cpp
 		tests/CameraTests.cpp
+		tests/ClusterTests.cpp
 		tests/MaterialTests.cpp
 		tests/PassListTests.cpp
 		tests/ProceduralTests.cpp
@@ -76,6 +79,10 @@ jettison_add_module(render
 		GPUOpen::VulkanMemoryAllocator
 		"$<LINK_GROUP:RESCAN,imgui>"
 )
+
+# The cluster grid's functions are clusters.glsl compiled as C++ (Clusters.cpp), so the CPU
+# reference runs the source the cluster programs do.
+target_include_directories(jettison_render PRIVATE "${PROJECT_SOURCE_DIR}/assets/shaders/include")
 
 # The texture and material tests read the files the assets ship (the sample KTX 2 texture, the
 # program descriptors and materials), not copies of them; the BRDF tests compile the shaders' own

@@ -29,11 +29,25 @@ VkPipeline PipelineCache::Get(const PipelineKey &key)
 }
 
 
+VkPipeline PipelineCache::GetCompute(const std::string &program, VkPipelineLayout layout)
+{
+	const auto key = std::make_pair(program, layout);
+	if (const auto found = m_computePipelines.find(key); found != m_computePipelines.end())
+		return found->second;
+	const VkPipeline pipeline = CreateCompute(program, layout);
+	m_computePipelines.emplace(key, pipeline);
+	return pipeline;
+}
+
+
 void PipelineCache::Destroy()
 {
 	for (const auto &[key, pipeline] : m_pipelines)
 		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), pipeline, nullptr);
+	for (const auto &[key, pipeline] : m_computePipelines)
+		vkDestroyPipeline(m_pDeviceContext->GetLogicalDevice(), pipeline, nullptr);
 	m_pipelines.clear();
+	m_computePipelines.clear();
 }
 
 
@@ -182,6 +196,30 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("failed to create the pipeline for program '" + key.program + "'");
 	m_pDeviceContext->SetDebugName(pipeline, "pipeline-" + key.program);
+	return pipeline;
+}
+
+
+VkPipeline PipelineCache::CreateCompute(const std::string &program, VkPipelineLayout layout)
+{
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	const VkShaderModule module = LoadModule("shaders/" + program + ".comp.spv");
+
+	VkComputePipelineCreateInfo pipelineInfo{};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	pipelineInfo.stage.module = module;
+	pipelineInfo.stage.pName = "main";
+	pipelineInfo.layout = layout;
+
+	VkPipeline pipeline = VK_NULL_HANDLE;
+	const VkResult result =
+	    vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+	vkDestroyShaderModule(device, module, nullptr);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("failed to create the compute pipeline for program '" + program + "'");
+	m_pDeviceContext->SetDebugName(pipeline, "pipeline-" + program);
 	return pipeline;
 }
 } // namespace Jettison::Render

@@ -69,6 +69,68 @@ void EmitVec3(YAML::Emitter &emitter, const char *key, const glm::vec3 &value)
 	        << value.z << YAML::EndSeq;
 }
 
+constexpr const char *LightTypeName(LightType type)
+{
+	return type == LightType::Spot ? "spot" : "point";
+}
+
+// A local light, as the file has it. Every light needs its range, since nothing past it is lit and
+// no default would be right for both a cabin lamp and a floodlight; only a spot has cone angles.
+LightComponent ReadLight(const YAML::Node &lightNode, const std::string &id)
+{
+	if (!lightNode.IsMap())
+		throw std::runtime_error("Entity light must be a mapping: " + id);
+	if (lightNode["ambient"])
+		throw std::runtime_error(
+		    "Light '" + id +
+		    "' sets an ambient colour, which the sky's image-based lighting replaced: give the scene "
+		    "a sky instead");
+	LightComponent light;
+	if (const YAML::Node typeNode = lightNode["type"])
+	{
+		const auto type = typeNode.as<std::string>();
+		if (type == LightTypeName(LightType::Spot))
+			light.type = LightType::Spot;
+		else if (type != LightTypeName(LightType::Point))
+			throw std::runtime_error(
+			    "Light '" + id + "' has type '" + type + "': a light is a point or a spot");
+	}
+	light.color = ReadVec3(lightNode, "color", light.color);
+	if (lightNode["intensity"])
+		light.intensity = lightNode["intensity"].as<float>();
+	if (!lightNode["range"])
+		throw std::runtime_error(
+		    "Light '" + id + "' needs a range: a local light lights nothing past it");
+	light.range = lightNode["range"].as<float>();
+	if (lightNode["active"])
+		light.active = lightNode["active"].as<bool>();
+	if (light.intensity < 0.0f)
+		throw std::runtime_error("Light intensity cannot be negative: " + id);
+	if (!(light.range > 0.0f) || !std::isfinite(light.range))
+		throw std::runtime_error("Light range must be positive and finite: " + id);
+
+	const bool hasCone = lightNode["innerConeAngle"] || lightNode["outerConeAngle"];
+	if (light.type != LightType::Spot)
+	{
+		if (hasCone)
+			throw std::runtime_error("Light '" + id + "' has cone angles, which only a spot has");
+		return light;
+	}
+	if (lightNode["innerConeAngle"])
+		light.innerConeAngle = lightNode["innerConeAngle"].as<float>();
+	if (lightNode["outerConeAngle"])
+		light.outerConeAngle = lightNode["outerConeAngle"].as<float>();
+	// KHR_lights_punctual's rule, and the cone test's: the culling assumes a cone no wider than a
+	// hemisphere.
+	constexpr float kQuarterTurn = 1.5707964f;
+	if (!(light.innerConeAngle >= 0.0f) || !(light.innerConeAngle < light.outerConeAngle) ||
+	    !(light.outerConeAngle <= kQuarterTurn))
+		throw std::runtime_error(
+		    "Spot '" + id +
+		    "' needs 0 <= innerConeAngle < outerConeAngle <= pi / 2, in radians from its axis");
+	return light;
+}
+
 void EmitDVec3(YAML::Emitter &emitter, const char *key, const glm::dvec3 &value)
 {
 	emitter << YAML::Key << key << YAML::Value << YAML::Flow << YAML::BeginSeq << value.x << value.y
@@ -90,7 +152,6 @@ void Scene::Load(const std::filesystem::path &path)
 	std::vector<std::pair<entt::entity, std::string>> pendingParents;
 	std::vector<std::pair<entt::entity, std::string>> pendingTargets;
 	std::size_t activeCameraCount = 0;
-	std::size_t activeLightCount = 0;
 	std::size_t sunCount = 0;
 	std::size_t skyCount = 0;
 	if (const YAML::Node systemNode = document["system"])
@@ -172,26 +233,7 @@ void Scene::Load(const std::filesystem::path &path)
 			}
 
 			if (const YAML::Node lightNode = entityNode["light"])
-			{
-				if (!lightNode.IsMap())
-					throw std::runtime_error("Entity light must be a mapping: " + id);
-				LightComponent light;
-				light.color = ReadVec3(lightNode, "color", light.color);
-				if (lightNode["ambient"])
-					throw std::runtime_error(
-					    "Light '" + id +
-					    "' sets an ambient colour, which the sky's image-based lighting replaced: "
-					    "give the scene a sky instead");
-				if (lightNode["intensity"])
-					light.intensity = lightNode["intensity"].as<float>();
-				if (lightNode["active"])
-					light.active = lightNode["active"].as<bool>();
-				if (light.intensity < 0.0f)
-					throw std::runtime_error("Light intensity cannot be negative: " + id);
-				if (light.active && ++activeLightCount > 1)
-					throw std::runtime_error("A scene can have only one active light");
-				m_registry.emplace<LightComponent>(entity, light);
-			}
+				m_registry.emplace<LightComponent>(entity, ReadLight(lightNode, id));
 
 			if (const YAML::Node sunNode = entityNode["sun"])
 			{
@@ -471,8 +513,15 @@ void Scene::Save(const std::filesystem::path &path) const
 		if (const auto *light = m_registry.try_get<LightComponent>(entity))
 		{
 			emitter << YAML::Key << "light" << YAML::Value << YAML::BeginMap;
+			emitter << YAML::Key << "type" << YAML::Value << LightTypeName(light->type);
 			EmitVec3(emitter, "color", light->color);
 			emitter << YAML::Key << "intensity" << YAML::Value << light->intensity;
+			emitter << YAML::Key << "range" << YAML::Value << light->range;
+			if (light->type == LightType::Spot)
+			{
+				emitter << YAML::Key << "innerConeAngle" << YAML::Value << light->innerConeAngle;
+				emitter << YAML::Key << "outerConeAngle" << YAML::Value << light->outerConeAngle;
+			}
 			emitter << YAML::Key << "active" << YAML::Value << light->active;
 			emitter << YAML::EndMap;
 		}

@@ -209,16 +209,24 @@ for what this game draws:
 Each step is a node in the declared pass list (phase 4), and compute nodes sit beside graphics
 nodes in it:
 
-1. **Collect** (CPU). Visible lights are converted to camera-relative float, like every other
-   position, and written to a storage buffer for this frame in flight.
+1. **Collect** (CPU). Active lights are converted to camera-relative float, like every other
+   position, and written to a storage buffer for this frame in flight (5c). A light whose range
+   ends short of the cluster range's far end, measured from the camera in double precision, is
+   left out; frustum culling of lights arrives with the rest of culling in 5e.
 2. **Shadows.** Sun cascades (phase 5). Spot and point shadows, when they arrive, render into an
    atlas, and each light's record carries its atlas slot.
 3. **Depth prepass** (opaque only). Optional, and kept or dropped by measurement in phase 5. Light
    assignment does not need it. What it would buy is less overdraw of the PBR program.
-4. **Cluster bounds** (compute). The view-space bounds of every cluster. They are rebuilt only when
-   the projection or the resolution changes.
-5. **Light assignment** (compute). Each light's sphere or cone is tested against the cluster
-   bounds. The output is an offset and a count per cluster into one global light-index list.
+4. **Cluster bounds** (compute, `cluster_bounds`, 5c). The view-space bounds of every cluster.
+   They are rebuilt only in a frame whose projection, viewport or cluster range differs from the
+   one they were built for; the pass's barriers are recorded either way, and the buffer keeps
+   its contents between frames.
+5. **Light assignment** (compute, `cluster_lights`, 5c). Each light's sphere, and a spot's cone,
+   is tested against each cluster's bounds, one invocation per cluster. The output is an offset
+   and a count per cluster into one global light-index list, whose first word is the allocator:
+   a transfer pass zeroes it at the start of the frame, and each cluster reserves its share with
+   one atomic add. The list holds 32 entries per cluster on average, a budget for the frame
+   rather than a cap on any one cluster.
 6. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
    position and view distance, loops over that cluster's lights, then adds the sun and image-based
    lighting.
@@ -230,6 +238,10 @@ nodes in it:
 9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the UI. The tonemapper is Khronos PBR
    Neutral (5b), applied after exposure in the output pass: a base colour under white light of
    intensity one shows as authored, and highlights compress towards white without changing hue.
+10. **Cluster readback** (transfer, 5c). The grid and the index list copied out for the cluster
+    check, which compares them with a CPU reference once the frame's fence is waited on. It is in
+    every frame's plan and records its copies only when the check is on, so the plan the gate's
+    synchronization validation runs is the plan every run has.
 
 ### The environment
 
@@ -253,19 +265,28 @@ starting point, tuned by measurement in phase 5. Depth is reversed-Z with an inf
 so the slices are computed from view-space distance, never from the depth buffer. They span the
 near plane to a finite **cluster range**. Past it, no local light is assigned, and a surface is lit
 by the sun, image-based lighting and its own emission. A station's lights seen from tens of
-kilometres away are emissive sprites, not lights. The cluster range is a setting, chosen with the
-light budget.
+kilometres away are emissive sprites, not lights. The cluster range is a setting
+(`Renderer::SetClusterRange`), chosen with the light budget: 2 km to start with, tuned in 5e.
+
+The grid's arithmetic is one file, `shaders/include/clusters.glsl`: the slices, the bounds, the
+light-against-cluster tests and the windowed falloff. Like `brdf.glsl` it is written in the
+subset of GLSL that GLM also compiles, and `render/Clusters.h` is that source compiled as C++.
+The CPU reference built on it checks the GPU's assignment: in the headless render test every
+frame's grid is read back and compared with it, cluster by cluster, as sets with a rounding
+tolerance of a hundred-thousandth of the distances involved. The lights-per-cluster heat map (F3)
+shows the same grid on screen, in place of the shaded surfaces.
 
 ### Rules that follow
 
 - **Every local light has a finite range.** Falloff is inverse-square, windowed to reach zero at
-  that range, so culling a light against a cluster is exact. `LightComponent` gains a type, a
-  range and spot cone angles in phase 5. Today's single light uses an unbounded attenuation
-  curve, which is the stand-in this rule retires.
+  that range ((1 - (d/r)^4)^2 / d^2), so culling a light against a cluster is exact.
+  `LightComponent` is a point or a spot with a range and, for a spot, inner and outer cone
+  angles as glTF's `KHR_lights_punctual` has them (5c); a scene file that leaves out a light's
+  range is refused.
 - **The sun is not a cluster light.** There is one directional light per star system, held in the
   frame constants and shadowed with cascades.
 - **Light data lives in storage buffers**, one set per frame in flight, never in the frame UBO.
-  The UBO's one light is today's stand-in, retired in phase 5.
+  The UBO carries only the light count and the grid's parameters.
 - **One lighting implementation.** Every lit program includes the shared GLSL for the cluster
   lookup and the BRDF (`lighting.glsl`, over `brdf.glsl`). No material lights itself its own way.
   The BRDF and the tonemapper are written in the subset of GLSL that GLM also compiles, so the
@@ -333,10 +354,10 @@ proves it headlessly. What exists:
   `Summary`) are the gate.
 - **Scene** (`engine/render`, see [parked code](#parked-code)). An EnTT registry loaded from
   and saved to YAML (`assets/scene/main.yaml`, and `orbit.yaml` at real scale). It has
-  transform, parent, world-transform, camera, light, sun, sky and mesh components (a glTF model or a
-  procedural shape - UV, ico or cube sphere, box, ring, cylinder - and optionally a material
-  file, by virtual path), celestial bodies placed by the star system the scene names, an orbit
-  camera rig, and the animation module's rotation-animation, skeleton and animation-player
+  transform, parent, world-transform, camera, light (a point or a spot, with a range), sun, sky
+  and mesh components (a glTF model or a procedural shape - UV, ico or cube sphere, box, ring,
+  cylinder - and optionally a material file, by virtual path), celestial bodies placed by the star
+  system the scene names, an orbit camera rig, and the animation module's rotation-animation, skeleton and animation-player
   components. Translations and world transforms are doubles. Authored state and runtime state
   are kept apart: `RotationAnimationComponent::angle`, `AnimationPlayerComponent::time`, a
   body's `PlacementComponent` and a rig's `CameraPoseComponent` are never saved, and the render
@@ -349,13 +370,16 @@ proves it headlessly. What exists:
   instance, device, debug-utils messenger (with synchronization validation in Debug), object
   names, and the VMA allocator every buffer and image comes from. `Swapchain` prefers an sRGB
   format and owns its image views. `Renderer` runs the frame as a declared pass list
-  (`render/PassList.h`): an opaque pass into a 4× multisampled RGBA16F target, which draws the sky
-  after the surfaces and is resolved into a single-sampled target as it ends, then an output pass
-  that applies exposure and tonemaps on its way to the swapchain and draws the UI over it. The barriers between passes are derived from each
-  pass's declared uses once, at start-up, and recorded with dynamic rendering and
+  (`render/PassList.h`): the cluster passes (the index list's allocator zeroed by a transfer, then
+  the cluster bounds and the light assignment in compute), an opaque pass into a 4× multisampled
+  RGBA16F target, which draws the sky after the surfaces and is resolved into a single-sampled
+  target as it ends, an output pass that applies exposure and tonemaps on its way to the swapchain
+  and draws the UI over it, and the cluster check's copy. The barriers between passes are derived
+  from each pass's declared uses once, at start-up, and recorded with dynamic rendering and
   synchronization2. The frame constants, skin palette, light list and command buffer exist once
-  per frame in flight. `PipelineCache` makes pipelines by program name and render state, with the
-  programs found through the asset VFS. Materials are data (`render/Material.h`): a material file
+  per frame in flight; the cluster grid's buffers are one set, shared as the render targets are.
+  `PipelineCache` makes graphics pipelines by program name and render state, and compute
+  pipelines by program name, with the programs found through the asset VFS. Materials are data (`render/Material.h`): a material file
   names a program, whose descriptor (`shaders/<program>.program.yaml`) lists its parameters and
   texture slots, and sets them, some driven by presentation time. `MaterialCache` loads
   materials and their KTX 2 or stb textures through the resource manager (`Texture.h` decodes
@@ -363,7 +387,7 @@ proves it headlessly. What exists:
   it or a texture reloads, and frees what a reload replaced once no frame in flight reads it; a
   model without a material draws with its own textures through the default `mesh` program.
   `Model` loads glTF through fastgltf. The `mesh` program is glTF's metallic-roughness model, lit
-  by the sun, the [environment](#the-environment) and the frame's light list; that list is still
-  the stand-in for the [clustered](#rendering-clustered-forward) lights, every light reaching every
-  fragment with an unbounded falloff. `unlit` is for what is a light rather than lit by one.
+  by the sun, the [environment](#the-environment) and the local lights of the
+  [cluster](#rendering-clustered-forward) the fragment falls in. `unlit` is for what is a light
+  rather than lit by one.
 - **ImGui** for a demo window, toggled with F1.

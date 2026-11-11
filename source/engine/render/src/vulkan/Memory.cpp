@@ -61,6 +61,9 @@ Buffer DeviceContext::CreateBuffer(
 	if (memory == MemoryUse::Upload)
 		allocationInfo.flags =
 		    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	else if (memory == MemoryUse::Readback)
+		allocationInfo.flags =
+		    VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
 	Buffer buffer;
 	VmaAllocationInfo allocated{};
@@ -94,6 +97,19 @@ void DeviceContext::WriteBuffer(
 	std::memcpy(static_cast<std::byte *>(buffer.mapped) + offset, data, static_cast<std::size_t>(size));
 	if (vmaFlushAllocation(m_allocator, buffer.allocation, offset, size) != VK_SUCCESS)
 		throw std::runtime_error("failed to flush an upload buffer");
+}
+
+
+void DeviceContext::ReadBuffer(const Buffer &buffer, void *data, VkDeviceSize size, VkDeviceSize offset)
+{
+	if (buffer.mapped == nullptr)
+		throw std::logic_error("ReadBuffer: the buffer is not mapped");
+	if (offset + size > buffer.size)
+		throw std::logic_error("ReadBuffer: the read runs past the end of the buffer");
+	if (vmaInvalidateAllocation(m_allocator, buffer.allocation, offset, size) != VK_SUCCESS)
+		throw std::runtime_error("failed to invalidate a readback buffer");
+	std::memcpy(
+	    data, static_cast<const std::byte *>(buffer.mapped) + offset, static_cast<std::size_t>(size));
 }
 
 

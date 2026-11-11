@@ -12,6 +12,7 @@
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/input/Actions.h>
+#include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/SceneSystems.h>
 #include <jettison/sim/SimWorld.h>
@@ -187,6 +188,8 @@ class Application
 	Input::ActionId m_toggleConsole;
 	Input::ActionId m_back;
 	Input::ActionId m_toggleDebugDraw;
+	// F3: the lights-per-cluster heat map in place of the shaded scene.
+	Input::ActionId m_toggleClusterHeat;
 	// The orbit camera: W, A, S and D turn it, Q and E zoom, the right mouse button drags it, and C
 	// moves it to the next body.
 	Input::ActionId m_cameraOrbit;
@@ -210,6 +213,10 @@ class Application
 	// on, so both line pipelines are in what the render test walks.
 	Render::DebugDraw m_debugDraw;
 	bool m_showSceneDebug{false};
+
+	// The renderer's cluster check over the run, which the headless run turns on and judges once the
+	// renderer is gone: copied out of it as the frame loop ends.
+	Render::ClusterCheckTotals m_clusterChecks;
 
 	// The star system the scene's celestial bodies come from, when it names one.
 	std::optional<Celestial::StarSystem> m_starSystem;

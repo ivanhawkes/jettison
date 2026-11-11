@@ -1,0 +1,30 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+// The view-space bounds of every cluster (clusters.glsl), one invocation each. They depend only on
+// the projection, the viewport and the grid's depth range, so the renderer dispatches this only
+// when one of those changes and the bounds are kept between frames otherwise.
+
+#include "clusters.glsl"
+#include "frame.glsl"
+
+layout(local_size_x = 64) in;
+
+// Each cluster's minimum and maximum corner, two entries per cluster; w is unused.
+layout(std430, set = 0, binding = 7) writeonly buffer ClusterBoundsList
+{
+	vec4 clusterBounds[];
+};
+
+void main()
+{
+	uint cluster = gl_GlobalInvocationID.x;
+	if (cluster >= kClusterCount)
+		return;
+	ClusterBounds bounds = ClusterBoundsOf(
+	    cluster, frame.clusterTile.zw, frame.clusterTile.xy,
+	    vec2(frame.projection[0][0], frame.projection[1][1]), frame.clusterDepth.x,
+	    frame.clusterDepth.y);
+	clusterBounds[2u * cluster] = vec4(bounds.minimum, 0.0);
+	clusterBounds[2u * cluster + 1u] = vec4(bounds.maximum, 0.0);
+}

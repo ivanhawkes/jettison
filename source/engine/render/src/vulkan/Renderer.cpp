@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <limits>
 #include <numbers>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <jettison/core/Log.h>
 #include <jettison/render/vulkan/Environment.h>
 #include <jettison/render/vulkan/FrameData.h>
 #include <jettison/render/vulkan/MaterialCache.h>
@@ -39,8 +42,12 @@ struct OutputPushConstants
 	uint32_t encodeSrgb{0};
 };
 
+constexpr Core::Category kRender{"render"};
+
 // Room for this many lights before the first frame that has more grows the list.
 constexpr VkDeviceSize kInitialLights = 16;
+// The cluster programs' workgroup, as cluster_bounds.comp and cluster_lights.comp declare it.
+constexpr uint32_t kClusterGroupSize = 64;
 // And for this many material parameters, which are vec4s.
 constexpr VkDeviceSize kInitialMaterialParameters = 64;
 
@@ -87,6 +94,7 @@ void Renderer::Init()
 	CreateLayouts();
 	CreatePassList();
 	CreateTargets();
+	CreateClusterBuffers();
 	// Before the frames: their sets name its cubes and lookup table.
 	m_pEnvironment = std::make_unique<Environment>(m_pDeviceContext, *m_pPipelines);
 	m_pEnvironment->Init();
@@ -112,8 +120,11 @@ void Renderer::Destroy()
 		m_pDeviceContext->DestroyBuffer(frame.lights);
 		m_pDeviceContext->DestroyBuffer(frame.lines);
 		m_pDeviceContext->DestroyBuffer(frame.materials);
+		m_pDeviceContext->DestroyBuffer(frame.gridReadback);
+		m_pDeviceContext->DestroyBuffer(frame.indexReadback);
 		frame = {};
 	}
+	DestroyClusterBuffers();
 	DestroyTargets();
 	if (m_pEnvironment)
 		m_pEnvironment->Destroy();
@@ -127,9 +138,12 @@ void Renderer::Destroy()
 	m_skyPipeline = VK_NULL_HANDLE;
 	m_linePipeline = VK_NULL_HANDLE;
 	m_lineOverlayPipeline = VK_NULL_HANDLE;
+	m_clusterBoundsPipeline = VK_NULL_HANDLE;
+	m_clusterLightsPipeline = VK_NULL_HANDLE;
 
 	vkDestroySampler(device, m_outputSampler, nullptr);
 	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
+	vkDestroyPipelineLayout(device, m_clusterLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_lineLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_outputLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_meshLayout, nullptr);
@@ -141,6 +155,7 @@ void Renderer::Destroy()
 	m_outputSet = VK_NULL_HANDLE;
 	m_outputLayout = VK_NULL_HANDLE;
 	m_lineLayout = VK_NULL_HANDLE;
+	m_clusterLayout = VK_NULL_HANDLE;
 	m_meshLayout = VK_NULL_HANDLE;
 	m_outputSetLayout = VK_NULL_HANDLE;
 	m_materialSetLayout = VK_NULL_HANDLE;
@@ -166,16 +181,23 @@ void Renderer::CreateLayouts()
 		return layout;
 	};
 
-	// assets/shaders/include/frame.glsl, and the environment's bindings in lighting.glsl.
-	const std::array<VkDescriptorSetLayoutBinding, 7> frameBindings{{
+	// assets/shaders/include/frame.glsl, the environment's bindings in lighting.glsl, and the
+	// cluster grid's, which the cluster programs write and lighting.glsl reads.
+	constexpr VkShaderStageFlags kFragmentCompute =
+	    VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+	const std::array<VkDescriptorSetLayoutBinding, 10> frameBindings{{
 	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+	     nullptr},
 	    {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr},
-	    {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
 	    {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	    {4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	    {5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	    {6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+	    {8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
+	    {9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
@@ -210,6 +232,15 @@ void Renderer::CreateLayouts()
 		throw std::runtime_error("failed to create the debug line pipeline layout");
 	m_pDeviceContext->SetDebugName(m_lineLayout, "debug-line-pipeline-layout");
 
+	// The cluster programs read the frame set and nothing else.
+	VkPipelineLayoutCreateInfo clusterInfo{};
+	clusterInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	clusterInfo.setLayoutCount = 1;
+	clusterInfo.pSetLayouts = &m_frameSetLayout;
+	if (vkCreatePipelineLayout(device, &clusterInfo, nullptr, &m_clusterLayout) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the cluster pipeline layout");
+	m_pDeviceContext->SetDebugName(m_clusterLayout, "cluster-pipeline-layout");
+
 	const VkPushConstantRange outputRange{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(OutputPushConstants)};
 	VkPipelineLayoutCreateInfo outputInfo{};
 	outputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -224,7 +255,7 @@ void Renderer::CreateLayouts()
 	// One frame set per frame in flight, and the output set.
 	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
 	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * kFramesInFlight},
+	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6 * kFramesInFlight},
 	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 * kFramesInFlight + 1},
 	}};
 	VkDescriptorPoolCreateInfo poolInfo{};
@@ -266,16 +297,40 @@ void Renderer::CreatePassList()
 	m_depthResource = m_passes.AddImage("depth");
 	m_hdrResource = m_passes.AddImage("hdr");
 	m_swapchainResource = m_passes.AddImage("swapchain");
+	m_clusterBoundsResource = m_passes.AddBuffer("cluster-bounds");
+	m_clusterGridResource = m_passes.AddBuffer("cluster-grid");
+	m_lightIndicesResource = m_passes.AddBuffer("light-indices");
+	// The index list's allocator is zeroed by a fill, so the assignment can reserve from it with
+	// atomic adds; a fill is a transfer, and the plan orders it after the last frame's reads.
+	m_clusterResetPass = m_passes.AddPass(
+	    "cluster-reset", PassKind::Transfer, {{m_lightIndicesResource, Usage::TransferWrite}});
+	// Recorded only when the bounds are stale; its barriers are recorded either way, and a buffer
+	// keeps its contents between frames (render/PassList.h).
+	m_clusterBoundsPass = m_passes.AddPass(
+	    "cluster-bounds", PassKind::Compute, {{m_clusterBoundsResource, Usage::StorageWriteCompute}});
+	m_clusterLightsPass = m_passes.AddPass(
+	    "cluster-lights", PassKind::Compute,
+	    {{m_clusterBoundsResource, Usage::StorageReadCompute},
+	     {m_clusterGridResource, Usage::StorageWriteCompute},
+	     {m_lightIndicesResource, Usage::StorageWriteCompute}});
 	// The resolve is the opaque pass's: dynamic rendering resolves the multisampled target into
 	// the single-sampled one as the pass ends, as a colour attachment write.
 	m_opaquePass = m_passes.AddPass(
 	    "opaque", PassKind::Graphics,
 	    {{m_hdrMsaaResource, Usage::ColorAttachment},
 	     {m_depthResource, Usage::DepthAttachment},
-	     {m_hdrResource, Usage::ColorAttachment}});
+	     {m_hdrResource, Usage::ColorAttachment},
+	     {m_clusterGridResource, Usage::StorageReadFragment},
+	     {m_lightIndicesResource, Usage::StorageReadFragment}});
 	m_outputPass = m_passes.AddPass(
 	    "output", PassKind::Graphics,
 	    {{m_hdrResource, Usage::SampledFragment}, {m_swapchainResource, Usage::ColorAttachment}});
+	// The cluster check's copy. It is in every frame's plan, checked or not, and records its copies
+	// only when the check is on: the plan the gate's synchronization validation runs is then the
+	// plan every run has, and the barriers it costs an unchecked frame wait on work that is done.
+	m_clusterReadbackPass = m_passes.AddPass(
+	    "cluster-readback", PassKind::Transfer,
+	    {{m_clusterGridResource, Usage::TransferRead}, {m_lightIndicesResource, Usage::TransferRead}});
 	m_passes.Export(m_swapchainResource, Usage::Present);
 	m_plan = m_passes.Compile();
 }
@@ -321,6 +376,35 @@ void Renderer::DestroyTargets()
 	m_pDeviceContext->DestroyImage(m_targets.depth);
 	m_pDeviceContext->DestroyImage(m_targets.hdrMsaa);
 	m_targets = {};
+}
+
+
+void Renderer::CreateClusterBuffers()
+{
+	// The grid's size does not depend on the resolution, so a resize keeps these; only the bounds
+	// in them go stale.
+	m_clusterBounds = m_pDeviceContext->CreateBuffer(
+	    VkDeviceSize{kClusterCount} * 2 * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+	    MemoryUse::Device, "cluster-bounds");
+	m_clusterGrid = m_pDeviceContext->CreateBuffer(
+	    VkDeviceSize{kClusterCount} * sizeof(glm::uvec2),
+	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, MemoryUse::Device,
+	    "cluster-grid");
+	m_lightIndices = m_pDeviceContext->CreateBuffer(
+	    (VkDeviceSize{kLightIndexCapacity} + 1) * sizeof(uint32_t),
+	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+	        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	    MemoryUse::Device, "light-indices");
+	m_clusterBoundsView.reset();
+}
+
+
+void Renderer::DestroyClusterBuffers()
+{
+	m_pDeviceContext->DestroyBuffer(m_lightIndices);
+	m_pDeviceContext->DestroyBuffer(m_clusterGrid);
+	m_pDeviceContext->DestroyBuffer(m_clusterBounds);
+	m_clusterBoundsView.reset();
 }
 
 
@@ -389,13 +473,18 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	const VkDescriptorBufferInfo joints{frame.joints.handle, 0, frame.joints.size};
 	const VkDescriptorBufferInfo lights{frame.lights.handle, 0, frame.lights.size};
 	const VkDescriptorBufferInfo materials{frame.materials.handle, 0, frame.materials.size};
+	const std::array<VkDescriptorBufferInfo, 3> clusters{{
+	    {m_clusterBounds.handle, 0, m_clusterBounds.size},
+	    {m_clusterGrid.handle, 0, m_clusterGrid.size},
+	    {m_lightIndices.handle, 0, m_lightIndices.size},
+	}};
 	const VkSampler sampler = m_pEnvironment->GetSampler();
 	const std::array<VkDescriptorImageInfo, 3> environment{{
 	    {sampler, m_pEnvironment->GetSpecularView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 	    {sampler, m_pEnvironment->GetIrradianceView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 	    {sampler, m_pEnvironment->GetBrdfLutView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 	}};
-	std::array<VkWriteDescriptorSet, 7> writes{};
+	std::array<VkWriteDescriptorSet, 10> writes{};
 	for (auto &write : writes)
 	{
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -419,6 +508,12 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 		writes[binding].dstBinding = binding;
 		writes[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		writes[binding].pImageInfo = &environment[binding - 4];
+	}
+	for (std::uint32_t binding = 7; binding < 10; ++binding)
+	{
+		writes[binding].dstBinding = binding;
+		writes[binding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		writes[binding].pBufferInfo = &clusters[binding - 7];
 	}
 	vkUpdateDescriptorSets(
 	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
@@ -474,6 +569,9 @@ void Renderer::CreatePipelines()
 	m_linePipeline = m_pPipelines->Get({"debug_line", line, m_lineLayout});
 	line.depthTest = false;
 	m_lineOverlayPipeline = m_pPipelines->Get({"debug_line", line, m_lineLayout});
+
+	m_clusterBoundsPipeline = m_pPipelines->GetCompute("cluster_bounds", m_clusterLayout);
+	m_clusterLightsPipeline = m_pPipelines->GetCompute("cluster_lights", m_clusterLayout);
 
 	RenderState output;
 	output.vertices = VertexLayout::None;
@@ -580,23 +678,26 @@ void Renderer::WriteFrame(
 	if (const SkyComponent *pSky = FindSky(sceneRegistry))
 		constants.sky = PackSky(*pSky);
 
-	std::vector<GpuLight> lights;
-	for (const entt::entity entity : sceneRegistry.view<const LightComponent>())
+	// The grid spans the near plane to the cluster range, which has to be past it for the slices
+	// to have any depth.
+	const glm::vec2 viewport{static_cast<float>(extent.width), static_cast<float>(extent.height)};
+	m_frameClusterView.viewport = viewport;
+	m_frameClusterView.projectionScale = {constants.projection[0][0], constants.projection[1][1]};
+	m_frameClusterView.nearPlane = camera.nearPlane;
+	m_frameClusterView.range = std::max(m_clusterRange, 2.0f * camera.nearPlane);
+	constants.clusterDepth =
+	    glm::vec4(m_frameClusterView.nearPlane, m_frameClusterView.range, 0.0f, 0.0f);
+	constants.clusterTile = glm::vec4(ClusterTileSize(viewport), viewport);
+
+	WriteLights(frame, sceneRegistry, camera);
+	constants.counts.x = static_cast<uint32_t>(m_lightScratch.size());
+	constants.counts.y = static_cast<uint32_t>(m_debugView);
+	if (m_checkClusters)
 	{
-		const auto &light = sceneRegistry.get<LightComponent>(entity);
-		if (!light.active)
-			continue;
-		// Collected camera-relative, like every other position the GPU sees.
-		glm::dvec3 position{0.0};
-		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
-			position = glm::dvec3(worldTransform->matrix[3]);
-		else if (const auto *transform = sceneRegistry.try_get<TransformComponent>(entity))
-			position = transform->translation;
-		lights.push_back(
-		    {glm::vec4(ToRenderSpace(position, camera.position), 1.0f),
-		     glm::vec4(light.color, light.intensity)});
+		frame.checkView = m_frameClusterView;
+		frame.checkViewMatrix = glm::mat3(constants.view);
+		frame.checkLights = m_lightScratch;
 	}
-	constants.counts.x = static_cast<uint32_t>(lights.size());
 
 	// The scene loader allows one sun.
 	for (const auto [entity, sun] : sceneRegistry.view<const SunComponent>().each())
@@ -622,11 +723,6 @@ void Renderer::WriteFrame(
 			    std::min(static_cast<float>(sun.intensity / solidAngle), kMaxSunRadiance), 0.0f);
 		}
 	}
-	EnsureCapacity(
-	    frame, frame.lights, lights.size() * sizeof(GpuLight), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-	    "light-list");
-	if (!lights.empty())
-		m_pDeviceContext->WriteBuffer(frame.lights, lights.data(), lights.size() * sizeof(GpuLight));
 	m_pDeviceContext->WriteBuffer(frame.constants, &constants, sizeof(constants));
 
 	jointOffsets.assign(draws.size(), 0);
@@ -647,6 +743,74 @@ void Renderer::WriteFrame(
 	    frame, frame.joints, palette.size() * sizeof(glm::mat4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 	    "joint-palette");
 	m_pDeviceContext->WriteBuffer(frame.joints, palette.data(), palette.size() * sizeof(glm::mat4));
+}
+
+
+void Renderer::WriteLights(
+    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera)
+{
+	m_lightScratch.clear();
+	for (const auto [entity, light] : sceneRegistry.view<const LightComponent>().each())
+	{
+		if (!light.active)
+			continue;
+		// Collected camera-relative, like every other position the GPU sees. A spot points along its
+		// entity's -Z, the world transform's third column without its scale.
+		glm::dvec3 position{0.0};
+		glm::dvec3 direction{0.0, 0.0, -1.0};
+		if (const auto *worldTransform = sceneRegistry.try_get<WorldTransformComponent>(entity))
+		{
+			position = glm::dvec3(worldTransform->matrix[3]);
+			const glm::dvec3 axis{worldTransform->matrix[2]};
+			if (glm::length(axis) > 0.0)
+				direction = -glm::normalize(axis);
+		}
+		else if (const auto *transform = sceneRegistry.try_get<TransformComponent>(entity))
+			position = transform->translation;
+		// The distance is taken in double precision, before anything becomes a float: a light whose
+		// range ends short of the grid's far end from here reaches no cluster.
+		const glm::dvec3 relative = position - camera.position;
+		if (glm::length(relative) - double{light.range} > double{m_frameClusterView.range})
+			continue;
+		m_lightScratch.push_back(PackLight(light, glm::vec3{relative}, glm::vec3{direction}));
+	}
+	EnsureCapacity(
+	    frame, frame.lights, m_lightScratch.size() * sizeof(GpuLight),
+	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "light-list");
+	if (!m_lightScratch.empty())
+		m_pDeviceContext->WriteBuffer(
+		    frame.lights, m_lightScratch.data(), m_lightScratch.size() * sizeof(GpuLight));
+}
+
+
+void Renderer::CheckClusters(FrameData &frame)
+{
+	frame.checkPending = false;
+	std::vector<glm::uvec2> grid(kClusterCount);
+	std::vector<std::uint32_t> list(std::size_t{kLightIndexCapacity} + 1);
+	m_pDeviceContext->ReadBuffer(frame.gridReadback, grid.data(), grid.size() * sizeof(glm::uvec2));
+	m_pDeviceContext->ReadBuffer(frame.indexReadback, list.data(), list.size() * sizeof(std::uint32_t));
+	const ClusterCheck check = CheckClusterAssignment(
+	    frame.checkView, frame.checkViewMatrix, frame.checkLights, grid,
+	    std::span<const std::uint32_t>{list}.subspan(1), list[0]);
+
+	++m_clusterChecks.frames;
+	if (check.litClusters != 0)
+		++m_clusterChecks.litFrames;
+	if (check.Agrees())
+		return;
+	const std::string failure =
+	    check.overflowed ? std::format(
+	                           "the light index list overflowed: {} entries reserved for {}", list[0],
+	                           kLightIndexCapacity)
+	                     : "the GPU's light assignment disagrees with the CPU's: " + check.mismatch;
+	// Reported once, and counted after: a frame loop that disagrees once disagrees every frame.
+	if (m_clusterChecks.failures++ == 0)
+	{
+		m_clusterChecks.firstFailure = failure;
+		Core::Log(
+		    Core::Severity::Error, kRender, "cluster check, frame {}: {}", m_frameNumber, failure);
+	}
 }
 
 
@@ -691,6 +855,8 @@ bool Renderer::Render(
 	vkWaitForFences(device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX);
 	// The slot's last frame is done, and with it everything retired long enough ago to free.
 	m_pMaterials->BeginFrame(m_frameNumber, m_materialParameters);
+	if (frame.checkPending)
+		CheckClusters(frame);
 
 	uint32_t imageIndex = 0;
 	const VkResult acquired = vkAcquireNextImageKHR(
@@ -734,6 +900,16 @@ bool Renderer::Render(
 	if (sceneReplaced)
 		m_pMaterials->ReleaseUnresolved();
 	m_testedLineVertices = WriteLines(frame, debugDraw, camera.position);
+	if (m_checkClusters && frame.gridReadback.handle == VK_NULL_HANDLE)
+	{
+		const std::string slot = std::to_string(m_currentFrame);
+		frame.gridReadback = m_pDeviceContext->CreateBuffer(
+		    m_clusterGrid.size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, MemoryUse::Readback,
+		    "cluster-grid-readback-" + slot);
+		frame.indexReadback = m_pDeviceContext->CreateBuffer(
+		    m_lightIndices.size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, MemoryUse::Readback,
+		    "light-indices-readback-" + slot);
+	}
 	Record(frame, imageIndex, draws, jointOffsets, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
@@ -791,7 +967,7 @@ bool Renderer::Present()
 
 
 void Renderer::Record(
-    const FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
+    FrameData &frame, uint32_t imageIndex, const std::vector<SceneDrawCommand> &draws,
     const std::vector<uint32_t> &jointOffsets, const ImGuiRenderer &imguiRenderer)
 {
 	const VkCommandBuffer commandBuffer = frame.commandBuffer;
@@ -814,15 +990,26 @@ void Renderer::Record(
 	bound[m_depthResource.index] = {m_targets.depth.handle, VK_IMAGE_ASPECT_DEPTH_BIT};
 	bound[m_hdrResource.index] = {m_targets.hdr.handle, VK_IMAGE_ASPECT_COLOR_BIT};
 	bound[m_swapchainResource.index] = {m_pSwapchain->GetImage(imageIndex), VK_IMAGE_ASPECT_COLOR_BIT};
+	bound[m_clusterBoundsResource.index] = {VK_NULL_HANDLE, 0, m_clusterBounds.handle};
+	bound[m_clusterGridResource.index] = {VK_NULL_HANDLE, 0, m_clusterGrid.handle};
+	bound[m_lightIndicesResource.index] = {VK_NULL_HANDLE, 0, m_lightIndices.handle};
 
 	for (const PlannedPass &planned : m_plan.passes)
 	{
 		RecordBarriers(commandBuffer, planned.barriers, bound);
 		m_pDeviceContext->BeginDebugLabel(commandBuffer, std::string{m_passes.PassName(planned.pass)});
-		if (planned.pass == m_opaquePass)
+		if (planned.pass == m_clusterResetPass)
+			vkCmdFillBuffer(commandBuffer, m_lightIndices.handle, 0, sizeof(uint32_t), 0);
+		else if (planned.pass == m_clusterBoundsPass)
+			RecordClusterBounds(frame, commandBuffer);
+		else if (planned.pass == m_clusterLightsPass)
+			RecordClusterLights(frame, commandBuffer);
+		else if (planned.pass == m_opaquePass)
 			RecordOpaque(frame, commandBuffer, draws, jointOffsets);
 		else if (planned.pass == m_outputPass)
 			RecordOutput(commandBuffer, imageIndex, imguiRenderer);
+		else if (planned.pass == m_clusterReadbackPass)
+			RecordClusterReadback(frame, commandBuffer);
 		m_pDeviceContext->EndDebugLabel(commandBuffer);
 	}
 	RecordBarriers(commandBuffer, m_plan.final, bound);
@@ -830,6 +1017,56 @@ void Renderer::Record(
 	m_pDeviceContext->EndDebugLabel(commandBuffer);
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to record command buffer");
+}
+
+
+void Renderer::RecordClusterBounds(const FrameData &frame, VkCommandBuffer commandBuffer)
+{
+	if (m_clusterBoundsView == m_frameClusterView)
+		return;
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_clusterBoundsPipeline);
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_clusterLayout, 0, 1, &frame.frameSet, 0,
+	    nullptr);
+	vkCmdDispatch(commandBuffer, (kClusterCount + kClusterGroupSize - 1) / kClusterGroupSize, 1, 1);
+	// Every frame after this one reads what this dispatch writes, in submission order, and the
+	// plan's barriers order their reads after it.
+	m_clusterBoundsView = m_frameClusterView;
+}
+
+
+void Renderer::RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const
+{
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_clusterLightsPipeline);
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_clusterLayout, 0, 1, &frame.frameSet, 0,
+	    nullptr);
+	vkCmdDispatch(commandBuffer, (kClusterCount + kClusterGroupSize - 1) / kClusterGroupSize, 1, 1);
+}
+
+
+void Renderer::RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const
+{
+	if (!m_checkClusters)
+		return;
+	const VkBufferCopy grid{0, 0, m_clusterGrid.size};
+	vkCmdCopyBuffer(commandBuffer, m_clusterGrid.handle, frame.gridReadback.handle, 1, &grid);
+	const VkBufferCopy list{0, 0, m_lightIndices.size};
+	vkCmdCopyBuffer(commandBuffer, m_lightIndices.handle, frame.indexReadback.handle, 1, &list);
+	// The copies made available to the host, which reads them once the slot's fence is waited on;
+	// the fence alone makes device writes visible to the device, not to the host's reads.
+	VkMemoryBarrier2 toHost{};
+	toHost.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+	toHost.srcStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+	toHost.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	toHost.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+	toHost.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+	VkDependencyInfo dependency{};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.memoryBarrierCount = 1;
+	dependency.pMemoryBarriers = &toHost;
+	vkCmdPipelineBarrier2(commandBuffer, &dependency);
+	frame.checkPending = true;
 }
 
 

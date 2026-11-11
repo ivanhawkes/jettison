@@ -1,7 +1,9 @@
 // The frame: descriptor set 0, written once per frame in flight and bound for every scene program.
-// The C++ side is Render::FrameUBO and Render::GpuLight (render/vulkan/FrameData.h), whose sizes
-// and offsets are asserted there against this layout. Positions are in render space: metres from
-// the camera, which is at the origin.
+// The compute programs that build the cluster grid bind it too. The C++ side is Render::FrameUBO and
+// Render::GpuLight (render/vulkan/FrameData.h), whose sizes and offsets are asserted there against
+// this layout. Positions are in render space: metres from the camera, which is at the origin, along
+// the system frame's axes; view space is render space turned by the view matrix, which is a
+// rotation only.
 
 #ifndef JETTISON_FRAME_GLSL
 #define JETTISON_FRAME_GLSL
@@ -22,8 +24,13 @@ layout(set = 0, binding = 0) uniform FrameConstants
 	// pixel covers at the centre of the view, in radians.
 	vec4 environment;
 	Sky sky;
-	// x: the lights in the light list.
+	// x: the lights in the light list, y: the debug view (kDebugView*, lighting.glsl).
 	uvec4 counts;
+	// The cluster grid (clusters.glsl): x the near plane and y the cluster range, both view depths
+	// in metres.
+	vec4 clusterDepth;
+	// xy: a cluster tile's size in pixels, zw: the viewport's size in pixels.
+	vec4 clusterTile;
 } frame;
 
 // The skin palette: every skinned draw's joint matrices, one after another. A draw finds its own
@@ -33,12 +40,19 @@ layout(std430, set = 0, binding = 1) readonly buffer JointPalette
 	mat4 jointMatrices[];
 };
 
-// The frame's lights, collected on the CPU in render space. Phase 5c assigns them to clusters;
-// until then every fragment loops over all of them.
+// The frame's local lights, collected on the CPU in render space; the cluster passes assign them to
+// the grid, and a fragment loops over its cluster's share of them (lighting.glsl).
 struct Light
 {
-	vec4 position;
+	// xyz: the position, w: the range in metres, past which the light reaches nothing.
+	vec4 positionRange;
+	// rgb: linear colour, a: intensity, the irradiance at one metre.
 	vec4 colorIntensity;
+	// xyz: the way a spot points, unit length, w: kLightPoint or kLightSpot (clusters.glsl).
+	vec4 directionType;
+	// x, y: the spot's angular falloff as a scale and offset on the cosine (SpotAttenuation), 0 and 1
+	// for a point light; z, w: the outer cone angle's cosine and sine, for culling.
+	vec4 cone;
 };
 
 layout(std430, set = 0, binding = 2) readonly buffer LightList
@@ -47,6 +61,10 @@ layout(std430, set = 0, binding = 2) readonly buffer LightList
 };
 
 // Binding 3 is the frame's material parameters, which material.glsl declares for the programs that
-// read them, and bindings 4 to 6 are the environment, which lighting.glsl declares.
+// read them, and bindings 4 to 6 are the environment, which lighting.glsl declares. Bindings 7 to 9
+// are the cluster grid, one set shared by the frames in flight as the render targets are: 7 the
+// clusters' bounds, which only the compute programs read, and 8 and 9 each cluster's offset and
+// count into the light index list, and the list, which the assignment program writes and
+// lighting.glsl reads.
 
 #endif

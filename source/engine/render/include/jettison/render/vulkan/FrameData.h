@@ -42,10 +42,14 @@ struct FrameUBO
 	// centre, in radians.
 	alignas(16) glm::vec4 environment{0.0f};
 	GpuSky sky{};
-	// x: the lights in the light list.
+	// x: the lights in the light list, y: the debug view (Render::DebugView).
 	alignas(16) glm::uvec4 counts{0u};
+	// The cluster grid (clusters.glsl): x the near plane, y the cluster range, as view depths.
+	alignas(16) glm::vec4 clusterDepth{0.0f};
+	// xy: a cluster tile's size in pixels, zw: the viewport's size in pixels.
+	alignas(16) glm::vec4 clusterTile{0.0f};
 };
-static_assert(sizeof(FrameUBO) == 288);
+static_assert(sizeof(FrameUBO) == 320);
 static_assert(offsetof(FrameUBO, projection) == 64);
 static_assert(offsetof(FrameUBO, sunDirection) == 128);
 static_assert(offsetof(FrameUBO, sunColorIntensity) == 144);
@@ -53,12 +57,21 @@ static_assert(offsetof(FrameUBO, sunDisc) == 160);
 static_assert(offsetof(FrameUBO, environment) == 176);
 static_assert(offsetof(FrameUBO, sky) == 192);
 static_assert(offsetof(FrameUBO, counts) == 272);
+static_assert(offsetof(FrameUBO, clusterDepth) == 288);
+static_assert(offsetof(FrameUBO, clusterTile) == 304);
 
-// One entry of the light list, std430.
+// One entry of the light list, std430: frame.glsl's Light. Render::PackLight (render/Clusters.h)
+// fills it from a LightComponent.
 struct GpuLight
 {
-	glm::vec4 position{0.0f};
+	// xyz: render-space position, w: range in metres.
+	glm::vec4 positionRange{0.0f};
 	glm::vec4 colorIntensity{0.0f};
+	// xyz: the way a spot points, w: 0 for a point light, 1 for a spot.
+	glm::vec4 directionType{0.0f};
+	// x, y: the spot's angular falloff as a scale and offset on the cosine; z, w: the outer angle's
+	// cosine and sine.
+	glm::vec4 cone{0.0f, 1.0f, -1.0f, 0.0f};
 };
-static_assert(sizeof(GpuLight) == 32);
+static_assert(sizeof(GpuLight) == 64);
 } // namespace Jettison::Render

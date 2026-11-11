@@ -17,9 +17,12 @@ entities:
       translation: [-2, 2.5, 1]
       rotation: [0, 0, 0]
       scale: [1, 1, 1]
+    # About pi of irradiance at the models, three and a half metres off, so an albedo shows as itself.
     light:
+      type: point
       color: [1, 0.92, 0.78]
       intensity: 40
+      range: 20
       active: true
   # A brighter sky than a real one, so the models' unlit sides are lit by it as the old ambient
   # term lit them.

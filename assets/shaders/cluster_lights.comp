@@ -1,0 +1,63 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+// Light assignment: one invocation per cluster tests every light of the frame against the
+// cluster's bounds (clusters.glsl), reserves room for the ones that reach it in the light index
+// list, and writes their indices there in the light list's order. The list's first word, which the
+// frame's reset pass zeroed, is the allocator: each cluster takes its share with one atomic add, so
+// the list holds what this frame's clusters need rather than every cluster's worst case. When it
+// runs out, the clusters that reserved last lose their lights; the CPU check reports that.
+
+#include "clusters.glsl"
+#include "frame.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(std430, set = 0, binding = 7) readonly buffer ClusterBoundsList
+{
+	vec4 clusterBounds[];
+};
+
+layout(std430, set = 0, binding = 8) writeonly buffer ClusterGrid
+{
+	uvec2 clusterLights[];
+};
+
+layout(std430, set = 0, binding = 9) buffer LightIndexList
+{
+	uint lightIndexCount;
+	uint lightIndices[];
+};
+
+bool Reaches(Light light, mat3 view, ClusterBounds bounds)
+{
+	return LightReachesCluster(
+	    view * light.positionRange.xyz, light.positionRange.w, light.directionType.w == kLightSpot,
+	    view * light.directionType.xyz, light.cone.z, light.cone.w, bounds, 0.0);
+}
+
+void main()
+{
+	uint cluster = gl_GlobalInvocationID.x;
+	if (cluster >= kClusterCount)
+		return;
+	ClusterBounds bounds;
+	bounds.minimum = clusterBounds[2u * cluster].xyz;
+	bounds.maximum = clusterBounds[2u * cluster + 1u].xyz;
+	// The view matrix is a rotation: render space and view space share the camera as their origin.
+	mat3 view = mat3(frame.view);
+
+	uint count = 0u;
+	for (uint light = 0u; light < frame.counts.x; ++light)
+		if (Reaches(lights[light], view, bounds))
+			++count;
+
+	uint offset = count > 0u ? atomicAdd(lightIndexCount, count) : 0u;
+	uint capacity = uint(lightIndices.length());
+	uint kept = offset < capacity ? min(count, capacity - offset) : 0u;
+	uint written = 0u;
+	for (uint light = 0u; light < frame.counts.x && written < kept; ++light)
+		if (Reaches(lights[light], view, bounds))
+			lightIndices[offset + written++] = light;
+	clusterLights[cluster] = uvec2(offset, kept);
+}
