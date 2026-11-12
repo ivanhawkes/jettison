@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+# Rebuilds the debug floor grid, 2048x2048 and tileable: a 64-pixel checker with lines every 8, 128,
+# 256, 512 and 1024 pixels, and markers along the 1024 lines. Writes the PNG to the current
+# directory; the KTX 2 file is encoded from it with KTX-Software's ktx tool (in devenv). UASTC keeps
+# the one-pixel lines that ETC1S would smear, and the grid repeats so well that RDO and zstd take
+# it to 9 KB, decoding at 63 dB PSNR against the PNG:
+#
+#   python3 scripts/make-grid.py
+#   ktx create --format R8G8B8_SRGB --assign-tf srgb --encode uastc --uastc-quality 2 \
+#       --uastc-rdo --zstd 19 --generate-mipmap floor-grid-color.png \
+#       assets/textures/debug/floor-grid/floor-grid-color.ktx2
 import numpy as np
 from PIL import Image
 
@@ -28,4 +38,4 @@ for a in range(0,N,1024):
         for (cx,cy) in [(a,b),(b,a)]:
             dx=(x-cx+N//2)%N-N//2; dy=(y-cy+N//2)%N-N//2
             img[(abs(dx)+abs(dy))<=r]=0
-Image.fromarray(img).save('../assets/textures/debug/floor-grid/floor-grid-color.png',optimize=True)
+Image.fromarray(img).save('floor-grid-color.png',optimize=True)
