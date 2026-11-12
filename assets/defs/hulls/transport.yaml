@@ -1,0 +1,9 @@
+# A transport, the M pads' ship: up to 60 x 30 x 15 m, and this one is nearly that. A hull of the
+# docks (Dock.HullDefinition): metres, its nose along -Z.
+version: 1
+displayName: Transport
+length: 56
+beam: 28
+height: 14
+pad: M
+hatch: [0, -7, 12]

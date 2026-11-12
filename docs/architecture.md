@@ -50,6 +50,7 @@ jettison/
     │   ├── ui/                 RmlUi integration and data binding, drawn into render's overlay
     │   │   └── imgui/          ImGui backend, console, dev tools
     │   ├── ai/                 utility AI, behaviour trees, graph pathfinding, steering
+    │   ├── dock/               stations' pads and the ships on them: given, queued, flown in, clamped
     │   ├── script/             Wasm host
     │   └── app/                Application shell, argument parsing, smoke sequence
     ├── tools/
@@ -126,7 +127,7 @@ flowchart TB
         sim; spatial; input
     end
     subgraph T4[Presentation and simulation services]
-        render; physics; audio; ui; ai; script
+        render; physics; audio; ui; ai; dock; script
     end
     subgraph T5[Shell]
         app
@@ -146,11 +147,12 @@ world, and nothing in `sim` sees the scene. `render` depends on
 `scene` from the tier above, and reads it; the scene names no device. The Presentation tier's listed
 sibling edges are `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, a plain draw list in
 render's public headers, and decodes a document's images with render's CPU texture decoder; it
-includes no Vulkan header and the renderer no RmlUi one. The other is `ai`'s on `physics` (9a): a
+includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9a): a
 ship coming out of a lane is put in a physics frame and stopped in it, and steering (9b) flies a
-ship through its flight controls and keeps it clear of the bodies' shapes.
+ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
+`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there.
 
-The rule that matters most: **`sim`, `celestial`, `spatial`, `physics` and `ai` never include
+The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `ai` and `dock` never include
 `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
 from it, and then it is no longer deterministic or testable without a GPU.
 
@@ -309,10 +311,8 @@ removes it.
 
 A **sensor** is a body marked `sensor` (`Physics::Body`): it meets nothing, reports the dynamic
 bodies that enter and leave it as contacts, and never sleeps, so it still sees a ship that has come
-to rest inside it. A docking zone is one, kinematic and on rails at its place on the station
-(`Physics::OnRails::offset`), in the station's frame. What docking means is a game's: the shell
-docks a ship that is in a station's port and moving under 2 m/s relative to it (`app/src/Docking.h`,
-the simulation system `shell.docking`), and raises `ShipDocked` and `ShipUndocked` for presentation.
+to rest inside it: a gate's ring, or a zone a game's rule watches. Docking is not done with one: a
+ship lands on a pad its station gives it and is clamped there ([docks](#docks)).
 
 **Casts** (`CastRay`, `CastShape`) find the first body along a ray or a convex shape swept along a
 direction, across every frame of a system, each cast in the frame's own coordinates; sensors and the
@@ -368,6 +368,50 @@ is an obstacle, the sphere about its origin that holds its shape
 a ship aside from the first obstacle it would pass within its clearance of, and never lets it close
 on any faster than it can stop from before the clearance; that limit is what keeps it off a hull,
 and the turn what takes it round.
+
+A station's sphere holds its pads, so a ship flown to one cannot keep clear of the station by its
+sphere. A destination kept clear **by its hull** (`Destination::byHull`, 9c) leaves its entity out of
+the obstacles, and every body on the same celestial body's rails with it (the station, and the ships
+clamped to it), and sweeps the ship's own shape along its way instead
+(`PhysicsWorld::CastShape`), closing on what the sweep meets no faster than it can stop from before
+its clearance; what it meets beyond its target, the deck under a pad, is not in its way. A
+destination may also give the ship a **facing** in its entity's axes, which it turns to about all
+three axes, rolled too, rather than turning its nose to its velocity: a pad's heading as it lands.
+
+### Docks
+
+A station's pads are the simulation's (`dock/Docks.h`, 9c, catalogue entry 31,
+[decided](roadmap.md#decided)): who holds a pad is authoritative state that every player is to see
+the same, so it is given by commands in their order, saved, and nothing in the module assumes one
+player. Its data are definitions: a hull (`defs/hulls`, `Dock::HullDefinition`) has a size, the
+class of pad it lands on and its cargo hatch, and collides as the box of its size; a station's
+layout (`defs/stations`, `Dock::StationLayout`), which a station names in its system's file
+(`Celestial::Body::layout`), has its decks and piers as boxes, which the station collides as, its
+pads (class, place, normal, heading, and whether it is for display) and its cargo bays. A layout is
+checked as it is defined: every pad all on a deck or a pier, none overlapping another, and nothing of
+the station over any, out to the sphere that holds it all.
+
+`Docks::MakeStation` builds a station: its kinematic body on its celestial body's rails, in its
+frame, and an entity for each pad on the same rails at its place, free, reserved for a ship until
+a step, or holding one. `RequestPad` gives a ship the smallest free pad its hull fits, the lowest
+numbered of those, or a place at the back of the station's queue, and the queue is served from the
+front, each ship the smallest free pad it fits, as pads come free; a reservation not landed on in
+time lapses. `ReleasePad` gives a pad or a place up, or lets a docked ship go. Both carry their
+sender (`Sim::Controller`, a player's slot or the AI), and a ship's `Sim::ControlledBy` refuses a
+command from anyone else; a refusal says why, as an event, among the given, queued, lapsed, landed,
+left and released.
+
+A ship the docks fly in (`RequestPad::fly`) is steered in two legs: a course round the station's
+sphere (`Ai::Waypoints`) to the point above its pad, outside the sphere along the pad's normal; then
+down the normal, kept clear of the station by its hull and turned to the pad's heading, slowing to
+stop a quarter of a metre above its resting height. The system `dock`, after physics, clamps a ship
+within a clamp's reach of its own pad (2 m across it, a metre above or below, its top within 10° of
+the normal and its nose within 15° of the heading, under half a metre a second), whether the docks
+flew it or its pilot did: its body becomes kinematic, on the station's rails at its place on the pad,
+so it is held in the station's frame and out of flight. A pad clamps only the ship it was given to.
+Undocking makes the ship dynamic again and lifts it the same way back to the point above, where it
+gives the pad up. Highport's shuttle from 10 km on its far side is over its pad in 111 s and clamped
+24 s later, touching nothing on the way.
 
 ### Persistence
 
@@ -776,29 +820,29 @@ proves it headlessly. What exists:
   the console's `jump <system>` and the Scene panel jump along a lane, or straight to any system.
   The cameras frame the jump point arrived at. A jump along a lane takes the ship, when it is in the
   system shown, along the simulation's lane (9a): it comes out of the far gate at rest 5 km from the
-  station there, is flown again if it was flown in, and is bound to that station, made from what the
-  scene draws as the system is first shown with the ship in it, to dock at and trade with. The
+  station there, is flown again if it was flown in, and is bound to that station, which the docks
+  built to its layout at the start, to dock at and trade with. The
   console's `route <system>` logs the way from the ship to a system, its jumps and its time at the
   ship's 150 m/s across each system.
-- **Piloting** (7b). The shell plays the game's part: a ship holds station off the dock of the first
-  station of the system it opens on, both in the station's frame, the station's collision mesh made
-  from the shapes the scene draws it with (1,812 triangles for Highport). P flies it and lets it go,
+- **Piloting** (7b). The shell plays the game's part: a ship docked on a pad of the first station of
+  the system it opens on, both in the station's frame. P flies it and lets it go,
   V switches between the chase and cockpit cameras, Z the flight assist; the keyboard, the first
   gamepad and joystick 1 (a HOTAS) are bound by default, and a HOTAS's throttle on a joystick of its
-  own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station. The station has a
-  docking port (7c), a sensor 40 m on a side before its dock, and the ship docks in it below 2 m/s
-  and undocks as it leaves, which the overlay and the log say.
+  own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station, and
+  whether the ship is docked. The console's `undock` lifts it clear of its pad, and `dock` asks the
+  station for a pad and flies it onto the one given, or, with `dock manual`, leaves the landing to
+  the pilot, and the clamps take it once it is on the pad (9c).
 - **Picking** (7c). A left click on the scene, not on a window over it, picks what is under the
   cursor, through a `Physics::Pick` the next step answers; the hit is marked where it was, with the
   surface's normal, and named in an overlay, and the log says what was picked and how far off.
 - **Saves and settings** (8a). F5 saves to `quicksave` and F9 loads it; the console's `save
   [name]`, `load [name]` and `saves` do the same by name and list them ([persistence](#persistence)).
-  A save holds the world and the shell's own section, which entities are its ship, station and port.
+  A save holds the world and the shell's own section, which entities are its ship and station.
   The console's `bind <context> <action> [bindings...]` rebinds an action, or says what it is bound
   to, and `unbind` puts it back; either writes the settings file, so a rebinding survives a restart.
 - **Sound** (8c). Music plays from the start (the console's `music` stops and starts it), the
-  station the ship is bound to hums as the camera nears it, the dock's clamps sound from the station
-  as the ship docks and undocks, and the market screen's answers sound on the UI bus
+  station the ship is bound to hums as the camera nears it, the clamps sound from the station as the
+  ship lands on its pad and is let go, and the market screen's answers sound on the UI bus
   ([audio](#audio)). The console's `volume [bus] [volume]` sets a bus's volume and saves it with the
   settings, or lists them.
 - **Smoke sequence**. `SmokeSequence` is the render test's twelve stages (resize, resize,
@@ -901,3 +945,9 @@ proves it headlessly. What exists:
   (`spatial/SystemIndices.h`), all attached by the shell after physics, whose console's `traffic`
   sends shuttles to hold station about the station. Utility AI and behaviour trees are still stubs,
   for 9f.
+- **Docks** (`engine/dock`, 9c). Hulls and station layouts as definitions, stations built to them
+  with their pads, pads given, queued and lapsing, and the approach and the clamp
+  ([as above](#docks)). The shell builds every station of the galaxy that names a layout at the
+  start, Ostra Highport with twelve L pads and Corva Refinery with four M and two S, parks three
+  ships at each, and draws each layout plainly, its decks and piers as plated boxes and its pads as
+  darker plates on them, and a parked ship as a box of its hull (`app/src/Stations.h`).

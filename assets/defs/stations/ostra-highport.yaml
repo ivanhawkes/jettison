@@ -1,0 +1,37 @@
+# Ostra Highport, the farming world's trade hub (docs/sample-game.md): twelve L pads for the largest
+# transports on four piers of three, reaching out from a hub along the station's +X, -X, +Z and -Z,
+# 1.5 km across, within the 2 km cluster range from its centre (docs/roadmap.md, "Decided"). A
+# station layout of the docks (Dock.StationLayout), in the station's axes, metres.
+#
+# The hub is 200 m square and 60 m deep. Each pier is 660 m long, 120 m wide and 20 m deep, its top
+# 10 m above the station's middle; its three 80 x 180 m pads lie along it, 30 m apart and 20 m in
+# from its sides, their noses pointing out along it, so the largest transports on two of them are
+# 70 m apart end to end. A cargo bay's door is in the hub's wall at each pier's root, over the deck.
+version: 1
+displayName: Ostra Highport
+reservationSeconds: 300
+decks:
+  - {centre: [0, 0, 0], size: [200, 60, 200]}
+piers:
+  - {centre: [430, 0, 0], size: [660, 20, 120]}
+  - {centre: [-430, 0, 0], size: [660, 20, 120]}
+  - {centre: [0, 0, 430], size: [120, 20, 660]}
+  - {centre: [0, 0, -430], size: [120, 20, 660]}
+pads:
+  - {class: L, position: [220, 10, 0], heading: [1, 0, 0]}
+  - {class: L, position: [430, 10, 0], heading: [1, 0, 0]}
+  - {class: L, position: [640, 10, 0], heading: [1, 0, 0]}
+  - {class: L, position: [-220, 10, 0], heading: [-1, 0, 0]}
+  - {class: L, position: [-430, 10, 0], heading: [-1, 0, 0]}
+  - {class: L, position: [-640, 10, 0], heading: [-1, 0, 0]}
+  - {class: L, position: [0, 10, 220], heading: [0, 0, 1]}
+  - {class: L, position: [0, 10, 430], heading: [0, 0, 1]}
+  - {class: L, position: [0, 10, 640], heading: [0, 0, 1]}
+  - {class: L, position: [0, 10, -220], heading: [0, 0, -1]}
+  - {class: L, position: [0, 10, -430], heading: [0, 0, -1]}
+  - {class: L, position: [0, 10, -640], heading: [0, 0, -1]}
+bays:
+  - {position: [100, 20, 0], normal: [1, 0, 0]}
+  - {position: [-100, 20, 0], normal: [-1, 0, 0]}
+  - {position: [0, 20, 100], normal: [0, 0, 1]}
+  - {position: [0, 20, -100], normal: [0, 0, -1]}

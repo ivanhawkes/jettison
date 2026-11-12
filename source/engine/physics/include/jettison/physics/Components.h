@@ -47,10 +47,10 @@ struct Body
 	// their relative motion, so a ship and a station both moving at a planet's orbital speed are
 	// swept by the little that separates them. It costs a cast a step, so cargo goes without.
 	bool continuous{false};
-	// A body that meets nothing and reports what enters it (PhysicsWorld::Contacts): a docking zone
-	// before a station's dock. It detects dynamic bodies, never static or kinematic ones, and pushes
-	// none. A sensor never sleeps, so a ship come to rest inside it is still reported inside; it is
-	// placed rather than swept, so it is not continuous, and a body fast enough to cross it between
+	// A body that meets nothing and reports what enters it (PhysicsWorld::Contacts): a gate's ring, or
+	// a zone a game's rule watches. It detects dynamic bodies, never static or kinematic ones, and
+	// pushes none. A sensor never sleeps, so a ship come to rest inside it is still reported inside; it
+	// is placed rather than swept, so it is not continuous, and a body fast enough to cross it between
 	// two steps is not seen.
 	bool sensor{false};
 
@@ -81,9 +81,9 @@ struct Velocity
 // system has to be defined in the physics world (PhysicsWorld::DefineStarSystem); an entity on no
 // system is left where it is. Registered with Reflect, every field Saved, by RegisterTypes.
 //
-// The offset puts it at a place on the body rather than at its centre, in the body's own axes, so
-// it turns with the body: a docking zone off a station's dock, which is an entity of its own since a
-// sensor is a body of its own.
+// The offset puts it at a place on the body rather than at its centre, in the body's own axes, and
+// the turn turns it there, so it turns with the body: a pad on a station's deck, and a ship clamped
+// to the pad (Dock), which is held where the pad is at every step.
 struct OnRails
 {
 	std::string body;

@@ -14,7 +14,9 @@ How (from the project's CLAUDE.md, which is the authority if it differs):
   `cmake --build --preset clang-headless` if it is missing or stale.
 - Display: `Xvfb :97 -screen 0 1920x1080x24`. Check `pgrep -a Xvfb` and `pgrep -a render_test`
   first; a killed script may carry on. Leaving `devenv shell` kills what it started, so put Xvfb,
-  the app and the captures in one script and run it as a background task.
+  the app and the captures in one script and run it as a background task. Its completion
+  notification is the wait: never poll for it with `until ! pgrep -f "<script>"`, which matches the
+  polling shell's own command line and never ends. If you must wait in a script, `wait $PID`.
 - `VK_ICD_FILENAMES` points at lavapipe's `lvp_icd.x86_64.json`; `scripts/smoke-test.sh` shows
   how to find it.
 - Tools come from `nix shell nixpkgs#xorg.xwd nixpkgs#imagemagick nixpkgs#xdotool`.

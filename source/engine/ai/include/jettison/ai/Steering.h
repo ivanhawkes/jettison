@@ -1,6 +1,7 @@
 #pragma once
 
 #include <entt/entt.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 
 #include <cstdint>
@@ -18,7 +19,8 @@ class PhysicsWorld;
 namespace Jettison::Sim
 {
 class SimWorld;
-}
+struct Transform;
+} // namespace Jettison::Sim
 
 namespace Jettison::Spatial
 {
@@ -121,6 +123,18 @@ struct Destination
 	float passRadius{40.0f};
 	float arrivalRadius{5.0f};
 	float arrivalSpeed{1.0f};
+	// The entity is kept clear of by its hull rather than its sphere: it, and every body on the
+	// rails of the same celestial body (what is fixed to a station: the station, and the ships
+	// clamped to it), are left out of the obstacles, and the ship's own shape is swept along its way
+	// instead (Physics::PhysicsWorld::CastShape), closing on what the sweep meets no faster than it
+	// can stop from before its clearance. A station's sphere holds every pad on it, so a ship
+	// flown to one flies inside the sphere; what the sweep meets at the end of the way down is the
+	// deck it lands on, short of which the destination is, and that is not held off.
+	bool byHull{false};
+	// The way the ship turns to, in the entity's axes (the system's, without one), rather than to
+	// the way it is going: a pad's, as it lands on it, rolled too.
+	bool face{false};
+	glm::dquat facing{1.0, 0.0, 0.0, 0.0};
 	// The waypoint it is flying to, or the waypoints' count once it is past them.
 	std::uint32_t next{0};
 	bool arrived{false};
@@ -163,12 +177,15 @@ struct DestinationLost
 //   2. What is near, from its system's spatial index: every body in its frame within the distance
 //      two ships at its speed close in the lookahead, so one faster than it is seen later, widened
 //      by the largest hull (Physics::PhysicsWorld::LargestShapeRadius) and the larger of its
-//      clearance and separation. Bodies but sensors are obstacles, each the
-//      sphere of its shape's ShapeRadius; the dynamic bodies among them, ships, are its neighbours.
-//   3. Its velocity: Seek to a waypoint, Arrive at the destination, then Avoid and Separate.
+//      clearance and separation. Bodies but sensors are obstacles, each the sphere of its shape's
+//      ShapeRadius, but for what a destination kept clear of by its hull leaves out (byHull); the
+//      dynamic bodies among them, ships, are its neighbours.
+//   3. Its velocity: Seek to a waypoint, Arrive at the destination, then Avoid and Separate; and,
+//      kept clear by its hull, slowed to stop short of what its shape swept along the way meets.
 //   4. Its controls, with assist on and taken against its frame: the velocity in its own axes as
 //      a share of its maxSpeed, and a turn towards it, nose (-Z) first, at the rate it can still
-//      stop the turn from at half its angular acceleration, rolling none.
+//      stop the turn from at half its angular acceleration, rolling none; or, past its waypoints
+//      to a destination with a facing, a turn to the facing, about all three axes.
 // A ship with no destination is left alone. It brakes at half its weakest thruster, which leaves
 // the rest for turning and avoiding; its speed is the destination's, or its thrusters' maxSpeed.
 //
@@ -193,6 +210,12 @@ class Steering
 
 	void Step(Sim::SimWorld &world);
 	double Radius(std::string_view shape);
+	// The velocity, slowed along its way to stop the clearance short of what the ship's hull, swept
+	// along it, would meet before its target (Destination::byHull).
+	glm::dvec3 HullLimited(
+	    std::uint64_t system, entt::entity ship, std::string_view shape, const Sim::Transform &at,
+	    const Agent &agent, const glm::dvec3 &velocity, const glm::dvec3 &target,
+	    double clearance) const;
 
 	const Physics::PhysicsWorld &m_physics;
 	const Spatial::SystemIndices &m_indices;

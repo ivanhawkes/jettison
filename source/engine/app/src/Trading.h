@@ -86,8 +86,8 @@ struct Market
 {
 	std::string station;
 	std::uint64_t system{0};
-	// The station's simulation entity, whose docking port a ship trades through; null for a station
-	// that is not in the world, where no ship can dock.
+	// The station's simulation entity, a ship clamped to one of whose pads trades here (Dock); null
+	// for a station that is not in the world, where no ship can dock.
 	entt::entity stationEntity{entt::null};
 	std::uint32_t feeBps{0};
 	std::vector<MarketGood> goods;

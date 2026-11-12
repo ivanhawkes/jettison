@@ -12,7 +12,7 @@ in `docs/` are the record; this file only says where to look and how to work her
 - **The design:** [architecture](docs/architecture.md) (layout, module graph, simulation and
   presentation split, frames, the render frame), [scope](docs/scope.md) (what is in and out).
 - **The rules:** [coding standards](docs/coding-standards.md). The most important: the
-  simulation modules (`sim`, `celestial`, `spatial`, `physics`, `ai`, and `math`) are
+  simulation modules (`sim`, `celestial`, `spatial`, `physics`, `ai`, `dock`, and `math`) are
   deterministic (no wall clock, the engine's `Random`, no unordered iteration deciding an outcome,
   integer currency, `-ffp-contract=off`); report through `Log.h`, never `std::cerr` or spdlog;
   `m_` and `m_p` members, PascalCase functions.

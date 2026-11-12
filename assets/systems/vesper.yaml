@@ -27,8 +27,11 @@ bodies:
       axialTilt: 0.05
   - name: Corva Refinery
     kind: Station
+    # Built to its layout (defs/stations/corva-refinery.yaml), 600 m across, whose sphere its
+    # radius is.
+    layout: corva-refinery
     parent: Corva
-    radius: 80
+    radius: 303
     orbit:
       semiMajorAxis: 1.4e8
       eccentricity: 0.001

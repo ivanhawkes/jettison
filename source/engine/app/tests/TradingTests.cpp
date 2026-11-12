@@ -1,7 +1,7 @@
-#include "Docking.h"
 #include "MarketScreen.h"
 #include "Trading.h"
 
+#include <jettison/dock/Docks.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
@@ -29,13 +29,13 @@ MarketGood Copper(std::int64_t stock)
 	return good;
 }
 
-// A world with a market at a station and a ship docked at its port, as the shell makes them, with
-// none of physics: the trade reads only who is docked where.
+// A world with a market at a station and a ship docked on one of its pads, as the docks leave them,
+// with none of physics: the trade reads only who is docked where.
 struct Harbour
 {
 	Sim::SimWorld world{kStep, 7};
 	entt::entity station{entt::null};
-	entt::entity port{entt::null};
+	entt::entity pad{entt::null};
 	entt::entity market{entt::null};
 	entt::entity ship{entt::null};
 
@@ -45,8 +45,7 @@ struct Harbour
 		RegisterTrading(world);
 		entt::registry &registry = world.Registry();
 		station = registry.create();
-		port = registry.create();
-		registry.emplace<DockingPort>(port, station);
+		pad = registry.create();
 		market = registry.create();
 		registry.emplace<Market>(
 		    market, Market{"Ostra Highport", Sim::SystemId("Halcyon"), station, 150, {Copper(6), {}}});
@@ -55,7 +54,7 @@ struct Harbour
 		ship = registry.create();
 		registry.emplace<Hold>(ship, Hold{20, {}});
 		registry.emplace<Purse>(ship, Purse{250000});
-		registry.emplace<Docked>(ship, port);
+		registry.emplace<Dock::Docking>(ship, Dock::Docking{station, pad, Dock::Stage::Docked, false});
 	}
 
 	void Push(const std::string &good, std::int64_t crates)
@@ -150,15 +149,14 @@ TEST_CASE("Trading: a trade that cannot be made is refused, saying why, and chan
 	CHECK(registry.get<Purse>(harbour.ship).credits == 250000);
 	CHECK(harbour.Good(0).stock == 6);
 
-	// Away from the dock, or docked at another station, there is no trading.
-	registry.remove<Docked>(harbour.ship);
+	// Coming down onto the pad, not yet clamped, or docked at another station, there is no trading.
+	registry.get<Dock::Docking>(harbour.ship).stage = Dock::Stage::Descending;
 	harbour.Push("beer", 1);
 	harbour.world.Step();
 	CHECK(harbour.Refusals() == std::vector<std::string>{"the ship is not docked at Ostra Highport"});
 	const entt::entity elsewhere = registry.create();
-	const entt::entity otherPort = registry.create();
-	registry.emplace<DockingPort>(otherPort, elsewhere);
-	registry.emplace<Docked>(harbour.ship, otherPort);
+	registry.replace<Dock::Docking>(
+	    harbour.ship, Dock::Docking{elsewhere, harbour.pad, Dock::Stage::Docked, false});
 	harbour.Push("beer", 1);
 	harbour.world.Step();
 	CHECK(harbour.Refusals() == std::vector<std::string>{"the ship is not docked at Ostra Highport"});

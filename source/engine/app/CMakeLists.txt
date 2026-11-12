@@ -10,6 +10,7 @@ jettison_add_module(app
 		celestial
 		core
 		devtools
+		dock
 		ecs
 		input
 		jobs
@@ -32,8 +33,6 @@ jettison_add_module(app
 		src/AppArguments.cpp
 		src/Application.cpp
 		src/Application.h
-		src/Docking.cpp
-		src/Docking.h
 		src/GlfwInput.cpp
 		src/GlfwInput.h
 		src/MarketScreen.cpp
@@ -46,15 +45,17 @@ jettison_add_module(app
 		src/Settings.cpp
 		src/Settings.h
 		src/SmokeSequence.cpp
+		src/Stations.cpp
+		src/Stations.h
 		src/Trading.cpp
 		src/Trading.h
 	TESTS
-		tests/DockingTests.cpp
 		tests/LargeWorldTests.cpp
 		tests/PilotingTests.cpp
 		tests/SavesTests.cpp
 		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp
+		tests/StationsTests.cpp
 		tests/TradingTests.cpp
 	PRIVATE_LIBRARIES
 		glfw

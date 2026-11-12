@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -64,6 +66,10 @@ class SystemIndices;
 namespace Jettison::Physics
 {
 class PhysicsWorld;
+}
+namespace Jettison::Dock
+{
+class Docks;
 }
 
 namespace Jettison::App
@@ -195,22 +201,38 @@ class Application
 	void SyncContexts();
 
 	// Piloting (docs/architecture.md, "Physics"). The shell is the engine with no game, so it plays
-	// the game's part: a ship holding station beside the first station of the system it opens on,
-	// which P flies and V looks at from behind or from its seat, and which a jump along a lane takes
-	// with it (Ai::LaneTravel) when it is in the system shown.
+	// the game's part: a ship docked on a pad of the first station of the system it opens on, which
+	// the console's undock lifts clear and dock flies back in, which P flies and V looks at from
+	// behind or from its seat, and which a jump along a lane takes with it (Ai::LaneTravel) when it
+	// is in the system shown.
 	//
 	// Every system the galaxy has is defined in physics, for rails and gravity, and in lane travel,
 	// for where a ship comes out; the scene's own in physics too.
 	void DefineStarSystems();
 	// The ship bound to the first station of the system shown, the one it docks at and trades with:
-	// the station's body, kinematic on its rails with a collision mesh from what the scene draws it
-	// with (MakeCollisionMesh), and its docking port, as simulation entities, made the first time the
-	// system is shown with the ship in it and found again in the world after that. False for a system
-	// with no station, or one drawn with no shape.
+	// the station the docks built to its layout (OpenStations); or, for a station of no layout, its
+	// body, kinematic on its rails with a collision mesh from what the scene draws it with
+	// (MakeCollisionMesh), made the first time the system is shown with the ship in it and found
+	// again in the world after that, which has no pads. False for a system with no station, or one
+	// of no layout drawn with no shape.
 	bool BindStation();
-	// The station bound, and the ship beside it in the station's frame. Once a run: a reload of the
-	// scene leaves the simulation as it was.
+	// Every station of the galaxy built to a layout, with the sample's ships parked on it, and the
+	// markets bound to them; once a run, as the markets are, and a load brings its own.
+	void OpenStations();
+	// The station bound, and the ship docked on its lowest numbered free pad, or, at a station of no
+	// pads, holding off it in its frame. Once a run: a reload of the scene leaves the simulation as
+	// it was.
 	void SpawnShip();
+	// The console's dock and undock: a pad asked of the bound station for the ship, flown in unless
+	// the pilot is to land it, and the pad given up, which lifts it clear if it is docked.
+	void RequestPad(bool fly);
+	void ReleasePad();
+	// The layouts of the stations of the system shown drawn under their entities in the scene
+	// (DrawLayout), as each system scene is built.
+	void DrawStations();
+	// The ships the proxy factory draws as boxes of their hulls: those with a hull that are neither
+	// the shell's ship nor its traffic, the parked ones; found again in the world a save loads.
+	void FindHullProxies();
 	// The console's traffic: that many shuttles flown by steering (Ai::Steering) from 1 to 2 km about
 	// the bound station to places on a ring about it, clear of its hull and of each other, in the
 	// station's axes so the ring turns with it; or, for none, every one there is taken out of the
@@ -346,9 +368,7 @@ class Application
 	// in its system; null until SpawnShip finds a station to put them at.
 	entt::entity m_ship{entt::null};
 	entt::entity m_station{entt::null};
-	// The station's docking port, a sensor before its dock (Docking.h), and whether the ship is
-	// docked at it, as the last event said.
-	entt::entity m_port{entt::null};
+	// Whether the ship is docked at it, as the last event said.
 	bool m_docked{false};
 	// The system the ship is in, none while it is on a lane; and the system and body of the station
 	// it is bound to, which after a jump is a system away until the ship's arrival is shown.
@@ -500,6 +520,10 @@ class Application
 	Ai::LaneTravel *m_pLanes{nullptr};
 	Spatial::SystemIndices *m_pIndices{nullptr};
 	Ai::Steering *m_pSteering{nullptr};
+	// The stations' pads and the ships on them, which the world holds too.
+	Dock::Docks *m_pDocks{nullptr};
+	// The ships parked on them, by entity, and the size of each one's hull, beam, height and length.
+	std::map<entt::entity, glm::vec3> m_hullProxies;
 	// The traffic spawned (SpawnTraffic), in entity order, which the proxy factory draws as
 	// shuttles; found again in the world a save loads, as its steered ships.
 	std::vector<entt::entity> m_traffic;

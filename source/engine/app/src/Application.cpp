@@ -28,6 +28,7 @@
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/celestial/StarSystem.h>
+#include <jettison/dock/Docks.h>
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/math/Random.h>
 #include <jettison/physics/Components.h>
@@ -42,12 +43,13 @@
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
 #include <jettison/scene/SystemScene.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/spatial/SystemIndices.h>
 
-#include "Docking.h"
 #include "Saves.h"
+#include "Stations.h"
 #include "Trading.h"
 
 namespace Jettison::App
@@ -68,37 +70,18 @@ constexpr std::uint32_t kBenchmarkWarmUp = 60;
 constexpr glm::vec3 kJumpColor{0.0f};
 constexpr Core::Category kShell{"shell"};
 
-// The shell's ship: a shuttle about ten metres long, as its proxy draws it, whose collision box is
-// the proxy's bounds. Held at 150 m off the station's dock, nose towards it.
-constexpr std::string_view kShipShape = "ships/shuttle";
-constexpr glm::vec3 kShipHalfExtents{3.2f, 0.9f, 4.9f};
+// The shell's ship: a shuttle about ten metres long, as its proxy draws it, whose hull
+// (defs/hulls/shuttle.yaml) is the proxy's bounds. At a station of no pads it holds 150 m off the
+// station's hull, nose towards it. Its pilot plays in the first slot, and its commands say so.
+constexpr std::string_view kShipHull = "shuttle";
 constexpr float kShipMass = 20000.0f;
-constexpr glm::dvec3 kShipStation{0.0, 0.0, -150.0};
+constexpr double kShipStandOff = 150.0;
+constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
 
 // The most traffic the console sends to a station, and how fast it flies: a shuttle's full 150 m/s
 // crosses the ring's 2 km in a quarter of a minute, too fast to watch a ship give way.
 constexpr std::size_t kMostTraffic = 16;
 constexpr float kTrafficSpeed = 80.0f;
-
-// The shuttle's hull, the ship's and the traffic's.
-void DefineShuttle(Physics::PhysicsWorld &physics)
-{
-	if (physics.HasShape(kShipShape))
-		return;
-	Physics::ShapeDefinition hull;
-	hull.kind = Physics::ShapeKind::Box;
-	hull.halfExtents = kShipHalfExtents;
-	physics.DefineShape(std::string{kShipShape}, hull);
-}
-
-Physics::Body ShuttleBody()
-{
-	Physics::Body body{Physics::BodyKind::Dynamic, std::string{kShipShape}, kShipMass};
-	body.friction = 0.4f;
-	body.restitution = 0.2f;
-	body.continuous = true;
-	return body;
-}
 
 // A place on the traffic's ring about a station, in its axes: about its Z, the axis its dock is
 // at the end of, so the ship holding off the dock is clear of every one.
@@ -107,10 +90,6 @@ glm::dvec3 TrafficPlace(std::size_t place, double ring)
 	const double angle = glm::two_pi<double>() * static_cast<double>(place) / kMostTraffic;
 	return {ring * std::cos(angle), ring * std::sin(angle), 0.0};
 }
-// The docking port: a box 40 m on a side before the dock at the hull's -Z end, reaching 2 m into
-// the hull past the dock's face, so a ship held against the dock is in it.
-constexpr glm::vec3 kPortHalfExtents{20.0f, 20.0f, 20.0f};
-constexpr double kPortOverlap = 2.0;
 // How far a pick reaches: past any station a ship is flown by.
 constexpr double kPickDistance = 50000.0;
 // How long the camera eases into and out of the ship's rigs, and between them.
@@ -409,6 +388,15 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 			    m_pAudio->StopMusic();
 	    });
 	m_console.RegisterCommand(
+	    "dock",
+	    "Asks the ship's station for a pad and flies the ship onto it, or leaves the landing to the "
+	    "pilot: dock [manual]",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    { RequestPad(arguments.empty() || arguments[0] != "manual"); });
+	m_console.RegisterCommand(
+	    "undock", "Lifts the ship clear of its pad and gives the pad up, or gives up one not landed on",
+	    [this](DevTools::Console &, std::span<const std::string>) { ReleasePad(); });
+	m_console.RegisterCommand(
 	    "market", "Shows or hides the market screen: market [on|off]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { ShowMarket(arguments.empty() ? !m_showMarket : arguments[0] != "off"); });
@@ -420,7 +408,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_pLanes = &Ai::LaneTravel::Attach(m_sim);
 	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
 	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
-	RegisterDocking(m_sim, *m_pPhysics);
+	m_pDocks = &Dock::Docks::Attach(m_sim, *m_pPhysics);
+	m_sim.RegisterComponent<Sim::ControlledBy>();
 	RegisterTrading(m_sim);
 	RegisterMarketScreenTypes();
 	RegisterSavesScreenTypes();
@@ -838,6 +827,11 @@ void Application::InitResources()
 	Animation::RegisterRigLoader(*m_pResources);
 	m_definitions.emplace(m_assets);
 	LoadTradeDefinitions(*m_definitions);
+	m_definitions->Load<Dock::HullDefinition>(
+	    Dock::kHullDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
+	m_definitions->Load<Dock::StationLayout>(
+	    Dock::kStationDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
+	m_pDocks->Define(*m_definitions);
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterJumpLoaders(*m_pResources);
 	m_jump.emplace(*m_pResources, [this](Scene::JumpArrival &arrival) { ShowArrival(arrival); });
@@ -850,13 +844,7 @@ void Application::InitScene()
 	InitGalaxy();
 	DefineStarSystems();
 	LoadScene();
-	// The sample game's markets, once a run, as the ship is: a load replaces them with the save's.
-	if (m_sim.Registry().view<Market>().empty())
-	{
-		const std::vector<entt::entity> markets = OpenMarkets(m_sim, *m_definitions);
-		Core::Log(Core::Severity::Info, kShell, "{} markets open", markets.size());
-		m_simStepper.Resync();
-	}
+	OpenStations();
 	SpawnShip();
 	if (!m_arguments.saveScenePath.empty())
 		m_pScene->Save(m_arguments.saveScenePath);
@@ -1501,6 +1489,7 @@ void Application::LoadScene()
 		if (!m_pPhysics->HasStarSystem(Sim::SystemId(m_systemScene->System().name)))
 			m_pPhysics->DefineStarSystem(m_systemScene->System());
 		SetProxyFactory();
+		DrawStations();
 	}
 	FindShownSystem();
 	m_simStepper.Resync();
@@ -1671,6 +1660,7 @@ void Application::ShowArrival(Scene::JumpArrival &arrival)
 		m_pScene->LoadSystem(arrival.starSystemPath);
 	m_systemScene.emplace(*m_pScene, std::move(arrival.starSystem));
 	SetProxyFactory();
+	DrawStations();
 	// A jump along a lane took the ship with it (TakeShipAlong), and it comes out of the gate the
 	// cameras frame; one straight to a system leaves it behind.
 	if (m_piloting && !CanPilot())
@@ -1813,7 +1803,7 @@ bool Application::SaveTo(std::string_view name)
 		save.info.system = m_systemScene ? m_systemScene->System().name : std::string{};
 		save.AddSection(
 		    std::string{kShellSection},
-		    WriteShellState({m_ship, m_station, m_port, m_shipSystem, m_stationBody}));
+		    WriteShellState({m_ship, m_station, m_shipSystem, m_stationBody}));
 		const std::vector<std::byte> bytes = save.Write();
 		m_assets.Write(path, bytes);
 		if (m_showSaves)
@@ -1856,10 +1846,11 @@ bool Application::LoadFrom(std::string_view name)
 		{ return world.valid(entity) ? entity : entt::null; };
 		m_ship = valid(shell.ship);
 		m_station = valid(shell.station);
-		m_port = valid(shell.port);
+		// The steered ships but its own, which the docks steer as they fly it in and out.
 		m_traffic.clear();
 		for (const entt::entity entity : world.view<const Ai::Steered>())
-			m_traffic.push_back(entity);
+			if (entity != m_ship)
+				m_traffic.push_back(entity);
 		std::ranges::sort(m_traffic, {}, [](entt::entity entity) { return entt::to_integral(entity); });
 		// The systems from the world, which a ship saved on a lane or before its station was bound
 		// holds as the shell's section does not.
@@ -1873,7 +1864,8 @@ bool Application::LoadFrom(std::string_view name)
 		m_stationSystem = systemOf(m_station);
 		m_stationBody = shell.stationBody;
 		m_resumePiloting = false;
-		m_docked = m_ship != entt::null && world.all_of<Docked>(m_ship);
+		m_docked = Dock::IsDocked(world, m_ship, m_station);
+		FindHullProxies();
 		m_sentControls.reset();
 		m_pickPending = false;
 		m_picked.reset();
@@ -1921,9 +1913,13 @@ SmokeActions Application::MakeSmokeActions()
 		if (!StartPiloting(cockpit ? Scene::PilotView::Cockpit : Scene::PilotView::Chase))
 			return false;
 		// Traffic about the station, whose proxies the frames draw from here on and whose steering
-		// the save and load carries.
+		// the save and load carries; and the ship let go of its pad and lifted clear by the docks.
 		if (!cockpit)
+		{
 			SpawnTraffic(4);
+			if (m_docked)
+				ReleasePad();
+		}
 		return true;
 	};
 	actions.pick = [this]
@@ -2087,23 +2083,27 @@ bool Application::BindStation()
 	if (m_station != entt::null && m_stationSystem == systemId && m_stationBody == station->name)
 		return true;
 	entt::registry &world = m_sim.Registry();
+	const auto bind = [&](entt::entity entity)
+	{
+		m_station = entity;
+		m_stationSystem = systemId;
+		m_stationBody = station->name;
+		Core::Log(Core::Severity::Info, kShell, "The ship is bound to {}", m_stationBody);
+		return true;
+	};
 
-	// Made on an earlier visit, or in the world a save loaded: a body on the station's rails that is
-	// not its port.
-	for (const auto [entity, rails, inSystem] :
-	     world.view<const Physics::OnRails, const Sim::InSystem>(entt::exclude<DockingPort>).each())
+	// Built by the docks to its layout (OpenStations).
+	if (const entt::entity built = FindStation(world, systemId, station->name); built != entt::null)
+		return bind(built);
+	// A station of no layout, made on an earlier visit or in the world a save loaded: a body on the
+	// station's rails that is neither a pad nor a ship clamped to one.
+	for (const auto [entity, rails, inSystem, body] :
+	     world
+	         .view<const Physics::OnRails, const Sim::InSystem, const Physics::Body>(
+	             entt::exclude<Dock::Hull>)
+	         .each())
 		if (inSystem.system == systemId && rails.body == station->name)
-		{
-			m_station = entity;
-			m_port = entt::null;
-			for (const auto [port, docking] : world.view<const DockingPort>().each())
-				if (docking.station == entity)
-					m_port = port;
-			m_stationSystem = systemId;
-			m_stationBody = station->name;
-			Core::Log(Core::Severity::Info, kShell, "The ship is bound to {}", m_stationBody);
-			return true;
-		}
+			return bind(entity);
 
 	entt::registry &scene = m_pScene->Registry();
 	entt::entity shown = entt::null;
@@ -2132,58 +2132,62 @@ bool Application::BindStation()
 			    mesh->skippedModels);
 		m_pPhysics->DefineShape(shape, mesh->shape);
 		Core::Log(
-		    Core::Severity::Info, kShell, "Station '{}' collides as {} triangles", station->name,
-		    mesh->shape.indices.size() / 3);
+		    Core::Severity::Info, kShell, "Station '{}' collides as {} triangles, with no pads",
+		    station->name, mesh->shape.indices.size() / 3);
 	}
 
 	// Where the station is now: placed by its rails from the next step, and by the shell for the
 	// snapshots the stepper is resynced to.
-	const double now = m_sim.Clock().Now();
-	const auto index = static_cast<std::size_t>(station - system.bodies.begin());
-	const Sim::Transform at{
-	    Celestial::EvaluateBody(system, index, now).metres,
-	    Celestial::Orientation(station->rotation, now)};
-
+	const Physics::OnRails rails{station->name};
 	m_station = world.create();
-	world.emplace<Sim::Transform>(m_station, at);
+	world.emplace<Sim::Transform>(
+	    m_station, m_pPhysics->RailsPlace(systemId, rails, m_sim.Clock().Now()));
 	world.emplace<Sim::InSystem>(m_station, systemId);
-	world.emplace<Physics::OnRails>(m_station, station->name);
+	world.emplace<Physics::OnRails>(m_station, rails);
 	world.emplace<Physics::LocalFrame>(m_station, station->name);
 	world.emplace<Physics::Body>(m_station, Physics::Body{Physics::BodyKind::Kinematic, shape});
-
-	// Its docking port, before the dock at the hull's -Z end, the end the ship holds station off: a
-	// sensor on rails at its place on the station, in the station's frame.
-	double dockFace = 0.0;
-	for (const glm::vec3 &vertex : mesh->shape.vertices)
-		dockFace = std::min(dockFace, static_cast<double>(vertex.z));
-	const glm::dvec3 portOffset{0.0, 0.0, dockFace - kPortHalfExtents.z + kPortOverlap};
-	const std::string portShape = shape + "/port";
-	if (!m_pPhysics->HasShape(portShape))
-	{
-		Physics::ShapeDefinition box;
-		box.kind = Physics::ShapeKind::Box;
-		box.halfExtents = kPortHalfExtents;
-		m_pPhysics->DefineShape(portShape, box);
-	}
-	m_port = world.create();
-	world.emplace<Sim::Transform>(m_port, at.position + at.orientation * portOffset, at.orientation);
-	world.emplace<Sim::InSystem>(m_port, systemId);
-	world.emplace<Physics::OnRails>(m_port, station->name, portOffset);
-	world.emplace<Physics::LocalFrame>(m_port, station->name);
-	Physics::Body sensor{Physics::BodyKind::Kinematic, portShape};
-	sensor.sensor = true;
-	world.emplace<Physics::Body>(m_port, sensor);
-	world.emplace<DockingPort>(m_port, m_station);
-
-	// The station's market trades through its port from now on.
-	for (const auto [entity, market] : world.view<Market>().each())
-		if (market.station == station->name && market.system == systemId)
-			market.stationEntity = m_station;
-	m_stationSystem = systemId;
-	m_stationBody = station->name;
 	m_simStepper.Resync();
-	Core::Log(Core::Severity::Info, kShell, "The ship is bound to {}", m_stationBody);
-	return true;
+	return bind(m_station);
+}
+
+
+void Application::OpenStations()
+{
+	// Once a run, as the ship is: a load replaces them with the save's.
+	entt::registry &world = m_sim.Registry();
+	if (!world.view<Dock::Station>().empty() || !world.view<Market>().empty())
+	{
+		FindHullProxies();
+		return;
+	}
+	const std::vector<entt::entity> stations = App::OpenStations(m_sim, *m_pDocks, m_galaxySystems);
+	std::size_t pads = 0;
+	for (const entt::entity station : stations)
+		pads += world.get<Dock::Station>(station).pads.size();
+	Core::Log(
+	    Core::Severity::Info, kShell, "{} stations open, with {} pads and {} ships parked",
+	    stations.size(), pads, world.view<const Dock::Hull>().size());
+
+	const std::vector<entt::entity> markets = OpenMarkets(m_sim, *m_definitions);
+	for (const entt::entity entity : markets)
+	{
+		Market &market = world.get<Market>(entity);
+		market.stationEntity = FindStation(world, market.system, market.station);
+	}
+	Core::Log(Core::Severity::Info, kShell, "{} markets open", markets.size());
+	FindHullProxies();
+	m_simStepper.Resync();
+}
+
+
+void Application::FindHullProxies()
+{
+	m_hullProxies.clear();
+	for (const auto [entity, hull] : m_sim.Registry().view<const Dock::Hull>().each())
+		if (const Dock::HullDefinition *definition = m_pDocks->FindHull(hull.definition);
+		    definition && entity != m_ship && std::ranges::find(m_traffic, entity) == m_traffic.end())
+			m_hullProxies.emplace(
+			    entity, glm::vec3{definition->beam, definition->height, definition->length});
 }
 
 
@@ -2191,27 +2195,91 @@ void Application::SpawnShip()
 {
 	if (m_ship != entt::null || !BindStation())
 		return;
-	DefineShuttle(*m_pPhysics);
 	entt::registry &world = m_sim.Registry();
 	const Sim::Transform at = world.get<Sim::Transform>(m_station);
 
-	// Off the dock, nose towards it, still in the station's frame.
+	// In the station's frame, flown by its pilot.
 	m_ship = world.create();
-	world.emplace<Sim::Transform>(
-	    m_ship, at.position + at.orientation * kShipStation,
-	    at.orientation * glm::angleAxis(glm::pi<double>(), glm::dvec3{0.0, 1.0, 0.0}));
+	world.emplace<Sim::Transform>(m_ship, at);
 	world.emplace<Sim::InSystem>(m_ship, m_stationSystem);
 	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
-	world.emplace<Physics::Body>(m_ship, ShuttleBody());
-	world.emplace<Physics::Velocity>(m_ship);
-	world.emplace<Physics::Thrusters>(m_ship);
-	world.emplace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
+	MakeShip(world, m_ship, kShipHull, kShipMass, true);
+	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
+	world.emplace<Sim::ControlledBy>(m_ship, kPilot);
 	world.emplace<Hold>(m_ship, Hold{kShipHold, {}});
 	world.emplace<Purse>(m_ship, Purse{kStartingCredits});
 	m_shipSystem = m_stationSystem;
+
+	// Docked on the lowest numbered free pad it fits; at a station of none, off its -Z end, nose
+	// towards it.
+	const auto *station = world.try_get<Dock::Station>(m_station);
+	const Dock::HullDefinition *hull = m_pDocks->FindHull(kShipHull);
+	const auto pad = station && hull ? std::ranges::find_if(
+	                                       station->pads,
+	                                       [&](entt::entity entity)
+	                                       {
+		                                       const Dock::Pad &found = world.get<Dock::Pad>(entity);
+		                                       return found.state == Dock::PadState::Free &&
+		                                              !found.display && found.padClass >= hull->pad;
+	                                       })
+	                                 : std::vector<entt::entity>::const_iterator{};
+	if (station && hull && pad != station->pads.end())
+	{
+		m_pDocks->Park(m_sim, m_ship, *pad);
+		m_docked = true;
+		Core::Log(
+		    Core::Severity::Info, kShell,
+		    "The ship is docked on pad {} of {}: undock lifts it clear, and P flies it",
+		    world.get<Dock::Pad>(*pad).number, m_stationBody);
+	}
+	else
+	{
+		const double standOff =
+		    m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_station).shape) + kShipStandOff;
+		world.replace<Sim::Transform>(
+		    m_ship, Sim::Transform{
+		                at.position + at.orientation * glm::dvec3{0.0, 0.0, -standOff},
+		                at.orientation * glm::angleAxis(glm::pi<double>(), glm::dvec3{0.0, 1.0, 0.0})});
+		Core::Log(
+		    Core::Severity::Info, kShell, "A ship holds station off {}: P flies it", m_stationBody);
+	}
 	m_simStepper.Resync();
-	Core::Log(
-	    Core::Severity::Info, kShell, "A ship holds station off {}'s dock: P flies it", m_stationBody);
+}
+
+
+void Application::RequestPad(bool fly)
+{
+	if (m_ship == entt::null || m_station == entt::null)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No ship, or no station to ask for a pad");
+		return;
+	}
+	m_sim.Commands().Push(Dock::RequestPad{kPilot, m_ship, m_station, fly});
+}
+
+
+void Application::ReleasePad()
+{
+	if (m_ship != entt::null)
+		m_sim.Commands().Push(Dock::ReleasePad{kPilot, m_ship});
+}
+
+
+void Application::DrawStations()
+{
+	if (!m_systemScene)
+		return;
+	entt::registry &scene = m_pScene->Registry();
+	for (const Celestial::Body &body : m_systemScene->System().bodies)
+	{
+		const Dock::StationLayout *layout =
+		    body.kind == Celestial::BodyKind::Station ? m_pDocks->FindLayout(body.layout) : nullptr;
+		if (!layout)
+			continue;
+		for (const auto [entity, celestial] : scene.view<const Scene::CelestialBodyComponent>().each())
+			if (celestial.body == body.name)
+				DrawLayout(scene, entity, *layout);
+	}
 }
 
 
@@ -2240,8 +2308,6 @@ void Application::SpawnTraffic(int count)
 		Core::Log(Core::Severity::Warning, kShell, "Already {} shuttles, the most", kMostTraffic);
 		return;
 	}
-	DefineShuttle(*m_pPhysics);
-
 	// The ring is clear of the hull by more than a shuttle's clearance and separation together, and
 	// its places, in the station's axes, a sixteenth of it apart: 100 m or so, twice what two
 	// shuttles keep between them.
@@ -2274,10 +2340,7 @@ void Application::SpawnTraffic(int count)
 		    Sim::Transform{at.position + glm::normalize(direction) * distance, at.orientation});
 		world.emplace<Sim::InSystem>(shuttle, m_stationSystem);
 		world.emplace<Physics::LocalFrame>(shuttle, m_stationBody);
-		world.emplace<Physics::Body>(shuttle, ShuttleBody());
-		world.emplace<Physics::Velocity>(shuttle);
-		world.emplace<Physics::Thrusters>(shuttle);
-		world.emplace<Physics::FlightControls>(shuttle);
+		MakeShip(world, shuttle, kShipHull, kShipMass, true);
 		world.emplace<Ai::Steered>(shuttle);
 		Ai::Destination destination;
 		destination.entity = m_station;
@@ -2490,7 +2553,11 @@ void Application::SetProxyFactory()
 		    const bool traffic = std::ranges::binary_search(
 		        m_traffic, entt::to_integral(simEntity), {},
 		        [](entt::entity entity) { return entt::to_integral(entity); });
-		    return simEntity == m_ship || traffic ? MakeShipProxy(registry) : entt::entity{entt::null};
+		    if (simEntity == m_ship || traffic)
+			    return MakeShipProxy(registry);
+		    const auto parked = m_hullProxies.find(simEntity);
+		    return parked == m_hullProxies.end() ? entt::entity{entt::null}
+		                                         : MakeHullProxy(registry, parked->second);
 	    });
 }
 
@@ -2615,17 +2682,41 @@ void Application::TakeEvents()
 			Core::Log(
 			    Core::Severity::Info, kShell, "{} holds station by {}", Describe(holding->ship),
 			    m_stationBody);
-		else if (const auto *docked = event.event.try_cast<ShipDocked>();
-		         docked && docked->ship == m_ship)
+		else if (const auto *landed = event.event.try_cast<Dock::Landed>();
+		         landed && landed->ship == m_ship)
 		{
 			m_docked = true;
-			Core::Log(Core::Severity::Info, kShell, "The ship docked at {}", m_stationBody);
+			Core::Log(
+			    Core::Severity::Info, kShell, "The ship is clamped to pad {} of {}", landed->number,
+			    m_stationBody);
 		}
-		else if (const auto *left = event.event.try_cast<ShipUndocked>(); left && left->ship == m_ship)
+		else if (const auto *left = event.event.try_cast<Dock::Left>(); left && left->ship == m_ship)
 		{
 			m_docked = false;
-			Core::Log(Core::Severity::Info, kShell, "The ship left {}'s dock", m_stationBody);
+			Core::Log(
+			    Core::Severity::Info, kShell, "The clamps of pad {} of {} let the ship go",
+			    left->number, m_stationBody);
 		}
+		else if (const auto *given = event.event.try_cast<Dock::PadGiven>();
+		         given && given->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell, "{} gives the ship pad {}", m_stationBody, given->number);
+		else if (const auto *queued = event.event.try_cast<Dock::PadQueued>();
+		         queued && queued->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell, "The ship waits for a pad at {}, {} in the queue",
+			    m_stationBody, queued->place);
+		else if (const auto *noPad = event.event.try_cast<Dock::PadRefused>();
+		         noPad && noPad->ship == m_ship)
+			Core::Log(Core::Severity::Warning, kShell, "No pad: {}", noPad->reason);
+		else if (const auto *lapsed = event.event.try_cast<Dock::PadLapsed>();
+		         lapsed && lapsed->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "Pad {} was not landed on in time, and is given up",
+			    lapsed->number);
+		else if (const auto *released = event.event.try_cast<Dock::PadReleased>();
+		         released && released->ship == m_ship)
+			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);
 		else if (const auto *traded = event.event.try_cast<Traded>(); traded && traded->ship == m_ship)
 		{
 			const Good *good = m_definitions->Find<Good>(traded->good);
@@ -2694,8 +2785,6 @@ std::string Application::Describe(entt::entity simEntity) const
 		return "Ship";
 	if (simEntity == m_station)
 		return m_stationBody;
-	if (simEntity == m_port)
-		return m_stationBody + "'s docking port";
 	if (const auto found = std::ranges::find(m_traffic, simEntity); found != m_traffic.end())
 		return std::format("Shuttle {}", found - m_traffic.begin() + 1);
 	return std::format("Entity {:#x}", entt::to_integral(simEntity));

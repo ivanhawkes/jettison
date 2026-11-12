@@ -19,7 +19,10 @@ namespace
 {
 constexpr std::string_view kSaveDirectory = "saves";
 constexpr std::string_view kSaveExtension = ".save";
-constexpr Serialise::FormatVersion kShellVersion{1};
+// Version 2 since 9c, which took the station's docking port out of it as the docks took docking from
+// the shell. A version 1 section is of a world that holds the shell's port, which this build does not
+// register, so its save is refused whole, and the section with it, rather than migrated.
+constexpr Serialise::FormatVersion kShellVersion{2};
 
 void RegisterShellState()
 {
@@ -29,7 +32,6 @@ void RegisterShellState()
 		Reflect::RegisterType<ShellState>("Shell.State")
 		    .Field<&ShellState::ship>("ship", Attribute::Saved)
 		    .Field<&ShellState::station>("station", Attribute::Saved)
-		    .Field<&ShellState::port>("port", Attribute::Saved)
 		    .Field<&ShellState::shipSystem>("shipSystem", Attribute::Saved)
 		    .Field<&ShellState::stationBody>("stationBody", Attribute::Saved);
 		return true;

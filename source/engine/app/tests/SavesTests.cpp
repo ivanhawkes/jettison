@@ -25,11 +25,10 @@ TEST_CASE("Saves: a save's name is one segment of a path, and the shell's state 
 		CHECK_THROWS_AS(App::SavePath(name), std::invalid_argument);
 	CHECK_THROWS_AS(App::SavePath(std::string(65, 'a')), std::invalid_argument);
 
-	const App::ShellState state{entt::entity{3}, entt::entity{1}, entt::entity{2}, 0x1234, "Highport"};
+	const App::ShellState state{entt::entity{3}, entt::entity{1}, 0x1234, "Highport"};
 	const App::ShellState read = App::ReadShellState(App::WriteShellState(state));
 	CHECK(read.ship == state.ship);
 	CHECK(read.station == state.station);
-	CHECK(read.port == state.port);
 	CHECK(read.shipSystem == 0x1234);
 	CHECK(read.stationBody == "Highport");
 	CHECK_THROWS_AS(App::ReadShellState({}), Serialise::FormatError);

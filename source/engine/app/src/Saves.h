@@ -21,15 +21,14 @@ struct Galaxy;
 namespace Jettison::App
 {
 // The shell's own state beyond the world's, saved in a section of the save game as a game's would
-// be (Sim::SaveGame): which of the world's entities are its ship, the station it holds station by
-// and the station's docking port, and where. Whether the ship is docked is the world's (Docked).
-// Registered with Reflect as "Shell.State", every field Saved; the section is a binary archive of
-// that format, at version 1, under the same name.
+// be (Sim::SaveGame): which of the world's entities are its ship and the station it is bound to, and
+// where. Whether the ship is docked is the world's (Dock::Docking). Registered with Reflect as
+// "Shell.State", every field Saved; the section is a binary archive of that format, at version 2,
+// under the same name.
 struct ShellState
 {
 	entt::entity ship{entt::null};
 	entt::entity station{entt::null};
-	entt::entity port{entt::null};
 	std::uint64_t shipSystem{0};
 	std::string stationBody;
 };

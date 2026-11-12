@@ -16,6 +16,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace Jettison::Ai
@@ -36,6 +37,10 @@ constexpr double kTurnShare = 0.5;
 // Below this speed a ship holds its heading rather than turn to a velocity that is mostly the
 // last few centimetres of an arrival.
 constexpr double kFacingSpeed = 1.0;
+// How much further than its target a ship kept clear by its hull may meet something, in metres, and
+// still be going to its target rather than into what it meets: a landing's target hovers a little
+// above the deck.
+constexpr double kHullSlack = 0.5;
 
 glm::dvec3 HeldTo(const glm::dvec3 &velocity, double maxSpeed)
 {
@@ -74,17 +79,57 @@ double Capability(float value)
 	return value > 0.0f && std::isfinite(value) ? double{value} : 0.0;
 }
 
+// A turn of the angle about the axis, in the ship's axes, as rates a share of each axis's most: at
+// the rate the turn can still be stopped from at a share of the angular acceleration, about the
+// axes it is given (pitch and yaw, or all three).
+glm::vec3 Turn(
+    const Physics::Thrusters &thrusters, const glm::dvec3 &axis, double angle, glm::length_t axes)
+{
+	double maxRate = std::numeric_limits<double>::infinity();
+	double acceleration = std::numeric_limits<double>::infinity();
+	for (glm::length_t index = 0; index < axes; ++index)
+	{
+		maxRate = std::min(maxRate, Capability(thrusters.maxAngularRate[index]));
+		acceleration = std::min(acceleration, Capability(thrusters.angularAcceleration[index]));
+	}
+	const glm::dvec3 turn =
+	    axis * std::min(maxRate, std::sqrt(2.0 * kTurnShare * acceleration * angle));
+	glm::vec3 demand{0.0f};
+	for (glm::length_t index = 0; index < axes; ++index)
+	{
+		const double rate = Capability(thrusters.maxAngularRate[index]);
+		demand[index] =
+		    rate > 0.0 ? static_cast<float>(std::clamp(turn[index] / rate, -1.0, 1.0)) : 0.0f;
+	}
+	return demand;
+}
+
 // The controls that fly the velocity: with assist, a share of maxSpeed along each of the ship's
 // axes, and a turn of the nose (-Z) towards it about the axis square to both, at the rate the turn
-// can still be stopped from.
+// can still be stopped from; or, given a facing, a turn to that orientation, rolled too.
 Physics::FlightControls Controls(
-    const glm::dquat &orientation, const Physics::Thrusters &thrusters, const glm::dvec3 &velocity)
+    const glm::dquat &orientation, const Physics::Thrusters &thrusters, const glm::dvec3 &velocity,
+    const glm::dquat *facing)
 {
 	Physics::FlightControls controls;
 	controls.assist = true;
 	const glm::dquat inverse = glm::conjugate(glm::normalize(orientation));
 	if (const double maxSpeed = Capability(thrusters.maxSpeed); maxSpeed > 0.0)
 		controls.linear = glm::vec3{glm::clamp(inverse * velocity / maxSpeed, -1.0, 1.0)};
+
+	if (facing)
+	{
+		// The rest of the turn, in the ship's axes, the short way round.
+		glm::dquat rest = inverse * glm::normalize(*facing);
+		if (rest.w < 0.0)
+			rest = -rest;
+		const glm::dvec3 vector{rest.x, rest.y, rest.z};
+		const double sine = glm::length(vector);
+		if (sine > 1.0e-9)
+			controls.angular =
+			    Turn(thrusters, vector / sine, 2.0 * std::atan2(sine, rest.w), glm::length_t{3});
+		return controls;
+	}
 
 	const double speed = glm::length(velocity);
 	if (speed <= kFacingSpeed)
@@ -101,18 +146,7 @@ Physics::FlightControls Controls(
 	else
 		return controls;
 
-	const double maxRate =
-	    std::min(Capability(thrusters.maxAngularRate.x), Capability(thrusters.maxAngularRate.y));
-	const double acceleration = kTurnShare * std::min(
-	                                             Capability(thrusters.angularAcceleration.x),
-	                                             Capability(thrusters.angularAcceleration.y));
-	const glm::dvec3 turn = axis * std::min(maxRate, std::sqrt(2.0 * acceleration * angle));
-	for (glm::length_t index = 0; index < 2; ++index)
-	{
-		const double rate = Capability(thrusters.maxAngularRate[index]);
-		controls.angular[index] =
-		    rate > 0.0 ? static_cast<float>(std::clamp(turn[index] / rate, -1.0, 1.0)) : 0.0f;
-	}
+	controls.angular = Turn(thrusters, axis, angle, glm::length_t{2});
 	return controls;
 }
 
@@ -265,6 +299,28 @@ Steering &Steering::Attach(
 	return *steering;
 }
 
+glm::dvec3 Steering::HullLimited(
+    std::uint64_t system, entt::entity ship, std::string_view shape, const Sim::Transform &at,
+    const Agent &agent, const glm::dvec3 &velocity, const glm::dvec3 &target, double clearance) const
+{
+	const double speed = glm::length(velocity);
+	if (speed <= 1.0e-6)
+		return velocity;
+	const glm::dvec3 way = velocity / speed;
+	// As far as it could need to stop from this speed, and the clearance past that.
+	const double reach = speed * speed / (2.0 * std::max(agent.maxAcceleration, 1.0e-6)) +
+	                     speed * kSettleSeconds + clearance + kHullSlack;
+	const std::optional<Physics::CastHit> hit =
+	    m_physics.CastShape(system, shape, at, way, reach, {ship, false, std::nullopt});
+	if (!hit)
+		return velocity;
+	// What it meets beyond where it is going, the deck under a pad it lands on, is not in its way.
+	if (glm::distance(at.position, target) <= hit->distance + kHullSlack)
+		return velocity;
+	const double allowed = ClosingSpeed(hit->distance - clearance, agent.maxAcceleration);
+	return speed > allowed ? velocity * (allowed / speed) : velocity;
+}
+
 double Steering::Radius(std::string_view shape)
 {
 	const auto found = m_radii.find(shape);
@@ -313,9 +369,12 @@ void Steering::Step(Sim::SimWorld &world)
 		const std::string_view frame = FrameOf(registry, ship);
 		const glm::dvec3 &origin = originOf(system, frame);
 
-		// Where the destination is, and how it moves.
+		// Where the destination is, how it moves, and which way to face there.
 		glm::dvec3 target = origin + destination.offset;
 		glm::dvec3 targetVelocity{0.0};
+		glm::dquat facing = destination.facing;
+		// The rails of what is kept clear of by its hull, none if nothing is.
+		std::string_view hullRails;
 		if (destination.entity != entt::null)
 		{
 			const entt::entity entity = destination.entity;
@@ -336,6 +395,10 @@ void Steering::Step(Sim::SimWorld &world)
 			const Sim::Transform &at = registry.get<const Sim::Transform>(entity);
 			const glm::dvec3 offset = at.orientation * destination.offset;
 			target = at.position + offset;
+			facing = at.orientation * destination.facing;
+			if (const auto *rails = registry.try_get<Physics::OnRails>(entity);
+			    rails && destination.byHull)
+				hullRails = rails->body;
 			if (const auto *moving = registry.try_get<Physics::Velocity>(entity))
 				targetVelocity =
 				    glm::dvec3{moving->linear} + glm::cross(glm::dvec3{moving->angular}, offset);
@@ -375,6 +438,12 @@ void Steering::Step(Sim::SimWorld &world)
 				const auto *body = registry.try_get<Physics::Body>(entity);
 				if (entity == ship || !body || body->sensor || FrameOf(registry, entity) != frame)
 					continue;
+				if (destination.byHull)
+				{
+					const auto *rails = registry.try_get<Physics::OnRails>(entity);
+					if (entity == destination.entity || (rails && rails->body == hullRails))
+						continue;
+				}
 				const auto *moving = registry.try_get<Physics::Velocity>(entity);
 				const Obstacle obstacle{
 				    registry.get<const Sim::Transform>(entity).position,
@@ -388,10 +457,14 @@ void Steering::Step(Sim::SimWorld &world)
 		const bool onCourse = destination.next < destination.waypoints.size();
 		const glm::dvec3 desired =
 		    onCourse ? Seek(agent, waypoint(destination.next)) : Arrive(agent, target, targetVelocity);
-		const glm::dvec3 velocity = HeldTo(
+		glm::dvec3 velocity = HeldTo(
 		    Avoid(agent, desired, obstacles, lookahead, clearance) +
 		        Separate(agent, neighbours, separation),
 		    maxSpeed);
+		if (destination.byHull)
+			velocity = HullLimited(
+			    system, ship, registry.get<const Physics::Body>(ship).shape, transform, agent, velocity,
+			    onCourse ? waypoint(destination.next) : target, clearance);
 
 		if (!onCourse && !destination.arrived &&
 		    glm::distance(agent.position, target) <= double{destination.arrivalRadius} &&
@@ -401,7 +474,9 @@ void Steering::Step(Sim::SimWorld &world)
 			world.Events().Emit(Arrived{ship, destination.entity});
 		}
 		registry.replace<Physics::FlightControls>(
-		    ship, Controls(transform.orientation, thrusters, velocity));
+		    ship, Controls(
+		              transform.orientation, thrusters, velocity,
+		              destination.face && !onCourse ? &facing : nullptr));
 	}
 }
 } // namespace Jettison::Ai

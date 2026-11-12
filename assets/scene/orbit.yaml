@@ -405,8 +405,11 @@ entities:
       active: true
       orbit:
         target: highport
-        distance: 160
+        # Far enough out that all of the station's 1.5 km is in view, and near enough that its lights
+        # are within the 2 km the clusters reach, which the smoke test's cluster check needs; kept
+        # outside its sphere, 763 m, so the camera never sits in its hub.
+        distance: 1500
         # About fifty degrees off the station's zenith at time 0, so the planet is behind it.
         yaw: 0.8
         pitch: -0.1
-        minDistance: 20
+        minDistance: 840

@@ -10,6 +10,7 @@ jettison_add_module(sim
 		vfs
 	HEADERS
 		include/jettison/sim/CommandQueue.h
+		include/jettison/sim/Controller.h
 		include/jettison/sim/Events.h
 		include/jettison/sim/SaveGame.h
 		include/jettison/sim/SimWorld.h
@@ -18,6 +19,7 @@ jettison_add_module(sim
 		include/jettison/sim/Stepper.h
 	SOURCES
 		src/CommandQueue.cpp
+		src/Controller.cpp
 		src/DefinitionRegistry.cpp
 		src/SaveGame.cpp
 		src/SimWorld.cpp

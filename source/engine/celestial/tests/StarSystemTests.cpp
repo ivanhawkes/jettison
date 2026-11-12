@@ -109,6 +109,9 @@ TEST_CASE("Star system: a hierarchy that does not hold is refused, naming the bo
 	    Replace(kSystem, "    gravitationalParameter: 3.986004418e14\n", ""),
 	    "'Dock' gives no period, and its parent 'World' no gravitational parameter");
 	refused("version: 1\nname: Empty\nbodies: []\n", "has no bodies");
+	refused(
+	    Replace(kSystem, "    kind: Planet\n", "    kind: Planet\n    layout: yard\n"),
+	    "'World' names a layout, which only a station is built to");
 
 	// A child listed before its parent.
 	StarSystem system = ReadStarSystem(kSystem);
@@ -154,6 +157,8 @@ TEST_CASE("Star system: the sample system in the assets reads")
 	REQUIRE(station > 0);
 	CHECK(system.bodies[static_cast<std::size_t>(station)].kind == BodyKind::Station);
 	CHECK(system.bodies[static_cast<std::size_t>(station)].parentIndex == system.Find("Ostra"));
+	// Built to its layout in the docks' definitions (defs/stations), whose sphere its radius is.
+	CHECK(system.bodies[static_cast<std::size_t>(station)].layout == "ostra-highport");
 }
 
 TEST_CASE("Star system: the sample gates keep station by their stations and face their planets")

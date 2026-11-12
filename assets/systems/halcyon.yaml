@@ -28,8 +28,11 @@ bodies:
       axialTilt: 0.4091
   - name: Ostra Highport
     kind: Station
+    # Built to its layout (defs/stations/ostra-highport.yaml), 1.5 km across, whose sphere its
+    # radius is.
+    layout: ostra-highport
     parent: Ostra
-    radius: 60
+    radius: 763
     orbit:
       semiMajorAxis: 6.791e6
       eccentricity: 0.0005

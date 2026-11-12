@@ -1,7 +1,7 @@
 # The sample game's sounds for its events (docs/sample-game.md, 8c): the clamps closing, heard from
 # the station the ship docked at.
 version: 1
-event: Shell.ShipDocked
+event: Dock.Landed
 sound: audio/effects/docked.wav
 bus: Effects
 at: station

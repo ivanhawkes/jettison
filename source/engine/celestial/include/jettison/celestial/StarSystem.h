@@ -35,6 +35,9 @@ struct Body
 	// GM, in m^3/s^2: what a child's period is derived from when its data leaves it out. Zero
 	// for a body nothing orbits.
 	double gravitationalParameter{0.0};
+	// A station's layout, by definition name (Dock::StationLayout, defs/stations): its decks, piers,
+	// pads and cargo bays. Empty for a station built to none, and for every other kind of body.
+	std::string layout;
 
 	// Runtime: the parent's index in StarSystem::bodies, or -1 for the primary. Filled in by
 	// Resolve, not written to the system file.

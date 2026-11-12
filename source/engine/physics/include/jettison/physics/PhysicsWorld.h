@@ -209,6 +209,10 @@ class PhysicsWorld final : public Sim::WorldService
 	// flown to in its frame is this far from the system's. Throws std::invalid_argument for a frame
 	// a body could not be in.
 	glm::dvec3 FrameOrigin(std::uint64_t system, std::string_view frame, double simSeconds) const;
+	// Where an entity on those rails in the defined system is at a time, as each step puts it: what
+	// a game places an entity at before the first step that moves it, so nothing reads it elsewhere
+	// in between. Throws std::invalid_argument for a system not defined or a body it does not have.
+	Sim::Transform RailsPlace(std::uint64_t system, const OnRails &rails, double simSeconds) const;
 
 	std::size_t BodyCount() const;
 	std::size_t BodyCount(std::uint64_t system) const;

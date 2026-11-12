@@ -1,0 +1,9 @@
+# A fighter: the largest hull an S pad takes is 25 x 20 x 8 m, and this is a little short of it.
+# A hull of the docks (Dock.HullDefinition): metres, its nose along -Z.
+version: 1
+displayName: Fighter
+length: 18
+beam: 14
+height: 5
+pad: S
+hatch: [0, -2.5, 4]

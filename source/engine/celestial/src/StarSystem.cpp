@@ -61,7 +61,8 @@ void RegisterTypes()
 		    .Field<&Body::orbit>("orbit", Attribute::Saved)
 		    .Field<&Body::rotation>("rotation", Attribute::Saved)
 		    .Field<&Body::radius>("radius", Attribute::Saved)
-		    .Field<&Body::gravitationalParameter>("gravitationalParameter", Attribute::Saved);
+		    .Field<&Body::gravitationalParameter>("gravitationalParameter", Attribute::Saved)
+		    .Field<&Body::layout>("layout", Attribute::Saved);
 		RegisterType<StarSystem>("Celestial.StarSystem", Attribute::Moddable)
 		    .Field<&StarSystem::name>("name", Attribute::Saved)
 		    .Field<&StarSystem::bodies>("bodies", Attribute::Saved);
@@ -114,6 +115,8 @@ void Resolve(StarSystem &system)
 			body.parentIndex = parent->second;
 		}
 
+		if (!body.layout.empty() && body.kind != BodyKind::Station)
+			Refuse(system, body, "names a layout, which only a station is built to");
 		OrbitalElements &orbit = body.orbit;
 		if (!NonNegative(body.radius))
 			Refuse(system, body, "has a negative radius");

@@ -262,12 +262,15 @@ entt::entity SystemScene::BuildBody(std::size_t body)
 {
 	entt::registry &registry = m_pScene->Registry();
 	const Celestial::Body &data = m_system.bodies[body];
-	const Look look = LookOf(data.kind);
+	// A station built to a layout is the game's to draw from it (Dock::StationLayout), on an entity
+	// of its own size, so whatever is parented to it is in the layout's metres.
+	const bool laidOut = data.kind == BodyKind::Station && !data.layout.empty();
+	const Look look = laidOut ? Look{} : LookOf(data.kind);
 	const entt::entity entity = registry.create();
 	registry.emplace<BuiltComponent>(entity);
 	registry.emplace<SceneEntityId>(entity, BodyEntityId(data.name));
 	registry.emplace<CelestialBodyComponent>(entity, data.name);
-	const double size = data.radius > 0.0 ? data.radius : look.sizeWithoutRadius;
+	const double size = laidOut ? 1.0 : data.radius > 0.0 ? data.radius : look.sizeWithoutRadius;
 	registry.emplace<TransformComponent>(
 	    entity, glm::dvec3{0.0}, glm::vec3{0.0f}, look.scale * static_cast<float>(size));
 	if (look.layer != Layer::Environment)

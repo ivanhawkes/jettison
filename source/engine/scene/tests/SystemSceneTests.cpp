@@ -89,6 +89,20 @@ TEST_CASE("System scene: a body's entity id is its name in lower case, hyphenate
 	CHECK(Scene::BodyEntityId("Pell") == "pell");
 }
 
+TEST_CASE("System scene: a station built to no layout is drawn as a box the length of its radius")
+{
+	Celestial::StarSystem system = Halcyon();
+	const auto index = static_cast<std::size_t>(system.Find("Ostra Highport"));
+	system.bodies[index].layout.clear();
+	Scene::Scene scene;
+	Scene::SystemScene systemScene{scene, system};
+	const entt::entity station = Named(scene.Registry(), "ostra-highport");
+	CHECK(scene.Registry().get<Scene::MeshComponent>(station).shape == Scene::Shape::Box);
+	CHECK(
+	    scene.Registry().get<Scene::TransformComponent>(station).scale.z ==
+	    doctest::Approx(system.bodies[index].radius));
+}
+
 TEST_CASE(
     "System scene: halcyon.yaml alone builds a scene whose bodies and stations follow their orbits")
 {
@@ -113,8 +127,10 @@ TEST_CASE(
 	const entt::entity planet = Named(registry, "ostra");
 	CHECK(registry.get<Scene::MeshComponent>(planet).shape == Scene::Shape::Sphere);
 	CHECK(registry.get<Scene::TransformComponent>(planet).scale == glm::vec3{6.371e6f});
+	// A station built to a layout is the game's to draw from it: no shape, and its own metres.
 	const entt::entity station = Named(registry, "ostra-highport");
-	CHECK(registry.get<Scene::MeshComponent>(station).shape == Scene::Shape::Box);
+	CHECK_FALSE(registry.all_of<Scene::MeshComponent>(station));
+	CHECK(registry.get<Scene::TransformComponent>(station).scale == glm::vec3{1.0f});
 	const entt::entity gate = Named(registry, "halcyon-gate");
 	CHECK(registry.get<Scene::LayerComponent>(gate).layer == Layer::Effects);
 	CHECK(registry.get<Scene::MeshComponent>(gate).shape == Scene::Shape::Ring);
@@ -146,10 +162,12 @@ TEST_CASE(
 	CHECK(speed > 7000.0);
 	CHECK(speed < 8500.0);
 
-	// The camera follows the station there.
+	// The camera follows the station there, three of its radii out: its layout's 763 m sphere's.
 	Scene::UpdateOrbitCameras(registry, 1.0);
 	const glm::dvec3 eye = registry.get<Scene::CameraPoseComponent>(camera).position;
-	CHECK(glm::length(eye - WorldPosition(registry, station)) == doctest::Approx(180.0).epsilon(0.01));
+	CHECK(
+	    glm::length(eye - WorldPosition(registry, station)) ==
+	    doctest::Approx(3.0 * 763.0).epsilon(0.01));
 }
 
 TEST_CASE("System scene: the file's bodies are its own, and only the rest are built")

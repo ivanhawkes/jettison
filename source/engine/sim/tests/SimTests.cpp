@@ -1,4 +1,5 @@
 #include <jettison/sim/CommandQueue.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/SimWorld.h>
 
 #include <jettison/reflect/Reflect.h>
@@ -555,4 +556,21 @@ TEST_CASE("Sim: registration mistakes and unknown commands are refused")
 	    world.Step(), doctest::Contains("no handler is registered for command"), std::logic_error);
 	CHECK(world.Registry().view<Ship>().empty());
 	CHECK(world.Clock().Step() == 0);
+}
+
+TEST_CASE("Sim: a command's sender may command what it controls, and what no one does")
+{
+	entt::registry registry;
+	const entt::entity free = registry.create();
+	const entt::entity owned = registry.create();
+	const Sim::Controller one{Sim::ControllerKind::Player, 1};
+	const Sim::Controller two{Sim::ControllerKind::Player, 2};
+	const Sim::Controller trader{Sim::ControllerKind::Ai, 1};
+	registry.emplace<Sim::ControlledBy>(owned, one);
+	CHECK(Sim::MayCommand(registry, free, two));
+	CHECK(Sim::MayCommand(registry, owned, one));
+	CHECK_FALSE(Sim::MayCommand(registry, owned, two));
+	CHECK_FALSE(Sim::MayCommand(registry, owned, trader));
+	// The game's own rules, which are no one's in particular.
+	CHECK(Sim::MayCommand(registry, owned, {}));
 }

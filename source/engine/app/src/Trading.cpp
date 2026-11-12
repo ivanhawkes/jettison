@@ -7,13 +7,13 @@
 #include <utility>
 
 #include <jettison/core/Log.h>
+#include <jettison/dock/Docks.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
-#include "Docking.h"
 
 namespace Jettison::App
 {
@@ -228,10 +228,8 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 	if (!registry.valid(trade.market) || !registry.all_of<Market>(trade.market))
 		return Refuse(world, trade, "there is no such market");
 	Market &market = registry.get<Market>(trade.market);
-	const auto *docked = registry.try_get<Docked>(trade.ship);
-	const auto *port =
-	    docked && registry.valid(docked->port) ? registry.try_get<DockingPort>(docked->port) : nullptr;
-	if (!port || market.stationEntity == entt::null || port->station != market.stationEntity)
+	if (market.stationEntity == entt::null ||
+	    !Dock::IsDocked(registry, trade.ship, market.stationEntity))
 		return Refuse(world, trade, std::format("the ship is not docked at {}", market.station));
 	MarketGood *good = FindGood(market, trade.good);
 	if (!good)

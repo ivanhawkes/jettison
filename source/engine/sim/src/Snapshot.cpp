@@ -2,6 +2,7 @@
 
 #include <jettison/core/StringId.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/SimWorld.h>
 
 #include <algorithm>
@@ -27,6 +28,15 @@ void RegisterTypes()
 		    .Field<&Transform::orientation>("orientation", Attribute::Saved);
 		Reflect::RegisterType<InSystem>("Sim.InSystem")
 		    .Field<&InSystem::system>("system", Attribute::Saved);
+		Reflect::RegisterEnum<ControllerKind>("Sim.ControllerKind")
+		    .Value<ControllerKind::None>("None")
+		    .Value<ControllerKind::Player>("Player")
+		    .Value<ControllerKind::Ai>("Ai");
+		Reflect::RegisterType<Controller>("Sim.Controller")
+		    .Field<&Controller::kind>("kind", Attribute::Saved)
+		    .Field<&Controller::slot>("slot", Attribute::Saved);
+		Reflect::RegisterType<ControlledBy>("Sim.ControlledBy")
+		    .Field<&ControlledBy::controller>("controller", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;

@@ -1,0 +1,27 @@
+# Corva Refinery, over the industrial giant (docs/sample-game.md): four M pads for transports on two
+# piers along the station's +X and -X, and two S pads for shuttles on the hub's top, 600 m across. A
+# station layout of the docks (Dock.StationLayout), in the station's axes, metres.
+#
+# The hub is 120 m square and 40 m deep. Each pier is 240 m long, 80 m wide and 16 m deep, its top
+# 8 m above the station's middle, with two 50 x 90 m pads along it 20 m apart, their noses pointing
+# out along it. The S pads lie side by side on the hub's top, noses to -Z. A cargo bay's door is in
+# the hub's wall at each pier's root, and one on the hub's top behind the S pads.
+version: 1
+displayName: Corva Refinery
+reservationSeconds: 300
+decks:
+  - {centre: [0, 0, 0], size: [120, 40, 120]}
+piers:
+  - {centre: [180, 0, 0], size: [240, 16, 80]}
+  - {centre: [-180, 0, 0], size: [240, 16, 80]}
+pads:
+  - {class: M, position: [125, 8, 0], heading: [1, 0, 0]}
+  - {class: M, position: [235, 8, 0], heading: [1, 0, 0]}
+  - {class: M, position: [-125, 8, 0], heading: [-1, 0, 0]}
+  - {class: M, position: [-235, 8, 0], heading: [-1, 0, 0]}
+  - {class: S, position: [-25, 20, -10], heading: [0, 0, -1]}
+  - {class: S, position: [25, 20, -10], heading: [0, 0, -1]}
+bays:
+  - {position: [60, 14, 0], normal: [1, 0, 0]}
+  - {position: [-60, 14, 0], normal: [-1, 0, 0]}
+  - {position: [0, 20, 40], normal: [0, 1, 0]}

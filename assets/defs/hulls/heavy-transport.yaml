@@ -1,0 +1,9 @@
+# The largest transport, the L pads' ship: 140 x 50 x 30 m, a dozen of which Ostra Highport lands at
+# once. A hull of the docks (Dock.HullDefinition): metres, its nose along -Z.
+version: 1
+displayName: Heavy transport
+length: 140
+beam: 50
+height: 30
+pad: L
+hatch: [0, -15, 30]

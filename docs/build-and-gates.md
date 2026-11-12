@@ -183,7 +183,7 @@ It is done when the game needs a prebuilt engine rather than a source build, and
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → headless render test, and with `--asan`, the render test and the
-`sim`, `spatial`, `physics` and `ai` suites under the sanitisers. The simulation's state hashes are pinned in those
+`sim`, `spatial`, `physics`, `ai` and `dock` suites under the sanitisers. The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
 build's results.
 

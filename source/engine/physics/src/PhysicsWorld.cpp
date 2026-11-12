@@ -647,6 +647,19 @@ glm::dvec3 PhysicsWorld::FrameOrigin(
 	return m_pImpl->Origin(key, simSeconds);
 }
 
+Sim::Transform PhysicsWorld::RailsPlace(
+    std::uint64_t system, const OnRails &rails, double simSeconds) const
+{
+	const auto found = m_pImpl->systems.find(system);
+	const int body = found == m_pImpl->systems.end() ? -1 : found->second.Find(rails.body);
+	if (body < 0)
+		throw std::invalid_argument{std::format(
+		    "Physics: nowhere on rails: system {:#x} {}", system,
+		    found == m_pImpl->systems.end() ? std::string{"is not defined"}
+		                                    : std::format("has no body '{}'", rails.body))};
+	return RailsTransform(found->second, static_cast<std::size_t>(body), rails, simSeconds);
+}
+
 std::size_t PhysicsWorld::BodyCount() const
 {
 	return m_pImpl->records.size();

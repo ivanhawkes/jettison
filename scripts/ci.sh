@@ -12,7 +12,7 @@
 #  --skip-tidy       Skip clang-tidy (it needs a configured Debug tree for its database)
 #  --werror         Configure with JETTISON_WERROR=ON, so warnings fail the build
 #  --asan           Build clang-asan and run the smoke test (on lavapipe, whatever else is
-#                   asked), and the sim and physics suites, under the sanitizers
+#                   asked), and the simulation's suites, under the sanitizers
 #  --llvmpipe       Force software Vulkan (lavapipe) for the smoke test
 #  --preset NAME    Debug preset (default: clang-debug)
 #  --log FILE       Write the full output to FILE and print only the stages, the summary and, if a
@@ -161,10 +161,10 @@ if [ "$asan" -eq 1 ]; then
 	./scripts/smoke-test.sh --preset clang-asan --build --xvfb --llvmpipe ${werror[@]+--werror}
 	# The suites whose state hashes are pinned, held to the same values under the sanitizers, and
 	# the spatial index steering reads.
-	stage "unit tests: clang-asan (sim, spatial, physics and ai)"
+	stage "unit tests: clang-asan (sim, spatial, physics, ai and dock)"
 	cmake --build --preset clang-asan --target jettison_sim_tests jettison_spatial_tests \
-		jettison_physics_tests jettison_ai_tests
-	ctest --test-dir build/clang-asan -R '^(sim|spatial|physics|ai)$' --output-on-failure \
+		jettison_physics_tests jettison_ai_tests jettison_dock_tests
+	ctest --test-dir build/clang-asan -R '^(sim|spatial|physics|ai|dock)$' --output-on-failure \
 		--no-tests=error -j "$jobs"
 fi
 
