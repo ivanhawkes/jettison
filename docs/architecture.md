@@ -143,9 +143,11 @@ drives, on `celestial`, whose star systems its system scenes are built from, and
 snapshots its traffic layer is made from (6b). The scene reads `Sim::Snapshot` alone, never the
 world, and nothing in `sim` sees the scene. `render` depends on
 `scene` from the tier above, and reads it; the scene names no device. The Presentation tier's listed
-sibling edge is `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, a plain draw list in
+sibling edges are `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, a plain draw list in
 render's public headers, and decodes a document's images with render's CPU texture decoder; it
-includes no Vulkan header and the renderer no RmlUi one.
+includes no Vulkan header and the renderer no RmlUi one. The other is `ai`'s on `physics` (9a): a
+ship coming out of a lane is put in a physics frame and stopped in it, and steering (9b) flies
+through physics.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics` and `ai` never include
 `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
@@ -210,6 +212,21 @@ the simulation stopping (`scene/JumpTransition.h`):
 The effect runs in real seconds, the same at any time compression. The simulation steps through
 every frame of it, and the stepper is not resynced: the world did not change, and the new system's
 traffic is made from the same snapshots.
+
+That is presentation's jump, which changes what is shown. The simulation's (`ai/Lanes.h`, 9a)
+carries an entity along a lane: the command `Ai::EnterLane` takes it out of its system through a jump
+point (its `InSystem` none, an `Ai::OnLane` saying where it is going and the step it arrives), and
+the system `lanes`, after physics, brings it out at the far jump point when the transit's whole
+steps are run. A body comes out at rest in the frame of the station the gate keeps by, facing the
+way the gate faces (`Celestial::JumpPointFacing`: its planet, with its station before it), with its
+flight controls taken against nothing. What sends an entity along a lane is the game's: the shell
+sends its ship as the scene jumps along the same lane, and the scene arrives at the gate the ship
+comes out of, the transit's 40 s later.
+
+A route across the galaxy (`ai/Routes.h`) is A* over its jump points, each lane an edge at its transit
+time and each pair of a system's gates an edge at what crossing the system costs, which the caller
+says; `Ai::CrossingByCourse` says it from a course through the system's waypoints, round its star,
+planets and moons, at a speed.
 
 ### Physics
 
@@ -733,14 +750,18 @@ proves it headlessly. What exists:
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
 - **Jumps**. J jumps out through the next of the shown system's lanes, so jumping again tours them;
   the console's `jump <system>` and the Scene panel jump along a lane, or straight to any system.
-  The cameras frame the jump point arrived at.
+  The cameras frame the jump point arrived at. A jump along a lane takes the ship, when it is in the
+  system shown, along the simulation's lane (9a): it comes out of the far gate at rest 5 km from the
+  station there, is flown again if it was flown in, and is bound to that station, made from what the
+  scene draws as the system is first shown with the ship in it, to dock at and trade with. The
+  console's `route <system>` logs the way from the ship to a system, its jumps and its time at the
+  ship's 150 m/s across each system.
 - **Piloting** (7b). The shell plays the game's part: a ship holds station off the dock of the first
   station of the system it opens on, both in the station's frame, the station's collision mesh made
   from the shapes the scene draws it with (1,812 triangles for Highport). P flies it and lets it go,
   V switches between the chase and cockpit cameras, Z the flight assist; the keyboard, the first
   gamepad and joystick 1 (a HOTAS) are bound by default, and a HOTAS's throttle on a joystick of its
-  own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station. A
-  jump leaves the ship behind, since the simulation has no jump of its own yet. The station has a
+  own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station. The station has a
   docking port (7c), a sensor 40 m on a side before its dock, and the ship docks in it below 2 m/s
   and undocks as it leaves, which the overlay and the log say.
 - **Picking** (7c). A left click on the scene, not on a window over it, picks what is under the
@@ -845,3 +866,7 @@ proves it headlessly. What exists:
   convex-hull and mesh shapes, a Jolt world per frame of each star system, rails and gravity from the
   systems defined in it, and the flight model (7b), stepped in the fixed step and saved with the
   world. The shell attaches it, for its ship.
+- **AI** (`engine/ai`, 9a). A* over a graph of indexed nodes (`Pathfinding.h`); routes across the
+  galaxy over its jump points, and courses across a system round its star, planets and moons
+  (`Routes.h`); and the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`), attached by
+  the shell after physics. Utility AI, behaviour trees and steering are still stubs, for 9b and 9c.

@@ -1,9 +1,16 @@
 #include <jettison/celestial/StarSystem.h>
 
 #include <cmath>
+#include <format>
+#include <limits>
 #include <map>
+#include <optional>
 #include <ranges>
+#include <stdexcept>
 #include <string>
+
+#include <glm/geometric.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
@@ -175,6 +182,47 @@ SystemPosition EvaluateBody(const StarSystem &system, std::size_t body, double s
 	for (const std::size_t link : std::views::reverse(chain))
 		position = position + Evaluate(system.bodies[link].orbit, simSeconds);
 	return {position};
+}
+
+glm::dquat JumpPointFacing(const StarSystem &system, std::size_t body, double simSeconds)
+{
+	if (body >= system.bodies.size() || system.bodies[body].kind != BodyKind::JumpPoint)
+		throw std::invalid_argument{std::format(
+		    "Celestial: body {} of '{}' is not a jump point, and has no facing", body, system.name)};
+	const std::vector<SystemPosition> at = EvaluateSystem(system, simSeconds);
+	const glm::dvec3 &from = at[body].metres;
+
+	std::optional<std::size_t> target;
+	for (int parent = system.bodies[body].parentIndex; parent >= 0 && !target;
+	     parent = system.bodies[static_cast<std::size_t>(parent)].parentIndex)
+	{
+		const BodyKind kind = system.bodies[static_cast<std::size_t>(parent)].kind;
+		if (kind == BodyKind::Planet || kind == BodyKind::Moon)
+			target = static_cast<std::size_t>(parent);
+	}
+	// The nearest of a kind, the first listed of two as near.
+	for (const BodyKind kind : {BodyKind::Planet, BodyKind::Station})
+	{
+		if (target)
+			break;
+		double nearest = std::numeric_limits<double>::infinity();
+		for (std::size_t other = 0; other < system.bodies.size(); ++other)
+		{
+			const double distance = glm::length(at[other].metres - from);
+			if (system.bodies[other].kind == kind && distance < nearest)
+			{
+				nearest = distance;
+				target = other;
+			}
+		}
+	}
+	if (!target || at[*target].metres == from)
+		return Orientation(system.bodies[body].rotation, simSeconds);
+
+	const glm::dvec3 ahead = glm::normalize(at[*target].metres - from);
+	const glm::dvec3 up =
+	    std::abs(ahead.y) > 0.999999 ? glm::dvec3{1.0, 0.0, 0.0} : glm::dvec3{0.0, 1.0, 0.0};
+	return glm::quatLookAtRH(ahead, up);
 }
 
 double PresentationTime(double previousSimSeconds, double currentSimSeconds, double alpha)

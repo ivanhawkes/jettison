@@ -13,7 +13,7 @@ built, are recorded in [history](history.md).
 |---|---|---|
 | 0–8 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence. Recorded in [history](history.md). | Met. |
 | 9 | **AI.** Sub-phases 9a–9c; catalogue entry 26. | Automated traders choose trades, plot routes across systems and fly them without collisions. |
-| 9a | **Pathfinding.** A* over the jump-lane graph and over in-system waypoints. | Routes are tested against known shortest paths, and the same every run. |
+| 9a | **Pathfinding.** Done 2026-11-12. A* (`ai/Pathfinding.h`): a consistent estimate or none, the open nodes expanded by estimate and then index, a way in replaced only by a cheaper one, so of equal routes the same one every run; a graph, a cost or an estimate that is not one refused. Routes across the galaxy (`ai/Routes.h`, `PlotRoute`) over its jump points: a lane joins its ends at its transit time, and a system's jump points each other at a crossing cost the caller gives, so two jumps are weighed against one and a long crossing. Courses across a system (`Waypoints`, `PlotCourse`): a ring of six waypoints about each star, planet and moon, legs joined where they clear every body by a clearance, an end near a body given its own way out, searched with the straight-line distance; `CrossingByCourse` makes a route's crossings from them. The simulation's jump (`ai/Lanes.h`, `LaneTravel`): `EnterLane` sends an entity along the lane through a jump point of its system, in none for the transit in whole steps, and the system `lanes`, after physics, brings it out at the far gate at rest, facing the way the gate faces (`Celestial::JumpPointFacing`: its planet, with its station before it), in the frame of the station the gate keeps by; events at both ends and a refusal saying why. `ai` depends on `celestial` and `physics`. The sample gates moved beside their stations (5 and 6 km, beyond each station from its planet, orbiting it with its period), and their rings face the way a ship leaves them. In the shell, a jump along a lane takes the ship (flown again as it comes out), binds it to the arrival system's station, and the console's `route` plots the way from the ship to a system. | Met: in the AI suite, A* against a graph's known answer, a grid's known detour with and without an estimate, and against Floyd and Warshall over every pair of twenty random graphs, each path walked and found the same twice; ties broken the same in either adjacency order; routes across the sample galaxy end to end and back (105 s, two jumps), a shortcut weighed against a slow crossing, crossings asked the same every run; courses round a planet at the known length over its ring and no shorter than the sphere's own geodesic, kept off by a clearance, out from under a ring's face, from Ostra Highport to Pell round Ostra across an orbit; a ship entering Halcyon Gate, out of physics for the 2,400 steps of its 40 s, out at Vesper Gate at rest in Corva Refinery's frame looking at it 5 km off, and a world saved mid-transit, and a replay, arriving with the same state hash. |
 | 9b | **Steering.** Seek, arrive, obstacle avoidance and separation, over the spatial index and physics. | A group of ships reaches a station without colliding. |
 | 9c | **Decisions.** Utility AI (considerations, response curves, scored actions) and data-defined behaviour trees, ticked in the simulation step. | Phase 9's exit criterion. |
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
@@ -39,17 +39,17 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–8 moved on, and where it lands. Their full record, and catalogue entries 1–25,
+Work that phases 1–9a moved on, and where it lands. Their full record, and catalogue entries 1–25,
 are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
   writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
   smoke test's patterns.
 - **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
-  shell sets its ship's. Taking a ship into a station's frame as it closes and out as it leaves, by a
-  radius about each body, lands with steering (9b), whose traffic is the first to cross frames.
-- **Piloting across a jump** (entry 22, 7b): the shell's ship stays in its system when the scene
-  jumps, with the simulation's jump (9a).
+  shell sets its ship's, and by lane travel as a ship comes out of a gate, into the frame of the
+  station the gate keeps by (9a). Taking a ship into a station's frame as it closes and out as it
+  leaves, by a radius about each body, lands with steering (9b), whose traffic is the first to cross
+  frames between a station and the open system.
 - **A change inside a component's fields** (entry 25, 8a): fields are found by name, so a field
   added to a component reads an old save with its default, and one renamed is a rename in the
   world's table; but a field removed is refused (the archive refuses a field its type does not
@@ -75,8 +75,19 @@ are in [history](history.md).
   (its engines, the cockpit's) and occlusion by hulls; a sound file streamed from its mount rather
   than read whole, which waits on a streaming read in the VFS, with its pack files (entry 10). The
   voice bus has nothing on it yet.
-- **The sample game's later slices** ([sample game](sample-game.md)): traders that choose, plot and fly trades, and the ship's crossing of a lane (9), CivSim's order
-  book, the economy's turns and the skill tree's effects, then scripting (11).
+- **The sample game's later slices** ([sample game](sample-game.md)): traders that choose, plot and
+  fly trades (9b, 9c), CivSim's order book, the economy's turns and the skill tree's effects, then
+  scripting (11).
+- **A gate flown through** (entry 26, 9a): the shell sends its ship along a lane wherever it is in
+  the system, as the scene jumps, standing in for the game's rule. A gate that sends what flies
+  through its ring (a sensor whose contact pushes `EnterLane`), and traders that fly to it, land with
+  steering (9b) and behaviour trees (9c). The smoke sequence's jump sends the ship and does not wait
+  the 40 s for it to come out; the AI suite covers the arrival.
+- **Courses past moving bodies** (entry 26, 9a): a course is straight legs between bodies where they
+  are when it is plotted, plotted again as a ship goes. Fine across a station's few kilometres and
+  for estimating a crossing; a course across a system flown at real speeds (days, past a planet that
+  moves) needs its bodies where they will be, and a way of crossing a system at that scale at all,
+  which nothing in the engine has yet. With steering (9b), which flies them.
 - **Pack files and their compression** behind the VFS (entry 10), and definition layering finer
   than whole-file replacement (entry 13): 11a.
 - **The cinematic camera** (entry 18): 11c.
@@ -99,10 +110,6 @@ are in [history](history.md).
   one `SpatialIndex` per star system from the entities' `Transform`s, each in the index of its
   `Sim::InSystem` (6d) and an entity on a lane in none. It lands with steering (9b), its first
   reader.
-- **A jump in the simulation** (entry 21): an entity's passage along a lane, out of one system's
-  `InSystem` and into the other's after the lane's transit time, at the far jump point. The engine
-  has the graph, the component and the presentation's jump; the command and the system that move a
-  ship are the game's until AI routes ships across lanes (9a), when the engine's share is decided.
 - **A jump's own effect** (entry 21): the fade to black is the effect today; a jump's particles and
   flash come with GPU particles (10b).
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
@@ -408,6 +415,36 @@ Settled on 2026-11-10:
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set
   (catalogue entries 6 and 22).
+
+- **The simulation's jump is the engine's, in `ai`** (2026-11-12, phase 9a). What sends a ship along
+  a lane (a pilot through a gate, a trader's route) is the game's; carrying it is the engine's
+  (`Ai::LaneTravel`): the command, the component a save holds, and the system that brings it out,
+  after physics, so physics removes its body the step it enters and makes it again the step after it
+  arrives. A transit is whole steps, counted from the clock's step rather than compared in seconds,
+  so it is the same every run however its seconds round. `ai` depends on `physics` for it, as 9b's
+  steering would have.
+- **A ship comes out of a gate at rest, in its station's frame, facing the planet** (2026-11-12,
+  phase 9a). A ship's speed carried through a lane would send one that went into a gate at speed out
+  of the far one at a station a few kilometres ahead of it. So a ship arrives still relative to the
+  station the gate keeps by, in that station's frame, where it can meet and dock with the station
+  without changing frames, turned the way the gate faces: at the planet it orbits, or else the
+  nearest planet, or else the nearest station (`Celestial::JumpPointFacing`). The gate's ring is
+  drawn facing the same way. A gate of no station is its own frame.
+- **Gates keep station by their stations** (2026-11-12, phase 9a). The sample's gates were hundreds
+  of millions of kilometres from any station, days at a ship's 150 m/s. Each now orbits its station
+  in the station's plane, at its phase and with its period (given, since a station has no gravity to
+  derive one), so it stays straight out from the planet beyond the station: Halcyon Gate and Vesper
+  Gate 5 km out, half a minute's flight, and Vesper Deep Gate 6 km out at 30° ahead along the orbit,
+  so a ship coming out of either sees the planet with the station before it. In a station's frame,
+  which does not turn, a gate moves at the orbit's rate times its distance, 1.1 m/s at Corva
+  Refinery, which a ship at rest drifts from. Marrow, with no station, has its gate three of
+  Ashfall's radii out, where the world is 40° across.
+- **A route is over jump points, with the crossings the caller's** (2026-11-12, phase 9a). A graph of
+  systems joined by lanes would make a route of two short jumps across a system whose gates are a
+  long way apart cheaper than one long jump. Each jump point is a node instead, its lane an edge at
+  the transit time and every other gate of its system an edge at what crossing costs, which the
+  galaxy cannot say (it has no positions) and the caller can: `CrossingByCourse` makes it from a
+  course through the system's waypoints at a speed.
 
 ## Open decisions
 

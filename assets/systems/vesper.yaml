@@ -36,18 +36,29 @@ bodies:
       longitudeOfAscendingNode: 2.4
       argumentOfPeriapsis: 0.9
       meanAnomalyAtEpoch: 1.7
+  # The two gates keep station by the refinery, as Halcyon's does by Highport: each orbits the
+  # station in its plane and with its period, Vesper Gate 5 km straight out from Corva and the Deep
+  # Gate 6 km out at 30 degrees ahead of it along the orbit, so both see Corva with the refinery
+  # before it, and neither is in the other's way.
   - name: Vesper Gate
     kind: JumpPoint
-    parent: Vesper
+    parent: Corva Refinery
     radius: 500
     orbit:
-      semiMajorAxis: 6.0e10
-      meanAnomalyAtEpoch: 3.0
+      semiMajorAxis: 5000
+      inclination: 0.3
+      longitudeOfAscendingNode: 2.4
+      argumentOfPeriapsis: 0.9
+      meanAnomalyAtEpoch: 1.7
+      period: 29205.864191967677
   - name: Vesper Deep Gate
     kind: JumpPoint
-    parent: Vesper
+    parent: Corva Refinery
     radius: 500
     orbit:
-      semiMajorAxis: 9.0e10
-      inclination: 0.15
-      meanAnomalyAtEpoch: 5.2
+      semiMajorAxis: 6000
+      inclination: 0.3
+      longitudeOfAscendingNode: 2.4
+      argumentOfPeriapsis: 0.9
+      meanAnomalyAtEpoch: 2.2236
+      period: 29205.864191967677

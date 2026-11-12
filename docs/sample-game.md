@@ -55,18 +55,19 @@ modules, in the engine's style, and the game takes it over from there.
 | Saved games | Markets, holds and purses are simulation state, saved with the world; the saved-games screen (L) loads one. | 8b |
 | A market's answer you hear | A trade filled and a trade refused sound on the UI bus, two notes rising and two falling (`assets/defs/sounds`), mapped from the events by data. | 8c |
 | A station you come home to | Docking and undocking sound on the effects bus from the station, the clamps closing and letting go; the station hums as the ship nears it; a loop of music plays. All synthesised by `scripts/make-sample-sounds.py`, so nothing in them is anyone else's. | 8c |
+| Lanes between the systems, star gates the long hops | The ship crosses a lane: J, with the ship in the system shown, sends it through the gate, 40 s to Vesper, out at rest 5 km from Corva Refinery, facing Corva with the refinery ahead, and bound to the refinery's port and market as it was to Ostra's. Each gate keeps station beyond its station from the planet, so a ship coming out sees both. The console's `route` gives the way to a system and its time. | 9a |
 
-The two stations are in different systems, and the ship cannot yet cross a lane (the simulation's
-jump is [carried forward](roadmap.md#carried-forward) to 9a), so the arbitrage the screen shows
-between Ostra's grain and Corva's metal is one the player sees and cannot yet fly.
+The two stations are in different systems, a lane apart, so the arbitrage the screen shows between
+Ostra's grain and Corva's metal is now one the player can fly: buy at Highport, jump, fly the half
+minute from Vesper Gate to Corva Refinery, dock and sell.
 
 ## What comes next
 
 Each slice lands with the engine system it exercises:
 
-- **9, AI.** Automated traders, the plan's other ships: they read the same markets, choose trades by
-  utility (which good, which route, which station), plot routes across the lanes and fly them. This
-  is where the ship crossing a lane arrives, and with it the first arbitrage a player can fly.
+- **9b and 9c, AI.** Automated traders, the plan's other ships: they read the same markets, choose
+  trades by utility (which good, which route, which station), plot routes across the lanes (9a's
+  `Ai::PlotRoute`) and fly them, through the gates, steering clear of each other.
 - **The order book.** CivSim's price-time book, with its order life and its fills, replaces the
   market maker here once traders post orders of their own. It is game code ([scope](scope.md)):
   the engine's part is that it is deterministic, saved, and bound to a screen.

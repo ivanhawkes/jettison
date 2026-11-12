@@ -25,11 +25,13 @@ bodies:
     rotation:
       period: 140000
       axialTilt: 0.03
+  # Marrow has no station, so its gate orbits Ashfall, three of its radii out, where the whole
+  # world is in view, 40 degrees across.
   - name: Marrow Gate
     kind: JumpPoint
-    parent: Marrow
+    parent: Ashfall
     radius: 500
     orbit:
-      semiMajorAxis: 3.4e11
+      semiMajorAxis: 1.2e7
       inclination: 0.1
       meanAnomalyAtEpoch: 0.7

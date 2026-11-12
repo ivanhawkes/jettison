@@ -166,7 +166,8 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 		case 5:
 		case 6:
 			// The ship's proxy is made from the snapshots and followed by the rig, through a
-			// transition, while the flight commands move it; the jump that follows leaves it behind.
+			// transition, while the flight commands move it; the jump that follows takes it along the
+			// lane.
 			if (m_actions.pilot(stage == 6))
 				++m_pilots;
 			m_actionPending = false;

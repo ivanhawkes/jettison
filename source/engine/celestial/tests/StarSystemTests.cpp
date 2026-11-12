@@ -4,9 +4,13 @@
 
 #include <doctest/doctest.h>
 
+#include <glm/geometric.hpp>
+
 #include <bit>
+#include <cmath>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 using namespace Jettison::Celestial;
@@ -150,4 +154,50 @@ TEST_CASE("Star system: the sample system in the assets reads")
 	REQUIRE(station > 0);
 	CHECK(system.bodies[static_cast<std::size_t>(station)].kind == BodyKind::Station);
 	CHECK(system.bodies[static_cast<std::size_t>(station)].parentIndex == system.Find("Ostra"));
+}
+
+TEST_CASE("Star system: the sample gates keep station by their stations and face their planets")
+{
+	// Each gate of a station is kilometres from it, beyond it from the planet, so a ship coming out
+	// faces the planet with the station in view; Marrow's, with no station, faces its world.
+	struct Gate
+	{
+		const char *file;
+		const char *gate;
+		const char *planet;
+		const char *station;
+		double distance;
+		// The cosine of the angle off ahead the station is at, at most.
+		double ahead;
+	};
+	for (const Gate &gate :
+	     {Gate{"halcyon", "Halcyon Gate", "Ostra", "Ostra Highport", 5000.0, 0.999},
+	      Gate{"vesper", "Vesper Gate", "Corva", "Corva Refinery", 5000.0, 0.999},
+	      Gate{"vesper", "Vesper Deep Gate", "Corva", "Corva Refinery", 6000.0, 0.85},
+	      Gate{"marrow", "Marrow Gate", "Ashfall", nullptr, 0.0, 0.0}})
+	{
+		CAPTURE(gate.gate);
+		const StarSystem system = ReadStarSystem(
+		    ReadFile(std::string{JETTISON_ASSET_SOURCE_DIR "/systems/"} + gate.file + ".yaml"));
+		const auto index = static_cast<std::size_t>(system.Find(gate.gate));
+		REQUIRE(system.bodies[index].kind == BodyKind::JumpPoint);
+		for (const double time : {0.0, 1000.0, 86400.0, 3.0e7})
+		{
+			CAPTURE(time);
+			const auto at = [&](const char *name)
+			{ return EvaluateBody(system, static_cast<std::size_t>(system.Find(name)), time).metres; };
+			const glm::dvec3 from = at(gate.gate);
+			const glm::dquat facing = JumpPointFacing(system, index, time);
+			const glm::dvec3 ahead = facing * glm::dvec3{0.0, 0.0, -1.0};
+			CHECK(glm::dot(ahead, glm::normalize(at(gate.planet) - from)) == doctest::Approx(1.0));
+			// Level: its X axis is square to the system's +Y.
+			CHECK(std::abs((facing * glm::dvec3{1.0, 0.0, 0.0}).y) < 1.0e-9);
+			if (!gate.station)
+				continue;
+			const glm::dvec3 toStation = at(gate.station) - from;
+			CHECK(glm::length(toStation) == doctest::Approx(gate.distance).epsilon(0.002));
+			CHECK(glm::dot(ahead, glm::normalize(toStation)) > gate.ahead);
+		}
+	}
+	CHECK_THROWS_AS(JumpPointFacing(ReadStarSystem(kSystem), 0, 0.0), std::invalid_argument);
 }

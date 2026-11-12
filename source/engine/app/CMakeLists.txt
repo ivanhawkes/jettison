@@ -4,6 +4,7 @@
 # (platform/Cpu.h) into every executable the shell is in.
 jettison_add_module(app
 	DEPENDS
+		ai
 		animation
 		audio
 		celestial

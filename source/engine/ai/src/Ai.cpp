@@ -1,5 +1,4 @@
 #include <jettison/ai/BehaviourTree.h>
-#include <jettison/ai/Pathfinding.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/UtilityAi.h>
 
@@ -19,12 +18,6 @@ BehaviourTree::BehaviourTree(std::unique_ptr<Node> root) : m_pRoot{std::move(roo
 {
 }
 Status BehaviourTree::Tick(entt::registry & /*unused*/, entt::entity /*unused*/)
-{
-	JETTISON_NOT_IMPLEMENTED();
-}
-
-std::optional<std::vector<NodeId>> FindPath(
-    const Graph & /*unused*/, NodeId /*unused*/, NodeId /*unused*/)
 {
 	JETTISON_NOT_IMPLEMENTED();
 }

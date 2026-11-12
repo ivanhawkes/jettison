@@ -1,19 +1,30 @@
 jettison_add_module(ai
 	DETERMINISTIC
 	DEPENDS
+		celestial
 		core
 		math
+		physics
+		reflect
 		sim
 		spatial
 	HEADERS
 		include/jettison/ai/UtilityAi.h
 		include/jettison/ai/BehaviourTree.h
+		include/jettison/ai/Lanes.h
 		include/jettison/ai/Pathfinding.h
+		include/jettison/ai/Routes.h
 		include/jettison/ai/Steering.h
 	SOURCES
 		src/Ai.cpp
+		src/Lanes.cpp
+		src/Pathfinding.cpp
+		src/Routes.cpp
 	TESTS
 		tests/AiTests.cpp
+		tests/LanesTests.cpp
+		tests/PathfindingTests.cpp
+		tests/RoutesTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

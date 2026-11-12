@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include <jettison/ai/Lanes.h>
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
 #include <jettison/audio/AudioSystem.h>
@@ -190,14 +191,26 @@ class Application
 
 	// Piloting (docs/architecture.md, "Physics"). The shell is the engine with no game, so it plays
 	// the game's part: a ship holding station beside the first station of the system it opens on,
-	// which P flies and V looks at from behind or from its seat.
+	// which P flies and V looks at from behind or from its seat, and which a jump along a lane takes
+	// with it (Ai::LaneTravel) when it is in the system shown.
 	//
-	// Every system the galaxy has is defined in physics, for rails and gravity; the scene's own too.
+	// Every system the galaxy has is defined in physics, for rails and gravity, and in lane travel,
+	// for where a ship comes out; the scene's own in physics too.
 	void DefineStarSystems();
-	// The station's body, kinematic on its rails with a collision mesh from what the scene draws it
-	// with (MakeCollisionMesh), and the ship beside it, both in the station's frame. Once a run: a
-	// reload of the scene leaves the simulation as it was.
+	// The ship bound to the first station of the system shown, the one it docks at and trades with:
+	// the station's body, kinematic on its rails with a collision mesh from what the scene draws it
+	// with (MakeCollisionMesh), and its docking port, as simulation entities, made the first time the
+	// system is shown with the ship in it and found again in the world after that. False for a system
+	// with no station, or one drawn with no shape.
+	bool BindStation();
+	// The station bound, and the ship beside it in the station's frame. Once a run: a reload of the
+	// scene leaves the simulation as it was.
 	void SpawnShip();
+	// Sends the ship along the lane, when it is in the system shown, as the scene jumps along it.
+	void TakeShipAlong(const Celestial::Exit &exit);
+	// The console's route: the quickest way from the ship to a system, at the ship's top speed
+	// across each system (Ai::PlotRoute, Ai::CrossingByCourse).
+	void LogRoute(std::string_view systemName) const;
 	// Whether the ship is in the system shown, which is the only one a camera can follow it in.
 	bool CanPilot() const;
 	bool StartPiloting(Scene::PilotView view);
@@ -327,8 +340,14 @@ class Application
 	// docked at it, as the last event said.
 	entt::entity m_port{entt::null};
 	bool m_docked{false};
+	// The system the ship is in, none while it is on a lane; and the system and body of the station
+	// it is bound to, which after a jump is a system away until the ship's arrival is shown.
 	std::uint64_t m_shipSystem{0};
+	std::uint64_t m_stationSystem{0};
 	std::string m_stationBody;
+	// Whether the ship was flown when it entered a lane, so it is flown again once it is shown out of
+	// the far end.
+	bool m_resumePiloting{false};
 	bool m_piloting{false};
 	Scene::PilotView m_pilotView{Scene::PilotView::Chase};
 	bool m_assist{true};
@@ -464,6 +483,10 @@ class Application
 	// file's virtual path is what a save names it by.
 	std::optional<Celestial::Galaxy> m_galaxy;
 	std::string m_galaxyPath;
+	// Its systems, in its order, as their files have them, for routes.
+	std::vector<Celestial::StarSystem> m_galaxySystems;
+	// Lane travel in the simulation, given the galaxy and its systems; the world holds it.
+	Ai::LaneTravel *m_pLanes{nullptr};
 	// The galaxy's system the scene shows, if it shows one, and the jump point the last jump arrived
 	// at in it.
 	std::optional<std::size_t> m_shownSystem;

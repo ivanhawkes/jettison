@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include <jettison/ai/Lanes.h>
+#include <jettison/ai/Routes.h>
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/celestial/StarSystem.h>
@@ -227,13 +229,24 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    "quit", "Closes the window and ends the run",
 	    [this](DevTools::Console &, std::span<const std::string>) { RequestClose(); });
 	m_console.RegisterCommand(
-	    "jump", "Jumps to the star system named, or out through the next lane: jump [system]",
+	    "jump",
+	    "Jumps to the star system named, or out through the next lane, taking the ship along a "
+	    "lane: jump [system]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    {
 		    std::string name;
 		    for (const std::string &word : arguments)
 			    name += (name.empty() ? "" : " ") + word;
 		    Jump(name);
+	    });
+	m_console.RegisterCommand(
+	    "route", "Says the quickest way from the ship to the star system named: route <system>",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    std::string name;
+		    for (const std::string &word : arguments)
+			    name += (name.empty() ? "" : " ") + word;
+		    LogRoute(name);
 	    });
 
 	m_console.RegisterCommand(
@@ -345,6 +358,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::Transform>();
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
+	m_pLanes = &Ai::LaneTravel::Attach(m_sim);
 	RegisterDocking(m_sim, *m_pPhysics);
 	RegisterTrading(m_sim);
 	RegisterMarketScreenTypes();
@@ -1449,6 +1463,7 @@ void Application::InitGalaxy()
 		    Celestial::ReadGalaxy(
 		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
 		m_galaxyPath = path;
+		m_pLanes->SetGalaxy(*m_galaxy);
 	}
 	catch (const std::exception &error)
 	{
@@ -1495,9 +1510,14 @@ bool Application::Jump(std::string_view systemName)
 		const auto lane =
 		    std::ranges::find(exits, static_cast<std::size_t>(system), &Celestial::Exit::destination);
 		m_jumpStep = m_sim.Clock().Step();
-		return m_jump->Begin(
-		    *m_galaxy, static_cast<std::size_t>(system),
-		    lane == exits.end() ? std::string{} : std::string{lane->arrival});
+		if (!m_jump->Begin(
+		        *m_galaxy, static_cast<std::size_t>(system),
+		        lane == exits.end() ? std::string{} : std::string{lane->arrival}))
+			return false;
+		// Straight to a system no lane leads to is the tools' tour, and leaves the ship behind.
+		if (lane != exits.end())
+			TakeShipAlong(*lane);
+		return true;
 	}
 	if (!m_shownSystem)
 	{
@@ -1512,7 +1532,68 @@ bool Application::Jump(std::string_view systemName)
 	                                  ? exits.front()
 	                                  : *std::next(arrived);
 	m_jumpStep = m_sim.Clock().Step();
-	return m_jump->Begin(*m_galaxy, exit.destination, std::string{exit.arrival});
+	if (!m_jump->Begin(*m_galaxy, exit.destination, std::string{exit.arrival}))
+		return false;
+	TakeShipAlong(exit);
+	return true;
+}
+
+
+void Application::TakeShipAlong(const Celestial::Exit &exit)
+{
+	if (!CanPilot())
+		return;
+	m_sim.Commands().Push(Ai::EnterLane{m_ship, std::string{exit.jumpPoint}});
+}
+
+
+void Application::LogRoute(std::string_view systemName) const
+{
+	if (!m_galaxy || m_galaxySystems.size() != m_galaxy->systems.size())
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No route: there is no galaxy");
+		return;
+	}
+	const int to = m_galaxy->Find(systemName);
+	const auto from = std::ranges::find(
+	    m_galaxy->systems, m_shipSystem,
+	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	if (to < 0 || m_ship == entt::null || from == m_galaxy->systems.end())
+	{
+		Core::Log(
+		    Core::Severity::Warning, kShell, "No route: {}",
+		    to < 0 ? std::format("the galaxy has no system '{}'", systemName)
+		           : std::string{"the ship is in no system of the galaxy"});
+		return;
+	}
+	// From the station when the ship is bound to one in its system, and to the destination's first.
+	const auto index = static_cast<std::size_t>(from - m_galaxy->systems.begin());
+	const Celestial::StarSystem &destination = m_galaxySystems[static_cast<std::size_t>(to)];
+	const auto station =
+	    std::ranges::find(destination.bodies, Celestial::BodyKind::Station, &Celestial::Body::kind);
+	const Ai::Place start{index, m_stationSystem == m_shipSystem ? m_stationBody : std::string{}};
+	const Ai::Place end{
+	    static_cast<std::size_t>(to),
+	    station == destination.bodies.end() ? std::string{} : station->name};
+	constexpr double kClearance = 1.0e5;
+	const float speed = Physics::Thrusters{}.maxSpeed;
+	const std::optional<Ai::Route> route = Ai::PlotRoute(
+	    *m_galaxy, start, end,
+	    Ai::CrossingByCourse(m_galaxySystems, m_sim.Clock().Now(), speed, kClearance));
+	if (!route)
+	{
+		Core::Log(Core::Severity::Info, kShell, "No lanes lead to {}", systemName);
+		return;
+	}
+	std::string jumps;
+	for (const Celestial::Exit &jump : route->jumps)
+		jumps += std::format(
+		    "{}through {} to {} ({:.0f} s)", jumps.empty() ? "" : ", ", jump.jumpPoint,
+		    m_galaxy->systems[jump.destination].name, jump.transitSeconds);
+	Core::Log(
+	    Core::Severity::Info, kShell, "Route to {}{}: {}; {:.0f} s at {:.0f} m/s", systemName,
+	    end.body.empty() ? "" : " (" + end.body + ")", jumps.empty() ? "no jumps" : jumps,
+	    route->seconds, speed);
 }
 
 
@@ -1529,8 +1610,8 @@ void Application::ShowArrival(Scene::JumpArrival &arrival)
 		m_pScene->LoadSystem(arrival.starSystemPath);
 	m_systemScene.emplace(*m_pScene, std::move(arrival.starSystem));
 	SetProxyFactory();
-	// The ship stays where it is, so a jump leaves it behind: the simulation has no jump of its own
-	// yet (docs/roadmap.md, "Carried forward").
+	// A jump along a lane took the ship with it (TakeShipAlong), and it comes out of the gate the
+	// cameras frame; one straight to a system leaves it behind.
 	if (m_piloting && !CanPilot())
 		StopPiloting();
 	m_shownSystem = arrival.system;
@@ -1715,8 +1796,18 @@ bool Application::LoadFrom(std::string_view name)
 		m_ship = valid(shell.ship);
 		m_station = valid(shell.station);
 		m_port = valid(shell.port);
-		m_shipSystem = shell.shipSystem;
+		// The systems from the world, which a ship saved on a lane or before its station was bound
+		// holds as the shell's section does not.
+		const auto systemOf = [&world](entt::entity entity)
+		{
+			const auto *inSystem =
+			    entity == entt::null ? nullptr : world.try_get<Sim::InSystem>(entity);
+			return inSystem ? inSystem->system : Sim::kNoSystem;
+		};
+		m_shipSystem = m_ship == entt::null ? shell.shipSystem : systemOf(m_ship);
+		m_stationSystem = systemOf(m_station);
 		m_stationBody = shell.stationBody;
+		m_resumePiloting = false;
 		m_docked = m_ship != entt::null && world.all_of<Docked>(m_ship);
 		m_sentControls.reset();
 		m_pickPending = false;
@@ -1900,28 +1991,54 @@ void Application::DefineStarSystems()
 			throw std::runtime_error("Failed to read star system '" + entry.system + "'");
 		Celestial::StarSystem system = Celestial::ReadStarSystem(
 		    std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()});
-		if (!m_pPhysics->HasStarSystem(Sim::SystemId(system.name)))
+		const std::uint64_t id = Sim::SystemId(system.name);
+		m_galaxySystems.push_back(system);
+		if (!m_pLanes->HasStarSystem(id))
+			m_pLanes->DefineStarSystem(system);
+		if (!m_pPhysics->HasStarSystem(id))
 			m_pPhysics->DefineStarSystem(std::move(system));
 	}
 }
 
 
-void Application::SpawnShip()
+bool Application::BindStation()
 {
-	if (m_ship != entt::null || !m_systemScene)
-		return;
+	if (!m_systemScene)
+		return false;
 	const Celestial::StarSystem &system = m_systemScene->System();
 	const auto station =
 	    std::ranges::find(system.bodies, Celestial::BodyKind::Station, &Celestial::Body::kind);
 	if (station == system.bodies.end())
-		return;
+		return false;
+	const std::uint64_t systemId = Sim::SystemId(system.name);
+	if (m_station != entt::null && m_stationSystem == systemId && m_stationBody == station->name)
+		return true;
+	entt::registry &world = m_sim.Registry();
+
+	// Made on an earlier visit, or in the world a save loaded: a body on the station's rails that is
+	// not its port.
+	for (const auto [entity, rails, inSystem] :
+	     world.view<const Physics::OnRails, const Sim::InSystem>(entt::exclude<DockingPort>).each())
+		if (inSystem.system == systemId && rails.body == station->name)
+		{
+			m_station = entity;
+			m_port = entt::null;
+			for (const auto [port, docking] : world.view<const DockingPort>().each())
+				if (docking.station == entity)
+					m_port = port;
+			m_stationSystem = systemId;
+			m_stationBody = station->name;
+			Core::Log(Core::Severity::Info, kShell, "The ship is bound to {}", m_stationBody);
+			return true;
+		}
+
 	entt::registry &scene = m_pScene->Registry();
 	entt::entity shown = entt::null;
 	for (const auto [entity, celestial] : scene.view<const Scene::CelestialBodyComponent>().each())
 		if (celestial.body == station->name)
 			shown = entity;
 	if (shown == entt::null)
-		return;
+		return false;
 
 	// The station's hull, as the scene draws it.
 	const std::string shape = "stations/" + Scene::BodyEntityId(station->name);
@@ -1929,9 +2046,9 @@ void Application::SpawnShip()
 	if (!mesh)
 	{
 		Core::Log(
-		    Core::Severity::Warning, kShell, "No ship: station '{}' is drawn with no shape to meet",
+		    Core::Severity::Warning, kShell, "No station: '{}' is drawn with no shape to meet",
 		    station->name);
-		return;
+		return false;
 	}
 	if (!m_pPhysics->HasShape(shape))
 	{
@@ -1945,13 +2062,6 @@ void Application::SpawnShip()
 		    Core::Severity::Info, kShell, "Station '{}' collides as {} triangles", station->name,
 		    mesh->shape.indices.size() / 3);
 	}
-	if (!m_pPhysics->HasShape(kShipShape))
-	{
-		Physics::ShapeDefinition hull;
-		hull.kind = Physics::ShapeKind::Box;
-		hull.halfExtents = kShipHalfExtents;
-		m_pPhysics->DefineShape(std::string{kShipShape}, hull);
-	}
 
 	// Where the station is now: placed by its rails from the next step, and by the shell for the
 	// snapshots the stepper is resynced to.
@@ -1960,8 +2070,6 @@ void Application::SpawnShip()
 	const Sim::Transform at{
 	    Celestial::EvaluateBody(system, index, now).metres,
 	    Celestial::Orientation(station->rotation, now)};
-	const std::uint64_t systemId = Sim::SystemId(system.name);
-	entt::registry &world = m_sim.Registry();
 
 	m_station = world.create();
 	world.emplace<Sim::Transform>(m_station, at);
@@ -1994,13 +2102,39 @@ void Application::SpawnShip()
 	world.emplace<Physics::Body>(m_port, sensor);
 	world.emplace<DockingPort>(m_port, m_station);
 
+	// The station's market trades through its port from now on.
+	for (const auto [entity, market] : world.view<Market>().each())
+		if (market.station == station->name && market.system == systemId)
+			market.stationEntity = m_station;
+	m_stationSystem = systemId;
+	m_stationBody = station->name;
+	m_simStepper.Resync();
+	Core::Log(Core::Severity::Info, kShell, "The ship is bound to {}", m_stationBody);
+	return true;
+}
+
+
+void Application::SpawnShip()
+{
+	if (m_ship != entt::null || !BindStation())
+		return;
+	if (!m_pPhysics->HasShape(kShipShape))
+	{
+		Physics::ShapeDefinition hull;
+		hull.kind = Physics::ShapeKind::Box;
+		hull.halfExtents = kShipHalfExtents;
+		m_pPhysics->DefineShape(std::string{kShipShape}, hull);
+	}
+	entt::registry &world = m_sim.Registry();
+	const Sim::Transform at = world.get<Sim::Transform>(m_station);
+
 	// Off the dock, nose towards it, still in the station's frame.
 	m_ship = world.create();
 	world.emplace<Sim::Transform>(
 	    m_ship, at.position + at.orientation * kShipStation,
 	    at.orientation * glm::angleAxis(glm::pi<double>(), glm::dvec3{0.0, 1.0, 0.0}));
-	world.emplace<Sim::InSystem>(m_ship, systemId);
-	world.emplace<Physics::LocalFrame>(m_ship, station->name);
+	world.emplace<Sim::InSystem>(m_ship, m_stationSystem);
+	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
 	Physics::Body body{Physics::BodyKind::Dynamic, std::string{kShipShape}, kShipMass};
 	body.friction = 0.4f;
 	body.restitution = 0.2f;
@@ -2011,15 +2145,10 @@ void Application::SpawnShip()
 	world.emplace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
 	world.emplace<Hold>(m_ship, Hold{kShipHold, {}});
 	world.emplace<Purse>(m_ship, Purse{kStartingCredits});
-	// The station's market trades through its port from now on.
-	for (const auto [entity, market] : world.view<Market>().each())
-		if (market.station == station->name && market.system == systemId)
-			market.stationEntity = m_station;
-	m_shipSystem = systemId;
-	m_stationBody = station->name;
+	m_shipSystem = m_stationSystem;
 	m_simStepper.Resync();
 	Core::Log(
-	    Core::Severity::Info, kShell, "A ship holds station off {}'s dock: P flies it", station->name);
+	    Core::Severity::Info, kShell, "A ship holds station off {}'s dock: P flies it", m_stationBody);
 }
 
 
@@ -2069,7 +2198,8 @@ void Application::FlyShip()
 		controls = m_arguments.smokeTest ? kSmokeFlight : m_pilotInput->Read(m_input);
 	// Let go, the ship holds station on its assist, whatever the pilot left it on.
 	controls.assist = m_piloting ? m_assist : true;
-	controls.reference = m_station;
+	// Against the station while the ship is in its system; against its frame on the way to the next.
+	controls.reference = m_stationSystem == m_shipSystem ? m_station : entt::null;
 	if (m_sentControls == controls)
 		return;
 	m_sim.Commands().Push(Physics::SetFlightControls{m_ship, controls});
@@ -2224,10 +2354,13 @@ void Application::DrawFlight()
 	// the station's over the last step.
 	const Sim::Snapshot &previous = m_simStepper.Previous();
 	const Sim::Snapshot &current = m_simStepper.Current();
-	const auto *ship = current.Find(m_ship);
-	const auto *station = current.Find(m_station);
-	if (!ship || !station)
+	const auto *shipSample = current.FindSample(m_ship);
+	const auto *stationSample = current.FindSample(m_station);
+	// A station a system away, as it is until the ship's arrival binds it to the next, is no measure.
+	if (!shipSample || !stationSample || shipSample->system != stationSample->system)
 		return;
+	const Sim::Transform *ship = &shipSample->transform;
+	const Sim::Transform *station = &stationSample->transform;
 	double speed = 0.0;
 	if (const auto *shipBefore = previous.Find(m_ship), *stationBefore = previous.Find(m_station);
 	    shipBefore && stationBefore && current.time > previous.time)
@@ -2308,6 +2441,29 @@ void Application::TakeEvents()
 			    Core::Severity::Info, kShell, "Picked {} at {:.0f} m", Describe(picked->entity),
 			    picked->distance);
 		}
+		else if (const auto *entered = event.event.try_cast<Ai::LaneEntered>();
+		         entered && entered->entity == m_ship)
+		{
+			m_shipSystem = Sim::kNoSystem;
+			m_resumePiloting = m_piloting;
+			if (m_piloting)
+				StopPiloting();
+			Core::Log(
+			    Core::Severity::Info, kShell,
+			    "The ship entered the lane through {}, out at {} in {:.0f} s", entered->lane.departure,
+			    entered->lane.arrival, entered->transitSeconds);
+		}
+		else if (const auto *arrived = event.event.try_cast<Ai::LaneLeft>();
+		         arrived && arrived->entity == m_ship)
+		{
+			m_shipSystem = arrived->system;
+			Core::Log(Core::Severity::Info, kShell, "The ship came out at {}", arrived->arrival);
+		}
+		else if (const auto *noLane = event.event.try_cast<Ai::LaneRefused>();
+		         noLane && noLane->entity == m_ship)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "The ship cannot enter the lane through {}: {}",
+			    noLane->jumpPoint, noLane->reason);
 		else if (const auto *docked = event.event.try_cast<ShipDocked>();
 		         docked && docked->ship == m_ship)
 		{
@@ -2341,6 +2497,15 @@ void Application::TakeEvents()
 		}
 		if (m_showMarket)
 			m_marketDirty = true;
+	}
+	// Out of a lane into the system shown, whichever came first, the ship is bound to the station
+	// there, and flown again if it was flown in.
+	if (CanPilot() && m_stationSystem != m_shipSystem)
+		BindStation();
+	if (m_resumePiloting && CanPilot())
+	{
+		m_resumePiloting = false;
+		StartPiloting(m_pilotView);
 	}
 }
 

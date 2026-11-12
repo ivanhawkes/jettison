@@ -1,5 +1,6 @@
 #include <jettison/scene/SystemScene.h>
 
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
@@ -51,7 +52,7 @@ Look LookOf(BodyKind kind)
 			// A hull along the station's z axis, the length of its radius either side.
 			return {Shape::Box, {0.62f, 0.62f, 0.66f}, {0.25f, 0.25f, 1.0f}, 50.0};
 		case BodyKind::JumpPoint:
-			// A marker, a kilometre across, in the system's plane.
+			// A marker, a kilometre across, facing the way a ship leaves it.
 			return {Shape::Ring, {0.3f, 0.6f, 1.0f}, glm::vec3{1.0f}, 500.0, 0.9f, Layer::Effects};
 	}
 	return {};
@@ -125,9 +126,15 @@ void PlaceCelestialBodies(
 		if (index < 0)
 			continue;
 		const auto body = static_cast<std::size_t>(index);
+		// A jump point's ring lies in its own XZ plane, so it is stood up on its X axis to face the
+		// way the jump point does, as a ship leaving it does.
+		const glm::dquat orientation =
+		    system.bodies[body].kind == BodyKind::JumpPoint
+		        ? Celestial::JumpPointFacing(system, body, simSeconds) *
+		              glm::angleAxis(-glm::half_pi<double>(), glm::dvec3{1.0, 0.0, 0.0})
+		        : Celestial::Orientation(system.bodies[body].rotation, simSeconds);
 		presentation.emplace_or_replace<PlacementComponent>(
-		    entity, Celestial::EvaluateBody(system, body, simSeconds).metres,
-		    Celestial::Orientation(system.bodies[body].rotation, simSeconds),
+		    entity, Celestial::EvaluateBody(system, body, simSeconds).metres, orientation,
 		    system.bodies[body].radius);
 	}
 }

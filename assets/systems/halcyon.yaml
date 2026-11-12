@@ -53,11 +53,20 @@ bodies:
     rotation:
       period: 2360591.5
       axialTilt: 0.0269
-  # The lane to Vesper (galaxy.yaml). Its radius is the ring a ship flies through.
+  # The lane to Vesper (galaxy.yaml). Its radius is the ring a ship flies through. It keeps station
+  # 5 km above Highport, straight out from Ostra: its orbit about the station is the station's about
+  # the planet (the same plane, phase and period), so it stays on the line from the planet through
+  # the station, and a ship coming out of it faces the planet with the station before it, half a
+  # minute away at the ship's 150 m/s.
   - name: Halcyon Gate
     kind: JumpPoint
-    parent: Halcyon
+    parent: Ostra Highport
     radius: 500
     orbit:
-      semiMajorAxis: 4.0e11
-      meanAnomalyAtEpoch: 1.0
+      semiMajorAxis: 5000
+      inclination: 0.9006
+      longitudeOfAscendingNode: 1.2
+      argumentOfPeriapsis: 0.4
+      meanAnomalyAtEpoch: 3.1416
+      # Highport's period, which its parent's gravity gives it; the station has none to give.
+      period: 5569.440597283014

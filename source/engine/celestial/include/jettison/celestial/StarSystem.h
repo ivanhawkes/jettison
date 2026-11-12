@@ -77,6 +77,16 @@ std::vector<SystemPosition> EvaluateSystem(const StarSystem &system, double simS
 // few bodies of a large system.
 SystemPosition EvaluateBody(const StarSystem &system, std::size_t body, double simSeconds);
 
+// Which way a jump point faces at a simulation time: the orientation whose -Z looks at what a ship
+// coming out of it should see first, and whose +Y is as near the system's +Y as that allows (+X when
+// the two are the same line). That is the planet or moon it orbits, however far up its parents; or
+// else the planet nearest it; or else the station nearest it; or, in a system of none, its own
+// spin. A gate is placed beyond its station from the planet, so the station is in front of the
+// planet seen from it (assets/systems). The ring presentation draws (scene/SystemScene.h) and a ship
+// leaving a lane (ai/Lanes.h) both face this way. Throws std::invalid_argument for a body that is
+// not a jump point; the system has to be resolved.
+glm::dquat JumpPointFacing(const StarSystem &system, std::size_t body, double simSeconds);
+
 // The time presentation shows between two simulation steps. A body on rails is evaluated at the
 // interpolated time, not lerped between the positions the steps put it at, so it is on its orbit
 // at every frame and every body shown is shown at the same moment.
