@@ -210,6 +210,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_toggleDebugDraw = m_input.DefineAction("toggle_debug_draw", Input::ActionType::Button);
 	m_toggleClusterHeat = m_input.DefineAction("toggle_cluster_heat", Input::ActionType::Button);
 	m_toggleShadowCascades = m_input.DefineAction("toggle_shadow_cascades", Input::ActionType::Button);
+	m_toggleAmbientAccess = m_input.DefineAction("toggle_ambient_access", Input::ActionType::Button);
 	m_cameraOrbit = m_input.DefineAction("camera_orbit", Input::ActionType::Vector);
 	m_cameraZoom = m_input.DefineAction("camera_zoom", Input::ActionType::Axis);
 	m_cameraDrag = m_input.DefineAction("camera_drag", Input::ActionType::Button);
@@ -234,6 +235,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_input.Bind("shell", m_toggleDebugDraw, {Input::Keys::F2});
 	m_input.Bind("shell", m_toggleClusterHeat, {Input::Keys::F3});
 	m_input.Bind("shell", m_toggleShadowCascades, {Input::Keys::F4});
+	m_input.Bind("shell", m_toggleAmbientAccess, {Input::Keys::F6});
 	using Input::Keys::Character;
 	m_input.Bind("shell", m_cameraOrbit, {Character('d'), Character('a'), 1.0f, 0.0f, 0});
 	m_input.Bind("shell", m_cameraOrbit, {Character('w'), Character('s'), 1.0f, 0.0f, 1});
@@ -461,6 +463,24 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		    if (arguments.size() != 1)
 			    throw std::invalid_argument{"takes the file to write"};
 		    m_pRenderer->RequestScreenshot(std::filesystem::absolute(arguments[0]));
+	    });
+	m_console.RegisterCommand(
+	    "view",
+	    "Shows the shaded scene or a debug view of it, as F3, F4 and F6 do: view "
+	    "shaded|clusters|cascades|occlusion",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    constexpr std::array<std::pair<std::string_view, Render::DebugView>, 4> kViews{
+		        {{"shaded", Render::DebugView::Shaded},
+		         {"clusters", Render::DebugView::ClusterHeat},
+		         {"cascades", Render::DebugView::ShadowCascades},
+		         {"occlusion", Render::DebugView::AmbientAccess}}};
+		    const auto found = std::ranges::find_if(
+		        kViews,
+		        [&](const auto &view) { return !arguments.empty() && view.first == arguments[0]; });
+		    if (found == kViews.end())
+			    throw std::invalid_argument{"takes shaded, clusters, cascades or occlusion"};
+		    m_pRenderer->SetDebugView(found->second);
 	    });
 	m_console.RegisterCommand(
 	    "orbit",
@@ -744,6 +764,15 @@ void Application::RegisterFrameSystems()
 		     JETTISON_PROFILE_ZONE("shell.ui");
 		     DrawUI();
 	     }});
+	// What is picked outlined, and the hull flown from its seat marked as the cockpit, on the proxies
+	// the sync phase left (MarkScene).
+	m_frame.Register(
+	    {"shell.marks",
+	     TickPhase::Presentation,
+	     Access::Of<Scene::SimProxyComponent>()
+	         .Writing<Scene::OutlineComponent, Scene::MaskComponent>(),
+	     {},
+	     [this](entt::registry &registry, double) { MarkScene(registry); }});
 	// The game UI, from the snapshots the sync phase took in: the market screen's data, then layout
 	// and drawing into the overlay.
 	m_frame.Register(
@@ -761,8 +790,8 @@ void Application::RegisterFrameSystems()
 	    {"render",
 	     TickPhase::Render,
 	     Access::Of<
-	         MeshComponent, WorldTransformComponent, SkeletonComponent, CameraComponent,
-	         LightComponent>(),
+	         MeshComponent, WorldTransformComponent, SkeletonComponent, CameraComponent, LightComponent,
+	         Scene::OutlineComponent, Scene::MaskComponent>(),
 	     {},
 	     [this](entt::registry &, double)
 	     {
@@ -982,6 +1011,8 @@ void Application::InitRenderer()
 #endif
 	options.clusterCheck = m_arguments.smokeTest;
 	options.depthPrepass = m_arguments.depthPrepass;
+	options.ambientOcclusion = m_arguments.ambientOcclusion;
+	options.bloom = m_arguments.bloom;
 	options.gpu = m_arguments.gpu;
 	m_pRenderer = Render::CreateRenderer(m_assets, *m_pResources, std::move(options));
 	m_pRenderer->Init();
@@ -1326,6 +1357,7 @@ void Application::RunFrameLoop()
 
 	m_clusterChecks = m_pRenderer->GetClusterChecks();
 	m_passTimings = m_pRenderer->GetPassTimings();
+	m_benchmarkAmbientOcclusion = m_pRenderer->GetAmbientOcclusion();
 	m_frameStats = m_pRenderer->GetFrameStats();
 	m_measuredFrames = m_pRenderer->GetMeasuredFrames();
 	m_deviceName = m_pRenderer->DeviceName();
@@ -1475,10 +1507,17 @@ void Application::DrawRendererPanel()
 	ImGui::Text(
 	    "Transparent: %u draws; %u emitters in %u particle slots", stats.transparentBatches,
 	    stats.emitters, stats.particleSlots);
+	ImGui::Text("Outlines %u", stats.outlines);
 	bool prepass = m_pRenderer->GetDepthPrepass();
 	if (ImGui::Checkbox("Depth prepass", &prepass))
 		m_pRenderer->SetDepthPrepass(prepass);
 	ImGui::SameLine();
+	bool occlusion = m_pRenderer->GetAmbientOcclusion();
+	if (ImGui::Checkbox("Ambient occlusion", &occlusion))
+		m_pRenderer->SetAmbientOcclusion(occlusion);
+	float bloom = m_pRenderer->GetBloom();
+	if (ImGui::SliderFloat("Bloom", &bloom, 0.0f, 0.2f, "%.3f"))
+		m_pRenderer->SetBloom(bloom);
 	if (ImGui::Button("Reset means"))
 		m_pRenderer->ResetPassTimings();
 	if (ImGui::BeginTable("passes", 3, ImGuiTableFlags_RowBg))
@@ -1525,30 +1564,32 @@ void Application::ReportBenchmark() const
 	// Read after teardown from the copies RunFrameLoop took, as the cluster check's totals are.
 	std::string passes;
 	for (const Render::PassTiming &timing : m_passTimings)
-		passes += std::format("  {:<16} {:8.3f} ms\n", timing.name, timing.meanMs);
+		passes += std::format("  {:<24} {:8.3f} ms\n", timing.name, timing.meanMs);
 	const Render::FrameStats &stats = m_frameStats;
 	const double frames =
 	    m_measuredFrames == 0 ? 1.0 : static_cast<double>(m_arguments.benchmarkFrames);
 	std::cerr << std::format(
 	    "Benchmark: {} on {} at {}x{}, {} frames after {} to warm up, {} GPU frames measured, depth "
-	    "prepass {}\n"
+	    "prepass {}, ambient occlusion {}, bloom {}\n"
 	    "GPU time per pass (mean):\n{}"
 	    "Wall time per frame: {:.3f} ms\n"
 	    "Meshes {}: {} outside the view, {} behind a horizon, {} too small to see; {} draws of {} "
 	    "triangles\n"
 	    "Shadow casters {} / {} / {} / {} in {} / {} / {} / {} draws, {} triangles\n"
 	    "Lights {}, {} listed\n"
-	    "Transparent: {} draws; {} emitters in {} particle slots\n",
+	    "Transparent: {} draws; {} emitters in {} particle slots\n"
+	    "Outlines {}\n",
 	    m_arguments.systemPath.empty() ? m_arguments.scenePath.filename().string()
 	                                   : m_arguments.systemPath,
 	    m_deviceName, m_frameWidth, m_frameHeight, m_arguments.benchmarkFrames, kBenchmarkWarmUp,
-	    m_measuredFrames, m_arguments.depthPrepass ? "on" : "off", passes,
+	    m_measuredFrames, m_arguments.depthPrepass ? "on" : "off",
+	    m_benchmarkAmbientOcclusion ? "on" : "off", m_arguments.bloom, passes,
 	    m_benchmarkSeconds * 1000.0 / frames, stats.meshes, stats.frustumCulled, stats.horizonCulled,
 	    stats.detailCulled, stats.viewBatches, stats.viewTriangles, stats.shadowCasters[0],
 	    stats.shadowCasters[1], stats.shadowCasters[2], stats.shadowCasters[3], stats.shadowBatches[0],
 	    stats.shadowBatches[1], stats.shadowBatches[2], stats.shadowBatches[3], stats.shadowTriangles,
-	    stats.lights, stats.listedLights, stats.transparentBatches, stats.emitters,
-	    stats.particleSlots);
+	    stats.lights, stats.listedLights, stats.transparentBatches, stats.emitters, stats.particleSlots,
+	    stats.outlines);
 }
 
 
@@ -1580,6 +1621,8 @@ void Application::PollInput()
 		toggleView(Render::DebugView::ClusterHeat);
 	if (m_input.WasPressedThisFrame(m_toggleShadowCascades))
 		toggleView(Render::DebugView::ShadowCascades);
+	if (m_input.WasPressedThisFrame(m_toggleAmbientAccess))
+		toggleView(Render::DebugView::AmbientAccess);
 	if (m_input.WasPressedThisFrame(m_cameraNext))
 		NextCameraTarget(m_pScene->Registry());
 	if (m_input.WasPressedThisFrame(m_jumpNext))
@@ -3046,6 +3089,58 @@ void Application::TakeEvents()
 		m_resumePiloting = false;
 		StartPiloting(m_pilotView);
 	}
+}
+
+
+void Application::MarkScene(entt::registry &registry)
+{
+	// The marks the shell placed last frame come off, and this frame's go on: the proxies of the
+	// simulation's entities come and go with its snapshots, so a mark is placed on what is there now.
+	// Marks a scene file authored are its own, and stay.
+	for (const auto [entity, owned] : m_shellMarks)
+		if (registry.valid(entity))
+		{
+			if (owned.outline)
+				registry.remove<Scene::OutlineComponent>(entity);
+			if (owned.mask)
+				registry.remove<Scene::MaskComponent>(entity);
+		}
+	m_shellMarks.clear();
+	const auto proxyOf = [&](entt::entity simEntity)
+	{
+		for (const auto [entity, sim] : registry.view<const Scene::SimProxyComponent>().each())
+			if (sim.simEntity == simEntity)
+				return entity;
+		return entt::entity{entt::null};
+	};
+	// What was picked is selected, a line about it; while flying, it is the ship's target, a glow.
+	if (m_picked)
+		if (const entt::entity proxy = proxyOf(m_picked->entity);
+		    proxy != entt::null && !registry.all_of<Scene::OutlineComponent>(proxy))
+		{
+			Scene::OutlineComponent outline;
+			if (m_piloting)
+			{
+				outline.style = Scene::OutlineStyle::Targeted;
+				outline.color = {1.0f, 0.2f, 0.1f, 2.0f};
+				outline.width = 14.0f;
+			}
+			registry.emplace<Scene::OutlineComponent>(proxy, outline);
+			m_shellMarks.push_back({proxy, {true, false}});
+		}
+	// From the seat, the ship's own hull is the cockpit, which an outline is not drawn over.
+	if (m_piloting && m_pilotView == Scene::PilotView::Cockpit)
+		if (const entt::entity proxy = proxyOf(m_ship);
+		    proxy != entt::null && !registry.all_of<Scene::MaskComponent>(proxy))
+		{
+			registry.emplace<Scene::MaskComponent>(proxy, Scene::MaskComponent{.cockpit = true});
+			const auto found = std::ranges::find_if(
+			    m_shellMarks, [&](const auto &mark) { return mark.first == proxy; });
+			if (found != m_shellMarks.end())
+				found->second.mask = true;
+			else
+				m_shellMarks.push_back({proxy, {false, true}});
+		}
 }
 
 

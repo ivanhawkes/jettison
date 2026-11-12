@@ -346,6 +346,12 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 	snapshot = Sim::Capture(dressed.world);
 	App::ShowPadStates(dressed.scene, dressing, snapshot.Components<Dock::Pad>(), highport);
 	CHECK(colour(1) == App::LampColour(Dock::PadState::Reserved, false));
+	for (const entt::entity lamp : dressing.lamps[0])
+		CHECK(
+		    dressed.scene.get<Scene::MeshComponent>(lamp).material ==
+		    "materials/lamp-blinking.material.yaml");
+	for (const entt::entity lamp : dressing.lamps[1])
+		CHECK(dressed.scene.get<Scene::MeshComponent>(lamp).material == "materials/lamp.material.yaml");
 
 	// Without its station, none of the pads are the dressing's.
 	CHECK(

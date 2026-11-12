@@ -450,14 +450,18 @@ std::string DeviceContext::Unsuitable(VkPhysicalDevice device)
 		return "it is not Vulkan 1.3";
 	VkPhysicalDeviceVulkan13Features features13{};
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	VkPhysicalDeviceVulkan12Features features12{};
+	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	features12.pNext = &features13;
 	VkPhysicalDeviceFeatures2 features{};
 	features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	features.pNext = &features13;
+	features.pNext = &features12;
 	vkGetPhysicalDeviceFeatures2(device, &features);
 	if (!features.features.samplerAnisotropy || !features.features.depthClamp ||
-	    !features.features.dualSrcBlend || !features13.dynamicRendering || !features13.synchronization2)
-		return "it lacks anisotropic sampling, depth clamp, dual-source blending, dynamic rendering "
-		       "or synchronization2";
+	    !features.features.dualSrcBlend || !features12.separateDepthStencilLayouts ||
+	    !features13.dynamicRendering || !features13.synchronization2)
+		return "it lacks anisotropic sampling, depth clamp, dual-source blending, separate depth and "
+		       "stencil layouts, dynamic rendering or synchronization2";
 	return {};
 }
 
@@ -555,9 +559,15 @@ void DeviceContext::CreateLogicalDevice()
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	features13.dynamicRendering = VK_TRUE;
 	features13.synchronization2 = VK_TRUE;
+	// The depth target's stencil is tested by the post passes while its depth is in another layout,
+	// or untouched (docs/architecture.md, "Masks").
+	VkPhysicalDeviceVulkan12Features features12{};
+	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	features12.pNext = &features13;
+	features12.separateDepthStencilLayouts = VK_TRUE;
 	VkPhysicalDeviceFeatures2 deviceFeatures{};
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	deviceFeatures.pNext = &features13;
+	deviceFeatures.pNext = &features12;
 	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
 	// The sun's shadow pass clamps the depth of casters nearer the sun than its maps reach.
 	deviceFeatures.features.depthClamp = VK_TRUE;
@@ -708,9 +718,12 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 
 VkFormat DeviceContext::FindDepthFormat()
 {
+	// A float depth, which reversed-Z needs (D24's integer steps would throw its precision away), and
+	// a stencil beside it for the frame's masks (docs/architecture.md, "Masks"). Sampled, since the
+	// post passes read the stencil and ambient occlusion the depth.
 	return FindSupportedFormat(
-	    {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-	    VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+	    {VK_FORMAT_D32_SFLOAT_S8_UINT}, VK_IMAGE_TILING_OPTIMAL,
+	    VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 }
 
 

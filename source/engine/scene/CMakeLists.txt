@@ -22,6 +22,7 @@ jettison_add_module(scene
 		include/jettison/scene/SceneSystems.h
 		include/jettison/scene/Shape.h
 		include/jettison/scene/SystemScene.h
+		include/jettison/scene/Wave.h
 	SOURCES
 		src/CameraRigs.cpp
 		src/JumpTransition.cpp
@@ -29,6 +30,7 @@ jettison_add_module(scene
 		src/SceneSystems.cpp
 		src/Shape.cpp
 		src/SystemScene.cpp
+		src/Wave.cpp
 	TESTS
 		tests/CameraRigTests.cpp
 		tests/JumpTransitionTests.cpp

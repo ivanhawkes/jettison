@@ -4,6 +4,16 @@
 
 namespace Jettison::Render
 {
+namespace
+{
+constexpr VkPipelineStageFlags2 kDepthStencilStages = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                                                      VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT |
+                                                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+constexpr VkAccessFlags2 kDepthStencilAccess =
+    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+} // namespace
+
 UsageScope DestinationScope(Usage usage)
 {
 	switch (usage)
@@ -13,13 +23,21 @@ UsageScope DestinationScope(Usage usage)
 			    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 			    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 			    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+		// A multisample resolve reads its source and writes its target at the colour-output stage, as
+		// colour accesses, whether the attachments are colour or depth and stencil (the spec's render
+		// pass chapter), so an aspect that is resolved from or into is synchronised there too.
 		case Usage::DepthAttachment:
+			return {kDepthStencilStages, kDepthStencilAccess, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL};
+		case Usage::StencilAttachment:
+			return {
+			    kDepthStencilStages, kDepthStencilAccess, VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL};
+		case Usage::StencilRead:
 			return {
 			    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
-			        VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-			    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-			        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-			    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL};
+			        VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT |
+			        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+			    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+			    VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL};
 		case Usage::SampledFragment:
 			return {
 			    VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,

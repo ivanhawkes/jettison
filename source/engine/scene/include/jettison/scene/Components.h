@@ -13,6 +13,7 @@
 #include <jettison/resource/ResourceHandle.h>
 #include <jettison/scene/CameraRigs.h>
 #include <jettison/scene/Shape.h>
+#include <jettison/scene/Wave.h>
 
 // The presentation scene's components (docs/architecture.md, "Simulation and presentation"): what is
 // drawn, lit and looked through, in the scene's own registry. They name no device: the renderer
@@ -145,6 +146,21 @@ enum class LightType
 // outer, as glTF's KHR_lights_punctual has them. Intensity is the irradiance at one metre, in the
 // HDR target's linear units, falling off with the inverse square of the distance and windowed to
 // reach zero at the range. The star's light is SunComponent's, and the ambient light the sky's.
+//
+// Its intensity can move with presentation time, as a beacon's blinks: scaled from one share of it
+// to another along a wave, as a material's animated parameter moves (render/Material.h), so a lamp's
+// light and its glow, given the same wave, period and phase, keep in step.
+struct LightAnimation
+{
+	Wave wave{Wave::Square};
+	// Seconds per cycle, above zero, and where in its cycle the wave starts, in cycles.
+	double period{1.0};
+	double phase{0.0};
+	// The share of the intensity at the wave's 0 and at its 1.
+	float from{0.0f};
+	float to{1.0f};
+};
+
 struct LightComponent
 {
 	LightType type{LightType::Point};
@@ -154,7 +170,12 @@ struct LightComponent
 	float innerConeAngle{0.0f};
 	float outerConeAngle{0.785398163f};
 	bool active{true};
+	std::optional<LightAnimation> animation;
 };
+
+// The intensity a light shines with at a presentation time, in seconds: its own, or as its animation
+// has it then.
+float LightIntensityAt(const LightComponent &light, double time);
 
 // What an entity draws: a model file, or a shape made in code in one colour. Both are by name, and
 // the renderer loads or makes what they name. The model is a virtual path (models/Fox.glb), as the
@@ -319,6 +340,43 @@ struct ParticleEmitterComponent
 	// id for it; the entity is runtime state, as an orbit camera's target is.
 	std::string frameId;
 	entt::entity frame{entt::null};
+};
+
+// A mesh outlined on the screen, and every mesh under it, as one shape (docs/architecture.md,
+// "Outlines"): the selected, by a crisp line a pixel wide just outside it, or the targeted, by a soft
+// glow that fades out over its width. Either reads at any distance, since both are measured in
+// pixels, and is drawn over whatever is about the shape, under the UI. Presentation's alone: the game
+// says what is selected or targeted, and marks it.
+enum class OutlineStyle : std::uint8_t
+{
+	Selected,
+	Targeted,
+};
+
+struct OutlineComponent
+{
+	OutlineStyle style{OutlineStyle::Selected};
+	// rgb: linear colour, a: intensity, in the HDR target's linear units.
+	glm::vec4 color{1.0f, 0.75f, 0.2f, 1.0f};
+	// The glow's width in pixels, from 1 to kMaxOutlineWidth; the selected line is a pixel wide.
+	float width{12.0f};
+};
+
+// The widest glow: the jump flood (render/PostProcess.h) reaches 31 pixels, and a glow this wide has
+// faded to nothing well inside that.
+inline constexpr float kMaxOutlineWidth = 24.0f;
+
+// The marks a mesh, and every mesh under it, leaves in the depth target's stencil for the frame's
+// later passes (docs/architecture.md, "Masks"): whether it is the cockpit the camera sits in, which
+// outlines are not drawn over; whether post-processing leaves it as it is shaded, as a display a
+// game draws in the world wants; and five bits that are the game's, for its own passes. The engine's
+// third bit, the outlined, follows from OutlineComponent.
+struct MaskComponent
+{
+	bool cockpit{false};
+	bool unprocessed{false};
+	// Bits 3 to 7 of the stencil, as a number from 0 to 31.
+	std::uint8_t game{0};
 };
 
 // The most particles an emitter may keep alive at once.

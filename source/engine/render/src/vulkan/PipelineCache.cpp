@@ -166,6 +166,20 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	depthStencil.depthTestEnable = state.depthTest ? VK_TRUE : VK_FALSE;
 	depthStencil.depthWriteEnable = state.depthWrite ? VK_TRUE : VK_FALSE;
 	depthStencil.depthCompareOp = state.depthCompare;
+	if (state.stencilTest)
+	{
+		depthStencil.stencilTestEnable = VK_TRUE;
+		const VkStencilOpState face{
+		    VK_STENCIL_OP_KEEP,
+		    state.stencilPass,
+		    VK_STENCIL_OP_KEEP,
+		    state.stencilCompare,
+		    state.stencilCompareMask,
+		    state.stencilWriteMask,
+		    0};
+		depthStencil.front = face;
+		depthStencil.back = face;
+	}
 
 	VkPipelineColorBlendAttachmentState blendAttachment{};
 	blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -190,6 +204,16 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 		blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 	}
+	else if (state.blend == BlendMode::Additive)
+	{
+		blendAttachment.blendEnable = VK_TRUE;
+		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+		blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	}
 	else if (state.blend == BlendMode::Transmissive)
 	{
 		blendAttachment.blendEnable = VK_TRUE;
@@ -200,23 +224,33 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 		blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC1_ALPHA;
 		blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 	}
+	// The second target, when there is one, takes what is written whole.
+	VkPipelineColorBlendAttachmentState secondAttachment{};
+	secondAttachment.colorWriteMask = blendAttachment.colorWriteMask;
+	const std::array<VkPipelineColorBlendAttachmentState, 2> blendAttachments{
+	    blendAttachment, secondAttachment};
+	const std::array<VkFormat, 2> colorFormats{state.colorFormat, state.secondColorFormat};
+	const uint32_t colorCount =
+	    depthOnly ? 0u : (state.secondColorFormat != VK_FORMAT_UNDEFINED ? 2u : 1u);
 	VkPipelineColorBlendStateCreateInfo blending{};
 	blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	blending.attachmentCount = depthOnly ? 0 : 1;
-	blending.pAttachments = &blendAttachment;
+	blending.attachmentCount = colorCount;
+	blending.pAttachments = blendAttachments.data();
 
-	const std::array<VkDynamicState, 2> dynamicStates{
-	    VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+	// The stencil reference is the draw's, so a batch's marks need no pipeline of their own.
+	const std::array<VkDynamicState, 3> dynamicStates{
+	    VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_STENCIL_REFERENCE};
 	VkPipelineDynamicStateCreateInfo dynamicState{};
 	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+	dynamicState.dynamicStateCount = state.stencilTest ? 3u : 2u;
 	dynamicState.pDynamicStates = dynamicStates.data();
 
 	VkPipelineRenderingCreateInfo rendering{};
 	rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-	rendering.colorAttachmentCount = depthOnly ? 0 : 1;
-	rendering.pColorAttachmentFormats = &state.colorFormat;
+	rendering.colorAttachmentCount = colorCount;
+	rendering.pColorAttachmentFormats = colorFormats.data();
 	rendering.depthAttachmentFormat = state.depthFormat;
+	rendering.stencilAttachmentFormat = state.stencilFormat;
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

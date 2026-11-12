@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -12,6 +13,7 @@
 namespace Jettison::Scene
 {
 struct AtmosphereComponent;
+struct OutlineComponent;
 struct RingsComponent;
 } // namespace Jettison::Scene
 
@@ -48,6 +50,12 @@ struct SceneDrawCommand
 	// The mesh's colour: what it shows without its material, and the albedo the environment's
 	// capture draws its sphere with.
 	glm::vec3 color{1.0f};
+	// The outline the mesh is drawn inside, its own or its nearest ancestor's, and the entity that
+	// has it, which the frame's outlines are told apart by; and the stencil bits it lays down
+	// (render/PostProcess.h), from that outline and from the nearest mask.
+	const Scene::OutlineComponent *outline{};
+	entt::entity outlineOwner{entt::null};
+	std::uint8_t stencil{0};
 
 	bool Skinned() const
 	{

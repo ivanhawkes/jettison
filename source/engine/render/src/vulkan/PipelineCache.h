@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 
 #include <compare>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -33,6 +34,8 @@ enum class BlendMode
 	Alpha,
 	// Alpha premultiplied into the colour, composited "over": one, one minus source alpha.
 	Premultiplied,
+	// Added to what is there: one, one.
+	Additive,
 	// Dual-source: the first output is the light added, the second what is let through of what is
 	// behind, by colour (one, the second source's colour), so tinted glass tints what it is over.
 	// The device's dualSrcBlend, which the renderer requires.
@@ -58,9 +61,22 @@ struct RenderState
 	// The rasteriser's depth bias, constant and by slope; none when both are zero.
 	float depthBiasConstant{0.0f};
 	float depthBiasSlope{0.0f};
+	// The stencil test, with the reference set per draw as dynamic state when it is on: what a
+	// fragment's stencil is compared with, under the compare mask, and what is written, under the
+	// write mask, where it passes both tests.
+	bool stencilTest{false};
+	VkCompareOp stencilCompare{VK_COMPARE_OP_ALWAYS};
+	VkStencilOp stencilPass{VK_STENCIL_OP_KEEP};
+	std::uint8_t stencilCompareMask{0xff};
+	std::uint8_t stencilWriteMask{0};
 	BlendMode blend{BlendMode::Opaque};
 	VkFormat colorFormat{VK_FORMAT_UNDEFINED};
+	// A second colour target, written as it is, never blended: the depth prepass's object IDs.
+	VkFormat secondColorFormat{VK_FORMAT_UNDEFINED};
 	VkFormat depthFormat{VK_FORMAT_UNDEFINED};
+	// The rendering's stencil attachment, which is the depth target's own aspect where both are
+	// attached.
+	VkFormat stencilFormat{VK_FORMAT_UNDEFINED};
 	VkSampleCountFlagBits samples{VK_SAMPLE_COUNT_1_BIT};
 
 	friend auto operator<=>(const RenderState &, const RenderState &) = default;

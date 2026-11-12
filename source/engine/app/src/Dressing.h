@@ -56,7 +56,8 @@ StationDressing DressStation(
     entt::registry &scene, entt::entity station, const Dock::StationLayout &layout,
     const Dock::Docks &docks);
 
-// A pad's lamp: green free, amber reserved, red holding a ship, and blue for a display pad.
+// A pad's lamp: green free, amber reserved, red holding a ship, and blue for a display pad. A
+// reserved pad's lamps also blink (materials/lamp-blinking.material.yaml).
 glm::vec3 LampColour(Dock::PadState state, bool display);
 
 // Turns each lamp of the dressing to its pad's state, from the pads in a snapshot that are of the

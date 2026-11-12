@@ -1,7 +1,5 @@
 #include <jettison/render/Material.h>
 
-#include <cmath>
-#include <numbers>
 #include <set>
 
 #include <jettison/reflect/Reflect.h>
@@ -23,11 +21,7 @@ void RegisterTypes()
 		RegisterEnum<ProgramBlend>("Render.ProgramBlend")
 		    .Value<ProgramBlend::Opaque>("Opaque")
 		    .Value<ProgramBlend::Transparent>("Transparent");
-		RegisterEnum<Wave>("Render.Wave")
-		    .Value<Wave::Sine>("Sine")
-		    .Value<Wave::Triangle>("Triangle")
-		    .Value<Wave::Saw>("Saw")
-		    .Value<Wave::Square>("Square");
+		Scene::RegisterWave();
 		RegisterType<ProgramParameter>("Render.ProgramParameter")
 		    .Field<&ProgramParameter::name>("name", Attribute::Saved)
 		    .Field<&ProgramParameter::defaultValue>("default", Attribute::Saved);
@@ -147,20 +141,6 @@ std::string WriteMaterial(const MaterialDefinition &material)
 {
 	RegisterTypes();
 	return Serialise::YamlArchive::Write(material, Serialise::FormatVersion{kMaterialFormatVersion});
-}
-
-
-float EvaluateWave(Wave wave, double cycles)
-{
-	const double at = cycles - std::floor(cycles);
-	switch (wave)
-	{
-		case Wave::Sine: return static_cast<float>(0.5 - 0.5 * std::cos(2.0 * std::numbers::pi * at));
-		case Wave::Triangle: return static_cast<float>(1.0 - std::abs(1.0 - 2.0 * at));
-		case Wave::Saw: return static_cast<float>(at);
-		case Wave::Square: return at < 0.5 ? 0.0f : 1.0f;
-	}
-	return 0.0f;
 }
 
 

@@ -73,6 +73,7 @@ inline constexpr InputCode F2{Device::Keyboard, 291};
 inline constexpr InputCode F3{Device::Keyboard, 292};
 inline constexpr InputCode F4{Device::Keyboard, 293};
 inline constexpr InputCode F5{Device::Keyboard, 294};
+inline constexpr InputCode F6{Device::Keyboard, 295};
 inline constexpr InputCode F9{Device::Keyboard, 298};
 inline constexpr InputCode LeftShift{Device::Keyboard, 340};
 inline constexpr InputCode LeftControl{Device::Keyboard, 341};

@@ -9,6 +9,8 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/scene/Wave.h>
+
 namespace Jettison::Render
 {
 // Materials are data (docs/architecture.md, "Rendering"): a file names a shader program, sets its
@@ -64,15 +66,9 @@ struct ProgramDefinition
 	std::vector<ProgramTexture> textures;
 };
 
-// The shape a time-driven parameter follows over one period, from 0 to 1: Sine eases out and back,
-// Triangle climbs and falls, Saw climbs and drops, Square holds each end for half the period.
-enum class Wave : std::uint8_t
-{
-	Sine,
-	Triangle,
-	Saw,
-	Square,
-};
+// A time-driven parameter's shape over its period, which a light's intensity shares.
+using Scene::EvaluateWave;
+using Scene::Wave;
 
 struct MaterialParameter
 {
@@ -117,9 +113,6 @@ ProgramDefinition ReadProgram(std::string_view text, std::string_view name);
 std::string WriteProgram(const ProgramDefinition &program);
 MaterialDefinition ReadMaterial(std::string_view text, std::string_view name);
 std::string WriteMaterial(const MaterialDefinition &material);
-
-// The wave at a point in its cycle (whole cycles are ignored), from 0 to 1.
-float EvaluateWave(Wave wave, double cycles);
 
 // A material bound to its program: everything a draw needs, by binding and by parameter index.
 struct ResolvedMaterial

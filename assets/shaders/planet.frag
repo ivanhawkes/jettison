@@ -223,7 +223,8 @@ void main()
 	}
 
 	Surface surface = Surface(albedo, 0.0, roughness);
-	vec3 lit = ShadeSurfaceSunlit(surface, renderNormal, fragRenderPosition, sunlight);
+	vec3 lit = ShadeSurfaceSunlit(
+	    surface, renderNormal, fragRenderPosition, sunlight, SurfaceAmbientAccess());
 
 	// The cities' lights: clusters on the land, on the side turned from the sun, coming on over the
 	// terminator's last few degrees and dimmed by the cloud over them.

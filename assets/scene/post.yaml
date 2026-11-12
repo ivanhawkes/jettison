@@ -1,0 +1,154 @@
+# The post chain's test bench (docs/roadmap.md, 10c): under the sun and the sky, on a plated deck,
+# what each of its passes is for. The camera orbits the bench (W, A, S, D, Q, E, or drag with the
+# right mouse button).
+#
+#   - Crates on the deck, and a wall behind them: ambient occlusion darkens the sky's light in the
+#     corners where they meet the deck and each other, and leaves the open deck as it was.
+#   - The crate on the left is selected: a line a pixel wide just outside it, amber. The pod on the
+#     right, and the fin on top of it, are targeted: one red glow about the two, fading over 14 pixels.
+#   - Two lamp panels on the wall, as bright as a lit window: the left one blooms, the right one is
+#     marked as post-processing leaves alone, so it has no haze over it, though its light still
+#     spreads onto the wall about it.
+#   - A beacon on the wall's top, blinking red: its glow and its light share one wave, period and
+#     phase, so the wall below it is lit while the beacon is bright.
+version: 2
+entities:
+  - id: sun
+    transform:
+      translation: [-6.0e10, 9.0e10, 8.0e10]
+    sun:
+      color: [1, 0.95, 0.88]
+      intensity: 3.4
+  - id: sky
+    sky:
+      seed: 11
+      stars: 6000
+      starFlux: 3.0e-5
+      band:
+        normal: [0.3, 0.9, -0.3]
+        width: 0.25
+        color: [0.08, 0.07, 0.06]
+      nebula:
+        color: [0.03, 0.015, 0.04]
+        scale: 2
+  - id: bench
+  - id: deck
+    parent: bench
+    transform:
+      translation: [0, -1.1, 0]
+      scale: [7, 0.1, 5]
+    mesh:
+      shape: box
+      color: [0.55, 0.56, 0.6]
+      material: materials/deck.material.yaml
+  - id: wall
+    parent: bench
+    transform:
+      translation: [0, 1.0, -3.0]
+      scale: [7, 2.0, 0.2]
+    mesh:
+      shape: box
+      color: [0.55, 0.56, 0.6]
+      material: materials/hull.material.yaml
+  - id: crate-selected
+    parent: bench
+    transform:
+      translation: [-2.6, -0.4, -1.4]
+      rotation: [0, 0.3, 0]
+      scale: [0.6, 0.6, 0.6]
+    mesh:
+      shape: box
+      color: [0.6, 0.45, 0.25]
+    outline:
+      style: selected
+      color: [1, 0.75, 0.2, 4]
+  - id: crate-stacked
+    parent: bench
+    transform:
+      translation: [-1.2, -0.6, -2.2]
+      scale: [0.5, 0.4, 0.5]
+    mesh:
+      shape: box
+      color: [0.35, 0.4, 0.5]
+  - id: crate-top
+    parent: bench
+    transform:
+      translation: [-1.2, 0.1, -2.2]
+      rotation: [0, 0.6, 0]
+      scale: [0.35, 0.3, 0.35]
+    mesh:
+      shape: box
+      color: [0.5, 0.35, 0.3]
+  - id: pod-targeted
+    parent: bench
+    transform:
+      translation: [2.2, -0.3, -0.8]
+      scale: [0.8, 0.8, 0.8]
+    mesh:
+      shape: icosphere
+      color: [0.5, 0.55, 0.6]
+    outline:
+      style: targeted
+      color: [1, 0.15, 0.1, 3]
+      width: 14
+  - id: pod-fin
+    parent: pod-targeted
+    transform:
+      translation: [0, 1.1, 0]
+      scale: [0.08, 0.5, 0.6]
+    mesh:
+      shape: box
+      color: [0.7, 0.7, 0.72]
+  - id: panel-bloom
+    parent: bench
+    transform:
+      translation: [-1.2, 1.6, -2.75]
+      scale: [0.6, 0.25, 0.05]
+    mesh:
+      shape: box
+      color: [1, 0.9, 0.7]
+      material: materials/lamp.material.yaml
+  - id: panel-unprocessed
+    parent: bench
+    transform:
+      translation: [1.2, 1.6, -2.75]
+      scale: [0.6, 0.25, 0.05]
+    mesh:
+      shape: box
+      color: [1, 0.9, 0.7]
+      material: materials/lamp.material.yaml
+    mask:
+      unprocessed: true
+  - id: beacon
+    parent: bench
+    transform:
+      translation: [0, 3.2, -3.0]
+      scale: [0.15, 0.15, 0.15]
+    mesh:
+      shape: icosphere
+      material: materials/beacon.material.yaml
+  - id: beacon-light
+    parent: beacon
+    transform:
+      translation: [0, 0, 2.5]
+    light:
+      type: point
+      color: [1, 0.15, 0.08]
+      intensity: 4
+      range: 6
+      animation:
+        wave: Square
+        period: 1.2
+        from: 0
+        to: 1
+  - id: camera
+    camera:
+      fov: 50
+      near: 0.1
+      active: true
+      orbit:
+        target: bench
+        distance: 9
+        yaw: 0.25
+        pitch: 0.35
+        minDistance: 2

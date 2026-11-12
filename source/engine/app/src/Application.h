@@ -423,6 +423,15 @@ class Application
 		glm::vec3 normal{0.0f};
 	};
 	std::optional<PickedMark> m_picked;
+	// The outline on what was picked and the cockpit's mask on the ship flown from its seat, placed on
+	// their proxies each frame (MarkScene), and the components the shell placed, to take off again.
+	struct ShellMark
+	{
+		bool outline{false};
+		bool mask{false};
+	};
+	std::vector<std::pair<entt::entity, ShellMark>> m_shellMarks;
+	void MarkScene(entt::registry &registry);
 
 	// The shell's own actions, in a "shell" context at the bottom of the stack: F1 toggles the
 	// dev tools, ` the console, and Escape closes the console, then the dev tools, then the
@@ -437,6 +446,7 @@ class Application
 	// F3: the lights-per-cluster heat map in place of the shaded scene; F4: the sun's shadow cascades.
 	Input::ActionId m_toggleClusterHeat;
 	Input::ActionId m_toggleShadowCascades;
+	Input::ActionId m_toggleAmbientAccess;
 	// The orbit camera: W, A, S and D turn it, Q and E zoom, the right mouse button drags it, and C
 	// moves it to the next body.
 	Input::ActionId m_cameraOrbit;
@@ -518,6 +528,7 @@ class Application
 
 	// The renderer's timings and counts as the frame loop left them, for the benchmark's report.
 	std::vector<Render::PassTiming> m_passTimings;
+	bool m_benchmarkAmbientOcclusion{false};
 	Render::FrameStats m_frameStats;
 	std::uint64_t m_measuredFrames{0};
 	// What the benchmark ran on: the device, and the frame's size in pixels.

@@ -39,7 +39,7 @@ void main()
 		normal = -normal;
 	Surface surface =
 	    Surface(vec3(0.0), 0.0, clamp(MaterialParameter(kSurface).x, 0.0, 1.0));
-	vec3 reflected = ShadeSurface(surface, normal, fragRenderPosition);
+	vec3 reflected = ShadeTransparentSurface(surface, normal, fragRenderPosition);
 	vec3 reflectance = SpecularReflectance(surface, normal, fragRenderPosition);
 	vec3 tint = MaterialParameter(kTint).rgb * texture(tintTexture, fragTexCoord).rgb;
 	vec4 emissive = MaterialParameter(kEmissive);

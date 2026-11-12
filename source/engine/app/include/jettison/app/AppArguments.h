@@ -40,6 +40,11 @@ struct AppArguments
 	std::optional<std::uint32_t> windowHeight;
 	// The opaque depth prepass, which the renderer runs without when not asked for.
 	bool depthPrepass{false};
+	// Ambient occlusion (--ambient-occlusion, --no-ambient-occlusion; the renderer's choice for the
+	// device without either) and bloom's strength (--bloom, 0 for none), as the renderer starts; the
+	// dev tools change both.
+	std::optional<bool> ambientOcclusion;
+	float bloom{0.04f};
 	// Part of the name of the GPU to draw with, in place of the one the renderer chooses (the one
 	// with the monitor on it, then a discrete one): "5060", "llvmpipe". Start-up fails, listing the
 	// GPUs, when no usable one has it.

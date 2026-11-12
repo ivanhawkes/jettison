@@ -16,7 +16,9 @@ bool KeyLess(const BatchKey &left, const BatchKey &right)
 		return pointerLess(left.model, right.model);
 	if (left.lod != right.lod)
 		return left.lod < right.lod;
-	return pointerLess(left.material, right.material);
+	if (left.material != right.material)
+		return pointerLess(left.material, right.material);
+	return left.stencil < right.stencil;
 }
 
 bool NearerFirst(const BatchInput &left, const BatchInput &right)

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -39,13 +40,15 @@ inline constexpr std::uint32_t kRendererLightIndicesPerCluster = 32;
 inline constexpr std::uint32_t kRendererLightIndexCapacity =
     kClusterCount * kRendererLightIndicesPerCluster;
 
-// What the lit programs show: the shaded scene, the lights-per-cluster heat map, or the sun's
-// shadow cascades, each in its own colour (lighting.glsl's kDebugView*).
+// What the lit programs show: the shaded scene, the lights-per-cluster heat map, the sun's shadow
+// cascades, each in its own colour, or the share of the ambient light ambient occlusion leaves each
+// opaque surface, as grey (lighting.glsl's kDebugView*).
 enum class DebugView : std::uint32_t
 {
 	Shaded = 0,
 	ClusterHeat = 1,
-	ShadowCascades = 2
+	ShadowCascades = 2,
+	AmbientAccess = 3
 };
 
 // What a renderer is made with, before its device exists.
@@ -61,6 +64,11 @@ struct RendererOptions
 	// once the frame's fence says it is done. It costs a copy of the grid and the index list a frame.
 	bool clusterCheck{false};
 	bool depthPrepass{false};
+	// Ambient occlusion, and bloom's strength (0 for none), until the dev tools change them. Without a
+	// word either way, ambient occlusion is on, except on a CPU device: it runs the depth prepass,
+	// which in the dressed orbit scene costs lavapipe 11 ms of a 50 ms budget (docs/roadmap.md, 10c).
+	std::optional<bool> ambientOcclusion;
+	float bloom{0.04f};
 	// Part of the name of the GPU to draw with (--gpu), in place of the one the renderer would choose
 	// (render/src/vulkan/DeviceChoice.h); Init fails, listing the GPUs, when no usable one has it.
 	std::string gpu;
@@ -114,6 +122,13 @@ class IRenderer
 	// shaded once (docs/architecture.md, "The frame").
 	virtual void SetDepthPrepass(bool enabled) = 0;
 	virtual bool GetDepthPrepass() const = 0;
+	// Ambient occlusion over the opaque surfaces' image-based light, which runs the depth prepass
+	// while it is on (docs/architecture.md, "Ambient occlusion").
+	virtual void SetAmbientOcclusion(bool enabled) = 0;
+	virtual bool GetAmbientOcclusion() const = 0;
+	// The share of the frame's light bloom spreads, 0 for none (docs/architecture.md, "Bloom").
+	virtual void SetBloom(float strength) = 0;
+	virtual float GetBloom() const = 0;
 
 	// The last frame's counts, and the GPU's time in each declared pass.
 	virtual const FrameStats &GetFrameStats() const = 0;

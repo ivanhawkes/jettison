@@ -55,8 +55,11 @@ struct FrameUBO
 	alignas(16) std::array<glm::mat4, 4> shadowMatrices{};
 	alignas(16) glm::vec4 shadowSplits{0.0f};
 	alignas(16) glm::vec4 shadowTexels{0.0f};
+	// x: 1 when the opaque surfaces read their ambient access, y: the outlines in the outline list,
+	// z: 1 when there is a glow among them.
+	alignas(16) glm::uvec4 effects{0u};
 };
-static_assert(sizeof(FrameUBO) == 608);
+static_assert(sizeof(FrameUBO) == 624);
 static_assert(offsetof(FrameUBO, projection) == 64);
 static_assert(offsetof(FrameUBO, sunDirection) == 128);
 static_assert(offsetof(FrameUBO, sunColorIntensity) == 144);
@@ -69,6 +72,7 @@ static_assert(offsetof(FrameUBO, clusterTile) == 304);
 static_assert(offsetof(FrameUBO, shadowMatrices) == 320);
 static_assert(offsetof(FrameUBO, shadowSplits) == 576);
 static_assert(offsetof(FrameUBO, shadowTexels) == 592);
+static_assert(offsetof(FrameUBO, effects) == 608);
 
 // One entry of the light list, std430: frame.glsl's Light. Render::PackLight (render/Clusters.h)
 // fills it from a LightComponent.
@@ -128,7 +132,8 @@ struct GpuInstance
 	// Object space to render space.
 	glm::mat4 model{1.0f};
 	// x: where the instance's joint matrices start in the skin palette, y: 1 when it is skinned, z:
-	// one more than the index of the body in the frame's list of them, 0 for none.
+	// one more than the index of the body in the frame's list of them, 0 for none, w: its object ID
+	// (render/PostProcess.h).
 	glm::uvec4 skin{0u};
 };
 static_assert(sizeof(GpuInstance) == 80);

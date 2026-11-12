@@ -702,12 +702,14 @@ nodes in it:
    of its casters into one layer of the shadow map; see [sun shadows](#sun-shadows). A scene with no
    sun clears them and draws nothing, so the plan is the same either way. Spot and point shadows,
    when they arrive, render into an atlas, and each light's record carries its atlas slot.
-3. **Depth prepass** (graphics, `depth-prepass`, 5e). The view's batches, depth only, laid down for
-   the opaque pass to test against with greater-or-equal, so each pixel is shaded once. Measured in
-   5e it cost more than it saved, on hardware and on lavapipe, because the batches are front to
-   back already; it is kept, and off (`Renderer::SetDepthPrepass`), as the place screen-space
-   ambient occlusion will take its depth and normals from (phase 10c). Off, the node records
-   nothing and the opaque pass clears the depth, under the same plan.
+3. **Depth prepass** (graphics, `depth-prepass`, 5e). The view's batches, laid down for the opaque
+   pass to test against with greater-or-equal, so each pixel is shaded once, and beside the depth
+   each surface's view-space normal and its object's ID (10c, `depth_prepass.frag`), multisampled as
+   the depth is. Measured in 5e it cost more than it saved as a prepass alone, on hardware and on
+   lavapipe, because the batches are front to back already; it runs in a frame that asks for it
+   (`Renderer::SetDepthPrepass`), or has [ambient occlusion](#ambient-occlusion) on, or an
+   [outline](#outlines) in view. Otherwise the node records nothing and the opaque pass clears the
+   depth, under the same plan.
 4. **Cluster bounds** (compute, `cluster_bounds`, 5c). The view-space bounds of every cluster.
    They are rebuilt only in a frame whose projection, viewport or cluster range differs from the
    one they were built for; the pass's barriers are recorded either way, and the buffer keeps
@@ -721,23 +723,32 @@ nodes in it:
 6. **Particles** (compute, `particles`, 10b). Every emitter with anything alive steps its share of
    the particle pool in place, and makes this frame's births ([particles](#particles)), in view or
    not. The pool keeps its contents from frame to frame, as the cluster bounds do.
-7. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
+7. **Ambient occlusion** (graphics, `ambient-occlusion` and `-blur`, 10c). The share of the ambient
+   light that reaches each pixel's opaque surface, from the prepass's depth and normals, before the
+   opaque pass shades ([ambient occlusion](#ambient-occlusion)).
+8. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
    position and view distance, loops over that cluster's lights, then adds the sun, shadowed through
-   its cascade, and image-based lighting.
-8. **Sky.** Drawn after the surfaces in the opaque pass's rendering rather than as a node of its own (5b): one
+   its cascade, and image-based lighting under its pixel's ambient access. Every opaque draw writes
+   its stencil bits ([masks](#masks)), and as the pass ends the depth and stencil are resolved to
+   sample zero, with the colour.
+9. **Sky.** Drawn after the surfaces in the opaque pass's rendering rather than as a node of its own (5b): one
    full-screen triangle at depth 0, the far end of the reversed-Z range, tested against the depth
    buffer so it shades only what no surface covered. A node of its own would have to store the
    multisampled target and load it again, which the opaque pass keeps on chip. After it, in the
    same rendering and on the same terms, the bodies' air and rings over the sky (10a,
    [atmospheres](#atmospheres)), when any body in the frame has either.
-9. **Transparent** (10b, [transparency](#transparency)). The transparent draws and the particles,
+10. **Transparent** (10b, [transparency](#transparency)). The transparent draws and the particles,
    back to front, last in the opaque pass's rendering and on the sky's terms: lit through the same
    cluster lookup, tested against the surfaces' depth and writing none, and resolved with the rest.
-10. **Resolve, bloom, tonemap** into the sRGB swapchain, then the game UI's overlay and the dev tools
-   over it ([UI](#ui)). The tonemapper is Khronos PBR
-   Neutral (5b), applied after exposure in the output pass: a base colour under white light of
-   intensity one shows as authored, and highlights compress towards white without changing hue.
-11. **Cluster readback** (transfer, 5c). The grid and the index list copied out for the cluster
+11. **Bloom** (graphics, `bloom-down-1` to `-5` and `bloom-up-4` to `-1`, 10c), down a chain of
+    levels from the resolved frame and back up it ([bloom](#bloom)).
+12. **Outlines** (graphics, `outline-seeds`, `outline-flood-16` to `-1` and `outlines`, 10c), drawn
+    over the resolved frame after bloom has read it, so they do not bloom ([outlines](#outlines)).
+13. **Tonemap** into the sRGB swapchain, with bloom added where the stencil lets it, then the game
+    UI's overlay and the dev tools over it ([UI](#ui)). The tonemapper is Khronos PBR Neutral (5b),
+    applied after exposure in the output pass: a base colour under white light of intensity one
+    shows as authored, and highlights compress towards white without changing hue.
+14. **Cluster readback** (transfer, 5c). The grid and the index list copied out for the cluster
     check, which compares them with a CPU reference once the frame's fence is waited on. It is in
     every frame's plan and records its copies only when the check is on, so the plan the gate's
     synchronization validation runs is the plan every run has.
@@ -810,8 +821,8 @@ The planet program also draws clouds and the lights of cities from noise, since 
 has maps of neither: clouds over a share of the sky, warped by a coarser copy of the noise so they
 swirl, drifting east by a time-driven parameter, white and rough, with their shadow a little way
 sunwards; and on the night side, clusters of lights on the land, broken into towns and streets
-each faded to its mean from afar, with a glow about each town that stands in for bloom until the
-post chain's (10c), dimmed by the cloud over them.
+each faded to its mean from afar, with a glow about each town, dimmed by the cloud over them, which
+bloom (10c) spreads no further than a few pixels from orbit and so does not stand in for.
 
 ### Transparency
 
@@ -839,8 +850,8 @@ come out alike either way.
 colour, so the BRDF's specular lobe alone, the sun's highlight, the clusters' lights and the
 environment reflected; and letting through its tint times what the split sum says it does not reflect
 (`SpecularReflectance`), so it lets through less and reflects more towards its edges. Nothing bends
-on its way through: refraction wants a copy of the frame behind the glass, which the post chain's
-targets (10c) could give it. The ships' canopies and a buggy's windscreen are glass
+on its way through: refraction wants a copy of the frame behind the glass, which the opaque pass's
+resolved target could give it if the transparent draws were a node of their own after it. The ships' canopies and a buggy's windscreen are glass
 (`materials/glass.material.yaml`). The air of a planet is not over a transparent draw, as it is not
 over an opaque mesh ([atmospheres](#atmospheres)).
 
@@ -891,6 +902,91 @@ rises and lifts, which then passes through a blue-white flash on its way to blac
 streaks' emitter is placed after the camera's rig has moved it, its world transform written then:
 the camera moves tens of kilometres a second with the system's bodies, and an emitter placed by the
 last frame's pose was left hundreds of metres behind it, its streaks out of sight.
+
+### Post-processing
+
+A chain of passes in the pass list on the single-sampled targets the opaque pass resolves, each a
+full-screen triangle into one target, reading its images through a set of its own (`post-set`) and
+taking a few numbers as push constants (10c). Their arithmetic is one file, `post.glsl`, written in
+the subset of GLSL that GLM compiles, so the render suite runs it as C++ (`render/PostProcess.h`):
+the view position from a reversed infinite depth, against the projection; the obscurance of a flat
+surface and of a corner; the bloom filters on a flat image and on one bright pixel; and the jump
+flood over random seeds, against a search of every seed. Each pass records nothing in a frame that
+does not have its effect, under the same plan. The colour-grading LUT comes later (11c).
+
+### Ambient occlusion
+
+The share of the ambient light that reaches each pixel's opaque surface (10c), before the opaque
+pass shades, so that it dims the image-based light alone (`lighting.glsl`'s `EnvironmentLighting`),
+not the sun or the clusters' lights, which have their own shadows or none: a docking bay's corners,
+the deck under racked cargo, the joints between hull modules, where the sky's light reached in full.
+The diffuse light is scaled by it, and the specular by Lagarde and de Rousiers' fit (2014), as much
+of it as the lobe is wide, so a smooth hull looked at square on still mirrors the planet.
+
+It is Scalable Ambient Obscurance's estimator (McGuire, Mara and Luebke, 2012) from the depth
+prepass's depth and view-space normals, read at sample zero, which is what a resolve to sample zero
+would leave without the copy. Twelve samples on a spiral of seven turns, as wide on the screen as two
+metres are at the pixel's depth, each occluding as far as it is above the pixel's tangent plane and
+falling off to nothing at two metres; the spiral turned a pixel's own way in a 4 x 4 pattern, which
+the blur after it averages out, its neighbours weighed by how near their depth is so the occlusion
+keeps to its surface. A pixel whose two metres are under three pixels across, or past a kilometre,
+is not occluded, fading over the last fifth. Transparent draws and particles are not under it: the
+image is of the opaque surfaces. F6 (`view occlusion`) shows it as grey. It is on by default, except
+on a CPU device, where the prepass it runs costs too much ([the budget](#the-budget)); the dev tools
+and `--ambient-occlusion` turn it on there.
+
+In space the sky is dark and the sun is most of the light. On the test bench (`scene/post.yaml`)
+the debug view has the deck's corners at about half the open deck's access and the deepest, between
+the stacked crates, at a fifth, and the shaded frame changes by little; it is the planet's light on a
+hull, and a station's bays out of the sun, where it shows.
+
+### Bloom
+
+Jimenez's chain (2014): five levels below the frame, each half the one above, each filtered down from
+the one above by thirteen bilinear taps as five overlapping boxes, the first weighing its boxes by
+the inverse of their brightness so a star or a glint spreads no more light than a few pixels would;
+then back up, each level adding a tent over the one below it. The output pass mixes the top level,
+over the levels, with the frame by the bloom's strength (`Renderer::SetBloom`, 0.04 by default), so
+nothing is brighter for being blurred: what bright things spread is taken from them. There is no
+threshold, as light in a lens has none; the sun's disc, at its clamped radiance, is let in as it is
+drawn. A pixel whose stencil says post-processing leaves it alone has none added.
+
+### Masks
+
+The depth target is `D32_SFLOAT_S8_UINT` (decided 2026-11-11, a float depth for reversed-Z and a
+stencil beside it), its depth and its stencil each a resource of the pass list's, so each has its own
+layout (`separateDepthStencilLayouts`, which the renderer requires): ambient occlusion reads the
+depth while the stencil is untouched, and the post passes test the stencil while its depth is left
+as it was. Every opaque draw writes its stencil byte, a batch's reference, so draws that differ in
+it are not one draw (`BatchKey::stencil`): bits 0 to 2 the engine's, the cockpit the camera sits in
+(`MaskComponent::cockpit`), the outlined, and what post-processing leaves alone
+(`MaskComponent::unprocessed`, as a display a game draws in the world wants), and 3 to 7 the game's
+(`MaskComponent::game`). A mesh takes its nearest mask and outline, its own or an ancestor's. The
+opaque pass resolves the depth and the stencil to sample zero as it ends, together, since lavapipe
+cannot resolve one without the other (`independentResolveNone`), and the post passes test the
+resolved stencil read-only, so the hardware skips what a full-screen pass masks out before shading
+it.
+
+### Outlines
+
+What a game selects or targets is outlined on the screen (`OutlineComponent`), a mesh and every mesh
+under it as one shape, at any distance, since both kinds are measured in pixels (10c):
+
+- **Selected**: a line a pixel wide just outside the shape, by the stencil: a pixel with an outlined
+  neighbour, in the colour of the outline that neighbour's object ID names.
+- **Targeted**: a glow that fades as a square over its width, up to 24 pixels, by Rong and Tan's
+  jump flood (2006) from the object IDs: the targeted shapes' pixels are seeds, and five steps with
+  strides from 16 to 1 give every pixel within 31 of one its nearest, which the render suite finds
+  within a pixel of a search of every seed.
+
+Both are drawn by one pass over the frame, premultiplied (the line covers, the glow adds), tested
+against the stencil so the hardware skips the outlined shapes, the cockpit and what post-processing
+leaves alone. An object's ID is the depth prepass's, written by no material program: its draw's
+index plus one and its outline's index plus one, a whole number in a float (`render/PostProcess.h`'s
+`ObjectId`), since a device need not have multisampled integer targets and lavapipe has none. The
+frame's outlines are listed from the draws the view keeps, by the entity that has each. The shell
+outlines what is picked, as selected, or while flying as the ship's target, and marks the hull it is
+flown from as the cockpit (`MarkScene`).
 
 ### The grid and the infinite far plane
 
@@ -989,6 +1085,24 @@ itself takes 0.002 ms on hardware; on lavapipe it shows 0.2 to 0.4 ms with or wi
 step, its barriers' and timestamps' cost. The orbit scene, whose parked ships' plumes have nothing
 alive and are neither stepped nor drawn, is 0.29 ms on hardware and 36 ms on lavapipe.
 
+The post chain (10c) was measured on the orbit scene, the transparent pass's bench and its own
+(`scene/post.yaml`), each with ambient occlusion and bloom on and with both off. On the RTX 5060 Ti at
+1243 × 1338 the orbit scene's frame is 0.64 ms against 0.42 ms, the prepass 0.08 ms, ambient
+occlusion 0.08 ms and bloom 0.06 ms of the difference; the transparent pass's bench 1.32 ms against
+0.77 ms and the post bench 1.58 ms against 0.89 ms, ambient occlusion 0.41 ms and 0.55 ms of those,
+dearest close up, where its two metres cover hundreds of pixels and its samples scatter through the
+depth. The outlines, a line and a glow, take 0.27 ms on the post bench, the flood's five steps 0.22 ms
+of it. On lavapipe at 640 × 480, measured the same day against 10b's commit (the orbit scene 35 to
+36.5 ms, its opaque pass 25.4 ms): with both off, 41.3 ms, the opaque pass 26.5 ms for the stencil it
+writes and the depth and stencil it resolves, and most of the rest the seventeen new passes, which
+record nothing and still cost lavapipe their barriers and timestamps, as 10b's particle pass did;
+with bloom, 44.2 ms; and with ambient occlusion too, 53 ms, over the budget, the prepass 11.2 ms of it
+for the dressed station's 925 meshes and their two multisampled targets. So a CPU device starts with
+ambient occlusion off (`RendererOptions::ambientOcclusion`), as it starts with RGBA8 rather than BC7,
+and the gate's runs draw without it except where a view asks for it. The transparent pass's bench is
+34.7 ms by default there (10b: 25 to 27 ms), and the post bench 31.6 ms, 34.8 ms with ambient
+occlusion.
+
 ### Rules that follow
 
 - **Every local light has a finite range.** Falloff is inverse-square, windowed to reach zero at
@@ -1007,16 +1121,17 @@ alive and are neither stepped nor drawn, is 0.29 ms on hardware and 36 ms on lav
 - **No G-buffer.** Effects that need one stay out, and screen-space reflections are one: they
   would need each pixel's roughness, metalness and a scene colour to march through, and fall back
   to the environment cube at a seam black space makes plain (reconsidered 2026-11-11,
-  [decided](roadmap.md#decided)). Screen-space ambient occlusion is in (10c): the depth prepass
-  writes view-space normals for it, and it attenuates the image-based light alone. The prepass
-  writes object IDs too, for outlines, beside a stencil on the depth target (10c): masks that no
-  material program writes.
+  [decided](roadmap.md#decided)). Ambient occlusion is in (10c): the depth prepass writes
+  view-space normals for it, and it attenuates the image-based light alone. The prepass writes
+  object IDs too, for outlines, beside a stencil on the depth target (10c): masks that no material
+  program writes.
 - **Debug draw shows the grid**, as a lights-per-cluster heat map, so a light budget problem is
   visible rather than inferred.
 
-The Vulkan features this needs are compute shaders and storage buffers, both core since 1.0, and
-dual-source blending for the transparent draws ([transparency](#transparency)), which lavapipe has,
-so the headless render test on lavapipe covers every pass.
+The Vulkan features this needs are compute shaders and storage buffers, both core since 1.0;
+dual-source blending for the transparent draws ([transparency](#transparency)); and a
+`D32_SFLOAT_S8_UINT` depth target with separate depth and stencil layouts ([masks](#masks)). Lavapipe
+has them all, so the headless render test on lavapipe covers every pass.
 
 ## Frame and tick structure
 

@@ -15,7 +15,7 @@ built, are recorded in [history](history.md).
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
 | 10a | **Atmosphere and planets.** Done 2026-11-13. Catalogue entry 28. A frame written to a PNG from inside the frame loop (`render/Screenshot.h`): `--screenshot` after `--after-frames` quiet frames, `--frame-step` for clocks moved a fixed step and held while anything loads, `--run` for console lines before the first frame, the console's `screenshot` and `orbit` commands, and `scripts/capture.sh`, whose reference views (`source/test/frames/views.txt`) are a stage of the gate. Air and rings on a celestial body (`AtmosphereComponent`, `RingsComponent`), as maths over a sphere in `atmosphere.glsl` and `rings.glsl`, which the render suite runs as C++ against brute force ([atmospheres](architecture.md#atmospheres)): single Rayleigh and Mie scattering with the Chapman function in closed form; rings of three bands and two gaps over noise, filtered to the pixel. The frame's body list; the planet program's reddened terminator, haze, rings' shadow and rings in front of the surface; an atmosphere program after the sky for the limb and the rings over space. Clouds and city lights on the planet program from noise, the clouds drifting by a time-driven parameter, the lights with a glow standing in for bloom. The celestial bodies in the environment's capture, lit spheres with their air and rings, baked again as they move by a texel of it. Ostra has Earth's air, clouds and cities; Corva, in a new Vesper scene, a gas giant's air and rings. | Met: the five reference views, the orbit scene as it opens, Ostra by day and by night, Corva and its rings, and the Vesper scene as it opens, captured twice on lavapipe with no pixel differing, and the gate holds every later change to them. |
 | 10b | **The transparent pass.** Done 2026-11-13. Catalogue entry 28. A program's blend in its descriptor (`ProgramBlend`): a transparent program's draws and the particle emitters in view sorted back to front (`BuildBackToFront`) and drawn last in the opaque pass's rendering, after the sky and the air, lit through the clusters, tested against the surfaces' depth and writing none, and blended by what they add and what they let through by colour (`BlendMode::Transmissive`, dual-source blending, which the device is now required to have) ([transparency](architecture.md#transparency)). Glass (`glass.frag`), a thin tinted dielectric pane, on the ships' canopies and a buggy's windscreen. GPU particles (`ParticleEmitterComponent`, a scene file's `particles`): a pool of 2^17 slots stepped in place by a compute pass, each emitter a ring of it whose births the CPU tells and nothing read back (`render/Particles.h`, `particles.glsl`, which the render suite runs as C++), at rest in the frame of the emitter or of an entity it names, drawn as sprites facing the camera, drawn out along their motion, adding light, hiding a share of what is behind them, and lit as small Lambertian spheres ([particles](architecture.md#particles)). A plume at each nozzle of the simulation's ships, from their throttle (physics shows `FlightControls` in snapshots); a jump's streaks past the camera, and its flash. A test bench, `scene/effects.yaml`, and the console's `pilot`. | Met: the bench three seconds in (clear and amber glass over coloured stripes, a plume, lit smoke, sparks) captured twice on lavapipe with no pixel differing, and a reference view of the gate's, the six views together in 24 s; in the shell, the shuttle's plumes from full ahead in the chase view, and a jump's streaks and flash from the orbit and chase cameras. On the RTX 5060 Ti at 1243 × 1338, the bench's frame takes 0.72 ms, of which its glass 0.09 ms and its particles 0.03 ms, and the orbit scene's 0.29 ms, its parked ships' idle plumes neither stepped nor drawn (9d: 0.32 ms). On lavapipe at 640 × 480 the bench's frame takes 25 to 27 ms, its particles about 4 ms and its glass about 2 ms of it, and the orbit scene's 36 ms (9d: 33 ms). |
-| 10c | **Post-processing and screen-space effects.** A chain of post passes on the resolved HDR target before the output pass; bloom; screen-space ambient occlusion, from the depth prepass, which writes view-space normals for it and runs whenever it is on; stencil on the depth target (`D32_SFLOAT_S8_UINT`), with separate depth and stencil layouts and its bits allotted, and an object ID buffer written by the depth prepass; outlines of the selected and targeted, by stencil and by ID; material effects through time-driven parameters. Screen-space reflections stay out (see [decided](#decided)). | |
+| 10c | **Post-processing and screen-space effects.** Done 2026-11-13. Catalogue entry 28. A chain of full-screen post passes in the pass list on the resolved targets, over one GLM-compatible file (`post.glsl`, which the render suite runs as C++, `render/PostProcess.h`) ([post-processing](architecture.md#post-processing)). Bloom, Jimenez's chain of five levels down from the frame and back up, the first weighing its boxes by brightness, mixed into the frame by its strength in the output pass. Ambient occlusion, Scalable Ambient Obscurance from the depth prepass's depth and view-space normals at sample zero, blurred over its 4 × 4 pattern, before the opaque pass shades, dimming the image-based light alone, the specular by Lagarde's fit; F6 shows it. The depth prepass gains a fragment stage for the normals and object IDs, and runs when asked for, with ambient occlusion, or with an outline in view. A stencil on the depth target (`D32_SFLOAT_S8_UINT`, its depth and stencil resources of their own in their own layouts, `separateDepthStencilLayouts` now required), written by every opaque draw as its batch's reference and resolved to sample zero with the depth: bits 0 to 2 the cockpit, the outlined and what post-processing leaves alone (`MaskComponent`), 3 to 7 the game's ([masks](architecture.md#masks)). An object ID buffer from the prepass, a whole number in a float, since lavapipe has no multisampled integer targets. Outlines (`OutlineComponent`), the selected's line a pixel wide by the stencil and the targeted's glow by a jump flood from the IDs, in one stencil-tested pass ([outlines](architecture.md#outlines)); the shell outlines what is picked and marks the hull flown from its seat as the cockpit. A light's intensity driven by time (`LightAnimation`), by the wave a material's parameters move by (`Scene::Wave`, moved from render); a reserved pad's lamps blink. A test bench, `scene/post.yaml`, `--[no-]ambient-occlusion`, `--bloom` and the console's `view`. Screen-space reflections stay out (see [decided](#decided)). | Met: the post bench two seconds in (occlusion under the crates, the selected crate's line, the targeted pod's glow about it and its fin as one shape, the panels' bloom, the beacon bright and lighting the wall) a seventh reference view, the seven captured twice on lavapipe with no pixel differing, in 29 s; the smoke test's synchronization validation clean over the new passes. On the RTX 5060 Ti at 1243 × 1338 the orbit scene's frame takes 0.64 ms with occlusion and bloom (0.42 ms without), the transparent pass's bench 1.32 ms and the post bench 1.58 ms, occlusion the most of each. On lavapipe at 640 × 480 the orbit scene takes 44.2 ms with bloom and without occlusion, a CPU device's default (10b's commit, measured the same day: 35 to 36.5 ms), and 53 ms with it. |
 | 10d | **Animation.** Keyframed TRS tracks on any node for mechanical rigs; clip events (a clamp closing plays a sound). | |
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
 | 11a | **Packs.** Data pack layering finished (finer than whole-definition replacement); pack files behind the VFS; their compression (an open decision, with libktx's zstd). | A packed build runs, and a data mod loads from the user mount. |
@@ -59,10 +59,11 @@ are in [history](history.md).
   rebuilds the bodies from the world's components instead, losing the contact cache's warm start for
   a step. Not yet placed; it is the first thing to check when Jolt is next moved.
 - **The UI's drawing, not yet placed** (entry 23, 8b): RmlUi's clip masks (an element with
-  `overflow` clipped by a rounded border, or clipped while transformed), which want the stencil the
-  depth target gains in 10c, and its layers, filters and shaders (`filter`, `backdrop-filter`,
-  `mask-image`, gradients drawn as shaders), which want render targets of the post chain's (10c).
-  Until then RmlUi's defaults draw nothing for them, and a screen uses none.
+  `overflow` clipped by a rounded border, or clipped while transformed), which want a stencil in the
+  output pass's rendering, where the UI is drawn into the swapchain and the depth target's stencil
+  (10c) is not attached; and its layers, filters and shaders (`filter`, `backdrop-filter`,
+  `mask-image`, gradients drawn as shaders), which want render targets of their own, as the post
+  chain's are (10c). Until then RmlUi's defaults draw nothing for them, and a screen uses none.
 - **The UI, not yet placed** (entry 23, 8b): a stylesheet or document reloaded when its file
   changes (RmlUi keeps a stylesheet for the run); a document's images decoded on the I/O worker
   rather than as the document lays out, which is on the main thread and fine for a screen's icons;
@@ -91,8 +92,6 @@ are in [history](history.md).
   than whole-file replacement (entry 13): 11a.
 - **The cinematic camera** (entry 18): 11c.
 - **The crash handler hook** in `platform` (entry 6): 11d.
-- **A light's intensity driven by time**, as the beacon's lamp blinks (entry 19): with the material
-  effects of 10c.
 - **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
   a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
   brightness in it. Not yet placed.
@@ -105,11 +104,17 @@ are in [history](history.md).
 - **The transparent pass, not yet placed** (entry 28, 10b): particles sorted within an emitter, on
   the GPU, which a smoky emitter seen through itself would want; soft particles where they meet a
   surface, which want the depth the opaque pass is still writing, so a node of their own after it;
-  refraction through glass, from a copy of the frame behind it, which the post chain's targets
-  (10c) could give; a glTF primitive's `BLEND` alpha mode, which draws opaque; a transparent
+  refraction through glass, from a copy of the frame behind it, which the opaque pass's resolved
+  target would give were the transparent draws a node of their own after it; a glTF primitive's `BLEND` alpha mode, which draws opaque; a transparent
   surface's shadow, tinted, which the sun's depth-only cascades cannot hold; and an emitter
   started warm, as if it had been running, which a capture of a smoke column waits three seconds
   for instead. A ship's plumes show its throttle ahead alone, not its turns and strafes.
+- **The post chain, not yet placed** (entry 28, 10c): a transparent part of an outlined shape (a
+  canopy) is not in the depth prepass, so the shape's outline runs round the opaque parts alone; a
+  pick read from the object IDs under the mouse, which the physics ray answers today; the game UI and
+  the dev tools under a mask, since they are drawn in the output pass, where the stencil is not
+  attached; ambient occlusion at half the frame's size, or kept from frame to frame, should a
+  measured frame want it cheaper; and the colour-grading LUT (11c).
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
   first draws it, so a jump holds its effect over the new system's first frames while they stream
   in, 0.2 to 0.4 s on lavapipe for the sample systems. Not yet placed.
@@ -139,8 +144,8 @@ are in [history](history.md).
 - **The station dressing, not yet placed** (9d): the dressing is drawn and not collided with, so a
   ship flown off its pad's column passes through a floodlight pole or a display ship, which the
   column a layout is checked to keep clear never meets; a pad's look as data (its paint, its poles'
-  spacing and its floodlights' aim are the shell's, by class, in code); a lamp that blinks, as a
-  reserved pad's might, with a light's intensity driven by time (10c); the floodlights' shadows,
+  spacing and its floodlights' aim are the shell's, by class, in code; a reserved pad's lamps blink,
+  10c, by a material of the shell's choosing); the floodlights' shadows,
   which the clusters' lights do not cast. The light-budget scene (`scripts/make-light-budget-scene.py`)
   still adds its 265 lights where 5e's hand-built hub was, now inside the layout's hub, so it measures
   the grid's cost and no longer shows anything; the dressing's 104 are the station's lights now.
@@ -218,7 +223,9 @@ Phase 10a added the atmosphere program and the planet's clouds, night lights, ai
 surface, from shared includes (`body.glsl`, `atmosphere.glsl`, `rings.glsl`) the environment's
 capture runs too. Phase 10b added a program's blend to its descriptor, opaque or transparent, the
 glass program, and the particles' programs, one stepping them in compute and one drawing them, all
-lit through the same include. The rest of phase 10 adds the post chain's programs. Shader variants are compile-time defines
+lit through the same include. Phase 10c added the post chain's programs, full-screen triangles over
+shared arithmetic (`post.glsl`), and gave the depth prepass a fragment stage for its normals and
+object IDs. Shader variants are compile-time defines
 on one source (`jettison_compile_shader_variant`). Programs do not hot-reload yet; materials and
 textures do.
 
@@ -246,22 +253,22 @@ by what they add and what they let through by colour, with glass as a thin tinte
 stepped on the GPU in a pool the CPU only tells of births
 ([transparency](architecture.md#transparency), [particles](architecture.md#particles)).
 
-Post-processing is a chain of passes in the pass list, on the resolved HDR target between the
-opaque and transparent passes and the output pass's tonemapping: bloom first (stars, engines and
-lit windows are far brighter than the hull), and the colour-grading LUT of 11c later. Screen-space
-ambient occlusion reads the depth prepass (5e), which then also writes view-space normals and runs
-whenever SSAO is on; the occlusion attenuates the image-based and ambient light in `lighting.glsl`,
-not the sun or the clusters' lights, so it is computed before the opaque pass shades rather than
-darkening the frame after it. With MSAA the prepass's depth and normals are resolved to one sample
-for it. Masks come two ways ([decided](#decided)). The depth target gains a stencil aspect
-(`D32_SFLOAT_S8_UINT`, with the device's separate depth and stencil layouts, and resolved to sample
-zero for the single-sampled post passes): bits 0 to 2 the engine's (the cockpit, the selected or
-targeted, and what post-processing leaves alone), 3 to 7 the game's (a scanner's hologram, say).
-The prepass, when it runs, writes it, so the opaque pass and the post passes test it, and the
-hardware skips what a full-screen pass masks out before shading it. And the depth prepass writes an
-object ID buffer beside its normals, which no material program has to know of: from it a
-jump-flood pass draws wide, soft outlines and target glows that read at any distance, where the
-stencil gives the crisp one-pixel kind for nothing. Screen-space reflections stay out
+Phase 10c built the post chain ([post-processing](architecture.md#post-processing)): passes in the
+pass list on the resolved HDR target between the opaque pass and the output pass's tonemapping,
+bloom first (stars, engines and lit windows are far brighter than the hull), and the colour-grading
+LUT of 11c later. Ambient occlusion reads the depth prepass (5e), which writes view-space normals and
+runs whenever it is on; the occlusion attenuates the image-based light in `lighting.glsl`, not the
+sun or the clusters' lights, so it is computed before the opaque pass shades rather than darkening
+the frame after it. The prepass's multisampled depth and normals are read at sample zero, which a
+resolve to sample zero would leave, without the copy. Masks come two ways ([decided](#decided)). The
+depth target has a stencil aspect (`D32_SFLOAT_S8_UINT`, with the device's separate depth and
+stencil layouts, and resolved to sample zero for the single-sampled post passes): bits 0 to 2 the
+engine's (the cockpit, the outlined, and what post-processing leaves alone), 3 to 7 the game's (a
+scanner's hologram, say). Every opaque draw writes its bits, the prepass's or not, so the post
+passes test it and the hardware skips what a full-screen pass masks out before shading it. And the
+depth prepass writes an object ID buffer beside its normals, which no material program has to know
+of: from it a jump-flood pass draws wide, soft target glows that read at any distance, and the
+selected's crisp one-pixel line takes its colour. Screen-space reflections stay out
 ([decided](#decided)).
 
 ### 29. Scripting · phase 11 · `engine/script`
@@ -287,13 +294,19 @@ Settled on 2026-11-10:
 - **spdlog for logging** (catalogue entry 3).
 - **Clustered forward rendering.** Lights are assigned to view-space clusters in compute, and
   every surface is shaded once in its own material program. There is no G-buffer; SSAO, when it
-  comes (10c), reads the depth prepass's depth and normals. Phases 4, 5
+  came (10c), reads the depth prepass's depth and normals. Phases 4, 5
   and 10 are planned around it (catalogue entries 17, 19 and 28), and
   [architecture](architecture.md#rendering-clustered-forward) has the frame and the rules it sets.
 - **KTX-Software stays on v4.4.2** (2026-11-11, phase 5a). Phase 5 was to move to v5 if it was out
   of release candidate; its newest tag is still v5.0.0-rc2. v4.4.2 reads every file the engine
   needs (KTX 2, Basis Universal ETC1S and UASTC, zstd supercompression). Revisit when v5 is
   released.
+- **Ambient occlusion is off on a CPU device by default** (2026-11-13, phase 10c). It runs the depth
+  prepass, which now shades two multisampled targets as well as laying down the depth: on lavapipe
+  at 640 × 480 the dressed orbit scene's prepass took 11.2 ms and its frame 53 ms, against a budget
+  of 50 ms and 44.2 ms without it. Hardware has it on, at 0.16 ms with the prepass from the orbit
+  scene's 1.5 km on the RTX 5060 Ti. The smoke test and the reference views therefore draw without
+  it, but for the post chain's bench, whose view asks for it.
 - **The cluster grid is 32 × 18 × 48** (2026-11-11, phase 5e), up from 16 × 9 × 24, with the
   index list at 32 entries a cluster on average and the cluster range at 2 km. Against 265 lights on
   the orbit scene's station, the opaque pass fell from 0.43 ms to 0.34 ms on an RTX 5060 Ti and from
@@ -303,7 +316,8 @@ Settled on 2026-11-10:
 - **The depth prepass is kept, and off** (2026-11-11, phase 5e). Measured on `orbit.yaml`, it
   cost more than it saved on both devices: 0.023 ms for 0.016 ms of the opaque pass on hardware,
   3.4 ms for 0.5 ms on lavapipe, where front-to-back batches already let the depth test reject what
-  is behind. It stays as the place SSAO's normals are written (10c), which turns it on.
+  is behind. It is the place ambient occlusion's normals and the outlines' object IDs are written
+  (10c), which turn it on.
 - **A CPU device gets RGBA8 textures, not BC7** (2026-11-11, phase 5e). Lavapipe offers BC7 and
   decodes it in software at every fetch: the orbit scene's opaque pass took 469 ms at 640 × 480 with
   the hull plating in BC7 and 23 ms in RGBA8. The gate's smoke test therefore uploads RGBA8;

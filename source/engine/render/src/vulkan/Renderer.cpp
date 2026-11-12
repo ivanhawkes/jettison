@@ -44,14 +44,15 @@ struct DrawPushConstants
 static_assert(sizeof(DrawPushConstants) == 8);
 constexpr VkShaderStageFlags kDrawStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-// The fade first: a vec4 at offset 0 needs no padding before it in the push constant block.
-struct OutputPushConstants
+// Every post program's push constants, and the output's: two vec4s, which each program reads as its
+// own (ssao.frag's parameters, output.frag's fade and settings, and so on).
+struct PostPushConstants
 {
-	glm::vec4 fade{0.0f};
-	float exposure{1.0f};
-	uint32_t encodeSrgb{0};
+	glm::vec4 first{0.0f};
+	glm::vec4 second{0.0f};
 };
-static_assert(sizeof(OutputPushConstants) == 24);
+static_assert(sizeof(PostPushConstants) == 32);
+constexpr std::uint32_t kPostBindings = 4;
 
 constexpr Core::Category kRender{"render"};
 
@@ -189,7 +190,7 @@ void Renderer::Init()
 	m_pEnvironment = std::make_unique<Environment>(m_pDeviceContext, *m_pPipelines);
 	m_pEnvironment->Init();
 	CreateFrames();
-	WriteOutputSet();
+	WritePostSets();
 	CreatePipelines();
 	m_pOverlay = std::make_unique<OverlayRenderer>(
 	    m_pDeviceContext, *m_pPipelines, m_pSwapchain->GetImageFormat(), m_pSwapchain->EncodesSrgb(),
@@ -217,6 +218,7 @@ void Renderer::Destroy()
 		m_pDeviceContext->DestroyBuffer(frame.instances);
 		m_pDeviceContext->DestroyBuffer(frame.bodies);
 		m_pDeviceContext->DestroyBuffer(frame.emitters);
+		m_pDeviceContext->DestroyBuffer(frame.outlines);
 		m_pDeviceContext->DestroyBuffer(frame.gridReadback);
 		m_pDeviceContext->DestroyBuffer(frame.indexReadback);
 		// The device is idle, so the last frames' screenshots are drawn: a run that asks for one and
@@ -249,6 +251,13 @@ void Renderer::Destroy()
 		m_pPipelines->Destroy();
 	m_drawMaterials.clear();
 	m_outputPipeline = VK_NULL_HANDLE;
+	m_ssaoPipeline = VK_NULL_HANDLE;
+	m_ssaoBlurPipeline = VK_NULL_HANDLE;
+	m_bloomDownPipeline = VK_NULL_HANDLE;
+	m_bloomUpPipeline = VK_NULL_HANDLE;
+	m_outlineSeedPipeline = VK_NULL_HANDLE;
+	m_outlineFloodPipeline = VK_NULL_HANDLE;
+	m_outlinesPipeline = VK_NULL_HANDLE;
 	m_skyPipeline = VK_NULL_HANDLE;
 	m_atmospherePipeline = VK_NULL_HANDLE;
 	m_linePipeline = VK_NULL_HANDLE;
@@ -261,24 +270,26 @@ void Renderer::Destroy()
 	m_particlePipeline = VK_NULL_HANDLE;
 
 	vkDestroySampler(device, m_outputSampler, nullptr);
+	vkDestroySampler(device, m_linearSampler, nullptr);
 	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
 	vkDestroyPipelineLayout(device, m_particleLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_clusterLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_lineLayout, nullptr);
-	vkDestroyPipelineLayout(device, m_outputLayout, nullptr);
+	vkDestroyPipelineLayout(device, m_postLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_meshLayout, nullptr);
-	vkDestroyDescriptorSetLayout(device, m_outputSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device, m_postSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, m_materialSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, m_frameSetLayout, nullptr);
 	m_outputSampler = VK_NULL_HANDLE;
+	m_linearSampler = VK_NULL_HANDLE;
 	m_descriptorPool = VK_NULL_HANDLE;
-	m_outputSet = VK_NULL_HANDLE;
-	m_outputLayout = VK_NULL_HANDLE;
+	m_postSets = {};
+	m_postLayout = VK_NULL_HANDLE;
 	m_lineLayout = VK_NULL_HANDLE;
 	m_clusterLayout = VK_NULL_HANDLE;
 	m_particleLayout = VK_NULL_HANDLE;
 	m_meshLayout = VK_NULL_HANDLE;
-	m_outputSetLayout = VK_NULL_HANDLE;
+	m_postSetLayout = VK_NULL_HANDLE;
 	m_materialSetLayout = VK_NULL_HANDLE;
 	m_frameSetLayout = VK_NULL_HANDLE;
 	m_imagesInFlight.clear();
@@ -305,12 +316,13 @@ void Renderer::CreateLayouts()
 	// assets/shaders/include/frame.glsl, the environment's bindings in lighting.glsl, the cluster
 	// grid's, which the cluster programs write and lighting.glsl reads, the sun's shadow map, the
 	// instances mesh_vertex.glsl reads, and the particle pool and the frame's emitters, which
-	// particles.comp steps and the particle program draws.
+	// particles.comp steps and the particle program draws; the frame's outlines, which the outline
+	// passes read, and the ambient access, which lighting.glsl reads.
 	constexpr VkShaderStageFlags kFragmentCompute =
 	    VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 	constexpr VkShaderStageFlags kVertexCompute =
 	    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-	const std::array<VkDescriptorSetLayoutBinding, 15> frameBindings{{
+	const std::array<VkDescriptorSetLayoutBinding, 17> frameBindings{{
 	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
 	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
 	     nullptr},
@@ -329,6 +341,8 @@ void Renderer::CreateLayouts()
 	    {13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kVertexCompute, nullptr},
 	    {14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kVertexCompute | VK_SHADER_STAGE_FRAGMENT_BIT,
 	     nullptr},
+	    {15, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
@@ -337,10 +351,13 @@ void Renderer::CreateLayouts()
 		materialBindings[slot] = {
 		    slot, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
 	m_materialSetLayout = createSetLayout(materialBindings, "material-set-layout");
-	const std::array<VkDescriptorSetLayoutBinding, 1> outputBindings{{
-	    {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-	}};
-	m_outputSetLayout = createSetLayout(outputBindings, "output-set-layout");
+	// What a post pass reads: the frame, the depth prepass's targets, the stencil, a level of bloom.
+	std::array<VkDescriptorSetLayoutBinding, kPostBindings> postBindings{};
+	for (uint32_t binding = 0; binding < kPostBindings; ++binding)
+		postBindings[binding] = {
+		    binding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
+		    nullptr};
+	m_postSetLayout = createSetLayout(postBindings, "post-set-layout");
 
 	const std::array<VkDescriptorSetLayout, 2> meshSets{m_frameSetLayout, m_materialSetLayout};
 	const VkPushConstantRange drawRange{kDrawStages, 0, sizeof(DrawPushConstants)};
@@ -384,28 +401,30 @@ void Renderer::CreateLayouts()
 		throw std::runtime_error("failed to create the particle pipeline layout");
 	m_pDeviceContext->SetDebugName(m_particleLayout, "particle-pipeline-layout");
 
-	const VkPushConstantRange outputRange{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(OutputPushConstants)};
-	VkPipelineLayoutCreateInfo outputInfo{};
-	outputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	outputInfo.setLayoutCount = 1;
-	outputInfo.pSetLayouts = &m_outputSetLayout;
-	outputInfo.pushConstantRangeCount = 1;
-	outputInfo.pPushConstantRanges = &outputRange;
-	if (vkCreatePipelineLayout(device, &outputInfo, nullptr, &m_outputLayout) != VK_SUCCESS)
-		throw std::runtime_error("failed to create the output pipeline layout");
-	m_pDeviceContext->SetDebugName(m_outputLayout, "output-pipeline-layout");
+	const std::array<VkDescriptorSetLayout, 2> postSets{m_frameSetLayout, m_postSetLayout};
+	const VkPushConstantRange postRange{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PostPushConstants)};
+	VkPipelineLayoutCreateInfo postInfo{};
+	postInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	postInfo.setLayoutCount = static_cast<uint32_t>(postSets.size());
+	postInfo.pSetLayouts = postSets.data();
+	postInfo.pushConstantRangeCount = 1;
+	postInfo.pPushConstantRanges = &postRange;
+	if (vkCreatePipelineLayout(device, &postInfo, nullptr, &m_postLayout) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the post pipeline layout");
+	m_pDeviceContext->SetDebugName(m_postLayout, "post-pipeline-layout");
 
-	// One frame set per frame in flight, and the output set.
+	// One frame set per frame in flight, and a set for each post pass.
 	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
 	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 * kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * kFramesInFlight + 1},
+	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 11 * kFramesInFlight},
+	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+	     5 * kFramesInFlight + kPostBindings * kPostSetCount},
 	}};
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = kFramesInFlight + 1;
+	poolInfo.maxSets = kFramesInFlight + kPostSetCount;
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("failed to create the frame descriptor pool");
 	m_pDeviceContext->SetDebugName(m_descriptorPool, "frame-descriptor-pool");
@@ -422,15 +441,28 @@ void Renderer::CreateLayouts()
 	if (vkCreateSampler(device, &samplerInfo, nullptr, &m_outputSampler) != VK_SUCCESS)
 		throw std::runtime_error("failed to create the output sampler");
 	m_pDeviceContext->SetDebugName(m_outputSampler, "output-sampler");
+	// The bloom chain's taps fall between texels, and filter four of them each.
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	if (vkCreateSampler(device, &samplerInfo, nullptr, &m_linearSampler) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the post sampler");
+	m_pDeviceContext->SetDebugName(m_linearSampler, "post-linear-sampler");
 
+	const std::array<VkDescriptorSetLayout, kPostSetCount> postLayouts = [&]
+	{
+		std::array<VkDescriptorSetLayout, kPostSetCount> layouts{};
+		layouts.fill(m_postSetLayout);
+		return layouts;
+	}();
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = m_descriptorPool;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &m_outputSetLayout;
-	if (vkAllocateDescriptorSets(device, &allocInfo, &m_outputSet) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate the output descriptor set");
-	m_pDeviceContext->SetDebugName(m_outputSet, "output-set");
+	allocInfo.descriptorSetCount = kPostSetCount;
+	allocInfo.pSetLayouts = postLayouts.data();
+	if (vkAllocateDescriptorSets(device, &allocInfo, m_postSets.data()) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate the post descriptor sets");
+	for (std::uint32_t set = 0; set < kPostSetCount; ++set)
+		m_pDeviceContext->SetDebugName(m_postSets[set], "post-set-" + std::to_string(set));
 }
 
 
@@ -438,8 +470,22 @@ void Renderer::CreatePassList()
 {
 	m_shadowMapResource = m_passes.AddImage("sun-shadows");
 	m_hdrMsaaResource = m_passes.AddImage("hdr-msaa");
+	// The depth target's two aspects, each its own resource so each has its own layout: ambient
+	// occlusion reads the depth while nothing holds the stencil, and the post passes test the
+	// resolved stencil while its depth is left as the opaque pass resolved it.
 	m_depthResource = m_passes.AddImage("depth");
+	m_stencilResource = m_passes.AddImage("stencil");
+	m_normalsResource = m_passes.AddImage("normals");
+	m_objectIdsResource = m_passes.AddImage("object-ids");
+	m_resolvedDepthResource = m_passes.AddImage("resolved-depth");
+	m_resolvedStencilResource = m_passes.AddImage("resolved-stencil");
+	m_accessResource = m_passes.AddImage("ambient-access");
+	m_accessBlurredResource = m_passes.AddImage("ambient-access-blurred");
 	m_hdrResource = m_passes.AddImage("hdr");
+	for (std::uint32_t level = 0; level < kBloomLevelCount; ++level)
+		m_bloomResources[level] = m_passes.AddImage("bloom-" + std::to_string(level + 1));
+	m_floodResources[0] = m_passes.AddImage("flood-a");
+	m_floodResources[1] = m_passes.AddImage("flood-b");
 	m_swapchainResource = m_passes.AddImage("swapchain");
 	m_clusterBoundsResource = m_passes.AddBuffer("cluster-bounds");
 	m_clusterGridResource = m_passes.AddBuffer("cluster-grid");
@@ -449,11 +495,15 @@ void Renderer::CreatePassList()
 	// without a sun only clears them, so the plan and its barriers are the same either way.
 	m_shadowPass = m_passes.AddPass(
 	    "sun-shadows", PassKind::Graphics, {{m_shadowMapResource, Usage::DepthAttachment}});
-	// The opaque surfaces' depth, laid down for the opaque pass to test against, when the prepass is
-	// on (SetDepthPrepass); off, it records nothing and the opaque pass clears the depth itself, so
-	// the plan and its barriers are the same either way.
+	// The opaque surfaces' depth, normals and object IDs, laid down for the opaque pass to test
+	// against and for ambient occlusion and the outlines to read, in a frame that asks for any of
+	// them; otherwise it records nothing and the opaque pass clears the depth itself, so the plan and
+	// its barriers are the same either way.
 	m_prepassPass = m_passes.AddPass(
-	    "depth-prepass", PassKind::Graphics, {{m_depthResource, Usage::DepthAttachment}});
+	    "depth-prepass", PassKind::Graphics,
+	    {{m_depthResource, Usage::DepthAttachment},
+	     {m_normalsResource, Usage::ColorAttachment},
+	     {m_objectIdsResource, Usage::ColorAttachment}});
 	// The index list's allocator is zeroed by a fill, so the assignment can reserve from it with
 	// atomic adds; a fill is a transfer, and the plan orders it after the last frame's reads.
 	m_clusterResetPass = m_passes.AddPass(
@@ -471,20 +521,71 @@ void Renderer::CreatePassList()
 	// frame to frame, and this frame's reads wait on the last frame's draws.
 	m_particlePass = m_passes.AddPass(
 	    "particles", PassKind::Compute, {{m_particlesResource, Usage::StorageWriteCompute}});
-	// The resolve is the opaque pass's: dynamic rendering resolves the multisampled target into
-	// the single-sampled one as the pass ends, as a colour attachment write.
+	// Ambient occlusion, before the opaque pass shades: the prepass's depth and normals read at sample
+	// zero, and the result blurred. Recorded in a frame that has it on.
+	m_ssaoPass = m_passes.AddPass(
+	    "ambient-occlusion", PassKind::Graphics,
+	    {{m_depthResource, Usage::SampledFragment},
+	     {m_normalsResource, Usage::SampledFragment},
+	     {m_accessResource, Usage::ColorAttachment}});
+	m_ssaoBlurPass = m_passes.AddPass(
+	    "ambient-occlusion-blur", PassKind::Graphics,
+	    {{m_depthResource, Usage::SampledFragment},
+	     {m_accessResource, Usage::SampledFragment},
+	     {m_accessBlurredResource, Usage::ColorAttachment}});
+	// The resolves are the opaque pass's: dynamic rendering resolves the multisampled colour into the
+	// single-sampled target as the pass ends, and the depth and stencil to sample zero, as attachment
+	// writes; the stencil is what the post passes test.
 	m_opaquePass = m_passes.AddPass(
 	    "opaque", PassKind::Graphics,
 	    {{m_hdrMsaaResource, Usage::ColorAttachment},
 	     {m_depthResource, Usage::DepthAttachment},
+	     {m_stencilResource, Usage::StencilAttachment},
 	     {m_hdrResource, Usage::ColorAttachment},
+	     {m_resolvedDepthResource, Usage::DepthAttachment},
+	     {m_resolvedStencilResource, Usage::StencilAttachment},
+	     {m_accessBlurredResource, Usage::SampledFragment},
 	     {m_shadowMapResource, Usage::SampledFragment},
 	     {m_clusterGridResource, Usage::StorageReadFragment},
 	     {m_lightIndicesResource, Usage::StorageReadFragment},
 	     {m_particlesResource, Usage::StorageReadVertex}});
+	// Bloom: down the chain from the frame, then back up it, each level adding the one below. Each
+	// step is a pass of its own, so the plan orders a level's reads after its writes; recorded in a
+	// frame with bloom on.
+	for (std::uint32_t level = 0; level < kBloomLevelCount; ++level)
+		m_bloomDownPasses[level] = m_passes.AddPass(
+		    "bloom-down-" + std::to_string(level + 1), PassKind::Graphics,
+		    {{level == 0 ? m_hdrResource : m_bloomResources[level - 1], Usage::SampledFragment},
+		     {m_bloomResources[level], Usage::ColorAttachment}});
+	for (std::uint32_t level = kBloomLevelCount - 1; level-- > 0;)
+		m_bloomUpPasses[level] = m_passes.AddPass(
+		    "bloom-up-" + std::to_string(level + 1), PassKind::Graphics,
+		    {{m_bloomResources[level + 1], Usage::SampledFragment},
+		     {m_bloomResources[level], Usage::ColorAttachment}});
+	// The outlines, after bloom has read the frame, so they do not bloom: the jump flood's seeds and
+	// steps, from one of its targets to the other, and then the outlines over the frame, tested
+	// against the stencil. Recorded in a frame with any to draw, the flood in one with a glow.
+	m_outlineSeedPass = m_passes.AddPass(
+	    "outline-seeds", PassKind::Graphics,
+	    {{m_objectIdsResource, Usage::SampledFragment}, {m_floodResources[0], Usage::ColorAttachment}});
+	for (std::uint32_t step = 0; step < kFloodStepCount; ++step)
+		m_floodPasses[step] = m_passes.AddPass(
+		    "outline-flood-" + std::to_string(Post::FloodStride(static_cast<int>(step))),
+		    PassKind::Graphics,
+		    {{m_floodResources[step % 2], Usage::SampledFragment},
+		     {m_floodResources[(step + 1) % 2], Usage::ColorAttachment}});
+	m_outlinesPass = m_passes.AddPass(
+	    "outlines", PassKind::Graphics,
+	    {{m_floodResources[kFloodStepCount % 2], Usage::SampledFragment},
+	     {m_objectIdsResource, Usage::SampledFragment},
+	     {m_resolvedStencilResource, Usage::StencilRead},
+	     {m_hdrResource, Usage::ColorAttachment}});
 	m_outputPass = m_passes.AddPass(
 	    "output", PassKind::Graphics,
-	    {{m_hdrResource, Usage::SampledFragment}, {m_swapchainResource, Usage::ColorAttachment}});
+	    {{m_hdrResource, Usage::SampledFragment},
+	     {m_bloomResources[0], Usage::SampledFragment},
+	     {m_resolvedStencilResource, Usage::StencilRead},
+	     {m_swapchainResource, Usage::ColorAttachment}});
 	// The cluster check's copy. It is in every frame's plan, checked or not, and records its copies
 	// only when the check is on: the plan the gate's synchronization validation runs is then the
 	// plan every run has, and the barriers it costs an unchecked frame wait on work that is done.
@@ -506,6 +607,20 @@ void Renderer::CreateTargets()
 	const VkExtent2D extent = m_pSwapchain->GetExtents();
 	const VkSampleCountFlagBits samples = m_pDeviceContext->GetMsaaSamples();
 	m_targets.extent = extent;
+	const auto target = [&](VkExtent2D size, VkSampleCountFlagBits count, VkFormat format,
+	                        VkImageUsageFlags usage, const std::string &name)
+	{
+		Target made;
+		made.image = m_pDeviceContext->CreateImage(
+		    size.width, size.height, 1, count, format, VK_IMAGE_TILING_OPTIMAL, usage, name);
+		made.view =
+		    m_pDeviceContext->CreateImageView(made.image.handle, format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+		m_pDeviceContext->SetDebugName(made.view, name + "-view");
+		return made;
+	};
+	constexpr VkImageUsageFlags kRenderedAndRead =
+	    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
 	// The multisampled images live only inside the opaque pass: they are cleared on load and not
 	// stored, so a tiler can keep them on chip.
 	m_targets.hdrMsaa = m_pDeviceContext->CreateImage(
@@ -515,14 +630,21 @@ void Renderer::CreateTargets()
 	    m_targets.hdrMsaa.handle, kHdrFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 	m_pDeviceContext->SetDebugName(m_targets.hdrMsaaView, "hdr-msaa-view");
 
-	// The depth is stored by the prepass, when it runs, and loaded by the opaque pass, so it is not
-	// transient.
+	// The depth is stored by the prepass, when it runs, read by ambient occlusion and loaded by the
+	// opaque pass, so it is not transient.
+	constexpr VkImageAspectFlags kDepthStencil =
+	    VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 	m_targets.depth = m_pDeviceContext->CreateImage(
 	    extent.width, extent.height, 1, samples, m_depthFormat, VK_IMAGE_TILING_OPTIMAL,
-	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, "depth");
-	m_targets.depthView = m_pDeviceContext->CreateImageView(
-	    m_targets.depth.handle, m_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "depth");
+	m_targets.depthView =
+	    m_pDeviceContext->CreateImageView(m_targets.depth.handle, m_depthFormat, kDepthStencil, 1);
 	m_pDeviceContext->SetDebugName(m_targets.depthView, "depth-view");
+	m_targets.depthSampleView = m_pDeviceContext->CreateImageView(
+	    m_targets.depth.handle, m_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	m_pDeviceContext->SetDebugName(m_targets.depthSampleView, "depth-sample-view");
+	m_targets.normals = target(extent, samples, kNormalFormat, kRenderedAndRead, "normals");
+	m_targets.objectIds = target(extent, samples, kObjectIdFormat, kRenderedAndRead, "object-ids");
 
 	m_targets.hdr = m_pDeviceContext->CreateImage(
 	    extent.width, extent.height, 1, VK_SAMPLE_COUNT_1_BIT, kHdrFormat, VK_IMAGE_TILING_OPTIMAL,
@@ -530,18 +652,62 @@ void Renderer::CreateTargets()
 	m_targets.hdrView = m_pDeviceContext->CreateImageView(
 	    m_targets.hdr.handle, kHdrFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 	m_pDeviceContext->SetDebugName(m_targets.hdrView, "hdr-view");
+
+	m_targets.resolved = m_pDeviceContext->CreateImage(
+	    extent.width, extent.height, 1, VK_SAMPLE_COUNT_1_BIT, m_depthFormat, VK_IMAGE_TILING_OPTIMAL,
+	    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, "resolved-depth");
+	m_targets.resolvedView =
+	    m_pDeviceContext->CreateImageView(m_targets.resolved.handle, m_depthFormat, kDepthStencil, 1);
+	m_pDeviceContext->SetDebugName(m_targets.resolvedView, "resolved-depth-view");
+	m_targets.resolvedStencilView = m_pDeviceContext->CreateImageView(
+	    m_targets.resolved.handle, m_depthFormat, VK_IMAGE_ASPECT_STENCIL_BIT, 1);
+	m_pDeviceContext->SetDebugName(m_targets.resolvedStencilView, "resolved-stencil-view");
+
+	m_targets.access =
+	    target(extent, VK_SAMPLE_COUNT_1_BIT, kAccessFormat, kRenderedAndRead, "ambient-access");
+	m_targets.accessBlurred = target(
+	    extent, VK_SAMPLE_COUNT_1_BIT, kAccessFormat, kRenderedAndRead, "ambient-access-blurred");
+	const auto bloomExtents = BloomExtents({extent.width, extent.height});
+	for (std::uint32_t level = 0; level < kBloomLevelCount; ++level)
+	{
+		m_targets.bloomExtents[level] = {bloomExtents[level].x, bloomExtents[level].y};
+		m_targets.bloom[level] = target(
+		    m_targets.bloomExtents[level], VK_SAMPLE_COUNT_1_BIT, kHdrFormat, kRenderedAndRead,
+		    "bloom-" + std::to_string(level + 1));
+	}
+	for (std::uint32_t index = 0; index < 2; ++index)
+		m_targets.flood[index] = target(
+		    extent, VK_SAMPLE_COUNT_1_BIT, kSeedFormat, kRenderedAndRead,
+		    index == 0 ? "flood-a" : "flood-b");
 }
 
 
 void Renderer::DestroyTargets()
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	const auto destroy = [&](Target &target)
+	{
+		vkDestroyImageView(device, target.view, nullptr);
+		m_pDeviceContext->DestroyImage(target.image);
+	};
 	vkDestroyImageView(device, m_targets.hdrView, nullptr);
 	vkDestroyImageView(device, m_targets.depthView, nullptr);
+	vkDestroyImageView(device, m_targets.depthSampleView, nullptr);
 	vkDestroyImageView(device, m_targets.hdrMsaaView, nullptr);
+	vkDestroyImageView(device, m_targets.resolvedView, nullptr);
+	vkDestroyImageView(device, m_targets.resolvedStencilView, nullptr);
 	m_pDeviceContext->DestroyImage(m_targets.hdr);
 	m_pDeviceContext->DestroyImage(m_targets.depth);
 	m_pDeviceContext->DestroyImage(m_targets.hdrMsaa);
+	m_pDeviceContext->DestroyImage(m_targets.resolved);
+	destroy(m_targets.normals);
+	destroy(m_targets.objectIds);
+	destroy(m_targets.access);
+	destroy(m_targets.accessBlurred);
+	for (Target &level : m_targets.bloom)
+		destroy(level);
+	for (Target &flood : m_targets.flood)
+		destroy(flood);
 	m_targets = {};
 }
 
@@ -684,6 +850,9 @@ void Renderer::CreateFrames()
 		frame.emitters = m_pDeviceContext->CreateBuffer(
 		    sizeof(GpuEmitter), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
 		    "emitters-" + slot);
+		frame.outlines = m_pDeviceContext->CreateBuffer(
+		    sizeof(GpuOutline), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
+		    "outlines-" + slot);
 
 		VkDescriptorSetAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -721,7 +890,10 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	}};
 	const VkDescriptorImageInfo shadows{
 	    m_shadowSampler, m_shadowArrayView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-	std::array<VkWriteDescriptorSet, 15> writes{};
+	const VkDescriptorBufferInfo outlines{frame.outlines.handle, 0, frame.outlines.size};
+	const VkDescriptorImageInfo access{
+	    m_outputSampler, m_targets.accessBlurred.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+	std::array<VkWriteDescriptorSet, 17> writes{};
 	for (auto &write : writes)
 	{
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -767,24 +939,73 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	writes[14].dstBinding = 14;
 	writes[14].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	writes[14].pBufferInfo = &emitters;
+	writes[15].dstBinding = 15;
+	writes[15].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writes[15].pBufferInfo = &outlines;
+	writes[16].dstBinding = 16;
+	writes[16].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writes[16].pImageInfo = &access;
 	vkUpdateDescriptorSets(
 	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
 	    nullptr);
 }
 
 
-void Renderer::WriteOutputSet()
+void Renderer::WritePostSets()
 {
-	const VkDescriptorImageInfo image{
-	    m_outputSampler, m_targets.hdrView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-	VkWriteDescriptorSet write{};
-	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write.dstSet = m_outputSet;
-	write.dstBinding = 0;
-	write.descriptorCount = 1;
-	write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	write.pImageInfo = &image;
-	vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
+	// What each post pass reads, by binding: its sampler, its view, and the layout the pass list has
+	// the image in when the pass runs. A binding a pass's program does not read is left unwritten.
+	struct Read
+	{
+		PostSet set;
+		uint32_t binding;
+		VkImageView view;
+		bool filtered;
+		VkImageLayout layout{VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+	};
+	std::vector<Read> reads{
+	    {kPostSsao, 0, m_targets.depthSampleView, false},
+	    {kPostSsao, 1, m_targets.normals.view, false},
+	    {kPostSsaoBlur, 0, m_targets.access.view, false},
+	    {kPostSsaoBlur, 1, m_targets.depthSampleView, false},
+	    {kPostOutlineSeed, 0, m_targets.objectIds.view, false},
+	    {kPostFloodFromFirst, 0, m_targets.flood[0].view, false},
+	    {kPostFloodFromSecond, 0, m_targets.flood[1].view, false},
+	    {kPostOutlines, 0, m_targets.flood[kFloodStepCount % 2].view, false},
+	    {kPostOutlines, 1, m_targets.objectIds.view, false},
+	    {kPostOutlines, 2, m_targets.resolvedStencilView, false,
+	     VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL},
+	    {kPostOutput, 0, m_targets.hdrView, false},
+	    {kPostOutput, 1, m_targets.bloom[0].view, true},
+	    {kPostOutput, 2, m_targets.resolvedStencilView, false,
+	     VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL},
+	};
+	for (std::uint32_t level = 0; level < kBloomLevelCount; ++level)
+	{
+		reads.push_back(
+		    {static_cast<PostSet>(kPostBloomDown + level), 0,
+		     level == 0 ? m_targets.hdrView : m_targets.bloom[level - 1].view, true});
+		if (level + 1 < kBloomLevelCount)
+			reads.push_back(
+			    {static_cast<PostSet>(kPostBloomUp + level), 0, m_targets.bloom[level + 1].view, true});
+	}
+	std::vector<VkDescriptorImageInfo> images(reads.size());
+	std::vector<VkWriteDescriptorSet> writes(reads.size());
+	for (std::size_t index = 0; index < reads.size(); ++index)
+	{
+		const Read &read = reads[index];
+		images[index] = {read.filtered ? m_linearSampler : m_outputSampler, read.view, read.layout};
+		VkWriteDescriptorSet &write = writes[index];
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_postSets[read.set];
+		write.dstBinding = read.binding;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		write.pImageInfo = &images[index];
+	}
+	vkUpdateDescriptorSets(
+	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
+	    nullptr);
 }
 
 
@@ -792,16 +1013,26 @@ void Renderer::CreatePipelines()
 {
 	// Greater or equal rather than greater, so a fragment at the depth the prepass laid down for it
 	// passes: with the prepass on, that is the only one that does.
-	RenderState mesh;
-	mesh.depthCompare = VK_COMPARE_OP_GREATER_OR_EQUAL;
-	mesh.colorFormat = kHdrFormat;
-	mesh.depthFormat = m_depthFormat;
-	mesh.samples = m_pDeviceContext->GetMsaaSamples();
+	// Everything drawn in the opaque pass's rendering declares its stencil, the depth target's own
+	// aspect; only the opaque surfaces write it.
+	RenderState base;
+	base.depthCompare = VK_COMPARE_OP_GREATER_OR_EQUAL;
+	base.colorFormat = kHdrFormat;
+	base.depthFormat = m_depthFormat;
+	base.stencilFormat = m_depthFormat;
+	base.samples = m_pDeviceContext->GetMsaaSamples();
+	// An opaque surface writes its draw's stencil bits wherever it is drawn, whatever was there: the
+	// reference is the batch's (render/PostProcess.h's StencilBits).
+	RenderState mesh = base;
+	mesh.stencilTest = true;
+	mesh.stencilCompare = VK_COMPARE_OP_ALWAYS;
+	mesh.stencilPass = VK_STENCIL_OP_REPLACE;
+	mesh.stencilWriteMask = 0xff;
 	// What a transparent program draws with (ProgramBlend::Transparent), after the sky: tested
 	// against the opaque surfaces' depth and writing none, so what is behind it is still drawn and
 	// blended; both faces, so a canopy is seen from inside; and what it adds and what it lets through
 	// by colour (BlendMode::Transmissive).
-	RenderState transparent = mesh;
+	RenderState transparent = base;
 	transparent.cullMode = VK_CULL_MODE_NONE;
 	transparent.depthWrite = false;
 	transparent.blend = BlendMode::Transmissive;
@@ -813,7 +1044,7 @@ void Renderer::CreatePipelines()
 	// The sky is drawn after the surfaces, at the far end of the reversed-Z range, where nothing
 	// covered the depth buffer's clear; it writes no depth, so the lines drawn after it are tested
 	// against the surfaces alone.
-	RenderState sky = mesh;
+	RenderState sky = base;
 	sky.vertices = VertexLayout::None;
 	sky.cullMode = VK_CULL_MODE_NONE;
 	sky.depthWrite = false;
@@ -828,7 +1059,7 @@ void Renderer::CreatePipelines()
 
 	// Lines are blended over the opaque surfaces and write no depth, so a line through a surface
 	// does not hide the half behind it from the next line; the overlay variant is not tested.
-	RenderState line = mesh;
+	RenderState line = base;
 	line.vertices = VertexLayout::Line;
 	line.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 	line.cullMode = VK_CULL_MODE_NONE;
@@ -851,9 +1082,11 @@ void Renderer::CreatePipelines()
 	m_shadowPipeline = m_pPipelines->Get({"shadow_depth", shadow, m_meshLayout});
 
 	// The depth prepass: the opaque pass's depth, the same positions (mesh.vert's invariant
-	// gl_Position), with no colour.
+	// gl_Position), and each surface's normal and object ID; no stencil, which the opaque pass writes.
 	RenderState prepass;
 	prepass.depthCompare = VK_COMPARE_OP_GREATER;
+	prepass.colorFormat = kNormalFormat;
+	prepass.secondColorFormat = kObjectIdFormat;
 	prepass.depthFormat = m_depthFormat;
 	prepass.samples = m_pDeviceContext->GetMsaaSamples();
 	m_prepassPipeline = m_pPipelines->Get({"depth_prepass", prepass, m_meshLayout});
@@ -867,13 +1100,38 @@ void Renderer::CreatePipelines()
 	m_clusterBoundsPipeline = m_pPipelines->GetCompute("cluster_bounds", m_clusterLayout);
 	m_clusterLightsPipeline = m_pPipelines->GetCompute("cluster_lights", m_clusterLayout);
 
-	RenderState output;
-	output.vertices = VertexLayout::None;
-	output.cullMode = VK_CULL_MODE_NONE;
-	output.depthTest = false;
-	output.depthWrite = false;
+	// The post passes: a full-screen triangle into one single-sampled target, untested.
+	RenderState post;
+	post.vertices = VertexLayout::None;
+	post.cullMode = VK_CULL_MODE_NONE;
+	post.depthTest = false;
+	post.depthWrite = false;
+	post.colorFormat = kAccessFormat;
+	m_ssaoPipeline = m_pPipelines->Get({"ssao", post, m_postLayout});
+	m_ssaoBlurPipeline = m_pPipelines->Get({"ssao_blur", post, m_postLayout});
+	post.colorFormat = kHdrFormat;
+	m_bloomDownPipeline = m_pPipelines->Get({"bloom_down", post, m_postLayout});
+	// The way up adds to what the way down left in the level.
+	RenderState bloomUp = post;
+	bloomUp.blend = BlendMode::Additive;
+	m_bloomUpPipeline = m_pPipelines->Get({"bloom_up", bloomUp, m_postLayout});
+	post.colorFormat = kSeedFormat;
+	m_outlineSeedPipeline = m_pPipelines->Get({"outline_seed", post, m_postLayout});
+	m_outlineFloodPipeline = m_pPipelines->Get({"outline_flood", post, m_postLayout});
+	// Over the frame, premultiplied, wherever the stencil's engine bits are all clear: not on an
+	// outlined shape, the cockpit, or what post-processing leaves alone.
+	RenderState outlines = post;
+	outlines.colorFormat = kHdrFormat;
+	outlines.stencilFormat = m_depthFormat;
+	outlines.stencilTest = true;
+	outlines.stencilCompare = VK_COMPARE_OP_EQUAL;
+	outlines.stencilCompareMask = kStencilEngineBits;
+	outlines.blend = BlendMode::Premultiplied;
+	m_outlinesPipeline = m_pPipelines->Get({"outlines", outlines, m_postLayout});
+
+	RenderState output = post;
 	output.colorFormat = m_pSwapchain->GetImageFormat();
-	m_outputPipeline = m_pPipelines->Get({"output", output, m_outputLayout});
+	m_outputPipeline = m_pPipelines->Get({"output", output, m_postLayout});
 }
 
 
@@ -913,7 +1171,10 @@ void Renderer::RecreateSwapchain()
 		throw std::runtime_error("the swapchain's format changed when it was recreated");
 	DestroyTargets();
 	CreateTargets();
-	WriteOutputSet();
+	WritePostSets();
+	// The frame sets name the ambient access, which is one of the targets.
+	for (const FrameData &frame : m_frames)
+		WriteFrameSet(frame);
 	DestroyRenderFinishedSemaphores();
 	CreateRenderFinishedSemaphores();
 	m_pWindow->HasBeenResized(false);
@@ -1061,7 +1322,6 @@ void Renderer::WriteFrame(
 		constants.counts.z = 1u;
 		m_frameShadows = true;
 	}
-	m_pDeviceContext->WriteBuffer(frame.constants, &constants, sizeof(constants));
 
 	jointOffsets.assign(draws.size(), 0);
 	std::vector<glm::mat4> palette;
@@ -1084,6 +1344,30 @@ void Renderer::WriteFrame(
 
 	WriteEmitters(frame, sceneRegistry, camera, seconds);
 	WriteInstances(frame, draws, jointOffsets);
+	WriteOutlines(frame);
+
+	// What this frame runs, now that the view's outlines are known: the prepass whenever it is asked
+	// for, or ambient occlusion or an outline needs what it writes.
+	m_frameAmbientOcclusion = m_ambientOcclusion;
+	m_frameGlows = std::ranges::any_of(
+	    m_outlineScratch, [](const GpuOutline &outline) { return outline.style.x != 0.0f; });
+	m_framePrepass = m_depthPrepass || m_frameAmbientOcclusion || !m_outlineScratch.empty();
+	constants.effects = glm::uvec4{
+	    m_frameAmbientOcclusion ? 1u : 0u, static_cast<std::uint32_t>(m_outlineScratch.size()),
+	    m_frameGlows ? 1u : 0u, 0u};
+	m_frameStats.outlines = static_cast<std::uint32_t>(m_outlineScratch.size());
+	m_pDeviceContext->WriteBuffer(frame.constants, &constants, sizeof(constants));
+}
+
+
+void Renderer::WriteOutlines(FrameData &frame)
+{
+	// At least one entry, so the buffer the frame set names is never empty.
+	const std::size_t count = std::max<std::size_t>(m_outlineScratch.size(), 1);
+	const VkDeviceSize bytes = count * sizeof(GpuOutline);
+	EnsureCapacity(frame, frame.outlines, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "outlines");
+	if (!m_outlineScratch.empty())
+		m_pDeviceContext->WriteBuffer(frame.outlines, m_outlineScratch.data(), bytes);
 }
 
 
@@ -1183,6 +1467,34 @@ void Renderer::WriteInstances(
 	m_batchScratch.clear();
 	m_sortedScratch.clear();
 	m_transparentBatches.clear();
+	m_outlineScratch.clear();
+	m_outlineOwners.clear();
+	m_drawOutlines.assign(draws.size(), kMaxOutlines);
+	// A kept draw's outline, numbered by the entity that has it in the order the draws first name it,
+	// so every mesh under one outline is one shape to it.
+	const auto keepOutline = [&](std::size_t drawIndex)
+	{
+		const SceneDrawCommand &draw = draws[drawIndex];
+		if (draw.outline == nullptr)
+			return;
+		const auto found = std::ranges::find(m_outlineOwners, draw.outlineOwner);
+		if (found != m_outlineOwners.end())
+		{
+			m_drawOutlines[drawIndex] =
+			    static_cast<std::uint32_t>(std::distance(m_outlineOwners.begin(), found));
+			return;
+		}
+		if (m_outlineOwners.size() >= kMaxOutlines)
+			return;
+		m_drawOutlines[drawIndex] = static_cast<std::uint32_t>(m_outlineOwners.size());
+		m_outlineOwners.push_back(draw.outlineOwner);
+		const bool glow = draw.outline->style == Scene::OutlineStyle::Targeted;
+		m_outlineScratch.push_back(
+		    {draw.outline->color,
+		     glm::vec4{
+		         glow ? 1.0f : 0.0f, std::clamp(draw.outline->width, 1.0f, Scene::kMaxOutlineWidth),
+		         0.0f, 0.0f}});
+	};
 	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
 	{
 		const SceneDrawCommand &draw = draws[drawIndex];
@@ -1207,7 +1519,8 @@ void Renderer::WriteInstances(
 			++m_frameStats.detailCulled;
 			continue;
 		}
-		// A transparent material's draw goes back to front with the others, by its centre.
+		// A transparent material's draw goes back to front with the others, by its centre. It writes
+		// no stencil, and is not in the prepass, so it is no part of an outlined shape.
 		if (const MaterialBinding *material = m_drawMaterials[drawIndex];
 		    material != nullptr && material->transparent)
 		{
@@ -1220,8 +1533,9 @@ void Renderer::WriteInstances(
 			     !skinned && draw.model->m_lods[lod].primitiveCount == 1});
 			continue;
 		}
+		keepOutline(drawIndex);
 		m_batchScratch.push_back(
-		    {{draw.model, m_drawLods[drawIndex], m_drawMaterials[drawIndex]},
+		    {{draw.model, m_drawLods[drawIndex], m_drawMaterials[drawIndex], draw.stencil},
 		     static_cast<std::uint32_t>(drawIndex),
 		     nearest(draw.bounds),
 		     !skinned});
@@ -1282,7 +1596,9 @@ void Renderer::WriteInstances(
 		const SceneDrawCommand &draw = draws[drawIndex];
 		m_instanceScratch[instance] = {
 		    draw.renderTransform,
-		    glm::uvec4{jointOffsets[drawIndex], draw.Skinned() ? 1u : 0u, m_drawBodies[drawIndex], 0u}};
+		    glm::uvec4{
+		        jointOffsets[drawIndex], draw.Skinned() ? 1u : 0u, m_drawBodies[drawIndex],
+		        ObjectId(drawIndex, m_drawOutlines[drawIndex])}};
 	}
 	const VkDeviceSize bytes = m_instanceScratch.size() * sizeof(GpuInstance);
 	EnsureCapacity(frame, frame.instances, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "instances");
@@ -1324,7 +1640,10 @@ void Renderer::WriteLights(
 		                                              m_occluders, [&](const HorizonOccluder &occluder)
 		                                              { return Occludes(occluder, reach); }))
 			continue;
-		m_lightScratch.push_back(PackLight(light, glm::vec3{relative}, glm::vec3{direction}));
+		// A light whose intensity moves with time shines as it does at this frame's moment.
+		Scene::LightComponent shining = light;
+		shining.intensity = Scene::LightIntensityAt(light, m_presentationTime);
+		m_lightScratch.push_back(PackLight(shining, glm::vec3{relative}, glm::vec3{direction}));
 	}
 	m_frameStats.listedLights = static_cast<std::uint32_t>(m_lightScratch.size());
 	EnsureCapacity(
@@ -1475,6 +1794,7 @@ bool Renderer::Render(
 	const double seconds =
 	    m_lastPresentationTime ? std::max(presentationTime - *m_lastPresentationTime, 0.0) : 0.0;
 	m_lastPresentationTime = presentationTime;
+	m_presentationTime = presentationTime;
 
 	const CameraView camera = ActiveCameraView(scene.Registry());
 	const auto draws = CollectDraws(scene.Registry(), camera.position, *m_pModels);
@@ -1593,6 +1913,20 @@ void Renderer::Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer
 	bound[m_shadowMapResource.index] = {m_shadowMap.handle, VK_IMAGE_ASPECT_DEPTH_BIT};
 	bound[m_hdrMsaaResource.index] = {m_targets.hdrMsaa.handle, VK_IMAGE_ASPECT_COLOR_BIT};
 	bound[m_depthResource.index] = {m_targets.depth.handle, VK_IMAGE_ASPECT_DEPTH_BIT};
+	bound[m_stencilResource.index] = {m_targets.depth.handle, VK_IMAGE_ASPECT_STENCIL_BIT};
+	bound[m_normalsResource.index] = {m_targets.normals.image.handle, VK_IMAGE_ASPECT_COLOR_BIT};
+	bound[m_objectIdsResource.index] = {m_targets.objectIds.image.handle, VK_IMAGE_ASPECT_COLOR_BIT};
+	bound[m_resolvedDepthResource.index] = {m_targets.resolved.handle, VK_IMAGE_ASPECT_DEPTH_BIT};
+	bound[m_resolvedStencilResource.index] = {m_targets.resolved.handle, VK_IMAGE_ASPECT_STENCIL_BIT};
+	bound[m_accessResource.index] = {m_targets.access.image.handle, VK_IMAGE_ASPECT_COLOR_BIT};
+	bound[m_accessBlurredResource.index] = {
+	    m_targets.accessBlurred.image.handle, VK_IMAGE_ASPECT_COLOR_BIT};
+	for (std::uint32_t level = 0; level < kBloomLevelCount; ++level)
+		bound[m_bloomResources[level].index] = {
+		    m_targets.bloom[level].image.handle, VK_IMAGE_ASPECT_COLOR_BIT};
+	for (std::uint32_t index = 0; index < 2; ++index)
+		bound[m_floodResources[index].index] = {
+		    m_targets.flood[index].image.handle, VK_IMAGE_ASPECT_COLOR_BIT};
 	bound[m_hdrResource.index] = {m_targets.hdr.handle, VK_IMAGE_ASPECT_COLOR_BIT};
 	bound[m_swapchainResource.index] = {m_pSwapchain->GetImage(imageIndex), VK_IMAGE_ASPECT_COLOR_BIT};
 	bound[m_clusterBoundsResource.index] = {VK_NULL_HANDLE, 0, m_clusterBounds.handle};
@@ -1623,10 +1957,33 @@ void Renderer::Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer
 			RecordClusterLights(frame, commandBuffer);
 		else if (planned.pass == m_particlePass)
 			RecordParticles(frame, commandBuffer);
+		else if (planned.pass == m_ssaoPass)
+			RecordAmbientOcclusion(frame, commandBuffer, false);
+		else if (planned.pass == m_ssaoBlurPass)
+			RecordAmbientOcclusion(frame, commandBuffer, true);
 		else if (planned.pass == m_opaquePass)
 			RecordOpaque(frame, commandBuffer);
+		else if (const auto down = std::ranges::find(m_bloomDownPasses, planned.pass);
+		         down != m_bloomDownPasses.end())
+			RecordBloom(
+			    frame, commandBuffer, true,
+			    static_cast<std::uint32_t>(std::distance(m_bloomDownPasses.begin(), down)));
+		else if (const auto up = std::ranges::find(m_bloomUpPasses, planned.pass);
+		         up != m_bloomUpPasses.end())
+			RecordBloom(
+			    frame, commandBuffer, false,
+			    static_cast<std::uint32_t>(std::distance(m_bloomUpPasses.begin(), up)));
+		else if (planned.pass == m_outlineSeedPass)
+			RecordOutlineSeeds(frame, commandBuffer);
+		else if (const auto flood = std::ranges::find(m_floodPasses, planned.pass);
+		         flood != m_floodPasses.end())
+			RecordFlood(
+			    frame, commandBuffer,
+			    static_cast<std::uint32_t>(std::distance(m_floodPasses.begin(), flood)));
+		else if (planned.pass == m_outlinesPass)
+			RecordOutlines(frame, commandBuffer);
 		else if (planned.pass == m_outputPass)
-			RecordOutput(commandBuffer, imageIndex, imguiRenderer);
+			RecordOutput(frame, commandBuffer, imageIndex, imguiRenderer);
 		else if (planned.pass == m_clusterReadbackPass)
 			RecordClusterReadback(frame, commandBuffer);
 		else if (planned.pass == m_screenshotPass)
@@ -1716,8 +2073,23 @@ void Renderer::RecordShadows(const FrameData &frame, VkCommandBuffer commandBuff
 
 void Renderer::RecordDepthPrepass(const FrameData &frame, VkCommandBuffer commandBuffer) const
 {
-	if (!m_depthPrepass)
+	if (!m_framePrepass)
 		return;
+	// The normals and IDs are kept for the passes that read them at sample zero; where no surface is,
+	// the ID is 0, which names nothing.
+	std::array<VkRenderingAttachmentInfo, 2> colors{};
+	for (VkRenderingAttachmentInfo &color : colors)
+	{
+		color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		color.clearValue.color = {{0.5f, 0.5f, 1.0f, 0.0f}};
+	}
+	colors[0].imageView = m_targets.normals.view;
+	colors[1].imageView = m_targets.objectIds.view;
+	colors[1].clearValue.color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+
 	VkRenderingAttachmentInfo depth{};
 	depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	depth.imageView = m_targets.depthView;
@@ -1731,6 +2103,8 @@ void Renderer::RecordDepthPrepass(const FrameData &frame, VkCommandBuffer comman
 	rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	rendering.renderArea = {{0, 0}, m_targets.extent};
 	rendering.layerCount = 1;
+	rendering.colorAttachmentCount = static_cast<uint32_t>(colors.size());
+	rendering.pColorAttachments = colors.data();
 	rendering.pDepthAttachment = &depth;
 
 	vkCmdBeginRendering(commandBuffer, &rendering);
@@ -1899,15 +2273,25 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 	color.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	color.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
-	// The prepass's depth when it ran, and a clear when it did not.
+	// The prepass's depth when it ran, and a clear when it did not; the stencil cleared, every opaque
+	// surface writing its bits. Both are resolved to sample zero as the pass ends, together, as a
+	// device without independent depth and stencil resolves (lavapipe) needs, for the post passes'
+	// stencil tests.
 	VkRenderingAttachmentInfo depth{};
 	depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	depth.imageView = m_targets.depthView;
 	depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depth.loadOp = m_depthPrepass ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth.resolveMode = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT;
+	depth.resolveImageView = m_targets.resolvedView;
+	depth.resolveImageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depth.loadOp = m_framePrepass ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	// Reversed-Z: the far end of the infinite frustum is depth 0.
 	depth.clearValue.depthStencil = {0.0f, 0};
+	VkRenderingAttachmentInfo stencil = depth;
+	stencil.imageLayout = VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL;
+	stencil.resolveImageLayout = VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL;
+	stencil.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 
 	VkRenderingInfo rendering{};
 	rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -1916,6 +2300,7 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 	rendering.colorAttachmentCount = 1;
 	rendering.pColorAttachments = &color;
 	rendering.pDepthAttachment = &depth;
+	rendering.pStencilAttachment = &stencil;
 
 	vkCmdBeginRendering(commandBuffer, &rendering);
 	SetViewport(commandBuffer);
@@ -1927,7 +2312,7 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 	const Model *boundModel = nullptr;
 	// Front to back, batch by batch (render/DrawBatches.h).
 	for (const DrawBatch &batch : m_viewBatches)
-		RecordMeshBatch(commandBuffer, batch, boundPipeline, boundModel);
+		RecordMeshBatch(commandBuffer, batch, boundPipeline, boundModel, true);
 
 	m_pDeviceContext->BeginDebugLabel(commandBuffer, "sky");
 	// The sky program shares the mesh layout, so the frame set is still bound.
@@ -1974,7 +2359,7 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 
 void Renderer::RecordMeshBatch(
     VkCommandBuffer commandBuffer, const DrawBatch &batch, VkPipeline &boundPipeline,
-    const Model *&boundModel)
+    const Model *&boundModel, bool opaque)
 {
 	const Model &model = *batch.key.model;
 	if (&model != boundModel)
@@ -1989,6 +2374,10 @@ void Renderer::RecordMeshBatch(
 	const DrawPushConstants pushConstants{pNamed != nullptr ? pNamed->parameterOffset : 0u, 0u};
 	vkCmdPushConstants(
 	    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
+	// The opaque surfaces' pipelines write it, as dynamic state; the transparent ones' have no stencil
+	// test, and setting state a pipeline does not take is an error to the validation layer.
+	if (opaque)
+		vkCmdSetStencilReference(commandBuffer, VK_STENCIL_FACE_FRONT_AND_BACK, batch.key.stencil);
 	const ModelLod &lod = model.m_lods[batch.key.lod];
 	for (std::uint32_t index = 0; index < lod.primitiveCount; ++index)
 	{
@@ -2020,7 +2409,7 @@ void Renderer::RecordTransparent(VkCommandBuffer commandBuffer)
 	{
 		if (!sorted.particles)
 		{
-			RecordMeshBatch(commandBuffer, sorted.batch, boundPipeline, boundModel);
+			RecordMeshBatch(commandBuffer, sorted.batch, boundPipeline, boundModel, false);
 			continue;
 		}
 		if (boundPipeline != m_particlePipeline)
@@ -2040,7 +2429,8 @@ void Renderer::RecordTransparent(VkCommandBuffer commandBuffer)
 
 
 void Renderer::RecordOutput(
-    VkCommandBuffer commandBuffer, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer)
+    const FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex,
+    const ImGuiRenderer &imguiRenderer)
 {
 	VkRenderingAttachmentInfo color{};
 	color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -2060,18 +2450,149 @@ void Renderer::RecordOutput(
 	vkCmdBeginRendering(commandBuffer, &rendering);
 	SetViewport(commandBuffer);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_outputPipeline);
+	const std::array<VkDescriptorSet, 2> sets{frame.frameSet, m_postSets[kPostOutput]};
 	vkCmdBindDescriptorSets(
-	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_outputLayout, 0, 1, &m_outputSet, 0, nullptr);
-	const OutputPushConstants output{
-	    glm::vec4{m_fadeColor, m_fade}, m_exposure, m_pSwapchain->EncodesSrgb() ? 0u : 1u};
+	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postLayout, 0,
+	    static_cast<uint32_t>(sets.size()), sets.data(), 0, nullptr);
+	const PostPushConstants output{
+	    glm::vec4{m_fadeColor, m_fade},
+	    glm::vec4{m_exposure, m_bloom, m_pSwapchain->EncodesSrgb() ? 0.0f : 1.0f, 0.0f}};
 	vkCmdPushConstants(
-	    commandBuffer, m_outputLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(output), &output);
+	    commandBuffer, m_postLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(output), &output);
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	// The UI goes over the scene after exposure, single-sampled, in the swapchain's format: the game's
 	// overlay, then the dev tools over it.
 	m_pOverlay->Record(commandBuffer, m_currentFrame, m_targets.extent);
 	imguiRenderer.RenderDrawData(commandBuffer);
 	vkCmdEndRendering(commandBuffer);
+}
+
+
+void Renderer::RecordFullscreen(
+    const FrameData &frame, VkCommandBuffer commandBuffer, const FullscreenPass &pass) const
+{
+	VkRenderingAttachmentInfo color{};
+	color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	color.imageView = pass.target;
+	color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	color.loadOp = pass.load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	// Tested and not written, so not stored either: a store would be a write the pass list does not
+	// know of.
+	VkRenderingAttachmentInfo stencil{};
+	stencil.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	stencil.imageView = m_targets.resolvedView;
+	stencil.imageLayout = VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL;
+	stencil.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	stencil.storeOp = VK_ATTACHMENT_STORE_OP_NONE;
+
+	VkRenderingInfo rendering{};
+	rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	rendering.renderArea = {{0, 0}, pass.extent};
+	rendering.layerCount = 1;
+	rendering.colorAttachmentCount = 1;
+	rendering.pColorAttachments = &color;
+	if (pass.stencil)
+		rendering.pStencilAttachment = &stencil;
+
+	vkCmdBeginRendering(commandBuffer, &rendering);
+	const VkViewport viewport{
+	    0.0f, 0.0f, static_cast<float>(pass.extent.width), static_cast<float>(pass.extent.height),
+	    0.0f, 1.0f};
+	const VkRect2D scissor{{0, 0}, pass.extent};
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pass.pipeline);
+	const std::array<VkDescriptorSet, 2> sets{frame.frameSet, m_postSets[pass.set]};
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postLayout, 0,
+	    static_cast<uint32_t>(sets.size()), sets.data(), 0, nullptr);
+	const PostPushConstants push{pass.first, pass.second};
+	vkCmdPushConstants(
+	    commandBuffer, m_postLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+	if (pass.stencil)
+		vkCmdSetStencilReference(commandBuffer, VK_STENCIL_FACE_FRONT_AND_BACK, 0);
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	vkCmdEndRendering(commandBuffer);
+}
+
+
+void Renderer::RecordAmbientOcclusion(
+    const FrameData &frame, VkCommandBuffer commandBuffer, bool blur) const
+{
+	if (!m_frameAmbientOcclusion)
+		return;
+	FullscreenPass pass;
+	pass.target = blur ? m_targets.accessBlurred.view : m_targets.access.view;
+	pass.extent = m_targets.extent;
+	pass.pipeline = blur ? m_ssaoBlurPipeline : m_ssaoPipeline;
+	pass.set = blur ? kPostSsaoBlur : kPostSsao;
+	pass.first = {kAoRadius, kAoIntensity, kAoDistance, 0.0f};
+	RecordFullscreen(frame, commandBuffer, pass);
+}
+
+
+void Renderer::RecordBloom(
+    const FrameData &frame, VkCommandBuffer commandBuffer, bool down, std::uint32_t level) const
+{
+	if (m_bloom <= 0.0f)
+		return;
+	// The way down reads the level above, the frame for the first; the way up the level below.
+	const VkExtent2D source = down ? (level == 0 ? m_targets.extent : m_targets.bloomExtents[level - 1])
+	                               : m_targets.bloomExtents[level + 1];
+	FullscreenPass pass;
+	pass.target = m_targets.bloom[level].view;
+	pass.extent = m_targets.bloomExtents[level];
+	pass.pipeline = down ? m_bloomDownPipeline : m_bloomUpPipeline;
+	pass.set = static_cast<PostSet>((down ? kPostBloomDown : kPostBloomUp) + level);
+	pass.first = {
+	    1.0f / static_cast<float>(source.width), 1.0f / static_cast<float>(source.height),
+	    down && level == 0 ? 1.0f : 0.0f, 0.0f};
+	pass.load = !down;
+	RecordFullscreen(frame, commandBuffer, pass);
+}
+
+
+void Renderer::RecordOutlineSeeds(const FrameData &frame, VkCommandBuffer commandBuffer) const
+{
+	if (!m_frameGlows)
+		return;
+	FullscreenPass pass;
+	pass.target = m_targets.flood[0].view;
+	pass.extent = m_targets.extent;
+	pass.pipeline = m_outlineSeedPipeline;
+	pass.set = kPostOutlineSeed;
+	RecordFullscreen(frame, commandBuffer, pass);
+}
+
+
+void Renderer::RecordFlood(
+    const FrameData &frame, VkCommandBuffer commandBuffer, std::uint32_t step) const
+{
+	if (!m_frameGlows)
+		return;
+	FullscreenPass pass;
+	pass.target = m_targets.flood[(step + 1) % 2].view;
+	pass.extent = m_targets.extent;
+	pass.pipeline = m_outlineFloodPipeline;
+	pass.set = step % 2 == 0 ? kPostFloodFromFirst : kPostFloodFromSecond;
+	pass.first = {static_cast<float>(Post::FloodStride(static_cast<int>(step))), 0.0f, 0.0f, 0.0f};
+	RecordFullscreen(frame, commandBuffer, pass);
+}
+
+
+void Renderer::RecordOutlines(const FrameData &frame, VkCommandBuffer commandBuffer) const
+{
+	if (m_outlineScratch.empty())
+		return;
+	FullscreenPass pass;
+	pass.target = m_targets.hdrView;
+	pass.extent = m_targets.extent;
+	pass.pipeline = m_outlinesPipeline;
+	pass.set = kPostOutlines;
+	pass.load = true;
+	pass.stencil = true;
+	RecordFullscreen(frame, commandBuffer, pass);
 }
 
 

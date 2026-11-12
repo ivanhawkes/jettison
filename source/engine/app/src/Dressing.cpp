@@ -25,6 +25,8 @@ constexpr Core::Category kDressing{"stations"};
 constexpr std::string_view kPlating = "materials/hull.material.yaml";
 constexpr std::string_view kDeckPlating = "materials/deck.material.yaml";
 constexpr std::string_view kLamp = "materials/lamp.material.yaml";
+// A reserved pad's lamps, which blink by a time-driven parameter.
+constexpr std::string_view kBlinkingLamp = "materials/lamp-blinking.material.yaml";
 constexpr std::string_view kEngine = "materials/engine.material.yaml";
 constexpr std::string_view kGlass = "materials/glass.material.yaml";
 
@@ -619,10 +621,15 @@ std::size_t ShowPadStates(
 			continue;
 		++found;
 		const glm::vec3 colour = LampColour(pad.state, pad.display);
+		const std::string_view material = pad.state == Dock::PadState::Reserved ? kBlinkingLamp : kLamp;
 		for (const entt::entity lamp : dressing.lamps[pad.number - 1])
-			if (auto *mesh = scene.valid(lamp) ? scene.try_get<Scene::MeshComponent>(lamp) : nullptr;
-			    mesh && mesh->color != colour)
-				mesh->color = colour;
+			if (auto *mesh = scene.valid(lamp) ? scene.try_get<Scene::MeshComponent>(lamp) : nullptr)
+			{
+				if (mesh->color != colour)
+					mesh->color = colour;
+				if (mesh->material != material)
+					mesh->material = material;
+			}
 	}
 	return found;
 }

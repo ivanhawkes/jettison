@@ -17,7 +17,8 @@ struct Instance
 	// Object space to render space.
 	mat4 model;
 	// x: where the instance's joint matrices start in the skin palette, y: 1 when it is skinned,
-	// z: one more than its body's index in the frame's body list, 0 for none (frame.glsl).
+	// z: one more than its body's index in the frame's body list, 0 for none (frame.glsl), w: its
+	// object ID, which the depth prepass writes (post.glsl's ObjectOutline).
 	uvec4 skin;
 };
 

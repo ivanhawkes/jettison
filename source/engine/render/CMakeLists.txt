@@ -27,6 +27,7 @@ jettison_add_module(render
 		include/jettison/render/Overlay.h
 		include/jettison/render/Particles.h
 		include/jettison/render/PassList.h
+		include/jettison/render/PostProcess.h
 		include/jettison/render/Procedural.h
 		include/jettison/render/SceneView.h
 		include/jettison/render/Screenshot.h
@@ -43,6 +44,7 @@ jettison_add_module(render
 		src/Overlay.cpp
 		src/Particles.cpp
 		src/PassList.cpp
+		src/PostProcess.cpp
 		src/Procedural.cpp
 		src/SceneView.cpp
 		src/Screenshot.cpp
@@ -97,6 +99,7 @@ jettison_add_module(render
 		tests/OverlayTests.cpp
 		tests/ParticleTests.cpp
 		tests/PassListTests.cpp
+		tests/PostProcessTests.cpp
 		tests/ProceduralTests.cpp
 		tests/ScreenshotTests.cpp
 		tests/ShadowTests.cpp

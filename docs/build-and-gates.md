@@ -449,7 +449,10 @@ day and by night, Corva and its rings, and the Vesper scene as it opens) took 23
 on 2026-11-13, most of it each run transcoding the planet's maps on one thread; captured twice, no
 pixel differed. Phase 10b added a sixth, the transparent pass's test bench (`scene/effects.yaml`),
 captured three seconds in so its smoke has risen: a view's line may give its own `--after-frames`,
-after the script's. The six took 24 seconds, and captured twice, no pixel differed. A frame is
+after the script's. The six took 24 seconds, and captured twice, no pixel differed. Phase 10c added
+a seventh, the post chain's test bench (`scene/post.yaml`) two seconds in, its beacon bright, with
+`--ambient-occlusion`, which a CPU device is otherwise without; the seven took 29 seconds, and
+captured twice, no pixel differed. A frame is
 960×540, and the frame captured is the one after thirty in a row with nothing loading, unless its
 line says otherwise.
 
@@ -462,9 +465,11 @@ any other capture still drawing on it.
 pipelines a material builds on its first draw, the textures' uploads), then the frames asked for,
 and prints the GPU's mean time in each declared pass and the frame's, the wall time per frame, and
 the last frame's counts (meshes, what culling left out, the instanced draws and their triangles,
-each cascade's casters, the lights), then closes. `--window <width>x<height>` asks for a size, which
-a tiling compositor may overrule (niri gives the window its tile; the report says what it got), and
-`--depth-prepass` turns the prepass on.
+each cascade's casters, the lights, the outlines), then closes. `--window <width>x<height>` asks for
+a size, which a tiling compositor may overrule (niri gives the window its tile; the report says what
+it got); `--depth-prepass` turns the prepass on; `--ambient-occlusion` and `--no-ambient-occlusion`
+choose it in place of the device's default (on, except on a CPU device), and `--bloom <strength>`
+sets bloom's, 0 for none.
 
 ```bash
 # Hardware: a Release tree, on the desktop session. NVIDIA's driver cannot present to Xvfb.

@@ -319,6 +319,91 @@ TEST_CASE("Scene: lights are points or spots with a range, and as many as the sc
 	    doctest::Contains("'area' is not a 'Scene.LightType'"), Jettison::Serialise::FormatError);
 }
 
+TEST_CASE("Scene: a light's intensity can move with time, and is saved with its wave")
+{
+	const std::string text = "version: 2\nentities:\n"
+	                         "  - id: beacon\n    light:\n      intensity: 4\n      range: 6\n"
+	                         "      animation:\n        wave: Square\n        period: 1.2\n"
+	                         "        phase: 0.25\n        from: 0.1\n        to: 1\n";
+	Scene scene;
+	scene.LoadText(text);
+	const auto lights = scene.Registry().view<const LightComponent>();
+	REQUIRE(lights.size() == 1);
+	const LightComponent &light = lights.get<const LightComponent>(lights.front());
+	REQUIRE(light.animation);
+	CHECK(light.animation->wave == Wave::Square);
+	CHECK(light.animation->period == 1.2);
+	// A quarter of a cycle in, the square is low until halfway, then high; a whole cycle on, the same.
+	CHECK(LightIntensityAt(light, 0.0) == doctest::Approx(0.4f));
+	CHECK(LightIntensityAt(light, 0.4) == doctest::Approx(4.0f));
+	CHECK(LightIntensityAt(light, 0.4 + 1.2 * 3.0) == doctest::Approx(4.0f));
+	// A light without one shines as it is at any time.
+	CHECK(LightIntensityAt(LightComponent{}, 12.5) == LightComponent{}.intensity);
+
+	Scene again;
+	again.LoadText(scene.SaveText());
+	CHECK(again.SaveText() == scene.SaveText());
+
+	const auto refuses = [&](const std::string &animation, const char *reason)
+	{
+		CheckRefused(
+		    scene, "  - id: l\n    light:\n      range: 5\n      animation:\n" + animation, reason);
+	};
+	refuses("        period: 0\n", "period that is not positive");
+	refuses("        from: -1\n", "negative or not finite");
+}
+
+TEST_CASE("Scene: outlines and masks load as given, are saved, and are checked")
+{
+	const std::string text =
+	    "version: 2\nentities:\n"
+	    "  - id: crate\n    outline:\n      style: selected\n      color: [1, 0.5, 0, 2]\n"
+	    "  - id: pod\n    outline:\n      style: targeted\n      width: 14\n"
+	    "  - id: display\n    mask:\n      unprocessed: true\n      game: 21\n"
+	    "  - id: seat\n    mask:\n      cockpit: true\n";
+	Scene scene;
+	scene.LoadText(text);
+	auto &registry = scene.Registry();
+	int selected = 0;
+	int targeted = 0;
+	for (const auto [entity, outline] : registry.view<const OutlineComponent>().each())
+	{
+		if (outline.style == OutlineStyle::Selected)
+		{
+			++selected;
+			CHECK(outline.color == glm::vec4{1.0f, 0.5f, 0.0f, 2.0f});
+		}
+		else
+		{
+			++targeted;
+			CHECK(outline.width == 14.0f);
+		}
+	}
+	CHECK(selected == 1);
+	CHECK(targeted == 1);
+	int unprocessed = 0;
+	int cockpits = 0;
+	for (const auto [entity, mask] : registry.view<const MaskComponent>().each())
+	{
+		if (mask.unprocessed)
+		{
+			++unprocessed;
+			CHECK(mask.game == 21);
+		}
+		cockpits += mask.cockpit ? 1 : 0;
+	}
+	CHECK(unprocessed == 1);
+	CHECK(cockpits == 1);
+
+	Scene again;
+	again.LoadText(scene.SaveText());
+	CHECK(again.SaveText() == scene.SaveText());
+
+	CheckRefused(scene, "  - id: o\n    outline:\n      width: 40\n", "pixels wide");
+	CheckRefused(scene, "  - id: o\n    outline:\n      color: [1, -1, 0, 1]\n", "negative");
+	CheckRefused(scene, "  - id: m\n    mask:\n      game: 32\n", "five, 0 to 31");
+}
+
 TEST_CASE("Scene: a scene has one sky, with a band and a nebula it can draw")
 {
 	Scene scene;

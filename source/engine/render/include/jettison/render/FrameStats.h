@@ -40,5 +40,7 @@ struct FrameStats
 	// The emitters stepped, in view or not, and the particle pool's slots they hold.
 	std::uint32_t emitters{0};
 	std::uint32_t particleSlots{0};
+	// The outlines drawn: each outlined shape in view (render/PostProcess.h).
+	std::uint32_t outlines{0};
 };
 } // namespace Jettison::Render

@@ -48,6 +48,9 @@ class VulkanRenderer final : public IRenderer
 		    m_pDeviceContext, m_pWindow, m_pSwapchain, m_assets, m_resources);
 		m_pRenderer->SetClusterCheck(m_options.clusterCheck);
 		m_pRenderer->SetDepthPrepass(m_options.depthPrepass);
+		m_pRenderer->SetAmbientOcclusion(
+		    m_options.ambientOcclusion.value_or(!m_pDeviceContext->IsCpu()));
+		m_pRenderer->SetBloom(m_options.bloom);
 		m_pRenderer->Init();
 
 		m_pImGuiRenderer = std::make_unique<ImGuiRenderer>(m_pDeviceContext, m_options.assetDirectory);
@@ -125,6 +128,22 @@ class VulkanRenderer final : public IRenderer
 	bool GetDepthPrepass() const override
 	{
 		return m_pRenderer->GetDepthPrepass();
+	}
+	void SetAmbientOcclusion(bool enabled) override
+	{
+		m_pRenderer->SetAmbientOcclusion(enabled);
+	}
+	bool GetAmbientOcclusion() const override
+	{
+		return m_pRenderer->GetAmbientOcclusion();
+	}
+	void SetBloom(float strength) override
+	{
+		m_pRenderer->SetBloom(strength);
+	}
+	float GetBloom() const override
+	{
+		return m_pRenderer->GetBloom();
 	}
 
 	const FrameStats &GetFrameStats() const override

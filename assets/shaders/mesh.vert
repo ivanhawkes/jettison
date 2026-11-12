@@ -6,9 +6,9 @@
 #include "mesh_vertex.glsl"
 
 // Built as shadow_depth.vert with SHADOW_DEPTH, the sun's shadow pass: the same position, skinned
-// the same way, into the cascade the draw names. Built as depth_prepass.vert with DEPTH_PREPASS, the
-// opaque depth prepass: the same position into the view. Neither has a fragment stage, so neither
-// writes anything else.
+// the same way, into the cascade the draw names, with no fragment stage. Built as depth_prepass.vert
+// with DEPTH_PREPASS, the opaque depth prepass: the same position into the view, and for its fragment
+// stage (depth_prepass.frag) the view-space normal and the object's ID.
 #if defined(SHADOW_DEPTH) || defined(DEPTH_PREPASS)
 #define DEPTH_ONLY
 #endif
@@ -38,6 +38,10 @@ layout(location = 3) out vec3 fragRenderPosition;
 // takes its plating at one size on every face, and the repeat rate is per metre.
 layout(location = 4) out vec3 fragObjectPosition;
 layout(location = 5) out vec3 fragObjectNormal;
+#endif
+#ifdef DEPTH_PREPASS
+layout(location = 0) out vec3 fragViewNormal;
+layout(location = 1) flat out uint fragObject;
 #endif
 #ifdef PLANET
 // The direction out of the body's centre in its own axes, +Y its spin axis, and the rotation from
@@ -84,6 +88,10 @@ void main()
 	fragNormal = normalize(mat3(transpose(inverse(instance.model))) * localNormal);
 #endif
 	fragRenderPosition = renderPosition.xyz;
+#endif
+#ifdef DEPTH_PREPASS
+	fragViewNormal = mat3(frame.view) * (mat3(transpose(inverse(instance.model))) * localNormal);
+	fragObject = instance.skin.w;
 #endif
 #ifdef TRIPLANAR
 	vec3 scale = vec3(

@@ -10,13 +10,15 @@
 
 #include "brdf.glsl"
 #include "clusters.glsl"
+#include "post.glsl"
 #include "shadows.glsl"
 
-// What ShadeSurface shows, by frame.counts.y: the lit surface, the lights-per-cluster heat map, or
-// the shadow cascade each surface selects.
+// What ShadeSurface shows, by frame.counts.y: the lit surface, the lights-per-cluster heat map, the
+// shadow cascade each surface selects, or the ambient access it is shaded with.
 const uint kDebugViewShaded = 0u;
 const uint kDebugViewClusterHeat = 1u;
 const uint kDebugViewShadowCascades = 2u;
+const uint kDebugViewAmbientAccess = 3u;
 
 // Each cluster's lights, as cluster_lights.comp wrote them: x the offset of its first entry in the
 // index list, y how many it has.
@@ -40,9 +42,22 @@ layout(set = 0, binding = 4) uniform samplerCube environmentSpecular;
 layout(set = 0, binding = 5) uniform samplerCube environmentIrradiance;
 layout(set = 0, binding = 6) uniform sampler2D brdfLut;
 
+// The share of the ambient light that reaches the opaque surface in this pixel, as the ambient
+// occlusion passes left it (docs/architecture.md, "Ambient occlusion"), or 1 in a frame without them.
+// The image is of the opaque surfaces, so only their programs read it.
+layout(set = 0, binding = 16) uniform sampler2D ambientAccessMap;
+
+float SurfaceAmbientAccess()
+{
+	if (frame.effects.x == 0u)
+		return 1.0;
+	return texelFetch(ambientAccessMap, ivec2(gl_FragCoord.xy), 0).r;
+}
+
 // The environment's light on a surface, by the split sum: the specular lobe's share is the
-// prefiltered radiance along the reflection, scaled by the lobe's reflectance under white light.
-vec3 EnvironmentLighting(Surface surface, vec3 normal, vec3 toViewer)
+// prefiltered radiance along the reflection, scaled by the lobe's reflectance under white light. The
+// ambient access dims both, the specular by as much of it as the lobe is wide.
+vec3 EnvironmentLighting(Surface surface, vec3 normal, vec3 toViewer, float access)
 {
 	float nDotV = clamp(dot(normal, toViewer), 0.0001, 1.0);
 	vec3 reflected = reflect(-toViewer, normal);
@@ -51,7 +66,7 @@ vec3 EnvironmentLighting(Surface surface, vec3 normal, vec3 toViewer)
 	    textureLod(environmentSpecular, reflected, surface.roughness * frame.environment.x).rgb;
 	vec3 specular = prefiltered * (SpecularColor(surface) * scaleBias.x + scaleBias.y);
 	vec3 diffuse = texture(environmentIrradiance, normal).rgb * DiffuseColor(surface);
-	return diffuse + specular;
+	return diffuse * access + specular * SpecularAccess(nDotV, access, surface.roughness);
 }
 
 // The sun's shadow maps (Render::Renderer's sun-shadows pass): one layer per cascade, reversed
@@ -181,8 +196,9 @@ vec3 ClusterHeat(uint cluster)
 
 // The light a surface sends towards the camera, which is at the render-space origin, with the sun's
 // light by colour the share given of what it is above the air (the planet program's terminator and
-// the shadows of rings and clouds; 1 for every other program).
-vec3 ShadeSurfaceSunlit(Surface surface, vec3 normal, vec3 renderPosition, vec3 sunlight)
+// the shadows of rings and clouds; 1 for every other program), and the environment's by the ambient
+// access given.
+vec3 ShadeSurfaceSunlit(Surface surface, vec3 normal, vec3 renderPosition, vec3 sunlight, float access)
 {
 	vec3 toViewer = normalize(-renderPosition);
 	// An interpolated normal can lean away from a viewer that can still see its triangle; it is
@@ -203,6 +219,8 @@ vec3 ShadeSurfaceSunlit(Surface surface, vec3 normal, vec3 renderPosition, vec3 
 		                 SunShadow(renderPosition, normal, depth);
 		return CascadeColor(depth) * (0.15 + 0.85 * sunLight);
 	}
+	if (frame.counts.y == kDebugViewAmbientAccess)
+		return vec3(access);
 
 	vec3 radiance = vec3(0.0);
 	// The sun is one direction for the whole frame: a star 150 million kilometres off subtends half
@@ -220,12 +238,19 @@ vec3 ShadeSurfaceSunlit(Surface surface, vec3 normal, vec3 renderPosition, vec3 
 			radiance += LocalLighting(
 			    surface, normal, toViewer, renderPosition, lights[lightIndices[entry.x + index]]);
 	}
-	return radiance + EnvironmentLighting(surface, normal, toViewer);
+	return radiance + EnvironmentLighting(surface, normal, toViewer, access);
 }
 
+// An opaque surface, under the ambient occlusion of its pixel.
 vec3 ShadeSurface(Surface surface, vec3 normal, vec3 renderPosition)
 {
-	return ShadeSurfaceSunlit(surface, normal, renderPosition, vec3(1.0));
+	return ShadeSurfaceSunlit(surface, normal, renderPosition, vec3(1.0), SurfaceAmbientAccess());
+}
+
+// A transparent one, which the ambient occlusion of the opaque surface behind it does not reach.
+vec3 ShadeTransparentSurface(Surface surface, vec3 normal, vec3 renderPosition)
+{
+	return ShadeSurfaceSunlit(surface, normal, renderPosition, vec3(1.0), 1.0);
 }
 
 // The share of the light arriving from the environment that a surface reflects towards the camera,

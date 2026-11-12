@@ -63,6 +63,15 @@ struct LightRecord
 	std::optional<float> innerConeAngle;
 	std::optional<float> outerConeAngle;
 	bool active{LightComponent{}.active};
+	std::optional<LightAnimation> animation;
+};
+
+// The game's stencil bits as a number the archive reads, rather than a byte.
+struct MaskRecord
+{
+	bool cockpit{MaskComponent{}.cockpit};
+	bool unprocessed{MaskComponent{}.unprocessed};
+	std::uint32_t game{MaskComponent{}.game};
 };
 
 struct BandRecord
@@ -153,6 +162,8 @@ struct EntityRecord
 	std::optional<RingsComponent> rings;
 	std::optional<LightRecord> light;
 	std::optional<MeshRecord> mesh;
+	std::optional<OutlineComponent> outline;
+	std::optional<MaskRecord> mask;
 	std::optional<ParticlesRecord> particles;
 	std::optional<TransformAnimationRecord> transformAnimation;
 	std::optional<AnimationRecord> animation;
@@ -187,6 +198,10 @@ void RegisterTypes()
 		RegisterEnum<LightType>("Scene.LightType")
 		    .Value<LightType::Point>("point")
 		    .Value<LightType::Spot>("spot");
+		RegisterWave();
+		RegisterEnum<OutlineStyle>("Scene.OutlineStyle")
+		    .Value<OutlineStyle::Selected>("selected")
+		    .Value<OutlineStyle::Targeted>("targeted");
 		RegisterType<TransformComponent>("Scene.Transform")
 		    .Field<&TransformComponent::translation>("translation", kSaved)
 		    .Field<&TransformComponent::rotation>("rotation", kSaved)
@@ -243,7 +258,22 @@ void RegisterTypes()
 		    .Field<&LightRecord::range>("range", kSaved)
 		    .Field<&LightRecord::innerConeAngle>("innerConeAngle", kSaved)
 		    .Field<&LightRecord::outerConeAngle>("outerConeAngle", kSaved)
-		    .Field<&LightRecord::active>("active", kSaved);
+		    .Field<&LightRecord::active>("active", kSaved)
+		    .Field<&LightRecord::animation>("animation", kSaved);
+		RegisterType<LightAnimation>("Scene.LightAnimation")
+		    .Field<&LightAnimation::wave>("wave", kSaved)
+		    .Field<&LightAnimation::period>("period", kSaved)
+		    .Field<&LightAnimation::phase>("phase", kSaved)
+		    .Field<&LightAnimation::from>("from", kSaved)
+		    .Field<&LightAnimation::to>("to", kSaved);
+		RegisterType<OutlineComponent>("Scene.Outline")
+		    .Field<&OutlineComponent::style>("style", kSaved)
+		    .Field<&OutlineComponent::color>("color", kSaved)
+		    .Field<&OutlineComponent::width>("width", kSaved);
+		RegisterType<MaskRecord>("Scene.Mask")
+		    .Field<&MaskRecord::cockpit>("cockpit", kSaved)
+		    .Field<&MaskRecord::unprocessed>("unprocessed", kSaved)
+		    .Field<&MaskRecord::game>("game", kSaved);
 		RegisterType<MeshRecord>("Scene.Mesh")
 		    .Field<&MeshRecord::model>("model", kSaved)
 		    .Field<&MeshRecord::shape>("shape", kSaved)
@@ -291,6 +321,8 @@ void RegisterTypes()
 		    .Field<&EntityRecord::rings>("rings", kSaved)
 		    .Field<&EntityRecord::light>("light", kSaved)
 		    .Field<&EntityRecord::mesh>("mesh", kSaved)
+		    .Field<&EntityRecord::outline>("outline", kSaved)
+		    .Field<&EntityRecord::mask>("mask", kSaved)
 		    .Field<&EntityRecord::particles>("particles", kSaved)
 		    .Field<&EntityRecord::transformAnimation>("transformAnimation", kSaved)
 		    .Field<&EntityRecord::animation>("animation", kSaved);
@@ -319,6 +351,31 @@ void CheckVirtualPath(const std::string &path, const char *what, const std::stri
 		        id, what, path));
 }
 
+void CheckLightAnimation(const LightRecord &light, const std::string &id)
+{
+	if (!light.animation)
+		return;
+	const LightAnimation &animation = *light.animation;
+	if (!(animation.period > 0.0) || !std::isfinite(animation.period) ||
+	    !std::isfinite(animation.phase))
+		Refuse("Light '" + id + "' animates with a period that is not positive and finite");
+	if (!(animation.from >= 0.0f) || !(animation.to >= 0.0f) || !std::isfinite(animation.from) ||
+	    !std::isfinite(animation.to))
+		Refuse("Light '" + id + "' animates its intensity by a share that is negative or not finite");
+}
+
+void CheckOutline(const OutlineComponent &outline, const std::string &id)
+{
+	if (!(outline.width >= 1.0f) || !(outline.width <= kMaxOutlineWidth))
+		Refuse(
+		    std::format(
+		        "Entity '{}' has an outline {} pixels wide; it is 1 to {}", id, outline.width,
+		        kMaxOutlineWidth));
+	for (int channel = 0; channel < 4; ++channel)
+		if (!(outline.color[channel] >= 0.0f) || !std::isfinite(outline.color[channel]))
+			Refuse("Entity '" + id + "' has an outline colour that is negative or not finite");
+}
+
 void CheckLight(const LightRecord &light, const std::string &id)
 {
 	if (!light.range)
@@ -328,6 +385,7 @@ void CheckLight(const LightRecord &light, const std::string &id)
 	if (!(*light.range > 0.0f) || !std::isfinite(*light.range))
 		Refuse("Light range must be positive and finite: " + id);
 	const bool hasCone = light.innerConeAngle || light.outerConeAngle;
+	CheckLightAnimation(light, id);
 	if (light.type != LightType::Spot)
 	{
 		if (hasCone)
@@ -477,6 +535,13 @@ void Validate(const SceneDocument &document)
 		}
 		if (entity.light)
 			CheckLight(*entity.light, id);
+		if (entity.outline)
+			CheckOutline(*entity.outline, id);
+		if (entity.mask && entity.mask->game > 31)
+			Refuse(
+			    std::format(
+			        "Entity '{}' has the game's stencil bits as {}; there are five, 0 to 31", id,
+			        entity.mask->game));
 		if (entity.sun)
 		{
 			if (entity.sun->intensity < 0.0f)
@@ -544,6 +609,7 @@ LightComponent ToComponent(const LightRecord &record)
 	light.innerConeAngle = record.innerConeAngle.value_or(light.innerConeAngle);
 	light.outerConeAngle = record.outerConeAngle.value_or(light.outerConeAngle);
 	light.active = record.active;
+	light.animation = record.animation;
 	return light;
 }
 
@@ -560,6 +626,7 @@ LightRecord ToRecord(const LightComponent &light)
 		record.outerConeAngle = light.outerConeAngle;
 	}
 	record.active = light.active;
+	record.animation = light.animation;
 	return record;
 }
 
@@ -774,6 +841,11 @@ void Scene::Load(const SceneFile &file)
 			}
 			if (record.light)
 				m_registry.emplace<LightComponent>(entity, ToComponent(*record.light));
+			if (record.outline)
+				m_registry.emplace<OutlineComponent>(entity, *record.outline);
+			if (const auto &mask = record.mask)
+				m_registry.emplace<MaskComponent>(
+				    entity, mask->cockpit, mask->unprocessed, static_cast<std::uint8_t>(mask->game));
 			if (record.sun)
 				m_registry.emplace<SunComponent>(entity, *record.sun);
 			if (record.sky)
@@ -889,6 +961,10 @@ std::string Scene::SaveText() const
 			record.light = ToRecord(*light);
 		if (const auto *mesh = m_registry.try_get<MeshComponent>(entity))
 			record.mesh = ToRecord(*mesh);
+		if (const auto *outline = m_registry.try_get<OutlineComponent>(entity))
+			record.outline = *outline;
+		if (const auto *mask = m_registry.try_get<MaskComponent>(entity))
+			record.mask = MaskRecord{mask->cockpit, mask->unprocessed, mask->game};
 		if (const auto *emitter = m_registry.try_get<ParticleEmitterComponent>(entity))
 			record.particles = ToRecord(*emitter);
 		if (const auto *rotation = m_registry.try_get<RotationAnimationComponent>(entity))

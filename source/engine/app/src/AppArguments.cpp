@@ -53,7 +53,8 @@ void PrintUsage(const char *argv0)
 	std::cerr << "Usage: " << argv0
 	          << " [--smoke-test] [--assets <directory>] [--scene <file> | --system <virtual path>]"
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
-	             " [--depth-prepass] [--galaxy <virtual path>] [--user-dir <directory>]"
+	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
+	             " [--galaxy <virtual path>] [--user-dir <directory>]"
 	             " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
 	             " [--frame-step <seconds>] [--run <console command>]...\n";
 }
@@ -81,6 +82,23 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.saveScenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--depth-prepass")
 			arguments.depthPrepass = true;
+		else if (argument == "--ambient-occlusion")
+			arguments.ambientOcclusion = true;
+		else if (argument == "--no-ambient-occlusion")
+			arguments.ambientOcclusion = false;
+		else if (argument == "--bloom" && index + 1 < argc)
+		{
+			const std::string_view text = argv[++index];
+			float strength = 0.0f;
+			const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), strength);
+			if (error != std::errc{} || end != text.data() + text.size() || !(strength >= 0.0f) ||
+			    !(strength <= 1.0f))
+			{
+				PrintUsage(argv[0]);
+				return std::nullopt;
+			}
+			arguments.bloom = strength;
+		}
 		else if (argument == "--no-sound")
 			arguments.noSound = true;
 		else if (argument == "--gpu" && index + 1 < argc)

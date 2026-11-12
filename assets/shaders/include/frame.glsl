@@ -38,6 +38,9 @@ layout(set = 0, binding = 0) uniform FrameConstants
 	mat4 shadowMatrices[4];
 	vec4 shadowSplits;
 	vec4 shadowTexels;
+	// x: 1 when the opaque surfaces read their ambient access this frame (lighting.glsl), y: the
+	// outlines in the outline list, z: 1 when there is a glow among them (the outline passes).
+	uvec4 effects;
 } frame;
 
 // The skin palette: every skinned draw's joint matrices, one after another. A draw finds its own
@@ -80,6 +83,8 @@ layout(std430, set = 0, binding = 12) readonly buffer BodyList
 // clusters' bounds, which only the compute programs read, and 8 and 9 each cluster's offset and
 // count into the light index list, and the list, which the assignment program writes and
 // lighting.glsl reads. Binding 10 is the sun's shadow maps, which lighting.glsl declares, shared as
-// the grid is. Binding 11 is the frame's instances, which mesh_vertex.glsl declares.
+// the grid is. Binding 11 is the frame's instances, which mesh_vertex.glsl declares. Binding 15 is the
+// frame's outlines, which the outline passes declare, and 16 the ambient access the ambient occlusion
+// passes leave, which lighting.glsl declares.
 
 #endif

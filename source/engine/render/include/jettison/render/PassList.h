@@ -38,8 +38,12 @@ enum class ResourceKind
 // How a pass touches a resource.
 enum class Usage
 {
-	ColorAttachment,     // rendered or resolved into
-	DepthAttachment,     // depth tested and written
+	ColorAttachment,   // rendered or resolved into
+	DepthAttachment,   // depth tested and written, or resolved into
+	StencilAttachment, // stencil tested and written, or resolved into
+	// Stencil tested and not written, sampled, or both, in the one layout that allows each. The
+	// depth target's depth and its stencil are resources of their own, so each has its own layout.
+	StencilRead,
 	SampledFragment,     // an image read through a sampler in a fragment shader
 	SampledCompute,      // ... in a compute shader
 	StorageReadVertex,   // a storage buffer read by a vertex shader

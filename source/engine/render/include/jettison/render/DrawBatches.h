@@ -20,6 +20,9 @@ struct BatchKey
 	// The draw's named material, or null for the model's own; the shadow pass, which binds none,
 	// passes null for every draw.
 	const void *material{};
+	// The stencil bits its draws write (render/PostProcess.h), which are the draw's reference, so
+	// draws that differ in them are not one draw; the passes that write none pass 0.
+	std::uint8_t stencil{0};
 
 	friend bool operator==(const BatchKey &, const BatchKey &) = default;
 };

@@ -271,6 +271,8 @@ class DeviceContext
 
 	// Utilities.
 
+	// The depth target's format, a float depth and a stencil (D32_SFLOAT_S8_UINT), rendered into and
+	// sampled. Throws when the device does not have it.
 	VkFormat FindDepthFormat();
 	// A depth format that can be rendered into and then sampled with a filtered comparison, as the
 	// sun's shadow maps are. Throws when the device has none.

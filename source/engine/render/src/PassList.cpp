@@ -15,6 +15,8 @@ enum class Layout
 {
 	Color,
 	Depth,
+	Stencil,
+	StencilRead,
 	ShaderRead,
 	General,
 	TransferSource,
@@ -29,6 +31,8 @@ Layout LayoutOf(Usage usage)
 	{
 		case Usage::ColorAttachment: return Layout::Color;
 		case Usage::DepthAttachment: return Layout::Depth;
+		case Usage::StencilAttachment: return Layout::Stencil;
+		case Usage::StencilRead: return Layout::StencilRead;
 		case Usage::SampledFragment:
 		case Usage::SampledCompute: return Layout::ShaderRead;
 		case Usage::StorageReadCompute:
@@ -48,6 +52,8 @@ bool ValidFor(Usage usage, ResourceKind kind)
 	{
 		case Usage::ColorAttachment:
 		case Usage::DepthAttachment:
+		case Usage::StencilAttachment:
+		case Usage::StencilRead:
 		case Usage::SampledFragment:
 		case Usage::SampledCompute:
 		case Usage::Present: return kind == ResourceKind::Image;
@@ -67,6 +73,8 @@ bool ValidIn(Usage usage, PassKind kind)
 	{
 		case Usage::ColorAttachment:
 		case Usage::DepthAttachment:
+		case Usage::StencilAttachment:
+		case Usage::StencilRead:
 		case Usage::SampledFragment:
 		case Usage::StorageReadVertex:
 		case Usage::StorageReadFragment: return kind == PassKind::Graphics;
@@ -118,6 +126,8 @@ std::string_view ToString(Usage usage)
 	{
 		case Usage::ColorAttachment: return "ColorAttachment";
 		case Usage::DepthAttachment: return "DepthAttachment";
+		case Usage::StencilAttachment: return "StencilAttachment";
+		case Usage::StencilRead: return "StencilRead";
 		case Usage::SampledFragment: return "SampledFragment";
 		case Usage::SampledCompute: return "SampledCompute";
 		case Usage::StorageReadVertex: return "StorageReadVertex";
@@ -136,7 +146,8 @@ bool IsWrite(Usage usage)
 	// An attachment is read as well as written (depth tests, blending), and is a write for
 	// ordering: nothing may touch it while a pass renders into it.
 	return usage == Usage::ColorAttachment || usage == Usage::DepthAttachment ||
-	       usage == Usage::StorageWriteCompute || usage == Usage::TransferWrite;
+	       usage == Usage::StencilAttachment || usage == Usage::StorageWriteCompute ||
+	       usage == Usage::TransferWrite;
 }
 
 PassResource PassList::AddImage(std::string name)

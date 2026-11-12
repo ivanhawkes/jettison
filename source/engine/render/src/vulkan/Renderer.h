@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 
 // STD.
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -27,6 +28,7 @@
 #include <jettison/render/IRenderer.h>
 #include <jettison/render/Particles.h>
 #include <jettison/render/PassList.h>
+#include <jettison/render/PostProcess.h>
 #include <jettison/render/SceneView.h>
 #include <jettison/render/Shadows.h>
 #include <jettison/scene/Components.h>
@@ -59,8 +61,10 @@ class OverlayRenderer;
 // cluster passes (the index list's allocator zeroed, then the clusters' bounds and the lights
 // assigned to them, both in compute); the particles stepped, in compute; an opaque pass into a
 // multisampled HDR target, which draws the sky over what no surface covered, then the transparent
-// draws back to front, and is resolved into a single-sampled target as it ends; an output pass that
-// tonemaps that into the swapchain, with the UI drawn over the result; and the cluster check's copy.
+// draws back to front, and is resolved into a single-sampled target as it ends; the post chain over
+// that (docs/architecture.md, "Post-processing": ambient occlusion before the opaque pass, from the
+// depth prepass, and bloom and the outlines after it); an output pass that tonemaps into the
+// swapchain, with the UI drawn over the result; and the cluster check's copy.
 //
 // The shadow map and the cluster grid's buffers are one set each, shared by the frames in flight as
 // the render targets are.
@@ -81,6 +85,21 @@ class Renderer
   public:
 	static constexpr uint32_t kFramesInFlight = 2;
 	static constexpr VkFormat kHdrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+	// The depth prepass's view-space normals, from [-1, 1] to [0, 1], and its object IDs as whole
+	// numbers in a float (render/PostProcess.h): multisampled, as its depth is, and read at sample
+	// zero.
+	static constexpr VkFormat kNormalFormat = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+	static constexpr VkFormat kObjectIdFormat = VK_FORMAT_R32_SFLOAT;
+	// The ambient access the ambient occlusion passes leave, and the jump flood's nearest seeds.
+	static constexpr VkFormat kAccessFormat = VK_FORMAT_R8_UNORM;
+	static constexpr VkFormat kSeedFormat = VK_FORMAT_R16G16_UINT;
+	// Ambient occlusion's reach in metres, how dark its corners go, and the view depth past which it
+	// occludes nothing (docs/architecture.md, "Ambient occlusion").
+	static constexpr float kAoRadius = 2.0f;
+	static constexpr float kAoIntensity = 1.0f;
+	static constexpr float kAoDistance = 1000.0f;
+	// The share of the frame's light bloom spreads (post.glsl's ApplyBloom).
+	static constexpr float kDefaultBloom = 0.04f;
 	// The light index list's budget (render/IRenderer.h), which the shell reports against.
 	static constexpr std::uint32_t kLightIndicesPerCluster = kRendererLightIndicesPerCluster;
 	static constexpr std::uint32_t kLightIndexCapacity = kRendererLightIndexCapacity;
@@ -102,6 +121,9 @@ class Renderer
 	static constexpr double kDetailPixels = 1.0;
 	// The particle pool's slots, shared by every emitter (render/Particles.h): 4 MiB of the device's.
 	static constexpr std::uint32_t kParticleSlots = 1u << 17;
+	// The bloom chain's levels and the jump flood's steps, as post.glsl has them.
+	static constexpr std::uint32_t kBloomLevelCount = kBloomLevels;
+	static constexpr std::uint32_t kFloodStepCount = kFloodSteps;
 
 	// The resource manager loads the models, materials and textures, and outlives the renderer;
 	// Destroy releases everything the renderer loaded through it.
@@ -189,6 +211,27 @@ class Renderer
 		return m_depthPrepass;
 	}
 
+	// Ambient occlusion over the opaque surfaces' image-based light, which runs the depth prepass
+	// whenever it is on (docs/architecture.md, "Ambient occlusion").
+	void SetAmbientOcclusion(bool enabled)
+	{
+		m_ambientOcclusion = enabled;
+	}
+	bool GetAmbientOcclusion() const
+	{
+		return m_ambientOcclusion;
+	}
+
+	// The share of the frame's light bloom spreads, 0 for none (docs/architecture.md, "Bloom").
+	void SetBloom(float strength)
+	{
+		m_bloom = std::max(strength, 0.0f);
+	}
+	float GetBloom() const
+	{
+		return m_bloom;
+	}
+
 	// The last frame's counts, and the GPU's time in each pass (vulkan/GpuProfiler.h).
 	const FrameStats &GetFrameStats() const
 	{
@@ -233,6 +276,8 @@ class Renderer
 		Buffer bodies{};
 		// The particle emitters (GpuEmitter).
 		Buffer emitters{};
+		// The outlines drawn this frame (GpuOutline).
+		Buffer outlines{};
 		VkDescriptorSet frameSet{VK_NULL_HANDLE};
 		// The cluster check: the grid and the index list as this slot's frame left them, and what
 		// the CPU needs to assign the same lights. Pending from the frame that copied them out until
@@ -251,15 +296,55 @@ class Renderer
 		bool screenshotPending{false};
 	};
 
+	// An image and a view of it.
+	struct Target
+	{
+		Image image{};
+		VkImageView view{VK_NULL_HANDLE};
+	};
+
+	// The post passes, each with its own set of the images it reads (WritePostSets).
+	enum PostSet : std::uint32_t
+	{
+		kPostSsao,
+		kPostSsaoBlur,
+		kPostBloomDown,
+		kPostBloomUp = kPostBloomDown + kBloomLevelCount,
+		kPostOutlineSeed = kPostBloomUp + kBloomLevelCount - 1,
+		// The flood's two targets, each read by the step after the one that wrote it.
+		kPostFloodFromFirst,
+		kPostFloodFromSecond,
+		kPostOutlines,
+		kPostOutput,
+		kPostSetCount
+	};
+
 	struct Targets
 	{
 		VkExtent2D extent{0, 0};
 		Image hdrMsaa{};
 		VkImageView hdrMsaaView{VK_NULL_HANDLE};
+		// Multisampled depth and stencil: a view of both aspects to render with, and of the depth
+		// alone for ambient occlusion to read.
 		Image depth{};
 		VkImageView depthView{VK_NULL_HANDLE};
+		VkImageView depthSampleView{VK_NULL_HANDLE};
 		Image hdr{};
 		VkImageView hdrView{VK_NULL_HANDLE};
+		// The depth prepass's normals and object IDs, multisampled.
+		Target normals;
+		Target objectIds;
+		// The depth and stencil resolved to sample zero as the opaque pass ends, for the post passes
+		// to test against, and a view of the stencil alone for them to read.
+		Image resolved{};
+		VkImageView resolvedView{VK_NULL_HANDLE};
+		VkImageView resolvedStencilView{VK_NULL_HANDLE};
+		// Ambient access, before and after its blur.
+		Target access;
+		Target accessBlurred;
+		std::array<Target, kBloomLevelCount> bloom{};
+		std::array<VkExtent2D, kBloomLevelCount> bloomExtents{};
+		std::array<Target, 2> flood{};
 	};
 
 	void CreateLayouts();
@@ -272,7 +357,7 @@ class Renderer
 	void DestroyShadowMap();
 	void CreateFrames();
 	void WriteFrameSet(const FrameData &frame);
-	void WriteOutputSet();
+	void WritePostSets();
 	void CreatePipelines();
 	void CreateRenderFinishedSemaphores();
 	// The scene's sky, baked into the environment if it is not the one there already, or if the scene
@@ -333,10 +418,11 @@ class Renderer
 	void RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const;
 	void RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const;
 	void RecordParticles(const FrameData &frame, VkCommandBuffer commandBuffer) const;
-	// A batch of the view's, its material's pipeline and set bound when they differ from what is.
+	// A batch of the view's, its material's pipeline and set bound when they differ from what is; an
+	// opaque one with its stencil bits as the reference, which only the opaque pipelines take.
 	void RecordMeshBatch(
 	    VkCommandBuffer commandBuffer, const DrawBatch &batch, VkPipeline &boundPipeline,
-	    const Model *&boundModel);
+	    const Model *&boundModel, bool opaque);
 	// The transparent draws and the emitters, back to front, in the opaque pass's rendering.
 	void RecordTransparent(VkCommandBuffer commandBuffer);
 	void RecordScreenshot(FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
@@ -344,7 +430,33 @@ class Renderer
 	void SaveScreenshot(FrameData &frame);
 	void RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffer);
 	void RecordOutput(
-	    VkCommandBuffer commandBuffer, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer);
+	    const FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex,
+	    const ImGuiRenderer &imguiRenderer);
+	// A full-screen post pass: one triangle into a single-sampled target, its images in its post set
+	// and its values as push constants; tested against the resolved stencil, read-only, when one is
+	// given; loading what is there when it blends over it.
+	struct FullscreenPass
+	{
+		VkImageView target{VK_NULL_HANDLE};
+		VkExtent2D extent{0, 0};
+		VkPipeline pipeline{VK_NULL_HANDLE};
+		PostSet set{kPostSsao};
+		glm::vec4 first{0.0f};
+		glm::vec4 second{0.0f};
+		bool load{false};
+		bool stencil{false};
+	};
+	void RecordFullscreen(
+	    const FrameData &frame, VkCommandBuffer commandBuffer, const FullscreenPass &pass) const;
+	void RecordAmbientOcclusion(const FrameData &frame, VkCommandBuffer commandBuffer, bool blur) const;
+	void RecordBloom(
+	    const FrameData &frame, VkCommandBuffer commandBuffer, bool down, std::uint32_t level) const;
+	void RecordOutlineSeeds(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+	void RecordFlood(const FrameData &frame, VkCommandBuffer commandBuffer, std::uint32_t step) const;
+	void RecordOutlines(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+	// The outlines of the draws the view keeps, each draw's index among them, and their list into the
+	// slot's outline buffer.
+	void WriteOutlines(FrameData &frame);
 	void SetViewport(VkCommandBuffer commandBuffer) const;
 
 	bool Present();
@@ -373,17 +485,28 @@ class Renderer
 	// (a material's textures), and set 0 of the output program (the resolved HDR target).
 	VkDescriptorSetLayout m_frameSetLayout{VK_NULL_HANDLE};
 	VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
-	VkDescriptorSetLayout m_outputSetLayout{VK_NULL_HANDLE};
+	// Set 1 of the post programs: the images a post pass reads, by binding.
+	VkDescriptorSetLayout m_postSetLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_meshLayout{VK_NULL_HANDLE};
-	VkPipelineLayout m_outputLayout{VK_NULL_HANDLE};
+	// The post programs and the output: the frame set, a post set, and two vec4s of push constants.
+	VkPipelineLayout m_postLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_lineLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_clusterLayout{VK_NULL_HANDLE};
 	// The particles' step: the frame set, and the emitter's index as a push constant.
 	VkPipelineLayout m_particleLayout{VK_NULL_HANDLE};
 	VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
-	VkDescriptorSet m_outputSet{VK_NULL_HANDLE};
+	std::array<VkDescriptorSet, kPostSetCount> m_postSets{};
+	// Texel for texel, and filtered (the bloom chain).
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
+	VkSampler m_linearSampler{VK_NULL_HANDLE};
 	VkPipeline m_outputPipeline{VK_NULL_HANDLE};
+	VkPipeline m_ssaoPipeline{VK_NULL_HANDLE};
+	VkPipeline m_ssaoBlurPipeline{VK_NULL_HANDLE};
+	VkPipeline m_bloomDownPipeline{VK_NULL_HANDLE};
+	VkPipeline m_bloomUpPipeline{VK_NULL_HANDLE};
+	VkPipeline m_outlineSeedPipeline{VK_NULL_HANDLE};
+	VkPipeline m_outlineFloodPipeline{VK_NULL_HANDLE};
+	VkPipeline m_outlinesPipeline{VK_NULL_HANDLE};
 	VkPipeline m_skyPipeline{VK_NULL_HANDLE};
 	// The bodies' air and rings over the sky, after it (atmosphere.frag).
 	VkPipeline m_atmospherePipeline{VK_NULL_HANDLE};
@@ -426,6 +549,18 @@ class Renderer
 	std::vector<GpuInstance> m_instanceScratch;
 	float m_lodThreshold{kDefaultLodThreshold};
 	bool m_depthPrepass{false};
+	bool m_ambientOcclusion{true};
+	float m_bloom{kDefaultBloom};
+	// What this frame runs: the prepass (asked for, or for ambient occlusion or an outline), ambient
+	// occlusion, and the outlines and the glows among them.
+	bool m_framePrepass{false};
+	bool m_frameAmbientOcclusion{false};
+	bool m_frameGlows{false};
+	// The outlines of the draws the view keeps, by the entity that has each, and each draw's index
+	// among them, or kMaxOutlines for none.
+	std::vector<GpuOutline> m_outlineScratch;
+	std::vector<entt::entity> m_outlineOwners;
+	std::vector<std::uint32_t> m_drawOutlines;
 	FrameStats m_frameStats{};
 
 	// The particle pool, device-local and shared by the frames in flight, stepped in place each frame;
@@ -437,6 +572,8 @@ class Renderer
 	std::vector<EmitterDraw> m_emitterDraws;
 	std::vector<GpuEmitter> m_emitterScratch;
 	std::optional<double> m_lastPresentationTime;
+	// This frame's presentation time, which the lights' animations are evaluated at.
+	double m_presentationTime{0.0};
 	bool m_particlesRefused{false};
 
 	// The cluster grid: each cluster's view-space bounds, its offset and count into the index list,
@@ -467,6 +604,15 @@ class Renderer
 	PassResource m_shadowMapResource;
 	PassResource m_hdrMsaaResource;
 	PassResource m_depthResource;
+	PassResource m_stencilResource;
+	PassResource m_normalsResource;
+	PassResource m_objectIdsResource;
+	PassResource m_resolvedDepthResource;
+	PassResource m_resolvedStencilResource;
+	PassResource m_accessResource;
+	PassResource m_accessBlurredResource;
+	std::array<PassResource, kBloomLevelCount> m_bloomResources{};
+	std::array<PassResource, 2> m_floodResources{};
 	PassResource m_hdrResource;
 	PassResource m_swapchainResource;
 	PassResource m_clusterBoundsResource;
@@ -480,6 +626,14 @@ class Renderer
 	uint32_t m_clusterLightsPass{0};
 	uint32_t m_particlePass{0};
 	uint32_t m_opaquePass{0};
+	uint32_t m_ssaoPass{0};
+	uint32_t m_ssaoBlurPass{0};
+	std::array<uint32_t, kBloomLevelCount> m_bloomDownPasses{};
+	// The way up, from the level second from the bottom: m_bloomUpPasses[level] adds level + 1 to it.
+	std::array<uint32_t, kBloomLevelCount - 1> m_bloomUpPasses{};
+	uint32_t m_outlineSeedPass{0};
+	std::array<uint32_t, kFloodStepCount> m_floodPasses{};
+	uint32_t m_outlinesPass{0};
 	uint32_t m_outputPass{0};
 	uint32_t m_clusterReadbackPass{0};
 	// Absent from the plan on a swapchain that cannot be copied from.
