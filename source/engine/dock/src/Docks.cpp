@@ -22,6 +22,8 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
+#include "Sorted.h"
+
 namespace Jettison::Dock
 {
 namespace
@@ -50,14 +52,7 @@ constexpr float kLiftSpeed = 20.0f;
 constexpr float kLandingRadius = 0.25f;
 constexpr float kLandingSpeed = 0.2f;
 
-template <typename... Components> std::vector<entt::entity> Sorted(const entt::registry &registry)
-{
-	std::vector<entt::entity> entities;
-	for (const entt::entity entity : registry.view<const Components...>())
-		entities.push_back(entity);
-	std::ranges::sort(entities, {}, [](entt::entity entity) { return entt::to_integral(entity); });
-	return entities;
-}
+using Detail::Sorted;
 
 std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
 {
@@ -114,8 +109,13 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterComponent<Station>();
 	world.RegisterComponent<Pad>();
 	world.RegisterComponent<Docking>();
-	// A pad's state is what its lamps show (the station dressing), and presentation reads snapshots.
+	world.RegisterComponent<Transfer>();
+	world.RegisterComponent<Buggy>();
+	// A pad's state is what its lamps show (the station dressing), a buggy is drawn where it is with
+	// what it carries, and presentation reads snapshots.
 	world.ShowInSnapshots<Pad>();
+	world.ShowInSnapshots<Transfer>();
+	world.ShowInSnapshots<Buggy>();
 	world.RegisterCommand<RequestPad>([docks](Sim::SimWorld &target, const RequestPad &command)
 	                                  { docks->Request(target, command); });
 	world.RegisterCommand<ReleasePad>([docks](Sim::SimWorld &target, const ReleasePad &command)
@@ -123,10 +123,11 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Hull, Physics::LocalFrame, Sim::InSystem>()
+	     Ecs::Access::Of<Hull, Physics::LocalFrame>()
 	         .Writing<
-	             Station, Pad, Docking, Physics::Body, Physics::OnRails, Physics::Velocity,
-	             Physics::FlightControls, Sim::Transform, Ai::Destination, Ai::Steered>(),
+	             Station, Pad, Docking, Transfer, Buggy, Physics::Body, Physics::OnRails,
+	             Physics::Velocity, Physics::FlightControls, Sim::Transform, Sim::InSystem,
+	             Ai::Destination, Ai::Steered>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
 	     [docks, &world](entt::registry & /*registry*/, double /*fixedStep*/) { docks->Step(world); }});
 	return *docks;
@@ -160,6 +161,7 @@ void Docks::DefineLayout(std::string name, StationLayout layout)
 	if (m_layouts.contains(name))
 		throw std::invalid_argument{std::format("Dock: station layout '{}' is already defined", name)};
 	m_physics.DefineShape(StationShape(name), DeckShape(layout));
+	m_roads.emplace(name, Roads(layout));
 	m_layouts.emplace(std::move(name), std::move(layout));
 }
 
@@ -181,6 +183,12 @@ const StationLayout *Docks::FindLayout(std::string_view name) const
 {
 	const auto found = m_layouts.find(name);
 	return found == m_layouts.end() ? nullptr : &found->second;
+}
+
+const RoadGraph *Docks::FindRoads(std::string_view layout) const
+{
+	const auto found = m_roads.find(layout);
+	return found == m_roads.end() ? nullptr : &found->second;
 }
 
 entt::entity Docks::MakeStation(
@@ -319,7 +327,11 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 			Serve(world, station, world.Clock().Now());
 			return;
 		}
-		case Stage::Docked: Unclamp(world, ship); return;
+		case Stage::Docked:
+			if (const std::int64_t crates = ToCarry(registry, ship); crates > 0)
+				return refuse(std::format("its cargo is still crossing the deck, {} crates", crates));
+			Unclamp(world, ship);
+			return;
 		case Stage::Leaving: return refuse("the ship is already leaving its pad");
 	}
 }
@@ -419,6 +431,9 @@ void Docks::Step(Sim::SimWorld &world)
 	// 4. The queues, from the front.
 	for (const entt::entity station : Sorted<Station>(registry))
 		Serve(world, station, time);
+
+	// 5. The decks.
+	WorkDecks(world, time);
 }
 
 entt::entity Docks::FreePadFor(
@@ -501,6 +516,8 @@ void Docks::GiveUp(Sim::SimWorld &world, entt::entity ship, bool announce)
 	}
 	if (docking.fly || docking.stage == Stage::Leaving)
 		Hold(registry, ship);
+	// Its buggies bring back whatever they were taking to it.
+	registry.remove<Transfer>(ship);
 	registry.remove<Docking>(ship);
 	if (announce)
 		world.Events().Emit(PadReleased{ship, docking.station});

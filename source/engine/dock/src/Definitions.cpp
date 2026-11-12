@@ -10,6 +10,7 @@
 #include <format>
 #include <optional>
 
+#include <jettison/dock/Roads.h>
 #include <jettison/serialise/Archive.h>
 
 namespace Jettison::Dock
@@ -229,6 +230,19 @@ void CheckLayout(std::string_view name, const StationLayout &layout)
 	for (const Bay &bay : layout.bays)
 		if (!Finite(bay.position) || std::abs(glm::length(bay.normal) - 1.0) > kUnitTolerance)
 			Refuse(kWhat, name, "has a cargo bay whose door faces no way");
+
+	const DeckTraffic &traffic = layout.traffic;
+	if (traffic.buggies == 0 || traffic.cratesPerTrip <= 0 || !(traffic.speed > 0.0f) ||
+	    !std::isfinite(traffic.speed))
+		Refuse(
+		    kWhat, name,
+		    "has deck traffic of no buggies, no crates a trip or a speed that is not a positive one");
+	if (layout.bays.empty())
+		return;
+	const RoadGraph roads = Roads(layout);
+	for (std::size_t index = 0; index < layout.pads.size(); ++index)
+		if (!layout.pads[index].display && !roads.pads[index].reached)
+			Refuse(kWhat, name, PadName(index) + " is not reached by road from a cargo bay");
 }
 
 Physics::ShapeDefinition DeckShape(const StationLayout &layout)

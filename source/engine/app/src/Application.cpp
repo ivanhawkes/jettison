@@ -398,6 +398,25 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    "undock", "Lifts the ship clear of its pad and gives the pad up, or gives up one not landed on",
 	    [this](DevTools::Console &, std::span<const std::string>) { ReleasePad(); });
 	m_console.RegisterCommand(
+	    "trade",
+	    "Buys crates of a good at the market of the system shown, or sells them with a negative "
+	    "count, as the market screen does: trade <good> <crates>",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    std::int64_t crates = 0;
+		    const auto [end, error] =
+		        arguments.size() == 2
+		            ? std::from_chars(
+		                  arguments[1].data(), arguments[1].data() + arguments[1].size(), crates)
+		            : std::from_chars_result{nullptr, std::errc::invalid_argument};
+		    if (error != std::errc{} || end != arguments[1].data() + arguments[1].size() || crates == 0)
+		    {
+			    Core::Log(Core::Severity::Warning, kShell, "trade takes a good and a count of crates");
+			    return;
+		    }
+		    SendTrade(arguments[0], crates);
+	    });
+	m_console.RegisterCommand(
 	    "market", "Shows or hides the market screen: market [on|off]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { ShowMarket(arguments.empty() ? !m_showMarket : arguments[0] != "off"); });
@@ -533,6 +552,14 @@ void Application::RegisterFrameSystems()
 	     Access::Of<>().Writing<Scene::MeshComponent>(),
 	     {"sim.sync"},
 	     [this](entt::registry &, double) { ShowPadStates(); }});
+	// What each buggy carries, from the same snapshot.
+	m_frame.Register(
+	    {"shell.buggies",
+	     TickPhase::Sync,
+	     Access::Of<BuggyLoad>().Writing<TransformComponent>(),
+	     {"sim.sync"},
+	     [this](entt::registry &registry, double)
+	     { ShowBuggyLoads(registry, m_simStepper.Current()); }});
 	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
 	// handlers replace this system.
 	m_frame.Register(
@@ -2521,6 +2548,8 @@ void Application::SetProxyFactory()
 			    const Dock::HullDefinition *shuttle = m_pDocks->FindHull(kShipHull);
 			    return MakeHullProxy(registry, shuttle ? *shuttle : Dock::HullDefinition{});
 		    }
+		    if (m_simStepper.Current().Get<Dock::Buggy>(simEntity))
+			    return MakeBuggyProxy(registry, simEntity);
 		    const auto parked = m_hullProxies.find(simEntity);
 		    const Dock::HullDefinition *hull =
 		        parked == m_hullProxies.end() ? nullptr : m_pDocks->FindHull(parked->second);
@@ -2681,6 +2710,11 @@ void Application::TakeEvents()
 			Core::Log(
 			    Core::Severity::Warning, kShell, "Pad {} was not landed on in time, and is given up",
 			    lapsed->number);
+		else if (const auto *carried = event.event.try_cast<Dock::CargoCarried>();
+		         carried && carried->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell, "The ship's cargo has crossed the deck of pad {} of {}",
+			    carried->number, m_stationBody);
 		else if (const auto *released = event.event.try_cast<Dock::PadReleased>();
 		         released && released->ship == m_ship)
 			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);

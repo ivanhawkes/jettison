@@ -6,11 +6,14 @@ and docking (phase 7), and from phase 8b that part is a small sample game: the f
 game's own plan, built just far enough to exercise each engine system as it arrives. This document
 records where that plan comes from, what of it the shell plays today, and what comes next.
 
-## The plan: Civilisation Simulation
+## The plan: Manifest
 
-The initial planning stage for gameplay is the **Civilisation Simulation** project (CivSim), which
-lives beside this repository at `~/projects/civilisation-simulation`. The local copy is the
-authority: the GitHub repository lags behind it and may hold work on branches other than `main`.
+The initial planning stage for gameplay is the **Manifest** project (the Civilisation Simulation
+until 2026-11-12, its simulation core CivSim then and ManifestCore now), which lives beside this
+repository at `~/projects/manifest`, with its GitHub repository at
+[ivanhawkes/manifest](https://github.com/ivanhawkes/manifest). The local copy is the authority: the
+GitHub repository lags behind it and may hold work on branches other than `main`. It does not build
+at present, and is read as a plan, not run.
 Three parts of it are the plan:
 
 - **`idea.md`**, the raw ideas: a space trading empire after the silk road and the early
@@ -24,7 +27,7 @@ Three parts of it are the plan:
   health, education, energy and pollution; planetary turns every 200 ticks and market ticks every
   20; a player who starts with a small ship, some credits and a full hold of cheap goods on a poor
   world; time compression and pause.
-- **`README.md`**, the CivSim core as built: generated worlds with an age, a population, production,
+- **`README.md`**, ManifestCore as built: generated worlds with an age, a population, production,
   demand and a stockpile, priced by scarcity; a skill tree of tiers, prerequisites and exclusive
   groups, whose effects land on hulls, venues, worlds, lanes, surveys and yards; and a marketplace of
   venues at bodies, each a price-time order book, trading whole units for whole credits, with a
@@ -36,7 +39,7 @@ Three parts of it are the plan:
   against the IBC cube (a one cubic metre intermediate bulk container), so a cube of any good has a
   mass and a value.
 
-CivSim's own `idea.md` asks for it to be refactored onto Jettison before more work is done on it, so
+Manifest's own `idea.md` asks for it to be refactored onto Jettison before more work is done on it, so
 the plan and the sample game converge: what the shell builds here is written against the engine's
 modules, in the engine's style, and the game takes it over from there.
 
@@ -44,7 +47,7 @@ modules, in the engine's style, and the game takes it over from there.
 
 | Plan | In the shell | Since |
 |---|---|---|
-| Goods with physical units, priced in credits | Eight goods from CivSim's data, as definitions (`assets/defs/goods`): wheat seeds, flour, beer, iron, copper, phosphorus, antibiotics and electronics, from 290 to 144,000 credits. | 8b |
+| Goods with physical units, priced in credits | Eight goods from Manifest's data, as definitions (`assets/defs/goods`): wheat seeds, flour, beer, iron, copper, phosphorus, antibiotics and electronics, from 290 to 144,000 credits. | 8b |
 | A unit of trade that hides fractions of a credit | The crate: one IBC cube of the good, its price the plan's price of a cube (copper is 7,616 kg of ingots at 10 credits a kilogram, 76,160 a crate). | 8b |
 | A market at each station, each its own economy | A market at each of the galaxy's two stations (`assets/defs/markets`): Ostra Highport over a farming world, Corva Refinery at an industrial one. Each holds a stock of every good it deals in and makes and uses it at its own rates each market tick, ten seconds, up to four times its target stock. | 8b |
 | Prices that follow scarcity | `base x 2 x target / (target + stock)`: twice the base with none on the shelf, the base at the target, a quarter of it at seven times the target and beyond. Whole credits, integer arithmetic, deterministic. | 8b |
@@ -58,6 +61,7 @@ modules, in the engine's style, and the game takes it over from there.
 | Lanes between the systems, star gates the long hops | The ship crosses a lane: J, with the ship in the system shown, sends it through the gate, 40 s to Vesper, out at rest 5 km from Corva Refinery, facing Corva with the refinery ahead, and bound to the refinery and its market as it was to Ostra's. Each gate keeps station beyond its station from the planet, so a ship coming out sees both. The console's `route` gives the way to a system and its time. | 9a |
 | Other ships about the stations | The console's `traffic` sends shuttles from a kilometre or two out to hold station on a ring about the station, up to sixteen: each flown by steering, giving way to the others, the station and the player's ship, and turned with the station once there. They choose nothing yet. | 9b |
 | Stations as trade hubs, a pad for every ship | Ostra Highport at the plan's scale, 1.5 km across, with twelve pads for the largest transports on four piers, and Corva Refinery with four for transports and two for shuttles (`assets/defs/stations`), from the hulls of `assets/defs/hulls`. Three ships are parked at each, and the shell's ship starts docked on Highport's first free pad. The console's `undock` lifts it clear; `dock` asks for a pad and flies it in, round the station and down onto the pad, or leaves the landing to the pilot with `dock manual`. A ship waits its turn when every pad it fits is taken. | 9c |
+| A full hold takes time to load | A trade's crates and price are settled at once, and the crates then cross the deck on buggies, four a trip, three to each of Highport's pads and two to each of Corva's, out of the bay at the root of the pad's pier and along the road down its side to the ship's hatch, at 8 m/s. The ship is held on its pad until every crate for it is aboard and every one off it has been taken from its hatch: a shuttle's twenty crates are aboard Highport's pad 1, 117 m from its bay, in 45 s, and pad 3, 633 m out, in four minutes. The market screen says how many are still crossing, `undock` is refused until none are, and the console's `trade <good> <crates>` trades as the screen does. | 9e |
 | Stations that look like ports | Every pad painted (its outline, a centre line with chevrons to the bow, the keep-clear box over the hatch, its number) and floodlit from poles along its sides, a lamp on each pole green while the pad is free, amber while it is reserved and red while it holds a ship; the hub in the hull's plating, the piers in deck plating, and a door at each cargo bay. Highport's display wing, between two of its piers, shows a liner and a frigate on XL bays and four fighters on S pads beside them. Each class of hull has its own proxy: the shuttle, a transport of cargo pods behind a cab, the largest transport's racked containers under a bridge, and the display ships' long hulls. | 9d |
 
 The two stations are in different systems, a lane apart, so the arbitrage the screen shows between
@@ -68,13 +72,11 @@ minute from Vesper Gate to Corva Refinery, dock and sell.
 
 Each slice lands with the engine system it exercises:
 
-- **9e, the stations' decks worked.** Buggies that carry a ship's cargo between its pad and the
-  station's bays, so a full hold takes time to load.
 - **9f, AI.** Automated traders, the plan's other ships: they read the same markets, choose trades
   by utility (which good, which route, which station), plot routes across the lanes (9a's
   `Ai::PlotRoute`) and fly them, through the gates, steering clear of each other (9b's
   `Ai::Steering`), docking on the pads they are given.
-- **The order book.** CivSim's price-time book, with its order life and its fills, replaces the
+- **The order book.** ManifestCore's price-time book, with its order life and its fills, replaces the
   market maker here once traders post orders of their own. It is game code ([scope](scope.md)):
   the engine's part is that it is deterministic, saved, and bound to a screen.
 - **The economy's turns.** Planetary turns every 200 ticks over GDP, population, ages and the

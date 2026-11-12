@@ -276,6 +276,8 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 			hold.cargo.erase(held);
 	}
 	Quote(*good, market.feeBps);
+	// Settled at once; the crates then cross the deck, and the ship stays clamped until they have.
+	Dock::Carry(registry, trade.ship, trade.crates);
 	world.Events().Emit(
 	    Traded{trade.ship, trade.market, trade.good, trade.crates, price, purse.credits});
 }

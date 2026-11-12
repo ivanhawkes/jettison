@@ -4,6 +4,7 @@
 #include <doctest/doctest.h>
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
 #include <fstream>
@@ -262,9 +263,12 @@ TEST_CASE(
 		}
 	}
 	// Each pad's outline (4), chevrons (6), keep-clear box with its diagonals (6), centre line (1) and
-	// its number's bar segments, by digit from 0 to 9.
+	// its number's bar segments, by digit from 0 to 9; and a line down each road off the pads, the
+	// 44 edges of Highport's roads less the twelve from an apron to its hatch.
 	const std::array<std::size_t, 10> segments{6, 2, 5, 5, 4, 5, 6, 3, 7, 6};
-	std::size_t expected = 0;
+	CHECK(dressing.roads == 32);
+	CHECK(dressing.parked == 0);
+	std::size_t expected = dressing.roads;
 	for (unsigned number = 1; number <= layout.pads.size(); ++number)
 	{
 		expected += 4 + 6 + 6 + 1;
@@ -400,4 +404,82 @@ TEST_CASE(
 		++models;
 	}
 	CHECK(models == 1);
+}
+
+TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots have it carry")
+{
+	Dressed dressed;
+	const std::vector<entt::entity> stations =
+	    App::OpenStations(dressed.world, dressed.docks, dressed.systems);
+	REQUIRE(!stations.empty());
+	entt::registry &world = dressed.world.Registry();
+	// The heavy transport parked on Highport's pad 2, loading six crates: the first buggy out of the
+	// bay carries four, and the next waits for it to clear the door.
+	const entt::entity pad = world.get<Dock::Station>(stations.front()).pads.at(1);
+	const entt::entity ship = world.get<Dock::Pad>(pad).ship;
+	REQUIRE(Dock::Carry(world, ship, 6));
+	dressed.world.Step();
+	const auto buggies = world.view<const Dock::Buggy>();
+	REQUIRE(buggies.size() == 1);
+	const entt::entity loaded = buggies.front();
+	REQUIRE(world.get<Dock::Buggy>(loaded).crates == 4);
+	const entt::entity proxy = App::MakeBuggyProxy(dressed.scene, loaded);
+
+	const auto shown = [&]
+	{
+		std::size_t crates = 0;
+		for (const entt::entity crate : dressed.scene.get<App::BuggyLoad>(proxy).crates)
+			crates += dressed.scene.get<Scene::TransformComponent>(crate).scale.x > 0.0f ? 1 : 0;
+		return crates;
+	};
+	CHECK(shown() == 0);
+	App::ShowBuggyLoads(dressed.scene, Sim::Capture(dressed.world));
+	CHECK(shown() == 4);
+	// Each part on the buggy's 4 x 2.4 m footprint, on the deck or above it.
+	for (const auto [entity, mesh] : dressed.scene.view<const Scene::MeshComponent>().each())
+	{
+		const glm::dmat4 at = Under(dressed.scene, entity, proxy);
+		for (const double x : {-1.0, 1.0})
+			for (const double y : {-1.0, 1.0})
+				for (const double z : {-1.0, 1.0})
+				{
+					const glm::dvec4 corner = at * glm::dvec4{x, y, z, 1.0};
+					CHECK(std::abs(corner.x) <= 1.31);
+					CHECK(std::abs(corner.z) <= 2.01);
+					CHECK(corner.y >= -1.0e-6);
+				}
+	}
+	// Without it in the snapshot, its bed is bare.
+	world.get<Dock::Buggy>(loaded).crates = 0;
+	App::ShowBuggyLoads(dressed.scene, Sim::Capture(dressed.world));
+	CHECK(shown() == 0);
+}
+
+TEST_CASE("Dressing: a station whose buggies are parked shows them across each pad's stern")
+{
+	Dressed dressed;
+	Dock::StationLayout layout = dressed.Layout();
+	layout.traffic.working = false;
+	const App::StationDressing dressing =
+	    App::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
+	// Three a pad on the twelve pads ships land on, none on the display pads.
+	CHECK(dressing.parked == 36);
+	std::size_t onPads = 0;
+	for (const auto [entity, load] : dressed.scene.view<const App::BuggyLoad>().each())
+	{
+		CHECK(load.buggy == entt::null);
+		const glm::dvec3 at = dressed.scene.get<Scene::TransformComponent>(entity).translation;
+		for (const Dock::PadLayout &pad : layout.pads)
+		{
+			const glm::dvec3 local = glm::conjugate(Dock::PadOrientation(pad)) * (at - pad.position);
+			const glm::vec2 size = Dock::PadSize(pad.padClass);
+			// On the plate, behind where the largest hull's stern is.
+			if (std::abs(local.x) < size.x * 0.5 && std::abs(local.z) < size.y * 0.5)
+			{
+				CHECK(local.z > Dock::LargestHull(pad.padClass).x * 0.5 + 1.2);
+				++onPads;
+			}
+		}
+	}
+	CHECK(onPads == 36);
 }

@@ -43,13 +43,19 @@ void RegisterTypes()
 		RegisterType<Bay>("Dock.Bay")
 		    .Field<&Bay::position>("position", kDefined)
 		    .Field<&Bay::normal>("normal", kDefined);
+		RegisterType<DeckTraffic>("Dock.DeckTraffic")
+		    .Field<&DeckTraffic::buggies>("buggies", kDefined)
+		    .Field<&DeckTraffic::cratesPerTrip>("cratesPerTrip", kDefined)
+		    .Field<&DeckTraffic::speed>("speed", kDefined)
+		    .Field<&DeckTraffic::working>("working", kDefined);
 		RegisterType<StationLayout>("Dock.StationLayout", Attribute::Moddable)
 		    .Field<&StationLayout::displayName>("displayName", kDefined)
 		    .Field<&StationLayout::decks>("decks", kDefined)
 		    .Field<&StationLayout::piers>("piers", kDefined)
 		    .Field<&StationLayout::pads>("pads", kDefined)
 		    .Field<&StationLayout::bays>("bays", kDefined)
-		    .Field<&StationLayout::reservationSeconds>("reservationSeconds", kDefined);
+		    .Field<&StationLayout::reservationSeconds>("reservationSeconds", kDefined)
+		    .Field<&StationLayout::traffic>("traffic", kDefined);
 
 		RegisterType<Hull>("Dock.Hull").Field<&Hull::definition>("definition", Attribute::Saved);
 		RegisterType<Station>("Dock.Station")
@@ -79,6 +85,21 @@ void RegisterTypes()
 		    .Field<&Docking::pad>("pad", Attribute::Saved)
 		    .Field<&Docking::stage>("stage", Attribute::Saved)
 		    .Field<&Docking::fly>("fly", Attribute::Saved);
+
+		RegisterType<Transfer>("Dock.Transfer")
+		    .Field<&Transfer::aboard>("aboard", Attribute::Saved)
+		    .Field<&Transfer::ashore>("ashore", Attribute::Saved)
+		    .Field<&Transfer::next>("next", Attribute::Saved);
+		RegisterType<Buggy>("Dock.Buggy")
+		    .Field<&Buggy::station>("station", Attribute::Saved)
+		    .Field<&Buggy::pad>("pad", Attribute::Saved)
+		    .Field<&Buggy::ship>("ship", Attribute::Saved)
+		    .Field<&Buggy::route>("route", Attribute::Saved)
+		    .Field<&Buggy::leg>("leg", Attribute::Saved)
+		    .Field<&Buggy::along>("along", Attribute::Saved)
+		    .Field<&Buggy::hatch>("hatch", Attribute::Saved)
+		    .Field<&Buggy::crates>("crates", Attribute::Saved)
+		    .Field<&Buggy::outbound>("outbound", Attribute::Saved);
 
 		RegisterType<RequestPad>("Dock.RequestPad")
 		    .Field<&RequestPad::sender>("sender", Attribute::Saved)
@@ -115,6 +136,11 @@ void RegisterTypes()
 		    .Field<&Landed::station>("station", Attribute::Saved)
 		    .Field<&Landed::pad>("pad", Attribute::Saved)
 		    .Field<&Landed::number>("number", Attribute::Saved);
+		RegisterType<CargoCarried>("Dock.CargoCarried")
+		    .Field<&CargoCarried::ship>("ship", Attribute::Saved)
+		    .Field<&CargoCarried::station>("station", Attribute::Saved)
+		    .Field<&CargoCarried::pad>("pad", Attribute::Saved)
+		    .Field<&CargoCarried::number>("number", Attribute::Saved);
 		RegisterType<Left>("Dock.Left")
 		    .Field<&Left::ship>("ship", Attribute::Saved)
 		    .Field<&Left::station>("station", Attribute::Saved)

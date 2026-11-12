@@ -3,6 +3,7 @@
 #include <format>
 #include <string>
 
+#include <jettison/dock/Docks.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Snapshot.h>
@@ -71,6 +72,17 @@ MarketScreen BuildMarketScreen(
 	screen.status = view.docked                           ? "Docked at " + market->station
 	                : market->stationEntity != entt::null ? "Dock at " + market->station + " to trade"
 	                                                      : "No ship can dock here yet";
+	// What is still crossing the deck holds the ship on its pad.
+	if (const auto *transfer = view.docked ? snapshot.Get<Dock::Transfer>(view.ship) : nullptr)
+	{
+		std::int64_t crossing = transfer->aboard + transfer->ashore;
+		for (const Sim::ComponentSample<Dock::Buggy> &buggy : snapshot.Components<Dock::Buggy>())
+			if (buggy.value.ship == view.ship && buggy.value.outbound)
+				crossing += buggy.value.crates;
+		if (crossing > 0)
+			screen.status +=
+			    std::format("; {} {} crossing the deck", crossing, crossing == 1 ? "crate" : "crates");
+	}
 	const auto *hold = snapshot.Get<Hold>(view.ship);
 	const auto *purse = snapshot.Get<Purse>(view.ship);
 	if (hold)

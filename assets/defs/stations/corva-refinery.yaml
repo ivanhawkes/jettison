@@ -7,9 +7,13 @@
 # out along it. The S pads lie side by side on the hub's top, noses to -Z. A cargo bay's door is in
 # the hub's wall at each pier's root, its sill on the pier's deck, and a hatch in the hub's top
 # behind the S pads.
+#
+# Buggies carry a ship's cargo between its pad and the nearest bay, along the road down each pier's
+# side, or across the hub's top from its hatch (Dock::Roads): two a pad, four crates a trip, at 8 m/s.
 version: 1
 displayName: Corva Refinery
 reservationSeconds: 300
+traffic: {buggies: 2, cratesPerTrip: 4, speed: 8, working: true}
 decks:
   - {centre: [0, 0, 0], size: [120, 40, 120]}
 piers:

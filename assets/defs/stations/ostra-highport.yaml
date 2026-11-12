@@ -14,9 +14,15 @@
 # and four S pads in a row beyond them for fighters. Display pads are dressing (Dock.PadLayout): no
 # ship is given one, and each names the hull drawn on it. The wing's far corner is 721 m out, inside
 # the sphere the piers' tips make, 762 m.
+#
+# Buggies carry a ship's cargo between its pad and the bay at its pier's root, along the road down
+# the pier's side (Dock::Roads): three a pad, four crates a trip, at 8 m/s, so a shuttle's twenty
+# crates are aboard pad 1, 117 m from its bay, in 45 s, and aboard pad 3, 633 m out, in about four
+# minutes.
 version: 1
 displayName: Ostra Highport
 reservationSeconds: 300
+traffic: {buggies: 3, cratesPerTrip: 4, speed: 8, working: true}
 decks:
   - {centre: [0, 0, 0], size: [200, 60, 200]}
   - {centre: [280, 0, 290], size: [440, 20, 460]}

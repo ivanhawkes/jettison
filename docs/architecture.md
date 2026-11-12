@@ -432,6 +432,37 @@ fitted to its hull's box, or the hull's own glTF model when it names one (`HullD
 Highport carries 104 floodlights: six on each L pad, eight on each XL and four on each S, every one
 reaching no further than 900 m from the station's centre.
 
+**Deck traffic** (9e, [decided](roadmap.md#decided)) carries a docked ship's cargo across the deck in
+the simulation, so every player sees the same buggy at the same place and the buggies decide when
+the ship may leave. A layout's roads (`dock/Roads.h`, `Dock::Roads`) are made from it as it is
+defined, and are never state: a road down each pier's side, in the wider strip of its top beside its
+pads; each pad's apron, the middle of its aft edge, and its hatch on its centre line; and straight
+legs joining each bay and each apron to every road at its nearest point, and each bay to each apron,
+wherever the leg lies on the deck, passes through nothing of the station and crosses no pad. Where
+legs join a road are its nodes. Each pad is routed once, by A* (9a), from the bay nearest it by road,
+and a layout with bays is refused if a pad ships land on is not reached. Highport's twelve pads are
+each served from the bay at their pier's root, 90.6, 396.8 and 606.8 m to the hatch from the first
+pad out to the third; Corva's S pads on its hub's top from the hatch between them.
+
+A game's trade settles its crates and its price at once, then calls `Dock::Carry`, which gives the
+docked ship a `Dock::Transfer`: crates in the bay still to go aboard and crates in the hold still to
+come off, a purchase and a sale of the same crates before they cross netted against each other. The
+docks' step then works each deck (`dock/Deck.cpp`): a `Dock::Buggy`, an entity with a Transform and
+no body, comes out of the pad's bay while its ship has cargo for one and the pad has fewer out than
+the layout gives it (`DeckTraffic::buggies`), carrying a trip's crates aboard or going to fetch them;
+it drives its route at the layout's speed on the right of the road, never nearer the buggy ahead in
+its lane than 8 m, and holds a node while it is within 6 m of it, so the next waits short of a node
+another holds, in entity order; at the hatch it hands its crates aboard and takes a load off, at the
+bay it leaves its load and goes out again or in. The transfer is done (`Dock::CargoCarried`) once
+every crate for the ship is aboard and every one off it has been taken from its hatch, and until
+then `ReleasePad` refuses to let it go. A station whose buggies are parked (`DeckTraffic::working`
+false) has none in the simulation: its dressing draws them across each pad's stern, and a buggy's
+load each way is moved at each round trip of the pad's road shared among its buggies, the rate
+working ones would have. A pad no road reaches, at a station with no bays, has its cargo at once.
+Buggies and transfers are shown in the snapshots: the shell draws each buggy (`MakeBuggyProxy`), a
+flatbed tug whose bed carries the crates it has, interpolated as any entity is, and the market
+screen says how many crates are still crossing.
+
 ### Persistence
 
 A save game (`sim/SaveGame.h`, 8a) is one file in its own format, `Jettison.Save`, holding parts
@@ -958,7 +989,7 @@ proves it headlessly. What exists:
   through the VFS, data models bound to reflected types ([UI](#ui)). The shell's two screens are the
   market (M) and the saved games (L), whose Load loads a save as F9 does.
 - **The sample game** (8b, [sample game](sample-game.md)). The shell plays the game's part as it
-  does for piloting and docking: the first slice of the Civilisation Simulation's plan. Eight goods
+  does for piloting and docking: the first slice of Manifest's plan. Eight goods
   from its data, traded by the crate (an IBC cube) in whole credits, a market at each of the
   galaxy's two stations that makes and uses its goods each market tick (ten seconds) and prices each
   by scarcity, either side of the price by its listing fee; the ship starts with an empty hold of
@@ -978,9 +1009,10 @@ proves it headlessly. What exists:
   (`spatial/SystemIndices.h`), all attached by the shell after physics, whose console's `traffic`
   sends shuttles to hold station about the station. Utility AI and behaviour trees are still stubs,
   for 9f.
-- **Docks** (`engine/dock`, 9c). Hulls and station layouts as definitions, stations built to them
-  with their pads, pads given, queued and lapsing, and the approach and the clamp
-  ([as above](#docks)). The shell builds every station of the galaxy that names a layout at the
-  start, Ostra Highport with twelve L pads and Corva Refinery with four M and two S, parks three
-  ships at each, and draws each layout plainly, its decks and piers as plated boxes and its pads as
-  darker plates on them, and a parked ship as a box of its hull (`app/src/Stations.h`).
+- **Docks** (`engine/dock`, 9c to 9e). Hulls and station layouts as definitions, stations built to
+  them with their pads, pads given, queued and lapsing, the approach and the clamp, and the deck's
+  roads and buggies carrying a docked ship's cargo ([as above](#docks)). The shell builds every
+  station of the galaxy that names a layout at the start, Ostra Highport with twelve L pads and
+  Corva Refinery with four M and two S, parks three ships at each, and dresses each layout
+  (`app/src/Dressing.h`, 9d), its roads painted and its buggies drawn from the snapshots; a trade's
+  crates cross the deck before the ship may leave.

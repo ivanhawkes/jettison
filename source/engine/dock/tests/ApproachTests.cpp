@@ -185,8 +185,9 @@ TEST_CASE(
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too, as
 	// steering's is: a change here is a change to how a ship is flown in, or to what a save holds.
 	// Re-pinned in 9d for Highport's display wing, six more pads and a deck more in its shape, with
-	// the approach's times unchanged (111 s to the point above the pad, 23.75 s down).
-	CHECK(first == 0xac920de90ae724ffull);
+	// the approach's times unchanged (111 s to the point above the pad, 23.75 s down); and in 9e for
+	// the empty storages of transfers and buggies a save now holds, 9d's hash without them.
+	CHECK(first == 0x8ace2f180f55bb5cull);
 
 	Approach loaded;
 	loaded.world.Load(*save);

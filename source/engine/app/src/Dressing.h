@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 #include <glm/vec3.hpp>
 
+#include <array>
 #include <cstddef>
 #include <span>
 #include <string>
@@ -30,6 +31,8 @@ namespace Jettison::App
 //   - Each cargo bay's door: a panel in a wall up from its sill, or a hatch in the deck, with a
 //     frame and a lamp strip.
 //   - On each display pad, the ship it shows (Dock::PadLayout::ship), as a hull proxy.
+//   - The roads (Dock::Roads), a lane divider painted down each between its nodes, and, for a
+//     station whose buggies are parked, its buggies in a row across each pad's stern.
 struct StationDressing
 {
 	// The station's entity in the scene, and the celestial body it is.
@@ -38,6 +41,9 @@ struct StationDressing
 	// Each pad's lamps, by its number less one.
 	std::vector<std::vector<entt::entity>> lamps;
 	std::size_t floodlights{0};
+	// The roads painted, and the buggies parked.
+	std::size_t roads{0};
+	std::size_t parked{0};
 };
 
 // How far apart a pad's floodlight poles stand along its long sides, at most: two a side for an S or
@@ -66,4 +72,18 @@ std::size_t ShowPadStates(
 // behind a cab, L a spine of racked containers under a bridge, and XL a long hull under a
 // superstructure, which the liner and the frigate share.
 entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hull);
+
+// A buggy's proxy, in its own axes (nose -Z, its wheels on the deck at its origin): a 4 m flatbed
+// tug, a cab with a beacon in the effects layer, and a bed for four crates, which show what it
+// carries. The crates are found by the buggy's simulation entity (BuggyLoad), or by none for a
+// parked buggy of the dressing, which carries nothing.
+struct BuggyLoad
+{
+	entt::entity buggy{entt::null};
+	std::array<entt::entity, 4> crates{};
+};
+entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy);
+
+// Shows on each buggy's bed as many crates as the snapshot has it carry, four at most.
+void ShowBuggyLoads(entt::registry &scene, const Sim::Snapshot &snapshot);
 } // namespace Jettison::App

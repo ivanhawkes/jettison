@@ -15,8 +15,8 @@ class SimWorld;
 
 namespace Jettison::App
 {
-// Trading as the shell plays it: the first slice of the sample game, whose plan is the Civilisation
-// Simulation project's (docs/sample-game.md). The engine's part is the definitions, the deterministic
+// Trading as the shell plays it: the first slice of the sample game, whose plan is the Manifest
+// project's (docs/sample-game.md). The engine's part is the definitions, the deterministic
 // step, the save and the UI's binding; what a market is, is the game's, and this is the smallest one
 // that trades.
 //
@@ -122,7 +122,9 @@ struct Purse
 };
 
 // The command: a ship buys crates of a good at a market (a positive count) or sells them (a
-// negative one), at the market's quote as the step applies it.
+// negative one), at the market's quote as the step applies it. The crates and the price are settled
+// at once, and the crates then cross the station's deck (Dock::Carry), the ship held on its pad
+// until they have.
 struct Trade
 {
 	entt::entity ship{entt::null};

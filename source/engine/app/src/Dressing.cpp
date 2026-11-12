@@ -1,5 +1,6 @@
 #include "Dressing.h"
 
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
@@ -54,6 +55,9 @@ constexpr float kFloodOuter = 0.62f;
 // deck is above Corva's hub floor allows.
 constexpr float kDoorWidth = 20.0f;
 constexpr float kDoorHeight = 10.0f;
+
+// A road's lane divider, painted down its middle.
+constexpr float kRoadLine = 0.3f;
 
 // The scene turns an entity about X, then Y, then Z (scene/SceneSystems.cpp).
 glm::vec3 SceneRotation(const glm::dquat &orientation)
@@ -520,6 +524,50 @@ StationDressing DressStation(
 
 	for (const Dock::Bay &bay : layout.bays)
 		Door(scene, station, bay);
+
+	// The roads' lane dividers, on the deck between their nodes; a pad's own centre line is its
+	// paint's.
+	const Dock::RoadGraph roads = Dock::Roads(layout);
+	for (const auto &[from, to] : roads.edges)
+	{
+		if (roads.nodes[from].kind == Dock::RoadNodeKind::Hatch ||
+		    roads.nodes[to].kind == Dock::RoadNodeKind::Hatch)
+			continue;
+		const glm::dvec3 start = roads.nodes[from].position;
+		const glm::dvec3 way = roads.nodes[to].position - start;
+		const double length = glm::length(way);
+		Part(
+		    scene, station, start + way * 0.5 + glm::dvec3{0.0, kPaintHeight, 0.0},
+		    {0.0f, static_cast<float>(std::atan2(way.x, way.z)), 0.0f},
+		    {kRoadLine * 0.5f, kPaintThickness * 0.5f, static_cast<float>(length * 0.5)},
+		    {Scene::Shape::Box, kNumberColour, {}, Scene::Layer::Effects});
+		++dressing.roads;
+	}
+
+	// A station whose buggies are parked shows them on the deck: a row across each pad's stern, on
+	// its plate behind the largest hull it takes, facing across it.
+	if (!layout.traffic.working)
+		for (const Dock::PadLayout &pad : layout.pads)
+		{
+			if (pad.display)
+				continue;
+			const glm::vec2 size = Dock::PadSize(pad.padClass);
+			const glm::dquat turn = Dock::PadOrientation(pad);
+			for (std::uint32_t index = 0; index < layout.traffic.buggies; ++index)
+			{
+				const glm::dvec3 across{
+				    -size.x * 0.5 + 3.0 + 3.2 * static_cast<double>(index), kPadThickness * 0.5,
+				    size.y * 0.5 - 2.5};
+				const entt::entity buggy = MakeBuggyProxy(scene, entt::null);
+				scene.emplace<Scene::BuiltComponent>(buggy);
+				scene.emplace<Scene::ParentComponent>(buggy, station);
+				auto &transform = scene.get<Scene::TransformComponent>(buggy);
+				transform.translation = pad.position + turn * across;
+				transform.rotation = SceneRotation(
+				    turn * glm::angleAxis(glm::half_pi<double>(), glm::dvec3{0.0, 1.0, 0.0}));
+				++dressing.parked;
+			}
+		}
 	return dressing;
 }
 
@@ -569,5 +617,52 @@ entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hu
 		    {part.shape, part.colour, part.material, {}});
 	}
 	return root;
+}
+
+entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy)
+{
+	constexpr float kQuarter = 1.5707963f;
+	constexpr glm::vec3 kChassis{0.22f, 0.23f, 0.25f};
+	constexpr glm::vec3 kCab{0.9f, 0.62f, 0.12f};
+	constexpr glm::vec3 kTyre{0.06f, 0.06f, 0.07f};
+	constexpr glm::vec3 kCrate{0.82f, 0.82f, 0.78f};
+	const entt::entity root = scene.create();
+	scene.emplace<Scene::TransformComponent>(root);
+	Part(scene, root, {0.0, 0.55, 0.0}, {}, {1.2f, 0.2f, 2.0f}, {kBox, kChassis, kPlating, {}});
+	Part(scene, root, {0.0, 1.2, -1.45}, {}, {1.1f, 0.45f, 0.55f}, {kBox, kCab, {}, {}});
+	Part(scene, root, {0.0, 1.35, -1.98}, {}, {0.9f, 0.2f, 0.02f}, {kBox, kCanopy, {}, {}});
+	Part(
+	    scene, root, {0.0, 1.72, -1.45}, {}, glm::vec3{0.12f},
+	    {kIco, kDoorLampColour, kLamp, Scene::Layer::Effects});
+	for (const double side : {-1.15, 1.15})
+		for (const double along : {-1.3, 1.3})
+			Part(
+			    scene, root, {side, 0.35, along}, {0.0f, 0.0f, kQuarter}, {0.35f, 0.15f, 0.35f},
+			    {kCylinder, kTyre, {}, {}});
+	// Its load: up to four crates on its bed, two by two, shown by ShowBuggyLoads.
+	BuggyLoad load{buggy, {}};
+	for (std::size_t index = 0; index < load.crates.size(); ++index)
+	{
+		const glm::dvec3 at{index % 2 == 0 ? -0.55 : 0.55, 1.25, index < 2 ? -0.15 : 1.0};
+		load.crates[index] = Part(scene, root, at, {}, glm::vec3{0.0f}, {kBox, kCrate, {}, {}});
+	}
+	scene.emplace<BuggyLoad>(root, load);
+	return root;
+}
+
+void ShowBuggyLoads(entt::registry &scene, const Sim::Snapshot &snapshot)
+{
+	for (const auto [entity, load] : scene.view<const BuggyLoad>().each())
+	{
+		const auto *buggy = snapshot.Get<Dock::Buggy>(load.buggy);
+		const std::int64_t crates = buggy ? buggy->crates : 0;
+		for (std::size_t index = 0; index < load.crates.size(); ++index)
+		{
+			auto &transform = scene.get<Scene::TransformComponent>(load.crates[index]);
+			const glm::vec3 scale{static_cast<std::int64_t>(index) < crates ? 0.48f : 0.0f};
+			if (transform.scale != scale)
+				transform.scale = scale;
+		}
+	}
 }
 } // namespace Jettison::App

@@ -40,6 +40,11 @@ glm::vec3 LargestHull(PadClass padClass);
 // road beside it.
 glm::vec2 PadSize(PadClass padClass);
 
+// How far aft of a pad's middle, along its centre line, the hatch of its class's largest hull is:
+// a fifth of that hull's length and a little more, where the dressing paints the keep-clear box and
+// the road graph's node for the pad's hatch is.
+float HatchAft(PadClass padClass);
+
 // A hull: its size, the pad class it lands on, and where its cargo hatch is, in its own axes from
 // its centre, which the deck's buggies drive to (9e). defs/hulls/<name>.yaml; its collision shape
 // is the box of its size (Docks::HullShape), whatever it is drawn as. The model is presentation's
@@ -91,10 +96,25 @@ struct Bay
 	glm::dvec3 normal{0.0, 1.0, 0.0};
 };
 
+// How a station's cargo crosses its deck (9e): the buggies each pad has, the crates a buggy carries
+// a trip and its speed on the roads. Working, the buggies are the simulation's, driven between the
+// pad's bay and its ship's hatch; otherwise they are parked on the deck as dressing and the cargo is
+// moved at the rate working buggies would move it, a buggy's load each round trip of the pad's road
+// shared among them, which costs a station nothing a step. Registered with Reflect as
+// "Dock.DeckTraffic", every field Saved and Moddable.
+struct DeckTraffic
+{
+	std::uint32_t buggies{3};
+	std::int64_t cratesPerTrip{4};
+	float speed{8.0f};
+	bool working{true};
+};
+
 // A station's layout: the decks (its hub and the blocks about it) and the piers that reach out from
-// them, both boxes, which the station collides as (DeckShape); its pads; and its cargo bays. A ship
-// given a pad that has not landed on it in the reservation's seconds loses it. defs/stations/
-// <name>.yaml. Registered with Reflect as "Dock.StationLayout", every field Saved and Moddable.
+// them, both boxes, which the station collides as (DeckShape); its pads; its cargo bays; and how its
+// cargo crosses the deck between them. A ship given a pad that has not landed on it in the
+// reservation's seconds loses it. defs/stations/<name>.yaml. Registered with Reflect as
+// "Dock.StationLayout", every field Saved and Moddable.
 struct StationLayout
 {
 	std::string displayName;
@@ -103,6 +123,7 @@ struct StationLayout
 	std::vector<PadLayout> pads;
 	std::vector<Bay> bays;
 	float reservationSeconds{300.0f};
+	DeckTraffic traffic{};
 };
 
 // The definitions' version, which the registry expects of every file.
@@ -117,10 +138,11 @@ void CheckHull(std::string_view name, const HullDefinition &hull);
 
 // Checks a layout the same way: boxes of positive size; at least one; each pad's normal and heading
 // of unit length and square to each other; each pad lying on the face of a deck or a pier, all of
-// it on the structure; no two pads overlapping; and nothing of the station over any pad, between it
+// it on the structure; no two pads overlapping; nothing of the station over any pad, between it
 // and the sphere about the station that holds it all (Radius), so a ship comes down onto it from
-// outside that sphere straight along its normal. Throws Serialise::FormatError naming the layout
-// and what does not fit.
+// outside that sphere straight along its normal; deck traffic of a buggy or more a pad, a crate or
+// more a trip and a speed; and, for a layout with bays, every pad not for display reached by road
+// from one (Roads). Throws Serialise::FormatError naming the layout and what does not fit.
 void CheckLayout(std::string_view name, const StationLayout &layout);
 
 // The radius of the smallest sphere about the station's centre holding its decks and piers.
