@@ -5,6 +5,7 @@
 jettison_add_module(app
 	DEPENDS
 		animation
+		audio
 		celestial
 		core
 		devtools

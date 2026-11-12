@@ -1,0 +1,6 @@
+# A trade the market filled, on the UI bus: the market screen's answer to a click.
+version: 1
+event: Shell.Traded
+sound: audio/ui/trade-filled.wav
+bus: Ui
+volume: 0.8

@@ -1,0 +1,7 @@
+# The clamps letting go, and the seal's air, heard from the station the ship left.
+version: 1
+event: Shell.ShipUndocked
+sound: audio/effects/undocked.wav
+bus: Effects
+at: station
+minDistance: 200

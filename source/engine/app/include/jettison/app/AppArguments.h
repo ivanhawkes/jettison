@@ -44,6 +44,10 @@ struct AppArguments
 	// GPUs, when no usable one has it.
 	std::string gpu;
 
+	// Sound played to miniaudio's null backend, in place of the machine's device: everything sounds
+	// as it would, at the pace it would, and nothing is heard or touches the sound system. The
+	// headless run always plays so.
+	bool noSound{false};
 	// Where the user's files go, in place of the XDG directories: settings under <dir>/config, saves
 	// under <dir>/data. The headless run with none named uses a directory of its own it removes as it
 	// ends, so a test neither reads nor writes the settings and saves of whoever runs it.

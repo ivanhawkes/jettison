@@ -28,7 +28,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | Jolt Physics | v5.6.0 | now | Double precision, deterministic across build types; physics links it privately |
 | FreeType | 2.15.0 | now | Answers RmlUi's `find_package(Freetype)`; RmlUi and ImGui both link it; ui links it, since 8b |
 | RmlUi | 6.3 | now | Private to ui, since 8b |
-| miniaudio | 0.11.26 | phase 8 | |
+| miniaudio | 0.11.26 | now | Private to audio, since 8c; Vorbis and Opus off, backends loaded at run time |
 | KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read` |
 | WAMR | 2.4.5 | phase 11 | Candidate runtime; the choice is still open |
 | zstd | none | phase 11 | **Held back**: KTX-Software already compiles zstd in |
@@ -53,7 +53,9 @@ planned set when phase 5a began to use it, so those trees fetch it too, and buil
 Debug build, and a 217 MiB clone on the first configure. Jolt left it when phase 7a did, and those trees build it
 too, for the physics suite they run under the sanitisers. FreeType and RmlUi left it when phase 8b
 did: ui links RmlUi, and ImGui rasterises with FreeType, so every tree builds both, and the headless
-trees run the UI's suite and draw its screens in the render test.
+trees run the UI's suite and draw its screens in the render test. miniaudio left it when phase 8c
+did: audio links it, so every tree builds it, the headless trees run the audio suite with no device,
+and the render test plays to miniaudio's null backend, touching no sound system.
 
 `JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
 listens on localhost only, so it costs nothing until a profiler connects. It is off by default,
@@ -347,8 +349,8 @@ and the saved games, are shown from the first frame, so the overlay is drawn in 
 every resize and the reload; the save stage lists its save on one. The trade stage reads the market
 screen of the station the ship is at: its station and its first good's stock have to be the ones the
 snapshot has, and its first Buy button, pressed, sends a trade the next step answers, whose answer
-the screen then has to show. In the orbit scene the ship is off the dock, so the answer is a refusal
-(the trade itself is the app suite's); the sample scene has no market, and the summary's `markets=`
+the screen then has to show, and to play on the UI bus. In the orbit scene the ship is off the dock,
+so the answer is a refusal (the trade itself is the app suite's); the sample scene has no market, and the summary's `markets=`
 and `trades=` say what was tried. The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and

@@ -1,0 +1,6 @@
+# A trade the market refused, saying why on the screen.
+version: 1
+event: Shell.TradeRefused
+sound: audio/ui/trade-refused.wav
+bus: Ui
+volume: 0.8

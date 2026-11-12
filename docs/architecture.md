@@ -414,6 +414,50 @@ what ImGui wants, the UI is not given. A document is the frame's size and lets t
 for its panels (`pointer-events`), so a click on a panel is the UI's (`UiSystem::WantsMouse`) and is
 not a pick or a camera drag, and a click beside it is.
 
+## Audio
+
+The game's sound is miniaudio behind `audio/AudioSystem.h` (8c), which names no miniaudio type.
+Sounds are read through the VFS (miniaudio's file callbacks over `Vfs::FileSystem`, a file read whole
+as it is opened, since the VFS has no streaming read), so a mod replaces a sound by shipping its file
+over the base one. miniaudio decodes WAV, FLAC and MP3 itself; its Vorbis and Opus decoders, system
+libraries, are off. Its messages go to the log under `audio`, a device's details at debug, and the
+warnings and errors among them, with every sound that would not play, are counted, which the render
+test holds at none.
+
+**Buses.** Five sound groups: master, and under it music, effects, UI and voice. A bus's volume
+scales what plays on it, and is eased over a few milliseconds rather than stepped, so a change does
+not click. The shell keeps the volumes in the settings (`audio.master`, `audio.music`, ...), set by
+the console's `volume`.
+
+**Sources.** A sound is played flat (the UI's, heard alike wherever the listener is), positioned (in
+the system frame in double precision, falling off with its distance as `minDistance / (minDistance +
+rolloff × (distance − minDistance))`, held beyond `maxDistance`), or as music (streamed: decoded a
+page at a time as it plays, on the music bus, one piece at a time). A short sound is decoded whole as
+it starts and shared by every play of it at once. The listener is the active camera. Audio is
+listener-relative as rendering is camera-relative: each frame `AudioSystem::Update` places every
+positioned source at its position less the listener's, as a float, with the listener at miniaudio's
+origin, so a station a hundred million kilometres from the primary is heard as precisely as one
+beside it. Doppler is off, since nothing reports velocities. A source is a generational handle: one
+that ended names nothing. `Audio::SoundSources` plays the presentation world's `SoundComponent`s, a
+looping sound on an entity heard from its world transform, started as the entity gains the
+component and stopped as it loses it or goes; the shell puts the station's hum on its station so.
+
+**Events.** What a simulation event sounds like is data: an `Audio::EventSound` definition under
+`defs/sounds`, through the definition registry, names the event's type as Reflect has it, a sound, a
+bus, a volume, and the event's entity field the sound is placed at, if any. `Audio::EventSounds`
+checks every definition against the types Reflect knows as it is made, and refuses one naming an
+event or a field that is not there, by the definition's name. The game decides which events reach
+it: the shell passes on those whose `ship` field is the player's ship, the screen's answers and the
+dock's, and places a sound at an entity where presentation shows it, between the last two steps. A
+sound placed at an entity presentation cannot place plays flat rather than not at all.
+
+**Output.** To the machine's playback device, or to miniaudio's null backend when a device will not
+open, or when asked (`--no-sound`, and always in the headless run): a device that plays to nowhere
+at a sound card's pace, so sounds start and end as they would be heard, and the sound system is
+never touched. With no device at all, the tests mix the output on their own thread (`Mix`), with the
+decoding jobs run there too, so what they hear is the same every run. With a device, miniaudio
+mixes on its device's thread and decodes streamed music on a job thread of its own.
+
 ## Coordinate frames and units
 
 SI units: metres, seconds, kilograms, radians. Right-handed, Y-up, as the scene format already
@@ -676,8 +720,8 @@ proves it headlessly. What exists:
 
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`), builds `Application`, and prints
-  any exception the run threw.
+  `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`), builds
+  `Application`, and prints any exception the run threw.
   `Application::Init` stages are user (the XDG data and configuration directories, or the ones under
   `--user-dir`, and the settings and bindings read from them), resources (the asset VFS with the
   user's data directory mounted writable over the base, the I/O worker, the resource manager and the
@@ -707,6 +751,11 @@ proves it headlessly. What exists:
   A save holds the world and the shell's own section, which entities are its ship, station and port.
   The console's `bind <context> <action> [bindings...]` rebinds an action, or says what it is bound
   to, and `unbind` puts it back; either writes the settings file, so a rebinding survives a restart.
+- **Sound** (8c). Music plays from the start (the console's `music` stops and starts it), the
+  station the ship is bound to hums as the camera nears it, the dock's clamps sound from the station
+  as the ship docks and undocks, and the market screen's answers sound on the UI bus
+  ([audio](#audio)). The console's `volume [bus] [volume]` sets a bus's volume and saves it with the
+  settings, or lists them.
 - **Smoke sequence**. `SmokeSequence` is the render test's twelve stages (resize, resize,
   minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, save and load,
   trade, jump, settle) as a state

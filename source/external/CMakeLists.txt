@@ -146,6 +146,26 @@ block()
 	FetchContent_MakeAvailable(RmlUi)
 endblock()
 
+# Audio, behind audio (phase 8c). The libvorbis and libopus decoders are off: each is a system library
+# found on one machine and not another, and miniaudio decodes WAV, FLAC and MP3 itself. Its playback
+# backends (PulseAudio, ALSA, JACK) are loaded at run time, not linked. In every tree since 8c.
+block()
+	set(MINIAUDIO_NO_LIBVORBIS ON)
+	set(MINIAUDIO_NO_LIBOPUS ON)
+	set(MINIAUDIO_BUILD_EXAMPLES OFF)
+	set(MINIAUDIO_BUILD_TESTS OFF)
+	set(MINIAUDIO_BUILD_TOOLS OFF)
+	FetchContent_Declare(
+	  miniaudio
+	  GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+	  GIT_TAG 0.11.26
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(miniaudio)
+endblock()
+
 FetchContent_Declare(
   imgui
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -437,26 +457,6 @@ option(JETTISON_PLANNED_DEPENDENCIES
 	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
 
 if(JETTISON_PLANNED_DEPENDENCIES)
-
-# Audio (phase 8). The libvorbis and libopus decoders are off: each is a system library found on
-# one machine and not another, and miniaudio decodes WAV, FLAC and MP3 itself. Its playback
-# backends (PulseAudio, ALSA, JACK) are loaded at run time, not linked.
-block()
-	set(MINIAUDIO_NO_LIBVORBIS ON)
-	set(MINIAUDIO_NO_LIBOPUS ON)
-	set(MINIAUDIO_BUILD_EXAMPLES OFF)
-	set(MINIAUDIO_BUILD_TESTS OFF)
-	set(MINIAUDIO_BUILD_TOOLS OFF)
-	FetchContent_Declare(
-	  miniaudio
-	  GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-	  GIT_TAG 0.11.26
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(miniaudio)
-endblock()
 
 # Scripting (phase 11). WAMR is the candidate runtime; docs/roadmap.md leaves the choice open
 # against wasmtime until the phase starts. WAMR's top-level CMakeLists.txt is the build for

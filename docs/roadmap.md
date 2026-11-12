@@ -4,18 +4,14 @@ The order is set by what is expensive to change later, then by what later work s
 is not set by what looks good in a screenshot. Architectural decisions (layout, the
 simulation split, coordinate precision, colour space, serialisation) come before the systems
 that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
-commit that did it in the history. Phases 0–7, and the catalogue entries for the systems they
+commit that did it in the history. Phases 0–8, and the catalogue entries for the systems they
 built, are recorded in [history](history.md).
 
 ## Phases
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| 0–7 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight. Recorded in [history](history.md). | Met. |
-| 8 | **UI, audio and persistence.** Sub-phases 8a–8c; catalogue entries 23, 24 and 25. | A market screen bound to simulation data; a save written by version N loads in N+1. |
-| 8a | **Persistence.** Done 2026-11-12. Migrations as a chain of steps per format (`serialise/Migration.h`), each from one version to the next, run by the readers given one: a binary step edits the archive as a document (its table of names, through which a name is renamed everywhere, and its payload), a YAML step the parsed tree, its lines kept for errors; a version newer than the build's or one the chain does not reach is refused by name. The world's save migrates from version 1 (before services) to 2. A save game (`sim/SaveGame.h`, `Jettison.Save` version 1): its info (the name, the engine version, when, the world's clock, the galaxy's file and the system shown), the world's save and the game's sections, each part versioned on its own. Definitions migrate ([decided](#decided)). Every whole-file write, the VFS's and the settings file's, is durable (`Core::WriteFileDurably`: fsync, rename, the directory fsynced). The shell's settings and bindings in the XDG configuration directory, apart from saves in the data directory, which is mounted writable over the base; a joystick a binding names is named after its device by GUID (`input/Joysticks.h`); `bind`, `unbind`, `save`, `load` and `saves` in the console, and F5 and F9; the shell's ship in a section of its own; the smoke sequence gains a save stage. | Met: the sim suite loads a world saved by the phase 6d build at version 1 (`world-v1.save`, commit `a5d0c83`), through its migration, into exactly the save this build makes at the same step, which steps on to the pinned hash of the whole run; `save-v1.save`, the save game's first version, is kept for every later build to load. The app suite rebinds an action and a joystick, restarts on the settings file and finds both, and puts one back and finds that; in the shell, run headless twice on one user directory, a key rebound in the console in the first run jumped in the second. The smoke test saves and loads in both scenes, each loading back to the state hash saved, under validation. |
-| 8b | **UI.** Done 2026-11-12. RmlUi behind `ui/UiSystem.h`, with no RmlUi type in its interface: documents, stylesheets, templates, fonts and images read through the VFS, its messages through the log under `ui`, counted. It draws into `Render::Overlay` (`render/Overlay.h`), a plain draw list the renderer draws in the output pass after the tonemap and under the dev tools, with the `overlay` program, uploading a texture as a draw first names it and releasing it once the overlay lets it go (`vulkan/OverlayRenderer.h`; the texture upload shared with materials, `vulkan/TextureUpload.h`). FreeType in every tree, linked by RmlUi's font engine and by ImGui's rasteriser (`imgui_freetype`). Data models (`ui/DataModel.h`) bind any type registered with Reflect, read in place through the field addresses `Reflect::TypeBuilder::Field` now records (`Reflect::AddressOf`), and events that become commands; snapshots carry the components a world shows (`SimWorld::ShowInSnapshots`, `Snapshot::Components`, `Snapshot::Get`). The shell feeds the UI the window's events in order, from GLFW callbacks chained over ImGui's, and a click on a panel is not a pick. The sample game's first slice, from the Civilisation Simulation's plan ([sample game](sample-game.md)): eight goods and two markets as definitions, prices by scarcity and a listing fee, market ticks, the ship's hold and credits, and trading when docked (`app/src/Trading.h`); the market screen (M) and the saved-games screen (L, the load screen carried from 8a); the smoke sequence gains a trade stage. | Met: the market screen shows the market of the station the ship is at, made from the simulation's snapshot and never from the world, and its Buy sends a trade the step answers, which the screen shows: in the app suite, through `ui/market.rml` itself, with a mouse click a single trade; in the render test's orbit scene under validation, its station and stock checked against the snapshot and the refusal of an undocked ship shown; and in the shell on Xvfb, flown into Ostra Highport's port, docked, and bought from by mouse. The UI suite holds RmlUi to the VFS (a mod's stylesheet shadows the base's), to the overlay, and to the data model; the render test fails on any warning RmlUi logs. |
-| 8c | **Audio.** miniaudio; buses (music, effects, UI, voice) with volumes from settings; 3D sources on presentation entities; streamed music; simulation events mapped to sounds. | A simulation event plays a positioned sound on the effects bus, and music streams. |
+| 0–8 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence. Recorded in [history](history.md). | Met. |
 | 9 | **AI.** Sub-phases 9a–9c; catalogue entry 26. | Automated traders choose trades, plot routes across systems and fly them without collisions. |
 | 9a | **Pathfinding.** A* over the jump-lane graph and over in-system waypoints. | Routes are tested against known shortest paths, and the same every run. |
 | 9b | **Steering.** Seek, arrive, obstacle avoidance and separation, over the spatial index and physics. | A group of ships reaches a station without colliding. |
@@ -43,7 +39,7 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–7, 8a and 8b moved on, and where it lands. Their full record, and catalogue entries 1–22,
+Work that phases 1–8 moved on, and where it lands. Their full record, and catalogue entries 1–25,
 are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
@@ -74,8 +70,12 @@ are in [history](history.md).
   changes (RmlUi keeps a stylesheet for the run); a document's images decoded on the I/O worker
   rather than as the document lays out, which is on the main thread and fine for a screen's icons;
   RmlUi's debugger in the dev tools.
-- **The sample game's later slices** ([sample game](sample-game.md)): sounds for its events (8c),
-  traders that choose, plot and fly trades, and the ship's crossing of a lane (9), CivSim's order
+- **The audio, not yet placed** (entry 24, 8c): music that crossfades between pieces and a playlist
+  to choose them; Doppler, once something reports velocities to presentation; the ship's own sounds
+  (its engines, the cockpit's) and occlusion by hulls; a sound file streamed from its mount rather
+  than read whole, which waits on a streaming read in the VFS, with its pack files (entry 10). The
+  voice bus has nothing on it yet.
+- **The sample game's later slices** ([sample game](sample-game.md)): traders that choose, plot and fly trades, and the ship's crossing of a lane (9), CivSim's order
   book, the economy's turns and the skill tree's effects, then scripting (11).
 - **Pack files and their compression** behind the VFS (entry 10), and definition layering finer
   than whole-file replacement (entry 13): 11a.
@@ -157,7 +157,7 @@ tested; everything that would need an algorithm throws.
 In priority order. Each entry is the brief for its stub. *Library* is the chosen dependency.
 *Stub* names what phase 1 declares.
 
-Entries 1–22, for phases 1–7, are in [history](history.md#system-catalogue-entries-122). The
+Entries 1–25, for phases 1–8, are in [history](history.md#system-catalogue-entries-125). The
 numbers carry on here.
 
 ### Shaders · phase 10
@@ -172,52 +172,6 @@ Phase 10 adds atmosphere, planet surface, particle and glass programs on the sam
 through the same include, and the post chain's programs. Shader variants are compile-time defines
 on one source (`jettison_compile_shader_variant`). Programs do not hot-reload yet; materials and
 textures do.
-
-### 23. UI · phase 8 · `engine/ui`
-
-RmlUi rendered through the Vulkan backend, with documents and stylesheets loaded through the
-VFS so mods can restyle. Data models bound to simulation snapshots, never to simulation state
-directly. Fonts through FreeType, shared with ImGui.
-*Library*: RmlUi, FreeType.
-
-*Filled in* (8b): `Ui::UiSystem` is RmlUi behind an engine interface, one at a time in a process,
-with RmlUi's file interface over the VFS, its system interface over the presentation clock and the
-log, and its render interface recording into `Render::Overlay`, which the renderer draws
-([architecture](architecture.md#ui)). `Ui::DataModel` binds variables of any reflected type by
-address and events by name; the snapshots it reads are the simulation's, carrying the components a
-world shows. FreeType is linked by RmlUi and ImGui alike. The shell's market and saved-games screens
-are its first documents (`assets/ui`), over the sample game's first slice
-([sample game](sample-game.md)).
-
-### 24. Audio · phase 8 · `engine/audio`
-
-Buses (music, effects, UI, voice), 3D sources attached to presentation entities, streamed music,
-and simulation events mapped to sounds.
-*Library*: miniaudio.
-
-### 25. Persistence · phase 8 · `engine/serialise`, `engine/sim`
-
-Save games of the simulation world and the galaxy, with format version and engine version.
-Migrations are a chain of functions from version N to N+1. Settings and keybindings are stored
-apart from saves.
-*Filled in* (8a): a format's migrations are a chain of steps, one from each version to the next,
-which the readers run when they are given them (`Serialise::Migrations`, `BinaryArchive::Read`,
-`YamlArchive::Read`, `BinaryReader`, `DefinitionRegistry::Load`). A binary step edits a
-`BinaryDocument`, the archive's table of names and its payload: a name renamed in the table is
-renamed everywhere it is used, which is how a field, a component, a command or an enumerator is
-renamed; a step that needs the old types reads the old version with them and writes the new. A YAML
-step edits the parsed tree, which keeps the lines errors name. The world's save migrates from version
-1, which had no services' state. `Sim::SaveGame` is the save file, `Jettison.Save` at version 1: a
-`SaveInfo` first (the player's name for it, `Core::EngineVersion()`, when it was written by the wall
-clock, which the caller sets, the world's step and time, the galaxy by its file, the system shown),
-then the world's save and the game's named sections, each a binary archive of its own format,
-version and migrations; the save game reads none of them. Writes are durable
-(`Core::WriteFileDurably`, through which `Vfs::FileSystem::Write` and `Config::SaveUserLayer` go).
-Settings and bindings are one file in the configuration directory, the config's user layer, with
-the input system's overrides in it and the joysticks' devices beside them (`Input::JoystickMap`,
-under `input.devices.joystick<N>`); a binding reset to its default is taken out of it
-(`Config::Unset`), where before it stayed and came back on the next load. The shell is the first
-user ([architecture](architecture.md#persistence)).
 
 ### 26. AI · phase 9 · `engine/ai`
 

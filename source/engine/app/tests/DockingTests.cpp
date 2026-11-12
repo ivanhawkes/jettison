@@ -1,14 +1,19 @@
 #include "../src/Docking.h"
+#include "../src/Trading.h"
 
 #include <doctest/doctest.h>
 
 #include <vector>
 
+#include <jettison/audio/AudioSystem.h>
+#include <jettison/audio/EventSounds.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/vfs/FileSystem.h>
 
 using namespace Jettison;
 using App::Docked;
@@ -147,4 +152,67 @@ TEST_CASE("Docking: a ship slow enough in a station's port docks, and undocks as
 	yard.Fly(0.0f, 1);
 	CHECK_FALSE(registry.all_of<Docked>(yard.ship));
 	CHECK(yard.Raised<ShipUndocked>().size() == 2);
+}
+
+TEST_CASE(
+    "Docking: the shipped sounds play a docking and an undocking on the effects bus, from the station")
+{
+	Vfs::FileSystem files;
+	files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+	Audio::RegisterTypes();
+	Sim::DefinitionRegistry definitions(files);
+	definitions.Load<Audio::EventSound>(Audio::kEventSoundDirectory, {Audio::kEventSoundVersion});
+
+	Dockyard yard;
+	// The definitions name the trading events too, which registering trading on a world of its own
+	// gives Reflect without a market in the yard.
+	Sim::SimWorld traders{kStep, 3};
+	App::RegisterTrading(traders);
+	const Audio::EventSounds sounds(definitions);
+	Audio::AudioSystem audio(files, {.output = Audio::Output::None});
+	// The station is at the origin, and the listener 60 m to its +X looking down -Z: the station is
+	// on the listener's left.
+	audio.SetListener({60.0, 0.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0});
+	const Audio::PositionOf positionOf = [&](entt::entity entity) -> std::optional<glm::dvec3>
+	{
+		const auto *at = yard.world.Registry().try_get<Sim::Transform>(entity);
+		return at ? std::optional{at->position} : std::nullopt;
+	};
+	const auto heard = [&]
+	{
+		std::vector<float> buffer(std::size_t{2} * 4800);
+		float left = 0.0f;
+		float right = 0.0f;
+		for (int chunk = 0; chunk < 20; ++chunk)
+		{
+			audio.Mix(buffer);
+			for (std::size_t i = 0; i < buffer.size(); i += 2)
+			{
+				left = std::max(left, std::abs(buffer[i]));
+				right = std::max(right, std::abs(buffer[i + 1]));
+			}
+			audio.Update();
+		}
+		return std::pair{left, right};
+	};
+	const auto effects = [&]
+	{ return audio.Counters().started[static_cast<std::size_t>(Audio::Bus::Effects)]; };
+
+	yard.Fly(0.1f, 150);
+	yard.Fly(0.0f, 120);
+	for (const Sim::SimEvent &event : yard.events)
+		sounds.Play(event, audio, positionOf);
+	CHECK(effects() == 1);
+	const auto [dockLeft, dockRight] = heard();
+	CHECK(dockLeft > 0.1f);
+	CHECK(dockLeft > 1.5f * dockRight);
+
+	yard.events.clear();
+	yard.Fly(-0.2f, 240);
+	for (const Sim::SimEvent &event : yard.events)
+		sounds.Play(event, audio, positionOf);
+	CHECK(effects() == 2);
+	const auto [undockLeft, undockRight] = heard();
+	CHECK(undockLeft > 1.5f * undockRight);
+	CHECK(audio.Problems() == 0);
 }

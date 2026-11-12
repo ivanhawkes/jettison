@@ -70,6 +70,18 @@ void RegisterTypes()
 		    .Field<&Trade::market>("market", Attribute::Saved)
 		    .Field<&Trade::good>("good", Attribute::Saved)
 		    .Field<&Trade::crates>("crates", Attribute::Saved);
+		// The events, by name, so data can map them to sounds (Audio::EventSound); not saved.
+		RegisterType<Traded>("Shell.Traded")
+		    .Field<&Traded::ship>("ship")
+		    .Field<&Traded::market>("market")
+		    .Field<&Traded::good>("good")
+		    .Field<&Traded::crates>("crates")
+		    .Field<&Traded::price>("price")
+		    .Field<&Traded::credits>("credits");
+		RegisterType<TradeRefused>("Shell.TradeRefused")
+		    .Field<&TradeRefused::ship>("ship")
+		    .Field<&TradeRefused::good>("good")
+		    .Field<&TradeRefused::reason>("reason");
 		return true;
 	}();
 	(void)registered;

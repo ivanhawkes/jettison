@@ -13,6 +13,10 @@ what you say, so precision matters more than completeness.
 - Use the LSP tool (clangd, compile database in `build/clang-debug`) for definitions and
   references before grepping. Use `grep -rn` / `find` through Bash otherwise.
 - Dependency sources are in `build/clang-debug/_deps/<name>-src`; their headers are the authority.
+- Spend as few tool calls as the question allows. Start with one combined command (for example
+  `grep -rn 'Name' source/engine/<module>` piped through `head`, or `sed -n` over the range you
+  need) and widen only if that does not answer it. Do not open whole files to confirm what a grep
+  line already shows. Stop as soon as the question is answered.
 - Answer with `path:line` references and the few lines that matter, quoted exactly. Say plainly
   when you could not find something, or when the answer is uncertain; do not guess.
 - Keep the reply under about 300 words unless the question asks for a list.

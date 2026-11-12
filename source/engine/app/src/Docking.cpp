@@ -27,6 +27,13 @@ void RegisterTypes()
 		    .Field<&DockingPort::station>("station", Attribute::Saved)
 		    .Field<&DockingPort::maxSpeed>("maxSpeed", Attribute::Saved);
 		RegisterType<Docked>("Shell.Docked").Field<&Docked::port>("port", Attribute::Saved);
+		// The events, by name, so data can map them to sounds (Audio::EventSound); not saved.
+		RegisterType<ShipDocked>("Shell.ShipDocked")
+		    .Field<&ShipDocked::ship>("ship")
+		    .Field<&ShipDocked::station>("station");
+		RegisterType<ShipUndocked>("Shell.ShipUndocked")
+		    .Field<&ShipUndocked::ship>("ship")
+		    .Field<&ShipUndocked::station>("station");
 		return true;
 	}();
 	(void)registered;

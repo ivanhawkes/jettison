@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -28,6 +29,7 @@
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/profile/Profile.h>
+#include <jettison/reflect/Reflect.h>
 #include <jettison/render/Camera.h>
 #include <jettison/render/IRenderer.h>
 #include <jettison/render/Overlay.h>
@@ -37,6 +39,7 @@
 #include <jettison/scene/Scene.h>
 #include <jettison/scene/SystemScene.h>
 #include <jettison/sim/SaveGame.h>
+#include <jettison/sim/Snapshot.h>
 
 #include "Docking.h"
 #include "Saves.h"
@@ -86,6 +89,20 @@ constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/DroidSans.ttf", true},
 }};
 // In the smoke run nothing presses a key: the ship flies ahead at a fifth of its speed.
+// The shell's music, and the hum of the station the ship is bound to: heard at its full volume within
+// a few hundred metres of the station's centre, as a station is that size, and fading to a murmur
+// two kilometres out.
+constexpr std::string_view kMusic = "audio/music/drift.flac";
+constexpr std::string_view kStationHum = "audio/effects/station-hum.wav";
+constexpr Audio::Falloff kStationHumFalloff{300.0f, 20000.0f, 1.0f};
+constexpr float kStationHumVolume = 0.6f;
+
+// A bus's volume in the settings: audio.master, audio.music, ...
+std::string VolumeKey(Audio::Bus bus)
+{
+	return std::format("audio.{}", Audio::BusName(bus));
+}
+
 constexpr Physics::FlightControls kSmokeFlight{{0.0f, 0.0f, -0.2f}, {0.0f, 0.05f, 0.1f}};
 
 // Minimizing is X11-only: on Wayland a minimized surface leaves the frame loop parked in
@@ -269,6 +286,57 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    });
 
 	m_console.RegisterCommand(
+	    "volume",
+	    "Sets a bus's volume and saves the settings, or says what the volumes are: volume [bus] [0 to "
+	    "4], a bus being master, music, effects, ui or voice",
+	    [this](DevTools::Console &console, std::span<const std::string> arguments)
+	    {
+		    if (!m_pAudio)
+			    return;
+		    if (arguments.empty())
+		    {
+			    for (const Audio::Bus bus : Audio::kBuses)
+				    console.Print(
+				        std::format("{} {:.2f}", Audio::BusName(bus), m_pAudio->BusVolume(bus)));
+			    return;
+		    }
+		    const std::optional<Audio::Bus> bus = Audio::BusFromName(arguments[0]);
+		    if (!bus)
+		    {
+			    console.PrintError(std::format("No bus is called '{}'", arguments[0]));
+			    return;
+		    }
+		    if (arguments.size() > 1)
+		    {
+			    float volume = 0.0f;
+			    const std::string &text = arguments[1];
+			    const auto [end, error] =
+			        std::from_chars(text.data(), text.data() + text.size(), volume);
+			    if (error != std::errc{} || end != text.data() + text.size() || !(volume >= 0.0f))
+			    {
+				    console.PrintError(std::format("'{}' is not a volume", text));
+				    return;
+			    }
+			    m_pAudio->SetBusVolume(*bus, volume);
+			    m_settings->Values().SetNumber(
+			        Core::ConfigLayer::User, VolumeKey(*bus), m_pAudio->BusVolume(*bus));
+			    SaveSettings();
+		    }
+		    console.Print(std::format("{} {:.2f}", Audio::BusName(*bus), m_pAudio->BusVolume(*bus)));
+	    });
+	m_console.RegisterCommand(
+	    "music", "Starts or stops the music: music [on|off]",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    if (!m_pAudio)
+			    return;
+		    const bool on = arguments.empty() ? !m_pAudio->IsPlaying(m_music) : arguments[0] != "off";
+		    if (on)
+			    m_music = m_pAudio->PlayMusic(kMusic);
+		    else
+			    m_pAudio->StopMusic();
+	    });
+	m_console.RegisterCommand(
 	    "market", "Shows or hides the market screen: market [on|off]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { ShowMarket(arguments.empty() ? !m_showMarket : arguments[0] != "off"); });
@@ -433,6 +501,20 @@ void Application::RegisterFrameSystems()
 		     Scene::UpdateOrbitCameras(registry, deltaTime);
 		     Scene::UpdatePilotCameras(registry, deltaTime);
 	     }});
+	// After the cameras, so the listener is where this frame's camera is, and after the world
+	// transforms the sources follow.
+	m_frame.Register(
+	    {"audio.update",
+	     TickPhase::Presentation,
+	     Access::Of<
+	         WorldTransformComponent, Scene::CameraPoseComponent, Scene::CelestialBodyComponent>()
+	         .Writing<Audio::SoundComponent>(),
+	     {"camera.rig"},
+	     [this](entt::registry &registry, double)
+	     {
+		     JETTISON_PROFILE_ZONE("audio.update");
+		     UpdateAudio(registry);
+	     }});
 	m_frame.Register(
 	    {"scene.debug",
 	     TickPhase::Presentation,
@@ -589,6 +671,11 @@ void Application::Run()
 		throw std::runtime_error(
 		    "The game UI logged " + std::to_string(m_uiProblems) +
 		    " warnings and errors (see the log)");
+	// A sound that would not play, or a warning from miniaudio, is a sound the player would not hear.
+	if (m_smokeSequence && m_audioProblems != 0)
+		throw std::runtime_error(
+		    "The audio logged " + std::to_string(m_audioProblems) +
+		    " warnings and errors (see the log)");
 	if (m_smokeSequence)
 	{
 		const Render::ClusterCheckTotals &checks = m_clusterChecks;
@@ -617,6 +704,7 @@ void Application::Init()
 	InitRenderer();
 	InitWindow();
 	InitUi();
+	InitAudio();
 	// The headless run renders the dev tools, the demo window and the console: the UI path is part of
 	// what the render test exercises, and an interactive run starts without it and asks for it with F1.
 	m_showUI = m_arguments.smokeTest;
@@ -781,6 +869,92 @@ void Application::InitUi()
 	// every stage the render test walks, and the save stage lists its save on one of them.
 	ShowMarket(m_arguments.smokeTest);
 	ShowSaves(m_arguments.smokeTest);
+}
+
+
+void Application::InitAudio()
+{
+	Audio::AudioOptions options;
+	options.output =
+	    m_arguments.smokeTest || m_arguments.noSound ? Audio::Output::Null : Audio::Output::Device;
+	m_pAudio = std::make_unique<Audio::AudioSystem>(m_assets, options);
+	for (const Audio::Bus bus : Audio::kBuses)
+		m_pAudio->SetBusVolume(bus, SettingVolume(bus));
+
+	// After the docking and trading events are registered, in the constructor: a definition naming an
+	// event Reflect does not know is refused here, by name.
+	Audio::RegisterTypes();
+	m_definitions->Load<Audio::EventSound>(
+	    Audio::kEventSoundDirectory, Serialise::FormatVersion{Audio::kEventSoundVersion});
+	m_eventSounds.emplace(*m_definitions);
+	Core::Log(
+	    Core::Severity::Info, kShell, "{} event sounds for {} events", m_eventSounds->Sounds(),
+	    m_eventSounds->Events());
+	m_music = m_pAudio->PlayMusic(kMusic);
+}
+
+
+float Application::SettingVolume(Audio::Bus bus)
+{
+	if (!m_settings)
+		return 1.0f;
+	return static_cast<float>(m_settings->Values().GetNumber(VolumeKey(bus)).value_or(1.0));
+}
+
+
+std::uint64_t Application::UiSounds() const
+{
+	return m_pAudio ? m_pAudio->Counters().started[static_cast<std::size_t>(Audio::Bus::Ui)] : 0;
+}
+
+
+void Application::UpdateAudio(entt::registry &registry)
+{
+	if (!m_pAudio)
+		return;
+	const Render::CameraView view = Render::ActiveCameraView(registry);
+	m_pAudio->SetListener(view.position, view.orientation);
+	// The station the ship is bound to hums, from wherever the system scene put it; a jump's new
+	// system scene makes a new one, which hums once it is there.
+	if (!m_stationBody.empty())
+		for (const auto [entity, celestial] :
+		     registry.view<const Scene::CelestialBodyComponent>().each())
+			if (celestial.body == m_stationBody && !registry.all_of<Audio::SoundComponent>(entity))
+			{
+				Audio::SoundComponent hum;
+				hum.sound = kStationHum;
+				hum.volume = kStationHumVolume;
+				hum.falloff = kStationHumFalloff;
+				registry.emplace<Audio::SoundComponent>(entity, std::move(hum));
+			}
+	m_soundSources.Update(registry, *m_pAudio);
+	m_pAudio->Update();
+}
+
+
+void Application::PlayEventSound(const Sim::SimEvent &event)
+{
+	if (!m_pAudio || !m_eventSounds)
+		return;
+	// The player's own ship's events, the ones about it by its "ship" field: another ship's docking or
+	// a trader's trade (phase 9) is not the player's to hear from the market screen.
+	const entt::meta_type type = event.event.type();
+	const entt::meta_data ship = type ? Reflect::FindField(type, "ship") : entt::meta_data{};
+	if (!ship)
+		return;
+	const entt::meta_any value = ship.get(event.event);
+	const auto *pShip = value.try_cast<entt::entity>();
+	if (pShip == nullptr || *pShip != m_ship)
+		return;
+	// Where presentation shows the entity this frame: between the last two steps, as the scene does.
+	m_eventSounds->Play(
+	    event, *m_pAudio,
+	    [this](entt::entity entity) -> std::optional<glm::dvec3>
+	    {
+		    const std::optional<Sim::Transform> at = Sim::Interpolate(
+		        m_simStepper.Previous(), m_simStepper.Current(), entity, m_simStepper.Alpha());
+		    return at ? std::optional{at->position} : std::nullopt;
+	    });
 }
 
 
@@ -961,6 +1135,7 @@ void Application::RunFrameLoop()
 	m_frameWidth = m_pRenderer->FrameWidth();
 	m_frameHeight = m_pRenderer->FrameHeight();
 	m_uiProblems = m_pUi ? m_pUi->Problems() : 0;
+	m_audioProblems = m_pAudio ? m_pAudio->Problems() : 0;
 	Shutdown();
 }
 
@@ -1627,6 +1802,7 @@ SmokeActions Application::MakeSmokeActions()
 			return false;
 		}
 		m_smokeTradeAnswers = m_tradeAnswers;
+		m_smokeUiSounds = UiSounds();
 		return m_pUi->Click(m_marketDocument, "buy-0");
 	};
 	actions.trading = [this] { return m_tradeAnswers == m_smokeTradeAnswers; };
@@ -1637,7 +1813,12 @@ SmokeActions Application::MakeSmokeActions()
 			Core::Log(
 			    Core::Severity::Error, kShell,
 			    "The market screen says '{}', and the trade's answer was '{}'", shown, m_tradeMessage);
-		return !m_tradeMessage.empty() && shown == m_tradeMessage;
+		// The answer is heard as well as shown: filled or refused, it plays on the UI bus.
+		if (UiSounds() == m_smokeUiSounds)
+			Core::Log(
+			    Core::Severity::Error, kShell, "The trade's answer '{}' played no sound",
+			    m_tradeMessage);
+		return !m_tradeMessage.empty() && shown == m_tradeMessage && UiSounds() > m_smokeUiSounds;
 	};
 	actions.jump = [this] { return Jump(); };
 	actions.jumping = [this] { return m_jump->Active(); };
@@ -1661,6 +1842,10 @@ void Application::Shutdown() noexcept
 		// The window's callbacks go before the window does.
 		m_glfwInput.Detach();
 		// The UI holds no device object: the renderer's copies of its textures go with the renderer.
+		if (m_pAudio)
+			m_soundSources.Clear(*m_pAudio);
+		m_eventSounds.reset();
+		m_pAudio.reset();
 		m_pMarketModel = nullptr;
 		m_pSavesModel = nullptr;
 		m_pUi.reset();
@@ -2103,6 +2288,7 @@ void Application::TakeEvents()
 {
 	for (const Sim::SimEvent &event : m_sim.Events().Take())
 	{
+		PlayEventSound(event);
 		if (const auto *picked = event.event.try_cast<Physics::Picked>())
 		{
 			// An answer to a pick since superseded is not what the mouse last asked about.

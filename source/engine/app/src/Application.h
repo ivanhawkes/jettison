@@ -10,6 +10,9 @@
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
+#include <jettison/audio/AudioSystem.h>
+#include <jettison/audio/EventSounds.h>
+#include <jettison/audio/SoundSources.h>
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/devtools/Console.h>
 #include <jettison/devtools/Views.h>
@@ -121,6 +124,17 @@ class Application
 	// The game UI over the window (docs/architecture.md, "UI"): its fonts, the market screen's data
 	// model and document, read through the asset tree.
 	void InitUi();
+	// The game's sound (docs/architecture.md, "Audio"): the mixer, its buses' volumes from the
+	// settings, the event sounds the definitions name, and the music. Needs no window.
+	void InitAudio();
+	// The listener at the camera, the station's hum on the station, and the mixer's frame.
+	void UpdateAudio(entt::registry &registry);
+	// The bus's volume from the settings, or 1 when they name none.
+	float SettingVolume(Audio::Bus bus);
+	// Plays what the data maps the event to, when it is about the player's ship.
+	void PlayEventSound(const Sim::SimEvent &event);
+	// Sounds started on the UI bus, which the smoke run's trade has to add to.
+	std::uint64_t UiSounds() const;
 
 	// The frame's systems, one or two to a phase; registered in the constructor, so a mistake in
 	// the order is a start-up error, before a window opens.
@@ -399,6 +413,16 @@ class Application
 	// The game UI: RmlUi, drawing into the overlay the renderer draws over the scene. Made after the
 	// window, so its size is the frame's, and released before the renderer.
 	std::unique_ptr<Ui::UiSystem> m_pUi;
+	// The game's sound, which the events of the player's own ship play through. Released before the
+	// UI; it holds nothing of the renderer's.
+	std::unique_ptr<Audio::AudioSystem> m_pAudio;
+	std::optional<Audio::EventSounds> m_eventSounds;
+	Audio::SoundSources m_soundSources;
+	Audio::SourceHandle m_music;
+	// The warnings and errors the audio logged over the run, and the sounds that would not play,
+	// which the headless run holds at none; and the UI's sounds when the smoke run's trade was sent.
+	std::size_t m_audioProblems{0};
+	std::uint64_t m_smokeUiSounds{0};
 	Ui::DataModel *m_pMarketModel{nullptr};
 	Ui::DocumentHandle m_marketDocument;
 	bool m_showMarket{false};

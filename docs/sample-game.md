@@ -53,6 +53,8 @@ modules, in the engine's style, and the game takes it over from there.
 | Trade when docked | A `Trade` command, buy or sell, applied in the step: refused, saying why, for a ship not docked at the market's station, too few crates on the shelf or in the hold, too few credits or too little room. | 8b |
 | A trader's screen | The market screen (M): the station's goods, stock, bid and ask, what the ship holds, and the best bid among the other markets, with Buy and Sell by one crate or ten. Bound to the simulation's snapshots. | 8b |
 | Saved games | Markets, holds and purses are simulation state, saved with the world; the saved-games screen (L) loads one. | 8b |
+| A market's answer you hear | A trade filled and a trade refused sound on the UI bus, two notes rising and two falling (`assets/defs/sounds`), mapped from the events by data. | 8c |
+| A station you come home to | Docking and undocking sound on the effects bus from the station, the clamps closing and letting go; the station hums as the ship nears it; a loop of music plays. All synthesised by `scripts/make-sample-sounds.py`, so nothing in them is anyone else's. | 8c |
 
 The two stations are in different systems, and the ship cannot yet cross a lane (the simulation's
 jump is [carried forward](roadmap.md#carried-forward) to 9a), so the arbitrage the screen shows
@@ -62,8 +64,6 @@ between Ostra's grain and Corva's metal is one the player sees and cannot yet fl
 
 Each slice lands with the engine system it exercises:
 
-- **8c, audio.** A trade filled and a trade refused as sounds on the UI bus; docking and undocking
-  on the effects bus.
 - **9, AI.** Automated traders, the plan's other ships: they read the same markets, choose trades by
   utility (which good, which route, which station), plot routes across the lanes and fly them. This
   is where the ship crossing a lane arrives, and with it the first arbitrage a player can fly.

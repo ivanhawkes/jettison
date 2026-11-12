@@ -44,7 +44,7 @@ void PrintUsage(const char *argv0)
 	          << " [--smoke-test] [--assets <directory>] [--scene <file> | --system <virtual path>]"
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
 	             " [--depth-prepass] [--galaxy <virtual path>] [--user-dir <directory>]"
-	             " [--gpu <name>]\n";
+	             " [--gpu <name>] [--no-sound]\n";
 }
 } // namespace
 
@@ -70,6 +70,8 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.saveScenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--depth-prepass")
 			arguments.depthPrepass = true;
+		else if (argument == "--no-sound")
+			arguments.noSound = true;
 		else if (argument == "--gpu" && index + 1 < argc)
 			arguments.gpu = argv[++index];
 		else if (argument == "--user-dir" && index + 1 < argc)
