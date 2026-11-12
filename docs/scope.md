@@ -14,7 +14,7 @@ most of the list:
 | Question | Decision |
 |---|---|
 | Ship movement | **Piloted and managed.** The player can fly a ship directly (cockpit and chase cameras, collisions with stations); the rest of the fleet is automated. |
-| Multiplayer | **Single-player, split simulation.** A deterministic simulation runs as an in-process "local server", separate from presentation. No networking. |
+| Multiplayer | **Single-player first, split simulation; multiplayer in time** (2026-11-12). A deterministic simulation runs as an in-process "local server", separate from presentation. No networking yet, but the simulation is planned for several players: commands carry who sent them, and shared facilities (a station's pads, its queue, its bays) are given by the step in command order. |
 | Modding | **Data packs plus Wasm scripts.** Content is data layered through a virtual file system; behaviour mods run as sandboxed Wasm modules. |
 | Platforms | **Linux only.** |
 | Game UI | **RmlUi** for the shipped game UI; Dear ImGui stays for the console, dev tools and the editor. |
@@ -215,7 +215,7 @@ target. The engine adds:
 
 | Item | Verdict | Reason |
 |---|---|---|
-| State replication, rollback | Out | Single-player. |
+| State replication, rollback | Deferred | Multiplayer comes in time (2026-11-12); until then the simulation is kept ready for it (commands that say who sent them, shared state given in command order) and nothing is replicated. |
 | Local server | Reframed | The in-process simulation/presentation split. Commands flow into the simulation through a queue, which is also the seam for replays and any later networking. |
 
 ### Physics (Jolt)

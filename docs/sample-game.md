@@ -66,10 +66,16 @@ minute from Vesper Gate to Corva Refinery, dock and sell.
 
 Each slice lands with the engine system it exercises:
 
-- **9c, AI.** Automated traders, the plan's other ships: they read the same markets, choose trades
+- **9c to 9e, stations and docks.** The stations at the plan's scale of trade hubs: Ostra Highport
+  with twelve pads for the largest transports and a display wing of a liner, a frigate and
+  fighters, Corva Refinery with four for transports and two for shuttles. A ship asks for a pad and
+  lands on the one it is given, between floodlights and painted lines, and buggies carry its cargo
+  between the pad and the station's bays, so a full hold takes time to load. Two or three ships are
+  parked at each station, and at least two pads are left free.
+- **9f, AI.** Automated traders, the plan's other ships: they read the same markets, choose trades
   by utility (which good, which route, which station), plot routes across the lanes (9a's
   `Ai::PlotRoute`) and fly them, through the gates, steering clear of each other (9b's
-  `Ai::Steering`).
+  `Ai::Steering`), docking on the pads they are given.
 - **The order book.** CivSim's price-time book, with its order life and its fills, replaces the
   market maker here once traders post orders of their own. It is game code ([scope](scope.md)):
   the engine's part is that it is deterministic, saved, and bound to a screen.

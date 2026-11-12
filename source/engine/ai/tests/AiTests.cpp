@@ -4,7 +4,7 @@
 
 #include <doctest/doctest.h>
 
-TEST_CASE("Ai: utility AI's stubs fail loudly until phase 9c")
+TEST_CASE("Ai: utility AI's stubs fail loudly until phase 9f")
 {
 	entt::registry registry;
 	CHECK_THROWS_AS(

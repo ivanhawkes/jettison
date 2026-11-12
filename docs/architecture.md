@@ -896,4 +896,4 @@ proves it headlessly. What exists:
   ([as above](#steering), `Steering.h`, 9b), over the spatial index kept from the simulation
   (`spatial/SystemIndices.h`), all attached by the shell after physics, whose console's `traffic`
   sends shuttles to hold station about the station. Utility AI and behaviour trees are still stubs,
-  for 9c.
+  for 9f.
