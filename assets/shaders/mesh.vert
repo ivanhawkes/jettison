@@ -17,13 +17,18 @@
 // has to compute the position the same way, whatever else it computes.
 invariant gl_Position;
 
-#ifndef DEPTH_ONLY
+// Built as planet.vert with PLANET, for planet.frag, which works out its texture coordinates and
+// normal from the direction out of the body's centre, and so takes neither these nor the vertex
+// normal.
+#if !defined(DEPTH_ONLY) && !defined(PLANET)
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 #endif
 #if !defined(UNLIT) && !defined(DEPTH_ONLY)
 // Built as unlit.vert with UNLIT, for a program that is not lit and so takes neither.
+#ifndef PLANET
 layout(location = 2) out vec3 fragNormal;
+#endif
 layout(location = 3) out vec3 fragRenderPosition;
 #endif
 #ifdef TRIPLANAR
@@ -33,6 +38,13 @@ layout(location = 3) out vec3 fragRenderPosition;
 // takes its plating at one size on every face, and the repeat rate is per metre.
 layout(location = 4) out vec3 fragObjectPosition;
 layout(location = 5) out vec3 fragObjectNormal;
+#endif
+#ifdef PLANET
+// The direction out of the body's centre in its own axes, +Y its spin axis, and the rotation from
+// those axes to render space for the tangent frame built from it. A body is scaled evenly, so its
+// rotation is the model matrix's columns at unit length.
+layout(location = 4) out vec3 fragBodyDirection;
+layout(location = 5) flat out mat3 fragBodyToRender;
 #endif
 
 void main()
@@ -60,12 +72,14 @@ void main()
 #else
 	gl_Position = frame.projection * frame.view * renderPosition;
 #endif
-#ifndef DEPTH_ONLY
+#if !defined(DEPTH_ONLY) && !defined(PLANET)
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
 #endif
 #if !defined(UNLIT) && !defined(DEPTH_ONLY)
+#ifndef PLANET
 	fragNormal = normalize(mat3(transpose(inverse(instance.model))) * localNormal);
+#endif
 	fragRenderPosition = renderPosition.xyz;
 #endif
 #ifdef TRIPLANAR
@@ -73,5 +87,11 @@ void main()
 	    length(instance.model[0].xyz), length(instance.model[1].xyz), length(instance.model[2].xyz));
 	fragObjectPosition = inPosition * scale;
 	fragObjectNormal = inNormal;
+#endif
+#ifdef PLANET
+	fragBodyDirection = inPosition;
+	fragBodyToRender = mat3(
+	    normalize(instance.model[0].xyz), normalize(instance.model[1].xyz),
+	    normalize(instance.model[2].xyz));
 #endif
 }

@@ -28,4 +28,4 @@ for a in range(0,N,1024):
         for (cx,cy) in [(a,b),(b,a)]:
             dx=(x-cx+N//2)%N-N//2; dy=(y-cy+N//2)%N-N//2
             img[(abs(dx)+abs(dy))<=r]=0
-Image.fromarray(img).save('../assets/textures/floor_grid_2048.png',optimize=True)
+Image.fromarray(img).save('../assets/textures/debug/floor-grid/floor-grid-color.png',optimize=True)

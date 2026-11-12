@@ -77,14 +77,15 @@ void CheckChain(const TextureData &texture, std::size_t bytesPerTexel, std::uint
 
 std::filesystem::path Sample(const char *name)
 {
-	return std::filesystem::path{JETTISON_ASSET_SOURCE_DIR} / "textures" / name;
+	return std::filesystem::path{JETTISON_ASSET_SOURCE_DIR} / "textures" / "hulls" / "hull-panels" /
+	       name;
 }
 } // namespace
 
 TEST_CASE("Texture: the sample KTX 2 files transcode from UASTC and ETC1S to BC7 and to RGBA8")
 {
-	// hull_panels is UASTC with zstd, hull_lights ETC1S: Basis Universal's two modes.
-	for (const char *name : {"hull_panels.ktx2", "hull_lights.ktx2"})
+	// The hull plating's colour is UASTC with zstd, its emissive ETC1S: Basis Universal's two modes.
+	for (const char *name : {"hull-panels-color.ktx2", "hull-panels-emissive.ktx2"})
 	{
 		CAPTURE(name);
 		const std::vector<std::byte> bytes = ReadBytes(Sample(name));
@@ -105,8 +106,8 @@ TEST_CASE("Texture: the sample KTX 2 files transcode from UASTC and ETC1S to BC7
 
 TEST_CASE("Texture: the panels' seams survive the transcode, dark against the plate")
 {
-	const TextureData texture =
-	    DecodeKtx2(ReadBytes(Sample("hull_panels.ktx2")), TranscodeTarget::Rgba8, "hull_panels");
+	const TextureData texture = DecodeKtx2(
+	    ReadBytes(Sample("hull-panels-color.ktx2")), TranscodeTarget::Rgba8, "hull-panels-color");
 	// Texel (0, 0) is on a seam, (16, 16) in the middle of a plate.
 	const std::size_t plate = (std::size_t{16} * 256 + 16) * 4;
 	CHECK(Texel(texture, 0, 0) < 100);
@@ -167,7 +168,7 @@ TEST_CASE("Texture: the decoder is chosen by extension, and .linear names linear
 	    DecodeTexture(image, "textures/plate.ktx2", TranscodeTarget::Bc7), std::runtime_error);
 
 	TextureData compressed =
-	    DecodeKtx2(ReadBytes(Sample("hull_lights.ktx2")), TranscodeTarget::Bc7, "lights");
+	    DecodeKtx2(ReadBytes(Sample("hull-panels-emissive.ktx2")), TranscodeTarget::Bc7, "lights");
 	CHECK_THROWS_AS(BuildMipChain(compressed), std::logic_error);
 
 	const TextureData solid = SolidTexture(1, 2, 3, 4, false);

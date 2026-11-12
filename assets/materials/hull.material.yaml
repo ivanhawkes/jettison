@@ -11,9 +11,9 @@ parameters:
     value: [0.0625, 6, 0, 0]
 textures:
   - slot: baseColor
-    path: textures/hull_panels.ktx2
+    path: textures/hulls/hull-panels/hull-panels-color.ktx2
   - slot: emissive
-    path: textures/hull_lights.ktx2
+    path: textures/hulls/hull-panels/hull-panels-emissive.ktx2
 animated:
   - name: emissive
     wave: Sine

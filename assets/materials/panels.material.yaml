@@ -7,4 +7,4 @@ parameters:
     value: [0.4, 0.38, 0, 0]
 textures:
   - slot: baseColor
-    path: textures/hull_panels.ktx2
+    path: textures/hulls/hull-panels/hull-panels-color.ktx2

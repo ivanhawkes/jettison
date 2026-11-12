@@ -30,6 +30,16 @@ next touched.
 | Macros | `JETTISON_` + upper snake case | `JETTISON_ASSERT` |
 | Namespaces | `Jettison::<Module>` | `Jettison::Render` |
 | Files | PascalCase, one main type per file | `SmokeSequence.h` / `.cpp` |
+| Asset files | kebab-case | `habitable-earthlike-a-normal.ktx2` |
+
+Asset files under `assets/` are kebab-case: lower-case words and digits joined by hyphens, so a
+path is spelt the same on Linux and Windows and needs no quoting. A texture is
+`textures/<kind>/<asset>/<asset>-<map>.ktx2`, the asset's name repeated so a file is still
+identified once it is out of its folder; the map is one of `color`, `normal`, `height`,
+`roughness`, `metallic`, `emissive`, and `detail-` before one of them for a detail layer. A
+material is `materials/<asset>.material.yaml`. Map names are the material slots' words, spelt as
+the code spells them. Source packs keep their own names outside the repository, and an import
+script maps them (`scripts/import-planet-textures.sh`). Shader programs (`mesh_triplanar`) predate the rule.
 
 ## Headers and includes
 

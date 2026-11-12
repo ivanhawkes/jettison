@@ -62,7 +62,7 @@ TextureData DecodeKtx2(std::span<const std::byte> bytes, TranscodeTarget target,
 TextureData DecodeImage(std::span<const std::byte> bytes, bool srgb, std::string_view name);
 
 // By the virtual path's extension: ".ktx2" is DecodeKtx2, anything else DecodeImage, sRGB unless
-// the name ends ".linear.<extension>" ("hull_normal.linear.png").
+// the name ends ".linear.<extension>" ("hull-panels-normal.linear.png").
 TextureData DecodeTexture(
     std::span<const std::byte> bytes, std::string_view virtualPath, TranscodeTarget target);
 

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-# Rebuilds the sample hull textures in assets/textures: painted plating (hull_panels) and a mask of
-# lit windows (hull_lights), both 256x256 and tileable. Writes the PNGs to the current directory;
-# the KTX 2 files are encoded from them with KTX-Software's ktx tool (nixpkgs ktx-tools, the
-# version the engine reads), which devenv does not carry:
+# Rebuilds the sample hull textures in assets/textures/hulls/hull-panels: painted plating (its
+# colour) and a mask of lit windows (its emissive), both 256x256 and tileable. Writes the PNGs to the
+# current directory; the KTX 2 files are encoded from them with KTX-Software's ktx tool (nixpkgs
+# ktx-tools, the version the engine reads, in devenv):
 #
-#   nix shell nixpkgs#ktx-tools
 #   python3 scripts/make-sample-textures.py
 #   ktx create --format R8G8B8_SRGB --encode uastc --uastc-quality 2 --zstd 19 \
-#       --generate-mipmap hull_panels.png assets/textures/hull_panels.ktx2
+#       --generate-mipmap hull-panels-color.png \
+#       assets/textures/hulls/hull-panels/hull-panels-color.ktx2
 #   ktx create --format R8G8B8_SRGB --encode basis-lz --clevel 2 --qlevel 192 \
-#       --generate-mipmap hull_lights.png assets/textures/hull_lights.ktx2
+#       --generate-mipmap hull-panels-emissive.png \
+#       assets/textures/hulls/hull-panels/hull-panels-emissive.ktx2
 #
 # The two encodings are Basis Universal's two modes, UASTC and ETC1S, so the sample assets take
 # both through the transcoder. The seed is fixed: the same script makes the same images.
@@ -72,5 +73,5 @@ for y in range(SIZE):
     hull.append(hull_row)
     lights.append(light_row)
 
-png('hull_panels.png', hull)
-png('hull_lights.png', lights)
+png('hull-panels-color.png', hull)
+png('hull-panels-emissive.png', lights)

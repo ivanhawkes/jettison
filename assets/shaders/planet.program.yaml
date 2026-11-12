@@ -1,0 +1,32 @@
+# planet.frag, with mesh.vert built with PLANET as its vertex stage: Render::ProgramDefinition
+# (render/Material.h). A planet's maps by longitude and latitude, and a detail layer repeated over
+# them on the land. The parameters' channels are described in planet.frag.
+version: 1
+parameters:
+  - name: baseColor
+    default: [1, 1, 1, 1]
+  # x: multiplies the roughness map, y: the normal map's strength.
+  - name: surface
+    default: [1, 1, 0, 0]
+  # x, y: repeats around and from pole to pole, z: colour strength, w: normal strength.
+  - name: detail
+    default: [10, 10, 1, 1]
+  # x: height at sea level, y: the rise over which the detail comes on, z: the detail colour's
+  # neutral value, white's so a material without a detail map is left as it is. Sea level at zero
+  # puts the detail everywhere.
+  - name: land
+    default: [0, 0.02, 1, 0]
+textures:
+  - name: color
+    fallback: White
+  - name: normal
+    fallback: FlatNormal
+  # White: all land, under a sea level of zero.
+  - name: height
+    fallback: White
+  - name: roughness
+    fallback: White
+  - name: detailColor
+    fallback: White
+  - name: detailNormal
+    fallback: FlatNormal

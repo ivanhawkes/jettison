@@ -29,6 +29,8 @@ entities:
       nebula:
         color: [0.026, 0.011, 0.034]
         scale: 2
+  # Ostra's surface is the planet program's, read by latitude and longitude from the direction out
+  # of its centre; the colour is what it shows if the material cannot be drawn.
   - id: ostra
     celestial:
       body: Ostra
@@ -37,6 +39,7 @@ entities:
     mesh:
       shape: sphere
       color: [0.16, 0.3, 0.55]
+      material: materials/habitable-earthlike-a.material.yaml
   - id: pell
     celestial:
       body: Pell

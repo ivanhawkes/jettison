@@ -78,6 +78,10 @@
     libXi
     xorgserver # Xvfb for headless smoke tests
 
+    # KTX tools for handling KTX texture files, and ImageMagick for converting source images
+    # before they are encoded (scripts/import-planet-textures.sh).
+    ktx-tools
+    imagemagick
   ];
 
   delta.enable = true;
@@ -158,6 +162,8 @@
     else
       echo "⚠️ Warning: CONTEXT7_API_KEY is not set. Check your .env file."
     fi
+
+    ktx --version
 
     if [ ! -f ".config/wt.toml" ]; then
       echo "💡 Run 'wt config create --project' to link this repo."

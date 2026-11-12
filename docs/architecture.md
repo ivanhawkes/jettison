@@ -870,7 +870,11 @@ proves it headlessly. What exists:
   by the sun, shadowed through its cascades, the [environment](#the-environment) and the local
   lights of the
   [cluster](#rendering-clustered-forward) the fragment falls in. `unlit` is for what is a light
-  rather than lit by one.
+  rather than lit by one. `planet` reads a body's maps by longitude and latitude, worked out per
+  fragment from the direction out of its centre (+Y its spin axis, as `UvSphere` lays its texture
+  coordinates), with the tangent frame from the same direction, so it normal-maps without tangents
+  in the vertex; a detail layer repeats over the maps, kept to the land by the height map's sea
+  level. A program takes up to eight texture slots.
 - **ImGui** for a demo window, toggled with F1, and the Renderer panel: the frame's counts and
   each pass's GPU time. Its fonts are rasterised by FreeType, as the game UI's are.
 - **Game UI** (`engine/ui`, 8b). RmlUi drawn through the renderer's overlay, documents and styles

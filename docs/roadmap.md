@@ -147,8 +147,9 @@ are in [history](history.md).
 - **Not yet placed** (entries 19 and 20): the sun's shadow distance and split blend tuned by
   measurement; hysteresis between levels of detail, and levels for model files; the planets' own
   shadows past the shadow distance (a station in eclipse), which would need an analytic test against
-  the bodies; programs that hot-reload; cube maps and texture arrays in files; normal mapping, which
-  waits for tangent-space vertex data (`math/Tangents.h` makes it); a glTF model's own
+  the bodies; programs that hot-reload; cube maps and texture arrays in files; normal mapping in `mesh`, which
+  waits for tangent-space vertex data (`math/Tangents.h` makes it; `planet` builds its frame from
+  the sphere and does not need it); a glTF model's own
   metallic-roughness factors and textures; and a model file read once rather than twice, for its
   rig and for its geometry (6a).
 
@@ -184,8 +185,11 @@ set: the metallic-roughness BRDF under one lighting include, the sky and its bak
 compute programs, the shadow and prepass depth programs, and the instance buffer every mesh
 program reads ([history](history.md#shaders--phase-5)). A material names its program and supplies
 its parameters and texture slots, so adding a program is data plus GLSL, not a new code path.
-Phase 10 adds atmosphere, planet surface, particle and glass programs on the same terms, lit
-through the same include, and the post chain's programs. Shader variants are compile-time defines
+The planet surface program came ahead of phase 10, with the first planet's maps (2026-11-12):
+colour, normal, height and roughness by longitude and latitude, and a detail layer on the land.
+Phase 10 adds atmosphere, particle and glass programs on the same terms, lit through the same
+include, the planet's clouds, night lights and rings over its surface, and the post chain's
+programs. Shader variants are compile-time defines
 on one source (`jettison_compile_shader_variant`). Programs do not hot-reload yet; materials and
 textures do.
 

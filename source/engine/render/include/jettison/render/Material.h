@@ -19,7 +19,7 @@ namespace Jettison::Render
 // On the device every scene program shares one layout: set 1 holds kMaterialTextureSlots combined
 // image samplers, in the program's slot order, and a material's parameters are vec4s in the
 // frame's material buffer, in the program's parameter order.
-constexpr std::size_t kMaterialTextureSlots = 4;
+constexpr std::size_t kMaterialTextureSlots = 8;
 constexpr std::size_t kMaxMaterialParameters = 8;
 constexpr std::uint32_t kMaterialFormatVersion = 1;
 constexpr std::uint32_t kProgramFormatVersion = 1;
