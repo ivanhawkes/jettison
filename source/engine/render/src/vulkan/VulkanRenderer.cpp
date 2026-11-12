@@ -95,9 +95,11 @@ class VulkanRenderer final : public IRenderer
 		m_pImGuiRenderer->EndFrame();
 	}
 
-	bool Render(const Scene::Scene &scene, const DebugDraw &debugDraw, double presentationTime) override
+	bool Render(
+	    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
+	    double presentationTime) override
 	{
-		return m_pRenderer->Render(scene, debugDraw, *m_pImGuiRenderer, presentationTime);
+		return m_pRenderer->Render(scene, debugDraw, overlay, *m_pImGuiRenderer, presentationTime);
 	}
 
 	void SetExposure(float exposure) override

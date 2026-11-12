@@ -89,6 +89,14 @@ Attribute AttributesOf(const entt::meta_data &field)
 	return field.traits<Attribute>();
 }
 
+void *AddressOf(const entt::meta_data &field, void *object)
+{
+	if (!field || object == nullptr)
+		return nullptr;
+	const FieldAddress *address = field.custom();
+	return address != nullptr ? address->address(object) : nullptr;
+}
+
 std::vector<entt::meta_data> Fields(const entt::meta_type &type, Attribute wanted)
 {
 	std::vector<entt::meta_data> fields;

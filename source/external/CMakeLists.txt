@@ -99,6 +99,53 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glfw)
 
+# Fonts, behind ui (phase 8b): one FreeType for the executable, which RmlUi's font engine and ImGui's
+# rasteriser (imgui_freetype, below) both link, so the game UI and the dev tools draw text alike and
+# there is one copy of its symbols. OVERRIDE_FIND_PACKAGE answers RmlUi's find_package(Freetype) with
+# this build, so a system FreeType can never be picked up on one machine and not another. The
+# optional codecs are off: the engine loads TrueType and OpenType fonts, and each codec is a
+# system library that would be found on a developer's machine and missing on a runner. In every tree
+# since 8b, because ui links it.
+block()
+	set(FT_DISABLE_ZLIB ON)
+	set(FT_DISABLE_BZIP2 ON)
+	set(FT_DISABLE_PNG ON)
+	set(FT_DISABLE_HARFBUZZ ON)
+	set(FT_DISABLE_BROTLI ON)
+	set(SKIP_INSTALL_ALL ON)
+	FetchContent_Declare(
+	  freetype
+	  GIT_REPOSITORY https://github.com/freetype/freetype.git
+	  GIT_TAG VER-2-15-0
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	  OVERRIDE_FIND_PACKAGE
+	)
+	FetchContent_MakeAvailable(freetype)
+endblock()
+add_library(Freetype::Freetype ALIAS freetype)
+
+# Game UI, behind ui (phase 8b). The samples, Lua, Tracy and the plugins are off; RmlUi's own
+# warnings are not this project's gate. Its containers stay the third-party ones it bundles (robin_hood
+# maps), private to its library: no RmlUi type crosses ui's public headers. In every tree since 8b.
+block()
+	set(RMLUI_SAMPLES OFF)
+	set(RMLUI_FONT_ENGINE freetype)
+	set(RMLUI_LUA_BINDINGS OFF)
+	set(RMLUI_TRACY_PROFILING OFF)
+	set(RMLUI_WARNINGS_AS_ERRORS OFF)
+	FetchContent_Declare(
+	  RmlUi
+	  GIT_REPOSITORY https://github.com/mikke89/RmlUi.git
+	  GIT_TAG 6.3
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(RmlUi)
+endblock()
+
 FetchContent_Declare(
   imgui
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -114,13 +161,18 @@ add_library(imgui STATIC
   "${imgui_SOURCE_DIR}/imgui_tables.cpp"
   "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
   "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
+  "${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp"
 )
 target_include_directories(imgui SYSTEM PUBLIC
   "${imgui_SOURCE_DIR}"
   "${imgui_SOURCE_DIR}/backends"
+  "${imgui_SOURCE_DIR}/misc/freetype"
 )
 target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
-target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
+# ImGui rasterises its fonts with FreeType, the build RmlUi's font engine uses (above). The definition
+# is public: ImGui's configuration has to agree in every translation unit that includes imgui.h.
+target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
+target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan Freetype::Freetype)
 
 # stb has no releases; this is the head of master on 2026-11-10. The image implementation is
 # compiled once, in source/engine/render/src/vulkan/MaterialCache.cpp: nothing else in the set
@@ -385,48 +437,6 @@ option(JETTISON_PLANNED_DEPENDENCIES
 	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
 
 if(JETTISON_PLANNED_DEPENDENCIES)
-
-# Fonts (phase 8), for RmlUi. OVERRIDE_FIND_PACKAGE answers RmlUi's find_package(Freetype) with
-# this build, so a system FreeType can never be picked up on one machine and not another. The
-# optional codecs are off: the engine loads TrueType and OpenType fonts, and each codec is a
-# system library that would be found on a developer's machine and missing on a runner.
-block()
-	set(FT_DISABLE_ZLIB ON)
-	set(FT_DISABLE_BZIP2 ON)
-	set(FT_DISABLE_PNG ON)
-	set(FT_DISABLE_HARFBUZZ ON)
-	set(FT_DISABLE_BROTLI ON)
-	set(SKIP_INSTALL_ALL ON)
-	FetchContent_Declare(
-	  freetype
-	  GIT_REPOSITORY https://github.com/freetype/freetype.git
-	  GIT_TAG VER-2-15-0
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	  OVERRIDE_FIND_PACKAGE
-	)
-	FetchContent_MakeAvailable(freetype)
-endblock()
-add_library(Freetype::Freetype ALIAS freetype)
-
-# Game UI (phase 8).
-block()
-	set(RMLUI_SAMPLES OFF)
-	set(RMLUI_FONT_ENGINE freetype)
-	set(RMLUI_LUA_BINDINGS OFF)
-	set(RMLUI_TRACY_PROFILING OFF)
-	set(RMLUI_WARNINGS_AS_ERRORS OFF)
-	FetchContent_Declare(
-	  RmlUi
-	  GIT_REPOSITORY https://github.com/mikke89/RmlUi.git
-	  GIT_TAG 6.3
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(RmlUi)
-endblock()
 
 # Audio (phase 8). The libvorbis and libopus decoders are off: each is a system library found on
 # one machine and not another, and miniaudio decodes WAV, FLAC and MP3 itself. Its playback

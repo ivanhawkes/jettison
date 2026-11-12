@@ -127,18 +127,51 @@ TEST_CASE("Sim: a snapshot holds every transform, sorted, at the step it was tak
 	CHECK(snapshot.Find(entt::null) == nullptr);
 }
 
+TEST_CASE("Sim: a snapshot carries a copy of each component the world shows, and no other")
+{
+	RegisterTypes();
+	Sim::SimWorld world{kStep, 1};
+	Populate(world);
+	world.ShowInSnapshots<Drift>();
+	CHECK_THROWS_AS(world.ShowInSnapshots<Drift>(), std::logic_error);
+	world.Commands().Push(Launch{0.0});
+	world.Commands().Push(Launch{10.0});
+	world.Step();
+	// Shown whether or not the entity has a transform: a market is not somewhere.
+	const entt::entity unplaced = world.Registry().create();
+	world.Registry().emplace<Drift>(unplaced, 3.0);
+	world.Registry().get<Drift>(entt::entity{0}).speed = 2.0;
+
+	const Sim::Snapshot snapshot = Sim::Capture(world);
+	const auto drifts = snapshot.Components<Drift>();
+	REQUIRE(drifts.size() == 3);
+	CHECK(drifts[0].entity == entt::entity{0});
+	CHECK(drifts[2].entity == unplaced);
+	REQUIRE(snapshot.Get<Drift>(entt::entity{0}) != nullptr);
+	CHECK(snapshot.Get<Drift>(entt::entity{0})->speed == 2.0);
+	CHECK(snapshot.Get<Drift>(unplaced)->speed == 3.0);
+	CHECK(snapshot.Get<Drift>(entt::null) == nullptr);
+	// A copy: the world moving on does not move the snapshot.
+	world.Registry().get<Drift>(entt::entity{0}).speed = 5.0;
+	CHECK(snapshot.Get<Drift>(entt::entity{0})->speed == 2.0);
+	// The world shows no transform this way, so there are none to find.
+	CHECK(snapshot.Components<Sim::Transform>().empty());
+	CHECK(snapshot.Get<Sim::Transform>(entt::entity{0}) == nullptr);
+}
+
 TEST_CASE("Sim: interpolation runs along the line and the shorter arc, and knows births and deaths")
 {
 	const auto entity = entt::entity{3};
 	const auto born = entt::entity{4};
 	const auto died = entt::entity{5};
 	Sim::Snapshot previous{
-	    1, kStep, {{entity, {{0.0, 0.0, 0.0}, Turn(0.0)}}, {died, {{9.0, 0.0, 0.0}, Turn(0.0)}}}};
+	    1, kStep, {{entity, {{0.0, 0.0, 0.0}, Turn(0.0)}}, {died, {{9.0, 0.0, 0.0}, Turn(0.0)}}}, {}};
 	Sim::Snapshot current{
 	    2,
 	    2 * kStep,
 	    {{entity, {{2.0, 4.0, -8.0}, Turn(std::numbers::pi / 2)}},
-	     {born, {{7.0, 0.0, 0.0}, Turn(1.0)}}}};
+	     {born, {{7.0, 0.0, 0.0}, Turn(1.0)}}},
+	    {}};
 
 	const auto halfway = Sim::Interpolate(previous, current, entity, 0.5);
 	REQUIRE(halfway);

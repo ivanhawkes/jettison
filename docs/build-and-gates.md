@@ -15,7 +15,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | EnTT | v4.0.0 | now | Requires C++20 and CMake 3.28 |
 | GLM | 1.0.3 | now | Geometry ABI asserted by the dependency probe |
 | GLFW | 3.5.1 | now | Upstream skipped 3.5.0 (bad tag) |
-| Dear ImGui | v1.93.0 (commit) | now | GLFW and Vulkan backends from the same release |
+| Dear ImGui | v1.93.0 (commit) | now | GLFW and Vulkan backends from the same release; fonts through `imgui_freetype` (8b) |
 | stb | master, 2026-11-10 (commit) | now | No releases |
 | yaml-cpp | 0.9.0 | now | |
 | fastgltf | v1.0.1 | now | Downloads its own simdjson 5.1.0 and simdutf |
@@ -26,8 +26,8 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | FastNoiseLite | v1.1.1 | now | Header-only; math links it, output pinned by recorded values |
 | MikkTSpace | 2020 (only commit) | now | math links it |
 | Jolt Physics | v5.6.0 | now | Double precision, deterministic across build types; physics links it privately |
-| FreeType | 2.15.0 | phase 8 | Answers RmlUi's `find_package(Freetype)` |
-| RmlUi | 6.3 | phase 8 | |
+| FreeType | 2.15.0 | now | Answers RmlUi's `find_package(Freetype)`; RmlUi and ImGui both link it; ui links it, since 8b |
+| RmlUi | 6.3 | now | Private to ui, since 8b |
 | miniaudio | 0.11.26 | phase 8 | |
 | KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read` |
 | WAMR | 2.4.5 | phase 11 | Candidate runtime; the choice is still open |
@@ -51,7 +51,9 @@ trees exist for the render test, which uses none of the planned libraries. KTX-S
 planned set when phase 5a began to use it, so those trees fetch it too, and build `ktx_read` (not
 `ktx`): measured on 2026-11-11, 63 objects and about 75 CPU-seconds of a 1,700 CPU-second headless
 Debug build, and a 217 MiB clone on the first configure. Jolt left it when phase 7a did, and those trees build it
-too, for the physics suite they run under the sanitisers.
+too, for the physics suite they run under the sanitisers. FreeType and RmlUi left it when phase 8b
+did: ui links RmlUi, and ImGui rasterises with FreeType, so every tree builds both, and the headless
+trees run the UI's suite and draw its screens in the render test.
 
 `JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
 listens on localhost only, so it costs nothing until a profiler connects. It is off by default,
@@ -325,10 +327,10 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
 ```
 
-**What it walks.** Eleven stages, the paths that have hurt this engine: resize, resize, minimize,
-restore, scene reload, pilot from behind, pilot from the seat, pick, save and load, jump, settle.
-Each stage runs four frames, the pick and the jump as many as they take, inside a 120-second
-watchdog. It walks
+**What it walks.** Twelve stages, the paths that have hurt this engine: resize, resize, minimize,
+restore, scene reload, pilot from behind, pilot from the seat, pick, save and load, trade, jump,
+settle. Each stage runs four frames, the pick, the trade and the jump as many as they take, inside a
+120-second watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
 the star system, under an orbit camera and the sun, which shadows it through four cascades, with
@@ -340,7 +342,14 @@ sample scene has no station, so they fly nothing there, and the summary's `pilot
 did. The save stage writes the game to the run's user mount, flushed to the disk, and loads it
 back over itself with the scene drawing it; the run fails unless the world loaded has the state hash
 of the world saved (817 bytes for the sample scene's empty world on 2026-11-12, and 4,171 for the
-orbit scene's, physics' state and the shell's ship among it). The sample scene has no sun,
+orbit scene's, physics' state and the shell's ship among it). The game UI's two screens, the market
+and the saved games, are shown from the first frame, so the overlay is drawn in every stage, over
+every resize and the reload; the save stage lists its save on one. The trade stage reads the market
+screen of the station the ship is at: its station and its first good's stock have to be the ones the
+snapshot has, and its first Buy button, pressed, sends a trade the next step answers, whose answer
+the screen then has to show. In the orbit scene the ship is off the dock, so the answer is a refusal
+(the trade itself is the app suite's); the sample scene has no market, and the summary's `markets=`
+and `trades=` say what was tried. The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
 the frame sets rewritten after it run under validation too. The reload also reads every resource
@@ -380,8 +389,10 @@ an NVIDIA card under Xvfb cannot, and asking it anyway was reported as
 which failed every run that did not pin lavapipe (`--llvmpipe`) on a machine with an NVIDIA card. Debug-utils entry points are resolved through `vkGetInstanceProcAddr`, so a
 loader without them costs object names, not a link failure.
 
-Two verdicts are the run's own, read after teardown and reported through its exit status: the
-sequence has to have reached its last stage, and the cluster check has to agree. The check reads
+Three verdicts are the run's own, read after teardown and reported through its exit status: the
+sequence has to have reached its last stage, the cluster check has to agree, and the game UI has to
+have logged no warning or error (RmlUi's own, a property it does not know, a variable a document
+names that no model has, through the log's `ui` category). The check reads
 back every frame's light assignment and compares it with the CPU reference
 (`render/Clusters.h`) cluster by cluster; a frame that disagrees, an index list that overflowed,
 or a run in which no cluster listed a light fails the run, and the run prints how many frames it

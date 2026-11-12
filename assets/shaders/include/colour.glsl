@@ -13,3 +13,10 @@ float Luminance(vec3 linear)
 {
 	return dot(linear, vec3(0.2126, 0.7152, 0.0722));
 }
+
+vec3 SrgbToLinear(vec3 srgb)
+{
+	vec3 low = srgb / 12.92;
+	vec3 high = pow((srgb + 0.055) / 1.055, vec3(2.4));
+	return mix(high, low, lessThanEqual(srgb, vec3(0.04045)));
+}

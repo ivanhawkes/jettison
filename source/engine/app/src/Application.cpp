@@ -30,6 +30,7 @@
 #include <jettison/profile/Profile.h>
 #include <jettison/render/Camera.h>
 #include <jettison/render/IRenderer.h>
+#include <jettison/render/Overlay.h>
 #include <jettison/render/SceneView.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
@@ -39,6 +40,7 @@
 
 #include "Docking.h"
 #include "Saves.h"
+#include "Trading.h"
 
 namespace Jettison::App
 {
@@ -73,6 +75,16 @@ constexpr double kPickDistance = 50000.0;
 // How long the camera eases into and out of the ship's rigs, and between them.
 constexpr double kPilotTransition = 1.5;
 constexpr double kViewTransition = 0.5;
+// The shell's ship as the sample game starts it: a small hauler's hold, and the credits to fill most
+// of it with what the station it starts at has to spare (docs/sample-game.md).
+constexpr std::int64_t kShipHold = 20;
+constexpr std::int64_t kStartingCredits = 250000;
+// The game UI's faces: Roboto for text, Hack for figures, and Droid Sans for a glyph neither has.
+constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
+    {"fonts/Roboto-Medium.ttf", false},
+    {"fonts/Hack-Regular.ttf", false},
+    {"fonts/DroidSans.ttf", true},
+}};
 // In the smoke run nothing presses a key: the ship flies ahead at a fifth of its speed.
 constexpr Physics::FlightControls kSmokeFlight{{0.0f, 0.0f, -0.2f}, {0.0f, 0.05f, 0.1f}};
 
@@ -158,6 +170,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_jumpNext = m_input.DefineAction("jump_next", Input::ActionType::Button);
 	m_pilot = m_input.DefineAction("pilot", Input::ActionType::Button);
 	m_pickAction = m_input.DefineAction("pick", Input::ActionType::Button);
+	m_toggleMarket = m_input.DefineAction("toggle_market", Input::ActionType::Button);
+	m_toggleSaves = m_input.DefineAction("toggle_saves", Input::ActionType::Button);
 	m_quickSave = m_input.DefineAction("quicksave", Input::ActionType::Button);
 	m_quickLoad = m_input.DefineAction("quickload", Input::ActionType::Button);
 	m_input.DefineContext("shell");
@@ -184,6 +198,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_input.Bind("shell", m_pilot, {Character('p')});
 	m_input.Bind("shell", m_pilot, {{Input::Device::GamepadButton, 7}});
 	m_input.Bind("shell", m_pickAction, {{Input::Device::MouseButton, 0}});
+	m_input.Bind("shell", m_toggleMarket, {Character('m')});
+	m_input.Bind("shell", m_toggleSaves, {Character('l')});
 	m_input.Bind("shell", m_quickSave, {Input::Keys::F5});
 	m_input.Bind("shell", m_quickLoad, {Input::Keys::F9});
 	m_pilotInput.emplace(m_input);
@@ -252,11 +268,19 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		    }
 	    });
 
+	m_console.RegisterCommand(
+	    "market", "Shows or hides the market screen: market [on|off]",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    { ShowMarket(arguments.empty() ? !m_showMarket : arguments[0] != "off"); });
+
 	Sim::RegisterTypes();
 	m_sim.RegisterComponent<Sim::Transform>();
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
 	RegisterDocking(m_sim, *m_pPhysics);
+	RegisterTrading(m_sim);
+	RegisterMarketScreenTypes();
+	RegisterSavesScreenTypes();
 	RegisterFrameSystems();
 }
 
@@ -463,6 +487,18 @@ void Application::RegisterFrameSystems()
 		     JETTISON_PROFILE_ZONE("shell.ui");
 		     DrawUI();
 	     }});
+	// The game UI, from the snapshots the sync phase took in: the market screen's data, then layout
+	// and drawing into the overlay.
+	m_frame.Register(
+	    {"ui.update",
+	     TickPhase::Presentation,
+	     {},
+	     {},
+	     [this](entt::registry &, double)
+	     {
+		     JETTISON_PROFILE_ZONE("ui.update");
+		     UpdateGameUi();
+	     }});
 
 	m_frame.Register(
 	    {"render",
@@ -479,7 +515,9 @@ void Application::RegisterFrameSystems()
 		     // a swapchain for is not one it handled.
 		     const double presentationTime =
 		         std::chrono::duration<double>(m_frameStart - m_loopStart).count();
-		     m_frameResized = m_pRenderer->Render(*m_pScene, m_debugDraw, presentationTime);
+		     static const Render::Overlay kNoOverlay;
+		     m_frameResized = m_pRenderer->Render(
+		         *m_pScene, m_debugDraw, m_pUi ? m_pUi->Overlay() : kNoOverlay, presentationTime);
 	     }});
 	// After the render, so the frame it judges is the one just submitted; its reload stage
 	// replaces the scene, which nothing after it in the frame reads.
@@ -545,6 +583,12 @@ void Application::Run()
 			passes += std::format(" {} {:.2f}", timing.name, timing.meanMs);
 		std::cerr << std::format("GPU ms per pass over {} frames:{}\n", m_measuredFrames, passes);
 	}
+	// A document RmlUi complained of, a stylesheet property it does not know or a variable it could
+	// not find, draws on regardless; the gate does not let it.
+	if (m_smokeSequence && m_uiProblems != 0)
+		throw std::runtime_error(
+		    "The game UI logged " + std::to_string(m_uiProblems) +
+		    " warnings and errors (see the log)");
 	if (m_smokeSequence)
 	{
 		const Render::ClusterCheckTotals &checks = m_clusterChecks;
@@ -572,6 +616,7 @@ void Application::Init()
 	InitScene();
 	InitRenderer();
 	InitWindow();
+	InitUi();
 	// The headless run renders the dev tools, the demo window and the console: the UI path is part of
 	// what the render test exercises, and an interactive run starts without it and asks for it with F1.
 	m_showUI = m_arguments.smokeTest;
@@ -628,6 +673,8 @@ void Application::InitResources()
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
 	Animation::RegisterRigLoader(*m_pResources);
+	m_definitions.emplace(m_assets);
+	LoadTradeDefinitions(*m_definitions);
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterJumpLoaders(*m_pResources);
 	m_jump.emplace(*m_pResources, [this](Scene::JumpArrival &arrival) { ShowArrival(arrival); });
@@ -640,6 +687,13 @@ void Application::InitScene()
 	InitGalaxy();
 	DefineStarSystems();
 	LoadScene();
+	// The sample game's markets, once a run, as the ship is: a load replaces them with the save's.
+	if (m_sim.Registry().view<Market>().empty())
+	{
+		const std::vector<entt::entity> markets = OpenMarkets(m_sim, *m_definitions);
+		Core::Log(Core::Severity::Info, kShell, "{} markets open", markets.size());
+		m_simStepper.Resync();
+	}
 	SpawnShip();
 	if (!m_arguments.saveScenePath.empty())
 		m_pScene->Save(m_arguments.saveScenePath);
@@ -676,6 +730,216 @@ void Application::InitWindow()
 }
 
 
+void Application::InitUi()
+{
+	m_pUi = std::make_unique<Ui::UiSystem>(
+	    m_assets, static_cast<int>(m_pRenderer->FrameWidth()),
+	    static_cast<int>(m_pRenderer->FrameHeight()));
+	for (const auto &[font, fallback] : kUiFonts)
+		m_pUi->LoadFont(font, fallback);
+
+	Ui::DataModel &market = m_pUi->CreateDataModel("market");
+	m_pMarketModel = &market;
+	market.Bind("screen", &m_marketScreen);
+	market.BindEvent(
+	    "buy",
+	    [this](std::span<const Ui::EventArgument> arguments)
+	    {
+		    SendTrade(
+		        arguments.empty() ? "" : Ui::AsText(arguments[0]),
+		        arguments.size() < 2 ? 1 : Ui::AsInteger(arguments[1]));
+	    });
+	market.BindEvent(
+	    "sell",
+	    [this](std::span<const Ui::EventArgument> arguments)
+	    {
+		    SendTrade(
+		        arguments.empty() ? "" : Ui::AsText(arguments[0]),
+		        -(arguments.size() < 2 ? 1 : Ui::AsInteger(arguments[1])));
+	    });
+	market.BindEvent(
+	    "lot",
+	    [this](std::span<const Ui::EventArgument> arguments)
+	    {
+		    m_lot = std::max<std::int64_t>(arguments.empty() ? 1 : Ui::AsInteger(arguments[0]), 1);
+		    m_marketDirty = true;
+	    });
+	m_marketDocument = m_pUi->LoadDocument("ui/market.rml");
+
+	Ui::DataModel &saves = m_pUi->CreateDataModel("saves");
+	m_pSavesModel = &saves;
+	saves.Bind("screen", &m_savesScreen);
+	saves.BindEvent(
+	    "load",
+	    [this](std::span<const Ui::EventArgument> arguments)
+	    {
+		    if (!arguments.empty() && LoadFrom(Ui::AsText(arguments[0])))
+			    ShowSaves(false);
+	    });
+	m_savesDocument = m_pUi->LoadDocument("ui/saves.rml");
+	// The headless run shows both screens from its first frame, so the overlay's path is drawn in
+	// every stage the render test walks, and the save stage lists its save on one of them.
+	ShowMarket(m_arguments.smokeTest);
+	ShowSaves(m_arguments.smokeTest);
+}
+
+
+void Application::ShowMarket(bool shown)
+{
+	m_showMarket = shown;
+	if (!m_pUi)
+		return;
+	if (shown)
+	{
+		m_marketDirty = true;
+		m_pUi->Show(m_marketDocument);
+	}
+	else
+		m_pUi->Hide(m_marketDocument);
+}
+
+
+void Application::ShowSaves(bool shown)
+{
+	m_showSaves = shown;
+	if (!m_pUi)
+		return;
+	if (!shown)
+	{
+		m_pUi->Hide(m_savesDocument);
+		return;
+	}
+	SavesScreen screen = BuildSavesScreen(m_assets);
+	if (screen != m_savesScreen)
+	{
+		m_savesScreen = std::move(screen);
+		m_pSavesModel->Changed("screen");
+	}
+	m_pUi->Show(m_savesDocument);
+}
+
+
+entt::entity Application::ShownMarket() const
+{
+	const Sim::Snapshot &snapshot = m_simStepper.Current();
+	const auto markets = snapshot.Components<Market>();
+	if (m_station != entt::null)
+		for (const auto &market : markets)
+			if (market.value.stationEntity == m_station)
+				return market.entity;
+	if (m_systemScene)
+	{
+		const std::uint64_t shown = Sim::SystemId(m_systemScene->System().name);
+		for (const auto &market : markets)
+			if (market.value.system == shown)
+				return market.entity;
+	}
+	return entt::null;
+}
+
+
+void Application::SendTrade(std::string_view good, std::int64_t crates)
+{
+	const entt::entity market = ShownMarket();
+	if (m_ship == entt::null || market == entt::null || good.empty() || crates == 0)
+		return;
+	m_sim.Commands().Push(Trade{m_ship, market, std::string{good}, crates});
+}
+
+
+void Application::FeedGameUi()
+{
+	if (!m_pUi)
+		return;
+	GLFWwindow *const window = m_pRenderer->GetGLFWWindow();
+	const std::vector<WindowEvent> events = m_glfwInput.TakeEvents();
+	const bool imguiMouse = ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse;
+	const bool imguiKeyboard =
+	    ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard;
+
+	// The UI is laid out in the frame's pixels, and the cursor is in the window's, which differ on a
+	// scaled display.
+	int windowWidth = 0;
+	int windowHeight = 0;
+	glfwGetWindowSize(window, &windowWidth, &windowHeight);
+	const glm::dvec2 scale{
+	    windowWidth > 0 ? static_cast<double>(m_pRenderer->FrameWidth()) / windowWidth : 1.0,
+	    windowHeight > 0 ? static_cast<double>(m_pRenderer->FrameHeight()) / windowHeight : 1.0};
+	glm::dvec2 cursor{0.0};
+	glfwGetCursorPos(window, &cursor.x, &cursor.y);
+	const Ui::Modifiers none{};
+	if (imguiMouse)
+		m_pUi->MouseLeave();
+	else
+		m_pUi->MouseMove(glm::vec2{cursor * scale}, none);
+
+	for (const WindowEvent &event : events)
+	{
+		const Ui::Modifiers modifiers{event.shift, event.control, event.alt};
+		switch (event.kind)
+		{
+			case WindowEvent::Kind::MouseButton:
+				if (!imguiMouse)
+					m_pUi->MouseButton(event.code, event.pressed, modifiers);
+				break;
+			case WindowEvent::Kind::Wheel:
+				if (!imguiMouse)
+					m_pUi->MouseWheel(event.wheel, none);
+				break;
+			case WindowEvent::Kind::Key:
+				if (!imguiKeyboard)
+					m_pUi->Key({Input::Device::Keyboard, event.code}, event.pressed, modifiers);
+				break;
+			case WindowEvent::Kind::Text:
+				if (!imguiKeyboard)
+					m_pUi->Text(event.character);
+				break;
+		}
+	}
+}
+
+
+void Application::UpdateGameUi()
+{
+	if (!m_pUi)
+		return;
+	const glm::ivec2 size{
+	    static_cast<int>(m_pRenderer->FrameWidth()), static_cast<int>(m_pRenderer->FrameHeight())};
+	if (size != m_uiSize)
+	{
+		float scaleX = 1.0f;
+		float scaleY = 1.0f;
+		glfwGetWindowContentScale(m_pRenderer->GetGLFWWindow(), &scaleX, &scaleY);
+		m_pUi->SetSize(size.x, size.y, scaleY);
+		m_uiSize = size;
+	}
+
+	// The screen is made again only when a step brought a new snapshot or the shell's side of it
+	// moved, and the model told only when what it shows differs, so a still market costs nothing.
+	const Sim::Snapshot &snapshot = m_simStepper.Current();
+	if (m_showMarket && (m_marketDirty || m_marketStep != snapshot.step))
+	{
+		MarketView view;
+		view.market = ShownMarket();
+		view.ship = m_ship;
+		view.system = m_systemScene ? m_systemScene->System().name : std::string{};
+		view.docked = m_docked;
+		view.lot = m_lot;
+		view.message = m_tradeMessage;
+		MarketScreen screen = BuildMarketScreen(snapshot, *m_definitions, view);
+		if (screen != m_marketScreen)
+		{
+			m_marketScreen = std::move(screen);
+			m_pMarketModel->Changed("screen");
+		}
+		m_marketStep = snapshot.step;
+		m_marketDirty = false;
+	}
+	const double presentationTime = std::chrono::duration<double>(m_frameStart - m_loopStart).count();
+	m_pUi->Update(presentationTime);
+}
+
+
 void Application::RunFrameLoop()
 {
 	m_state = State::Running;
@@ -696,6 +960,7 @@ void Application::RunFrameLoop()
 	m_deviceName = m_pRenderer->DeviceName();
 	m_frameWidth = m_pRenderer->FrameWidth();
 	m_frameHeight = m_pRenderer->FrameHeight();
+	m_uiProblems = m_pUi ? m_pUi->Problems() : 0;
 	Shutdown();
 }
 
@@ -885,9 +1150,12 @@ void Application::ReportBenchmark() const
 
 void Application::PollInput()
 {
-	m_glfwInput.Feed(
-	    m_pRenderer->GetGLFWWindow(), m_input,
-	    ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse);
+	// The game UI first, so whether it has the mouse is this frame's answer: a click on a screen's
+	// button is not a pick, and the wheel over it does not zoom the camera.
+	FeedGameUi();
+	const bool uiMouse = (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) ||
+	                     (m_pUi && m_pUi->WantsMouse());
+	m_glfwInput.Feed(m_pRenderer->GetGLFWWindow(), m_input, uiMouse);
 	// The console may have been closed by its window's own button last frame.
 	SyncContexts();
 	m_input.Poll();
@@ -916,9 +1184,12 @@ void Application::PollInput()
 		SaveTo("quicksave");
 	if (m_input.WasPressedThisFrame(m_quickLoad))
 		LoadFrom("quicksave");
-	// A click on the scene, not on a window over it, which ImGui has.
-	if (m_input.WasPressedThisFrame(m_pickAction) &&
-	    (ImGui::GetCurrentContext() == nullptr || !ImGui::GetIO().WantCaptureMouse))
+	if (m_input.WasPressedThisFrame(m_toggleMarket) && !(m_pUi && m_pUi->WantsKeyboard()))
+		ShowMarket(!m_showMarket);
+	if (m_input.WasPressedThisFrame(m_toggleSaves) && !(m_pUi && m_pUi->WantsKeyboard()))
+		ShowSaves(!m_showSaves);
+	// A click on the scene, not on a window over it, ImGui's or the game UI's.
+	if (m_input.WasPressedThisFrame(m_pickAction) && !uiMouse)
 		m_clicked = m_glfwInput.Cursor();
 	if (m_input.WasPressedThisFrame(m_pilot))
 	{
@@ -946,6 +1217,10 @@ void Application::PollInput()
 			m_devTools.showConsole = false;
 		else if (m_showUI)
 			m_showUI = false;
+		else if (m_showSaves)
+			ShowSaves(false);
+		else if (m_showMarket)
+			ShowMarket(false);
 		else if (m_piloting)
 			StopPiloting();
 		else
@@ -1224,6 +1499,8 @@ bool Application::SaveTo(std::string_view name)
 		    WriteShellState({m_ship, m_station, m_port, m_shipSystem, m_stationBody}));
 		const std::vector<std::byte> bytes = save.Write();
 		m_assets.Write(path, bytes);
+		if (m_showSaves)
+			ShowSaves(true);
 		Core::Log(
 		    Core::Severity::Info, kShell, "Saved '{}' at step {}, {} bytes, to {}", name,
 		    save.info.step, bytes.size(), (m_userPaths.userData / path).string());
@@ -1269,6 +1546,8 @@ bool Application::LoadFrom(std::string_view name)
 		m_sentControls.reset();
 		m_pickPending = false;
 		m_picked.reset();
+		m_tradeMessage.clear();
+		m_marketDirty = true;
 		m_simStepper.Resync();
 		if (m_systemScene)
 			m_systemScene->ResetTraffic();
@@ -1328,6 +1607,38 @@ SmokeActions Application::MakeSmokeActions()
 			    loaded, saved);
 		return loaded == saved;
 	};
+	actions.trade = [this]() -> std::optional<bool>
+	{
+		const entt::entity market = ShownMarket();
+		const auto *shown = m_simStepper.Current().Get<Market>(market);
+		if (!shown || shown->goods.empty() || m_ship == entt::null)
+			return std::nullopt;
+		ShowMarket(true);
+		// Laid out with the screen made from this snapshot, so what it shows is what the snapshot has.
+		UpdateGameUi();
+		const std::string station = m_pUi->ElementText(m_marketDocument, "station");
+		const std::string stock = m_pUi->ElementText(m_marketDocument, "stock-0");
+		if (station != shown->station || stock != std::to_string(shown->goods.front().stock))
+		{
+			Core::Log(
+			    Core::Severity::Error, kShell,
+			    "The market screen shows '{}' with {} crates, and the snapshot has '{}' with {}",
+			    station, stock, shown->station, shown->goods.front().stock);
+			return false;
+		}
+		m_smokeTradeAnswers = m_tradeAnswers;
+		return m_pUi->Click(m_marketDocument, "buy-0");
+	};
+	actions.trading = [this] { return m_tradeAnswers == m_smokeTradeAnswers; };
+	actions.traded = [this]
+	{
+		const std::string shown = m_pUi->ElementText(m_marketDocument, "message");
+		if (shown != m_tradeMessage)
+			Core::Log(
+			    Core::Severity::Error, kShell,
+			    "The market screen says '{}', and the trade's answer was '{}'", shown, m_tradeMessage);
+		return !m_tradeMessage.empty() && shown == m_tradeMessage;
+	};
 	actions.jump = [this] { return Jump(); };
 	actions.jumping = [this] { return m_jump->Active(); };
 	actions.close = [this] { RequestClose(); };
@@ -1347,8 +1658,12 @@ void Application::Shutdown() noexcept
 	// frame loop's last frame before it releases anything.
 	try
 	{
-		// The wheel's callback goes before the window does.
+		// The window's callbacks go before the window does.
 		m_glfwInput.Detach();
+		// The UI holds no device object: the renderer's copies of its textures go with the renderer.
+		m_pMarketModel = nullptr;
+		m_pSavesModel = nullptr;
+		m_pUi.reset();
 		if (m_pRenderer)
 			m_pRenderer->Destroy();
 	}
@@ -1509,6 +1824,12 @@ void Application::SpawnShip()
 	world.emplace<Physics::Velocity>(m_ship);
 	world.emplace<Physics::Thrusters>(m_ship);
 	world.emplace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
+	world.emplace<Hold>(m_ship, Hold{kShipHold, {}});
+	world.emplace<Purse>(m_ship, Purse{kStartingCredits});
+	// The station's market trades through its port from now on.
+	for (const auto [entity, market] : world.view<Market>().each())
+		if (market.station == station->name && market.system == systemId)
+			market.stationEntity = m_station;
 	m_shipSystem = systemId;
 	m_stationBody = station->name;
 	m_simStepper.Resync();
@@ -1812,6 +2133,28 @@ void Application::TakeEvents()
 			m_docked = false;
 			Core::Log(Core::Severity::Info, kShell, "The ship left {}'s dock", m_stationBody);
 		}
+		else if (const auto *traded = event.event.try_cast<Traded>(); traded && traded->ship == m_ship)
+		{
+			const Good *good = m_definitions->Find<Good>(traded->good);
+			const std::string name = good ? good->displayName : traded->good;
+			const std::int64_t crates = traded->crates < 0 ? -traded->crates : traded->crates;
+			++m_tradeAnswers;
+			m_tradeMessage = std::format(
+			    "{} {} {} of {} at {} a crate", traded->crates > 0 ? "Bought" : "Sold", crates,
+			    crates == 1 ? "crate" : "crates", name, FormatCredits(traded->price));
+			Core::Log(
+			    Core::Severity::Info, kShell, "{}; {} credits left", m_tradeMessage,
+			    FormatCredits(traded->credits));
+		}
+		else if (const auto *refused = event.event.try_cast<TradeRefused>();
+		         refused && refused->ship == m_ship)
+		{
+			++m_tradeAnswers;
+			m_tradeMessage = "No trade: " + refused->reason;
+			Core::Log(Core::Severity::Info, kShell, "{}", m_tradeMessage);
+		}
+		if (m_showMarket)
+			m_marketDirty = true;
 	}
 }
 

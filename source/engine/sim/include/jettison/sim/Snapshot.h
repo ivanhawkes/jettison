@@ -4,8 +4,12 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 
+#include <algorithm>
+#include <any>
 #include <cstdint>
+#include <map>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -51,19 +55,49 @@ struct TransformSample
 	std::uint64_t system{kNoSystem};
 };
 
+// One entity's copy of a component the world shows (SimWorld::ShowInSnapshots).
+template <typename T> struct ComponentSample
+{
+	entt::entity entity{entt::null};
+	T value;
+};
+
 // The part of a world presentation may see, taken after a step: every entity with a Transform and
-// the system it is in, sorted by identifier so a lookup is a search. Presentation reads snapshots,
-// never the world; a system scene shows the entities in its own system (scene/SystemScene.h).
+// the system it is in, and every entity's copy of each component the world shows, each sorted by
+// identifier so a lookup is a search. Presentation reads snapshots, never the world: a system scene
+// shows the entities in its own system (scene/SystemScene.h), and the UI's data models read what
+// the game shows, a station's market or a ship's hold (ui/DataModel.h).
 struct Snapshot
 {
 	// The clock after the step: the steps run, and simulation seconds.
 	std::uint64_t step{0};
 	double time{0.0};
 	std::vector<TransformSample> transforms;
+	// By EnTT's type hash: a std::vector<ComponentSample<T>> for each component shown.
+	std::map<entt::id_type, std::any> shown;
 
 	// Null if the entity has no Transform in this snapshot.
 	const Transform *Find(entt::entity entity) const;
 	const TransformSample *FindSample(entt::entity entity) const;
+
+	// Every entity's copy of a shown component, by identifier; empty for a type the world does not
+	// show.
+	template <typename T> std::span<const ComponentSample<T>> Components() const
+	{
+		const auto found = shown.find(entt::type_hash<T>::value());
+		if (found == shown.end())
+			return {};
+		return std::any_cast<const std::vector<ComponentSample<T>> &>(found->second);
+	}
+	// The entity's copy, or null if it has none in this snapshot.
+	template <typename T> const T *Get(entt::entity entity) const
+	{
+		const std::span<const ComponentSample<T>> samples = Components<T>();
+		const auto found = std::ranges::lower_bound(
+		    samples, entt::to_integral(entity), {},
+		    [](const ComponentSample<T> &sample) { return entt::to_integral(sample.entity); });
+		return found != samples.end() && found->entity == entity ? &found->value : nullptr;
+	}
 };
 
 Snapshot Capture(const SimWorld &world);

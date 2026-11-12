@@ -29,6 +29,7 @@ class FileSystem;
 namespace Jettison::Render
 {
 class DebugDraw;
+class Overlay;
 
 // The light index list's size, as entries per cluster on average: a budget for the frame, not a cap
 // on any one cluster. 3.4 MiB at 32 x 18 x 48. Measured in 5e with 265 lights on a station, the
@@ -93,10 +94,13 @@ class IRenderer
 
 	// Records and submits the scene as it stands: the presentation phase has already animated it
 	// and computed its world transforms (Scene::SceneUpdateSystem), so this frame only reads it.
-	// The presentation time, in seconds, drives the materials' time-driven parameters. True when
-	// this frame recreated the swapchain.
+	// The overlay, the game UI's drawing (render/Overlay.h), goes over the tonemapped scene and under
+	// the dev tools; its textures are uploaded as its draws first name them. The presentation time, in
+	// seconds, drives the materials' time-driven parameters. True when this frame recreated the
+	// swapchain.
 	virtual bool Render(
-	    const Scene::Scene &scene, const DebugDraw &debugDraw, double presentationTime) = 0;
+	    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
+	    double presentationTime) = 0;
 
 	// The linear scale applied to the HDR target on its way to the display, before tonemapping.
 	virtual void SetExposure(float exposure) = 0;

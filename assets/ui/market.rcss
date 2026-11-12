@@ -1,0 +1,69 @@
+/* The market screen (ui/market.rml): a panel at the right of the frame, over the scene. */
+
+#window {
+	position: absolute;
+	right: 24dp;
+	top: 24dp;
+	width: 760dp;
+	padding: 16dp 20dp;
+	border: 1dp #3a5872;
+	border-radius: 6dp;
+	background-color: #0b1622f2;
+}
+
+#header { margin-bottom: 4dp; }
+#station { display: inline; }
+#system {
+	margin-left: 10dp;
+	color: #8aa3ba;
+}
+
+#status { color: #e0a95a; margin-bottom: 8dp; }
+#status.docked { color: #7fd18b; }
+
+#purse { margin-bottom: 10dp; }
+#lots { display: inline-block; margin-left: 24dp; color: #8aa3ba; }
+#lots button.chosen { border-color: #9cc4e4; background-color: #2a4d73; color: #ffffff; }
+#credits, #hold { font-family: Hack; color: #f2f6fa; }
+
+table { width: 100%; }
+thead td {
+	padding-bottom: 4dp;
+	border-bottom: 1dp #3a5872;
+	color: #8aa3ba;
+	font-size: 13dp;
+}
+tbody td {
+	padding: 5dp 0dp;
+	border-bottom: 1dp #182a3c;
+}
+td.number {
+	font-family: Hack;
+	text-align: right;
+	padding-right: 12dp;
+}
+td.good { width: 210dp; }
+td.trade { width: 150dp; text-align: right; }
+.crate {
+	display: block;
+	font-size: 12dp;
+	color: #6f8aa3;
+}
+.elsewhere {
+	font-size: 12dp;
+	color: #8aa3ba;
+	padding-left: 8dp;
+}
+.cheap { color: #7fd18b; }
+.dear { color: #e07a6a; }
+
+#message {
+	margin-top: 10dp;
+	min-height: 18dp;
+	color: #e0a95a;
+}
+#footer {
+	margin-top: 6dp;
+	font-size: 12dp;
+	color: #5c7389;
+}

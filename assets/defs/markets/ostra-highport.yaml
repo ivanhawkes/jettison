@@ -1,0 +1,17 @@
+# The market at Ostra Highport, over a farming world: it grows more grain and brews more beer than it
+# eats and drinks, and makes no metal, chemicals, medicine or electronics, so it pays well for what a
+# ship brings it. A market of the sample game (docs/sample-game.md), in crates; production and
+# consumption are a market tick's.
+version: 1
+station: Ostra Highport
+system: Halcyon
+feeBps: 150
+goods:
+  - {good: wheat-seeds, stock: 90, production: 3, consumption: 1, target: 60}
+  - {good: flour, stock: 70, production: 2, consumption: 1, target: 50}
+  - {good: beer, stock: 55, production: 2, consumption: 1, target: 40}
+  - {good: iron, stock: 30, production: 0, consumption: 1, target: 40}
+  - {good: copper, stock: 22, production: 0, consumption: 1, target: 30}
+  - {good: phosphorus, stock: 24, production: 0, consumption: 1, target: 30}
+  - {good: antibiotics, stock: 12, production: 0, consumption: 1, target: 20}
+  - {good: electronics, stock: 10, production: 0, consumption: 1, target: 15}

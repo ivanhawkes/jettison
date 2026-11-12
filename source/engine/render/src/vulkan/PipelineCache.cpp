@@ -8,6 +8,7 @@
 #include "vulkan/DeviceContext.h"
 #include "vulkan/Model.h"
 #include <jettison/render/DebugDraw.h>
+#include <jettison/render/Overlay.h>
 #include <jettison/vfs/FileSystem.h>
 
 namespace Jettison::Render
@@ -104,6 +105,13 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	    {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(LineVertex, position)},
 	    {1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(LineVertex, color)},
 	}};
+	const VkVertexInputBindingDescription overlayBinding{
+	    0, sizeof(OverlayVertex), VK_VERTEX_INPUT_RATE_VERTEX};
+	const std::array<VkVertexInputAttributeDescription, 3> overlayAttributes{{
+	    {0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(OverlayVertex, position)},
+	    {1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(OverlayVertex, color)},
+	    {2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(OverlayVertex, uv)},
+	}};
 	if (state.vertices == VertexLayout::Mesh)
 	{
 		vertexInput.vertexBindingDescriptionCount = 1;
@@ -117,6 +125,13 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 		vertexInput.pVertexBindingDescriptions = &lineBinding;
 		vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(lineAttributes.size());
 		vertexInput.pVertexAttributeDescriptions = lineAttributes.data();
+	}
+	else if (state.vertices == VertexLayout::Overlay)
+	{
+		vertexInput.vertexBindingDescriptionCount = 1;
+		vertexInput.pVertexBindingDescriptions = &overlayBinding;
+		vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(overlayAttributes.size());
+		vertexInput.pVertexAttributeDescriptions = overlayAttributes.data();
 	}
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -159,6 +174,16 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 	{
 		blendAttachment.blendEnable = VK_TRUE;
 		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+		blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	}
+	else if (state.blend == BlendMode::Premultiplied)
+	{
+		blendAttachment.blendEnable = VK_TRUE;
+		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
 		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
 		blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;

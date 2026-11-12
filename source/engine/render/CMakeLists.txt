@@ -23,6 +23,7 @@ jettison_add_module(render
 		include/jettison/render/IRenderer.h
 		include/jettison/render/Material.h
 		include/jettison/render/Mesh.h
+		include/jettison/render/Overlay.h
 		include/jettison/render/PassList.h
 		include/jettison/render/Procedural.h
 		include/jettison/render/SceneView.h
@@ -35,6 +36,7 @@ jettison_add_module(render
 		src/DebugDraw.cpp
 		src/DrawBatches.cpp
 		src/Material.cpp
+		src/Overlay.cpp
 		src/PassList.cpp
 		src/Procedural.cpp
 		src/SceneView.cpp
@@ -56,6 +58,8 @@ jettison_add_module(render
 		src/vulkan/ModelCache.cpp
 		src/vulkan/ModelCache.h
 		src/vulkan/ModelGltf.cpp
+		src/vulkan/OverlayRenderer.cpp
+		src/vulkan/OverlayRenderer.h
 		src/vulkan/PassBarriers.cpp
 		src/vulkan/PassBarriers.h
 		src/vulkan/PipelineCache.cpp
@@ -66,6 +70,8 @@ jettison_add_module(render
 		src/vulkan/SceneDraws.h
 		src/vulkan/Swapchain.cpp
 		src/vulkan/Swapchain.h
+		src/vulkan/TextureUpload.cpp
+		src/vulkan/TextureUpload.h
 		src/vulkan/VulkanRenderer.cpp
 		src/vulkan/Window.cpp
 		src/vulkan/Window.h
@@ -80,6 +86,7 @@ jettison_add_module(render
 		tests/DeviceChoiceTests.cpp
 		tests/DrawBatchTests.cpp
 		tests/MaterialTests.cpp
+		tests/OverlayTests.cpp
 		tests/PassListTests.cpp
 		tests/ProceduralTests.cpp
 		tests/ShadowTests.cpp

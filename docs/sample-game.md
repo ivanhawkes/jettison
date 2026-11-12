@@ -1,0 +1,79 @@
+# Sample game
+
+The engine has no game in it; the game lives in its own repository ([scope](scope.md)). The app
+shell plays the game's part wherever a system needs one to be seen working, as it did for piloting
+and docking (phase 7), and from phase 8b that part is a small sample game: the first slices of the
+game's own plan, built just far enough to exercise each engine system as it arrives. This document
+records where that plan comes from, what of it the shell plays today, and what comes next.
+
+## The plan: Civilisation Simulation
+
+The initial planning stage for gameplay is the **Civilisation Simulation** project (CivSim), which
+lives beside this repository at `~/projects/civilisation-simulation`. The local copy is the
+authority: the GitHub repository lags behind it and may hold work on branches other than `main`.
+Three parts of it are the plan:
+
+- **`idea.md`**, the raw ideas: a space trading empire after the silk road and the early
+  East India trade; currency in credits at a credit to the US dollar, priced whole, with small goods
+  sold by the package; stations in orbit as trade hubs, several to a planet, one above each of its
+  economic blocks, each a market of its own and so an arbitrage on a planetary scale; black and grey
+  markets on unlawful stations; surveys bought by licence and worked with rented machinery; ships
+  with repair state and a cockpit view, one flown directly and the fleet managed through a map;
+  insurance after the early Dutch corporations; privateers; star gates around suns for the long
+  hops and moon gates for the short; economies driven by GDP and purchasing power, corruption,
+  health, education, energy and pollution; planetary turns every 200 ticks and market ticks every
+  20; a player who starts with a small ship, some credits and a full hold of cheap goods on a poor
+  world; time compression and pause.
+- **`README.md`**, the CivSim core as built: generated worlds with an age, a population, production,
+  demand and a stockpile, priced by scarcity; a skill tree of tiers, prerequisites and exclusive
+  groups, whose effects land on hulls, venues, worlds, lanes, surveys and yards; and a marketplace of
+  venues at bodies, each a price-time order book, trading whole units for whole credits, with a
+  listing fee (40 basis points by default) and an insurance premium (120) on each side, and orders
+  that expire after 24 ticks.
+- **`data/`**, the content: the ages from Stone to Information, the categories of goods, some 170
+  trade items with their physical units, the skill tree, and the solar systems' name pools. An item
+  carries its density, its unit, its units to the cubic metre, its pack factor and a 2025 price, all
+  against the IBC cube (a one cubic metre intermediate bulk container), so a cube of any good has a
+  mass and a value.
+
+CivSim's own `idea.md` asks for it to be refactored onto Jettison before more work is done on it, so
+the plan and the sample game converge: what the shell builds here is written against the engine's
+modules, in the engine's style, and the game takes it over from there.
+
+## What the shell plays
+
+| Plan | In the shell | Since |
+|---|---|---|
+| Goods with physical units, priced in credits | Eight goods from CivSim's data, as definitions (`assets/defs/goods`): wheat seeds, flour, beer, iron, copper, phosphorus, antibiotics and electronics, from 290 to 144,000 credits. | 8b |
+| A unit of trade that hides fractions of a credit | The crate: one IBC cube of the good, its price the plan's price of a cube (copper is 7,616 kg of ingots at 10 credits a kilogram, 76,160 a crate). | 8b |
+| A market at each station, each its own economy | A market at each of the galaxy's two stations (`assets/defs/markets`): Ostra Highport over a farming world, Corva Refinery at an industrial one. Each holds a stock of every good it deals in and makes and uses it at its own rates each market tick, ten seconds, up to four times its target stock. | 8b |
+| Prices that follow scarcity | `base x 2 x target / (target + stock)`: twice the base with none on the shelf, the base at the target, a quarter of it at seven times the target and beyond. Whole credits, integer arithmetic, deterministic. | 8b |
+| A venue's charges | A listing fee in basis points on each side of the price (150 at Ostra, 120 at Corva): the ask rounded up and the bid down, so the market never pays out a fraction of a credit. | 8b |
+| A small ship, some credits | The shell's ship: a hold of twenty crates and 250,000 credits. | 8b |
+| Trade when docked | A `Trade` command, buy or sell, applied in the step: refused, saying why, for a ship not docked at the market's station, too few crates on the shelf or in the hold, too few credits or too little room. | 8b |
+| A trader's screen | The market screen (M): the station's goods, stock, bid and ask, what the ship holds, and the best bid among the other markets, with Buy and Sell by one crate or ten. Bound to the simulation's snapshots. | 8b |
+| Saved games | Markets, holds and purses are simulation state, saved with the world; the saved-games screen (L) loads one. | 8b |
+
+The two stations are in different systems, and the ship cannot yet cross a lane (the simulation's
+jump is [carried forward](roadmap.md#carried-forward) to 9a), so the arbitrage the screen shows
+between Ostra's grain and Corva's metal is one the player sees and cannot yet fly.
+
+## What comes next
+
+Each slice lands with the engine system it exercises:
+
+- **8c, audio.** A trade filled and a trade refused as sounds on the UI bus; docking and undocking
+  on the effects bus.
+- **9, AI.** Automated traders, the plan's other ships: they read the same markets, choose trades by
+  utility (which good, which route, which station), plot routes across the lanes and fly them. This
+  is where the ship crossing a lane arrives, and with it the first arbitrage a player can fly.
+- **The order book.** CivSim's price-time book, with its order life and its fills, replaces the
+  market maker here once traders post orders of their own. It is game code ([scope](scope.md)):
+  the engine's part is that it is deterministic, saved, and bound to a screen.
+- **The economy's turns.** Planetary turns every 200 ticks over GDP, population, ages and the
+  essential categories, which set each market's production and demand; the skill tree's effects on
+  venues and hulls, through the definition registry.
+- **11, scripting.** The plan's rules a mod changes, through the Wasm host.
+
+Not placed yet, from the plan: surveys, black and grey markets, insurance, privateers, gates of two
+kinds, fleets, and the station's services (refuelling, repairs, intel).

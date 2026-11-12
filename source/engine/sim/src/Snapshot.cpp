@@ -63,6 +63,8 @@ Snapshot Capture(const SimWorld &world)
 		snapshot.transforms.push_back({entity, transform, system ? system->system : kNoSystem});
 	}
 	std::ranges::sort(snapshot.transforms, {}, Identifier);
+	for (const auto &[type, capture] : world.Shown())
+		capture(registry, snapshot.shown[type]);
 	return snapshot;
 }
 

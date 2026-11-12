@@ -1,0 +1,62 @@
+/* The game UI's base: what a browser's own stylesheet gives every element, which RmlUi leaves to the
+   documents, and the palette every screen shares. A mod restyles every screen by shipping its own
+   ui/base.rcss, or one screen by shipping that screen's stylesheet (docs/architecture.md, "UI"). */
+
+body, div, p, h1, h2, h3, table, form {
+	display: block;
+}
+table { display: table; }
+tr { display: table-row; }
+td, th { display: table-cell; }
+thead { display: table-row-group; }
+tbody { display: table-row-group; }
+span, em, strong { display: inline; }
+
+/* A document is the frame's size, so a panel placed against an edge is placed against the frame's,
+   and the mouse goes through it to the scene and the documents behind it: a screen's panels take the
+   mouse back (.panel), and only where they are. */
+body {
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	font-family: Roboto;
+	font-weight: normal;
+	font-size: 15dp;
+	color: #d8e2ec;
+}
+
+h1 {
+	font-size: 24dp;
+	color: #f2f6fa;
+}
+
+.panel { pointer-events: auto; }
+
+em { font-style: italic; }
+strong { font-weight: bold; }
+
+button {
+	display: inline-block;
+	padding: 3dp 10dp;
+	margin-left: 4dp;
+	border: 1dp #4d7ea8;
+	border-radius: 3dp;
+	background-color: #1d3550;
+	color: #d8e2ec;
+	cursor: pointer;
+	tab-index: auto;
+	nav: auto;
+}
+button:hover {
+	background-color: #2a4d73;
+	color: #ffffff;
+}
+button:active {
+	background-color: #3a6894;
+}
+button.disabled, button.disabled:hover {
+	border-color: #33414f;
+	background-color: #1a222b;
+	color: #5c6b7a;
+	cursor: arrow;
+}

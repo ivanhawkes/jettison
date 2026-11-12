@@ -1,0 +1,34 @@
+<rml>
+<head>
+	<title>Saved games</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="saves.rcss"/>
+</head>
+<!-- The saves on the user mount, each read from the front of its file: the shell's "saves" data model
+     (app/src/Saves.h). Load replaces the world with the save's, as F9 and the console's load do. -->
+<body data-model="saves">
+	<div id="window" class="panel">
+		<h1>Saved games</h1>
+		<p id="empty" data-if="screen.saves.size == 0">There are no saves yet: F5 saves to quicksave.</p>
+		<table data-if="screen.saves.size > 0">
+			<thead>
+				<tr><td>Save</td><td>System</td><td>Written (UTC)</td><td class="number">Step</td><td></td></tr>
+			</thead>
+			<tbody>
+				<tr data-for="save, i : screen.saves">
+					<td class="name" data-attr-id="'save-' + i">{{save.name}}</td>
+					<td data-if="save.problem == ''">{{save.system}}</td>
+					<td data-if="save.problem == ''">{{save.written}}</td>
+					<td class="number" data-if="save.problem == ''">{{save.step}}</td>
+					<td class="problem" colspan="3" data-if="save.problem != ''">{{save.problem}}</td>
+					<td class="load">
+						<button data-attr-id="'load-' + i" data-class-disabled="save.problem != ''"
+						        data-event-click="load(save.name)">Load</button>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		<div id="footer">L closes this list.</div>
+	</div>
+</body>
+</rml>

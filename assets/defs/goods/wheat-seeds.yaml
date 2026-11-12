@@ -1,0 +1,9 @@
+# A good of the sample game, from the Civilisation Simulation data (docs/sample-game.md): a crate is one
+# IBC cube of it, and basePrice the credits a crate, at the plan's 2025 prices.
+# ItemWheatSeeds: 350 credits a kilolitre (the plan's Kilolitre goods are a crate each).
+version: 1
+displayName: Wheat seeds
+category: CategorySeeds
+age: AgeCopper
+crate: a kilolitre of certified seed, 775 kg
+basePrice: 350

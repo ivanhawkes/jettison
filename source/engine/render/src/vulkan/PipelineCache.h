@@ -20,9 +20,10 @@ class DeviceContext;
 // The vertex stream a program reads.
 enum class VertexLayout
 {
-	None, // generated from the vertex index: the fullscreen triangle
-	Mesh, // Render::Vertex
-	Line, // Render::LineVertex
+	None,    // generated from the vertex index: the fullscreen triangle
+	Mesh,    // Render::Vertex
+	Line,    // Render::LineVertex
+	Overlay, // Render::OverlayVertex
 };
 
 enum class BlendMode
@@ -30,6 +31,8 @@ enum class BlendMode
 	Opaque,
 	// Straight alpha, composited "over": source alpha, one minus source alpha.
 	Alpha,
+	// Alpha premultiplied into the colour, composited "over": one, one minus source alpha.
+	Premultiplied,
 };
 
 // Everything about a graphics pipeline other than its shaders and layout: the vertex stream, the

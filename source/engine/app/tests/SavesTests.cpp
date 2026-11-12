@@ -11,6 +11,7 @@
 
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -52,6 +53,27 @@ TEST_CASE("Saves: the saves are the user mount's, by name")
 	files.Write("saves/notes.txt", bytes);
 	files.Write("saves/a.b.save", bytes);
 	CHECK(App::ListSaves(files) == std::vector<std::string>{"first", "second"});
+
+	// The load screen lists them, and a file that is not a save says why.
+	Sim::SaveInfo info;
+	info.name = "first";
+	info.engineVersion = "0.1.0";
+	info.writtenAt = 1794476280;
+	info.step = 1200;
+	info.system = "Halcyon";
+	Sim::SaveGame save;
+	save.info = info;
+	files.Write(App::SavePath("first"), save.Write());
+	const App::SavesScreen screen = App::BuildSavesScreen(files);
+	REQUIRE(screen.saves.size() == 2);
+	CHECK(screen.saves[0].name == "first");
+	CHECK(screen.saves[0].system == "Halcyon");
+	CHECK(screen.saves[0].written == "2026-11-12 09:38");
+	CHECK(screen.saves[0].step == 1200);
+	CHECK(screen.saves[0].engine == "0.1.0");
+	CHECK(screen.saves[0].problem.empty());
+	CHECK(screen.saves[1].name == "second");
+	CHECK_FALSE(screen.saves[1].problem.empty());
 	std::filesystem::remove_all(directory);
 }
 

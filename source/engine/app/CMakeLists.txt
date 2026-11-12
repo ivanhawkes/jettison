@@ -19,6 +19,7 @@ jettison_add_module(app
 		scene
 		sim
 		time
+		ui
 		vfs
 	HEADERS
 		include/jettison/app/AppArguments.h
@@ -32,6 +33,8 @@ jettison_add_module(app
 		src/Docking.h
 		src/GlfwInput.cpp
 		src/GlfwInput.h
+		src/MarketScreen.cpp
+		src/MarketScreen.h
 		src/Piloting.cpp
 		src/Piloting.h
 		src/RenderApplication.cpp
@@ -40,6 +43,8 @@ jettison_add_module(app
 		src/Settings.cpp
 		src/Settings.h
 		src/SmokeSequence.cpp
+		src/Trading.cpp
+		src/Trading.h
 	TESTS
 		tests/DockingTests.cpp
 		tests/LargeWorldTests.cpp
@@ -47,6 +52,7 @@ jettison_add_module(app
 		tests/SavesTests.cpp
 		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp
+		tests/TradingTests.cpp
 	PRIVATE_LIBRARIES
 		glfw
 )

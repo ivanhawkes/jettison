@@ -49,6 +49,8 @@ class MaterialCache;
 struct MaterialBinding;
 class ModelCache;
 class PipelineCache;
+class Overlay;
+class OverlayRenderer;
 
 // The frame, as the declared pass list docs/architecture.md describes ("The frame"): the sun's
 // shadow cascades, each a depth-only rendering of every draw into one layer of the shadow map; the
@@ -117,9 +119,10 @@ class Renderer
 	// and computed its world transforms (SceneUpdateSystem), so this frame only reads it. The
 	// presentation time, in seconds, drives the materials' time-driven parameters. True when this
 	// frame recreated the swapchain.
+	// The overlay is drawn over the tonemapped scene and under the dev tools.
 	bool Render(
-	    const Scene::Scene &scene, const DebugDraw &debugDraw, ImGuiRenderer &imguiRenderer,
-	    double presentationTime);
+	    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
+	    ImGuiRenderer &imguiRenderer, double presentationTime);
 
 	// What the UI is drawn into: the swapchain's format, single-sampled.
 	VkFormat GetOutputFormat() const
@@ -307,6 +310,7 @@ class Renderer
 	std::unique_ptr<ModelCache> m_pModels;
 	std::unique_ptr<Environment> m_pEnvironment;
 	std::unique_ptr<GpuProfiler> m_pProfiler;
+	std::unique_ptr<OverlayRenderer> m_pOverlay;
 	// The sky the environment was baked from, or empty for the black one.
 	std::optional<Scene::SkyComponent> m_bakedSky;
 

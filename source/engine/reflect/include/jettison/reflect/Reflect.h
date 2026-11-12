@@ -95,8 +95,25 @@ struct OptionalTraits
 // The traits for a std::optional type some registered field has, or null for any other type.
 const OptionalTraits *FindOptional(const entt::meta_type &type);
 
+// Where a field is in an object of its type: what a reader needs to walk an object in place rather
+// than copy each field out and back, as the archives do. The UI's data models read the presentation's
+// copy of a snapshot through it, every frame (ui/DataModel.h).
+struct FieldAddress
+{
+	void *(*address)(void *object);
+};
+
+// The field's address in the object, which is of the field's type's owner; null for an object that
+// is null, or a field not registered through TypeBuilder::Field.
+void *AddressOf(const entt::meta_data &field, void *object);
+
 namespace Detail
 {
+template <typename T, auto Member> void *MemberAddress(void *object)
+{
+	return &(static_cast<T *>(object)->*Member);
+}
+
 // Throws RegistrationError unless name is free for a type and the type is not registered yet.
 void CheckTypeName(Name name, const entt::type_info &info);
 // Throws RegistrationError if type already has a field or an enumerator by that name.
@@ -162,7 +179,9 @@ template <typename T> class TypeBuilder
 		using FieldType = std::remove_cvref_t<std::invoke_result_t<decltype(Member), T &>>;
 		if constexpr (Detail::IsOptional<FieldType>::value)
 			Detail::AddOptional(entt::type_id<FieldType>(), Detail::OptionalOf<FieldType>::kTraits);
-		m_factory.template data<Member>(name.Id(), name.Text()).traits(attributes);
+		m_factory.template data<Member>(name.Id(), name.Text())
+		    .traits(attributes)
+		    .template custom<FieldAddress>(FieldAddress{&Detail::MemberAddress<T, Member>});
 		return *this;
 	}
 

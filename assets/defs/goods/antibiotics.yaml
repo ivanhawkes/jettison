@@ -1,0 +1,9 @@
+# A good of the sample game, from the Civilisation Simulation data (docs/sample-game.md): a crate is one
+# IBC cube of it, and basePrice the credits a crate, at the plan's 2025 prices.
+# ItemAntibiotics: 45 credits a kilogram of active ingredient, 456 kg to the packed cube.
+version: 1
+displayName: Antibiotics
+category: CategoryMedicine
+age: AgePost-industrial
+crate: 456 kg of bulk antibiotic
+basePrice: 20520

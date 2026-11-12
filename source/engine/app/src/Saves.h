@@ -47,6 +47,33 @@ std::string SavePath(std::string_view name);
 // The names of the saves the mounts hold, sorted.
 std::vector<std::string> ListSaves(const Vfs::FileSystem &fileSystem);
 
+// The saved-games screen's data (assets/ui/saves.rml), which the UI's "saves" model is bound to as
+// "screen": a row a save, read from the front of its file (Sim::SaveGame::ReadInfo), and one that does
+// not read listed with the reason. Registered with Reflect, for the data model to read.
+struct SaveRow
+{
+	std::string name;
+	std::string system;
+	// When it was written, in UTC: "2026-11-12 09:38".
+	std::string written;
+	std::uint64_t step{0};
+	std::string engine;
+	// Why the save cannot be read, or empty.
+	std::string problem;
+
+	bool operator==(const SaveRow &) const = default;
+};
+struct SavesScreen
+{
+	std::vector<SaveRow> saves;
+
+	bool operator==(const SavesScreen &) const = default;
+};
+
+void RegisterSavesScreenTypes();
+// The saves the mounts hold, by name.
+SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem);
+
 // The systems the world's entities are in (Sim::InSystem) that the galaxy does not have, sorted:
 // a save of another galaxy, or of one a mod has since changed. Entities on a lane are in none.
 std::vector<std::uint64_t> UnknownSystems(const entt::registry &world, const Celestial::Galaxy &galaxy);

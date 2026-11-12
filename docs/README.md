@@ -8,5 +8,6 @@
 | [History](history.md) | Phases 0–5 as they were closed, and what each finished system became |
 | [Coding standards](coding-standards.md) | Naming, ownership, errors, determinism rules, dependencies, testing, commits |
 | [Build and gates](build-and-gates.md) | Building, the CI gate, warnings, tidy, sanitizers, the headless render test |
+| [Sample game](sample-game.md) | The game the shell plays, its plan in the Civilisation Simulation project, and what comes next |
 
 A change that alters a decision recorded here updates the document in the same commit.

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <glm/vec2.hpp>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,13 +23,17 @@
 #include <jettison/scene/JumpTransition.h>
 #include <jettison/scene/SceneSystems.h>
 #include <jettison/scene/SystemScene.h>
+#include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
 #include <jettison/time/Clock.h>
+#include <jettison/ui/UiSystem.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include "GlfwInput.h"
+#include "MarketScreen.h"
 #include "Piloting.h"
+#include "Saves.h"
 #include "Settings.h"
 
 namespace Jettison::Jobs
@@ -113,6 +118,9 @@ class Application
 	void InitRenderer();
 	// The window the renderer opened: its title and its size.
 	void InitWindow();
+	// The game UI over the window (docs/architecture.md, "UI"): its fonts, the market screen's data
+	// model and document, read through the asset tree.
+	void InitUi();
 
 	// The frame's systems, one or two to a phase; registered in the constructor, so a mistake in
 	// the order is a start-up error, before a window opens.
@@ -139,6 +147,20 @@ class Application
 	// its system scene built, and the cameras on the jump point arrived at.
 	void ShowArrival(Scene::JumpArrival &arrival);
 	void DrawUI();
+	// The presentation phase: the market screen made again from the snapshot, when the step or what
+	// the shell shows moved, and the game UI laid out and drawn into its overlay.
+	void UpdateGameUi();
+	// The window's events since the last frame, to the game UI, unless the dev tools have the mouse or
+	// the keyboard.
+	void FeedGameUi();
+	// The market the screen shows: the one at the ship's station, else the first in the system shown,
+	// else none.
+	entt::entity ShownMarket() const;
+	void ShowMarket(bool shown);
+	// The saved-games screen, its list read again from the user mount as it is shown.
+	void ShowSaves(bool shown);
+	// A Trade the next step applies, from the screen's buttons: crates bought, or sold when negative.
+	void SendTrade(std::string_view good, std::int64_t crates);
 	// The renderer's counts and the GPU's time in each pass, in the dev tools.
 	void DrawRendererPanel();
 	// The star system shown, and the scene's layers, each shown or hidden.
@@ -279,6 +301,9 @@ class Application
 	Sim::Stepper m_simStepper{m_sim};
 	// Attached in the constructor, and the world's from then on.
 	Physics::PhysicsWorld *m_pPhysics{nullptr};
+	// The sample game's definitions, its goods and markets (Trading.h), read through the asset tree in
+	// InitResources.
+	std::optional<Sim::DefinitionRegistry> m_definitions;
 
 	// The ship and the station it holds station by, as simulation entities, and the station's body
 	// in its system; null until SpawnShip finds a station to put them at.
@@ -341,6 +366,9 @@ class Application
 	Input::ActionId m_jumpNext;
 	// P: fly the ship, and P again to let it go.
 	Input::ActionId m_pilot;
+	// M: the market screen, shown and hidden; L the saved games.
+	Input::ActionId m_toggleMarket;
+	Input::ActionId m_toggleSaves;
 	// F5 saves to "quicksave", and F9 loads it.
 	Input::ActionId m_quickSave;
 	Input::ActionId m_quickLoad;
@@ -368,6 +396,32 @@ class Application
 	// The renderer's cluster check over the run, which the headless run turns on and judges once the
 	// renderer is gone: copied out of it as the frame loop ends.
 	Render::ClusterCheckTotals m_clusterChecks;
+	// The game UI: RmlUi, drawing into the overlay the renderer draws over the scene. Made after the
+	// window, so its size is the frame's, and released before the renderer.
+	std::unique_ptr<Ui::UiSystem> m_pUi;
+	Ui::DataModel *m_pMarketModel{nullptr};
+	Ui::DocumentHandle m_marketDocument;
+	bool m_showMarket{false};
+	Ui::DataModel *m_pSavesModel{nullptr};
+	Ui::DocumentHandle m_savesDocument;
+	bool m_showSaves{false};
+	SavesScreen m_savesScreen;
+	// The screen's data, which the "market" model is bound to, the step it was made at, and what made
+	// it: a click's answer, the lot.
+	MarketScreen m_marketScreen;
+	std::optional<std::uint64_t> m_marketStep;
+	std::int64_t m_lot{1};
+	std::string m_tradeMessage;
+	// The ship's trades answered, filled or refused, and how many there were when the smoke run's
+	// trade was sent.
+	std::uint64_t m_tradeAnswers{0};
+	std::uint64_t m_smokeTradeAnswers{0};
+	bool m_marketDirty{true};
+	// The warnings and errors RmlUi logged over the run, which the headless run holds at none.
+	std::size_t m_uiProblems{0};
+	// The frame's size the UI was last given, in pixels.
+	glm::ivec2 m_uiSize{0};
+
 	// The renderer's timings and counts as the frame loop left them, for the benchmark's report.
 	std::vector<Render::PassTiming> m_passTimings;
 	Render::FrameStats m_frameStats;

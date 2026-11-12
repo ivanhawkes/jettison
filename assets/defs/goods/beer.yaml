@@ -1,0 +1,9 @@
+# A good of the sample game, from the Civilisation Simulation data (docs/sample-game.md): a crate is one
+# IBC cube of it, and basePrice the credits a crate, at the plan's 2025 prices.
+# ItemBeer: 1,200 credits a kilolitre.
+version: 1
+displayName: Beer
+category: CategoryFerments
+age: AgeCopper
+crate: a kilolitre of beer in casks
+basePrice: 1200

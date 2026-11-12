@@ -19,7 +19,8 @@ jettison/
 ├── CMakeLists.txt              project, warnings target, shader helper, package export
 ├── CMakePresets.json
 ├── cmake/                      jettison_add_module(), JettisonConfig.cmake.in
-├── assets/                     sample and test content (Git LFS), staged beside executables
+├── assets/                     sample and test content (Git LFS), staged beside executables;
+│                               the sample game's goods and markets (defs/) and screens (ui/)
 ├── docs/                       this documentation
 ├── scripts/                    gates: ci.sh, format-check.sh, smoke-test.sh, tidy.sh
 └── source/
@@ -46,7 +47,7 @@ jettison/
     │   │   └── src/vulkan/     the Vulkan backend, private, behind IRenderer.h
     │   ├── physics/            Jolt integration
     │   ├── audio/              miniaudio integration
-    │   ├── ui/                 RmlUi integration and data binding
+    │   ├── ui/                 RmlUi integration and data binding, drawn into render's overlay
     │   │   └── imgui/          ImGui backend, console, dev tools
     │   ├── ai/                 utility AI, behaviour trees, graph pathfinding, steering
     │   ├── script/             Wasm host
@@ -141,7 +142,10 @@ The World tier's listed sibling edges are `scene`'s: on `animation`, whose clip 
 drives, on `celestial`, whose star systems its system scenes are built from, and on `sim`, whose
 snapshots its traffic layer is made from (6b). The scene reads `Sim::Snapshot` alone, never the
 world, and nothing in `sim` sees the scene. `render` depends on
-`scene` from the tier above, and reads it; the scene names no device.
+`scene` from the tier above, and reads it; the scene names no device. The Presentation tier's listed
+sibling edge is `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, a plain draw list in
+render's public headers, and decodes a document's images with render's CPU texture decoder; it
+includes no Vulkan header and the renderer no RmlUi one.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics` and `ai` never include
 `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
@@ -366,6 +370,50 @@ end. Presentation then resynchronises its snapshots and makes the traffic layer'
 (`SystemScene::ResetTraffic`), since a loaded world's identifiers may name other entities than they
 did.
 
+## UI
+
+The game UI is RmlUi behind `ui/UiSystem.h` (8b), which names no RmlUi type, so the game and the
+shell include none. Documents, stylesheets, templates, fonts and images are read through the VFS
+(the UI's file interface), so a mod restyles a screen by shipping its stylesheet over the base one;
+a stylesheet is read once a run, so mods are mounted before the UI is made. Its messages go to the
+log under `ui`, and the warnings and errors among them are counted, which the render test holds at
+none. Fonts are FreeType's, one build that RmlUi's font engine and ImGui's rasteriser
+(`imgui_freetype`) both link. The dev tools and the console stay on ImGui.
+
+**Drawing.** What RmlUi draws is recorded into a `Render::Overlay` (`render/Overlay.h`): vertices in
+the frame's pixels, colours encoded sRGB with alpha premultiplied as RmlUi gives them, indices, and
+draws with a translation, a scissor and an optional transform; and textures (a font's atlas, an
+image), held by identifiers never given out twice. RmlUi's compiled geometry is kept by the UI and
+copied into the overlay each time it is drawn, a few thousand vertices for the market screen, which
+the renderer writes into the frame slot's buffers. The renderer draws the overlay in the output pass,
+after the tonemap and the jump's fade and before the dev tools, with the `overlay` program
+(`vulkan/OverlayRenderer.h`); it uploads a texture the first time a draw names it and releases its
+copy once the overlay no longer holds it and the frames in flight are done with it. Colours are
+multiplied and filtered as encoded, as a browser does; on an sRGB swapchain the fragment is decoded
+before it is written, so blending is in linear light, where a browser blends encoded values. Clip
+masks, layers, filters and shaders are left to RmlUi's defaults, which draw nothing for them
+([carried forward](roadmap.md#carried-forward)).
+
+**Data.** A document reads the game's data through a data model (`ui/DataModel.h`): named
+variables, bound by address to values presentation owns, and named events. A variable is any type
+registered with Reflect, read through the reflection tables in place: a field's address is found
+from its member pointer, which `Reflect::TypeBuilder::Field` records (`Reflect::AddressOf`), a
+`std::vector` by its elements, and a leaf (a bool, an integer, a float, a string, a registered
+enumeration by its name) as a value, so binding a type needs nothing beyond its registration, and a
+type that cannot be shown is refused as it is bound. The values are presentation's copies of what
+the simulation's snapshots carry: a world shows a component to presentation with
+`SimWorld::ShowInSnapshots<T>()`, after which every snapshot holds every entity's copy of it
+(`Snapshot::Components<T>`, `Snapshot::Get<T>`). Presentation builds a screen's data from a snapshot
+when a step brings a new one, and tells the model only when what it shows has changed; an event a
+document raises becomes a command the next step applies, and the step's answer, an event, is shown
+in turn. Nothing in the UI reads the world.
+
+**Input.** The shell feeds the UI the window's events in order, from GLFW callbacks chained over the
+ImGui backend's: the cursor each frame, buttons, the wheel, keys and text. The dev tools come first:
+what ImGui wants, the UI is not given. A document is the frame's size and lets the mouse through but
+for its panels (`pointer-events`), so a click on a panel is the UI's (`UiSystem::WantsMouse`) and is
+not a pick or a camera drag, and a click beside it is.
+
 ## Coordinate frames and units
 
 SI units: metres, seconds, kilograms, radians. Right-handed, Y-up, as the scene format already
@@ -450,7 +498,8 @@ nodes in it:
    buffer so it shades only what no surface covered. A node of its own would have to store the
    multisampled target and load it again, which the opaque pass keeps on chip.
 8. **Transparent**, sorted back to front, using the same cluster lookup (phase 10).
-9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the UI. The tonemapper is Khronos PBR
+9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the game UI's overlay and the dev tools
+   over it ([UI](#ui)). The tonemapper is Khronos PBR
    Neutral (5b), applied after exposure in the output pass: a base colour under white light of
    intensity one shows as authored, and highlights compress towards white without changing hue.
 10. **Cluster readback** (transfer, 5c). The grid and the index list copied out for the cluster
@@ -658,9 +707,9 @@ proves it headlessly. What exists:
   A save holds the world and the shell's own section, which entities are its ship, station and port.
   The console's `bind <context> <action> [bindings...]` rebinds an action, or says what it is bound
   to, and `unbind` puts it back; either writes the settings file, so a rebinding survives a restart.
-- **Smoke sequence**. `SmokeSequence` is the render test's eleven stages (resize, resize,
-  minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, save and load, jump,
-  settle) as a state
+- **Smoke sequence**. `SmokeSequence` is the render test's twelve stages (resize, resize,
+  minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, save and load,
+  trade, jump, settle) as a state
   machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML
@@ -729,7 +778,19 @@ proves it headlessly. What exists:
   [cluster](#rendering-clustered-forward) the fragment falls in. `unlit` is for what is a light
   rather than lit by one.
 - **ImGui** for a demo window, toggled with F1, and the Renderer panel: the frame's counts and
-  each pass's GPU time.
+  each pass's GPU time. Its fonts are rasterised by FreeType, as the game UI's are.
+- **Game UI** (`engine/ui`, 8b). RmlUi drawn through the renderer's overlay, documents and styles
+  through the VFS, data models bound to reflected types ([UI](#ui)). The shell's two screens are the
+  market (M) and the saved games (L), whose Load loads a save as F9 does.
+- **The sample game** (8b, [sample game](sample-game.md)). The shell plays the game's part as it
+  does for piloting and docking: the first slice of the Civilisation Simulation's plan. Eight goods
+  from its data, traded by the crate (an IBC cube) in whole credits, a market at each of the
+  galaxy's two stations that makes and uses its goods each market tick (ten seconds) and prices each
+  by scarcity, either side of the price by its listing fee; the ship starts with an empty hold of
+  twenty crates and 250,000 credits, and trades at the market of the station it is docked at
+  (`app/src/Trading.h`). The market screen shows the station's goods, the ship's hold and credits, and
+  the best bid among the other markets; its Buy and Sell send a `Trade`, which the step fills or
+  refuses, saying why.
 - **Physics** (`engine/physics`, 7a). Jolt in double precision as a service of the simulation world,
   [as above](#physics): rigid, kinematic and static bodies of box, sphere, capsule, cylinder,
   convex-hull and mesh shapes, a Jolt world per frame of each star system, rails and gravity from the

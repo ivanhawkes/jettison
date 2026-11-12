@@ -1,12 +1,15 @@
 #include "Saves.h"
 
 #include <algorithm>
+#include <chrono>
+#include <exception>
 #include <format>
 #include <stdexcept>
 
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -81,6 +84,50 @@ std::vector<std::string> ListSaves(const Vfs::FileSystem &fileSystem)
 			names.push_back(name);
 	}
 	return names;
+}
+
+void RegisterSavesScreenTypes()
+{
+	static const bool registered = []
+	{
+		Reflect::RegisterType<SaveRow>("Shell.SaveRow")
+		    .Field<&SaveRow::name>("name")
+		    .Field<&SaveRow::system>("system")
+		    .Field<&SaveRow::written>("written")
+		    .Field<&SaveRow::step>("step")
+		    .Field<&SaveRow::engine>("engine")
+		    .Field<&SaveRow::problem>("problem");
+		Reflect::RegisterType<SavesScreen>("Shell.SavesScreen").Field<&SavesScreen::saves>("saves");
+		return true;
+	}();
+	(void)registered;
+}
+
+SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem)
+{
+	SavesScreen screen;
+	for (const std::string &name : ListSaves(fileSystem))
+	{
+		SaveRow row;
+		row.name = name;
+		try
+		{
+			const auto bytes = fileSystem.Read(SavePath(name));
+			const Sim::SaveInfo info =
+			    Sim::SaveGame::ReadInfo(bytes ? *bytes : std::vector<std::byte>{});
+			row.system = info.system.empty() ? "no system" : info.system;
+			row.written = std::format(
+			    "{:%Y-%m-%d %H:%M}", std::chrono::sys_seconds{std::chrono::seconds{info.writtenAt}});
+			row.step = info.step;
+			row.engine = info.engineVersion;
+		}
+		catch (const std::exception &error)
+		{
+			row.problem = error.what();
+		}
+		screen.saves.push_back(std::move(row));
+	}
+	return screen;
 }
 
 std::vector<std::uint64_t> UnknownSystems(const entt::registry &world, const Celestial::Galaxy &galaxy)

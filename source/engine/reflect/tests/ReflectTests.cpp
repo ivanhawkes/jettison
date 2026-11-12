@@ -127,6 +127,28 @@ TEST_CASE("Reflect: fields are read and written through the tables, as an archiv
 	CHECK(FindField(type, "capacity").get(hold).cast<int>() == 400);
 }
 
+TEST_CASE("Reflect: a field's address is found in the object, so a reader can walk it in place")
+{
+	using namespace Jettison::Reflect;
+	struct Berth
+	{
+		int number{0};
+		double length{0.0};
+	};
+	RegisterType<Berth>("ReflectTests.Berth")
+	    .Field<&Berth::number>("number")
+	    .Field<&Berth::length>("length");
+
+	Berth berth{7, 120.5};
+	const entt::meta_type type = Resolve("ReflectTests.Berth");
+	CHECK(AddressOf(FindField(type, "number"), &berth) == &berth.number);
+	CHECK(AddressOf(FindField(type, "length"), &berth) == &berth.length);
+	*static_cast<int *>(AddressOf(FindField(type, "number"), &berth)) = 9;
+	CHECK(berth.number == 9);
+	CHECK(AddressOf(FindField(type, "number"), nullptr) == nullptr);
+	CHECK(AddressOf(entt::meta_data{}, &berth) == nullptr);
+}
+
 TEST_CASE("Reflect: a name that is not registered resolves to nothing")
 {
 	using Jettison::Reflect::Resolve;

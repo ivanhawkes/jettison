@@ -21,6 +21,7 @@
 #include "vulkan/GpuProfiler.h"
 #include "vulkan/MaterialCache.h"
 #include "vulkan/ModelCache.h"
+#include "vulkan/OverlayRenderer.h"
 #include "vulkan/PipelineCache.h"
 #include "vulkan/imgui/ImGuiRenderer.h"
 
@@ -126,6 +127,10 @@ void Renderer::Init()
 	CreateFrames();
 	WriteOutputSet();
 	CreatePipelines();
+	m_pOverlay = std::make_unique<OverlayRenderer>(
+	    m_pDeviceContext, *m_pPipelines, m_pSwapchain->GetImageFormat(), m_pSwapchain->EncodesSrgb(),
+	    kFramesInFlight);
+	m_pOverlay->Init();
 	CreateRenderFinishedSemaphores();
 }
 
@@ -155,6 +160,9 @@ void Renderer::Destroy()
 	DestroyTargets();
 	if (m_pProfiler)
 		m_pProfiler->Destroy();
+	// Before the pipelines, one of which is its.
+	if (m_pOverlay)
+		m_pOverlay->Destroy();
 	if (m_pEnvironment)
 		m_pEnvironment->Destroy();
 	m_bakedSky.reset();
@@ -1136,8 +1144,8 @@ void Renderer::WriteMaterials(FrameData &frame, const std::vector<SceneDrawComma
 
 
 bool Renderer::Render(
-    const Scene::Scene &scene, const DebugDraw &debugDraw, ImGuiRenderer &imguiRenderer,
-    double presentationTime)
+    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
+    ImGuiRenderer &imguiRenderer, double presentationTime)
 {
 	FrameData &frame = m_frames[m_currentFrame];
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
@@ -1197,6 +1205,7 @@ bool Renderer::Render(
 		    m_lightIndices.size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, MemoryUse::Readback,
 		    "light-indices-readback-" + slot);
 	}
+	m_pOverlay->Prepare(m_currentFrame, overlay);
 	Record(frame, imageIndex, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
@@ -1619,7 +1628,9 @@ void Renderer::RecordOutput(
 	vkCmdPushConstants(
 	    commandBuffer, m_outputLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(output), &output);
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-	// The UI goes over the scene after exposure, single-sampled, in the swapchain's format.
+	// The UI goes over the scene after exposure, single-sampled, in the swapchain's format: the game's
+	// overlay, then the dev tools over it.
+	m_pOverlay->Record(commandBuffer, m_currentFrame, m_targets.extent);
 	imguiRenderer.RenderDrawData(commandBuffer);
 	vkCmdEndRendering(commandBuffer);
 }

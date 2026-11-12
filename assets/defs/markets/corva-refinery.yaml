@@ -1,0 +1,16 @@
+# The market at Corva Refinery, an industrial station: it smelts metals, makes phosphorus and
+# electronics, and has to buy its food and drink, and its medicine like everyone else. A market of
+# the sample game (docs/sample-game.md), in crates; production and consumption are a market tick's.
+version: 1
+station: Corva Refinery
+system: Vesper
+feeBps: 120
+goods:
+  - {good: wheat-seeds, stock: 25, production: 0, consumption: 1, target: 40}
+  - {good: flour, stock: 25, production: 0, consumption: 1, target: 40}
+  - {good: beer, stock: 18, production: 0, consumption: 1, target: 30}
+  - {good: iron, stock: 90, production: 3, consumption: 1, target: 60}
+  - {good: copper, stock: 60, production: 2, consumption: 1, target: 40}
+  - {good: phosphorus, stock: 60, production: 2, consumption: 1, target: 40}
+  - {good: antibiotics, stock: 14, production: 0, consumption: 1, target: 20}
+  - {good: electronics, stock: 30, production: 1, consumption: 0, target: 20}

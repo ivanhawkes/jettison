@@ -2,6 +2,8 @@
 
 #include <entt/entt.hpp>
 
+#include <algorithm>
+#include <any>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -17,6 +19,7 @@
 #include <jettison/serialise/Binary.h>
 #include <jettison/sim/CommandQueue.h>
 #include <jettison/sim/Events.h>
+#include <jettison/sim/Snapshot.h>
 #include <jettison/time/Clock.h>
 
 namespace Jettison::Sim
@@ -142,6 +145,32 @@ class SimWorld
 		    { apply(world, command.cast<const T &>()); });
 	}
 
+	// A component presentation may see: every snapshot taken of the world from now on carries every
+	// entity's copy of it (Snapshot::Components), which is how a market reaches a screen without the
+	// screen reading the world. Copied at each capture, so a component shown should be small; the
+	// order is the entities' identifiers'. Throws std::logic_error for a type shown twice.
+	template <typename T> void ShowInSnapshots()
+	{
+		AddShown(
+		    entt::type_hash<T>::value(),
+		    [](const entt::registry &registry, std::any &samples)
+		    {
+			    std::vector<ComponentSample<T>> copied;
+			    for (const auto [entity, value] : registry.view<const T>().each())
+				    copied.push_back({entity, value});
+			    std::ranges::sort(
+			        copied, {},
+			        [](const ComponentSample<T> &sample) { return entt::to_integral(sample.entity); });
+			    samples = std::move(copied);
+		    });
+	}
+	// What the snapshots copy, by EnTT's type hash: Capture runs each.
+	using ShownCapture = std::function<void(const entt::registry &, std::any &)>;
+	const std::vector<std::pair<entt::id_type, ShownCapture>> &Shown() const
+	{
+		return m_shown;
+	}
+
 	// A system for the simulation phase; throws std::logic_error for one in another phase, and
 	// as Ecs::Scheduler::Register does.
 	void RegisterSystem(Ecs::SystemDescription system);
@@ -230,6 +259,7 @@ class SimWorld
 	};
 
 	void AddComponent(const entt::meta_type &type, Component component);
+	void AddShown(entt::id_type type, ShownCapture capture);
 	void AddCommand(const entt::meta_type &type, Apply apply);
 
 	double m_fixedStep;
@@ -241,6 +271,8 @@ class SimWorld
 	std::vector<Component> m_components;
 	// Keyed by EnTT's type ID; looked up, never iterated, so no outcome depends on its order.
 	std::unordered_map<entt::id_type, Apply> m_applies;
+	// In the order they were shown; each fills its own entry of a snapshot.
+	std::vector<std::pair<entt::id_type, ShownCapture>> m_shown;
 	bool m_recording{false};
 	std::vector<AppliedCommand> m_recorded;
 	// Saved in the order they were added. After the registry, so they go before it: a service's

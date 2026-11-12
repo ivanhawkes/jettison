@@ -1,0 +1,53 @@
+<rml>
+<head>
+	<title>Market</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="market.rcss"/>
+</head>
+<!-- The market of the station the ship is at, or nearest: the shell's "market" data model, made from
+     the simulation's snapshots (app/src/MarketScreen.h). Prices are credits a crate, a crate one IBC
+     cube of the good. -->
+<body data-model="market">
+	<div id="window" class="panel">
+		<div id="header">
+			<h1 id="station">{{screen.station}}</h1><span id="system">{{screen.system}}</span>
+		</div>
+		<div id="status" data-class-docked="screen.docked">{{screen.status}}</div>
+		<div id="purse">
+			Credits <span id="credits">{{screen.credits | thousands}}</span>
+			&nbsp;&nbsp; Hold <span id="hold">{{screen.used}} / {{screen.capacity}}</span> crates
+			<span id="lots">Crates a trade
+				<button id="lot-1" data-class-chosen="screen.lot == 1" data-event-click="lot(1)">1</button>
+				<button id="lot-10" data-class-chosen="screen.lot == 10" data-event-click="lot(10)">10</button>
+			</span>
+		</div>
+		<table>
+			<thead>
+				<tr>
+					<td>Good</td><td class="number">Stock</td><td class="number">Bid</td>
+					<td class="number">Ask</td><td class="number">Held</td><td class="elsewhere">Elsewhere</td><td></td>
+				</tr>
+			</thead>
+			<tbody>
+				<tr data-for="row, i : screen.goods">
+					<td class="good">{{row.name}}<span class="crate">{{row.crate}}</span></td>
+					<td class="number" data-attr-id="'stock-' + i">{{row.stock}}</td>
+					<td class="number" data-attr-id="'bid-' + i">{{row.bid | thousands}}</td>
+					<td class="number" data-attr-id="'ask-' + i" data-class-cheap="row.ask &lt; row.base"
+					    data-class-dear="row.ask &gt; row.base * 3 / 2">{{row.ask | thousands}}</td>
+					<td class="number" data-attr-id="'held-' + i">{{row.held}}</td>
+					<td class="elsewhere">{{row.elsewhere}}</td>
+					<td class="trade">
+						<button data-attr-id="'buy-' + i" data-class-disabled="!row.canBuy"
+						        data-event-click="buy(row.good, screen.lot)">Buy</button>
+						<button data-attr-id="'sell-' + i" data-class-disabled="!row.canSell"
+						        data-event-click="sell(row.good, screen.lot)">Sell</button>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		<div id="message">{{screen.message}}</div>
+		<div id="footer">M closes the market.</div>
+	</div>
+</body>
+</rml>

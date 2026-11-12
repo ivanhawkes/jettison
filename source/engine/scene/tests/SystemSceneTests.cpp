@@ -354,11 +354,15 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 
 	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
 	const Sim::Snapshot first{
-	    1, 0.1, {{ship, {{1.0e11, 0.0, 0.0}, {}}, halcyon}, {buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}}};
+	    1,
+	    0.1,
+	    {{ship, {{1.0e11, 0.0, 0.0}, {}}, halcyon}, {buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}},
+	    {}};
 	const Sim::Snapshot second{
 	    2,
 	    0.2,
-	    {{ship, {{1.0e11 + 8.0, 0.0, 0.0}, {}}, halcyon}, {buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}}};
+	    {{ship, {{1.0e11 + 8.0, 0.0, 0.0}, {}}, halcyon}, {buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}},
+	    {}};
 	systemScene.SyncTraffic(first, first, 0.0);
 	systemScene.SyncTraffic(first, second, 0.5);
 	CHECK(asked == 2);
@@ -378,7 +382,7 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 
 	// The ship leaves the snapshots: its proxy goes, and its engine with it. The buoy, declined
 	// once, is not asked for again until it has left and come back.
-	const Sim::Snapshot third{3, 0.3, {{buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}}};
+	const Sim::Snapshot third{3, 0.3, {{buoy, {{2.0e11, 0.0, 0.0}, {}}, halcyon}}, {}};
 	systemScene.SyncTraffic(second, third, 0.0);
 	CHECK(asked == 2);
 	CHECK(registry.view<const Scene::SimProxyComponent>().empty());
@@ -437,7 +441,8 @@ TEST_CASE("System scene: the traffic layer is this system's, and a ship that jum
 	    {{local, {{1.0, 0.0, 0.0}, {}}, halcyon},
 	     {elsewhere, {{2.0, 0.0, 0.0}, {}}, vesper},
 	     {traveller, {{3.0, 0.0, 0.0}, {}}, halcyon},
-	     {unplaced, {{4.0, 0.0, 0.0}, {}}, Sim::kNoSystem}}};
+	     {unplaced, {{4.0, 0.0, 0.0}, {}}, Sim::kNoSystem}},
+	    {}};
 	systemScene.SyncTraffic(docked, docked, 0.0);
 	CHECK(shown() == std::vector{local, traveller});
 
@@ -468,8 +473,8 @@ TEST_CASE(
 	const glm::dquat from = glm::angleAxis(0.2, glm::normalize(glm::dvec3{1.0, 2.0, 3.0}));
 	const glm::dquat to = glm::angleAxis(1.4, glm::normalize(glm::dvec3{-3.0, 1.0, 0.5}));
 	// A system position a float cannot hold to the metre: the scene keeps it whole.
-	const Sim::Snapshot previous{4, 0.4, {{ship, {{1.0e12, 2.0, -4.0}, from}}}};
-	const Sim::Snapshot current{5, 0.5, {{ship, {{1.0e12 + 10.0, 4.0, -8.0}, to}}}};
+	const Sim::Snapshot previous{4, 0.4, {{ship, {{1.0e12, 2.0, -4.0}, from}}}, {}};
+	const Sim::Snapshot current{5, 0.5, {{ship, {{1.0e12 + 10.0, 4.0, -8.0}, to}}}, {}};
 
 	entt::registry presentation;
 	const entt::entity proxy = presentation.create();

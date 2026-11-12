@@ -75,6 +75,13 @@ void SimWorld::AddComponent(const entt::meta_type &type, Component component)
 	m_components.push_back(std::move(component));
 }
 
+void SimWorld::AddShown(entt::id_type type, ShownCapture capture)
+{
+	if (std::ranges::any_of(m_shown, [type](const auto &shown) { return shown.first == type; }))
+		throw std::logic_error("SimWorld: a component is shown in snapshots twice");
+	m_shown.emplace_back(type, std::move(capture));
+}
+
 void SimWorld::AddCommand(const entt::meta_type &type, Apply apply)
 {
 	const std::string_view name = Detail::ReflectedName(type, "command");

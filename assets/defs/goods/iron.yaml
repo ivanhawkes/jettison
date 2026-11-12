@@ -1,0 +1,9 @@
+# A good of the sample game, from the Civilisation Simulation data (docs/sample-game.md): a crate is one
+# IBC cube of it, and basePrice the credits a crate, at the plan's 2025 prices.
+# ItemIron: 0.8 credits a kilogram, 7.87 x 1000 x 0.8 kg to the cube.
+version: 1
+displayName: Iron
+category: CategoryMetals
+age: AgeIron
+crate: 6,296 kg of iron ingots
+basePrice: 5037

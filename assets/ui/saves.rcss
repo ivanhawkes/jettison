@@ -1,0 +1,36 @@
+/* The saved-games screen (ui/saves.rml): a panel at the left of the frame. */
+
+#window {
+	position: absolute;
+	left: 24dp;
+	top: 24dp;
+	width: 620dp;
+	padding: 16dp 20dp;
+	border: 1dp #3a5872;
+	border-radius: 6dp;
+	background-color: #0b1622f2;
+}
+
+h1 { margin-bottom: 10dp; }
+#empty { color: #8aa3ba; }
+table { width: 100%; }
+thead td {
+	padding-bottom: 4dp;
+	border-bottom: 1dp #3a5872;
+	color: #8aa3ba;
+	font-size: 13dp;
+}
+tbody td {
+	padding: 5dp 0dp;
+	border-bottom: 1dp #182a3c;
+}
+td.name { color: #f2f6fa; }
+td { white-space: nowrap; }
+td.number { font-family: Hack; text-align: right; padding-right: 12dp; }
+td.problem { color: #e07a6a; font-size: 12dp; }
+td.load { text-align: right; }
+#footer {
+	margin-top: 10dp;
+	font-size: 12dp;
+	color: #5c7389;
+}

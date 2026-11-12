@@ -11,9 +11,24 @@ namespace Jettison::App
 {
 namespace
 {
-// The one window's wheel: which GlfwInput takes it, and the callback it was installed over.
-GlfwInput *g_pWheelTarget = nullptr;
+// The one window's events: which GlfwInput takes them, and the callbacks it was installed over.
+GlfwInput *g_pTarget = nullptr;
 GLFWscrollfun g_previousScroll = nullptr;
+GLFWkeyfun g_previousKey = nullptr;
+GLFWmousebuttonfun g_previousButton = nullptr;
+GLFWcharfun g_previousChar = nullptr;
+
+WindowEvent Pressed(WindowEvent::Kind kind, int code, int action, int mods)
+{
+	WindowEvent event;
+	event.kind = kind;
+	event.code = code;
+	event.pressed = action != GLFW_RELEASE;
+	event.shift = (mods & GLFW_MOD_SHIFT) != 0;
+	event.control = (mods & GLFW_MOD_CONTROL) != 0;
+	event.alt = (mods & GLFW_MOD_ALT) != 0;
+	return event;
+}
 
 // One joystick's raw state, read once a feed: nothing for a slot with no joystick in it.
 struct JoystickState
@@ -47,16 +62,19 @@ static_assert(Input::Keys::LeftControl.code == GLFW_KEY_LEFT_CONTROL);
 
 GlfwInput::~GlfwInput()
 {
-	if (g_pWheelTarget == this)
-		g_pWheelTarget = nullptr;
+	if (g_pTarget == this)
+		g_pTarget = nullptr;
 }
 
 void GlfwInput::Attach(GLFWwindow *window)
 {
 	Detach();
 	m_pWindow = window;
-	g_pWheelTarget = this;
+	g_pTarget = this;
 	g_previousScroll = glfwSetScrollCallback(window, &GlfwInput::OnScroll);
+	g_previousKey = glfwSetKeyCallback(window, &GlfwInput::OnKey);
+	g_previousButton = glfwSetMouseButtonCallback(window, &GlfwInput::OnMouseButton);
+	g_previousChar = glfwSetCharCallback(window, &GlfwInput::OnChar);
 }
 
 void GlfwInput::Detach()
@@ -64,8 +82,14 @@ void GlfwInput::Detach()
 	if (!m_pWindow)
 		return;
 	glfwSetScrollCallback(m_pWindow, g_previousScroll);
+	glfwSetKeyCallback(m_pWindow, g_previousKey);
+	glfwSetMouseButtonCallback(m_pWindow, g_previousButton);
+	glfwSetCharCallback(m_pWindow, g_previousChar);
 	g_previousScroll = nullptr;
-	g_pWheelTarget = nullptr;
+	g_previousKey = nullptr;
+	g_previousButton = nullptr;
+	g_previousChar = nullptr;
+	g_pTarget = nullptr;
 	m_pWindow = nullptr;
 }
 
@@ -73,8 +97,43 @@ void GlfwInput::OnScroll(GLFWwindow *window, double x, double y)
 {
 	if (g_previousScroll)
 		g_previousScroll(window, x, y);
-	if (g_pWheelTarget && g_pWheelTarget->m_pWindow == window)
-		g_pWheelTarget->m_wheel += glm::dvec2{x, y};
+	if (g_pTarget && g_pTarget->m_pWindow == window)
+	{
+		g_pTarget->m_wheel += glm::dvec2{x, y};
+		WindowEvent event;
+		event.kind = WindowEvent::Kind::Wheel;
+		event.wheel = static_cast<float>(y);
+		g_pTarget->m_events.push_back(event);
+	}
+}
+
+void GlfwInput::OnKey(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+	if (g_previousKey)
+		g_previousKey(window, key, scancode, action, mods);
+	if (g_pTarget && g_pTarget->m_pWindow == window)
+		g_pTarget->m_events.push_back(Pressed(WindowEvent::Kind::Key, key, action, mods));
+}
+
+void GlfwInput::OnMouseButton(GLFWwindow *window, int button, int action, int mods)
+{
+	if (g_previousButton)
+		g_previousButton(window, button, action, mods);
+	if (g_pTarget && g_pTarget->m_pWindow == window)
+		g_pTarget->m_events.push_back(Pressed(WindowEvent::Kind::MouseButton, button, action, mods));
+}
+
+void GlfwInput::OnChar(GLFWwindow *window, unsigned int codepoint)
+{
+	if (g_previousChar)
+		g_previousChar(window, codepoint);
+	if (g_pTarget && g_pTarget->m_pWindow == window)
+	{
+		WindowEvent event;
+		event.kind = WindowEvent::Kind::Text;
+		event.character = static_cast<char32_t>(codepoint);
+		g_pTarget->m_events.push_back(event);
+	}
 }
 
 std::vector<Input::JoystickDevice> GlfwInput::ConnectedJoysticks() const

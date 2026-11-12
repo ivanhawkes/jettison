@@ -14,7 +14,7 @@ built, are recorded in [history](history.md).
 | 0–7 | **Done** 2026-11-10 to 2026-11-11: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight. Recorded in [history](history.md). | Met. |
 | 8 | **UI, audio and persistence.** Sub-phases 8a–8c; catalogue entries 23, 24 and 25. | A market screen bound to simulation data; a save written by version N loads in N+1. |
 | 8a | **Persistence.** Done 2026-11-12. Migrations as a chain of steps per format (`serialise/Migration.h`), each from one version to the next, run by the readers given one: a binary step edits the archive as a document (its table of names, through which a name is renamed everywhere, and its payload), a YAML step the parsed tree, its lines kept for errors; a version newer than the build's or one the chain does not reach is refused by name. The world's save migrates from version 1 (before services) to 2. A save game (`sim/SaveGame.h`, `Jettison.Save` version 1): its info (the name, the engine version, when, the world's clock, the galaxy's file and the system shown), the world's save and the game's sections, each part versioned on its own. Definitions migrate ([decided](#decided)). Every whole-file write, the VFS's and the settings file's, is durable (`Core::WriteFileDurably`: fsync, rename, the directory fsynced). The shell's settings and bindings in the XDG configuration directory, apart from saves in the data directory, which is mounted writable over the base; a joystick a binding names is named after its device by GUID (`input/Joysticks.h`); `bind`, `unbind`, `save`, `load` and `saves` in the console, and F5 and F9; the shell's ship in a section of its own; the smoke sequence gains a save stage. | Met: the sim suite loads a world saved by the phase 6d build at version 1 (`world-v1.save`, commit `a5d0c83`), through its migration, into exactly the save this build makes at the same step, which steps on to the pinned hash of the whole run; `save-v1.save`, the save game's first version, is kept for every later build to load. The app suite rebinds an action and a joystick, restarts on the settings file and finds both, and puts one back and finds that; in the shell, run headless twice on one user directory, a key rebound in the console in the first run jumped in the second. The smoke test saves and loads in both scenes, each loading back to the state hash saved, under validation. |
-| 8b | **UI.** RmlUi through the Vulkan backend, documents and stylesheets through the VFS, FreeType shared with ImGui, data models bound to simulation snapshots. | A market screen bound to simulation data. |
+| 8b | **UI.** Done 2026-11-12. RmlUi behind `ui/UiSystem.h`, with no RmlUi type in its interface: documents, stylesheets, templates, fonts and images read through the VFS, its messages through the log under `ui`, counted. It draws into `Render::Overlay` (`render/Overlay.h`), a plain draw list the renderer draws in the output pass after the tonemap and under the dev tools, with the `overlay` program, uploading a texture as a draw first names it and releasing it once the overlay lets it go (`vulkan/OverlayRenderer.h`; the texture upload shared with materials, `vulkan/TextureUpload.h`). FreeType in every tree, linked by RmlUi's font engine and by ImGui's rasteriser (`imgui_freetype`). Data models (`ui/DataModel.h`) bind any type registered with Reflect, read in place through the field addresses `Reflect::TypeBuilder::Field` now records (`Reflect::AddressOf`), and events that become commands; snapshots carry the components a world shows (`SimWorld::ShowInSnapshots`, `Snapshot::Components`, `Snapshot::Get`). The shell feeds the UI the window's events in order, from GLFW callbacks chained over ImGui's, and a click on a panel is not a pick. The sample game's first slice, from the Civilisation Simulation's plan ([sample game](sample-game.md)): eight goods and two markets as definitions, prices by scarcity and a listing fee, market ticks, the ship's hold and credits, and trading when docked (`app/src/Trading.h`); the market screen (M) and the saved-games screen (L, the load screen carried from 8a); the smoke sequence gains a trade stage. | Met: the market screen shows the market of the station the ship is at, made from the simulation's snapshot and never from the world, and its Buy sends a trade the step answers, which the screen shows: in the app suite, through `ui/market.rml` itself, with a mouse click a single trade; in the render test's orbit scene under validation, its station and stock checked against the snapshot and the refusal of an undocked ship shown; and in the shell on Xvfb, flown into Ostra Highport's port, docked, and bought from by mouse. The UI suite holds RmlUi to the VFS (a mod's stylesheet shadows the base's), to the overlay, and to the data model; the render test fails on any warning RmlUi logs. |
 | 8c | **Audio.** miniaudio; buses (music, effects, UI, voice) with volumes from settings; 3D sources on presentation entities; streamed music; simulation events mapped to sounds. | A simulation event plays a positioned sound on the effects bus, and music streams. |
 | 9 | **AI.** Sub-phases 9a–9c; catalogue entry 26. | Automated traders choose trades, plot routes across systems and fly them without collisions. |
 | 9a | **Pathfinding.** A* over the jump-lane graph and over in-system waypoints. | Routes are tested against known shortest paths, and the same every run. |
@@ -43,7 +43,7 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–7 and 8a moved on, and where it lands. Their full record, and catalogue entries 1–22,
+Work that phases 1–7, 8a and 8b moved on, and where it lands. Their full record, and catalogue entries 1–22,
 are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
@@ -65,8 +65,18 @@ are in [history](history.md).
   binary state, which a step cannot edit as data. A Jolt upgrade that changes it needs a load that
   rebuilds the bodies from the world's components instead, losing the contact cache's warm start for
   a step. Not yet placed; it is the first thing to check when Jolt is next moved.
-- **A list of saves to load from** (entry 25, 8a): the console lists them, from the front of each
-  file (`SaveGame::ReadInfo`); a load screen is the UI's, 8b.
+- **The UI's drawing, not yet placed** (entry 23, 8b): RmlUi's clip masks (an element with
+  `overflow` clipped by a rounded border, or clipped while transformed), which want the stencil the
+  depth target gains in 10c, and its layers, filters and shaders (`filter`, `backdrop-filter`,
+  `mask-image`, gradients drawn as shaders), which want render targets of the post chain's (10c).
+  Until then RmlUi's defaults draw nothing for them, and a screen uses none.
+- **The UI, not yet placed** (entry 23, 8b): a stylesheet or document reloaded when its file
+  changes (RmlUi keeps a stylesheet for the run); a document's images decoded on the I/O worker
+  rather than as the document lays out, which is on the main thread and fine for a screen's icons;
+  RmlUi's debugger in the dev tools.
+- **The sample game's later slices** ([sample game](sample-game.md)): sounds for its events (8c),
+  traders that choose, plot and fly trades, and the ship's crossing of a lane (9), CivSim's order
+  book, the economy's turns and the skill tree's effects, then scripting (11).
 - **Pack files and their compression** behind the VFS (entry 10), and definition layering finer
   than whole-file replacement (entry 13): 11a.
 - **The cinematic camera** (entry 18): 11c.
@@ -169,6 +179,15 @@ RmlUi rendered through the Vulkan backend, with documents and stylesheets loaded
 VFS so mods can restyle. Data models bound to simulation snapshots, never to simulation state
 directly. Fonts through FreeType, shared with ImGui.
 *Library*: RmlUi, FreeType.
+
+*Filled in* (8b): `Ui::UiSystem` is RmlUi behind an engine interface, one at a time in a process,
+with RmlUi's file interface over the VFS, its system interface over the presentation clock and the
+log, and its render interface recording into `Render::Overlay`, which the renderer draws
+([architecture](architecture.md#ui)). `Ui::DataModel` binds variables of any reflected type by
+address and events by name; the snapshots it reads are the simulation's, carrying the components a
+world shows. FreeType is linked by RmlUi and ImGui alike. The shell's market and saved-games screens
+are its first documents (`assets/ui`), over the sample game's first slice
+([sample game](sample-game.md)).
 
 ### 24. Audio · phase 8 · `engine/audio`
 
@@ -397,6 +416,30 @@ Settled on 2026-11-10:
   are the unclaimed devices in slot order, which is GLFW's slots when nothing is named, so defaults
   and a player who never rebinds see no change. Two devices of one model share a GUID, and a name
   takes the first of them free; telling them apart needs the device's path, which GLFW does not give.
+- **The UI draws into an overlay the renderer reads** (2026-11-12, phase 8b), rather than a
+  Vulkan render interface for RmlUi inside `render`, or RmlUi's own Vulkan backend. The overlay is a
+  plain draw list in render's public headers (vertices, indices, draws with a translation, a scissor
+  and a transform, and textures by identifier), so `ui` depends on `render` for its CPU side, RmlUi
+  stays private to `ui`, Vulkan to `render`, and the UI's suite reads what a document drew without a
+  device. RmlUi's backend sample makes its own allocator, swapchain and pipelines; the overlay is
+  drawn in the output pass with the renderer's pipeline cache, VMA and frame slots. RmlUi's geometry
+  is copied into the overlay each frame, as ImGui's is: a few thousand vertices for a screen. Colours
+  are multiplied and filtered as encoded, as a browser does, and decoded once before an sRGB
+  swapchain writes them, so blending is in linear light; a browser blends encoded values, which
+  leaves the half-covered edge of light text on dark a little brighter here.
+- **Data models read reflected types in place, from snapshots** (2026-11-12, phase 8b). A screen
+  binds any type registered with Reflect, read through the field addresses the registration now
+  records, with no code per type: the reflection the archives, the console and the definitions use
+  is the UI's too. What a screen reads is presentation's copy of what a snapshot carries, never the
+  world, which keeps holding once the simulation leaves the main thread; a world shows a component
+  to presentation by name (`ShowInSnapshots`), and its copy is taken with the transforms at each
+  capture. A screen's data is built from a snapshot when a step brings a new one and the model told
+  only when what it shows has changed, so a still screen costs a comparison a step.
+- **The sample game is the Civilisation Simulation's plan** (2026-11-12, phase 8b). The shell plays
+  the game's part from the plan in `~/projects/civilisation-simulation`, the local copy over the
+  GitHub one, slice by slice as the engine systems that each needs arrive
+  ([sample game](sample-game.md)). Its rules are the shell's, standing in for the game's, and none
+  of them is engine code.
 - **The GPU drawn with is the one with the monitor** (2026-11-12). A machine may have a second card
   kept for compute with no monitor on it, and on Wayland that card still says it can present,
   through the compositor's copy across the bus; taking the first device Vulkan lists that has the
