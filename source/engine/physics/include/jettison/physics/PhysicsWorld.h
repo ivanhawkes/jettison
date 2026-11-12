@@ -186,6 +186,13 @@ class PhysicsWorld final : public Sim::WorldService
 	// Every ShapeDefinition the registry has loaded, under its definition name.
 	void DefineShapes(const Sim::DefinitionRegistry &definitions);
 	bool HasShape(std::string_view name) const;
+	// The radius of the smallest sphere about the body's origin holding the shape: a box's half
+	// diagonal, a mesh's farthest vertex. What steering keeps clear of a body. Throws
+	// std::invalid_argument for a shape that is not defined.
+	double ShapeRadius(std::string_view name) const;
+	// The largest ShapeRadius of any shape defined: how far beyond a point a body's hull can reach,
+	// which a query for what is near widens itself by. None while no shape is defined.
+	double LargestShapeRadius() const;
 
 	// A star system's bodies, for rails and gravity in the system of that name (Sim::SystemId). It
 	// has to be resolved (Celestial::Resolve), as reading one does; throws std::invalid_argument for
@@ -197,6 +204,11 @@ class PhysicsWorld final : public Sim::WorldService
 	// whose mass is all within the point's distance from its centre, inside its radius. None in a
 	// system that is not defined.
 	glm::dvec3 Gravity(std::uint64_t system, const glm::dvec3 &position, double simSeconds) const;
+	// Where the frame of a body of a defined system (LocalFrame) is at a time, in the system frame:
+	// the body's position, or none for the system's own frame (an empty name). A point a ship is
+	// flown to in its frame is this far from the system's. Throws std::invalid_argument for a frame
+	// a body could not be in.
+	glm::dvec3 FrameOrigin(std::uint64_t system, std::string_view frame, double simSeconds) const;
 
 	std::size_t BodyCount() const;
 	std::size_t BodyCount(std::uint64_t system) const;

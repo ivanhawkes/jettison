@@ -77,6 +77,47 @@ TEST_CASE("Ecs: after constraints order a phase, naming systems registered befor
 	CHECK(log == scheduler.Order(TickPhase::Simulation));
 }
 
+TEST_CASE("Ecs: before constraints put a system ahead of one that does not name it")
+{
+	std::vector<std::string> log;
+	Scheduler scheduler;
+	const auto make = [&log](
+	                      std::string name, std::vector<std::string> after,
+	                      std::vector<std::string> before, TickPhase phase = TickPhase::Simulation)
+	{
+		SystemDescription system = Recording(log, std::move(name), phase, std::move(after));
+		system.before = std::move(before);
+		return system;
+	};
+	// flight and physics are another module's, which knows nothing of steering; index names a
+	// system registered after it.
+	scheduler.Register(Recording(log, "flight"));
+	scheduler.Register(Recording(log, "physics", TickPhase::Simulation, {"flight"}));
+	scheduler.Register(make("index", {}, {"steering"}));
+	scheduler.Register(make("steering", {}, {"flight"}));
+	scheduler.Validate();
+	CHECK(
+	    scheduler.Order(TickPhase::Simulation) ==
+	    std::vector<std::string>{"index", "steering", "flight", "physics"});
+	// A before orders as an after does: nothing here is ambiguous.
+	CHECK(scheduler.Ambiguities(TickPhase::Simulation).empty());
+
+	// late closes physics -> late -> index -> steering -> flight -> physics.
+	CHECK_THROWS_WITH_AS(
+	    scheduler.Register(make("late", {"physics"}, {"index"})),
+	    "Scheduler: the order constraints among 'flight', 'physics', 'index', 'steering', 'late' "
+	    "form a cycle",
+	    std::logic_error);
+	CHECK_THROWS_WITH_AS(
+	    scheduler.Register(make("present", {}, {"flight"}, TickPhase::Presentation)),
+	    doctest::Contains("'present' runs before 'flight', which is in another phase"),
+	    std::logic_error);
+	scheduler.Register(make("audit", {}, {"missing"}));
+	CHECK_THROWS_WITH_AS(
+	    scheduler.Validate(),
+	    "Scheduler: system 'audit' runs before 'missing', which is not registered", std::logic_error);
+}
+
 TEST_CASE("Ecs: the delta time and the registry reach every system")
 {
 	Scheduler scheduler;
@@ -118,7 +159,7 @@ TEST_CASE("Ecs: registration errors are found at registration, and the scheduler
 	// c closes a -> c -> b -> a.
 	CHECK_THROWS_WITH_AS(
 	    scheduler.Register(Recording(log, "c", TickPhase::Simulation, {"b"})),
-	    "Scheduler: the after constraints among 'a', 'b', 'c' form a cycle", std::logic_error);
+	    "Scheduler: the order constraints among 'a', 'b', 'c' form a cycle", std::logic_error);
 	CHECK(scheduler.Systems().size() == 2);
 
 	CHECK_THROWS_WITH_AS(

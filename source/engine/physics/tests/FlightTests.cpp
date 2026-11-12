@@ -359,6 +359,34 @@ TEST_CASE("Flight: gravity is the system's bodies pulling, and none outside a de
 	CHECK(physics.Gravity(kEmpty, high, 0.0) == glm::dvec3{0.0});
 }
 
+TEST_CASE("Flight: a frame's origin is its body's position, and none for the system's own")
+{
+	Sim::SimWorld world{kStep, kSeed};
+	const Physics::PhysicsWorld &physics = Populate(world);
+	for (const double time : {0.0, 1234.5})
+		CHECK(physics.FrameOrigin(kHalcyon, kStation, time) == StationAt(time).position);
+	CHECK(physics.FrameOrigin(kHalcyon, "", 10.0) == glm::dvec3{0.0});
+	CHECK(physics.FrameOrigin(kEmpty, "", 10.0) == glm::dvec3{0.0});
+	CHECK_THROWS_WITH_AS(
+	    (void)physics.FrameOrigin(kHalcyon, "Nowhere", 0.0),
+	    doctest::Contains("the frame of 'Nowhere', which system 'Halcyon' has no body of"),
+	    std::invalid_argument);
+	CHECK_THROWS_WITH_AS(
+	    (void)physics.FrameOrigin(kEmpty, kStation, 0.0), doctest::Contains("which is not defined"),
+	    std::invalid_argument);
+
+	// A box's is its half diagonal, and a ball's its radius.
+	CHECK(
+	    physics.ShapeRadius("hull") ==
+	    doctest::Approx(std::sqrt(1.5 * 1.5 + 0.8 * 0.8 + 16.0)).epsilon(1e-6));
+	CHECK(physics.ShapeRadius("ball") == doctest::Approx(0.25).epsilon(1e-6));
+	CHECK(physics.ShapeRadius("hub") == doctest::Approx(std::sqrt(36.0 + 36.0 + 900.0)).epsilon(1e-6));
+	CHECK(physics.LargestShapeRadius() == physics.ShapeRadius("zone"));
+	CHECK_THROWS_WITH_AS(
+	    (void)physics.ShapeRadius("nothing"), "Physics: shape 'nothing' is not defined",
+	    std::invalid_argument);
+}
+
 TEST_CASE("Flight: a ship let drift beside a station on rails falls round the planet with it")
 {
 	Sim::SimWorld world{kStep, kSeed};

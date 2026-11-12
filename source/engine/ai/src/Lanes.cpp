@@ -3,7 +3,6 @@
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
-#include <jettison/reflect/Reflect.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
@@ -28,38 +27,6 @@ std::uint64_t TransitSteps(double transitSeconds, double fixedStep)
 	return std::max<std::uint64_t>(1, steps > 0.0 ? static_cast<std::uint64_t>(steps) : 0);
 }
 } // namespace
-
-void RegisterTypes()
-{
-	static const bool registered = []
-	{
-		using namespace Reflect;
-		Physics::RegisterTypes();
-		RegisterType<OnLane>("Ai.OnLane")
-		    .Field<&OnLane::from>("from", Attribute::Saved)
-		    .Field<&OnLane::departure>("departure", Attribute::Saved)
-		    .Field<&OnLane::to>("to", Attribute::Saved)
-		    .Field<&OnLane::arrival>("arrival", Attribute::Saved)
-		    .Field<&OnLane::arrivalStep>("arrivalStep", Attribute::Saved);
-		RegisterType<EnterLane>("Ai.EnterLane")
-		    .Field<&EnterLane::entity>("entity", Attribute::Saved)
-		    .Field<&EnterLane::jumpPoint>("jumpPoint", Attribute::Saved);
-		RegisterType<LaneEntered>("Ai.LaneEntered")
-		    .Field<&LaneEntered::entity>("entity", Attribute::Saved)
-		    .Field<&LaneEntered::lane>("lane", Attribute::Saved)
-		    .Field<&LaneEntered::transitSeconds>("transitSeconds", Attribute::Saved);
-		RegisterType<LaneLeft>("Ai.LaneLeft")
-		    .Field<&LaneLeft::entity>("entity", Attribute::Saved)
-		    .Field<&LaneLeft::system>("system", Attribute::Saved)
-		    .Field<&LaneLeft::arrival>("arrival", Attribute::Saved);
-		RegisterType<LaneRefused>("Ai.LaneRefused")
-		    .Field<&LaneRefused::entity>("entity", Attribute::Saved)
-		    .Field<&LaneRefused::jumpPoint>("jumpPoint", Attribute::Saved)
-		    .Field<&LaneRefused::reason>("reason", Attribute::Saved);
-		return true;
-	}();
-	(void)registered;
-}
 
 LaneTravel &LaneTravel::Attach(Sim::SimWorld &world)
 {

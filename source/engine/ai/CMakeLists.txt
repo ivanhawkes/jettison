@@ -5,6 +5,7 @@ jettison_add_module(ai
 		core
 		math
 		physics
+		profile
 		reflect
 		sim
 		spatial
@@ -15,16 +16,19 @@ jettison_add_module(ai
 		include/jettison/ai/Pathfinding.h
 		include/jettison/ai/Routes.h
 		include/jettison/ai/Steering.h
+		include/jettison/ai/Types.h
 	SOURCES
 		src/Ai.cpp
 		src/Lanes.cpp
 		src/Pathfinding.cpp
 		src/Routes.cpp
+		src/Steering.cpp
 	TESTS
 		tests/AiTests.cpp
 		tests/LanesTests.cpp
 		tests/PathfindingTests.cpp
 		tests/RoutesTests.cpp
+		tests/SteeringTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

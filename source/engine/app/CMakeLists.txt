@@ -20,6 +20,7 @@ jettison_add_module(app
 		resource
 		scene
 		sim
+		spatial
 		time
 		ui
 		vfs

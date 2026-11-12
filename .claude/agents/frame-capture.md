@@ -21,7 +21,9 @@ How (from the project's CLAUDE.md, which is the authority if it differs):
 - Let the app settle about 14 s before the first capture:
   `xwd -root -silent | magick xwd:- out.png`.
 - Keys: focus with `xdotool windowfocus --sync <win>`, then hold (`keydown`, sleep ~2.5 s,
-  `keyup`); taps are missed. Console: `xdotool type --delay 150 '...'`, then `key Return`.
+  `keyup`); taps are missed. That includes the console's toggle (grave): hold it ~1.5 s to open
+  and to close it, and screenshot to check it opened before typing, or the text goes to the game's
+  keys. Then `xdotool type --delay 150 '...'`, then `key Return`.
 - Compare with `magick compare -metric AE -fuzz 2% a.png b.png diff.png`, no keys between them.
 - `--user-dir <dir>` keeps a run's settings and saves apart.
 - Save images in the directory you were given (the session scratchpad by default), and kill

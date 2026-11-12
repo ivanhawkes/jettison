@@ -27,6 +27,18 @@ const SystemDescription *Named(const std::vector<SystemDescription> &systems, st
 	const auto found = std::ranges::find(systems, name, &SystemDescription::name);
 	return found == systems.end() ? nullptr : &*found;
 }
+
+bool Names(const std::vector<std::string> &names, std::string_view name)
+{
+	return std::ranges::find(names, name) != names.end();
+}
+
+// Whether a constraint puts the first ahead of the second: the second runs after it, or it runs
+// before the second.
+bool Precedes(const SystemDescription &first, const SystemDescription &second)
+{
+	return Names(second.after, first.name) || Names(first.before, second.name);
+}
 } // namespace
 
 bool Access::ConflictsWith(const Access &other) const
@@ -46,24 +58,21 @@ void Scheduler::Register(SystemDescription system)
 		    std::format("Scheduler: a system named '{}' is already registered", system.name)};
 
 	// Both directions: this one naming an earlier system, and an earlier one naming this.
-	const auto crossPhase = [](const SystemDescription &later, const SystemDescription &earlier)
+	const auto crossPhase = [](const SystemDescription &named, const SystemDescription &naming)
 	{
 		return std::format(
-		    "Scheduler: system '{}' runs after '{}', which is in another phase; order across phases is "
+		    "Scheduler: system '{}' runs {} '{}', which is in another phase; order across phases is "
 		    "the phases' own",
-		    later.name, earlier.name);
+		    naming.name, Names(naming.after, named.name) ? "after" : "before", named.name);
 	};
-	for (const std::string &name : system.after)
-	{
-		if (const SystemDescription *earlier = Named(m_systems, name);
-		    earlier && earlier->phase != system.phase)
-			throw std::logic_error{crossPhase(system, *earlier)};
-	}
 	for (const SystemDescription &other : m_systems)
 	{
-		if (other.phase != system.phase &&
-		    std::ranges::find(other.after, system.name) != other.after.end())
+		if (other.phase == system.phase)
+			continue;
+		if (Names(system.after, other.name) || Names(system.before, other.name))
 			throw std::logic_error{crossPhase(other, system)};
+		if (Names(other.after, system.name) || Names(other.before, system.name))
+			throw std::logic_error{crossPhase(system, other)};
 	}
 
 	m_systems.push_back(std::move(system));
@@ -84,8 +93,8 @@ void Scheduler::Register(SystemDescription system)
 std::vector<std::size_t> Scheduler::Sort(TickPhase phase) const
 {
 	// Kahn's algorithm, always taking the earliest-registered system that is ready, so with no
-	// constraints the order is registration order. An after naming a system not registered yet is
-	// skipped here; Validate reports it if it never comes.
+	// constraints the order is registration order. An after or a before naming a system not
+	// registered yet is skipped here; Validate reports it if it never comes.
 	std::vector<std::size_t> members;
 	for (std::size_t index = 0; index < m_systems.size(); ++index)
 	{
@@ -103,13 +112,8 @@ std::vector<std::size_t> Scheduler::Sort(TickPhase phase) const
 		    {
 			    return !placed[index] &&
 			           std::ranges::all_of(
-			               m_systems[index].after,
-			               [&](const std::string &name)
-			               {
-				               const SystemDescription *before = Named(m_systems, name);
-				               return !before ||
-				                      placed[static_cast<std::size_t>(before - m_systems.data())];
-			               });
+			               members, [&](std::size_t other)
+			               { return placed[other] || !Precedes(m_systems[other], m_systems[index]); });
 		    });
 		if (ready == members.end())
 		{
@@ -120,7 +124,7 @@ std::vector<std::size_t> Scheduler::Sort(TickPhase phase) const
 					cycle += std::format("{}'{}'", cycle.empty() ? "" : ", ", m_systems[index].name);
 			}
 			throw std::logic_error{
-			    std::format("Scheduler: the after constraints among {} form a cycle", cycle)};
+			    std::format("Scheduler: the order constraints among {} form a cycle", cycle)};
 		}
 		placed[*ready] = true;
 		order.push_back(*ready);
@@ -132,12 +136,16 @@ void Scheduler::Validate() const
 {
 	for (const SystemDescription &system : m_systems)
 	{
-		for (const std::string &name : system.after)
+		for (const auto &[names, relation] :
+		     {std::pair{&system.after, "after"}, std::pair{&system.before, "before"}})
 		{
-			if (!Named(m_systems, name))
-				throw std::logic_error{std::format(
-				    "Scheduler: system '{}' runs after '{}', which is not registered", system.name,
-				    name)};
+			for (const std::string &name : *names)
+			{
+				if (!Named(m_systems, name))
+					throw std::logic_error{std::format(
+					    "Scheduler: system '{}' runs {} '{}', which is not registered", system.name,
+					    relation, name)};
+			}
 		}
 	}
 	m_validated = true;
@@ -170,24 +178,21 @@ std::vector<std::pair<std::string, std::string>> Scheduler::Ambiguities(TickPhas
 		return {};
 	const std::vector<std::size_t> &order = m_order[Index(phase)];
 
-	// before[i][j]: some chain of after constraints puts order[i] ahead of order[j]. Run order is
-	// a topological order, so a chain only ever runs from a lower position to a higher one.
+	// before[i][j]: some chain of constraints puts order[i] ahead of order[j]. Run order is a
+	// topological order, so a chain only ever runs from a lower position to a higher one.
 	const std::size_t count = order.size();
 	std::vector<std::vector<bool>> before(count, std::vector<bool>(count, false));
 	for (std::size_t later = 0; later < count; ++later)
 	{
-		for (const std::string &name : m_systems[order[later]].after)
+		for (std::size_t earlier = 0; earlier < later; ++earlier)
 		{
-			for (std::size_t earlier = 0; earlier < later; ++earlier)
+			if (!Precedes(m_systems[order[earlier]], m_systems[order[later]]))
+				continue;
+			before[earlier][later] = true;
+			for (std::size_t first = 0; first < earlier; ++first)
 			{
-				if (m_systems[order[earlier]].name != name)
-					continue;
-				before[earlier][later] = true;
-				for (std::size_t first = 0; first < earlier; ++first)
-				{
-					if (before[first][earlier])
-						before[first][later] = true;
-				}
+				if (before[first][earlier])
+					before[first][later] = true;
 			}
 		}
 	}

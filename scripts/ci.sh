@@ -159,9 +159,12 @@ if [ "$asan" -eq 1 ]; then
 	# loader reports, and LeakSanitizer then reports what it allocated before failing.
 	stage "smoke test: clang-asan (address + undefined sanitizers, lavapipe)"
 	./scripts/smoke-test.sh --preset clang-asan --build --xvfb --llvmpipe ${werror[@]+--werror}
-	# The suites whose state hashes are pinned, held to the same values under the sanitizers.
-	stage "unit tests: clang-asan (sim and physics)"
-	cmake --build --preset clang-asan --target jettison_sim_tests jettison_physics_tests
-	ctest --test-dir build/clang-asan -R '^(sim|physics)$' --output-on-failure --no-tests=error -j "$jobs"
+	# The suites whose state hashes are pinned, held to the same values under the sanitizers, and
+	# the spatial index steering reads.
+	stage "unit tests: clang-asan (sim, spatial, physics and ai)"
+	cmake --build --preset clang-asan --target jettison_sim_tests jettison_spatial_tests \
+		jettison_physics_tests jettison_ai_tests
+	ctest --test-dir build/clang-asan -R '^(sim|spatial|physics|ai)$' --output-on-failure \
+		--no-tests=error -j "$jobs"
 fi
 

@@ -1,11 +1,13 @@
-#include <jettison/ai/Steering.h>
+#include <jettison/ai/UtilityAi.h>
 
 #include <jettison/core/Assert.h>
 
 #include <doctest/doctest.h>
 
-TEST_CASE("Ai: steering's stubs fail loudly until phase 9b")
+TEST_CASE("Ai: utility AI's stubs fail loudly until phase 9c")
 {
-	const Jettison::Ai::Agent agent;
-	CHECK_THROWS_AS(Jettison::Ai::Seek(agent, {1.0, 0.0, 0.0}), Jettison::Core::NotImplementedError);
+	entt::registry registry;
+	CHECK_THROWS_AS(
+	    (void)Jettison::Ai::Choose({}, registry, registry.create()),
+	    Jettison::Core::NotImplementedError);
 }

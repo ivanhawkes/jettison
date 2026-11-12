@@ -3,16 +3,21 @@ jettison_add_module(spatial
 	DEPENDS
 		core
 		math
+		profile
+		sim
 	HEADERS
 		include/jettison/spatial/Queries.h
 		include/jettison/spatial/Octree.h
 		include/jettison/spatial/SpatialIndex.h
+		include/jettison/spatial/SystemIndices.h
 	SOURCES
 		src/Queries.cpp
 		src/Octree.cpp
+		src/SystemIndices.cpp
 	TESTS
 		tests/SpatialTests.cpp
 		tests/SpatialBenchmark.cpp
+		tests/SystemIndicesTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

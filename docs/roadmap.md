@@ -14,7 +14,7 @@ built, are recorded in [history](history.md).
 | 0–8 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence. Recorded in [history](history.md). | Met. |
 | 9 | **AI.** Sub-phases 9a–9c; catalogue entry 26. | Automated traders choose trades, plot routes across systems and fly them without collisions. |
 | 9a | **Pathfinding.** Done 2026-11-12. A* (`ai/Pathfinding.h`): a consistent estimate or none, the open nodes expanded by estimate and then index, a way in replaced only by a cheaper one, so of equal routes the same one every run; a graph, a cost or an estimate that is not one refused. Routes across the galaxy (`ai/Routes.h`, `PlotRoute`) over its jump points: a lane joins its ends at its transit time, and a system's jump points each other at a crossing cost the caller gives, so two jumps are weighed against one and a long crossing. Courses across a system (`Waypoints`, `PlotCourse`): a ring of six waypoints about each star, planet and moon, legs joined where they clear every body by a clearance, an end near a body given its own way out, searched with the straight-line distance; `CrossingByCourse` makes a route's crossings from them. The simulation's jump (`ai/Lanes.h`, `LaneTravel`): `EnterLane` sends an entity along the lane through a jump point of its system, in none for the transit in whole steps, and the system `lanes`, after physics, brings it out at the far gate at rest, facing the way the gate faces (`Celestial::JumpPointFacing`: its planet, with its station before it), in the frame of the station the gate keeps by; events at both ends and a refusal saying why. `ai` depends on `celestial` and `physics`. The sample gates moved beside their stations (5 and 6 km, beyond each station from its planet, orbiting it with its period), and their rings face the way a ship leaves them. In the shell, a jump along a lane takes the ship (flown again as it comes out), binds it to the arrival system's station, and the console's `route` plots the way from the ship to a system. | Met: in the AI suite, A* against a graph's known answer, a grid's known detour with and without an estimate, and against Floyd and Warshall over every pair of twenty random graphs, each path walked and found the same twice; ties broken the same in either adjacency order; routes across the sample galaxy end to end and back (105 s, two jumps), a shortcut weighed against a slow crossing, crossings asked the same every run; courses round a planet at the known length over its ring and no shorter than the sphere's own geodesic, kept off by a clearance, out from under a ring's face, from Ostra Highport to Pell round Ostra across an orbit; a ship entering Halcyon Gate, out of physics for the 2,400 steps of its 40 s, out at Vesper Gate at rest in Corva Refinery's frame looking at it 5 km off, and a world saved mid-transit, and a replay, arriving with the same state hash. |
-| 9b | **Steering.** Seek, arrive, obstacle avoidance and separation, over the spatial index and physics. | A group of ships reaches a station without colliding. |
+| 9b | **Steering.** Done 2026-11-12. Behaviours (`ai/Steering.h`) that are velocities, which flight assist holds: `Seek` at full speed, `Arrive` at the speed it can still stop from (√(2ad), the last metres at the distance a second), `Avoid` turning a ship aside from the first obstacle it would pass within its clearance of, at the speed that makes up the shortfall in time, and never closing on any faster than it can stop before the clearance, and `Separate` pushing apart ships nearer than their separation. The simulation's steering (`Ai::Steering`, the system `steering`, after `spatial` and before `flight`): an `Ai::Destination` (a point in the ship's frame, or an offset from an entity in its axes, with a course's waypoints), an `Ai::Steered` (lookahead, clearance, separation), commands to set and clear one, and events as a ship arrives and as a destination is lost; obstacles are every body but a sensor within reach in the ship's frame, each the sphere of its shape (`PhysicsWorld::ShapeRadius`), and its controls the velocity in its axes and a turn of its nose towards it. The spatial index kept from the simulation (`spatial/SystemIndices.h`, the system `spatial`): an octree a system, from the components each step, not state; `spatial` depends on `sim`. The scheduler's `before`, so a module orders itself ahead of another's system. In the shell, the console's `traffic` sends up to sixteen shuttles to places on a ring about the station, and the smoke run sends four. | Met: in the AI suite, arrive stopping a point mass from 2 km without passing the target by a centimetre, avoidance's turn, its braking before and within a clearance and two ships head on turning their own ways, a point mass flown at a station's centre going round it 10 m clear and on; through physics, a ship arriving at rest by Ostra Highport facing its way, one whose way is through the station flying round it more than 100 m from its centre, a course's waypoints passed in order, a destination by the station turned with it and lost with it; twelve ships from 1 to 2 km all round the station to places on a ring 250 m about it, their ways crossing at it, all arriving in 34.5 s with no contact begun, their hulls 31.8 m apart at the nearest and 25 m from the station's sphere; the same flight from the same start, and from a save part-way, to the same state hash, pinned in Debug and checked in Release and under the sanitisers, whose gate now runs the `spatial` and `ai` suites too. |
 | 9c | **Decisions.** Utility AI (considerations, response curves, scored actions) and data-defined behaviour trees, ticked in the simulation step. | Phase 9's exit criterion. |
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
 | 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings); the planets in the environment's capture, so a hull reflects them; a frame written to an image file from the command line, first, since the rest of phase 10 is judged by looking ([carried forward](#carried-forward)). | |
@@ -39,17 +39,18 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–9a moved on, and where it lands. Their full record, and catalogue entries 1–25,
+Work that phases 1–9b moved on, and where it lands. Their full record, and catalogue entries 1–25,
 are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
   writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
   smoke test's patterns.
 - **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
-  shell sets its ship's, and by lane travel as a ship comes out of a gate, into the frame of the
-  station the gate keeps by (9a). Taking a ship into a station's frame as it closes and out as it
-  leaves, by a radius about each body, lands with steering (9b), whose traffic is the first to cross
-  frames between a station and the open system.
+  shell sets its ship's and its traffic's, and by lane travel as a ship comes out of a gate, into the
+  frame of the station the gate keeps by (9a). Taking a ship into a station's frame as it closes and
+  out as it leaves, by a radius about each body, is not yet placed: steering (9b) flies within a
+  frame, and nothing in phase 9 leaves one, since every gate keeps station a few kilometres from its
+  station, in its frame. The first traffic between a station and the open system lands it.
 - **A change inside a component's fields** (entry 25, 8a): fields are found by name, so a field
   added to a component reads an old save with its default, and one renamed is a rename in the
   world's table; but a field removed is refused (the archive refuses a field its type does not
@@ -76,18 +77,20 @@ are in [history](history.md).
   than read whole, which waits on a streaming read in the VFS, with its pack files (entry 10). The
   voice bus has nothing on it yet.
 - **The sample game's later slices** ([sample game](sample-game.md)): traders that choose, plot and
-  fly trades (9b, 9c), CivSim's order book, the economy's turns and the skill tree's effects, then
+  fly trades (9c), CivSim's order book, the economy's turns and the skill tree's effects, then
   scripting (11).
 - **A gate flown through** (entry 26, 9a): the shell sends its ship along a lane wherever it is in
   the system, as the scene jumps, standing in for the game's rule. A gate that sends what flies
   through its ring (a sensor whose contact pushes `EnterLane`), and traders that fly to it, land with
-  steering (9b) and behaviour trees (9c). The smoke sequence's jump sends the ship and does not wait
+  behaviour trees (9c), whose traders are the first to use one; steering (9b) flies a ship to a gate
+  as to any place. The smoke sequence's jump sends the ship and does not wait
   the 40 s for it to come out; the AI suite covers the arrival.
 - **Courses past moving bodies** (entry 26, 9a): a course is straight legs between bodies where they
   are when it is plotted, plotted again as a ship goes. Fine across a station's few kilometres and
   for estimating a crossing; a course across a system flown at real speeds (days, past a planet that
   moves) needs its bodies where they will be, and a way of crossing a system at that scale at all,
-  which nothing in the engine has yet. With steering (9b), which flies them.
+  which nothing in the engine has yet. Steering (9b) flies a course's waypoints in the ship's frame,
+  so a course by a station moves with it; the system's scale is not yet placed.
 - **Pack files and their compression** behind the VFS (entry 10), and definition layering finer
   than whole-file replacement (entry 13): 11a.
 - **The cinematic camera** (entry 18): 11c.
@@ -106,10 +109,6 @@ are in [history](history.md).
   phase 10, whose results are otherwise judged by eye. With a scripted camera it also stands in for
   the input the `xdotool` keys provide. It lands first in 10a; nothing earlier needs it, though 8b's
   market screen would be checked with it if it were there.
-- **The spatial index kept from the simulation** (entry 21): a system in the simulation step keeping
-  one `SpatialIndex` per star system from the entities' `Transform`s, each in the index of its
-  `Sim::InSystem` (6d) and an entity on a lane in none. It lands with steering (9b), its first
-  reader.
 - **A jump's own effect** (entry 21): the fade to black is the effect today; a jump's particles and
   flash come with GPU particles (10b).
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
@@ -126,7 +125,13 @@ are in [history](history.md).
   filtering beyond static against moving (the game's own layers and groups); Jolt's debug renderer
   drawn through debug draw; Jolt's job system on more than one thread, once a profile asks for it
   (deterministic either way); the capacities tuned against real traffic; overlap queries (every body
-  in a shape) and casts that return every hit, with steering (9b) their likely first reader.
+  in a shape) and casts that return every hit, which steering (9b) did without (below).
+- **Steering, not yet placed** (entry 26, 9b): an obstacle is the sphere about its body that holds
+  its shape, which for a long station is wider than its hull, so a ship cannot fly into a dock
+  inside it: the final approach to a dock, with avoidance of that station by its hull rather than its
+  sphere (a shape cast along the way, `PhysicsWorld::CastShape`), lands with docking as the
+  engine's (9c). Steering is measured for a station's traffic, sixteen ships; a busier lane's, where
+  every ship queries the index each step, is measured when a game has one.
 - **Docking as the engine's** (entry 22, 7c): the shell docks its ship in a sensor before the dock
   (`app/src/Docking.h`), standing in for a game. Whether docking is a state the engine keeps, for AI
   traffic to request and wait on, is decided with behaviour trees (9c), whose "request docking, dock"
@@ -422,7 +427,7 @@ Settled on 2026-11-10:
   after physics, so physics removes its body the step it enters and makes it again the step after it
   arrives. A transit is whole steps, counted from the clock's step rather than compared in seconds,
   so it is the same every run however its seconds round. `ai` depends on `physics` for it, as 9b's
-  steering would have.
+  steering does.
 - **A ship comes out of a gate at rest, in its station's frame, facing the planet** (2026-11-12,
   phase 9a). A ship's speed carried through a lane would send one that went into a gate at speed out
   of the far one at a station a few kilometres ahead of it. So a ship arrives still relative to the
@@ -445,6 +450,26 @@ Settled on 2026-11-10:
   the transit time and every other gate of its system an edge at what crossing costs, which the
   galaxy cannot say (it has no positions) and the caller can: `CrossingByCourse` makes it from a
   course through the system's waypoints at a speed.
+- **Steering is velocities, which flight assist holds** (2026-11-12, phase 9b). The stub had each
+  behaviour return an acceleration to be summed and clamped by the flight model. But assist already
+  takes a velocity and reaches it at the thrusters' limits, axis by axis, so a behaviour that is a
+  velocity is what assist flies, and the flight model, not steering, is what knows how fast the ship
+  can change it. Arrival and the limit before an obstacle brake at half the weakest thruster, which
+  leaves the rest for the turn and for a dodge, and the last metres of each are at the distance a
+  second: √(2ad) alone, its slope unbounded at the end, was overshot a step at a time.
+- **An obstacle is the sphere that holds its shape, and the guarantee is the braking** (2026-11-12,
+  phase 9b). Avoidance finds what is near through the spatial index, not Jolt: the index answers for
+  a whole system in identifier order, and a sphere's closest approach is arithmetic, where a cast a
+  ship each step is a query into every frame. The turn aside from the first threat takes a ship
+  round; what keeps it off any hull is that it never closes on an obstacle faster than it can stop
+  before the clearance, which holds whatever the turn does. Twelve ships converging on a station kept
+  31.8 m between hulls and 25 m from its sphere.
+- **The spatial index is made from the components each step** (2026-11-12, phase 9b). It is not state:
+  a save does not hold it, and a world loaded from one has it from its next step. Kept from the
+  simulation, by the system `spatial` as the step's systems begin, it is in `spatial`, which now
+  depends on `sim` (a sibling edge in the World tier), so that a sensor or a game system reads it as
+  steering does. Steering orders itself after it and before `flight`, through the scheduler's new
+  `before`: physics cannot name steering, which is above it.
 
 ## Open decisions
 

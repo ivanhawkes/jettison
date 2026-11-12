@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include <jettison/ai/Types.h>
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/celestial/StarSystem.h>
 
@@ -71,10 +72,6 @@ struct LaneRefused
 	std::string jumpPoint;
 	std::string reason;
 };
-
-// Registers the module's types with Reflect, and the simulation's (Sim::RegisterTypes) and
-// physics' (Physics::RegisterTypes). Idempotent; LaneTravel::Attach calls it.
-void RegisterTypes();
 
 // Lane travel in a simulation world: the OnLane component, the EnterLane command, and the system
 // "lanes" (kSystemName), which runs after physics' and brings out each entity whose transit ends

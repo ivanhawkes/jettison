@@ -140,14 +140,15 @@ flowchart TB
 
 The World tier's listed sibling edges are `scene`'s: on `animation`, whose clip players its update
 drives, on `celestial`, whose star systems its system scenes are built from, and on `sim`, whose
-snapshots its traffic layer is made from (6b). The scene reads `Sim::Snapshot` alone, never the
+snapshots its traffic layer is made from (6b); and `spatial`'s on `sim` (9b), whose components its
+index of each system is kept from, by a simulation system. The scene reads `Sim::Snapshot` alone, never the
 world, and nothing in `sim` sees the scene. `render` depends on
 `scene` from the tier above, and reads it; the scene names no device. The Presentation tier's listed
 sibling edges are `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, a plain draw list in
 render's public headers, and decodes a document's images with render's CPU texture decoder; it
 includes no Vulkan header and the renderer no RmlUi one. The other is `ai`'s on `physics` (9a): a
-ship coming out of a lane is put in a physics frame and stopped in it, and steering (9b) flies
-through physics.
+ship coming out of a lane is put in a physics frame and stopped in it, and steering (9b) flies a
+ship through its flight controls and keeps it clear of the bodies' shapes.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics` and `ai` never include
 `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
@@ -316,7 +317,7 @@ the simulation system `shell.docking`), and raises `ShipDocked` and `ShipUndocke
 **Casts** (`CastRay`, `CastShape`) find the first body along a ray or a convex shape swept along a
 direction, across every frame of a system, each cast in the frame's own coordinates; sensors and the
 caster's own body are left out unless asked for. They read the world as the last step left it, and
-are the simulation's to call, as steering will (9b). **Picking** is a command, since presentation
+are the simulation's to call; steering (9b) keeps clear of spheres instead, below. **Picking** is a command, since presentation
 never reads the simulation's state: a click is a `Physics::Pick`, the ray through the cursor
 (`Render::ScreenRay`) from the camera presentation drew, and the next step answers it with a
 `Physics::Picked` event, a frame later. Presentation shows the world half a step behind on average,
@@ -344,6 +345,29 @@ the pilot camera's chase and cockpit rigs follow (`Scene::PilotCameraComponent`)
 compression is above 1×, piloting is suspended, as it is in every game of the genre, and the assist
 holds the ship. Compression is refused near stations and other ships for the same reason, by the
 game.
+
+### Steering
+
+Steering (`ai/Steering.h`, 9b) flies a ship to a place: an `Ai::Destination`, a point in the ship's
+frame or an offset from an entity in the entity's own axes, with a course's waypoints on the way, and
+an `Ai::Steered` saying how far it keeps from what is near. Its behaviours (seek, arrive, avoid,
+separate) are velocities rather than accelerations, since the flight model's assist already holds a
+demanded velocity and reaches it as fast as the thrusters allow ([decided](roadmap.md#decided)): the
+system `steering`, after `spatial` and before `flight`, sums them and sets the ship's
+`FlightControls`, its velocity as a share of its top speed along each of its axes and a turn of the
+nose towards it. Positions are in the system frame and velocities in the ship's frame, which is all
+it steers about, as bodies in two frames never meet.
+
+What is near comes from the **spatial index kept from the simulation** (`spatial/SystemIndices.h`):
+one octree a system, of every entity with a `Transform` and an `InSystem`, brought up to the
+registry by the system `spatial` as the step's systems begin. It is not state: it is made from the
+components each step, so a save does not hold it and a world loaded from one has it from its next
+step, and what a query returns depends on the positions alone. Every body but a sensor within reach
+is an obstacle, the sphere about its origin that holds its shape
+(`PhysicsWorld::ShapeRadius`), and the dynamic ones are neighbours to keep apart from. Avoidance turns
+a ship aside from the first obstacle it would pass within its clearance of, and never lets it close
+on any faster than it can stop from before the clearance; that limit is what keeps it off a hull,
+and the turn what takes it round.
 
 ### Persistence
 
@@ -868,5 +892,8 @@ proves it headlessly. What exists:
   world. The shell attaches it, for its ship.
 - **AI** (`engine/ai`, 9a). A* over a graph of indexed nodes (`Pathfinding.h`); routes across the
   galaxy over its jump points, and courses across a system round its star, planets and moons
-  (`Routes.h`); and the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`), attached by
-  the shell after physics. Utility AI, behaviour trees and steering are still stubs, for 9b and 9c.
+  (`Routes.h`); the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`); and steering
+  ([as above](#steering), `Steering.h`, 9b), over the spatial index kept from the simulation
+  (`spatial/SystemIndices.h`), all attached by the shell after physics, whose console's `traffic`
+  sends shuttles to hold station about the station. Utility AI and behaviour trees are still stubs,
+  for 9c.

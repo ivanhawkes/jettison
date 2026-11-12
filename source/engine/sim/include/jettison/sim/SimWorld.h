@@ -174,6 +174,11 @@ class SimWorld
 	// A system for the simulation phase; throws std::logic_error for one in another phase, and
 	// as Ecs::Scheduler::Register does.
 	void RegisterSystem(Ecs::SystemDescription system);
+	// The systems registered, and the order a step runs them in.
+	const Ecs::Scheduler &Scheduler() const
+	{
+		return m_scheduler;
+	}
 
 	// A service whose state the world saves, held by the world from now on, under a name a save
 	// knows it by. Throws std::logic_error for a name already registered.

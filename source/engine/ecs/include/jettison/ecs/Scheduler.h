@@ -59,17 +59,21 @@ struct SystemDescription
 	Access access;
 	std::vector<std::string> after; // Names of systems this one runs after, within its phase.
 	std::function<void(entt::registry &, double deltaTime)> run;
+	// Names of systems this one runs before, within its phase: what a module puts ahead of another
+	// module's system that cannot name it, as steering goes before physics' flight model. Last, so a
+	// description naming none is written as it was.
+	std::vector<std::string> before{};
 };
 
 // Registers systems and runs each phase's systems in a valid order: after every system it names
-// in after, and otherwise in registration order, so the order is the same every run. Registration
-// happens at start-up.
+// in after, before every system it names in before, and otherwise in registration order, so the
+// order is the same every run. Registration happens at start-up.
 //
-// A system's after may name one registered later. Register throws std::logic_error for a system
-// with no name or no run, a name already registered, an after naming a system in another phase,
-// and a cycle, as soon as the system that closes it is registered. Validate() throws for an after
-// that names no system at all; Run calls it the first time it runs, but the app calls it after
-// registration so the error comes at start-up.
+// A system's after or before may name one registered later. Register throws std::logic_error for a
+// system with no name or no run, a name already registered, an after or a before naming a system in
+// another phase, and a cycle, as soon as the system that closes it is registered. Validate() throws
+// for an after or a before that names no system at all; Run calls it the first time it runs, but
+// the app calls it after registration so the error comes at start-up.
 class Scheduler
 {
   public:
@@ -85,7 +89,7 @@ class Scheduler
 	}
 	// The phase's systems in the order Run runs them.
 	std::vector<std::string> Order(TickPhase phase) const;
-	// Pairs of systems in the phase whose access conflicts and which no chain of after
+	// Pairs of systems in the phase whose access conflicts and which no chain of after and before
 	// constraints orders: registration order decides theirs today, and they are what a parallel
 	// scheduler would have to keep apart. Each pair is in run order.
 	std::vector<std::pair<std::string, std::string>> Ambiguities(TickPhase phase) const;

@@ -24,10 +24,12 @@
 
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Routes.h>
+#include <jettison/ai/Steering.h>
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/jobs/IoWorker.h>
+#include <jettison/math/Random.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/profile/Profile.h>
@@ -42,6 +44,7 @@
 #include <jettison/scene/SystemScene.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/spatial/SystemIndices.h>
 
 #include "Docking.h"
 #include "Saves.h"
@@ -71,6 +74,39 @@ constexpr std::string_view kShipShape = "ships/shuttle";
 constexpr glm::vec3 kShipHalfExtents{3.2f, 0.9f, 4.9f};
 constexpr float kShipMass = 20000.0f;
 constexpr glm::dvec3 kShipStation{0.0, 0.0, -150.0};
+
+// The most traffic the console sends to a station, and how fast it flies: a shuttle's full 150 m/s
+// crosses the ring's 2 km in a quarter of a minute, too fast to watch a ship give way.
+constexpr std::size_t kMostTraffic = 16;
+constexpr float kTrafficSpeed = 80.0f;
+
+// The shuttle's hull, the ship's and the traffic's.
+void DefineShuttle(Physics::PhysicsWorld &physics)
+{
+	if (physics.HasShape(kShipShape))
+		return;
+	Physics::ShapeDefinition hull;
+	hull.kind = Physics::ShapeKind::Box;
+	hull.halfExtents = kShipHalfExtents;
+	physics.DefineShape(std::string{kShipShape}, hull);
+}
+
+Physics::Body ShuttleBody()
+{
+	Physics::Body body{Physics::BodyKind::Dynamic, std::string{kShipShape}, kShipMass};
+	body.friction = 0.4f;
+	body.restitution = 0.2f;
+	body.continuous = true;
+	return body;
+}
+
+// A place on the traffic's ring about a station, in its axes: about its Z, the axis its dock is
+// at the end of, so the ship holding off the dock is clear of every one.
+glm::dvec3 TrafficPlace(std::size_t place, double ring)
+{
+	const double angle = glm::two_pi<double>() * static_cast<double>(place) / kMostTraffic;
+	return {ring * std::cos(angle), ring * std::sin(angle), 0.0};
+}
 // The docking port: a box 40 m on a side before the dock at the hull's -Z end, reaching 2 m into
 // the hull past the dock's face, so a ship held against the dock is in it.
 constexpr glm::vec3 kPortHalfExtents{20.0f, 20.0f, 20.0f};
@@ -250,6 +286,29 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    });
 
 	m_console.RegisterCommand(
+	    "traffic",
+	    "Sends shuttles to hold station about the ship's station, or takes them all away: traffic "
+	    "[count], 6 by default, 0 for none",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    int count = 6;
+		    if (!arguments.empty())
+		    {
+			    const auto [end, error] = std::from_chars(
+			        arguments[0].data(), arguments[0].data() + arguments[0].size(), count);
+			    if (error != std::errc{} || end != arguments[0].data() + arguments[0].size() ||
+			        count < 0)
+			    {
+				    Core::Log(
+				        Core::Severity::Warning, kShell, "traffic takes a count, not '{}'",
+				        arguments[0]);
+				    return;
+			    }
+		    }
+		    SpawnTraffic(count);
+	    });
+
+	m_console.RegisterCommand(
 	    "bind",
 	    "Binds an action, or says what it is bound to, and saves the settings: bind <context> <action> "
 	    "[bindings...], as Key.W/Key.S or y:GamepadAxis.LeftY*-1~0.15",
@@ -359,6 +418,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
 	m_pLanes = &Ai::LaneTravel::Attach(m_sim);
+	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
+	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
 	RegisterDocking(m_sim, *m_pPhysics);
 	RegisterTrading(m_sim);
 	RegisterMarketScreenTypes();
@@ -1796,6 +1857,10 @@ bool Application::LoadFrom(std::string_view name)
 		m_ship = valid(shell.ship);
 		m_station = valid(shell.station);
 		m_port = valid(shell.port);
+		m_traffic.clear();
+		for (const entt::entity entity : world.view<const Ai::Steered>())
+			m_traffic.push_back(entity);
+		std::ranges::sort(m_traffic, {}, [](entt::entity entity) { return entt::to_integral(entity); });
 		// The systems from the world, which a ship saved on a lane or before its station was bound
 		// holds as the shell's section does not.
 		const auto systemOf = [&world](entt::entity entity)
@@ -1852,7 +1917,15 @@ SmokeActions Application::MakeSmokeActions()
 		m_pResources->ReloadAll();
 	};
 	actions.pilot = [this](bool cockpit)
-	{ return StartPiloting(cockpit ? Scene::PilotView::Cockpit : Scene::PilotView::Chase); };
+	{
+		if (!StartPiloting(cockpit ? Scene::PilotView::Cockpit : Scene::PilotView::Chase))
+			return false;
+		// Traffic about the station, whose proxies the frames draw from here on and whose steering
+		// the save and load carries.
+		if (!cockpit)
+			SpawnTraffic(4);
+		return true;
+	};
 	actions.pick = [this]
 	{
 		int width = 0;
@@ -2118,13 +2191,7 @@ void Application::SpawnShip()
 {
 	if (m_ship != entt::null || !BindStation())
 		return;
-	if (!m_pPhysics->HasShape(kShipShape))
-	{
-		Physics::ShapeDefinition hull;
-		hull.kind = Physics::ShapeKind::Box;
-		hull.halfExtents = kShipHalfExtents;
-		m_pPhysics->DefineShape(std::string{kShipShape}, hull);
-	}
+	DefineShuttle(*m_pPhysics);
 	entt::registry &world = m_sim.Registry();
 	const Sim::Transform at = world.get<Sim::Transform>(m_station);
 
@@ -2135,11 +2202,7 @@ void Application::SpawnShip()
 	    at.orientation * glm::angleAxis(glm::pi<double>(), glm::dvec3{0.0, 1.0, 0.0}));
 	world.emplace<Sim::InSystem>(m_ship, m_stationSystem);
 	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
-	Physics::Body body{Physics::BodyKind::Dynamic, std::string{kShipShape}, kShipMass};
-	body.friction = 0.4f;
-	body.restitution = 0.2f;
-	body.continuous = true;
-	world.emplace<Physics::Body>(m_ship, body);
+	world.emplace<Physics::Body>(m_ship, ShuttleBody());
 	world.emplace<Physics::Velocity>(m_ship);
 	world.emplace<Physics::Thrusters>(m_ship);
 	world.emplace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
@@ -2149,6 +2212,85 @@ void Application::SpawnShip()
 	m_simStepper.Resync();
 	Core::Log(
 	    Core::Severity::Info, kShell, "A ship holds station off {}'s dock: P flies it", m_stationBody);
+}
+
+
+void Application::SpawnTraffic(int count)
+{
+	entt::registry &world = m_sim.Registry();
+	std::erase_if(m_traffic, [&world](entt::entity entity) { return !world.valid(entity); });
+	if (count == 0)
+	{
+		for (const entt::entity entity : m_traffic)
+			world.destroy(entity);
+		Core::Log(Core::Severity::Info, kShell, "{} shuttles taken out of the world", m_traffic.size());
+		m_traffic.clear();
+		m_simStepper.Resync();
+		return;
+	}
+	if (!BindStation())
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No station in the system shown to send traffic to");
+		return;
+	}
+	const std::size_t room = kMostTraffic - m_traffic.size();
+	const std::size_t sent = std::min(static_cast<std::size_t>(count), room);
+	if (sent == 0)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "Already {} shuttles, the most", kMostTraffic);
+		return;
+	}
+	DefineShuttle(*m_pPhysics);
+
+	// The ring is clear of the hull by more than a shuttle's clearance and separation together, and
+	// its places, in the station's axes, a sixteenth of it apart: 100 m or so, twice what two
+	// shuttles keep between them.
+	const Sim::Transform at = world.get<Sim::Transform>(m_station);
+	const double ring = m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_station).shape) + 150.0;
+	std::vector<bool> taken(kMostTraffic, false);
+	for (const entt::entity entity : m_traffic)
+		if (const auto *destination = world.try_get<Ai::Destination>(entity))
+			for (std::size_t place = 0; place < kMostTraffic; ++place)
+				if (glm::distance(destination->offset, TrafficPlace(place, ring)) < 1.0)
+					taken[place] = true;
+	// Drawn from a generator of the shell's, so sending traffic does not move the world's.
+	Math::Random random{m_sim.Clock().Step(), m_traffic.size()};
+	std::size_t place = 0;
+	for (std::size_t index = 0; index < sent; ++index)
+	{
+		while (taken[place])
+			++place;
+		taken[place] = true;
+		glm::dvec3 direction{0.0};
+		while (glm::length(direction) < 0.1 || glm::length(direction) > 1.0)
+			direction = {
+			    random.NextDouble() * 2.0 - 1.0, random.NextDouble() * 2.0 - 1.0,
+			    random.NextDouble() * 2.0 - 1.0};
+		const double distance = 1000.0 + random.NextDouble() * 1000.0;
+
+		const entt::entity shuttle = world.create();
+		world.emplace<Sim::Transform>(
+		    shuttle,
+		    Sim::Transform{at.position + glm::normalize(direction) * distance, at.orientation});
+		world.emplace<Sim::InSystem>(shuttle, m_stationSystem);
+		world.emplace<Physics::LocalFrame>(shuttle, m_stationBody);
+		world.emplace<Physics::Body>(shuttle, ShuttleBody());
+		world.emplace<Physics::Velocity>(shuttle);
+		world.emplace<Physics::Thrusters>(shuttle);
+		world.emplace<Physics::FlightControls>(shuttle);
+		world.emplace<Ai::Steered>(shuttle);
+		Ai::Destination destination;
+		destination.entity = m_station;
+		destination.offset = TrafficPlace(place, ring);
+		destination.speed = kTrafficSpeed;
+		world.emplace<Ai::Destination>(shuttle, destination);
+		m_traffic.push_back(shuttle);
+	}
+	std::ranges::sort(m_traffic, {}, [](entt::entity entity) { return entt::to_integral(entity); });
+	m_simStepper.Resync();
+	Core::Log(
+	    Core::Severity::Info, kShell, "{} shuttles sent to hold station by {}, {} in all", sent,
+	    m_stationBody, m_traffic.size());
 }
 
 
@@ -2344,7 +2486,12 @@ void Application::SetProxyFactory()
 {
 	m_systemScene->SetProxyFactory(
 	    [this](entt::registry &registry, entt::entity simEntity)
-	    { return simEntity == m_ship ? MakeShipProxy(registry) : entt::entity{entt::null}; });
+	    {
+		    const bool traffic = std::ranges::binary_search(
+		        m_traffic, entt::to_integral(simEntity), {},
+		        [](entt::entity entity) { return entt::to_integral(entity); });
+		    return simEntity == m_ship || traffic ? MakeShipProxy(registry) : entt::entity{entt::null};
+	    });
 }
 
 
@@ -2464,6 +2611,10 @@ void Application::TakeEvents()
 			Core::Log(
 			    Core::Severity::Warning, kShell, "The ship cannot enter the lane through {}: {}",
 			    noLane->jumpPoint, noLane->reason);
+		else if (const auto *holding = event.event.try_cast<Ai::Arrived>())
+			Core::Log(
+			    Core::Severity::Info, kShell, "{} holds station by {}", Describe(holding->ship),
+			    m_stationBody);
 		else if (const auto *docked = event.event.try_cast<ShipDocked>();
 		         docked && docked->ship == m_ship)
 		{
@@ -2545,6 +2696,8 @@ std::string Application::Describe(entt::entity simEntity) const
 		return m_stationBody;
 	if (simEntity == m_port)
 		return m_stationBody + "'s docking port";
+	if (const auto found = std::ranges::find(m_traffic, simEntity); found != m_traffic.end())
+		return std::format("Shuttle {}", found - m_traffic.begin() + 1);
 	return std::format("Entity {:#x}", entt::to_integral(simEntity));
 }
 

@@ -18,7 +18,8 @@ struct SmokeActions
 	std::function<void()> restore;
 	std::function<void()> reload;
 	// Flies the system's ship, behind it or from its seat, and says whether there was one to fly:
-	// false in a scene of no system, or of one with no station.
+	// false in a scene of no system, or of one with no station. Behind it, four shuttles are sent to
+	// the station too, flown by steering.
 	std::function<bool(bool cockpit)> pilot;
 	// Picks through the middle of the window, and says whether a pick was sent: false in a scene of
 	// no system. Then whether it is still unanswered.
@@ -45,7 +46,8 @@ struct SmokeActions
 // swapchain recreate), a minimize and restore (a surface that reports no extent), a scene reload
 // (models destroyed and rebuilt, commonly at the addresses the pipeline keyed its resources by), a
 // ship flown behind the chase camera and then from the cockpit (the ship's proxy made by the
-// traffic layer, the station's collision mesh, the flight commands, and the pilot rigs), a pick
+// traffic layer, the station's collision mesh, the flight commands, and the pilot rigs), with
+// traffic steered to the station (the spatial index and steering, and the shuttles' proxies), a pick
 // through the middle of the window (a ray from the camera cast by physics and answered as an
 // event), a save and a load of it (the world, physics' state among it, written durably and read
 // back, with the scene's proxies on it), a trade at the market screen (a document bound to the

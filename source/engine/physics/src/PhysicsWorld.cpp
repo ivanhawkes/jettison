@@ -15,6 +15,8 @@
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
 
+#include <glm/geometric.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <compare>
@@ -23,6 +25,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include <jettison/celestial/Orbit.h>
 #include <jettison/core/Assert.h>
@@ -57,7 +60,33 @@ struct ShapeEntry
 {
 	JPH::RefConst<JPH::Shape> shape;
 	bool mesh{false};
+	double radius{0.0};
 };
+
+// The smallest sphere about the origin holding the shape as its definition has it. Jolt's own
+// bounds are a box, whose corner is a ball's radius times √3 from its centre.
+double BoundingRadius(const ShapeDefinition &shape)
+{
+	const auto farthest = [](const std::vector<glm::vec3> &points)
+	{
+		double radius = 0.0;
+		for (const glm::vec3 &point : points)
+			radius = std::max(radius, glm::length(glm::dvec3{point}));
+		return radius;
+	};
+	const double radius = shape.radius;
+	const double halfHeight = shape.halfHeight;
+	switch (shape.kind)
+	{
+		case ShapeKind::Box: return glm::length(glm::dvec3{shape.halfExtents});
+		case ShapeKind::Sphere: return radius;
+		case ShapeKind::Capsule: return halfHeight + radius;
+		case ShapeKind::Cylinder: return std::sqrt(halfHeight * halfHeight + radius * radius);
+		case ShapeKind::ConvexHull: return farthest(shape.points);
+		case ShapeKind::Mesh: return farthest(shape.vertices);
+	}
+	return 0.0;
+}
 
 // Which Jolt world a body is in: its star system, and the celestial body whose frame it is in, or
 // none for the system's own. Ordered, system first, which is the order worlds step and save in.
@@ -548,7 +577,8 @@ void PhysicsWorld::DefineShape(std::string name, const ShapeDefinition &shape)
 		throw std::invalid_argument{"Physics: a shape needs a name"};
 	if (m_pImpl->shapes.contains(name))
 		throw std::invalid_argument{std::format("Physics: shape '{}' is already defined", name)};
-	ShapeEntry entry{Detail::BuildShape(name, shape), shape.kind == ShapeKind::Mesh};
+	ShapeEntry entry{
+	    Detail::BuildShape(name, shape), shape.kind == ShapeKind::Mesh, BoundingRadius(shape)};
 	m_pImpl->shapes.emplace(std::move(name), std::move(entry));
 }
 
@@ -561,6 +591,22 @@ void PhysicsWorld::DefineShapes(const Sim::DefinitionRegistry &definitions)
 bool PhysicsWorld::HasShape(std::string_view name) const
 {
 	return m_pImpl->FindShape(name) != nullptr;
+}
+
+double PhysicsWorld::ShapeRadius(std::string_view name) const
+{
+	const ShapeEntry *entry = m_pImpl->FindShape(name);
+	if (!entry)
+		throw std::invalid_argument{std::format("Physics: shape '{}' is not defined", name)};
+	return entry->radius;
+}
+
+double PhysicsWorld::LargestShapeRadius() const
+{
+	double largest = 0.0;
+	for (const auto &[name, entry] : m_pImpl->shapes)
+		largest = std::max(largest, entry.radius);
+	return largest;
 }
 
 void PhysicsWorld::DefineStarSystem(Celestial::StarSystem system)
@@ -590,6 +636,15 @@ glm::dvec3 PhysicsWorld::Gravity(
 	const auto found = m_pImpl->systems.find(system);
 	return found == m_pImpl->systems.end() ? glm::dvec3{0.0}
 	                                       : Pull(Wells(found->second, simSeconds), position);
+}
+
+glm::dvec3 PhysicsWorld::FrameOrigin(
+    std::uint64_t system, std::string_view frame, double simSeconds) const
+{
+	const WorldKey key{system, std::string{frame}};
+	if (const std::optional<std::string> problem = m_pImpl->UnknownFrame(key))
+		throw std::invalid_argument{std::format("Physics: no frame origin: a body there {}", *problem)};
+	return m_pImpl->Origin(key, simSeconds);
 }
 
 std::size_t PhysicsWorld::BodyCount() const

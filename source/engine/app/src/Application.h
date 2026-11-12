@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <jettison/ai/Lanes.h>
+#include <jettison/ai/Steering.h>
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/SmokeSequence.h>
 #include <jettison/audio/AudioSystem.h>
@@ -55,6 +56,10 @@ class IRenderer;
 namespace Jettison::Scene
 {
 class Scene;
+}
+namespace Jettison::Spatial
+{
+class SystemIndices;
 }
 namespace Jettison::Physics
 {
@@ -206,6 +211,11 @@ class Application
 	// The station bound, and the ship beside it in the station's frame. Once a run: a reload of the
 	// scene leaves the simulation as it was.
 	void SpawnShip();
+	// The console's traffic: that many shuttles flown by steering (Ai::Steering) from 1 to 2 km about
+	// the bound station to places on a ring about it, clear of its hull and of each other, in the
+	// station's axes so the ring turns with it; or, for none, every one there is taken out of the
+	// world. Sixteen at most, the ring's places for its spacing.
+	void SpawnTraffic(int count);
 	// Sends the ship along the lane, when it is in the system shown, as the scene jumps along it.
 	void TakeShipAlong(const Celestial::Exit &exit);
 	// The console's route: the quickest way from the ship to a system, at the ship's top speed
@@ -485,8 +495,14 @@ class Application
 	std::string m_galaxyPath;
 	// Its systems, in its order, as their files have them, for routes.
 	std::vector<Celestial::StarSystem> m_galaxySystems;
-	// Lane travel in the simulation, given the galaxy and its systems; the world holds it.
+	// Lane travel in the simulation, given the galaxy and its systems; the spatial index kept from
+	// the simulation, and steering, which reads it. The world holds them.
 	Ai::LaneTravel *m_pLanes{nullptr};
+	Spatial::SystemIndices *m_pIndices{nullptr};
+	Ai::Steering *m_pSteering{nullptr};
+	// The traffic spawned (SpawnTraffic), in entity order, which the proxy factory draws as
+	// shuttles; found again in the world a save loads, as its steered ships.
+	std::vector<entt::entity> m_traffic;
 	// The galaxy's system the scene shows, if it shows one, and the jump point the last jump arrived
 	// at in it.
 	std::optional<std::size_t> m_shownSystem;

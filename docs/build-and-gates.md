@@ -183,7 +183,7 @@ It is done when the game needs a prebuilt engine rather than a source build, and
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → headless render test, and with `--asan`, the render test and the
-`sim` and `physics` suites under the sanitisers. The simulation's state hashes are pinned in those
+`sim`, `spatial`, `physics` and `ai` suites under the sanitisers. The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
 build's results.
 
@@ -341,10 +341,12 @@ drawn as one instanced draw). In the orbit scene the piloting stages fly the she
 Highport's dock in the station's frame, ahead under scripted controls: its proxy made by the traffic
 layer, the flight commands, and the pilot camera's chase and cockpit rigs on it, each eased into; the
 sample scene has no station, so they fly nothing there, and the summary's `pilots=` says how many
-did. The save stage writes the game to the run's user mount, flushed to the disk, and loads it
+did. Behind the ship, the first piloting stage sends four shuttles to Highport (the console's
+`traffic`), flown by steering over the spatial index and drawn by the traffic layer from then on.
+The save stage writes the game to the run's user mount, flushed to the disk, and loads it
 back over itself with the scene drawing it; the run fails unless the world loaded has the state hash
-of the world saved (817 bytes for the sample scene's empty world on 2026-11-12, and 4,171 for the
-orbit scene's, physics' state and the shell's ship among it). The game UI's two screens, the market
+of the world saved (3,447 bytes for the sample scene's world on 2026-11-12, and 11,350 for the
+orbit scene's, physics' state, the shell's ship and the four shuttles under way among it). The game UI's two screens, the market
 and the saved games, are shown from the first frame, so the overlay is drawn in every stage, over
 every resize and the reload; the save stage lists its save on one. The trade stage reads the market
 screen of the station the ship is at: its station and its first good's stock have to be the ones the
