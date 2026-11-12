@@ -22,9 +22,11 @@
 #include <utility>
 #include <vector>
 
+#include <jettison/ai/BehaviourTree.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
+#include <jettison/ai/UtilityAi.h>
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/celestial/StarSystem.h>
@@ -51,6 +53,7 @@
 #include "Dressing.h"
 #include "Saves.h"
 #include "Stations.h"
+#include "Traders.h"
 #include "Trading.h"
 
 namespace Jettison::App
@@ -289,6 +292,10 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    });
 
 	m_console.RegisterCommand(
+	    "traders", "Says what each trader is doing, and what its runs have made",
+	    [this](DevTools::Console &, std::span<const std::string>) { LogTraders(); });
+
+	m_console.RegisterCommand(
 	    "bind",
 	    "Binds an action, or says what it is bound to, and saves the settings: bind <context> <action> "
 	    "[bindings...], as Key.W/Key.S or y:GamepadAxis.LeftY*-1~0.15",
@@ -425,10 +432,11 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::Transform>();
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
-	m_pLanes = &Ai::LaneTravel::Attach(m_sim);
+	m_pLanes = &Ai::LaneTravel::Attach(m_sim, *m_pPhysics);
 	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
 	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
 	m_pDocks = &Dock::Docks::Attach(m_sim, *m_pPhysics);
+	m_pBehaviours = &Ai::Behaviours::Attach(m_sim);
 	m_sim.RegisterComponent<Sim::ControlledBy>();
 	RegisterTrading(m_sim);
 	RegisterMarketScreenTypes();
@@ -862,6 +870,7 @@ void Application::InitResources()
 	Animation::RegisterRigLoader(*m_pResources);
 	m_definitions.emplace(m_assets);
 	LoadTradeDefinitions(*m_definitions);
+	LoadTraderDefinitions(*m_definitions);
 	m_definitions->Load<Dock::HullDefinition>(
 	    Dock::kHullDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
 	m_definitions->Load<Dock::StationLayout>(
@@ -878,6 +887,16 @@ void Application::InitScene()
 	m_pScene = std::make_unique<Scene::Scene>(m_pResources.get());
 	InitGalaxy();
 	DefineStarSystems();
+	// The traders' tasks read the systems; their trees name the tasks.
+	if (const auto *decision = m_definitions->Find<Ai::DecisionDefinition>(kTradeDecision))
+	{
+		RegisterTraders(m_sim, *m_pBehaviours, *m_pPhysics, *m_pLanes, m_galaxySystems, *decision);
+		m_pBehaviours->Define(*m_definitions);
+	}
+	else
+		Core::Log(
+		    Core::Severity::Warning, kShell, "No decision '{}' is defined; the galaxy has no traders",
+		    kTradeDecision);
 	LoadScene();
 	OpenStations();
 	SpawnShip();
@@ -1633,6 +1652,45 @@ void Application::TakeShipAlong(const Celestial::Exit &exit)
 }
 
 
+void Application::LogTraders() const
+{
+	// From the snapshot, as the market screen is: presentation sees the traders as they were shown.
+	const Sim::Snapshot &snapshot = m_simStepper.Current();
+	const auto stationOf = [&](entt::entity market)
+	{
+		const Market *found = market == entt::null ? nullptr : snapshot.Get<Market>(market);
+		return found ? found->station : std::string{"nowhere"};
+	};
+	const std::span<const Sim::ComponentSample<Trader>> traders = snapshot.Components<Trader>();
+	if (traders.empty())
+		Core::Log(Core::Severity::Info, kShell, "No traders");
+	for (const auto &[entity, trader] : traders)
+	{
+		const auto *hold = snapshot.Get<Hold>(entity);
+		const auto *purse = snapshot.Get<Purse>(entity);
+		const Sim::TransformSample *sample = snapshot.FindSample(entity);
+		std::string where{"on a lane"};
+		if (m_galaxy && sample && sample->system != Sim::kNoSystem)
+			for (const Celestial::GalaxySystem &system : m_galaxy->systems)
+				if (Sim::SystemId(system.name) == sample->system)
+					where = "in " + system.name;
+		const std::string run =
+		    trader.good.empty()
+		        ? std::string{"choosing a run"}
+		        : std::format(
+		              "{} {} {}, bound for {} with {} jumps to go", trader.good,
+		              trader.buyAt == entt::null ? "held, to sell at"
+		                                         : "from " + stationOf(trader.buyAt) + " to",
+		              stationOf(trader.sellAt), stationOf(trader.bound), trader.jumps.size());
+		Core::Log(
+		    Core::Severity::Info, kShell,
+		    "Trader {:#x}, {}: {}; {} crates aboard, {} credits; {} runs made {}",
+		    entt::to_integral(entity), where, run, hold ? hold->Used() : 0, purse ? purse->credits : 0,
+		    trader.runs, trader.earned);
+	}
+}
+
+
 void Application::LogRoute(std::string_view systemName) const
 {
 	if (!m_galaxy || m_galaxySystems.size() != m_galaxy->systems.size())
@@ -2211,6 +2269,9 @@ void Application::OpenStations()
 		market.stationEntity = FindStation(world, market.system, market.station);
 	}
 	Core::Log(Core::Severity::Info, kShell, "{} markets open", markets.size());
+	if (m_pBehaviours->HasTree(kTraderTree))
+		Core::Log(
+		    Core::Severity::Info, kShell, "{} traders open", OpenTraders(m_sim, *m_pDocks).size());
 	FindHullProxies();
 	m_simStepper.Resync();
 }
@@ -2674,7 +2735,11 @@ void Application::TakeEvents()
 			Core::Log(
 			    Core::Severity::Warning, kShell, "The ship cannot enter the lane through {}: {}",
 			    noLane->jumpPoint, noLane->reason);
-		else if (const auto *holding = event.event.try_cast<Ai::Arrived>())
+		// The console's traffic holds station where it arrives; a trader arriving is on its way on.
+		else if (const auto *holding = event.event.try_cast<Ai::Arrived>();
+		         holding && std::ranges::binary_search(
+		                        m_traffic, entt::to_integral(holding->ship), {},
+		                        [](entt::entity entity) { return entt::to_integral(entity); }))
 			Core::Log(
 			    Core::Severity::Info, kShell, "{} holds station by {}", Describe(holding->ship),
 			    m_stationBody);

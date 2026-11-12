@@ -185,7 +185,9 @@ Order: format gate → Debug build → unit tests and the dependency probe (CTes
 Release build and its unit tests → headless render test, and with `--asan`, the render test and the
 `sim`, `spatial`, `physics`, `ai` and `dock` suites under the sanitisers. The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
-build's results.
+build's results. The sample's traders' hash is pinned in the app suite, which runs in Debug and
+Release but not under the sanitisers: its twenty minutes of seven traders is the gate's longest
+simulation, and every module it steps is in the sanitised suites already.
 
 Each stage is timed, and the run ends with a summary, one line per stage: `ok` with its seconds,
 `skip`, or `FAIL`, then `gate passed` or `gate FAILED`. `--log <file>` sends the build's own output

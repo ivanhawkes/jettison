@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include <jettison/ai/BehaviourTree.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/app/AppArguments.h>
@@ -247,6 +248,8 @@ class Application
 	// The console's route: the quickest way from the ship to a system, at the ship's top speed
 	// across each system (Ai::PlotRoute, Ai::CrossingByCourse).
 	void LogRoute(std::string_view systemName) const;
+	// Says, for each trader, its run and how far it has got, and what its runs have made.
+	void LogTraders() const;
 	// Whether the ship is in the system shown, which is the only one a camera can follow it in.
 	bool CanPilot() const;
 	bool StartPiloting(Scene::PilotView view);
@@ -524,7 +527,9 @@ class Application
 	Ai::Steering *m_pSteering{nullptr};
 	// The stations' pads and the ships on them, which the world holds too.
 	Dock::Docks *m_pDocks{nullptr};
-	// The ships parked on them, by entity, and each one's hull.
+	// The behaviour trees the traders follow, which the world holds too.
+	Ai::Behaviours *m_pBehaviours{nullptr};
+	// The ships parked on them and the traders, by entity, and each one's hull.
 	std::map<entt::entity, std::string> m_hullProxies;
 	// The system shown's stations as they are dressed, and each one's simulation entity, found from
 	// its celestial body (FindStation) once its pads are in the snapshots.

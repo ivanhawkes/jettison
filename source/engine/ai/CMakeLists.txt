@@ -7,6 +7,7 @@ jettison_add_module(ai
 		physics
 		profile
 		reflect
+		serialise
 		sim
 		spatial
 	HEADERS
@@ -19,16 +20,19 @@ jettison_add_module(ai
 		include/jettison/ai/Types.h
 	SOURCES
 		src/Ai.cpp
+		src/BehaviourTree.cpp
 		src/Lanes.cpp
 		src/Pathfinding.cpp
 		src/Routes.cpp
 		src/Steering.cpp
+		src/UtilityAi.cpp
 	TESTS
-		tests/AiTests.cpp
+		tests/BehaviourTreeTests.cpp
 		tests/LanesTests.cpp
 		tests/PathfindingTests.cpp
 		tests/RoutesTests.cpp
 		tests/SteeringTests.cpp
+		tests/UtilityAiTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

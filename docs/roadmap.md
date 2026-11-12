@@ -4,21 +4,14 @@ The order is set by what is expensive to change later, then by what later work s
 is not set by what looks good in a screenshot. Architectural decisions (layout, the
 simulation split, coordinate precision, colour space, serialisation) come before the systems
 that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
-commit that did it in the history. Phases 0–8, and the catalogue entries for the systems they
+commit that did it in the history. Phases 0–9, and the catalogue entries for the systems they
 built, are recorded in [history](history.md).
 
 ## Phases
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| 0–8 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence. Recorded in [history](history.md). | Met. |
-| 9 | **AI and docks.** Sub-phases 9a–9f; catalogue entries 26 and 31. | Automated traders choose trades, plot routes across systems and fly them without collisions, docking on the pads their stations give them while their cargo is carried across the deck. |
-| 9a | **Pathfinding.** Done 2026-11-12. A* (`ai/Pathfinding.h`): a consistent estimate or none, the open nodes expanded by estimate and then index, a way in replaced only by a cheaper one, so of equal routes the same one every run; a graph, a cost or an estimate that is not one refused. Routes across the galaxy (`ai/Routes.h`, `PlotRoute`) over its jump points: a lane joins its ends at its transit time, and a system's jump points each other at a crossing cost the caller gives, so two jumps are weighed against one and a long crossing. Courses across a system (`Waypoints`, `PlotCourse`): a ring of six waypoints about each star, planet and moon, legs joined where they clear every body by a clearance, an end near a body given its own way out, searched with the straight-line distance; `CrossingByCourse` makes a route's crossings from them. The simulation's jump (`ai/Lanes.h`, `LaneTravel`): `EnterLane` sends an entity along the lane through a jump point of its system, in none for the transit in whole steps, and the system `lanes`, after physics, brings it out at the far gate at rest, facing the way the gate faces (`Celestial::JumpPointFacing`: its planet, with its station before it), in the frame of the station the gate keeps by; events at both ends and a refusal saying why. `ai` depends on `celestial` and `physics`. The sample gates moved beside their stations (5 and 6 km, beyond each station from its planet, orbiting it with its period), and their rings face the way a ship leaves them. In the shell, a jump along a lane takes the ship (flown again as it comes out), binds it to the arrival system's station, and the console's `route` plots the way from the ship to a system. | Met: in the AI suite, A* against a graph's known answer, a grid's known detour with and without an estimate, and against Floyd and Warshall over every pair of twenty random graphs, each path walked and found the same twice; ties broken the same in either adjacency order; routes across the sample galaxy end to end and back (105 s, two jumps), a shortcut weighed against a slow crossing, crossings asked the same every run; courses round a planet at the known length over its ring and no shorter than the sphere's own geodesic, kept off by a clearance, out from under a ring's face, from Ostra Highport to Pell round Ostra across an orbit; a ship entering Halcyon Gate, out of physics for the 2,400 steps of its 40 s, out at Vesper Gate at rest in Corva Refinery's frame looking at it 5 km off, and a world saved mid-transit, and a replay, arriving with the same state hash. |
-| 9b | **Steering.** Done 2026-11-12. Behaviours (`ai/Steering.h`) that are velocities, which flight assist holds: `Seek` at full speed, `Arrive` at the speed it can still stop from (√(2ad), the last metres at the distance a second), `Avoid` turning a ship aside from the first obstacle it would pass within its clearance of, at the speed that makes up the shortfall in time, and never closing on any faster than it can stop before the clearance, and `Separate` pushing apart ships nearer than their separation. The simulation's steering (`Ai::Steering`, the system `steering`, after `spatial` and before `flight`): an `Ai::Destination` (a point in the ship's frame, or an offset from an entity in its axes, with a course's waypoints), an `Ai::Steered` (lookahead, clearance, separation), commands to set and clear one, and events as a ship arrives and as a destination is lost; obstacles are every body but a sensor within reach in the ship's frame, each the sphere of its shape (`PhysicsWorld::ShapeRadius`), and its controls the velocity in its axes and a turn of its nose towards it. The spatial index kept from the simulation (`spatial/SystemIndices.h`, the system `spatial`): an octree a system, from the components each step, not state; `spatial` depends on `sim`. The scheduler's `before`, so a module orders itself ahead of another's system. In the shell, the console's `traffic` sends up to sixteen shuttles to places on a ring about the station, and the smoke run sends four. | Met: in the AI suite, arrive stopping a point mass from 2 km without passing the target by a centimetre, avoidance's turn, its braking before and within a clearance and two ships head on turning their own ways, a point mass flown at a station's centre going round it 10 m clear and on; through physics, a ship arriving at rest by Ostra Highport facing its way, one whose way is through the station flying round it more than 100 m from its centre, a course's waypoints passed in order, a destination by the station turned with it and lost with it; twelve ships from 1 to 2 km all round the station to places on a ring 250 m about it, their ways crossing at it, all arriving in 34.5 s with no contact begun, their hulls 31.8 m apart at the nearest and 25 m from the station's sphere; the same flight from the same start, and from a save part-way, to the same state hash, pinned in Debug and checked in Release and under the sanitisers, whose gate now runs the `spatial` and `ai` suites too. |
-| 9c | **Docks.** Done 2026-11-12. Catalogue entry 31. The module `dock`, a simulation module above `ai` and `physics`. Definitions (`dock/Definitions.h`): a hull (`defs/hulls`) with its length, beam and height, within its pad class's largest hull, its class and its cargo hatch, colliding as its box; a station layout (`defs/stations`), named by a station in its system's file (`Celestial::Body::layout`), with its decks and piers as boxes, which the station collides as (`DeckShape`), its pads (class, place, normal, heading, and for display or not) and its cargo bays, checked as it is defined: every pad all on a deck or a pier, none overlapping, nothing of the station over any out to its sphere. The simulation's (`dock/Docks.h`): `MakeStation` builds a station's kinematic body on its rails and an entity for each pad on the same rails, free, reserved until a step, or holding a ship; `RequestPad` and `ReleasePad`, in command order, give the smallest free pad a hull fits, the lowest numbered first, or a place in a first come, first served queue served from the front as pads come free; a reservation lapses after the layout's seconds; one claim a ship; a pad clamps only its own ship; each command carries its sender (`Sim::Controller`) and is refused from one that does not control the ship (`Sim::ControlledBy`); `Park` puts a ship on a pad as a game starts one. The approach: a course round the station's sphere to the point above the pad, then down its normal kept clear by the hull (steering's `Destination::byHull`, the ship's shape cast along its way) and turned to the pad's heading (`Destination::facing`), clamped within reach as a kinematic body on the station's rails ([decided](#decided)); undocking lifts it back to the point above, where it gives the pad up. `PhysicsWorld::RailsPlace`. In the shell, `app/src/Docking.h` is gone: every station naming a layout is built at the start with three ships parked on it, the ship starts docked on Highport's pad 1 and trades there, the console's `undock` lifts it and `dock [manual]` asks for a pad; the layouts are drawn plainly (`app/src/Stations.h`), and the system scene no longer draws a laid-out station as its box. Ostra Highport is 1.5 km across, twelve L pads on four piers, and Corva Refinery 600 m, four M and two S; the stations' radii in their system files are their layouts' spheres, 763 and 303 m, and the gates are where they were. The shell's save section is version 2, without the port, and saves from before 9c are refused ([decided](#decided)). | Met: in the dock suite, two shuttles asking in one step given pads 2 and 1 in command order, the other way round when asked the other way, and the same every run; a hull that fits only an L pad given the L and a second queued while both M pads stay free; a queue of three served in order as pads come free, a shuttle given an S pad past a hull waiting for an M; a reservation lapsing at its 120th step, two seconds, and its pad given to the shuttle waiting behind; a display pad never given, and refused to `Park`; a shuttle from 10 km on Highport's far side over its pad in 111 s and clamped 24 s later, with no contact on the way, and lifted clear by undocking with the one contact of its hull on its own pad as it is let go; and the approach saved on the way down and replayed to the same state hash, pinned in Debug at `0x51f97f0abd04afc2` and checked in Release and under the sanitisers, whose gate now runs the dock suite too. Steering's flight is unchanged, still 9b's hash with the new fields unsaved, and is re-pinned at `0x2408699817714f70` with them. |
-| 9d | **Station dressing.** Done 2026-11-12. The layout drawn, in the shell (`app/src/Dressing.h`, `DressStation`), under the station's entity as each system scene is built, and none of it the station's collision mesh, which stays its layout's decks and piers: a tall block (the hub) in the hull's plating with its windows and a flat one (a pier, a wing) in deck plating (`materials/deck.material.yaml`); each pad a plate on the deck painted, in the effects layer, with its outline, a centre line with chevrons to the bow, the keep-clear box over its class's hatch with its diagonals, and its number in bar segments, read bow up; floodlight poles along each pad's long sides, at its corners and every 120 m between, each a spot aimed across the pad at half its class's largest hull's height, at the intensity that puts 1.6 (half the sun's irradiance) there, and a lamp under its head in the effects layer for the pad's state (green free, amber reserved, red holding, blue on display), turned from the snapshots, which the docks now show their pads in; each cargo bay's door, a panel up from its sill or a hatch in the deck, a bay now being the middle of its sill ([decided](#decided)). Proxies for each hull class from procedural shapes fitted to the hull's box (the shuttle, a transport of cargo pods behind a cab, the largest transport's racked containers under a bridge, a long hull under a superstructure for XL), and the hull's glTF model in their place where it names one (`HullDefinition::model`). Highport's display wing, a deck in the quarter between its +X and +Z piers: XL bays with a liner and a frigate (`defs/hulls/liner`, `frigate`), and four fighters on S pads beside them, each named by the layout (`PadLayout::ship`, only on a display pad) and drawn, not a body ([decided](#decided)). The hand-built Highport of `orbit.yaml` replaced by the layout's. The renderer leaves out a draw under a pixel across (`Render::TooSmallToSee`), and a CPU device's material sampler takes no anisotropy ([decided](#decided)). | Met: in the app suite, Highport dressed with every deck and pier at its place in its plating, each pad turned to its heading with a plate of its class's size, 410 strokes of paint and 104 lamps in the effects layer, and 104 floodlights, six an L pad, eight an XL and four an S, every one reaching no further than 900 m from the station's centre, so within the 2 km cluster range of a camera anywhere within 1.1 km of it; the display wing's liner, frigate and four fighters each on its own pad and none on a pad a ship lands on; a pad's lamps green, red with its parked transport, blue on display and amber once a snapshot carries it reserved; and every class's proxy inside its hull's box and filling it. In the dock suite, Highport's eighteen pads and their shown hulls, and a ship shown on a pad that is not for display refused; the approach is unchanged in its times, 111 s and 23.75 s, and re-pinned at `0xac920de90ae724ff` for the six pads and the deck more. Measured from the orbit camera's 1.5 km, where 103 of the 104 are listed and one is past the cluster range: on the RTX 5060 Ti 0.32 ms a frame (0.53 ms from 1.1 km, 0.66 ms from 320 m over the hub), and on lavapipe at 640 × 480 33 ms, 9c's, after the two renderer changes took it down from 84 ms ([architecture](architecture.md#the-budget)). The smoke runs' cluster check agrees in every frame of the orbit scene, its busiest using 80,937 of the index list's 884,736 entries and 28 lights in one cluster. |
-| 9e | **Deck traffic.** Done 2026-11-12. Cargo carried across the deck in the simulation ([decided](#decided)). A station's roads from its layout (`dock/Roads.h`, `Dock::Roads`), made as it is defined and never state: a road down each pier's side, in the wider strip of its top beside its pads; each pad's apron, the middle of its aft edge, and its hatch, on its centre line where the dressing's keep-clear box is (`Dock::HatchAft`); straight legs joining each bay and apron to every road at its nearest point, and each bay to each apron, wherever the leg is on the deck, through nothing of the station and across no pad; each pad routed once by A* (9a) from the bay nearest it by road, and a layout with bays refused if a pad ships land on is not reached. A layout's deck traffic (`Dock::DeckTraffic`): buggies a pad, crates a trip, speed, and working or parked. A trade becomes a transfer: the shell's `Trade` settles its crates and price at once, as before, and calls `Dock::Carry`, which gives the docked ship a `Dock::Transfer` of crates to go aboard and to come off, a purchase and a sale of the same crates netted; the docks' step 5 (`dock/Deck.cpp`) sends a `Dock::Buggy` out of the pad's bay while the ship has cargo for one and the pad has fewer out than its buggies, an entity with a Transform on the station's rails and no body, driven along its route at its speed on the right of the road, a buggy's gap behind the one ahead in its lane, holding a node within 6 m of it while the next waits short of it, in entity order; at the hatch it hands its crates aboard and takes a load off, at the bay it leaves its load and goes out again or in. The ship is held until every crate for it is aboard and every one off it has been taken from its hatch (`Dock::CargoCarried`), and `ReleasePad` refuses it until then (`Dock::ToCarry`). Parked buggies are the dressing's, across each pad's stern, and their station's cargo moves a buggy's load each way at each round trip of the pad's road shared among them; a station with no bays has its cargo at once. Buggies and transfers saved and shown in snapshots. In the shell: each buggy drawn from the snapshots, interpolated, a flatbed tug with its crates on its bed (`MakeBuggyProxy`, `ShowBuggyLoads`); the roads' lane dividers painted; the market screen's status saying how many crates are crossing; the console's `trade <good> <crates>`; Highport's buggies three a pad and Corva's two, four crates a trip at 8 m/s. | Met: in the dock suite, Highport's roads (44 nodes, 44 edges, every edge at least 12 m) with each pad's bay and its way to it, 90.6, 396.8 and 606.8 m out along each pier, and Corva's; a layout whose pad no bay reaches refused; a shuttle's twenty crates aboard Highport's pad 1 in 45.4 s with `undock` refused on the way, three buggies out at most, every buggy on the deck and none nearer another than the 4 m between lanes, and its buggies back in the bay after; twenty crates off pad 2 in 160.2 s; every one of Highport's twelve pads loading or unloading forty crates at once, all done in 537.8 s with no buggy nearer another than 4 m; parked buggies moving twenty crates in 2,925 steps, five loads at 585 steps, the round trip of the 117 m road at 8 m/s shared by three; a station with no bays done in a step; a ship gone mid-transfer, its buggies back in; crates bought and sold back netted; and a transfer of two ships saved part-way and replayed to the same state hash, pinned in Debug at `0x428e1325bd13a2c9` and checked in Release and under the sanitisers. The approach's hash re-pinned at `0x8ace2f180f55bb5c` for the new empty storages alone, 9d's without them. In the app suite, Highport's 32 road lines among its paint, a buggy's proxy within its 4 × 2.4 m footprint carrying the crates its snapshot has, and 36 parked buggies across the sterns of a parked Highport's twelve pads. |
-| 9f | **Decisions.** Utility AI (considerations, response curves, scored actions) and data-defined behaviour trees, ticked in the simulation step. Traders that ask for a pad, wait for one, dock and wait for their cargo. | Phase 9's exit criterion. |
+| 0–9 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks. Recorded in [history](history.md). | Met. |
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
 | 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings); the planets in the environment's capture, so a hull reflects them; a frame written to an image file from the command line, first, since the rest of phase 10 is judged by looking ([carried forward](#carried-forward)). | |
 | 10b | **The transparent pass.** Sorted back to front and lit through the clusters; GPU particles; glass. | |
@@ -33,7 +26,7 @@ built, are recorded in [history](history.md).
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
 target and a test, and phases 2–11 fill stubs in rather than invent structure.
 
-Phases 5–11 are split into lettered sub-phases (phases 5's to 7's are in [history](history.md)), each a block of related work that touches the
+Phases 5–11 are split into lettered sub-phases (phases 5's to 9's are in [history](history.md)), each a block of related work that touches the
 same modules and documents, so it can be done in one session and the context cleared after it.
 A sub-phase names the catalogue entries that are its brief; read those, not the whole catalogue.
 A phase is done when its last sub-phase meets the phase's exit criterion, so a reference to
@@ -42,7 +35,7 @@ criterion yet gets one when it starts, as phase 10's rows do.
 
 ## Carried forward
 
-Work that phases 1–9e moved on, and where it lands. Their full record, and catalogue entries 1–25,
+Work that phases 1–9 moved on, and where it lands. Their full record, and catalogue entries 1–26 and 31,
 are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
@@ -79,14 +72,15 @@ are in [history](history.md).
   (its engines, the cockpit's) and occlusion by hulls; a sound file streamed from its mount rather
   than read whole, which waits on a streaming read in the VFS, with its pack files (entry 10). The
   voice bus has nothing on it yet.
-- **The sample game's later slices** ([sample game](sample-game.md)): traders that choose, plot and fly trades (9f), ManifestCore's order book, the economy's
-  turns and the skill tree's effects, then scripting (11).
+- **The sample game's later slices** ([sample game](sample-game.md)): ManifestCore's order book,
+  which the traders (9f) post to once they trade by orders, the economy's turns and the skill tree's
+  effects, then scripting (11).
 - **A gate flown through** (entry 26, 9a): the shell sends its ship along a lane wherever it is in
-  the system, as the scene jumps, standing in for the game's rule. A gate that sends what flies
-  through its ring (a sensor whose contact pushes `EnterLane`), and traders that fly to it, land with
-  behaviour trees (9f), whose traders are the first to use one; steering (9b) flies a ship to a gate
-  as to any place. The smoke sequence's jump sends the ship and does not wait
-  the 40 s for it to come out; the AI suite covers the arrival.
+  the system, as the scene jumps, standing in for the game's rule, and a trader's tree sends its
+  own once it is within 150 m of the gate's centre (9f). A gate that sends what flies through its
+  ring, a sensor whose contact pushes `EnterLane`, for the pilot and the traders alike, is not yet
+  placed; the game's rule for who may use a gate lands with it. The smoke sequence's jump sends the
+  ship and does not wait the 40 s for it to come out; the AI and app suites cover the arrival.
 - **Courses past moving bodies** (entry 26, 9a): a course is straight legs between bodies where they
   are when it is plotted, plotted again as a ship goes. Fine across a station's few kilometres and
   for estimating a crossing; a course across a system flown at real speeds (days, past a planet that
@@ -155,9 +149,19 @@ are in [history](history.md).
   A buggy is placed on its station's rails each step, which for a station's few dozen is nothing,
   and is measured when a game has hundreds.
 - **Commands that carry their sender** (9c): the docks' commands carry a `Sim::Controller` and
-  are refused from one that does not control the ship; the flight controls, a destination, a lane
-  entered, a pick and the sample's trade do not yet, and are taken from anyone. Each gains one as
-  the first command a second player could send for it, with networking.
+  are refused from one that does not control the ship, and a trader sends its own with its AI
+  controller (9f); the flight controls, a destination, a lane entered, a pick and the sample's trade
+  do not yet, and are taken from anyone. Each gains one as the first command a second player could
+  send for it, with networking.
+- **Decisions, not yet placed** (entry 26, 9f): reactive nodes, which tick a condition above a
+  running branch and halt what they leave, as a trader breaking off its run to flee would need, and
+  with them a task's halt; parallel nodes; a tree that names another as a subtree, where the
+  trader's tree repeats its three-node jump loop for each leg; a blackboard of the engine's, where a
+  trader's run is its own component; a command that gives an entity a tree, with its sender, where
+  the shell gives a trader its tree as it makes it; and a tree ticked less often than every step,
+  which seven traders do not need. A trader's run that cannot be made waits half a minute and
+  chooses again; what a trader does about a hull it cannot dock, a market that has gone, or the
+  player in its way beyond steering clear is the game's.
 - **Picking a paused world, and under the cursor every frame** (entry 22, 7c): a pick is answered by
   the next step, so a paused world answers when it resumes, and a hover highlight would send a
   command a frame. Both want a query presentation makes itself, against the bodies' shapes in a
@@ -192,8 +196,8 @@ tested; everything that would need an algorithm throws.
 In priority order. Each entry is the brief for its stub. *Library* is the chosen dependency.
 *Stub* names what phase 1 declares.
 
-Entries 1–25, for phases 1–8, are in [history](history.md#system-catalogue-entries-125). The
-numbers carry on here.
+Entries 1–26 and 31, for phases 1–9, are in
+[history](history.md#system-catalogue-entries-126-and-31). The numbers carry on here.
 
 ### Shaders · phase 10
 
@@ -210,58 +214,6 @@ include, the planet's clouds, night lights and rings over its surface, and the p
 programs. Shader variants are compile-time defines
 on one source (`jettison_compile_shader_variant`). Programs do not hot-reload yet; materials and
 textures do.
-
-### 26. AI · phase 9 · `engine/ai`
-
-Utility AI (considerations, response curves, scored actions), behaviour trees (data-defined,
-ticked in the simulation step), A* over graphs (jump lanes, in-system waypoints), steering
-(seek, arrive, obstacle avoidance, separation). Everything runs in the simulation and is
-deterministic.
-
-### 31. Docks · phase 9 · `engine/dock`
-
-Stations' pads and the traffic on their decks, in the simulation and deterministic, so `dock` joins
-the simulation modules of the [coding standards](coding-standards.md) as it is made. It depends on
-`sim`, `physics` and `ai` (A* for the deck's roads, steering for the approach). Entries 22 and 26
-left docking to a game and stood a sensor in for it; this is the engine's version, which a different
-space game would want unchanged, with the game's rules (who may land where, what a pad costs, what
-loitering on one means) left to the game.
-
-**Scale.** A pad takes any hull that fits it ([decided](#decided)):
-
-| Pad | Hulls | Largest hull (length × beam × height) | Pad |
-|---|---|---|---|
-| S | shuttle (the shell's ship, 10 m), fighter | 25 × 20 × 8 m | 40 × 35 m |
-| M | transport | 60 × 30 × 15 m | 90 × 50 m |
-| L | the largest transport | 140 × 50 × 30 m | 180 × 80 m |
-| XL | liner, frigate: display only | 300 × 80 × 60 m | 360 × 120 m |
-
-The smallest trading station has two M pads, the largest twelve L pads. Display pads are beyond
-the game's scope: no ship is given one, and the station's layout puts a ship on it as dressing.
-
-**Pads as the simulation's.** A station's pads are known from its layout before any ship comes, so a
-server knows what every station can hold. Each pad is an entity of its station, saved, with its
-class, its number and its state: free, reserved for a ship until a step, or holding one. A ship asks
-by a command, and the step answers every command in the order the queue gives them: the smallest
-free pad the hull fits, the lowest numbered of those; if none, a place in the station's queue, served
-first come first served as pads free; a reservation lapses if the ship has not landed by its step. A
-ship holds one reservation at most, and a pad docks only the ship it was given to. Every command
-carries who sent it (a controller: a player's slot, or an AI), so a server can refuse a command for
-a ship its sender does not control; nothing in the module knows of one player. Events for each
-answer: given, queued, refused (and why), lapsed, landed, left.
-
-**The approach.** Steering (9b) avoids a station by its sphere, which for a station a kilometre or
-more across holds every pad. A ship with a pad flies to the point above it, past the station by its hull
-(a shape cast along the way), then down the pad's normal at the speed it can stop from, turned to the
-pad's heading, and is clamped: held in the station's frame, out of flight. Undocking lifts it to the
-point above and lets it go.
-
-**Deck traffic.** A road graph from the layout, between each pad's hatch and the cargo bays, and
-buggies on it, routed by A* (9a), moving along its edges at their speed and giving way at its nodes
-in a fixed order. They are kinematic, not Jolt bodies: nothing but the deck meets them. A trade's
-crates move a buggy's load at a time, and the ship stays clamped until they are aboard, so a cargo's
-time to load is the station's data (buggies a pad, crates a trip, speed, the distance from bay to
-pad) and time compression shortens it as it does everything else.
 
 ### 27. Animation · phases 1 and 10 · `engine/animation`
 
@@ -626,6 +578,21 @@ Settled on 2026-11-10:
   is aboard and every crate off it has been taken from its hatch, not until the last has reached the
   bay. The trade settled the crates as it was made, so what holds the ship is its hatch: crates on a
   buggy on its way to the bay are the station's to bring in.
+- **The simulation's agents act through commands applied at once** (2026-11-12, phase 9f). A task
+  of a tree sends the commands a player would (a pad asked for, a trade, a lane entered), and
+  `Sim::SimWorld::Apply` applies each as it is sent, through the handler the queue's go through, so
+  it meets the same checks and the docks answer an agent's request and a player's alike. Not queued
+  for the next step: the queue is what a session records, and a replay feeding back the agents'
+  commands would have them twice, since the replaying world's trees send them again. The trees run
+  first in the step, so an agent's commands find the world where the queue's do.
+- **Behaviour trees resume their running child, and nothing interrupts it** (2026-11-12, phase 9f).
+  A sequence or a selector goes back to the child that was running rather than ticking its children
+  again from the first, and no node leaves a running one, so a task that sent a command and waits on
+  its answer is never left half done and needs no undoing, and an entity's place in its tree is a
+  memory and a flag a node, saved with the world. A repeat or a loop starts its child's next run at
+  the next tick, so a step's work is bounded. A tree that must notice something mid-task wants
+  reactive nodes, which halt what they leave ([carried forward](#carried-forward)); none is built
+  until a game's tree needs one.
 - **Multiplayer in time; single-player first** ([scope](scope.md), 2026-11-12). No networking is
   built yet, but what the simulation holds is planned for several players: commands carry who sent
   them, shared facilities (pads, queues, bays) are given by the step in command order, and nothing

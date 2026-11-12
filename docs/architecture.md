@@ -222,9 +222,13 @@ point (its `InSystem` none, an `Ai::OnLane` saying where it is going and the ste
 the system `lanes`, after physics, brings it out at the far jump point when the transit's whole
 steps are run. A body comes out at rest in the frame of the station the gate keeps by, facing the
 way the gate faces (`Celestial::JumpPointFacing`: its planet, with its station before it), with its
-flight controls taken against nothing. What sends an entity along a lane is the game's: the shell
-sends its ship as the scene jumps along the same lane, and the scene arrives at the gate the ship
-comes out of, the transit's 40 s later.
+flight controls taken against nothing. It comes out clear of every body already there and of what
+came out before it in the step: at the gate's centre, or at the first place clear on rings about it
+across the way the gate faces, each a hull's breadth and 20 m further out (9f), so two traders
+through one gate a moment apart do not come out in each other. What sends an entity along a lane is
+the game's: the shell sends its ship as the scene jumps along the same lane, and the scene arrives at
+the gate the ship comes out of, the transit's 40 s later; a trader's tree sends it once it is within
+150 m of the gate's centre.
 
 A route across the galaxy (`ai/Routes.h`) is A* over its jump points, each lane an edge at its transit
 time and each pair of a system's gates an edge at what crossing the system costs, which the caller
@@ -462,6 +466,48 @@ working ones would have. A pad no road reaches, at a station with no bays, has i
 Buggies and transfers are shown in the snapshots: the shell draws each buggy (`MakeBuggyProxy`), a
 flatbed tug whose bed carries the crates it has, interpolated as any entity is, and the market
 screen says how many crates are still crossing.
+
+### Decisions
+
+An entity's choices are made in the simulation by two tools of `ai` (9f, catalogue entry 26), both
+deterministic, both data, with what they weigh and do the game's.
+
+**Utility AI** (`ai/UtilityAi.h`) is for choices that are scoring problems: which run a trader flies,
+later which route or which upgrade. A decision (`defs/decisions`, `Ai::DecisionDefinition`) is a set
+of actions, each weighed by considerations: an input of the game's, by name, brought into [0, 1] by
+its range and shaped by a response curve (linear, power, logistic or a step, clamped, and inverted
+on asking). An action's score is the product of its considerations, each made up for their number as
+v + v(1 − v)(1 − 1/n) so that one weighed by many things is not marked down for each, times its
+weight; one with no considerations scores its weight, a baseline the others have to beat. The game
+offers options, each an action with its own inputs, and `Ai::Choose` scores them in order against the
+best so far, asking an option for no more inputs once it cannot beat it: an input that costs (a route
+plotted across the lanes) is worked out only for an option still in the running. The earliest of
+equal options wins, and none is chosen when every one scores nothing.
+
+**Behaviour trees** (`ai/BehaviourTree.h`) are for sequences: off the pad, to the gate, through it,
+onto a pad, the trade, the wait for the cargo. A tree (`defs/behaviours`, `Ai::BehaviourDefinition`)
+is nested nodes: the engine's sequence, selector, invert, succeed, repeat, loop and wait, and tasks,
+the game's leaves, by name with arguments, defined with `Ai::Behaviours` before any tree that names
+them and checked as the tree is. The system `behaviour` ticks every entity's tree each step, in
+entity order, and runs first in the step, before `spatial` ([decided](roadmap.md#decided)): a tree
+acts on the world where it is as the step begins, as the queue's commands do, and what a task sets (a
+destination, a pad asked for) is flown and answered in the same step. Its composites remember their
+running child, so a running node is resumed rather than entered again from the top, and is never
+interrupted; a task needs no undoing, and an entity's place in its tree is a memory and a flag a node
+(`Ai::Behaviour`), saved with the world. A repeat or a loop runs its child again at the next tick, so
+a step's work is bounded however soon a child succeeds. A task acts through commands applied at once
+(`Sim::SimWorld::Apply`), which meet the checks a player's do, carry the agent as their sender where
+they carry one, and are not recorded: they are the state's own consequence, which a replay sends
+again.
+
+**The sample's traders** (`app/src/Traders.h`, [sample game](sample-game.md)) are the first to use
+both. Each follows `defs/behaviours/trader.yaml` and chooses its run by `defs/decisions/trade.yaml`,
+weighing a run's margin, the rivals after the same shelf and its credits a second over the route
+(`Ai::PlotRoute`, crossing each system by course), and then flies it: off its pad, round the station
+to the gate, through it, onto a pad or into the queue for one, held off the station in its place, the
+trade, and the wait while the buggies carry its crates. Seven trade between Highport and Corva, whose
+one free pad keeps a queue; in twenty minutes of the app suite they sell fourteen runs across the
+lane, queue five times, and no two hulls come within 35 m in flight.
 
 ### Persistence
 
@@ -1007,8 +1053,9 @@ proves it headlessly. What exists:
   (`Routes.h`); the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`); and steering
   ([as above](#steering), `Steering.h`, 9b), over the spatial index kept from the simulation
   (`spatial/SystemIndices.h`), all attached by the shell after physics, whose console's `traffic`
-  sends shuttles to hold station about the station. Utility AI and behaviour trees are still stubs,
-  for 9f.
+  sends shuttles to hold station about the station; and utility AI and behaviour trees
+  ([as above](#decisions), 9f), by which the sample's seven traders choose and fly their runs, and
+  which the console's `traders` reports on.
 - **Docks** (`engine/dock`, 9c to 9e). Hulls and station layouts as definitions, stations built to
   them with their pads, pads given, queued and lapsing, the approach and the clamp, and the deck's
   roads and buggies carrying a docked ship's cargo ([as above](#docks)). The shell builds every

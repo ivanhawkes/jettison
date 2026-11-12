@@ -49,6 +49,8 @@ jettison_add_module(app
 		src/SmokeSequence.cpp
 		src/Stations.cpp
 		src/Stations.h
+		src/Traders.cpp
+		src/Traders.h
 		src/Trading.cpp
 		src/Trading.h
 	TESTS
@@ -59,6 +61,7 @@ jettison_add_module(app
 		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp
 		tests/StationsTests.cpp
+		tests/TradersTests.cpp
 		tests/TradingTests.cpp
 	PRIVATE_LIBRARIES
 		glfw

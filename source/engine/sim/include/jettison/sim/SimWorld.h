@@ -224,6 +224,17 @@ class SimWorld
 	// through a step, from which only a load recovers.
 	void Step();
 
+	// A command the simulation's own agents send as a system runs, a trader's behaviour among them
+	// (Ai::Behaviours): applied at once by its handler, as the queue's are at the step's start, so it
+	// meets the same checks a player's does. Not recorded, since it is the state's own consequence,
+	// which a replay from the same start sends again; recorded, it would be applied twice. Throws
+	// std::logic_error for a command with no handler.
+	template <typename T> void Apply(const T &command)
+	{
+		Apply(entt::forward_as_meta(command));
+	}
+	void Apply(const entt::meta_any &command);
+
 	// While recording, every applied command is kept with the step it was applied at: fed back to
 	// a world loaded from the same start, they replay the session.
 	void SetRecording(bool recording)
@@ -256,7 +267,7 @@ class SimWorld
 		std::function<void(entt::snapshot_loader &, Serialise::BinaryReader &)> load;
 		std::string name;
 	};
-	using Apply = std::function<void(SimWorld &, const entt::meta_any &)>;
+	using Applier = std::function<void(SimWorld &, const entt::meta_any &)>;
 	struct Service
 	{
 		std::string name;
@@ -265,7 +276,7 @@ class SimWorld
 
 	void AddComponent(const entt::meta_type &type, Component component);
 	void AddShown(entt::id_type type, ShownCapture capture);
-	void AddCommand(const entt::meta_type &type, Apply apply);
+	void AddCommand(const entt::meta_type &type, Applier apply);
 
 	double m_fixedStep;
 	entt::registry m_registry;
@@ -275,7 +286,7 @@ class SimWorld
 	// Saved in registration order, which the game keeps the same from run to run.
 	std::vector<Component> m_components;
 	// Keyed by EnTT's type ID; looked up, never iterated, so no outcome depends on its order.
-	std::unordered_map<entt::id_type, Apply> m_applies;
+	std::unordered_map<entt::id_type, Applier> m_applies;
 	// In the order they were shown; each fills its own entry of a snapshot.
 	std::vector<std::pair<entt::id_type, ShownCapture>> m_shown;
 	bool m_recording{false};

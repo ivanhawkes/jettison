@@ -12,6 +12,11 @@
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/celestial/StarSystem.h>
 
+namespace Jettison::Physics
+{
+class PhysicsWorld;
+}
+
 namespace Jettison::Sim
 {
 class SimWorld;
@@ -86,6 +91,11 @@ struct LaneRefused
 //     station without changing frames on the way. At rest, so the speed a ship went into the far
 //     gate at is not carried out of this one at a station kilometres ahead of it; physics makes its
 //     body in the next step;
+//   - with a Physics::Body, it comes out clear of every body already there and of what has come out
+//     before it in the step: at the gate's centre if that is clear, or else at the first place
+//     clear on rings about it, across the way the gate faces, each ring a hull's breadth and a
+//     clearance (kArrivalClearance) further out, with six more places round each, so a ship that
+//     came out a moment ago, or one flying into the gate the other way, is not met by the next;
 //   - its Physics::FlightControls are taken against nothing, since what they were taken against is
 //     a system away;
 //   - a LaneLeft is raised.
@@ -101,11 +111,15 @@ class LaneTravel
 {
   public:
 	static constexpr std::string_view kSystemName = "lanes";
+	// Metres kept between the hull of a body coming out of a gate and every other's: a steered
+	// ship's clearance (Ai::Steered).
+	static constexpr double kArrivalClearance = 20.0;
 
 	// Registers OnLane as a component, the EnterLane command and the "lanes" system, ordered after
-	// physics', so physics has to be attached first (Physics::PhysicsWorld::Attach). Throws
-	// std::logic_error as SimWorld's registrations do, for one already made.
-	static LaneTravel &Attach(Sim::SimWorld &world);
+	// physics', so physics has to be attached first (Physics::PhysicsWorld::Attach), whose shapes
+	// say how far apart arrivals come out. Throws std::logic_error as SimWorld's registrations do,
+	// for one already made.
+	static LaneTravel &Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics);
 
 	// The galaxy the lanes are; resolved, as reading one does. Until it is given, every EnterLane is
 	// refused.
@@ -121,11 +135,14 @@ class LaneTravel
 	bool HasStarSystem(std::uint64_t system) const;
 
   private:
-	LaneTravel() = default;
+	explicit LaneTravel(const Physics::PhysicsWorld &physics) : m_physics{physics}
+	{
+	}
 
 	void Enter(Sim::SimWorld &world, const EnterLane &command) const;
 	void Arrive(Sim::SimWorld &world) const;
 
+	const Physics::PhysicsWorld &m_physics;
 	std::optional<Celestial::Galaxy> m_galaxy;
 	// By Sim::SystemId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;

@@ -449,6 +449,60 @@ TEST_CASE("Sim: the recorded commands replay a session from its start")
 	CHECK(replay.StateHash() == session.StateHash());
 }
 
+TEST_CASE("Sim: a system's own command is applied at once and not recorded, so a replay sends it again")
+{
+	RegisterTypes();
+	// A broker that sells a ship's ore as it reaches ten, by the same command a player sends.
+	const auto broker = [](Sim::SimWorld &world)
+	{
+		world.RegisterSystem(
+		    {"broker",
+		     Ecs::TickPhase::Simulation,
+		     Ecs::Access::Of<Hold>(),
+		     {"mine"},
+		     [&world](entt::registry &registry, double)
+		     {
+			     std::vector<entt::entity> full;
+			     for (const auto [entity, hold] : registry.view<const Hold>().each())
+				     if (hold.ore >= 10)
+					     full.push_back(entity);
+			     for (const entt::entity ship : full)
+			     {
+				     world.Apply(Sell{ship, 10, 7});
+				     CHECK(registry.get<Hold>(ship).ore < 10);
+			     }
+		     }});
+	};
+	Sim::SimWorld session{kStep, kSeed};
+	Populate(session);
+	broker(session);
+	session.SetRecording(true);
+	Run(session, kSteps);
+	// Only what was fed is recorded: the broker's sales are the state's own.
+	CHECK(session.Recorded().size() == 12);
+	std::int64_t credits = 0;
+	for (const auto [entity, hold] : session.Registry().view<const Hold>().each())
+		credits += hold.credits;
+	CHECK(credits > 0);
+
+	Sim::SimWorld replay{kStep, kSeed};
+	Populate(replay);
+	broker(replay);
+	std::size_t next = 0;
+	while (replay.Clock().Step() < kSteps)
+	{
+		for (;
+		     next < session.Recorded().size() && session.Recorded()[next].step == replay.Clock().Step();
+		     ++next)
+			replay.Commands().Push(session.Recorded()[next].command);
+		replay.Step();
+	}
+	CHECK(replay.StateHash() == session.StateHash());
+	CHECK_THROWS_WITH_AS(
+	    replay.Apply(Unhandled{}), doctest::Contains("no handler is registered for command"),
+	    std::logic_error);
+}
+
 TEST_CASE("Sim: a save that does not fit is refused, and the world is left as it was")
 {
 	RegisterTypes();

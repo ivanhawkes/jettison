@@ -4,11 +4,9 @@
 #include <jettison/ai/Types.h>
 #include <jettison/ai/UtilityAi.h>
 
-#include <jettison/core/Assert.h>
 #include <jettison/physics/Components.h>
 #include <jettison/reflect/Reflect.h>
 
-#include <utility>
 
 namespace Jettison::Ai
 {
@@ -39,6 +37,61 @@ void RegisterTypes()
 		    .Field<&LaneRefused::entity>("entity", Attribute::Saved)
 		    .Field<&LaneRefused::jumpPoint>("jumpPoint", Attribute::Saved)
 		    .Field<&LaneRefused::reason>("reason", Attribute::Saved);
+
+		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
+		RegisterEnum<Curve>("Ai.Curve")
+		    .Value<Curve::Linear>("Linear")
+		    .Value<Curve::Power>("Power")
+		    .Value<Curve::Logistic>("Logistic")
+		    .Value<Curve::Step>("Step");
+		RegisterType<ResponseCurve>("Ai.ResponseCurve", Attribute::Moddable)
+		    .Field<&ResponseCurve::kind>("kind", kDefined)
+		    .Field<&ResponseCurve::slope>("slope", kDefined)
+		    .Field<&ResponseCurve::exponent>("exponent", kDefined)
+		    .Field<&ResponseCurve::shift>("shift", kDefined)
+		    .Field<&ResponseCurve::offset>("offset", kDefined)
+		    .Field<&ResponseCurve::invert>("invert", kDefined);
+		RegisterType<Consideration>("Ai.Consideration", Attribute::Moddable)
+		    .Field<&Consideration::input>("input", kDefined)
+		    .Field<&Consideration::low>("low", kDefined)
+		    .Field<&Consideration::high>("high", kDefined)
+		    .Field<&Consideration::curve>("curve", kDefined);
+		RegisterType<UtilityAction>("Ai.UtilityAction", Attribute::Moddable)
+		    .Field<&UtilityAction::name>("name", kDefined)
+		    .Field<&UtilityAction::weight>("weight", kDefined)
+		    .Field<&UtilityAction::considerations>("considerations", kDefined);
+		RegisterType<DecisionDefinition>("Ai.DecisionDefinition", Attribute::Moddable)
+		    .Field<&DecisionDefinition::actions>("actions", kDefined);
+
+		RegisterEnum<Status>("Ai.Status")
+		    .Value<Status::Running>("Running")
+		    .Value<Status::Success>("Success")
+		    .Value<Status::Failure>("Failure");
+		RegisterEnum<NodeKind>("Ai.NodeKind")
+		    .Value<NodeKind::Sequence>("Sequence")
+		    .Value<NodeKind::Selector>("Selector")
+		    .Value<NodeKind::Invert>("Invert")
+		    .Value<NodeKind::Succeed>("Succeed")
+		    .Value<NodeKind::Repeat>("Repeat")
+		    .Value<NodeKind::Loop>("Loop")
+		    .Value<NodeKind::Wait>("Wait")
+		    .Value<NodeKind::Task>("Task");
+		RegisterType<BehaviourNode>("Ai.BehaviourNode", Attribute::Moddable)
+		    .Field<&BehaviourNode::kind>("kind", kDefined)
+		    .Field<&BehaviourNode::task>("task", kDefined)
+		    .Field<&BehaviourNode::arguments>("arguments", kDefined)
+		    .Field<&BehaviourNode::count>("count", kDefined)
+		    .Field<&BehaviourNode::seconds>("seconds", kDefined)
+		    .Field<&BehaviourNode::children>("children", kDefined);
+		RegisterType<BehaviourDefinition>("Ai.BehaviourDefinition", Attribute::Moddable)
+		    .Field<&BehaviourDefinition::root>("root", kDefined);
+		RegisterType<NodeState>("Ai.NodeState")
+		    .Field<&NodeState::memory>("memory", Attribute::Saved)
+		    .Field<&NodeState::running>("running", Attribute::Saved);
+		RegisterType<Behaviour>("Ai.Behaviour")
+		    .Field<&Behaviour::tree>("tree", Attribute::Saved)
+		    .Field<&Behaviour::nodes>("nodes", Attribute::Saved)
+		    .Field<&Behaviour::last>("last", Attribute::Saved);
 
 		RegisterType<Steered>("Ai.Steered")
 		    .Field<&Steered::lookahead>("lookahead", Attribute::Saved)
@@ -71,19 +124,5 @@ void RegisterTypes()
 		return true;
 	}();
 	(void)registered;
-}
-
-int Choose(
-    const std::vector<ScoredAction> & /*unused*/, entt::registry & /*unused*/, entt::entity /*unused*/)
-{
-	JETTISON_NOT_IMPLEMENTED();
-}
-
-BehaviourTree::BehaviourTree(std::unique_ptr<Node> root) : m_pRoot{std::move(root)}
-{
-}
-Status BehaviourTree::Tick(entt::registry & /*unused*/, entt::entity /*unused*/)
-{
-	JETTISON_NOT_IMPLEMENTED();
 }
 } // namespace Jettison::Ai

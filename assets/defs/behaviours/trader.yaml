@@ -1,0 +1,40 @@
+# A trader's round (docs/sample-game.md): choose a run, fly to where it buys, buy, wait while the
+# buggies carry the crates aboard, fly to where it sells, sell, wait while they carry them off; and
+# again. A run that cannot be made, or nothing worth trading, waits half a minute and chooses again.
+# An Ai behaviour tree (Ai.BehaviourDefinition); its tasks are the trader's (app/src/Traders.cpp).
+version: 1
+root:
+  kind: Repeat
+  children:
+    - kind: Selector
+      children:
+        - kind: Sequence
+          children:
+            - {task: choose-trade}
+            # The purchase, unless the hold already has what the run sells.
+            - kind: Selector
+              children:
+                - kind: Invert
+                  children: [{task: buying}]
+                - kind: Sequence
+                  children:
+                    - {task: head-for, arguments: [buy]}
+                    - {task: leave}
+                    # Each jump on the route: to the gate and through it.
+                    - kind: Loop
+                      children:
+                        - kind: Sequence
+                          children: [{task: jumps-left}, {task: fly-to-gate}, {task: jump}]
+                    - {task: dock, arguments: [buy]}
+                    - {task: trade, arguments: [buy]}
+                    - {task: wait-cargo}
+            - {task: head-for, arguments: [sell]}
+            - {task: leave}
+            - kind: Loop
+              children:
+                - kind: Sequence
+                  children: [{task: jumps-left}, {task: fly-to-gate}, {task: jump}]
+            - {task: dock, arguments: [sell]}
+            - {task: trade, arguments: [sell]}
+            - {task: wait-cargo}
+        - {kind: Wait, seconds: 30}

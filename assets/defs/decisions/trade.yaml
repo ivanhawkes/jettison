@@ -1,0 +1,34 @@
+# A trader's choice of run (docs/sample-game.md): a good bought at one market and sold at another,
+# or, with a hold that has a good in it, where to sell it; or neither, and wait. An Ai decision
+# (Ai.DecisionDefinition): each option is an action's, its inputs the trader's (app/src/Traders.cpp),
+# asked in the order its considerations are, so the route a run's rate needs is plotted only for a
+# run still in the reckoning.
+version: 1
+actions:
+  - name: trade
+    considerations:
+      # The bid where it sells over the ask where it buys, less one: nothing at none, half at 5% and
+      # nine tenths at 10%, a steep S, since the fees on both sides are in it already.
+      - input: margin
+        high: 0.5
+        curve: {kind: Logistic, slope: 30, shift: 0.1, offset: -0.05}
+      # Other traders after the same good at the same market: each takes from the same shelf.
+      - input: rivals
+        high: 3
+        curve: {kind: Linear, slope: -1, offset: 1}
+      # Credits a second over the run, from here to the sale: a transport's hold of copper from
+      # Corva to Highport makes some 370, a shuttle's some 160. Falling off as it gets less, slowly.
+      - input: rate
+        high: 200
+        curve: {kind: Power, exponent: 0.5}
+  - name: sell
+    considerations:
+      - input: rivals
+        high: 3
+        curve: {kind: Linear, slope: -1, offset: 1}
+      - input: rate
+        high: 200
+        curve: {kind: Power, exponent: 0.5}
+  # Waiting is worth a little, so a run worth less is not flown.
+  - name: wait
+    weight: 0.02

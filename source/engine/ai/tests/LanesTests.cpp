@@ -33,7 +33,7 @@ struct Fixture
 	Ai::LaneTravel &lanes;
 
 	explicit Fixture(bool withGalaxy = true)
-	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world)}
+	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)}
 	{
 		Physics::ShapeDefinition hull;
 		hull.halfExtents = {5.0f, 2.0f, 8.0f};
@@ -280,4 +280,48 @@ TEST_CASE("Lanes: a transit shorter than a step takes one, and arrives as the st
 	REQUIRE(events.size() == 2);
 	CHECK(events[0].event.try_cast<Ai::LaneEntered>());
 	CHECK(events[1].event.try_cast<Ai::LaneLeft>());
+}
+
+TEST_CASE(
+    "Lanes: ships coming out of a gate together, or onto one still there, come out clear of each other")
+{
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	const entt::entity first = fixture.Ship();
+	const entt::entity second = fixture.Ship();
+	const entt::entity third = fixture.Ship();
+	// Two in one step, and the third a second later, while they still sit where they came out.
+	fixture.world.Commands().Push(Ai::EnterLane{first, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{second, "Halcyon Gate"});
+	fixture.Run(60);
+	fixture.world.Commands().Push(Ai::EnterLane{third, "Halcyon Gate"});
+	fixture.Run(kTransitSteps - 60);
+	REQUIRE(fixture.SystemOf(first) == kVesper);
+	REQUIRE(fixture.SystemOf(second) == kVesper);
+	CHECK(fixture.SystemOf(third) == Sim::kNoSystem);
+
+	const Celestial::StarSystem vesper = AiTests::Vesper();
+	const auto at = [&](entt::entity ship) { return registry.get<Sim::Transform>(ship).position; };
+	// The first at the gate's centre, as a ship alone would be; the second on the first ring,
+	// across the way the gate faces, a hull's breadth and the clearance out.
+	const double hull = fixture.physics.ShapeRadius("hull");
+	const double spacing = 2.0 * hull + Ai::LaneTravel::kArrivalClearance;
+	const double arrived = fixture.world.Clock().Now();
+	const glm::dvec3 gate = Where(vesper, "Vesper Gate", arrived);
+	const glm::dquat facing = Celestial::JumpPointFacing(
+	    vesper, static_cast<std::size_t>(vesper.Find("Vesper Gate")), arrived);
+	CHECK(glm::distance(at(second), at(first)) == doctest::Approx(spacing).epsilon(0.01));
+	CHECK(std::abs(glm::dot(at(second) - at(first), facing * glm::dvec3{0.0, 0.0, -1.0})) < 0.5);
+	CHECK(glm::distance(at(first), gate) < 1e-3);
+
+	fixture.Run(60);
+	REQUIRE(fixture.SystemOf(third) == kVesper);
+	for (const entt::entity other : {first, second})
+		CHECK(
+		    glm::distance(at(third), at(other)) >=
+		    2.0 * hull + Ai::LaneTravel::kArrivalClearance - 1e-6);
+	// Nothing came out inside another.
+	fixture.Run(30);
+	for (const Physics::ContactEvent &contact : fixture.physics.Contacts())
+		CHECK(contact.phase != Physics::ContactPhase::Began);
 }

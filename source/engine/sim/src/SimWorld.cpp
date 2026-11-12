@@ -82,7 +82,7 @@ void SimWorld::AddShown(entt::id_type type, ShownCapture capture)
 	m_shown.emplace_back(type, std::move(capture));
 }
 
-void SimWorld::AddCommand(const entt::meta_type &type, Apply apply)
+void SimWorld::AddCommand(const entt::meta_type &type, Applier apply)
 {
 	const std::string_view name = Detail::ReflectedName(type, "command");
 	if (!m_applies.try_emplace(type.info().hash(), std::move(apply)).second)
@@ -127,6 +127,15 @@ void SimWorld::Step()
 	}
 	m_scheduler.Run(Ecs::TickPhase::Simulation, m_registry, m_fixedStep);
 	m_clock.Advance(m_fixedStep);
+}
+
+void SimWorld::Apply(const entt::meta_any &command)
+{
+	const auto found = m_applies.find(command.type().info().hash());
+	if (found == m_applies.end())
+		throw std::logic_error{std::format(
+		    "SimWorld: no handler is registered for command '{}'", command.type().info().name())};
+	found->second(*this, command);
 }
 
 std::vector<std::byte> SimWorld::Save() const
