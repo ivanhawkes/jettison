@@ -231,6 +231,13 @@ class DeviceContext
 		return m_blockCompression;
 	}
 
+	// Whether the device is a CPU (lavapipe), which filters in software: the material sampler takes
+	// no anisotropy on one (MaterialCache).
+	inline bool IsCpu() const
+	{
+		return m_cpu;
+	}
+
 	// The physical device's name, for a report of what a measurement ran on.
 	const std::string &GetDeviceName() const
 	{
@@ -424,6 +431,7 @@ class DeviceContext
 	std::string m_deviceName;
 	std::string m_requestedDevice;
 	bool m_blockCompression{false};
+	bool m_cpu{false};
 
 	VkSurfaceKHR m_surface{VK_NULL_HANDLE};
 

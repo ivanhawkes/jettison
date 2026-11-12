@@ -1,0 +1,13 @@
+# A station's deck plating, on its decks and piers (the station dressing): the hull's plates, rougher
+# and without its windows, one repeat every eight metres, so a deck reads as walked plate rather than
+# the hull's sides. Render::MaterialDefinition (render/Material.h), triplanar as the hull's is.
+version: 1
+program: mesh_triplanar
+parameters:
+  - name: metallicRoughness
+    value: [0.3, 0.7, 0, 0]
+  - name: triplanar
+    value: [0.125, 6, 0, 0]
+textures:
+  - slot: baseColor
+    path: textures/hulls/hull-panels/hull-panels-color.ktx2

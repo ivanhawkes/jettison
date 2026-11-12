@@ -10,6 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -283,4 +284,31 @@ TEST_CASE("Culling: bounds through a transform keep every vertex inside")
 		const glm::dvec3 world{transform * glm::dvec4{local, 1.0}};
 		CHECK(glm::length(world - sphere.center) <= sphere.radius * (1.0 + 1e-9));
 	}
+}
+
+TEST_CASE("Culling: a draw narrower than a pixel in two of its directions is too small to see")
+{
+	CameraView camera;
+	camera.verticalFov = glm::radians(50.0f);
+	const LodSelection selection = MakeLodSelection(camera, 480.0, 1.0);
+	const auto breadth = [](const glm::dvec3 &scale)
+	{ return std::sqrt(3.0) * MiddleScale(glm::scale(glm::dmat4{1.0}, scale)); };
+	const auto seen = [&](const glm::dvec3 &scale, double distance)
+	{
+		// A unit box, its sphere's radius the square root of three, through the scale.
+		const double radius = std::sqrt(3.0) * std::max({scale.x, scale.y, scale.z});
+		return !TooSmallToSee(
+		    breadth(scale), {{0.0, 0.0, -(distance + radius)}, radius}, selection, 1.0);
+	};
+	CHECK(
+	    MiddleScale(glm::scale(glm::dmat4{1.0}, glm::dvec3{0.5, 90.0, 0.02})) == doctest::Approx(0.5));
+
+	// A painted stroke a metre wide and 180 m long on a pad, from a kilometre and a half at 480
+	// lines: under a pixel across however long it is. From 300 m, it is seen.
+	CHECK_FALSE(seen({0.5, 0.02, 90.0}, 1500.0));
+	CHECK(seen({0.5, 0.02, 90.0}, 300.0));
+	// The pad's plate it is painted on, as thin and 80 m wide, is seen from as far.
+	CHECK(seen({40.0, 0.025, 90.0}, 1500.0));
+	// So is anything near the camera, however small.
+	CHECK(seen({0.01, 0.01, 0.01}, 0.0));
 }

@@ -6,12 +6,20 @@
 # The hub is 200 m square and 60 m deep. Each pier is 660 m long, 120 m wide and 20 m deep, its top
 # 10 m above the station's middle; its three 80 x 180 m pads lie along it, 30 m apart and 20 m in
 # from its sides, their noses pointing out along it, so the largest transports on two of them are
-# 70 m apart end to end. A cargo bay's door is in the hub's wall at each pier's root, over the deck.
+# 70 m apart end to end. A cargo bay's door is in the hub's wall at each pier's root, its sill on the
+# pier's deck.
+#
+# The display wing fills the quarter between the +X and +Z piers, 440 x 460 m and as deep as they are,
+# joined to both and to the hub's corner: two XL bays for a liner and a frigate, noses out along +X,
+# and four S pads in a row beyond them for fighters. Display pads are dressing (Dock.PadLayout): no
+# ship is given one, and each names the hull drawn on it. The wing's far corner is 721 m out, inside
+# the sphere the piers' tips make, 762 m.
 version: 1
 displayName: Ostra Highport
 reservationSeconds: 300
 decks:
   - {centre: [0, 0, 0], size: [200, 60, 200]}
+  - {centre: [280, 0, 290], size: [440, 20, 460]}
 piers:
   - {centre: [430, 0, 0], size: [660, 20, 120]}
   - {centre: [-430, 0, 0], size: [660, 20, 120]}
@@ -30,8 +38,14 @@ pads:
   - {class: L, position: [0, 10, -220], heading: [0, 0, -1]}
   - {class: L, position: [0, 10, -430], heading: [0, 0, -1]}
   - {class: L, position: [0, 10, -640], heading: [0, 0, -1]}
+  - {class: XL, position: [300, 10, 180], heading: [1, 0, 0], display: true, ship: liner}
+  - {class: XL, position: [300, 10, 330], heading: [1, 0, 0], display: true, ship: frigate}
+  - {class: S, position: [160, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
+  - {class: S, position: [240, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
+  - {class: S, position: [320, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
+  - {class: S, position: [400, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
 bays:
-  - {position: [100, 20, 0], normal: [1, 0, 0]}
-  - {position: [-100, 20, 0], normal: [-1, 0, 0]}
-  - {position: [0, 20, 100], normal: [0, 0, 1]}
-  - {position: [0, 20, -100], normal: [0, 0, -1]}
+  - {position: [100, 10, 0], normal: [1, 0, 0]}
+  - {position: [-100, 10, 0], normal: [-1, 0, 0]}
+  - {position: [0, 10, 100], normal: [0, 0, 1]}
+  - {position: [0, 10, -100], normal: [0, 0, -1]}

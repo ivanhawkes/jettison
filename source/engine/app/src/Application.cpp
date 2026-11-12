@@ -48,6 +48,7 @@
 #include <jettison/sim/Snapshot.h>
 #include <jettison/spatial/SystemIndices.h>
 
+#include "Dressing.h"
 #include "Saves.h"
 #include "Stations.h"
 #include "Trading.h"
@@ -525,6 +526,13 @@ void Application::RegisterFrameSystems()
 		     JETTISON_PROFILE_ZONE("celestial.sync");
 		     m_systemScene->Place(m_shownTime);
 	     }});
+	// The stations' lamps, from the same snapshot the traffic layer drew.
+	m_frame.Register(
+	    {"shell.pads",
+	     TickPhase::Sync,
+	     Access::Of<>().Writing<Scene::MeshComponent>(),
+	     {"sim.sync"},
+	     [this](entt::registry &, double) { ShowPadStates(); }});
 	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
 	// handlers replace this system.
 	m_frame.Register(
@@ -1302,8 +1310,8 @@ void Application::DrawRendererPanel()
 	}
 	const Render::FrameStats &stats = m_pRenderer->GetFrameStats();
 	ImGui::Text(
-	    "Meshes %u: %u outside the view, %u behind a horizon", stats.meshes, stats.frustumCulled,
-	    stats.horizonCulled);
+	    "Meshes %u: %u outside the view, %u behind a horizon, %u too small to see", stats.meshes,
+	    stats.frustumCulled, stats.horizonCulled, stats.detailCulled);
 	ImGui::Text(
 	    "View: %u draws, %llu triangles", stats.viewBatches,
 	    static_cast<unsigned long long>(stats.viewTriangles));
@@ -1371,7 +1379,8 @@ void Application::ReportBenchmark() const
 	    "prepass {}\n"
 	    "GPU time per pass (mean):\n{}"
 	    "Wall time per frame: {:.3f} ms\n"
-	    "Meshes {}: {} outside the view, {} behind a horizon; {} draws of {} triangles\n"
+	    "Meshes {}: {} outside the view, {} behind a horizon, {} too small to see; {} draws of {} "
+	    "triangles\n"
 	    "Shadow casters {} / {} / {} / {} in {} / {} / {} / {} draws, {} triangles\n"
 	    "Lights {}, {} listed\n",
 	    m_arguments.systemPath.empty() ? m_arguments.scenePath.filename().string()
@@ -1379,10 +1388,10 @@ void Application::ReportBenchmark() const
 	    m_deviceName, m_frameWidth, m_frameHeight, m_arguments.benchmarkFrames, kBenchmarkWarmUp,
 	    m_measuredFrames, m_arguments.depthPrepass ? "on" : "off", passes,
 	    m_benchmarkSeconds * 1000.0 / frames, stats.meshes, stats.frustumCulled, stats.horizonCulled,
-	    stats.viewBatches, stats.viewTriangles, stats.shadowCasters[0], stats.shadowCasters[1],
-	    stats.shadowCasters[2], stats.shadowCasters[3], stats.shadowBatches[0], stats.shadowBatches[1],
-	    stats.shadowBatches[2], stats.shadowBatches[3], stats.shadowTriangles, stats.lights,
-	    stats.listedLights);
+	    stats.detailCulled, stats.viewBatches, stats.viewTriangles, stats.shadowCasters[0],
+	    stats.shadowCasters[1], stats.shadowCasters[2], stats.shadowCasters[3], stats.shadowBatches[0],
+	    stats.shadowBatches[1], stats.shadowBatches[2], stats.shadowBatches[3], stats.shadowTriangles,
+	    stats.lights, stats.listedLights);
 }
 
 
@@ -2186,8 +2195,7 @@ void Application::FindHullProxies()
 	for (const auto [entity, hull] : m_sim.Registry().view<const Dock::Hull>().each())
 		if (const Dock::HullDefinition *definition = m_pDocks->FindHull(hull.definition);
 		    definition && entity != m_ship && std::ranges::find(m_traffic, entity) == m_traffic.end())
-			m_hullProxies.emplace(
-			    entity, glm::vec3{definition->beam, definition->height, definition->length});
+			m_hullProxies.emplace(entity, hull.definition);
 }
 
 
@@ -2267,6 +2275,8 @@ void Application::ReleasePad()
 
 void Application::DrawStations()
 {
+	m_dressings.clear();
+	m_dressedStations.clear();
 	if (!m_systemScene)
 		return;
 	entt::registry &scene = m_pScene->Registry();
@@ -2278,7 +2288,30 @@ void Application::DrawStations()
 			continue;
 		for (const auto [entity, celestial] : scene.view<const Scene::CelestialBodyComponent>().each())
 			if (celestial.body == body.name)
-				DrawLayout(scene, entity, *layout);
+			{
+				m_dressings.push_back(DressStation(scene, entity, *layout, *m_pDocks));
+				m_dressedStations.push_back(entt::null);
+			}
+	}
+}
+
+
+void Application::ShowPadStates()
+{
+	if (m_dressings.empty() || !m_systemScene)
+		return;
+	const auto pads = m_simStepper.Current().Components<Dock::Pad>();
+	const std::uint64_t system = Sim::SystemId(m_systemScene->System().name);
+	for (std::size_t index = 0; index < m_dressings.size(); ++index)
+	{
+		entt::entity &station = m_dressedStations[index];
+		if (App::ShowPadStates(m_pScene->Registry(), m_dressings[index], pads, station) != 0)
+			continue;
+		// Not yet found, or a world loaded over the one it was found in: this frame's snapshot is the
+		// world's latest step, so the station found now is the one its pads name.
+		station = FindStation(m_sim.Registry(), system, m_dressings[index].body);
+		if (station != entt::null)
+			App::ShowPadStates(m_pScene->Registry(), m_dressings[index], pads, station);
 	}
 }
 
@@ -2474,77 +2507,6 @@ void Application::SyncPilotCamera(entt::registry &registry)
 }
 
 
-entt::entity Application::MakeShipProxy(entt::registry &registry)
-{
-	struct Part
-	{
-		glm::dvec3 at;
-		glm::vec3 rotation;
-		glm::vec3 scale;
-		Scene::Shape shape;
-		glm::vec3 color;
-		std::string_view material;
-	};
-	// Nose along -Z, as the ship flies: a hull, a canopy over its fore end, wings aft, and two engines
-	// whose nozzles glow. A cylinder's axis is its Y, turned onto Z a quarter turn about X.
-	constexpr float kQuarter = 1.5707963f;
-	const std::array<Part, 7> parts{{
-	    {{0.0, 0.0, 0.0},
-	     {},
-	     {1.2f, 0.55f, 4.4f},
-	     Scene::Shape::Box,
-	     {0.7f, 0.7f, 0.74f},
-	     "materials/hull.material.yaml"},
-	    {{0.0, 0.5, -1.9}, {}, {0.75f, 0.45f, 1.3f}, Scene::Shape::IcoSphere, {0.08f, 0.1f, 0.16f}, ""},
-	    {{0.0, -0.1, 1.6},
-	     {},
-	     {3.2f, 0.12f, 1.8f},
-	     Scene::Shape::Box,
-	     {0.55f, 0.56f, 0.6f},
-	     "materials/hull.material.yaml"},
-	    {{-0.75, 0.0, 4.2},
-	     {kQuarter, 0.0f, 0.0f},
-	     {0.42f, 0.6f, 0.42f},
-	     Scene::Shape::Cylinder,
-	     {0.3f, 0.3f, 0.32f},
-	     ""},
-	    {{0.75, 0.0, 4.2},
-	     {kQuarter, 0.0f, 0.0f},
-	     {0.42f, 0.6f, 0.42f},
-	     Scene::Shape::Cylinder,
-	     {0.3f, 0.3f, 0.32f},
-	     ""},
-	    {{-0.75, 0.0, 4.82},
-	     {},
-	     {0.34f, 0.34f, 0.06f},
-	     Scene::Shape::IcoSphere,
-	     {1.0f, 1.0f, 1.0f},
-	     "materials/engine.material.yaml"},
-	    {{0.75, 0.0, 4.82},
-	     {},
-	     {0.34f, 0.34f, 0.06f},
-	     Scene::Shape::IcoSphere,
-	     {1.0f, 1.0f, 1.0f},
-	     "materials/engine.material.yaml"},
-	}};
-	const entt::entity root = registry.create();
-	registry.emplace<Scene::TransformComponent>(root);
-	for (const Part &part : parts)
-	{
-		const entt::entity entity = registry.create();
-		registry.emplace<Scene::BuiltComponent>(entity);
-		registry.emplace<Scene::ParentComponent>(entity, root);
-		registry.emplace<Scene::TransformComponent>(entity, part.at, part.rotation, part.scale);
-		Scene::MeshComponent mesh;
-		mesh.shape = part.shape;
-		mesh.color = part.color;
-		mesh.material = std::string{part.material};
-		registry.emplace<Scene::MeshComponent>(entity, std::move(mesh));
-	}
-	return root;
-}
-
-
 void Application::SetProxyFactory()
 {
 	m_systemScene->SetProxyFactory(
@@ -2553,11 +2515,16 @@ void Application::SetProxyFactory()
 		    const bool traffic = std::ranges::binary_search(
 		        m_traffic, entt::to_integral(simEntity), {},
 		        [](entt::entity entity) { return entt::to_integral(entity); });
+		    // The ship and its traffic are shuttles; a mod without the hull still sees them, as boxes.
 		    if (simEntity == m_ship || traffic)
-			    return MakeShipProxy(registry);
+		    {
+			    const Dock::HullDefinition *shuttle = m_pDocks->FindHull(kShipHull);
+			    return MakeHullProxy(registry, shuttle ? *shuttle : Dock::HullDefinition{});
+		    }
 		    const auto parked = m_hullProxies.find(simEntity);
-		    return parked == m_hullProxies.end() ? entt::entity{entt::null}
-		                                         : MakeHullProxy(registry, parked->second);
+		    const Dock::HullDefinition *hull =
+		        parked == m_hullProxies.end() ? nullptr : m_pDocks->FindHull(parked->second);
+		    return hull ? MakeHullProxy(registry, *hull) : entt::entity{entt::null};
 	    });
 }
 

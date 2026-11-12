@@ -62,17 +62,32 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 	CHECK(docks.FindHull("heavy-transport")->pad == PadClass::L);
 
 	// Twelve L pads at Highport, a kilometre and a half across: within the 2 km cluster range from
-	// its centre, and inside the gates at 5 and 6 km.
+	// its centre, and inside the gates at 5 and 6 km. Its display wing's six beyond them, two XL bays
+	// and four S pads, each showing a hull that fits it, inside the sphere the piers make.
 	const Dock::StationLayout *highport = docks.FindLayout("ostra-highport");
 	REQUIRE(highport);
-	CHECK(highport->pads.size() == 12);
-	CHECK(
-	    std::ranges::all_of(
-	        highport->pads, [](const Dock::PadLayout &pad) { return pad.padClass == PadClass::L; }));
+	REQUIRE(highport->pads.size() == 18);
+	for (std::size_t index = 0; index < 12; ++index)
+	{
+		CHECK(highport->pads[index].padClass == PadClass::L);
+		CHECK(!highport->pads[index].display);
+		CHECK(highport->pads[index].ship.empty());
+	}
+	for (std::size_t index = 12; index < 18; ++index)
+	{
+		const Dock::PadLayout &pad = highport->pads[index];
+		CHECK(pad.display);
+		const Dock::HullDefinition *shown = docks.FindHull(pad.ship);
+		REQUIRE(shown);
+		CHECK(shown->pad <= pad.padClass);
+	}
+	CHECK(std::ranges::count(highport->pads, PadClass::XL, &Dock::PadLayout::padClass) == 2);
+	CHECK(docks.FindHull("liner")->pad == PadClass::XL);
+	CHECK(docks.FindHull("frigate")->pad == PadClass::XL);
 	CHECK(Dock::Radius(*highport) == doctest::Approx(762.4).epsilon(0.001));
 	// Its deck as the station collides: twelve triangles a box, every one facing out of its box.
 	const Physics::ShapeDefinition deck = Dock::DeckShape(*highport);
-	CHECK(deck.indices.size() == 5 * 12 * 3);
+	CHECK(deck.indices.size() == 6 * 12 * 3);
 	const std::vector<Dock::Box> boxes = [&]
 	{
 		std::vector<Dock::Box> all = highport->decks;
@@ -156,6 +171,16 @@ TEST_CASE("Dock definitions: a pad off its deck, under it, overlapping another o
 
 	Dock::StationLayout empty;
 	CHECK(Refusal(empty) == "Station layout 'slab' has no decks or piers");
+
+	// A ship shown is the dressing of a display pad: on any other, a ship lands.
+	Dock::StationLayout shown = Slab();
+	shown.pads[0].ship = "transport";
+	CHECK(
+	    Refusal(shown) ==
+	    "Station layout 'slab' pad 1 shows a ship, which only a display pad does: a ship lands on any "
+	    "other");
+	shown.pads[0].display = true;
+	CHECK(Refusal(shown).empty());
 	Dock::StationLayout hasty = Slab();
 	hasty.reservationSeconds = 0.0f;
 	CHECK(

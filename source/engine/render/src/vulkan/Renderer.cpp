@@ -980,6 +980,11 @@ void Renderer::WriteInstances(
 			++m_frameStats.horizonCulled;
 			continue;
 		}
+		if (!skinned && TooSmallToSee(draw.breadth, draw.bounds, m_frameLods, kDetailPixels))
+		{
+			++m_frameStats.detailCulled;
+			continue;
+		}
 		m_batchScratch.push_back(
 		    {{draw.model, m_drawLods[drawIndex], m_drawMaterials[drawIndex]},
 		     static_cast<std::uint32_t>(drawIndex),

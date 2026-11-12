@@ -40,6 +40,7 @@ std::vector<SceneDrawCommand> CollectDraws(
 		    &mesh.material,
 		    TransformBounds(model->m_bounds, relative),
 		    MaxScale(relative),
+		    double{model->m_bounds.radius} * MiddleScale(relative),
 		    0.0};
 		const bool round = mesh.shape == Shape::Sphere || mesh.shape == Shape::IcoSphere ||
 		                   mesh.shape == Shape::CubeSphere;

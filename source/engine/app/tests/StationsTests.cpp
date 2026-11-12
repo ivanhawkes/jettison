@@ -3,7 +3,6 @@
 
 #include <doctest/doctest.h>
 
-#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
@@ -94,9 +93,9 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, ships 
 	CHECK(corva == stations[1]);
 	CHECK(App::FindStation(world, Sim::SystemId("Vesper"), "Ostra Highport") == entt::null);
 
-	// Three heavy transports on Highport's twelve L pads; two transports and a fighter at Corva's
-	// six. At least two pads of each are left free.
-	CHECK(world.get<Dock::Station>(highport).pads.size() == 12);
+	// Three heavy transports on Highport's twelve L pads, and its display wing's six; two transports
+	// and a fighter at Corva's six. At least two pads of each are left free.
+	CHECK(world.get<Dock::Station>(highport).pads.size() == 18);
 	CHECK(Holding(world, highport) == 3);
 	CHECK(world.get<Dock::Station>(corva).pads.size() == 6);
 	CHECK(Holding(world, corva) == 3);
@@ -112,45 +111,6 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, ships 
 		sample.world.Step();
 	CHECK(sample.physics.Contacts().empty());
 	CHECK(Holding(world, highport) == 3);
-}
-
-TEST_CASE(
-    "Stations: a layout is drawn under the station as it collides, each pad turned to its heading")
-{
-	Sample sample;
-	const Dock::StationLayout &layout = *sample.docks.FindLayout("ostra-highport");
-	entt::registry scene;
-	const entt::entity station = scene.create();
-	App::DrawLayout(scene, station, layout);
-	std::size_t parts = 0;
-	for (const auto [entity, parent, transform, mesh] :
-	     scene
-	         .view<
-	             const Scene::ParentComponent, const Scene::TransformComponent,
-	             const Scene::MeshComponent>()
-	         .each())
-	{
-		CHECK(parent.entity == station);
-		CHECK(scene.all_of<Scene::BuiltComponent>(entity));
-		CHECK(mesh.shape == Scene::Shape::Box);
-		++parts;
-	}
-	CHECK(parts == layout.decks.size() + layout.piers.size() + layout.pads.size());
-
-	// Each pad's plate as the scene turns it, about X, then Y, then Z: its length along the heading.
-	for (const auto [entity, transform] : scene.view<const Scene::TransformComponent>().each())
-	{
-		const auto pad =
-		    std::ranges::find(layout.pads, transform.translation, &Dock::PadLayout::position);
-		if (pad == layout.pads.end())
-			continue;
-		glm::dmat4 turn{1.0};
-		turn = glm::rotate(turn, double{transform.rotation.x}, {1.0, 0.0, 0.0});
-		turn = glm::rotate(turn, double{transform.rotation.y}, {0.0, 1.0, 0.0});
-		turn = glm::rotate(turn, double{transform.rotation.z}, {0.0, 0.0, 1.0});
-		CHECK(glm::distance(glm::dvec3{turn * glm::dvec4{0.0, 0.0, -1.0, 0.0}}, pad->heading) < 1.0e-5);
-		CHECK(transform.scale.z == doctest::Approx(Dock::PadSize(pad->padClass).y * 0.5f));
-	}
 }
 
 TEST_CASE(

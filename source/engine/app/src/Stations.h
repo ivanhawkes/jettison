@@ -1,7 +1,6 @@
 #pragma once
 
 #include <entt/entt.hpp>
-#include <glm/vec3.hpp>
 
 #include <cstdint>
 #include <span>
@@ -16,8 +15,7 @@ struct StarSystem;
 namespace Jettison::Dock
 {
 class Docks;
-struct StationLayout;
-} // namespace Jettison::Dock
+}
 
 namespace Jettison::Sim
 {
@@ -45,13 +43,4 @@ std::vector<entt::entity> OpenStations(
 void MakeShip(
     entt::registry &world, entt::entity ship, std::string_view hull, float mass, bool continuous);
 
-// The layout drawn plainly under the station's entity in the presentation scene, as it collides: its
-// decks and piers as boxes of the hull's plating, and each pad a darker plate on the deck, of its
-// class's size and turned to its heading; built (Scene::BuiltComponent), so a scene file never
-// holds it. The station dressing (9d) draws more.
-void DrawLayout(entt::registry &scene, entt::entity station, const Dock::StationLayout &layout);
-
-// A ship's proxy for the traffic layer as plain as the deck: a box of its hull's size in its own
-// axes, beam, height and length.
-entt::entity MakeHullProxy(entt::registry &scene, const glm::vec3 &size);
 } // namespace Jettison::App

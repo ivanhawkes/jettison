@@ -189,12 +189,13 @@ TEST_CASE("Jump: the effect covers the frame before the destination is shown, an
 	CHECK(jump.Seconds() >= 0.6 + 0.8);
 	CHECK(assets.resources->Loading() == 0);
 
-	// Halcyon is shown as its scene file authors it.
+	// Halcyon is shown as its scene file authors it, its camera among it, where a system of no scene
+	// file is given one named for it.
 	REQUIRE(jump.Begin(assets.galaxy, assets.Index("Halcyon"), "Halcyon Gate"));
 	RunJump(jump, assets);
 	CHECK(shown.shows == 2);
 	CHECK(shown.scene.StarSystem() == "systems/halcyon.yaml");
-	CHECK(Named(shown.scene.Registry(), "highport-hub") != entt::null);
+	CHECK(Named(shown.scene.Registry(), "camera") != entt::null);
 	CHECK(Named(shown.scene.Registry(), "corva") == entt::null);
 }
 
@@ -436,7 +437,7 @@ TEST_CASE(
 	CHECK(shown.scene.StarSystem() == "systems/vesper.yaml");
 	CHECK(shown.arrival == "Vesper Gate");
 	CHECK(Named(shown.scene.Registry(), "ostra-highport") == entt::null);
-	CHECK(Named(shown.scene.Registry(), "highport-hub") == entt::null);
+	CHECK(Named(shown.scene.Registry(), "camera") == entt::null);
 	CHECK(Named(shown.scene.Registry(), "corva-refinery") != entt::null);
 	CHECK(shownAt != 0);
 	CHECK(shownAt - departed < 45);

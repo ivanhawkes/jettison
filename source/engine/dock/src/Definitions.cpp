@@ -194,6 +194,10 @@ void CheckLayout(std::string_view name, const StationLayout &layout)
 			Refuse(kWhat, name, padName + " has a normal or a heading that is not of unit length");
 		if (std::abs(glm::dot(pad.normal, pad.heading)) > kUnitTolerance)
 			Refuse(kWhat, name, padName + " has a heading that is not square to its normal");
+		if (!pad.ship.empty() && !pad.display)
+			Refuse(
+			    kWhat, name,
+			    padName + " shows a ship, which only a display pad does: a ship lands on any other");
 
 		// All of it on the structure: its middle, its corners and the middles of its sides each
 		// just under its face in a deck or a pier, and its middle not inside one.

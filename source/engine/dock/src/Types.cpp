@@ -28,7 +28,8 @@ void RegisterTypes()
 		    .Field<&HullDefinition::beam>("beam", kDefined)
 		    .Field<&HullDefinition::height>("height", kDefined)
 		    .Field<&HullDefinition::pad>("pad", kDefined)
-		    .Field<&HullDefinition::hatch>("hatch", kDefined);
+		    .Field<&HullDefinition::hatch>("hatch", kDefined)
+		    .Field<&HullDefinition::model>("model", kDefined);
 		RegisterType<Box>("Dock.Box")
 		    .Field<&Box::centre>("centre", kDefined)
 		    .Field<&Box::size>("size", kDefined);
@@ -37,7 +38,8 @@ void RegisterTypes()
 		    .Field<&PadLayout::position>("position", kDefined)
 		    .Field<&PadLayout::normal>("normal", kDefined)
 		    .Field<&PadLayout::heading>("heading", kDefined)
-		    .Field<&PadLayout::display>("display", kDefined);
+		    .Field<&PadLayout::display>("display", kDefined)
+		    .Field<&PadLayout::ship>("ship", kDefined);
 		RegisterType<Bay>("Dock.Bay")
 		    .Field<&Bay::position>("position", kDefined)
 		    .Field<&Bay::normal>("normal", kDefined);

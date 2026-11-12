@@ -27,8 +27,9 @@ struct BoundingSphere
 // A model's bounds through a transform into render space: the centre transformed, the radius scaled
 // by the transform's largest axis, so a sphere stretched to a hull's length still holds it.
 BoundingSphere TransformBounds(const ModelBounds &bounds, const glm::dmat4 &renderTransform);
-// The transform's largest and smallest scale along its own axes.
+// The transform's largest, middle and smallest scale along its own axes.
 double MaxScale(const glm::dmat4 &transform);
+double MiddleScale(const glm::dmat4 &transform);
 double MinScale(const glm::dmat4 &transform);
 
 // The view's planes in render space, each a unit normal pointing in and a distance (a point p is
@@ -79,6 +80,13 @@ LodSelection MakeLodSelection(const CameraView &camera, double viewportHeight, d
 // The pixels an error of `error` metres covers on the sphere's nearest point to the camera, or at
 // the near plane for a camera inside it.
 double ProjectedError(double error, const BoundingSphere &sphere, const LodSelection &selection);
+// Whether a draw is too small to see: its breadth (a model's radius times its transform's middle
+// scale, so a long thin stroke is as narrow as it is wide and a flat plate as wide as it is long),
+// projected at the sphere's nearest point, covers less than the pixels. Something narrower than a
+// pixel in two of its three directions draws nothing a viewer could tell from its absence, and on a
+// software rasteriser each of its triangles still shades a whole block of pixels.
+bool TooSmallToSee(
+    double breadth, const BoundingSphere &sphere, const LodSelection &selection, double pixels);
 // The coarsest level whose error, scaled by `scale` and projected, covers no more than the
 // threshold; the finest when none does.
 std::uint32_t SelectLod(

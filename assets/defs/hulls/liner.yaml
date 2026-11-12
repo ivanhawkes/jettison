@@ -1,0 +1,10 @@
+# A liner, shown on Highport's display wing: no ship is given an XL pad (docs/scope.md), so it is the
+# layout's dressing, drawn on its pad and never flown. The largest XL hull is 300 x 80 x 60 m. A hull
+# of the docks (Dock.HullDefinition): metres, its nose along -Z.
+version: 1
+displayName: Liner
+length: 290
+beam: 72
+height: 56
+pad: XL
+hatch: [0, -28, 40]

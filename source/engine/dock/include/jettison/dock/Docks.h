@@ -212,8 +212,8 @@ class Docks
 	static constexpr std::string_view kSystemName = "dock";
 
 	// Registers the components, the commands and the system, ordered after physics', so physics
-	// has to be attached first; and steering, whose destinations the docks set. Throws
-	// std::logic_error as SimWorld's registrations do, for one already made.
+	// has to be attached first, and steering, whose destinations the docks set; and shows the pads
+	// in the snapshots. Throws std::logic_error as SimWorld's registrations do, for one already made.
 	static Docks &Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics);
 
 	// The physics shapes a hull's and a layout's bodies name: "hulls/<name>", "stations/<name>".

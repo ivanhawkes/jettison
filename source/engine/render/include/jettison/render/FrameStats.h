@@ -22,9 +22,10 @@ struct PassTiming
 struct FrameStats
 {
 	std::uint32_t meshes{0};
-	// Left out of the view: outside the frustum, or behind a planet's horizon.
+	// Left out of the view: outside the frustum, behind a planet's horizon, or too small to see.
 	std::uint32_t frustumCulled{0};
 	std::uint32_t horizonCulled{0};
+	std::uint32_t detailCulled{0};
 	std::uint32_t viewBatches{0};
 	std::uint64_t viewTriangles{0};
 	// Each cascade's casters, and the instanced draws they became.

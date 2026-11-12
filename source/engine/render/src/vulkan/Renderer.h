@@ -93,6 +93,11 @@ class Renderer
 	static constexpr std::uint32_t kShadowMapSize = 2048;
 	// The pixels a level of detail's error may cover before a finer one is drawn.
 	static constexpr float kDefaultLodThreshold = 1.0f;
+	// The pixels a draw has to be across to be drawn (TooSmallToSee). Measured in 9d against Ostra
+	// Highport's dressing from 1.5 km: on lavapipe at 640 x 480 it leaves out 529 of 925 meshes, the
+	// pads' paint, poles and lamps, and takes the opaque pass from 31 ms to 22 ms, every tiny
+	// triangle having shaded a block of the lit program.
+	static constexpr double kDetailPixels = 1.0;
 
 	// The resource manager loads the models, materials and textures, and outlives the renderer;
 	// Destroy releases everything the renderer loaded through it.

@@ -37,6 +37,7 @@
 #include <jettison/ui/UiSystem.h>
 #include <jettison/vfs/FileSystem.h>
 
+#include "Dressing.h"
 #include "GlfwInput.h"
 #include "MarketScreen.h"
 #include "Piloting.h"
@@ -227,10 +228,13 @@ class Application
 	// the pilot is to land it, and the pad given up, which lifts it clear if it is docked.
 	void RequestPad(bool fly);
 	void ReleasePad();
-	// The layouts of the stations of the system shown drawn under their entities in the scene
-	// (DrawLayout), as each system scene is built.
+	// The stations of the system shown dressed under their entities in the scene (DressStation), as
+	// each system scene is built.
 	void DrawStations();
-	// The ships the proxy factory draws as boxes of their hulls: those with a hull that are neither
+	// The presentation's sync, after the traffic layer's: each dressed station's lamps turned to its
+	// pads' states in the latest snapshot, its simulation entity found again when it has none there.
+	void ShowPadStates();
+	// The ships the proxy factory draws as their hulls' proxies: those with a hull that are neither
 	// the shell's ship nor its traffic, the parked ones; found again in the world a save loads.
 	void FindHullProxies();
 	// The console's traffic: that many shuttles flown by steering (Ai::Steering) from 1 to 2 km about
@@ -253,8 +257,6 @@ class Application
 	// The presentation phase, before the rigs: the active camera given a pilot rig on the ship's
 	// proxy while it is flown, and its orbit rig back, eased, when it is not.
 	void SyncPilotCamera(entt::registry &registry);
-	// The ship as the traffic layer draws it, made for the ship's simulation entity alone.
-	entt::entity MakeShipProxy(entt::registry &registry);
 	void SetProxyFactory();
 	// The ship's speed and distance from the station, and the keys, while it is flown.
 	void DrawFlight();
@@ -522,8 +524,12 @@ class Application
 	Ai::Steering *m_pSteering{nullptr};
 	// The stations' pads and the ships on them, which the world holds too.
 	Dock::Docks *m_pDocks{nullptr};
-	// The ships parked on them, by entity, and the size of each one's hull, beam, height and length.
-	std::map<entt::entity, glm::vec3> m_hullProxies;
+	// The ships parked on them, by entity, and each one's hull.
+	std::map<entt::entity, std::string> m_hullProxies;
+	// The system shown's stations as they are dressed, and each one's simulation entity, found from
+	// its celestial body (FindStation) once its pads are in the snapshots.
+	std::vector<StationDressing> m_dressings;
+	std::vector<entt::entity> m_dressedStations;
 	// The traffic spawned (SpawnTraffic), in entity order, which the proxy factory draws as
 	// shuttles; found again in the world a save loads, as its steered ships.
 	std::vector<entt::entity> m_traffic;

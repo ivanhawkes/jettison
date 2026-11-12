@@ -42,8 +42,10 @@ glm::vec2 PadSize(PadClass padClass);
 
 // A hull: its size, the pad class it lands on, and where its cargo hatch is, in its own axes from
 // its centre, which the deck's buggies drive to (9e). defs/hulls/<name>.yaml; its collision shape
-// is the box of its size (Docks::HullShape). Registered with Reflect as "Dock.HullDefinition",
-// every field Saved and Moddable, by RegisterTypes.
+// is the box of its size (Docks::HullShape), whatever it is drawn as. The model is presentation's
+// alone, a glTF file by virtual path in the hull's axes and metres, drawn in place of its class's
+// proxy; the simulation never reads it. Registered with Reflect as "Dock.HullDefinition", every
+// field Saved and Moddable, by RegisterTypes.
 struct HullDefinition
 {
 	std::string displayName;
@@ -52,6 +54,7 @@ struct HullDefinition
 	float height{2.0f};
 	PadClass pad{PadClass::S};
 	glm::vec3 hatch{0.0f};
+	std::string model{};
 };
 
 // A box of a station's structure, in its axes, square to them: its centre and its whole size.
@@ -64,9 +67,10 @@ struct Box
 
 // A pad: its class, the middle of its face on the deck, the deck's normal there (which a ship lands
 // down) and the heading its ships' noses point along, square to the normal, both in the station's
-// axes. A display pad is the layout's dressing, and no ship is given it. Pads are numbered from 1
-// in the layout's order. Registered with Reflect as "Dock.PadLayout", every field Saved and
-// Moddable.
+// axes. A display pad is the layout's dressing, and no ship is given it: the ship it shows is a
+// hull drawn on it by presentation (the station dressing), not a body, so it is named by its hull
+// alone, and only a display pad names one. Pads are numbered from 1 in the layout's order.
+// Registered with Reflect as "Dock.PadLayout", every field Saved and Moddable.
 struct PadLayout
 {
 	PadClass padClass{PadClass::S};
@@ -74,11 +78,13 @@ struct PadLayout
 	glm::dvec3 normal{0.0, 1.0, 0.0};
 	glm::dvec3 heading{0.0, 0.0, -1.0};
 	bool display{false};
+	std::string ship{};
 };
 
-// A cargo bay's door, which buggies carry crates between and a ship's hatch (9e): where it is on
-// the deck and the way it faces. Registered with Reflect as "Dock.Bay", both fields Saved and
-// Moddable.
+// A cargo bay's door, which buggies carry crates between and a ship's hatch (9e): the middle of its
+// sill, on the deck where a buggy drives through it, and the way it faces. A door facing along the
+// deck stands in a wall, up from its sill; one facing the deck's way is a hatch in it. Registered with
+// Reflect as "Dock.Bay", both fields Saved and Moddable.
 struct Bay
 {
 	glm::dvec3 position{0.0};

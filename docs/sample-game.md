@@ -57,7 +57,8 @@ modules, in the engine's style, and the game takes it over from there.
 | A station you come home to | Docking and undocking sound on the effects bus from the station, the clamps closing and letting go; the station hums as the ship nears it; a loop of music plays. All synthesised by `scripts/make-sample-sounds.py`, so nothing in them is anyone else's. | 8c |
 | Lanes between the systems, star gates the long hops | The ship crosses a lane: J, with the ship in the system shown, sends it through the gate, 40 s to Vesper, out at rest 5 km from Corva Refinery, facing Corva with the refinery ahead, and bound to the refinery and its market as it was to Ostra's. Each gate keeps station beyond its station from the planet, so a ship coming out sees both. The console's `route` gives the way to a system and its time. | 9a |
 | Other ships about the stations | The console's `traffic` sends shuttles from a kilometre or two out to hold station on a ring about the station, up to sixteen: each flown by steering, giving way to the others, the station and the player's ship, and turned with the station once there. They choose nothing yet. | 9b |
-| Stations as trade hubs, a pad for every ship | Ostra Highport at the plan's scale, 1.5 km across, with twelve pads for the largest transports on four piers, and Corva Refinery with four for transports and two for shuttles (`assets/defs/stations`), from the hulls of `assets/defs/hulls`. Three ships are parked at each, and the shell's ship starts docked on Highport's first free pad. The console's `undock` lifts it clear; `dock` asks for a pad and flies it in, round the station and down onto the pad, or leaves the landing to the pilot with `dock manual`. A ship waits its turn when every pad it fits is taken. The decks are drawn plainly, as they collide; floodlights and painted lines are 9d's. | 9c |
+| Stations as trade hubs, a pad for every ship | Ostra Highport at the plan's scale, 1.5 km across, with twelve pads for the largest transports on four piers, and Corva Refinery with four for transports and two for shuttles (`assets/defs/stations`), from the hulls of `assets/defs/hulls`. Three ships are parked at each, and the shell's ship starts docked on Highport's first free pad. The console's `undock` lifts it clear; `dock` asks for a pad and flies it in, round the station and down onto the pad, or leaves the landing to the pilot with `dock manual`. A ship waits its turn when every pad it fits is taken. | 9c |
+| Stations that look like ports | Every pad painted (its outline, a centre line with chevrons to the bow, the keep-clear box over the hatch, its number) and floodlit from poles along its sides, a lamp on each pole green while the pad is free, amber while it is reserved and red while it holds a ship; the hub in the hull's plating, the piers in deck plating, and a door at each cargo bay. Highport's display wing, between two of its piers, shows a liner and a frigate on XL bays and four fighters on S pads beside them. Each class of hull has its own proxy: the shuttle, a transport of cargo pods behind a cab, the largest transport's racked containers under a bridge, and the display ships' long hulls. | 9d |
 
 The two stations are in different systems, a lane apart, so the arbitrage the screen shows between
 Ostra's grain and Corva's metal is now one the player can fly: buy at Highport, jump, fly the half
@@ -67,9 +68,8 @@ minute from Vesper Gate to Corva Refinery, dock and sell.
 
 Each slice lands with the engine system it exercises:
 
-- **9d and 9e, the stations dressed and their decks worked.** Highport's display wing of a liner,
-  a frigate and fighters; floodlights and painted lines about every pad; and buggies that carry a
-  ship's cargo between its pad and the station's bays, so a full hold takes time to load.
+- **9e, the stations' decks worked.** Buggies that carry a ship's cargo between its pad and the
+  station's bays, so a full hold takes time to load.
 - **9f, AI.** Automated traders, the plan's other ships: they read the same markets, choose trades
   by utility (which good, which route, which station), plot routes across the lanes (9a's
   `Ai::PlotRoute`) and fly them, through the gates, steering clear of each other (9b's

@@ -576,6 +576,7 @@ void DeviceContext::CreateLogicalDevice()
 	m_blockCompression = supported.textureCompressionBC == VK_TRUE &&
 	                     (bc7.optimalTilingFeatures & kSampled) == kSampled &&
 	                     properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_CPU;
+	m_cpu = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU;
 	m_deviceName = properties.deviceName;
 	deviceFeatures.features.textureCompressionBC = m_blockCompression ? VK_TRUE : VK_FALSE;
 

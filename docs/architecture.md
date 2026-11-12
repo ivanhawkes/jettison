@@ -387,9 +387,11 @@ player. Its data are definitions: a hull (`defs/hulls`, `Dock::HullDefinition`) 
 class of pad it lands on and its cargo hatch, and collides as the box of its size; a station's
 layout (`defs/stations`, `Dock::StationLayout`), which a station names in its system's file
 (`Celestial::Body::layout`), has its decks and piers as boxes, which the station collides as, its
-pads (class, place, normal, heading, and whether it is for display) and its cargo bays. A layout is
-checked as it is defined: every pad all on a deck or a pier, none overlapping another, and nothing of
-the station over any, out to the sphere that holds it all.
+pads (class, place, normal, heading, and whether it is for display, with the hull it shows) and its
+cargo bays, each the middle of its door's sill on the deck. A layout is checked as it is defined:
+every pad all on a deck or a pier, none overlapping another, nothing of the station over any, out to
+the sphere that holds it all, and a ship shown only on a display pad. A display pad's ship is
+presentation's, drawn on it and never a body: no ship is given the pad, and `Park` refuses it.
 
 `Docks::MakeStation` builds a station: its kinematic body on its celestial body's rails, in its
 frame, and an entity for each pad on the same rails at its place, free, reserved for a ship until
@@ -412,6 +414,23 @@ so it is held in the station's frame and out of flight. A pad clamps only the sh
 Undocking makes the ship dynamic again and lifts it the same way back to the point above, where it
 gives the pad up. Highport's shuttle from 10 km on its far side is over its pad in 111 s and clamped
 24 s later, touching nothing on the way.
+
+**The station dressing** (9d) is the layout drawn, in the shell (`app/src/Dressing.h`), under the
+station's entity in the presentation scene as each system scene is built; none of it reaches a scene
+file, and none of it is what the station collides as, which is its layout's decks and piers whatever
+is drawn. A tall block of the layout (the hub) is drawn in the hull's plating and a flat one (a pier,
+a wing) in deck plating. Each pad is a plate on the deck, painted in the effects layer with its
+outline, a centre line with chevrons to the bow, the keep-clear box over its class's hatch and its
+number in bar segments; floodlight poles stand along its long sides, at its corners and, past 120 m,
+between them, each a spot aimed across the pad at half its class's largest hull's height with the
+intensity that puts 1.6 on it (half the sun's irradiance), and a lamp under its head in the effects
+layer showing the pad's state. The pads are shown in the snapshots (`Docks::Attach`), so the lamps
+are turned from what presentation may see, never from the world: green free, amber reserved, red
+holding a ship, blue on display. Each bay has its door, a panel up from its sill or a hatch in the
+deck. A ship's proxy, a parked ship's or a display pad's, is its class's, made of procedural shapes
+fitted to its hull's box, or the hull's own glTF model when it names one (`HullDefinition::model`).
+Highport carries 104 floodlights: six on each L pad, eight on each XL and four on each S, every one
+reaching no further than 900 m from the station's centre.
 
 ### Persistence
 
@@ -590,8 +609,11 @@ nodes in it:
 1. **Collect and cull** (CPU). Every mesh's bounds are taken into render space in double
    precision, before anything becomes a float (`render/Culling.h`). Its level of detail is the
    coarsest whose geometric error, projected, covers under a pixel. The view keeps what is inside
-   the frustum and not wholly behind a planet's horizon (a celestial body drawn as a sphere, shrunk
-   by its level's error so the sphere is inside the mesh); each cascade keeps the casters whose
+   the frustum, not wholly behind a planet's horizon (a celestial body drawn as a sphere, shrunk
+   by its level's error so the sphere is inside the mesh), and at least a pixel across: a draw's
+   breadth, its model's radius times its transform's middle scale, projected at its nearest point,
+   so a stroke of paint a metre wide is left out from a kilometre and a half at 480 lines however
+   long it is, and the thin plate it is painted on is not (9d, `TooSmallToSee`); each cascade keeps the casters whose
    sphere reaches the prism its map shadows. What is kept is batched (`render/DrawBatches.h`): draws
    sharing a model, a level and a material are one instanced draw, the batches front to back, and
    every instance's transform goes into this frame's instance buffer. Active lights are converted
@@ -727,6 +749,17 @@ frame. Lavapipe decodes BC7 in software at every texel fetch, and the orbit scen
 469 ms in BC7 and 23 ms in RGBA8, so a CPU device is given RGBA8. And the planet, drawn into two
 cascades whole, was most of the shadow pass until casters were culled exactly against each map's
 prism: 15.5 ms to 4.2 ms on lavapipe, most of what is left being the four 2048² clears.
+
+Ostra Highport dressed (9d), 925 meshes and 104 floodlights, measured the frame again. On the RTX
+5060 Ti it is 0.32 ms from the orbit camera's 1.5 km, 0.53 ms from 1.1 km over the station and
+0.66 ms from 320 m over its hub. On lavapipe it first took 84 ms, the opaque pass 73 ms against 9c's
+22, and not for its lights, which cost 1.5 ms of it: two things a CPU does in software did. Each
+texel of a material's 16x anisotropic filter, nine fetched a pixel by the triplanar program, on the
+display wing's round hulls seen at grazing angles: a CPU device's material sampler now takes no
+anisotropy, as it takes RGBA8 rather than BC7, which took the opaque pass to 31 ms. And each of
+hundreds of sub-pixel triangles (paint, poles, lamps) shading a block of the lit program: leaving
+out what is under a pixel across took it to 22 ms, and the frame to 33 ms, 9c's, from every view
+measured. Hardware still filters at 16x, and from 1.5 km at its 1338 lines leaves out 26 meshes.
 
 ### Rules that follow
 

@@ -114,6 +114,8 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterComponent<Station>();
 	world.RegisterComponent<Pad>();
 	world.RegisterComponent<Docking>();
+	// A pad's state is what its lamps show (the station dressing), and presentation reads snapshots.
+	world.ShowInSnapshots<Pad>();
 	world.RegisterCommand<RequestPad>([docks](Sim::SimWorld &target, const RequestPad &command)
 	                                  { docks->Request(target, command); });
 	world.RegisterCommand<ReleasePad>([docks](Sim::SimWorld &target, const ReleasePad &command)

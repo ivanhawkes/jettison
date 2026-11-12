@@ -33,6 +33,8 @@ jettison_add_module(app
 		src/AppArguments.cpp
 		src/Application.cpp
 		src/Application.h
+		src/Dressing.cpp
+		src/Dressing.h
 		src/GlfwInput.cpp
 		src/GlfwInput.h
 		src/MarketScreen.cpp
@@ -50,6 +52,7 @@ jettison_add_module(app
 		src/Trading.cpp
 		src/Trading.h
 	TESTS
+		tests/DressingTests.cpp
 		tests/LargeWorldTests.cpp
 		tests/PilotingTests.cpp
 		tests/SavesTests.cpp

@@ -335,9 +335,9 @@ settle. Each stage runs four frames, the pick, the trade and the jump as many as
 120-second watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
 lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
-the star system, under an orbit camera and the sun, which shadows it through four cascades, with
-eleven floodlights, dock lights and beacons assigned to the clusters, and twenty racked containers
-drawn as one instanced draw). In the orbit scene the piloting stages fly the shell's ship, held off
+the star system, under an orbit camera and the sun, which shadows it through four cascades, Ostra
+Highport drawn from its layout: its 104 floodlights about its pads assigned to the clusters, and its
+pads' paint, poles and lamps, hundreds of one shape and colour each, drawn as instanced draws). In the orbit scene the piloting stages fly the shell's ship, held off
 Highport's dock in the station's frame, ahead under scripted controls: its proxy made by the traffic
 layer, the flight commands, and the pilot camera's chase and cockpit rigs on it, each eased into; the
 sample scene has no station, so they fly nothing there, and the summary's `pilots=` says how many
@@ -345,7 +345,7 @@ did. Behind the ship, the first piloting stage sends four shuttles to Highport (
 `traffic`), flown by steering over the spatial index and drawn by the traffic layer from then on.
 The save stage writes the game to the run's user mount, flushed to the disk, and loads it
 back over itself with the scene drawing it; the run fails unless the world loaded has the state hash
-of the world saved (3,447 bytes for the sample scene's world on 2026-11-12, and 11,350 for the
+of the world saved (20,980 bytes for the sample scene's world on 2026-11-12, and 27,296 for the
 orbit scene's, physics' state, the shell's ship and the four shuttles under way among it). The game UI's two screens, the market
 and the saved games, are shown from the first frame, so the overlay is drawn in every stage, over
 every resize and the reload; the save stage lists its save on one. The trade stage reads the market

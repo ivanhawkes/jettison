@@ -1,0 +1,573 @@
+#include "Dressing.h"
+
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/euler_angles.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <optional>
+#include <string_view>
+#include <utility>
+
+#include <jettison/core/Log.h>
+#include <jettison/render/Clusters.h>
+#include <jettison/scene/Components.h>
+
+namespace Jettison::App
+{
+namespace
+{
+constexpr Core::Category kDressing{"stations"};
+
+constexpr std::string_view kPlating = "materials/hull.material.yaml";
+constexpr std::string_view kDeckPlating = "materials/deck.material.yaml";
+constexpr std::string_view kLamp = "materials/lamp.material.yaml";
+constexpr std::string_view kEngine = "materials/engine.material.yaml";
+
+constexpr glm::vec3 kDeckColour{0.55f, 0.56f, 0.6f};
+constexpr glm::vec3 kPadColour{0.16f, 0.17f, 0.2f};
+constexpr glm::vec3 kLineColour{0.9f, 0.72f, 0.18f};
+constexpr glm::vec3 kNumberColour{0.92f, 0.92f, 0.9f};
+constexpr glm::vec3 kKeepClearColour{0.8f, 0.16f, 0.1f};
+constexpr glm::vec3 kPoleColour{0.36f, 0.37f, 0.4f};
+constexpr glm::vec3 kDoorColour{0.12f, 0.13f, 0.15f};
+constexpr glm::vec3 kDoorLampColour{1.0f, 0.62f, 0.2f};
+constexpr glm::vec3 kFloodColour{0.92f, 0.95f, 1.0f};
+
+// How thick a pad's plate is drawn, half above the deck and half in it: nothing a hull resting on
+// the deck sinks into far enough to see, and apart from the deck's face, so the two do not fight.
+constexpr float kPadThickness = 0.05f;
+// The paint on it, as thick again and resting on it.
+constexpr float kPaintThickness = 0.04f;
+constexpr float kPaintHeight = kPadThickness * 0.5f + kPaintThickness * 0.5f;
+
+// What a floodlight puts on the hull it is aimed at, in the HDR target's units: half the sun's
+// irradiance (orbit.yaml's 3.4) from each, with a pad's four to eight overlapping.
+constexpr float kFloodIrradiance = 1.6f;
+// The reach past the point it is aimed at, and its cone's half-angles.
+constexpr float kFloodReach = 1.8f;
+constexpr float kFloodInner = 0.35f;
+constexpr float kFloodOuter = 0.62f;
+
+// A bay's door, its sill on the deck: wide enough for two buggies to pass and as tall as a pier's
+// deck is above Corva's hub floor allows.
+constexpr float kDoorWidth = 20.0f;
+constexpr float kDoorHeight = 10.0f;
+
+// The scene turns an entity about X, then Y, then Z (scene/SceneSystems.cpp).
+glm::vec3 SceneRotation(const glm::dquat &orientation)
+{
+	glm::vec3 rotation{0.0f};
+	glm::extractEulerAngleXYZ(
+	    glm::mat4{glm::mat4_cast(glm::quat{orientation})}, rotation.x, rotation.y, rotation.z);
+	return rotation;
+}
+
+entt::entity Node(
+    entt::registry &scene, entt::entity parent, const glm::dvec3 &at, const glm::vec3 &rotation)
+{
+	const entt::entity entity = scene.create();
+	scene.emplace<Scene::BuiltComponent>(entity);
+	if (parent != entt::null)
+		scene.emplace<Scene::ParentComponent>(entity, parent);
+	scene.emplace<Scene::TransformComponent>(entity, at, rotation, glm::vec3{1.0f});
+	return entity;
+}
+
+struct Look
+{
+	Scene::Shape shape{Scene::Shape::Box};
+	glm::vec3 colour{1.0f};
+	std::string_view material;
+	std::optional<Scene::Layer> layer;
+};
+
+// A procedural shape spans its scale either side of its middle.
+entt::entity Part(
+    entt::registry &scene, entt::entity parent, const glm::dvec3 &at, const glm::vec3 &rotation,
+    const glm::vec3 &scale, const Look &look)
+{
+	const entt::entity entity = Node(scene, parent, at, rotation);
+	scene.get<Scene::TransformComponent>(entity).scale = scale;
+	Scene::MeshComponent mesh;
+	mesh.shape = look.shape;
+	mesh.color = look.colour;
+	mesh.material = std::string{look.material};
+	scene.emplace<Scene::MeshComponent>(entity, std::move(mesh));
+	if (look.layer)
+		scene.emplace<Scene::LayerComponent>(entity, *look.layer);
+	return entity;
+}
+
+// A painted stroke on a pad, in the pad's axes: from its middle, its half-width and half-length,
+// turned about the normal.
+void Stroke(
+    entt::registry &scene, entt::entity pad, glm::vec2 middle, float halfWidth, float halfLength,
+    float turn, const glm::vec3 &colour)
+{
+	Part(
+	    scene, pad, {middle.x, kPaintHeight, middle.y}, {0.0f, turn, 0.0f},
+	    {halfWidth, kPaintThickness * 0.5f, halfLength},
+	    {Scene::Shape::Box, colour, {}, Scene::Layer::Effects});
+}
+
+// A stroke between two points on the pad.
+void Line(
+    entt::registry &scene, entt::entity pad, glm::vec2 from, glm::vec2 to, float width,
+    const glm::vec3 &colour)
+{
+	const glm::vec2 along = to - from;
+	Stroke(
+	    scene, pad, (from + to) * 0.5f, width * 0.5f, glm::length(along) * 0.5f + width * 0.5f,
+	    std::atan2(along.x, along.y), colour);
+}
+
+// A rectangle's outline on the pad, about its middle.
+void Outline(
+    entt::registry &scene, entt::entity pad, glm::vec2 middle, glm::vec2 half, float width,
+    const glm::vec3 &colour)
+{
+	for (const float side : {-1.0f, 1.0f})
+	{
+		Line(
+		    scene, pad, middle + glm::vec2{side * half.x, -half.y},
+		    middle + glm::vec2{side * half.x, half.y}, width, colour);
+		Line(
+		    scene, pad, middle + glm::vec2{-half.x, side * half.y},
+		    middle + glm::vec2{half.x, side * half.y}, width, colour);
+	}
+}
+
+// The seven segments a digit lights, a to g: top, upper right, lower right, bottom, lower left, upper
+// left, middle.
+constexpr std::array<std::uint8_t, 10> kDigitSegments{0b0111111, 0b0000110, 0b1011011, 0b1001111,
+                                                      0b1100110, 0b1101101, 0b1111101, 0b0000111,
+                                                      0b1111111, 0b1101111};
+
+// A digit in bar segments, its middle on the pad, read with the bow (-Z) up and +X to the right, as
+// a pilot over the pad sees it.
+void Digit(
+    entt::registry &scene, entt::entity pad, glm::vec2 middle, float height, float width,
+    unsigned digit)
+{
+	// Up the digit is -Z on the pad.
+	const float halfW = width * 0.5f;
+	const float halfH = height * 0.5f;
+	const float stroke = height * 0.12f;
+	const std::array<std::pair<glm::vec2, glm::vec2>, 7> segments{{
+	    {{-halfW, -halfH}, {halfW, -halfH}},
+	    {{halfW, -halfH}, {halfW, 0.0f}},
+	    {{halfW, 0.0f}, {halfW, halfH}},
+	    {{-halfW, halfH}, {halfW, halfH}},
+	    {{-halfW, 0.0f}, {-halfW, halfH}},
+	    {{-halfW, -halfH}, {-halfW, 0.0f}},
+	    {{-halfW, 0.0f}, {halfW, 0.0f}},
+	}};
+	for (std::size_t segment = 0; segment < segments.size(); ++segment)
+		if ((kDigitSegments[digit] >> segment) & 1u)
+		{
+			// Each a stroke short of the corners, so the segments read as bars.
+			const glm::vec2 from = segments[segment].first;
+			const glm::vec2 to = segments[segment].second;
+			const glm::vec2 inset = glm::normalize(to - from) * (stroke * 0.6f);
+			Line(scene, pad, middle + from + inset, middle + to - inset, stroke, kNumberColour);
+		}
+}
+
+// The paint on a pad, in its axes: x across, z along with the bow at -Z.
+void Paint(entt::registry &scene, entt::entity pad, const Dock::PadLayout &layout, unsigned number)
+{
+	const glm::vec2 size = Dock::PadSize(layout.padClass);
+	const glm::vec3 largest = Dock::LargestHull(layout.padClass);
+	const float width = size.x * 0.012f;
+	const glm::vec2 half = size * 0.5f - glm::vec2{width * 2.0f};
+	Outline(scene, pad, {0.0f, 0.0f}, half, width, kLineColour);
+
+	// The number nearest the bow, then the chevrons pointing to it.
+	const float digitHeight = std::min(size.y * 0.12f, size.x * 0.3f);
+	const float digitWidth = digitHeight * 0.55f;
+	const float numberAt = -half.y + size.y * 0.04f + digitHeight * 0.5f;
+	const std::string digits = std::to_string(number);
+	const float pitch = digitWidth * 1.5f;
+	for (std::size_t index = 0; index < digits.size(); ++index)
+		Digit(
+		    scene, pad,
+		    {(static_cast<float>(index) - static_cast<float>(digits.size() - 1) * 0.5f) * pitch,
+		     numberAt},
+		    digitHeight, digitWidth, static_cast<unsigned>(digits[index] - '0'));
+
+	// Short enough on an S pad, as long as it is wide, to leave the centre line room.
+	const float arm = std::min(size.x * 0.15f, size.y * 0.08f);
+	const float back = arm * 0.7071f;
+	float apex = numberAt + digitHeight * 0.5f + size.y * 0.05f;
+	for (int chevron = 0; chevron < 3; ++chevron)
+	{
+		for (const float side : {-1.0f, 1.0f})
+			Line(scene, pad, {0.0f, apex}, {side * back, apex + back}, width, kLineColour);
+		apex += back * 1.2f;
+	}
+
+	// The keep-clear box over where a hatch is, aft of the middle under the hull, with its diagonals.
+	const glm::vec2 keepClear{largest.y * 0.2f, largest.x * 0.1f};
+	const glm::vec2 hatchAt{0.0f, largest.x * 0.21f};
+	Outline(scene, pad, hatchAt, keepClear, width, kKeepClearColour);
+	Line(scene, pad, hatchAt - keepClear, hatchAt + keepClear, width, kKeepClearColour);
+	Line(
+	    scene, pad, hatchAt + glm::vec2{-keepClear.x, keepClear.y},
+	    hatchAt + glm::vec2{keepClear.x, -keepClear.y}, width, kKeepClearColour);
+
+	// The centre line from the chevrons to the keep-clear box.
+	const glm::vec2 lineFrom{0.0f, apex + size.y * 0.02f};
+	const glm::vec2 lineTo{0.0f, hatchAt.y - keepClear.y - size.y * 0.03f};
+	if (lineTo.y > lineFrom.y)
+		Line(scene, pad, lineFrom, lineTo, width, kLineColour);
+}
+
+// The floodlight poles along a pad's long sides, in its axes, and their lamps. Returns the lamps.
+std::vector<entt::entity> Floodlights(
+    entt::registry &scene, entt::entity pad, const Dock::PadLayout &layout, bool display,
+    std::size_t &floodlights)
+{
+	const glm::vec2 size = Dock::PadSize(layout.padClass);
+	const glm::vec3 largest = Dock::LargestHull(layout.padClass);
+	const float out = size.x * 0.04f;
+	const float radius = size.x * 0.008f;
+	const float height = largest.z * 1.25f + 1.0f;
+	const int perSide = static_cast<int>(std::ceil(size.y / kPoleSpacing)) + 1;
+	const float halfAlong = size.y * 0.5f + out;
+	std::vector<entt::entity> lamps;
+	for (const float side : {-1.0f, 1.0f})
+		for (int pole = 0; pole < perSide; ++pole)
+		{
+			const float along = -halfAlong + 2.0f * halfAlong * static_cast<float>(pole) /
+			                                     static_cast<float>(perSide - 1);
+			const glm::vec3 foot{side * (size.x * 0.5f + out), 0.0f, along};
+			Part(
+			    scene, pad, glm::dvec3{foot + glm::vec3{0.0f, height * 0.5f, 0.0f}}, {},
+			    {radius, height * 0.5f, radius}, {Scene::Shape::Cylinder, kPoleColour, {}, {}});
+
+			// The head, leaning over the pad and aimed across it at half the hull's height, a little
+			// towards the pad's middle along it.
+			const glm::vec3 head = foot + glm::vec3{-side * radius * 2.0f, height, 0.0f};
+			const glm::vec3 aim{0.0f, largest.z * 0.5f, along * 0.6f};
+			const glm::vec3 towards = aim - head;
+			const float distance = glm::length(towards);
+			const glm::dquat facing{glm::quatLookAt(towards / distance, glm::vec3{0.0f, 1.0f, 0.0f})};
+			Part(
+			    scene, pad, glm::dvec3{head}, SceneRotation(facing),
+			    {radius * 2.5f, radius * 1.6f, radius * 1.2f},
+			    {Scene::Shape::Box, kPoleColour, {}, {}});
+
+			Scene::LightComponent light;
+			light.type = Scene::LightType::Spot;
+			light.color = kFloodColour;
+			light.range = distance * kFloodReach;
+			light.intensity =
+			    kFloodIrradiance / Render::RangeAttenuation(distance * distance, light.range);
+			light.innerConeAngle = kFloodInner;
+			light.outerConeAngle = kFloodOuter;
+			// Just in front of the head, so its own box does not shadow it.
+			const entt::entity flood = Node(
+			    scene, pad, glm::dvec3{head + towards / distance * (radius * 1.6f)},
+			    SceneRotation(facing));
+			scene.emplace<Scene::LightComponent>(flood, light);
+			++floodlights;
+
+			// The lamp under the head, on the pole's pad side.
+			lamps.push_back(Part(
+			    scene, pad,
+			    glm::dvec3{foot + glm::vec3{-side * radius * 1.4f, height - radius * 4.0f, 0.0f}}, {},
+			    glm::vec3{radius * 1.8f},
+			    {Scene::Shape::IcoSphere, LampColour(Dock::PadState::Free, display), kLamp,
+			     Scene::Layer::Effects}));
+		}
+	return lamps;
+}
+
+// A bay's door, from its sill on the deck: in a wall facing along the deck, or a hatch in it.
+void Door(entt::registry &scene, entt::entity station, const Dock::Bay &bay)
+{
+	const glm::dvec3 normal = glm::normalize(bay.normal);
+	const bool hatch = std::abs(normal.y) > 0.7;
+	// The door's axes: x along its sill, y up it (or for a hatch, along the deck), z out of it.
+	const glm::dvec3 up = hatch ? glm::dvec3{0.0, 0.0, -1.0}
+	                            : glm::normalize(glm::dvec3{0.0, 1.0, 0.0} - normal * normal.y);
+	const glm::dvec3 across = glm::cross(up, normal);
+	const glm::dquat facing = glm::quat_cast(glm::dmat3{across, up, normal});
+	const entt::entity door = Node(scene, station, bay.position, SceneRotation(facing));
+
+	const float frame = 0.6f;
+	const Look panel{Scene::Shape::Box, kDoorColour, {}, {}};
+	const Look trim{Scene::Shape::Box, kLineColour, {}, {}};
+	const Look strip{Scene::Shape::Box, kDoorLampColour, kLamp, Scene::Layer::Effects};
+	const float halfW = kDoorWidth * 0.5f;
+	if (hatch)
+	{
+		// Flat on the deck, square, proud of it by its frame's thickness.
+		Part(scene, door, {0.0, 0.0, 0.1}, {}, {halfW, halfW, 0.1f}, panel);
+		for (const float side : {-1.0f, 1.0f})
+		{
+			Part(
+			    scene, door, {side * (halfW + frame * 0.5f), 0.0, 0.15}, {},
+			    {frame * 0.5f, halfW + frame, 0.15f}, trim);
+			Part(
+			    scene, door, {0.0, side * (halfW + frame * 0.5f), 0.15}, {},
+			    {halfW, frame * 0.5f, 0.15f}, trim);
+		}
+		Part(scene, door, {0.0, halfW + frame * 2.0f, 0.15}, {}, {halfW * 0.6f, 0.3f, 0.15f}, strip);
+		return;
+	}
+	const float halfH = kDoorHeight * 0.5f;
+	Part(scene, door, {0.0, halfH, 0.15}, {}, {halfW, halfH, 0.15f}, panel);
+	for (const float side : {-1.0f, 1.0f})
+		Part(
+		    scene, door, {side * (halfW + frame * 0.5f), halfH + frame * 0.5f, 0.25}, {},
+		    {frame * 0.5f, halfH + frame * 0.5f, 0.25f}, trim);
+	Part(
+	    scene, door, {0.0, kDoorHeight + frame * 0.5f, 0.25}, {}, {halfW + frame, frame * 0.5f, 0.25f},
+	    trim);
+	Part(scene, door, {0.0, kDoorHeight + frame * 2.5f, 0.25}, {}, {halfW * 0.6f, 0.3f, 0.2f}, strip);
+}
+
+// A proxy's part in the hull's own axes, as fractions of its half-length, half-beam and half-height
+// (so -1 to 1 within its box): its middle, its half-extents along the hull's axes, and whether it is
+// a cylinder turned onto the hull's length, whose own axis is its Y.
+struct ProxyPart
+{
+	glm::vec3 at;
+	glm::vec3 half;
+	Scene::Shape shape;
+	glm::vec3 colour;
+	std::string_view material;
+	bool turned{false};
+};
+
+constexpr glm::vec3 kHull{0.7f, 0.7f, 0.74f};
+constexpr glm::vec3 kGrey{0.55f, 0.56f, 0.6f};
+constexpr glm::vec3 kDark{0.3f, 0.3f, 0.32f};
+constexpr glm::vec3 kCanopy{0.08f, 0.1f, 0.16f};
+constexpr glm::vec3 kWhite{1.0f};
+constexpr glm::vec3 kRust{0.62f, 0.3f, 0.14f};
+constexpr glm::vec3 kSlate{0.2f, 0.32f, 0.45f};
+constexpr auto kBox = Scene::Shape::Box;
+constexpr auto kIco = Scene::Shape::IcoSphere;
+constexpr auto kCylinder = Scene::Shape::Cylinder;
+
+// The shell's shuttle, 9.8 x 6.4 x 1.8 m, from which this was measured: a hull, a canopy over its
+// fore end, wings aft, and two engines whose nozzles glow.
+std::vector<ProxyPart> SmallProxy()
+{
+	std::vector<ProxyPart> parts{
+	    {{0.0f, 0.0f, 0.0f}, {0.375f, 0.611f, 0.898f}, kBox, kHull, kPlating},
+	    {{0.0f, 0.5f, -0.388f}, {0.234f, 0.5f, 0.265f}, kIco, kCanopy, {}},
+	    {{0.0f, -0.111f, 0.327f}, {1.0f, 0.133f, 0.367f}, kBox, kGrey, kPlating},
+	};
+	for (const float side : {-1.0f, 1.0f})
+	{
+		parts.push_back(
+		    {{side * 0.234f, 0.0f, 0.857f}, {0.131f, 0.467f, 0.122f}, kCylinder, kDark, {}, true});
+		parts.push_back(
+		    {{side * 0.234f, 0.0f, 0.984f}, {0.106f, 0.378f, 0.012f}, kIco, kWhite, kEngine});
+	}
+	return parts;
+}
+
+// A transport: a cab with its canopy at the bow, a spine, four cargo pods along it and two engines.
+std::vector<ProxyPart> MediumProxy()
+{
+	std::vector<ProxyPart> parts{
+	    {{0.0f, 0.1f, -0.78f}, {0.4f, 0.6f, 0.2f}, kBox, kHull, kPlating},
+	    {{0.0f, 0.3f, -0.95f}, {0.3f, 0.25f, 0.05f}, kIco, kCanopy, {}},
+	    {{0.0f, 0.0f, 0.1f}, {0.18f, 0.3f, 0.8f}, kBox, kGrey, kPlating},
+	};
+	for (const float side : {-1.0f, 1.0f})
+	{
+		for (const float along : {-0.3f, 0.3f})
+			parts.push_back(
+			    {{side * 0.58f, 0.0f, along},
+			     {0.4f, 0.8f, 0.26f},
+			     kBox,
+			     along < 0.0f ? kRust : kSlate,
+			     {}});
+		parts.push_back(
+		    {{side * 0.3f, 0.0f, 0.92f}, {0.18f, 0.36f, 0.08f}, kCylinder, kDark, {}, true});
+		parts.push_back({{side * 0.3f, 0.0f, 0.99f}, {0.14f, 0.28f, 0.01f}, kIco, kWhite, kEngine});
+	}
+	return parts;
+}
+
+// The largest transport: a spine under a bridge at the bow, two tiers of six containers either side
+// of it, and an engine block of three.
+std::vector<ProxyPart> LargeProxy()
+{
+	std::vector<ProxyPart> parts{
+	    {{0.0f, 0.0f, 0.0f}, {0.14f, 0.22f, 0.94f}, kBox, kGrey, kPlating},
+	    {{0.0f, 0.35f, -0.84f}, {0.36f, 0.6f, 0.1f}, kBox, kHull, kPlating},
+	    {{0.0f, 0.0f, 0.86f}, {0.5f, 0.45f, 0.08f}, kBox, kHull, kPlating},
+	};
+	for (int slot = 0; slot < 6; ++slot)
+		for (const float side : {-1.0f, 1.0f})
+			for (const float tier : {-0.45f, 0.45f})
+				parts.push_back(
+				    {{side * 0.54f, tier, -0.62f + 0.248f * static_cast<float>(slot)},
+				     {0.4f, 0.42f, 0.11f},
+				     kBox,
+				     (slot + (tier > 0.0f ? 1 : 0)) % 2 == 0 ? kRust : kSlate,
+				     {}});
+	for (const float across : {-0.32f, 0.0f, 0.32f})
+	{
+		parts.push_back({{across, 0.0f, 0.97f}, {0.13f, 0.36f, 0.03f}, kCylinder, kDark, {}, true});
+		parts.push_back({{across, 0.0f, 0.995f}, {0.1f, 0.28f, 0.005f}, kIco, kWhite, kEngine});
+	}
+	return parts;
+}
+
+// A liner or a frigate: a long round hull with a rounded bow, a superstructure along its top, fins
+// aft and three engines.
+std::vector<ProxyPart> ExtraLargeProxy()
+{
+	std::vector<ProxyPart> parts{
+	    {{0.0f, -0.05f, 0.05f}, {0.55f, 0.6f, 0.8f}, kCylinder, kHull, kPlating, true},
+	    {{0.0f, -0.05f, -0.75f}, {0.55f, 0.6f, 0.24f}, kIco, kHull, kPlating},
+	    {{0.0f, 0.62f, -0.05f}, {0.32f, 0.36f, 0.5f}, kBox, kHull, kPlating},
+	    {{0.0f, -0.05f, 0.62f}, {1.0f, 0.05f, 0.14f}, kBox, kGrey, kPlating},
+	    {{0.0f, 0.7f, 0.72f}, {0.04f, 0.28f, 0.12f}, kBox, kGrey, kPlating},
+	};
+	for (const float across : {-0.3f, 0.0f, 0.3f})
+	{
+		parts.push_back({{across, -0.05f, 0.9f}, {0.15f, 0.2f, 0.06f}, kCylinder, kDark, {}, true});
+		parts.push_back({{across, -0.05f, 0.97f}, {0.12f, 0.16f, 0.01f}, kIco, kWhite, kEngine});
+	}
+	return parts;
+}
+
+std::vector<ProxyPart> ProxyOf(Dock::PadClass padClass)
+{
+	switch (padClass)
+	{
+		case Dock::PadClass::S: return SmallProxy();
+		case Dock::PadClass::M: return MediumProxy();
+		case Dock::PadClass::L: return LargeProxy();
+		case Dock::PadClass::XL: return ExtraLargeProxy();
+	}
+	return {};
+}
+} // namespace
+
+glm::vec3 LampColour(Dock::PadState state, bool display)
+{
+	if (display)
+		return {0.3f, 0.5f, 1.0f};
+	switch (state)
+	{
+		case Dock::PadState::Free: return {0.15f, 1.0f, 0.25f};
+		case Dock::PadState::Reserved: return {1.0f, 0.6f, 0.05f};
+		case Dock::PadState::Holding: return {1.0f, 0.08f, 0.04f};
+	}
+	return glm::vec3{1.0f};
+}
+
+StationDressing DressStation(
+    entt::registry &scene, entt::entity station, const Dock::StationLayout &layout,
+    const Dock::Docks &docks)
+{
+	StationDressing dressing;
+	dressing.station = station;
+	if (const auto *celestial = scene.try_get<Scene::CelestialBodyComponent>(station))
+		dressing.body = celestial->body;
+
+	for (const std::vector<Dock::Box> *boxes : {&layout.decks, &layout.piers})
+		for (const Dock::Box &box : *boxes)
+		{
+			// A block as tall as a quarter of its width is a hull with windows; a flatter one is deck.
+			const bool block = box.size.y >= 0.25 * std::min(box.size.x, box.size.z);
+			Part(
+			    scene, station, box.centre, {}, glm::vec3{box.size * 0.5},
+			    {Scene::Shape::Box, kDeckColour, block ? kPlating : kDeckPlating, {}});
+		}
+
+	for (std::size_t index = 0; index < layout.pads.size(); ++index)
+	{
+		const Dock::PadLayout &pad = layout.pads[index];
+		const auto number = static_cast<unsigned>(index + 1);
+		const entt::entity node =
+		    Node(scene, station, pad.position, SceneRotation(Dock::PadOrientation(pad)));
+		const glm::vec2 size = Dock::PadSize(pad.padClass);
+		Part(
+		    scene, node, glm::dvec3{0.0}, {}, {size.x * 0.5f, kPadThickness * 0.5f, size.y * 0.5f},
+		    {Scene::Shape::Box, kPadColour, {}, {}});
+		Paint(scene, node, pad, number);
+		dressing.lamps.push_back(Floodlights(scene, node, pad, pad.display, dressing.floodlights));
+
+		if (pad.ship.empty())
+			continue;
+		const Dock::HullDefinition *hull = docks.FindHull(pad.ship);
+		if (!hull || hull->pad > pad.padClass)
+		{
+			Core::Log(
+			    Core::Severity::Warning, kDressing,
+			    "Pad {} of '{}' shows '{}', which {}; it is left bare", number, layout.displayName,
+			    pad.ship, hull ? "is too large for it" : "is not a hull");
+			continue;
+		}
+		const entt::entity ship = MakeHullProxy(scene, *hull);
+		scene.emplace<Scene::BuiltComponent>(ship);
+		scene.emplace<Scene::ParentComponent>(ship, node);
+		scene.get<Scene::TransformComponent>(ship).translation =
+		    glm::dvec3{0.0, hull->height * 0.5 + kPadThickness * 0.5, 0.0};
+	}
+
+	for (const Dock::Bay &bay : layout.bays)
+		Door(scene, station, bay);
+	return dressing;
+}
+
+std::size_t ShowPadStates(
+    entt::registry &scene, const StationDressing &dressing,
+    std::span<const Sim::ComponentSample<Dock::Pad>> pads, entt::entity simStation)
+{
+	std::size_t found = 0;
+	for (const Sim::ComponentSample<Dock::Pad> &sample : pads)
+	{
+		const Dock::Pad &pad = sample.value;
+		if (pad.station != simStation || pad.number == 0 || pad.number > dressing.lamps.size())
+			continue;
+		++found;
+		const glm::vec3 colour = LampColour(pad.state, pad.display);
+		for (const entt::entity lamp : dressing.lamps[pad.number - 1])
+			if (auto *mesh = scene.valid(lamp) ? scene.try_get<Scene::MeshComponent>(lamp) : nullptr;
+			    mesh && mesh->color != colour)
+				mesh->color = colour;
+	}
+	return found;
+}
+
+entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hull)
+{
+	const entt::entity root = scene.create();
+	scene.emplace<Scene::TransformComponent>(root);
+	if (!hull.model.empty())
+	{
+		// Under the root, which the traffic layer places, at the model's own size and axes.
+		const entt::entity model = Node(scene, root, glm::dvec3{0.0}, {});
+		Scene::MeshComponent mesh;
+		mesh.model = hull.model;
+		scene.emplace<Scene::MeshComponent>(model, std::move(mesh));
+		return root;
+	}
+	constexpr float kQuarter = 1.5707963f;
+	const glm::vec3 half = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
+	for (const ProxyPart &part : ProxyOf(hull.pad))
+	{
+		const glm::vec3 extent = part.half * half;
+		// A cylinder turned a quarter about X has its own Y along the hull's Z, and its Z along Y.
+		const glm::vec3 scale = part.turned ? glm::vec3{extent.x, extent.z, extent.y} : extent;
+		Part(
+		    scene, root, glm::dvec3{part.at * half},
+		    part.turned ? glm::vec3{kQuarter, 0.0f, 0.0f} : glm::vec3{0.0f}, scale,
+		    {part.shape, part.colour, part.material, {}});
+	}
+	return root;
+}
+} // namespace Jettison::App

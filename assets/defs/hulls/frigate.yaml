@@ -1,0 +1,9 @@
+# A frigate, shown beside the liner on Highport's display wing, as dressing like it. A hull of the
+# docks (Dock.HullDefinition): metres, its nose along -Z.
+version: 1
+displayName: Frigate
+length: 220
+beam: 60
+height: 40
+pad: XL
+hatch: [0, -20, 30]

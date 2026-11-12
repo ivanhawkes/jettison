@@ -18,6 +18,15 @@ double MaxScale(const glm::dmat4 &transform)
 	     glm::length(glm::dvec3{transform[2]})});
 }
 
+double MiddleScale(const glm::dmat4 &transform)
+{
+	std::array<double, 3> scales{
+	    glm::length(glm::dvec3{transform[0]}), glm::length(glm::dvec3{transform[1]}),
+	    glm::length(glm::dvec3{transform[2]})};
+	std::ranges::sort(scales);
+	return scales[1];
+}
+
 double MinScale(const glm::dmat4 &transform)
 {
 	return std::min(
@@ -111,6 +120,12 @@ double ProjectedError(double error, const BoundingSphere &sphere, const LodSelec
 {
 	const double distance = std::max(glm::length(sphere.center) - sphere.radius, selection.nearPlane);
 	return error * selection.pixelsPerRadian / distance;
+}
+
+bool TooSmallToSee(
+    double breadth, const BoundingSphere &sphere, const LodSelection &selection, double pixels)
+{
+	return ProjectedError(2.0 * breadth, sphere, selection) < pixels;
 }
 
 std::uint32_t SelectLod(
