@@ -39,6 +39,10 @@ jettison_compile_shaders(jettison_assets
 	shaders/mesh.frag
 	shaders/atmosphere.frag
 	shaders/brdf_lut.frag
+	shaders/glass.frag
+	shaders/particle.vert
+	shaders/particle.frag
+	shaders/particles.comp
 	shaders/cluster_bounds.comp
 	shaders/cluster_lights.comp
 	shaders/output.frag
@@ -56,6 +60,9 @@ jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.vert OUTPUT shaders/unlit.vert DEFINES UNLIT)
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.vert OUTPUT shaders/planet.vert DEFINES PLANET)
+# Glass reads what the default program does: mesh.vert as it is, under the glass program's name.
+jettison_compile_shader_variant(jettison_assets
+	SOURCE shaders/mesh.vert OUTPUT shaders/glass.vert)
 # The sun's shadow pass: the mesh vertex stage alone, into a cascade.
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/mesh.vert OUTPUT shaders/shadow_depth.vert DEFINES SHADOW_DEPTH)

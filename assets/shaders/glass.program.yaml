@@ -1,0 +1,20 @@
+# glass.frag, with mesh.vert as its vertex stage: Render::ProgramDefinition (render/Material.h). A
+# thin pane of glass, transparent: drawn after the opaque surfaces and the sky, sorted back to front,
+# reflecting the lights and the environment and letting the rest through, tinted. The mesh's colour
+# is not used: it is what the mesh shows while the material loads.
+version: 1
+blend: Transparent
+parameters:
+  # rgb: the share of the light behind it that it lets through at normal incidence, by colour, before
+  # what its surface reflects; a: unused.
+  - name: tint
+    default: [0.92, 0.94, 0.95, 1]
+  # x: perceptual roughness.
+  - name: surface
+    default: [0.04, 0, 0, 0]
+  # rgb: colour, a: intensity in the HDR target's linear units.
+  - name: emissive
+    default: [0, 0, 0, 0]
+textures:
+  - name: tint
+    fallback: White

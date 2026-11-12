@@ -132,4 +132,47 @@ struct GpuInstance
 	glm::uvec4 skin{0u};
 };
 static_assert(sizeof(GpuInstance) == 80);
+
+// A slot of the particle pool, std430: particles.glsl's Particle. Device-local, shared by the frames
+// in flight, and stepped in place once a frame (docs/architecture.md, "Particles").
+struct GpuParticle
+{
+	// xyz: where it is in its emitter's frame, w: its age in seconds.
+	glm::vec4 positionAge{0.0f};
+	// xyz: its velocity in the frame, w: its lifetime, 0 for a slot holding none.
+	glm::vec4 velocityLifetime{0.0f};
+};
+static_assert(sizeof(GpuParticle) == 32);
+
+// One emitter this frame, std430: particles.glsl's Emitter. Render::ParticlePool (render/Particles.h)
+// fills it.
+struct GpuEmitter
+{
+	// The particles' frame to render space: a turn and a move, without the frame's scale.
+	glm::mat4 frameToRender{1.0f};
+	// xyz: the emitter now, in the frame; w: the radius particles are born within.
+	glm::vec4 origin{0.0f};
+	// xyz: the emitter at the last frame; w: the seconds since it.
+	glm::vec4 previous{0.0f};
+	// xyz: the way particles are sent, in the frame; w: the cosine of the cone's half-angle.
+	glm::vec4 axis{0.0f, 0.0f, -1.0f, 1.0f};
+	// x: speed, y: its jitter, z: drag a second, w: lifetime.
+	glm::vec4 motion{0.0f};
+	// xyz: the emitter's velocity in the frame, w: the lifetime's jitter.
+	glm::vec4 inherited{0.0f};
+	// x, y: the diameter at birth and death, z: the stretch in seconds, w: the opacity.
+	glm::vec4 shape{0.0f};
+	glm::vec4 colorStart{0.0f};
+	glm::vec4 colorEnd{0.0f};
+	// rgb: the albedo, a: 1 when it is lit.
+	glm::vec4 albedo{0.0f};
+	// x: the first slot in the pool, y: the slots, z: the slot of the first birth this frame, as an
+	// index into its own, w: the births this frame.
+	glm::uvec4 slots{0u};
+	// x: the first birth's serial number, y: the seed, z: 1 when the slots are to be emptied first.
+	glm::uvec4 spawn{0u};
+};
+static_assert(sizeof(GpuEmitter) == 240);
+static_assert(offsetof(GpuEmitter, origin) == 64);
+static_assert(offsetof(GpuEmitter, slots) == 208);
 } // namespace Jettison::Render

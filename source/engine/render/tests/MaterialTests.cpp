@@ -80,6 +80,13 @@ TEST_CASE("Material: a material and a program round-trip through the YAML archiv
 	REQUIRE(programAgain.textures.size() == 2);
 	CHECK(programAgain.textures[1].fallback == TextureFallback::FlatNormal);
 	CHECK(programAgain.parameters[1].name == "emissive");
+	// Left out, a program is opaque; a transparent one says so, and keeps saying so.
+	CHECK(program.blend == ProgramBlend::Opaque);
+	const ProgramDefinition glass =
+	    ReadProgram(std::string{kProgram} + "blend: Transparent\n", "glass.program.yaml");
+	CHECK(glass.blend == ProgramBlend::Transparent);
+	CHECK(ReadProgram(WriteProgram(glass), "again").blend == ProgramBlend::Transparent);
+	CHECK_THROWS_AS(ReadProgram(std::string{kProgram} + "blend: Murky\n", "murky"), FormatError);
 }
 
 TEST_CASE("Material: reading refuses what the format alone would let through")

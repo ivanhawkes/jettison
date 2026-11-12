@@ -228,4 +228,55 @@ vec3 ShadeSurface(Surface surface, vec3 normal, vec3 renderPosition)
 	return ShadeSurfaceSunlit(surface, normal, renderPosition, vec3(1.0));
 }
 
+// The share of the light arriving from the environment that a surface reflects towards the camera,
+// by the split sum: what a transparent surface does not let through. The normal is the one
+// ShadeSurface shades, bent back to the silhouette the same way.
+vec3 SpecularReflectance(Surface surface, vec3 normal, vec3 renderPosition)
+{
+	vec3 toViewer = normalize(-renderPosition);
+	normal = normalize(normal - toViewer * min(dot(normal, toViewer) - 0.001, 0.0));
+	float nDotV = clamp(dot(normal, toViewer), 0.0001, 1.0);
+	vec2 scaleBias = texture(brdfLut, vec2(nDotV, surface.roughness)).rg;
+	return SpecularColor(surface) * scaleBias.x + scaleBias.y;
+}
+
+// The light a lit particle sends towards the camera, per unit of its albedo: a small Lambertian
+// sphere (LambertSpherePhase) under the sun, shadowed through its cascades, under the lights of the
+// cluster it is in, and under the sky, whose irradiance on the half of it the camera sees is taken
+// as the irradiance along the way to the camera.
+vec3 ShadeVolume(vec3 renderPosition)
+{
+	vec3 toViewer = normalize(-renderPosition);
+	float depth = ViewDepth(renderPosition);
+	vec3 radiance = vec3(0.0);
+	if (frame.sunDirection.w != 0.0)
+	{
+		// Looked up with the sun's own direction as the normal, so the receiver is not moved: a
+		// particle has no surface to keep off.
+		vec3 toSun = frame.sunDirection.xyz;
+		radiance += frame.sunColorIntensity.rgb *
+		            (frame.sunColorIntensity.a * SunShadow(renderPosition, toSun, depth) *
+		             LambertSpherePhase(dot(toSun, toViewer)) / kPi);
+	}
+	uint cluster = FragmentCluster(depth);
+	if (cluster < kClusterCount)
+	{
+		uvec2 entry = clusterLights[cluster];
+		for (uint index = 0u; index < entry.y; ++index)
+		{
+			Light light = lights[lightIndices[entry.x + index]];
+			vec3 toLight = light.positionRange.xyz - renderPosition;
+			float distanceSquared = dot(toLight, toLight);
+			vec3 lightDirection = toLight * inversesqrt(max(distanceSquared, 1e-12));
+			float attenuation = RangeAttenuation(distanceSquared, light.positionRange.w) *
+			                    SpotAttenuation(light.directionType.xyz, -lightDirection, light.cone.x,
+			                                    light.cone.y);
+			radiance += light.colorIntensity.rgb *
+			            (light.colorIntensity.a * attenuation *
+			             LambertSpherePhase(dot(lightDirection, toViewer)) / kPi);
+		}
+	}
+	return radiance + texture(environmentIrradiance, toViewer).rgb;
+}
+
 #endif

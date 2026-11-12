@@ -55,6 +55,14 @@ static_assert(sizeof(OutputPushConstants) == 24);
 
 constexpr Core::Category kRender{"render"};
 
+// particles.comp's push constant: which of the frame's emitters a dispatch steps.
+struct ParticlePushConstants
+{
+	uint32_t emitter{0};
+};
+// And its workgroup, as particles.glsl declares it.
+constexpr uint32_t kParticleGroupSize = 64;
+
 // The order of a swapchain format's bytes, for one a screenshot can be written from: the 8-bit four
 // channel formats, sRGB-encoded or not (the output pass encodes for a UNORM one).
 std::optional<PixelOrder> ScreenshotOrder(VkFormat format)
@@ -172,6 +180,10 @@ void Renderer::Init()
 	m_pProfiler->Init();
 	CreateTargets();
 	CreateClusterBuffers();
+	// Never cleared: an emitter empties its own share of it before its first births.
+	m_particles = m_pDeviceContext->CreateBuffer(
+	    VkDeviceSize{kParticleSlots} * sizeof(GpuParticle), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+	    MemoryUse::Device, "particles");
 	CreateShadowMap();
 	// Before the frames: their sets name its cubes and lookup table.
 	m_pEnvironment = std::make_unique<Environment>(m_pDeviceContext, *m_pPipelines);
@@ -204,6 +216,7 @@ void Renderer::Destroy()
 		m_pDeviceContext->DestroyBuffer(frame.materials);
 		m_pDeviceContext->DestroyBuffer(frame.instances);
 		m_pDeviceContext->DestroyBuffer(frame.bodies);
+		m_pDeviceContext->DestroyBuffer(frame.emitters);
 		m_pDeviceContext->DestroyBuffer(frame.gridReadback);
 		m_pDeviceContext->DestroyBuffer(frame.indexReadback);
 		// The device is idle, so the last frames' screenshots are drawn: a run that asks for one and
@@ -214,6 +227,9 @@ void Renderer::Destroy()
 		frame = {};
 	}
 	DestroyClusterBuffers();
+	m_pDeviceContext->DestroyBuffer(m_particles);
+	m_particlePool.Clear();
+	m_lastPresentationTime.reset();
 	DestroyShadowMap();
 	DestroyTargets();
 	if (m_pProfiler)
@@ -241,9 +257,12 @@ void Renderer::Destroy()
 	m_clusterLightsPipeline = VK_NULL_HANDLE;
 	m_shadowPipeline = VK_NULL_HANDLE;
 	m_prepassPipeline = VK_NULL_HANDLE;
+	m_particleStepPipeline = VK_NULL_HANDLE;
+	m_particlePipeline = VK_NULL_HANDLE;
 
 	vkDestroySampler(device, m_outputSampler, nullptr);
 	vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
+	vkDestroyPipelineLayout(device, m_particleLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_clusterLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_lineLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_outputLayout, nullptr);
@@ -257,6 +276,7 @@ void Renderer::Destroy()
 	m_outputLayout = VK_NULL_HANDLE;
 	m_lineLayout = VK_NULL_HANDLE;
 	m_clusterLayout = VK_NULL_HANDLE;
+	m_particleLayout = VK_NULL_HANDLE;
 	m_meshLayout = VK_NULL_HANDLE;
 	m_outputSetLayout = VK_NULL_HANDLE;
 	m_materialSetLayout = VK_NULL_HANDLE;
@@ -283,11 +303,14 @@ void Renderer::CreateLayouts()
 	};
 
 	// assets/shaders/include/frame.glsl, the environment's bindings in lighting.glsl, the cluster
-	// grid's, which the cluster programs write and lighting.glsl reads, the sun's shadow map, and the
-	// instances mesh_vertex.glsl reads.
+	// grid's, which the cluster programs write and lighting.glsl reads, the sun's shadow map, the
+	// instances mesh_vertex.glsl reads, and the particle pool and the frame's emitters, which
+	// particles.comp steps and the particle program draws.
 	constexpr VkShaderStageFlags kFragmentCompute =
 	    VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-	const std::array<VkDescriptorSetLayoutBinding, 13> frameBindings{{
+	constexpr VkShaderStageFlags kVertexCompute =
+	    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+	const std::array<VkDescriptorSetLayoutBinding, 15> frameBindings{{
 	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
 	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
 	     nullptr},
@@ -303,6 +326,9 @@ void Renderer::CreateLayouts()
 	    {10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	    {11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr},
 	    {12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kVertexCompute, nullptr},
+	    {14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kVertexCompute | VK_SHADER_STAGE_FRAGMENT_BIT,
+	     nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
@@ -346,6 +372,18 @@ void Renderer::CreateLayouts()
 		throw std::runtime_error("failed to create the cluster pipeline layout");
 	m_pDeviceContext->SetDebugName(m_clusterLayout, "cluster-pipeline-layout");
 
+	const VkPushConstantRange particleRange{
+	    VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ParticlePushConstants)};
+	VkPipelineLayoutCreateInfo particleInfo{};
+	particleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	particleInfo.setLayoutCount = 1;
+	particleInfo.pSetLayouts = &m_frameSetLayout;
+	particleInfo.pushConstantRangeCount = 1;
+	particleInfo.pPushConstantRanges = &particleRange;
+	if (vkCreatePipelineLayout(device, &particleInfo, nullptr, &m_particleLayout) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the particle pipeline layout");
+	m_pDeviceContext->SetDebugName(m_particleLayout, "particle-pipeline-layout");
+
 	const VkPushConstantRange outputRange{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(OutputPushConstants)};
 	VkPipelineLayoutCreateInfo outputInfo{};
 	outputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -360,7 +398,7 @@ void Renderer::CreateLayouts()
 	// One frame set per frame in flight, and the output set.
 	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
 	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 8 * kFramesInFlight},
+	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 * kFramesInFlight},
 	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * kFramesInFlight + 1},
 	}};
 	VkDescriptorPoolCreateInfo poolInfo{};
@@ -406,6 +444,7 @@ void Renderer::CreatePassList()
 	m_clusterBoundsResource = m_passes.AddBuffer("cluster-bounds");
 	m_clusterGridResource = m_passes.AddBuffer("cluster-grid");
 	m_lightIndicesResource = m_passes.AddBuffer("light-indices");
+	m_particlesResource = m_passes.AddBuffer("particles");
 	// Every cascade, one rendering each into its own layer, cleared and then drawn into. A scene
 	// without a sun only clears them, so the plan and its barriers are the same either way.
 	m_shadowPass = m_passes.AddPass(
@@ -428,6 +467,10 @@ void Renderer::CreatePassList()
 	    {{m_clusterBoundsResource, Usage::StorageReadCompute},
 	     {m_clusterGridResource, Usage::StorageWriteCompute},
 	     {m_lightIndicesResource, Usage::StorageWriteCompute}});
+	// Every emitter's slots stepped and its births made, in place: the buffer keeps its contents from
+	// frame to frame, and this frame's reads wait on the last frame's draws.
+	m_particlePass = m_passes.AddPass(
+	    "particles", PassKind::Compute, {{m_particlesResource, Usage::StorageWriteCompute}});
 	// The resolve is the opaque pass's: dynamic rendering resolves the multisampled target into
 	// the single-sampled one as the pass ends, as a colour attachment write.
 	m_opaquePass = m_passes.AddPass(
@@ -437,7 +480,8 @@ void Renderer::CreatePassList()
 	     {m_hdrResource, Usage::ColorAttachment},
 	     {m_shadowMapResource, Usage::SampledFragment},
 	     {m_clusterGridResource, Usage::StorageReadFragment},
-	     {m_lightIndicesResource, Usage::StorageReadFragment}});
+	     {m_lightIndicesResource, Usage::StorageReadFragment},
+	     {m_particlesResource, Usage::StorageReadVertex}});
 	m_outputPass = m_passes.AddPass(
 	    "output", PassKind::Graphics,
 	    {{m_hdrResource, Usage::SampledFragment}, {m_swapchainResource, Usage::ColorAttachment}});
@@ -637,6 +681,9 @@ void Renderer::CreateFrames()
 		    MemoryUse::Upload, "instances-" + slot);
 		frame.bodies = m_pDeviceContext->CreateBuffer(
 		    sizeof(GpuBody), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload, "bodies-" + slot);
+		frame.emitters = m_pDeviceContext->CreateBuffer(
+		    sizeof(GpuEmitter), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload,
+		    "emitters-" + slot);
 
 		VkDescriptorSetAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -659,6 +706,8 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	const VkDescriptorBufferInfo materials{frame.materials.handle, 0, frame.materials.size};
 	const VkDescriptorBufferInfo instances{frame.instances.handle, 0, frame.instances.size};
 	const VkDescriptorBufferInfo bodies{frame.bodies.handle, 0, frame.bodies.size};
+	const VkDescriptorBufferInfo particles{m_particles.handle, 0, m_particles.size};
+	const VkDescriptorBufferInfo emitters{frame.emitters.handle, 0, frame.emitters.size};
 	const std::array<VkDescriptorBufferInfo, 3> clusters{{
 	    {m_clusterBounds.handle, 0, m_clusterBounds.size},
 	    {m_clusterGrid.handle, 0, m_clusterGrid.size},
@@ -672,7 +721,7 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	}};
 	const VkDescriptorImageInfo shadows{
 	    m_shadowSampler, m_shadowArrayView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-	std::array<VkWriteDescriptorSet, 13> writes{};
+	std::array<VkWriteDescriptorSet, 15> writes{};
 	for (auto &write : writes)
 	{
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -712,6 +761,12 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	writes[12].dstBinding = 12;
 	writes[12].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	writes[12].pBufferInfo = &bodies;
+	writes[13].dstBinding = 13;
+	writes[13].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writes[13].pBufferInfo = &particles;
+	writes[14].dstBinding = 14;
+	writes[14].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writes[14].pBufferInfo = &emitters;
 	vkUpdateDescriptorSets(
 	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
 	    nullptr);
@@ -742,9 +797,17 @@ void Renderer::CreatePipelines()
 	mesh.colorFormat = kHdrFormat;
 	mesh.depthFormat = m_depthFormat;
 	mesh.samples = m_pDeviceContext->GetMsaaSamples();
-	// Every scene program is built against the mesh layout and this state, by the material cache:
-	// the default program here, the ones materials name when a material first draws.
-	m_pMaterials->Init(m_materialSetLayout, m_meshLayout, mesh);
+	// What a transparent program draws with (ProgramBlend::Transparent), after the sky: tested
+	// against the opaque surfaces' depth and writing none, so what is behind it is still drawn and
+	// blended; both faces, so a canopy is seen from inside; and what it adds and what it lets through
+	// by colour (BlendMode::Transmissive).
+	RenderState transparent = mesh;
+	transparent.cullMode = VK_CULL_MODE_NONE;
+	transparent.depthWrite = false;
+	transparent.blend = BlendMode::Transmissive;
+	// Every scene program is built against the mesh layout and one of these states, by the material
+	// cache: the default program here, the ones materials name when a material first draws.
+	m_pMaterials->Init(m_materialSetLayout, m_meshLayout, mesh, transparent);
 	m_pModels->Init();
 
 	// The sky is drawn after the surfaces, at the far end of the reversed-Z range, where nothing
@@ -794,6 +857,12 @@ void Renderer::CreatePipelines()
 	prepass.depthFormat = m_depthFormat;
 	prepass.samples = m_pDeviceContext->GetMsaaSamples();
 	m_prepassPipeline = m_pPipelines->Get({"depth_prepass", prepass, m_meshLayout});
+
+	// The particles: their quads generated from the vertex index, on the transparent draws' terms.
+	RenderState particle = transparent;
+	particle.vertices = VertexLayout::None;
+	m_particlePipeline = m_pPipelines->Get({"particle", particle, m_meshLayout});
+	m_particleStepPipeline = m_pPipelines->GetCompute("particles", m_particleLayout);
 
 	m_clusterBoundsPipeline = m_pPipelines->GetCompute("cluster_bounds", m_clusterLayout);
 	m_clusterLightsPipeline = m_pPipelines->GetCompute("cluster_lights", m_clusterLayout);
@@ -932,7 +1001,7 @@ void Renderer::EnsureCapacity(
 
 void Renderer::WriteFrame(
     FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
-    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets)
+    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets, double seconds)
 {
 	FrameUBO constants{};
 	constants.view = RenderViewMatrix(camera);
@@ -1013,7 +1082,51 @@ void Renderer::WriteFrame(
 	    "joint-palette");
 	m_pDeviceContext->WriteBuffer(frame.joints, palette.data(), palette.size() * sizeof(glm::mat4));
 
+	WriteEmitters(frame, sceneRegistry, camera, seconds);
 	WriteInstances(frame, draws, jointOffsets);
+}
+
+
+void Renderer::WriteEmitters(
+    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera, double seconds)
+{
+	m_emitterInputs.clear();
+	const auto emitters =
+	    sceneRegistry.view<const Scene::ParticleEmitterComponent, const Scene::WorldTransformComponent>(
+	        entt::exclude<Scene::HiddenComponent>);
+	for (const auto [entity, emitter, world] : emitters.each())
+	{
+		// At rest in the frame of the entity it names, or in its own when that has gone or is not
+		// placed.
+		entt::entity frameEntity = entity;
+		if (sceneRegistry.valid(emitter.frame) &&
+		    sceneRegistry.all_of<Scene::WorldTransformComponent>(emitter.frame))
+			frameEntity = emitter.frame;
+		m_emitterInputs.push_back(
+		    {entt::to_integral(entity), &emitter, world.matrix, entt::to_integral(frameEntity),
+		     sceneRegistry.get<Scene::WorldTransformComponent>(frameEntity).matrix});
+	}
+	m_emitterDraws.clear();
+	m_particlePool.Update(m_emitterInputs, camera.position, seconds, m_emitterDraws);
+	if (m_particlePool.Refused() != 0 && !m_particlesRefused)
+	{
+		// Once a run: a scene that does not fit does not fit every frame.
+		m_particlesRefused = true;
+		Core::Log(
+		    Core::Severity::Warning, kRender,
+		    "{} particle emitters are not drawn: the pool's {} slots are taken ({} in use)",
+		    m_particlePool.Refused(), m_particlePool.Slots(), m_particlePool.UsedSlots());
+	}
+	m_frameStats.emitters = static_cast<std::uint32_t>(m_emitterDraws.size());
+	m_frameStats.particleSlots = m_particlePool.UsedSlots();
+
+	m_emitterScratch.clear();
+	for (const EmitterDraw &draw : m_emitterDraws)
+		m_emitterScratch.push_back(draw.gpu);
+	const VkDeviceSize bytes = m_emitterScratch.size() * sizeof(GpuEmitter);
+	EnsureCapacity(frame, frame.emitters, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "emitters");
+	if (bytes != 0)
+		m_pDeviceContext->WriteBuffer(frame.emitters, m_emitterScratch.data(), bytes);
 }
 
 
@@ -1068,6 +1181,8 @@ void Renderer::WriteInstances(
 	// The view: what is inside the frustum and not behind a planet. A skinned draw's pose can leave
 	// its model's bounds, so it is always drawn.
 	m_batchScratch.clear();
+	m_sortedScratch.clear();
+	m_transparentBatches.clear();
 	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
 	{
 		const SceneDrawCommand &draw = draws[drawIndex];
@@ -1092,6 +1207,19 @@ void Renderer::WriteInstances(
 			++m_frameStats.detailCulled;
 			continue;
 		}
+		// A transparent material's draw goes back to front with the others, by its centre.
+		if (const MaterialBinding *material = m_drawMaterials[drawIndex];
+		    material != nullptr && material->transparent)
+		{
+			const std::uint32_t lod = m_drawLods[drawIndex];
+			m_sortedScratch.push_back(
+			    {{draw.model, lod, material},
+			     static_cast<std::uint32_t>(drawIndex),
+			     glm::length(draw.bounds.center),
+			     false,
+			     !skinned && draw.model->m_lods[lod].primitiveCount == 1});
+			continue;
+		}
 		m_batchScratch.push_back(
 		    {{draw.model, m_drawLods[drawIndex], m_drawMaterials[drawIndex]},
 		     static_cast<std::uint32_t>(drawIndex),
@@ -1114,6 +1242,10 @@ void Renderer::WriteInstances(
 				if (draw.model == nullptr || draw.model->m_lods.empty())
 					continue;
 				const bool skinned = draw.Skinned();
+				// What lets light through casts no shadow.
+				if (const MaterialBinding *material = m_drawMaterials[drawIndex];
+				    material != nullptr && material->transparent)
+					continue;
 				if (!skinned && !CastsInto(m_frameCascades.cascades[cascade], draw.bounds))
 					continue;
 				m_batchScratch.push_back(
@@ -1128,6 +1260,20 @@ void Renderer::WriteInstances(
 			    static_cast<std::uint32_t>(m_shadowBatches[cascade].size());
 			m_frameStats.shadowTriangles += triangles(m_shadowBatches[cascade]);
 		}
+
+	// The emitters in view, among the transparent draws, by their reach's centre: the emitter's place.
+	for (std::size_t emitter = 0; emitter < m_emitterDraws.size(); ++emitter)
+	{
+		const BoundingSphere &reach = m_emitterDraws[emitter].bounds;
+		if (!Intersects(m_frameFrustum, reach) || std::ranges::any_of(
+		                                              m_occluders, [&](const HorizonOccluder &occluder)
+		                                              { return Occludes(occluder, reach); }))
+			continue;
+		m_sortedScratch.push_back(
+		    {{}, static_cast<std::uint32_t>(emitter), glm::length(reach.center), true, false});
+	}
+	BuildBackToFront(m_sortedScratch, m_transparentBatches, m_instanceDraws);
+	m_frameStats.transparentBatches = static_cast<std::uint32_t>(m_transparentBatches.size());
 
 	m_instanceScratch.resize(std::max<std::size_t>(m_instanceDraws.size(), 1));
 	for (std::size_t instance = 0; instance < m_instanceDraws.size(); ++instance)
@@ -1323,6 +1469,12 @@ bool Renderer::Render(
 	// the new contents' own, into queues that wait out the frames in flight.
 	const bool sceneReplaced = m_sceneGeneration && *m_sceneGeneration != scene.Generation();
 	m_sceneGeneration = scene.Generation();
+	// A replaced scene's emitters are other emitters, whatever their entities are numbered.
+	if (sceneReplaced)
+		m_particlePool.Clear();
+	const double seconds =
+	    m_lastPresentationTime ? std::max(presentationTime - *m_lastPresentationTime, 0.0) : 0.0;
+	m_lastPresentationTime = presentationTime;
 
 	const CameraView camera = ActiveCameraView(scene.Registry());
 	const auto draws = CollectDraws(scene.Registry(), camera.position, *m_pModels);
@@ -1335,7 +1487,7 @@ bool Renderer::Render(
 		m_pModels->ReleaseUnresolved();
 		m_pMaterials->ReleaseUnresolved();
 	}
-	WriteFrame(frame, scene.Registry(), camera, draws, jointOffsets);
+	WriteFrame(frame, scene.Registry(), camera, draws, jointOffsets, seconds);
 	m_testedLineVertices = WriteLines(frame, debugDraw, camera.position);
 	if (m_checkClusters && frame.gridReadback.handle == VK_NULL_HANDLE)
 	{
@@ -1446,6 +1598,7 @@ void Renderer::Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer
 	bound[m_clusterBoundsResource.index] = {VK_NULL_HANDLE, 0, m_clusterBounds.handle};
 	bound[m_clusterGridResource.index] = {VK_NULL_HANDLE, 0, m_clusterGrid.handle};
 	bound[m_lightIndicesResource.index] = {VK_NULL_HANDLE, 0, m_lightIndices.handle};
+	bound[m_particlesResource.index] = {VK_NULL_HANDLE, 0, m_particles.handle};
 
 	for (const PlannedPass &planned : m_plan.passes)
 	{
@@ -1468,6 +1621,8 @@ void Renderer::Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer
 			RecordClusterBounds(frame, commandBuffer);
 		else if (planned.pass == m_clusterLightsPass)
 			RecordClusterLights(frame, commandBuffer);
+		else if (planned.pass == m_particlePass)
+			RecordParticles(frame, commandBuffer);
 		else if (planned.pass == m_opaquePass)
 			RecordOpaque(frame, commandBuffer);
 		else if (planned.pass == m_outputPass)
@@ -1614,6 +1769,28 @@ void Renderer::RecordClusterLights(const FrameData &frame, VkCommandBuffer comma
 }
 
 
+void Renderer::RecordParticles(const FrameData &frame, VkCommandBuffer commandBuffer) const
+{
+	if (m_emitterDraws.empty())
+		return;
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleStepPipeline);
+	vkCmdBindDescriptorSets(
+	    commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleLayout, 0, 1, &frame.frameSet, 0,
+	    nullptr);
+	// Every emitter, in view or not: what it made goes on moving while the camera looks away. Each
+	// dispatch touches its own share of the pool alone, so none waits on another.
+	for (std::size_t emitter = 0; emitter < m_emitterDraws.size(); ++emitter)
+	{
+		const ParticlePushConstants pushConstants{static_cast<uint32_t>(emitter)};
+		vkCmdPushConstants(
+		    commandBuffer, m_particleLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstants),
+		    &pushConstants);
+		const std::uint32_t slots = m_emitterDraws[emitter].gpu.slots.y;
+		vkCmdDispatch(commandBuffer, (slots + kParticleGroupSize - 1) / kParticleGroupSize, 1, 1);
+	}
+}
+
+
 void Renderer::RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const
 {
 	if (!m_checkClusters)
@@ -1750,42 +1927,7 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 	const Model *boundModel = nullptr;
 	// Front to back, batch by batch (render/DrawBatches.h).
 	for (const DrawBatch &batch : m_viewBatches)
-	{
-		const Model &model = *batch.key.model;
-		if (&model != boundModel)
-		{
-			const VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &model.m_vertexBuffer.handle, &offset);
-			vkCmdBindIndexBuffer(commandBuffer, model.m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-			boundModel = &model;
-		}
-		const auto *pNamed = static_cast<const MaterialBinding *>(batch.key.material);
-		// A model's own material is the default program at its defaults, the frame's first block.
-		const DrawPushConstants pushConstants{pNamed != nullptr ? pNamed->parameterOffset : 0u, 0u};
-		vkCmdPushConstants(
-		    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
-		const ModelLod &lod = model.m_lods[batch.key.lod];
-		for (std::uint32_t index = 0; index < lod.primitiveCount; ++index)
-		{
-			const std::uint32_t primitiveIndex = lod.firstPrimitive + index;
-			const MaterialBinding material =
-			    pNamed != nullptr
-			        ? *pNamed
-			        : m_pMaterials->Ensure(model, model.MaterialPrimitive(primitiveIndex));
-			if (material.pipeline != boundPipeline)
-			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline);
-				boundPipeline = material.pipeline;
-			}
-			vkCmdBindDescriptorSets(
-			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 1, 1, &material.set, 0,
-			    nullptr);
-			const ModelPrimitive &primitive = model.m_primitives[primitiveIndex];
-			vkCmdDrawIndexed(
-			    commandBuffer, primitive.indexCount, batch.instanceCount, primitive.firstIndex, 0,
-			    batch.firstInstance);
-		}
-	}
+		RecordMeshBatch(commandBuffer, batch, boundPipeline, boundModel);
 
 	m_pDeviceContext->BeginDebugLabel(commandBuffer, "sky");
 	// The sky program shares the mesh layout, so the frame set is still bound.
@@ -1797,6 +1939,14 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 		m_pDeviceContext->BeginDebugLabel(commandBuffer, "atmosphere");
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_atmospherePipeline);
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+		m_pDeviceContext->EndDebugLabel(commandBuffer);
+	}
+	// In this rendering, as the sky is, so the multisampled target stays where it is rather than
+	// being stored and loaded again for a node of their own.
+	if (!m_transparentBatches.empty())
+	{
+		m_pDeviceContext->BeginDebugLabel(commandBuffer, "transparent");
+		RecordTransparent(commandBuffer);
 		m_pDeviceContext->EndDebugLabel(commandBuffer);
 	}
 
@@ -1819,6 +1969,73 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 		}
 	}
 	vkCmdEndRendering(commandBuffer);
+}
+
+
+void Renderer::RecordMeshBatch(
+    VkCommandBuffer commandBuffer, const DrawBatch &batch, VkPipeline &boundPipeline,
+    const Model *&boundModel)
+{
+	const Model &model = *batch.key.model;
+	if (&model != boundModel)
+	{
+		const VkDeviceSize offset = 0;
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &model.m_vertexBuffer.handle, &offset);
+		vkCmdBindIndexBuffer(commandBuffer, model.m_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+		boundModel = &model;
+	}
+	const auto *pNamed = static_cast<const MaterialBinding *>(batch.key.material);
+	// A model's own material is the default program at its defaults, the frame's first block.
+	const DrawPushConstants pushConstants{pNamed != nullptr ? pNamed->parameterOffset : 0u, 0u};
+	vkCmdPushConstants(
+	    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
+	const ModelLod &lod = model.m_lods[batch.key.lod];
+	for (std::uint32_t index = 0; index < lod.primitiveCount; ++index)
+	{
+		const std::uint32_t primitiveIndex = lod.firstPrimitive + index;
+		const MaterialBinding material =
+		    pNamed != nullptr ? *pNamed
+		                      : m_pMaterials->Ensure(model, model.MaterialPrimitive(primitiveIndex));
+		if (material.pipeline != boundPipeline)
+		{
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline);
+			boundPipeline = material.pipeline;
+		}
+		vkCmdBindDescriptorSets(
+		    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 1, 1, &material.set, 0,
+		    nullptr);
+		const ModelPrimitive &primitive = model.m_primitives[primitiveIndex];
+		vkCmdDrawIndexed(
+		    commandBuffer, primitive.indexCount, batch.instanceCount, primitive.firstIndex, 0,
+		    batch.firstInstance);
+	}
+}
+
+
+void Renderer::RecordTransparent(VkCommandBuffer commandBuffer)
+{
+	VkPipeline boundPipeline = VK_NULL_HANDLE;
+	const Model *boundModel = nullptr;
+	for (const SortedBatch &sorted : m_transparentBatches)
+	{
+		if (!sorted.particles)
+		{
+			RecordMeshBatch(commandBuffer, sorted.batch, boundPipeline, boundModel);
+			continue;
+		}
+		if (boundPipeline != m_particlePipeline)
+		{
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particlePipeline);
+			boundPipeline = m_particlePipeline;
+		}
+		// The emitter's index where a mesh draw has its material's offset; its slots are instances,
+		// from its first.
+		const DrawPushConstants pushConstants{sorted.emitter, 0u};
+		vkCmdPushConstants(
+		    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
+		const glm::uvec4 &slots = m_emitterDraws[sorted.emitter].gpu.slots;
+		vkCmdDraw(commandBuffer, 6, slots.y, 0, slots.x);
+	}
 }
 
 

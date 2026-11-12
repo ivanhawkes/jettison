@@ -190,6 +190,16 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 		blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 	}
+	else if (state.blend == BlendMode::Transmissive)
+	{
+		blendAttachment.blendEnable = VK_TRUE;
+		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_SRC1_COLOR;
+		blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+		blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC1_ALPHA;
+		blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	}
 	VkPipelineColorBlendStateCreateInfo blending{};
 	blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	blending.attachmentCount = depthOnly ? 0 : 1;

@@ -718,21 +718,26 @@ nodes in it:
    a transfer pass zeroes it at the start of the frame, and each cluster reserves its share with
    one atomic add. The list holds 32 entries per cluster on average, a budget for the frame
    rather than a cap on any one cluster.
-6. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
+6. **Particles** (compute, `particles`, 10b). Every emitter with anything alive steps its share of
+   the particle pool in place, and makes this frame's births ([particles](#particles)), in view or
+   not. The pool keeps its contents from frame to frame, as the cluster bounds do.
+7. **Opaque** (graphics, into the MSAA HDR target). A fragment finds its cluster from its screen
    position and view distance, loops over that cluster's lights, then adds the sun, shadowed through
    its cascade, and image-based lighting.
-7. **Sky.** Drawn last in the opaque pass's rendering rather than as a node of its own (5b): one
+8. **Sky.** Drawn after the surfaces in the opaque pass's rendering rather than as a node of its own (5b): one
    full-screen triangle at depth 0, the far end of the reversed-Z range, tested against the depth
    buffer so it shades only what no surface covered. A node of its own would have to store the
    multisampled target and load it again, which the opaque pass keeps on chip. After it, in the
    same rendering and on the same terms, the bodies' air and rings over the sky (10a,
    [atmospheres](#atmospheres)), when any body in the frame has either.
-8. **Transparent**, sorted back to front, using the same cluster lookup (phase 10).
-9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the game UI's overlay and the dev tools
+9. **Transparent** (10b, [transparency](#transparency)). The transparent draws and the particles,
+   back to front, last in the opaque pass's rendering and on the sky's terms: lit through the same
+   cluster lookup, tested against the surfaces' depth and writing none, and resolved with the rest.
+10. **Resolve, bloom, tonemap** into the sRGB swapchain, then the game UI's overlay and the dev tools
    over it ([UI](#ui)). The tonemapper is Khronos PBR
    Neutral (5b), applied after exposure in the output pass: a base colour under white light of
    intensity one shows as authored, and highlights compress towards white without changing hue.
-10. **Cluster readback** (transfer, 5c). The grid and the index list copied out for the cluster
+11. **Cluster readback** (transfer, 5c). The grid and the index list copied out for the cluster
     check, which compares them with a CPU reference once the frame's fence is waited on. It is in
     every frame's plan and records its copies only when the check is on, so the plan the gate's
     synchronization validation runs is the plan every run has.
@@ -807,6 +812,85 @@ swirl, drifting east by a time-driven parameter, white and rough, with their sha
 sunwards; and on the night side, clusters of lights on the land, broken into towns and streets
 each faded to its mean from afar, with a glow about each town that stands in for bloom until the
 post chain's (10c), dimmed by the cloud over them.
+
+### Transparency
+
+A program says how its surfaces meet what is behind them (`ProgramBlend`, in its descriptor): opaque,
+as every program before 10b is, or transparent, as glass is (10b). A transparent material's draws
+leave the view's batches. They are sorted with the emitters in view, furthest first by their bounds'
+centres (`BuildBackToFront`, `render/DrawBatches.h`), and a run of neighbours of one model, level and
+material whose level is one primitive is one instanced draw, its instances still furthest first; a
+level of more is a draw an instance, since an instanced draw lays down each primitive for every
+instance before the next. They are drawn last in the opaque pass's rendering, after the sky and the
+air, rather than in a node of their own, which would store the multisampled target and load it
+again, and so they are multisampled as the surfaces are. They test the surfaces' depth and write
+none, draw both faces, cast no shadow and are not in the depth prepass.
+
+Every transparent program writes two colours, blended by dual-source blending
+(`BlendMode::Transmissive`, the device's `dualSrcBlend`, which lavapipe and the RTX cards have and
+the renderer requires): the light it adds, and what it lets through of what is behind it, by colour,
+so the target becomes what is added plus what gets through times what was there. Coloured glass tints
+what is behind it, which premultiplied alpha's one opacity could not; and where what gets through is
+near white, as through clear glass, the order of two surfaces matters only to how much of the far
+one's reflection the near one tints, so a closed shape's two faces, drawn in its triangles' order,
+come out alike either way.
+
+**Glass** (`glass.frag`) is a thin dielectric pane: shaded through `ShadeSurface` with a black base
+colour, so the BRDF's specular lobe alone, the sun's highlight, the clusters' lights and the
+environment reflected; and letting through its tint times what the split sum says it does not reflect
+(`SpecularReflectance`), so it lets through less and reflects more towards its edges. Nothing bends
+on its way through: refraction wants a copy of the frame behind the glass, which the post chain's
+targets (10c) could give it. The ships' canopies and a buggy's windscreen are glass
+(`materials/glass.material.yaml`). The air of a planet is not over a transparent draw, as it is not
+over an opaque mesh ([atmospheres](#atmospheres)).
+
+### Particles
+
+A particle emitter (`ParticleEmitterComponent`, a scene file's `particles`) sends sprites along its
+entity's -Z within a cone, from a sphere about it, at a rate and in bursts (when it is first drawn,
+and each time a game counts its pulses up), each living its lifetime, slowed by drag, and mixing its
+size and colour from its birth's to its death's. A sprite adds its colour times its intensity, hides
+its opacity's share of what is behind it, and, with an albedo, is lit as well.
+
+The particles are the GPU's (10b). A pool of 2^17 slots of 32 bytes, device-local and shared by the
+frames in flight, is stepped in place once a frame by `particles.comp`, one dispatch an emitter, one
+invocation a slot. The CPU keeps each emitter's share of it, a ring of its capacity starting at a
+multiple of the workgroup, and what it has made (`ParticlePool`, `render/Particles.h`): each frame it
+tells the GPU how many are born, from which slot, and the serial number of the first, and nothing is
+read back. A new emitter empties its share before its first births, so the pool is never cleared;
+one with nothing alive, a parked ship's plume, is neither stepped nor drawn. A frame's births are
+spread through its seconds, each from where the emitter was at its moment and moved on since, so a
+moving emitter leaves an even trail rather than a clump a frame; each particle's draws are a hash of
+its emitter's seed and its serial number, and drag is applied in closed form, so a capture with the
+clocks stepped a fixed step is the same every run (`particles.glsl`, which the render suite runs as
+C++). A pool too full for an emitter leaves it out, once logged.
+
+Particles are at rest in a frame: the emitter's own entity by default, so they keep to it as it moves
+and turns, or the entity it names, whose position and turn they are kept in without its scale, so a
+particle's metres are small numbers there wherever the frame is. An emitter moving through its
+particles' frame gives each particle its own velocity in it: a ship's plume is in the frame of the
+station it flies by, and is drawn out behind it.
+
+They are drawn as transparent draws ([transparency](#transparency)), each emitter in its place in the
+order: one instance a slot, six vertices from the vertex index, a quad facing the camera, drawn out
+behind a particle along its path over the emitter's stretch, in perspective, so a streak coming at
+the camera points out from where its path does, with its light spread along the streak, as a moving
+light is in a photograph. A sprite fades as (1 - r^2)^2 from its middle
+to its edge. A lit one is a small Lambertian sphere (`ShadeVolume` in `lighting.glsl`, by Lambert's
+phase law for a sphere, which the render suite checks against the integral over its disc), under the
+sun through its cascades, the lights of its cluster and the sky. Within an emitter the particles are
+drawn in their slots' order, not sorted: one of light alone needs no order, its additions being the
+same in any, and a smoky one is soft enough that its order shows little, which a sort on the GPU
+would fix. Nor are they soft where they meet a surface, which wants the depth the opaque pass is
+still writing.
+
+The shell gives each ship proxy of the simulation's a plume at each nozzle, as dense and bright as
+its flight controls ask for ahead (`ShowEngines`; physics shows `FlightControls` in the snapshots for
+it), and a jump its streaks: an emitter kept ahead of the camera, sending them past it as the effect
+rises and lifts, which then passes through a blue-white flash on its way to black and back. The
+streaks' emitter is placed after the camera's rig has moved it, its world transform written then:
+the camera moves tens of kilometres a second with the system's bodies, and an emitter placed by the
+last frame's pose was left hundreds of metres behind it, its streaks out of sight.
 
 ### The grid and the infinite far plane
 
@@ -896,6 +980,15 @@ hundreds of sub-pixel triangles (paint, poles, lamps) shading a block of the lit
 out what is under a pixel across took it to 22 ms, and the frame to 33 ms, 9c's, from every view
 measured. Hardware still filters at 16x, and from 1.5 km at its 1338 lines leaves out 26 meshes.
 
+The transparent pass (10b) was measured on its test bench (`scene/effects.yaml`, two glass shapes,
+three emitters of 512 slots in all) and against variants of it without the glass and without the
+particles. On the RTX 5060 Ti at 1243 × 1338 the bench's frame is 0.72 ms, its glass 0.09 ms of it
+and its particles 0.03 ms; on lavapipe at 640 × 480 it is 25 to 27 ms, its glass about 2 ms and its
+particles about 4 ms, most of them the smoke's large sprites, lit, overlapping. The particle pass
+itself takes 0.002 ms on hardware; on lavapipe it shows 0.2 to 0.4 ms with or without an emitter to
+step, its barriers' and timestamps' cost. The orbit scene, whose parked ships' plumes have nothing
+alive and are neither stepped nor drawn, is 0.29 ms on hardware and 36 ms on lavapipe.
+
 ### Rules that follow
 
 - **Every local light has a finite range.** Falloff is inverse-square, windowed to reach zero at
@@ -921,8 +1014,9 @@ measured. Hardware still filters at 16x, and from 1.5 km at its 1338 lines leave
 - **Debug draw shows the grid**, as a lights-per-cluster heat map, so a light budget problem is
   visible rather than inferred.
 
-The Vulkan features this needs are compute shaders and storage buffers, both core since 1.0, so
-the headless render test on lavapipe covers every pass.
+The Vulkan features this needs are compute shaders and storage buffers, both core since 1.0, and
+dual-source blending for the transparent draws ([transparency](#transparency)), which lavapipe has,
+so the headless render test on lavapipe covers every pass.
 
 ## Frame and tick structure
 

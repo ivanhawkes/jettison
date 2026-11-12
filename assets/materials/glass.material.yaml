@@ -1,0 +1,8 @@
+# Clear glass, a little blue-grey, as a ship's canopy or a station's window is: Render::MaterialDefinition
+# (render/Material.h), on the glass program. It lets through nine tenths of the light behind it face
+# on, less towards its edges, where it reflects more.
+version: 1
+program: glass
+parameters:
+  - name: tint
+    value: [0.86, 0.9, 0.94, 1]

@@ -1,0 +1,49 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+// The particles' step (docs/architecture.md, "Particles"): one dispatch an emitter, one invocation a
+// slot of its share of the pool. A slot this frame's births reach takes one, born at its share of
+// the frame and moved on since (SpawnParticle); any other holding a particle is moved on by the
+// frame's seconds, and emptied at its lifetime (StepParticle). A new emitter's slots are emptied
+// first, whatever the pool held there. Nothing is read back: the CPU knows each emitter's births,
+// and the GPU alone where its particles are.
+
+#include "particles.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(push_constant) uniform ParticleDispatch
+{
+	// Into the frame's emitters.
+	uint emitter;
+} dispatch;
+
+// The pool, shared by the frames in flight and kept from frame to frame.
+layout(std430, set = 0, binding = 13) buffer ParticlePool
+{
+	Particle particles[];
+};
+
+// The frame's emitters, written by the CPU each frame (Render::ParticlePool).
+layout(std430, set = 0, binding = 14) readonly buffer EmitterList
+{
+	Emitter emitters[];
+};
+
+void main()
+{
+	Emitter emitter = emitters[dispatch.emitter];
+	uint local = gl_GlobalInvocationID.x;
+	if (local >= emitter.slots.y)
+		return;
+	uint slot = emitter.slots.x + local;
+	Particle particle = particles[slot];
+	if (emitter.spawn.z != 0u)
+		particle.velocityLifetime.w = 0.0;
+	uint birth = BirthOf(local, emitter.slots.z, emitter.slots.y);
+	if (birth < emitter.slots.w)
+		particle = SpawnParticle(emitter, emitter.spawn.x + birth, birth, emitter.slots.w);
+	else if (particle.velocityLifetime.w > 0.0)
+		particle = StepParticle(particle, emitter.previous.w, emitter.motion.z);
+	particles[slot] = particle;
+}

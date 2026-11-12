@@ -447,8 +447,11 @@ differently), or if the validation layer reported anything. The frames and their
 kept in `build/<preset>/frames`. The five views of phase 10a (the orbit scene as it opens, Ostra by
 day and by night, Corva and its rings, and the Vesper scene as it opens) took 23 seconds together
 on 2026-11-13, most of it each run transcoding the planet's maps on one thread; captured twice, no
-pixel differed. A frame is 960×540, and the frame captured is the one after thirty in a row with
-nothing loading.
+pixel differed. Phase 10b added a sixth, the transparent pass's test bench (`scene/effects.yaml`),
+captured three seconds in so its smoke has risen: a view's line may give its own `--after-frames`,
+after the script's. The six took 24 seconds, and captured twice, no pixel differed. A frame is
+960×540, and the frame captured is the one after thirty in a row with nothing loading, unless its
+line says otherwise.
 
 Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under
 any other capture still drawing on it.

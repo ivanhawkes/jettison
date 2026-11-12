@@ -2,6 +2,9 @@
 
 // The window's input and size; the renderer behind IRenderer owns the window itself.
 #include <GLFW/glfw3.h>
+#include <glm/gtc/constants.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <imgui.h>
 
 #include <algorithm>
@@ -72,6 +75,14 @@ constexpr std::uint32_t kBenchmarkWarmUp = 60;
 // What a jump's effect covers the frame with: black, so the frames it holds while the new system
 // loads are no brighter than space.
 constexpr glm::vec3 kJumpColor{0.0f};
+// And the flash it passes through on the way, rising and lifting: a blue-white over the frame at
+// half cover, darkening to black as it covers the rest.
+constexpr glm::vec3 kJumpFlash{0.72f, 0.84f, 1.0f};
+// The streaks a jump's effect draws past the camera as it rises and lifts: born within a sphere this
+// far ahead and this wide, at this speed towards it.
+constexpr double kStreaksAhead = 80.0;
+constexpr float kStreaksRadius = 30.0f;
+constexpr float kStreaksSpeed = 320.0f;
 constexpr Core::Category kShell{"shell"};
 
 // The shell's ship: a shuttle about ten metres long, as its proxy draws it, whose hull
@@ -402,6 +413,22 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { RequestPad(arguments.empty() || arguments[0] != "manual"); });
 	m_console.RegisterCommand(
+	    "pilot",
+	    "Flies the ship from behind it or from its cockpit, or stops: pilot [chase|cockpit|off], "
+	    "chase by default",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    const std::string view = arguments.empty() ? "chase" : arguments[0];
+		    if (view == "off")
+			    StopPiloting();
+		    else if (view == "chase" || view == "cockpit")
+			    StartPiloting(view == "chase" ? Scene::PilotView::Chase : Scene::PilotView::Cockpit);
+		    else
+			    Core::Log(
+			        Core::Severity::Warning, kShell, "pilot takes chase, cockpit or off, not '{}'",
+			        view);
+	    });
+	m_console.RegisterCommand(
 	    "undock", "Lifts the ship clear of its pad and gives the pad up, or gives up one not landed on",
 	    [this](DevTools::Console &, std::span<const std::string>) { ReleasePad(); });
 	m_console.RegisterCommand(
@@ -526,7 +553,10 @@ void Application::RegisterFrameSystems()
 	     {
 		     JETTISON_PROFILE_ZONE("scene.jump");
 		     m_jump->Advance(deltaTime);
-		     m_pRenderer->SetFade(kJumpColor, m_jump->Fade());
+		     const float fade = m_jump->Fade();
+		     m_pRenderer->SetFade(
+		         glm::mix(kJumpFlash, kJumpColor, glm::smoothstep(0.4f, 1.0f, fade)), fade);
+		     ShowJumpStreaks();
 		     const bool active = m_jump->Active();
 		     if (m_jumpWasActive && !active && m_jump->Error().empty())
 			     Core::Log(
@@ -582,6 +612,22 @@ void Application::RegisterFrameSystems()
 	     {"sim.sync"},
 	     [this](entt::registry &registry, double)
 	     { ShowBuggyLoads(registry, m_simStepper.Current()); }});
+	// Each ship's plumes, from its throttle in the same snapshot, at rest in the frame of the station
+	// the ships fly by.
+	m_frame.Register(
+	    {"shell.engines",
+	     TickPhase::Sync,
+	     Access::Of<ShipEngines>().Writing<Scene::ParticleEmitterComponent>(),
+	     {"sim.sync"},
+	     [this](entt::registry &registry, double)
+	     {
+		     entt::entity station = entt::null;
+		     for (const auto [entity, celestial] :
+		          registry.view<const Scene::CelestialBodyComponent>().each())
+			     if (celestial.body == m_stationBody)
+				     station = entity;
+		     ShowEngines(registry, m_simStepper.Current(), station);
+	     }});
 	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
 	// handlers replace this system.
 	m_frame.Register(
@@ -622,6 +668,14 @@ void Application::RegisterFrameSystems()
 		     Scene::UpdateOrbitCameras(registry, deltaTime);
 		     Scene::UpdatePilotCameras(registry, deltaTime);
 	     }});
+	// A jump's streaks ahead of this frame's camera, after it has moved.
+	m_frame.Register(
+	    {"shell.streaks",
+	     TickPhase::Presentation,
+	     Access::Of<Scene::CameraPoseComponent>()
+	         .Writing<TransformComponent, WorldTransformComponent>(),
+	     {"camera.rig"},
+	     [this](entt::registry &registry, double) { PlaceJumpStreaks(registry); }});
 	// After the cameras, so the listener is where this frame's camera is, and after the world
 	// transforms the sources follow.
 	m_frame.Register(
@@ -1418,6 +1472,9 @@ void Application::DrawRendererPanel()
 	    stats.shadowCasters[1], stats.shadowCasters[2], stats.shadowCasters[3],
 	    static_cast<unsigned long long>(stats.shadowTriangles));
 	ImGui::Text("Lights %u, %u listed", stats.lights, stats.listedLights);
+	ImGui::Text(
+	    "Transparent: %u draws; %u emitters in %u particle slots", stats.transparentBatches,
+	    stats.emitters, stats.particleSlots);
 	bool prepass = m_pRenderer->GetDepthPrepass();
 	if (ImGui::Checkbox("Depth prepass", &prepass))
 		m_pRenderer->SetDepthPrepass(prepass);
@@ -1480,7 +1537,8 @@ void Application::ReportBenchmark() const
 	    "Meshes {}: {} outside the view, {} behind a horizon, {} too small to see; {} draws of {} "
 	    "triangles\n"
 	    "Shadow casters {} / {} / {} / {} in {} / {} / {} / {} draws, {} triangles\n"
-	    "Lights {}, {} listed\n",
+	    "Lights {}, {} listed\n"
+	    "Transparent: {} draws; {} emitters in {} particle slots\n",
 	    m_arguments.systemPath.empty() ? m_arguments.scenePath.filename().string()
 	                                   : m_arguments.systemPath,
 	    m_deviceName, m_frameWidth, m_frameHeight, m_arguments.benchmarkFrames, kBenchmarkWarmUp,
@@ -1489,7 +1547,8 @@ void Application::ReportBenchmark() const
 	    stats.detailCulled, stats.viewBatches, stats.viewTriangles, stats.shadowCasters[0],
 	    stats.shadowCasters[1], stats.shadowCasters[2], stats.shadowCasters[3], stats.shadowBatches[0],
 	    stats.shadowBatches[1], stats.shadowBatches[2], stats.shadowBatches[3], stats.shadowTriangles,
-	    stats.lights, stats.listedLights);
+	    stats.lights, stats.listedLights, stats.transparentBatches, stats.emitters,
+	    stats.particleSlots);
 }
 
 
@@ -2697,6 +2756,76 @@ void Application::SyncPilotCamera(entt::registry &registry)
 }
 
 
+void Application::ShowJumpStreaks()
+{
+	entt::registry &registry = m_pScene->Registry();
+	// The scene a jump arrives in is another, and the streaks the old one's.
+	if (!registry.valid(m_jumpStreaks))
+		m_jumpStreaks = entt::null;
+	const Scene::JumpStage stage = m_jump->Stage();
+	const bool streaking = stage == Scene::JumpStage::FadingOut || stage == Scene::JumpStage::FadingIn;
+	if (!m_jump->Active())
+	{
+		if (m_jumpStreaks != entt::null)
+			registry.destroy(m_jumpStreaks);
+		m_jumpStreaks = entt::null;
+		return;
+	}
+	if (m_jumpStreaks == entt::null)
+	{
+		if (!streaking)
+			return;
+		m_jumpStreaks = registry.create();
+		registry.emplace<Scene::BuiltComponent>(m_jumpStreaks);
+		registry.emplace<Scene::TransformComponent>(m_jumpStreaks);
+		registry.emplace<Scene::LayerComponent>(m_jumpStreaks, Scene::Layer::Effects);
+		// At rest in their own frame, which keeps ahead of the camera, so they stream past it
+		// whatever it does.
+		Scene::ParticleEmitterComponent streaks;
+		streaks.rate = 700.0f;
+		streaks.lifetime = 0.32f;
+		streaks.speed = kStreaksSpeed;
+		streaks.speedJitter = 0.2f;
+		streaks.radius = kStreaksRadius;
+		streaks.size = {0.12f, 0.12f};
+		streaks.stretch = 0.05f;
+		// A streak spreads its light along its 16 m, which a 12 cm particle's middle line holds
+		// three-quarters of a percent of: bright at its middle, it is a line of about 4.
+		streaks.color = {0.7f, 0.85f, 1.0f, 500.0f};
+		streaks.colorEnd = streaks.color;
+		streaks.capacity = 512;
+		streaks.seed = 21;
+		registry.emplace<Scene::ParticleEmitterComponent>(m_jumpStreaks, streaks);
+	}
+	registry.get<Scene::ParticleEmitterComponent>(m_jumpStreaks).active = streaking;
+}
+
+
+void Application::PlaceJumpStreaks(entt::registry &registry)
+{
+	if (m_jumpStreaks == entt::null || !registry.valid(m_jumpStreaks))
+		return;
+	// Ahead of this frame's camera, turned to face it, so its -Z, which it sends its particles along,
+	// is back towards the camera. Its world transform is written here too, after the rigs: the camera
+	// moves tens of kilometres a second with the system's bodies, and one placed by the last frame's
+	// pose would be hundreds of metres behind it.
+	const Render::CameraView camera = Render::ActiveCameraView(registry);
+	const glm::dquat facing =
+	    camera.orientation * glm::angleAxis(glm::pi<double>(), glm::dvec3{0.0, 1.0, 0.0});
+	const glm::dvec3 at = camera.position + camera.orientation * glm::dvec3{0.0, 0.0, -kStreaksAhead};
+	glm::vec3 rotation{0.0f};
+	glm::extractEulerAngleXYZ(
+	    glm::mat4{glm::mat4_cast(glm::quat{facing})}, rotation.x, rotation.y, rotation.z);
+	auto &transform = registry.get<Scene::TransformComponent>(m_jumpStreaks);
+	transform.translation = at;
+	transform.rotation = rotation;
+	glm::dmat4 world = glm::mat4_cast(facing);
+	world[3] = glm::dvec4{at, 1.0};
+	registry.emplace_or_replace<Scene::WorldTransformComponent>(
+	    m_jumpStreaks, Scene::WorldTransformComponent{world});
+}
+
+
 void Application::SetProxyFactory()
 {
 	m_systemScene->SetProxyFactory(
@@ -2709,14 +2838,14 @@ void Application::SetProxyFactory()
 		    if (simEntity == m_ship || traffic)
 		    {
 			    const Dock::HullDefinition *shuttle = m_pDocks->FindHull(kShipHull);
-			    return MakeHullProxy(registry, shuttle ? *shuttle : Dock::HullDefinition{});
+			    return MakeHullProxy(registry, shuttle ? *shuttle : Dock::HullDefinition{}, simEntity);
 		    }
 		    if (m_simStepper.Current().Get<Dock::Buggy>(simEntity))
 			    return MakeBuggyProxy(registry, simEntity);
 		    const auto parked = m_hullProxies.find(simEntity);
 		    const Dock::HullDefinition *hull =
 		        parked == m_hullProxies.end() ? nullptr : m_pDocks->FindHull(parked->second);
-		    return hull ? MakeHullProxy(registry, *hull) : entt::entity{entt::null};
+		    return hull ? MakeHullProxy(registry, *hull, simEntity) : entt::entity{entt::null};
 	    });
 }
 

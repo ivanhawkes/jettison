@@ -48,11 +48,13 @@ MaterialCache::MaterialCache(
 
 
 void MaterialCache::Init(
-    VkDescriptorSetLayout materialLayout, VkPipelineLayout sceneLayout, const RenderState &sceneState)
+    VkDescriptorSetLayout materialLayout, VkPipelineLayout sceneLayout, const RenderState &sceneState,
+    const RenderState &transparentState)
 {
 	m_layout = materialLayout;
 	m_sceneLayout = sceneLayout;
 	m_sceneState = sceneState;
+	m_transparentState = transparentState;
 	m_transcodeTarget =
 	    m_pDeviceContext->HasBlockCompression() ? TranscodeTarget::Bc7 : TranscodeTarget::Rgba8;
 	Core::Log(
@@ -230,7 +232,9 @@ const MaterialCache::Program &MaterialCache::GetProgram(const std::string &name)
 	Program program;
 	program.definition = ReadProgram(AsText(*bytes), path);
 	program.defaults = ResolveDefaults(program.definition);
-	program.pipeline = m_pipelines.Get({name, m_sceneState, m_sceneLayout});
+	const bool transparent = program.definition.blend == ProgramBlend::Transparent;
+	program.pipeline =
+	    m_pipelines.Get({name, transparent ? m_transparentState : m_sceneState, m_sceneLayout});
 	return m_programs.emplace(name, std::move(program)).first->second;
 }
 
@@ -290,6 +294,7 @@ bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &mater
 			material.textureRevisions = {};
 			material.resolved = std::move(resolved);
 			material.pipeline = program.pipeline;
+			material.transparent = program.definition.blend == ProgramBlend::Transparent;
 			rebuild = true;
 		}
 		catch (const std::exception &error)
@@ -340,6 +345,7 @@ bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &mater
 	}
 	material.binding.pipeline = material.pipeline;
 	material.binding.set = material.set;
+	material.binding.transparent = material.transparent;
 	return true;
 }
 

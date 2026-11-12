@@ -25,6 +25,7 @@
 #include <jettison/render/FrameData.h>
 #include <jettison/render/FrameStats.h>
 #include <jettison/render/IRenderer.h>
+#include <jettison/render/Particles.h>
 #include <jettison/render/PassList.h>
 #include <jettison/render/SceneView.h>
 #include <jettison/render/Shadows.h>
@@ -56,10 +57,10 @@ class OverlayRenderer;
 // The frame, as the declared pass list docs/architecture.md describes ("The frame"): the sun's
 // shadow cascades, each a depth-only rendering of every draw into one layer of the shadow map; the
 // cluster passes (the index list's allocator zeroed, then the clusters' bounds and the lights
-// assigned to them, both in compute); an opaque pass into a multisampled HDR target, which draws the
-// sky last over what no surface covered and is resolved into a single-sampled target as it ends; an
-// output pass that tonemaps that into the swapchain, with the UI drawn over the result; and the
-// cluster check's copy.
+// assigned to them, both in compute); the particles stepped, in compute; an opaque pass into a
+// multisampled HDR target, which draws the sky over what no surface covered, then the transparent
+// draws back to front, and is resolved into a single-sampled target as it ends; an output pass that
+// tonemaps that into the swapchain, with the UI drawn over the result; and the cluster check's copy.
 //
 // The shadow map and the cluster grid's buffers are one set each, shared by the frames in flight as
 // the render targets are.
@@ -99,6 +100,8 @@ class Renderer
 	// pads' paint, poles and lamps, and takes the opaque pass from 31 ms to 22 ms, every tiny
 	// triangle having shaded a block of the lit program.
 	static constexpr double kDetailPixels = 1.0;
+	// The particle pool's slots, shared by every emitter (render/Particles.h): 4 MiB of the device's.
+	static constexpr std::uint32_t kParticleSlots = 1u << 17;
 
 	// The resource manager loads the models, materials and textures, and outlives the renderer;
 	// Destroy releases everything the renderer loaded through it.
@@ -228,6 +231,8 @@ class Renderer
 		Buffer instances{};
 		// The celestial bodies with an atmosphere or rings (GpuBody).
 		Buffer bodies{};
+		// The particle emitters (GpuEmitter).
+		Buffer emitters{};
 		VkDescriptorSet frameSet{VK_NULL_HANDLE};
 		// The cluster check: the grid and the index list as this slot's frame left them, and what
 		// the CPU needs to assign the same lights. Pending from the frame that copied them out until
@@ -292,18 +297,27 @@ class Renderer
 	// not they are in view (the air over a planet behind the camera can still be), and each draw's
 	// entry in it, one more than its index, 0 for none.
 	void WriteBodies(FrameData &frame, const std::vector<SceneDrawCommand> &draws);
-	// The view's draws and each cascade's casters, culled and batched, and every batch's instances
-	// into the slot's instance buffer.
+	// The view's draws and each cascade's casters, culled and batched, the transparent draws and the
+	// emitters in view sorted back to front, and every batch's instances into the slot's instance
+	// buffer.
 	void WriteInstances(
 	    FrameData &frame, const std::vector<SceneDrawCommand> &draws,
 	    const std::vector<uint32_t> &jointOffsets);
+	// The scene's emitters, given their share of the particle pool, into the slot's emitter list, with
+	// the seconds since the last frame.
+	void WriteEmitters(
+	    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
+	    double seconds);
 	// The slot's last frame's assignment against the CPU's, now that its fence has been waited on.
 	void CheckClusters(FrameData &frame);
 	// The frame's debug lines into the slot's vertex buffer; how many are depth-tested.
 	uint32_t WriteLines(FrameData &frame, const DebugDraw &debugDraw, const glm::dvec3 &camera);
+	// The frame's constants, lights, bodies, emitters and instances; the seconds since the last frame
+	// step the particles.
 	void WriteFrame(
 	    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
-	    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets);
+	    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets,
+	    double seconds);
 	// Each draw's named material, or null for the model's own, and the frame's parameters into the
 	// slot's material buffer.
 	void WriteMaterials(FrameData &frame, const std::vector<SceneDrawCommand> &draws, double time);
@@ -318,6 +332,13 @@ class Renderer
 	void RecordClusterBounds(const FrameData &frame, VkCommandBuffer commandBuffer);
 	void RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const;
 	void RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const;
+	void RecordParticles(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+	// A batch of the view's, its material's pipeline and set bound when they differ from what is.
+	void RecordMeshBatch(
+	    VkCommandBuffer commandBuffer, const DrawBatch &batch, VkPipeline &boundPipeline,
+	    const Model *&boundModel);
+	// The transparent draws and the emitters, back to front, in the opaque pass's rendering.
+	void RecordTransparent(VkCommandBuffer commandBuffer);
 	void RecordScreenshot(FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
 	// The slot's screenshot from its readback into its file, now that its fence has been waited on.
 	void SaveScreenshot(FrameData &frame);
@@ -357,6 +378,8 @@ class Renderer
 	VkPipelineLayout m_outputLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_lineLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_clusterLayout{VK_NULL_HANDLE};
+	// The particles' step: the frame set, and the emitter's index as a push constant.
+	VkPipelineLayout m_particleLayout{VK_NULL_HANDLE};
 	VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
 	VkDescriptorSet m_outputSet{VK_NULL_HANDLE};
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
@@ -370,6 +393,8 @@ class Renderer
 	VkPipeline m_clusterLightsPipeline{VK_NULL_HANDLE};
 	VkPipeline m_shadowPipeline{VK_NULL_HANDLE};
 	VkPipeline m_prepassPipeline{VK_NULL_HANDLE};
+	VkPipeline m_particleStepPipeline{VK_NULL_HANDLE};
+	VkPipeline m_particlePipeline{VK_NULL_HANDLE};
 
 	// The sun's shadow map: one layer per cascade, a view of the whole array for the lighting
 	// include, one of each layer to render into, and the comparison sampler. Shared by the frames in
@@ -395,10 +420,24 @@ class Renderer
 	std::array<std::vector<DrawBatch>, kShadowCascades> m_shadowBatches;
 	std::vector<BatchInput> m_batchScratch;
 	std::vector<std::uint32_t> m_instanceDraws;
+	// The transparent draws and the emitters in view, back to front.
+	std::vector<SortedInput> m_sortedScratch;
+	std::vector<SortedBatch> m_transparentBatches;
 	std::vector<GpuInstance> m_instanceScratch;
 	float m_lodThreshold{kDefaultLodThreshold};
 	bool m_depthPrepass{false};
 	FrameStats m_frameStats{};
+
+	// The particle pool, device-local and shared by the frames in flight, stepped in place each frame;
+	// each emitter's share of it and its births; this frame's emitters, and the presentation time of
+	// the last frame, which the particles are stepped from.
+	Buffer m_particles{};
+	ParticlePool m_particlePool{kParticleSlots};
+	std::vector<EmitterInput> m_emitterInputs;
+	std::vector<EmitterDraw> m_emitterDraws;
+	std::vector<GpuEmitter> m_emitterScratch;
+	std::optional<double> m_lastPresentationTime;
+	bool m_particlesRefused{false};
 
 	// The cluster grid: each cluster's view-space bounds, its offset and count into the index list,
 	// and the list, its allocator first. Device-local, shared by the frames in flight.
@@ -433,11 +472,13 @@ class Renderer
 	PassResource m_clusterBoundsResource;
 	PassResource m_clusterGridResource;
 	PassResource m_lightIndicesResource;
+	PassResource m_particlesResource;
 	uint32_t m_shadowPass{0};
 	uint32_t m_prepassPass{0};
 	uint32_t m_clusterResetPass{0};
 	uint32_t m_clusterBoundsPass{0};
 	uint32_t m_clusterLightsPass{0};
+	uint32_t m_particlePass{0};
 	uint32_t m_opaquePass{0};
 	uint32_t m_outputPass{0};
 	uint32_t m_clusterReadbackPass{0};

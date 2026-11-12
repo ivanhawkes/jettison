@@ -532,6 +532,8 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	world.RegisterComponent<LocalFrame>();
 	world.RegisterComponent<Thrusters>();
 	world.RegisterComponent<FlightControls>();
+	// What a pilot asks of a ship is what presentation shows of its engines (its plumes).
+	world.ShowInSnapshots<FlightControls>();
 	world.RegisterCommand<SetFlightControls>(
 	    [](Sim::SimWorld &target, const SetFlightControls &command)
 	    {

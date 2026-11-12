@@ -83,3 +83,45 @@ TEST_CASE("Draw batches: the order is the same whatever order the draws come in"
 	CHECK(forwards[0].key == b);
 	CHECK(forwardInstances == std::vector<std::uint32_t>{3, 1, 0, 2});
 }
+
+TEST_CASE("Draw batches: the transparent draws go back to front, neighbours of one key merged")
+{
+	const BatchKey glass{ModelAt(1), 0, &kMaterial};
+	const BatchKey pane{ModelAt(2), 0, &kMaterial};
+	const std::vector<SortedInput> inputs{
+	    {glass, 0, 10.0, false, true}, {glass, 1, 30.0, false, true}, {{}, 0, 20.0, true, true},
+	    {glass, 2, 40.0, false, true}, {pane, 3, 50.0, false, true},  {pane, 4, 5.0, false, false},
+	    {pane, 5, 4.0, false, false},  {{}, 1, 10.0, true, true},
+	};
+	std::vector<SortedBatch> batches;
+	std::vector<std::uint32_t> instances{99};
+	BuildBackToFront(inputs, batches, instances);
+
+	// 50 (pane), 40 and 30 (glass, merged), 20 (emitter 0), 10 (glass, then emitter 1 on the tie),
+	// and the two panes that may not merge, each alone.
+	REQUIRE(batches.size() == 7);
+	CHECK(!batches[0].particles);
+	CHECK(batches[0].batch.key == pane);
+	CHECK(batches[1].batch.key == glass);
+	CHECK(batches[1].batch.instanceCount == 2);
+	CHECK(instances[batches[1].batch.firstInstance] == 2);
+	CHECK(instances[batches[1].batch.firstInstance + 1] == 1);
+	CHECK(batches[2].particles);
+	CHECK(batches[2].emitter == 0);
+	CHECK(instances[batches[3].batch.firstInstance] == 0);
+	CHECK(batches[4].particles);
+	CHECK(batches[4].emitter == 1);
+	CHECK(batches[5].batch.instanceCount == 1);
+	CHECK(instances[batches[5].batch.firstInstance] == 4);
+	CHECK(instances[batches[6].batch.firstInstance] == 5);
+	// Appended after what was there: one instance for each mesh draw, none for an emitter.
+	CHECK(instances.front() == 99);
+	CHECK(instances.size() == 1 + 6);
+
+	// An emitter between two of one key keeps them apart.
+	const std::vector<SortedInput> split{
+	    {glass, 0, 30.0, false, true}, {{}, 0, 20.0, true, true}, {glass, 1, 10.0, false, true}};
+	batches.clear();
+	BuildBackToFront(split, batches, instances);
+	CHECK(batches.size() == 3);
+}

@@ -52,7 +52,8 @@ Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, f
 
 `scripts/capture.sh <out.png> [render_test arguments...]` writes a frame from inside the frame loop
 on lavapipe under Xvfb, the same to the byte every run, the camera placed with console lines:
-`--run "orbit <yaw> <pitch> <distance> [body]"` (distance from the body's centre). `--no-build`
+`--run "orbit <yaw> <pitch> <distance> [body]"` (distance from the body's centre), or behind or in
+the ship with `--run "pilot chase|cockpit"`. `--no-build`
 skips the build; `--references [--update]` runs the reference views in
 `source/test/frames/views.txt` ([build and gates](docs/build-and-gates.md#reference-frames)). Run
 captures one at a time: each stops the Xvfb it started, under any other still drawing.

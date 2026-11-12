@@ -48,6 +48,9 @@ struct MaterialBinding
 	VkPipeline pipeline{VK_NULL_HANDLE};
 	VkDescriptorSet set{VK_NULL_HANDLE};
 	std::uint32_t parameterOffset{0};
+	// Its program's blend is ProgramBlend::Transparent: drawn in the transparent pass, sorted back to
+	// front, and casting no shadow. A model's own material never is.
+	bool transparent{false};
 };
 
 // The materials on the device (docs/architecture.md, "Rendering"): what a draw binds for its
@@ -76,12 +79,13 @@ class MaterialCache
 	MaterialCache(const MaterialCache &) = delete;
 	MaterialCache &operator=(const MaterialCache &) = delete;
 
-	// The layouts and the opaque pass's render state are the renderer's; every scene program is
-	// built against them. Registers the texture and material loaders, so a renderer is made once
-	// per resource manager. Reads the default program, which a missing asset tree fails here.
+	// The layouts and the render states are the renderer's: the opaque pass's for an opaque program,
+	// the transparent draws' for a transparent one (ProgramBlend). Registers the texture and material
+	// loaders, so a renderer is made once per resource manager. Reads the default program, which a
+	// missing asset tree fails here.
 	void Init(
 	    VkDescriptorSetLayout materialLayout, VkPipelineLayout sceneLayout,
-	    const RenderState &sceneState);
+	    const RenderState &sceneState, const RenderState &transparentState);
 	// Releases every handle and frees everything, queued or not: the device has to be idle. The
 	// resource manager outlives this, and its loaders must not run after it.
 	void Destroy();
@@ -126,6 +130,7 @@ class MaterialCache
 		std::array<std::uint32_t, kMaterialTextureSlots> textureRevisions{};
 		ResolvedMaterial resolved;
 		VkPipeline pipeline{VK_NULL_HANDLE};
+		bool transparent{false};
 		VkDescriptorPool pool{VK_NULL_HANDLE};
 		VkDescriptorSet set{VK_NULL_HANDLE};
 		// Set when the definition at definitionRevision cannot be drawn; a reload clears it.
@@ -182,6 +187,7 @@ class MaterialCache
 	VkDescriptorSetLayout m_layout{VK_NULL_HANDLE};
 	VkPipelineLayout m_sceneLayout{VK_NULL_HANDLE};
 	RenderState m_sceneState;
+	RenderState m_transparentState;
 	VkSampler m_sampler{VK_NULL_HANDLE};
 	// The empty-slot textures, by TextureFallback.
 	std::array<Image, 3> m_fallbackImages{};

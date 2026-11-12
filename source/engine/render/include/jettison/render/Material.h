@@ -45,9 +45,21 @@ struct ProgramTexture
 	TextureFallback fallback{TextureFallback::White};
 };
 
+// How a program's surfaces meet what is behind them (docs/architecture.md, "Transparency"). An
+// opaque one covers it and lays down depth, in the opaque pass's batches, front to back. A
+// transparent one is drawn after the sky, sorted back to front with the frame's other transparent
+// draws, tested against the depth and not writing it, and casts no shadow: its fragment stage writes
+// the light it adds and, as a second output, what it lets through of what is behind it, by colour.
+enum class ProgramBlend : std::uint8_t
+{
+	Opaque,
+	Transparent,
+};
+
 // shaders/<program>.program.yaml.
 struct ProgramDefinition
 {
+	ProgramBlend blend{ProgramBlend::Opaque};
 	std::vector<ProgramParameter> parameters;
 	std::vector<ProgramTexture> textures;
 };

@@ -12,6 +12,7 @@
 #include <utility>
 
 #include <jettison/core/Log.h>
+#include <jettison/physics/Flight.h>
 #include <jettison/render/Clusters.h>
 #include <jettison/scene/Components.h>
 
@@ -25,6 +26,7 @@ constexpr std::string_view kPlating = "materials/hull.material.yaml";
 constexpr std::string_view kDeckPlating = "materials/deck.material.yaml";
 constexpr std::string_view kLamp = "materials/lamp.material.yaml";
 constexpr std::string_view kEngine = "materials/engine.material.yaml";
+constexpr std::string_view kGlass = "materials/glass.material.yaml";
 
 constexpr glm::vec3 kDeckColour{0.55f, 0.56f, 0.6f};
 constexpr glm::vec3 kPadColour{0.16f, 0.17f, 0.2f};
@@ -334,6 +336,40 @@ void Door(entt::registry &scene, entt::entity station, const Dock::Bay &bay)
 	Part(scene, door, {0.0, kDoorHeight + frame * 2.5f, 0.25}, {}, {halfW * 0.6f, 0.3f, 0.2f}, strip);
 }
 
+// The throttle below which an engine is taken as off.
+constexpr float kIdleThrottle = 0.02f;
+// A plume at full ahead: its births a second and its brightness at birth, in the HDR target's units,
+// the core of a hundred-odd overlapping white, its edges the engine's blue.
+constexpr float kPlumeRate = 220.0f;
+constexpr float kPlumeIntensity = 0.5f;
+
+// An engine's plume, from the nozzle of the radius given, aft along the hull's +Z: the emitter's -Z
+// turned half about Y. Its particles leave at 40 m/s and are slowed to rest in the frame ShowEngines
+// gives them, the station's, so a ship moving through it draws its plume out behind it.
+entt::entity Plume(entt::registry &scene, entt::entity root, const glm::dvec3 &nozzle, float radius)
+{
+	const entt::entity plume = Node(scene, root, nozzle, {0.0f, 3.1415927f, 0.0f});
+	scene.emplace<Scene::LayerComponent>(plume, Scene::Layer::Effects);
+	Scene::ParticleEmitterComponent emitter;
+	emitter.active = false;
+	emitter.rate = 0.0f;
+	emitter.lifetime = 0.35f;
+	emitter.lifetimeJitter = 0.4f;
+	emitter.speed = 40.0f;
+	emitter.speedJitter = 0.3f;
+	emitter.spread = 0.06f;
+	emitter.radius = radius * 0.5f;
+	emitter.drag = 3.0f;
+	emitter.size = {radius * 1.6f, radius * 4.0f};
+	emitter.stretch = 0.01f;
+	emitter.color = {0.55f, 0.75f, 1.0f, kPlumeIntensity};
+	emitter.colorEnd = {0.25f, 0.35f, 1.0f, 0.0f};
+	emitter.capacity = 128;
+	emitter.seed = static_cast<std::uint32_t>(entt::to_integral(plume)) + 1u;
+	scene.emplace<Scene::ParticleEmitterComponent>(plume, emitter);
+	return plume;
+}
+
 // A proxy's part in the hull's own axes, as fractions of its half-length, half-beam and half-height
 // (so -1 to 1 within its box): its middle, its half-extents along the hull's axes, and whether it is
 // a cylinder turned onto the hull's length, whose own axis is its Y.
@@ -364,7 +400,7 @@ std::vector<ProxyPart> SmallProxy()
 {
 	std::vector<ProxyPart> parts{
 	    {{0.0f, 0.0f, 0.0f}, {0.375f, 0.611f, 0.898f}, kBox, kHull, kPlating},
-	    {{0.0f, 0.5f, -0.388f}, {0.234f, 0.5f, 0.265f}, kIco, kCanopy, {}},
+	    {{0.0f, 0.5f, -0.388f}, {0.234f, 0.5f, 0.265f}, kIco, kCanopy, kGlass},
 	    {{0.0f, -0.111f, 0.327f}, {1.0f, 0.133f, 0.367f}, kBox, kGrey, kPlating},
 	};
 	for (const float side : {-1.0f, 1.0f})
@@ -382,7 +418,7 @@ std::vector<ProxyPart> MediumProxy()
 {
 	std::vector<ProxyPart> parts{
 	    {{0.0f, 0.1f, -0.78f}, {0.4f, 0.6f, 0.2f}, kBox, kHull, kPlating},
-	    {{0.0f, 0.3f, -0.95f}, {0.3f, 0.25f, 0.05f}, kIco, kCanopy, {}},
+	    {{0.0f, 0.3f, -0.95f}, {0.3f, 0.25f, 0.05f}, kIco, kCanopy, kGlass},
 	    {{0.0f, 0.0f, 0.1f}, {0.18f, 0.3f, 0.8f}, kBox, kGrey, kPlating},
 	};
 	for (const float side : {-1.0f, 1.0f})
@@ -591,7 +627,7 @@ std::size_t ShowPadStates(
 	return found;
 }
 
-entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hull)
+entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hull, entt::entity ship)
 {
 	const entt::entity root = scene.create();
 	scene.emplace<Scene::TransformComponent>(root);
@@ -606,6 +642,7 @@ entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hu
 	}
 	constexpr float kQuarter = 1.5707963f;
 	const glm::vec3 half = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
+	ShipEngines engines{ship, {}};
 	for (const ProxyPart &part : ProxyOf(hull.pad))
 	{
 		const glm::vec3 extent = part.half * half;
@@ -615,8 +652,34 @@ entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hu
 		    scene, root, glm::dvec3{part.at * half},
 		    part.turned ? glm::vec3{kQuarter, 0.0f, 0.0f} : glm::vec3{0.0f}, scale,
 		    {part.shape, part.colour, part.material, {}});
+		if (ship != entt::null && part.material == kEngine)
+			engines.plumes.push_back(
+			    Plume(scene, root, glm::dvec3{part.at * half}, std::min(extent.x, extent.y)));
 	}
+	if (!engines.plumes.empty())
+		scene.emplace<ShipEngines>(root, std::move(engines));
 	return root;
+}
+
+void ShowEngines(entt::registry &scene, const Sim::Snapshot &snapshot, entt::entity frame)
+{
+	for (const auto [entity, engines] : scene.view<const ShipEngines>().each())
+	{
+		const auto *controls = snapshot.Get<Physics::FlightControls>(engines.ship);
+		const float ahead = controls ? std::clamp(-controls->linear.z, 0.0f, 1.0f) : 0.0f;
+		for (const entt::entity plume : engines.plumes)
+		{
+			auto *emitter =
+			    scene.valid(plume) ? scene.try_get<Scene::ParticleEmitterComponent>(plume) : nullptr;
+			if (!emitter)
+				continue;
+			// A ship let go, or docked, burns nothing; ahead, the plume is as dense as it is bright.
+			emitter->active = ahead > kIdleThrottle;
+			emitter->rate = kPlumeRate * ahead;
+			emitter->color.a = kPlumeIntensity * (0.4f + 0.6f * ahead);
+			emitter->frame = frame;
+		}
+	}
 }
 
 entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy)
@@ -630,7 +693,7 @@ entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy)
 	scene.emplace<Scene::TransformComponent>(root);
 	Part(scene, root, {0.0, 0.55, 0.0}, {}, {1.2f, 0.2f, 2.0f}, {kBox, kChassis, kPlating, {}});
 	Part(scene, root, {0.0, 1.2, -1.45}, {}, {1.1f, 0.45f, 0.55f}, {kBox, kCab, {}, {}});
-	Part(scene, root, {0.0, 1.35, -1.98}, {}, {0.9f, 0.2f, 0.02f}, {kBox, kCanopy, {}, {}});
+	Part(scene, root, {0.0, 1.35, -1.98}, {}, {0.9f, 0.2f, 0.02f}, {kBox, kCanopy, kGlass, {}});
 	Part(
 	    scene, root, {0.0, 1.72, -1.45}, {}, glm::vec3{0.12f},
 	    {kIco, kDoorLampColour, kLamp, Scene::Layer::Effects});

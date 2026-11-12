@@ -25,6 +25,7 @@ jettison_add_module(render
 		include/jettison/render/Material.h
 		include/jettison/render/Mesh.h
 		include/jettison/render/Overlay.h
+		include/jettison/render/Particles.h
 		include/jettison/render/PassList.h
 		include/jettison/render/Procedural.h
 		include/jettison/render/SceneView.h
@@ -40,6 +41,7 @@ jettison_add_module(render
 		src/DrawBatches.cpp
 		src/Material.cpp
 		src/Overlay.cpp
+		src/Particles.cpp
 		src/PassList.cpp
 		src/Procedural.cpp
 		src/SceneView.cpp
@@ -93,6 +95,7 @@ jettison_add_module(render
 		tests/EnvironmentTests.cpp
 		tests/MaterialTests.cpp
 		tests/OverlayTests.cpp
+		tests/ParticleTests.cpp
 		tests/PassListTests.cpp
 		tests/ProceduralTests.cpp
 		tests/ScreenshotTests.cpp

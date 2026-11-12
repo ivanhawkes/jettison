@@ -96,6 +96,18 @@ vec3 EvaluateBrdf(Surface surface, vec3 n, vec3 v, vec3 l)
 	return (diffuse + specular) * nDotL;
 }
 
+// A small Lambertian sphere of albedo one, as a lit particle is taken to be: the mean radiance of its
+// visible disc, in units of the irradiance on it over pi, seen at a phase angle whose cosine is
+// given, the angle at the sphere between the directions to the light and to the viewer. Lambert's
+// law for a sphere, (2/3)(sin a + (pi - a) cos a) / pi: two thirds lit from behind the viewer, as
+// the full Moon is, and nothing lit from straight behind the sphere.
+float LambertSpherePhase(float cosPhase)
+{
+	float c = clamp(cosPhase, -1.0f, 1.0f);
+	float phase = acos(c);
+	return 2.0f / 3.0f * (sqrt(max(1.0f - c * c, 0.0f)) + (kPi - phase) * c) / kPi;
+}
+
 // The i-th of n points of the Hammersley set: i / n, and i's bits reversed as a binary fraction.
 vec2 Hammersley(uint index, uint count)
 {

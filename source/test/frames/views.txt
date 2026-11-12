@@ -13,3 +13,6 @@ ostra-night --scene $PWD/assets/scene/orbit.yaml --run orbit|3.9|-0.1|1.4e7|Ostr
 corva --scene $PWD/assets/scene/vesper.yaml --run orbit|0.8|-0.35|4.5e8|Corva
 # The Vesper scene as it opens: Corva Refinery with the rings below it and Corva's limb behind.
 refinery --scene $PWD/assets/scene/vesper.yaml
+# The transparent pass's test bench three seconds in: a sphere of clear glass and a pane of amber
+# glass over the stripes, an engine's plume, smoke lit by the sun and the lamp, and sparks.
+effects --scene $PWD/assets/scene/effects.yaml --after-frames 180

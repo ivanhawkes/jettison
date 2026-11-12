@@ -381,6 +381,57 @@ entities:
 	    "between 0 and 1");
 }
 
+TEST_CASE("Scene: an emitter loads with its frame found, and is saved as it was given")
+{
+	Scene scene;
+	scene.LoadText(R"(version: 2
+entities:
+  - id: station
+  - id: nozzle
+    parent: station
+    particles:
+      rate: 120
+      lifetime: 2.5
+      spread: 0.2
+      size: [0.4, 3]
+      color: [0.5, 0.7, 1, 6]
+      opacity: 0.2
+      capacity: 512
+      frame: station
+)");
+	auto &registry = scene.Registry();
+	const auto nozzle = registry.view<const ParticleEmitterComponent>().front();
+	const auto &emitter = registry.get<ParticleEmitterComponent>(nozzle);
+	CHECK(emitter.rate == 120.0f);
+	CHECK(emitter.size == glm::vec2{0.4f, 3.0f});
+	CHECK(emitter.colorEnd == ParticleEmitterComponent{}.colorEnd);
+	CHECK(emitter.capacity == 512u);
+	REQUIRE(registry.valid(emitter.frame));
+	CHECK(registry.get<SceneEntityId>(emitter.frame).value == "station");
+	const std::string saved = scene.SaveText();
+	CHECK(saved.find("frame: station") != std::string::npos);
+	Scene again;
+	again.LoadText(saved);
+	CHECK(again.SaveText() == saved);
+
+	// The emitter's own frame when it names none.
+	scene.LoadText("version: 2\nentities:\n  - id: a\n    particles: {}\n");
+	CHECK(
+	    scene.Registry()
+	        .get<ParticleEmitterComponent>(
+	            scene.Registry().view<const ParticleEmitterComponent>().front())
+	        .frame == entt::null);
+
+	CheckRefused(scene, "  - id: a\n    particles:\n      lifetime: 0\n", "lifetime must be positive");
+	CheckRefused(scene, "  - id: a\n    particles:\n      opacity: 2\n", "from 0 to 1");
+	CheckRefused(scene, "  - id: a\n    particles:\n      spread: 4\n", "from 0 to pi");
+	CheckRefused(scene, "  - id: a\n    particles:\n      capacity: 0\n", "capacity is from 1");
+	CheckRefused(
+	    scene, "  - id: a\n    particles:\n      color: [1, 1, -1, 1]\n", "cannot be negative");
+	CheckRefused(scene, "  - id: a\n    particles:\n      frame: b\n", "Invalid particles frame");
+	CheckRefused(scene, "  - id: a\n    particles:\n      frame: a\n", "Invalid particles frame");
+}
+
 TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig is in")
 {
 	namespace Animation = Jettison::Animation;

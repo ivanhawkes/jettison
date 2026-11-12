@@ -1,0 +1,9 @@
+# A pane of amber glass, the test bench's (scene/effects.yaml): it lets red and green through and
+# stops most of the blue, so what is behind it shows its tint by colour.
+version: 1
+program: glass
+parameters:
+  - name: tint
+    value: [0.95, 0.62, 0.18, 1]
+  - name: surface
+    value: [0.02, 0, 0, 0]

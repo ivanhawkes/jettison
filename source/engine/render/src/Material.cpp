@@ -20,6 +20,9 @@ void RegisterTypes()
 		    .Value<TextureFallback::White>("White")
 		    .Value<TextureFallback::Black>("Black")
 		    .Value<TextureFallback::FlatNormal>("FlatNormal");
+		RegisterEnum<ProgramBlend>("Render.ProgramBlend")
+		    .Value<ProgramBlend::Opaque>("Opaque")
+		    .Value<ProgramBlend::Transparent>("Transparent");
 		RegisterEnum<Wave>("Render.Wave")
 		    .Value<Wave::Sine>("Sine")
 		    .Value<Wave::Triangle>("Triangle")
@@ -32,6 +35,7 @@ void RegisterTypes()
 		    .Field<&ProgramTexture::name>("name", Attribute::Saved)
 		    .Field<&ProgramTexture::fallback>("fallback", Attribute::Saved);
 		RegisterType<ProgramDefinition>("Render.ProgramDefinition")
+		    .Field<&ProgramDefinition::blend>("blend", Attribute::Saved)
 		    .Field<&ProgramDefinition::parameters>("parameters", Attribute::Saved)
 		    .Field<&ProgramDefinition::textures>("textures", Attribute::Saved);
 		RegisterType<MaterialParameter>("Render.MaterialParameter")

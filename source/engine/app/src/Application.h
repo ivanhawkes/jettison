@@ -265,6 +265,11 @@ class Application
 	// proxy while it is flown, and its orbit rig back, eased, when it is not.
 	void SyncPilotCamera(entt::registry &registry);
 	void SetProxyFactory();
+	// A jump's streaks past the camera while its effect rises and lifts (an emitter of the scene's,
+	// built and not saved), and none once it is done.
+	void ShowJumpStreaks();
+	// The streaks' emitter ahead of this frame's camera, once the rigs have moved it.
+	void PlaceJumpStreaks(entt::registry &registry);
 	// The ship's speed and distance from the station, and the keys, while it is flown.
 	void DrawFlight();
 
@@ -559,5 +564,7 @@ class Application
 	std::optional<Scene::JumpTransition> m_jump;
 	std::uint64_t m_jumpStep{0};
 	bool m_jumpWasActive{false};
+	// The emitter of a jump's streaks while its effect rises and lifts, in the scene shown.
+	entt::entity m_jumpStreaks{entt::null};
 };
 } // namespace Jettison::App

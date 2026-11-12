@@ -16,6 +16,7 @@
 #include <jettison/ai/Steering.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/dock/Docks.h>
+#include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/scene/Components.h>
 #include <jettison/sim/DefinitionRegistry.h>
@@ -404,6 +405,48 @@ TEST_CASE(
 		++models;
 	}
 	CHECK(models == 1);
+}
+
+TEST_CASE("Dressing: a ship's proxy has a plume at each nozzle, lit by its throttle in the snapshots")
+{
+	Dressed dressed;
+	const Dock::HullDefinition *shuttle = dressed.docks.FindHull("shuttle");
+	REQUIRE(shuttle);
+	entt::registry &world = dressed.world.Registry();
+	const entt::entity ship = world.create();
+	world.emplace<Physics::FlightControls>(ship);
+	const entt::entity proxy = App::MakeHullProxy(dressed.scene, *shuttle, ship);
+	REQUIRE(dressed.scene.all_of<App::ShipEngines>(proxy));
+	const auto &engines = dressed.scene.get<App::ShipEngines>(proxy);
+	// The shuttle's two engines, each a plume aft of its nozzle, in the effects layer.
+	REQUIRE(engines.plumes.size() == 2);
+	for (const entt::entity plume : engines.plumes)
+	{
+		CHECK(dressed.scene.get<Scene::TransformComponent>(plume).translation.z > 0.0);
+		CHECK(dressed.scene.get<Scene::LayerComponent>(plume).layer == Scene::Layer::Effects);
+	}
+	const auto &emitter = dressed.scene.get<Scene::ParticleEmitterComponent>(engines.plumes.front());
+
+	// Let go, nothing burns.
+	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
+	CHECK(!emitter.active);
+	CHECK(emitter.frame == dressed.station);
+	// Half ahead, a plume half as dense as full ahead's; astern, none from the main engines.
+	world.get<Physics::FlightControls>(ship).linear.z = -0.5f;
+	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
+	CHECK(emitter.active);
+	const float half = emitter.rate;
+	world.get<Physics::FlightControls>(ship).linear.z = -1.0f;
+	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
+	CHECK(emitter.rate == doctest::Approx(2.0 * half));
+	world.get<Physics::FlightControls>(ship).linear.z = 1.0f;
+	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
+	CHECK(!emitter.active);
+
+	// The display wing's ships are of no simulation entity, and have no plumes.
+	entt::registry display;
+	App::MakeHullProxy(display, *shuttle);
+	CHECK(display.view<const Scene::ParticleEmitterComponent>().empty());
 }
 
 TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots have it carry")

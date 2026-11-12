@@ -71,7 +71,23 @@ std::size_t ShowPadStates(
 // box it collides as holds what is drawn. S is the shell's shuttle, M a transport of four cargo pods
 // behind a cab, L a spine of racked containers under a bridge, and XL a long hull under a
 // superstructure, which the liner and the frigate share.
-entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hull);
+// A proxy for a simulation entity, ship, has a plume at each nozzle (ShipEngines), which ShowEngines
+// lights; the display wing's ships, of none, have none.
+entt::entity MakeHullProxy(
+    entt::registry &scene, const Dock::HullDefinition &hull, entt::entity ship = entt::null);
+
+// A ship proxy's engines: the simulation entity whose throttle they show, and the emitters of their
+// plumes, in the effects layer.
+struct ShipEngines
+{
+	entt::entity ship{entt::null};
+	std::vector<entt::entity> plumes;
+};
+
+// Each ship's plumes to its throttle in the snapshot, the share of full ahead its flight controls
+// ask for, and at rest in the frame given, the entity of the station the ships fly by (null for
+// each plume's own).
+void ShowEngines(entt::registry &scene, const Sim::Snapshot &snapshot, entt::entity frame);
 
 // A buggy's proxy, in its own axes (nose -Z, its wheels on the deck at its origin): a 4 m flatbed
 // tug, a cab with a beacon in the effects layer, and a bed for four crates, which show what it

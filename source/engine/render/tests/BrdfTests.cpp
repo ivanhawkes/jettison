@@ -161,3 +161,36 @@ TEST_CASE("Tonemap: PBR Neutral keeps colours below its knee and compresses what
 	CHECK(hot.x < 1.0f);
 	CHECK(hot.z > 0.1f);
 }
+
+TEST_CASE("BRDF: a lit particle's phase law is a Lambertian sphere's disc, averaged")
+{
+	// The sphere's visible disc, by brute force: each point of its viewer-facing hemisphere shows
+	// albedo / pi times the irradiance it gets, max(n.l, 0) under light of irradiance one, weighted
+	// by its projected area n.v, over the disc's area pi. In units of 1 / pi, the mean is the
+	// integral of max(n.l, 0) n.v over the hemisphere, over pi.
+	const auto bruteForce = [](double phase)
+	{
+		const glm::dvec3 toViewer{0.0, 0.0, 1.0};
+		const glm::dvec3 toLight{std::sin(phase), 0.0, std::cos(phase)};
+		constexpr int kSteps = 400;
+		double sum = 0.0;
+		for (int i = 0; i < kSteps; ++i)
+			for (int j = 0; j < 2 * kSteps; ++j)
+			{
+				const double theta = (i + 0.5) / kSteps * glm::half_pi<double>();
+				const double phi = (j + 0.5) / (2 * kSteps) * glm::two_pi<double>();
+				const glm::dvec3 normal{
+				    std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta)};
+				const double area = std::sin(theta) * (glm::half_pi<double>() / kSteps) *
+				                    (glm::two_pi<double>() / (2 * kSteps));
+				sum += std::max(glm::dot(normal, toLight), 0.0) * glm::dot(normal, toViewer) * area;
+			}
+		return sum / glm::pi<double>();
+	};
+	CHECK(Glsl::LambertSpherePhase(1.0f) == Approx(2.0 / 3.0).epsilon(1e-5));
+	CHECK(Glsl::LambertSpherePhase(-1.0f) == Approx(0.0).epsilon(1e-6));
+	for (const double phase : {0.3, 1.0, 1.5707963, 2.4})
+		CHECK(
+		    Glsl::LambertSpherePhase(static_cast<float>(std::cos(phase))) ==
+		    Approx(bruteForce(phase)).epsilon(1e-3));
+}

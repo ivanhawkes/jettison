@@ -114,6 +114,30 @@ struct AnimationRecord
 	bool playing{AnimationPlayerComponent{}.playing};
 };
 
+// An emitter's fields, the frame it names by id, and not the pulses a game counts at run time.
+struct ParticlesRecord
+{
+	float rate{ParticleEmitterComponent{}.rate};
+	std::uint32_t burst{ParticleEmitterComponent{}.burst};
+	float lifetime{ParticleEmitterComponent{}.lifetime};
+	float lifetimeJitter{ParticleEmitterComponent{}.lifetimeJitter};
+	float speed{ParticleEmitterComponent{}.speed};
+	float speedJitter{ParticleEmitterComponent{}.speedJitter};
+	float spread{ParticleEmitterComponent{}.spread};
+	float radius{ParticleEmitterComponent{}.radius};
+	float drag{ParticleEmitterComponent{}.drag};
+	glm::vec2 size{ParticleEmitterComponent{}.size};
+	float stretch{ParticleEmitterComponent{}.stretch};
+	glm::vec4 color{ParticleEmitterComponent{}.color};
+	glm::vec4 colorEnd{ParticleEmitterComponent{}.colorEnd};
+	float opacity{ParticleEmitterComponent{}.opacity};
+	glm::vec3 albedo{ParticleEmitterComponent{}.albedo};
+	std::uint32_t capacity{ParticleEmitterComponent{}.capacity};
+	std::uint32_t seed{ParticleEmitterComponent{}.seed};
+	bool active{ParticleEmitterComponent{}.active};
+	std::optional<std::string> frame;
+};
+
 // Every entity has a transform, written whether or not the file gave one.
 struct EntityRecord
 {
@@ -129,6 +153,7 @@ struct EntityRecord
 	std::optional<RingsComponent> rings;
 	std::optional<LightRecord> light;
 	std::optional<MeshRecord> mesh;
+	std::optional<ParticlesRecord> particles;
 	std::optional<TransformAnimationRecord> transformAnimation;
 	std::optional<AnimationRecord> animation;
 };
@@ -225,6 +250,26 @@ void RegisterTypes()
 		    .Field<&MeshRecord::color>("color", kSaved)
 		    .Field<&MeshRecord::innerRadius>("innerRadius", kSaved)
 		    .Field<&MeshRecord::material>("material", kSaved);
+		RegisterType<ParticlesRecord>("Scene.Particles")
+		    .Field<&ParticlesRecord::rate>("rate", kSaved)
+		    .Field<&ParticlesRecord::burst>("burst", kSaved)
+		    .Field<&ParticlesRecord::lifetime>("lifetime", kSaved)
+		    .Field<&ParticlesRecord::lifetimeJitter>("lifetimeJitter", kSaved)
+		    .Field<&ParticlesRecord::speed>("speed", kSaved)
+		    .Field<&ParticlesRecord::speedJitter>("speedJitter", kSaved)
+		    .Field<&ParticlesRecord::spread>("spread", kSaved)
+		    .Field<&ParticlesRecord::radius>("radius", kSaved)
+		    .Field<&ParticlesRecord::drag>("drag", kSaved)
+		    .Field<&ParticlesRecord::size>("size", kSaved)
+		    .Field<&ParticlesRecord::stretch>("stretch", kSaved)
+		    .Field<&ParticlesRecord::color>("color", kSaved)
+		    .Field<&ParticlesRecord::colorEnd>("colorEnd", kSaved)
+		    .Field<&ParticlesRecord::opacity>("opacity", kSaved)
+		    .Field<&ParticlesRecord::albedo>("albedo", kSaved)
+		    .Field<&ParticlesRecord::capacity>("capacity", kSaved)
+		    .Field<&ParticlesRecord::seed>("seed", kSaved)
+		    .Field<&ParticlesRecord::active>("active", kSaved)
+		    .Field<&ParticlesRecord::frame>("frame", kSaved);
 		RegisterType<TransformAnimationRecord>("Scene.TransformAnimation")
 		    .Field<&TransformAnimationRecord::axis>("axis", kSaved)
 		    .Field<&TransformAnimationRecord::speed>("speed", kSaved);
@@ -246,6 +291,7 @@ void RegisterTypes()
 		    .Field<&EntityRecord::rings>("rings", kSaved)
 		    .Field<&EntityRecord::light>("light", kSaved)
 		    .Field<&EntityRecord::mesh>("mesh", kSaved)
+		    .Field<&EntityRecord::particles>("particles", kSaved)
 		    .Field<&EntityRecord::transformAnimation>("transformAnimation", kSaved)
 		    .Field<&EntityRecord::animation>("animation", kSaved);
 		RegisterType<SceneDocument>("Scene")
@@ -358,6 +404,34 @@ void CheckMesh(const MeshRecord &mesh, const std::string &id)
 		CheckVirtualPath(*mesh.material, "a material", id);
 }
 
+void CheckParticles(const ParticlesRecord &particles, const std::string &id)
+{
+	const auto share = [](float value) { return value >= 0.0f && value <= 1.0f; };
+	const auto colour = [](const glm::vec4 &value)
+	{ return value.x >= 0.0f && value.y >= 0.0f && value.z >= 0.0f && value.w >= 0.0f; };
+	if (!(particles.rate >= 0.0f) || !std::isfinite(particles.rate) || !(particles.lifetime > 0.0f) ||
+	    !std::isfinite(particles.lifetime) || !(particles.speed >= 0.0f) ||
+	    !std::isfinite(particles.speed) || !(particles.radius >= 0.0f) || !(particles.drag >= 0.0f) ||
+	    !(particles.stretch >= 0.0f) || !(particles.size.x >= 0.0f) || !(particles.size.y >= 0.0f))
+		Refuse(
+		    "Particles' lifetime must be positive and finite, and their rate, speed, radius, drag, "
+		    "stretch and sizes not negative: " +
+		    id);
+	if (!share(particles.lifetimeJitter) || !share(particles.speedJitter) || !share(particles.opacity))
+		Refuse("Particles' lifetimeJitter, speedJitter and opacity are from 0 to 1: " + id);
+	constexpr float kHalfTurn = 3.14159265f;
+	if (!(particles.spread >= 0.0f) || !(particles.spread <= kHalfTurn))
+		Refuse("Particles' spread is a half-angle, from 0 to pi radians: " + id);
+	if (!colour(particles.color) || !colour(particles.colorEnd) ||
+	    !colour(glm::vec4{particles.albedo, 0.0f}))
+		Refuse("Particles' colours, intensities and albedo cannot be negative: " + id);
+	if (particles.capacity == 0 || particles.capacity > kMaxEmitterParticles)
+		Refuse(
+		    std::format(
+		        "Particles' capacity is from 1 to {}, the most an emitter keeps alive: {}",
+		        kMaxEmitterParticles, id));
+}
+
 // Every rule a scene file is held to that its types do not already say, in one place: the loader
 // runs it on what it read and the writer on what it is about to write, so neither accepts what the
 // other refuses. The scene's loader and writer once each enforced a rule the other did not know.
@@ -437,6 +511,12 @@ void Validate(const SceneDocument &document)
 		}
 		if (entity.mesh)
 			CheckMesh(*entity.mesh, id);
+		if (const auto &particles = entity.particles)
+		{
+			CheckParticles(*particles, id);
+			if (particles->frame && !exists(*particles->frame, id))
+				Refuse("Invalid particles frame '" + *particles->frame + "' in scene");
+		}
 		// A mesh is not part of what a rotation animation runs on: the update system walks the
 		// transform, so an entity with nothing to draw can still spin. The clip player is the one
 		// that needs a model, for a rig to sample.
@@ -524,6 +604,57 @@ MeshRecord ToRecord(const MeshComponent &mesh)
 		record.model = mesh.model;
 	if (!mesh.material.empty())
 		record.material = mesh.material;
+	return record;
+}
+
+ParticleEmitterComponent ToComponent(const ParticlesRecord &record)
+{
+	ParticleEmitterComponent emitter;
+	emitter.rate = record.rate;
+	emitter.burst = record.burst;
+	emitter.lifetime = record.lifetime;
+	emitter.lifetimeJitter = record.lifetimeJitter;
+	emitter.speed = record.speed;
+	emitter.speedJitter = record.speedJitter;
+	emitter.spread = record.spread;
+	emitter.radius = record.radius;
+	emitter.drag = record.drag;
+	emitter.size = record.size;
+	emitter.stretch = record.stretch;
+	emitter.color = record.color;
+	emitter.colorEnd = record.colorEnd;
+	emitter.opacity = record.opacity;
+	emitter.albedo = record.albedo;
+	emitter.capacity = record.capacity;
+	emitter.seed = record.seed;
+	emitter.active = record.active;
+	emitter.frameId = record.frame.value_or("");
+	return emitter;
+}
+
+ParticlesRecord ToRecord(const ParticleEmitterComponent &emitter)
+{
+	ParticlesRecord record;
+	record.rate = emitter.rate;
+	record.burst = emitter.burst;
+	record.lifetime = emitter.lifetime;
+	record.lifetimeJitter = emitter.lifetimeJitter;
+	record.speed = emitter.speed;
+	record.speedJitter = emitter.speedJitter;
+	record.spread = emitter.spread;
+	record.radius = emitter.radius;
+	record.drag = emitter.drag;
+	record.size = emitter.size;
+	record.stretch = emitter.stretch;
+	record.color = emitter.color;
+	record.colorEnd = emitter.colorEnd;
+	record.opacity = emitter.opacity;
+	record.albedo = emitter.albedo;
+	record.capacity = emitter.capacity;
+	record.seed = emitter.seed;
+	record.active = emitter.active;
+	if (!emitter.frameId.empty())
+		record.frame = emitter.frameId;
 	return record;
 }
 
@@ -668,6 +799,8 @@ void Scene::Load(const SceneFile &file)
 				}
 				m_registry.emplace<MeshComponent>(entity, std::move(mesh));
 			}
+			if (record.particles)
+				m_registry.emplace<ParticleEmitterComponent>(entity, ToComponent(*record.particles));
 			if (const auto &animation = record.transformAnimation)
 			{
 				RotationAnimationComponent rotation;
@@ -694,6 +827,9 @@ void Scene::Load(const SceneFile &file)
 				m_registry.emplace<ParentComponent>(entity, entities.at(*record.parent));
 			if (auto *orbit = m_registry.try_get<OrbitCameraComponent>(entity))
 				orbit->target = entities.at(orbit->targetId);
+			if (auto *emitter = m_registry.try_get<ParticleEmitterComponent>(entity);
+			    emitter != nullptr && !emitter->frameId.empty())
+				emitter->frame = entities.at(emitter->frameId);
 		}
 	}
 	catch (...)
@@ -753,6 +889,8 @@ std::string Scene::SaveText() const
 			record.light = ToRecord(*light);
 		if (const auto *mesh = m_registry.try_get<MeshComponent>(entity))
 			record.mesh = ToRecord(*mesh);
+		if (const auto *emitter = m_registry.try_get<ParticleEmitterComponent>(entity))
+			record.particles = ToRecord(*emitter);
 		if (const auto *rotation = m_registry.try_get<RotationAnimationComponent>(entity))
 			record.transformAnimation =
 			    TransformAnimationRecord{rotation->rotationAxis, rotation->rotationSpeed};

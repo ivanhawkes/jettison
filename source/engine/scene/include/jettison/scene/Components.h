@@ -268,6 +268,62 @@ struct RingsComponent
 	friend bool operator==(const RingsComponent &, const RingsComponent &) = default;
 };
 
+// A particle emitter (docs/architecture.md, "Particles"): sprites simulated on the GPU, born about
+// the entity's position and sent along its -Z, as a spot shines, within a cone, then slowed by drag,
+// and drawn in the transparent pass as discs facing the camera that fade towards their edges. Each
+// is born with the first colour and size and dies with the end ones, mixed linearly over its life.
+// It adds light, its colour times the intensity in the HDR target's linear units, and hides its
+// opacity's share of what is behind it; with an albedo it is lit as well, by the sun, the clusters'
+// lights and the sky, as a small dusty sphere would be.
+//
+// Particles are at rest in the frame of the entity named, its position and its turn: by default the
+// emitter's own, so they keep to it as it moves and turns, as a nozzle's glow does. A ship's exhaust,
+// left behind as it flies, is in the frame of what it flies by. Presentation's alone, as a mesh is:
+// nothing the simulation decides waits on one.
+struct ParticleEmitterComponent
+{
+	// Particles a second while it is active, and how many at once when it is first drawn active and
+	// each time pulses goes up, which the game counts.
+	float rate{10.0f};
+	std::uint32_t burst{0};
+	std::uint32_t pulses{0};
+	// Seconds each lives, and the share by which each is shortened at random, from 0 to 1.
+	float lifetime{1.0f};
+	float lifetimeJitter{0.0f};
+	// Metres a second at birth, and the share by which each is slowed at random, from 0 to 1.
+	float speed{1.0f};
+	float speedJitter{0.0f};
+	// The cone's half-angle about -Z, in radians, from 0 (a line) to pi (every way).
+	float spread{0.0f};
+	// Born anywhere within a sphere of this radius about the entity, in metres.
+	float radius{0.0f};
+	// The share of its speed each loses a second, as an exponential: 1 is about two thirds.
+	float drag{0.0f};
+	// Its diameter in metres at birth and at death.
+	glm::vec2 size{0.1f, 0.1f};
+	// The seconds of its path behind it that it is drawn out along, in perspective, for streaks and
+	// sparks; 0 for a round sprite.
+	float stretch{0.0f};
+	// rgb: linear colour, a: intensity, at birth and at death.
+	glm::vec4 color{1.0f};
+	glm::vec4 colorEnd{1.0f, 1.0f, 1.0f, 0.0f};
+	// The share of what is behind it that it hides, at its middle: 0 adds light alone, as a flame.
+	float opacity{0.0f};
+	// The share of the light on it that it scatters, by colour: 0 for one that is not lit.
+	glm::vec3 albedo{0.0f};
+	// The most alive at once: a new particle past it takes the oldest's place.
+	std::uint32_t capacity{256};
+	std::uint32_t seed{1};
+	bool active{true};
+	// The entity whose frame the particles are at rest in, null for the emitter's own, and the file's
+	// id for it; the entity is runtime state, as an orbit camera's target is.
+	std::string frameId;
+	entt::entity frame{entt::null};
+};
+
+// The most particles an emitter may keep alive at once.
+inline constexpr std::uint32_t kMaxEmitterParticles = 65536;
+
 // A camera that orbits another entity. The authored fields are where it starts; the rig and the
 // resolved target are runtime state, not written to the scene file.
 struct OrbitCameraComponent

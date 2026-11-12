@@ -155,7 +155,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Atmosphere halo | In | An orbit-view scattering shell around planets. |
 | Sky | In | Starfield and nebula skybox, per system. |
 | Reflections | In | Through image-based lighting, with the planets added to the environment's capture (phase 10a). Screen-space reflections are out, reconsidered on 2026-11-11: they need most of a G-buffer, and where a ray leaves the screen they fall back to the environment at a seam black space makes plain ([decided](roadmap.md#decided)). |
-| Particles | In | GPU billboards: engine exhaust, debris, docking sparks, jump effects. |
+| Particles | In | GPU billboards: engine exhaust, debris, docking sparks, jump effects. Simulated and drawn on the GPU, in the transparent pass (phase 10b). |
 | Post processing | In | HDR, tonemapping, and a chain of post passes on the HDR target: bloom first (stars and engines are far brighter than the hull). Phase 10c. |
 | Screen-space ambient occlusion | In (added 2026-11-11) | Contact shadow in docking bays, between hull modules and under racked cargo, where the sky's light reaches in full today. From the depth prepass, which writes normals for it, attenuating the image-based light alone. Phase 10c. |
 | Stencil and object IDs | In (added 2026-11-11) | A stencil aspect on the depth target, for crisp outlines and for masking post-processing off the cockpit and HUD; and an object ID buffer from the depth prepass, for wide, soft target highlights. Phase 10c. |
@@ -163,7 +163,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Colour space | In, early | Linear workflow, sRGB swapchain, HDR render targets. Expensive to retrofit. |
 | Colour grading | Deferred | A LUT pass late, when there is art to grade. |
 | Triplanar / tri-blend | In | Asteroids and procedural planet surfaces without authored UVs. |
-| Glass | Deferred | Cockpit canopy and station windows. The transparent pass it needs comes earlier, with particles. |
+| Glass | In (brought forward 2026-11-13) | Cockpit canopy and station windows, a thin tinted pane in the transparent pass, with particles (phase 10b). Refraction is out until the post chain's targets can give it the frame behind. |
 | Multiple UV maps | Deferred | glTF `TEXCOORD_1` for detail maps, when an asset needs it. |
 | NoRender | In | A trivial flag for collision-only and trigger meshes. |
 | Terrain, water | Out | Planets are seen from orbit. |

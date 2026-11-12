@@ -72,4 +72,35 @@ void BuildBatches(
 			instances.push_back(sorted[index].draw);
 	}
 }
+
+void BuildBackToFront(
+    std::span<const SortedInput> inputs, std::vector<SortedBatch> &batches,
+    std::vector<std::uint32_t> &instances)
+{
+	std::vector<SortedInput> sorted{inputs.begin(), inputs.end()};
+	std::sort(
+	    sorted.begin(), sorted.end(),
+	    [](const SortedInput &left, const SortedInput &right)
+	    {
+		    return std::tuple{-left.distance, left.particles, left.index} <
+		           std::tuple{-right.distance, right.particles, right.index};
+	    });
+	for (std::size_t index = 0; index < sorted.size(); ++index)
+	{
+		const SortedInput &input = sorted[index];
+		if (input.particles)
+		{
+			batches.push_back({true, input.index, {}});
+			continue;
+		}
+		const bool joins = index > 0 && !batches.empty() && !batches.back().particles &&
+		                   input.mergeable && sorted[index - 1].mergeable &&
+		                   !sorted[index - 1].particles && batches.back().batch.key == input.key;
+		if (joins)
+			++batches.back().batch.instanceCount;
+		else
+			batches.push_back({false, 0, {input.key, static_cast<std::uint32_t>(instances.size()), 1}});
+		instances.push_back(input.index);
+	}
+}
 } // namespace Jettison::Render

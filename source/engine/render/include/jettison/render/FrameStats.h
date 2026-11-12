@@ -35,5 +35,10 @@ struct FrameStats
 	// The active lights, and those the light list kept.
 	std::uint32_t lights{0};
 	std::uint32_t listedLights{0};
+	// The transparent draws in view, back to front: runs of mesh instances and emitters' particles.
+	std::uint32_t transparentBatches{0};
+	// The emitters stepped, in view or not, and the particle pool's slots they hold.
+	std::uint32_t emitters{0};
+	std::uint32_t particleSlots{0};
 };
 } // namespace Jettison::Render

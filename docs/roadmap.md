@@ -14,7 +14,7 @@ built, are recorded in [history](history.md).
 | 0–9 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks. Recorded in [history](history.md). | Met. |
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
 | 10a | **Atmosphere and planets.** Done 2026-11-13. Catalogue entry 28. A frame written to a PNG from inside the frame loop (`render/Screenshot.h`): `--screenshot` after `--after-frames` quiet frames, `--frame-step` for clocks moved a fixed step and held while anything loads, `--run` for console lines before the first frame, the console's `screenshot` and `orbit` commands, and `scripts/capture.sh`, whose reference views (`source/test/frames/views.txt`) are a stage of the gate. Air and rings on a celestial body (`AtmosphereComponent`, `RingsComponent`), as maths over a sphere in `atmosphere.glsl` and `rings.glsl`, which the render suite runs as C++ against brute force ([atmospheres](architecture.md#atmospheres)): single Rayleigh and Mie scattering with the Chapman function in closed form; rings of three bands and two gaps over noise, filtered to the pixel. The frame's body list; the planet program's reddened terminator, haze, rings' shadow and rings in front of the surface; an atmosphere program after the sky for the limb and the rings over space. Clouds and city lights on the planet program from noise, the clouds drifting by a time-driven parameter, the lights with a glow standing in for bloom. The celestial bodies in the environment's capture, lit spheres with their air and rings, baked again as they move by a texel of it. Ostra has Earth's air, clouds and cities; Corva, in a new Vesper scene, a gas giant's air and rings. | Met: the five reference views, the orbit scene as it opens, Ostra by day and by night, Corva and its rings, and the Vesper scene as it opens, captured twice on lavapipe with no pixel differing, and the gate holds every later change to them. |
-| 10b | **The transparent pass.** Sorted back to front and lit through the clusters; GPU particles; glass. | |
+| 10b | **The transparent pass.** Done 2026-11-13. Catalogue entry 28. A program's blend in its descriptor (`ProgramBlend`): a transparent program's draws and the particle emitters in view sorted back to front (`BuildBackToFront`) and drawn last in the opaque pass's rendering, after the sky and the air, lit through the clusters, tested against the surfaces' depth and writing none, and blended by what they add and what they let through by colour (`BlendMode::Transmissive`, dual-source blending, which the device is now required to have) ([transparency](architecture.md#transparency)). Glass (`glass.frag`), a thin tinted dielectric pane, on the ships' canopies and a buggy's windscreen. GPU particles (`ParticleEmitterComponent`, a scene file's `particles`): a pool of 2^17 slots stepped in place by a compute pass, each emitter a ring of it whose births the CPU tells and nothing read back (`render/Particles.h`, `particles.glsl`, which the render suite runs as C++), at rest in the frame of the emitter or of an entity it names, drawn as sprites facing the camera, drawn out along their motion, adding light, hiding a share of what is behind them, and lit as small Lambertian spheres ([particles](architecture.md#particles)). A plume at each nozzle of the simulation's ships, from their throttle (physics shows `FlightControls` in snapshots); a jump's streaks past the camera, and its flash. A test bench, `scene/effects.yaml`, and the console's `pilot`. | Met: the bench three seconds in (clear and amber glass over coloured stripes, a plume, lit smoke, sparks) captured twice on lavapipe with no pixel differing, and a reference view of the gate's, the six views together in 24 s; in the shell, the shuttle's plumes from full ahead in the chase view, and a jump's streaks and flash from the orbit and chase cameras. On the RTX 5060 Ti at 1243 × 1338, the bench's frame takes 0.72 ms, of which its glass 0.09 ms and its particles 0.03 ms, and the orbit scene's 0.29 ms, its parked ships' idle plumes neither stepped nor drawn (9d: 0.32 ms). On lavapipe at 640 × 480 the bench's frame takes 25 to 27 ms, its particles about 4 ms and its glass about 2 ms of it, and the orbit scene's 36 ms (9d: 33 ms). |
 | 10c | **Post-processing and screen-space effects.** A chain of post passes on the resolved HDR target before the output pass; bloom; screen-space ambient occlusion, from the depth prepass, which writes view-space normals for it and runs whenever it is on; stencil on the depth target (`D32_SFLOAT_S8_UINT`), with separate depth and stencil layouts and its bits allotted, and an object ID buffer written by the depth prepass; outlines of the selected and targeted, by stencil and by ID; material effects through time-driven parameters. Screen-space reflections stay out (see [decided](#decided)). | |
 | 10d | **Animation.** Keyframed TRS tracks on any node for mechanical rigs; clip events (a clamp closing plays a sound). | |
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
@@ -97,12 +97,19 @@ are in [history](history.md).
   a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
   brightness in it. Not yet placed.
 - **Air over a mesh in it** (entry 28, 10a): the haze is the planet's own surface's and the sky's,
-  not a ship's or a station's within the air, which no sample scene has yet; nor are the bodies'
-  air and rings sorted where two overlap on the screen. With the transparent pass (10b), which
-  wants the same air over what it draws.
+  not a ship's or a station's within the air, which no sample scene has yet, nor a transparent
+  draw's (10b); nor are the bodies' air and rings sorted where two overlap on the screen. Not yet
+  placed: the first scene with a ship in the air brings it, for the opaque and the transparent draws
+  alike.
 - **A gas giant's bands** (entry 28, 10a): Corva is one colour under its air. Not yet placed.
-- **A jump's own effect** (entry 21): the fade to black is the effect today; a jump's particles and
-  flash come with GPU particles (10b).
+- **The transparent pass, not yet placed** (entry 28, 10b): particles sorted within an emitter, on
+  the GPU, which a smoky emitter seen through itself would want; soft particles where they meet a
+  surface, which want the depth the opaque pass is still writing, so a node of their own after it;
+  refraction through glass, from a copy of the frame behind it, which the post chain's targets
+  (10c) could give; a glTF primitive's `BLEND` alpha mode, which draws opaque; a transparent
+  surface's shadow, tinted, which the sun's depth-only cascades cannot hold; and an emitter
+  started warm, as if it had been running, which a capture of a smoke column waits three seconds
+  for instead. A ship's plumes show its throttle ahead alone, not its turns and strafes.
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
   first draws it, so a jump holds its effect over the new system's first frames while they stream
   in, 0.2 to 0.4 s on lavapipe for the sample systems. Not yet placed.
@@ -209,8 +216,9 @@ The planet surface program came ahead of phase 10, with the first planet's maps 
 colour, normal, height and roughness by longitude and latitude, and a detail layer on the land.
 Phase 10a added the atmosphere program and the planet's clouds, night lights, air and rings over its
 surface, from shared includes (`body.glsl`, `atmosphere.glsl`, `rings.glsl`) the environment's
-capture runs too. The rest of phase 10 adds particle and glass programs on the same terms, lit
-through the same include, and the post chain's programs. Shader variants are compile-time defines
+capture runs too. Phase 10b added a program's blend to its descriptor, opaque or transparent, the
+glass program, and the particles' programs, one stepping them in compute and one drawing them, all
+lit through the same include. The rest of phase 10 adds the post chain's programs. Shader variants are compile-time defines
 on one source (`jettison_compile_shader_variant`). Programs do not hot-reload yet; materials and
 textures do.
 
@@ -232,7 +240,11 @@ Phase 10a built the first part, and the frame written to a file the rest is judg
 rings as maths over a sphere rather than a mesh shell or a baked table, drawn by the planet program
 over its surface and by an atmosphere program over the sky, and the bodies in the environment's
 capture ([atmospheres](architecture.md#atmospheres)); clouds and city lights from noise, since the
-planet pack has no maps of them.
+planet pack has no maps of them. Phase 10b built the transparent pass: a transparent program's draws
+and the particle emitters sorted back to front and drawn last in the opaque pass's rendering, blended
+by what they add and what they let through by colour, with glass as a thin tinted pane and particles
+stepped on the GPU in a pool the CPU only tells of births
+([transparency](architecture.md#transparency), [particles](architecture.md#particles)).
 
 Post-processing is a chain of passes in the pass list, on the resolved HDR target between the
 opaque and transparent passes and the output pass's tonemapping: bloom first (stars, engines and

@@ -33,6 +33,10 @@ enum class BlendMode
 	Alpha,
 	// Alpha premultiplied into the colour, composited "over": one, one minus source alpha.
 	Premultiplied,
+	// Dual-source: the first output is the light added, the second what is let through of what is
+	// behind, by colour (one, the second source's colour), so tinted glass tints what it is over.
+	// The device's dualSrcBlend, which the renderer requires.
+	Transmissive,
 };
 
 // Everything about a graphics pipeline other than its shaders and layout: the vertex stream, the

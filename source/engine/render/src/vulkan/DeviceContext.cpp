@@ -455,8 +455,9 @@ std::string DeviceContext::Unsuitable(VkPhysicalDevice device)
 	features.pNext = &features13;
 	vkGetPhysicalDeviceFeatures2(device, &features);
 	if (!features.features.samplerAnisotropy || !features.features.depthClamp ||
-	    !features13.dynamicRendering || !features13.synchronization2)
-		return "it lacks anisotropic sampling, depth clamp, dynamic rendering or synchronization2";
+	    !features.features.dualSrcBlend || !features13.dynamicRendering || !features13.synchronization2)
+		return "it lacks anisotropic sampling, depth clamp, dual-source blending, dynamic rendering "
+		       "or synchronization2";
 	return {};
 }
 
@@ -560,6 +561,8 @@ void DeviceContext::CreateLogicalDevice()
 	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
 	// The sun's shadow pass clamps the depth of casters nearer the sun than its maps reach.
 	deviceFeatures.features.depthClamp = VK_TRUE;
+	// The transparent pass blends what a surface lets through by colour (BlendMode::Transmissive).
+	deviceFeatures.features.dualSrcBlend = VK_TRUE;
 	// Block compression where the device has it in hardware, which is every desktop GPU: Basis
 	// Universal textures transcode to BC7 then, and to RGBA8, four times the memory, without it. A CPU
 	// device (lavapipe) has BC7 but decodes it in software at every fetch: measured in phase 5e, the
