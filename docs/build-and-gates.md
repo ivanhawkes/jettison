@@ -182,7 +182,7 @@ It is done when the game needs a prebuilt engine rather than a source build, and
 `./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
-Release build and its unit tests → headless render test, and with `--asan`, the render test and the
+Release build and its unit tests → headless render test → reference frames, and with `--asan`, the render test and the
 `sim`, `spatial`, `physics`, `ai` and `dock` suites under the sanitisers. The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
 build's results. The sample's traders' hash is pinned in the app suite, which runs in Debug and
@@ -423,6 +423,35 @@ without a device, and uploading it only on hardware.
   `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev`.
 - `Xvfb` (from `xorgserver`).
 - A Vulkan driver and the validation layers. devenv exports `VK_LAYER_PATH`.
+
+## Reference frames
+
+`scripts/capture.sh` writes frames of `render_test` to PNG files from inside its frame loop
+(`--screenshot`), on lavapipe under Xvfb, with the clocks moved a sixtieth of a second a frame and
+held while anything loads (`--frame-step`), so a view captured twice on one machine is the same to
+the byte. It replaces grabbing the virtual screen with `xwd` after a fixed wait: the frame is the
+swapchain's, exact to the frame, and a console line given with `--run` places the camera where
+`xdotool` keys held for seconds used to.
+
+```bash
+./scripts/capture.sh out.png --scene $PWD/assets/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 Ostra"
+./scripts/capture.sh --references            # compare every view with its reference
+./scripts/capture.sh --references --update   # record a change that is meant to change a frame
+./scripts/capture.sh --references corva      # one view
+```
+
+The gate's reference-frames stage runs the views `source/test/frames/views.txt` lists, a name and
+`render_test`'s arguments a line, all at once on one display, and fails if more than one pixel in
+a thousand differs from its reference by more than 2% (another machine's lavapipe rounds a little
+differently), or if the validation layer reported anything. The frames and their differences are
+kept in `build/<preset>/frames`. The five views of phase 10a (the orbit scene as it opens, Ostra by
+day and by night, Corva and its rings, and the Vesper scene as it opens) took 23 seconds together
+on 2026-11-13, most of it each run transcoding the planet's maps on one thread; captured twice, no
+pixel differed. A frame is 960×540, and the frame captured is the one after thirty in a row with
+nothing loading.
+
+Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under
+any other capture still drawing on it.
 
 ## Benchmark
 

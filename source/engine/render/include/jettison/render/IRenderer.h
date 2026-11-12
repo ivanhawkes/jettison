@@ -123,6 +123,11 @@ class IRenderer
 	// What the cluster check has found over the run (RendererOptions::clusterCheck).
 	virtual const ClusterCheckTotals &GetClusterChecks() const = 0;
 
+	// The next frame, as the output pass leaves it with the UI over it, written to a PNG once the GPU
+	// has drawn it (render/Screenshot.h); a run that ends on the frame after asking still writes it.
+	// Logged and dropped where the swapchain cannot be read back.
+	virtual void RequestScreenshot(const std::filesystem::path &path) = 0;
+
 	// What the frames are drawn on, and their size in pixels.
 	virtual const std::string &DeviceName() const = 0;
 	virtual std::uint32_t FrameWidth() const = 0;

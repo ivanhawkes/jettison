@@ -44,7 +44,7 @@ struct FrameUBO
 	alignas(16) glm::vec4 environment{0.0f};
 	GpuSky sky{};
 	// x: the lights in the light list, y: the debug view (Render::DebugView), z: 1 when the sun
-	// casts shadows this frame.
+	// casts shadows this frame, w: the bodies in the body list.
 	alignas(16) glm::uvec4 counts{0u};
 	// The cluster grid (clusters.glsl): x the near plane, y the cluster range, as view depths.
 	alignas(16) glm::vec4 clusterDepth{0.0f};
@@ -85,13 +85,50 @@ struct GpuLight
 };
 static_assert(sizeof(GpuLight) == 64);
 
+// One entry of the frame's atmospheres, std430: atmosphere.glsl's Atmosphere. Render::PackAtmosphere
+// (render/Atmosphere.h) fills it from an AtmosphereComponent.
+struct GpuAtmosphere
+{
+	// xyz: the body's centre in render space, w: its surface's radius.
+	glm::vec4 centreRadius{0.0f};
+	// rgb: Rayleigh scattering per metre at the surface, a: its scale height.
+	glm::vec4 rayleigh{0.0f};
+	// x: Mie scattering, y: its extinction, z: its scale height, w: its anisotropy.
+	glm::vec4 mie{0.0f};
+	// x: the top's radius, y: 1 when there is an atmosphere.
+	glm::vec4 shell{0.0f};
+};
+static_assert(sizeof(GpuAtmosphere) == 64);
+
+// rings.glsl's Rings, std430. Render::PackRings (render/Atmosphere.h) fills it from a RingsComponent.
+struct GpuRings
+{
+	// xyz: the plane's normal in render space, w: the inner radius.
+	glm::vec4 normalInner{0.0f};
+	// rgb: the albedo, a: the outer radius.
+	glm::vec4 colorOuter{0.0f};
+	// x: the densest band's opacity, y: the seed, z: 1 when there are rings.
+	glm::vec4 shape{0.0f};
+};
+static_assert(sizeof(GpuRings) == 48);
+
+// One entry of the frame's bodies, std430: frame.glsl's Body, a celestial body drawn with an
+// atmosphere or rings. The atmosphere's centre and radius are the body's whether or not it has air.
+struct GpuBody
+{
+	GpuAtmosphere atmosphere{};
+	GpuRings rings{};
+};
+static_assert(sizeof(GpuBody) == 112);
+
 // One entry of the frame's instance buffer, std430: mesh_vertex.glsl's Instance. Every draw is an
 // instanced one (render/DrawBatches.h), and reads its transform here by gl_InstanceIndex.
 struct GpuInstance
 {
 	// Object space to render space.
 	glm::mat4 model{1.0f};
-	// x: where the instance's joint matrices start in the skin palette, y: 1 when it is skinned.
+	// x: where the instance's joint matrices start in the skin palette, y: 1 when it is skinned, z:
+	// one more than the index of the body in the frame's list of them, 0 for none.
 	glm::uvec4 skin{0u};
 };
 static_assert(sizeof(GpuInstance) == 80);

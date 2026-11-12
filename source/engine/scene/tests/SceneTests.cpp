@@ -329,6 +329,58 @@ TEST_CASE("Scene: a scene has one sky, with a band and a nebula it can draw")
 	CheckRefused(scene, "  - id: a\n    sky:\n      stars: -1\n", "cannot be negative");
 }
 
+TEST_CASE("Scene: an atmosphere and rings are over a shape, and saved as they were given")
+{
+	Scene scene;
+	scene.LoadText(R"(version: 2
+entities:
+  - id: planet
+    mesh:
+      shape: sphere
+    atmosphere:
+      height: 60000
+      mieAnisotropy: 0.7
+    rings:
+      innerRadius: 8.0e7
+      outerRadius: 1.3e8
+      opacity: 0.6
+      seed: 4
+)");
+	auto &registry = scene.Registry();
+	const auto planet = registry.view<const RingsComponent>().front();
+	CHECK(registry.get<AtmosphereComponent>(planet).height == 60000.0);
+	CHECK(
+	    registry.get<AtmosphereComponent>(planet).rayleighHeight ==
+	    AtmosphereComponent{}.rayleighHeight);
+	CHECK(registry.get<RingsComponent>(planet).outerRadius == 1.3e8);
+	CHECK(registry.get<RingsComponent>(planet).seed == 4u);
+	const std::string saved = scene.SaveText();
+	Scene again;
+	again.LoadText(saved);
+	CHECK(again.SaveText() == saved);
+
+	CheckRefused(scene, "  - id: a\n    atmosphere: {}\n", "needs a mesh of one");
+	CheckRefused(
+	    scene, "  - id: a\n    mesh:\n      shape: sphere\n    atmosphere:\n      mieHeight: 0\n",
+	    "must be positive");
+	CheckRefused(
+	    scene, "  - id: a\n    mesh:\n      shape: sphere\n    atmosphere:\n      mieAnisotropy: 1\n",
+	    "between -1 and 1");
+	CheckRefused(
+	    scene, "  - id: a\n    rings:\n      innerRadius: 1\n      outerRadius: 2\n",
+	    "need a mesh of one");
+	CheckRefused(
+	    scene,
+	    "  - id: a\n    mesh:\n      shape: sphere\n    rings:\n      innerRadius: 2\n      "
+	    "outerRadius: 1\n",
+	    "less than outerRadius");
+	CheckRefused(
+	    scene,
+	    "  - id: a\n    mesh:\n      shape: sphere\n    rings:\n      innerRadius: 1\n      "
+	    "outerRadius: 2\n      opacity: 1.5\n",
+	    "between 0 and 1");
+}
+
 TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig is in")
 {
 	namespace Animation = Jettison::Animation;

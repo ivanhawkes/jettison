@@ -56,6 +56,10 @@ void Swapchain::Create()
 	createInfo.imageExtent = extent;
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	m_canReadBack =
+	    (swapChainSupport.capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
+	if (m_canReadBack)
+		createInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 	QueueFamilyIndices indices =
 	    m_pDeviceContext->FindQueueFamilies(m_pDeviceContext->GetPhysicalDevice());

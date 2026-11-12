@@ -149,6 +149,10 @@ fi
 if [ "$smoke" -eq 1 ]; then
 	stage "smoke test: $headless_preset (X11 GLFW build, virtual display)"
 	./scripts/smoke-test.sh --preset "$headless_preset" --build --xvfb ${software[@]+"${software[@]}"} ${werror[@]+--werror}
+	# The frames phase 10 is judged by, against the references kept beside views.txt; always on
+	# lavapipe, which the references were taken on (scripts/capture.sh).
+	stage "reference frames: $headless_preset (lavapipe, virtual display)"
+	./scripts/capture.sh --preset "$headless_preset" --no-build --references
 else
 	skip "smoke test (--skip-smoke)"
 fi

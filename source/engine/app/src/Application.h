@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -165,6 +166,9 @@ class Application
 	// Points the orbit camera at the body's entity, out to three of its radii, eased from wherever
 	// the camera is.
 	void FrameBody(entt::registry &registry, entt::entity camera, entt::entity body);
+	// The console's orbit command: every orbit camera placed at once at a yaw, pitch and distance,
+	// about the body named if one is. Throws, saying why, on what it cannot do.
+	void PlaceOrbitCamera(std::span<const std::string> arguments);
 
 	// Starts a jump: to the system of that name, along the lane from the system shown if one leads
 	// there and straight there if none does; or, with no name, out through the exit after the one
@@ -343,6 +347,13 @@ class Application
 	// When the frame loop started: the presentation time the materials' time-driven parameters
 	// read is the frame's start less this, in seconds, as a double.
 	Time::RealClock::Clock::time_point m_loopStart{};
+	// The clocks' seconds since the loop started, when each frame moves them a fixed step
+	// (AppArguments::frameStep).
+	double m_fixedTime{0.0};
+	// Frames in a row begun with nothing loading, and whether the screenshot the run was asked for
+	// has been taken.
+	std::uint32_t m_quietFrames{0};
+	bool m_screenshotTaken{false};
 	// Whether this frame's render recreated the swapchain, for the headless sequence.
 	bool m_frameResized{false};
 	// The benchmark's frames so far, warm-up included, and when the timed ones began.

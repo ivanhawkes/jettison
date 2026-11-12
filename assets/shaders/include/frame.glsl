@@ -8,6 +8,7 @@
 #ifndef JETTISON_FRAME_GLSL
 #define JETTISON_FRAME_GLSL
 
+#include "body.glsl"
 #include "sky.glsl"
 
 layout(set = 0, binding = 0) uniform FrameConstants
@@ -25,7 +26,7 @@ layout(set = 0, binding = 0) uniform FrameConstants
 	vec4 environment;
 	Sky sky;
 	// x: the lights in the light list, y: the debug view (kDebugView*, lighting.glsl), z: 1 when the
-	// sun casts shadows this frame.
+	// sun casts shadows this frame, w: the bodies in the body list.
 	uvec4 counts;
 	// The cluster grid (clusters.glsl): x the near plane and y the cluster range, both view depths
 	// in metres.
@@ -64,6 +65,13 @@ struct Light
 layout(std430, set = 0, binding = 2) readonly buffer LightList
 {
 	Light lights[];
+};
+
+// The celestial bodies drawn this frame with an atmosphere or rings (body.glsl): the planet program
+// reads its own by the index its instance carries, and the atmosphere program reads them all.
+layout(std430, set = 0, binding = 12) readonly buffer BodyList
+{
+	Body bodies[];
 };
 
 // Binding 3 is the frame's material parameters, which material.glsl declares for the programs that

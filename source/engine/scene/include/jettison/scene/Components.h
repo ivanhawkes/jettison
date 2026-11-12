@@ -227,6 +227,47 @@ struct SkyComponent
 	friend bool operator==(const SkyComponent &, const SkyComponent &) = default;
 };
 
+// A celestial body's atmosphere (docs/architecture.md, "Atmospheres"): air over the surface of the
+// sphere the entity's mesh draws, which scatters the sun's light towards the camera, as a limb about
+// the body seen from space and a haze over its surface, and reddens the sunlight that reaches the
+// surface at the terminator. Single scattering by Rayleigh (the air) and Mie (haze), each of a
+// density falling off exponentially with height; the surface's radius is the mesh's, the
+// transform's smallest scale. SI units: metres, and per metre at the surface for the coefficients.
+// The defaults are Earth's, as Hillaire has them (2020), which the haze of another world is a change
+// of.
+struct AtmosphereComponent
+{
+	// Above the surface, where the air is taken to end.
+	double height{100000.0};
+	glm::vec3 rayleigh{5.802e-6f, 13.558e-6f, 33.1e-6f};
+	float rayleighHeight{8000.0f};
+	// Mie scattering, and its extinction, which is scattering and absorption both and is not less
+	// than it.
+	float mie{3.996e-6f};
+	float mieExtinction{4.44e-6f};
+	float mieHeight{1200.0f};
+	// The phase function's anisotropy, from -1 to 1: towards 1, the glow about the sun is tighter.
+	float mieAnisotropy{0.8f};
+
+	friend bool operator==(const AtmosphereComponent &, const AtmosphereComponent &) = default;
+};
+
+// A celestial body's rings (docs/architecture.md, "Atmospheres"): a flat annulus of ice and dust in
+// the plane of the body's equator, the transform's XZ plane, between two radii from its centre in
+// metres. Its bands and gaps are drawn from the seed; the opacity is the densest band's, the share
+// of the light behind it that it stops. Lit by the sun, in the body's shadow, and casting its own
+// onto the body.
+struct RingsComponent
+{
+	double innerRadius{0.0};
+	double outerRadius{0.0};
+	glm::vec3 color{0.8f, 0.74f, 0.64f};
+	float opacity{0.8f};
+	std::uint32_t seed{1};
+
+	friend bool operator==(const RingsComponent &, const RingsComponent &) = default;
+};
+
 // A camera that orbits another entity. The authored fields are where it starts; the rig and the
 // resolved target are runtime state, not written to the scene file.
 struct OrbitCameraComponent

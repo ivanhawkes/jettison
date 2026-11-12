@@ -45,7 +45,13 @@ std::vector<SceneDrawCommand> CollectDraws(
 		const bool round = mesh.shape == Shape::Sphere || mesh.shape == Shape::IcoSphere ||
 		                   mesh.shape == Shape::CubeSphere;
 		if (round && registry.all_of<Scene::CelestialBodyComponent>(entity))
+		{
 			draw.occluderRadius = MinScale(relative);
+			draw.atmosphere = registry.try_get<Scene::AtmosphereComponent>(entity);
+			draw.rings = registry.try_get<Scene::RingsComponent>(entity);
+			draw.spinAxis = glm::vec3{glm::normalize(glm::dvec3{world[1]})};
+			draw.color = mesh.color;
+		}
 		drawCommands.push_back(draw);
 	}
 	return drawCommands;

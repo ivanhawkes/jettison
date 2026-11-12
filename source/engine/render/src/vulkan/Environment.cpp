@@ -127,6 +127,35 @@ GpuSky PackSky(const Scene::SkyComponent &sky)
 }
 
 
+bool CaptureMoved(const CaptureLight &baked, const CaptureLight &now)
+{
+	constexpr float kTurn = 0.01f;
+	constexpr float kGrowth = 0.02f;
+	const auto turned = [](const glm::vec3 &from, const glm::vec3 &to)
+	{
+		const float lengths = glm::length(from) * glm::length(to);
+		return lengths <= 0.0f || glm::dot(from, to) < lengths * std::cos(kTurn);
+	};
+	if (baked.sunDirection.w != now.sunDirection.w || baked.bodies.size() != now.bodies.size())
+		return true;
+	if (now.sunDirection.w != 0.0f &&
+	    turned(glm::vec3{baked.sunDirection}, glm::vec3{now.sunDirection}))
+		return true;
+	for (std::size_t index = 0; index < now.bodies.size(); ++index)
+	{
+		const glm::vec4 &was = baked.bodies[index].body.atmosphere.centreRadius;
+		const glm::vec4 &is = now.bodies[index].body.atmosphere.centreRadius;
+		if (turned(glm::vec3{was}, glm::vec3{is}))
+			return true;
+		const float wasSize = was.w / glm::length(glm::vec3{was});
+		const float isSize = is.w / glm::length(glm::vec3{is});
+		if (std::abs(isSize - wasSize) > kGrowth * wasSize)
+			return true;
+	}
+	return false;
+}
+
+
 Environment::Environment(std::shared_ptr<DeviceContext> pDeviceContext, PipelineCache &pipelines)
     : m_pDeviceContext{std::move(pDeviceContext)}, m_pipelines{pipelines}
 {
@@ -322,7 +351,7 @@ void Environment::BakeBrdfLut()
 }
 
 
-void Environment::Bake(const Scene::SkyComponent *pSky)
+void Environment::Bake(const Scene::SkyComponent *pSky, const CaptureLight &light)
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
 	constexpr VkImageUsageFlags kTargetUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
@@ -371,9 +400,19 @@ void Environment::Bake(const Scene::SkyComponent *pSky)
 			capture = CreateCube(
 			    kCaptureSize, captureLevels, kTargetUsage | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 			    "environment-capture");
-			const GpuSky sky = PackSky(*pSky);
+			GpuCapture sky;
+			sky.sky = PackSky(*pSky);
+			sky.sunDirection = light.sunDirection;
+			sky.sunLight = light.sunLight;
+			// The nearest, last in the list, are the ones kept.
+			const std::size_t first =
+			    light.bodies.size() > kCaptureBodies ? light.bodies.size() - kCaptureBodies : 0;
+			for (std::size_t body = first; body < light.bodies.size(); ++body)
+				sky.bodies[body - first] = light.bodies[body];
+			sky.counts.x = static_cast<std::uint32_t>(light.bodies.size() - first);
 			skyBuffer = m_pDeviceContext->CreateBuffer(
-			    sizeof(GpuSky), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, MemoryUse::Upload, "sky-capture");
+			    sizeof(GpuCapture), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, MemoryUse::Upload,
+			    "sky-capture");
 			m_pDeviceContext->WriteBuffer(skyBuffer, &sky, sizeof(sky));
 
 			const std::array<VkDescriptorPoolSize, 2> poolSizes{{
@@ -400,7 +439,7 @@ void Environment::Bake(const Scene::SkyComponent *pSky)
 				throw std::runtime_error("failed to allocate the environment bake's descriptor sets");
 			captureSet = sets[0];
 			prefilterSet = sets[1];
-			const VkDescriptorBufferInfo skyInfo{skyBuffer.handle, 0, sizeof(GpuSky)};
+			const VkDescriptorBufferInfo skyInfo{skyBuffer.handle, 0, sizeof(GpuCapture)};
 			const VkDescriptorImageInfo captureInfo{
 			    m_sampler, capture.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 			std::array<VkWriteDescriptorSet, 2> writes{};

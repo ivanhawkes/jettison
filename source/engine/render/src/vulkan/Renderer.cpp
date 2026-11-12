@@ -8,13 +8,16 @@
 #include <format>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include <jettison/core/Log.h>
+#include <jettison/render/Atmosphere.h>
 #include <jettison/render/FrameData.h>
+#include <jettison/render/Screenshot.h>
 #include <jettison/scene/Scene.h>
 
 #include "vulkan/Environment.h"
@@ -52,6 +55,22 @@ static_assert(sizeof(OutputPushConstants) == 24);
 
 constexpr Core::Category kRender{"render"};
 
+// The order of a swapchain format's bytes, for one a screenshot can be written from: the 8-bit four
+// channel formats, sRGB-encoded or not (the output pass encodes for a UNORM one).
+std::optional<PixelOrder> ScreenshotOrder(VkFormat format)
+{
+	switch (format)
+	{
+		case VK_FORMAT_B8G8R8A8_SRGB:
+		case VK_FORMAT_B8G8R8A8_UNORM: return PixelOrder::Bgra;
+		case VK_FORMAT_R8G8B8A8_SRGB:
+		case VK_FORMAT_R8G8B8A8_UNORM:
+		case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+		case VK_FORMAT_A8B8G8R8_UNORM_PACK32: return PixelOrder::Rgba;
+		default: return std::nullopt;
+	}
+}
+
 // Room for this many lights before the first frame that has more grows the list.
 constexpr VkDeviceSize kInitialLights = 16;
 // The cluster programs' workgroup, as cluster_bounds.comp and cluster_lights.comp declare it.
@@ -72,6 +91,39 @@ constexpr float kShadowSlopeBias = -2.0f;
 // solid angle, is tens of thousands of times its intensity and would overflow the half-float HDR
 // target; past this the tonemapper shows white either way.
 constexpr float kMaxSunRadiance = 30000.0f;
+
+// The scene's sun as the camera sees it: the direction towards it, its colour and intensity, and its
+// angular radius. The scene loader allows one sun.
+struct SunView
+{
+	bool present{false};
+	glm::dvec3 direction{0.0};
+	glm::vec3 color{0.0f};
+	float intensity{0.0f};
+	double angularRadius{0.0};
+};
+
+SunView FindSun(const entt::registry &sceneRegistry, const glm::dvec3 &camera)
+{
+	for (const auto [entity, sun] : sceneRegistry.view<const Scene::SunComponent>().each())
+	{
+		glm::dvec3 position{0.0};
+		if (const auto *worldTransform = sceneRegistry.try_get<Scene::WorldTransformComponent>(entity))
+			position = glm::dvec3(worldTransform->matrix[3]);
+		// The direction is taken in double precision: the sun is a hundred million kilometres
+		// away, and its own offset is too large for a float to subtract from.
+		const glm::dvec3 towards = position - camera;
+		const double distance = glm::length(towards);
+		if (distance <= 0.0)
+			continue;
+		const auto *placement = sceneRegistry.try_get<Scene::PlacementComponent>(entity);
+		const double radius = placement != nullptr && placement->radius > 0.0
+		                          ? std::asin(std::min(placement->radius / distance, 1.0))
+		                          : kDefaultSunAngularRadius;
+		return {true, towards / distance, sun.color, sun.intensity, radius};
+	}
+	return {};
+}
 
 const Scene::SkyComponent *FindSky(const entt::registry &sceneRegistry)
 {
@@ -151,8 +203,14 @@ void Renderer::Destroy()
 		m_pDeviceContext->DestroyBuffer(frame.lines);
 		m_pDeviceContext->DestroyBuffer(frame.materials);
 		m_pDeviceContext->DestroyBuffer(frame.instances);
+		m_pDeviceContext->DestroyBuffer(frame.bodies);
 		m_pDeviceContext->DestroyBuffer(frame.gridReadback);
 		m_pDeviceContext->DestroyBuffer(frame.indexReadback);
+		// The device is idle, so the last frames' screenshots are drawn: a run that asks for one and
+		// ends on the next frame still writes it.
+		if (frame.screenshotPending)
+			SaveScreenshot(frame);
+		m_pDeviceContext->DestroyBuffer(frame.screenshotReadback);
 		frame = {};
 	}
 	DestroyClusterBuffers();
@@ -176,6 +234,7 @@ void Renderer::Destroy()
 	m_drawMaterials.clear();
 	m_outputPipeline = VK_NULL_HANDLE;
 	m_skyPipeline = VK_NULL_HANDLE;
+	m_atmospherePipeline = VK_NULL_HANDLE;
 	m_linePipeline = VK_NULL_HANDLE;
 	m_lineOverlayPipeline = VK_NULL_HANDLE;
 	m_clusterBoundsPipeline = VK_NULL_HANDLE;
@@ -228,7 +287,7 @@ void Renderer::CreateLayouts()
 	// instances mesh_vertex.glsl reads.
 	constexpr VkShaderStageFlags kFragmentCompute =
 	    VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-	const std::array<VkDescriptorSetLayoutBinding, 12> frameBindings{{
+	const std::array<VkDescriptorSetLayoutBinding, 13> frameBindings{{
 	    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
 	     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
 	     nullptr},
@@ -243,6 +302,7 @@ void Renderer::CreateLayouts()
 	    {9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, kFragmentCompute, nullptr},
 	    {10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	    {11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr},
+	    {12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
@@ -300,7 +360,7 @@ void Renderer::CreateLayouts()
 	// One frame set per frame in flight, and the output set.
 	const std::array<VkDescriptorPoolSize, 3> poolSizes{{
 	    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFramesInFlight},
-	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7 * kFramesInFlight},
+	    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 8 * kFramesInFlight},
 	    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * kFramesInFlight + 1},
 	}};
 	VkDescriptorPoolCreateInfo poolInfo{};
@@ -387,6 +447,11 @@ void Renderer::CreatePassList()
 	m_clusterReadbackPass = m_passes.AddPass(
 	    "cluster-readback", PassKind::Transfer,
 	    {{m_clusterGridResource, Usage::TransferRead}, {m_lightIndicesResource, Usage::TransferRead}});
+	// A screenshot's copy of what the output pass wrote, before the image is presented. In every
+	// frame's plan, as the cluster check's is, and recorded only in a frame asked for one.
+	if (m_pSwapchain->CanReadBack())
+		m_screenshotPass = m_passes.AddPass(
+		    "screenshot", PassKind::Transfer, {{m_swapchainResource, Usage::TransferRead}});
 	m_passes.Export(m_swapchainResource, Usage::Present);
 	m_plan = m_passes.Compile();
 }
@@ -570,6 +635,8 @@ void Renderer::CreateFrames()
 		frame.instances = m_pDeviceContext->CreateBuffer(
 		    kInitialInstances * sizeof(GpuInstance), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 		    MemoryUse::Upload, "instances-" + slot);
+		frame.bodies = m_pDeviceContext->CreateBuffer(
+		    sizeof(GpuBody), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MemoryUse::Upload, "bodies-" + slot);
 
 		VkDescriptorSetAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -591,6 +658,7 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	const VkDescriptorBufferInfo lights{frame.lights.handle, 0, frame.lights.size};
 	const VkDescriptorBufferInfo materials{frame.materials.handle, 0, frame.materials.size};
 	const VkDescriptorBufferInfo instances{frame.instances.handle, 0, frame.instances.size};
+	const VkDescriptorBufferInfo bodies{frame.bodies.handle, 0, frame.bodies.size};
 	const std::array<VkDescriptorBufferInfo, 3> clusters{{
 	    {m_clusterBounds.handle, 0, m_clusterBounds.size},
 	    {m_clusterGrid.handle, 0, m_clusterGrid.size},
@@ -604,7 +672,7 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	}};
 	const VkDescriptorImageInfo shadows{
 	    m_shadowSampler, m_shadowArrayView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-	std::array<VkWriteDescriptorSet, 12> writes{};
+	std::array<VkWriteDescriptorSet, 13> writes{};
 	for (auto &write : writes)
 	{
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -641,6 +709,9 @@ void Renderer::WriteFrameSet(const FrameData &frame)
 	writes[11].dstBinding = 11;
 	writes[11].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	writes[11].pBufferInfo = &instances;
+	writes[12].dstBinding = 12;
+	writes[12].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writes[12].pBufferInfo = &bodies;
 	vkUpdateDescriptorSets(
 	    m_pDeviceContext->GetLogicalDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0,
 	    nullptr);
@@ -685,6 +756,12 @@ void Renderer::CreatePipelines()
 	sky.depthWrite = false;
 	sky.depthCompare = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	m_skyPipeline = m_pPipelines->Get({"sky", sky, m_meshLayout});
+	// The bodies' air and rings, over the sky where it was drawn and nowhere else: a surface in
+	// front of the limb is not behind the air, and the planet program hazes its own surface. Its
+	// colour is premultiplied by what it lets through of what is behind it, as one minus its alpha.
+	RenderState atmosphere = sky;
+	atmosphere.blend = BlendMode::Premultiplied;
+	m_atmospherePipeline = m_pPipelines->Get({"atmosphere", atmosphere, m_meshLayout});
 
 	// Lines are blended over the opaque surfaces and write no depth, so a line through a surface
 	// does not hide the half behind it from the next line; the overlay variant is not tested.
@@ -774,18 +851,61 @@ void Renderer::RecreateSwapchain()
 }
 
 
-void Renderer::UpdateEnvironment(const entt::registry &sceneRegistry, bool sceneReplaced)
+void Renderer::UpdateEnvironment(
+    const entt::registry &sceneRegistry, bool sceneReplaced, const CameraView &camera,
+    const std::vector<SceneDrawCommand> &draws)
 {
 	const Scene::SkyComponent *pSky = FindSky(sceneRegistry);
 	std::optional<Scene::SkyComponent> sky;
 	if (pSky != nullptr)
 		sky = *pSky;
+
+	// The sun and the celestial bodies, as they are from the camera now. A body smaller on the sky
+	// than a fifth of a texel of the capture is left out: it would light nothing.
+	CaptureLight light;
+	const SunView sun = FindSun(sceneRegistry, camera.position);
+	if (sun.present)
+	{
+		light.sunDirection = glm::vec4{sun.direction, 1.0f};
+		light.sunLight = glm::vec4{sun.color * sun.intensity, static_cast<float>(sun.angularRadius)};
+	}
+	std::vector<std::pair<double, GpuCaptureBody>> bodies;
+	for (const SceneDrawCommand &draw : draws)
+	{
+		if (draw.occluderRadius <= 0.0)
+			continue;
+		const double distance = glm::length(draw.bounds.center);
+		if (draw.occluderRadius < 0.003 * distance)
+			continue;
+		const glm::vec3 centre{draw.renderTransform[3]};
+		const auto radius = static_cast<float>(draw.occluderRadius);
+		GpuCaptureBody body;
+		body.body.atmosphere = draw.atmosphere != nullptr
+		                           ? PackAtmosphere(*draw.atmosphere, centre, radius)
+		                           : PackAirless(centre, radius);
+		if (draw.rings != nullptr)
+			body.body.rings = PackRings(*draw.rings, draw.spinAxis);
+		body.albedo = glm::vec4{draw.color, 1.0f};
+		bodies.emplace_back(distance, body);
+	}
+	// Furthest first, and the draws' order behind that, so the list is the same from frame to frame.
+	std::ranges::stable_sort(bodies, std::greater{}, &std::pair<double, GpuCaptureBody>::first);
+	for (const auto &[distance, body] : bodies)
+		light.bodies.push_back(body);
+
 	// A replaced scene is rebaked even when its sky is the same, so a reload proves the whole path:
-	// a jump to another system loads another sky anyway.
-	if (!sceneReplaced && sky == m_bakedSky)
+	// a jump to another system loads another sky anyway. Otherwise the bodies are rebaked as they
+	// move, but no more than every sixteen frames: easing the camera to another body turns the whole
+	// sky, and a bake waits for the queue.
+	constexpr std::uint64_t kFramesBetweenBakes = 16;
+	const bool moved =
+	    CaptureMoved(m_bakedLight, light) && m_frameNumber >= m_bakedFrame + kFramesBetweenBakes;
+	if (!sceneReplaced && sky == m_bakedSky && !moved)
 		return;
-	m_pEnvironment->Bake(pSky);
+	m_pEnvironment->Bake(pSky, light);
 	m_bakedSky = sky;
+	m_bakedLight = std::move(light);
+	m_bakedFrame = m_frameNumber;
 	// The bake waited for the queue, so neither slot's set is read by a submission in flight.
 	for (const FrameData &frame : m_frames)
 		WriteFrameSet(frame);
@@ -844,6 +964,8 @@ void Renderer::WriteFrame(
 	WriteLights(frame, sceneRegistry, camera);
 	constants.counts.x = static_cast<uint32_t>(m_lightScratch.size());
 	constants.counts.y = static_cast<uint32_t>(m_debugView);
+	WriteBodies(frame, draws);
+	constants.counts.w = static_cast<uint32_t>(m_bodyScratch.size());
 	if (m_checkClusters)
 	{
 		frame.checkView = m_frameClusterView;
@@ -851,39 +973,24 @@ void Renderer::WriteFrame(
 		frame.checkLights = m_lightScratch;
 	}
 
-	// The scene loader allows one sun.
 	m_frameShadows = false;
-	for (const auto [entity, sun] : sceneRegistry.view<const Scene::SunComponent>().each())
+	if (const SunView sun = FindSun(sceneRegistry, camera.position); sun.present)
 	{
-		glm::dvec3 position{0.0};
-		if (const auto *worldTransform = sceneRegistry.try_get<Scene::WorldTransformComponent>(entity))
-			position = glm::dvec3(worldTransform->matrix[3]);
-		// The direction is taken in double precision: the sun is a hundred million kilometres
-		// away, and its own offset is too large for a float to subtract from.
-		const glm::dvec3 towards = position - camera.position;
-		const double distance = glm::length(towards);
-		if (distance > 0.0)
-		{
-			constants.sunDirection = glm::vec4(glm::vec3{towards / distance}, 1.0f);
-			constants.sunColorIntensity = glm::vec4(sun.color, sun.intensity);
-			const auto *placement = sceneRegistry.try_get<Scene::PlacementComponent>(entity);
-			const double radius = placement != nullptr && placement->radius > 0.0
-			                          ? std::asin(std::min(placement->radius / distance, 1.0))
-			                          : kDefaultSunAngularRadius;
-			const double solidAngle = 2.0 * std::numbers::pi * (1.0 - std::cos(radius));
-			constants.sunDisc = glm::vec4(
-			    static_cast<float>(std::cos(radius)), static_cast<float>(radius),
-			    std::min(static_cast<float>(sun.intensity / solidAngle), kMaxSunRadiance), 0.0f);
+		constants.sunDirection = glm::vec4(glm::vec3{sun.direction}, 1.0f);
+		constants.sunColorIntensity = glm::vec4(sun.color, sun.intensity);
+		const double solidAngle = 2.0 * std::numbers::pi * (1.0 - std::cos(sun.angularRadius));
+		constants.sunDisc = glm::vec4(
+		    static_cast<float>(std::cos(sun.angularRadius)), static_cast<float>(sun.angularRadius),
+		    std::min(static_cast<float>(sun.intensity / solidAngle), kMaxSunRadiance), 0.0f);
 
-			m_frameCascades = FitSunShadows(
-			    camera, viewport.x / std::max(viewport.y, 1.0f), towards / distance, m_shadowSettings);
-			for (std::uint32_t cascade = 0; cascade < kShadowCascades; ++cascade)
-				constants.shadowMatrices[cascade] = m_frameCascades.cascades[cascade].matrix;
-			constants.shadowSplits = m_frameCascades.Splits();
-			constants.shadowTexels = m_frameCascades.TexelSizes();
-			constants.counts.z = 1u;
-			m_frameShadows = true;
-		}
+		m_frameCascades = FitSunShadows(
+		    camera, viewport.x / std::max(viewport.y, 1.0f), sun.direction, m_shadowSettings);
+		for (std::uint32_t cascade = 0; cascade < kShadowCascades; ++cascade)
+			constants.shadowMatrices[cascade] = m_frameCascades.cascades[cascade].matrix;
+		constants.shadowSplits = m_frameCascades.Splits();
+		constants.shadowTexels = m_frameCascades.TexelSizes();
+		constants.counts.z = 1u;
+		m_frameShadows = true;
 	}
 	m_pDeviceContext->WriteBuffer(frame.constants, &constants, sizeof(constants));
 
@@ -1029,7 +1136,7 @@ void Renderer::WriteInstances(
 		const SceneDrawCommand &draw = draws[drawIndex];
 		m_instanceScratch[instance] = {
 		    draw.renderTransform,
-		    glm::uvec4{jointOffsets[drawIndex], draw.Skinned() ? 1u : 0u, 0u, 0u}};
+		    glm::uvec4{jointOffsets[drawIndex], draw.Skinned() ? 1u : 0u, m_drawBodies[drawIndex], 0u}};
 	}
 	const VkDeviceSize bytes = m_instanceScratch.size() * sizeof(GpuInstance);
 	EnsureCapacity(frame, frame.instances, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "instances");
@@ -1080,6 +1187,34 @@ void Renderer::WriteLights(
 	if (!m_lightScratch.empty())
 		m_pDeviceContext->WriteBuffer(
 		    frame.lights, m_lightScratch.data(), m_lightScratch.size() * sizeof(GpuLight));
+}
+
+
+void Renderer::WriteBodies(FrameData &frame, const std::vector<SceneDrawCommand> &draws)
+{
+	m_bodyScratch.clear();
+	m_drawBodies.assign(draws.size(), 0u);
+	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+	{
+		const SceneDrawCommand &draw = draws[drawIndex];
+		if (draw.atmosphere == nullptr && draw.rings == nullptr)
+			continue;
+		// The transform's translation, not the bounds' centre, which is the box's about the float
+		// vertices and a metre or so off for a planet.
+		const glm::vec3 centre{draw.renderTransform[3]};
+		const auto radius = static_cast<float>(draw.occluderRadius);
+		GpuBody body;
+		body.atmosphere = draw.atmosphere != nullptr ? PackAtmosphere(*draw.atmosphere, centre, radius)
+		                                             : PackAirless(centre, radius);
+		if (draw.rings != nullptr)
+			body.rings = PackRings(*draw.rings, draw.spinAxis);
+		m_bodyScratch.push_back(body);
+		m_drawBodies[drawIndex] = static_cast<std::uint32_t>(m_bodyScratch.size());
+	}
+	const VkDeviceSize bytes = m_bodyScratch.size() * sizeof(GpuBody);
+	EnsureCapacity(frame, frame.bodies, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "bodies");
+	if (bytes != 0)
+		m_pDeviceContext->WriteBuffer(frame.bodies, m_bodyScratch.data(), bytes);
 }
 
 
@@ -1161,6 +1296,8 @@ bool Renderer::Render(
 	m_pProfiler->Collect(m_currentFrame);
 	if (frame.checkPending)
 		CheckClusters(frame);
+	if (frame.screenshotPending)
+		SaveScreenshot(frame);
 
 	uint32_t imageIndex = 0;
 	const VkResult acquired = vkAcquireNextImageKHR(
@@ -1186,10 +1323,10 @@ bool Renderer::Render(
 	// the new contents' own, into queues that wait out the frames in flight.
 	const bool sceneReplaced = m_sceneGeneration && *m_sceneGeneration != scene.Generation();
 	m_sceneGeneration = scene.Generation();
-	UpdateEnvironment(scene.Registry(), sceneReplaced);
 
 	const CameraView camera = ActiveCameraView(scene.Registry());
 	const auto draws = CollectDraws(scene.Registry(), camera.position, *m_pModels);
+	UpdateEnvironment(scene.Registry(), sceneReplaced, camera, draws);
 	std::vector<uint32_t> jointOffsets;
 	// The materials first: a draw's batch is keyed on the one it resolved to.
 	WriteMaterials(frame, draws, presentationTime);
@@ -1211,6 +1348,21 @@ bool Renderer::Render(
 		    "light-indices-readback-" + slot);
 	}
 	m_pOverlay->Prepare(m_currentFrame, overlay);
+	if (!m_screenshotRequest.empty())
+	{
+		const VkExtent2D extent = m_pSwapchain->GetExtents();
+		const VkDeviceSize bytes = VkDeviceSize{extent.width} * extent.height * 4;
+		if (frame.screenshotReadback.size < bytes)
+		{
+			m_pDeviceContext->DestroyBuffer(frame.screenshotReadback);
+			frame.screenshotReadback = m_pDeviceContext->CreateBuffer(
+			    bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, MemoryUse::Readback,
+			    "screenshot-readback-" + std::to_string(m_currentFrame));
+		}
+		frame.screenshotPath = std::move(m_screenshotRequest);
+		frame.screenshotExtent = extent;
+		m_screenshotRequest.clear();
+	}
 	Record(frame, imageIndex, imguiRenderer);
 
 	VkSubmitInfo submitInfo{};
@@ -1322,6 +1474,8 @@ void Renderer::Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer
 			RecordOutput(commandBuffer, imageIndex, imguiRenderer);
 		else if (planned.pass == m_clusterReadbackPass)
 			RecordClusterReadback(frame, commandBuffer);
+		else if (planned.pass == m_screenshotPass)
+			RecordScreenshot(frame, commandBuffer, imageIndex);
 		m_pProfiler->EndPass(commandBuffer, m_currentFrame, planned.pass);
 		m_pDeviceContext->EndDebugLabel(commandBuffer);
 	}
@@ -1485,6 +1639,62 @@ void Renderer::RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBu
 }
 
 
+void Renderer::RequestScreenshot(std::filesystem::path path)
+{
+	const VkFormat format = m_pSwapchain->GetImageFormat();
+	if (m_screenshotPass == kNoPass || !ScreenshotOrder(format))
+	{
+		Core::Log(
+		    Core::Severity::Error, kRender,
+		    "screenshot {}: the swapchain ({}) cannot be read back as 8-bit RGB", path.string(),
+		    m_screenshotPass == kNoPass ? "no transfer source" : "format " + std::to_string(format));
+		return;
+	}
+	m_screenshotRequest = std::move(path);
+}
+
+
+void Renderer::RecordScreenshot(
+    FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex) const
+{
+	if (frame.screenshotPath.empty() || frame.screenshotPending)
+		return;
+	VkBufferImageCopy region{};
+	region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	region.imageExtent = {frame.screenshotExtent.width, frame.screenshotExtent.height, 1};
+	vkCmdCopyImageToBuffer(
+	    commandBuffer, m_pSwapchain->GetImage(imageIndex), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	    frame.screenshotReadback.handle, 1, &region);
+	// As the cluster check's copies are: made available to the host, which reads them after the fence.
+	VkMemoryBarrier2 toHost{};
+	toHost.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+	toHost.srcStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+	toHost.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	toHost.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+	toHost.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+	VkDependencyInfo dependency{};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.memoryBarrierCount = 1;
+	dependency.pMemoryBarriers = &toHost;
+	vkCmdPipelineBarrier2(commandBuffer, &dependency);
+	frame.screenshotPending = true;
+}
+
+
+void Renderer::SaveScreenshot(FrameData &frame)
+{
+	Screenshot shot;
+	shot.width = frame.screenshotExtent.width;
+	shot.height = frame.screenshotExtent.height;
+	shot.order = ScreenshotOrder(m_pSwapchain->GetImageFormat()).value_or(PixelOrder::Rgba);
+	shot.pixels.resize(std::size_t{shot.width} * shot.height * 4);
+	m_pDeviceContext->ReadBuffer(frame.screenshotReadback, shot.pixels.data(), shot.pixels.size());
+	WriteScreenshot(frame.screenshotPath, shot);
+	frame.screenshotPending = false;
+	frame.screenshotPath.clear();
+}
+
+
 void Renderer::SetViewport(VkCommandBuffer commandBuffer) const
 {
 	const VkViewport viewport{0.0f,
@@ -1582,6 +1792,13 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyPipeline);
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	m_pDeviceContext->EndDebugLabel(commandBuffer);
+	if (!m_bodyScratch.empty())
+	{
+		m_pDeviceContext->BeginDebugLabel(commandBuffer, "atmosphere");
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_atmospherePipeline);
+		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+		m_pDeviceContext->EndDebugLabel(commandBuffer);
+	}
 
 	if (m_lineVertices != 0)
 	{

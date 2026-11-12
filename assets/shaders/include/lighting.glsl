@@ -179,8 +179,10 @@ vec3 ClusterHeat(uint cluster)
 	return mix(hot, full, heat * 4.0 - 3.0);
 }
 
-// The light a surface sends towards the camera, which is at the render-space origin.
-vec3 ShadeSurface(Surface surface, vec3 normal, vec3 renderPosition)
+// The light a surface sends towards the camera, which is at the render-space origin, with the sun's
+// light by colour the share given of what it is above the air (the planet program's terminator and
+// the shadows of rings and clouds; 1 for every other program).
+vec3 ShadeSurfaceSunlit(Surface surface, vec3 normal, vec3 renderPosition, vec3 sunlight)
 {
 	vec3 toViewer = normalize(-renderPosition);
 	// An interpolated normal can lean away from a viewer that can still see its triangle; it is
@@ -207,7 +209,7 @@ vec3 ShadeSurface(Surface surface, vec3 normal, vec3 renderPosition)
 	// a degree, and its light does not fall off across a station.
 	if (frame.sunDirection.w != 0.0)
 		radiance += EvaluateBrdf(surface, normal, toViewer, frame.sunDirection.xyz) *
-		            frame.sunColorIntensity.rgb *
+		            frame.sunColorIntensity.rgb * sunlight *
 		            (frame.sunColorIntensity.a * SunShadow(renderPosition, normal, depth));
 	// The cluster's lights: those whose range reaches it, and no others. Past the cluster range
 	// there are none, and the surface has the sun, the sky and its own emission.
@@ -219,6 +221,11 @@ vec3 ShadeSurface(Surface surface, vec3 normal, vec3 renderPosition)
 			    surface, normal, toViewer, renderPosition, lights[lightIndices[entry.x + index]]);
 	}
 	return radiance + EnvironmentLighting(surface, normal, toViewer);
+}
+
+vec3 ShadeSurface(Surface surface, vec3 normal, vec3 renderPosition)
+{
+	return ShadeSurfaceSunlit(surface, normal, renderPosition, vec3(1.0));
 }
 
 #endif

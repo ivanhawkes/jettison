@@ -13,7 +13,7 @@ built, are recorded in [history](history.md).
 |---|---|---|
 | 0–9 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks. Recorded in [history](history.md). | Met. |
 | 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
-| 10a | **Atmosphere and planets.** The atmosphere scattering shell; planet shading (clouds, night lights, rings); the planets in the environment's capture, so a hull reflects them; a frame written to an image file from the command line, first, since the rest of phase 10 is judged by looking ([carried forward](#carried-forward)). | |
+| 10a | **Atmosphere and planets.** Done 2026-11-13. Catalogue entry 28. A frame written to a PNG from inside the frame loop (`render/Screenshot.h`): `--screenshot` after `--after-frames` quiet frames, `--frame-step` for clocks moved a fixed step and held while anything loads, `--run` for console lines before the first frame, the console's `screenshot` and `orbit` commands, and `scripts/capture.sh`, whose reference views (`source/test/frames/views.txt`) are a stage of the gate. Air and rings on a celestial body (`AtmosphereComponent`, `RingsComponent`), as maths over a sphere in `atmosphere.glsl` and `rings.glsl`, which the render suite runs as C++ against brute force ([atmospheres](architecture.md#atmospheres)): single Rayleigh and Mie scattering with the Chapman function in closed form; rings of three bands and two gaps over noise, filtered to the pixel. The frame's body list; the planet program's reddened terminator, haze, rings' shadow and rings in front of the surface; an atmosphere program after the sky for the limb and the rings over space. Clouds and city lights on the planet program from noise, the clouds drifting by a time-driven parameter, the lights with a glow standing in for bloom. The celestial bodies in the environment's capture, lit spheres with their air and rings, baked again as they move by a texel of it. Ostra has Earth's air, clouds and cities; Corva, in a new Vesper scene, a gas giant's air and rings. | Met: the five reference views, the orbit scene as it opens, Ostra by day and by night, Corva and its rings, and the Vesper scene as it opens, captured twice on lavapipe with no pixel differing, and the gate holds every later change to them. |
 | 10b | **The transparent pass.** Sorted back to front and lit through the clusters; GPU particles; glass. | |
 | 10c | **Post-processing and screen-space effects.** A chain of post passes on the resolved HDR target before the output pass; bloom; screen-space ambient occlusion, from the depth prepass, which writes view-space normals for it and runs whenever it is on; stencil on the depth target (`D32_SFLOAT_S8_UINT`), with separate depth and stencil layouts and its bits allotted, and an object ID buffer written by the depth prepass; outlines of the selected and targeted, by stencil and by ID; material effects through time-driven parameters. Screen-space reflections stay out (see [decided](#decided)). | |
 | 10d | **Animation.** Keyframed TRS tracks on any node for mechanical rigs; clip events (a clamp closing plays a sound). | |
@@ -93,26 +93,24 @@ are in [history](history.md).
 - **The crash handler hook** in `platform` (entry 6): 11d.
 - **A light's intensity driven by time**, as the beacon's lamp blinks (entry 19): with the material
   effects of 10c.
-- **The planets in the environment's capture**, so a hull reflects them (entry 19): 10a.
-- **A frame written to an image file** (entry 28): `render_test --screenshot <file.png>
-  --after-frames <n>` (and a console command) reads back the swapchain image the output pass wrote,
-  after the given frame, and writes it as a PNG through stb, then exits if asked. Today a frame is
-  seen by running the app on Xvfb and grabbing the root window with `xwd` and ImageMagick, with keys
-  driven through `xdotool` and held longer than a lavapipe frame (up to a second at 1280×720), and a
-  fixed wait for the scene to settle: slow, timing-dependent, and blind to anything off the virtual
-  screen. A capture from inside the frame loop is exact to the frame, needs no display tools, and
-  gives image comparisons (a frame against a kept reference, within a tolerance) for the passes of
-  phase 10, whose results are otherwise judged by eye. With a scripted camera it also stands in for
-  the input the `xdotool` keys provide. It lands first in 10a; nothing earlier needs it, though 8b's
-  market screen would be checked with it if it were there.
+- **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
+  a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
+  brightness in it. Not yet placed.
+- **Air over a mesh in it** (entry 28, 10a): the haze is the planet's own surface's and the sky's,
+  not a ship's or a station's within the air, which no sample scene has yet; nor are the bodies'
+  air and rings sorted where two overlap on the screen. With the transparent pass (10b), which
+  wants the same air over what it draws.
+- **A gas giant's bands** (entry 28, 10a): Corva is one colour under its air. Not yet placed.
 - **A jump's own effect** (entry 21): the fade to black is the effect today; a jump's particles and
   flash come with GPU particles (10b).
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
   first draws it, so a jump holds its effect over the new system's first frames while they stream
   in, 0.2 to 0.4 s on lavapipe for the sample systems. Not yet placed.
 - **A body's look as data** (entry 21): the system scene draws a body it builds as its kind is, from
-  a table in code. A station's look is its layout's, dressed (9d); a look per planet, moon or kind,
-  as a scene fragment a mod can shadow, is not yet placed.
+  a table in code. A station's look is its layout's, dressed (9d); a planet's material, air and
+  rings are a scene file's (10a), so Corva's rings are drawn in `scene/vesper.yaml` and not in the
+  Vesper a jump builds from its system file. A look per planet, moon or kind, as a scene fragment a
+  mod can shadow, is not yet placed.
 - **A glTF model's collision mesh** (entry 22, 7b): a station built to a layout collides as its
   decks and piers (9c), as every station of the sample systems is, and one of no layout as the
   procedural shapes the scene draws it with (`app/src/Piloting.h`); a hull collides as the box of its
@@ -209,9 +207,10 @@ program reads ([history](history.md#shaders--phase-5)). A material names its pro
 its parameters and texture slots, so adding a program is data plus GLSL, not a new code path.
 The planet surface program came ahead of phase 10, with the first planet's maps (2026-11-12):
 colour, normal, height and roughness by longitude and latitude, and a detail layer on the land.
-Phase 10 adds atmosphere, particle and glass programs on the same terms, lit through the same
-include, the planet's clouds, night lights and rings over its surface, and the post chain's
-programs. Shader variants are compile-time defines
+Phase 10a added the atmosphere program and the planet's clouds, night lights, air and rings over its
+surface, from shared includes (`body.glsl`, `atmosphere.glsl`, `rings.glsl`) the environment's
+capture runs too. The rest of phase 10 adds particle and glass programs on the same terms, lit
+through the same include, and the post chain's programs. Shader variants are compile-time defines
 on one source (`jettison_compile_shader_variant`). Programs do not hot-reload yet; materials and
 textures do.
 
@@ -228,6 +227,12 @@ The atmosphere scattering shell, planet shading (clouds, night lights, rings), G
 with a sorted transparent pass, glass on that transparent pass. The transparent pass is
 forward-lit through the same clusters as the opaque one, which is one of the reasons the
 renderer is clustered forward.
+
+Phase 10a built the first part, and the frame written to a file the rest is judged by: air and
+rings as maths over a sphere rather than a mesh shell or a baked table, drawn by the planet program
+over its surface and by an atmosphere program over the sky, and the bodies in the environment's
+capture ([atmospheres](architecture.md#atmospheres)); clouds and city lights from noise, since the
+planet pack has no maps of them.
 
 Post-processing is a chain of passes in the pass list, on the resolved HDR target between the
 opaque and transparent passes and the output pass's tonemapping: bloom first (stars, engines and

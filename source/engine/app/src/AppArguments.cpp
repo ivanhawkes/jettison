@@ -36,6 +36,16 @@ std::optional<std::uint32_t> ParseCount(std::string_view text)
 	return value;
 }
 
+// A positive number of seconds, all of the text, or nothing.
+std::optional<double> ParseSeconds(std::string_view text)
+{
+	double value = 0.0;
+	const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+	if (error != std::errc{} || end != text.data() + text.size() || !(value > 0.0))
+		return std::nullopt;
+	return value;
+}
+
 // The usage line names the flags this file reads, and goes to the stream the failure report
 // uses, so the two halves of one exit path arrive together.
 void PrintUsage(const char *argv0)
@@ -44,7 +54,8 @@ void PrintUsage(const char *argv0)
 	          << " [--smoke-test] [--assets <directory>] [--scene <file> | --system <virtual path>]"
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
 	             " [--depth-prepass] [--galaxy <virtual path>] [--user-dir <directory>]"
-	             " [--gpu <name>] [--no-sound]\n";
+	             " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
+	             " [--frame-step <seconds>] [--run <console command>]...\n";
 }
 } // namespace
 
@@ -76,6 +87,30 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.gpu = argv[++index];
 		else if (argument == "--user-dir" && index + 1 < argc)
 			arguments.userDirectory = std::filesystem::absolute(argv[++index]);
+		else if (argument == "--screenshot" && index + 1 < argc)
+			arguments.screenshotPath = std::filesystem::absolute(argv[++index]);
+		else if (argument == "--run" && index + 1 < argc)
+			arguments.commands.emplace_back(argv[++index]);
+		else if (argument == "--after-frames" && index + 1 < argc)
+		{
+			const auto frames = ParseCount(argv[++index]);
+			if (!frames)
+			{
+				PrintUsage(argv[0]);
+				return std::nullopt;
+			}
+			arguments.screenshotAfterFrames = *frames;
+		}
+		else if (argument == "--frame-step" && index + 1 < argc)
+		{
+			const auto seconds = ParseSeconds(argv[++index]);
+			if (!seconds)
+			{
+				PrintUsage(argv[0]);
+				return std::nullopt;
+			}
+			arguments.frameStep = *seconds;
+		}
 		else if (argument == "--benchmark" && index + 1 < argc)
 		{
 			const auto frames = ParseCount(argv[++index]);

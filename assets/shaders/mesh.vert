@@ -45,6 +45,9 @@ layout(location = 5) out vec3 fragObjectNormal;
 // rotation is the model matrix's columns at unit length.
 layout(location = 4) out vec3 fragBodyDirection;
 layout(location = 5) flat out mat3 fragBodyToRender;
+// One more than the body's index in the frame's body list (frame.glsl), 0 for a body with neither
+// air nor rings.
+layout(location = 8) flat out uint fragBody;
 #endif
 
 void main()
@@ -93,5 +96,6 @@ void main()
 	fragBodyToRender = mat3(
 	    normalize(instance.model[0].xyz), normalize(instance.model[1].xyz),
 	    normalize(instance.model[2].xyz));
+	fragBody = instance.skin.z;
 #endif
 }

@@ -10,6 +10,12 @@ Do exactly the scenario you are given; do not edit source files or commit.
 
 How (from the project's CLAUDE.md, which is the authority if it differs):
 
+- First choice, for a frame the camera alone can place: `scripts/capture.sh <out.png> --scene
+  $PWD/assets/scene/orbit.yaml [--run "orbit <yaw> <pitch> <distance> [body]"]...` (`--no-build`
+  if the headless tree is current). It writes the frame from inside the frame loop, the same every
+  run, with no keys and no settling wait. The distance is from the body's centre: under its radius
+  is inside the planet and black. Run captures one after another, never two at once: each stops the
+  Xvfb it started under the other. Everything below is for frames that need keys or the UI.
 - Binary: `build/clang-headless/source/test/render_test [--scene ...]`. Build it first with
   `cmake --build --preset clang-headless` if it is missing or stale.
 - Display: `Xvfb :97 -screen 0 1920x1080x24`. Check `pgrep -a Xvfb` and `pgrep -a render_test`
@@ -17,7 +23,7 @@ How (from the project's CLAUDE.md, which is the authority if it differs):
   the app and the captures in one script and run it as a background task. Its completion
   notification is the wait: never poll for it with `until ! pgrep -f "<script>"`, which matches the
   polling shell's own command line and never ends. If you must wait in a script, `wait $PID`.
-- `VK_ICD_FILENAMES` points at lavapipe's `lvp_icd.x86_64.json`; `scripts/smoke-test.sh` shows
+- `VK_ICD_FILENAMES` points at lavapipe's `lvp_icd.x86_64.json`; `scripts/lib/headless.sh` shows
   how to find it.
 - Tools come from `nix shell nixpkgs#xorg.xwd nixpkgs#imagemagick nixpkgs#xdotool`.
 - Let the app settle about 14 s before the first capture:

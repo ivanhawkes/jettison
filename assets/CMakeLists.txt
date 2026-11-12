@@ -37,6 +37,7 @@ jettison_compile_shaders(jettison_assets
 	shaders/debug_line.frag
 	shaders/mesh.vert
 	shaders/mesh.frag
+	shaders/atmosphere.frag
 	shaders/brdf_lut.frag
 	shaders/cluster_bounds.comp
 	shaders/cluster_lights.comp
@@ -68,7 +69,8 @@ jettison_compile_shader_variant(jettison_assets
 jettison_compile_shader_variant(jettison_assets
 	SOURCE shaders/prefilter.frag OUTPUT shaders/prefilter_irradiance.frag)
 # Every full-screen program's vertex stage is the one triangle.
-foreach(program IN ITEMS output sky sky_capture brdf_lut prefilter_specular prefilter_irradiance)
+foreach(program IN ITEMS output sky sky_capture atmosphere brdf_lut prefilter_specular
+		prefilter_irradiance)
 	jettison_compile_shader_variant(jettison_assets
 		SOURCE shaders/fullscreen.vert OUTPUT shaders/${program}.vert)
 endforeach()

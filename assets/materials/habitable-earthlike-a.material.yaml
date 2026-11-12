@@ -1,6 +1,7 @@
 # A habitable, Earth-like planet: Render::MaterialDefinition (render/Material.h), on the planet
 # program. The maps are the artist's pack imported by scripts/import-planet-textures.sh, 4096 square
-# by longitude and latitude, with a detail layer repeated ten times over them each way.
+# by longitude and latitude, with a detail layer repeated ten times over them each way. The clouds and
+# the cities' lights are the program's noise, since the pack has maps of neither.
 version: 1
 program: planet
 parameters:
@@ -12,6 +13,20 @@ parameters:
   # so dividing by it adds contrast without brightening the land.
   - name: land
     value: [0.26, 0.03, 0.597, 0]
+  # Warm sodium-coloured lights, brighter than the sunlit land at their brightest,
+  # in clusters forty to the planet's width over a third of the land.
+  - name: night
+    value: [1, 0.72, 0.42, 1.2]
+  - name: cities
+    value: [40, 0.32, 0, 0]
+# Cloud over two fifths of the sky, its features five to the planet's width, drifting a turn east
+# over the surface every four hours.
+animated:
+  - name: clouds
+    wave: Saw
+    period: 14400
+    from: [0.42, 0.12, 5, 0]
+    to: [0.42, 0.12, 5, 1]
 textures:
   - slot: color
     path: textures/planets/habitable-earthlike-a/habitable-earthlike-a-color.ktx2

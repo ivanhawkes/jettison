@@ -5,12 +5,14 @@
 // STD.
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "vulkan/DeviceContext.h"
+#include "vulkan/Environment.h"
 #include "vulkan/GpuProfiler.h"
 #include "vulkan/SceneDraws.h"
 #include "vulkan/Swapchain.h"
@@ -43,7 +45,6 @@ class FileSystem;
 
 namespace Jettison::Render
 {
-class Environment;
 class ImGuiRenderer;
 class MaterialCache;
 struct MaterialBinding;
@@ -206,6 +207,13 @@ class Renderer
 		return m_clusterChecks;
 	}
 
+	// The next frame drawn, as the output pass leaves it, written to a PNG once the GPU has drawn it
+	// (render/Screenshot.h): kFramesInFlight frames later, or as the renderer is destroyed, so the run
+	// may end on the frame after it asks. A second request before the next frame replaces the first.
+	// Refused, having logged why, on a swapchain that cannot be copied from or is not of 8-bit
+	// channels.
+	void RequestScreenshot(std::filesystem::path path);
+
   private:
 	struct FrameData
 	{
@@ -218,6 +226,8 @@ class Renderer
 		Buffer lines{};
 		Buffer materials{};
 		Buffer instances{};
+		// The celestial bodies with an atmosphere or rings (GpuBody).
+		Buffer bodies{};
 		VkDescriptorSet frameSet{VK_NULL_HANDLE};
 		// The cluster check: the grid and the index list as this slot's frame left them, and what
 		// the CPU needs to assign the same lights. Pending from the frame that copied them out until
@@ -228,6 +238,12 @@ class Renderer
 		ClusterView checkView{};
 		glm::mat3 checkViewMatrix{1.0f};
 		std::vector<GpuLight> checkLights;
+		// A screenshot: the swapchain image as this slot's frame left it, copied out to be written
+		// to its file once the slot's fence is next waited on (or as the renderer is destroyed).
+		Buffer screenshotReadback{};
+		std::filesystem::path screenshotPath;
+		VkExtent2D screenshotExtent{0, 0};
+		bool screenshotPending{false};
 	};
 
 	struct Targets
@@ -256,7 +272,9 @@ class Renderer
 	void CreateRenderFinishedSemaphores();
 	// The scene's sky, baked into the environment if it is not the one there already, or if the scene
 	// was replaced; every frame set then names the new environment.
-	void UpdateEnvironment(const entt::registry &sceneRegistry, bool sceneReplaced);
+	void UpdateEnvironment(
+	    const entt::registry &sceneRegistry, bool sceneReplaced, const CameraView &camera,
+	    const std::vector<SceneDrawCommand> &draws);
 	void DestroyRenderFinishedSemaphores();
 	void RecreateSwapchain();
 
@@ -270,6 +288,10 @@ class Renderer
 	// The frame's local lights into the slot's light list: camera-relative, and only those whose
 	// range reaches into the cluster range, the view's frustum, and out from behind every planet.
 	void WriteLights(FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera);
+	// The celestial bodies drawn with an atmosphere or rings into the slot's body list, whether or
+	// not they are in view (the air over a planet behind the camera can still be), and each draw's
+	// entry in it, one more than its index, 0 for none.
+	void WriteBodies(FrameData &frame, const std::vector<SceneDrawCommand> &draws);
 	// The view's draws and each cascade's casters, culled and batched, and every batch's instances
 	// into the slot's instance buffer.
 	void WriteInstances(
@@ -296,6 +318,9 @@ class Renderer
 	void RecordClusterBounds(const FrameData &frame, VkCommandBuffer commandBuffer);
 	void RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const;
 	void RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const;
+	void RecordScreenshot(FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
+	// The slot's screenshot from its readback into its file, now that its fence has been waited on.
+	void SaveScreenshot(FrameData &frame);
 	void RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffer);
 	void RecordOutput(
 	    VkCommandBuffer commandBuffer, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer);
@@ -318,6 +343,9 @@ class Renderer
 	std::unique_ptr<OverlayRenderer> m_pOverlay;
 	// The sky the environment was baked from, or empty for the black one.
 	std::optional<Scene::SkyComponent> m_bakedSky;
+	// What lit the last bake besides the sky, and the frame it was made on.
+	CaptureLight m_bakedLight;
+	std::uint64_t m_bakedFrame{0};
 
 	// Set 0 of the scene and cluster programs (constants, skin palette, lights, material
 	// parameters, the environment, the cluster grid, the shadow map), set 1 of the scene programs
@@ -334,6 +362,8 @@ class Renderer
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
 	VkPipeline m_outputPipeline{VK_NULL_HANDLE};
 	VkPipeline m_skyPipeline{VK_NULL_HANDLE};
+	// The bodies' air and rings over the sky, after it (atmosphere.frag).
+	VkPipeline m_atmospherePipeline{VK_NULL_HANDLE};
 	VkPipeline m_linePipeline{VK_NULL_HANDLE};
 	VkPipeline m_lineOverlayPipeline{VK_NULL_HANDLE};
 	VkPipeline m_clusterBoundsPipeline{VK_NULL_HANDLE};
@@ -379,6 +409,8 @@ class Renderer
 	std::optional<ClusterView> m_clusterBoundsView;
 	ClusterView m_frameClusterView{};
 	std::vector<GpuLight> m_lightScratch;
+	std::vector<GpuBody> m_bodyScratch;
+	std::vector<std::uint32_t> m_drawBodies;
 	float m_clusterRange{kDefaultClusterRange};
 	DebugView m_debugView{DebugView::Shaded};
 	bool m_checkClusters{false};
@@ -409,6 +441,11 @@ class Renderer
 	uint32_t m_opaquePass{0};
 	uint32_t m_outputPass{0};
 	uint32_t m_clusterReadbackPass{0};
+	// Absent from the plan on a swapchain that cannot be copied from.
+	static constexpr uint32_t kNoPass = UINT32_MAX;
+	uint32_t m_screenshotPass{kNoPass};
+	// The file the next frame is to be written to, or empty.
+	std::filesystem::path m_screenshotRequest;
 
 	VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
 	Targets m_targets;

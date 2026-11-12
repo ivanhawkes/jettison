@@ -125,6 +125,8 @@ struct EntityRecord
 	std::optional<SunComponent> sun;
 	std::optional<SkyRecord> sky;
 	std::optional<CelestialBodyComponent> celestial;
+	std::optional<AtmosphereComponent> atmosphere;
+	std::optional<RingsComponent> rings;
 	std::optional<LightRecord> light;
 	std::optional<MeshRecord> mesh;
 	std::optional<TransformAnimationRecord> transformAnimation;
@@ -195,6 +197,20 @@ void RegisterTypes()
 		    .Field<&SkyRecord::nebula>("nebula", kSaved);
 		RegisterType<CelestialBodyComponent>("Scene.Celestial")
 		    .Field<&CelestialBodyComponent::body>("body", kSaved);
+		RegisterType<AtmosphereComponent>("Scene.Atmosphere")
+		    .Field<&AtmosphereComponent::height>("height", kSaved)
+		    .Field<&AtmosphereComponent::rayleigh>("rayleigh", kSaved)
+		    .Field<&AtmosphereComponent::rayleighHeight>("rayleighHeight", kSaved)
+		    .Field<&AtmosphereComponent::mie>("mie", kSaved)
+		    .Field<&AtmosphereComponent::mieExtinction>("mieExtinction", kSaved)
+		    .Field<&AtmosphereComponent::mieHeight>("mieHeight", kSaved)
+		    .Field<&AtmosphereComponent::mieAnisotropy>("mieAnisotropy", kSaved);
+		RegisterType<RingsComponent>("Scene.Rings")
+		    .Field<&RingsComponent::innerRadius>("innerRadius", kSaved)
+		    .Field<&RingsComponent::outerRadius>("outerRadius", kSaved)
+		    .Field<&RingsComponent::color>("color", kSaved)
+		    .Field<&RingsComponent::opacity>("opacity", kSaved)
+		    .Field<&RingsComponent::seed>("seed", kSaved);
 		RegisterType<LightRecord>("Scene.Light")
 		    .Field<&LightRecord::type>("type", kSaved)
 		    .Field<&LightRecord::color>("color", kSaved)
@@ -226,6 +242,8 @@ void RegisterTypes()
 		    .Field<&EntityRecord::sun>("sun", kSaved)
 		    .Field<&EntityRecord::sky>("sky", kSaved)
 		    .Field<&EntityRecord::celestial>("celestial", kSaved)
+		    .Field<&EntityRecord::atmosphere>("atmosphere", kSaved)
+		    .Field<&EntityRecord::rings>("rings", kSaved)
 		    .Field<&EntityRecord::light>("light", kSaved)
 		    .Field<&EntityRecord::mesh>("mesh", kSaved)
 		    .Field<&EntityRecord::transformAnimation>("transformAnimation", kSaved)
@@ -293,6 +311,30 @@ void CheckSky(const SkyRecord &sky, const std::string &id)
 		    id);
 	if (glm::length(sky.band.normal) == 0.0f)
 		Refuse("Sky band normal cannot be zero: " + id);
+}
+
+void CheckAtmosphere(const AtmosphereComponent &atmosphere, const std::string &id)
+{
+	const glm::vec3 &rayleigh = atmosphere.rayleigh;
+	if (!(atmosphere.height > 0.0) || !(atmosphere.rayleighHeight > 0.0f) ||
+	    !(atmosphere.mieHeight > 0.0f) || !(rayleigh.x >= 0.0f) || !(rayleigh.y >= 0.0f) ||
+	    !(rayleigh.z >= 0.0f) || !(atmosphere.mie >= 0.0f) ||
+	    !(atmosphere.mieExtinction >= atmosphere.mie))
+		Refuse(
+		    "Atmosphere height and scale heights must be positive, its coefficients not negative, and "
+		    "its Mie extinction not less than its scattering: " +
+		    id);
+	if (!(atmosphere.mieAnisotropy > -1.0f) || !(atmosphere.mieAnisotropy < 1.0f))
+		Refuse("Atmosphere mieAnisotropy must be between -1 and 1: " + id);
+}
+
+void CheckRings(const RingsComponent &rings, const std::string &id)
+{
+	if (!(rings.innerRadius > 0.0) || !(rings.outerRadius > rings.innerRadius))
+		Refuse("Rings innerRadius must be positive and less than outerRadius: " + id);
+	if (!(rings.opacity >= 0.0f) || !(rings.opacity <= 1.0f) || !(rings.color.x >= 0.0f) ||
+	    !(rings.color.y >= 0.0f) || !(rings.color.z >= 0.0f))
+		Refuse("Rings opacity must be between 0 and 1, and its colour not negative: " + id);
 }
 
 void CheckMesh(const MeshRecord &mesh, const std::string &id)
@@ -373,6 +415,18 @@ void Validate(const SceneDocument &document)
 			CheckSky(*entity.sky, id);
 			if (++skies > 1)
 				Refuse("A scene can have only one sky");
+		}
+		if (entity.atmosphere)
+		{
+			CheckAtmosphere(*entity.atmosphere, id);
+			if (!entity.mesh || !entity.mesh->shape)
+				Refuse("An atmosphere is over a shape's surface, and needs a mesh of one: " + id);
+		}
+		if (entity.rings)
+		{
+			CheckRings(*entity.rings, id);
+			if (!entity.mesh || !entity.mesh->shape)
+				Refuse("Rings are about a shape's centre, and need a mesh of one: " + id);
 		}
 		if (entity.celestial)
 		{
@@ -595,6 +649,10 @@ void Scene::Load(const SceneFile &file)
 				m_registry.emplace<SkyComponent>(entity, ToComponent(*record.sky));
 			if (record.celestial)
 				m_registry.emplace<CelestialBodyComponent>(entity, *record.celestial);
+			if (record.atmosphere)
+				m_registry.emplace<AtmosphereComponent>(entity, *record.atmosphere);
+			if (record.rings)
+				m_registry.emplace<RingsComponent>(entity, *record.rings);
 			if (record.mesh)
 			{
 				MeshComponent mesh = ToComponent(*record.mesh);
@@ -687,6 +745,10 @@ std::string Scene::SaveText() const
 			record.sky = ToRecord(*sky);
 		if (const auto *celestial = m_registry.try_get<CelestialBodyComponent>(entity))
 			record.celestial = *celestial;
+		if (const auto *atmosphere = m_registry.try_get<AtmosphereComponent>(entity))
+			record.atmosphere = *atmosphere;
+		if (const auto *rings = m_registry.try_get<RingsComponent>(entity))
+			record.rings = *rings;
 		if (const auto *light = m_registry.try_get<LightComponent>(entity))
 			record.light = ToRecord(*light);
 		if (const auto *mesh = m_registry.try_get<MeshComponent>(entity))

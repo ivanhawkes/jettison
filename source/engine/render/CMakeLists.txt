@@ -13,6 +13,7 @@ jettison_add_module(render
 		serialise
 		vfs
 	HEADERS
+		include/jettison/render/Atmosphere.h
 		include/jettison/render/Camera.h
 		include/jettison/render/Clusters.h
 		include/jettison/render/Culling.h
@@ -27,9 +28,11 @@ jettison_add_module(render
 		include/jettison/render/PassList.h
 		include/jettison/render/Procedural.h
 		include/jettison/render/SceneView.h
+		include/jettison/render/Screenshot.h
 		include/jettison/render/Shadows.h
 		include/jettison/render/Texture.h
 	SOURCES
+		src/Atmosphere.cpp
 		src/Camera.cpp
 		src/Clusters.cpp
 		src/Culling.cpp
@@ -40,6 +43,7 @@ jettison_add_module(render
 		src/PassList.cpp
 		src/Procedural.cpp
 		src/SceneView.cpp
+		src/Screenshot.cpp
 		src/Shadows.cpp
 		src/Texture.cpp
 		src/vulkan/DeviceChoice.cpp
@@ -78,6 +82,7 @@ jettison_add_module(render
 		src/vulkan/imgui/ImGuiRenderer.cpp
 		src/vulkan/imgui/ImGuiRenderer.h
 	TESTS
+		tests/AtmosphereTests.cpp
 		tests/BrdfTests.cpp
 		tests/CameraTests.cpp
 		tests/ClusterTests.cpp
@@ -85,10 +90,12 @@ jettison_add_module(render
 		tests/DebugDrawTests.cpp
 		tests/DeviceChoiceTests.cpp
 		tests/DrawBatchTests.cpp
+		tests/EnvironmentTests.cpp
 		tests/MaterialTests.cpp
 		tests/OverlayTests.cpp
 		tests/PassListTests.cpp
 		tests/ProceduralTests.cpp
+		tests/ScreenshotTests.cpp
 		tests/ShadowTests.cpp
 		tests/TextureTests.cpp
 	PUBLIC_LIBRARIES
@@ -120,5 +127,6 @@ if(TARGET jettison_render_tests)
 		"${PROJECT_SOURCE_DIR}/assets/shaders/include")
 	# The pass list's barriers are tested through the backend's private header (vulkan/PassBarriers.h),
 	# so the tests see the Vulkan the module keeps private.
-	target_link_libraries(jettison_render_tests PRIVATE Vulkan::Vulkan)
+	# The screenshot test reads back the PNG it wrote through stb_image, which Texture.cpp compiles.
+	target_link_libraries(jettison_render_tests PRIVATE Vulkan::Vulkan stb)
 endif()

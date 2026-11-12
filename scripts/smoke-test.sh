@@ -23,6 +23,8 @@
 #                  software rendering, which is fill-rate bound)
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+# shellcheck source=lib/headless.sh
+source scripts/lib/headless.sh
 
 preset="clang-headless"
 build_dir=""
@@ -104,34 +106,8 @@ if [ ! -x "$executable" ]; then
 fi
 
 # Software rendering is optional: on a machine with a GPU the same test is a real device run.
-if [ -n "$icd" ]; then
-	[ -f "$icd" ] || { echo "smoke-test: ICD manifest not found: $icd" >&2; exit 1; }
-	export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
-elif [ "$software" -eq 1 ]; then
-	candidates=(
-		"${JETTISON_LAVAPIPE_ICD:-}"
-		"${VK_DRIVER_FILES:-}"
-		"/etc/vulkan/icd.d/lvp_icd.x86_64.json"
-		"/usr/share/vulkan/icd.d/lvp_icd.x86_64.json"
-		"/run/current-system/sw/etc/vulkan/icd.d/lvp_icd.x86_64.json"
-	)
-	for path in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
-		candidates+=("$path/vulkan/icd.d/lvp_icd.x86_64.json")
-	done
-	for path in /nix/store/*-mesa-drivers-*/share/vulkan/icd.d/lvp_icd.x86_64.json \
-		/nix/store/*-mesa-*/share/vulkan/icd.d/lvp_icd.x86_64.json; do
-		[ -f "$path" ] && candidates+=("$path")
-	done
-	found=""
-	for path in "${candidates[@]}"; do
-		[ -f "$path" ] && { found="$path"; break; }
-	done
-	if [ -z "$found" ]; then
-		echo "smoke-test: no lavapipe ICD found; pass --icd <lvp_icd.x86_64.json> (NixOS: pkgs.mesa)" >&2
-		exit 1
-	fi
-	export VK_DRIVER_FILES="$found" VK_ICD_FILENAMES="$found"
-	echo "smoke-test: software driver $found"
+if [ -n "$icd" ] || [ "$software" -eq 1 ]; then
+	headless_use_lavapipe "$icd" || exit 1
 fi
 
 # The debug build requests VK_LAYER_KHRONOS_validation, so fail early with a readable
@@ -162,21 +138,10 @@ if grep -q 'JETTISON_GLFW_X11:BOOL=ON' "$build_dir/CMakeCache.txt" 2>/dev/null; 
 	echo "smoke-test: X11 runtime $x11"
 fi
 
-status=0
-cleanup() {
-	set +e
-	if [ -n "${XVFB_PID:-}" ]; then
-		kill "$XVFB_PID" 2>/dev/null
-		wait "$XVFB_PID" 2>/dev/null
-	fi
-	[ -n "${XVFB_LOCK:-}" ] && rm -f "$XVFB_LOCK"
-	return 0
-}
-trap cleanup EXIT INT TERM
-
 # The app's own stream is the record of what the layer noticed: the validation layer prints
 # "Validation Error: ..." on its own, and DeviceContext's messenger prints the same events
 # with a [vulkan:...] prefix. Keep the console output, keep the log, judge the run on the log.
+status=0
 run_app() {
 	if grep -q '^CMAKE_BUILD_TYPE:STRING=Debug$' "$build_dir/CMakeCache.txt"; then
 		empty_layers="$(mktemp -d "${TMPDIR:-/tmp}/jettison-empty-layers.XXXXXX")"
@@ -226,29 +191,8 @@ if [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ];
 	echo "smoke-test: running on DISPLAY=${DISPLAY:-unset} (native session)"
 	run_app "$executable" --smoke-test
 else
-	xvfb="$(command -v Xvfb || command -v /run/current-system/sw/bin/Xvfb || true)"
-	if [ -z "$xvfb" ]; then
-		echo "smoke-test: no Xvfb on PATH (NixOS: xorgserver; Debian: xvfb)" >&2
-		exit 1
-	fi
-	for display_number in 99 100 101 102 103; do
-		lock="/tmp/.X11-unix/X$display_number"
-		[ ! -e "$lock" ] && [ ! -e "/tmp/.X${display_number}-lock" ] && break
-	done
-	if [ -e "$lock" ] || [ -e "/tmp/.X${display_number}-lock" ]; then
-		echo "smoke-test: no free X display in 99..103" >&2
-		exit 1
-	fi
-	XVFB_LOCK="/tmp/.X${display_number}-lock"
-	echo "smoke-test: starting Xvfb on :$display_number ($screen)"
-	"$xvfb" ":$display_number" -screen 0 "$screen" -nolisten tcp >/dev/null 2>&1 &
-	XVFB_PID=$!
-	for _ in $(seq 1 50); do
-		[ -e "$lock" ] && break
-		sleep 0.2
-	done
-	[ -e "$lock" ] || { echo "smoke-test: Xvfb failed to start on :$display_number" >&2; exit 1; }
-	run_app env DISPLAY=":$display_number" "$executable" --smoke-test
+	headless_start_xvfb "$screen" || exit 1
+	run_app env DISPLAY="$HEADLESS_DISPLAY" "$executable" --smoke-test
 fi
 
 # A run that renders, resizes and exits cleanly is not a run the layer is happy about. Two of the

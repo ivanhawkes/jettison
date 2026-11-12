@@ -50,19 +50,24 @@ Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, f
 
 ## Seeing the app
 
-There is no screenshot feature yet (it is on the roadmap, carried forward to 10a). To look at a
-frame, run `build/clang-headless/source/test/render_test [--scene ...]` on `Xvfb :97 -screen 0
-1920x1080x24` with lavapipe's ICD in `VK_ICD_FILENAMES` (`scripts/smoke-test.sh` shows where to
-find `lvp_icd.x86_64.json`), let it settle about 14 s, and capture with
-`xwd -root -silent | magick xwd:- out.png`, from `nix shell nixpkgs#xorg.xwd nixpkgs#imagemagick
-nixpkgs#xdotool`.
+`scripts/capture.sh <out.png> [render_test arguments...]` writes a frame from inside the frame loop
+on lavapipe under Xvfb, the same to the byte every run, the camera placed with console lines:
+`--run "orbit <yaw> <pitch> <distance> [body]"` (distance from the body's centre). `--no-build`
+skips the build; `--references [--update]` runs the reference views in
+`source/test/frames/views.txt` ([build and gates](docs/build-and-gates.md#reference-frames)). Run
+captures one at a time: each stops the Xvfb it started, under any other still drawing.
+
+For a frame that needs keys or the UI, run `build/clang-headless/source/test/render_test [--scene
+...]` on `Xvfb :97 -screen 0 1920x1080x24` with lavapipe's ICD in `VK_ICD_FILENAMES`
+(`scripts/lib/headless.sh` finds it), and the console's `screenshot <file.png>` writes the next
+frame; or grab the screen with `xwd -root -silent | magick xwd:- out.png`, from `nix shell
+nixpkgs#xorg.xwd nixpkgs#imagemagick nixpkgs#xdotool`.
 
 - Input samples key state once a frame and a lavapipe frame can take a second, so hold keys:
   `xdotool keydown E`, sleep about 2.5 s, `keyup`. A tap is missed. Focus first with
   `xdotool windowfocus --sync <win>`.
 - The console takes `xdotool type --delay 150 '...'`, then `key Return` as a tap.
-- Compare frames with `magick compare -metric AE -fuzz 2% a.png b.png diff.png`, with no keys
-  between them (the orbit rig keeps easing after a key).
+- Compare frames with `magick compare -metric AE -fuzz 2% a.png b.png diff.png`.
 - A killed script may carry on: check `pgrep` before reusing a display.
 - `--user-dir <dir>` keeps a run's settings and saves apart, and across two runs.
 

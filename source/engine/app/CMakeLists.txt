@@ -54,6 +54,7 @@ jettison_add_module(app
 		src/Trading.cpp
 		src/Trading.h
 	TESTS
+		tests/AppArgumentsTests.cpp
 		tests/DressingTests.cpp
 		tests/LargeWorldTests.cpp
 		tests/PilotingTests.cpp

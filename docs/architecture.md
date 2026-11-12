@@ -724,7 +724,9 @@ nodes in it:
 7. **Sky.** Drawn last in the opaque pass's rendering rather than as a node of its own (5b): one
    full-screen triangle at depth 0, the far end of the reversed-Z range, tested against the depth
    buffer so it shades only what no surface covered. A node of its own would have to store the
-   multisampled target and load it again, which the opaque pass keeps on chip.
+   multisampled target and load it again, which the opaque pass keeps on chip. After it, in the
+   same rendering and on the same terms, the bodies' air and rings over the sky (10a,
+   [atmospheres](#atmospheres)), when any body in the frame has either.
 8. **Transparent**, sorted back to front, using the same cluster lookup (phase 10).
 9. **Resolve, bloom, tonemap** into the sRGB swapchain, then the game UI's overlay and the dev tools
    over it ([UI](#ui)). The tonemapper is Khronos PBR
@@ -747,8 +749,64 @@ chain. The split sum's lookup table depends only on the BRDF and is made once. T
 fragment passes on the graphics queue, recorded outside the frame's pass list as an upload is, and
 it waits for the queue; the cubes it replaces are freed when it returns, and the frame sets are
 rewritten to name the new ones. The sun is not in the capture: it lights the scene as the
-directional light, and a disc in the environment would light it twice. Nor are the planets, so a
-planet's reflected light is missing until a later phase adds it.
+directional light, and a disc in the environment would light it twice.
+
+The celestial bodies are (10a). The capture draws no mesh: each body about the camera at least a
+fifth of a texel across, up to eight of the nearest, is a sphere of its mesh's colour, lit by the
+sun through its air and in its rings' shadow, with its air and rings over it, by the same function
+the frame's [atmosphere](#atmospheres) program uses (`body.glsl`). So a hull reflects the planet it
+is over and its night side is lit by the planet's day side: Highport's hull, dark plating, goes
+from about (12, 9, 11) of 255 to (17, 21, 21) in the orbit scene's opening frame, the blue-green of
+Ostra's ground. A mesh's colour is what it shows without its material, Ostra's the mean of its
+colour map; the capture has no clouds, which would about double the planet's albedo. The capture is
+of where the camera is, so it is baked again when what lights it has moved by a texel of it
+(`CaptureMoved`: a body's or the sun's direction by a hundredth of a radian, a body's size on the sky
+by 2%, a body come or gone), but no more than every sixteen frames, since easing the camera to
+another body turns the whole sky and a bake waits for the queue. A station in low orbit turns a
+degree against its planet in fifteen seconds.
+
+### Atmospheres
+
+A celestial body drawn as a sphere can have air (`AtmosphereComponent`) and rings
+(`RingsComponent`), given in a scene file (10a). Both are maths over a sphere rather than meshes or
+tables: `atmosphere.glsl` and `rings.glsl`, written in the subset of GLSL that GLM compiles, so the
+render suite runs the shaders' own source as C++ (`render/Atmosphere.h`) against integration by
+brute force and against the geometry.
+
+- **Air** is single scattering, Rayleigh (the air, which scatters blue the most) and Mie (haze,
+  forwards, a glow about the sun), each of a density falling off exponentially with height, Earth's
+  as Hillaire has them (2020) by default. The column of air along a ray is the Chapman function in
+  closed form, fitted to 0.04%, so nothing is baked: an atmosphere is its parameters. A ray
+  through it is integrated in sixteen samples bunched towards its lowest point, within 1.7% of the
+  brute force from orbit. Multiple scattering is left out, which darkens a sky seen from the ground
+  and matters little from orbit, where the camera is.
+- **Rings** are an annulus in the body's equatorial plane, between two radii, of three rings as
+  Saturn's are (a faint inner one, a dense one out to a wide gap, a lesser one with a narrow gap)
+  under bands of noise from a seed. Seen slantwise they stop more of the light, face on their
+  opacity; their bands are faded to their mean where a pixel spans them, and their coverage averaged
+  over the pixel where it spans much of their width, which is also what keeps their shadow, with the
+  sun near their plane and every band crowded into a strip thinner than a pixel, from aliasing into
+  a line of dots. They are lit whole by the sun, darker seen from the side away from it, and the
+  body's shadow on them has a penumbra as wide as the sun.
+
+The frame's body list (`GpuBody`, binding 12) holds every such body drawn, in view or not, and a
+body's instance carries its index. Three programs read it. The planet program (`planet.frag`)
+reddens the sunlight on its surface by the air it comes through, which is the terminator's colour,
+darkens it in the rings' shadow, adds the haze between the surface and the camera, and draws the
+rings where they are in front of the surface. The atmosphere program (`atmosphere.frag`) is a
+full-screen triangle after the sky, at depth 0, so it draws only where no surface was: the limb,
+the sky from inside the air, and the rings over space, blended as premultiplied alpha (what is
+picked up, and one minus the mean of what gets through, so stars behind the limb are dimmed alike
+in every colour). The environment's capture is the third. A mesh in front of a body's air is not
+hazed by it, which is right for a station in orbit and wrong for a ship in the air; the bodies are
+not sorted, which is wrong only where two bodies' air or rings overlap on the screen.
+
+The planet program also draws clouds and the lights of cities from noise, since the planet pack
+has maps of neither: clouds over a share of the sky, warped by a coarser copy of the noise so they
+swirl, drifting east by a time-driven parameter, white and rough, with their shadow a little way
+sunwards; and on the night side, clusters of lights on the land, broken into towns and streets
+each faded to its mean from afar, with a glow about each town that stands in for bloom until the
+post chain's (10c), dimmed by the cloud over them.
 
 ### The grid and the infinite far plane
 
@@ -915,8 +973,17 @@ proves it headlessly. What exists:
 
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`), builds
-  `Application`, and prints any exception the run threw.
+  `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
+  written to a file, `--screenshot`, `--after-frames`, `--frame-step` and `--run`), builds
+  `Application`, and prints any exception the run threw. A screenshot (10a) is the swapchain image
+  as the output pass left it, UI and all, copied out by a transfer pass of the plan in the frame
+  asked for one and written as a PNG through stb once the frame's fence is waited on, or as the
+  renderer is destroyed, so a run can end on the next frame. `--screenshot` takes the frame after
+  `--after-frames` in a row with nothing loading and ends the run; `--frame-step` moves the clocks
+  a fixed step a frame, none while anything loads, so the same frame is drawn however long frames
+  take; `--run` runs console lines before the first frame, failing the run on one the console
+  refuses. The console's `screenshot <file>` writes one without ending the run, and `orbit <yaw>
+  <pitch> <distance> [body]` places the orbit camera at once.
   `Application::Init` stages are user (the XDG data and configuration directories, or the ones under
   `--user-dir`, and the settings and bindings read from them), resources (the asset VFS with the
   user's data directory mounted writable over the base, the I/O worker, the resource manager and the
@@ -998,14 +1065,15 @@ proves it headlessly. What exists:
   cluster passes (the index
   list's allocator zeroed by a transfer, then the cluster bounds and the light assignment in
   compute), an opaque pass into a 4× multisampled
-  RGBA16F target, which draws the sky after the surfaces and is resolved into a single-sampled
+  RGBA16F target, which draws the sky after the surfaces and the bodies' air and rings over it, and
+  is resolved into a single-sampled
   target as it ends, an output pass that applies exposure and tonemaps on its way to the swapchain
   and draws the UI over it, and the cluster check's copy. The barriers between passes are derived
   from each pass's declared uses once, at start-up, and recorded with dynamic rendering and
   synchronization2. Draws are culled, given a level of detail and batched into instanced draws on
   the CPU before anything is recorded (["The frame"](#the-frame)), and each pass is timed on the GPU
   ([the budget](#the-budget)). The frame constants, skin palette, light list, instance buffer and
-  command buffer exist once per frame in flight; the shadow map and the cluster grid's buffers are one set each, shared as the
+  command buffer exist once per frame in flight, and so does the body list; the shadow map and the cluster grid's buffers are one set each, shared as the
   render targets are. The device has to offer depth clamp, which the shadow pass uses.
   `PipelineCache` makes graphics pipelines by program name and render state, and compute
   pipelines by program name, with the programs found through the asset VFS. Materials are data (`render/Material.h`): a material file
@@ -1028,7 +1096,8 @@ proves it headlessly. What exists:
   fragment from the direction out of its centre (+Y its spin axis, as `UvSphere` lays its texture
   coordinates), with the tangent frame from the same direction, so it normal-maps without tangents
   in the vertex; a detail layer repeats over the maps, kept to the land by the height map's sea
-  level. A program takes up to eight texture slots.
+  level, and clouds, city lights, air and rings are drawn over it ([atmospheres](#atmospheres)). A
+  program takes up to eight texture slots.
 - **ImGui** for a demo window, toggled with F1, and the Renderer panel: the frame's counts and
   each pass's GPU time. Its fonts are rasterised by FreeType, as the game UI's are.
 - **Game UI** (`engine/ui`, 8b). RmlUi drawn through the renderer's overlay, documents and styles

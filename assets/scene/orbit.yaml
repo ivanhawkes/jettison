@@ -38,8 +38,12 @@ entities:
       scale: [6371000, 6371000, 6371000]
     mesh:
       shape: sphere
-      color: [0.16, 0.3, 0.55]
+      # The colour map's mean, linear, which the environment's capture draws the planet with.
+      color: [0.2, 0.24, 0.23]
       material: materials/habitable-earthlike-a.material.yaml
+    # Earth's air, as the component's defaults are: the blue limb, the haze over the surface and the
+    # sunlight reddened at the terminator.
+    atmosphere: {}
   - id: pell
     celestial:
       body: Pell

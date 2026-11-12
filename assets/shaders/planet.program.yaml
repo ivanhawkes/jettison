@@ -1,6 +1,7 @@
 # planet.frag, with mesh.vert built with PLANET as its vertex stage: Render::ProgramDefinition
-# (render/Material.h). A planet's maps by longitude and latitude, and a detail layer repeated over
-# them on the land. The parameters' channels are described in planet.frag.
+# (render/Material.h). A planet's maps by longitude and latitude, a detail layer repeated over them on
+# the land, and clouds and the lights of cities drawn from noise. The parameters' channels are
+# described in planet.frag; the clouds and the lights are off by default.
 version: 1
 parameters:
   - name: baseColor
@@ -16,6 +17,15 @@ parameters:
   # puts the detail everywhere.
   - name: land
     default: [0, 0.02, 1, 0]
+  # x: cover, 0 for none, y: edge softness, z: features across the planet, w: drift east in turns.
+  - name: clouds
+    default: [0, 0.1, 4, 0]
+  # rgb: the lights' colour, a: their radiance, 0 for none.
+  - name: night
+    default: [1, 0.72, 0.42, 0]
+  # x: clusters across the planet, y: the share of the land they cover.
+  - name: cities
+    default: [40, 0.3, 0, 0]
 textures:
   - name: color
     fallback: White

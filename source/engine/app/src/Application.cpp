@@ -427,6 +427,20 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    "market", "Shows or hides the market screen: market [on|off]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { ShowMarket(arguments.empty() ? !m_showMarket : arguments[0] != "off"); });
+	m_console.RegisterCommand(
+	    "screenshot", "Writes the next frame to a PNG, with the UI over it: screenshot <file.png>",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    if (arguments.size() != 1)
+			    throw std::invalid_argument{"takes the file to write"};
+		    m_pRenderer->RequestScreenshot(std::filesystem::absolute(arguments[0]));
+	    });
+	m_console.RegisterCommand(
+	    "orbit",
+	    "Places the orbit camera at once, in radians and metres, about the celestial body named or "
+	    "the one it is on: orbit <yaw> <pitch> <distance> [body]",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    { PlaceOrbitCamera(arguments); });
 
 	Sim::RegisterTypes();
 	m_sim.RegisterComponent<Sim::Transform>();
@@ -1240,6 +1254,18 @@ void Application::RunFrameLoop()
 		m_smokeSequence = std::make_unique<SmokeSequence>(MakeSmokeActions(), CanIconifyWindow());
 	m_frameClock.Tick();
 	m_loopStart = Time::RealClock::Clock::now();
+	m_frameStart = m_loopStart;
+	// As typed into the console, and a line it refuses fails the run: a frame captured from the wrong
+	// place is worse than none.
+	for (const std::string &line : m_arguments.commands)
+	{
+		const std::size_t before = m_console.Lines().size();
+		m_console.Execute(line);
+		const std::vector<DevTools::ConsoleLine> lines = m_console.Lines();
+		for (std::size_t index = before; index < lines.size(); ++index)
+			if (lines[index].kind == DevTools::ConsoleLine::Kind::Error)
+				throw std::runtime_error(std::format("--run '{}': {}", line, lines[index].text));
+	}
 
 	while (!glfwWindowShouldClose(m_pRenderer->GetGLFWWindow()))
 		Tick();
@@ -1260,10 +1286,36 @@ void Application::RunFrameLoop()
 void Application::Tick()
 {
 	JETTISON_PROFILE_FUNCTION();
-	m_frameStart = Time::RealClock::Clock::now();
-	const double deltaTime = m_frameClock.Tick(m_frameStart).count();
+	const bool loading = m_pResources->Loading() != 0;
+	double deltaTime = 0.0;
+	if (m_arguments.frameStep > 0.0)
+	{
+		// The clocks held still while anything streams in, so what a frame shows is a function of how
+		// many frames have been drawn since the scene had all it asked for, however long either took.
+		deltaTime = loading ? 0.0 : m_arguments.frameStep;
+		m_fixedTime += deltaTime;
+		m_frameStart = m_loopStart + std::chrono::duration_cast<Time::RealClock::Clock::duration>(
+		                                 std::chrono::duration<double>{m_fixedTime});
+	}
+	else
+	{
+		m_frameStart = Time::RealClock::Clock::now();
+		deltaTime = m_frameClock.Tick(m_frameStart).count();
+	}
+	// The screenshot the run was asked for, of the frame after a run of them with nothing loading;
+	// the run ends with it, and the renderer writes it as it is destroyed.
+	m_quietFrames = loading ? 0 : m_quietFrames + 1;
+	const bool shoot = !m_arguments.screenshotPath.empty() && !m_screenshotTaken &&
+	                   m_quietFrames > m_arguments.screenshotAfterFrames;
+	if (shoot)
+		m_pRenderer->RequestScreenshot(m_arguments.screenshotPath);
 	for (const Ecs::TickPhase phase : Ecs::kTickPhases)
 		m_frame.Run(phase, m_pScene->Registry(), deltaTime);
+	if (shoot)
+	{
+		m_screenshotTaken = true;
+		RequestClose();
+	}
 	JETTISON_PROFILE_FRAME();
 }
 
@@ -1824,6 +1876,56 @@ void Application::NextCameraTarget(entt::registry &registry)
 		    current == bodies.end() || std::next(current) == bodies.end() ? bodies.front()
 		                                                                  : *std::next(current));
 	}
+}
+
+
+void Application::PlaceOrbitCamera(std::span<const std::string> arguments)
+{
+	if (arguments.size() < 3)
+		throw std::invalid_argument{"takes a yaw, a pitch and a distance"};
+	std::array<double, 3> values{};
+	for (std::size_t index = 0; index < values.size(); ++index)
+	{
+		const std::string &text = arguments[index];
+		const auto [end, error] =
+		    std::from_chars(text.data(), text.data() + text.size(), values[index]);
+		if (error != std::errc{} || end != text.data() + text.size() || !std::isfinite(values[index]))
+			throw std::invalid_argument{std::format("'{}' is not a number", text)};
+	}
+	if (!(values[2] > 0.0))
+		throw std::invalid_argument{"the distance has to be more than zero"};
+	std::string name;
+	for (const std::string &word : arguments.subspan(3))
+		name += (name.empty() ? "" : " ") + word;
+
+	entt::registry &registry = m_pScene->Registry();
+	entt::entity body = entt::null;
+	if (!name.empty())
+	{
+		for (const auto [entity, celestial] :
+		     registry.view<const Scene::CelestialBodyComponent>().each())
+			if (celestial.body == name)
+				body = entity;
+		if (body == entt::null)
+			throw std::invalid_argument{std::format("there is no body '{}' in the scene", name)};
+	}
+	bool placed = false;
+	for (const auto [camera, orbit] : registry.view<Scene::OrbitCameraComponent>().each())
+	{
+		if (body != entt::null)
+			orbit.target = body;
+		// Placed exactly where it is asked, not eased there, and allowed in as far as it was asked:
+		// a frame is placed to be captured.
+		orbit.yaw = values[0];
+		orbit.pitch = values[1];
+		orbit.distance = values[2];
+		orbit.minDistance = std::min(orbit.minDistance, values[2]);
+		orbit.transition = {};
+		orbit.placed = false;
+		placed = true;
+	}
+	if (!placed)
+		throw std::invalid_argument{"the scene has no orbit camera"};
 }
 
 

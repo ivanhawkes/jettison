@@ -148,6 +148,11 @@ class VulkanRenderer final : public IRenderer
 		return m_pRenderer->GetClusterChecks();
 	}
 
+	void RequestScreenshot(const std::filesystem::path &path) override
+	{
+		m_pRenderer->RequestScreenshot(path);
+	}
+
 	const std::string &DeviceName() const override
 	{
 		return m_pDeviceContext->GetDeviceName();

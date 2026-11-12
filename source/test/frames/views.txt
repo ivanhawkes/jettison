@@ -1,0 +1,15 @@
+# The reference frames scripts/capture.sh compares with, one view a line: its name (the reference
+# is <name>.png beside this file), then render_test's arguments, with $PWD the repository and a |
+# for a space within one, as in a console line given to --run.
+#
+# The orbit scene as it opens: Ostra Highport over Ostra, the planet's limb behind it, the hull
+# lit and reflecting the planet through the environment's capture.
+orbit --scene $PWD/assets/scene/orbit.yaml
+# Ostra whole from 20,000 km, by day: its air's blue limb, the haze thickening towards it, clouds.
+ostra --scene $PWD/assets/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|Ostra
+# Its night side from 14,000 km: the cities' lights, and the limb lit from behind.
+ostra-night --scene $PWD/assets/scene/orbit.yaml --run orbit|3.9|-0.1|1.4e7|Ostra
+# Corva from 450,000 km: its rings' three bands and two gaps, its shadow on them, and theirs on it.
+corva --scene $PWD/assets/scene/vesper.yaml --run orbit|0.8|-0.35|4.5e8|Corva
+# The Vesper scene as it opens: Corva Refinery with the rings below it and Corva's limb behind.
+refinery --scene $PWD/assets/scene/vesper.yaml

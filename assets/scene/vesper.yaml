@@ -1,0 +1,64 @@
+# Corva Refinery over Corva, a ringed gas giant, from the Vesper system, at real scale: the scene the
+# rings are judged on. As orbit.yaml is, it is the system with the bodies it presents given their
+# look; the rest are built from the system. The camera orbits the refinery (W, A, S, D, Q, E, or
+# drag with the right mouse button), and C moves it to the next body.
+version: 2
+system: systems/vesper.yaml
+entities:
+  # A red dwarf's light, warmer than Halcyon's, at the same irradiance in the HDR target's units.
+  - id: vesper
+    celestial:
+      body: Vesper
+    sun:
+      color: [1, 0.78, 0.6]
+      intensity: 3.4
+  - id: vesper-sky
+    sky:
+      seed: 23
+      stars: 6000
+      starFlux: 3.0e-5
+      band:
+        normal: [-0.42, 0.8, 0.43]
+        width: 0.22
+        color: [0.05, 0.045, 0.04]
+      nebula:
+        color: [0.012, 0.02, 0.034]
+        scale: 2
+  # Corva's air is a gas giant's, of a hydrogen sky whose scale height is Jupiter's, 27 km, with a
+  # thin haze; its rings run from 1.24 to 1.9 of its radius, inside the refinery's orbit at 2.
+  - id: corva
+    celestial:
+      body: Corva
+    transform:
+      scale: [7.0e7, 7.0e7, 7.0e7]
+    mesh:
+      shape: sphere
+      color: [0.72, 0.6, 0.46]
+      material: materials/gas-giant-a.material.yaml
+    atmosphere:
+      height: 400000
+      rayleighHeight: 27000
+      mie: 2.0e-6
+      mieExtinction: 2.2e-6
+      mieHeight: 6000
+    rings:
+      innerRadius: 8.68e7
+      outerRadius: 1.33e8
+      color: [0.82, 0.76, 0.66]
+      opacity: 0.85
+      seed: 5
+  - id: refinery
+    celestial:
+      body: Corva Refinery
+  - id: camera
+    camera:
+      fov: 50
+      near: 0.5
+      active: true
+      orbit:
+        target: refinery
+        # All of the refinery's 600 m in view, kept outside its sphere, 303 m.
+        distance: 900
+        yaw: 0.8
+        pitch: -0.1
+        minDistance: 400

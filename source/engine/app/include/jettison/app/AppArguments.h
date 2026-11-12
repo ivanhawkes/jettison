@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace Jettison::App
 {
@@ -43,6 +44,19 @@ struct AppArguments
 	// with the monitor on it, then a discrete one): "5060", "llvmpipe". Start-up fails, listing the
 	// GPUs, when no usable one has it.
 	std::string gpu;
+
+	// A frame written to a PNG and the run ended (--screenshot): the frame after this many in a row
+	// drawn with nothing loading (--after-frames), so what the scene streams in is in it. Empty for
+	// none. The console's screenshot command writes one without ending the run.
+	std::filesystem::path screenshotPath;
+	std::uint32_t screenshotAfterFrames{30};
+	// Seconds each frame moves the clocks on, the simulation's and presentation's, however long it
+	// took to draw, and none while anything is loading (--frame-step): with a screenshot, the frame
+	// is then the same in every run. Zero for the wall clock.
+	double frameStep{0.0};
+	// Console lines run before the first frame, in the order given (--run), as if typed: a camera
+	// placed for a screenshot, say.
+	std::vector<std::string> commands;
 
 	// Sound played to miniaudio's null backend, in place of the machine's device: everything sounds
 	// as it would, at the pace it would, and nothing is heard or touches the sound system. The

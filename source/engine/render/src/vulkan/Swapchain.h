@@ -72,6 +72,13 @@ class Swapchain
 		return m_encodesSrgb;
 	}
 
+	// Whether the images can be copied from, which a screenshot needs (render/Screenshot.h). Every
+	// surface measured offers it; one that does not leaves the screenshot pass out of the plan.
+	bool CanReadBack() const
+	{
+		return m_canReadBack;
+	}
+
 	VkImage GetImage(uint32_t index) const
 	{
 		return m_images.at(index);
@@ -112,6 +119,7 @@ class Swapchain
 	uint32_t m_imageCount{0};
 	VkFormat m_imageFormat{VK_FORMAT_UNDEFINED};
 	bool m_encodesSrgb{false};
+	bool m_canReadBack{false};
 	VkExtent2D m_extents{0, 0};
 	std::vector<VkImage> m_images;
 	std::vector<VkImageView> m_imageViews;
