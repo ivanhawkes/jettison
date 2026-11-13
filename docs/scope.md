@@ -131,7 +131,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Item | Verdict | Reason |
 |---|---|---|
 | Extensions / mods / addons | In | Data packs mounted over the base content, plus Wasm script modules. |
-| Scripting: Wasm | In | Sandboxed mod behaviour (missions, events, AI considerations). WAMR as the runtime, to be confirmed when the phase starts. Late phase. |
+| Scripting: Wasm | In (11b) | Sandboxed mod behaviour (events, AI considerations; missions are the game's, written as handlers). WAMR's interpreter as the runtime, scripts in C or Rust against bindings generated from reflection ([decided](roadmap.md#decided)). |
 | Scripting: native C++ | Reframed | Game logic is native C++ in the game repository. There is no native plugin loading for mods: it is unsandboxed and ABI-fragile. |
 | File system | In | A virtual file system with ordered mounts (base, DLC, mods, user), each a directory or a pack. Mods override by path, and patch definitions field by field. |
 | Streaming | Reframed | Asynchronous asset loading when a star system is entered, behind a loading transition. Not open-world streaming. |

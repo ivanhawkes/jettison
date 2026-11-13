@@ -25,15 +25,15 @@ void RegisterTypes()
 		RegisterType<EnterLane>("Ai.EnterLane")
 		    .Field<&EnterLane::entity>("entity", Attribute::Saved)
 		    .Field<&EnterLane::jumpPoint>("jumpPoint", Attribute::Saved);
-		RegisterType<LaneEntered>("Ai.LaneEntered")
+		RegisterType<LaneEntered>("Ai.LaneEntered", Attribute::Script)
 		    .Field<&LaneEntered::entity>("entity", Attribute::Saved)
 		    .Field<&LaneEntered::lane>("lane", Attribute::Saved)
 		    .Field<&LaneEntered::transitSeconds>("transitSeconds", Attribute::Saved);
-		RegisterType<LaneLeft>("Ai.LaneLeft")
+		RegisterType<LaneLeft>("Ai.LaneLeft", Attribute::Script)
 		    .Field<&LaneLeft::entity>("entity", Attribute::Saved)
 		    .Field<&LaneLeft::system>("system", Attribute::Saved)
 		    .Field<&LaneLeft::arrival>("arrival", Attribute::Saved);
-		RegisterType<LaneRefused>("Ai.LaneRefused")
+		RegisterType<LaneRefused>("Ai.LaneRefused", Attribute::Script)
 		    .Field<&LaneRefused::entity>("entity", Attribute::Saved)
 		    .Field<&LaneRefused::jumpPoint>("jumpPoint", Attribute::Saved)
 		    .Field<&LaneRefused::reason>("reason", Attribute::Saved);

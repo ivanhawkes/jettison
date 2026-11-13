@@ -32,6 +32,7 @@
 #include <jettison/scene/JumpTransition.h>
 #include <jettison/scene/SceneSystems.h>
 #include <jettison/scene/SystemScene.h>
+#include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
@@ -386,6 +387,10 @@ class Application
 	// The sample game's definitions, its goods and markets (Trading.h), read through the asset tree in
 	// InitResources.
 	std::optional<Sim::DefinitionRegistry> m_definitions;
+	// The mods' scripts (defs/scripts), made beside the definitions in InitResources: given every
+	// event TakeEvents takes, and answering the traders' inputs they name. After the world, so it goes
+	// before it, and no step runs once it has.
+	std::unique_ptr<Script::ScriptHost> m_pScripts;
 
 	// The ship and the station it holds station by, as simulation entities, and the station's body
 	// in its system; null until SpawnShip finds a station to put them at.

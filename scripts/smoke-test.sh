@@ -241,18 +241,29 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 	fi
 fi
 
-# A packed run proves what it read: the base a pack, the mod mounted over it, and the mod's patch
-# taken, each said by the shell as it starts, once a scene.
+# A packed run proves what it read: the base a pack, the mod mounted over it, the mod's patches
+# taken and its script loaded from it, each said by the shell as it starts, once a scene; and that the
+# script was called from an event, a trade filled, which it says it heard, and never trapped.
 if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
-	for said in "base: the pack " "mod:smoke.pack: the pack " "defs/goods/beer: patched by 'mod:smoke.pack'"; do
+	for said in "base: the pack " "mod:smoke.pack: the pack " "defs/goods/beer: patched by 'mod:smoke.pack'" \
+		"defs/decisions/trade: patched by 'mod:smoke.pack'" "Script 'smoke': scripts/smoke.wasm loaded"; do
 		count=$(grep -cF "$said" "$app_log" || true)
 		if [ "${count:-0}" -ne 2 ]; then
 			echo "smoke-test: FAIL (the packed run said '$said' $count times, not once a scene)" >&2
 			status=1
 		fi
 	done
+	heard=$(grep -cF "smoke: heard trade" "$app_log" || true)
+	if [ "${heard:-0}" -lt 1 ]; then
+		echo "smoke-test: FAIL (the mod's script was not called from a trade's event)" >&2
+		status=1
+	fi
+	if grep -E "Script 'smoke': .*(trapped|time limit|left out)" "$app_log" >&2; then
+		echo "smoke-test: FAIL (the mod's script trapped, or did not load)" >&2
+		status=1
+	fi
 	if [ "$status" -eq 0 ]; then
-		echo "smoke-test: the assets were read from $pack, and the mod in the user's mods loaded"
+		echo "smoke-test: the assets were read from $pack, the mod in the user's mods loaded, and its script heard $heard trade(s)"
 	fi
 fi
 

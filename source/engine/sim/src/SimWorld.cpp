@@ -138,6 +138,11 @@ void SimWorld::Apply(const entt::meta_any &command)
 	found->second(*this, command);
 }
 
+bool SimWorld::Accepts(const entt::meta_type &type) const
+{
+	return type && m_applies.contains(type.info().hash());
+}
+
 std::vector<std::byte> SimWorld::Save() const
 {
 	Serialise::BinaryWriter writer{kFormat};

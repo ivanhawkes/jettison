@@ -14,7 +14,7 @@ built, are recorded in [history](history.md).
 | 0–10 | **Done** 2026-11-10 to 2026-11-13: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish. Recorded in [history](history.md). | Met. |
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
 | 11a | **Packs.** Done 2026-11-13. Catalogue entry 30. Pack files behind the VFS (`vfs/Pack.h`): a directory's files in one, each stored or one zstd frame with its checksum, the index checked whole as it is mounted, read by `pread` from a file held open; a mount of a regular file is a pack. `FileSystem::Find` (a file's mount, time and size, which the resource manager's hot reload stamps by) in place of `Resolve`, and `ReadLayers`, every mount's file at a path. zstd 1.5.7, one copy, which `ktx_read` is built against in place of its own ([decided](#decided)). `jettison_pack` and `jettison_add_pack`; the sample assets as `jettison_assets_pack`. Definitions in layers: a whole file replaces, a `.patch.yaml` beside it merges over the layers below (`YamlArchive::ReadLayered`: mappings key by key, a null removing, `!append`, `!merge=<field>`), each layer migrated on its own, and every change a mod makes logged ([files, packs and mods](architecture.md#files-packs-and-mods)). The shell's mounts (`App::MountAssets`): the base, the user's mods under `mods/` in the order of their names, the user's data directory; the assets' pack found beside the executable where there is no directory; the default scene and ImGui's fonts read through the mounts. The headless smoke test runs packed, with a data mod in its user's mods (`--packed`). | Met: the headless smoke test, both scenes, from `assets.pack` with validation on and a pack of the test's mod in its user directory, the shell saying it mounted the base and the mod as packs and that beer is patched by the mod, once a scene; in the app suite, a mod in the user's mods over the sample game's definitions packed patching beer's price and Highport's market by `!merge=good` and adding wine. In the vfs suite, a packed directory read as the directory does, every prefix of a pack and four kinds of damage refused as it is mounted, a damaged file caught as read, and a pack replaced on the disk read as mounted, under the sanitisers too. The sample assets, 136 files and 90.3 MB, pack in 1.2 s to 88.6 MB. |
-| 11b | **Scripting.** WAMR or wasmtime decided; the Wasm host with fuel and time limits; a capability-scoped host API generated from reflection; calls from AI considerations and events. | A script mod loads from the user mount and is called from an event. |
+| 11b | **Scripting.** Done 2026-11-13. Catalogue entry 29. WAMR 2.4.5 decided over wasmtime ([decided](#decided)): its fast interpreter, with instruction metering, the thread manager, bulk memory and reference types, software bounds checks, and no libc or WASI. Scripts as definitions (`defs/scripts`, `script/ScriptDefinition.h`), their modules read through the VFS from whichever mount has them; fuel a call by instruction count, and a watchdog's time limit that stops a script past it; a trap logged and survived. The host API generated from reflection (`script/Bindings.h`): the types `Reflect::Attribute::Script` marks laid out as wasm32's C ABI lays them out, an event copied into a handler's memory and a command read out of it with every pointer, bool and enumerator checked, and from the same layouts a C header and a Rust module, each asserting its sizes and offsets, written by the console's `script_bindings`; imports (`log`, `input`, `send:<Command>`) checked against a script's grants as it loads. Calls from events, as the shell takes them, whose handlers send commands into the queue, and from AI considerations, an input a script answers on a fresh instance each call (`ScriptHost::WithScripts`), which the traders weigh their runs with. Scripts in C or Rust (`jettison_add_script`; lld's wasm-ld and rustc in the devenv), the shell's in Rust. The smoke mod gains a Rust script and a patch of the trade decision ([scripts](architecture.md#scripts)). | Met: the headless smoke test, packed, loads the smoke mod's script from the pack in its user's mods once a scene ("Script 'smoke': scripts/smoke.wasm loaded, 1 handler(s), 1 input(s), granted log"), and the script, called from the traders' trade events, says what it heard, twice a scene ("smoke: heard trade 1: bought 9 crate(s) of copper at 61660 credits"), with no trap. In the app suite, the same mod from a user's directory answers 25 inputs as the traders choose in the first step and hears every trade they fill, and the shell's Rust bindings are checked as this build's. In the script suite, under the sanitisers too, the limits (fuel the same on every run, a call past 50 ms stopped, memory, stack, bounds), every refusal of a module or a definition, and events in and commands out and inputs, against the same module in C and in Rust. A handler call takes 0.27 µs and an input call 9 to 10 µs in Release. |
 | 11c | **Cinematics and grading.** The cinematic camera and sequencer; the colour-grading LUT. | |
 | 11d | **Crash handling and localisation.** A backtrace and the log tail written on a fatal signal; localisation string tables. | |
 
@@ -89,6 +89,12 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   version it was written for); a patch that removes an element from a list, rather than replacing
   the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything but
   definitions, so a mod still replaces a scene, a system or a stylesheet whole.
+- **Scripts, not yet placed** (entry 29, 11b): a script's own state in a save, which a handler that
+  counts loses on a load (an input keeps none); a script reading the world, which today it sees only
+  through the events it is given and an option's inputs, and which would come through snapshots; a
+  script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
+  when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
+  not report, for the console.
 - **The cinematic camera** (entry 18): 11c.
 - **The crash handler hook** in `platform` (entry 6): 11d.
 - **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
@@ -218,9 +224,12 @@ Entries 1–28 and 31, for phases 1–10, are in
 
 A Wasm host: module loading from mod mounts, fuel/time limits, a capability-scoped host API
 generated from reflection, and calls into scripts from AI considerations and events.
-*Library*: WAMR (WebAssembly Micro Runtime), to be confirmed against wasmtime when the phase
-starts. WAMR 2.4.5 is fetched and proven to link and run a module on Linux, built from its
-embedding script with the fast interpreter only.
+*Library*: WAMR (WebAssembly Micro Runtime) 2.4.5, its fast interpreter ([decided](#decided)).
+*Filled in* (11b): scripts as definitions (`defs/scripts`), their modules read through the VFS; fuel
+by instruction metering and a watchdog's time limit; the host API's layouts, its C header and its
+Rust module generated from the types `Reflect::Attribute::Script` marks, imports checked against
+each script's grants as it loads; handlers of events that send commands, and inputs for a decision's
+considerations. Scripts in C or Rust. See [scripts](architecture.md#scripts).
 
 ### 30. Shipping · phase 11
 
@@ -606,9 +615,33 @@ Settled on 2026-11-10:
   read values, keeps one reader for whole files and patches, with the errors and lines it already
   gives, and lets a patch say what a value cannot (a field removed, a list appended to, its elements
   merged by a key). Each layer migrates on its own, so a YAML step edits only what the data has.
+- **WAMR, not wasmtime, runs the scripts** (2026-11-13, phase 11b, the open decision of phase 11).
+  WAMR is C, built from its embedding script inside the engine's own build with the engine's
+  toolchain and sanitisers, a few hundred kilobytes; its fast interpreter counts instructions
+  (`WAMR_BUILD_INSTRUCTION_METERING`), which is the deterministic fuel the simulation needs, and its
+  thread manager lets a watchdog stop a call. wasmtime's fuel is as deterministic and its Cranelift
+  code much faster, but it is Rust built by cargo, or a prebuilt C library outside the sanitised
+  build, and a JIT whose speed nothing needs yet: a handler call costs 0.27 µs and an input call 9 to
+  10 µs, almost all of it the fresh instance (Release, the development machine). WAMR is built with
+  bulk memory and reference types, which clang's and rustc's defaults use, software bounds checks
+  (no signal handler of its own under the sanitisers or 11d's crash handler), and no libc or WASI:
+  a script imports nothing but the host's functions. Revisit should a profile find scripts dear;
+  WAMR's ahead-of-time compiler is the next step before another runtime.
+- **Scripts are C or Rust, the shell's Rust** (2026-11-13, phase 11b). Both compile to wasm32 with
+  the devenv's toolchain (clang and lld's wasm-ld, and nixpkgs' rustc, whose `wasm32-unknown-unknown`
+  library comes with it), against bindings generated for each from the same layouts. The shell's own
+  scripts, the smoke mod's among them, are Rust; the script suite runs its host API module in both
+  languages, so C stays proven.
+- **An input call starts from the module as it was instantiated** (2026-11-13, phase 11b). An input
+  is answered inside the step, so its answer may depend on the option's inputs and on nothing a
+  script kept, which a save does not hold and a replay would have to reproduce; an instance made per
+  call costs 9 to 10 µs, and one without a host heap (an input is given nothing to copy in) makes it
+  four times cheaper than with one. A handler, outside the step, keeps its instance. A trap is not a
+  script's end, since it would do the same again: only a call past the time limit stops a script,
+  the one outcome that depends on the machine.
 
 ## Open decisions
 
-To be settled when the phase that needs them begins:
+To be settled when the phase that needs them begins. None is open: the last, the Wasm runtime, was
+settled as phase 11b began.
 
-- **Wasm runtime.** WAMR or wasmtime (phase 11).

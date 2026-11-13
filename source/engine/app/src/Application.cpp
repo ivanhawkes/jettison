@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -311,6 +312,45 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_console.RegisterCommand(
 	    "traders", "Says what each trader is doing, and what its runs have made",
 	    [this](DevTools::Console &, std::span<const std::string>) { LogTraders(); });
+	m_console.RegisterCommand(
+	    "scripts", "Says which mods' scripts are loaded, how often each was called, and how it trapped",
+	    [this](DevTools::Console &console, std::span<const std::string>)
+	    {
+		    const std::vector<Script::ScriptStatus> scripts = m_pScripts->Scripts();
+		    if (scripts.empty())
+			    console.Print("No scripts are loaded");
+		    for (const Script::ScriptStatus &script : scripts)
+			    console.Print(
+			        std::format(
+			            "{}: {} call(s), {} trap(s){}{}", script.name, script.calls, script.traps,
+			            script.stopped ? ", stopped" : "",
+			            script.lastTrap.empty() ? "" : std::format(" (last: {})", script.lastTrap)));
+	    });
+	m_console.RegisterCommand(
+	    "script_bindings",
+	    "Writes the bindings a mod's scripts are built against, from this build's types, into a "
+	    "directory: jettison_script.h for C and jettison_script.rs for Rust: script_bindings "
+	    "<directory>",
+	    [this](DevTools::Console &console, std::span<const std::string> arguments)
+	    {
+		    if (arguments.size() != 1)
+			    throw std::invalid_argument{"takes the directory to write into"};
+		    const std::filesystem::path directory{arguments[0]};
+		    std::filesystem::create_directories(directory);
+		    for (const auto &[name, text] :
+		         {std::pair{"jettison_script.h", m_pScripts->WriteHeader()},
+		          std::pair{"jettison_script.rs", m_pScripts->WriteRustModule()}})
+		    {
+			    std::ofstream file{directory / name, std::ios::binary};
+			    file << text;
+			    if (!file)
+				    throw std::runtime_error{
+				        std::format("could not write {}", (directory / name).string())};
+		    }
+		    console.Print(
+		        std::format(
+		            "Wrote jettison_script.h and jettison_script.rs into {}", directory.string()));
+	    });
 
 	m_console.RegisterCommand(
 	    "bind",
@@ -971,6 +1011,10 @@ void Application::InitResources()
 	m_definitions.emplace(m_assets);
 	LoadTradeDefinitions(*m_definitions);
 	LoadTraderDefinitions(*m_definitions);
+	Script::LoadDefinitions(*m_definitions);
+	m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
+	m_pScripts->SendCommandsTo(m_sim);
+	m_pScripts->LoadAll(*m_definitions);
 	m_definitions->Load<Dock::HullDefinition>(
 	    Dock::kHullDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
 	m_definitions->Load<Dock::StationLayout>(
@@ -988,9 +1032,21 @@ void Application::InitScene()
 	InitGalaxy();
 	DefineStarSystems();
 	// The traders' tasks read the systems; their trees name the tasks.
-	if (const auto *decision = m_definitions->Find<Ai::DecisionDefinition>(kTradeDecision))
+	const auto *decision = m_definitions->Find<Ai::DecisionDefinition>(kTradeDecision);
+	const std::optional<std::string> unanswered =
+	    decision ? UnansweredInput(*decision, m_pScripts.get()) : std::nullopt;
+	if (unanswered)
+		Core::Log(
+		    Core::Severity::Error, kShell,
+		    "The decision '{}' asks for '{}', which neither a trader nor a script answers; the galaxy "
+		    "has "
+		    "no traders",
+		    kTradeDecision, *unanswered);
+	else if (decision)
 	{
-		RegisterTraders(m_sim, *m_pBehaviours, *m_pPhysics, *m_pLanes, m_galaxySystems, *decision);
+		RegisterTraders(
+		    m_sim, *m_pBehaviours, *m_pPhysics, *m_pLanes, m_galaxySystems, *decision,
+		    m_pScripts.get());
 		m_pBehaviours->Define(*m_definitions);
 	}
 	else
@@ -2998,6 +3054,7 @@ void Application::TakeEvents()
 {
 	for (const Sim::SimEvent &event : m_sim.Events().Take())
 	{
+		m_pScripts->Dispatch(event);
 		PlayEventSound(event);
 		if (const auto *picked = event.event.try_cast<Physics::Picked>())
 		{

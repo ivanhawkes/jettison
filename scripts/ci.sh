@@ -166,11 +166,15 @@ if [ "$asan" -eq 1 ]; then
 	stage "smoke test: clang-asan (address + undefined sanitizers, lavapipe)"
 	./scripts/smoke-test.sh --preset clang-asan --build --xvfb --llvmpipe ${werror[@]+--werror}
 	# The suites whose state hashes are pinned, held to the same values under the sanitizers, and
-	# the spatial index steering reads; and the file system's, whose packs are bytes from a mod.
-	stage "unit tests: clang-asan (vfs, sim, spatial, physics, ai and dock)"
+	# the spatial index steering reads; and the file system's and the script host's, whose packs and
+	# modules are bytes from a mod. The script suite's modules are built with the tree, not as its
+	# dependency, so they are named.
+	stage "unit tests: clang-asan (vfs, sim, spatial, physics, ai, dock and script)"
 	cmake --build --preset clang-asan --target jettison_vfs_tests jettison_sim_tests \
-		jettison_spatial_tests jettison_physics_tests jettison_ai_tests jettison_dock_tests
-	ctest --test-dir build/clang-asan -R '^(vfs|sim|spatial|physics|ai|dock)$' --output-on-failure \
+		jettison_spatial_tests jettison_physics_tests jettison_ai_tests jettison_dock_tests \
+		jettison_script_tests jettison_script_test_limits jettison_script_test_rogue \
+		jettison_script_test_events jettison_script_test_events_rs
+	ctest --test-dir build/clang-asan -R '^(vfs|sim|spatial|physics|ai|dock|script)$' --output-on-failure \
 		--no-tests=error -j "$jobs"
 fi
 

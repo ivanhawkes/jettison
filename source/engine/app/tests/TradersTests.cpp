@@ -1,3 +1,4 @@
+#include "../src/Mounts.h"
 #include "../src/Stations.h"
 #include "../src/Traders.h"
 #include "../src/Trading.h"
@@ -8,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <limits>
@@ -23,9 +25,11 @@
 #include <jettison/ai/UtilityAi.h>
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/celestial/StarSystem.h>
+#include <jettison/core/Log.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
@@ -48,7 +52,9 @@ std::string ReadAsset(const std::string &path)
 
 // The sample galaxy as the shell runs it: physics, the lanes, the spatial index, steering, the
 // docks, the markets and the behaviour trees, given the galaxy, its systems and every definition
-// the sample ships, with its stations, markets and traders open.
+// the sample ships, with its stations, markets and traders open. Given a user's data directory, its
+// mods are mounted as the shell mounts them and their scripts loaded, given every event and
+// answering the traders' inputs.
 struct Galaxy
 {
 	Sim::SimWorld world{kStep, 11};
@@ -59,19 +65,30 @@ struct Galaxy
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
 	Ai::Behaviours &behaviours{Ai::Behaviours::Attach(world)};
 	Vfs::FileSystem files;
+	std::unique_ptr<Script::ScriptHost> pScripts;
 	std::vector<Celestial::StarSystem> systems;
 	std::vector<entt::entity> traders;
 	std::vector<Physics::ContactEvent> contacts;
 	std::vector<Sim::SimEvent> events;
 
-	explicit Galaxy(bool open = true)
+	explicit Galaxy(bool open = true, const std::filesystem::path &userData = {})
 	{
 		world.RegisterComponent<Sim::ControlledBy>();
 		App::RegisterTrading(world);
-		files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+		if (userData.empty())
+			files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+		else
+			App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, userData);
 		Sim::DefinitionRegistry definitions{files};
 		App::LoadTradeDefinitions(definitions);
 		App::LoadTraderDefinitions(definitions);
+		if (!userData.empty())
+		{
+			Script::LoadDefinitions(definitions);
+			pScripts = std::make_unique<Script::ScriptHost>(files);
+			pScripts->SendCommandsTo(world);
+			pScripts->LoadAll(definitions);
+		}
 		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
 		docks.Define(definitions);
@@ -86,7 +103,7 @@ struct Galaxy
 		lanes.SetGalaxy(std::move(galaxy));
 		App::RegisterTraders(
 		    world, behaviours, physics, lanes, systems,
-		    *definitions.Find<Ai::DecisionDefinition>(App::kTradeDecision));
+		    *definitions.Find<Ai::DecisionDefinition>(App::kTradeDecision), pScripts.get());
 		behaviours.Define(definitions);
 		if (!open)
 			return;
@@ -115,7 +132,11 @@ struct Galaxy
 			if (contact.phase == Physics::ContactPhase::Began && !contact.sensor)
 				contacts.push_back(contact);
 		for (Sim::SimEvent &event : world.Events().Take())
+		{
+			if (pScripts)
+				pScripts->Dispatch(event);
 			events.push_back(std::move(event));
+		}
 	}
 
 	template <typename T> std::vector<T> Events() const
@@ -223,6 +244,40 @@ TEST_CASE("Traders: each chooses the run worth most, steered off what its rivals
 	CHECK(seller.good == "copper");
 	CHECK(seller.buyAt == entt::null);
 	CHECK(seller.sellAt != entt::null);
+}
+
+TEST_CASE("Traders: a mod's script, from the user's mods, weighs their runs and hears their trades")
+{
+	const std::filesystem::path user = std::filesystem::path{JETTISON_APP_TEST_OUTPUT} / "traders-user";
+	std::filesystem::remove_all(user);
+	std::filesystem::create_directories(user / "mods");
+	std::filesystem::copy(
+	    JETTISON_SMOKE_MOD_DIR, user / "mods/smoke", std::filesystem::copy_options::recursive);
+
+	std::vector<std::string> heard;
+	const Core::LogCallbackId listening = Core::AddLogCallback(
+	    [&heard](const Core::LogRecord &record)
+	    {
+		    if (record.category == "script" && record.message.starts_with("smoke: heard"))
+			    heard.emplace_back(record.message);
+	    });
+	{
+		Galaxy galaxy{true, user};
+		REQUIRE(galaxy.pScripts->LoadedModules() == 1);
+		// Every trader chooses in the first step, each run weighed by the script's input as well.
+		galaxy.Step();
+		const std::uint64_t chosen = galaxy.pScripts->Scripts().front().calls;
+		CHECK(chosen >= galaxy.traders.size());
+		for (int step = 0; step < 60 * 120 && galaxy.Events<App::Traded>().empty(); ++step)
+			galaxy.Step();
+		const std::vector<App::Traded> traded = galaxy.Events<App::Traded>();
+		REQUIRE_FALSE(traded.empty());
+		CHECK(heard.size() == traded.size());
+		CHECK(galaxy.pScripts->Scripts().front().traps == 0);
+		MESSAGE("The script answered ", chosen, " inputs in the first step, and heard ", heard.front());
+	}
+	Core::RemoveLogCallback(listening);
+	std::filesystem::remove_all(user);
 }
 
 TEST_CASE(

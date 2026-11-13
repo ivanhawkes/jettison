@@ -30,18 +30,36 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | RmlUi | 6.3 | now | Private to ui, since 8b |
 | miniaudio | 0.11.26 | now | Private to audio, since 8c; Vorbis and Opus off, backends loaded at run time |
 | KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read`, built against the engine's zstd in place of its own copy (11a) |
-| WAMR | 2.4.5 | phase 11 | Candidate runtime; the choice is still open |
+| WAMR | 2.4.5 | now | The script host's runtime, since 11b: its fast interpreter with instruction metering and the thread manager, software bounds checks, bulk memory and reference types, no libc or WASI; private to script ([decided](roadmap.md#decided)) |
 | zstd | v1.5.7 | now | The library alone, static; vfs links it privately for pack files, and `ktx_read` links it in place of the 1.5.5 it carries (11a) |
 
 The Vulkan headers, loader, validation layers and `glslc` come from the devenv shell (Vulkan
-headers 1.4.363 at the current lock), not from `FetchContent`.
+headers 1.4.363 at the current lock), not from `FetchContent`. So do the scripts' compilers (11b):
+lld's `wasm-ld`, which links every script, clang for one in C, and rustc 1.99 for one in Rust, whose
+`wasm32-unknown-unknown` library nixpkgs ships with it. `jettison_add_script` (`source/CMakeLists.txt`)
+builds a script from either; under Nix's compiler wrapper it compiles C with the clang the wrapper
+wraps, since the wrapper adds the host's flags and target to anything it compiles. A tree configured
+without them builds everything but the scripts, whose targets then fail saying what is missing.
+
+### Scripts in the build
+
+The script suite's modules (`source/engine/script/tests/scripts`: `limits` and `rogue` in Rust,
+`events` in C and in Rust) and the smoke mod's script (`source/test/scripts/smoke.rs`) are built with
+the tree, not as the suites' dependencies, so a change to a reflected type still builds the suite
+that says the bindings are out of date. Each suite checks the bindings its scripts are built against
+byte for byte against what its types make: the script suite its own `jettison_script.h` and
+`jettison_script.rs`, the app suite the shell's `source/test/scripts/jettison_script.rs`; on a
+difference it writes what they make into the build tree, to copy over. The generated header is left
+out of the format gate. The smoke mod is staged in the build tree (`source/test/mods/smoke`, its
+definitions and its built script), which the app suite mounts as a player's unpacked mod and
+`render_test_smoke_mod` packs.
 
 ### Planned dependencies and the probe
 
-The libraries marked for a later phase are fetched now (`JETTISON_PLANNED_DEPENDENCIES=ON`, the
-default) so the whole set is proven to link before any phase depends on it. They are
-`EXCLUDE_FROM_ALL`: nothing in the engine links them yet, so a tree builds them only for
-`dependency_probe`. That one executable links the `Renderer` library and every third-party
+The libraries marked for a later phase are fetched before it (`JETTISON_PLANNED_DEPENDENCIES=ON`, the
+default) so the whole set is proven to link before any phase depends on it, `EXCLUDE_FROM_ALL`, so a
+tree builds one only for `dependency_probe` until the engine links it. WAMR, the last, left the set as
+phase 11b began to use it, and the set is empty; the option still builds the probe. That one executable links the `Renderer` library and every third-party
 library, makes at least one real call into each (it runs a WebAssembly function, creates a
 Jolt shape and a KTX texture, generates tangents), and asserts the GLM geometry ABI. The gate
 runs it after the Debug build.
@@ -55,7 +73,9 @@ too, for the physics suite they run under the sanitisers. FreeType and RmlUi lef
 did: ui links RmlUi, and ImGui rasterises with FreeType, so every tree builds both, and the headless
 trees run the UI's suite and draw its screens in the render test. miniaudio left it when phase 8c
 did: audio links it, so every tree builds it, the headless trees run the audio suite with no device,
-and the render test plays to miniaudio's null backend, touching no sound system.
+and the render test plays to miniaudio's null backend, touching no sound system. WAMR left it when
+phase 11b did: script links it, so every tree builds it, and the headless trees run the script suite
+under the sanitisers and load the smoke mod's script in the packed render test.
 
 `JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
 listens on localhost only, so it costs nothing until a profiler connects. It is off by default,
@@ -187,7 +207,8 @@ It is done when the game needs a prebuilt engine rather than a source build, and
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → headless render test, from the packed assets → reference frames,
 from the staged directory, and with `--asan`, the render test and the `vfs`, `sim`, `spatial`,
-`physics`, `ai` and `dock` suites under the sanitisers (`vfs` for the packs, whose bytes are a mod's). The simulation's state hashes are pinned in those
+`physics`, `ai`, `dock` and `script` suites under the sanitisers (`vfs` and `script` for the packs
+and the modules, whose bytes are a mod's). The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
 build's results. The sample's traders' hash is pinned in the app suite, which runs in Debug and
 Release but not under the sanitisers: its twenty minutes of seven traders is the gate's longest
@@ -337,10 +358,12 @@ the run does not depend on a GPU.
 ```
 
 **Packed.** The gate runs the headless tree's smoke test with `--packed`: it builds
-`jettison_assets_pack` and `render_test_smoke_mod` (`source/test/mods/smoke`, a patch of beer's
-crate words, packed), and runs each scene with `--assets build/<preset>/assets.pack` and a user
-directory of its own with the mod's pack in its mods. The run fails unless the shell says, once a
-scene, that it mounted the base and the mod as packs and that the mod patched beer. The sanitised run
+`jettison_assets_pack` and `render_test_smoke_mod` (`source/test/mods/smoke`: a patch of beer's
+crate words, a patch of the traders' decision and a script, `smoke.rs`, packed), and runs each scene
+with `--assets build/<preset>/assets.pack` and a user directory of its own with the mod's pack in its
+mods. The run fails unless the shell says, once a scene, that it mounted the base and the mod as packs,
+that the mod patched beer and the trade decision and that its script loaded; unless the script says
+it heard a trade, called from the trade's event; and if the script trapped or was left out. The sanitised run
 and the reference frames read the staged directory, so both kinds of mount are drawn from every gate.
 
 **What it walks.** Twelve stages, the paths that have hurt this engine: resize, resize, minimize,

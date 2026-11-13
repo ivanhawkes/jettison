@@ -1,0 +1,10 @@
+# The smoke mod's script (source/test/scripts/smoke.rs, built into scripts/smoke.wasm as the mod is
+# packed): it hears every trade filled, and answers the traders' "crowding", which the mod's patch
+# of the trade decision weighs a run by.
+version: 1
+module: scripts/smoke.wasm
+capabilities: [log]
+events:
+  - {event: Shell.Traded, function: on_traded}
+inputs:
+  - {input: crowding, function: crowding}

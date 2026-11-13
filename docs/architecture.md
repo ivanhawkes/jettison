@@ -51,7 +51,7 @@ jettison/
     │   │   └── imgui/          ImGui backend, console, dev tools
     │   ├── ai/                 utility AI, behaviour trees, graph pathfinding, steering
     │   ├── dock/               stations' pads and the ships on them: given, queued, flown in, clamped
-    │   ├── script/             Wasm host
+    │   ├── script/             Wasm host: scripts, their limits, bindings from reflection
     │   └── app/                Application shell, argument parsing, smoke sequence
     ├── tools/
     │   ├── flotsam/            editor
@@ -612,6 +612,92 @@ So two mods can each change one market, and a mod copies nothing it does not cha
 migrated on its own before it is merged, which is why a YAML step edits only what the data has: a
 step that filled a default in would set it over the layer below. The registry logs each definition a
 mount changes, naming the mounts, and an error names the files and their mounts.
+
+## Scripts
+
+Behaviour a mod changes runs as WebAssembly (`script/ScriptHost.h`, 11b), in WAMR's fast
+interpreter ([decided](roadmap.md#decided)). A script is a definition, `defs/scripts/<name>.yaml`,
+loaded through the definition registry and so layered as any other: a mod adds one with a file and
+changes another's grants or fuel with a patch. It names its module (a `.wasm` read through the VFS,
+usually from the same mod), the fuel a call may spend, the pages its memory may grow to, what it is
+granted, and which of its exports the host calls and for what:
+
+```yaml
+version: 1
+module: scripts/smoke.wasm
+capabilities: [log]
+events:
+  - {event: Shell.Traded, function: on_traded}
+inputs:
+  - {input: crowding, function: crowding}
+```
+
+**What a script sees is generated from reflection.** A type registered with `Reflect::Attribute::Script`
+is one scripts see: an event a handler is given, or a command a script may be granted to send.
+`Script::Bindings` lays each out as a C compiler or rustc lays out its struct for wasm32 (its fields in
+registration order, each at its alignment): integers, floats and GLM vectors as themselves, an entity
+as its 32-bit identifier, an enumeration as an integer of its size with its enumerators as constants,
+a string or a vector as a pointer and a count, a registered class nested. A field of another kind (a
+`std::optional`) is left out, and said to be. The host copies an event into a handler's memory in
+that layout, and reads a command out of it, checking every pointer and count against the memory's
+bounds, every bool and every enumerator; so nothing crosses the boundary but bytes, and a script reads
+and writes plain structs. From the same layouts the host writes the bindings a script is built
+against, a C header (`jettison_script.h`) and a Rust module (`jettison_script.rs`), each asserting
+every size and offset, so a script built against another build's types fails to compile rather than
+misreading. The shell's console writes both (`script_bindings <directory>`).
+
+**Imports are capabilities.** The host's functions are in the import module `jettison`: `log`, granted
+by `log`; `input`, for a script that answers inputs; and `send:<Command>` for each command it is
+granted, which the world must apply. As a script loads, every import its module makes is checked
+against what its definition grants, and a module that imports anything else, from any other module or
+not granted, is refused, naming the import. WAMR's built-in libc, which offers `printf`, `malloc` and
+the rest to any module, is not built; WASI is not either.
+
+**The calls.** The host calls a script from two places:
+
+- **Events.** As presentation takes the simulation's events once a frame, the shell gives each to the
+  host, which calls each script with a handler for its type, in the scripts' name order. A handler
+  acts through the commands it is granted, which go into the world's queue, applied at the next step
+  and recorded with the player's, so a replay needs no script to run. A handler's instance is kept
+  from call to call, so it may count what it has seen.
+- **Inputs.** A decision's consideration (entry 26) names an input; one a script answers is the
+  script's, and `ScriptHost::WithScripts` wraps the game's inputs for an option so the script works it
+  out, asking the game for the option's other inputs through `input`. The traders' choice of run is
+  the first to use it: the smoke mod weighs a run by how crowded its shelf is. That call is inside the
+  step, so it is held to the simulation's rules: each input call is made on an instance made afresh
+  from the module, so its answer is a function of the option's inputs and of nothing a call before it
+  did, and a world saved between two steps holds everything an input depends on. An input call sends
+  nothing. Neither `ai` nor the decision knows of scripts; the game wraps its inputs. A decision that
+  asks for an input neither a trader nor a script answers gives the shell no traders, logged.
+
+**The limits.** Fuel is WAMR's instruction metering: a call runs at most its definition's count of the
+interpreter's instructions (100,000 by default, up to the host's 10 million), counted the same on
+every run, so a call out of fuel traps at the same place in every build. The memory may grow to its
+definition's pages (16 by default, up to 256), and bounds are checked in software, which installs no
+signal handler under the sanitisers or the crash handler (11d). A watchdog thread looks at the call
+running every 5 ms and terminates one past the host's time limit, 250 ms by default: fuel bounds
+what a script does, and the time limit what fuel cannot see. A call that traps (out of fuel, out of
+bounds, an unreachable, a call the host refuses) loses its result: a handler's effects stop where it
+trapped and its instance is made again, since a trap leaves its stack where it was; an input reads as
+nothing. The trap is logged, the first ten a script makes one by one, and the script stays loaded,
+since it is deterministic and will do the same again. A call past the time limit stops the script for
+the run, logged as an error: the one outcome that depends on the machine, which a call within its
+fuel does not reach.
+
+**The cost.** In a Release build on the development machine a call on a kept instance takes 0.27 µs
+and an input call, with its fresh instance, 9 to 10 µs, of which WAMR's instance and environment are
+nearly all. An input instance has no host heap, which only a handler needs, to copy its event into:
+with one, the instance took 41 µs. A trader weighing its runs asks the smoke mod's script for 25
+inputs in the first step, a quarter of a millisecond once, and a trader chooses again only when it is
+idle.
+
+**Writing one.** A script is C or Rust ([decided](roadmap.md#decided)), compiled for wasm32
+freestanding against the bindings, and the shell's own are Rust. `jettison_add_script` builds one: C
+by clang (the compiler Nix's wrapper wraps, which cannot compile for a second target) and wasm-ld, Rust
+as a `no_std` cdylib for `wasm32-unknown-unknown` by rustc, linked by the same wasm-ld; both with a
+16 KiB stack, placed first, below the data, so a stack that overflows runs off the bottom of memory and
+traps rather than into the data. The script suite's modules are in both languages, the same calls
+made from each.
 
 ## UI
 
@@ -1295,7 +1381,8 @@ proves it headlessly. What exists:
   `Application::Init` stages are user (the XDG data and configuration directories, or the ones under
   `--user-dir`, and the settings and bindings read from them), resources (the asset VFS, the base,
   the user's mods and the user's data directory writable over them ([files](#files-packs-and-mods)),
-  the I/O worker, the resource manager and the rig loader), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
+  the I/O worker, the resource manager and the rig loader, the definitions and the mods' scripts
+  ([scripts](#scripts)), which hear every event the shell takes), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
   and the system scene of the star system the scene names, read through the VFS, or of the one
   `--system` names with nothing authored), renderer, and window (its title and
   size). The shell holds the renderer as `Render::IRenderer` alone and
@@ -1325,6 +1412,9 @@ proves it headlessly. What exists:
   A save holds the world and the shell's own section, which entities are its ship and station.
   The console's `bind <context> <action> [bindings...]` rebinds an action, or says what it is bound
   to, and `unbind` puts it back; either writes the settings file, so a rebinding survives a restart.
+- **Scripts** (11b). The console's `scripts` says which mods' scripts are loaded, how often each was
+  called and how it trapped, and `script_bindings <directory>` writes the bindings this build's types
+  make for a script's author, in C and in Rust ([scripts](#scripts)).
 - **Sound** (8c). Music plays from the start (the console's `music` stops and starts it), the
   station the ship is bound to hums as the camera nears it, the clamps sound from the station as the
   ship lands on its pad and is let go, and the market screen's answers sound on the UI bus

@@ -2,7 +2,9 @@
 
 #include <entt/entt.hpp>
 
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -29,6 +31,11 @@ class Docks;
 namespace Jettison::Physics
 {
 class PhysicsWorld;
+}
+
+namespace Jettison::Script
+{
+class ScriptHost;
 }
 
 namespace Jettison::Sim
@@ -73,11 +80,19 @@ inline constexpr std::string_view kTradeDecision = "trade";
 // Registers the types with Reflect, and Trader with the world, shown in snapshots; and defines the
 // trader's tasks with the behaviours, which read the physics world, the lanes' galaxy and the star
 // systems (the galaxy's, in its order) for where its gates and stations are, and weigh a run by
-// the decision. The world keeps the tasks for as long as it lives.
+// the decision, whose inputs are a trader's (kTraderInputs) or, where scripts are given, a script's
+// (Script::ScriptHost::WithScripts). The world keeps the tasks for as long as it lives, and the
+// scripts outlive its last step.
 void RegisterTraders(
     Sim::SimWorld &world, Ai::Behaviours &behaviours, const Physics::PhysicsWorld &physics,
     const Ai::LaneTravel &lanes, std::vector<Celestial::StarSystem> systems,
-    const Ai::DecisionDefinition &decision);
+    const Ai::DecisionDefinition &decision, Script::ScriptHost *pScripts = nullptr);
+
+// What a trader works out for an option of its decision.
+inline constexpr std::array<std::string_view, 3> kTraderInputs{"margin", "rivals", "rate"};
+// The first input the decision asks for that neither a trader nor one of the scripts answers, or none.
+std::optional<std::string> UnansweredInput(
+    const Ai::DecisionDefinition &decision, const Script::ScriptHost *pScripts);
 // The decisions (defs/decisions) and the trees (defs/behaviours) into the registry. Throws as the
 // registry's Load does, naming the file.
 void LoadTraderDefinitions(Sim::DefinitionRegistry &definitions);

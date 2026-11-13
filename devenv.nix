@@ -20,6 +20,8 @@
     # Build tools
     llvmPackages_21.clang
     llvmPackages_21.clang-tools
+    llvmPackages_21.lld # wasm-ld, which links scripts (phase 11b): the script suite's and the sample mods'
+    rustc # Scripts in Rust (phase 11b): its wasm32-unknown-unknown library comes with it, linked by wasm-ld
     cmake
     ninja
     pkg-config

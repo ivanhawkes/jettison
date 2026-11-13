@@ -51,6 +51,101 @@ function(jettison_add_pack target)
 	add_dependencies(${target} jettison_pack ${pack_DEPENDS})
 endfunction()
 
+# Compiles a script (docs/architecture.md, "Scripts") into a wasm32 module at OUTPUT, when the
+# target is built, from C or from Rust, against the host API the game generates (jettison_script.h,
+# jettison_script.rs), which INCLUDES finds for C and a Rust crate takes in by #[path] beside it.
+# ALL builds it with the tree, as a test's modules are.
+#  - C: each source compiled freestanding by clang, and the objects linked by wasm-ld. Nix's compiler
+#    wrapper cannot compile for a second target (it adds the host's hardening flags, and its own
+#    target unless it warns about ours), so under it the compiler it wraps is used, which its
+#    nix-support/orig-cc names.
+#  - Rust: one source, the crate's root, a no_std cdylib for wasm32-unknown-unknown with
+#    panic=abort, linked by the same wasm-ld.
+# Both link with a 16 KiB stack rather than wasm-ld's 64 KiB, so a script starts in fewer pages, and
+# with the stack first, below the data, as rustc links it: a stack that overflows then runs off the
+# bottom of memory and traps, where wasm-ld's default for C puts it above the data, into which it
+# would run without a word.
+find_program(JETTISON_WASM_LD wasm-ld)
+find_program(JETTISON_RUSTC rustc)
+set(JETTISON_SCRIPT_COMPILER "${CMAKE_C_COMPILER}")
+get_filename_component(compiler_directory "${CMAKE_C_COMPILER}" DIRECTORY)
+if(EXISTS "${compiler_directory}/../nix-support/orig-cc")
+	file(READ "${compiler_directory}/../nix-support/orig-cc" wrapped)
+	string(STRIP "${wrapped}" wrapped)
+	set(JETTISON_SCRIPT_COMPILER "${wrapped}/bin/clang")
+endif()
+function(jettison_add_script target)
+	cmake_parse_arguments(PARSE_ARGV 1 script "ALL" "OUTPUT" "SOURCES;INCLUDES")
+	if(NOT script_OUTPUT OR NOT script_SOURCES)
+		message(FATAL_ERROR "jettison_add_script(${target}) needs OUTPUT and SOURCES")
+	endif()
+	set(all)
+	if(script_ALL)
+		set(all ALL)
+	endif()
+	list(GET script_SOURCES 0 first)
+	get_filename_component(language "${first}" LAST_EXT)
+	set(missing)
+	if(NOT JETTISON_WASM_LD)
+		set(missing "wasm-ld (lld)")
+	elseif(language STREQUAL ".rs" AND NOT JETTISON_RUSTC)
+		set(missing "rustc")
+	endif()
+	if(missing)
+		add_custom_target(${target} ${all}
+			COMMAND ${CMAKE_COMMAND} -E echo "${target}: no ${missing} to build scripts with (the devenv shell has it)"
+			COMMAND ${CMAKE_COMMAND} -E false
+			VERBATIM)
+		return()
+	endif()
+
+	if(language STREQUAL ".rs")
+		list(LENGTH script_SOURCES count)
+		if(NOT count EQUAL 1)
+			message(FATAL_ERROR "jettison_add_script(${target}): a Rust script is one source, its crate's root")
+		endif()
+		add_custom_command(
+			OUTPUT "${script_OUTPUT}"
+			COMMAND ${JETTISON_RUSTC} --edition 2024 --target wasm32-unknown-unknown --crate-type cdylib
+				-C opt-level=2 -C panic=abort -D warnings
+				-C linker=${JETTISON_WASM_LD} -C link-arg=-zstack-size=16384
+				--emit=link,dep-info=${script_OUTPUT}.d -o "${script_OUTPUT}" "${first}"
+			DEPENDS "${first}"
+			DEPFILE "${script_OUTPUT}.d"
+			COMMENT "Compiling the script ${first}"
+			VERBATIM)
+		add_custom_target(${target} ${all} DEPENDS "${script_OUTPUT}")
+		return()
+	endif()
+
+	set(includes)
+	foreach(directory IN LISTS script_INCLUDES)
+		list(APPEND includes -I${directory})
+	endforeach()
+	set(objects)
+	foreach(source IN LISTS script_SOURCES)
+		get_filename_component(stem "${source}" NAME_WE)
+		set(object "${CMAKE_CURRENT_BINARY_DIR}/${target}.dir/${stem}.o")
+		add_custom_command(
+			OUTPUT "${object}"
+			COMMAND ${JETTISON_SCRIPT_COMPILER} --target=wasm32 -std=c17 -O2 -ffreestanding -nostdlib
+				-Wall -Wextra -Werror ${includes}
+				-MD -MF "${object}.d" -c "${source}" -o "${object}"
+			DEPENDS "${source}"
+			DEPFILE "${object}.d"
+			COMMENT "Compiling the script ${source}"
+			VERBATIM)
+		list(APPEND objects "${object}")
+	endforeach()
+	add_custom_command(
+		OUTPUT "${script_OUTPUT}"
+		COMMAND ${JETTISON_WASM_LD} --no-entry --stack-first -z stack-size=16384 -o "${script_OUTPUT}" ${objects}
+		DEPENDS ${objects}
+		COMMENT "Linking the script ${script_OUTPUT}"
+		VERBATIM)
+	add_custom_target(${target} ${all} DEPENDS "${script_OUTPUT}")
+endfunction()
+
 add_subdirectory("${PROJECT_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
 
 # The engine modules.

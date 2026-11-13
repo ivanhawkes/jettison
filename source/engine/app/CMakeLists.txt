@@ -20,6 +20,7 @@ jettison_add_module(app
 		render
 		resource
 		scene
+		script
 		sim
 		spatial
 		time
@@ -62,6 +63,7 @@ jettison_add_module(app
 		tests/MountsTests.cpp
 		tests/PilotingTests.cpp
 		tests/SavesTests.cpp
+		tests/ScriptsTests.cpp
 		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp
 		tests/StationsTests.cpp
@@ -71,8 +73,12 @@ jettison_add_module(app
 		glfw
 )
 
-# The large-world test reads the sample star system the assets ship.
+# The large-world test reads the sample star system the assets ship; the scripts' tests, the smoke
+# mod as source/test stages it, and the shell's bindings its script is built against.
 if(TARGET jettison_app_tests)
 	target_compile_definitions(jettison_app_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets"
+		JETTISON_SMOKE_MOD_DIR="${PROJECT_BINARY_DIR}/source/test/mods/smoke"
+		JETTISON_TEST_SCRIPT_DIR="${PROJECT_SOURCE_DIR}/source/test/scripts"
+		JETTISON_APP_TEST_OUTPUT="${CMAKE_CURRENT_BINARY_DIR}")
 endif()

@@ -1,0 +1,6 @@
+# A run is also weighed by how crowded its shelf is, as the smoke mod's script works it out.
+version: 1
+actions: !merge=name
+  - name: trade
+    considerations: !append
+      - {input: crowding, low: 0, high: 1}

@@ -40,8 +40,23 @@ if(JETTISON_PLANNED_DEPENDENCIES)
 	endif()
 endif()
 
-# The smoke test's data mod, packed as a player would be given it (scripts/smoke-test.sh --packed).
+# The smoke test's mod, packed as a player would be given it (scripts/smoke-test.sh --packed): its
+# definitions (mods/smoke) and its script, built from Rust (scripts/smoke.rs) against the shell's
+# bindings, staged together in the build tree as the mod's directory, which the app suite mounts as a
+# player's unpacked mod. Staged with the tree rather than as the suite's dependency, so a change to
+# the shell's types still builds the suite that says the bindings are out of date.
+set(JETTISON_SMOKE_MOD "${CMAKE_CURRENT_BINARY_DIR}/mods/smoke")
+add_custom_target(render_test_smoke_mod_files
+	COMMAND ${CMAKE_COMMAND} -E rm -rf "${JETTISON_SMOKE_MOD}/defs"
+	COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/mods/smoke" "${JETTISON_SMOKE_MOD}"
+	COMMENT "Staging the smoke mod's definitions"
+	VERBATIM)
+jettison_add_script(render_test_smoke_script ALL
+	OUTPUT "${JETTISON_SMOKE_MOD}/scripts/smoke.wasm"
+	SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke.rs")
+add_custom_target(render_test_smoke_mod_staged ALL DEPENDS render_test_smoke_mod_files render_test_smoke_script)
 jettison_add_pack(render_test_smoke_mod
-	SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/mods/smoke"
+	SOURCE "${JETTISON_SMOKE_MOD}"
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/mods/smoke.pack"
+	DEPENDS render_test_smoke_mod_staged
 )

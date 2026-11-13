@@ -26,6 +26,7 @@
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
@@ -100,9 +101,10 @@ class Round
   public:
 	Round(
 	    const Physics::PhysicsWorld &physics, const Ai::LaneTravel &lanes,
-	    std::vector<Celestial::StarSystem> systems, Ai::DecisionDefinition decision)
+	    std::vector<Celestial::StarSystem> systems, Ai::DecisionDefinition decision,
+	    Script::ScriptHost *pScripts)
 	    : m_physics{physics}, m_lanes{lanes}, m_systems{std::move(systems)},
-	      m_decision{std::move(decision)}
+	      m_decision{std::move(decision)}, m_pScripts{pScripts}
 	{
 	}
 
@@ -242,9 +244,13 @@ class Round
 				throw std::invalid_argument{std::format(
 				    "The trade decision asks for '{}', which a trader does not know", input)};
 			};
-			options.push_back({run.buyAt == entt::null ? "sell" : "trade", inputs});
+			// A consideration may name an input a mod's script answers, from the trader's own.
+			options.push_back(
+			    {run.buyAt == entt::null ? "sell" : "trade",
+			     m_pScripts ? m_pScripts->WithScripts(inputs) : Ai::Inputs{inputs}});
 		}
-		options.push_back({"wait", [](std::string_view) { return 0.0; }});
+		const Ai::Inputs waiting = [](std::string_view) { return 0.0; };
+		options.push_back({"wait", m_pScripts ? m_pScripts->WithScripts(waiting) : waiting});
 
 		const std::optional<Ai::Choice> choice = Ai::Choose(m_decision, options);
 		if (!choice || choice->option == runs.size())
@@ -541,6 +547,7 @@ class Round
 	const Ai::LaneTravel &m_lanes;
 	std::vector<Celestial::StarSystem> m_systems;
 	Ai::DecisionDefinition m_decision;
+	Script::ScriptHost *m_pScripts;
 };
 
 // The sample's traders, as the stations' parked ships are listed (Stations.cpp).
@@ -567,13 +574,24 @@ constexpr std::array<Start, 7> kTraders{{
 void RegisterTraders(
     Sim::SimWorld &world, Ai::Behaviours &behaviours, const Physics::PhysicsWorld &physics,
     const Ai::LaneTravel &lanes, std::vector<Celestial::StarSystem> systems,
-    const Ai::DecisionDefinition &decision)
+    const Ai::DecisionDefinition &decision, Script::ScriptHost *pScripts)
 {
 	RegisterTypes();
 	world.RegisterComponent<Trader>();
 	world.ShowInSnapshots<Trader>();
-	const auto round = std::make_shared<Round>(physics, lanes, std::move(systems), decision);
+	const auto round = std::make_shared<Round>(physics, lanes, std::move(systems), decision, pScripts);
 	round->Define(behaviours, round);
+}
+
+std::optional<std::string> UnansweredInput(
+    const Ai::DecisionDefinition &decision, const Script::ScriptHost *pScripts)
+{
+	for (const Ai::UtilityAction &action : decision.actions)
+		for (const Ai::Consideration &consideration : action.considerations)
+			if (std::ranges::find(kTraderInputs, consideration.input) == kTraderInputs.end() &&
+			    !(pScripts && pScripts->Answers(consideration.input)))
+				return consideration.input;
+	return std::nullopt;
 }
 
 void LoadTraderDefinitions(Sim::DefinitionRegistry &definitions)

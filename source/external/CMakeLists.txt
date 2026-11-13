@@ -479,27 +479,11 @@ block()
 	FetchContent_MakeAvailable(JoltPhysics)
 endblock()
 
-# ---------------------------------------------------------------------------------------------
-# Planned: the libraries docs/roadmap.md names for later phases. They are fetched now so the
-# whole set is proven to link together before a phase depends on any of it, and they are
-# EXCLUDE_FROM_ALL, so a tree builds only what something links: today that is the dependency
-# probe, and nothing in the engine.
-#
-# Each is configured inside a block(), as Jolt is above, because option names are generic
-# (Jolt's DOUBLE_PRECISION, INTERPROCEDURAL_OPTIMIZATION and ENABLE_INSTALL) and a cache entry for
-# one of them would configure whichever other dependency reads the same name. Plain variables in a
-# block reach the dependency added inside it and nothing after it.
-# ---------------------------------------------------------------------------------------------
-option(JETTISON_PLANNED_DEPENDENCIES
-	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
-
-if(JETTISON_PLANNED_DEPENDENCIES)
-
-# Scripting (phase 11). WAMR is the candidate runtime; docs/roadmap.md leaves the choice open
-# against wasmtime until the phase starts. WAMR's top-level CMakeLists.txt is the build for
-# WAMR's own iwasm program, with AOT and WASI on by default. The library is built from WAMR's
-# documented embedding script instead, in a directory of its own, because that script sets C
-# flags and compile definitions for the whole directory it runs in.
+# Scripting (phase 11b), behind script's ScriptHost.h. WAMR was chosen over wasmtime as the phase
+# began (docs/roadmap.md, "Decided"). WAMR's top-level CMakeLists.txt is the build for WAMR's own
+# iwasm program, with AOT and WASI on by default. The library is built from WAMR's documented
+# embedding script instead, in a directory of its own, because that script sets C flags and compile
+# definitions for the whole directory it runs in; wamr/CMakeLists.txt says what is on.
 FetchContent_Declare(
   wamr
   GIT_REPOSITORY https://github.com/bytecodealliance/wasm-micro-runtime.git
@@ -510,4 +494,17 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(wamr)
 add_subdirectory(wamr)
 
-endif()
+# ---------------------------------------------------------------------------------------------
+# Planned: the libraries docs/roadmap.md names for later phases, fetched before a phase depends on
+# them so the whole set is proven to link together, and EXCLUDE_FROM_ALL, so a tree builds only what
+# something links. WAMR was the last of them, and left as phase 11b began to use it; the set is
+# empty, and the option is what builds the dependency probe, which links every library the engine
+# has (source/test/CMakeLists.txt).
+#
+# A library added here is configured inside a block(), as Jolt is above, because option names are
+# generic (Jolt's DOUBLE_PRECISION, INTERPROCEDURAL_OPTIMIZATION and ENABLE_INSTALL) and a cache
+# entry for one of them would configure whichever other dependency reads the same name. Plain
+# variables in a block reach the dependency added inside it and nothing after it.
+# ---------------------------------------------------------------------------------------------
+option(JETTISON_PLANNED_DEPENDENCIES
+	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)

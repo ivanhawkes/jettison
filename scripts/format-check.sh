@@ -8,9 +8,10 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# Files slated for deletion are not formatted, to keep a sweep's diff clean. Nothing is
-# excluded right now; ImGuiMain.cpp, the last one, is deleted.
-EXCLUDES=()
+# Generated files are not formatted: the script suite's C header (source/engine/script/tests/scripts)
+# is checked byte for byte against what its generator writes. Files slated for deletion would be
+# here too, to keep a sweep's diff clean; none are.
+EXCLUDES=(source/engine/script/tests/scripts/jettison_script.h)
 
 if [ ! -x "$(command -v clang-format)" ]; then
 	echo "format-check: clang-format not on PATH; run 'devenv' (LLVM 21) first" >&2

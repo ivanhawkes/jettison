@@ -234,6 +234,8 @@ class SimWorld
 		Apply(entt::forward_as_meta(command));
 	}
 	void Apply(const entt::meta_any &command);
+	// Whether a command of the type has a handler, so a step can apply it.
+	bool Accepts(const entt::meta_type &type) const;
 
 	// While recording, every applied command is kept with the step it was applied at: fed back to
 	// a world loaded from the same start, they replay the session.
