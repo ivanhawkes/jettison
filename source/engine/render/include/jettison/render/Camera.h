@@ -4,6 +4,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <jettison/math/Bounds.h>
+#include <jettison/scene/CameraRigs.h>
 
 namespace Jettison::Render
 {
@@ -23,10 +24,8 @@ struct CameraView
 	glm::dvec3 frameOrigin{0.0};
 };
 
-// The scene file's camera angles as a rotation: pitch about X, then yaw about Y, the view
-// direction (-sin yaw cos pitch, sin pitch, -cos yaw cos pitch), and roll about that direction.
-// The same convention the renderer has read the scene with since the camera was added.
-glm::dquat OrientationFromAngles(double pitch, double roll, double yaw);
+// The scene file's camera angles as a rotation, which the scene's camera rigs read too.
+using Scene::OrientationFromAngles;
 
 // Reversed-Z with an infinite far plane, for Vulkan's clip space (y down, depth from 0 to 1): a
 // point on the near plane has depth 1, and depth falls towards 0 as the distance grows without

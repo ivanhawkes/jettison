@@ -30,6 +30,25 @@ glm::dquat LookRotation(const glm::dvec3 &forward, const glm::dvec3 &up)
 	return glm::quat_cast(glm::dmat3{right, trueUp, back});
 }
 
+glm::dquat OrientationFromAngles(double pitch, double roll, double yaw)
+{
+	const glm::dvec3 forward{
+	    -std::sin(yaw) * std::cos(pitch), std::sin(pitch), -std::cos(yaw) * std::cos(pitch)};
+	const glm::dvec3 worldUp{0.0, 1.0, 0.0};
+	const glm::dvec3 right = glm::normalize(glm::cross(forward, worldUp));
+	const glm::dvec3 up = glm::cross(right, forward);
+	// Columns: the camera's +X, +Y and +Z (which is backwards) in the system frame.
+	const glm::dquat level = glm::quat_cast(glm::dmat3{right, up, -forward});
+	return glm::angleAxis(roll, forward) * level;
+}
+
+CameraPose BlendPoses(const CameraPose &from, const CameraPose &to, double share)
+{
+	return {
+	    from.position + (to.position - from.position) * share,
+	    glm::normalize(glm::slerp(from.orientation, to.orientation, share))};
+}
+
 double SmoothingFactor(double rate, double dt)
 {
 	if (rate <= 0.0)
@@ -186,9 +205,6 @@ CameraPose CameraTransition::Update(const CameraPose &to, double dt)
 	if (!Active())
 		return to;
 	m_elapsed = std::min(m_elapsed + std::max(dt, 0.0), m_duration);
-	const double t = Math::Ease(m_easing, static_cast<float>(m_elapsed / m_duration));
-	return {
-	    m_from.position + (to.position - m_from.position) * t,
-	    glm::normalize(glm::slerp(m_from.orientation, to.orientation, t))};
+	return BlendPoses(m_from, to, Math::Ease(m_easing, static_cast<float>(m_elapsed / m_duration)));
 }
 } // namespace Jettison::Scene

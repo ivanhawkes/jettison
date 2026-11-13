@@ -150,5 +150,10 @@ std::uint32_t ObjectOutline(float objectId)
 {
 	return Glsl::ObjectOutline(objectId);
 }
+
+glm::vec3 LutCoordinate(glm::vec3 encoded, float size)
+{
+	return Glsl::LutCoordinate(encoded, size);
+}
 } // namespace Post
 } // namespace Jettison::Render

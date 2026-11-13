@@ -113,6 +113,10 @@ class VulkanRenderer final : public IRenderer
 	{
 		m_pRenderer->SetFade(color, std::clamp(amount, 0.0f, 1.0f));
 	}
+	void SetLetterbox(float share) override
+	{
+		m_pRenderer->SetLetterbox(share);
+	}
 	void SetDebugView(DebugView view) override
 	{
 		m_pRenderer->SetDebugView(view);

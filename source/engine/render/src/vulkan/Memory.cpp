@@ -231,6 +231,28 @@ Image DeviceContext::CreateCubeImage(
 }
 
 
+Image DeviceContext::CreateVolumeImage(
+    uint32_t size, VkFormat format, VkImageUsageFlags usage, const std::string &name)
+{
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_3D;
+	imageInfo.extent = {size, size, size};
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = format;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = usage;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	const Image image = CreateDeviceImage(m_allocator, imageInfo, name);
+	SetDebugName(image.handle, name);
+	return image;
+}
+
+
 void DeviceContext::DestroyImage(Image &image)
 {
 	if (image.handle != VK_NULL_HANDLE)

@@ -16,6 +16,7 @@ jettison_add_module(render
 		include/jettison/render/Atmosphere.h
 		include/jettison/render/Camera.h
 		include/jettison/render/Clusters.h
+		include/jettison/render/ColourGrade.h
 		include/jettison/render/Culling.h
 		include/jettison/render/DebugDraw.h
 		include/jettison/render/DrawBatches.h
@@ -37,6 +38,7 @@ jettison_add_module(render
 		src/Atmosphere.cpp
 		src/Camera.cpp
 		src/Clusters.cpp
+		src/ColourGrade.cpp
 		src/Culling.cpp
 		src/DebugDraw.cpp
 		src/DrawBatches.cpp
@@ -90,6 +92,7 @@ jettison_add_module(render
 		tests/BrdfTests.cpp
 		tests/CameraTests.cpp
 		tests/ClusterTests.cpp
+		tests/ColourGradeTests.cpp
 		tests/CullingTests.cpp
 		tests/DebugDrawTests.cpp
 		tests/DeviceChoiceTests.cpp

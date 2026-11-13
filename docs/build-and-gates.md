@@ -487,7 +487,10 @@ captured three seconds in so its smoke has risen: a view's line may give its own
 after the script's. The six took 24 seconds, and captured twice, no pixel differed. Phase 10c added
 a seventh, the post chain's test bench (`scene/post.yaml`) two seconds in, its beacon bright, with
 `--ambient-occlusion`, which a CPU device is otherwise without; the seven took 29 seconds, and
-captured twice, no pixel differed. A frame is
+captured twice, no pixel differed. Phase 11c added two, placed by console lines: `graded`, the orbit
+scene through the sample's colour grade (`grade cold-light`), and `dock-sequence`, the docking
+cinematic 1.5 s in (`pilot chase`, then `sequence dock 1`); captured twice, no pixel differed, and
+every earlier reference was the same to the byte with the grade's code in the output pass. A frame is
 960×540, and the frame captured is the one after thirty in a row with nothing loading, unless its
 line says otherwise.
 

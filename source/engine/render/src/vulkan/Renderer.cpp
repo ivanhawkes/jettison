@@ -18,6 +18,7 @@
 #include <jettison/render/Atmosphere.h>
 #include <jettison/render/FrameData.h>
 #include <jettison/render/Screenshot.h>
+#include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Scene.h>
 
 #include "vulkan/Environment.h"
@@ -26,6 +27,7 @@
 #include "vulkan/ModelCache.h"
 #include "vulkan/OverlayRenderer.h"
 #include "vulkan/PipelineCache.h"
+#include "vulkan/TextureUpload.h"
 #include "vulkan/imgui/ImGuiRenderer.h"
 
 #include "vulkan/PassBarriers.h"
@@ -44,14 +46,15 @@ struct DrawPushConstants
 static_assert(sizeof(DrawPushConstants) == 8);
 constexpr VkShaderStageFlags kDrawStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-// Every post program's push constants, and the output's: two vec4s, which each program reads as its
-// own (ssao.frag's parameters, output.frag's fade and settings, and so on).
+// Every post program's push constants, and the output's: three vec4s, which each program reads as its
+// own (ssao.frag's parameters, output.frag's fade, settings and frame, and so on).
 struct PostPushConstants
 {
 	glm::vec4 first{0.0f};
 	glm::vec4 second{0.0f};
+	glm::vec4 third{0.0f};
 };
-static_assert(sizeof(PostPushConstants) == 32);
+static_assert(sizeof(PostPushConstants) == 48);
 constexpr std::uint32_t kPostBindings = 4;
 
 constexpr Core::Category kRender{"render"};
@@ -169,6 +172,7 @@ void Renderer::Init()
 	    m_pDeviceContext, m_assets, m_resources, *m_pPipelines, kFramesInFlight);
 	m_pModels =
 	    std::make_unique<ModelCache>(m_pDeviceContext, m_resources, *m_pMaterials, kFramesInFlight);
+	RegisterColourLutLoader(m_resources);
 
 	CreateLayouts();
 	CreatePassList();
@@ -190,6 +194,8 @@ void Renderer::Init()
 	m_pEnvironment = std::make_unique<Environment>(m_pDeviceContext, *m_pPipelines);
 	m_pEnvironment->Init();
 	CreateFrames();
+	// The output set's grade is the identity's until a scene names one, so the set is whole.
+	ReplaceGrade(IdentityLut(kMinLutSize), "identity");
 	WritePostSets();
 	CreatePipelines();
 	m_pOverlay = std::make_unique<OverlayRenderer>(
@@ -234,6 +240,15 @@ void Renderer::Destroy()
 	m_lastPresentationTime.reset();
 	DestroyShadowMap();
 	DestroyTargets();
+	vkDestroyImageView(device, m_gradeView, nullptr);
+	m_gradeView = VK_NULL_HANDLE;
+	m_pDeviceContext->DestroyImage(m_gradeImage);
+	if (!m_gradeHandle.IsNull())
+		m_resources.Release(m_gradeHandle);
+	m_gradeHandle = {};
+	m_gradePath.clear();
+	m_gradeRevision = 0;
+	m_gradeStrength = 0.0f;
 	if (m_pProfiler)
 		m_pProfiler->Destroy();
 	// Before the pipelines, one of which is its.
@@ -979,6 +994,7 @@ void Renderer::WritePostSets()
 	    {kPostOutput, 1, m_targets.bloom[0].view, true},
 	    {kPostOutput, 2, m_targets.resolvedStencilView, false,
 	     VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL},
+	    {kPostOutput, 3, m_gradeView, true},
 	};
 	for (std::uint32_t level = 0; level < kBloomLevelCount; ++level)
 	{
@@ -1178,6 +1194,81 @@ void Renderer::RecreateSwapchain()
 	DestroyRenderFinishedSemaphores();
 	CreateRenderFinishedSemaphores();
 	m_pWindow->HasBeenResized(false);
+}
+
+
+void Renderer::UpdateGrade(const entt::registry &sceneRegistry)
+{
+	// The scene loader allows one.
+	const auto view = sceneRegistry.view<const Scene::ColourGradeComponent>();
+	const Scene::ColourGradeComponent *pGrade =
+	    view.empty() ? nullptr : &view.get<const Scene::ColourGradeComponent>(view.front());
+	const std::string_view path = pGrade != nullptr ? std::string_view{pGrade->lut} : "";
+	if (path != m_gradePath)
+	{
+		if (!m_gradeHandle.IsNull())
+			m_resources.Release(m_gradeHandle);
+		m_gradeHandle =
+		    path.empty() ? Resource::ResourceHandle<ColourLut>{} : m_resources.Load<ColourLut>(path);
+		m_gradePath = path;
+		m_gradeRevision = 0;
+		m_gradeReported = false;
+	}
+	m_gradeStrength = 0.0f;
+	if (path.empty())
+		return;
+	switch (m_resources.StatusOf(m_gradeHandle))
+	{
+		case Resource::Status::Ready:
+		{
+			// A reload is a new revision, uploaded over the old.
+			if (const std::uint32_t revision = m_resources.RevisionOf(m_gradeHandle);
+			    revision != m_gradeRevision)
+			{
+				const ColourLut &lut = *m_resources.TryGet(m_gradeHandle);
+				ReplaceGrade(lut, m_gradePath);
+				m_gradeRevision = revision;
+				Core::Log(
+				    Core::Severity::Info, kRender, "Colour grade '{}': {}, {} entries a side",
+				    m_gradePath, lut.title.empty() ? "untitled" : lut.title, lut.size);
+			}
+			m_gradeStrength = std::clamp(pGrade->strength, 0.0f, 1.0f);
+			m_gradeReported = false;
+			break;
+		}
+		case Resource::Status::Failed:
+			if (!m_gradeReported)
+				Core::Log(
+				    Core::Severity::Warning, kRender, "The scene's colour grade is not applied: {}",
+				    m_resources.ErrorOf(m_gradeHandle));
+			m_gradeReported = true;
+			break;
+		default: break;
+	}
+}
+
+
+void Renderer::ReplaceGrade(const ColourLut &lut, const std::string &name)
+{
+	Image image;
+	VkImageView view = VK_NULL_HANDLE;
+	Render::UploadGrade(*m_pDeviceContext, lut, "grade:" + name, image, view);
+	// The upload waited for the queue, so no submission in flight reads the grade it replaces, and
+	// the output set may name the new one.
+	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_gradeView, nullptr);
+	m_pDeviceContext->DestroyImage(m_gradeImage);
+	m_gradeImage = image;
+	m_gradeView = view;
+	const VkDescriptorImageInfo info{
+	    m_linearSampler, m_gradeView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+	VkWriteDescriptorSet write{};
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.dstSet = m_postSets[kPostOutput];
+	write.dstBinding = 3;
+	write.descriptorCount = 1;
+	write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	write.pImageInfo = &info;
+	vkUpdateDescriptorSets(m_pDeviceContext->GetLogicalDevice(), 1, &write, 0, nullptr);
 }
 
 
@@ -1799,6 +1890,7 @@ bool Renderer::Render(
 	const CameraView camera = ActiveCameraView(scene.Registry());
 	const auto draws = CollectDraws(scene.Registry(), camera.position, *m_pModels);
 	UpdateEnvironment(scene.Registry(), sceneReplaced, camera, draws);
+	UpdateGrade(scene.Registry());
 	std::vector<uint32_t> jointOffsets;
 	// The materials first: a draw's batch is keyed on the one it resolved to.
 	WriteMaterials(frame, draws, presentationTime);
@@ -2456,7 +2548,8 @@ void Renderer::RecordOutput(
 	    static_cast<uint32_t>(sets.size()), sets.data(), 0, nullptr);
 	const PostPushConstants output{
 	    glm::vec4{m_fadeColor, m_fade},
-	    glm::vec4{m_exposure, m_bloom, m_pSwapchain->EncodesSrgb() ? 0.0f : 1.0f, 0.0f}};
+	    glm::vec4{m_exposure, m_bloom, m_pSwapchain->EncodesSrgb() ? 0.0f : 1.0f, m_gradeStrength},
+	    glm::vec4{m_letterbox, 0.0f, 0.0f, 0.0f}};
 	vkCmdPushConstants(
 	    commandBuffer, m_postLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(output), &output);
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);

@@ -824,6 +824,44 @@ brought it there. The update returns those crossed in a frame (`Scene::ClipEvent
 entity and the event's name, and the game gives the name its meaning; the shell plays its sounds
 ([audio](#audio)).
 
+## Cinematics
+
+A cinematic is a sequence (11c, `scene/Sequence.h`), a file at `cinematics/<name>.sequence.yaml`:
+shots of a camera on rails, cut or blended one into the next, over the game's own camera and back to
+it, with a fade, letterbox bars and events on the same timeline. It is presentation alone, and the
+game's camera rigs run under it the whole time, so it hands the camera back to wherever they have it
+by then.
+
+- **Roles.** A shot's rail and what it looks at are in the frames of roles, names the game binds to
+  the scene's entities as it plays the sequence (`SequencePlayerComponent::roles`), their scale taken
+  off. A rail round a pad rides the station as it orbits, in double precision, 10^8 m out as at the
+  origin.
+- **Shots.** A rail is a centripetal Catmull-Rom spline through its points (Barry and Goldman's
+  form, the ends reflected), which neither overshoots nor loops where the points bunch, flown at an
+  even speed by a table of its length at 32 samples a span; the shot's easing spends its time along
+  it. The camera looks at a point in its frame, or in another role's, with its frame's +Y up, and its
+  field of view goes from the shot's start to its end, or is the camera's own
+  (`CameraPoseComponent::verticalFovDegrees`, which the renderer reads over `CameraComponent`'s).
+- **Blends.** The game's camera is blended in over the first shot's blend and out over the last
+  seconds, and a shot from the one before, held where it ended, over its own blend; none is a cut.
+  A blend moves the camera along a line and the point it looks at along another, its up slerped
+  ([decided](roadmap.md#decided)), so a shot's subject stays in view; the game camera's point is along
+  its view. How much of the camera is the sequence's weighs the bars too.
+- **Fade and events.** A fade's amount keyed by time, in the sequence's colour, which the shell shows
+  unless a jump's is up; and named events, on a clip of no tracks, crossed as a clip's are
+  (`Animation::AdvanceClip`, [animation](#animation)) and returned for the game to hear.
+
+`SequenceSystem` runs after the camera rigs (`camera.sequence`, before the streaks and the audio's
+listener): it loads a player's file as it is first named and holds it, waits at the player's time
+until it is in and until every role is bound to an entity with a world transform, then advances it,
+samples it over the pose the rigs left and writes the camera's pose. A file that fails, a role the
+player has no binding for, or once started an entity that has gone, is reported once and the player
+removed, the camera left to its rigs; so is a player whose sequence has ended. The shell binds
+`ship`, `pad` (the pad its ship is clamped to) and `station` each frame, since the ship's proxy is made
+by the sync, plays `cinematics/dock.sequence.yaml` as the ship lands on a pad, cuts a sequence short
+on Escape, and hides its flight readout under one; the console's `sequence <name> [seconds] | stop`
+plays one from a time, which is how the `dock-sequence` reference frame is placed.
+
 ## Coordinate frames and units
 
 SI units: metres, seconds, kilograms, radians. Right-handed, Y-up, as the scene format already
@@ -929,8 +967,9 @@ nodes in it:
     levels from the resolved frame and back up it ([bloom](#bloom)).
 12. **Outlines** (graphics, `outline-seeds`, `outline-flood-16` to `-1` and `outlines`, 10c), drawn
     over the resolved frame after bloom has read it, so they do not bloom ([outlines](#outlines)).
-13. **Tonemap** into the sRGB swapchain, with bloom added where the stencil lets it, then the game
-    UI's overlay and the dev tools over it ([UI](#ui)). The tonemapper is Khronos PBR Neutral (5b),
+13. **Tonemap** into the sRGB swapchain, with bloom added where the stencil lets it, then the colour
+    grade ([colour grading](#colour-grading)), the fade and a cinematic's bars, then the game UI's
+    overlay and the dev tools over it ([UI](#ui)). The tonemapper is Khronos PBR Neutral (5b),
     applied after exposure in the output pass: a base colour under white light of intensity one
     shows as authored, and highlights compress towards white without changing hue.
 14. **Cluster readback** (transfer, 5c). The grid and the index list copied out for the cluster
@@ -1097,7 +1136,8 @@ the subset of GLSL that GLM compiles, so the render suite runs it as C++ (`rende
 the view position from a reversed infinite depth, against the projection; the obscurance of a flat
 surface and of a corner; the bloom filters on a flat image and on one bright pixel; and the jump
 flood over random seeds, against a search of every seed. Each pass records nothing in a frame that
-does not have its effect, under the same plan. The colour-grading LUT comes later (11c).
+does not have its effect, under the same plan. The colour grade is the output pass's, after the
+tonemap ([colour grading](#colour-grading)), and so are a cinematic's letterbox bars.
 
 ### Ambient occlusion
 
@@ -1172,6 +1212,24 @@ index plus one and its outline's index plus one, a whole number in a float (`ren
 frame's outlines are listed from the draws the view keeps, by the entity that has each. The shell
 outlines what is picked, as selected, or while flying as the ship's target, and marks the hull it is
 flown from as the cockpit (`MarkScene`).
+
+### Colour grading
+
+A scene's look is a grade (11c, `Scene::ColourGradeComponent`, one a scene): a `.cube`'s 3D table
+(`render/ColourGrade.h`), 2 to 65 entries a side, applied by the output pass after the tonemap and
+before the fade, the bars and the UI, by a strength from 0 to 1 that mixes the graded colour with
+the ungraded. The table is looked up with the display's colour encoded sRGB, what a screenshot holds
+and a grading tool shows ([decided](roadmap.md#decided)), so a grade made in Resolve or Photoshop
+from a capture of the frame is the frame graded: the orbit scene graded by the sample's table
+(`grades/cold-light.cube`) is within one level, at every pixel, of its ungraded capture put through
+the table on the CPU (`Render::SampleLut`). The table is a resource, parsed on the I/O worker and
+uploaded as a 3D image of half floats, which waits for the queue, as the environment's bake does, so
+the output set names it at once; a reload is uploaded over it. It is sampled by the device's
+trilinear filter at its texels' centres (`post.glsl`'s `LutCoordinate`), which the render suite
+holds to the CPU's lookup. Until the table is in, and without one, the output pass grades nothing and
+is as it was, so every earlier reference frame is the same to the byte. A grade costs the output
+pass 0.7 ms on lavapipe at 960 × 540. The console's `grade <name> [strength] | off` sets the scene's,
+on its active camera, which a scene saved from the Scene panel keeps.
 
 ### The grid and the infinite far plane
 
@@ -1412,6 +1470,9 @@ proves it headlessly. What exists:
   A save holds the world and the shell's own section, which entities are its ship and station.
   The console's `bind <context> <action> [bindings...]` rebinds an action, or says what it is bound
   to, and `unbind` puts it back; either writes the settings file, so a rebinding survives a restart.
+- **Cinematics and grading** (11c). The ship landing on a pad plays the docking sequence, which
+  Escape cuts short; the console's `sequence <name> [seconds] | stop` plays one, and `grade <name>
+  [strength] | off` grades the scene ([cinematics](#cinematics), [colour grading](#colour-grading)).
 - **Scripts** (11b). The console's `scripts` says which mods' scripts are loaded, how often each was
   called and how it trapped, and `script_bindings <directory>` writes the bindings this build's types
   make for a script's author, in C and in Rust ([scripts](#scripts)).
@@ -1429,8 +1490,8 @@ proves it headlessly. What exists:
   (`assets/scene/main.yaml`, and `orbit.yaml` at real scale) through `serialise`'s archives, at
   file version 2: a field the file does not know is refused, naming its path and line, and the
   loader and the writer share one check of what a file may say. It has transform, parent,
-  world-transform, camera, light (a point or a spot, with a range), sun, sky and mesh components
-  (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder
+  world-transform, camera, light (a point or a spot, with a range), sun, sky, colour grade and mesh
+  components (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder
   - and optionally a material file, by virtual path), celestial bodies placed by the star system
   the scene names (a virtual path too), an orbit camera rig, and the animation module's
   rotation-animation, skeleton and animation-player components, a clip file's player

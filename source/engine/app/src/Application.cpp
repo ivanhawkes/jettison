@@ -115,6 +115,8 @@ constexpr double kPickDistance = 50000.0;
 // How long the camera eases into and out of the ship's rigs, and between them.
 constexpr double kPilotTransition = 1.5;
 constexpr double kViewTransition = 0.5;
+// The cinematic the ship landing on a pad plays (cinematics/dock.sequence.yaml).
+constexpr std::string_view kDockSequence = "dock";
 // The shell's ship as the sample game starts it: a small hauler's hold, and the credits to fill most
 // of it with what the station it starts at has to spare (docs/sample-game.md).
 constexpr std::int64_t kShipHold = 20;
@@ -527,6 +529,34 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		    m_pRenderer->SetDebugView(found->second);
 	    });
 	m_console.RegisterCommand(
+	    "sequence",
+	    "Plays a cinematic in cinematics/ from a time in seconds, over the ship, its pad and its "
+	    "station, or stops the one playing: sequence <name> [seconds] | stop",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    if (arguments.empty() || arguments.size() > 2)
+			    throw std::invalid_argument{"takes a sequence's name and a time, or stop"};
+		    if (arguments[0] == "stop")
+		    {
+			    StopSequence();
+			    return;
+		    }
+		    double from = 0.0;
+		    if (arguments.size() == 2)
+		    {
+			    const std::string &text = arguments[1];
+			    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), from);
+			    if (error != std::errc{} || end != text.data() + text.size() || !(from >= 0.0))
+				    throw std::invalid_argument{std::format("'{}' is not a time", text)};
+		    }
+		    PlaySequence(arguments[0], from);
+	    });
+	m_console.RegisterCommand(
+	    "grade",
+	    "Grades the frame by a .cube's table in grades/, by a strength from 0 to 1, or stops grading "
+	    "it: grade <name> [strength] | off",
+	    [this](DevTools::Console &, std::span<const std::string> arguments) { SetGrade(arguments); });
+	m_console.RegisterCommand(
 	    "orbit",
 	    "Places the orbit camera at once, in radians and metres, about the celestial body named or "
 	    "the one it is on: orbit <yaw> <pitch> <distance> [body]",
@@ -733,13 +763,27 @@ void Application::RegisterFrameSystems()
 		     Scene::UpdateOrbitCameras(registry, deltaTime);
 		     Scene::UpdatePilotCameras(registry, deltaTime);
 	     }});
+	// A cinematic over where the rigs left the camera, and what it shows over the frame.
+	m_frame.Register(
+	    {"camera.sequence",
+	     TickPhase::Presentation,
+	     Access::Of<WorldTransformComponent, CameraComponent, Scene::SimProxyComponent>()
+	         .Writing<Scene::SequencePlayerComponent, Scene::CameraPoseComponent>(),
+	     {"camera.rig"},
+	     [this](entt::registry &registry, double deltaTime)
+	     {
+		     JETTISON_PROFILE_ZONE("camera.sequence");
+		     BindSequenceRoles(registry);
+		     m_sequences->Update(registry, deltaTime);
+		     ShowSequence(registry);
+	     }});
 	// A jump's streaks ahead of this frame's camera, after it has moved.
 	m_frame.Register(
 	    {"shell.streaks",
 	     TickPhase::Presentation,
 	     Access::Of<Scene::CameraPoseComponent>()
 	         .Writing<TransformComponent, WorldTransformComponent>(),
-	     {"camera.rig"},
+	     {"camera.sequence"},
 	     [this](entt::registry &registry, double) { PlaceJumpStreaks(registry); }});
 	// After the cameras, so the listener is where this frame's camera is, and after the world
 	// transforms the sources follow.
@@ -749,7 +793,7 @@ void Application::RegisterFrameSystems()
 	     Access::Of<
 	         WorldTransformComponent, Scene::CameraPoseComponent, Scene::CelestialBodyComponent>()
 	         .Writing<Audio::SoundComponent>(),
-	     {"camera.rig", "scene.update"},
+	     {"camera.sequence", "scene.update"},
 	     [this](entt::registry &registry, double)
 	     {
 		     JETTISON_PROFILE_ZONE("audio.update");
@@ -1021,6 +1065,8 @@ void Application::InitResources()
 	    Dock::kStationDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
 	m_pDocks->Define(*m_definitions);
 	m_sceneUpdateSystem.emplace(m_pResources.get());
+	Scene::RegisterSequenceLoader(*m_pResources);
+	m_sequences.emplace(*m_pResources);
 	Scene::RegisterJumpLoaders(*m_pResources);
 	m_jump.emplace(*m_pResources, [this](Scene::JumpArrival &arrival) { ShowArrival(arrival); });
 }
@@ -1739,6 +1785,8 @@ void Application::PollInput()
 			ShowSaves(false);
 		else if (m_showMarket)
 			ShowMarket(false);
+		else if (!m_pScene->Registry().view<Scene::SequencePlayerComponent>().empty())
+			StopSequence();
 		else if (m_piloting)
 			StopPiloting();
 		else
@@ -2118,6 +2166,116 @@ void Application::PlaceOrbitCamera(std::span<const std::string> arguments)
 }
 
 
+void Application::PlaySequence(std::string_view name, double from)
+{
+	entt::registry &registry = m_pScene->Registry();
+	entt::entity camera = entt::null;
+	for (const auto [entity, component] : registry.view<const Scene::CameraComponent>().each())
+		if (component.active)
+		{
+			camera = entity;
+			break;
+		}
+	if (camera == entt::null)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No camera to play sequence '{}' on", name);
+		return;
+	}
+	Scene::SequencePlayerComponent player;
+	player.file = std::format("cinematics/{}.sequence.yaml", name);
+	player.time = from;
+	registry.emplace_or_replace<Scene::SequencePlayerComponent>(camera, std::move(player));
+	Core::Log(Core::Severity::Info, kShell, "Playing sequence '{}' from {:.1f} s", name, from);
+}
+
+
+void Application::StopSequence()
+{
+	m_pScene->Registry().clear<Scene::SequencePlayerComponent>();
+	m_pRenderer->SetLetterbox(0.0f);
+}
+
+
+void Application::BindSequenceRoles(entt::registry &registry)
+{
+	// What the shell binds, of what a sequence may name, each frame, since a proxy is made by the
+	// sync and a pad's clamps are shown closed from a snapshot: a sequence that names another role is
+	// refused, and one whose role the shell does not show yet waits for it.
+	entt::entity ship = entt::null;
+	entt::entity pad = entt::null;
+	entt::entity station = entt::null;
+	for (const auto [entity, proxy] : registry.view<const Scene::SimProxyComponent>().each())
+		if (m_ship != entt::null && proxy.simEntity == m_ship)
+			ship = entity;
+	for (const StationDressing &dressing : m_dressings)
+	{
+		if (dressing.body == m_stationBody)
+			station = dressing.station;
+		for (const PadClamps &clamps : dressing.clamps)
+			if (m_ship != entt::null && clamps.ship == m_ship)
+				pad = clamps.player;
+	}
+	for (const auto [camera, player] : registry.view<Scene::SequencePlayerComponent>().each())
+	{
+		player.roles.insert_or_assign("ship", ship);
+		player.roles.insert_or_assign("pad", pad);
+		player.roles.insert_or_assign("station", station);
+	}
+}
+
+
+void Application::ShowSequence(entt::registry &registry)
+{
+	const auto players = registry.view<const Scene::SequencePlayerComponent>();
+	const Scene::SequencePlayerComponent *player =
+	    players.empty() ? nullptr : &players.get<const Scene::SequencePlayerComponent>(players.front());
+	m_pRenderer->SetLetterbox(player != nullptr ? player->letterbox : 0.0f);
+	// A jump's fade is set in the sync phase, before this, and is the one shown while it is up.
+	if (player != nullptr && player->fade > 0.0f && !m_jump->Active())
+		m_pRenderer->SetFade(player->fadeColor, player->fade);
+}
+
+
+void Application::SetGrade(std::span<const std::string> arguments)
+{
+	if (arguments.empty() || arguments.size() > 2)
+		throw std::invalid_argument{"takes a table's name and a strength, or off"};
+	entt::registry &registry = m_pScene->Registry();
+	const auto graded = registry.view<Scene::ColourGradeComponent>();
+	if (arguments[0] == "off")
+	{
+		registry.clear<Scene::ColourGradeComponent>();
+		return;
+	}
+	float strength = 1.0f;
+	if (arguments.size() == 2)
+	{
+		const std::string &text = arguments[1];
+		const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), strength);
+		if (error != std::errc{} || end != text.data() + text.size() || !(strength >= 0.0f) ||
+		    !(strength <= 1.0f))
+			throw std::invalid_argument{std::format("'{}' is not a strength from 0 to 1", text)};
+	}
+	// A name is a table in grades/; a path is taken as it is.
+	const std::string &name = arguments[0];
+	Scene::ColourGradeComponent grade{
+	    name.find('/') != std::string::npos ? name : std::format("grades/{}.cube", name), strength};
+	if (!graded.empty())
+	{
+		registry.replace<Scene::ColourGradeComponent>(graded.front(), std::move(grade));
+		return;
+	}
+	// The scene's own grade, on its active camera, which a scene saved from the Scene panel keeps.
+	for (const auto [entity, camera] : registry.view<const Scene::CameraComponent>().each())
+		if (camera.active)
+		{
+			registry.emplace<Scene::ColourGradeComponent>(entity, std::move(grade));
+			return;
+		}
+	throw std::invalid_argument{"the scene has no active camera to grade"};
+}
+
+
 void Application::FrameBody(entt::registry &registry, entt::entity camera, entt::entity body)
 {
 	// Out to three of the body's radii, eased over two seconds from wherever the camera is.
@@ -2417,6 +2575,7 @@ void Application::Shutdown() noexcept
 	m_systemScene.reset();
 	m_pScene.reset();
 	m_sceneUpdateSystem.reset();
+	m_sequences.reset();
 	// The jump holds the handles of a destination's files while it reads them.
 	m_jump.reset();
 	m_pResources.reset();
@@ -2983,6 +3142,9 @@ void Application::SetProxyFactory()
 
 void Application::DrawFlight()
 {
+	// A cinematic has the frame to itself.
+	if (!m_pScene->Registry().view<Scene::SequencePlayerComponent>().empty())
+		return;
 	// Speeds from the snapshots, which are what presentation may see: the ship's motion relative to
 	// the station's over the last step.
 	const Sim::Snapshot &previous = m_simStepper.Previous();
@@ -3113,6 +3275,7 @@ void Application::TakeEvents()
 			Core::Log(
 			    Core::Severity::Info, kShell, "The ship is clamped to pad {} of {}", landed->number,
 			    m_stationBody);
+			PlaySequence(kDockSequence, 0.0);
 		}
 		else if (const auto *left = event.event.try_cast<Dock::Left>(); left && left->ship == m_ship)
 		{

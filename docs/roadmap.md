@@ -15,7 +15,7 @@ built, are recorded in [history](history.md).
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
 | 11a | **Packs.** Done 2026-11-13. Catalogue entry 30. Pack files behind the VFS (`vfs/Pack.h`): a directory's files in one, each stored or one zstd frame with its checksum, the index checked whole as it is mounted, read by `pread` from a file held open; a mount of a regular file is a pack. `FileSystem::Find` (a file's mount, time and size, which the resource manager's hot reload stamps by) in place of `Resolve`, and `ReadLayers`, every mount's file at a path. zstd 1.5.7, one copy, which `ktx_read` is built against in place of its own ([decided](#decided)). `jettison_pack` and `jettison_add_pack`; the sample assets as `jettison_assets_pack`. Definitions in layers: a whole file replaces, a `.patch.yaml` beside it merges over the layers below (`YamlArchive::ReadLayered`: mappings key by key, a null removing, `!append`, `!merge=<field>`), each layer migrated on its own, and every change a mod makes logged ([files, packs and mods](architecture.md#files-packs-and-mods)). The shell's mounts (`App::MountAssets`): the base, the user's mods under `mods/` in the order of their names, the user's data directory; the assets' pack found beside the executable where there is no directory; the default scene and ImGui's fonts read through the mounts. The headless smoke test runs packed, with a data mod in its user's mods (`--packed`). | Met: the headless smoke test, both scenes, from `assets.pack` with validation on and a pack of the test's mod in its user directory, the shell saying it mounted the base and the mod as packs and that beer is patched by the mod, once a scene; in the app suite, a mod in the user's mods over the sample game's definitions packed patching beer's price and Highport's market by `!merge=good` and adding wine. In the vfs suite, a packed directory read as the directory does, every prefix of a pack and four kinds of damage refused as it is mounted, a damaged file caught as read, and a pack replaced on the disk read as mounted, under the sanitisers too. The sample assets, 136 files and 90.3 MB, pack in 1.2 s to 88.6 MB. |
 | 11b | **Scripting.** Done 2026-11-13. Catalogue entry 29. WAMR 2.4.5 decided over wasmtime ([decided](#decided)): its fast interpreter, with instruction metering, the thread manager, bulk memory and reference types, software bounds checks, and no libc or WASI. Scripts as definitions (`defs/scripts`, `script/ScriptDefinition.h`), their modules read through the VFS from whichever mount has them; fuel a call by instruction count, and a watchdog's time limit that stops a script past it; a trap logged and survived. The host API generated from reflection (`script/Bindings.h`): the types `Reflect::Attribute::Script` marks laid out as wasm32's C ABI lays them out, an event copied into a handler's memory and a command read out of it with every pointer, bool and enumerator checked, and from the same layouts a C header and a Rust module, each asserting its sizes and offsets, written by the console's `script_bindings`; imports (`log`, `input`, `send:<Command>`) checked against a script's grants as it loads. Calls from events, as the shell takes them, whose handlers send commands into the queue, and from AI considerations, an input a script answers on a fresh instance each call (`ScriptHost::WithScripts`), which the traders weigh their runs with. Scripts in C or Rust (`jettison_add_script`; lld's wasm-ld and rustc in the devenv), the shell's in Rust. The smoke mod gains a Rust script and a patch of the trade decision ([scripts](architecture.md#scripts)). | Met: the headless smoke test, packed, loads the smoke mod's script from the pack in its user's mods once a scene ("Script 'smoke': scripts/smoke.wasm loaded, 1 handler(s), 1 input(s), granted log"), and the script, called from the traders' trade events, says what it heard, twice a scene ("smoke: heard trade 1: bought 9 crate(s) of copper at 61660 credits"), with no trap. In the app suite, the same mod from a user's directory answers 25 inputs as the traders choose in the first step and hears every trade they fill, and the shell's Rust bindings are checked as this build's. In the script suite, under the sanitisers too, the limits (fuel the same on every run, a call past 50 ms stopped, memory, stack, bounds), every refusal of a module or a definition, and events in and commands out and inputs, against the same module in C and in Rust. A handler call takes 0.27 µs and an input call 9 to 10 µs in Release. |
-| 11c | **Cinematics and grading.** The cinematic camera and sequencer; the colour-grading LUT. | |
+| 11c | **Cinematics and grading.** Done 2026-11-13. Catalogue entry 30, and entry 18's cinematic camera. The colour grade (`render/ColourGrade.h`, `Scene::ColourGradeComponent`): a `.cube`'s 3D table, read on the I/O worker as a resource (`grades/`) and uploaded as a 3D image, applied by the output pass after the tonemap to the display's colours encoded sRGB, by a strength, under the fade and the UI ([decided](#decided)); its lookup at texel centres in `post.glsl` (`LutCoordinate`), held to the CPU's (`SampleLut`). Cinematics (`scene/Sequence.h`, `cinematics/`): sequences of shots, each a rail of points in a role's frame flown at an even speed along a centripetal Catmull-Rom spline, eased, looking at a point in another role's frame, its field of view from start to end (`CameraPoseComponent::verticalFovDegrees`), cut or blended from the shot before; the game's camera blended in and out over the rigs, which run under it, a blend moving the camera and the point it looks at along lines ([decided](#decided)); a fade, letterbox bars (the output pass's, in whole rows) and events on a clip's timeline (`Animation::AdvanceClip`). `SequencePlayerComponent` and `SequenceSystem`, after the camera rigs, binding roles by name and waiting for a role bound to nothing yet. The shell binds the ship, its pad and its station, plays `cinematics/dock.sequence.yaml` as the ship lands on a pad, cuts it short on Escape and hides the flight readout under it; the console's `sequence <name> [seconds] \| stop` and `grade <name> [strength] \| off`. `OrientationFromAngles` moves to `scene` ([cinematics](architecture.md#cinematics), [colour grading](architecture.md#colour-grading)). | Met: in the shell on Xvfb, the ship undocked and sent back by the console's `dock` landed on pad 1 of Ostra Highport and played the docking sequence ("Playing sequence 'dock' from 0.0 s"), with no warning. Two reference frames, the same to the byte on every run: `dock-sequence`, the sequence 1.5 s in from the chase camera, the shuttle in frame as the camera swings round it and the bars drawn; and `graded`, the orbit scene graded by the sample's `cold-light.cube`, which is within one level at every pixel of `orbit.png` put through the table on the CPU (89% of its pixels moved by more than two), every other reference unchanged. In the scene suite, a sequence read and every refusal of one; a rail flown evenly through its points, on a line to within 0.3 mm in 20 m; the game's camera blended in and handed back exactly, shots cut and blended, the bars and the fade; a rail riding a turned, scaled frame 10^8 m out; and a player through the resource manager, waiting for its file and its roles, hearing each event once and ending. In the render suite, `.cube` files read and refused, and the lookup through a device's trilinear filter equal to the table's grade at 2, 17 and 33 entries a side. A grade costs the output pass 0.7 ms on lavapipe at 960 × 540 (1.1 to 1.8 ms). |
 | 11d | **Crash handling and localisation.** A backtrace and the log tail written on a fatal signal; localisation string tables. | |
 
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
@@ -95,8 +95,14 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
   when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
   not report, for the console.
-- **The cinematic camera** (entry 18): 11c.
 - **The crash handler hook** in `platform` (entry 6): 11d.
+- **Cinematics and grading, not yet placed** (entry 30, 11c): a jump's cutscene, which the
+  sequencer plays as data but the jump does not yet wait on (its fade rises as it is asked for), and
+  whose arrival would bind the gate, which the shell does not; a sequence's events heard by the shell,
+  as sounds by data; a shot's roll and depth of field; a blend that steers round a hull rather than
+  along a line, which a rail is drawn to avoid today (the dock's starts on the chase camera's side);
+  and a grade blended between two tables, as a sequence's own look or a system's change of one
+  would want.
 - **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
   a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
   brightness in it. Not yet placed.
@@ -119,7 +125,7 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   pick read from the object IDs under the mouse, which the physics ray answers today; the game UI and
   the dev tools under a mask, since they are drawn in the output pass, where the stencil is not
   attached; ambient occlusion at half the frame's size, or kept from frame to frame, should a
-  measured frame want it cheaper; and the colour-grading LUT (11c).
+  measured frame want it cheaper.
 - **Animation, not yet placed** (entry 27, 10d): a glTF clip's events, which glTF has no place for
   (its extras, or a clip file beside the model); one clip blended into another, so a clip changed
   part-way, as a pad's clamps let go before they have closed, starts the new one from its first pose
@@ -238,6 +244,10 @@ Pack files, crash handling (a backtrace and the log tail, written on a fatal sig
 *Filled in* (11a): pack files (`vfs/Pack.h`, `jettison_pack`, `jettison_add_pack`), mounted as a
 directory is; mods in the user's data directory; definitions in layers, by patches. See
 [files, packs and mods](architecture.md#files-packs-and-mods).
+*Filled in* (11c): the colour grade, a `.cube`'s table over the display's colours after the
+tonemap (`render/ColourGrade.h`); the cinematic camera and sequencer, shots on rails in the frames of
+roles the game binds, over the camera rigs (`scene/Sequence.h`). See
+[colour grading](architecture.md#colour-grading) and [cinematics](architecture.md#cinematics).
 
 ## Decided
 
@@ -639,6 +649,21 @@ Settled on 2026-11-10:
   four times cheaper than with one. A handler, outside the step, keeps its instance. A trap is not a
   script's end, since it would do the same again: only a call past the time limit stops a script,
   the one outcome that depends on the machine.
+- **A grade is applied to the display's colours, after the tonemap** (2026-11-13, phase 11c). The
+  table is looked up with the tonemapped colour encoded sRGB, what a screenshot holds and a grading
+  tool shows, so a grade made from a capture is that capture graded, which the `graded` reference
+  frame checks against the table on the CPU. A table over the HDR colours before the tonemap would
+  grade highlights the tonemap then compresses, but it needs a shaper into the table's domain and
+  cannot be checked against a screenshot; the tonemapper is fixed (Khronos PBR Neutral), so what a
+  display-space table cannot reach is little. The format is the `.cube`, which Resolve, Photoshop
+  and Nuke write.
+- **A sequence blends the point it looks at, not its orientation** (2026-11-13, phase 11c). Slerping
+  the orientation from the game's camera to a shot's turned the camera off the ship half-way
+  through the docking sequence's first blend, the hull at the frame's edge; moving the point looked
+  at along a line, as the camera's position is, keeps a shot's subject in view through a blend, and
+  only the up is slerped. The game camera's point is along its view, as far as the shot's subject is.
+  The camera itself still moves on a line, so a rail is drawn to start on the game camera's side of
+  what it circles.
 
 ## Open decisions
 

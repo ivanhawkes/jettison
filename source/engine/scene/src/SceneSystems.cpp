@@ -346,3 +346,102 @@ void UpdatePilotCameras(entt::registry &registry, double deltaTime)
 	}
 }
 } // namespace Jettison::Scene
+
+namespace Jettison::Scene
+{
+SequenceSystem::~SequenceSystem()
+{
+	for (const auto &[path, handle] : m_sequences)
+		m_resources.Release(handle);
+}
+
+void SequenceSystem::Update(
+    entt::registry &registry, double deltaTime, std::vector<SequenceEventFired> *pEvents)
+{
+	// As the scene's update does, a long frame plays as a tenth of a second rather than jumping.
+	const double frameTime = std::clamp(deltaTime, 0.0, 0.1);
+	std::vector<entt::entity> ended;
+	for (const auto [camera, player] : registry.view<SequencePlayerComponent>().each())
+	{
+		auto found = m_sequences.find(player.file);
+		if (found == m_sequences.end())
+			found = m_sequences.emplace(player.file, m_resources.Load<Sequence>(player.file)).first;
+		const Resource::Status status = m_resources.StatusOf(found->second);
+		if (status == Resource::Status::Failed)
+		{
+			Core::Log(
+			    Core::Severity::Warning, kScene, "Sequence '{}' is not played: {}", player.file,
+			    m_resources.ErrorOf(found->second));
+			ended.push_back(camera);
+			continue;
+		}
+		if (status != Resource::Status::Ready)
+			continue;
+		const Sequence &sequence = *m_resources.TryGet(found->second);
+
+		// Where each role is this frame, after the world transforms.
+		std::vector<glm::dmat4> frames;
+		frames.reserve(sequence.roles.size());
+		std::string_view unbound;
+		bool absent = false;
+		for (const std::string &role : sequence.roles)
+		{
+			const auto bound = player.roles.find(role);
+			const auto *world = bound != player.roles.end() && registry.valid(bound->second)
+			                        ? registry.try_get<WorldTransformComponent>(bound->second)
+			                        : nullptr;
+			if (world == nullptr)
+			{
+				unbound = role;
+				absent = bound == player.roles.end();
+				break;
+			}
+			frames.push_back(world->matrix);
+		}
+		if (!unbound.empty())
+		{
+			// Before its first frame, a role bound to nothing yet is waited for.
+			if (!absent && !player.started)
+				continue;
+			Core::Log(
+			    Core::Severity::Warning, kScene, "Sequence '{}' {}: its role '{}' is {}", player.file,
+			    player.started ? "stops" : "is not played", unbound,
+			    absent ? "not bound" : "bound to no entity of the scene with a transform");
+			ended.push_back(camera);
+			continue;
+		}
+
+		// The game's camera, where its rigs left it this frame, or where it was authored.
+		const auto *authored = registry.try_get<CameraComponent>(camera);
+		const CameraComponent fallback;
+		const CameraComponent &own = authored != nullptr ? *authored : fallback;
+		CameraPose game{
+		    own.position, OrientationFromAngles(own.rotation.x, own.rotation.y, own.rotation.z)};
+		if (const auto *pose = registry.try_get<CameraPoseComponent>(camera))
+			game = {pose->position, pose->orientation};
+
+		// Its first frame shows where it starts, set or not; its time runs from the next.
+		std::vector<std::size_t> crossed;
+		player.time = Animation::AdvanceClip(
+		    sequence.timeline, static_cast<float>(player.time),
+		    player.started ? static_cast<float>(frameTime) : 0.0f, false, crossed);
+		player.started = true;
+		if (pEvents != nullptr)
+			for (const std::size_t event : crossed)
+				pEvents->push_back({camera, sequence.timeline.events[event].name});
+
+		const SequenceView view =
+		    SampleSequence(sequence, player.time, frames, game, own.verticalFovDegrees);
+		registry.emplace_or_replace<CameraPoseComponent>(
+		    camera, view.pose.position, view.pose.orientation, view.verticalFovDegrees);
+		player.fadeColor = sequence.fadeColor;
+		player.fade = view.fade;
+		player.letterbox = view.letterbox;
+		player.weight = view.weight;
+		if (player.time >= sequence.duration)
+			ended.push_back(camera);
+	}
+	for (const entt::entity camera : ended)
+		registry.remove<SequencePlayerComponent>(camera);
+}
+} // namespace Jettison::Scene

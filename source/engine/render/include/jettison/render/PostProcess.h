@@ -80,5 +80,6 @@ int FloodStride(int step);
 glm::uvec2 NearerSeed(glm::uvec2 pixel, glm::uvec2 best, glm::uvec2 candidate);
 float GlowFalloff(float distance, float width);
 std::uint32_t ObjectOutline(float objectId);
+glm::vec3 LutCoordinate(glm::vec3 encoded, float size);
 } // namespace Post
 } // namespace Jettison::Render

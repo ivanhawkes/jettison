@@ -323,6 +323,9 @@ class DeviceContext
 	Image CreateArrayImage(
 	    uint32_t width, uint32_t height, uint32_t layers, VkFormat format, VkImageUsageFlags usage,
 	    const std::string &name);
+	// A device-local 3D image, one level, single-sampled, a cube of texels: a colour grade's table.
+	Image CreateVolumeImage(
+	    uint32_t size, VkFormat format, VkImageUsageFlags usage, const std::string &name);
 	void DestroyImage(Image &image);
 
 	VkImageView CreateImageView(

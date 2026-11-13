@@ -175,6 +175,7 @@ struct EntityRecord
 	std::optional<CameraRecord> camera;
 	std::optional<SunComponent> sun;
 	std::optional<SkyRecord> sky;
+	std::optional<ColourGradeComponent> grade;
 	std::optional<CelestialBodyComponent> celestial;
 	std::optional<AtmosphereComponent> atmosphere;
 	std::optional<RingsComponent> rings;
@@ -241,6 +242,9 @@ void RegisterTypes()
 		RegisterType<SunComponent>("Scene.Sun")
 		    .Field<&SunComponent::color>("color", kSaved)
 		    .Field<&SunComponent::intensity>("intensity", kSaved);
+		RegisterType<ColourGradeComponent>("Scene.ColourGrade")
+		    .Field<&ColourGradeComponent::lut>("lut", kSaved)
+		    .Field<&ColourGradeComponent::strength>("strength", kSaved);
 		RegisterType<BandRecord>("Scene.Band")
 		    .Field<&BandRecord::normal>("normal", kSaved)
 		    .Field<&BandRecord::width>("width", kSaved)
@@ -345,6 +349,7 @@ void RegisterTypes()
 		    .Field<&EntityRecord::camera>("camera", kSaved)
 		    .Field<&EntityRecord::sun>("sun", kSaved)
 		    .Field<&EntityRecord::sky>("sky", kSaved)
+		    .Field<&EntityRecord::grade>("grade", kSaved)
 		    .Field<&EntityRecord::celestial>("celestial", kSaved)
 		    .Field<&EntityRecord::atmosphere>("atmosphere", kSaved)
 		    .Field<&EntityRecord::rings>("rings", kSaved)
@@ -541,6 +546,7 @@ void Validate(const SceneDocument &document)
 	std::size_t activeCameras = 0;
 	std::size_t suns = 0;
 	std::size_t skies = 0;
+	std::size_t grades = 0;
 	for (const EntityRecord &entity : document.entities)
 	{
 		const std::string &id = entity.id;
@@ -584,6 +590,14 @@ void Validate(const SceneDocument &document)
 			CheckSky(*entity.sky, id);
 			if (++skies > 1)
 				Refuse("A scene can have only one sky");
+		}
+		if (entity.grade)
+		{
+			if (entity.grade->lut.empty() || !(entity.grade->strength >= 0.0f) ||
+			    !(entity.grade->strength <= 1.0f))
+				Refuse("A colour grade names its table, and its strength is from 0 to 1: " + id);
+			if (++grades > 1)
+				Refuse("A scene can have only one colour grade");
 		}
 		if (entity.atmosphere)
 		{
@@ -896,6 +910,8 @@ void Scene::Load(const SceneFile &file)
 				m_registry.emplace<SunComponent>(entity, *record.sun);
 			if (record.sky)
 				m_registry.emplace<SkyComponent>(entity, ToComponent(*record.sky));
+			if (record.grade)
+				m_registry.emplace<ColourGradeComponent>(entity, *record.grade);
 			if (record.celestial)
 				m_registry.emplace<CelestialBodyComponent>(entity, *record.celestial);
 			if (record.atmosphere)
@@ -1009,6 +1025,8 @@ std::string Scene::SaveText() const
 			record.sun = *sun;
 		if (const auto *sky = m_registry.try_get<SkyComponent>(entity))
 			record.sky = ToRecord(*sky);
+		if (const auto *grade = m_registry.try_get<ColourGradeComponent>(entity))
+			record.grade = *grade;
 		if (const auto *celestial = m_registry.try_get<CelestialBodyComponent>(entity))
 			record.celestial = *celestial;
 		if (const auto *atmosphere = m_registry.try_get<AtmosphereComponent>(entity))

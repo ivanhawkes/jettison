@@ -170,6 +170,8 @@ class Application
 	// The console's orbit command: every orbit camera placed at once at a yaw, pitch and distance,
 	// about the body named if one is. Throws, saying why, on what it cannot do.
 	void PlaceOrbitCamera(std::span<const std::string> arguments);
+	// The console's grade: the scene's colour grade set, replaced or taken away.
+	void SetGrade(std::span<const std::string> arguments);
 
 	// Starts a jump: to the system of that name, along the lane from the system shown if one leads
 	// there and straight there if none does; or, with no name, out through the exit after the one
@@ -259,6 +261,15 @@ class Application
 	bool CanPilot() const;
 	bool StartPiloting(Scene::PilotView view);
 	void StopPiloting();
+	// A sequence in cinematics/<name>.sequence.yaml played on the active camera from a time, its
+	// roles bound to what the shell shows: the ship, the pad it is clamped to, and its station.
+	void PlaySequence(std::string_view name, double from);
+	// The sequence playing, cut short: the camera is its rigs' at once.
+	void StopSequence();
+	// The roles the shell binds a sequence's to, this frame.
+	void BindSequenceRoles(entt::registry &registry);
+	// What the playing sequence shows over the frame: its fade, unless a jump's is up, and its bars.
+	void ShowSequence(entt::registry &registry);
 	// The commands phase: the controls the flight context reads, as a SetFlightControls when they
 	// change. A ship not flown is held where it is by its assist.
 	void FlyShip();
@@ -346,6 +357,9 @@ class Application
 	std::optional<Scene::SceneUpdateSystem> m_sceneUpdateSystem;
 	// The clips' events the scene's update crossed this frame, for the audio's update to play.
 	std::vector<Scene::ClipEventFired> m_clipEvents;
+	// The cinematics' player, after the camera rigs; made with the resource manager it reads them
+	// from.
+	std::optional<Scene::SequenceSystem> m_sequences;
 
 	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
 	// include the time start-up took.

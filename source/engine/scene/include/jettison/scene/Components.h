@@ -6,6 +6,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -132,6 +134,8 @@ struct CameraPoseComponent
 {
 	glm::dvec3 position{0.0};
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
+	// The vertical field of view, when a cinematic sets one; 0 for CameraComponent's.
+	float verticalFovDegrees{0.0f};
 };
 
 enum class LightType
@@ -293,6 +297,17 @@ struct SkyComponent
 	float nebulaScale{2.0f};
 
 	friend bool operator==(const SkyComponent &, const SkyComponent &) = default;
+};
+
+// The scene's colour grade (render/ColourGrade.h): a .cube's table over the display's colours, after
+// the tonemap and under the UI, by a strength from 0 (none) to 1 (the table's grade). A scene has at
+// most one; without one, or while its table loads, the frame is shown as tonemapped.
+struct ColourGradeComponent
+{
+	std::string lut;
+	float strength{1.0f};
+
+	friend bool operator==(const ColourGradeComponent &, const ColourGradeComponent &) = default;
 };
 
 // A celestial body's atmosphere (docs/architecture.md, "Atmospheres"): air over the surface of the
@@ -471,5 +486,28 @@ struct PilotCameraComponent
 	ChaseCamera chase{};
 	CockpitCamera cockpit{};
 	CameraTransition transition;
+};
+
+// Runtime: a cinematic playing on a camera (scene/Sequence.h), which the game adds, binding each of
+// the sequence's roles to an entity of the scene, and the scene file never holds. Its update
+// (SequenceSystem) runs after the camera rigs and places the camera over where they put it, and
+// removes the component once the sequence has ended, or cannot be played.
+struct SequencePlayerComponent
+{
+	// The sequence file's virtual path, and the entity each role is bound to, which may be none until
+	// the player starts (SequenceSystem).
+	std::string file;
+	std::map<std::string, entt::entity, std::less<>> roles;
+	// Seconds into the sequence: set before the first update to start part-way through.
+	double time{0.0};
+
+	// What the frame shows of it, which the update writes for the game to draw: the fade's colour and
+	// amount, the letterbox's bars, and how much of the camera is the sequence's.
+	glm::vec3 fadeColor{0.0f};
+	float fade{0.0f};
+	float letterbox{0.0f};
+	float weight{0.0f};
+	// Runtime: whether the update has shown its first frame, from which its time runs.
+	bool started{false};
 };
 } // namespace Jettison::Scene

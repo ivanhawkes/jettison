@@ -20,6 +20,7 @@
 #include "vulkan/Window.h"
 #include <jettison/render/Camera.h>
 #include <jettison/render/Clusters.h>
+#include <jettison/render/ColourGrade.h>
 #include <jettison/render/Culling.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/DrawBatches.h>
@@ -31,6 +32,7 @@
 #include <jettison/render/PostProcess.h>
 #include <jettison/render/SceneView.h>
 #include <jettison/render/Shadows.h>
+#include <jettison/resource/ResourceHandle.h>
 #include <jettison/scene/Components.h>
 
 namespace Jettison::Resource
@@ -170,6 +172,12 @@ class Renderer
 	{
 		m_fadeColor = color;
 		m_fade = amount;
+	}
+	// Black bars over the top and the bottom of the frame, each this share of its height, under the
+	// UI: a cinematic's (scene/Sequence.h).
+	void SetLetterbox(float share)
+	{
+		m_letterbox = std::clamp(share, 0.0f, 0.5f);
 	}
 
 	void SetDebugView(DebugView view)
@@ -365,6 +373,11 @@ class Renderer
 	void UpdateEnvironment(
 	    const entt::registry &sceneRegistry, bool sceneReplaced, const CameraView &camera,
 	    const std::vector<SceneDrawCommand> &draws);
+	// The scene's colour grade: its table loaded as the scene names it, and uploaded once it is ready
+	// and each time it reloads, into the output set's grade. Until then the frame is not graded.
+	void UpdateGrade(const entt::registry &sceneRegistry);
+	// The table made the output pass's grade, in place of the one before.
+	void ReplaceGrade(const ColourLut &lut, const std::string &name);
 	void DestroyRenderFinishedSemaphores();
 	void RecreateSwapchain();
 
@@ -479,6 +492,18 @@ class Renderer
 	// What lit the last bake besides the sky, and the frame it was made on.
 	CaptureLight m_bakedLight;
 	std::uint64_t m_bakedFrame{0};
+
+	// The output pass's grade, a 3D image of the table's entries: the identity's until a scene names
+	// one that has loaded, and then the last such, since a frame not graded reads none of it.
+	Image m_gradeImage;
+	VkImageView m_gradeView{VK_NULL_HANDLE};
+	// The table the scene names, the revision of it uploaded (0 for none), and its strength this
+	// frame, 0 until it is uploaded.
+	std::string m_gradePath;
+	Resource::ResourceHandle<ColourLut> m_gradeHandle;
+	std::uint32_t m_gradeRevision{0};
+	float m_gradeStrength{0.0f};
+	bool m_gradeReported{false};
 
 	// Set 0 of the scene and cluster programs (constants, skin palette, lights, material
 	// parameters, the environment, the cluster grid, the shadow map), set 1 of the scene programs
@@ -647,6 +672,7 @@ class Renderer
 	float m_exposure{1.0f};
 	glm::vec3 m_fadeColor{0.0f};
 	float m_fade{0.0f};
+	float m_letterbox{0.0f};
 
 	std::array<FrameData, kFramesInFlight> m_frames{};
 	uint32_t m_currentFrame{0};

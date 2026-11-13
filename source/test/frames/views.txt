@@ -23,3 +23,10 @@ post --scene $PWD/assets/scene/post.yaml --after-frames 120 --ambient-occlusion
 # The shuttle docked on Highport's pad 1, from the chase camera: its four clamps closed on it, their
 # posts beside its wings, their arms over and their jaws at its sides.
 docked --scene $PWD/assets/scene/orbit.yaml --run pilot|chase
+# The orbit scene as it opens, graded by the sample's cold-light table: the shadows towards teal and
+# the lit planet towards amber, a little more contrast and a little less colour than orbit.png.
+graded --scene $PWD/assets/scene/orbit.yaml --run grade|cold-light
+# The docking sequence 1.5 s in, from the chase camera: swinging round the shuttle's starboard side,
+# the camera and the point it looks at 94% of the way from the chase camera's to the first shot's
+# (an ease in and out, three quarters through its blend), and the letterbox's bars as far drawn.
+dock-sequence --scene $PWD/assets/scene/orbit.yaml --run pilot|chase --run sequence|dock|1

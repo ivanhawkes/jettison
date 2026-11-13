@@ -216,4 +216,17 @@ uint ObjectOutline(float objectId)
 	return (uint(objectId) >> 16u) & 255u;
 }
 
+// ---- Colour grading -----------------------------------------------------------------------------
+//
+// A grade's table is a 3D texture of its entries (render/ColourGrade.h), sampled with the colour on
+// the display, encoded sRGB, after the tonemap.
+
+// Where an encoded colour is looked up in a table of `size` entries a side: 0 and 1 at the centres of
+// the first and last texels, so the device's trilinear filter interpolates between the entries, as
+// Render::SampleLut does, and never into the clamp beyond them.
+vec3 LutCoordinate(vec3 encoded, float size)
+{
+	return (clamp(encoded, 0.0f, 1.0f) * (size - 1.0f) + 0.5f) / size;
+}
+
 #endif

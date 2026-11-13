@@ -4,18 +4,6 @@
 
 namespace Jettison::Render
 {
-glm::dquat OrientationFromAngles(double pitch, double roll, double yaw)
-{
-	const glm::dvec3 forward{
-	    -std::sin(yaw) * std::cos(pitch), std::sin(pitch), -std::cos(yaw) * std::cos(pitch)};
-	const glm::dvec3 worldUp{0.0, 1.0, 0.0};
-	const glm::dvec3 right = glm::normalize(glm::cross(forward, worldUp));
-	const glm::dvec3 up = glm::cross(right, forward);
-	// Columns: the camera's +X, +Y and +Z (which is backwards) in the system frame.
-	const glm::dquat level = glm::quat_cast(glm::dmat3{right, up, -forward});
-	return glm::angleAxis(roll, forward) * level;
-}
-
 glm::mat4 ReversedInfinitePerspective(float verticalFov, float aspect, float nearPlane)
 {
 	const float focal = 1.0f / std::tan(verticalFov * 0.5f);

@@ -61,7 +61,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Poses, FK | In | Not a public system: local pose to model pose is the hierarchy evaluation the sampler already does. |
 | IK | Out | No feet, no hands, no aiming limbs. |
 | Synchronisation | Out | Clip sync serves locomotion blending, which this engine does not have. |
-| Cinematics | Deferred | Docking and jump cutscenes want camera rails and a sequencer. Late, with the cinematic camera. |
+| Cinematics | In (phase 11c) | Sequences of shots on camera rails in the frames of what they show (a pad, a ship), cut or blended over the game's camera and back to it, with a fade, letterbox bars and events: the docking cutscene. Data, in `cinematics/`, which a mod replaces. |
 
 ### Artificial intelligence
 
@@ -97,7 +97,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | First person | In | Cockpit view when piloting. |
 | Chase | In (added) | Behind the piloted ship. |
 | Map | In (added) | System map and galaxy map: top-down orbit with zoom across many orders of magnitude. |
-| Cinematic | Deferred | With cinematics. |
+| Cinematic | In (phase 11c) | A sequence's camera, over the rigs, which run under it and take the camera back where they have it. |
 
 ### Engine runtime
 
@@ -161,7 +161,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Stencil and object IDs | In (added 2026-11-11) | A stencil aspect on the depth target, for crisp outlines and for masking post-processing off the cockpit and HUD; and an object ID buffer from the depth prepass, for wide, soft target highlights. Phase 10c. |
 | Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap. Thin struts and antennae against black space alias worst. |
 | Colour space | In, early | Linear workflow, sRGB swapchain, HDR render targets. Expensive to retrofit. |
-| Colour grading | Deferred | A LUT pass late, when there is art to grade. |
+| Colour grading | In (phase 11c) | A 3D LUT from a `.cube`, after the tonemap on the display's colours, so a screenshot graded in a grading tool is the frame graded; a scene's look, which a mod can replace. |
 | Triplanar / tri-blend | In | Asteroids and procedural planet surfaces without authored UVs. |
 | Glass | In (brought forward 2026-11-13) | Cockpit canopy and station windows, a thin tinted pane in the transparent pass, with particles (phase 10b). Refraction is out until the post chain's targets can give it the frame behind. |
 | Multiple UV maps | Deferred | glTF `TEXCOORD_1` for detail maps, when an asset needs it. |

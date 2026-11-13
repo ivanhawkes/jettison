@@ -8,6 +8,7 @@
 
 #include <jettison/animation/ClipFile.h>
 #include <jettison/resource/ResourceHandle.h>
+#include <jettison/scene/Sequence.h>
 
 namespace Jettison::Resource
 {
@@ -68,4 +69,41 @@ void UpdateOrbitCameras(entt::registry &registry, double deltaTime);
 // and the one its view names writes the camera's CameraPoseComponent, through any transition, over
 // whatever the orbit rig wrote. A camera whose target has gone is left where it was.
 void UpdatePilotCameras(entt::registry &registry, double deltaTime);
+
+// An event of a sequence crossed in a frame: the camera whose SequencePlayerComponent played it, and
+// the event's name, for the game to give a meaning.
+struct SequenceEventFired
+{
+	entt::entity camera{entt::null};
+	std::string name;
+};
+
+// After the camera rigs: each SequencePlayerComponent's sequence advanced by the frame's time and
+// sampled over the pose its camera's rigs left (or its authored one), into the camera's
+// CameraPoseComponent with its field of view, and what the frame shows of it into the player. A
+// sequence is loaded through the resource manager as a player first names it, and held while the
+// system lives; until it is in, and until each role it names is bound to an entity with a world
+// transform, the player waits at its time, so a game may bind what it does not show yet. A file that
+// fails, a role the sequence names and the player has no binding for at all, or, once it has
+// started, an entity bound that is gone, is reported once and the player removed, the camera left to
+// its rigs; so is a player whose sequence has ended.
+class SequenceSystem
+{
+  public:
+	explicit SequenceSystem(Resource::ResourceManager &resources) : m_resources{resources}
+	{
+	}
+	~SequenceSystem();
+	SequenceSystem(const SequenceSystem &) = delete;
+	SequenceSystem &operator=(const SequenceSystem &) = delete;
+
+	// Appends the events crossed this frame to events, if given, in the order of the cameras and,
+	// for each, the order crossed.
+	void Update(
+	    entt::registry &registry, double deltaTime, std::vector<SequenceEventFired> *pEvents = nullptr);
+
+  private:
+	Resource::ResourceManager &m_resources;
+	std::map<std::string, Resource::ResourceHandle<Sequence>, std::less<>> m_sequences;
+};
 } // namespace Jettison::Scene

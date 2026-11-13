@@ -26,6 +26,8 @@ CameraView ActiveCameraView(const entt::registry &registry)
 	{
 		view.position = pose->position;
 		view.orientation = pose->orientation;
+		if (pose->verticalFovDegrees > 0.0f)
+			view.verticalFov = glm::radians(pose->verticalFovDegrees);
 	}
 	else
 	{

@@ -16,10 +16,19 @@ struct CameraPose
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 };
 
+// The scene file's camera angles as a rotation: pitch about X, then yaw about Y, the view
+// direction (-sin yaw cos pitch, sin pitch, -cos yaw cos pitch), and roll about that direction.
+// The same convention the renderer has read the scene with since the camera was added.
+glm::dquat OrientationFromAngles(double pitch, double roll, double yaw);
+
 // The rotation that points a camera's -Z along forward with its +Y towards up. Forward need not
 // be normalised; an up parallel to it falls back to +Z, so a camera straight above the system
 // plane still has a roll.
 glm::dquat LookRotation(const glm::dvec3 &forward, const glm::dvec3 &up = {0.0, 1.0, 0.0});
+
+// A share of the way from one pose to another: the position along the line in double precision, the
+// orientation along the shorter arc.
+CameraPose BlendPoses(const CameraPose &from, const CameraPose &to, double share);
 
 // Exponential smoothing: the fraction of the way from current to goal a step of dt seconds
 // covers at `rate` per second. 1 - e^(-rate dt), so ten steps of a tenth of a second land where

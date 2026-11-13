@@ -1,8 +1,10 @@
 file(GLOB_RECURSE JETTISON_ASSET_FILES CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_SOURCE_DIR}/animations/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/audio/*"
+	"${CMAKE_CURRENT_SOURCE_DIR}/cinematics/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/defs/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/fonts/*"
+	"${CMAKE_CURRENT_SOURCE_DIR}/grades/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/materials/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/models/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/scene/*"
@@ -15,14 +17,16 @@ file(GLOB_RECURSE JETTISON_ASSET_FILES CONFIGURE_DEPENDS
 # edit to a scene, a clip, a material or a texture reaches the build's copy, which the running app reads
 # and hot-reloads from. Sounds, fonts and models are copied at configure time only: they are large
 # and rarely change.
-foreach(asset_dir IN ITEMS animations audio defs fonts materials models scene systems textures ui)
+foreach(asset_dir IN ITEMS
+		animations audio cinematics defs fonts grades materials models scene systems textures ui)
 	file(COPY "${asset_dir}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
 endforeach()
 file(GLOB JETTISON_PROGRAM_DESCRIPTORS CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.program.yaml")
 file(COPY ${JETTISON_PROGRAM_DESCRIPTORS} DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
-set(JETTISON_COPIED_ASSET_DIRS animations defs materials scene systems textures ui)
+set(JETTISON_COPIED_ASSET_DIRS
+	animations cinematics defs grades materials scene systems textures ui)
 set(copy_commands)
 foreach(asset_dir IN LISTS JETTISON_COPIED_ASSET_DIRS)
 	list(APPEND copy_commands COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -98,6 +102,8 @@ endforeach()
 jettison_add_pack(jettison_assets_pack
 	SOURCE "${CMAKE_CURRENT_BINARY_DIR}"
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}.pack"
-	DIRECTORIES animations audio defs fonts materials models scene shaders systems textures ui
+	DIRECTORIES
+		animations audio cinematics defs fonts grades materials models scene shaders systems textures
+		ui
 	DEPENDS jettison_assets
 )
