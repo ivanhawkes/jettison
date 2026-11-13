@@ -161,6 +161,14 @@ void CheckHull(std::string_view name, const HullDefinition &hull)
 	const glm::vec3 half = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
 	if (!(glm::all(glm::lessThanEqual(glm::abs(hull.hatch), half + 0.01f))))
 		Refuse(kWhat, name, "has its cargo hatch outside its hull");
+	// A drive's time rises with the distance, and no faster than it.
+	const Ai::CruiseDrive &cruise = hull.cruise;
+	if (!(cruise.seconds > 0.0f) || !std::isfinite(cruise.seconds) || !(cruise.reference > 0.0) ||
+	    !std::isfinite(cruise.reference) || !(cruise.exponent > 0.0f) || !(cruise.exponent <= 1.0f))
+		Refuse(
+		    kWhat, name,
+		    "has a cruise drive whose seconds or reference is not positive, or whose exponent is "
+		    "not above 0 and at most 1");
 }
 
 double Radius(const StationLayout &layout)

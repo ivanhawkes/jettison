@@ -29,7 +29,8 @@ void RegisterTypes()
 		    .Field<&HullDefinition::height>("height", kDefined)
 		    .Field<&HullDefinition::pad>("pad", kDefined)
 		    .Field<&HullDefinition::hatch>("hatch", kDefined)
-		    .Field<&HullDefinition::model>("model", kDefined);
+		    .Field<&HullDefinition::model>("model", kDefined)
+		    .Field<&HullDefinition::cruise>("cruise", kDefined);
 		RegisterType<Box>("Dock.Box")
 		    .Field<&Box::centre>("centre", kDefined)
 		    .Field<&Box::size>("size", kDefined);

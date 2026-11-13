@@ -9,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/ai/Cruise.h>
 #include <jettison/physics/Shape.h>
 
 namespace Jettison::Dock
@@ -49,8 +50,9 @@ float HatchAft(PadClass padClass);
 // its centre, which the deck's buggies drive to (9e). defs/hulls/<name>.yaml; its collision shape
 // is the box of its size (Docks::HullShape), whatever it is drawn as. The model is presentation's
 // alone, a glTF file by virtual path in the hull's axes and metres, drawn in place of its class's
-// proxy; the simulation never reads it. Registered with Reflect as "Dock.HullDefinition", every
-// field Saved and Moddable, by RegisterTypes.
+// proxy; the simulation never reads it. Its cruise drive is how long its cruises across a system
+// take (Ai::CruiseDrive), which the game gives each ship of the hull. Registered with Reflect as
+// "Dock.HullDefinition", every field Saved and Moddable, by RegisterTypes.
 struct HullDefinition
 {
 	std::string displayName;
@@ -60,6 +62,7 @@ struct HullDefinition
 	PadClass pad{PadClass::S};
 	glm::vec3 hatch{0.0f};
 	std::string model{};
+	Ai::CruiseDrive cruise{};
 };
 
 // A box of a station's structure, in its axes, square to them: its centre and its whole size.

@@ -12,11 +12,16 @@ built, are recorded in [history](history.md).
 | Phase | Work | Exit criterion |
 |---|---|---|
 | 0–12 | **Done** 2026-11-10 to 2026-11-14: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish, scripting and shipping, saves and the step's interface. Recorded in [history](history.md). | Met. |
+| 13 | **Crossing a system, its gates and the fleet.** Sub-phases 13a–13d: the sample's fleet ([sample game](sample-game.md#what-comes-next)) and the space it is played in, the head of the second tier of [carried forward](#carried-forward), with the first tier's last commands to carry their senders. | A ship crosses its system by cruising and leaves it through a gate that cleared it, its owner charged the lane's toll; a player buys a second ship, attaches to either and takes the helm of one while the other trades for them by its behaviour. |
+| 13a | **The cruise.** Done 2026-11-14. Catalogue entries 22 and 26 ([decided](#decided): a ship crosses a system by cruising). `Ai::Cruise`, with its sender, takes a ship to a body of its system (`ai/Cruise.h`): out of physics and its frame, its body kept in its `Ai::Cruising`, placed each step along its course by the system `cruise`, after the lanes'; and out at rest, facing the body, a quarter of its radius and 4 km beyond it and no nearer than where its gravity pulls at 1 m/s², which a ship's assist holds against, in its frame or, for a gate by a station, the station's, so a frame changes at a cruise's ends and a lane's and nowhere else. Its time is the hull's drive (`Ai::CruiseDrive`, a hull definition's `cruise`), the seconds for 10⁸ m rising as the distance's fourth root; the target's place at arrival and the time are solved from each other in eight rounds; the course is straight legs round the stars, planets and moons in the way (`Ai::Waypoints`, 2 km clear), relative to its carrier, the nearest body both ends orbit, and carried with it, each body in the way placed where the ship passes it; along it the ship eases out and in by an in-out cubic and faces along its leg. Refused with a reason (`reason.ai.*`, in English and German) for a ship its sender does not command, cruising already, of no drive or on rails, within 2 km of a station's radius, already where it would arrive, to a body its system does not have, or of no course; a lane is refused to a cruising ship. The shell gives every ship its hull's drive, sends the player's with `cruise <body>`, and its flight panel, controls and pilot camera follow the ship's frame from the snapshots ([cruising](architecture.md#cruising)). | Met: in the ai suite, the shuttle's drive takes Highport to Pell, 392,995 km, in 56.3 s, the whole steps its course's length gives; out of physics and its frame and in its system throughout, clear of Ostra and Pell at every step, 15 km out a second in; out in the step its arrival names at 2,214.7 km from Pell's centre, where Pell pulls at 1 m/s², to a part in 10⁹, facing it, at rest in Pell's frame, with its body made in the next step; and back to Halcyon Gate, in Highport's frame, to the millimetre. A course from the far side of Ostra goes round it by four points, 389 km above it at nearest; a ship arriving off Ostra, 19,965 km from its centre, is held by its assist to within a metre for a minute; to the star takes 243 s, carried by it; each refusal gives its reason, and a world saved mid-cruise arrives at the hash the one saved does. In the shell under Xvfb, the ship out of the lane at Vesper Gate cruises to Corva, 52,522 km in 34.1 s at up to 3,218 km/s, the flight panel counting down, and arrives facing it 87,504 km from its centre; within Highport's reach it is refused, worded from the table. |
+| 13b | **Gates in Manifest's places, and the traders cruising.** Catalogue entry 26 (9a, 9f). The gates moved to Manifest's places, star gates about a sun and moon gates about a planet, and a second station where a system needs one to cruise between; a trader's cruise task, its time weighed in a run's credits a second, and a route's crossings costed by the drive's time; arrivals spread clear of each other as a lane's are. | The traders trade across the galaxy for hours, cruising from their stations to the gates and from the gates to their markets, every arrival clear of the ships there, at a pinned hash. |
+| 13c | **A gate flown through.** Catalogue entry 26 ([decided](#decided): a gate sends the ships it has cleared). A sensor on each ring whose contact sends a cleared ship into its lane; `RequestTransit`, with its sender, granted for a hull that fits the ring, an owner whose purse holds the lane's toll (whole credits in `galaxy.yaml`) and a gate that is free, the toll charged as the ship enters and a clearance unused lapsing; the traders and the shell's ship cleared and flown through. | A cleared ship flown through the ring is sent and its owner charged; one not cleared passes through with a reason and is charged nothing; a clearance lapses unused. |
+| 13d | **The fleet and the helm.** The sample's fleet ([decided](#decided): a player has a fleet), and the first tier's commands that carry their senders (9c). A ship bought at a station; attaching to a ship of the fleet, the camera's and the market screen's; the helm a saved command, which stands the ship's behaviour down; the flight controls, a destination, a lane entered and a pick carrying their senders. | A player buys a second ship, attaches to it and trades from it, takes its helm while the first trades on by its behaviour, and a flight control for a ship whose helm is another's is refused. |
 
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
 target and a test, and phases 2–11 fill stubs in rather than invent structure.
 
-Phases 5–12 are split into lettered sub-phases (all of them now in [history](history.md)), each a
+Phases 5–13 are split into lettered sub-phases (5–12's now in [history](history.md)), each a
 block of related work that touches the same modules and documents, so it can be done in one session
 and the context cleared after it.
 A sub-phase names the catalogue entries that are its brief; read those, not the whole catalogue.
@@ -36,11 +41,10 @@ the most pressing. The decisions they waited on are settled, under [decided](#de
 Each of these fixes what a save holds or the shape of what goes into and out of the step, and gets
 dearer with every save a player has and once a second player sends commands.
 
-- **Commands that carry their sender** (9c): the docks' commands and the trade (12c) carry a
-  `Sim::Controller` and are refused from one that does not command the ship, and a trader sends its
-  own with its AI controller (9f); the flight controls, a destination, a lane entered and a pick do
-  not yet, and are taken from anyone. Each gains one as the first command a second player could send
-  for it, with networking; the flight controls theirs with the helm, which a fleet brings first.
+- **Commands that carry their sender** (9c): the docks' commands, the trade (12c) and a cruise
+  (13a) carry a `Sim::Controller` and are refused from one that does not command the ship, and a
+  trader sends its own with its AI controller (9f); the flight controls, a destination, a lane
+  entered and a pick do not yet, and are taken from anyone. They gain theirs with the helm, in 13d.
   Phase 12 took the rest of this tier.
 
 ### Next: what the game's next slices stand on
@@ -50,25 +54,17 @@ game](sample-game.md#what-comes-next)), and the space they are played in: a syst
 own scale, gates flown through, traders that react, and mods a player can choose between.
 
 - **The sample game's later slices** ([sample game](sample-game.md)): a player's fleet, a ship
-  bought and the helm of one of them; ManifestCore's order book, which the traders (9f) post to once
+  bought and the helm of one of them (13d); ManifestCore's order book, which the traders (9f) post to once
   they trade by orders; the economy's turns and the skill tree's effects, then scripting (11).
-- **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
-  shell sets its ship's and its traffic's, and by lane travel as a ship comes out of a gate, into the
-  frame of the station the gate keeps by (9a). Taking a ship into a station's frame as it closes and
-  out as it leaves, by a radius about each body, is not yet placed: steering (9b) flies within a
-  frame, and nothing in phase 9 leaves one, since every gate keeps station a few kilometres from its
-  station, in its frame. Decided (2026-11-13): a frame changes at a cruise's ends and a lane's and
-  nowhere else, so no radius is placed; built with the cruise.
-- **Courses past moving bodies** (entry 26, 9a): a course is straight legs between bodies where they
-  are when it is plotted, plotted again as a ship goes. Fine across a station's few kilometres and
-  for estimating a crossing; a course across a system flown at real speeds (days, past a planet that
-  moves) needs its bodies where they will be, and a way of crossing a system at that scale at all,
-  which nothing in the engine has yet. Steering (9b) flies a course's waypoints in the ship's frame,
-  so a course by a station moves with it. Decided (2026-11-13): a cruise drive, the target's place
-  on arrival solved from its rails; not yet built.
-- **A gate flown through** (entry 26, 9a): the shell sends its ship along a lane wherever it is in
-  the system, as the scene jumps, standing in for the game's rule, and a trader's tree sends its
-  own once it is within 150 m of the gate's centre (9f). A gate that sends what flies through its
+- **Cruising, not yet placed** (entries 22 and 26, 13a): a cruise to a ship rather than a body;
+  one broken off part-way, as a privateer's would be, which knowing where the ship is every step
+  allows; a course that bends round a body rather than turning at waypoints, which the ship does in
+  a step; and a body in the way placed where the ship passes it by its time alone, so a planet
+  neither end orbits is placed half-way and widened by half of its own motion. A cruise's arrivals
+  are not yet spread clear of each other (13b).
+- **A gate flown through** (entry 26, 9a, for 13c): the shell sends its ship along a lane wherever
+  it is in the system, as the scene jumps, standing in for the game's rule, and a trader's tree
+  sends its own once it is within 150 m of the gate's centre (9f). A gate that sends what flies through its
   ring, a sensor whose contact pushes `EnterLane`, for the pilot and the traders alike, is not yet
   built. Decided (2026-11-13): it sends a ship the gate has cleared, the sample's rule a clearance
   by the hull's size, a toll and the gate free. The smoke sequence's jump sends the

@@ -645,7 +645,7 @@ std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InSystem>(ship, registry.get<Sim::InSystem>(station).system);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{start.station});
-		MakeShip(registry, ship, start.hull, start.mass, true);
+		MakeShip(registry, docks, ship, start.hull, start.mass, true);
 		registry.emplace<Ai::Steered>(ship);
 		// Each trader the owner of its one ship.
 		const Sim::Controller controller = TraderController(static_cast<std::uint32_t>(index));

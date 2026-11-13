@@ -59,48 +59,16 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     core::arch::wasm32::unreachable()
 }
 
-/// Ai.OnLane
+/// Ai.CruiseEnded
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Ai_OnLane {
-    pub from: u64,
-    pub departure: jettison_string,
-    pub to: u64,
-    pub arrival: jettison_string,
-    pub arrivalStep: u64,
+pub struct Ai_CruiseEnded {
+    pub ship: jettison_entity,
+    pub body: jettison_string,
 }
-const _: () = assert!(size_of::<Ai_OnLane>() == 40);
-const _: () = assert!(offset_of!(Ai_OnLane, from) == 0);
-const _: () = assert!(offset_of!(Ai_OnLane, departure) == 8);
-const _: () = assert!(offset_of!(Ai_OnLane, to) == 16);
-const _: () = assert!(offset_of!(Ai_OnLane, arrival) == 24);
-const _: () = assert!(offset_of!(Ai_OnLane, arrivalStep) == 32);
-
-/// Ai.LaneEntered
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct Ai_LaneEntered {
-    pub entity: jettison_entity,
-    pub lane: Ai_OnLane,
-    pub transitSeconds: f64,
-}
-const _: () = assert!(size_of::<Ai_LaneEntered>() == 56);
-const _: () = assert!(offset_of!(Ai_LaneEntered, entity) == 0);
-const _: () = assert!(offset_of!(Ai_LaneEntered, lane) == 8);
-const _: () = assert!(offset_of!(Ai_LaneEntered, transitSeconds) == 48);
-
-/// Ai.LaneLeft
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct Ai_LaneLeft {
-    pub entity: jettison_entity,
-    pub system: u64,
-    pub arrival: jettison_string,
-}
-const _: () = assert!(size_of::<Ai_LaneLeft>() == 24);
-const _: () = assert!(offset_of!(Ai_LaneLeft, entity) == 0);
-const _: () = assert!(offset_of!(Ai_LaneLeft, system) == 8);
-const _: () = assert!(offset_of!(Ai_LaneLeft, arrival) == 16);
+const _: () = assert!(size_of::<Ai_CruiseEnded>() == 12);
+const _: () = assert!(offset_of!(Ai_CruiseEnded, ship) == 0);
+const _: () = assert!(offset_of!(Ai_CruiseEnded, body) == 4);
 
 /// Sim.ReasonValue
 pub type Sim_ReasonValue = u8;
@@ -150,6 +118,79 @@ pub struct Sim_Reason {
 const _: () = assert!(size_of::<Sim_Reason>() == 16);
 const _: () = assert!(offset_of!(Sim_Reason, key) == 0);
 const _: () = assert!(offset_of!(Sim_Reason, arguments) == 8);
+
+/// Ai.CruiseRefused
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_CruiseRefused {
+    pub ship: jettison_entity,
+    pub body: jettison_string,
+    pub reason: Sim_Reason,
+}
+const _: () = assert!(size_of::<Ai_CruiseRefused>() == 28);
+const _: () = assert!(offset_of!(Ai_CruiseRefused, ship) == 0);
+const _: () = assert!(offset_of!(Ai_CruiseRefused, body) == 4);
+const _: () = assert!(offset_of!(Ai_CruiseRefused, reason) == 12);
+
+/// Ai.CruiseStarted
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_CruiseStarted {
+    pub ship: jettison_entity,
+    pub body: jettison_string,
+    pub seconds: f64,
+    pub metres: f64,
+    pub arrivalStep: u64,
+}
+const _: () = assert!(size_of::<Ai_CruiseStarted>() == 40);
+const _: () = assert!(offset_of!(Ai_CruiseStarted, ship) == 0);
+const _: () = assert!(offset_of!(Ai_CruiseStarted, body) == 4);
+const _: () = assert!(offset_of!(Ai_CruiseStarted, seconds) == 16);
+const _: () = assert!(offset_of!(Ai_CruiseStarted, metres) == 24);
+const _: () = assert!(offset_of!(Ai_CruiseStarted, arrivalStep) == 32);
+
+/// Ai.OnLane
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_OnLane {
+    pub from: u64,
+    pub departure: jettison_string,
+    pub to: u64,
+    pub arrival: jettison_string,
+    pub arrivalStep: u64,
+}
+const _: () = assert!(size_of::<Ai_OnLane>() == 40);
+const _: () = assert!(offset_of!(Ai_OnLane, from) == 0);
+const _: () = assert!(offset_of!(Ai_OnLane, departure) == 8);
+const _: () = assert!(offset_of!(Ai_OnLane, to) == 16);
+const _: () = assert!(offset_of!(Ai_OnLane, arrival) == 24);
+const _: () = assert!(offset_of!(Ai_OnLane, arrivalStep) == 32);
+
+/// Ai.LaneEntered
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_LaneEntered {
+    pub entity: jettison_entity,
+    pub lane: Ai_OnLane,
+    pub transitSeconds: f64,
+}
+const _: () = assert!(size_of::<Ai_LaneEntered>() == 56);
+const _: () = assert!(offset_of!(Ai_LaneEntered, entity) == 0);
+const _: () = assert!(offset_of!(Ai_LaneEntered, lane) == 8);
+const _: () = assert!(offset_of!(Ai_LaneEntered, transitSeconds) == 48);
+
+/// Ai.LaneLeft
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_LaneLeft {
+    pub entity: jettison_entity,
+    pub system: u64,
+    pub arrival: jettison_string,
+}
+const _: () = assert!(size_of::<Ai_LaneLeft>() == 24);
+const _: () = assert!(offset_of!(Ai_LaneLeft, entity) == 0);
+const _: () = assert!(offset_of!(Ai_LaneLeft, system) == 8);
+const _: () = assert!(offset_of!(Ai_LaneLeft, arrival) == 16);
 
 /// Ai.LaneRefused
 #[repr(C)]

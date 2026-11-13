@@ -13,6 +13,7 @@ jettison_add_module(ai
 	HEADERS
 		include/jettison/ai/UtilityAi.h
 		include/jettison/ai/BehaviourTree.h
+		include/jettison/ai/Cruise.h
 		include/jettison/ai/Lanes.h
 		include/jettison/ai/Pathfinding.h
 		include/jettison/ai/Routes.h
@@ -21,6 +22,7 @@ jettison_add_module(ai
 	SOURCES
 		src/Ai.cpp
 		src/BehaviourTree.cpp
+		src/Cruise.cpp
 		src/Lanes.cpp
 		src/Pathfinding.cpp
 		src/Routes.cpp
@@ -28,6 +30,7 @@ jettison_add_module(ai
 		src/UtilityAi.cpp
 	TESTS
 		tests/BehaviourTreeTests.cpp
+		tests/CruiseTests.cpp
 		tests/LanesTests.cpp
 		tests/PathfindingTests.cpp
 		tests/RoutesTests.cpp

@@ -33,6 +33,14 @@ reason:
     destination_gone: its destination has gone
     destination_other_system: its destination is in another system
     destination_other_frame: its destination is in another frame
+    not_controller: its sender does not command the ship
+    already_cruising: it is cruising already
+    cannot_cruise: the ship has no cruise drive, or is held
+    system_undefined: its system is not defined
+    no_such_body: "{0} has no body named {1}"
+    near_station: it is too near {0} to cruise
+    already_there: it is already at {0}
+    no_course: every course to {0} is blocked
   shell:
     no_crates: no crates were asked for
     no_ship: there is no such ship

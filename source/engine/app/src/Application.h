@@ -302,8 +302,11 @@ class Application
 	std::string Describe(entt::entity simEntity) const;
 	// A reason the step gave, as the player reads it, from the newest snapshot (Reasons.h).
 	std::string Word(const Sim::Reason &reason) const;
-	// The origin of the frame the ship and the station are in at a time, in the system frame: where
-	// the station is, or the primary when there is none.
+	// The frame the ship's physics is in (Physics::LocalFrame), from the newest snapshot: the
+	// station's, another body's after a cruise, or none, the system's, while it cruises.
+	std::string ShipFrame() const;
+	// The origin of the ship's frame at a time, in the system frame: where its body is, or the
+	// primary when there is none.
 	glm::dvec3 PilotFrameOrigin(double simSeconds) const;
 
 	void RequestClose();
@@ -580,6 +583,7 @@ class Application
 	// Lane travel in the simulation, given the galaxy and its systems; the spatial index kept from
 	// the simulation, and steering, which reads it. The world holds them.
 	Ai::LaneTravel *m_pLanes{nullptr};
+	Ai::CruiseTravel *m_pCruises{nullptr};
 	Spatial::SystemIndices *m_pIndices{nullptr};
 	Ai::Steering *m_pSteering{nullptr};
 	// The stations' pads and the ships on them, which the world holds too.

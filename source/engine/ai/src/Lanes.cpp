@@ -1,5 +1,7 @@
 #include <jettison/ai/Lanes.h>
 
+#include <jettison/ai/Cruise.h>
+
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -16,20 +18,10 @@
 #include <utility>
 #include <vector>
 
+#include "Transit.h"
+
 namespace Jettison::Ai
 {
-namespace
-{
-// A transit in whole steps, rounded up, and at least one. A millionth of a step is let go before
-// rounding up, since a transit authored in seconds is rarely a whole number of steps in floating
-// point: 40 s at 60 Hz is 2400.0000000000005 steps.
-std::uint64_t TransitSteps(double transitSeconds, double fixedStep)
-{
-	const double steps = std::ceil((transitSeconds / fixedStep) - 1.0e-6);
-	return std::max<std::uint64_t>(1, steps > 0.0 ? static_cast<std::uint64_t>(steps) : 0);
-}
-} // namespace
-
 LaneTravel &LaneTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics)
 {
 	RegisterTypes();
@@ -83,6 +75,8 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 	const auto *inSystem = registry.try_get<Sim::InSystem>(command.entity);
 	if (!inSystem || inSystem->system == Sim::kNoSystem)
 		return refuse(registry.all_of<OnLane>(command.entity) ? Reason::OnLane : Reason::InNoSystem);
+	if (registry.all_of<Cruising>(command.entity))
+		return refuse(Reason::AlreadyCruising);
 	if (!m_galaxy)
 		return refuse(Reason::NoGalaxy);
 	const auto system = std::ranges::find(
@@ -104,7 +98,7 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 
 	const OnLane lane{
 	    inSystem->system, command.jumpPoint, destination, std::string{exit->arrival},
-	    world.Clock().Step() + TransitSteps(exit->transitSeconds, world.FixedStep())};
+	    world.Clock().Step() + Detail::TransitSteps(exit->transitSeconds, world.FixedStep())};
 	registry.emplace_or_replace<OnLane>(command.entity, lane);
 	registry.replace<Sim::InSystem>(command.entity, Sim::kNoSystem);
 	world.Events().Emit(LaneEntered{command.entity, lane, exit->transitSeconds});

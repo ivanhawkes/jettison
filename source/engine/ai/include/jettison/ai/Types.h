@@ -4,8 +4,9 @@
 
 namespace Jettison::Ai
 {
-// Why lane travel refuses an entity or steering gives a destination up (Sim::Reason), each worded
-// by the string tables under reason.ai.<name>; the arguments, where there are any, follow.
+// Why lane travel or a cruise refuses an entity, or steering gives a destination up (Sim::Reason),
+// each worded by the string tables under reason.ai.<name>; the arguments, where there are any,
+// follow.
 // Registered with Reflect as "Ai.Reason" by RegisterTypes.
 enum class Reason : std::uint8_t
 {
@@ -20,13 +21,24 @@ enum class Reason : std::uint8_t
 	ArrivalUndefined,
 	DestinationGone,
 	DestinationOtherSystem,
-	DestinationOtherFrame
+	DestinationOtherFrame,
+	NotController,
+	AlreadyCruising,
+	CannotCruise,
+	SystemUndefined,
+	// The system's name and the body's.
+	NoSuchBody,
+	// The station's name.
+	NearStation,
+	// The body's name.
+	AlreadyThere,
+	NoCourse
 };
 
-// Registers the module's types with Reflect: lane travel's (Lanes.h), steering's (Steering.h), the
-// behaviour trees' (BehaviourTree.h) and the utility AI's (UtilityAi.h), and the simulation's
-// (Sim::RegisterTypes) and physics' (Physics::RegisterTypes). Idempotent; LaneTravel::Attach,
-// Steering::Attach and Behaviours::Attach call it. A game that loads decisions or trees before it
-// attaches anything calls it first.
+// Registers the module's types with Reflect: lane travel's (Lanes.h), cruising's (Cruise.h), steering's
+// (Steering.h), the behaviour trees' (BehaviourTree.h) and the utility AI's (UtilityAi.h), and the
+// simulation's (Sim::RegisterTypes) and physics' (Physics::RegisterTypes). Idempotent;
+// LaneTravel::Attach, Steering::Attach and Behaviours::Attach call it. A game that loads decisions or
+// trees before it attaches anything calls it first.
 void RegisterTypes();
 } // namespace Jettison::Ai

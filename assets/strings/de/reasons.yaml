@@ -30,6 +30,14 @@ reason:
     destination_gone: sein Ziel gibt es nicht mehr
     destination_other_system: sein Ziel ist in einem anderen System
     destination_other_frame: sein Ziel ist in einem anderen Bezugssystem
+    not_controller: der Absender befehligt das Schiff nicht
+    already_cruising: es ist bereits im Reiseflug
+    cannot_cruise: das Schiff hat keinen Reiseantrieb oder wird gehalten
+    system_undefined: sein System ist nicht definiert
+    no_such_body: "{0} hat keinen Körper namens {1}"
+    near_station: es ist zu nah an {0} für den Reiseflug
+    already_there: es ist bereits bei {0}
+    no_course: jeder Kurs nach {0} ist versperrt
   shell:
     no_crates: es wurden keine Kisten verlangt
     no_ship: dieses Schiff gibt es nicht

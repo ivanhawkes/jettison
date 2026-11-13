@@ -7,3 +7,6 @@ beam: 50
 height: 30
 pad: L
 hatch: [0, -15, 30]
+# Its cruises across a system (Ai.CruiseDrive): 60 s for 100,000 km, rising as the distance's
+# fourth root.
+cruise: {seconds: 60, reference: 1.0e8, exponent: 0.25}

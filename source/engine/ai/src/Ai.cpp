@@ -1,4 +1,5 @@
 #include <jettison/ai/BehaviourTree.h>
+#include <jettison/ai/Cruise.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
@@ -26,7 +27,15 @@ void RegisterTypes()
 		    .Value<Reason::ArrivalUndefined>("arrival_undefined")
 		    .Value<Reason::DestinationGone>("destination_gone")
 		    .Value<Reason::DestinationOtherSystem>("destination_other_system")
-		    .Value<Reason::DestinationOtherFrame>("destination_other_frame");
+		    .Value<Reason::DestinationOtherFrame>("destination_other_frame")
+		    .Value<Reason::NotController>("not_controller")
+		    .Value<Reason::AlreadyCruising>("already_cruising")
+		    .Value<Reason::CannotCruise>("cannot_cruise")
+		    .Value<Reason::SystemUndefined>("system_undefined")
+		    .Value<Reason::NoSuchBody>("no_such_body")
+		    .Value<Reason::NearStation>("near_station")
+		    .Value<Reason::AlreadyThere>("already_there")
+		    .Value<Reason::NoCourse>("no_course");
 		RegisterType<OnLane>("Ai.OnLane")
 		    .Field<&OnLane::from>("from", Attribute::Saved)
 		    .Field<&OnLane::departure>("departure", Attribute::Saved)
@@ -50,6 +59,35 @@ void RegisterTypes()
 		    .Field<&LaneRefused::reason>("reason", Attribute::Saved);
 
 		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
+		RegisterType<CruiseDrive>("Ai.CruiseDrive", Attribute::Moddable)
+		    .Field<&CruiseDrive::seconds>("seconds", kDefined)
+		    .Field<&CruiseDrive::reference>("reference", kDefined)
+		    .Field<&CruiseDrive::exponent>("exponent", kDefined);
+		RegisterType<Cruising>("Ai.Cruising")
+		    .Field<&Cruising::target>("target", Attribute::Saved)
+		    .Field<&Cruising::frame>("frame", Attribute::Saved)
+		    .Field<&Cruising::carrier>("carrier", Attribute::Saved)
+		    .Field<&Cruising::course>("course", Attribute::Saved)
+		    .Field<&Cruising::departureStep>("departureStep", Attribute::Saved)
+		    .Field<&Cruising::arrivalStep>("arrivalStep", Attribute::Saved)
+		    .Field<&Cruising::body>("body", Attribute::Saved);
+		RegisterType<Cruise>("Ai.Cruise")
+		    .Field<&Cruise::sender>("sender", Attribute::Saved)
+		    .Field<&Cruise::ship>("ship", Attribute::Saved)
+		    .Field<&Cruise::body>("body", Attribute::Saved);
+		RegisterType<CruiseStarted>("Ai.CruiseStarted", Attribute::Script)
+		    .Field<&CruiseStarted::ship>("ship", Attribute::Saved)
+		    .Field<&CruiseStarted::body>("body", Attribute::Saved)
+		    .Field<&CruiseStarted::seconds>("seconds", Attribute::Saved)
+		    .Field<&CruiseStarted::metres>("metres", Attribute::Saved)
+		    .Field<&CruiseStarted::arrivalStep>("arrivalStep", Attribute::Saved);
+		RegisterType<CruiseEnded>("Ai.CruiseEnded", Attribute::Script)
+		    .Field<&CruiseEnded::ship>("ship", Attribute::Saved)
+		    .Field<&CruiseEnded::body>("body", Attribute::Saved);
+		RegisterType<CruiseRefused>("Ai.CruiseRefused", Attribute::Script)
+		    .Field<&CruiseRefused::ship>("ship", Attribute::Saved)
+		    .Field<&CruiseRefused::body>("body", Attribute::Saved)
+		    .Field<&CruiseRefused::reason>("reason", Attribute::Saved);
 		RegisterEnum<Curve>("Ai.Curve")
 		    .Value<Curve::Linear>("Linear")
 		    .Value<Curve::Power>("Power")

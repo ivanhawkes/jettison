@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include <jettison/ai/Cruise.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/core/Log.h>
 #include <jettison/dock/Docks.h>
@@ -48,7 +49,8 @@ entt::entity FindStation(const entt::registry &world, std::uint64_t system, std:
 }
 
 void MakeShip(
-    entt::registry &world, entt::entity ship, std::string_view hull, float mass, bool continuous)
+    entt::registry &world, const Dock::Docks &docks, entt::entity ship, std::string_view hull,
+    float mass, bool continuous)
 {
 	Physics::Body body{Physics::BodyKind::Dynamic, Dock::Docks::HullShape(hull), mass};
 	body.friction = 0.4f;
@@ -59,6 +61,9 @@ void MakeShip(
 	world.emplace_or_replace<Physics::Thrusters>(ship);
 	world.emplace_or_replace<Physics::FlightControls>(ship);
 	world.emplace_or_replace<Dock::Hull>(ship, std::string{hull});
+	const Dock::HullDefinition *definition = docks.FindHull(hull);
+	world.emplace_or_replace<Ai::CruiseDrive>(
+	    ship, definition ? definition->cruise : Ai::CruiseDrive{});
 }
 
 std::vector<entt::entity> OpenStations(
@@ -90,7 +95,7 @@ std::vector<entt::entity> OpenStations(
 				registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 				registry.emplace<Sim::InSystem>(ship, id);
 				registry.emplace<Physics::LocalFrame>(ship, body.name);
-				MakeShip(registry, ship, parked.hull, parked.mass, false);
+				MakeShip(registry, docks, ship, parked.hull, parked.mass, false);
 				docks.Park(world, ship, registry.get<Dock::Station>(station).pads.at(parked.pad - 1));
 			}
 		}

@@ -19,6 +19,7 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -28,6 +29,7 @@
 #include <vector>
 
 #include <jettison/ai/BehaviourTree.h>
+#include <jettison/ai/Cruise.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
@@ -315,6 +317,18 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		    for (const std::string &word : arguments)
 			    name += (name.empty() ? "" : " ") + word;
 		    Jump(name);
+	    });
+	m_console.RegisterCommand(
+	    "cruise", "Sends the ship on a cruise to the body of its system named: cruise <body>",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    std::string name;
+		    for (const std::string &word : arguments)
+			    name += (name.empty() ? "" : " ") + word;
+		    if (!CanPilot())
+			    Core::Log(Core::Severity::Warning, kShell, "No cruise: no ship in the system shown");
+		    else
+			    m_sim.Commands().Push(Ai::Cruise{kPilot, m_ship, name});
 	    });
 	m_console.RegisterCommand(
 	    "route", "Says the quickest way from the ship to the star system named: route <system>",
@@ -618,6 +632,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
 	m_pLanes = &Ai::LaneTravel::Attach(m_sim, *m_pPhysics);
+	m_pCruises = &Ai::CruiseTravel::Attach(m_sim);
 	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
 	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
 	m_pDocks = &Dock::Docks::Attach(m_sim, *m_pPhysics);
@@ -625,6 +640,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::ControlledBy>();
 	// For what a reason says of a station or a gate, by its body's name (Reasons.h).
 	m_sim.ShowInSnapshots<Physics::OnRails>();
+	// For the frame the ship flies in, which a cruise changes (ShipFrame).
+	m_sim.ShowInSnapshots<Physics::LocalFrame>();
 	RegisterTrading(m_sim);
 	RegisterMarketScreenTypes();
 	RegisterSavesScreenTypes();
@@ -1897,6 +1914,8 @@ void Application::LoadScene()
 		// A scene of a system the galaxy does not list is the system physics knows of it.
 		if (!m_pPhysics->HasStarSystem(Sim::SystemId(m_systemScene->System().name)))
 			m_pPhysics->DefineStarSystem(m_systemScene->System());
+		if (!m_pCruises->HasStarSystem(Sim::SystemId(m_systemScene->System().name)))
+			m_pCruises->DefineStarSystem(m_systemScene->System());
 		SetProxyFactory();
 		DrawStations();
 	}
@@ -2713,6 +2732,8 @@ void Application::DefineStarSystems()
 		m_galaxySystems.push_back(system);
 		if (!m_pLanes->HasStarSystem(id))
 			m_pLanes->DefineStarSystem(system);
+		if (!m_pCruises->HasStarSystem(id))
+			m_pCruises->DefineStarSystem(system);
 		if (!m_pPhysics->HasStarSystem(id))
 			m_pPhysics->DefineStarSystem(std::move(system));
 	}
@@ -2854,7 +2875,7 @@ void Application::SpawnShip()
 	world.emplace<Sim::Transform>(m_ship, at);
 	world.emplace<Sim::InSystem>(m_ship, m_stationSystem);
 	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
-	MakeShip(world, m_ship, kShipHull, kShipMass, true);
+	MakeShip(world, *m_pDocks, m_ship, kShipHull, kShipMass, true);
 	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
 	world.emplace<Sim::ControlledBy>(m_ship, kPilot);
 	world.emplace<Hold>(m_ship, Hold{kShipHold, {}});
@@ -3019,7 +3040,7 @@ void Application::SpawnTraffic(int count)
 		    Sim::Transform{at.position + glm::normalize(direction) * distance, at.orientation});
 		world.emplace<Sim::InSystem>(shuttle, m_stationSystem);
 		world.emplace<Physics::LocalFrame>(shuttle, m_stationBody);
-		MakeShip(world, shuttle, kShipHull, kShipMass, true);
+		MakeShip(world, *m_pDocks, shuttle, kShipHull, kShipMass, true);
 		world.emplace<Ai::Steered>(shuttle);
 		Ai::Destination destination;
 		destination.entity = m_station;
@@ -3082,8 +3103,10 @@ void Application::FlyShip()
 		controls = m_arguments.smokeTest ? kSmokeFlight : m_pilotInput->Read(m_input);
 	// Let go, the ship holds station on its assist, whatever the pilot left it on.
 	controls.assist = m_piloting ? m_assist : true;
-	// Against the station while the ship is in its system; against its frame on the way to the next.
-	controls.reference = m_stationSystem == m_shipSystem ? m_station : entt::null;
+	// Against the station while the ship is in its frame; against its frame elsewhere, on the way
+	// to the next system or off another body after a cruise.
+	controls.reference =
+	    m_stationSystem == m_shipSystem && ShipFrame() == m_stationBody ? m_station : entt::null;
 	if (m_sentControls == controls)
 		return;
 	m_sim.Commands().Push(Physics::SetFlightControls{m_ship, controls});
@@ -3147,8 +3170,9 @@ void Application::SyncPilotCamera(entt::registry &registry)
 	}
 	pilot->target = proxy;
 	pilot->frame = entt::null;
+	const std::string frame = ShipFrame();
 	for (const auto [entity, celestial] : registry.view<const Scene::CelestialBodyComponent>().each())
-		if (celestial.body == m_stationBody)
+		if (!frame.empty() && celestial.body == frame)
 			pilot->frame = entity;
 }
 
@@ -3262,13 +3286,29 @@ void Application::DrawFlight()
 	if (!shipSample || !stationSample || shipSample->system != stationSample->system)
 		return;
 	const Sim::Transform *ship = &shipSample->transform;
-	const Sim::Transform *station = &stationSample->transform;
+	// Off another body after a cruise, the ship is measured against that body, where its rails have
+	// it at each snapshot's time, since the station may be a planet's breadth away.
+	std::string against = m_stationBody;
+	glm::dvec3 reference = stationSample->transform.position;
+	std::optional<glm::dvec3> referenceBefore;
+	if (const auto *stationBefore = previous.Find(m_station))
+		referenceBefore = stationBefore->position;
+	const std::string frame = ShipFrame();
+	if (!frame.empty() && frame != m_stationBody && m_systemScene &&
+	    Sim::SystemId(m_systemScene->System().name) == shipSample->system)
+		if (const int body = m_systemScene->System().Find(frame); body >= 0)
+		{
+			const Celestial::StarSystem &system = m_systemScene->System();
+			against = frame;
+			reference =
+			    Celestial::EvaluateBody(system, static_cast<std::size_t>(body), current.time).metres;
+			referenceBefore =
+			    Celestial::EvaluateBody(system, static_cast<std::size_t>(body), previous.time).metres;
+		}
 	double speed = 0.0;
-	if (const auto *shipBefore = previous.Find(m_ship), *stationBefore = previous.Find(m_station);
-	    shipBefore && stationBefore && current.time > previous.time)
-		speed = glm::length(
-		            (ship->position - shipBefore->position) -
-		            (station->position - stationBefore->position)) /
+	if (const auto *shipBefore = previous.Find(m_ship);
+	    shipBefore && referenceBefore && current.time > previous.time)
+		speed = glm::length((ship->position - shipBefore->position) - (reference - *referenceBefore)) /
 		        (current.time - previous.time);
 	const ImGuiViewport *viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(
@@ -3280,9 +3320,14 @@ void Application::DrawFlight()
 	    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 	if (ImGui::Begin("Flight", nullptr, kOverlay))
 	{
+		if (const auto *cruising = current.Get<Ai::Cruising>(m_ship))
+			ImGui::Text(
+			    "Cruising to %s  %.0f km/s  %.0f s", cruising->target.c_str(), speed / 1000.0,
+			    static_cast<double>(
+			        cruising->arrivalStep - std::min(cruising->arrivalStep, current.step)) *
+			        m_sim.FixedStep());
 		ImGui::Text(
-		    "%s  %.1f m/s  %.0f m", m_stationBody.c_str(), speed,
-		    glm::length(ship->position - station->position));
+		    "%s  %.1f m/s  %.0f m", against.c_str(), speed, glm::length(ship->position - reference));
 		if (m_docked)
 			ImGui::Text("Docked at %s", m_stationBody.c_str());
 		ImGui::Text(
@@ -3362,6 +3407,19 @@ void Application::TakeEvents()
 			m_shipSystem = arrived->system;
 			Core::Log(Core::Severity::Info, kShell, "The ship came out at {}", arrived->arrival);
 		}
+		else if (const auto *cruise = event.event.try_cast<Ai::CruiseStarted>();
+		         cruise && cruise->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell, "The ship cruises to {}, {:.0f} km in {:.1f} s",
+			    cruise->body, cruise->metres / 1000.0, cruise->seconds);
+		else if (const auto *cruised = event.event.try_cast<Ai::CruiseEnded>();
+		         cruised && cruised->ship == m_ship)
+			Core::Log(Core::Severity::Info, kShell, "The ship has arrived off {}", cruised->body);
+		else if (const auto *noCruise = event.event.try_cast<Ai::CruiseRefused>();
+		         noCruise && noCruise->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "The ship cannot cruise to {}: {}", noCruise->body,
+			    Word(noCruise->reason));
 		else if (const auto *noLane = event.event.try_cast<Ai::LaneRefused>();
 		         noLane && noLane->entity == m_ship)
 			Core::Log(
@@ -3415,7 +3473,11 @@ void Application::TakeEvents()
 			    carried->number, m_stationBody);
 		else if (const auto *released = event.event.try_cast<Dock::PadReleased>();
 		         released && released->ship == m_ship)
+		{
+			// Sent along a lane from its pad, the clamps let it go without a Left.
+			m_docked = false;
 			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);
+		}
 		else if (const auto *traded = event.event.try_cast<Traded>(); traded && traded->ship == m_ship)
 		{
 			const std::int64_t crates = traded->crates < 0 ? -traded->crates : traded->crates;
@@ -3547,12 +3609,21 @@ std::string Application::Describe(entt::entity simEntity) const
 }
 
 
+std::string Application::ShipFrame() const
+{
+	const auto *frame =
+	    m_ship == entt::null ? nullptr : m_simStepper.Current().Get<Physics::LocalFrame>(m_ship);
+	return frame ? frame->body : std::string{};
+}
+
+
 glm::dvec3 Application::PilotFrameOrigin(double simSeconds) const
 {
-	if (m_stationBody.empty() || !CanPilot())
+	const std::string frame = ShipFrame();
+	if (frame.empty() || !CanPilot())
 		return glm::dvec3{0.0};
 	const Celestial::StarSystem &system = m_systemScene->System();
-	const int index = system.Find(m_stationBody);
+	const int index = system.Find(frame);
 	return index < 0
 	           ? glm::dvec3{0.0}
 	           : Celestial::EvaluateBody(system, static_cast<std::size_t>(index), simSeconds).metres;

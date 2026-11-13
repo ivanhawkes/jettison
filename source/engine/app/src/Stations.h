@@ -39,8 +39,10 @@ std::vector<entt::entity> OpenStations(
     Sim::SimWorld &world, Dock::Docks &docks, std::span<const Celestial::StarSystem> systems);
 
 // A ship of the hull, the docks' and its physics' (Dock::Docks::HullShape), as the sample makes
-// them: of that mass, swept as it flies if continuous, with the default thrusters.
+// them: of that mass, swept as it flies if continuous, with the default thrusters and the hull's
+// cruise drive (Ai::CruiseDrive), or the default one for a hull the docks do not define.
 void MakeShip(
-    entt::registry &world, entt::entity ship, std::string_view hull, float mass, bool continuous);
+    entt::registry &world, const Dock::Docks &docks, entt::entity ship, std::string_view hull,
+    float mass, bool continuous);
 
 } // namespace Jettison::App

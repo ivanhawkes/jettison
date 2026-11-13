@@ -245,6 +245,44 @@ time and each pair of a system's gates an edge at what crossing the system costs
 says; `Ai::CrossingByCourse` says it from a course through the system's waypoints, round its star,
 planets and moons, at a speed.
 
+### Cruising
+
+A system is crossed by cruising ([decided](roadmap.md#decided)): Corva Refinery is 1.4 × 10⁸ m
+from Corva and Corva 3 × 10¹⁰ m from Vesper, days at the flight model's 150 m/s. The command
+`Ai::Cruise`, with its sender, takes a ship to a body of its system (`ai/Cruise.h`, 13a): it leaves
+physics and its frame, its body kept in its `Ai::Cruising` until it arrives, and stays in its system,
+placed each step along its course by the system `cruise`, after the lanes'. It arrives at rest,
+facing the body, a quarter of the body's radius and 4 km beyond it, in the body's frame or, for a
+gate that keeps by a station, the station's; physics makes its body there in the next step. A
+station's or a gate's frame falls round its planet with the ship, but a planet's own pull is the
+ship's to hold against, so a cruise to a body with gravity arrives no nearer than where it pulls at
+1 m/s², a fifteenth of a shuttle's weakest thrusters: at 1.25 radii Corva would pull at 16.6 m/s²,
+past the shuttle's 15 m/s² of reverse thrust, and the ship would fall into it. Ostra's is 20,000 km
+out, so a ship at Highport, in low orbit, is already at Ostra. A frame
+changes at a cruise's ends and a lane's and nowhere else, so nothing places a radius about a body
+where a ship would change frame. A cruise does not engage within 2 km of a station's radius, so
+docking stays in physics, and is refused with a reason.
+
+How long a cruise takes is its hull's drive (`Ai::CruiseDrive`, a hull definition's `cruise`): the
+seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the shuttle crosses from
+Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. The bodies are on
+rails, so where the target will be on arrival is solved rather than chased: the time gives the
+target's place, the course to it gives the time again, in eight rounds, which the fourth root
+settles well within. The course is a few straight legs round the stars, planets and moons in the way
+(`Ai::Waypoints`, 2 km clear of each), plotted relative to its **carrier**, the nearest body both the
+frame left and the target orbit (Ostra between Highport and Pell, the star between two planets), and
+carried with it on its orbit, so the planet it goes round is where the course was plotted round
+throughout. A body in the way that only the frame left orbits is placed where it is at departure,
+one only the target orbits where it is at arrival, and any other half-way, widened by half of how
+far it moves against the carrier over the cruise. Along its course the ship eases out of its start
+and into its end, an in-out cubic of the steps run, 15 km out a second after leaving Highport, and
+faces along the leg it is on.
+
+Presentation shows a cruising ship as any other, from its snapshots at its system's scale: the chase
+camera stays on it, the flight panel says where it is cruising to and how long is left, and the
+shell's console sends one (`cruise <body>`). What flies a ship no one is at the helm of (a trader's
+tree, a fleet's ship) gains a cruise task with the traders (13b).
+
 ### Physics
 
 Physics is part of the simulation's state, not a service beside it (`physics/PhysicsWorld.h`, 7a).
