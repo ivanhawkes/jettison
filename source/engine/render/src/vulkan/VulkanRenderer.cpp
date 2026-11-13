@@ -53,7 +53,7 @@ class VulkanRenderer final : public IRenderer
 		m_pRenderer->SetBloom(m_options.bloom);
 		m_pRenderer->Init();
 
-		m_pImGuiRenderer = std::make_unique<ImGuiRenderer>(m_pDeviceContext, m_options.assetDirectory);
+		m_pImGuiRenderer = std::make_unique<ImGuiRenderer>(m_pDeviceContext, m_assets);
 		m_pImGuiRenderer->Init(
 		    m_pWindow->GetGLFWWindow(), m_pRenderer->GetOutputFormat(), Renderer::kFramesInFlight);
 	}

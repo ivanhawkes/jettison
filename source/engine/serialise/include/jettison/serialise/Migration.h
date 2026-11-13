@@ -58,6 +58,11 @@ std::uint32_t PeekVersion(std::span<const std::byte> bytes, std::string_view for
 // content (definitions, scenes), whose root holds its version as YamlArchive writes it; a step
 // edits the data, and the chain sets the version it leaves.
 //
+// A YAML step edits what the data has and adds nothing it leaves out. A field left out is read as
+// its default anyway, and a patch (YamlArchive::ReadLayered) is migrated as a document is while
+// leaving out every field it does not change: a step that filled a default in would set it over the
+// layer below.
+//
 // A chain is made at start-up and read from then on; Run is safe from any thread once it is.
 template <typename Data> class Migrations
 {

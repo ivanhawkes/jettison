@@ -54,10 +54,12 @@ jettison/
     │   ├── script/             Wasm host
     │   └── app/                Application shell, argument parsing, smoke sequence
     ├── tools/
-    │   └── flotsam/            editor
+    │   ├── flotsam/            editor
+    │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/
     │   └── jetsam/             runtime viewer: the engine with no game
-    └── test/                   the render smoke harness (test executable)
+    └── test/                   the render smoke harness (test executable), its reference
+                                frames and the data mod its packed run loads
 ```
 
 Each engine module has the same shape:
@@ -565,6 +567,52 @@ end. Presentation then resynchronises its snapshots and makes the traffic layer'
 (`SystemScene::ResetTraffic`), since a loaded world's identifiers may name other entities than they
 did.
 
+## Files, packs and mods
+
+Everything the engine reads as content goes through `Vfs::FileSystem` (11a): ordered mounts, each a
+directory or a pack file (`vfs/Pack.h`), a later mount shadowing an earlier one path by path. The
+shell mounts, bottom to top (`App::MountAssets`): the assets as `base`, the staged directory or,
+where a build has none, `assets.pack` beside it, or whichever `--assets` names; each of the user's
+mods, the directories and `.pack` files under `~/.local/share/jettison/mods`, as `mod:<name>`, in the
+order of their names' bytes, so a player orders their mods by naming them; and the user's data
+directory, writable and last, where saves go. It logs the mounts in order. A mod that cannot be
+mounted is reported and left out, and anything else in the mods directory is reported and ignored.
+Nothing that reads content names a host path: the default scene is `scene/main.yaml` through the
+mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
+disk, for the development scenes the reference views use).
+
+A pack is a directory's files in one file, each stored as it is or compressed as one zstd frame
+with its checksum, so a file is read on its own and a damaged one is caught as it is read; its index
+is read and checked whole as it is mounted, and a pack that breaks its layout is refused naming what
+is wrong. Its file is held open for the run and read with `pread`, so the I/O worker and the main
+thread read at once, and a pack replaced on the disk is read as it was mounted. `jettison_pack`
+writes one, and `jettison_add_pack` is the build's rule for it; the sample assets are
+`jettison_assets_pack` (`build/<preset>/assets.pack`), which the smoke test runs from. The same
+files give the same bytes. A file is compressed only where zstd at level 1 saves a thirty-second of
+it, then at level 19: of the sample assets' 90.3 MB, the KTX 2 textures are zstd-supercompressed
+already and the models and music barely shrink, so 127 of 136 files are compressed and the pack is
+88.6 MB, written in about a second.
+
+Definitions layer finer than a file ([decided](roadmap.md#decided)). Every mount's file for a
+definition is read (`FileSystem::ReadLayers`), not the topmost alone: a whole file
+(`defs/goods/beer.yaml`) replaces the definition and everything below it, and a patch beside it
+(`defs/goods/beer.patch.yaml`) changes what it names and keeps the rest, merged in mount order over
+the topmost whole file (`Serialise::YamlArchive::ReadLayered`): a mapping key by key, a null
+removing a field so it reads as its default, a sequence replaced, appended to when tagged `!append`,
+or merged element by element, matched by a field, when tagged `!merge=<field>`:
+
+```yaml
+version: 1
+goods: !merge=good
+  - {good: beer, target: 60}
+  - {good: wine, stock: 10, production: 0, consumption: 1, target: 20}
+```
+
+So two mods can each change one market, and a mod copies nothing it does not change. Each layer is
+migrated on its own before it is merged, which is why a YAML step edits only what the data has: a
+step that filled a default in would set it over the layer below. The registry logs each definition a
+mount changes, naming the mounts, and an error names the files and their mounts.
+
 ## UI
 
 The game UI is RmlUi behind `ui/UiSystem.h` (8b), which names no RmlUi type, so the game and the
@@ -613,7 +661,7 @@ not a pick or a camera drag, and a click beside it is.
 
 The game's sound is miniaudio behind `audio/AudioSystem.h` (8c), which names no miniaudio type.
 Sounds are read through the VFS (miniaudio's file callbacks over `Vfs::FileSystem`, a file read whole
-as it is opened, since the VFS has no streaming read), so a mod replaces a sound by shipping its file
+as it is opened, since the VFS has no streaming read, from a directory or a pack), so a mod replaces a sound by shipping its file
 over the base one. miniaudio decodes WAV, FLAC and MP3 itself; its Vorbis and Opus decoders, system
 libraries, are off. Its messages go to the log under `audio`, a device's details at debug, and the
 warnings and errors among them, with every sound that would not play, are counted, which the render
@@ -1245,9 +1293,9 @@ proves it headlessly. What exists:
   refuses. The console's `screenshot <file>` writes one without ending the run, and `orbit <yaw>
   <pitch> <distance> [body]` places the orbit camera at once.
   `Application::Init` stages are user (the XDG data and configuration directories, or the ones under
-  `--user-dir`, and the settings and bindings read from them), resources (the asset VFS with the
-  user's data directory mounted writable over the base, the I/O worker, the resource manager and the
-  rig loader), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
+  `--user-dir`, and the settings and bindings read from them), resources (the asset VFS, the base,
+  the user's mods and the user's data directory writable over them ([files](#files-packs-and-mods)),
+  the I/O worker, the resource manager and the rig loader), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
   and the system scene of the star system the scene names, read through the VFS, or of the one
   `--system` names with nothing authored), renderer, and window (its title and
   size). The shell holds the renderer as `Render::IRenderer` alone and

@@ -30,6 +30,7 @@ if(JETTISON_PLANNED_DEPENDENCIES)
 		RmlUi::RmlUi
 		miniaudio
 		ktx_read
+		zstd::zstd
 		wamr
 		jettison_warnings
 	)
@@ -38,3 +39,9 @@ if(JETTISON_PLANNED_DEPENDENCIES)
 		add_test(NAME dependency_probe COMMAND dependency_probe)
 	endif()
 endif()
+
+# The smoke test's data mod, packed as a player would be given it (scripts/smoke-test.sh --packed).
+jettison_add_pack(render_test_smoke_mod
+	SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/mods/smoke"
+	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/mods/smoke.pack"
+)

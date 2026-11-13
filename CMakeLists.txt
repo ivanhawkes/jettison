@@ -38,21 +38,24 @@ find_package(Vulkan REQUIRED COMPONENTS glslc)
 # Compiles each GLSL source to SPIR-V beside it in the build tree. Every program sees the shared
 # includes in shaders/include (the frame layout, the vertex inputs, the colour helpers), and glslc
 # writes a depfile naming the includes each one read, so editing an include rebuilds the programs
-# that use it and no others.
+# that use it and no others. The depfiles are kept under CMakeFiles, out of the staged assets, which
+# are packed as they are (jettison_add_pack).
 function(jettison_compile_shaders target)
 	set(shader_outputs)
 	foreach(shader IN LISTS ARGN)
 		set(output "${CMAKE_CURRENT_BINARY_DIR}/${shader}.spv")
+		set(depfile "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/shader-depfiles/${shader}.spv.d")
 		get_filename_component(output_directory "${output}" DIRECTORY)
+		get_filename_component(depfile_directory "${depfile}" DIRECTORY)
 		add_custom_command(
 			OUTPUT "${output}"
-			COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}"
+			COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}" "${depfile_directory}"
 			COMMAND Vulkan::glslc --target-env=vulkan1.3
 				-I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/include"
-				-MD -MF "${output}.d"
+				-MD -MF "${depfile}"
 				"${CMAKE_CURRENT_SOURCE_DIR}/${shader}" -o "${output}"
 			DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${shader}" Vulkan::glslc
-			DEPFILE "${output}.d"
+			DEPFILE "${depfile}"
 			VERBATIM
 		)
 		list(APPEND shader_outputs "${output}")
@@ -70,7 +73,9 @@ function(jettison_compile_shader_variant target)
 		message(FATAL_ERROR "jettison_compile_shader_variant needs SOURCE and OUTPUT")
 	endif()
 	set(output "${CMAKE_CURRENT_BINARY_DIR}/${variant_OUTPUT}.spv")
+	set(depfile "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/shader-depfiles/${variant_OUTPUT}.spv.d")
 	get_filename_component(output_directory "${output}" DIRECTORY)
+	get_filename_component(depfile_directory "${depfile}" DIRECTORY)
 	set(defines)
 	foreach(define IN LISTS variant_DEFINES)
 		list(APPEND defines "-D${define}")
@@ -80,14 +85,14 @@ function(jettison_compile_shader_variant target)
 	string(SUBSTRING "${stage}" 1 -1 stage)
 	add_custom_command(
 		OUTPUT "${output}"
-		COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}"
+		COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}" "${depfile_directory}"
 		COMMAND Vulkan::glslc --target-env=vulkan1.3 -fshader-stage=${stage}
 			-I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/include"
 			${defines}
-			-MD -MF "${output}.d"
+			-MD -MF "${depfile}"
 			"${CMAKE_CURRENT_SOURCE_DIR}/${variant_SOURCE}" -o "${output}"
 		DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${variant_SOURCE}" Vulkan::glslc
-		DEPFILE "${output}.d"
+		DEPFILE "${depfile}"
 		VERBATIM
 	)
 	string(MAKE_C_IDENTIFIER "${variant_OUTPUT}" variant_target)

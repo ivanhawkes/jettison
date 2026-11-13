@@ -102,7 +102,11 @@ TEST_CASE("Vfs: a later mount shadows an earlier one path by path")
 
 	CHECK(Text(fileSystem.Read("models/Fox.glb")) == "mod fox");
 	CHECK(Text(fileSystem.Read("models/Avocado.glb")) == "base avocado");
-	CHECK(fileSystem.Resolve("models/Fox.glb") == scratch.Path("mod/models/Fox.glb"));
+	REQUIRE(fileSystem.Find("models/Fox.glb"));
+	CHECK(fileSystem.Find("models/Fox.glb")->mount == 1);
+	CHECK(fileSystem.Find("models/Fox.glb")->size == 7);
+	CHECK(fileSystem.Find("models/Avocado.glb")->mount == 0);
+	CHECK_FALSE(fileSystem.Find("models/Missing.glb"));
 	CHECK(fileSystem.Exists("models/Avocado.glb"));
 	CHECK_FALSE(fileSystem.Exists("models/Missing.glb"));
 	CHECK_FALSE(fileSystem.Read("models/Missing.glb"));
@@ -120,9 +124,33 @@ TEST_CASE("Vfs: an invalid path throws rather than reading as absent")
 	const FileSystem fileSystem = scratch.Mounted();
 	CHECK_THROWS_AS((void)fileSystem.Exists("../secret.txt"), std::invalid_argument);
 	CHECK_THROWS_AS((void)fileSystem.Read("../secret.txt"), std::invalid_argument);
-	CHECK_THROWS_AS((void)fileSystem.Resolve("/etc/passwd"), std::invalid_argument);
+	CHECK_THROWS_AS((void)fileSystem.Find("/etc/passwd"), std::invalid_argument);
+	CHECK_THROWS_AS((void)fileSystem.ReadLayers("/etc/passwd"), std::invalid_argument);
 	CHECK_THROWS_AS(fileSystem.Write("../secret.txt", Bytes("x")), std::invalid_argument);
 	CHECK_THROWS_AS((void)fileSystem.Enumerate("models/"), std::invalid_argument);
+}
+
+TEST_CASE("Vfs: every mount's file at a path is read as a layer, the bottom mount's first")
+{
+	const Scratch scratch;
+	scratch.Put("base/defs/goods/beer.yaml", "base beer");
+	scratch.Put("mod/defs/goods/beer.yaml", "mod beer");
+	scratch.Put("mod/defs/goods/wine.yaml", "mod wine");
+	FileSystem fileSystem = scratch.Mounted();
+	fileSystem.Write("defs/goods/beer.yaml", Bytes("user beer"));
+
+	const std::vector<Jettison::Vfs::Layer> beer = fileSystem.ReadLayers("defs/goods/beer.yaml");
+	REQUIRE(beer.size() == 3);
+	CHECK(beer[0].mount == 0);
+	CHECK(Text(beer[0].bytes) == "base beer");
+	CHECK(beer[1].mount == 1);
+	CHECK(Text(beer[1].bytes) == "mod beer");
+	CHECK(beer[2].mount == 2);
+	CHECK(Text(beer[2].bytes) == "user beer");
+	const std::vector<Jettison::Vfs::Layer> wine = fileSystem.ReadLayers("defs/goods/wine.yaml");
+	REQUIRE(wine.size() == 1);
+	CHECK(wine[0].mount == 1);
+	CHECK(fileSystem.ReadLayers("defs/goods/mead.yaml").empty());
 }
 
 TEST_CASE("Vfs: writes go to the user mount, replace a file whole, and shadow the base")
@@ -133,7 +161,7 @@ TEST_CASE("Vfs: writes go to the user mount, replace a file whole, and shadow th
 
 	fileSystem.Write("settings.yaml", Bytes("user settings"));
 	CHECK(Text(fileSystem.Read("settings.yaml")) == "user settings");
-	CHECK(fileSystem.Resolve("settings.yaml") == scratch.Path("user/settings.yaml"));
+	CHECK(fileSystem.Find("settings.yaml")->mount == 2);
 
 	// Directories are made as needed, and a second write replaces the first.
 	fileSystem.Write("saves/slot1.bin", Bytes("first, and longer"));
@@ -178,6 +206,12 @@ TEST_CASE("Vfs: mounts are checked as they are added")
 	CHECK_THROWS_AS(fileSystem.AddMount({"", scratch.Path("base"), false}), std::invalid_argument);
 	CHECK_THROWS_AS(
 	    fileSystem.AddMount({"missing", scratch.Path("missing"), false}), std::runtime_error);
+	// A file mounts as a pack, and one that is not a pack is refused, naming the mount.
+	scratch.Put("notes.txt", "not a pack");
+	CHECK_THROWS_WITH_AS(
+	    fileSystem.AddMount({"notes", scratch.Path("notes.txt"), false}),
+	    doctest::Contains("the mount 'notes' cannot be read"), std::runtime_error);
+	CHECK(fileSystem.Mounts().empty());
 
 	fileSystem.AddMount({"base", scratch.Path("base"), false});
 	CHECK_THROWS_AS(fileSystem.AddMount({"base", scratch.Path("mod"), false}), std::invalid_argument);

@@ -2,13 +2,19 @@
 
 #include <vulkan/vulkan.h>
 
-#include <filesystem>
+#include <cstddef>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "vulkan/DeviceContext.h"
 
 struct GLFWwindow;
+
+namespace Jettison::Vfs
+{
+class FileSystem;
+}
 
 
 namespace Jettison::Render
@@ -16,8 +22,9 @@ namespace Jettison::Render
 class ImGuiRenderer
 {
   public:
-	ImGuiRenderer(std::shared_ptr<DeviceContext> pDeviceContext, std::filesystem::path assetDirectory)
-	    : m_pDeviceContext{std::move(pDeviceContext)}, m_assetDirectory{std::move(assetDirectory)}
+	// The fonts are read through the assets' mounts, so they come from a pack as from a directory.
+	ImGuiRenderer(std::shared_ptr<DeviceContext> pDeviceContext, const Vfs::FileSystem &assets)
+	    : m_pDeviceContext{std::move(pDeviceContext)}, m_pAssets{&assets}
 	{
 	}
 
@@ -42,7 +49,9 @@ class ImGuiRenderer
 	void InitVulkanBackend(VkFormat colorFormat, uint32_t frameCount);
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;
-	std::filesystem::path m_assetDirectory;
+	const Vfs::FileSystem *m_pAssets{nullptr};
+	// The fonts' files, which ImGui reads glyphs from as it draws them, for as long as its context.
+	std::vector<std::vector<std::byte>> m_fonts;
 	VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
 	bool m_contextCreated{false};
 	bool m_glfwBackendInitialized{false};

@@ -21,29 +21,14 @@ namespace
 {
 constexpr Core::Category kResource{"resource"};
 
-// What a file was when it was read: where the mounts resolved it, when it was written, and its
-// size. A change in any of them is a change worth a reload; an empty path is a file that was in
-// no mount.
-struct Stamp
-{
-	std::filesystem::path path;
-	std::filesystem::file_time_type time{};
-	std::uintmax_t size{0};
-
-	bool operator==(const Stamp &) const = default;
-};
+// What a file was when it was read: the mount it was found in, when it was written, and its size
+// (Vfs::FileInfo). A change in any of them is a change worth a reload, so a mod's file appearing
+// over the base's counts as one; nothing is a file that was in no mount.
+using Stamp = std::optional<Vfs::FileInfo>;
 
 Stamp StampOf(const Vfs::FileSystem &fileSystem, const std::string &virtualPath)
 {
-	Stamp stamp;
-	if (std::optional<std::filesystem::path> path = fileSystem.Resolve(virtualPath))
-	{
-		std::error_code error;
-		stamp.time = std::filesystem::last_write_time(*path, error);
-		stamp.size = std::filesystem::file_size(*path, error);
-		stamp.path = std::move(*path);
-	}
-	return stamp;
+	return fileSystem.Find(virtualPath);
 }
 
 std::uint32_t NextGeneration(std::uint32_t generation)
@@ -170,7 +155,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		if (slot.generation != generation || slot.ticket != ticket || slot.references == 0)
 			return;
 		slot.inFlight = false;
-		slot.stamp = std::move(result.stamp);
+		slot.stamp = result.stamp;
 
 		if (result.error.empty() && pool.loader->finish)
 		{

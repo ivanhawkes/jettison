@@ -338,9 +338,10 @@ FetchContent_MakeAvailable(VulkanMemoryAllocator)
 #  - The engine links ktx_read (transcode and upload), never ktx and ktx_read together: both
 #    compile the same Basis Universal transcoder and the same zstd.
 #  - libktx compiles its own zstd 1.5.5 (external/basisu/zstd/zstd.c, public ZSTD_* symbols),
-#    in v4.4.2 and still in v5.0.0-rc2. That is why the standalone zstd the roadmap names for
-#    pack files is not in this set: a second zstd in the same executable is duplicate symbols,
-#    or two versions of one library resolving each other's calls. See docs/roadmap.md.
+#    in v4.4.2 and still in v5.0.0-rc2, with no option to use another. A second zstd in the same
+#    executable is duplicate symbols, or two versions of one library resolving each other's calls,
+#    so ktx_read is built against the engine's zstd (below) instead: its copy is taken out of the
+#    target's sources and the engine's headers put before its own (docs/roadmap.md, "Decided").
 #  - ETC unpacking is off: it is Ericsson's code under its own licence, and desktop GPUs do not
 #    need ETC. OpenGL upload, tools, tests and documentation are off. KTX 1 stays on, although
 #    the engine reads KTX 2 only: with KTX_FEATURE_KTX1 off, ktx_read's texture.c still calls
@@ -359,6 +360,32 @@ FetchContent_MakeAvailable(VulkanMemoryAllocator)
 #    this project's gate, so ASTCENC_WERROR is off.
 #  - libktx publicly defines DEBUG in Debug builds. It is linked privately by whatever uses it,
 #    so the definition stays out of public engine headers.
+#
+# zstd, for pack files (vfs, phase 11a) and for ktx_read's supercompressed textures, one copy for
+# both. The library alone, static, from zstd's own CMake build: no programs, no legacy formats
+# (frames older than 0.8, which nothing here wrote), no threads, since the packer compresses each
+# file on its own and a file is read whole.
+block()
+	set(ZSTD_BUILD_PROGRAMS OFF)
+	set(ZSTD_BUILD_TESTS OFF)
+	set(ZSTD_BUILD_CONTRIB OFF)
+	set(ZSTD_BUILD_SHARED OFF)
+	set(ZSTD_BUILD_STATIC ON)
+	set(ZSTD_LEGACY_SUPPORT OFF)
+	set(ZSTD_MULTITHREAD_SUPPORT OFF)
+	FetchContent_Declare(
+	  zstd
+	  GIT_REPOSITORY https://github.com/facebook/zstd.git
+	  GIT_TAG v1.5.7
+	  GIT_SHALLOW TRUE
+	  SOURCE_SUBDIR build/cmake
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(zstd)
+endblock()
+add_library(zstd::zstd ALIAS libzstd_static)
+
 block()
 	set(KTX_FEATURE_TESTS OFF)
 	set(KTX_FEATURE_TOOLS OFF)
@@ -384,6 +411,16 @@ block()
 	)
 	FetchContent_MakeAvailable(KTX-Software)
 endblock()
+# libktx's texture2.c includes <zstd.h> and <zstd_errors.h> from its private copy's directory, which
+# is taken off its include path with the copy, so it compiles against the headers of the library it
+# links. It uses the stable API alone (ZSTD_decompressDCtx and the error codes), which 1.5.5 and
+# 1.5.7 share.
+foreach(property IN ITEMS SOURCES INCLUDE_DIRECTORIES)
+	get_target_property(ktx_read_items ktx_read ${property})
+	list(FILTER ktx_read_items EXCLUDE REGEX "basisu/zstd(/zstd\\.c)?>?$")
+	set_property(TARGET ktx_read PROPERTY ${property} ${ktx_read_items})
+endforeach()
+target_link_libraries(ktx_read PRIVATE zstd::zstd)
 
 # Physics, behind physics' PhysicsWorld.h (phase 7a). Every setting here is one the engine has to
 # agree with:

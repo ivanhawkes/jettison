@@ -21,6 +21,8 @@
 #  --no-xvfb       Run on the current DISPLAY / compositor session
 #  --screen GEOM   Xvfb screen geometry, WxHxD (default: 1280x720x24; keep it small for
 #                  software rendering, which is fill-rate bound)
+#  --packed        Run from the assets packed into one file (assets.pack, as a shipped build has
+#                  them), with the test's data mod (source/test/mods/smoke) in the run's user mods
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # shellcheck source=lib/headless.sh
@@ -34,6 +36,7 @@ software=0
 werror=()
 xvfb_mode="auto"
 screen="1280x720x24"
+packed=0
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -78,8 +81,12 @@ while [ "$#" -gt 0 ]; do
 		screen="$2"
 		shift 2
 		;;
+	--packed)
+		packed=1
+		shift
+		;;
 	-h | --help)
-		sed -n '2,20p' "$0"
+		sed -n '2,22p' "$0"
 		exit 0
 		;;
 	*)
@@ -98,6 +105,19 @@ if [ "$build" -eq 1 ]; then
 	# here, and the Debug tree builds and tests the rest. In the sanitised tree the rest was a third
 	# of the build, 18 s of 68 after a change to a header most of the engine includes.
 	cmake --build --preset "$preset" --target render_test >/dev/null
+	if [ "$packed" -eq 1 ]; then
+		cmake --build --preset "$preset" --target jettison_assets_pack render_test_smoke_mod >/dev/null
+	fi
+fi
+
+# The packed run: every asset from the pack, and for each scene a user directory of its own holding
+# the mod, which the shell mounts between the two and logs.
+if [ "$packed" -eq 1 ]; then
+	pack="$build_dir/assets.pack"
+	mod="$build_dir/source/test/mods/smoke.pack"
+	for file in "$pack" "$mod"; do
+		[ -f "$file" ] || { echo "smoke-test: no pack at $file (build jettison_assets_pack and render_test_smoke_mod)" >&2; exit 1; }
+	done
 fi
 
 if [ ! -x "$executable" ]; then
@@ -179,11 +199,19 @@ run_app() {
 		scene_args=()
 		[ -n "$scene" ] && scene_args=(--scene "$scene")
 		echo "smoke-test: scene ${scene:-default}"
-		if ! "$@" ${scene_args[@]+"${scene_args[@]}"} 2>&1 | tee -a "$app_log"; then
+		packed_args=()
+		if [ "$packed" -eq 1 ]; then
+			packed_user="$(mktemp -d "${TMPDIR:-/tmp}/jettison-smoke-user.XXXXXX")"
+			mkdir -p "$packed_user/data/mods"
+			cp "$mod" "$packed_user/data/mods/"
+			packed_args=(--assets "$PWD/$pack" --user-dir "$packed_user")
+		fi
+		if ! "$@" ${packed_args[@]+"${packed_args[@]}"} ${scene_args[@]+"${scene_args[@]}"} 2>&1 | tee -a "$app_log"; then
 			scene_status=${PIPESTATUS[0]}
 			[ "$scene_status" -ne 0 ] || scene_status=1
 			status=$scene_status
 		fi
+		if [ "$packed" -eq 1 ]; then rm -rf "$packed_user"; fi
 	done
 }
 
@@ -210,6 +238,21 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 		status=1
 	elif [ -n "${VK_SMOKE_VERBOSE:-}" ]; then
 		echo "smoke-test: validation reported nothing (log: $app_log)"
+	fi
+fi
+
+# A packed run proves what it read: the base a pack, the mod mounted over it, and the mod's patch
+# taken, each said by the shell as it starts, once a scene.
+if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
+	for said in "base: the pack " "mod:smoke.pack: the pack " "defs/goods/beer: patched by 'mod:smoke.pack'"; do
+		count=$(grep -cF "$said" "$app_log" || true)
+		if [ "${count:-0}" -ne 2 ]; then
+			echo "smoke-test: FAIL (the packed run said '$said' $count times, not once a scene)" >&2
+			status=1
+		fi
+	done
+	if [ "$status" -eq 0 ]; then
+		echo "smoke-test: the assets were read from $pack, and the mod in the user's mods loaded"
 	fi
 fi
 

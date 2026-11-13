@@ -2,7 +2,11 @@
 
 #include <doctest/doctest.h>
 
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <system_error>
+#include <unistd.h>
 #include <vector>
 
 using namespace Jettison::App;
@@ -46,4 +50,30 @@ TEST_CASE("a frame count or a step that is not a positive number is not understo
 	CHECK_FALSE(Parse({"--frame-step", "-0.1"}));
 	CHECK_FALSE(Parse({"--frame-step", "0.1s"}));
 	CHECK_FALSE(Parse({"--screenshot"}));
+}
+
+TEST_CASE("the assets are the staged directory, or its pack where there is none")
+{
+	const std::filesystem::path root = std::filesystem::temp_directory_path() /
+	                                   ("jettison-arguments-tests-" + std::to_string(getpid()));
+	std::error_code error;
+	std::filesystem::remove_all(root, error);
+	std::filesystem::create_directories(root);
+	// An absolute subdirectory is where it says, wherever the executable is.
+	const auto parse = [&root]
+	{
+		std::string executable = "render_test";
+		char *argv[] = {executable.data()};
+		return ParseAppArguments(1, argv, root / "assets");
+	};
+
+	CHECK(parse()->assets == root / "assets");
+	std::ofstream{root / "assets.pack"} << "a pack";
+	CHECK(parse()->assets == root / "assets.pack");
+	std::filesystem::create_directories(root / "assets");
+	CHECK(parse()->assets == root / "assets");
+	// No scene named is the assets' own, read through the mounts.
+	CHECK(parse()->scenePath.empty());
+	CHECK(Parse({"--assets", "/opt/jettison/base.pack"})->assets == "/opt/jettison/base.pack");
+	std::filesystem::remove_all(root, error);
 }

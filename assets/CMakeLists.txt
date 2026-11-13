@@ -91,3 +91,13 @@ foreach(program IN ITEMS output sky sky_capture atmosphere brdf_lut prefilter_sp
 	jettison_compile_shader_variant(jettison_assets
 		SOURCE shaders/fullscreen.vert OUTPUT shaders/${program}.vert)
 endforeach()
+
+# The staged assets as one pack beside them, as a shipped build has them (assets.pack, which the
+# shell mounts when there is no assets directory, or given with --assets). Not built by default:
+# the smoke test builds it and runs from it.
+jettison_add_pack(jettison_assets_pack
+	SOURCE "${CMAKE_CURRENT_BINARY_DIR}"
+	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}.pack"
+	DIRECTORIES animations audio defs fonts materials models scene shaders systems textures ui
+	DEPENDS jettison_assets
+)

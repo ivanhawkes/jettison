@@ -10,6 +10,8 @@
 
 #include <jettison/core/File.h>
 
+#include "Source.h"
+
 namespace Jettison::Vfs
 {
 namespace
@@ -20,12 +22,77 @@ void Validate(std::string_view virtualPath)
 		throw std::invalid_argument{std::format("Vfs: '{}' is not a valid virtual path", virtualPath)};
 }
 
-bool IsRegularFile(const std::filesystem::path &path)
+class DirectorySource final : public Detail::Source
 {
-	std::error_code error;
-	return std::filesystem::is_regular_file(path, error);
-}
+  public:
+	explicit DirectorySource(std::filesystem::path root) : m_root{std::move(root)}
+	{
+	}
+
+	std::optional<FileInfo> Find(std::string_view virtualPath) const override
+	{
+		const std::filesystem::path path = m_root / virtualPath;
+		std::error_code error;
+		if (!std::filesystem::is_regular_file(path, error))
+			return std::nullopt;
+		FileInfo info;
+		info.time = std::filesystem::last_write_time(path, error);
+		info.size = std::filesystem::file_size(path, error);
+		return info;
+	}
+
+	std::optional<std::vector<std::byte>> Read(std::string_view virtualPath) const override
+	{
+		const std::filesystem::path path = m_root / virtualPath;
+		std::error_code error;
+		if (!std::filesystem::is_regular_file(path, error))
+			return std::nullopt;
+
+		std::ifstream file{path, std::ios::binary | std::ios::ate};
+		const std::streamoff size = file ? static_cast<std::streamoff>(file.tellg()) : -1;
+		if (size < 0)
+			throw std::runtime_error{std::format("Vfs: {} could not be opened", path.string())};
+		std::vector<std::byte> bytes(static_cast<std::size_t>(size));
+		file.seekg(0);
+		file.read(reinterpret_cast<char *>(bytes.data()), size);
+		if (file.gcount() != size)
+			throw std::runtime_error{std::format("Vfs: {} could not be read", path.string())};
+		return bytes;
+	}
+
+	void List(std::string_view virtualDirectory, std::vector<std::string> &paths) const override
+	{
+		const std::filesystem::path root = m_root / virtualDirectory;
+		std::error_code error;
+		if (!std::filesystem::is_directory(root, error))
+			return;
+		for (auto entry =
+		         std::filesystem::recursive_directory_iterator{
+		             root, std::filesystem::directory_options::follow_directory_symlink, error};
+		     !error && entry != std::filesystem::recursive_directory_iterator{}; entry.increment(error))
+		{
+			// Its own error code: a broken link is skipped, not a failure of the listing.
+			std::error_code entryError;
+			if (!entry->is_regular_file(entryError))
+				continue;
+			std::string path = entry->path().lexically_relative(m_root).generic_string();
+			if (FileSystem::IsValidPath(path))
+				paths.push_back(std::move(path));
+		}
+		if (error)
+			throw std::runtime_error{
+			    std::format("Vfs: {} could not be listed: {}", root.string(), error.message())};
+	}
+
+  private:
+	std::filesystem::path m_root;
+};
 } // namespace
+
+std::shared_ptr<const Detail::Source> Detail::MakeDirectorySource(std::filesystem::path root)
+{
+	return std::make_shared<DirectorySource>(std::move(root));
+}
 
 bool FileSystem::IsValidPath(std::string_view virtualPath)
 {
@@ -75,45 +142,69 @@ void FileSystem::AddMount(Mount mount)
 			    "Vfs: the writable mount '{}' at {} could not be created: {}", mount.name,
 			    mount.source.string(), error.message())};
 	}
-	if (!std::filesystem::is_directory(mount.source, error))
+	std::shared_ptr<const Detail::Source> source;
+	if (std::filesystem::is_directory(mount.source, error))
+		source = Detail::MakeDirectorySource(mount.source);
+	else if (!mount.writable && std::filesystem::is_regular_file(mount.source, error))
+	{
+		try
+		{
+			source = Detail::MakePackSource(mount.source);
+		}
+		catch (const std::runtime_error &problem)
+		{
+			throw std::runtime_error{
+			    std::format("Vfs: the mount '{}' cannot be read: {}", mount.name, problem.what())};
+		}
+	}
+	else
 		throw std::runtime_error{std::format(
-		    "Vfs: the mount '{}' at {} is not a directory", mount.name, mount.source.string())};
+		    "Vfs: the mount '{}' at {} is not a directory{}", mount.name, mount.source.string(),
+		    mount.writable ? "" : " or a pack")};
 	m_mounts.push_back(std::move(mount));
+	m_sources.push_back(std::move(source));
 }
 
 bool FileSystem::Exists(std::string_view virtualPath) const
 {
-	return Resolve(virtualPath).has_value();
+	return Find(virtualPath).has_value();
 }
 
-std::optional<std::filesystem::path> FileSystem::Resolve(std::string_view virtualPath) const
+std::optional<FileInfo> FileSystem::Find(std::string_view virtualPath) const
 {
 	Validate(virtualPath);
-	for (const Mount &mount : std::ranges::reverse_view(m_mounts))
+	for (std::size_t index = m_sources.size(); index-- > 0;)
 	{
-		std::filesystem::path path = mount.source / virtualPath;
-		if (IsRegularFile(path))
-			return path;
+		if (std::optional<FileInfo> info = m_sources[index]->Find(virtualPath))
+		{
+			info->mount = index;
+			return info;
+		}
 	}
 	return std::nullopt;
 }
 
 std::optional<std::vector<std::byte>> FileSystem::Read(std::string_view virtualPath) const
 {
-	const std::optional<std::filesystem::path> path = Resolve(virtualPath);
-	if (!path)
-		return std::nullopt;
+	Validate(virtualPath);
+	for (const auto &source : std::ranges::reverse_view(m_sources))
+	{
+		if (std::optional<std::vector<std::byte>> bytes = source->Read(virtualPath))
+			return bytes;
+	}
+	return std::nullopt;
+}
 
-	std::ifstream file{*path, std::ios::binary | std::ios::ate};
-	const std::streamoff size = file ? static_cast<std::streamoff>(file.tellg()) : -1;
-	if (size < 0)
-		throw std::runtime_error{std::format("Vfs: {} could not be opened", path->string())};
-	std::vector<std::byte> bytes(static_cast<std::size_t>(size));
-	file.seekg(0);
-	file.read(reinterpret_cast<char *>(bytes.data()), size);
-	if (file.gcount() != size)
-		throw std::runtime_error{std::format("Vfs: {} could not be read", path->string())};
-	return bytes;
+std::vector<Layer> FileSystem::ReadLayers(std::string_view virtualPath) const
+{
+	Validate(virtualPath);
+	std::vector<Layer> layers;
+	for (std::size_t index = 0; index < m_sources.size(); ++index)
+	{
+		if (std::optional<std::vector<std::byte>> bytes = m_sources[index]->Read(virtualPath))
+			layers.push_back({index, std::move(*bytes)});
+	}
+	return layers;
 }
 
 void FileSystem::Write(std::string_view virtualPath, std::span<const std::byte> bytes) const
@@ -142,29 +233,8 @@ std::vector<std::string> FileSystem::Enumerate(std::string_view virtualDirectory
 		Validate(virtualDirectory);
 
 	std::vector<std::string> paths;
-	for (const Mount &mount : m_mounts)
-	{
-		const std::filesystem::path root = mount.source / virtualDirectory;
-		std::error_code error;
-		if (!std::filesystem::is_directory(root, error))
-			continue;
-		for (auto entry =
-		         std::filesystem::recursive_directory_iterator{
-		             root, std::filesystem::directory_options::follow_directory_symlink, error};
-		     !error && entry != std::filesystem::recursive_directory_iterator{}; entry.increment(error))
-		{
-			// Its own error code: a broken link is skipped, not a failure of the listing.
-			std::error_code entryError;
-			if (!entry->is_regular_file(entryError))
-				continue;
-			std::string path = entry->path().lexically_relative(mount.source).generic_string();
-			if (IsValidPath(path))
-				paths.push_back(std::move(path));
-		}
-		if (error)
-			throw std::runtime_error{
-			    std::format("Vfs: {} could not be listed: {}", root.string(), error.message())};
-	}
+	for (const auto &source : m_sources)
+		source->List(virtualDirectory, paths);
 	std::ranges::sort(paths);
 	const auto duplicates = std::ranges::unique(paths);
 	paths.erase(duplicates.begin(), duplicates.end());

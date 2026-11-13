@@ -25,13 +25,40 @@ function(jettison_use_shared_assets target)
     add_dependencies(${target} jettison_assets)
 endfunction()
 
+# Packs a directory into a pack file (vfs/Pack.h), which the VFS mounts as it would the directory,
+# when the target is built: a game's assets for shipping, a mod for its players. DIRECTORIES names
+# the directories under SOURCE to pack, every file under it when none are named; DEPENDS, the
+# targets that stage what it packs. The packer runs whenever the target is built, since what it
+# reads is a tree another target writes; for the sample assets, about a second.
+function(jettison_add_pack target)
+	cmake_parse_arguments(PARSE_ARGV 1 pack "" "SOURCE;OUTPUT;LEVEL" "DIRECTORIES;DEPENDS")
+	if(NOT pack_SOURCE OR NOT pack_OUTPUT)
+		message(FATAL_ERROR "jettison_add_pack(${target}) needs SOURCE and OUTPUT")
+	endif()
+	set(flags)
+	if(pack_LEVEL)
+		list(APPEND flags --level ${pack_LEVEL})
+	endif()
+	foreach(directory IN LISTS pack_DIRECTORIES)
+		list(APPEND flags --directory ${directory})
+	endforeach()
+	add_custom_target(${target}
+		COMMAND jettison_pack "${pack_SOURCE}" "${pack_OUTPUT}" ${flags}
+		BYPRODUCTS "${pack_OUTPUT}"
+		COMMENT "Packing ${pack_SOURCE} into ${pack_OUTPUT}"
+		VERBATIM
+	)
+	add_dependencies(${target} jettison_pack ${pack_DEPENDS})
+endfunction()
+
 add_subdirectory("${PROJECT_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
 
 # The engine modules.
 add_subdirectory("engine")
 
-# The editor.
+# The editor, and the packer.
 add_subdirectory("tools/flotsam")
+add_subdirectory("tools/pack")
 
 # The runtime viewer: the engine with no game.
 add_subdirectory("samples/jetsam")

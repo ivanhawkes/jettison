@@ -55,6 +55,7 @@
 #include <jettison/spatial/SystemIndices.h>
 
 #include "Dressing.h"
+#include "Mounts.h"
 #include "Saves.h"
 #include "Stations.h"
 #include "Traders.h"
@@ -85,6 +86,8 @@ constexpr double kStreaksAhead = 80.0;
 constexpr float kStreaksRadius = 30.0f;
 constexpr float kStreaksSpeed = 320.0f;
 constexpr Core::Category kShell{"shell"};
+// The scene a run of no --scene and no --system loads, by virtual path.
+constexpr std::string_view kDefaultScene = "scene/main.yaml";
 
 // The shell's ship: a shuttle about ten metres long, as its proxy draws it, whose hull
 // (defs/hulls/shuttle.yaml) is the proxy's bounds. At a station of no pads it holds 150 m off the
@@ -960,10 +963,7 @@ void Application::InitUser()
 void Application::InitResources()
 {
 	if (m_assets.Mounts().empty())
-	{
-		m_assets.AddMount({"base", m_arguments.assetDirectory});
-		m_assets.AddMount({"user", m_userPaths.userData, true});
-	}
+		MountAssets(m_assets, m_arguments.assets, m_userPaths.userData);
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
 	Animation::RegisterRigLoader(*m_pResources);
@@ -1008,7 +1008,6 @@ void Application::InitScene()
 void Application::InitRenderer()
 {
 	Render::RendererOptions options;
-	options.assetDirectory = m_arguments.assetDirectory;
 #ifndef NDEBUG
 	options.requireDebugMessenger = m_arguments.smokeTest;
 #endif
@@ -1594,8 +1593,9 @@ void Application::ReportBenchmark() const
 	    "Lights {}, {} listed\n"
 	    "Transparent: {} draws; {} emitters in {} particle slots\n"
 	    "Outlines {}\n",
-	    m_arguments.systemPath.empty() ? m_arguments.scenePath.filename().string()
-	                                   : m_arguments.systemPath,
+	    !m_arguments.systemPath.empty() ? m_arguments.systemPath
+	    : m_arguments.scenePath.empty() ? std::string{kDefaultScene}
+	                                    : m_arguments.scenePath.filename().string(),
 	    m_deviceName, m_frameWidth, m_frameHeight, m_arguments.benchmarkFrames, kBenchmarkWarmUp,
 	    m_measuredFrames, m_arguments.depthPrepass ? "on" : "off",
 	    m_benchmarkAmbientOcclusion ? "on" : "off", m_arguments.bloom, passes,
@@ -1696,10 +1696,26 @@ void Application::LoadScene()
 {
 	// What the old system scene built goes with the scene's old contents.
 	m_systemScene.reset();
-	if (m_arguments.systemPath.empty())
+	if (!m_arguments.systemPath.empty())
+		m_pScene->LoadSystem(m_arguments.systemPath);
+	else if (!m_arguments.scenePath.empty())
 		m_pScene->Load(m_arguments.scenePath);
 	else
-		m_pScene->LoadSystem(m_arguments.systemPath);
+	{
+		// The assets' own scene, through the mounts, so a packed build and a mod's scene are read
+		// as a directory's.
+		const auto bytes = m_assets.Read(kDefaultScene);
+		if (!bytes)
+			throw std::runtime_error(std::format("Scene '{}': the assets have none", kDefaultScene));
+		try
+		{
+			m_pScene->LoadText({reinterpret_cast<const char *>(bytes->data()), bytes->size()});
+		}
+		catch (const std::exception &error)
+		{
+			throw std::runtime_error(std::format("Scene '{}': {}", kDefaultScene, error.what()));
+		}
+	}
 	if (const std::string &path = m_pScene->StarSystem(); !path.empty())
 	{
 		const auto bytes = m_assets.Read(path);

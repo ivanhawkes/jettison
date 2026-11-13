@@ -4,8 +4,14 @@ jettison_add_module(vfs
 	HEADERS
 		include/jettison/vfs/Mount.h
 		include/jettison/vfs/FileSystem.h
+		include/jettison/vfs/Pack.h
 	SOURCES
 		src/FileSystem.cpp
+		src/Pack.cpp
+		src/Source.h
 	TESTS
+		tests/PackTests.cpp
 		tests/VfsTests.cpp
+	PRIVATE_LIBRARIES
+		zstd::zstd
 )

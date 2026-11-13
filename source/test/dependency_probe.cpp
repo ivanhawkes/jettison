@@ -36,6 +36,7 @@
 #include <spdlog/sinks/ostream_sink.h>
 #include <tracy/Tracy.hpp>
 #include <wasm_export.h>
+#include <zstd.h>
 
 #include <array>
 #include <cstddef>
@@ -280,6 +281,22 @@ TEST_CASE("KTX-Software: ktx_read creates a texture")
 	REQUIRE(ktxTexture2_Create(&info, KTX_TEXTURE_CREATE_ALLOC_STORAGE, &texture) == KTX_SUCCESS);
 	CHECK(ktxTexture_GetDataSize(ktxTexture(texture)) == 4 * 4 * 4);
 	ktxTexture_Destroy(ktxTexture(texture));
+}
+
+// One zstd in the executable: the engine's, which ktx_read is built against in place of the 1.5.5
+// it carries (source/external/CMakeLists.txt).
+TEST_CASE("zstd: one copy, the engine's, compresses and decompresses")
+{
+	CHECK(ZSTD_versionNumber() == 10507);
+	CHECK(ZSTD_versionNumber() == ZSTD_VERSION_NUMBER);
+	const std::string_view text = "a kilolitre of beer in casks, a kilolitre of beer in casks";
+	std::array<char, 128> frame{};
+	const std::size_t size = ZSTD_compress(frame.data(), frame.size(), text.data(), text.size(), 19);
+	REQUIRE_FALSE(ZSTD_isError(size));
+	CHECK(size < text.size());
+	std::array<char, 128> back{};
+	CHECK(ZSTD_decompress(back.data(), back.size(), frame.data(), size) == text.size());
+	CHECK(std::string_view{back.data(), text.size()} == text);
 }
 
 TEST_CASE("WAMR runs a module")

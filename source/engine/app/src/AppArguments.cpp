@@ -10,11 +10,11 @@ namespace Jettison::App
 {
 namespace
 {
-// The asset tree the build stages beside the executable. /proc/self/exe wins over argv[0] where
-// it exists: argv[0] is the name the caller used, so a symlink - a launcher, an installed
-// wrapper - points the default at a directory the assets are not in.
-std::filesystem::path DefaultAssetDirectory(
-    const char *argv0, const std::filesystem::path &assetSubdirectory)
+// The asset tree the build stages beside the executable, or where there is none the pack of it a
+// shipped build has. /proc/self/exe wins over argv[0] where it exists: argv[0] is the name the
+// caller used, so a symlink - a launcher, an installed wrapper - points the default at a directory
+// the assets are not in.
+std::filesystem::path DefaultAssets(const char *argv0, const std::filesystem::path &assetSubdirectory)
 {
 	std::filesystem::path executable = std::filesystem::absolute(argv0);
 #ifdef __linux__
@@ -23,7 +23,15 @@ std::filesystem::path DefaultAssetDirectory(
 	if (!error)
 		executable = actual;
 #endif
-	return executable.parent_path() / assetSubdirectory;
+	const std::filesystem::path directory =
+	    (executable.parent_path() / assetSubdirectory).lexically_normal();
+	std::filesystem::path pack = directory;
+	pack += ".pack";
+	std::error_code missing;
+	return !std::filesystem::is_directory(directory, missing) &&
+	               std::filesystem::is_regular_file(pack, missing)
+	           ? pack
+	           : directory;
 }
 
 // A positive whole number, all of the text, or nothing.
@@ -50,13 +58,14 @@ std::optional<double> ParseSeconds(std::string_view text)
 // uses, so the two halves of one exit path arrive together.
 void PrintUsage(const char *argv0)
 {
-	std::cerr << "Usage: " << argv0
-	          << " [--smoke-test] [--assets <directory>] [--scene <file> | --system <virtual path>]"
-	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
-	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
-	             " [--galaxy <virtual path>] [--user-dir <directory>]"
-	             " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
-	             " [--frame-step <seconds>] [--run <console command>]...\n";
+	std::cerr
+	    << "Usage: " << argv0
+	    << " [--smoke-test] [--assets <directory | pack>] [--scene <file> | --system <virtual path>]"
+	       " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
+	       " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
+	       " [--galaxy <virtual path>] [--user-dir <directory>]"
+	       " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
+	       " [--frame-step <seconds>] [--run <console command>]...\n";
 }
 } // namespace
 
@@ -64,14 +73,14 @@ std::optional<AppArguments> ParseAppArguments(
     int argc, char **argv, const std::filesystem::path &assetSubdirectory)
 {
 	AppArguments arguments;
-	arguments.assetDirectory = DefaultAssetDirectory(argv[0], assetSubdirectory);
+	arguments.assets = DefaultAssets(argv[0], assetSubdirectory);
 	for (int index = 1; index < argc; ++index)
 	{
 		const std::string argument = argv[index];
 		if (argument == "--smoke-test")
 			arguments.smokeTest = true;
 		else if (argument == "--assets" && index + 1 < argc)
-			arguments.assetDirectory = std::filesystem::absolute(argv[++index]);
+			arguments.assets = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--scene" && index + 1 < argc)
 			arguments.scenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--system" && index + 1 < argc)
@@ -166,8 +175,6 @@ std::optional<AppArguments> ParseAppArguments(
 		PrintUsage(argv[0]);
 		return std::nullopt;
 	}
-	if (arguments.scenePath.empty() && arguments.systemPath.empty())
-		arguments.scenePath = arguments.assetDirectory / "scene" / "main.yaml";
 	return arguments;
 }
 } // namespace Jettison::App

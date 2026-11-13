@@ -13,7 +13,7 @@ built, are recorded in [history](history.md).
 |---|---|---|
 | 0–10 | **Done** 2026-11-10 to 2026-11-13: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish. Recorded in [history](history.md). | Met. |
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
-| 11a | **Packs.** Data pack layering finished (finer than whole-definition replacement); pack files behind the VFS; their compression (an open decision, with libktx's zstd). | A packed build runs, and a data mod loads from the user mount. |
+| 11a | **Packs.** Done 2026-11-13. Catalogue entry 30. Pack files behind the VFS (`vfs/Pack.h`): a directory's files in one, each stored or one zstd frame with its checksum, the index checked whole as it is mounted, read by `pread` from a file held open; a mount of a regular file is a pack. `FileSystem::Find` (a file's mount, time and size, which the resource manager's hot reload stamps by) in place of `Resolve`, and `ReadLayers`, every mount's file at a path. zstd 1.5.7, one copy, which `ktx_read` is built against in place of its own ([decided](#decided)). `jettison_pack` and `jettison_add_pack`; the sample assets as `jettison_assets_pack`. Definitions in layers: a whole file replaces, a `.patch.yaml` beside it merges over the layers below (`YamlArchive::ReadLayered`: mappings key by key, a null removing, `!append`, `!merge=<field>`), each layer migrated on its own, and every change a mod makes logged ([files, packs and mods](architecture.md#files-packs-and-mods)). The shell's mounts (`App::MountAssets`): the base, the user's mods under `mods/` in the order of their names, the user's data directory; the assets' pack found beside the executable where there is no directory; the default scene and ImGui's fonts read through the mounts. The headless smoke test runs packed, with a data mod in its user's mods (`--packed`). | Met: the headless smoke test, both scenes, from `assets.pack` with validation on and a pack of the test's mod in its user directory, the shell saying it mounted the base and the mod as packs and that beer is patched by the mod, once a scene; in the app suite, a mod in the user's mods over the sample game's definitions packed patching beer's price and Highport's market by `!merge=good` and adding wine. In the vfs suite, a packed directory read as the directory does, every prefix of a pack and four kinds of damage refused as it is mounted, a damaged file caught as read, and a pack replaced on the disk read as mounted, under the sanitisers too. The sample assets, 136 files and 90.3 MB, pack in 1.2 s to 88.6 MB. |
 | 11b | **Scripting.** WAMR or wasmtime decided; the Wasm host with fuel and time limits; a capability-scoped host API generated from reflection; calls from AI considerations and events. | A script mod loads from the user mount and is called from an event. |
 | 11c | **Cinematics and grading.** The cinematic camera and sequencer; the colour-grading LUT. | |
 | 11d | **Crash handling and localisation.** A backtrace and the log tail written on a fatal signal; localisation string tables. | |
@@ -66,8 +66,9 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
 - **The audio, not yet placed** (entry 24, 8c): music that crossfades between pieces and a playlist
   to choose them; Doppler, once something reports velocities to presentation; the ship's own sounds
   (its engines, the cockpit's) and occlusion by hulls; a sound file streamed from its mount rather
-  than read whole, which waits on a streaming read in the VFS, with its pack files (entry 10). The
-  voice bus has nothing on it yet.
+  than read whole, which waits on a streaming read in the VFS (entry 10; a pack's stored files could
+  be read in ranges, its compressed ones would want zstd's streaming decoder). The voice bus has
+  nothing on it yet.
 - **The sample game's later slices** ([sample game](sample-game.md)): ManifestCore's order book,
   which the traders (9f) post to once they trade by orders, the economy's turns and the skill tree's
   effects, then scripting (11).
@@ -83,8 +84,11 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   moves) needs its bodies where they will be, and a way of crossing a system at that scale at all,
   which nothing in the engine has yet. Steering (9b) flies a course's waypoints in the ship's frame,
   so a course by a station moves with it; the system's scale is not yet placed.
-- **Pack files and their compression** behind the VFS (entry 10), and definition layering finer
-  than whole-file replacement (entry 13): 11a.
+- **Packs and mods, not yet placed** (entry 10, 11a): a list of the mods enabled and their order,
+  which the shell takes from their names; a mod's own description (a name, a version, the engine
+  version it was written for); a patch that removes an element from a list, rather than replacing
+  the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything but
+  definitions, so a mod still replaces a scene, a system or a stylesheet whole.
 - **The cinematic camera** (entry 18): 11c.
 - **The crash handler hook** in `platform` (entry 6): 11d.
 - **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
@@ -221,6 +225,10 @@ embedding script with the fast interpreter only.
 ### 30. Shipping · phase 11
 
 Pack files, crash handling (a backtrace and the log tail, written on a fatal signal), the colour-grading LUT, the cinematic camera and sequencer, localisation string tables.
+*Library*: zstd 1.5.7, for pack files, shared with libktx.
+*Filled in* (11a): pack files (`vfs/Pack.h`, `jettison_pack`, `jettison_add_pack`), mounted as a
+directory is; mods in the user's data directory; definitions in layers, by patches. See
+[files, packs and mods](architecture.md#files-packs-and-mods).
 
 ## Decided
 
@@ -575,15 +583,32 @@ Settled on 2026-11-10:
   built yet, but what the simulation holds is planned for several players: commands carry who sent
   them, shared facilities (pads, queues, bays) are given by the step in command order, and nothing
   in a simulation module assumes one player's ship.
+- **Pack files are compressed with zstd, one copy shared with libktx** (2026-11-13, phase 11a, the
+  open decision of phase 5). libktx compiles its own zstd 1.5.5, with public `ZSTD_*` symbols, in
+  v4.4.2 and in v5.0.0-rc2 alike, and has no option for another. The engine builds zstd 1.5.7 once,
+  the library alone, and `ktx_read` is built against it: its copy is taken out of the target's
+  sources and its directory off its include path in `source/external/CMakeLists.txt`, with no patch
+  to libktx's files, since it calls the stable API alone (`ZSTD_decompressDCtx` and the error codes).
+  One `ZSTD_versionNumber` is in the executable, and the planets' zstd-supercompressed textures draw
+  as before, the reference frames unchanged. A file in a pack is its own frame, compressed only
+  where that pays (vfs/Pack.h); LZ4, the fallback, would have been a second compressor for the same
+  job.
+- **Mods are directories or packs in the user's data directory, ordered by name** (2026-11-13, phase
+  11a; the question [scope](scope.md) left for packaging). A mod is a directory, for its author, or a
+  pack, for its players, under `mods/` in the user's data directory, mounted between the base and the
+  user's own files in the order of their names' bytes, so the order is the same on every machine and a
+  player sets it by naming. Not zip archives: a pack is a few hundred lines the engine owns, reads a
+  file without reading the rest, and checks each file it reads, where a zip reader would be another
+  dependency for the same thing. A list of enabled mods, in the settings, is the game's to add.
+- **Definitions layer by patches, merged as YAML** (2026-11-13, phase 11a, entry 13's finer
+  layering). A mod's `<name>.patch.yaml` beside a definition changes what it names over every layer
+  below it, and a whole file still replaces one: merging the YAML before it is read, rather than the
+  read values, keeps one reader for whole files and patches, with the errors and lines it already
+  gives, and lets a patch say what a value cannot (a field removed, a list appended to, its elements
+  merged by a key). Each layer migrates on its own, so a YAML step edits only what the data has.
 
 ## Open decisions
 
 To be settled when the phase that needs them begins:
 
 - **Wasm runtime.** WAMR or wasmtime (phase 11).
-- **Pack file compression** (phase 11). zstd is the natural choice, but libktx (phase 5)
-  compiles its own zstd 1.5.5 with public `ZSTD_*` symbols, so a standalone zstd cannot be
-  added to the same executable. The options, in order of preference: KTX-Software upstream
-  accepts an external zstd, which removes the copy; the engine builds one zstd and patches
-  libktx to use it; or pack files use a compressor nothing else in the set carries (LZ4, which
-  Tracy carries only in its own namespace).

@@ -1,0 +1,5 @@
+# The smoke test's data mod (scripts/smoke-test.sh --packed): packed into smoke.pack and run from
+# the user's mods directory, it changes one field of a base definition, which the shell logs as it
+# loads. The field is a crate's words, so nothing the smoke sequence checks moves.
+version: 1
+crate: a kilolitre of beer in casks, as the smoke test's mod has it

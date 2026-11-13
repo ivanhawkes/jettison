@@ -16,11 +16,14 @@ struct AppArguments
 	// The headless render test: the sequence of stages the shell hands to SmokeSequence.
 	bool smokeTest{false};
 
-	// Models, shaders, textures and scene graphs. Defaults to the tree the build stages beside
-	// the executable; --assets points it somewhere else.
-	std::filesystem::path assetDirectory;
+	// Models, shaders, textures and scene graphs: a directory, or a pack of one (vfs/Pack.h), mounted
+	// as the base under the user's mods. Defaults to the tree the build stages beside the
+	// executable, or, where there is none, the pack of the same name beside it, as a shipped build
+	// has; --assets names either.
+	std::filesystem::path assets;
 
-	// The scene graph loaded at start-up, and an optional second file to write it back to.
+	// The scene graph file loaded at start-up (--scene), and an optional second file to write it back
+	// to. Empty for the assets' own, scene/main.yaml, read through the mounts.
 	std::filesystem::path scenePath;
 	std::filesystem::path saveScenePath;
 	// A star system file, by virtual path (systems/halcyon.yaml), in place of a scene: the scene is
@@ -73,10 +76,9 @@ struct AppArguments
 	std::optional<std::filesystem::path> userDirectory;
 };
 
-// Resolves the defaults - the asset tree beside the executable, and <assets>/scene/main.yaml unless
-// a system is named - then reads the flags. --scene and --system together are not understood. Returns
-// nothing, having printed the usage line, when an argument is not understood; the caller exits with
-// failure.
+// Resolves the default assets - the tree beside the executable, or its pack - then reads the flags.
+// --scene and --system together are not understood. Returns nothing, having printed the usage line,
+// when an argument is not understood; the caller exits with failure.
 std::optional<AppArguments> ParseAppArguments(
     int argc, char **argv, const std::filesystem::path &assetSubdirectory);
 } // namespace Jettison::App

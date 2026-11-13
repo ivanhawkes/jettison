@@ -133,9 +133,9 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Extensions / mods / addons | In | Data packs mounted over the base content, plus Wasm script modules. |
 | Scripting: Wasm | In | Sandboxed mod behaviour (missions, events, AI considerations). WAMR as the runtime, to be confirmed when the phase starts. Late phase. |
 | Scripting: native C++ | Reframed | Game logic is native C++ in the game repository. There is no native plugin loading for mods: it is unsandboxed and ABI-fragile. |
-| File system | In | A virtual file system with ordered mounts (base, DLC, mods, user). Mods override by path. |
+| File system | In | A virtual file system with ordered mounts (base, DLC, mods, user), each a directory or a pack. Mods override by path, and patch definitions field by field. |
 | Streaming | Reframed | Asynchronous asset loading when a star system is entered, behind a loading transition. Not open-world streaming. |
-| Compression, zipping | Deferred | Pack files for shipping, and whether mods may be zip archives, are decided with packaging. Development reads loose files. zstd is constrained by the copy libktx carries (see the [roadmap](roadmap.md#open-decisions)). |
+| Compression, zipping | In (11a) | Pack files for shipping and for mods, each file its own zstd frame; development reads loose files. Mods are directories or packs, not zip archives ([decided](roadmap.md#decided)). |
 | Resource manager | In | Typed handles, asynchronous load, reference counting, hot reload in development builds. |
 | Serialisation: load, save | In | YAML for authored content (the scene format exists); a versioned binary format for saves. Both reflection-driven. |
 | Persistence | In | Save games of simulation state, versioned with migrations. Settings and keybindings saved separately. |

@@ -14,6 +14,7 @@ jettison_add_module(serialise
 		src/Shape.h
 		src/YamlArchive.cpp
 	TESTS
+		tests/LayerTests.cpp
 		tests/MigrationTests.cpp
 		tests/SerialiseTests.cpp
 	# glm is public because its vectors are field types the archives write, so a caller's fields

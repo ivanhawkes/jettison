@@ -6,8 +6,11 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#include <jettison/vfs/FileSystem.h>
+
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -24,9 +27,14 @@ void ImGuiRenderer::Init(GLFWwindow *window, VkFormat colorFormat, uint32_t fram
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 	for (const auto &font : {"DroidSans.ttf", "Hack-Regular.ttf", "VeraMono.ttf"})
 	{
-		const std::string path = (m_assetDirectory / "fonts" / font).string();
-		if (std::filesystem::is_regular_file(path))
-			io.Fonts->AddFontFromFileTTF(path.c_str(), 18.0f);
+		std::optional<std::vector<std::byte>> bytes =
+		    m_pAssets ? m_pAssets->Read(std::string{"fonts/"} + font) : std::nullopt;
+		if (!bytes || bytes->empty())
+			continue;
+		std::vector<std::byte> &data = m_fonts.emplace_back(std::move(*bytes));
+		ImFontConfig config;
+		config.FontDataOwnedByAtlas = false;
+		io.Fonts->AddFontFromMemoryTTF(data.data(), static_cast<int>(data.size()), 18.0f, &config);
 	}
 	io.Fonts->AddFontDefault();
 	ImGui::StyleColorsDark();
@@ -89,6 +97,7 @@ void ImGuiRenderer::Destroy()
 		ImGui::DestroyContext();
 		m_contextCreated = false;
 	}
+	m_fonts.clear();
 	if (m_descriptorPool != VK_NULL_HANDLE)
 	{
 		vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), m_descriptorPool, nullptr);

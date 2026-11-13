@@ -54,9 +54,6 @@ enum class DebugView : std::uint32_t
 // What a renderer is made with, before its device exists.
 struct RendererOptions
 {
-	// Where the UI's fonts are read from: a host directory, not a virtual path, since ImGui opens
-	// them itself.
-	std::filesystem::path assetDirectory;
 	// Fails Init on a device without the debug messenger, so a gated run cannot pass with the
 	// validation layer's messages going nowhere. Only a debug build has the messenger.
 	bool requireDebugMessenger{false};

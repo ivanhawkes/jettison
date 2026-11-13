@@ -39,6 +39,8 @@ jettison_add_module(app
 		src/GlfwInput.h
 		src/MarketScreen.cpp
 		src/MarketScreen.h
+		src/Mounts.cpp
+		src/Mounts.h
 		src/Piloting.cpp
 		src/Piloting.h
 		src/RenderApplication.cpp
@@ -57,6 +59,7 @@ jettison_add_module(app
 		tests/AppArgumentsTests.cpp
 		tests/DressingTests.cpp
 		tests/LargeWorldTests.cpp
+		tests/MountsTests.cpp
 		tests/PilotingTests.cpp
 		tests/SavesTests.cpp
 		tests/SettingsTests.cpp

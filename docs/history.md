@@ -216,6 +216,10 @@ names it, in both archives, which is how an entity's optional components are sai
 (`serialise/Migration.h`), and `FormatVersionError` says why a version is refused (a later build's,
 or no step from it) and carries both versions; see entry 25 in [the roadmap](roadmap.md#25-persistence--phase-8--engineserialise-enginesim).
 `BinaryWriter::WriteBytes` puts one archive inside another, as a save game holds the world's.
+*Filled in* (11a): `YamlArchive::ReadLayered` reads a document in layers, the first whole and each
+later one a patch merged over those below it, each migrated on its own first; see
+[files, packs and mods](architecture.md#files-packs-and-mods). A YAML migration step edits only what
+the data has, since a patch leaves out what it does not change.
 
 ### 10. Virtual file system · phase 3 · `engine/vfs`
 
@@ -237,6 +241,10 @@ are added at start-up; the reads are then safe from the I/O worker.
 *Filled in* (8a): `Write` is durable, through `Core::WriteFileDurably`: the partial file flushed
 before the rename and the directory after it ([decided](roadmap.md#decided)). The shell mounts the
 user's data directory writable over the base, and saves go there.
+*Filled in* (11a): a mount is a directory or a pack file (`vfs/Pack.h`, zstd), behind the same
+calls; `Find` (a file's mount, time and size) replaces `Resolve`, since a file in a pack has no host
+path, and `ReadLayers` reads every mount's file at a path. The shell mounts the user's mods between
+the base and the user's directory. See [files, packs and mods](architecture.md#files-packs-and-mods).
 
 ### 11. Resource manager · phase 3 · `engine/resource`
 
@@ -255,7 +263,7 @@ one `Release`; loading a path again returns the same handle and counts a referen
 release frees the slot under a new generation, so old handles go stale and a result still in
 flight is dropped. A missing file or a throw from either stage fails the resource with the reason
 kept (`ErrorOf`), and logs it. Hot reload, on in development builds, polls each loaded file's
-resolved path, time and size from `Update()`, so a mod that shadows a base file counts as a
+resolved path (its mount, since 11a), time and size from `Update()`, so a mod that shadows a base file counts as a
 change; a reload keeps the handle and bumps `RevisionOf`, which a cache rebuilds on, and a reload
 that fails keeps the last good value. Completions hold a weak pointer to the manager, so one
 destroyed with work in flight drops the results. The scene's model cache moves onto it when the
@@ -341,6 +349,9 @@ sets are ordered maps, so a walk over them is the same every run.
 migrations, and a file of an earlier version is brought up to the current one as it is read. The
 world's save migrates from version 1 (before its services), and a save game (`sim/SaveGame.h`) holds
 the world beside its info and the game's sections.
+*Filled in* (11a): definitions layer finer than a file: a `.patch.yaml` beside a definition merges
+over the layers below it, a whole file still replacing them, and each change a mod makes is logged
+([decided](roadmap.md#decided)).
 
 ### 14. Input · phase 3 · `engine/input`
 

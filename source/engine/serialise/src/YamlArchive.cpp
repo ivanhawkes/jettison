@@ -15,6 +15,8 @@
 #include <format>
 #include <limits>
 #include <memory>
+#include <span>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -28,6 +30,9 @@ using Detail::Shape;
 using Reflect::Attribute;
 
 constexpr std::string_view kVersionKey = "version";
+// A patch's tags for a sequence that adds to the one below it (YamlArchive::ReadLayered).
+constexpr std::string_view kAppendTag = "!append";
+constexpr std::string_view kMergeTag = "!merge=";
 
 // ---- Scalars as text ----------------------------------------------------------------------
 //
@@ -278,6 +283,13 @@ class Reader
 	    entt::meta_any &value, const YAML::Node &document, FormatVersion expected,
 	    const YamlMigrations *migrations)
 	{
+		Fields(value, Current(document, expected, migrations), true);
+	}
+
+	// The document at the expected version: as it is, migrated by the chain, or refused.
+	YAML::Node Current(
+	    const YAML::Node &document, FormatVersion expected, const YamlMigrations *migrations)
+	{
 		if (!document.IsMap())
 			Fail(document, "the document is not a mapping");
 		const YAML::Node version = document[std::string{kVersionKey}];
@@ -287,10 +299,7 @@ class Reader
 		if (!version.IsScalar() || !ParseNumber(version.Scalar(), found))
 			Fail(version, std::format("the version '{}' is not a whole number", Text(version)));
 		if (found == expected.version)
-		{
-			Fields(value, document, true);
-			return;
-		}
+			return document;
 		if (!migrations)
 			throw FormatVersionError{m_path.Text(), found, expected.version};
 		// The tree is the archive's own, parsed for this read, so the steps edit it in place: a copy
@@ -300,7 +309,88 @@ class Reader
 		if (!migrated.IsMap())
 			Fail(document, std::format("the migration from version {} left no mapping", found));
 		migrated[std::string{kVersionKey}] = expected.version;
-		Fields(value, migrated, true);
+		return migrated;
+	}
+
+	// Merges a patch, a mapping at the document's version, into the mapping below it, as
+	// YamlArchive::ReadLayered describes. The patch's nodes are moved into the tree below rather
+	// than copied, so an error read from the merged tree names their own lines.
+	void Patch(YAML::Node below, const YAML::Node &patch, bool root)
+	{
+		for (const auto &entry : patch)
+		{
+			const std::string key = entry.first.Scalar();
+			if (root && key == kVersionKey)
+				continue;
+			const Path::Scope scope = m_path.Field(key);
+			const YAML::Node value = entry.second;
+			// Looked up through a const node: the mutable operator[] would add the key. A yaml-cpp
+			// node assigned to is made an alias of what it is given, so the nodes below are
+			// constructed, never assigned, and only a mapping's own slot is (below[key] = ...).
+			const YAML::Node &constBelow = below;
+			const YAML::Node existing = constBelow[key];
+			const std::string &tag = value.Tag();
+
+			if (tag == kAppendTag || tag.starts_with(kMergeTag))
+			{
+				if (!value.IsSequence())
+					Fail(value, std::format("a value tagged {} is a sequence", tag));
+				if (existing && !existing.IsSequence())
+					Fail(
+					    value,
+					    std::format(
+					        "a sequence tagged {} is over {} below it", tag, Describe(existing)));
+				if (!existing)
+					below[entry.first] = YAML::Node{YAML::NodeType::Sequence};
+				YAML::Node sequence = constBelow[key];
+				if (tag == kAppendTag)
+				{
+					for (const YAML::Node &element : value)
+						sequence.push_back(element);
+				}
+				else
+					MergeBy(sequence, value, tag.substr(kMergeTag.size()));
+			}
+			else if (value.IsNull())
+				below.remove(key);
+			else if (value.IsMap() && existing && existing.IsMap())
+				Patch(existing, value, false);
+			else if (existing)
+				below[key] = value;
+			// A key new to the mapping is the patch's own node, so a field the type does not save
+			// is reported at its line. yaml-cpp finds a node key by identity, never by its text, so
+			// this is for keys known to be absent.
+			else
+				below[entry.first] = value;
+		}
+	}
+
+	// A sequence tagged !merge=<field> into the sequence below it, element by element, matched by
+	// the field.
+	void MergeBy(YAML::Node below, const YAML::Node &patch, std::string_view field)
+	{
+		if (field.empty())
+			Fail(patch, "a sequence tagged !merge= names the field its elements are matched by");
+		const std::string name{field};
+		for (std::size_t index = 0; index < patch.size(); ++index)
+		{
+			const Path::Scope scope = m_path.Element(index);
+			const YAML::Node element = patch[index];
+			const YAML::Node key = element.IsMap() ? element[name] : YAML::Node{};
+			if (!key || !key.IsScalar())
+				Fail(element, std::format("an element merged by its '{}' has no '{}'", name, name));
+			const auto match = std::find_if(
+			    below.begin(), below.end(),
+			    [&name, &key](const YAML::Node &candidate)
+			    {
+				    return candidate.IsMap() && candidate[name] && candidate[name].IsScalar() &&
+				           candidate[name].Scalar() == key.Scalar();
+			    });
+			if (match != below.end())
+				Patch(*match, element, false);
+			else
+				below.push_back(element);
+		}
 	}
 
   private:
@@ -553,6 +643,66 @@ entt::meta_any ReadDocument(
 	reader.Root(value, document, expected, migrations);
 	return value;
 }
+
+entt::meta_any ReadLayers(
+    std::span<const YamlLayer> layers, const entt::meta_type &type, FormatVersion expected,
+    const YamlMigrations *migrations)
+{
+	const std::string_view root = Detail::RootName(type);
+	if (layers.empty())
+		throw std::invalid_argument{
+		    std::format("YamlArchive: {}: a document in layers has at least one", root)};
+
+	// Each layer is brought to the current version on its own, then merged into those below it.
+	// Their errors name the layer; once merged, an error names every layer, and has the line of the
+	// one whose value it is.
+	YAML::Node merged;
+	for (std::size_t index = 0; index < layers.size(); ++index)
+	{
+		const YamlLayer &layer = layers[index];
+		try
+		{
+			YAML::Node document;
+			try
+			{
+				document = YAML::Load(std::string{layer.text});
+			}
+			catch (const YAML::Exception &error)
+			{
+				throw FormatError{
+				    std::format("YamlArchive: {}: {} (line {})", root, error.msg, error.mark.line + 1)};
+			}
+			Reader reader{root};
+			YAML::Node current = reader.Current(document, expected, migrations);
+			if (index == 0)
+				merged = current;
+			else
+				reader.Patch(merged, current, true);
+		}
+		catch (const std::runtime_error &error)
+		{
+			throw FormatError{std::format("{}: {}", layer.name, error.what())};
+		}
+	}
+
+	entt::meta_any value = type.construct();
+	if (!value)
+		throw UnsupportedTypeError{
+		    std::format("YamlArchive: {}: the type is not default constructible", root)};
+	try
+	{
+		Reader reader{root};
+		reader.Root(value, merged, expected, nullptr);
+	}
+	catch (const FormatError &error)
+	{
+		std::string names;
+		for (const YamlLayer &layer : layers)
+			names += std::format("{}{}", names.empty() ? "" : ", ", layer.name);
+		throw FormatError{std::format("{}: {}", names, error.what())};
+	}
+	return value;
+}
 } // namespace
 
 entt::meta_any YamlArchive::Read(
@@ -569,5 +719,24 @@ entt::meta_any YamlArchive::Read(
 		    "YamlArchive: the migrations of '{}' were given to read a '{}'", migrations.Format(),
 		    Detail::RootName(type))};
 	return ReadDocument(text, type, migrations.Current(), &migrations);
+}
+} // namespace Jettison::Serialise
+
+namespace Jettison::Serialise
+{
+entt::meta_any YamlArchive::ReadLayered(
+    std::span<const YamlLayer> layers, const entt::meta_type &type, FormatVersion expected)
+{
+	return ReadLayers(layers, type, expected, nullptr);
+}
+
+entt::meta_any YamlArchive::ReadLayered(
+    std::span<const YamlLayer> layers, const entt::meta_type &type, const YamlMigrations &migrations)
+{
+	if (migrations.Format() != Detail::RootName(type))
+		throw std::logic_error{std::format(
+		    "YamlArchive: the migrations of '{}' were given to read a '{}'", migrations.Format(),
+		    Detail::RootName(type))};
+	return ReadLayers(layers, type, migrations.Current(), &migrations);
 }
 } // namespace Jettison::Serialise

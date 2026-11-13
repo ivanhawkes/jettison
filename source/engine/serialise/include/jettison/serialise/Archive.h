@@ -93,6 +93,14 @@ class UnsupportedTypeError : public std::logic_error
 //
 // The version sits beside the root's fields in YAML (version: 1, then the fields, as the scene
 // format already has it), so the root type cannot save a field named "version".
+// One layer of a document read in layers (YamlArchive::ReadLayered): its name, which its errors
+// carry, and its text.
+struct YamlLayer
+{
+	std::string_view name;
+	std::string_view text;
+};
+
 class YamlArchive
 {
   public:
@@ -103,6 +111,26 @@ class YamlArchive
 	// text of the current version would be. Errors name the lines of the text as it was.
 	static entt::meta_any Read(
 	    std::string_view text, const entt::meta_type &type, const Migrations<YAML::Node> &migrations);
+
+	// A document in layers, as a mod changes a definition without copying it: the first layer whole,
+	// and each after it a patch over what is below it. A patch is a mapping in the document's form,
+	// with a version of its own, migrated on its own as a whole document is, and merged into the
+	// layers below it:
+	//   - a mapping is merged key by key, all the way down;
+	//   - a null (~) removes the key below it, so the field reads as its default;
+	//   - a sequence tagged !append is added to the end of the one below it;
+	//   - a sequence of mappings tagged !merge=<field> is merged into the one below it element by
+	//     element, matched by that field: an element that matches one below is merged into it as a
+	//     mapping is, and one that does not is appended;
+	//   - anything else, a scalar or an untagged sequence, replaces what is below it.
+	// The merged document is then read as one. An error in a layer, or in merging it, throws
+	// FormatError naming the layer; an error in reading the merged document names every layer, and
+	// has the line of the one whose value it is.
+	static entt::meta_any ReadLayered(
+	    std::span<const YamlLayer> layers, const entt::meta_type &type, FormatVersion expected);
+	static entt::meta_any ReadLayered(
+	    std::span<const YamlLayer> layers, const entt::meta_type &type,
+	    const Migrations<YAML::Node> &migrations);
 
 	template <typename T> static std::string Write(const T &value, FormatVersion version)
 	{
@@ -116,6 +144,12 @@ class YamlArchive
 	template <typename T> static T Read(std::string_view text, const Migrations<YAML::Node> &migrations)
 	{
 		entt::meta_any value = Read(text, entt::resolve<T>(), migrations);
+		return std::move(value.cast<T &>());
+	}
+	template <typename T>
+	static T ReadLayered(std::span<const YamlLayer> layers, FormatVersion expected)
+	{
+		entt::meta_any value = ReadLayered(layers, entt::resolve<T>(), expected);
 		return std::move(value.cast<T &>());
 	}
 };

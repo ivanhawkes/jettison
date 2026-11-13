@@ -147,8 +147,10 @@ else
 fi
 
 if [ "$smoke" -eq 1 ]; then
-	stage "smoke test: $headless_preset (X11 GLFW build, virtual display)"
-	./scripts/smoke-test.sh --preset "$headless_preset" --build --xvfb ${software[@]+"${software[@]}"} ${werror[@]+--werror}
+	# From the packed assets and with a data mod in the user's mods, as a shipped build runs; the
+	# reference frames and the sanitised run read the staged directory.
+	stage "smoke test: $headless_preset (X11 GLFW build, virtual display, packed)"
+	./scripts/smoke-test.sh --preset "$headless_preset" --build --xvfb --packed ${software[@]+"${software[@]}"} ${werror[@]+--werror}
 	# The frames phase 10 is judged by, against the references kept beside views.txt; always on
 	# lavapipe, which the references were taken on (scripts/capture.sh).
 	stage "reference frames: $headless_preset (lavapipe, virtual display)"
@@ -164,11 +166,11 @@ if [ "$asan" -eq 1 ]; then
 	stage "smoke test: clang-asan (address + undefined sanitizers, lavapipe)"
 	./scripts/smoke-test.sh --preset clang-asan --build --xvfb --llvmpipe ${werror[@]+--werror}
 	# The suites whose state hashes are pinned, held to the same values under the sanitizers, and
-	# the spatial index steering reads.
-	stage "unit tests: clang-asan (sim, spatial, physics, ai and dock)"
-	cmake --build --preset clang-asan --target jettison_sim_tests jettison_spatial_tests \
-		jettison_physics_tests jettison_ai_tests jettison_dock_tests
-	ctest --test-dir build/clang-asan -R '^(sim|spatial|physics|ai|dock)$' --output-on-failure \
+	# the spatial index steering reads; and the file system's, whose packs are bytes from a mod.
+	stage "unit tests: clang-asan (vfs, sim, spatial, physics, ai and dock)"
+	cmake --build --preset clang-asan --target jettison_vfs_tests jettison_sim_tests \
+		jettison_spatial_tests jettison_physics_tests jettison_ai_tests jettison_dock_tests
+	ctest --test-dir build/clang-asan -R '^(vfs|sim|spatial|physics|ai|dock)$' --output-on-failure \
 		--no-tests=error -j "$jobs"
 fi
 

@@ -29,9 +29,9 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | FreeType | 2.15.0 | now | Answers RmlUi's `find_package(Freetype)`; RmlUi and ImGui both link it; ui links it, since 8b |
 | RmlUi | 6.3 | now | Private to ui, since 8b |
 | miniaudio | 0.11.26 | now | Private to audio, since 8c; Vorbis and Opus off, backends loaded at run time |
-| KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read` |
+| KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read`, built against the engine's zstd in place of its own copy (11a) |
 | WAMR | 2.4.5 | phase 11 | Candidate runtime; the choice is still open |
-| zstd | none | phase 11 | **Held back**: KTX-Software already compiles zstd in |
+| zstd | v1.5.7 | now | The library alone, static; vfs links it privately for pack files, and `ktx_read` links it in place of the 1.5.5 it carries (11a) |
 
 The Vulkan headers, loader, validation layers and `glslc` come from the devenv shell (Vulkan
 headers 1.4.363 at the current lock), not from `FetchContent`.
@@ -128,13 +128,16 @@ build/clang-debug/source/test/render_test
 | `clang-asan` | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer |
 
 Shaders compile as part of the build (`jettison_compile_shaders`). Assets are staged beside the
-executable. `--assets <directory>` selects a different asset directory, and
+executable, and `jettison_assets_pack` packs them into `assets.pack` beside that directory
+([files, packs and mods](architecture.md#files-packs-and-mods)), which the shell mounts when there is
+no directory, as in a shipped build. `--assets <directory | pack>` selects other assets, and
 `--scene <file>` / `--save-scene <file>` load and write scene graphs, and `--system <virtual path>`
 (`systems/halcyon.yaml`) runs the scene a star system builds alone, in place of a scene file.
 `--gpu <name>` draws with the GPU whose name has that text in it (`5060`, `llvmpipe`), in place of
 the one the renderer chooses, the one with the monitor on it; the log lists the devices it saw.
 `--user-dir <directory>` puts the user's files under one directory in place of the XDG ones:
-settings under `<directory>/config`, saves under `<directory>/data/saves`. The headless run with no
+settings under `<directory>/config`, saves under `<directory>/data/saves`, mods under
+`<directory>/data/mods`. The headless run with no
 `--user-dir` makes a directory of its own under the system's temporary directory and removes it as
 it ends, so the smoke test never reads or writes the settings and saves of whoever runs it.
 
@@ -182,8 +185,9 @@ It is done when the game needs a prebuilt engine rather than a source build, and
 `./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
-Release build and its unit tests → headless render test → reference frames, and with `--asan`, the render test and the
-`sim`, `spatial`, `physics`, `ai` and `dock` suites under the sanitisers. The simulation's state hashes are pinned in those
+Release build and its unit tests → headless render test, from the packed assets → reference frames,
+from the staged directory, and with `--asan`, the render test and the `vfs`, `sim`, `spatial`,
+`physics`, `ai` and `dock` suites under the sanitisers (`vfs` for the packs, whose bytes are a mod's). The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
 build's results. The sample's traders' hash is pinned in the app suite, which runs in Debug and
 Release but not under the sanitisers: its twenty minutes of seven traders is the gate's longest
@@ -329,7 +333,15 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --no-build --xvfb           # existing tree, virtual display
 ./scripts/smoke-test.sh --no-xvfb                   # your own Wayland/X11 session
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
+./scripts/smoke-test.sh --llvmpipe --packed         # from assets.pack, with the test's data mod
 ```
+
+**Packed.** The gate runs the headless tree's smoke test with `--packed`: it builds
+`jettison_assets_pack` and `render_test_smoke_mod` (`source/test/mods/smoke`, a patch of beer's
+crate words, packed), and runs each scene with `--assets build/<preset>/assets.pack` and a user
+directory of its own with the mod's pack in its mods. The run fails unless the shell says, once a
+scene, that it mounted the base and the mod as packs and that the mod patched beer. The sanitised run
+and the reference frames read the staged directory, so both kinds of mount are drawn from every gate.
 
 **What it walks.** Twelve stages, the paths that have hurt this engine: resize, resize, minimize,
 restore, scene reload, pilot from behind, pilot from the seat, pick, save and load, trade, jump,

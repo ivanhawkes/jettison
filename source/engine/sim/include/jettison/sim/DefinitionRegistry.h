@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <functional>
 #include <map>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -34,15 +35,24 @@ namespace Jettison::Sim
 //
 // A definition is one YAML file under a directory, in YamlArchive's form, and its name is the
 // file's path under the directory without ".yaml": "defs/ships/military/corvette.yaml" loaded
-// from "defs/ships" is "military/corvette". The VFS gives the topmost file at each path, so a mod
-// overrides a definition by shipping a file at the same path, and adds one with a new path. A
-// whole definition is replaced, not patched field by field; layering finer than that is phase
-// 11's. Saves refer to definitions by name, so a save holds none, and a definition's format can
-// change without one.
+// from "defs/ships" is "military/corvette". A mod changes definitions in layers, through the VFS's
+// mounts, the bottom mount's first:
+//   - a whole file at the same path replaces the definition, and everything below it;
+//   - a patch beside it, "military/corvette.patch.yaml", changes the fields it names and keeps the
+//     rest, merged as YamlArchive::ReadLayered says (a mapping key by key, a null removing a field,
+//     a sequence tagged !append or !merge=<field> added to or merged into the one below), so two
+//     mods can each change one definition, and a mod need not copy what it does not change;
+//   - a file at a new path adds a definition.
+// A mount's patch goes over its own whole file, and patches over the topmost whole file in mount
+// order. A patch with no whole file under it is refused, so a definition's name cannot end in
+// ".patch". Each change a mount makes to another's definition is logged, naming the mounts. Saves
+// refer to definitions by name, so a save holds none, and a definition's format can change without
+// one.
 //
-// Definitions migrate (docs/roadmap.md, "Decided"): a type's files are read through its YAML
-// migrations when it has them, so a mod written against an earlier version of a definition still
-// loads after the type gains a field or renames one, without its author shipping it again.
+// Definitions migrate (docs/roadmap.md, "Decided"): a type's files, and its patches, are each read
+// through its YAML migrations when it has them, so a mod written against an earlier version of a
+// definition still loads after the type gains a field or renames one, without its author shipping
+// it again.
 //
 // Definitions are loaded at start-up and read by the simulation, so they are kept in ordered maps:
 // Names() and any walk over them is the same on every run.
@@ -52,9 +62,9 @@ class DefinitionRegistry
 	explicit DefinitionRegistry(const Vfs::FileSystem &fileSystem);
 
 	// Loads every definition of the type under the directory, replacing the type's previous set.
-	// A file that does not fit the type, or is of another version, throws FormatError naming the
-	// file, and the previous set stays. Throws UnsupportedTypeError for a type Reflect does not
-	// know as a class.
+	// A file or a patch that does not fit the type, or is of another version, throws FormatError
+	// naming the file and its mount, and the previous set stays. Throws UnsupportedTypeError for a type
+	// Reflect does not know as a class.
 	void Load(
 	    const entt::meta_type &type, std::string_view virtualDirectory,
 	    Serialise::FormatVersion version);
@@ -96,7 +106,7 @@ class DefinitionRegistry
 
 	void LoadWith(
 	    const entt::meta_type &type, std::string_view virtualDirectory,
-	    const std::function<entt::meta_any(std::string_view)> &read);
+	    const std::function<entt::meta_any(std::span<const Serialise::YamlLayer>)> &read);
 
 	const Vfs::FileSystem &m_fileSystem;
 	// Keyed by EnTT's type ID.
