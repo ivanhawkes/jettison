@@ -75,6 +75,11 @@ player means to empty may be empty when the player gets there.
 
 Each slice lands with the engine system it exercises:
 
+- **A fleet.** Each player starts with one ship and buys another once their credits allow. They
+  attach to any ship of their fleet to watch it go and to trade at the market it is docked at, and
+  take the helm of one at a time; the rest fly by their own behaviours, as the traders do, for their
+  owner, whose credits they share ([decided](roadmap.md#decided)). A ship crosses a system by
+  cruising and passes a gate it has been cleared by, paying the lane's toll.
 - **The order book.** ManifestCore's price-time book, with its order life and its fills, replaces the
   market maker here once traders post orders of their own: the traders of 9f, then the player. It is game code ([scope](scope.md)):
   the engine's part is that it is deterministic, saved, and bound to a screen.
@@ -86,4 +91,4 @@ Each slice lands with the engine system it exercises:
   script answers.
 
 Not placed yet, from the plan: surveys, black and grey markets, insurance, privateers, gates of two
-kinds, fleets, and the station's services (refuelling, repairs, intel).
+kinds, and the station's services (refuelling, repairs, intel).

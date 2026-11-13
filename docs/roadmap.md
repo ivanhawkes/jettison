@@ -28,8 +28,8 @@ criterion yet gets one when it starts.
 
 Work that phases 1–11 moved on, in the order it is worth doing: by what is expensive to change later,
 then by what the game's next work stands on, as the phases were ordered. Within a tier the first is
-the most pressing. The decisions some of them wait on are [open](#open-decisions). Phases 1–11's
-full record, and catalogue entries 1–31, are in [history](history.md).
+the most pressing. The decisions they waited on are settled, under [decided](#decided). Phases
+1–11's full record, and catalogue entries 1–31, are in [history](history.md).
 
 ### First: what saves and the simulation's interface hold
 
@@ -54,11 +54,20 @@ dearer with every save a player has and once a second player sends commands.
   something adds another, so the event's shape is cheapest to change now. Decided (2026-11-13): one
   `Sim::Reason`, a reflected enumerator and typed arguments, in place of the four events' text; not
   yet built.
+- **A purse its owner's, for a fleet** (8b, 9f): a `Purse` is a ship's (`app/src/Trading.h`), the
+  shell's and each trader's, and the sample's trade is taken from any sender. A player has a fleet
+  and trades for whichever ship of it they are attached to, so the purse is the owner's, which a
+  save holds, and a trade is refused from a sender that does not own the ship. Decided (2026-11-13): the
+  purse on an entity of its owner's, each trader the owner of one ship; not yet built.
+- **The mods a save was made with** (entry 10, 11a): a save does not say which mods made it, so a
+  load under others cannot say what differs. Decided (2026-11-13): the save records the mods
+  enabled and their versions, and a load with others says which differ and goes on; not yet built.
 - **Commands that carry their sender** (9c): the docks' commands carry a `Sim::Controller` and
   are refused from one that does not control the ship, and a trader sends its own with its AI
-  controller (9f); the flight controls, a destination, a lane entered, a pick and the sample's trade
-  do not yet, and are taken from anyone. Each gains one as the first command a second player could
-  send for it, with networking.
+  controller (9f); the flight controls, a destination, a lane entered and a pick do not yet, and are
+  taken from anyone. Each gains one as the first command a second player could send for it, with
+  networking; the flight controls theirs with the helm, which a fleet brings first, and the trade
+  with its owner's purse (above).
 - **Jolt's state across a Jolt upgrade** (entry 25, 8a): physics' share of a save is Jolt's own
   binary state, which a step cannot edit as data. A Jolt upgrade that changes it needs a load that
   rebuilds the bodies from the world's components instead, losing the contact cache's warm start for
@@ -71,26 +80,29 @@ The order book, the economy's turns and the scripted rules ([sample
 game](sample-game.md#what-comes-next)), and the space they are played in: a system crossed at its
 own scale, gates flown through, traders that react, and mods a player can choose between.
 
-- **The sample game's later slices** ([sample game](sample-game.md)): ManifestCore's order book,
-  which the traders (9f) post to once they trade by orders, the economy's turns and the skill tree's
-  effects, then scripting (11).
+- **The sample game's later slices** ([sample game](sample-game.md)): a player's fleet, a ship
+  bought and the helm of one of them; ManifestCore's order book, which the traders (9f) post to once
+  they trade by orders; the economy's turns and the skill tree's effects, then scripting (11).
 - **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
   shell sets its ship's and its traffic's, and by lane travel as a ship comes out of a gate, into the
   frame of the station the gate keeps by (9a). Taking a ship into a station's frame as it closes and
   out as it leaves, by a radius about each body, is not yet placed: steering (9b) flies within a
   frame, and nothing in phase 9 leaves one, since every gate keeps station a few kilometres from its
-  station, in its frame. The first traffic between a station and the open system lands it.
+  station, in its frame. Decided (2026-11-13): a frame changes at a cruise's ends and a lane's and
+  nowhere else, so no radius is placed; built with the cruise.
 - **Courses past moving bodies** (entry 26, 9a): a course is straight legs between bodies where they
   are when it is plotted, plotted again as a ship goes. Fine across a station's few kilometres and
   for estimating a crossing; a course across a system flown at real speeds (days, past a planet that
   moves) needs its bodies where they will be, and a way of crossing a system at that scale at all,
   which nothing in the engine has yet. Steering (9b) flies a course's waypoints in the ship's frame,
-  so a course by a station moves with it; the system's scale is not yet placed.
+  so a course by a station moves with it. Decided (2026-11-13): a cruise drive, the target's place
+  on arrival solved from its rails; not yet built.
 - **A gate flown through** (entry 26, 9a): the shell sends its ship along a lane wherever it is in
   the system, as the scene jumps, standing in for the game's rule, and a trader's tree sends its
   own once it is within 150 m of the gate's centre (9f). A gate that sends what flies through its
   ring, a sensor whose contact pushes `EnterLane`, for the pilot and the traders alike, is not yet
-  placed; the game's rule for who may use a gate lands with it. The smoke sequence's jump sends the
+  built. Decided (2026-11-13): it sends a ship the gate has cleared, the sample's rule a clearance
+  by the hull's size, a toll and the gate free. The smoke sequence's jump sends the
   ship and does not wait the 40 s for it to come out; the AI and app suites cover the arrival.
 - **Decisions, not yet placed** (entry 26, 9f): reactive nodes, which tick a condition above a
   running branch and halt what they leave, as a trader breaking off its run to flee would need, and
@@ -102,13 +114,14 @@ own scale, gates flown through, traders that react, and mods a player can choose
   chooses again; what a trader does about a hull it cannot dock, a market that has gone, or the
   player in its way beyond steering clear is the game's.
 - **Scripts, not yet placed** (entry 29, 11b): a script reading the world, which today it sees only
-  through the events it is given and an option's inputs, and which would come through snapshots; a
-  script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
+  through the events it is given and an option's inputs (decided, 2026-11-13: a handler reads the
+  newest stepped snapshot, by component, as granted, and acts as its player; an input reads only its
+  inputs); a script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
   when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
   not report, for the console.
 - **Packs and mods, not yet placed** (entry 10, 11a): a list of the mods enabled and their order,
-  which the shell takes from their names; a mod's own description (a name, a version, the engine
-  version it was written for); a patch that removes an element from a list, rather than replacing
+  which the shell takes from their names, and a mod's own description (decided, 2026-11-13:
+  `mods.yaml` beside the settings and a `mod.yaml` in each mod, with what it requires); a patch that removes an element from a list, rather than replacing
   the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything but
   definitions, so a mod still replaces a scene, a system or a stylesheet whole.
 - **Picking a paused world, and under the cursor every frame** (entry 22, 7c): a pick is answered by
@@ -131,8 +144,10 @@ player's report of a problem needs and the shell does not write.
   smoke test's patterns.
 - **Crash handling, not yet placed** (entry 30, 11d): a report from a thread other than the main
   one whose stack overflowed, which wants an alternate stack set by every thread the engine starts
-  (the I/O worker, the scripts' watchdog) and by Jolt's; a report sent anywhere, which waits on the
-  game's choice of a service; a minidump, should a report's frames and tail not be enough.
+  (the I/O worker, the scripts' watchdog) and by Jolt's; each module's build ID in the report, and a
+  release's debug files kept by it, and the shell saying on its next start where a new report is
+  (decided, 2026-11-13); a report sent anywhere, which waits on players outside development; a
+  minidump, should a report's frames and tail not be enough.
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
   first draws it, so a jump holds its effect over the new system's first frames while they stream
   in, 0.2 to 0.4 s on lavapipe for the sample systems. Not yet placed.
@@ -737,24 +752,74 @@ Settled on 2026-11-10:
   is not first run the day Jolt moves; what else a rebuild loses (the docking clamps' constraints,
   sleep) is checked as it is.
 
+- **A player has a fleet, and the credits are the player's** (2026-11-13, the game's). Each player
+  starts with one ship and buys another once their credits allow. They attach to any ship of their
+  fleet to watch it go and to trade at the market it is docked at, and take the helm of one at a
+  time. A ship's `ControlledBy` is its owner, and whatever flies a ship no one is at the helm of (its
+  behaviour, a cruise, the docks' approach) sends its commands as that owner, so `MayCommand` holds
+  as it is. The purse moves from the ship to an entity of its owner's, which a trade, a toll and a
+  ship bought draw on; each trader is the owner of one ship. Attaching is presentation's (the
+  camera, and the market screen bound to the station the attached ship is docked at); the helm is a
+  command, saved, since the ship's behaviour stands down while a player flies it.
+- **A ship crosses a system by cruising** (2026-11-13, the first of the second tier). The distances
+  rule the others out: Corva Refinery is 1.4 × 10⁸ m from Corva and Corva 3 × 10¹⁰ m from Vesper,
+  days at the flight model's speeds. Compressed time would want a thousandfold, which runs every
+  market's tick at it and which one player of several cannot have alone; gates and lanes alone would
+  leave a system's scale as scenery, and Manifest places its star gates about a sun and several
+  stations about a planet, so something crosses between them. A `Cruise` command, with its sender,
+  takes a ship to a body: it leaves physics and its frame as on a lane but stays in its system,
+  placed each step along its course, for a time its hull's definition gives as a curve of the
+  distance rising slower than it (about a minute between one planet's stations and a few between
+  planets, tuned by play). The bodies are on rails, so where the target will be on arrival is solved
+  exactly, in a few deterministic iterations, with a waypoint at a tangent past a body in the way;
+  the ship arrives at rest a few kilometres off the target, in its frame, as a lane's exit leaves
+  one. A frame therefore changes at a cruise's ends and a lane's and nowhere else. A cruise does not
+  engage within a station's radius, so docking stays in physics, and is refused by a `Sim::Reason`.
+  Presentation shows the ship against its system at its scale; a privateer can interrupt a cruise
+  later, since where the ship is is known every step; a trader gains a cruise task, its time weighed
+  in the run's credits a second, and so does a fleet's ship no one is at the helm of. Time
+  compression stays the economy's and the wait's, not travel's. With it the gates move to
+  Manifest's places, star gates about a sun and moon gates about a planet.
+- **A gate sends the ships it has cleared** (2026-11-13, the second). The engine's part is a sensor
+  on the ring whose contact sends a cleared ship into its lane, the gate a shared facility given in
+  command order, as a pad is. The sample game's rule: `RequestTransit`, with its sender, is granted
+  when the hull fits the ring (its size as data), the owner's purse holds the lane's toll (whole
+  credits in `galaxy.yaml`, a star gate's dearer than a moon gate's) and the gate is free. The toll
+  is charged as the ship enters the lane rather than as it is cleared, and a clearance unused
+  lapses. A ship not cleared passes through the ring, with a reason, so traffic steering across a
+  ring is never charged or sent. A licence or a standing, for which the sample has no factions, goes
+  in the clearance's check when one comes, perhaps as an input a script answers.
+- **A player's mods are a list beside the settings, and a save names them** (2026-11-13, the
+  third). `mods.yaml`, beside `settings.yaml` and written by the game's menu, lists the mods in mount
+  order, each enabled or not, a later one winning. A mod found and not listed is added at the end,
+  enabled, so a directory dropped in works as it does now; one listed and missing is reported and
+  keeps its place. Each mod's `mod.yaml` gives a name to show (its identifier is its directory's or
+  pack's name), its version, the engine version it was written for, refused when newer than the
+  engine's, and `requires`, the mods it needs before it in the list, refused with a reason when one
+  is missing or after it rather than reordered. A save records the mods enabled and their versions,
+  and a load with others says which differ and goes on; that is the save's shape, so it is in the
+  first tier.
+- **A handler reads the snapshot, and acts as its player** (2026-11-13, the fourth). A handler reads
+  the newest stepped snapshot, not a frame's interpolation, and is told which step it is of, through
+  imports generated from reflection as the commands' are: `get:<Component>` and `each:<Component>`,
+  granted by `read:<Component>`, for the components shown in snapshots and registered with
+  `Reflect::Attribute::Script`. An input still reads only its option's inputs, so nothing a script
+  reads is inside the step, and a rule that wants more is given another input. A handler's commands
+  carry the local player's controller: it acts for the player whose game runs it, on their fleet,
+  and is refused where they would be, since otherwise every player's copy of a mod would send the
+  same command. A rule of the whole world, as the economy's turns are, is an input in the step and
+  never a handler.
+- **A crash report stays on the machine until players outside development have the game**
+  (2026-11-13, the fifth). Each module's GNU build ID goes into the report and a release's debug files
+  are kept by it, so `scripts/symbolise-crash.sh` finds them by the ID rather than needing the build
+  that wrote the report, whatever later carries it; on its next start the shell says where a new
+  report is. When there are such players, an endpoint that speaks Sentry's protocol (Sentry, or a
+  self-hosted GlitchTip) is sent each report on the next start, with the player's consent, and never
+  from the handler. Not Crashpad or sentry-native, which would replace the handler with minidumps,
+  unless the frames and the tail prove not to be enough.
+
 ## Open decisions
 
-To be settled before the work that needs them, each with what is recommended. The first tier's of
-[carried forward](#carried-forward) were settled on 2026-11-13, under [decided](#decided).
-
-1. **How a ship crosses a system** (courses past moving bodies, a body's frame chosen for it). A
-   game decision: compressed time over the real distances, a cruise drive of its own, or gates and
-   lanes alone between a system's bodies. It sets the frame changes, the courses and what the
-   camera shows between, and is the largest of the second tier's.
-2. **Who may fly through a gate** (a gate flown through): the game's rule, landed with the sensor.
-3. **How a player chooses mods** (packs and mods): the enabled list and its order, and a mod's own
-   description. Recommended: `mods.yaml` in the user's data directory listing them, written by the
-   game's menu, and a `mod.yaml` in each with a name, a version and the engine version it was written
-   for, refused when that is newer than the engine's.
-4. **How a script reads the world** (scripts). Recommended: through the snapshot presentation
-   already has, read-only, for a handler, and for an input through the option's inputs as now, so no
-   script reads the world inside the step.
-5. **Where a crash report goes** (crash handling): the game's choice of a service, or none.
-
-Settled as their phases began, with the rest, under [decided](#decided): the last, the Wasm runtime,
-as phase 11b began.
+To be settled before the work that needs them, each with what is recommended. None is open: the
+first tier's of [carried forward](#carried-forward), and the second's with the game's fleet, were
+settled on 2026-11-13, under [decided](#decided).
