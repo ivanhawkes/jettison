@@ -360,7 +360,7 @@ TEST_CASE(
 	CHECK(run(unused, -1) == first);
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too, as
 	// the approach's is: a change here is a change to how buggies drive, or to what a save holds.
-	CHECK(first == 0x428e1325bd13a2c9ull);
+	CHECK(first == 0x67dc6ebab1745602ull);
 
 	Deck loaded;
 	loaded.world.Load(*save);

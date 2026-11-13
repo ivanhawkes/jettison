@@ -20,6 +20,17 @@ namespace Jettison::Sim
 {
 class SimWorld;
 
+// A mod a save was made with: its identifier (its directory's or pack's name) and its version, as
+// its description gives it, or empty for a mod with none. Registered with Reflect as
+// "Sim.ModVersion", every field Saved.
+struct ModVersion
+{
+	std::string mod;
+	std::string version;
+
+	bool operator==(const ModVersion &) const = default;
+};
+
 // What a list of saves shows without loading one, and what a load checks first. Registered with
 // Reflect, every field Saved, as "Sim.SaveInfo".
 struct SaveInfo
@@ -41,7 +52,16 @@ struct SaveInfo
 	std::string galaxy;
 	// The star system presentation showed, by name, for the list and for the game to show again.
 	std::string system;
+	// The mods enabled as it was saved, in mount order: the caller's to set, as the mods are the
+	// game's. A save from before phase 12a names none.
+	std::vector<ModVersion> mods;
 };
+
+// What differs between the mods a save was made with and the mods running, a line each, for a load
+// to say and go on: a mod saved with and not running, one running and not saved with, one at another
+// version, and the same mods in another order. Empty when they are the same.
+std::vector<std::string> ModDifferences(
+    std::span<const ModVersion> saved, std::span<const ModVersion> running);
 
 // A game's own state, beyond the world's (docs/scope.md: the game decides what a save holds beyond
 // the engine's state): a binary archive in a format of the game's, with its own version and

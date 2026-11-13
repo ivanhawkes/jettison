@@ -1,0 +1,5 @@
+# The smoke test's mod: what a player's list of mods shows of it, and what a save records it by.
+version: 1
+name: Smoke test
+release: 1.0.0
+engine: 0.1.0

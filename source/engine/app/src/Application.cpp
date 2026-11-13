@@ -1103,7 +1103,8 @@ void Application::InitUser()
 void Application::InitResources()
 {
 	if (m_assets.Mounts().empty())
-		MountAssets(m_assets, m_arguments.assets, m_userPaths.userData);
+		m_mods = MountAssets(
+		    m_assets, m_arguments.assets, m_userPaths.userData, m_userPaths.config / kModListFile);
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
 	Animation::RegisterRigLoader(*m_pResources);
@@ -2429,9 +2430,11 @@ bool Application::SaveTo(std::string_view name)
 		                          .count();
 		save.info.galaxy = m_galaxyPath;
 		save.info.system = m_systemScene ? m_systemScene->System().name : std::string{};
+		save.info.mods = m_mods;
 		save.AddSection(
 		    std::string{kShellSection},
 		    WriteShellState({m_ship, m_station, m_shipSystem, m_stationBody}));
+		save.AddSection(std::string{Script::kStoreSection}, Script::WriteStore(m_pScripts->Store()));
 		const std::vector<std::byte> bytes = save.Write();
 		m_assets.Write(path, bytes);
 		if (m_showSaves)
@@ -2466,7 +2469,16 @@ bool Application::LoadFrom(std::string_view name)
 		// Everything read before the world is replaced, so a save that does not fit changes nothing.
 		const Sim::SaveSection *section = save.FindSection(kShellSection);
 		const ShellState shell = section ? ReadShellState(section->data) : ShellState{};
+		// A save from before scripts kept keys holds none.
+		const Sim::SaveSection *keys = save.FindSection(Script::kStoreSection);
+		Script::ScriptStore store = keys ? Script::ReadStore(keys->data) : Script::ScriptStore{};
 		m_sim.Load(save.world);
+		m_pScripts->SetStore(std::move(store));
+		// Other mods may make another game of the save, which is the player's to judge: it loads.
+		for (const std::string &difference : Sim::ModDifferences(save.info.mods, m_mods))
+			Core::Log(
+			    Core::Severity::Warning, kShell, "'{}' was saved with other mods: {}", name,
+			    difference);
 
 		StopPiloting();
 		const entt::registry &world = m_sim.Registry();

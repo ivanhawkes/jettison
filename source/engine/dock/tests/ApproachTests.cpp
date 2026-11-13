@@ -187,7 +187,7 @@ TEST_CASE(
 	// Re-pinned in 9d for Highport's display wing, six more pads and a deck more in its shape, with
 	// the approach's times unchanged (111 s to the point above the pad, 23.75 s down); and in 9e for
 	// the empty storages of transfers and buggies a save now holds, 9d's hash without them.
-	CHECK(first == 0x8ace2f180f55bb5cull);
+	CHECK(first == 0x31db016a85e53c80ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);

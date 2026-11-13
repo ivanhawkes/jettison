@@ -668,6 +668,16 @@ JETTISON_IMPORT("log") void jettison_log(int32_t severity, const char *text, uin
  * as the game works it out. A name the game does not know traps. */
 JETTISON_IMPORT("input") double jettison_input(const char *name, uint32_t size);
 
+/* Granted by "store": keeps the bytes under the key, for this script alone and in the game's saves,
+ * in whatever encoding the script chooses; no bytes take the key away. A store past the script's
+ * keys or bytes traps, as does one while it answers an input. */
+JETTISON_IMPORT("store")
+void jettison_store(const char *key, uint32_t key_size, const void *data, uint32_t size);
+/* Granted by "store": copies what is kept under the key into the buffer, as much as fits, and returns
+ * how many bytes are kept, or -1 for none. */
+JETTISON_IMPORT("load")
+int32_t jettison_load(const char *key, uint32_t key_size, void *buffer, uint32_t capacity);
+
 )";
 } // namespace
 
@@ -908,6 +918,19 @@ std::string RustModule(
 	        "    /// that name, as the game works it out. A name the game does not know traps.\n";
 	text +=
 	    "    #[link_name = \"input\"]\n    pub fn jettison_input(name: *const u8, size: u32) -> f64;\n";
+	text += "    /// Granted by \"store\": keeps the bytes under the key, for this script alone and in "
+	        "the\n"
+	        "    /// game's saves; no bytes take the key away. A store past the script's keys or "
+	        "bytes\n"
+	        "    /// traps, as does one while it answers an input.\n"
+	        "    #[link_name = \"store\"]\n"
+	        "    pub fn jettison_store(key: *const u8, key_size: u32, data: *const u8, size: u32);\n"
+	        "    /// Granted by \"store\": copies what is kept under the key into the buffer, as much "
+	        "as\n"
+	        "    /// fits, and returns how many bytes are kept, or -1 for none.\n"
+	        "    #[link_name = \"load\"]\n"
+	        "    pub fn jettison_load(key: *const u8, key_size: u32, buffer: *mut u8, capacity: u32) "
+	        "-> i32;\n";
 	for (const TypeLayout *pLayout : sent)
 		text += std::format(
 		    "    /// Granted by \"{0}\": the command, into the game's queue, applied at the start of "
@@ -919,7 +942,18 @@ std::string RustModule(
 	text += "pub fn log(severity: i32, text: &str) {\n"
 	        "    unsafe { jettison_log(severity, text.as_ptr(), text.len() as u32) }\n}\n\n";
 	text += "pub fn input(name: &str) -> f64 {\n"
-	        "    unsafe { jettison_input(name.as_ptr(), name.len() as u32) }\n}\n";
+	        "    unsafe { jettison_input(name.as_ptr(), name.len() as u32) }\n}\n\n";
+	text += "pub fn store(key: &str, data: &[u8]) {\n"
+	        "    unsafe { jettison_store(key.as_ptr(), key.len() as u32, data.as_ptr(), data.len() as "
+	        "u32) }\n}\n\n";
+	text +=
+	    "/// How many bytes are kept under the key, as much of them as fits copied into the buffer.\n"
+	    "pub fn load(key: &str, buffer: &mut [u8]) -> Option<usize> {\n"
+	    "    let kept = unsafe {\n"
+	    "        jettison_load(key.as_ptr(), key.len() as u32, buffer.as_mut_ptr(), buffer.len() as "
+	    "u32)\n"
+	    "    };\n"
+	    "    if kept < 0 { None } else { Some(kept as usize) }\n}\n";
 	for (const TypeLayout *pLayout : sent)
 		text += std::format(
 		    "\npub fn send_{0}(command: &{0}) {{\n    unsafe {{ jettison_send_{0}(command) }}\n}}\n",

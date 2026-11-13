@@ -51,8 +51,9 @@ struct ScriptDefinition
 	// The most the module's linear memory may grow to, in 64 KiB pages, its stack and the host's
 	// heap for what it is given among them.
 	std::uint32_t memoryPages{16};
-	// What the module may import beyond answering inputs: "log", and "send:<Command>" for each
-	// command it may send, by the command's registered name.
+	// What the module may import beyond answering inputs: "log"; "store", for the imports store and
+	// load, which keep bytes by key in the game's saves; and "send:<Command>" for each command it may
+	// send, by the command's registered name.
 	std::vector<std::string> capabilities;
 	std::vector<EventHandler> events;
 	std::vector<InputFunction> inputs;
@@ -63,6 +64,9 @@ struct ScriptDefinition
 inline constexpr std::uint32_t kScriptVersion = 1;
 inline constexpr std::string_view kScriptDirectory = "defs/scripts";
 inline constexpr std::string_view kLogCapability = "log";
+inline constexpr std::string_view kStoreCapability = "store";
+inline constexpr std::string_view kStoreImport = "store";
+inline constexpr std::string_view kLoadImport = "load";
 inline constexpr std::string_view kInputImport = "input";
 
 // Registers the types with Reflect, once however often it is called.

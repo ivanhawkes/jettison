@@ -18,8 +18,8 @@ namespace
 constexpr std::string_view kFormat = "Jettison.World";
 // The layout Save writes. A change to it, or to what the world saves around its components, is a
 // new version, with a step in Migrations from the one before; a change to a component's fields is
-// the component's own business, since fields are found by name.
-constexpr Serialise::FormatVersion kVersion{2};
+// the component's own business, by its own version and chain (ComponentMigrations).
+constexpr Serialise::FormatVersion kVersion{3};
 
 const Serialise::BinaryMigrations &Migrations()
 {
@@ -31,6 +31,12 @@ const Serialise::BinaryMigrations &Migrations()
 		chain.Add(
 		    1, [](Serialise::BinaryDocument &document)
 		    { document.payload.insert(document.payload.end(), 4, std::byte{0}); });
+		// Version 3 (phase 12a) put each component storage's version first, as a count and a name
+		// and version each. A storage the table leaves out is at version 1, as every one of an older
+		// save is: so the step's table is empty, and the step reads no further than the front.
+		chain.Add(
+		    2, [](Serialise::BinaryDocument &document)
+		    { document.payload.insert(document.payload.begin(), 4, std::byte{0}); });
 		return chain;
 	}();
 	return migrations;
@@ -72,6 +78,10 @@ void SimWorld::AddComponent(const entt::meta_type &type, Component component)
 	if (std::ranges::find(m_components, component.name, &Component::name) != m_components.end())
 		throw std::logic_error{
 		    std::format("SimWorld: component '{}' is already registered", component.name)};
+	if (component.migrations.Format() != component.name)
+		throw std::logic_error{std::format(
+		    "SimWorld: component '{}' is given the migrations of '{}'", component.name,
+		    component.migrations.Format())};
 	m_components.push_back(std::move(component));
 }
 
@@ -146,6 +156,14 @@ bool SimWorld::Accepts(const entt::meta_type &type) const
 std::vector<std::byte> SimWorld::Save() const
 {
 	Serialise::BinaryWriter writer{kFormat};
+	// First, so a load knows every storage's version before it reads one. Each is written, at 1 too,
+	// so a save says what it holds without a reader knowing the default.
+	writer.WriteUnsigned(m_components.size(), 4);
+	for (const Component &component : m_components)
+	{
+		writer.WriteName(component.name);
+		writer.WriteUnsigned(component.migrations.Current().version, 4);
+	}
 	writer.Write(m_clock.Step());
 	writer.Write(m_clock.Now());
 	const Math::RandomState random = m_registry.ctx().get<Math::Random>().State();
@@ -182,6 +200,25 @@ void SimWorld::Load(std::span<const std::byte> save)
 	// Everything is read into locals and committed at the end, so a save that does not fit
 	// leaves the world as it was. A save of an earlier version is migrated first.
 	Serialise::BinaryReader reader{save, Migrations()};
+	// Every storage's version is checked against its component's chain here, before anything else is
+	// read, so a component of a later build is refused by name.
+	std::vector<std::pair<std::string_view, std::uint32_t>> versions;
+	const auto versionCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+	if (versionCount > reader.Remaining() / 8)
+		reader.Fail("the count of component versions is more than the data holds");
+	for (std::uint32_t index = 0; index < versionCount; ++index)
+	{
+		const std::string_view name = reader.ReadName();
+		const auto version = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+		if (std::ranges::find(versions, name, &std::pair<std::string_view, std::uint32_t>::first) !=
+		    versions.end())
+			reader.Fail(std::format("the save gives component '{}' a version twice", name));
+		// A component the world does not register is refused where its storage is.
+		if (const auto component = std::ranges::find(m_components, name, &Component::name);
+		    component != m_components.end())
+			component->migrations.Check(version);
+		versions.emplace_back(name, version);
+	}
 	std::uint64_t step = 0;
 	double now = 0.0;
 	Math::RandomState random;
@@ -222,7 +259,10 @@ void SimWorld::Load(std::span<const std::byte> save)
 		if (std::ranges::find(seen, name) != seen.end())
 			reader.Fail(std::format("the save holds component '{}' twice", name));
 		seen.push_back(name);
-		component->load(loader, reader);
+		const auto version =
+		    std::ranges::find(versions, name, &std::pair<std::string_view, std::uint32_t>::first);
+		component->load(
+		    loader, reader, component->migrations, version == versions.end() ? 1 : version->second);
 	}
 
 	// A service reads its state against the registry it will have, and keeps it aside until the

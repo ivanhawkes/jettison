@@ -28,7 +28,8 @@ if(TARGET jettison_script_tests)
 	set(script_test_modules "${CMAKE_CURRENT_BINARY_DIR}/test-scripts")
 	# Rust, as scripts are written for the shell, and the host API's module in C as well, the same
 	# calls made from each: <module> <source>.
-	set(modules limits limits.rs rogue rogue.rs events events.c events_rs events.rs)
+	set(modules limits limits.rs rogue rogue.rs events events.c events_rs events.rs keys keys.c keys_rs
+		keys.rs)
 	while(modules)
 		list(POP_FRONT modules name source)
 		jettison_add_script(jettison_script_test_${name} ALL

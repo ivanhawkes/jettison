@@ -285,3 +285,99 @@ TEST_CASE("Migration: bytes inside an archive are written after their count, and
 		    FormatError);
 	}
 }
+
+namespace
+{
+// A record's fields hold names (an enumerator, a nested class's fields) as indices into the
+// archive's table, which a record shares and adds to.
+enum class Grade
+{
+	Coarse,
+	Fine,
+	Assayed,
+};
+struct Assay
+{
+	Grade grade{Grade::Coarse};
+	std::uint32_t purity{0};
+};
+struct Lot
+{
+	std::string label;
+	Assay assay;
+	std::uint32_t crates{0};
+};
+
+void RegisterLot()
+{
+	static const bool registered = []
+	{
+		using namespace Jettison::Reflect;
+		RegisterEnum<Grade>("MigrationTests.Grade")
+		    .Value<Grade::Coarse>("Coarse")
+		    .Value<Grade::Fine>("Fine")
+		    .Value<Grade::Assayed>("Assayed");
+		RegisterType<Assay>("MigrationTests.Assay")
+		    .Field<&Assay::grade>("grade", Attribute::Saved)
+		    .Field<&Assay::purity>("purity", Attribute::Saved);
+		RegisterType<Lot>("MigrationTests.Lot")
+		    .Field<&Lot::label>("label", Attribute::Saved)
+		    .Field<&Lot::assay>("assay", Attribute::Saved)
+		    .Field<&Lot::crates>("crates", Attribute::Saved);
+		return true;
+	}();
+	(void)registered;
+}
+} // namespace
+
+TEST_CASE("BinaryRecord: a value's fields edited as bytes, then read as the type is now")
+{
+	RegisterLot();
+	BinaryWriter writer{"MigrationTests.Lots"};
+	writer.Write(Lot{"Halcyon copper", {Grade::Fine, 80}, 3});
+	writer.Write(Lot{"Vesper tin", {Grade::Coarse, 40}, 9});
+	const std::vector<std::byte> bytes = writer.Finish({1});
+
+	BinaryReader reader{bytes, "MigrationTests.Lots", {1}};
+	BinaryRecord first = reader.ReadRecord();
+	BinaryRecord second = reader.ReadRecord();
+	reader.End();
+	CHECK(first.Fields().size() == 3);
+	CHECK(first.Has("assay"));
+	CHECK(first.Get<Assay>("assay").grade == Grade::Fine);
+
+	// An enumerator the archive's table never held, and a nested class rewritten, in one record; the
+	// other record, read after, still reads its own names from the table they share.
+	first.Set("assay", Assay{Grade::Assayed, 95});
+	second.Rename("crates", "count");
+	second.Rename("count", "crates");
+	Lot lot;
+	first.ReadInto(lot);
+	CHECK(lot.label == "Halcyon copper");
+	CHECK(lot.assay.grade == Grade::Assayed);
+	CHECK(lot.assay.purity == 95);
+	CHECK(lot.crates == 3);
+	Lot other;
+	second.ReadInto(other);
+	CHECK(other.assay.grade == Grade::Coarse);
+	CHECK(other.crates == 9);
+
+	// A field the type does not save is refused as any value's is, and a field left out keeps the
+	// value's.
+	second.Rename("crates", "boxes");
+	CHECK_THROWS_WITH_AS(
+	    second.ReadInto(other), doctest::Contains("'MigrationTests.Lot' has no saved field 'boxes'"),
+	    FormatError);
+	second.Remove("boxes");
+	Lot kept;
+	kept.crates = 12;
+	second.ReadInto(kept);
+	CHECK(kept.crates == 12);
+
+	// A field's bytes read by the primitives, and a field the record does not have.
+	BinaryReader label = first.Open("label");
+	CHECK(label.ReadUnsigned(4) == 14);
+	CHECK_THROWS_AS(first.Open("mass"), std::logic_error);
+	CHECK_THROWS_AS(first.Remove("mass"), std::logic_error);
+	CHECK_THROWS_AS(first.Rename("label", "crates"), std::logic_error);
+}

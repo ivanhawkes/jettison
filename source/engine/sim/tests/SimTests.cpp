@@ -11,6 +11,8 @@
 
 #include <glm/vec3.hpp>
 
+#include <bit>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -333,8 +335,8 @@ TEST_CASE("Sim: the same seed and command stream give the same state, in every b
 
 	// Recorded from a Debug build and checked by the Release suite too: a change here is a change
 	// to the simulation's results or to the save layout, and either is a decision, not drift. The
-	// layout last changed in phase 7a (version 2, with the services' state).
-	CHECK(first.StateHash() == 0x5a9262d95686c5c1ull);
+	// layout last changed in phase 12a (version 3, with each component storage's version).
+	CHECK(first.StateHash() == 0x6cbbb633b2549661ull);
 
 	Sim::SimWorld reseeded{kStep, kSeed + 1};
 	Populate(reseeded);
@@ -405,7 +407,7 @@ TEST_CASE("Sim: a save written by version 1 loads through its migration and carr
 
 	// And it steps on to the pinned state of the whole run.
 	Run(loaded, kSteps);
-	CHECK(loaded.StateHash() == 0x5a9262d95686c5c1ull);
+	CHECK(loaded.StateHash() == 0x6cbbb633b2549661ull);
 
 	// Version 1 had no services, so a world with one has no state to give it.
 	Sim::SimWorld serviced{kStep, kSeed};
@@ -418,11 +420,196 @@ TEST_CASE("Sim: a save written by version 1 loads through its migration and carr
 	// A version this build does not know, a later one's, is refused by name.
 	std::vector<std::byte> later = current.Save();
 	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(later, "Jettison.World");
-	document.version = 3;
+	document.version = 4;
 	CHECK_THROWS_WITH_AS(
 	    loaded.Load(document.Emit()),
-	    "Jettison.World: version 3 found, version 2 expected: it was written by a later build",
+	    "Jettison.World: version 4 found, version 3 expected: it was written by a later build",
 	    Serialise::FormatVersionError);
+}
+
+// The same world's step 15, with its tally, as the phase 11 build saved it (commit cfb86e9), at
+// version 2, before each component storage had a version.
+TEST_CASE("Sim: a save written by version 2 loads through its migration, every storage at version 1")
+{
+	RegisterTypes();
+	const std::vector<std::byte> fixture = ReadFixture("world-v2.save");
+	CHECK(Serialise::PeekVersion(fixture, "Jettison.World") == 2);
+
+	Sim::SimWorld loaded{kStep, 1};
+	Populate(loaded);
+	const Tally &tally = AddTally(loaded);
+	loaded.Load(fixture);
+	CHECK(loaded.Clock().Step() == 15);
+	CHECK(tally.ore > 0);
+
+	Sim::SimWorld current{kStep, kSeed};
+	Populate(current);
+	AddTally(current);
+	Run(current, 15);
+	CHECK(loaded.Save() == current.Save());
+	Run(loaded, kSteps);
+	Run(current, kSteps);
+	CHECK(loaded.StateHash() == current.StateHash());
+
+	// A component at version 2 cannot read a save that has it at version 1 without a step.
+	Sim::SimWorld stepless{kStep, kSeed};
+	stepless.RegisterComponent<Position>(Sim::ComponentMigrations{"SimTests.Position", {2}});
+	stepless.RegisterComponent<Velocity>();
+	stepless.RegisterComponent<Hold>();
+	stepless.RegisterComponent<Ship>();
+	AddTally(stepless);
+	CHECK_THROWS_WITH_AS(
+	    stepless.Load(fixture),
+	    "SimTests.Position: version 1 found, version 2 expected: there is no migration from version 1",
+	    Serialise::FormatVersionError);
+}
+
+namespace
+{
+// A component as an earlier build had it, registered under its own name and renamed in the save to
+// the component's (BinaryDocument::Rename), as a build that had it under that name wrote it: a grade
+// the component has since dropped, and its value a float of credits it has since made whole.
+struct CargoV1
+{
+	std::uint32_t tonnes{0};
+	std::string grade;
+	float value{0.0f};
+};
+// Version 2: the grade gone, a fine grade's tonnes counted half again, and the value in whole
+// credits, as the simulation keeps currency.
+struct Cargo
+{
+	std::uint32_t tonnes{0};
+	std::int64_t value{0};
+};
+// Version 3, a later build's, for the refusal.
+struct CargoV3
+{
+	std::uint32_t tonnes{0};
+};
+
+void RegisterCargo()
+{
+	static const bool registered = []
+	{
+		Reflect::RegisterType<CargoV1>("SimTests.CargoV1")
+		    .Field<&CargoV1::tonnes>("tonnes", Attribute::Saved)
+		    .Field<&CargoV1::grade>("grade", Attribute::Saved)
+		    .Field<&CargoV1::value>("value", Attribute::Saved);
+		Reflect::RegisterType<Cargo>("SimTests.Cargo")
+		    .Field<&Cargo::tonnes>("tonnes", Attribute::Saved)
+		    .Field<&Cargo::value>("value", Attribute::Saved);
+		Reflect::RegisterType<CargoV3>("SimTests.CargoV3")
+		    .Field<&CargoV3::tonnes>("tonnes", Attribute::Saved);
+		return true;
+	}();
+	(void)registered;
+}
+
+Sim::ComponentMigrations CargoMigrations()
+{
+	Sim::ComponentMigrations chain{"SimTests.Cargo", {2}};
+	chain.Add(
+	    1,
+	    [](Serialise::BinaryRecord &record)
+	    {
+		    if (record.Has("grade"))
+		    {
+			    if (record.Get<std::string>("grade") == "fine" && record.Has("tonnes"))
+				    record.Set("tonnes", record.Get<std::uint32_t>("tonnes") * 3 / 2);
+			    record.Remove("grade");
+		    }
+		    // A float's bits, read with the reader's primitives by the layout version 1 had.
+		    if (record.Has("value"))
+		    {
+			    Serialise::BinaryReader reader = record.Open("value");
+			    const auto bits = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+			    reader.End();
+			    record.Set("value", static_cast<std::int64_t>(std::lround(std::bit_cast<float>(bits))));
+		    }
+	    });
+	return chain;
+}
+
+std::vector<std::byte> SavedCargo()
+{
+	Sim::SimWorld old{kStep, kSeed};
+	old.RegisterComponent<Position>();
+	old.RegisterComponent<CargoV1>();
+	entt::registry &registry = old.Registry();
+	const entt::entity first = registry.create();
+	registry.emplace<Position>(first, glm::dvec3{1.0, 2.0, 3.0});
+	registry.emplace<CargoV1>(first, 40u, "fine", 1250.6f);
+	const entt::entity second = registry.create();
+	registry.emplace<CargoV1>(second, 12u, "coarse", 99.4f);
+	// One saved before it had a value, which the step leaves out.
+	const entt::entity third = registry.create();
+	registry.emplace<CargoV1>(third, 7u, "", 0.0f);
+	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(old.Save(), "Jettison.World");
+	document.Rename("SimTests.CargoV1", "SimTests.Cargo");
+	return document.Emit();
+}
+} // namespace
+
+TEST_CASE("Sim: a component's chain migrates a field removed and a field retyped, by its record")
+{
+	RegisterTypes();
+	RegisterCargo();
+	const std::vector<std::byte> save = SavedCargo();
+
+	Sim::SimWorld world{kStep, 1};
+	world.RegisterComponent<Position>();
+	world.RegisterComponent<Cargo>(CargoMigrations());
+	world.Load(save);
+	const entt::registry &registry = world.Registry();
+	CHECK(registry.get<Position>(entt::entity{0}).value == glm::dvec3{1.0, 2.0, 3.0});
+	CHECK(registry.get<Cargo>(entt::entity{0}).tonnes == 60);
+	CHECK(registry.get<Cargo>(entt::entity{0}).value == 1251);
+	CHECK(registry.get<Cargo>(entt::entity{1}).tonnes == 12);
+	CHECK(registry.get<Cargo>(entt::entity{1}).value == 99);
+	CHECK(registry.get<Cargo>(entt::entity{2}).tonnes == 7);
+	CHECK(registry.get<Cargo>(entt::entity{2}).value == 0);
+
+	// Saved again, the storage is at version 2, and loads with no step.
+	const std::vector<std::byte> again = world.Save();
+	Sim::SimWorld reloaded{kStep, 1};
+	reloaded.RegisterComponent<Position>();
+	reloaded.RegisterComponent<Cargo>(CargoMigrations());
+	reloaded.Load(again);
+	CHECK(reloaded.Save() == again);
+
+	// Without the chain, the removed field is refused by name, and the world is as it was.
+	Sim::SimWorld unmigrated{kStep, 1};
+	unmigrated.RegisterComponent<Position>();
+	unmigrated.RegisterComponent<Cargo>();
+	const std::vector<std::byte> before = unmigrated.Save();
+	CHECK_THROWS_WITH_AS(
+	    unmigrated.Load(save), doctest::Contains("'SimTests.Cargo' has no saved field 'grade'"),
+	    Serialise::FormatError);
+	CHECK(unmigrated.Save() == before);
+
+	// A later build's version is refused by the component's name, before anything is read.
+	Sim::SimWorld later{kStep, kSeed};
+	Sim::ComponentMigrations third{"SimTests.CargoV3", {3}};
+	third.Add(1, [](Serialise::BinaryRecord &) {}).Add(2, [](Serialise::BinaryRecord &) {});
+	later.RegisterComponent<CargoV3>(std::move(third));
+	later.Registry().emplace<CargoV3>(later.Registry().create(), 5u);
+	Serialise::BinaryDocument document =
+	    Serialise::BinaryDocument::Parse(later.Save(), "Jettison.World");
+	document.Rename("SimTests.CargoV3", "SimTests.Cargo");
+	Sim::SimWorld current{kStep, 1};
+	current.RegisterComponent<Cargo>(CargoMigrations());
+	CHECK_THROWS_WITH_AS(
+	    current.Load(document.Emit()),
+	    "SimTests.Cargo: version 3 found, version 2 expected: it was written by a later build",
+	    Serialise::FormatVersionError);
+
+	// A chain under another name is a mistake in the registration.
+	Sim::SimWorld misnamed{kStep, 1};
+	CHECK_THROWS_WITH_AS(
+	    misnamed.RegisterComponent<Cargo>(Sim::ComponentMigrations{"SimTests.Hold", {2}}),
+	    "SimWorld: component 'SimTests.Cargo' is given the migrations of 'SimTests.Hold'",
+	    std::logic_error);
 }
 
 TEST_CASE("Sim: the recorded commands replay a session from its start")

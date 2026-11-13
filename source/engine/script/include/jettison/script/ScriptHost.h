@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -59,11 +60,34 @@ struct HostLimits
 {
 	std::uint32_t fuel{10'000'000};
 	std::uint32_t memoryPages{256};
+	// What a script may keep by key (ScriptStore): its keys and their bytes together, and how many
+	// keys, so no mod grows every save. A key is 1 to kMaxKeyBytes bytes.
+	std::uint32_t storeBytes{64 * 1024};
+	std::uint32_t storeKeys{256};
 	// A call's wall time. Fuel bounds what a script does; this bounds what fuel cannot see (a
 	// machine stalled, a definition with fuel enough for seconds), well past what the most fuel
 	// takes in a sanitised Debug build.
 	std::chrono::milliseconds time{250};
 };
+
+// What scripts keep by key through the store and load imports, by script, then key: each script's
+// own, in an encoding it chooses and migrates itself, by a version under a key of its own should it
+// want one, so the host never needs its types. Not the instance's memory saved whole, which is up to
+// megabytes a script and which a module rebuilt would no longer read. Handlers run outside the step,
+// so this is a section of the save game (kStoreSection) and not the world's state, its hash or a
+// replay. Ordered by name, so the same keys write the same bytes.
+using ScriptKeys = std::map<std::string, std::vector<std::byte>, std::less<>>;
+using ScriptStore = std::map<std::string, ScriptKeys, std::less<>>;
+
+inline constexpr std::string_view kStoreSection = "Script.Store";
+inline constexpr std::uint32_t kStoreVersion = 1;
+inline constexpr std::size_t kMaxKeyBytes = 64;
+
+// The store as a binary archive of the format kStoreSection, at kStoreVersion.
+std::vector<std::byte> WriteStore(const ScriptStore &store);
+// Throws FormatError for data that does not fit, a key that is empty or too long among it, and
+// FormatVersionError for another version.
+ScriptStore ReadStore(std::span<const std::byte> bytes);
 
 // A script that does not load: a module that does not parse, an import not granted, an export
 // missing or of the wrong signature, a grant of a command nothing applies. Names the script.
@@ -83,6 +107,9 @@ struct ScriptStatus
 	std::uint64_t traps{0};
 	// Past its time limit, and not called again.
 	bool stopped{false};
+	// What it keeps by key: the keys, and their bytes and the values' together.
+	std::size_t storedKeys{0};
+	std::size_t storedBytes{0};
 	// The last trap's message, or the reason it stopped.
 	std::string lastTrap;
 };
@@ -128,6 +155,15 @@ class ScriptHost
 	// for a script not loaded or a function it does not export with that many i32s.
 	std::optional<std::vector<std::int32_t>> Call(
 	    std::string_view script, std::string_view function, std::span<const std::int32_t> arguments);
+
+	// What every script keeps by key, loaded or not: a script unloaded, or left out of a run, keeps
+	// its keys for when it loads again.
+	const ScriptStore &Store() const;
+	// Replaces every script's keys, as a save's are loaded (ReadStore), and makes each loaded
+	// script's handlers' instance again from its module, so what a script holds in memory is the
+	// loaded game's and nothing of the game before it: it reads its keys again. A script whose
+	// instance cannot be made is stopped, as after a trap.
+	void SetStore(ScriptStore store);
 
 	// The scripts loaded, in name order.
 	std::vector<ScriptStatus> Scripts() const;

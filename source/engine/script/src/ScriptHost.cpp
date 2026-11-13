@@ -2,6 +2,7 @@
 
 #include <jettison/core/Log.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Binary.h>
 #include <jettison/sim/CommandQueue.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
@@ -67,6 +68,12 @@ void LogNative(
     wasm_exec_env_t environment, std::int32_t severity, const char *pText, std::uint32_t size);
 double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t size);
 void SendNative(wasm_exec_env_t environment, std::uint32_t offset);
+void StoreNative(
+    wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, const std::byte *pData,
+    std::uint32_t size);
+std::int32_t LoadNative(
+    wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, std::byte *pBuffer,
+    std::uint32_t capacity);
 
 // The process's runtime, started by the first host and destroyed with the last. WAMR's natives are
 // the process's too, registered by name under the module "jettison": the fixed ones as the runtime
@@ -136,13 +143,15 @@ class Runtime
 	    : m_fixed{{
 	          {"log", reinterpret_cast<void *>(&LogNative), "(i*~)", nullptr},
 	          {"input", reinterpret_cast<void *>(&InputNative), "(*~)F", nullptr},
+	          {"store", reinterpret_cast<void *>(&StoreNative), "(*~*~)", nullptr},
+	          {"load", reinterpret_cast<void *>(&LoadNative), "(*~*~)i", nullptr},
 	      }}
 	{
 	}
 
 	int m_users{0};
 	// WAMR keeps these pointers: the arrays live as long as the process.
-	std::array<NativeSymbol, 2> m_fixed;
+	std::array<NativeSymbol, 4> m_fixed;
 	std::map<entt::id_type, std::unique_ptr<Send>> m_sends;
 };
 
@@ -277,6 +286,13 @@ struct ScriptHost::Impl
 	std::map<std::string, std::unique_ptr<Script>, std::less<>> scripts;
 	// Which script answers each input.
 	std::map<std::string, Script *, std::less<>> answers;
+	// Every script's keys, loaded or not.
+	ScriptStore store;
+
+	const HostLimits &Limits() const
+	{
+		return host.m_limits;
+	}
 	std::unique_ptr<Watchdog> pWatchdog;
 
 	explicit Impl(ScriptHost &owner) : host{owner}
@@ -388,6 +404,90 @@ double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t
 		Refuse(environment, *pScript, std::format("input '{}': {}", name, error.what()));
 		return 0.0;
 	}
+}
+
+std::size_t StoredBytes(const ScriptKeys &keys)
+{
+	std::size_t bytes = 0;
+	for (const auto &[key, value] : keys)
+		bytes += key.size() + value.size();
+	return bytes;
+}
+
+// What a key may be, or why not.
+std::optional<std::string> BadKey(std::string_view key)
+{
+	if (key.empty())
+		return "an empty key";
+	if (key.size() > kMaxKeyBytes)
+		return std::format("a key of {} bytes, past the {} a key may be", key.size(), kMaxKeyBytes);
+	return std::nullopt;
+}
+
+void StoreNative(
+    wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, const std::byte *pData,
+    std::uint32_t size)
+{
+	HostScript *pScript = CallingScript(environment);
+	if (pScript == nullptr)
+		return;
+	const std::string_view key = Text(pKey, keySize);
+	// An input reads only its option's inputs, so its answer is theirs alone.
+	if (pScript->pGame != nullptr)
+		return Refuse(environment, *pScript, std::format("stored '{}' while answering an input", key));
+	if (const auto bad = BadKey(key))
+		return Refuse(environment, *pScript, std::format("store: {}", *bad));
+	ScriptKeys &keys = pScript->pHost->store[pScript->name];
+	const auto found = keys.find(key);
+	if (size == 0)
+	{
+		if (found != keys.end())
+			keys.erase(found);
+		return;
+	}
+	const HostLimits &limits = pScript->pHost->Limits();
+	if (found == keys.end() && keys.size() >= limits.storeKeys)
+		return Refuse(
+		    environment, *pScript,
+		    std::format("store: '{}' would be a key past its {}", key, limits.storeKeys));
+	const std::size_t kept =
+	    StoredBytes(keys) - (found == keys.end() ? 0 : key.size() + found->second.size());
+	if (kept + key.size() + size > limits.storeBytes)
+		return Refuse(
+		    environment, *pScript,
+		    std::format(
+		        "store: {} bytes under '{}' would keep {} bytes, past its {}", size, key,
+		        kept + key.size() + size, limits.storeBytes));
+	std::vector<std::byte> value{pData, pData + size};
+	if (found != keys.end())
+		found->second = std::move(value);
+	else
+		keys.emplace(std::string{key}, std::move(value));
+}
+
+std::int32_t LoadNative(
+    wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, std::byte *pBuffer,
+    std::uint32_t capacity)
+{
+	HostScript *pScript = CallingScript(environment);
+	if (pScript == nullptr)
+		return -1;
+	const std::string_view key = Text(pKey, keySize);
+	if (pScript->pGame != nullptr)
+	{
+		Refuse(environment, *pScript, std::format("loaded '{}' while answering an input", key));
+		return -1;
+	}
+	const ScriptStore &store = pScript->pHost->store;
+	const auto keys = store.find(pScript->name);
+	if (keys == store.end())
+		return -1;
+	const auto found = keys->second.find(key);
+	if (found == keys->second.end())
+		return -1;
+	const std::vector<std::byte> &value = found->second;
+	std::memcpy(pBuffer, value.data(), std::min<std::size_t>(value.size(), capacity));
+	return static_cast<std::int32_t>(value.size());
 }
 
 void SendNative(wasm_exec_env_t environment, std::uint32_t offset)
@@ -530,9 +630,16 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 			allowed.insert(capability);
 			continue;
 		}
+		if (capability == kStoreCapability)
+		{
+			allowed.emplace(kStoreImport);
+			allowed.emplace(kLoadImport);
+			continue;
+		}
 		constexpr std::string_view kSend = "send:";
 		if (!capability.starts_with(kSend))
-			throw fail(std::format("'{}' is not a capability: log, or send:<command>", capability));
+			throw fail(
+			    std::format("'{}' is not a capability: log, store, or send:<command>", capability));
 		const entt::meta_type type =
 		    Reflect::Resolve(std::string_view{capability}.substr(kSend.size()));
 		if (!type || !Reflect::HasAll(Reflect::AttributesOf(type), Reflect::Attribute::Script))
@@ -869,8 +976,93 @@ std::vector<ScriptStatus> ScriptHost::Scripts() const
 {
 	std::vector<ScriptStatus> statuses;
 	for (const auto &[name, pScript] : m_pImpl->scripts)
-		statuses.push_back(pScript->status);
+	{
+		ScriptStatus status = pScript->status;
+		if (const auto keys = m_pImpl->store.find(name); keys != m_pImpl->store.end())
+		{
+			status.storedKeys = keys->second.size();
+			status.storedBytes = StoredBytes(keys->second);
+		}
+		statuses.push_back(std::move(status));
+	}
 	return statuses;
+}
+
+const ScriptStore &ScriptHost::Store() const
+{
+	return m_pImpl->store;
+}
+
+void ScriptHost::SetStore(ScriptStore store)
+{
+	m_pImpl->store = std::move(store);
+	for (const auto &[name, pScript] : m_pImpl->scripts)
+	{
+		Script &script = *pScript;
+		if (script.status.stopped)
+			continue;
+		try
+		{
+			script.pHandlers = Instantiate(script, script.module);
+		}
+		catch (const ScriptError &error)
+		{
+			script.status.stopped = true;
+			Core::Log(
+			    Core::Severity::Error, kScript, "{}; it is not called again this run", error.what());
+		}
+	}
+}
+
+std::vector<std::byte> WriteStore(const ScriptStore &store)
+{
+	Serialise::BinaryWriter writer{kStoreSection};
+	writer.WriteUnsigned(store.size(), 4);
+	for (const auto &[script, keys] : store)
+	{
+		writer.WriteName(script);
+		writer.WriteUnsigned(keys.size(), 4);
+		for (const auto &[key, value] : keys)
+		{
+			writer.WriteBytes({reinterpret_cast<const std::byte *>(key.data()), key.size()});
+			writer.WriteBytes(value);
+		}
+	}
+	return writer.Finish({kStoreVersion});
+}
+
+ScriptStore ReadStore(std::span<const std::byte> bytes)
+{
+	Serialise::BinaryReader reader{bytes, kStoreSection, {kStoreVersion}};
+	ScriptStore store;
+	// A script is at least its name and its count; a key at least its two counts.
+	const auto scripts = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+	if (scripts > reader.Remaining() / 8)
+		reader.Fail("the count of scripts is more than the data holds");
+	for (std::uint32_t index = 0; index < scripts; ++index)
+	{
+		const std::string_view script = reader.ReadName();
+		if (script.empty() || store.contains(script))
+			reader.Fail(std::format("the store holds script '{}' twice, or with no name", script));
+		ScriptKeys &keys = store[std::string{script}];
+		const auto count = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+		if (count > reader.Remaining() / 8)
+			reader.Fail("the count of keys is more than the data holds");
+		for (std::uint32_t keyIndex = 0; keyIndex < count; ++keyIndex)
+		{
+			const std::vector<std::byte> keyBytes = reader.ReadBytes();
+			std::string key{reinterpret_cast<const char *>(keyBytes.data()), keyBytes.size()};
+			if (const auto bad = BadKey(key))
+				reader.Fail(std::format("script '{}' keeps {}", script, *bad));
+			std::vector<std::byte> value = reader.ReadBytes();
+			if (value.empty())
+				reader.Fail(std::format("script '{}' keeps no bytes under '{}'", script, key));
+			if (!keys.emplace(std::move(key), std::move(value)).second)
+				reader.Fail(std::format("script '{}' keeps a key twice", script));
+		}
+	}
+	reader.End();
+	return store;
 }
 
 std::size_t ScriptHost::LoadedModules() const

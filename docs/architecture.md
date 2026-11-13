@@ -529,12 +529,13 @@ lane, queue five times, and no two hulls come within 35 m in flight.
 
 A save game (`sim/SaveGame.h`, 8a) is one file in its own format, `Jettison.Save`, holding parts
 that are each versioned on their own: its `SaveInfo` (the player's name for it, the engine version
-that wrote it, when, the world's step and time, the galaxy's file and the system shown), the world's
-save (`SimWorld::Save`, `Jettison.World`), and the game's sections, each a binary archive in a format
-of the game's that the save holds and does not read: what a save contains beyond the engine's state
-is the game's ([scope](scope.md)). The info comes first, so a list of saves reads no further. A
-change to the world's layout is a step in the world's migrations and leaves the save game's format
-and the game's sections alone.
+that wrote it, when, the world's step and time, the galaxy's file, the system shown and the mods
+enabled with their versions), the world's save (`SimWorld::Save`, `Jettison.World`), and the game's
+sections, each a binary archive in a format of the game's that the save holds and does not read:
+what a save contains beyond the engine's state is the game's ([scope](scope.md)). The info comes
+first, so a list of saves reads no further. A change to the world's layout is a step in the world's
+migrations and leaves the save game's format and the game's sections alone. The shell's sections are
+its own state (`Shell.State`) and what scripts keep by key (`Script.Store`, [scripts](#scripts)).
 
 Every versioned format reads its earlier versions through a chain of migrations
 (`serialise/Migration.h`), a step from each version to the next, written once, when its version is
@@ -542,15 +543,30 @@ current, and never changed after. A binary step edits the archive as a document:
 through which a field, a component, a command or an enumerator is renamed everywhere it is used, and
 its payload, which the world's step from version 1 to 2 appends its services' empty state to. A
 change inside a value needs the types that wrote it, and a step that has them reads the old version
-with them and writes the new. A YAML step edits the parsed tree, keeping the lines a mistake is
+with them and writes the new.
+
+A component changes by a chain of its own (12a, [decided](roadmap.md#decided)). The world's save
+(version 3) begins with each component storage's version, so a load knows them all before it reads
+one, and a version newer than the component's chain is refused by the component's name before
+anything else is read; a storage of an older save is at version 1, which the world's step from 2
+sets by writing an empty table. A component registered with a chain
+(`SimWorld::RegisterComponent<T>(Sim::ComponentMigrations)`, under its registered name) has each
+value of an older storage read as its record (`Serialise::BinaryRecord`): the field table the binary
+archive writes, each field's name and its bytes, which a step edits. A field removed is read, if the
+step wants it, and taken out; a field retyped is decoded with the reader's primitives by the layout
+the step knows, and set again; the record is then read as the type is now, by name as any value is.
+So the old C++ type is never needed, and a struct inside a component is migrated by the component's
+steps. Adding a field or renaming one needs no version: fields are found by name, and a rename is a
+world step over the table of names. A YAML step edits the parsed tree, keeping the lines a mistake is
 reported at. Definitions migrate the same way ([decided](roadmap.md#decided)). A version newer than
 the build's, or one the chain does not reach, is refused by name before any step runs, and every
 read leaves what it was reading into as it was when the data does not fit.
 
 What a build wrote, every later build loads: the suites keep saves written by earlier versions as
 fixtures (`sim/tests/data`), never regenerated. `world-v1.save` was written by the phase 6d build
-(commit `a5d0c83`) and loads, through the world's migration, into the state this build reaches at
-the same step; `save-v1.save` is the save game's first version, written by phase 8a's.
+(commit `a5d0c83`) and `world-v2.save`, the same world with a service's state, by phase 11's
+(`cfb86e9`); each loads, through the world's migrations, into the state this build reaches at the
+same step. `save-v1.save` is the save game's first version, written by phase 8a's.
 
 A save is written through the VFS to the user mount, the user's data directory
 (`~/.local/share/jettison/saves/<name>.save`), whole and durably (`Core::WriteFileDurably`): to a
@@ -563,7 +579,10 @@ binding's joystick is a number the player's bindings name after the device it wa
 
 Loading replaces the world only once the whole save has read: the info, the galaxy (a save of
 another galaxy is refused), the game's sections and then the world, which itself commits only at the
-end. Presentation then resynchronises its snapshots and makes the traffic layer's proxies again
+end. A save made with other mods than the run's loads, the shell logging each difference
+(`Sim::ModDifferences`: a mod saved with and not enabled, one enabled and not saved with, one at
+another version, or the same mods in another order), since whether that makes another game of the
+save is the player's to judge. Presentation then resynchronises its snapshots and makes the traffic layer's proxies again
 (`SystemScene::ResetTraffic`), since a loaded world's identifiers may name other entities than they
 did.
 
@@ -573,10 +592,23 @@ Everything the engine reads as content goes through `Vfs::FileSystem` (11a): ord
 directory or a pack file (`vfs/Pack.h`), a later mount shadowing an earlier one path by path. The
 shell mounts, bottom to top (`App::MountAssets`): the assets as `base`, the staged directory or,
 where a build has none, `assets.pack` beside it, or whichever `--assets` names; each of the user's
-mods, the directories and `.pack` files under `~/.local/share/jettison/mods`, as `mod:<name>`, in the
-order of their names' bytes, so a player orders their mods by naming them; and the user's data
-directory, writable and last, where saves go. It logs the mounts in order. A mod that cannot be
-mounted is reported and left out, and anything else in the mods directory is reported and ignored.
+mods the player's list enables, the directories and `.pack` files under
+`~/.local/share/jettison/mods`, as `mod:<identifier>`, a directory's name or a pack's without
+`.pack`, so a mod is the same mod packed or not (a second of one identifier is reported and ignored,
+the directory kept); and the user's data directory, writable and last,
+where saves go. It logs the mounts in order. A mod that cannot be mounted is reported and left out,
+and anything else in the mods directory is reported and ignored.
+
+The list is `mods.yaml`, beside `settings.yaml` (12a, [decided](roadmap.md#decided)): the mods in
+mount order, a later one winning, each enabled or not, written by the game's menu. A mod found and
+not listed is added at the end, enabled, in the order of the names' bytes, and the list written
+again, so a directory dropped in works and keeps its place; one listed and missing is reported and
+keeps its place; a list that does not read is reported and left for the player to mend, every mod
+found then mounting by identifier. Each mod may describe itself in a `mod.yaml` at its root: a name
+to show, its `release`, which a save records it by,
+the engine version it was written for, refused when newer than the engine's, and `requires`, the
+mods it needs before it in the list, refused with the reason when one is missing or after it rather
+than the list reordered. A mod with none mounts as before, of no release.
 Nothing that reads content names a host path: the default scene is `scene/main.yaml` through the
 mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
 disk, for the development scenes the reference views use).
@@ -625,7 +657,7 @@ granted, and which of its exports the host calls and for what:
 ```yaml
 version: 1
 module: scripts/smoke.wasm
-capabilities: [log]
+capabilities: [log, store]
 events:
   - {event: Shell.Traded, function: on_traded}
 inputs:
@@ -647,8 +679,8 @@ every size and offset, so a script built against another build's types fails to 
 misreading. The shell's console writes both (`script_bindings <directory>`).
 
 **Imports are capabilities.** The host's functions are in the import module `jettison`: `log`, granted
-by `log`; `input`, for a script that answers inputs; and `send:<Command>` for each command it is
-granted, which the world must apply. As a script loads, every import its module makes is checked
+by `log`; `input`, for a script that answers inputs; `store` and `load`, granted by `store`; and
+`send:<Command>` for each command it is granted, which the world must apply. As a script loads, every import its module makes is checked
 against what its definition grants, and a module that imports anything else, from any other module or
 not granted, is refused, naming the import. WAMR's built-in libc, which offers `printf`, `malloc` and
 the rest to any module, is not built; WASI is not either.
@@ -659,7 +691,7 @@ the rest to any module, is not built; WASI is not either.
   host, which calls each script with a handler for its type, in the scripts' name order. A handler
   acts through the commands it is granted, which go into the world's queue, applied at the next step
   and recorded with the player's, so a replay needs no script to run. A handler's instance is kept
-  from call to call, so it may count what it has seen.
+  from call to call, so it may count what it has seen, until a trap or a load makes it again.
 - **Inputs.** A decision's consideration (entry 26) names an input; one a script answers is the
   script's, and `ScriptHost::WithScripts` wraps the game's inputs for an option so the script works it
   out, asking the game for the option's other inputs through `input`. The traders' choice of run is
@@ -669,6 +701,19 @@ the rest to any module, is not built; WASI is not either.
   did, and a world saved between two steps holds everything an input depends on. An input call sends
   nothing. Neither `ai` nor the decision knows of scripts; the game wraps its inputs. A decision that
   asks for an input neither a trader nor a script answers gives the shell no traders, logged.
+
+**What a script keeps** (12a, [decided](roadmap.md#decided)). A handler's memory is not saved: it is
+up to 16 MB a script, and a module rebuilt would no longer read it. A script keeps what should
+outlast its instance by key instead, through `store`, which keeps bytes under a key (no bytes take
+it away), and `load`, which copies them back and says how many there are, in an encoding the script
+chooses and migrates itself, by a version of its own: the smoke mod's script counts the trades it has
+heard under a key, a version byte and the count. The keys are each script's, kept by the host whether
+the script is loaded or not, and are a section of the save game (`Script.Store`), not the world's
+state, since handlers run outside the step: so not in its hash or a replay. Loading a save replaces
+them and makes every handler's instance again, so what a script holds in memory is the loaded game's.
+A script is held to 256 keys of 1 to 64 bytes and 64 KiB of keys and bytes together (`HostLimits`),
+past which a store traps, as does a store or a load while it answers an input, which reads only its
+inputs.
 
 **The limits.** Fuel is WAMR's instruction metering: a call runs at most its definition's count of the
 interpreter's instructions (100,000 by default, up to the host's 10 million), counted the same on

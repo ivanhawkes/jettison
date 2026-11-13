@@ -2,6 +2,8 @@
 
 #include <jettison/core/Log.h>
 #include <jettison/script/ScriptHost.h>
+#include <jettison/serialise/Binary.h>
+#include <jettison/serialise/Migration.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SimWorld.h>
@@ -13,6 +15,8 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -311,7 +315,9 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 
 	definition = Events();
 	definition.capabilities.emplace_back("fly");
-	CHECK(refused(definition) == "Script 'events': 'fly' is not a capability: log, or send:<command>");
+	CHECK(
+	    refused(definition) ==
+	    "Script 'events': 'fly' is not a capability: log, store, or send:<command>");
 	definition = Events();
 	definition.capabilities.emplace_back("send:Test.Ping");
 	CHECK(refused(definition) == "Script 'events': 'send:Test.Ping' grants a command nothing applies");
@@ -505,4 +511,152 @@ TEST_CASE("Script: every script the registry defines loads, and one that does no
 	CHECK(header.find("typedef struct Test_Ping") != std::string::npos);
 	CHECK(header.find("jettison_send_Test_Pong") != std::string::npos);
 	CHECK(header.find("jettison_send_Test_Ping") == std::string::npos);
+}
+
+namespace
+{
+// What a script keeps by key, in C and in Rust.
+constexpr std::array<const char *, 2> kKeyModules{"keys.wasm", "keys_rs.wasm"};
+
+Script::ScriptDefinition Keys(const char *module)
+{
+	Script::ScriptDefinition definition;
+	definition.module = module;
+	definition.capabilities = {"store"};
+	definition.inputs = {{"stores", "stores"}};
+	return definition;
+}
+
+std::int32_t CallOne(Script::ScriptHost &host, std::string_view function)
+{
+	const std::optional<std::vector<std::int32_t>> result = host.Call("keys", function, {});
+	REQUIRE(result);
+	REQUIRE(result->size() == 1);
+	return result->front();
+}
+
+Script::ScriptStatus StatusOf(const Script::ScriptHost &host, std::string_view name)
+{
+	for (const Script::ScriptStatus &status : host.Scripts())
+		if (status.name == name)
+			return status;
+	return {};
+}
+} // namespace
+
+TEST_CASE("Script: a script keeps bytes by key, past its instance, its unloading and a save")
+{
+	const Vfs::FileSystem files = Modules();
+	for (const char *module : kKeyModules)
+	{
+		CAPTURE(module);
+		Script::ScriptHost host{files};
+		host.Load("keys", Keys(module));
+		CHECK(CallOne(host, "recall") == -1);
+		const std::array remembered{41};
+		CHECK(host.Call("keys", "remember", remembered));
+		CHECK(CallOne(host, "recall") == 41);
+		CHECK(StatusOf(host, "keys").storedKeys == 1);
+		CHECK(StatusOf(host, "keys").storedBytes == 9);
+		CHECK(host.Call("keys", "forget", {}));
+		CHECK(CallOne(host, "recall") == -1);
+		CHECK(host.Store().at("keys").empty());
+
+		const std::array seven{7};
+		CHECK(host.Call("keys", "remember", seven));
+		CHECK(CallOne(host, "held") == 2);
+		// A script unloaded keeps its keys for when it loads again.
+		host.Unload("keys");
+		CHECK(host.Store().at("keys").size() == 1);
+		host.Load("keys", Keys(module));
+		CHECK(CallOne(host, "recall") == 7);
+
+		// Through a save's section, into another host, whose script starts its memory again.
+		const std::vector<std::byte> section = Script::WriteStore(host.Store());
+		CHECK(Script::WriteStore(Script::ReadStore(section)) == section);
+		Script::ScriptHost other{files};
+		other.Load("keys", Keys(module));
+		CHECK(other.Call("keys", "remember", remembered));
+		CHECK(CallOne(other, "held") == 1);
+		other.SetStore(Script::ReadStore(section));
+		CHECK(CallOne(other, "recall") == 7);
+		CHECK(CallOne(other, "held") == 0);
+	}
+}
+
+TEST_CASE("Script: a store past the script's keys or bytes traps, and what it kept stays")
+{
+	const Vfs::FileSystem files = Modules();
+	Script::HostLimits limits;
+	limits.storeKeys = 4;
+	limits.storeBytes = 1024;
+	for (const char *module : kKeyModules)
+	{
+		CAPTURE(module);
+		Script::ScriptHost host{files, limits};
+		host.Load("keys", Keys(module));
+		const Said said;
+		const std::array four{4, 10};
+		CHECK(host.Call("keys", "hoard", four));
+		CHECK(StatusOf(host, "keys").storedKeys == 4);
+		CHECK(StatusOf(host, "keys").storedBytes == 52);
+		const std::array five{5, 10};
+		CHECK_FALSE(host.Call("keys", "hoard", five));
+		CHECK(said.Contains("hoard trapped: store: 'k"));
+		CHECK(said.Contains("would be a key past its 4"));
+		CHECK(StatusOf(host, "keys").storedKeys == 4);
+
+		// Bytes: a key's replaced bytes are not counted twice, and more than the limit is refused.
+		const std::array larger{1, 900};
+		CHECK(host.Call("keys", "hoard", larger));
+		CHECK(StatusOf(host, "keys").storedBytes == 3 + 900 + 39);
+		const std::array tooLarge{1, 1000};
+		CHECK_FALSE(host.Call("keys", "hoard", tooLarge));
+		CHECK(said.Contains("1000 bytes under 'k"));
+		CHECK(said.Contains("past its 1024"));
+		CHECK(StatusOf(host, "keys").storedBytes == 3 + 900 + 39);
+
+		CHECK_FALSE(host.Call("keys", "long_key", {}));
+		CHECK(said.Contains("store: a key of 65 bytes, past the 64 a key may be"));
+
+		// An input reads only its inputs, so it may not store.
+		CHECK(host.Input("stores", [](std::string_view) { return 0.0; }) == 0.0);
+		CHECK(said.Contains("stores trapped: stored 'count' while answering an input"));
+		CHECK_FALSE(host.Store().at("keys").contains("count"));
+	}
+
+	// A module that stores without the grant is refused as it loads.
+	Script::ScriptHost host{files};
+	Script::ScriptDefinition ungranted = Keys(kKeyModules[0]);
+	ungranted.capabilities.clear();
+	CHECK_THROWS_WITH_AS(
+	    host.Load("keys", ungranted), doctest::Contains("it imports 'store', which it is not granted"),
+	    Script::ScriptError);
+}
+
+TEST_CASE("Script: a store's section that does not fit is refused")
+{
+	const auto section = [](const std::string &key, std::vector<std::byte> value)
+	{
+		Serialise::BinaryWriter writer{Script::kStoreSection};
+		writer.WriteUnsigned(1, 4);
+		writer.WriteName("keys");
+		writer.WriteUnsigned(1, 4);
+		writer.WriteBytes({reinterpret_cast<const std::byte *>(key.data()), key.size()});
+		writer.WriteBytes(value);
+		return writer.Finish({Script::kStoreVersion});
+	};
+	const std::vector<std::byte> fits = section("count", {std::byte{1}});
+	CHECK(Script::ReadStore(fits).at("keys").at("count") == std::vector<std::byte>{std::byte{1}});
+	CHECK_THROWS_WITH_AS(
+	    Script::ReadStore(section("", {std::byte{1}})), doctest::Contains("keeps an empty key"),
+	    Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    Script::ReadStore(section("count", {})), doctest::Contains("keeps no bytes under 'count'"),
+	    Serialise::FormatError);
+	CHECK_THROWS_AS(Script::ReadStore(std::span{fits}.first(fits.size() - 1)), Serialise::FormatError);
+
+	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(fits, Script::kStoreSection);
+	document.version = Script::kStoreVersion + 1;
+	CHECK_THROWS_AS(Script::ReadStore(document.Emit()), Serialise::FormatVersionError);
 }

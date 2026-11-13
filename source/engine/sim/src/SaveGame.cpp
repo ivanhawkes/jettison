@@ -18,6 +18,9 @@ void RegisterSaveTypes()
 	static const bool registered = []
 	{
 		using Reflect::Attribute;
+		Reflect::RegisterType<ModVersion>("Sim.ModVersion")
+		    .Field<&ModVersion::mod>("mod", Attribute::Saved)
+		    .Field<&ModVersion::version>("version", Attribute::Saved);
 		Reflect::RegisterType<SaveInfo>("Sim.SaveInfo")
 		    .Field<&SaveInfo::name>("name", Attribute::Saved)
 		    .Field<&SaveInfo::engineVersion>("engineVersion", Attribute::Saved)
@@ -25,10 +28,45 @@ void RegisterSaveTypes()
 		    .Field<&SaveInfo::step>("step", Attribute::Saved)
 		    .Field<&SaveInfo::time>("time", Attribute::Saved)
 		    .Field<&SaveInfo::galaxy>("galaxy", Attribute::Saved)
-		    .Field<&SaveInfo::system>("system", Attribute::Saved);
+		    .Field<&SaveInfo::system>("system", Attribute::Saved)
+		    .Field<&SaveInfo::mods>("mods", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;
+}
+
+std::vector<std::string> ModDifferences(
+    std::span<const ModVersion> saved, std::span<const ModVersion> running)
+{
+	const auto named = [](std::span<const ModVersion> mods, std::string_view mod)
+	{ return std::ranges::find(mods, mod, &ModVersion::mod); };
+	const auto shown = [](const ModVersion &mod)
+	{
+		return mod.version.empty() ? std::format("'{}'", mod.mod)
+		                           : std::format("'{}' {}", mod.mod, mod.version);
+	};
+	std::vector<std::string> differences;
+	for (const ModVersion &mod : saved)
+	{
+		const auto found = named(running, mod.mod);
+		if (found == running.end())
+			differences.push_back(std::format("{} was enabled and is not", shown(mod)));
+		else if (found->version != mod.version)
+			differences.push_back(
+			    std::format(
+			        "'{}' was {} and is {}", mod.mod,
+			        mod.version.empty() ? "of no version" : mod.version,
+			        found->version.empty() ? "of none" : found->version));
+	}
+	for (const ModVersion &mod : running)
+		if (named(saved, mod.mod) == saved.end())
+			differences.push_back(std::format("{} is enabled and was not", shown(mod)));
+	// The same mods: then only their order can differ, which decides which of two changing one file
+	// wins.
+	if (differences.empty() &&
+	    !std::ranges::equal(saved, running, {}, &ModVersion::mod, &ModVersion::mod))
+		differences.emplace_back("the mods are mounted in another order");
+	return differences;
 }
 
 SaveGame SaveGame::Of(const SimWorld &world, std::string name)

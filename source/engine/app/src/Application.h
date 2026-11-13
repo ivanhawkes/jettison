@@ -34,6 +34,7 @@
 #include <jettison/scene/SystemScene.h>
 #include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
+#include <jettison/sim/SaveGame.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
 #include <jettison/time/Clock.h>
@@ -339,6 +340,8 @@ class Application
 	// writable, which saves go to. The scene's files and the renderer's
 	// programs are found through it, so a mount added above the base can replace one.
 	Vfs::FileSystem m_assets;
+	// The mods mounted, in order, with their versions: what a save records it was made with.
+	std::vector<Sim::ModVersion> m_mods;
 	// The resources read from it on the I/O worker - the scene's rigs, the renderer's models,
 	// materials and textures - which hot-reload in a development build. Updated once a frame,
 	// before the render. The worker outlives the manager, and the manager the scene and the

@@ -12,6 +12,10 @@ built, are recorded in [history](history.md).
 | Phase | Work | Exit criterion |
 |---|---|---|
 | 0–11 | **Done** 2026-11-10 to 2026-11-13: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish, scripting and shipping. Recorded in [history](history.md). | Met. |
+| 12 | **Saves and the step's interface.** Sub-phases 12a–12c: the first tier of [carried forward](#carried-forward), what a save holds and what leaves the step, before players have saves. | A save made before phase 12 loads; a component, a script's keys, the mods and Jolt's version each have their place in a save, with a test of each migration; and a refusal leaves the step as a reason the string tables word. |
+| 12a | **The save's shape.** Done 2026-11-13. Catalogue entries 25, 29 and 10 ([decided](#decided): a component's chain, a script's keys, a player's mods). A version per component storage: the world's save, at version 3, begins with each storage's version, the step from 2 writing an empty table so every storage of an older save is at 1, and a version past a component's chain is refused by the component's name before anything else is read. A component's chain (`Sim::ComponentMigrations`, `SimWorld::RegisterComponent<T>(chain)`) runs over each value's record (`Serialise::BinaryRecord`, `BinaryReader::ReadRecord`): its fields' names and bytes, sharing the archive's table of names, read with the reader's primitives (`Open`) or as a type (`Get`), set, removed and renamed, then read as the type is now (`ReadInto`). A script's keys: the imports `store` and `load`, granted by `store`, bytes under keys of 1 to 64 bytes, 256 keys and 64 KiB a script (`HostLimits`), refused while it answers an input; kept by the host whether the script is loaded or not (`ScriptStore`), a section of the save game (`Script.Store`, `WriteStore`, `ReadStore`), a load's `SetStore` making each handler's instance again; in the C header and the Rust module. Mods: `mods.yaml` beside the settings, in mount order, each enabled or not, a mod's identifier its directory's name or its pack's without `.pack`, a mod found and not listed added at the end and the list written again, one listed and missing keeping its place; `mod.yaml` at a mod's root (`App::ModDescription`: a name, its `release`, the engine it was written for, `requires`), a mod for a newer engine or whose requirement is not mounted before it left out; the mods mounted and their releases in `SaveInfo::mods`, and `Sim::ModDifferences`, which the shell's load logs and goes on. The smoke mod describes itself, and its script counts the trades it hears under a key. The world's six pinned hashes moved with the layout, each checked to be its old value when the old layout is written ([persistence](architecture.md#persistence), [files, packs and mods](architecture.md#files-packs-and-mods), [scripts](architecture.md#scripts)). | Met: in the sim suite, `world-v2.save`, written by commit `cfb86e9`, loads through the world's step into the state this build saves at step 15, and steps on to the same hash; a component's chain reads a save of its earlier layout, a field removed (a grade, a fine one counted into the tonnes) and a field retyped (a float of credits read by its bits and made whole), and saves it at version 2; without the chain the removed field is refused by name, a later build's version by the component's, and a step missing by its version. In the app suite, the smoke mod's script, mounted from a user's mods, counts two trades, a save game holds its keys and the mods (`smoke` 1.0.0), and a new host loaded from it hears the next as its third; a load under none or other mods names each difference; the player's list orders, disables and adds mods, keeps a missing one's place, is not written when nothing is added, and when it does not read is kept as it is; a mod for engine 0.2.0, one requiring it, one requiring a mod after it and one whose description is misspelt are left out, each with its reason. In the script suite, under the sanitisers too, the keys from C and from Rust kept past an unload and through a section, a fifth key past four and 1,000 bytes past 1,024 refused with what was kept left as it was, a 65-byte key, a store in an input and a module storing ungranted refused; in the serialise suite, a record's enumerator new to the table and a nested struct set, and a field the type does not save refused. The packed smoke test, both scenes, mounts `smoke.pack` as `mod:smoke` ("The mod smoke is Smoke test 1.0.0"), adds it to the run's `mods.yaml`, and saves and loads with the script's keys and the mod named in the save, with no difference said; its script, counting under its key, heard 4 trades. |
+| 12b | **Jolt's state across a Jolt upgrade.** Catalogue entry 25 ([decided](#decided): physics keeps Jolt's state). Physics' layout 4 with Jolt's version and feature bits; the bodies rebuilt from the world's components and physics' records on a version that differs. | A save given another Jolt version loads by the rebuild and steps on; what the rebuild loses (the warm start, the clamps, sleep) is measured and recorded. |
+| 12c | **Reasons and the owner's purse.** Catalogue entry 30, 8b and 9f ([decided](#decided): a reason and its arguments, a player's fleet). `Sim::Reason` in place of the text the docks', lanes', steering's and trades' events carry, worded by presentation from the string tables; the purse on an entity of its owner's, a trade refused from a sender that does not own the ship. | The market's refusals read in English and German from the tables; a trade sent for another's ship is refused with a reason. |
 
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
 target and a test, and phases 2–11 fill stubs in rather than invent structure.
@@ -36,18 +40,6 @@ the most pressing. The decisions they waited on are settled, under [decided](#de
 Each of these fixes what a save holds or the shape of what goes into and out of the step, and gets
 dearer with every save a player has and once a second player sends commands.
 
-- **A change inside a component's fields** (entry 25, 8a): fields are found by name, so a field
-  added to a component reads an old save with its default, and one renamed is a rename in the
-  world's table; but a field removed is refused (the archive refuses a field its type does not
-  save), and a field whose type changed misreads its length. Migrating either needs the old type in
-  the step, and the world's steps have the document alone. Decided (2026-11-13,
-  [decided](#decided)): a version per component storage and a chain per component over its binary
-  record; the storage's version wants placing before saves matter, the chains when the game first
-  changes a component.
-- **A script's state in a save** (entry 29, 11b): a handler keeps its instance between calls, and a
-  save holds none of it, so a handler that counts starts again from nothing on a load (an input
-  keeps none, by design). Whatever carries it is in every save made after scripts matter. Decided
-  (2026-11-13): keys a script stores bytes under, a section of the save game; not yet built.
 - **The simulation's text** (entry 30, 11d): a trade's refusal and a save's problem are English made
   in the step and carried in its events as text, which no string table can word; each event wants a
   reason and its values for presentation to word instead. Every rule the game adds that refuses
@@ -59,9 +51,6 @@ dearer with every save a player has and once a second player sends commands.
   and trades for whichever ship of it they are attached to, so the purse is the owner's, which a
   save holds, and a trade is refused from a sender that does not own the ship. Decided (2026-11-13): the
   purse on an entity of its owner's, each trader the owner of one ship; not yet built.
-- **The mods a save was made with** (entry 10, 11a): a save does not say which mods made it, so a
-  load under others cannot say what differs. Decided (2026-11-13): the save records the mods
-  enabled and their versions, and a load with others says which differ and goes on; not yet built.
 - **Commands that carry their sender** (9c): the docks' commands carry a `Sim::Controller` and
   are refused from one that does not control the ship, and a trader sends its own with its AI
   controller (9f); the flight controls, a destination, a lane entered and a pick do not yet, and are
@@ -119,11 +108,10 @@ own scale, gates flown through, traders that react, and mods a player can choose
   inputs); a script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
   when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
   not report, for the console.
-- **Packs and mods, not yet placed** (entry 10, 11a): a list of the mods enabled and their order,
-  which the shell takes from their names, and a mod's own description (decided, 2026-11-13:
-  `mods.yaml` beside the settings and a `mod.yaml` in each mod, with what it requires); a patch that removes an element from a list, rather than replacing
-  the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything but
-  definitions, so a mod still replaces a scene, a system or a stylesheet whole.
+- **Packs and mods, not yet placed** (entry 10, 11a): the game's menu over `mods.yaml` (12a), which
+  the player edits by hand until then; a patch that removes an element from a list, rather than
+  replacing the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything
+  but definitions, so a mod still replaces a scene, a system or a stylesheet whole.
 - **Picking a paused world, and under the cursor every frame** (entry 22, 7c): a pick is answered by
   the next step, so a paused world answers when it resumes, and a hover highlight would send a
   command a frame. Both want a query presentation makes itself, against the bodies' shapes in a
@@ -649,7 +637,9 @@ Settled on 2026-11-10:
   user's own files in the order of their names' bytes, so the order is the same on every machine and a
   player sets it by naming. Not zip archives: a pack is a few hundred lines the engine owns, reads a
   file without reading the rest, and checks each file it reads, where a zip reader would be another
-  dependency for the same thing. A list of enabled mods, in the settings, is the game's to add.
+  dependency for the same thing. A list of enabled mods, in the settings, is the game's to add. Since
+  12a the order is the player's list's (`mods.yaml`, below), name order standing only for the mods
+  it does not yet name, and a pack's name is its identifier without `.pack`.
 - **Definitions layer by patches, merged as YAML** (2026-11-13, phase 11a, entry 13's finer
   layering). A mod's `<name>.patch.yaml` beside a definition changes what it names over every layer
   below it, and a whole file still replaces one: merging the YAML before it is read, rather than the

@@ -139,6 +139,21 @@ class Writer
 	}
 
   public:
+	// Starts from a table, as a record's field does, so the names its value uses are added after it.
+	void Preload(std::span<const std::string> names)
+	{
+		for (const std::string &name : names)
+			Intern(name);
+	}
+	const std::vector<std::string> &Names() const
+	{
+		return m_names;
+	}
+	std::vector<std::byte> TakePayload()
+	{
+		return std::move(m_payload);
+	}
+
 	// The table is in order of first use, so the same values write the same bytes. Names are
 	// copied: a caller's name need not outlive the writer.
 	std::uint32_t Intern(std::string_view name)
@@ -232,6 +247,15 @@ class Reader
 	Reader(std::span<const std::byte> bytes, std::string_view root) : m_bytes{bytes}, m_path{root}
 	{
 	}
+	// A value with no header, whose names index a table the caller keeps.
+	Reader(
+	    std::span<const std::byte> bytes, std::string_view root, const std::vector<std::string> &names)
+	    : m_bytes{bytes}, m_pNames{&names}, m_path{root}
+	{
+	}
+	// It points into itself.
+	Reader(const Reader &) = delete;
+	Reader &operator=(const Reader &) = delete;
 
 	void Header(std::string_view root, FormatVersion expected)
 	{
@@ -261,7 +285,7 @@ class Reader
 
 	const std::vector<std::string> &Names() const
 	{
-		return m_names;
+		return *m_pNames;
 	}
 	std::span<const std::byte> Rest() const
 	{
@@ -351,9 +375,9 @@ class Reader
 	std::string_view Name()
 	{
 		const std::uint32_t index = Count();
-		if (index >= m_names.size())
-			Fail(std::format("name {} is past the end of the table of {}", index, m_names.size()));
-		return m_names[index];
+		if (index >= m_pNames->size())
+			Fail(std::format("name {} is past the end of the table of {}", index, m_pNames->size()));
+		return (*m_pNames)[index];
 	}
 
 	// Into the object value holds or refers to: replacing the meta_any itself would leave a
@@ -437,6 +461,8 @@ class Reader
 	std::span<const std::byte> m_bytes;
 	std::size_t m_offset{0};
 	std::vector<std::string> m_names;
+	// The table names index: the archive's own, or a record's.
+	const std::vector<std::string> *m_pNames{&m_names};
 	Path m_path;
 };
 } // namespace
@@ -495,10 +521,19 @@ struct BinaryReader::Impl
 	    : name{format}, migrated{std::move(owned)}, reader{migrated, name}
 	{
 	}
+	// Over a record's field.
+	Impl(
+	    std::span<const std::byte> bytes, const std::vector<std::string> &names,
+	    std::string_view context)
+	    : name{context}, reader{bytes, name, names}
+	{
+	}
 
 	std::string name;
 	std::vector<std::byte> migrated;
 	Reader reader;
+	// The table the records read share, copied from the archive's at the first.
+	std::shared_ptr<std::vector<std::string>> pRecordNames;
 };
 
 BinaryReader::BinaryReader(
@@ -524,7 +559,36 @@ std::vector<std::byte> BinaryReader::ReadBytes()
 	return {bytes.begin(), bytes.end()};
 }
 
+BinaryReader::BinaryReader(
+    std::span<const std::byte> bytes, const std::vector<std::string> &names, std::string_view context)
+    : m_pImpl{std::make_unique<Impl>(bytes, names, context)}
+{
+}
+
 BinaryReader::~BinaryReader() = default;
+BinaryReader::BinaryReader(BinaryReader &&) noexcept = default;
+BinaryReader &BinaryReader::operator=(BinaryReader &&) noexcept = default;
+
+BinaryRecord BinaryReader::ReadRecord()
+{
+	Reader &reader = m_pImpl->reader;
+	if (!m_pImpl->pRecordNames)
+		m_pImpl->pRecordNames = std::make_shared<std::vector<std::string>>(reader.Names());
+	BinaryRecord record;
+	record.m_pNames = m_pImpl->pRecordNames;
+	record.m_context = m_pImpl->name;
+	// Not reserved, for the reason Reader::Value gives for a sequence.
+	const std::uint32_t count = reader.Count();
+	for (std::uint32_t index = 0; index < count; ++index)
+	{
+		std::string name{reader.Name()};
+		if (record.Has(name))
+			reader.Fail(std::format("the record gives field '{}' twice", name));
+		const std::span<const std::byte> bytes = reader.Take(reader.Count());
+		record.m_fields.push_back({std::move(name), {bytes.begin(), bytes.end()}});
+	}
+	return record;
+}
 
 std::uint64_t BinaryReader::ReadUnsigned(std::size_t width)
 {
@@ -557,6 +621,99 @@ void BinaryReader::Fail(std::string_view problem) const
 void BinaryReader::End() const
 {
 	m_pImpl->reader.End();
+}
+
+// ---- Records ------------------------------------------------------------------------------
+
+namespace
+{
+std::uint32_t InternInto(std::vector<std::string> &names, std::string_view name)
+{
+	const auto found = std::ranges::find(names, name);
+	if (found != names.end())
+		return static_cast<std::uint32_t>(found - names.begin());
+	names.emplace_back(name);
+	return static_cast<std::uint32_t>(names.size() - 1);
+}
+
+void PutUnsigned(std::vector<std::byte> &out, std::uint64_t value, std::size_t width)
+{
+	for (std::size_t index = 0; index < width; ++index)
+		out.push_back(static_cast<std::byte>((value >> (8 * index)) & 0xffu));
+}
+} // namespace
+
+bool BinaryRecord::Has(std::string_view name) const
+{
+	return std::ranges::find(m_fields, name, &Field::name) != m_fields.end();
+}
+
+BinaryReader BinaryRecord::Open(std::string_view name) const
+{
+	const auto found = std::ranges::find(m_fields, name, &Field::name);
+	if (found == m_fields.end())
+		throw std::logic_error{
+		    std::format("BinaryRecord: {}: the record has no field '{}'", m_context, name)};
+	return BinaryReader{found->bytes, *m_pNames, std::format("{}.{}", m_context, name)};
+}
+
+void BinaryRecord::SetValue(std::string_view name, const entt::meta_any &value)
+{
+	if (!m_pNames)
+		m_pNames = std::make_shared<std::vector<std::string>>();
+	Writer writer{std::format("{}.{}", m_context, name)};
+	writer.Preload(*m_pNames);
+	writer.Value(value);
+	// The names the value added go after the ones the table had, so the indices it wrote hold.
+	const std::vector<std::string> &names = writer.Names();
+	m_pNames->insert(
+	    m_pNames->end(), names.begin() + static_cast<std::ptrdiff_t>(m_pNames->size()), names.end());
+	std::vector<std::byte> bytes = writer.TakePayload();
+	const auto found = std::ranges::find(m_fields, name, &Field::name);
+	if (found != m_fields.end())
+		found->bytes = std::move(bytes);
+	else
+		m_fields.push_back({std::string{name}, std::move(bytes)});
+}
+
+void BinaryRecord::Remove(std::string_view name)
+{
+	const auto found = std::ranges::find(m_fields, name, &Field::name);
+	if (found == m_fields.end())
+		throw std::logic_error{
+		    std::format("BinaryRecord: {}: the record has no field '{}' to remove", m_context, name)};
+	m_fields.erase(found);
+}
+
+void BinaryRecord::Rename(std::string_view from, std::string_view to)
+{
+	const auto found = std::ranges::find(m_fields, from, &Field::name);
+	if (found == m_fields.end())
+		throw std::logic_error{
+		    std::format("BinaryRecord: {}: the record has no field '{}' to rename", m_context, from)};
+	if (Has(to))
+		throw std::logic_error{std::format(
+		    "BinaryRecord: {}: the record has a field '{}' already, which '{}' would merge with",
+		    m_context, to, from)};
+	found->name = std::string{to};
+}
+
+void BinaryRecord::ReadInto(entt::meta_any &value) const
+{
+	// The record as a class's value is written, its names in the shared table, read as any is.
+	std::vector<std::string> empty;
+	std::vector<std::string> &names = m_pNames ? *m_pNames : empty;
+	std::vector<std::byte> bytes;
+	PutUnsigned(bytes, m_fields.size(), 4);
+	for (const Field &field : m_fields)
+	{
+		PutUnsigned(bytes, InternInto(names, field.name), 4);
+		PutUnsigned(bytes, field.bytes.size(), 4);
+		bytes.insert(bytes.end(), field.bytes.begin(), field.bytes.end());
+	}
+	Reader reader{bytes, m_context, names};
+	reader.Class(value);
+	reader.End();
 }
 
 std::vector<std::byte> BinaryArchive::Write(const entt::meta_any &value, FormatVersion version)

@@ -17,6 +17,7 @@
 #include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
+#include <jettison/sim/SaveGame.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -133,4 +134,73 @@ TEST_CASE(
 	    host.WithScripts([](std::string_view input) { return input == "rivals" ? 1.0 : 0.0; });
 	CHECK(inputs("crowding") == 0.5);
 	CHECK(inputs("rivals") == 1.0);
+}
+
+TEST_CASE("Scripts: a script's keys and the mods enabled go into a save and come out of a load")
+{
+	const ModdedUser user;
+	Vfs::FileSystem files;
+	const std::vector<Sim::ModVersion> mods =
+	    App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, user.root);
+	CHECK(mods == std::vector<Sim::ModVersion>{{"smoke", "1.0.0"}});
+	Sim::SimWorld world{1.0 / 60.0, 1};
+	App::RegisterTrading(world);
+	Sim::DefinitionRegistry definitions{files};
+	App::LoadTradeDefinitions(definitions);
+	App::LoadTraderDefinitions(definitions);
+	Script::LoadDefinitions(definitions);
+
+	std::vector<std::string> said;
+	const Core::LogCallbackId listening = Core::AddLogCallback(
+	    [&said](const Core::LogRecord &record)
+	    {
+		    if (record.category == "script" && record.message.starts_with("smoke:"))
+			    said.emplace_back(record.message);
+	    });
+	const auto trade = [](std::uint64_t step)
+	{
+		return Sim::SimEvent{
+		    step, entt::meta_any{App::Traded{entt::entity{3}, entt::entity{4}, "beer", 2, 300, 600}}};
+	};
+
+	// The shell's save: the world, the script's keys in their section, and the mods.
+	std::vector<std::byte> bytes;
+	{
+		Script::ScriptHost host{files};
+		host.SendCommandsTo(world);
+		REQUIRE(host.LoadAll(definitions) == 1);
+		host.Dispatch(trade(1));
+		host.Dispatch(trade(2));
+		Sim::SaveGame save = Sim::SaveGame::Of(world, "Two trades");
+		save.info.mods = mods;
+		save.AddSection(std::string{Script::kStoreSection}, Script::WriteStore(host.Store()));
+		bytes = save.Write();
+		// It counts on past the save.
+		host.Dispatch(trade(3));
+	}
+
+	// A new run's load: the count is the save's, though the script's instance never heard a trade.
+	const Sim::SaveGame loaded = Sim::SaveGame::Read(bytes);
+	Script::ScriptHost host{files};
+	host.SendCommandsTo(world);
+	REQUIRE(host.LoadAll(definitions) == 1);
+	const Sim::SaveSection *section = loaded.FindSection(Script::kStoreSection);
+	REQUIRE(section != nullptr);
+	host.SetStore(Script::ReadStore(section->data));
+	host.Dispatch(trade(4));
+	Core::RemoveLogCallback(listening);
+	REQUIRE(said.size() == 4);
+	CHECK(said[2] == "smoke: heard trade 3: bought 2 crate(s) of beer at 300 credits");
+	CHECK(said[3] == "smoke: heard trade 3: bought 2 crate(s) of beer at 300 credits");
+
+	// The mods it was made with, against the same, none and others.
+	CHECK(loaded.info.mods == mods);
+	CHECK(Sim::ModDifferences(loaded.info.mods, mods).empty());
+	CHECK(
+	    Sim::ModDifferences(loaded.info.mods, {}) ==
+	    std::vector<std::string>{"'smoke' 1.0.0 was enabled and is not"});
+	const std::vector<Sim::ModVersion> others{{"smoke", "1.1.0"}, {"wine", ""}};
+	CHECK(
+	    Sim::ModDifferences(loaded.info.mods, others) ==
+	    std::vector<std::string>{"'smoke' was 1.0.0 and is 1.1.0", "'wine' is enabled and was not"});
 }

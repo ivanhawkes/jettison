@@ -153,6 +153,15 @@ unsafe extern "C" {
     /// that name, as the game works it out. A name the game does not know traps.
     #[link_name = "input"]
     pub fn jettison_input(name: *const u8, size: u32) -> f64;
+    /// Granted by "store": keeps the bytes under the key, for this script alone and in the
+    /// game's saves; no bytes take the key away. A store past the script's keys or bytes
+    /// traps, as does one while it answers an input.
+    #[link_name = "store"]
+    pub fn jettison_store(key: *const u8, key_size: u32, data: *const u8, size: u32);
+    /// Granted by "store": copies what is kept under the key into the buffer, as much as
+    /// fits, and returns how many bytes are kept, or -1 for none.
+    #[link_name = "load"]
+    pub fn jettison_load(key: *const u8, key_size: u32, buffer: *mut u8, capacity: u32) -> i32;
     /// Granted by "send:Test.Pong": the command, into the game's queue, applied at the start of the
     /// next step and recorded with the player's.
     #[link_name = "send:Test.Pong"]
@@ -165,6 +174,18 @@ pub fn log(severity: i32, text: &str) {
 
 pub fn input(name: &str) -> f64 {
     unsafe { jettison_input(name.as_ptr(), name.len() as u32) }
+}
+
+pub fn store(key: &str, data: &[u8]) {
+    unsafe { jettison_store(key.as_ptr(), key.len() as u32, data.as_ptr(), data.len() as u32) }
+}
+
+/// How many bytes are kept under the key, as much of them as fits copied into the buffer.
+pub fn load(key: &str, buffer: &mut [u8]) -> Option<usize> {
+    let kept = unsafe {
+        jettison_load(key.as_ptr(), key.len() as u32, buffer.as_mut_ptr(), buffer.len() as u32)
+    };
+    if kept < 0 { None } else { Some(kept as usize) }
 }
 
 pub fn send_Test_Pong(command: &Test_Pong) {

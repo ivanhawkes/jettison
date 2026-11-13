@@ -52,6 +52,16 @@ JETTISON_IMPORT("log") void jettison_log(int32_t severity, const char *text, uin
  * as the game works it out. A name the game does not know traps. */
 JETTISON_IMPORT("input") double jettison_input(const char *name, uint32_t size);
 
+/* Granted by "store": keeps the bytes under the key, for this script alone and in the game's saves,
+ * in whatever encoding the script chooses; no bytes take the key away. A store past the script's
+ * keys or bytes traps, as does one while it answers an input. */
+JETTISON_IMPORT("store")
+void jettison_store(const char *key, uint32_t key_size, const void *data, uint32_t size);
+/* Granted by "store": copies what is kept under the key into the buffer, as much as fits, and returns
+ * how many bytes are kept, or -1 for none. */
+JETTISON_IMPORT("load")
+int32_t jettison_load(const char *key, uint32_t key_size, void *buffer, uint32_t capacity);
+
 typedef struct jettison_array_int32_t
 {
 	const int32_t *data;

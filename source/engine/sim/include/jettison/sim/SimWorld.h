@@ -17,6 +17,7 @@
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/math/Random.h>
 #include <jettison/serialise/Binary.h>
+#include <jettison/serialise/Migration.h>
 #include <jettison/sim/CommandQueue.h>
 #include <jettison/sim/Events.h>
 #include <jettison/sim/Snapshot.h>
@@ -71,6 +72,22 @@ struct SnapshotInput
 	}
 };
 
+// A storage saved at an earlier version of its component: each value read as its record, brought
+// up by the component's chain, then read as the type is now.
+struct MigratingInput : SnapshotInput
+{
+	const Serialise::Migrations<Serialise::BinaryRecord> &migrations;
+	std::uint32_t version;
+
+	using SnapshotInput::operator();
+	template <typename T> void operator()(T &component)
+	{
+		Serialise::BinaryRecord record = reader.ReadRecord();
+		migrations.Run(record, version);
+		record.ReadInto(component);
+	}
+};
+
 // The name Reflect registered a type under; throws std::logic_error if it has none.
 std::string_view ReflectedName(const entt::meta_type &type, std::string_view what);
 } // namespace Detail
@@ -111,15 +128,31 @@ class WorldService
 // The world's generator is in the registry's context (Random()), where systems reach it. A system
 // draws from it in an order its step fixes, so the draws are part of the replay. The event queue
 // to presentation (Events()) is in the context too, and is not part of the state.
+// A component's migrations: a chain over the binary record of one value (Serialise::BinaryRecord),
+// a step from each of its versions to the next, under the component's registered name. A step reads
+// what the version before it wrote, by the field names and the bytes the record holds, so a field
+// removed or retyped is decoded by the step that knows how it was laid out, and the old type is not
+// needed. A reflected struct inside a component is migrated by the component's steps.
+using ComponentMigrations = Serialise::Migrations<Serialise::BinaryRecord>;
+
 class SimWorld
 {
   public:
 	// Throws std::invalid_argument for a step that is not positive and finite.
 	SimWorld(double fixedStep, std::uint64_t seed);
 
-	// A component type the world saves and hashes. Throws std::logic_error for a type Reflect
-	// does not know or one registered twice.
+	// A component type the world saves and hashes, at version 1, or at its chain's current version,
+	// which the world saves with its storage and runs the chain from as it loads a storage of an
+	// earlier one. Adding or renaming a field needs no version (fields are found by name, and a
+	// rename is a step of the world's over the table of names); removing a field, or changing its
+	// type, does. Throws std::logic_error for a type Reflect does not know, one registered twice, or
+	// a chain under another name than the type's.
 	template <typename T> void RegisterComponent()
+	{
+		RegisterComponent<T>(ComponentMigrations{
+		    std::string{Detail::ReflectedName(entt::resolve<T>(), "component")}, {}});
+	}
+	template <typename T> void RegisterComponent(ComponentMigrations migrations)
 	{
 		AddComponent(
 		    entt::resolve<T>(), {[](const entt::registry &registry, Serialise::BinaryWriter &writer)
@@ -127,12 +160,20 @@ class SimWorld
 			                         Detail::SnapshotOutput output{writer};
 			                         entt::snapshot{registry}.get<T>(output);
 		                         },
-		                         [](entt::snapshot_loader &loader, Serialise::BinaryReader &reader)
+		                         [](entt::snapshot_loader &loader, Serialise::BinaryReader &reader,
+		                            const ComponentMigrations &chain, std::uint32_t version)
 		                         {
-			                         Detail::SnapshotInput input{reader};
+			                         if (version == chain.Current().version)
+			                         {
+				                         Detail::SnapshotInput input{reader};
+				                         loader.get<T>(input);
+				                         return;
+			                         }
+			                         Detail::MigratingInput input{{reader}, chain, version};
 			                         loader.get<T>(input);
 		                         },
-		                         {}});
+		                         {},
+		                         std::move(migrations)});
 	}
 
 	// How a command is applied. Throws std::logic_error for a type Reflect does not know or one
@@ -253,9 +294,11 @@ class SimWorld
 	std::vector<std::byte> Save() const;
 	// Replaces the state with a save's. The registrations stay. A save of an earlier version is
 	// migrated to the current one first, by the world's chain of steps, one a version; a version 1
-	// save (before phase 7a) has no services' state, and loads only into a world with none. Throws
-	// FormatError or FormatVersionError for a save that does not fit, among them one without the
-	// state of every service the world has, and the world is then as it was before.
+	// save (before phase 7a) has no services' state, and loads only into a world with none. Then
+	// each component's storage saved at an earlier version of the component is read through its
+	// chain. Throws FormatError or FormatVersionError for a save that does not fit, among them one
+	// without the state of every service the world has, or with a component at a version its chain
+	// does not reach, and the world is then as it was before.
 	void Load(std::span<const std::byte> save);
 
 	// A hash of the save: the same seed and command stream give the same hash in every build,
@@ -266,8 +309,12 @@ class SimWorld
 	struct Component
 	{
 		std::function<void(const entt::registry &, Serialise::BinaryWriter &)> save;
-		std::function<void(entt::snapshot_loader &, Serialise::BinaryReader &)> load;
+		std::function<void(
+		    entt::snapshot_loader &, Serialise::BinaryReader &, const ComponentMigrations &,
+		    std::uint32_t)>
+		    load;
 		std::string name;
+		ComponentMigrations migrations;
 	};
 	using Applier = std::function<void(SimWorld &, const entt::meta_any &)>;
 	struct Service

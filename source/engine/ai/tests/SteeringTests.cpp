@@ -493,7 +493,7 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	// change here is a change to how steering flies, or to what a save holds, and either is a
 	// decision, not drift. 9c's destination saves whether it is kept clear by its hull and which
 	// way it faces; without those fields saved the flight still hashes to 9b's 0x7b531286df2bea60.
-	CHECK(first == 0x2408699817714f70ull);
+	CHECK(first == 0x348528439a61a5e0ull);
 
 	Fixture loaded;
 	(void)Gathering(loaded);

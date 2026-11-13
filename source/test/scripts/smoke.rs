@@ -1,5 +1,5 @@
 //! The smoke mod's script (source/test/mods/smoke/defs/scripts/smoke.yaml): it says what it hears of
-//! each trade filled, and works out how crowded a run's shelf is for the traders' decision. Built
+//! each trade filled, counting them under a key of its own, and works out how crowded a run's shelf is for the traders' decision. Built
 //! against the shell's bindings beside it, which the app suite checks are this build's.
 #![no_std]
 
@@ -7,7 +7,6 @@
 mod jettison;
 
 use core::fmt::Write;
-use core::sync::atomic::{AtomicU32, Ordering};
 use jettison::*;
 
 /// A line of the log, as long as it fits.
@@ -34,12 +33,23 @@ impl Write for Line {
     }
 }
 
-/// The trades heard while the handlers' instance lasts.
-static HEARD: AtomicU32 = AtomicU32::new(0);
+/// The trades heard, kept under a key so the count is the game's, and a save carries it: a version
+/// byte first, should the count ever be kept another way, then the count.
+const HEARD: &str = "heard";
+
+fn heard_before() -> u32 {
+    let mut bytes = [0u8; 5];
+    match load(HEARD, &mut bytes) {
+        Some(5) if bytes[0] == 1 => u32::from_le_bytes([bytes[1], bytes[2], bytes[3], bytes[4]]),
+        _ => 0,
+    }
+}
 
 #[unsafe(export_name = "on_traded")]
 pub extern "C" fn on_traded(traded: &Shell_Traded) {
-    let heard = HEARD.fetch_add(1, Ordering::Relaxed) + 1;
+    let heard = heard_before() + 1;
+    let count = heard.to_le_bytes();
+    store(HEARD, &[1, count[0], count[1], count[2], count[3]]);
     let mut line = Line::new();
     let _ = write!(
         line,

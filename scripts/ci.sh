@@ -173,7 +173,8 @@ if [ "$asan" -eq 1 ]; then
 	cmake --build --preset clang-asan --target jettison_vfs_tests jettison_sim_tests \
 		jettison_spatial_tests jettison_physics_tests jettison_ai_tests jettison_dock_tests \
 		jettison_script_tests jettison_script_test_limits jettison_script_test_rogue \
-		jettison_script_test_events jettison_script_test_events_rs
+		jettison_script_test_events jettison_script_test_events_rs jettison_script_test_keys \
+		jettison_script_test_keys_rs
 	ctest --test-dir build/clang-asan -R '^(vfs|sim|spatial|physics|ai|dock|script)$' --output-on-failure \
 		--no-tests=error -j "$jobs"
 fi

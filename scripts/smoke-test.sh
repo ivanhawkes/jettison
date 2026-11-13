@@ -245,8 +245,8 @@ fi
 # taken and its script loaded from it, each said by the shell as it starts, once a scene; and that the
 # script was called from an event, a trade filled, which it says it heard, and never trapped.
 if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
-	for said in "base: the pack " "mod:smoke.pack: the pack " "defs/goods/beer: patched by 'mod:smoke.pack'" \
-		"defs/decisions/trade: patched by 'mod:smoke.pack'" "Script 'smoke': scripts/smoke.wasm loaded"; do
+	for said in "base: the pack " "mod:smoke: the pack " "defs/goods/beer: patched by 'mod:smoke'" \
+		"defs/decisions/trade: patched by 'mod:smoke'" "Script 'smoke': scripts/smoke.wasm loaded"; do
 		count=$(grep -cF "$said" "$app_log" || true)
 		if [ "${count:-0}" -ne 2 ]; then
 			echo "smoke-test: FAIL (the packed run said '$said' $count times, not once a scene)" >&2
