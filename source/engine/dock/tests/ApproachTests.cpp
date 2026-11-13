@@ -187,11 +187,51 @@ TEST_CASE(
 	// Re-pinned in 9d for Highport's display wing, six more pads and a deck more in its shape, with
 	// the approach's times unchanged (111 s to the point above the pad, 23.75 s down); and in 9e for
 	// the empty storages of transfers and buggies a save now holds, 9d's hash without them.
-	CHECK(first == 0x31db016a85e53c80ull);
+	CHECK(first == 0x639e63ab264aa8b9ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);
 	for (int step = kSaveAt; step < kSteps; ++step)
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == first);
+}
+
+TEST_CASE("Docks: a ship made again from a save of another Jolt docks as it would have, and stays")
+{
+	// A docked ship is a kinematic body on its station's rails, and the clamps are presentation's,
+	// so Jolt holds nothing of a docking that the records do not: the rebuild loses none of it.
+	constexpr int kSaveAt = 60 * 120;
+	const Physics::JoltVersion other{5, 5, 0, Physics::BuiltJoltVersion().features};
+	Approach original;
+	for (int step = 0; step < kSaveAt; ++step)
+		original.Step();
+	REQUIRE(original.Docking()->stage == Dock::Stage::Descending);
+	original.physics.SaveAsJoltVersion(other);
+	const std::vector<std::byte> descending = original.world.Save();
+
+	Approach loaded;
+	loaded.world.Load(descending);
+	const std::optional<double> unbroken = original.RunUntil(Dock::Stage::Docked, 60.0);
+	REQUIRE(unbroken);
+	CHECK(loaded.RunUntil(Dock::Stage::Docked, 60.0) == unbroken);
+	CHECK(loaded.FromRest(kShuttleHeight) == original.FromRest(kShuttleHeight));
+	CHECK(loaded.touched.empty());
+
+	// Docked, saved and made again, it is where it would have been ten seconds on, and undocks.
+	const std::vector<std::byte> docked = original.world.Save();
+	Approach again;
+	again.world.Load(docked);
+	for (int step = 0; step < 600; ++step)
+	{
+		original.Advance();
+		again.Advance();
+	}
+	REQUIRE(again.Docking());
+	CHECK(again.Docking()->stage == Dock::Stage::Docked);
+	CHECK(again.FromRest(kShuttleHeight) == original.FromRest(kShuttleHeight));
+	again.world.Commands().Push(Dock::ReleasePad{{}, again.ship});
+	for (int step = 0; step < 60 * 120 && again.Docking(); ++step)
+		again.Advance();
+	CHECK_FALSE(again.Docking());
+	CHECK(again.OnlyOnThePad());
 }

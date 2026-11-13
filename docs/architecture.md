@@ -336,9 +336,30 @@ same order and the same body identifiers. The calls are made in entity order. Th
 the engine's, not Jolt's free list, whose order is history a save does not hold: the lowest free
 index, with a sequence number per index that a save keeps. A save holds each world's frame (where it
 was and how fast it moved over the last step), each body's record (what it was made from and last
-placed at) and Jolt's own state, positions, velocities, sleep and the contact cache each step
-warm-starts from; a load makes the same bodies with the same identifiers and restores it, and steps
-on to the same bytes as the world saved. The physics suite's recorded runs, every kind of body and
+placed at, and whether it sleeps) and Jolt's own state, positions, velocities, sleep and the
+contact cache each step warm-starts from, under the version of Jolt that wrote it; a load makes the
+same bodies with the same identifiers and restores it, and steps on to the same bytes as the world
+saved.
+
+That version is physics' layout 4 (12b, [decided](roadmap.md#decided)): Jolt's major, minor and
+patch (`Physics::BuiltJoltVersion`, 5.6.0) and those of its feature bits that change what it saves
+or how it steps, double precision, the cross-platform determinism and 32-bit object layers. The
+others, assertions above all, differ between a Debug and a Release tree and change neither, so a
+save moves between them with Jolt's state kept. A save of another Jolt, whose state this build
+cannot read, is loaded by rebuilding its bodies from the records alone, each where it was placed,
+moving as it was, and asleep if it was, and its Jolt state is passed over (the load logs it); saved
+again, it is this build's. Layout 3, before the version was saved, is read as 5.6.0's, which every
+save of it was. What a rebuild loses was measured by a save marked as another version
+(`PhysicsWorld::SaveAsJoltVersion`): the contacts Jolt warm-starts each step from, and an awake
+body's time at rest. What touches is kept, and the contacts Jolt finds again in the first step begin
+nothing; a body asleep sleeps on where it lay, and one in flight goes where it would have to the
+bit. Four crates thrusting in a row into a block give 1.2 mm in the first step without their
+impulses and 7.1 mm by the tenth, and rest 4.6 mm from where they would have; the physics suite's
+bay of thrown cargo, rebuilt at step 180 with three pairs touching, is 2 nm out after a step and
+57 µm two seconds on, the same pairs beginning and ending in each step. A docked ship loses nothing:
+it is a kinematic body on its station's rails, and the clamps are presentation's, so a ship rebuilt
+on its way down onto its pad docks at the same step in the same place, and one rebuilt docked stays
+there and undocks. The physics suite's recorded runs, every kind of body and
 shape among them in one and, in the other, a ship flown through a station's docking zone into its
 hub as the station goes round its orbit, at rest in the zone and picked, are pinned to state hashes
 in Debug, Release and under the sanitisers. Jolt asserts in a Debug tree through the
@@ -567,6 +588,8 @@ fixtures (`sim/tests/data`), never regenerated. `world-v1.save` was written by t
 (commit `a5d0c83`) and `world-v2.save`, the same world with a service's state, by phase 11's
 (`cfb86e9`); each loads, through the world's migrations, into the state this build reaches at the
 same step. `save-v1.save` is the save game's first version, written by phase 8a's.
+`physics/tests/data/replay-layout3.save`, physics' layout 3 from phase 12a's build (`8177358`), loads
+with Jolt's state kept and steps on to the bytes the run not saved reaches.
 
 A save is written through the VFS to the user mount, the user's data directory
 (`~/.local/share/jettison/saves/<name>.save`), whole and durably (`Core::WriteFileDurably`): to a

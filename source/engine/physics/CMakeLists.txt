@@ -42,6 +42,11 @@ jettison_add_module(physics
 # Jolt's profiler hooks (src/JoltProfile.cpp), linked by Jolt itself, so whatever links Jolt has
 # them: Jolt references them from most of its objects, and an archive member is only pulled in for
 # a symbol something before it needs.
+if(TARGET jettison_physics_tests)
+	target_compile_definitions(jettison_physics_tests PRIVATE
+		JETTISON_PHYSICS_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+endif()
+
 add_library(jettison_jolt_profile STATIC src/JoltProfile.cpp)
 target_link_libraries(jettison_jolt_profile PRIVATE Jolt Jettison::Profile $<BUILD_INTERFACE:jettison_warnings>)
 set_target_properties(jettison_jolt_profile PROPERTIES FOLDER "Engine")

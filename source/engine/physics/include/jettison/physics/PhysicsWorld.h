@@ -116,6 +116,24 @@ struct Picked
 	glm::vec3 normal{0.0f};
 };
 
+// The Jolt a save's physics state was written by: its version, and those of the build's feature bits
+// (Jolt's JPH_VERSION_FEATURES) that change what Jolt saves or how it steps, double precision, the
+// cross-platform determinism and the width of an object layer. The others (assertions, the
+// profiler, the debug renderer) differ between a Debug and a Release tree and change neither, so a
+// save moves between them with Jolt's state kept.
+struct JoltVersion
+{
+	std::uint32_t major{0};
+	std::uint32_t minor{0};
+	std::uint32_t patch{0};
+	std::uint64_t features{0};
+
+	bool operator==(const JoltVersion &) const = default;
+};
+
+// This build's (5.6.0 now): what a save is written as, and a load keeps Jolt's state for.
+JoltVersion BuiltJoltVersion();
+
 // Jolt in double precision, stepped inside the simulation's fixed step (docs/architecture.md,
 // "Simulation and presentation"). Its state is the simulation's: the world owns it as a service
 // (Sim::WorldService), a save holds its bodies and their contacts, and a world loaded from a save
@@ -224,6 +242,9 @@ class PhysicsWorld final : public Sim::WorldService
 	// The contacts the last step began and ended, in order of pair, and for one pair an end before
 	// a beginning (a body made again).
 	const std::vector<ContactEvent> &Contacts() const;
+	// Whether the entity's body sleeps: a moving body still for half a second is no longer stepped
+	// until something meets or moves it. A static body, and an entity with none, is not asleep.
+	bool Asleep(entt::entity entity) const;
 	// What touches the entity's body now, in entity order: none for an entity with no body.
 	std::vector<entt::entity> Touching(entt::entity entity) const;
 
@@ -243,10 +264,22 @@ class PhysicsWorld final : public Sim::WorldService
 	    const glm::dvec3 &direction, double maxDistance, const CastOptions &options = {}) const;
 
 	// Every system's bodies, each with what it was made from and was last placed at, and Jolt's own
-	// state: positions, velocities, sleep, and the contacts each step starts from; and the contacts
-	// as the engine sees them, what touches and what the last step began and ended.
+	// state, under its version: positions, velocities, sleep, and the contacts each step starts
+	// from; and the contacts as the engine sees them, what touches and what the last step began and
+	// ended.
 	void Save(Serialise::BinaryWriter &writer) const override;
+	// A save of this build's Jolt is loaded as it was saved, and steps on exactly as the world saved
+	// would have. One of another Jolt, whose state this build cannot read, is loaded by rebuilding
+	// its bodies from physics' records instead, each where it was placed, moving as it was, and
+	// asleep if it was: the world steps on, but not as the one saved would have, without the
+	// contacts Jolt warm-starts each step from, and with each awake body's time at rest begun again
+	// (docs/architecture.md, "Persistence"). What touches is kept, and the contacts Jolt finds
+	// again in the first step begin nothing.
 	std::function<void()> Load(Serialise::BinaryReader &reader, const entt::registry &loaded) override;
+	// What Save writes as Jolt's version, in place of this build's: a save that a load rebuilds, as
+	// it would one of a Jolt upgrade, which one build's single Jolt cannot otherwise give a test. The
+	// state saved is still this build's Jolt's, and the load does not read it.
+	void SaveAsJoltVersion(const JoltVersion &version);
 
   private:
 	struct Impl;

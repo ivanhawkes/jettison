@@ -1,6 +1,7 @@
 #include <jettison/physics/PhysicsWorld.h>
 
 #include <jettison/celestial/Orbit.h>
+#include <jettison/physics/Flight.h>
 #include <jettison/sim/Snapshot.h>
 
 #include <doctest/doctest.h>
@@ -222,6 +223,90 @@ TEST_CASE("Contacts: a body asleep still touches what it lies against, and a sen
 	fixture.Run(30);
 	CHECK(fixture.physics.Touching(crate) == std::vector{zone});
 	CHECK(fixture.Logged(ContactPhase::Ended, crate, block));
+}
+
+TEST_CASE("Contacts: a body asleep is made again asleep, where it lay, from a save of another Jolt")
+{
+	Fixture fixture;
+	const entt::entity zone = fixture.Add(Sensor(BodyKind::Static, "zone"), {0.0, 0.0, 0.0});
+	const entt::entity crate = fixture.Add(Make(BodyKind::Dynamic, "crate", 100.0f), {2.995, 0.0, 0.0});
+	const entt::entity block = fixture.Add(Make(BodyKind::Static, "block"), {5.0, 0.0, 0.0});
+	const entt::entity drifter =
+	    fixture.Add(Make(BodyKind::Dynamic, "crate", 100.0f), {-20.0, 0.0, 0.0}, {0.0f, 0.5f, 0.0f});
+	fixture.Run(240);
+	REQUIRE(fixture.physics.Asleep(crate));
+	REQUIRE_FALSE(fixture.physics.Asleep(drifter));
+	fixture.physics.SaveAsJoltVersion({5, 5, 0, Physics::BuiltJoltVersion().features});
+	const std::vector<std::byte> save = fixture.world.Save();
+
+	Fixture loaded;
+	loaded.world.Load(save);
+	CHECK(loaded.physics.Asleep(crate));
+	CHECK_FALSE(loaded.physics.Asleep(drifter));
+	CHECK(loaded.physics.Touching(crate) == std::vector{zone, block});
+	// Nothing begins or ends, the crate sleeps on where it lay, and the drifter, with nothing to
+	// warm-start, goes where it would have to the bit.
+	const glm::dvec3 lay = loaded.Position(crate);
+	fixture.log.clear();
+	fixture.Run(120);
+	loaded.Run(120);
+	CHECK(loaded.log.empty());
+	CHECK(fixture.log.empty());
+	CHECK(loaded.physics.Asleep(crate));
+	CHECK(loaded.Position(crate) == lay);
+	CHECK(loaded.Position(drifter) == fixture.Position(drifter));
+}
+
+TEST_CASE(
+    "Contacts: crates pressed into a block, made again from a save of another Jolt, settle "
+    "millimetres from where they would have")
+{
+	// A row of four, each thrusting at 15 m/s² into the next and the first into the block, at rest
+	// and asleep a step in thirty as the thrust wakes them; saved on such a step.
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	const entt::entity block = fixture.Add(Make(BodyKind::Static, "block"), {5.0, 0.0, 0.0});
+	std::vector<entt::entity> crates;
+	for (int index = 0; index < 4; ++index)
+	{
+		const entt::entity crate =
+		    fixture.Add(Make(BodyKind::Dynamic, "crate", 100.0f), {2.995 - 2.0 * index, 0.0, 0.0});
+		registry.emplace<Physics::Thrusters>(crate);
+		registry.emplace<Physics::FlightControls>(
+		    crate, glm::vec3{1.0f, 0.0f, 0.0f}, glm::vec3{0.0f}, false);
+		crates.push_back(crate);
+	}
+	fixture.Run(240);
+	REQUIRE(fixture.physics.Asleep(crates.back()));
+	fixture.physics.SaveAsJoltVersion({5, 5, 0, Physics::BuiltJoltVersion().features});
+	const std::vector<std::byte> save = fixture.world.Save();
+
+	Fixture loaded;
+	loaded.world.Load(save);
+	fixture.log.clear();
+	// What the warm start is worth: without the impulses each contact starts its step from, the
+	// row gives 1.2 mm in the first step and 7.1 mm by the tenth, and comes to rest 4.6 mm from
+	// where the run not saved does (measured).
+	const auto apart = [&]
+	{
+		double farthest = 0.0;
+		for (const entt::entity crate : crates)
+			farthest =
+			    std::max(farthest, glm::distance(loaded.Position(crate), fixture.Position(crate)));
+		return farthest;
+	};
+	double farthest = 0.0;
+	for (int step = 0; step < 120; ++step)
+	{
+		fixture.Run(1);
+		loaded.Run(1);
+		farthest = std::max(farthest, apart());
+	}
+	CHECK(farthest > 1.0e-3);
+	CHECK(farthest < 0.01);
+	CHECK(apart() < 0.005);
+	CHECK(loaded.log.empty());
+	CHECK(loaded.physics.Touching(crates.front()) == std::vector{block, crates[1]});
 }
 
 TEST_CASE("Contacts: a body removed ends its contacts, and one made again begins its own afresh")

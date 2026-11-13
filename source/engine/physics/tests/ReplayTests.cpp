@@ -5,12 +5,18 @@
 
 #include <doctest/doctest.h>
 
+#include <glm/geometric.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <span>
 #include <string>
+#include <tuple>
 #include <vector>
 
 using namespace Jettison;
@@ -362,7 +368,7 @@ TEST_CASE("Physics replay: bodies collide, and the same commands give the same s
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too: a
 	// change here is a change to physics' results or to what a save holds, and either is a
 	// decision, not drift.
-	CHECK(first.StateHash() == 0xc8f32dae3269ee56ull);
+	CHECK(first.StateHash() == 0xf43a6412c4576d3eull);
 }
 
 TEST_CASE("Physics replay: a world saved part-way and loaded carries on exactly as the original")
@@ -436,4 +442,95 @@ TEST_CASE("Physics replay: a save naming a shape this world does not define is r
 		CHECK_THROWS_AS(loaded.Load(std::span{save}.first(size)), Serialise::FormatError);
 		CHECK(loaded.StateHash() == ran);
 	}
+}
+
+TEST_CASE("Physics replay: a save of layout 3, before Jolt's version was saved, keeps Jolt's state")
+{
+	// Written by commit 8177358 from the run below at step 130, with step 150's command queued: Jolt
+	// 5.6.0, as every save of layout 3 was.
+	std::ifstream file{
+	    std::filesystem::path{JETTISON_PHYSICS_TEST_DATA} / "replay-layout3.save", std::ios::binary};
+	REQUIRE(file);
+	const std::vector<char> text{
+	    std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+	const auto *bytes = reinterpret_cast<const std::byte *>(text.data());
+	const std::vector<std::byte> fixture{bytes, bytes + text.size()};
+
+	Sim::SimWorld loaded{kStep, 1};
+	const Physics::PhysicsWorld &physics = Populate(loaded);
+	loaded.Load(fixture);
+	CHECK(loaded.Clock().Step() == 130);
+	CHECK(physics.BodyCount() == 14);
+
+	Sim::SimWorld original{kStep, kSeed};
+	Populate(original);
+	Run(original, 130);
+	Feed(original, 150);
+	CHECK(loaded.Save() == original.Save());
+	Run(original, kSteps);
+	Run(loaded, kSteps);
+	CHECK(loaded.Save() == original.Save());
+}
+
+TEST_CASE("Physics replay: a save of another Jolt is made again from its records, and steps on")
+{
+	// Saved at step 180, as three pairs touch: a ball and a shard against the bay's walls, and the
+	// drum launched at step 120 against the turning paddle.
+	Sim::SimWorld original{kStep, kSeed};
+	Physics::PhysicsWorld &saving = Populate(original);
+	Run(original, 180);
+	REQUIRE(saving.Touching(Id(0)).size() == 2);
+	REQUIRE(saving.Touching(Id(1)).size() == 1);
+	saving.SaveAsJoltVersion({5, 5, 0, Physics::BuiltJoltVersion().features});
+	const std::vector<std::byte> save = original.Save();
+	saving.SaveAsJoltVersion(Physics::BuiltJoltVersion());
+
+	Sim::SimWorld loaded{kStep, 1};
+	const Physics::PhysicsWorld &physics = Populate(loaded);
+	loaded.Load(save);
+	CHECK(physics.BodyCount() == 14);
+	for (const entt::entity entity : original.Registry().view<const Body>())
+	{
+		CAPTURE(entt::to_integral(entity));
+		CHECK(physics.Touching(entity) == saving.Touching(entity));
+	}
+
+	// Without the contacts Jolt warm-starts from it is not the world saved, but near it: 2 nm out
+	// after a step, 57 µm by step 300 (measured), the same pairs beginning and ending to touch in
+	// each step, though where and how hard they meet is as near and no nearer.
+	double farthest = 0.0;
+	for (std::uint64_t step = 181; step <= kSteps; ++step)
+	{
+		Run(original, step);
+		Run(loaded, step);
+		CAPTURE(step);
+		const auto pairs = [](const std::vector<Physics::ContactEvent> &contacts)
+		{
+			std::vector<std::tuple<Physics::ContactPhase, entt::entity, entt::entity>> pairs;
+			pairs.reserve(contacts.size());
+			for (const Physics::ContactEvent &contact : contacts)
+				pairs.emplace_back(contact.phase, contact.first, contact.second);
+			return pairs;
+		};
+		CHECK(pairs(physics.Contacts()) == pairs(saving.Contacts()));
+		for (auto [entity, body, transform] :
+		     original.Registry().view<const Body, const Sim::Transform>().each())
+			if (body.kind == BodyKind::Dynamic)
+				farthest = std::max(
+				    farthest,
+				    glm::distance(
+				        transform.position, loaded.Registry().get<Sim::Transform>(entity).position));
+	}
+	CHECK(farthest > 0.0);
+	CHECK(farthest < 1.0e-4);
+
+	// Saved again, it is this build's Jolt's, and a world loaded from it carries on exactly.
+	const std::vector<std::byte> again = loaded.Save();
+	Sim::SimWorld reloaded{kStep, 1};
+	Populate(reloaded);
+	reloaded.Load(again);
+	CHECK(reloaded.Save() == again);
+	Run(loaded, kSteps + 60);
+	Run(reloaded, kSteps + 60);
+	CHECK(reloaded.Save() == loaded.Save());
 }

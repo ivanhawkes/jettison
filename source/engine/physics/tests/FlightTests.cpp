@@ -610,7 +610,7 @@ TEST_CASE(
 	CHECK(picked->step == kPickStep);
 
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers.
-	CHECK(world.StateHash() == 0x1e1a566628c0d2f4ull);
+	CHECK(world.StateHash() == 0x5bd03869c87a7364ull);
 
 	// The recorded commands replay it from the start, the pick among them.
 	REQUIRE(world.Recorded().size() == 5);

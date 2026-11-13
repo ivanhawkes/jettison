@@ -49,8 +49,17 @@ constexpr Core::Category kPhysics{"physics"};
 
 // The layout Save writes inside the world's save. A change to it is a new number here, which a
 // world's own version does not see. Layout 2 keys each Jolt world by its frame too, and holds where
-// the frame was (phase 7b); layout 3 holds what touches and the last step's contacts (phase 7c).
-constexpr std::uint64_t kLayout = 3;
+// the frame was (phase 7b); layout 3 holds what touches and the last step's contacts (phase 7c);
+// layout 4 holds the version of Jolt its state is of (phase 12b).
+constexpr std::uint64_t kLayout = 4;
+
+// Jolt's feature bits that change its state or its results (JoltVersion): double precision, the
+// cross-platform determinism and 32-bit object layers, JPH_VERSION_FEATURES' bits 1, 2 and 9.
+constexpr std::uint64_t kStateFeatures = 0b1'0000'0011;
+
+// What every save of layout 3 was written by: Jolt has been 5.6.0 in double precision and
+// cross-platform deterministic, with 16-bit object layers, since the engine first linked it.
+constexpr JoltVersion kLayout3Jolt{5, 6, 0, 0b11};
 
 // Jolt's scratch memory for a step: what a step of a busy system needs, with the heap behind it
 // for one that needs more, rather than Jolt's fixed block failing.
@@ -464,10 +473,11 @@ struct PhysicsWorld::Impl
 	}
 
 	// Makes the body in its world, with the identifier the world gives it or, from a save, the one
-	// it had, at its place in the world's frame. Its record is the caller's to keep.
+	// it had, at its place in the world's frame, and awake unless it is static or made asleep. Its
+	// record is the caller's to keep.
 	void Make(
 	    Detail::StarSystemWorld &world, const JPH::BodyID &id, entt::entity entity,
-	    const Record &record, const ShapeEntry &shape) const
+	    const Record &record, const ShapeEntry &shape, bool asleep = false) const
 	{
 		const JPH::BodyCreationSettings creation = MakeSettings(
 		    entity, record.body, shape, record.placed, world.frameOrigin, record.velocity, settings);
@@ -475,7 +485,7 @@ struct PhysicsWorld::Impl
 		// Capacity was checked, and the identifier is one the world holds free for it.
 		JETTISON_VERIFY(made != nullptr);
 		world.Bodies().AddBody(
-		    id, record.body.kind == BodyKind::Static && !record.body.sensor
+		    id, asleep || (record.body.kind == BodyKind::Static && !record.body.sensor)
 		            ? JPH::EActivation::DontActivate
 		            : JPH::EActivation::Activate);
 	}
@@ -501,7 +511,16 @@ struct PhysicsWorld::Impl
 	// By Sim::SystemId: definitions, not state, so neither saved nor hashed.
 	std::map<std::uint64_t, Celestial::StarSystem> systems;
 	bool reportedUpdateError{false};
+	JoltVersion savedJolt{BuiltJoltVersion()};
 };
+
+JoltVersion BuiltJoltVersion()
+{
+	// JPH_VERSION_FEATURES names Jolt's integer types unqualified.
+	using JPH::uint64;
+	return {
+	    JPH_VERSION_MAJOR, JPH_VERSION_MINOR, JPH_VERSION_PATCH, JPH_VERSION_FEATURES & kStateFeatures};
+}
 
 PhysicsWorld::PhysicsWorld(const PhysicsSettings &settings)
 {
@@ -694,6 +713,13 @@ std::vector<std::uint64_t> PhysicsWorld::Systems() const
 const std::vector<ContactEvent> &PhysicsWorld::Contacts() const
 {
 	return m_pImpl->contacts;
+}
+
+bool PhysicsWorld::Asleep(entt::entity entity) const
+{
+	const auto found = m_pImpl->records.find(entity);
+	return found != m_pImpl->records.end() && found->second.body.kind != BodyKind::Static &&
+	       !found->second.world->Bodies().IsActive(found->second.id);
 }
 
 std::vector<entt::entity> PhysicsWorld::Touching(entt::entity entity) const
@@ -1081,6 +1107,10 @@ void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 		byWorld[entry.second.key].push_back(&entry);
 
 	writer.WriteUnsigned(kLayout, 2);
+	writer.WriteUnsigned(impl.savedJolt.major, 2);
+	writer.WriteUnsigned(impl.savedJolt.minor, 2);
+	writer.WriteUnsigned(impl.savedJolt.patch, 2);
+	writer.WriteUnsigned(impl.savedJolt.features, 8);
 	writer.WriteUnsigned(impl.worlds.size(), 4);
 	for (const auto &[key, world] : impl.worlds)
 	{
@@ -1099,6 +1129,7 @@ void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 			writer.Write(record.body);
 			writer.Write(record.placed);
 			writer.Write(record.velocity);
+			writer.Write(!world->Bodies().IsActive(record.id));
 		}
 		Detail::ByteRecorder recorder;
 		world->System().SaveState(recorder);
@@ -1122,8 +1153,20 @@ std::function<void()> PhysicsWorld::Load(
 	// after physics ran in the step the save was taken after: the next step deals with them as it
 	// would have in the world saved, so they are read as they are.
 	const Impl &impl = *m_pImpl;
-	if (const std::uint64_t layout = reader.ReadUnsigned(2); layout != kLayout)
-		reader.Fail(std::format("the physics state is layout {}, not {}", layout, kLayout));
+	const std::uint64_t layout = reader.ReadUnsigned(2);
+	if (layout != 3 && layout != kLayout)
+		reader.Fail(std::format("the physics state is layout {}, not 3 or {}", layout, kLayout));
+	JoltVersion jolt = kLayout3Jolt;
+	if (layout >= 4)
+	{
+		jolt.major = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
+		jolt.minor = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
+		jolt.patch = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
+		jolt.features = reader.ReadUnsigned(8);
+	}
+	// Another Jolt's state cannot be read, even to check it: its bodies are made from the records,
+	// which already place each one, and its bytes are passed over.
+	const bool rebuild = jolt != BuiltJoltVersion();
 
 	struct Pending
 	{
@@ -1166,7 +1209,13 @@ std::function<void()> PhysicsWorld::Load(
 			        "system {:#x} has {} bodies for {} identifiers", key.system, bodyCount,
 			        sequences.size()));
 		std::vector<std::uint32_t> held;
-		std::vector<std::pair<entt::entity, const ShapeEntry *>> made;
+		struct Made
+		{
+			entt::entity entity;
+			const ShapeEntry *shape;
+			bool asleep;
+		};
+		std::vector<Made> made;
 		for (std::uint32_t bodyIndex = 0; bodyIndex < bodyCount; ++bodyIndex)
 		{
 			entt::entity entity = entt::null;
@@ -1176,6 +1225,10 @@ std::function<void()> PhysicsWorld::Load(
 			reader.Read(record.body);
 			reader.Read(record.placed);
 			reader.Read(record.velocity);
+			// Jolt's state says what sleeps, and a rebuild has to be told.
+			bool asleep = false;
+			if (layout >= 4)
+				reader.Read(asleep);
 			if (index >= sequences.size() || std::ranges::find(held, index) != held.end())
 				reader.Fail(
 				    std::format("{} has body index {}, which is not free", Describe(entity), index));
@@ -1188,19 +1241,20 @@ std::function<void()> PhysicsWorld::Load(
 			if (!pending->records.emplace(entity, record).second)
 				reader.Fail(std::format("{} is a body twice", Describe(entity)));
 			held.push_back(index);
-			made.emplace_back(entity, shape);
+			made.push_back({entity, shape, asleep});
 		}
 		world->RestoreIdentifiers(std::move(sequences), held);
-		for (const auto &[entity, shape] : made)
+		for (const Made &body : made)
 		{
-			const Record &record = pending->records.at(entity);
-			impl.Make(*world, record.id, entity, record, *shape);
+			const Record &record = pending->records.at(body.entity);
+			impl.Make(*world, record.id, body.entity, record, *body.shape, rebuild && body.asleep);
 		}
 
 		std::vector<std::uint8_t> state;
 		reader.Read(state);
 		Detail::ByteRecorder recorder{std::move(state)};
-		if (!world->System().RestoreState(recorder) || recorder.IsFailed() || !recorder.IsEOF())
+		if (!rebuild &&
+		    (!world->System().RestoreState(recorder) || recorder.IsFailed() || !recorder.IsEOF()))
 			reader.Fail(
 			    std::format(
 			        "system {:#x} '{}''s Jolt state does not fit its bodies", key.system, key.frame));
@@ -1229,12 +1283,28 @@ std::function<void()> PhysicsWorld::Load(
 	}
 	reader.Read(pending->contacts);
 
-	return [this, pending]
+	return [this, pending, rebuild, jolt]
 	{
+		if (rebuild)
+		{
+			const JoltVersion built = BuiltJoltVersion();
+			Core::Log(
+			    Core::Severity::Info, kPhysics,
+			    "the save's physics is of Jolt {}.{}.{} (features {:#x}), not this build's {}.{}.{} "
+			    "({:#x}): its {} bodies are made again from their records, without the contacts "
+			    "Jolt warm-starts from",
+			    jolt.major, jolt.minor, jolt.patch, jolt.features, built.major, built.minor,
+			    built.patch, built.features, pending->records.size());
+		}
 		m_pImpl->records = std::move(pending->records);
 		m_pImpl->worlds = std::move(pending->worlds);
 		m_pImpl->touching = std::move(pending->touching);
 		m_pImpl->contacts = std::move(pending->contacts);
 	};
+}
+
+void PhysicsWorld::SaveAsJoltVersion(const JoltVersion &version)
+{
+	m_pImpl->savedJolt = version;
 }
 } // namespace Jettison::Physics
