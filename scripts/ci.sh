@@ -23,10 +23,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # The suites are separate processes, each writing only under a temporary directory named for its
 # process, so they run side by side. CTEST_PARALLEL_LEVEL bounds them, as CI's runner does.
 jobs="${CTEST_PARALLEL_LEVEL:-$(nproc)}"
-# The builds take three quarters of the threads rather than Ninja's nproc + 2: on 24 threads a cold
-# gate's clang twice crashed (exit 139) on files that built alone, with memory to spare, and a lighter
-# load leaves room for whatever else the machine runs. CMAKE_BUILD_PARALLEL_LEVEL, when set, wins.
-export CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$(( $(nproc) * 3 / 4 > 0 ? $(nproc) * 3 / 4 : 1 ))}"
 
 preset="clang-debug"
 headless_preset="${JETTISON_CI_HEADLESS_PRESET:-clang-headless}"
