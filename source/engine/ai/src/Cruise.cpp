@@ -5,6 +5,7 @@
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
+#include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
@@ -153,11 +154,11 @@ double CruiseTravel::ArrivalDistance(const Celestial::Body &body)
 	    std::sqrt(body.gravitationalParameter / kArrivalGravity));
 }
 
-CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world)
+CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics)
 {
 	RegisterTypes();
 	// Shared by the command and the system, which the world keeps for as long as it lives.
-	std::shared_ptr<CruiseTravel> cruises{new CruiseTravel{}};
+	std::shared_ptr<CruiseTravel> cruises{new CruiseTravel{physics}};
 	world.RegisterComponent<CruiseDrive>();
 	world.RegisterComponent<Cruising>();
 	world.ShowInSnapshots<Cruising>();
@@ -304,6 +305,9 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 	// The step being run ends at the next count, and at this time.
 	const std::uint64_t ending = world.Clock().Step() + 1;
 	const double endsAt = world.Clock().Now() + world.FixedStep();
+	// What each arrival comes out clear of, gathered at the first: what is already in the systems
+	// the ships cruise in, and each arrival once it is placed.
+	std::optional<std::vector<Detail::Occupant>> occupants;
 	for (const entt::entity ship : ships)
 	{
 		const Cruising &cruising = registry.get<const Cruising>(ship);
@@ -331,14 +335,24 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 			continue;
 		}
 
-		const glm::dvec3 at = origin + cruising.course.back();
+		if (!occupants)
+		{
+			std::vector<std::uint64_t> inSystems;
+			inSystems.reserve(ships.size());
+			for (const entt::entity other : ships)
+				inSystems.push_back(registry.get<const Sim::InSystem>(other).system);
+			occupants = Detail::Occupants(registry, m_physics, inSystems);
+		}
+		const glm::dvec3 end = origin + cruising.course.back();
 		const glm::dvec3 ahead =
-		    Celestial::EvaluateBody(starSystem, static_cast<std::size_t>(target), endsAt).metres - at;
-		registry.emplace_or_replace<Sim::Transform>(
-		    ship,
-		    Sim::Transform{
-		        at,
-		        Facing(glm::length(ahead) > 0.0 ? glm::normalize(ahead) : glm::dvec3{0.0, 0.0, -1.0})});
+		    Celestial::EvaluateBody(starSystem, static_cast<std::size_t>(target), endsAt).metres - end;
+		Sim::Transform place{
+		    end, Facing(glm::length(ahead) > 0.0 ? glm::normalize(ahead) : glm::dvec3{0.0, 0.0, -1.0})};
+		const double radius = m_physics.ShapeRadius(cruising.body.shape);
+		place.position =
+		    Detail::ClearPlace(*occupants, system, place, radius, LaneTravel::kArrivalClearance);
+		occupants->push_back({system, place.position, radius});
+		registry.emplace_or_replace<Sim::Transform>(ship, place);
 		registry.emplace_or_replace<Physics::Body>(ship, cruising.body);
 		registry.emplace_or_replace<Physics::LocalFrame>(ship, cruising.frame);
 		registry.emplace_or_replace<Physics::Velocity>(ship);

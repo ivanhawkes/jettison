@@ -56,20 +56,32 @@ bodies:
     rotation:
       period: 2360591.5
       axialTilt: 0.0269
-  # The lane to Vesper (galaxy.yaml). Its radius is the ring a ship flies through. It keeps station
-  # 5 km above Highport, straight out from Ostra: its orbit about the station is the station's about
-  # the planet (the same plane, phase and period), so it stays on the line from the planet through
-  # the station, and a ship coming out of it faces the planet with the station before it, half a
-  # minute away at the ship's 150 m/s.
+  # A second station over Ostra, a mining block's, where Highport is a farming one (Manifest keeps
+  # several to a planet, one over each economic block). Built to its layout
+  # (defs/stations/ostra-anchorage.yaml), 600 m across, whose sphere its radius is. Its orbit is
+  # another plane, higher than Highport's, so the two are a cruise apart and never near.
+  - name: Ostra Anchorage
+    kind: Station
+    layout: ostra-anchorage
+    parent: Ostra
+    radius: 303
+    orbit:
+      semiMajorAxis: 7.6e6
+      eccentricity: 0.001
+      inclination: 0.5
+      longitudeOfAscendingNode: 3.0
+      argumentOfPeriapsis: 1.0
+      meanAnomalyAtEpoch: 0.8
+  # The lane to Vesper (galaxy.yaml), a moon gate: a short hop's, in orbit about the planet, 50,000
+  # km out, past the stations and inside Pell's. Its radius is the ring a ship flies through. A ship
+  # comes out of it at rest in its own frame, facing Ostra, and cruises on to a station.
   - name: Halcyon Gate
     kind: JumpPoint
-    parent: Ostra Highport
+    parent: Ostra
     radius: 500
     orbit:
-      semiMajorAxis: 5000
-      inclination: 0.9006
-      longitudeOfAscendingNode: 1.2
-      argumentOfPeriapsis: 0.4
-      meanAnomalyAtEpoch: 3.1416
-      # Highport's period, which its parent's gravity gives it; the station has none to give.
-      period: 5569.440597283014
+      semiMajorAxis: 5.0e7
+      inclination: 0.3
+      longitudeOfAscendingNode: 0.4
+      argumentOfPeriapsis: 0.0
+      meanAnomalyAtEpoch: 4.2

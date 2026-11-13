@@ -15,6 +15,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <jettison/ai/BehaviourTree.h>
+#include <jettison/ai/Cruise.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
@@ -50,12 +51,14 @@ constexpr double kHoldingApart = 150.0;
 // What a trader allows for a stop at a station in its reckoning of a run: the approach round the
 // station and onto the pad, and the cargo across the deck.
 constexpr double kStopSeconds = 240.0;
-// The speed a trader crosses a system at in that reckoning, under its thrusters' 150 m/s for the
-// turns and the arrival, and the clearance its courses keep from a planet.
-constexpr double kCrossingSpeed = 120.0;
-constexpr double kCrossingClearance = 2000.0;
+// What a trader allows for a crossing of a system besides its drive's time in that reckoning: out
+// from a station's pad beyond the reach inside which a ship does not cruise (2.3 km at its
+// thrusters' 150 m/s, round the station), and in from a gate's arrival, 4.6 km off, to its ring.
+constexpr double kCruiseHandlingSeconds = 45.0;
 // A course off a station keeps this far from its sphere.
 constexpr double kStationClearance = 100.0;
+// How far past a station's reach a trader flies before it cruises.
+constexpr double kReachMargin = 300.0;
 
 void RegisterTypes()
 {
@@ -121,6 +124,7 @@ class Round
 		task("head-for", &Round::HeadFor);
 		task("leave", &Round::Leave);
 		task("jumps-left", &Round::JumpsLeft);
+		task("cruise", &Round::CruiseTo);
 		task("fly-to-gate", &Round::FlyToGate);
 		task("jump", &Round::Jump);
 		task("dock", &Round::RequestDock);
@@ -189,7 +193,7 @@ class Round
 			if (const auto known = legs.find(key); known != legs.end())
 				return known->second;
 			if (!crossing)
-				crossing = Crossing(context.world);
+				crossing = Crossing(context.world, context.entity);
 			const std::optional<Ai::Route> route =
 			    Ai::PlotRoute(*m_lanes.Galaxy(), from, to, *crossing);
 			const double seconds = route ? route->seconds + kStopSeconds : -1.0;
@@ -290,7 +294,8 @@ class Round
 			return Status::Failure;
 		const Ai::Place to = MarketPlace(registry, trader.bound);
 		const std::optional<Ai::Route> route = Ai::PlotRoute(
-		    *m_lanes.Galaxy(), PlaceOf(registry, context.entity), to, Crossing(context.world));
+		    *m_lanes.Galaxy(), PlaceOf(registry, context.entity), to,
+		    Crossing(context.world, context.entity));
 		if (!route)
 			return Status::Failure;
 		for (const Celestial::Exit &exit : route->jumps)
@@ -360,17 +365,106 @@ class Round
 		if (context.starting || !destination)
 			if (const entt::entity station = FindStation(registry, system, frame->body);
 			    station != entt::null)
-			{
-				const Ai::Sphere sphere{
-				    registry.get<Sim::Transform>(station).position,
-				    m_physics.ShapeRadius(registry.get<Physics::Body>(station).shape)};
-				const Ai::Waypoints waypoints{{sphere}, kStationClearance};
-				if (const std::optional<Ai::Course> course = waypoints.PlotCourse(at, target))
-					for (std::size_t point = 1; point + 1 < course->points.size(); ++point)
-						flight.waypoints.push_back(course->points[point] - origin);
-			}
+				AddCourseRound(flight, registry, station, at, target, origin);
 		context.world.Apply(Ai::SetDestination{context.entity, std::move(flight)});
 		return Status::Running;
+	}
+
+	// Appends to the flight the waypoints of a course from one point to another round a station's
+	// sphere, in the frame whose origin is given.
+	void AddCourseRound(
+	    Ai::Destination &flight, const entt::registry &registry, entt::entity station,
+	    const glm::dvec3 &from, const glm::dvec3 &to, const glm::dvec3 &origin) const
+	{
+		const Ai::Sphere sphere{
+		    registry.get<Sim::Transform>(station).position,
+		    m_physics.ShapeRadius(registry.get<Physics::Body>(station).shape)};
+		const Ai::Waypoints waypoints{{sphere}, kStationClearance};
+		if (const std::optional<Ai::Course> course = waypoints.PlotCourse(from, to))
+			for (std::size_t point = 1; point + 1 < course->points.size(); ++point)
+				flight.waypoints.push_back(course->points[point] - origin);
+	}
+
+	// Crosses the system to the body the argument names, the gate the route goes through next ("gate")
+	// or the market's station ("market"): flown out of any station's reach, round the station, where
+	// a cruise does not engage, then taken across by the cruise, and succeeding as it ends. Fails when
+	// the cruise is refused, or ends short of the body.
+	Status CruiseTo(TaskContext &context) const
+	{
+		entt::registry &registry = context.world.Registry();
+		const Trader &trader = registry.get<Trader>(context.entity);
+		const bool gate = !context.arguments.empty() && context.arguments[0] == "gate";
+		const std::uint64_t system = registry.get<Sim::InSystem>(context.entity).system;
+		const Celestial::StarSystem *starSystem = SystemOf(system);
+		if (!starSystem || (gate && trader.jumps.empty()))
+			return Status::Failure;
+		const entt::entity station = BoundStation(registry, context.entity);
+		if (!gate && station == entt::null)
+			return Status::Failure;
+		if (!gate && Dock::IsDocked(registry, context.entity, station))
+			return Status::Success;
+		const std::string name =
+		    gate ? trader.jumps.front() : registry.get<Market>(trader.bound).station;
+		const int index = starSystem->Find(name);
+		if (index < 0)
+			return Status::Failure;
+		if (registry.all_of<Ai::Cruising>(context.entity))
+			return Status::Running;
+
+		const double now = context.world.Clock().Now();
+		const std::vector<Celestial::SystemPosition> bodies =
+		    Celestial::EvaluateSystem(*starSystem, now);
+		const glm::dvec3 at = registry.get<Sim::Transform>(context.entity).position;
+		const glm::dvec3 target = bodies[static_cast<std::size_t>(index)].metres;
+		const bool there =
+		    glm::distance(at, target) <
+		    Ai::CruiseTravel::ArrivalDistance(starSystem->bodies[static_cast<std::size_t>(index)]) +
+		        Ai::CruiseTravel::kStationReach;
+		const auto *destination = registry.try_get<Ai::Destination>(context.entity);
+		// Not flying out, and not cruising: it was, and has come out.
+		if (!context.starting && !destination)
+			return there ? Status::Success : Status::Failure;
+		if (context.starting && there)
+			return Status::Success;
+
+		// The station whose reach the ship is within, if any.
+		const Celestial::Body *near = nullptr;
+		std::size_t nearIndex = 0;
+		for (std::size_t each = 0; each < starSystem->bodies.size(); ++each)
+			if (const Celestial::Body &body = starSystem->bodies[each];
+			    body.kind == Celestial::BodyKind::Station &&
+			    glm::distance(at, bodies[each].metres) < body.radius + Ai::CruiseTravel::kStationReach)
+			{
+				near = &body;
+				nearIndex = each;
+				break;
+			}
+		if (near)
+		{
+			// Already flying out, from an earlier tick.
+			if (destination && !context.starting)
+				return Status::Running;
+			const auto *frame = registry.try_get<Physics::LocalFrame>(context.entity);
+			const entt::entity leaving = FindStation(registry, system, near->name);
+			if (!frame || leaving == entt::null)
+				return Status::Failure;
+			// A point just beyond its reach, on the side of the body to cruise to.
+			const glm::dvec3 centre = bodies[nearIndex].metres;
+			const glm::dvec3 way = target - centre;
+			const glm::dvec3 out =
+			    glm::length(way) > 1.0 ? glm::normalize(way) : glm::dvec3{0.0, 0.0, 1.0};
+			const glm::dvec3 clear =
+			    centre + out * (near->radius + Ai::CruiseTravel::kStationReach + kReachMargin);
+			const glm::dvec3 origin = m_physics.FrameOrigin(system, frame->body, now);
+			Ai::Destination flight;
+			flight.offset = clear - origin;
+			AddCourseRound(flight, registry, leaving, at, clear, origin);
+			context.world.Apply(Ai::SetDestination{context.entity, std::move(flight)});
+			return Status::Running;
+		}
+
+		context.world.Apply(Ai::Cruise{SenderOf(registry, context.entity), context.entity, name});
+		return registry.all_of<Ai::Cruising>(context.entity) ? Status::Running : Status::Failure;
 	}
 
 	// Through the gate: along its lane, and out at the far end.
@@ -547,9 +641,15 @@ class Round
 		return {SystemIndex(found.system), found.station};
 	}
 
-	Ai::CrossingCost Crossing(const Sim::SimWorld &world) const
+	// What a crossing of a system costs the ship: its drive's time for the course's length, and what
+	// the flights out of a station's reach and in to a gate come to.
+	Ai::CrossingCost Crossing(const Sim::SimWorld &world, entt::entity ship) const
 	{
-		return Ai::CrossingByCourse(m_systems, world.Clock().Now(), kCrossingSpeed, kCrossingClearance);
+		const Ai::CruiseDrive drive = world.Registry().get<Ai::CruiseDrive>(ship);
+		return Ai::CrossingByCourse(
+		    m_systems, world.Clock().Now(), [drive](double metres)
+		    { return metres > 0.0 ? Ai::CruiseSeconds(drive, metres) + kCruiseHandlingSeconds : 0.0; },
+		    Ai::CruiseTravel::kCourseClearance);
 	}
 
 	const Physics::PhysicsWorld &m_physics;

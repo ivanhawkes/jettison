@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <jettison/ai/BehaviourTree.h>
+#include <jettison/ai/Cruise.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/UtilityAi.h>
@@ -60,6 +61,7 @@ struct Galaxy
 	Sim::SimWorld world{kStep, 11};
 	Physics::PhysicsWorld &physics{Setup(world)};
 	Ai::LaneTravel &lanes{Ai::LaneTravel::Attach(world, physics)};
+	Ai::CruiseTravel &cruises{Ai::CruiseTravel::Attach(world, physics)};
 	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
@@ -98,6 +100,7 @@ struct Galaxy
 		{
 			systems.push_back(Celestial::ReadStarSystem(ReadAsset(entry.system)));
 			lanes.DefineStarSystem(systems.back());
+			cruises.DefineStarSystem(systems.back());
 			physics.DefineStarSystem(systems.back());
 		}
 		lanes.SetGalaxy(std::move(galaxy));
@@ -168,7 +171,7 @@ TEST_CASE(
 {
 	Galaxy galaxy;
 	CHECK(galaxy.behaviours.HasTree(App::kTraderTree));
-	CHECK(galaxy.behaviours.NodeCount(App::kTraderTree) == 29);
+	CHECK(galaxy.behaviours.NodeCount(App::kTraderTree) == 33);
 	REQUIRE(galaxy.traders.size() == 7);
 	const entt::registry &registry = galaxy.world.Registry();
 	for (const entt::entity ship : galaxy.traders)
@@ -283,9 +286,9 @@ TEST_CASE("Traders: a mod's script, from the user's mods, weighs their runs and 
 TEST_CASE(
     "Traders: the sample's traders fly their runs across the lane, docking in turn, touching nothing")
 {
-	// Twenty minutes: every trader's first run, out of one system and into the other, and the
-	// first of the second runs.
-	constexpr int kSteps = 60 * 60 * 20;
+	// Two hours: every trader's runs, out of one system and into the others, each way cruised from a
+	// station to the gate and from the gate to the market.
+	constexpr int kSteps = 60 * 60 * 120;
 	Galaxy galaxy;
 	entt::registry &registry = galaxy.world.Registry();
 	const auto isShip = [&](entt::entity entity)
@@ -300,10 +303,37 @@ TEST_CASE(
 	double nearest = std::numeric_limits<double>::max();
 	std::map<entt::entity, std::uint64_t> systemOf;
 	std::size_t crossings = 0;
+	// How near the hull of a ship that came out of a lane or a cruise was to any other's, in the step
+	// it arrived.
+	double tightest = std::numeric_limits<double>::max();
+	std::size_t arrivals = 0;
 	for (int step = 0; step < kSteps; ++step)
 	{
 		const std::size_t before = galaxy.contacts.size();
+		const std::size_t seen = galaxy.events.size();
 		galaxy.Step();
+		for (std::size_t index = seen; index < galaxy.events.size(); ++index)
+		{
+			entt::entity arrived = entt::null;
+			if (const auto *ended = galaxy.events[index].event.try_cast<Ai::CruiseEnded>())
+				arrived = ended->ship;
+			else if (const auto *left = galaxy.events[index].event.try_cast<Ai::LaneLeft>())
+				arrived = left->entity;
+			if (arrived == entt::null)
+				continue;
+			++arrivals;
+			const std::uint64_t system = registry.get<Sim::InSystem>(arrived).system;
+			const double radius =
+			    galaxy.physics.ShapeRadius(registry.get<Physics::Body>(arrived).shape);
+			for (const auto [other, body, inSystem, transform] :
+			     registry.view<const Physics::Body, const Sim::InSystem, const Sim::Transform>().each())
+				if (other != arrived && inSystem.system == system)
+					tightest = std::min(
+					    tightest,
+					    glm::distance(
+					        registry.get<Sim::Transform>(arrived).position, transform.position) -
+					        radius - galaxy.physics.ShapeRadius(body.shape));
+		}
 		for (std::size_t index = before; index < galaxy.contacts.size(); ++index)
 		{
 			const Physics::ContactEvent &contact = galaxy.contacts[index];
@@ -340,7 +370,9 @@ TEST_CASE(
 					if (registry.get<Sim::InSystem>(first).system !=
 					        registry.get<Sim::InSystem>(second).system ||
 					    registry.get<Sim::InSystem>(first).system == Sim::kNoSystem ||
-					    registry.all_of<Dock::Docking>(first) || registry.all_of<Dock::Docking>(second))
+					    registry.all_of<Dock::Docking>(first) ||
+					    registry.all_of<Dock::Docking>(second) ||
+					    registry.all_of<Ai::Cruising>(first) || registry.all_of<Ai::Cruising>(second))
 						continue;
 					const double apart =
 					    glm::distance(
@@ -381,6 +413,22 @@ TEST_CASE(
 	CHECK(galaxy.Events<App::TradeRefused>().empty());
 	CHECK(galaxy.Events<Dock::PadRefused>().empty());
 	CHECK(galaxy.Events<Ai::LaneRefused>().empty());
+	// Every ship crossed a system by cruise, in both directions of each run, and never was refused;
+	// every arrival, by cruise or lane, came out clear of the ships there.
+	CHECK(galaxy.Events<Ai::CruiseStarted>().size() >= 2 * runs);
+	CHECK(galaxy.Events<Ai::CruiseRefused>().empty());
+	CHECK(arrivals >= galaxy.Events<Ai::CruiseEnded>().size());
+	CHECK(tightest >= Ai::LaneTravel::kArrivalClearance);
+	double shortest = std::numeric_limits<double>::max();
+	double longest = 0.0;
+	for (const Ai::CruiseStarted &started : galaxy.Events<Ai::CruiseStarted>())
+	{
+		shortest = std::min(shortest, started.seconds);
+		longest = std::max(longest, started.seconds);
+	}
+	MESSAGE(
+	    arrivals, " arrivals, the tightest ", tightest, " m between hulls; ",
+	    galaxy.Events<Ai::CruiseStarted>().size(), " cruises of ", shortest, " to ", longest, " s");
 	MESSAGE(
 	    runs, " runs sold in ", kSteps / 3600, " minutes, ", crossings, " crossings, ",
 	    galaxy.Events<Dock::PadQueued>().size(), " places queued, ", onPads,
@@ -407,5 +455,5 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release.
-	CHECK(original.world.StateHash() == 0x4b2e0ff03b7e40b4ULL);
+	CHECK(original.world.StateHash() == 0x487ab0bd2d27a6b8ULL);
 }

@@ -632,7 +632,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
 	m_pLanes = &Ai::LaneTravel::Attach(m_sim, *m_pPhysics);
-	m_pCruises = &Ai::CruiseTravel::Attach(m_sim);
+	m_pCruises = &Ai::CruiseTravel::Attach(m_sim, *m_pPhysics);
 	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
 	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
 	m_pDocks = &Dock::Docks::Attach(m_sim, *m_pPhysics);

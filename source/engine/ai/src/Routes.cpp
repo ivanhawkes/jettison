@@ -248,6 +248,15 @@ CrossingCost CrossingByCourse(
 {
 	if (!std::isfinite(speed) || speed <= 0.0)
 		throw std::invalid_argument{std::format("Ai: a crossing at {} m/s is no crossing", speed)};
+	return CrossingByCourse(
+	    std::move(systems), simSeconds, [speed](double metres) { return metres / speed; }, clearance);
+}
+
+CrossingCost CrossingByCourse(
+    std::vector<Celestial::StarSystem> systems, double simSeconds, CourseTime time, double clearance)
+{
+	if (!time)
+		throw std::invalid_argument{"Ai: a crossing has no time to take"};
 	struct Crossings
 	{
 		std::vector<Celestial::StarSystem> systems;
@@ -261,7 +270,8 @@ CrossingCost CrossingByCourse(
 		crossings->waypoints.emplace_back(SystemObstacles(system, simSeconds), clearance);
 	}
 	crossings->systems = std::move(systems);
-	return [crossings, speed](std::size_t system, std::string_view from, std::string_view to)
+	return [crossings,
+	        time = std::move(time)](std::size_t system, std::string_view from, std::string_view to)
 	{
 		if (system >= crossings->systems.size())
 			throw std::invalid_argument{std::format(
@@ -280,7 +290,12 @@ CrossingCost CrossingByCourse(
 			throw std::invalid_argument{std::format(
 			    "Ai: every course across '{}' from '{}' to '{}' is blocked", starSystem.name, from,
 			    to)};
-		return course->length / speed;
+		const double seconds = time(course->length);
+		if (!std::isfinite(seconds) || seconds < 0.0)
+			throw std::invalid_argument{std::format(
+			    "Ai: a course of {} m across '{}' takes {} s", course->length, starSystem.name,
+			    seconds)};
+		return seconds;
 	};
 }
 } // namespace Jettison::Ai

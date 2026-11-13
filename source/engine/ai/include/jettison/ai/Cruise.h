@@ -14,6 +14,11 @@
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 
+namespace Jettison::Physics
+{
+class PhysicsWorld;
+}
+
 namespace Jettison::Sim
 {
 class SimWorld;
@@ -124,9 +129,11 @@ struct CruiseRefused
 //     carrier over the cruise;
 //   - along the course it eases out of its start and into its end (an in-out cubic of the steps
 //     run), carried with the carrier on its orbit, and faces along the leg it is on;
-//   - in the step that ends its cruise it is at the course's end, facing the target, at rest in the
-//     frame it arrives in, with its body back, which physics makes in the next step, and its
-//     Physics::FlightControls taken against nothing; a CruiseEnded is raised.
+//   - in the step that ends its cruise it is at the course's end, or if that is not clear of every
+//     body already there and of what arrived before it in the step, at the first place clear on
+//     rings about it, as a lane's arrivals are (LaneTravel::kArrivalClearance); facing the target,
+//     at rest in the frame it arrives in, with its body back, which physics makes in the next step, and
+//     its Physics::FlightControls taken against nothing; a CruiseEnded is raised.
 // Ships are placed in entity order.
 //
 // The star systems are definitions, the game's start-up as physics' are, and not state: a save names
@@ -153,9 +160,10 @@ class CruiseTravel
 	static constexpr int kSolveIterations = 8;
 
 	// Registers the components, the command and the "cruise" system, ordered after the lanes'
-	// (LaneTravel::Attach), which have to be attached first. Throws std::logic_error as SimWorld's
-	// registrations do, for one already made.
-	static CruiseTravel &Attach(Sim::SimWorld &world);
+	// (LaneTravel::Attach), which have to be attached first, and given the physics world whose shapes
+	// say how far apart arrivals come out. Throws std::logic_error as SimWorld's registrations do,
+	// for one already made.
+	static CruiseTravel &Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics);
 
 	// A star system, for where its bodies are. It has to be resolved; throws std::invalid_argument
 	// for a system already defined. A Cruise in a system not defined is refused.
@@ -166,11 +174,14 @@ class CruiseTravel
 	static double ArrivalDistance(const Celestial::Body &body);
 
   private:
-	CruiseTravel() = default;
+	explicit CruiseTravel(const Physics::PhysicsWorld &physics) : m_physics{physics}
+	{
+	}
 
 	void Start(Sim::SimWorld &world, const Cruise &command) const;
 	void Place(Sim::SimWorld &world) const;
 
+	const Physics::PhysicsWorld &m_physics;
 	// By Sim::SystemId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;
 };

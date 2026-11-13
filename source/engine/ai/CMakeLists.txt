@@ -27,6 +27,7 @@ jettison_add_module(ai
 		src/Pathfinding.cpp
 		src/Routes.cpp
 		src/Steering.cpp
+		src/Transit.cpp
 		src/UtilityAi.cpp
 	TESTS
 		tests/BehaviourTreeTests.cpp

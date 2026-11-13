@@ -25,13 +25,13 @@ bodies:
     rotation:
       period: 140000
       axialTilt: 0.03
-  # Marrow has no station, so its gate orbits Ashfall, three of its radii out, where the whole
-  # world is in view, 40 degrees across.
+  # Marrow's only gate, a star gate: in a close orbit about the star, 3.3 of its radii out, for the
+  # long hop to Vesper.
   - name: Marrow Gate
     kind: JumpPoint
-    parent: Ashfall
+    parent: Marrow
     radius: 500
     orbit:
-      semiMajorAxis: 1.2e7
+      semiMajorAxis: 4.0e9
       inclination: 0.1
       meanAnomalyAtEpoch: 0.7

@@ -280,8 +280,19 @@ faces along the leg it is on.
 
 Presentation shows a cruising ship as any other, from its snapshots at its system's scale: the chase
 camera stays on it, the flight panel says where it is cruising to and how long is left, and the
-shell's console sends one (`cruise <body>`). What flies a ship no one is at the helm of (a trader's
-tree, a fleet's ship) gains a cruise task with the traders (13b).
+shell's console sends one (`cruise <body>`). What flies a ship no one is at the helm of crosses by a task of its own: a
+trader's `cruise` (13b) flies it out of any station's reach, round the station, then sends the
+command with its own sender and runs until it arrives; a run's time across a system is the ship's
+drive's (`Ai::CrossingByCourse` with a `CourseTime`), so a trader weighs a run in the seconds it
+takes. A fleet's ship, no one at the helm of, gains the same with 13d.
+
+An arrival is placed clear of what is there: the lanes' and the cruises' arrivals share one placement
+(`Detail::ClearPlace`, `ai/src/Transit.cpp`), at the place it would come out if that is clear of every
+body in the system by both radii and `LaneTravel::kArrivalClearance`, or at the first place clear on
+rings about it, six more places round each than the last, in the plane across the way it faces.
+Cruises come out in entity order, each counted by the next. The gates are in Manifest's places, a
+moon gate about a planet and a star gate about a sun, so a cruise to one arrives in the gate's own
+frame, and only a gate kept by a station arrives in the station's.
 
 ### Physics
 

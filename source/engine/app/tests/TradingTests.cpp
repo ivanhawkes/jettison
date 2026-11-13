@@ -402,14 +402,14 @@ TEST_CASE("Trading: the sample game's goods and markets load, and every market's
 	CHECK(definitions.Names<Good>().size() == 8);
 	REQUIRE(
 	    definitions.Names<MarketDefinition>() ==
-	    std::vector<std::string>{"corva-refinery", "ostra-highport"});
+	    std::vector<std::string>{"corva-refinery", "ostra-anchorage", "ostra-highport"});
 	CHECK(definitions.Find<Good>("copper")->basePrice == 76160);
 
 	Sim::SimWorld world{kStep, 1};
 	Sim::RegisterTypes();
 	RegisterTrading(world);
 	const std::vector<entt::entity> markets = OpenMarkets(world, definitions);
-	REQUIRE(markets.size() == 2);
+	REQUIRE(markets.size() == 3);
 	for (const entt::entity entity : markets)
 	{
 		const Market &market = world.Registry().get<Market>(entity);
@@ -417,8 +417,9 @@ TEST_CASE("Trading: the sample game's goods and markets load, and every market's
 		for (const MarketGood &good : market.goods)
 			CHECK(good.ask > good.bid);
 	}
-	CHECK(world.Registry().get<Market>(markets[1]).station == "Ostra Highport");
-	CHECK(world.Registry().get<Market>(markets[1]).system == Sim::SystemId("Halcyon"));
+	CHECK(world.Registry().get<Market>(markets[1]).station == "Ostra Anchorage");
+	CHECK(world.Registry().get<Market>(markets[2]).station == "Ostra Highport");
+	CHECK(world.Registry().get<Market>(markets[2]).system == Sim::SystemId("Halcyon"));
 }
 
 TEST_CASE(

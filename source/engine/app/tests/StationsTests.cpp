@@ -85,12 +85,14 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, ships 
 	Sample sample;
 	const std::vector<entt::entity> stations =
 	    App::OpenStations(sample.world, sample.docks, sample.systems);
-	REQUIRE(stations.size() == 2);
+	REQUIRE(stations.size() == 3);
 	const entt::registry &world = sample.world.Registry();
 	const entt::entity highport = App::FindStation(world, Sim::SystemId("Halcyon"), "Ostra Highport");
 	const entt::entity corva = App::FindStation(world, Sim::SystemId("Vesper"), "Corva Refinery");
+	const entt::entity anchorage = App::FindStation(world, Sim::SystemId("Halcyon"), "Ostra Anchorage");
 	CHECK(highport == stations[0]);
-	CHECK(corva == stations[1]);
+	CHECK(anchorage == stations[1]);
+	CHECK(corva == stations[2]);
 	CHECK(App::FindStation(world, Sim::SystemId("Vesper"), "Ostra Highport") == entt::null);
 
 	// Three heavy transports on Highport's twelve L pads, and its display wing's six; two transports
@@ -99,6 +101,9 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, ships 
 	CHECK(Holding(world, highport) == 3);
 	CHECK(world.get<Dock::Station>(corva).pads.size() == 6);
 	CHECK(Holding(world, corva) == 3);
+	// Ostra Anchorage is built as Corva's refinery is, with no ships parked on it.
+	CHECK(world.get<Dock::Station>(anchorage).pads.size() == 6);
+	CHECK(Holding(world, anchorage) == 0);
 	for (const auto [ship, docking, hull] : world.view<const Dock::Docking, const Dock::Hull>().each())
 	{
 		CHECK(docking.stage == Dock::Stage::Docked);

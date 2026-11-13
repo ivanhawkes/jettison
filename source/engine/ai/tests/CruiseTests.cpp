@@ -39,7 +39,7 @@ struct Fixture
 
 	Fixture()
 	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)},
-	      cruises{Ai::CruiseTravel::Attach(world)}
+	      cruises{Ai::CruiseTravel::Attach(world, physics)}
 	{
 		Physics::ShapeDefinition hull;
 		hull.halfExtents = {3.2f, 0.9f, 4.9f};
@@ -242,6 +242,41 @@ TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arri
 	            registry.get<Sim::Transform>(ship).position,
 	            Fixture::Where("Halcyon Gate", fixture.world.Clock().Now())) -
 	        Ai::CruiseTravel::ArrivalDistance(BodyOf("Halcyon Gate"))) < 0.001);
+}
+
+TEST_CASE("Cruise: ships that arrive together at one body come out clear of each other")
+{
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	// Two that set out a few metres apart, and one that has been waiting where they would come out.
+	const entt::entity first = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
+	const entt::entity second = fixture.Ship("Ostra Highport", {4.0, 0.0, 3000.0});
+	fixture.Run(5);
+	fixture.world.Commands().Push(Ai::Cruise{{}, first, "Pell"});
+	fixture.world.Commands().Push(Ai::Cruise{{}, second, "Pell"});
+	fixture.Run(1);
+	REQUIRE(registry.all_of<Ai::Cruising>(first));
+	REQUIRE(registry.all_of<Ai::Cruising>(second));
+	const std::uint64_t arrival = std::max(
+	    registry.get<Ai::Cruising>(first).arrivalStep, registry.get<Ai::Cruising>(second).arrivalStep);
+	fixture.Run(arrival - fixture.world.Clock().Step());
+	REQUIRE(!registry.all_of<Ai::Cruising>(first));
+	REQUIRE(!registry.all_of<Ai::Cruising>(second));
+
+	const double hull = fixture.physics.ShapeRadius("hull");
+	const glm::dvec3 firstAt = registry.get<Sim::Transform>(first).position;
+	const glm::dvec3 secondAt = registry.get<Sim::Transform>(second).position;
+	const double apart = glm::distance(firstAt, secondAt) - 2.0 * hull;
+	MESSAGE("Arrived " << apart << " m between hulls");
+	CHECK(apart >= Ai::LaneTravel::kArrivalClearance);
+	// Not further than the first ring, a hull's breadth and the clearance out, and the few metres
+	// the two courses differ by.
+	CHECK(glm::distance(firstAt, secondAt) <= 2.0 * hull + Ai::LaneTravel::kArrivalClearance + 10.0);
+	const glm::dvec3 pell = Fixture::Where("Pell", fixture.world.Clock().Now());
+	for (const glm::dvec3 &at : {firstAt, secondAt})
+		CHECK(
+		    std::abs(glm::distance(at, pell) - Ai::CruiseTravel::ArrivalDistance(BodyOf("Pell"))) <
+		    2.0 * hull + Ai::LaneTravel::kArrivalClearance);
 }
 
 TEST_CASE("Cruise: a course goes round the planet between a ship and its target")

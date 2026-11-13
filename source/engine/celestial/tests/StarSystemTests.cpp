@@ -5,10 +5,12 @@
 #include <doctest/doctest.h>
 
 #include <glm/geometric.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <bit>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -161,47 +163,54 @@ TEST_CASE("Star system: the sample system in the assets reads")
 	CHECK(system.bodies[static_cast<std::size_t>(station)].layout == "ostra-highport");
 }
 
-TEST_CASE("Star system: the sample gates keep station by their stations and face their planets")
+TEST_CASE("Star system: the sample gates keep to their planets, moons and stars, and face a planet")
 {
-	// Each gate of a station is kilometres from it, beyond it from the planet, so a ship coming out
-	// faces the planet with the station in view; Marrow's, with no station, faces its world.
+	// As Manifest's: a moon gate about a planet, a star gate about a sun. A gate about a planet or a
+	// moon faces it; one about a star faces the planet nearest it, which changes as they orbit, so
+	// it is the nearest's the facing is checked against.
 	struct Gate
 	{
 		const char *file;
 		const char *gate;
-		const char *planet;
-		const char *station;
-		double distance;
-		// The cosine of the angle off ahead the station is at, at most.
-		double ahead;
+		const char *parent;
+		BodyKind parentKind;
 	};
 	for (const Gate &gate :
-	     {Gate{"halcyon", "Halcyon Gate", "Ostra", "Ostra Highport", 5000.0, 0.999},
-	      Gate{"vesper", "Vesper Gate", "Corva", "Corva Refinery", 5000.0, 0.999},
-	      Gate{"vesper", "Vesper Deep Gate", "Corva", "Corva Refinery", 6000.0, 0.85},
-	      Gate{"marrow", "Marrow Gate", "Ashfall", nullptr, 0.0, 0.0}})
+	     {Gate{"halcyon", "Halcyon Gate", "Ostra", BodyKind::Planet},
+	      Gate{"vesper", "Vesper Gate", "Corva", BodyKind::Planet},
+	      Gate{"vesper", "Vesper Deep Gate", "Vesper", BodyKind::Star},
+	      Gate{"marrow", "Marrow Gate", "Marrow", BodyKind::Star}})
 	{
 		CAPTURE(gate.gate);
 		const StarSystem system = ReadStarSystem(
 		    ReadFile(std::string{JETTISON_ASSET_SOURCE_DIR "/systems/"} + gate.file + ".yaml"));
 		const auto index = static_cast<std::size_t>(system.Find(gate.gate));
 		REQUIRE(system.bodies[index].kind == BodyKind::JumpPoint);
+		CHECK(system.bodies[index].parentIndex == system.Find(gate.parent));
+		CHECK(
+		    system.bodies[static_cast<std::size_t>(system.Find(gate.parent))].kind == gate.parentKind);
 		for (const double time : {0.0, 1000.0, 86400.0, 3.0e7})
 		{
 			CAPTURE(time);
-			const auto at = [&](const char *name)
-			{ return EvaluateBody(system, static_cast<std::size_t>(system.Find(name)), time).metres; };
-			const glm::dvec3 from = at(gate.gate);
+			const std::vector<SystemPosition> bodies = EvaluateSystem(system, time);
+			const glm::dvec3 from = bodies[index].metres;
+			auto faced = static_cast<std::size_t>(system.Find(gate.parent));
+			if (gate.parentKind == BodyKind::Star)
+			{
+				double nearest = std::numeric_limits<double>::infinity();
+				for (std::size_t other = 0; other < system.bodies.size(); ++other)
+					if (system.bodies[other].kind == BodyKind::Planet &&
+					    glm::distance(bodies[other].metres, from) < nearest)
+					{
+						nearest = glm::distance(bodies[other].metres, from);
+						faced = other;
+					}
+			}
 			const glm::dquat facing = JumpPointFacing(system, index, time);
 			const glm::dvec3 ahead = facing * glm::dvec3{0.0, 0.0, -1.0};
-			CHECK(glm::dot(ahead, glm::normalize(at(gate.planet) - from)) == doctest::Approx(1.0));
+			CHECK(glm::dot(ahead, glm::normalize(bodies[faced].metres - from)) == doctest::Approx(1.0));
 			// Level: its X axis is square to the system's +Y.
 			CHECK(std::abs((facing * glm::dvec3{1.0, 0.0, 0.0}).y) < 1.0e-9);
-			if (!gate.station)
-				continue;
-			const glm::dvec3 toStation = at(gate.station) - from;
-			CHECK(glm::length(toStation) == doctest::Approx(gate.distance).epsilon(0.002));
-			CHECK(glm::dot(ahead, glm::normalize(toStation)) > gate.ahead);
 		}
 	}
 	CHECK_THROWS_AS(JumpPointFacing(ReadStarSystem(kSystem), 0, 0.0), std::invalid_argument);

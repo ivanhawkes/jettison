@@ -8,8 +8,6 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
-#include <glm/gtc/constants.hpp>
-
 #include <algorithm>
 #include <cmath>
 #include <format>
@@ -147,22 +145,13 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		     atStation ? starSystem.bodies[static_cast<std::size_t>(parent)].name : lane.arrival});
 	}
 
-	// What is already in each system arrived in, where it is as the step ends, with the sphere that
-	// holds its hull; each arrival joins them once it is placed.
-	struct Occupant
-	{
-		std::uint64_t system{0};
-		glm::dvec3 position{0.0};
-		double radius{0.0};
-	};
-	std::vector<Occupant> occupants;
-	for (const auto [entity, body, inSystem, transform] :
-	     registry.view<const Physics::Body, const Sim::InSystem, const Sim::Transform>().each())
-		if (std::ranges::any_of(
-		        arriving, [&](entt::entity other)
-		        { return registry.get<const OnLane>(other).to == inSystem.system; }))
-			occupants.push_back(
-			    {inSystem.system, transform.position, m_physics.ShapeRadius(body.shape)});
+	// What is already in each system arrived in, where it is as the step ends; each arrival joins
+	// them once it is placed.
+	std::vector<std::uint64_t> destinations;
+	destinations.reserve(arriving.size());
+	for (const entt::entity entity : arriving)
+		destinations.push_back(registry.get<const OnLane>(entity).to);
+	std::vector<Detail::Occupant> occupants = Detail::Occupants(registry, m_physics, destinations);
 	for (std::size_t index = 0; index < arriving.size(); ++index)
 	{
 		const auto *body = registry.try_get<const Physics::Body>(arriving[index]);
@@ -171,32 +160,7 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		const std::uint64_t to = registry.get<const OnLane>(arriving[index]).to;
 		const double radius = m_physics.ShapeRadius(body->shape);
 		Sim::Transform &place = places[index].transform;
-		const auto clear = [&](const glm::dvec3 &at)
-		{
-			return std::ranges::none_of(
-			    occupants,
-			    [&](const Occupant &occupant)
-			    {
-				    return occupant.system == to && glm::distance(occupant.position, at) <
-				                                        occupant.radius + radius + kArrivalClearance;
-			    });
-		};
-		// The gate's centre, then six places on the first ring, twelve on the second and so on, in
-		// the plane across the way it faces.
-		const double spacing = 2.0 * radius + kArrivalClearance;
-		const glm::dvec3 right = place.orientation * glm::dvec3{1.0, 0.0, 0.0};
-		const glm::dvec3 up = place.orientation * glm::dvec3{0.0, 1.0, 0.0};
-		const glm::dvec3 centre = place.position;
-		for (int ring = 1; !clear(place.position); ++ring)
-			for (int slot = 0; slot < 6 * ring; ++slot)
-			{
-				const double angle =
-				    glm::two_pi<double>() * static_cast<double>(slot) / static_cast<double>(6 * ring);
-				place.position = centre + (right * std::cos(angle) + up * std::sin(angle)) *
-				                              (spacing * static_cast<double>(ring));
-				if (clear(place.position))
-					break;
-			}
+		place.position = Detail::ClearPlace(occupants, to, place, radius, kArrivalClearance);
 		occupants.push_back({to, place.position, radius});
 	}
 

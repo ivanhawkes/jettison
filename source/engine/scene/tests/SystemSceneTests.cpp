@@ -180,8 +180,8 @@ TEST_CASE("System scene: the file's bodies are its own, and only the rest are bu
 	entt::registry &registry = scene.Registry();
 
 	CHECK(registry.view<const Scene::CelestialBodyComponent>().size() == system.bodies.size());
-	// Halcyon, Pell and the gate, the sky and the camera.
-	CHECK(registry.view<const Scene::BuiltComponent>().size() == 5);
+	// Halcyon, Pell, the gate and Ostra Anchorage, the sky and the camera.
+	CHECK(registry.view<const Scene::BuiltComponent>().size() == 6);
 	const entt::entity ostra = Named(registry, "ostra");
 	CHECK_FALSE(registry.all_of<Scene::BuiltComponent>(ostra));
 	CHECK(registry.get<Scene::MeshComponent>(ostra).color == glm::vec3{0.16f, 0.3f, 0.55f});

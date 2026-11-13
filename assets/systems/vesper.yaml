@@ -39,29 +39,27 @@ bodies:
       longitudeOfAscendingNode: 2.4
       argumentOfPeriapsis: 0.9
       meanAnomalyAtEpoch: 1.7
-  # The two gates keep station by the refinery, as Halcyon's does by Highport: each orbits the
-  # station in its plane and with its period, Vesper Gate 5 km straight out from Corva and the Deep
-  # Gate 6 km out at 30 degrees ahead of it along the orbit, so both see Corva with the refinery
-  # before it, and neither is in the other's way.
+  # The lane to Halcyon, a moon gate, in orbit about Corva 500,000 km out, past the refinery's
+  # 140,000 km and where Corva pulls at 0.03 m/s², and the lane to Marrow, a star gate: in a close
+  # orbit about the star, a ring that gathers the star's energy (Manifest's idea, "Star Gates / Moon
+  # Gates"). A ship comes out of either at rest in its own frame, facing the nearest planet.
   - name: Vesper Gate
     kind: JumpPoint
-    parent: Corva Refinery
+    parent: Corva
     radius: 500
     orbit:
-      semiMajorAxis: 5000
-      inclination: 0.3
-      longitudeOfAscendingNode: 2.4
-      argumentOfPeriapsis: 0.9
-      meanAnomalyAtEpoch: 1.7
-      period: 29205.864191967677
+      semiMajorAxis: 5.0e8
+      inclination: 0.2
+      longitudeOfAscendingNode: 2.0
+      argumentOfPeriapsis: 0.0
+      meanAnomalyAtEpoch: 1.0
   - name: Vesper Deep Gate
     kind: JumpPoint
-    parent: Corva Refinery
+    parent: Vesper
     radius: 500
     orbit:
-      semiMajorAxis: 6000
-      inclination: 0.3
-      longitudeOfAscendingNode: 2.4
-      argumentOfPeriapsis: 0.9
-      meanAnomalyAtEpoch: 2.2236
-      period: 29205.864191967677
+      semiMajorAxis: 1.0e9
+      inclination: 0.1
+      longitudeOfAscendingNode: 0.0
+      argumentOfPeriapsis: 0.0
+      meanAnomalyAtEpoch: 3.5

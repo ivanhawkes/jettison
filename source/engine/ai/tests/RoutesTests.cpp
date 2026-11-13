@@ -1,5 +1,6 @@
 #include "Systems.h"
 
+#include <jettison/ai/Cruise.h>
 #include <jettison/ai/Routes.h>
 #include <jettison/celestial/Frames.h>
 
@@ -299,6 +300,31 @@ TEST_CASE("Courses: a route across the galaxy at a cruising speed adds each cros
 	CHECK_THROWS_AS(crossing(0, "Ostra Highport", "Nowhere"), std::invalid_argument);
 	CHECK_THROWS_AS(crossing(5, "Ostra Highport", "Halcyon Gate"), std::invalid_argument);
 	CHECK_THROWS_AS(Ai::CrossingByCourse(systems, 0.0, 0.0, 1.0e5), std::invalid_argument);
+}
+
+TEST_CASE("Courses: a crossing costed by a time of the course's length, which has to be a time")
+{
+	const std::vector<Celestial::StarSystem> systems{
+	    AiTests::Halcyon(), AiTests::Vesper(), AiTests::Marrow()};
+	// The same course as at a speed, in the seconds the function gives for its length.
+	const Ai::CrossingCost bySpeed = Ai::CrossingByCourse(systems, 0.0, 2.0e3, 1.0e5);
+	const Ai::CrossingCost byTime =
+	    Ai::CrossingByCourse(systems, 0.0, [](double metres) { return metres / 2.0e3; }, 1.0e5);
+	CHECK(byTime(0, "Ostra Highport", "Pell") == doctest::Approx(bySpeed(0, "Ostra Highport", "Pell")));
+	// A drive's time is not linear in the length: a fourth root of it, rising slower than the speed's.
+	const Ai::CruiseDrive drive{40.0f, 1.0e8, 0.25f};
+	const Ai::CrossingCost cruised = Ai::CrossingByCourse(
+	    systems, 0.0, [drive](double metres) { return Ai::CruiseSeconds(drive, metres); }, 1.0e5);
+	const double seconds = cruised(0, "Ostra Highport", "Pell");
+	CHECK(seconds > 40.0);
+	CHECK(seconds < 80.0);
+
+	const auto asked = [&](Ai::CourseTime time)
+	{ return Ai::CrossingByCourse(systems, 0.0, std::move(time), 1.0e5)(0, "Ostra Highport", "Pell"); };
+	CHECK_THROWS_AS(Ai::CrossingByCourse(systems, 0.0, Ai::CourseTime{}, 1.0e5), std::invalid_argument);
+	CHECK_THROWS_AS(asked([](double) { return -1.0; }), std::invalid_argument);
+	CHECK_THROWS_AS(
+	    asked([](double) { return std::numeric_limits<double>::infinity(); }), std::invalid_argument);
 }
 
 TEST_CASE("Courses: an obstacle or a clearance that is not one is refused")

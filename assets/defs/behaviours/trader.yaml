@@ -1,6 +1,7 @@
 # A trader's round (docs/sample-game.md): choose a run, fly to where it buys, buy, wait while the
 # buggies carry the crates aboard, fly to where it sells, sell, wait while they carry them off; and
-# again. A run that cannot be made, or nothing worth trading, waits half a minute and chooses again.
+# again. A ship crosses a system by cruising: out to each gate on its route, and in to its market. A
+# run that cannot be made, or nothing worth trading, waits half a minute and chooses again.
 # An Ai behaviour tree (Ai.BehaviourDefinition); its tasks are the trader's (app/src/Traders.cpp).
 version: 1
 root:
@@ -20,11 +21,16 @@ root:
                   children:
                     - {task: head-for, arguments: [buy]}
                     - {task: leave}
-                    # Each jump on the route: to the gate and through it.
+                    # Each jump on the route: across the system to the gate, up to it, and through.
                     - kind: Loop
                       children:
                         - kind: Sequence
-                          children: [{task: jumps-left}, {task: fly-to-gate}, {task: jump}]
+                          children:
+                            - {task: jumps-left}
+                            - {task: cruise, arguments: [gate]}
+                            - {task: fly-to-gate}
+                            - {task: jump}
+                    - {task: cruise, arguments: [market]}
                     - {task: dock, arguments: [buy]}
                     - {task: trade, arguments: [buy]}
                     - {task: wait-cargo}
@@ -33,7 +39,12 @@ root:
             - kind: Loop
               children:
                 - kind: Sequence
-                  children: [{task: jumps-left}, {task: fly-to-gate}, {task: jump}]
+                  children:
+                    - {task: jumps-left}
+                    - {task: cruise, arguments: [gate]}
+                    - {task: fly-to-gate}
+                    - {task: jump}
+            - {task: cruise, arguments: [market]}
             - {task: dock, arguments: [sell]}
             - {task: trade, arguments: [sell]}
             - {task: wait-cargo}

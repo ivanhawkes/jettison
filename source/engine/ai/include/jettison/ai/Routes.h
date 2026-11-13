@@ -148,4 +148,15 @@ std::vector<Sphere> SystemObstacles(const Celestial::StarSystem &system, double 
 // as does a speed that is not positive and finite.
 CrossingCost CrossingByCourse(
     std::vector<Celestial::StarSystem> systems, double simSeconds, double speed, double clearance);
+
+// The seconds a course of that many metres takes, for a ship that does not cross at a speed: a
+// cruise drive's time rises as the distance's fourth root (CruiseSeconds). Never negative, and
+// zero for no distance.
+using CourseTime = std::function<double(double metres)>;
+
+// As above, with the seconds a course's length takes given by the caller, so a ship that cruises is
+// costed by its drive. Throws std::invalid_argument for no function, and for a time that is negative
+// or not finite, when a crossing is asked.
+CrossingCost CrossingByCourse(
+    std::vector<Celestial::StarSystem> systems, double simSeconds, CourseTime time, double clearance);
 } // namespace Jettison::Ai
