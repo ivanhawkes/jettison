@@ -23,6 +23,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -35,11 +36,15 @@
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/celestial/StarSystem.h>
+#include <jettison/core/Assert.h>
+#include <jettison/core/Log.h>
+#include <jettison/core/Version.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/math/Random.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/platform/Crash.h>
 #include <jettison/profile/Profile.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/render/Camera.h>
@@ -136,6 +141,9 @@ constexpr std::string_view kStationHum = "audio/effects/station-hum.wav";
 constexpr Audio::Falloff kStationHumFalloff{300.0f, 20000.0f, 1.0f};
 constexpr float kStationHumVolume = 0.6f;
 
+// The language the screens are in (StringTable), in the settings.
+constexpr std::string_view kLanguageKey = "ui.language";
+
 // A bus's volume in the settings: audio.master, audio.music, ...
 std::string VolumeKey(Audio::Bus bus)
 {
@@ -205,6 +213,35 @@ void DrawLight(
 	const glm::dvec3 up = glm::cross(direction, side);
 	for (const glm::dvec3 &edge : {side, -side, up, -up})
 		draw.Line(origin, center + edge * across, color);
+}
+} // namespace
+
+namespace
+{
+// The console's crash: a write through a null pointer, a failed assertion, or an exception thrown on
+// a thread of its own, where nothing catches it. Each reaches the crash handler by its own path: the
+// signal itself, the abort the assertion ends in, and std::terminate's.
+void Crash(std::span<const std::string> arguments)
+{
+	const std::string_view how = arguments.empty() ? std::string_view{} : arguments[0];
+	if (how == "fault")
+	{
+		Core::Log(Core::Severity::Warning, kShell, "Crashing: a write through a null pointer");
+		volatile int *volatile pTarget = nullptr;
+		*pTarget = 1;
+	}
+	else if (how == "assert")
+	{
+		Core::Log(Core::Severity::Warning, kShell, "Crashing: an assertion that fails");
+		JETTISON_VERIFY(how == "a defect");
+	}
+	else if (how == "exception")
+	{
+		Core::Log(Core::Severity::Warning, kShell, "Crashing: an exception nothing catches");
+		std::thread{[] { throw std::runtime_error{"the console asked for a crash"}; }}.join();
+	}
+	else
+		Core::Log(Core::Severity::Warning, kShell, "crash takes fault, assert or exception");
 }
 } // namespace
 
@@ -311,6 +348,18 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 		    SpawnTraffic(count);
 	    });
 
+	m_console.RegisterCommand(
+	    "language",
+	    "Says the language the screens are in and those there are tables for, or reads them in "
+	    "another, "
+	    "kept in the settings: language [tag]",
+	    [this](DevTools::Console &console, std::span<const std::string> arguments)
+	    { SetLanguage(console, arguments); });
+	m_console.RegisterCommand(
+	    "crash",
+	    "Ends the shell as a defect would, to see the crash report it writes: crash fault | assert | "
+	    "exception",
+	    [](DevTools::Console &, std::span<const std::string> arguments) { Crash(arguments); });
 	m_console.RegisterCommand(
 	    "traders", "Says what each trader is doing, and what its runs have made",
 	    [this](DevTools::Console &, std::span<const std::string>) { LogTraders(); });
@@ -1036,6 +1085,13 @@ void Application::InitUser()
 	m_userPaths = root.empty()
 	                  ? Platform::ResolvePaths("jettison")
 	                  : Platform::Paths{root / "data", root / "config", root / "state", root / "cache"};
+	// Before anything else of the engine starts, so a crash in its start-up is reported too. The state
+	// directory is the logs' (Platform::Paths).
+	Platform::InstallCrashHandler(
+	    {m_userPaths.state / "crashes",
+	     std::format("{}, engine {}", m_windowTitle, Core::EngineVersion()),
+	     {},
+	     true});
 	MakeUserDirectory(m_userPaths.userData);
 	MakeUserDirectory(m_userPaths.config);
 	m_settings.emplace(m_userPaths.config / "settings.yaml");
@@ -1145,6 +1201,11 @@ void Application::InitUi()
 	    static_cast<int>(m_pRenderer->FrameHeight()));
 	for (const auto &[font, fallback] : kUiFonts)
 		m_pUi->LoadFont(font, fallback);
+	// The player's language, or the base's: the setting, and not the environment's locale, so a run
+	// reads the same on every machine until the player chooses.
+	m_pUi->SetLanguage(m_settings->Values()
+	                       .GetString(kLanguageKey)
+	                       .value_or(std::string{Ui::StringTable::kBaseLanguage}));
 
 	Ui::DataModel &market = m_pUi->CreateDataModel("market");
 	m_pMarketModel = &market;
@@ -1432,7 +1493,7 @@ void Application::UpdateGameUi()
 		view.docked = m_docked;
 		view.lot = m_lot;
 		view.message = m_tradeMessage;
-		MarketScreen screen = BuildMarketScreen(snapshot, *m_definitions, view);
+		MarketScreen screen = BuildMarketScreen(snapshot, *m_definitions, m_pUi->Strings(), view);
 		if (screen != m_marketScreen)
 		{
 			m_marketScreen = std::move(screen);
@@ -2235,6 +2296,30 @@ void Application::ShowSequence(entt::registry &registry)
 		m_pRenderer->SetFade(player->fadeColor, player->fade);
 }
 
+
+void Application::SetLanguage(DevTools::Console &console, std::span<const std::string> arguments)
+{
+	if (arguments.size() > 1)
+		throw std::invalid_argument{"takes a language, as de or pt-BR"};
+	if (arguments.empty())
+	{
+		std::string languages;
+		for (const std::string &language : Ui::StringTable::Languages(m_assets))
+			languages += (languages.empty() ? "" : ", ") + language;
+		console.Print(
+		    std::format(
+		        "The screens are in '{}'; there are tables for {}", m_pUi->Strings().Language(),
+		        languages));
+		return;
+	}
+	m_pUi->SetLanguage(arguments[0]);
+	m_settings->Values().Set(Core::ConfigLayer::User, kLanguageKey, arguments[0]);
+	SaveSettings();
+	// The screens' text the shell writes is made again in it, as the trade's answer is when it next
+	// comes.
+	m_marketDirty = true;
+	console.Print(std::format("The screens are in '{}'", arguments[0]));
+}
 
 void Application::SetGrade(std::span<const std::string> arguments)
 {
@@ -3311,13 +3396,12 @@ void Application::TakeEvents()
 			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);
 		else if (const auto *traded = event.event.try_cast<Traded>(); traded && traded->ship == m_ship)
 		{
-			const Good *good = m_definitions->Find<Good>(traded->good);
-			const std::string name = good ? good->displayName : traded->good;
 			const std::int64_t crates = traded->crates < 0 ? -traded->crates : traded->crates;
 			++m_tradeAnswers;
-			m_tradeMessage = std::format(
-			    "{} {} {} of {} at {} a crate", traded->crates > 0 ? "Bought" : "Sold", crates,
-			    crates == 1 ? "crate" : "crates", name, FormatCredits(traded->price));
+			m_tradeMessage = m_pUi->Strings().Plural(
+			    traded->crates > 0 ? "market.bought" : "market.sold", crates,
+			    GoodName(*m_definitions, m_pUi->Strings(), traded->good),
+			    m_pUi->Strings().Number(traded->price));
 			Core::Log(
 			    Core::Severity::Info, kShell, "{}; {} credits left", m_tradeMessage,
 			    FormatCredits(traded->credits));
@@ -3326,7 +3410,7 @@ void Application::TakeEvents()
 		         refused && refused->ship == m_ship)
 		{
 			++m_tradeAnswers;
-			m_tradeMessage = "No trade: " + refused->reason;
+			m_tradeMessage = m_pUi->Strings().Format("market.refused", refused->reason);
 			Core::Log(Core::Severity::Info, kShell, "{}", m_tradeMessage);
 		}
 		if (m_showMarket)

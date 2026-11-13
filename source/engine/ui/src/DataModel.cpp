@@ -116,18 +116,6 @@ Kind KindOf(const entt::meta_type &type, const std::string &path)
 	        "DataModel: '{}' is of a type the UI cannot show (one Reflect has not registered)", path));
 }
 
-// A thousands separator for a whole number: {{trader.credits | thousands}} shows 1,250,000.
-Rml::Variant Thousands(const Rml::VariantList &arguments)
-{
-	if (arguments.empty())
-		return {};
-	const auto value = arguments[0].Get<std::int64_t>();
-	std::string digits = std::to_string(value < 0 ? -value : value);
-	for (auto at = static_cast<std::ptrdiff_t>(digits.size()) - 3; at > 0; at -= 3)
-		digits.insert(static_cast<std::size_t>(at), ",");
-	return Rml::Variant{value < 0 ? "-" + digits : digits};
-}
-
 EventArgument FromVariant(const Rml::Variant &variant)
 {
 	switch (variant.GetType())
@@ -297,9 +285,16 @@ DataModel::DataModel(std::unique_ptr<Detail::DataModelState> pState) : m_pState{
 {
 }
 
-void Detail::RegisterTransforms(Rml::DataModelConstructor &constructor)
+void Detail::RegisterTransforms(Rml::DataModelConstructor &constructor, const StringTable &strings)
 {
-	constructor.RegisterTransformFunc("thousands", &Thousands);
+	// {{trader.credits | thousands}}: 1,250,000, or as the language groups a number's thousands.
+	constructor.RegisterTransformFunc(
+	    "thousands",
+	    [&strings](const Rml::VariantList &arguments)
+	    {
+		    return arguments.empty() ? Rml::Variant{}
+		                             : Rml::Variant{strings.Number(arguments[0].Get<std::int64_t>())};
+	    });
 }
 
 DataModel::~DataModel() = default;

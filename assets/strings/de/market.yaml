@@ -1,0 +1,35 @@
+# The market screen in German, over the base's English (strings/en/market.yaml).
+version: 1
+market:
+  title: Markt
+  credits: Credits
+  hold: Laderaum
+  crates: Kisten
+  lots: Kisten je Handel
+  column:
+    good: Ware
+    stock: Bestand
+    bid: Ankauf
+    ask: Verkauf
+    held: An Bord
+    elsewhere: Anderswo
+  buy: Kaufen
+  sell: Verkaufen
+  footer: M schließt den Markt.
+  none:
+    station: Kein Markt
+    status: In diesem System gibt es keinen Markt
+  docked: Angedockt an {0}
+  dock-to-trade: Zum Handeln an {0} andocken
+  no-dock: Hier kann noch kein Schiff andocken
+  crossing:
+    one: "; {0} Kiste unterwegs über das Deck"
+    other: "; {0} Kisten unterwegs über das Deck"
+  pays: "{0} zahlt {1}"
+  bought:
+    one: "{0} Kiste {1} zu {2} je Kiste gekauft"
+    other: "{0} Kisten {1} zu {2} je Kiste gekauft"
+  sold:
+    one: "{0} Kiste {1} zu {2} je Kiste verkauft"
+    other: "{0} Kisten {1} zu {2} je Kiste verkauft"
+  refused: "Kein Handel: {0}"

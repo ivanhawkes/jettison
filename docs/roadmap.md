@@ -4,44 +4,38 @@ The order is set by what is expensive to change later, then by what later work s
 is not set by what looks good in a screenshot. Architectural decisions (layout, the
 simulation split, coordinate precision, colour space, serialisation) come before the systems
 that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
-commit that did it in the history. Phases 0–10, and the catalogue entries for the systems they
+commit that did it in the history. Phases 0–11, and the catalogue entries for the systems they
 built, are recorded in [history](history.md).
 
 ## Phases
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| 0–10 | **Done** 2026-11-10 to 2026-11-13: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish. Recorded in [history](history.md). | Met. |
-| 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
-| 11a | **Packs.** Done 2026-11-13. Catalogue entry 30. Pack files behind the VFS (`vfs/Pack.h`): a directory's files in one, each stored or one zstd frame with its checksum, the index checked whole as it is mounted, read by `pread` from a file held open; a mount of a regular file is a pack. `FileSystem::Find` (a file's mount, time and size, which the resource manager's hot reload stamps by) in place of `Resolve`, and `ReadLayers`, every mount's file at a path. zstd 1.5.7, one copy, which `ktx_read` is built against in place of its own ([decided](#decided)). `jettison_pack` and `jettison_add_pack`; the sample assets as `jettison_assets_pack`. Definitions in layers: a whole file replaces, a `.patch.yaml` beside it merges over the layers below (`YamlArchive::ReadLayered`: mappings key by key, a null removing, `!append`, `!merge=<field>`), each layer migrated on its own, and every change a mod makes logged ([files, packs and mods](architecture.md#files-packs-and-mods)). The shell's mounts (`App::MountAssets`): the base, the user's mods under `mods/` in the order of their names, the user's data directory; the assets' pack found beside the executable where there is no directory; the default scene and ImGui's fonts read through the mounts. The headless smoke test runs packed, with a data mod in its user's mods (`--packed`). | Met: the headless smoke test, both scenes, from `assets.pack` with validation on and a pack of the test's mod in its user directory, the shell saying it mounted the base and the mod as packs and that beer is patched by the mod, once a scene; in the app suite, a mod in the user's mods over the sample game's definitions packed patching beer's price and Highport's market by `!merge=good` and adding wine. In the vfs suite, a packed directory read as the directory does, every prefix of a pack and four kinds of damage refused as it is mounted, a damaged file caught as read, and a pack replaced on the disk read as mounted, under the sanitisers too. The sample assets, 136 files and 90.3 MB, pack in 1.2 s to 88.6 MB. |
-| 11b | **Scripting.** Done 2026-11-13. Catalogue entry 29. WAMR 2.4.5 decided over wasmtime ([decided](#decided)): its fast interpreter, with instruction metering, the thread manager, bulk memory and reference types, software bounds checks, and no libc or WASI. Scripts as definitions (`defs/scripts`, `script/ScriptDefinition.h`), their modules read through the VFS from whichever mount has them; fuel a call by instruction count, and a watchdog's time limit that stops a script past it; a trap logged and survived. The host API generated from reflection (`script/Bindings.h`): the types `Reflect::Attribute::Script` marks laid out as wasm32's C ABI lays them out, an event copied into a handler's memory and a command read out of it with every pointer, bool and enumerator checked, and from the same layouts a C header and a Rust module, each asserting its sizes and offsets, written by the console's `script_bindings`; imports (`log`, `input`, `send:<Command>`) checked against a script's grants as it loads. Calls from events, as the shell takes them, whose handlers send commands into the queue, and from AI considerations, an input a script answers on a fresh instance each call (`ScriptHost::WithScripts`), which the traders weigh their runs with. Scripts in C or Rust (`jettison_add_script`; lld's wasm-ld and rustc in the devenv), the shell's in Rust. The smoke mod gains a Rust script and a patch of the trade decision ([scripts](architecture.md#scripts)). | Met: the headless smoke test, packed, loads the smoke mod's script from the pack in its user's mods once a scene ("Script 'smoke': scripts/smoke.wasm loaded, 1 handler(s), 1 input(s), granted log"), and the script, called from the traders' trade events, says what it heard, twice a scene ("smoke: heard trade 1: bought 9 crate(s) of copper at 61660 credits"), with no trap. In the app suite, the same mod from a user's directory answers 25 inputs as the traders choose in the first step and hears every trade they fill, and the shell's Rust bindings are checked as this build's. In the script suite, under the sanitisers too, the limits (fuel the same on every run, a call past 50 ms stopped, memory, stack, bounds), every refusal of a module or a definition, and events in and commands out and inputs, against the same module in C and in Rust. A handler call takes 0.27 µs and an input call 9 to 10 µs in Release. |
-| 11c | **Cinematics and grading.** Done 2026-11-13. Catalogue entry 30, and entry 18's cinematic camera. The colour grade (`render/ColourGrade.h`, `Scene::ColourGradeComponent`): a `.cube`'s 3D table, read on the I/O worker as a resource (`grades/`) and uploaded as a 3D image, applied by the output pass after the tonemap to the display's colours encoded sRGB, by a strength, under the fade and the UI ([decided](#decided)); its lookup at texel centres in `post.glsl` (`LutCoordinate`), held to the CPU's (`SampleLut`). Cinematics (`scene/Sequence.h`, `cinematics/`): sequences of shots, each a rail of points in a role's frame flown at an even speed along a centripetal Catmull-Rom spline, eased, looking at a point in another role's frame, its field of view from start to end (`CameraPoseComponent::verticalFovDegrees`), cut or blended from the shot before; the game's camera blended in and out over the rigs, which run under it, a blend moving the camera and the point it looks at along lines ([decided](#decided)); a fade, letterbox bars (the output pass's, in whole rows) and events on a clip's timeline (`Animation::AdvanceClip`). `SequencePlayerComponent` and `SequenceSystem`, after the camera rigs, binding roles by name and waiting for a role bound to nothing yet. The shell binds the ship, its pad and its station, plays `cinematics/dock.sequence.yaml` as the ship lands on a pad, cuts it short on Escape and hides the flight readout under it; the console's `sequence <name> [seconds] \| stop` and `grade <name> [strength] \| off`. `OrientationFromAngles` moves to `scene` ([cinematics](architecture.md#cinematics), [colour grading](architecture.md#colour-grading)). | Met: in the shell on Xvfb, the ship undocked and sent back by the console's `dock` landed on pad 1 of Ostra Highport and played the docking sequence ("Playing sequence 'dock' from 0.0 s"), with no warning. Two reference frames, the same to the byte on every run: `dock-sequence`, the sequence 1.5 s in from the chase camera, the shuttle in frame as the camera swings round it and the bars drawn; and `graded`, the orbit scene graded by the sample's `cold-light.cube`, which is within one level at every pixel of `orbit.png` put through the table on the CPU (89% of its pixels moved by more than two), every other reference unchanged. In the scene suite, a sequence read and every refusal of one; a rail flown evenly through its points, on a line to within 0.3 mm in 20 m; the game's camera blended in and handed back exactly, shots cut and blended, the bars and the fade; a rail riding a turned, scaled frame 10^8 m out; and a player through the resource manager, waiting for its file and its roles, hearing each event once and ending. In the render suite, `.cube` files read and refused, and the lookup through a device's trilinear filter equal to the table's grade at 2, 17 and 33 entries a side. A grade costs the output pass 0.7 ms on lavapipe at 960 × 540 (1.1 to 1.8 ms). |
-| 11d | **Crash handling and localisation.** A backtrace and the log tail written on a fatal signal; localisation string tables. | |
+| 0–11 | **Done** 2026-11-10 to 2026-11-13: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish, scripting and shipping. Recorded in [history](history.md). | Met. |
 
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
 target and a test, and phases 2–11 fill stubs in rather than invent structure.
 
-Phases 5–11 are split into lettered sub-phases (phases 5's to 10's are in [history](history.md)), each a block of related work that touches the
-same modules and documents, so it can be done in one session and the context cleared after it.
+Phases 5–11 are split into lettered sub-phases (all of them now in [history](history.md)), each a
+block of related work that touches the same modules and documents, so it can be done in one session
+and the context cleared after it.
 A sub-phase names the catalogue entries that are its brief; read those, not the whole catalogue.
 A phase is done when its last sub-phase meets the phase's exit criterion, so a reference to
 "phase 7" in the code or the documents still means the whole phase. A sub-phase with no exit
-criterion yet gets one when it starts, as phase 11's rows will.
+criterion yet gets one when it starts.
 
 ## Carried forward
 
-Work that phases 1–10 moved on, and where it lands. Their full record, and catalogue entries 1–28 and
-31, are in [history](history.md).
+Work that phases 1–11 moved on, in the order it is worth doing: by what is expensive to change later,
+then by what the game's next work stands on, as the phases were ordered. Within a tier the first is
+the most pressing. The decisions some of them wait on are [open](#open-decisions). Phases 1–11's
+full record, and catalogue entries 1–31, are in [history](history.md).
 
-- **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
-  writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
-  smoke test's patterns.
-- **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
-  shell sets its ship's and its traffic's, and by lane travel as a ship comes out of a gate, into the
-  frame of the station the gate keeps by (9a). Taking a ship into a station's frame as it closes and
-  out as it leaves, by a radius about each body, is not yet placed: steering (9b) flies within a
-  frame, and nothing in phase 9 leaves one, since every gate keeps station a few kilometres from its
-  station, in its frame. The first traffic between a station and the open system lands it.
+### First: what saves and the simulation's interface hold
+
+Each of these fixes what a save holds or the shape of what goes into and out of the step, and gets
+dearer with every save a player has and once a second player sends commands.
+
 - **A change inside a component's fields** (entry 25, 8a): fields are found by name, so a field
   added to a component reads an old save with its default, and one renamed is a rename in the
   world's table; but a field removed is refused (the archive refuses a field its type does not
@@ -49,89 +43,91 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   the step, and the world's steps have the document alone. A component's own chain, run by the
   world as it reads that component's storage, is not yet placed: the game's first change to a
   component after its saves matter is its first reader.
+- **A script's state in a save** (entry 29, 11b): a handler keeps its instance between calls, and a
+  save holds none of it, so a handler that counts starts again from nothing on a load (an input
+  keeps none, by design). Whatever carries it is in every save made after scripts matter.
+- **The simulation's text** (entry 30, 11d): a trade's refusal and a save's problem are English made
+  in the step and carried in its events as text, which no string table can word; each event wants a
+  reason and its values for presentation to word instead. Every rule the game adds that refuses
+  something adds another, so the event's shape is cheapest to change now.
+- **Commands that carry their sender** (9c): the docks' commands carry a `Sim::Controller` and
+  are refused from one that does not control the ship, and a trader sends its own with its AI
+  controller (9f); the flight controls, a destination, a lane entered, a pick and the sample's trade
+  do not yet, and are taken from anyone. Each gains one as the first command a second player could
+  send for it, with networking.
 - **Jolt's state across a Jolt upgrade** (entry 25, 8a): physics' share of a save is Jolt's own
   binary state, which a step cannot edit as data. A Jolt upgrade that changes it needs a load that
   rebuilds the bodies from the world's components instead, losing the contact cache's warm start for
   a step. Not yet placed; it is the first thing to check when Jolt is next moved.
-- **The UI's drawing, not yet placed** (entry 23, 8b): RmlUi's clip masks (an element with
-  `overflow` clipped by a rounded border, or clipped while transformed), which want a stencil in the
-  output pass's rendering, where the UI is drawn into the swapchain and the depth target's stencil
-  (10c) is not attached; and its layers, filters and shaders (`filter`, `backdrop-filter`,
-  `mask-image`, gradients drawn as shaders), which want render targets of their own, as the post
-  chain's are (10c). Until then RmlUi's defaults draw nothing for them, and a screen uses none.
-- **The UI, not yet placed** (entry 23, 8b): a stylesheet or document reloaded when its file
-  changes (RmlUi keeps a stylesheet for the run); a document's images decoded on the I/O worker
-  rather than as the document lays out, which is on the main thread and fine for a screen's icons;
-  RmlUi's debugger in the dev tools.
-- **The audio, not yet placed** (entry 24, 8c): music that crossfades between pieces and a playlist
-  to choose them; Doppler, once something reports velocities to presentation; the ship's own sounds
-  (its engines, the cockpit's) and occlusion by hulls; a sound file streamed from its mount rather
-  than read whole, which waits on a streaming read in the VFS (entry 10; a pack's stored files could
-  be read in ranges, its compressed ones would want zstd's streaming decoder). The voice bus has
-  nothing on it yet.
+
+### Next: what the game's next slices stand on
+
+The order book, the economy's turns and the scripted rules ([sample
+game](sample-game.md#what-comes-next)), and the space they are played in: a system crossed at its
+own scale, gates flown through, traders that react, and mods a player can choose between.
+
 - **The sample game's later slices** ([sample game](sample-game.md)): ManifestCore's order book,
   which the traders (9f) post to once they trade by orders, the economy's turns and the skill tree's
   effects, then scripting (11).
-- **A gate flown through** (entry 26, 9a): the shell sends its ship along a lane wherever it is in
-  the system, as the scene jumps, standing in for the game's rule, and a trader's tree sends its
-  own once it is within 150 m of the gate's centre (9f). A gate that sends what flies through its
-  ring, a sensor whose contact pushes `EnterLane`, for the pilot and the traders alike, is not yet
-  placed; the game's rule for who may use a gate lands with it. The smoke sequence's jump sends the
-  ship and does not wait the 40 s for it to come out; the AI and app suites cover the arrival.
+- **A body's frame chosen for it** (entry 22, 7b): `Physics::LocalFrame` is set by the game, as the
+  shell sets its ship's and its traffic's, and by lane travel as a ship comes out of a gate, into the
+  frame of the station the gate keeps by (9a). Taking a ship into a station's frame as it closes and
+  out as it leaves, by a radius about each body, is not yet placed: steering (9b) flies within a
+  frame, and nothing in phase 9 leaves one, since every gate keeps station a few kilometres from its
+  station, in its frame. The first traffic between a station and the open system lands it.
 - **Courses past moving bodies** (entry 26, 9a): a course is straight legs between bodies where they
   are when it is plotted, plotted again as a ship goes. Fine across a station's few kilometres and
   for estimating a crossing; a course across a system flown at real speeds (days, past a planet that
   moves) needs its bodies where they will be, and a way of crossing a system at that scale at all,
   which nothing in the engine has yet. Steering (9b) flies a course's waypoints in the ship's frame,
   so a course by a station moves with it; the system's scale is not yet placed.
+- **A gate flown through** (entry 26, 9a): the shell sends its ship along a lane wherever it is in
+  the system, as the scene jumps, standing in for the game's rule, and a trader's tree sends its
+  own once it is within 150 m of the gate's centre (9f). A gate that sends what flies through its
+  ring, a sensor whose contact pushes `EnterLane`, for the pilot and the traders alike, is not yet
+  placed; the game's rule for who may use a gate lands with it. The smoke sequence's jump sends the
+  ship and does not wait the 40 s for it to come out; the AI and app suites cover the arrival.
+- **Decisions, not yet placed** (entry 26, 9f): reactive nodes, which tick a condition above a
+  running branch and halt what they leave, as a trader breaking off its run to flee would need, and
+  with them a task's halt; parallel nodes; a tree that names another as a subtree, where the
+  trader's tree repeats its three-node jump loop for each leg; a blackboard of the engine's, where a
+  trader's run is its own component; a command that gives an entity a tree, with its sender, where
+  the shell gives a trader its tree as it makes it; and a tree ticked less often than every step,
+  which seven traders do not need. A trader's run that cannot be made waits half a minute and
+  chooses again; what a trader does about a hull it cannot dock, a market that has gone, or the
+  player in its way beyond steering clear is the game's.
+- **Scripts, not yet placed** (entry 29, 11b): a script reading the world, which today it sees only
+  through the events it is given and an option's inputs, and which would come through snapshots; a
+  script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
+  when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
+  not report, for the console.
 - **Packs and mods, not yet placed** (entry 10, 11a): a list of the mods enabled and their order,
   which the shell takes from their names; a mod's own description (a name, a version, the engine
   version it was written for); a patch that removes an element from a list, rather than replacing
   the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything but
   definitions, so a mod still replaces a scene, a system or a stylesheet whole.
-- **Scripts, not yet placed** (entry 29, 11b): a script's own state in a save, which a handler that
-  counts loses on a load (an input keeps none); a script reading the world, which today it sees only
-  through the events it is given and an option's inputs, and which would come through snapshots; a
-  script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
-  when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
-  not report, for the console.
-- **The crash handler hook** in `platform` (entry 6): 11d.
-- **Cinematics and grading, not yet placed** (entry 30, 11c): a jump's cutscene, which the
-  sequencer plays as data but the jump does not yet wait on (its fade rises as it is asked for), and
-  whose arrival would bind the gate, which the shell does not; a sequence's events heard by the shell,
-  as sounds by data; a shot's roll and depth of field; a blend that steers round a hull rather than
-  along a line, which a rail is drawn to avoid today (the dock's starts on the chase camera's side);
-  and a grade blended between two tables, as a sequence's own look or a system's change of one
-  would want.
-- **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
-  a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
-  brightness in it. Not yet placed.
-- **Air over a mesh in it** (entry 28, 10a): the haze is the planet's own surface's and the sky's,
-  not a ship's or a station's within the air, which no sample scene has yet, nor a transparent
-  draw's (10b); nor are the bodies' air and rings sorted where two overlap on the screen. Not yet
-  placed: the first scene with a ship in the air brings it, for the opaque and the transparent draws
-  alike.
-- **A gas giant's bands** (entry 28, 10a): Corva is one colour under its air. Not yet placed.
-- **The transparent pass, not yet placed** (entry 28, 10b): particles sorted within an emitter, on
-  the GPU, which a smoky emitter seen through itself would want; soft particles where they meet a
-  surface, which want the depth the opaque pass is still writing, so a node of their own after it;
-  refraction through glass, from a copy of the frame behind it, which the opaque pass's resolved
-  target would give were the transparent draws a node of their own after it; a glTF primitive's `BLEND` alpha mode, which draws opaque; a transparent
-  surface's shadow, tinted, which the sun's depth-only cascades cannot hold; and an emitter
-  started warm, as if it had been running, which a capture of a smoke column waits three seconds
-  for instead. A ship's plumes show its throttle ahead alone, not its turns and strafes.
-- **The post chain, not yet placed** (entry 28, 10c): a transparent part of an outlined shape (a
-  canopy) is not in the depth prepass, so the shape's outline runs round the opaque parts alone; a
-  pick read from the object IDs under the mouse, which the physics ray answers today; the game UI and
-  the dev tools under a mask, since they are drawn in the output pass, where the stencil is not
-  attached; ambient occlusion at half the frame's size, or kept from frame to frame, should a
-  measured frame want it cheaper.
-- **Animation, not yet placed** (entry 27, 10d): a glTF clip's events, which glTF has no place for
-  (its extras, or a clip file beside the model); one clip blended into another, so a clip changed
-  part-way, as a pad's clamps let go before they have closed, starts the new one from its first pose
-  rather than from where the rig is; the clamps fitted to the hull's box rather than its shape, so
-  on a hull drawn by its model they grip where its box's sides are; and rigs of the ships' own
-  (landing gear, a cargo hatch), which the hull proxies do not have.
+- **Picking a paused world, and under the cursor every frame** (entry 22, 7c): a pick is answered by
+  the next step, so a paused world answers when it resumes, and a hover highlight would send a
+  command a frame. Both want a query presentation makes itself, against the bodies' shapes in a
+  snapshot. Not yet placed.
+- **Physics, not yet placed** (entry 22): a shape offset in its body, and compound shapes; collision
+  filtering beyond static against moving (the game's own layers and groups); Jolt's debug renderer
+  drawn through debug draw; Jolt's job system on more than one thread, once a profile asks for it
+  (deterministic either way); the capacities tuned against real traffic; overlap queries (every body
+  in a shape) and casts that return every hit, which steering (9b) did without (below).
+
+### Then: robustness, tools and what a mod can reach
+
+Cheap to add when they are wanted and costly to nothing meanwhile, but for the log, whose file a
+player's report of a problem needs and the shell does not write.
+
+- **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
+  writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
+  smoke test's patterns.
+- **Crash handling, not yet placed** (entry 30, 11d): a report from a thread other than the main
+  one whose stack overflowed, which wants an alternate stack set by every thread the engine starts
+  (the I/O worker, the scripts' watchdog) and by Jolt's; a report sent anywhere, which waits on the
+  game's choice of a service; a minidump, should a report's frames and tail not be enough.
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
   first draws it, so a jump holds its effect over the new system's first frames while they stream
   in, 0.2 to 0.4 s on lavapipe for the sample systems. Not yet placed.
@@ -146,11 +142,6 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   definition's size, whether or not it names a model to be drawn with (9d). A model's triangles, read from its file on
   the I/O worker as its rig is, or a collision mesh beside it, are not yet placed, and a model on a
   station of no layout is reported and left out.
-- **Physics, not yet placed** (entry 22): a shape offset in its body, and compound shapes; collision
-  filtering beyond static against moving (the game's own layers and groups); Jolt's debug renderer
-  drawn through debug draw; Jolt's job system on more than one thread, once a profile asks for it
-  (deterministic either way); the capacities tuned against real traffic; overlap queries (every body
-  in a shape) and casts that return every hit, which steering (9b) did without (below).
 - **Steering, not yet placed** (entry 26, 9b): an obstacle is the sphere about its body that holds
   its shape, and only a destination kept clear by its hull (9c) flies inside one, by a shape cast
   along its way, which slows it and does not turn it: a course round the inside of a station, from
@@ -158,14 +149,6 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   down from outside the sphere, which a layout is checked to leave clear. Steering is measured for a
   station's traffic, sixteen ships; a busier lane's, where every ship queries the index each step,
   is measured when a game has one.
-- **The station dressing, not yet placed** (9d): the dressing is drawn and not collided with, so a
-  ship flown off its pad's column passes through a floodlight pole or a display ship, which the
-  column a layout is checked to keep clear never meets; a pad's look as data (its paint, its poles'
-  spacing and its floodlights' aim are the shell's, by class, in code; a reserved pad's lamps blink,
-  10c, by a material of the shell's choosing); the floodlights' shadows,
-  which the clusters' lights do not cast. The light-budget scene (`scripts/make-light-budget-scene.py`)
-  still adds its 265 lights where 5e's hand-built hub was, now inside the layout's hub, so it measures
-  the grid's cost and no longer shows anything; the dressing's 104 are the station's lights now.
 - **Deck traffic, not yet placed** (9e): a buggy drives to its ship's hatch on the deck under the
   hull, through whatever of the hull's proxy is lower than the buggy, as a ramp or a lift a hull
   lowers to its hatch would not; roads run only on the tops of decks and piers, so a pad on a side
@@ -175,24 +158,76 @@ Work that phases 1–10 moved on, and where it lands. Their full record, and cat
   having said which; and a pad's buggies are its own, not a station's pool shared out by demand.
   A buggy is placed on its station's rails each step, which for a station's few dozen is nothing,
   and is measured when a game has hundreds.
-- **Commands that carry their sender** (9c): the docks' commands carry a `Sim::Controller` and
-  are refused from one that does not control the ship, and a trader sends its own with its AI
-  controller (9f); the flight controls, a destination, a lane entered, a pick and the sample's trade
-  do not yet, and are taken from anyone. Each gains one as the first command a second player could
-  send for it, with networking.
-- **Decisions, not yet placed** (entry 26, 9f): reactive nodes, which tick a condition above a
-  running branch and halt what they leave, as a trader breaking off its run to flee would need, and
-  with them a task's halt; parallel nodes; a tree that names another as a subtree, where the
-  trader's tree repeats its three-node jump loop for each leg; a blackboard of the engine's, where a
-  trader's run is its own component; a command that gives an entity a tree, with its sender, where
-  the shell gives a trader its tree as it makes it; and a tree ticked less often than every step,
-  which seven traders do not need. A trader's run that cannot be made waits half a minute and
-  chooses again; what a trader does about a hull it cannot dock, a market that has gone, or the
-  player in its way beyond steering clear is the game's.
-- **Picking a paused world, and under the cursor every frame** (entry 22, 7c): a pick is answered by
-  the next step, so a paused world answers when it resumes, and a hover highlight would send a
-  command a frame. Both want a query presentation makes itself, against the bodies' shapes in a
-  snapshot. Not yet placed.
+- **The station dressing, not yet placed** (9d): the dressing is drawn and not collided with, so a
+  ship flown off its pad's column passes through a floodlight pole or a display ship, which the
+  column a layout is checked to keep clear never meets; a pad's look as data (its paint, its poles'
+  spacing and its floodlights' aim are the shell's, by class, in code; a reserved pad's lamps blink,
+  10c, by a material of the shell's choosing); the floodlights' shadows,
+  which the clusters' lights do not cast. The light-budget scene (`scripts/make-light-budget-scene.py`)
+  still adds its 265 lights where 5e's hand-built hub was, now inside the layout's hub, so it measures
+  the grid's cost and no longer shows anything; the dressing's 104 are the station's lights now.
+- **The UI, not yet placed** (entry 23, 8b): a stylesheet or document reloaded when its file
+  changes (RmlUi keeps a stylesheet for the run); a document's images decoded on the I/O worker
+  rather than as the document lays out, which is on the main thread and fine for a screen's icons;
+  RmlUi's debugger in the dev tools.
+- **Localisation, not yet placed** (entry 30, 11d): numbers with fractions, dates and times in the
+  language's own form, where only a whole number's thousands are; text a document holds in an
+  attribute, which RmlUi does not hand to the table; right-to-left and shaped scripts, which RmlUi
+  can lay out with HarfBuzz and the fonts shipped cannot draw; and the player's language chosen at
+  the first start from the platform's (Steam's, the environment's), which the setting stands in for.
+
+### Last: presentation, when a scene asks for it
+
+Each is placed by the first scene or screen that needs it, and changes no data or save on the way.
+
+- **Animation, not yet placed** (entry 27, 10d): a glTF clip's events, which glTF has no place for
+  (its extras, or a clip file beside the model); one clip blended into another, so a clip changed
+  part-way, as a pad's clamps let go before they have closed, starts the new one from its first pose
+  rather than from where the rig is; the clamps fitted to the hull's box rather than its shape, so
+  on a hull drawn by its model they grip where its box's sides are; and rigs of the ships' own
+  (landing gear, a cargo hatch), which the hull proxies do not have.
+- **The audio, not yet placed** (entry 24, 8c): music that crossfades between pieces and a playlist
+  to choose them; Doppler, once something reports velocities to presentation; the ship's own sounds
+  (its engines, the cockpit's) and occlusion by hulls; a sound file streamed from its mount rather
+  than read whole, which waits on a streaming read in the VFS (entry 10; a pack's stored files could
+  be read in ranges, its compressed ones would want zstd's streaming decoder). The voice bus has
+  nothing on it yet.
+- **Cinematics and grading, not yet placed** (entry 30, 11c): a jump's cutscene, which the
+  sequencer plays as data but the jump does not yet wait on (its fade rises as it is asked for), and
+  whose arrival would bind the gate, which the shell does not; a sequence's events heard by the shell,
+  as sounds by data; a shot's roll and depth of field; a blend that steers round a hull rather than
+  along a line, which a rail is drawn to avoid today (the dock's starts on the chase camera's side);
+  and a grade blended between two tables, as a sequence's own look or a system's change of one
+  would want.
+- **The UI's drawing, not yet placed** (entry 23, 8b): RmlUi's clip masks (an element with
+  `overflow` clipped by a rounded border, or clipped while transformed), which want a stencil in the
+  output pass's rendering, where the UI is drawn into the swapchain and the depth target's stencil
+  (10c) is not attached; and its layers, filters and shaders (`filter`, `backdrop-filter`,
+  `mask-image`, gradients drawn as shaders), which want render targets of their own, as the post
+  chain's are (10c). Until then RmlUi's defaults draw nothing for them, and a screen uses none.
+- **The transparent pass, not yet placed** (entry 28, 10b): particles sorted within an emitter, on
+  the GPU, which a smoky emitter seen through itself would want; soft particles where they meet a
+  surface, which want the depth the opaque pass is still writing, so a node of their own after it;
+  refraction through glass, from a copy of the frame behind it, which the opaque pass's resolved
+  target would give were the transparent draws a node of their own after it; a glTF primitive's `BLEND` alpha mode, which draws opaque; a transparent
+  surface's shadow, tinted, which the sun's depth-only cascades cannot hold; and an emitter
+  started warm, as if it had been running, which a capture of a smoke column waits three seconds
+  for instead. A ship's plumes show its throttle ahead alone, not its turns and strafes.
+- **The post chain, not yet placed** (entry 28, 10c): a transparent part of an outlined shape (a
+  canopy) is not in the depth prepass, so the shape's outline runs round the opaque parts alone; a
+  pick read from the object IDs under the mouse, which the physics ray answers today; the game UI and
+  the dev tools under a mask, since they are drawn in the output pass, where the stencil is not
+  attached; ambient occlusion at half the frame's size, or kept from frame to frame, should a
+  measured frame want it cheaper.
+- **Air over a mesh in it** (entry 28, 10a): the haze is the planet's own surface's and the sky's,
+  not a ship's or a station's within the air, which no sample scene has yet, nor a transparent
+  draw's (10b); nor are the bodies' air and rings sorted where two overlap on the screen. Not yet
+  placed: the first scene with a ship in the air brings it, for the opaque and the transparent draws
+  alike.
+- **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
+  a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
+  brightness in it. Not yet placed.
+- **A gas giant's bands** (entry 28, 10a): Corva is one colour under its air. Not yet placed.
 - **Not yet placed** (entries 19 and 20): the sun's shadow distance and split blend tuned by
   measurement; hysteresis between levels of detail, and levels for model files; the planets' own
   shadows past the shadow distance (a station in eclipse), which would need an analytic test against
@@ -223,31 +258,7 @@ tested; everything that would need an algorithm throws.
 In priority order. Each entry is the brief for its stub. *Library* is the chosen dependency.
 *Stub* names what phase 1 declares.
 
-Entries 1–28 and 31, for phases 1–10, are in
-[history](history.md#system-catalogue-entries-128-and-31). The numbers carry on here.
-
-### 29. Scripting · phase 11 · `engine/script`
-
-A Wasm host: module loading from mod mounts, fuel/time limits, a capability-scoped host API
-generated from reflection, and calls into scripts from AI considerations and events.
-*Library*: WAMR (WebAssembly Micro Runtime) 2.4.5, its fast interpreter ([decided](#decided)).
-*Filled in* (11b): scripts as definitions (`defs/scripts`), their modules read through the VFS; fuel
-by instruction metering and a watchdog's time limit; the host API's layouts, its C header and its
-Rust module generated from the types `Reflect::Attribute::Script` marks, imports checked against
-each script's grants as it loads; handlers of events that send commands, and inputs for a decision's
-considerations. Scripts in C or Rust. See [scripts](architecture.md#scripts).
-
-### 30. Shipping · phase 11
-
-Pack files, crash handling (a backtrace and the log tail, written on a fatal signal), the colour-grading LUT, the cinematic camera and sequencer, localisation string tables.
-*Library*: zstd 1.5.7, for pack files, shared with libktx.
-*Filled in* (11a): pack files (`vfs/Pack.h`, `jettison_pack`, `jettison_add_pack`), mounted as a
-directory is; mods in the user's data directory; definitions in layers, by patches. See
-[files, packs and mods](architecture.md#files-packs-and-mods).
-*Filled in* (11c): the colour grade, a `.cube`'s table over the display's colours after the
-tonemap (`render/ColourGrade.h`); the cinematic camera and sequencer, shots on rails in the frames of
-roles the game binds, over the camera rigs (`scene/Sequence.h`). See
-[colour grading](architecture.md#colour-grading) and [cinematics](architecture.md#cinematics).
+Entries 1–31, for phases 1–11, are in [history](history.md#system-catalogue-entries-131).
 
 ## Decided
 
@@ -664,9 +675,62 @@ Settled on 2026-11-10:
   only the up is slerped. The game camera's point is along its view, as far as the shot's subject is.
   The camera itself still moves on a line, so a rail is drawn to start on the game camera's side of
   what it circles.
+- **A crash report names its frames in a child process, after the rest is written** (2026-11-13,
+  phase 11d). Naming a frame in the handler means reading the executable's symbols and DWARF there,
+  a library (libbacktrace, cpptrace) to read them without allocating, and a release build has no
+  line tables anyway. So the handler writes what it can without help, every frame as a module and an
+  offset from `/proc/self/maps`, with system calls alone, and only then runs `addr2line` per module by
+  `vfork` and `exec`, which run no fork handlers and so take none of the locks a crash may hold; a
+  hung symboliser is ended by SIGALRM, the report already on the disk. addr2line named a frame of the
+  160 MB debug build in 0.09 s. A player's machine, with no symboliser, writes modules and offsets,
+  which `scripts/symbolise-crash.sh` names against the build. The sanitised build keeps its
+  sanitiser's report instead.
+- **String tables merge key by key, and the language is a setting** (2026-11-13, phase 11d). A table
+  is one flat mapping, so a mod's file at the same path is already a patch of it: no `.patch.yaml`,
+  and no whole-file replacement, which would only drop keys back to English. Arguments are
+  std::format's by position rather than names, so the game's code formats with the library it already
+  uses and a translation still orders them; a translation is held to its base text's arguments and
+  data expressions as it is read, so no translation can make a format throw or a document read what
+  its screen does not bind. The language is the player's setting rather than the environment's
+  locale, so a run, a reference frame or the smoke test reads the same on every machine.
 
 ## Open decisions
 
-To be settled when the phase that needs them begins. None is open: the last, the Wasm runtime, was
-settled as phase 11b began.
+To be settled before the work that needs them, each with what is recommended. The first four are
+the first tier's of [carried forward](#carried-forward), and want settling before a game's saves or
+mods are in players' hands.
 
+1. **How a component migrates** (a change inside a component's fields). Recommended: a chain of
+   steps per component, registered with it and run by the world as it reads that component's
+   storage, each step given the old value as a YAML or binary node by field name, so a removed or
+   retyped field is read by the step that knows it and the world's own steps stay for whole-world
+   changes.
+2. **What a script keeps in a save** (a script's state in a save). Either the instance's linear
+   memory saved whole, which needs nothing of a script's author and ties a save to the module's
+   layout, or state a script hands the host by key through an import (`store`, `load`), saved as data
+   and migrated as data. Recommended: the host's keys; a module rebuilt must not break a save.
+3. **How the step's events say why** (the simulation's text). Recommended: a reason as an
+   enumerator registered with Reflect, and the values it names as fields, worded by presentation
+   from the string table under `reason.<enumerator>`; a script's reason the same, by a name it
+   registers.
+4. **Physics in a save across a Jolt upgrade** (Jolt's state). Keep Jolt's own state and rebuild
+   the bodies from the world's components only when Jolt's version differs, losing the contact
+   cache's warm start for a step on that load alone; or always rebuild, so a save never holds Jolt's
+   bytes and a loaded run differs from an unbroken one for a step every time. Recommended: the
+   first, with the version in the save.
+5. **How a ship crosses a system** (courses past moving bodies, a body's frame chosen for it). A
+   game decision: compressed time over the real distances, a cruise drive of its own, or gates and
+   lanes alone between a system's bodies. It sets the frame changes, the courses and what the
+   camera shows between, and is the largest of the second tier's.
+6. **Who may fly through a gate** (a gate flown through): the game's rule, landed with the sensor.
+7. **How a player chooses mods** (packs and mods): the enabled list and its order, and a mod's own
+   description. Recommended: `mods.yaml` in the user's data directory listing them, written by the
+   game's menu, and a `mod.yaml` in each with a name, a version and the engine version it was written
+   for, refused when that is newer than the engine's.
+8. **How a script reads the world** (scripts). Recommended: through the snapshot presentation
+   already has, read-only, for a handler, and for an input through the option's inputs as now, so no
+   script reads the world inside the step.
+9. **Where a crash report goes** (crash handling): the game's choice of a service, or none.
+
+Settled as their phases began, with the rest, under [decided](#decided): the last, the Wasm runtime,
+as phase 11b began.

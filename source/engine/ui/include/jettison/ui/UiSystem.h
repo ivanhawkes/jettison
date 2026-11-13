@@ -10,6 +10,7 @@
 
 #include <jettison/input/InputCode.h>
 #include <jettison/ui/DataModel.h>
+#include <jettison/ui/StringTable.h>
 
 namespace Jettison::Render
 {
@@ -72,6 +73,14 @@ class UiSystem
 	// documents that read it are loaded; throws std::logic_error for a name already made.
 	DataModel &CreateDataModel(std::string_view name);
 
+	// The language the documents are read in and the game's code formats its text in (StringTable),
+	// its tables read through the file system. Documents already open are read again, each keeping
+	// its handle and whether it is shown, since RmlUi translates a document's text as it reads it.
+	// Throws as StringTable::Load does, and the language before it stays. Until it is called the
+	// table is empty, and every [[key]] reads as its key.
+	void SetLanguage(std::string_view language);
+	const StringTable &Strings() const;
+
 	// Loads a document, hidden. Throws std::runtime_error naming it for one that is missing or that
 	// RmlUi cannot parse.
 	DocumentHandle LoadDocument(std::string_view virtualPath);
@@ -112,7 +121,8 @@ class UiSystem
 	// not have: the smoke sequence presses a screen's buttons with it.
 	bool Click(DocumentHandle document, std::string_view id);
 
-	// The warnings and errors RmlUi has logged.
+	// The warnings and errors RmlUi has logged, the strings asked for that no table has, and the
+	// translations refused.
 	std::size_t Problems() const;
 
   private:

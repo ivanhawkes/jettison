@@ -9,6 +9,7 @@ file(GLOB_RECURSE JETTISON_ASSET_FILES CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_SOURCE_DIR}/models/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/scene/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.program.yaml"
+	"${CMAKE_CURRENT_SOURCE_DIR}/strings/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/systems/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/textures/*"
 	"${CMAKE_CURRENT_SOURCE_DIR}/ui/*"
@@ -18,7 +19,7 @@ file(GLOB_RECURSE JETTISON_ASSET_FILES CONFIGURE_DEPENDS
 # and hot-reloads from. Sounds, fonts and models are copied at configure time only: they are large
 # and rarely change.
 foreach(asset_dir IN ITEMS
-		animations audio cinematics defs fonts grades materials models scene systems textures ui)
+		animations audio cinematics defs fonts grades materials models scene strings systems textures ui)
 	file(COPY "${asset_dir}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
 endforeach()
 file(GLOB JETTISON_PROGRAM_DESCRIPTORS CONFIGURE_DEPENDS
@@ -26,7 +27,7 @@ file(GLOB JETTISON_PROGRAM_DESCRIPTORS CONFIGURE_DEPENDS
 file(COPY ${JETTISON_PROGRAM_DESCRIPTORS} DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set(JETTISON_COPIED_ASSET_DIRS
-	animations cinematics defs grades materials scene systems textures ui)
+	animations cinematics defs grades materials scene strings systems textures ui)
 set(copy_commands)
 foreach(asset_dir IN LISTS JETTISON_COPIED_ASSET_DIRS)
 	list(APPEND copy_commands COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -103,7 +104,7 @@ jettison_add_pack(jettison_assets_pack
 	SOURCE "${CMAKE_CURRENT_BINARY_DIR}"
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}.pack"
 	DIRECTORIES
-		animations audio cinematics defs fonts grades materials models scene shaders systems textures
-		ui
+		animations audio cinematics defs fonts grades materials models scene shaders strings systems
+		textures ui
 	DEPENDS jettison_assets
 )

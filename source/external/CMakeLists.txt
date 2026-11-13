@@ -307,6 +307,9 @@ block()
 	set(TRACY_ON_DEMAND ON)
 	set(TRACY_ONLY_LOCALHOST ON)
 	set(TRACY_STATIC ON)
+	# One handler for the fatal signals, the engine's (Platform::InstallCrashHandler), which writes
+	# the report; Tracy's would send the crash to a profiler that is rarely connected.
+	set(TRACY_NO_CRASH_HANDLER ON)
 	FetchContent_Declare(
 	  tracy
 	  GIT_REPOSITORY https://github.com/wolfpld/tracy.git

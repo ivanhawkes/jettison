@@ -1,0 +1,4 @@
+# How English writes a number: its thousands grouped by this (StringTable::Number).
+version: 1
+numbers:
+  thousands: ","

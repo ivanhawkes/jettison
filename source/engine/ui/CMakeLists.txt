@@ -10,20 +10,24 @@ jettison_add_module(ui
 		vfs
 	HEADERS
 		include/jettison/ui/DataModel.h
+		include/jettison/ui/StringTable.h
 		include/jettison/ui/UiSystem.h
 	SOURCES
 		src/DataModel.cpp
 		src/RmlInterfaces.cpp
 		src/RmlInterfaces.h
+		src/StringTable.cpp
 		src/UiState.h
 		src/UiSystem.cpp
 	TESTS
+		tests/StringTableTests.cpp
 		tests/UiTests.cpp
 	PUBLIC_LIBRARIES
 		EnTT::EnTT
 		glm
 	PRIVATE_LIBRARIES
 		RmlUi::Core
+		yaml-cpp::yaml-cpp
 )
 
 # The tests read the fonts the assets ship.

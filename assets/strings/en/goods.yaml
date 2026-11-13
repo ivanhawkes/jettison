@@ -1,0 +1,28 @@
+# The sample game's goods as the screens name them (defs/goods): goods.<definition>.name and .crate.
+# A good no table names reads as its definition's displayName and crate, as a mod's new good does.
+version: 1
+goods:
+  antibiotics:
+    name: Antibiotics
+    crate: 456 kg of bulk antibiotic
+  beer:
+    name: Beer
+    crate: a kilolitre of beer in casks
+  copper:
+    name: Copper
+    crate: 7,616 kg of copper ingots
+  electronics:
+    name: Electronics
+    crate: 800 boxed units
+  flour:
+    name: Flour
+    crate: a kilolitre of milled flour
+  iron:
+    name: Iron
+    crate: 6,296 kg of iron ingots
+  phosphorus:
+    name: Phosphorus
+    crate: a kilolitre of phosphorus under water
+  wheat-seeds:
+    name: Wheat seeds
+    crate: a kilolitre of certified seed, 775 kg

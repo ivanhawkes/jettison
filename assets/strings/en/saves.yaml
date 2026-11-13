@@ -1,0 +1,12 @@
+# The saves screen's text (ui/saves.rml).
+version: 1
+saves:
+  title: Saved games
+  empty: "There are no saves yet: F5 saves to quicksave."
+  column:
+    save: Save
+    system: System
+    written: Written (UTC)
+    step: Step
+  load: Load
+  footer: L closes this list.

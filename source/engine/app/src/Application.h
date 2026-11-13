@@ -172,6 +172,9 @@ class Application
 	void PlaceOrbitCamera(std::span<const std::string> arguments);
 	// The console's grade: the scene's colour grade set, replaced or taken away.
 	void SetGrade(std::span<const std::string> arguments);
+	// The console's language: the screens read again in the language given, kept in the settings, or
+	// with none, the language they are in and those there are tables for.
+	void SetLanguage(DevTools::Console &console, std::span<const std::string> arguments);
 
 	// Starts a jump: to the system of that name, along the lane from the system shown if one leads
 	// there and straight there if none does; or, with no name, out through the exit after the one

@@ -120,6 +120,19 @@ bool SystemInterface::LogMessage(Rml::Log::Type type, const Rml::String &message
 	return true;
 }
 
+int SystemInterface::TranslateString(Rml::String &translated, const Rml::String &input)
+{
+	// Most of a document's text has no key, and is the same text back.
+	if (input.find("[[") == Rml::String::npos)
+	{
+		translated = input;
+		return 0;
+	}
+	int replaced = 0;
+	translated = m_strings.Translate(input, replaced);
+	return replaced;
+}
+
 
 Rml::CompiledGeometryHandle RenderInterface::CompileGeometry(
     Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices)

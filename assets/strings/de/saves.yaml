@@ -1,0 +1,12 @@
+# The saves screen in German.
+version: 1
+saves:
+  title: Gespeicherte Spiele
+  empty: "Noch keine Spielstände: F5 speichert als Schnellspeicherung."
+  column:
+    save: Spielstand
+    system: System
+    written: Geschrieben (UTC)
+    step: Schritt
+  load: Laden
+  footer: L schließt diese Liste.

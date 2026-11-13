@@ -2,11 +2,13 @@
 
 #include <doctest/doctest.h>
 
+#include <array>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -165,5 +167,47 @@ TEST_CASE("Log: a file that cannot be opened throws, and the sinks before it kee
 	CHECK_THROWS(InitLogging(Severity::Trace, "/proc/jettison/cannot/exist.log"));
 	Log(Severity::Debug, kTestLog, "still heard");
 	CHECK(capture.records.size() == 1);
+	ShutdownLogging();
+}
+
+TEST_CASE("Log: the tail holds the last lines as the file has them, from a whole line")
+{
+	InitLogging(Severity::Trace);
+	const unsigned line = __LINE__ + 1;
+	Log(Severity::Warning, kTestLog, "dock {} refused", 9);
+	std::string tail = LogTail();
+	CHECK(tail.ends_with(
+	    "] [warning] [test] dock 9 refused (LogTests.cpp:" + std::to_string(line) + ")\n"));
+
+	// Past its size it keeps the newest lines, and begins at the start of one.
+	const std::string filler(200, 'x');
+	for (int count = 0; count < 1000; ++count)
+		Log(Severity::Info, kTestLog, "{} {}", count, filler);
+	tail = LogTail();
+	CHECK(tail.size() <= kLogTailBytes);
+	CHECK(tail.size() > kLogTailBytes - 400);
+	CHECK(tail.starts_with("[20"));
+	CHECK(tail.find("dock 9 refused") == std::string::npos);
+	CHECK(tail.find("] [info] [test] 999 x") != std::string::npos);
+	CHECK(tail.ends_with(")\n"));
+
+	// And the descriptor gets the same bytes.
+	std::array<int, 2> pipeEnds{};
+	REQUIRE(pipe(pipeEnds.data()) == 0);
+	const std::string expected = LogTail();
+	std::thread reader;
+	std::string read;
+	reader = std::thread{[&]
+	                     {
+		                     std::array<char, 4096> buffer{};
+		                     for (ssize_t count = 0;
+		                          (count = ::read(pipeEnds[0], buffer.data(), buffer.size())) > 0;)
+			                     read.append(buffer.data(), static_cast<std::size_t>(count));
+	                     }};
+	WriteLogTail(pipeEnds[1]);
+	close(pipeEnds[1]);
+	reader.join();
+	close(pipeEnds[0]);
+	CHECK(read == expected);
 	ShutdownLogging();
 }

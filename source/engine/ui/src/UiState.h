@@ -71,9 +71,10 @@ class DataModelState
 	std::set<std::string, std::less<>> bound;
 };
 
-// The transforms every document may apply to a value, {{credits | thousands}}. RmlUi keeps them
-// for every model of the context at once, so they are registered with the first model made.
-void RegisterTransforms(Rml::DataModelConstructor &constructor);
+// The transforms every document may apply to a value, {{credits | thousands}}, in the string table's
+// language. RmlUi keeps them for every model of the context at once, so they are registered with the
+// first model made; the table outlives them.
+void RegisterTransforms(Rml::DataModelConstructor &constructor, const StringTable &strings);
 
 struct DocumentSlot
 {

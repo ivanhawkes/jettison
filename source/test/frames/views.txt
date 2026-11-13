@@ -30,3 +30,7 @@ graded --scene $PWD/assets/scene/orbit.yaml --run grade|cold-light
 # the camera and the point it looks at 94% of the way from the chase camera's to the first shot's
 # (an ease in and out, three quarters through its blend), and the letterbox's bars as far drawn.
 dock-sequence --scene $PWD/assets/scene/orbit.yaml --run pilot|chase --run sequence|dock|1
+# The orbit scene as it opens with the market screen shown in German, every word of it from the
+# sample's tables (strings/de): its columns, the status, the goods and their crates, and the numbers
+# grouped as German groups them.
+market-de --scene $PWD/assets/scene/orbit.yaml --run language|de --run market|on

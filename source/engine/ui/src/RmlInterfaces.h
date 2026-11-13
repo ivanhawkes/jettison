@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <jettison/render/Overlay.h>
+#include <jettison/ui/StringTable.h>
 
 namespace Jettison::Vfs
 {
@@ -52,7 +53,8 @@ class FileInterface final : public Rml::FileInterface
 	Rml::FileHandle m_next{1};
 };
 
-// The UI's clock is the presentation time the frame gives it, and its messages are the log's.
+// The UI's clock is the presentation time the frame gives it, its messages are the log's, and a
+// document's text is translated by the string table as RmlUi reads it.
 class SystemInterface final : public Rml::SystemInterface
 {
   public:
@@ -61,19 +63,31 @@ class SystemInterface final : public Rml::SystemInterface
 		return m_time;
 	}
 	bool LogMessage(Rml::Log::Type type, const Rml::String &message) override;
+	int TranslateString(Rml::String &translated, const Rml::String &input) override;
+
+	StringTable &Strings()
+	{
+		return m_strings;
+	}
+	const StringTable &Strings() const
+	{
+		return m_strings;
+	}
 
 	void SetTime(double seconds)
 	{
 		m_time = seconds;
 	}
+	// RmlUi's warnings and errors, and the string table's.
 	std::size_t Problems() const
 	{
-		return m_problems;
+		return m_problems + m_strings.Problems();
 	}
 
   private:
 	double m_time{0.0};
 	std::size_t m_problems{0};
+	StringTable m_strings;
 };
 
 // RmlUi's drawing, recorded into the overlay: geometry compiled once and kept here, appended to the

@@ -119,12 +119,39 @@ DataModel &UiSystem::CreateDataModel(std::string_view name)
 	if (!constructor)
 		throw std::logic_error(std::format("UiSystem: RmlUi refused the data model '{}'", name));
 	if (m_pState->models.empty())
-		Detail::RegisterTransforms(constructor);
+		Detail::RegisterTransforms(constructor, m_pState->system.Strings());
 	auto pModel =
 	    std::make_unique<DataModel>(std::make_unique<Detail::DataModelState>(key, constructor));
 	DataModel &model = *pModel;
 	m_pState->models.emplace(key, std::move(pModel));
 	return model;
+}
+
+void UiSystem::SetLanguage(std::string_view language)
+{
+	StringTable strings;
+	strings.Load(m_pState->files, language);
+	m_pState->system.Strings() = std::move(strings);
+	for (Detail::DocumentSlot &slot : m_pState->documents)
+	{
+		if (slot.pDocument == nullptr)
+			continue;
+		const Rml::String source = slot.pDocument->GetSourceURL();
+		const bool shown = slot.pDocument->IsVisible();
+		Rml::ElementDocument *pDocument = m_pState->pContext->LoadDocument(source);
+		if (!pDocument)
+			throw std::runtime_error(
+			    std::format("UiSystem: the document '{}' did not load again", source));
+		slot.pDocument->Close();
+		slot.pDocument = pDocument;
+		if (shown)
+			pDocument->Show();
+	}
+}
+
+const StringTable &UiSystem::Strings() const
+{
+	return m_pState->system.Strings();
 }
 
 DocumentHandle UiSystem::LoadDocument(std::string_view virtualPath)

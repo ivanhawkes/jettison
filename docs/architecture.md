@@ -743,6 +743,39 @@ what ImGui wants, the UI is not given. A document is the frame's size and lets t
 for its panels (`pointer-events`), so a click on a panel is the UI's (`UiSystem::WantsMouse`) and is
 not a pick or a camera drag, and a click beside it is.
 
+## Localisation
+
+The text a player reads comes from string tables (`ui/StringTable.h`, 11d), read through the VFS:
+every YAML file under `strings/<language>/`, a version and nested mappings joined into keys by dots
+(`market.column.ask`). A language is read over its primary language (`pt-BR` over `pt`) and that over
+the base, English, which has every key, so a translation that lacks a key reads English; a key no
+table has reads as itself and is counted with the UI's problems, which the smoke test holds at none,
+and a base with no tables at all is refused. The same file in several mounts is merged key by key,
+the bottom mount's first, so a mod changes the strings it names, adds a file of its own for its own
+screens, or adds a language as a directory; one key in two files of a language is refused, since
+the files' order would settle it. Tables are not definitions: a table is one flat mapping, so a mod's
+file is already a patch of it, and there is no `.patch.yaml`.
+
+A document names a key as `[[market.buy]]`: RmlUi hands every text it reads to the system interface
+(`TranslateString`), and the table replaces the keys before RmlUi parses the text for markup and
+data expressions, so a translation may move `{{screen.used}}` within its sentence or wrap a word in a
+span. The game's code formats its text with `Format`, std::format's positional arguments (`{0}`,
+`{1:>8}`) so a translation orders them its own way, and `Plural`, which chooses `key.one`,
+`key.few` or `key.other` by the CLDR's rule for a whole number in the language, the count `{0}`.
+A translation that names an argument or a data expression its base text does not, or a brace that is
+neither, is refused as it is read, and the base's text stands: a translation cannot make a format
+throw or a document read a variable its screen does not bind. Numbers are grouped by the table's
+`numbers.thousands`, in the documents' `thousands` transform and the shell's text alike
+(`StringTable::Number`).
+
+The language is the player's setting (`ui.language`), not the environment's locale, so a run reads
+the same on every machine until the player chooses; `UiSystem::SetLanguage` reads the tables and
+reads every open document again, each keeping its handle and whether it is shown, since RmlUi
+translates a document's text as it reads it. The console's `language [tag]` sets it. Developer text,
+the log, the console and the dev tools, stays English. The sample ships English and German, a
+good's name and crate in the tables (`goods.<definition>.name`), and a good no table names reads as
+its definition's `displayName`, as a mod's new good does.
+
 ## Audio
 
 The game's sound is miniaudio behind `audio/AudioSystem.h` (8c), which names no miniaudio type.
@@ -1418,6 +1451,34 @@ rather than the device idling. `Scene::Generation` says only that the scene's co
 replaced, so the renderer rebakes the environment and releases what the new contents no longer
 draw.
 
+## Crashes
+
+A fatal signal (SIGSEGV, SIGBUS, SIGFPE, SIGILL, and SIGABRT, which a failed assertion and
+`std::terminate` end in) writes a report (`platform/Crash.h`, 11d), which the shell installs as its
+user directories are resolved, before anything else of the engine starts, into the state directory's
+`crashes/` (`crash-<UTC time>-<process id>.txt`): the signal and the kernel's account of its cause and
+address, the thread, the build and its command line, the stack's frames as a module and an offset into
+it, the same frames named with their functions, files and lines, and the log's tail. Its head and
+frames go to stderr as well, and then the signal is raised again under its default action, so the
+process ends with the status and core dump it would have had. A `std::terminate` handler logs the
+exception that went uncaught at Fatal first, so the tail says what it was.
+
+The tail is the log's last 64 KiB as the file has its lines (`Core::LogTail`), kept in memory whether
+or not there is a file, published by a count written after its bytes so a handler reads it without
+the log's lock. Everything the handler does until the frames are named is async-signal-safe: system
+calls into buffers made as it is installed, the frames from glibc's `backtrace` (its unwinder loaded
+at installation), their modules found by reading `/proc/self/maps`, since `dladdr` takes the loader's
+lock. A crash inside malloc or with the log's lock held still writes its report. The names come from
+a symboliser, `addr2line` found on the PATH at installation, run per module by `vfork` and `exec`,
+which run none of the fork handlers that would take malloc's locks, after the frames are on the disk;
+SIGALRM ends the process if the handler has not finished in 30 seconds. A machine without one, a
+player's, writes modules and offsets, which `scripts/symbolise-crash.sh` names against the build
+that wrote them. The handler runs on a stack of its own on the main thread, so its stack overflowing is
+reported; another thread's is not ([carried forward](roadmap.md#carried-forward)). Under the address
+sanitiser nothing is installed: its report names more. Tracy's own handler is compiled out
+(`TRACY_NO_CRASH_HANDLER`), so there is one. The console's `crash fault | assert | exception` crashes
+the shell each way, to see a report.
+
 ## The engine today
 
 The engine runs today. It renders a glTF scene through Vulkan with validation, and the gate
@@ -1437,7 +1498,8 @@ proves it headlessly. What exists:
   refuses. The console's `screenshot <file>` writes one without ending the run, and `orbit <yaw>
   <pitch> <distance> [body]` places the orbit camera at once.
   `Application::Init` stages are user (the XDG data and configuration directories, or the ones under
-  `--user-dir`, and the settings and bindings read from them), resources (the asset VFS, the base,
+  `--user-dir`, the crash handler into the state directory ([crashes](#crashes)), and the settings
+  and bindings read from them), resources (the asset VFS, the base,
   the user's mods and the user's data directory writable over them ([files](#files-packs-and-mods)),
   the I/O worker, the resource manager and the rig loader, the definitions and the mods' scripts
   ([scripts](#scripts)), which hear every event the shell takes), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,

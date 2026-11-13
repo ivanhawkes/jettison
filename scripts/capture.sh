@@ -153,6 +153,11 @@ for index in "${!names[@]}"; do
 	differing="$(magick compare -metric AE -fuzz 2% "$frames_dir/$name.png" "$out_dir/$name.png" \
 		"$out_dir/$name-diff.png" 2>&1 >/dev/null || true)"
 	differing="${differing%% *}"
+	# ImageMagick can count a pixel that differs in part as a fraction of one ("2.14118"): a count
+	# of pixels, rounded up, is what is allowed.
+	if [[ "$differing" =~ ^[0-9]+\.[0-9]+$ ]]; then
+		differing="$(awk -v count="$differing" 'BEGIN { whole = int(count); print (count > whole) ? whole + 1 : whole }')"
+	fi
 	if ! [[ "$differing" =~ ^[0-9]+$ ]] || [ "$differing" -gt "$allowed" ]; then
 		echo "capture: $name: $differing pixels differ from the reference, of $allowed allowed (see $out_dir/$name-diff.png)" >&2
 		status=1

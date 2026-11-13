@@ -7,6 +7,7 @@
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/ui/StringTable.h>
 #include <jettison/ui/UiSystem.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -223,8 +224,12 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 	registry.get<Purse>(harbour.ship).credits = 0;
 
 	Sim::DefinitionRegistry definitions{Vfs::FileSystem{}};
+	Vfs::FileSystem assets;
+	assets.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+	Ui::StringTable strings;
+	strings.Load(assets, "en");
 	MarketView view{harbour.market, harbour.ship, "Halcyon", true, 2, "Bought 1 crate"};
-	const MarketScreen screen = BuildMarketScreen(snapshot, definitions, view);
+	const MarketScreen screen = BuildMarketScreen(snapshot, definitions, strings, view);
 	CHECK(screen.station == "Ostra Highport");
 	CHECK(screen.status == "Docked at Ostra Highport");
 	CHECK(screen.credits == 250000);
@@ -238,14 +243,34 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 	CHECK(screen.goods[1].canSell);
 	CHECK(screen.goods[1].held == 3);
 	CHECK(screen.goods[1].elsewhere == "Corva Refinery pays " + FormatCredits(beer.bid));
+	CHECK(strings.Number(1250000) == "1,250,000");
 	CHECK(screen.message == "Bought 1 crate");
 
+	// The goods are named by the table, without their definitions.
+	CHECK(screen.goods[1].name == "Beer");
+	CHECK(screen.goods[1].crate == "a kilolitre of beer in casks");
+
 	view.docked = false;
-	const MarketScreen away = BuildMarketScreen(snapshot, definitions, view);
+	const MarketScreen away = BuildMarketScreen(snapshot, definitions, strings, view);
 	CHECK(away.status == "Dock at Ostra Highport to trade");
 	CHECK_FALSE(away.goods[1].canSell);
+
+	// And in German, the stations' names as they are.
+	strings.Load(assets, "de");
+	CHECK(strings.Problems() == 0);
+	const MarketScreen german = BuildMarketScreen(snapshot, definitions, strings, view);
+	CHECK(german.status == "Zum Handeln an Ostra Highport andocken");
+	CHECK(german.goods[1].name == "Bier");
+	CHECK(german.goods[1].elsewhere == "Corva Refinery zahlt " + strings.Number(beer.bid));
+	CHECK(strings.Number(-1250000) == "-1.250.000");
+	CHECK(
+	    strings.Plural("market.bought", 1, "Bier", strings.Number(1200)) ==
+	    "1 Kiste Bier zu 1.200 je Kiste gekauft");
 	view.market = entt::null;
-	CHECK(BuildMarketScreen(snapshot, definitions, view).status == "There is no market in this system");
+	CHECK(
+	    BuildMarketScreen(snapshot, definitions, strings, view).status ==
+	    "In diesem System gibt es keinen Markt");
+	CHECK(strings.Problems() == 0);
 	CHECK(FormatCredits(1250000) == "1,250,000");
 	CHECK(FormatCredits(-999) == "-999");
 }
@@ -287,6 +312,7 @@ TEST_CASE(
 	Ui::UiSystem ui{files, 1920, 1080};
 	ui.LoadFont("fonts/Roboto-Medium.ttf");
 	ui.LoadFont("fonts/Hack-Regular.ttf");
+	ui.SetLanguage("en");
 
 	MarketScreen screen;
 	screen.station = "Ostra Highport";
@@ -316,6 +342,7 @@ TEST_CASE(
 	CHECK(ui.ElementText(document, "station") == "Ostra Highport");
 	CHECK(ui.ElementText(document, "credits") == "250,000");
 	CHECK(ui.ElementText(document, "ask-0") == "1,004");
+	CHECK(ui.ElementText(document, "footer") == "M closes the market.");
 	CHECK(ui.Click(document, "lot-10"));
 	screen.lot = 10;
 	model.Changed("screen");

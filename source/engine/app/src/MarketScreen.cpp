@@ -7,6 +7,7 @@
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/ui/StringTable.h>
 
 #include "Trading.h"
 
@@ -53,8 +54,18 @@ std::string FormatCredits(std::int64_t credits)
 	return credits < 0 ? "-" + digits : digits;
 }
 
+std::string GoodName(
+    const Sim::DefinitionRegistry &definitions, const Ui::StringTable &strings, std::string_view good)
+{
+	if (const auto name = strings.Find(std::format("goods.{}.name", good)))
+		return std::string{*name};
+	const Good *definition = definitions.Find<Good>(good);
+	return definition ? definition->displayName : std::string{good};
+}
+
 MarketScreen BuildMarketScreen(
-    const Sim::Snapshot &snapshot, const Sim::DefinitionRegistry &definitions, const MarketView &view)
+    const Sim::Snapshot &snapshot, const Sim::DefinitionRegistry &definitions,
+    const Ui::StringTable &strings, const MarketView &view)
 {
 	MarketScreen screen;
 	screen.system = view.system;
@@ -64,14 +75,15 @@ MarketScreen BuildMarketScreen(
 	const auto *market = snapshot.Get<Market>(view.market);
 	if (!market)
 	{
-		screen.station = "No market";
-		screen.status = "There is no market in this system";
+		screen.station = strings.Text("market.none.station");
+		screen.status = strings.Text("market.none.status");
 		return screen;
 	}
 	screen.station = market->station;
-	screen.status = view.docked                           ? "Docked at " + market->station
-	                : market->stationEntity != entt::null ? "Dock at " + market->station + " to trade"
-	                                                      : "No ship can dock here yet";
+	screen.status = view.docked ? strings.Format("market.docked", market->station)
+	                : market->stationEntity != entt::null
+	                    ? strings.Format("market.dock-to-trade", market->station)
+	                    : std::string{strings.Text("market.no-dock")};
 	// What is still crossing the deck holds the ship on its pad.
 	if (const auto *transfer = view.docked ? snapshot.Get<Dock::Transfer>(view.ship) : nullptr)
 	{
@@ -80,8 +92,7 @@ MarketScreen BuildMarketScreen(
 			if (buggy.value.ship == view.ship && buggy.value.outbound)
 				crossing += buggy.value.crates;
 		if (crossing > 0)
-			screen.status +=
-			    std::format("; {} {} crossing the deck", crossing, crossing == 1 ? "crate" : "crates");
+			screen.status += strings.Plural("market.crossing", crossing);
 	}
 	const auto *hold = snapshot.Get<Hold>(view.ship);
 	const auto *purse = snapshot.Get<Purse>(view.ship);
@@ -98,8 +109,9 @@ MarketScreen BuildMarketScreen(
 		const Good *definition = definitions.Find<Good>(good.good);
 		MarketRow row;
 		row.good = good.good;
-		row.name = definition ? definition->displayName : good.good;
-		row.crate = definition ? definition->crate : std::string{};
+		row.name = GoodName(definitions, strings, good.good);
+		const auto crate = strings.Find(std::format("goods.{}.crate", good.good));
+		row.crate = crate ? std::string{*crate} : definition ? definition->crate : std::string{};
 		row.base = good.basePrice;
 		row.stock = good.stock;
 		row.bid = good.bid;
@@ -121,7 +133,7 @@ MarketScreen BuildMarketScreen(
 				}
 		}
 		if (bestBid > 0)
-			row.elsewhere = std::format("{} pays {}", bestAt, FormatCredits(bestBid));
+			row.elsewhere = strings.Format("market.pays", bestAt, strings.Number(bestBid));
 		row.canBuy = view.docked && good.stock >= view.lot &&
 		             screen.capacity - screen.used >= view.lot && screen.credits >= good.ask * view.lot;
 		row.canSell = view.docked && row.held >= view.lot;

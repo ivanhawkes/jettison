@@ -1,0 +1,40 @@
+# The market screen's text (ui/market.rml, app/src/MarketScreen.cpp): the base language, which every
+# key has (ui/StringTable.h). Arguments are {0}, {1}, by position; a key with "one" and "other" is a
+# count's plural forms, the count its {0}.
+version: 1
+market:
+  title: Market
+  credits: Credits
+  hold: Hold
+  crates: crates
+  lots: Crates a trade
+  column:
+    good: Good
+    stock: Stock
+    bid: Bid
+    ask: Ask
+    held: Held
+    elsewhere: Elsewhere
+  buy: Buy
+  sell: Sell
+  footer: M closes the market.
+  none:
+    station: No market
+    status: There is no market in this system
+  docked: Docked at {0}
+  dock-to-trade: Dock at {0} to trade
+  no-dock: No ship can dock here yet
+  crossing:
+    one: "; {0} crate crossing the deck"
+    other: "; {0} crates crossing the deck"
+  # The best bid among the other markets: the station, then the credits.
+  pays: "{0} pays {1}"
+  # The trade's answer: the crates, the good, the price a crate.
+  bought:
+    one: Bought {0} crate of {1} at {2} a crate
+    other: Bought {0} crates of {1} at {2} a crate
+  sold:
+    one: Sold {0} crate of {1} at {2} a crate
+    other: Sold {0} crates of {1} at {2} a crate
+  # The simulation's reason, which is English (docs/roadmap.md, "Carried forward").
+  refused: "No trade: {0}"

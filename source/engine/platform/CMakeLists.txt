@@ -2,13 +2,16 @@ jettison_add_module(platform
 	DEPENDS
 		core
 	HEADERS
-		include/jettison/platform/Paths.h
 		include/jettison/platform/Cpu.h
+		include/jettison/platform/Crash.h
+		include/jettison/platform/Paths.h
 	SOURCES
 		src/Cpu.cpp
+		src/Crash.cpp
 		src/Paths.cpp
 	TESTS
 		tests/CpuTests.cpp
+		tests/CrashTests.cpp
 		tests/PathsTests.cpp
 )
 

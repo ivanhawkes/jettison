@@ -490,7 +490,10 @@ a seventh, the post chain's test bench (`scene/post.yaml`) two seconds in, its b
 captured twice, no pixel differed. Phase 11c added two, placed by console lines: `graded`, the orbit
 scene through the sample's colour grade (`grade cold-light`), and `dock-sequence`, the docking
 cinematic 1.5 s in (`pilot chase`, then `sequence dock 1`); captured twice, no pixel differed, and
-every earlier reference was the same to the byte with the grade's code in the output pass. A frame is
+every earlier reference was the same to the byte with the grade's code in the output pass. Phase 11d
+added `market-de`, the orbit scene with the market screen shown in German (`language de`, then
+`market on`), every word and number of it from the sample's tables; captured twice, no pixel
+differed. A frame is
 960×540, and the frame captured is the one after thirty in a row with nothing loading, unless its
 line says otherwise.
 

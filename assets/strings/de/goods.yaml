@@ -1,0 +1,27 @@
+# The sample game's goods in German.
+version: 1
+goods:
+  antibiotics:
+    name: Antibiotika
+    crate: 456 kg Antibiotika als Schüttgut
+  beer:
+    name: Bier
+    crate: ein Kiloliter Bier in Fässern
+  copper:
+    name: Kupfer
+    crate: 7.616 kg Kupferbarren
+  electronics:
+    name: Elektronik
+    crate: 800 verpackte Einheiten
+  flour:
+    name: Mehl
+    crate: ein Kiloliter gemahlenes Mehl
+  iron:
+    name: Eisen
+    crate: 6.296 kg Eisenbarren
+  phosphorus:
+    name: Phosphor
+    crate: ein Kiloliter Phosphor unter Wasser
+  wheat-seeds:
+    name: Weizensaatgut
+    crate: ein Kiloliter zertifiziertes Saatgut, 775 kg

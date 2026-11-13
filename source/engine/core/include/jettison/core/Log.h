@@ -1,11 +1,13 @@
 #pragma once
 
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <format>
 #include <functional>
 #include <source_location>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -97,6 +99,17 @@ void ShutdownLogging() noexcept;
 // Writes out whatever the sinks have buffered. Messages at Error and above are flushed as they
 // are written.
 void FlushLogging() noexcept;
+
+// The log's tail: the last kLogTailBytes of what reached the sinks, as the file has each line (the
+// date, the severity, the category, the message, the source location), kept in memory whether or not
+// there is a file, for a crash report (Platform::InstallCrashHandler). It begins at the oldest whole
+// line it holds.
+inline constexpr std::size_t kLogTailBytes = std::size_t{64} * 1024;
+std::string LogTail();
+// The same, written to the descriptor. Async-signal-safe: it takes no lock and allocates nothing,
+// calling write(2) alone, so a signal handler can call it while another thread, or the thread it
+// interrupted, holds the log's lock; a line being written as it runs may be cut.
+void WriteLogTail(int fileDescriptor) noexcept;
 
 // A sink the engine provides itself, such as the console's log view. It is called for every
 // message at or above the minimum, on the thread that logged it, with the logging lock held: it

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Jettison::Sim
@@ -11,6 +12,10 @@ namespace Jettison::Sim
 class DefinitionRegistry;
 struct Snapshot;
 } // namespace Jettison::Sim
+namespace Jettison::Ui
+{
+class StringTable;
+}
 
 namespace Jettison::App
 {
@@ -55,8 +60,10 @@ struct MarketScreen
 
 void RegisterMarketScreenTypes();
 
-// What the screen shows of a market, for the ship, from a snapshot. A market or ship the snapshot
-// does not have leaves its part empty: a screen of no market says so in its status.
+// What the screen shows of a market, for the ship, from a snapshot, in the string table's language: a
+// good's name and crate are the table's (goods.<definition>.name and .crate), or where it has none
+// the definition's. A market or ship the snapshot does not have leaves its part empty: a screen of no
+// market says so in its status.
 struct MarketView
 {
 	entt::entity market{entt::null};
@@ -67,8 +74,14 @@ struct MarketView
 	std::string message;
 };
 MarketScreen BuildMarketScreen(
-    const Sim::Snapshot &snapshot, const Sim::DefinitionRegistry &definitions, const MarketView &view);
+    const Sim::Snapshot &snapshot, const Sim::DefinitionRegistry &definitions,
+    const Ui::StringTable &strings, const MarketView &view);
 
-// A count of credits as the screens write one: 1,250,000.
+// A good's name as the screens show it: the table's, or its definition's, or its own.
+std::string GoodName(
+    const Sim::DefinitionRegistry &definitions, const Ui::StringTable &strings, std::string_view good);
+
+// A count of credits as the log writes one: 1,250,000. The screens write theirs in the player's
+// language (Ui::StringTable::Number).
 std::string FormatCredits(std::int64_t credits);
 } // namespace Jettison::App

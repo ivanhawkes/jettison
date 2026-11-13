@@ -5,7 +5,11 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include <unistd.h>
+
+#include <array>
 #include <atomic>
+#include <cerrno>
 #include <ctime>
 #include <memory>
 #include <mutex>
@@ -83,12 +87,52 @@ std::shared_ptr<spdlog::sinks::sink> MakeStderrSink()
 	return sink;
 }
 
+constexpr std::string_view kFilePattern = "[%Y-%m-%d %H:%M:%S.%e] [%*] [%n] %v (%s:%#)";
+
 std::shared_ptr<spdlog::sinks::sink> MakeFileSink(const std::filesystem::path &file)
 {
 	auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(file.string(), true);
-	sink->set_formatter(MakeFormatter("[%Y-%m-%d %H:%M:%S.%e] [%*] [%n] %v (%s:%#)"));
+	sink->set_formatter(MakeFormatter(std::string{kFilePattern}));
 	return sink;
 }
+
+// The log's tail, a ring of bytes written under the log's lock and read by a crash handler without
+// it. The count of bytes ever written is published after the bytes, so a reader that loads it sees
+// them; a writer racing the reader can only overwrite the oldest, which the reader skips to a line
+// past.
+class Tail
+{
+  public:
+	void Append(std::string_view text) noexcept
+	{
+		std::uint64_t written = m_written.load(std::memory_order_relaxed);
+		for (const char byte : text)
+			m_bytes[written++ % kLogTailBytes] = byte;
+		m_written.store(written, std::memory_order_release);
+	}
+
+	// The two runs of the ring, oldest first, from the first line that is whole in it.
+	template <typename Write> void Read(Write write) const noexcept
+	{
+		const std::uint64_t written = m_written.load(std::memory_order_acquire);
+		std::uint64_t begin = written > kLogTailBytes ? written - kLogTailBytes : 0;
+		if (begin != 0)
+		{
+			while (begin < written && m_bytes[begin % kLogTailBytes] != '\n')
+				++begin;
+			begin += begin < written ? 1 : 0;
+		}
+		const std::size_t start = begin % kLogTailBytes;
+		const std::size_t count = written - begin;
+		const std::size_t first = count < kLogTailBytes - start ? count : kLogTailBytes - start;
+		write(m_bytes.data() + start, first);
+		write(m_bytes.data(), count - first);
+	}
+
+  private:
+	std::array<char, kLogTailBytes> m_bytes{};
+	std::atomic<std::uint64_t> m_written{0};
+};
 
 struct Callback
 {
@@ -106,6 +150,8 @@ struct State
 	std::vector<std::shared_ptr<spdlog::sinks::sink>> sinks{MakeStderrSink()};
 	std::vector<Callback> callbacks;
 	LogCallbackId nextCallbackId{1};
+	std::unique_ptr<spdlog::formatter> tailFormatter{MakeFormatter(std::string{kFilePattern})};
+	Tail tail;
 };
 
 State &GetState()
@@ -140,6 +186,9 @@ void LogMessage(
 		if (severity >= Severity::Error)
 			sink->flush();
 	}
+	spdlog::memory_buf_t line;
+	state.tailFormatter->format(record, line);
+	state.tail.Append({line.data(), line.size()});
 	for (const auto &callback : state.callbacks)
 		callback.function(LogRecord{severity, category.name, message, location});
 }
@@ -188,6 +237,31 @@ void FlushLogging() noexcept
 	catch (...) // NOLINT(bugprone-empty-catch): a flush that fails has nowhere to report to.
 	{
 	}
+}
+
+std::string LogTail()
+{
+	std::string text;
+	GetState().tail.Read([&text](const char *bytes, std::size_t count) { text.append(bytes, count); });
+	return text;
+}
+
+void WriteLogTail(int fileDescriptor) noexcept
+{
+	GetState().tail.Read(
+	    [fileDescriptor](const char *bytes, std::size_t count)
+	    {
+		    while (count > 0)
+		    {
+			    const ssize_t wrote = ::write(fileDescriptor, bytes, count);
+			    if (wrote < 0 && errno == EINTR)
+				    continue;
+			    if (wrote <= 0)
+				    return;
+			    bytes += wrote;
+			    count -= static_cast<std::size_t>(wrote);
+		    }
+	    });
 }
 
 LogCallbackId AddLogCallback(LogCallback callback)
