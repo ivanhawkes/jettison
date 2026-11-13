@@ -32,8 +32,9 @@ ctest --test-dir build/clang-debug -R '^physics$' --output-on-failure  # one sui
 
 Run the gate as a background task and wait for it to finish rather than polling with `sleep`.
 With `--log` it prints the stages and a summary, and for a failed stage its errors; the full output
-is in the log. Warm, it takes 40 to 70 s; with both caches cold about 6 minutes. A commit leaves
-the gate green with `--werror --asan`.
+is in the log. Warm, it takes 3 to 4 minutes (223 s on 2026-11-14), two thirds of it the
+lavapipe smoke tests and reference frames; with both caches cold, several minutes more. A commit
+leaves the gate green with `--werror --asan`.
 
 Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, for Xvfb) and
 `clang-asan` (headless plus sanitisers). The sanitised and Xvfb runs use lavapipe.
