@@ -16,6 +16,17 @@ void RegisterTypes()
 	{
 		using namespace Reflect;
 		Physics::RegisterTypes();
+		RegisterEnum<Reason>("Ai.Reason")
+		    .Value<Reason::NoSuchEntity>("no_such_entity")
+		    .Value<Reason::OnLane>("on_lane")
+		    .Value<Reason::InNoSystem>("in_no_system")
+		    .Value<Reason::NoGalaxy>("no_galaxy")
+		    .Value<Reason::SystemNotInGalaxy>("system_not_in_galaxy")
+		    .Value<Reason::NoLane>("no_lane")
+		    .Value<Reason::ArrivalUndefined>("arrival_undefined")
+		    .Value<Reason::DestinationGone>("destination_gone")
+		    .Value<Reason::DestinationOtherSystem>("destination_other_system")
+		    .Value<Reason::DestinationOtherFrame>("destination_other_frame");
 		RegisterType<OnLane>("Ai.OnLane")
 		    .Field<&OnLane::from>("from", Attribute::Saved)
 		    .Field<&OnLane::departure>("departure", Attribute::Saved)

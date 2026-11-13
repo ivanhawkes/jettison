@@ -11,6 +11,7 @@
 #include <jettison/ai/Types.h>
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/celestial/StarSystem.h>
+#include <jettison/sim/Reason.h>
 
 namespace Jettison::Physics
 {
@@ -75,7 +76,7 @@ struct LaneRefused
 {
 	entt::entity entity{entt::null};
 	std::string jumpPoint;
-	std::string reason;
+	Sim::Reason reason;
 };
 
 // Lane travel in a simulation world: the OnLane component, the EnterLane command, and the system

@@ -20,6 +20,21 @@ constexpr int kFormatVersion = 1;
 constexpr std::string_view kExtension = ".yaml";
 constexpr std::array<std::string_view, 6> kCategories{"zero", "one", "two", "few", "many", "other"};
 
+// The first Count arguments, as std::vformat takes them: the store make_format_args returns refers
+// to them, so it lives only as long as the call.
+template <std::size_t... Index>
+std::string Spread(
+    std::string_view text, std::span<const std::string> arguments,
+    std::index_sequence<Index...> /*indices*/)
+{
+	return std::vformat(text, std::make_format_args(arguments[Index]...));
+}
+template <std::size_t Count>
+std::string FormatFirst(std::string_view text, std::span<const std::string> arguments)
+{
+	return Spread(text, arguments, std::make_index_sequence<Count>{});
+}
+
 // A text and where it was read, for the messages that name it.
 struct Entry
 {
@@ -339,14 +354,60 @@ std::string StringTable::FormatText(
 	}
 	catch (const std::format_error &error)
 	{
-		if (m_missing.emplace(std::format("{} (format)", key)).second)
+		return Unformatted(key, text, error);
+	}
+}
+
+std::string StringTable::Unformatted(
+    std::string_view key, std::string_view text, const std::format_error &error) const
+{
+	if (m_missing.emplace(std::format("{} (format)", key)).second)
+	{
+		++m_problems;
+		Core::Log(
+		    Core::Severity::Warning, kStrings, "The string '{}' does not format its arguments: {}", key,
+		    error.what());
+	}
+	return std::string{text};
+}
+
+std::string StringTable::FormatArguments(
+    std::string_view key, std::span<const std::string> arguments) const
+{
+	return FormatSpan(key, Text(key), arguments);
+}
+
+std::string StringTable::PluralArguments(
+    std::string_view key, std::int64_t count, std::span<const std::string> arguments) const
+{
+	return FormatSpan(key, PluralText(key, count), arguments);
+}
+
+std::string StringTable::FormatSpan(
+    std::string_view key, std::string_view text, std::span<const std::string> arguments) const
+{
+	if (arguments.size() > kMaxArguments)
+	{
+		if (m_missing.emplace(std::format("{} (arguments)", key)).second)
 		{
 			++m_problems;
 			Core::Log(
-			    Core::Severity::Warning, kStrings, "The string '{}' does not format its arguments: {}",
-			    key, error.what());
+			    Core::Severity::Warning, kStrings, "The string '{}' is given {} arguments, past {}",
+			    key, arguments.size(), kMaxArguments);
 		}
-		return std::string{text};
+		arguments = arguments.first(kMaxArguments);
+	}
+	using Formatter = std::string (*)(std::string_view, std::span<const std::string>);
+	static constexpr std::array<Formatter, kMaxArguments + 1> kFormatters{
+	    FormatFirst<0>, FormatFirst<1>, FormatFirst<2>, FormatFirst<3>, FormatFirst<4>,
+	    FormatFirst<5>, FormatFirst<6>, FormatFirst<7>, FormatFirst<8>};
+	try
+	{
+		return kFormatters[arguments.size()](text, arguments);
+	}
+	catch (const std::format_error &error)
+	{
+		return Unformatted(key, text, error);
 	}
 }
 

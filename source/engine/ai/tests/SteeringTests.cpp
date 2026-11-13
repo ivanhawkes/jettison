@@ -2,6 +2,7 @@
 
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
+#include <jettison/ai/Types.h>
 #include <jettison/math/Random.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -372,7 +373,7 @@ TEST_CASE("Steering: a destination by an entity is its offset in the entity's ax
 	const std::vector<Ai::DestinationLost> lost = fixture.Events<Ai::DestinationLost>();
 	REQUIRE(lost.size() == 1);
 	CHECK(lost[0].ship == ship);
-	CHECK(lost[0].reason == "its destination has gone");
+	CHECK(lost[0].reason == Sim::MakeReason(Ai::Reason::DestinationGone));
 	CHECK_FALSE(registry.all_of<Ai::Destination>(ship));
 	CHECK(registry.get<Physics::FlightControls>(ship) == Physics::FlightControls{});
 }

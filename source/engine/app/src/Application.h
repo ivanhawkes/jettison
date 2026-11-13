@@ -34,6 +34,7 @@
 #include <jettison/scene/SystemScene.h>
 #include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
+#include <jettison/sim/Reason.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
@@ -299,6 +300,8 @@ class Application
 	void DrawPicked();
 	// A simulation entity as the shell names it.
 	std::string Describe(entt::entity simEntity) const;
+	// A reason the step gave, as the player reads it, from the newest snapshot (Reasons.h).
+	std::string Word(const Sim::Reason &reason) const;
 	// The origin of the frame the ship and the station are in at a time, in the system frame: where
 	// the station is, or the primary when there is none.
 	glm::dvec3 PilotFrameOrigin(double simSeconds) const;

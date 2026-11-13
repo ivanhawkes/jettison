@@ -7,10 +7,14 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/sim/Controller.h>
+#include <jettison/sim/Reason.h>
+
 namespace Jettison::Sim
 {
 class DefinitionRegistry;
 class SimWorld;
+struct Snapshot;
 } // namespace Jettison::Sim
 
 namespace Jettison::App
@@ -24,7 +28,8 @@ namespace Jettison::App
 // in whole credits, a credit to the US dollar, at the plan's 2025 prices. A station's market holds a
 // stock of each good it deals in, which it makes and uses at its own rates each market tick, and
 // prices each by scarcity; it buys at its bid and sells at its ask, either side of the price by its
-// listing fee. A ship trades at the market of the station it is docked at.
+// listing fee. A ship trades at the market of the station it is docked at, for its owner, whose
+// credits pay and are paid.
 
 // A good, as data: defs/goods/<name>.yaml, loaded through Sim::DefinitionRegistry, so a mod adds or
 // changes one. Registered with Reflect as "Shell.Good", every field Saved; files at version 1.
@@ -104,7 +109,7 @@ struct Cargo
 	bool operator==(const Cargo &) const = default;
 };
 
-// A ship's hold, in crates, and its credits. Simulation state, shown in snapshots.
+// A ship's hold, in crates. Simulation state, shown in snapshots.
 struct Hold
 {
 	std::int64_t capacity{0};
@@ -114,6 +119,18 @@ struct Hold
 	std::int64_t Crates(std::string_view good) const;
 	bool operator==(const Hold &) const = default;
 };
+// Who owns ships and holds the credits they trade with (docs/roadmap.md, "Decided": a player has a
+// fleet): the player, and each trader. An entity of its own, with its Purse, found by the controller
+// its ships are commanded by (Sim::ControlledBy), so a ship joins its owner's fleet by being given
+// the owner's controller, and whatever flies a ship sends its commands as that owner. Simulation
+// state, shown in snapshots, as ControlledBy is, so presentation finds a ship's purse.
+struct Owner
+{
+	Sim::Controller controller;
+
+	bool operator==(const Owner &) const = default;
+};
+// The owner's credits, on the owner's entity, which a trade draws on and pays into.
 struct Purse
 {
 	std::int64_t credits{0};
@@ -121,12 +138,34 @@ struct Purse
 	bool operator==(const Purse &) const = default;
 };
 
+// Makes the owner of that controller, with the credits. Throws std::logic_error for a controller
+// that already has one.
+entt::entity MakeOwner(
+    entt::registry &registry, const Sim::Controller &controller, std::int64_t credits);
+// The owner of that controller, or null.
+entt::entity FindOwner(const entt::registry &registry, const Sim::Controller &controller);
+// The owner of the ship, by its ControlledBy, or null for a ship that has no owner.
+entt::entity OwnerOf(const entt::registry &registry, entt::entity ship);
+// The ship's owner's purse, or null.
+Purse *PurseOf(entt::registry &registry, entt::entity ship);
+const Purse *PurseOf(const entt::registry &registry, entt::entity ship);
+// The same, as a snapshot shows it.
+const Purse *PurseOf(const Sim::Snapshot &snapshot, entt::entity ship);
+
+// A world saved before purses were their owners' (phase 12c) has each on its ship: each moves to
+// the owner of the ship's controller, made if there is none, its credits added to the owner's, in
+// the ships' order. A purse on an entity that has no controller, or is an owner, stays. Returns
+// how many moved.
+std::size_t MovePursesToOwners(entt::registry &registry);
+
 // The command: a ship buys crates of a good at a market (a positive count) or sells them (a
-// negative one), at the market's quote as the step applies it. The crates and the price are settled
-// at once, and the crates then cross the station's deck (Dock::Carry), the ship held on its pad
-// until they have.
+// negative one), at the market's quote as the step applies it, for its owner, whose purse pays or is
+// paid. The crates and the price are settled at once, and the crates then cross the station's deck
+// (Dock::Carry), the ship held on its pad until they have. Refused from a sender that does not
+// command the ship (Sim::MayCommand), its owner's controller.
 struct Trade
 {
+	Sim::Controller sender;
 	entt::entity ship{entt::null};
 	entt::entity market{entt::null};
 	std::string good;
@@ -140,7 +179,7 @@ struct Traded
 	entt::entity market{entt::null};
 	std::string good;
 	std::int64_t crates{0};
-	// Credits a crate, and the ship's credits after.
+	// Credits a crate, and the owner's credits after.
 	std::int64_t price{0};
 	std::int64_t credits{0};
 };
@@ -148,7 +187,32 @@ struct TradeRefused
 {
 	entt::entity ship{entt::null};
 	std::string good;
-	std::string reason;
+	Sim::Reason reason;
+};
+
+// Why a trade is refused (Sim::Reason), each worded by the string tables under
+// reason.shell.<name>; the arguments, where there are any, follow. Registered with Reflect as
+// "Shell.Reason".
+enum class TradeReason : std::uint8_t
+{
+	NoCrates,
+	NoShip,
+	NotOwner,
+	NoOwner,
+	NoMarket,
+	// The market.
+	NotDocked,
+	// The market, and the good.
+	NotDealt,
+	// The market, and the crates it has.
+	ShortOfStock,
+	// The crates the hold has room for.
+	NoRoom,
+	// The crates asked for.
+	TooDear,
+	// The crates of the good the hold has.
+	HoldShort,
+	SaleTooLarge
 };
 
 inline constexpr std::string_view kMarketSystemName = "shell.market";
@@ -159,8 +223,9 @@ inline constexpr std::uint64_t kMarketTickSteps = 600;
 // The format the goods' and the markets' files are at.
 inline constexpr std::uint32_t kTradeDefinitionVersion = 1;
 
-// Registers the types with Reflect, the components with the world (each shown in snapshots), the
-// Trade command, and the system "shell.market", which ticks the markets every kMarketTickSteps steps.
+// Registers the types with Reflect, the components with the world (each shown in snapshots, and
+// Sim::ControlledBy shown with them), the Trade command, and the system "shell.market", which ticks the
+// markets every kMarketTickSteps steps.
 void RegisterTrading(Sim::SimWorld &world);
 // The goods (defs/goods) and markets (defs/markets) into the registry. Throws as the registry's Load
 // does, naming the file.
@@ -181,8 +246,9 @@ void Quote(MarketGood &good, std::uint32_t feeBps);
 // One market tick: each market makes and uses its goods, at most four times the target held, and
 // quotes again.
 void TickMarkets(entt::registry &registry);
-// Applies a trade, or refuses it with a TradeRefused: a ship or market that is not there, a ship not
-// docked at the market's station, a good the market does not deal in, too few crates in the market
-// or the hold, too few credits, too little room.
+// Applies a trade, or refuses it with a TradeRefused: a ship or market that is not there, a sender
+// that does not command the ship, a ship with no owner, a ship not docked at the market's station, a
+// good the market does not deal in, too few crates in the market or the hold, too few credits, too
+// little room.
 void ApplyTrade(Sim::SimWorld &world, const Trade &trade);
 } // namespace Jettison::App

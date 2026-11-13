@@ -62,6 +62,7 @@
 
 #include "Dressing.h"
 #include "Mounts.h"
+#include "Reasons.h"
 #include "Saves.h"
 #include "Stations.h"
 #include "Traders.h"
@@ -622,6 +623,8 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_pDocks = &Dock::Docks::Attach(m_sim, *m_pPhysics);
 	m_pBehaviours = &Ai::Behaviours::Attach(m_sim);
 	m_sim.RegisterComponent<Sim::ControlledBy>();
+	// For what a reason says of a station or a gate, by its body's name (Reasons.h).
+	m_sim.ShowInSnapshots<Physics::OnRails>();
 	RegisterTrading(m_sim);
 	RegisterMarketScreenTypes();
 	RegisterSavesScreenTypes();
@@ -1411,7 +1414,7 @@ void Application::SendTrade(std::string_view good, std::int64_t crates)
 	const entt::entity market = ShownMarket();
 	if (m_ship == entt::null || market == entt::null || good.empty() || crates == 0)
 		return;
-	m_sim.Commands().Push(Trade{m_ship, market, std::string{good}, crates});
+	m_sim.Commands().Push(Trade{kPilot, m_ship, market, std::string{good}, crates});
 }
 
 
@@ -2018,7 +2021,7 @@ void Application::LogTraders() const
 	for (const auto &[entity, trader] : traders)
 	{
 		const auto *hold = snapshot.Get<Hold>(entity);
-		const auto *purse = snapshot.Get<Purse>(entity);
+		const auto *purse = PurseOf(snapshot, entity);
 		const Sim::TransformSample *sample = snapshot.FindSample(entity);
 		std::string where{"on a lane"};
 		if (m_galaxy && sample && sample->system != Sim::kNoSystem)
@@ -2473,6 +2476,11 @@ bool Application::LoadFrom(std::string_view name)
 		const Sim::SaveSection *keys = save.FindSection(Script::kStoreSection);
 		Script::ScriptStore store = keys ? Script::ReadStore(keys->data) : Script::ScriptStore{};
 		m_sim.Load(save.world);
+		// A save from before purses were their owners' holds them on the ships.
+		if (const std::size_t moved = MovePursesToOwners(m_sim.Registry()); moved > 0)
+			Core::Log(
+			    Core::Severity::Info, kShell, "'{}' kept {} purses on ships, now their owners'", name,
+			    moved);
 		m_pScripts->SetStore(std::move(store));
 		// Other mods may make another game of the save, which is the player's to judge: it loads.
 		for (const std::string &difference : Sim::ModDifferences(save.info.mods, m_mods))
@@ -2850,7 +2858,9 @@ void Application::SpawnShip()
 	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
 	world.emplace<Sim::ControlledBy>(m_ship, kPilot);
 	world.emplace<Hold>(m_ship, Hold{kShipHold, {}});
-	world.emplace<Purse>(m_ship, Purse{kStartingCredits});
+	// The player's credits are their own, not the ship's, and outlast it.
+	if (FindOwner(world, kPilot) == entt::null)
+		MakeOwner(world, kPilot, kStartingCredits);
 	m_shipSystem = m_stationSystem;
 
 	// Docked on the lowest numbered free pad it fits; at a station of none, off its -Z end, nose
@@ -3356,7 +3366,7 @@ void Application::TakeEvents()
 		         noLane && noLane->entity == m_ship)
 			Core::Log(
 			    Core::Severity::Warning, kShell, "The ship cannot enter the lane through {}: {}",
-			    noLane->jumpPoint, noLane->reason);
+			    noLane->jumpPoint, Word(noLane->reason));
 		// The console's traffic holds station where it arrives; a trader arriving is on its way on.
 		else if (const auto *holding = event.event.try_cast<Ai::Arrived>();
 		         holding && std::ranges::binary_search(
@@ -3392,7 +3402,7 @@ void Application::TakeEvents()
 			    m_stationBody, queued->place);
 		else if (const auto *noPad = event.event.try_cast<Dock::PadRefused>();
 		         noPad && noPad->ship == m_ship)
-			Core::Log(Core::Severity::Warning, kShell, "No pad: {}", noPad->reason);
+			Core::Log(Core::Severity::Warning, kShell, "No pad: {}", Word(noPad->reason));
 		else if (const auto *lapsed = event.event.try_cast<Dock::PadLapsed>();
 		         lapsed && lapsed->ship == m_ship)
 			Core::Log(
@@ -3422,7 +3432,7 @@ void Application::TakeEvents()
 		         refused && refused->ship == m_ship)
 		{
 			++m_tradeAnswers;
-			m_tradeMessage = m_pUi->Strings().Format("market.refused", refused->reason);
+			m_tradeMessage = m_pUi->Strings().Format("market.refused", Word(refused->reason));
 			Core::Log(Core::Severity::Info, kShell, "{}", m_tradeMessage);
 		}
 		if (m_showMarket)
@@ -3516,6 +3526,12 @@ void Application::DrawPicked()
 	if (ImGui::Begin("Picked", nullptr, kOverlay))
 		ImGui::Text("%s  %.0f m", Describe(m_picked->entity).c_str(), m_picked->distance);
 	ImGui::End();
+}
+
+
+std::string Application::Word(const Sim::Reason &reason) const
+{
+	return WordReason(reason, m_simStepper.Current(), *m_definitions, m_pUi->Strings());
 }
 
 

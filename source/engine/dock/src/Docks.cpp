@@ -66,13 +66,6 @@ std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
 	return inSystem ? inSystem->system : Sim::kNoSystem;
 }
 
-// The station's name, as its celestial body has it, for what is said about it.
-std::string_view NameOf(const entt::registry &registry, entt::entity station)
-{
-	const auto *rails = registry.try_get<Physics::OnRails>(station);
-	return rails ? std::string_view{rails->body} : std::string_view{"the station"};
-}
-
 bool Fits(const HullDefinition &hull, const Pad &pad)
 {
 	return !pad.display && pad.padClass >= hull.pad;
@@ -258,43 +251,46 @@ void Docks::Park(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity
 void Docks::Request(Sim::SimWorld &world, const RequestPad &command)
 {
 	entt::registry &registry = world.Registry();
-	const auto refuse = [&](std::string reason)
-	{ world.Events().Emit(PadRefused{command.ship, command.station, std::move(reason)}); };
+	const auto refuse = [&](Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
+	{
+		world.Events().Emit(
+		    PadRefused{command.ship, command.station, Sim::MakeReason(reason, std::move(arguments))});
+	};
 	const entt::entity ship = command.ship;
 	if (!registry.valid(ship))
-		return refuse("the ship is not in the world");
+		return refuse(Reason::ShipGone);
 	if (!Sim::MayCommand(registry, ship, command.sender))
-		return refuse("its sender does not control the ship");
+		return refuse(Reason::NotController);
 	const entt::entity stationEntity = command.station;
 	if (!registry.valid(stationEntity) || !registry.all_of<Station>(stationEntity))
-		return refuse("it is not a station");
-	const std::string_view name = NameOf(registry, stationEntity);
+		return refuse(Reason::NotAStation);
 	const HullDefinition *hull = HullOf(registry, ship);
 	if (!hull)
-		return refuse("the ship has no hull the docks know");
+		return refuse(Reason::NoHull);
 	const auto *body = registry.try_get<Physics::Body>(ship);
 	if (!body || body->kind != Physics::BodyKind::Dynamic ||
 	    !registry
 	         .all_of<Physics::Thrusters, Physics::FlightControls, Physics::Velocity, Sim::Transform>(
 	             ship))
-		return refuse("the ship is not one that flies");
+		return refuse(Reason::CannotFly);
 	if (SystemOf(registry, ship) != SystemOf(registry, stationEntity))
-		return refuse(std::format("the ship is not in {}'s system", name));
+		return refuse(Reason::OtherSystem, {Sim::ReasonArgument::Entity(stationEntity)});
 	if (FrameOf(registry, ship) != FrameOf(registry, stationEntity))
-		return refuse(std::format("the ship is not in {}'s frame", name));
+		return refuse(Reason::OtherFrame, {Sim::ReasonArgument::Entity(stationEntity)});
 	if (const auto *existing = registry.try_get<Docking>(ship))
 	{
-		const std::string_view at = NameOf(registry, existing->station);
+		const Sim::ReasonArgument at = Sim::ReasonArgument::Entity(existing->station);
 		if (existing->stage == Stage::Queued)
-			return refuse(std::format("the ship is already waiting for a pad at {}", at));
+			return refuse(Reason::AlreadyQueued, {at});
 		const auto *pad =
 		    registry.valid(existing->pad) ? registry.try_get<Pad>(existing->pad) : nullptr;
-		return refuse(std::format("the ship already holds pad {} at {}", pad ? pad->number : 0, at));
+		return refuse(
+		    Reason::AlreadyHoldsPad, {Sim::ReasonArgument::Integer(pad ? pad->number : 0), at});
 	}
 	Station &station = registry.get<Station>(stationEntity);
 	if (std::ranges::none_of(
 	        station.pads, [&](entt::entity pad) { return Fits(*hull, registry.get<Pad>(pad)); }))
-		return refuse(std::format("{} has no pad its hull fits", name));
+		return refuse(Reason::NoPadFits, {Sim::ReasonArgument::Entity(stationEntity)});
 
 	station.queue.push_back(ship);
 	registry.emplace<Docking>(ship, Docking{stationEntity, entt::null, Stage::Queued, command.fly});
@@ -310,15 +306,17 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 	entt::registry &registry = world.Registry();
 	const entt::entity ship = command.ship;
 	const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
-	const auto refuse = [&](std::string reason)
+	const auto refuse = [&](Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
 	{
 		world.Events().Emit(
-		    PadRefused{ship, docking ? docking->station : entt::entity{entt::null}, std::move(reason)});
+		    PadRefused{
+		        ship, docking ? docking->station : entt::entity{entt::null},
+		        Sim::MakeReason(reason, std::move(arguments))});
 	};
 	if (!docking)
-		return refuse("the ship holds no pad and waits for none");
+		return refuse(Reason::HoldsNothing);
 	if (!Sim::MayCommand(registry, ship, command.sender))
-		return refuse("its sender does not control the ship");
+		return refuse(Reason::NotController);
 	switch (docking->stage)
 	{
 		case Stage::Queued:
@@ -332,10 +330,10 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 		}
 		case Stage::Docked:
 			if (const std::int64_t crates = ToCarry(registry, ship); crates > 0)
-				return refuse(std::format("its cargo is still crossing the deck, {} crates", crates));
+				return refuse(Reason::CargoCrossing, {Sim::ReasonArgument::Integer(crates)});
 			Unclamp(world, ship);
 			return;
-		case Stage::Leaving: return refuse("the ship is already leaving its pad");
+		case Stage::Leaving: return refuse(Reason::AlreadyLeaving);
 	}
 }
 

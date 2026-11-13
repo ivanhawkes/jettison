@@ -102,15 +102,64 @@ const _: () = assert!(offset_of!(Ai_LaneLeft, entity) == 0);
 const _: () = assert!(offset_of!(Ai_LaneLeft, system) == 8);
 const _: () = assert!(offset_of!(Ai_LaneLeft, arrival) == 16);
 
+/// Sim.ReasonValue
+pub type Sim_ReasonValue = u8;
+pub const Sim_ReasonValue_Integer: Sim_ReasonValue = 0;
+pub const Sim_ReasonValue_Entity: Sim_ReasonValue = 1;
+pub const Sim_ReasonValue_Identifier: Sim_ReasonValue = 2;
+
+/// Sim.ReasonArgument
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Sim_ReasonArgument {
+    pub kind: Sim_ReasonValue,
+    pub integer: i64,
+    pub entity: jettison_entity,
+    pub identifier: jettison_string,
+    pub definition: jettison_string,
+}
+const _: () = assert!(size_of::<Sim_ReasonArgument>() == 40);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, kind) == 0);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, integer) == 8);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, entity) == 16);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, identifier) == 20);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, definition) == 28);
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct jettison_array_Sim_ReasonArgument {
+    pub data: *const Sim_ReasonArgument,
+    pub size: u32,
+}
+impl jettison_array_Sim_ReasonArgument {
+    pub const fn new(items: &[Sim_ReasonArgument]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32 }
+    }
+    pub fn as_slice(&self) -> &[Sim_ReasonArgument] {
+        if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
+    }
+}
+
+/// Sim.Reason
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Sim_Reason {
+    pub key: jettison_string,
+    pub arguments: jettison_array_Sim_ReasonArgument,
+}
+const _: () = assert!(size_of::<Sim_Reason>() == 16);
+const _: () = assert!(offset_of!(Sim_Reason, key) == 0);
+const _: () = assert!(offset_of!(Sim_Reason, arguments) == 8);
+
 /// Ai.LaneRefused
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Ai_LaneRefused {
     pub entity: jettison_entity,
     pub jumpPoint: jettison_string,
-    pub reason: jettison_string,
+    pub reason: Sim_Reason,
 }
-const _: () = assert!(size_of::<Ai_LaneRefused>() == 20);
+const _: () = assert!(size_of::<Ai_LaneRefused>() == 28);
 const _: () = assert!(offset_of!(Ai_LaneRefused, entity) == 0);
 const _: () = assert!(offset_of!(Ai_LaneRefused, jumpPoint) == 4);
 const _: () = assert!(offset_of!(Ai_LaneRefused, reason) == 12);
@@ -166,27 +215,46 @@ const _: () = assert!(offset_of!(Dock_PadGiven, number) == 12);
 pub struct Dock_PadRefused {
     pub ship: jettison_entity,
     pub station: jettison_entity,
-    pub reason: jettison_string,
+    pub reason: Sim_Reason,
 }
-const _: () = assert!(size_of::<Dock_PadRefused>() == 16);
+const _: () = assert!(size_of::<Dock_PadRefused>() == 24);
 const _: () = assert!(offset_of!(Dock_PadRefused, ship) == 0);
 const _: () = assert!(offset_of!(Dock_PadRefused, station) == 4);
 const _: () = assert!(offset_of!(Dock_PadRefused, reason) == 8);
+
+/// Sim.ControllerKind
+pub type Sim_ControllerKind = u8;
+pub const Sim_ControllerKind_None: Sim_ControllerKind = 0;
+pub const Sim_ControllerKind_Player: Sim_ControllerKind = 1;
+pub const Sim_ControllerKind_Ai: Sim_ControllerKind = 2;
+
+/// Sim.Controller
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Sim_Controller {
+    pub kind: Sim_ControllerKind,
+    pub slot: u32,
+}
+const _: () = assert!(size_of::<Sim_Controller>() == 8);
+const _: () = assert!(offset_of!(Sim_Controller, kind) == 0);
+const _: () = assert!(offset_of!(Sim_Controller, slot) == 4);
 
 /// Shell.Trade
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Shell_Trade {
+    pub sender: Sim_Controller,
     pub ship: jettison_entity,
     pub market: jettison_entity,
     pub good: jettison_string,
     pub crates: i64,
 }
-const _: () = assert!(size_of::<Shell_Trade>() == 24);
-const _: () = assert!(offset_of!(Shell_Trade, ship) == 0);
-const _: () = assert!(offset_of!(Shell_Trade, market) == 4);
-const _: () = assert!(offset_of!(Shell_Trade, good) == 8);
-const _: () = assert!(offset_of!(Shell_Trade, crates) == 16);
+const _: () = assert!(size_of::<Shell_Trade>() == 32);
+const _: () = assert!(offset_of!(Shell_Trade, sender) == 0);
+const _: () = assert!(offset_of!(Shell_Trade, ship) == 8);
+const _: () = assert!(offset_of!(Shell_Trade, market) == 12);
+const _: () = assert!(offset_of!(Shell_Trade, good) == 16);
+const _: () = assert!(offset_of!(Shell_Trade, crates) == 24);
 
 /// Shell.TradeRefused
 #[repr(C)]
@@ -194,9 +262,9 @@ const _: () = assert!(offset_of!(Shell_Trade, crates) == 16);
 pub struct Shell_TradeRefused {
     pub ship: jettison_entity,
     pub good: jettison_string,
-    pub reason: jettison_string,
+    pub reason: Sim_Reason,
 }
-const _: () = assert!(size_of::<Shell_TradeRefused>() == 20);
+const _: () = assert!(size_of::<Shell_TradeRefused>() == 28);
 const _: () = assert!(offset_of!(Shell_TradeRefused, ship) == 0);
 const _: () = assert!(offset_of!(Shell_TradeRefused, good) == 4);
 const _: () = assert!(offset_of!(Shell_TradeRefused, reason) == 12);

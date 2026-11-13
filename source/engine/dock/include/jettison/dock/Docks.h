@@ -13,6 +13,7 @@
 #include <jettison/dock/Definitions.h>
 #include <jettison/dock/Roads.h>
 #include <jettison/sim/Controller.h>
+#include <jettison/sim/Reason.h>
 
 namespace Jettison::Physics
 {
@@ -187,6 +188,30 @@ struct ReleasePad
 	entt::entity ship{entt::null};
 };
 
+// Why a pad is refused or not given up (Sim::Reason), each worded by the string tables under
+// reason.dock.<name>; the arguments, where there are any, follow. Registered with Reflect as
+// "Dock.Reason" by RegisterTypes.
+enum class Reason : std::uint8_t
+{
+	ShipGone,
+	NotController,
+	NotAStation,
+	NoHull,
+	CannotFly,
+	// The station.
+	OtherSystem,
+	OtherFrame,
+	AlreadyQueued,
+	// The pad's number, and the station.
+	AlreadyHoldsPad,
+	// The station.
+	NoPadFits,
+	HoldsNothing,
+	// The crates still to cross.
+	CargoCrossing,
+	AlreadyLeaving
+};
+
 // The answers, raised as events (Sim::EventQueue): a pad given, a place in the queue (from 1), a
 // refusal and why, a reservation lapsed, a ship clamped to its pad and let go of it, and a pad or a
 // place given up, or left behind once a ship has lifted clear. Registered with Reflect, every
@@ -208,7 +233,7 @@ struct PadRefused
 {
 	entt::entity ship{entt::null};
 	entt::entity station{entt::null};
-	std::string reason;
+	Sim::Reason reason;
 };
 struct PadLapsed
 {

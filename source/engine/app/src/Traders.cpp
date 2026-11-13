@@ -139,7 +139,7 @@ class Round
 			return Status::Failure;
 		Trader &trader = registry.get<Trader>(context.entity);
 		const App::Hold &hold = registry.get<App::Hold>(context.entity);
-		const Purse &purse = registry.get<Purse>(context.entity);
+		const std::int64_t credits = CreditsOf(registry, context.entity);
 		const std::vector<entt::entity> markets = Markets(registry);
 
 		struct Run
@@ -159,7 +159,7 @@ class Round
 				{
 					const std::int64_t crates = std::min(
 					    {hold.capacity - hold.Used(), good.stock,
-					     purse.credits / std::max<std::int64_t>(good.ask, 1)});
+					     credits / std::max<std::int64_t>(good.ask, 1)});
 					if (crates <= 0)
 						continue;
 					for (const entt::entity sellAt : markets)
@@ -425,7 +425,7 @@ class Round
 		entt::registry &registry = context.world.Registry();
 		Trader &trader = registry.get<Trader>(context.entity);
 		const App::Hold &hold = registry.get<App::Hold>(context.entity);
-		const std::int64_t before = registry.get<Purse>(context.entity).credits;
+		const std::int64_t before = CreditsOf(registry, context.entity);
 		const bool buying = !context.arguments.empty() && context.arguments[0] == "buy";
 		const entt::entity market = buying ? trader.buyAt : trader.sellAt;
 		if (market == entt::null || !registry.valid(market))
@@ -438,17 +438,19 @@ class Round
 				return Status::Failure;
 			crates = std::min(
 			    {hold.capacity - hold.Used(), good->stock,
-			     registry.get<Purse>(context.entity).credits / std::max<std::int64_t>(good->ask, 1)});
+			     before / std::max<std::int64_t>(good->ask, 1)});
 		}
 		else
 			crates = -hold.Crates(trader.good);
 		if (crates == 0)
 			return Status::Failure;
 		const std::int64_t held = hold.Crates(trader.good);
-		context.world.Apply(App::Trade{context.entity, market, trader.good, crates});
+		context.world.Apply(
+		    App::Trade{
+		        SenderOf(registry, context.entity), context.entity, market, trader.good, crates});
 		if (registry.get<App::Hold>(context.entity).Crates(trader.good) == held)
 			return Status::Failure;
-		const std::int64_t credits = registry.get<Purse>(context.entity).credits - before;
+		const std::int64_t credits = CreditsOf(registry, context.entity) - before;
 		if (buying)
 			trader.paid = -credits;
 		else
@@ -489,6 +491,13 @@ class Round
 		holding.entity = station;
 		holding.offset = out * (radius + kHoldingOff) + across * (place * kHoldingApart);
 		context.world.Apply(Ai::SetDestination{context.entity, std::move(holding)});
+	}
+
+	// The owner's credits, which the ship trades with.
+	static std::int64_t CreditsOf(const entt::registry &registry, entt::entity ship)
+	{
+		const Purse *purse = PurseOf(registry, ship);
+		return purse ? purse->credits : 0;
 	}
 
 	static Sim::Controller SenderOf(const entt::registry &registry, entt::entity ship)
@@ -638,9 +647,12 @@ std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 		registry.emplace<Physics::LocalFrame>(ship, std::string{start.station});
 		MakeShip(registry, ship, start.hull, start.mass, true);
 		registry.emplace<Ai::Steered>(ship);
-		registry.emplace<Sim::ControlledBy>(ship, TraderController(static_cast<std::uint32_t>(index)));
+		// Each trader the owner of its one ship.
+		const Sim::Controller controller = TraderController(static_cast<std::uint32_t>(index));
+		registry.emplace<Sim::ControlledBy>(ship, controller);
 		registry.emplace<App::Hold>(ship, App::Hold{start.hold, {}});
-		registry.emplace<Purse>(ship, Purse{start.credits});
+		if (FindOwner(registry, controller) == entt::null)
+			MakeOwner(registry, controller, start.credits);
 		registry.emplace<Trader>(ship);
 		registry.emplace<Ai::Behaviour>(ship, Ai::Behaviour{std::string{kTraderTree}, {}, {}});
 		docks.Park(world, ship, pad);

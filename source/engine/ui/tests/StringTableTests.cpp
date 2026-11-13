@@ -149,6 +149,33 @@ TEST_CASE("Strings: arguments format by position, and a count chooses its plural
 	CHECK(StringTable::PluralCategory("ja", 1) == "other");
 }
 
+TEST_CASE("Strings: arguments known only as the game runs format as a call's do")
+{
+	const Scratch scratch;
+	scratch.Put("base/strings/en/market.yaml", kEnglish);
+	scratch.Put(
+	    "base/strings/ru/market.yaml", "version: 1\n"
+	                                   "market:\n"
+	                                   "  pays: \"{1} платит {0}\"\n"
+	                                   "  crossing:\n"
+	                                   "    few: \"; {0} ящика\"\n");
+	StringTable strings;
+	strings.Load(scratch.Files(), "ru");
+	const std::vector<std::string> pays{"Corva Refinery", "81,200"};
+	CHECK(strings.FormatArguments("market.pays", pays) == "81,200 платит Corva Refinery");
+	// The count chooses the form, and the arguments say what it reads.
+	CHECK(
+	    strings.PluralArguments("market.crossing", 23, std::vector<std::string>{"23"}) == "; 23 ящика");
+	CHECK(strings.Problems() == 0);
+
+	// Too few for the text is a problem, and the text stands; too many, past the most, another.
+	CHECK(strings.FormatArguments("market.pays", std::vector<std::string>{"x"}) == "{1} платит {0}");
+	CHECK(strings.Problems() == 1);
+	const std::vector<std::string> many(StringTable::kMaxArguments + 1, "z");
+	CHECK(strings.FormatArguments("market.pays", many) == "z платит z");
+	CHECK(strings.Problems() == 2);
+}
+
 TEST_CASE("Strings: a regional language is read over its primary language, over the base")
 {
 	const Scratch scratch;

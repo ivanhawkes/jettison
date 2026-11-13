@@ -12,6 +12,7 @@ jettison_add_module(sim
 		include/jettison/sim/CommandQueue.h
 		include/jettison/sim/Controller.h
 		include/jettison/sim/Events.h
+		include/jettison/sim/Reason.h
 		include/jettison/sim/SaveGame.h
 		include/jettison/sim/SimWorld.h
 		include/jettison/sim/DefinitionRegistry.h
@@ -21,12 +22,14 @@ jettison_add_module(sim
 		src/CommandQueue.cpp
 		src/Controller.cpp
 		src/DefinitionRegistry.cpp
+		src/Reason.cpp
 		src/SaveGame.cpp
 		src/SimWorld.cpp
 		src/Snapshot.cpp
 		src/Stepper.cpp
 	TESTS
 		tests/DefinitionTests.cpp
+		tests/ReasonTests.cpp
 		tests/SaveGameTests.cpp
 		tests/SimTests.cpp
 		tests/SnapshotTests.cpp

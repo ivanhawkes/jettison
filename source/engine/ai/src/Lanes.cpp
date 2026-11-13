@@ -72,31 +72,35 @@ bool LaneTravel::HasStarSystem(std::uint64_t system) const
 void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 {
 	entt::registry &registry = world.Registry();
-	const auto refuse = [&](std::string reason)
-	{ world.Events().Emit(LaneRefused{command.entity, command.jumpPoint, std::move(reason)}); };
+	const auto refuse = [&](Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
+	{
+		world.Events().Emit(
+		    LaneRefused{
+		        command.entity, command.jumpPoint, Sim::MakeReason(reason, std::move(arguments))});
+	};
 	if (!registry.valid(command.entity))
-		return refuse("there is no such entity");
+		return refuse(Reason::NoSuchEntity);
 	const auto *inSystem = registry.try_get<Sim::InSystem>(command.entity);
 	if (!inSystem || inSystem->system == Sim::kNoSystem)
-		return refuse(
-		    registry.all_of<OnLane>(command.entity) ? "it is on a lane already" : "it is in no system");
+		return refuse(registry.all_of<OnLane>(command.entity) ? Reason::OnLane : Reason::InNoSystem);
 	if (!m_galaxy)
-		return refuse("there is no galaxy");
+		return refuse(Reason::NoGalaxy);
 	const auto system = std::ranges::find(
 	    m_galaxy->systems, inSystem->system,
 	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
 	if (system == m_galaxy->systems.end())
-		return refuse("its system is not one of the galaxy's");
+		return refuse(Reason::SystemNotInGalaxy);
 	const std::optional<Celestial::Exit> exit = Celestial::ExitThrough(
 	    *m_galaxy, static_cast<std::size_t>(system - m_galaxy->systems.begin()), command.jumpPoint);
 	if (!exit)
-		return refuse(std::format("no lane leaves '{}' through '{}'", system->name, command.jumpPoint));
+		return refuse(
+		    Reason::NoLane, {Sim::ReasonArgument::Identifier(system->name),
+		                     Sim::ReasonArgument::Identifier(command.jumpPoint)});
 	const std::uint64_t destination = Sim::SystemId(m_galaxy->systems[exit->destination].name);
 	if (!m_systems.contains(destination))
 		return refuse(
-		    std::format(
-		        "the lane arrives in '{}', which is not defined",
-		        m_galaxy->systems[exit->destination].name));
+		    Reason::ArrivalUndefined,
+		    {Sim::ReasonArgument::Identifier(m_galaxy->systems[exit->destination].name)});
 
 	const OnLane lane{
 	    inSystem->system, command.jumpPoint, destination, std::string{exit->arrival},

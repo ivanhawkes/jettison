@@ -6,6 +6,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -88,6 +89,14 @@ class StringTable
 		return FormatText(key, PluralText(key, count), std::make_format_args(count, args...));
 	}
 
+	// Format and Plural for arguments known only as the game runs, each already words, as a
+	// reason's are: at most kMaxArguments, past which the rest are left out and the call counted as
+	// a problem. Plural's count chooses the form and is not itself an argument.
+	static constexpr std::size_t kMaxArguments = 8;
+	std::string FormatArguments(std::string_view key, std::span<const std::string> arguments) const;
+	std::string PluralArguments(
+	    std::string_view key, std::int64_t count, std::span<const std::string> arguments) const;
+
 	// A whole number as the language writes it, its thousands grouped by the table's
 	// numbers.thousands: 1,250,000 in English, 1.250.000 in German. What a document's
 	// {{value | thousands}} shows.
@@ -115,6 +124,11 @@ class StringTable
 	std::string FormatText(
 	    std::string_view key, std::string_view text, std::format_args arguments) const;
 	std::string_view PluralText(std::string_view key, std::int64_t count) const;
+	// The text as it is, for a call it does not format, logged and counted once.
+	std::string Unformatted(
+	    std::string_view key, std::string_view text, const std::format_error &error) const;
+	std::string FormatSpan(
+	    std::string_view key, std::string_view text, std::span<const std::string> arguments) const;
 
 	std::string m_language{kBaseLanguage};
 	std::map<std::string, std::string, std::less<>> m_texts;

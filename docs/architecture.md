@@ -176,6 +176,14 @@ The game is single-player, but the simulation runs as if it were a local server.
 - **Snapshots and events** flow back: transforms for interpolation, and events such as
   "docked", "trade filled" or "contact" that presentation turns into sound, effects and UI.
 
+An event that says why something was refused or given up carries a reason (`sim/Reason.h`, 12c,
+[decided](roadmap.md#decided)), never text: a key and its arguments, each an integer, an entity or
+an identifier from the game's data. Each module's reasons are an enumeration registered with Reflect
+as `<Module>.Reason` (`Dock.Reason`, `Ai.Reason`, the shell's `Shell.Reason`), whose enumerator names
+the key, `reason.dock.no_pad_fits`, so two modules cannot make the same one; presentation words it
+in the player's language ([localisation](#localisation)). The step makes no English for the player,
+and a developer reads a reason as its key and arguments (`Sim::Describe`).
+
 A star system's presentation is a **system scene** (`scene/SystemScene.h`, 6b), built onto the
 scene from the system description, around whatever a scene file authored, and from the
 simulation's snapshots. Its content is in **layers**: the environment (bodies, stations, the sky:
@@ -835,6 +843,16 @@ neither, is refused as it is read, and the base's text stands: a translation can
 throw or a document read a variable its screen does not bind. Numbers are grouped by the table's
 `numbers.thousands`, in the documents' `thousands` transform and the shell's text alike
 (`StringTable::Number`).
+
+A reason the step gives ([simulation and presentation](#simulation-and-presentation)) is worded by
+the shell (`app/src/Reasons.h`, 12c) from the table under its key, in `strings/<language>/reasons.yaml`
+for the engine's and the sample's: each argument put in words first, an integer by `Number`, an
+entity by its name in the snapshot (a market's station, or the body a station or gate rides the
+rails of), a good by its name and any other identifier as the data gives it, then formatted by
+position (`FormatArguments`); a key with plural forms is chosen by its first integer
+(`PluralArguments`). The arguments are positional as the tables' are, so the check that holds a
+translation to its base text holds it to the reason's. The app suite holds every reason of the
+docks, the AI and the trade to a text in English and German.
 
 The language is the player's setting (`ui.language`), not the environment's locale, so a run reads
 the same on every machine until the player chooses; `UiSystem::SetLanguage` reads the tables and
@@ -1702,9 +1720,13 @@ proves it headlessly. What exists:
   galaxy's two stations that makes and uses its goods each market tick (ten seconds) and prices each
   by scarcity, either side of the price by its listing fee; the ship starts with an empty hold of
   twenty crates and 250,000 credits, and trades at the market of the station it is docked at
-  (`app/src/Trading.h`). The market screen shows the station's goods, the ship's hold and credits, and
-  the best bid among the other markets; its Buy and Sell send a `Trade`, which the step fills or
-  refuses, saying why.
+  (`app/src/Trading.h`). The credits are the owner's (12c): a `Purse` on an entity of its own with
+  an `Owner`, the player's and each trader's, found by the controller its ships are commanded by
+  (`Sim::ControlledBy`), so a fleet's ships share it, and a trade carries its sender and is refused
+  from one that does not command the ship; a save from before keeps each purse on its ship, which
+  the shell's load moves to the owner. The market screen shows the station's goods, the ship's hold
+  and its owner's credits, and the best bid among the other markets; its Buy and Sell send a
+  `Trade`, which the step fills or refuses, with a reason the screen words.
 - **Physics** (`engine/physics`, 7a). Jolt in double precision as a service of the simulation world,
   [as above](#physics): rigid, kinematic and static bodies of box, sphere, capsule, cylinder,
   convex-hull and mesh shapes, a Jolt world per frame of each star system, rails and gravity from the

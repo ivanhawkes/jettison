@@ -1,0 +1,53 @@
+# Why the simulation refused something, in German, over the base's English
+# (strings/en/reasons.yaml).
+version: 1
+reason:
+  entity: etwas
+  dock:
+    ship_gone: das Schiff ist nicht in der Welt
+    not_controller: der Absender befehligt das Schiff nicht
+    not_a_station: das ist keine Station
+    no_hull: die Docks kennen den Rumpf des Schiffs nicht
+    cannot_fly: das Schiff kann nicht fliegen
+    other_system: das Schiff ist nicht im System von {0}
+    other_frame: das Schiff ist nicht im Bezugssystem von {0}
+    already_queued: das Schiff wartet bereits auf eine Landeplattform an {0}
+    already_holds_pad: das Schiff hat bereits Landeplattform {0} an {1}
+    no_pad_fits: "{0} hat keine Landeplattform, auf die der Rumpf passt"
+    holds_nothing: das Schiff hat keine Landeplattform und wartet auf keine
+    cargo_crossing:
+      one: die Fracht ist noch auf dem Deck unterwegs, {0} Kiste
+      other: die Fracht ist noch auf dem Deck unterwegs, {0} Kisten
+    already_leaving: das Schiff verlässt seine Landeplattform bereits
+  ai:
+    no_such_entity: dieses Schiff gibt es nicht
+    on_lane: es ist bereits auf einer Sprungroute
+    in_no_system: es ist in keinem System
+    no_galaxy: es gibt keine Galaxie
+    system_not_in_galaxy: sein System gehört nicht zur Galaxie
+    no_lane: keine Sprungroute verlässt {0} durch {1}
+    arrival_undefined: die Sprungroute endet in {0}, das nicht definiert ist
+    destination_gone: sein Ziel gibt es nicht mehr
+    destination_other_system: sein Ziel ist in einem anderen System
+    destination_other_frame: sein Ziel ist in einem anderen Bezugssystem
+  shell:
+    no_crates: es wurden keine Kisten verlangt
+    no_ship: dieses Schiff gibt es nicht
+    not_owner: das Schiff gehört nicht dem Absender
+    no_owner: das Schiff hat keinen Eigentümer
+    no_market: diesen Markt gibt es nicht
+    not_docked: das Schiff ist nicht an {0} angedockt
+    not_dealt: "{0} handelt nicht mit {1}"
+    short_of_stock:
+      one: "{0} hat {1} Kiste"
+      other: "{0} hat {1} Kisten"
+    no_room:
+      one: im Laderaum ist Platz für {0} Kiste
+      other: im Laderaum ist Platz für {0} Kisten
+    too_dear:
+      one: "{0} Kiste kostet mehr als das Guthaben"
+      other: "{0} Kisten kosten mehr als das Guthaben"
+    hold_short:
+      one: der Laderaum hat {0} Kiste davon
+      other: der Laderaum hat {0} Kisten davon
+    sale_too_large: der Verkauf ist mehr wert, als ein Guthaben fassen kann

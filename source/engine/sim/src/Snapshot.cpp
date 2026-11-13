@@ -3,6 +3,7 @@
 #include <jettison/core/StringId.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/Controller.h>
+#include <jettison/sim/Reason.h>
 #include <jettison/sim/SimWorld.h>
 
 #include <algorithm>
@@ -37,6 +38,19 @@ void RegisterTypes()
 		    .Field<&Controller::slot>("slot", Attribute::Saved);
 		Reflect::RegisterType<ControlledBy>("Sim.ControlledBy")
 		    .Field<&ControlledBy::controller>("controller", Attribute::Saved);
+		Reflect::RegisterEnum<ReasonValue>("Sim.ReasonValue")
+		    .Value<ReasonValue::Integer>("Integer")
+		    .Value<ReasonValue::Entity>("Entity")
+		    .Value<ReasonValue::Identifier>("Identifier");
+		Reflect::RegisterType<ReasonArgument>("Sim.ReasonArgument")
+		    .Field<&ReasonArgument::kind>("kind", Attribute::Saved)
+		    .Field<&ReasonArgument::integer>("integer", Attribute::Saved)
+		    .Field<&ReasonArgument::entity>("entity", Attribute::Saved)
+		    .Field<&ReasonArgument::identifier>("identifier", Attribute::Saved)
+		    .Field<&ReasonArgument::definition>("definition", Attribute::Saved);
+		Reflect::RegisterType<Reason>("Sim.Reason")
+		    .Field<&Reason::key>("key", Attribute::Saved)
+		    .Field<&Reason::arguments>("arguments", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;

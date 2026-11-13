@@ -378,18 +378,18 @@ void Steering::Step(Sim::SimWorld &world)
 		if (destination.entity != entt::null)
 		{
 			const entt::entity entity = destination.entity;
-			const char *lost = nullptr;
+			std::optional<Reason> lost;
 			if (!registry.valid(entity) || !registry.all_of<Sim::Transform, Sim::InSystem>(entity))
-				lost = "its destination has gone";
+				lost = Reason::DestinationGone;
 			else if (registry.get<const Sim::InSystem>(entity).system != system)
-				lost = "its destination is in another system";
+				lost = Reason::DestinationOtherSystem;
 			else if (FrameOf(registry, entity) != frame)
-				lost = "its destination is in another frame";
+				lost = Reason::DestinationOtherFrame;
 			if (lost)
 			{
 				registry.remove<Destination>(ship);
 				registry.replace<Physics::FlightControls>(ship);
-				world.Events().Emit(DestinationLost{ship, lost});
+				world.Events().Emit(DestinationLost{ship, Sim::MakeReason(*lost)});
 				continue;
 			}
 			const Sim::Transform &at = registry.get<const Sim::Transform>(entity);

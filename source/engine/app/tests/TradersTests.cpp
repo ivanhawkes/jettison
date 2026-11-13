@@ -230,7 +230,7 @@ TEST_CASE("Traders: each chooses the run worth most, steered off what its rivals
 
 	// A trader with no credits has nothing worth flying, and waits.
 	Galaxy broke;
-	broke.world.Registry().get<App::Purse>(broke.traders[0]).credits = 0;
+	App::PurseOf(broke.world.Registry(), broke.traders[0])->credits = 0;
 	broke.Step();
 	CHECK(broke.TraderOf(broke.traders[0]).good.empty());
 	CHECK(broke.world.Registry().get<App::Hold>(broke.traders[0]).cargo.empty());
@@ -407,5 +407,5 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release.
-	CHECK(original.world.StateHash() == 0xdfb3e99079409704ULL);
+	CHECK(original.world.StateHash() == 0x4b2e0ff03b7e40b4ULL);
 }

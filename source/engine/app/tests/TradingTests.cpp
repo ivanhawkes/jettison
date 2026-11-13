@@ -1,8 +1,10 @@
 #include "MarketScreen.h"
+#include "Reasons.h"
 #include "Trading.h"
 
 #include <jettison/dock/Docks.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SimWorld.h>
@@ -13,7 +15,9 @@
 
 #include <doctest/doctest.h>
 
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace Jettison;
@@ -30,8 +34,11 @@ MarketGood Copper(std::int64_t stock)
 	return good;
 }
 
+constexpr Sim::Controller kPlayer{Sim::ControllerKind::Player, 1};
+
 // A world with a market at a station and a ship docked on one of its pads, as the docks leave them,
-// with none of physics: the trade reads only who is docked where.
+// with none of physics: the trade reads only who is docked where. The ship is the player's, whose
+// purse it trades with.
 struct Harbour
 {
 	Sim::SimWorld world{kStep, 7};
@@ -39,11 +46,18 @@ struct Harbour
 	entt::entity pad{entt::null};
 	entt::entity market{entt::null};
 	entt::entity ship{entt::null};
+	entt::entity owner{entt::null};
+	Vfs::FileSystem assets;
+	Sim::DefinitionRegistry definitions{Vfs::FileSystem{}};
+	Ui::StringTable strings;
 
 	Harbour()
 	{
 		Sim::RegisterTypes();
+		world.RegisterComponent<Sim::ControlledBy>();
 		RegisterTrading(world);
+		assets.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+		strings.Load(assets, "en");
 		entt::registry &registry = world.Registry();
 		station = registry.create();
 		pad = registry.create();
@@ -54,20 +68,27 @@ struct Harbour
 		Quote(registry.get<Market>(market).goods[1], 150);
 		ship = registry.create();
 		registry.emplace<Hold>(ship, Hold{20, {}});
-		registry.emplace<Purse>(ship, Purse{250000});
+		registry.emplace<Sim::ControlledBy>(ship, kPlayer);
+		owner = MakeOwner(registry, kPlayer, 250000);
 		registry.emplace<Dock::Docking>(ship, Dock::Docking{station, pad, Dock::Stage::Docked, false});
 	}
 
-	void Push(const std::string &good, std::int64_t crates)
+	void Push(const std::string &good, std::int64_t crates, Sim::Controller sender = kPlayer)
 	{
-		world.Commands().Push(Trade{ship, market, good, crates});
+		world.Commands().Push(Trade{sender, ship, market, good, crates});
 	}
+	std::int64_t Credits() const
+	{
+		return world.Registry().get<Purse>(owner).credits;
+	}
+	// The refusals, as the player reads them in the table's language.
 	std::vector<std::string> Refusals()
 	{
+		const Sim::Snapshot snapshot = Sim::Capture(world);
 		std::vector<std::string> reasons;
 		for (const Sim::SimEvent &event : world.Events().Take())
 			if (const auto *refused = event.event.try_cast<TradeRefused>())
-				reasons.push_back(refused->reason);
+				reasons.push_back(WordReason(refused->reason, snapshot, definitions, strings));
 		return reasons;
 	}
 	const MarketGood &Good(std::size_t index) const
@@ -107,7 +128,7 @@ TEST_CASE("Trading: a docked ship buys at the ask and sells at the bid, and the 
 	harbour.Push("beer", 10);
 	harbour.world.Step();
 	const entt::registry &registry = harbour.world.Registry();
-	CHECK(registry.get<Purse>(harbour.ship).credits == 250000 - 10 * ask);
+	CHECK(harbour.Credits() == 250000 - 10 * ask);
 	CHECK(registry.get<Hold>(harbour.ship).Crates("beer") == 10);
 	CHECK(harbour.Good(1).stock == 60);
 	// Fewer crates on the shelf: dearer.
@@ -116,7 +137,7 @@ TEST_CASE("Trading: a docked ship buys at the ask and sells at the bid, and the 
 	const std::int64_t bid = harbour.Good(1).bid;
 	harbour.Push("beer", -4);
 	harbour.world.Step();
-	CHECK(registry.get<Purse>(harbour.ship).credits == 250000 - 10 * ask + 4 * bid);
+	CHECK(harbour.Credits() == 250000 - 10 * ask + 4 * bid);
 	CHECK(registry.get<Hold>(harbour.ship).Crates("beer") == 6);
 	CHECK(harbour.Good(1).stock == 64);
 
@@ -136,19 +157,37 @@ TEST_CASE("Trading: a trade that cannot be made is refused, saying why, and chan
 {
 	Harbour harbour;
 	entt::registry &registry = harbour.world.Registry();
-	harbour.Push("copper", 7);
-	harbour.Push("beer", 21);
-	harbour.Push("copper", 4);
-	harbour.Push("beer", -1);
-	harbour.Push("salt", 1);
-	harbour.world.Step();
+	const auto refuseAll = [&harbour]
+	{
+		harbour.Push("copper", 7);
+		harbour.Push("beer", 21);
+		harbour.Push("copper", 4);
+		harbour.Push("beer", -1);
+		harbour.Push("salt", 1);
+		harbour.Push("beer", 0);
+		harbour.world.Step();
+	};
+	refuseAll();
 	CHECK(
 	    harbour.Refusals() == std::vector<std::string>{
 	                              "Ostra Highport has 6 crates", "the hold has room for 20 crates",
-	                              "4 crates cost more than the ship has", "the hold has 0 crates",
-	                              "Ostra Highport does not deal in it"});
-	CHECK(registry.get<Purse>(harbour.ship).credits == 250000);
+	                              "4 crates cost more than the purse holds",
+	                              "the hold has 0 crates of it", "Ostra Highport does not deal in salt",
+	                              "no crates were asked for"});
+	CHECK(harbour.Credits() == 250000);
 	CHECK(harbour.Good(0).stock == 6);
+
+	// The same refusals in German, from the tables: the goods by their names, the numbers grouped.
+	harbour.strings.Load(harbour.assets, "de");
+	refuseAll();
+	CHECK(
+	    harbour.Refusals() ==
+	    std::vector<std::string>{
+	        "Ostra Highport hat 6 Kisten", "im Laderaum ist Platz für 20 Kisten",
+	        "4 Kisten kosten mehr als das Guthaben", "der Laderaum hat 0 Kisten davon",
+	        "Ostra Highport handelt nicht mit salt", "es wurden keine Kisten verlangt"});
+	CHECK(harbour.strings.Problems() == 0);
+	harbour.strings.Load(harbour.assets, "en");
 
 	// Coming down onto the pad, not yet clamped, or docked at another station, there is no trading.
 	registry.get<Dock::Docking>(harbour.ship).stage = Dock::Stage::Descending;
@@ -162,6 +201,87 @@ TEST_CASE("Trading: a trade that cannot be made is refused, saying why, and chan
 	harbour.world.Step();
 	CHECK(harbour.Refusals() == std::vector<std::string>{"the ship is not docked at Ostra Highport"});
 	CHECK(registry.get<Hold>(harbour.ship).cargo.empty());
+}
+
+TEST_CASE("Trading: a ship trades for its owner, whose purse it shares with the owner's fleet")
+{
+	Harbour harbour;
+	entt::registry &registry = harbour.world.Registry();
+	const std::int64_t ask = harbour.Good(1).ask;
+
+	// Sent for another's ship, the trade is refused, saying so; the game's own rules may send one.
+	harbour.Push("beer", 1, {Sim::ControllerKind::Player, 2});
+	harbour.Push("beer", 1, {Sim::ControllerKind::Ai, 1});
+	harbour.world.Step();
+	CHECK(
+	    harbour.Refusals() ==
+	    std::vector<std::string>{
+	        "its sender does not own the ship", "its sender does not own the ship"});
+	CHECK(harbour.Credits() == 250000);
+	CHECK(registry.get<Hold>(harbour.ship).cargo.empty());
+	harbour.Push("beer", 1, {});
+	harbour.world.Step();
+	CHECK(harbour.Credits() == 250000 - ask);
+
+	// A second ship of the player's fleet, docked on the same pad for the test, pays from the same
+	// purse; the owner's credits outlast either ship.
+	const entt::entity second = registry.create();
+	registry.emplace<Hold>(second, Hold{20, {}});
+	registry.emplace<Sim::ControlledBy>(second, kPlayer);
+	registry.emplace<Dock::Docking>(
+	    second, Dock::Docking{harbour.station, harbour.pad, Dock::Stage::Docked, false});
+	const std::int64_t secondAsk = harbour.Good(1).ask;
+	harbour.world.Commands().Push(Trade{kPlayer, second, harbour.market, "beer", 2});
+	harbour.world.Step();
+	CHECK(harbour.Credits() == 250000 - ask - 2 * secondAsk);
+	CHECK(registry.get<Hold>(second).Crates("beer") == 2);
+	CHECK(PurseOf(std::as_const(registry), second) == &registry.get<Purse>(harbour.owner));
+	CHECK(OwnerOf(registry, harbour.ship) == harbour.owner);
+	registry.destroy(harbour.ship);
+	CHECK(harbour.Credits() == 250000 - ask - 2 * secondAsk);
+
+	// A ship no one owns has no purse to trade with; and one owner a controller.
+	registry.remove<Sim::ControlledBy>(second);
+	harbour.world.Commands().Push(Trade{{}, second, harbour.market, "beer", 1});
+	harbour.world.Step();
+	CHECK(harbour.Refusals() == std::vector<std::string>{"the ship has no owner"});
+	CHECK_THROWS_AS(MakeOwner(registry, kPlayer, 1), std::logic_error);
+}
+
+TEST_CASE("Trading: a world saved with purses on the ships has them moved to their owners")
+{
+	// The layout before phase 12c: each ship its own purse, and no owners. The purse's type is as it
+	// was, so this world saves the bytes that build did.
+	Harbour old;
+	entt::registry &registry = old.world.Registry();
+	registry.destroy(old.owner);
+	registry.emplace<Purse>(old.ship, Purse{250000});
+	const entt::entity second = registry.create();
+	registry.emplace<Sim::ControlledBy>(second, kPlayer);
+	registry.emplace<Purse>(second, Purse{1000});
+	const entt::entity trader = registry.create();
+	registry.emplace<Sim::ControlledBy>(trader, Sim::Controller{Sim::ControllerKind::Ai, 3});
+	registry.emplace<Purse>(trader, Purse{600000});
+	const std::vector<std::byte> save = old.world.Save();
+
+	Harbour loaded;
+	loaded.world.Load(save);
+	entt::registry &world = loaded.world.Registry();
+	CHECK(MovePursesToOwners(world) == 3);
+	CHECK(!world.all_of<Purse>(old.ship));
+	REQUIRE(PurseOf(std::as_const(world), old.ship));
+	CHECK(PurseOf(std::as_const(world), old.ship)->credits == 251000);
+	CHECK(PurseOf(std::as_const(world), trader)->credits == 600000);
+	CHECK(FindOwner(world, kPlayer) != FindOwner(world, {Sim::ControllerKind::Ai, 3}));
+	// Moved once: a world saved since holds its purses where they are.
+	CHECK(MovePursesToOwners(world) == 0);
+	// The harbour's world saves no docks, so the ship is put back on its pad.
+	world.emplace<Dock::Docking>(
+	    old.ship, Dock::Docking{old.station, old.pad, Dock::Stage::Docked, false});
+	const std::int64_t ask = loaded.Good(1).ask;
+	loaded.world.Commands().Push(Trade{kPlayer, old.ship, old.market, "beer", 1});
+	loaded.world.Step();
+	CHECK(PurseOf(std::as_const(world), old.ship)->credits == 251000 - ask);
 }
 
 TEST_CASE("Trading: a market makes and uses its goods each tick, up to four times its target held")
@@ -221,13 +341,11 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 	registry.get<Hold>(harbour.ship).cargo.push_back({"beer", 3});
 	const Sim::Snapshot snapshot = Sim::Capture(harbour.world);
 	// The world moving on after the snapshot is not what the screen shows.
-	registry.get<Purse>(harbour.ship).credits = 0;
+	registry.get<Purse>(harbour.owner).credits = 0;
 
-	Sim::DefinitionRegistry definitions{Vfs::FileSystem{}};
-	Vfs::FileSystem assets;
-	assets.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
-	Ui::StringTable strings;
-	strings.Load(assets, "en");
+	const Sim::DefinitionRegistry &definitions = harbour.definitions;
+	const Vfs::FileSystem &assets = harbour.assets;
+	Ui::StringTable &strings = harbour.strings;
 	MarketView view{harbour.market, harbour.ship, "Halcyon", true, 2, "Bought 1 crate"};
 	const MarketScreen screen = BuildMarketScreen(snapshot, definitions, strings, view);
 	CHECK(screen.station == "Ostra Highport");

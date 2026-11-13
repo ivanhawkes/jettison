@@ -197,10 +197,10 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	const std::vector<Ai::LaneRefused> refused = fixture.Events<Ai::LaneRefused>();
 	REQUIRE(refused.size() == 4);
 	CHECK(refused[0].entity == ship);
-	CHECK(refused[0].reason == "no lane leaves 'Halcyon' through 'Ostra Highport'");
-	CHECK(refused[1].reason == "no lane leaves 'Halcyon' through 'Vesper Gate'");
-	CHECK(refused[2].reason == "it is in no system");
-	CHECK(refused[3].reason == "there is no such entity");
+	CHECK(Sim::Describe(refused[0].reason) == "reason.ai.no_lane('Halcyon', 'Ostra Highport')");
+	CHECK(Sim::Describe(refused[1].reason) == "reason.ai.no_lane('Halcyon', 'Vesper Gate')");
+	CHECK(refused[2].reason == Sim::MakeReason(Ai::Reason::InNoSystem));
+	CHECK(refused[3].reason == Sim::MakeReason(Ai::Reason::NoSuchEntity));
 	CHECK(fixture.SystemOf(ship) == kHalcyon);
 	CHECK_FALSE(fixture.world.Registry().all_of<Ai::OnLane>(ship));
 
@@ -210,7 +210,7 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	fixture.Run(1);
 	const std::vector<Ai::LaneRefused> twice = fixture.Events<Ai::LaneRefused>();
 	REQUIRE(twice.size() == 1);
-	CHECK(twice[0].reason == "it is on a lane already");
+	CHECK(twice[0].reason == Sim::MakeReason(Ai::Reason::OnLane));
 
 	// A world given no galaxy has no lanes.
 	Fixture bare{false};
@@ -219,7 +219,7 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	bare.Run(1);
 	const std::vector<Ai::LaneRefused> none = bare.Events<Ai::LaneRefused>();
 	REQUIRE(none.size() == 1);
-	CHECK(none[0].reason == "there is no galaxy");
+	CHECK(none[0].reason == Sim::MakeReason(Ai::Reason::NoGalaxy));
 }
 
 TEST_CASE("Lanes: a world saved mid-transit arrives as the one saved does, and a replay with it")

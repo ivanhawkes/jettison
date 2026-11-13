@@ -100,7 +100,7 @@ struct Deck : Fixture
 	{
 		std::vector<std::string> reasons;
 		for (const Dock::PadRefused &refused : Events<Dock::PadRefused>())
-			reasons.push_back(refused.reason);
+			reasons.push_back(Sim::Describe(refused.reason));
 		return reasons;
 	}
 };
@@ -190,7 +190,7 @@ TEST_CASE("Deck: a shuttle's twenty crates carried aboard, the ship held until t
 	deck.Advance();
 	const std::vector<std::string> refused = deck.Refusals();
 	REQUIRE(refused.size() == 1);
-	CHECK(refused[0].starts_with("its cargo is still crossing the deck"));
+	CHECK(refused[0].starts_with("reason.dock.cargo_crossing("));
 	CHECK(Dock::IsDocked(deck.world.Registry(), ship, deck.station));
 
 	const std::optional<std::int64_t> steps = deck.UntilCarried(ship, 60 * kSteps60);

@@ -36,5 +36,5 @@ market:
   sold:
     one: Sold {0} crate of {1} at {2} a crate
     other: Sold {0} crates of {1} at {2} a crate
-  # The simulation's reason, which is English (docs/roadmap.md, "Carried forward").
+  # The simulation's reason, worded from strings/<language>/reasons.yaml.
   refused: "No trade: {0}"

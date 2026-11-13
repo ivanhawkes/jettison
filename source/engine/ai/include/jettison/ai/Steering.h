@@ -11,6 +11,8 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/sim/Reason.h>
+
 namespace Jettison::Physics
 {
 class PhysicsWorld;
@@ -166,7 +168,7 @@ struct Arrived
 struct DestinationLost
 {
 	entt::entity ship{entt::null};
-	std::string reason;
+	Sim::Reason reason;
 };
 
 // Steering in a simulation world: the Steered and Destination components, the commands, and the

@@ -44,6 +44,8 @@ jettison_add_module(app
 		src/Mounts.h
 		src/Piloting.cpp
 		src/Piloting.h
+		src/Reasons.cpp
+		src/Reasons.h
 		src/RenderApplication.cpp
 		src/Saves.cpp
 		src/Saves.h
@@ -62,6 +64,7 @@ jettison_add_module(app
 		tests/LargeWorldTests.cpp
 		tests/MountsTests.cpp
 		tests/PilotingTests.cpp
+		tests/ReasonsTests.cpp
 		tests/SavesTests.cpp
 		tests/ScriptsTests.cpp
 		tests/SettingsTests.cpp

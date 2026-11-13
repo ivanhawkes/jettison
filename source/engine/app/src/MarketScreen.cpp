@@ -95,7 +95,7 @@ MarketScreen BuildMarketScreen(
 			screen.status += strings.Plural("market.crossing", crossing);
 	}
 	const auto *hold = snapshot.Get<Hold>(view.ship);
-	const auto *purse = snapshot.Get<Purse>(view.ship);
+	const auto *purse = PurseOf(snapshot, view.ship);
 	if (hold)
 	{
 		screen.used = hold->Used();

@@ -4,6 +4,7 @@
 
 #include <glm/gtc/quaternion.hpp>
 
+#include <format>
 #include <string>
 #include <utility>
 #include <vector>
@@ -71,7 +72,7 @@ struct Yard : Fixture
 	{
 		std::vector<std::string> reasons;
 		for (const Dock::PadRefused &event : Events<Dock::PadRefused>())
-			reasons.push_back(event.reason);
+			reasons.push_back(Sim::Describe(event.reason));
 		return reasons;
 	}
 
@@ -235,13 +236,14 @@ TEST_CASE(
 	yard.Ask(away);
 	yard.world.Commands().Push(Dock::ReleasePad{two, ship});
 	yard.Step();
+	const auto station = std::format("entity {:#x}", entt::to_integral(yard.station));
 	CHECK(
 	    yard.Refusals() ==
 	    std::vector<std::string>{
-	        "its sender does not control the ship", "the ship holds no pad and waits for none",
-	        "the ship already holds pad 2 at Ostra Highport", "it is not a station",
-	        "Ostra Highport has no pad its hull fits", "the ship is not in Ostra Highport's system",
-	        "its sender does not control the ship"});
+	        "reason.dock.not_controller()", "reason.dock.holds_nothing()",
+	        std::format("reason.dock.already_holds_pad(2, {})", station), "reason.dock.not_a_station()",
+	        std::format("reason.dock.no_pad_fits({})", station),
+	        std::format("reason.dock.other_system({})", station), "reason.dock.not_controller()"});
 	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{ship, 2}});
 }
 

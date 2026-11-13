@@ -1,8 +1,8 @@
 #include "Trading.h"
 
 #include <algorithm>
-#include <format>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -64,8 +64,10 @@ void RegisterTypes()
 		RegisterType<Hold>("Shell.Hold")
 		    .Field<&Hold::capacity>("capacity", Attribute::Saved)
 		    .Field<&Hold::cargo>("cargo", Attribute::Saved);
+		RegisterType<Owner>("Shell.Owner").Field<&Owner::controller>("controller", Attribute::Saved);
 		RegisterType<Purse>("Shell.Purse").Field<&Purse::credits>("credits", Attribute::Saved);
 		RegisterType<Trade>("Shell.Trade", Attribute::Script)
+		    .Field<&Trade::sender>("sender", Attribute::Saved)
 		    .Field<&Trade::ship>("ship", Attribute::Saved)
 		    .Field<&Trade::market>("market", Attribute::Saved)
 		    .Field<&Trade::good>("good", Attribute::Saved)
@@ -82,14 +84,35 @@ void RegisterTypes()
 		    .Field<&TradeRefused::ship>("ship")
 		    .Field<&TradeRefused::good>("good")
 		    .Field<&TradeRefused::reason>("reason");
+		RegisterEnum<TradeReason>("Shell.Reason")
+		    .Value<TradeReason::NoCrates>("no_crates")
+		    .Value<TradeReason::NoShip>("no_ship")
+		    .Value<TradeReason::NotOwner>("not_owner")
+		    .Value<TradeReason::NoOwner>("no_owner")
+		    .Value<TradeReason::NoMarket>("no_market")
+		    .Value<TradeReason::NotDocked>("not_docked")
+		    .Value<TradeReason::NotDealt>("not_dealt")
+		    .Value<TradeReason::ShortOfStock>("short_of_stock")
+		    .Value<TradeReason::NoRoom>("no_room")
+		    .Value<TradeReason::TooDear>("too_dear")
+		    .Value<TradeReason::HoldShort>("hold_short")
+		    .Value<TradeReason::SaleTooLarge>("sale_too_large");
 		return true;
 	}();
 	(void)registered;
 }
 
-void Refuse(Sim::SimWorld &world, const Trade &trade, std::string reason)
+void Refuse(
+    Sim::SimWorld &world, const Trade &trade, TradeReason reason,
+    std::vector<Sim::ReasonArgument> arguments = {})
 {
-	world.Events().Emit(TradeRefused{trade.ship, trade.good, std::move(reason)});
+	world.Events().Emit(
+	    TradeRefused{trade.ship, trade.good, Sim::MakeReason(reason, std::move(arguments))});
+}
+
+Sim::ReasonArgument Crates(std::int64_t crates)
+{
+	return Sim::ReasonArgument::Integer(crates);
 }
 
 MarketGood *FindGood(Market &market, std::string_view good)
@@ -122,15 +145,88 @@ std::int64_t Hold::Crates(std::string_view good) const
 	return found != cargo.end() ? found->crates : 0;
 }
 
+entt::entity MakeOwner(
+    entt::registry &registry, const Sim::Controller &controller, std::int64_t credits)
+{
+	if (FindOwner(registry, controller) != entt::null)
+		throw std::logic_error{"Trading: the controller already has an owner"};
+	const entt::entity owner = registry.create();
+	registry.emplace<Owner>(owner, controller);
+	registry.emplace<Purse>(owner, Purse{credits});
+	return owner;
+}
+
+entt::entity FindOwner(const entt::registry &registry, const Sim::Controller &controller)
+{
+	// One owner a controller (MakeOwner), so the view's order decides nothing.
+	for (const auto [entity, owner] : registry.view<const Owner>().each())
+		if (owner.controller == controller)
+			return entity;
+	return entt::null;
+}
+
+entt::entity OwnerOf(const entt::registry &registry, entt::entity ship)
+{
+	const auto *controlled = registry.valid(ship) ? registry.try_get<Sim::ControlledBy>(ship) : nullptr;
+	return controlled ? FindOwner(registry, controlled->controller) : entt::null;
+}
+
+Purse *PurseOf(entt::registry &registry, entt::entity ship)
+{
+	const entt::entity owner = OwnerOf(registry, ship);
+	return owner != entt::null ? registry.try_get<Purse>(owner) : nullptr;
+}
+
+const Purse *PurseOf(const entt::registry &registry, entt::entity ship)
+{
+	const entt::entity owner = OwnerOf(registry, ship);
+	return owner != entt::null ? registry.try_get<Purse>(owner) : nullptr;
+}
+
+const Purse *PurseOf(const Sim::Snapshot &snapshot, entt::entity ship)
+{
+	const auto *controlled = snapshot.Get<Sim::ControlledBy>(ship);
+	if (!controlled)
+		return nullptr;
+	for (const auto &[entity, owner] : snapshot.Components<Owner>())
+		if (owner.controller == controlled->controller)
+			return snapshot.Get<Purse>(entity);
+	return nullptr;
+}
+
+std::size_t MovePursesToOwners(entt::registry &registry)
+{
+	std::vector<entt::entity> ships;
+	for (const auto [entity, purse, controlled] :
+	     registry.view<const Purse, const Sim::ControlledBy>().each())
+		if (!registry.all_of<Owner>(entity))
+			ships.push_back(entity);
+	std::ranges::sort(ships, {}, [](entt::entity entity) { return entt::to_integral(entity); });
+	for (const entt::entity ship : ships)
+	{
+		const Sim::Controller controller = registry.get<Sim::ControlledBy>(ship).controller;
+		const std::int64_t credits = registry.get<Purse>(ship).credits;
+		registry.remove<Purse>(ship);
+		if (const entt::entity owner = FindOwner(registry, controller); owner != entt::null)
+			registry.get_or_emplace<Purse>(owner).credits += credits;
+		else
+			MakeOwner(registry, controller, credits);
+	}
+	return ships.size();
+}
+
 void RegisterTrading(Sim::SimWorld &world)
 {
 	RegisterTypes();
 	world.RegisterComponent<Market>();
 	world.RegisterComponent<Hold>();
 	world.RegisterComponent<Purse>();
+	world.RegisterComponent<Owner>();
 	world.ShowInSnapshots<Market>();
 	world.ShowInSnapshots<Hold>();
 	world.ShowInSnapshots<Purse>();
+	world.ShowInSnapshots<Owner>();
+	world.ShowInSnapshots<Sim::ControlledBy>();
 	world.RegisterCommand<Trade>([](Sim::SimWorld &target, const Trade &trade)
 	                             { ApplyTrade(target, trade); });
 	world.RegisterSystem(
@@ -222,21 +318,29 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 {
 	entt::registry &registry = world.Registry();
 	if (trade.crates == 0)
-		return Refuse(world, trade, "no crates were asked for");
-	if (!registry.valid(trade.ship) || !registry.all_of<Hold, Purse>(trade.ship))
-		return Refuse(world, trade, "there is no such ship");
+		return Refuse(world, trade, TradeReason::NoCrates);
+	if (!registry.valid(trade.ship) || !registry.all_of<Hold>(trade.ship))
+		return Refuse(world, trade, TradeReason::NoShip);
+	if (!Sim::MayCommand(registry, trade.ship, trade.sender))
+		return Refuse(world, trade, TradeReason::NotOwner);
+	Purse *pPurse = PurseOf(registry, trade.ship);
+	if (!pPurse)
+		return Refuse(world, trade, TradeReason::NoOwner);
 	if (!registry.valid(trade.market) || !registry.all_of<Market>(trade.market))
-		return Refuse(world, trade, "there is no such market");
+		return Refuse(world, trade, TradeReason::NoMarket);
 	Market &market = registry.get<Market>(trade.market);
+	const Sim::ReasonArgument at = Sim::ReasonArgument::Entity(trade.market);
 	if (market.stationEntity == entt::null ||
 	    !Dock::IsDocked(registry, trade.ship, market.stationEntity))
-		return Refuse(world, trade, std::format("the ship is not docked at {}", market.station));
+		return Refuse(world, trade, TradeReason::NotDocked, {at});
 	MarketGood *good = FindGood(market, trade.good);
 	if (!good)
-		return Refuse(world, trade, std::format("{} does not deal in it", market.station));
+		return Refuse(
+		    world, trade, TradeReason::NotDealt,
+		    {at, Sim::ReasonArgument::Identifier(trade.good, "Shell.Good")});
 
 	Hold &hold = registry.get<Hold>(trade.ship);
-	Purse &purse = registry.get<Purse>(trade.ship);
+	Purse &purse = *pPurse;
 	auto held = std::ranges::find(hold.cargo, trade.good, &Cargo::good);
 	std::int64_t price = 0;
 	std::int64_t cost = 0;
@@ -244,14 +348,11 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 	{
 		price = good->ask;
 		if (good->stock < trade.crates)
-			return Refuse(world, trade, std::format("{} has {} crates", market.station, good->stock));
+			return Refuse(world, trade, TradeReason::ShortOfStock, {at, Crates(good->stock)});
 		if (hold.capacity - hold.Used() < trade.crates)
-			return Refuse(
-			    world, trade,
-			    std::format("the hold has room for {} crates", hold.capacity - hold.Used()));
+			return Refuse(world, trade, TradeReason::NoRoom, {Crates(hold.capacity - hold.Used())});
 		if (!Cost(trade.crates, price, cost) || cost > purse.credits)
-			return Refuse(
-			    world, trade, std::format("{} crates cost more than the ship has", trade.crates));
+			return Refuse(world, trade, TradeReason::TooDear, {Crates(trade.crates)});
 		purse.credits -= cost;
 		good->stock -= trade.crates;
 		if (held == hold.cargo.end())
@@ -265,10 +366,10 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 		price = good->bid;
 		if (held == hold.cargo.end() || held->crates < crates)
 			return Refuse(
-			    world, trade,
-			    std::format("the hold has {} crates", held == hold.cargo.end() ? 0 : held->crates));
+			    world, trade, TradeReason::HoldShort,
+			    {Crates(held == hold.cargo.end() ? 0 : held->crates)});
 		if (!Cost(crates, price, cost))
-			return Refuse(world, trade, "the sale is worth more than a purse holds");
+			return Refuse(world, trade, TradeReason::SaleTooLarge);
 		purse.credits += cost;
 		good->stock += crates;
 		held->crates -= crates;

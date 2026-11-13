@@ -1,0 +1,57 @@
+# Why the simulation refused something or gave it up (sim/Reason.h): a key a module's reason
+# enumerator names, reason.<module>.<name>, worded by app/src/Reasons.cpp. Arguments are {0}, {1}, by
+# position, as the module's enumeration lists them; a key with "one" and "other" is chosen by its first
+# number.
+version: 1
+reason:
+  # An entity a reason names that has no name to show.
+  entity: something
+  dock:
+    ship_gone: the ship is not in the world
+    not_controller: its sender does not command the ship
+    not_a_station: it is not a station
+    no_hull: the ship has no hull the docks know
+    cannot_fly: the ship is not one that flies
+    other_system: the ship is not in {0}'s system
+    other_frame: the ship is not in {0}'s frame
+    already_queued: the ship is already waiting for a pad at {0}
+    already_holds_pad: the ship already holds pad {0} at {1}
+    no_pad_fits: "{0} has no pad its hull fits"
+    holds_nothing: the ship holds no pad and waits for none
+    cargo_crossing:
+      one: its cargo is still crossing the deck, {0} crate
+      other: its cargo is still crossing the deck, {0} crates
+    already_leaving: the ship is already leaving its pad
+  ai:
+    no_such_entity: there is no such ship
+    on_lane: it is on a lane already
+    in_no_system: it is in no system
+    no_galaxy: there is no galaxy
+    system_not_in_galaxy: its system is not one of the galaxy's
+    no_lane: no lane leaves {0} through {1}
+    arrival_undefined: the lane arrives in {0}, which is not defined
+    destination_gone: its destination has gone
+    destination_other_system: its destination is in another system
+    destination_other_frame: its destination is in another frame
+  shell:
+    no_crates: no crates were asked for
+    no_ship: there is no such ship
+    not_owner: its sender does not own the ship
+    no_owner: the ship has no owner
+    no_market: there is no such market
+    not_docked: the ship is not docked at {0}
+    not_dealt: "{0} does not deal in {1}"
+    # The station, then the crates it has.
+    short_of_stock:
+      one: "{0} has {1} crate"
+      other: "{0} has {1} crates"
+    no_room:
+      one: the hold has room for {0} crate
+      other: the hold has room for {0} crates
+    too_dear:
+      one: "{0} crate costs more than the purse holds"
+      other: "{0} crates cost more than the purse holds"
+    hold_short:
+      one: the hold has {0} crate of it
+      other: the hold has {0} crates of it
+    sale_too_large: the sale is worth more than a purse holds

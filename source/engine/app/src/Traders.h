@@ -102,7 +102,8 @@ void LoadTraderDefinitions(Sim::DefinitionRegistry &definitions);
 Sim::Controller TraderController(std::uint32_t number);
 
 // Parks the sample's traders on free pads of the stations open, each a ship of its hull with a
-// hold, a purse, a Trader and the trader's tree, commanded by the AI: transports on four of
+// hold, a Trader and the trader's tree, commanded by the AI as its owner (Owner), whose purse it
+// trades with: transports on four of
 // Highport's L pads and one of Corva's M pads, and shuttles on an L pad and Corva's S pad, which
 // leaves Corva one pad free for the traders that come to it, so they queue. A station not open, or a
 // pad already taken, is left out, saying so. Returns the traders, in the order made.

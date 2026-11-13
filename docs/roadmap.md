@@ -4,23 +4,19 @@ The order is set by what is expensive to change later, then by what later work s
 is not set by what looks good in a screenshot. Architectural decisions (layout, the
 simulation split, coordinate precision, colour space, serialisation) come before the systems
 that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
-commit that did it in the history. Phases 0–11, and the catalogue entries for the systems they
+commit that did it in the history. Phases 0–12, and the catalogue entries for the systems they
 built, are recorded in [history](history.md).
 
 ## Phases
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| 0–11 | **Done** 2026-11-10 to 2026-11-13: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish, scripting and shipping. Recorded in [history](history.md). | Met. |
-| 12 | **Saves and the step's interface.** Sub-phases 12a–12c: the first tier of [carried forward](#carried-forward), what a save holds and what leaves the step, before players have saves. | A save made before phase 12 loads; a component, a script's keys, the mods and Jolt's version each have their place in a save, with a test of each migration; and a refusal leaves the step as a reason the string tables word. |
-| 12a | **The save's shape.** Done 2026-11-13. Catalogue entries 25, 29 and 10 ([decided](#decided): a component's chain, a script's keys, a player's mods). A version per component storage: the world's save, at version 3, begins with each storage's version, the step from 2 writing an empty table so every storage of an older save is at 1, and a version past a component's chain is refused by the component's name before anything else is read. A component's chain (`Sim::ComponentMigrations`, `SimWorld::RegisterComponent<T>(chain)`) runs over each value's record (`Serialise::BinaryRecord`, `BinaryReader::ReadRecord`): its fields' names and bytes, sharing the archive's table of names, read with the reader's primitives (`Open`) or as a type (`Get`), set, removed and renamed, then read as the type is now (`ReadInto`). A script's keys: the imports `store` and `load`, granted by `store`, bytes under keys of 1 to 64 bytes, 256 keys and 64 KiB a script (`HostLimits`), refused while it answers an input; kept by the host whether the script is loaded or not (`ScriptStore`), a section of the save game (`Script.Store`, `WriteStore`, `ReadStore`), a load's `SetStore` making each handler's instance again; in the C header and the Rust module. Mods: `mods.yaml` beside the settings, in mount order, each enabled or not, a mod's identifier its directory's name or its pack's without `.pack`, a mod found and not listed added at the end and the list written again, one listed and missing keeping its place; `mod.yaml` at a mod's root (`App::ModDescription`: a name, its `release`, the engine it was written for, `requires`), a mod for a newer engine or whose requirement is not mounted before it left out; the mods mounted and their releases in `SaveInfo::mods`, and `Sim::ModDifferences`, which the shell's load logs and goes on. The smoke mod describes itself, and its script counts the trades it hears under a key. The world's six pinned hashes moved with the layout, each checked to be its old value when the old layout is written ([persistence](architecture.md#persistence), [files, packs and mods](architecture.md#files-packs-and-mods), [scripts](architecture.md#scripts)). | Met: in the sim suite, `world-v2.save`, written by commit `cfb86e9`, loads through the world's step into the state this build saves at step 15, and steps on to the same hash; a component's chain reads a save of its earlier layout, a field removed (a grade, a fine one counted into the tonnes) and a field retyped (a float of credits read by its bits and made whole), and saves it at version 2; without the chain the removed field is refused by name, a later build's version by the component's, and a step missing by its version. In the app suite, the smoke mod's script, mounted from a user's mods, counts two trades, a save game holds its keys and the mods (`smoke` 1.0.0), and a new host loaded from it hears the next as its third; a load under none or other mods names each difference; the player's list orders, disables and adds mods, keeps a missing one's place, is not written when nothing is added, and when it does not read is kept as it is; a mod for engine 0.2.0, one requiring it, one requiring a mod after it and one whose description is misspelt are left out, each with its reason. In the script suite, under the sanitisers too, the keys from C and from Rust kept past an unload and through a section, a fifth key past four and 1,000 bytes past 1,024 refused with what was kept left as it was, a 65-byte key, a store in an input and a module storing ungranted refused; in the serialise suite, a record's enumerator new to the table and a nested struct set, and a field the type does not save refused. The packed smoke test, both scenes, mounts `smoke.pack` as `mod:smoke` ("The mod smoke is Smoke test 1.0.0"), adds it to the run's `mods.yaml`, and saves and loads with the script's keys and the mod named in the save, with no difference said; its script, counting under its key, heard 4 trades. |
-| 12b | **Jolt's state across a Jolt upgrade.** Done 2026-11-13. Catalogue entry 25 ([decided](#decided): physics keeps Jolt's state). Physics' layout 4: after the layout, Jolt's version (`Physics::JoltVersion`, `BuiltJoltVersion`: 5.6.0) and those of its feature bits that change what it saves or how it steps (double precision, the cross-platform determinism, 32-bit object layers), not the assertions or the profiler, which differ between Debug and Release and change neither; and with each body's record, whether it sleeps. A save of another version is loaded by rebuilding its bodies from the records, each where it was placed, moving as it was and asleep if it was, Jolt's state passed over and the rebuild logged; saved again, it is this build's. Layout 3 is read as 5.6.0's, which every save of it was. `PhysicsWorld::SaveAsJoltVersion` writes a save as another version's, for the tests, and `Asleep` says whether a body sleeps. The six pinned hashes with physics in them moved with the layout, each checked to be its old value when layout 3 is written ([physics](architecture.md#physics), [persistence](architecture.md#persistence)). | Met: in the physics suite, `replay-layout3.save`, written by commit `8177358`, loads with Jolt's state and steps on to the bytes the run not saved reaches. A save marked as Jolt 5.5.0 loads by the rebuild and steps on, and what it loses is measured: the bay of thrown cargo, rebuilt at step 180 with three pairs touching, keeps what touches, begins and ends the same pairs in every step, and is 2 nm out after a step and 57 µm by step 300; saved again, it carries on exactly. A crate asleep against a block and in a sensor sleeps on where it lay, nothing beginning or ending, and a crate in flight goes where it would have to the bit. The warm start: four crates thrusting in a row into a block give 1.2 mm in the first step and 7.1 mm by the tenth, and rest 4.6 mm from where they would have. In the dock suite, the clamps: a shuttle rebuilt on its way down onto its pad docks at the same step in the same place, and rebuilt docked it is where it would have been ten seconds on, and undocks touching only its pad. |
-| 12c | **Reasons and the owner's purse.** Catalogue entry 30, 8b and 9f ([decided](#decided): a reason and its arguments, a player's fleet). `Sim::Reason` in place of the text the docks', lanes', steering's and trades' events carry, worded by presentation from the string tables; the purse on an entity of its owner's, a trade refused from a sender that does not own the ship. | The market's refusals read in English and German from the tables; a trade sent for another's ship is refused with a reason. |
+| 0–12 | **Done** 2026-11-10 to 2026-11-14: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish, scripting and shipping, saves and the step's interface. Recorded in [history](history.md). | Met. |
 
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
 target and a test, and phases 2–11 fill stubs in rather than invent structure.
 
-Phases 5–11 are split into lettered sub-phases (all of them now in [history](history.md)), each a
+Phases 5–12 are split into lettered sub-phases (all of them now in [history](history.md)), each a
 block of related work that touches the same modules and documents, so it can be done in one session
 and the context cleared after it.
 A sub-phase names the catalogue entries that are its brief; read those, not the whole catalogue.
@@ -30,33 +26,22 @@ criterion yet gets one when it starts.
 
 ## Carried forward
 
-Work that phases 1–11 moved on, in the order it is worth doing: by what is expensive to change later,
+Work that phases 1–12 moved on, in the order it is worth doing: by what is expensive to change later,
 then by what the game's next work stands on, as the phases were ordered. Within a tier the first is
 the most pressing. The decisions they waited on are settled, under [decided](#decided). Phases
-1–11's full record, and catalogue entries 1–31, are in [history](history.md).
+1–12's full record, and catalogue entries 1–31, are in [history](history.md).
 
 ### First: what saves and the simulation's interface hold
 
 Each of these fixes what a save holds or the shape of what goes into and out of the step, and gets
 dearer with every save a player has and once a second player sends commands.
 
-- **The simulation's text** (entry 30, 11d): a trade's refusal and a save's problem are English made
-  in the step and carried in its events as text, which no string table can word; each event wants a
-  reason and its values for presentation to word instead. Every rule the game adds that refuses
-  something adds another, so the event's shape is cheapest to change now. Decided (2026-11-13): one
-  `Sim::Reason`, a reflected enumerator and typed arguments, in place of the four events' text; not
-  yet built.
-- **A purse its owner's, for a fleet** (8b, 9f): a `Purse` is a ship's (`app/src/Trading.h`), the
-  shell's and each trader's, and the sample's trade is taken from any sender. A player has a fleet
-  and trades for whichever ship of it they are attached to, so the purse is the owner's, which a
-  save holds, and a trade is refused from a sender that does not own the ship. Decided (2026-11-13): the
-  purse on an entity of its owner's, each trader the owner of one ship; not yet built.
-- **Commands that carry their sender** (9c): the docks' commands carry a `Sim::Controller` and
-  are refused from one that does not control the ship, and a trader sends its own with its AI
-  controller (9f); the flight controls, a destination, a lane entered and a pick do not yet, and are
-  taken from anyone. Each gains one as the first command a second player could send for it, with
-  networking; the flight controls theirs with the helm, which a fleet brings first, and the trade
-  with its owner's purse (above).
+- **Commands that carry their sender** (9c): the docks' commands and the trade (12c) carry a
+  `Sim::Controller` and are refused from one that does not command the ship, and a trader sends its
+  own with its AI controller (9f); the flight controls, a destination, a lane entered and a pick do
+  not yet, and are taken from anyone. Each gains one as the first command a second player could send
+  for it, with networking; the flight controls theirs with the helm, which a fleet brings first.
+  Phase 12 took the rest of this tier.
 
 ### Next: what the game's next slices stand on
 
@@ -102,7 +87,9 @@ own scale, gates flown through, traders that react, and mods a player can choose
   newest stepped snapshot, by component, as granted, and acts as its player; an input reads only its
   inputs); a script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
   when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
-  not report, for the console.
+  not report, for the console. A script's own reasons (`reason.script.<script>.<name>`, decided),
+  which wait for something a script refuses; and the sender of a command a script sends, which it
+  sets itself, as a `Trade`'s (12c), until a handler acts as its player.
 - **Packs and mods, not yet placed** (entry 10, 11a): the game's menu over `mods.yaml` (12a), which
   the player edits by hand until then; a patch that removes an element from a list, rather than
   replacing the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything
@@ -261,7 +248,7 @@ tested; everything that would need an algorithm throws.
 In priority order. Each entry is the brief for its stub. *Library* is the chosen dependency.
 *Stub* names what phase 1 declares.
 
-Entries 1–31, for phases 1–11, are in [history](history.md#system-catalogue-entries-131).
+Entries 1–31, for phases 1–12, are in [history](history.md#system-catalogue-entries-131).
 
 ## Decided
 
@@ -726,7 +713,10 @@ Settled on 2026-11-10:
   check that already holds it to its base text. A script's reason is the same struct, under
   `reason.script.<script>.<name>`, worded by its mod's table. Events are not saved, so this is the
   shape of what leaves the step rather than of a save, made now because every rule that refuses
-  adds a reason. The step's log lines stay English: they are for developers.
+  adds a reason. The step's log lines stay English: they are for developers. Built in 12c: the
+  enumerator is a module's, registered as `<Module>.Reason`, the key named by it; a definition's
+  identifier carries its type, and an identifier with none, a body's or a system's, reads as itself;
+  a key with plural forms is chosen by its first integer.
 - **Physics keeps Jolt's state, and rebuilds the bodies when Jolt's version differs** (2026-11-13,
   the fourth). A loaded run carries on as an unbroken one would, which always rebuilding would give
   up on every load. Physics' layout 4 holds Jolt's version (`JPH_VERSION_MAJOR`, `_MINOR`, `_PATCH`,
@@ -746,7 +736,9 @@ Settled on 2026-11-10:
   as it is. The purse moves from the ship to an entity of its owner's, which a trade, a toll and a
   ship bought draw on; each trader is the owner of one ship. Attaching is presentation's (the
   camera, and the market screen bound to the station the attached ship is docked at); the helm is a
-  command, saved, since the ship's behaviour stands down while a player flies it.
+  command, saved, since the ship's behaviour stands down while a player flies it. The purse was
+  built in 12c (`App::Owner`, found by the controller); a ship bought, attaching and the helm come
+  with the sample's fleet.
 - **A ship crosses a system by cruising** (2026-11-13, the first of the second tier). The distances
   rule the others out: Corva Refinery is 1.4 × 10⁸ m from Corva and Corva 3 × 10¹⁰ m from Vesper,
   days at the flight model's speeds. Compressed time would want a thousandfold, which runs every
