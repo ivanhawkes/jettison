@@ -55,9 +55,9 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Item | Verdict | Reason |
 |---|---|---|
 | ozz-animation, tag-based selection | Out | Built for characters with large clip libraries. This engine has mechanical rigs and a handful of clips per model. |
-| Clips | In | The glTF clip player exists (`Model::EvaluateSkin`); it moves into `engine/animation`. |
+| Clips | In | The glTF clip player exists (`Model::EvaluateSkin`); it moves into `engine/animation`. Clip files (10d) keyframe the scene's own entities, and their events ("clamp closed") are data a game gives meaning to, a sound by data. |
 | Skeletons | In | Kept narrow: glTF skins for mechanical rigs, already supported by the shaders. |
-| TRS | In | Transform animation exists (`RotationAnimationComponent`); generalised to keyframed TRS tracks. |
+| TRS | In | Transform animation exists (`RotationAnimationComponent`); generalised to keyframed TRS tracks on any scene entity (10d), and a glTF clip on a model with no skin. |
 | Poses, FK | In | Not a public system: local pose to model pose is the hierarchy evaluation the sampler already does. |
 | IK | Out | No feet, no hands, no aiming limbs. |
 | Synchronisation | Out | Clip sync serves locomotion blending, which this engine does not have. |

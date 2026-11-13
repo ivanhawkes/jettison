@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -39,6 +40,12 @@ constexpr glm::vec3 kPoleColour{0.36f, 0.37f, 0.4f};
 constexpr glm::vec3 kDoorColour{0.12f, 0.13f, 0.15f};
 constexpr glm::vec3 kDoorLampColour{1.0f, 0.62f, 0.2f};
 constexpr glm::vec3 kFloodColour{0.92f, 0.95f, 1.0f};
+constexpr glm::vec3 kClampColour{0.86f, 0.62f, 0.1f};
+constexpr glm::vec3 kJawColour{0.07f, 0.07f, 0.08f};
+
+// How far out from the hull's side a clamp's root stands, in its units: the jaw's face is 0.92 out
+// once closed (animations/pad-clamp.clip.yaml), and its far corner, tilted with the arm, 0.936.
+constexpr float kClampReach = 0.94f;
 
 // How thick a pad's plate is drawn, half above the deck and half in it: nothing a hull resting on
 // the deck sinks into far enough to see, and apart from the deck's face, so the two do not fight.
@@ -495,6 +502,79 @@ std::vector<ProxyPart> ProxyOf(Dock::PadClass padClass)
 	}
 	return {};
 }
+
+// One clamp of a pad's, stowed as the clip leaves it: put away at no size, its post flat in the deck
+// and its arm upright, hinge 0.8 down, in the units FitClamps scales the root by; the parts' names
+// are the clip's.
+struct ClampParts
+{
+	entt::entity root;
+	entt::entity clamp;
+	entt::entity post;
+	entt::entity arm;
+	entt::entity jaw;
+};
+
+ClampParts Clamp(entt::registry &scene, entt::entity pad)
+{
+	ClampParts parts{};
+	parts.root = Node(scene, pad, glm::dvec3{0.0}, {});
+	parts.clamp = Node(scene, parts.root, glm::dvec3{0.0}, {});
+	scene.get<Scene::TransformComponent>(parts.clamp).scale = glm::vec3{0.0f};
+	parts.post = Node(scene, parts.clamp, glm::dvec3{0.0}, {});
+	scene.get<Scene::TransformComponent>(parts.post).scale = {1.0f, 0.001f, 1.0f};
+	Part(
+	    scene, parts.post, {0.0, 0.5, 0.0}, {}, {0.14f, 0.5f, 0.22f},
+	    {Scene::Shape::Box, kPoleColour, kPlating, {}});
+	parts.arm = Node(scene, parts.clamp, {0.0, -0.8, 0.0}, {});
+	Part(
+	    scene, parts.arm, {0.0, 0.35, 0.0}, {}, {0.07f, 0.35f, 0.12f},
+	    {Scene::Shape::Box, kClampColour, {}, {}});
+	// The hinge's pin, across the arm: a cylinder's own Y turned a quarter about X onto Z.
+	Part(
+	    scene, parts.arm, glm::dvec3{0.0}, {glm::half_pi<float>(), 0.0f, 0.0f}, {0.1f, 0.14f, 0.1f},
+	    {Scene::Shape::Cylinder, kPoleColour, {}, {}});
+	parts.jaw = Node(scene, parts.arm, {0.0, 0.7, 0.0}, {});
+	Part(
+	    scene, parts.jaw, glm::dvec3{0.0}, {}, {0.12f, 0.08f, 0.3f},
+	    {Scene::Shape::Box, kJawColour, {}, {}});
+	return parts;
+}
+
+// A pad's four clamps, stowed, and the player that moves them, which shows them stowed, at the end
+// of the open clip.
+PadClamps Clamps(entt::registry &scene, entt::entity pad)
+{
+	PadClamps clamps;
+	clamps.player = pad;
+	Scene::ClipPlayerComponent player;
+	player.file = std::string{kClampClip};
+	player.clip = std::string{kClampOpen};
+	player.time = std::numeric_limits<float>::max();
+	for (entt::entity &clamp : clamps.clamps)
+	{
+		const ClampParts parts = Clamp(scene, pad);
+		clamp = parts.root;
+		player.nodes.push_back({"clamp", parts.clamp});
+		player.nodes.push_back({"post", parts.post});
+		player.nodes.push_back({"arm", parts.arm});
+		player.nodes.push_back({"jaw", parts.jaw});
+	}
+	scene.emplace<Scene::ClipPlayerComponent>(pad, std::move(player));
+	return clamps;
+}
+
+// Sets the pad's clamps playing the clip, from its start or, shown as they already are, its end.
+void PlayClamps(entt::registry &scene, const PadClamps &clamps, bool closed, bool atEnd)
+{
+	auto *player =
+	    scene.valid(clamps.player) ? scene.try_get<Scene::ClipPlayerComponent>(clamps.player) : nullptr;
+	if (player == nullptr)
+		return;
+	player->clip = std::string{closed ? kClampClose : kClampOpen};
+	player->time = atEnd ? std::numeric_limits<float>::max() : 0.0f;
+	player->playing = true;
+}
 } // namespace
 
 glm::vec3 LampColour(Dock::PadState state, bool display)
@@ -508,6 +588,25 @@ glm::vec3 LampColour(Dock::PadState state, bool display)
 		case Dock::PadState::Holding: return {1.0f, 0.08f, 0.04f};
 	}
 	return glm::vec3{1.0f};
+}
+
+void FitClamps(entt::registry &scene, const PadClamps &clamps, const Dock::HullDefinition &hull)
+{
+	const float size = hull.height * kClampSize;
+	for (std::size_t index = 0; index < clamps.clamps.size(); ++index)
+	{
+		auto *transform = scene.valid(clamps.clamps[index])
+		                      ? scene.try_get<Scene::TransformComponent>(clamps.clamps[index])
+		                      : nullptr;
+		if (transform == nullptr)
+			continue;
+		// Two on the hull's +X side, turned to face it, and two on its -X side; fore and aft.
+		const double side = index < 2 ? 1.0 : -1.0;
+		const double along = (index % 2 == 0 ? -0.25 : 0.25) * double{hull.length};
+		transform->translation = {side * (hull.beam * 0.5 + kClampReach * size), 0.0, along};
+		transform->rotation = {0.0f, side > 0.0 ? glm::pi<float>() : 0.0f, 0.0f};
+		transform->scale = glm::vec3{size};
+	}
 }
 
 StationDressing DressStation(
@@ -541,6 +640,7 @@ StationDressing DressStation(
 		    {Scene::Shape::Box, kPadColour, {}, {}});
 		Paint(scene, node, pad, number);
 		dressing.lamps.push_back(Floodlights(scene, node, pad, pad.display, dressing.floodlights));
+		dressing.clamps.push_back(Clamps(scene, node));
 
 		if (pad.ship.empty())
 			continue;
@@ -558,6 +658,11 @@ StationDressing DressStation(
 		scene.emplace<Scene::ParentComponent>(ship, node);
 		scene.get<Scene::TransformComponent>(ship).translation =
 		    glm::dvec3{0.0, hull->height * 0.5 + kPadThickness * 0.5, 0.0};
+		// Held as it is shown, from the first frame.
+		PadClamps &clamps = dressing.clamps.back();
+		FitClamps(scene, clamps, *hull);
+		PlayClamps(scene, clamps, true, true);
+		clamps.closed = true;
 	}
 
 	for (const Dock::Bay &bay : layout.bays)
@@ -610,11 +715,11 @@ StationDressing DressStation(
 }
 
 std::size_t ShowPadStates(
-    entt::registry &scene, const StationDressing &dressing,
-    std::span<const Sim::ComponentSample<Dock::Pad>> pads, entt::entity simStation)
+    entt::registry &scene, StationDressing &dressing, const Sim::Snapshot &snapshot,
+    entt::entity simStation, const Dock::Docks &docks)
 {
 	std::size_t found = 0;
-	for (const Sim::ComponentSample<Dock::Pad> &sample : pads)
+	for (const Sim::ComponentSample<Dock::Pad> &sample : snapshot.Components<Dock::Pad>())
 	{
 		const Dock::Pad &pad = sample.value;
 		if (pad.station != simStation || pad.number == 0 || pad.number > dressing.lamps.size())
@@ -630,6 +735,40 @@ std::size_t ShowPadStates(
 				if (mesh->material != material)
 					mesh->material = material;
 			}
+
+		// A display pad's clamps hold the ship it shows, as it was dressed.
+		if (pad.display || pad.number > dressing.clamps.size())
+			continue;
+		PadClamps &clamps = dressing.clamps[pad.number - 1];
+		const auto *docking = pad.state == Dock::PadState::Holding && pad.ship != entt::null
+		                          ? snapshot.Get<Dock::Docking>(pad.ship)
+		                          : nullptr;
+		const bool closed = docking != nullptr && docking->pad == sample.entity &&
+		                    docking->stage == Dock::Stage::Docked;
+		const entt::entity ship = closed ? pad.ship : entt::null;
+		if (clamps.closed == closed && clamps.ship == ship)
+			continue;
+		// First shown, or holding another ship already clamped, as a world loaded over this one may
+		// have: shown as they are, without the events that would have brought them there.
+		const bool atEnd = !clamps.closed || (closed && *clamps.closed);
+		if (closed)
+		{
+			const auto *hull = snapshot.Get<Dock::Hull>(ship);
+			const Dock::HullDefinition *definition = hull ? docks.FindHull(hull->definition) : nullptr;
+			Dock::HullDefinition largest;
+			if (definition == nullptr)
+			{
+				const glm::vec3 size = Dock::LargestHull(pad.padClass);
+				largest.beam = size.y;
+				largest.height = size.z;
+				largest.length = size.x;
+				definition = &largest;
+			}
+			FitClamps(scene, clamps, *definition);
+		}
+		PlayClamps(scene, clamps, closed, atEnd);
+		clamps.closed = closed;
+		clamps.ship = ship;
 	}
 	return found;
 }

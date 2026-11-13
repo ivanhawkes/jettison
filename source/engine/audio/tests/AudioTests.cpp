@@ -413,6 +413,41 @@ TEST_CASE("Audio: an event sound naming what does not exist is refused, naming t
 	CHECK(
 	    refusal("version: 1\nevent: AudioTests.Docked\nsound: a.wav\nbus: Ui\nat: count\n")
 	        .find("no entity field count") != std::string::npos);
+
+	// A clip's event and a simulation event both, neither, and a clip's placed at a field.
+	CHECK(
+	    refusal("version: 1\nevent: AudioTests.Docked\nclip: clamp.closed\nsound: a.wav\n")
+	        .find("names one of them") != std::string::npos);
+	CHECK(refusal("version: 1\nsound: a.wav\n").find("names one of them") != std::string::npos);
+	CHECK(
+	    refusal("version: 1\nclip: clamp.closed\nsound: a.wav\nat: station\n")
+	        .find("placed at no field") != std::string::npos);
+}
+
+TEST_CASE("Audio: a clip's event plays its sounds from where its player is, or flat for nowhere")
+{
+	RegisterTestTypes();
+	Scratch scratch;
+	scratch.Put(
+	    "defs/sounds/clamp.yaml",
+	    "version: 1\nclip: clamp.closed\nsound: effects/docked.wav\nbus: Effects\nminDistance: 10\n");
+	Sim::DefinitionRegistry definitions(scratch.Files());
+	definitions.Load<Audio::EventSound>(Audio::kEventSoundDirectory, {Audio::kEventSoundVersion});
+	const Audio::EventSounds sounds(definitions);
+	CHECK(sounds.Events() == 1);
+	CHECK(sounds.Sounds() == 1);
+
+	AudioSystem audio(scratch.Files(), NoDevice());
+	audio.SetListener({0.0, 0.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0});
+	CHECK(sounds.PlayClipEvent("clamp.closed", glm::dvec3{-10.0, 0.0, 0.0}, audio) == 1);
+	const Peaks heard = MixPeaks(audio, 1.2);
+	CHECK(heard.left > 1.5f * heard.right);
+	CHECK(sounds.PlayClipEvent("clamp.released", glm::dvec3{-10.0, 0.0, 0.0}, audio) == 0);
+	CHECK(sounds.PlayClipEvent("clamp.closed", std::nullopt, audio) == 1);
+	const Peaks flat = MixPeaks(audio, 1.2);
+	CHECK(flat.left == doctest::Approx(flat.right).epsilon(0.01));
+	CHECK(audio.Counters().started[static_cast<std::size_t>(Bus::Effects)] == 2);
+	CHECK(audio.Problems() == 0);
 }
 
 TEST_CASE("Audio: a presentation entity's sound starts, follows it, and stops when it goes")

@@ -1,7 +1,6 @@
-# The clamps letting go, and the seal's air, heard from the station the ship left.
+# A pad's clamps letting a ship go, and the seal's air, heard from the pad as they open.
 version: 1
-event: Dock.Left
+clip: clamp.released
 sound: audio/effects/undocked.wav
 bus: Effects
-at: station
-minDistance: 200
+minDistance: 60

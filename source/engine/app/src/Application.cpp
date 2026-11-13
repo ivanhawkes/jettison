@@ -30,6 +30,7 @@
 #include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/UtilityAi.h>
+#include <jettison/animation/ClipFile.h>
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/celestial/StarSystem.h>
@@ -659,12 +660,13 @@ void Application::RegisterFrameSystems()
 	     Access::Of<TransformComponent, ParentComponent, MeshComponent>()
 	         .Writing<
 	             RotationAnimationComponent, AnimationPlayerComponent, RigComponent, SkeletonComponent,
-	             WorldTransformComponent>(),
+	             Scene::ClipPlayerComponent, Scene::NodePoseComponent, WorldTransformComponent>(),
 	     {},
 	     [this](entt::registry &registry, double deltaTime)
 	     {
 		     JETTISON_PROFILE_ZONE("scene.update");
-		     m_sceneUpdateSystem->Update(registry, static_cast<float>(deltaTime));
+		     m_clipEvents.clear();
+		     m_sceneUpdateSystem->Update(registry, static_cast<float>(deltaTime), &m_clipEvents);
 	     }});
 	m_frame.Register(
 	    {"shell.pilot",
@@ -704,7 +706,7 @@ void Application::RegisterFrameSystems()
 	     Access::Of<
 	         WorldTransformComponent, Scene::CameraPoseComponent, Scene::CelestialBodyComponent>()
 	         .Writing<Audio::SoundComponent>(),
-	     {"camera.rig"},
+	     {"camera.rig", "scene.update"},
 	     [this](entt::registry &registry, double)
 	     {
 		     JETTISON_PROFILE_ZONE("audio.update");
@@ -965,6 +967,7 @@ void Application::InitResources()
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
 	Animation::RegisterRigLoader(*m_pResources);
+	Animation::RegisterClipFileLoader(*m_pResources);
 	m_definitions.emplace(m_assets);
 	LoadTradeDefinitions(*m_definitions);
 	LoadTraderDefinitions(*m_definitions);
@@ -1143,6 +1146,18 @@ void Application::UpdateAudio(entt::registry &registry)
 				hum.falloff = kStationHumFalloff;
 				registry.emplace<Audio::SoundComponent>(entity, std::move(hum));
 			}
+	// The clips' events this frame, each heard from its player: a pad's clamps closing on a ship and
+	// letting it go, wherever the ship is from.
+	if (m_eventSounds)
+		for (const Scene::ClipEventFired &event : m_clipEvents)
+		{
+			const auto *world = registry.valid(event.player)
+			                        ? registry.try_get<Scene::WorldTransformComponent>(event.player)
+			                        : nullptr;
+			m_eventSounds->PlayClipEvent(
+			    event.name, world ? std::optional{glm::dvec3{world->matrix[3]}} : std::nullopt,
+			    *m_pAudio);
+		}
 	m_soundSources.Update(registry, *m_pAudio);
 	m_pAudio->Update();
 }
@@ -2592,18 +2607,19 @@ void Application::ShowPadStates()
 {
 	if (m_dressings.empty() || !m_systemScene)
 		return;
-	const auto pads = m_simStepper.Current().Components<Dock::Pad>();
+	const Sim::Snapshot &snapshot = m_simStepper.Current();
 	const std::uint64_t system = Sim::SystemId(m_systemScene->System().name);
 	for (std::size_t index = 0; index < m_dressings.size(); ++index)
 	{
 		entt::entity &station = m_dressedStations[index];
-		if (App::ShowPadStates(m_pScene->Registry(), m_dressings[index], pads, station) != 0)
+		if (App::ShowPadStates(
+		        m_pScene->Registry(), m_dressings[index], snapshot, station, *m_pDocks) != 0)
 			continue;
 		// Not yet found, or a world loaded over the one it was found in: this frame's snapshot is the
 		// world's latest step, so the station found now is the one its pads name.
 		station = FindStation(m_sim.Registry(), system, m_dressings[index].body);
 		if (station != entt::null)
-			App::ShowPadStates(m_pScene->Registry(), m_dressings[index], pads, station);
+			App::ShowPadStates(m_pScene->Registry(), m_dressings[index], snapshot, station, *m_pDocks);
 	}
 }
 

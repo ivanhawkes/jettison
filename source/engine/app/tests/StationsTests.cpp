@@ -114,7 +114,8 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, ships 
 }
 
 TEST_CASE(
-    "Stations: the shipped sounds play a landing and a leaving on the effects bus, from the station")
+    "Stations: the shipped sounds play a pad's clamps closing and letting go on the effects bus, from "
+    "the pad")
 {
 	Vfs::FileSystem files;
 	files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
@@ -129,19 +130,10 @@ TEST_CASE(
 	const Audio::EventSounds sounds(definitions);
 	Audio::AudioSystem audio(files, {.output = Audio::Output::None});
 
-	// The station is at the origin, and the listener 60 m to its +X looking down -Z: the station is
-	// on the listener's left.
-	entt::registry world;
-	const entt::entity station = world.create();
-	world.emplace<Sim::Transform>(station);
-	const entt::entity ship = world.create();
-	world.emplace<Sim::Transform>(ship, Sim::Transform{{40.0, 0.0, 0.0}});
+	// The pad is at the origin, and the listener 60 m to its +X looking down -Z: the pad is on the
+	// listener's left.
+	const glm::dvec3 pad{0.0};
 	audio.SetListener({60.0, 0.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0});
-	const Audio::PositionOf positionOf = [&](entt::entity entity) -> std::optional<glm::dvec3>
-	{
-		const auto *at = world.try_get<Sim::Transform>(entity);
-		return at ? std::optional{at->position} : std::nullopt;
-	};
 	const auto heard = [&]
 	{
 		std::vector<float> buffer(std::size_t{2} * 4800);
@@ -162,15 +154,22 @@ TEST_CASE(
 	const auto effects = [&]
 	{ return audio.Counters().started[static_cast<std::size_t>(Audio::Bus::Effects)]; };
 
-	sounds.Play({1, entt::meta_any{Dock::Landed{ship, station, entt::null, 1}}}, audio, positionOf);
+	CHECK(sounds.PlayClipEvent("clamp.closed", pad, audio) == 1);
 	CHECK(effects() == 1);
-	const auto [landLeft, landRight] = heard();
-	CHECK(landLeft > 0.1f);
-	CHECK(landLeft > 1.5f * landRight);
+	const auto [closeLeft, closeRight] = heard();
+	CHECK(closeLeft > 0.1f);
+	CHECK(closeLeft > 1.5f * closeRight);
 
-	sounds.Play({2, entt::meta_any{Dock::Left{ship, station, entt::null, 1}}}, audio, positionOf);
+	CHECK(sounds.PlayClipEvent("clamp.released", pad, audio) == 1);
 	CHECK(effects() == 2);
-	const auto [leaveLeft, leaveRight] = heard();
-	CHECK(leaveLeft > 1.5f * leaveRight);
+	const auto [releaseLeft, releaseRight] = heard();
+	CHECK(releaseLeft > 1.5f * releaseRight);
+
+	// The docks' own events are the clamps' to sound now, which close as a ship is clamped and open
+	// as it is let go; the events themselves play nothing.
+	const entt::entity ship{1};
+	const entt::entity station{2};
+	CHECK(sounds.Play({1, entt::meta_any{Dock::Landed{ship, station, entt::null, 1}}}, audio, {}) == 0);
+	CHECK(sounds.Play({2, entt::meta_any{Dock::Left{ship, station, entt::null, 1}}}, audio, {}) == 0);
 	CHECK(audio.Problems() == 0);
 }

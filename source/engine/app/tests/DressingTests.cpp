@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <string>
@@ -283,12 +284,13 @@ TEST_CASE("Dressing: the display wing shows a liner, a frigate and four fighters
 {
 	Dressed dressed;
 	const Dock::StationLayout &layout = dressed.Layout();
-	App::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
+	const App::StationDressing dressing =
+	    App::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
 	const entt::registry &scene = dressed.scene;
 	const std::vector<entt::entity> nodes = PadNodes(dressed);
 
-	// A proxy's root is what is under a pad and neither draws nor lights: one on each display pad,
-	// resting on it, and none on a pad a ship lands on.
+	// A proxy's root is what is under a pad, neither draws nor lights, and is not one of its clamps:
+	// one on each display pad, resting on it, and none on a pad a ship lands on.
 	std::multiset<std::string> shown;
 	for (std::size_t index = 0; index < nodes.size(); ++index)
 	{
@@ -296,7 +298,9 @@ TEST_CASE("Dressing: the display wing shows a liner, a frigate and four fighters
 		for (const auto [entity, parent, transform] :
 		     scene.view<const Scene::ParentComponent, const Scene::TransformComponent>().each())
 			if (parent.entity == nodes[index] &&
-			    !scene.any_of<Scene::MeshComponent, Scene::LightComponent>(entity))
+			    !scene.any_of<Scene::MeshComponent, Scene::LightComponent>(entity) &&
+			    std::ranges::find(dressing.clamps[index].clamps, entity) ==
+			        dressing.clamps[index].clamps.end())
 			{
 				const Dock::HullDefinition *hull = dressed.docks.FindHull(layout.pads[index].ship);
 				REQUIRE(hull);
@@ -323,15 +327,14 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 	REQUIRE(!stations.empty());
 	entt::registry &world = dressed.world.Registry();
 	const entt::entity highport = stations.front();
-	const App::StationDressing dressing =
+	App::StationDressing dressing =
 	    App::DressStation(dressed.scene, dressed.station, dressed.Layout(), dressed.docks);
 	const auto colour = [&](std::uint32_t number)
 	{ return dressed.scene.get<Scene::MeshComponent>(dressing.lamps[number - 1].front()).color; };
 
 	// Pads 2, 7 and 11 hold the parked transports; the rest are free, and 13 to 18 are display pads.
 	Sim::Snapshot snapshot = Sim::Capture(dressed.world);
-	CHECK(
-	    App::ShowPadStates(dressed.scene, dressing, snapshot.Components<Dock::Pad>(), highport) == 18);
+	CHECK(App::ShowPadStates(dressed.scene, dressing, snapshot, highport, dressed.docks) == 18);
 	CHECK(colour(1) == App::LampColour(Dock::PadState::Free, false));
 	CHECK(colour(2) == App::LampColour(Dock::PadState::Holding, false));
 	CHECK(colour(13) == App::LampColour(Dock::PadState::Free, true));
@@ -344,7 +347,7 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 	world.get<Dock::Pad>(pad).state = Dock::PadState::Reserved;
 	CHECK(colour(1) == App::LampColour(Dock::PadState::Free, false));
 	snapshot = Sim::Capture(dressed.world);
-	App::ShowPadStates(dressed.scene, dressing, snapshot.Components<Dock::Pad>(), highport);
+	App::ShowPadStates(dressed.scene, dressing, snapshot, highport, dressed.docks);
 	CHECK(colour(1) == App::LampColour(Dock::PadState::Reserved, false));
 	for (const entt::entity lamp : dressing.lamps[0])
 		CHECK(
@@ -354,8 +357,82 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 		CHECK(dressed.scene.get<Scene::MeshComponent>(lamp).material == "materials/lamp.material.yaml");
 
 	// Without its station, none of the pads are the dressing's.
+	CHECK(App::ShowPadStates(dressed.scene, dressing, snapshot, entt::null, dressed.docks) == 0);
+}
+
+TEST_CASE(
+    "Dressing: a pad's clamps close on the ship clamped to it, fitted to its hull, and open as it "
+    "is let go")
+{
+	Dressed dressed;
+	const std::vector<entt::entity> stations =
+	    App::OpenStations(dressed.world, dressed.docks, dressed.systems);
+	REQUIRE(!stations.empty());
+	entt::registry &world = dressed.world.Registry();
+	const entt::entity highport = stations.front();
+	App::StationDressing dressing =
+	    App::DressStation(dressed.scene, dressed.station, dressed.Layout(), dressed.docks);
+	REQUIRE(dressing.clamps.size() == 18);
+	const auto player = [&](std::uint32_t number) -> const Scene::ClipPlayerComponent &
+	{ return dressed.scene.get<Scene::ClipPlayerComponent>(dressing.clamps[number - 1].player); };
+	constexpr float kAtEnd = std::numeric_limits<float>::max();
+
+	// Dressed, every pad's clamps are stowed, each name of the clip bound to the four parts bearing
+	// it, but a display pad's, which hold the ship it shows from the first frame.
+	CHECK(player(1).file == App::kClampClip);
+	CHECK(player(1).clip == App::kClampOpen);
+	CHECK(player(1).time == kAtEnd);
+	CHECK(player(1).nodes.size() == 16);
+	CHECK(player(13).clip == App::kClampClose);
+	CHECK(player(13).time == kAtEnd);
+
+	// The parked transports on 2, 7 and 11 are held as the first snapshot shows them, at the end of
+	// the close and not heard closing; fitted beside the hull, two a side, a quarter of its length
+	// fore and aft, and as large as its height asks.
+	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	CHECK(player(1).clip == App::kClampOpen);
+	CHECK(player(2).clip == App::kClampClose);
+	CHECK(player(2).time == kAtEnd);
+	const entt::entity parked = world.get<Dock::Pad>(world.get<Dock::Station>(highport).pads[1]).ship;
+	const Dock::HullDefinition &transport =
+	    *dressed.docks.FindHull(world.get<Dock::Hull>(parked).definition);
+	const auto &fore = dressed.scene.get<Scene::TransformComponent>(dressing.clamps[1].clamps[0]);
+	const float size = transport.height * App::kClampSize;
+	CHECK(fore.scale == glm::vec3{size});
+	CHECK(fore.translation.x == doctest::Approx(transport.beam * 0.5 + 0.94 * size));
+	CHECK(fore.translation.z == doctest::Approx(-0.25 * transport.length));
+	const auto &across = dressed.scene.get<Scene::TransformComponent>(dressing.clamps[1].clamps[3]);
+	CHECK(across.translation.x == doctest::Approx(-fore.translation.x));
+	CHECK(across.translation.z == doctest::Approx(-fore.translation.z));
+
+	// A shuttle clamped to pad 1, as the docks leave a ship that has come down onto it: its clamps
+	// close from the start, fitted to it; then let go, they open from the start of their own clip,
+	// while the pad is still the ship's to lift away from.
+	const entt::entity pad = world.get<Dock::Station>(highport).pads.front();
+	const entt::entity shuttle = world.create();
+	world.emplace<Sim::Transform>(shuttle);
+	world.emplace<Dock::Hull>(shuttle, std::string{"shuttle"});
+	world.emplace<Dock::Docking>(shuttle, highport, pad, Dock::Stage::Docked, false);
+	world.get<Dock::Pad>(pad).state = Dock::PadState::Holding;
+	world.get<Dock::Pad>(pad).ship = shuttle;
+	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	CHECK(player(1).clip == App::kClampClose);
+	CHECK(player(1).time == 0.0f);
+	const float shuttleSize = dressed.docks.FindHull("shuttle")->height * App::kClampSize;
 	CHECK(
-	    App::ShowPadStates(dressed.scene, dressing, snapshot.Components<Dock::Pad>(), entt::null) == 0);
+	    dressed.scene.get<Scene::TransformComponent>(dressing.clamps[0].clamps[0]).scale ==
+	    glm::vec3{shuttleSize});
+	// Shown again from the same snapshot, nothing starts again.
+	dressed.scene.get<Scene::ClipPlayerComponent>(dressing.clamps[0].player).time = 1.0f;
+	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	CHECK(player(1).time == 1.0f);
+
+	world.get<Dock::Docking>(shuttle).stage = Dock::Stage::Leaving;
+	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	CHECK(player(1).clip == App::kClampOpen);
+	CHECK(player(1).time == 0.0f);
+	// The display pads' clamps are the dressing's, whatever the snapshots say.
+	CHECK(player(13).clip == App::kClampClose);
 }
 
 TEST_CASE(

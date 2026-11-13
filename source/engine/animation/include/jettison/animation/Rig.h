@@ -4,26 +4,13 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <cstddef>
-#include <string>
 #include <string_view>
 #include <vector>
 
+#include <jettison/animation/Clip.h>
+
 namespace Jettison::Animation
 {
-enum class TrackPath
-{
-	Translation,
-	Rotation,
-	Scale
-};
-
-enum class Interpolation
-{
-	Linear,
-	Step,
-	CubicSpline
-};
-
 // One node of a rig's hierarchy in its rest pose. parent is an index into Rig::nodes, or -1 for a
 // root.
 struct RigNode
@@ -32,25 +19,6 @@ struct RigNode
 	glm::vec3 translation{0.0f};
 	glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 	glm::vec3 scale{1.0f};
-};
-
-// Keyframes for one property of one node. Rotations are stored x, y, z, w; translations and
-// scales use the first three components. A cubic-spline track holds three values per key, in-tangent,
-// value and out-tangent, as glTF lays them out.
-struct Track
-{
-	std::size_t nodeIndex{};
-	TrackPath path{TrackPath::Translation};
-	Interpolation interpolation{Interpolation::Linear};
-	std::vector<float> times;
-	std::vector<glm::vec4> values;
-};
-
-struct Clip
-{
-	std::string name;
-	float duration{};
-	std::vector<Track> tracks;
 };
 
 struct SkinJoint
@@ -62,8 +30,8 @@ struct SkinJoint
 // A mechanical rig: a node hierarchy, the joints of the skin bound to it, and the clips that move
 // it. The clip player that used to live inside the Vulkan Model, moved here unchanged in phase 1
 // so that sampling a clip needs no device. The model loader fills it in from glTF; nothing in it
-// knows the file format. Phase 10 generalises it to keyframed TRS tracks on any scene node and
-// adds clip events.
+// knows the file format. Its clips are sampled as a clip file's are (Clip.h), which move scene
+// nodes rather than a rig's (ClipFile.h); glTF has no place for events, so a rig's clips have none.
 struct Rig
 {
 	std::vector<RigNode> nodes;

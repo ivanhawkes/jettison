@@ -4,19 +4,14 @@ The order is set by what is expensive to change later, then by what later work s
 is not set by what looks good in a screenshot. Architectural decisions (layout, the
 simulation split, coordinate precision, colour space, serialisation) come before the systems
 that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
-commit that did it in the history. Phases 0–9, and the catalogue entries for the systems they
+commit that did it in the history. Phases 0–10, and the catalogue entries for the systems they
 built, are recorded in [history](history.md).
 
 ## Phases
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| 0–9 | **Done** 2026-11-10 to 2026-11-12: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks. Recorded in [history](history.md). | Met. |
-| 10 | **Presentation polish.** Sub-phases 10a–10d; catalogue entries 27 and 28. | |
-| 10a | **Atmosphere and planets.** Done 2026-11-13. Catalogue entry 28. A frame written to a PNG from inside the frame loop (`render/Screenshot.h`): `--screenshot` after `--after-frames` quiet frames, `--frame-step` for clocks moved a fixed step and held while anything loads, `--run` for console lines before the first frame, the console's `screenshot` and `orbit` commands, and `scripts/capture.sh`, whose reference views (`source/test/frames/views.txt`) are a stage of the gate. Air and rings on a celestial body (`AtmosphereComponent`, `RingsComponent`), as maths over a sphere in `atmosphere.glsl` and `rings.glsl`, which the render suite runs as C++ against brute force ([atmospheres](architecture.md#atmospheres)): single Rayleigh and Mie scattering with the Chapman function in closed form; rings of three bands and two gaps over noise, filtered to the pixel. The frame's body list; the planet program's reddened terminator, haze, rings' shadow and rings in front of the surface; an atmosphere program after the sky for the limb and the rings over space. Clouds and city lights on the planet program from noise, the clouds drifting by a time-driven parameter, the lights with a glow standing in for bloom. The celestial bodies in the environment's capture, lit spheres with their air and rings, baked again as they move by a texel of it. Ostra has Earth's air, clouds and cities; Corva, in a new Vesper scene, a gas giant's air and rings. | Met: the five reference views, the orbit scene as it opens, Ostra by day and by night, Corva and its rings, and the Vesper scene as it opens, captured twice on lavapipe with no pixel differing, and the gate holds every later change to them. |
-| 10b | **The transparent pass.** Done 2026-11-13. Catalogue entry 28. A program's blend in its descriptor (`ProgramBlend`): a transparent program's draws and the particle emitters in view sorted back to front (`BuildBackToFront`) and drawn last in the opaque pass's rendering, after the sky and the air, lit through the clusters, tested against the surfaces' depth and writing none, and blended by what they add and what they let through by colour (`BlendMode::Transmissive`, dual-source blending, which the device is now required to have) ([transparency](architecture.md#transparency)). Glass (`glass.frag`), a thin tinted dielectric pane, on the ships' canopies and a buggy's windscreen. GPU particles (`ParticleEmitterComponent`, a scene file's `particles`): a pool of 2^17 slots stepped in place by a compute pass, each emitter a ring of it whose births the CPU tells and nothing read back (`render/Particles.h`, `particles.glsl`, which the render suite runs as C++), at rest in the frame of the emitter or of an entity it names, drawn as sprites facing the camera, drawn out along their motion, adding light, hiding a share of what is behind them, and lit as small Lambertian spheres ([particles](architecture.md#particles)). A plume at each nozzle of the simulation's ships, from their throttle (physics shows `FlightControls` in snapshots); a jump's streaks past the camera, and its flash. A test bench, `scene/effects.yaml`, and the console's `pilot`. | Met: the bench three seconds in (clear and amber glass over coloured stripes, a plume, lit smoke, sparks) captured twice on lavapipe with no pixel differing, and a reference view of the gate's, the six views together in 24 s; in the shell, the shuttle's plumes from full ahead in the chase view, and a jump's streaks and flash from the orbit and chase cameras. On the RTX 5060 Ti at 1243 × 1338, the bench's frame takes 0.72 ms, of which its glass 0.09 ms and its particles 0.03 ms, and the orbit scene's 0.29 ms, its parked ships' idle plumes neither stepped nor drawn (9d: 0.32 ms). On lavapipe at 640 × 480 the bench's frame takes 25 to 27 ms, its particles about 4 ms and its glass about 2 ms of it, and the orbit scene's 36 ms (9d: 33 ms). |
-| 10c | **Post-processing and screen-space effects.** Done 2026-11-13. Catalogue entry 28. A chain of full-screen post passes in the pass list on the resolved targets, over one GLM-compatible file (`post.glsl`, which the render suite runs as C++, `render/PostProcess.h`) ([post-processing](architecture.md#post-processing)). Bloom, Jimenez's chain of five levels down from the frame and back up, the first weighing its boxes by brightness, mixed into the frame by its strength in the output pass. Ambient occlusion, Scalable Ambient Obscurance from the depth prepass's depth and view-space normals at sample zero, blurred over its 4 × 4 pattern, before the opaque pass shades, dimming the image-based light alone, the specular by Lagarde's fit; F6 shows it. The depth prepass gains a fragment stage for the normals and object IDs, and runs when asked for, with ambient occlusion, or with an outline in view. A stencil on the depth target (`D32_SFLOAT_S8_UINT`, its depth and stencil resources of their own in their own layouts, `separateDepthStencilLayouts` now required), written by every opaque draw as its batch's reference and resolved to sample zero with the depth: bits 0 to 2 the cockpit, the outlined and what post-processing leaves alone (`MaskComponent`), 3 to 7 the game's ([masks](architecture.md#masks)). An object ID buffer from the prepass, a whole number in a float, since lavapipe has no multisampled integer targets. Outlines (`OutlineComponent`), the selected's line a pixel wide by the stencil and the targeted's glow by a jump flood from the IDs, in one stencil-tested pass ([outlines](architecture.md#outlines)); the shell outlines what is picked and marks the hull flown from its seat as the cockpit. A light's intensity driven by time (`LightAnimation`), by the wave a material's parameters move by (`Scene::Wave`, moved from render); a reserved pad's lamps blink. A test bench, `scene/post.yaml`, `--[no-]ambient-occlusion`, `--bloom` and the console's `view`. Screen-space reflections stay out (see [decided](#decided)). | Met: the post bench two seconds in (occlusion under the crates, the selected crate's line, the targeted pod's glow about it and its fin as one shape, the panels' bloom, the beacon bright and lighting the wall) a seventh reference view, the seven captured twice on lavapipe with no pixel differing, in 29 s; the smoke test's synchronization validation clean over the new passes. On the RTX 5060 Ti at 1243 × 1338 the orbit scene's frame takes 0.64 ms with occlusion and bloom (0.42 ms without), the transparent pass's bench 1.32 ms and the post bench 1.58 ms, occlusion the most of each. On lavapipe at 640 × 480 the orbit scene takes 44.2 ms with bloom and without occlusion, a CPU device's default (10b's commit, measured the same day: 35 to 36.5 ms), and 53 ms with it. |
-| 10d | **Animation.** Keyframed TRS tracks on any node for mechanical rigs; clip events (a clamp closing plays a sound). | |
+| 0–10 | **Done** 2026-11-10 to 2026-11-13: plan, layout and scaffolding, core, runtime architecture, coordinates and render foundations, space rendering, star systems and galaxy, physics and flight, UI, audio and persistence, AI and docks, presentation polish. Recorded in [history](history.md). | Met. |
 | 11 | **Scripting and shipping.** Sub-phases 11a–11d; catalogue entries 29 and 30. | A data mod and a script mod load from the user mount, and a packed build runs. |
 | 11a | **Packs.** Data pack layering finished (finer than whole-definition replacement); pack files behind the VFS; their compression (an open decision, with libktx's zstd). | A packed build runs, and a data mod loads from the user mount. |
 | 11b | **Scripting.** WAMR or wasmtime decided; the Wasm host with fuel and time limits; a capability-scoped host API generated from reflection; calls from AI considerations and events. | A script mod loads from the user mount and is called from an event. |
@@ -26,17 +21,17 @@ built, are recorded in [history](history.md).
 Phase 1 was the last step before large-scale work: every system now has a home, a namespace, a
 target and a test, and phases 2–11 fill stubs in rather than invent structure.
 
-Phases 5–11 are split into lettered sub-phases (phases 5's to 9's are in [history](history.md)), each a block of related work that touches the
+Phases 5–11 are split into lettered sub-phases (phases 5's to 10's are in [history](history.md)), each a block of related work that touches the
 same modules and documents, so it can be done in one session and the context cleared after it.
 A sub-phase names the catalogue entries that are its brief; read those, not the whole catalogue.
 A phase is done when its last sub-phase meets the phase's exit criterion, so a reference to
 "phase 7" in the code or the documents still means the whole phase. A sub-phase with no exit
-criterion yet gets one when it starts, as phase 10's rows do.
+criterion yet gets one when it starts, as phase 11's rows will.
 
 ## Carried forward
 
-Work that phases 1–9 moved on, and where it lands. Their full record, and catalogue entries 1–26 and 31,
-are in [history](history.md).
+Work that phases 1–10 moved on, and where it lands. Their full record, and catalogue entries 1–28 and
+31, are in [history](history.md).
 
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
   writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
@@ -115,6 +110,12 @@ are in [history](history.md).
   the dev tools under a mask, since they are drawn in the output pass, where the stencil is not
   attached; ambient occlusion at half the frame's size, or kept from frame to frame, should a
   measured frame want it cheaper; and the colour-grading LUT (11c).
+- **Animation, not yet placed** (entry 27, 10d): a glTF clip's events, which glTF has no place for
+  (its extras, or a clip file beside the model); one clip blended into another, so a clip changed
+  part-way, as a pad's clamps let go before they have closed, starts the new one from its first pose
+  rather than from where the rig is; the clamps fitted to the hull's box rather than its shape, so
+  on a hull drawn by its model they grip where its box's sides are; and rigs of the ships' own
+  (landing gear, a cargo hatch), which the hull proxies do not have.
 - **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
   first draws it, so a jump holds its effect over the new system's first frames while they stream
   in, 0.2 to 0.4 s on lavapipe for the sample systems. Not yet placed.
@@ -206,70 +207,8 @@ tested; everything that would need an algorithm throws.
 In priority order. Each entry is the brief for its stub. *Library* is the chosen dependency.
 *Stub* names what phase 1 declares.
 
-Entries 1–26 and 31, for phases 1–9, are in
-[history](history.md#system-catalogue-entries-126-and-31). The numbers carry on here.
-
-### Shaders · phase 10
-
-Phases 4 and 5 made programs found by name through the asset VFS and built by `PipelineCache` for
-each render state a pass asks for, with shared GLSL in `shaders/include`, and added the shaded
-set: the metallic-roughness BRDF under one lighting include, the sky and its bake, the cluster
-compute programs, the shadow and prepass depth programs, and the instance buffer every mesh
-program reads ([history](history.md#shaders--phase-5)). A material names its program and supplies
-its parameters and texture slots, so adding a program is data plus GLSL, not a new code path.
-The planet surface program came ahead of phase 10, with the first planet's maps (2026-11-12):
-colour, normal, height and roughness by longitude and latitude, and a detail layer on the land.
-Phase 10a added the atmosphere program and the planet's clouds, night lights, air and rings over its
-surface, from shared includes (`body.glsl`, `atmosphere.glsl`, `rings.glsl`) the environment's
-capture runs too. Phase 10b added a program's blend to its descriptor, opaque or transparent, the
-glass program, and the particles' programs, one stepping them in compute and one drawing them, all
-lit through the same include. Phase 10c added the post chain's programs, full-screen triangles over
-shared arithmetic (`post.glsl`), and gave the depth prepass a fragment stage for its normals and
-object IDs. Shader variants are compile-time defines
-on one source (`jettison_compile_shader_variant`). Programs do not hot-reload yet; materials and
-textures do.
-
-### 27. Animation · phases 1 and 10 · `engine/animation`
-
-Phase 1 moved the glTF clip player and the rotation animation out of `Model` and `Scene` into
-this module as `Rig`, `Components.h` and `Playback.h`, unchanged in behaviour. Phase 10
-generalises it to keyframed TRS tracks on any node and adds clip events (for example, "clamp
-closed" triggering a sound).
-
-### 28. Presentation polish · phase 10 · `engine/render`
-
-The atmosphere scattering shell, planet shading (clouds, night lights, rings), GPU particles
-with a sorted transparent pass, glass on that transparent pass. The transparent pass is
-forward-lit through the same clusters as the opaque one, which is one of the reasons the
-renderer is clustered forward.
-
-Phase 10a built the first part, and the frame written to a file the rest is judged by: air and
-rings as maths over a sphere rather than a mesh shell or a baked table, drawn by the planet program
-over its surface and by an atmosphere program over the sky, and the bodies in the environment's
-capture ([atmospheres](architecture.md#atmospheres)); clouds and city lights from noise, since the
-planet pack has no maps of them. Phase 10b built the transparent pass: a transparent program's draws
-and the particle emitters sorted back to front and drawn last in the opaque pass's rendering, blended
-by what they add and what they let through by colour, with glass as a thin tinted pane and particles
-stepped on the GPU in a pool the CPU only tells of births
-([transparency](architecture.md#transparency), [particles](architecture.md#particles)).
-
-Phase 10c built the post chain ([post-processing](architecture.md#post-processing)): passes in the
-pass list on the resolved HDR target between the opaque pass and the output pass's tonemapping,
-bloom first (stars, engines and lit windows are far brighter than the hull), and the colour-grading
-LUT of 11c later. Ambient occlusion reads the depth prepass (5e), which writes view-space normals and
-runs whenever it is on; the occlusion attenuates the image-based light in `lighting.glsl`, not the
-sun or the clusters' lights, so it is computed before the opaque pass shades rather than darkening
-the frame after it. The prepass's multisampled depth and normals are read at sample zero, which a
-resolve to sample zero would leave, without the copy. Masks come two ways ([decided](#decided)). The
-depth target has a stencil aspect (`D32_SFLOAT_S8_UINT`, with the device's separate depth and
-stencil layouts, and resolved to sample zero for the single-sampled post passes): bits 0 to 2 the
-engine's (the cockpit, the outlined, and what post-processing leaves alone), 3 to 7 the game's (a
-scanner's hologram, say). Every opaque draw writes its bits, the prepass's or not, so the post
-passes test it and the hardware skips what a full-screen pass masks out before shading it. And the
-depth prepass writes an object ID buffer beside its normals, which no material program has to know
-of: from it a jump-flood pass draws wide, soft target glows that read at any distance, and the
-selected's crisp one-pixel line takes its colour. Screen-space reflections stay out
-([decided](#decided)).
+Entries 1–28 and 31, for phases 1–10, are in
+[history](history.md#system-catalogue-entries-128-and-31). The numbers carry on here.
 
 ### 29. Scripting · phase 11 · `engine/script`
 
@@ -307,6 +246,14 @@ Settled on 2026-11-10:
   of 50 ms and 44.2 ms without it. Hardware has it on, at 0.16 ms with the prepass from the orbit
   scene's 1.5 km on the RTX 5060 Ti. The smoke test and the reference views therefore draw without
   it, but for the post chain's bench, whose view asks for it.
+- **A pad's clamps are presentation's, and sound as a clip's events** (2026-11-13, phase 10d). The
+  docks clamp a ship as a kinematic body the moment it is within reach (9c), and nothing in the
+  simulation waits on a clamp; the dressing draws its pad's clamps closing over the next two seconds
+  from the snapshots, which show each ship's `Docking` and `Hull` for them, and opening as it is let
+  go, its jaws clear of the hull 0.3 s after it starts to lift. The docking sounds moved from the
+  docks' `Landed` and `Left`, which the shell heard for the player's ship alone, from the station, to
+  the clip's `clamp.closed` and `clamp.released`, heard from the pad for every ship: the jaws are
+  heard biting as they are seen to, and a trader docking beside the player is heard too.
 - **The cluster grid is 32 × 18 × 48** (2026-11-11, phase 5e), up from 16 × 9 × 24, with the
   index list at 32 entries a cluster on average and the cluster range at 2 km. Against 265 lights on
   the orbit scene's station, the opaque pass fell from 0.43 ms to 0.34 ms on an RTX 5060 Ti and from

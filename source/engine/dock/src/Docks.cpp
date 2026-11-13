@@ -111,9 +111,12 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterComponent<Docking>();
 	world.RegisterComponent<Transfer>();
 	world.RegisterComponent<Buggy>();
-	// A pad's state is what its lamps show (the station dressing), a buggy is drawn where it is with
-	// what it carries, and presentation reads snapshots.
+	// A pad's state is what its lamps show (the station dressing), a ship's stage and hull whether
+	// and how its pad's clamps close on it, a buggy is drawn where it is with what it carries, and
+	// presentation reads snapshots.
 	world.ShowInSnapshots<Pad>();
+	world.ShowInSnapshots<Docking>();
+	world.ShowInSnapshots<Hull>();
 	world.ShowInSnapshots<Transfer>();
 	world.ShowInSnapshots<Buggy>();
 	world.RegisterCommand<RequestPad>([docks](Sim::SimWorld &target, const RequestPad &command)

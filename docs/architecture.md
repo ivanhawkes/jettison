@@ -436,6 +436,20 @@ fitted to its hull's box, or the hull's own glTF model when it names one (`HullD
 Highport carries 104 floodlights: six on each L pad, eight on each XL and four on each S, every one
 reaching no further than 900 m from the station's centre.
 
+**Docking clamps** (10d) are the dressing's too, four to a pad (`App::PadClamps`): each a post that
+telescopes out of the deck beside the hull, an arm that rises with it and swings over onto the
+hull's side, and a jaw that slides out along the arm to bite, keyframed in a clip file
+(`animations/pad-clamp.clip.yaml`, [animation](#animation)) whose `close` and `open` clips one
+player on the pad's node plays on all four, each name bound to the four parts that bear it. They
+are fitted to the hull they hold, two a side a quarter of its length fore and aft, and as tall as
+two fifths of its height, as the proxies are fitted to their hulls; the docks therefore show each
+ship's `Docking` and `Hull` in the snapshots. The clamps close while the pad's ship is at
+`Stage::Docked` and open once it is let go, which is before the pad is given up, so a ship lifts
+out of open clamps; clamps first seen are shown as they are, at the end of their clip and without
+its events, so a ship parked as a world opens is held from its first frame and not heard closing. A
+display pad's hold the ship it shows. Stowed, a clamp is put away at no size, and a mesh scaled to
+nothing is neither drawn nor casts a shadow.
+
 **Deck traffic** (9e, [decided](roadmap.md#decided)) carries a docked ship's cargo across the deck in
 the simulation, so every player sees the same buggy at the same place and the buggies decide when
 the ship may leave. A layout's roads (`dock/Roads.h`, `Dock::Roads`) are made from it as it is
@@ -630,7 +644,11 @@ checks every definition against the types Reflect knows as it is made, and refus
 event or a field that is not there, by the definition's name. The game decides which events reach
 it: the shell passes on those whose `ship` field is the player's ship, the screen's answers and the
 dock's, and places a sound at an entity where presentation shows it, between the last two steps. A
-sound placed at an entity presentation cannot place plays flat rather than not at all.
+sound placed at an entity presentation cannot place plays flat rather than not at all. A definition
+may name a clip's event instead (`clip: clamp.closed`, [animation](#animation)), heard from the
+entity whose clip crossed it, for every one crossed: the shipped docking sounds are a pad's clamps
+closing and letting go (10d), heard from the pad whoever's ship it is, where they were the docks'
+`Landed` and `Left` for the player's ship alone, heard from the station.
 
 **Output.** To the machine's playback device, or to miniaudio's null backend when a device will not
 open, or when asked (`--no-sound`, and always in the headless run): a device that plays to nowhere
@@ -638,6 +656,39 @@ at a sound card's pace, so sounds start and end as they would be heard, and the 
 never touched. With no device at all, the tests mix the output on their own thread (`Mix`), with the
 decoding jobs run there too, so what they hear is the same every run. With a device, miniaudio
 mixes on its device's thread and decodes streamed music on a job thread of its own.
+
+## Animation
+
+What moves a presentation entity over time without the simulation is `animation`'s
+(`engine/animation`), sampled by the scene's update in the presentation phase: a rotation
+animation's turn; a glTF model's clips, which pose its rig's nodes, its skin's joints and where its
+mesh is drawn; and clip files (10d), keyframed tracks on the scene's own entities, for a mechanical
+rig built of them. Clips are `Animation::Clip` in each case (`animation/Clip.h`): tracks on nodes,
+each a path (translation, rotation or scale) keyed linearly, by steps or by cubic spline, sampled
+alike (`Sample`); and events, which only a clip file's have, since glTF has no place for them.
+
+**Clip files** (`animation/ClipFile.h`, `animations/<name>.clip.yaml`) hold named clips of tracks on
+named nodes, checked as they are read, a rotation written as turns about X, then Y, then Z as the
+scene's transform turns. They are resources, the bytes read on the I/O worker and the YAML parsed
+on the main thread, since the archive reads the reflection tables that thread registers into
+([decided](roadmap.md#decided)). A `Scene::ClipPlayerComponent` plays one of a file's clips on the
+entities its nodes are bound to, which need not be its own, and a node bound to several moves them
+alike; a scene file's `clip` binds them by entity id, and a builder in code by entity. The update
+loads each file a player names and holds it while it lives, checks a player's bindings once for each
+revision of the file and each clip it is set to (the clip there, every node it moves bound, every
+binding a node of the file's, every entity bound with a transform), reporting what is wrong once and
+leaving the rig as authored, and each frame makes every bound entity's `NodePoseComponent` again:
+the paths the clip moves, which replace the authored transform's in composing its world transform,
+so the authored transform is never written and a saved scene is what was authored.
+
+**Events** are crossed as playback reaches them (`AdvanceClip`), each once, in the order met: going
+forwards one fires as the time reaches it and one at the end of a clip that does not loop as the end
+is reached, and not again while the clip is held there; backwards is the mirror, and a looping
+clip's end is its start. A time set outside a clip is taken to its nearer end first without firing
+anything, which is how a rig is shown at the end of a clip without the events that would have
+brought it there. The update returns those crossed in a frame (`Scene::ClipEventFired`), the player's
+entity and the event's name, and the game gives the name its meaning; the shell plays its sounds
+([audio](#audio)).
 
 ## Coordinate frames and units
 
@@ -1244,22 +1295,26 @@ proves it headlessly. What exists:
   (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder
   - and optionally a material file, by virtual path), celestial bodies placed by the star system
   the scene names (a virtual path too), an orbit camera rig, and the animation module's
-  rotation-animation, skeleton and animation-player components, and an entity's layer. It names no
-  device: a model mesh holds its rig as a resource handle (`RigComponent`), and `SceneUpdateSystem` poses the model once
-  the rig is in, reporting a clip the rig lacks once and posing it at rest. Translations and world
+  rotation-animation, skeleton and animation-player components, a clip file's player
+  (`ClipPlayerComponent`) and an entity's layer. It names no device: a model mesh holds its rig as a
+  resource handle (`RigComponent`), and `SceneUpdateSystem` poses the model once the rig is in,
+  reporting a clip the rig lacks once and posing it at rest, and poses the entities a clip file's
+  clip is bound to, returning the events it crossed. Translations and world
   transforms are doubles. Authored state and runtime state are kept apart: a rotation's angle, a
-  clip player's time, a body's `PlacementComponent`, a rig's `CameraPoseComponent` and the rig
-  handle are never saved, and the scene suite's round-trip tests hold the writer and the loader
+  clip player's time, a clip's pose (`NodePoseComponent`), a body's `PlacementComponent`, a rig's
+  `CameraPoseComponent` and the rig handle are never saved, and the scene suite's round-trip tests hold the writer and the loader
   to that. `SystemScene` builds the rest of a star system's scene around the file (each body it
   does not present, a sky, a camera), places every body on its orbit, and keeps the traffic
   layer's proxies; what it builds is never saved. The scene's layers are shown and hidden through
   `Scene::SetLayerVisible`, which the update applies and the renderer honours.
-- **Animation** (`engine/animation`). `Rig` is a model's node hierarchy, skin joints and clips,
-  with the clip player (`EvaluateSkin`) that used to be inside `Model`; `Playback.h` advances
-  the rotation and clip-player components. `RigLoader.h` reads a rig from a glTF file through
-  fastgltf, as a resource decoded on the I/O worker. The renderer reads the same file's geometry
-  for its `Model`, so a model file is parsed twice, once for each. Nothing in it touches the
-  device, so it is tested without one.
+- **Animation** (`engine/animation`, [animation](#animation)). `Clip.h` is a clip's tracks and
+  events and their sampling; `Rig` is a model's node hierarchy, skin joints and clips, with the clip
+  player (`EvaluateSkin`) that used to be inside `Model`; `ClipFile.h` reads clip files, keyframed
+  tracks on named scene nodes, as resources; `Playback.h` advances the rotation and clip-player
+  components and a clip with its events (`AdvanceClip`). `RigLoader.h` reads a rig from a glTF file
+  through fastgltf, as a resource decoded on the I/O worker. The renderer reads the same file's
+  geometry for its `Model`, so a model file is parsed twice, once for each. Nothing in it touches
+  the device, so it is tested without one.
 - **Vulkan backend** (`engine/render/src/vulkan`, private), on Vulkan 1.3, behind
   `render/IRenderer.h`: `CreateRenderer` makes the window, the device, the swapchain, the frame
   and the UI, and the interface is what the shell calls. `DeviceContext` holds the

@@ -22,6 +22,7 @@ void RegisterTypes()
 		    .Value<Bus::Voice>("Voice");
 		RegisterType<EventSound>("Audio.EventSound", Attribute::Moddable)
 		    .Field<&EventSound::event>("event", Attribute::Saved)
+		    .Field<&EventSound::clip>("clip", Attribute::Saved)
 		    .Field<&EventSound::sound>("sound", Attribute::Saved)
 		    .Field<&EventSound::bus>("bus", Attribute::Saved)
 		    .Field<&EventSound::at>("at", Attribute::Saved)
@@ -38,6 +39,21 @@ EventSounds::EventSounds(const Sim::DefinitionRegistry &definitions)
 	for (const std::string &name : definitions.Names<EventSound>())
 	{
 		const EventSound &sound = *definitions.Find<EventSound>(name);
+		if (sound.event.empty() == sound.clip.empty())
+			throw std::runtime_error(
+			    std::format(
+			        "{}/{}: a sound is for a simulation event or a clip's, and names one of them",
+			        kEventSoundDirectory, name));
+		if (!sound.clip.empty())
+		{
+			if (!sound.at.empty())
+				throw std::runtime_error(
+				    std::format(
+				        "{}/{}: a clip's event is heard from its player, and is placed at no field",
+				        kEventSoundDirectory, name));
+			m_clipSounds[sound.clip].push_back(sound);
+			continue;
+		}
 		const entt::meta_type type = Reflect::Resolve(sound.event);
 		if (!type)
 			throw std::runtime_error(
@@ -76,22 +92,26 @@ std::size_t EventSounds::Play(
 			if (pEntity != nullptr && *pEntity != entt::null && positionOf)
 				position = positionOf(*pEntity);
 		}
-		const SourceHandle source =
-		    position ? audio.Play(
-		                   sound.sound, sound.bus, *position, false,
-		                   Falloff{sound.minDistance, sound.maxDistance, Falloff{}.rolloff})
-		             : audio.PlayFlat(sound.sound, sound.bus);
-		if (source == SourceHandle{})
-			continue;
-		audio.SetVolume(source, sound.volume);
-		++started;
+		started += Start(sound, position, audio) ? 1 : 0;
 	}
+	return started;
+}
+
+std::size_t EventSounds::PlayClipEvent(
+    std::string_view name, const std::optional<glm::dvec3> &position, AudioSystem &audio) const
+{
+	const auto found = m_clipSounds.find(name);
+	if (found == m_clipSounds.end())
+		return 0;
+	std::size_t started = 0;
+	for (const EventSound &sound : found->second)
+		started += Start(sound, position, audio) ? 1 : 0;
 	return started;
 }
 
 std::size_t EventSounds::Events() const
 {
-	return m_sounds.size();
+	return m_sounds.size() + m_clipSounds.size();
 }
 
 std::size_t EventSounds::Sounds() const
@@ -99,6 +119,22 @@ std::size_t EventSounds::Sounds() const
 	std::size_t count = 0;
 	for (const auto &[type, sounds] : m_sounds)
 		count += sounds.size();
+	for (const auto &[clip, sounds] : m_clipSounds)
+		count += sounds.size();
 	return count;
+}
+
+bool EventSounds::Start(
+    const EventSound &sound, const std::optional<glm::dvec3> &position, AudioSystem &audio)
+{
+	const SourceHandle source =
+	    position ? audio.Play(
+	                   sound.sound, sound.bus, *position, false,
+	                   Falloff{sound.minDistance, sound.maxDistance, Falloff{}.rolloff})
+	             : audio.PlayFlat(sound.sound, sound.bus);
+	if (source == SourceHandle{})
+		return false;
+	audio.SetVolume(source, sound.volume);
+	return true;
 }
 } // namespace Jettison::Audio

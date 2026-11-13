@@ -123,6 +123,24 @@ struct AnimationRecord
 	bool playing{AnimationPlayerComponent{}.playing};
 };
 
+// A clip file's clip on the scene's entities, each of the clip's nodes bound to an entity by its id.
+// No time, as for a rig's clip.
+struct ClipNodeRecord
+{
+	std::string node;
+	std::string entity;
+};
+
+struct ClipRecord
+{
+	std::string file;
+	std::string name;
+	std::vector<ClipNodeRecord> nodes;
+	float speed{ClipPlayerComponent{}.speed};
+	bool loop{ClipPlayerComponent{}.looping};
+	bool playing{ClipPlayerComponent{}.playing};
+};
+
 // An emitter's fields, the frame it names by id, and not the pulses a game counts at run time.
 struct ParticlesRecord
 {
@@ -167,6 +185,7 @@ struct EntityRecord
 	std::optional<ParticlesRecord> particles;
 	std::optional<TransformAnimationRecord> transformAnimation;
 	std::optional<AnimationRecord> animation;
+	std::optional<ClipRecord> clip;
 };
 
 struct SceneDocument
@@ -308,6 +327,16 @@ void RegisterTypes()
 		    .Field<&AnimationRecord::speed>("speed", kSaved)
 		    .Field<&AnimationRecord::loop>("loop", kSaved)
 		    .Field<&AnimationRecord::playing>("playing", kSaved);
+		RegisterType<ClipNodeRecord>("Scene.ClipNode")
+		    .Field<&ClipNodeRecord::node>("node", kSaved)
+		    .Field<&ClipNodeRecord::entity>("entity", kSaved);
+		RegisterType<ClipRecord>("Scene.Clip")
+		    .Field<&ClipRecord::file>("file", kSaved)
+		    .Field<&ClipRecord::name>("name", kSaved)
+		    .Field<&ClipRecord::nodes>("nodes", kSaved)
+		    .Field<&ClipRecord::speed>("speed", kSaved)
+		    .Field<&ClipRecord::loop>("loop", kSaved)
+		    .Field<&ClipRecord::playing>("playing", kSaved);
 		RegisterType<EntityRecord>("Scene.Entity")
 		    .Field<&EntityRecord::id>("id", kSaved)
 		    .Field<&EntityRecord::parent>("parent", kSaved)
@@ -325,7 +354,8 @@ void RegisterTypes()
 		    .Field<&EntityRecord::mask>("mask", kSaved)
 		    .Field<&EntityRecord::particles>("particles", kSaved)
 		    .Field<&EntityRecord::transformAnimation>("transformAnimation", kSaved)
-		    .Field<&EntityRecord::animation>("animation", kSaved);
+		    .Field<&EntityRecord::animation>("animation", kSaved)
+		    .Field<&EntityRecord::clip>("clip", kSaved);
 		RegisterType<SceneDocument>("Scene")
 		    .Field<&SceneDocument::system>("system", kSaved)
 		    .Field<&SceneDocument::entities>("entities", kSaved);
@@ -593,6 +623,22 @@ void Validate(const SceneDocument &document)
 				Refuse("Entity animation needs a model to play its clip on: " + id);
 			if (entity.animation->clip.empty())
 				Refuse("Animation clip name cannot be empty: " + id);
+		}
+		if (const auto &clip = entity.clip)
+		{
+			CheckVirtualPath(clip->file, "a clip file", id);
+			if (clip->name.empty())
+				Refuse("Entity '" + id + "' plays a clip of no name");
+			if (!std::isfinite(clip->speed))
+				Refuse("Entity '" + id + "' plays its clip at a speed that is not finite");
+			// A node bound to the player's own entity is a rig of one.
+			for (const ClipNodeRecord &node : clip->nodes)
+				if (node.node.empty() || !ids.contains(node.entity))
+					Refuse(
+					    std::format(
+					        "Entity '{}' binds clip node '{}' to '{}', which is not an entity of the "
+					        "scene",
+					        id, node.node, node.entity));
 		}
 	}
 }
@@ -895,6 +941,18 @@ void Scene::Load(const SceneFile &file)
 		for (const EntityRecord &record : document.entities)
 		{
 			const entt::entity entity = entities.at(record.id);
+			if (const auto &clip = record.clip)
+			{
+				ClipPlayerComponent player;
+				player.file = clip->file;
+				player.clip = clip->name;
+				player.speed = clip->speed;
+				player.looping = clip->loop;
+				player.playing = clip->playing;
+				for (const ClipNodeRecord &node : clip->nodes)
+					player.nodes.push_back({node.node, entities.at(node.entity)});
+				m_registry.emplace<ClipPlayerComponent>(entity, std::move(player));
+			}
 			if (record.parent)
 				m_registry.emplace<ParentComponent>(entity, entities.at(*record.parent));
 			if (auto *orbit = m_registry.try_get<OrbitCameraComponent>(entity))
@@ -973,6 +1031,23 @@ std::string Scene::SaveText() const
 		if (const auto *player = m_registry.try_get<AnimationPlayerComponent>(entity))
 			record.animation = AnimationRecord{
 			    player->clipName, player->playbackSpeed, player->looping, player->playing};
+		if (const auto *player = m_registry.try_get<ClipPlayerComponent>(entity))
+		{
+			ClipRecord &clip = record.clip.emplace();
+			clip.file = player->file;
+			clip.name = player->clip;
+			clip.speed = player->speed;
+			clip.loop = player->looping;
+			clip.playing = player->playing;
+			// A binding to an entity the file does not hold, one the system scene built, is the
+			// builder's, made again as the file is loaded.
+			for (const ClipBinding &binding : player->nodes)
+				if (const auto *bound = m_registry.valid(binding.entity)
+				                            ? m_registry.try_get<SceneEntityId>(binding.entity)
+				                            : nullptr;
+				    bound != nullptr && !m_registry.all_of<BuiltComponent>(binding.entity))
+					clip.nodes.push_back({binding.node, bound->value});
+		}
 		document.entities.push_back(std::move(record));
 	}
 	Validate(document);

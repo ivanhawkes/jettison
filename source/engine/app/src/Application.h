@@ -343,6 +343,8 @@ class Application
 
 	// The scene's update: made with the resource manager, which it reads the rigs from.
 	std::optional<Scene::SceneUpdateSystem> m_sceneUpdateSystem;
+	// The clips' events the scene's update crossed this frame, for the audio's update to play.
+	std::vector<Scene::ClipEventFired> m_clipEvents;
 
 	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
 	// include the time start-up took.

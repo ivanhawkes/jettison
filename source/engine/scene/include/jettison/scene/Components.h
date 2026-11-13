@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <jettison/animation/Rig.h>
 #include <jettison/resource/ResourceHandle.h>
@@ -204,6 +205,52 @@ struct RigComponent
 	Resource::ResourceHandle<Animation::Rig> rig;
 	std::uint32_t revision{0};
 	bool playable{false};
+};
+
+// A node of a clip file's (animation/ClipFile.h) bound to an entity, which the clip's tracks on that
+// node move. A node may be bound to several entities, which move alike: a pad's four clamps.
+struct ClipBinding
+{
+	std::string node;
+	entt::entity entity{entt::null};
+};
+
+// A clip of a clip file played on the scene's entities, which need not be this one's: a rig built
+// of entities, each of whose local transforms the clip replaces path by path while it is bound
+// (NodePoseComponent). The scene's update loads the file and holds it, and reports once a clip the
+// file lacks, a node of the clip nothing is bound to and a binding to a node the file does not name,
+// and leaves the rig as authored. The events it crosses are this entity's (SceneSystems.h).
+struct ClipPlayerComponent
+{
+	std::string file;
+	std::string clip;
+	std::vector<ClipBinding> nodes;
+	float speed{1.0f};
+	bool looping{false};
+	bool playing{true};
+
+	// The phase of the clip, owned by the frame loop and not written to the scene file. Set past the
+	// clip's end, it shows the rig there without the events that would have brought it there
+	// (Animation::AdvanceClip), as a rig first seen at the end of its clip is.
+	float time{0.0f};
+	// Runtime: the file's revision and the clip the bindings were last checked for, and whether
+	// they can play it.
+	std::uint32_t revision{0};
+	std::string checked;
+	bool playable{false};
+};
+
+// Where the clips bound to an entity put it this frame, for each path a clip moves; the authored
+// transform's for any other. Runtime state, made again by each frame's update and never saved, so
+// the transform stays as authored. A rotation animation turns the entity after its pose's rotation.
+struct NodePoseComponent
+{
+	glm::dvec3 translation{0.0};
+	glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+	glm::vec3 scale{1.0f};
+	bool translated{false};
+	bool rotated{false};
+	bool scaled{false};
 };
 
 // An entity the star system places: each frame its translation is the body's position at the

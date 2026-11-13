@@ -20,3 +20,6 @@ effects --scene $PWD/assets/scene/effects.yaml --after-frames 180
 # crate's amber line and the targeted pod's red glow, two lamp panels, the right one left alone by
 # bloom, and the beacon at the bright half of its blink, lighting the wall below it.
 post --scene $PWD/assets/scene/post.yaml --after-frames 120 --ambient-occlusion
+# The shuttle docked on Highport's pad 1, from the chase camera: its four clamps closed on it, their
+# posts beside its wings, their arms over and their jaws at its sides.
+docked --scene $PWD/assets/scene/orbit.yaml --run pilot|chase

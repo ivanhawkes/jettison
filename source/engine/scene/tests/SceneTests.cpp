@@ -569,3 +569,188 @@ TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig 
 	orbit.Clear();
 	CHECK(resources.StatusOf(rig) == Jettison::Resource::Status::Invalid);
 }
+
+namespace
+{
+// Two clamps of the pad clamp's clip (animations/pad-clamp.clip.yaml), bound to one player on the
+// pad: each node bound to both clamps' parts, which move alike. Authored stowed but at full size, so
+// the clip's put-away clamp node can be seen to take over.
+constexpr const char *kClampScene = R"(version: 2
+entities:
+  - id: pad
+    clip:
+      file: animations/pad-clamp.clip.yaml
+      name: close
+      nodes:
+        - {node: clamp, entity: clamp-a}
+        - {node: clamp, entity: clamp-b}
+        - {node: post, entity: post-a}
+        - {node: arm, entity: arm-a}
+        - {node: jaw, entity: jaw-a}
+        - {node: post, entity: post-b}
+        - {node: arm, entity: arm-b}
+        - {node: jaw, entity: jaw-b}
+  - id: clamp-a
+    parent: pad
+    transform:
+      translation: [5, 0, 0]
+  - id: post-a
+    parent: clamp-a
+    transform:
+      scale: [1, 0.001, 1]
+  - id: arm-a
+    parent: clamp-a
+    transform:
+      translation: [0, -0.8, 0]
+  - id: jaw-a
+    parent: arm-a
+    transform:
+      translation: [0, 0.7, 0]
+  - id: clamp-b
+    parent: pad
+    transform:
+      translation: [-5, 0, 0]
+      rotation: [0, 3.1415927, 0]
+  - id: post-b
+    parent: clamp-b
+    transform:
+      scale: [1, 0.001, 1]
+  - id: arm-b
+    parent: clamp-b
+    transform:
+      translation: [0, -0.8, 0]
+  - id: jaw-b
+    parent: arm-b
+    transform:
+      translation: [0, 0.7, 0]
+)";
+
+entt::entity Find(const entt::registry &registry, std::string_view id)
+{
+	for (const auto [entity, found] : registry.view<const SceneEntityId>().each())
+		if (found.value == id)
+			return entity;
+	return entt::null;
+}
+
+glm::dvec3 WorldPosition(const entt::registry &registry, std::string_view id)
+{
+	return glm::dvec3{registry.get<WorldTransformComponent>(Find(registry, id)).matrix[3]};
+}
+} // namespace
+
+TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its events are heard once")
+{
+	namespace Animation = Jettison::Animation;
+	Jettison::Vfs::FileSystem assets;
+	assets.AddMount({"base", JETTISON_ASSET_SOURCE_DIR});
+	Jettison::Jobs::IoWorker worker;
+	Jettison::Resource::ResourceManager resources{
+	    assets, worker, {.hotReload = false, .pollInterval = {}}};
+	Animation::RegisterClipFileLoader(resources);
+
+	Scene scene{&resources};
+	scene.LoadText(kClampScene);
+	const std::string authored = scene.SaveText();
+	auto &registry = scene.Registry();
+	std::vector<ClipEventFired> events;
+	{
+		const SceneUpdateSystem update{&resources};
+		// Until the file is in, the rig is as authored: stowed.
+		update.Update(registry, 0.1f, &events);
+		CHECK(registry.view<const NodePoseComponent>().empty());
+		CHECK(WorldPosition(registry, "arm-a").y == doctest::Approx(-0.8));
+		worker.WaitIdle();
+		resources.Update();
+
+		// Halfway up, at 0.4 s: the posts half out of the deck and the arms rising with them, each
+		// clamp in its own frame.
+		for (int frame = 0; frame < 4; ++frame)
+			update.Update(registry, 0.1f, &events);
+		const auto &player = registry.get<ClipPlayerComponent>(Find(registry, "pad"));
+		CHECK(player.time == doctest::Approx(0.4f));
+		CHECK(WorldPosition(registry, "arm-a").y == doctest::Approx(0.1).epsilon(1e-4));
+		CHECK(WorldPosition(registry, "arm-b").y == doctest::Approx(0.1).epsilon(1e-4));
+		const auto postScale = [&](std::string_view id)
+		{
+			return glm::length(
+			    glm::dvec3{registry.get<WorldTransformComponent>(Find(registry, id)).matrix[1]});
+		};
+		CHECK(postScale("post-a") == doctest::Approx(0.5).epsilon(0.01));
+		CHECK(events.empty());
+
+		// Closed at 2 s: the arms swung over towards the middle, the jaws out along them, and the
+		// close heard once, from the pad, however long it is held there.
+		for (int frame = 0; frame < 30; ++frame)
+			update.Update(registry, 0.1f, &events);
+		CHECK(player.time == 2.0f);
+		REQUIRE(events.size() == 1);
+		CHECK(events[0].player == Find(registry, "pad"));
+		CHECK(events[0].name == "clamp.closed");
+		const glm::dvec3 jawA = WorldPosition(registry, "jaw-a");
+		const glm::dvec3 jawB = WorldPosition(registry, "jaw-b");
+		CHECK(jawA.x == doctest::Approx(5.0 + 0.837).epsilon(0.01));
+		CHECK(jawA.y == doctest::Approx(0.852).epsilon(0.01));
+		CHECK(jawB.x == doctest::Approx(-jawA.x));
+		CHECK(jawB.y == doctest::Approx(jawA.y));
+		// The pose and the phase are the runtime's, and the file is what was authored.
+		CHECK(scene.SaveText() == authored);
+		CHECK(registry.get<TransformComponent>(Find(registry, "arm-a")).translation.y == -0.8);
+
+		// Set to open, it lets go at once and is heard so.
+		auto &opening = registry.get<ClipPlayerComponent>(Find(registry, "pad"));
+		opening.clip = "open";
+		opening.time = 0.0f;
+		events.clear();
+		update.Update(registry, 0.1f, &events);
+		REQUIRE(events.size() == 1);
+		CHECK(events[0].name == "clamp.released");
+		// Stowed at the open's end, the clamp is put away at no size, which is not drawn.
+		for (int frame = 0; frame < 20; ++frame)
+			update.Update(registry, 0.1f, &events);
+		CHECK(
+		    registry.get<WorldTransformComponent>(Find(registry, "jaw-a")).matrix[0] ==
+		    glm::dvec4{0.0});
+
+		// A clip the file does not have leaves the rig as authored, and a binding to a node the file
+		// does not name keeps its clip from playing at all.
+		opening.clip = "wave";
+		update.Update(registry, 0.1f, &events);
+		CHECK(registry.view<const NodePoseComponent>().empty());
+		CHECK(WorldPosition(registry, "arm-a").y == doctest::Approx(-0.8));
+		opening.clip = "close";
+		opening.nodes.push_back({"elbow", Find(registry, "arm-a")});
+		update.Update(registry, 0.1f, &events);
+		CHECK_FALSE(opening.playable);
+		CHECK(registry.view<const NodePoseComponent>().empty());
+	}
+	// The system held the file while it lived, and let it go with it.
+	CHECK(resources.Loading() == 0);
+}
+
+TEST_CASE("Scene: a clip's file, name, speed and bindings are checked as the scene loads")
+{
+	Scene scene;
+	CheckRefused(
+	    scene, "  - id: a\n    clip:\n      file: ../clamp.clip.yaml\n      name: close\n",
+	    "not a virtual path");
+	CheckRefused(
+	    scene, "  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n", "clip of no name");
+	CheckRefused(
+	    scene,
+	    "  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n      name: close\n      "
+	    "nodes:\n        - {node: arm, entity: b}\n",
+	    "not an entity of the scene");
+	CheckRefused(
+	    scene,
+	    "  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n      name: close\n      "
+	    "nodes:\n        - {entity: a}\n",
+	    "not an entity of the scene");
+	// A node bound to the player's own entity is a rig of one, and the binding is saved as written.
+	scene.LoadText(
+	    "version: 2\nentities:\n  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n"
+	    "      name: close\n      nodes:\n        - {node: arm, entity: a}\n");
+	const std::string saved = scene.SaveText();
+	CHECK(saved.find("node: arm") != std::string::npos);
+	CHECK(saved.find("time") == std::string::npos);
+}

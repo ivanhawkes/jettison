@@ -22,8 +22,9 @@ struct SimEvent;
 
 namespace Jettison::Audio
 {
-// A sound a simulation event plays, as data: a definition (Sim::DefinitionRegistry) under
-// "defs/sounds", so a mod replaces one by shipping a file at its path and adds one with a new path.
+// A sound a simulation event plays, or a clip's event (Animation::ClipEvent), as data: a definition
+// (Sim::DefinitionRegistry) under "defs/sounds", so a mod replaces one by shipping a file at its path
+// and adds one with a new path.
 //
 //   version: 1
 //   event: Shell.ShipDocked        # the event's type, as Reflect names it
@@ -31,9 +32,15 @@ namespace Jettison::Audio
 //   bus: Effects
 //   at: station                    # the event's entity field the sound is placed at; none: flat
 //   minDistance: 200
+//
+// A clip's event names it as the clip file does, in place of the event's type, and is heard from
+// where the entity playing the clip is, so it has no field to be placed at:
+//
+//   clip: clamp.closed
 struct EventSound
 {
 	std::string event;
+	std::string clip;
 	std::string sound;
 	Bus bus{Bus::Effects};
 	std::string at;
@@ -58,9 +65,10 @@ class EventSounds
 {
   public:
 	// Every EventSound loaded in the registry, checked against the types Reflect knows: throws
-	// std::runtime_error naming the definition for an event type that is not registered, or an `at`
-	// that is not one of its fields holding an entity. Several definitions may name one event; each
-	// plays, in the order of their names.
+	// std::runtime_error naming the definition for an event type that is not registered, an `at`
+	// that is not one of its fields holding an entity, a definition naming both a simulation event
+	// and a clip's or neither, and a clip's placed at a field. Several definitions may name one event;
+	// each plays, in the order of their names.
 	explicit EventSounds(const Sim::DefinitionRegistry &definitions);
 
 	// Plays the sounds the event's type maps to, and returns how many started. A sound placed `at`
@@ -69,7 +77,12 @@ class EventSounds
 	std::size_t Play(
 	    const Sim::SimEvent &event, AudioSystem &audio, const PositionOf &positionOf) const;
 
-	// The event types mapped, and the sounds in all.
+	// Plays the sounds a clip's event of that name maps to, from the position of the entity whose
+	// clip crossed it (Scene::ClipEventFired), or flat for none, and returns how many started.
+	std::size_t PlayClipEvent(
+	    std::string_view name, const std::optional<glm::dvec3> &position, AudioSystem &audio) const;
+
+	// The event types and clip events mapped, and the sounds in all.
 	std::size_t Events() const;
 	std::size_t Sounds() const;
 
@@ -79,7 +92,12 @@ class EventSounds
 		EventSound sound;
 		entt::meta_data at;
 	};
+	static bool Start(
+	    const EventSound &sound, const std::optional<glm::dvec3> &position, AudioSystem &audio);
+
 	// Keyed by EnTT's type ID.
 	std::map<entt::id_type, std::vector<Mapped>> m_sounds;
+	// Keyed by the clip event's name.
+	std::map<std::string, std::vector<EventSound>, std::less<>> m_clipSounds;
 };
 } // namespace Jettison::Audio

@@ -5,8 +5,10 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <jettison/dock/Docks.h>
@@ -31,15 +33,41 @@ namespace Jettison::App
 //   - Each cargo bay's door: a panel in a wall up from its sill, or a hatch in the deck, with a
 //     frame and a lamp strip.
 //   - On each display pad, the ship it shows (Dock::PadLayout::ship), as a hull proxy.
+//   - On each pad, four docking clamps (PadClamps), stowed under the deck until a ship is clamped
+//     there, and closed on a display pad's ship.
 //   - The roads (Dock::Roads), a lane divider painted down each between its nodes, and, for a
 //     station whose buggies are parked, its buggies in a row across each pad's stern.
+// A pad's docking clamps: four rigs of a post, an arm and a jaw, two each side of the hull a quarter
+// of its length fore and aft of the pad's middle, fitted to the hull they hold (kClampSize), played
+// by one clip player on the pad's node (animations/pad-clamp.clip.yaml), which binds each name to the
+// four parts that bear it. Its events (clamp.closed, clamp.released) are the pad's, so a pad is heard
+// once. Stowed, they are put away at no size, and neither drawn nor casting a shadow.
+struct PadClamps
+{
+	// The pad's node, which plays the clip.
+	entt::entity player{entt::null};
+	std::array<entt::entity, 4> clamps{};
+	// What they were last shown doing, and for which ship: none until a snapshot has said.
+	std::optional<bool> closed;
+	entt::entity ship{entt::null};
+};
+
+// A clamp's size against the hull it holds: its post as tall as this share of the hull's height.
+inline constexpr float kClampSize = 0.4f;
+
+// The pad clamps' clips, and their names.
+inline constexpr std::string_view kClampClip = "animations/pad-clamp.clip.yaml";
+inline constexpr std::string_view kClampClose = "close";
+inline constexpr std::string_view kClampOpen = "open";
+
 struct StationDressing
 {
 	// The station's entity in the scene, and the celestial body it is.
 	entt::entity station{entt::null};
 	std::string body;
-	// Each pad's lamps, by its number less one.
+	// Each pad's lamps and its clamps, by its number less one.
 	std::vector<std::vector<entt::entity>> lamps;
+	std::vector<PadClamps> clamps;
 	std::size_t floodlights{0};
 	// The roads painted, and the buggies parked.
 	std::size_t roads{0};
@@ -61,11 +89,18 @@ StationDressing DressStation(
 glm::vec3 LampColour(Dock::PadState state, bool display);
 
 // Turns each lamp of the dressing to its pad's state, from the pads in a snapshot that are of the
-// station's simulation entity. Returns how many of its pads it found: none, when the station is not
-// that entity (a world loaded over the one it was found in), and the caller finds it again.
+// station's simulation entity, and closes each pad's clamps on the ship clamped to it (Dock::Docking
+// at Stage::Docked), fitted to its hull (Dock::Hull), and opens them as it is let go. Clamps first
+// shown are shown as they are, without the clip's events: a ship parked as the world opens is held,
+// and heard closing only as it docks. Returns how many of its pads it found: none, when the station
+// is not that entity (a world loaded over the one it was found in), and the caller finds it again.
 std::size_t ShowPadStates(
-    entt::registry &scene, const StationDressing &dressing,
-    std::span<const Sim::ComponentSample<Dock::Pad>> pads, entt::entity simStation);
+    entt::registry &scene, StationDressing &dressing, const Sim::Snapshot &snapshot,
+    entt::entity simStation, const Dock::Docks &docks);
+
+// Places a pad's clamps beside the hull, scaled to it: in the pad's axes, the hull resting on its
+// middle.
+void FitClamps(entt::registry &scene, const PadClamps &clamps, const Dock::HullDefinition &hull);
 
 // A ship's proxy for the traffic layer, in its own axes (nose -Z): the hull's model, if it names
 // one, or its class's proxy made of procedural shapes, fitted to its length, beam and height, so the

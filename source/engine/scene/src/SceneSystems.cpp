@@ -3,11 +3,13 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
+#include <format>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
+#include <jettison/animation/ClipFile.h>
 #include <jettison/animation/Components.h>
 #include <jettison/animation/Playback.h>
 #include <jettison/core/Log.h>
@@ -47,17 +49,31 @@ glm::dmat4 ComputeWorldTransform(
 		local = glm::scale(local, glm::dvec3{transform.scale});
 		return Finish(entity, registry, local, computed, active);
 	}
-	local = glm::translate(local, transform.translation);
-	// The rotation animation's phase joins the rotation here, and is not accumulated in
-	// TransformComponent: the authored rotation stays authored, so a scene saved from a running
-	// engine writes the pose its author set, not the frame the animation happened to be on.
-	glm::vec3 rotation = transform.rotation;
-	if (const auto *animation = registry.try_get<RotationAnimationComponent>(entity))
-		rotation += animation->rotationAxis * animation->angle;
-	local = glm::rotate(local, double{rotation.x}, {1.0, 0.0, 0.0});
-	local = glm::rotate(local, double{rotation.y}, {0.0, 1.0, 0.0});
-	local = glm::rotate(local, double{rotation.z}, {0.0, 0.0, 1.0});
-	local = glm::scale(local, glm::dvec3{transform.scale});
+	// A clip's pose replaces the authored transform path by path, and the rotation animation's
+	// phase joins the rotation here: neither is accumulated in TransformComponent, so the authored
+	// transform stays authored, and a scene saved from a running engine writes the pose its author
+	// set, not the frame an animation happened to be on.
+	const auto *pose = registry.try_get<NodePoseComponent>(entity);
+	const auto *animation = registry.try_get<RotationAnimationComponent>(entity);
+	local = glm::translate(
+	    local, pose != nullptr && pose->translated ? pose->translation : transform.translation);
+	if (pose != nullptr && pose->rotated)
+	{
+		local *= glm::dmat4{glm::mat4_cast(pose->rotation)};
+		if (animation != nullptr)
+			local = glm::rotate(local, double{animation->angle}, glm::dvec3{animation->rotationAxis});
+	}
+	else
+	{
+		glm::vec3 rotation = transform.rotation;
+		if (animation != nullptr)
+			rotation += animation->rotationAxis * animation->angle;
+		local = glm::rotate(local, double{rotation.x}, {1.0, 0.0, 0.0});
+		local = glm::rotate(local, double{rotation.y}, {0.0, 1.0, 0.0});
+		local = glm::rotate(local, double{rotation.z}, {0.0, 0.0, 1.0});
+	}
+	local =
+	    glm::scale(local, glm::dvec3{pose != nullptr && pose->scaled ? pose->scale : transform.scale});
 	return Finish(entity, registry, local, computed, active);
 }
 
@@ -78,9 +94,16 @@ glm::dmat4 Finish(
 	return local;
 }
 
-// Whether the entity's clip can play on this rig: the rig has the clip and a skin for it to move.
-// Looked up once a revision, and a clip that is missing reported then, since a file that names one
-// is content the scene loaded without a word: the rig arrives later, on the I/O worker.
+std::string_view NameOf(const entt::registry &registry, entt::entity entity)
+{
+	const auto *id = registry.try_get<SceneEntityId>(entity);
+	return id != nullptr ? std::string_view{id->value} : std::string_view{"(unnamed)"};
+}
+
+// Whether the entity's clip can play on this rig: the rig has the clip. Looked up once a revision,
+// and a clip that is missing reported then, since a file that names one is content the scene loaded
+// without a word: the rig arrives later, on the I/O worker. A rig with no skin plays its clip too,
+// which moves its nodes and so where its mesh is drawn.
 bool CheckClip(
     const entt::registry &registry, entt::entity entity, const Animation::Rig &rig,
     const MeshComponent &mesh)
@@ -88,15 +111,74 @@ bool CheckClip(
 	const auto *player = registry.try_get<AnimationPlayerComponent>(entity);
 	if (player == nullptr)
 		return false;
-	if (rig.HasSkin() && rig.HasAnimation(player->clipName))
+	if (rig.HasAnimation(player->clipName))
 		return true;
-	const auto *id = registry.try_get<SceneEntityId>(entity);
 	Core::Log(
 	    Core::Severity::Error, kScene,
-	    "Entity '{}' plays clip '{}', which {} does not have with a skin to move: posed at rest",
-	    id != nullptr ? std::string_view{id->value} : std::string_view{"(unnamed)"}, player->clipName,
-	    mesh.model);
+	    "Entity '{}' plays clip '{}', which {} does not have: posed at rest", NameOf(registry, entity),
+	    player->clipName, mesh.model);
 	return false;
+}
+
+// What keeps the player's clip from playing on what it is bound to, or nothing: the file lacks the
+// clip, a binding is to a node the file does not name or to an entity with no transform, or a node
+// the clip moves is bound to nothing.
+std::string ProblemWith(
+    const entt::registry &registry, const ClipPlayerComponent &player, const Animation::ClipFile &file)
+{
+	const Animation::Clip *clip = Animation::FindClip(file.clips, player.clip);
+	if (clip == nullptr)
+		return std::format("which {} does not have", player.file);
+	for (const ClipBinding &binding : player.nodes)
+	{
+		if (Animation::NodeIndex(file, binding.node) == file.nodes.size())
+			return std::format("binding node '{}', which {} does not name", binding.node, player.file);
+		if (!registry.valid(binding.entity) || !registry.all_of<TransformComponent>(binding.entity))
+			return std::format("binding node '{}' to an entity with no transform", binding.node);
+	}
+	for (const Animation::Track &track : clip->tracks)
+	{
+		const std::string &node = file.nodes[track.nodeIndex];
+		if (std::ranges::none_of(
+		        player.nodes, [&](const ClipBinding &binding) { return binding.node == node; }))
+			return std::format("whose node '{}' is bound to nothing", node);
+	}
+	return {};
+}
+
+// Whether the player's clip can play on what it is bound to. Checked once for each revision of the
+// file and each clip the player is set to, and what is wrong reported then, as a rig's clip is.
+bool CheckPlayer(
+    const entt::registry &registry, entt::entity entity, const ClipPlayerComponent &player,
+    const Animation::ClipFile &file)
+{
+	const std::string problem = ProblemWith(registry, player, file);
+	if (problem.empty())
+		return true;
+	Core::Log(
+	    Core::Severity::Error, kScene, "Entity '{}' plays clip '{}', {}: left as authored",
+	    NameOf(registry, entity), player.clip, problem);
+	return false;
+}
+
+// The pose's path the track moves, set to its value.
+void Pose(NodePoseComponent &pose, const Animation::Track &track, const glm::vec4 &value)
+{
+	switch (track.path)
+	{
+		case Animation::TrackPath::Translation:
+			pose.translation = glm::dvec3{glm::vec3{value}};
+			pose.translated = true;
+			break;
+		case Animation::TrackPath::Rotation:
+			pose.rotation = glm::normalize(glm::quat{value.w, value.x, value.y, value.z});
+			pose.rotated = true;
+			break;
+		case Animation::TrackPath::Scale:
+			pose.scale = glm::vec3{value};
+			pose.scaled = true;
+			break;
+	}
 }
 
 // The layer an entity is in: its own, or else its parent's, up to the environment at a root.
@@ -129,7 +211,14 @@ void ApplyLayerVisibility(entt::registry &registry)
 }
 } // namespace
 
-void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
+SceneUpdateSystem::~SceneUpdateSystem()
+{
+	for (const auto &[path, handle] : m_clipFiles)
+		m_pResources->Release(handle);
+}
+
+void SceneUpdateSystem::Update(
+    entt::registry &registry, float deltaTime, std::vector<ClipEventFired> *pEvents) const
 {
 	const float frameTime = std::clamp(deltaTime, 0.0f, 0.1f);
 	for (const entt::entity entity : registry.view<TransformComponent, RotationAnimationComponent>())
@@ -160,6 +249,49 @@ void SceneUpdateSystem::Update(entt::registry &registry, float deltaTime) const
 			rig->EvaluateSkin(
 			    clipName, animationTime, skeleton.jointMatrices, skeleton.meshNodeTransform);
 		}
+
+	// Every pose made again from the clips playing this frame, so a node no clip is bound to any
+	// more is back as authored.
+	registry.clear<NodePoseComponent>();
+	if (m_pResources != nullptr)
+	{
+		std::vector<std::size_t> crossed;
+		for (const auto [entity, player] : registry.view<ClipPlayerComponent>().each())
+		{
+			auto found = m_clipFiles.find(player.file);
+			if (found == m_clipFiles.end())
+				found = m_clipFiles
+				            .emplace(player.file, m_pResources->Load<Animation::ClipFile>(player.file))
+				            .first;
+			const Animation::ClipFile *file = m_pResources->TryGet(found->second);
+			if (file == nullptr)
+				continue;
+			if (const std::uint32_t revision = m_pResources->RevisionOf(found->second);
+			    revision != player.revision || player.clip != player.checked)
+			{
+				player.playable = CheckPlayer(registry, entity, player, *file);
+				player.revision = revision;
+				player.checked = player.clip;
+			}
+			if (!player.playable)
+				continue;
+			const Animation::Clip &clip = *Animation::FindClip(file->clips, player.clip);
+			crossed.clear();
+			player.time = Animation::AdvanceClip(
+			    clip, player.time, player.playing ? frameTime * player.speed : 0.0f, player.looping,
+			    crossed);
+			if (pEvents != nullptr)
+				for (const std::size_t index : crossed)
+					pEvents->push_back({entity, clip.events[index].name});
+			for (const Animation::Track &track : clip.tracks)
+			{
+				const glm::vec4 value = Animation::Sample(track, player.time);
+				for (const ClipBinding &binding : player.nodes)
+					if (binding.node == file->nodes[track.nodeIndex] && registry.valid(binding.entity))
+						Pose(registry.get_or_emplace<NodePoseComponent>(binding.entity), track, value);
+			}
+		}
+	}
 
 	std::unordered_map<entt::entity, glm::dmat4> computed;
 	std::unordered_set<entt::entity> active;
