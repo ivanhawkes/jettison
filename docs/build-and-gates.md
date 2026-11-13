@@ -226,6 +226,10 @@ warm caches (2026-11-12).
 ./scripts/ci.sh --werror --asan --log build/gate.log
 ```
 
+Its builds run three quarters as many jobs as the machine has threads (18 on 24), not Ninja's
+nproc + 2: a cold gate's clang crashed twice under the heavier load (2026-11-14), each time on a file
+that then built alone. `CMAKE_BUILD_PARALLEL_LEVEL` set beforehand wins, as CI's 2 does.
+
 ### Unit tests
 
 Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files the
