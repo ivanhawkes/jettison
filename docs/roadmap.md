@@ -40,16 +40,20 @@ dearer with every save a player has and once a second player sends commands.
   added to a component reads an old save with its default, and one renamed is a rename in the
   world's table; but a field removed is refused (the archive refuses a field its type does not
   save), and a field whose type changed misreads its length. Migrating either needs the old type in
-  the step, and the world's steps have the document alone. A component's own chain, run by the
-  world as it reads that component's storage, is not yet placed: the game's first change to a
-  component after its saves matter is its first reader.
+  the step, and the world's steps have the document alone. Decided (2026-11-13,
+  [decided](#decided)): a version per component storage and a chain per component over its binary
+  record; the storage's version wants placing before saves matter, the chains when the game first
+  changes a component.
 - **A script's state in a save** (entry 29, 11b): a handler keeps its instance between calls, and a
   save holds none of it, so a handler that counts starts again from nothing on a load (an input
-  keeps none, by design). Whatever carries it is in every save made after scripts matter.
+  keeps none, by design). Whatever carries it is in every save made after scripts matter. Decided
+  (2026-11-13): keys a script stores bytes under, a section of the save game; not yet built.
 - **The simulation's text** (entry 30, 11d): a trade's refusal and a save's problem are English made
   in the step and carried in its events as text, which no string table can word; each event wants a
   reason and its values for presentation to word instead. Every rule the game adds that refuses
-  something adds another, so the event's shape is cheapest to change now.
+  something adds another, so the event's shape is cheapest to change now. Decided (2026-11-13): one
+  `Sim::Reason`, a reflected enumerator and typed arguments, in place of the four events' text; not
+  yet built.
 - **Commands that carry their sender** (9c): the docks' commands carry a `Sim::Controller` and
   are refused from one that does not control the ship, and a trader sends its own with its AI
   controller (9f); the flight controls, a destination, a lane entered, a pick and the sample's trade
@@ -58,7 +62,8 @@ dearer with every save a player has and once a second player sends commands.
 - **Jolt's state across a Jolt upgrade** (entry 25, 8a): physics' share of a save is Jolt's own
   binary state, which a step cannot edit as data. A Jolt upgrade that changes it needs a load that
   rebuilds the bodies from the world's components instead, losing the contact cache's warm start for
-  a step. Not yet placed; it is the first thing to check when Jolt is next moved.
+  a step. Decided (2026-11-13): Jolt's state kept, its version in physics' layout 4, and the
+  rebuild on a version that differs, built and tested with the layout; not yet built.
 
 ### Next: what the game's next slices stand on
 
@@ -693,44 +698,63 @@ Settled on 2026-11-10:
   data expressions as it is read, so no translation can make a format throw or a document read what
   its screen does not bind. The language is the player's setting rather than the environment's
   locale, so a run, a reference frame or the smoke test reads the same on every machine.
+- **A component migrates by its own chain, over its binary record** (2026-11-13, the first open
+  decision of the first tier). Each component storage in the world's save carries a version of its
+  own, which a world step sets to 1 for every storage of an older save, and a component registers a
+  chain of steps with it that the world runs as it reads that storage. A step is given the old value
+  as its record: the field table the binary archive already writes, each field's name and its bytes,
+  so a removed or retyped field is decoded with `BinaryReader`'s primitives by the step that knows
+  it, and the old C++ type is never needed. Not a YAML node: authored content has its own chain
+  (`YamlMigrations`), and a save's component is binary. A reflected struct inside a component is
+  migrated by that component's step; a chain of the struct's own waits for two components that share
+  a struct that changes. The world's own steps stay for changes to the whole world.
+- **A script keeps what it hands the host by key** (2026-11-13, the second). A script stores bytes
+  under its own keys through imports (`store`, `load`), in an encoding it chooses, and migrates them
+  itself, by a version under a key of its own should it want one; the host never needs its types.
+  Not the instance's linear memory saved whole: that is up to `memoryPages` (256 pages, 16 MB) a
+  script, and a module rebuilt would no longer read its saves. Handlers run outside the step, so
+  the keys are a section of the save game, with its own version, and not the world's state, its hash
+  or a replay. Each script is held to a number of keys and bytes (64 KB to start), past which a
+  store is refused as any other import's misuse is, so no mod grows every save.
+- **An event says why by a reason and its arguments** (2026-11-13, the third). The text the docks,
+  the lanes, the steering and the trades carry is replaced by one `Sim::Reason`: a key, an
+  enumerator registered with Reflect and named by its enum (`reason.dock.pad_occupied`), so modules
+  and mods cannot collide, and its arguments as an ordered list of typed values (an integer, which
+  keeps currency integer, an entity, or a definition's identifier). Presentation words it from the
+  string table under its key, an entity by its name in the snapshot and currency in the player's
+  format; the arguments are positional, as the tables' are, so a translation is held to them by the
+  check that already holds it to its base text. A script's reason is the same struct, under
+  `reason.script.<script>.<name>`, worded by its mod's table. Events are not saved, so this is the
+  shape of what leaves the step rather than of a save, made now because every rule that refuses
+  adds a reason. The step's log lines stay English: they are for developers.
+- **Physics keeps Jolt's state, and rebuilds the bodies when Jolt's version differs** (2026-11-13,
+  the fourth). A loaded run carries on as an unbroken one would, which always rebuilding would give
+  up on every load. Physics' layout 4 holds Jolt's version (`JPH_VERSION_MAJOR`, `_MINOR`, `_PATCH`,
+  5.6.0 now) and the build's feature bits, which change Jolt's state as an upgrade does; a save
+  whose version differs rebuilds the bodies from the world's components and physics' records, which
+  hold each body, where it was placed and its velocity, and loses the contact cache's warm start for
+  a step. The rebuild is built and tested when the layout is, by a load given another version, so it
+  is not first run the day Jolt moves; what else a rebuild loses (the docking clamps' constraints,
+  sleep) is checked as it is.
 
 ## Open decisions
 
-To be settled before the work that needs them, each with what is recommended. The first four are
-the first tier's of [carried forward](#carried-forward), and want settling before a game's saves or
-mods are in players' hands.
+To be settled before the work that needs them, each with what is recommended. The first tier's of
+[carried forward](#carried-forward) were settled on 2026-11-13, under [decided](#decided).
 
-1. **How a component migrates** (a change inside a component's fields). Recommended: a chain of
-   steps per component, registered with it and run by the world as it reads that component's
-   storage, each step given the old value as a YAML or binary node by field name, so a removed or
-   retyped field is read by the step that knows it and the world's own steps stay for whole-world
-   changes.
-2. **What a script keeps in a save** (a script's state in a save). Either the instance's linear
-   memory saved whole, which needs nothing of a script's author and ties a save to the module's
-   layout, or state a script hands the host by key through an import (`store`, `load`), saved as data
-   and migrated as data. Recommended: the host's keys; a module rebuilt must not break a save.
-3. **How the step's events say why** (the simulation's text). Recommended: a reason as an
-   enumerator registered with Reflect, and the values it names as fields, worded by presentation
-   from the string table under `reason.<enumerator>`; a script's reason the same, by a name it
-   registers.
-4. **Physics in a save across a Jolt upgrade** (Jolt's state). Keep Jolt's own state and rebuild
-   the bodies from the world's components only when Jolt's version differs, losing the contact
-   cache's warm start for a step on that load alone; or always rebuild, so a save never holds Jolt's
-   bytes and a loaded run differs from an unbroken one for a step every time. Recommended: the
-   first, with the version in the save.
-5. **How a ship crosses a system** (courses past moving bodies, a body's frame chosen for it). A
+1. **How a ship crosses a system** (courses past moving bodies, a body's frame chosen for it). A
    game decision: compressed time over the real distances, a cruise drive of its own, or gates and
    lanes alone between a system's bodies. It sets the frame changes, the courses and what the
    camera shows between, and is the largest of the second tier's.
-6. **Who may fly through a gate** (a gate flown through): the game's rule, landed with the sensor.
-7. **How a player chooses mods** (packs and mods): the enabled list and its order, and a mod's own
+2. **Who may fly through a gate** (a gate flown through): the game's rule, landed with the sensor.
+3. **How a player chooses mods** (packs and mods): the enabled list and its order, and a mod's own
    description. Recommended: `mods.yaml` in the user's data directory listing them, written by the
    game's menu, and a `mod.yaml` in each with a name, a version and the engine version it was written
    for, refused when that is newer than the engine's.
-8. **How a script reads the world** (scripts). Recommended: through the snapshot presentation
+4. **How a script reads the world** (scripts). Recommended: through the snapshot presentation
    already has, read-only, for a handler, and for an input through the option's inputs as now, so no
    script reads the world inside the step.
-9. **Where a crash report goes** (crash handling): the game's choice of a service, or none.
+5. **Where a crash report goes** (crash handling): the game's choice of a service, or none.
 
 Settled as their phases began, with the rest, under [decided](#decided): the last, the Wasm runtime,
 as phase 11b began.
