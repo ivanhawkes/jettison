@@ -1773,9 +1773,14 @@ proves it headlessly. What exists:
   an `Owner`, the player's and each trader's, found by the controller its ships are commanded by
   (`Sim::ControlledBy`), so a fleet's ships share it, and a trade carries its sender and is refused
   from one that does not command the ship; a save from before keeps each purse on its ship, which
-  the shell's load moves to the owner. The market screen shows the station's goods, the ship's hold
-  and its owner's credits, and the best bid among the other markets; its Buy and Sell send a
-  `Trade`, which the step fills or refuses, with a reason the screen words.
+  the shell's load moves to the owner. Each good has a galactic mean (`GalacticPrices`, an
+  entity of its own made with the markets, saved and in the snapshots): it starts at the good's
+  base price and each trade filled anywhere, the player's or a trader's, moves it towards the price
+  paid by n / (n + 400) of the way for n crates, in whole credits, so a transport's forty crates move
+  it a tenth and ten loads half; a world saved before it is given one by its first trade. The
+  market screen shows the station's goods, the ship's hold and its owner's credits, the galactic
+  mean, a bid over it and an ask under it in green, and the best bid among the other markets; its
+  Buy and Sell send a `Trade`, which the step fills or refuses, with a reason the screen words.
 - **Physics** (`engine/physics`, 7a). Jolt in double precision as a service of the simulation world,
   [as above](#physics): rigid, kinematic and static bodies of box, sphere, capsule, cylinder,
   convex-hull and mesh shapes, a Jolt world per frame of each star system, rails and gravity from the

@@ -4,7 +4,7 @@
 	position: absolute;
 	right: 24dp;
 	top: 24dp;
-	width: 760dp;
+	width: 860dp;
 	padding: 16dp 20dp;
 	border: 1dp #3a5872;
 	border-radius: 6dp;
@@ -28,6 +28,7 @@
 
 table { width: 100%; }
 thead td {
+	white-space: nowrap;
 	padding-bottom: 4dp;
 	border-bottom: 1dp #3a5872;
 	color: #8aa3ba;
@@ -54,6 +55,7 @@ td.trade { width: 150dp; text-align: right; }
 	color: #8aa3ba;
 	padding-left: 8dp;
 }
+td.mean { color: #8aa3ba; }
 .cheap { color: #7fd18b; }
 .dear { color: #e07a6a; }
 

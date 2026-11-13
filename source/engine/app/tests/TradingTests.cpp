@@ -153,6 +153,43 @@ TEST_CASE("Trading: a docked ship buys at the ask and sells at the bid, and the 
 	CHECK(registry.get<Hold>(harbour.ship).cargo.empty());
 }
 
+TEST_CASE("Trading: a good's galactic mean moves towards each trade's price by its crates")
+{
+	// Forty crates, a transport's hold, move it 40 / 440 of the way; four hundred, half; more count
+	// as four hundred. A sale moves it as a purchase does.
+	CHECK(MoveMean(1000, 2000, 40) == 1091);
+	CHECK(MoveMean(1000, 2000, -40) == 1091);
+	CHECK(MoveMean(1000, 2000, kGalacticMemoryCrates) == 1500);
+	CHECK(MoveMean(1000, 2000, 100000) == 1500);
+	CHECK(MoveMean(1000, 500, 400) == 750);
+	CHECK(MoveMean(1000, 1000, 7) == 1000);
+	// Rounded to the nearest credit: 1000 + 1 x 1 / 401 stays, and 1 + 3 x 400 / 800 is 2.5, up.
+	CHECK(MoveMean(1000, 1001, 1) == 1000);
+	CHECK(MoveMean(1, 4, 400) == 3);
+
+	// A world made before there were means, as the harbour is, is given them by its first trade, the
+	// good's at its base price moved by it; a refused trade moves nothing.
+	Harbour harbour;
+	const entt::registry &registry = harbour.world.Registry();
+	CHECK(FindGalacticPrices(registry) == nullptr);
+	const std::int64_t ask = harbour.Good(1).ask;
+	harbour.Push("beer", 10);
+	harbour.world.Step();
+	const GalacticPrices *prices = FindGalacticPrices(registry);
+	REQUIRE(prices);
+	REQUIRE(prices->Find("beer"));
+	const std::int64_t bought = MoveMean(1200, ask, 10);
+	CHECK(prices->Find("beer")->mean == bought);
+	CHECK(prices->Find("copper") == nullptr);
+
+	const std::int64_t bid = harbour.Good(1).bid;
+	harbour.Push("beer", -4);
+	harbour.Push("beer", -100);
+	harbour.world.Step();
+	CHECK(FindGalacticPrices(registry)->Find("beer")->mean == MoveMean(bought, bid, -4));
+	CHECK(registry.view<const GalacticPrices>().size() == 1);
+}
+
 TEST_CASE("Trading: a trade that cannot be made is refused, saying why, and changes nothing")
 {
 	Harbour harbour;
@@ -326,6 +363,7 @@ TEST_CASE("Trading: markets, holds and purses are saved, and the same trades giv
 	loaded.world.Load(save);
 	CHECK(loaded.world.StateHash() == first.world.StateHash());
 	CHECK(loaded.world.Registry().get<Hold>(first.ship).Crates("beer") == 3);
+	CHECK(*FindGalacticPrices(loaded.world.Registry()) == *FindGalacticPrices(first.world.Registry()));
 }
 
 TEST_CASE("Trading: the market screen is made from a snapshot, never from the world")
@@ -339,6 +377,8 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 	registry.emplace<Market>(
 	    corva, Market{"Corva Refinery", Sim::SystemId("Vesper"), entt::null, 120, {beer}});
 	registry.get<Hold>(harbour.ship).cargo.push_back({"beer", 3});
+	// The galaxy has traded beer up from its base; copper it has no mean for yet.
+	registry.emplace<GalacticPrices>(registry.create(), GalacticPrices{{{"beer", 1500}}});
 	const Sim::Snapshot snapshot = Sim::Capture(harbour.world);
 	// The world moving on after the snapshot is not what the screen shows.
 	registry.get<Purse>(harbour.owner).credits = 0;
@@ -361,6 +401,8 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 	CHECK(screen.goods[1].canSell);
 	CHECK(screen.goods[1].held == 3);
 	CHECK(screen.goods[1].elsewhere == "Corva Refinery pays " + FormatCredits(beer.bid));
+	CHECK(screen.goods[1].mean == 1500);
+	CHECK(screen.goods[0].mean == harbour.Good(0).basePrice);
 	CHECK(strings.Number(1250000) == "1,250,000");
 	CHECK(screen.message == "Bought 1 crate");
 
@@ -420,6 +462,18 @@ TEST_CASE("Trading: the sample game's goods and markets load, and every market's
 	CHECK(world.Registry().get<Market>(markets[1]).station == "Ostra Anchorage");
 	CHECK(world.Registry().get<Market>(markets[2]).station == "Ostra Highport");
 	CHECK(world.Registry().get<Market>(markets[2]).system == Sim::SystemId("Halcyon"));
+
+	// The galaxy's means open at the goods' base prices, every good defined, in their order.
+	const GalacticPrices *prices = FindGalacticPrices(world.Registry());
+	REQUIRE(prices);
+	const std::vector<std::string> goods = definitions.Names<Good>();
+	REQUIRE(prices->goods.size() == goods.size());
+	for (std::size_t index = 0; index < prices->goods.size(); ++index)
+	{
+		const std::string &name = goods[index];
+		CHECK(prices->goods[index].good == name);
+		CHECK(prices->goods[index].mean == definitions.Find<Good>(name)->basePrice);
+	}
 }
 
 TEST_CASE(
@@ -461,6 +515,7 @@ TEST_CASE(
 	CHECK(ui.ElementText(document, "station") == "Ostra Highport");
 	CHECK(ui.ElementText(document, "credits") == "250,000");
 	CHECK(ui.ElementText(document, "ask-0") == "1,004");
+	CHECK(ui.ElementText(document, "mean-0") == "1,200");
 	CHECK(ui.ElementText(document, "footer") == "M closes the market.");
 	CHECK(ui.Click(document, "lot-10"));
 	screen.lot = 10;

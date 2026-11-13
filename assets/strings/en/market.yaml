@@ -13,6 +13,7 @@ market:
     stock: Stock
     bid: Bid
     ask: Ask
+    mean: Galactic mean
     held: Held
     elsewhere: Elsewhere
   buy: Buy

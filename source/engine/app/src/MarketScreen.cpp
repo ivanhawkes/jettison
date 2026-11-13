@@ -22,7 +22,7 @@ void RegisterMarketScreenTypes()
 		    .Field<&MarketRow::good>("good")
 		    .Field<&MarketRow::name>("name")
 		    .Field<&MarketRow::crate>("crate")
-		    .Field<&MarketRow::base>("base")
+		    .Field<&MarketRow::mean>("mean")
 		    .Field<&MarketRow::stock>("stock")
 		    .Field<&MarketRow::bid>("bid")
 		    .Field<&MarketRow::ask>("ask")
@@ -104,6 +104,7 @@ MarketScreen BuildMarketScreen(
 	if (purse)
 		screen.credits = purse->credits;
 
+	const GalacticPrices *prices = FindGalacticPrices(snapshot);
 	for (const MarketGood &good : market->goods)
 	{
 		const Good *definition = definitions.Find<Good>(good.good);
@@ -112,7 +113,8 @@ MarketScreen BuildMarketScreen(
 		row.name = GoodName(definitions, strings, good.good);
 		const auto crate = strings.Find(std::format("goods.{}.crate", good.good));
 		row.crate = crate ? std::string{*crate} : definition ? definition->crate : std::string{};
-		row.base = good.basePrice;
+		const GalacticPrice *mean = prices ? prices->Find(good.good) : nullptr;
+		row.mean = mean ? mean->mean : good.basePrice;
 		row.stock = good.stock;
 		row.bid = good.bid;
 		row.ask = good.ask;

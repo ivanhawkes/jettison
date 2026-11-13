@@ -64,6 +64,11 @@ void RegisterTypes()
 		RegisterType<Hold>("Shell.Hold")
 		    .Field<&Hold::capacity>("capacity", Attribute::Saved)
 		    .Field<&Hold::cargo>("cargo", Attribute::Saved);
+		RegisterType<GalacticPrice>("Shell.GalacticPrice")
+		    .Field<&GalacticPrice::good>("good", Attribute::Saved)
+		    .Field<&GalacticPrice::mean>("mean", Attribute::Saved);
+		RegisterType<GalacticPrices>("Shell.GalacticPrices")
+		    .Field<&GalacticPrices::goods>("goods", Attribute::Saved);
 		RegisterType<Owner>("Shell.Owner").Field<&Owner::controller>("controller", Attribute::Saved);
 		RegisterType<Purse>("Shell.Purse").Field<&Purse::credits>("credits", Attribute::Saved);
 		RegisterType<Trade>("Shell.Trade", Attribute::Script)
@@ -194,6 +199,32 @@ const Purse *PurseOf(const Sim::Snapshot &snapshot, entt::entity ship)
 	return nullptr;
 }
 
+const GalacticPrice *GalacticPrices::Find(std::string_view good) const
+{
+	const auto found = std::ranges::find(goods, good, &GalacticPrice::good);
+	return found != goods.end() ? &*found : nullptr;
+}
+
+std::int64_t MoveMean(std::int64_t mean, std::int64_t price, std::int64_t crates)
+{
+	const std::int64_t weight = std::min(crates < 0 ? -crates : crates, kGalacticMemoryCrates);
+	const std::int64_t total = kGalacticMemoryCrates + weight;
+	// Rounded half away from zero, as both are whole credits and never negative.
+	return (mean * kGalacticMemoryCrates + price * weight + total / 2) / total;
+}
+
+const GalacticPrices *FindGalacticPrices(const entt::registry &registry)
+{
+	const auto view = registry.view<const GalacticPrices>();
+	return view.empty() ? nullptr : &view.get<const GalacticPrices>(view.front());
+}
+
+const GalacticPrices *FindGalacticPrices(const Sim::Snapshot &snapshot)
+{
+	const auto samples = snapshot.Components<GalacticPrices>();
+	return samples.empty() ? nullptr : &samples.front().value;
+}
+
 std::size_t MovePursesToOwners(entt::registry &registry)
 {
 	std::vector<entt::entity> ships;
@@ -222,10 +253,12 @@ void RegisterTrading(Sim::SimWorld &world)
 	world.RegisterComponent<Hold>();
 	world.RegisterComponent<Purse>();
 	world.RegisterComponent<Owner>();
+	world.RegisterComponent<GalacticPrices>();
 	world.ShowInSnapshots<Market>();
 	world.ShowInSnapshots<Hold>();
 	world.ShowInSnapshots<Purse>();
 	world.ShowInSnapshots<Owner>();
+	world.ShowInSnapshots<GalacticPrices>();
 	world.ShowInSnapshots<Sim::ControlledBy>();
 	world.RegisterCommand<Trade>([](Sim::SimWorld &target, const Trade &trade)
 	                             { ApplyTrade(target, trade); });
@@ -284,6 +317,10 @@ std::vector<entt::entity> OpenMarkets(Sim::SimWorld &world, const Sim::Definitio
 		registry.emplace<Market>(entity, std::move(market));
 		opened.push_back(entity);
 	}
+	GalacticPrices prices;
+	for (const std::string &name : definitions.Names<Good>())
+		prices.goods.push_back({name, definitions.Find<Good>(name)->basePrice});
+	registry.emplace<GalacticPrices>(registry.create(), std::move(prices));
 	return opened;
 }
 
@@ -377,6 +414,13 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 			hold.cargo.erase(held);
 	}
 	Quote(*good, market.feeBps);
+	auto pricesView = registry.view<GalacticPrices>();
+	const entt::entity galaxy = pricesView.empty() ? registry.create() : pricesView.front();
+	auto &prices = registry.get_or_emplace<GalacticPrices>(galaxy);
+	auto mean = std::ranges::find(prices.goods, trade.good, &GalacticPrice::good);
+	if (mean == prices.goods.end())
+		mean = prices.goods.insert(prices.goods.end(), {trade.good, good->basePrice});
+	mean->mean = MoveMean(mean->mean, price, trade.crates);
 	// Settled at once; the crates then cross the deck, and the ship stays clamped until they have.
 	Dock::Carry(registry, trade.ship, trade.crates);
 	world.Events().Emit(

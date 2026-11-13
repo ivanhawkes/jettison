@@ -6,7 +6,9 @@
 </head>
 <!-- The market of the station the ship is at, or nearest: the shell's "market" data model, made from
      the simulation's snapshots (app/src/MarketScreen.h). Prices are credits a crate, a crate one IBC
-     cube of the good. Its text is the string table's (strings/<language>/market.yaml). -->
+     cube of the good. A bid over the galactic mean is worth selling at, and an ask under it worth
+     buying at, in green; an ask half as much again over it, in red. Its text is the string table's
+     (strings/<language>/market.yaml). -->
 <body data-model="market">
 	<div id="window" class="panel">
 		<div id="header">
@@ -26,6 +28,7 @@
 				<tr>
 					<td>[[market.column.good]]</td><td class="number">[[market.column.stock]]</td>
 					<td class="number">[[market.column.bid]]</td><td class="number">[[market.column.ask]]</td>
+					<td class="number">[[market.column.mean]]</td>
 					<td class="number">[[market.column.held]]</td><td class="elsewhere">[[market.column.elsewhere]]</td><td></td>
 				</tr>
 			</thead>
@@ -33,9 +36,10 @@
 				<tr data-for="row, i : screen.goods">
 					<td class="good">{{row.name}}<span class="crate">{{row.crate}}</span></td>
 					<td class="number" data-attr-id="'stock-' + i">{{row.stock}}</td>
-					<td class="number" data-attr-id="'bid-' + i">{{row.bid | thousands}}</td>
-					<td class="number" data-attr-id="'ask-' + i" data-class-cheap="row.ask &lt; row.base"
-					    data-class-dear="row.ask &gt; row.base * 3 / 2">{{row.ask | thousands}}</td>
+					<td class="number" data-attr-id="'bid-' + i" data-class-cheap="row.bid &gt; row.mean">{{row.bid | thousands}}</td>
+					<td class="number" data-attr-id="'ask-' + i" data-class-cheap="row.ask &lt; row.mean"
+					    data-class-dear="row.ask &gt; row.mean * 3 / 2">{{row.ask | thousands}}</td>
+					<td class="number mean" data-attr-id="'mean-' + i">{{row.mean | thousands}}</td>
 					<td class="number" data-attr-id="'held-' + i">{{row.held}}</td>
 					<td class="elsewhere">{{row.elsewhere}}</td>
 					<td class="trade">

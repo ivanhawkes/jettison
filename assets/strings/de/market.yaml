@@ -11,6 +11,7 @@ market:
     stock: Bestand
     bid: Ankauf
     ask: Verkauf
+    mean: Galaxiemittel
     held: An Bord
     elsewhere: Anderswo
   buy: Kaufen

@@ -100,6 +100,45 @@ struct Market
 	bool operator==(const Market &) const = default;
 };
 
+// The galaxy's price of one good: where it starts, the good's base price (Good::basePrice), and
+// where the galaxy's trades have taken it since. Credits a crate.
+struct GalacticPrice
+{
+	std::string good;
+	std::int64_t mean{0};
+
+	bool operator==(const GalacticPrice &) const = default;
+};
+
+// The galactic mean of every good, which a player compares a market's bid and ask against: each
+// starts at its base price and is pulled towards the price of each trade filled anywhere in the
+// galaxy, by the player or a trader, weighted by its crates against kGalacticMemoryCrates (ApplyTrade).
+// An entity of its own, made with the markets. Simulation state, registered with Reflect, every
+// field Saved, and shown in snapshots, which the market screen reads.
+struct GalacticPrices
+{
+	// In the goods' definitions' order, and a good first traded after (a mod's, or one in a world
+	// saved before there was a mean) at the end.
+	std::vector<GalacticPrice> goods;
+
+	// The good's mean, or none for a good it does not have.
+	const GalacticPrice *Find(std::string_view good) const;
+	bool operator==(const GalacticPrices &) const = default;
+};
+
+// How many crates the mean remembers: a trade of n crates at a price moves it n / (n + this) of the
+// way there, so one transport's forty crates move it a tenth of the way and ten loads half. A trade
+// of more crates than this counts as this many, which also bounds the sum in whole credits.
+inline constexpr std::int64_t kGalacticMemoryCrates = 400;
+
+// The mean after a trade of that many crates (either sign) at that price, rounded to the nearest
+// credit.
+std::int64_t MoveMean(std::int64_t mean, std::int64_t price, std::int64_t crates);
+
+// The galaxy's means, or null in a world that has none (one saved before them); in a snapshot too.
+const GalacticPrices *FindGalacticPrices(const entt::registry &registry);
+const GalacticPrices *FindGalacticPrices(const Sim::Snapshot &snapshot);
+
 // A crate of one good in a hold.
 struct Cargo
 {
@@ -231,9 +270,9 @@ void RegisterTrading(Sim::SimWorld &world);
 // does, naming the file.
 void LoadTradeDefinitions(Sim::DefinitionRegistry &definitions);
 
-// Makes a market entity from each market definition, its goods priced from their definitions. A
-// listing of a good with no definition is left out, and logged. Returns the markets made, in the
-// definitions' order.
+// Makes a market entity from each market definition, its goods priced from their definitions, and
+// then the galaxy's means (GalacticPrices), each good's at its base price. A listing of a good with no
+// definition is left out, and logged. Returns the markets made, in the definitions' order.
 std::vector<entt::entity> OpenMarkets(Sim::SimWorld &world, const Sim::DefinitionRegistry &definitions);
 
 // The price a market quotes for a good at its stock: twice the base at none, the base at the target,
@@ -249,6 +288,7 @@ void TickMarkets(entt::registry &registry);
 // Applies a trade, or refuses it with a TradeRefused: a ship or market that is not there, a sender
 // that does not command the ship, a ship with no owner, a ship not docked at the market's station, a
 // good the market does not deal in, too few crates in the market or the hold, too few credits, too
-// little room.
+// little room. A trade filled moves the good's galactic mean, which a world saved before there was
+// one is given then.
 void ApplyTrade(Sim::SimWorld &world, const Trade &trade);
 } // namespace Jettison::App

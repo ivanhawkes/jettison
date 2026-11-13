@@ -433,6 +433,24 @@ TEST_CASE(
 	    runs, " runs sold in ", kSteps / 3600, " minutes, ", crossings, " crossings, ",
 	    galaxy.Events<Dock::PadQueued>().size(), " places queued, ", onPads,
 	    " contacts on their pads as they were let go; nearest flying hulls ", nearest, " m apart");
+	// The traders' trades moved the galaxy's means off the goods' base prices.
+	const App::GalacticPrices *prices = App::FindGalacticPrices(registry);
+	REQUIRE(prices);
+	std::string means;
+	std::size_t moved = 0;
+	for (const App::GalacticPrice &price : prices->goods)
+	{
+		means += std::format(" {} {}", price.good, price.mean);
+		for (const auto [entity, market] : registry.view<const App::Market>().each())
+			if (const auto good = std::ranges::find(market.goods, price.good, &App::MarketGood::good);
+			    good != market.goods.end())
+			{
+				moved += price.mean != good->basePrice ? 1 : 0;
+				break;
+			}
+	}
+	CHECK(moved > 0);
+	MESSAGE(moved, " galactic means moved:", means);
 	for (const std::string &collision : collisions)
 		MESSAGE(collision);
 	CHECK(collisions.empty());
@@ -455,5 +473,5 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release.
-	CHECK(original.world.StateHash() == 0x487ab0bd2d27a6b8ULL);
+	CHECK(original.world.StateHash() == 0xb84ccd89f6ba5ea8ULL);
 }

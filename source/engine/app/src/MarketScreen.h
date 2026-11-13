@@ -27,7 +27,8 @@ struct MarketRow
 	std::string good;
 	std::string name;
 	std::string crate;
-	std::int64_t base{0};
+	// The good's galactic mean (GalacticPrices), or its base price in a world that has none.
+	std::int64_t mean{0};
 	std::int64_t stock{0};
 	std::int64_t bid{0};
 	std::int64_t ask{0};
