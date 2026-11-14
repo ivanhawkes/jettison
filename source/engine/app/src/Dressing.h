@@ -14,6 +14,11 @@
 #include <jettison/dock/Docks.h>
 #include <jettison/sim/Snapshot.h>
 
+namespace Jettison::Physics
+{
+struct Thrust;
+}
+
 namespace Jettison::App
 {
 // The station dressing (docs/roadmap.md, 9d): a station's layout drawn under its entity in the
@@ -107,23 +112,48 @@ void FitClamps(entt::registry &scene, const PadClamps &clamps, const Dock::HullD
 // box it collides as holds what is drawn. S is the shell's shuttle, M a transport of four cargo pods
 // behind a cab, L a spine of racked containers under a bridge, and XL a long hull under a
 // superstructure, which the liner and the frigate share.
-// A proxy for a simulation entity, ship, has a plume at each nozzle (ShipEngines), which ShowEngines
-// lights; the display wing's ships, of none, have none.
+// Every engine nozzle glows dimly, as a cold one would against the hull. A proxy for a simulation
+// entity, ship, shows its thrust (ShipThrusters): a plume at each engine and a jet at each of its
+// manoeuvring ports, a cluster each side of its bow and its stern firing out to that side, up and
+// down, and the bow's forward too, each with a nozzle that glows; ShowThrust lights them. The
+// display wing's ships, of none, have none.
 entt::entity MakeHullProxy(
     entt::registry &scene, const Dock::HullDefinition &hull, entt::entity ship = entt::null);
 
-// A ship proxy's engines: the simulation entity whose throttle they show, and the emitters of their
-// plumes, in the effects layer.
-struct ShipEngines
+// One port a ship's thrust leaves by, in its proxy: where it is and the way its exhaust goes, in the
+// hull's axes (nose -Z); whether it is an engine, which fires only ahead, or a manoeuvring jet; its
+// emitter, in the effects layer, and the nozzle that glows as it fires; and how far that glow has
+// risen, from 0 to 1.
+struct ThrusterPort
 {
-	entt::entity ship{entt::null};
-	std::vector<entt::entity> plumes;
+	glm::vec3 at{0.0f};
+	glm::vec3 exhaust{0.0f, 0.0f, 1.0f};
+	bool engine{false};
+	entt::entity emitter{entt::null};
+	entt::entity nozzle{entt::null};
+	float glow{0.0f};
 };
 
-// Each ship's plumes to its throttle in the snapshot, the share of full ahead its flight controls
-// ask for, and at rest in the frame given, the entity of the station the ships fly by (null for
-// each plume's own).
-void ShowEngines(entt::registry &scene, const Sim::Snapshot &snapshot, entt::entity frame);
+// A ship proxy's thrusters: the simulation entity whose thrust they show, and their ports.
+struct ShipThrusters
+{
+	entt::entity ship{entt::null};
+	std::vector<ThrusterPort> ports;
+};
+
+// How hard a port fires for what the ship's thrusters fired (Physics::Thrust), from 0 to 1: an
+// engine by the share of full ahead; a jet by how far its push is along the linear thrust, and how
+// far the turn its push makes about the hull's middle is along the turn fired, each share of full.
+float PortFiring(const ThrusterPort &port, const Physics::Thrust &thrust);
+
+// Each ship's thrusters to what they fired in the snapshot (Physics::Thrust), so a ship coasting
+// fires nothing whatever it was asked: each port's emitter as dense as it fires, at rest in the frame
+// given, the entity of the station the ships fly by (null for each emitter's own); and its nozzle's
+// glow brought towards how hard it fires over the seconds since the last frame, rising over about a
+// second and dying away over two and a half, as metal heats and cools. A ship with no thrust in the
+// snapshot, docked, cruising or on a lane, fires nothing.
+void ShowThrust(
+    entt::registry &scene, const Sim::Snapshot &snapshot, entt::entity frame, double seconds);
 
 // A buggy's proxy, in its own axes (nose -Z, its wheels on the deck at its origin): a 4 m flatbed
 // tug, a cab with a beacon in the effects layer, and a bed for four crates, which show what it

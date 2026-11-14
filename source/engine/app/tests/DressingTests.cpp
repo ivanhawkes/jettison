@@ -490,46 +490,95 @@ TEST_CASE(
 	CHECK(models == 1);
 }
 
-TEST_CASE("Dressing: a ship's proxy has a plume at each nozzle, lit by its throttle in the snapshots")
+TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets and nozzles that glow")
 {
 	Dressed dressed;
 	const Dock::HullDefinition *shuttle = dressed.docks.FindHull("shuttle");
 	REQUIRE(shuttle);
 	entt::registry &world = dressed.world.Registry();
 	const entt::entity ship = world.create();
-	world.emplace<Physics::FlightControls>(ship);
 	const entt::entity proxy = App::MakeHullProxy(dressed.scene, *shuttle, ship);
-	REQUIRE(dressed.scene.all_of<App::ShipEngines>(proxy));
-	const auto &engines = dressed.scene.get<App::ShipEngines>(proxy);
-	// The shuttle's two engines, each a plume aft of its nozzle, in the effects layer.
-	REQUIRE(engines.plumes.size() == 2);
-	for (const entt::entity plume : engines.plumes)
+	REQUIRE(dressed.scene.all_of<App::ShipThrusters>(proxy));
+	const auto &thrusters = dressed.scene.get<App::ShipThrusters>(proxy);
+	// The shuttle's two engines, each a plume aft of its nozzle; and fourteen jets, three at each
+	// side of the bow and the stern and the bow's two forward. All in the effects layer.
+	const auto engines = std::ranges::count_if(thrusters.ports, &App::ThrusterPort::engine);
+	CHECK(engines == 2);
+	CHECK(thrusters.ports.size() == 16);
+	for (const App::ThrusterPort &port : thrusters.ports)
 	{
-		CHECK(dressed.scene.get<Scene::TransformComponent>(plume).translation.z > 0.0);
-		CHECK(dressed.scene.get<Scene::LayerComponent>(plume).layer == Scene::Layer::Effects);
+		CHECK(dressed.scene.get<Scene::LayerComponent>(port.emitter).layer == Scene::Layer::Effects);
+		if (port.engine)
+			CHECK(dressed.scene.get<Scene::TransformComponent>(port.emitter).translation.z > 0.0);
 	}
-	const auto &emitter = dressed.scene.get<Scene::ParticleEmitterComponent>(engines.plumes.front());
 
-	// Let go, nothing burns.
-	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
-	CHECK(!emitter.active);
-	CHECK(emitter.frame == dressed.station);
-	// Half ahead, a plume half as dense as full ahead's; astern, none from the main engines.
-	world.get<Physics::FlightControls>(ship).linear.z = -0.5f;
-	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
-	CHECK(emitter.active);
-	const float half = emitter.rate;
-	world.get<Physics::FlightControls>(ship).linear.z = -1.0f;
-	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
-	CHECK(emitter.rate == doctest::Approx(2.0 * half));
-	world.get<Physics::FlightControls>(ship).linear.z = 1.0f;
-	App::ShowEngines(dressed.scene, Sim::Capture(dressed.world), dressed.station);
-	CHECK(!emitter.active);
+	// What fires for a thrust, in the order of the ports, and how many of them.
+	const auto show = [&](const Physics::Thrust &thrust, double seconds = 0.0)
+	{
+		world.emplace_or_replace<Physics::Thrust>(ship, thrust);
+		App::ShowThrust(dressed.scene, Sim::Capture(dressed.world), dressed.station, seconds);
+	};
+	const auto active = [&](bool engine)
+	{
+		std::size_t count = 0;
+		for (const App::ThrusterPort &port : thrusters.ports)
+			if (port.engine == engine &&
+			    dressed.scene.get<Scene::ParticleEmitterComponent>(port.emitter).active)
+				++count;
+		return count;
+	};
+	const auto &plume =
+	    dressed.scene.get<Scene::ParticleEmitterComponent>(thrusters.ports.front().emitter);
 
-	// The display wing's ships are of no simulation entity, and have no plumes.
+	// Firing nothing, as a ship coasting at a speed does whatever its throttle, nothing shows.
+	show({});
+	CHECK(active(true) == 0);
+	CHECK(active(false) == 0);
+	CHECK(plume.frame == dressed.station);
+	// Half ahead, the engines' plumes are half as dense as full ahead's, and no jet fires.
+	show({{0.0f, 0.0f, -0.5f}, {}});
+	CHECK(active(true) == 2);
+	CHECK(active(false) == 0);
+	const float half = plume.rate;
+	show({{0.0f, 0.0f, -1.0f}, {}});
+	CHECK(plume.rate == doctest::Approx(2.0 * half));
+	// Astern, the engines are cold and the bow's forward jets push it back.
+	show({{0.0f, 0.0f, 1.0f}, {}});
+	CHECK(active(true) == 0);
+	CHECK(active(false) == 2);
+	// To starboard, the port side's jets that fire out to port, bow and stern; up, the four that fire
+	// down; and a turn to port, the two that push the bow to port and the stern to starboard, and the
+	// port bow's forward jet, which pushes that side of the bow back.
+	show({{1.0f, 0.0f, 0.0f}, {}});
+	CHECK(active(false) == 2);
+	show({{0.0f, 1.0f, 0.0f}, {}});
+	CHECK(active(false) == 4);
+	show({{}, {0.0f, 1.0f, 0.0f}});
+	CHECK(active(false) == 3);
+	// A ship with no thrust in the snapshot, docked or cruising, fires nothing.
+	world.remove<Physics::Thrust>(ship);
+	App::ShowThrust(dressed.scene, Sim::Capture(dressed.world), dressed.station, 0.0);
+	CHECK(active(false) == 0);
+
+	// An engine's nozzle glows dimly at rest, warms over about a second of firing and cools over two
+	// and a half, a frame at a time.
+	const App::ThrusterPort &engine = thrusters.ports.front();
+	const auto glow = [&] { return dressed.scene.get<Scene::MeshComponent>(engine.nozzle).color.x; };
+	CHECK(glow() == doctest::Approx(0.03));
+	for (int frame = 0; frame < 60; ++frame)
+		show({{0.0f, 0.0f, -1.0f}, {}}, 1.0 / 60.0);
+	CHECK(engine.glow == doctest::Approx(1.0 - std::exp(-1.0)).epsilon(1e-4));
+	CHECK(glow() == doctest::Approx(0.03 + 0.97 * (1.0 - std::exp(-1.0))).epsilon(1e-4));
+	const float warm = engine.glow;
+	for (int frame = 0; frame < 150; ++frame)
+		show({}, 1.0 / 60.0);
+	CHECK(engine.glow == doctest::Approx(warm * std::exp(-1.0)).epsilon(1e-4));
+
+	// The display wing's ships are of no simulation entity: no plumes or jets, their nozzles dim.
 	entt::registry display;
 	App::MakeHullProxy(display, *shuttle);
 	CHECK(display.view<const Scene::ParticleEmitterComponent>().empty());
+	CHECK(display.view<const App::ShipThrusters>().empty());
 }
 
 TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots have it carry")

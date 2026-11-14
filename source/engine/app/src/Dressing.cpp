@@ -345,8 +345,17 @@ void Door(entt::registry &scene, entt::entity station, const Dock::Bay &bay)
 	Part(scene, door, {0.0, kDoorHeight + frame * 2.5f, 0.25}, {}, {halfW * 0.6f, 0.3f, 0.2f}, strip);
 }
 
-// The throttle below which an engine is taken as off.
+// The share of its thrust below which a port is taken as not firing.
 constexpr float kIdleThrottle = 0.02f;
+// A nozzle's glow at rest, as a share of its full glow firing, and the seconds over which its glow
+// rises towards firing and falls back: a time constant each, so it is two thirds of the way after
+// that long. Slow, as hot metal is; a jet's pulse of a few steps barely warms it.
+constexpr float kIdleGlow = 0.03f;
+constexpr double kGlowRise = 1.0;
+constexpr double kGlowFall = 2.5;
+// A manoeuvring jet at full: its births a second and its brightness at birth.
+constexpr float kJetRate = 120.0f;
+constexpr float kJetIntensity = 0.25f;
 // A plume at full ahead: its births a second and its brightness at birth, in the HDR target's units,
 // the core of a hundred-odd overlapping white, its edges the engine's blue.
 constexpr float kPlumeRate = 220.0f;
@@ -377,6 +386,36 @@ entt::entity Plume(entt::registry &scene, entt::entity root, const glm::dvec3 &n
 	emitter.seed = static_cast<std::uint32_t>(entt::to_integral(plume)) + 1u;
 	scene.emplace<Scene::ParticleEmitterComponent>(plume, emitter);
 	return plume;
+}
+
+// A manoeuvring jet's puff, from a nozzle of the radius given, along the exhaust (in the hull's
+// axes): cold gas, short and faint beside an engine's plume, at rest in the frame ShowThrust gives it.
+entt::entity Jet(
+    entt::registry &scene, entt::entity root, const glm::dvec3 &nozzle, const glm::vec3 &exhaust,
+    float radius)
+{
+	// The emitter's -Z along the exhaust.
+	const glm::dvec3 way{exhaust};
+	const glm::dvec3 up = std::abs(way.y) > 0.9 ? glm::dvec3{1.0, 0.0, 0.0} : glm::dvec3{0.0, 1.0, 0.0};
+	const entt::entity jet = Node(scene, root, nozzle, SceneRotation(glm::quatLookAtRH(way, up)));
+	scene.emplace<Scene::LayerComponent>(jet, Scene::Layer::Effects);
+	Scene::ParticleEmitterComponent emitter;
+	emitter.active = false;
+	emitter.rate = 0.0f;
+	emitter.lifetime = 0.25f;
+	emitter.lifetimeJitter = 0.4f;
+	emitter.speed = 18.0f;
+	emitter.speedJitter = 0.3f;
+	emitter.spread = 0.2f;
+	emitter.radius = radius * 0.5f;
+	emitter.drag = 4.0f;
+	emitter.size = {radius * 1.2f, radius * 5.0f};
+	emitter.color = {0.9f, 0.93f, 1.0f, kJetIntensity};
+	emitter.colorEnd = {0.7f, 0.75f, 0.85f, 0.0f};
+	emitter.capacity = 48;
+	emitter.seed = static_cast<std::uint32_t>(entt::to_integral(jet)) + 1u;
+	scene.emplace<Scene::ParticleEmitterComponent>(jet, emitter);
+	return jet;
 }
 
 // A proxy's part in the hull's own axes, as fractions of its half-length, half-beam and half-height
@@ -788,42 +827,98 @@ entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hu
 	}
 	constexpr float kQuarter = 1.5707963f;
 	const glm::vec3 half = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
-	ShipEngines engines{ship, {}};
+	const glm::vec3 idle = kWhite * kIdleGlow;
+	ShipThrusters thrusters{ship, {}};
 	for (const ProxyPart &part : ProxyOf(hull.pad))
 	{
 		const glm::vec3 extent = part.half * half;
 		// A cylinder turned a quarter about X has its own Y along the hull's Z, and its Z along Y.
 		const glm::vec3 scale = part.turned ? glm::vec3{extent.x, extent.z, extent.y} : extent;
-		Part(
+		const bool engine = part.material == kEngine;
+		const entt::entity made = Part(
 		    scene, root, glm::dvec3{part.at * half},
 		    part.turned ? glm::vec3{kQuarter, 0.0f, 0.0f} : glm::vec3{0.0f}, scale,
-		    {part.shape, part.colour, part.material, {}});
-		if (ship != entt::null && part.material == kEngine)
-			engines.plumes.push_back(
-			    Plume(scene, root, glm::dvec3{part.at * half}, std::min(extent.x, extent.y)));
+		    {part.shape, engine ? idle : part.colour, part.material, {}});
+		if (ship != entt::null && engine)
+			thrusters.ports.push_back(
+			    {part.at * half,
+			     {0.0f, 0.0f, 1.0f},
+			     true,
+			     Plume(scene, root, glm::dvec3{part.at * half}, std::min(extent.x, extent.y)),
+			     made,
+			     0.0f});
 	}
-	if (!engines.plumes.empty())
-		scene.emplace<ShipEngines>(root, std::move(engines));
+	if (ship == entt::null)
+		return root;
+
+	// The manoeuvring jets: a cluster at each side of the bow and of the stern, at the hull's beam,
+	// each firing out to its side, up and down, and the bow's forward, to push the ship astern.
+	const float radius = std::clamp(0.06f * std::min(hull.beam, hull.height), 0.12f, 2.0f);
+	for (const float along : {-1.0f, 1.0f})
+		for (const float side : {-1.0f, 1.0f})
+		{
+			const glm::vec3 at{side * half.x * 0.92f, 0.0f, along * half.z * 0.7f};
+			std::vector<glm::vec3> exhausts{
+			    {side, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}};
+			if (along < 0.0f)
+				exhausts.emplace_back(0.0f, 0.0f, -1.0f);
+			for (const glm::vec3 &exhaust : exhausts)
+			{
+				const glm::vec3 nozzle = at + exhaust * radius;
+				thrusters.ports.push_back(
+				    {nozzle, exhaust, false, Jet(scene, root, glm::dvec3{nozzle}, exhaust, radius),
+				     Part(
+				         scene, root, glm::dvec3{nozzle}, {}, glm::vec3{radius},
+				         {kIco, idle, kEngine, {}}),
+				     0.0f});
+			}
+		}
+	scene.emplace<ShipThrusters>(root, std::move(thrusters));
 	return root;
 }
 
-void ShowEngines(entt::registry &scene, const Sim::Snapshot &snapshot, entt::entity frame)
+float PortFiring(const ThrusterPort &port, const Physics::Thrust &thrust)
 {
-	for (const auto [entity, engines] : scene.view<const ShipEngines>().each())
+	// The way the port pushes the ship, against its exhaust.
+	const glm::vec3 push = -port.exhaust;
+	if (port.engine)
+		return std::clamp(glm::dot(push, thrust.linear), 0.0f, 1.0f);
+	float firing = std::max(glm::dot(push, thrust.linear), 0.0f);
+	// The turn it makes about the hull's middle, as a share of each axis's: one off every axis it could
+	// turn the ship about, a jet at the middle, turns nothing.
+	const glm::vec3 turn = glm::cross(port.at, push);
+	if (const float length = glm::length(turn); length > 1.0e-4f)
+		firing += std::max(glm::dot(turn / length, thrust.angular), 0.0f);
+	return std::min(firing, 1.0f);
+}
+
+void ShowThrust(
+    entt::registry &scene, const Sim::Snapshot &snapshot, entt::entity frame, double seconds)
+{
+	const float rise = static_cast<float>(1.0 - std::exp(-std::max(seconds, 0.0) / kGlowRise));
+	const float fall = static_cast<float>(1.0 - std::exp(-std::max(seconds, 0.0) / kGlowFall));
+	for (const auto [entity, thrusters] : scene.view<ShipThrusters>().each())
 	{
-		const auto *controls = snapshot.Get<Physics::FlightControls>(engines.ship);
-		const float ahead = controls ? std::clamp(-controls->linear.z, 0.0f, 1.0f) : 0.0f;
-		for (const entt::entity plume : engines.plumes)
+		const auto *thrust = snapshot.Get<Physics::Thrust>(thrusters.ship);
+		for (ThrusterPort &port : thrusters.ports)
 		{
-			auto *emitter =
-			    scene.valid(plume) ? scene.try_get<Scene::ParticleEmitterComponent>(plume) : nullptr;
-			if (!emitter)
-				continue;
-			// A ship let go, or docked, burns nothing; ahead, the plume is as dense as it is bright.
-			emitter->active = ahead > kIdleThrottle;
-			emitter->rate = kPlumeRate * ahead;
-			emitter->color.a = kPlumeIntensity * (0.4f + 0.6f * ahead);
-			emitter->frame = frame;
+			const float firing = thrust ? PortFiring(port, *thrust) : 0.0f;
+			if (auto *emitter = scene.valid(port.emitter)
+			                        ? scene.try_get<Scene::ParticleEmitterComponent>(port.emitter)
+			                        : nullptr)
+			{
+				// Dense and bright as it fires: a puff of a jet, a plume of an engine.
+				const float rate = port.engine ? kPlumeRate : kJetRate;
+				const float intensity = port.engine ? kPlumeIntensity : kJetIntensity;
+				emitter->active = firing > kIdleThrottle;
+				emitter->rate = rate * firing;
+				emitter->color.a = intensity * (0.4f + 0.6f * firing);
+				emitter->frame = frame;
+			}
+			port.glow += (firing - port.glow) * (firing > port.glow ? rise : fall);
+			if (auto *mesh = scene.valid(port.nozzle) ? scene.try_get<Scene::MeshComponent>(port.nozzle)
+			                                          : nullptr)
+				mesh->color = kWhite * (kIdleGlow + (1.0f - kIdleGlow) * port.glow);
 		}
 	}
 }

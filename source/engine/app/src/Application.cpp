@@ -789,21 +789,21 @@ void Application::RegisterFrameSystems()
 	     {"sim.sync"},
 	     [this](entt::registry &registry, double)
 	     { ShowBuggyLoads(registry, m_simStepper.Current()); }});
-	// Each ship's plumes, from its throttle in the same snapshot, at rest in the frame of the station
-	// the ships fly by.
+	// Each ship's plumes, jets and glowing nozzles, from what its thrusters fired in the same
+	// snapshot, at rest in the frame of the station the ships fly by.
 	m_frame.Register(
-	    {"shell.engines",
+	    {"shell.thrusters",
 	     TickPhase::Sync,
-	     Access::Of<ShipEngines>().Writing<Scene::ParticleEmitterComponent>(),
+	     Access::Of<>().Writing<ShipThrusters, Scene::ParticleEmitterComponent, Scene::MeshComponent>(),
 	     {"sim.sync"},
-	     [this](entt::registry &registry, double)
+	     [this](entt::registry &registry, double deltaTime)
 	     {
 		     entt::entity station = entt::null;
 		     for (const auto [entity, celestial] :
 		          registry.view<const Scene::CelestialBodyComponent>().each())
 			     if (celestial.body == m_stationBody)
 				     station = entity;
-		     ShowEngines(registry, m_simStepper.Current(), station);
+		     ShowThrust(registry, m_simStepper.Current(), station, deltaTime);
 	     }});
 	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
 	// handlers replace this system.

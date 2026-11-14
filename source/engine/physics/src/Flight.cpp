@@ -37,11 +37,19 @@ double Change(
 	return std::clamp(demand * limit - current, -towardsNegative * step, towardsPositive * step);
 }
 
+// The share of an axis's thrust a change took, signed as the change is.
+float Share(double change, double towardsPositive, double towardsNegative, double step)
+{
+	const double most = (change >= 0.0 ? towardsPositive : towardsNegative) * step;
+	return most > 0.0 ? static_cast<float>(std::clamp(change / most, -1.0, 1.0)) : 0.0f;
+}
+
 struct Change3
 {
 	entt::entity entity;
 	glm::dvec3 linear;
 	glm::dvec3 angular;
+	Thrust thrust;
 };
 } // namespace
 
@@ -74,6 +82,7 @@ void StepFlight(entt::registry &registry, double fixedStep)
 
 		glm::dvec3 linear{0.0};
 		glm::dvec3 angular{0.0};
+		Thrust thrust;
 		for (glm::length_t axis = 0; axis < 3; ++axis)
 		{
 			linear[axis] = Change(
@@ -83,15 +92,25 @@ void StepFlight(entt::registry &registry, double fixedStep)
 			angular[axis] = Change(
 			    Demand(controls.angular[axis]), spin[axis], Capability(thrusters.maxAngularRate[axis]),
 			    turn, turn, controls.assist, fixedStep);
+			thrust.linear[axis] = Share(linear[axis], positive[axis], negative[axis], fixedStep);
+			thrust.angular[axis] = Share(angular[axis], turn, turn, fixedStep);
 		}
-		changes.push_back({entity, orientation * linear, orientation * angular});
+		changes.push_back({entity, orientation * linear, orientation * angular, thrust});
 	}
+
+	// What no longer flies fires nothing.
+	std::vector<entt::entity> grounded;
+	for (const entt::entity entity : registry.view<const Thrust>())
+		if (!ships.contains(entity))
+			grounded.push_back(entity);
+	registry.remove<Thrust>(grounded.begin(), grounded.end());
 
 	for (const Change3 &change : changes)
 	{
 		Velocity &velocity = registry.get<Velocity>(change.entity);
 		velocity.linear = glm::vec3{glm::dvec3{velocity.linear} + change.linear};
 		velocity.angular = glm::vec3{glm::dvec3{velocity.angular} + change.angular};
+		registry.emplace_or_replace<Thrust>(change.entity, change.thrust);
 	}
 }
 } // namespace Jettison::Physics

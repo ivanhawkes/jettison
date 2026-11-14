@@ -28,6 +28,7 @@ using Physics::OnRails;
 using Physics::SetFlightControls;
 using Physics::ShapeDefinition;
 using Physics::ShapeKind;
+using Physics::Thrust;
 using Physics::Thrusters;
 using Physics::Velocity;
 
@@ -180,6 +181,49 @@ TEST_CASE("Flight: with assist, a demand is a speed the thrusters reach and hold
 	Steps(world, 1200);
 	CHECK(VelocityOf(world, ship).linear.x == doctest::Approx(-150.0).epsilon(1e-5));
 	CHECK(VelocityOf(world, ship).linear.y == 0.0f);
+}
+
+TEST_CASE("Flight: a ship's thrust is what changed its velocity, none at a speed held")
+{
+	Sim::SimWorld world{kStep, kSeed};
+	Populate(world);
+	const entt::entity ship = Ship(world);
+	Fly(world, ship, {});
+	world.Step();
+	const auto fired = [&]
+	{
+		const auto *found = world.Registry().try_get<Thrust>(ship);
+		REQUIRE(found);
+		return *found;
+	};
+	// At rest and asked for nothing, it fires nothing.
+	CHECK(fired() == Thrust{});
+
+	// Full ahead, it fires all of its 30 m/s^2 forward, and shows it in the snapshot.
+	Fly(world, ship, {{0.0f, 0.0f, -1.0f}});
+	Steps(world, 60);
+	CHECK(fired().linear == glm::vec3{0.0f, 0.0f, -1.0f});
+	const Sim::Snapshot snapshot = Sim::Capture(world);
+	REQUIRE(snapshot.Get<Thrust>(ship));
+	CHECK(snapshot.Get<Thrust>(ship)->linear.z == -1.0f);
+
+	// Held at 150 m/s, still full ahead, nothing slows it, so nothing fires.
+	Steps(world, 600);
+	CHECK(VelocityOf(world, ship).linear.z == doctest::Approx(-150.0).epsilon(1e-5));
+	CHECK(fired() == Thrust{});
+
+	// Let go, assist brakes it astern with all of the 15 m/s^2 its reverse has, and turning, it fires
+	// about the axis it turns about.
+	Fly(world, ship, {{0.0f, 0.0f, 0.0f}, {0.0f, 0.5f, 0.0f}});
+	Steps(world, 1);
+	CHECK(fired().linear.z == 1.0f);
+	CHECK(fired().angular.y == 1.0f);
+
+	// What the flight model no longer flies fires nothing, and has no thrust.
+	world.Registry().remove<Physics::Velocity>(ship);
+	world.Registry().remove<Physics::Body>(ship);
+	Steps(world, 1);
+	CHECK_FALSE(world.Registry().all_of<Thrust>(ship));
 }
 
 TEST_CASE("Flight: without assist, a demand is an acceleration, and a ship let go coasts")

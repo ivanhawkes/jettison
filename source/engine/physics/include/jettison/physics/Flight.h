@@ -63,6 +63,25 @@ struct SetFlightControls
 	FlightControls controls;
 };
 
+// What a ship's thrusters fired over the last step, for presentation to show (its plumes and the
+// glow of its nozzles): along and about each of the ship's axes, the share of that way's thrust it
+// took, from -1 to 1, signed as FlightControls' demands are (full ahead is linear.z = -1, the nose
+// pitching up angular.x = 1). It is what changed the ship's velocity, not what was asked: a ship
+// held at a constant velocity, in space, which has nothing to slow it, fires nothing whatever its
+// throttle. Written by the flight model for every ship it flies, and taken from one it no longer
+// does (clamped to a pad, cruising, on a lane).
+//
+// Not state: nothing in the simulation reads it, and the world neither registers, saves nor hashes
+// it, since each step makes it again from what is; a world loaded shows it from its first step on.
+// Shown in snapshots.
+struct Thrust
+{
+	glm::vec3 linear{0.0f};
+	glm::vec3 angular{0.0f};
+
+	bool operator==(const Thrust &) const = default;
+};
+
 inline constexpr std::string_view kFlightSystemName = "flight";
 
 // The flight model's step, which PhysicsWorld::Attach registers as the system "flight", before
@@ -70,6 +89,7 @@ inline constexpr std::string_view kFlightSystemName = "flight";
 // body) has its velocity changed by what its thrusters do over the step, and physics then steps it
 // with that velocity, so a ship flown into a station meets it as any body would. Every ship's change
 // is worked out before any is applied, so a ship whose reference is another ship sees that ship's
-// velocity as the step began.
+// velocity as the step began. Each ship flown has its Thrust written, and one with a Thrust that was
+// not flown has it taken away.
 void StepFlight(entt::registry &registry, double fixedStep);
 } // namespace Jettison::Physics

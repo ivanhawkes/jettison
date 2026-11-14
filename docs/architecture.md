@@ -1319,9 +1319,19 @@ same in any, and a smoky one is soft enough that its order shows little, which a
 would fix. Nor are they soft where they meet a surface, which wants the depth the opaque pass is
 still writing.
 
-The shell gives each ship proxy of the simulation's a plume at each nozzle, as dense and bright as
-its flight controls ask for ahead (`ShowEngines`; physics shows `FlightControls` in the snapshots for
-it), and a jump its streaks: an emitter kept ahead of the camera, sending them past it as the effect
+The shell shows each ship proxy of the simulation's firing its thrusters (`ShipThrusters`,
+`ShowThrust`, `app/src/Dressing.h`): a plume at each engine nozzle, and a manoeuvring jet at each of
+its ports, a cluster each side of its bow and stern firing out to that side, up and down, and the
+bow's forward to push it astern. What lights them is what the thrusters fired, not what the controls
+asked: the flight model writes each ship's `Physics::Thrust` every step, the share of each axis's
+thrust that changed its velocity, which a snapshot carries and the world neither saves nor hashes,
+since nothing in the simulation reads it. A ship holding its speed in space, where nothing slows it,
+fires nothing whatever its throttle, and one holding station against a planet's pull fires a little
+all the time. An engine fires as the thrust ahead; a jet as far as its push is along the thrust fired
+and the turn it makes about the hull's middle is along the turn fired, so any layout of ports lights
+right. Each nozzle glows dimly at rest and warms towards how hard it fires over about a second,
+cooling over two and a half (its mesh's colour, on the unlit engine material), so a burn's nozzles
+are seen hot for a moment after it. A jump gets its streaks: an emitter kept ahead of the camera, sending them past it as the effect
 rises and lifts, which then passes through a blue-white flash on its way to black and back. The
 streaks' emitter is placed after the camera's rig has moved it, its world transform written then:
 the camera moves tens of kilometres a second with the system's bodies, and an emitter placed by the

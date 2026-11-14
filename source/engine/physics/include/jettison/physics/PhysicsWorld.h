@@ -190,9 +190,10 @@ class PhysicsWorld final : public Sim::WorldService
 
 	// Makes a physics world and gives it to the simulation world, which owns it from then on:
 	// registers Body, Velocity, OnRails, Thrusters and FlightControls as components, the
-	// SetFlightControls and Pick commands, the service, and the "flight" and "physics" systems. The
-	// game registers Sim::Transform and Sim::InSystem itself, as it always does. Throws
-	// std::logic_error as SimWorld's registrations do, for one already made.
+	// SetFlightControls and Pick commands, the service, and the "flight" and "physics" systems, and
+	// shows Thrust (Flight.h) in the snapshots. The game registers Sim::Transform and Sim::InSystem
+	// itself, as it always does. Throws std::logic_error as SimWorld's registrations do, for one
+	// already made.
 	static PhysicsWorld &Attach(Sim::SimWorld &world, const PhysicsSettings &settings = {});
 
 	~PhysicsWorld() override;
