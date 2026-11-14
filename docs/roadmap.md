@@ -54,6 +54,16 @@ The order book, the economy's turns and the scripted rules ([sample
 game](sample-game.md#what-comes-next)), and the space they are played in: a system crossed at its
 own scale, gates flown through, traders that react, and mods a player can choose between.
 
+- **A ship undocked by its pilot may never be let go** (seen 2026-11-14, under 13e; look into it
+  before 13d, whose helm meets it). In the shell under Xvfb, `render_test --run "pilot chase" --run
+  "undock"` on the orbit scene: the clamps of Highport's pad 1 let the ship go and it lifts, 10.8
+  m/s after two-thirds of a second, then holds 20.0 m/s between 220 and 257 m from the station's
+  centre for more than 30 s, no "gives up its pad" in the log, and holding W changes nothing. Not
+  yet known whether the docks' leaving stage never reaches the point above the pad (its arrival
+  radius or speed never met, or the point moving with the station), so the docks keep flying the
+  ship and their controls replace the pilot's; or whether the pilot's controls are lost another
+  way. Reproduce, then find which, and test it in the dock suite (a ship released with `fly` lifts
+  to the point above its pad, gives the pad up, and answers its pilot's controls).
 - **The sample game's later slices** ([sample game](sample-game.md)): a player's fleet, a ship
   bought and the helm of one of them (13d); ManifestCore's order book, which the traders (9f) post to once
   they trade by orders; the economy's turns and the skill tree's effects, then scripting (11).
