@@ -42,6 +42,7 @@ lanes:
       system: Middle
       jumpPoint: East Gate
     transitSeconds: 45
+    toll: 6000
   - a:
       system: Middle
       jumpPoint: South Gate
@@ -110,6 +111,9 @@ TEST_CASE("Galaxy: read, and each lane's ends resolved to their systems")
 	CHECK(galaxy.lanes[1].a.systemIndex == 2);
 	CHECK(galaxy.lanes[1].b.systemIndex == 1);
 	CHECK(galaxy.lanes[2].transitSeconds == 0.0);
+	// A lane names its toll, or is free.
+	CHECK(galaxy.lanes[1].toll == 6000);
+	CHECK(galaxy.lanes[0].toll == 0);
 }
 
 TEST_CASE("Galaxy: a system's exits are its lanes in the galaxy's order, seen from its end")
@@ -128,6 +132,7 @@ TEST_CASE("Galaxy: a system's exits are its lanes in the galaxy's order, seen fr
 	CHECK(middle[1].jumpPoint == "East Gate");
 	CHECK(middle[1].destination == 2);
 	CHECK(middle[1].arrival == "Far Gate");
+	CHECK(middle[1].toll == 6000);
 	CHECK(middle[2].jumpPoint == "South Gate");
 	CHECK(middle[2].destination == 3);
 
@@ -188,6 +193,7 @@ TEST_CASE("Galaxy: a graph that does not hold is refused, naming the system or t
 	refuses(Replace(kGalaxy, "jumpPoint: Far Gate", "jumpPoint: \"\""), "names no jump point in 'Far'");
 	refuses(
 	    Replace(kGalaxy, "transitSeconds: 45", "transitSeconds: -1"), "has a negative transit time");
+	refuses(Replace(kGalaxy, "toll: 6000", "toll: -1"), "has a negative toll");
 	refuses("version: 1\nname: Empty\nsystems: []\nlanes: []\n", "lists no systems");
 }
 
@@ -233,4 +239,7 @@ TEST_CASE("Galaxy: the sample galaxy in the assets reads, and every lane ends at
 	REQUIRE(Exits(galaxy, 0).size() == 1);
 	CHECK(galaxy.systems[Exits(galaxy, 0)[0].destination].name == "Vesper");
 	CHECK(Exits(galaxy, 1).size() == 2);
+	// The star gates' lane is dearer than the moon gates'.
+	CHECK(galaxy.lanes[0].toll == 2000);
+	CHECK(galaxy.lanes[1].toll == 6000);
 }

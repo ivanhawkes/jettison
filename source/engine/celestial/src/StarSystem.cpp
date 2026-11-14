@@ -228,6 +228,13 @@ glm::dquat JumpPointFacing(const StarSystem &system, std::size_t body, double si
 	return glm::quatLookAtRH(ahead, up);
 }
 
+glm::dquat BodyOrientation(const StarSystem &system, std::size_t body, double simSeconds)
+{
+	return system.bodies.at(body).kind == BodyKind::JumpPoint
+	           ? JumpPointFacing(system, body, simSeconds)
+	           : Orientation(system.bodies[body].rotation, simSeconds);
+}
+
 double PresentationTime(double previousSimSeconds, double currentSimSeconds, double alpha)
 {
 	return previousSimSeconds + (currentSimSeconds - previousSimSeconds) * alpha;

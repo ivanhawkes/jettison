@@ -128,11 +128,10 @@ void PlaceCelestialBodies(
 		const auto body = static_cast<std::size_t>(index);
 		// A jump point's ring lies in its own XZ plane, so it is stood up on its X axis to face the
 		// way the jump point does, as a ship leaving it does.
-		const glm::dquat orientation =
-		    system.bodies[body].kind == BodyKind::JumpPoint
-		        ? Celestial::JumpPointFacing(system, body, simSeconds) *
-		              glm::angleAxis(-glm::half_pi<double>(), glm::dvec3{1.0, 0.0, 0.0})
-		        : Celestial::Orientation(system.bodies[body].rotation, simSeconds);
+		glm::dquat orientation = Celestial::BodyOrientation(system, body, simSeconds);
+		if (system.bodies[body].kind == BodyKind::JumpPoint)
+			orientation =
+			    orientation * glm::angleAxis(-glm::half_pi<double>(), glm::dvec3{1.0, 0.0, 0.0});
 		presentation.emplace_or_replace<PlacementComponent>(
 		    entity, Celestial::EvaluateBody(system, body, simSeconds).metres, orientation,
 		    system.bodies[body].radius);

@@ -1,6 +1,8 @@
 #include <jettison/ai/Lanes.h>
 
 #include <jettison/ai/Cruise.h>
+#include <jettison/ai/Gates.h>
+#include <jettison/ai/Steering.h>
 
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
@@ -99,6 +101,8 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 	    world.Clock().Step() + Detail::TransitSteps(exit->transitSeconds, world.FixedStep())};
 	registry.emplace_or_replace<OnLane>(command.entity, lane);
 	registry.replace<Sim::InSystem>(command.entity, Sim::kNoSystem);
+	// Where it was going is in the system it left.
+	registry.remove<Destination>(command.entity);
 	world.Events().Emit(LaneEntered{command.entity, lane, exit->transitSeconds});
 }
 
@@ -139,9 +143,9 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		const bool atStation =
 		    parent >= 0 &&
 		    starSystem.bodies[static_cast<std::size_t>(parent)].kind == Celestial::BodyKind::Station;
+		const glm::dquat facing = Celestial::JumpPointFacing(starSystem, body, endsAt);
 		places.push_back(
-		    {{Celestial::EvaluateBody(starSystem, body, endsAt).metres,
-		      Celestial::JumpPointFacing(starSystem, body, endsAt)},
+		    {{Celestial::EvaluateBody(starSystem, body, endsAt).metres, facing},
 		     atStation ? starSystem.bodies[static_cast<std::size_t>(parent)].name : lane.arrival});
 	}
 
@@ -160,6 +164,9 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		const std::uint64_t to = registry.get<const OnLane>(arriving[index]).to;
 		const double radius = m_physics.ShapeRadius(body->shape);
 		Sim::Transform &place = places[index].transform;
+		// Out ahead of the ring, clear of its sensor, so the gate does not see it pass through.
+		place.position += place.orientation *
+		                  glm::dvec3{0.0, 0.0, -(Gates::kRingDepth / 2.0 + radius + kArrivalClearance)};
 		place.position = Detail::ClearPlace(occupants, to, place, radius, kArrivalClearance);
 		occupants.push_back({to, place.position, radius});
 	}

@@ -21,6 +21,7 @@
 
 #include <jettison/ai/BehaviourTree.h>
 #include <jettison/ai/Cruise.h>
+#include <jettison/ai/Gates.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/UtilityAi.h>
@@ -62,6 +63,7 @@ struct Galaxy
 	Physics::PhysicsWorld &physics{Setup(world)};
 	Ai::LaneTravel &lanes{Ai::LaneTravel::Attach(world, physics)};
 	Ai::CruiseTravel &cruises{Ai::CruiseTravel::Attach(world, physics)};
+	Ai::Gates &gates{Ai::Gates::Attach(world, physics, lanes)};
 	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
@@ -101,9 +103,11 @@ struct Galaxy
 			systems.push_back(Celestial::ReadStarSystem(ReadAsset(entry.system)));
 			lanes.DefineStarSystem(systems.back());
 			cruises.DefineStarSystem(systems.back());
+			gates.DefineStarSystem(systems.back());
 			physics.DefineStarSystem(systems.back());
 		}
 		lanes.SetGalaxy(std::move(galaxy));
+		App::ChargeTolls(gates);
 		App::RegisterTraders(
 		    world, behaviours, physics, lanes, systems,
 		    *definitions.Find<Ai::DecisionDefinition>(App::kTradeDecision), pScripts.get());
@@ -112,6 +116,7 @@ struct Galaxy
 			return;
 
 		App::OpenStations(world, docks, systems);
+		App::OpenGates(world, gates, systems);
 		for (const entt::entity entity : App::OpenMarkets(world, definitions))
 		{
 			App::Market &market = world.Registry().get<App::Market>(entity);
@@ -171,7 +176,7 @@ TEST_CASE(
 {
 	Galaxy galaxy;
 	CHECK(galaxy.behaviours.HasTree(App::kTraderTree));
-	CHECK(galaxy.behaviours.NodeCount(App::kTraderTree) == 33);
+	CHECK(galaxy.behaviours.NodeCount(App::kTraderTree) == 35);
 	REQUIRE(galaxy.traders.size() == 7);
 	const entt::registry &registry = galaxy.world.Registry();
 	for (const entt::entity ship : galaxy.traders)
@@ -327,7 +332,7 @@ TEST_CASE(
 			    galaxy.physics.ShapeRadius(registry.get<Physics::Body>(arrived).shape);
 			for (const auto [other, body, inSystem, transform] :
 			     registry.view<const Physics::Body, const Sim::InSystem, const Sim::Transform>().each())
-				if (other != arrived && inSystem.system == system)
+				if (other != arrived && inSystem.system == system && !body.sensor)
 					tightest = std::min(
 					    tightest,
 					    glm::distance(
@@ -413,6 +418,32 @@ TEST_CASE(
 	CHECK(galaxy.Events<App::TradeRefused>().empty());
 	CHECK(galaxy.Events<Dock::PadRefused>().empty());
 	CHECK(galaxy.Events<Ai::LaneRefused>().empty());
+	// Every lane was entered through a gate's ring, its ship cleared and its owner charged the toll;
+	// no clearance was refused or lapsed, and no ship flew through a ring it was not cleared through.
+	const std::vector<Ai::TransitSent> sent = galaxy.Events<Ai::TransitSent>();
+	CHECK(sent.size() == galaxy.Events<Ai::LaneEntered>().size());
+	std::int64_t tolls = 0;
+	for (const Ai::TransitSent &transit : sent)
+	{
+		CHECK(transit.toll > 0);
+		tolls += transit.toll;
+	}
+	CHECK(galaxy.Events<Ai::TransitRefused>().empty());
+	CHECK(galaxy.Events<Ai::TransitLapsed>().empty());
+	CHECK(galaxy.Events<Ai::GatePassed>().empty());
+	// How long a clearance waited to be flown through, against the two minutes it is held for.
+	std::map<entt::entity, std::uint64_t> clearedAt;
+	std::uint64_t longestFlight = 0;
+	for (const Sim::SimEvent &event : galaxy.events)
+		if (const auto *cleared = event.event.try_cast<Ai::TransitCleared>())
+			clearedAt[cleared->ship] = event.step;
+		else if (const auto *through = event.event.try_cast<Ai::TransitSent>())
+			longestFlight = std::max(longestFlight, event.step - clearedAt.at(through->ship));
+	MESSAGE(
+	    sent.size(), " ships sent through the gates for ", tolls, " credits of tolls, ",
+	    galaxy.Events<Ai::TransitQueued>().size(),
+	    " waiting their turn; the longest from cleared to sent ",
+	    static_cast<double>(longestFlight) * kStep, " s");
 	// Every ship crossed a system by cruise, in both directions of each run, and never was refused;
 	// every arrival, by cruise or lane, came out clear of the ships there.
 	CHECK(galaxy.Events<Ai::CruiseStarted>().size() >= 2 * runs);
@@ -473,5 +504,5 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release.
-	CHECK(original.world.StateHash() == 0xb84ccd89f6ba5ea8ULL);
+	CHECK(original.world.StateHash() == 0x5546eebbec058964ULL);
 }

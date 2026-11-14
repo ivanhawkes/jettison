@@ -46,6 +46,9 @@ struct JumpLane
 	LaneEnd b;
 	// Simulation seconds between entering one end and leaving the other.
 	double transitSeconds{0.0};
+	// What a ship's owner is charged to enter it, in whole credits, the game's currency (ai/Gates.h):
+	// none for a free lane.
+	std::int64_t toll{0};
 };
 
 struct Galaxy
@@ -70,6 +73,7 @@ struct Exit
 	std::size_t destination{0};
 	std::string_view arrival;
 	double transitSeconds{0.0};
+	std::int64_t toll{0};
 };
 
 // Registers GalaxySystem, LaneEnd, JumpLane and Galaxy with Reflect. Idempotent.
@@ -82,9 +86,9 @@ inline constexpr std::uint32_t kGalaxyFormatVersion = 1;
 // galaxy built in code both go through: at least one system; system names unique and not empty;
 // every path a virtual path; each lane's ends in systems the galaxy lists, two different systems,
 // each naming a jump point; no jump point the end of two lanes, so a jump point says where it
-// leads; transit times not negative. Throws Serialise::FormatError naming the galaxy and the system
-// or the lane. Whether each jump point is one in its system's file is CheckJumpPoints', since this
-// reads no system file.
+// leads; transit times and tolls not negative. Throws Serialise::FormatError naming the galaxy and
+// the system or the lane. Whether each jump point is one in its system's file is CheckJumpPoints',
+// since this reads no system file.
 void Resolve(Galaxy &galaxy);
 
 // A galaxy file (YAML, through Serialise::YamlArchive) read and resolved, and its writer.

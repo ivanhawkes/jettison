@@ -1,5 +1,6 @@
 #include "Systems.h"
 
+#include <jettison/ai/Gates.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -156,15 +157,21 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	const Celestial::StarSystem vesper = AiTests::Vesper();
 	const double arrivedAt = fixture.world.Clock().Now();
 	const auto gate = static_cast<std::size_t>(vesper.Find("Vesper Gate"));
-	CHECK(registry.get<Sim::Transform>(ship).position == Where(vesper, "Vesper Gate", arrivedAt));
+	// Ahead of the ring, clear of its sensor by its hull and the clearance, looking the way it faces.
+	const glm::dquat facing = Celestial::JumpPointFacing(vesper, gate, arrivedAt);
+	const double outAhead = Ai::Gates::kRingDepth / 2.0 + fixture.physics.ShapeRadius("hull") +
+	                        Ai::LaneTravel::kArrivalClearance;
 	CHECK(
-	    registry.get<Sim::Transform>(ship).orientation ==
-	    Celestial::JumpPointFacing(vesper, gate, arrivedAt));
+	    glm::distance(
+	        registry.get<Sim::Transform>(ship).position,
+	        Where(vesper, "Vesper Gate", arrivedAt) + facing * glm::dvec3{0.0, 0.0, -outAhead}) < 1e-6);
+	CHECK(registry.get<Sim::Transform>(ship).orientation == facing);
 	// At rest, whatever it entered the far gate at.
 	CHECK(registry.get<Physics::Velocity>(ship) == Physics::Velocity{});
 
-	// Physics makes its body in the refinery's frame in the next step, and it stays at the gate,
-	// 5 km from the refinery and looking at it, rather than flying on at 50 m/s.
+	// Physics makes its body in the refinery's frame in the next step, and it stays where it came
+	// out, 60 m ahead of the gate, 5 km from the refinery and looking at it, rather than flying on at
+	// 50 m/s.
 	fixture.Run(60);
 	CHECK(fixture.physics.BodyCount(kVesper) == 1);
 	CHECK(fixture.physics.FrameCount(kVesper) == 1);
@@ -172,9 +179,15 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	const double time = fixture.world.Clock().Now();
 	// The gate turns about the refinery with the refinery's orbit, 5 km x 2 pi in 29 206 s, 1.08 m/s
 	// in the refinery's frame, which does not turn; the ship is still in it.
-	CHECK(glm::length(now - Where(vesper, "Vesper Gate", time)) == doctest::Approx(1.08).epsilon(0.02));
+	const glm::dvec3 cameOut =
+	    Where(vesper, "Vesper Gate", arrivedAt) + facing * glm::dvec3{0.0, 0.0, -outAhead};
+	CHECK(
+	    glm::length(
+	        (now - Where(vesper, "Vesper Gate", time)) -
+	        (cameOut - Where(vesper, "Vesper Gate", arrivedAt))) ==
+	    doctest::Approx(1.08).epsilon(0.02));
 	const glm::dvec3 toRefinery = Where(vesper, "Corva Refinery", time) - now;
-	CHECK(glm::length(toRefinery) == doctest::Approx(5000.0).epsilon(0.01));
+	CHECK(glm::length(toRefinery) == doctest::Approx(5000.0 - outAhead).epsilon(0.01));
 	const glm::dvec3 ahead =
 	    registry.get<Sim::Transform>(ship).orientation * glm::dvec3{0.0, 0.0, -1.0};
 	CHECK(glm::dot(ahead, glm::normalize(toRefinery)) > 0.999);
@@ -302,7 +315,7 @@ TEST_CASE(
 
 	const Celestial::StarSystem vesper = AiTests::Vesper();
 	const auto at = [&](entt::entity ship) { return registry.get<Sim::Transform>(ship).position; };
-	// The first at the gate's centre, as a ship alone would be; the second on the first ring,
+	// The first ahead of the ring, as a ship alone would be; the second on the first ring about it,
 	// across the way the gate faces, a hull's breadth and the clearance out.
 	const double hull = fixture.physics.ShapeRadius("hull");
 	const double spacing = 2.0 * hull + Ai::LaneTravel::kArrivalClearance;
@@ -312,7 +325,8 @@ TEST_CASE(
 	    vesper, static_cast<std::size_t>(vesper.Find("Vesper Gate")), arrived);
 	CHECK(glm::distance(at(second), at(first)) == doctest::Approx(spacing).epsilon(0.01));
 	CHECK(std::abs(glm::dot(at(second) - at(first), facing * glm::dvec3{0.0, 0.0, -1.0})) < 0.5);
-	CHECK(glm::distance(at(first), gate) < 1e-3);
+	const double ahead = Ai::Gates::kRingDepth / 2.0 + hull + Ai::LaneTravel::kArrivalClearance;
+	CHECK(glm::distance(at(first), gate + facing * glm::dvec3{0.0, 0.0, -ahead}) < 1e-3);
 
 	fixture.Run(60);
 	REQUIRE(fixture.SystemOf(third) == kVesper);

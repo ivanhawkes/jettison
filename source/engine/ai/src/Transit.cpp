@@ -16,7 +16,7 @@ std::vector<Occupant> Occupants(
 	std::vector<Occupant> occupants;
 	for (const auto [entity, body, inSystem, transform] :
 	     registry.view<const Physics::Body, const Sim::InSystem, const Sim::Transform>().each())
-		if (std::ranges::find(systems, inSystem.system) != systems.end())
+		if (!body.sensor && std::ranges::find(systems, inSystem.system) != systems.end())
 			occupants.push_back({inSystem.system, transform.position, physics.ShapeRadius(body.shape)});
 	return occupants;
 }

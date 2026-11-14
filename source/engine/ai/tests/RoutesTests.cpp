@@ -64,7 +64,8 @@ double Length(const Ai::Course &course)
 
 TEST_CASE("Routes: across the sample galaxy, end to end and back, by its lanes")
 {
-	const Celestial::Galaxy galaxy = AiTests::Sample();
+	Celestial::Galaxy galaxy = AiTests::Sample();
+	galaxy.lanes[1].toll = 6000;
 
 	const auto out = Ai::PlotRoute(galaxy, {0, ""}, {2, ""});
 	REQUIRE(out);
@@ -77,6 +78,9 @@ TEST_CASE("Routes: across the sample galaxy, end to end and back, by its lanes")
 	CHECK(out->jumps[1].jumpPoint == "Vesper Deep Gate");
 	CHECK(out->jumps[1].destination == 2);
 	CHECK(out->jumps[1].arrival == "Marrow Gate");
+	// Each with its lane's toll.
+	CHECK(out->jumps[0].toll == 0);
+	CHECK(out->jumps[1].toll == 6000);
 
 	const auto back = Ai::PlotRoute(galaxy, {2, ""}, {0, ""});
 	REQUIRE(back);

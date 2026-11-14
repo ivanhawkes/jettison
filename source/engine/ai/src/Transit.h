@@ -36,7 +36,8 @@ struct Occupant
 	double radius{0.0};
 };
 
-// Every entity with a Physics::Body in one of the systems.
+// Every entity with a Physics::Body in one of the systems, but a sensor, which nothing meets: a
+// gate's ring, which a ship comes out ahead of.
 std::vector<Occupant> Occupants(
     const entt::registry &registry, const Physics::PhysicsWorld &physics,
     std::span<const std::uint64_t> systems);

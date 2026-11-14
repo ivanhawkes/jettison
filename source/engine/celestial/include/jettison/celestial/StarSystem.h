@@ -90,6 +90,11 @@ SystemPosition EvaluateBody(const StarSystem &system, std::size_t body, double s
 // not a jump point; the system has to be resolved.
 glm::dquat JumpPointFacing(const StarSystem &system, std::size_t body, double simSeconds);
 
+// Which way a body is turned at a simulation time: a jump point the way it faces (JumpPointFacing),
+// and every other body as it spins (Orientation). What an entity on a body's rails turns with, so a
+// gate's ring (ai/Gates.h) faces as the gate does.
+glm::dquat BodyOrientation(const StarSystem &system, std::size_t body, double simSeconds);
+
 // The time presentation shows between two simulation steps. A body on rails is evaluated at the
 // interpolated time, not lerped between the positions the steps put it at, so it is on its orbit
 // at every frame and every body shown is shown at the same moment.

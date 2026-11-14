@@ -16,6 +16,7 @@
 
 #include <jettison/ai/BehaviourTree.h>
 #include <jettison/ai/Cruise.h>
+#include <jettison/ai/Gates.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
@@ -41,9 +42,9 @@ using Ai::TaskContext;
 
 constexpr Core::Category kTraderLog{"traders"};
 
-// How near a gate's centre a trader is when it goes through: well inside its 500 m ring, still
-// moving, as a ship flying through it is.
-constexpr double kGateReach = 150.0;
+// How far out along a gate's axis a trader lines up before it flies through the ring, and how far
+// beyond the ring it aims: the gate sends it as it passes, and it never gets there.
+constexpr double kRingApproach = 400.0;
 // How far a trader holds off a station's sphere while it waits its turn for a pad, and how far apart
 // along the line across it each place in the queue waits.
 constexpr double kHoldingOff = 400.0;
@@ -125,7 +126,8 @@ class Round
 		task("leave", &Round::Leave);
 		task("jumps-left", &Round::JumpsLeft);
 		task("cruise", &Round::CruiseTo);
-		task("fly-to-gate", &Round::FlyToGate);
+		task("clear", &Round::ClearGate);
+		task("fly-through", &Round::FlyThrough);
 		task("jump", &Round::Jump);
 		task("dock", &Round::RequestDock);
 		task("trade", &Round::MakeTrade);
@@ -180,10 +182,16 @@ class Round
 					runs.push_back({held.good, entt::null, sellAt, held.crates, 0, sold->bid});
 		}
 
-		// The run's time: from where the ship is to the market it buys at, and on to where it sells,
-		// over the lanes and across each system by course, with a stop at each; worked out only
-		// for a run still in the reckoning, and once for each pair of places.
-		std::map<std::pair<std::string, std::string>, double> legs;
+		// The run's time and tolls: from where the ship is to the market it buys at, and on to where it
+		// sells, over the lanes and across each system by course, with a stop at each; worked out only
+		// for a run still in the reckoning, and once for each pair of places. A leg no route makes
+		// takes no time.
+		struct Leg
+		{
+			double seconds{-1.0};
+			std::int64_t tolls{0};
+		};
+		std::map<std::pair<std::string, std::string>, Leg> legs;
 		std::optional<Ai::CrossingCost> crossing;
 		const Ai::Place here = PlaceOf(registry, context.entity);
 		const auto leg = [&](const Ai::Place &from, const Ai::Place &to)
@@ -196,9 +204,9 @@ class Round
 				crossing = Crossing(context.world, context.entity);
 			const std::optional<Ai::Route> route =
 			    Ai::PlotRoute(*m_lanes.Galaxy(), from, to, *crossing);
-			const double seconds = route ? route->seconds + kStopSeconds : -1.0;
-			legs.emplace(key, seconds);
-			return seconds;
+			const Leg found = route ? Leg{route->seconds + kStopSeconds, Tolls(*route)} : Leg{};
+			legs.emplace(key, found);
+			return found;
 		};
 		const auto rivals = [&](const Run &run)
 		{
@@ -226,24 +234,25 @@ class Round
 				if (input == "rate")
 				{
 					const Ai::Place sell = MarketPlace(registry, run.sellAt);
-					double seconds = 0.0;
+					Leg whole;
 					if (run.buyAt != entt::null)
 					{
 						const Ai::Place buy = MarketPlace(registry, run.buyAt);
-						const double there = leg(here, buy);
-						const double on = leg(buy, sell);
-						if (there < 0.0 || on < 0.0)
+						const Leg there = leg(here, buy);
+						const Leg on = leg(buy, sell);
+						if (there.seconds < 0.0 || on.seconds < 0.0)
 							return 0.0;
-						seconds = there + on;
+						whole = {there.seconds + on.seconds, there.tolls + on.tolls};
 					}
 					else
 					{
-						seconds = leg(here, sell);
-						if (seconds < 0.0)
+						whole = leg(here, sell);
+						if (whole.seconds < 0.0)
 							return 0.0;
 					}
-					const std::int64_t gain = run.crates * (run.bid - run.ask);
-					return static_cast<double>(gain) / std::max(seconds, 1.0);
+					// What the run clears, the lanes' tolls paid.
+					const std::int64_t gain = run.crates * (run.bid - run.ask) - whole.tolls;
+					return static_cast<double>(gain) / std::max(whole.seconds, 1.0);
 				}
 				throw std::invalid_argument{std::format(
 				    "The trade decision asks for '{}', which a trader does not know", input)};
@@ -330,42 +339,50 @@ class Round
 		                                                                          : Status::Success;
 	}
 
-	// Flies to the next gate on the route, round the station the ship leaves, and succeeds once it is
-	// within reach of the gate's centre. The gate turns about its station with the station's orbit,
-	// a few metres a second in the station's frame, so the ship aims again as it closes.
-	Status FlyToGate(TaskContext &context) const
+	// Asks the next gate on the route to clear the ship through it, and waits where its cruise left
+	// it while the ships before it in the gate's queue go through. Succeeds once it is cleared, and
+	// fails if it is refused, or its place is given up.
+	Status ClearGate(TaskContext &context) const
 	{
 		entt::registry &registry = context.world.Registry();
 		const Trader &trader = registry.get<Trader>(context.entity);
-		const auto *frame = registry.try_get<Physics::LocalFrame>(context.entity);
-		if (trader.jumps.empty() || !frame)
+		if (trader.jumps.empty())
 			return Status::Failure;
-		const std::uint64_t system = registry.get<Sim::InSystem>(context.entity).system;
-		const Celestial::StarSystem *starSystem = SystemOf(system);
-		const int gate = starSystem ? starSystem->Find(trader.jumps.front()) : -1;
-		if (gate < 0)
+		const entt::entity gate = Ai::Gates::FindGate(
+		    registry, registry.get<Sim::InSystem>(context.entity).system, trader.jumps.front());
+		if (gate == entt::null)
 			return Status::Failure;
-		const double now = context.world.Clock().Now();
-		const glm::dvec3 at = registry.get<Sim::Transform>(context.entity).position;
-		const glm::dvec3 target =
-		    Celestial::EvaluateBody(*starSystem, static_cast<std::size_t>(gate), now).metres;
-		if (glm::distance(at, target) < kGateReach)
+		if (context.starting && !registry.all_of<Ai::Transit>(context.entity))
+			context.world.Apply(
+			    Ai::RequestTransit{SenderOf(registry, context.entity), context.entity, gate});
+		const auto *transit = registry.try_get<Ai::Transit>(context.entity);
+		if (!transit || transit->gate != gate)
+			return Status::Failure;
+		return transit->cleared ? Status::Success : Status::Running;
+	}
+
+	// Flies through the ring of the gate the ship is cleared through, which sends it along the lane:
+	// in along the ring's axis from the side the ship is on, and on through towards the far side.
+	// Succeeds once the gate has sent it, and fails if its clearance lapses or it passed through
+	// unsent.
+	Status FlyThrough(TaskContext &context) const
+	{
+		entt::registry &registry = context.world.Registry();
+		if (registry.all_of<Ai::OnLane>(context.entity))
 			return Status::Success;
-		const glm::dvec3 origin = m_physics.FrameOrigin(system, frame->body, now);
-
-		const auto *destination = registry.try_get<Ai::Destination>(context.entity);
-		const bool coursed = destination && destination->next >= destination->waypoints.size();
-		if (!context.starting && destination && destination->entity == entt::null &&
-		    (!coursed || glm::distance(destination->offset, target - origin) < 25.0))
+		const auto *transit = registry.try_get<Ai::Transit>(context.entity);
+		if (!transit || !transit->cleared)
+			return Status::Failure;
+		if (!context.starting && registry.all_of<Ai::Destination>(context.entity))
 			return Status::Running;
-
+		// In the gate's frame, where its cruise left it, whose origin is the gate.
+		const Sim::Transform &ring = registry.get<Sim::Transform>(transit->gate);
+		const glm::dvec3 axis = ring.orientation * glm::dvec3{0.0, 1.0, 0.0};
+		const glm::dvec3 at = registry.get<Sim::Transform>(context.entity).position;
+		const double side = glm::dot(at - ring.position, axis) < 0.0 ? -1.0 : 1.0;
 		Ai::Destination flight;
-		flight.offset = target - origin;
-		// Round the station it leaves, the first time; later it only aims again.
-		if (context.starting || !destination)
-			if (const entt::entity station = FindStation(registry, system, frame->body);
-			    station != entt::null)
-				AddCourseRound(flight, registry, station, at, target, origin);
+		flight.waypoints.push_back(axis * (side * kRingApproach));
+		flight.offset = axis * (-side * kRingApproach);
 		context.world.Apply(Ai::SetDestination{context.entity, std::move(flight)});
 		return Status::Running;
 	}
@@ -467,22 +484,15 @@ class Round
 		return registry.all_of<Ai::Cruising>(context.entity) ? Status::Running : Status::Failure;
 	}
 
-	// Through the gate: along its lane, and out at the far end.
+	// Along the lane the gate sent the ship down, and out at the far end.
 	Status Jump(TaskContext &context) const
 	{
 		entt::registry &registry = context.world.Registry();
 		Trader &trader = registry.get<Trader>(context.entity);
-		if (context.starting)
-		{
-			if (trader.jumps.empty())
-				return Status::Failure;
-			context.world.Apply(Ai::ClearDestination{context.entity});
-			context.world.Apply(Ai::EnterLane{context.entity, trader.jumps.front()});
-			if (!registry.all_of<Ai::OnLane>(context.entity))
-				return Status::Failure;
-		}
 		if (registry.all_of<Ai::OnLane>(context.entity))
 			return Status::Running;
+		if (context.starting || trader.jumps.empty())
+			return Status::Failure;
 		trader.jumps.erase(trader.jumps.begin());
 		return Status::Success;
 	}
@@ -530,9 +540,17 @@ class Round
 			const MarketGood *good = FindGood(registry.get<Market>(market), trader.good);
 			if (!good)
 				return Status::Failure;
+			// What the route on to where it sells charges is kept back, so the ship can get there.
+			const std::optional<Ai::Route> route =
+			    m_lanes.Galaxy() && registry.valid(trader.sellAt)
+			        ? Ai::PlotRoute(
+			              *m_lanes.Galaxy(), PlaceOf(registry, context.entity),
+			              MarketPlace(registry, trader.sellAt), Crossing(context.world, context.entity))
+			        : std::nullopt;
+			const std::int64_t spend = before - (route ? Tolls(*route) : 0);
 			crates = std::min(
 			    {hold.capacity - hold.Used(), good->stock,
-			     before / std::max<std::int64_t>(good->ask, 1)});
+			     std::max<std::int64_t>(spend, 0) / std::max<std::int64_t>(good->ask, 1)});
 		}
 		else
 			crates = -hold.Crates(trader.good);
@@ -585,6 +603,15 @@ class Round
 		holding.entity = station;
 		holding.offset = out * (radius + kHoldingOff) + across * (place * kHoldingApart);
 		context.world.Apply(Ai::SetDestination{context.entity, std::move(holding)});
+	}
+
+	// The lanes' tolls along a route.
+	static std::int64_t Tolls(const Ai::Route &route)
+	{
+		std::int64_t tolls = 0;
+		for (const Celestial::Exit &exit : route.jumps)
+			tolls += exit.toll;
+		return tolls;
 	}
 
 	// The owner's credits, which the ship trades with.

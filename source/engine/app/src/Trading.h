@@ -10,6 +10,11 @@
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 
+namespace Jettison::Ai
+{
+class Gates;
+}
+
 namespace Jettison::Sim
 {
 class DefinitionRegistry;
@@ -229,9 +234,9 @@ struct TradeRefused
 	Sim::Reason reason;
 };
 
-// Why a trade is refused (Sim::Reason), each worded by the string tables under
-// reason.shell.<name>; the arguments, where there are any, follow. Registered with Reflect as
-// "Shell.Reason".
+// Why a trade is refused, or a gate will not clear a ship for its toll (Sim::Reason), each worded by
+// the string tables under reason.shell.<name>; the arguments, where there are any, follow. Registered
+// with Reflect as "Shell.Reason".
 enum class TradeReason : std::uint8_t
 {
 	NoCrates,
@@ -251,7 +256,9 @@ enum class TradeReason : std::uint8_t
 	TooDear,
 	// The crates of the good the hold has.
 	HoldShort,
-	SaleTooLarge
+	SaleTooLarge,
+	// The lane's toll, in credits.
+	ShortOfToll
 };
 
 inline constexpr std::string_view kMarketSystemName = "shell.market";
@@ -291,4 +298,9 @@ void TickMarkets(entt::registry &registry);
 // little room. A trade filled moves the good's galactic mean, which a world saved before there was
 // one is given then.
 void ApplyTrade(Sim::SimWorld &world, const Trade &trade);
+
+// The gates' toll rule as the sample plays it (Ai::TollRule): a lane's toll is drawn on the ship's
+// owner's purse as the ship enters it, and a gate clears no ship, and sends none through, whose owner
+// has no purse (TradeReason::NoOwner) or one short of the toll (TradeReason::ShortOfToll).
+void ChargeTolls(Ai::Gates &gates);
 } // namespace Jettison::App

@@ -65,11 +65,13 @@ modules, in the engine's style, and the game takes it over from there.
 | Stations that look like ports | Every pad painted (its outline, a centre line with chevrons to the bow, the keep-clear box over the hatch, its number) and floodlit from poles along its sides, a lamp on each pole green while the pad is free, amber while it is reserved and red while it holds a ship; the hub in the hull's plating, the piers in deck plating, and a door at each cargo bay. Highport's display wing, between two of its piers, shows a liner and a frigate on XL bays and four fighters on S pads beside them. Each class of hull has its own proxy: the shuttle, a transport of cargo pods behind a cab, the largest transport's racked containers under a bridge, and the display ships' long hulls. | 9d |
 | The plan's other ships, trading | Seven traders, five transports and two shuttles, parked at Highport and Corva at the start (`app/src/Traders.h`). Each chooses a run by utility (`assets/defs/decisions/trade.yaml`): a good bought at one market and sold at another, weighed by its margin, by how many rivals are after the same shelf, and by its credits a second over the route, which is plotted across the lanes only for a run still in the reckoning; or, with nothing worth flying, it waits. Its behaviour tree (`assets/defs/behaviours/trader.yaml`) then flies the run: off its pad, round the station and out of its reach, across the system to the gate by cruising, up to the gate and through it, across the next system to the market the same way, onto the pad the station gives it or, with every pad taken, held off the station in its place in the queue; the trade, and the wait while the buggies carry its crates. Corva's one free pad keeps a queue. They read the same markets the player does, so the player buys against them, and the console's `traders` says what each is doing and has made. | 9f |
 | A mod's rules as scripts | The smoke mod's script (`source/test/scripts/smoke.rs`, in Rust, as the shell's scripts are), from the user's mods: it hears each trade filled and says what it heard, and answers the traders' `crowding`, one over one and the rivals after the same shelf, which the mod's patch of `defs/decisions/trade.yaml` weighs a run by. The console's `scripts` says what each script loaded has done ([scripts](architecture.md#scripts)). | 11b |
+| Gates that clear a ship, for a toll | Each gate clears one ship at a time to fly through its ring, which sends the ship along its lane and charges its owner the lane's toll as it enters, 2,000 credits for the moon gates' hop and 6,000 for the star gates' (`assets/systems/galaxy.yaml`); the rest wait their turn, and a clearance not flown lapses after two minutes. A ship not cleared flies through the ring and on, charged nothing. The console's `transit` asks the gate whose frame the ship is in (`cruise Vesper Gate` brings it there), the flight panel counts the clearance down, and the scene jumps with the ship as the gate sends it. The traders ask at each gate on their route, wait their turn and fly through, and weigh a run's tolls in what it makes. J and the console's `jump` stay the tools' jump, past the gate and its toll. | 13c |
 | A system crossed at its own scale | The ship cruises to a body of its system: the console's `cruise <body>` takes the shuttle, flown more than 2 km clear of its station, from Highport to Pell, 393,000 km, in 56 s, out at rest 477 km above the moon and facing it, round Ostra when the planet is in the way; out of the lane at Vesper Gate to Corva, the gate 500,000 km off it, in about a minute; to Halcyon's star in four minutes. A ship arrives no nearer a planet than where its gravity is a gentle 1 m/s², which its assist holds against. Each hull's drive is its definition's (`assets/defs/hulls`), and the flight panel says where the ship is cruising to, how long is left, and then what it is off. The traders cruise as the ship does (13b): to each gate on their route and from the last to their market. | 13a, 13b |
 
 Two of the three stations are in Halcyon, a cruise apart, and the third is in Vesper, a lane away, so
 the arbitrage the screen shows between Ostra's grain and Corva's metal is one the player can fly: buy
-at Highport, jump, cruise from Vesper Gate to Corva Refinery, dock and sell; and one the traders fly too, so a shelf the
+at Highport, cruise to Halcyon Gate, be cleared through and fly it, cruise from Vesper Gate to
+Corva Refinery, dock and sell; and one the traders fly too, so a shelf the
 player means to empty may be empty when the player gets there.
 
 ## What comes next
@@ -79,8 +81,8 @@ Each slice lands with the engine system it exercises:
 - **A fleet.** Each player starts with one ship and buys another once their credits allow. They
   attach to any ship of their fleet to watch it go and to trade at the market it is docked at, and
   take the helm of one at a time; the rest fly by their own behaviours, as the traders do, for their
-  owner, whose credits they share ([decided](roadmap.md#decided)). A ship crosses a system by
-  cruising and passes a gate it has been cleared by, paying the lane's toll.
+  owner, whose credits they share ([decided](roadmap.md#decided)), cruising across systems and
+  cleared through the gates as the traders are.
 - **The order book.** ManifestCore's price-time book, with its order life and its fills, replaces the
   market maker here once traders post orders of their own: the traders of 9f, then the player. It is game code ([scope](scope.md)):
   the engine's part is that it is deterministic, saved, and bound to a screen.
@@ -91,5 +93,5 @@ Each slice lands with the engine system it exercises:
   as they arrive, the economy's turns and the order book's, each an input or a handler a mod's
   script answers.
 
-Not placed yet, from the plan: surveys, black and grey markets, insurance, privateers, gates of two
-kinds, and the station's services (refuelling, repairs, intel).
+Not placed yet, from the plan: surveys, black and grey markets, insurance, privateers, a gate's
+licence or standing, and the station's services (refuelling, repairs, intel).

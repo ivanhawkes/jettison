@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
+#include <jettison/ai/Gates.h>
 #include <jettison/core/Log.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/reflect/Reflect.h>
@@ -101,7 +103,8 @@ void RegisterTypes()
 		    .Value<TradeReason::NoRoom>("no_room")
 		    .Value<TradeReason::TooDear>("too_dear")
 		    .Value<TradeReason::HoldShort>("hold_short")
-		    .Value<TradeReason::SaleTooLarge>("sale_too_large");
+		    .Value<TradeReason::SaleTooLarge>("sale_too_large")
+		    .Value<TradeReason::ShortOfToll>("short_of_toll");
 		return true;
 	}();
 	(void)registered;
@@ -425,5 +428,22 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 	Dock::Carry(registry, trade.ship, trade.crates);
 	world.Events().Emit(
 	    Traded{trade.ship, trade.market, trade.good, trade.crates, price, purse.credits});
+}
+
+void ChargeTolls(Ai::Gates &gates)
+{
+	gates.SetTollRule(
+	    {[](const entt::registry &registry, entt::entity ship,
+	        std::int64_t toll) -> std::optional<Sim::Reason>
+	     {
+		     const Purse *purse = PurseOf(registry, ship);
+		     if (!purse)
+			     return Sim::MakeReason(TradeReason::NoOwner);
+		     if (purse->credits < toll)
+			     return Sim::MakeReason(TradeReason::ShortOfToll, {Sim::ReasonArgument::Integer(toll)});
+		     return std::nullopt;
+	     },
+	     [](entt::registry &registry, entt::entity ship, std::int64_t toll)
+	     { PurseOf(registry, ship)->credits -= toll; }});
 }
 } // namespace Jettison::App

@@ -39,7 +39,7 @@ Exit ExitOf(const Galaxy &galaxy, std::size_t lane, bool fromA)
 	const JumpLane &edge = galaxy.lanes[lane];
 	const LaneEnd &here = fromA ? edge.a : edge.b;
 	const LaneEnd &there = fromA ? edge.b : edge.a;
-	return {lane, here.jumpPoint, there.systemIndex, there.jumpPoint, edge.transitSeconds};
+	return {lane, here.jumpPoint, there.systemIndex, there.jumpPoint, edge.transitSeconds, edge.toll};
 }
 } // namespace
 
@@ -58,7 +58,8 @@ void RegisterGalaxyTypes()
 		RegisterType<JumpLane>("Celestial.JumpLane")
 		    .Field<&JumpLane::a>("a", Attribute::Saved)
 		    .Field<&JumpLane::b>("b", Attribute::Saved)
-		    .Field<&JumpLane::transitSeconds>("transitSeconds", Attribute::Saved);
+		    .Field<&JumpLane::transitSeconds>("transitSeconds", Attribute::Saved)
+		    .Field<&JumpLane::toll>("toll", Attribute::Saved);
 		RegisterType<Galaxy>("Celestial.Galaxy", Attribute::Moddable)
 		    .Field<&Galaxy::name>("name", Attribute::Saved)
 		    .Field<&Galaxy::systems>("systems", Attribute::Saved)
@@ -128,6 +129,8 @@ void Resolve(Galaxy &galaxy)
 			Refuse(galaxy, Describe(lane, index) + " joins a system to itself");
 		if (!std::isfinite(lane.transitSeconds) || lane.transitSeconds < 0.0)
 			Refuse(galaxy, Describe(lane, index) + " has a negative transit time");
+		if (lane.toll < 0)
+			Refuse(galaxy, Describe(lane, index) + " has a negative toll");
 	}
 }
 

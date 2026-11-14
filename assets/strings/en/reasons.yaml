@@ -41,6 +41,14 @@ reason:
     near_station: it is too near {0} to cruise
     already_there: it is already at {0}
     no_course: every course to {0} is blocked
+    not_a_gate: it is not a gate
+    cannot_transit: the ship is not one that flies, or is held
+    not_at_gate: the ship is not at {0}
+    already_cleared: the ship is already cleared through {0}
+    already_queued: the ship is already waiting for {0}
+    leads_nowhere: no lane leaves through {0}
+    not_cleared: the ship was not cleared through {0}
+    hull_too_large: the hull does not fit through {0}'s ring of {1} m radius
   shell:
     no_crates: no crates were asked for
     no_ship: there is no such ship
@@ -63,3 +71,4 @@ reason:
       one: the hold has {0} crate of it
       other: the hold has {0} crates of it
     sale_too_large: the sale is worth more than a purse holds
+    short_of_toll: the lane's toll of {0} credits is more than the purse holds

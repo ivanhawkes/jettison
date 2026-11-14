@@ -1,5 +1,6 @@
 #include <jettison/ai/BehaviourTree.h>
 #include <jettison/ai/Cruise.h>
+#include <jettison/ai/Gates.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
@@ -35,7 +36,15 @@ void RegisterTypes()
 		    .Value<Reason::NoSuchBody>("no_such_body")
 		    .Value<Reason::NearStation>("near_station")
 		    .Value<Reason::AlreadyThere>("already_there")
-		    .Value<Reason::NoCourse>("no_course");
+		    .Value<Reason::NoCourse>("no_course")
+		    .Value<Reason::NotAGate>("not_a_gate")
+		    .Value<Reason::CannotTransit>("cannot_transit")
+		    .Value<Reason::NotAtGate>("not_at_gate")
+		    .Value<Reason::AlreadyCleared>("already_cleared")
+		    .Value<Reason::AlreadyQueued>("already_queued")
+		    .Value<Reason::LeadsNowhere>("leads_nowhere")
+		    .Value<Reason::NotCleared>("not_cleared")
+		    .Value<Reason::HullTooLarge>("hull_too_large");
 		RegisterType<OnLane>("Ai.OnLane")
 		    .Field<&OnLane::from>("from", Attribute::Saved)
 		    .Field<&OnLane::departure>("departure", Attribute::Saved)
@@ -57,6 +66,43 @@ void RegisterTypes()
 		    .Field<&LaneRefused::entity>("entity", Attribute::Saved)
 		    .Field<&LaneRefused::jumpPoint>("jumpPoint", Attribute::Saved)
 		    .Field<&LaneRefused::reason>("reason", Attribute::Saved);
+
+		RegisterType<Gate>("Ai.Gate")
+		    .Field<&Gate::jumpPoint>("jumpPoint", Attribute::Saved)
+		    .Field<&Gate::cleared>("cleared", Attribute::Saved)
+		    .Field<&Gate::lapses>("lapses", Attribute::Saved)
+		    .Field<&Gate::queue>("queue", Attribute::Saved);
+		RegisterType<Transit>("Ai.Transit")
+		    .Field<&Transit::gate>("gate", Attribute::Saved)
+		    .Field<&Transit::cleared>("cleared", Attribute::Saved);
+		RegisterType<RequestTransit>("Ai.RequestTransit")
+		    .Field<&RequestTransit::sender>("sender", Attribute::Saved)
+		    .Field<&RequestTransit::ship>("ship", Attribute::Saved)
+		    .Field<&RequestTransit::gate>("gate", Attribute::Saved);
+		RegisterType<TransitCleared>("Ai.TransitCleared", Attribute::Script)
+		    .Field<&TransitCleared::ship>("ship", Attribute::Saved)
+		    .Field<&TransitCleared::gate>("gate", Attribute::Saved)
+		    .Field<&TransitCleared::toll>("toll", Attribute::Saved)
+		    .Field<&TransitCleared::lapses>("lapses", Attribute::Saved);
+		RegisterType<TransitQueued>("Ai.TransitQueued", Attribute::Script)
+		    .Field<&TransitQueued::ship>("ship", Attribute::Saved)
+		    .Field<&TransitQueued::gate>("gate", Attribute::Saved)
+		    .Field<&TransitQueued::place>("place", Attribute::Saved);
+		RegisterType<TransitRefused>("Ai.TransitRefused", Attribute::Script)
+		    .Field<&TransitRefused::ship>("ship", Attribute::Saved)
+		    .Field<&TransitRefused::gate>("gate", Attribute::Saved)
+		    .Field<&TransitRefused::reason>("reason", Attribute::Saved);
+		RegisterType<TransitLapsed>("Ai.TransitLapsed", Attribute::Script)
+		    .Field<&TransitLapsed::ship>("ship", Attribute::Saved)
+		    .Field<&TransitLapsed::gate>("gate", Attribute::Saved);
+		RegisterType<TransitSent>("Ai.TransitSent", Attribute::Script)
+		    .Field<&TransitSent::ship>("ship", Attribute::Saved)
+		    .Field<&TransitSent::gate>("gate", Attribute::Saved)
+		    .Field<&TransitSent::toll>("toll", Attribute::Saved);
+		RegisterType<GatePassed>("Ai.GatePassed", Attribute::Script)
+		    .Field<&GatePassed::ship>("ship", Attribute::Saved)
+		    .Field<&GatePassed::gate>("gate", Attribute::Saved)
+		    .Field<&GatePassed::reason>("reason", Attribute::Saved);
 
 		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
 		RegisterType<CruiseDrive>("Ai.CruiseDrive", Attribute::Moddable)

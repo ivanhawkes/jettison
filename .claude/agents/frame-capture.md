@@ -34,7 +34,9 @@ How (from the project's CLAUDE.md, which is the authority if it differs):
   keys. Then `xdotool type --delay 150 '...'`, then `key Return`.
 - The orbit camera: W and S orbit it in pitch (they do not zoom), A and D in yaw, E and Q zoom,
   and C moves it to the next body (Application.cpp binds them). The default scene is
-  `scene/main.yaml`; the orbit scene over the planet Ostra is `--scene assets/scene/orbit.yaml`.
+  `scene/main.yaml`, a demo with no star system and so no ship: anything that flies, docks, cruises
+  or jumps the ship needs `--scene assets/scene/orbit.yaml` (Halcyon, the ship docked at Ostra
+  Highport), the orbit scene over the planet Ostra.
 - Compare with `magick compare -metric AE -fuzz 2% a.png b.png diff.png`, no keys between them.
 - `--user-dir <dir>` keeps a run's settings and saves apart.
 - Save images in the directory you were given (the session scratchpad by default), and kill

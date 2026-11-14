@@ -127,7 +127,7 @@ std::optional<Route> PlotRoute(
 		const std::size_t lane = (a - 2) / 2;
 		route.jumps.push_back(
 		    {lane, endOf(a).jumpPoint, endOf(b).systemIndex, endOf(b).jumpPoint,
-		     galaxy.lanes[lane].transitSeconds});
+		     galaxy.lanes[lane].transitSeconds, galaxy.lanes[lane].toll});
 	}
 	return route;
 }

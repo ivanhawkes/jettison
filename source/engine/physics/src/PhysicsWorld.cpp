@@ -229,11 +229,11 @@ WorldKey KeyOf(const entt::registry &registry, entt::entity entity)
 }
 
 // Where an entity on rails is at a time: its place on its body, which is where the body is and turned
-// as it spins.
+// as it spins, or as a jump point faces.
 Sim::Transform RailsTransform(
     const Celestial::StarSystem &system, std::size_t body, const OnRails &rails, double simSeconds)
 {
-	const glm::dquat spin = Celestial::Orientation(system.bodies[body].rotation, simSeconds);
+	const glm::dquat spin = Celestial::BodyOrientation(system, body, simSeconds);
 	return {
 	    Celestial::EvaluateBody(system, body, simSeconds).metres + spin * rails.offset,
 	    spin * rails.turn};

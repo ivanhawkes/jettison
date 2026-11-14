@@ -202,8 +202,8 @@ two positions are in different frames.
 
 The galaxy (`celestial/Galaxy.h`, `assets/systems/galaxy.yaml`) is a graph: each system by name,
 with its system file and, where one is authored, a scene file; each lane joining a jump point in one
-system to a jump point in another, travelled both ways, with a transit time in simulation seconds.
-A jump point is the end of one lane, so a gate says where it leads. Each system's file is checked
+system to a jump point in another, travelled both ways, with a transit time in simulation seconds
+and a toll in whole credits. A jump point is the end of one lane, so a gate says where it leads. Each system's file is checked
 against the lanes that end in it when it is loaded.
 
 A jump replaces the system shown with another, behind an effect, without the frame loop stalling or
@@ -228,17 +228,44 @@ traffic is made from the same snapshots.
 
 That is presentation's jump, which changes what is shown. The simulation's (`ai/Lanes.h`, 9a)
 carries an entity along a lane: the command `Ai::EnterLane` takes it out of its system through a jump
-point (its `InSystem` none, an `Ai::OnLane` saying where it is going and the step it arrives), and
-the system `lanes`, after physics, brings it out at the far jump point when the transit's whole
-steps are run. A body comes out at rest in the frame of the station the gate keeps by, facing the
-way the gate faces (`Celestial::JumpPointFacing`: its planet, with its station before it), with its
-flight controls taken against nothing. It comes out clear of every body already there and of what
-came out before it in the step: at the gate's centre, or at the first place clear on rings about it
-across the way the gate faces, each a hull's breadth and 20 m further out (9f), so two traders
-through one gate a moment apart do not come out in each other. What sends an entity along a lane is
-the game's: the shell sends its ship as the scene jumps along the same lane, and the scene arrives at
-the gate the ship comes out of, the transit's 40 s later; a trader's tree sends it once it is within
-150 m of the gate's centre.
+point (its `InSystem` none, an `Ai::OnLane` saying where it is going and the step it arrives), gives
+up its destination, and the system `lanes`, after physics, brings it out at the far jump point when
+the transit's whole steps are run. A body comes out at rest in the gate's own frame (or that of a
+station it keeps by), facing the way the gate faces (`Celestial::JumpPointFacing`: its planet), with
+its flight controls taken against nothing. It comes out ahead of the ring, clear of its sensor by
+half the ring's 60 m depth, its hull and 20 m, so the gate does not see it pass through (13c); and
+clear of every body already there and of what came out before it in the step: there, or at the
+first place clear on rings about it across the way the gate faces, each a hull's breadth and 20 m
+further out (9f), so two traders through one gate a moment apart do not come out in each other.
+
+### Gates
+
+A gate sends the ships it has cleared ([decided](roadmap.md#decided); `ai/Gates.h`, 13c). Each jump
+point's gate is an entity of its own, `Ai::Gate`, made at a game's start (`Gates::MakeGates`) and
+saved: a kinematic sensor on the jump point's rails and in its frame, a cylinder of the ring's
+radius and 60 m deep (`Gates::RingShape`, defined in physics as the system is), turned by its rails
+to face as the jump point does (`Celestial::BodyOrientation`). It is a shared facility given in
+command order, as a pad is: `Ai::RequestTransit`, with its sender, clears a ship through it at once
+if the gate is free, or puts it at the back of the gate's queue, and the ship holds an `Ai::Transit`
+saying which. The engine's checks are its sender's command of the ship, the ship flying and in the
+gate's system and frame, a lane leaving through the gate, and the hull's shape fitting the ring; the
+game's are a rule it gives (`Ai::TollRule`), asked whether the ship's owner can pay the lane's toll,
+and told to charge it. Each step the system `gates`, after the lanes', gives up a clearance or a
+place whose ship has gone, left the gate's frame or is cruising; sends a cleared ship touching its
+ring along the lane (`EnterLane`, applied then), its owner charged as it enters rather than as it is
+cleared, which frees the gate; lets every other body that began to touch a ring pass through,
+saying why (`Ai::GatePassed`) and charging nothing, so traffic crossing a ring is never sent; lapses
+a clearance unused for two minutes; and clears the next in each free gate's queue. A ring is placed,
+not swept, so a ship crossing it at under its depth a step, 3.6 km/s, is seen.
+
+The sample's rule draws the toll on the ship's owner's purse (`App::ChargeTolls`): a moon gate's
+lane 2,000 credits, the star gates' 6,000. A trader asks the gate on its route for a clearance once
+its cruise has brought it there, waits its turn, and flies in along the ring's axis and through
+(`clear`, `fly-through`, then `jump` along the lane); it weighs a run's tolls in what the run makes,
+and keeps them back from what it buys. The shell's console asks for its ship (`transit [gate]`),
+the flight panel counts the clearance down, and the scene jumps along the lane as the gate sends the
+ship. The console's `jump` and the galaxy panel's buttons are the tools' jump, which still sends
+the ship along a lane wherever it is in its system, past the gate and its toll.
 
 A route across the galaxy (`ai/Routes.h`) is A* over its jump points, each lane an edge at its transit
 time and each pair of a system's gates an edge at what crossing the system costs, which the caller
@@ -290,9 +317,10 @@ An arrival is placed clear of what is there: the lanes' and the cruises' arrival
 (`Detail::ClearPlace`, `ai/src/Transit.cpp`), at the place it would come out if that is clear of every
 body in the system by both radii and `LaneTravel::kArrivalClearance`, or at the first place clear on
 rings about it, six more places round each than the last, in the plane across the way it faces.
-Cruises come out in entity order, each counted by the next. The gates are in Manifest's places, a
-moon gate about a planet and a star gate about a sun, so a cruise to one arrives in the gate's own
-frame, and only a gate kept by a station arrives in the station's.
+Cruises come out in entity order, each counted by the next, and a gate's ring, a sensor, is no body
+an arrival keeps clear of. The gates are in Manifest's places, a moon gate about a planet and a star
+gate about a sun, so a cruise to one arrives in the gate's own frame, where its ring is, and only a
+gate kept by a station arrives in the station's.
 
 ### Physics
 
@@ -1788,7 +1816,8 @@ proves it headlessly. What exists:
   world. The shell attaches it, for its ship.
 - **AI** (`engine/ai`, 9a). A* over a graph of indexed nodes (`Pathfinding.h`); routes across the
   galaxy over its jump points, and courses across a system round its star, planets and moons
-  (`Routes.h`); the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`); and steering
+  (`Routes.h`); the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`), and the gates
+  that send a ship along a lane ([as above](#gates), `Gates.h`); and steering
   ([as above](#steering), `Steering.h`, 9b), over the spatial index kept from the simulation
   (`spatial/SystemIndices.h`), all attached by the shell after physics, whose console's `traffic`
   sends shuttles to hold station about the station; and utility AI and behaviour trees

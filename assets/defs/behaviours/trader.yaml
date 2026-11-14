@@ -1,7 +1,9 @@
 # A trader's round (docs/sample-game.md): choose a run, fly to where it buys, buy, wait while the
 # buggies carry the crates aboard, fly to where it sells, sell, wait while they carry them off; and
-# again. A ship crosses a system by cruising: out to each gate on its route, and in to its market. A
-# run that cannot be made, or nothing worth trading, waits half a minute and chooses again.
+# again. A ship crosses a system by cruising: out to each gate on its route, and in to its market.
+# At a gate it asks to be cleared through, waits its turn, and flies through the ring, which sends it
+# along the lane and charges the toll. A run that cannot be made, or nothing worth trading, waits half
+# a minute and chooses again.
 # An Ai behaviour tree (Ai.BehaviourDefinition); its tasks are the trader's (app/src/Traders.cpp).
 version: 1
 root:
@@ -21,14 +23,16 @@ root:
                   children:
                     - {task: head-for, arguments: [buy]}
                     - {task: leave}
-                    # Each jump on the route: across the system to the gate, up to it, and through.
+                    # Each jump on the route: across the system to the gate, cleared through it,
+                    # through its ring, and along the lane.
                     - kind: Loop
                       children:
                         - kind: Sequence
                           children:
                             - {task: jumps-left}
                             - {task: cruise, arguments: [gate]}
-                            - {task: fly-to-gate}
+                            - {task: clear}
+                            - {task: fly-through}
                             - {task: jump}
                     - {task: cruise, arguments: [market]}
                     - {task: dock, arguments: [buy]}
@@ -42,7 +46,8 @@ root:
                   children:
                     - {task: jumps-left}
                     - {task: cruise, arguments: [gate]}
-                    - {task: fly-to-gate}
+                    - {task: clear}
+                    - {task: fly-through}
                     - {task: jump}
             - {task: cruise, arguments: [market]}
             - {task: dock, arguments: [sell]}

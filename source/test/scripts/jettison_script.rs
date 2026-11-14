@@ -149,6 +149,19 @@ const _: () = assert!(offset_of!(Ai_CruiseStarted, seconds) == 16);
 const _: () = assert!(offset_of!(Ai_CruiseStarted, metres) == 24);
 const _: () = assert!(offset_of!(Ai_CruiseStarted, arrivalStep) == 32);
 
+/// Ai.GatePassed
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_GatePassed {
+    pub ship: jettison_entity,
+    pub gate: jettison_entity,
+    pub reason: Sim_Reason,
+}
+const _: () = assert!(size_of::<Ai_GatePassed>() == 24);
+const _: () = assert!(offset_of!(Ai_GatePassed, ship) == 0);
+const _: () = assert!(offset_of!(Ai_GatePassed, gate) == 4);
+const _: () = assert!(offset_of!(Ai_GatePassed, reason) == 8);
+
 /// Ai.OnLane
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -204,6 +217,71 @@ const _: () = assert!(size_of::<Ai_LaneRefused>() == 28);
 const _: () = assert!(offset_of!(Ai_LaneRefused, entity) == 0);
 const _: () = assert!(offset_of!(Ai_LaneRefused, jumpPoint) == 4);
 const _: () = assert!(offset_of!(Ai_LaneRefused, reason) == 12);
+
+/// Ai.TransitCleared
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_TransitCleared {
+    pub ship: jettison_entity,
+    pub gate: jettison_entity,
+    pub toll: i64,
+    pub lapses: u64,
+}
+const _: () = assert!(size_of::<Ai_TransitCleared>() == 24);
+const _: () = assert!(offset_of!(Ai_TransitCleared, ship) == 0);
+const _: () = assert!(offset_of!(Ai_TransitCleared, gate) == 4);
+const _: () = assert!(offset_of!(Ai_TransitCleared, toll) == 8);
+const _: () = assert!(offset_of!(Ai_TransitCleared, lapses) == 16);
+
+/// Ai.TransitLapsed
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_TransitLapsed {
+    pub ship: jettison_entity,
+    pub gate: jettison_entity,
+}
+const _: () = assert!(size_of::<Ai_TransitLapsed>() == 8);
+const _: () = assert!(offset_of!(Ai_TransitLapsed, ship) == 0);
+const _: () = assert!(offset_of!(Ai_TransitLapsed, gate) == 4);
+
+/// Ai.TransitQueued
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_TransitQueued {
+    pub ship: jettison_entity,
+    pub gate: jettison_entity,
+    pub place: u32,
+}
+const _: () = assert!(size_of::<Ai_TransitQueued>() == 12);
+const _: () = assert!(offset_of!(Ai_TransitQueued, ship) == 0);
+const _: () = assert!(offset_of!(Ai_TransitQueued, gate) == 4);
+const _: () = assert!(offset_of!(Ai_TransitQueued, place) == 8);
+
+/// Ai.TransitRefused
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_TransitRefused {
+    pub ship: jettison_entity,
+    pub gate: jettison_entity,
+    pub reason: Sim_Reason,
+}
+const _: () = assert!(size_of::<Ai_TransitRefused>() == 24);
+const _: () = assert!(offset_of!(Ai_TransitRefused, ship) == 0);
+const _: () = assert!(offset_of!(Ai_TransitRefused, gate) == 4);
+const _: () = assert!(offset_of!(Ai_TransitRefused, reason) == 8);
+
+/// Ai.TransitSent
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ai_TransitSent {
+    pub ship: jettison_entity,
+    pub gate: jettison_entity,
+    pub toll: i64,
+}
+const _: () = assert!(size_of::<Ai_TransitSent>() == 16);
+const _: () = assert!(offset_of!(Ai_TransitSent, ship) == 0);
+const _: () = assert!(offset_of!(Ai_TransitSent, gate) == 4);
+const _: () = assert!(offset_of!(Ai_TransitSent, toll) == 8);
 
 /// Dock.Landed
 #[repr(C)]

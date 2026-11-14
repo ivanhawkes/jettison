@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <jettison/ai/BehaviourTree.h>
+#include <jettison/ai/Gates.h>
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/app/AppArguments.h>
@@ -255,8 +256,16 @@ class Application
 	// station's axes so the ring turns with it; or, for none, every one there is taken out of the
 	// world. Sixteen at most, the ring's places for its spacing.
 	void SpawnTraffic(int count);
-	// Sends the ship along the lane, when it is in the system shown, as the scene jumps along it.
+	// Sends the ship along the lane, when it is in the system shown, as the scene jumps along it: the
+	// tools' jump, which skips the gate and its toll.
 	void TakeShipAlong(const Celestial::Exit &exit);
+	// The console's transit: asks the gate of the jump point named in the ship's system, or of the
+	// one whose frame the ship is in, to clear the ship through it (Ai::RequestTransit), found in the
+	// snapshots.
+	void RequestTransit(std::string_view jumpPoint);
+	// The scene's jump along the lane a gate sent the ship down, from the system shown, unless a jump
+	// is under way already.
+	void FollowShipAlong(const Ai::OnLane &lane);
 	// The console's route: the quickest way from the ship to a system, at the ship's top speed
 	// across each system (Ai::PlotRoute, Ai::CrossingByCourse).
 	void LogRoute(std::string_view systemName) const;
@@ -583,6 +592,7 @@ class Application
 	// Lane travel in the simulation, given the galaxy and its systems; the spatial index kept from
 	// the simulation, and steering, which reads it. The world holds them.
 	Ai::LaneTravel *m_pLanes{nullptr};
+	Ai::Gates *m_pGates{nullptr};
 	Ai::CruiseTravel *m_pCruises{nullptr};
 	Spatial::SystemIndices *m_pIndices{nullptr};
 	Ai::Steering *m_pSteering{nullptr};

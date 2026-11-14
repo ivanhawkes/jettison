@@ -7,6 +7,11 @@
 #include <string_view>
 #include <vector>
 
+namespace Jettison::Ai
+{
+class Gates;
+}
+
 namespace Jettison::Celestial
 {
 struct StarSystem;
@@ -37,6 +42,12 @@ entt::entity FindStation(const entt::registry &world, std::uint64_t system, std:
 // station of a layout the docks do not know is left out, saying so. Returns the stations built.
 std::vector<entt::entity> OpenStations(
     Sim::SimWorld &world, Dock::Docks &docks, std::span<const Celestial::StarSystem> systems);
+
+// A gate for each jump point of each of the systems the gates know that has none yet
+// (Ai::Gates::MakeGates): every gate of a new world, and every one a world saved before there were
+// gates lacks. Returns the gates made, in the systems' order.
+std::vector<entt::entity> OpenGates(
+    Sim::SimWorld &world, const Ai::Gates &gates, std::span<const Celestial::StarSystem> systems);
 
 // A ship of the hull, the docks' and its physics' (Dock::Docks::HullShape), as the sample makes
 // them: of that mass, swept as it flies if continuous, with the default thrusters and the hull's

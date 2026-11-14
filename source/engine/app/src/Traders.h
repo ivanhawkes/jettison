@@ -49,7 +49,8 @@ namespace Jettison::App
 // The sample game's traders (docs/sample-game.md), the plan's other ships: each chooses a run by
 // utility (defs/decisions/trade.yaml: which good, bought at which market and sold at which), and
 // flies it by its behaviour tree (defs/behaviours/trader.yaml): off its pad, along the route across
-// the lanes, through the gates, onto the pad the station gives it or into the queue for one, the
+// the lanes, cleared through each gate and flown through its ring, its toll weighed in the run and
+// kept back from what it buys, onto the pad the station gives it or into the queue for one, the
 // trade, and the wait while the buggies carry its crates. The trees and the choice are the engine's
 // (Ai::Behaviours, Ai::Choose); what a trader weighs and does at each step of its round is the
 // game's, and this is the smallest that trades.

@@ -1,11 +1,14 @@
 #include "Stations.h"
 
 
+#include <algorithm>
 #include <array>
+#include <iterator>
 #include <string>
 #include <utility>
 
 #include <jettison/ai/Cruise.h>
+#include <jettison/ai/Gates.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/core/Log.h>
 #include <jettison/dock/Docks.h>
@@ -99,6 +102,25 @@ std::vector<entt::entity> OpenStations(
 				docks.Park(world, ship, registry.get<Dock::Station>(station).pads.at(parked.pad - 1));
 			}
 		}
+	return opened;
+}
+
+std::vector<entt::entity> OpenGates(
+    Sim::SimWorld &world, const Ai::Gates &gates, std::span<const Celestial::StarSystem> systems)
+{
+	std::vector<entt::entity> opened;
+	for (const Celestial::StarSystem &system : systems)
+	{
+		const std::uint64_t id = Sim::SystemId(system.name);
+		const auto made = [&](const Celestial::Body &body)
+		{
+			return body.kind == Celestial::BodyKind::JumpPoint &&
+			       Ai::Gates::FindGate(world.Registry(), id, body.name) != entt::null;
+		};
+		if (!gates.HasStarSystem(id) || std::ranges::any_of(system.bodies, made))
+			continue;
+		std::ranges::copy(gates.MakeGates(world, id), std::back_inserter(opened));
+	}
 	return opened;
 }
 

@@ -28,7 +28,8 @@ namespace Jettison::Ai
 // The simulation's jump (docs/architecture.md, "Jumps"): an entity's passage along a jump lane, out
 // of its system through a jump point, in none for the lane's transit time, and into the system at
 // the lane's far end, at the jump point there. What sends a ship along a lane, the pilot flying
-// through the gate or a trader's route, is the game's; this is how the simulation carries it.
+// through the gate's ring that cleared it (Gates.h), or a tool, is the game's; this is how the
+// simulation carries it.
 
 // An entity on a lane: its Sim::InSystem names no system (Sim::kNoSystem) from the step it entered
 // to the step it arrives in. Its Transform is where it left, which nothing shows, since an entity
@@ -49,9 +50,12 @@ struct OnLane
 };
 
 // The command that sends an entity along the lane leaving its system through that jump point,
-// applied as the step begins. Refused, with a LaneRefused, for an entity not in a system of the
-// galaxy (one already on a lane is in none) or a jump point no lane leaves through. Registered with
-// Reflect, every field Saved, by RegisterTypes.
+// applied as the step begins, or as a gate applies it to a ship it has cleared. The entity gives up
+// its Destination (Steering.h), which is in the system it leaves. Refused, with a LaneRefused, for an
+// entity not in a system of the galaxy (one already on a lane is in none), a cruising one, or a jump
+// point no lane leaves through. It carries no sender: a gate's clearance is what a player asks for
+// (RequestTransit), and this is the tools' and the gates' own. Registered with Reflect, every field
+// Saved, by RegisterTypes.
 struct EnterLane
 {
 	entt::entity entity{entt::null};
@@ -92,11 +96,13 @@ struct LaneRefused
 //     station without changing frames on the way. At rest, so the speed a ship went into the far
 //     gate at is not carried out of this one at a station kilometres ahead of it; physics makes its
 //     body in the next step;
-//   - with a Physics::Body, it comes out clear of every body already there and of what has come out
-//     before it in the step: at the gate's centre if that is clear, or else at the first place
-//     clear on rings about it, across the way the gate faces, each ring a hull's breadth and a
-//     clearance (kArrivalClearance) further out, with six more places round each, so a ship that
-//     came out a moment ago, or one flying into the gate the other way, is not met by the next;
+//   - with a Physics::Body, it comes out ahead of the gate's ring, clear of its sensor (half of
+//     Gates::kRingDepth, its hull and a clearance, kArrivalClearance, beyond the gate's centre), so
+//     the gate does not see it pass through; and clear of every body already there and of what has
+//     come out before it in the step: there if that is clear, or else at the first place clear on
+//     rings about it, across the way the gate faces, each ring a hull's breadth and the clearance
+//     further out, with six more places round each, so a ship that came out a moment ago, or one
+//     flying into the gate the other way, is not met by the next;
 //   - its Physics::FlightControls are taken against nothing, since what they were taken against is
 //     a system away;
 //   - a LaneLeft is raised.

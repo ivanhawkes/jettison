@@ -75,7 +75,8 @@ struct Velocity
 };
 
 // An entity on rails: each step its Transform is put where the celestial body of that name is, in
-// the star system its Sim::InSystem names, at the time the step ends, turned as the body spins. A
+// the star system its Sim::InSystem names, at the time the step ends, turned as the body spins, or
+// as a jump point faces (Celestial::BodyOrientation), as a gate's ring is (ai/Gates.h). A
 // station's body is kinematic and on rails, so it pushes a ship it meets as its orbit carries it,
 // and is where presentation draws it (scene/SystemScene.h places the body at the same times). The
 // system has to be defined in the physics world (PhysicsWorld::DefineStarSystem); an entity on no

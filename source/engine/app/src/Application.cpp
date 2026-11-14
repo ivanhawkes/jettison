@@ -310,7 +310,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_console.RegisterCommand(
 	    "jump",
 	    "Jumps to the star system named, or out through the next lane, taking the ship along a "
-	    "lane: jump [system]",
+	    "lane as a tool, past the gate and its toll: jump [system]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    {
 		    std::string name;
@@ -329,6 +329,18 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 			    Core::Log(Core::Severity::Warning, kShell, "No cruise: no ship in the system shown");
 		    else
 			    m_sim.Commands().Push(Ai::Cruise{kPilot, m_ship, name});
+	    });
+	m_console.RegisterCommand(
+	    "transit",
+	    "Asks a gate of the ship's system to clear it through, the one whose frame it is in unless "
+	    "another is named; flown through the ring, the gate sends it and charges the lane's toll: "
+	    "transit [gate]",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    std::string name;
+		    for (const std::string &word : arguments)
+			    name += (name.empty() ? "" : " ") + word;
+		    RequestTransit(name);
 	    });
 	m_console.RegisterCommand(
 	    "route", "Says the quickest way from the ship to the star system named: route <system>",
@@ -632,6 +644,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.RegisterComponent<Sim::InSystem>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
 	m_pLanes = &Ai::LaneTravel::Attach(m_sim, *m_pPhysics);
+	m_pGates = &Ai::Gates::Attach(m_sim, *m_pPhysics, *m_pLanes);
 	m_pCruises = &Ai::CruiseTravel::Attach(m_sim, *m_pPhysics);
 	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
 	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
@@ -643,6 +656,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	// For the frame the ship flies in, which a cruise changes (ShipFrame).
 	m_sim.ShowInSnapshots<Physics::LocalFrame>();
 	RegisterTrading(m_sim);
+	ChargeTolls(*m_pGates);
 	RegisterMarketScreenTypes();
 	RegisterSavesScreenTypes();
 	RegisterFrameSystems();
@@ -1178,6 +1192,8 @@ void Application::InitScene()
 		    kTradeDecision);
 	LoadScene();
 	OpenStations();
+	if (const std::size_t gates = App::OpenGates(m_sim, *m_pGates, m_galaxySystems).size(); gates > 0)
+		Core::Log(Core::Severity::Info, kShell, "{} gates open", gates);
 	SpawnShip();
 	if (!m_arguments.saveScenePath.empty())
 		m_pScene->Save(m_arguments.saveScenePath);
@@ -2025,6 +2041,45 @@ void Application::TakeShipAlong(const Celestial::Exit &exit)
 }
 
 
+void Application::RequestTransit(std::string_view jumpPoint)
+{
+	const Sim::Snapshot &snapshot = m_simStepper.Current();
+	const Sim::TransformSample *ship = m_ship == entt::null ? nullptr : snapshot.FindSample(m_ship);
+	if (!ship || ship->system == Sim::kNoSystem)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No transit: the ship is in no system");
+		return;
+	}
+	const std::string name = jumpPoint.empty() ? ShipFrame() : std::string{jumpPoint};
+	for (const auto &[entity, gate] : snapshot.Components<Ai::Gate>())
+		if (const Sim::TransformSample *at = snapshot.FindSample(entity);
+		    gate.jumpPoint == name && at && at->system == ship->system)
+		{
+			m_sim.Commands().Push(Ai::RequestTransit{kPilot, m_ship, entity});
+			return;
+		}
+	Core::Log(
+	    Core::Severity::Warning, kShell, "No transit: {}",
+	    jumpPoint.empty() ? std::string{"the ship is not at a gate; name one"}
+	                      : std::format("the ship's system has no gate '{}'", jumpPoint));
+}
+
+
+void Application::FollowShipAlong(const Ai::OnLane &lane)
+{
+	if (!m_galaxy || !m_shownSystem || m_jump->Active() ||
+	    Sim::SystemId(m_galaxy->systems[*m_shownSystem].name) != lane.from)
+		return;
+	const auto to = std::ranges::find(
+	    m_galaxy->systems, lane.to,
+	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	if (to == m_galaxy->systems.end())
+		return;
+	m_jumpStep = m_sim.Clock().Step();
+	m_jump->Begin(*m_galaxy, static_cast<std::size_t>(to - m_galaxy->systems.begin()), lane.arrival);
+}
+
+
 void Application::LogTraders() const
 {
 	// From the snapshot, as the market screen is: presentation sees the traders as they were shown.
@@ -2500,6 +2555,10 @@ bool Application::LoadFrom(std::string_view name)
 			Core::Log(
 			    Core::Severity::Info, kShell, "'{}' kept {} purses on ships, now their owners'", name,
 			    moved);
+		// And one from before there were gates has none.
+		if (const std::size_t gates = App::OpenGates(m_sim, *m_pGates, m_galaxySystems).size();
+		    gates > 0)
+			Core::Log(Core::Severity::Info, kShell, "'{}' had no gates; {} are open", name, gates);
 		m_pScripts->SetStore(std::move(store));
 		// Other mods may make another game of the save, which is the player's to judge: it loads.
 		for (const std::string &difference : Sim::ModDifferences(save.info.mods, m_mods))
@@ -2734,6 +2793,8 @@ void Application::DefineStarSystems()
 			m_pLanes->DefineStarSystem(system);
 		if (!m_pCruises->HasStarSystem(id))
 			m_pCruises->DefineStarSystem(system);
+		if (!m_pGates->HasStarSystem(id))
+			m_pGates->DefineStarSystem(system);
 		if (!m_pPhysics->HasStarSystem(id))
 			m_pPhysics->DefineStarSystem(std::move(system));
 	}
@@ -3330,6 +3391,20 @@ void Application::DrawFlight()
 		    "%s  %.1f m/s  %.0f m", against.c_str(), speed, glm::length(ship->position - reference));
 		if (m_docked)
 			ImGui::Text("Docked at %s", m_stationBody.c_str());
+		if (const auto *transit = current.Get<Ai::Transit>(m_ship))
+			if (const auto *gate = current.Get<Ai::Gate>(transit->gate))
+			{
+				if (transit->cleared)
+					ImGui::Text(
+					    "Cleared through %s  %.0f s", gate->jumpPoint.c_str(),
+					    static_cast<double>(gate->lapses - std::min(gate->lapses, current.step)) *
+					        m_sim.FixedStep());
+				else
+					ImGui::Text(
+					    "Waiting for %s, %d in the queue", gate->jumpPoint.c_str(),
+					    static_cast<int>(
+					        std::ranges::find(gate->queue, m_ship) - gate->queue.begin() + 1));
+			}
 		ImGui::Text(
 		    "Assist %s (Z)  View %s (V)  P lets go", m_assist ? "on" : "off",
 		    m_pilotView == Scene::PilotView::Chase ? "chase" : "cockpit");
@@ -3400,7 +3475,40 @@ void Application::TakeEvents()
 			    Core::Severity::Info, kShell,
 			    "The ship entered the lane through {}, out at {} in {:.0f} s", entered->lane.departure,
 			    entered->lane.arrival, entered->transitSeconds);
+			// Sent by a gate rather than the tools' jump, which has the scene jumping already.
+			FollowShipAlong(entered->lane);
 		}
+		else if (const auto *cleared = event.event.try_cast<Ai::TransitCleared>();
+		         cleared && cleared->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell,
+			    "{} clears the ship through for {} credits: fly through its ring within {:.0f} s",
+			    Describe(cleared->gate), cleared->toll, Ai::Gates::kClearanceSeconds);
+		else if (const auto *waiting = event.event.try_cast<Ai::TransitQueued>();
+		         waiting && waiting->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell, "The ship waits for {}, {} in the queue",
+			    Describe(waiting->gate), waiting->place);
+		else if (const auto *noTransit = event.event.try_cast<Ai::TransitRefused>();
+		         noTransit && noTransit->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "{} will not clear the ship: {}",
+			    Describe(noTransit->gate), Word(noTransit->reason));
+		else if (const auto *unused = event.event.try_cast<Ai::TransitLapsed>();
+		         unused && unused->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "The ship's clearance through {} has lapsed",
+			    Describe(unused->gate));
+		else if (const auto *sent = event.event.try_cast<Ai::TransitSent>();
+		         sent && sent->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell, "{} sends the ship through, charging {} credits",
+			    Describe(sent->gate), sent->toll);
+		else if (const auto *passed = event.event.try_cast<Ai::GatePassed>();
+		         passed && passed->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "The ship passed through {} unsent: {}",
+			    Describe(passed->gate), Word(passed->reason));
 		else if (const auto *arrived = event.event.try_cast<Ai::LaneLeft>();
 		         arrived && arrived->entity == m_ship)
 		{
@@ -3605,6 +3713,8 @@ std::string Application::Describe(entt::entity simEntity) const
 		return m_stationBody;
 	if (const auto found = std::ranges::find(m_traffic, simEntity); found != m_traffic.end())
 		return std::format("Shuttle {}", found - m_traffic.begin() + 1);
+	if (const auto *gate = m_simStepper.Current().Get<Ai::Gate>(simEntity))
+		return gate->jumpPoint;
 	return std::format("Entity {:#x}", entt::to_integral(simEntity));
 }
 
