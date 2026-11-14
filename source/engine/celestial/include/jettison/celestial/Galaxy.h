@@ -7,14 +7,18 @@
 #include <string_view>
 #include <vector>
 
+#include <glm/vec3.hpp>
+
 namespace Jettison::Celestial
 {
 struct StarSystem;
 
-// The galaxy frame of docs/architecture.md, "Coordinate frames and units": no origin and no
-// positions, only a graph. Its nodes are the star systems and its edges the jump lanes, each lane
-// joining a jump point in one system to a jump point in another, travelled either way. Route
-// planning over it is the AI's (phase 9a); this is the graph and its file.
+// The galaxy frame of docs/architecture.md, "Coordinate frames and units": a graph whose nodes are
+// the star systems, each at a position in light years, and whose edges are the jump lanes, each lane
+// joining a jump point in one system to a jump point in another, travelled either way. A ship
+// travels between systems only along a lane, through a gate at each end, and the distance between
+// the systems it joins is what its toll is reckoned by. Route planning over it is the AI's (phase
+// 9a); this is the graph and its file.
 
 // A star system as the galaxy knows it: its name, which is the name its system file gives it, and
 // where its files are, by virtual path.
@@ -26,6 +30,8 @@ struct GalaxySystem
 	// A scene file authored for the system, which names the same system file; without one the
 	// system is shown as its system scene builds it from the system alone.
 	std::optional<std::string> scene;
+	// Where it is in the galaxy, in light years from wherever the galaxy puts its origin.
+	glm::dvec3 position{0.0};
 };
 
 // One end of a lane: a jump point, by its body's name, in a system, by the system's name.
@@ -46,8 +52,9 @@ struct JumpLane
 	LaneEnd b;
 	// Simulation seconds between entering one end and leaving the other.
 	double transitSeconds{0.0};
-	// What a ship's owner is charged to enter it, in whole credits, the game's currency (ai/Gates.h):
-	// none for a free lane.
+	// Runtime: what a ship's owner is charged to enter it, in whole credits, the game's currency
+	// (ai/Gates.h): the light years between its systems at the galaxy's toll per light year, rounded
+	// to the nearest credit. Filled in by Resolve, not written to the file.
 	std::int64_t toll{0};
 };
 
@@ -56,6 +63,8 @@ struct Galaxy
 	std::string name;
 	std::vector<GalaxySystem> systems;
 	std::vector<JumpLane> lanes;
+	// Whole credits a light year of a lane's length costs to enter it; none for free lanes.
+	std::int64_t tollPerLightYear{0};
 
 	// The index of the system of that name, or -1.
 	int Find(std::string_view systemName) const;
@@ -86,8 +95,9 @@ inline constexpr std::uint32_t kGalaxyFormatVersion = 1;
 // galaxy built in code both go through: at least one system; system names unique and not empty;
 // every path a virtual path; each lane's ends in systems the galaxy lists, two different systems,
 // each naming a jump point; no jump point the end of two lanes, so a jump point says where it
-// leads; transit times and tolls not negative. Throws Serialise::FormatError naming the galaxy and
-// the system or the lane. Whether each jump point is one in its system's file is CheckJumpPoints',
+// leads; positions finite; transit times and the toll per light year not negative. Fills in each
+// lane's toll from its length. Throws Serialise::FormatError naming the galaxy and the system or the
+// lane. Whether each jump point is one in its system's file is CheckJumpPoints',
 // since this reads no system file.
 void Resolve(Galaxy &galaxy);
 

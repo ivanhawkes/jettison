@@ -1,6 +1,7 @@
 #include <jettison/celestial/Galaxy.h>
 
 #include <cmath>
+#include <glm/geometric.hpp>
 #include <map>
 #include <string>
 #include <utility>
@@ -51,19 +52,20 @@ void RegisterGalaxyTypes()
 		RegisterType<GalaxySystem>("Celestial.GalaxySystem")
 		    .Field<&GalaxySystem::name>("name", Attribute::Saved)
 		    .Field<&GalaxySystem::system>("system", Attribute::Saved)
-		    .Field<&GalaxySystem::scene>("scene", Attribute::Saved);
+		    .Field<&GalaxySystem::scene>("scene", Attribute::Saved)
+		    .Field<&GalaxySystem::position>("position", Attribute::Saved);
 		RegisterType<LaneEnd>("Celestial.LaneEnd")
 		    .Field<&LaneEnd::system>("system", Attribute::Saved)
 		    .Field<&LaneEnd::jumpPoint>("jumpPoint", Attribute::Saved);
 		RegisterType<JumpLane>("Celestial.JumpLane")
 		    .Field<&JumpLane::a>("a", Attribute::Saved)
 		    .Field<&JumpLane::b>("b", Attribute::Saved)
-		    .Field<&JumpLane::transitSeconds>("transitSeconds", Attribute::Saved)
-		    .Field<&JumpLane::toll>("toll", Attribute::Saved);
+		    .Field<&JumpLane::transitSeconds>("transitSeconds", Attribute::Saved);
 		RegisterType<Galaxy>("Celestial.Galaxy", Attribute::Moddable)
 		    .Field<&Galaxy::name>("name", Attribute::Saved)
 		    .Field<&Galaxy::systems>("systems", Attribute::Saved)
-		    .Field<&Galaxy::lanes>("lanes", Attribute::Saved);
+		    .Field<&Galaxy::lanes>("lanes", Attribute::Saved)
+		    .Field<&Galaxy::tollPerLightYear>("tollPerLightYear", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;
@@ -102,7 +104,12 @@ void Resolve(Galaxy &galaxy)
 		CheckPath(galaxy, system, system.system, "a system file");
 		if (system.scene)
 			CheckPath(galaxy, system, *system.scene, "a scene file");
+		if (!std::isfinite(system.position.x) || !std::isfinite(system.position.y) ||
+		    !std::isfinite(system.position.z))
+			Refuse(galaxy, "system '" + system.name + "' is nowhere");
 	}
+	if (galaxy.tollPerLightYear < 0)
+		Refuse(galaxy, "has a negative toll per light year");
 
 	std::map<std::pair<std::string, std::string>, std::size_t> ends;
 	for (std::size_t index = 0; index < galaxy.lanes.size(); ++index)
@@ -129,8 +136,9 @@ void Resolve(Galaxy &galaxy)
 			Refuse(galaxy, Describe(lane, index) + " joins a system to itself");
 		if (!std::isfinite(lane.transitSeconds) || lane.transitSeconds < 0.0)
 			Refuse(galaxy, Describe(lane, index) + " has a negative transit time");
-		if (lane.toll < 0)
-			Refuse(galaxy, Describe(lane, index) + " has a negative toll");
+		const double lightYears = glm::distance(
+		    galaxy.systems[lane.a.systemIndex].position, galaxy.systems[lane.b.systemIndex].position);
+		lane.toll = std::llround(lightYears * static_cast<double>(galaxy.tollPerLightYear));
 	}
 }
 

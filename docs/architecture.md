@@ -201,9 +201,11 @@ two positions are in different frames.
 ### Jumps
 
 The galaxy (`celestial/Galaxy.h`, `assets/systems/galaxy.yaml`) is a graph: each system by name,
-with its system file and, where one is authored, a scene file; each lane joining a jump point in one
-system to a jump point in another, travelled both ways, with a transit time in simulation seconds
-and a toll in whole credits. A jump point is the end of one lane, so a gate says where it leads. Each system's file is checked
+with its system file, where one is authored a scene file, and its position in light years; each lane
+joining a jump point in one system to a jump point in another, travelled both ways, with a transit
+time in simulation seconds. A jump point is the end of one lane, so a gate says where it leads, and
+a ship travels between systems only through gates ([gates](#gates)). A lane's toll, in whole
+credits, is the light years between its systems at the galaxy's toll per light year. Each system's file is checked
 against the lanes that end in it when it is loaded.
 
 A jump replaces the system shown with another, behind an effect, without the frame loop stalling or
@@ -258,14 +260,16 @@ saying why (`Ai::GatePassed`) and charging nothing, so traffic crossing a ring i
 a clearance unused for two minutes; and clears the next in each free gate's queue. A ring is placed,
 not swept, so a ship crossing it at under its depth a step, 3.6 km/s, is seen.
 
-The sample's rule draws the toll on the ship's owner's purse (`App::ChargeTolls`): a moon gate's
-lane 2,000 credits, the star gates' 6,000. A trader asks the gate on its route for a clearance once
+The sample's rule draws the toll on the ship's owner's purse (`App::ChargeTolls`): 500 credits a
+light year, so the moon gates' hop from Halcyon to Vesper, 4 light years, costs 2,000 and the star
+gates' 12 on to Marrow 6,000. A trader asks the gate on its route for a clearance once
 its cruise has brought it there, waits its turn, and flies in along the ring's axis and through
 (`clear`, `fly-through`, then `jump` along the lane); it weighs a run's tolls in what the run makes,
 and keeps them back from what it buys. The shell's console asks for its ship (`transit [gate]`),
 the flight panel counts the clearance down, and the scene jumps along the lane as the gate sends the
-ship. The console's `jump` and the galaxy panel's buttons are the tools' jump, which still sends
-the ship along a lane wherever it is in its system, past the gate and its toll.
+ship. The console's `jump`, the J key and the galaxy panel's buttons are the tools' jump, which still
+sends the ship along a lane wherever it is in its system, past the gate and its toll, and which goes
+once nothing depends on it: all travel between systems is by gates.
 
 A route across the galaxy (`ai/Routes.h`) is A* over its jump points, each lane an edge at its transit
 time and each pair of a system's gates an edge at what crossing the system costs, which the caller
@@ -717,8 +721,8 @@ to show, its `release`, which a save records it by,
 the engine version it was written for, refused when newer than the engine's, and `requires`, the
 mods it needs before it in the list, refused with the reason when one is missing or after it rather
 than the list reordered. A mod with none mounts as before, of no release.
-Nothing that reads content names a host path: the default scene is `scene/main.yaml` through the
-mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
+Nothing that reads content names a host path: the default scene is `scene/orbit.yaml`, Halcyon
+with the ship docked at Ostra Highport, through the mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
 disk, for the development scenes the reference views use).
 
 A pack is a directory's files in one file, each stored as it is or compressed as one zstd frame
@@ -1065,7 +1069,7 @@ is (`CameraComponent` documents it).
 
 | Frame | Precision | Origin | Used by |
 |---|---|---|---|
-| Galaxy | graph | none: systems are nodes, jump lanes are edges (`celestial/Galaxy.h`) | jumps, route planning, the galaxy map |
+| Galaxy | graph, `double` | none: systems are nodes at positions in light years, jump lanes are edges (`celestial/Galaxy.h`) | jumps, tolls, route planning, the galaxy map |
 | System | `double` | the system's barycentre or primary star | simulation positions, orbits, Jolt (`JPH_DOUBLE_PRECISION`) |
 | Local | `double` | a station or planet | physics in the body's frame (`Physics::LocalFrame`), docking approaches, station-relative traffic, the sun's shadow grid (`CameraView::frameOrigin`) |
 | Render | `float` | the camera | everything submitted to the GPU |
@@ -1712,7 +1716,7 @@ proves it headlessly. What exists:
   machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML
-  (`assets/scene/main.yaml`, and `orbit.yaml` at real scale) through `serialise`'s archives, at
+  (`assets/scene/orbit.yaml` at real scale, the default, and `main.yaml`, the sample models) through `serialise`'s archives, at
   file version 2: a field the file does not know is refused, naming its path and line, and the
   loader and the writer share one check of what a file may say. It has transform, parent,
   world-transform, camera, light (a point or a spot, with a range), sun, sky, colour grade and mesh

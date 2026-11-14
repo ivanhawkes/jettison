@@ -96,7 +96,7 @@ constexpr float kStreaksRadius = 30.0f;
 constexpr float kStreaksSpeed = 320.0f;
 constexpr Core::Category kShell{"shell"};
 // The scene a run of no --scene and no --system loads, by virtual path.
-constexpr std::string_view kDefaultScene = "scene/main.yaml";
+constexpr std::string_view kDefaultScene = "scene/orbit.yaml";
 
 // The shell's ship: a shuttle about ten metres long, as its proxy draws it, whose hull
 // (defs/hulls/shuttle.yaml) is the proxy's bounds. At a station of no pads it holds 150 m off the

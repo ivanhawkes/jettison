@@ -52,9 +52,10 @@ struct Route
 // the galaxy's jump points: a lane joins its two ends at its transit time, and within a system every
 // jump point leads to every other at the crossing's cost, so a route that saves a jump by a long
 // crossing is weighed against one that jumps twice. Without a crossing cost a route is the least
-// transit time. The galaxy has no positions, so the search has no estimate and is Dijkstra's. Throws
-// std::invalid_argument for a system the galaxy does not have, and as FindPath does for a crossing
-// that costs what is not a cost. The galaxy has to be resolved (Celestial::Resolve).
+// transit time. A system's position in the galaxy says nothing of a lane's time or a crossing's, so
+// the search has no estimate and is Dijkstra's. Throws std::invalid_argument for a system the galaxy
+// does not have, and as FindPath does for a crossing that costs what is not a cost. The galaxy has to
+// be resolved (Celestial::Resolve).
 std::optional<Route> PlotRoute(
     const Celestial::Galaxy &galaxy, const Place &from, const Place &to,
     const CrossingCost &crossing = {});

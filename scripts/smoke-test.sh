@@ -188,14 +188,15 @@ run_app() {
 		fi
 		echo "smoke-test: missing shader exits without validation errors"
 	fi
-	# Two scenes, one log: the sample scene (glTF models, a skinned clip, the point light), and the
-	# large-world scene (a station over a planet at real scale, placed by the star system, under an
-	# orbit camera and the sun). Each walks the whole sequence; the run fails if either does. Each
-	# jumps once: the sample scene, of no system, to the galaxy's first (the large-world scene), and
-	# the large-world scene through Halcyon's gate to Vesper, built from its system alone.
+	# Two scenes, one log: the sample scene (glTF models, a skinned clip, the point light), named, and
+	# the default, the large-world scene (a station over a planet at real scale, placed by the star
+	# system, under an orbit camera and the sun). Each walks the whole sequence; the run fails if
+	# either does. Each jumps once: the sample scene, of no system, to the galaxy's first (the
+	# large-world scene), and the large-world scene through Halcyon's gate to Vesper, built from its
+	# system alone.
 	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
 	status=0
-	for scene in "" "$PWD/assets/scene/orbit.yaml"; do
+	for scene in "$PWD/assets/scene/main.yaml" ""; do
 		scene_args=()
 		[ -n "$scene" ] && scene_args=(--scene "$scene")
 		echo "smoke-test: scene ${scene:-default}"

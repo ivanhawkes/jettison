@@ -1,18 +1,24 @@
 # The sample galaxy: three systems in a line, Halcyon to Vesper to Marrow, so a route from one end
 # to the other is two jumps. Halcyon is shown as the orbit scene authors it; Vesper and Marrow as
 # their system scenes build them from the system files alone. A lane's transit time is in
-# simulation seconds, and its toll in whole credits, charged to a ship's owner as it enters
-# (ai/Gates.h): a moon gate's short hop is cheaper than the star gates' deep lane.
+# simulation seconds. Each system is at a position in light years, and a lane's toll, charged to a
+# ship's owner as it enters (ai/Gates.h), is the light years between its systems at the toll per light
+# year, in whole credits: Vesper is 4 from Halcyon and Marrow 12 beyond it, so the moon gates' short
+# hop costs 2,000 and the star gates' deep lane 6,000.
 version: 1
 name: Sample
+tollPerLightYear: 500
 systems:
   - name: Halcyon
     system: systems/halcyon.yaml
     scene: scene/orbit.yaml
+    position: [0, 0, 0]
   - name: Vesper
     system: systems/vesper.yaml
+    position: [2.4, 3.2, 0]
   - name: Marrow
     system: systems/marrow.yaml
+    position: [9.6, 12.8, 0]
 lanes:
   - a:
       system: Halcyon
@@ -21,7 +27,6 @@ lanes:
       system: Vesper
       jumpPoint: Vesper Gate
     transitSeconds: 40
-    toll: 2000
   - a:
       system: Vesper
       jumpPoint: Vesper Deep Gate
@@ -29,4 +34,3 @@ lanes:
       system: Marrow
       jumpPoint: Marrow Gate
     transitSeconds: 65
-    toll: 6000

@@ -5,6 +5,8 @@
 
 #include <doctest/doctest.h>
 
+#include <glm/vec3.hpp>
+
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -17,14 +19,18 @@ namespace
 // Three systems in a line and a fourth on a branch from the middle one.
 const char *const kGalaxy = R"(version: 1
 name: Test
+tollPerLightYear: 1000
 systems:
   - name: Near
     system: systems/near.yaml
     scene: scene/near.yaml
+    position: [0, 0, -2]
   - name: Middle
     system: systems/middle.yaml
+    position: [0, 0, 0]
   - name: Far
     system: systems/far.yaml
+    position: [3, 4, 0]
   - name: Branch
     system: systems/branch.yaml
 lanes:
@@ -42,7 +48,6 @@ lanes:
       system: Middle
       jumpPoint: East Gate
     transitSeconds: 45
-    toll: 6000
   - a:
       system: Middle
       jumpPoint: South Gate
@@ -111,9 +116,13 @@ TEST_CASE("Galaxy: read, and each lane's ends resolved to their systems")
 	CHECK(galaxy.lanes[1].a.systemIndex == 2);
 	CHECK(galaxy.lanes[1].b.systemIndex == 1);
 	CHECK(galaxy.lanes[2].transitSeconds == 0.0);
-	// A lane names its toll, or is free.
-	CHECK(galaxy.lanes[1].toll == 6000);
-	CHECK(galaxy.lanes[0].toll == 0);
+	// A lane's toll is its length at the galaxy's rate: 2 light years from Near to Middle, 5 from
+	// Middle to Far, and none from Middle to Branch, which has no position and is at the origin too.
+	CHECK(galaxy.tollPerLightYear == 1000);
+	CHECK(galaxy.systems[2].position == glm::dvec3{3.0, 4.0, 0.0});
+	CHECK(galaxy.lanes[0].toll == 2000);
+	CHECK(galaxy.lanes[1].toll == 5000);
+	CHECK(galaxy.lanes[2].toll == 0);
 }
 
 TEST_CASE("Galaxy: a system's exits are its lanes in the galaxy's order, seen from its end")
@@ -132,7 +141,7 @@ TEST_CASE("Galaxy: a system's exits are its lanes in the galaxy's order, seen fr
 	CHECK(middle[1].jumpPoint == "East Gate");
 	CHECK(middle[1].destination == 2);
 	CHECK(middle[1].arrival == "Far Gate");
-	CHECK(middle[1].toll == 6000);
+	CHECK(middle[1].toll == 5000);
 	CHECK(middle[2].jumpPoint == "South Gate");
 	CHECK(middle[2].destination == 3);
 
@@ -193,7 +202,10 @@ TEST_CASE("Galaxy: a graph that does not hold is refused, naming the system or t
 	refuses(Replace(kGalaxy, "jumpPoint: Far Gate", "jumpPoint: \"\""), "names no jump point in 'Far'");
 	refuses(
 	    Replace(kGalaxy, "transitSeconds: 45", "transitSeconds: -1"), "has a negative transit time");
-	refuses(Replace(kGalaxy, "toll: 6000", "toll: -1"), "has a negative toll");
+	refuses(
+	    Replace(kGalaxy, "tollPerLightYear: 1000", "tollPerLightYear: -1"),
+	    "has a negative toll per light year");
+	refuses(Replace(kGalaxy, "position: [3, 4, 0]", "position: [.nan, 4, 0]"), "'Far' is nowhere");
 	refuses("version: 1\nname: Empty\nsystems: []\nlanes: []\n", "lists no systems");
 }
 

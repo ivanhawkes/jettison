@@ -23,7 +23,8 @@ struct AppArguments
 	std::filesystem::path assets;
 
 	// The scene graph file loaded at start-up (--scene), and an optional second file to write it back
-	// to. Empty for the assets' own, scene/main.yaml, read through the mounts.
+	// to. Empty for the assets' own, scene/orbit.yaml (Halcyon, the ship docked at Ostra Highport),
+	// read through the mounts.
 	std::filesystem::path scenePath;
 	std::filesystem::path saveScenePath;
 	// A star system file, by virtual path (systems/halcyon.yaml), in place of a scene: the scene is
