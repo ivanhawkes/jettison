@@ -57,6 +57,10 @@ own scale, gates flown through, traders that react, and mods a player can choose
 - **The sample game's later slices** ([sample game](sample-game.md)): a player's fleet, a ship
   bought and the helm of one of them (13d); ManifestCore's order book, which the traders (9f) post to once
   they trade by orders; the economy's turns and the skill tree's effects, then scripting (11).
+- **A screen to buy ships from** (the user's, 2026-11-14, as 13d began): 13d buys a ship with the
+  console's `buy <hull>` and lists and attaches to the fleet with `fleet` and `attach`, on keys; a
+  shipyard screen of the game UI's, beside the market screen, with the hulls a station sells, their
+  prices and the purse, is held over for a later phase, as is a fleet screen.
 - **Cruising, not yet placed** (entries 22 and 26, 13a): a cruise to a ship rather than a body;
   one broken off part-way, as a privateer's would be, which knowing where the ship is every step
   allows; a course that bends round a body rather than turning at waypoints, which the ship does in
