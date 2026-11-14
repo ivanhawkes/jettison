@@ -105,8 +105,9 @@ std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Cont
 // The ship the controller is at the helm of, or none.
 entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller);
 
-// A world saved before the helm (13d) has the player's one ship flown by no one: the ship is given
-// to the controller's helm, unless they are at one already, and fitted to trade once they leave it.
-// Returns whether it was.
+// A world saved before the helm (13d) has the player's one ship flown by no one, and not fitted to
+// trade: the ship is given to the controller's helm, unless they are at one already, and fitted to
+// trade once they leave it. A ship already fitted is of a later save, its helm left on purpose, and
+// is left to its behaviour. Returns whether it was given.
 bool GiveOldShipItsHelm(entt::registry &registry, entt::entity ship, const Sim::Controller &controller);
 } // namespace Jettison::App

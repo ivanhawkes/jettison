@@ -182,7 +182,9 @@ entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &contro
 
 bool GiveOldShipItsHelm(entt::registry &registry, entt::entity ship, const Sim::Controller &controller)
 {
-	if (!registry.valid(ship) || registry.all_of<Sim::Helm>(ship) ||
+	// Since the helm every ship of a fleet is fitted to trade (FitForTrade), and none before it: one
+	// that is fitted, with no one at its helm, is one its pilot left to its behaviour.
+	if (!registry.valid(ship) || registry.any_of<Sim::Helm, Ai::Behaviour>(ship) ||
 	    !Sim::MayCommand(registry, ship, controller))
 		return false;
 	for (const auto [entity, helm] : registry.view<const Sim::Helm>().each())

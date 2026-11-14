@@ -205,3 +205,16 @@ TEST_CASE("Fleet: a world saved before the helm gives the player the helm of the
 	CHECK_FALSE(App::GiveOldShipItsHelm(registry, ship, kPlayer));
 	CHECK_FALSE(App::GiveOldShipItsHelm(registry, galaxy.traders.front(), kPlayer));
 }
+
+TEST_CASE("Fleet: a helm its pilot left is not given back as a save from before the helm's would be")
+{
+	Galaxy galaxy;
+	entt::registry &registry = galaxy.world.Registry();
+	const entt::entity ship = FirstShip(galaxy);
+	galaxy.world.Commands().Push(Ai::LeaveHelm{kPlayer, ship});
+	galaxy.Step();
+	REQUIRE_FALSE(registry.all_of<Sim::Helm>(ship));
+	// No helm is the player's, as in an old save, but the ship is fitted to trade, as none was then.
+	CHECK_FALSE(App::GiveOldShipItsHelm(registry, ship, kPlayer));
+	CHECK_FALSE(registry.all_of<Sim::Helm>(ship));
+}
