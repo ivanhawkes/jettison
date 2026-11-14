@@ -36,6 +36,11 @@ is in the log. Warm, it takes 3 to 4 minutes (223 s on 2026-11-14), two thirds o
 lavapipe smoke tests and reference frames; with both caches cold, several minutes more. A commit
 leaves the gate green with `--werror --asan`.
 
+After the gate, Codex reviews the change adversarially with `scripts/cross-review.sh` (a
+background task, about ten minutes a round, no edits while it runs); answer each finding with a
+fix or evidence, two rounds at most, then the user settles what is open
+([build and gates](docs/build-and-gates.md#cross-review)).
+
 Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, for Xvfb) and
 `clang-asan` (headless plus sanitisers). The sanitised and Xvfb runs use lavapipe.
 

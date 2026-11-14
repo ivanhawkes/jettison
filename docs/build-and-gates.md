@@ -349,6 +349,42 @@ libXdmcp, libXext, libXrandr, libXcursor, libXinerama, libXi, libxkbcommon and l
 shell that predates the list fails with `X11: Failed to load Xlib`, and `smoke-test.sh` says so,
 naming the library and the variable.
 
+## Cross-review
+
+Another model reviews a change adversarially before it is committed: for now Claude writes and
+Codex (the `codex` CLI) reviews. The gate shows the change builds and its tests pass; the review
+looks for what the tests do not test, against `CLAUDE.md`, the coding standards, the architecture
+and the change's roadmap row. Git is the medium, not a chat: the reviewer reads the tree, builds,
+runs suites and writes reproductions, which a message relayed through Discord or the like could
+not do.
+
+```bash
+./scripts/cross-review.sh --brief brief.md --gate-log build/gate.log   # round 1
+./scripts/cross-review.sh --reply reply.md --gate-log build/gate.log   # round 2, after fixing
+```
+
+The brief says what the change is for, which roadmap row it serves and what was measured; the
+reviewer attacks those claims. A reply answers each finding by number: fixed, and what proves it,
+or disputed, with the evidence. Round 2 shows the reviewer what changed since round 1, and it marks
+each earlier finding resolved, open or withdrawn. Two rounds at most, then what is still open goes
+to the user. The script exits 0 for `approve`, 1 for `changes`.
+
+Codex runs with `workspace-write` (it builds and runs suites in `build/`) at reasoning effort
+`high`, since its own default is `none`. It may not change the source tree. The script compares
+the tree, uncommitted work included, before and after, and discards a review that changed it, so
+the author does not edit while a round runs. Rounds, transcripts and the reviewer's reproductions
+are kept in `build/reviews/<branch>/`; what a review changed goes in the commit body. A Discord
+webhook in `JETTISON_REVIEW_WEBHOOK` or `~/.config/jettison/review-webhook` gets each round's
+verdict and finding titles, to follow from a phone.
+
+The first trial (2026-11-14) reviewed the commit that closed phase 13, which had passed the gate
+and a run by hand under Xvfb. In ten minutes Codex built Debug, ran the app suite and wrote six
+scratch reproductions, each of a bug the suites had missed: a deliberately vacated helm
+retaken on load, a ship left at its last throttle when the shell attaches elsewhere, a market
+still bound to the previous station, shipyard data with zero mass or a negative price accepted, a
+scene lost by attaching during a jump, and the shuttle's eye point used in the transport. It
+marked all six blockers, which overstates the last: an obstructed view is a major.
+
 ## Headless render test
 
 `scripts/smoke-test.sh` runs `render_test --smoke-test` with no desktop session. It builds the
