@@ -225,6 +225,14 @@ Each is placed by the first scene or screen that needs it, and changes no data o
   started warm, as if it had been running, which a capture of a smoke column waits three seconds
   for instead. A ship's thrusters are shown as its proxy's class places them, a hull drawn from a
   model has none, and a hull's definition cannot place its own ports yet.
+- **A nozzle's glow, to revisit** (13e): a thruster's glow is its procedural nozzle's mesh colour,
+  which is in the shape's vertices, and the renderer keeps one model a colour (`Render::ModelCache`),
+  dropped the first frame none draws it. Shown as it was, every frame a new colour, it made and
+  uploaded a model for every nozzle every frame, jerky in a release build; it is now shown in eight
+  steps that every nozzle shares (`kGlowSteps`), which bounds the models at nine but steps the
+  ramp. The method is to be revisited: an emissive scale a draw carries per entity (a mesh's own,
+  or a material parameter set per draw), so a glow is smooth and costs no model, and a nozzle of a
+  hull drawn from a model can glow too.
 - **The post chain, not yet placed** (entry 28, 10c): a transparent part of an outlined shape (a
   canopy) is not in the depth prepass, so the shape's outline runs round the opaque parts alone; a
   pick read from the object IDs under the mouse, which the physics ray answers today; the game UI and

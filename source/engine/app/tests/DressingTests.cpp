@@ -568,7 +568,8 @@ TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets 
 	for (int frame = 0; frame < 60; ++frame)
 		show({{0.0f, 0.0f, -1.0f}, {}}, 1.0 / 60.0);
 	CHECK(engine.glow == doctest::Approx(1.0 - std::exp(-1.0)).epsilon(1e-4));
-	CHECK(glow() == doctest::Approx(0.03 + 0.97 * (1.0 - std::exp(-1.0))).epsilon(1e-4));
+	// Shown in eighths, so the renderer keeps nine colours of nozzle rather than one a frame.
+	CHECK(glow() == doctest::Approx(0.03 + 0.97 * 0.625));
 	const float warm = engine.glow;
 	for (int frame = 0; frame < 150; ++frame)
 		show({}, 1.0 / 60.0);

@@ -353,6 +353,12 @@ constexpr float kIdleThrottle = 0.02f;
 constexpr float kIdleGlow = 0.03f;
 constexpr double kGlowRise = 1.0;
 constexpr double kGlowFall = 2.5;
+// The steps a nozzle's glow is shown in. A procedural shape's colour is in its vertices, and the
+// renderer keeps one model a colour (Render::ModelCache), made and uploaded when first drawn and
+// dropped the first frame none draws it; a glow shown as it is, a new colour every frame, made a new
+// model for every nozzle every frame, which was jerky in a release build. Eight steps over the
+// second it warms are each held an eighth of a second or so, and every nozzle shares the nine.
+constexpr float kGlowSteps = 8.0f;
 // A manoeuvring jet at full: its births a second and its brightness at birth.
 constexpr float kJetRate = 120.0f;
 constexpr float kJetIntensity = 0.25f;
@@ -916,9 +922,12 @@ void ShowThrust(
 				emitter->frame = frame;
 			}
 			port.glow += (firing - port.glow) * (firing > port.glow ? rise : fall);
+			const float shown = std::round(port.glow * kGlowSteps) / kGlowSteps;
 			if (auto *mesh = scene.valid(port.nozzle) ? scene.try_get<Scene::MeshComponent>(port.nozzle)
 			                                          : nullptr)
-				mesh->color = kWhite * (kIdleGlow + (1.0f - kIdleGlow) * port.glow);
+				if (const glm::vec3 colour = kWhite * (kIdleGlow + (1.0f - kIdleGlow) * shown);
+				    mesh->color != colour)
+					mesh->color = colour;
 		}
 	}
 }
