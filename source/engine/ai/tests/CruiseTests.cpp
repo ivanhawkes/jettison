@@ -405,7 +405,7 @@ TEST_CASE("Cruise: refused, with its reason")
 	REQUIRE(registry.all_of<Ai::Cruising>(ship));
 	CHECK(fixture.Refusal({player, ship, "Halcyon"}) == reason(Ai::Reason::AlreadyCruising));
 	fixture.Events<Ai::LaneRefused>();
-	fixture.world.Commands().Push(Ai::EnterLane{ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
 	const std::vector<Ai::LaneRefused> lane = fixture.Events<Ai::LaneRefused>();
 	REQUIRE(lane.size() == 1);

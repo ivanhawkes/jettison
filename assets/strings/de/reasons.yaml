@@ -46,6 +46,11 @@ reason:
     leads_nowhere: keine Sprungroute führt durch {0}
     not_cleared: das Schiff war für {0} nicht freigegeben
     hull_too_large: der Rumpf passt nicht durch den Ring von {0} mit {1} m Radius
+    no_pilot: niemand Bestimmtes kann ein Steuer übernehmen
+    helm_held: jemand anderes ist am Steuer des Schiffs
+    not_at_helm: der Absender ist nicht am Steuer des Schiffs
+  physics:
+    not_at_helm: der Absender ist nicht am Steuer des Schiffs
   shell:
     no_crates: es wurden keine Kisten verlangt
     no_ship: dieses Schiff gibt es nicht

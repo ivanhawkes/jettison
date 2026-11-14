@@ -11,6 +11,9 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/sim/Controller.h>
+#include <jettison/sim/Reason.h>
+
 namespace Jettison::Sim
 {
 class DefinitionRegistry;
@@ -132,11 +135,55 @@ struct TaskContext
 // nothing of its own between ticks but its memory, so a save holds all of it.
 using Task = std::function<Status(TaskContext &context)>;
 
+// The commands that take and leave a ship's helm (Sim::Helm), which a player flies it by: taken by
+// one that commands it (Sim::MayCommand), a player or an AI, not no one in particular; refused, with
+// a HelmRefused, for a ship another is at the helm of. Each is at one helm at a time, so taking one
+// leaves the one the sender was at. Taking it stands the ship's behaviour down and takes away the
+// destination it was being flown to (Steering.h), its controls let go, so it holds where it is until
+// its pilot flies it; what the game's rules fly it by goes on (the docks' approach and lift, a
+// cruise, a lane). Leaving it lets the controls go, and the ship's tree starts again from the top:
+// a task it was running when the helm was taken is not finished, and what it asked for (a pad, a
+// gate's clearance) goes on or lapses as it would for a ship that did not come. Left by the one at
+// it, or by no one in particular, the game's rules, from whoever is. Registered with Reflect, every
+// field Saved, by RegisterTypes.
+struct TakeHelm
+{
+	Sim::Controller sender;
+	entt::entity ship{entt::null};
+};
+struct LeaveHelm
+{
+	Sim::Controller sender;
+	entt::entity ship{entt::null};
+};
+
+// Raised as a helm is taken and left, by whom, and as a TakeHelm or a LeaveHelm is refused, saying
+// why. Registered with Reflect, every field Saved, by RegisterTypes.
+struct HelmTaken
+{
+	Sim::Controller controller;
+	entt::entity ship{entt::null};
+};
+struct HelmLeft
+{
+	Sim::Controller controller;
+	entt::entity ship{entt::null};
+};
+struct HelmRefused
+{
+	Sim::Controller sender;
+	entt::entity ship{entt::null};
+	Sim::Reason reason;
+};
+
 // Behaviour trees in a simulation world: the Behaviour component, and the system "behaviour"
 // (kSystemName), first in the step, before the spatial index's ("spatial"), so a tree acts on the
 // world as the step's commands do, where it is as the step begins, and what its tasks set (a
 // destination, a pad asked for) is flown and answered in the same step. Each step it ticks every
-// entity's tree, in entity order. An entity whose tree is not defined is left alone, saying so once.
+// entity's tree, in entity order, but one someone is at the helm of (Sim::Helm), whose tree stands
+// down until it is left. An entity whose tree is not defined is left alone, saying so once. The helm
+// is the module's too: Attach registers Sim::Helm, shown in snapshots, and the TakeHelm and LeaveHelm
+// commands.
 //
 // Tasks and trees are the game's start-up, as physics' shapes are, and not state: a save names
 // trees, and a world it is loaded into is given the same ones. A tree's tasks are defined before it.
@@ -145,8 +192,8 @@ class Behaviours
   public:
 	static constexpr std::string_view kSystemName = "behaviour";
 
-	// Registers the component and the system. Throws std::logic_error as SimWorld's registrations
-	// do, for one already made.
+	// Registers the components, the helm's commands and the system. Throws std::logic_error as
+	// SimWorld's registrations do, for one already made.
 	static Behaviours &Attach(Sim::SimWorld &world);
 
 	// Throws std::invalid_argument for a name already defined, or one that is empty.
@@ -160,7 +207,8 @@ class Behaviours
 	// The tree's nodes, in depth-first order, or none for a tree not defined.
 	std::size_t NodeCount(std::string_view tree) const;
 
-	// Ticks one entity's tree once, as the system does: what its root gave.
+	// Ticks one entity's tree once, as the system does an entity no one is at the helm of: what its
+	// root gave.
 	Status Tick(Sim::SimWorld &world, entt::entity entity);
 
   private:

@@ -49,6 +49,11 @@ reason:
     leads_nowhere: no lane leaves through {0}
     not_cleared: the ship was not cleared through {0}
     hull_too_large: the hull does not fit through {0}'s ring of {1} m radius
+    no_pilot: no one in particular cannot take a helm
+    helm_held: someone else is at the ship's helm
+    not_at_helm: its sender is not at the ship's helm
+  physics:
+    not_at_helm: its sender is not at the ship's helm
   shell:
     no_crates: no crates were asked for
     no_ship: there is no such ship

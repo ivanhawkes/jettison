@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 
 namespace Jettison::Physics
@@ -146,14 +147,17 @@ struct Destination
 
 // The commands that set a steered ship's destination, from its first waypoint, and take it away,
 // which leaves the ship holding still where it is. A ship that is no longer in the world is not one
-// to fly, and either does nothing. Registered with Reflect, every field Saved, by RegisterTypes.
+// to fly, and either does nothing. Refused, with a DestinationRefused, from a sender that does not
+// command the ship (Sim::MayCommand). Registered with Reflect, every field Saved, by RegisterTypes.
 struct SetDestination
 {
+	Sim::Controller sender;
 	entt::entity ship{entt::null};
 	Destination destination;
 };
 struct ClearDestination
 {
+	Sim::Controller sender;
 	entt::entity ship{entt::null};
 };
 
@@ -167,6 +171,14 @@ struct Arrived
 };
 struct DestinationLost
 {
+	entt::entity ship{entt::null};
+	Sim::Reason reason;
+};
+// Raised as a SetDestination or a ClearDestination is refused, saying why. Registered with Reflect,
+// every field Saved, by RegisterTypes.
+struct DestinationRefused
+{
+	Sim::Controller sender;
 	entt::entity ship{entt::null};
 	Sim::Reason reason;
 };

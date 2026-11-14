@@ -386,15 +386,29 @@ TEST_CASE("Steering: the commands set a destination from its start and take it a
 	far.next = 3;
 	far.arrived = true;
 	const entt::entity ship = fixture.Ship({0.0, 0.0, 500.0}, Point({0.0, 0.0, 500.0}));
-	fixture.world.Commands().Push(Ai::SetDestination{ship, far});
+	fixture.world.Commands().Push(Ai::SetDestination{{}, ship, far});
 	fixture.Step();
 	CHECK(registry.get<Ai::Destination>(ship).next == 0);
 	CHECK_FALSE(registry.get<Ai::Destination>(ship).arrived);
 	fixture.Run(2.0);
 	CHECK(registry.get<Physics::FlightControls>(ship).linear.z < -0.5f);
 
-	fixture.world.Commands().Push(Ai::ClearDestination{ship});
-	fixture.world.Commands().Push(Ai::ClearDestination{entt::entity{12345}});
+	// Neither from a sender that does not command the ship.
+	const Sim::Controller stranger{Sim::ControllerKind::Player, 2};
+	registry.emplace<Sim::ControlledBy>(ship, Sim::Controller{Sim::ControllerKind::Player, 1});
+	fixture.world.Commands().Push(Ai::SetDestination{stranger, ship, Point({0.0, 0.0, 0.0})});
+	fixture.world.Commands().Push(Ai::ClearDestination{stranger, ship});
+	fixture.Step();
+	const std::vector<Ai::DestinationRefused> refused = fixture.Events<Ai::DestinationRefused>();
+	REQUIRE(refused.size() == 2);
+	CHECK(refused[0].sender == stranger);
+	CHECK(refused[0].ship == ship);
+	CHECK(refused[0].reason == Sim::MakeReason(Ai::Reason::NotController));
+	CHECK(refused[1].ship == ship);
+	CHECK(registry.get<Ai::Destination>(ship).offset == far.offset);
+
+	fixture.world.Commands().Push(Ai::ClearDestination{{}, ship});
+	fixture.world.Commands().Push(Ai::ClearDestination{{}, entt::entity{12345}});
 	fixture.Step();
 	CHECK_FALSE(registry.all_of<Ai::Destination>(ship));
 	CHECK(registry.get<Physics::FlightControls>(ship) == Physics::FlightControls{});

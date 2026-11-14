@@ -287,7 +287,7 @@ void Gates::Send(Sim::SimWorld &world, entt::entity gate, entt::entity ship)
 		return;
 	}
 	// The lanes refuse it with a reason of their own, should they.
-	world.Apply(EnterLane{ship, jumpPoint});
+	world.Apply(EnterLane{{}, ship, jumpPoint});
 	if (!registry.all_of<OnLane>(ship))
 		return;
 	if (m_rule.charge)

@@ -15,6 +15,7 @@
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Shape.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
@@ -91,9 +92,11 @@ struct CastOptions
 // The command that picks what is under the mouse (docs/architecture.md, "Physics"): a ray, drawn by
 // presentation from what it shows, cast against physics as the step applying it begins and answered
 // with a Picked event, so presentation never reads the simulation's state. The request is the
-// caller's, handed back in the answer. Registered with Reflect, every field Saved, by RegisterTypes.
+// caller's, handed back in the answer with its sender, so each player's presentation takes its own
+// answers. Registered with Reflect, every field Saved, by RegisterTypes.
 struct Pick
 {
+	Sim::Controller sender;
 	std::uint64_t request{0};
 	std::uint64_t system{0};
 	glm::dvec3 origin{0.0};
@@ -109,6 +112,7 @@ struct Pick
 // field Saved, by RegisterTypes.
 struct Picked
 {
+	Sim::Controller sender;
 	std::uint64_t request{0};
 	entt::entity entity{entt::null};
 	double distance{0.0};

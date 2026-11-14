@@ -557,13 +557,21 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	    [](Sim::SimWorld &target, const SetFlightControls &command)
 	    {
 		    entt::registry &registry = target.Registry();
-		    if (registry.valid(command.ship))
-			    registry.emplace_or_replace<FlightControls>(command.ship, command.controls);
+		    if (!registry.valid(command.ship))
+			    return;
+		    if (!Sim::MayFly(registry, command.ship, command.sender))
+		    {
+			    target.Events().Emit(
+			        FlightControlsRefused{
+			            command.sender, command.ship, Sim::MakeReason(Reason::NotAtHelm)});
+			    return;
+		    }
+		    registry.emplace_or_replace<FlightControls>(command.ship, command.controls);
 	    });
 	world.RegisterCommand<Pick>(
 	    [&physics](Sim::SimWorld &target, const Pick &pick)
 	    {
-		    Picked answer{pick.request};
+		    Picked answer{pick.sender, pick.request};
 		    // A ray presentation drew of nothing, a degenerate camera's, is answered with nothing
 		    // rather than stopping the step.
 		    const double length = glm::length(pick.direction);
@@ -572,7 +580,8 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 			    if (const std::optional<CastHit> hit = physics.CastRay(
 			            pick.system, pick.origin, pick.direction, pick.maxDistance,
 			            {pick.ignore, false, pick.time}))
-				    answer = {pick.request, hit->entity, hit->distance, hit->point, hit->normal};
+				    answer = {pick.sender,   pick.request, hit->entity,
+				              hit->distance, hit->point,   hit->normal};
 		    target.Events().Emit(answer);
 	    });
 	world.RegisterSystem(

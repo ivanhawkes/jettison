@@ -2037,7 +2037,7 @@ void Application::TakeShipAlong(const Celestial::Exit &exit)
 {
 	if (!CanPilot())
 		return;
-	m_sim.Commands().Push(Ai::EnterLane{m_ship, std::string{exit.jumpPoint}});
+	m_sim.Commands().Push(Ai::EnterLane{kPilot, m_ship, std::string{exit.jumpPoint}});
 }
 
 
@@ -3170,7 +3170,7 @@ void Application::FlyShip()
 	    m_stationSystem == m_shipSystem && ShipFrame() == m_stationBody ? m_station : entt::null;
 	if (m_sentControls == controls)
 		return;
-	m_sim.Commands().Push(Physics::SetFlightControls{m_ship, controls});
+	m_sim.Commands().Push(Physics::SetFlightControls{kPilot, m_ship, controls});
 	m_sentControls = controls;
 }
 
@@ -3432,8 +3432,8 @@ bool Application::Pick(const glm::dvec2 &point)
 	m_pickTime = m_shownTime;
 	m_sim.Commands().Push(
 	    Physics::Pick{
-	        ++m_pickRequest, Sim::SystemId(m_systemScene->System().name), ray.origin, ray.direction,
-	        kPickDistance, m_pickTime, ignore});
+	        kPilot, ++m_pickRequest, Sim::SystemId(m_systemScene->System().name), ray.origin,
+	        ray.direction, kPickDistance, m_pickTime, ignore});
 	m_pickPending = true;
 	return true;
 }
@@ -3447,8 +3447,9 @@ void Application::TakeEvents()
 		PlayEventSound(event);
 		if (const auto *picked = event.event.try_cast<Physics::Picked>())
 		{
-			// An answer to a pick since superseded is not what the mouse last asked about.
-			if (picked->request != m_pickRequest)
+			// Another player's, or an answer to a pick since superseded, is not what the mouse last
+			// asked about.
+			if (picked->sender != kPilot || picked->request != m_pickRequest)
 				continue;
 			m_pickPending = false;
 			if (picked->entity == entt::null)

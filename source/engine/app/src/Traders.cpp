@@ -383,7 +383,8 @@ class Round
 		Ai::Destination flight;
 		flight.waypoints.push_back(axis * (side * kRingApproach));
 		flight.offset = axis * (-side * kRingApproach);
-		context.world.Apply(Ai::SetDestination{context.entity, std::move(flight)});
+		context.world.Apply(
+		    Ai::SetDestination{SenderOf(registry, context.entity), context.entity, std::move(flight)});
 		return Status::Running;
 	}
 
@@ -476,7 +477,9 @@ class Round
 			Ai::Destination flight;
 			flight.offset = clear - origin;
 			AddCourseRound(flight, registry, leaving, at, clear, origin);
-			context.world.Apply(Ai::SetDestination{context.entity, std::move(flight)});
+			context.world.Apply(
+			    Ai::SetDestination{
+			        SenderOf(registry, context.entity), context.entity, std::move(flight)});
 			return Status::Running;
 		}
 
@@ -602,7 +605,8 @@ class Round
 		Ai::Destination holding;
 		holding.entity = station;
 		holding.offset = out * (radius + kHoldingOff) + across * (place * kHoldingApart);
-		context.world.Apply(Ai::SetDestination{context.entity, std::move(holding)});
+		context.world.Apply(
+		    Ai::SetDestination{SenderOf(registry, context.entity), context.entity, std::move(holding)});
 	}
 
 	// The lanes' tolls along a route.

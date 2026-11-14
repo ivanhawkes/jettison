@@ -1,7 +1,9 @@
 #include <jettison/ai/BehaviourTree.h>
+#include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 
 #include <jettison/core/Log.h>
+#include <jettison/physics/Flight.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
@@ -79,6 +81,66 @@ void CheckNode(std::string_view name, const BehaviourNode &node, const std::stri
 	for (std::size_t index = 0; index < node.children.size(); ++index)
 		CheckNode(name, node.children[index], std::format("{}.{}", path, index));
 }
+
+// Lets the ship's controls go, from the helm or to it.
+void LetGo(entt::registry &registry, entt::entity ship)
+{
+	if (auto *controls = registry.try_get<Physics::FlightControls>(ship))
+		*controls = Physics::FlightControls{};
+}
+
+void Leave(Sim::SimWorld &world, entt::entity ship)
+{
+	entt::registry &registry = world.Registry();
+	const Sim::Controller controller = registry.get<Sim::Helm>(ship).controller;
+	registry.remove<Sim::Helm>(ship);
+	LetGo(registry, ship);
+	if (auto *behaviour = registry.try_get<Behaviour>(ship))
+		behaviour->nodes.clear();
+	world.Events().Emit(HelmLeft{controller, ship});
+}
+
+void Take(Sim::SimWorld &world, const TakeHelm &command)
+{
+	entt::registry &registry = world.Registry();
+	const auto refuse = [&](Reason reason)
+	{ world.Events().Emit(HelmRefused{command.sender, command.ship, Sim::MakeReason(reason)}); };
+	if (!registry.valid(command.ship))
+		return refuse(Reason::NoSuchEntity);
+	if (command.sender.kind == Sim::ControllerKind::None)
+		return refuse(Reason::NoPilot);
+	if (!Sim::MayCommand(registry, command.ship, command.sender))
+		return refuse(Reason::NotController);
+	if (const auto *helm = registry.try_get<Sim::Helm>(command.ship);
+	    helm && helm->controller != command.sender)
+		return refuse(Reason::HelmHeld);
+	// The helm it was at, in entity order, should a save hold more than one.
+	std::vector<entt::entity> held;
+	for (const auto [ship, helm] : registry.view<const Sim::Helm>().each())
+		if (ship != command.ship && helm.controller == command.sender)
+			held.push_back(ship);
+	std::ranges::sort(held, {}, [](entt::entity ship) { return entt::to_integral(ship); });
+	for (const entt::entity ship : held)
+		Leave(world, ship);
+	registry.emplace_or_replace<Sim::Helm>(command.ship, command.sender);
+	registry.remove<Destination>(command.ship);
+	LetGo(registry, command.ship);
+	world.Events().Emit(HelmTaken{command.sender, command.ship});
+}
+
+void Leave(Sim::SimWorld &world, const LeaveHelm &command)
+{
+	const entt::registry &registry = world.Registry();
+	if (!registry.valid(command.ship))
+		return world.Events().Emit(
+		    HelmRefused{command.sender, command.ship, Sim::MakeReason(Reason::NoSuchEntity)});
+	const auto *helm = registry.try_get<Sim::Helm>(command.ship);
+	if (!helm ||
+	    (command.sender.kind != Sim::ControllerKind::None && helm->controller != command.sender))
+		return world.Events().Emit(
+		    HelmRefused{command.sender, command.ship, Sim::MakeReason(Reason::NotAtHelm)});
+	Leave(world, command.ship);
+}
 } // namespace
 
 void CheckBehaviour(std::string_view name, const BehaviourDefinition &behaviour)
@@ -93,10 +155,17 @@ Behaviours &Behaviours::Attach(Sim::SimWorld &world)
 	std::shared_ptr<Behaviours> behaviours{new Behaviours{}};
 	behaviours->m_fixedStep = world.FixedStep();
 	world.RegisterComponent<Behaviour>();
+	world.RegisterComponent<Sim::Helm>();
+	// For whose helm a ship is at: the flight panel's, and which ship a player's camera follows.
+	world.ShowInSnapshots<Sim::Helm>();
+	world.RegisterCommand<TakeHelm>([](Sim::SimWorld &target, const TakeHelm &command)
+	                                { Take(target, command); });
+	world.RegisterCommand<LeaveHelm>([](Sim::SimWorld &target, const LeaveHelm &command)
+	                                 { Leave(target, command); });
 	Ecs::SystemDescription system{
 	    std::string{kSystemName},
 	    Ecs::TickPhase::Simulation,
-	    Ecs::Access::Of<>().Writing<Behaviour>(),
+	    Ecs::Access::Of<Sim::Helm>().Writing<Behaviour>(),
 	    {},
 	    [behaviours, &world](entt::registry & /*registry*/, double /*fixedStep*/)
 	    { behaviours->Step(world); }};
@@ -199,7 +268,8 @@ void Behaviours::Step(Sim::SimWorld &world)
 {
 	entt::registry &registry = world.Registry();
 	std::vector<entt::entity> entities;
-	for (const auto [entity, behaviour] : registry.view<const Behaviour>().each())
+	for (const auto [entity, behaviour] :
+	     registry.view<const Behaviour>(entt::exclude<Sim::Helm>).each())
 		entities.push_back(entity);
 	std::ranges::sort(entities, {}, [](entt::entity entity) { return entt::to_integral(entity); });
 	for (const entt::entity entity : entities)

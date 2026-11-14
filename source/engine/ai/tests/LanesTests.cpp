@@ -120,7 +120,7 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	fixture.Events<Ai::LaneEntered>();
 
 	const std::uint64_t entered = fixture.world.Clock().Step();
-	fixture.world.Commands().Push(Ai::EnterLane{ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
 	const std::vector<Ai::LaneEntered> entries = fixture.Events<Ai::LaneEntered>();
 	REQUIRE(entries.size() == 1);
@@ -202,24 +202,30 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	const entt::entity gone = fixture.world.Registry().create();
 	fixture.world.Registry().destroy(gone);
 
-	fixture.world.Commands().Push(Ai::EnterLane{ship, "Ostra Highport"});
-	fixture.world.Commands().Push(Ai::EnterLane{ship, "Vesper Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{drifting, "Halcyon Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{gone, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Ostra Highport"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Vesper Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, drifting, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, gone, "Halcyon Gate"});
+	// From a sender that does not command the ship.
+	fixture.world.Registry().emplace<Sim::ControlledBy>(
+	    ship, Sim::Controller{Sim::ControllerKind::Player, 1});
+	fixture.world.Commands().Push(
+	    Ai::EnterLane{{Sim::ControllerKind::Player, 2}, ship, "Halcyon Gate"});
 	fixture.Run(1);
 	const std::vector<Ai::LaneRefused> refused = fixture.Events<Ai::LaneRefused>();
-	REQUIRE(refused.size() == 4);
+	REQUIRE(refused.size() == 5);
 	CHECK(refused[0].entity == ship);
 	CHECK(Sim::Describe(refused[0].reason) == "reason.ai.no_lane('Halcyon', 'Ostra Highport')");
 	CHECK(Sim::Describe(refused[1].reason) == "reason.ai.no_lane('Halcyon', 'Vesper Gate')");
 	CHECK(refused[2].reason == Sim::MakeReason(Ai::Reason::InNoSystem));
 	CHECK(refused[3].reason == Sim::MakeReason(Ai::Reason::NoSuchEntity));
+	CHECK(refused[4].reason == Sim::MakeReason(Ai::Reason::NotController));
 	CHECK(fixture.SystemOf(ship) == kHalcyon);
 	CHECK_FALSE(fixture.world.Registry().all_of<Ai::OnLane>(ship));
 
 	// Once on a lane, it cannot enter another.
-	fixture.world.Commands().Push(Ai::EnterLane{ship, "Halcyon Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
 	const std::vector<Ai::LaneRefused> twice = fixture.Events<Ai::LaneRefused>();
 	REQUIRE(twice.size() == 1);
@@ -228,7 +234,7 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	// A world given no galaxy has no lanes.
 	Fixture bare{false};
 	const entt::entity alone = bare.Ship();
-	bare.world.Commands().Push(Ai::EnterLane{alone, "Halcyon Gate"});
+	bare.world.Commands().Push(Ai::EnterLane{{}, alone, "Halcyon Gate"});
 	bare.Run(1);
 	const std::vector<Ai::LaneRefused> none = bare.Events<Ai::LaneRefused>();
 	REQUIRE(none.size() == 1);
@@ -242,7 +248,7 @@ TEST_CASE("Lanes: a world saved mid-transit arrives as the one saved does, and a
 	fixture.world.SetRecording(true);
 	const std::vector<std::byte> start = fixture.world.Save();
 	fixture.Run(30);
-	fixture.world.Commands().Push(Ai::EnterLane{ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1000);
 	const std::vector<std::byte> midway = fixture.world.Save();
 	fixture.Run(kTransitSteps);
@@ -280,7 +286,7 @@ TEST_CASE("Lanes: a transit shorter than a step takes one, and arrives as the st
 	registry.emplace<Sim::Transform>(probe);
 	registry.emplace<Sim::InSystem>(probe, kVesper);
 
-	fixture.world.Commands().Push(Ai::EnterLane{probe, "Vesper Deep Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, probe, "Vesper Deep Gate"});
 	fixture.Run(1);
 	CHECK(fixture.SystemOf(probe) == Sim::SystemId("Marrow"));
 	// Not a body, so given no frame.
@@ -304,10 +310,10 @@ TEST_CASE(
 	const entt::entity second = fixture.Ship();
 	const entt::entity third = fixture.Ship();
 	// Two in one step, and the third a second later, while they still sit where they came out.
-	fixture.world.Commands().Push(Ai::EnterLane{first, "Halcyon Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{second, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, first, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, second, "Halcyon Gate"});
 	fixture.Run(60);
-	fixture.world.Commands().Push(Ai::EnterLane{third, "Halcyon Gate"});
+	fixture.world.Commands().Push(Ai::EnterLane{{}, third, "Halcyon Gate"});
 	fixture.Run(kTransitSteps - 60);
 	REQUIRE(fixture.SystemOf(first) == kVesper);
 	REQUIRE(fixture.SystemOf(second) == kVesper);

@@ -53,8 +53,14 @@ void RegisterTypes()
 		    .Field<&FlightControls::assist>("assist", Attribute::Saved)
 		    .Field<&FlightControls::reference>("reference", Attribute::Saved);
 		RegisterType<SetFlightControls>("Physics.SetFlightControls")
+		    .Field<&SetFlightControls::sender>("sender", Attribute::Saved)
 		    .Field<&SetFlightControls::ship>("ship", Attribute::Saved)
 		    .Field<&SetFlightControls::controls>("controls", Attribute::Saved);
+		RegisterEnum<Reason>("Physics.Reason").Value<Reason::NotAtHelm>("not_at_helm");
+		RegisterType<FlightControlsRefused>("Physics.FlightControlsRefused")
+		    .Field<&FlightControlsRefused::sender>("sender", Attribute::Saved)
+		    .Field<&FlightControlsRefused::ship>("ship", Attribute::Saved)
+		    .Field<&FlightControlsRefused::reason>("reason", Attribute::Saved);
 
 		RegisterEnum<ContactPhase>("Physics.ContactPhase")
 		    .Value<ContactPhase::Began>("Began")
@@ -68,6 +74,7 @@ void RegisterTypes()
 		    .Field<&ContactEvent::normal>("normal", Attribute::Saved)
 		    .Field<&ContactEvent::speed>("speed", Attribute::Saved);
 		RegisterType<Pick>("Physics.Pick")
+		    .Field<&Pick::sender>("sender", Attribute::Saved)
 		    .Field<&Pick::request>("request", Attribute::Saved)
 		    .Field<&Pick::system>("system", Attribute::Saved)
 		    .Field<&Pick::origin>("origin", Attribute::Saved)
@@ -76,6 +83,7 @@ void RegisterTypes()
 		    .Field<&Pick::time>("time", Attribute::Saved)
 		    .Field<&Pick::ignore>("ignore", Attribute::Saved);
 		RegisterType<Picked>("Physics.Picked")
+		    .Field<&Picked::sender>("sender", Attribute::Saved)
 		    .Field<&Picked::request>("request", Attribute::Saved)
 		    .Field<&Picked::entity>("entity", Attribute::Saved)
 		    .Field<&Picked::distance>("distance", Attribute::Saved)

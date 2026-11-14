@@ -3,6 +3,7 @@
 
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/Snapshot.h>
 
 #include <doctest/doctest.h>
@@ -127,7 +128,7 @@ void Steps(Sim::SimWorld &world, int count)
 
 void Fly(Sim::SimWorld &world, entt::entity ship, const FlightControls &controls)
 {
-	world.Commands().Push(SetFlightControls{ship, controls});
+	world.Commands().Push(SetFlightControls{{}, ship, controls});
 }
 
 const Velocity &VelocityOf(const Sim::SimWorld &world, entt::entity entity)
@@ -147,6 +148,46 @@ glm::dvec3 RelativeVelocity(const Sim::SimWorld &world, entt::entity ship, entt:
 	return glm::dvec3{VelocityOf(world, ship).linear} - glm::dvec3{VelocityOf(world, station).linear};
 }
 } // namespace
+
+TEST_CASE("Flight: a ship takes flight controls only from the one at its helm, or from no one")
+{
+	Sim::SimWorld world{kStep, kSeed};
+	Populate(world);
+	const Sim::Controller one{Sim::ControllerKind::Player, 1};
+	const Sim::Controller two{Sim::ControllerKind::Player, 2};
+	const entt::entity flown = Ship(world);
+	const entt::entity unflown = Ship(world);
+	world.Registry().emplace<Sim::ControlledBy>(flown, one);
+	world.Registry().emplace<Sim::ControlledBy>(unflown, one);
+	world.Registry().emplace<Sim::Helm>(flown, one);
+	world.Step();
+
+	const FlightControls ahead{{0.0f, 0.0f, -1.0f}};
+	// Another player's ship, and the player's own that their behaviour flies: refused.
+	world.Commands().Push(SetFlightControls{two, flown, ahead});
+	world.Commands().Push(SetFlightControls{one, unflown, ahead});
+	world.Step();
+	const std::vector<Sim::SimEvent> events = world.Events().Take();
+	REQUIRE(events.size() == 2);
+	const auto *other = events[0].event.try_cast<Physics::FlightControlsRefused>();
+	const auto *own = events[1].event.try_cast<Physics::FlightControlsRefused>();
+	REQUIRE(other);
+	REQUIRE(own);
+	CHECK(other->sender == two);
+	CHECK(other->ship == flown);
+	CHECK(other->reason == Sim::MakeReason(Physics::Reason::NotAtHelm));
+	CHECK(own->ship == unflown);
+	CHECK_FALSE(world.Registry().all_of<FlightControls>(flown));
+	CHECK_FALSE(world.Registry().all_of<FlightControls>(unflown));
+
+	// The one at its helm, and the game's own rules.
+	world.Commands().Push(SetFlightControls{one, flown, ahead});
+	world.Commands().Push(SetFlightControls{{}, unflown, ahead});
+	world.Step();
+	CHECK(world.Events().Take().empty());
+	CHECK(world.Registry().get<FlightControls>(flown) == ahead);
+	CHECK(world.Registry().get<FlightControls>(unflown) == ahead);
+}
 
 TEST_CASE("Flight: with assist, a demand is a speed the thrusters reach and hold")
 {
@@ -536,8 +577,13 @@ void Feed(Sim::SimWorld &world, const Approach &approach)
 			const glm::dvec3 eye = ship + glm::dvec3{0.0, 5.0, -30.0};
 			world.Commands().Push(
 			    Physics::Pick{
-			        kPickRequest, kHalcyon, eye - StationVelocity(world.Clock().Now()) * (kStep / 2.0),
-			        ship - eye, 200.0, world.Clock().Now() - kStep / 2.0});
+			        {},
+			        kPickRequest,
+			        kHalcyon,
+			        eye - StationVelocity(world.Clock().Now()) * (kStep / 2.0),
+			        ship - eye,
+			        200.0,
+			        world.Clock().Now() - kStep / 2.0});
 			break;
 		}
 		default: break;

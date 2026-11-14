@@ -1,14 +1,18 @@
 #include <jettison/ai/BehaviourTree.h>
+#include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 
+#include <jettison/physics/Flight.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/spatial/SystemIndices.h>
 
 #include <doctest/doctest.h>
 
 #include <cstdint>
+#include <format>
 #include <string>
 #include <vector>
 
@@ -358,4 +362,121 @@ root:
 	parent.children.push_back(TaskNode("succeed"));
 	refused(parent, "a wait with children");
 	CHECK_FALSE(trees.behaviours.HasTree("broken"));
+}
+
+TEST_CASE(
+    "Behaviour trees: a ship's tree stands down while a player is at its helm, and starts again "
+    "from the top once they leave it")
+{
+	const Sim::Controller one{Sim::ControllerKind::Player, 1};
+	const Sim::Controller two{Sim::ControllerKind::Player, 2};
+	const auto setup = [&](Trees &trees)
+	{
+		trees.world.RegisterComponent<Sim::ControlledBy>();
+		// A count, then three ticks' running: a count every third step.
+		trees.behaviours.DefineTree(
+		    "rounds",
+		    {Composite(
+		        NodeKind::Repeat,
+		        {Composite(NodeKind::Sequence, {TaskNode("count"), TaskNode("run", {"x", "3"})})})});
+	};
+	Trees trees;
+	setup(trees);
+	entt::registry &registry = trees.world.Registry();
+	const entt::entity first = trees.Follow("rounds");
+	const entt::entity second = trees.Follow("rounds");
+	// No one commands it: any player may take its helm.
+	const entt::entity free = trees.Follow("rounds");
+	registry.emplace<Sim::ControlledBy>(first, one);
+	registry.emplace<Sim::ControlledBy>(second, one);
+	registry.emplace<Ai::Destination>(first).offset = {0.0, 0.0, -500.0};
+	registry.emplace<Physics::FlightControls>(
+	    first, Physics::FlightControls{{0.0f, 0.0f, -1.0f}, {}, true, entt::null});
+	const auto counted = [&](entt::entity entity) { return registry.get<Tally>(entity).count; };
+	const auto events = [&]
+	{
+		std::vector<std::string> said;
+		for (const Sim::SimEvent &event : trees.world.Events().Take())
+			if (const auto *taken = event.event.try_cast<Ai::HelmTaken>())
+				said.push_back(
+				    std::format("taken {} {}", taken->controller.slot, entt::to_integral(taken->ship)));
+			else if (const auto *left = event.event.try_cast<Ai::HelmLeft>())
+				said.push_back(
+				    std::format("left {} {}", left->controller.slot, entt::to_integral(left->ship)));
+			else if (const auto *refused = event.event.try_cast<Ai::HelmRefused>())
+				said.push_back(
+				    std::format(
+				        "refused {} {}", entt::to_integral(refused->ship), refused->reason.key));
+		return said;
+	};
+
+	// Part-way through its run, the first ship's helm is taken: its tree stands down, the
+	// destination it was flown to is taken away and its controls let go, while the second counts on.
+	trees.world.Step();
+	CHECK(counted(first) == 1);
+	trees.world.Commands().Push(Ai::TakeHelm{one, first});
+	for (int step = 1; step < 8; ++step)
+		trees.world.Step();
+	CHECK(counted(first) == 1);
+	CHECK(counted(second) == 3);
+	CHECK(registry.get<Sim::Helm>(first).controller == one);
+	CHECK_FALSE(registry.all_of<Ai::Destination>(first));
+	CHECK(registry.get<Physics::FlightControls>(first) == Physics::FlightControls{});
+	CHECK(events() == std::vector<std::string>{std::format("taken 1 {}", entt::to_integral(first))});
+
+	// Taking the second's leaves the first's, whose tree starts again from the top: it counts at
+	// once, though it was part-way through its run.
+	trees.world.Commands().Push(Ai::TakeHelm{one, second});
+	trees.world.Step();
+	CHECK_FALSE(registry.all_of<Sim::Helm>(first));
+	CHECK(registry.get<Sim::Helm>(second).controller == one);
+	CHECK(counted(first) == 2);
+	CHECK(
+	    events() == std::vector<std::string>{
+	                    std::format("left 1 {}", entt::to_integral(first)),
+	                    std::format("taken 1 {}", entt::to_integral(second))});
+
+	// Refused: from a player who does not command the ship, from no one in particular, for a ship
+	// another is at the helm of, for one that has gone, and leaving a helm the sender is not at.
+	const entt::entity gone = registry.create();
+	registry.destroy(gone);
+	trees.world.Commands().Push(Ai::TakeHelm{two, second});
+	trees.world.Commands().Push(Ai::TakeHelm{{}, first});
+	trees.world.Commands().Push(Ai::TakeHelm{two, free});
+	trees.world.Commands().Push(Ai::TakeHelm{one, free});
+	trees.world.Commands().Push(Ai::TakeHelm{one, gone});
+	trees.world.Commands().Push(Ai::LeaveHelm{one, first});
+	trees.world.Commands().Push(Ai::LeaveHelm{two, second});
+	trees.world.Step();
+	const auto id = [](entt::entity ship) { return entt::to_integral(ship); };
+	CHECK(
+	    events() == std::vector<std::string>{
+	                    std::format("refused {} reason.ai.not_controller", id(second)),
+	                    std::format("refused {} reason.ai.no_pilot", id(first)),
+	                    std::format("taken 2 {}", id(free)),
+	                    std::format("refused {} reason.ai.helm_held", id(free)),
+	                    std::format("refused {} reason.ai.no_such_entity", id(gone)),
+	                    std::format("refused {} reason.ai.not_at_helm", id(first)),
+	                    std::format("refused {} reason.ai.not_at_helm", id(second))});
+	CHECK(registry.get<Sim::Helm>(second).controller == one);
+
+	// The helm is saved: a world loaded holds the second ship's tree stood down.
+	const std::int64_t before = counted(second);
+	Trees loaded;
+	setup(loaded);
+	loaded.world.Load(trees.world.Save());
+	for (int step = 0; step < 6; ++step)
+		loaded.world.Step();
+	CHECK(loaded.world.Registry().get<Sim::Helm>(second).controller == one);
+	CHECK(loaded.world.Registry().get<Tally>(second).count == before);
+
+	// Left by its player, or by the game's rules from whoever is at it.
+	trees.world.Commands().Push(Ai::LeaveHelm{one, second});
+	trees.world.Commands().Push(Ai::LeaveHelm{{}, free});
+	trees.world.Step();
+	CHECK(
+	    events() == std::vector<std::string>{
+	                    std::format("left 1 {}", id(second)), std::format("left 2 {}", id(free))});
+	CHECK(registry.view<Sim::Helm>().empty());
+	CHECK(counted(second) == before + 1);
 }

@@ -155,6 +155,11 @@ std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
 	const auto *frame = registry.try_get<Physics::LocalFrame>(entity);
 	return frame ? std::string_view{frame->body} : std::string_view{};
 }
+
+void RefuseDestination(Sim::SimWorld &world, const Sim::Controller &sender, entt::entity ship)
+{
+	world.Events().Emit(DestinationRefused{sender, ship, Sim::MakeReason(Reason::NotController)});
+}
 } // namespace
 
 glm::dvec3 Seek(const Agent &agent, const glm::dvec3 &target)
@@ -269,6 +274,8 @@ Steering &Steering::Attach(
 		    entt::registry &registry = target.Registry();
 		    if (!registry.valid(command.ship))
 			    return;
+		    if (!Sim::MayCommand(registry, command.ship, command.sender))
+			    return RefuseDestination(target, command.sender, command.ship);
 		    Destination destination = command.destination;
 		    destination.next = 0;
 		    destination.arrived = false;
@@ -280,6 +287,8 @@ Steering &Steering::Attach(
 		    entt::registry &registry = target.Registry();
 		    if (!registry.valid(command.ship))
 			    return;
+		    if (!Sim::MayCommand(registry, command.ship, command.sender))
+			    return RefuseDestination(target, command.sender, command.ship);
 		    registry.remove<Destination>(command.ship);
 		    if (auto *controls = registry.try_get<Physics::FlightControls>(command.ship))
 			    *controls = Physics::FlightControls{};

@@ -475,17 +475,20 @@ TEST_CASE("Picking: a ray presentation draws is answered with what it hit, as an
 	fixture.Run(1);
 	const double now = fixture.world.Clock().Now();
 	const glm::dvec3 eye = fixture.StationAt(now) + glm::dvec3{0.0, 0.0, -100.0};
-	fixture.world.Commands().Push(Physics::Pick{1, kHalcyon, eye, {0.0, 0.0, 1.0}, 500.0, now});
+	// Each player's presentation asks, and takes its own answers.
+	const Sim::Controller player{Sim::ControllerKind::Player, 1};
+	fixture.world.Commands().Push(Physics::Pick{player, 1, kHalcyon, eye, {0.0, 0.0, 1.0}, 500.0, now});
 	// One of nothing: a ray of no direction.
-	fixture.world.Commands().Push(Physics::Pick{2, kHalcyon, eye, glm::dvec3{0.0}, 500.0, now});
+	fixture.world.Commands().Push(Physics::Pick{{}, 2, kHalcyon, eye, glm::dvec3{0.0}, 500.0, now});
 	// And one that misses.
-	fixture.world.Commands().Push(Physics::Pick{3, kHalcyon, eye, {0.0, 0.0, -1.0}, 500.0, now});
+	fixture.world.Commands().Push(Physics::Pick{{}, 3, kHalcyon, eye, {0.0, 0.0, -1.0}, 500.0, now});
 	fixture.world.Step();
 
 	const std::vector<Sim::SimEvent> events = fixture.world.Events().Take();
 	REQUIRE(events.size() == 3);
 	const auto *hit = events[0].event.try_cast<Physics::Picked>();
 	REQUIRE(hit);
+	CHECK(hit->sender == player);
 	CHECK(hit->request == 1);
 	CHECK(hit->entity == station);
 	CHECK(hit->distance == doctest::Approx(70.0).epsilon(1e-5));
@@ -493,6 +496,7 @@ TEST_CASE("Picking: a ray presentation draws is answered with what it hit, as an
 	{
 		const auto *none = events[index].event.try_cast<Physics::Picked>();
 		REQUIRE(none);
+		CHECK(none->sender == Sim::Controller{});
 		CHECK(none->request == index + 1);
 		CHECK(none->entity == entt::null);
 	}

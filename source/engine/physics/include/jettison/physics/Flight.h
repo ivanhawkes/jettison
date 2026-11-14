@@ -3,7 +3,11 @@
 #include <entt/entt.hpp>
 #include <glm/vec3.hpp>
 
+#include <cstdint>
 #include <string_view>
+
+#include <jettison/sim/Controller.h>
+#include <jettison/sim/Reason.h>
 
 namespace Jettison::Physics
 {
@@ -56,11 +60,31 @@ struct FlightControls
 
 // The command a pilot's input becomes (docs/architecture.md, "Simulation and presentation"): the
 // ship's FlightControls from the next step. A ship that is no longer in the world is not one to
-// fly, and the command does nothing. Registered with Reflect, every field Saved, by RegisterTypes.
+// fly, and the command does nothing. Refused, with a FlightControlsRefused, from a sender not at
+// the ship's helm (Sim::MayFly): a player flies only the ship they have the helm of, and the one
+// whose behaviour flies it, or another player's, not at all. Registered with Reflect, every field
+// Saved, by RegisterTypes.
 struct SetFlightControls
 {
+	Sim::Controller sender;
 	entt::entity ship{entt::null};
 	FlightControls controls;
+};
+
+// Why physics refuses a command (Sim::Reason), each worded by the string tables under
+// reason.physics.<name>. Registered with Reflect as "Physics.Reason" by RegisterTypes.
+enum class Reason : std::uint8_t
+{
+	NotAtHelm
+};
+
+// Raised as flight controls are refused, saying why. Registered with Reflect, every field Saved, by
+// RegisterTypes.
+struct FlightControlsRefused
+{
+	Sim::Controller sender;
+	entt::entity ship{entt::null};
+	Sim::Reason reason;
 };
 
 // What a ship's thrusters fired over the last step, for presentation to show (its plumes and the

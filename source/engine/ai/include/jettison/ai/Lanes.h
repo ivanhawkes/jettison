@@ -11,6 +11,7 @@
 #include <jettison/ai/Types.h>
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/celestial/StarSystem.h>
+#include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 
 namespace Jettison::Physics
@@ -51,13 +52,14 @@ struct OnLane
 
 // The command that sends an entity along the lane leaving its system through that jump point,
 // applied as the step begins, or as a gate applies it to a ship it has cleared. The entity gives up
-// its Destination (Steering.h), which is in the system it leaves. Refused, with a LaneRefused, for an
-// entity not in a system of the galaxy (one already on a lane is in none), a cruising one, or a jump
-// point no lane leaves through. It carries no sender: a gate's clearance is what a player asks for
-// (RequestTransit), and this is the tools' and the gates' own. Registered with Reflect, every field
-// Saved, by RegisterTypes.
+// its Destination (Steering.h), which is in the system it leaves. Refused, with a LaneRefused, for a
+// sender that does not command the entity (Sim::MayCommand), an entity not in a system of the galaxy
+// (one already on a lane is in none), a cruising one, or a jump point no lane leaves through. A gate
+// sends a ship it cleared as no one in particular, the game's rule; a player asks for a gate's
+// clearance (RequestTransit). Registered with Reflect, every field Saved, by RegisterTypes.
 struct EnterLane
 {
+	Sim::Controller sender;
 	entt::entity entity{entt::null};
 	std::string jumpPoint;
 };

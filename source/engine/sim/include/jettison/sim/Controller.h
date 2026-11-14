@@ -45,4 +45,21 @@ struct ControlledBy
 // is its controller, or the sender is no one in particular (ControllerKind::None), as the game's own
 // rules are.
 bool MayCommand(const entt::registry &registry, entt::entity entity, const Controller &sender);
+
+// Who is at an entity's helm (docs/roadmap.md, "Decided": a player has a fleet): the one flying it by
+// its controls, which it takes from them alone (Physics::SetFlightControls), and for whom its
+// behaviour stands down (Ai::Behaviours). Taken and left by Ai::TakeHelm and Ai::LeaveHelm, by one
+// that commands the entity, each at one helm at a time. Registered with Reflect, its field Saved, by
+// RegisterTypes.
+struct Helm
+{
+	Controller controller;
+
+	bool operator==(const Helm &) const = default;
+};
+
+// Whether flight controls from the sender may fly the entity: the sender is at its helm, or is no
+// one in particular, as the game's own rules are. An entity no one is at the helm of is flown by
+// what the game's rules give it (its behaviour's steering, the docks), and by no player's controls.
+bool MayFly(const entt::registry &registry, entt::entity entity, const Controller &sender);
 } // namespace Jettison::Sim

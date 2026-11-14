@@ -185,7 +185,8 @@ TEST_CASE(
 	CHECK(at.y < Dock::kLiftHeight + 5.0);
 	CHECK(registry.get<Physics::FlightControls>(approach.ship) == Physics::FlightControls{});
 	approach.world.Commands().Push(
-	    Physics::SetFlightControls{approach.ship, {{0.0f, 0.0f, -1.0f}, {}, true, approach.station}});
+	    Physics::SetFlightControls{
+	        {}, approach.ship, {{0.0f, 0.0f, -1.0f}, {}, true, approach.station}});
 	approach.Run(2.0);
 	CHECK(registry.get<Physics::Velocity>(approach.ship).linear.z != 0.0f);
 	CHECK(approach.OnlyOnThePad());

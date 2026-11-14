@@ -4,6 +4,7 @@
 #include <jettison/ai/Types.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/physics/Components.h>
+#include <jettison/physics/Flight.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Reason.h>
 #include <jettison/sim/SimWorld.h>
@@ -46,7 +47,7 @@ TEST_CASE("Reasons: every reason the step gives has its words in English and in 
 		words.strings.Load(words.assets, language);
 		for (const entt::meta_type reasons :
 		     {entt::resolve<Dock::Reason>(), entt::resolve<Ai::Reason>(),
-		      entt::resolve<App::TradeReason>()})
+		      entt::resolve<Physics::Reason>(), entt::resolve<App::TradeReason>()})
 			for (const std::string &key : Sim::ReasonKeys(reasons))
 			{
 				INFO(language, " ", key);

@@ -38,6 +38,8 @@ void RegisterTypes()
 		    .Field<&Controller::slot>("slot", Attribute::Saved);
 		Reflect::RegisterType<ControlledBy>("Sim.ControlledBy")
 		    .Field<&ControlledBy::controller>("controller", Attribute::Saved);
+		Reflect::RegisterType<Helm>("Sim.Helm")
+		    .Field<&Helm::controller>("controller", Attribute::Saved);
 		Reflect::RegisterEnum<ReasonValue>("Sim.ReasonValue")
 		    .Value<ReasonValue::Integer>("Integer")
 		    .Value<ReasonValue::Entity>("Entity")

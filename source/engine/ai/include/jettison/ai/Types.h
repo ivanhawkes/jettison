@@ -4,10 +4,10 @@
 
 namespace Jettison::Ai
 {
-// Why lane travel, a cruise or a gate refuses an entity, a gate lets one pass through unsent, or
-// steering gives a destination up (Sim::Reason), each worded by the string tables under
-// reason.ai.<name>; the arguments, where there are any, follow. Registered with Reflect as "Ai.Reason"
-// by RegisterTypes.
+// Why lane travel, a cruise, a gate, steering or a helm refuses an entity, a gate lets one pass
+// through unsent, or steering gives a destination up (Sim::Reason), each worded by the string tables
+// under reason.ai.<name>; the arguments, where there are any, follow. Registered with Reflect as
+// "Ai.Reason" by RegisterTypes.
 enum class Reason : std::uint8_t
 {
 	NoSuchEntity,
@@ -42,7 +42,10 @@ enum class Reason : std::uint8_t
 	LeadsNowhere,
 	NotCleared,
 	// The gate's jump point, and its ring's radius in metres.
-	HullTooLarge
+	HullTooLarge,
+	NoPilot,
+	HelmHeld,
+	NotAtHelm
 };
 
 // Registers the module's types with Reflect: lane travel's (Lanes.h), the gates' (Gates.h),

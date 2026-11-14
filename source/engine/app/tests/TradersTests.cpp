@@ -504,5 +504,5 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release.
-	CHECK(original.world.StateHash() == 0x5546eebbec058964ULL);
+	CHECK(original.world.StateHash() == 0x564e0148747bcaf8ULL);
 }

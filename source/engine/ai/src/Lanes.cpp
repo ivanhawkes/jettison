@@ -72,6 +72,8 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 	};
 	if (!registry.valid(command.entity))
 		return refuse(Reason::NoSuchEntity);
+	if (!Sim::MayCommand(registry, command.entity, command.sender))
+		return refuse(Reason::NotController);
 	const auto *inSystem = registry.try_get<Sim::InSystem>(command.entity);
 	if (!inSystem || inSystem->system == Sim::kNoSystem)
 		return refuse(registry.all_of<OnLane>(command.entity) ? Reason::OnLane : Reason::InNoSystem);

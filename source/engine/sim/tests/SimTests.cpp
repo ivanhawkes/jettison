@@ -815,3 +815,22 @@ TEST_CASE("Sim: a command's sender may command what it controls, and what no one
 	// The game's own rules, which are no one's in particular.
 	CHECK(Sim::MayCommand(registry, owned, {}));
 }
+
+TEST_CASE("Sim: flight controls fly an entity only from the one at its helm, or from no one")
+{
+	entt::registry registry;
+	const entt::entity flown = registry.create();
+	const entt::entity unflown = registry.create();
+	const Sim::Controller one{Sim::ControllerKind::Player, 1};
+	const Sim::Controller two{Sim::ControllerKind::Player, 2};
+	registry.emplace<Sim::ControlledBy>(flown, one);
+	registry.emplace<Sim::ControlledBy>(unflown, one);
+	registry.emplace<Sim::Helm>(flown, one);
+	CHECK(Sim::MayFly(registry, flown, one));
+	CHECK_FALSE(Sim::MayFly(registry, flown, two));
+	// Its owner commands it, but no one is at its helm: its behaviour flies it.
+	CHECK_FALSE(Sim::MayFly(registry, unflown, one));
+	CHECK(Sim::MayFly(registry, unflown, {}));
+	CHECK(Sim::MayFly(registry, flown, {}));
+	CHECK_FALSE(Sim::MayFly(registry, entt::entity{12345}, one));
+}
