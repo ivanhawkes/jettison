@@ -91,7 +91,9 @@ enum class Stage : std::uint8_t
 	Descending,
 	// Clamped to the pad: held in the station's frame, on its rails, out of flight.
 	Docked,
-	// Let go and lifting to the point above the pad, which it gives up once there.
+	// Let go and lifting: flown to the point above the pad, clear of the station's sphere, or for a
+	// ship its pilot flies (ReleasePad::fly), lifted kLiftHeight off the pad. It gives the pad up
+	// once there.
 	Leaving
 };
 
@@ -179,14 +181,24 @@ struct RequestPad
 
 // The command that gives up a ship's pad: its place in the queue, or its reservation, which frees
 // the pad for the next ship; or, docked, it is let go and lifted clear (Stage::Leaving), and gives
-// the pad up once there. Refused for a sender that does not control the ship, for a ship with
-// nothing to give up, and for a docked ship whose cargo is still crossing the deck (Transfer).
-// Registered with Reflect, every field Saved, by RegisterTypes.
+// the pad up once there. A ship the docks fly (fly) is flown out to the point above its pad, clear
+// of the station's sphere, as a ship that goes on by steering or a cruise needs; one its pilot flies
+// is lifted straight off the pad by its thrusters, kLiftHeight, and is the pilot's in a few seconds
+// rather than the half a minute the climb out of a large station's sphere takes. Refused for a
+// sender that does not control the ship, for a ship with nothing to give up, and for a docked ship
+// whose cargo is still crossing the deck (Transfer). Registered with Reflect, every field Saved, by
+// RegisterTypes.
 struct ReleasePad
 {
 	Sim::Controller sender;
 	entt::entity ship{entt::null};
+	bool fly{true};
 };
+
+// How far a ship its pilot flies is lifted off its pad, from where it rests, before the pad is
+// given up and the controls are the pilot's: clear of the clamps and of a hull on the next pad, and
+// at the lift's 20 m/s about three seconds from the clamps opening.
+inline constexpr double kLiftHeight = 40.0;
 
 // Why a pad is refused or not given up (Sim::Reason), each worded by the string tables under
 // reason.dock.<name>; the arguments, where there are any, follow. Registered with Reflect as
@@ -364,6 +376,10 @@ class Docks
 	void FlyInbound(Sim::SimWorld &world, entt::entity ship, double time);
 	void FlyDown(Sim::SimWorld &world, entt::entity ship);
 	void FlyUp(Sim::SimWorld &world, entt::entity ship);
+	// A ship its pilot flies, lifted off its pad by its own thrusters, straight up at the lift's speed
+	// against the station; and whether it is kLiftHeight off it.
+	static void Lift(entt::registry &registry, entt::entity ship);
+	bool Lifted(const entt::registry &registry, entt::entity ship) const;
 	bool InClampReach(const entt::registry &registry, entt::entity ship) const;
 	void Clamp(Sim::SimWorld &world, entt::entity ship, double time);
 	void Unclamp(Sim::SimWorld &world, entt::entity ship);

@@ -527,8 +527,12 @@ within a clamp's reach of its own pad (2 m across it, a metre above or below, it
 the normal and its nose within 15° of the heading, under half a metre a second), whether the docks
 flew it or its pilot did: its body becomes kinematic, on the station's rails at its place on the pad,
 so it is held in the station's frame and out of flight. A pad clamps only the ship it was given to.
-Undocking makes the ship dynamic again and lifts it the same way back to the point above, where it
-gives the pad up. Highport's shuttle from 10 km on its far side is over its pad in 111 s and clamped
+Undocking makes the ship dynamic again and lifts it. A ship the docks fly out (`ReleasePad::fly`, a
+trader's, which cruises on and cannot within the station's radius) is steered the same way back to
+the point above, where it gives the pad up: off Highport's pad 1 that is 755 m at the lift's 20 m/s,
+39 s. One its pilot flies (`fly` false, the shell's) is lifted straight off the pad by its own
+thrusters at 20 m/s against the station, with no point to reach, and gives the pad up 40 m above it
+(`Dock::kLiftHeight`), held there for the pilot 2.7 s after the clamps open. Highport's shuttle from 10 km on its far side is over its pad in 111 s and clamped
 24 s later, touching nothing on the way.
 
 **The station dressing** (9d) is the layout drawn, in the shell (`app/src/Dressing.h`), under the
@@ -1698,7 +1702,8 @@ proves it headlessly. What exists:
   V switches between the chase and cockpit cameras, Z the flight assist; the keyboard, the first
   gamepad and joystick 1 (a HOTAS) are bound by default, and a HOTAS's throttle on a joystick of its
   own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station, and
-  whether the ship is docked. The console's `undock` lifts it clear of its pad, and `dock` asks the
+  whether the ship is docked. The console's `undock` lifts it 40 m off its pad and hands it back to
+  the pilot, and `dock` asks the
   station for a pad and flies it onto the one given, or, with `dock manual`, leaves the landing to
   the pilot, and the clamps take it once it is on the pad (9c).
 - **Picking** (7c). A left click on the scene, not on a window over it, picks what is under the

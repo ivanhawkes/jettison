@@ -119,7 +119,7 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Hull, Physics::LocalFrame>()
+	     Ecs::Access::Of<Hull, Physics::LocalFrame, Physics::Thrusters>()
 	         .Writing<
 	             Station, Pad, Docking, Transfer, Buggy, Physics::Body, Physics::OnRails,
 	             Physics::Velocity, Physics::FlightControls, Sim::Transform, Sim::InSystem,
@@ -305,7 +305,7 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 {
 	entt::registry &registry = world.Registry();
 	const entt::entity ship = command.ship;
-	const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
+	auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
 	const auto refuse = [&](Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
 	{
 		world.Events().Emit(
@@ -331,6 +331,7 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 		case Stage::Docked:
 			if (const std::int64_t crates = ToCarry(registry, ship); crates > 0)
 				return refuse(Reason::CargoCrossing, {Sim::ReasonArgument::Integer(crates)});
+			docking->fly = command.fly;
 			Unclamp(world, ship);
 			return;
 		case Stage::Leaving: return refuse(Reason::AlreadyLeaving);
@@ -421,7 +422,15 @@ void Docks::Step(Sim::SimWorld &world)
 				break;
 			}
 			case Stage::Leaving:
-				if (!destination)
+				if (!docking.fly)
+				{
+					// Lifted again each step, as a SetFlightControls between would leave it.
+					if (Lifted(registry, ship))
+						GiveUp(world, ship, true);
+					else
+						Lift(registry, ship);
+				}
+				else if (!destination)
 					FlyUp(world, ship);
 				else if (destination->arrived)
 					GiveUp(world, ship, true);
@@ -641,7 +650,29 @@ void Docks::Unclamp(Sim::SimWorld &world, entt::entity ship)
 	docking.stage = Stage::Leaving;
 	world.Events().Emit(
 	    Left{ship, docking.station, docking.pad, registry.get<Pad>(docking.pad).number});
-	FlyUp(world, ship);
+	if (docking.fly)
+		FlyUp(world, ship);
+	else
+		Lift(registry, ship);
+}
+
+void Docks::Lift(entt::registry &registry, entt::entity ship)
+{
+	const Docking &docking = registry.get<Docking>(ship);
+	const float maxSpeed = registry.get<Physics::Thrusters>(ship).maxSpeed;
+	registry.remove<Ai::Destination>(ship);
+	// Clamped, the ship's up is its pad's; with assist, a demand along it is that share of maxSpeed.
+	registry.replace<Physics::FlightControls>(
+	    ship, Physics::FlightControls{
+	              {0.0f, std::min(kLiftSpeed / maxSpeed, 1.0f), 0.0f}, {}, true, docking.station});
+}
+
+bool Docks::Lifted(const entt::registry &registry, entt::entity ship) const
+{
+	const Sim::Transform &padAt = registry.get<Sim::Transform>(registry.get<Docking>(ship).pad);
+	const Sim::Transform &shipAt = registry.get<Sim::Transform>(ship);
+	const double height = (glm::conjugate(padAt.orientation) * (shipAt.position - padAt.position)).y;
+	return height - RestingHeight(*HullOf(registry, ship)) >= kLiftHeight;
 }
 
 const PadLayout &Docks::PadOf(const entt::registry &registry, const Pad &pad) const

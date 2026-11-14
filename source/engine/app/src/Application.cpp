@@ -553,7 +553,7 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 			        view);
 	    });
 	m_console.RegisterCommand(
-	    "undock", "Lifts the ship clear of its pad and gives the pad up, or gives up one not landed on",
+	    "undock", "Lifts the ship 40 m off its pad and gives the pad up, or gives up one not landed on",
 	    [this](DevTools::Console &, std::span<const std::string>) { ReleasePad(); });
 	m_console.RegisterCommand(
 	    "trade",
@@ -2996,7 +2996,7 @@ void Application::RequestPad(bool fly)
 void Application::ReleasePad()
 {
 	if (m_ship != entt::null)
-		m_sim.Commands().Push(Dock::ReleasePad{kPilot, m_ship});
+		m_sim.Commands().Push(Dock::ReleasePad{kPilot, m_ship, false});
 }
 
 
@@ -3584,6 +3584,8 @@ void Application::TakeEvents()
 		{
 			// Sent along a lane from its pad, the clamps let it go without a Left.
 			m_docked = false;
+			// The docks held it as they gave the pad up: the pilot's controls go again, held or not.
+			m_sentControls.reset();
 			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);
 		}
 		else if (const auto *traded = event.event.try_cast<Traded>(); traded && traded->ship == m_ship)

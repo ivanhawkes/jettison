@@ -154,6 +154,44 @@ TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up 
 }
 
 TEST_CASE(
+    "Docks: a ship its pilot flies is lifted off its pad by its thrusters, and is the pilot's in a few "
+    "seconds")
+{
+	Approach approach;
+	REQUIRE(approach.RunUntil(Dock::Stage::Docked, 420.0));
+	approach.events.clear();
+	approach.world.Commands().Push(Dock::ReleasePad{{}, approach.ship, false});
+	approach.Advance();
+	REQUIRE(approach.Events<Dock::Left>().size() == 1);
+	CHECK(approach.Docking()->stage == Dock::Stage::Leaving);
+	entt::registry &registry = approach.world.Registry();
+	// No point to fly to, only the thrusters firing up, against the station.
+	CHECK_FALSE(registry.all_of<Ai::Destination>(approach.ship));
+	CHECK(registry.get<Physics::FlightControls>(approach.ship).linear.y > 0.0f);
+	CHECK(approach.PadOf(approach.PadNumbered(approach.station, 1)).state == Dock::PadState::Holding);
+
+	int steps = 1;
+	for (; steps < 60 * 30 && approach.Docking(); ++steps)
+		approach.Advance();
+	REQUIRE_FALSE(approach.Docking());
+	MESSAGE("The pad given up ", steps / 60.0, " s after the clamps opened");
+	CHECK(steps < 60 * 4);
+	CHECK(approach.Events<Dock::PadReleased>().size() == 1);
+	CHECK(approach.PadOf(approach.PadNumbered(approach.station, 1)).state == Dock::PadState::Free);
+	// Straight up off the pad, the lift's height, held for the pilot, whose controls then fly it.
+	const glm::dvec3 at = approach.FromRest(kShuttleHeight);
+	CHECK(std::hypot(at.x, at.z) < 1.0);
+	CHECK(at.y >= Dock::kLiftHeight);
+	CHECK(at.y < Dock::kLiftHeight + 5.0);
+	CHECK(registry.get<Physics::FlightControls>(approach.ship) == Physics::FlightControls{});
+	approach.world.Commands().Push(
+	    Physics::SetFlightControls{approach.ship, {{0.0f, 0.0f, -1.0f}, {}, true, approach.station}});
+	approach.Run(2.0);
+	CHECK(registry.get<Physics::Velocity>(approach.ship).linear.z != 0.0f);
+	CHECK(approach.OnlyOnThePad());
+}
+
+TEST_CASE(
     "Docks: the same approach from the same start, and from a save part-way, reaches the same state")
 {
 	constexpr int kSaveAt = 60 * 120;

@@ -109,7 +109,8 @@ void RegisterTypes()
 		    .Field<&RequestPad::fly>("fly", Attribute::Saved);
 		RegisterType<ReleasePad>("Dock.ReleasePad")
 		    .Field<&ReleasePad::sender>("sender", Attribute::Saved)
-		    .Field<&ReleasePad::ship>("ship", Attribute::Saved);
+		    .Field<&ReleasePad::ship>("ship", Attribute::Saved)
+		    .Field<&ReleasePad::fly>("fly", Attribute::Saved);
 
 		RegisterEnum<Reason>("Dock.Reason")
 		    .Value<Reason::ShipGone>("ship_gone")
