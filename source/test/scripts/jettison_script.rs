@@ -358,6 +358,25 @@ const _: () = assert!(size_of::<Sim_Controller>() == 8);
 const _: () = assert!(offset_of!(Sim_Controller, kind) == 0);
 const _: () = assert!(offset_of!(Sim_Controller, slot) == 4);
 
+/// Shell.ShipBought
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Shell_ShipBought {
+    pub buyer: Sim_Controller,
+    pub ship: jettison_entity,
+    pub station: jettison_entity,
+    pub hull: jettison_string,
+    pub price: i64,
+    pub credits: i64,
+}
+const _: () = assert!(size_of::<Shell_ShipBought>() == 40);
+const _: () = assert!(offset_of!(Shell_ShipBought, buyer) == 0);
+const _: () = assert!(offset_of!(Shell_ShipBought, ship) == 8);
+const _: () = assert!(offset_of!(Shell_ShipBought, station) == 12);
+const _: () = assert!(offset_of!(Shell_ShipBought, hull) == 16);
+const _: () = assert!(offset_of!(Shell_ShipBought, price) == 24);
+const _: () = assert!(offset_of!(Shell_ShipBought, credits) == 32);
+
 /// Shell.Trade
 #[repr(C)]
 #[derive(Clone, Copy)]

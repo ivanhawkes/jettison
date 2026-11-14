@@ -511,6 +511,13 @@ class Round
 		if (Dock::IsDocked(registry, context.entity, station))
 			return Status::Success;
 		const auto *docking = registry.try_get<Dock::Docking>(context.entity);
+		// A pad its pilot was to land it on, left when they gave up the helm: given up, and asked
+		// for again for the docks to fly it in.
+		if (context.starting && docking && !docking->fly && docking->stage != Dock::Stage::Leaving)
+		{
+			context.world.Apply(Dock::ReleasePad{SenderOf(registry, context.entity), context.entity});
+			docking = registry.try_get<Dock::Docking>(context.entity);
+		}
 		if (context.starting && !docking)
 		{
 			context.world.Apply(

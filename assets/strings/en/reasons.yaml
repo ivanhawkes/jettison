@@ -77,3 +77,8 @@ reason:
       other: the hold has {0} crates of it
     sale_too_large: the sale is worth more than a purse holds
     short_of_toll: the lane's toll of {0} credits is more than the purse holds
+    no_station: there is no such station
+    not_for_sale: no {0} is for sale
+    none_docked: none of the fleet is docked at {0}
+    no_pad_free: "{0} has no free pad a {1} fits"
+    short_of_price: its price of {0} credits is more than the purse holds

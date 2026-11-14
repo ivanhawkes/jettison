@@ -248,9 +248,6 @@ class Application
 	// The presentation's sync, after the traffic layer's: each dressed station's lamps turned to its
 	// pads' states in the latest snapshot, its simulation entity found again when it has none there.
 	void ShowPadStates();
-	// The ships the proxy factory draws as their hulls' proxies: those with a hull that are neither
-	// the shell's ship nor its traffic, the parked ones; found again in the world a save loads.
-	void FindHullProxies();
 	// The console's traffic: that many shuttles flown by steering (Ai::Steering) from 1 to 2 km about
 	// the bound station to places on a ring about it, clear of its hull and of each other, in the
 	// station's axes so the ring turns with it; or, for none, every one there is taken out of the
@@ -271,6 +268,21 @@ class Application
 	void LogRoute(std::string_view systemName) const;
 	// Says, for each trader, its run and how far it has got, and what its runs have made.
 	void LogTraders() const;
+	// The fleet (Fleet.h): the ship the shell follows, the attached one, which its camera, its
+	// market screen and its console's commands are for; bound to the station it is docked at or
+	// waiting for, and shown in its system, the scene jumping there, or along the lane it is on.
+	void AttachShip(entt::entity ship);
+	// The next ship of the player's fleet, or the one before, in the fleet's order.
+	void CycleAttached(int step);
+	// Whether the player is at the attached ship's helm, as the newest snapshot has it: the only ship
+	// their controls fly.
+	bool AtHelm() const;
+	// Takes the attached ship's helm, or leaves it to the ship's behaviour.
+	void ToggleHelm();
+	// The console's buy: a ship of the hull at the bound station (App::BuyShip), attached once bought.
+	void BuyShip(std::string_view hull);
+	// The console's fleet: each ship, where it is, who flies it and its hold.
+	void ListFleet(DevTools::Console &console) const;
 	// Whether the ship is in the system shown, which is the only one a camera can follow it in.
 	bool CanPilot() const;
 	bool StartPiloting(Scene::PilotView view);
@@ -427,8 +439,9 @@ class Application
 	// before it, and no step runs once it has.
 	std::unique_ptr<Script::ScriptHost> m_pScripts;
 
-	// The ship and the station it holds station by, as simulation entities, and the station's body
-	// in its system; null until SpawnShip finds a station to put them at.
+	// The attached ship of the player's fleet and the station it holds station by, as simulation
+	// entities, and the station's body in its system; null until SpawnShip finds a station to put
+	// them at.
 	entt::entity m_ship{entt::null};
 	entt::entity m_station{entt::null};
 	// Whether the ship is docked at it, as the last event said.
@@ -500,8 +513,12 @@ class Application
 	Input::ActionId m_cameraWheel;
 	// J: a jump, out through the next of the shown system's lanes.
 	Input::ActionId m_jumpNext;
-	// P: fly the ship, and P again to let it go.
+	// P: fly the ship, or follow the one its behaviour flies, and P again to let it go.
 	Input::ActionId m_pilot;
+	// ] and [: attach to the next ship of the fleet, or the one before; H: its helm, taken or left.
+	Input::ActionId m_shipNext;
+	Input::ActionId m_shipPrevious;
+	Input::ActionId m_helm;
 	// M: the market screen, shown and hidden; L the saved games.
 	Input::ActionId m_toggleMarket;
 	Input::ActionId m_toggleSaves;
@@ -600,8 +617,6 @@ class Application
 	Dock::Docks *m_pDocks{nullptr};
 	// The behaviour trees the traders follow, which the world holds too.
 	Ai::Behaviours *m_pBehaviours{nullptr};
-	// The ships parked on them and the traders, by entity, and each one's hull.
-	std::map<entt::entity, std::string> m_hullProxies;
 	// The system shown's stations as they are dressed, and each one's simulation entity, found from
 	// its celestial body (FindStation) once its pads are in the snapshots.
 	std::vector<StationDressing> m_dressings;

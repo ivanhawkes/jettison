@@ -104,7 +104,12 @@ void RegisterTypes()
 		    .Value<TradeReason::TooDear>("too_dear")
 		    .Value<TradeReason::HoldShort>("hold_short")
 		    .Value<TradeReason::SaleTooLarge>("sale_too_large")
-		    .Value<TradeReason::ShortOfToll>("short_of_toll");
+		    .Value<TradeReason::ShortOfToll>("short_of_toll")
+		    .Value<TradeReason::NoStation>("no_station")
+		    .Value<TradeReason::NotForSale>("not_for_sale")
+		    .Value<TradeReason::NoneDocked>("none_docked")
+		    .Value<TradeReason::NoPadFree>("no_pad_free")
+		    .Value<TradeReason::ShortOfPrice>("short_of_price");
 		return true;
 	}();
 	(void)registered;

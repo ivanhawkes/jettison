@@ -28,6 +28,8 @@ How (from the project's CLAUDE.md, which is the authority if it differs):
 - Tools come from `nix shell nixpkgs#xorg.xwd nixpkgs#imagemagick nixpkgs#xdotool`.
 - Let the app settle about 14 s before the first capture:
   `xwd -root -silent | magick xwd:- out.png`.
+- Find the window with `xdotool search --class Vulkan`: its name is the scene's ("Test"), so a
+  search by name finds nothing.
 - Keys: focus with `xdotool windowfocus --sync <win>`, then hold (`keydown`, sleep ~2.5 s,
   `keyup`); taps are missed. That includes the console's toggle (grave): hold it ~1.5 s to open
   and to close it, and screenshot to check it opened before typing, or the text goes to the game's

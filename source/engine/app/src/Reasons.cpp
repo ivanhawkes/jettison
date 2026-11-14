@@ -5,7 +5,9 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/dock/Definitions.h>
 #include <jettison/physics/Components.h>
+#include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Reason.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/ui/StringTable.h>
@@ -18,6 +20,14 @@ namespace Jettison::App
 namespace
 {
 constexpr std::string_view kGood = "Shell.Good";
+constexpr std::string_view kHull = "Dock.HullDefinition";
+
+// A hull by its definition's name, as a mod may have changed it; one not defined as it is named.
+std::string HullName(const Sim::DefinitionRegistry &definitions, const std::string &hull)
+{
+	const auto *definition = definitions.Find<Dock::HullDefinition>(hull);
+	return definition && !definition->displayName.empty() ? definition->displayName : hull;
+}
 } // namespace
 
 std::string EntityName(
@@ -48,9 +58,12 @@ std::string WordReason(
 				words.push_back(EntityName(snapshot, strings, argument.entity));
 				break;
 			case Sim::ReasonValue::Identifier:
-				words.push_back(
-				    argument.definition == kGood ? GoodName(definitions, strings, argument.identifier)
-				                                 : argument.identifier);
+				if (argument.definition == kGood)
+					words.push_back(GoodName(definitions, strings, argument.identifier));
+				else if (argument.definition == kHull)
+					words.push_back(HullName(definitions, argument.identifier));
+				else
+					words.push_back(argument.identifier);
 				break;
 		}
 	if (count && !strings.Find(reason.key) && strings.Find(std::format("{}.other", reason.key)))

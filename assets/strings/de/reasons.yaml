@@ -73,3 +73,8 @@ reason:
       other: der Laderaum hat {0} Kisten davon
     sale_too_large: der Verkauf ist mehr wert, als ein Guthaben fassen kann
     short_of_toll: die Maut der Sprungroute von {0} Credits ist mehr, als das Guthaben hält
+    no_station: diese Station gibt es nicht
+    not_for_sale: "{0} steht nicht zum Verkauf"
+    none_docked: kein Schiff der Flotte ist an {0} angedockt
+    no_pad_free: "{0} hat keine freie Landeplattform, auf die {1} passt"
+    short_of_price: sein Preis von {0} Credits ist mehr, als das Guthaben hält

@@ -63,6 +63,7 @@
 #include <jettison/spatial/SystemIndices.h>
 
 #include "Dressing.h"
+#include "Fleet.h"
 #include "Mounts.h"
 #include "Reasons.h"
 #include "Saves.h"
@@ -266,6 +267,9 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_cameraWheel = m_input.DefineAction("camera_wheel", Input::ActionType::Vector);
 	m_jumpNext = m_input.DefineAction("jump_next", Input::ActionType::Button);
 	m_pilot = m_input.DefineAction("pilot", Input::ActionType::Button);
+	m_shipNext = m_input.DefineAction("ship_next", Input::ActionType::Button);
+	m_shipPrevious = m_input.DefineAction("ship_previous", Input::ActionType::Button);
+	m_helm = m_input.DefineAction("helm", Input::ActionType::Button);
 	m_pickAction = m_input.DefineAction("pick", Input::ActionType::Button);
 	m_toggleMarket = m_input.DefineAction("toggle_market", Input::ActionType::Button);
 	m_toggleSaves = m_input.DefineAction("toggle_saves", Input::ActionType::Button);
@@ -295,6 +299,9 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_input.Bind("shell", m_cameraWheel, {{Input::Device::MouseAxis, 3}});
 	m_input.Bind("shell", m_pilot, {Character('p')});
 	m_input.Bind("shell", m_pilot, {{Input::Device::GamepadButton, 7}});
+	m_input.Bind("shell", m_shipNext, {Character(']')});
+	m_input.Bind("shell", m_shipPrevious, {Character('[')});
+	m_input.Bind("shell", m_helm, {Character('h')});
 	m_input.Bind("shell", m_pickAction, {{Input::Device::MouseButton, 0}});
 	m_input.Bind("shell", m_toggleMarket, {Character('m')});
 	m_input.Bind("shell", m_toggleSaves, {Character('l')});
@@ -555,6 +562,41 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_console.RegisterCommand(
 	    "undock", "Lifts the ship 40 m off its pad and gives the pad up, or gives up one not landed on",
 	    [this](DevTools::Console &, std::span<const std::string>) { ReleasePad(); });
+	m_console.RegisterCommand(
+	    "fleet", "Lists the ships of the fleet: where each is, who flies it and what it holds",
+	    [this](DevTools::Console &console, std::span<const std::string>) { ListFleet(console); });
+	m_console.RegisterCommand(
+	    "buy",
+	    "Buys a ship at the bound station, where a ship of the fleet is docked, and takes its helm: "
+	    "buy shuttle|transport",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    if (arguments.size() != 1)
+			    throw std::invalid_argument{"takes the hull to buy"};
+		    BuyShip(arguments[0]);
+	    });
+	m_console.RegisterCommand(
+	    "attach",
+	    "Follows a ship of the fleet, by its number in the fleet's list, as ] and [ do: attach <n>",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    std::size_t number = 0;
+		    const auto [end, error] =
+		        arguments.size() == 1
+		            ? std::from_chars(
+		                  arguments[0].data(), arguments[0].data() + arguments[0].size(), number)
+		            : std::from_chars_result{nullptr, std::errc::invalid_argument};
+		    const std::vector<entt::entity> fleet = FleetOf(m_simStepper.Current(), kPilot);
+		    if (error != std::errc{} || end != arguments[0].data() + arguments[0].size() ||
+		        number == 0 || number > fleet.size())
+			    throw std::invalid_argument{
+			        std::format("takes a ship's number in the fleet, from 1 to {}", fleet.size())};
+		    AttachShip(fleet[number - 1]);
+	    });
+	m_console.RegisterCommand(
+	    "helm",
+	    "Takes the attached ship's helm, its behaviour standing down, or leaves it to trade, as H does",
+	    [this](DevTools::Console &, std::span<const std::string>) { ToggleHelm(); });
 	m_console.RegisterCommand(
 	    "trade",
 	    "Buys crates of a good at the market of the system shown, or sells them with a negative "
@@ -1155,6 +1197,8 @@ void Application::InitResources()
 	m_definitions->Load<Dock::StationLayout>(
 	    Dock::kStationDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
 	m_pDocks->Define(*m_definitions);
+	LoadShipyard(*m_definitions);
+	RegisterFleet(m_sim, *m_pDocks, *m_definitions);
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterSequenceLoader(*m_pResources);
 	m_sequences.emplace(*m_pResources);
@@ -1853,6 +1897,12 @@ void Application::PollInput()
 	// A click on the scene, not on a window over it, ImGui's or the game UI's.
 	if (m_input.WasPressedThisFrame(m_pickAction) && !uiMouse)
 		m_clicked = m_glfwInput.Cursor();
+	if (m_input.WasPressedThisFrame(m_shipNext))
+		CycleAttached(1);
+	if (m_input.WasPressedThisFrame(m_shipPrevious))
+		CycleAttached(-1);
+	if (m_input.WasPressedThisFrame(m_helm))
+		ToggleHelm();
 	if (m_input.WasPressedThisFrame(m_pilot))
 	{
 		if (m_piloting)
@@ -2555,6 +2605,10 @@ bool Application::LoadFrom(std::string_view name)
 			Core::Log(
 			    Core::Severity::Info, kShell, "'{}' kept {} purses on ships, now their owners'", name,
 			    moved);
+		// One from before the helm (13d) has the player's ship flown by no one.
+		if (GiveOldShipItsHelm(m_sim.Registry(), shell.ship, kPilot))
+			Core::Log(
+			    Core::Severity::Info, kShell, "'{}' had no helm; the player is at its ship's", name);
 		// And one from before there were gates has none.
 		if (const std::size_t gates = App::OpenGates(m_sim, *m_pGates, m_galaxySystems).size();
 		    gates > 0)
@@ -2572,9 +2626,9 @@ bool Application::LoadFrom(std::string_view name)
 		{ return world.valid(entity) ? entity : entt::null; };
 		m_ship = valid(shell.ship);
 		m_station = valid(shell.station);
-		// The steered ships but its own, which the docks steer as they fly it in and out.
+		// The steered ships no behaviour flies, which are neither the fleet's nor the traders'.
 		m_traffic.clear();
-		for (const entt::entity entity : world.view<const Ai::Steered>())
+		for (const entt::entity entity : world.view<const Ai::Steered>(entt::exclude<Ai::Behaviour>))
 			if (entity != m_ship)
 				m_traffic.push_back(entity);
 		std::ranges::sort(m_traffic, {}, [](entt::entity entity) { return entt::to_integral(entity); });
@@ -2591,7 +2645,6 @@ bool Application::LoadFrom(std::string_view name)
 		m_stationBody = shell.stationBody;
 		m_resumePiloting = false;
 		m_docked = Dock::IsDocked(world, m_ship, m_station);
-		FindHullProxies();
 		m_sentControls.reset();
 		m_pickPending = false;
 		m_picked.reset();
@@ -2887,10 +2940,7 @@ void Application::OpenStations()
 	// Once a run, as the ship is: a load replaces them with the save's.
 	entt::registry &world = m_sim.Registry();
 	if (!world.view<Dock::Station>().empty() || !world.view<Market>().empty())
-	{
-		FindHullProxies();
 		return;
-	}
 	const std::vector<entt::entity> stations = App::OpenStations(m_sim, *m_pDocks, m_galaxySystems);
 	std::size_t pads = 0;
 	for (const entt::entity station : stations)
@@ -2909,18 +2959,7 @@ void Application::OpenStations()
 	if (m_pBehaviours->HasTree(kTraderTree))
 		Core::Log(
 		    Core::Severity::Info, kShell, "{} traders open", OpenTraders(m_sim, *m_pDocks).size());
-	FindHullProxies();
 	m_simStepper.Resync();
-}
-
-
-void Application::FindHullProxies()
-{
-	m_hullProxies.clear();
-	for (const auto [entity, hull] : m_sim.Registry().view<const Dock::Hull>().each())
-		if (const Dock::HullDefinition *definition = m_pDocks->FindHull(hull.definition);
-		    definition && entity != m_ship && std::ranges::find(m_traffic, entity) == m_traffic.end())
-			m_hullProxies.emplace(entity, hull.definition);
 }
 
 
@@ -2940,6 +2979,9 @@ void Application::SpawnShip()
 	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
 	world.emplace<Sim::ControlledBy>(m_ship, kPilot);
 	world.emplace<Hold>(m_ship, Hold{kShipHold, {}});
+	// The fleet's first ship, at the player's helm; its behaviour trades with it once they leave it.
+	FitForTrade(world, m_ship);
+	world.emplace<Sim::Helm>(m_ship, kPilot);
 	// The player's credits are their own, not the ship's, and outlast it.
 	if (FindOwner(world, kPilot) == entt::null)
 		MakeOwner(world, kPilot, kStartingCredits);
@@ -3118,6 +3160,150 @@ void Application::SpawnTraffic(int count)
 }
 
 
+void Application::AttachShip(entt::entity ship)
+{
+	const entt::registry &world = m_sim.Registry();
+	if (!world.valid(ship) || ship == m_ship)
+		return;
+	// A camera that followed the ship it leaves follows this one, once it is shown.
+	const bool following = m_piloting || m_resumePiloting;
+	StopPiloting();
+	m_ship = ship;
+	m_resumePiloting = following;
+	m_sentControls.reset();
+	m_pickPending = false;
+	m_picked.reset();
+	m_tradeMessage.clear();
+	m_marketDirty = true;
+	const auto *inSystem = world.try_get<Sim::InSystem>(ship);
+	m_shipSystem = inSystem ? inSystem->system : Sim::kNoSystem;
+	// Bound to the station it is docked at or waiting for; else, once it is shown, to the one of
+	// its system (TakeEvents).
+	if (const auto *docking = world.try_get<Dock::Docking>(ship))
+	{
+		m_station = docking->station;
+		m_stationSystem = world.get<Sim::InSystem>(m_station).system;
+		m_stationBody = world.get<Physics::OnRails>(m_station).body;
+	}
+	m_docked = Dock::IsDocked(world, m_ship, m_station);
+	const auto *hull = world.try_get<Dock::Hull>(ship);
+	const Dock::HullDefinition *definition = hull ? m_pDocks->FindHull(hull->definition) : nullptr;
+	Core::Log(
+	    Core::Severity::Info, kShell, "Attached to {}, a {}, {}", Describe(ship),
+	    definition ? definition->displayName : std::string{"ship"},
+	    AtHelm() ? "at your helm" : "which its behaviour flies");
+	if (m_resumePiloting && CanPilot())
+	{
+		m_resumePiloting = false;
+		StartPiloting(m_pilotView);
+	}
+
+	// Shown in its system: the scene jumps there, or along the lane it is on to where it comes out.
+	if (!m_galaxy || m_jump->Active())
+		return;
+	std::uint64_t system = m_shipSystem;
+	std::string arrival;
+	if (const auto *lane = world.try_get<Ai::OnLane>(ship))
+	{
+		system = lane->to;
+		arrival = lane->arrival;
+	}
+	const auto shown = std::ranges::find(
+	    m_galaxy->systems, system,
+	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	const auto index = static_cast<std::size_t>(shown - m_galaxy->systems.begin());
+	if (shown == m_galaxy->systems.end() || (m_shownSystem && *m_shownSystem == index))
+		return;
+	m_jumpStep = m_sim.Clock().Step();
+	m_jump->Begin(*m_galaxy, index, arrival);
+}
+
+
+void Application::CycleAttached(int step)
+{
+	const std::vector<entt::entity> fleet = FleetOf(m_simStepper.Current(), kPilot);
+	if (fleet.empty())
+		return;
+	const auto count = static_cast<std::ptrdiff_t>(fleet.size());
+	const std::ptrdiff_t at = std::ranges::find(fleet, m_ship) - fleet.begin();
+	// From a ship not of the fleet, the first, or the last going back.
+	const std::ptrdiff_t next =
+	    at == count ? (step > 0 ? 0 : count - 1) : ((at + step) % count + count) % count;
+	AttachShip(fleet[static_cast<std::size_t>(next)]);
+}
+
+
+bool Application::AtHelm() const
+{
+	return m_ship != entt::null && HelmOf(m_simStepper.Current(), kPilot) == m_ship;
+}
+
+
+void Application::ToggleHelm()
+{
+	if (m_ship == entt::null)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No ship to take the helm of");
+		return;
+	}
+	if (AtHelm())
+		m_sim.Commands().Push(Ai::LeaveHelm{kPilot, m_ship});
+	else
+		m_sim.Commands().Push(Ai::TakeHelm{kPilot, m_ship});
+}
+
+
+void Application::BuyShip(std::string_view hull)
+{
+	if (m_station == entt::null)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No station to buy a ship at");
+		return;
+	}
+	m_sim.Commands().Push(App::BuyShip{kPilot, m_station, std::string{hull}});
+}
+
+
+void Application::ListFleet(DevTools::Console &console) const
+{
+	const Sim::Snapshot &snapshot = m_simStepper.Current();
+	const std::vector<entt::entity> fleet = FleetOf(snapshot, kPilot);
+	if (fleet.empty())
+	{
+		console.Print("The fleet has no ships");
+		return;
+	}
+	for (std::size_t number = 0; number < fleet.size(); ++number)
+	{
+		const entt::entity ship = fleet[number];
+		const auto *hull = snapshot.Get<Dock::Hull>(ship);
+		const Dock::HullDefinition *definition = hull ? m_pDocks->FindHull(hull->definition) : nullptr;
+		std::string where = "in no system, on a lane";
+		if (const auto *docking = snapshot.Get<Dock::Docking>(ship))
+			where = std::format(
+			    "{} {}", docking->stage == Dock::Stage::Docked ? "docked at" : "making for a pad at",
+			    Describe(docking->station));
+		else if (const auto *sample = snapshot.FindSample(ship);
+		         sample && sample->system != Sim::kNoSystem)
+			if (const auto *frame = snapshot.Get<Physics::LocalFrame>(ship))
+				where = frame->body.empty() ? "cruising" : std::format("off {}", frame->body);
+		std::string flown = "at your helm";
+		if (HelmOf(snapshot, kPilot) != ship)
+		{
+			const auto *trader = snapshot.Get<Trader>(ship);
+			flown = trader && !trader->good.empty() ? std::format("trading {}", trader->good)
+			                                        : std::string{"choosing a run"};
+		}
+		const auto *hold = snapshot.Get<Hold>(ship);
+		console.Print(
+		    std::format(
+		        "{}{}  {}  {}  {}  {}/{} crates", number + 1, ship == m_ship ? "*" : " ",
+		        definition ? definition->displayName : std::string{"?"}, where, flown,
+		        hold ? hold->Used() : 0, hold ? hold->capacity : 0));
+	}
+}
+
+
 bool Application::CanPilot() const
 {
 	return m_ship != entt::null && m_systemScene &&
@@ -3153,7 +3339,8 @@ void Application::StopPiloting()
 
 void Application::FlyShip()
 {
-	if (m_ship == entt::null)
+	// A ship whose behaviour flies it, or another's, is followed, not flown: the step would refuse.
+	if (m_ship == entt::null || !AtHelm())
 		return;
 	// A frame's input is a minute of flight at 60x: piloting is suspended under compression, as it is
 	// in every game of the genre, and the assist holds the ship.
@@ -3313,21 +3500,17 @@ void Application::SetProxyFactory()
 	m_systemScene->SetProxyFactory(
 	    [this](entt::registry &registry, entt::entity simEntity)
 	    {
-		    const bool traffic = std::ranges::binary_search(
-		        m_traffic, entt::to_integral(simEntity), {},
-		        [](entt::entity entity) { return entt::to_integral(entity); });
-		    // The ship and its traffic are shuttles; a mod without the hull still sees them, as boxes.
-		    if (simEntity == m_ship || traffic)
-		    {
-			    const Dock::HullDefinition *shuttle = m_pDocks->FindHull(kShipHull);
-			    return MakeHullProxy(registry, shuttle ? *shuttle : Dock::HullDefinition{}, simEntity);
-		    }
-		    if (m_simStepper.Current().Get<Dock::Buggy>(simEntity))
+		    const Sim::Snapshot &snapshot = m_simStepper.Current();
+		    if (snapshot.Get<Dock::Buggy>(simEntity))
 			    return MakeBuggyProxy(registry, simEntity);
-		    const auto parked = m_hullProxies.find(simEntity);
-		    const Dock::HullDefinition *hull =
-		        parked == m_hullProxies.end() ? nullptr : m_pDocks->FindHull(parked->second);
-		    return hull ? MakeHullProxy(registry, *hull, simEntity) : entt::entity{entt::null};
+		    // Every ship as its hull, the fleet's, the traders' and the traffic's; a mod without the
+		    // hull still sees it, as a box.
+		    const auto *hull = snapshot.Get<Dock::Hull>(simEntity);
+		    if (!hull)
+			    return entt::entity{entt::null};
+		    const Dock::HullDefinition *definition = m_pDocks->FindHull(hull->definition);
+		    return MakeHullProxy(
+		        registry, definition ? *definition : Dock::HullDefinition{}, simEntity);
 	    });
 }
 
@@ -3381,6 +3564,10 @@ void Application::DrawFlight()
 	    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 	if (ImGui::Begin("Flight", nullptr, kOverlay))
 	{
+		const bool helm = AtHelm();
+		ImGui::Text(
+		    "%s  %s", Describe(m_ship).c_str(),
+		    helm ? "at your helm" : "flown by its behaviour (H takes the helm)");
 		if (const auto *cruising = current.Get<Ai::Cruising>(m_ship))
 			ImGui::Text(
 			    "Cruising to %s  %.0f km/s  %.0f s", cruising->target.c_str(), speed / 1000.0,
@@ -3406,9 +3593,10 @@ void Application::DrawFlight()
 					        std::ranges::find(gate->queue, m_ship) - gate->queue.begin() + 1));
 			}
 		ImGui::Text(
-		    "Assist %s (Z)  View %s (V)  P lets go", m_assist ? "on" : "off",
+		    "Assist %s (Z)  View %s (V)  P lets go  [ ] other ships", m_assist ? "on" : "off",
 		    m_pilotView == Scene::PilotView::Chase ? "chase" : "cockpit");
-		ImGui::TextDisabled("W/S throttle  A/D R/F strafe  arrows pitch, yaw  Q/E roll");
+		if (helm)
+			ImGui::TextDisabled("W/S throttle  A/D R/F strafe  arrows pitch, yaw  Q/E roll");
 	}
 	ImGui::End();
 }
@@ -3589,6 +3777,42 @@ void Application::TakeEvents()
 			m_sentControls.reset();
 			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);
 		}
+		else if (const auto *shipBought = event.event.try_cast<ShipBought>();
+		         shipBought && shipBought->buyer == kPilot)
+		{
+			Core::Log(
+			    Core::Severity::Info, kShell, "Bought a {} at {} for {} credits; {} credits left",
+			    shipBought->hull, Describe(shipBought->station), FormatCredits(shipBought->price),
+			    FormatCredits(shipBought->credits));
+			AttachShip(shipBought->ship);
+		}
+		else if (const auto *notBought = event.event.try_cast<BuyRefused>();
+		         notBought && notBought->sender == kPilot)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "No {} bought: {}", notBought->hull,
+			    Word(notBought->reason));
+		else if (const auto *helmTaken = event.event.try_cast<Ai::HelmTaken>();
+		         helmTaken && helmTaken->controller == kPilot)
+		{
+			// Its controls were let go as the helm was taken: the pilot's go again.
+			m_sentControls.reset();
+			Core::Log(Core::Severity::Info, kShell, "At the helm of {}", Describe(helmTaken->ship));
+		}
+		else if (const auto *helmLeft = event.event.try_cast<Ai::HelmLeft>();
+		         helmLeft && helmLeft->controller == kPilot)
+			Core::Log(
+			    Core::Severity::Info, kShell, "{} is left to its behaviour, which trades with it",
+			    Describe(helmLeft->ship));
+		else if (const auto *noHelm = event.event.try_cast<Ai::HelmRefused>();
+		         noHelm && noHelm->sender == kPilot)
+			Core::Log(
+			    Core::Severity::Warning, kShell, "No helm of {}: {}", Describe(noHelm->ship),
+			    Word(noHelm->reason));
+		else if (const auto *unflown = event.event.try_cast<Physics::FlightControlsRefused>();
+		         unflown && unflown->sender == kPilot && unflown->ship == m_ship)
+			Core::Log(
+			    Core::Severity::Info, kShell, "{} does not answer the controls: {}",
+			    Describe(unflown->ship), Word(unflown->reason));
 		else if (const auto *traded = event.event.try_cast<Traded>(); traded && traded->ship == m_ship)
 		{
 			const std::int64_t crates = traded->crates < 0 ? -traded->crates : traded->crates;
@@ -3710,14 +3934,22 @@ std::string Application::Word(const Sim::Reason &reason) const
 
 std::string Application::Describe(entt::entity simEntity) const
 {
+	const std::vector<entt::entity> fleet = FleetOf(m_simStepper.Current(), kPilot);
+	if (const auto found = std::ranges::find(fleet, simEntity); found != fleet.end())
+		return std::format("Ship {}", found - fleet.begin() + 1);
 	if (simEntity == m_ship)
 		return "Ship";
 	if (simEntity == m_station)
 		return m_stationBody;
 	if (const auto found = std::ranges::find(m_traffic, simEntity); found != m_traffic.end())
 		return std::format("Shuttle {}", found - m_traffic.begin() + 1);
-	if (const auto *gate = m_simStepper.Current().Get<Ai::Gate>(simEntity))
+	const Sim::Snapshot &snapshot = m_simStepper.Current();
+	if (const auto *gate = snapshot.Get<Ai::Gate>(simEntity))
 		return gate->jumpPoint;
+	// Another station, by the body it rides: not a pad, nor a ship clamped to one, which ride it too.
+	if (const auto *rails = snapshot.Get<Physics::OnRails>(simEntity);
+	    rails && !snapshot.Get<Dock::Pad>(simEntity) && !snapshot.Get<Dock::Hull>(simEntity))
+		return rails->body;
 	return std::format("Entity {:#x}", entt::to_integral(simEntity));
 }
 

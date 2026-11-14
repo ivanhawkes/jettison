@@ -229,7 +229,8 @@ every frame of it, and the stepper is not resynced: the world did not change, an
 traffic is made from the same snapshots.
 
 That is presentation's jump, which changes what is shown. The simulation's (`ai/Lanes.h`, 9a)
-carries an entity along a lane: the command `Ai::EnterLane` takes it out of its system through a jump
+carries an entity along a lane: the command `Ai::EnterLane`, from a sender that commands it (a gate
+sends a ship it cleared as no one in particular), takes it out of its system through a jump
 point (its `InSystem` none, an `Ai::OnLane` saying where it is going and the step it arrives), gives
 up its destination, and the system `lanes`, after physics, brings it out at the far jump point when
 the transit's whole steps are run. A body comes out at rest in the gate's own frame (or that of a
@@ -315,7 +316,7 @@ shell's console sends one (`cruise <body>`). What flies a ship no one is at the 
 trader's `cruise` (13b) flies it out of any station's reach, round the station, then sends the
 command with its own sender and runs until it arrives; a run's time across a system is the ship's
 drive's (`Ai::CrossingByCourse` with a `CourseTime`), so a trader weighs a run in the seconds it
-takes. A fleet's ship, no one at the helm of, gains the same with 13d.
+takes. A ship of the player's fleet no one is at the helm of follows the same tree (13d).
 
 An arrival is placed clear of what is there: the lanes' and the cruises' arrivals share one placement
 (`Detail::ClearPlace`, `ai/src/Transit.cpp`), at the place it would come out if that is clear of every
@@ -370,7 +371,10 @@ The flight model runs before physics, as the system `flight` (`physics/Flight.h`
 dynamic body with `Physics::Thrusters` (accelerations along and about its axes, so its handling does
 not change with its mass, and with flight assist the speed and rates it is held to) and
 `Physics::FlightControls` (demands from -1 to 1, the assist, and the entity its velocity is taken
-against), which the command `Physics::SetFlightControls` sets. With assist, a demand is a velocity
+against), which the command `Physics::SetFlightControls` sets. It carries its sender, and is taken
+only from the one at the ship's helm (`Sim::Helm`, `Sim::MayFly`, 13d) or from no one in
+particular, the game's own rules: a player flies the one ship they have the helm of, and a ship its
+behaviour flies, or another player's, refuses them (`FlightControlsRefused`, `reason.physics.*`). With assist, a demand is a velocity
 relative to the reference and a rate of turn, approached as fast as the thrusters allow; without, it
 is an acceleration and the ship coasts. It changes the ship's `Velocity`, and physics then steps it,
 so a ship flown into a station meets it as any body would. The system `physics` runs one fixed step:
@@ -417,7 +421,7 @@ never reads the simulation's state: a click is a `Physics::Pick`, the ray throug
 (`Render::ScreenRay`) from the camera presentation drew, and the next step answers it with a
 `Physics::Picked` event, a frame later. Presentation shows the world half a step behind on average,
 and a station's frame moves 500 m a step about the star, so the pick carries the time it was drawn
-at, and each frame is placed where its body was then (`CastOptions::framesAt`)
+at (and its sender, which the answer hands back, so each player's presentation takes its own), and each frame is placed where its body was then (`CastOptions::framesAt`)
 ([decided](roadmap.md#decided)).
 
 Jolt is deterministic across builds (`CROSS_PLATFORM_DETERMINISTIC`) given the same calls in the
@@ -624,7 +628,14 @@ acts on the world where it is as the step begins, as the queue's commands do, an
 destination, a pad asked for) is flown and answered in the same step. Its composites remember their
 running child, so a running node is resumed rather than entered again from the top, and is never
 interrupted; a task needs no undoing, and an entity's place in its tree is a memory and a flag a node
-(`Ai::Behaviour`), saved with the world. A repeat or a loop runs its child again at the next tick, so
+(`Ai::Behaviour`), saved with the world. The one exception is the helm (`Sim::Helm`, 13d), taken and
+left by `Ai::TakeHelm` and `LeaveHelm` from one that commands the ship, each at one helm at a time:
+while someone is at a ship's helm its tree stands down and is not ticked, taking it takes away the
+destination it was flown to and lets its controls go, and leaving it starts the tree again from the
+top. A task it was running is left unfinished, and what it asked for (a pad, a gate's clearance) goes
+on or lapses as for a ship that did not come; the trader's tasks plan from wherever the ship is, and
+its `dock` gives up a pad its pilot was to land on and asks again for the docks to fly it. A
+destination set or cleared (`Ai::SetDestination`, `ClearDestination`) carries its sender too. A repeat or a loop runs its child again at the next tick, so
 a step's work is bounded however soon a child succeeds. A task acts through commands applied at once
 (`Sim::SimWorld::Apply`), which meet the checks a player's do, carry the agent as their sender where
 they carry one, and are not recorded: they are the state's own consequence, which a replay sends
@@ -638,6 +649,20 @@ to the gate, through it, onto a pad or into the queue for one, held off the stat
 trade, and the wait while the buggies carry its crates. Seven trade between Highport and Corva, whose
 one free pad keeps a queue; in twenty minutes of the app suite they sell fourteen runs across the
 lane, queue five times, and no two hulls come within 35 m in flight.
+
+**The fleet** (`app/src/Fleet.h`, 13d, [decided](roadmap.md#decided): a player has a fleet) is the
+ships a player commands (`Sim::ControlledBy`), each fitted as a trader is, with a hold, an
+`App::Trader` and the trader's tree, so every one they are not at the helm of trades for them, from
+their purse and from wherever it is. `App::BuyShip` sells a hull of `defs/shipyard` (`ShipForSale`:
+its price, mass and hold) at a station where a ship of the buyer's fleet is docked: the ship is
+parked on the lowest numbered free pad it fits, its price drawn, and the buyer takes its helm, which
+hands the ship they were flying to its behaviour; refused, with a reason, for a hull not for sale,
+one with no free pad, a short purse, or a buyer with none of the fleet there. Attaching is
+presentation's: the shell follows one ship of the fleet, which its camera, its market screen and its
+console's commands are for, binds the station it is docked at, and shows its system, jumping there
+or along the lane it is on; it sends flight controls for the attached ship only while it is at its
+helm. A save from before the helm gives the player the helm of the ship it names
+(`GiveOldShipItsHelm`).
 
 ### Persistence
 
@@ -1706,6 +1731,12 @@ proves it headlessly. What exists:
   the pilot, and `dock` asks the
   station for a pad and flies it onto the one given, or, with `dock manual`, leaves the landing to
   the pilot, and the clamps take it once it is on the pad (9c).
+- **The fleet** (13d). The console's `buy shuttle|transport` buys a ship at the bound station, where
+  a ship of the fleet is docked, and takes its helm; `fleet` lists the fleet, where each ship is,
+  who flies it and its hold; `attach <n>`, ] and [ follow another ship of it, and `helm` or H takes
+  or leaves the attached ship's helm. P follows the attached ship from behind, and flies it only at
+  its helm; the flight panel names the ship and who flies it. A shipyard screen is held over
+  ([carried forward](roadmap.md#carried-forward)).
 - **Picking** (7c). A left click on the scene, not on a window over it, picks what is under the
   cursor, through a `Physics::Pick` the next step answers; the hit is marked where it was, with the
   surface's normal, and named in an overlay, and the log says what was picked and how far off.
