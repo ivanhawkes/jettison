@@ -118,13 +118,24 @@ what a call returns:
   `std::uniform_*_distribution` or `std::rand`: their output differs between standard libraries.
 - Never let iteration order of an unordered container decide an outcome. Sort, or use an ordered
   container.
-- Currency and quantities are integers (fixed-point minor units), never floating point.
+- Numeric representations follow each API's explicit deterministic contract. The sample
+  economy uses integer credits/crates; that is not a universal game requirement. Manifest
+  uses Decimal per-unit prices, floating continuous quantities and whole-credit balances.
+  Keep conversions checked and explicit rather than imposing the sample model on consumers.
 - Positions are `double`, in metres, in the system frame.
 - Simulation modules compile with `-ffp-contract=off`, as Jolt does for itself under
   `CROSS_PLATFORM_DETERMINISTIC`. Otherwise the compiler may fuse a multiply and an add into one
   FMA instruction where the instruction set allows it, and the rounding then depends on flags
   and optimisation level rather than on the source.
 - No includes from `render`, `ui`, `audio` or `input`.
+
+## Responsibility boundaries
+
+Follow [game integration](game-integration.md): inspect Manifest's required mechanics,
+provide reusable missing public APIs in the engine, and keep production game rules and
+data in Manifest. Test gameplay belongs in separate sample/test targets. Generic modules
+must not depend on sample code or optional space services. Prove a new shared capability
+with an independent consumer as well as its intended Manifest integration.
 
 ## Dependencies
 

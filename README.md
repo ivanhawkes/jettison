@@ -1,8 +1,10 @@
 # Jettison Engine
 
-A 3D game engine, built for a [space trading simulation](https://github.com/ivanhawkes/space-truckers): trucking logistics, trading and empire
-building across star systems, with stations orbiting planets. The game lives in its own
-repository and consumes this engine as a CMake package.
+A C++20 3D game engine intended for multiple game types. Manifest is the first production
+consumer and owns its game rules and content. Jettison provides reusable capabilities,
+with optional space services and a small space-trading example for automated tests.
+Separating that example from the current engine app is planned work; see the
+[game integration contract](docs/game-integration.md) and [roadmap](docs/roadmap.md).
 
 The engine is assembled primarily from open source libraries, each selected for fitness for
 purpose. The criteria are:

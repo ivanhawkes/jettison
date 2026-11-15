@@ -1,8 +1,25 @@
 # Jettison
 
-A C++20 Vulkan game engine for a space trading game that lives in its own repository and consumes
-this one as a CMake package (`Jettison::Engine`). Linux, Clang 21, built in phases. The documents
-in `docs/` are the record; this file only says where to look and how to work here.
+A C++20 game engine with a Vulkan renderer, intended for multiple game types. Manifest is
+its first production consumer and owns its gameplay and content. The small space-trading
+example remains automated-test/sample coverage, separate from reusable engine code.
+That extraction is planned, not complete. Linux, Clang 21; `docs/` records the contracts.
+
+## Engine and game responsibilities
+
+- Before engine integration work, read `docs/game-integration.md` and inspect the sibling
+  `../manifest` requirements: `docs/development-stages.md`, the relevant stage plan,
+  `docs/gameplay-and-server-plan.md` and `docs/engine-game-boundary-assessment.md`.
+- Map required gameplay mechanics to public SDK capabilities. Provision demonstrated
+  reusable gaps in Jettison; leave game rules, ownership policy, prices and content in
+  Manifest. Record acceptance tests in both an independent engine consumer and Manifest.
+- Keep sample gameplay code/assets in explicit sample/test targets outside engine code.
+  Generic host/physics/AI/scene APIs must not require a space game or sample asset pack.
+- Reuse engine YAML, VFS, registry and persistence mechanisms. Do not copy Manifest's
+  economy into the engine or make Manifest a build dependency.
+- Follow the user's model policy: OpenAI agents plan/review read-only and may edit
+  explicitly requested documentation; implementation and gate execution belong to the
+  selected implementer. For this work use two local compile jobs and no local clang-tidy.
 
 ## Where to look
 
@@ -14,7 +31,7 @@ in `docs/` are the record; this file only says where to look and how to work her
 - **The rules:** [coding standards](docs/coding-standards.md). The most important: the
   simulation modules (`sim`, `celestial`, `spatial`, `physics`, `ai`, `dock`, `script`, and `math`) are
   deterministic (no wall clock, the engine's `Random`, no unordered iteration deciding an outcome,
-  integer currency, `-ffp-contract=off`); report through `Log.h`, never `std::cerr` or spdlog;
+  explicit numeric contracts, `-ffp-contract=off`); report through `Log.h`, never `std::cerr` or spdlog;
   `m_` and `m_p` members, PascalCase functions.
 - **Building and the gate:** [build and gates](docs/build-and-gates.md).
 

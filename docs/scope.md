@@ -3,46 +3,44 @@
 What the engine builds, what it does not, and why. This replaces the old `TODO.md` list of
 typical engine building blocks: every item on that list has a verdict here.
 
-## The game the engine serves
+## Engine scope and consumer requirements
 
-Jettison is the engine for a 3D space trading simulation: trucking logistics, trading and empire
-building, with lightweight RPG progression (ship, marketplace and planet improvements, skill and
-tech trees, an ask/bid marketplace). The game lives in its **own repository** and consumes the
-engine as a CMake package. These decisions, taken in the scoping interview of 2026-11-10, settle
-most of the list:
+Jettison provides reusable capabilities for multiple game types without requiring a
+particular game's entities, rules or content. Manifest is the first production consumer;
+its current requirements drive concrete engine capability work through the
+[game integration workflow](game-integration.md). Inspect that checkout before planning
+the next integration, and provision reusable gaps in public engine code.
 
-| Question | Decision |
-|---|---|
-| Ship movement | **Piloted and managed.** The player can fly a ship directly (cockpit and chase cameras, collisions with stations); the rest of the fleet is automated. |
-| Multiplayer | **Single-player first, split simulation; multiplayer in time** (2026-11-12). A deterministic simulation runs as an in-process "local server", separate from presentation. No networking yet, but the simulation is planned for several players: commands carry who sent them, and shared facilities (a station's pads, its queue, its bays) are given by the step in command order. |
-| Modding | **Data packs plus Wasm scripts.** Content is data layered through a virtual file system; behaviour mods run as sandboxed Wasm modules. |
-| Platforms | **Linux only.** |
-| Game UI | **RmlUi** for the shipped game UI; Dear ImGui stays for the console, dev tools and the editor. |
-| Skeletal animation | **Keep the glTF clip player, no ozz.** Mechanical rigs only: docking clamps, cargo arms, landing gear. |
-| Planets | **Seen from orbit only.** No terrain, no water, no landing. |
-| World scale | **Many star systems joined by jump lanes.** Each system is real-scale 3D space loaded on entry; the galaxy is a graph. |
-| NPC decisions | **Utility AI for economic choices, behaviour trees for per-ship sequences, steering for local avoidance.** |
-| Repository | **Separate repositories** for engine and game. |
+Manifest owns its production economy, progression, ownership, scenarios and assets.
+Jettison may keep a small space-trading example for automated tests, separated into
+explicit sample/test code and content. Generic consumers must not start its economy,
+link its rules or mount its data implicitly. Optional celestial and space capabilities
+may remain engine extensions, with no dependency from the neutral core back to them.
 
-There are no humanoid characters, and the player never walks around a ship or station.
+This direction, approved 2026-11-15, supersedes the earlier test of whether a feature
+would suit another space game. Ask whether its contract is reusable independently of
+Manifest and whether game-specific policy remains with the consumer. A different genre
+must be able to use simulation, physics, scenes and AI without inventing a galaxy.
 
-## Engine and game boundary
+| Jettison | Manifest or another game |
+| --- | --- |
+| Deterministic worlds, scheduling, commands, RNG, snapshots | Authoritative game state, system ordering and command validation |
+| VFS, packs, reflection, YAML/binary archives and migrations | Schemas, authored identities, validation and balance |
+| Generic graphs, utility scoring, behaviour trees and spatial queries | Trader policies, progression rules and faction strategy |
+| Physics, scene, rendering, audio, input and UI binding | Game movement policy, presentation content and screens |
+| Save/load/hash and durable I/O mechanisms | Content compatibility, acknowledgement and recovery policy |
+| Wasm sandbox and generated binding machinery | Script API/capability selection and game scripts |
 
-The engine provides generic machinery; the game repository owns the rules. When in doubt, a
-feature belongs to the engine if a different space game would want it unchanged.
+The ask/bid order book and its settlement rules remain Manifest code. Test gameplay
+can have a tiny independent economy to exercise saves, commands and UI, but it is not
+an engine economy service or a roadmap to duplicate Manifest.
 
-| Engine | Game |
-|---|---|
-| Fixed-step deterministic simulation, time compression, calendar | The economy model, production chains, prices |
-| Data definition registry with mod overrides | Goods, ship, station and module definitions |
-| Generic directed graphs (route graph, prerequisite DAG) | Tech trees, skill trees and their effects |
-| Utility AI, behaviour trees, route-graph pathfinding, steering | Trader personalities, faction strategy |
-| Persistence of simulation state, save versioning | What a save contains beyond engine state |
-| RmlUi integration, data binding, input contexts | Market order book screens, fleet screens |
-| Wasm host and binding generator | The scripting API surface exposed to mods |
-
-The ask/bid order book itself is game code: it is a data structure with game rules, not engine
-infrastructure. The engine's obligation to it is determinism, persistence and UI binding.
+Genre neutrality is a boundary, not a promise to implement every genre's features now.
+Linux/C++20/toolchain constraints remain. The following feature catalogue records the
+space example's original scoping choices and current coverage; reasons such as "no
+humanoids" or "space has no walkable surface" describe that example, not permanent
+restrictions on future engine consumers. Reassess capabilities when a concrete consumer
+requires them. Separation is pending as listed in the roadmap.
 
 ## Verdicts
 

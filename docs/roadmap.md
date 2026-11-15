@@ -7,6 +7,25 @@ that would otherwise bake in the wrong answer. "Done" means the gate covers it, 
 commit that did it in the history. Phases 0–13, and the catalogue entries for the systems they
 built, are recorded in [history](history.md).
 
+## Current priority: neutral SDK and Manifest integration
+
+Approved 2026-11-15; implementation pending. Follow [game integration](game-integration.md)
+and inspect Manifest's current development-stage/gameplay requirements before each task.
+Provision their reusable engine capabilities here; production rules and content stay
+in Manifest. Retain the small space example as a separate automated-test consumer.
+
+| Delivery | Exit criterion |
+| --- | --- |
+| Public host and sample extraction | Neutral lifecycle accepts explicit game composition; sample trading/UI/assets reside in sample/test targets outside engine code; existing sample checks still pass. |
+| Consumer build and resources | CPU-only consumer configures without ImGui/Vulkan/glslc/sample assets; renderer resources and example content have separate targets/manifests. |
+| Generic module boundaries | Non-space physics and scene consumers require no celestial definitions; generic AI is independent of space transit; state/save migration preserves existing fixtures. |
+| Manifest capability integration | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
+
+These deliveries precede discretionary expansion of the sample. The historical space
+features and decisions below describe existing coverage and possible extension work,
+not permission to make space gameplay a neutral engine requirement. Completed phases
+remain historical evidence, not evidence that this new boundary is already implemented.
+
 ## Phases
 
 | Phase | Work | Exit criterion |
@@ -43,12 +62,13 @@ the step's interface goes here first.
 
 ### Next: what the game's next slices stand on
 
-The order book, the economy's turns and the scripted rules ([sample
-game](sample-game.md#what-comes-next)), and the space they are played in: a system crossed at its
-own scale, gates flown through, traders that react, and mods a player can choose between.
+Consult Manifest's current stages for the next required mechanics. The engine provisions
+reusable capabilities; the following space-example backlog is subordinate to the neutral
+SDK work above and does not transfer production game rules into Jettison.
 
-- **The sample game's later slices** ([sample game](sample-game.md)): ManifestCore's order book,
-  which the traders (9f) post to once they trade by orders; the economy's turns and the skill tree's effects, then scripting (11).
+- **Manifest integration, not sample expansion** ([game integration](game-integration.md)):
+  provision public world/definition/command/persistence/script capabilities required by the
+  game's current stages. Its order book, economy and progression remain in Manifest.
 - **A screen to buy ships from** (the user's, 2026-11-14, as 13d began): 13d buys a ship with the
   console's `buy <hull>` and lists and attaches to the fleet with `fleet` and `attach`, ] and [; a
   shipyard screen of the game UI's, beside the market screen, with the hulls a station sells, their
@@ -267,6 +287,11 @@ In priority order. Each entry is the brief for its stub. *Library* is the chosen
 Entries 1–31, for phases 1–13, are in [history](history.md#system-catalogue-entries-131).
 
 ## Decided
+
+The 2026-11-15 genre-neutral engine and separate-example contract in
+[game integration](game-integration.md) supersedes older game-specific scoping decisions
+where they conflict. Historical mechanics remain supported example/extension behaviour
+until deliberately migrated; they are not mandatory semantics for every game.
 
 Settled on 2026-11-10:
 

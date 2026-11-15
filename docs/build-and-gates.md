@@ -198,6 +198,22 @@ yaml-cpp, fastgltf) that are not all installed alongside. Making that work means
 public dependency's export, or vendoring import targets for them in `JettisonConfig.cmake.in`.
 It is done when the game needs a prebuilt engine rather than a source build, and not before.
 
+### Required separation checks (planned)
+
+The [game integration contract](game-integration.md) requires a broader consumer matrix
+than the current two-module probe: a CPU-only non-space simulation, a simple non-space
+physics scene and the explicit space example. Test public APIs, definitions and save/load;
+check target/header dependencies and resource manifests for sample or genre leakage.
+Configure CPU-only consumption without ImGui, Vulkan/glslc or sample content installed.
+Test samples/editor/presentation disabled independently; keep sample render regressions.
+
+These build options/checks are not all implemented yet. Current CMake still requires
+graphics dependencies and couples engine setup to `PLUGIN_IMGUI`. Removing that coupling
+is a roadmap deliverable, not a supported flag combination this document claims works.
+Run relevant gates after implementation with two local compile jobs; avoid local clang-tidy
+for the cross-repository work. Keep the development environment aligned with Manifest,
+including developer-only `lazygit`; it must not become a release/runtime dependency.
+
 ## The gate
 
 `scripts/ci.sh` is the gate. The worktrunk `pre-commit` hook checks formatting, `pre-merge` runs

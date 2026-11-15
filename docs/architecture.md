@@ -4,6 +4,21 @@ How the engine is laid out, how its parts depend on each other, and the handful 
 architectural rules that are expensive to change later. The [scope](scope.md) says what is
 built; the [roadmap](roadmap.md) says in what order.
 
+## Responsibility boundary and planned extraction
+
+The target contract is [game integration](game-integration.md): Manifest owns production
+gameplay/content; Jettison provisions reusable engine capabilities after checking its
+current requirements. Small engine-local gameplay examples remain permitted for testing,
+but belong in explicit sample targets outside engine code and use public SDK interfaces.
+
+The implementation described below still mixes sample trading into `app`, space transit
+into `ai`, celestial assumptions into physics/scene/snapshot APIs, and sample content
+into the shared asset pack. These are current coupling points, not the target boundary.
+Extract a neutral host, separate resources and generic modules, and make space services
+optional. No neutral engine target may depend on a sample or Manifest. Presentation
+must also work without celestial content. Preserve existing regressions through explicit
+sample composition and save migrations; do not claim extraction complete from docs alone.
+
 ## Repository layout
 
 The layout as built. Phase 1 of the roadmap moved the existing code into it (`core`,
@@ -57,7 +72,7 @@ jettison/
     │   ├── flotsam/            editor
     │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/
-    │   └── jetsam/             runtime viewer: the engine with no game
+    │   └── jetsam/             space sample entry point; gameplay extraction from app is pending
     └── test/                   the render smoke harness (test executable), its reference
                                 frames and the data mod its packed run loads
 ```

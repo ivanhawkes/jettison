@@ -1,47 +1,31 @@
-# Sample game
+# Small space-trading example
 
-The engine has no game in it; the game lives in its own repository ([scope](scope.md)). The app
-shell plays the game's part wherever a system needs one to be seen working, as it did for piloting
-and docking (phase 7), and from phase 8b that part is a small sample game: the first slices of the
-game's own plan, built just far enough to exercise each engine system as it arrives. This document
-records where that plan comes from, what of it the shell plays today, and what comes next.
+Jettison may keep gameplay elements to exercise engine capabilities in automated tests.
+The space-trading example is that consumer, not Manifest's production game or part of
+the reusable engine contract. Its gameplay currently resides in `source/engine/app`
+and its assets share `assets/` with engine resources; separating them is pending work.
 
-## The plan: Manifest
+Move Trading, Traders, Fleet, game-specific screens/registration and their content into
+an explicit sample project outside `source/engine`. Jetsam selects it explicitly;
+Flotsam can open it as a project. The neutral app must not activate it automatically.
+Keep useful command, save, script, docking and render regressions through this example.
 
-The initial planning stage for gameplay is the **Manifest** project (the Civilisation Simulation
-until 2026-11-12, its simulation core CivSim then and ManifestCore now), which lives beside this
-repository at `~/projects/manifest`, with its GitHub repository at
-[ivanhawkes/manifest](https://github.com/ivanhawkes/manifest). The local copy is the authority: the
-GitHub repository lags behind it and may hold work on branches other than `main`. It does not build
-at present, and is read as a plan, not run.
-Three parts of it are the plan:
+## Manifest informs capability requirements
 
-- **`idea.md`**, the raw ideas: a space trading empire after the silk road and the early
-  East India trade; currency in credits at a credit to the US dollar, priced whole, with small goods
-  sold by the package; stations in orbit as trade hubs, several to a planet, one above each of its
-  economic blocks, each a market of its own and so an arbitrage on a planetary scale; black and grey
-  markets on unlawful stations; surveys bought by licence and worked with rented machinery; ships
-  with repair state and a cockpit view, one flown directly and the fleet managed through a map;
-  insurance after the early Dutch corporations; privateers; star gates around suns for the long
-  hops and moon gates for the short; economies driven by GDP and purchasing power, corruption,
-  health, education, energy and pollution; planetary turns every 200 ticks and market ticks every
-  20; a player who starts with a small ship, some credits and a full hold of cheap goods on a poor
-  world; time compression and pause.
-- **`README.md`**, ManifestCore as built: generated worlds with an age, a population, production,
-  demand and a stockpile, priced by scarcity; a skill tree of tiers, prerequisites and exclusive
-  groups, whose effects land on hulls, venues, worlds, lanes, surveys and yards; and a marketplace of
-  venues at bodies, each a price-time order book, trading whole units for whole credits, with a
-  listing fee (40 basis points by default) and an insurance premium (120) on each side, and orders
-  that expire after 24 ticks.
-- **`data/`**, the content: the ages from Stone to Information, the categories of goods, some 170
-  trade items with their physical units, the skill tree, and the solar systems' name pools. An item
-  carries its density, its unit, its units to the cubic metre, its pack factor and a 2025 price, all
-  against the IBC cube (a one cubic metre intermediate bulk container), so a cube of any good has a
-  mass and a value.
+Before extending the engine, inspect the sibling `../manifest` checkout using
+[game integration](game-integration.md). Its current development stages, gameplay plan,
+boundary assessment and numeric contract supersede historical ideas reproduced here.
+Do not assume its build status or infer current requirements from an old `idea.md`.
 
-Manifest's own `idea.md` asks for it to be refactored onto Jettison before more work is done on it, so
-the plan and the sample game converge: what the shell builds here is written against the engine's
-modules, in the engine's style, and the game takes it over from there.
+Provision missing reusable capabilities in Jettison public APIs; implement Manifest's
+production mechanics in Manifest. The example need not converge with its economy.
+In particular, the sample's integer crates/whole-credit prices do not override Manifest's
+Decimal per-unit prices, floating quantities or whole-credit ledgers.
+
+## Existing example coverage
+
+The following inventory records implemented sample behaviour and its history. It is
+not a list of production rules every engine consumer must inherit.
 
 ## What the shell plays
 
@@ -77,17 +61,12 @@ player means to empty may be empty when the player gets there.
 
 ## What comes next
 
-Each slice lands with the engine system it exercises:
+First separate the sample from reusable engine code and split its assets from engine
+resources. Then maintain it as a small public-API regression consumer. Add gameplay
+only when a bounded example is needed to test a new engine capability.
 
-- **The order book.** ManifestCore's price-time book, with its order life and its fills, replaces the
-  market maker here once traders post orders of their own: the traders of 9f, then the player. It is game code ([scope](scope.md)):
-  the engine's part is that it is deterministic, saved, and bound to a screen.
-- **The economy's turns.** Planetary turns every 200 ticks over GDP, population, ages and the
-  essential categories, which set each market's production and demand; the skill tree's effects on
-  venues and hulls, through the definition registry.
-- **Scripted rules.** The plan's rules a mod changes, through the Wasm host (11b): the traders' and,
-  as they arrive, the economy's turns and the order book's, each an input or a handler a mod's
-  script answers.
-
-Not placed yet, from the plan: surveys, black and grey markets, insurance, privateers, a gate's
-licence or standing, and the station's services (refuelling, repairs, intel).
+Manifest's order book, economic turns, skill effects, company ownership and gameplay
+scripts belong in Manifest. Do not schedule importing them into this example as an
+engine milestone. The engine supplies the mechanisms they need and proves those with
+small independent fixtures plus Manifest integration tests. See the
+[roadmap](roadmap.md) for the extraction sequence and neutral consumer checks.
