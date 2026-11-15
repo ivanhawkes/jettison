@@ -1,3 +1,6 @@
+# Never all the environment file into a repo.
+.env
+
 # CMake / build trees (dependencies are fetched into the build tree by FetchContent)
 /build/
 /cmake-build-*/
@@ -29,4 +32,3 @@ imgui.ini
 
 # clangd index
 .cache/
-.env
