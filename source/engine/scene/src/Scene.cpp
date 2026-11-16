@@ -27,7 +27,6 @@ using Animation::AnimationPlayerComponent;
 using Animation::RotationAnimationComponent;
 using Reflect::Attribute;
 
-// ---- The file's records ---------------------------------------------------------------------
 //
 // What the file says, field for field, where the scene's components hold it differently: a part an
 // entity may not have is an optional, so the archive leaves it out when it is absent and reads it as
@@ -369,8 +368,6 @@ void RegisterTypes()
 	(void)registered;
 }
 
-// ---- What a file may say --------------------------------------------------------------------
-
 [[noreturn]] void Refuse(const std::string &message)
 {
 	throw std::runtime_error(message);
@@ -656,8 +653,6 @@ void Validate(const SceneDocument &document)
 		}
 	}
 }
-
-// ---- Between the file and the registry ------------------------------------------------------
 
 LightComponent ToComponent(const LightRecord &record)
 {

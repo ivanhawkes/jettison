@@ -17,7 +17,6 @@ namespace Jettison::Animation
 {
 namespace
 {
-// ---- The file's records ---------------------------------------------------------------------
 
 struct TrackRecord
 {

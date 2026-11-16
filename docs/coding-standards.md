@@ -57,11 +57,39 @@ script maps them (`scripts/import-planet-textures.sh`). Shader programs (`mesh_t
 
 ## Comments
 
-Comments say why, and what was measured; the code already says what. The reference style is the
-existing comments on `ModelCache` (`render/src/vulkan/ModelCache.h`),
-`RotationAnimationComponent::angle` and the GLM block in `source/external/CMakeLists.txt`: they
-name the hazard, the evidence and the reason for the shape. A `TODO` names the question it is asking and is resolved where it was asked. No
-commented-out code.
+**The test: a comment stays only if deleting it would lose something a competent reader cannot
+get back from the code, its names and its types.** The code says what and how; a comment says
+what the code cannot. Before writing one, try to say it in the code instead: a clearer name, a
+type (`std::span`, a strong typedef, a concept), `[[nodiscard]]`, an assertion.
+
+What a comment is for:
+
+- **Why it has this shape**, when the obvious alternative was rejected: a flat vector over a map
+  on a hot path, a float where a double looks right.
+- **The evidence**: what was measured, with the number, when a decision rests on it. A measurement
+  is the reason, not narration.
+- **The hazard**: what breaks if someone tidies it. An ordering, a lifetime, a lock, a layout that
+  is written to disk or the GPU, a refactor that would break determinism or the ABI.
+- **The contract a public header promises** that the signature cannot: preconditions, what it
+  throws or returns on failure, who owns what afterwards, units, thread safety.
+- **In data files** (YAML, CMake): a pinned version or magic value and why, a key or value another
+  tool parses, a constraint from the environment, and what a field means when nothing else
+  documents it (`# rgb: tint, a: unused` for a packed shader parameter is the schema, so it stays).
+
+What a comment is not for, deleted on sight:
+
+- Restating the name, type or key below it (`// The shape, by name` over `std::string shape;`).
+- Narrating the steps of a function, or explaining standard C++ (`std::move`, RAII, `<algorithm>`).
+- The header's comment copied onto the definition in the `.cpp`.
+- Section banners (`// ---- Reading ----`, `# ======`): split the file, or let the order and blank
+  lines speak.
+- Commented-out code or `#if 0`: history is in git.
+
+A `TODO` names the question it asks, and is resolved where it was asked. The reference style is
+`ModelCache` (`render/src/vulkan/ModelCache.h`), `RotationAnimationComponent::angle` and the GLM
+block in `source/external/CMakeLists.txt`: each names the hazard, the evidence and the reason for
+the shape. When code changes, a comment whose reason changed with it is updated or deleted in the
+same edit. A reviewer strips any new comment that fails the test.
 
 ## Ownership and lifetime
 
@@ -102,6 +130,9 @@ commented-out code.
   silently succeeds.
 - Reports go through `Log.h`: `Log(Severity::Warning, kCategory, "dock {} refused", id)`, with
   one `constexpr Category` per module or subsystem. Not `std::cerr`, and never spdlog directly.
+  The exceptions are the few places with nowhere else to go: the shell's top-level failure report
+  and usage line (`RenderApplication.cpp`, `AppArguments.cpp`), which the exit status pairs with,
+  and the application's teardown, which runs in a destructor with an exception in flight.
 
 ## Simulation code
 
@@ -161,4 +192,5 @@ features.
 
 The subject is `Area: what changed, and what it was for`, in the style of the commit history
 (`Scene round trip: the loader refused the file the writer produced`). The body records what
-was measured and why the change takes the shape it does. Each commit leaves the gate green.
+was measured and why the change takes the shape it does, in plain prose. Each commit leaves the
+gate green. Commits, code, comments and documents use British spelling (serialise, colour).

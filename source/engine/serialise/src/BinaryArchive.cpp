@@ -62,8 +62,6 @@ void StoreBits(std::byte *component, std::uint64_t bits, std::size_t width)
 	}
 }
 
-// ---- Writing ------------------------------------------------------------------------------
-
 class Writer
 {
   public:
@@ -238,8 +236,6 @@ class Writer
 	std::unordered_map<std::string, std::uint32_t> m_indices;
 	Path m_path;
 };
-
-// ---- Reading ------------------------------------------------------------------------------
 
 class Reader
 {
@@ -623,8 +619,6 @@ void BinaryReader::End() const
 	m_pImpl->reader.End();
 }
 
-// ---- Records ------------------------------------------------------------------------------
-
 namespace
 {
 std::uint32_t InternInto(std::vector<std::string> &names, std::string_view name)
@@ -754,8 +748,6 @@ entt::meta_any BinaryArchive::Read(
 	reader.End();
 	return value;
 }
-
-// ---- Migration ----------------------------------------------------------------------------
 
 BinaryDocument BinaryDocument::Parse(std::span<const std::byte> bytes, std::string_view format)
 {

@@ -56,8 +56,6 @@ double SmoothingFactor(double rate, double dt)
 	return 1.0 - std::exp(-rate * std::max(dt, 0.0));
 }
 
-// ---- Orbit -------------------------------------------------------------------------------------
-
 OrbitCamera::OrbitCamera(Settings settings) : m_settings{settings}
 {
 	m_goalDistance = m_distance =
@@ -95,8 +93,6 @@ CameraPose OrbitCamera::Update(double dt)
 	return {m_target + offset, LookRotation(-offset)};
 }
 
-// ---- Chase -------------------------------------------------------------------------------------
-
 ChaseCamera::ChaseCamera(Settings settings) : m_settings{settings}
 {
 }
@@ -118,8 +114,6 @@ CameraPose ChaseCamera::Update(double dt)
 	    m_target.position + m_target.orientation * glm::dvec3{0.0, 0.0, -m_settings.lookAhead};
 	return {position, LookRotation(aim - position, m_follow * glm::dvec3{0.0, 1.0, 0.0})};
 }
-
-// ---- Cockpit -----------------------------------------------------------------------------------
 
 CockpitCamera::CockpitCamera(Settings settings) : m_settings{settings}
 {
@@ -145,8 +139,6 @@ CameraPose CockpitCamera::Update(double dt)
 	                        glm::angleAxis(m_pitch, glm::dvec3{1.0, 0.0, 0.0});
 	return {m_target.position + m_target.orientation * m_settings.eye, m_target.orientation * look};
 }
-
-// ---- Map ---------------------------------------------------------------------------------------
 
 MapCamera::MapCamera(Settings settings) : m_settings{settings}
 {
@@ -192,8 +184,6 @@ CameraPose MapCamera::Update(double dt)
 	const glm::dvec3 offset = Direction(m_yaw, m_pitch) * std::exp(m_logDistance);
 	return {centre + offset, LookRotation(-offset)};
 }
-
-// ---- Transition --------------------------------------------------------------------------------
 
 CameraTransition::CameraTransition(const CameraPose &from, double duration, Math::Easing easing)
     : m_from{from}, m_duration{duration}, m_easing{easing}

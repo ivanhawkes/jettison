@@ -47,8 +47,6 @@ struct Entry
 	std::uint64_t size{0};
 };
 
-// ---- Little-endian fields ------------------------------------------------------------------
-
 void Put(std::vector<std::byte> &out, std::uint64_t value, std::size_t width)
 {
 	for (std::size_t byte = 0; byte < width; ++byte)
@@ -90,8 +88,6 @@ class Cursor
 	std::span<const std::byte> m_bytes;
 	std::size_t m_at{0};
 };
-
-// ---- Reading -----------------------------------------------------------------------------------
 
 // The pack's file stays open for the run, so a pack replaced on the disk while it is mounted is
 // read as it was, rather than at the old offsets of the new one. Reads are pread, which keeps no
@@ -273,8 +269,6 @@ class PackSource final : public Detail::Source
 	// Sorted by path.
 	std::vector<Entry> m_entries;
 };
-
-// ---- Writing -----------------------------------------------------------------------------------
 
 std::vector<std::byte> ReadWhole(const std::filesystem::path &path)
 {

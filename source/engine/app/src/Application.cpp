@@ -1086,7 +1086,9 @@ void Application::Run()
 		std::string passes;
 		for (const Render::PassTiming &timing : m_passTimings)
 			passes += std::format(" {} {:.2f}", timing.name, timing.meanMs);
-		std::cerr << std::format("GPU ms per pass over {} frames:{}\n", m_measuredFrames, passes);
+		Core::Log(
+		    Core::Severity::Info, kShell, "GPU ms per pass over {} frames:{}", m_measuredFrames,
+		    passes);
 	}
 	// A document RmlUi complained of, a stylesheet property it does not know or a variable it could
 	// not find, draws on regardless; the gate does not let it.
@@ -1102,10 +1104,12 @@ void Application::Run()
 	if (m_smokeSequence)
 	{
 		const Render::ClusterCheckTotals &checks = m_clusterChecks;
-		std::cerr << "Cluster check: " << checks.frames << " frames compared, " << checks.litFrames
-		          << " with lights, " << checks.failures << " disagreed; at most " << checks.peakEntries
-		          << " of " << Render::kRendererLightIndexCapacity << " index entries and "
-		          << checks.peakClusterLights << " lights in a cluster\n";
+		Core::Log(
+		    Core::Severity::Info, kShell,
+		    "Cluster check: {} frames compared, {} with lights, {} disagreed; at most {} of {} "
+		    "index entries and {} lights in a cluster",
+		    checks.frames, checks.litFrames, checks.failures, checks.peakEntries,
+		    Render::kRendererLightIndexCapacity, checks.peakClusterLights);
 		if (checks.failures != 0)
 			throw std::runtime_error(
 			    "The cluster check failed in " + std::to_string(checks.failures) + " of " +
@@ -1836,7 +1840,8 @@ void Application::ReportBenchmark() const
 	const Render::FrameStats &stats = m_frameStats;
 	const double frames =
 	    m_measuredFrames == 0 ? 1.0 : static_cast<double>(m_arguments.benchmarkFrames);
-	std::cerr << std::format(
+	Core::Log(
+	    Core::Severity::Info, kShell,
 	    "Benchmark: {} on {} at {}x{}, {} frames after {} to warm up, {} GPU frames measured, depth "
 	    "prepass {}, ambient occlusion {}, bloom {}\n"
 	    "GPU time per pass (mean):\n{}"
@@ -1846,7 +1851,7 @@ void Application::ReportBenchmark() const
 	    "Shadow casters {} / {} / {} / {} in {} / {} / {} / {} draws, {} triangles\n"
 	    "Lights {}, {} listed\n"
 	    "Transparent: {} draws; {} emitters in {} particle slots\n"
-	    "Outlines {}\n",
+	    "Outlines {}",
 	    !m_arguments.systemPath.empty() ? m_arguments.systemPath
 	    : m_arguments.scenePath.empty() ? std::string{kDefaultScene}
 	                                    : m_arguments.scenePath.filename().string(),

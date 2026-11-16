@@ -136,9 +136,10 @@ player's report of a problem needs and the shell does not write.
   thrusting. The plain smoke test and the shell's checks under it would run in seconds; the
   reference frames stay on lavapipe, whose images they are, the sanitised smoke test too, since
   NVIDIA's driver fails under ASan, and so does CI. Not yet placed.
-- **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, and the renderer
-  writes to `std::cerr`, because the smoke test reads that output; they move to `Log.h` with the
-  smoke test's patterns.
+- **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, so its reports
+  reach only the default stderr sink. The run's reports (pass timings, the cluster check, the
+  benchmark) went through `Log.h` on 2026-11-17; the failure report, usage line and teardown stay on
+  `std::cerr` ([coding standards](coding-standards.md#errors)).
 - **Crash handling, not yet placed** (entry 30, 11d): a report from a thread other than the main
   one whose stack overflowed, which wants an alternate stack set by every thread the engine starts
   (the I/O worker, the scripts' watchdog) and by Jolt's; each module's build ID in the report, and a

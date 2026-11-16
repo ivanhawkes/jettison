@@ -32,39 +32,12 @@ You are running in a terminal TUI environment (Claude Code, Codex CLI, or Pi). E
 - **CMake:** Use `cmake-language-server` / `neocmakelsp` for target, variable, and dependency resolution.
 - If your current TUI agent lacks direct MCP/LSP tool bindings in this session, run `clangd --check=<file>` or use `compile_commands.json` flags directly via bash before falling back to targeted `rg` searches on `.hpp` headers.
 
-## Code & Config Commenting Policy
+## Coding standards
 
-### Core Rule
-Write comments **ONLY** to explain **WHY** code or configuration exists—never **WHAT** it does or **HOW** it works.
-
-### C++ Rules
-
-#### Allowed Comments (Keep)
-1. **Ownership, Lifetime & Concurrency Invariants**: Document non-obvious lifetime dependencies, thread-safety assumptions, lock ordering, and memory alignment rules that the type system cannot enforce (e.g., `// Caller must hold mutex_ before invoking; pointer remains valid until end of frame`).
-2. **Undefined Behavior & ABI Guardrails**: Warn against refactors that violate strict aliasing, ABI stability, or hardware/SIMD constraints (e.g., `// DO NOT reorder fields: serialized directly to hardware DMA buffer`).
-3. **Performance & Algorithmic Trade-offs**: Explain why a non-idiomatic or lower-level approach was chosen over a cleaner abstraction (e.g., `// Flat vector used instead of std::unordered_map to avoid heap allocations on hot path`).
-4. **Public Header Contracts**: Keep Doxygen/header comments strictly to preconditions, postconditions, exception guarantees (`noexcept` rationale), and ownership transfer.
-
-#### Forbidden in C++ (Delete / Reject in Review)
-1. **Modern C++ Narration**: Never explain `std::move`, RAII destructors, smart pointer ownership, template SFINAE/concepts, or standard `<algorithm>` calls.
-2. **Header/Source Duplication**: Do not copy header docstrings into `.cpp` implementation files.
-3. **Banner Dividers & Dead Code**: No `// --- Private Methods ---` banners or `#if 0` / commented-out blocks.
-
-### YAML Rules (CI/CD, Infra, Config)
-
-#### Allowed Comments (Keep)
-1. **Magic Values & Pinned Versions**: Explain why specific timeouts, resource limits, ports, or dependency versions are pinned (e.g., `# Pinned to v2.4.1: v2.5 introduces breaking schema validation on ARM64`).
-2. **Implicit Schema Coupling**: Note when a key name or value is parsed dynamically by an external tool or script (e.g., `# Prefix 'svc-' is required by the deploy-router regex`).
-3. **Environment & Security Constraints**: Explain non-obvious permission scopes, secret injection requirements, or compliance rules.
-
-#### Forbidden in YAML (Delete / Reject in Review)
-1. **Key Restatements**: Never comment above obvious keys (e.g., `# Set timeout to 30 seconds` above `timeout: 30s`).
-2. **Section Banners**: Avoid `# ====================` dividers; use blank lines and clean key grouping instead.
-
-### Enforcement Protocol (Claude & Codex)
-- **Before writing**: Express intent through C++20/23 types (`std::span`, `concepts`, strong typedefs, `[[nodiscard]]`) and explicit YAML key naming before resorting to a comment.
-- **During refactoring**: Delete or update any adjacent comment whose underlying invariant changed.
-- **During review**: Flag and strip any newly generated comment that restates syntax or schema structure.
+Read [coding standards](docs/coding-standards.md) before any work that changes code, scripts,
+build files or data files, and review against it. It is the single source of truth for naming,
+comments, ownership, errors, logging, determinism, dependencies, testing and commits; this file
+does not restate it.
 
 ## Engine and game responsibilities
 
@@ -91,11 +64,7 @@ Write comments **ONLY** to explain **WHY** code or configuration exists—never 
   where it lands. Finished phases move to [history](docs/history.md).
 - **The design:** [architecture](docs/architecture.md) (layout, module graph, simulation and
   presentation split, frames, the render frame), [scope](docs/scope.md) (what is in and out).
-- **The rules:** [coding standards](docs/coding-standards.md). The most important: the
-  simulation modules (`sim`, `celestial`, `spatial`, `physics`, `ai`, `dock`, `script`, and `math`) are
-  deterministic (no wall clock, the engine's `Random`, no unordered iteration deciding an outcome,
-  explicit numeric contracts, `-ffp-contract=off`); report through `Log.h`, never `std::cerr` or spdlog;
-  `m_` and `m_p` members, PascalCase functions.
+- **The rules:** [coding standards](docs/coding-standards.md), read before changing code.
 - **Building and the gate:** [build and gates](docs/build-and-gates.md).
 
 ## Building and testing
@@ -176,9 +145,6 @@ nixpkgs#xorg.xwd nixpkgs#imagemagick nixpkgs#xdotool`.
 
 ## Writing
 
-- Commits: the subject is `Area: what changed, and what it was for`; the body records what was
-  measured and why the change takes its shape, in plain prose, as `git log` shows. British
-  spelling (serialise, colour), as the code and documents use.
 - A phase or sub-phase updates its roadmap row (done, the date, what was built, the exit criterion
   as met) and the documents it changed, in the same commit.
-- Comments say why, and what was measured; the code already says what.
+- Commit messages, comments and spelling follow the [coding standards](docs/coding-standards.md).

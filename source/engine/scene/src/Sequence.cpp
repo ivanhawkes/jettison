@@ -16,7 +16,6 @@ namespace Jettison::Scene
 {
 namespace
 {
-// ---- The file's records ---------------------------------------------------------------------
 
 struct FadeKeyRecord
 {

@@ -34,7 +34,6 @@ constexpr std::string_view kVersionKey = "version";
 constexpr std::string_view kAppendTag = "!append";
 constexpr std::string_view kMergeTag = "!merge=";
 
-// ---- Scalars as text ----------------------------------------------------------------------
 //
 // Numbers are formatted and parsed here rather than by yaml-cpp, whose stream conversions write
 // a fixed precision and accept what a stream accepts. std::to_chars writes the shortest text
@@ -116,8 +115,6 @@ bool LooksLikeAnotherType(std::string_view text)
 	std::uint64_t positive = 0;
 	return ParseFloat(text, number) || ParseNumber(text, whole) || ParseNumber(text, positive);
 }
-
-// ---- Writing ------------------------------------------------------------------------------
 
 class Writer
 {
@@ -268,8 +265,6 @@ class Writer
 	YAML::Emitter m_emitter;
 	Path m_path;
 };
-
-// ---- Reading ------------------------------------------------------------------------------
 
 class Reader
 {
