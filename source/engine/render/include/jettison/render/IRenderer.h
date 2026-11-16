@@ -97,6 +97,12 @@ class IRenderer
 	virtual void BeginUi() = 0;
 	virtual void EndUi() = 0;
 
+	// Whether the attachment the UI is drawn into encodes the colour it is given, which the dev
+	// tools' theme decodes its palette for so that a palette hex reads as it is written on an sRGB
+	// swapchain, and as authored on the UNORM one a compositor can ask for (docs/architecture.md,
+	// "UI", devtools/Theme.h). True before Init, when there is no attachment yet.
+	virtual bool UiColoursLinearised() const = 0;
+
 	// Records and submits the scene as it stands: the presentation phase has already animated it
 	// and computed its world transforms (Scene::SceneUpdateSystem), so this frame only reads it.
 	// The overlay, the game UI's drawing (render/Overlay.h), goes over the tonemapped scene and under

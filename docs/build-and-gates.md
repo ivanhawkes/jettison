@@ -258,7 +258,14 @@ by earlier versions of the engine are fixtures beside the suite that loads them
 regenerated, since a fixture rewritten by the current build proves only that the current build reads
 itself. A format change that breaks one needs a migration, not a new fixture. The
 gate runs them with `ctest --test-dir build/<preset> --output-on-failure --no-tests=error`, so a
-tree that registered nothing fails rather than passes.
+tree that registered nothing fails rather than passes. The gate runs them in parallel (`-j`), which
+is what makes the suites finish in 42 seconds with the app's 39 of them dominating, and it is where
+the one load-sensitive case shows: `jobs`, "a completion can enqueue more work", checks a stage
+number after a `WaitIdle()`/`Drain()` pair, and the completion enqueues a second item, so a starved
+worker can have run that item before the pair returns and the check reads the next stage. Measured on
+2026-11-17: the gate's run failed it once, four parallel runs at full core count passed it four for
+four, and it passes alone. A run of the gate that fails only that case is the load, and re-running
+the gate is the answer; the test's own race is the suite's to fix.
 
 `JETTISON_BUILD_TESTS` turns the suites on. It defaults to on when Jettison is the top-level
 project and off when it is a dependency, so the game repository's build does not compile the
@@ -551,7 +558,13 @@ cinematic 1.5 s in (`pilot chase`, then `sequence dock 1`); captured twice, no p
 every earlier reference was the same to the byte with the grade's code in the output pass. Phase 11d
 added `market-de`, the orbit scene with the market screen shown in German (`language de`, then
 `market on`), every word and number of it from the sample's tables; captured twice, no pixel
-differed. A frame is
+differed. `dock-sequence` is the view the load moves: its shot is placed by the docking sequence's
+own progress, so the frame the screenshot lands on is a frame of an animation, and a starved run can
+land a tick off. Measured on 2026-11-17 with the current build, three runs with twelve busy loops on
+twenty-four cores: one at 14 516 pixels from the reference, two at nil; at idle, five runs, all nil,
+one of them byte for byte the reference. A tick of the approach costs the frame 28 times the
+stage's 518-pixel allowance, so a loaded reference stage fails on that view for a reason that is the
+view's, and the reading to trust is the one at idle. A frame is
 960×540, and the frame captured is the one after thirty in a row with nothing loading, unless its
 line says otherwise.
 

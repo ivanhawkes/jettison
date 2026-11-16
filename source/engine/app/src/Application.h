@@ -22,6 +22,7 @@
 #include <jettison/audio/SoundSources.h>
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/devtools/Console.h>
+#include <jettison/devtools/Theme.h>
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/input/Actions.h>
@@ -532,6 +533,10 @@ class Application
 	bool m_flightContext{false};
 	std::optional<PilotInput> m_pilotInput;
 
+	// The dev tools' theme, declared before the console that binds it as `dev.*` variables and holds
+	// references to it: members go in reverse order, so the console is destroyed first and its
+	// references never outlast what they refer to.
+	DevTools::ThemeSettings m_theme;
 	// The console captures the log from construction, so start-up's messages are in it.
 	DevTools::Console m_console;
 	DevTools::DevToolsState m_devTools;

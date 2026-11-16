@@ -98,6 +98,14 @@ class VulkanRenderer final : public IRenderer
 		m_pImGuiRenderer->EndFrame();
 	}
 
+	bool UiColoursLinearised() const override
+	{
+		// True before the UI is made, which is the answer for the sRGB swapchain the engine prefers;
+		// the shell applies the theme after Init, by when the UI and its attachment exist and the
+		// answer is the swapchain's own.
+		return !m_pImGuiRenderer || m_pImGuiRenderer->ColoursLinearised();
+	}
+
 	bool Render(
 	    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
 	    double presentationTime) override

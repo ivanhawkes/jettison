@@ -85,6 +85,8 @@ jettison_add_module(render
 		src/vulkan/VulkanRenderer.cpp
 		src/vulkan/Window.cpp
 		src/vulkan/Window.h
+		src/vulkan/imgui/FontFaces.cpp
+		src/vulkan/imgui/FontFaces.h
 		src/vulkan/imgui/ImGuiRenderer.cpp
 		src/vulkan/imgui/ImGuiRenderer.h
 	TESTS
@@ -96,6 +98,7 @@ jettison_add_module(render
 		tests/CullingTests.cpp
 		tests/DebugDrawTests.cpp
 		tests/DeviceChoiceTests.cpp
+		tests/FontFacesTests.cpp
 		tests/DrawBatchTests.cpp
 		tests/EnvironmentTests.cpp
 		tests/MaterialTests.cpp
@@ -137,5 +140,9 @@ if(TARGET jettison_render_tests)
 	# The pass list's barriers are tested through the backend's private header (vulkan/PassBarriers.h),
 	# so the tests see the Vulkan the module keeps private.
 	# The screenshot test reads back the PNG it wrote through stb_image, which Texture.cpp compiles.
-	target_link_libraries(jettison_render_tests PRIVATE Vulkan::Vulkan stb)
+	# The dev tools' font loader is tested against ImGui's atlas, so the tests see imgui's headers:
+	# the module links imgui privately, which is where the header rule puts it, and a test target is
+	# the same case as the backend's implementation (docs/build-and-gates.md, "The libraries a target
+	# links").
+	target_link_libraries(jettison_render_tests PRIVATE Vulkan::Vulkan stb imgui)
 endif()

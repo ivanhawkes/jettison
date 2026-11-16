@@ -924,6 +924,77 @@ before it is written, so blending is in linear light, where a browser blends enc
 masks, layers, filters and shaders are left to RmlUi's defaults, which draw nothing for them
 ([carried forward](roadmap.md#carried-forward)).
 
+**The dev tools' theme.** ImGui's style is set nowhere in the backend: `devtools/Theme.cpp` builds
+it and the shell applies it from `DrawUI` every frame, doing nothing when nothing has changed, so a
+change lands on the frame after it is made. "Nothing has changed" is read from the style and not
+remembered by the context: `ApplyThemeIfChanged` compares the settings it was last given and then
+reads two fields the stock style does not have, a panel's padding and the panel's ground. The
+applied state cannot be keyed by the context's address, which is the standard's rule for any cache
+and measured here: a context made after the themed one reuses its address, and starts stock, because
+`ImGuiStyle`'s constructor writes the stock padding, rounding and colours over whatever the last
+context left in the block, and the suite checks the stock start: a context recreated at the reused
+address begins at padding 8 and rounding 0. The address says nothing about the style it holds, and a
+key of addresses would have answered "already themed" to a stock style. It is applied there and not
+at start-up because the palette depends on the attachment the UI draws into, and only the renderer
+knows that. Its colour roles are named as a Tailwind/shadcn stylesheet names them (`background`,
+`surface`, `sunken`, `primary`, `border`) and
+their values are one of four Catppuccin palettes, a table of hex that a variety switch reads
+(`dev.palette mocha`, and the dev tools window's own control), Mocha being the design the spacing is
+drawn against: 16 px body text, spacing on the 4 px scale, radii of 6 and 8 px, a hairline border,
+tabs marked by an overline, a thin scrollbar, `disabled:opacity-50`. The spacing is multiplied by
+`dev.ui_scale`, which is the design's root font size, kept inside the band a style survives —
+measured, a scale of 0.01 gives `WindowMinSize` {0.8, 0.6} and `NewFrame` asserts "Invalid style
+setting!", which the console's variable can reach and the dev tools' slider cannot. The fonts are
+rasterised at the size the metrics assume (`ImGuiRenderer::kFontSize`), Roboto Medium for the UI and
+Hack for the console, which pushes the mono face for its lines and its input, read a character at a
+time. Two things about faces are the measured ones and not the assumed ones, and
+`render/vulkan/imgui/FontFaces.h` is where they are settled: the face ImGui draws with is the *first*
+one added, `Fonts[0]`, unless `io.FontDefault` names another, so the UI face is named and the order
+carries no meaning (it was assumed that the last added wins, and the whole UI drew in Hack); and a
+face read from memory has no name at all, because only `AddFontFromFileTTF` derives one from the
+file, so the loader writes the face's file name itself — the console finds its mono face by name,
+and found none at run time while a test that loads from a file found one.
+
+The palette is handed to the style in linear light, which is what makes a hex read as the palette
+writes it. The dev tools are drawn into the swapchain after the tonemap, and on the sRGB swapchain
+an attachment encodes what it is given, so a colour fed as its own byte lands lighter than the
+palette says: Mocha's base `#1e1e2e` would store as about `#606076` and its text `#cdd6f4` as
+`#e8ecfa`, which is the washed-out look of every stock Catppuccin ImGui port. It is the contract
+`overlay.frag` states for the game UI, for the same reason, and
+`IRenderer::UiColoursLinearised` is the renderer's word on when it applies: on the UNORM swapchain a
+compositor may hand over, the bytes go through unchanged and the palette is fed as authored. The
+last step of the path is ImGui's own, and it is where the palette stops being exact: a style colour
+is packed into `ImDrawVert::col` as 8-bit bytes, by `ColorConvertFloat4ToU32`, before the attachment
+encodes it. Measured through that packing and the encode, over the 264 channels of the 88 colours
+the four varieties give the 22 roles, 209 channels land on the palette byte, 33 are one step away, 15
+are two, 2 are three and 5 are four, so four is the bound and it sits at the darkest: Mocha's crust
+`#11111b` lands as `#0d0d1c`, Latte's `#04a5e5` reads `#00a5e5`. Two steps cost a panel ground, at
+the dark end: Mocha's base `#1e1e2e` lands as `#1c1c2e`, Macchiato's `#24273a` as `#22263b`. One step
+reaches the mid tones of the lighter varieties — Macchiato's `#494d64` as `#494d63`, Frappé's
+`#51576d` as `#51566d`, Latte's text `#4c4f69` as `#4b4f69` — while Mocha, the variety the design is
+drawn against, keeps its mid and light tones exact: its text `#cdd6f4` and its secondary button
+`#45475a` land byte for byte, and those are the pixels a captured frame counts: from the orbit scene
+with the tools open, Mocha's text draws as `#cdd6f4` over 2 318 pixels and its secondary button as
+`#45475a` over 16 279, and `dev.palette macchiato` typed into the console draws 2 318 pixels of
+`#cad3f5` and 16 279 of `#494d63` on the frame after, the packing's predicted step and not a
+rounding of the encode. Exact darks would
+want the encoding done in the UI's own shader over a UNORM attachment, which is carried forward. The
+suite checks the decode against measured pairs, the encode round trip through the packing with these
+landings asserted by name, an applied style that leaves no colour at ImGui's stock values, the
+metrics against the spacing scale, a console scale that cannot drive a metric past what ImGui allows,
+and that the face the console finds is the one the assets ship. The theme moves one reference frame, and the face it
+draws in is part of why: `docked` shows the flight HUD, whose text re-typesets in Roboto where the
+committed frame was drawn in the face added first, and whose colours land on the palette. Against
+that frame 10 050 pixels differ, within a 960 x 528 box at the top-left that covers the HUD's block
+and no part of the shuttle, so this reference is re-captured with the theme (`capture.sh
+--references --update docked`). The other ten views draw no dev tools: measured against the
+committed frames with a 2 % fuzz, all nine that are not `dock-sequence` land at nil pixels, and
+`dock-sequence` is byte for byte the committed frame — the 12 383 the gate read for it is that view's
+own sensitivity to load, 14 516 pixels in one of three runs with twelve busy loops running and nil in
+two at idle, against a 518-pixel allowance, which is the gate's to answer for and not the theme's
+([build and gates](build-and-gates.md#reference-frames)). The game UI's own stylesheet is untouched,
+and left to match the palette by its own work ([carried forward](roadmap.md#carried-forward)).
+
 **Data.** A document reads the game's data through a data model (`ui/DataModel.h`): named
 variables, bound by address to values presentation owns, and named events. A variable is any type
 registered with Reflect, read through the reflection tables in place: a field's address is found

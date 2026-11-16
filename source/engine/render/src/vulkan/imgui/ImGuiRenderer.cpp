@@ -17,27 +17,29 @@
 
 namespace Jettison::Render
 {
+namespace
+{
+// Whether a format encodes the colour it is given, as the sRGB swapchain does. Spelt the same way
+// Swapchain.cpp reads the surface's format, so the two agree by construction.
+bool EncodesSrgb(VkFormat format)
+{
+	return format == VK_FORMAT_B8G8R8A8_SRGB || format == VK_FORMAT_R8G8B8A8_SRGB;
+}
+} // namespace
+
 void ImGuiRenderer::Init(GLFWwindow *window, VkFormat colorFormat, uint32_t frameCount)
 {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	m_contextCreated = true;
+	m_coloursLinearised = EncodesSrgb(colorFormat);
 
 	ImGuiIO &io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-	for (const auto &font : {"DroidSans.ttf", "Hack-Regular.ttf", "VeraMono.ttf"})
-	{
-		std::optional<std::vector<std::byte>> bytes =
-		    m_pAssets ? m_pAssets->Read(std::string{"fonts/"} + font) : std::nullopt;
-		if (!bytes || bytes->empty())
-			continue;
-		std::vector<std::byte> &data = m_fonts.emplace_back(std::move(*bytes));
-		ImFontConfig config;
-		config.FontDataOwnedByAtlas = false;
-		io.Fonts->AddFontFromMemoryTTF(data.data(), static_cast<int>(data.size()), 18.0f, &config);
-	}
-	io.Fonts->AddFontDefault();
-	ImGui::StyleColorsDark();
+	m_faces = LoadDevToolFaces(*m_pAssets, kFontSize);
+	// No style is set here. The shell applies the dev tools' theme once the renderer is made
+	// (devtools/Theme.h, Application::DrawUI), because the palette is presentation's to choose and
+	// the renderer's to report the attachment for, not the backend's to fix.
 
 	if (!ImGui_ImplGlfw_InitForVulkan(window, true))
 		throw std::runtime_error("failed to initialize ImGui GLFW backend");
@@ -97,7 +99,7 @@ void ImGuiRenderer::Destroy()
 		ImGui::DestroyContext();
 		m_contextCreated = false;
 	}
-	m_fonts.clear();
+	m_faces = DevToolFaces{}; // the faces' bytes go with the context, after it (FontFaces.h)
 	if (m_descriptorPool != VK_NULL_HANDLE)
 	{
 		vkDestroyDescriptorPool(m_pDeviceContext->GetLogicalDevice(), m_descriptorPool, nullptr);

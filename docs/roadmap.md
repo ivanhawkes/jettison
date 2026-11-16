@@ -253,6 +253,18 @@ Each is placed by the first scene or screen that needs it, and changes no data o
 - **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
   a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
   brightness in it. Not yet placed.
+- **The dev tools' theme, and what it leaves** (ui/imgui): the style is themed 2026-11-17, on
+  Catppuccin's four varieties with the spacing of a Tailwind sheet, switched live by `dev.palette`
+  and `dev.ui_scale` ([architecture](architecture.md#ui)). Not yet placed: the game
+  UI's own stylesheet in the same palette, so the market screen and the tools read as one design,
+  which is a RmlUi stylesheet over the VFS and no engine work; the palette as a player setting on the
+  game's own screen, which wants the settings screen the sample does not have; a light-attachment
+  swap noticed mid-run, which `ApplyThemeIfChanged` answers only when a setting changes; and the
+  darkest tones exact on the palette, which wants the sRGB encoding done in the UI's own shader over
+  a UNORM attachment — ImGui packs a vertex colour into 8-bit linear bytes, so `#1e1e2e` lands as
+  `#1c1c2e` and `#11111b` as `#0d0d1c`; measured over the 264 channels of the four varieties, 209
+  land exact, 33 are one step off and the most is four, all four-step cases at the dark end
+  ([architecture](architecture.md#ui)).
 - **A gas giant's bands** (entry 28, 10a): Corva is one colour under its air. Not yet placed.
 - **Not yet placed** (entries 19 and 20): the sun's shadow distance and split blend tuned by
   measurement; hysteresis between levels of detail, and levels for model files; the planets' own

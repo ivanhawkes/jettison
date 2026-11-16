@@ -681,6 +681,11 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { PlaceOrbitCamera(arguments); });
 
+	DevTools::RegisterThemeTypes();
+	// The dev tools' palette, scale and mono console, as variables of their own: a dev on a 4K panel
+	// and one on a laptop settle for one run's settings each, without a rebuild.
+	m_console.BindVariables("dev", m_theme);
+
 	Sim::RegisterTypes();
 	m_sim.RegisterComponent<Sim::Transform>();
 	m_sim.RegisterComponent<Sim::InSystem>();
@@ -1666,15 +1671,20 @@ void Application::Tick()
 
 void Application::DrawUI()
 {
+	// The theme is applied here and not at start-up, because it wants the attachment the UI draws
+	// into: on an sRGB swapchain its palette goes to that attachment in linear light, so a hex reads
+	// as the palette writes it (devtools/Theme.h). One call a frame, and it does nothing when nothing
+	// has changed, which is how `dev.palette mocha` takes effect on the frame after it is typed.
+	DevTools::ApplyThemeIfChanged(m_theme, m_pRenderer->UiColoursLinearised());
 	m_pRenderer->BeginUi();
 	if (m_showUI)
 	{
-		DevTools::DrawDevTools(m_console, m_devTools, &m_showUI);
+		DevTools::DrawDevTools(m_console, m_devTools, m_theme, &m_showUI);
 		DrawRendererPanel();
 		DrawScenePanel();
 	}
 	else if (m_devTools.showConsole)
-		DevTools::DrawConsole(m_console, m_devTools.console, &m_devTools.showConsole);
+		DevTools::DrawConsole(m_console, m_devTools.console, m_theme, &m_devTools.showConsole);
 	if (m_piloting)
 		DrawFlight();
 	DrawPicked();

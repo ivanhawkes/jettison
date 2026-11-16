@@ -1,7 +1,11 @@
 #pragma once
 
+#include <jettison/devtools/Theme.h>
+
 #include <array>
 #include <cstddef>
+
+struct ImFont;
 
 namespace Jettison::DevTools
 {
@@ -29,9 +33,16 @@ struct DevToolsState
 
 // Inside an ImGui frame. The console window: the lines coloured by kind and severity, kept
 // scrolled to the bottom as lines arrive unless the reader has scrolled up, and an input line
-// with history on Up and Down and completion on Tab. *open goes false when it is closed.
-void DrawConsole(Console &console, ConsoleViewState &state, bool *open);
+// with history on Up and Down and completion on Tab. The lines are a code block, in the mono face
+// on the sunken ground when settings says so. *open goes false when it is closed.
+void DrawConsole(Console &console, ConsoleViewState &state, const ThemeSettings &settings, bool *open);
 
-// The dev tools menu, the window F1 opens: a checkbox per tool, then the tools that are on.
-void DrawDevTools(Console &console, DevToolsState &state, bool *open);
+// The dev tools menu, the window F1 opens: a checkbox per tool, and the tools that are on, and the
+// theme's controls, which write settings as the console's variables do (Theme.h).
+void DrawDevTools(Console &console, DevToolsState &state, ThemeSettings &settings, bool *open);
+
+// The mono face among the fonts the renderer loaded, which the console draws its lines in; nothing
+// when none is, which is how every test and a fontless run draws. Views.cpp's rule, published for
+// the tests to check it against the fonts the assets ship.
+ImFont *MonoFont();
 } // namespace Jettison::DevTools

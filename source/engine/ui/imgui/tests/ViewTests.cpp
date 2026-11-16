@@ -14,12 +14,19 @@ using namespace Jettison::DevTools;
 namespace
 {
 // ImGui with no renderer: a context, a display size and a built font atlas are all a frame needs.
+// The frames are policed by ImGui itself: it records the stack sizes at Begin and checks them at
+// End, so a font pushed inside a window and popped after that window ends fails the suite, as the
+// smoke run's "Missing PopFont()" did (measured: with the console's input face popped after End, a
+// test fails here). A context is owned by pointer and destroyed by pointer, and made current:
+// ImGui's DestroyContext(nullptr) takes the *current* context, and CreateContext hands the previous
+// one back as current, so two fixtures in one case, with ImGui's general allocator handing the same
+// address back (measured), would destroy one context twice.
 class HeadlessImGui
 {
   public:
-	HeadlessImGui()
+	HeadlessImGui() : m_context{ImGui::CreateContext()}
 	{
-		ImGui::CreateContext();
+		ImGui::SetCurrentContext(m_context);
 		ImGuiIO &io = ImGui::GetIO();
 		io.DisplaySize = {1280.0f, 720.0f};
 		io.DeltaTime = 1.0f / 60.0f;
@@ -31,7 +38,11 @@ class HeadlessImGui
 	}
 	~HeadlessImGui()
 	{
-		ImGui::DestroyContext();
+		ImGuiContext *outer = ImGui::GetCurrentContext();
+		ImGui::SetCurrentContext(m_context);
+		ImGui::DestroyContext(m_context);
+		if (outer != m_context)
+			ImGui::SetCurrentContext(outer);
 	}
 	HeadlessImGui(const HeadlessImGui &) = delete;
 	HeadlessImGui &operator=(const HeadlessImGui &) = delete;
@@ -51,6 +62,9 @@ class HeadlessImGui
 	{
 		ImGui::GetIO().AddKeyEvent(key, false);
 	}
+
+  private:
+	ImGuiContext *m_context{nullptr};
 };
 } // namespace
 
@@ -60,12 +74,13 @@ TEST_CASE("Views: the dev tools and every tool they open draw a frame")
 	Console console;
 	console.Print("hello");
 	DevToolsState state;
+	ThemeSettings theme;
 	state.showConsole = true;
 	state.showDemo = true;
 	state.showMetrics = true;
 	bool open = true;
 	for (int frame = 0; frame < 3; ++frame)
-		imgui.Frame([&] { DrawDevTools(console, state, &open); });
+		imgui.Frame([&] { DrawDevTools(console, state, theme, &open); });
 	CHECK(open);
 	CHECK(state.showConsole);
 	CHECK(ImGui::GetDrawData()->CmdListsCount > 0);
@@ -80,8 +95,9 @@ TEST_CASE("Views: a line typed into the console window and entered is executed")
 	    "say", "Says the words", [&](Console &, std::span<const std::string> words)
 	    { said.assign(words.begin(), words.end()); });
 	ConsoleViewState state;
+	ThemeSettings theme;
 	bool open = true;
-	const auto frame = [&] { imgui.Frame([&] { DrawConsole(console, state, &open); }); };
+	const auto frame = [&] { imgui.Frame([&] { DrawConsole(console, state, theme, &open); }); };
 
 	// The window opens with the input focused.
 	frame();
