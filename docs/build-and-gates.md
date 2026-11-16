@@ -87,8 +87,10 @@ current devenv lock is 0.13.1, which is why the client is pinned there. It is no
 
 Measured on 2026-11-10 (24 cores, Release, from an empty tree), the planned set adds about 45
 seconds of configure, mostly downloads, about 410 CPU-seconds of compilation (217 without it,
-627 with), and about 0.7 GB of disk per tree. On the CI runner's two build jobs that is
-roughly three and a half minutes per tree. CI builds two trees with the set: Debug and Release.
+627 with), and about 0.7 GB of disk per tree. At the runner's four cores and Ninja's six copies that
+is the arithmetic on those CPU-seconds, about 70 s of compilation per tree, against the three and a
+half minutes the two jobs it used to bound itself to took. CI builds two trees with the set: Debug
+and Release.
 
 ### Integration rules the set follows
 
@@ -210,9 +212,10 @@ Test samples/editor/presentation disabled independently; keep sample render regr
 These build options/checks are not all implemented yet. Current CMake still requires
 graphics dependencies and couples engine setup to `PLUGIN_IMGUI`. Removing that coupling
 is a roadmap deliverable, not a supported flag combination this document claims works.
-Run relevant gates after implementation with two local compile jobs; avoid local clang-tidy
-for the cross-repository work. Keep the development environment aligned with Manifest,
-including developer-only `lazygit`; it must not become a release/runtime dependency.
+Run the relevant gates after implementation at the machine's own core count, clang-tidy
+included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
+development environment aligned with Manifest, including developer-only `lazygit`; it must not
+become a release/runtime dependency.
 
 ## The gate
 
@@ -242,11 +245,18 @@ warm caches (2026-11-12).
 ./scripts/ci.sh --werror --asan --log build/gate.log
 ```
 
-Its builds run Ninja's default of the machine's threads plus two, every core busy.
-`CMAKE_BUILD_PARALLEL_LEVEL` set beforehand bounds them, as CI's 2 does. A cold gate's clang once
-crashed twice at this load (2026-11-14), each time on a file that then built alone. Other programs
-on the machine crashed in the same days, so it is taken as the machine's fault rather than the
-load's, and a crash of that kind is retried rather than built around.
+Its builds run Ninja's default of the machine's threads plus two, every core busy, on CI as here —
+nothing bounds them. A cold gate's clang once crashed twice at this load (2026-11-14), each time on a
+file that then built alone. Other programs on the machine crashed in the same days, so it is taken as
+the machine's fault rather than the load's, and a crash of that kind is retried rather than built
+around; the reading on 2026-11-17 is that the crashes came from an unstable motherboard clock speed,
+probably, which is why the parallel bound of 2 that was set as a workaround is off — on CI as well
+as here ([CI](#ci)). What a full-parallel build costs in memory is measured: a clang copy peaks at
+1 051 MiB on `Application.cpp` and 522 MiB across the five widest units (2026-11-17, the build's own
+command, `VmHWM` over the process tree), so 26 copies want 27 GiB at the worst and 13 GiB in
+aggregate, against the machine's 62 GiB. Measured the same day, with a 57 GiB process already
+resident, 3.4 GiB was available and a full run would have thrashed — so the reading to take before a
+full run is `MemAvailable`, and the answer to pressure is the machine's load, not a smaller `Ninja`.
 
 ### Unit tests
 
@@ -307,10 +317,14 @@ from a configured tree's compile database.
 
 A check of every unit is about 1,500 s of work: 2 s for a small one, 23 s for `Application.cpp`,
 spread over every check rather than in one. So `scripts/tidy.py`, which `tidy.sh` runs, checks on
-every core (`JETTISON_TIDY_JOBS`, which CI sets to 2) and skips a unit that came out clean before and
-has not changed since. A unit's key is a digest of clang-tidy's version, `.clang-tidy`, the unit's
-compile command and the contents of every file it includes, as the built tree's dependency record
-(`ninja -t deps`) lists them, with paths under the repository made relative, so a worktree reuses
+every core — one copy per thread of the machine it runs on, `JETTISON_TIDY_JOBS` to override, CI
+included, since a copy of clang-tidy peaks at 1 151 MiB on `Application.cpp` and 691 MiB across the
+six widest units (measured 2026-11-17 over the process tree, `VmHWM`, the sum of its pids'
+high-water marks), so cores are the limit there and not memory — and it skips a unit that came out
+clean before and has not changed since. A unit's key is a digest of clang-tidy's version,
+`.clang-tidy`, the unit's compile command and the contents of every file it includes, as the built
+tree's dependency record (`ninja -t deps`) lists them, with paths under the repository made
+relative, so a worktree reuses
 another's results; the cache is outside the tree (`~/.cache/jettison/tidy`, or
 `JETTISON_TIDY_CACHE`). Only clean units are cached, so a diagnostic is reported every run until it
 is fixed. A unit with no dependency record, or with a file changed since its object was built, is
@@ -630,8 +644,17 @@ a GitHub run.
   silently ignore substituters from an untrusted user
   ([devenv caching](https://devenv.sh/binary-caching/)), so the Nix action trusts the runner user
   and the Cachix action names the cache explicitly. No token is needed to read it.
-- CMake, clang-tidy, CTest and Nix parallelism are bounded to 2 to limit memory pressure. An uncached
-  derivation can still mean a long build.
+- Nothing bounds parallelism on the runner: `CMAKE_BUILD_PARALLEL_LEVEL`, `CTEST_PARALLEL_LEVEL` and
+  Nix's `max-jobs` were all set to 2 and all came off on 2026-11-17. The bound was a workaround for
+  crashes, and the crashes are taken to be an unstable motherboard clock speed on the development
+  machine, probably, which the runner does not have ([the gate](#the-gate)). Memory pressure was the
+  reason written down at the time and is not measured, on the runner or here: the peaks are 1 051 MiB
+  for a clang copy on the widest unit and 1 151 MiB for a copy of clang-tidy, so the runner's six
+  build copies want 6.3 GiB and its four tidy copies 4.6 GiB, on a standard hosted runner of four
+  cores and sixteen gigabytes. The signal that the arithmetic is wrong is an
+  OOM in a run's log — `c++: fatal error: Killed signal terminated program`, or a suite that dies
+  with no assertion — and if it appears, the bounds go back and the runner's memory is the reason on
+  the record.
 - An earlier run failed compiling ImGui's GLFW backend because `GL/gl.h` was missing. The ImGui
   target defines `GLFW_INCLUDE_NONE`, because it uses Vulkan and does not need OpenGL headers.
 

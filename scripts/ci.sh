@@ -21,7 +21,9 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # The suites are separate processes, each writing only under a temporary directory named for its
-# process, so they run side by side. CTEST_PARALLEL_LEVEL bounds them, as CI's runner does.
+# process, so they run side by side, at the machine's core count; CTEST_PARALLEL_LEVEL overrides.
+# Nothing is bounded to 2 any more, on CI or here: the bound was a crash workaround and the crashes
+# are taken to be the development machine's clock, not the load (docs/build-and-gates.md, "CI").
 jobs="${CTEST_PARALLEL_LEVEL:-$(nproc)}"
 
 preset="clang-debug"

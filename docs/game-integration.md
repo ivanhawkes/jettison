@@ -96,7 +96,8 @@ or transforms, a non-space physics scene without celestial definitions, and the 
 space example. Exercise definitions, stepping and save/load, plus coherent options with
 samples/tests/editor/presentation disabled. These are small API tests, not new products.
 
-The implementer runs relevant presets and required gates, with two local compile jobs
-and no local clang-tidy for this cross-repository work. Document actual evidence and
+The implementer runs relevant presets and required gates at the machine's own core count,
+clang-tidy included, reading `MemAvailable` before a full-parallel run
+([the gate](build-and-gates.md#the-gate)). Document actual evidence and
 remaining limitations. The planned matrix does not pass merely because the existing
 space sample works or a static linker discards unused sample symbols.

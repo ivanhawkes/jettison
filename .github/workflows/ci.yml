@@ -20,10 +20,6 @@ jobs:
   gates:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    env:
-      CMAKE_BUILD_PARALLEL_LEVEL: 2
-      JETTISON_TIDY_JOBS: 2
-      CTEST_PARALLEL_LEVEL: 2
 
     steps:
       - name: Checkout
@@ -33,9 +29,6 @@ jobs:
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            max-jobs = 2
 
       - name: Enable devenv binary cache
         uses: cachix/cachix-action@v17

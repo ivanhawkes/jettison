@@ -46,7 +46,9 @@ You are running in a terminal TUI environment (Claude Code, Codex CLI, or Pi). E
   economy into the engine or make Manifest a build dependency.
 - Follow the user's model policy: OpenAI agents plan/review read-only and may edit
   explicitly requested documentation; implementation and gate execution belong to the
-  selected implementer. For this work use two local compile jobs and no local clang-tidy.
+  selected implementer. Local runs use the machine's own cores, clang-tidy included:
+  nothing is bounded to 2, and `MemAvailable` is read before a full-parallel gate
+  (docs/build-and-gates.md, "The gate").
 
 ## Where to look
 
