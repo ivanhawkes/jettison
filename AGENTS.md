@@ -32,6 +32,40 @@ You are running in a terminal TUI environment (Claude Code, Codex CLI, or Pi). E
 - **CMake:** Use `cmake-language-server` / `neocmakelsp` for target, variable, and dependency resolution.
 - If your current TUI agent lacks direct MCP/LSP tool bindings in this session, run `clangd --check=<file>` or use `compile_commands.json` flags directly via bash before falling back to targeted `rg` searches on `.hpp` headers.
 
+## Code & Config Commenting Policy
+
+### Core Rule
+Write comments **ONLY** to explain **WHY** code or configuration exists—never **WHAT** it does or **HOW** it works.
+
+### C++ Rules
+
+#### Allowed Comments (Keep)
+1. **Ownership, Lifetime & Concurrency Invariants**: Document non-obvious lifetime dependencies, thread-safety assumptions, lock ordering, and memory alignment rules that the type system cannot enforce (e.g., `// Caller must hold mutex_ before invoking; pointer remains valid until end of frame`).
+2. **Undefined Behavior & ABI Guardrails**: Warn against refactors that violate strict aliasing, ABI stability, or hardware/SIMD constraints (e.g., `// DO NOT reorder fields: serialized directly to hardware DMA buffer`).
+3. **Performance & Algorithmic Trade-offs**: Explain why a non-idiomatic or lower-level approach was chosen over a cleaner abstraction (e.g., `// Flat vector used instead of std::unordered_map to avoid heap allocations on hot path`).
+4. **Public Header Contracts**: Keep Doxygen/header comments strictly to preconditions, postconditions, exception guarantees (`noexcept` rationale), and ownership transfer.
+
+#### Forbidden in C++ (Delete / Reject in Review)
+1. **Modern C++ Narration**: Never explain `std::move`, RAII destructors, smart pointer ownership, template SFINAE/concepts, or standard `<algorithm>` calls.
+2. **Header/Source Duplication**: Do not copy header docstrings into `.cpp` implementation files.
+3. **Banner Dividers & Dead Code**: No `// --- Private Methods ---` banners or `#if 0` / commented-out blocks.
+
+### YAML Rules (CI/CD, Infra, Config)
+
+#### Allowed Comments (Keep)
+1. **Magic Values & Pinned Versions**: Explain why specific timeouts, resource limits, ports, or dependency versions are pinned (e.g., `# Pinned to v2.4.1: v2.5 introduces breaking schema validation on ARM64`).
+2. **Implicit Schema Coupling**: Note when a key name or value is parsed dynamically by an external tool or script (e.g., `# Prefix 'svc-' is required by the deploy-router regex`).
+3. **Environment & Security Constraints**: Explain non-obvious permission scopes, secret injection requirements, or compliance rules.
+
+#### Forbidden in YAML (Delete / Reject in Review)
+1. **Key Restatements**: Never comment above obvious keys (e.g., `# Set timeout to 30 seconds` above `timeout: 30s`).
+2. **Section Banners**: Avoid `# ====================` dividers; use blank lines and clean key grouping instead.
+
+### Enforcement Protocol (Claude & Codex)
+- **Before writing**: Express intent through C++20/23 types (`std::span`, `concepts`, strong typedefs, `[[nodiscard]]`) and explicit YAML key naming before resorting to a comment.
+- **During refactoring**: Delete or update any adjacent comment whose underlying invariant changed.
+- **During review**: Flag and strip any newly generated comment that restates syntax or schema structure.
+
 ## Engine and game responsibilities
 
 - Before engine integration work, read `docs/game-integration.md` and inspect the sibling
