@@ -2,6 +2,7 @@
 
 | Document | Read it for |
 |---|---|
+| [Guide](guide.md) | New to the engine: how to do the common things, step by step (making and releasing a mod) |
 | [Scope](scope.md) | Genre-neutral engine responsibilities, current coverage and limits |
 | [Game integration](game-integration.md) | Check Manifest requirements, provision reusable capabilities, isolate sample gameplay and enforce boundaries |
 | [Architecture](architecture.md) | Repository layout, module dependencies, the simulation split, coordinate frames, the engine as it is today |

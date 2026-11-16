@@ -53,6 +53,7 @@ gates](docs/build-and-gates.md#consuming-the-engine) shows how to run it.
 
 Everything else is in [`docs/`](docs/README.md):
 
+- [Guide](docs/guide.md): how to work with the engine, step by step, starting with releasing a mod
 - [Scope](docs/scope.md): what is in and out, and why
 - [Architecture](docs/architecture.md): layout, module dependencies, the simulation split,
   coordinate frames
