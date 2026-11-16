@@ -82,6 +82,13 @@ is in the log. Warm, it takes 3 to 4 minutes (223 s on 2026-11-14), two thirds o
 lavapipe smoke tests and reference frames; with both caches cold, several minutes more. A commit
 leaves the gate green with `--werror --asan`.
 
+Nothing bounds parallelism: the builds, the suites and clang-tidy take the machine's cores. Free
+memory here is a question of whether the user's local AI is resident (`strata-host`, about 57 GiB,
+not always running): when it is not, the build is free to take the machine, and when it is, read
+`MemAvailable` first — 3.4 GiB free with it up, measured 2026-11-17, is a full run that thrashes.
+The per-copy peaks and the arithmetic are in
+[build and gates](docs/build-and-gates.md#the-gate).
+
 After the gate, Codex reviews the change adversarially with `scripts/cross-review.sh` (a
 background task, about ten minutes a round, no edits while it runs); answer each finding with a
 fix or evidence, two rounds at most, then the user settles what is open

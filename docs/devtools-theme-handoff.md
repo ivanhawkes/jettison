@@ -174,7 +174,10 @@ nohup ./scripts/ci.sh --werror --asan --log build/gate.log > /tmp/gate-run.log 2
 Nothing is bounded to 2 any more, on CI or here (`JETTISON_TIDY_JOBS`, `CMAKE_BUILD_PARALLEL_LEVEL`
 and `CTEST_PARALLEL_LEVEL` are overrides only). Before a full-parallel gate, read `MemAvailable`:
 a clang copy peaks at 1 051 MiB on the widest unit and a clang-tidy copy at 1 151 MiB, so the builds
-want about 27 GiB at the worst and tidy about 28 GiB, against a 62 GiB machine at rest. The gate
+want about 27 GiB at the worst and tidy about 28 GiB, against a 62 GiB machine — and free memory
+here depends on the user's local AI (`strata-host`, ~57 GiB, not always running): when it is down,
+the run is free to take the machine; when it is up, 3.4 GiB was free on 2026-11-17 and a full run
+thrashes. The gate
 takes about five minutes warm at full parallelism. Run it as a background task and wait on the log;
 `--log` prints the stages, and for a failure the errors, with the full output in the file.
 

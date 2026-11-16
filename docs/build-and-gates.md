@@ -254,9 +254,11 @@ probably, which is why the parallel bound of 2 that was set as a workaround is o
 as here ([CI](#ci)). What a full-parallel build costs in memory is measured: a clang copy peaks at
 1 051 MiB on `Application.cpp` and 522 MiB across the five widest units (2026-11-17, the build's own
 command, `VmHWM` over the process tree), so 26 copies want 27 GiB at the worst and 13 GiB in
-aggregate, against the machine's 62 GiB. Measured the same day, with a 57 GiB process already
-resident, 3.4 GiB was available and a full run would have thrashed — so the reading to take before a
-full run is `MemAvailable`, and the answer to pressure is the machine's load, not a smaller `Ninja`.
+aggregate, against the machine's 62 GiB. Free memory here is a question of one process: the user's
+local AI, `strata-host`, resident at 57 GiB on 2026-11-17, leaving 3.4 GiB — a full run then would
+have thrashed. It is not always running, and when it is not the build is free to take the machine
+and the unbounded defaults are the point. When it is, `MemAvailable` says in one number which
+machine today is, and the answer to pressure is the load, not a smaller `Ninja`.
 
 ### Unit tests
 
