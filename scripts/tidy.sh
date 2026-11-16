@@ -15,6 +15,8 @@
 #                   cache reads the headers each unit includes from its dependency record
 #  --summary        print the summary lines only, not the diagnostics
 #  --all            check every unit, cached as clean or not
+#  --show N         print at most N distinct diagnostic lines in all (default 20), the rest to a log
+#  --full           print clang-tidy's whole output, notes and excerpts included
 #  --fix            apply safe fixes in place, over every unit; start from a clean tree to review them
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -41,12 +43,21 @@ while [ $# -gt 0 ]; do
 			all_flag=(--all)
 			shift
 			;;
+		--show)
+			[ $# -ge 2 ] || { echo "tidy: --show needs an argument" >&2; exit 2; }
+			show_flag=(--show "$2")
+			shift 2
+			;;
+		--full)
+			full_flag=(--full)
+			shift
+			;;
 		--fix)
 			fix=1
 			shift
 			;;
 		-h | --help)
-			sed -n '2,18p' "${BASH_SOURCE[0]}"
+			sed -n '2,20p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*)
@@ -58,7 +69,7 @@ done
 
 if [ "$fix" -eq 0 ]; then
 	# Checking: every core, and only the units that changed since they were last clean (tidy.py).
-	exec python3 scripts/tidy.py --build-dir "$build_dir" ${summary_flag[@]+"${summary_flag[@]}"} ${all_flag[@]+"${all_flag[@]}"}
+	exec python3 scripts/tidy.py --build-dir "$build_dir" ${summary_flag[@]+"${summary_flag[@]}"} ${all_flag[@]+"${all_flag[@]}"} ${show_flag[@]+"${show_flag[@]}"} ${full_flag[@]+"${full_flag[@]}"}
 fi
 
 if [ ! -f "$build_dir/compile_commands.json" ]; then

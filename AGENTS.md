@@ -74,7 +74,16 @@ background task.
 cmake --build --preset clang-debug                                   # configured already
 ctest --test-dir build/clang-debug -R '^physics$' --output-on-failure  # one suite, named per module
 ./scripts/ci.sh --werror --asan --log build/gate.log                 # the gate, before a commit
+./scripts/tidy.sh --summary                                        # the checks, one line when clean
 ```
+
+For one unit, `clang-tidy -p build/clang-debug <file> 2>&1 | grep -E ': (warning|error): .*\['`:
+raw clang-tidy prints hundreds of thousands of warnings generated, macro-expanded and suppressed
+included. Dependency code is already out of the checks — the path filter in `scripts/tidy.py` picks
+252 of the 894 units, and `.clang-tidy`'s `HeaderFilterRegex` suppresses findings located in
+dependency headers — so what survives that grep is the project's own. A plain `scripts/tidy.sh`
+prints at most 20 distinct diagnostics and names `build/clang-debug/tidy-diagnostics.log`, which
+holds the whole text; `--full` prints everything, `--summary` the tally.
 
 Run the gate as a background task and wait for it to finish rather than polling with `sleep`.
 With `--log` it prints the stages and a summary, and for a failed stage its errors; the full output

@@ -33,3 +33,9 @@ imgui.ini
 
 # clangd index
 .cache/
+
+# clang-tidy cache on CI, JETTISON_TIDY_CACHE in .github/workflows/ci.yml
+.tidy-cache/
+
+# python bytecode from the scripts (tidy.py, py_compile)
+__pycache__/

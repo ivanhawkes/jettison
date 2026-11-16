@@ -260,6 +260,38 @@ have thrashed. It is not always running, and when it is not the build is free to
 and the unbounded defaults are the point. When it is, `MemAvailable` says in one number which
 machine today is, and the answer to pressure is the load, not a smaller `Ninja`.
 
+Dependency code is silent in both directions, and has been since the checks were curated. The units
+are the project's own: `tidy.py` and the `--fix` path's `run-clang-tidy` both filter on
+`source/(engine|tools|samples|test)/.*\.(cpp|h)$`, which is 252 of the 894 units in a configured
+tree — the ~640 under `build/clang-debug/_deps` (entt, ImGui, RmlUi, Jolt, fastgltf, glm, the
+Vulkan and system headers) are never checked. Their diagnostics are off too: `HeaderFilterRegex:
+'source/(engine|tools|samples|test)/.*'` keeps them out, which a direct run of one unit reports
+plainly — "Suppressed 56 090 warnings (56 090 in non-user code)". What is paid for them is parse
+time, since a unit is type-checked through the headers it includes, and no filter changes that.
+
+The stage's cost on CI is measured, from the job log of the run of 2026-11-16: **786 s of a 2 732 s
+gate**, 29% of it, printing one line, `252 of 252 units checked, 0 unchanged since clean` — a cold
+cache every run, at the bound of 2 jobs that has since come off. `actions/cache` now keeps the
+cache directory across runs (`JETTISON_TIDY_CACHE` in the workflow, saved with `post-if: always()`
+so a run that fails on findings still banks the units that came out clean), which is what the warm
+behaviour here — 11 units in 36 s, 12 in 0.7 s — becomes over there. The keys are per unit and
+digest clang-tidy's version, `.clang-tidy`, the unit's compile command and the contents of every
+file it includes, so a restored entry is reused only by the unit that earned it, and a partial
+restore is safe by construction: the units it misses get checked.
+
+Output is capped where it is not needed. The gate runs `tidy.sh --summary`, whose whole output is
+one line clean. A plain run prints the actionable lines — `file:line:col: severity: message
+[check]` — capped to the 20 distinct ones (`--show N`, `--show 0` for none), because a header's
+finding is reported by every unit that includes it, and hands the whole text (notes, source
+excerpts, every unit's copy) to `<build-dir>/tidy-diagnostics.log`, naming it; `--full` prints it
+all as before. A narrowing conversion planted in `Theme.h`, reported by the four units that include
+it, measures the pair: 32 lines full, 1 line capped. A one-unit check through
+`clang-tidy -p build/clang-debug <file>` prints more than a terminal should — 280 635 warnings
+generated, suppressed and macro-expanded included — so it goes through
+`grep -E ': (warning|error): .*\['`, which is what the agent instructions say. `ci.sh` runs the
+checks over the debug tree only: the release tree differs by inlining, and diagnostics from the
+same source are not wanted twice.
+
 ### Unit tests
 
 Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files the
@@ -657,6 +689,13 @@ a GitHub run.
   OOM in a run's log — `c++: fatal error: Killed signal terminated program`, or a suite that dies
   with no assertion — and if it appears, the bounds go back and the runner's memory is the reason on
   the record.
+- A full run's shape is recorded from the job log of 2026-11-16: a gate of 2 732 s — clang-tidy
+  **786 s**, the debug build 665 s, the release build 580 s, the lavapipe smoke test 489 s,
+  reference frames 160 s, the two suites 27 s and 24 s, format 1 s, with 94 s of runner setup in
+  front. Two thirds of it is the two builds and tidy, so the bounds coming off cuts the builds and
+  `actions/cache` over tidy's cache directory answers the 786 s ([clang-tidy](#clang-tidy)). The
+  job took 47m34s against a 60-minute timeout: the margin is thin, and a run is watched, not
+  assumed.
 - An earlier run failed compiling ImGui's GLFW backend because `GL/gl.h` was missing. The ImGui
   target defines `GLFW_INCLUDE_NONE`, because it uses Vulkan and does not need OpenGL headers.
 
@@ -675,6 +714,6 @@ a GitHub run.
 gh run list --branch feature-base --limit 1
 gh run view <id> --json jobs -q '.jobs[].steps[] | select(.conclusion=="failure") | .name'
 gh run view <id> --log-failed | grep -E "<step name>" | grep -vE "\[\[36;1m" | tail -25
-gh run watch <id> --interval 30 --exit-status &     # a run takes about five minutes
+gh run watch <id> --interval 30 --exit-status &     # a run takes about 45 minutes
 ```
 

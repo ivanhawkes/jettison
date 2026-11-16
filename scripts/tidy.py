@@ -120,7 +120,18 @@ def main():
     parser.add_argument("--build-dir", default="build/clang-debug")
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("--all", action="store_true", help="check every unit, cached or not")
-    parser.add_argument("--jobs", type=int, default=int(os.environ.get("JETTISON_TIDY_JOBS", os.cpu_count() or 2)))
+    # A unit with findings prints clang-tidy's whole output, which is the diagnostics plus their
+    # notes and source excerpts: a unit with a hundred of them prints a thousand lines, and a
+    # terminal, and a gate log, and the agent reading it. The actionable part is the
+    # file:line:col: severity: message [check] line, so the print is capped to these, and the whole
+    # text goes to a file whose name is printed. A header's finding is reported by every unit that
+    # includes it, so the cap runs over the distinct lines, as the count below does. --full prints
+    # everything, as it did before.
+    parser.add_argument("--show", type=int, default=20, help="distinct diagnostic lines printed in all")
+    parser.add_argument("--full", action="store_true", help="print clang-tidy's whole output")
+    parser.add_argument(
+        "--jobs", type=int, default=int(os.environ.get("JETTISON_TIDY_JOBS", os.cpu_count() or 2))
+    )
     arguments = parser.parse_args()
 
     build_dir = (ROOT / arguments.build_dir).resolve()
@@ -177,9 +188,18 @@ def main():
             print(f"tidy: clang-tidy failed on {file} (exit {status})", file=sys.stderr)
         return failures[0][1]
 
-    if not arguments.summary:
-        for _, output, _ in sorted(diagnostics):
-            print(output)
+    if not arguments.summary and diagnostics:
+        if arguments.full:
+            for _, output, _ in sorted(diagnostics):
+                print(output)
+        else:
+            log = build_dir / "tidy-diagnostics.log"
+            log.write_text("\n".join(f"=== {file}\n{output}" for file, output, _ in sorted(diagnostics)) + "\n")
+            unique = sorted({line for _, _, found in diagnostics for line in found})
+            for line in unique[: max(0, arguments.show)]:
+                print(line)
+            if len(unique) > arguments.show:
+                print(f"tidy: ...and {len(unique) - max(0, arguments.show)} more; full output: {log}")
 
     # A header's diagnostic is reported by every unit that includes it: counted once.
     unique = sorted({line for _, _, found in diagnostics for line in found})

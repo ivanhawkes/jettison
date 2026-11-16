@@ -20,12 +20,30 @@ jobs:
   gates:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      # tidy's cache, in the workspace where the cache step can save it. Its per-unit keys digest
+      # clang-tidy's version, .clang-tidy, the unit's compile command and the contents of every
+      # file the unit includes, so a restored entry is only ever reused by the unit that earned it.
+      JETTISON_TIDY_CACHE: ${{ github.workspace }}/.tidy-cache
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           lfs: true
+
+      - name: Restore clang-tidy cache
+        uses: actions/cache@v4
+        with:
+          # The stage's 786 s of a 2 732 s gate is the cold sweep of all 252 units (docs says
+          # build-and-gates.md, "clang-tidy"); the cache answers it, and post-if: always() so a run
+          # that fails on findings still saves the units that came out clean.
+          path: ${{ github.workspace }}/.tidy-cache
+          key: tidy-${{ runner.os }}-${{ hashFiles('.clang-tidy') }}-${{ github.sha }}
+          restore-keys: |
+            tidy-${{ runner.os }}-${{ hashFiles('.clang-tidy') }}-
+          post: true
+          post-if: always()
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
