@@ -9,6 +9,7 @@
 /Testing/
 /compile_commands.json
 /compile_flags.txt
+/CMakeUserPresets.json
 
 # Compiled shaders, produced by glslc during the build
 *.spv
