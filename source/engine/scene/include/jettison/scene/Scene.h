@@ -61,8 +61,6 @@ class SceneFile
 class Scene
 {
   public:
-	// The scene file's version: 2 since the scene left render (phase 6a), when a model's path became
-	// a virtual path rather than one relative to the file.
 	static constexpr std::uint32_t kFormatVersion = 2;
 
 	// The resource manager loads each model mesh's rig, and outlives the scene. A scene without one

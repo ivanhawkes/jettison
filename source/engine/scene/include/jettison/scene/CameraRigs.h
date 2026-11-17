@@ -18,7 +18,6 @@ struct CameraPose
 
 // The scene file's camera angles as a rotation: pitch about X, then yaw about Y, the view
 // direction (-sin yaw cos pitch, sin pitch, -cos yaw cos pitch), and roll about that direction.
-// The same convention the renderer has read the scene with since the camera was added.
 glm::dquat OrientationFromAngles(double pitch, double roll, double yaw);
 
 // The rotation that points a camera's -Z along forward with its +Y towards up. Forward need not
@@ -175,10 +174,9 @@ struct MapCameraSettings
 	double smoothing{10.0};
 };
 
-// Over the system (or, at phase 6, the galaxy): looking down at the reference plane from a
-// distance that zooms logarithmically, from a station's approach to the whole system, about a
-// focus that may follow a body, panned across the plane by an amount that scales with the
-// distance.
+// Over the system: looking down at the reference plane from a distance that zooms logarithmically,
+// from a station's approach to the whole system, about a focus that may follow a body, panned
+// across the plane by an amount that scales with the distance.
 class MapCamera
 {
   public:
