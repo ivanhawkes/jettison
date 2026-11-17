@@ -244,8 +244,7 @@ void main()
 		    smoothstep(0.35, 0.8, Noise(direction * cities.x * 30.0 + 2.1)) * 0.8 + 0.2;
 		float lights = region * towns * mix(streets, 0.6, clamp(cityFootprint * 30.0 - 1.0, 0.0, 1.0));
 		// A glow about each town, a little wider than its lights and a tenth as bright, as the air
-		// over a city scatters its light: until the post chain's bloom (phase 10c), it is also what
-		// makes the lights read as bright.
+		// over a city scatters its light.
 		float glow = region * smoothstep(
 		    0.35, 0.72, Fbm(direction * cities.x * 6.0 + 5.3, cityFootprint * 6.0 + 1.5));
 		lights += 0.1 * glow;

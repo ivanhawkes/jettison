@@ -5,9 +5,9 @@
 // it, the light scattered towards the camera and the share of what is behind that gets through, is
 // integrated along the ray; the sunlight's way down to each point of it, and the ray's own column of
 // air, are the Chapman function, closed-form, so nothing is baked into a table, and an atmosphere is
-// its parameters and a sphere drawn about its body. Multiple
-// scattering is left out: the sky of a body seen from the ground is darker than it would be, and from
-// orbit, where the camera is, it is close.
+// its parameters and a sphere drawn about its body. Multiple scattering is left out: the sky of a
+// body seen from the ground is darker than it would be, and from orbit, where the camera is, it is
+// close.
 //
 // Lengths are metres in render space, the camera at its origin. The planet program applies it over
 // the surface (the haze, and the sunlight reddened at the terminator), and the atmosphere program
