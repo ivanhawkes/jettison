@@ -28,10 +28,10 @@ struct SkinJoint
 };
 
 // A mechanical rig: a node hierarchy, the joints of the skin bound to it, and the clips that move
-// it. The clip player that used to live inside the Vulkan Model, moved here unchanged in phase 1
-// so that sampling a clip needs no device. The model loader fills it in from glTF; nothing in it
-// knows the file format. Its clips are sampled as a clip file's are (Clip.h), which move scene
-// nodes rather than a rig's (ClipFile.h); glTF has no place for events, so a rig's clips have none.
+// it, apart from the renderer so that sampling a clip needs no device. The model loader fills it in
+// from glTF; nothing in it knows the file format. Its clips are sampled as a clip file's are
+// (Clip.h), which move scene nodes rather than a rig's (ClipFile.h); glTF has no place for events,
+// so a rig's clips have none.
 struct Rig
 {
 	std::vector<RigNode> nodes;
