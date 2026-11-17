@@ -135,7 +135,7 @@ struct JoltVersion
 	bool operator==(const JoltVersion &) const = default;
 };
 
-// This build's (5.6.0 now): what a save is written as, and a load keeps Jolt's state for.
+// This build's: what a save is written as, and a load keeps Jolt's state for.
 JoltVersion BuiltJoltVersion();
 
 // Jolt in double precision, stepped inside the simulation's fixed step (docs/architecture.md,

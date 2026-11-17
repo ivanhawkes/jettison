@@ -362,7 +362,6 @@ class ContactRecorder final : public JPH::ContactListener
 	std::map<Pair, Meeting> m_meetings;
 };
 
-// Which bodies a cast may hit.
 class CastBodies final : public JPH::BodyFilter
 {
   public:
@@ -581,7 +580,6 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	world.RegisterComponent<LocalFrame>();
 	world.RegisterComponent<Thrusters>();
 	world.RegisterComponent<FlightControls>();
-	// What a ship's thrusters fired, which presentation shows of its engines and jets.
 	world.ShowInSnapshots<Thrust>();
 	world.RegisterCommand<SetFlightControls>(
 	    [](Sim::SimWorld &target, const SetFlightControls &command)
