@@ -1,8 +1,8 @@
 # Game integration and responsibility contract
 
 Approved direction, 2026-11-15. This document sets the target boundary and implementation
-workflow. Extraction and consumer checks described here are pending; documentation does
-not establish that the current engine is already genre-neutral.
+workflow. Extraction and consumer checks described here are pending, but for the CPU lifecycle
+consumer (H04); documentation does not establish that the current engine is already genre-neutral.
 
 ## Responsibilities
 

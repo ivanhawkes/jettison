@@ -190,16 +190,23 @@ target_link_libraries(game PRIVATE Jettison::Engine)
 ```
 
 `source/test/consumer` is that build at its smallest: a project that fetches the engine from a
-directory and calls into two modules through the public include paths. It is phase 1's exit test
-for packaging, and it is not in the gate, because it fetches and compiles the dependency set a
-second time. Run it when the module layout or the public interface changes:
+directory with the presentation modules off and Vulkan refused, and runs a small race, a game with
+nothing of space in it, through `Host::Session`: a definition from its own `content/`, a component, a
+command and a system, two runs and a load reaching the same state hash, and teardown. It is the
+exit test for packaging and for H04's independent CPU consumer, and it is not in the gate, because
+it fetches and compiles the dependency set a second time. Run it when the module layout, the host or
+the public interface changes:
 
 ```bash
 cmake -S source/test/consumer -B build/consumer -G Ninja \
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
   -DJETTISON_SOURCE_DIR="$PWD"
-cmake --build build/consumer && build/consumer/consumer
+cmake --build build/consumer && ctest --test-dir build/consumer --output-on-failure
 ```
+
+It takes `-DJETTISON_SOURCE_DIR=<checkout>` for the working tree or `-DJETTISON_GIT_TAG=<commit>` for
+a fetch of a committed revision, and configures with neither refused: a check is of a revision it
+names, never of a branch that moves.
 
 `JETTISON_INSTALL=ON` adds the install rules and the `Jettison` package (`JettisonConfig.cmake`,
 `JettisonTargets.cmake`) for a `find_package(Jettison)` consumer. It is off by default and not
@@ -218,8 +225,9 @@ check target/header dependencies and resource manifests for sample or genre leak
 Configure CPU-only consumption without ImGui, Vulkan/glslc or sample content installed.
 Test samples/editor/presentation disabled independently; keep sample render regressions.
 
-The CPU-only configure is in (`clang-cpu`, above, and a gate stage); the consumer matrix, the
-resource manifests and the dependency checks are still to come (H04, H05).
+The CPU-only configure is in (`clang-cpu`, above, and a gate stage) and so is the non-space CPU
+consumer (H04, above); the physics scene and space example consumers, the resource manifests and
+the dependency checks are still to come (W01, H05).
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
 development environment aligned with Manifest, including developer-only `lazygit`; it must not
