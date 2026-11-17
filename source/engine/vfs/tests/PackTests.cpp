@@ -88,7 +88,6 @@ std::string Noise(std::size_t size)
 	return bytes;
 }
 
-// The sample of a base: text that compresses, noise that does not, an empty file and a nested one.
 void PutBase(const Scratch &scratch)
 {
 	scratch.Put("assets/defs/goods/beer.yaml", Repetitive(4096));
@@ -148,7 +147,6 @@ TEST_CASE("Pack: a file is compressed where that pays and stored where it does n
 	// The same files give the same bytes.
 	WritePack(scratch.Path("assets"), scratch.Path("again.pack"));
 	CHECK(scratch.Contents("base.pack") == scratch.Contents("again.pack"));
-	// No partial file is left beside it.
 	CHECK_FALSE(std::filesystem::exists(scratch.Path("base.pack.partial")));
 
 	CHECK_THROWS_AS(

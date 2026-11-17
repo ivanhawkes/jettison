@@ -19,8 +19,8 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
 | Contracts | Public headers (`include/jettison/...`) and the deterministic modules (`sim`, `celestial`, `spatial`, `physics`, `ai`, `dock`, `script`, `math`) and `serialise`, where a comment holds an ordering, a layout on disk or a determinism hazard | Opus 5.5, high |
 | The rest | The other modules' sources, tests, tools, YAML, CMake, scripts | Sonnet 5, high |
 
-- **Comments only.** A commit changes no code: a check that every changed line is a comment (or
-  a blank line beside a removed one) runs before the gate. A comment that would be better as a
+- **Comments only.** A commit changes no code: `scripts/comment-only.sh` (every changed line a
+  comment or blank) runs before the gate. A comment that would be better as a
   name or a type is listed for later, not changed here.
 - **Trim, not delete.** A paragraph that mixes what and why is cut down to the why; a measurement,
   a hazard or a contract is kept, reworded if need be.
@@ -29,6 +29,7 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   moves up a model.
 - **Done when** every module is through, the gate is green, and `coding-standards.md`'s test holds
   in a spot check of each tier.
+- **Progress:** `vfs` through (2026-11-18), for the user's review before the rest.
 
 ## Then: the gate inside the sandbox
 

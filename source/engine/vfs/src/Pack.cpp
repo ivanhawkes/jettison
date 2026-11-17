@@ -64,7 +64,6 @@ class Cursor
 	{
 		return m_bytes.size() - m_at;
 	}
-	// Nothing for a field that runs past the end.
 	std::optional<std::uint64_t> Take(std::size_t width)
 	{
 		if (Left() < width)
@@ -292,7 +291,7 @@ struct ContextDeleter
 	}
 };
 
-// One frame of the bytes at the level, with their size and checksum in it.
+// The size and checksum go in the frame: PackSource::Read checks both.
 std::vector<std::byte> Compress(ZSTD_CCtx &context, std::span<const std::byte> bytes, int level)
 {
 	ZSTD_CCtx_reset(&context, ZSTD_reset_session_and_parameters);
@@ -392,7 +391,6 @@ PackSummary WritePack(
 		const std::uint64_t size = bytes.size();
 		Method method = Method::Stored;
 		std::vector<std::byte> stored;
-		// Level 1 is the probe: a file it cannot shrink by a thirty-second is stored as it is.
 		if (std::vector<std::byte> trial = Compress(*context, bytes, 1);
 		    !bytes.empty() && trial.size() + bytes.size() / 32 <= bytes.size())
 		{

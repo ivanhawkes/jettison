@@ -15,7 +15,6 @@ using Jettison::Vfs::FileSystem;
 
 namespace
 {
-// A base, a mod and a user directory of their own per test case, removed when the fixture goes.
 class Scratch
 {
   public:
@@ -47,7 +46,6 @@ class Scratch
 		return m_directory / name;
 	}
 
-	// Base, then mod, then the writable user mount.
 	FileSystem Mounted() const
 	{
 		FileSystem fileSystem;
@@ -167,7 +165,6 @@ TEST_CASE("Vfs: writes go to the user mount, replace a file whole, and shadow th
 	fileSystem.Write("saves/slot1.bin", Bytes("first, and longer"));
 	fileSystem.Write("saves/slot1.bin", Bytes("second"));
 	CHECK(Text(fileSystem.Read("saves/slot1.bin")) == "second");
-	// The partial file was renamed away.
 	CHECK_FALSE(std::filesystem::exists(scratch.Path("user/saves/slot1.bin:partial")));
 	// The base file is untouched.
 	std::ifstream base{scratch.Path("base/settings.yaml")};

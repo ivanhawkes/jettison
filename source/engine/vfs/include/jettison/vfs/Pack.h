@@ -52,10 +52,9 @@ struct PackSummary
 // recursively, its path under the directory its virtual path, so the pack mounted reads as the
 // directory does. The same files give the same bytes. The pack is written beside the output, its
 // directory made if it is missing, and renamed over it once complete, so a reader never finds half
-// of one. Throws
-// std::invalid_argument for a level out of range or a directory to pack that is not a virtual
-// path, and std::runtime_error for a directory that cannot be read or a pack that cannot be
-// written.
+// of one. Throws std::invalid_argument for a level out of range or a directory to pack that is not
+// a virtual path, and std::runtime_error for a directory that cannot be read or a pack that cannot
+// be written.
 PackSummary WritePack(
     const std::filesystem::path &directory, const std::filesystem::path &pack,
     PackOptions options = {});

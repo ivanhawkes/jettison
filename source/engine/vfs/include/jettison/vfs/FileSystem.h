@@ -19,9 +19,9 @@ namespace Detail
 class Source;
 }
 
-// Which mount holds a file, when it was written and its size: enough to tell that the file a path
-// names has changed, or that another mount's now shadows it (the resource manager's hot reload). A
-// file in a pack has the pack's time, and a pack is read as it was when it was mounted.
+// Enough to tell that the file a path names has changed, or that another mount's now shadows it
+// (the resource manager's hot reload). A file in a pack has the pack's time, and a pack is read as
+// it was when it was mounted.
 struct FileInfo
 {
 	std::size_t mount{0};
@@ -31,15 +31,14 @@ struct FileInfo
 	bool operator==(const FileInfo &) const = default;
 };
 
-// One mount's file at a path, for a reader that layers them (Sim::DefinitionRegistry).
 struct Layer
 {
 	std::size_t mount{0};
 	std::vector<std::byte> bytes;
 };
 
-// Ordered mounts (base, DLC, mods, user) and lookup through the stack. Reading goes through here,
-// so whether a mount is a directory or a pack file is invisible to callers.
+// Mounts in order (base, DLC, mods, user). Whether a mount is a directory or a pack file is
+// invisible to callers.
 //
 // A virtual path is relative to every mount's root, with forward slashes: "models/Fox.glb". Its
 // segments are not empty, ".", or "..", and it holds no backslash, colon or control character, so
@@ -66,10 +65,10 @@ class FileSystem
 
 	// Whether the path names a regular file in any mount.
 	bool Exists(std::string_view virtualPath) const;
-	// The topmost file at the path, or nothing. Its mount is an index into Mounts().
+	// The topmost file at the path. Its mount is an index into Mounts().
 	std::optional<FileInfo> Find(std::string_view virtualPath) const;
-	// The bytes of the topmost file at the path, or nothing. Throws std::runtime_error if the file
-	// is there and cannot be read, or is damaged in its pack.
+	// The topmost file's bytes. Throws std::runtime_error if the file is there and cannot be read,
+	// or is damaged in its pack.
 	std::optional<std::vector<std::byte>> Read(std::string_view virtualPath) const;
 	// The file at the path in every mount that has one, the bottom mount's first. Throws as Read
 	// does.
