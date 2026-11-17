@@ -36,9 +36,20 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   contracts tier is through. The rest, begun 2026-11-18 on Sonnet 5.5: `app` (twelve
   restating comments out), `render`'s sources (member labels), and the repository's mechanical
   findings (include labels, "Disable copying.", the shader's and the dependency CMake's banners).
-  Every other module's sources, the tests, tools, YAML and scripts were checked for the same
-  patterns, and what remains is hazards, orders and measurements, so the tier is through. A comment-only commit skips the gate;
-  `scripts/comment-only.sh` and the format check stand in for it.
+  That pass looked at the rest for those patterns alone, so the tier was read again file by file
+  the same day on Opus 5.5: every other module's sources and tests, `source/test`, `scripts`, the
+  shaders, the assets' YAML, the build's CMake and the formatter's, tidy's and CI's configuration,
+  a commit each. Out went restating labels, the step narration left in `DeviceContext.cpp`, history
+  clauses, stale claims (the probe's "Planned.", a deleted file in `.clang-format`, bloom as still
+  to come in `planet.frag`, the smoke test's "two resizes"), comments broken mid-sentence by
+  earlier edits, and a class comment that had drifted onto the struct above it (`GlfwInput.h`).
+  The tier is through. A comment-only commit skips the gate; `scripts/comment-only.sh` and the
+  format check stand in for it.
+- **For later**, as the rule above says: `kFullTurn` (`animation/src/Playback.cpp`) as
+  `glm::two_pi<float>()` and `kBelowOne` (`time/src/FixedStep.cpp`) as `kLargestBelowOne`
+  (`std::nextafter` is constexpr only from C++23), each then needing no comment; and the trailing
+  comments, which `comment-only.sh` cannot tell from code and so were left: `Theme.cpp`'s glosses
+  on the console lines' tokens and the trailing comment `FontFaces.cpp` wraps over three lines.
 
 ## Then: the gate inside the sandbox
 
