@@ -14,7 +14,7 @@
 
 namespace Jettison::Dock
 {
-// What a station's docks are made of, as data (docs/roadmap.md, catalogue entry 31): the hulls that
+// What a station's docks are made of, as data (docs/history.md, catalogue entry 31): the hulls that
 // land on its pads, and its layout, which a station in its system's file names
 // (Celestial::Body::layout). Both are definitions (Sim::DefinitionRegistry), so a mod adds a hull
 // or rebuilds a station, and a save names them and holds neither.
@@ -48,7 +48,7 @@ glm::vec2 PadSize(PadClass padClass);
 float HatchAft(PadClass padClass);
 
 // A hull: its size, the pad class it lands on, and where its cargo hatch is, in its own axes from
-// its centre, which the deck's buggies drive to (9e). defs/hulls/<name>.yaml; its collision shape
+// its centre, which the deck's buggies drive to. defs/hulls/<name>.yaml; its collision shape
 // is the box of its size (Docks::HullShape), whatever it is drawn as. The model is presentation's
 // alone, a glTF file by virtual path in the hull's axes and metres, drawn in place of its class's
 // proxy; the simulation never reads it. Its cruise drive is how long its cruises across a system
@@ -90,7 +90,7 @@ struct PadLayout
 	std::string ship{};
 };
 
-// A cargo bay's door, which buggies carry crates between and a ship's hatch (9e): the middle of its
+// A cargo bay's door, which buggies carry crates between and a ship's hatch: the middle of its
 // sill, on the deck where a buggy drives through it, and the way it faces. A door facing along the
 // deck stands in a wall, up from its sill; one facing the deck's way is a hatch in it. Registered with
 // Reflect as "Dock.Bay", both fields Saved and Moddable.
@@ -100,7 +100,7 @@ struct Bay
 	glm::dvec3 normal{0.0, 1.0, 0.0};
 };
 
-// How a station's cargo crosses its deck (9e): the buggies each pad has, the crates a buggy carries
+// How a station's cargo crosses its deck: the buggies each pad has, the crates a buggy carries
 // a trip and its speed on the roads. Working, the buggies are the simulation's, driven between the
 // pad's bay and its ship's hatch; otherwise they are parked on the deck as dressing and the cargo is
 // moved at the rate working buggies would move it, a buggy's load each round trip of the pad's road
@@ -130,7 +130,6 @@ struct StationLayout
 	DeckTraffic traffic{};
 };
 
-// The definitions' version, which the registry expects of every file.
 inline constexpr std::uint32_t kDefinitionVersion = 1;
 inline constexpr std::string_view kHullDirectory = "defs/hulls";
 inline constexpr std::string_view kStationDirectory = "defs/stations";

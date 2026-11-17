@@ -111,10 +111,9 @@ struct Docking
 	bool operator==(const Docking &) const = default;
 };
 
-// Whether the ship is clamped to a pad of the station.
 bool IsDocked(const entt::registry &registry, entt::entity ship, entt::entity station);
 
-// A docked ship's cargo still to cross the deck (9e): crates waiting in its pad's bay to be carried
+// A docked ship's cargo still to cross the deck: crates waiting in its pad's bay to be carried
 // aboard, and crates in its hold to be carried off, neither yet on a buggy. A trade settles its
 // crates and its price at once, as the game's market does, and the crates then cross the deck; the
 // ship stays clamped until every crate for it is aboard and every crate off it has been taken from

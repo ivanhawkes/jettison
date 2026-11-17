@@ -11,7 +11,7 @@
 
 namespace Jettison::Dock
 {
-// A station's roads (9e): the graph its buggies drive on between its cargo bays and its pads'
+// A station's roads: the graph its buggies drive on between its cargo bays and its pads'
 // hatches, made from its layout, so it is the layout's and never state. Roads run on the decks'
 // and piers' tops, the faces that look along the station's +Y, at the height of what they join:
 //
