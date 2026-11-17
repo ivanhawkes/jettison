@@ -21,10 +21,6 @@ set(BUILD_TESTING OFF)
 # this, the settings in its block below were discarded and it configured with its own defaults.
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
-# ---------------------------------------------------------------------------------------------
-# In use today.
-# ---------------------------------------------------------------------------------------------
-
 # EnTT 4 requires C++20 and CMake 3.28. Its one break in this tree was registry::has<>, which
 # is all_of<> now.
 set(ENTT_BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -497,7 +493,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(wamr)
 add_subdirectory(wamr)
 
-# ---------------------------------------------------------------------------------------------
 # Planned: the libraries docs/roadmap.md names for later phases, fetched before a phase depends on
 # them so the whole set is proven to link together, and EXCLUDE_FROM_ALL, so a tree builds only what
 # something links. WAMR was the last of them, and left as phase 11b began to use it; the set is
@@ -508,6 +503,5 @@ add_subdirectory(wamr)
 # generic (Jolt's DOUBLE_PRECISION, INTERPROCEDURAL_OPTIMIZATION and ENABLE_INSTALL) and a cache
 # entry for one of them would configure whichever other dependency reads the same name. Plain
 # variables in a block reach the dependency added inside it and nothing after it.
-# ---------------------------------------------------------------------------------------------
 option(JETTISON_PLANNED_DEPENDENCIES
 	"Fetch the libraries later roadmap phases use, and build the probe that links them all" ON)
