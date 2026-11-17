@@ -157,7 +157,7 @@ bool Sees(const Frustum &frustum, const glm::vec3 &point)
 }
 
 
-// Zero-to-one depth, reversed, with no far plane: what phase 4 moves the renderer to. Depth is
+// Zero-to-one depth, reversed, with no far plane, as the renderer's camera projects. Depth is
 // near / distance, 1 at the near plane and 0 at infinity.
 glm::mat4 ReversedInfinitePerspective(float verticalFov, float aspect, float near)
 {

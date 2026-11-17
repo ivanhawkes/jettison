@@ -60,15 +60,14 @@ using DObb = BasicObb<double>;
 
 // The six planes bounding a clip volume, facing inwards, in clip-space order: x >= -w, x <= w,
 // y >= -w, y <= w, then depth 0 and depth 1. The last two are the near and far planes with
-// conventional depth, and the far and near planes with reversed-Z (phase 4). Float only: it is
-// built from a view-projection matrix, which lives on the render side.
+// conventional depth, and the far and near planes with reversed-Z. Float only: it is built from a
+// view-projection matrix, which lives on the render side.
 struct Frustum
 {
 	std::array<Plane, 6> planes{};
 };
 
 // The box in a new frame that bounds the box carried by the matrix: the matrix's rotation and
-// scale grow it to stay axis-aligned (Arvo's method). This is how a model's local bounds become
-// the world bounds culling tests.
+// scale grow it to stay axis-aligned (Arvo's method).
 Aabb Transformed(const Aabb &box, const glm::mat4 &matrix);
 } // namespace Jettison::Math
