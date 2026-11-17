@@ -53,7 +53,6 @@ struct Falloff
 	float rolloff{1.0f};
 };
 
-// Where the mix goes.
 enum class Output : std::uint8_t
 {
 	// The machine's playback device; miniaudio's null backend when it has none (a session with no

@@ -97,9 +97,7 @@ class EventSounds
 	static bool Start(
 	    const EventSound &sound, const std::optional<glm::dvec3> &position, AudioSystem &audio);
 
-	// Keyed by EnTT's type ID.
 	std::map<entt::id_type, std::vector<Mapped>> m_sounds;
-	// Keyed by the clip event's name.
 	std::map<std::string, std::vector<EventSound>, std::less<>> m_clipSounds;
 };
 } // namespace Jettison::Audio
