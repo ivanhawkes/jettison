@@ -4,7 +4,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-// STD.
 #include <array>
 #include <cmath>
 #include <cstring>

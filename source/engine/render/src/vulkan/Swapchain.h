@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan.h>
 
-// STD.
 #include <string>
 #include <vector>
 
@@ -18,7 +17,6 @@ class Swapchain
 	{
 	}
 
-	// Disable copying.
 	Swapchain() = default;
 
 	Swapchain(const Swapchain &) = delete;

@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan.h>
 
-// STD.
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -102,7 +101,6 @@ class DeviceContext
 	{
 	}
 
-	// Disable copying.
 	DeviceContext() = default;
 
 	DeviceContext(const DeviceContext &) = delete;
@@ -287,8 +285,6 @@ class DeviceContext
 	{
 		return m_pWindow;
 	}
-
-	// Utilities.
 
 	// The depth target's format, a float depth and a stencil (D32_SFLOAT_S8_UINT), rendered into and
 	// sampled. Throws when the device does not have it.

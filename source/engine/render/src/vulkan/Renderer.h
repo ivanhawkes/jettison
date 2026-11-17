@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan.h>
 
-// STD.
 #include <algorithm>
 #include <array>
 #include <cstdint>

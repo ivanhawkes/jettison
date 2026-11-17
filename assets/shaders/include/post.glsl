@@ -10,8 +10,6 @@
 #ifndef JETTISON_POST_GLSL
 #define JETTISON_POST_GLSL
 
-// ---- Ambient obscurance --------------------------------------------------------------------------
-//
 // McGuire's Alchemy estimator as Scalable Ambient Obscurance has it (2011, 2012): each sample Q of the
 // view-space surface within a radius of the pixel's P, in a spiral on the screen, occludes it as far
 // as Q is above P's tangent plane, falling off with the square of their distance and to nothing at
@@ -100,8 +98,6 @@ float AoBlurWeight(float depth, float neighbourDepth)
 	return max(1.0f - abs(neighbourDepth - depth) / (kAoBlurDepthTolerance * depth), 0.0f);
 }
 
-// ---- Bloom ---------------------------------------------------------------------------------------
-//
 // Jimenez's chain (Next Generation Post Processing in Call of Duty: Advanced Warfare, 2014): each
 // level is the one above it filtered down by thirteen bilinear taps, as five overlapping 4 x 4 boxes,
 // and on the way back up each level adds the one below it, filtered up by a tent. The first level
@@ -169,8 +165,6 @@ vec3 ApplyBloom(vec3 frame, vec3 bloomTop, float strength)
 	return frame * (1.0f - strength) + bloomTop * (strength / float(kBloomLevels));
 }
 
-// ---- Outlines ------------------------------------------------------------------------------------
-//
 // The targeted are glows (Scene::OutlineStyle): the distance from each pixel to the nearest pixel of
 // an outlined shape, by Rong and Tan's jump flood (2006). Each step looks at nine pixels a stride
 // apart, the stride halving from 16 to 1, and keeps the nearest seed any of them knows of, so a seed
@@ -216,8 +210,6 @@ uint ObjectOutline(float objectId)
 	return (uint(objectId) >> 16u) & 255u;
 }
 
-// ---- Colour grading -----------------------------------------------------------------------------
-//
 // A grade's table is a 3D texture of its entries (render/ColourGrade.h), sampled with the colour on
 // the display, encoded sRGB, after the tonemap.
 

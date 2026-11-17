@@ -11,7 +11,6 @@ namespace Jettison::Render
 class Window
 {
   public:
-	// Disable copying.
 	Window() = default;
 
 	Window(const Window &) = delete;

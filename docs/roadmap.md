@@ -33,7 +33,10 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   `math`, `celestial`, `spatial`, `script`, `serialise`, `dock`, `sim`, `physics` and `ai`
   (2026-11-18); then every other module's public headers (2026-11-18), with commits for those
   that changed: `reflect`, `audio`, `input`, `core`, `animation`, `scene` and `render`. The
-  contracts tier is through; the rest is still to do. A comment-only commit skips the gate;
+  contracts tier is through. The rest, begun 2026-11-18 on Sonnet 5.5: `app` (twelve
+  restating comments out) and the repository's mechanical findings (include labels, "Disable
+  copying.", the shader's banners); the other modules' sources, tests, tools, YAML, CMake and scripts
+  are still to do. A comment-only commit skips the gate;
   `scripts/comment-only.sh` and the format check stand in for it.
 
 ## Then: the gate inside the sandbox

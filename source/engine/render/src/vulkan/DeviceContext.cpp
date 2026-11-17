@@ -4,7 +4,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-// STD.
 #include <algorithm>
 #include <cstring>
 #include <set>
@@ -47,7 +46,6 @@ void DeviceContext::Init()
 	CreateLogicalDevice();
 	CreateAllocator();
 
-	// Command pool.
 	// One pool for the life of the device, and not recreated with the swapchain: the pool belongs
 	// to the graphics queue family of this physical device, and a swapchain recreate replaces the
 	// swapchain handle for the same surface, so neither the device nor its queue families change.

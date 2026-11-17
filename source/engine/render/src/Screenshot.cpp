@@ -1,6 +1,5 @@
 #include <jettison/render/Screenshot.h>
 
-// STB.
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
