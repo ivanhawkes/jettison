@@ -39,7 +39,6 @@ constexpr Core::Category kRender{"render"};
 
 void DeviceContext::Init()
 {
-	// Device initialisation.
 	CreateInstance();
 	CreateSurface();
 	PickPhysicalDevice();

@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan.h>
 
-// Forward declarations.
 struct GLFWwindow;
 
 

@@ -108,7 +108,6 @@ class Swapchain
 
 	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
 
-	// Vulkan device context.
 	std::shared_ptr<DeviceContext> m_pDeviceContext;
 
 	QueueFamilyIndices m_indicies;

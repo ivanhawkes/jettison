@@ -315,7 +315,6 @@ class Renderer
 		bool screenshotPending{false};
 	};
 
-	// An image and a view of it.
 	struct Target
 	{
 		Image image{};
