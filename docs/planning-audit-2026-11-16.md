@@ -161,6 +161,15 @@ so H07's fetch from `github.com/ivanhawkes/jettison` can proceed.
 2. Is the 10% performance bond selected or still proposed? (A02)
 3. Does editor-example repair (T7/M05) stay a hard gate before H01? (A06)
 
+### Answers, 2026-11-18
+
+1. Jettison provides the low-level networking common to a wide range of networked games;
+   Manifest owns its dedicated server and the mechanics specific to it. Recorded as
+   Manifest's D-057, Jettison's `scope.md` Network table and current-priority row.
+2. Still proposed: D-042 stands, and `development-stages.md` now links to it instead of
+   stating the rate.
+3. Not a gate: H01 follows M04, and M05 travels alongside Stage 1 (`delivery-order.md`).
+
 ## Method and limits
 
 Read in full: Manifest `development-stages.md`, `delivery-order.md`, `roadmap.md`,

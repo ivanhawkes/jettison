@@ -104,6 +104,7 @@ in Manifest. Retain the small space example as a separate automated-test consume
 | Consumer build and resources | CPU-only consumer configures without ImGui/Vulkan/glslc/sample assets; renderer resources and example content have separate targets/manifests. |
 | Generic module boundaries | Non-space physics and scene consumers require no celestial definitions; generic AI is independent of space transit; state/save migration preserves existing fixtures. |
 | Manifest capability integration | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
+| Low-level networking | Pending Manifest's N01 capability map (before its Stage 4). The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 
 These deliveries precede discretionary expansion of the sample. The historical space
 features and decisions below describe existing coverage and possible extension work,

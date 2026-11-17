@@ -213,7 +213,8 @@ target. The engine adds:
 
 | Item | Verdict | Reason |
 |---|---|---|
-| State replication, rollback | Deferred | Multiplayer comes in time (2026-11-12); until then the simulation is kept ready for it (commands that say who sent them, shared state given in command order) and nothing is replicated. |
+| Low-level networking | In (2026-11-18) | What a wide range of networked games share: transport, connections and sessions, message framing, bounded queues, the mechanics of an authentication handshake, and snapshot replication with a per-client visibility hook. A game's dedicated server, its protocol, how an account maps to a player, authorisation and visibility rules stay in the game (Manifest's D-057). Built when Manifest's N01 capability map names the gaps; nothing is replicated yet. |
+| Rollback | Deferred | No game asks for it. The simulation stays ready for it: commands say who sent them, shared state is given in command order. |
 | Local server | Reframed | The in-process simulation/presentation split. Commands flow into the simulation through a queue, which is also the seam for replays and any later networking. |
 
 ### Physics (Jolt)
