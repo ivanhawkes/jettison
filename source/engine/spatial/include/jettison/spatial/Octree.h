@@ -132,7 +132,6 @@ class Octree
 		entt::entity entity{entt::null};
 		glm::dvec3 position{0.0};
 		std::uint32_t node{kNone};
-		// Where it is in its node's items.
 		std::uint32_t indexInNode{0};
 	};
 
