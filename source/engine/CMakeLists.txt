@@ -27,16 +27,20 @@ add_subdirectory(spatial)
 add_subdirectory(scene)
 add_subdirectory(input)
 
-# Presentation and simulation services.
-add_subdirectory(render)
+# Simulation services.
 add_subdirectory(physics)
-add_subdirectory(audio)
-add_subdirectory(ui)
-add_subdirectory(ui/imgui)
 add_subdirectory(ai)
 add_subdirectory(dock)
 add_subdirectory(script)
 
-# The hosts: the CPU session a game starts through, then the render shell.
+# The CPU session a game starts through.
 add_subdirectory(host)
-add_subdirectory(app)
+
+# Presentation, and the render shell on it.
+if(JETTISON_PRESENTATION)
+	add_subdirectory(render)
+	add_subdirectory(audio)
+	add_subdirectory(ui)
+	add_subdirectory(ui/imgui)
+	add_subdirectory(app)
+endif()

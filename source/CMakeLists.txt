@@ -4,11 +4,6 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 message (STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
 
-option(PLUGIN_IMGUI "Enable the imgui plugin" ON)
-if (NOT PLUGIN_IMGUI)
-    return()
-endif()
-
 add_subdirectory("external")
 
 # PROJECT_ dirs, not CMAKE_ dirs: when the game fetches the engine, CMAKE_SOURCE_DIR is the game's
@@ -143,16 +138,18 @@ function(jettison_add_script target)
 	add_custom_target(${target} ${all} DEPENDS "${script_OUTPUT}")
 endfunction()
 
-add_subdirectory("${PROJECT_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
+if(JETTISON_PRESENTATION)
+	add_subdirectory("${PROJECT_SOURCE_DIR}/assets" "${JETTISON_ASSET_BINARY_DIR}")
+endif()
 
 add_subdirectory("engine")
 
-# The editor, and the packer.
-add_subdirectory("tools/flotsam")
 add_subdirectory("tools/pack")
 
-# The runtime viewer: the engine with no game.
-add_subdirectory("samples/jetsam")
-
-# The render smoke harness and the dependency probe.
-add_subdirectory("test")
+if(JETTISON_PRESENTATION)
+	add_subdirectory("tools/flotsam")
+	# The runtime viewer: the engine with no game.
+	add_subdirectory("samples/jetsam")
+	# The render smoke harness and the dependency probe.
+	add_subdirectory("test")
+endif()

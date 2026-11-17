@@ -148,6 +148,15 @@ build/clang-debug/source/test/render_test
 | `clang-release` | Release, Wayland |
 | `clang-headless` | Debug with GLFW's X11 backend instead of Wayland: the tree the headless render test uses |
 | `clang-asan` | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer |
+| `clang-cpu` | Debug, CPU only (`JETTISON_PRESENTATION=OFF`), with `find_package(Vulkan)` disabled so a lookup fails the configure |
+
+`JETTISON_PRESENTATION` (ON by default) builds the renderer, UI, audio and the shell (`render`,
+`audio`, `ui`, `devtools`, `app`), the assets and their shaders, Flotsam, Jetsam and the render
+harness, and fetches what only they use: Vulkan and glslc, GLFW, FreeType, RmlUi, miniaudio, ImGui,
+stb, VMA and KTX. OFF leaves the CPU modules, the host, their suites and the packer
+(`jettison_add_pack`). A fresh `clang-cpu` configure on 2026-11-18 fetched doctest, EnTT, fastgltf,
+FastNoiseLite, GLM, Jolt, mikktspace, spdlog, Tracy, WAMR, yaml-cpp and zstd and nothing else; the
+tree builds in 720 steps and its 22 suites pass.
 
 Shaders compile as part of the build (`jettison_compile_shaders`). Assets are staged beside the
 executable, and `jettison_assets_pack` packs them into `assets.pack` beside that directory
@@ -209,9 +218,8 @@ check target/header dependencies and resource manifests for sample or genre leak
 Configure CPU-only consumption without ImGui, Vulkan/glslc or sample content installed.
 Test samples/editor/presentation disabled independently; keep sample render regressions.
 
-These build options/checks are not all implemented yet. Current CMake still requires
-graphics dependencies and couples engine setup to `PLUGIN_IMGUI`. Removing that coupling
-is a roadmap deliverable, not a supported flag combination this document claims works.
+The CPU-only configure is in (`clang-cpu`, above, and a gate stage); the consumer matrix, the
+resource manifests and the dependency checks are still to come (H04, H05).
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
 development environment aligned with Manifest, including developer-only `lazygit`; it must not
@@ -225,7 +233,8 @@ become a release/runtime dependency.
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → declaration
 spacing (`scripts/space-declarations.py --check`, about 50 s on the Debug database) → clang-tidy →
-Release build and its unit tests → headless render test, from the packed assets → reference frames,
+Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
+headless render test, from the packed assets → reference frames,
 from the staged directory, and with `--asan`, the render test and the `vfs`, `resource`, `sim`,
 `spatial`, `physics`, `ai`, `dock`, `script` and `host` suites under the sanitisers (`vfs` and
 `script` for the packs and the modules, whose bytes are a mod's; `resource` for loaders' callbacks

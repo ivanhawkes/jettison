@@ -93,7 +93,7 @@ for the gate, or Xvfb listening only where the sandbox allows, are the narrower 
 
 ## Current priority: neutral SDK and Manifest integration
 
-Approved 2026-11-15; H02 done 2026-11-18, H03 next. Follow [game integration](game-integration.md)
+Approved 2026-11-15; H02 and H03 done 2026-11-18, H04 next. Follow [game integration](game-integration.md)
 and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -104,9 +104,9 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
-| Consumer build and resources | H03 (1) | CPU-only consumer configures without ImGui/Vulkan/glslc/sample assets; renderer resources and example content have separate targets/manifests; the packer stays available. |
+| CPU-only build | H03 (1) | The engine configures without ImGui/Vulkan/glslc/sample assets, its CPU modules and their suites build and pass, and the packer stays available. **Done** 2026-11-18: `JETTISON_PRESENTATION` (ON by default) gates the presentation modules, the assets, Flotsam, Jetsam, the render harness and the libraries only they use, replacing `PLUGIN_IMGUI`, which had returned before the engine was defined; the `clang-cpu` preset refuses `find_package(Vulkan)`, and its fresh configure fetched none of GLFW, FreeType, RmlUi, miniaudio, ImGui, stb, VMA or KTX, built in 720 steps and passed its 22 suites; the gate configures, builds and tests it. Splitting renderer resources from example content moved to H05, where the sample's content leaves the engine. |
 | Independent CPU consumer | H04 (1) | A non-space CPU consumer defines, steps, saves, loads and tears down through the public host, with no galaxy, transform or star system. |
-| Sample extraction | H05 (1) | Sample trading/UI/assets reside in sample/test targets outside engine code; Jetsam selects the example explicitly and Flotsam does not by default; neutral start-up registers no traders, markets or fleet; existing sample checks still pass. |
+| Sample extraction | H05 (1) | Sample trading/UI/assets reside in sample/test targets outside engine code; renderer resources and example content have separate targets/manifests; Jetsam selects the example explicitly and Flotsam does not by default; neutral start-up registers no traders, markets or fleet; existing sample checks still pass. |
 | Frame and save metadata seams | A01 (3) | Neutral frame/partition identity and game save metadata sections, with migrations that preserve the existing fixtures. |
 | Generic module boundaries | W01 (4) | Non-space physics and scene consumers require no celestial definitions; generic AI is independent of space transit; the docking/berth seams Manifest needs (pad classes as data, Manifest's D-044) are provisioned. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |

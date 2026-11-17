@@ -33,7 +33,14 @@ if(JETTISON_BUILD_TESTS)
 	enable_testing()
 endif()
 
-find_package(Vulkan REQUIRED COMPONENTS glslc)
+# The renderer, UI, audio and the shell on them, with the assets, the editor, the sample and the
+# render harness. OFF is the CPU engine a game's server or tests build: the simulation modules, the
+# host and the packer, configured without Vulkan, glslc, a window system or ImGui. The shader
+# functions below need glslc only when called, which only the assets do.
+option(JETTISON_PRESENTATION "Build the renderer, UI, audio and the executables on them" ON)
+if(JETTISON_PRESENTATION)
+	find_package(Vulkan REQUIRED COMPONENTS glslc)
+endif()
 
 # Compiles each GLSL source to SPIR-V beside it in the build tree. Every program sees the shared
 # includes in shaders/include (the frame layout, the vertex inputs, the colour helpers), and glslc

@@ -149,6 +149,13 @@ else
 	skip "clang-release build and tests (--skip-release)"
 fi
 
+# The CPU engine a game's server builds (Manifest's H03): no presentation, and Vulkan refused to
+# find_package, so a configure that looks for it fails here. Its suites are the CPU modules'.
+stage "configure + build + unit tests: clang-cpu (no presentation, no Vulkan)"
+cmake --preset clang-cpu ${werror[@]+"${werror[@]}"}
+cmake --build --preset clang-cpu
+ctest --test-dir build/clang-cpu --output-on-failure --no-tests=error -j "$jobs"
+
 if [ "$smoke" -eq 1 ]; then
 	# From the packed assets and with a data mod in the user's mods, as a shipped build runs; the
 	# reference frames and the sanitised run read the staged directory.

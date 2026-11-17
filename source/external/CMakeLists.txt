@@ -1,5 +1,7 @@
 include(FetchContent)
-find_package(Vulkan REQUIRED)
+if(JETTISON_PRESENTATION)
+	find_package(Vulkan REQUIRED)
+endif()
 
 # Every third-party dependency, pinned. Versions were last reviewed on 2026-11-10 against each
 # project's newest release; where a pin is older than that, the comment on it says why. The
@@ -69,140 +71,145 @@ target_compile_definitions(glm INTERFACE
 # requires), so it changed nothing here: sizeof(glm::vec3) is 12 and alignof 4 on both versions,
 # and the vertex stride the shaders read has always been the compact 108 bytes.
 
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-# Window backends. The desktop build is Wayland-only. GLFW's X11 backend is off by default
-# and enabled by the clang-headless preset (JETTISON_GLFW_X11=ON), which is the tree the
-# headless smoke tests run under a virtual display (see scripts/smoke-test.sh).
-option(JETTISON_GLFW_X11 "Build GLFW with X11 support for headless smoke tests" OFF)
-# One backend per tree. The headless presets ask for X11, and building Wayland alongside it
-# leaves libwayland loaded, where it leaks 192 bytes at exit that LeakSanitizer reports
-# against code we do not own (measured with clang-asan on wayland 1.26.0).
-if(JETTISON_GLFW_X11)
-	set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
-else()
-	set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+# The window, fonts, game UI, audio, dev tools and image decoding: presentation only.
+if(JETTISON_PRESENTATION)
+	set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+	set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+	set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+	# Window backends. The desktop build is Wayland-only. GLFW's X11 backend is off by default
+	# and enabled by the clang-headless preset (JETTISON_GLFW_X11=ON), which is the tree the
+	# headless smoke tests run under a virtual display (see scripts/smoke-test.sh).
+	option(JETTISON_GLFW_X11 "Build GLFW with X11 support for headless smoke tests" OFF)
+	# One backend per tree. The headless presets ask for X11, and building Wayland alongside it
+	# leaves libwayland loaded, where it leaks 192 bytes at exit that LeakSanitizer reports
+	# against code we do not own (measured with clang-asan on wayland 1.26.0).
+	if(JETTISON_GLFW_X11)
+		set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
+	else()
+		set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+	endif()
+	set(GLFW_BUILD_X11 ${JETTISON_GLFW_X11} CACHE BOOL "" FORCE)
+	# 3.5.1, not 3.5.0: upstream skipped 3.5 after publishing an incorrect tag for it.
+	FetchContent_Declare(
+	  glfw
+	  GIT_REPOSITORY https://github.com/glfw/glfw.git
+	  GIT_TAG 3.5.1
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	)
+	FetchContent_MakeAvailable(glfw)
+
+	# Fonts, behind ui (phase 8b): one FreeType for the executable, which RmlUi's font engine and ImGui's
+	# rasteriser (imgui_freetype, below) both link, so the game UI and the dev tools draw text alike and
+	# there is one copy of its symbols. OVERRIDE_FIND_PACKAGE answers RmlUi's find_package(Freetype) with
+	# this build, so a system FreeType can never be picked up on one machine and not another. The
+	# optional codecs are off: the engine loads TrueType and OpenType fonts, and each codec is a
+	# system library that would be found on a developer's machine and missing on a runner. In every
+	# presentation tree since 8b, because ui links it.
+	block()
+		set(FT_DISABLE_ZLIB ON)
+		set(FT_DISABLE_BZIP2 ON)
+		set(FT_DISABLE_PNG ON)
+		set(FT_DISABLE_HARFBUZZ ON)
+		set(FT_DISABLE_BROTLI ON)
+		set(SKIP_INSTALL_ALL ON)
+		FetchContent_Declare(
+		  freetype
+		  GIT_REPOSITORY https://github.com/freetype/freetype.git
+		  GIT_TAG VER-2-15-0
+		  GIT_SHALLOW TRUE
+		  SYSTEM
+		  EXCLUDE_FROM_ALL
+		  OVERRIDE_FIND_PACKAGE
+		)
+		FetchContent_MakeAvailable(freetype)
+	endblock()
+	add_library(Freetype::Freetype ALIAS freetype)
+
+	# Game UI, behind ui (phase 8b). The samples, Lua, Tracy and the plugins are off; RmlUi's own
+	# warnings are not this project's gate. Its containers stay the third-party ones it bundles
+	# (robin_hood maps), private to its library: no RmlUi type crosses ui's public headers. In every
+	# presentation tree since 8b.
+	block()
+		set(RMLUI_SAMPLES OFF)
+		set(RMLUI_FONT_ENGINE freetype)
+		set(RMLUI_LUA_BINDINGS OFF)
+		set(RMLUI_TRACY_PROFILING OFF)
+		set(RMLUI_WARNINGS_AS_ERRORS OFF)
+		FetchContent_Declare(
+		  RmlUi
+		  GIT_REPOSITORY https://github.com/mikke89/RmlUi.git
+		  GIT_TAG 6.3
+		  GIT_SHALLOW TRUE
+		  SYSTEM
+		  EXCLUDE_FROM_ALL
+		)
+		FetchContent_MakeAvailable(RmlUi)
+	endblock()
+
+	# Audio, behind audio (phase 8c). The libvorbis and libopus decoders are off: each is a system
+	# library found on one machine and not another, and miniaudio decodes WAV, FLAC and MP3 itself.
+	# Its playback backends (PulseAudio, ALSA, JACK) are loaded at run time, not linked. In every
+	# presentation tree since 8c.
+	block()
+		set(MINIAUDIO_NO_LIBVORBIS ON)
+		set(MINIAUDIO_NO_LIBOPUS ON)
+		set(MINIAUDIO_BUILD_EXAMPLES OFF)
+		set(MINIAUDIO_BUILD_TESTS OFF)
+		set(MINIAUDIO_BUILD_TOOLS OFF)
+		FetchContent_Declare(
+		  miniaudio
+		  GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+		  GIT_TAG 0.11.26
+		  GIT_SHALLOW TRUE
+		  SYSTEM
+		  EXCLUDE_FROM_ALL
+		)
+		FetchContent_MakeAvailable(miniaudio)
+	endblock()
+
+	FetchContent_Declare(
+	  imgui
+	  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+	  GIT_TAG c1aaac65e896a45f81f47a4d68f9959e0f86c859 # v1.93.0
+	  SOURCE_SUBDIR _fetchcontent_no_cmake
+	)
+	FetchContent_MakeAvailable(imgui)
+	add_library(imgui STATIC
+	  "${imgui_SOURCE_DIR}/imgui.cpp"
+	  "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+	  "${imgui_SOURCE_DIR}/imgui_demo.cpp"
+	  "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+	  "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+	  "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
+	  "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
+	  "${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp"
+	)
+	target_include_directories(imgui SYSTEM PUBLIC
+	  "${imgui_SOURCE_DIR}"
+	  "${imgui_SOURCE_DIR}/backends"
+	  "${imgui_SOURCE_DIR}/misc/freetype"
+	)
+	target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
+	# ImGui rasterises its fonts with FreeType, the build RmlUi's font engine uses (above). The definition
+	# is public: ImGui's configuration has to agree in every translation unit that includes imgui.h.
+	target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
+	target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan Freetype::Freetype)
+
+	# stb has no releases; this is the head of master on 2026-11-10. The image implementation is
+	# compiled once, in source/engine/render/src/vulkan/MaterialCache.cpp: nothing else in the set
+	# compiles an stb implementation (KTX-Software carries a copy of the headers on a private include
+	# path).
+	FetchContent_Declare(
+	  stb
+	  GIT_REPOSITORY https://github.com/nothings/stb.git
+	  GIT_TAG 4e9b368bfc071e97206ea5c6adba68dd0cbf8897
+	  SOURCE_SUBDIR _fetchcontent_no_cmake
+	)
+	FetchContent_MakeAvailable(stb)
+	add_library(stb INTERFACE)
+	target_include_directories(stb SYSTEM INTERFACE "${stb_SOURCE_DIR}")
 endif()
-set(GLFW_BUILD_X11 ${JETTISON_GLFW_X11} CACHE BOOL "" FORCE)
-# 3.5.1, not 3.5.0: upstream skipped 3.5 after publishing an incorrect tag for it.
-FetchContent_Declare(
-  glfw
-  GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG 3.5.1
-  GIT_SHALLOW TRUE
-  SYSTEM
-)
-FetchContent_MakeAvailable(glfw)
-
-# Fonts, behind ui (phase 8b): one FreeType for the executable, which RmlUi's font engine and ImGui's
-# rasteriser (imgui_freetype, below) both link, so the game UI and the dev tools draw text alike and
-# there is one copy of its symbols. OVERRIDE_FIND_PACKAGE answers RmlUi's find_package(Freetype) with
-# this build, so a system FreeType can never be picked up on one machine and not another. The
-# optional codecs are off: the engine loads TrueType and OpenType fonts, and each codec is a
-# system library that would be found on a developer's machine and missing on a runner. In every tree
-# since 8b, because ui links it.
-block()
-	set(FT_DISABLE_ZLIB ON)
-	set(FT_DISABLE_BZIP2 ON)
-	set(FT_DISABLE_PNG ON)
-	set(FT_DISABLE_HARFBUZZ ON)
-	set(FT_DISABLE_BROTLI ON)
-	set(SKIP_INSTALL_ALL ON)
-	FetchContent_Declare(
-	  freetype
-	  GIT_REPOSITORY https://github.com/freetype/freetype.git
-	  GIT_TAG VER-2-15-0
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	  OVERRIDE_FIND_PACKAGE
-	)
-	FetchContent_MakeAvailable(freetype)
-endblock()
-add_library(Freetype::Freetype ALIAS freetype)
-
-# Game UI, behind ui (phase 8b). The samples, Lua, Tracy and the plugins are off; RmlUi's own
-# warnings are not this project's gate. Its containers stay the third-party ones it bundles (robin_hood
-# maps), private to its library: no RmlUi type crosses ui's public headers. In every tree since 8b.
-block()
-	set(RMLUI_SAMPLES OFF)
-	set(RMLUI_FONT_ENGINE freetype)
-	set(RMLUI_LUA_BINDINGS OFF)
-	set(RMLUI_TRACY_PROFILING OFF)
-	set(RMLUI_WARNINGS_AS_ERRORS OFF)
-	FetchContent_Declare(
-	  RmlUi
-	  GIT_REPOSITORY https://github.com/mikke89/RmlUi.git
-	  GIT_TAG 6.3
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(RmlUi)
-endblock()
-
-# Audio, behind audio (phase 8c). The libvorbis and libopus decoders are off: each is a system library
-# found on one machine and not another, and miniaudio decodes WAV, FLAC and MP3 itself. Its playback
-# backends (PulseAudio, ALSA, JACK) are loaded at run time, not linked. In every tree since 8c.
-block()
-	set(MINIAUDIO_NO_LIBVORBIS ON)
-	set(MINIAUDIO_NO_LIBOPUS ON)
-	set(MINIAUDIO_BUILD_EXAMPLES OFF)
-	set(MINIAUDIO_BUILD_TESTS OFF)
-	set(MINIAUDIO_BUILD_TOOLS OFF)
-	FetchContent_Declare(
-	  miniaudio
-	  GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-	  GIT_TAG 0.11.26
-	  GIT_SHALLOW TRUE
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(miniaudio)
-endblock()
-
-FetchContent_Declare(
-  imgui
-  GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG c1aaac65e896a45f81f47a4d68f9959e0f86c859 # v1.93.0
-  SOURCE_SUBDIR _fetchcontent_no_cmake
-)
-FetchContent_MakeAvailable(imgui)
-add_library(imgui STATIC
-  "${imgui_SOURCE_DIR}/imgui.cpp"
-  "${imgui_SOURCE_DIR}/imgui_draw.cpp"
-  "${imgui_SOURCE_DIR}/imgui_demo.cpp"
-  "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
-  "${imgui_SOURCE_DIR}/imgui_tables.cpp"
-  "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
-  "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
-  "${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp"
-)
-target_include_directories(imgui SYSTEM PUBLIC
-  "${imgui_SOURCE_DIR}"
-  "${imgui_SOURCE_DIR}/backends"
-  "${imgui_SOURCE_DIR}/misc/freetype"
-)
-target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
-# ImGui rasterises its fonts with FreeType, the build RmlUi's font engine uses (above). The definition
-# is public: ImGui's configuration has to agree in every translation unit that includes imgui.h.
-target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
-target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan Freetype::Freetype)
-
-# stb has no releases; this is the head of master on 2026-11-10. The image implementation is
-# compiled once, in source/engine/render/src/vulkan/MaterialCache.cpp: nothing else in the set
-# compiles an stb implementation (KTX-Software carries a copy of the headers on a private include
-# path).
-FetchContent_Declare(
-  stb
-  GIT_REPOSITORY https://github.com/nothings/stb.git
-  GIT_TAG 4e9b368bfc071e97206ea5c6adba68dd0cbf8897
-  SOURCE_SUBDIR _fetchcontent_no_cmake
-)
-FetchContent_MakeAvailable(stb)
-add_library(stb INTERFACE)
-target_include_directories(stb SYSTEM INTERFACE "${stb_SOURCE_DIR}")
 
 FetchContent_Declare(
     yaml-cpp
@@ -317,23 +324,26 @@ block()
 	FetchContent_MakeAvailable(tracy)
 endblock()
 
-# GPU memory. Header-only, and built against the same Vulkan headers as the renderer; render
-# compiles the implementation in one translation unit (src/vulkan/Memory.cpp), and its public
-# headers forward-declare VMA's handles, so the dependency stays private.
-FetchContent_Declare(
-  VulkanMemoryAllocator
-  GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG v3.5.0
-  GIT_SHALLOW TRUE
-  SYSTEM
-  EXCLUDE_FROM_ALL
-)
-FetchContent_MakeAvailable(VulkanMemoryAllocator)
+if(JETTISON_PRESENTATION)
+	# GPU memory. Header-only, and built against the same Vulkan headers as the renderer; render
+	# compiles the implementation in one translation unit (src/vulkan/Memory.cpp), and its public
+	# headers forward-declare VMA's handles, so the dependency stays private.
+	FetchContent_Declare(
+	  VulkanMemoryAllocator
+	  GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+	  GIT_TAG v3.5.0
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(VulkanMemoryAllocator)
+endif()
 
 # Textures, behind render's Texture.h: KTX 2 files with Basis Universal transcoding. v4.4.2, not
 # v5.0.0-rc2: phase 5 was to move to v5 if it was out of release candidate, and on 2026-11-11 its
-# newest tag is still rc2. It is in use from phase 5, so every tree fetches it, the headless ones
-# included; it stays EXCLUDE_FROM_ALL, so a tree builds ktx_read, which render links, and not ktx.
+# newest tag is still rc2. It is in use from phase 5, so every presentation tree fetches it, the
+# headless ones included; it stays EXCLUDE_FROM_ALL, so a tree builds ktx_read, which render links,
+# and not ktx.
 #  - The engine links ktx_read (transcode and upload), never ktx and ktx_read together: both
 #    compile the same Basis Universal transcoder and the same zstd.
 #  - libktx compiles its own zstd 1.5.5 (external/basisu/zstd/zstd.c, public ZSTD_* symbols),
@@ -385,41 +395,43 @@ block()
 endblock()
 add_library(zstd::zstd ALIAS libzstd_static)
 
-block()
-	set(KTX_FEATURE_TESTS OFF)
-	set(KTX_FEATURE_TOOLS OFF)
-	set(KTX_FEATURE_DOC OFF)
-	set(KTX_FEATURE_JNI OFF)
-	set(KTX_FEATURE_PY OFF)
-	set(KTX_FEATURE_GL_UPLOAD OFF)
-	set(KTX_FEATURE_VK_UPLOAD ON)
-	set(KTX_FEATURE_ETC_UNPACK OFF)
-	set(KTX_FEATURE_LOADTEST_APPS OFF)
-	set(BASISU_SUPPORT_OPENCL OFF)
-	set(ASTCENC_WERROR OFF)
-	find_package(Git REQUIRED)
-	FetchContent_Declare(
-	  KTX-Software
-	  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
-	  COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false clone --quiet
-	    --depth 1 --single-branch --branch v4.4.2
-	    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
-	    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
-	  SYSTEM
-	  EXCLUDE_FROM_ALL
-	)
-	FetchContent_MakeAvailable(KTX-Software)
-endblock()
-# libktx's texture2.c includes <zstd.h> and <zstd_errors.h> from its private copy's directory, which
-# is taken off its include path with the copy, so it compiles against the headers of the library it
-# links. It uses the stable API alone (ZSTD_decompressDCtx and the error codes), which 1.5.5 and
-# 1.5.7 share.
-foreach(property IN ITEMS SOURCES INCLUDE_DIRECTORIES)
-	get_target_property(ktx_read_items ktx_read ${property})
-	list(FILTER ktx_read_items EXCLUDE REGEX "basisu/zstd(/zstd\\.c)?>?$")
-	set_property(TARGET ktx_read PROPERTY ${property} ${ktx_read_items})
-endforeach()
-target_link_libraries(ktx_read PRIVATE zstd::zstd)
+if(JETTISON_PRESENTATION)
+	block()
+		set(KTX_FEATURE_TESTS OFF)
+		set(KTX_FEATURE_TOOLS OFF)
+		set(KTX_FEATURE_DOC OFF)
+		set(KTX_FEATURE_JNI OFF)
+		set(KTX_FEATURE_PY OFF)
+		set(KTX_FEATURE_GL_UPLOAD OFF)
+		set(KTX_FEATURE_VK_UPLOAD ON)
+		set(KTX_FEATURE_ETC_UNPACK OFF)
+		set(KTX_FEATURE_LOADTEST_APPS OFF)
+		set(BASISU_SUPPORT_OPENCL OFF)
+		set(ASTCENC_WERROR OFF)
+		find_package(Git REQUIRED)
+		FetchContent_Declare(
+		  KTX-Software
+		  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
+		  COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false clone --quiet
+		    --depth 1 --single-branch --branch v4.4.2
+		    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
+		    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
+		  SYSTEM
+		  EXCLUDE_FROM_ALL
+		)
+		FetchContent_MakeAvailable(KTX-Software)
+	endblock()
+	# libktx's texture2.c includes <zstd.h> and <zstd_errors.h> from its private copy's directory, which
+	# is taken off its include path with the copy, so it compiles against the headers of the library it
+	# links. It uses the stable API alone (ZSTD_decompressDCtx and the error codes), which 1.5.5 and
+	# 1.5.7 share.
+	foreach(property IN ITEMS SOURCES INCLUDE_DIRECTORIES)
+		get_target_property(ktx_read_items ktx_read ${property})
+		list(FILTER ktx_read_items EXCLUDE REGEX "basisu/zstd(/zstd\\.c)?>?$")
+		set_property(TARGET ktx_read PROPERTY ${property} ${ktx_read_items})
+	endforeach()
+	target_link_libraries(ktx_read PRIVATE zstd::zstd)
+endif()
 
 # Physics, behind physics' PhysicsWorld.h (phase 7a). Every setting here is one the engine has to
 # agree with:

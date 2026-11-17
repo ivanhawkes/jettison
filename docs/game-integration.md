@@ -63,8 +63,8 @@ VFS or physics integration in Manifest because its public seam needs a bounded i
 The current `app` library contains Trading, Traders, Fleet and game UI code. AI combines
 generic algorithms with cruise/gates/lanes; physics and scene depend on celestial
 concepts; snapshots/save metadata carry star-system fields. Assets combine renderer
-resources and sample gameplay. CMake currently requires graphics tools and returns
-before defining the engine when `PLUGIN_IMGUI` is disabled.
+resources and sample gameplay. `JETTISON_PRESENTATION=OFF` configures the CPU engine without
+graphics tools (H03, 2026-11-18).
 
 Implement the boundary in reviewable slices:
 
