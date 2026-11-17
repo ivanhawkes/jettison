@@ -14,7 +14,6 @@ namespace Jettison::Core
 {
 namespace
 {
-// A descriptor closed however the write leaves.
 class Descriptor
 {
   public:
