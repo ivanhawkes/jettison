@@ -170,6 +170,18 @@ so H07's fetch from `github.com/ivanhawkes/jettison` can proceed.
    stating the rate.
 3. Not a gate: H01 follows M04, and M05 travels alongside Stage 1 (`delivery-order.md`).
 
+### Follow-up, 2026-11-18
+
+- A03: the 2026-11-12 decision is marked superseded in the roadmap; the assistant's memory is corrected.
+- A04: D-044 now words the provision as pad classes and hull fit as data (Jettison W01).
+- A05: lazygit was already in Jettison's shell (5ebfc9b) and the three environment files match
+  Manifest's; recorded as a done maintenance row (M03). T5's parity check (M04) is Manifest's.
+- A07: the current-priority rows carry Manifest's task IDs and stages; row 3 is split into A01
+  (frame and save seams) and W01 (module split), and the first row into H02 and H05.
+- A08: the open decisions are listed, each with what it blocks.
+- A02: still open. The restated balance values in Manifest's `development-stages.md` and
+  `roadmap.md` (the region of 25,000 people included) remain to be replaced with ledger links.
+
 ## Method and limits
 
 Read in full: Manifest `development-stages.md`, `delivery-order.md`, `roadmap.md`,

@@ -98,13 +98,20 @@ and inspect Manifest's current development-stage/gameplay requirements before ea
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
 
-| Delivery | Exit criterion |
-| --- | --- |
-| Public host and sample extraction | Neutral lifecycle accepts explicit game composition; sample trading/UI/assets reside in sample/test targets outside engine code; existing sample checks still pass. |
-| Consumer build and resources | CPU-only consumer configures without ImGui/Vulkan/glslc/sample assets; renderer resources and example content have separate targets/manifests. |
-| Generic module boundaries | Non-space physics and scene consumers require no celestial definitions; generic AI is independent of space transit; state/save migration preserves existing fixtures. |
-| Manifest capability integration | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
-| Low-level networking | Pending Manifest's N01 capability map (before its Stage 4). The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
+Each row carries the Manifest task it is ([delivery order](../../manifest/docs/delivery-order.md))
+and the Manifest stage it unblocks; work them in Manifest's order.
+
+| Delivery | Manifest task (stage) | Exit criterion |
+| --- | --- | --- |
+| Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. |
+| Consumer build and resources | H03 (1) | CPU-only consumer configures without ImGui/Vulkan/glslc/sample assets; renderer resources and example content have separate targets/manifests; the packer stays available. |
+| Independent CPU consumer | H04 (1) | A non-space CPU consumer defines, steps, saves, loads and tears down through the public host, with no galaxy, transform or star system. |
+| Sample extraction | H05 (1) | Sample trading/UI/assets reside in sample/test targets outside engine code; Jetsam selects the example explicitly and Flotsam does not by default; neutral start-up registers no traders, markets or fleet; existing sample checks still pass. |
+| Frame and save metadata seams | A01 (3) | Neutral frame/partition identity and game save metadata sections, with migrations that preserve the existing fixtures. |
+| Generic module boundaries | W01 (4) | Non-space physics and scene consumers require no celestial definitions; generic AI is independent of space transit; the docking/berth seams Manifest needs (pad classes as data, Manifest's D-044) are provisioned. |
+| Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
+| Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
+| Maintenance: shared environment | M03 (0) | Done: `lazygit` is in the SDK shell (5ebfc9b), and `devenv.nix`, `devenv.yaml` and `devenv.lock` match Manifest's. The pin-based parity check (T5, M04) is Manifest's. |
 
 These deliveries precede discretionary expansion of the sample. The historical space
 features and decisions below describe existing coverage and possible extension work,
@@ -572,7 +579,8 @@ Settled on 2026-11-10:
   to presentation by name (`ShowInSnapshots`), and its copy is taken with the transforms at each
   capture. A screen's data is built from a snapshot when a step brings a new one and the model told
   only when what it shows has changed, so a still screen costs a comparison a step.
-- **The sample game is Manifest's plan** (2026-11-12, phase 8b; the project was the Civilisation
+- **Superseded** (2026-11-15, by [game integration](game-integration.md): the example is not grown
+  from Manifest's plan or kept in step with it). **The sample game is Manifest's plan** (2026-11-12, phase 8b; the project was the Civilisation
   Simulation until it was renamed the same day). The shell plays the game's part from the plan in
   `~/projects/manifest`, the local copy over the GitHub one, slice by slice as the engine systems that each needs arrive
   ([sample game](sample-game.md)). Its rules are the shell's, standing in for the game's, and none
@@ -952,6 +960,13 @@ Settled on 2026-11-10:
 
 ## Open decisions
 
-To be settled before the work that needs them, each with what is recommended. None is open: the
-first tier's of [carried forward](#carried-forward), and the second's with the game's fleet, were
-settled on 2026-11-13, under [decided](#decided).
+Each settled before the work it blocks. The first tier's and second tier's of
+[carried forward](#carried-forward) were settled on 2026-11-13, under [decided](#decided); these
+came with the [current priority](#current-priority-neutral-sdk-and-manifest-integration).
+
+| Decision | Blocks | Re-enters |
+| --- | --- | --- |
+| The public host's API: what it owns, how a game's composition is passed in, start-up order | H02 | Now, the first delivery |
+| Save metadata sections: a game's own section in place of the galaxy/system fields `SaveGame.h` carries | A01 (Manifest Stage 3) | Inventoried at H02 only where the minimal host is blocked; settled before Stage 3 |
+| Neutral frame identity: what replaces `InSystem` in `Snapshot.h` for a game with no star system | A01 | As above |
+| The network seam: transport, sessions and replication against Manifest's N01 map | N01, N02 | When Manifest's N01 lands |
