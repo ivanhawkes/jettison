@@ -26,7 +26,6 @@ struct InputContext
 // One face for the scope, which is what the console's lines and its input want, and for the height
 // measured between them. A null face keeps the current one (ImGui::PushFont's word), so the callers
 // that have no fonts loaded, which is every test, ask for mono and get the UI face.
-// Non-copyable, popped with the scope, as the standard asks of a resource.
 class FontScope
 {
   public:
@@ -58,8 +57,6 @@ ImVec4 ToImVec4(Rgba colour)
 }
 
 
-// The line's colour, from its role: the echoed command in the theme's one accent, a refusal in its
-// danger, the category a log came under in its signature colour (Theme.h, LineToken).
 ImVec4 LineColour(const ConsoleLine &line)
 {
 	return ToImVec4(ColourOf(LineToken(line)));
@@ -149,10 +146,9 @@ ImFont *MonoFont()
 {
 	// ImGui names a font by `ImFontConfig::Name`, and for a face read from memory that name is
 	// whatever the loader wrote: the render backend writes the file the face came from, measured as
-	// "Hack-Regular.ttf" (render/vulkan/imgui/FontFaces.h), because the console reads names. The face
-	// whose name is called for a mono face is the mono face, and no UI face's name is. Nothing when
-	// none is loaded, which is how a run with no fonts, and every test, draws: the console then draws
-	// in the UI face, its older look.
+	// "Hack-Regular.ttf" (render/vulkan/imgui/FontFaces.h). A face whose name holds one of these
+	// words is the mono face, and no UI face's name does. Nothing when none is loaded, as in a run
+	// with no fonts and every test: the console then draws in the UI face.
 	constexpr std::array<const char *, 3> kMonoWords{"hack", "mono", "cousine"};
 	const auto lower = [](std::string text)
 	{

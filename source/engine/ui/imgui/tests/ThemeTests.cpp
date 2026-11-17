@@ -37,9 +37,7 @@ class HeadlessImGui
 	HeadlessImGui() : m_context{ImGui::CreateContext()}
 	{
 		// CreateContext hands the previous context back as the current one, so a case with two
-		// fixtures has to say whose frame this is; and it is destroyed by pointer, because
-		// DestroyContext(nullptr) takes whichever context is current — with the general allocator
-		// handing the same address back (measured), two fixtures would destroy one context twice.
+		// fixtures has to say whose frame this is.
 		ImGui::SetCurrentContext(m_context);
 		ImGuiIO &io = ImGui::GetIO();
 		io.DisplaySize = {1280.0f, 720.0f};
@@ -249,7 +247,7 @@ TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a h
 	// Two steps, at the panel grounds of the dark varieties: Mocha's base and Macchiato's.
 	CHECK(landed(Palette::Mocha, Token::Background, 0) == 0x1c);     // #1e1e2e to #1c1c2e
 	CHECK(landed(Palette::Macchiato, Token::Background, 0) == 0x22); // #24273a
-	// One step, and it reaches the mid tones of the lighter varieties: the colour the reviewer named.
+	// One step, and it reaches the mid tones of the lighter varieties.
 	CHECK(landed(Palette::Macchiato, Token::Subtle, 2) == 0x63); // #494d64 to #494d63
 	CHECK(landed(Palette::Frappe, Token::Subtle, 1) == 0x56);    // #51576d to #51566d
 	CHECK(landed(Palette::Latte, Token::Foreground, 0) == 0x4b); // #4c4f69 to #4b4f69
@@ -354,14 +352,9 @@ TEST_CASE("Theme: a console change is applied once, and a new context is never s
 	CHECK(ImGui::GetStyle().WindowPadding.x == 12.0f);
 	CHECK_FALSE(ApplyThemeIfChanged(ThemeSettings{}, true));
 
-	// The case a cache keyed by the context's address cannot tell apart. Measured with the fixture
-	// owning its context: a context made after the themed one reuses the themed one's address — the
-	// general allocator hands the same block back — and starts stock, because ImGuiStyle's
-	// constructor writes the stock padding, rounding and colours over whatever the last context left
-	// in the block. So an address says nothing about the style it holds, which is the standard's
-	// point, and the app's question is "is the style I am drawing with themed?", read from the
-	// style; an address-keyed cache is the other way to answer it, and answers "already themed" here.
-	// The stock start is checked, because it is what makes the address a lie: measured, three
+	// The case a cache keyed by the context's address cannot tell apart: a context made after the
+	// themed one reuses its address (the general allocator hands the same block back) and starts
+	// stock. The stock start is checked, because it is what makes the address a lie: measured, three
 	// recreated contexts at the same address each began at padding 8 and rounding 0.
 	ImGuiContext *themedAddress = nullptr;
 	{
@@ -468,10 +461,9 @@ TEST_CASE("Theme: a scale typed into the console cannot drive a metric outside w
 	Console console;
 	ThemeSettings theme;
 	console.BindVariables("dev", theme);
-	// The band is a measured one, not a guess: 0.01 gives WindowMinSize {0.8, 0.6}, and NewFrame
-	// asserts "Invalid style setting!" — the cross-review's probe reached it through the console, the
-	// one path the dev tools' own slider cannot bound. A scale of 0, of a negative, of 1e9 and of a
-	// word that parses as a float are the same class of mistake, and the style is what has to stand.
+	// The band is measured: 0.01 gives WindowMinSize {0.8, 0.6}, and NewFrame asserts "Invalid style
+	// setting!"; the console reaches it, the one path the dev tools' slider cannot bound. A scale of
+	// 0, of a negative, of 1e9 and of a word that parses as a float are the same class of mistake.
 	for (const char *value : {"0.01", "0", "-4", "1e9", "nan", "1"})
 	{
 		INFO(value);

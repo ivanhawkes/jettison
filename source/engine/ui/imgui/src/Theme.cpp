@@ -168,13 +168,10 @@ constexpr float kSubtleAlpha = 0.35f;   // odd table rows, as bg-muted/50 is
 constexpr float kDisabledAlpha = 0.50f; // disabled:opacity-50
 
 // The scale the style is built at: the settings' own, kept inside the band a style survives. The
-// band is a measured one, not a taste: a scale of 0.01 gives WindowMinSize {0.8, 0.6}, and
-// ImGui::NewFrame asserts "Invalid style setting!" (the cross-review's probe reached this through
-// `dev.ui_scale 0.01`, which the dev tools' slider never offers); a non-finite one poisons every
-// metric. A scale that is not a positive number is a dev's mistake, and the design's root size is
-// the answer to a mistake, as it has been. The clamp is here, where the styles are built, because
-// the console's variable, the slider and a test are three paths and only one of them can be
-// trusted to have a band.
+// band is measured: a scale of 0.01 gives WindowMinSize {0.8, 0.6}, and ImGui::NewFrame asserts
+// "Invalid style setting!"; a non-finite one poisons every metric. The clamp is here, where the
+// styles are built, because the console's variable, the slider and a test are three paths to the
+// scale and only the slider has a band.
 constexpr float kScaleFloor = 0.25f;
 constexpr float kScaleCeiling = 4.0f;
 
@@ -206,13 +203,10 @@ Applied &GetApplied()
 // Whether the style is what these settings ask for, read from the style and not from a cache: two
 // fields a stock context does not have, a panel's padding on the sheet's scale and the panel's
 // ground on the palette. Nothing in the engine writes the style — the views push colours, never the
-// style (docs/architecture.md, "UI") — so these two stand for the whole of it. This is why the
-// applied state is not keyed by the context's address: the standard's rule is that a cache keys on a
-// handle with a generation and never on an address, because the next allocation reuses it
-// (docs/coding-standards.md), and measured here it does — a context made after the themed one takes
-// its address, and starts stock, because ImGuiStyle's constructor writes the stock values over
-// whatever the last context left in the block. The address therefore says nothing about the style it
-// holds, and an address key would answer "already themed" to that stock style.
+// style (docs/architecture.md, "UI") — so these two stand for the whole of it. It is not keyed by
+// the context's address: measured, a context made after the themed one takes its address and starts
+// stock, because ImGuiStyle's constructor writes the stock values over whatever the last context
+// left in the block, so an address key would answer "already themed" to a stock style.
 bool StyleIsApplied(const ThemeSettings &settings, bool linearise)
 {
 	const ImGuiStyle &style = ImGui::GetStyle();
@@ -329,7 +323,6 @@ void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 		style.Colors[colour] = {rgba.r, rgba.g, rgba.b, rgba.a};
 	};
 
-	// The sizes, then the rhythm the web layout's spacing scale gives them.
 	style.FontSizeBase = kFont * scale;
 	style.FontScaleMain = 1.0f;
 	style.Alpha = 1.0f;
@@ -389,7 +382,6 @@ void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 	set(ImGuiCol_Border, Token::Border);
 	set(ImGuiCol_BorderShadow, Token::Border, 0.0f); // shadows are the stylesheet's, not the style's
 
-	// Text, at three weights of the palette's greys, and its selection.
 	set(ImGuiCol_Text, Token::Foreground);
 	set(ImGuiCol_TextDisabled, Token::Faint);
 	set(ImGuiCol_TextLink, Token::Primary);
@@ -461,10 +453,9 @@ void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 
 bool ApplyThemeIfChanged(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 {
-	// The style is read, not remembered: a context made after the themed one reuses its address
-	// (StyleIsApplied says why that matters), so "the settings are the ones I applied" is not enough
-	// to say the style is themed. A run that tears its renderer down, and every test that makes a
-	// context, gets the theme again, settings unchanged and all.
+	// The settings alone are not enough to say the style is themed (StyleIsApplied says why): a run
+	// that tears its renderer down, and every test that makes a context, gets the theme again with
+	// its settings unchanged.
 	const Applied &applied = GetApplied();
 	if (applied.themed && applied.settings == settings && applied.linearise == swapchainEncodesSrgb &&
 	    StyleIsApplied(settings, swapchainEncodesSrgb))
