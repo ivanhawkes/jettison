@@ -42,6 +42,7 @@ namespace Jettison::App
 //     there, and closed on a display pad's ship.
 //   - The roads (Dock::Roads), a lane divider painted down each between its nodes, and, for a
 //     station whose buggies are parked, its buggies in a row across each pad's stern.
+
 // A pad's docking clamps: four rigs of a post, an arm and a jaw, two each side of the hull a quarter
 // of its length fore and aft of the pad's middle, fitted to the hull they hold (kClampSize), played
 // by one clip player on the pad's node (animations/pad-clamp.clip.yaml), which binds each name to the

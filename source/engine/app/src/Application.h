@@ -90,9 +90,7 @@ namespace Jettison::App
 // name, so a start-up that fails says which stage it failed in; RunFrameLoop() is the frame loop;
 // Shutdown() releases in the reverse order, from the destructor as well as from the loop. Nothing
 // in this tree has a destructor of its own - every Vulkan object is released by a Destroy() call -
-// so that destructor is the whole safety net. Before this shell, an exception thrown from a frame
-// unwound past every one of them: the process exited with the logical device, the ImGui context
-// and GLFW live, which is the run the validation layer and the sanitizers exist to be read from.
+// so that destructor is the whole safety net.
 //
 // The state machine is private and exists for one reason: Shutdown() is guarded by it, so the
 // loop and ~Application can both ask for teardown and the second one is free.
@@ -114,7 +112,6 @@ class Application
 	void Run();
 
   private:
-	// Where the shell is in its lifecycle.
 	enum class State
 	{
 		Uninitialised,

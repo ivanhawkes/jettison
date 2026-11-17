@@ -41,7 +41,6 @@ struct ModDescription
 	std::vector<std::string> required;
 };
 
-// One mod in the player's list.
 struct ModEntry
 {
 	std::string mod;
@@ -59,11 +58,9 @@ struct ModList
 // in the data directory, as "mod:<identifier>"; the user's data directory itself, writable, as "user",
 // where saves go. The mods are in the list's order and only those it enables; a mod found and not
 // listed is added at the end, enabled, in the order of the identifiers' bytes, and the list written
-// again,
-// so a directory dropped in works and keeps its place; one listed and missing is reported and keeps
-// its place. Without a list's path, every mod found mounts in the order of the identifiers' bytes. It
-// is
-// logged, with what each mount is.
+// again, so a directory dropped in works and keeps its place; one listed and missing is reported and
+// keeps its place. Without a list's path, every mod found mounts in the order of the identifiers'
+// bytes. It is logged, with what each mount is.
 //
 // One bad mod does not stop the game: a mod that cannot be mounted (a damaged pack), whose
 // description does not read, is for a newer engine, or needs a mod not mounted before it, is

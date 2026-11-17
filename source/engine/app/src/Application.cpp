@@ -137,7 +137,7 @@ constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/Hack-Regular.ttf", false},
     {"fonts/DroidSans.ttf", true},
 }};
-// In the smoke run nothing presses a key: the ship flies ahead at a fifth of its speed.
+
 // The shell's music, and the hum of the station the ship is bound to: heard at its full volume within
 // a few hundred metres of the station's centre, as a station is that size, and fading to a murmur
 // two kilometres out.
@@ -2830,8 +2830,8 @@ void Application::Shutdown() noexcept
 
 	m_pRenderer.reset();
 	// The system scene holds the scene, and goes first. The scene's rigs are resource handles,
-	// released as it goes; then the manager, which holds no
-	// GPU object once the renderer has released its handles, goes before the worker it posts to.
+	// released as it goes; then the manager, which holds no GPU object once the renderer has
+	// released its handles, goes before the worker it posts to.
 	m_systemScene.reset();
 	m_pScene.reset();
 	m_sceneUpdateSystem.reset();

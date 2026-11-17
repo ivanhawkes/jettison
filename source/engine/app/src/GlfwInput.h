@@ -14,16 +14,6 @@ struct GLFWwindow;
 
 namespace Jettison::App
 {
-// Feeds an InputSystem from GLFW by polling, once per frame, every input a context binds: keys,
-// mouse buttons, the first gamepad, every joystick's axes and buttons (each binding's joystick the
-// device a JoystickMap says it is), and the cursor's motion.
-// Polling rather than callbacks for the actions; the cost is that a tap shorter than a frame is
-// missed, which at the frame rates the shell runs is shorter than a key press. The wheel has no state
-// to poll, and the UI wants each key, button and character in order, so those are callbacks,
-// installed over the ImGui backend's, which they hand every event on to.
-//
-// One window at a time: GLFW's callbacks are free functions, and the window's user pointer is the
-// renderer's.
 // What the window received as events since the last take, in order, for the UI: keys and buttons as
 // they went down and up, text typed, and the wheel, which polling would miss or merge.
 struct WindowEvent
@@ -46,6 +36,16 @@ struct WindowEvent
 	float wheel{0.0f};
 };
 
+// Feeds an InputSystem from GLFW by polling, once per frame, every input a context binds: keys,
+// mouse buttons, the first gamepad, every joystick's axes and buttons (each binding's joystick the
+// device a JoystickMap says it is), and the cursor's motion.
+// Polling rather than callbacks for the actions; the cost is that a tap shorter than a frame is
+// missed, which at the frame rates the shell runs is shorter than a key press. The wheel has no state
+// to poll, and the UI wants each key, button and character in order, so those are callbacks,
+// installed over the ImGui backend's, which they hand every event on to.
+//
+// One window at a time: GLFW's callbacks are free functions, and the window's user pointer is the
+// renderer's.
 class GlfwInput
 {
   public:
@@ -77,7 +77,6 @@ class GlfwInput
 	// window under the cursor, not the camera behind it.
 	void Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCaptured = false);
 
-	// The window's events since the last take (WindowEvent).
 	std::vector<WindowEvent> TakeEvents()
 	{
 		return std::exchange(m_events, {});
