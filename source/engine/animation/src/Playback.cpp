@@ -7,7 +7,6 @@ namespace Jettison::Animation
 {
 namespace
 {
-// A turn in radians.
 constexpr float kFullTurn = 6.28318531f;
 
 
