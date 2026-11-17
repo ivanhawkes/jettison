@@ -227,6 +227,12 @@ class VulkanRenderer final : public IRenderer
 	}
 
 
+	bool ScreenshotRequested() const override
+	{
+		return m_pRenderer->ScreenshotRequested();
+	}
+
+
 	const std::string &DeviceName() const override
 	{
 		return m_pDeviceContext->GetDeviceName();

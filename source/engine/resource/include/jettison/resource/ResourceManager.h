@@ -63,9 +63,9 @@ struct ResourceOptions
 	bool hotReload{true};
 #endif
 	std::chrono::milliseconds pollInterval{500};
-	// Update() waits for the worker to finish what it holds before draining it, so the frame a load
-	// ends on is set by the frame count and not by how fast the worker ran: for a run whose frames
-	// must be the same every time (AppArguments::frameStep). It blocks the calling thread.
+	// Update() returns with no first load in flight, those a finish asks for included, so the frame a
+	// load ends on is set by the frame count and not by how fast the worker ran: for a run whose
+	// frames must be the same every time (AppArguments::frameStep). It blocks the calling thread.
 	bool settleLoads{false};
 };
 

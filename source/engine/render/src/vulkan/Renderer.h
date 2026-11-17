@@ -279,6 +279,11 @@ class Renderer
 	// channels.
 	void RequestScreenshot(std::filesystem::path path);
 
+	bool ScreenshotRequested() const
+	{
+		return !m_screenshotRequest.empty();
+	}
+
   private:
 	struct FrameData
 	{

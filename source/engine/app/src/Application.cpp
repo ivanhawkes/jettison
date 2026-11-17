@@ -1678,7 +1678,8 @@ void Application::Tick()
 		m_pRenderer->RequestScreenshot(m_arguments.screenshotPath);
 	for (const Ecs::TickPhase phase : Ecs::kTickPhases)
 		m_frame.Run(phase, m_pScene->Registry(), deltaTime);
-	if (shoot)
+	// Taken once a frame has drawn it; a frame that drew nothing leaves the request for the next.
+	if (shoot && !m_pRenderer->ScreenshotRequested())
 	{
 		m_screenshotTaken = true;
 		RequestClose();

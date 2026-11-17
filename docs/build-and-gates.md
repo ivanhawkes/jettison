@@ -226,9 +226,10 @@ become a release/runtime dependency.
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → declaration
 spacing (`scripts/space-declarations.py --check`, about 50 s on the Debug database) → clang-tidy →
 Release build and its unit tests → headless render test, from the packed assets → reference frames,
-from the staged directory, and with `--asan`, the render test and the `vfs`, `sim`, `spatial`,
-`physics`, `ai`, `dock` and `script` suites under the sanitisers (`vfs` and `script` for the packs
-and the modules, whose bytes are a mod's). The simulation's state hashes are pinned in those
+from the staged directory, and with `--asan`, the render test and the `vfs`, `resource`, `sim`,
+`spatial`, `physics`, `ai`, `dock` and `script` suites under the sanitisers (`vfs` and `script` for
+the packs and the modules, whose bytes are a mod's; `resource` for loaders' callbacks that load
+more, which once moved the slot `Finish` held). The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
 build's results. The sample's traders' hash is pinned in the app suite, which runs in Debug and
 Release but not under the sanitisers: its twenty minutes of seven traders is the gate's longest

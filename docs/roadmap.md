@@ -72,7 +72,11 @@ out-of-date acquire recreates and draws, and the `dock-sequence` reference was r
 frame earlier. Exit as met: ten captures, five idle and five under 24 busy loops, each at frame
 34, and every view the same count idle and loaded ([build and gates](build-and-gates.md)). The
 residuals the other views carry (`effects` 112 pixels, the rest 5 or fewer) are now steady; the
-518-pixel allowance, tightened or kept, is the user's to decide.
+518-pixel allowance, tightened or kept, is the user's to decide. Codex's first round: a settled
+`Update()` now loops until nothing is in flight, so a load a `finish` asks for settles too, which
+found `Finish` holding a slot that such a load could move (fixed, and `resource` joins the
+sanitised suites); and a shot is taken only once a frame has drawn it, should a retried acquire
+still be out of date.
 
 ## Then: the gate inside the sandbox
 

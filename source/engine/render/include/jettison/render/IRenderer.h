@@ -167,6 +167,10 @@ class IRenderer
 	// Logged and dropped where the swapchain cannot be read back.
 	virtual void RequestScreenshot(const std::filesystem::path &path) = 0;
 
+	// Whether a request is still waiting for a frame to draw it: a frame whose acquire found the
+	// swapchain out of date twice draws nothing, and the request stays for the next.
+	virtual bool ScreenshotRequested() const = 0;
+
 	// What the frames are drawn on, and their size in pixels.
 	virtual const std::string &DeviceName() const = 0;
 

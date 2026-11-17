@@ -150,13 +150,15 @@ TEST_CASE("Resource: a load returns at once, and the value is there after the ne
 }
 
 
-TEST_CASE("Resource: settled, a load ends at the Update after it is asked for, however slow")
+TEST_CASE("Resource: settled, a load and those its finish asks for end in one Update")
 {
 	const Scratch scratch;
-	scratch.Put("base/slow.txt", "slow");
+	scratch.Put("base/parent.txt", "parent");
+	scratch.Put("base/child.txt", "child");
 	Jobs::IoWorker worker;
 	Resource::ResourceManager manager{
 	    scratch.Files(), worker, {.hotReload = false, .settleLoads = true}};
+	Resource::ResourceHandle<Text> child;
 	manager.RegisterLoader(
 	    Resource::Loader<Text>{
 	        [](std::span<const std::byte> bytes, std::string_view)
@@ -165,15 +167,22 @@ TEST_CASE("Resource: settled, a load ends at the Update after it is asked for, h
 		        return std::make_unique<Text>(
 		            Text{std::string{reinterpret_cast<const char *>(bytes.data()), bytes.size()}});
 	        },
-	        {},
+	        [&](Text &text, std::string_view)
+	        {
+		        if (text.contents == "parent")
+			        child = manager.Load<Text>("child.txt");
+	        },
 	        {}});
 
-	const auto slow = manager.Load<Text>("slow.txt");
+	const auto parent = manager.Load<Text>("parent.txt");
 	CHECK(manager.Loading() == 1);
 	manager.Update();
-	CHECK(manager.StatusOf(slow) == Status::Ready);
+	CHECK(manager.StatusOf(parent) == Status::Ready);
+	REQUIRE_FALSE(child.IsNull());
+	CHECK(manager.StatusOf(child) == Status::Ready);
 	CHECK(manager.Loading() == 0);
-	manager.Release(slow);
+	manager.Release(child);
+	manager.Release(parent);
 }
 
 

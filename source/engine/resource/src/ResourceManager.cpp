@@ -158,17 +158,20 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 	    Result result)
 	{
 		Pool &pool = pools.at(type);
-		Slot &slot = pool.slots[index];
-		if (slot.generation != generation || slot.ticket != ticket || slot.references == 0)
+		if (pool.slots[index].generation != generation || pool.slots[index].ticket != ticket ||
+		    pool.slots[index].references == 0)
 			return;
-		slot.inFlight = false;
-		slot.stamp = result.stamp;
+		pool.slots[index].inFlight = false;
+		pool.slots[index].stamp = result.stamp;
 
 		if (result.error.empty() && pool.loader->finish)
 		{
+			// The path copied and the slot found again after: a finish that loads another resource
+			// of this type can grow the pool, which moves its slots.
+			const std::string path = pool.slots[index].path;
 			try
 			{
-				pool.loader->finish(result.value.get(), slot.path);
+				pool.loader->finish(result.value.get(), path);
 			}
 			catch (const std::exception &error)
 			{
@@ -176,6 +179,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 			}
 		}
 
+		Slot &slot = pool.slots[index];
 		if (result.error.empty())
 		{
 			Retire(pool, slot);
@@ -323,8 +327,17 @@ std::size_t ResourceManager::Loading() const
 void ResourceManager::Update()
 {
 	if (m_pState->options.settleLoads)
-		m_pState->worker.WaitIdle();
-	m_pState->worker.Drain();
+	{
+		// Until nothing is in flight: a finish that asks for another resource is settled here too,
+		// however fast the worker decodes it.
+		do
+		{
+			m_pState->worker.WaitIdle();
+			m_pState->worker.Drain();
+		} while (Loading() != 0);
+	}
+	else
+		m_pState->worker.Drain();
 	if (!m_pState->options.hotReload)
 		return;
 	const auto now = std::chrono::steady_clock::now();
