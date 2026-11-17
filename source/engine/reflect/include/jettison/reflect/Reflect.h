@@ -15,9 +15,9 @@ namespace Jettison::Reflect
 // Attributes a registered type or field can carry, read by serialisation (Saved), the editor
 // inspector (Editable), the definition registry (Moddable), the console (Console) and the script
 // host (Script: a type scripts see, every field of it, as an event a handler is given or a command
-// a script may be granted to send; docs/architecture.md, "Scripts"). They are
-// EnTT meta traits under the hood, which leaves the user 15 bits of a 32-bit word: the
-// underlying type is 16 bits so a sixteenth attribute is a compile error, not a wrapped value.
+// a script may be granted to send; docs/architecture.md, "Scripts"). They are EnTT meta traits
+// under the hood, which leaves the user 15 bits of a 32-bit word: the underlying type is 16 bits
+// so a sixteenth attribute is a compile error, not a wrapped value.
 enum class Attribute : std::uint16_t
 {
 	None = 0,
