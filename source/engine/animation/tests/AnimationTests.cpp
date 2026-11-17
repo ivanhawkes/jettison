@@ -317,33 +317,33 @@ TEST_CASE("Rig loader: a glTF file's hierarchy, skin and clips, through the reso
 	Resource::ResourceManager resources{assets, worker, {.hotReload = false, .pollInterval = {}}};
 	RegisterRigLoader(resources);
 
-	const auto fox = resources.Load<Rig>("models/Fox.glb");
-	const auto avocado = resources.Load<Rig>("models/Avocado.glb");
+	const auto arm = resources.Load<Rig>("models/arm.glb");
+	const auto crate = resources.Load<Rig>("models/crate.glb");
 	const auto missing = resources.Load<Rig>("models/Nothing.glb");
 	worker.WaitIdle();
 	resources.Update();
 
-	const Rig *pFox = resources.TryGet(fox);
-	REQUIRE(pFox != nullptr);
-	CHECK(pFox->HasSkin());
-	CHECK(pFox->HasAnimation("Walk"));
-	CHECK(pFox->AnimationDuration("Walk") > 0.0f);
+	const Rig *pArm = resources.TryGet(arm);
+	REQUIRE(pArm != nullptr);
+	CHECK(pArm->HasSkin());
+	CHECK(pArm->HasAnimation("Swing"));
+	CHECK(pArm->AnimationDuration("Swing") > 0.0f);
 	std::vector<glm::mat4> joints;
 	glm::mat4 meshNode{1.0f};
-	pFox->EvaluateSkin("Walk", 0.25f, joints, meshNode);
-	CHECK(joints.size() == pFox->joints.size());
+	pArm->EvaluateSkin("Swing", 0.25f, joints, meshNode);
+	CHECK(joints.size() == pArm->joints.size());
 
-	const Rig *pAvocado = resources.TryGet(avocado);
-	REQUIRE(pAvocado != nullptr);
-	CHECK_FALSE(pAvocado->HasSkin());
-	CHECK(pAvocado->HasSceneGraph());
+	const Rig *pCrate = resources.TryGet(crate);
+	REQUIRE(pCrate != nullptr);
+	CHECK_FALSE(pCrate->HasSkin());
+	CHECK(pCrate->HasSceneGraph());
 	CHECK(resources.StatusOf(missing) == Resource::Status::Failed);
 
 	// Bytes that are not glTF fail with the file named, as a resource's error.
 	const std::vector<std::byte> junk(16, std::byte{0x2a});
 	CHECK_THROWS_WITH_AS(
 	    ReadGltfRig(junk, "models/junk.glb"), doctest::Contains("models/junk.glb"), std::runtime_error);
-	resources.Release(fox);
-	resources.Release(avocado);
+	resources.Release(arm);
+	resources.Release(crate);
 	resources.Release(missing);
 }

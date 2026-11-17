@@ -66,9 +66,9 @@ TEST_CASE("Piloting: a station's collision mesh is the shapes it is drawn with, 
 	const entt::entity model = scene.create();
 	scene.emplace<Scene::ParentComponent>(model, station);
 	scene.emplace<Scene::TransformComponent>(model);
-	Scene::MeshComponent fox;
-	fox.model = "models/Fox.glb";
-	scene.emplace<Scene::MeshComponent>(model, fox);
+	Scene::MeshComponent rigged;
+	rigged.model = "models/arm.glb";
+	scene.emplace<Scene::MeshComponent>(model, rigged);
 	const entt::entity elsewhere = scene.create();
 	scene.emplace<Scene::TransformComponent>(elsewhere, glm::dvec3{-500.0, 0.0, 0.0});
 	scene.emplace<Scene::MeshComponent>(elsewhere, box);

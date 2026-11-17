@@ -252,11 +252,11 @@ TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file 
 	CheckRefused(
 	    scene, "  - id: a\n    camera: {}\n  - id: b\n    camera: {}\n", "only one active camera");
 	CheckRefused(scene, "  - id: m\n    mesh: {}\n", "a model or a shape, not both");
-	CheckRefused(scene, "  - id: m\n    mesh:\n      model: ../models/Fox.glb\n", "not a virtual path");
+	CheckRefused(scene, "  - id: m\n    mesh:\n      model: ../models/arm.glb\n", "not a virtual path");
 	CheckRefused(
 	    scene, "  - id: m\n    mesh:\n      shape: box\n      innerRadius: 0.5\n", "for a ring");
 	CheckRefused(
-	    scene, "  - id: m\n    mesh:\n      model: models/Fox.glb\n      color: [1, 0, 0]\n",
+	    scene, "  - id: m\n    mesh:\n      model: models/arm.glb\n      color: [1, 0, 0]\n",
 	    "color is for a shape");
 	CheckRefused(
 	    scene, "  - id: m\n    mesh:\n      shape: box\n    animation:\n      clip: Walk\n",
@@ -264,7 +264,7 @@ TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file 
 	CheckRefused(
 	    scene, "  - id: m\n    transformAnimation:\n      axis: [0, 0, 0]\n", "cannot be zero");
 	// A model's rig loads through the resource manager, which this scene was not given.
-	CheckRefused(scene, "  - id: m\n    mesh:\n      model: models/Fox.glb\n", "resource manager");
+	CheckRefused(scene, "  - id: m\n    mesh:\n      model: models/arm.glb\n", "resource manager");
 	CHECK_THROWS_WITH_AS(
 	    scene.LoadText("version: 2\nentities:\n  - id: m\n    mesh:\n      shape: pyramid\n"),
 	    doctest::Contains("'pyramid' is not a 'Scene.Shape'"), Jettison::Serialise::FormatError);
@@ -569,7 +569,7 @@ TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig 
 		if (!skeleton->jointMatrices.empty())
 		{
 			++skinned;
-			// The fox walks: its clip has moved on from the start.
+			// The arm swings: its clip has moved on from the start.
 			CHECK(registry.get<Animation::AnimationPlayerComponent>(entity).time > 0.0f);
 		}
 	}

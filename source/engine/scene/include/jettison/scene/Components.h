@@ -183,7 +183,7 @@ struct LightComponent
 float LightIntensityAt(const LightComponent &light, double time);
 
 // What an entity draws: a model file, or a shape made in code in one colour. Both are by name, and
-// the renderer loads or makes what they name. The model is a virtual path (models/Fox.glb), as the
+// the renderer loads or makes what they name. The model is a virtual path (models/arm.glb), as the
 // resource manager loads it, so a mod's mount can shadow it. A procedural shape is unit-sized (a
 // sphere of radius one, a cube from -1 to 1), and the transform's scale sizes it. The material,
 // when there is one, is a virtual path to a material file, which every primitive of the model draws

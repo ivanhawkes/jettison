@@ -40,7 +40,7 @@ struct Layer
 // Mounts in order (base, DLC, mods, user). Whether a mount is a directory or a pack file is
 // invisible to callers.
 //
-// A virtual path is relative to every mount's root, with forward slashes: "models/Fox.glb". Its
+// A virtual path is relative to every mount's root, with forward slashes: "models/arm.glb". Its
 // segments are not empty, ".", or "..", and it holds no backslash, colon or control character, so
 // data cannot name a file outside a mount, and a path a mod uses means the same on every platform.
 // A path that breaks these rules is an error in the data that names it, and every call below
