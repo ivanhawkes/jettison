@@ -52,7 +52,6 @@ enum class Reason : std::uint8_t
 // cruising's (Cruise.h), steering's (Steering.h), the behaviour trees' (BehaviourTree.h) and the
 // utility AI's (UtilityAi.h), and the simulation's (Sim::RegisterTypes) and physics'
 // (Physics::RegisterTypes). Idempotent; LaneTravel::Attach, Steering::Attach and Behaviours::Attach
-// call it. A game that loads decisions or
-// trees before it attaches anything calls it first.
+// call it. A game that loads decisions or trees before it attaches anything calls it first.
 void RegisterTypes();
 } // namespace Jettison::Ai

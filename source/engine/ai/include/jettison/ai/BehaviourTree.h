@@ -118,7 +118,6 @@ struct Behaviour
 	bool operator==(const Behaviour &) const = default;
 };
 
-// What a task is given as it is ticked.
 struct TaskContext
 {
 	Sim::SimWorld &world;
