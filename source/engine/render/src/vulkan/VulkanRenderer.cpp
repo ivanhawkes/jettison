@@ -55,6 +55,7 @@ class VulkanRenderer final : public IRenderer
 		m_pRenderer->SetAmbientOcclusion(
 		    m_options.ambientOcclusion.value_or(!m_pDeviceContext->IsCpu()));
 		m_pRenderer->SetBloom(m_options.bloom);
+		m_pRenderer->SetDrawEveryFrame(m_options.drawEveryFrame);
 		m_pRenderer->Init();
 
 		m_pImGuiRenderer = std::make_unique<ImGuiRenderer>(m_pDeviceContext, m_assets);

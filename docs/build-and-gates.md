@@ -615,7 +615,8 @@ next tick's start only when the I/O worker was slow, and the X server's first re
 its own time, made the renderer skip that frame's draw and so resolve its materials a frame late.
 Either moved the shot one frame, 12,383 pixels, 24 times the allowance. A fixed step now settles
 every load where it is drained (`ResourceOptions::settleLoads`, hot reload off), and an
-out-of-date acquire recreates the swapchain and draws the frame. Measured 2026-11-18: ten runs,
+out-of-date acquire recreates the swapchain until the frame draws (`RendererOptions::drawEveryFrame`,
+eight recreates, then the run fails). Measured 2026-11-18: ten runs,
 five at idle and five under 24 busy loops on 24 cores, each at frame 34 with the sequence at
 1.516666 s, a frame before the idle path's old reference, which was recorded again; every view
 the same count idle and loaded, and `dock-sequence` none. The run logs where it shot (`Screenshot

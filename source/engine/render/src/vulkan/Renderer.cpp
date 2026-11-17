@@ -1869,16 +1869,26 @@ bool Renderer::Render(
 	// arrives is its own timing, and a frame that draws nothing resolves no material, so a fixed-step
 	// run's loads, and the frame it shoots, would follow that timing (12,383 pixels of dock-sequence
 	// under load, 2026-11-18). A failed acquire signals nothing, so the semaphore is free to reuse.
+	// Once, or until it draws where every frame must (RendererOptions::drawEveryFrame), giving up
+	// after a few: a swapchain out of date through those is not settling.
+	constexpr int kMaxRecreates = 8;
 	VkResult acquired = acquire();
 	bool recreated = false;
-	if (acquired == VK_ERROR_OUT_OF_DATE_KHR)
+	for (int recreates = 0;
+	     acquired == VK_ERROR_OUT_OF_DATE_KHR && recreates < (m_drawEveryFrame ? kMaxRecreates : 1);
+	     ++recreates)
 	{
 		RecreateSwapchain();
 		recreated = true;
 		acquired = acquire();
 	}
 	if (acquired == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		if (m_drawEveryFrame)
+			throw std::runtime_error(
+			    std::format("the swapchain was still out of date after {} recreates", kMaxRecreates));
 		return true;
+	}
 	if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR)
 		throw std::runtime_error("failed to acquire a swapchain image");
 	// Present reads this index, and it is the only writer: a recreate can change the image count

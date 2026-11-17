@@ -1277,6 +1277,7 @@ void Application::InitRenderer()
 	options.ambientOcclusion = m_arguments.ambientOcclusion;
 	options.bloom = m_arguments.bloom;
 	options.gpu = m_arguments.gpu;
+	options.drawEveryFrame = m_arguments.frameStep > 0.0;
 	m_pRenderer = Render::CreateRenderer(m_assets, *m_pResources, std::move(options));
 	m_pRenderer->Init();
 }

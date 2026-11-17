@@ -76,7 +76,8 @@ residuals the other views carry (`effects` 112 pixels, the rest 5 or fewer) are 
 `Update()` now loops until nothing is in flight, so a load a `finish` asks for settles too, which
 found `Finish` holding a slot that such a load could move (fixed, and `resource` joins the
 sanitised suites); and a shot is taken only once a frame has drawn it, should a retried acquire
-still be out of date.
+still be out of date. Its second round found that retry a frame late; the user settled it: with
+`--frame-step` the renderer recreates until the frame draws (`RendererOptions::drawEveryFrame`).
 
 ## Then: the gate inside the sandbox
 

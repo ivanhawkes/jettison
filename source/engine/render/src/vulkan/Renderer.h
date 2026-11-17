@@ -267,6 +267,12 @@ class Renderer
 		m_checkClusters = enabled;
 	}
 
+	// RendererOptions::drawEveryFrame.
+	void SetDrawEveryFrame(bool enabled)
+	{
+		m_drawEveryFrame = enabled;
+	}
+
 	const ClusterCheckTotals &GetClusterChecks() const
 	{
 		return m_clusterChecks;
@@ -637,6 +643,7 @@ class Renderer
 	std::vector<GpuInstance> m_instanceScratch;
 	float m_lodThreshold{kDefaultLodThreshold};
 	bool m_depthPrepass{false};
+	bool m_drawEveryFrame{false};
 	bool m_ambientOcclusion{true};
 	float m_bloom{kDefaultBloom};
 	// What this frame runs: the prepass (asked for, or for ambient occlusion or an outline), ambient

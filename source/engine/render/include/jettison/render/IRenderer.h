@@ -69,6 +69,10 @@ struct RendererOptions
 	// Part of the name of the GPU to draw with (--gpu), in place of the one the renderer would choose
 	// (render/src/vulkan/DeviceChoice.h); Init fails, listing the GPUs, when no usable one has it.
 	std::string gpu;
+	// A frame whose acquire finds the swapchain out of date is recreated until it draws, rather than
+	// retried once and skipped: for a fixed-step run, whose frames must not follow the display
+	// server's timing. Not for a window a user may be resizing, where it could keep recreating.
+	bool drawEveryFrame{false};
 };
 
 // The renderer as the rest of the engine sees it (docs/architecture.md, "Rendering: clustered
