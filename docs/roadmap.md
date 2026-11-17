@@ -7,6 +7,40 @@ that would otherwise bake in the wrong answer. "Done" means the gate covers it, 
 commit that did it in the history. Phases 0–13, and the catalogue entries for the systems they
 built, are recorded in [history](history.md).
 
+## First: the comment review
+
+Approved 2026-11-18; starts before the SDK work below, which it runs ahead of because every later
+change reads these comments. The rule is [coding standards](coding-standards.md#comments): a
+comment stays only if deleting it loses something the code, its names and its types cannot give
+back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML, CMake and scripts.
+
+| Tier | Scope | Model and effort |
+| --- | --- | --- |
+| Contracts | Public headers (`include/jettison/...`) and the deterministic modules (`sim`, `celestial`, `spatial`, `physics`, `ai`, `dock`, `script`, `math`) and `serialise`, where a comment holds an ordering, a layout on disk or a determinism hazard | Opus 5.5, high |
+| The rest | The other modules' sources, tests, tools, YAML, CMake, scripts | Sonnet 5, high |
+
+- **Comments only.** A commit changes no code: a check that every changed line is a comment (or
+  a blank line beside a removed one) runs before the gate. A comment that would be better as a
+  name or a type is listed for later, not changed here.
+- **Trim, not delete.** A paragraph that mixes what and why is cut down to the why; a measurement,
+  a hazard or a contract is kept, reworded if need be.
+- **One module per commit**, so the diff stays reviewable. The first module (`vfs`, small and with
+  every kind of comment) is reviewed by the user before the rest; if it lost a hazard, that tier
+  moves up a model.
+- **Done when** every module is through, the gate is green, and `coding-standards.md`'s test holds
+  in a spot check of each tier.
+
+## Then: the gate inside the sandbox
+
+After the comment review. Claude Code's sandbox (the managed settings in `~/nixos-config`,
+`roles/development.nix`) now lets ccache and `/tmp` be written, so the builds, unit tests and
+clang-tidy pass inside it (2026-11-18), but Xvfb still cannot start: the sandbox refuses the Unix
+socket it listens on (`_XSERVTransSocketOpenCOTSServer: Unable to open socket for unix`), so the
+smoke tests and reference frames run outside it, with the user's approval each run. The obvious
+fix, `sandbox.network.allowAllUnixSockets`, lets any sandboxed command reach any socket on the
+machine, Docker's included, so it is not taken without weighing that; `sandbox.excludedCommands`
+for the gate, or Xvfb listening only where the sandbox allows, are the narrower candidates.
+
 ## Current priority: neutral SDK and Manifest integration
 
 Approved 2026-11-15; implementation pending. Follow [game integration](game-integration.md)
