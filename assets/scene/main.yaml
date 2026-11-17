@@ -24,8 +24,7 @@ entities:
       intensity: 40
       range: 20
       active: true
-  # A brighter sky than a real one, so the models' unlit sides are lit by it as the old ambient
-  # term lit them.
+  # A brighter sky than a real one, so the models' unlit sides are lit by it.
   - id: sky
     sky:
       seed: 3

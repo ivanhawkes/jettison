@@ -13,8 +13,8 @@ parameters:
   # so dividing by it adds contrast without brightening the land.
   - name: land
     value: [0.26, 0.03, 0.597, 0]
-  # Warm sodium-coloured lights, brighter than the sunlit land at their brightest,
-  # in clusters forty to the planet's width over a third of the land.
+  # Warm sodium-coloured lights, brighter than the sunlit land at their brightest, in clusters forty
+  # to the planet's width over a third of the land.
   - name: night
     value: [1, 0.72, 0.42, 1.2]
   - name: cities

@@ -100,7 +100,6 @@ function(jettison_compile_shader_variant target)
 	add_dependencies(${target} ${target}_${variant_target})
 endfunction()
 
-# Turn on using solution folders.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Warnings live on an interface target that the project's own targets link privately, not
@@ -139,7 +138,6 @@ endif()
 # provide. docs/build-and-gates.md, "Consuming the engine", has the state of it.
 option(JETTISON_INSTALL "Install the engine and export the Jettison CMake package" OFF)
 
-# Source.
 add_subdirectory("source")
 
 # The whole engine as one target, for a consumer that does not want to pick modules.
