@@ -58,6 +58,22 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   comments, which `comment-only.sh` cannot tell from code and so were left: `Theme.cpp`'s glosses
   on the console lines' tokens and the trailing comment `FontFaces.cpp` wraps over three lines.
 
+## Done: reference frames that hold under load
+
+Done 2026-11-18 (the user's, high priority). `dock-sequence` had come out 12,383 pixels off (of
+518 allowed) in two gate runs with clang still running, and with none at idle. A line at the
+screenshot (frame, fixed time, each sequence's time) showed the shot one frame early under load,
+and a trace of each tick's loads found two causes, both a frame's timeline following the machine's
+clock: a load requested and drained in one frame was seen at the next tick only when the I/O
+worker was slow, and the X server's first resize made `Renderer::Render` skip a frame's draw, so
+its materials' textures were asked for a frame late. `ResourceOptions::settleLoads` (set with
+`--frame-step`, which also turns hot reload off) drains every load where it is asked for, an
+out-of-date acquire recreates and draws, and the `dock-sequence` reference was recorded again a
+frame earlier. Exit as met: ten captures, five idle and five under 24 busy loops, each at frame
+34, and every view the same count idle and loaded ([build and gates](build-and-gates.md)). The
+residuals the other views carry (`effects` 112 pixels, the rest 5 or fewer) are now steady; the
+518-pixel allowance, tightened or kept, is the user's to decide.
+
 ## Then: the gate inside the sandbox
 
 After the comment review. Claude Code's sandbox (the managed settings in `~/nixos-config`,
@@ -198,13 +214,6 @@ player's report of a problem needs and the shell does not write.
   thrusting. The plain smoke test and the shell's checks under it would run in seconds; the
   reference frames stay on lavapipe, whose images they are, the sanitised smoke test too, since
   NVIDIA's driver fails under ASan, and so does CI. Not yet placed.
-- **The dock-sequence reference drifts under load** (the user's, 2026-11-18). One gate run, with
-  the machine loaded by the clang processes of an earlier stopped run, found `dock-sequence` 12,383
-  pixels off (of 518 allowed), the camera and textures shifted as if at another moment of the
-  blend; the same build passed with none on a rerun. A reference frame is meant to be the same to
-  the byte every run, so the sequence or its capture likely advances on wall-clock time rather
-  than a fixed step. Seen again in the comment review's closing gate, the same 12,383 pixels, with
-  clang still running. Not yet placed.
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, so its reports
   reach only the default stderr sink. The run's reports (pass timings, the cluster check, the
   benchmark) went through `Log.h` on 2026-11-17; the failure report, usage line and teardown stay on

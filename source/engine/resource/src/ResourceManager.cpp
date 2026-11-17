@@ -322,6 +322,8 @@ std::size_t ResourceManager::Loading() const
 
 void ResourceManager::Update()
 {
+	if (m_pState->options.settleLoads)
+		m_pState->worker.WaitIdle();
 	m_pState->worker.Drain();
 	if (!m_pState->options.hotReload)
 		return;

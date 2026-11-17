@@ -6,6 +6,7 @@
 
 #include <doctest/doctest.h>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -146,6 +147,33 @@ TEST_CASE("Resource: a load returns at once, and the value is there after the ne
 	CHECK(manager.TryGet(handle)->contents == "hello");
 	CHECK(manager.RevisionOf(handle) == 1);
 	CHECK(manager.ErrorOf(handle).empty());
+}
+
+
+TEST_CASE("Resource: settled, a load ends at the Update after it is asked for, however slow")
+{
+	const Scratch scratch;
+	scratch.Put("base/slow.txt", "slow");
+	Jobs::IoWorker worker;
+	Resource::ResourceManager manager{
+	    scratch.Files(), worker, {.hotReload = false, .settleLoads = true}};
+	manager.RegisterLoader(
+	    Resource::Loader<Text>{
+	        [](std::span<const std::byte> bytes, std::string_view)
+	        {
+		        std::this_thread::sleep_for(std::chrono::milliseconds{50});
+		        return std::make_unique<Text>(
+		            Text{std::string{reinterpret_cast<const char *>(bytes.data()), bytes.size()}});
+	        },
+	        {},
+	        {}});
+
+	const auto slow = manager.Load<Text>("slow.txt");
+	CHECK(manager.Loading() == 1);
+	manager.Update();
+	CHECK(manager.StatusOf(slow) == Status::Ready);
+	CHECK(manager.Loading() == 0);
+	manager.Release(slow);
 }
 
 

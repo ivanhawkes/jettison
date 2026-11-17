@@ -1859,14 +1859,26 @@ bool Renderer::Render(
 		SaveScreenshot(frame);
 
 	uint32_t imageIndex = 0;
-	const VkResult acquired = vkAcquireNextImageKHR(
-	    device, m_pSwapchain->GetVkSwapchainHandle(), UINT64_MAX, frame.imageAvailable, VK_NULL_HANDLE,
-	    &imageIndex);
+	const auto acquire = [&]
+	{
+		return vkAcquireNextImageKHR(
+		    device, m_pSwapchain->GetVkSwapchainHandle(), UINT64_MAX, frame.imageAvailable,
+		    VK_NULL_HANDLE, &imageIndex);
+	};
+	// Recreated and acquired again rather than the frame skipped: when the display server's resize
+	// arrives is its own timing, and a frame that draws nothing resolves no material, so a fixed-step
+	// run's loads, and the frame it shoots, would follow that timing (12,383 pixels of dock-sequence
+	// under load, 2026-11-18). A failed acquire signals nothing, so the semaphore is free to reuse.
+	VkResult acquired = acquire();
+	bool recreated = false;
 	if (acquired == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 		RecreateSwapchain();
-		return true;
+		recreated = true;
+		acquired = acquire();
 	}
+	if (acquired == VK_ERROR_OUT_OF_DATE_KHR)
+		return true;
 	if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR)
 		throw std::runtime_error("failed to acquire a swapchain image");
 	// Present reads this index, and it is the only writer: a recreate can change the image count
@@ -1950,7 +1962,7 @@ bool Renderer::Render(
 	    VK_SUCCESS)
 		throw std::runtime_error("failed to submit the frame's command buffer");
 
-	return Present();
+	return Present() || recreated;
 }
 
 
@@ -1968,8 +1980,8 @@ bool Renderer::Present()
 
 	const VkResult result = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
 
-	// Out of date is not one answer either side of a submit. Render's acquire returns early on it
-	// with the frame slot untouched, because nothing was queued; the frame has been queued here,
+	// Out of date is not one answer either side of a submit. Render's acquire recreates and tries
+	// again with the frame slot untouched, because nothing was queued; the frame has been queued here,
 	// so the slot is spent whether or not the swapchain survives the present, and it moves.
 	const bool outOfDate = result == VK_ERROR_OUT_OF_DATE_KHR || m_pWindow->HasBeenResized();
 	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)

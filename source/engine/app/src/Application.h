@@ -469,6 +469,8 @@ class Application
 	// The clocks' seconds since the loop started, when each frame moves them a fixed step
 	// (AppArguments::frameStep).
 	double m_fixedTime{0.0};
+	// Frames ticked, held ones included: against m_fixedTime, how many a load held.
+	std::uint64_t m_frameIndex{0};
 	// Frames in a row begun with nothing loading, and whether the screenshot the run was asked for
 	// has been taken.
 	std::uint32_t m_quietFrames{0};

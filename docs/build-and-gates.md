@@ -607,14 +607,19 @@ cinematic 1.5 s in (`pilot chase`, then `sequence dock 1`); captured twice, no p
 every earlier reference was the same to the byte with the grade's code in the output pass. Phase 11d
 added `market-de`, the orbit scene with the market screen shown in German (`language de`, then
 `market on`), every word and number of it from the sample's tables; captured twice, no pixel
-differed. `dock-sequence` is the view the load moves: its shot is placed by the docking sequence's
-own progress, so the frame the screenshot lands on is a frame of an animation, and a starved run can
-land a tick off. Measured on 2026-11-17 with the current build, three runs with twelve busy loops on
-twenty-four cores: one at 14 516 pixels from the reference, two at nil; at idle, five runs, all nil,
-one of them byte for byte the reference. A tick of the approach costs the frame 28 times the
-stage's 518-pixel allowance, so a loaded reference stage fails on that view for a reason that is the
-view's, and the reading to trust is the one at idle. A frame is
-960×540, and the frame captured is the one after thirty in a row with nothing loading, unless its
+differed. A capture is the same frame however loaded the machine is, and two things had made it
+follow the machine's timing instead, both found on `dock-sequence`, whose shot is a frame of an
+animation and so the view a slip shows: a load requested and drained in one frame was seen at the
+next tick's start only when the I/O worker was slow, and the X server's first resize, arriving at
+its own time, made the renderer skip that frame's draw and so resolve its materials a frame late.
+Either moved the shot one frame, 12,383 pixels, 24 times the allowance. A fixed step now settles
+every load where it is drained (`ResourceOptions::settleLoads`, hot reload off), and an
+out-of-date acquire recreates the swapchain and draws the frame. Measured 2026-11-18: ten runs,
+five at idle and five under 24 busy loops on 24 cores, each at frame 34 with the sequence at
+1.516666 s, a frame before the idle path's old reference, which was recorded again; every view
+the same count idle and loaded, and `dock-sequence` none. The run logs where it shot (`Screenshot
+at frame ..., fixed time ...`), so a frame that moves shows on which tick. A frame is 960×540,
+and the frame captured is the one after thirty in a row with nothing loading, unless its
 line says otherwise.
 
 Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under

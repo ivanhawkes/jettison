@@ -1199,7 +1199,12 @@ void Application::InitResources()
 		m_mods = MountAssets(
 		    m_assets, m_arguments.assets, m_userPaths.userData, m_userPaths.config / kModListFile);
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
-	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker);
+	// A fixed step's frames are the same every run only if each load ends on a frame the count sets,
+	// and a reload would change one mid-run.
+	Resource::ResourceOptions resourceOptions;
+	if (m_arguments.frameStep > 0.0)
+		resourceOptions = {.hotReload = false, .settleLoads = true};
+	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker, resourceOptions);
 	Animation::RegisterRigLoader(*m_pResources);
 	Animation::RegisterClipFileLoader(*m_pResources);
 	m_definitions.emplace(m_assets);
@@ -1648,6 +1653,7 @@ void Application::Tick()
 {
 	JETTISON_PROFILE_FUNCTION();
 	const bool loading = m_pResources->Loading() != 0;
+	++m_frameIndex;
 	double deltaTime = 0.0;
 	if (m_arguments.frameStep > 0.0)
 	{
@@ -1676,6 +1682,15 @@ void Application::Tick()
 	{
 		m_screenshotTaken = true;
 		RequestClose();
+		// Where the run's clocks were when the frame was taken, so two captures that differ can be
+		// told apart by their timelines before their pixels.
+		std::string sequences;
+		for (const auto [camera, player] :
+		     m_pScene->Registry().view<const Scene::SequencePlayerComponent>().each())
+			sequences += std::format(", {} at {:.6f} s", player.file, player.time);
+		Core::Log(
+		    Core::Severity::Info, kShell, "Screenshot at frame {}, fixed time {:.6f} s{}", m_frameIndex,
+		    m_fixedTime, sequences);
 	}
 	JETTISON_PROFILE_FRAME();
 }
