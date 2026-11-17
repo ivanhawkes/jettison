@@ -30,8 +30,9 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
 - **Done when** every module is through, the gate is green, and `coding-standards.md`'s test holds
   in a spot check of each tier.
 - **Progress:** `vfs` through (2026-11-18) and reviewed by the user; then
-  `math`, `celestial`, `spatial`, `script`, `serialise` and `dock` (2026-11-18). Contracts tier
-  still to do: `sim`, `physics`, `ai`, and the other modules' public headers.
+  `math`, `celestial`, `spatial`, `script`, `serialise`, `dock`, `sim`, `physics` and `ai`
+  (2026-11-18). Contracts tier still to do: the other modules' public headers. A comment-only
+  commit skips the gate; `scripts/comment-only.sh` and the format check stand in for it.
 
 ## Then: the gate inside the sandbox
 
