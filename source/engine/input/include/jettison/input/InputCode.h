@@ -35,10 +35,8 @@ struct InputCode
 {
 	Device device{Device::Keyboard};
 	std::int32_t code{0};
-	// Which joystick, from 0 (GLFW_JOYSTICK_1), for a joystick's button or axis; 0 otherwise. A
-	// joystick is the one GLFW connected in that slot, so a binding follows the slot a device was
-	// plugged into; naming devices by their GUIDs, so a binding follows the device, comes with the
-	// user's bindings (phase 8a).
+	// Which joystick, numbered from 0, for a joystick's button or axis; 0 otherwise. JoystickMap
+	// (Joysticks.h) says which connected device answers to a number.
 	std::uint8_t joystick{0};
 
 	friend auto operator<=>(const InputCode &, const InputCode &) = default;
