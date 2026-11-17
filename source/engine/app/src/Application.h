@@ -138,7 +138,6 @@ class Application
 
 	void InitScene();
 
-	// Reads the galaxy (AppArguments::galaxyPath), when there is one to read.
 	void InitGalaxy();
 
 	// Loads the scene, and the star system it names; the smoke sequence's reload comes here too.
@@ -149,7 +148,6 @@ class Application
 
 	void InitRenderer();
 
-	// The window the renderer opened: its title and its size.
 	void InitWindow();
 
 	// The game UI over the window (docs/architecture.md, "UI"): its fonts, the market screen's data
@@ -236,16 +234,12 @@ class Application
 	// A Trade the next step applies, from the screen's buttons: crates bought, or sold when negative.
 	void SendTrade(std::string_view good, std::int64_t crates);
 
-	// The renderer's counts and the GPU's time in each pass, in the dev tools.
 	void DrawRendererPanel();
 
-	// The star system shown, and the scene's layers, each shown or hidden.
 	void DrawScenePanel();
 
-	// The galaxy's half of it: the jump under way, and a button for each way out of the system shown.
 	void DrawGalaxy();
 
-	// The benchmark's frame count, the warm-up's end, and the report when it is done.
 	void AdvanceBenchmark();
 
 	void ReportBenchmark() const;
@@ -326,20 +320,17 @@ class Application
 	// waiting for, and shown in its system, the scene jumping there, or along the lane it is on.
 	void AttachShip(entt::entity ship);
 
-	// The next ship of the player's fleet, or the one before, in the fleet's order.
 	void CycleAttached(int step);
 
 	// Whether the player is at the attached ship's helm, as the newest snapshot has it: the only ship
 	// their controls fly.
 	bool AtHelm() const;
 
-	// Takes the attached ship's helm, or leaves it to the ship's behaviour.
 	void ToggleHelm();
 
 	// The console's buy: a ship of the hull at the bound station (App::BuyShip), attached once bought.
 	void BuyShip(std::string_view hull);
 
-	// The console's fleet: each ship, where it is, who flies it and its hold.
 	void ListFleet(DevTools::Console &console) const;
 
 	// Whether the ship is in the system shown, which is the only one a camera can follow it in.
@@ -379,7 +370,6 @@ class Application
 	// The streaks' emitter ahead of this frame's camera, once the rigs have moved it.
 	void PlaceJumpStreaks(entt::registry &registry);
 
-	// The ship's speed and distance from the station, and the keys, while it is flown.
 	void DrawFlight();
 
 	// Picking (docs/architecture.md, "Physics"): a left click casts a ray from the camera through
@@ -390,10 +380,8 @@ class Application
 	// The sync phase: the steps' events, a pick answered and a ship docked or undocked.
 	void TakeEvents();
 
-	// The last pick, marked where it hit and named, until the next.
 	void DrawPicked();
 
-	// A simulation entity as the shell names it.
 	std::string Describe(entt::entity simEntity) const;
 
 	// A reason the step gave, as the player reads it, from the newest snapshot (Reasons.h).
