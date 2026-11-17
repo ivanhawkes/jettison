@@ -39,3 +39,23 @@ imgui.ini
 
 # python bytecode from the scripts (tidy.py, py_compile)
 __pycache__/
+
+# Claude Code's sandbox masks these paths with /dev/null while a command runs, which leaves
+# placeholders in the tree. A real project skill or command would need git add -f.
+/.bash_profile
+/.bashrc
+/.gitconfig
+/.gitmodules
+/.idea
+/.profile
+/.ripgreprc
+/.zprofile
+/.zshrc
+/.claude/commands
+/.claude/launch.json
+/.claude/loop.md
+/.claude/output-styles
+/.claude/routines
+/.claude/scheduled_tasks.json
+/.claude/skills
+/.claude/workflows
