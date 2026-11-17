@@ -31,8 +31,10 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   in a spot check of each tier.
 - **Progress:** `vfs` through (2026-11-18) and reviewed by the user; then
   `math`, `celestial`, `spatial`, `script`, `serialise`, `dock`, `sim`, `physics` and `ai`
-  (2026-11-18). Contracts tier still to do: the other modules' public headers. A comment-only
-  commit skips the gate; `scripts/comment-only.sh` and the format check stand in for it.
+  (2026-11-18); then every other module's public headers (2026-11-18), with commits for those
+  that changed: `reflect`, `audio`, `input`, `core`, `animation`, `scene` and `render`. The
+  contracts tier is through; the rest is still to do. A comment-only commit skips the gate;
+  `scripts/comment-only.sh` and the format check stand in for it.
 
 ## Then: the gate inside the sandbox
 
