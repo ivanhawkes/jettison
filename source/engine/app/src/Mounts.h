@@ -20,27 +20,10 @@ namespace Jettison::App
 inline constexpr std::string_view kModDirectory = "mods";
 // The player's list of mods, beside settings.yaml in the configuration directory.
 inline constexpr std::string_view kModListFile = "mods.yaml";
-// A mod's description, at its root.
-inline constexpr std::string_view kModDescriptionFile = "mod.yaml";
 inline constexpr std::uint32_t kModFormatVersion = 1;
 
-// A mod's own description (mod.yaml). Registered with Reflect as "Shell.ModDescription", every field
-// Saved, at version 1. A mod without one mounts as a mod did before phase 12a, under its identifier
-// and of no version.
-struct ModDescription
-{
-	// To show: its identifier is its directory's or pack's name.
-	std::string name;
-	// Its own version, which a save records it by ("version" is the file format's).
-	std::string release;
-	// The engine version it was written for (Core::EngineVersion(), "0.1.0"): one newer than this
-	// build's is refused, and none is not checked.
-	std::string engine;
-	// The mods it needs, by identifier, each enabled and before it in the list; refused with the
-	// reason when one is not, rather than the list reordered. "requires" in the file.
-	std::vector<std::string> required;
-};
-
+// A mod's own description is a Host::PackageDescription. A mod without one mounts as a mod did before
+// phase 12a, under its identifier and of no version.
 struct ModEntry
 {
 	std::string mod;
@@ -75,10 +58,6 @@ struct ModList
 std::vector<Sim::ModVersion> MountAssets(
     Vfs::FileSystem &files, const std::filesystem::path &assets, const std::filesystem::path &userData,
     const std::filesystem::path &modList = {});
-
-// Whether an engine version a mod names is this build's or older, by its numbers ("0.1.0"). Throws
-// std::invalid_argument for one that is not up to three numbers between dots.
-bool EngineAtLeast(std::string_view engine, std::string_view required);
 
 void RegisterModTypes();
 } // namespace Jettison::App

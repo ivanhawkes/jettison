@@ -7,7 +7,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <stdexcept>
 #include <string>
 #include <system_error>
 #include <unistd.h>
@@ -290,11 +289,4 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 	CHECK(reported.Contains("requires the mod zz-later, which is not mounted before it"));
 	CHECK(reported.Contains("misspelt is left out"));
 	CHECK(reported.lines.size() == 4);
-
-	CHECK(App::EngineAtLeast("0.1.0", "0.1"));
-	CHECK(App::EngineAtLeast("1.0.0", "0.10.3"));
-	CHECK_FALSE(App::EngineAtLeast("0.9.0", "0.10.0"));
-	CHECK_THROWS_AS(App::EngineAtLeast("0.1.0", "one"), std::invalid_argument);
-	CHECK_THROWS_AS(App::EngineAtLeast("0.1.0", "0.1.0.1"), std::invalid_argument);
-	CHECK_THROWS_AS(App::EngineAtLeast("0.1.0", "0..1"), std::invalid_argument);
 }

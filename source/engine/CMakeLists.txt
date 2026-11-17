@@ -37,5 +37,6 @@ add_subdirectory(ai)
 add_subdirectory(dock)
 add_subdirectory(script)
 
-# Shell.
+# The hosts: the CPU session a game starts through, then the render shell.
+add_subdirectory(host)
 add_subdirectory(app)

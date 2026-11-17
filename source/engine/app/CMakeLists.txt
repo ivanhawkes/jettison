@@ -12,6 +12,7 @@ jettison_add_module(app
 		devtools
 		dock
 		ecs
+		host
 		input
 		jobs
 		physics

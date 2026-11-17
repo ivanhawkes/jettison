@@ -67,6 +67,7 @@ jettison/
     │   ├── ai/                 utility AI, behaviour trees, graph pathfinding, steering
     │   ├── dock/               stations' pads and the ships on them: given, queued, flown in, clamped
     │   ├── script/             Wasm host: scripts, their limits, bindings from reflection
+    │   ├── host/               the CPU session a game starts through: content, definitions, world
     │   └── app/                Application shell, argument parsing, smoke sequence
     ├── tools/
     │   ├── flotsam/            editor
@@ -146,8 +147,8 @@ flowchart TB
     subgraph T4[Presentation and simulation services]
         render; physics; audio; ui; ai; dock; script
     end
-    subgraph T5[Shell]
-        app
+    subgraph T5[Hosts]
+        app --> host
     end
     T1 --> T0
     T2 --> T1
@@ -1776,6 +1777,16 @@ the shell each way, to see a report.
 The engine runs today. It renders a glTF scene through Vulkan with validation, and the gate
 proves it headlessly. What exists:
 
+- **Host** (`engine/host`, H02 of Manifest's delivery order). A `Host::Session` is one game's VFS,
+  definition registry and world, built from `Host::Options` (read-only content sources in mount
+  order, the fixed step, the seed) and a `Host::Game` the session owns, in phases: options, mount,
+  types, content (each source's `mod.yaml` read as a `Host::PackageDescription`, its engine
+  requirement and its `requires` checked against the sources before it, then the game's
+  `LoadContent`), world (`RegisterWorld`) and initial state. A constructed session is ready; a
+  failed phase throws `Host::StartupError` with the phase and the source, runs no later hook and
+  has released what it built. Shutdown, idempotent, destroys the world, the definitions, the file
+  system and then the game, so state a world callback captures from the game outlives it. It links
+  no presentation module; the render shell does not start through it yet (H05).
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
   `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame

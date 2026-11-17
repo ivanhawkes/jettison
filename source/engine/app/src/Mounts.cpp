@@ -3,13 +3,12 @@
 #include <jettison/core/File.h>
 #include <jettison/core/Log.h>
 #include <jettison/core/Version.h>
+#include <jettison/host/Package.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include <algorithm>
-#include <array>
-#include <charconv>
 #include <exception>
 #include <format>
 #include <fstream>
@@ -113,41 +112,6 @@ std::optional<ModList> ReadList(const std::filesystem::path &path, bool &readabl
 	}
 }
 
-
-// The description at the mod's root, read through a mount of the mod alone, or none for a mod with
-// none. Throws for one that does not read, or that the mod cannot be mounted to read.
-ModDescription Describe(const std::filesystem::path &mod)
-{
-	Vfs::FileSystem alone;
-	alone.AddMount({"mod", mod});
-	const std::optional<std::vector<std::byte>> bytes = alone.Read(kModDescriptionFile);
-	if (!bytes)
-		return {};
-	const std::string_view text{reinterpret_cast<const char *>(bytes->data()), bytes->size()};
-	return Serialise::YamlArchive::Read<ModDescription>(text, {kModFormatVersion});
-}
-
-
-std::array<unsigned, 3> VersionNumbers(std::string_view version)
-{
-	std::array<unsigned, 3> numbers{};
-	std::size_t index = 0;
-	const char *pAt = version.data();
-	const char *pEnd = version.data() + version.size();
-	while (true)
-	{
-		if (index == numbers.size())
-			throw std::invalid_argument{std::format("'{}' is not a version of three numbers", version)};
-		const auto [pNext, error] = std::from_chars(pAt, pEnd, numbers[index++]);
-		if (error != std::errc{} || pNext == pAt)
-			throw std::invalid_argument{std::format("'{}' is not a version of numbers", version)};
-		if (pNext == pEnd)
-			return numbers;
-		if (*pNext != '.')
-			throw std::invalid_argument{std::format("'{}' is not a version of numbers", version)};
-		pAt = pNext + 1;
-	}
-}
 } // namespace
 
 
@@ -156,11 +120,6 @@ void RegisterModTypes()
 	static const bool registered = []
 	{
 		using Reflect::Attribute;
-		Reflect::RegisterType<ModDescription>("Shell.ModDescription")
-		    .Field<&ModDescription::name>("name", Attribute::Saved)
-		    .Field<&ModDescription::release>("release", Attribute::Saved)
-		    .Field<&ModDescription::engine>("engine", Attribute::Saved)
-		    .Field<&ModDescription::required>("requires", Attribute::Saved);
 		Reflect::RegisterType<ModEntry>("Shell.ModEntry")
 		    .Field<&ModEntry::mod>("mod", Attribute::Saved)
 		    .Field<&ModEntry::enabled>("enabled", Attribute::Saved);
@@ -168,12 +127,6 @@ void RegisterModTypes()
 		return true;
 	}();
 	(void)registered;
-}
-
-
-bool EngineAtLeast(std::string_view engine, std::string_view required)
-{
-	return VersionNumbers(engine) >= VersionNumbers(required);
 }
 
 
@@ -239,9 +192,10 @@ std::vector<Sim::ModVersion> MountAssets(
 		}
 		try
 		{
-			const ModDescription description = Describe(*pPath);
+			const Host::PackageDescription description =
+			    Host::DescribePackage(*pPath).value_or(Host::PackageDescription{});
 			if (!description.engine.empty() &&
-			    !EngineAtLeast(Core::EngineVersion(), description.engine))
+			    !Host::EngineAtLeast(Core::EngineVersion(), description.engine))
 				throw std::runtime_error{std::format(
 				    "it was written for engine {}, newer than this build's {}", description.engine,
 				    Core::EngineVersion())};

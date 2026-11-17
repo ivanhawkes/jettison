@@ -93,7 +93,7 @@ for the gate, or Xvfb listening only where the sandbox allows, are the narrower 
 
 ## Current priority: neutral SDK and Manifest integration
 
-Approved 2026-11-15; implementation pending. Follow [game integration](game-integration.md)
+Approved 2026-11-15; H02 done 2026-11-18, H03 next. Follow [game integration](game-integration.md)
 and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -103,7 +103,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. |
+| Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
 | Consumer build and resources | H03 (1) | CPU-only consumer configures without ImGui/Vulkan/glslc/sample assets; renderer resources and example content have separate targets/manifests; the packer stays available. |
 | Independent CPU consumer | H04 (1) | A non-space CPU consumer defines, steps, saves, loads and tears down through the public host, with no galaxy, transform or star system. |
 | Sample extraction | H05 (1) | Sample trading/UI/assets reside in sample/test targets outside engine code; Jetsam selects the example explicitly and Flotsam does not by default; neutral start-up registers no traders, markets or fleet; existing sample checks still pass. |
@@ -962,11 +962,11 @@ Settled on 2026-11-10:
 
 Each settled before the work it blocks. The first tier's and second tier's of
 [carried forward](#carried-forward) were settled on 2026-11-13, under [decided](#decided); these
-came with the [current priority](#current-priority-neutral-sdk-and-manifest-integration).
+came with the [current priority](#current-priority-neutral-sdk-and-manifest-integration). The
+public host's shape was settled with H02 (2026-11-18, [architecture](architecture.md)).
 
 | Decision | Blocks | Re-enters |
 | --- | --- | --- |
-| The public host's API: what it owns, how a game's composition is passed in, start-up order | H02 | Now, the first delivery |
 | Save metadata sections: a game's own section in place of the galaxy/system fields `SaveGame.h` carries | A01 (Manifest Stage 3) | Inventoried at H02 only where the minimal host is blocked; settled before Stage 3 |
 | Neutral frame identity: what replaces `InSystem` in `Snapshot.h` for a game with no star system | A01 | As above |
 | The network seam: transport, sessions and replication against Manifest's N01 map | N01, N02 | When Manifest's N01 lands |

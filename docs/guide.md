@@ -31,7 +31,7 @@ Prefer patches to whole files for definitions the game already has: two mods can
 one field of the same definition, and a mod copies nothing it does not change. A file that is not a
 definition (a scene, a stylesheet) can only be replaced whole.
 
-`mod.yaml` says what the mod is (`App::ModDescription`, `source/engine/app/src/Mounts.h`):
+`mod.yaml` says what the mod is (`Host::PackageDescription`, `source/engine/host/include/jettison/host/Package.h`):
 
 ```yaml
 version: 1            # the format of this file, not of the mod
