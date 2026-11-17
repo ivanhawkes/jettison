@@ -7,7 +7,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-// In use today.
 #include <GLFW/glfw3.h>
 #include <entt/entt.hpp>
 #include <fastgltf/core.hpp>
@@ -19,7 +18,6 @@
 #include <vk_mem_alloc.h>
 #include <yaml-cpp/yaml.h>
 
-// Planned.
 #include <FastNoiseLite.h>
 #include <Jolt/Jolt.h>
 // Jolt.h has to come first.

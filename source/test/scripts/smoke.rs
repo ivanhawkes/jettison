@@ -1,6 +1,7 @@
 //! The smoke mod's script (source/test/mods/smoke/defs/scripts/smoke.yaml): it says what it hears of
-//! each trade filled, counting them under a key of its own, and works out how crowded a run's shelf is for the traders' decision. Built
-//! against the shell's bindings beside it, which the app suite checks are this build's.
+//! each trade filled, counting them under a key of its own, and works out how crowded a run's shelf
+//! is for the traders' decision. Built against the shell's bindings beside it, which the app suite
+//! checks are this build's.
 #![no_std]
 
 #[path = "jettison_script.rs"]
