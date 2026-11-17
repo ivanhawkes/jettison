@@ -31,9 +31,8 @@ struct Controller
 	bool operator==(const Controller &) const = default;
 };
 
-// Who commands an entity. An entity without one takes any sender's commands, as a ship had before
-// commands carried a sender. The game registers it as a component, as it does Transform. Registered
-// with Reflect, its field Saved, by RegisterTypes.
+// Who commands an entity. An entity without one takes any sender's commands. The game registers it
+// as a component, as it does Transform. Registered with Reflect, its field Saved, by RegisterTypes.
 struct ControlledBy
 {
 	Controller controller;

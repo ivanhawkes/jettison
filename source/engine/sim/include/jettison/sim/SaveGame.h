@@ -35,7 +35,6 @@ struct ModVersion
 // Reflect, every field Saved, as "Sim.SaveInfo".
 struct SaveInfo
 {
-	// As the player named it.
 	std::string name;
 	// Core::EngineVersion() of the build that wrote it, for a report of a save that does not load;
 	// what reads a save is its format versions, not this.
@@ -94,7 +93,6 @@ struct SaveGame
 	// Throws std::logic_error for a name that is empty or already taken.
 	void AddSection(std::string name, std::vector<std::byte> data);
 
-	// The section of that name, or null.
 	const SaveSection *FindSection(std::string_view name) const;
 
 	std::vector<std::byte> Write() const;

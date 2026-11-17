@@ -124,6 +124,13 @@ class WorldService
 	    Serialise::BinaryReader &reader, const entt::registry &loaded) = 0;
 };
 
+// A component's migrations: a chain over the binary record of one value (Serialise::BinaryRecord),
+// a step from each of its versions to the next, under the component's registered name. A step reads
+// what the version before it wrote, by the field names and the bytes the record holds, so a field
+// removed or retyped is decoded by the step that knows how it was laid out, and the old type is not
+// needed. A reflected struct inside a component is migrated by the component's steps.
+using ComponentMigrations = Serialise::Migrations<Serialise::BinaryRecord>;
+
 // The authoritative world: its own registry, advanced in fixed steps on simulation time,
 // deterministic across runs and across Debug and Release (docs/coding-standards.md, "Simulation
 // code"). Everything a save contains lives here. Presentation never holds a reference into it; it
@@ -137,13 +144,6 @@ class WorldService
 // The world's generator is in the registry's context (Random()), where systems reach it. A system
 // draws from it in an order its step fixes, so the draws are part of the replay. The event queue
 // to presentation (Events()) is in the context too, and is not part of the state.
-// A component's migrations: a chain over the binary record of one value (Serialise::BinaryRecord),
-// a step from each of its versions to the next, under the component's registered name. A step reads
-// what the version before it wrote, by the field names and the bytes the record holds, so a field
-// removed or retyped is decoded by the step that knows how it was laid out, and the old type is not
-// needed. A reflected struct inside a component is migrated by the component's steps.
-using ComponentMigrations = Serialise::Migrations<Serialise::BinaryRecord>;
-
 class SimWorld
 {
   public:

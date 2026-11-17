@@ -114,7 +114,6 @@ class DefinitionRegistry
 	    const std::function<entt::meta_any(std::span<const Serialise::YamlLayer>)> &read);
 
 	const Vfs::FileSystem &m_fileSystem;
-	// Keyed by EnTT's type ID.
 	std::map<entt::id_type, Definitions> m_types;
 };
 } // namespace Jettison::Sim
