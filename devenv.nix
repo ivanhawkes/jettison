@@ -12,6 +12,7 @@
     git
     git-lfs
     github-cli
+    lazygit
 
     # Node and PNPM added directly via standard system package attributes
     nodejs_24
@@ -31,30 +32,28 @@
     llvmPackages_21.lldb
     gdb
 
-    # Pi Coding Agent - simple, light, customise for the project.
-    pi-coding-agent
-
-    # Bring worktrunk into the project.
-    worktrunk
-
-    # Clipboard
-    wl-clipboard
-
-    # Languages and utilities
+    # Go programming language.
     go
-    curl
+
+    # Useful command-line utilities for searching, filtering, and viewing files.
     ripgrep
-    jq
     fd
+    fzf
+    bat
+    eza
+    tree
+    jq
+    yq-go
+
+    # Retrieve files from the internet.
+    wget
+    curl
 
     # Python tooling (version-agnostic CLIs; the interpreter comes from languages.python)
     uv
     ruff
     black
     mypy
-
-    # YAML
-    yq-go
 
     # Vulkan
     vulkan-loader
