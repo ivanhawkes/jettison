@@ -21,11 +21,13 @@ bool KeyLess(const BatchKey &left, const BatchKey &right)
 	return left.stencil < right.stencil;
 }
 
+
 bool NearerFirst(const BatchInput &left, const BatchInput &right)
 {
 	return std::tie(left.distance, left.draw) < std::tie(right.distance, right.draw);
 }
 } // namespace
+
 
 void BuildBatches(
     std::span<const BatchInput> inputs, std::vector<DrawBatch> &batches,
@@ -74,6 +76,7 @@ void BuildBatches(
 			instances.push_back(sorted[index].draw);
 	}
 }
+
 
 void BuildBackToFront(
     std::span<const SortedInput> inputs, std::vector<SortedBatch> &batches,

@@ -35,31 +35,38 @@ class DebugDraw
 	void Line(
 	    const glm::dvec3 &from, const glm::dvec3 &to, const glm::vec4 &color,
 	    DebugDepth depth = DebugDepth::Tested);
+
 	void Polyline(
 	    std::span<const glm::dvec3> points, const glm::vec4 &color, bool closed,
 	    DebugDepth depth = DebugDepth::Tested);
+
 	// A circle about the normal, through `segments` points.
 	void Circle(
 	    const glm::dvec3 &center, const glm::dvec3 &normal, double radius, const glm::vec4 &color,
 	    int segments = 64, DebugDepth depth = DebugDepth::Tested);
+
 	// Three great circles, one about each axis.
 	void Sphere(
 	    const glm::dvec3 &center, double radius, const glm::vec4 &color, int segments = 48,
 	    DebugDepth depth = DebugDepth::Tested);
+
 	// An oriented box's twelve edges.
 	void Box(
 	    const glm::dvec3 &center, const glm::dvec3 &halfExtents, const glm::dquat &orientation,
 	    const glm::vec4 &color, DebugDepth depth = DebugDepth::Tested);
+
 	// X red, Y green, Z blue, each `length` long.
 	void Axes(
 	    const glm::dvec3 &origin, const glm::dquat &orientation, double length,
 	    DebugDepth depth = DebugDepth::Tested);
 
 	void Clear();
+
 	bool Empty() const
 	{
 		return m_tested.empty() && m_overlay.empty();
 	}
+
 	std::size_t SegmentCount(DebugDepth depth) const
 	{
 		return depth == DebugDepth::Tested ? m_tested.size() : m_overlay.size();

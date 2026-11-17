@@ -23,6 +23,7 @@ Dock::StationLayout Slab()
 	return layout;
 }
 
+
 std::string Refusal(const Dock::StationLayout &layout)
 {
 	try
@@ -35,6 +36,7 @@ std::string Refusal(const Dock::StationLayout &layout)
 	}
 	return {};
 }
+
 
 std::string Refusal(const Dock::HullDefinition &hull)
 {
@@ -49,6 +51,7 @@ std::string Refusal(const Dock::HullDefinition &hull)
 	return {};
 }
 } // namespace
+
 
 TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at the scales decided")
 {
@@ -111,6 +114,7 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 	CHECK(Dock::Radius(*corva) == doctest::Approx(302.8).epsilon(0.001));
 }
 
+
 TEST_CASE(
     "Dock definitions: a hull larger than its pad's largest, or with its hatch outside it, is refused")
 {
@@ -130,6 +134,7 @@ TEST_CASE(
 	open.hatch = {0.0f, -3.0f, 4.0f};
 	CHECK(Refusal(open) == "Hull 'hull' has its cargo hatch outside its hull");
 }
+
 
 TEST_CASE("Dock definitions: a pad off its deck, under it, overlapping another or overhung is refused")
 {
@@ -187,6 +192,7 @@ TEST_CASE("Dock definitions: a pad off its deck, under it, overlapping another o
 	    Refusal(hasty) ==
 	    "Station layout 'slab' has a reservation that is not a positive number of seconds");
 }
+
 
 TEST_CASE("Dock definitions: a pad's orientation has its normal up and its heading ahead")
 {

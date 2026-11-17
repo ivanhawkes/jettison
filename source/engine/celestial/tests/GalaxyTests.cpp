@@ -85,6 +85,7 @@ bodies:
       semiMajorAxis: 1.0e11
 )";
 
+
 std::string ReadFile(const std::string &path)
 {
 	std::ifstream file{path};
@@ -93,6 +94,7 @@ std::string ReadFile(const std::string &path)
 	return text.str();
 }
 
+
 std::string Replace(std::string text, const std::string &from, const std::string &to)
 {
 	const auto at = text.find(from);
@@ -100,6 +102,7 @@ std::string Replace(std::string text, const std::string &from, const std::string
 	return text.replace(at, from.size(), to);
 }
 } // namespace
+
 
 TEST_CASE("Galaxy: read, and each lane's ends resolved to their systems")
 {
@@ -124,6 +127,7 @@ TEST_CASE("Galaxy: read, and each lane's ends resolved to their systems")
 	CHECK(galaxy.lanes[1].toll == 5000);
 	CHECK(galaxy.lanes[2].toll == 0);
 }
+
 
 TEST_CASE("Galaxy: a system's exits are its lanes in the galaxy's order, seen from its end")
 {
@@ -162,6 +166,7 @@ TEST_CASE("Galaxy: a system's exits are its lanes in the galaxy's order, seen fr
 	CHECK_FALSE(ExitThrough(galaxy, 1, "Rock"));
 }
 
+
 TEST_CASE("Galaxy: a written galaxy reads back as the same galaxy")
 {
 	const Galaxy galaxy = ReadGalaxy(kGalaxy);
@@ -172,6 +177,7 @@ TEST_CASE("Galaxy: a written galaxy reads back as the same galaxy")
 	CHECK(again.lanes[1].a.systemIndex == galaxy.lanes[1].a.systemIndex);
 	CHECK_FALSE(again.systems[1].scene.has_value());
 }
+
 
 TEST_CASE("Galaxy: a graph that does not hold is refused, naming the system or the lane")
 {
@@ -209,6 +215,7 @@ TEST_CASE("Galaxy: a graph that does not hold is refused, naming the system or t
 	refuses("version: 1\nname: Empty\nsystems: []\nlanes: []\n", "lists no systems");
 }
 
+
 TEST_CASE("Galaxy: a system's file is checked against the lanes that end in it")
 {
 	const Galaxy galaxy = ReadGalaxy(kGalaxy);
@@ -232,6 +239,7 @@ TEST_CASE("Galaxy: a system's file is checked against the lanes that end in it")
 	        kMiddle, "name: South Gate\n    kind: JumpPoint", "name: South Gate\n    kind: Station"),
 	    "leaves 'Middle' through 'South Gate', which is not a jump point");
 }
+
 
 TEST_CASE("Galaxy: the sample galaxy in the assets reads, and every lane ends at a jump point")
 {

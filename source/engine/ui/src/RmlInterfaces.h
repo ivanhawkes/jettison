@@ -33,10 +33,15 @@ class FileInterface final : public Rml::FileInterface
 	}
 
 	Rml::FileHandle Open(const Rml::String &path) override;
+
 	void Close(Rml::FileHandle file) override;
+
 	size_t Read(void *buffer, size_t size, Rml::FileHandle file) override;
+
 	bool Seek(Rml::FileHandle file, long offset, int origin) override;
+
 	size_t Tell(Rml::FileHandle file) override;
+
 	size_t Length(Rml::FileHandle file) override;
 
   private:
@@ -62,13 +67,16 @@ class SystemInterface final : public Rml::SystemInterface
 	{
 		return m_time;
 	}
+
 	bool LogMessage(Rml::Log::Type type, const Rml::String &message) override;
+
 	int TranslateString(Rml::String &translated, const Rml::String &input) override;
 
 	StringTable &Strings()
 	{
 		return m_strings;
 	}
+
 	const StringTable &Strings() const
 	{
 		return m_strings;
@@ -78,6 +86,7 @@ class SystemInterface final : public Rml::SystemInterface
 	{
 		m_time = seconds;
 	}
+
 	// RmlUi's warnings and errors, and the string table's.
 	std::size_t Problems() const
 	{
@@ -104,19 +113,25 @@ class RenderInterface final : public Rml::RenderInterface
 
 	Rml::CompiledGeometryHandle CompileGeometry(
 	    Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices) override;
+
 	void RenderGeometry(
 	    Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation,
 	    Rml::TextureHandle texture) override;
+
 	void ReleaseGeometry(Rml::CompiledGeometryHandle geometry) override;
 
 	// An image file by its path, PNG, JPEG or anything else stb_image reads, decoded as it loads.
 	Rml::TextureHandle LoadTexture(Rml::Vector2i &dimensions, const Rml::String &source) override;
+
 	Rml::TextureHandle GenerateTexture(
 	    Rml::Span<const Rml::byte> source, Rml::Vector2i dimensions) override;
+
 	void ReleaseTexture(Rml::TextureHandle texture) override;
 
 	void EnableScissorRegion(bool enable) override;
+
 	void SetScissorRegion(Rml::Rectanglei region) override;
+
 	void SetTransform(const Rml::Matrix4f *transform) override;
 
 	std::size_t GeometryCount() const

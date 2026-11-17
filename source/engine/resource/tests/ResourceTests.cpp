@@ -46,13 +46,20 @@ class Scratch
 		m_fileSystem.AddMount({"base", m_directory / "base", false});
 		m_fileSystem.AddMount({"mod", m_directory / "mod", false});
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -60,10 +67,14 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary | std::ios::trunc} << contents;
 	}
+
+
 	void Remove(const std::string &path) const
 	{
 		std::filesystem::remove(m_directory / path);
 	}
+
+
 	const Vfs::FileSystem &Files() const
 	{
 		return m_fileSystem;
@@ -73,6 +84,7 @@ class Scratch
 	std::filesystem::path m_directory;
 	Vfs::FileSystem m_fileSystem;
 };
+
 
 // A Text is the file's bytes; a file that says "bad" is refused, as a parser refuses bad data.
 Resource::Loader<Text> TextLoader()
@@ -89,6 +101,7 @@ Resource::Loader<Text> TextLoader()
 	    {}};
 }
 
+
 // Finishes the loads the worker has, as a frame's Update does once they are done.
 void Settle(Jobs::IoWorker &worker, Resource::ResourceManager &manager)
 {
@@ -96,11 +109,13 @@ void Settle(Jobs::IoWorker &worker, Resource::ResourceManager &manager)
 	manager.Update();
 }
 
+
 Resource::ResourceOptions NoHotReload()
 {
 	return {.hotReload = false, .pollInterval = {}};
 }
 } // namespace
+
 
 TEST_CASE("Resource: a default handle is null and handles compare by index and generation")
 {
@@ -109,6 +124,7 @@ TEST_CASE("Resource: a default handle is null and handles compare by index and g
 	CHECK(Handle{3, 1} == Handle{3, 1});
 	CHECK(Handle{3, 1} != Handle{3, 2});
 }
+
 
 TEST_CASE("Resource: a load returns at once, and the value is there after the next Update")
 {
@@ -131,6 +147,7 @@ TEST_CASE("Resource: a load returns at once, and the value is there after the ne
 	CHECK(manager.RevisionOf(handle) == 1);
 	CHECK(manager.ErrorOf(handle).empty());
 }
+
 
 TEST_CASE("Resource: the count of first loads in flight, which a reload and a failure leave")
 {
@@ -164,6 +181,7 @@ TEST_CASE("Resource: the count of first loads in flight, which a reload and a fa
 	manager.Release(missing);
 }
 
+
 TEST_CASE("Resource: loads of one path share a slot, counted, and the last release frees it")
 {
 	const Scratch scratch;
@@ -195,6 +213,7 @@ TEST_CASE("Resource: loads of one path share a slot, counted, and the last relea
 	CHECK(manager.TryGet(reused)->contents == "other");
 }
 
+
 TEST_CASE("Resource: each type has its own table, so one path can be two resources")
 {
 	const Scratch scratch;
@@ -215,6 +234,7 @@ TEST_CASE("Resource: each type has its own table, so one path can be two resourc
 	CHECK(manager.TryGet(text)->contents == "hello");
 	CHECK(manager.TryGet(length)->bytes == 5);
 }
+
 
 TEST_CASE("Resource: a missing file or bad data fails the resource, with the reason kept")
 {
@@ -237,6 +257,7 @@ TEST_CASE("Resource: a missing file or bad data fails the resource, with the rea
 	CHECK(manager.StatusOf(bad) == Status::Invalid);
 }
 
+
 TEST_CASE("Resource: misuse is refused at the call")
 {
 	const Scratch scratch;
@@ -253,6 +274,7 @@ TEST_CASE("Resource: misuse is refused at the call")
 	CHECK_THROWS_AS((void)manager.Load<Text>("../escape.txt"), std::invalid_argument);
 	CHECK_THROWS_AS(manager.Release(Resource::ResourceHandle<Text>{}), std::logic_error);
 }
+
 
 TEST_CASE("Resource: decode runs on the worker and finish on the main thread, and finish can fail")
 {
@@ -291,6 +313,7 @@ TEST_CASE("Resource: decode runs on the worker and finish on the main thread, an
 	CHECK(manager.ErrorOf(refused) == "the upload was refused");
 }
 
+
 TEST_CASE("Resource: a release while the load is in flight drops its result")
 {
 	const Scratch scratch;
@@ -315,6 +338,7 @@ TEST_CASE("Resource: a release while the load is in flight drops its result")
 	CHECK(manager.TryGet(reused)->contents == "other");
 }
 
+
 TEST_CASE("Resource: a manager destroyed with work in flight drops the completions")
 {
 	const Scratch scratch;
@@ -328,6 +352,7 @@ TEST_CASE("Resource: a manager destroyed with work in flight drops the completio
 	worker.WaitIdle();
 	worker.Drain();
 }
+
 
 TEST_CASE(
     "Resource: hot reload keeps the handle, bumps the revision, and keeps the old value on failure")
@@ -377,6 +402,7 @@ TEST_CASE(
 	CHECK(manager.ErrorOf(handle).empty());
 }
 
+
 TEST_CASE("Resource: hot reload retries a failed resource once its file appears, from Update")
 {
 	const Scratch scratch;
@@ -394,6 +420,7 @@ TEST_CASE("Resource: hot reload retries a failed resource once its file appears,
 	CHECK(manager.StatusOf(handle) == Status::Ready);
 	CHECK(manager.TryGet(handle)->contents == "here now");
 }
+
 
 TEST_CASE("Resource: retire sees a value a reload replaced and a value the last release dropped")
 {

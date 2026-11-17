@@ -38,6 +38,7 @@ class FormatVersionError : public std::runtime_error
 	{
 		return m_found;
 	}
+
 	std::uint32_t Expected() const
 	{
 		return m_expected;
@@ -105,8 +106,10 @@ class YamlArchive
 {
   public:
 	static std::string Write(const entt::meta_any &value, FormatVersion version);
+
 	static entt::meta_any Read(
 	    std::string_view text, const entt::meta_type &type, FormatVersion expected);
+
 	// Text of an earlier version is migrated first, as a YAML tree; what a step leaves is read as
 	// text of the current version would be. Errors name the lines of the text as it was.
 	static entt::meta_any Read(
@@ -128,6 +131,7 @@ class YamlArchive
 	// has the line of the one whose value it is.
 	static entt::meta_any ReadLayered(
 	    std::span<const YamlLayer> layers, const entt::meta_type &type, FormatVersion expected);
+
 	static entt::meta_any ReadLayered(
 	    std::span<const YamlLayer> layers, const entt::meta_type &type,
 	    const Migrations<YAML::Node> &migrations);
@@ -136,16 +140,19 @@ class YamlArchive
 	{
 		return Write(entt::forward_as_meta(value), version);
 	}
+
 	template <typename T> static T Read(std::string_view text, FormatVersion expected)
 	{
 		entt::meta_any value = Read(text, entt::resolve<T>(), expected);
 		return std::move(value.cast<T &>());
 	}
+
 	template <typename T> static T Read(std::string_view text, const Migrations<YAML::Node> &migrations)
 	{
 		entt::meta_any value = Read(text, entt::resolve<T>(), migrations);
 		return std::move(value.cast<T &>());
 	}
+
 	template <typename T>
 	static T ReadLayered(std::span<const YamlLayer> layers, FormatVersion expected)
 	{
@@ -163,8 +170,10 @@ class BinaryArchive
 {
   public:
 	static std::vector<std::byte> Write(const entt::meta_any &value, FormatVersion version);
+
 	static entt::meta_any Read(
 	    std::span<const std::byte> bytes, const entt::meta_type &type, FormatVersion expected);
+
 	// Data of an earlier version is migrated first. The chain's format is the root type's name.
 	static entt::meta_any Read(
 	    std::span<const std::byte> bytes, const entt::meta_type &type,
@@ -174,11 +183,13 @@ class BinaryArchive
 	{
 		return Write(entt::forward_as_meta(value), version);
 	}
+
 	template <typename T> static T Read(std::span<const std::byte> bytes, FormatVersion expected)
 	{
 		entt::meta_any value = Read(bytes, entt::resolve<T>(), expected);
 		return std::move(value.cast<T &>());
 	}
+
 	template <typename T>
 	static T Read(std::span<const std::byte> bytes, const BinaryMigrations &migrations)
 	{

@@ -27,18 +27,24 @@ class Random
 {
   public:
 	explicit Random(std::uint64_t seed = 0, std::uint64_t stream = 0);
+
 	static Random FromState(const RandomState &state);
 
 	std::uint32_t NextU32();
+
 	// Two draws, the first in the high half.
 	std::uint64_t NextU64();
+
 	// Uniform in [0, 1), from the top 24 and 53 bits of a draw: every value is a multiple of the
 	// smallest step, so each is equally likely.
 	float NextFloat();
+
 	double NextDouble();
+
 	// Uniform in [min, max], without the bias a modulo has; min <= max. The whole int32 range is
 	// allowed.
 	std::int32_t Range(std::int32_t min, std::int32_t max);
+
 	// Uniform in [min, max); max itself only by rounding.
 	float Range(float min, float max);
 

@@ -40,6 +40,7 @@ struct Unreflected
 {
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -75,13 +76,20 @@ class Scratch
 		m_fileSystem.AddMount({"mod", m_directory / "mod", false});
 		m_fileSystem.AddMount({"later", m_directory / "later", false});
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -89,6 +97,8 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary | std::ios::trunc} << contents;
 	}
+
+
 	const Vfs::FileSystem &Files() const
 	{
 		return m_fileSystem;
@@ -98,6 +108,7 @@ class Scratch
 	std::filesystem::path m_directory;
 	Vfs::FileSystem m_fileSystem;
 };
+
 
 void PutBase(const Scratch &scratch)
 {
@@ -111,6 +122,7 @@ void PutBase(const Scratch &scratch)
 	scratch.Put("base/defs/ships/README.txt", "Not a definition.");
 }
 } // namespace
+
 
 TEST_CASE("Definitions: every file under a directory is a definition, named by its path")
 {
@@ -137,6 +149,7 @@ TEST_CASE("Definitions: every file under a directory is a definition, named by i
 	CHECK(registry.Find<ShipClass>("README") == nullptr);
 }
 
+
 TEST_CASE("Definitions: a mod overrides a definition by its path, and adds new ones")
 {
 	RegisterTypes();
@@ -157,6 +170,7 @@ TEST_CASE("Definitions: a mod overrides a definition by its path, and adds new o
 	CHECK(registry.Find<ShipClass>("hauler")->cargo == 2000);
 	CHECK(registry.Find<ShipClass>("racer")->mass == 3000.0);
 }
+
 
 TEST_CASE("Definitions: a bad file is refused naming it, and the previous set stays")
 {
@@ -183,6 +197,7 @@ TEST_CASE("Definitions: a bad file is refused naming it, and the previous set st
 	    Serialise::FormatError);
 	CHECK(registry.Count() == 3);
 }
+
 
 TEST_CASE("Definitions: a file of an earlier version is migrated, so an old mod still loads")
 {
@@ -215,6 +230,7 @@ TEST_CASE("Definitions: a file of an earlier version is migrated, so an old mod 
 	    Serialise::FormatError);
 	CHECK(registry.Find<ShipClass>("racer")->mass == 3000.0);
 }
+
 
 TEST_CASE("Definitions: a mod's patch changes the fields it names, and every mod's applies")
 {
@@ -256,6 +272,7 @@ TEST_CASE("Definitions: a mod's patch changes the fields it names, and every mod
 	        "defs/ships/hauler: patched by 'mod', 'later'", "defs/ships/racer: patched by 'mod'"});
 }
 
+
 TEST_CASE("Definitions: a whole file replaces the patches below it")
 {
 	RegisterTypes();
@@ -278,6 +295,7 @@ TEST_CASE("Definitions: a whole file replaces the patches below it")
 	CHECK(registry.Find<ShipClass>("hauler")->cargo == 0);
 	CHECK(registry.Find<ShipClass>("hauler")->mass == 0.0);
 }
+
 
 TEST_CASE("Definitions: a patch is refused, naming it and its mount, when it does not fit")
 {
@@ -310,6 +328,7 @@ TEST_CASE("Definitions: a patch is refused, naming it and its mount, when it doe
 	CHECK(registry.Count() == 3);
 }
 
+
 TEST_CASE("Definitions: a patch of an earlier version is migrated before it is merged")
 {
 	RegisterTypes();
@@ -331,6 +350,7 @@ TEST_CASE("Definitions: a patch of an earlier version is migrated before it is m
 	CHECK(registry.Find<ShipClass>("hauler")->cargo == 5);
 	CHECK(registry.Find<ShipClass>("hauler")->displayName == "Hauler");
 }
+
 
 TEST_CASE("Definitions: an empty directory is an empty set, and an unreflected type is a defect")
 {

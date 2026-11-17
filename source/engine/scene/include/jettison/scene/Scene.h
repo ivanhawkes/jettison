@@ -28,17 +28,21 @@ class SceneFile
 	static SceneFile Read(std::string_view text);
 
 	SceneFile(SceneFile &&) noexcept;
+
 	SceneFile &operator=(SceneFile &&) noexcept;
+
 	~SceneFile();
 
 	// The star system it names, by virtual path; empty for a file that names none.
 	const std::string &StarSystem() const;
+
 	// The celestial bodies its entities present, in the file's order.
 	std::vector<std::string> CelestialBodies() const;
 
   private:
 	friend class Scene;
 	struct Document;
+
 	explicit SceneFile(std::unique_ptr<Document> pDocument);
 
 	std::unique_ptr<Document> m_pDocument;
@@ -66,25 +70,33 @@ class Scene
 	explicit Scene(Resource::ResourceManager *pResources = nullptr) : m_pResources{pResources}
 	{
 	}
+
 	~Scene();
 
 	Scene(const Scene &) = delete;
+
 	Scene &operator=(const Scene &) = delete;
 
 	// Replaces the scene with the file's. A file that fails leaves the scene empty, and the exception
 	// names it.
 	void Load(const std::filesystem::path &path);
+
 	void LoadText(std::string_view text);
+
 	// Replaces the scene with a file already read and checked; it fails only where making the
 	// entities does (a model, whose rig this scene has no resource manager to load), and then
 	// leaves the scene empty.
 	void Load(const SceneFile &file);
+
 	void Save(const std::filesystem::path &path) const;
+
 	std::string SaveText() const;
+
 	// Replaces the scene with one that authors nothing and names a star system, by virtual path: the
 	// system scene (scene/SystemScene.h) then builds all of it from the system file. Saved, it is a
 	// file of that system and no entities.
 	void LoadSystem(std::string_view starSystem);
+
 	// Empties the scene, releasing the rigs it loaded.
 	void Clear();
 
@@ -96,6 +108,7 @@ class Scene
 	// Whether a layer is drawn and lights the scene; every layer is, to begin with. Held in the
 	// registry's context (LayerVisibility), so it outlasts a load, and the scene update applies it.
 	void SetLayerVisible(Layer layer, bool visible);
+
 	bool IsLayerVisible(Layer layer) const;
 
 	// Counts the times this scene's contents have been replaced, so the renderer knows to rebake the
@@ -116,6 +129,7 @@ class Scene
 	{
 		return m_registry;
 	}
+
 	const entt::registry &Registry() const
 	{
 		return m_registry;

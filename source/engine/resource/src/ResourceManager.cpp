@@ -26,10 +26,12 @@ constexpr Core::Category kResource{"resource"};
 // over the base's counts as one; nothing is a file that was in no mount.
 using Stamp = std::optional<Vfs::FileInfo>;
 
+
 Stamp StampOf(const Vfs::FileSystem &fileSystem, const std::string &virtualPath)
 {
 	return fileSystem.Find(virtualPath);
 }
+
 
 std::uint32_t NextGeneration(std::uint32_t generation)
 {
@@ -72,6 +74,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		Stamp stamp;
 	};
 
+
 	State(const Vfs::FileSystem &files, Jobs::IoWorker &io, ResourceOptions settings)
 	    : fileSystem{files}, worker{io}, options{settings}
 	{
@@ -84,6 +87,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 	std::uint64_t nextTicket{1};
 	std::chrono::steady_clock::time_point lastPoll{std::chrono::steady_clock::now()};
 
+
 	Pool &PoolFor(std::type_index type)
 	{
 		const auto found = pools.find(type);
@@ -93,6 +97,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		return found->second;
 	}
 
+
 	const Slot *Find(std::type_index type, RawHandle handle) const
 	{
 		const auto pool = pools.find(type);
@@ -101,6 +106,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		const Slot &slot = pool->second.slots[handle.index];
 		return (slot.generation == handle.generation && slot.references > 0) ? &slot : nullptr;
 	}
+
 
 	void Start(std::type_index type, Pool &pool, std::uint32_t index)
 	{
@@ -139,12 +145,14 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		    });
 	}
 
+
 	// Hands the slot's current value, if it has one, to the loader's retire before it is dropped.
 	static void Retire(const Pool &pool, Slot &slot) noexcept
 	{
 		if (slot.value && pool.loader->retire)
 			pool.loader->retire(slot.value.get());
 	}
+
 
 	void Finish(
 	    std::type_index type, std::uint32_t index, std::uint32_t generation, std::uint64_t ticket,
@@ -190,19 +198,23 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 	}
 };
 
+
 ResourceManager::ResourceManager(
     const Vfs::FileSystem &fileSystem, Jobs::IoWorker &ioWorker, ResourceOptions options)
     : m_pState{std::make_shared<State>(fileSystem, ioWorker, options)}
 {
 }
 
+
 // Completions still queued on the worker hold a weak pointer to the state, which expires here.
 ResourceManager::~ResourceManager() = default;
+
 
 void ResourceManager::ThrowNoDecode(std::type_index type)
 {
 	throw std::logic_error{std::format("Resource: the loader for '{}' has no decode", type.name())};
 }
+
 
 void ResourceManager::RegisterRaw(std::type_index type, RawLoader loader)
 {
@@ -212,6 +224,7 @@ void ResourceManager::RegisterRaw(std::type_index type, RawLoader loader)
 		    std::format("Resource: a loader for '{}' is already registered", type.name())};
 	pool->second.loader = std::make_shared<const RawLoader>(std::move(loader));
 }
+
 
 ResourceManager::RawHandle ResourceManager::LoadRaw(std::type_index type, std::string_view virtualPath)
 {
@@ -248,11 +261,13 @@ ResourceManager::RawHandle ResourceManager::LoadRaw(std::type_index type, std::s
 	return {index, slot.generation};
 }
 
+
 const void *ResourceManager::TryGetRaw(std::type_index type, RawHandle handle) const
 {
 	const State::Slot *slot = m_pState->Find(type, handle);
 	return slot ? slot->value.get() : nullptr;
 }
+
 
 Status ResourceManager::StatusRaw(std::type_index type, RawHandle handle) const
 {
@@ -260,17 +275,20 @@ Status ResourceManager::StatusRaw(std::type_index type, RawHandle handle) const
 	return slot ? slot->status : Status::Invalid;
 }
 
+
 std::string_view ResourceManager::ErrorRaw(std::type_index type, RawHandle handle) const
 {
 	const State::Slot *slot = m_pState->Find(type, handle);
 	return slot ? std::string_view{slot->error} : std::string_view{};
 }
 
+
 std::uint32_t ResourceManager::RevisionRaw(std::type_index type, RawHandle handle) const
 {
 	const State::Slot *slot = m_pState->Find(type, handle);
 	return slot ? slot->revision : 0;
 }
+
 
 void ResourceManager::ReleaseRaw(std::type_index type, RawHandle handle)
 {
@@ -292,6 +310,7 @@ void ResourceManager::ReleaseRaw(std::type_index type, RawHandle handle)
 	pool.free.push_back(handle.index);
 }
 
+
 std::size_t ResourceManager::Loading() const
 {
 	std::size_t loading = 0;
@@ -300,6 +319,7 @@ std::size_t ResourceManager::Loading() const
 			loading += slot.references > 0 && slot.status == Status::Loading ? 1 : 0;
 	return loading;
 }
+
 
 void ResourceManager::Update()
 {
@@ -313,6 +333,7 @@ void ResourceManager::Update()
 	CheckForChanges();
 }
 
+
 void ResourceManager::ReloadAll()
 {
 	for (auto &[type, pool] : m_pState->pools)
@@ -320,6 +341,7 @@ void ResourceManager::ReloadAll()
 			if (pool.slots[index].references > 0 && !pool.slots[index].inFlight)
 				m_pState->Start(type, pool, index);
 }
+
 
 void ResourceManager::CheckForChanges()
 {

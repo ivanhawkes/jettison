@@ -24,10 +24,12 @@ constexpr double kTouching = 0.01;
 // How near to a unit length, and to square, a pad's normal and heading have to be.
 constexpr double kUnitTolerance = 1.0e-3;
 
+
 [[noreturn]] void Refuse(std::string_view what, std::string_view name, const std::string &problem)
 {
 	throw Serialise::FormatError{std::format("{} '{}' {}", what, name, problem)};
 }
+
 
 bool Finite(const glm::dvec3 &vector)
 {
@@ -43,6 +45,7 @@ struct Oriented
 	glm::dvec3 half{0.0};
 };
 
+
 Oriented Square(const Box &box, double shrink)
 {
 	Oriented oriented;
@@ -51,12 +54,14 @@ Oriented Square(const Box &box, double shrink)
 	return oriented;
 }
 
+
 // The pad's axes, as PadOrientation has them: across it, its normal, and back along its heading.
 std::array<glm::dvec3, 3> PadAxes(const PadLayout &pad)
 {
 	const glm::dvec3 back = -pad.heading;
 	return {glm::cross(pad.normal, back), pad.normal, back};
 }
+
 
 // The space from `from` to `to` above the pad along its normal, over its footprint, less the
 // shrink on every side.
@@ -70,6 +75,7 @@ Oriented Above(const PadLayout &pad, double from, double to, double shrink)
 	    glm::max(glm::dvec3{size.x * 0.5, (to - from) * 0.5, size.y * 0.5} - shrink, glm::dvec3{0.0});
 	return oriented;
 }
+
 
 // Whether two turned boxes overlap: the separating axis test over their faces' normals and the
 // crosses of their edges, fifteen axes.
@@ -99,12 +105,14 @@ bool Overlap(const Oriented &a, const Oriented &b)
 	return true;
 }
 
+
 bool Inside(const Box &box, const glm::dvec3 &point)
 {
 	const glm::dvec3 offset = glm::abs(point - box.centre);
 	const glm::dvec3 half = box.size * 0.5;
 	return offset.x <= half.x && offset.y <= half.y && offset.z <= half.z;
 }
+
 
 // The decks and piers together.
 std::vector<Box> Structure(const StationLayout &layout)
@@ -114,11 +122,13 @@ std::vector<Box> Structure(const StationLayout &layout)
 	return boxes;
 }
 
+
 std::string PadName(std::size_t index)
 {
 	return std::format("pad {}", index + 1);
 }
 } // namespace
+
 
 glm::vec3 LargestHull(PadClass padClass)
 {
@@ -132,6 +142,7 @@ glm::vec3 LargestHull(PadClass padClass)
 	return {};
 }
 
+
 glm::vec2 PadSize(PadClass padClass)
 {
 	switch (padClass)
@@ -143,6 +154,7 @@ glm::vec2 PadSize(PadClass padClass)
 	}
 	return {};
 }
+
 
 void CheckHull(std::string_view name, const HullDefinition &hull)
 {
@@ -171,6 +183,7 @@ void CheckHull(std::string_view name, const HullDefinition &hull)
 		    "not above 0 and at most 1");
 }
 
+
 double Radius(const StationLayout &layout)
 {
 	double radius = 0.0;
@@ -178,6 +191,7 @@ double Radius(const StationLayout &layout)
 		radius = std::max(radius, glm::length(glm::abs(box.centre) + box.size * 0.5));
 	return radius;
 }
+
 
 void CheckLayout(std::string_view name, const StationLayout &layout)
 {
@@ -253,6 +267,7 @@ void CheckLayout(std::string_view name, const StationLayout &layout)
 			Refuse(kWhat, name, PadName(index) + " is not reached by road from a cargo bay");
 }
 
+
 Physics::ShapeDefinition DeckShape(const StationLayout &layout)
 {
 	Physics::ShapeDefinition shape;
@@ -290,6 +305,7 @@ Physics::ShapeDefinition DeckShape(const StationLayout &layout)
 	}
 	return shape;
 }
+
 
 glm::dquat PadOrientation(const PadLayout &pad)
 {

@@ -34,6 +34,7 @@ std::vector<std::byte> ReadBytes(const std::filesystem::path &path)
 	return bytes;
 }
 
+
 // A binary PPM, which stb_image reads like a PNG and a test can write by hand: RGB triples, row by
 // row from the top.
 std::vector<std::byte> Ppm(
@@ -49,10 +50,12 @@ std::vector<std::byte> Ppm(
 	return bytes;
 }
 
+
 std::uint8_t Texel(const TextureData &texture, std::size_t level, std::size_t index)
 {
 	return static_cast<std::uint8_t>(texture.bytes[texture.levels[level].offset + index]);
 }
+
 
 void CheckChain(const TextureData &texture, std::size_t bytesPerTexel, std::uint32_t block)
 {
@@ -75,12 +78,14 @@ void CheckChain(const TextureData &texture, std::size_t bytesPerTexel, std::uint
 	CHECK(texture.levels.back().height == 1);
 }
 
+
 std::filesystem::path Sample(const char *name)
 {
 	return std::filesystem::path{JETTISON_ASSET_SOURCE_DIR} / "textures" / "hulls" / "hull-panels" /
 	       name;
 }
 } // namespace
+
 
 TEST_CASE("Texture: the sample KTX 2 files transcode from UASTC and ETC1S to BC7 and to RGBA8")
 {
@@ -104,6 +109,7 @@ TEST_CASE("Texture: the sample KTX 2 files transcode from UASTC and ETC1S to BC7
 	}
 }
 
+
 TEST_CASE("Texture: the panels' seams survive the transcode, dark against the plate")
 {
 	const TextureData texture = DecodeKtx2(
@@ -115,6 +121,7 @@ TEST_CASE("Texture: the panels' seams survive the transcode, dark against the pl
 	CHECK(Texel(texture, 0, 3) == 255);
 }
 
+
 TEST_CASE("Texture: KTX 2 data it cannot use is refused with the file's name")
 {
 	const std::vector<std::byte> garbage(64, std::byte{0x2a});
@@ -124,6 +131,7 @@ TEST_CASE("Texture: KTX 2 data it cannot use is refused with the file's name")
 	CHECK_THROWS_AS(DecodeKtx2({}, TranscodeTarget::Bc7, "empty"), std::runtime_error);
 	CHECK_THROWS_AS(DecodeImage(garbage, true, "garbage.png"), std::runtime_error);
 }
+
 
 TEST_CASE("Texture: a development image gets a mip chain, filtered in linear light when sRGB")
 {
@@ -155,6 +163,7 @@ TEST_CASE("Texture: a development image gets a mip chain, filtered in linear lig
 	CHECK(Texel(tall, 2, 0) == 200);
 }
 
+
 TEST_CASE("Texture: the decoder is chosen by extension, and .linear names linear data")
 {
 	const std::vector<std::byte> image = Ppm(1, 1, {10, 20, 30});
@@ -176,6 +185,7 @@ TEST_CASE("Texture: the decoder is chosen by extension, and .linear names linear
 	CHECK(solid.levels.size() == 1);
 	CHECK(Texel(solid, 0, 3) == 4);
 }
+
 
 TEST_CASE("Texture: a texture changed on disk reloads through the resource manager")
 {

@@ -18,6 +18,7 @@ constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
 const std::uint64_t kVesper = Sim::SystemId("Vesper");
 
+
 double Coordinate(Math::Random &random)
 {
 	return (random.NextDouble() - 0.5) * 10000.0;
@@ -28,6 +29,7 @@ struct Fixture
 	Sim::SimWorld world{kStep, 3};
 	Spatial::SystemIndices &indices{Setup(world)};
 
+
 	static Spatial::SystemIndices &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -35,6 +37,7 @@ struct Fixture
 		world.RegisterComponent<Sim::InSystem>();
 		return Spatial::SystemIndices::Attach(world);
 	}
+
 
 	entt::entity Add(const glm::dvec3 &position, std::uint64_t system)
 	{
@@ -44,6 +47,7 @@ struct Fixture
 		registry.emplace<Sim::InSystem>(entity, system);
 		return entity;
 	}
+
 
 	// What the index of a system should find within the radius: every entity in that system, by
 	// its Transform, in identifier order.
@@ -60,6 +64,7 @@ struct Fixture
 		return found;
 	}
 
+
 	std::vector<entt::entity> Found(std::uint64_t system, const glm::dvec3 &centre, double radius) const
 	{
 		const Spatial::SpatialIndex *index = indices.Find(system);
@@ -67,6 +72,7 @@ struct Fixture
 	}
 };
 } // namespace
+
 
 TEST_CASE("System indices: each system's entities are in its own index, as the step found them")
 {
@@ -132,6 +138,7 @@ TEST_CASE("System indices: each system's entities are in its own index, as the s
 	CHECK(fixture.indices.Systems() == std::vector<std::uint64_t>{kHalcyon});
 	CHECK(fixture.Found(kHalcyon, station, 1.0e5) == fixture.Expected(kHalcyon, station, 1.0e5));
 }
+
 
 TEST_CASE("System indices: a world loaded from a save is indexed from its next step")
 {

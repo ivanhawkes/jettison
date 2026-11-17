@@ -110,6 +110,7 @@ class EntitySlots
 		const auto index = static_cast<std::size_t>(entt::to_entity(entity));
 		return index < m_slots.size() ? m_slots[index] : kNone;
 	}
+
 	void Set(entt::entity entity, std::uint32_t slot)
 	{
 		const auto index = static_cast<std::size_t>(entt::to_entity(entity));
@@ -117,10 +118,12 @@ class EntitySlots
 			m_slots.resize(index + 1, kNone);
 		m_slots[index] = slot;
 	}
+
 	void Clear(entt::entity entity)
 	{
 		m_slots[static_cast<std::size_t>(entt::to_entity(entity))] = kNone;
 	}
+
 	void ClearAll()
 	{
 		m_slots.clear();
@@ -138,13 +141,16 @@ class NearestSet
 	NearestSet(std::size_t count, double maxDistance);
 
 	void Offer(entt::entity entity, double distanceSquared);
+
 	bool Full() const
 	{
 		return m_heap.size() == m_count;
 	}
+
 	// The squared distance past which nothing can be kept: the farthest kept once full, the limit
 	// until then. Something exactly this far may still be kept, on its identifier.
 	double Bound() const;
+
 	// What was kept, nearest first.
 	void Take(std::vector<Neighbour> &out);
 

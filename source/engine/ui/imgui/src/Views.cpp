@@ -34,22 +34,29 @@ class FontScope
 	{
 		ImGui::PushFont(m_font, fontSizeBase);
 	}
+
+
 	~FontScope()
 	{
 		ImGui::PopFont();
 	}
 
+
 	FontScope(const FontScope &) = delete;
+
+
 	FontScope &operator=(const FontScope &) = delete;
 
   private:
 	ImFont *m_font;
 };
 
+
 ImVec4 ToImVec4(Rgba colour)
 {
 	return {colour.r, colour.g, colour.b, colour.a};
 }
+
 
 // The line's colour, from its role: the echoed command in the theme's one accent, a refusal in its
 // danger, the category a log came under in its signature colour (Theme.h, LineToken).
@@ -58,10 +65,12 @@ ImVec4 LineColour(const ConsoleLine &line)
 	return ToImVec4(ColourOf(LineToken(line)));
 }
 
+
 ImVec4 CategoryColour()
 {
 	return ToImVec4(ColourOf(Token::Accent));
 }
+
 
 // The palette names, one after the other and the list ended, as a combo's items want them.
 const char *PaletteItems()
@@ -77,6 +86,7 @@ const char *PaletteItems()
 	return items.c_str();
 }
 
+
 int PaletteIndex(Palette palette)
 {
 	const std::span variants = PaletteVariants();
@@ -84,11 +94,13 @@ int PaletteIndex(Palette palette)
 	return found == variants.end() ? 0 : static_cast<int>(found - variants.begin());
 }
 
+
 void Replace(ImGuiInputTextCallbackData *data, const std::string &text)
 {
 	data->DeleteChars(0, data->BufTextLen);
 	data->InsertChars(0, text.c_str());
 }
+
 
 int OnInput(ImGuiInputTextCallbackData *data)
 {
@@ -132,6 +144,7 @@ int OnInput(ImGuiInputTextCallbackData *data)
 }
 } // namespace
 
+
 ImFont *MonoFont()
 {
 	// ImGui names a font by `ImFontConfig::Name`, and for a face read from memory that name is
@@ -156,6 +169,7 @@ ImFont *MonoFont()
 	}
 	return nullptr;
 }
+
 
 void DrawConsole(Console &console, ConsoleViewState &state, const ThemeSettings &settings, bool *open)
 {
@@ -234,6 +248,7 @@ void DrawConsole(Console &console, ConsoleViewState &state, const ThemeSettings 
 	}
 	ImGui::End();
 }
+
 
 void DrawDevTools(Console &console, DevToolsState &state, ThemeSettings &settings, bool *open)
 {

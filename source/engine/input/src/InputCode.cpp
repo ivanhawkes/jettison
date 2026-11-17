@@ -94,6 +94,7 @@ constexpr std::array kDevices{
     DeviceNames{Device::GamepadAxis, "GamepadAxis", kGamepadAxes},
 };
 
+
 template <typename T> bool ParseWhole(std::string_view text, T &value)
 {
 	const char *const first = std::to_address(text.begin());
@@ -102,12 +103,14 @@ template <typename T> bool ParseWhole(std::string_view text, T &value)
 	return !text.empty() && error == std::errc{} && stop == last;
 }
 
+
 std::string FormatNumber(float value)
 {
 	std::array<char, 32> buffer{};
 	const auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
 	return {buffer.data(), result.ptr};
 }
+
 
 std::string_view Trim(std::string_view text)
 {
@@ -117,6 +120,7 @@ std::string_view Trim(std::string_view text)
 		text.remove_suffix(1);
 	return text;
 }
+
 
 std::optional<Binding> ParseBinding(std::string_view text)
 {
@@ -153,6 +157,7 @@ std::optional<Binding> ParseBinding(std::string_view text)
 }
 } // namespace
 
+
 std::string FormatInput(InputCode input)
 {
 	if (input.device == Device::JoystickAxis || input.device == Device::JoystickButton)
@@ -181,6 +186,7 @@ std::string FormatInput(InputCode input)
 	}
 	return std::format("#{}.#{}", static_cast<int>(input.device), input.code);
 }
+
 
 std::optional<InputCode> ParseInput(std::string_view text)
 {
@@ -236,6 +242,7 @@ std::optional<InputCode> ParseInput(std::string_view text)
 	return std::nullopt;
 }
 
+
 std::string FormatBindings(const std::vector<Binding> &bindings)
 {
 	std::string text;
@@ -255,6 +262,7 @@ std::string FormatBindings(const std::vector<Binding> &bindings)
 	}
 	return text;
 }
+
 
 std::optional<std::vector<Binding>> ParseBindings(std::string_view text)
 {

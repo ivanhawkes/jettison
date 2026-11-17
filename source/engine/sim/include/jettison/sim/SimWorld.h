@@ -40,10 +40,12 @@ struct SnapshotOutput
 	{
 		writer.WriteUnsigned(count, 4);
 	}
+
 	void operator()(entt::entity entity)
 	{
 		writer.Write(entity);
 	}
+
 	template <typename T> void operator()(const T &component)
 	{
 		writer.Write(component);
@@ -62,10 +64,12 @@ struct SnapshotInput
 		if (count > reader.Remaining() / 4)
 			reader.Fail("the count is more than the data holds");
 	}
+
 	void operator()(entt::entity &entity)
 	{
 		reader.Read(entity);
 	}
+
 	template <typename T> void operator()(T &component)
 	{
 		reader.Read(component);
@@ -80,6 +84,7 @@ struct MigratingInput : SnapshotInput
 	std::uint32_t version;
 
 	using SnapshotInput::operator();
+
 	template <typename T> void operator()(T &component)
 	{
 		Serialise::BinaryRecord record = reader.ReadRecord();
@@ -100,12 +105,16 @@ class WorldService
 {
   public:
 	WorldService() = default;
+
 	virtual ~WorldService() = default;
+
 	WorldService(const WorldService &) = delete;
+
 	WorldService &operator=(const WorldService &) = delete;
 
 	// The state, after the world's components. Part of Save, so of StateHash.
 	virtual void Save(Serialise::BinaryWriter &writer) const = 0;
+
 	// Reads a save's state against the registry the save is being loaded into, which is complete
 	// but not yet the world's, without changing the service. Returns what puts the state in place,
 	// which the world calls once that registry is its own and which does not throw. Throws
@@ -152,6 +161,7 @@ class SimWorld
 		RegisterComponent<T>(ComponentMigrations{
 		    std::string{Detail::ReflectedName(entt::resolve<T>(), "component")}, {}});
 	}
+
 	template <typename T> void RegisterComponent(ComponentMigrations migrations)
 	{
 		AddComponent(
@@ -207,6 +217,7 @@ class SimWorld
 	}
 	// What the snapshots copy, by EnTT's type hash: Capture runs each.
 	using ShownCapture = std::function<void(const entt::registry &, std::any &)>;
+
 	const std::vector<std::pair<entt::id_type, ShownCapture>> &Shown() const
 	{
 		return m_shown;
@@ -215,6 +226,7 @@ class SimWorld
 	// A system for the simulation phase; throws std::logic_error for one in another phase, and
 	// as Ecs::Scheduler::Register does.
 	void RegisterSystem(Ecs::SystemDescription system);
+
 	// The systems registered, and the order a step runs them in.
 	const Ecs::Scheduler &Scheduler() const
 	{
@@ -229,18 +241,22 @@ class SimWorld
 	{
 		return m_registry;
 	}
+
 	const entt::registry &Registry() const
 	{
 		return m_registry;
 	}
+
 	CommandQueue &Commands()
 	{
 		return m_commands;
 	}
+
 	const Time::SimClock &Clock() const
 	{
 		return m_clock;
 	}
+
 	// How fast the world runs, which is the player's to choose and not part of the state: a save
 	// leaves them out, and a load keeps the ones the world had. The clock throws for a factor that
 	// is not positive and finite.
@@ -248,15 +264,19 @@ class SimWorld
 	{
 		m_clock.SetPaused(paused);
 	}
+
 	void SetCompression(double factor)
 	{
 		m_clock.SetCompression(factor);
 	}
+
 	double FixedStep() const
 	{
 		return m_fixedStep;
 	}
+
 	Math::Random &Random();
+
 	EventQueue &Events();
 
 	// One fixed step: apply the queued commands in order, run the simulation-phase systems, and
@@ -274,7 +294,9 @@ class SimWorld
 	{
 		Apply(entt::forward_as_meta(command));
 	}
+
 	void Apply(const entt::meta_any &command);
+
 	// Whether a command of the type has a handler, so a step can apply it.
 	bool Accepts(const entt::meta_type &type) const;
 
@@ -284,6 +306,7 @@ class SimWorld
 	{
 		m_recording = recording;
 	}
+
 	const std::vector<AppliedCommand> &Recorded() const
 	{
 		return m_recorded;
@@ -292,6 +315,7 @@ class SimWorld
 	// The whole state: the clock, the generator, the commands still queued, the entities, every
 	// registered component and every service. Little-endian, in the binary archive's layout.
 	std::vector<std::byte> Save() const;
+
 	// Replaces the state with a save's. The registrations stay. A save of an earlier version is
 	// migrated to the current one first, by the world's chain of steps, one a version; a version 1
 	// save (before phase 7a) has no services' state, and loads only into a world with none. Then
@@ -324,7 +348,9 @@ class SimWorld
 	};
 
 	void AddComponent(const entt::meta_type &type, Component component);
+
 	void AddShown(entt::id_type type, ShownCapture capture);
+
 	void AddCommand(const entt::meta_type &type, Applier apply);
 
 	double m_fixedStep;

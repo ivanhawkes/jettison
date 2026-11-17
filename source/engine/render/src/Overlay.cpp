@@ -19,16 +19,19 @@ OverlayTextureId Overlay::AddTexture(OverlayTexture texture)
 	return id;
 }
 
+
 void Overlay::RemoveTexture(OverlayTextureId texture)
 {
 	m_textures.erase(texture);
 }
+
 
 const OverlayTexture *Overlay::FindTexture(OverlayTextureId texture) const
 {
 	const auto found = m_textures.find(texture);
 	return found != m_textures.end() ? &found->second : nullptr;
 }
+
 
 void Overlay::Clear()
 {
@@ -40,6 +43,7 @@ void Overlay::Clear()
 	m_transform.reset();
 }
 
+
 void Overlay::SetTransform(const std::optional<glm::mat4> &transform)
 {
 	if (!transform)
@@ -50,6 +54,7 @@ void Overlay::SetTransform(const std::optional<glm::mat4> &transform)
 	m_transform = static_cast<std::uint32_t>(m_transforms.size());
 	m_transforms.push_back(*transform);
 }
+
 
 void Overlay::Draw(
     std::span<const OverlayVertex> vertices, std::span<const std::uint32_t> indices,

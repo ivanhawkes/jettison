@@ -49,5 +49,6 @@ glm::mat4 RenderViewMatrix(const CameraView &camera);
 // double precision, and only then does the matrix become a float. The floating origin, as
 // Celestial::ToRenderSpace is for a point.
 glm::mat4 ToRenderSpace(const glm::dmat4 &world, const glm::dvec3 &camera);
+
 glm::vec3 ToRenderSpace(const glm::dvec3 &position, const glm::dvec3 &camera);
 } // namespace Jettison::Render

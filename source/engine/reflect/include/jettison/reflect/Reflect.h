@@ -62,6 +62,7 @@ class Name
 	{
 		return m_text;
 	}
+
 	constexpr entt::id_type Id() const
 	{
 		return m_id;
@@ -119,8 +120,10 @@ template <typename T, auto Member> void *MemberAddress(void *object)
 
 // Throws RegistrationError unless name is free for a type and the type is not registered yet.
 void CheckTypeName(Name name, const entt::type_info &info);
+
 // Throws RegistrationError if type already has a field or an enumerator by that name.
 void CheckFieldName(const entt::meta_type &type, Name name);
+
 // Records an optional type's traits the first time a field of that type is registered.
 void AddOptional(const entt::type_info &info, const OptionalTraits &traits);
 
@@ -139,15 +142,18 @@ template <typename T> struct OptionalOf
 	{
 		return entt::resolve<Value>();
 	}
+
 	static bool HasValue(const entt::meta_any &optional)
 	{
 		const T *pOptional = optional.try_cast<T>();
 		return pOptional != nullptr && pOptional->has_value();
 	}
+
 	static entt::meta_any GetValue(const entt::meta_any &optional)
 	{
 		return entt::meta_any{**optional.try_cast<T>()};
 	}
+
 	static entt::meta_any Make(entt::meta_any &value)
 	{
 		return entt::meta_any{T{value.cast<Value>()}};
@@ -243,6 +249,7 @@ entt::meta_type Resolve(std::string_view name);
 
 // The attributes a registered type or field was given.
 Attribute AttributesOf(const entt::meta_type &type);
+
 Attribute AttributesOf(const entt::meta_data &field);
 
 // The fields of a registered type that carry every attribute in wanted, in registration order.

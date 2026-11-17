@@ -35,6 +35,7 @@ struct Hold
 	std::uint32_t quantity{0};
 	double mass{0.0};
 
+
 	bool operator==(const Hold &) const = default;
 };
 
@@ -60,6 +61,7 @@ struct Ship
 	Hold spare{.good = Good::Fuel, .quantity = 7, .mass = 1.5};
 	// Runtime state: not Saved, so never written, and refused if a file names it.
 	int reservedBy{0};
+
 
 	bool operator==(const Ship &) const = default;
 };
@@ -89,8 +91,10 @@ struct Fitting
 	std::optional<glm::vec3> offset;
 	std::optional<Hold> hold;
 
+
 	bool operator==(const Fitting &) const = default;
 };
+
 
 // The tables are global and doctest runs every case in one process, so registration happens
 // once, from whichever case runs first.
@@ -142,6 +146,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 // A value with something awkward in every field: extremes of each integer width, floats with
 // no short decimal form, strings YAML would read as something else if written bare.
 Ship AwkwardShip()
@@ -171,11 +176,13 @@ Ship AwkwardShip()
 }
 } // namespace
 
+
 TEST_CASE("Serialise: a version mismatch names both versions")
 {
 	const FormatVersionError error{"scene", 3, 1};
 	CHECK(std::string{error.what()} == "scene: version 3 found, version 1 expected");
 }
+
 
 TEST_CASE("Serialise: YAML round-trips every field type, awkward values included")
 {
@@ -190,6 +197,7 @@ TEST_CASE("Serialise: YAML round-trips every field type, awkward values included
 	// Writing what was read gives the same text: nothing drifts on a second pass.
 	CHECK(YamlArchive::Write(read, {}) == text);
 }
+
 
 TEST_CASE("Serialise: YAML writes the version, then Saved fields in registration order")
 {
@@ -224,6 +232,7 @@ TEST_CASE("Serialise: YAML writes the version, then Saved fields in registration
 	CHECK(text.find("version: 1\nname:") == 0);
 }
 
+
 TEST_CASE("Serialise: YAML non-finite floats use YAML's spellings and read back")
 {
 	RegisterTypes();
@@ -248,6 +257,7 @@ TEST_CASE("Serialise: YAML non-finite floats use YAML's spellings and read back"
 	    -std::numeric_limits<float>::infinity());
 }
 
+
 TEST_CASE("Serialise: YAML fields the data leaves out keep their defaults, nested ones included")
 {
 	RegisterTypes();
@@ -266,6 +276,7 @@ TEST_CASE("Serialise: YAML fields the data leaves out keep their defaults, neste
 	REQUIRE(read.holds.size() == 1);
 	CHECK(read.holds[0] == Hold{Good::Ore, 5, 0.0});
 }
+
 
 TEST_CASE("Serialise: YAML that does not fit the type is refused, naming the field and the line")
 {
@@ -309,6 +320,7 @@ TEST_CASE("Serialise: YAML that does not fit the type is refused, naming the fie
 	refuse("version: 1\nname:\n", "expected a string, found nothing");
 }
 
+
 TEST_CASE("Serialise: YAML of another version throws FormatVersionError")
 {
 	RegisterTypes();
@@ -316,6 +328,7 @@ TEST_CASE("Serialise: YAML of another version throws FormatVersionError")
 	    YamlArchive::Read<Hold>("version: 2\ngood: Ore\n", {1}),
 	    "SerialiseTests.Hold: version 2 found, version 1 expected", FormatVersionError);
 }
+
 
 TEST_CASE("Serialise: binary round-trips every field type, and writes the same bytes twice")
 {
@@ -334,6 +347,7 @@ TEST_CASE("Serialise: binary round-trips every field type, and writes the same b
 	CHECK(std::isnan(readNonFinite.throttle));
 	CHECK(readNonFinite.position.y == -std::numeric_limits<double>::infinity());
 }
+
 
 TEST_CASE("Serialise: binary is little-endian, with its names in a table")
 {
@@ -354,6 +368,7 @@ TEST_CASE("Serialise: binary is little-endian, with its names in a table")
 	CHECK(asText.find("Water") != std::string::npos);
 	CHECK(asText.find("SerialiseTests.Hold") != std::string::npos);
 }
+
 
 TEST_CASE("Serialise: binary that does not fit is refused: any truncation, extra bytes, another type")
 {
@@ -388,6 +403,7 @@ TEST_CASE("Serialise: binary that does not fit is refused: any truncation, extra
 	    "SerialiseTests.Ship: version 1 found, version 2 expected", FormatVersionError);
 }
 
+
 TEST_CASE("Serialise: binary reports a field whose length does not match its type")
 {
 	RegisterTypes();
@@ -417,6 +433,7 @@ TEST_CASE("Serialise: binary reports a field whose length does not match its typ
 	    FormatError);
 }
 
+
 TEST_CASE("Serialise: a type an archive cannot write is a defect, reported as such")
 {
 	RegisterTypes();
@@ -441,6 +458,7 @@ TEST_CASE("Serialise: a type an archive cannot write is a defect, reported as su
 	    UnsupportedTypeError);
 	CHECK_THROWS_AS(BinaryArchive::Write(ship, {}), UnsupportedTypeError);
 }
+
 
 TEST_CASE("Serialise: binary streams carry a sequence of values under a format's name")
 {
@@ -482,6 +500,7 @@ TEST_CASE("Serialise: binary streams carry a sequence of values under a format's
 	CHECK_THROWS_WITH_AS(early.End(), doctest::Contains("bytes follow the value"), FormatError);
 	CHECK_THROWS_AS(writer.WriteUnsigned(1, 3), std::invalid_argument);
 }
+
 
 TEST_CASE("Serialise: an optional field is written when it holds a value and left out when not")
 {

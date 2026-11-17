@@ -5,6 +5,10 @@ its first production consumer and owns its gameplay and content. The small space
 example remains automated-test/sample coverage, separate from reusable engine code.
 That extraction is planned, not complete. Linux, Clang 21; `docs/` records the contracts.
 
+## Agent Directions
+
+Answer concisely.
+
 ## Environment & Tooling Instructions (NixOS + Niri + devenv.nix)
 
 You are operating inside a restricted `devenv.nix` shell environment on **NixOS** running the **Niri** Wayland compositor.

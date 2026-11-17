@@ -12,6 +12,7 @@ entt::id_type IdOf(std::string_view text)
 	return entt::hashed_string::value(text.data(), text.size());
 }
 
+
 // Keyed on the type's hash; written at registration, before any reader, as the meta tables are.
 std::map<entt::id_type, const OptionalTraits *> &Optionals()
 {
@@ -44,6 +45,7 @@ void CheckTypeName(Name name, const entt::type_info &info)
 	}
 }
 
+
 void CheckFieldName(const entt::meta_type &type, Name name)
 {
 	// EnTT replaces a field registered twice under one ID without a word, so a second field of
@@ -59,11 +61,13 @@ void CheckFieldName(const entt::meta_type &type, Name name)
 	}
 }
 
+
 void AddOptional(const entt::type_info &info, const OptionalTraits &traits)
 {
 	Optionals().try_emplace(info.hash(), &traits);
 }
 } // namespace Detail
+
 
 const OptionalTraits *FindOptional(const entt::meta_type &type)
 {
@@ -73,21 +77,25 @@ const OptionalTraits *FindOptional(const entt::meta_type &type)
 	return found == Optionals().end() ? nullptr : found->second;
 }
 
+
 entt::meta_type Resolve(std::string_view name)
 {
 	const entt::meta_type type = entt::resolve(IdOf(name));
 	return (type && type.name() == name) ? type : entt::meta_type{};
 }
 
+
 Attribute AttributesOf(const entt::meta_type &type)
 {
 	return type.traits<Attribute>();
 }
 
+
 Attribute AttributesOf(const entt::meta_data &field)
 {
 	return field.traits<Attribute>();
 }
+
 
 void *AddressOf(const entt::meta_data &field, void *object)
 {
@@ -96,6 +104,7 @@ void *AddressOf(const entt::meta_data &field, void *object)
 	const FieldAddress *address = field.custom();
 	return address != nullptr ? address->address(object) : nullptr;
 }
+
 
 std::vector<entt::meta_data> Fields(const entt::meta_type &type, Attribute wanted)
 {
@@ -108,11 +117,13 @@ std::vector<entt::meta_data> Fields(const entt::meta_type &type, Attribute wante
 	return fields;
 }
 
+
 entt::meta_data FindField(const entt::meta_type &type, std::string_view name)
 {
 	const entt::meta_data field = type.data(IdOf(name), false);
 	return (field && field.name() == name) ? field : entt::meta_data{};
 }
+
 
 std::string_view EnumName(const entt::meta_any &value)
 {
@@ -126,6 +137,7 @@ std::string_view EnumName(const entt::meta_any &value)
 	}
 	return {};
 }
+
 
 entt::meta_any EnumValue(const entt::meta_type &type, std::string_view name)
 {

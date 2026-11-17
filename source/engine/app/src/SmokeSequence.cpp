@@ -45,6 +45,7 @@ constexpr int kMinimumWidth = 160;
 constexpr int kMinimumHeight = 120;
 } // namespace
 
+
 SmokeSequence::SmokeSequence(SmokeActions actions, bool canIconify)
     : m_actions{std::move(actions)}, m_canIconify{canIconify}
 {

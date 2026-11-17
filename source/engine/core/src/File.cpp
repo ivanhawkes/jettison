@@ -21,18 +21,27 @@ class Descriptor
 	explicit Descriptor(int descriptor) : m_descriptor{descriptor}
 	{
 	}
+
+
 	~Descriptor()
 	{
 		if (m_descriptor >= 0)
 			::close(m_descriptor);
 	}
+
+
 	Descriptor(const Descriptor &) = delete;
+
+
 	Descriptor &operator=(const Descriptor &) = delete;
+
 
 	int Get() const
 	{
 		return m_descriptor;
 	}
+
+
 	// Closes it now, and says whether the close reported an error: on some file systems a write's
 	// failure is reported only there.
 	bool Close()
@@ -46,11 +55,13 @@ class Descriptor
 	int m_descriptor;
 };
 
+
 std::string Problem(std::string_view what)
 {
 	return std::format("{}: {}", what, std::strerror(errno));
 }
 } // namespace
+
 
 void WriteFileDurably(const std::filesystem::path &path, std::span<const std::byte> bytes)
 {
@@ -101,6 +112,7 @@ void WriteFileDurably(const std::filesystem::path &path, std::span<const std::by
 		    "{} was written, but its directory could not be flushed: {}", path.string(),
 		    std::strerror(errno))};
 }
+
 
 void WriteFileDurably(const std::filesystem::path &path, std::string_view text)
 {

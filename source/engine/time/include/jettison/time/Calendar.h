@@ -35,9 +35,11 @@ class Calendar
 	// The date of the second a moment falls in. Moments before simulation time 0 are dates before
 	// the epoch, not negative fields.
 	Date FromSimSeconds(double seconds) const;
+
 	// The simulation time a date starts at. Fields out of their range carry into the next one
 	// (hour 25 is 1 o'clock the next day), so FromSimSeconds(ToSimSeconds(date)) normalises.
 	double ToSimSeconds(const Date &date) const;
+
 	// ISO 8601's ordinal date and time, with the day counted from 1 as it specifies:
 	// "3301-043 14:05:09".
 	std::string Format(const Date &date) const;
@@ -46,10 +48,12 @@ class Calendar
 	{
 		return m_secondsPerDay;
 	}
+
 	std::int32_t DaysPerYear() const
 	{
 		return m_daysPerYear;
 	}
+
 	std::int32_t EpochYear() const
 	{
 		return m_epochYear;

@@ -27,6 +27,7 @@ namespace
 constexpr std::uint32_t kSpanSize = 8;
 constexpr std::uint32_t kSpanAlign = 4;
 
+
 std::uint32_t AlignUp(std::uint64_t value, std::uint32_t align)
 {
 	const std::uint64_t aligned = (value + align - 1) / align * align;
@@ -34,6 +35,7 @@ std::uint32_t AlignUp(std::uint64_t value, std::uint32_t align)
 		throw BindingError{"Script: a value is larger than a script's 4 GiB of memory"};
 	return static_cast<std::uint32_t>(aligned);
 }
+
 
 std::string CName(std::string_view registered)
 {
@@ -50,6 +52,7 @@ struct Leaf
 	const char *cName;
 };
 
+
 template <typename T> ValueKind ScalarKind()
 {
 	if constexpr (std::is_same_v<T, bool>)
@@ -62,11 +65,13 @@ template <typename T> ValueKind ScalarKind()
 		return ValueKind::Unsigned;
 }
 
+
 template <typename T, typename Component, std::uint8_t Count> Leaf Make(const char *cName)
 {
 	static_assert(sizeof(T) == sizeof(Component) * Count && std::is_trivially_copyable_v<T>);
 	return {ScalarKind<Component>(), sizeof(Component), Count, cName};
 }
+
 
 template <typename T> const char *IntegerName()
 {
@@ -82,10 +87,12 @@ template <typename T> const char *IntegerName()
 		                        : "uint64_t";
 }
 
+
 template <typename T> void AddInteger(std::unordered_map<entt::id_type, Leaf> &table)
 {
 	table.emplace(entt::type_id<T>().hash(), Make<T, T, 1>(IntegerName<T>()));
 }
+
 
 // Lookups only: no outcome depends on this map's order. Every standard integer type by name, as the
 // archives do, since std::int64_t is long here and long long elsewhere.
@@ -128,10 +135,12 @@ const std::unordered_map<entt::id_type, Leaf> &Leaves()
 	return leaves;
 }
 
+
 bool IsRegistered(const entt::meta_type &type)
 {
 	return static_cast<bool>(entt::resolve(type.info()));
 }
+
 
 // A pointer and a count read from a script, checked against its memory: count elements of size
 // bytes each from the pointer. The arithmetic is 64-bit, so a count that would wrap does not.
@@ -147,6 +156,7 @@ std::span<const std::byte> Extent(
 	return memory.subspan(pointer, static_cast<std::size_t>(bytes));
 }
 
+
 std::uint32_t LoadU32(std::span<const std::byte> memory, std::uint32_t offset)
 {
 	std::uint32_t value = 0;
@@ -154,10 +164,12 @@ std::uint32_t LoadU32(std::span<const std::byte> memory, std::uint32_t offset)
 	return value;
 }
 
+
 void StoreU32(std::span<std::byte> memory, std::uint32_t offset, std::uint32_t value)
 {
 	std::memcpy(memory.data() + offset, &value, sizeof(value));
 }
+
 
 std::uint32_t Count32(std::size_t count, std::string_view path)
 {
@@ -165,6 +177,7 @@ std::uint32_t Count32(std::size_t count, std::string_view path)
 		throw BindingError{std::format("Script: {}: {} is too many for a 32-bit count", path, count)};
 	return static_cast<std::uint32_t>(count);
 }
+
 
 // An enumerator's value as an integer of the enumeration's size, and back; by its bytes, so an
 // enumeration of any underlying type reads the same way.
@@ -174,6 +187,7 @@ std::uint64_t EnumBits(const void *pValue, std::uint32_t size)
 	std::memcpy(&bits, pValue, size);
 	return bits;
 }
+
 
 bool IsEnumerator(const entt::meta_type &type, std::uint64_t bits)
 {
@@ -186,28 +200,36 @@ bool IsEnumerator(const entt::meta_type &type, std::uint64_t bits)
 	return false;
 }
 
+
 // The engine's object for the field, through Reflect's address of it.
 void *FieldIn(const FieldLayout &field, void *pObject)
 {
 	return Reflect::AddressOf(field.field, pObject);
 }
+
+
 const void *FieldIn(const FieldLayout &field, const void *pObject)
 {
 	return Reflect::AddressOf(field.field, const_cast<void *>(pObject));
 }
+
 
 // The sequence over an object of a vector type, through which its elements are read and added.
 entt::meta_sequence_container Sequence(const entt::meta_type &type, const void *pObject)
 {
 	return type.from_void(pObject).as_sequence_container();
 }
+
+
 entt::meta_sequence_container Sequence(const entt::meta_type &type, void *pObject)
 {
 	return type.from_void(pObject).as_sequence_container();
 }
 
+
 // Out-of-line bytes: what a value's strings and arrays need after its struct.
 std::uint64_t Extra(const ValueLayout &value, const void *pValue);
+
 
 std::uint64_t ExtraOfStruct(const TypeLayout &layout, const void *pObject)
 {
@@ -216,6 +238,7 @@ std::uint64_t ExtraOfStruct(const TypeLayout &layout, const void *pObject)
 		extra += Extra(field.value, FieldIn(field, pObject));
 	return extra;
 }
+
 
 std::uint64_t Extra(const ValueLayout &value, const void *pValue)
 {
@@ -246,6 +269,7 @@ class Writer
 	{
 	}
 
+
 	void Struct(const TypeLayout &layout, const void *pObject, std::uint32_t at)
 	{
 		for (const FieldLayout &field : layout.fields)
@@ -261,6 +285,7 @@ class Writer
 		m_next = at + static_cast<std::uint32_t>(bytes);
 		return at;
 	}
+
 
 	void Value(const ValueLayout &value, const void *pValue, std::uint32_t at, std::string_view path)
 	{
@@ -322,6 +347,7 @@ class Reader
 	explicit Reader(std::span<const std::byte> memory) : m_memory{memory}
 	{
 	}
+
 
 	void Struct(const TypeLayout &layout, std::uint32_t at, void *pObject, std::string_view path)
 	{
@@ -393,6 +419,7 @@ class Reader
 };
 } // namespace
 
+
 ValueLayout Bindings::ValueOf(const entt::meta_type &type, std::string_view path)
 {
 	ValueLayout value;
@@ -453,6 +480,7 @@ ValueLayout Bindings::ValueOf(const entt::meta_type &type, std::string_view path
 	    "Script: {}: type '{}' is not one a script's memory holds", path, type.info().name())};
 }
 
+
 const TypeLayout &Bindings::Layout(const entt::meta_type &type)
 {
 	if (!type || !type.is_class() || !IsRegistered(type))
@@ -500,6 +528,7 @@ const TypeLayout &Bindings::Layout(const entt::meta_type &type)
 	return *m_layouts.emplace(id, std::move(pLayout)).first->second;
 }
 
+
 std::uint32_t Bindings::SizeOf(const TypeLayout &layout, const void *pObject) const
 {
 	const std::uint64_t total = std::uint64_t{layout.size} + ExtraOfStruct(layout, pObject);
@@ -507,6 +536,7 @@ std::uint32_t Bindings::SizeOf(const TypeLayout &layout, const void *pObject) co
 		throw BindingError{std::format("Script: a '{}' is larger than a script's memory", layout.name)};
 	return static_cast<std::uint32_t>(total);
 }
+
 
 void Bindings::Write(
     const TypeLayout &layout, const void *pObject, std::span<std::byte> memory,
@@ -521,6 +551,7 @@ void Bindings::Write(
 	writer.Struct(layout, pObject, offset);
 }
 
+
 void Bindings::Read(
     const TypeLayout &layout, std::span<const std::byte> memory, std::uint32_t offset,
     void *pObject) const
@@ -529,6 +560,7 @@ void Bindings::Read(
 	Reader reader{memory};
 	reader.Struct(layout, offset, pObject, layout.name);
 }
+
 
 std::string SendImport(const entt::meta_type &command)
 {
@@ -571,6 +603,7 @@ class HeaderWriter
 		m_text += "\n";
 	}
 
+
 	std::string Take()
 	{
 		return std::move(m_text);
@@ -592,6 +625,7 @@ class HeaderWriter
 				    value.cName, value.element->cName);
 		}
 	}
+
 
 	void Enum(const ValueLayout &value)
 	{
@@ -695,6 +729,7 @@ std::vector<const TypeLayout *> Sorted(Bindings &bindings, std::span<const entt:
 	return layouts;
 }
 
+
 std::vector<entt::meta_type> Both(
     std::span<const entt::meta_type> types, std::span<const entt::meta_type> commands)
 {
@@ -702,6 +737,7 @@ std::vector<entt::meta_type> Both(
 	all.insert(all.end(), commands.begin(), commands.end());
 	return all;
 }
+
 
 // The Rust module's name for a value: the C header's for every type it declares itself, and Rust's
 // own for a scalar, so a script in either language names the game's types the same way.
@@ -718,6 +754,7 @@ std::string RustName(const ValueLayout &value)
 		}
 	return value.cName;
 }
+
 
 // A field named for a Rust keyword is written as a raw identifier.
 std::string RustField(std::string_view name)
@@ -764,6 +801,7 @@ class RustWriter
 		m_text += "\n";
 	}
 
+
 	std::string Take()
 	{
 		return std::move(m_text);
@@ -792,6 +830,7 @@ class RustWriter
 				    value.cName, RustName(*value.element));
 		}
 	}
+
 
 	void Enum(const ValueLayout &value)
 	{
@@ -878,6 +917,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 )";
 } // namespace
 
+
 std::string Header(
     Bindings &bindings, std::span<const entt::meta_type> types,
     std::span<const entt::meta_type> commands)
@@ -897,6 +937,7 @@ std::string Header(
 		    SendImport(pLayout->type), pLayout->cName);
 	return text;
 }
+
 
 std::string RustModule(
     Bindings &bindings, std::span<const entt::meta_type> types,

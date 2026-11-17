@@ -97,9 +97,11 @@ class JumpTransition
 	using Show = std::function<void(JumpArrival &arrival)>;
 
 	JumpTransition(Resource::ResourceManager &resources, Show show, JumpSettings settings = {});
+
 	~JumpTransition();
 
 	JumpTransition(const JumpTransition &) = delete;
+
 	JumpTransition &operator=(const JumpTransition &) = delete;
 
 	// Starts a jump to the galaxy's system, arriving at the jump point (empty for none). False, and
@@ -114,23 +116,28 @@ class JumpTransition
 	{
 		return m_stage;
 	}
+
 	bool Active() const
 	{
 		return m_stage != JumpStage::Idle;
 	}
+
 	// How much of the frame the effect covers, from 0 to 1, eased.
 	float Fade() const;
+
 	// Why the last jump was abandoned; empty if it was not.
 	const std::string &Error() const
 	{
 		return m_error;
 	}
+
 	// The real seconds the last jump took, from its Begin to the effect lifting, and of those the ones
 	// it held the effect over a shown destination for its resources: what a slow load costs.
 	double Seconds() const
 	{
 		return m_seconds;
 	}
+
 	double StreamingSeconds() const
 	{
 		return m_streamingSeconds;
@@ -139,7 +146,9 @@ class JumpTransition
   private:
 	// Both files read: parse and check them, or abandon the jump.
 	void Read();
+
 	void Abandon(std::string error);
+
 	void ReleaseFiles();
 
 	Resource::ResourceManager &m_resources;

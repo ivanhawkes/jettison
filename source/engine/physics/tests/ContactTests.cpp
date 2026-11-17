@@ -34,6 +34,7 @@ constexpr double kStep = 1.0 / 60.0;
 // A system no star system definition names: no gravity, no rails, and bodies that sleep.
 const std::uint64_t kQuiet = Sim::SystemId("Quiet");
 
+
 ShapeDefinition Box(glm::vec3 halfExtents)
 {
 	ShapeDefinition shape;
@@ -41,6 +42,7 @@ ShapeDefinition Box(glm::vec3 halfExtents)
 	shape.halfExtents = halfExtents;
 	return shape;
 }
+
 
 Body Make(BodyKind kind, std::string shape, float mass = 0.0f)
 {
@@ -50,6 +52,7 @@ Body Make(BodyKind kind, std::string shape, float mass = 0.0f)
 	body.mass = mass;
 	return body;
 }
+
 
 Body Sensor(BodyKind kind, std::string shape)
 {
@@ -64,6 +67,7 @@ struct Fixture
 	{
 	}
 
+
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -77,6 +81,7 @@ struct Fixture
 		physics.DefineShape("hub", MeshBox({6.0f, 6.0f, 30.0f}));
 		return physics;
 	}
+
 
 	entt::entity Add(
 	    const Body &body, const glm::dvec3 &position, const glm::vec3 &velocity = glm::vec3{0.0f},
@@ -93,6 +98,7 @@ struct Fixture
 		return entity;
 	}
 
+
 	// The station on its rails in its own frame, with a docking zone off the hub's -Z end.
 	entt::entity Station()
 	{
@@ -105,6 +111,8 @@ struct Fixture
 		registry.emplace<Body>(station, Make(BodyKind::Kinematic, "hub"));
 		return station;
 	}
+
+
 	entt::entity Zone(const glm::dvec3 &offset)
 	{
 		entt::registry &registry = world.Registry();
@@ -117,6 +125,7 @@ struct Fixture
 		return zone;
 	}
 
+
 	// Steps, gathering what each began and ended.
 	void Run(int steps)
 	{
@@ -126,6 +135,8 @@ struct Fixture
 			log.insert(log.end(), physics.Contacts().begin(), physics.Contacts().end());
 		}
 	}
+
+
 	bool Logged(ContactPhase phase, entt::entity first, entt::entity second) const
 	{
 		return std::ranges::any_of(
@@ -133,10 +144,13 @@ struct Fixture
 		    { return event.phase == phase && event.first == first && event.second == second; });
 	}
 
+
 	const glm::dvec3 &Position(entt::entity entity) const
 	{
 		return world.Registry().get<Sim::Transform>(entity).position;
 	}
+
+
 	glm::dvec3 StationAt(double simSeconds) const
 	{
 		return Celestial::EvaluateBody(Halcyon(), 2, simSeconds).metres;
@@ -147,6 +161,7 @@ struct Fixture
 	std::vector<ContactEvent> log;
 };
 } // namespace
+
 
 TEST_CASE(
     "Contacts: two bodies that meet begin a contact, with where and how hard, and end it as they part")
@@ -181,6 +196,7 @@ TEST_CASE(
 	CHECK(fixture.physics.Touching(entt::entity{99}).empty());
 }
 
+
 TEST_CASE("Contacts: a sensor sees a body enter and leave it, and pushes nothing")
 {
 	for (const BodyKind kind : {BodyKind::Static, BodyKind::Kinematic})
@@ -206,6 +222,7 @@ TEST_CASE("Contacts: a sensor sees a body enter and leave it, and pushes nothing
 	}
 }
 
+
 TEST_CASE("Contacts: a body asleep still touches what it lies against, and a sensor still sees it")
 {
 	Fixture fixture;
@@ -224,6 +241,7 @@ TEST_CASE("Contacts: a body asleep still touches what it lies against, and a sen
 	CHECK(fixture.physics.Touching(crate) == std::vector{zone});
 	CHECK(fixture.Logged(ContactPhase::Ended, crate, block));
 }
+
 
 TEST_CASE("Contacts: a body asleep is made again asleep, where it lay, from a save of another Jolt")
 {
@@ -256,6 +274,7 @@ TEST_CASE("Contacts: a body asleep is made again asleep, where it lay, from a sa
 	CHECK(loaded.Position(crate) == lay);
 	CHECK(loaded.Position(drifter) == fixture.Position(drifter));
 }
+
 
 TEST_CASE(
     "Contacts: crates pressed into a block, made again from a save of another Jolt, settle "
@@ -309,6 +328,7 @@ TEST_CASE(
 	CHECK(loaded.physics.Touching(crates.front()) == std::vector{block, crates[1]});
 }
 
+
 TEST_CASE("Contacts: a body removed ends its contacts, and one made again begins its own afresh")
 {
 	Fixture fixture;
@@ -347,6 +367,7 @@ TEST_CASE("Contacts: a body removed ends its contacts, and one made again begins
 	    std::invalid_argument);
 }
 
+
 TEST_CASE(
     "Contacts: what touches and what the last step began are saved, and a loaded world carries on")
 {
@@ -367,6 +388,7 @@ TEST_CASE(
 	CHECK(loaded.world.Save() == original.world.Save());
 	CHECK(loaded.log == std::vector(original.log.begin() + 1, original.log.end()));
 }
+
 
 TEST_CASE(
     "Casts: a ray meets the first body along it in any frame of its system, and leaves out what it is "
@@ -431,6 +453,7 @@ TEST_CASE(
 	    std::invalid_argument);
 }
 
+
 TEST_CASE("Casts: a shape swept towards the station stops where it would meet the hub")
 {
 	Fixture fixture;
@@ -467,6 +490,7 @@ TEST_CASE("Casts: a shape swept towards the station stops where it would meet th
 	    fixture.physics.CastShape(kHalcyon, "nothing", start, {0.0, 0.0, 1.0}, 10.0),
 	    doctest::Contains("not defined"), std::invalid_argument);
 }
+
 
 TEST_CASE("Picking: a ray presentation draws is answered with what it hit, as an event")
 {

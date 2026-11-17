@@ -27,10 +27,12 @@ constexpr glm::dvec3 kUp{0.0, 1.0, 0.0};
 // How far outside a node's reach a buggy waits for it.
 constexpr double kShortOf = 1.0e-6;
 
+
 glm::dvec3 NodeAt(const RoadGraph &roads, const Buggy &buggy, std::uint32_t node)
 {
 	return roads.nodes[node].kind == RoadNodeKind::Hatch ? buggy.hatch : roads.nodes[node].position;
 }
+
 
 // Whether the buggy holds the node: within reach of it on the edge it is on, before or after it.
 bool Holds(const RoadGraph &roads, const Buggy &buggy, std::uint32_t node)
@@ -43,6 +45,7 @@ bool Holds(const RoadGraph &roads, const Buggy &buggy, std::uint32_t node)
 	return (to == node && length - buggy.along <= kNodeReach) ||
 	       (from == node && buggy.along <= kNodeReach);
 }
+
 
 bool HeldByAnother(
     const entt::registry &registry, const RoadGraph &roads, const std::vector<entt::entity> &buggies,
@@ -57,6 +60,7 @@ bool HeldByAnother(
 	    });
 }
 
+
 // The station's buggies, in entity order.
 std::vector<entt::entity> BuggiesOf(const entt::registry &registry, entt::entity station)
 {
@@ -66,6 +70,7 @@ std::vector<entt::entity> BuggiesOf(const entt::registry &registry, entt::entity
 			found.push_back(buggy);
 	return found;
 }
+
 
 // Whether the ship, on the pad, has cargo for another buggy: crates in the bay for it, or more in
 // its hold than the buggies already on their way to fetch them will take.
@@ -86,6 +91,7 @@ bool Wanted(const entt::registry &registry, entt::entity pad, entt::entity ship,
 	return transfer->ashore > fetching;
 }
 
+
 std::int64_t Take(std::int64_t &from, std::int64_t most)
 {
 	const std::int64_t taken = std::min(from, most);
@@ -93,6 +99,7 @@ std::int64_t Take(std::int64_t &from, std::int64_t most)
 	return taken;
 }
 } // namespace
+
 
 bool Carry(entt::registry &registry, entt::entity ship, std::int64_t crates)
 {
@@ -107,6 +114,7 @@ bool Carry(entt::registry &registry, entt::entity ship, std::int64_t crates)
 	return true;
 }
 
+
 std::int64_t ToCarry(const entt::registry &registry, entt::entity ship)
 {
 	const auto *transfer = registry.valid(ship) ? registry.try_get<Transfer>(ship) : nullptr;
@@ -118,6 +126,7 @@ std::int64_t ToCarry(const entt::registry &registry, entt::entity ship)
 			crates += buggy.crates;
 	return crates;
 }
+
 
 void Docks::WorkDecks(Sim::SimWorld &world, double time)
 {
@@ -183,6 +192,7 @@ void Docks::WorkDecks(Sim::SimWorld &world, double time)
 	}
 }
 
+
 void Docks::DriveBuggy(
     Sim::SimWorld &world, entt::entity entity, const std::vector<entt::entity> &others)
 {
@@ -222,6 +232,7 @@ void Docks::DriveBuggy(
 	}
 }
 
+
 void Docks::ArriveBuggy(Sim::SimWorld &world, entt::entity entity)
 {
 	entt::registry &registry = world.Registry();
@@ -257,6 +268,7 @@ void Docks::ArriveBuggy(Sim::SimWorld &world, entt::entity entity)
 	turn(true);
 }
 
+
 void Docks::PlaceBuggy(Sim::SimWorld &world, entt::entity entity, double time)
 {
 	entt::registry &registry = world.Registry();
@@ -273,6 +285,7 @@ void Docks::PlaceBuggy(Sim::SimWorld &world, entt::entity entity, double time)
 	registry.emplace_or_replace<Sim::Transform>(
 	    entity, m_physics.RailsPlace(registry.get<Sim::InSystem>(buggy.station).system, place, time));
 }
+
 
 void Docks::SendBuggies(Sim::SimWorld &world, entt::entity stationEntity, double time)
 {
@@ -312,6 +325,7 @@ void Docks::SendBuggies(Sim::SimWorld &world, entt::entity stationEntity, double
 	}
 }
 
+
 void Docks::MoveParked(Sim::SimWorld &world, entt::entity ship)
 {
 	entt::registry &registry = world.Registry();
@@ -338,6 +352,7 @@ void Docks::MoveParked(Sim::SimWorld &world, entt::entity ship)
 	transfer.next += interval;
 }
 
+
 glm::dvec3 Docks::HatchOnDeck(const entt::registry &registry, entt::entity ship) const
 {
 	const Docking &docking = registry.get<Docking>(ship);
@@ -346,6 +361,7 @@ glm::dvec3 Docks::HatchOnDeck(const entt::registry &registry, entt::entity ship)
 	return place.position +
 	       PadOrientation(place) * glm::dvec3{double{hull.hatch.x}, 0.0, double{hull.hatch.z}};
 }
+
 
 double Docks::RoadLength(const RoadGraph &roads, const PadRoad &road, const glm::dvec3 &hatch) const
 {

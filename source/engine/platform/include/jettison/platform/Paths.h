@@ -28,6 +28,7 @@ using EnvironmentLookup = std::function<std::optional<std::string>(const char *n
 // component ("jettison", not "games/jettison"); anything else throws std::invalid_argument.
 // Throws std::runtime_error naming the variable when HOME is needed and is not an absolute path.
 Paths ResolvePaths(const std::filesystem::path &applicationName);
+
 // The same, from the variables environment returns, for tests and for a launcher that passes its
 // own.
 Paths ResolvePaths(const std::filesystem::path &applicationName, const EnvironmentLookup &environment);

@@ -53,6 +53,7 @@
 #error "spdlog must format with std::format: the executable carries one formatting library"
 #endif
 
+
 TEST_CASE("GLM: the geometry ABI the shaders and buffers agree on")
 {
 	static_assert(sizeof(Jettison::Render::Vertex) == 108);
@@ -66,6 +67,7 @@ TEST_CASE("GLM: the geometry ABI the shaders and buffers agree on")
 	CHECK(projection[3][2] == doctest::Approx(-0.101010f));
 }
 
+
 TEST_CASE("EnTT")
 {
 	entt::registry registry;
@@ -74,6 +76,7 @@ TEST_CASE("EnTT")
 	CHECK(registry.all_of<int>(entity));
 	CHECK(registry.get<int>(entity) == 7);
 }
+
 
 TEST_CASE("GLFW and Dear ImGui")
 {
@@ -90,6 +93,7 @@ TEST_CASE("GLFW and Dear ImGui")
 	ImGui::DestroyContext(context);
 }
 
+
 TEST_CASE("stb_image: the one implementation, compiled in the render module")
 {
 	const std::array<stbi_uc, 4> notAnImage{0, 1, 2, 3};
@@ -99,10 +103,12 @@ TEST_CASE("stb_image: the one implementation, compiled in the render module")
 	CHECK(stbi_info_from_memory(notAnImage.data(), 4, &width, &height, &channels) == 0);
 }
 
+
 TEST_CASE("yaml-cpp")
 {
 	CHECK(YAML::Load("answer: 42")["answer"].as<int>() == 42);
 }
+
 
 TEST_CASE("fastgltf and its simdjson")
 {
@@ -115,6 +121,7 @@ TEST_CASE("fastgltf and its simdjson")
 	REQUIRE(asset.error() == fastgltf::Error::None);
 }
 
+
 TEST_CASE("spdlog formats through std::format")
 {
 	std::ostringstream stream;
@@ -126,6 +133,7 @@ TEST_CASE("spdlog formats through std::format")
 	CHECK(stream.str().starts_with("2 + 2 = 4"));
 }
 
+
 TEST_CASE("Tracy compiles to nothing, or to an on-demand client")
 {
 	ZoneScopedN("dependency probe");
@@ -133,11 +141,13 @@ TEST_CASE("Tracy compiles to nothing, or to an on-demand client")
 	CHECK(true);
 }
 
+
 TEST_CASE("Vulkan Memory Allocator: the renderer's copy of the implementation links")
 {
 	decltype(&vmaCreateAllocator) volatile create = &vmaCreateAllocator;
 	CHECK(create != nullptr);
 }
+
 
 TEST_CASE("FastNoiseLite is deterministic for a seed")
 {
@@ -162,11 +172,13 @@ struct TangentQuad
 	std::array<glm::vec4, 4> tangents{};
 };
 
+
 TangentQuad &QuadOf(const SMikkTSpaceContext *context)
 {
 	return *static_cast<TangentQuad *>(context->m_pUserData);
 }
 } // namespace
+
 
 TEST_CASE("MikkTSpace")
 {
@@ -209,6 +221,7 @@ TEST_CASE("MikkTSpace")
 	}
 }
 
+
 TEST_CASE("Jolt in double precision")
 {
 	static_assert(std::is_same_v<JPH::Real, double>, "simulation positions are doubles");
@@ -232,6 +245,7 @@ TEST_CASE("Jolt in double precision")
 	JPH::Factory::sInstance = nullptr;
 }
 
+
 TEST_CASE("FreeType, the build RmlUi was configured against")
 {
 	FT_Library library = nullptr;
@@ -245,10 +259,12 @@ TEST_CASE("FreeType, the build RmlUi was configured against")
 	FT_Done_FreeType(library);
 }
 
+
 TEST_CASE("RmlUi")
 {
 	CHECK(!Rml::GetVersion().empty());
 }
+
 
 TEST_CASE("miniaudio")
 {
@@ -262,6 +278,7 @@ TEST_CASE("miniaudio")
 	CHECK(read == frames.size());
 	ma_waveform_uninit(&waveform);
 }
+
 
 TEST_CASE("KTX-Software: ktx_read creates a texture")
 {
@@ -283,6 +300,7 @@ TEST_CASE("KTX-Software: ktx_read creates a texture")
 	ktxTexture_Destroy(ktxTexture(texture));
 }
 
+
 // One zstd in the executable: the engine's, which ktx_read is built against in place of the 1.5.5
 // it carries (source/external/CMakeLists.txt).
 TEST_CASE("zstd: one copy, the engine's, compresses and decompresses")
@@ -298,6 +316,7 @@ TEST_CASE("zstd: one copy, the engine's, compresses and decompresses")
 	CHECK(ZSTD_decompress(back.data(), back.size(), frame.data(), size) == text.size());
 	CHECK(std::string_view{back.data(), text.size()} == text);
 }
+
 
 TEST_CASE("WAMR runs a module")
 {

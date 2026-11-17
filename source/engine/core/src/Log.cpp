@@ -23,6 +23,7 @@ namespace
 {
 constexpr Severity kDefaultMinimum = Severity::Info;
 
+
 spdlog::level::level_enum ToSpdlog(Severity severity)
 {
 	switch (severity)
@@ -36,6 +37,7 @@ spdlog::level::level_enum ToSpdlog(Severity severity)
 	}
 	return spdlog::level::critical;
 }
+
 
 std::string_view SeverityName(spdlog::level::level_enum level)
 {
@@ -65,11 +67,14 @@ class SeverityFlag final : public spdlog::custom_flag_formatter
 		const std::string_view name = SeverityName(message.level);
 		dest.append(name.data(), name.data() + name.size());
 	}
+
+
 	std::unique_ptr<custom_flag_formatter> clone() const override
 	{
 		return std::make_unique<SeverityFlag>();
 	}
 };
+
 
 std::unique_ptr<spdlog::formatter> MakeFormatter(const std::string &pattern)
 {
@@ -77,6 +82,7 @@ std::unique_ptr<spdlog::formatter> MakeFormatter(const std::string &pattern)
 	formatter->add_flag<SeverityFlag>('*').set_pattern(pattern);
 	return formatter;
 }
+
 
 // stderr is for a person watching: the time of day, the severity in colour, the category. The file
 // is for reading afterwards, so it carries the date and the source location as well.
@@ -88,6 +94,7 @@ std::shared_ptr<spdlog::sinks::sink> MakeStderrSink()
 }
 
 constexpr std::string_view kFilePattern = "[%Y-%m-%d %H:%M:%S.%e] [%*] [%n] %v (%s:%#)";
+
 
 std::shared_ptr<spdlog::sinks::sink> MakeFileSink(const std::filesystem::path &file)
 {
@@ -110,6 +117,7 @@ class Tail
 			m_bytes[written++ % kLogTailBytes] = byte;
 		m_written.store(written, std::memory_order_release);
 	}
+
 
 	// The two runs of the ring, oldest first, from the first line that is whole in it.
 	template <typename Write> void Read(Write write) const noexcept
@@ -154,6 +162,7 @@ struct State
 	Tail tail;
 };
 
+
 State &GetState()
 {
 	static State state;
@@ -161,10 +170,12 @@ State &GetState()
 }
 } // namespace
 
+
 bool IsLogEnabled(Severity severity) noexcept
 {
 	return severity >= GetState().minimum.load(std::memory_order_relaxed);
 }
+
 
 void LogMessage(
     Severity severity, const Category &category, std::string_view message,
@@ -193,6 +204,7 @@ void LogMessage(
 		callback.function(LogRecord{severity, category.name, message, location});
 }
 
+
 void InitLogging(Severity minimum, const std::filesystem::path &file)
 {
 	// Built before the lock is taken, so a file that cannot be opened throws with the old sinks
@@ -208,6 +220,7 @@ void InitLogging(Severity minimum, const std::filesystem::path &file)
 	state.sinks = std::move(sinks);
 	state.minimum.store(minimum, std::memory_order_relaxed);
 }
+
 
 void ShutdownLogging() noexcept
 {
@@ -225,6 +238,7 @@ void ShutdownLogging() noexcept
 	state.minimum.store(kDefaultMinimum, std::memory_order_relaxed);
 }
 
+
 void FlushLogging() noexcept
 {
 	State &state = GetState();
@@ -239,12 +253,14 @@ void FlushLogging() noexcept
 	}
 }
 
+
 std::string LogTail()
 {
 	std::string text;
 	GetState().tail.Read([&text](const char *bytes, std::size_t count) { text.append(bytes, count); });
 	return text;
 }
+
 
 void WriteLogTail(int fileDescriptor) noexcept
 {
@@ -264,6 +280,7 @@ void WriteLogTail(int fileDescriptor) noexcept
 	    });
 }
 
+
 LogCallbackId AddLogCallback(LogCallback callback)
 {
 	State &state = GetState();
@@ -272,6 +289,7 @@ LogCallbackId AddLogCallback(LogCallback callback)
 	state.callbacks.push_back(Callback{id, std::move(callback)});
 	return id;
 }
+
 
 void RemoveLogCallback(LogCallbackId id)
 {

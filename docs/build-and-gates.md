@@ -223,7 +223,8 @@ become a release/runtime dependency.
 `./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml` runs
 `./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
 
-Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
+Order: format gate → Debug build → unit tests and the dependency probe (CTest) → declaration
+spacing (`scripts/space-declarations.py --check`, about 50 s on the Debug database) → clang-tidy →
 Release build and its unit tests → headless render test, from the packed assets → reference frames,
 from the staged directory, and with `--asan`, the render test and the `vfs`, `sim`, `spatial`,
 `physics`, `ai`, `dock` and `script` suites under the sanitisers (`vfs` and `script` for the packs

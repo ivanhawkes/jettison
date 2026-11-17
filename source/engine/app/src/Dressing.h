@@ -164,6 +164,7 @@ struct BuggyLoad
 	entt::entity buggy{entt::null};
 	std::array<entt::entity, 4> crates{};
 };
+
 entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy);
 
 // Shows on each buggy's bed as many crates as the snapshot has it carry, four at most.

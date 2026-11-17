@@ -18,6 +18,7 @@ constexpr std::int64_t kSecondsPerMinute = 60;
 // longer the one it was computed from. Two hundred and eighty million years of simulation time.
 constexpr double kLargestExactSecond = 9007199254740992.0;
 
+
 // Division rounding towards negative infinity, so the second before the epoch is the last second
 // of the year before it rather than second -1 of the epoch's day 0. The divisors are positive.
 std::int64_t FloorDivide(std::int64_t value, std::int64_t divisor)
@@ -25,10 +26,13 @@ std::int64_t FloorDivide(std::int64_t value, std::int64_t divisor)
 	const std::int64_t quotient = value / divisor;
 	return (value % divisor < 0) ? quotient - 1 : quotient;
 }
+
+
 std::int64_t FloorModulo(std::int64_t value, std::int64_t divisor)
 {
 	return value - FloorDivide(value, divisor) * divisor;
 }
+
 
 std::int32_t Narrow(std::int64_t value)
 {
@@ -38,6 +42,7 @@ std::int32_t Narrow(std::int64_t value)
 	return static_cast<std::int32_t>(value);
 }
 } // namespace
+
 
 Calendar::Calendar(std::int64_t secondsPerDay, std::int32_t daysPerYear, std::int32_t epochYear)
     : m_secondsPerDay{secondsPerDay}, m_daysPerYear{daysPerYear}, m_epochYear{epochYear}
@@ -49,6 +54,7 @@ Calendar::Calendar(std::int64_t secondsPerDay, std::int32_t daysPerYear, std::in
 		throw std::invalid_argument{
 		    std::format("Calendar: a year of {} days; it must be positive", daysPerYear)};
 }
+
 
 Date Calendar::FromSimSeconds(double seconds) const
 {
@@ -65,6 +71,7 @@ Date Calendar::FromSimSeconds(double seconds) const
 	return date;
 }
 
+
 double Calendar::ToSimSeconds(const Date &date) const
 {
 	const std::int64_t days =
@@ -74,6 +81,7 @@ double Calendar::ToSimSeconds(const Date &date) const
 	                             std::int64_t{date.second};
 	return static_cast<double>(seconds);
 }
+
 
 std::string Calendar::Format(const Date &date) const
 {

@@ -41,6 +41,7 @@ constexpr std::uint64_t kTrapsLogged = 10;
 // How often the watchdog looks at the call running.
 constexpr std::chrono::milliseconds kWatchPeriod{5};
 
+
 // WAMR's messages, a line at a time: os_printf is called with pieces of a line.
 int PrintToLog(const char *format, va_list arguments)
 {
@@ -64,13 +65,22 @@ int PrintToLog(const char *format, va_list arguments)
 	return written;
 }
 
+
 void LogNative(
     wasm_exec_env_t environment, std::int32_t severity, const char *pText, std::uint32_t size);
+
+
 double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t size);
+
+
 void SendNative(wasm_exec_env_t environment, std::uint32_t offset);
+
+
 void StoreNative(
     wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, const std::byte *pData,
     std::uint32_t size);
+
+
 std::int32_t LoadNative(
     wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, std::byte *pBuffer,
     std::uint32_t capacity);
@@ -87,6 +97,7 @@ class Runtime
 		static Runtime runtime;
 		return runtime;
 	}
+
 
 	void Acquire()
 	{
@@ -106,6 +117,7 @@ class Runtime
 			throw std::runtime_error{"Script: the host's functions could not be registered"};
 	}
 
+
 	void Release()
 	{
 		if (--m_users > 0)
@@ -114,6 +126,7 @@ class Runtime
 		// WAMR's lists of natives went with it; the next start registers its own.
 		m_sends.clear();
 	}
+
 
 	// The send native for a command type, registered the first time it is asked for.
 	void EnsureSend(const entt::meta_type &type)
@@ -138,6 +151,7 @@ class Runtime
 		std::string name;
 		NativeSymbol symbol{};
 	};
+
 
 	Runtime()
 	    : m_fixed{{
@@ -165,6 +179,8 @@ class Watchdog
 	Watchdog() : m_thread{[this] { Watch(); }}
 	{
 	}
+
+
 	~Watchdog()
 	{
 		{
@@ -174,8 +190,13 @@ class Watchdog
 		m_wake.notify_one();
 		m_thread.join();
 	}
+
+
 	Watchdog(const Watchdog &) = delete;
+
+
 	Watchdog &operator=(const Watchdog &) = delete;
+
 
 	void Arm(wasm_module_inst_t instance, std::chrono::milliseconds limit)
 	{
@@ -184,6 +205,8 @@ class Watchdog
 		m_deadline = std::chrono::steady_clock::now() + limit;
 		m_fired = false;
 	}
+
+
 	// Whether it stopped the call.
 	bool Disarm()
 	{
@@ -216,10 +239,12 @@ class Watchdog
 	std::thread m_thread;
 };
 
+
 std::string_view Text(const char *pText, std::uint32_t size)
 {
 	return pText != nullptr ? std::string_view{pText, size} : std::string_view{};
 }
+
 
 bool HasSignature(
     wasm_function_inst_t function, wasm_module_inst_t instance,
@@ -237,6 +262,7 @@ bool HasSignature(
 	wasm_func_get_result_types(function, instance, kinds.data());
 	return std::equal(results.begin(), results.end(), kinds.begin());
 }
+
 
 std::string Join(std::span<const std::string> items)
 {
@@ -256,9 +282,16 @@ struct Instance
 	wasm_module_inst_t instance{nullptr};
 	wasm_exec_env_t environment{nullptr};
 
+
 	Instance() = default;
+
+
 	Instance(const Instance &) = delete;
+
+
 	Instance &operator=(const Instance &) = delete;
+
+
 	~Instance()
 	{
 		if (environment != nullptr)
@@ -266,6 +299,7 @@ struct Instance
 		if (instance != nullptr)
 			wasm_runtime_deinstantiate(instance);
 	}
+
 
 	std::span<std::byte> Memory() const
 	{
@@ -289,19 +323,24 @@ struct ScriptHost::Impl
 	// Every script's keys, loaded or not.
 	ScriptStore store;
 
+
 	const HostLimits &Limits() const
 	{
 		return host.m_limits;
 	}
 	std::unique_ptr<Watchdog> pWatchdog;
 
+
 	explicit Impl(ScriptHost &owner) : host{owner}
 	{
 		Runtime::Get().Acquire();
 	}
 
+
 	// A command a script sends: read from its memory as the command's layout says, and queued.
 	void Send(const entt::meta_type &type, std::uint32_t offset, wasm_exec_env_t environment);
+
+
 	~Impl()
 	{
 		answers.clear();
@@ -309,7 +348,11 @@ struct ScriptHost::Impl
 		pWatchdog.reset();
 		Runtime::Get().Release();
 	}
+
+
 	Impl(const Impl &) = delete;
+
+
 	Impl &operator=(const Impl &) = delete;
 };
 
@@ -341,9 +384,16 @@ struct ScriptHost::Script
 	std::string refusal;
 	ScriptStatus status;
 
+
 	Script() = default;
+
+
 	Script(const Script &) = delete;
+
+
 	Script &operator=(const Script &) = delete;
+
+
 	~Script()
 	{
 		pHandlers.reset();
@@ -356,11 +406,13 @@ namespace
 {
 using HostScript = ScriptHost::Script;
 
+
 HostScript *CallingScript(wasm_exec_env_t environment)
 {
 	return static_cast<HostScript *>(
 	    wasm_runtime_get_custom_data(wasm_runtime_get_module_inst(environment)));
 }
+
 
 // Traps the call with a host function's refusal, keeping the whole message for the log.
 void Refuse(wasm_exec_env_t environment, HostScript &script, std::string message)
@@ -368,6 +420,7 @@ void Refuse(wasm_exec_env_t environment, HostScript &script, std::string message
 	script.refusal = std::move(message);
 	wasm_runtime_set_exception(wasm_runtime_get_module_inst(environment), script.refusal.c_str());
 }
+
 
 void LogNative(
     wasm_exec_env_t environment, std::int32_t severity, const char *pText, std::uint32_t size)
@@ -379,6 +432,7 @@ void LogNative(
 	                                             : Core::Severity::Error;
 	Core::Log(level, kScript, "{}: {}", pScript ? pScript->name : "?", Text(pText, size));
 }
+
 
 double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t size)
 {
@@ -406,6 +460,7 @@ double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t
 	}
 }
 
+
 std::size_t StoredBytes(const ScriptKeys &keys)
 {
 	std::size_t bytes = 0;
@@ -413,6 +468,7 @@ std::size_t StoredBytes(const ScriptKeys &keys)
 		bytes += key.size() + value.size();
 	return bytes;
 }
+
 
 // What a key may be, or why not.
 std::optional<std::string> BadKey(std::string_view key)
@@ -423,6 +479,7 @@ std::optional<std::string> BadKey(std::string_view key)
 		return std::format("a key of {} bytes, past the {} a key may be", key.size(), kMaxKeyBytes);
 	return std::nullopt;
 }
+
 
 void StoreNative(
     wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, const std::byte *pData,
@@ -465,6 +522,7 @@ void StoreNative(
 		keys.emplace(std::string{key}, std::move(value));
 }
 
+
 std::int32_t LoadNative(
     wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, std::byte *pBuffer,
     std::uint32_t capacity)
@@ -490,6 +548,7 @@ std::int32_t LoadNative(
 	return static_cast<std::int32_t>(value.size());
 }
 
+
 void SendNative(wasm_exec_env_t environment, std::uint32_t offset)
 {
 	HostScript *pScript = CallingScript(environment);
@@ -514,12 +573,15 @@ void SendNative(wasm_exec_env_t environment, std::uint32_t offset)
 }
 } // namespace
 
+
 ScriptHost::ScriptHost(const Vfs::FileSystem &fileSystem, HostLimits limits)
     : m_fileSystem{fileSystem}, m_limits{limits}, m_pImpl{std::make_unique<Impl>(*this)}
 {
 }
 
+
 ScriptHost::~ScriptHost() = default;
+
 
 void ScriptHost::SendCommandsTo(Sim::SimWorld &world)
 {
@@ -549,6 +611,7 @@ std::unique_ptr<Instance> Instantiate(
 		    std::format("Script '{}': no environment could be made to call it in", script.name)};
 	return pInstance;
 }
+
 
 // Runs a call under the script's fuel and the host's time limit. The arguments are WAMR's cells, and
 // hold the results after.
@@ -602,6 +665,7 @@ bool Run(
 	return false;
 }
 } // namespace
+
 
 void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 {
@@ -767,6 +831,7 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 	                                           : Join(loaded.definition.capabilities));
 }
 
+
 std::size_t ScriptHost::LoadAll(const Sim::DefinitionRegistry &definitions)
 {
 	std::size_t loaded = 0;
@@ -785,6 +850,7 @@ std::size_t ScriptHost::LoadAll(const Sim::DefinitionRegistry &definitions)
 	return loaded;
 }
 
+
 void ScriptHost::Unload(std::string_view name)
 {
 	const auto found = m_pImpl->scripts.find(name);
@@ -795,11 +861,13 @@ void ScriptHost::Unload(std::string_view name)
 	m_pImpl->scripts.erase(found);
 }
 
+
 void ScriptHost::UnloadAll()
 {
 	m_pImpl->answers.clear();
 	m_pImpl->scripts.clear();
 }
+
 
 void ScriptHost::Dispatch(const Sim::SimEvent &event)
 {
@@ -858,10 +926,12 @@ void ScriptHost::Dispatch(const Sim::SimEvent &event)
 	}
 }
 
+
 bool ScriptHost::Answers(std::string_view input) const
 {
 	return m_pImpl->answers.contains(input);
 }
+
 
 double ScriptHost::Input(std::string_view input, const Inputs &game)
 {
@@ -907,11 +977,13 @@ double ScriptHost::Input(std::string_view input, const Inputs &game)
 	return value;
 }
 
+
 Inputs ScriptHost::WithScripts(Inputs game)
 {
 	return [this, game = std::move(game)](std::string_view input)
 	{ return Answers(input) ? Input(input, game) : game(input); };
 }
+
 
 std::optional<std::vector<std::int32_t>> ScriptHost::Call(
     std::string_view name, std::string_view function, std::span<const std::int32_t> arguments)
@@ -953,6 +1025,7 @@ std::optional<std::vector<std::int32_t>> ScriptHost::Call(
 	return returned;
 }
 
+
 void ScriptHost::Impl::Send(
     const entt::meta_type &type, std::uint32_t offset, wasm_exec_env_t environment)
 {
@@ -972,6 +1045,7 @@ void ScriptHost::Impl::Send(
 	host.m_pWorld->Commands().Push(std::move(command));
 }
 
+
 std::vector<ScriptStatus> ScriptHost::Scripts() const
 {
 	std::vector<ScriptStatus> statuses;
@@ -988,10 +1062,12 @@ std::vector<ScriptStatus> ScriptHost::Scripts() const
 	return statuses;
 }
 
+
 const ScriptStore &ScriptHost::Store() const
 {
 	return m_pImpl->store;
 }
+
 
 void ScriptHost::SetStore(ScriptStore store)
 {
@@ -1014,6 +1090,7 @@ void ScriptHost::SetStore(ScriptStore store)
 	}
 }
 
+
 std::vector<std::byte> WriteStore(const ScriptStore &store)
 {
 	Serialise::BinaryWriter writer{kStoreSection};
@@ -1030,6 +1107,7 @@ std::vector<std::byte> WriteStore(const ScriptStore &store)
 	}
 	return writer.Finish({kStoreVersion});
 }
+
 
 ScriptStore ReadStore(std::span<const std::byte> bytes)
 {
@@ -1065,10 +1143,12 @@ ScriptStore ReadStore(std::span<const std::byte> bytes)
 	return store;
 }
 
+
 std::size_t ScriptHost::LoadedModules() const
 {
 	return m_pImpl->scripts.size();
 }
+
 
 std::vector<entt::meta_type> ScriptHost::ScriptTypes()
 {
@@ -1080,17 +1160,20 @@ std::vector<entt::meta_type> ScriptHost::ScriptTypes()
 	return types;
 }
 
+
 std::string ScriptHost::WriteHeader()
 {
 	const std::vector<entt::meta_type> types = ScriptTypes();
 	return Header(m_bindings, types, Commands(types));
 }
 
+
 std::string ScriptHost::WriteRustModule()
 {
 	const std::vector<entt::meta_type> types = ScriptTypes();
 	return RustModule(m_bindings, types, Commands(types));
 }
+
 
 std::vector<entt::meta_type> ScriptHost::Commands(std::span<const entt::meta_type> types) const
 {

@@ -74,6 +74,7 @@ struct MarketView
 	std::int64_t lot{1};
 	std::string message;
 };
+
 MarketScreen BuildMarketScreen(
     const Sim::Snapshot &snapshot, const Sim::DefinitionRegistry &definitions,
     const Ui::StringTable &strings, const MarketView &view);

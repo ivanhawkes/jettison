@@ -38,6 +38,7 @@ class SystemIndices
 
 	// A system's index, or nothing for a system no entity is in.
 	const SpatialIndex *Find(std::uint64_t system) const;
+
 	// The systems with entities, in identifier order.
 	std::vector<std::uint64_t> Systems() const;
 

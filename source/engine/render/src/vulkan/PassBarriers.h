@@ -20,6 +20,7 @@ struct UsageScope
 
 // The scope a pass's use waits in.
 UsageScope DestinationScope(Usage usage);
+
 // The scope a later use waits on: the same stages, and only the writes, since a read leaves
 // nothing to make available. Present is the exception: the image comes back through the
 // acquire, whose semaphore the submit waits on at the colour-output stage, so the first use

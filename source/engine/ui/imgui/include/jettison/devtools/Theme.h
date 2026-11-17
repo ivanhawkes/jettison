@@ -94,6 +94,7 @@ void RegisterThemeTypes();
 const std::array<Rgb, kTokenCount> &PaletteTokens(Palette palette);
 
 std::string_view PaletteName(Palette palette);
+
 // In the order the dev tools' control lists them: the darkest first, so switching one step down
 // is one press of the control.
 std::span<const Palette> PaletteVariants();
@@ -122,6 +123,7 @@ void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb);
 // takes effect: true when this call applied one. The style is read, not remembered by the address
 // of the context it belongs to, which a new context reuses. Main thread only.
 bool ApplyThemeIfChanged(const ThemeSettings &settings, bool swapchainEncodesSrgb);
+
 // What the last ApplyTheme on this context was given, and whether it decoded for the attachment.
 // The dev tools' controls read it, and the tests check what was applied.
 const ThemeSettings &AppliedTheme();

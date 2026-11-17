@@ -111,6 +111,7 @@ class Bindings
 	// The bytes a value needs in a script's memory: its struct, then what its strings and arrays
 	// point at, each at its alignment. What Write fills.
 	std::uint32_t SizeOf(const TypeLayout &layout, const void *pObject) const;
+
 	// Writes the object into memory at offset, its struct first and the bytes its fields point at
 	// after it, within SizeOf(layout, pObject) bytes. Pointers are offsets in memory, as a script
 	// sees them. Throws BindingError for a value that does not fit: an enumerator not registered, or
@@ -118,6 +119,7 @@ class Bindings
 	void Write(
 	    const TypeLayout &layout, const void *pObject, std::span<std::byte> memory,
 	    std::uint32_t offset) const;
+
 	// Reads the struct at offset in memory into the object, which is of the layout's type. Fields
 	// the layout leaves out keep their values. Throws BindingError naming the field for a pointer or
 	// a struct out of memory's bounds, a bool that is not 0 or 1, or an enumerator not registered;
@@ -155,6 +157,7 @@ inline const void *ObjectOf(const entt::meta_any &value)
 {
 	return value.base().data();
 }
+
 inline void *ObjectOf(entt::meta_any &value)
 {
 	return const_cast<void *>(value.base().data());

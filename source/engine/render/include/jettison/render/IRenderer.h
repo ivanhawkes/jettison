@@ -86,6 +86,7 @@ class IRenderer
 	// model, texture and material loaders with the resource manager. A program missing from the
 	// asset tree throws here, naming it.
 	virtual void Init() = 0;
+
 	// Waits for the device, then releases everything Init made, and every handle the renderer took
 	// from the resource manager. Safe after an Init that threw part-way, and twice.
 	virtual void Destroy() = 0;
@@ -95,6 +96,7 @@ class IRenderer
 
 	// The UI's frame, between which ImGui's calls are made; Render draws what they made.
 	virtual void BeginUi() = 0;
+
 	virtual void EndUi() = 0;
 
 	// Whether the attachment the UI is drawn into encodes the colour it is given, which the dev
@@ -116,32 +118,46 @@ class IRenderer
 	// The linear scale applied to the HDR target on its way to the display, before tonemapping. The
 	// scene's colour grade (Scene::ColourGradeComponent) is applied after it, to the display's colours.
 	virtual void SetExposure(float exposure) = 0;
+
 	// A colour over the scene, by an amount from 0 (none) to 1 (the whole frame): a jump's effect
 	// (scene/JumpTransition.h). Mixed in after tonemapping, in display light, and under the UI, so
 	// the dev tools stay readable through it.
 	virtual void SetFade(const glm::vec3 &color, float amount) = 0;
+
 	// Black bars over the top and the bottom of the frame, each this share of its height, from 0 to a
 	// half: a cinematic's (scene/Sequence.h). Drawn with the fade, under the UI.
 	virtual void SetLetterbox(float share) = 0;
+
 	virtual void SetDebugView(DebugView view) = 0;
+
 	virtual DebugView GetDebugView() const = 0;
+
 	// Whether the opaque surfaces' depth is laid down before they are shaded, so each pixel is
 	// shaded once (docs/architecture.md, "The frame").
 	virtual void SetDepthPrepass(bool enabled) = 0;
+
 	virtual bool GetDepthPrepass() const = 0;
+
 	// Ambient occlusion over the opaque surfaces' image-based light, which runs the depth prepass
 	// while it is on (docs/architecture.md, "Ambient occlusion").
 	virtual void SetAmbientOcclusion(bool enabled) = 0;
+
 	virtual bool GetAmbientOcclusion() const = 0;
+
 	// The share of the frame's light bloom spreads, 0 for none (docs/architecture.md, "Bloom").
 	virtual void SetBloom(float strength) = 0;
+
 	virtual float GetBloom() const = 0;
 
 	// The last frame's counts, and the GPU's time in each declared pass.
 	virtual const FrameStats &GetFrameStats() const = 0;
+
 	virtual const std::vector<PassTiming> &GetPassTimings() const = 0;
+
 	virtual std::uint64_t GetMeasuredFrames() const = 0;
+
 	virtual void ResetPassTimings() = 0;
+
 	// What the cluster check has found over the run (RendererOptions::clusterCheck).
 	virtual const ClusterCheckTotals &GetClusterChecks() const = 0;
 
@@ -152,7 +168,9 @@ class IRenderer
 
 	// What the frames are drawn on, and their size in pixels.
 	virtual const std::string &DeviceName() const = 0;
+
 	virtual std::uint32_t FrameWidth() const = 0;
+
 	virtual std::uint32_t FrameHeight() const = 0;
 };
 

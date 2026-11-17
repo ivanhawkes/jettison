@@ -176,6 +176,7 @@ class Gates
 	// has to be resolved; throws std::invalid_argument for a system already defined, and for a jump
 	// point of no radius. A RequestTransit in a system not defined is refused.
 	void DefineStarSystem(const Celestial::StarSystem &system);
+
 	bool HasStarSystem(std::uint64_t system) const;
 
 	// The game's rule for tolls, replacing any given before.
@@ -197,22 +198,29 @@ class Gates
 	}
 
 	void Request(Sim::SimWorld &world, const RequestTransit &command);
+
 	void Step(Sim::SimWorld &world);
 
 	// The gate's jump point in its system's definition, or null.
 	const Celestial::Body *JumpPointOf(const entt::registry &registry, entt::entity gate) const;
+
 	// The lane's toll through the gate, or none for a gate no lane leaves through.
 	std::optional<std::int64_t> TollThrough(const entt::registry &registry, entt::entity gate) const;
+
 	// Why the game's rule refuses the ship, or nothing.
 	std::optional<Sim::Reason> Refuses(
 	    const entt::registry &registry, entt::entity ship, std::int64_t toll) const;
+
 	// Clears the ship through the free gate, and says so.
 	void Clear(Sim::SimWorld &world, entt::entity gate, entt::entity ship, std::int64_t toll);
+
 	// Takes the ship's business with its gate away: its clearance, freeing the gate, or its place.
 	void GiveUp(entt::registry &registry, entt::entity ship);
+
 	// Sends the cleared ship along the gate's lane and charges its owner, or lets it pass through,
 	// saying why, its clearance given up.
 	void Send(Sim::SimWorld &world, entt::entity gate, entt::entity ship);
+
 	// Clears ships from the front of a free gate's queue until one is cleared or none waits; a ship
 	// the rule now refuses is told why and leaves the queue.
 	void Serve(Sim::SimWorld &world, entt::entity gate);

@@ -48,16 +48,19 @@ Rml::FileHandle FileInterface::Open(const Rml::String &path)
 	}
 }
 
+
 void FileInterface::Close(Rml::FileHandle file)
 {
 	m_open.erase(file);
 }
+
 
 FileInterface::OpenFile *FileInterface::Find(Rml::FileHandle file)
 {
 	const auto found = m_open.find(file);
 	return found != m_open.end() ? found->second.get() : nullptr;
 }
+
 
 size_t FileInterface::Read(void *buffer, size_t size, Rml::FileHandle file)
 {
@@ -69,6 +72,7 @@ size_t FileInterface::Read(void *buffer, size_t size, Rml::FileHandle file)
 	open->offset += count;
 	return count;
 }
+
 
 bool FileInterface::Seek(Rml::FileHandle file, long offset, int origin)
 {
@@ -87,11 +91,13 @@ bool FileInterface::Seek(Rml::FileHandle file, long offset, int origin)
 	return true;
 }
 
+
 size_t FileInterface::Tell(Rml::FileHandle file)
 {
 	const OpenFile *open = Find(file);
 	return open ? open->offset : 0;
 }
+
 
 size_t FileInterface::Length(Rml::FileHandle file)
 {
@@ -119,6 +125,7 @@ bool SystemInterface::LogMessage(Rml::Log::Type type, const Rml::String &message
 	// True carries on: a failed RmlUi assertion is reported, not a trap into a debugger.
 	return true;
 }
+
 
 int SystemInterface::TranslateString(Rml::String &translated, const Rml::String &input)
 {
@@ -148,6 +155,7 @@ Rml::CompiledGeometryHandle RenderInterface::CompileGeometry(
 	return handle;
 }
 
+
 void RenderInterface::RenderGeometry(
     Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation, Rml::TextureHandle texture)
 {
@@ -159,10 +167,12 @@ void RenderInterface::RenderGeometry(
 	    static_cast<Render::OverlayTextureId>(texture));
 }
 
+
 void RenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
 {
 	m_geometry.erase(geometry);
 }
+
 
 Rml::TextureHandle RenderInterface::LoadTexture(Rml::Vector2i &dimensions, const Rml::String &source)
 {
@@ -200,6 +210,7 @@ Rml::TextureHandle RenderInterface::LoadTexture(Rml::Vector2i &dimensions, const
 	}
 }
 
+
 Rml::TextureHandle RenderInterface::GenerateTexture(
     Rml::Span<const Rml::byte> source, Rml::Vector2i dimensions)
 {
@@ -210,10 +221,12 @@ Rml::TextureHandle RenderInterface::GenerateTexture(
 	return static_cast<Rml::TextureHandle>(m_overlay.AddTexture(std::move(texture)));
 }
 
+
 void RenderInterface::ReleaseTexture(Rml::TextureHandle texture)
 {
 	m_overlay.RemoveTexture(static_cast<Render::OverlayTextureId>(texture));
 }
+
 
 void RenderInterface::EnableScissorRegion(bool enable)
 {
@@ -221,16 +234,19 @@ void RenderInterface::EnableScissorRegion(bool enable)
 	ApplyScissor();
 }
 
+
 void RenderInterface::SetScissorRegion(Rml::Rectanglei region)
 {
 	m_scissor = {region.Left(), region.Top(), region.Width(), region.Height()};
 	ApplyScissor();
 }
 
+
 void RenderInterface::ApplyScissor()
 {
 	m_overlay.SetScissor(m_scissorEnabled ? std::optional{m_scissor} : std::nullopt);
 }
+
 
 void RenderInterface::SetTransform(const Rml::Matrix4f *transform)
 {

@@ -29,6 +29,7 @@ struct Fixture
 	ActionId pan = input.DefineAction("pan", ActionType::Vector);
 	ActionId close = input.DefineAction("close", ActionType::Button);
 
+
 	Fixture()
 	{
 		input.DefineContext("flight");
@@ -46,6 +47,7 @@ struct Fixture
 	}
 };
 } // namespace
+
 
 TEST_CASE("Input: inputs are named as GLFW names them, and read back")
 {
@@ -81,6 +83,7 @@ TEST_CASE("Input: inputs are named as GLFW names them, and read back")
 	}
 }
 
+
 TEST_CASE("Input: bindings as text round-trip, and text that is not bindings is refused")
 {
 	const std::vector<Binding> bindings{
@@ -97,6 +100,7 @@ TEST_CASE("Input: bindings as text round-trip, and text that is not bindings is 
 	CHECK_FALSE(ParseBindings("Key.W~-1"));
 	CHECK_FALSE(ParseBindings("Key.W/Nothing.X"));
 }
+
 
 TEST_CASE("Input: a button's edges come from one poll to the next, and a tap inside a frame counts")
 {
@@ -126,6 +130,7 @@ TEST_CASE("Input: a button's edges come from one poll to the next, and a tap ins
 	CHECK(input.WasReleasedThisFrame(fixture.fire));
 }
 
+
 TEST_CASE("Input: an axis sums its bindings, with a dead zone, and is clamped")
 {
 	Fixture fixture;
@@ -152,6 +157,7 @@ TEST_CASE("Input: an axis sums its bindings, with a dead zone, and is clamped")
 	CHECK(input.Axis(fixture.throttle) == 1.0f);
 }
 
+
 TEST_CASE("Input: a joystick's axes and buttons drive actions, each joystick its own")
 {
 	// A HOTAS: the stick is one joystick and the throttle another, with an axis numbered as the
@@ -173,6 +179,7 @@ TEST_CASE("Input: a joystick's axes and buttons drive actions, each joystick its
 	CHECK(input.Axis(fixture.throttle) == doctest::Approx(0.75f));
 	CHECK(input.WasPressedThisFrame(fixture.fire));
 }
+
 
 TEST_CASE("Input: a higher context claims its inputs, and an opaque one hides everything below")
 {
@@ -207,6 +214,7 @@ TEST_CASE("Input: a higher context claims its inputs, and an opaque one hides ev
 	CHECK(input.Axis(fixture.throttle) == 1.0f);
 	CHECK(input.ContextDepth() == 1);
 }
+
 
 TEST_CASE("Input: rebinds override the defaults, and only they are saved and loaded")
 {
@@ -247,6 +255,7 @@ TEST_CASE("Input: rebinds override the defaults, and only they are saved and loa
 	    doctest::Contains("input.flight.throttle: Input: action 'throttle' has no component 1"),
 	    std::runtime_error);
 }
+
 
 TEST_CASE("Input: setup mistakes are refused at the call")
 {

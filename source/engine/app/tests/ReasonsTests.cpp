@@ -27,6 +27,7 @@ struct Words
 	Sim::DefinitionRegistry definitions{Vfs::FileSystem{}};
 	Ui::StringTable strings;
 
+
 	Words()
 	{
 		assets.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
@@ -34,6 +35,7 @@ struct Words
 	}
 };
 } // namespace
+
 
 TEST_CASE("Reasons: every reason the step gives has its words in English and in German")
 {
@@ -56,6 +58,7 @@ TEST_CASE("Reasons: every reason the step gives has its words in English and in 
 		CHECK(words.strings.Problems() == 0);
 	}
 }
+
 
 TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and its count by form")
 {

@@ -12,6 +12,7 @@ namespace
 {
 const glm::vec3 kUp{0.0f, 0.0f, 1.0f};
 
+
 void CheckTangent(const glm::vec4 &tangent, const glm::vec4 &expected)
 {
 	CHECK(tangent.x == doctest::Approx(expected.x));
@@ -20,6 +21,7 @@ void CheckTangent(const glm::vec4 &tangent, const glm::vec4 &expected)
 	CHECK(tangent.w == expected.w);
 }
 } // namespace
+
 
 TEST_CASE("GenerateTangents: a quad whose U follows X has tangent +X, and keeps its four vertices")
 {
@@ -38,6 +40,7 @@ TEST_CASE("GenerateTangents: a quad whose U follows X has tangent +X, and keeps 
 	for (const glm::vec4 &tangent : mesh.tangents)
 		CheckTangent(tangent, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
 }
+
 
 // Two quads side by side, the left one's texture mirrored: U runs from 1 at x = -1 to 0 at the
 // shared edge and back to 1 at x = 1. The two vertices on the shared edge need a tangent for
@@ -68,6 +71,7 @@ TEST_CASE("GenerateTangents: a mirrored UV seam splits the vertices on it")
 			CheckTangent(mesh.tangents[output], glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
 	}
 }
+
 
 TEST_CASE("GenerateTangents: refuses input whose parts do not agree")
 {

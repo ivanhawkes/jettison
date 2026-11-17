@@ -32,12 +32,14 @@ class CommandQueue
 	{
 		Push(entt::meta_any{std::move(command)});
 	}
+
 	// Throws std::logic_error for an empty value. Whether the world can apply it is checked when
 	// the step that applies it starts.
 	void Push(entt::meta_any command);
 
 	// Everything queued since the last Drain, in order, for the step about to run.
 	std::vector<entt::meta_any> Drain();
+
 	const std::vector<entt::meta_any> &Pending() const
 	{
 		return m_pending;

@@ -51,6 +51,7 @@ struct SequenceRecord
 	std::vector<EventRecord> events;
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -94,15 +95,18 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 [[noreturn]] void Refuse(std::string_view file, const std::string &what)
 {
 	throw Serialise::FormatError(std::format("Sequence '{}': {}", file, what));
 }
 
+
 bool Finite(const glm::dvec3 &value)
 {
 	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
+
 
 // The role's index, added to the sequence's roles if it is new; none for no name.
 std::size_t RoleIndex(Sequence &sequence, const std::string &role)
@@ -115,6 +119,7 @@ std::size_t RoleIndex(Sequence &sequence, const std::string &role)
 	sequence.roles.push_back(role);
 	return sequence.roles.size() - 1;
 }
+
 
 // A point of the rail's span from point `span` to the next, a share u of the way by the spline's
 // parameter: centripetal Catmull-Rom (Barry and Goldman's pyramid, the knots spaced by the square
@@ -140,6 +145,7 @@ glm::dvec3 SplinePoint(const std::vector<glm::dvec3> &rail, std::size_t span, do
 	const glm::dvec3 a3 = lerp(p2, p3, t2, t3);
 	return lerp(lerp(a1, a2, t0, t2), lerp(a2, a3, t1, t3), t1, t2);
 }
+
 
 SequenceShot ToShot(
     Sequence &sequence, const ShotRecord &record, std::size_t index, std::string_view file)
@@ -201,6 +207,7 @@ struct Frame
 	glm::dquat rotation{1.0, 0.0, 0.0, 0.0};
 };
 
+
 Frame FrameOf(std::size_t role, std::span<const glm::dmat4> roles)
 {
 	if (role == kNoRole)
@@ -221,6 +228,7 @@ struct ShotPose
 	float fov{0.0f};
 };
 
+
 ShotPose PoseAt(const SequenceShot &shot, double time, std::span<const glm::dmat4> roles, float gameFov)
 {
 	const double share =
@@ -236,6 +244,7 @@ ShotPose PoseAt(const SequenceShot &shot, double time, std::span<const glm::dmat
 	return {{position, LookRotation(target - position, up)}, target, fov};
 }
 
+
 // The game's camera as a shot is blended from or to: the point it looks at taken along its view, as
 // far off as the shot's subject is from the shot's camera.
 ShotPose GamePose(const CameraPose &game, float fov, const ShotPose &shot)
@@ -243,6 +252,7 @@ ShotPose GamePose(const CameraPose &game, float fov, const ShotPose &shot)
 	const double reach = std::max(glm::length(shot.target - shot.pose.position), 1.0);
 	return {game, game.position + game.orientation * glm::dvec3{0.0, 0.0, -reach}, fov};
 }
+
 
 // The camera along the line between the two, looking at the point along the line between their
 // targets, with its up turned from one's to the other's.
@@ -258,10 +268,12 @@ ShotPose Blend(const ShotPose &from, const ShotPose &to, double share)
 	    from.fov + (to.fov - from.fov) * static_cast<float>(share)};
 }
 
+
 double BlendShare(double elapsed, double length)
 {
 	return Math::Ease(Math::Easing::InOutCubic, static_cast<float>(elapsed / length));
 }
+
 
 float FadeAt(const Sequence &sequence, double time)
 {
@@ -278,6 +290,7 @@ float FadeAt(const Sequence &sequence, double time)
 	return before.amount + (next->amount - before.amount) * share;
 }
 } // namespace
+
 
 Sequence ReadSequence(std::string_view text, std::string_view name)
 {
@@ -328,6 +341,7 @@ Sequence ReadSequence(std::string_view text, std::string_view name)
 	return sequence;
 }
 
+
 glm::dvec3 RailPoint(const SequenceShot &shot, double share)
 {
 	if (shot.rail.size() == 1)
@@ -345,6 +359,7 @@ glm::dvec3 RailPoint(const SequenceShot &shot, double share)
 	const std::size_t span = std::min(static_cast<std::size_t>(parameter), shot.rail.size() - 2);
 	return SplinePoint(shot.rail, span, parameter - static_cast<double>(span));
 }
+
 
 SequenceView SampleSequence(
     const Sequence &sequence, double time, std::span<const glm::dmat4> roles, const CameraPose &game,
@@ -391,6 +406,7 @@ SequenceView SampleSequence(
 	view.letterbox = sequence.letterbox * view.weight;
 	return view;
 }
+
 
 void RegisterSequenceLoader(Resource::ResourceManager &resources)
 {

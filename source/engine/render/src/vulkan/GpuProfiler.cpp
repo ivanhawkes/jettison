@@ -15,6 +15,7 @@ namespace
 constexpr Core::Category kRender{"render"};
 }
 
+
 GpuProfiler::GpuProfiler(
     std::shared_ptr<DeviceContext> pDeviceContext, std::uint32_t framesInFlight,
     std::vector<std::string> passNames)
@@ -23,7 +24,9 @@ GpuProfiler::GpuProfiler(
 {
 }
 
+
 GpuProfiler::~GpuProfiler() = default;
+
 
 void GpuProfiler::Init()
 {
@@ -83,6 +86,7 @@ void GpuProfiler::Init()
 #endif
 }
 
+
 void GpuProfiler::Destroy()
 {
 #ifdef TRACY_ENABLE
@@ -95,6 +99,7 @@ void GpuProfiler::Destroy()
 	vkDestroyQueryPool(m_pDeviceContext->GetLogicalDevice(), m_pool, nullptr);
 	m_pool = VK_NULL_HANDLE;
 }
+
 
 void GpuProfiler::Collect(std::uint32_t slot)
 {
@@ -125,6 +130,7 @@ void GpuProfiler::Collect(std::uint32_t slot)
 	}
 }
 
+
 void GpuProfiler::BeginFrame(VkCommandBuffer commandBuffer, std::uint32_t slot)
 {
 	if (m_pool != VK_NULL_HANDLE)
@@ -141,6 +147,7 @@ void GpuProfiler::BeginFrame(VkCommandBuffer commandBuffer, std::uint32_t slot)
 #endif
 }
 
+
 void GpuProfiler::BeginPass(VkCommandBuffer commandBuffer, std::uint32_t slot, std::uint32_t pass)
 {
 	if (m_pool == VK_NULL_HANDLE)
@@ -150,6 +157,7 @@ void GpuProfiler::BeginPass(VkCommandBuffer commandBuffer, std::uint32_t slot, s
 	    commandBuffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, m_pool, slot * 2 * passes + 2 * pass);
 }
 
+
 void GpuProfiler::EndPass(VkCommandBuffer commandBuffer, std::uint32_t slot, std::uint32_t pass)
 {
 	if (m_pool == VK_NULL_HANDLE)
@@ -158,6 +166,7 @@ void GpuProfiler::EndPass(VkCommandBuffer commandBuffer, std::uint32_t slot, std
 	vkCmdWriteTimestamp2(
 	    commandBuffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, m_pool, slot * 2 * passes + 2 * pass + 1);
 }
+
 
 void GpuProfiler::ResetMeans()
 {

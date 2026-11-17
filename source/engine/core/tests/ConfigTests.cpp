@@ -24,13 +24,20 @@ class Scratch
 	{
 		std::filesystem::create_directories(m_directory);
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	std::filesystem::path Write(const std::string &name, const std::string &contents) const
 	{
@@ -38,6 +45,8 @@ class Scratch
 		std::ofstream{path} << contents;
 		return path;
 	}
+
+
 	std::filesystem::path Path(const std::string &name) const
 	{
 		return m_directory / name;
@@ -47,12 +56,14 @@ class Scratch
 	std::filesystem::path m_directory;
 };
 
+
 std::string ReadFile(const std::filesystem::path &path)
 {
 	std::ifstream file{path};
 	return {std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
 }
 } // namespace
+
 
 TEST_CASE("Config: the command line overrides the user layer, which overrides the defaults")
 {
@@ -69,6 +80,7 @@ TEST_CASE("Config: the command line overrides the user layer, which overrides th
 	CHECK_FALSE(config.GetString("missing.key").has_value());
 }
 
+
 TEST_CASE("Config: a value that does not read as the type asked for falls through to the next layer")
 {
 	Config config;
@@ -82,6 +94,7 @@ TEST_CASE("Config: a value that does not read as the type asked for falls throug
 	config.Set(ConfigLayer::User, "audio.volume", "0.5x");
 	CHECK_FALSE(config.GetNumber("audio.volume").has_value());
 }
+
 
 TEST_CASE("Config: keys are dotted segments, and none is both a value and a map")
 {
@@ -103,6 +116,7 @@ TEST_CASE("Config: keys are dotted segments, and none is both a value and a map"
 	config.Set(ConfigLayer::Defaults, "render", "x");
 }
 
+
 TEST_CASE("Config: a nested YAML file loads as dotted keys")
 {
 	const Scratch scratch;
@@ -116,6 +130,7 @@ TEST_CASE("Config: a nested YAML file loads as dotted keys")
 	CHECK(config.GetNumber("audio.music") == 0.25);
 }
 
+
 TEST_CASE("Config: a missing or empty file is an empty layer")
 {
 	const Scratch scratch;
@@ -124,6 +139,7 @@ TEST_CASE("Config: a missing or empty file is an empty layer")
 	config.LoadLayer(ConfigLayer::User, scratch.Write("empty.yaml", ""));
 	CHECK_FALSE(config.GetString("render.vsync").has_value());
 }
+
 
 TEST_CASE("Config: a malformed file throws naming the path, and leaves the layer as it was")
 {
@@ -153,6 +169,7 @@ TEST_CASE("Config: a malformed file throws naming the path, and leaves the layer
 	check("conflict.yaml", "audio:\n  music: 0.5\nrender:\n  vsync:\n    mode: on\n");
 	check("null.yaml", "audio:\n  music: 0.5\nrender:\n  vsync:\n");
 }
+
 
 TEST_CASE(
     "Config: the user layer round-trips through its file, without the values equal to the defaults")
@@ -197,6 +214,7 @@ TEST_CASE(
 	loaded.SaveUserLayer(again);
 	CHECK(ReadFile(again) == ReadFile(path));
 }
+
 
 TEST_CASE("Config: a key unset from a layer shows the layer below it")
 {

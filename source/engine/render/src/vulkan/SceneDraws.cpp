@@ -31,6 +31,7 @@ std::pair<entt::entity, const Component *> Nearest(const entt::registry &registr
 }
 } // namespace
 
+
 std::vector<SceneDrawCommand> CollectDraws(
     const entt::registry &registry, const glm::dvec3 &camera, ModelCache &models)
 {

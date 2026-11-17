@@ -49,12 +49,19 @@ class Said
 	          })}
 	{
 	}
+
+
 	~Said()
 	{
 		Core::RemoveLogCallback(m_id);
 	}
+
+
 	Said(const Said &) = delete;
+
+
 	Said &operator=(const Said &) = delete;
+
 
 	bool Contains(std::string_view text) const
 	{
@@ -69,6 +76,7 @@ class Said
 	std::vector<std::string> m_lines;
 };
 
+
 Script::ScriptDefinition Limits()
 {
 	Script::ScriptDefinition definition;
@@ -78,6 +86,7 @@ Script::ScriptDefinition Limits()
 
 // The host API's module, in C and in Rust: each test of it runs against both.
 constexpr std::array<const char *, 2> kEventModules{"events.wasm", "events_rs.wasm"};
+
 
 Script::ScriptDefinition Events(const char *module = kEventModules[0])
 {
@@ -100,6 +109,7 @@ struct World
 	Sim::SimWorld world{1.0 / 60.0, 1};
 	std::vector<Pong> applied;
 
+
 	World()
 	{
 		ScriptTest::RegisterTypes();
@@ -107,6 +117,7 @@ struct World
 		                            { applied.push_back(pong); });
 	}
 };
+
 
 std::vector<Pong> Queued(Sim::SimWorld &world)
 {
@@ -117,6 +128,7 @@ std::vector<Pong> Queued(Sim::SimWorld &world)
 	return pongs;
 }
 
+
 std::uint64_t Traps(const Script::ScriptHost &host, std::string_view name)
 {
 	for (const Script::ScriptStatus &status : host.Scripts())
@@ -125,6 +137,7 @@ std::uint64_t Traps(const Script::ScriptHost &host, std::string_view name)
 	return 0;
 }
 } // namespace
+
 
 TEST_CASE("Script: a module loads and its export is called")
 {
@@ -141,6 +154,7 @@ TEST_CASE("Script: a module loads and its export is called")
 	CHECK(host.LoadedModules() == 0);
 }
 
+
 TEST_CASE("Script: a call out of fuel traps, and the script is called again after")
 {
 	const Vfs::FileSystem files = Modules();
@@ -153,6 +167,7 @@ TEST_CASE("Script: a call out of fuel traps, and the script is called again afte
 	const std::array arguments{1, 2};
 	CHECK(host.Call("limits", "add", arguments) == std::vector<std::int32_t>{3});
 }
+
 
 TEST_CASE("Script: the fuel a call needs is the same on every run")
 {
@@ -183,6 +198,7 @@ TEST_CASE("Script: the fuel a call needs is the same on every run")
 	CHECK(least() == first);
 }
 
+
 TEST_CASE("Script: a call past the time limit is stopped, and its script is not called again")
 {
 	const Vfs::FileSystem files = Modules();
@@ -202,6 +218,7 @@ TEST_CASE("Script: a call past the time limit is stopped, and its script is not 
 	const std::array arguments{1, 2};
 	CHECK_FALSE(host.Call("limits", "add", arguments).has_value());
 }
+
 
 TEST_CASE("Script: memory grows only as far as the definition allows, and traps are survived")
 {
@@ -226,6 +243,7 @@ TEST_CASE("Script: memory grows only as far as the definition allows, and traps 
 	CHECK(Traps(host, "limits") == 3);
 }
 
+
 TEST_CASE("Script: the handlers' instance keeps what it counts until a trap makes it again")
 {
 	const Vfs::FileSystem files = Modules();
@@ -236,6 +254,7 @@ TEST_CASE("Script: the handlers' instance keeps what it counts until a trap make
 	CHECK_FALSE(host.Call("limits", "boom", {}).has_value());
 	CHECK(host.Call("limits", "count", {}) == std::vector<std::int32_t>{1});
 }
+
 
 TEST_CASE("Script: a module is refused for what it imports and is not granted")
 {
@@ -284,6 +303,7 @@ TEST_CASE("Script: a module is refused for what it imports and is not granted")
 		CHECK(host.LoadedModules() == 0);
 	}
 }
+
 
 TEST_CASE("Script: a definition is refused for what does not fit it")
 {
@@ -368,6 +388,7 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 	    "Script 'other': input 'doubled' is answered by script 'events' already", Script::ScriptError);
 }
 
+
 TEST_CASE("Script: an event is copied in for its handler, which sends a command into the world's queue")
 {
 	for (const char *module : kEventModules)
@@ -414,6 +435,7 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 	}
 }
 
+
 TEST_CASE("Script: a command whose memory does not read is refused, and nothing is sent")
 {
 	for (const char *module : kEventModules)
@@ -434,6 +456,7 @@ TEST_CASE("Script: a command whose memory does not read is refused, and nothing 
 		CHECK(Traps(host, "events") == 1);
 	}
 }
+
 
 TEST_CASE(
     "Script: an input is the script's, worked out from the option's other inputs, afresh each call")
@@ -477,6 +500,7 @@ TEST_CASE(
 	}
 }
 
+
 TEST_CASE("Script: every script the registry defines loads, and one that does not is left out")
 {
 	World world;
@@ -518,6 +542,7 @@ namespace
 // What a script keeps by key, in C and in Rust.
 constexpr std::array<const char *, 2> kKeyModules{"keys.wasm", "keys_rs.wasm"};
 
+
 Script::ScriptDefinition Keys(const char *module)
 {
 	Script::ScriptDefinition definition;
@@ -527,6 +552,7 @@ Script::ScriptDefinition Keys(const char *module)
 	return definition;
 }
 
+
 std::int32_t CallOne(Script::ScriptHost &host, std::string_view function)
 {
 	const std::optional<std::vector<std::int32_t>> result = host.Call("keys", function, {});
@@ -534,6 +560,7 @@ std::int32_t CallOne(Script::ScriptHost &host, std::string_view function)
 	REQUIRE(result->size() == 1);
 	return result->front();
 }
+
 
 Script::ScriptStatus StatusOf(const Script::ScriptHost &host, std::string_view name)
 {
@@ -543,6 +570,7 @@ Script::ScriptStatus StatusOf(const Script::ScriptHost &host, std::string_view n
 	return {};
 }
 } // namespace
+
 
 TEST_CASE("Script: a script keeps bytes by key, past its instance, its unloading and a save")
 {
@@ -583,6 +611,7 @@ TEST_CASE("Script: a script keeps bytes by key, past its instance, its unloading
 		CHECK(CallOne(other, "held") == 0);
 	}
 }
+
 
 TEST_CASE("Script: a store past the script's keys or bytes traps, and what it kept stays")
 {
@@ -633,6 +662,7 @@ TEST_CASE("Script: a store past the script's keys or bytes traps, and what it ke
 	    host.Load("keys", ungranted), doctest::Contains("it imports 'store', which it is not granted"),
 	    Script::ScriptError);
 }
+
 
 TEST_CASE("Script: a store's section that does not fit is refused")
 {

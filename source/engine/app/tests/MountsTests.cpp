@@ -35,13 +35,20 @@ class Scratch
 		std::filesystem::remove_all(m_directory);
 		std::filesystem::create_directories(m_directory);
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -49,6 +56,8 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary} << contents;
 	}
+
+
 	std::filesystem::path Path(const std::string &name) const
 	{
 		return m_directory / name;
@@ -58,6 +67,7 @@ class Scratch
 	std::filesystem::path m_directory;
 };
 
+
 std::vector<std::string> NamesOf(const Vfs::FileSystem &files)
 {
 	std::vector<std::string> names;
@@ -66,6 +76,7 @@ std::vector<std::string> NamesOf(const Vfs::FileSystem &files)
 	return names;
 }
 } // namespace
+
 
 TEST_CASE("Mounts: the base, then the user's mods in the order of their identifiers, then the user")
 {
@@ -106,6 +117,7 @@ TEST_CASE("Mounts: the base, then the user's mods in the order of their identifi
 	App::MountAssets(plain, scratch.Path("assets"), scratch.Path("elsewhere"));
 	CHECK(NamesOf(plain) == std::vector<std::string>{"base", "user"});
 }
+
 
 TEST_CASE("Mounts: a data mod in the user's directory changes the game's definitions over a pack")
 {
@@ -163,12 +175,19 @@ class Reported
 	          })}
 	{
 	}
+
+
 	~Reported()
 	{
 		Core::RemoveLogCallback(m_id);
 	}
+
+
 	Reported(const Reported &) = delete;
+
+
 	Reported &operator=(const Reported &) = delete;
+
 
 	bool Contains(std::string_view text) const
 	{
@@ -182,12 +201,14 @@ class Reported
 	Core::LogCallbackId m_id;
 };
 
+
 std::string ReadFile(const std::filesystem::path &path)
 {
 	std::ifstream file{path, std::ios::binary};
 	return {std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
 }
 } // namespace
+
 
 TEST_CASE("Mounts: the player's list orders the mods and enables them, and a mod found is added to it")
 {
@@ -240,6 +261,7 @@ TEST_CASE("Mounts: the player's list orders the mods and enables them, and a mod
 	    std::vector<std::string>{"base", "mod:alpha", "mod:beta", "mod:delta", "mod:gamma", "user"});
 	CHECK(ReadFile(list) == "version: 1\nmods: [{mod: alpha}, {mod: alpha}]\n");
 }
+
 
 TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not before it, is left out")
 {

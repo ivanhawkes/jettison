@@ -84,6 +84,7 @@ class EventSounds
 
 	// The event types and clip events mapped, and the sounds in all.
 	std::size_t Events() const;
+
 	std::size_t Sounds() const;
 
   private:
@@ -92,6 +93,7 @@ class EventSounds
 		EventSound sound;
 		entt::meta_data at;
 	};
+
 	static bool Start(
 	    const EventSound &sound, const std::optional<glm::dvec3> &position, AudioSystem &audio);
 

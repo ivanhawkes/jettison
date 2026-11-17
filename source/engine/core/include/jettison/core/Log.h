@@ -54,6 +54,7 @@ template <typename... Args> struct LogFormat
 {
 	template <typename Text>
 	    requires std::convertible_to<const Text &, std::string_view>
+
 	// Implicit, so a string literal is the argument.
 	consteval LogFormat(const Text &text, std::source_location where = std::source_location::current())
 	    : format{text}, location{where}
@@ -105,7 +106,9 @@ void FlushLogging() noexcept;
 // there is a file, for a crash report (Platform::InstallCrashHandler). It begins at the oldest whole
 // line it holds.
 inline constexpr std::size_t kLogTailBytes = std::size_t{64} * 1024;
+
 std::string LogTail();
+
 // The same, written to the descriptor. Async-signal-safe: it takes no lock and allocates nothing,
 // calling write(2) alone, so a signal handler can call it while another thread, or the thread it
 // interrupted, holds the log's lock; a line being written as it runs may be cut.
@@ -118,5 +121,6 @@ using LogCallback = std::function<void(const LogRecord &)>;
 using LogCallbackId = std::uint32_t;
 
 LogCallbackId AddLogCallback(LogCallback callback);
+
 void RemoveLogCallback(LogCallbackId id);
 } // namespace Jettison::Core

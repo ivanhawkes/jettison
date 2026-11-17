@@ -71,6 +71,7 @@ inline constexpr std::string_view kInputImport = "input";
 
 // Registers the types with Reflect, once however often it is called.
 void RegisterTypes();
+
 // Every script definition under defs/scripts into the registry. Throws as the registry's Load does.
 void LoadDefinitions(Sim::DefinitionRegistry &definitions);
 } // namespace Jettison::Script

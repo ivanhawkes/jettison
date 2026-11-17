@@ -54,20 +54,27 @@ class InputSystem
 {
   public:
 	ActionId DefineAction(std::string name, ActionType type);
+
 	ActionId Action(std::string_view name) const;
+
 	void DefineContext(std::string name, bool opaque = false);
 
 	// Throws std::logic_error for a binding that does not suit the action's type: a component
 	// other than 0 on anything but a vector, or above 1 on one.
 	void Bind(std::string_view context, ActionId action, Binding binding);
+
 	void Rebind(std::string_view context, ActionId action, std::vector<Binding> bindings);
+
 	// Drops the override, back to the defaults.
 	void ResetBindings(std::string_view context, ActionId action);
+
 	const std::vector<Binding> &Bindings(std::string_view context, ActionId action) const;
 
 	void PushContext(std::string_view name);
+
 	// Throws std::logic_error on an empty stack.
 	void PopContext();
+
 	std::size_t ContextDepth() const
 	{
 		return m_stack.size();
@@ -76,27 +83,37 @@ class InputSystem
 	// Raw input. A button pressed and released between two polls counts as pressed for one
 	// frame, so a tap shorter than a frame is not lost.
 	void SetButton(InputCode input, bool down);
+
 	// An absolute reading, a stick's or a trigger's.
 	void SetAxis(InputCode input, float value);
+
 	// Relative motion, the mouse's, summed until the next poll.
 	void AddAxisDelta(InputCode input, float delta);
+
 	// Every input any context binds, sorted, for a source that polls rather than listens.
 	std::vector<InputCode> BoundInputs() const;
+
 	// Every input the overrides bind, sorted: the ones the player chose.
 	std::vector<InputCode> OverriddenInputs() const;
 
 	// Once per frame, before the Input phase's systems read the actions.
 	void Poll();
+
 	bool IsPressed(ActionId action) const;
+
 	bool WasPressedThisFrame(ActionId action) const;
+
 	bool WasReleasedThisFrame(ActionId action) const;
+
 	// A button reads 1 while pressed; a vector's axis is its x.
 	float Axis(ActionId action) const;
+
 	glm::vec2 Vector(ActionId action) const;
 
 	// Under "input.<context>.<action>", in the user layer, as FormatBindings writes them; an action
 	// with no override is taken out of the layer, so one reset to its defaults stays reset.
 	void SaveBindings(Core::Config &config) const;
+
 	// Takes every "input.<context>.<action>" the config has as an override. Throws
 	// std::runtime_error naming the key for text that is not bindings; nothing is applied then.
 	void LoadBindings(const Core::Config &config);
@@ -126,9 +143,13 @@ class InputSystem
 	};
 
 	Context &ContextNamed(std::string_view name);
+
 	const Context &ContextNamed(std::string_view name) const;
+
 	const ActionState &State(ActionId action) const;
+
 	void Check(ActionId action, const Binding &binding) const;
+
 	float Read(InputCode input, float deadZone) const;
 
 	std::vector<ActionState> m_actions;

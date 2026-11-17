@@ -35,6 +35,7 @@ void RegisterSaveTypes()
 	(void)registered;
 }
 
+
 std::vector<std::string> ModDifferences(
     std::span<const ModVersion> saved, std::span<const ModVersion> running)
 {
@@ -69,6 +70,7 @@ std::vector<std::string> ModDifferences(
 	return differences;
 }
 
+
 SaveGame SaveGame::Of(const SimWorld &world, std::string name)
 {
 	SaveGame save;
@@ -80,6 +82,7 @@ SaveGame SaveGame::Of(const SimWorld &world, std::string name)
 	return save;
 }
 
+
 void SaveGame::AddSection(std::string name, std::vector<std::byte> data)
 {
 	if (name.empty())
@@ -89,11 +92,13 @@ void SaveGame::AddSection(std::string name, std::vector<std::byte> data)
 	sections.push_back({std::move(name), std::move(data)});
 }
 
+
 const SaveSection *SaveGame::FindSection(std::string_view name) const
 {
 	const auto found = std::ranges::find(sections, name, &SaveSection::name);
 	return found == sections.end() ? nullptr : &*found;
 }
+
 
 // The info first, so a list reads no further; then the world, then the sections in the order they
 // were added.
@@ -111,6 +116,7 @@ std::vector<std::byte> SaveGame::Write() const
 	}
 	return writer.Finish(kVersion);
 }
+
 
 SaveGame SaveGame::Read(std::span<const std::byte> bytes)
 {
@@ -134,6 +140,7 @@ SaveGame SaveGame::Read(std::span<const std::byte> bytes)
 	return save;
 }
 
+
 SaveInfo SaveGame::ReadInfo(std::span<const std::byte> bytes)
 {
 	RegisterSaveTypes();
@@ -142,6 +149,7 @@ SaveInfo SaveGame::ReadInfo(std::span<const std::byte> bytes)
 	reader.Read(info);
 	return info;
 }
+
 
 const Serialise::BinaryMigrations &SaveGame::Migrations()
 {

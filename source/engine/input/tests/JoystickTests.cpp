@@ -20,6 +20,7 @@ const std::string kStick = "030000004f0400000ab1000000000000";
 const std::string kThrottle = "030000004f04000004b6000000000000";
 } // namespace
 
+
 TEST_CASE("Joysticks: with nothing named, a joystick's number is the devices in slot order")
 {
 	const JoystickMap map;
@@ -32,6 +33,7 @@ TEST_CASE("Joysticks: with nothing named, a joystick's number is the devices in 
 	CHECK(gap[0] == 1);
 	CHECK(gap[1] == 3);
 }
+
 
 TEST_CASE("Joysticks: a named number is its device wherever it is plugged in, and nothing without it")
 {
@@ -63,6 +65,7 @@ TEST_CASE("Joysticks: a named number is its device wherever it is plugged in, an
 	CHECK_FALSE(map.NameOf(0));
 	CHECK(map.NameOf(1) == kThrottle);
 }
+
 
 TEST_CASE("Joysticks: a joystick the player binds is named after the device it is, and saved")
 {

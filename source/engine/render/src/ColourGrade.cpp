@@ -21,6 +21,7 @@ namespace
 	throw std::runtime_error(std::format("Colour grade '{}', line {}: {}", file, line, what));
 }
 
+
 std::vector<std::string_view> Words(std::string_view line)
 {
 	std::vector<std::string_view> words;
@@ -39,6 +40,7 @@ std::vector<std::string_view> Words(std::string_view line)
 	return words;
 }
 
+
 std::optional<float> Number(std::string_view word)
 {
 	float value = 0.0f;
@@ -47,6 +49,7 @@ std::optional<float> Number(std::string_view word)
 		return std::nullopt;
 	return value;
 }
+
 
 // The three numbers after a keyword, or of an entry.
 glm::vec3 Triple(
@@ -68,6 +71,7 @@ glm::vec3 Triple(
 	return value;
 }
 } // namespace
+
 
 ColourLut ReadCubeLut(std::string_view text, std::string_view name)
 {
@@ -156,6 +160,7 @@ ColourLut ReadCubeLut(std::string_view text, std::string_view name)
 	return lut;
 }
 
+
 ColourLut IdentityLut(std::uint32_t size)
 {
 	ColourLut lut;
@@ -170,6 +175,7 @@ ColourLut IdentityLut(std::uint32_t size)
 				    static_cast<float>(b) / last);
 	return lut;
 }
+
 
 glm::vec3 SampleLut(const ColourLut &lut, glm::vec3 colour)
 {
@@ -189,6 +195,7 @@ glm::vec3 SampleLut(const ColourLut &lut, glm::vec3 colour)
 	}
 	return result;
 }
+
 
 void RegisterColourLutLoader(Resource::ResourceManager &resources)
 {

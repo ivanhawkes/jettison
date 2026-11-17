@@ -36,6 +36,7 @@ std::string ReadAsset(const std::string &path)
 	return text.str();
 }
 
+
 entt::entity Named(const entt::registry &registry, std::string_view id)
 {
 	for (const auto [entity, name] : registry.view<const Scene::SceneEntityId>().each())
@@ -52,6 +53,7 @@ struct Assets
 	std::optional<Resource::ResourceManager> resources;
 	Celestial::Galaxy galaxy = Celestial::ReadGalaxy(ReadAsset("systems/galaxy.yaml"));
 
+
 	Assets()
 	{
 		files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR});
@@ -60,6 +62,7 @@ struct Assets
 		Scene::RegisterJumpLoaders(*resources);
 	}
 
+
 	// A frame's resource update, with the worker's reads done first, so what a frame sees does not
 	// depend on the worker's pace.
 	void Settle()
@@ -67,6 +70,7 @@ struct Assets
 		worker.WaitIdle();
 		resources->Update();
 	}
+
 
 	std::size_t Index(std::string_view name) const
 	{
@@ -87,6 +91,7 @@ struct Shown
 	float fadeAtShow{-1.0f};
 	std::string arrival;
 
+
 	void Show(Scene::JumpArrival &destination, float fade)
 	{
 		++shows;
@@ -103,6 +108,7 @@ struct Shown
 };
 
 constexpr double kFrame = 0.05;
+
 
 // Frames until the jump is over, at most a limit, recording each stage the frames were in.
 std::vector<JumpStage> RunJump(Scene::JumpTransition &jump, Assets &assets, int limit = 400)
@@ -132,6 +138,7 @@ struct Transiting
 	glm::dvec3 arrival{0.0};
 };
 
+
 void RegisterTestTypes()
 {
 	static const bool registered = []
@@ -149,6 +156,7 @@ void RegisterTestTypes()
 	(void)registered;
 }
 } // namespace
+
 
 TEST_CASE("Jump: the effect covers the frame before the destination is shown, and lifts after it")
 {
@@ -198,6 +206,7 @@ TEST_CASE("Jump: the effect covers the frame before the destination is shown, an
 	CHECK(Named(shown.scene.Registry(), "camera") != entt::null);
 	CHECK(Named(shown.scene.Registry(), "corva") == entt::null);
 }
+
 
 TEST_CASE("Jump: the effect is held while the files are read, and while the destination streams in")
 {
@@ -262,6 +271,7 @@ TEST_CASE("Jump: the effect is held while the files are read, and while the dest
 	assets.resources->Release(streamed);
 }
 
+
 TEST_CASE("Jump: a destination that fails is abandoned, and the effect lifts on the system it left")
 {
 	Assets assets;
@@ -307,6 +317,7 @@ TEST_CASE("Jump: a destination that fails is abandoned, and the effect lifts on 
 	CHECK(jump.Error().empty());
 	CHECK(shown.shows == 1);
 }
+
 
 TEST_CASE(
     "Jump: a jump between two systems unloads one and loads the other while the galaxy's "

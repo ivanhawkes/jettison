@@ -55,10 +55,12 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 [[noreturn]] void Refuse(std::string_view kind, std::string_view name, const std::string &what)
 {
 	throw Serialise::FormatError(std::string{kind} + " '" + std::string{name} + "': " + what);
 }
+
 
 // Names that are given twice, in a list of things that carry one.
 template <typename T, typename Name>
@@ -71,6 +73,7 @@ void RefuseRepeats(
 		if (!seen.insert(name(item)).second)
 			Refuse(kind, file, std::string{what} + " '" + std::string{name(item)} + "' is given twice");
 }
+
 
 template <typename T, typename Name>
 std::size_t IndexOf(const std::vector<T> &items, std::string_view wanted, Name name)
@@ -104,11 +107,13 @@ ProgramDefinition ReadProgram(std::string_view text, std::string_view name)
 	return program;
 }
 
+
 std::string WriteProgram(const ProgramDefinition &program)
 {
 	RegisterTypes();
 	return Serialise::YamlArchive::Write(program, Serialise::FormatVersion{kProgramFormatVersion});
 }
+
 
 MaterialDefinition ReadMaterial(std::string_view text, std::string_view name)
 {
@@ -137,6 +142,7 @@ MaterialDefinition ReadMaterial(std::string_view text, std::string_view name)
 	return material;
 }
 
+
 std::string WriteMaterial(const MaterialDefinition &material)
 {
 	RegisterTypes();
@@ -153,6 +159,7 @@ ResolvedMaterial ResolveDefaults(const ProgramDefinition &program)
 		resolved.fallbacks[binding] = program.textures[binding].fallback;
 	return resolved;
 }
+
 
 ResolvedMaterial ResolveMaterial(
     const ProgramDefinition &program, const MaterialDefinition &material, std::string_view name)

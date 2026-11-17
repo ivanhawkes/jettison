@@ -117,14 +117,17 @@ class Waypoints
 	{
 		return m_points;
 	}
+
 	const Graph &Legs() const
 	{
 		return m_graph;
 	}
+
 	std::span<const Sphere> Obstacles() const
 	{
 		return m_obstacles;
 	}
+
 	double Clearance() const
 	{
 		return m_clearance;

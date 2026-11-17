@@ -25,6 +25,7 @@ namespace
 {
 constexpr std::string_view kHullDefinition = "Dock.HullDefinition";
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -55,6 +56,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 // Whether one of the controller's ships is clamped to a pad of the station.
 bool FleetDockedAt(
     const entt::registry &registry, const Sim::Controller &controller, entt::entity station)
@@ -64,6 +66,7 @@ bool FleetDockedAt(
 			return true;
 	return false;
 }
+
 
 void Buy(
     Sim::SimWorld &world, Dock::Docks &docks,
@@ -121,11 +124,13 @@ void Buy(
 }
 } // namespace
 
+
 void LoadShipyard(Sim::DefinitionRegistry &definitions)
 {
 	RegisterTypes();
 	definitions.Load<ShipForSale>(kShipyardDirectory, Serialise::FormatVersion{kShipyardVersion});
 }
+
 
 void RegisterFleet(Sim::SimWorld &world, Dock::Docks &docks, const Sim::DefinitionRegistry &definitions)
 {
@@ -137,6 +142,7 @@ void RegisterFleet(Sim::SimWorld &world, Dock::Docks &docks, const Sim::Definiti
 	world.RegisterCommand<BuyShip>([&docks, yard](Sim::SimWorld &target, const BuyShip &command)
 	                               { Buy(target, docks, *yard, command); });
 }
+
 
 entt::entity FreePad(
     const entt::registry &registry, entt::entity station, const Dock::HullDefinition &hull)
@@ -152,6 +158,7 @@ entt::entity FreePad(
 	return entt::null;
 }
 
+
 void FitForTrade(entt::registry &registry, entt::entity ship)
 {
 	if (!registry.all_of<Ai::Steered>(ship))
@@ -161,6 +168,7 @@ void FitForTrade(entt::registry &registry, entt::entity ship)
 	if (!registry.all_of<Ai::Behaviour>(ship))
 		registry.emplace<Ai::Behaviour>(ship, Ai::Behaviour{std::string{kTraderTree}, {}, {}});
 }
+
 
 std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller)
 {
@@ -172,6 +180,7 @@ std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Cont
 	return fleet;
 }
 
+
 entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller)
 {
 	for (const auto &[entity, helm] : snapshot.Components<Sim::Helm>())
@@ -179,6 +188,7 @@ entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &contro
 			return entity;
 	return entt::null;
 }
+
 
 bool GiveOldShipItsHelm(entt::registry &registry, entt::entity ship, const Sim::Controller &controller)
 {

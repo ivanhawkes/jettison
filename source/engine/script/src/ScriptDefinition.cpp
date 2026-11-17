@@ -30,6 +30,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 void LoadDefinitions(Sim::DefinitionRegistry &definitions)
 {
 	RegisterTypes();

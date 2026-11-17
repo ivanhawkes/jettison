@@ -33,6 +33,7 @@ std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
 	return frame ? std::string_view{frame->body} : std::string_view{};
 }
 
+
 // Whether the ship is in the gate's system and frame, where its ring can meet it.
 bool AtGate(const entt::registry &registry, entt::entity ship, entt::entity gate)
 {
@@ -41,6 +42,7 @@ bool AtGate(const entt::registry &registry, entt::entity ship, entt::entity gate
 	return shipSystem && gateSystem && shipSystem->system == gateSystem->system &&
 	       shipSystem->system != Sim::kNoSystem && FrameOf(registry, ship) == FrameOf(registry, gate);
 }
+
 
 // Entities of a component in entity order, so what is done to them is the same however the storage
 // happens to be laid out, as it is not after a load.
@@ -52,12 +54,14 @@ template <typename Component> std::vector<entt::entity> InOrder(const entt::regi
 	return entities;
 }
 
+
 Sim::ReasonArgument Named(const entt::registry &registry, entt::entity gate)
 {
 	const auto *found = registry.valid(gate) ? registry.try_get<Gate>(gate) : nullptr;
 	return Sim::ReasonArgument::Identifier(found ? found->jumpPoint : std::string{});
 }
 } // namespace
+
 
 Gates &Gates::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics, const LaneTravel &lanes)
 {
@@ -80,10 +84,12 @@ Gates &Gates::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics, const
 	return *gates;
 }
 
+
 std::string Gates::RingShape(double radius)
 {
 	return std::format("rings/{}", radius);
 }
+
 
 void Gates::DefineStarSystem(const Celestial::StarSystem &system)
 {
@@ -110,15 +116,18 @@ void Gates::DefineStarSystem(const Celestial::StarSystem &system)
 	m_systems.emplace(id, system);
 }
 
+
 bool Gates::HasStarSystem(std::uint64_t system) const
 {
 	return m_systems.contains(system);
 }
 
+
 void Gates::SetTollRule(TollRule rule)
 {
 	m_rule = std::move(rule);
 }
+
 
 std::vector<entt::entity> Gates::MakeGates(Sim::SimWorld &world, std::uint64_t system) const
 {
@@ -155,6 +164,7 @@ std::vector<entt::entity> Gates::MakeGates(Sim::SimWorld &world, std::uint64_t s
 	return gates;
 }
 
+
 entt::entity Gates::FindGate(
     const entt::registry &registry, std::uint64_t system, std::string_view jumpPoint)
 {
@@ -163,6 +173,7 @@ entt::entity Gates::FindGate(
 			return entity;
 	return entt::null;
 }
+
 
 const Celestial::Body *Gates::JumpPointOf(const entt::registry &registry, entt::entity gate) const
 {
@@ -173,6 +184,7 @@ const Celestial::Body *Gates::JumpPointOf(const entt::registry &registry, entt::
 	const int body = system->second.Find(registry.get<Gate>(gate).jumpPoint);
 	return body < 0 ? nullptr : &system->second.bodies[static_cast<std::size_t>(body)];
 }
+
 
 std::optional<std::int64_t> Gates::TollThrough(const entt::registry &registry, entt::entity gate) const
 {
@@ -193,11 +205,13 @@ std::optional<std::int64_t> Gates::TollThrough(const entt::registry &registry, e
 	return exit->toll;
 }
 
+
 std::optional<Sim::Reason> Gates::Refuses(
     const entt::registry &registry, entt::entity ship, std::int64_t toll) const
 {
 	return m_rule.refuses ? m_rule.refuses(registry, ship, toll) : std::nullopt;
 }
+
 
 void Gates::Request(Sim::SimWorld &world, const RequestTransit &command)
 {
@@ -251,6 +265,7 @@ void Gates::Request(Sim::SimWorld &world, const RequestTransit &command)
 	    TransitQueued{ship, command.gate, static_cast<std::uint32_t>(gate.queue.size())});
 }
 
+
 void Gates::Clear(Sim::SimWorld &world, entt::entity gate, entt::entity ship, std::int64_t toll)
 {
 	entt::registry &registry = world.Registry();
@@ -260,6 +275,7 @@ void Gates::Clear(Sim::SimWorld &world, entt::entity gate, entt::entity ship, st
 	registry.emplace_or_replace<Transit>(ship, Transit{gate, true});
 	world.Events().Emit(TransitCleared{ship, gate, toll, state.lapses});
 }
+
 
 void Gates::GiveUp(entt::registry &registry, entt::entity ship)
 {
@@ -274,6 +290,7 @@ void Gates::GiveUp(entt::registry &registry, entt::entity ship)
 	}
 	registry.remove<Transit>(ship);
 }
+
 
 void Gates::Send(Sim::SimWorld &world, entt::entity gate, entt::entity ship)
 {
@@ -295,6 +312,7 @@ void Gates::Send(Sim::SimWorld &world, entt::entity gate, entt::entity ship)
 	world.Events().Emit(TransitSent{ship, gate, toll});
 }
 
+
 void Gates::Serve(Sim::SimWorld &world, entt::entity gate)
 {
 	entt::registry &registry = world.Registry();
@@ -311,6 +329,7 @@ void Gates::Serve(Sim::SimWorld &world, entt::entity gate)
 			Clear(world, gate, ship, *toll);
 	}
 }
+
 
 void Gates::Step(Sim::SimWorld &world)
 {

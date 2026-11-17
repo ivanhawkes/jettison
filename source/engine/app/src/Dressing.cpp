@@ -70,6 +70,7 @@ constexpr float kDoorHeight = 10.0f;
 // A road's lane divider, painted down its middle.
 constexpr float kRoadLine = 0.3f;
 
+
 // The scene turns an entity about X, then Y, then Z (scene/SceneSystems.cpp).
 glm::vec3 SceneRotation(const glm::dquat &orientation)
 {
@@ -78,6 +79,7 @@ glm::vec3 SceneRotation(const glm::dquat &orientation)
 	    glm::mat4{glm::mat4_cast(glm::quat{orientation})}, rotation.x, rotation.y, rotation.z);
 	return rotation;
 }
+
 
 entt::entity Node(
     entt::registry &scene, entt::entity parent, const glm::dvec3 &at, const glm::vec3 &rotation)
@@ -98,6 +100,7 @@ struct Look
 	std::optional<Scene::Layer> layer;
 };
 
+
 // A procedural shape spans its scale either side of its middle.
 entt::entity Part(
     entt::registry &scene, entt::entity parent, const glm::dvec3 &at, const glm::vec3 &rotation,
@@ -115,6 +118,7 @@ entt::entity Part(
 	return entity;
 }
 
+
 // A painted stroke on a pad, in the pad's axes: from its middle, its half-width and half-length,
 // turned about the normal.
 void Stroke(
@@ -127,6 +131,7 @@ void Stroke(
 	    {Scene::Shape::Box, colour, {}, Scene::Layer::Effects});
 }
 
+
 // A stroke between two points on the pad.
 void Line(
     entt::registry &scene, entt::entity pad, glm::vec2 from, glm::vec2 to, float width,
@@ -137,6 +142,7 @@ void Line(
 	    scene, pad, (from + to) * 0.5f, width * 0.5f, glm::length(along) * 0.5f + width * 0.5f,
 	    std::atan2(along.x, along.y), colour);
 }
+
 
 // A rectangle's outline on the pad, about its middle.
 void Outline(
@@ -159,6 +165,7 @@ void Outline(
 constexpr std::array<std::uint8_t, 10> kDigitSegments{0b0111111, 0b0000110, 0b1011011, 0b1001111,
                                                       0b1100110, 0b1101101, 0b1111101, 0b0000111,
                                                       0b1111111, 0b1101111};
+
 
 // A digit in bar segments, its middle on the pad, read with the bow (-Z) up and +X to the right, as
 // a pilot over the pad sees it.
@@ -189,6 +196,7 @@ void Digit(
 			Line(scene, pad, middle + from + inset, middle + to - inset, stroke, kNumberColour);
 		}
 }
+
 
 // The paint on a pad, in its axes: x across, z along with the bow at -Z.
 void Paint(entt::registry &scene, entt::entity pad, const Dock::PadLayout &layout, unsigned number)
@@ -238,6 +246,7 @@ void Paint(entt::registry &scene, entt::entity pad, const Dock::PadLayout &layou
 	if (lineTo.y > lineFrom.y)
 		Line(scene, pad, lineFrom, lineTo, width, kLineColour);
 }
+
 
 // The floodlight poles along a pad's long sides, in its axes, and their lamps. Returns the lamps.
 std::vector<entt::entity> Floodlights(
@@ -299,6 +308,7 @@ std::vector<entt::entity> Floodlights(
 		}
 	return lamps;
 }
+
 
 // A bay's door, from its sill on the deck: in a wall facing along the deck, or a hatch in it.
 void Door(entt::registry &scene, entt::entity station, const Dock::Bay &bay)
@@ -367,6 +377,7 @@ constexpr float kJetIntensity = 0.25f;
 constexpr float kPlumeRate = 220.0f;
 constexpr float kPlumeIntensity = 0.5f;
 
+
 // An engine's plume, from the nozzle of the radius given, aft along the hull's +Z: the emitter's -Z
 // turned half about Y. Its particles leave at 40 m/s and are slowed to rest in the frame ShowEngines
 // gives them, the station's, so a ship moving through it draws its plume out behind it.
@@ -393,6 +404,7 @@ entt::entity Plume(entt::registry &scene, entt::entity root, const glm::dvec3 &n
 	scene.emplace<Scene::ParticleEmitterComponent>(plume, emitter);
 	return plume;
 }
+
 
 // A manoeuvring jet's puff, from a nozzle of the radius given, along the exhaust (in the hull's
 // axes): cold gas, short and faint beside an engine's plume, at rest in the frame ShowThrust gives it.
@@ -448,6 +460,7 @@ constexpr auto kBox = Scene::Shape::Box;
 constexpr auto kIco = Scene::Shape::IcoSphere;
 constexpr auto kCylinder = Scene::Shape::Cylinder;
 
+
 // The shell's shuttle, 9.8 x 6.4 x 1.8 m, from which this was measured: a hull, a canopy over its
 // fore end, wings aft, and two engines whose nozzles glow.
 std::vector<ProxyPart> SmallProxy()
@@ -466,6 +479,7 @@ std::vector<ProxyPart> SmallProxy()
 	}
 	return parts;
 }
+
 
 // A transport: a cab with its canopy at the bow, a spine, four cargo pods along it and two engines.
 std::vector<ProxyPart> MediumProxy()
@@ -490,6 +504,7 @@ std::vector<ProxyPart> MediumProxy()
 	}
 	return parts;
 }
+
 
 // The largest transport: a spine under a bridge at the bow, two tiers of six containers either side
 // of it, and an engine block of three.
@@ -517,6 +532,7 @@ std::vector<ProxyPart> LargeProxy()
 	return parts;
 }
 
+
 // A liner or a frigate: a long round hull with a rounded bow, a superstructure along its top, fins
 // aft and three engines.
 std::vector<ProxyPart> ExtraLargeProxy()
@@ -535,6 +551,7 @@ std::vector<ProxyPart> ExtraLargeProxy()
 	}
 	return parts;
 }
+
 
 std::vector<ProxyPart> ProxyOf(Dock::PadClass padClass)
 {
@@ -559,6 +576,7 @@ struct ClampParts
 	entt::entity arm;
 	entt::entity jaw;
 };
+
 
 ClampParts Clamp(entt::registry &scene, entt::entity pad)
 {
@@ -586,6 +604,7 @@ ClampParts Clamp(entt::registry &scene, entt::entity pad)
 	return parts;
 }
 
+
 // A pad's four clamps, stowed, and the player that moves them, which shows them stowed, at the end
 // of the open clip.
 PadClamps Clamps(entt::registry &scene, entt::entity pad)
@@ -609,6 +628,7 @@ PadClamps Clamps(entt::registry &scene, entt::entity pad)
 	return clamps;
 }
 
+
 // Sets the pad's clamps playing the clip, from its start or, shown as they already are, its end.
 void PlayClamps(entt::registry &scene, const PadClamps &clamps, bool closed, bool atEnd)
 {
@@ -622,6 +642,7 @@ void PlayClamps(entt::registry &scene, const PadClamps &clamps, bool closed, boo
 }
 } // namespace
 
+
 glm::vec3 LampColour(Dock::PadState state, bool display)
 {
 	if (display)
@@ -634,6 +655,7 @@ glm::vec3 LampColour(Dock::PadState state, bool display)
 	}
 	return glm::vec3{1.0f};
 }
+
 
 void FitClamps(entt::registry &scene, const PadClamps &clamps, const Dock::HullDefinition &hull)
 {
@@ -653,6 +675,7 @@ void FitClamps(entt::registry &scene, const PadClamps &clamps, const Dock::HullD
 		transform->scale = glm::vec3{size};
 	}
 }
+
 
 StationDressing DressStation(
     entt::registry &scene, entt::entity station, const Dock::StationLayout &layout,
@@ -759,6 +782,7 @@ StationDressing DressStation(
 	return dressing;
 }
 
+
 std::size_t ShowPadStates(
     entt::registry &scene, StationDressing &dressing, const Sim::Snapshot &snapshot,
     entt::entity simStation, const Dock::Docks &docks)
@@ -817,6 +841,7 @@ std::size_t ShowPadStates(
 	}
 	return found;
 }
+
 
 entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hull, entt::entity ship)
 {
@@ -883,6 +908,7 @@ entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hu
 	return root;
 }
 
+
 float PortFiring(const ThrusterPort &port, const Physics::Thrust &thrust)
 {
 	// The way the port pushes the ship, against its exhaust.
@@ -897,6 +923,7 @@ float PortFiring(const ThrusterPort &port, const Physics::Thrust &thrust)
 		firing += std::max(glm::dot(turn / length, thrust.angular), 0.0f);
 	return std::min(firing, 1.0f);
 }
+
 
 void ShowThrust(
     entt::registry &scene, const Sim::Snapshot &snapshot, entt::entity frame, double seconds)
@@ -932,6 +959,7 @@ void ShowThrust(
 	}
 }
 
+
 entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy)
 {
 	constexpr float kQuarter = 1.5707963f;
@@ -962,6 +990,7 @@ entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy)
 	scene.emplace<BuggyLoad>(root, load);
 	return root;
 }
+
 
 void ShowBuggyLoads(entt::registry &scene, const Sim::Snapshot &snapshot)
 {

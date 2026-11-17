@@ -15,6 +15,7 @@ namespace
 {
 constexpr Core::Category kSettings{"settings"};
 
+
 // The context and the action a command names, as the input system has them.
 Input::ActionId Named(
     const Input::InputSystem &input, std::span<const std::string> arguments, std::string_view usage)
@@ -35,9 +36,11 @@ Input::ActionId Named(
 }
 } // namespace
 
+
 Settings::Settings(std::filesystem::path file) : m_file{std::move(file)}
 {
 }
+
 
 void Settings::Load(Input::InputSystem &input)
 {
@@ -60,6 +63,7 @@ void Settings::Load(Input::InputSystem &input)
 	}
 	Core::Log(Core::Severity::Info, kSettings, "Settings from {}", m_file.string());
 }
+
 
 void Settings::Save(const Input::InputSystem &input)
 {
@@ -86,6 +90,7 @@ void Settings::Save(const Input::InputSystem &input)
 	m_joysticks.Save(m_config);
 	m_config.SaveUserLayer(m_file);
 }
+
 
 BindResult Bind(Input::InputSystem &input, std::span<const std::string> arguments)
 {
@@ -115,6 +120,7 @@ BindResult Bind(Input::InputSystem &input, std::span<const std::string> argument
 	}
 	return {std::format("{}.{} is {}", context, arguments[1], Input::FormatBindings(*bindings)), true};
 }
+
 
 BindResult Unbind(Input::InputSystem &input, std::span<const std::string> arguments)
 {

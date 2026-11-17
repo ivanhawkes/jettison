@@ -17,6 +17,7 @@ glm::mat4 ReversedInfinitePerspective(float verticalFov, float aspect, float nea
 	return projection;
 }
 
+
 Math::DRay ScreenRay(const CameraView &camera, const glm::dvec2 &point, const glm::dvec2 &windowSize)
 {
 	// The screen spans the vertical field of view top to bottom, and the same scale across.
@@ -26,10 +27,12 @@ Math::DRay ScreenRay(const CameraView &camera, const glm::dvec2 &point, const gl
 	return {camera.position, glm::normalize(camera.orientation * glm::dvec3{x, y, -1.0})};
 }
 
+
 glm::mat4 RenderViewMatrix(const CameraView &camera)
 {
 	return glm::mat4_cast(glm::quat{glm::conjugate(camera.orientation)});
 }
+
 
 glm::mat4 ToRenderSpace(const glm::dmat4 &world, const glm::dvec3 &camera)
 {
@@ -37,6 +40,7 @@ glm::mat4 ToRenderSpace(const glm::dmat4 &world, const glm::dvec3 &camera)
 	relative[3] = glm::dvec4{glm::dvec3{world[3]} - camera, world[3].w};
 	return glm::mat4{relative};
 }
+
 
 glm::vec3 ToRenderSpace(const glm::dvec3 &position, const glm::dvec3 &camera)
 {

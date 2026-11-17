@@ -35,17 +35,20 @@ struct Crashed
 	std::size_t reports{0};
 };
 
+
 std::filesystem::path TemporaryDirectory(const std::string &name)
 {
 	return std::filesystem::temp_directory_path() /
 	       ("jettison-platform-tests-" + std::to_string(getpid())) / name;
 }
 
+
 std::string ReadFile(const std::filesystem::path &path)
 {
 	std::ifstream file{path};
 	return {std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
 }
+
 
 // Installs the handler in a child, logs a line and runs crash, then reads what the child wrote. The
 // child's stdout is discarded: doctest's own reports are not the handler's.
@@ -90,15 +93,18 @@ template <typename Crash> Crashed CrashInChild(const std::string &name, Crash cr
 	return crashed;
 }
 
+
 bool Has(const std::string &text, const std::string &part)
 {
 	return text.find(part) != std::string::npos;
 }
 
+
 bool Symbolised()
 {
 	return std::system("command -v addr2line >/dev/null 2>&1") == 0;
 }
+
 
 // Not inlined, so the report has a frame of its own to name.
 [[gnu::noinline]] void WriteThroughNull()
@@ -107,6 +113,7 @@ bool Symbolised()
 	*pTarget = 1;
 }
 } // namespace
+
 
 TEST_CASE("Crash: a fault writes a report of the signal, the frames and the log's tail")
 {
@@ -144,6 +151,7 @@ TEST_CASE("Crash: a fault writes a report of the signal, the frames and the log'
 	CHECK(!Has(crashed.stderrText, "the line before the fault (CrashTests.cpp:"));
 }
 
+
 TEST_CASE("Crash: a failed assertion's abort is reported, with the assertion in the log's tail")
 {
 	const Crashed crashed = CrashInChild("assertion", [] { JETTISON_VERIFY(1 + 1 == 3); });
@@ -157,6 +165,7 @@ TEST_CASE("Crash: a failed assertion's abort is reported, with the assertion in 
 	if (Symbolised())
 		CHECK(Has(crashed.report, "Jettison::Core::AssertionFailed("));
 }
+
 
 TEST_CASE("Crash: an exception that goes uncaught is logged, then reported as an abort")
 {
@@ -174,6 +183,7 @@ TEST_CASE("Crash: an exception that goes uncaught is logged, then reported as an
 	CHECK(Has(
 	    crashed.report, "[fatal] [crash] An exception went uncaught: the drive is not where it was"));
 }
+
 
 TEST_CASE("Crash: a directory that cannot be made is refused as the handler is installed")
 {

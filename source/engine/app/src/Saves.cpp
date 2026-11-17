@@ -24,6 +24,7 @@ constexpr std::string_view kSaveExtension = ".save";
 // register, so its save is refused whole, and the section with it, rather than migrated.
 constexpr Serialise::FormatVersion kShellVersion{2};
 
+
 void RegisterShellState()
 {
 	static const bool registered = []
@@ -39,6 +40,7 @@ void RegisterShellState()
 	(void)registered;
 }
 
+
 bool IsSaveName(std::string_view name)
 {
 	return !name.empty() && name.size() <= 64 &&
@@ -52,17 +54,20 @@ bool IsSaveName(std::string_view name)
 }
 } // namespace
 
+
 std::vector<std::byte> WriteShellState(const ShellState &state)
 {
 	RegisterShellState();
 	return Serialise::BinaryArchive::Write(state, kShellVersion);
 }
 
+
 ShellState ReadShellState(std::span<const std::byte> bytes)
 {
 	RegisterShellState();
 	return Serialise::BinaryArchive::Read<ShellState>(bytes, kShellVersion);
 }
+
 
 std::string SavePath(std::string_view name)
 {
@@ -71,6 +76,7 @@ std::string SavePath(std::string_view name)
 		    std::format("'{}' is not a save's name: up to 64 letters, digits, '-' and '_'", name)};
 	return std::format("{}/{}{}", kSaveDirectory, name, kSaveExtension);
 }
+
 
 std::vector<std::string> ListSaves(const Vfs::FileSystem &fileSystem)
 {
@@ -88,6 +94,7 @@ std::vector<std::string> ListSaves(const Vfs::FileSystem &fileSystem)
 	return names;
 }
 
+
 void RegisterSavesScreenTypes()
 {
 	static const bool registered = []
@@ -104,6 +111,7 @@ void RegisterSavesScreenTypes()
 	}();
 	(void)registered;
 }
+
 
 SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem)
 {
@@ -131,6 +139,7 @@ SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem)
 	}
 	return screen;
 }
+
 
 std::vector<std::uint64_t> UnknownSystems(const entt::registry &world, const Celestial::Galaxy &galaxy)
 {

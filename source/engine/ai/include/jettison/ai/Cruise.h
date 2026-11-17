@@ -168,6 +168,7 @@ class CruiseTravel
 	// A star system, for where its bodies are. It has to be resolved; throws std::invalid_argument
 	// for a system already defined. A Cruise in a system not defined is refused.
 	void DefineStarSystem(Celestial::StarSystem system);
+
 	bool HasStarSystem(std::uint64_t system) const;
 
 	// How far from a body's centre a cruise to it arrives.
@@ -179,6 +180,7 @@ class CruiseTravel
 	}
 
 	void Start(Sim::SimWorld &world, const Cruise &command) const;
+
 	void Place(Sim::SimWorld &world) const;
 
 	const Physics::PhysicsWorld &m_physics;

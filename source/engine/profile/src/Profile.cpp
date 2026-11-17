@@ -11,6 +11,7 @@ bool IsEnabled()
 #endif
 }
 
+
 bool IsConnected()
 {
 	return TracyIsConnected;

@@ -104,7 +104,9 @@ class DeviceContext
 
 	// Disable copying.
 	DeviceContext() = default;
+
 	DeviceContext(const DeviceContext &) = delete;
+
 	DeviceContext &operator=(const DeviceContext &) = delete;
 
 	// Part of the name of the GPU Init is to draw with, in place of the one it would choose
@@ -131,66 +133,82 @@ class DeviceContext
 	{
 		SetObjectName(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkImage object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkImageView object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkFramebuffer object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkPipeline object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkRenderPass object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkPipelineLayout object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkDescriptorPool object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkDescriptorSet object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_DESCRIPTOR_SET, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkCommandBuffer object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_COMMAND_BUFFER, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkSemaphore object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkFence object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_FENCE, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkSampler object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkDeviceMemory object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkShaderModule object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_SHADER_MODULE, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkDescriptorSetLayout object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<uint64_t>(object), name);
 	}
+
 	void SetDebugName(VkQueryPool object, const std::string &name) const
 	{
 		SetObjectName(VK_OBJECT_TYPE_QUERY_POOL, reinterpret_cast<uint64_t>(object), name);
@@ -199,6 +217,7 @@ class DeviceContext
 	// Marks a labelled region of a command buffer, so a layer message raised while a command
 	// is executing names the frame region it came from. No-ops without the extension.
 	void BeginDebugLabel(VkCommandBuffer commandBuffer, const std::string &name) const;
+
 	void EndDebugLabel(VkCommandBuffer commandBuffer) const;
 
 	// Wait for the device to return sensible values for the window size after a resize event.
@@ -274,6 +293,7 @@ class DeviceContext
 	// The depth target's format, a float depth and a stencil (D32_SFLOAT_S8_UINT), rendered into and
 	// sampled. Throws when the device does not have it.
 	VkFormat FindDepthFormat();
+
 	// A depth format that can be rendered into and then sampled with a filtered comparison, as the
 	// sun's shadow maps are. Throws when the device has none.
 	VkFormat FindShadowFormat();
@@ -284,15 +304,19 @@ class DeviceContext
 	// object and to its allocation, so a leak reported at teardown says what leaked.
 	Buffer CreateBuffer(
 	    VkDeviceSize size, VkBufferUsageFlags usage, MemoryUse memory, const std::string &name);
+
 	void DestroyBuffer(Buffer &buffer);
+
 	// Copies into an upload buffer and flushes the range, which memory that is not host-coherent
 	// needs before the device may read it; on coherent memory the flush does nothing.
 	void WriteBuffer(
 	    const Buffer &buffer, const void *data, VkDeviceSize size, VkDeviceSize offset = 0);
+
 	// Copies out of a readback buffer, after invalidating the range, which memory that is not
 	// host-coherent needs before the CPU may see what the device wrote. The device's writes have to
 	// have been made available to the host first: a barrier to the host stage, and a fence.
 	void ReadBuffer(const Buffer &buffer, void *data, VkDeviceSize size, VkDeviceSize offset = 0);
+
 	// A device-local buffer holding the bytes given, filled through a staging buffer that is gone
 	// by the time this returns.
 	Buffer CreateDeviceBuffer(
@@ -315,21 +339,26 @@ class DeviceContext
 	Image CreateImage(
 	    uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
 	    VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::string &name);
+
 	// A device-local cube map: six square layers, in Vulkan's face order (+X, -X, +Y, -Y, +Z, -Z).
 	Image CreateCubeImage(
 	    uint32_t size, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage,
 	    const std::string &name);
+
 	// A device-local 2D array image, one level, single-sampled: the sun's shadow cascades.
 	Image CreateArrayImage(
 	    uint32_t width, uint32_t height, uint32_t layers, VkFormat format, VkImageUsageFlags usage,
 	    const std::string &name);
+
 	// A device-local 3D image, one level, single-sampled, a cube of texels: a colour grade's table.
 	Image CreateVolumeImage(
 	    uint32_t size, VkFormat format, VkImageUsageFlags usage, const std::string &name);
+
 	void DestroyImage(Image &image);
 
 	VkImageView CreateImageView(
 	    VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
+
 	// A view of any part of an image: a cube, or one level of one face to render into.
 	VkImageView CreateImageView(
 	    VkImage image, VkFormat format, VkImageViewType viewType, const VkImageSubresourceRange &range);
@@ -376,6 +405,7 @@ class DeviceContext
 
 	// Why the device cannot be drawn with, or empty when it can.
 	std::string Unsuitable(VkPhysicalDevice device);
+
 	// Whether a monitor is connected to the device's DRM card, when it says which card it is.
 	std::optional<bool> DrivesDisplay(VkPhysicalDevice device);
 
@@ -386,6 +416,7 @@ class DeviceContext
 	void CreateLogicalDevice();
 
 	void CreateAllocator();
+
 	// Reports every allocation still live, as a validation error would be reported, then
 	// destroys the allocator: a leak fails the headless render test, which reads that stream.
 	void DestroyAllocator();

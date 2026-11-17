@@ -23,18 +23,23 @@ class IoWorker
 	using Completion = std::function<void()>;
 
 	IoWorker();
+
 	// Finishes the item in progress, then stops. Work not yet started is dropped, and no
 	// completion runs: call WaitIdle() and Drain() first to finish everything.
 	~IoWorker();
+
 	IoWorker(const IoWorker &) = delete;
+
 	IoWorker &operator=(const IoWorker &) = delete;
 
 	// Runs work on the worker, then completion on a later Drain(). Safe from any thread.
 	void Enqueue(Work work, Completion completion);
+
 	// Runs the completions of finished work, in order. Main thread only. If a work item threw,
 	// the completions before it run, then its exception is rethrown; the ones after it wait for
 	// the next Drain().
 	void Drain();
+
 	// Blocks until every item enqueued so far has run on the worker. Their completions wait for
 	// Drain(). Used by shutdown and by tests.
 	void WaitIdle();

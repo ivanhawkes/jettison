@@ -27,6 +27,7 @@ struct ChildResult
 	std::string stderrText;
 };
 
+
 template <typename Check> ChildResult RunInChild(Check check)
 {
 	std::array<int, 2> pipeEnds{};
@@ -53,11 +54,13 @@ template <typename Check> ChildResult RunInChild(Check check)
 	return {WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT, text};
 }
 
+
 template <typename Check> bool AbortsInChild(Check check)
 {
 	return RunInChild(check).aborted;
 }
 } // namespace
+
 
 TEST_CASE("JETTISON_NOT_IMPLEMENTED throws, naming the function it is in")
 {
@@ -74,11 +77,13 @@ TEST_CASE("JETTISON_NOT_IMPLEMENTED throws, naming the function it is in")
 	}
 }
 
+
 TEST_CASE("JETTISON_VERIFY passes a true condition and aborts on a false one")
 {
 	JETTISON_VERIFY(1 + 1 == 2);
 	CHECK(AbortsInChild([] { JETTISON_VERIFY(1 + 1 == 3); }));
 }
+
 
 TEST_CASE("A failed check is reported through the log at Fatal, naming the expression")
 {
@@ -90,6 +95,7 @@ TEST_CASE("A failed check is reported through the log at Fatal, naming the expre
 	    std::string::npos);
 	CHECK(result.stderrText.find("AssertTests.cpp:") != std::string::npos);
 }
+
 
 TEST_CASE("JETTISON_ASSERT evaluates its condition in debug builds only")
 {

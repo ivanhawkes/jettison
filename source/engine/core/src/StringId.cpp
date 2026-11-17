@@ -19,6 +19,7 @@ struct Table
 	std::unordered_map<std::uint64_t, std::string> texts;
 };
 
+
 Table &GetTable()
 {
 	static Table table;
@@ -26,6 +27,7 @@ Table &GetTable()
 }
 #endif
 } // namespace
+
 
 void StringId::Record([[maybe_unused]] std::string_view text) const
 {
@@ -37,6 +39,7 @@ void StringId::Record([[maybe_unused]] std::string_view text) const
 	JETTISON_VERIFY(inserted || entry->second == text);
 #endif
 }
+
 
 std::string_view StringId::Text() const
 {

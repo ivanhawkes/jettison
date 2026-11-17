@@ -78,6 +78,7 @@ class SystemScene
 	SystemScene(Scene &scene, Celestial::StarSystem system);
 
 	SystemScene(const SystemScene &) = delete;
+
 	SystemScene &operator=(const SystemScene &) = delete;
 
 	const Celestial::StarSystem &System() const
@@ -92,12 +93,14 @@ class SystemScene
 	{
 		m_factory = std::move(factory);
 	}
+
 	// The traffic layer: a proxy from the factory for each entity the current snapshot has in this
 	// system and that has none (asked once while the entity stays), the proxies of entities gone from
 	// it or from the system destroyed with their children, then every proxy interpolated
 	// (SyncSimProxies). A proxy the factory made is a BuiltComponent and in the traffic layer unless
 	// the factory gave it another. An entity that leaves and comes back is asked for again.
 	void SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha);
+
 	// Destroys every proxy, with its children, and forgets the entities the factory declined, so the
 	// next sync asks the factory again for every entity: after a world is loaded from a save, an
 	// identifier may name another entity than it did, and a proxy made for the one before is not
@@ -110,7 +113,9 @@ class SystemScene
 
   private:
 	void Build();
+
 	entt::entity BuildBody(std::size_t body);
+
 	void BuildSky();
 
 	// Whether the current snapshot has the entity in this system.

@@ -20,7 +20,9 @@ class Swapchain
 
 	// Disable copying.
 	Swapchain() = default;
+
 	Swapchain(const Swapchain &) = delete;
+
 	Swapchain &operator=(const Swapchain &) = delete;
 
 	void Init();
@@ -83,6 +85,7 @@ class Swapchain
 	{
 		return m_images.at(index);
 	}
+
 	VkImageView GetImageView(uint32_t index) const
 	{
 		return m_imageViews.at(index);

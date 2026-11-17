@@ -41,6 +41,7 @@ struct CargoV2
 
 constexpr std::string_view kCargo = "MigrationTests.Cargo";
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -61,6 +62,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 // Data as an old version wrote it: an old type's fields under the format's name.
 template <typename T> std::vector<std::byte> Written(const T &value, std::uint32_t version)
 {
@@ -69,10 +71,12 @@ template <typename T> std::vector<std::byte> Written(const T &value, std::uint32
 	return writer.Finish({version});
 }
 
+
 std::string OriginOf(const std::string &label)
 {
 	return label.starts_with("Halcyon") ? "Halcyon" : "unknown";
 }
+
 
 // The chain as the format's owner keeps it: a rename is an edit to the table alone, and the step
 // that adds a field reads version 2 with the type that wrote it.
@@ -96,6 +100,7 @@ BinaryMigrations CargoMigrations()
 	return migrations;
 }
 
+
 YamlMigrations CargoYamlMigrations()
 {
 	YamlMigrations migrations{std::string{kCargo}, {3}};
@@ -111,6 +116,7 @@ YamlMigrations CargoYamlMigrations()
 	return migrations;
 }
 } // namespace
+
 
 TEST_CASE("Migration: binary data of every earlier version is read as the current one")
 {
@@ -143,6 +149,7 @@ TEST_CASE("Migration: binary data of every earlier version is read as the curren
 	reader.End();
 	CHECK(read.tonnes == 40);
 }
+
 
 TEST_CASE("Migration: a version the chain does not reach is refused before any step runs")
 {
@@ -193,6 +200,7 @@ TEST_CASE("Migration: a version the chain does not reach is refused before any s
 	    std::logic_error);
 }
 
+
 TEST_CASE("Migration: a chain's steps lead to its current version, once each")
 {
 	BinaryMigrations migrations{"Test", {3}};
@@ -203,6 +211,7 @@ TEST_CASE("Migration: a chain's steps lead to its current version, once each")
 	CHECK_THROWS_AS(migrations.Add(1, step), std::logic_error);
 	CHECK_THROWS_AS(migrations.Add(2, {}), std::logic_error);
 }
+
 
 TEST_CASE("Migration: a binary document emits the bytes it parsed, and renames through its table")
 {
@@ -233,6 +242,7 @@ TEST_CASE("Migration: a binary document emits the bytes it parsed, and renames t
 		CHECK_THROWS_AS(BinaryDocument::Parse(std::span{bytes}.first(size), kCargo), FormatError);
 }
 
+
 TEST_CASE("Migration: YAML of every earlier version is read as the current one, its lines kept")
 {
 	RegisterTypes();
@@ -259,6 +269,7 @@ TEST_CASE("Migration: YAML of every earlier version is read as the current one, 
 	CHECK_THROWS_AS(
 	    YamlArchive::Read<CargoV1>("version: 1\nlabel: x\n", CargoYamlMigrations()), std::logic_error);
 }
+
 
 TEST_CASE("Migration: bytes inside an archive are written after their count, and checked as read")
 {
@@ -308,6 +319,7 @@ struct Lot
 	std::uint32_t crates{0};
 };
 
+
 void RegisterLot()
 {
 	static const bool registered = []
@@ -329,6 +341,7 @@ void RegisterLot()
 	(void)registered;
 }
 } // namespace
+
 
 TEST_CASE("BinaryRecord: a value's fields edited as bytes, then read as the type is now")
 {

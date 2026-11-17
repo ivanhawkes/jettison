@@ -15,6 +15,7 @@ Layers::Layers()
 	objectVsBroadPhase.emplace(broadPhase, 2, pairs, 2);
 }
 
+
 StarSystemWorld::StarSystemWorld(const Layers &layers, const PhysicsSettings &settings)
 {
 	m_system.Init(
@@ -23,6 +24,7 @@ StarSystemWorld::StarSystemWorld(const Layers &layers, const PhysicsSettings &se
 	// Orbits are on rails and a ship's own thrust moves it: nothing falls.
 	m_system.SetGravity(JPH::Vec3::sZero());
 }
+
 
 JPH::BodyID StarSystemWorld::Allocate()
 {
@@ -41,6 +43,7 @@ JPH::BodyID StarSystemWorld::Allocate()
 	return JPH::BodyID{index, m_sequences[index]};
 }
 
+
 void StarSystemWorld::Release(const JPH::BodyID &id)
 {
 	const std::uint32_t index = id.GetIndex();
@@ -50,6 +53,7 @@ void StarSystemWorld::Release(const JPH::BodyID &id)
 	m_free.insert(index);
 	--m_bodyCount;
 }
+
 
 void StarSystemWorld::RestoreIdentifiers(
     std::vector<std::uint8_t> sequences, const std::vector<std::uint32_t> &held)

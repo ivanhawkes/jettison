@@ -17,6 +17,7 @@ int ProfiledFunction()
 }
 } // namespace
 
+
 TEST_CASE("Profile: the build says whether the client is compiled in")
 {
 #ifdef TRACY_ENABLE
@@ -26,6 +27,7 @@ TEST_CASE("Profile: the build says whether the client is compiled in")
 	CHECK_FALSE(IsConnected());
 #endif
 }
+
 
 TEST_CASE("Profile: zones, plots and frame marks compile in either build")
 {
@@ -42,6 +44,7 @@ TEST_CASE("Profile: zones, plots and frame marks compile in either build")
 	JETTISON_PROFILE_PLOT("seconds", 0.25);
 	JETTISON_PROFILE_FRAME();
 }
+
 
 TEST_CASE("Profile: integers plot as int64_t, floating point as itself")
 {

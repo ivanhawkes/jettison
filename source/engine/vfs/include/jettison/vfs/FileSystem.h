@@ -58,6 +58,7 @@ class FileSystem
 	// pack, naming what is wrong with it. A writable source is a directory, created if it does not
 	// exist yet.
 	void AddMount(Mount mount);
+
 	const std::vector<Mount> &Mounts() const
 	{
 		return m_mounts;
@@ -65,20 +66,25 @@ class FileSystem
 
 	// Whether the path names a regular file in any mount.
 	bool Exists(std::string_view virtualPath) const;
+
 	// The topmost file at the path. Its mount is an index into Mounts().
 	std::optional<FileInfo> Find(std::string_view virtualPath) const;
+
 	// The topmost file's bytes. Throws std::runtime_error if the file is there and cannot be read,
 	// or is damaged in its pack.
 	std::optional<std::vector<std::byte>> Read(std::string_view virtualPath) const;
+
 	// The file at the path in every mount that has one, the bottom mount's first. Throws as Read
 	// does.
 	std::vector<Layer> ReadLayers(std::string_view virtualPath) const;
+
 	// Writes to the writable mount, replacing any file there whole, through Core::WriteFileDurably:
 	// the bytes go to a file beside it that no virtual path names, flushed to the disk and renamed
 	// over it, and the directory flushed, so a reader, a crash or a power cut never finds half a
 	// save, and a save reported written is on the disk. Throws std::logic_error if there is no
 	// writable mount, and std::runtime_error if the write fails.
 	void Write(std::string_view virtualPath, std::span<const std::byte> bytes) const;
+
 	// Every file under a directory, recursively, across all mounts, each once, sorted. The
 	// directory is a virtual path, or empty for the root. A file whose name is not a valid
 	// virtual path is not listed, since nothing could name it.

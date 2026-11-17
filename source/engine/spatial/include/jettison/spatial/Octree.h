@@ -46,17 +46,22 @@ class Octree
 	};
 
 	Octree();
+
 	explicit Octree(const Settings &settings);
 
 	// An entity is inserted once and removed once; inserting one already indexed, or updating or
 	// removing one that is not, is a programming error (JETTISON_ASSERT). A point a step moves within
 	// its leaf is written in place.
 	void Insert(entt::entity entity, const glm::dvec3 &position);
+
 	void Update(entt::entity entity, const glm::dvec3 &position);
+
 	void Remove(entt::entity entity);
+
 	void Clear();
 
 	bool Contains(entt::entity entity) const;
+
 	std::size_t Count() const
 	{
 		return m_items.size();
@@ -65,7 +70,9 @@ class Octree
 	// Everything within the radius of the centre (at it included), or in the box (on its faces
 	// included), in identifier order. The forms taking a vector clear it and reuse its storage.
 	void QuerySphere(const glm::dvec3 &centre, double radius, std::vector<entt::entity> &out) const;
+
 	void QueryBox(const Math::DAabb &box, std::vector<entt::entity> &out) const;
+
 	// The count nearest to the point within maxDistance (at it included), nearest first, entities
 	// equally far in identifier order.
 	void QueryNearest(
@@ -78,12 +85,14 @@ class Octree
 		QuerySphere(centre, radius, out);
 		return out;
 	}
+
 	std::vector<entt::entity> QueryBox(const Math::DAabb &box) const
 	{
 		std::vector<entt::entity> out;
 		QueryBox(box, out);
 		return out;
 	}
+
 	std::vector<Neighbour> QueryNearest(
 	    const glm::dvec3 &point, std::size_t count, double maxDistance = kUnbounded) const
 	{
@@ -128,13 +137,21 @@ class Octree
 	};
 
 	bool InRootCube(const glm::dvec3 &position) const;
+
 	void Place(std::uint32_t item);
+
 	void Unplace(std::uint32_t item);
+
 	void AddToNode(std::uint32_t node, std::uint32_t item);
+
 	void RemoveFromNode(std::uint32_t item);
+
 	void Split(std::uint32_t node);
+
 	void Collapse(std::uint32_t node);
+
 	void FreeChildren(std::uint32_t node);
+
 	void MakeNode(std::uint32_t index, std::uint32_t parent, const glm::dvec3 &centre, double halfSize);
 
 	Settings m_settings;

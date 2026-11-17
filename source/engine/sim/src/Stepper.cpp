@@ -12,6 +12,7 @@ Stepper::Stepper(SimWorld &world, int maxStepsPerFrame)
 	Resync();
 }
 
+
 int Stepper::Advance(double realSeconds)
 {
 	const int steps = m_accumulator.Accumulate(m_world.Clock().ScaledDelta(realSeconds));
@@ -27,6 +28,7 @@ int Stepper::Advance(double realSeconds)
 		m_current = Capture(m_world);
 	return steps;
 }
+
 
 void Stepper::Resync()
 {

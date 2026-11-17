@@ -15,15 +15,19 @@ std::unique_ptr<FastNoiseLite> MakeNoise(std::int32_t seed)
 }
 } // namespace
 
+
 Noise::Noise(std::int32_t seed) : m_seed{seed}, m_pNoise{MakeNoise(seed)}
 {
 }
 
+
 Noise::~Noise() = default;
+
 
 Noise::Noise(const Noise &other) : m_seed{other.m_seed}, m_pNoise{MakeNoise(other.m_seed)}
 {
 }
+
 
 Noise &Noise::operator=(const Noise &other)
 {
@@ -35,13 +39,18 @@ Noise &Noise::operator=(const Noise &other)
 	return *this;
 }
 
+
 Noise::Noise(Noise &&) noexcept = default;
+
+
 Noise &Noise::operator=(Noise &&) noexcept = default;
+
 
 float Noise::Sample(const glm::vec2 &position) const
 {
 	return m_pNoise->GetNoise(position.x, position.y);
 }
+
 
 float Noise::Sample(const glm::vec3 &position) const
 {

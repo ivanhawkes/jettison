@@ -28,8 +28,12 @@ class VulkanRenderer final : public IRenderer
 	{
 	}
 
+
 	VulkanRenderer(const VulkanRenderer &) = delete;
+
+
 	VulkanRenderer &operator=(const VulkanRenderer &) = delete;
+
 
 	void Init() override
 	{
@@ -58,6 +62,7 @@ class VulkanRenderer final : public IRenderer
 		    m_pWindow->GetGLFWWindow(), m_pRenderer->GetOutputFormat(), Renderer::kFramesInFlight);
 	}
 
+
 	void Destroy() override
 	{
 		// The frame loop's last frame is submitted, not waited on: Renderer::Render returns once
@@ -84,19 +89,24 @@ class VulkanRenderer final : public IRenderer
 		m_pWindow.reset();
 	}
 
+
 	GLFWwindow *GetGLFWWindow() const override
 	{
 		return m_pWindow ? m_pWindow->GetGLFWWindow() : nullptr;
 	}
 
+
 	void BeginUi() override
 	{
 		m_pImGuiRenderer->BeginFrame();
 	}
+
+
 	void EndUi() override
 	{
 		m_pImGuiRenderer->EndFrame();
 	}
+
 
 	bool UiColoursLinearised() const override
 	{
@@ -106,6 +116,7 @@ class VulkanRenderer final : public IRenderer
 		return !m_pImGuiRenderer || m_pImGuiRenderer->ColoursLinearised();
 	}
 
+
 	bool Render(
 	    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
 	    double presentationTime) override
@@ -113,85 +124,121 @@ class VulkanRenderer final : public IRenderer
 		return m_pRenderer->Render(scene, debugDraw, overlay, *m_pImGuiRenderer, presentationTime);
 	}
 
+
 	void SetExposure(float exposure) override
 	{
 		m_pRenderer->SetExposure(exposure);
 	}
+
+
 	void SetFade(const glm::vec3 &color, float amount) override
 	{
 		m_pRenderer->SetFade(color, std::clamp(amount, 0.0f, 1.0f));
 	}
+
+
 	void SetLetterbox(float share) override
 	{
 		m_pRenderer->SetLetterbox(share);
 	}
+
+
 	void SetDebugView(DebugView view) override
 	{
 		m_pRenderer->SetDebugView(view);
 	}
+
+
 	DebugView GetDebugView() const override
 	{
 		return m_pRenderer->GetDebugView();
 	}
+
+
 	void SetDepthPrepass(bool enabled) override
 	{
 		m_pRenderer->SetDepthPrepass(enabled);
 	}
+
+
 	bool GetDepthPrepass() const override
 	{
 		return m_pRenderer->GetDepthPrepass();
 	}
+
+
 	void SetAmbientOcclusion(bool enabled) override
 	{
 		m_pRenderer->SetAmbientOcclusion(enabled);
 	}
+
+
 	bool GetAmbientOcclusion() const override
 	{
 		return m_pRenderer->GetAmbientOcclusion();
 	}
+
+
 	void SetBloom(float strength) override
 	{
 		m_pRenderer->SetBloom(strength);
 	}
+
+
 	float GetBloom() const override
 	{
 		return m_pRenderer->GetBloom();
 	}
 
+
 	const FrameStats &GetFrameStats() const override
 	{
 		return m_pRenderer->GetFrameStats();
 	}
+
+
 	const std::vector<PassTiming> &GetPassTimings() const override
 	{
 		return m_pRenderer->GetPassTimings();
 	}
+
+
 	std::uint64_t GetMeasuredFrames() const override
 	{
 		return m_pRenderer->GetMeasuredFrames();
 	}
+
+
 	void ResetPassTimings() override
 	{
 		m_pRenderer->ResetPassTimings();
 	}
+
+
 	const ClusterCheckTotals &GetClusterChecks() const override
 	{
 		return m_pRenderer->GetClusterChecks();
 	}
+
 
 	void RequestScreenshot(const std::filesystem::path &path) override
 	{
 		m_pRenderer->RequestScreenshot(path);
 	}
 
+
 	const std::string &DeviceName() const override
 	{
 		return m_pDeviceContext->GetDeviceName();
 	}
+
+
 	std::uint32_t FrameWidth() const override
 	{
 		return m_pSwapchain->GetExtents().width;
 	}
+
+
 	std::uint32_t FrameHeight() const override
 	{
 		return m_pSwapchain->GetExtents().height;
@@ -211,6 +258,7 @@ class VulkanRenderer final : public IRenderer
 	std::unique_ptr<ImGuiRenderer> m_pImGuiRenderer;
 };
 } // namespace
+
 
 std::unique_ptr<IRenderer> CreateRenderer(
     const Vfs::FileSystem &assets, Resource::ResourceManager &resources, RendererOptions options)

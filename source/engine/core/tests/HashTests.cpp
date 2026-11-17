@@ -8,6 +8,7 @@
 
 using namespace Jettison::Core;
 
+
 // The published FNV-1a 64 test vectors, and two of the engine's own names. These values are in
 // save files and data from the day IDs are first stored: if one of these checks fails, the hash
 // has changed, and every stored ID with it.
@@ -22,6 +23,7 @@ TEST_CASE("Fnv1a64: the published reference vectors, at compile time and at run 
 	CHECK(Fnv1a64(runtime) == 0x5bb5878b1c1cabf2ULL);
 }
 
+
 TEST_CASE("HashCombine: recorded values, and the order of the parts matters")
 {
 	static_assert(HashCombine(0, 0) == 0x9e3779b97f4a7c15ULL);
@@ -31,6 +33,7 @@ TEST_CASE("HashCombine: recorded values, and the order of the parts matters")
 	static_assert(HashCombine(render, vsync) == 0xa87ac99364465d8eULL);
 	static_assert(HashCombine(vsync, render) == 0x057dd5291a5f9906ULL);
 }
+
 
 TEST_CASE("StringId: the same hash from a constant and from a run-time string")
 {
@@ -43,11 +46,13 @@ TEST_CASE("StringId: the same hash from a constant and from a run-time string")
 	CHECK(fromString != StringId{"models/Duck.glb"});
 }
 
+
 TEST_CASE("StringId: null by default, and the empty string is not null")
 {
 	static_assert(StringId{}.IsNull());
 	static_assert(!StringId{""}.IsNull());
 }
+
 
 TEST_CASE("StringId: development builds name the text an ID came from")
 {
@@ -62,6 +67,7 @@ TEST_CASE("StringId: development builds name the text an ID came from")
 #endif
 	CHECK(StringId{}.Text() == "<unknown>");
 }
+
 
 TEST_CASE("Handle: null by default, typed by tag, compared by index and generation")
 {

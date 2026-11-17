@@ -31,7 +31,9 @@ class Layers
 	static constexpr JPH::ObjectLayer kMoving = 1;
 
 	Layers();
+
 	Layers(const Layers &) = delete;
+
 	Layers &operator=(const Layers &) = delete;
 
 	JPH::ObjectLayerPairFilterTable pairs{2};
@@ -54,22 +56,27 @@ class StarSystemWorld
 {
   public:
 	StarSystemWorld(const Layers &layers, const PhysicsSettings &settings);
+
 	StarSystemWorld(const StarSystemWorld &) = delete;
+
 	StarSystemWorld &operator=(const StarSystemWorld &) = delete;
 
 	JPH::PhysicsSystem &System()
 	{
 		return m_system;
 	}
+
 	const JPH::PhysicsSystem &System() const
 	{
 		return m_system;
 	}
+
 	// Without locks: the simulation has one thread.
 	JPH::BodyInterface &Bodies()
 	{
 		return m_system.GetBodyInterfaceNoLock();
 	}
+
 	const JPH::BodyInterface &Bodies() const
 	{
 		return m_system.GetBodyInterfaceNoLock();
@@ -77,12 +84,14 @@ class StarSystemWorld
 
 	// The identifier the next body takes, held for it.
 	JPH::BodyID Allocate();
+
 	void Release(const JPH::BodyID &id);
 
 	const std::vector<std::uint8_t> &Sequences() const
 	{
 		return m_sequences;
 	}
+
 	// The identifiers as a save left them: each index's sequence number, and the indices bodies
 	// hold, every one of which is below the sequences' count.
 	void RestoreIdentifiers(

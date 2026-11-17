@@ -21,6 +21,7 @@ bool ContainsIgnoringCase(std::string_view text, std::string_view part)
 	return !std::ranges::search(text, part, {}, lower, lower).empty();
 }
 
+
 int TypeRank(DeviceType type)
 {
 	switch (type)
@@ -34,6 +35,7 @@ int TypeRank(DeviceType type)
 	return 4;
 }
 
+
 std::string Describe(const DeviceCandidate &candidate)
 {
 	const std::string_view display = !candidate.drivesDisplay   ? "display unknown"
@@ -42,6 +44,7 @@ std::string Describe(const DeviceCandidate &candidate)
 	return std::format("{} ({}, {})", candidate.name, DeviceTypeName(candidate.type), display);
 }
 } // namespace
+
 
 std::string_view DeviceTypeName(DeviceType type)
 {
@@ -55,6 +58,7 @@ std::string_view DeviceTypeName(DeviceType type)
 	}
 	return "other";
 }
+
 
 DeviceChoice ChooseDevice(std::span<const DeviceCandidate> candidates, std::string_view requested)
 {
@@ -105,6 +109,7 @@ DeviceChoice ChooseDevice(std::span<const DeviceCandidate> candidates, std::stri
 	        : "it is the best of the usable devices";
 	return {best, std::format("{}: {}", Describe(chosen), why)};
 }
+
 
 std::optional<bool> DrivesDisplay(
     std::int64_t major, std::int64_t minor, const std::filesystem::path &sysfs)

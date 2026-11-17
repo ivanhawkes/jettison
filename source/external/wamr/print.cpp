@@ -12,10 +12,12 @@ namespace
 std::atomic<jettison_wamr_print_t> g_print{nullptr};
 }
 
+
 extern "C" void jettison_wamr_set_print(jettison_wamr_print_t print)
 {
 	g_print.store(print);
 }
+
 
 extern "C" int jettison_wamr_vprintf(const char *format, va_list arguments)
 {

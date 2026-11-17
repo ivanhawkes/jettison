@@ -22,6 +22,7 @@ namespace
 constexpr std::string_view kGood = "Shell.Good";
 constexpr std::string_view kHull = "Dock.HullDefinition";
 
+
 // A hull by its definition's name, as a mod may have changed it; one not defined as it is named.
 std::string HullName(const Sim::DefinitionRegistry &definitions, const std::string &hull)
 {
@@ -29,6 +30,7 @@ std::string HullName(const Sim::DefinitionRegistry &definitions, const std::stri
 	return definition && !definition->displayName.empty() ? definition->displayName : hull;
 }
 } // namespace
+
 
 std::string EntityName(
     const Sim::Snapshot &snapshot, const Ui::StringTable &strings, entt::entity entity)
@@ -39,6 +41,7 @@ std::string EntityName(
 		return rails->body;
 	return std::string{strings.Text("reason.entity")};
 }
+
 
 std::string WordReason(
     const Sim::Reason &reason, const Sim::Snapshot &snapshot,

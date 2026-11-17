@@ -29,6 +29,7 @@ enum class Unknown : std::uint8_t
 	Gone
 };
 
+
 void RegisterReasons()
 {
 	static const bool registered = []
@@ -44,6 +45,7 @@ void RegisterReasons()
 }
 } // namespace
 
+
 TEST_CASE("Reason: a module's enumerator is its key, under the module's name")
 {
 	RegisterReasons();
@@ -58,6 +60,7 @@ TEST_CASE("Reason: a module's enumerator is its key, under the module's name")
 	CHECK_THROWS_AS(Sim::MakeReason(Misnamed::Gone), std::logic_error);
 	CHECK_THROWS_AS(Sim::MakeReason(Unknown::Gone), std::logic_error);
 }
+
 
 TEST_CASE("Reason: the arguments keep their order and kinds, through an archive and to a developer")
 {

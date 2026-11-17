@@ -62,10 +62,13 @@ class OrbitCamera
 	{
 		m_target = target;
 	}
+
 	// Radians: yaw about +Y, pitch up from the target's horizon.
 	void Orbit(double yaw, double pitch);
+
 	// Multiplies the distance: 0.5 halves it.
 	void Zoom(double factor);
+
 	// Sets the goals and the smoothed values at once, so the camera starts there.
 	void Place(double yaw, double pitch, double distance);
 
@@ -73,6 +76,7 @@ class OrbitCamera
 	{
 		return m_distance;
 	}
+
 	CameraPose Update(double dt);
 
   private:
@@ -109,8 +113,10 @@ class ChaseCamera
 	{
 		m_target = target;
 	}
+
 	// Starts the lag where the target is now, so the first frame is not a swing.
 	void Snap();
+
 	CameraPose Update(double dt);
 
   private:
@@ -141,9 +147,12 @@ class CockpitCamera
 	{
 		m_target = target;
 	}
+
 	void Look(double yaw, double pitch);
+
 	// Back to straight ahead.
 	void Centre();
+
 	CameraPose Update(double dt);
 
   private:
@@ -181,12 +190,16 @@ class MapCamera
 	{
 		m_focus = focus;
 	}
+
 	// Steps in, positive, or out, negative.
 	void Zoom(double steps);
+
 	// In units of the camera's distance from the focus, so a pan crosses the same share of the
 	// view at every zoom.
 	void Pan(double right, double forward);
+
 	void Rotate(double yaw, double pitch);
+
 	// Back on the focus.
 	void Recentre();
 
@@ -194,6 +207,7 @@ class MapCamera
 	{
 		return std::exp(m_logDistance);
 	}
+
 	CameraPose Update(double dt);
 
   private:
@@ -216,6 +230,7 @@ class CameraTransition
 {
   public:
 	CameraTransition() = default;
+
 	CameraTransition(
 	    const CameraPose &from, double duration, Math::Easing easing = Math::Easing::InOutCubic);
 
@@ -223,6 +238,7 @@ class CameraTransition
 	{
 		return m_duration > 0.0 && m_elapsed < m_duration;
 	}
+
 	// Advances by dt and blends towards `to`; `to` itself once the transition is done.
 	CameraPose Update(const CameraPose &to, double dt);
 

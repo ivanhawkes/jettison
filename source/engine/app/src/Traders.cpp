@@ -61,6 +61,7 @@ constexpr double kStationClearance = 100.0;
 // How far past a station's reach a trader flies before it cruises.
 constexpr double kReachMargin = 300.0;
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -81,11 +82,13 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 const MarketGood *FindGood(const Market &market, std::string_view good)
 {
 	const auto found = std::ranges::find(market.goods, good, &MarketGood::good);
 	return found != market.goods.end() ? &*found : nullptr;
 }
+
 
 // Every market at a station in the world, in entity order, so a choice between equals is the same
 // however the storage happens to be laid out, as it is not after a load.
@@ -111,6 +114,7 @@ class Round
 	      m_decision{std::move(decision)}, m_pScripts{pScripts}
 	{
 	}
+
 
 	void Define(Ai::Behaviours &behaviours, const std::shared_ptr<Round> &self) const
 	{
@@ -281,6 +285,7 @@ class Round
 		return Status::Success;
 	}
 
+
 	// Whether the run buys, rather than selling what the hold already has.
 	Status Buying(TaskContext &context) const
 	{
@@ -288,6 +293,7 @@ class Round
 		           ? Status::Success
 		           : Status::Failure;
 	}
+
 
 	// Makes for the run's market (the argument says which, buy or sell): the route from the ship's
 	// system to the market's, as the gates it goes through.
@@ -312,6 +318,7 @@ class Round
 		return Status::Success;
 	}
 
+
 	// Off the pad, unless the ship is at the station it is bound for: let go and lifted clear, or
 	// a reservation or a place in a queue given up.
 	Status Leave(TaskContext &context) const
@@ -333,11 +340,13 @@ class Round
 		return docking ? Status::Running : Status::Success;
 	}
 
+
 	Status JumpsLeft(TaskContext &context) const
 	{
 		return context.world.Registry().get<Trader>(context.entity).jumps.empty() ? Status::Failure
 		                                                                          : Status::Success;
 	}
+
 
 	// Asks the next gate on the route to clear the ship through it, and waits where its cruise left
 	// it while the ships before it in the gate's queue go through. Succeeds once it is cleared, and
@@ -360,6 +369,7 @@ class Round
 			return Status::Failure;
 		return transit->cleared ? Status::Success : Status::Running;
 	}
+
 
 	// Flies through the ring of the gate the ship is cleared through, which sends it along the lane:
 	// in along the ring's axis from the side the ship is on, and on through towards the far side.
@@ -388,6 +398,7 @@ class Round
 		return Status::Running;
 	}
 
+
 	// Appends to the flight the waypoints of a course from one point to another round a station's
 	// sphere, in the frame whose origin is given.
 	void AddCourseRound(
@@ -402,6 +413,7 @@ class Round
 			for (std::size_t point = 1; point + 1 < course->points.size(); ++point)
 				flight.waypoints.push_back(course->points[point] - origin);
 	}
+
 
 	// Crosses the system to the body the argument names, the gate the route goes through next ("gate")
 	// or the market's station ("market"): flown out of any station's reach, round the station, where
@@ -487,6 +499,7 @@ class Round
 		return registry.all_of<Ai::Cruising>(context.entity) ? Status::Running : Status::Failure;
 	}
 
+
 	// Along the lane the gate sent the ship down, and out at the far end.
 	Status Jump(TaskContext &context) const
 	{
@@ -499,6 +512,7 @@ class Round
 		trader.jumps.erase(trader.jumps.begin());
 		return Status::Success;
 	}
+
 
 	// Onto a pad of the station the ship is bound for: asked for and flown in by the docks, or,
 	// with every pad it fits taken, held off the station in its place in the queue until one frees.
@@ -531,6 +545,7 @@ class Round
 			HoldOff(context, station);
 		return Status::Running;
 	}
+
 
 	// Buys the run's crates, as many as the hold, the purse and the market allow now, or sells every
 	// crate of the good the hold has; the crates then cross the deck.
@@ -586,11 +601,13 @@ class Round
 		return Status::Success;
 	}
 
+
 	Status WaitCargo(TaskContext &context) const
 	{
 		return Dock::ToCarry(context.world.Registry(), context.entity) > 0 ? Status::Running
 		                                                                   : Status::Success;
 	}
+
 
 	// Holds a queued ship off the station, on the side it came from, its place in the queue along
 	// the line across that side, so the ships waiting do not wait in each other.
@@ -616,6 +633,7 @@ class Round
 		    Ai::SetDestination{SenderOf(registry, context.entity), context.entity, std::move(holding)});
 	}
 
+
 	// The lanes' tolls along a route.
 	static std::int64_t Tolls(const Ai::Route &route)
 	{
@@ -625,6 +643,7 @@ class Round
 		return tolls;
 	}
 
+
 	// The owner's credits, which the ship trades with.
 	static std::int64_t CreditsOf(const entt::registry &registry, entt::entity ship)
 	{
@@ -632,11 +651,13 @@ class Round
 		return purse ? purse->credits : 0;
 	}
 
+
 	static Sim::Controller SenderOf(const entt::registry &registry, entt::entity ship)
 	{
 		const auto *controlled = registry.try_get<Sim::ControlledBy>(ship);
 		return controlled ? controlled->controller : Sim::Controller{};
 	}
+
 
 	static entt::entity BoundStation(const entt::registry &registry, entt::entity ship)
 	{
@@ -646,6 +667,7 @@ class Round
 		return market ? market->stationEntity : entt::null;
 	}
 
+
 	const Celestial::StarSystem *SystemOf(std::uint64_t system) const
 	{
 		const auto found = std::ranges::find(
@@ -653,6 +675,7 @@ class Round
 		    [](const Celestial::StarSystem &each) { return Sim::SystemId(each.name); });
 		return found != m_systems.end() ? &*found : nullptr;
 	}
+
 
 	std::size_t SystemIndex(std::uint64_t system) const
 	{
@@ -662,6 +685,7 @@ class Round
 		    [](const Celestial::GalaxySystem &each) { return Sim::SystemId(each.name); });
 		return static_cast<std::size_t>(found - systems.begin());
 	}
+
 
 	// Where the ship is, as a route starts: the station it is docked at, or its system.
 	Ai::Place PlaceOf(const entt::registry &registry, entt::entity ship) const
@@ -673,11 +697,13 @@ class Round
 		return place;
 	}
 
+
 	Ai::Place MarketPlace(const entt::registry &registry, entt::entity market) const
 	{
 		const Market &found = registry.get<Market>(market);
 		return {SystemIndex(found.system), found.station};
 	}
+
 
 	// What a crossing of a system costs the ship: its drive's time for the course's length, and what
 	// the flights out of a station's reach and in to a gate come to.
@@ -718,6 +744,7 @@ constexpr std::array<Start, 7> kTraders{{
 }};
 } // namespace
 
+
 void RegisterTraders(
     Sim::SimWorld &world, Ai::Behaviours &behaviours, const Physics::PhysicsWorld &physics,
     const Ai::LaneTravel &lanes, std::vector<Celestial::StarSystem> systems,
@@ -730,6 +757,7 @@ void RegisterTraders(
 	round->Define(behaviours, round);
 }
 
+
 std::optional<std::string> UnansweredInput(
     const Ai::DecisionDefinition &decision, const Script::ScriptHost *pScripts)
 {
@@ -740,6 +768,7 @@ std::optional<std::string> UnansweredInput(
 				return consideration.input;
 	return std::nullopt;
 }
+
 
 void LoadTraderDefinitions(Sim::DefinitionRegistry &definitions)
 {
@@ -752,10 +781,12 @@ void LoadTraderDefinitions(Sim::DefinitionRegistry &definitions)
 		Ai::CheckDecision(name, *definitions.Find<Ai::DecisionDefinition>(name));
 }
 
+
 Sim::Controller TraderController(std::uint32_t number)
 {
 	return {Sim::ControllerKind::Ai, number};
 }
+
 
 std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 {

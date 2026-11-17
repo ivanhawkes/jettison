@@ -32,12 +32,14 @@ struct Air
 	double top;
 };
 
+
 Air AirOf(const Scene::AtmosphereComponent &component)
 {
 	return {glm::dvec3{component.rayleigh}, component.rayleighHeight, component.mie,
 	        component.mieExtinction,        component.mieHeight,      component.mieAnisotropy,
 	        kEarthRadius + component.height};
 }
+
 
 // The column of air of one kind from a point along a direction to the top, in metres at the surface's
 // density, by the midpoint rule; infinite where the ray meets the ground.
@@ -64,6 +66,7 @@ struct Reference
 	glm::dvec3 inscattered{0.0};
 	glm::dvec3 transmittance{1.0};
 };
+
 
 // The ray from a camera at a point from the body's centre, through the shell to the ground or out.
 Reference TraceByBruteForce(const Air &air, glm::dvec3 camera, glm::dvec3 direction, glm::dvec3 toSun)
@@ -117,6 +120,7 @@ Reference TraceByBruteForce(const Air &air, glm::dvec3 camera, glm::dvec3 direct
 	return reference;
 }
 
+
 // Within a share of the reference, or within a small floor for what is all but nothing.
 void CheckClose(const glm::vec3 &value, const glm::dvec3 &reference, double share, double floor)
 {
@@ -129,10 +133,12 @@ void CheckClose(const glm::vec3 &value, const glm::dvec3 &reference, double shar
 	}
 }
 
+
 glm::dvec3 Direction(double x, double y, double z)
 {
 	return glm::normalize(glm::dvec3{x, y, z});
 }
+
 
 // From a camera over the body's +Y pole, the way across the limb whose lowest point is the height
 // given over the ground.
@@ -142,6 +148,7 @@ glm::dvec3 Limb(const glm::dvec3 &camera, double height)
 	return {sine, -std::sqrt(1.0 - sine * sine), 0.0};
 }
 } // namespace
+
 
 TEST_CASE("the Chapman column matches the column of air integrated along the ray")
 {
@@ -166,6 +173,7 @@ TEST_CASE("the Chapman column matches the column of air integrated along the ray
 		}
 }
 
+
 TEST_CASE("the sun's light through an atmosphere is reddened towards the horizon and gone below it")
 {
 	const Scene::AtmosphereComponent earth;
@@ -188,6 +196,7 @@ TEST_CASE("the sun's light through an atmosphere is reddened towards the horizon
 	    AtmosphereSunTransmittance(atmosphere, high, glm::normalize(glm::vec3{1.0f, -0.1f, 0.0f})) ==
 	    glm::vec3{0.0f});
 }
+
 
 TEST_CASE(
     "a ray through an atmosphere picks up the light single scattering integrated by brute force does")
@@ -235,6 +244,7 @@ TEST_CASE(
 	}
 }
 
+
 TEST_CASE("a ray stopped short by a surface picks up only the air in front of it")
 {
 	const Scene::AtmosphereComponent earth;
@@ -264,6 +274,7 @@ namespace
 // A Saturn-sized body at the origin, its rings in the XZ plane from 1.24 to 2.27 of its radius.
 constexpr float kGiantRadius = 6.0e7f;
 
+
 GpuRings GiantRings(std::uint32_t seed = 3)
 {
 	Scene::RingsComponent rings;
@@ -273,6 +284,7 @@ GpuRings GiantRings(std::uint32_t seed = 3)
 	return PackRings(rings, {0.0f, 1.0f, 0.0f});
 }
 } // namespace
+
 
 TEST_CASE("rings cover nothing outside their radii, and no more than their opacity within them")
 {
@@ -320,6 +332,7 @@ TEST_CASE("rings cover nothing outside their radii, and no more than their opaci
 	CHECK(smoothness < 0.5f * roughness);
 }
 
+
 TEST_CASE("rings shade the body where they are between it and the sun, and the body shades them")
 {
 	const GpuRings rings = GiantRings();
@@ -355,6 +368,7 @@ TEST_CASE("rings shade the body where they are between it and the sun, and the b
 	const float edge = SphereSunlight(body, {-1.5f * kGiantRadius, 0.0f, kGiantRadius}, sideways, sun);
 	CHECK(edge == doctest::Approx(0.5f).epsilon(0.05));
 }
+
 
 TEST_CASE("the rings' shadow is softened by how much of them a pixel's way to the sun sweeps")
 {

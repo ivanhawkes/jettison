@@ -21,16 +21,19 @@ glm::mat4 LocalTransform(const RigNode &node)
 }
 } // namespace
 
+
 bool Rig::HasAnimation(std::string_view name) const
 {
 	return FindClip(clips, name) != nullptr;
 }
+
 
 float Rig::AnimationDuration(std::string_view name) const
 {
 	const Clip *clip = FindClip(clips, name);
 	return clip == nullptr ? 0.0f : clip->duration;
 }
+
 
 void Rig::EvaluateSkin(
     std::string_view animationName, float time, std::vector<glm::mat4> &jointMatrices,

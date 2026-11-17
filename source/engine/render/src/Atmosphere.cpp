@@ -20,11 +20,13 @@ Glsl::Atmosphere ToGlsl(const GpuAtmosphere &atmosphere)
 	return {atmosphere.centreRadius, atmosphere.rayleigh, atmosphere.mie, atmosphere.shell};
 }
 
+
 Glsl::Rings ToGlsl(const GpuRings &rings)
 {
 	return {rings.normalInner, rings.colorOuter, rings.shape};
 }
 } // namespace
+
 
 GpuAtmosphere PackAtmosphere(
     const Scene::AtmosphereComponent &atmosphere, const glm::vec3 &centre, float radius)
@@ -38,16 +40,19 @@ GpuAtmosphere PackAtmosphere(
 	return packed;
 }
 
+
 float AtmosphereColumn(float radius, float mu, float surfaceRadius, float scaleHeight)
 {
 	return Glsl::AtmosphereColumn(radius, mu, surfaceRadius, scaleHeight);
 }
+
 
 glm::vec3 AtmosphereSunTransmittance(
     const GpuAtmosphere &atmosphere, const glm::vec3 &position, const glm::vec3 &toSun)
 {
 	return Glsl::AtmosphereSunTransmittance(ToGlsl(atmosphere), position, toSun);
 }
+
 
 AtmosphereSample TraceAtmosphere(
     const GpuAtmosphere &atmosphere, const glm::vec3 &direction, float limit, const glm::vec3 &toSun)
@@ -56,12 +61,14 @@ AtmosphereSample TraceAtmosphere(
 	return {ray.inscattered, ray.transmittance};
 }
 
+
 GpuAtmosphere PackAirless(const glm::vec3 &centre, float radius)
 {
 	GpuAtmosphere packed;
 	packed.centreRadius = glm::vec4{centre, radius};
 	return packed;
 }
+
 
 GpuRings PackRings(const Scene::RingsComponent &rings, const glm::vec3 &normal)
 {
@@ -73,10 +80,12 @@ GpuRings PackRings(const Scene::RingsComponent &rings, const glm::vec3 &normal)
 	return packed;
 }
 
+
 float RingCoverage(const GpuRings &rings, float radius, float footprint)
 {
 	return Glsl::RingCoverage(ToGlsl(rings), radius, footprint);
 }
+
 
 RingCrossing IntersectRings(
     const GpuRings &rings, const glm::vec3 &centre, const glm::vec3 &origin, const glm::vec3 &direction)
@@ -85,12 +94,14 @@ RingCrossing IntersectRings(
 	return {hit.distance, hit.radius};
 }
 
+
 float RingSunlight(
     const GpuRings &rings, const glm::vec3 &centre, const glm::vec3 &position, const glm::vec3 &toSun,
     float footprint)
 {
 	return Glsl::RingSunlight(ToGlsl(rings), centre, position, toSun, footprint);
 }
+
 
 float SphereSunlight(
     const glm::vec4 &centreRadius, const glm::vec3 &position, const glm::vec3 &toSun,

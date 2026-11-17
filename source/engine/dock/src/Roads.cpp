@@ -18,20 +18,24 @@ constexpr double kTolerance = 0.01;
 // The shortest edge, so a buggy holding a node never holds the next.
 constexpr double kShortest = 2.0 * kNodeReach;
 
+
 glm::dvec2 Flat(const glm::dvec3 &point)
 {
 	return {point.x, point.z};
 }
+
 
 bool Up(const PadLayout &pad)
 {
 	return pad.normal.y > 1.0 - 1.0e-6;
 }
 
+
 double Top(const Box &box)
 {
 	return box.centre.y + box.size.y * 0.5;
 }
+
 
 // The part of the segment from a to b, as a fraction of it, within the rectangle, or none: the
 // slab test.
@@ -61,6 +65,7 @@ std::optional<std::pair<double, double>> Clip(
 	return std::pair{enter, leave};
 }
 
+
 std::vector<Box> Structure(const StationLayout &layout)
 {
 	std::vector<Box> boxes = layout.decks;
@@ -68,12 +73,14 @@ std::vector<Box> Structure(const StationLayout &layout)
 	return boxes;
 }
 
+
 // The pad's axes on the deck: across it, and back along its heading.
 std::pair<glm::dvec3, glm::dvec3> PadAxes(const PadLayout &pad)
 {
 	const glm::dvec3 back = -pad.heading;
 	return {glm::cross(pad.normal, back), back};
 }
+
 
 // Whether a straight leg from a to b, both at the deck's height, lies on the tops of the
 // structure's boxes there the whole way, through none of them, and across no pad.
@@ -140,6 +147,7 @@ struct Road
 	std::vector<std::pair<double, Ai::NodeId>> joins;
 };
 
+
 std::optional<Road> PierRoad(const StationLayout &layout, const Box &pier)
 {
 	const bool alongX = pier.size.x >= pier.size.z;
@@ -186,10 +194,12 @@ std::optional<Road> PierRoad(const StationLayout &layout, const Box &pier)
 	return Road{onTop - along * reach, onTop + along * reach, {}};
 }
 
+
 double Distance(const RoadGraph &roads, Ai::NodeId from, Ai::NodeId to)
 {
 	return glm::distance(roads.nodes[from].position, roads.nodes[to].position);
 }
+
 
 void Join(RoadGraph &roads, Ai::NodeId from, Ai::NodeId to)
 {
@@ -199,6 +209,7 @@ void Join(RoadGraph &roads, Ai::NodeId from, Ai::NodeId to)
 	roads.edges.emplace_back(std::min(from, to), std::max(from, to));
 }
 
+
 Ai::NodeId Add(RoadGraph &roads, const glm::dvec3 &position, RoadNodeKind kind, std::size_t index)
 {
 	roads.nodes.push_back({position, kind, static_cast<std::uint32_t>(index)});
@@ -207,10 +218,12 @@ Ai::NodeId Add(RoadGraph &roads, const glm::dvec3 &position, RoadNodeKind kind, 
 }
 } // namespace
 
+
 float HatchAft(PadClass padClass)
 {
 	return LargestHull(padClass).x * 0.21f;
 }
+
 
 RoadGraph Roads(const StationLayout &layout)
 {

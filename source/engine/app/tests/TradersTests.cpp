@@ -45,6 +45,7 @@ using Testing::Galaxy;
 using Testing::kStep;
 using Testing::ReadAsset;
 
+
 TEST_CASE(
     "Traders: the sample's tree and decision load, and the traders open docked, with nothing chosen")
 {
@@ -69,6 +70,7 @@ TEST_CASE(
 	// A pad that is taken is left alone, and its trader left out.
 	CHECK(App::OpenTraders(galaxy.world, galaxy.docks).empty());
 }
+
 
 TEST_CASE("Traders: each chooses the run worth most, steered off what its rivals chose, or waits")
 {
@@ -128,6 +130,7 @@ TEST_CASE("Traders: each chooses the run worth most, steered off what its rivals
 	CHECK(seller.sellAt != entt::null);
 }
 
+
 TEST_CASE("Traders: a mod's script, from the user's mods, weighs their runs and hears their trades")
 {
 	const std::filesystem::path user = std::filesystem::path{JETTISON_APP_TEST_OUTPUT} / "traders-user";
@@ -161,6 +164,7 @@ TEST_CASE("Traders: a mod's script, from the user's mods, weighs their runs and 
 	Core::RemoveLogCallback(listening);
 	std::filesystem::remove_all(user);
 }
+
 
 TEST_CASE(
     "Traders: the sample's traders fly their runs across the lane, docking in turn, touching nothing")
@@ -360,6 +364,7 @@ TEST_CASE(
 		MESSAGE(collision);
 	CHECK(collisions.empty());
 }
+
 
 TEST_CASE("Traders: a world saved part-way through the traders' rounds carries on as the one saved")
 {

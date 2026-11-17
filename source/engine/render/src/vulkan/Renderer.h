@@ -133,9 +133,11 @@ class Renderer
 	    std::shared_ptr<DeviceContext> pDeviceContext, std::shared_ptr<Window> pWindow,
 	    std::shared_ptr<Swapchain> pSwapchain, const Vfs::FileSystem &assets,
 	    Resource::ResourceManager &resources);
+
 	~Renderer();
 
 	Renderer(const Renderer &) = delete;
+
 	Renderer &operator=(const Renderer &) = delete;
 
 	// Builds the layouts, the pass list's plan, the targets, the frames in flight and every
@@ -168,11 +170,13 @@ class Renderer
 	{
 		m_exposure = exposure;
 	}
+
 	void SetFade(const glm::vec3 &color, float amount)
 	{
 		m_fadeColor = color;
 		m_fade = amount;
 	}
+
 	// Black bars over the top and the bottom of the frame, each this share of its height, under the
 	// UI: a cinematic's (scene/Sequence.h).
 	void SetLetterbox(float share)
@@ -184,6 +188,7 @@ class Renderer
 	{
 		m_debugView = view;
 	}
+
 	DebugView GetDebugView() const
 	{
 		return m_debugView;
@@ -214,6 +219,7 @@ class Renderer
 	{
 		m_depthPrepass = enabled;
 	}
+
 	bool GetDepthPrepass() const
 	{
 		return m_depthPrepass;
@@ -225,6 +231,7 @@ class Renderer
 	{
 		m_ambientOcclusion = enabled;
 	}
+
 	bool GetAmbientOcclusion() const
 	{
 		return m_ambientOcclusion;
@@ -235,6 +242,7 @@ class Renderer
 	{
 		m_bloom = std::max(strength, 0.0f);
 	}
+
 	float GetBloom() const
 	{
 		return m_bloom;
@@ -245,8 +253,11 @@ class Renderer
 	{
 		return m_frameStats;
 	}
+
 	const std::vector<PassTiming> &GetPassTimings() const;
+
 	std::uint64_t GetMeasuredFrames() const;
+
 	void ResetPassTimings();
 
 	// Each frame's light assignment copied out and compared with the CPU's (CheckClusterAssignment),
@@ -256,6 +267,7 @@ class Renderer
 	{
 		m_checkClusters = enabled;
 	}
+
 	const ClusterCheckTotals &GetClusterChecks() const
 	{
 		return m_clusterChecks;
@@ -356,92 +368,132 @@ class Renderer
 	};
 
 	void CreateLayouts();
+
 	void CreatePassList();
+
 	void CreateTargets();
+
 	void DestroyTargets();
+
 	void CreateClusterBuffers();
+
 	void DestroyClusterBuffers();
+
 	void CreateShadowMap();
+
 	void DestroyShadowMap();
+
 	void CreateFrames();
+
 	void WriteFrameSet(const FrameData &frame);
+
 	void WritePostSets();
+
 	void CreatePipelines();
+
 	void CreateRenderFinishedSemaphores();
+
 	// The scene's sky, baked into the environment if it is not the one there already, or if the scene
 	// was replaced; every frame set then names the new environment.
 	void UpdateEnvironment(
 	    const entt::registry &sceneRegistry, bool sceneReplaced, const CameraView &camera,
 	    const std::vector<SceneDrawCommand> &draws);
+
 	// The scene's colour grade: its table loaded as the scene names it, and uploaded once it is ready
 	// and each time it reloads, into the output set's grade. Until then the frame is not graded.
 	void UpdateGrade(const entt::registry &sceneRegistry);
+
 	// The table made the output pass's grade, in place of the one before.
 	void ReplaceGrade(const ColourLut &lut, const std::string &name);
+
 	void DestroyRenderFinishedSemaphores();
+
 	void RecreateSwapchain();
 
 	// Grows an upload buffer of a frame slot to hold the bytes asked for, after the slot's fence.
 	void EnsureCapacity(
 	    FrameData &frame, Buffer &buffer, VkDeviceSize bytes, VkBufferUsageFlags usage,
 	    const char *name);
+
 	// Each draw's level of detail, and the planets that hide what is behind them, from this frame's
 	// view.
 	void SelectLods(const std::vector<SceneDrawCommand> &draws);
+
 	// The frame's local lights into the slot's light list: camera-relative, and only those whose
 	// range reaches into the cluster range, the view's frustum, and out from behind every planet.
 	void WriteLights(FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera);
+
 	// The celestial bodies drawn with an atmosphere or rings into the slot's body list, whether or
 	// not they are in view (the air over a planet behind the camera can still be), and each draw's
 	// entry in it, one more than its index, 0 for none.
 	void WriteBodies(FrameData &frame, const std::vector<SceneDrawCommand> &draws);
+
 	// The view's draws and each cascade's casters, culled and batched, the transparent draws and the
 	// emitters in view sorted back to front, and every batch's instances into the slot's instance
 	// buffer.
 	void WriteInstances(
 	    FrameData &frame, const std::vector<SceneDrawCommand> &draws,
 	    const std::vector<uint32_t> &jointOffsets);
+
 	// The scene's emitters, given their share of the particle pool, into the slot's emitter list, with
 	// the seconds since the last frame.
 	void WriteEmitters(
 	    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
 	    double seconds);
+
 	// The slot's last frame's assignment against the CPU's, now that its fence has been waited on.
 	void CheckClusters(FrameData &frame);
+
 	// The frame's debug lines into the slot's vertex buffer; how many are depth-tested.
 	uint32_t WriteLines(FrameData &frame, const DebugDraw &debugDraw, const glm::dvec3 &camera);
+
 	// The frame's constants, lights, bodies, emitters and instances; the seconds since the last frame
 	// step the particles.
 	void WriteFrame(
 	    FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera,
 	    const std::vector<SceneDrawCommand> &draws, std::vector<uint32_t> &jointOffsets,
 	    double seconds);
+
 	// Each draw's named material, or null for the model's own, and the frame's parameters into the
 	// slot's material buffer.
 	void WriteMaterials(FrameData &frame, const std::vector<SceneDrawCommand> &draws, double time);
+
 	void Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer &imguiRenderer);
+
 	void RecordShadows(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+
 	void RecordDepthPrepass(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+
 	// The batches' vertex stages alone: the shadow cascades and the depth prepass, which bind no
 	// material.
 	void RecordDepthBatches(
 	    VkCommandBuffer commandBuffer, const std::vector<DrawBatch> &batches,
 	    std::uint32_t cascade) const;
+
 	void RecordClusterBounds(const FrameData &frame, VkCommandBuffer commandBuffer);
+
 	void RecordClusterLights(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+
 	void RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBuffer) const;
+
 	void RecordParticles(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+
 	// A batch of the view's, its material's pipeline and set bound when they differ from what is; an
 	// opaque one with its stencil bits as the reference, which only the opaque pipelines take.
 	void RecordMeshBatch(
 	    VkCommandBuffer commandBuffer, const DrawBatch &batch, VkPipeline &boundPipeline,
 	    const Model *&boundModel, bool opaque);
+
 	// The transparent draws and the emitters, back to front, in the opaque pass's rendering.
 	void RecordTransparent(VkCommandBuffer commandBuffer);
+
 	void RecordScreenshot(FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
+
 	// The slot's screenshot from its readback into its file, now that its fence has been waited on.
 	void SaveScreenshot(FrameData &frame);
+
 	void RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffer);
+
 	void RecordOutput(
 	    const FrameData &frame, VkCommandBuffer commandBuffer, uint32_t imageIndex,
 	    const ImGuiRenderer &imguiRenderer);
@@ -459,17 +511,25 @@ class Renderer
 		bool load{false};
 		bool stencil{false};
 	};
+
 	void RecordFullscreen(
 	    const FrameData &frame, VkCommandBuffer commandBuffer, const FullscreenPass &pass) const;
+
 	void RecordAmbientOcclusion(const FrameData &frame, VkCommandBuffer commandBuffer, bool blur) const;
+
 	void RecordBloom(
 	    const FrameData &frame, VkCommandBuffer commandBuffer, bool down, std::uint32_t level) const;
+
 	void RecordOutlineSeeds(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+
 	void RecordFlood(const FrameData &frame, VkCommandBuffer commandBuffer, std::uint32_t step) const;
+
 	void RecordOutlines(const FrameData &frame, VkCommandBuffer commandBuffer) const;
+
 	// The outlines of the draws the view keeps, each draw's index among them, and their list into the
 	// slot's outline buffer.
 	void WriteOutlines(FrameData &frame);
+
 	void SetViewport(VkCommandBuffer commandBuffer) const;
 
 	bool Present();

@@ -29,10 +29,12 @@ struct Source
 	std::vector<std::byte> bytes;
 };
 
+
 std::string_view Text(const std::vector<std::byte> &bytes)
 {
 	return {reinterpret_cast<const char *>(bytes.data()), bytes.size()};
 }
+
 
 // "patched by 'mod:a', 'mod:b'": the mounts named, in order.
 std::string MountNames(const Vfs::FileSystem &fileSystem, std::span<const Source> sources)
@@ -45,9 +47,11 @@ std::string MountNames(const Vfs::FileSystem &fileSystem, std::span<const Source
 }
 } // namespace
 
+
 DefinitionRegistry::DefinitionRegistry(const Vfs::FileSystem &fileSystem) : m_fileSystem{fileSystem}
 {
 }
+
 
 void DefinitionRegistry::Load(
     const entt::meta_type &type, std::string_view virtualDirectory, Serialise::FormatVersion version)
@@ -57,6 +61,7 @@ void DefinitionRegistry::Load(
 	    { return Serialise::YamlArchive::ReadLayered(layers, type, version); });
 }
 
+
 void DefinitionRegistry::Load(
     const entt::meta_type &type, std::string_view virtualDirectory,
     const Serialise::YamlMigrations &migrations)
@@ -65,6 +70,7 @@ void DefinitionRegistry::Load(
 	    type, virtualDirectory, [&type, &migrations](std::span<const Serialise::YamlLayer> layers)
 	    { return Serialise::YamlArchive::ReadLayered(layers, type, migrations); });
 }
+
 
 void DefinitionRegistry::LoadWith(
     const entt::meta_type &type, std::string_view virtualDirectory,
@@ -148,6 +154,7 @@ void DefinitionRegistry::LoadWith(
 	m_types[type.info().hash()] = std::move(definitions);
 }
 
+
 const entt::meta_any *DefinitionRegistry::Find(const entt::meta_type &type, std::string_view name) const
 {
 	const auto definitions = m_types.find(type.info().hash());
@@ -156,6 +163,7 @@ const entt::meta_any *DefinitionRegistry::Find(const entt::meta_type &type, std:
 	const auto found = definitions->second.find(name);
 	return found == definitions->second.end() ? nullptr : &found->second;
 }
+
 
 std::vector<std::string> DefinitionRegistry::Names(const entt::meta_type &type) const
 {
@@ -167,6 +175,7 @@ std::vector<std::string> DefinitionRegistry::Names(const entt::meta_type &type) 
 	}
 	return names;
 }
+
 
 std::size_t DefinitionRegistry::Count() const
 {

@@ -22,10 +22,12 @@ bool IsGuid(std::string_view text)
 }
 } // namespace
 
+
 std::string JoystickNameKey(std::uint8_t joystick)
 {
 	return std::format("input.devices.joystick{}", unsigned{joystick} + 1);
 }
+
 
 void JoystickMap::Name(std::uint8_t joystick, std::string guid)
 {
@@ -37,10 +39,12 @@ void JoystickMap::Name(std::uint8_t joystick, std::string guid)
 	m_names[joystick] = std::move(guid);
 }
 
+
 void JoystickMap::Forget(std::uint8_t joystick)
 {
 	m_names.erase(joystick);
 }
+
 
 std::optional<std::string_view> JoystickMap::NameOf(std::uint8_t joystick) const
 {
@@ -49,6 +53,7 @@ std::optional<std::string_view> JoystickMap::NameOf(std::uint8_t joystick) const
 		return std::nullopt;
 	return found->second;
 }
+
 
 std::array<std::optional<std::uint8_t>, kJoystickCount> JoystickMap::Assign(
     std::span<const JoystickDevice> connected) const
@@ -87,6 +92,7 @@ std::array<std::optional<std::uint8_t>, kJoystickCount> JoystickMap::Assign(
 	return slots;
 }
 
+
 bool JoystickMap::NameBound(const InputSystem &input, std::span<const JoystickDevice> connected)
 {
 	const auto slots = Assign(connected);
@@ -105,6 +111,7 @@ bool JoystickMap::NameBound(const InputSystem &input, std::span<const JoystickDe
 	return named;
 }
 
+
 void JoystickMap::Save(Core::Config &config) const
 {
 	for (std::uint8_t joystick = 0; joystick < kJoystickCount; ++joystick)
@@ -116,6 +123,7 @@ void JoystickMap::Save(Core::Config &config) const
 			config.Unset(Core::ConfigLayer::User, key);
 	}
 }
+
 
 void JoystickMap::Load(const Core::Config &config)
 {

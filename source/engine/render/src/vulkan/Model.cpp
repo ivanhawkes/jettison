@@ -18,6 +18,7 @@ VkVertexInputBindingDescription VertexBindingDescription()
 	return bindingDescription;
 }
 
+
 std::vector<VkVertexInputAttributeDescription> VertexAttributeDescriptions()
 {
 	return {
@@ -31,12 +32,14 @@ std::vector<VkVertexInputAttributeDescription> VertexAttributeDescriptions()
 	    {7, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, weights1)}};
 }
 
+
 std::unique_ptr<Model> Model::FromGltf(std::span<const std::byte> bytes, std::string_view name)
 {
 	auto pModel = std::make_unique<Model>();
 	pModel->ReadGltf(bytes, std::string{name});
 	return pModel;
 }
+
 
 std::unique_ptr<Model> Model::FromMeshes(std::vector<MeshLevel> levels, std::string_view name)
 {
@@ -62,6 +65,7 @@ std::unique_ptr<Model> Model::FromMeshes(std::vector<MeshLevel> levels, std::str
 	return pModel;
 }
 
+
 void Model::Upload(DeviceContext &deviceContext, const std::string &name)
 {
 	m_vertexBuffer = deviceContext.CreateDeviceBuffer(
@@ -75,11 +79,13 @@ void Model::Upload(DeviceContext &deviceContext, const std::string &name)
 	std::vector<uint32_t>{}.swap(m_indices);
 }
 
+
 void Model::TakeBuffers(Buffer &vertexBuffer, Buffer &indexBuffer)
 {
 	vertexBuffer = std::exchange(m_vertexBuffer, {});
 	indexBuffer = std::exchange(m_indexBuffer, {});
 }
+
 
 void Model::ComputeBounds()
 {

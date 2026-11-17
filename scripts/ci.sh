@@ -128,6 +128,8 @@ cmake --preset "$preset" ${werror[@]+"${werror[@]}"}
 cmake --build --preset "$preset"
 stage "unit tests: $preset (CTest)"
 ctest --test-dir "build/$preset" --output-on-failure --no-tests=error -j "$jobs"
+stage "declaration spacing (blank lines, $preset database)"
+./scripts/space-declarations.py --check --build "build/$preset"
 
 if [ "$tidy" -eq 1 ]; then
 	stage "clang-tidy (.clang-tidy, $preset database)"

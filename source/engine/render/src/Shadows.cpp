@@ -14,15 +14,18 @@ using namespace glm;
 
 static_assert(Glsl::kShadowCascades == kShadowCascades);
 
+
 glm::vec4 SunShadows::Splits() const
 {
 	return {cascades[0].split, cascades[1].split, cascades[2].split, cascades[3].split};
 }
 
+
 glm::vec4 SunShadows::TexelSizes() const
 {
 	return {cascades[0].texelSize, cascades[1].texelSize, cascades[2].texelSize, cascades[3].texelSize};
 }
+
 
 std::array<float, kShadowCascades> ShadowSplits(float nearPlane, const ShadowSettings &settings)
 {
@@ -41,6 +44,7 @@ std::array<float, kShadowCascades> ShadowSplits(float nearPlane, const ShadowSet
 	splits.back() = static_cast<float>(distance);
 	return splits;
 }
+
 
 SunShadows FitSunShadows(
     const CameraView &camera, float aspect, const glm::dvec3 &towardsSun,
@@ -117,20 +121,24 @@ SunShadows FitSunShadows(
 	return shadows;
 }
 
+
 std::uint32_t ShadowCascadeAt(float depth, const glm::vec4 &splits)
 {
 	return Glsl::ShadowCascadeAt(depth, splits);
 }
+
 
 float ShadowCascadeStart(std::uint32_t cascade, const glm::vec4 &splits, float nearPlane)
 {
 	return Glsl::ShadowCascadeStart(cascade, splits, nearPlane);
 }
 
+
 float ShadowCascadeBlend(float depth, float split)
 {
 	return Glsl::ShadowCascadeBlend(depth, split);
 }
+
 
 glm::vec3 ShadowMapCoordinate(const glm::mat4 &cascade, const glm::vec3 &renderPosition)
 {

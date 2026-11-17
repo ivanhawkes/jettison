@@ -18,6 +18,7 @@ using EventArgument = std::variant<bool, std::int64_t, double, std::string>;
 
 // The argument as a whole number, if it is one or a number with no fraction; 0 otherwise.
 std::int64_t AsInteger(const EventArgument &argument);
+
 // The argument as text, a number written as a document would write it.
 std::string AsText(const EventArgument &argument);
 
@@ -44,8 +45,11 @@ class DataModel
 {
   public:
 	explicit DataModel(std::unique_ptr<Detail::DataModelState> pState);
+
 	~DataModel();
+
 	DataModel(const DataModel &) = delete;
+
 	DataModel &operator=(const DataModel &) = delete;
 
 	const std::string &Name() const;
@@ -65,6 +69,7 @@ class DataModel
 
 	// The variable's value has moved: what reads it is updated as the UI next updates.
 	void Changed(std::string_view name);
+
 	void ChangedAll();
 
   private:

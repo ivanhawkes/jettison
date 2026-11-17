@@ -39,6 +39,7 @@ struct Yard : Fixture
 	// Ships wait 2 km above the yard, apart, where nothing flies them.
 	int ships{0};
 
+
 	Yard() : Fixture{false}
 	{
 		docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, PadClass::S, {}});
@@ -49,15 +50,18 @@ struct Yard : Fixture
 		station = docks.MakeStation(world, DockTests::kHalcyon, DockTests::kHighport, "yard");
 	}
 
+
 	entt::entity Waiting(std::string_view hull)
 	{
 		return Ship(station, hull, {300.0 * ships++, 2000.0, 0.0});
 	}
 
+
 	void Ask(entt::entity ship, Sim::Controller sender = {})
 	{
 		world.Commands().Push(Dock::RequestPad{sender, ship, station, false});
 	}
+
 
 	// The pads given, in the order they were, as ship and number.
 	std::vector<std::pair<entt::entity, std::uint32_t>> Given() const
@@ -68,6 +72,7 @@ struct Yard : Fixture
 		return given;
 	}
 
+
 	std::vector<std::string> Refusals() const
 	{
 		std::vector<std::string> reasons;
@@ -75,6 +80,7 @@ struct Yard : Fixture
 			reasons.push_back(Sim::Describe(event.reason));
 		return reasons;
 	}
+
 
 	// The ship put where its hull rests on the pad, turned to it, at rest.
 	void PutOn(entt::entity ship, std::uint32_t number, double height)
@@ -89,6 +95,7 @@ struct Yard : Fixture
 	}
 };
 } // namespace
+
 
 TEST_CASE("Docks: two ships asking in one step are given pads in command order, the same every run")
 {
@@ -114,6 +121,7 @@ TEST_CASE("Docks: two ships asking in one step are given pads in command order, 
 	    std::vector<std::pair<entt::entity, std::uint32_t>>{{same.second, 2}, {same.first, 1}});
 }
 
+
 TEST_CASE("Docks: a hull that fits only an L pad is never given an M one, and waits for the L")
 {
 	Yard yard;
@@ -131,6 +139,7 @@ TEST_CASE("Docks: a hull that fits only an L pad is never given an M one, and wa
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 1)).state == Dock::PadState::Free);
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 5)).state == Dock::PadState::Free);
 }
+
 
 TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 {
@@ -168,6 +177,7 @@ TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 	CHECK(yard.Events<Dock::PadReleased>().size() == 2);
 }
 
+
 TEST_CASE("Docks: a reservation not landed on in time lapses, and the pad goes to the next in line")
 {
 	Yard yard;
@@ -194,6 +204,7 @@ TEST_CASE("Docks: a reservation not landed on in time lapses, and the pad goes t
 	CHECK(yard.Given().back() == std::pair{next, std::uint32_t{2}});
 }
 
+
 TEST_CASE("Docks: a display pad is never given, and a ship parked holds its pad")
 {
 	Yard yard;
@@ -214,6 +225,7 @@ TEST_CASE("Docks: a display pad is never given, and a ship parked holds its pad"
 	CHECK(Dock::IsDocked(yard.world.Registry(), parked, yard.station));
 	CHECK(yard.world.Registry().get<Physics::Body>(parked).kind == Physics::BodyKind::Kinematic);
 }
+
 
 TEST_CASE(
     "Docks: a request is refused, saying why, for a ship its sender does not control or cannot dock")
@@ -246,6 +258,7 @@ TEST_CASE(
 	        std::format("reason.dock.other_system({})", station), "reason.dock.not_controller()"});
 	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{ship, 2}});
 }
+
 
 TEST_CASE("Docks: a pad clamps only the ship it was given to")
 {

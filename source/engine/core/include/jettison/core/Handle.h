@@ -18,6 +18,7 @@ template <typename Tag> struct Handle
 	{
 		return generation == 0;
 	}
+
 	friend constexpr bool operator==(const Handle &, const Handle &) = default;
 };
 } // namespace Jettison::Core

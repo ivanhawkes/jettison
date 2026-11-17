@@ -33,6 +33,7 @@ struct Fixture
 	Physics::PhysicsWorld &physics;
 	Ai::LaneTravel &lanes;
 
+
 	explicit Fixture(bool withGalaxy = true)
 	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)}
 	{
@@ -49,6 +50,7 @@ struct Fixture
 			lanes.SetGalaxy(AiTests::Sample());
 	}
 
+
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -56,6 +58,7 @@ struct Fixture
 		world.RegisterComponent<Sim::InSystem>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
+
 
 	// A ship beside Ostra Highport, in its frame, flying away from it at 50 m/s with its controls
 	// taken against the station: a ship flying into the gate.
@@ -84,11 +87,13 @@ struct Fixture
 		return ship;
 	}
 
+
 	void Run(std::uint64_t steps)
 	{
 		for (std::uint64_t step = 0; step < steps; ++step)
 			world.Step();
 	}
+
 
 	template <typename T> std::vector<T> Events()
 	{
@@ -99,17 +104,20 @@ struct Fixture
 		return found;
 	}
 
+
 	std::uint64_t SystemOf(entt::entity entity) const
 	{
 		return world.Registry().get<Sim::InSystem>(entity).system;
 	}
 };
 
+
 glm::dvec3 Where(const Celestial::StarSystem &system, std::string_view body, double time)
 {
 	return Celestial::EvaluateBody(system, static_cast<std::size_t>(system.Find(body)), time).metres;
 }
 } // namespace
+
 
 TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and leaves the far one")
 {
@@ -193,6 +201,7 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	CHECK(glm::dot(ahead, glm::normalize(toRefinery)) > 0.999);
 }
 
+
 TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refused and left as it was")
 {
 	Fixture fixture;
@@ -241,6 +250,7 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	CHECK(none[0].reason == Sim::MakeReason(Ai::Reason::NoGalaxy));
 }
 
+
 TEST_CASE("Lanes: a world saved mid-transit arrives as the one saved does, and a replay with it")
 {
 	Fixture fixture;
@@ -275,6 +285,7 @@ TEST_CASE("Lanes: a world saved mid-transit arrives as the one saved does, and a
 	CHECK(replay.world.StateHash() == arrived);
 }
 
+
 TEST_CASE("Lanes: a transit shorter than a step takes one, and arrives as the step it entered ends")
 {
 	Fixture fixture;
@@ -300,6 +311,7 @@ TEST_CASE("Lanes: a transit shorter than a step takes one, and arrives as the st
 	CHECK(events[0].event.try_cast<Ai::LaneEntered>());
 	CHECK(events[1].event.try_cast<Ai::LaneLeft>());
 }
+
 
 TEST_CASE(
     "Lanes: ships coming out of a gate together, or onto one still there, come out clear of each other")

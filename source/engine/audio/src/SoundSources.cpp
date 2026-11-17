@@ -44,12 +44,14 @@ void SoundSources::Update(const entt::registry &registry, AudioSystem &audio)
 	}
 }
 
+
 void SoundSources::Clear(AudioSystem &audio)
 {
 	for (const auto &[entity, playing] : m_playing)
 		audio.Stop(playing.source);
 	m_playing.clear();
 }
+
 
 std::size_t SoundSources::Size() const
 {

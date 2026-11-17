@@ -47,6 +47,7 @@ class HeadlessImGui
 		io.IniFilename = nullptr;
 	}
 
+
 	~HeadlessImGui()
 	{
 		ImGuiContext *outer = ImGui::GetCurrentContext();
@@ -56,12 +57,16 @@ class HeadlessImGui
 			ImGui::SetCurrentContext(outer);
 	}
 
+
 	HeadlessImGui(const HeadlessImGui &) = delete;
+
+
 	HeadlessImGui &operator=(const HeadlessImGui &) = delete;
 
   private:
 	ImGuiContext *m_context{nullptr};
 };
+
 
 // sRGB's encoding, the inverse of DecodeSrgb, so the theme's decode is checked by the conversion
 // the attachment does: what the theme hands over, encoded again, is the palette's byte.
@@ -70,10 +75,12 @@ float EncodeSrgb(float linear)
 	return linear <= 0.0031308f ? linear * 12.92f : 1.055f * std::powf(linear, 1.0f / 2.4f) - 0.055f;
 }
 
+
 std::uint8_t ToByte(float encoded)
 {
 	return static_cast<std::uint8_t>(std::lround(std::clamp(encoded, 0.0f, 1.0f) * 255.0f));
 }
+
 
 // The palette's byte for a role, from the table Theme.cpp publishes.
 std::uint8_t ByteOf(Palette palette, Token token, int channel)
@@ -81,6 +88,7 @@ std::uint8_t ByteOf(Palette palette, Token token, int channel)
 	const Rgb &rgb = PaletteTokens(palette)[static_cast<std::size_t>(token)];
 	return channel == 0 ? rgb.r : channel == 1 ? rgb.g : rgb.b;
 }
+
 
 // A face loaded the way the render backend loads them: from bytes, with the name FontFaces.cpp
 // writes and without it, so the mono rule is tested against both. The bytes are the test's, as the
@@ -95,6 +103,7 @@ std::vector<std::byte> ReadFace(const char *file)
 	return bytes;
 }
 } // namespace
+
 
 TEST_CASE("Theme: every palette colours every role, and the palette is what is applied")
 {
@@ -146,6 +155,7 @@ TEST_CASE("Theme: every palette colours every role, and the palette is what is a
 	CHECK(PaletteName(Palette::Mocha) == "mocha");
 	CHECK(PaletteVariants()[0] == Palette::Mocha); // the darkest first, one press to the next step
 }
+
 
 TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a hex reads as written")
 {
@@ -251,6 +261,7 @@ TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a h
 	    ByteOf(Palette::Macchiato, Token::Foreground, 2)); // #cad3f5, the live switch's text
 }
 
+
 TEST_CASE("Theme: the style names every colour a dev tools window draws with")
 {
 	HeadlessImGui imgui;
@@ -279,6 +290,7 @@ TEST_CASE("Theme: the style names every colour a dev tools window draws with")
 	// the dark style rather than painting over it a few at a time.
 	CHECK(left.empty());
 }
+
 
 TEST_CASE("Theme: the metrics are the design's spacing scale, and scale with its root size")
 {
@@ -317,6 +329,7 @@ TEST_CASE("Theme: the metrics are the design's spacing scale, and scale with its
 	CHECK(style.FontSizeBase == 16.0f);
 	CHECK(style.WindowPadding.x == 12.0f);
 }
+
 
 TEST_CASE("Theme: a console change is applied once, and a new context is never skipped")
 {
@@ -373,6 +386,7 @@ TEST_CASE("Theme: a console change is applied once, and a new context is never s
 	CHECK(ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w == doctest::Approx(0.97f));
 }
 
+
 TEST_CASE("Theme: a console line has a colour for every kind and every severity")
 {
 	const std::array kinds{
@@ -425,6 +439,7 @@ TEST_CASE("Theme: a console line has a colour for every kind and every severity"
 	}
 }
 
+
 TEST_CASE("Theme: a scale typed into the console cannot drive a metric outside what ImGui allows")
 {
 	// The bytes are declared before the context, so they outlive it, as FontFaces.h requires.
@@ -474,6 +489,7 @@ TEST_CASE("Theme: a scale typed into the console cannot drive a metric outside w
 		ImGui::EndFrame();
 	}
 }
+
 
 TEST_CASE(
     "Theme: a face named for its file answers to the console's mono rule, and an unnamed one does not")

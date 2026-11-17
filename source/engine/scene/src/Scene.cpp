@@ -194,6 +194,7 @@ struct SceneDocument
 	std::vector<EntityRecord> entities;
 };
 
+
 // The reflection tables are global, and every scene shares them: registered once, by the first
 // scene to read or write a file.
 void RegisterTypes()
@@ -368,10 +369,12 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 [[noreturn]] void Refuse(const std::string &message)
 {
 	throw std::runtime_error(message);
 }
+
 
 void CheckVirtualPath(const std::string &path, const char *what, const std::string &id)
 {
@@ -382,6 +385,7 @@ void CheckVirtualPath(const std::string &path, const char *what, const std::stri
 		        "forward-slashed)",
 		        id, what, path));
 }
+
 
 void CheckLightAnimation(const LightRecord &light, const std::string &id)
 {
@@ -396,6 +400,7 @@ void CheckLightAnimation(const LightRecord &light, const std::string &id)
 		Refuse("Light '" + id + "' animates its intensity by a share that is negative or not finite");
 }
 
+
 void CheckOutline(const OutlineComponent &outline, const std::string &id)
 {
 	if (!(outline.width >= 1.0f) || !(outline.width <= kMaxOutlineWidth))
@@ -407,6 +412,7 @@ void CheckOutline(const OutlineComponent &outline, const std::string &id)
 		if (!(outline.color[channel] >= 0.0f) || !std::isfinite(outline.color[channel]))
 			Refuse("Entity '" + id + "' has an outline colour that is negative or not finite");
 }
+
 
 void CheckLight(const LightRecord &light, const std::string &id)
 {
@@ -435,6 +441,7 @@ void CheckLight(const LightRecord &light, const std::string &id)
 		    "' needs 0 <= innerConeAngle < outerConeAngle <= pi / 2, in radians from its axis");
 }
 
+
 void CheckSky(const SkyRecord &sky, const std::string &id)
 {
 	const auto negative = [](const glm::vec3 &value)
@@ -448,6 +455,7 @@ void CheckSky(const SkyRecord &sky, const std::string &id)
 	if (glm::length(sky.band.normal) == 0.0f)
 		Refuse("Sky band normal cannot be zero: " + id);
 }
+
 
 void CheckAtmosphere(const AtmosphereComponent &atmosphere, const std::string &id)
 {
@@ -464,6 +472,7 @@ void CheckAtmosphere(const AtmosphereComponent &atmosphere, const std::string &i
 		Refuse("Atmosphere mieAnisotropy must be between -1 and 1: " + id);
 }
 
+
 void CheckRings(const RingsComponent &rings, const std::string &id)
 {
 	if (!(rings.innerRadius > 0.0) || !(rings.outerRadius > rings.innerRadius))
@@ -472,6 +481,7 @@ void CheckRings(const RingsComponent &rings, const std::string &id)
 	    !(rings.color.y >= 0.0f) || !(rings.color.z >= 0.0f))
 		Refuse("Rings opacity must be between 0 and 1, and its colour not negative: " + id);
 }
+
 
 void CheckMesh(const MeshRecord &mesh, const std::string &id)
 {
@@ -493,6 +503,7 @@ void CheckMesh(const MeshRecord &mesh, const std::string &id)
 	if (mesh.material)
 		CheckVirtualPath(*mesh.material, "a material", id);
 }
+
 
 void CheckParticles(const ParticlesRecord &particles, const std::string &id)
 {
@@ -521,6 +532,7 @@ void CheckParticles(const ParticlesRecord &particles, const std::string &id)
 		        "Particles' capacity is from 1 to {}, the most an emitter keeps alive: {}",
 		        kMaxEmitterParticles, id));
 }
+
 
 // Every rule a scene file is held to that its types do not already say, in one place: the loader
 // runs it on what it read and the writer on what it is about to write, so neither accepts what the
@@ -654,6 +666,7 @@ void Validate(const SceneDocument &document)
 	}
 }
 
+
 LightComponent ToComponent(const LightRecord &record)
 {
 	LightComponent light;
@@ -667,6 +680,7 @@ LightComponent ToComponent(const LightRecord &record)
 	light.animation = record.animation;
 	return light;
 }
+
 
 LightRecord ToRecord(const LightComponent &light)
 {
@@ -685,11 +699,13 @@ LightRecord ToRecord(const LightComponent &light)
 	return record;
 }
 
+
 SkyComponent ToComponent(const SkyRecord &record)
 {
 	return {record.seed,       record.stars,      record.starFlux,     record.band.normal,
 	        record.band.width, record.band.color, record.nebula.color, record.nebula.scale};
 }
+
 
 SkyRecord ToRecord(const SkyComponent &sky)
 {
@@ -701,6 +717,7 @@ SkyRecord ToRecord(const SkyComponent &sky)
 	    {sky.nebulaColor, sky.nebulaScale}};
 }
 
+
 MeshComponent ToComponent(const MeshRecord &record)
 {
 	MeshComponent mesh;
@@ -711,6 +728,7 @@ MeshComponent ToComponent(const MeshRecord &record)
 	mesh.material = record.material.value_or("");
 	return mesh;
 }
+
 
 MeshRecord ToRecord(const MeshComponent &mesh)
 {
@@ -728,6 +746,7 @@ MeshRecord ToRecord(const MeshComponent &mesh)
 		record.material = mesh.material;
 	return record;
 }
+
 
 ParticleEmitterComponent ToComponent(const ParticlesRecord &record)
 {
@@ -753,6 +772,7 @@ ParticleEmitterComponent ToComponent(const ParticlesRecord &record)
 	emitter.frameId = record.frame.value_or("");
 	return emitter;
 }
+
 
 ParticlesRecord ToRecord(const ParticleEmitterComponent &emitter)
 {
@@ -780,6 +800,7 @@ ParticlesRecord ToRecord(const ParticleEmitterComponent &emitter)
 	return record;
 }
 
+
 std::string ReadFile(const std::filesystem::path &path)
 {
 	std::ifstream file{path};
@@ -796,13 +817,20 @@ struct SceneFile::Document
 	SceneDocument document;
 };
 
+
 SceneFile::SceneFile(std::unique_ptr<Document> pDocument) : m_pDocument{std::move(pDocument)}
 {
 }
 
+
 SceneFile::SceneFile(SceneFile &&) noexcept = default;
+
+
 SceneFile &SceneFile::operator=(SceneFile &&) noexcept = default;
+
+
 SceneFile::~SceneFile() = default;
+
 
 SceneFile SceneFile::Read(std::string_view text)
 {
@@ -814,11 +842,13 @@ SceneFile SceneFile::Read(std::string_view text)
 	return SceneFile{std::move(pDocument)};
 }
 
+
 const std::string &SceneFile::StarSystem() const
 {
 	static const std::string kNone;
 	return m_pDocument->document.system ? *m_pDocument->document.system : kNone;
 }
+
 
 std::vector<std::string> SceneFile::CelestialBodies() const
 {
@@ -829,10 +859,12 @@ std::vector<std::string> SceneFile::CelestialBodies() const
 	return bodies;
 }
 
+
 Scene::~Scene()
 {
 	Clear();
 }
+
 
 void Scene::Load(const std::filesystem::path &path)
 {
@@ -845,6 +877,7 @@ void Scene::Load(const std::filesystem::path &path)
 		throw std::runtime_error(std::format("Scene '{}': {}", path.string(), error.what()));
 	}
 }
+
 
 void Scene::LoadText(std::string_view text)
 {
@@ -860,6 +893,7 @@ void Scene::LoadText(std::string_view text)
 	}
 	Load(*file);
 }
+
 
 void Scene::Load(const SceneFile &file)
 {
@@ -980,6 +1014,7 @@ void Scene::Load(const SceneFile &file)
 	}
 }
 
+
 std::string Scene::SaveText() const
 {
 	RegisterTypes();
@@ -1067,6 +1102,7 @@ std::string Scene::SaveText() const
 	return Serialise::YamlArchive::Write(document, Serialise::FormatVersion{kFormatVersion});
 }
 
+
 void Scene::Save(const std::filesystem::path &path) const
 {
 	const std::string text = SaveText();
@@ -1080,6 +1116,7 @@ void Scene::Save(const std::filesystem::path &path) const
 		throw std::runtime_error("Failed to write scene: " + scenePath.string());
 }
 
+
 void Scene::LoadSystem(std::string_view starSystem)
 {
 	Clear();
@@ -1088,12 +1125,14 @@ void Scene::LoadSystem(std::string_view starSystem)
 	m_starSystem = path;
 }
 
+
 void Scene::Destroy(entt::entity entity)
 {
 	if (const auto *rig = m_registry.try_get<RigComponent>(entity); rig != nullptr && m_pResources)
 		m_pResources->Release(rig->rig);
 	m_registry.destroy(entity);
 }
+
 
 void Scene::SetLayerVisible(Layer layer, bool visible)
 {
@@ -1105,11 +1144,13 @@ void Scene::SetLayerVisible(Layer layer, bool visible)
 	    static_cast<std::uint8_t>(visible ? visibility.visible | bit : visibility.visible & ~bit);
 }
 
+
 bool Scene::IsLayerVisible(Layer layer) const
 {
 	const auto *visibility = m_registry.ctx().find<LayerVisibility>();
 	return visibility == nullptr || visibility->IsVisible(layer);
 }
+
 
 void Scene::Clear()
 {

@@ -14,12 +14,14 @@ namespace
 constexpr double kBelowOne = 1.0 - std::numeric_limits<double>::epsilon() / 2.0;
 } // namespace
 
+
 FixedStepAccumulator::FixedStepAccumulator(double fixedStep, int maxStepsPerFrame)
     : m_fixedStep{fixedStep}, m_maxStepsPerFrame{maxStepsPerFrame}
 {
 	JETTISON_VERIFY(std::isfinite(fixedStep) && fixedStep > 0.0);
 	JETTISON_VERIFY(maxStepsPerFrame >= 1);
 }
+
 
 int FixedStepAccumulator::Accumulate(double scaledDelta)
 {
@@ -37,6 +39,7 @@ int FixedStepAccumulator::Accumulate(double scaledDelta)
 	m_droppedTime += (whole - static_cast<double>(m_maxStepsPerFrame)) * m_fixedStep;
 	return m_maxStepsPerFrame;
 }
+
 
 double FixedStepAccumulator::Alpha() const
 {

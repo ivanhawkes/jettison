@@ -23,6 +23,7 @@ Glsl::Emitter ToGlsl(const GpuEmitter &emitter)
 	        emitter.colorEnd,      emitter.albedo,    emitter.slots,    emitter.spawn};
 }
 
+
 GpuParticle FromGlsl(const Glsl::Particle &particle)
 {
 	return {particle.positionAge, particle.velocityLifetime};
@@ -30,6 +31,7 @@ GpuParticle FromGlsl(const Glsl::Particle &particle)
 
 // The longest frame made up for.
 constexpr double kMostSeconds = 0.25;
+
 
 // A frame's turn and move, without its scale: each axis at unit length.
 glm::dmat4 WithoutScale(const glm::dmat4 &matrix)
@@ -46,10 +48,12 @@ glm::dmat4 WithoutScale(const glm::dmat4 &matrix)
 }
 } // namespace
 
+
 ParticlePool::ParticlePool(std::uint32_t slots) : m_slots{slots}
 {
 	Clear();
 }
+
 
 void ParticlePool::Clear()
 {
@@ -59,6 +63,7 @@ void ParticlePool::Clear()
 		m_free.push_back({0, m_slots});
 	m_used = 0;
 }
+
 
 bool ParticlePool::Allocate(std::uint32_t count, Range &range)
 {
@@ -79,6 +84,7 @@ bool ParticlePool::Allocate(std::uint32_t count, Range &range)
 	return false;
 }
 
+
 void ParticlePool::Free(const Range &range)
 {
 	m_used -= range.count;
@@ -97,6 +103,7 @@ void ParticlePool::Free(const Range &range)
 			m_free.erase(at);
 		}
 }
+
 
 void ParticlePool::Update(
     std::span<const EmitterInput> inputs, const glm::dvec3 &camera, double seconds,
@@ -226,21 +233,25 @@ void ParticlePool::Update(
 	}
 }
 
+
 std::uint32_t BirthOf(std::uint32_t slot, std::uint32_t first, std::uint32_t capacity)
 {
 	return Glsl::BirthOf(slot, first, capacity);
 }
+
 
 float ParticleRandom(std::uint32_t seed, std::uint32_t serial, std::uint32_t draw)
 {
 	return Glsl::ParticleRandom(seed, serial, draw);
 }
 
+
 GpuParticle SpawnParticle(
     const GpuEmitter &emitter, std::uint32_t serial, std::uint32_t birth, std::uint32_t births)
 {
 	return FromGlsl(Glsl::SpawnParticle(ToGlsl(emitter), serial, birth, births));
 }
+
 
 GpuParticle StepParticle(const GpuParticle &particle, float seconds, float drag)
 {

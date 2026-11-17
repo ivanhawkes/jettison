@@ -38,6 +38,7 @@ struct AtmosphereSample
 	glm::vec3 inscattered{0.0f};
 	glm::vec3 transmittance{1.0f};
 };
+
 AtmosphereSample TraceAtmosphere(
     const GpuAtmosphere &atmosphere, const glm::vec3 &direction, float limit, const glm::vec3 &toSun);
 
@@ -59,6 +60,7 @@ struct RingCrossing
 	float distance{-1.0f};
 	float radius{0.0f};
 };
+
 RingCrossing IntersectRings(
     const GpuRings &rings, const glm::vec3 &centre, const glm::vec3 &origin,
     const glm::vec3 &direction);
@@ -68,6 +70,7 @@ RingCrossing IntersectRings(
 float RingSunlight(
     const GpuRings &rings, const glm::vec3 &centre, const glm::vec3 &position, const glm::vec3 &toSun,
     float footprint = 0.0f);
+
 float SphereSunlight(
     const glm::vec4 &centreRadius, const glm::vec3 &position, const glm::vec3 &toSun,
     float sunAngularRadius);

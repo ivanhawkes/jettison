@@ -206,13 +206,17 @@ class PhysicsWorld final : public Sim::WorldService
 	// naming it, as does a name already defined. Definitions are the game's start-up, the same
 	// every run: a save names shapes, and a world it is loaded into has to define them.
 	void DefineShape(std::string name, const ShapeDefinition &shape);
+
 	// Every ShapeDefinition the registry has loaded, under its definition name.
 	void DefineShapes(const Sim::DefinitionRegistry &definitions);
+
 	bool HasShape(std::string_view name) const;
+
 	// The radius of the smallest sphere about the body's origin holding the shape: a box's half
 	// diagonal, a mesh's farthest vertex. What steering keeps clear of a body. Throws
 	// std::invalid_argument for a shape that is not defined.
 	double ShapeRadius(std::string_view name) const;
+
 	// The largest ShapeRadius of any shape defined: how far beyond a point a body's hull can reach,
 	// which a query for what is near widens itself by. None while no shape is defined.
 	double LargestShapeRadius() const;
@@ -221,35 +225,44 @@ class PhysicsWorld final : public Sim::WorldService
 	// has to be resolved (Celestial::Resolve), as reading one does; throws std::invalid_argument for
 	// a system already defined.
 	void DefineStarSystem(Celestial::StarSystem system);
+
 	bool HasStarSystem(std::uint64_t system) const;
+
 	// The acceleration the defined system's gravity gives a body at a position at a time, in metres
 	// a second squared: each body with a gravitational parameter pulling as a point mass, and as one
 	// whose mass is all within the point's distance from its centre, inside its radius. None in a
 	// system that is not defined.
 	glm::dvec3 Gravity(std::uint64_t system, const glm::dvec3 &position, double simSeconds) const;
+
 	// Where the frame of a body of a defined system (LocalFrame) is at a time, in the system frame:
 	// the body's position, or none for the system's own frame (an empty name). A point a ship is
 	// flown to in its frame is this far from the system's. Throws std::invalid_argument for a frame
 	// a body could not be in.
 	glm::dvec3 FrameOrigin(std::uint64_t system, std::string_view frame, double simSeconds) const;
+
 	// Where an entity on those rails in the defined system is at a time, as each step puts it: what
 	// a game places an entity at before the first step that moves it, so nothing reads it elsewhere
 	// in between. Throws std::invalid_argument for a system not defined or a body it does not have.
 	Sim::Transform RailsPlace(std::uint64_t system, const OnRails &rails, double simSeconds) const;
 
 	std::size_t BodyCount() const;
+
 	std::size_t BodyCount(std::uint64_t system) const;
+
 	// The frames of a system that have bodies: each is a Jolt world (LocalFrame).
 	std::size_t FrameCount(std::uint64_t system) const;
+
 	// The star systems that have bodies, in identifier order.
 	std::vector<std::uint64_t> Systems() const;
 
 	// The contacts the last step began and ended, in order of pair, and for one pair an end before
 	// a beginning (a body made again).
 	const std::vector<ContactEvent> &Contacts() const;
+
 	// Whether the entity's body sleeps: a moving body still for half a second is no longer stepped
 	// until something meets or moves it. A static body, and an entity with none, is not asleep.
 	bool Asleep(entt::entity entity) const;
+
 	// What touches the entity's body now, in entity order: none for an entity with no body.
 	std::vector<entt::entity> Touching(entt::entity entity) const;
 
@@ -260,6 +273,7 @@ class PhysicsWorld final : public Sim::WorldService
 	std::optional<CastHit> CastRay(
 	    std::uint64_t system, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
 	    const CastOptions &options = {}) const;
+
 	// The first body the shape meets swept from where it starts along the direction, within the
 	// distance: whether a ship fits through a gap, or how far it can go before it meets the
 	// station. A shape that starts overlapping a body meets it at once. Throws std::invalid_argument
@@ -273,6 +287,7 @@ class PhysicsWorld final : public Sim::WorldService
 	// from; and the contacts as the engine sees them, what touches and what the last step began and
 	// ended.
 	void Save(Serialise::BinaryWriter &writer) const override;
+
 	// A save of this build's Jolt is loaded as it was saved, and steps on exactly as the world saved
 	// would have. One of another Jolt, whose state this build cannot read, is loaded by rebuilding
 	// its bodies from physics' records instead, each where it was placed, moving as it was, and
@@ -281,6 +296,7 @@ class PhysicsWorld final : public Sim::WorldService
 	// (docs/architecture.md, "Persistence"). What touches is kept, and the contacts Jolt finds
 	// again in the first step begin nothing.
 	std::function<void()> Load(Serialise::BinaryReader &reader, const entt::registry &loaded) override;
+
 	// What Save writes as Jolt's version, in place of this build's: a save that a load rebuilds, as
 	// it would one of a Jolt upgrade, which one build's single Jolt cannot otherwise give a test. The
 	// state saved is still this build's Jolt's, and the load does not read it.
@@ -290,6 +306,7 @@ class PhysicsWorld final : public Sim::WorldService
 	struct Impl;
 
 	explicit PhysicsWorld(const PhysicsSettings &settings);
+
 	// The step from simSeconds to simSeconds + fixedStep.
 	void Step(entt::registry &registry, double simSeconds, double fixedStep);
 

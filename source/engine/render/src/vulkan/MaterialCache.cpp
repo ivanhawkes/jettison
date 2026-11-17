@@ -23,6 +23,7 @@ constexpr Core::Category kRender{"render"};
 // The program every draw without a material of its own uses.
 constexpr const char *kDefaultProgram = "mesh";
 
+
 // The address of a Model is the key its materials live under, so it is the identifier a reader of
 // a validation message has to go look up. Names built from it point at the same model from the
 // set, the texture and the vertex buffer.
@@ -30,6 +31,7 @@ std::string ModelKey(const Model *pModel)
 {
 	return "model-" + std::to_string(reinterpret_cast<uintptr_t>(pModel));
 }
+
 
 std::string_view AsText(std::span<const std::byte> bytes)
 {

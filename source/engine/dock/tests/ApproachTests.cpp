@@ -24,6 +24,7 @@ struct Approach : Fixture
 	entt::entity station{entt::null};
 	entt::entity ship{entt::null};
 
+
 	Approach()
 	{
 		station = docks.MakeStation(world, DockTests::kHalcyon, DockTests::kHighport, "ostra-highport");
@@ -36,6 +37,7 @@ struct Approach : Fixture
 	// was when they touched.
 	std::vector<glm::dvec3> touched;
 
+
 	void Advance()
 	{
 		const std::size_t before = collisions.size();
@@ -46,6 +48,7 @@ struct Approach : Fixture
 			    glm::conjugate(pad.orientation) * (collisions[index].point - pad.position));
 	}
 
+
 	// Whether every contact was the hull on its pad: on the pad's face, within its 80 by 180 m.
 	bool OnlyOnThePad() const
 	{
@@ -54,10 +57,12 @@ struct Approach : Fixture
 		    { return std::abs(at.y) < 0.1 && std::abs(at.x) < 40.0 && std::abs(at.z) < 90.0; });
 	}
 
+
 	const Dock::Docking *Docking() const
 	{
 		return world.Registry().try_get<Dock::Docking>(ship);
 	}
+
 
 	// Steps until the ship's stage is the one asked for, or the time is up: the seconds it took.
 	std::optional<double> RunUntil(Dock::Stage stage, double seconds)
@@ -70,6 +75,7 @@ struct Approach : Fixture
 		}
 		return std::nullopt;
 	}
+
 
 	// Where the ship is in the pad's axes, from where its hull rests on it.
 	glm::dvec3 FromRest(double height) const
@@ -84,6 +90,7 @@ struct Approach : Fixture
 
 constexpr double kShuttleHeight = 1.8;
 } // namespace
+
 
 TEST_CASE(
     "Docks: a ship flown from 10 km lands on a pad on the far side of Highport, touching nothing first")
@@ -119,6 +126,7 @@ TEST_CASE(
 	CHECK(approach.collisions.empty());
 }
 
+
 TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up once it is")
 {
 	Approach approach;
@@ -152,6 +160,7 @@ TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up 
 	MESSAGE(approach.touched.size(), " contacts, as it was let go");
 	CHECK(approach.OnlyOnThePad());
 }
+
 
 TEST_CASE(
     "Docks: a ship its pilot flies is lifted off its pad by its thrusters, and is the pilot's in a few "
@@ -191,6 +200,7 @@ TEST_CASE(
 	CHECK(registry.get<Physics::Velocity>(approach.ship).linear.z != 0.0f);
 	CHECK(approach.OnlyOnThePad());
 }
+
 
 TEST_CASE(
     "Docks: the same approach from the same start, and from a save part-way, reaches the same state")
@@ -234,6 +244,7 @@ TEST_CASE(
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == first);
 }
+
 
 TEST_CASE("Docks: a ship made again from a save of another Jolt docks as it would have, and stays")
 {

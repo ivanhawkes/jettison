@@ -14,6 +14,7 @@ namespace Jettison::Profile
 
 // Whether this build has the Tracy client compiled in (JETTISON_PROFILE).
 bool IsEnabled();
+
 // Whether a profiler is connected now. Always false when profiling is compiled out.
 bool IsConnected();
 
@@ -23,10 +24,12 @@ template <std::integral T> constexpr std::int64_t PlotValue(T value)
 {
 	return static_cast<std::int64_t>(value);
 }
+
 constexpr float PlotValue(float value)
 {
 	return value;
 }
+
 constexpr double PlotValue(double value)
 {
 	return value;

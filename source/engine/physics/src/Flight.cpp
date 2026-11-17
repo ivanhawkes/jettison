@@ -20,11 +20,13 @@ double Demand(float value)
 	return std::isfinite(value) ? std::clamp(double{value}, -1.0, 1.0) : 0.0;
 }
 
+
 // A capability, none if it is not a positive number: a thruster cannot push the wrong way.
 double Capability(float value)
 {
 	return value > 0.0f && std::isfinite(value) ? double{value} : 0.0;
 }
+
 
 // The change one axis makes over the step: towards the target at no more than the acceleration
 // each way allows, without passing it, with assist; that share of the acceleration, without.
@@ -36,6 +38,7 @@ double Change(
 		return demand * (demand >= 0.0 ? towardsPositive : towardsNegative) * step;
 	return std::clamp(demand * limit - current, -towardsNegative * step, towardsPositive * step);
 }
+
 
 // The share of an axis's thrust a change took, signed as the change is.
 float Share(double change, double towardsPositive, double towardsNegative, double step)
@@ -52,6 +55,7 @@ struct Change3
 	Thrust thrust;
 };
 } // namespace
+
 
 void StepFlight(entt::registry &registry, double fixedStep)
 {

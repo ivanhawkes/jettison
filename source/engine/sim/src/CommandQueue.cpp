@@ -12,6 +12,7 @@ void CommandQueue::Push(entt::meta_any command)
 	m_pending.push_back(std::move(command));
 }
 
+
 std::vector<entt::meta_any> CommandQueue::Drain()
 {
 	return std::exchange(m_pending, {});

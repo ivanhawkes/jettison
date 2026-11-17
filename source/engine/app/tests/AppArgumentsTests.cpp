@@ -24,6 +24,7 @@ std::optional<AppArguments> Parse(std::vector<std::string> words)
 }
 } // namespace
 
+
 TEST_CASE("a screenshot is asked for with the frames before it, a fixed step and console lines")
 {
 	const auto arguments = Parse(
@@ -42,6 +43,7 @@ TEST_CASE("a screenshot is asked for with the frames before it, a fixed step and
 	CHECK(defaults->commands.empty());
 }
 
+
 TEST_CASE("a frame count or a step that is not a positive number is not understood")
 {
 	CHECK_FALSE(Parse({"--after-frames", "0"}));
@@ -51,6 +53,7 @@ TEST_CASE("a frame count or a step that is not a positive number is not understo
 	CHECK_FALSE(Parse({"--frame-step", "0.1s"}));
 	CHECK_FALSE(Parse({"--screenshot"}));
 }
+
 
 TEST_CASE("the assets are the staged directory, or its pack where there is none")
 {

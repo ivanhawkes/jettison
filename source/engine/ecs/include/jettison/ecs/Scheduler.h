@@ -41,6 +41,7 @@ struct Access
 	{
 		return {{entt::type_hash<Components>::value()...}, {}};
 	}
+
 	template <typename... Components> Access Writing() &&
 	{
 		(writes.push_back(entt::type_hash<Components>::value()), ...);
@@ -78,7 +79,9 @@ class Scheduler
 {
   public:
 	void Register(SystemDescription system);
+
 	void Validate() const;
+
 	// Runs the phase's systems in order. An exception from a system propagates, and the systems
 	// after it do not run.
 	void Run(TickPhase phase, entt::registry &registry, double deltaTime) const;
@@ -87,8 +90,10 @@ class Scheduler
 	{
 		return m_systems;
 	}
+
 	// The phase's systems in the order Run runs them.
 	std::vector<std::string> Order(TickPhase phase) const;
+
 	// Pairs of systems in the phase whose access conflicts and which no chain of after and before
 	// constraints orders: registration order decides theirs today, and they are what a parallel
 	// scheduler would have to keep apart. Each pair is in run order.

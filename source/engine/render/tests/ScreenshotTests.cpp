@@ -19,12 +19,15 @@ struct ScratchDirectory
 {
 	std::filesystem::path path =
 	    std::filesystem::temp_directory_path() / ("jettison-screenshot-" + std::to_string(::getpid()));
+
+
 	~ScratchDirectory()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(path, error);
 	}
 };
+
 
 // Three by two, every pixel different, in the order given; alpha is a byte no output should show.
 Screenshot Frame(PixelOrder order)
@@ -45,6 +48,7 @@ Screenshot Frame(PixelOrder order)
 	return frame;
 }
 } // namespace
+
 
 TEST_CASE("a screenshot is written as the RGB of its pixels, top row first, in either order")
 {
@@ -71,6 +75,7 @@ TEST_CASE("a screenshot is written as the RGB of its pixels, top row first, in e
 		                255, 0, 0, 0, 255, 0, 0, 0, 255, 10, 20, 30, 40, 50, 60, 1, 2, 3});
 	}
 }
+
 
 TEST_CASE("a screenshot whose bytes do not fill its size is refused")
 {

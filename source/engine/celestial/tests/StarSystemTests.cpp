@@ -47,6 +47,7 @@ bodies:
       inclination: 0.9
 )";
 
+
 std::string ReadFile(const std::string &path)
 {
 	std::ifstream file{path};
@@ -55,6 +56,7 @@ std::string ReadFile(const std::string &path)
 	return text.str();
 }
 
+
 std::string Replace(std::string text, const std::string &from, const std::string &to)
 {
 	const auto at = text.find(from);
@@ -62,6 +64,7 @@ std::string Replace(std::string text, const std::string &from, const std::string
 	return text.replace(at, from.size(), to);
 }
 } // namespace
+
 
 TEST_CASE("Star system: read, the hierarchy resolved and the periods derived")
 {
@@ -79,6 +82,7 @@ TEST_CASE("Star system: read, the hierarchy resolved and the periods derived")
 	CHECK(system.bodies[2].orbit.period == doctest::Approx(5569.6).epsilon(1e-4));
 }
 
+
 TEST_CASE("Star system: a written system reads back as the same system")
 {
 	const StarSystem system = ReadStarSystem(kSystem);
@@ -94,6 +98,7 @@ TEST_CASE("Star system: a written system reads back as the same system")
 	// The runtime index is not part of the file.
 	CHECK(written.find("parentIndex") == std::string::npos);
 }
+
 
 TEST_CASE("Star system: a hierarchy that does not hold is refused, naming the body")
 {
@@ -123,6 +128,7 @@ TEST_CASE("Star system: a hierarchy that does not hold is refused, naming the bo
 	    FormatError);
 }
 
+
 TEST_CASE("Star system: positions add up the hierarchy, the same bits by either path")
 {
 	const StarSystem system = ReadStarSystem(kSystem);
@@ -144,11 +150,13 @@ TEST_CASE("Star system: positions add up the hierarchy, the same bits by either 
 	}
 }
 
+
 TEST_CASE("Star system: presentation time is interpolated between the steps")
 {
 	CHECK(PresentationTime(10.0, 11.0, 0.0) == 10.0);
 	CHECK(PresentationTime(10.0, 11.0, 0.25) == 10.25);
 }
+
 
 TEST_CASE("Star system: the sample system in the assets reads")
 {
@@ -162,6 +170,7 @@ TEST_CASE("Star system: the sample system in the assets reads")
 	// Built to its layout in the docks' definitions (defs/stations), whose sphere its radius is.
 	CHECK(system.bodies[static_cast<std::size_t>(station)].layout == "ostra-highport");
 }
+
 
 TEST_CASE("Star system: the sample gates keep to their planets, moons and stars, and face a planet")
 {

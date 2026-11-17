@@ -40,6 +40,7 @@ Celestial::Galaxy Triangle(double ab, double bc, double ac)
 	return galaxy;
 }
 
+
 // Every leg of the course clear of the obstacles, the legs from its ends by their radii alone.
 bool Clear(const Ai::Course &course, const std::vector<Sphere> &obstacles, double clearance)
 {
@@ -53,6 +54,7 @@ bool Clear(const Ai::Course &course, const std::vector<Sphere> &obstacles, doubl
 	return true;
 }
 
+
 double Length(const Ai::Course &course)
 {
 	double length = 0.0;
@@ -61,6 +63,7 @@ double Length(const Ai::Course &course)
 	return length;
 }
 } // namespace
+
 
 TEST_CASE("Routes: across the sample galaxy, end to end and back, by its lanes")
 {
@@ -95,6 +98,7 @@ TEST_CASE("Routes: across the sample galaxy, end to end and back, by its lanes")
 	CHECK(home->jumps.empty());
 	CHECK(home->seconds == 0.0);
 }
+
 
 TEST_CASE("Routes: two jumps against one, and the crossing between them weighed")
 {
@@ -132,6 +136,7 @@ TEST_CASE("Routes: two jumps against one, and the crossing between them weighed"
 	CHECK(fromStation->jumps[0].jumpPoint == "A to B");
 }
 
+
 TEST_CASE("Routes: a crossing is asked only between two bodies, and each route is the same again")
 {
 	const Celestial::Galaxy galaxy = Triangle(10.0, 10.0, 30.0);
@@ -157,6 +162,7 @@ TEST_CASE("Routes: a crossing is asked only between two bodies, and each route i
 		CHECK(again->jumps[jump].lane == route->jumps[jump].lane);
 }
 
+
 TEST_CASE("Routes: a system no lane reaches has no route, and one the galaxy lacks is refused")
 {
 	const Celestial::Galaxy galaxy = Triangle(10.0, 10.0, 30.0);
@@ -168,6 +174,7 @@ TEST_CASE("Routes: a system no lane reaches has no route, and one the galaxy lac
 	{ return -1.0; };
 	CHECK_THROWS_AS(Ai::PlotRoute(galaxy, {0, "Station"}, {2, ""}, negative), std::invalid_argument);
 }
+
 
 TEST_CASE("Courses: a clear leg is straight, and a planet in the way is gone round by its ring")
 {
@@ -198,6 +205,7 @@ TEST_CASE("Courses: a clear leg is straight, and a planet in the way is gone rou
 	CHECK(round->length >= (2.0 * tangent) + arc);
 }
 
+
 TEST_CASE("Courses: a clearance keeps a course off a planet, and every way blocked is none")
 {
 	const std::vector<Sphere> planet{{glm::dvec3{0.0}, 1.0}};
@@ -225,6 +233,7 @@ TEST_CASE("Courses: a clearance keeps a course off a planet, and every way block
 	CHECK_FALSE(trapped.PlotCourse(glm::dvec3{0.0}, {100.0, 0.0, 0.0}));
 }
 
+
 TEST_CASE("Courses: an end just above a planet, under a face of its ring, still finds a way out")
 {
 	// Above the middle of the face between the +x, +y and +z corners, a thousandth of its radius
@@ -240,6 +249,7 @@ TEST_CASE("Courses: an end just above a planet, under a face of its ring, still 
 	CHECK(Clear(*course, planet, 0.0));
 	CHECK(glm::length(course->points[1]) == doctest::Approx(1.5));
 }
+
 
 TEST_CASE("Courses: from Ostra Highport to Pell round Ostra when it is in the way")
 {
@@ -287,6 +297,7 @@ TEST_CASE("Courses: from Ostra Highport to Pell round Ostra when it is in the wa
 	CHECK(blocked > 0);
 }
 
+
 TEST_CASE("Courses: a route across the galaxy at a cruising speed adds each crossing to the lanes")
 {
 	const Celestial::Galaxy galaxy = AiTests::Sample();
@@ -305,6 +316,7 @@ TEST_CASE("Courses: a route across the galaxy at a cruising speed adds each cros
 	CHECK_THROWS_AS(crossing(5, "Ostra Highport", "Halcyon Gate"), std::invalid_argument);
 	CHECK_THROWS_AS(Ai::CrossingByCourse(systems, 0.0, 0.0, 1.0e5), std::invalid_argument);
 }
+
 
 TEST_CASE("Courses: a crossing costed by a time of the course's length, which has to be a time")
 {
@@ -330,6 +342,7 @@ TEST_CASE("Courses: a crossing costed by a time of the course's length, which ha
 	CHECK_THROWS_AS(
 	    asked([](double) { return std::numeric_limits<double>::infinity(); }), std::invalid_argument);
 }
+
 
 TEST_CASE("Courses: an obstacle or a clearance that is not one is refused")
 {

@@ -38,12 +38,14 @@ double EaseInOutCubic(double share)
 	return 1.0 - (rest * rest * rest / 2.0);
 }
 
+
 glm::dquat Facing(const glm::dvec3 &ahead)
 {
 	const glm::dvec3 up =
 	    std::abs(ahead.y) > 0.999999 ? glm::dvec3{1.0, 0.0, 0.0} : glm::dvec3{0.0, 1.0, 0.0};
 	return glm::quatLookAtRH(ahead, up);
 }
+
 
 // The body and every body it orbits, out to the primary.
 std::vector<std::size_t> Chain(const Celestial::StarSystem &system, int body)
@@ -53,6 +55,7 @@ std::vector<std::size_t> Chain(const Celestial::StarSystem &system, int body)
 		chain.push_back(static_cast<std::size_t>(at));
 	return chain;
 }
+
 
 bool Contains(const std::vector<std::size_t> &chain, std::size_t body)
 {
@@ -67,18 +70,24 @@ struct Planner
 	std::vector<std::size_t> departure;
 	std::vector<std::size_t> arrival;
 
+
 	glm::dvec3 Where(std::size_t body, double time) const
 	{
 		return Celestial::EvaluateBody(system, body, time).metres;
 	}
+
+
 	glm::dvec3 CarrierAt(double time) const
 	{
 		return carrier < 0 ? glm::dvec3{0.0} : Where(static_cast<std::size_t>(carrier), time);
 	}
+
+
 	glm::dvec3 Relative(std::size_t body, double time) const
 	{
 		return Where(body, time) - CarrierAt(time);
 	}
+
 
 	// The course from the start to the target's standoff on the side of `towards`, both relative to
 	// the carrier, for a cruise from t0 to t1.
@@ -119,6 +128,7 @@ struct Planner
 	}
 };
 
+
 // The point the share of the way along a course is at, and the leg it is on.
 std::pair<glm::dvec3, glm::dvec3> Along(const std::vector<glm::dvec3> &course, double share)
 {
@@ -140,6 +150,7 @@ std::pair<glm::dvec3, glm::dvec3> Along(const std::vector<glm::dvec3> &course, d
 }
 } // namespace
 
+
 double CruiseSeconds(const CruiseDrive &drive, double metres)
 {
 	if (metres <= 0.0)
@@ -147,12 +158,14 @@ double CruiseSeconds(const CruiseDrive &drive, double metres)
 	return double{drive.seconds} * std::pow(metres / drive.reference, double{drive.exponent});
 }
 
+
 double CruiseTravel::ArrivalDistance(const Celestial::Body &body)
 {
 	return std::max(
 	    (body.radius * kArrivalRadiusShare) + kArrivalStandoff,
 	    std::sqrt(body.gravitationalParameter / kArrivalGravity));
 }
+
 
 CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics)
 {
@@ -177,6 +190,7 @@ CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsW
 	return *cruises;
 }
 
+
 void CruiseTravel::DefineStarSystem(Celestial::StarSystem system)
 {
 	const std::uint64_t id = Sim::SystemId(system.name);
@@ -186,10 +200,12 @@ void CruiseTravel::DefineStarSystem(Celestial::StarSystem system)
 	m_systems.emplace(id, std::move(system));
 }
 
+
 bool CruiseTravel::HasStarSystem(std::uint64_t system) const
 {
 	return m_systems.contains(system);
 }
+
 
 void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 {
@@ -291,6 +307,7 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 	        cruising.arrivalStep});
 	registry.emplace_or_replace<Cruising>(ship, std::move(cruising));
 }
+
 
 void CruiseTravel::Place(Sim::SimWorld &world) const
 {

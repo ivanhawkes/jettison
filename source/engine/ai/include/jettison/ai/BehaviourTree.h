@@ -198,12 +198,16 @@ class Behaviours
 
 	// Throws std::invalid_argument for a name already defined, or one that is empty.
 	void DefineTask(std::string name, Task task);
+
 	// A tree, checked (CheckBehaviour), each of its tasks one defined. Throws Serialise::FormatError
 	// for one that does not fit, and std::invalid_argument for a name already defined.
 	void DefineTree(std::string name, const BehaviourDefinition &tree);
+
 	// Every BehaviourDefinition the registry has loaded.
 	void Define(const Sim::DefinitionRegistry &definitions);
+
 	bool HasTree(std::string_view name) const;
+
 	// The tree's nodes, in depth-first order, or none for a tree not defined.
 	std::size_t NodeCount(std::string_view tree) const;
 
@@ -227,7 +231,9 @@ class Behaviours
 	Behaviours() = default;
 
 	void Step(Sim::SimWorld &world);
+
 	void Flatten(const BehaviourNode &node, Tree &tree, std::string_view name, std::string path) const;
+
 	Status TickNode(
 	    Sim::SimWorld &world, entt::entity entity, const Tree &tree, std::vector<NodeState> &states,
 	    std::uint32_t index) const;

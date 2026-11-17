@@ -40,20 +40,25 @@ class ModelCache
 	ModelCache(
 	    std::shared_ptr<DeviceContext> pDeviceContext, Resource::ResourceManager &resources,
 	    MaterialCache &materials, std::uint32_t framesInFlight);
+
 	ModelCache(const ModelCache &) = delete;
+
 	ModelCache &operator=(const ModelCache &) = delete;
 
 	// Registers the model loader, so a renderer is made once per resource manager.
 	void Init();
+
 	// Releases every model and frees everything, queued or not: the device has to be idle.
 	void Destroy();
 
 	// The frame's start, after its slot's fence: what was retired kFramesInFlight frames before is
 	// no longer read by any submission, and is freed.
 	void BeginFrame(std::uint64_t frameNumber);
+
 	// The model the mesh draws this frame: null while its file loads for the first time, and after it
 	// failed, which the resource manager reports.
 	const Model *Resolve(const Scene::MeshComponent &mesh);
+
 	// Releases every model this frame did not resolve: after a scene reload, the ones the new scene
 	// does not draw.
 	void ReleaseUnresolved();
@@ -78,6 +83,7 @@ class ModelCache
 
 	// The model's buffers and own materials into the queues, as of this frame.
 	void Retire(Model &model);
+
 	void Free(Retired &retired);
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;

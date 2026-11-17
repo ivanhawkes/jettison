@@ -24,6 +24,7 @@ struct CollisionMesh
 	Physics::ShapeDefinition shape;
 	std::size_t skippedModels{0};
 };
+
 std::optional<CollisionMesh> MakeCollisionMesh(const entt::registry &scene, entt::entity root);
 
 // The pilot's controls as input actions, in a context of their own ("flight") that the shell pushes
@@ -54,10 +55,12 @@ class PilotInput
 	// The demands the actions make this frame, in the ship's frame as Physics::FlightControls has
 	// them; the assist and the reference are the caller's.
 	Physics::FlightControls Read(const Input::InputSystem &input) const;
+
 	bool AssistToggled(const Input::InputSystem &input) const
 	{
 		return input.WasPressedThisFrame(m_assist);
 	}
+
 	bool ViewToggled(const Input::InputSystem &input) const
 	{
 		return input.WasPressedThisFrame(m_view);

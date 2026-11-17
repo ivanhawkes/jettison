@@ -56,11 +56,13 @@ enum class Usage
 };
 
 std::string_view ToString(Usage usage);
+
 bool IsWrite(Usage usage);
 
 struct PassResource
 {
 	std::uint32_t index{0};
+
 	friend bool operator==(const PassResource &, const PassResource &) = default;
 };
 
@@ -100,10 +102,13 @@ class PassList
 {
   public:
 	PassResource AddImage(std::string name);
+
 	PassResource AddBuffer(std::string name);
+
 	// The resources are this list's, and each use is legal for its resource's kind and the pass's
 	// kind; anything else throws std::logic_error, naming the pass and the resource.
 	std::uint32_t AddPass(std::string name, PassKind kind, std::vector<PassUse> uses);
+
 	// The use a resource is left in after the last pass: the swapchain image, presented.
 	void Export(PassResource resource, Usage final);
 
@@ -112,13 +117,18 @@ class PassList
 	PassPlan Compile() const;
 
 	std::string_view PassName(std::uint32_t pass) const;
+
 	PassKind KindOf(std::uint32_t pass) const;
+
 	std::string_view ResourceName(PassResource resource) const;
+
 	ResourceKind KindOf(PassResource resource) const;
+
 	std::size_t PassCount() const
 	{
 		return m_passes.size();
 	}
+
 	std::size_t ResourceCount() const
 	{
 		return m_resources.size();

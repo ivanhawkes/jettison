@@ -29,12 +29,14 @@ namespace
 constexpr float kRelativeTolerance = 1.0e-5f;
 constexpr float kAbsoluteTolerance = 1.0e-4f;
 
+
 std::string DescribeCluster(std::uint32_t cluster)
 {
 	return std::format(
 	    "cluster {} (tile {}, {}, slice {})", cluster, cluster % kClusterTilesX,
 	    (cluster / kClusterTilesX) % kClusterTilesY, cluster / (kClusterTilesX * kClusterTilesY));
 }
+
 
 Glsl::ClusterBounds ToGlsl(const ClusterBox &box)
 {
@@ -45,25 +47,30 @@ Glsl::ClusterBounds ToGlsl(const ClusterBox &box)
 }
 } // namespace
 
+
 glm::vec2 ClusterTileSize(glm::vec2 viewport)
 {
 	return Glsl::ClusterTileSize(viewport);
 }
+
 
 float ClusterSliceDepth(std::uint32_t slice, float nearPlane, float range)
 {
 	return Glsl::ClusterSliceDepth(slice, nearPlane, range);
 }
 
+
 std::uint32_t ClusterSlice(float depth, float nearPlane, float range)
 {
 	return Glsl::ClusterSlice(depth, nearPlane, range);
 }
 
+
 std::uint32_t ClusterAt(glm::vec2 pixel, float depth, const ClusterView &view)
 {
 	return Glsl::ClusterAt(pixel, depth, ClusterTileSize(view.viewport), view.nearPlane, view.range);
 }
+
 
 ClusterBox ClusterBoundsOf(std::uint32_t cluster, const ClusterView &view)
 {
@@ -72,6 +79,7 @@ ClusterBox ClusterBoundsOf(std::uint32_t cluster, const ClusterView &view)
 	    view.range);
 	return {bounds.minimum, bounds.maximum};
 }
+
 
 bool LightReachesCluster(
     const GpuLight &light, const glm::mat3 &view, const ClusterBox &bounds, float margin)
@@ -83,16 +91,19 @@ bool LightReachesCluster(
 	    light.cone.w, ToGlsl(bounds), margin);
 }
 
+
 float RangeAttenuation(float distanceSquared, float range)
 {
 	return Glsl::RangeAttenuation(distanceSquared, range);
 }
+
 
 float SpotAttenuation(const GpuLight &light, const glm::vec3 &lightToSurface)
 {
 	return Glsl::SpotAttenuation(
 	    glm::vec3{light.directionType}, lightToSurface, light.cone.x, light.cone.y);
 }
+
 
 GpuLight PackLight(
     const Scene::LightComponent &light, const glm::vec3 &renderPosition, const glm::vec3 &direction)
@@ -111,6 +122,7 @@ GpuLight PackLight(
 	packed.cone = glm::vec4{scale, -cosOuter * scale, cosOuter, std::sin(light.outerConeAngle)};
 	return packed;
 }
+
 
 ClusterCheck CheckClusterAssignment(
     const ClusterView &view, const glm::mat3 &viewMatrix, std::span<const GpuLight> lights,

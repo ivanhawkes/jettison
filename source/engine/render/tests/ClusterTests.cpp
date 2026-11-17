@@ -39,6 +39,7 @@ ClusterView MakeView(float nearPlane = 0.5f, float range = 2000.0f)
 	return view;
 }
 
+
 // A point in a cluster: a pixel in its tile and a depth in its slice, both drawn at random, and the
 // view-space point there by the projection's own inverse.
 glm::vec3 SampleCluster(std::uint32_t cluster, const ClusterView &view, Jettison::Math::Random &random)
@@ -56,6 +57,7 @@ glm::vec3 SampleCluster(std::uint32_t cluster, const ClusterView &view, Jettison
 	const glm::vec2 ndc = pixel / view.viewport * 2.0f - 1.0f;
 	return {ndc.x * depth / view.projectionScale.x, ndc.y * depth / view.projectionScale.y, -depth};
 }
+
 
 // Whether a light lights a render-space point at all, by its definition: inside its range, and for a
 // spot inside its outer cone.
@@ -78,6 +80,7 @@ struct Assignment
 	std::vector<std::uint32_t> indices;
 };
 
+
 Assignment Assign(
     const ClusterView &view, const glm::mat3 &rotation, const std::vector<GpuLight> &lights)
 {
@@ -96,6 +99,7 @@ Assignment Assign(
 	return assignment;
 }
 
+
 GpuLight Spot(
     const glm::vec3 &position, const glm::vec3 &direction, float range, float inner, float outer)
 {
@@ -107,6 +111,7 @@ GpuLight Spot(
 	return PackLight(light, position, glm::normalize(direction));
 }
 
+
 GpuLight Point(const glm::vec3 &position, float range)
 {
 	LightComponent light;
@@ -114,6 +119,7 @@ GpuLight Point(const glm::vec3 &position, float range)
 	return PackLight(light, position, glm::vec3{0.0f, 0.0f, -1.0f});
 }
 } // namespace
+
 
 TEST_CASE("Clusters: the slices are exponential in depth, from the near plane to the cluster range")
 {
@@ -138,6 +144,7 @@ TEST_CASE("Clusters: the slices are exponential in depth, from the near plane to
 	CHECK(ClusterTileSize(view.viewport) == glm::vec2{20.0f, 27.0f});
 	CHECK(ClusterAt({639.5f, 479.5f}, 1.0f, view) % kClusterTilesX == kClusterTilesX - 1);
 }
+
 
 TEST_CASE("Clusters: a cluster's bounds hold every point the projection draws in its tile and slice")
 {
@@ -168,6 +175,7 @@ TEST_CASE("Clusters: a cluster's bounds hold every point the projection draws in
 		CHECK(glm::all(glm::lessThanEqual(point, bounds.maximum + slack)));
 	}
 }
+
 
 TEST_CASE("Clusters: a light that lights any point of a cluster is assigned to it")
 {
@@ -214,6 +222,7 @@ TEST_CASE("Clusters: a light that lights any point of a cluster is assigned to i
 	CHECK(reached < 400);
 }
 
+
 TEST_CASE("Clusters: a light far from a cluster, or facing away from it, is not assigned to it")
 {
 	const ClusterView view = MakeView();
@@ -232,6 +241,7 @@ TEST_CASE("Clusters: a light far from a cluster, or facing away from it, is not 
 	CHECK_FALSE(LightReachesCluster(
 	    Spot(beside, glm::vec3{0.0f, 1.0f, 0.0f}, 8.0f, 0.1f, 0.4f), identity, bounds));
 }
+
 
 TEST_CASE("Clusters: the falloff is the inverse square near a light, and reaches zero at its range")
 {
@@ -257,6 +267,7 @@ TEST_CASE("Clusters: the falloff is the inverse square near a light, and reaches
 	CHECK(RangeAttenuation(1e-6f, kRange) == RangeAttenuation(0.0f, kRange));
 }
 
+
 TEST_CASE(
     "Clusters: a spot is full inside its inner cone and dark outside its outer, a point light "
     "everywhere")
@@ -277,6 +288,7 @@ TEST_CASE(
 	for (const float angle : {0.0f, 1.5f, 3.0f})
 		CHECK(SpotAttenuation(point, at(angle)) == 1.0f);
 }
+
 
 TEST_CASE("Clusters: the check passes an assignment that agrees, and names one that does not")
 {

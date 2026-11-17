@@ -46,6 +46,7 @@ class Traffic
 	{
 		return m_stations;
 	}
+
 	std::vector<Ship> &Ships()
 	{
 		return m_ships;
@@ -89,10 +90,12 @@ class Traffic
 	{
 		return static_cast<std::size_t>(m_random.Range(0, static_cast<std::int32_t>(count) - 1));
 	}
+
 	double Between(double min, double max)
 	{
 		return min + (max - min) * m_random.NextDouble();
 	}
+
 	glm::dvec3 Direction()
 	{
 		for (;;)
@@ -121,6 +124,7 @@ class Traffic
 		sum += m_random.NextDouble();
 		return (sum - 1.5) * 2.0;
 	}
+
 	glm::dvec3 InDisc()
 	{
 		const double radius = 4.5e11 * std::sqrt(m_random.NextDouble());

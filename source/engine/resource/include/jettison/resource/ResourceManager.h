@@ -80,8 +80,11 @@ class ResourceManager
   public:
 	ResourceManager(
 	    const Vfs::FileSystem &fileSystem, Jobs::IoWorker &ioWorker, ResourceOptions options = {});
+
 	~ResourceManager();
+
 	ResourceManager(const ResourceManager &) = delete;
+
 	ResourceManager &operator=(const ResourceManager &) = delete;
 
 	// Throws std::logic_error for a loader with no decode, or a type registered twice.
@@ -119,15 +122,18 @@ class ResourceManager
 	{
 		return static_cast<const T *>(TryGetRaw(typeid(T), Raw(handle)));
 	}
+
 	template <typename T> Status StatusOf(ResourceHandle<T> handle) const
 	{
 		return StatusRaw(typeid(T), Raw(handle));
 	}
+
 	// Why the resource failed, or why its last reload did; empty if it has not failed.
 	template <typename T> std::string_view ErrorOf(ResourceHandle<T> handle) const
 	{
 		return ErrorRaw(typeid(T), Raw(handle));
 	}
+
 	// Starts at 1 when the resource is first ready and goes up with each reload, so a cache built
 	// from the value knows to rebuild. 0 before it is ready and for a stale handle.
 	template <typename T> std::uint32_t RevisionOf(ResourceHandle<T> handle) const
@@ -149,9 +155,11 @@ class ResourceManager
 	// Drains the worker, finishing the loads it completed, and with hot reload on checks for
 	// changed files once per poll interval.
 	void Update();
+
 	// Starts a reload of every resource whose file changed, was added or was removed since it was
 	// read: a mod that shadows a base file counts. Update calls it; tests call it directly.
 	void CheckForChanges();
+
 	// Starts a reload of every resource, changed or not: a developer's "reload everything", and
 	// the render test's way through the reload path without writing to the asset tree.
 	void ReloadAll();
@@ -175,12 +183,19 @@ class ResourceManager
 	}
 
 	[[noreturn]] static void ThrowNoDecode(std::type_index type);
+
 	void RegisterRaw(std::type_index type, RawLoader loader);
+
 	RawHandle LoadRaw(std::type_index type, std::string_view virtualPath);
+
 	const void *TryGetRaw(std::type_index type, RawHandle handle) const;
+
 	Status StatusRaw(std::type_index type, RawHandle handle) const;
+
 	std::string_view ErrorRaw(std::type_index type, RawHandle handle) const;
+
 	std::uint32_t RevisionRaw(std::type_index type, RawHandle handle) const;
+
 	void ReleaseRaw(std::type_index type, RawHandle handle);
 
 	struct State;

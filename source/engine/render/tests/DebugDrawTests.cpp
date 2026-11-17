@@ -7,6 +7,7 @@
 
 using namespace Jettison::Render;
 
+
 TEST_CASE("Debug draw: shapes become segments, made camera-relative when the frame is built")
 {
 	DebugDraw draw;

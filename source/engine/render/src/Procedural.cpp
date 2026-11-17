@@ -38,6 +38,7 @@ constexpr std::array<std::array<glm::vec3, 3>, 6> kCubeFaces{{
     {glm::vec3{0, 0, -1}, glm::vec3{-1, 0, 0}, glm::vec3{0, 1, 0}},
 }};
 
+
 Vertex MakeVertex(
     const glm::vec3 &position, const glm::vec3 &normal, const glm::vec2 &texCoord,
     const glm::vec3 &color)
@@ -49,6 +50,7 @@ Vertex MakeVertex(
 	vertex.color = color;
 	return vertex;
 }
+
 
 // Texture coordinates for a point on the unit sphere, as UvSphere lays them out: u around from +X
 // towards -Z, v from the north pole (0) to the south (1).
@@ -62,6 +64,7 @@ glm::vec2 SphericalTexCoord(const glm::vec3 &normal)
 	        std::acos(std::clamp(static_cast<double>(normal.y), -1.0, 1.0)) / std::numbers::pi)};
 }
 
+
 void CheckSegments(int segments, int minimum, const char *shape)
 {
 	if (segments < minimum)
@@ -69,6 +72,7 @@ void CheckSegments(int segments, int minimum, const char *shape)
 		    std::string{"A "} + shape + " needs " + std::to_string(minimum) + " segments or more");
 }
 } // namespace
+
 
 MeshData UvSphere(int segments, const glm::vec3 &color)
 {
@@ -115,6 +119,7 @@ MeshData UvSphere(int segments, const glm::vec3 &color)
 	return mesh;
 }
 
+
 MeshData Box(const glm::vec3 &color)
 {
 	MeshData mesh;
@@ -135,6 +140,7 @@ MeshData Box(const glm::vec3 &color)
 	}
 	return mesh;
 }
+
 
 MeshData IcoSphere(int subdivisions, const glm::vec3 &color)
 {
@@ -192,6 +198,7 @@ MeshData IcoSphere(int subdivisions, const glm::vec3 &color)
 	return mesh;
 }
 
+
 MeshData CubeSphere(int segments, const glm::vec3 &color)
 {
 	CheckSegments(segments, 1, "cube sphere");
@@ -236,6 +243,7 @@ MeshData CubeSphere(int segments, const glm::vec3 &color)
 	return mesh;
 }
 
+
 MeshData Ring(int segments, float innerRadius, const glm::vec3 &color)
 {
 	CheckSegments(segments, 3, "ring");
@@ -277,6 +285,7 @@ MeshData Ring(int segments, float innerRadius, const glm::vec3 &color)
 	}
 	return mesh;
 }
+
 
 MeshData Cylinder(int segments, const glm::vec3 &color)
 {
@@ -333,6 +342,7 @@ MeshData Cylinder(int segments, const glm::vec3 &color)
 	return mesh;
 }
 
+
 float SphereTessellationError(const MeshData &mesh)
 {
 	double nearest = 1.0;
@@ -361,11 +371,13 @@ MeshLod RoundLevel(MeshData mesh, int segments)
 	return {std::move(mesh), error};
 }
 
+
 MeshLod SphereLevel(MeshData mesh)
 {
 	const float error = SphereTessellationError(mesh);
 	return {std::move(mesh), error};
 }
+
 
 // Each level halves the segments around, which about quadruples the error: a chord's sagitta grows
 // with the square of the angle it spans.
@@ -385,6 +397,7 @@ MeshLod Level(Shape shape, int level, const glm::vec3 &color, float innerRadius)
 	throw std::invalid_argument("Unknown procedural shape");
 }
 } // namespace
+
 
 std::vector<MeshLod> GenerateLods(Shape shape, const glm::vec3 &color, float innerRadius)
 {

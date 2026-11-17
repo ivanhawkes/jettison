@@ -47,6 +47,7 @@ struct TextureData
 };
 
 bool IsSrgb(TextureFormat format);
+
 bool IsBlockCompressed(TextureFormat format);
 
 // A KTX 2 file: Basis Universal (ETC1S or UASTC, either supercompression) is transcoded to the

@@ -104,9 +104,11 @@ class PipelineCache
 	PipelineCache(std::shared_ptr<DeviceContext> pDeviceContext, const Vfs::FileSystem &assets);
 
 	PipelineCache(const PipelineCache &) = delete;
+
 	PipelineCache &operator=(const PipelineCache &) = delete;
 
 	VkPipeline Get(const PipelineKey &key);
+
 	// A compute program is one stage, shaders/<program>.comp.spv, with nothing else to vary.
 	VkPipeline GetCompute(const std::string &program, VkPipelineLayout layout);
 
@@ -119,7 +121,9 @@ class PipelineCache
 
   private:
 	VkShaderModule LoadModule(const std::string &virtualPath);
+
 	VkPipeline Create(const PipelineKey &key);
+
 	VkPipeline CreateCompute(const std::string &program, VkPipelineLayout layout);
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;

@@ -32,6 +32,7 @@ CpuFeatures DetectCpuFeatures();
 
 // A message naming what is missing, or nothing when the features meet the baseline.
 std::optional<std::string> CheckCpuBaseline(const CpuFeatures &features);
+
 // The same, for this machine.
 std::optional<std::string> CheckCpuBaseline();
 } // namespace Jettison::Platform

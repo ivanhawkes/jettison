@@ -22,6 +22,7 @@ struct Health
 {
 };
 
+
 // A system that records its name when it runs, so a test can read the order back.
 SystemDescription Recording(
     std::vector<std::string> &log, std::string name, TickPhase phase = TickPhase::Simulation,
@@ -33,6 +34,7 @@ SystemDescription Recording(
 }
 } // namespace
 
+
 TEST_CASE("Ecs: the phases are in frame order")
 {
 	CHECK(TickPhase::Input < TickPhase::Commands);
@@ -41,6 +43,7 @@ TEST_CASE("Ecs: the phases are in frame order")
 	CHECK(TickPhase::Sync < TickPhase::Presentation);
 	CHECK(TickPhase::Presentation < TickPhase::Render);
 }
+
 
 TEST_CASE("Ecs: a phase runs its own systems, in registration order when nothing constrains them")
 {
@@ -57,6 +60,7 @@ TEST_CASE("Ecs: a phase runs its own systems, in registration order when nothing
 	CHECK(scheduler.Order(TickPhase::Presentation) == std::vector<std::string>{"camera"});
 	CHECK(scheduler.Order(TickPhase::Render).empty());
 }
+
 
 TEST_CASE("Ecs: after constraints order a phase, naming systems registered before or after")
 {
@@ -76,6 +80,7 @@ TEST_CASE("Ecs: after constraints order a phase, naming systems registered befor
 	scheduler.Run(TickPhase::Simulation, registry, 0.05);
 	CHECK(log == scheduler.Order(TickPhase::Simulation));
 }
+
 
 TEST_CASE("Ecs: before constraints put a system ahead of one that does not name it")
 {
@@ -118,6 +123,7 @@ TEST_CASE("Ecs: before constraints put a system ahead of one that does not name 
 	    "Scheduler: system 'audit' runs before 'missing', which is not registered", std::logic_error);
 }
 
+
 TEST_CASE("Ecs: the delta time and the registry reach every system")
 {
 	Scheduler scheduler;
@@ -139,6 +145,7 @@ TEST_CASE("Ecs: the delta time and the registry reach every system")
 	scheduler.Run(TickPhase::Simulation, registry, 0.25);
 	CHECK(seen == 0.25);
 }
+
 
 TEST_CASE("Ecs: registration errors are found at registration, and the scheduler stays usable")
 {
@@ -182,6 +189,7 @@ TEST_CASE("Ecs: registration errors are found at registration, and the scheduler
 	CHECK(log == std::vector<std::string>{"c", "a", "b"});
 }
 
+
 TEST_CASE("Ecs: access conflicts that no constraint orders are reported, in run order")
 {
 	std::vector<std::string> log;
@@ -206,6 +214,7 @@ TEST_CASE("Ecs: access conflicts that no constraint orders are reported, in run 
 	CHECK(scheduler.Ambiguities(TickPhase::Simulation) == expected);
 }
 
+
 TEST_CASE("Ecs: an ordering chain resolves an ambiguity even through a system that touches nothing")
 {
 	std::vector<std::string> log;
@@ -217,6 +226,7 @@ TEST_CASE("Ecs: an ordering chain resolves an ambiguity even through a system th
 	    Recording(log, "read", TickPhase::Simulation, {"barrier"}, Access::Of<Position>()));
 	CHECK(scheduler.Ambiguities(TickPhase::Simulation).empty());
 }
+
 
 TEST_CASE("Ecs: an exception from a system stops its phase there")
 {
@@ -252,6 +262,7 @@ enum class Order
 	Abort,
 };
 
+
 StateMachine<Flight, Order> FlightMachine()
 {
 	StateMachine<Flight, Order> machine{Flight::Docked};
@@ -262,6 +273,7 @@ StateMachine<Flight, Order> FlightMachine()
 	return machine;
 }
 } // namespace
+
 
 TEST_CASE("Ecs: a state machine follows its table, and ignores an event with no transition")
 {
@@ -277,6 +289,7 @@ TEST_CASE("Ecs: a state machine follows its table, and ignores an event with no 
 	CHECK(machine.Dispatch(Order::Dock) == Flight::Docked);
 	CHECK(machine.Current() == Flight::Docked);
 }
+
 
 TEST_CASE("Ecs: a state machine runs exit, then entry, hooks; and refuses a second answer")
 {
@@ -296,6 +309,7 @@ TEST_CASE("Ecs: a state machine runs exit, then entry, hooks; and refuses a seco
 	CHECK_THROWS_AS(
 	    machine.AddTransition(Flight::Docked, Order::Undock, Flight::Flying), std::logic_error);
 }
+
 
 TEST_CASE(
     "Ecs: a self-transition runs both hooks; a hook cannot dispatch, and one that throws leaves it "

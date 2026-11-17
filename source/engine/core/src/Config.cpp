@@ -21,11 +21,13 @@ namespace
 {
 constexpr Category kConfigLog{"config"};
 
+
 bool IsKeyCharacter(char character)
 {
 	return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
 	       (character >= '0' && character <= '9') || character == '_';
 }
+
 
 // The one rule for a key, which the loader and Set both apply: dotted segments, none empty, of
 // letters, digits and underscores. It is what lets a key be a path through nested YAML maps and
@@ -44,12 +46,14 @@ bool IsValidKey(std::string_view key)
 	return true;
 }
 
+
 // Whether one of the two keys is a map the other is a value in: "render" and "render.vsync".
 bool IsPrefixPath(std::string_view shorter, std::string_view longer)
 {
 	return longer.size() > shorter.size() && longer.starts_with(shorter) &&
 	       longer[shorter.size()] == '.';
 }
+
 
 // The one place a value enters a layer, so Set and LoadLayer refuse the same keys.
 void Insert(
@@ -66,10 +70,12 @@ void Insert(
 	values.insert_or_assign(std::string{key}, std::move(value));
 }
 
+
 std::optional<std::string> ParseString(std::string_view text)
 {
 	return std::string{text};
 }
+
 
 std::optional<double> ParseNumber(std::string_view text)
 {
@@ -82,6 +88,7 @@ std::optional<double> ParseNumber(std::string_view text)
 	return value;
 }
 
+
 std::optional<bool> ParseBool(std::string_view text)
 {
 	if (text == "true")
@@ -91,15 +98,18 @@ std::optional<bool> ParseBool(std::string_view text)
 	return std::nullopt;
 }
 
+
 std::size_t Index(ConfigLayer layer)
 {
 	return static_cast<std::size_t>(layer);
 }
 
+
 [[noreturn]] void ThrowMalformed(const std::filesystem::path &path, const std::string &reason)
 {
 	throw std::runtime_error{std::format("Config {}: {}", path.string(), reason)};
 }
+
 
 // Flattens a YAML map into dotted keys. Anything other than maps and scalars is not a setting.
 void Flatten(
@@ -121,6 +131,7 @@ void Flatten(
 	}
 }
 } // namespace
+
 
 void Config::LoadLayer(ConfigLayer layer, const std::filesystem::path &path)
 {
@@ -159,10 +170,12 @@ void Config::LoadLayer(ConfigLayer layer, const std::filesystem::path &path)
 	m_layers[Index(layer)] = std::move(merged);
 }
 
+
 void Config::Set(ConfigLayer layer, std::string_view key, std::string value)
 {
 	Insert(m_layers[Index(layer)], key, std::move(value));
 }
+
 
 void Config::SetNumber(ConfigLayer layer, std::string_view key, double value)
 {
@@ -170,10 +183,12 @@ void Config::SetNumber(ConfigLayer layer, std::string_view key, double value)
 	Set(layer, key, std::format("{}", value));
 }
 
+
 void Config::SetBool(ConfigLayer layer, std::string_view key, bool value)
 {
 	Set(layer, key, value ? "true" : "false");
 }
+
 
 void Config::Unset(ConfigLayer layer, std::string_view key)
 {
@@ -181,6 +196,7 @@ void Config::Unset(ConfigLayer layer, std::string_view key)
 	if (const auto entry = values.find(key); entry != values.end())
 		values.erase(entry);
 }
+
 
 template <typename T>
 std::optional<T> Config::Find(
@@ -199,20 +215,24 @@ std::optional<T> Config::Find(
 	return std::nullopt;
 }
 
+
 std::optional<std::string> Config::GetString(std::string_view key) const
 {
 	return Find<std::string>(key, "string", ParseString);
 }
+
 
 std::optional<double> Config::GetNumber(std::string_view key) const
 {
 	return Find<double>(key, "number", ParseNumber);
 }
 
+
 std::optional<bool> Config::GetBool(std::string_view key) const
 {
 	return Find<bool>(key, "bool", ParseBool);
 }
+
 
 void Config::SaveUserLayer(const std::filesystem::path &path) const
 {

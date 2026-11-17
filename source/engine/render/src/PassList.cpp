@@ -25,6 +25,7 @@ enum class Layout
 	None
 };
 
+
 Layout LayoutOf(Usage usage)
 {
 	switch (usage)
@@ -46,6 +47,7 @@ Layout LayoutOf(Usage usage)
 	return Layout::None;
 }
 
+
 bool ValidFor(Usage usage, ResourceKind kind)
 {
 	switch (usage)
@@ -66,6 +68,7 @@ bool ValidFor(Usage usage, ResourceKind kind)
 	}
 	return false;
 }
+
 
 bool ValidIn(Usage usage, PassKind kind)
 {
@@ -92,6 +95,7 @@ bool ValidIn(Usage usage, PassKind kind)
 // that set the image's current layout: a read appended without a barrier shares the layout of
 // the one before it, and a read that changes the layout is appended by its barrier.
 using State = std::vector<Usage>;
+
 
 // Advances a resource's state by one use, and says what the use has to wait for.
 std::optional<Barrier> Apply(State &state, PassResource resource, Usage use, const State &previousFrame)
@@ -120,6 +124,7 @@ std::optional<Barrier> Apply(State &state, PassResource resource, Usage use, con
 }
 } // namespace
 
+
 std::string_view ToString(Usage usage)
 {
 	switch (usage)
@@ -141,6 +146,7 @@ std::string_view ToString(Usage usage)
 	return "?";
 }
 
+
 bool IsWrite(Usage usage)
 {
 	// An attachment is read as well as written (depth tests, blending), and is a write for
@@ -150,17 +156,20 @@ bool IsWrite(Usage usage)
 	       usage == Usage::TransferWrite;
 }
 
+
 PassResource PassList::AddImage(std::string name)
 {
 	m_resources.push_back({std::move(name), ResourceKind::Image});
 	return {static_cast<std::uint32_t>(m_resources.size() - 1)};
 }
 
+
 PassResource PassList::AddBuffer(std::string name)
 {
 	m_resources.push_back({std::move(name), ResourceKind::Buffer});
 	return {static_cast<std::uint32_t>(m_resources.size() - 1)};
 }
+
 
 std::uint32_t PassList::AddPass(std::string name, PassKind kind, std::vector<PassUse> uses)
 {
@@ -191,6 +200,7 @@ std::uint32_t PassList::AddPass(std::string name, PassKind kind, std::vector<Pas
 	return static_cast<std::uint32_t>(m_passes.size() - 1);
 }
 
+
 void PassList::Export(PassResource resource, Usage final)
 {
 	if (resource.index >= m_resources.size())
@@ -203,6 +213,7 @@ void PassList::Export(PassResource resource, Usage final)
 	exported.exported = true;
 	exported.final = final;
 }
+
 
 PassPlan PassList::Compile() const
 {
@@ -244,20 +255,24 @@ PassPlan PassList::Compile() const
 	return plan;
 }
 
+
 std::string_view PassList::PassName(std::uint32_t pass) const
 {
 	return m_passes.at(pass).name;
 }
+
 
 PassKind PassList::KindOf(std::uint32_t pass) const
 {
 	return m_passes.at(pass).kind;
 }
 
+
 std::string_view PassList::ResourceName(PassResource resource) const
 {
 	return m_resources.at(resource.index).name;
 }
+
 
 ResourceKind PassList::KindOf(PassResource resource) const
 {

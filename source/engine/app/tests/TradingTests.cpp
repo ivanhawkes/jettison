@@ -27,6 +27,7 @@ namespace
 {
 constexpr double kStep = 1.0 / 60.0;
 
+
 MarketGood Copper(std::int64_t stock)
 {
 	MarketGood good{"copper", 76160, stock, 0, 1, 30, 0, 0};
@@ -51,6 +52,7 @@ struct Harbour
 	Sim::DefinitionRegistry definitions{Vfs::FileSystem{}};
 	Ui::StringTable strings;
 
+
 	Harbour()
 	{
 		Sim::RegisterTypes();
@@ -73,14 +75,19 @@ struct Harbour
 		registry.emplace<Dock::Docking>(ship, Dock::Docking{station, pad, Dock::Stage::Docked, false});
 	}
 
+
 	void Push(const std::string &good, std::int64_t crates, Sim::Controller sender = kPlayer)
 	{
 		world.Commands().Push(Trade{sender, ship, market, good, crates});
 	}
+
+
 	std::int64_t Credits() const
 	{
 		return world.Registry().get<Purse>(owner).credits;
 	}
+
+
 	// The refusals, as the player reads them in the table's language.
 	std::vector<std::string> Refusals()
 	{
@@ -91,12 +98,15 @@ struct Harbour
 				reasons.push_back(WordReason(refused->reason, snapshot, definitions, strings));
 		return reasons;
 	}
+
+
 	const MarketGood &Good(std::size_t index) const
 	{
 		return world.Registry().get<Market>(market).goods[index];
 	}
 };
 } // namespace
+
 
 TEST_CASE("Trading: a good's price follows its scarcity, and the quote is either side of it by the fee")
 {
@@ -120,6 +130,7 @@ TEST_CASE("Trading: a good's price follows its scarcity, and the quote is either
 	CHECK(cheap.bid == 1);
 	CHECK(cheap.ask == 2);
 }
+
 
 TEST_CASE("Trading: a docked ship buys at the ask and sells at the bid, and the price moves with it")
 {
@@ -152,6 +163,7 @@ TEST_CASE("Trading: a docked ship buys at the ask and sells at the bid, and the 
 	harbour.world.Step();
 	CHECK(registry.get<Hold>(harbour.ship).cargo.empty());
 }
+
 
 TEST_CASE("Trading: a good's galactic mean moves towards each trade's price by its crates")
 {
@@ -189,6 +201,7 @@ TEST_CASE("Trading: a good's galactic mean moves towards each trade's price by i
 	CHECK(FindGalacticPrices(registry)->Find("beer")->mean == MoveMean(bought, bid, -4));
 	CHECK(registry.view<const GalacticPrices>().size() == 1);
 }
+
 
 TEST_CASE("Trading: a trade that cannot be made is refused, saying why, and changes nothing")
 {
@@ -240,6 +253,7 @@ TEST_CASE("Trading: a trade that cannot be made is refused, saying why, and chan
 	CHECK(registry.get<Hold>(harbour.ship).cargo.empty());
 }
 
+
 TEST_CASE("Trading: a ship trades for its owner, whose purse it shares with the owner's fleet")
 {
 	Harbour harbour;
@@ -285,6 +299,7 @@ TEST_CASE("Trading: a ship trades for its owner, whose purse it shares with the 
 	CHECK_THROWS_AS(MakeOwner(registry, kPlayer, 1), std::logic_error);
 }
 
+
 TEST_CASE("Trading: a world saved with purses on the ships has them moved to their owners")
 {
 	// The layout before phase 12c: each ship its own purse, and no owners. The purse's type is as it
@@ -321,6 +336,7 @@ TEST_CASE("Trading: a world saved with purses on the ships has them moved to the
 	CHECK(PurseOf(std::as_const(world), old.ship)->credits == 251000 - ask);
 }
 
+
 TEST_CASE("Trading: a market makes and uses its goods each tick, up to four times its target held")
 {
 	Harbour harbour;
@@ -344,6 +360,7 @@ TEST_CASE("Trading: a market makes and uses its goods each tick, up to four time
 	CHECK(harbour.Good(0).ask == Copper(0).ask);
 }
 
+
 TEST_CASE("Trading: markets, holds and purses are saved, and the same trades give the same world")
 {
 	Harbour first;
@@ -365,6 +382,7 @@ TEST_CASE("Trading: markets, holds and purses are saved, and the same trades giv
 	CHECK(loaded.world.Registry().get<Hold>(first.ship).Crates("beer") == 3);
 	CHECK(*FindGalacticPrices(loaded.world.Registry()) == *FindGalacticPrices(first.world.Registry()));
 }
+
 
 TEST_CASE("Trading: the market screen is made from a snapshot, never from the world")
 {
@@ -435,6 +453,7 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 	CHECK(FormatCredits(-999) == "-999");
 }
 
+
 TEST_CASE("Trading: the sample game's goods and markets load, and every market's goods are defined")
 {
 	Vfs::FileSystem files;
@@ -475,6 +494,7 @@ TEST_CASE("Trading: the sample game's goods and markets load, and every market's
 		CHECK(prices->goods[index].mean == definitions.Find<Good>(name)->basePrice);
 	}
 }
+
 
 TEST_CASE(
     "Trading: the market document shows the screen's data, and its buttons raise the shell's events")

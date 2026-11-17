@@ -11,11 +11,13 @@ namespace
 {
 constexpr std::int64_t kEarthDay = 86400;
 
+
 double At(std::int64_t days, std::int64_t hour, std::int64_t minute, std::int64_t second)
 {
 	return static_cast<double>(days * kEarthDay + hour * 3600 + minute * 60 + second);
 }
 } // namespace
+
 
 TEST_CASE("Calendar: simulation time 0 is the first second of the epoch year")
 {
@@ -25,6 +27,7 @@ TEST_CASE("Calendar: simulation time 0 is the first second of the epoch year")
 	CHECK(calendar.Format(date) == "3300-001 00:00:00");
 }
 
+
 TEST_CASE("Calendar: a moment's date, formatted as an ISO 8601 ordinal date")
 {
 	const Calendar calendar{kEarthDay, 365, 3300};
@@ -32,6 +35,7 @@ TEST_CASE("Calendar: a moment's date, formatted as an ISO 8601 ordinal date")
 	CHECK(date == Date{3301, 42, 14, 5, 9});
 	CHECK(calendar.Format(date) == "3301-043 14:05:09");
 }
+
 
 TEST_CASE("Calendar: a moment is in the second it has started, not the nearest one")
 {
@@ -41,6 +45,7 @@ TEST_CASE("Calendar: a moment is in the second it has started, not the nearest o
 	CHECK(calendar.FromSimSeconds(At(365, 0, 0, 0)) == Date{1, 0, 0, 0, 0});
 }
 
+
 TEST_CASE("Calendar: moments before simulation time 0 are dates before the epoch")
 {
 	const Calendar calendar{kEarthDay, 365, 3300};
@@ -49,6 +54,7 @@ TEST_CASE("Calendar: moments before simulation time 0 are dates before the epoch
 	CHECK(calendar.FromSimSeconds(-At(365, 0, 0, 0)) == Date{3299, 0, 0, 0, 0});
 }
 
+
 TEST_CASE("Calendar: a day that is not a whole number of hours ends with a short hour")
 {
 	// A sol, to the second: 24 hours, 39 minutes and 35 seconds.
@@ -56,6 +62,7 @@ TEST_CASE("Calendar: a day that is not a whole number of hours ends with a short
 	CHECK(calendar.FromSimSeconds(88774.0) == Date{0, 0, 24, 39, 34});
 	CHECK(calendar.FromSimSeconds(88775.0) == Date{0, 1, 0, 0, 0});
 }
+
 
 TEST_CASE("Calendar: a date round-trips through simulation time")
 {
@@ -68,12 +75,14 @@ TEST_CASE("Calendar: a date round-trips through simulation time")
 	}
 }
 
+
 TEST_CASE("Calendar: fields out of range carry, so a round trip normalises")
 {
 	const Calendar calendar{kEarthDay, 365, 3300};
 	const Date overflowing{3300, 364, 25, 0, 0};
 	CHECK(calendar.FromSimSeconds(calendar.ToSimSeconds(overflowing)) == Date{3301, 0, 1, 0, 0});
 }
+
 
 TEST_CASE("Calendar: a shape that is not positive is refused")
 {

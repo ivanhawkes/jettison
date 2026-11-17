@@ -22,6 +22,7 @@ glm::dmat4 Local(const Scene::TransformComponent &transform)
 	return glm::scale(local, glm::dvec3{transform.scale});
 }
 
+
 // The entity's place relative to the root, or nothing if the root is not among its ancestors. The
 // root's own transform contributes its scale alone.
 std::optional<glm::dmat4> RelativeToRoot(
@@ -44,6 +45,7 @@ std::optional<glm::dmat4> RelativeToRoot(
 	return std::nullopt;
 }
 } // namespace
+
 
 std::optional<CollisionMesh> MakeCollisionMesh(const entt::registry &scene, entt::entity root)
 {
@@ -74,6 +76,7 @@ std::optional<CollisionMesh> MakeCollisionMesh(const entt::registry &scene, entt
 		return std::nullopt;
 	return made;
 }
+
 
 PilotInput::PilotInput(Input::InputSystem &input)
 {
@@ -128,6 +131,7 @@ PilotInput::PilotInput(Input::InputSystem &input)
 	input.Bind(context, m_view, Binding{pad(6)});
 	input.Bind(context, m_view, Binding{Button(0, 2)});
 }
+
 
 Physics::FlightControls PilotInput::Read(const Input::InputSystem &input) const
 {

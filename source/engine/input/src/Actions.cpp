@@ -17,6 +17,7 @@ namespace
 {
 const std::vector<Binding> kNoBindings;
 
+
 void CheckName(std::string_view name, std::string_view what)
 {
 	const bool valid = !name.empty() && std::ranges::all_of(
@@ -32,11 +33,13 @@ void CheckName(std::string_view name, std::string_view what)
 		throw std::logic_error{std::format("Input: '{}' is not a valid {} name", name, what)};
 }
 
+
 std::string Key(std::string_view context, std::string_view action)
 {
 	return std::format("input.{}.{}", context, action);
 }
 } // namespace
+
 
 ActionId InputSystem::DefineAction(std::string name, ActionType type)
 {
@@ -47,6 +50,7 @@ ActionId InputSystem::DefineAction(std::string name, ActionType type)
 	return {static_cast<std::uint32_t>(m_actions.size() - 1)};
 }
 
+
 ActionId InputSystem::Action(std::string_view name) const
 {
 	const auto found = std::ranges::find(m_actions, name, &ActionState::name);
@@ -54,6 +58,7 @@ ActionId InputSystem::Action(std::string_view name) const
 		throw std::logic_error{std::format("Input: there is no action '{}'", name)};
 	return {static_cast<std::uint32_t>(found - m_actions.begin())};
 }
+
 
 void InputSystem::DefineContext(std::string name, bool opaque)
 {
@@ -63,10 +68,12 @@ void InputSystem::DefineContext(std::string name, bool opaque)
 	m_contexts.push_back({std::move(name), opaque, {}, {}});
 }
 
+
 InputSystem::Context &InputSystem::ContextNamed(std::string_view name)
 {
 	return const_cast<Context &>(std::as_const(*this).ContextNamed(name));
 }
+
 
 const InputSystem::Context &InputSystem::ContextNamed(std::string_view name) const
 {
@@ -76,12 +83,14 @@ const InputSystem::Context &InputSystem::ContextNamed(std::string_view name) con
 	return *found;
 }
 
+
 const InputSystem::ActionState &InputSystem::State(ActionId action) const
 {
 	if (action.index >= m_actions.size())
 		throw std::logic_error{std::format("Input: action {} is not defined", action.index)};
 	return m_actions[action.index];
 }
+
 
 void InputSystem::Check(ActionId action, const Binding &binding) const
 {
@@ -92,11 +101,13 @@ void InputSystem::Check(ActionId action, const Binding &binding) const
 		    std::format("Input: action '{}' has no component {}", state.name, binding.component)};
 }
 
+
 void InputSystem::Bind(std::string_view context, ActionId action, Binding binding)
 {
 	Check(action, binding);
 	ContextNamed(context).defaults[action.index].push_back(binding);
 }
+
 
 void InputSystem::Rebind(std::string_view context, ActionId action, std::vector<Binding> bindings)
 {
@@ -105,11 +116,13 @@ void InputSystem::Rebind(std::string_view context, ActionId action, std::vector<
 	ContextNamed(context).overrides[action.index] = std::move(bindings);
 }
 
+
 void InputSystem::ResetBindings(std::string_view context, ActionId action)
 {
 	(void)State(action);
 	ContextNamed(context).overrides.erase(action.index);
 }
+
 
 const std::vector<Binding> &InputSystem::Bindings(std::string_view context, ActionId action) const
 {
@@ -121,11 +134,13 @@ const std::vector<Binding> &InputSystem::Bindings(std::string_view context, Acti
 	return bound == found.defaults.end() ? kNoBindings : bound->second;
 }
 
+
 void InputSystem::PushContext(std::string_view name)
 {
 	const Context &context = ContextNamed(name);
 	m_stack.push_back(static_cast<std::size_t>(&context - m_contexts.data()));
 }
+
 
 void InputSystem::PopContext()
 {
@@ -134,6 +149,7 @@ void InputSystem::PopContext()
 	m_stack.pop_back();
 }
 
+
 void InputSystem::SetButton(InputCode input, bool down)
 {
 	Raw &raw = m_raw[input];
@@ -141,10 +157,12 @@ void InputSystem::SetButton(InputCode input, bool down)
 	raw.latched = raw.latched || down;
 }
 
+
 void InputSystem::SetAxis(InputCode input, float value)
 {
 	m_raw[input].value = value;
 }
+
 
 void InputSystem::AddAxisDelta(InputCode input, float delta)
 {
@@ -167,6 +185,7 @@ void AddInputs(
 	}
 }
 
+
 void SortUnique(std::vector<InputCode> &inputs)
 {
 	std::ranges::sort(inputs);
@@ -174,6 +193,7 @@ void SortUnique(std::vector<InputCode> &inputs)
 	inputs.erase(duplicates.begin(), duplicates.end());
 }
 } // namespace
+
 
 std::vector<InputCode> InputSystem::BoundInputs() const
 {
@@ -187,6 +207,7 @@ std::vector<InputCode> InputSystem::BoundInputs() const
 	return inputs;
 }
 
+
 std::vector<InputCode> InputSystem::OverriddenInputs() const
 {
 	std::vector<InputCode> inputs;
@@ -195,6 +216,7 @@ std::vector<InputCode> InputSystem::OverriddenInputs() const
 	SortUnique(inputs);
 	return inputs;
 }
+
 
 float InputSystem::Read(InputCode input, float deadZone) const
 {
@@ -206,6 +228,7 @@ float InputSystem::Read(InputCode input, float deadZone) const
 	const float value = (raw.latched ? 1.0f : raw.value) + raw.delta;
 	return std::abs(value) < deadZone ? 0.0f : value;
 }
+
 
 void InputSystem::Poll()
 {
@@ -271,10 +294,12 @@ void InputSystem::Poll()
 	}
 }
 
+
 bool InputSystem::IsPressed(ActionId action) const
 {
 	return State(action).pressed;
 }
+
 
 bool InputSystem::WasPressedThisFrame(ActionId action) const
 {
@@ -282,21 +307,25 @@ bool InputSystem::WasPressedThisFrame(ActionId action) const
 	return state.pressed && !state.wasPressed;
 }
 
+
 bool InputSystem::WasReleasedThisFrame(ActionId action) const
 {
 	const ActionState &state = State(action);
 	return !state.pressed && state.wasPressed;
 }
 
+
 float InputSystem::Axis(ActionId action) const
 {
 	return State(action).value.x;
 }
 
+
 glm::vec2 InputSystem::Vector(ActionId action) const
 {
 	return State(action).value;
 }
+
 
 void InputSystem::SaveBindings(Core::Config &config) const
 {
@@ -312,6 +341,7 @@ void InputSystem::SaveBindings(Core::Config &config) const
 		}
 	}
 }
+
 
 void InputSystem::LoadBindings(const Core::Config &config)
 {

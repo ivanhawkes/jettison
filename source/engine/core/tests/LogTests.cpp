@@ -61,11 +61,17 @@ class Capture
 	          })}
 	{
 	}
+
+
 	~Capture()
 	{
 		RemoveLogCallback(m_id);
 	}
+
+
 	Capture(const Capture &) = delete;
+
+
 	Capture &operator=(const Capture &) = delete;
 
 	std::vector<Captured> records;
@@ -74,11 +80,13 @@ class Capture
 	LogCallbackId m_id;
 };
 
+
 std::filesystem::path TemporaryPath(const std::string &name)
 {
 	return std::filesystem::temp_directory_path() /
 	       ("jettison-core-tests-" + std::to_string(getpid())) / name;
 }
+
 
 std::string ReadFile(const std::filesystem::path &path)
 {
@@ -86,6 +94,7 @@ std::string ReadFile(const std::filesystem::path &path)
 	return {std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
 }
 } // namespace
+
 
 TEST_CASE("Log: formats its arguments and reports the caller's location")
 {
@@ -103,6 +112,7 @@ TEST_CASE("Log: formats its arguments and reports the caller's location")
 	CHECK(record.function.find("DOCTEST_ANON_FUNC") != std::string::npos);
 	ShutdownLogging();
 }
+
 
 TEST_CASE("Log: messages below the minimum are dropped before they are formatted")
 {
@@ -123,6 +133,7 @@ TEST_CASE("Log: messages below the minimum are dropped before they are formatted
 	ShutdownLogging();
 }
 
+
 TEST_CASE("Log: the defaults before InitLogging and after ShutdownLogging are Info and above")
 {
 	ShutdownLogging();
@@ -130,6 +141,7 @@ TEST_CASE("Log: the defaults before InitLogging and after ShutdownLogging are In
 	CHECK(IsLogEnabled(Severity::Info));
 	ShutdownLogging(); // Twice is safe.
 }
+
 
 TEST_CASE("Log: a removed callback hears nothing more")
 {
@@ -143,6 +155,7 @@ TEST_CASE("Log: a removed callback hears nothing more")
 	CHECK(heard == std::vector<std::string>{"one"});
 	ShutdownLogging();
 }
+
 
 TEST_CASE("Log: the file sink writes the date, severity, category and source location")
 {
@@ -160,6 +173,7 @@ TEST_CASE("Log: the file sink writes the date, severity, category and source loc
 	std::filesystem::remove_all(path.parent_path().parent_path());
 }
 
+
 TEST_CASE("Log: a file that cannot be opened throws, and the sinks before it keep working")
 {
 	InitLogging(Severity::Trace);
@@ -169,6 +183,7 @@ TEST_CASE("Log: a file that cannot be opened throws, and the sinks before it kee
 	CHECK(capture.records.size() == 1);
 	ShutdownLogging();
 }
+
 
 TEST_CASE("Log: the tail holds the last lines as the file has them, from a whole line")
 {

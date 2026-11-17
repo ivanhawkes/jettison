@@ -37,6 +37,7 @@ namespace
 constexpr Core::Category kRender{"render"};
 } // namespace
 
+
 void DeviceContext::Init()
 {
 	// Device initialisation.

@@ -37,13 +37,20 @@ class Scratch
 		m_files.AddMount({"base", m_directory / "base", false});
 		m_files.AddMount({"mod", m_directory / "mod", false});
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -51,6 +58,8 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary | std::ios::trunc} << contents;
 	}
+
+
 	const Vfs::FileSystem &Files() const
 	{
 		return m_files;
@@ -78,6 +87,7 @@ struct Screen
 	std::int64_t used{0};
 };
 
+
 void RegisterScreen()
 {
 	static const bool registered = []
@@ -90,6 +100,7 @@ void RegisterScreen()
 	(void)registered;
 }
 } // namespace
+
 
 TEST_CASE("Strings: a table's nested keys read by dots, and a key no table has reads as itself")
 {
@@ -109,6 +120,7 @@ TEST_CASE("Strings: a table's nested keys read by dots, and a key no table has r
 	CHECK(strings.Problems() == 1);
 	CHECK(StringTable::Languages(scratch.Files()) == std::vector<std::string>{"en"});
 }
+
 
 TEST_CASE("Strings: arguments format by position, and a count chooses its plural form")
 {
@@ -149,6 +161,7 @@ TEST_CASE("Strings: arguments format by position, and a count chooses its plural
 	CHECK(StringTable::PluralCategory("ja", 1) == "other");
 }
 
+
 TEST_CASE("Strings: arguments known only as the game runs format as a call's do")
 {
 	const Scratch scratch;
@@ -176,6 +189,7 @@ TEST_CASE("Strings: arguments known only as the game runs format as a call's do"
 	CHECK(strings.Problems() == 2);
 }
 
+
 TEST_CASE("Strings: a regional language is read over its primary language, over the base")
 {
 	const Scratch scratch;
@@ -197,6 +211,7 @@ TEST_CASE("Strings: a regional language is read over its primary language, over 
 	CHECK(strings.Text("market.title") == "Market");
 	CHECK(strings.Problems() == 0);
 }
+
 
 TEST_CASE("Strings: a mod's file changes the strings it names, and a mod's new file adds strings")
 {
@@ -222,6 +237,7 @@ TEST_CASE("Strings: a mod's file changes the strings it names, and a mod's new f
 	// And the table before it stays.
 	CHECK(strings.Text("market.title") == "Exchange");
 }
+
 
 TEST_CASE("Strings: a file that is not a table is refused, naming it and its line")
 {
@@ -257,6 +273,7 @@ TEST_CASE("Strings: a file that is not a table is refused, naming it and its lin
 	    std::runtime_error);
 }
 
+
 TEST_CASE(
     "Strings: a translation that names what its base text does not is refused, and the base stands")
 {
@@ -285,6 +302,7 @@ TEST_CASE(
 	CHECK(strings.Plural("market.crossing", 2) == "; 2 crates crossing the deck");
 }
 
+
 TEST_CASE("Strings: a text's [[keys]] are replaced, and what is not a key is left")
 {
 	const Scratch scratch;
@@ -302,6 +320,7 @@ TEST_CASE("Strings: a text's [[keys]] are replaced, and what is not a key is lef
 	CHECK(replaced == 1);
 	CHECK(strings.Problems() == 1);
 }
+
 
 TEST_CASE("Ui: a document's keys read in the language set, and again in another, the handle kept")
 {

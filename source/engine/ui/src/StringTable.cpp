@@ -20,6 +20,7 @@ constexpr int kFormatVersion = 1;
 constexpr std::string_view kExtension = ".yaml";
 constexpr std::array<std::string_view, 6> kCategories{"zero", "one", "two", "few", "many", "other"};
 
+
 // The first Count arguments, as std::vformat takes them: the store make_format_args returns refers
 // to them, so it lives only as long as the call.
 template <std::size_t... Index>
@@ -29,6 +30,8 @@ std::string Spread(
 {
 	return std::vformat(text, std::make_format_args(arguments[Index]...));
 }
+
+
 template <std::size_t Count>
 std::string FormatFirst(std::string_view text, std::span<const std::string> arguments)
 {
@@ -50,6 +53,7 @@ struct References
 	std::set<std::string, std::less<>> expressions;
 };
 
+
 std::string_view Trim(std::string_view text)
 {
 	while (!text.empty() && text.front() == ' ')
@@ -58,6 +62,7 @@ std::string_view Trim(std::string_view text)
 		text.remove_suffix(1);
 	return text;
 }
+
 
 // The braces of a text as std::format and RmlUi read them: {0} or {0:spec} an argument, {{ and }} a
 // data expression between them, and }} alone a brace. Nothing, for a brace that is none of these.
@@ -99,6 +104,7 @@ std::optional<References> FindReferences(std::string_view text)
 	return references;
 }
 
+
 bool IsLanguageTag(std::string_view tag)
 {
 	// A primary language of two or three letters, then subtags of letters and digits: "de", "pt-BR".
@@ -120,11 +126,13 @@ bool IsLanguageTag(std::string_view tag)
 	return true;
 }
 
+
 std::runtime_error FileError(std::string_view file, const YAML::Mark &mark, std::string_view message)
 {
 	return std::runtime_error{std::format(
 	    "Strings: {}{}: {}", file, mark.is_null() ? "" : ":" + std::to_string(mark.line + 1), message)};
 }
+
 
 void Flatten(const YAML::Node &node, const std::string &prefix, const std::string &file, Entries &into)
 {
@@ -146,6 +154,7 @@ void Flatten(const YAML::Node &node, const std::string &prefix, const std::strin
 			    file, value.Mark(), std::format("'{}' is neither a text nor a mapping of them", key));
 	}
 }
+
 
 // One file of a language, every mount's merged into the one below it, key by key.
 Entries ReadFile(const Vfs::FileSystem &files, const std::string &path)
@@ -187,6 +196,7 @@ Entries ReadFile(const Vfs::FileSystem &files, const std::string &path)
 	return entries;
 }
 
+
 Entries ReadLanguage(const Vfs::FileSystem &files, std::string_view language)
 {
 	Entries entries;
@@ -207,6 +217,7 @@ Entries ReadLanguage(const Vfs::FileSystem &files, std::string_view language)
 	return entries;
 }
 
+
 // The base's text a translation of the key is held to: the key's, or for a plural form the base
 // does not use (Russian's "few", where English has "one" and "other") the base's "other".
 const Entry *BaseFor(const Entries &base, std::string_view key)
@@ -221,12 +232,14 @@ const Entry *BaseFor(const Entries &base, std::string_view key)
 	return other != base.end() ? &other->second : nullptr;
 }
 
+
 bool Within(const References &translation, const References &base)
 {
 	return std::ranges::includes(base.arguments, translation.arguments) &&
 	       std::ranges::includes(base.expressions, translation.expressions);
 }
 } // namespace
+
 
 void StringTable::Load(const Vfs::FileSystem &files, std::string_view language)
 {
@@ -304,6 +317,7 @@ void StringTable::Load(const Vfs::FileSystem &files, std::string_view language)
 		        : std::format(", {} of them translated from '{}'", translated.size(), kBaseLanguage));
 }
 
+
 std::vector<std::string> StringTable::Languages(const Vfs::FileSystem &files)
 {
 	std::set<std::string, std::less<>> languages;
@@ -317,6 +331,7 @@ std::vector<std::string> StringTable::Languages(const Vfs::FileSystem &files)
 	return {languages.begin(), languages.end()};
 }
 
+
 std::optional<std::string_view> StringTable::Find(std::string_view key) const
 {
 	const auto found = m_texts.find(key);
@@ -324,6 +339,7 @@ std::optional<std::string_view> StringTable::Find(std::string_view key) const
 		return std::nullopt;
 	return found->second;
 }
+
 
 std::string_view StringTable::Text(std::string_view key) const
 {
@@ -337,6 +353,7 @@ std::string_view StringTable::Text(std::string_view key) const
 	return *m_missing.find(key);
 }
 
+
 std::string_view StringTable::PluralText(std::string_view key, std::int64_t count) const
 {
 	const std::string form = std::format("{}.{}", key, PluralCategory(m_language, count));
@@ -344,6 +361,7 @@ std::string_view StringTable::PluralText(std::string_view key, std::int64_t coun
 		return found->second;
 	return Text(std::format("{}.other", key));
 }
+
 
 std::string StringTable::FormatText(
     std::string_view key, std::string_view text, std::format_args arguments) const
@@ -358,6 +376,7 @@ std::string StringTable::FormatText(
 	}
 }
 
+
 std::string StringTable::Unformatted(
     std::string_view key, std::string_view text, const std::format_error &error) const
 {
@@ -371,17 +390,20 @@ std::string StringTable::Unformatted(
 	return std::string{text};
 }
 
+
 std::string StringTable::FormatArguments(
     std::string_view key, std::span<const std::string> arguments) const
 {
 	return FormatSpan(key, Text(key), arguments);
 }
 
+
 std::string StringTable::PluralArguments(
     std::string_view key, std::int64_t count, std::span<const std::string> arguments) const
 {
 	return FormatSpan(key, PluralText(key, count), arguments);
 }
+
 
 std::string StringTable::FormatSpan(
     std::string_view key, std::string_view text, std::span<const std::string> arguments) const
@@ -411,6 +433,7 @@ std::string StringTable::FormatSpan(
 	}
 }
 
+
 std::string StringTable::Number(std::int64_t value) const
 {
 	const std::string_view separator = Find("numbers.thousands").value_or(",");
@@ -421,6 +444,7 @@ std::string StringTable::Number(std::int64_t value) const
 		digits.insert(static_cast<std::size_t>(at), separator);
 	return value < 0 ? "-" + digits : digits;
 }
+
 
 std::string StringTable::Translate(std::string_view text, int &replaced) const
 {
@@ -455,6 +479,7 @@ std::string StringTable::Translate(std::string_view text, int &replaced) const
 	result.append(text.substr(std::min(at, text.size())));
 	return result;
 }
+
 
 std::string_view StringTable::PluralCategory(std::string_view language, std::int64_t count)
 {

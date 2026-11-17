@@ -11,12 +11,14 @@ BoundingSphere TransformBounds(const ModelBounds &bounds, const glm::dmat4 &rend
 	return {center, double{bounds.radius} * MaxScale(renderTransform)};
 }
 
+
 double MaxScale(const glm::dmat4 &transform)
 {
 	return std::max(
 	    {glm::length(glm::dvec3{transform[0]}), glm::length(glm::dvec3{transform[1]}),
 	     glm::length(glm::dvec3{transform[2]})});
 }
+
 
 double MiddleScale(const glm::dmat4 &transform)
 {
@@ -27,12 +29,14 @@ double MiddleScale(const glm::dmat4 &transform)
 	return scales[1];
 }
 
+
 double MinScale(const glm::dmat4 &transform)
 {
 	return std::min(
 	    {glm::length(glm::dvec3{transform[0]}), glm::length(glm::dvec3{transform[1]}),
 	     glm::length(glm::dvec3{transform[2]})});
 }
+
 
 Frustum ViewFrustum(const CameraView &camera, double aspect)
 {
@@ -54,6 +58,7 @@ Frustum ViewFrustum(const CameraView &camera, double aspect)
 	return frustum;
 }
 
+
 bool Intersects(const Frustum &frustum, const BoundingSphere &sphere)
 {
 	for (const glm::dvec4 &plane : frustum.planes)
@@ -61,6 +66,7 @@ bool Intersects(const Frustum &frustum, const BoundingSphere &sphere)
 			return false;
 	return true;
 }
+
 
 bool Occludes(const HorizonOccluder &occluder, const BoundingSphere &sphere)
 {
@@ -80,6 +86,7 @@ bool Occludes(const HorizonOccluder &occluder, const BoundingSphere &sphere)
 	const double cone = std::asin(radius / distance);
 	return offAxis + extent <= cone;
 }
+
 
 bool CastsInto(const ShadowCascade &cascade, const BoundingSphere &sphere)
 {
@@ -109,6 +116,7 @@ bool CastsInto(const ShadowCascade &cascade, const BoundingSphere &sphere)
 	return depth + reach >= 0.0;
 }
 
+
 LodSelection MakeLodSelection(const CameraView &camera, double viewportHeight, double thresholdPixels)
 {
 	return {
@@ -116,17 +124,20 @@ LodSelection MakeLodSelection(const CameraView &camera, double viewportHeight, d
 	    double{camera.nearPlane}};
 }
 
+
 double ProjectedError(double error, const BoundingSphere &sphere, const LodSelection &selection)
 {
 	const double distance = std::max(glm::length(sphere.center) - sphere.radius, selection.nearPlane);
 	return error * selection.pixelsPerRadian / distance;
 }
 
+
 bool TooSmallToSee(
     double breadth, const BoundingSphere &sphere, const LodSelection &selection, double pixels)
 {
 	return ProjectedError(2.0 * breadth, sphere, selection) < pixels;
 }
+
 
 std::uint32_t SelectLod(
     std::span<const ModelLod> lods, double scale, const BoundingSphere &sphere,

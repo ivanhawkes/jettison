@@ -85,6 +85,7 @@ inline constexpr std::size_t kMaxKeyBytes = 64;
 
 // The store as a binary archive of the format kStoreSection, at kStoreVersion.
 std::vector<std::byte> WriteStore(const ScriptStore &store);
+
 // Throws FormatError for data that does not fit, a key that is empty or too long among it, and
 // FormatVersionError for another version.
 ScriptStore ReadStore(std::span<const std::byte> bytes);
@@ -118,8 +119,11 @@ class ScriptHost
 {
   public:
 	explicit ScriptHost(const Vfs::FileSystem &fileSystem, HostLimits limits = {});
+
 	~ScriptHost();
+
 	ScriptHost(const ScriptHost &) = delete;
+
 	ScriptHost &operator=(const ScriptHost &) = delete;
 
 	// Where scripts' commands go: the world's queue, for a command type the world applies and
@@ -131,10 +135,13 @@ class ScriptHost
 	// export against its signature, and an instance made. Throws ScriptError naming the script and
 	// what does not fit, and then nothing of it is kept. A name already loaded is replaced.
 	void Load(std::string_view name, const ScriptDefinition &definition);
+
 	// Every script the registry defines, in name order. One that does not load is logged and left
 	// out, as a mod that cannot be mounted is, and the rest load. Returns how many did.
 	std::size_t LoadAll(const Sim::DefinitionRegistry &definitions);
+
 	void Unload(std::string_view name);
+
 	void UnloadAll();
 
 	// Gives the event to each script with a handler for its type, in the scripts' name order.
@@ -142,10 +149,12 @@ class ScriptHost
 
 	// Whether a loaded script answers the input.
 	bool Answers(std::string_view input) const;
+
 	// The input from the script that answers it, which may ask game for the option's other inputs;
 	// nothing for a call that trapped or a script stopped. Throws std::invalid_argument for an input
 	// no script answers.
 	double Input(std::string_view input, const Inputs &game);
+
 	// The scripts' inputs over the game's: an input a script answers is the script's, and any other
 	// the game's. The host outlives what it returns.
 	Inputs WithScripts(Inputs game);
@@ -159,6 +168,7 @@ class ScriptHost
 	// What every script keeps by key, loaded or not: a script unloaded, or left out of a run, keeps
 	// its keys for when it loads again.
 	const ScriptStore &Store() const;
+
 	// Replaces every script's keys, as a save's are loaded (ReadStore), and makes each loaded
 	// script's handlers' instance again from its module, so what a script holds in memory is the
 	// loaded game's and nothing of the game before it: it reads its keys again. A script whose
@@ -167,12 +177,14 @@ class ScriptHost
 
 	// The scripts loaded, in name order.
 	std::vector<ScriptStatus> Scripts() const;
+
 	std::size_t LoadedModules() const;
 
 	// The bindings for script authors over every class Reflect marks Script, with a send import for
 	// each that the world applies: the C header (Script::Header) and the Rust module
 	// (Script::RustModule).
 	std::string WriteHeader();
+
 	std::string WriteRustModule();
 
 	// The types Reflect marks Script, in name order.

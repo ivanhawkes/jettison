@@ -34,6 +34,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 EventSounds::EventSounds(const Sim::DefinitionRegistry &definitions)
 {
 	for (const std::string &name : definitions.Names<EventSound>())
@@ -74,6 +75,7 @@ EventSounds::EventSounds(const Sim::DefinitionRegistry &definitions)
 	}
 }
 
+
 std::size_t EventSounds::Play(
     const Sim::SimEvent &event, AudioSystem &audio, const PositionOf &positionOf) const
 {
@@ -97,6 +99,7 @@ std::size_t EventSounds::Play(
 	return started;
 }
 
+
 std::size_t EventSounds::PlayClipEvent(
     std::string_view name, const std::optional<glm::dvec3> &position, AudioSystem &audio) const
 {
@@ -109,10 +112,12 @@ std::size_t EventSounds::PlayClipEvent(
 	return started;
 }
 
+
 std::size_t EventSounds::Events() const
 {
 	return m_sounds.size() + m_clipSounds.size();
 }
+
 
 std::size_t EventSounds::Sounds() const
 {
@@ -123,6 +128,7 @@ std::size_t EventSounds::Sounds() const
 		count += sounds.size();
 	return count;
 }
+
 
 bool EventSounds::Start(
     const EventSound &sound, const std::optional<glm::dvec3> &position, AudioSystem &audio)

@@ -51,8 +51,11 @@ class Console
 
 	// Keeps the most recent `capacity` lines. Registers help, clear and vars.
 	explicit Console(std::size_t capacity = 2000);
+
 	~Console();
+
 	Console(const Console &) = delete;
+
 	Console &operator=(const Console &) = delete;
 
 	// From now on, every log message at or above the log's minimum is a line too.
@@ -72,9 +75,13 @@ class Console
 	}
 
 	void Execute(std::string_view line);
+
 	void Print(std::string text);
+
 	void PrintError(std::string text);
+
 	void Clear();
+
 	// A copy, since the log capture may be adding to them.
 	std::vector<ConsoleLine> Lines() const;
 
@@ -86,6 +93,7 @@ class Console
 
 	// The commands and variables whose names start with the prefix, sorted.
 	std::vector<std::string> Complete(std::string_view prefix) const;
+
 	// The line with its first word extended as far as every candidate agrees, and a space after
 	// it if only one candidate is left. Arguments are not completed.
 	std::string CompleteLine(std::string_view line) const;
@@ -106,8 +114,11 @@ class Console
 	};
 
 	void BindReference(std::string_view prefix, entt::meta_any object);
+
 	void CheckName(std::string_view name) const;
+
 	void Add(ConsoleLine line);
+
 	void RunVariable(
 	    const std::string &name, Variable &variable, std::span<const std::string> arguments);
 

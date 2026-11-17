@@ -20,10 +20,12 @@ inline JPH::RVec3 ToJolt(const glm::dvec3 &value)
 {
 	return {value.x, value.y, value.z};
 }
+
 inline JPH::Vec3 ToJolt(const glm::vec3 &value)
 {
 	return {value.x, value.y, value.z};
 }
+
 inline JPH::Quat ToJolt(const glm::dquat &value)
 {
 	return {
@@ -35,10 +37,12 @@ inline glm::dvec3 ToGlm(JPH::RVec3Arg value)
 {
 	return {value.GetX(), value.GetY(), value.GetZ()};
 }
+
 inline glm::vec3 ToGlmFloat(JPH::Vec3Arg value)
 {
 	return {value.GetX(), value.GetY(), value.GetZ()};
 }
+
 inline glm::dquat ToGlm(JPH::QuatArg value)
 {
 	return {value.GetW(), value.GetX(), value.GetY(), value.GetZ()};

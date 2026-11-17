@@ -16,12 +16,15 @@ namespace
 {
 // Stand-ins: the batching compares the addresses, and never reads through them.
 const std::array<char, 4> kModels{};
+
+
 const Model *ModelAt(std::size_t index)
 {
 	return reinterpret_cast<const Model *>(&kModels.at(index));
 }
 const int kMaterial = 0;
 } // namespace
+
 
 TEST_CASE("Draw batches: draws sharing a model, a level and a material are one instanced draw")
 {
@@ -65,6 +68,7 @@ TEST_CASE("Draw batches: draws sharing a model, a level and a material are one i
 	CHECK(instances.size() == inputs.size() + 1);
 }
 
+
 TEST_CASE("Draw batches: the order is the same whatever order the draws come in")
 {
 	const BatchKey a{ModelAt(1), 0, nullptr};
@@ -83,6 +87,7 @@ TEST_CASE("Draw batches: the order is the same whatever order the draws come in"
 	CHECK(forwards[0].key == b);
 	CHECK(forwardInstances == std::vector<std::uint32_t>{3, 1, 0, 2});
 }
+
 
 TEST_CASE("Draw batches: the transparent draws go back to front, neighbours of one key merged")
 {

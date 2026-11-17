@@ -38,6 +38,7 @@ struct Unbindable
 	std::vector<int> list;
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -61,6 +62,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 std::vector<std::string> Texts(const Console &console)
 {
 	std::vector<std::string> texts;
@@ -69,6 +71,7 @@ std::vector<std::string> Texts(const Console &console)
 	return texts;
 }
 
+
 std::string Last(const Console &console)
 {
 	const std::vector<ConsoleLine> lines = console.Lines();
@@ -76,6 +79,7 @@ std::string Last(const Console &console)
 	return lines.back().text;
 }
 } // namespace
+
 
 TEST_CASE("Console: a line splits on spaces, with quotes for spaces inside a word")
 {
@@ -87,6 +91,7 @@ TEST_CASE("Console: a line splits on spaces, with quotes for spaces inside a wor
 	CHECK(SplitLine("") == std::vector<std::string>{});
 	CHECK_FALSE(SplitLine(R"(say "open)"));
 }
+
 
 TEST_CASE("Console: a command runs with its arguments, and one that throws prints its error")
 {
@@ -120,6 +125,7 @@ TEST_CASE("Console: a command runs with its arguments, and one that throws print
 	console.Execute("clear");
 	CHECK(console.Lines().empty());
 }
+
 
 TEST_CASE("Console: an object's Console fields are variables, read and set as text")
 {
@@ -163,6 +169,7 @@ TEST_CASE("Console: an object's Console fields are variables, read and set as te
 	CHECK(std::ranges::find(texts, "render.title = Jettison, again") != texts.end());
 }
 
+
 TEST_CASE("Console: names are checked, and a type the console cannot set is refused whole")
 {
 	RegisterTypes();
@@ -186,6 +193,7 @@ TEST_CASE("Console: names are checked, and a type the console cannot set is refu
 	CHECK_FALSE(console.Value("lists.list"));
 }
 
+
 TEST_CASE("Console: history keeps each line once in a row, and completion extends the first word")
 {
 	RegisterTypes();
@@ -206,6 +214,7 @@ TEST_CASE("Console: history keeps each line once in a row, and completion extend
 	CHECK(console.CompleteLine("zzz") == "zzz");
 	CHECK(console.CompleteLine("render.vsync of") == "render.vsync of");
 }
+
 
 TEST_CASE("Console: the log is captured into the lines, and a full console drops the oldest")
 {

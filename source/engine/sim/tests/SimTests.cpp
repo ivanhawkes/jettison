@@ -75,6 +75,7 @@ struct Unhandled
 {
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -106,6 +107,7 @@ void RegisterTypes()
 }
 
 constexpr double kStep = 1.0 / 30.0;
+
 
 // The game's start-up, the same every run.
 void Populate(Sim::SimWorld &world, bool withHold = true)
@@ -192,6 +194,7 @@ void Populate(Sim::SimWorld &world, bool withHold = true)
 	     }});
 }
 
+
 // The command stream: what a player would have done, as a function of the step. Entities are
 // named by the identifiers the world hands out, which the stream can know because they are
 // deterministic too: the first three ships are 0, 1 and 2, and the one spawned after 1 is
@@ -229,6 +232,7 @@ void Feed(Sim::SimWorld &world, std::uint64_t step)
 	}
 }
 
+
 void Run(Sim::SimWorld &world, std::uint64_t until)
 {
 	while (world.Clock().Step() < until)
@@ -248,10 +252,13 @@ class Tally final : public Sim::WorldService
   public:
 	std::uint64_t ore{0};
 
+
 	void Save(Serialise::BinaryWriter &writer) const override
 	{
 		writer.Write(ore);
 	}
+
+
 	std::function<void()> Load(Serialise::BinaryReader &reader, const entt::registry &loaded) override
 	{
 		std::uint64_t saved = 0;
@@ -265,6 +272,7 @@ class Tally final : public Sim::WorldService
 		return [this, saved] { ore = saved; };
 	}
 };
+
 
 Tally &AddTally(Sim::SimWorld &world, std::string name = "tally")
 {
@@ -285,6 +293,7 @@ Tally &AddTally(Sim::SimWorld &world, std::string name = "tally")
 }
 } // namespace
 
+
 TEST_CASE("Sim: commands drain in the order they were pushed, and the queue is then empty")
 {
 	Sim::CommandQueue queue;
@@ -298,6 +307,7 @@ TEST_CASE("Sim: commands drain in the order they were pushed, and the queue is t
 	CHECK(queue.Pending().empty());
 	CHECK_THROWS_AS(queue.Push(entt::meta_any{}), std::logic_error);
 }
+
 
 TEST_CASE("Sim: a step applies the commands, runs the systems in order, and advances the clock")
 {
@@ -321,6 +331,7 @@ TEST_CASE("Sim: a step applies the commands, runs the systems in order, and adva
 	CHECK(world.Registry().get<Position>(ship).value.x == doctest::Approx(2.0));
 }
 
+
 TEST_CASE("Sim: the same seed and command stream give the same state, in every build")
 {
 	RegisterTypes();
@@ -343,6 +354,7 @@ TEST_CASE("Sim: the same seed and command stream give the same state, in every b
 	Run(reseeded, kSteps);
 	CHECK(reseeded.StateHash() != first.StateHash());
 }
+
 
 TEST_CASE("Sim: a world saved part-way and loaded carries on exactly as the original")
 {
@@ -388,6 +400,7 @@ std::vector<std::byte> ReadFixture(const char *name)
 }
 } // namespace
 
+
 TEST_CASE("Sim: a save written by version 1 loads through its migration and carries on")
 {
 	RegisterTypes();
@@ -426,6 +439,7 @@ TEST_CASE("Sim: a save written by version 1 loads through its migration and carr
 	    "Jettison.World: version 4 found, version 3 expected: it was written by a later build",
 	    Serialise::FormatVersionError);
 }
+
 
 // The same world's step 15, with its tally, as the phase 11 build saved it (commit cfb86e9), at
 // version 2, before each component storage had a version.
@@ -488,6 +502,7 @@ struct CargoV3
 	std::uint32_t tonnes{0};
 };
 
+
 void RegisterCargo()
 {
 	static const bool registered = []
@@ -505,6 +520,7 @@ void RegisterCargo()
 	}();
 	(void)registered;
 }
+
 
 Sim::ComponentMigrations CargoMigrations()
 {
@@ -531,6 +547,7 @@ Sim::ComponentMigrations CargoMigrations()
 	return chain;
 }
 
+
 std::vector<std::byte> SavedCargo()
 {
 	Sim::SimWorld old{kStep, kSeed};
@@ -550,6 +567,7 @@ std::vector<std::byte> SavedCargo()
 	return document.Emit();
 }
 } // namespace
+
 
 TEST_CASE("Sim: a component's chain migrates a field removed and a field retyped, by its record")
 {
@@ -612,6 +630,7 @@ TEST_CASE("Sim: a component's chain migrates a field removed and a field retyped
 	    std::logic_error);
 }
 
+
 TEST_CASE("Sim: the recorded commands replay a session from its start")
 {
 	RegisterTypes();
@@ -635,6 +654,7 @@ TEST_CASE("Sim: the recorded commands replay a session from its start")
 	}
 	CHECK(replay.StateHash() == session.StateHash());
 }
+
 
 TEST_CASE("Sim: a system's own command is applied at once and not recorded, so a replay sends it again")
 {
@@ -690,6 +710,7 @@ TEST_CASE("Sim: a system's own command is applied at once and not recorded, so a
 	    std::logic_error);
 }
 
+
 TEST_CASE("Sim: a save that does not fit is refused, and the world is left as it was")
 {
 	RegisterTypes();
@@ -715,6 +736,7 @@ TEST_CASE("Sim: a save that does not fit is refused, and the world is left as it
 	    Serialise::FormatError);
 	CHECK(smaller.Clock().Step() == 0);
 }
+
 
 TEST_CASE("Sim: a service's state is saved with the world, and loaded with it or not at all")
 {
@@ -770,6 +792,7 @@ TEST_CASE("Sim: a service's state is saved with the world, and loaded with it or
 	CHECK(refusing.StateHash() == before);
 }
 
+
 TEST_CASE("Sim: registration mistakes and unknown commands are refused")
 {
 	RegisterTypes();
@@ -799,6 +822,7 @@ TEST_CASE("Sim: registration mistakes and unknown commands are refused")
 	CHECK(world.Clock().Step() == 0);
 }
 
+
 TEST_CASE("Sim: a command's sender may command what it controls, and what no one does")
 {
 	entt::registry registry;
@@ -815,6 +839,7 @@ TEST_CASE("Sim: a command's sender may command what it controls, and what no one
 	// The game's own rules, which are no one's in particular.
 	CHECK(Sim::MayCommand(registry, owned, {}));
 }
+
 
 TEST_CASE("Sim: flight controls fly an entity only from the one at its helm, or from no one")
 {

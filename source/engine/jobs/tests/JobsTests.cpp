@@ -12,12 +12,14 @@
 
 using Jettison::Jobs::IoWorker;
 
+
 TEST_CASE("Jobs: an empty worker drains and waits for nothing")
 {
 	IoWorker worker;
 	worker.Drain();
 	worker.WaitIdle();
 }
+
 
 TEST_CASE("Jobs: work runs on the worker, completions on the thread that drains, both in order")
 {
@@ -55,6 +57,7 @@ TEST_CASE("Jobs: work runs on the worker, completions on the thread that drains,
 	}
 }
 
+
 TEST_CASE("Jobs: work that throws skips its completion, and Drain rethrows it on the main thread")
 {
 	IoWorker worker;
@@ -76,6 +79,7 @@ TEST_CASE("Jobs: work that throws skips its completion, and Drain rethrows it on
 	CHECK(finished.back() == "later");
 }
 
+
 TEST_CASE("Jobs: a completion can enqueue more work")
 {
 	IoWorker worker;
@@ -94,6 +98,7 @@ TEST_CASE("Jobs: a completion can enqueue more work")
 	worker.Drain();
 	CHECK(stage == 2);
 }
+
 
 TEST_CASE("Jobs: destruction finishes the item in progress and drops the rest")
 {

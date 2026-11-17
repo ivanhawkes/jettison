@@ -10,6 +10,7 @@ namespace
 constexpr std::uint64_t kMultiplier = 6364136223846793005ULL;
 } // namespace
 
+
 // pcg32_srandom_r: the increment must be odd, and the seed is mixed in between two steps so that
 // nearby seeds do not start on nearby states.
 Random::Random(std::uint64_t seed, std::uint64_t stream) : m_state{0, (stream << 1U) | 1U}
@@ -19,6 +20,7 @@ Random::Random(std::uint64_t seed, std::uint64_t stream) : m_state{0, (stream <<
 	NextU32();
 }
 
+
 Random Random::FromState(const RandomState &state)
 {
 	JETTISON_VERIFY((state.increment & 1U) == 1U);
@@ -26,6 +28,7 @@ Random Random::FromState(const RandomState &state)
 	random.m_state = state;
 	return random;
 }
+
 
 // pcg32_random_r: output from the old state, so the multiply for the next one overlaps the
 // permutation.
@@ -38,21 +41,25 @@ std::uint32_t Random::NextU32()
 	return (shifted >> rotation) | (shifted << ((0U - rotation) & 31U));
 }
 
+
 std::uint64_t Random::NextU64()
 {
 	const std::uint64_t high = NextU32();
 	return (high << 32U) | NextU32();
 }
 
+
 float Random::NextFloat()
 {
 	return static_cast<float>(NextU32() >> 8U) * 0x1.0p-24f;
 }
 
+
 double Random::NextDouble()
 {
 	return static_cast<double>(NextU64() >> 11U) * 0x1.0p-53;
 }
+
 
 // Lemire's multiply-and-shift: the high half of draw * span is in [0, span), and rejecting the
 // draws whose low half falls under 2^32 mod span leaves every result equally likely. The modulo
@@ -79,6 +86,7 @@ std::int32_t Random::Range(std::int32_t min, std::int32_t max)
 	return static_cast<std::int32_t>(
 	    static_cast<std::uint32_t>(min) + static_cast<std::uint32_t>(product >> 32U));
 }
+
 
 float Random::Range(float min, float max)
 {

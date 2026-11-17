@@ -18,14 +18,20 @@ class Noise
 {
   public:
 	explicit Noise(std::int32_t seed = 0);
+
 	~Noise();
+
 	Noise(const Noise &other);
+
 	Noise &operator=(const Noise &other);
+
 	Noise(Noise &&) noexcept;
+
 	Noise &operator=(Noise &&) noexcept;
 
 	// In [-1, 1].
 	float Sample(const glm::vec2 &position) const;
+
 	float Sample(const glm::vec3 &position) const;
 
 	std::int32_t Seed() const

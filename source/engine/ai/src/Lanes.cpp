@@ -42,10 +42,12 @@ LaneTravel &LaneTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld
 	return *lanes;
 }
 
+
 void LaneTravel::SetGalaxy(Celestial::Galaxy galaxy)
 {
 	m_galaxy = std::move(galaxy);
 }
+
 
 void LaneTravel::DefineStarSystem(Celestial::StarSystem system)
 {
@@ -56,10 +58,12 @@ void LaneTravel::DefineStarSystem(Celestial::StarSystem system)
 	m_systems.emplace(id, std::move(system));
 }
 
+
 bool LaneTravel::HasStarSystem(std::uint64_t system) const
 {
 	return m_systems.contains(system);
 }
+
 
 void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 {
@@ -107,6 +111,7 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 	registry.remove<Destination>(command.entity);
 	world.Events().Emit(LaneEntered{command.entity, lane, exit->transitSeconds});
 }
+
 
 void LaneTravel::Arrive(Sim::SimWorld &world) const
 {

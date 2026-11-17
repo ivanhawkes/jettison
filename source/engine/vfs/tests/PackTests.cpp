@@ -30,13 +30,20 @@ class Scratch
 		std::filesystem::remove_all(m_directory);
 		std::filesystem::create_directories(m_directory / "assets");
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -44,10 +51,14 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary} << contents;
 	}
+
+
 	std::filesystem::path Path(const std::string &name) const
 	{
 		return m_directory / name;
 	}
+
+
 	std::string Contents(const std::string &name) const
 	{
 		std::ifstream file{Path(name), std::ios::binary};
@@ -58,11 +69,13 @@ class Scratch
 	std::filesystem::path m_directory;
 };
 
+
 std::string Text(const std::optional<std::vector<std::byte>> &bytes)
 {
 	REQUIRE(bytes.has_value());
 	return {reinterpret_cast<const char *>(bytes->data()), bytes->size()};
 }
+
 
 // Text that compresses, and bytes that do not: a generator's output, the same every run.
 std::string Repetitive(std::size_t size)
@@ -73,6 +86,7 @@ std::string Repetitive(std::size_t size)
 	text.resize(size);
 	return text;
 }
+
 
 std::string Noise(std::size_t size)
 {
@@ -88,6 +102,7 @@ std::string Noise(std::size_t size)
 	return bytes;
 }
 
+
 void PutBase(const Scratch &scratch)
 {
 	scratch.Put("assets/defs/goods/beer.yaml", Repetitive(4096));
@@ -98,6 +113,7 @@ void PutBase(const Scratch &scratch)
 	scratch.Put("assets/defs2/other.yaml", "other");
 }
 } // namespace
+
 
 TEST_CASE("Pack: a packed directory reads as the directory does")
 {
@@ -136,6 +152,7 @@ TEST_CASE("Pack: a packed directory reads as the directory does")
 	CHECK_THROWS_AS((void)packed.Read("../base.pack"), std::invalid_argument);
 }
 
+
 TEST_CASE("Pack: a file is compressed where that pays and stored where it does not")
 {
 	const Scratch scratch;
@@ -158,6 +175,7 @@ TEST_CASE("Pack: a file is compressed where that pays and stored where it does n
 	CHECK_THROWS_AS(WritePack(scratch.Path("missing"), scratch.Path("bad.pack")), std::runtime_error);
 }
 
+
 TEST_CASE("Pack: a file no virtual path could name is left out and reported")
 {
 	const Scratch scratch;
@@ -167,6 +185,7 @@ TEST_CASE("Pack: a file no virtual path could name is left out and reported")
 	CHECK(summary.files == 1);
 	CHECK(summary.skipped == std::vector<std::string>{"saves/slot:partial"});
 }
+
 
 TEST_CASE("Pack: the directories named are packed, each file once, and nothing beside them")
 {
@@ -195,6 +214,7 @@ TEST_CASE("Pack: the directories named are packed, each file once, and nothing b
 	    std::runtime_error);
 }
 
+
 TEST_CASE("Pack: an empty directory packs to a pack with nothing in it")
 {
 	const Scratch scratch;
@@ -203,6 +223,7 @@ TEST_CASE("Pack: an empty directory packs to a pack with nothing in it")
 	packed.AddMount({"base", scratch.Path("base.pack")});
 	CHECK(packed.Enumerate("").empty());
 }
+
 
 TEST_CASE("Pack: packs and directories layer as mounts, path by path")
 {
@@ -237,6 +258,7 @@ TEST_CASE("Pack: packs and directories layer as mounts, path by path")
 	CHECK_THROWS_AS(writable.AddMount({"user", scratch.Path("base.pack"), true}), std::runtime_error);
 }
 
+
 TEST_CASE("Pack: every prefix of a pack is refused as it is mounted")
 {
 	const Scratch scratch;
@@ -251,6 +273,7 @@ TEST_CASE("Pack: every prefix of a pack is refused as it is mounted")
 		CHECK_THROWS_AS(files.AddMount({"cut", scratch.Path("cut.pack")}), std::runtime_error);
 	}
 }
+
 
 TEST_CASE("Pack: a damaged pack is refused, saying what is wrong")
 {
@@ -284,6 +307,7 @@ TEST_CASE("Pack: a damaged pack is refused, saying what is wrong")
 	refused(order, "not sorted by path");
 }
 
+
 TEST_CASE("Pack: a damaged file in a pack is caught as it is read")
 {
 	const Scratch scratch;
@@ -303,6 +327,7 @@ TEST_CASE("Pack: a damaged file in a pack is caught as it is read")
 	// The rest still read.
 	CHECK(Text(files.Read("defs/ships/military/corvette.yaml")) == "version: 1\n");
 }
+
 
 TEST_CASE("Pack: a pack replaced on the disk while mounted is read as it was mounted")
 {

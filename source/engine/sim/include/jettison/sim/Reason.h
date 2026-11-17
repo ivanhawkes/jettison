@@ -43,10 +43,12 @@ struct ReasonArgument
 	{
 		return {ReasonValue::Integer, value, entt::null, {}, {}};
 	}
+
 	static ReasonArgument Entity(entt::entity value)
 	{
 		return {ReasonValue::Entity, 0, value, {}, {}};
 	}
+
 	static ReasonArgument Identifier(std::string value, std::string definition = {})
 	{
 		return {ReasonValue::Identifier, 0, entt::null, std::move(value), std::move(definition)};

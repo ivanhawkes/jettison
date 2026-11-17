@@ -68,15 +68,18 @@ class DefinitionRegistry
 	void Load(
 	    const entt::meta_type &type, std::string_view virtualDirectory,
 	    Serialise::FormatVersion version);
+
 	template <typename T> void Load(std::string_view virtualDirectory, Serialise::FormatVersion version)
 	{
 		Load(entt::resolve<T>(), virtualDirectory, version);
 	}
+
 	// The same, with a file of an earlier version migrated first; one of a version the chain does
 	// not reach is refused as above. The chain's format is the type's name, as Reflect has it.
 	void Load(
 	    const entt::meta_type &type, std::string_view virtualDirectory,
 	    const Serialise::YamlMigrations &migrations);
+
 	template <typename T>
 	void Load(std::string_view virtualDirectory, const Serialise::YamlMigrations &migrations)
 	{
@@ -85,6 +88,7 @@ class DefinitionRegistry
 
 	// The definition of that name, or null. Valid until the type is loaded again.
 	const entt::meta_any *Find(const entt::meta_type &type, std::string_view name) const;
+
 	template <typename T> const T *Find(std::string_view name) const
 	{
 		const entt::meta_any *definition = Find(entt::resolve<T>(), name);
@@ -93,6 +97,7 @@ class DefinitionRegistry
 
 	// The type's definition names, sorted.
 	std::vector<std::string> Names(const entt::meta_type &type) const;
+
 	template <typename T> std::vector<std::string> Names() const
 	{
 		return Names(entt::resolve<T>());

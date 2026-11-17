@@ -24,6 +24,7 @@ constexpr Core::Category kAudio{"audio"};
 constexpr std::size_t kMixChunkFrames = 1024;
 constexpr std::uint32_t kChannels = 2;
 
+
 std::size_t BusIndex(Bus bus)
 {
 	return static_cast<std::size_t>(bus);
@@ -45,10 +46,12 @@ struct VfsBridge
 	const Vfs::FileSystem *pFiles{nullptr};
 };
 
+
 OpenFile &FileOf(ma_vfs_file file)
 {
 	return *static_cast<OpenFile *>(file);
 }
+
 
 ma_result OnOpen(ma_vfs *pVfs, const char *pPath, ma_uint32 openMode, ma_vfs_file *pFile)
 {
@@ -65,17 +68,20 @@ ma_result OnOpen(ma_vfs *pVfs, const char *pPath, ma_uint32 openMode, ma_vfs_fil
 	return MA_SUCCESS;
 }
 
+
 ma_result OnOpenWide(
     ma_vfs * /*unused*/, const wchar_t * /*unused*/, ma_uint32 /*unused*/, ma_vfs_file * /*unused*/)
 {
 	return MA_NOT_IMPLEMENTED;
 }
 
+
 ma_result OnClose(ma_vfs * /*unused*/, ma_vfs_file file)
 {
 	std::unique_ptr<OpenFile>{static_cast<OpenFile *>(file)}.reset();
 	return MA_SUCCESS;
 }
+
 
 ma_result OnRead(ma_vfs * /*unused*/, ma_vfs_file file, void *pDestination, size_t size, size_t *pRead)
 {
@@ -89,12 +95,14 @@ ma_result OnRead(ma_vfs * /*unused*/, ma_vfs_file file, void *pDestination, size
 	return count == 0 && size > 0 ? MA_AT_END : MA_SUCCESS;
 }
 
+
 ma_result OnWrite(
     ma_vfs * /*unused*/, ma_vfs_file /*unused*/, const void * /*unused*/, size_t /*unused*/,
     size_t * /*unused*/)
 {
 	return MA_NOT_IMPLEMENTED;
 }
+
 
 ma_result OnSeek(ma_vfs * /*unused*/, ma_vfs_file file, ma_int64 offset, ma_seek_origin origin)
 {
@@ -110,17 +118,20 @@ ma_result OnSeek(ma_vfs * /*unused*/, ma_vfs_file file, ma_int64 offset, ma_seek
 	return MA_SUCCESS;
 }
 
+
 ma_result OnTell(ma_vfs * /*unused*/, ma_vfs_file file, ma_int64 *pCursor)
 {
 	*pCursor = static_cast<ma_int64>(FileOf(file).cursor);
 	return MA_SUCCESS;
 }
 
+
 ma_result OnInfo(ma_vfs * /*unused*/, ma_vfs_file file, ma_file_info *pInfo)
 {
 	pInfo->sizeInBytes = FileOf(file).bytes.size();
 	return MA_SUCCESS;
 }
+
 
 void Check(ma_result result, std::string_view what)
 {
@@ -217,6 +228,7 @@ class AudioState
 		m_sources.emplace_back();
 	}
 
+
 	~AudioState()
 	{
 		for (Source &source : m_sources)
@@ -232,8 +244,13 @@ class AudioState
 			ma_resource_manager_uninit(&m_resources);
 		ma_log_uninit(&m_log);
 	}
+
+
 	AudioState(const AudioState &) = delete;
+
+
 	AudioState &operator=(const AudioState &) = delete;
+
 
 	SourceHandle Start(std::string_view virtualPath, Bus bus, ma_uint32 flags, bool loop)
 	{
@@ -272,6 +289,7 @@ class AudioState
 		return {index, source.generation};
 	}
 
+
 	Source *Find(SourceHandle handle)
 	{
 		if (handle.index == 0 || handle.index >= m_sources.size())
@@ -279,10 +297,13 @@ class AudioState
 		Source &source = m_sources[handle.index];
 		return source.pSound && source.generation == handle.generation ? &source : nullptr;
 	}
+
+
 	const Source *Find(SourceHandle handle) const
 	{
 		return const_cast<AudioState *>(this)->Find(handle);
 	}
+
 
 	void Release(std::uint32_t index)
 	{
@@ -293,11 +314,13 @@ class AudioState
 		m_free.push_back(index);
 	}
 
+
 	void Place(Source &source)
 	{
 		const glm::vec3 relative(source.position - m_listenerPosition);
 		ma_sound_set_position(source.pSound.get(), relative.x, relative.y, relative.z);
 	}
+
 
 	static void OnLog(void *pUserData, ma_uint32 level, const char *pMessage)
 	{
@@ -340,6 +363,7 @@ class AudioState
 };
 } // namespace Detail
 
+
 std::string_view BusName(Bus bus)
 {
 	switch (bus)
@@ -353,6 +377,7 @@ std::string_view BusName(Bus bus)
 	return "master";
 }
 
+
 std::optional<Bus> BusFromName(std::string_view name)
 {
 	for (const Bus bus : kBuses)
@@ -361,22 +386,27 @@ std::optional<Bus> BusFromName(std::string_view name)
 	return std::nullopt;
 }
 
+
 AudioSystem::AudioSystem(const Vfs::FileSystem &files, const AudioOptions &options)
     : m_pState(std::make_unique<Detail::AudioState>(files, options))
 {
 }
 
+
 AudioSystem::~AudioSystem() = default;
+
 
 void AudioSystem::SetBusVolume(Bus bus, float volume)
 {
 	ma_sound_group_set_volume(&m_pState->m_buses[BusIndex(bus)], std::clamp(volume, 0.0f, 4.0f));
 }
 
+
 float AudioSystem::BusVolume(Bus bus) const
 {
 	return ma_sound_group_get_volume(&m_pState->m_buses[BusIndex(bus)]);
 }
+
 
 SourceHandle AudioSystem::Play(
     std::string_view virtualPath, Bus bus, const glm::dvec3 &position, bool loop,
@@ -400,6 +430,7 @@ SourceHandle AudioSystem::Play(
 	return handle;
 }
 
+
 SourceHandle AudioSystem::PlayFlat(std::string_view virtualPath, Bus bus, bool loop)
 {
 	const SourceHandle handle =
@@ -408,6 +439,7 @@ SourceHandle AudioSystem::PlayFlat(std::string_view virtualPath, Bus bus, bool l
 		ma_sound_start(pSource->pSound.get());
 	return handle;
 }
+
 
 SourceHandle AudioSystem::PlayMusic(std::string_view virtualPath, bool loop)
 {
@@ -419,11 +451,13 @@ SourceHandle AudioSystem::PlayMusic(std::string_view virtualPath, bool loop)
 	return m_pState->m_music;
 }
 
+
 void AudioSystem::StopMusic()
 {
 	Stop(m_pState->m_music);
 	m_pState->m_music = {};
 }
+
 
 void AudioSystem::Stop(SourceHandle source)
 {
@@ -431,11 +465,13 @@ void AudioSystem::Stop(SourceHandle source)
 		m_pState->Release(source.index);
 }
 
+
 void AudioSystem::SetPosition(SourceHandle source, const glm::dvec3 &position)
 {
 	if (Detail::Source *pSource = m_pState->Find(source); pSource && pSource->positioned)
 		pSource->position = position;
 }
+
 
 void AudioSystem::SetVolume(SourceHandle source, float volume)
 {
@@ -443,16 +479,19 @@ void AudioSystem::SetVolume(SourceHandle source, float volume)
 		ma_sound_set_volume(pSource->pSound.get(), std::max(volume, 0.0f));
 }
 
+
 bool AudioSystem::IsPlaying(SourceHandle source) const
 {
 	return m_pState->Find(source) != nullptr;
 }
+
 
 std::size_t AudioSystem::Playing() const
 {
 	return static_cast<std::size_t>(std::ranges::count_if(
 	    m_pState->m_sources, [](const Detail::Source &s) { return s.pSound != nullptr; }));
 }
+
 
 void AudioSystem::SetListener(const glm::dvec3 &position, const glm::dquat &orientation)
 {
@@ -465,6 +504,7 @@ void AudioSystem::SetListener(const glm::dvec3 &position, const glm::dquat &orie
 	ma_engine_listener_set_direction(pEngine, 0, forward.x, forward.y, forward.z);
 	ma_engine_listener_set_world_up(pEngine, 0, up.x, up.y, up.z);
 }
+
 
 void AudioSystem::Update()
 {
@@ -484,6 +524,7 @@ void AudioSystem::Update()
 			m_pState->Place(source);
 	}
 }
+
 
 std::size_t AudioSystem::Mix(std::span<float> interleaved)
 {
@@ -506,20 +547,24 @@ std::size_t AudioSystem::Mix(std::span<float> interleaved)
 	return written;
 }
 
+
 bool AudioSystem::HasDevice() const
 {
 	return m_pState->m_device;
 }
+
 
 std::uint32_t AudioSystem::SampleRate() const
 {
 	return m_pState->m_sampleRate;
 }
 
+
 const AudioCounters &AudioSystem::Counters() const
 {
 	return m_pState->m_counters;
 }
+
 
 std::size_t AudioSystem::Problems() const
 {

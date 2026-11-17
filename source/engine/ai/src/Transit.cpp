@@ -21,6 +21,7 @@ std::vector<Occupant> Occupants(
 	return occupants;
 }
 
+
 glm::dvec3 ClearPlace(
     std::span<const Occupant> occupants, std::uint64_t system, const Sim::Transform &place,
     double radius, double clearance)

@@ -33,6 +33,7 @@ struct Deck : Fixture
 	bool onDeck{true};
 	std::size_t buggySteps{0};
 
+
 	explicit Deck(std::string_view layout = "ostra-highport")
 	{
 		if (layout != "ostra-highport")
@@ -44,12 +45,14 @@ struct Deck : Fixture
 		station = docks.MakeStation(world, DockTests::kHalcyon, DockTests::kHighport, layout);
 	}
 
+
 	entt::entity Parked(std::uint32_t number, std::string_view hull = "shuttle")
 	{
 		const entt::entity ship = Ship(station, hull, {400.0 * ships++, 3000.0, 0.0});
 		docks.Park(world, ship, PadNumbered(station, number));
 		return ship;
 	}
+
 
 	// A step, and how the buggies stand after it.
 	void Advance()
@@ -76,6 +79,7 @@ struct Deck : Fixture
 				nearest = std::min(nearest, glm::distance(places[first], places[second]));
 	}
 
+
 	// Steps until the ship's transfer is done, or the limit; how many it took.
 	std::optional<std::int64_t> UntilCarried(entt::entity ship, std::int64_t limit)
 	{
@@ -91,10 +95,12 @@ struct Deck : Fixture
 		return std::nullopt;
 	}
 
+
 	std::size_t Buggies() const
 	{
 		return world.Registry().view<const Dock::Buggy>().size();
 	}
+
 
 	std::vector<std::string> Refusals()
 	{
@@ -105,6 +111,7 @@ struct Deck : Fixture
 	}
 };
 } // namespace
+
 
 TEST_CASE("Deck: Highport's and Corva's roads, and each pad's way from its bay")
 {
@@ -147,6 +154,7 @@ TEST_CASE("Deck: Highport's and Corva's roads, and each pad's way from its bay")
 	CHECK(corva.pads[4].length == doctest::Approx(53.8).epsilon(1.0e-3));
 }
 
+
 TEST_CASE("Deck: a layout with a pad no road reaches from a bay is refused")
 {
 	// A deck with an M pad, and a bay on a block beside it whose top is higher.
@@ -174,6 +182,7 @@ TEST_CASE("Deck: a layout with a pad no road reaches from a bay is refused")
 	layout.traffic.cratesPerTrip = 0;
 	CHECK_THROWS_AS(Dock::CheckLayout("terrace", layout), Serialise::FormatError);
 }
+
 
 TEST_CASE("Deck: a shuttle's twenty crates carried aboard, the ship held until they are")
 {
@@ -217,6 +226,7 @@ TEST_CASE("Deck: a shuttle's twenty crates carried aboard, the ship held until t
 	CHECK(deck.Buggies() == 0);
 }
 
+
 TEST_CASE("Deck: crates carried off, the ship free once the last is taken from its hatch")
 {
 	Deck deck;
@@ -235,6 +245,7 @@ TEST_CASE("Deck: crates carried off, the ship free once the last is taken from i
 	CHECK(deck.onDeck);
 }
 
+
 TEST_CASE("Deck: bought and sold back before crossing, crates do not cross")
 {
 	Deck deck;
@@ -251,6 +262,7 @@ TEST_CASE("Deck: bought and sold back before crossing, crates do not cross")
 	const entt::entity flying = deck.Ship(deck.station, "shuttle", {0.0, 3000.0, 0.0});
 	CHECK_FALSE(Dock::Carry(registry, flying, 4));
 }
+
 
 TEST_CASE("Deck: every pad of Highport loading at once, each pad's buggies giving way at the nodes")
 {
@@ -282,6 +294,7 @@ TEST_CASE("Deck: every pad of Highport loading at once, each pad's buggies givin
 	CHECK(deck.nearest > 3.9);
 }
 
+
 TEST_CASE("Deck: parked buggies, the cargo moved at the rate working ones would move it")
 {
 	Deck deck{"highport-parked"};
@@ -295,6 +308,7 @@ TEST_CASE("Deck: parked buggies, the cargo moved at the rate working ones would 
 	CHECK(*steps == 5 * 585);
 	CHECK(deck.buggySteps == 0);
 }
+
 
 TEST_CASE("Deck: a station with no bays has its cargo aboard at once")
 {
@@ -314,6 +328,7 @@ TEST_CASE("Deck: a station with no bays has its cargo aboard at once")
 	CHECK(Dock::ToCarry(fixture.world.Registry(), ship) == 0);
 }
 
+
 TEST_CASE("Deck: a ship gone mid-transfer, its buggies bring back what they carry and go in")
 {
 	Deck deck;
@@ -329,6 +344,7 @@ TEST_CASE("Deck: a ship gone mid-transfer, its buggies bring back what they carr
 	CHECK(deck.Buggies() == 0);
 	CHECK(deck.Events<Dock::CargoCarried>().empty());
 }
+
 
 TEST_CASE(
     "Deck: the same transfer from the same start, and from a save part-way, reaches the same state")

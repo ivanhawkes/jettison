@@ -23,10 +23,12 @@ glm::vec3 ToGlm(const fastgltf::math::nvec3 &value)
 	return {value[0], value[1], value[2]};
 }
 
+
 glm::quat ToGlm(const fastgltf::math::nquat &value)
 {
 	return {value.w(), value.x(), value.y(), value.z()};
 }
+
 
 RigNode ReadNode(const fastgltf::Node &source)
 {
@@ -49,6 +51,7 @@ RigNode ReadNode(const fastgltf::Node &source)
 	result.scale = ToGlm(scale);
 	return result;
 }
+
 
 Clip ReadClip(const fastgltf::Asset &asset, const fastgltf::Animation &animation, std::size_t index)
 {
@@ -91,6 +94,7 @@ Clip ReadClip(const fastgltf::Asset &asset, const fastgltf::Animation &animation
 	return clip;
 }
 } // namespace
+
 
 Rig ReadGltfRig(std::span<const std::byte> bytes, std::string_view name)
 {
@@ -168,6 +172,7 @@ Rig ReadGltfRig(std::span<const std::byte> bytes, std::string_view name)
 		rig.clips.push_back(ReadClip(asset, asset.animations[index], index));
 	return rig;
 }
+
 
 void RegisterRigLoader(Resource::ResourceManager &resources)
 {

@@ -28,6 +28,7 @@ static_assert(sizeof(OverlayPushConstants) == 80);
 // documents show. The market screen holds three.
 constexpr std::uint32_t kMaxTextures = 512;
 
+
 // From the frame's pixels, y down, to Vulkan's clip space, which is y down too. Depth is RmlUi's
 // range for a transformed element (+-10,000 pixels) into zero to one; nothing tests it.
 glm::mat4 PixelProjection(VkExtent2D extent)

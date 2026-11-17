@@ -26,18 +26,25 @@ class BruteForce
 	{
 		m_points[entt::to_integral(entity)] = {entity, position};
 	}
+
+
 	void Update(entt::entity entity, const glm::dvec3 &position)
 	{
 		m_points.at(entt::to_integral(entity)).second = position;
 	}
+
+
 	void Remove(entt::entity entity)
 	{
 		m_points.erase(entt::to_integral(entity));
 	}
+
+
 	std::size_t Count() const
 	{
 		return m_points.size();
 	}
+
 
 	std::vector<entt::entity> QuerySphere(const glm::dvec3 &centre, double radius) const
 	{
@@ -47,6 +54,8 @@ class BruteForce
 				out.push_back(point.first);
 		return out;
 	}
+
+
 	std::vector<entt::entity> QueryBox(const Math::DAabb &box) const
 	{
 		std::vector<entt::entity> out;
@@ -55,6 +64,8 @@ class BruteForce
 				out.push_back(point.first);
 		return out;
 	}
+
+
 	std::vector<Neighbour> QueryNearest(
 	    const glm::dvec3 &point, std::size_t count, double maxDistance) const
 	{
@@ -70,10 +81,12 @@ class BruteForce
 		return all;
 	}
 
+
 	const glm::dvec3 &Position(entt::entity entity) const
 	{
 		return m_points.at(entt::to_integral(entity)).second;
 	}
+
 
 	// The entities in identifier order.
 	std::vector<entt::entity> Entities() const
@@ -89,11 +102,13 @@ class BruteForce
 	std::map<entt::id_type, std::pair<entt::entity, glm::dvec3>> m_points;
 };
 
+
 entt::entity Entity(entt::id_type index)
 {
 	return entt::entity{index};
 }
 } // namespace
+
 
 TEST_CASE("Spatial: an empty index finds nothing")
 {
@@ -104,6 +119,7 @@ TEST_CASE("Spatial: an empty index finds nothing")
 	CHECK(index.QueryBox({glm::dvec3{-1.0e20}, glm::dvec3{1.0e20}}).empty());
 	CHECK(index.QueryNearest({0.0, 0.0, 0.0}, 4).empty());
 }
+
 
 TEST_CASE("Spatial: a query keeps what is on its boundary, and orders what it finds")
 {
@@ -143,6 +159,7 @@ TEST_CASE("Spatial: a query keeps what is on its boundary, and orders what it fi
 	CHECK(index.QuerySphere({0.0, 0.0, 0.0}, 100.0) == std::vector<entt::entity>{Entity(5), Entity(9)});
 }
 
+
 TEST_CASE("Spatial: an index entry is the entity, version and all")
 {
 	entt::registry registry;
@@ -158,6 +175,7 @@ TEST_CASE("Spatial: an index entry is the entity, version and all")
 	CHECK_FALSE(index.Contains(first));
 	CHECK(index.QuerySphere({1.0, 2.0, 3.0}, 0.0) == std::vector<entt::entity>{reused});
 }
+
 
 // The exit criterion's test: every kind of query, after every kind of change, against brute force,
 // over the traffic the measurement uses and the cases a system's traffic does not reach: many points
@@ -268,6 +286,7 @@ TEST_CASE("Spatial: queries agree with brute force through every change")
 	CHECK(index.NodeCount() == 1);
 }
 
+
 TEST_CASE("Spatial: a loose octree leaves a point in its leaf while it stays in the leaf's loose cube")
 {
 	Octree index({.halfExtent = 1024.0, .leafCapacity = 2, .maxDepth = 8, .looseness = 2.0});
@@ -293,6 +312,7 @@ TEST_CASE("Spatial: a loose octree leaves a point in its leaf while it stays in 
 	CHECK(index.NodeCount() == 1);
 	CHECK(index.QuerySphere({0.0, 0.0, 0.0}, 2000.0) == std::vector<entt::entity>{Entity(1)});
 }
+
 
 TEST_CASE("Spatial: results are sorted by identifier, past the radix sort's threshold too")
 {

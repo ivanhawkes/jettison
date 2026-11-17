@@ -93,14 +93,17 @@ struct SaveGame
 
 	// Throws std::logic_error for a name that is empty or already taken.
 	void AddSection(std::string name, std::vector<std::byte> data);
+
 	// The section of that name, or null.
 	const SaveSection *FindSection(std::string_view name) const;
 
 	std::vector<std::byte> Write() const;
+
 	// A save of any version the save game's migrations reach. Throws FormatError for data that is not
 	// a save game or does not fit, and FormatVersionError for one of a version they do not, a later
 	// build's among them; the world inside is read by SimWorld::Load, which migrates it in turn.
 	static SaveGame Read(std::span<const std::byte> bytes);
+
 	// The info alone, read from the front of the file, for a list of saves. Throws as Read does.
 	static SaveInfo ReadInfo(std::span<const std::byte> bytes);
 

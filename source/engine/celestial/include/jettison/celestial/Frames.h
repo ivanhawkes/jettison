@@ -24,6 +24,8 @@ struct LocalPosition
 // million kilometres from the primary, where converting both positions first would put them, are
 // eight kilometres apart.
 glm::vec3 ToRenderSpace(const SystemPosition &position, const SystemPosition &camera);
+
 SystemPosition ToSystem(const LocalPosition &local, const SystemPosition &origin);
+
 LocalPosition ToLocal(const SystemPosition &position, const SystemPosition &origin);
 } // namespace Jettison::Celestial

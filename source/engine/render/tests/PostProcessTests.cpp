@@ -15,6 +15,7 @@
 using namespace Jettison;
 using namespace Jettison::Render;
 
+
 TEST_CASE("Post: a pixel's view position is the point the projection put there")
 {
 	const glm::vec2 viewport{640.0f, 480.0f};
@@ -65,6 +66,7 @@ float FloorAccess(float x, float wall, float radius)
 }
 } // namespace
 
+
 TEST_CASE("Post: a flat surface is not occluded, and a corner more the nearer it is")
 {
 	const float radius = 2.0f;
@@ -87,6 +89,7 @@ TEST_CASE("Post: a flat surface is not occluded, and a corner more the nearer it
 	        {0.0f, 0.0f, -10.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 2.5f, -10.0f}, radius) == 0.0f);
 }
 
+
 TEST_CASE("Post: every pixel of a 4 x 4 turns its spiral its own way, and the pattern repeats")
 {
 	std::set<float> angles;
@@ -102,6 +105,7 @@ TEST_CASE("Post: every pixel of a 4 x 4 turns its spiral its own way, and the pa
 	CHECK(Post::AoSpiralSample(Post::AoSamples() - 1, 0.0f).z < 1.0f);
 }
 
+
 TEST_CASE("Post: the blur keeps to a surface, and specular occlusion leaves the open alone")
 {
 	CHECK(Post::AoBlurWeight(10.0f, 10.0f) == 1.0f);
@@ -112,6 +116,7 @@ TEST_CASE("Post: the blur keeps to a surface, and specular occlusion leaves the 
 	// A mirror square on slips past what darkens a rough surface.
 	CHECK(Post::SpecularAccess(1.0f, 0.5f, 0.0f) > Post::SpecularAccess(1.0f, 0.5f, 1.0f));
 }
+
 
 TEST_CASE("Post: the bloom filters keep a flat image, and the first one tames a lone bright pixel")
 {
@@ -138,6 +143,7 @@ TEST_CASE("Post: the bloom filters keep a flat image, and the first one tames a 
 	CHECK(tamed.x < plain.x * 0.1f);
 	CHECK(tamed.x > grey.x);
 }
+
 
 TEST_CASE("Post: the jump flood finds each pixel's nearest seed, as a search of every seed does")
 {
@@ -210,6 +216,7 @@ TEST_CASE("Post: the jump flood finds each pixel's nearest seed, as a search of 
 	CHECK(exact > reached * 99 / 100);
 }
 
+
 TEST_CASE("Post: a glow fades to nothing at its width")
 {
 	CHECK(Post::GlowFalloff(0.0f, 12.0f) == 1.0f);
@@ -217,6 +224,7 @@ TEST_CASE("Post: a glow fades to nothing at its width")
 	CHECK(Post::GlowFalloff(12.0f, 12.0f) == 0.0f);
 	CHECK(Post::GlowFalloff(30.0f, 12.0f) == 0.0f);
 }
+
 
 TEST_CASE("Post: stencil bits, object IDs and the bloom levels")
 {

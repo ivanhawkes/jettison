@@ -20,6 +20,7 @@ class StringId
 {
   public:
 	constexpr StringId() = default;
+
 	constexpr explicit StringId(std::string_view text) : m_hash{Fnv1a64(text)}
 	{
 		if (!std::is_constant_evaluated())
@@ -30,6 +31,7 @@ class StringId
 	{
 		return m_hash;
 	}
+
 	constexpr bool IsNull() const
 	{
 		return m_hash == 0;

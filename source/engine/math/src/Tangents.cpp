@@ -22,20 +22,24 @@ struct Input
 	std::vector<glm::vec4> cornerTangents;
 };
 
+
 Input &InputOf(const SMikkTSpaceContext *context)
 {
 	return *static_cast<Input *>(context->m_pUserData);
 }
+
 
 std::size_t Corner(int face, int corner)
 {
 	return static_cast<std::size_t>(face) * 3 + static_cast<std::size_t>(corner);
 }
 
+
 std::uint32_t VertexOf(const SMikkTSpaceContext *context, int face, int corner)
 {
 	return InputOf(context).indices[Corner(face, corner)];
 }
+
 
 void Copy(float out[], const glm::vec3 &value)
 {
@@ -44,6 +48,7 @@ void Copy(float out[], const glm::vec3 &value)
 	out[2] = value.z;
 }
 } // namespace
+
 
 TangentMesh GenerateTangents(
     std::span<const glm::vec3> positions, std::span<const glm::vec3> normals,

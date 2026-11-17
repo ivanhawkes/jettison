@@ -16,6 +16,7 @@ namespace
 constexpr Core::Category kRender{"render"};
 }
 
+
 bool WriteScreenshot(const std::filesystem::path &path, const Screenshot &frame)
 {
 	const std::size_t pixelCount = std::size_t{frame.width} * frame.height;

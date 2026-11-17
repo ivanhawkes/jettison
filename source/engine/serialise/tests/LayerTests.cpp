@@ -46,6 +46,7 @@ struct Cargo
 	std::uint32_t tonnes{0};
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -89,6 +90,7 @@ tags: [farming, hub]
 note: the base's
 )";
 
+
 Market Layered(std::initializer_list<std::string_view> patches)
 {
 	RegisterTypes();
@@ -101,6 +103,7 @@ Market Layered(std::initializer_list<std::string_view> patches)
 	}
 	return YamlArchive::ReadLayered<Market>(layers, {1});
 }
+
 
 std::string Refusal(std::string_view patch)
 {
@@ -117,6 +120,7 @@ std::string Refusal(std::string_view patch)
 }
 } // namespace
 
+
 TEST_CASE("Layers: one layer reads as the document does")
 {
 	RegisterTypes();
@@ -128,6 +132,7 @@ TEST_CASE("Layers: one layer reads as the document does")
 	CHECK(market.note == "the base's");
 	CHECK_THROWS_AS((void)YamlArchive::ReadLayered<Market>({}, {1}), std::invalid_argument);
 }
+
 
 TEST_CASE("Layers: a patch changes the fields it names and keeps the rest")
 {
@@ -141,6 +146,7 @@ TEST_CASE("Layers: a patch changes the fields it names and keeps the rest")
 	CHECK(market.tags == std::vector<std::string>{"farming", "hub"});
 }
 
+
 TEST_CASE("Layers: a null removes the field, which reads as its default")
 {
 	const Market market = Layered({"version: 1\nfeeBps: ~\nnote:\nfees: {docking: null}\n"});
@@ -149,6 +155,7 @@ TEST_CASE("Layers: a null removes the field, which reads as its default")
 	CHECK(market.fees.docking == 10);
 	CHECK(market.fees.trade == 25);
 }
+
 
 TEST_CASE("Layers: a sequence replaces the one below, or adds to it when tagged !append")
 {
@@ -165,6 +172,7 @@ TEST_CASE("Layers: a sequence replaces the one below, or adds to it when tagged 
 	const Market removed = Layered({"version: 1\ntags: ~\n", "version: 1\ntags: !append [new]\n"});
 	CHECK(removed.tags == std::vector<std::string>{"new"});
 }
+
 
 TEST_CASE("Layers: a sequence tagged !merge= merges its elements into those below by a field")
 {
@@ -184,6 +192,7 @@ goods: !merge=good
 	CHECK(market.goods[2].stock == 5);
 }
 
+
 TEST_CASE("Layers: patches apply in order, each over the layers below it")
 {
 	const Market market = Layered(
@@ -195,6 +204,7 @@ TEST_CASE("Layers: patches apply in order, each over the layers below it")
 	CHECK(market.goods[1].stock == 1);
 	CHECK(market.note == "the third's");
 }
+
 
 TEST_CASE("Layers: a patch that does not fit is refused, naming its layer")
 {
@@ -219,6 +229,7 @@ TEST_CASE("Layers: a patch that does not fit is refused, naming its layer")
 	CHECK(misspelt.find("feeBsp") != std::string::npos);
 	CHECK(misspelt.find("(line 3)") != std::string::npos);
 }
+
 
 TEST_CASE("Layers: each layer is migrated on its own before it is merged")
 {

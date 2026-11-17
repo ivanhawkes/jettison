@@ -36,6 +36,7 @@ struct ShellState
 inline constexpr std::string_view kShellSection = "Shell.State";
 
 std::vector<std::byte> WriteShellState(const ShellState &state);
+
 // Throws FormatError or FormatVersionError for a section that does not fit.
 ShellState ReadShellState(std::span<const std::byte> bytes);
 
@@ -43,6 +44,7 @@ ShellState ReadShellState(std::span<const std::byte> bytes);
 // '-' and '_', so it is one segment of a virtual path on any file system; throws
 // std::invalid_argument for one that is not, saying so.
 std::string SavePath(std::string_view name);
+
 // The names of the saves the mounts hold, sorted.
 std::vector<std::string> ListSaves(const Vfs::FileSystem &fileSystem);
 
@@ -70,6 +72,7 @@ struct SavesScreen
 };
 
 void RegisterSavesScreenTypes();
+
 // The saves the mounts hold, by name.
 SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem);
 

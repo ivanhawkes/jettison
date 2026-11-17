@@ -12,6 +12,7 @@ namespace
 {
 constexpr std::string_view kSuffix = ".Reason";
 
+
 // "reason.dock." for "Dock.Reason".
 std::string KeyPrefix(const entt::meta_type &reasons)
 {
@@ -29,6 +30,7 @@ std::string KeyPrefix(const entt::meta_type &reasons)
 }
 } // namespace
 
+
 std::string ReasonKey(const entt::meta_any &enumerator)
 {
 	std::string key = KeyPrefix(enumerator.type());
@@ -39,6 +41,7 @@ std::string ReasonKey(const entt::meta_any &enumerator)
 	return key;
 }
 
+
 std::vector<std::string> ReasonKeys(const entt::meta_type &reasons)
 {
 	const std::string prefix = KeyPrefix(reasons);
@@ -47,6 +50,7 @@ std::vector<std::string> ReasonKeys(const entt::meta_type &reasons)
 		keys.push_back(prefix + std::string{enumerator.name()});
 	return keys;
 }
+
 
 std::string Describe(const Reason &reason)
 {

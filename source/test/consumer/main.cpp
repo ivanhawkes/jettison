@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <memory>
 
+
 int main()
 {
 	Jettison::Animation::RotationAnimationComponent rotation;

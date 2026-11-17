@@ -42,6 +42,7 @@ constexpr std::array<Parked, 6> kParked{{
 
 } // namespace
 
+
 entt::entity FindStation(const entt::registry &world, std::uint64_t system, std::string_view body)
 {
 	for (const auto [entity, station, rails, inSystem] :
@@ -50,6 +51,7 @@ entt::entity FindStation(const entt::registry &world, std::uint64_t system, std:
 			return entity;
 	return entt::null;
 }
+
 
 void MakeShip(
     entt::registry &world, const Dock::Docks &docks, entt::entity ship, std::string_view hull,
@@ -68,6 +70,7 @@ void MakeShip(
 	world.emplace_or_replace<Ai::CruiseDrive>(
 	    ship, definition ? definition->cruise : Ai::CruiseDrive{});
 }
+
 
 std::vector<entt::entity> OpenStations(
     Sim::SimWorld &world, Dock::Docks &docks, std::span<const Celestial::StarSystem> systems)
@@ -104,6 +107,7 @@ std::vector<entt::entity> OpenStations(
 		}
 	return opened;
 }
+
 
 std::vector<entt::entity> OpenGates(
     Sim::SimWorld &world, const Ai::Gates &gates, std::span<const Celestial::StarSystem> systems)

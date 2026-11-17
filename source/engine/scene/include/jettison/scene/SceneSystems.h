@@ -41,8 +41,11 @@ class SceneUpdateSystem
 	    : m_pResources{pResources}
 	{
 	}
+
 	~SceneUpdateSystem();
+
 	SceneUpdateSystem(const SceneUpdateSystem &) = delete;
+
 	SceneUpdateSystem &operator=(const SceneUpdateSystem &) = delete;
 
 	// Appends the clip events crossed this frame to events, if given, in the order of the players
@@ -93,8 +96,11 @@ class SequenceSystem
 	explicit SequenceSystem(Resource::ResourceManager &resources) : m_resources{resources}
 	{
 	}
+
 	~SequenceSystem();
+
 	SequenceSystem(const SequenceSystem &) = delete;
+
 	SequenceSystem &operator=(const SequenceSystem &) = delete;
 
 	// Appends the events crossed this frame to events, if given, in the order of the cameras and,

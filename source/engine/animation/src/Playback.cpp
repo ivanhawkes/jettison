@@ -10,6 +10,7 @@ namespace
 // A turn in radians.
 constexpr float kFullTurn = 6.28318531f;
 
+
 // The events between from and to, each end included or not, in the order met going from one to
 // the other.
 void Cross(
@@ -40,10 +41,12 @@ void Cross(
 }
 } // namespace
 
+
 void AdvanceRotation(RotationAnimationComponent &animation, float frameTime)
 {
 	animation.angle = std::fmod(animation.angle + animation.rotationSpeed * frameTime, kFullTurn);
 }
+
 
 void AdvancePlayer(AnimationPlayerComponent &player, float duration, float frameTime)
 {
@@ -55,6 +58,7 @@ void AdvancePlayer(AnimationPlayerComponent &player, float duration, float frame
 	else
 		player.time = std::clamp(player.time, 0.0f, duration);
 }
+
 
 float AdvanceClip(
     const Clip &clip, float time, float delta, bool looping, std::vector<std::size_t> &crossed)

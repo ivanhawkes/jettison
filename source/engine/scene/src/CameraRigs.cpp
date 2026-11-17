@@ -13,11 +13,13 @@ glm::dvec3 Direction(double yaw, double pitch)
 	return {std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch)};
 }
 
+
 double Approach(double current, double goal, double rate, double dt)
 {
 	return current + (goal - current) * SmoothingFactor(rate, dt);
 }
 } // namespace
+
 
 glm::dquat LookRotation(const glm::dvec3 &forward, const glm::dvec3 &up)
 {
@@ -29,6 +31,7 @@ glm::dquat LookRotation(const glm::dvec3 &forward, const glm::dvec3 &up)
 	const glm::dvec3 trueUp = glm::cross(back, right);
 	return glm::quat_cast(glm::dmat3{right, trueUp, back});
 }
+
 
 glm::dquat OrientationFromAngles(double pitch, double roll, double yaw)
 {
@@ -42,12 +45,14 @@ glm::dquat OrientationFromAngles(double pitch, double roll, double yaw)
 	return glm::angleAxis(roll, forward) * level;
 }
 
+
 CameraPose BlendPoses(const CameraPose &from, const CameraPose &to, double share)
 {
 	return {
 	    from.position + (to.position - from.position) * share,
 	    glm::normalize(glm::slerp(from.orientation, to.orientation, share))};
 }
+
 
 double SmoothingFactor(double rate, double dt)
 {
@@ -56,17 +61,20 @@ double SmoothingFactor(double rate, double dt)
 	return 1.0 - std::exp(-rate * std::max(dt, 0.0));
 }
 
+
 OrbitCamera::OrbitCamera(Settings settings) : m_settings{settings}
 {
 	m_goalDistance = m_distance =
 	    std::clamp(m_distance, m_settings.minDistance, m_settings.maxDistance);
 }
 
+
 void OrbitCamera::Orbit(double yaw, double pitch)
 {
 	m_goalYaw += yaw;
 	m_goalPitch = std::clamp(m_goalPitch + pitch, -m_settings.maxPitch, m_settings.maxPitch);
 }
+
 
 void OrbitCamera::Zoom(double factor)
 {
@@ -75,12 +83,14 @@ void OrbitCamera::Zoom(double factor)
 		    std::clamp(m_goalDistance * factor, m_settings.minDistance, m_settings.maxDistance);
 }
 
+
 void OrbitCamera::Place(double yaw, double pitch, double distance)
 {
 	m_goalYaw = m_yaw = yaw;
 	m_goalPitch = m_pitch = std::clamp(pitch, -m_settings.maxPitch, m_settings.maxPitch);
 	m_goalDistance = m_distance = std::clamp(distance, m_settings.minDistance, m_settings.maxDistance);
 }
+
 
 CameraPose OrbitCamera::Update(double dt)
 {
@@ -93,15 +103,18 @@ CameraPose OrbitCamera::Update(double dt)
 	return {m_target + offset, LookRotation(-offset)};
 }
 
+
 ChaseCamera::ChaseCamera(Settings settings) : m_settings{settings}
 {
 }
+
 
 void ChaseCamera::Snap()
 {
 	m_follow = m_target.orientation;
 	m_snapped = true;
 }
+
 
 CameraPose ChaseCamera::Update(double dt)
 {
@@ -115,9 +128,11 @@ CameraPose ChaseCamera::Update(double dt)
 	return {position, LookRotation(aim - position, m_follow * glm::dvec3{0.0, 1.0, 0.0})};
 }
 
+
 CockpitCamera::CockpitCamera(Settings settings) : m_settings{settings}
 {
 }
+
 
 void CockpitCamera::Look(double yaw, double pitch)
 {
@@ -125,11 +140,13 @@ void CockpitCamera::Look(double yaw, double pitch)
 	m_goalPitch = std::clamp(m_goalPitch + pitch, -m_settings.maxPitch, m_settings.maxPitch);
 }
 
+
 void CockpitCamera::Centre()
 {
 	m_goalYaw = 0.0;
 	m_goalPitch = 0.0;
 }
+
 
 CameraPose CockpitCamera::Update(double dt)
 {
@@ -140,11 +157,13 @@ CameraPose CockpitCamera::Update(double dt)
 	return {m_target.position + m_target.orientation * m_settings.eye, m_target.orientation * look};
 }
 
+
 MapCamera::MapCamera(Settings settings) : m_settings{settings}
 {
 	m_goalLogDistance = m_logDistance =
 	    std::log(std::sqrt(m_settings.minDistance * m_settings.maxDistance));
 }
+
 
 void MapCamera::Zoom(double steps)
 {
@@ -152,6 +171,7 @@ void MapCamera::Zoom(double steps)
 	    m_goalLogDistance - steps * std::log(m_settings.zoomRatio), std::log(m_settings.minDistance),
 	    std::log(m_settings.maxDistance));
 }
+
 
 void MapCamera::Pan(double right, double forward)
 {
@@ -162,16 +182,19 @@ void MapCamera::Pan(double right, double forward)
 	m_goalPan += (across * right + ahead * forward) * scale;
 }
 
+
 void MapCamera::Rotate(double yaw, double pitch)
 {
 	m_goalYaw += yaw;
 	m_goalPitch = std::clamp(m_goalPitch + pitch, m_settings.minPitch, m_settings.maxPitch);
 }
 
+
 void MapCamera::Recentre()
 {
 	m_goalPan = glm::dvec3{0.0};
 }
+
 
 CameraPose MapCamera::Update(double dt)
 {
@@ -185,10 +208,12 @@ CameraPose MapCamera::Update(double dt)
 	return {centre + offset, LookRotation(-offset)};
 }
 
+
 CameraTransition::CameraTransition(const CameraPose &from, double duration, Math::Easing easing)
     : m_from{from}, m_duration{duration}, m_easing{easing}
 {
 }
+
 
 CameraPose CameraTransition::Update(const CameraPose &to, double dt)
 {

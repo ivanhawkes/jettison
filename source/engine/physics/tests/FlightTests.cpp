@@ -39,6 +39,7 @@ constexpr double kStep = 1.0 / 60.0;
 constexpr std::uint64_t kSeed = 0x5ee1;
 const std::uint64_t kEmpty = Sim::SystemId("Empty");
 
+
 // The game's start-up, the same every run: the station's hull, a panel, a ship's hull, a ball, and
 // a docking zone.
 Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
@@ -62,6 +63,7 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 	return physics;
 }
 
+
 // The station, kinematic and on rails, in its own frame unless it is to be seen in the system's.
 entt::entity Station(Sim::SimWorld &world, std::string_view shape, bool framed = true)
 {
@@ -76,16 +78,20 @@ entt::entity Station(Sim::SimWorld &world, std::string_view shape, bool framed =
 	return station;
 }
 
+
 // Where the station is at a time, and how fast it is moving there as the step from it moves it.
 Sim::Transform StationAt(double simSeconds)
 {
 	const Celestial::StarSystem system = Halcyon();
 	return {Celestial::EvaluateBody(system, 2, simSeconds).metres, glm::dquat{1.0, 0.0, 0.0, 0.0}};
 }
+
+
 glm::dvec3 StationVelocity(double simSeconds)
 {
 	return (StationAt(simSeconds + kStep).position - StationAt(simSeconds).position) / kStep;
 }
+
 
 // A dynamic body beside the station, in its frame and still in it: a ship that has been holding
 // station.
@@ -107,6 +113,7 @@ entt::entity Beside(
 	return ship;
 }
 
+
 // A ship alone in a system with no gravity, at rest: for the flight model on its own.
 entt::entity Ship(Sim::SimWorld &world, const glm::dquat &orientation = {1.0, 0.0, 0.0, 0.0})
 {
@@ -120,21 +127,25 @@ entt::entity Ship(Sim::SimWorld &world, const glm::dquat &orientation = {1.0, 0.
 	return ship;
 }
 
+
 void Steps(Sim::SimWorld &world, int count)
 {
 	for (int step = 0; step < count; ++step)
 		world.Step();
 }
 
+
 void Fly(Sim::SimWorld &world, entt::entity ship, const FlightControls &controls)
 {
 	world.Commands().Push(SetFlightControls{{}, ship, controls});
 }
 
+
 const Velocity &VelocityOf(const Sim::SimWorld &world, entt::entity entity)
 {
 	return world.Registry().get<Velocity>(entity);
 }
+
 
 // Where the ship is in the station's frame, which is the system's turned by nothing: the station on
 // rails does not spin.
@@ -143,11 +154,14 @@ glm::dvec3 Relative(const Sim::SimWorld &world, entt::entity ship, entt::entity 
 	const entt::registry &registry = world.Registry();
 	return registry.get<Sim::Transform>(ship).position - registry.get<Sim::Transform>(station).position;
 }
+
+
 glm::dvec3 RelativeVelocity(const Sim::SimWorld &world, entt::entity ship, entt::entity station)
 {
 	return glm::dvec3{VelocityOf(world, ship).linear} - glm::dvec3{VelocityOf(world, station).linear};
 }
 } // namespace
+
 
 TEST_CASE("Flight: a ship takes flight controls only from the one at its helm, or from no one")
 {
@@ -189,6 +203,7 @@ TEST_CASE("Flight: a ship takes flight controls only from the one at its helm, o
 	CHECK(world.Registry().get<FlightControls>(unflown) == ahead);
 }
 
+
 TEST_CASE("Flight: with assist, a demand is a speed the thrusters reach and hold")
 {
 	Sim::SimWorld world{kStep, kSeed};
@@ -223,6 +238,7 @@ TEST_CASE("Flight: with assist, a demand is a speed the thrusters reach and hold
 	CHECK(VelocityOf(world, ship).linear.x == doctest::Approx(-150.0).epsilon(1e-5));
 	CHECK(VelocityOf(world, ship).linear.y == 0.0f);
 }
+
 
 TEST_CASE("Flight: a ship's thrust is what changed its velocity, none at a speed held")
 {
@@ -267,6 +283,7 @@ TEST_CASE("Flight: a ship's thrust is what changed its velocity, none at a speed
 	CHECK_FALSE(world.Registry().all_of<Thrust>(ship));
 }
 
+
 TEST_CASE("Flight: without assist, a demand is an acceleration, and a ship let go coasts")
 {
 	Sim::SimWorld world{kStep, kSeed};
@@ -288,6 +305,7 @@ TEST_CASE("Flight: without assist, a demand is an acceleration, and a ship let g
 	Steps(world, 120);
 	CHECK(VelocityOf(world, ship).angular.y == doctest::Approx(1.0).epsilon(1e-3));
 }
+
 
 TEST_CASE("Flight: turns are held at their rates with assist, and stop when let go")
 {
@@ -315,6 +333,7 @@ TEST_CASE("Flight: turns are held at their rates with assist, and stop when let 
 	CHECK(glm::dot(glm::normalize(velocity), forward) == doctest::Approx(1.0).epsilon(1e-6));
 }
 
+
 TEST_CASE("Flight: the thrusters' accelerations do not depend on the ship's mass")
 {
 	Sim::SimWorld world{kStep, kSeed};
@@ -329,6 +348,7 @@ TEST_CASE("Flight: the thrusters' accelerations do not depend on the ship's mass
 	Steps(world, 45);
 	CHECK(VelocityOf(world, light) == VelocityOf(world, heavy));
 }
+
 
 TEST_CASE("Flight: assist holds a ship to its reference, not to the system")
 {
@@ -361,6 +381,7 @@ TEST_CASE("Flight: assist holds a ship to its reference, not to the system")
 	Fly(world, ship, {{1.0f, 0.0f, 0.0f}});
 	CHECK_NOTHROW(world.Step());
 }
+
 
 TEST_CASE("Flight: an entity on rails is where its body is as each step ends")
 {
@@ -400,6 +421,7 @@ TEST_CASE("Flight: an entity on rails is where its body is as each step ends")
 	CHECK(world.Registry().get<Sim::Transform>(station).position == left);
 }
 
+
 TEST_CASE("Flight: rails that lead nowhere are refused before the step changes anything")
 {
 	Sim::SimWorld world{kStep, kSeed};
@@ -419,6 +441,7 @@ TEST_CASE("Flight: rails that lead nowhere are refused before the step changes a
 	world.Registry().get<OnRails>(station).body = "Ostra Lowport";
 	CHECK(world.StateHash() == before);
 }
+
 
 TEST_CASE("Flight: gravity is the system's bodies pulling, and none outside a defined system")
 {
@@ -443,6 +466,7 @@ TEST_CASE("Flight: gravity is the system's bodies pulling, and none outside a de
 	    doctest::Approx(0.5 * 3.986004418e14 / (6.371e6 * 6.371e6)).epsilon(1e-9));
 	CHECK(physics.Gravity(kEmpty, high, 0.0) == glm::dvec3{0.0});
 }
+
 
 TEST_CASE("Flight: a frame's origin is its body's position, and none for the system's own")
 {
@@ -472,6 +496,7 @@ TEST_CASE("Flight: a frame's origin is its body's position, and none for the sys
 	    std::invalid_argument);
 }
 
+
 TEST_CASE("Flight: a ship let drift beside a station on rails falls round the planet with it")
 {
 	Sim::SimWorld world{kStep, kSeed};
@@ -492,6 +517,7 @@ TEST_CASE("Flight: a ship let drift beside a station on rails falls round the pl
 	MESSAGE("drift over a minute: " << drift << " m");
 	CHECK(drift < 0.05);
 }
+
 
 TEST_CASE("Flight: a fast body swept continuously meets a thin panel that a placed one passes")
 {
@@ -533,6 +559,7 @@ struct Approach
 	entt::entity ship;
 };
 
+
 Approach Begin(Sim::SimWorld &world)
 {
 	const entt::entity station = Station(world, "hub");
@@ -554,6 +581,7 @@ Approach Begin(Sim::SimWorld &world)
 	registry.emplace<Thrusters>(ship);
 	return {station, zone, ship};
 }
+
 
 void Feed(Sim::SimWorld &world, const Approach &approach)
 {
@@ -599,6 +627,7 @@ struct ContactLog
 	std::vector<double> times;
 };
 
+
 void Run(
     Sim::SimWorld &world, const Approach &approach, std::uint64_t until, double *closest = nullptr,
     ContactLog *log = nullptr)
@@ -618,6 +647,7 @@ void Run(
 	}
 }
 } // namespace
+
 
 TEST_CASE(
     "Flight replay: a ship flown into a station on its orbit meets it, rests in its docking zone and "
@@ -717,6 +747,7 @@ TEST_CASE(
 	}
 	CHECK(replay.StateHash() == world.StateHash());
 }
+
 
 TEST_CASE(
     "Flight replay: saved as the ship meets the station in its zone, and loaded, it carries on the "

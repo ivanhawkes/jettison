@@ -26,6 +26,7 @@ namespace
 {
 constexpr double kAspect = 16.0 / 9.0;
 
+
 // Points spread evenly over a sphere's surface (a Fibonacci lattice), and its centre.
 std::vector<glm::dvec3> SurfacePoints(const BoundingSphere &sphere, int count = 400)
 {
@@ -43,6 +44,7 @@ std::vector<glm::dvec3> SurfacePoints(const BoundingSphere &sphere, int count = 
 	return points;
 }
 
+
 // And through its volume, on concentric shells.
 std::vector<glm::dvec3> VolumePoints(const BoundingSphere &sphere)
 {
@@ -52,6 +54,7 @@ std::vector<glm::dvec3> VolumePoints(const BoundingSphere &sphere)
 			points.push_back(point);
 	return points;
 }
+
 
 CameraView RandomCamera(Jettison::Math::Random &random)
 {
@@ -63,6 +66,7 @@ CameraView RandomCamera(Jettison::Math::Random &random)
 	return camera;
 }
 
+
 bool InsideClipVolume(const CameraView &camera, const glm::dvec3 &point)
 {
 	const glm::dmat4 projection{
@@ -72,6 +76,7 @@ bool InsideClipVolume(const CameraView &camera, const glm::dvec3 &point)
 	// Reversed: depth is 1 on the near plane and falls towards 0 at infinity.
 	return clip.w > 0.0 && std::abs(clip.x) <= clip.w && std::abs(clip.y) <= clip.w && clip.z <= clip.w;
 }
+
 
 // Whether the line of sight from the camera to a point meets the sphere before the point does.
 bool HiddenBy(const BoundingSphere &occluder, const glm::dvec3 &point)
@@ -87,6 +92,7 @@ bool HiddenBy(const BoundingSphere &occluder, const glm::dvec3 &point)
 	return entry > 0.0 && entry < length;
 }
 } // namespace
+
 
 TEST_CASE("Culling: a sphere the frustum leaves out has no point inside the view")
 {
@@ -118,6 +124,7 @@ TEST_CASE("Culling: a sphere the frustum leaves out has no point inside the view
 	CHECK(kept > 100);
 }
 
+
 TEST_CASE("Culling: a sphere whose centre is in view is kept, whatever its size")
 {
 	Jettison::Math::Random random{6};
@@ -134,6 +141,7 @@ TEST_CASE("Culling: a sphere whose centre is in view is kept, whatever its size"
 	CHECK_FALSE(Intersects(ViewFrustum(camera, kAspect), {{0.0, 0.0, 5.0}, 1.0}));
 	CHECK(Intersects(ViewFrustum(camera, kAspect), {{0.0, 0.0, 5.0}, 6.0}));
 }
+
 
 TEST_CASE("Culling: what a planet's horizon hides is behind the planet along every line of sight")
 {
@@ -164,6 +172,7 @@ TEST_CASE("Culling: what a planet's horizon hides is behind the planet along eve
 	CHECK(hidden > 200);
 }
 
+
 TEST_CASE("Culling: a station over the planet is hidden from the far side, and not from above")
 {
 	const double radius = 6.371e6;
@@ -182,6 +191,7 @@ TEST_CASE("Culling: a station over the planet is hidden from the far side, and n
 	const glm::dvec3 tangent = glm::normalize(glm::dvec3{radius, -horizon, 0.0});
 	CHECK_FALSE(Occludes(planet, {tangent * horizon * 1.5, 1.0e5}));
 }
+
 
 TEST_CASE("Culling: a caster a cascade leaves out has no point in the prism its map shadows")
 {
@@ -240,6 +250,7 @@ TEST_CASE("Culling: a caster a cascade leaves out has no point in the prism its 
 	}
 }
 
+
 TEST_CASE("Culling: a level of detail is the coarsest whose projected error is under the threshold")
 {
 	CameraView camera;
@@ -268,6 +279,7 @@ TEST_CASE("Culling: a level of detail is the coarsest whose projected error is u
 	CHECK(SelectLod(lods, scale, {{0.0, 0.0, -1.0e6}, 10.0}, selection) == 3u);
 }
 
+
 TEST_CASE("Culling: bounds through a transform keep every vertex inside")
 {
 	const ModelBounds bounds{{0.5f, -0.25f, 0.0f}, 2.0f};
@@ -285,6 +297,7 @@ TEST_CASE("Culling: bounds through a transform keep every vertex inside")
 		CHECK(glm::length(world - sphere.center) <= sphere.radius * (1.0 + 1e-9));
 	}
 }
+
 
 TEST_CASE("Culling: a draw narrower than a pixel in two of its directions is too small to see")
 {

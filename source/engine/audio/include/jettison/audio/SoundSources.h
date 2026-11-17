@@ -30,8 +30,10 @@ class SoundSources
   public:
 	// Once a frame, after the world transforms and before AudioSystem::Update.
 	void Update(const entt::registry &registry, AudioSystem &audio);
+
 	// Stops every source, as a scene is torn down.
 	void Clear(AudioSystem &audio);
+
 	std::size_t Size() const;
 
   private:

@@ -77,6 +77,7 @@ class MaterialCache
 	    Resource::ResourceManager &resources, PipelineCache &pipelines, std::uint32_t framesInFlight);
 
 	MaterialCache(const MaterialCache &) = delete;
+
 	MaterialCache &operator=(const MaterialCache &) = delete;
 
 	// The layouts and the render states are the renderer's: the opaque pass's for an opaque program,
@@ -86,6 +87,7 @@ class MaterialCache
 	void Init(
 	    VkDescriptorSetLayout materialLayout, VkPipelineLayout sceneLayout,
 	    const RenderState &sceneState, const RenderState &transparentState);
+
 	// Releases every handle and frees everything, queued or not: the device has to be idle. The
 	// resource manager outlives this, and its loaders must not run after it.
 	void Destroy();
@@ -108,6 +110,7 @@ class MaterialCache
 	// Retires a model's own materials, which wait out the frames in flight: the model is going, and
 	// its address may be the next one's.
 	void Forget(const Model &model);
+
 	// Releases every named material this frame did not resolve: after a scene reload, the ones the
 	// new scene does not draw. What they bound waits out the frames in flight.
 	void ReleaseUnresolved();
@@ -158,22 +161,30 @@ class MaterialCache
 	};
 
 	void RegisterLoaders();
+
 	// The program's descriptor and pipeline, read and built once; throws for a program that is not
 	// in the asset tree.
 	const Program &GetProgram(const std::string &name);
+
 	// Rebuilds what a named material binds, if its definition or a texture moved. False while it
 	// cannot be drawn yet, or at all.
 	bool Refresh(const std::string &virtualPath, NamedMaterial &material);
+
 	void ReleaseNamed(NamedMaterial &material);
 
 	// A descriptor set of its own pool, the views by binding; the pool goes with the set.
 	void AllocateSet(
 	    const std::array<VkImageView, kMaterialTextureSlots> &views, const std::string &name,
 	    VkDescriptorPool &pool, VkDescriptorSet &set);
+
 	VkImageView FallbackView(TextureFallback fallback) const;
+
 	void Upload(const TextureData &data, const std::string &name, Image &image, VkImageView &view);
+
 	void Retire(Retired retired);
+
 	void Free(Retired &retired);
+
 	// Frees every model's own material at once; the device has to be idle.
 	void ForgetAll();
 

@@ -22,10 +22,12 @@ namespace
 {
 constexpr Core::Category kBehaviour{"behaviour"};
 
+
 [[noreturn]] void Refuse(std::string_view name, std::string_view path, const std::string &problem)
 {
 	throw Serialise::FormatError{std::format("Behaviour '{}' has, at {}, {}", name, path, problem)};
 }
+
 
 std::string_view KindName(NodeKind kind)
 {
@@ -42,6 +44,7 @@ std::string_view KindName(NodeKind kind)
 	}
 	return "a node";
 }
+
 
 void CheckNode(std::string_view name, const BehaviourNode &node, const std::string &path)
 {
@@ -82,12 +85,14 @@ void CheckNode(std::string_view name, const BehaviourNode &node, const std::stri
 		CheckNode(name, node.children[index], std::format("{}.{}", path, index));
 }
 
+
 // Lets the ship's controls go, from the helm or to it.
 void LetGo(entt::registry &registry, entt::entity ship)
 {
 	if (auto *controls = registry.try_get<Physics::FlightControls>(ship))
 		*controls = Physics::FlightControls{};
 }
+
 
 void Leave(Sim::SimWorld &world, entt::entity ship)
 {
@@ -99,6 +104,7 @@ void Leave(Sim::SimWorld &world, entt::entity ship)
 		behaviour->nodes.clear();
 	world.Events().Emit(HelmLeft{controller, ship});
 }
+
 
 void Take(Sim::SimWorld &world, const TakeHelm &command)
 {
@@ -128,6 +134,7 @@ void Take(Sim::SimWorld &world, const TakeHelm &command)
 	world.Events().Emit(HelmTaken{command.sender, command.ship});
 }
 
+
 void Leave(Sim::SimWorld &world, const LeaveHelm &command)
 {
 	const entt::registry &registry = world.Registry();
@@ -143,10 +150,12 @@ void Leave(Sim::SimWorld &world, const LeaveHelm &command)
 }
 } // namespace
 
+
 void CheckBehaviour(std::string_view name, const BehaviourDefinition &behaviour)
 {
 	CheckNode(name, behaviour.root, "root");
 }
+
 
 Behaviours &Behaviours::Attach(Sim::SimWorld &world)
 {
@@ -174,6 +183,7 @@ Behaviours &Behaviours::Attach(Sim::SimWorld &world)
 	return *behaviours;
 }
 
+
 void Behaviours::DefineTask(std::string name, Task task)
 {
 	if (name.empty() || !task)
@@ -182,6 +192,7 @@ void Behaviours::DefineTask(std::string name, Task task)
 		throw std::invalid_argument{std::format("Ai: task '{}' is already defined", name)};
 	m_tasks.emplace(std::move(name), std::move(task));
 }
+
 
 void Behaviours::DefineTree(std::string name, const BehaviourDefinition &tree)
 {
@@ -193,22 +204,26 @@ void Behaviours::DefineTree(std::string name, const BehaviourDefinition &tree)
 	m_trees.emplace(std::move(name), std::move(flat));
 }
 
+
 void Behaviours::Define(const Sim::DefinitionRegistry &definitions)
 {
 	for (const std::string &name : definitions.Names<BehaviourDefinition>())
 		DefineTree(name, *definitions.Find<BehaviourDefinition>(name));
 }
 
+
 bool Behaviours::HasTree(std::string_view name) const
 {
 	return m_trees.contains(name);
 }
+
 
 std::size_t Behaviours::NodeCount(std::string_view tree) const
 {
 	const auto found = m_trees.find(tree);
 	return found == m_trees.end() ? 0 : found->second.size();
 }
+
 
 void Behaviours::Flatten(
     const BehaviourNode &node, Tree &tree, std::string_view name, std::string path) const
@@ -233,6 +248,7 @@ void Behaviours::Flatten(
 		Flatten(node.children[child], tree, name, std::format("{}.{}", path, child));
 	}
 }
+
 
 Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 {
@@ -264,6 +280,7 @@ Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 	return status;
 }
 
+
 void Behaviours::Step(Sim::SimWorld &world)
 {
 	entt::registry &registry = world.Registry();
@@ -276,6 +293,7 @@ void Behaviours::Step(Sim::SimWorld &world)
 		if (registry.valid(entity))
 			Tick(world, entity);
 }
+
 
 Status Behaviours::TickNode(
     Sim::SimWorld &world, entt::entity entity, const Tree &tree, std::vector<NodeState> &states,

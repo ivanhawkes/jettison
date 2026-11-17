@@ -27,6 +27,7 @@ namespace
 constexpr Core::Category kMounts{"mounts"};
 constexpr std::string_view kPackExtension = ".pack";
 
+
 // A mod's identifier: its directory's name, or its pack's without the extension, so a mod is the same
 // mod to a save and to another's requirement whether it is packed or not.
 std::string IdentifierOf(const std::filesystem::path &mod)
@@ -34,11 +35,13 @@ std::string IdentifierOf(const std::filesystem::path &mod)
 	return mod.extension() == kPackExtension ? mod.stem().string() : mod.filename().string();
 }
 
+
 const char *KindOf(const std::filesystem::path &source)
 {
 	std::error_code error;
 	return std::filesystem::is_directory(source, error) ? "directory" : "pack";
 }
+
 
 // The mods directory's mods, in the order of their identifiers' bytes, one of each: a directory and a
 // pack of one identifier are reported, and the directory kept.
@@ -76,6 +79,7 @@ std::vector<std::filesystem::path> FindMods(const std::filesystem::path &userDat
 	return unique;
 }
 
+
 // The list, or nothing for a list that is not there or does not read, which is said.
 std::optional<ModList> ReadList(const std::filesystem::path &path, bool &readable)
 {
@@ -109,6 +113,7 @@ std::optional<ModList> ReadList(const std::filesystem::path &path, bool &readabl
 	}
 }
 
+
 // The description at the mod's root, read through a mount of the mod alone, or none for a mod with
 // none. Throws for one that does not read, or that the mod cannot be mounted to read.
 ModDescription Describe(const std::filesystem::path &mod)
@@ -121,6 +126,7 @@ ModDescription Describe(const std::filesystem::path &mod)
 	const std::string_view text{reinterpret_cast<const char *>(bytes->data()), bytes->size()};
 	return Serialise::YamlArchive::Read<ModDescription>(text, {kModFormatVersion});
 }
+
 
 std::array<unsigned, 3> VersionNumbers(std::string_view version)
 {
@@ -144,6 +150,7 @@ std::array<unsigned, 3> VersionNumbers(std::string_view version)
 }
 } // namespace
 
+
 void RegisterModTypes()
 {
 	static const bool registered = []
@@ -163,10 +170,12 @@ void RegisterModTypes()
 	(void)registered;
 }
 
+
 bool EngineAtLeast(std::string_view engine, std::string_view required)
 {
 	return VersionNumbers(engine) >= VersionNumbers(required);
 }
+
 
 std::vector<Sim::ModVersion> MountAssets(
     Vfs::FileSystem &files, const std::filesystem::path &assets, const std::filesystem::path &userData,

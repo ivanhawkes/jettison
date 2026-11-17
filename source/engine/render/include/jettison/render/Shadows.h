@@ -56,6 +56,7 @@ struct SunShadows
 	std::array<ShadowCascade, kShadowCascades> cascades{};
 
 	glm::vec4 Splits() const;
+
 	glm::vec4 TexelSizes() const;
 };
 
@@ -71,7 +72,10 @@ SunShadows FitSunShadows(
 
 // shadows.glsl, as the lighting include runs it.
 std::uint32_t ShadowCascadeAt(float depth, const glm::vec4 &splits);
+
 float ShadowCascadeStart(std::uint32_t cascade, const glm::vec4 &splits, float nearPlane);
+
 float ShadowCascadeBlend(float depth, float split);
+
 glm::vec3 ShadowMapCoordinate(const glm::mat4 &cascade, const glm::vec3 &renderPosition);
 } // namespace Jettison::Render

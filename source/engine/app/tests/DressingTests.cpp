@@ -32,6 +32,7 @@ namespace
 {
 constexpr double kStep = 1.0 / 60.0;
 
+
 Celestial::StarSystem System(const std::string &file)
 {
 	std::ifstream in{std::string{JETTISON_ASSET_SOURCE_DIR} + "/systems/" + file};
@@ -53,6 +54,7 @@ struct Dressed
 	entt::registry scene;
 	entt::entity station{scene.create()};
 
+
 	Dressed()
 	{
 		for (const Celestial::StarSystem &system : systems)
@@ -66,6 +68,7 @@ struct Dressed
 		scene.emplace<Scene::TransformComponent>(station);
 	}
 
+
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -74,11 +77,13 @@ struct Dressed
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
+
 	const Dock::StationLayout &Layout() const
 	{
 		return *docks.FindLayout("ostra-highport");
 	}
 };
+
 
 // The scene's transform as a matrix: translated, turned about X, then Y, then Z, and scaled.
 glm::dmat4 Local(const Scene::TransformComponent &transform)
@@ -89,6 +94,7 @@ glm::dmat4 Local(const Scene::TransformComponent &transform)
 	matrix = glm::rotate(matrix, double{transform.rotation.z}, {0.0, 0.0, 1.0});
 	return glm::scale(matrix, glm::dvec3{transform.scale});
 }
+
 
 // An entity's place relative to the root it is under.
 glm::dmat4 Under(const entt::registry &scene, entt::entity entity, entt::entity root)
@@ -103,6 +109,7 @@ glm::dmat4 Under(const entt::registry &scene, entt::entity entity, entt::entity 
 	return matrix;
 }
 
+
 Scene::Layer LayerOf(const entt::registry &scene, entt::entity entity)
 {
 	for (; entity != entt::null;)
@@ -114,6 +121,7 @@ Scene::Layer LayerOf(const entt::registry &scene, entt::entity entity)
 	}
 	return Scene::Layer::Environment;
 }
+
 
 // The pads' entities: the station's children placed where a pad is.
 std::vector<entt::entity> PadNodes(const Dressed &dressed)
@@ -128,6 +136,7 @@ std::vector<entt::entity> PadNodes(const Dressed &dressed)
 	return nodes;
 }
 } // namespace
+
 
 TEST_CASE(
     "Dressing: a layout is drawn under the station as it collides, each pad turned to its heading")
@@ -191,6 +200,7 @@ TEST_CASE(
 		CHECK(plates == 1);
 	}
 }
+
 
 TEST_CASE(
     "Dressing: every pad painted and floodlit at Highport, a hundred and four lights within the "
@@ -280,6 +290,7 @@ TEST_CASE(
 	CHECK(paint == expected);
 }
 
+
 TEST_CASE("Dressing: the display wing shows a liner, a frigate and four fighters, as dressing")
 {
 	Dressed dressed;
@@ -318,6 +329,7 @@ TEST_CASE("Dressing: the display wing shows a liner, a frigate and four fighters
 	    shown ==
 	    std::multiset<std::string>{"fighter", "fighter", "fighter", "fighter", "frigate", "liner"});
 }
+
 
 TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a display pad's stay blue")
 {
@@ -359,6 +371,7 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 	// Without its station, none of the pads are the dressing's.
 	CHECK(App::ShowPadStates(dressed.scene, dressing, snapshot, entt::null, dressed.docks) == 0);
 }
+
 
 TEST_CASE(
     "Dressing: a pad's clamps close on the ship clamped to it, fitted to its hull, and open as it "
@@ -435,6 +448,7 @@ TEST_CASE(
 	CHECK(player(13).clip == App::kClampClose);
 }
 
+
 TEST_CASE(
     "Dressing: each hull class's proxy is inside its hull's box, and a hull's model is drawn instead")
 {
@@ -489,6 +503,7 @@ TEST_CASE(
 	}
 	CHECK(models == 1);
 }
+
 
 TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets and nozzles that glow")
 {
@@ -582,6 +597,7 @@ TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets 
 	CHECK(display.view<const App::ShipThrusters>().empty());
 }
 
+
 TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots have it carry")
 {
 	Dressed dressed;
@@ -630,6 +646,7 @@ TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots
 	App::ShowBuggyLoads(dressed.scene, Sim::Capture(dressed.world));
 	CHECK(shown() == 0);
 }
+
 
 TEST_CASE("Dressing: a station whose buggies are parked shows them across each pad's stern")
 {

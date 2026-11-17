@@ -53,6 +53,7 @@ struct HoldsOpaque
 	Opaque opaque;
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -92,13 +93,20 @@ class Scratch
 		m_files.AddMount({"base", m_directory / "base", false});
 		m_files.AddMount({"mod", m_directory / "mod", false});
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -106,6 +114,8 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary | std::ios::trunc} << contents;
 	}
+
+
 	const Vfs::FileSystem &Files() const
 	{
 		return m_files;
@@ -139,6 +149,7 @@ constexpr const char *kMarketDocument = R"rml(<rml>
 </rml>
 )rml";
 
+
 // The extent the overlay's vertices cover across, in pixels.
 float DrawnWidth(const Render::Overlay &overlay)
 {
@@ -156,6 +167,7 @@ float DrawnWidth(const Render::Overlay &overlay)
 	return right - left;
 }
 } // namespace
+
 
 TEST_CASE("Ui: a document shows what its data model is bound to, and reads it again once changed")
 {
@@ -209,6 +221,7 @@ TEST_CASE("Ui: a document shows what its data model is bound to, and reads it ag
 	CHECK(ui.Problems() == 0);
 }
 
+
 TEST_CASE("Ui: a document draws into the overlay, and its glyphs are textures the overlay holds")
 {
 	RegisterTypes();
@@ -251,6 +264,7 @@ TEST_CASE("Ui: a document draws into the overlay, and its glyphs are textures th
 	CHECK_FALSE(ui.IsShown(document));
 }
 
+
 TEST_CASE("Ui: a mod's mount over the base restyles a screen by shadowing its stylesheet")
 {
 	Scratch scratch;
@@ -279,6 +293,7 @@ TEST_CASE("Ui: a mod's mount over the base restyles a screen by shadowing its st
 	CHECK(drawnWidth() == doctest::Approx(300.0f));
 }
 
+
 TEST_CASE("Ui: the mouse over a shown document's element is the UI's, and elsewhere the scene's")
 {
 	Scratch scratch;
@@ -305,6 +320,7 @@ TEST_CASE("Ui: the mouse over a shown document's element is the UI's, and elsewh
 	CHECK_FALSE(ui.WantsMouse());
 }
 
+
 TEST_CASE("Ui: what cannot work is refused when it is set up, by name")
 {
 	RegisterTypes();
@@ -330,6 +346,7 @@ TEST_CASE("Ui: what cannot work is refused when it is set up, by name")
 	    "DataModel: 'holds.opaque' is of a type the UI cannot show (one Reflect has not registered)",
 	    std::logic_error);
 }
+
 
 TEST_CASE("Ui: an event's arguments read as numbers and as text")
 {

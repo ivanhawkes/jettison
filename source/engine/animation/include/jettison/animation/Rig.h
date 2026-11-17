@@ -44,10 +44,12 @@ struct Rig
 	{
 		return !joints.empty();
 	}
+
 	bool HasSceneGraph() const
 	{
 		return !nodes.empty();
 	}
+
 	bool HasAnimation(std::string_view name) const;
 
 	// The clip's duration in seconds, or zero for a clip the rig does not have.

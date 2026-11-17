@@ -20,6 +20,7 @@ bool Admissible(double cost)
 }
 } // namespace
 
+
 std::optional<Path> FindPath(const Graph &graph, NodeId start, NodeId goal, const Heuristic &heuristic)
 {
 	const std::size_t count = graph.adjacency.size();

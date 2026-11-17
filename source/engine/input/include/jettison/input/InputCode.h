@@ -51,6 +51,7 @@ constexpr InputCode Axis(std::uint8_t joystick, std::int32_t axis)
 {
 	return {Device::JoystickAxis, axis, joystick};
 }
+
 constexpr InputCode Button(std::uint8_t joystick, std::int32_t button)
 {
 	return {Device::JoystickButton, button, joystick};
@@ -77,6 +78,7 @@ inline constexpr InputCode F6{Device::Keyboard, 295};
 inline constexpr InputCode F9{Device::Keyboard, 298};
 inline constexpr InputCode LeftShift{Device::Keyboard, 340};
 inline constexpr InputCode LeftControl{Device::Keyboard, 341};
+
 // A letter or digit key: GLFW's code for one is its ASCII, upper case for a letter.
 constexpr InputCode Character(char character)
 {
@@ -89,6 +91,7 @@ constexpr InputCode Character(char character)
 // written by number, "Key.#161", and read back the same way. Joysticks are numbered from 1 in text,
 // as GLFW names them, and their axes and buttons from 0, as GLFW's arrays have them.
 std::string FormatInput(InputCode input);
+
 std::optional<InputCode> ParseInput(std::string_view text);
 
 // One way to drive an action.
@@ -114,5 +117,6 @@ struct Binding
 // scale and dead zone. The empty string is no bindings. ParseBindings returns nothing for text
 // that is not bindings.
 std::string FormatBindings(const std::vector<Binding> &bindings);
+
 std::optional<std::vector<Binding>> ParseBindings(std::string_view text);
 } // namespace Jettison::Input

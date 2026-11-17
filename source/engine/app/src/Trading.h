@@ -128,6 +128,7 @@ struct GalacticPrices
 
 	// The good's mean, or none for a good it does not have.
 	const GalacticPrice *Find(std::string_view good) const;
+
 	bool operator==(const GalacticPrices &) const = default;
 };
 
@@ -142,6 +143,7 @@ std::int64_t MoveMean(std::int64_t mean, std::int64_t price, std::int64_t crates
 
 // The galaxy's means, or null in a world that has none (one saved before them); in a snapshot too.
 const GalacticPrices *FindGalacticPrices(const entt::registry &registry);
+
 const GalacticPrices *FindGalacticPrices(const Sim::Snapshot &snapshot);
 
 // A crate of one good in a hold.
@@ -160,7 +162,9 @@ struct Hold
 	std::vector<Cargo> cargo;
 
 	std::int64_t Used() const;
+
 	std::int64_t Crates(std::string_view good) const;
+
 	bool operator==(const Hold &) const = default;
 };
 // Who owns ships and holds the credits they trade with (docs/roadmap.md, "Decided": a player has a
@@ -186,13 +190,18 @@ struct Purse
 // that already has one.
 entt::entity MakeOwner(
     entt::registry &registry, const Sim::Controller &controller, std::int64_t credits);
+
 // The owner of that controller, or null.
 entt::entity FindOwner(const entt::registry &registry, const Sim::Controller &controller);
+
 // The owner of the ship, by its ControlledBy, or null for a ship that has no owner.
 entt::entity OwnerOf(const entt::registry &registry, entt::entity ship);
+
 // The ship's owner's purse, or null.
 Purse *PurseOf(entt::registry &registry, entt::entity ship);
+
 const Purse *PurseOf(const entt::registry &registry, entt::entity ship);
+
 // The same, as a snapshot shows it.
 const Purse *PurseOf(const Sim::Snapshot &snapshot, entt::entity ship);
 
@@ -283,6 +292,7 @@ inline constexpr std::uint32_t kTradeDefinitionVersion = 1;
 // Sim::ControlledBy shown with them), the Trade command, and the system "shell.market", which ticks the
 // markets every kMarketTickSteps steps.
 void RegisterTrading(Sim::SimWorld &world);
+
 // The goods (defs/goods) and markets (defs/markets) into the registry. Throws as the registry's Load
 // does, naming the file.
 void LoadTradeDefinitions(Sim::DefinitionRegistry &definitions);
@@ -295,6 +305,7 @@ std::vector<entt::entity> OpenMarkets(Sim::SimWorld &world, const Sim::Definitio
 // The price a market quotes for a good at its stock: twice the base at none, the base at the target,
 // a quarter of it at most at seven times the target and beyond. Whole credits, never below one.
 std::int64_t ScarcityPrice(const MarketGood &good);
+
 // The good's price, its bid and ask from it, by the fee: the ask rounded up and the bid down, so the
 // market never pays out a fraction of a credit.
 void Quote(MarketGood &good, std::uint32_t feeBps);
@@ -302,6 +313,7 @@ void Quote(MarketGood &good, std::uint32_t feeBps);
 // One market tick: each market makes and uses its goods, at most four times the target held, and
 // quotes again.
 void TickMarkets(entt::registry &registry);
+
 // Applies a trade, or refuses it with a TradeRefused: a ship or market that is not there, a sender
 // that does not command the ship, a ship with no owner, a ship not docked at the market's station, a
 // good the market does not deal in, too few crates in the market or the hold, too few credits, too

@@ -18,6 +18,7 @@ void CheckNear(const glm::vec3 &actual, const glm::vec3 &expected)
 }
 } // namespace
 
+
 TEST_CASE("CubicBezier: starts and ends on its end points, and the Bernstein weights between")
 {
 	const glm::vec3 p0{0.0f, 0.0f, 0.0f};
@@ -32,6 +33,7 @@ TEST_CASE("CubicBezier: starts and ends on its end points, and the Bernstein wei
 	CheckNear(CubicBezier(p0, p1, p2, p3, -1.0f), p0);
 }
 
+
 TEST_CASE("CatmullRom: passes through every point, unevenly spaced ones included")
 {
 	const std::array<glm::vec3, 5> points{
@@ -43,6 +45,7 @@ TEST_CASE("CatmullRom: passes through every point, unevenly spaced ones included
 	CheckNear(CatmullRom(points, 1.5f), points.back());
 }
 
+
 TEST_CASE("CatmullRom: evenly spaced points on a line give a straight, even path")
 {
 	const std::array<glm::vec3, 3> points{
@@ -53,6 +56,7 @@ TEST_CASE("CatmullRom: evenly spaced points on a line give a straight, even path
 	const std::array<glm::vec3, 2> two{glm::vec3{0.0f}, glm::vec3{4.0f, 0.0f, 0.0f}};
 	CheckNear(CatmullRom(two, 0.75f), glm::vec3{3.0f, 0.0f, 0.0f});
 }
+
 
 TEST_CASE("CatmullRom: one point, and a repeated point, are not divisions by zero")
 {
@@ -71,6 +75,7 @@ TEST_CASE("CatmullRom: one point, and a repeated point, are not divisions by zer
 	}
 }
 
+
 TEST_CASE("Ease: every curve maps 0 to 0 and 1 to 1, and clamps outside")
 {
 	for (const Easing easing :
@@ -84,6 +89,7 @@ TEST_CASE("Ease: every curve maps 0 to 0 and 1 to 1, and clamps outside")
 		CHECK(Ease(easing, 2.0f) == doctest::Approx(1.0f));
 	}
 }
+
 
 TEST_CASE("Ease: the shapes, at hand-computed points")
 {

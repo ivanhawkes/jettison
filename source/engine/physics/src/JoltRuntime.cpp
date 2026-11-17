@@ -22,6 +22,7 @@ namespace
 {
 constexpr Core::Category kJolt{"physics"};
 
+
 void Trace(const char *format, ...)
 {
 	char line[1024];
@@ -33,6 +34,8 @@ void Trace(const char *format, ...)
 }
 
 #ifdef JPH_ENABLE_ASSERTS
+
+
 // A failed assertion in Jolt is a defect, as one of the engine's is: it is reported the same way,
 // with Jolt's message, and aborts there rather than returning to break into a debugger.
 bool AssertFailed(const char *expression, const char *message, const char *file, JPH::uint line)
@@ -57,12 +60,18 @@ class Runtime
 		JPH::Factory::sInstance = m_pFactory.get();
 		JPH::RegisterTypes();
 	}
+
+
 	~Runtime()
 	{
 		JPH::UnregisterTypes();
 		JPH::Factory::sInstance = nullptr;
 	}
+
+
 	Runtime(const Runtime &) = delete;
+
+
 	Runtime &operator=(const Runtime &) = delete;
 
   private:
@@ -71,17 +80,20 @@ class Runtime
 };
 } // namespace
 
+
 void EnsureJolt()
 {
 	static const Runtime runtime;
 	(void)runtime;
 }
 
+
 void ByteRecorder::WriteBytes(const void *data, std::size_t size)
 {
 	const auto *bytes = static_cast<const std::uint8_t *>(data);
 	m_bytes.insert(m_bytes.end(), bytes, bytes + size);
 }
+
 
 void ByteRecorder::ReadBytes(void *data, std::size_t size)
 {

@@ -17,12 +17,14 @@ namespace
 	throw Serialise::FormatError{std::format("Decision '{}' {}", name, problem)};
 }
 
+
 bool Finite(const ResponseCurve &curve)
 {
 	return std::isfinite(curve.slope) && std::isfinite(curve.exponent) && std::isfinite(curve.shift) &&
 	       std::isfinite(curve.offset);
 }
 } // namespace
+
 
 void CheckDecision(std::string_view name, const DecisionDefinition &decision)
 {
@@ -63,6 +65,7 @@ void CheckDecision(std::string_view name, const DecisionDefinition &decision)
 	}
 }
 
+
 double Respond(const ResponseCurve &curve, double x)
 {
 	const double along = x - curve.shift;
@@ -83,12 +86,14 @@ double Respond(const ResponseCurve &curve, double x)
 	return curve.invert ? 1.0 - value : value;
 }
 
+
 double Consider(const Consideration &consideration, double input)
 {
 	const double x =
 	    std::clamp((input - consideration.low) / (consideration.high - consideration.low), 0.0, 1.0);
 	return Respond(consideration.curve, std::isnan(x) ? 0.0 : x);
 }
+
 
 double Score(const UtilityAction &action, const Inputs &inputs, double bar)
 {
@@ -106,6 +111,7 @@ double Score(const UtilityAction &action, const Inputs &inputs, double bar)
 	}
 	return score;
 }
+
 
 std::optional<Choice> Choose(const DecisionDefinition &decision, std::span<const Option> options)
 {

@@ -38,6 +38,7 @@ struct IoWorker::State
 	// Declared last, so it is destroyed, and joined, first: the thread uses everything above.
 	std::jthread thread;
 
+
 	void Run(const std::stop_token &stop)
 	{
 		std::unique_lock lock{mutex};
@@ -75,14 +76,17 @@ struct IoWorker::State
 	}
 };
 
+
 IoWorker::IoWorker() : m_pState{std::make_unique<State>()}
 {
 	m_pState->thread =
 	    std::jthread{[state = m_pState.get()](const std::stop_token &stop) { state->Run(stop); }};
 }
 
+
 // The jthread requests stop and joins as State is destroyed; the wait above wakes on the request.
 IoWorker::~IoWorker() = default;
+
 
 void IoWorker::Enqueue(Work work, Completion completion)
 {
@@ -92,6 +96,7 @@ void IoWorker::Enqueue(Work work, Completion completion)
 	}
 	m_pState->workAvailable.notify_one();
 }
+
 
 void IoWorker::Drain()
 {
@@ -112,6 +117,7 @@ void IoWorker::Drain()
 			item.completion();
 	}
 }
+
 
 void IoWorker::WaitIdle()
 {

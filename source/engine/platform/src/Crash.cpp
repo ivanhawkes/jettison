@@ -71,6 +71,7 @@ alignas(16) std::array<std::byte, kStackBytes> g_stack{};
 // process, and the same thread's, a fault inside the handler, ends it at once.
 std::atomic<pid_t> g_reporting{0};
 
+
 void Copy(std::array<char, kPathBytes> &to, const std::string &from, std::string_view what)
 {
 	if (from.size() >= to.size())
@@ -79,6 +80,7 @@ void Copy(std::array<char, kPathBytes> &to, const std::string &from, std::string
 		        "Crash handler: the {} '{}' is longer than {} bytes", what, from, to.size() - 1));
 	std::memcpy(to.data(), from.c_str(), from.size() + 1);
 }
+
 
 std::string FindOnPath(std::string_view name)
 {
@@ -103,6 +105,7 @@ std::string FindOnPath(std::string_view name)
 
 // --- Everything below until OnTerminate runs inside the signal handler. ---
 
+
 std::size_t Length(const char *text) noexcept
 {
 	std::size_t length = 0;
@@ -110,6 +113,7 @@ std::size_t Length(const char *text) noexcept
 		++length;
 	return length;
 }
+
 
 void WriteAll(int descriptor, const char *bytes, std::size_t count) noexcept
 {
@@ -132,12 +136,19 @@ class Writer
 	Writer(int report, bool echo) noexcept : m_report{report}, m_echo{echo}
 	{
 	}
+
+
 	~Writer()
 	{
 		Flush();
 	}
+
+
 	Writer(const Writer &) = delete;
+
+
 	Writer &operator=(const Writer &) = delete;
+
 
 	Writer &Text(std::string_view text) noexcept
 	{
@@ -149,10 +160,14 @@ class Writer
 		}
 		return *this;
 	}
+
+
 	Writer &Text(const char *text) noexcept
 	{
 		return Text(std::string_view{text, Length(text)});
 	}
+
+
 	Writer &Decimal(std::uint64_t value, int width = 0) noexcept
 	{
 		std::array<char, 20> digits{};
@@ -168,6 +183,8 @@ class Writer
 			Text(std::string_view{&digits[static_cast<std::size_t>(--count)], 1});
 		return *this;
 	}
+
+
 	Writer &Hex(std::uint64_t value, int width = 1) noexcept
 	{
 		constexpr std::string_view kDigits = "0123456789abcdef";
@@ -179,6 +196,8 @@ class Writer
 			Text(kDigits.substr((value >> (digit * 4)) & 0xF, 1));
 		return *this;
 	}
+
+
 	void Flush() noexcept
 	{
 		if (m_report >= 0)
@@ -187,6 +206,8 @@ class Writer
 			WriteAll(STDERR_FILENO, m_buffer.data(), m_used);
 		m_used = 0;
 	}
+
+
 	void Echo(bool echo) noexcept
 	{
 		Flush();
@@ -208,6 +229,8 @@ class Builder
 	{
 		m_pBuffer[0] = '\0';
 	}
+
+
 	Builder &Text(std::string_view text) noexcept
 	{
 		for (const char character : text)
@@ -216,6 +239,8 @@ class Builder
 		m_pBuffer[m_used] = '\0';
 		return *this;
 	}
+
+
 	Builder &Decimal(std::uint64_t value, int width = 0) noexcept
 	{
 		std::array<char, 20> digits{};
@@ -238,6 +263,7 @@ class Builder
 	std::size_t m_used{0};
 };
 
+
 const char *SignalName(int signal) noexcept
 {
 	switch (signal)
@@ -250,6 +276,7 @@ const char *SignalName(int signal) noexcept
 		default: return "a signal";
 	}
 }
+
 
 // What the kernel says caused it, where the code says more than the signal.
 const char *Cause(const siginfo_t &info) noexcept
@@ -275,10 +302,12 @@ const char *Cause(const siginfo_t &info) noexcept
 	}
 }
 
+
 bool HasAddress(int signal) noexcept
 {
 	return signal == SIGSEGV || signal == SIGBUS || signal == SIGFPE || signal == SIGILL;
 }
+
 
 // Days since 1970-01-01 to a civil date (Howard Hinnant's civil_from_days).
 void CivilFromDays(std::int64_t days, std::int64_t &year, unsigned &month, unsigned &day) noexcept
@@ -294,6 +323,7 @@ void CivilFromDays(std::int64_t days, std::int64_t &year, unsigned &month, unsig
 	month = monthIndex < 10 ? monthIndex + 3 : monthIndex - 9;
 	year = static_cast<std::int64_t>(yearOfEra) + era * 400 + (month <= 2 ? 1 : 0);
 }
+
 
 // 2026-11-13T10:22:05Z, or 20261113T102205Z for a file's name.
 template <typename Out> void WriteTime(Out &writer, std::int64_t seconds, bool compact) noexcept
@@ -345,6 +375,7 @@ struct Scratch
 };
 Scratch g_scratch;
 
+
 std::uintptr_t ParseHex(const char *&cursor) noexcept
 {
 	std::uintptr_t value = 0;
@@ -360,6 +391,7 @@ std::uintptr_t ParseHex(const char *&cursor) noexcept
 	}
 }
 
+
 void SkipField(const char *&cursor) noexcept
 {
 	while (*cursor != ' ' && *cursor != '\0')
@@ -368,10 +400,12 @@ void SkipField(const char *&cursor) noexcept
 		++cursor;
 }
 
+
 bool SamePath(const char *a, const char *b) noexcept
 {
 	return std::strcmp(a, b) == 0;
 }
+
 
 int FindModule(const char *path, std::uintptr_t bias) noexcept
 {
@@ -386,6 +420,7 @@ int FindModule(const char *path, std::uintptr_t bias) noexcept
 	module.frames = 0;
 	return static_cast<int>(g_scratch.moduleCount++);
 }
+
 
 // One line of /proc/self/maps: "start-end perms offset device inode   path". The mappings are in
 // address order, and a file's are together, the one at its offset 0 first: where it is loaded.
@@ -437,6 +472,7 @@ void ReadMapping(const char *text, const char *&currentPath, std::uintptr_t &cur
 	}
 }
 
+
 void FindModules() noexcept
 {
 	const int maps = ::open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
@@ -478,6 +514,7 @@ void FindModules() noexcept
 	}
 	::close(maps);
 }
+
 
 // The symboliser over one module's frames, its output into the report: "0x...: function at
 // file:line", with "(inlined by)" lines for the calls inlined into it. A return address is the
@@ -535,6 +572,7 @@ void Symbolise(int report, std::size_t moduleIndex) noexcept
 	while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {}
 }
 
+
 void CopyToStderr(int report, off_t from) noexcept
 {
 	for (;;)
@@ -548,6 +586,7 @@ void CopyToStderr(int report, off_t from) noexcept
 		from += count;
 	}
 }
+
 
 void WriteCommandLine(Writer &writer) noexcept
 {
@@ -569,6 +608,7 @@ void WriteCommandLine(Writer &writer) noexcept
 			writer.Text(std::string_view{&character, 1});
 	}
 }
+
 
 void WriteReport(int signal, const siginfo_t &info, const ucontext_t &context) noexcept
 {
@@ -681,6 +721,7 @@ void WriteReport(int signal, const siginfo_t &info, const ucontext_t &context) n
 	}
 }
 
+
 void OnSignal(int signal, siginfo_t *pInfo, void *pContext)
 {
 	const auto thread = static_cast<pid_t>(::syscall(SYS_gettid));
@@ -713,6 +754,7 @@ void OnSignal(int signal, siginfo_t *pInfo, void *pContext)
 
 // --- The signal handler ends here. ---
 
+
 [[noreturn]] void OnTerminate() noexcept
 {
 	try
@@ -735,6 +777,7 @@ void OnSignal(int signal, siginfo_t *pInfo, void *pContext)
 	std::abort();
 }
 } // namespace
+
 
 bool InstallCrashHandler(const CrashOptions &options)
 {
@@ -802,6 +845,7 @@ bool InstallCrashHandler(const CrashOptions &options)
 	    symboliser.empty() ? ", their frames unnamed" : ", their frames named by " + symboliser);
 	return true;
 }
+
 
 void UninstallCrashHandler() noexcept
 {

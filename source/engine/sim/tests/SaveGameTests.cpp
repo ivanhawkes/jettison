@@ -33,6 +33,7 @@ struct Purse
 	std::int64_t credits{0};
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -47,6 +48,7 @@ void RegisterTypes()
 }
 
 constexpr double kStep = 1.0 / 60.0;
+
 
 void Populate(Sim::SimWorld &world)
 {
@@ -63,6 +65,7 @@ void Populate(Sim::SimWorld &world)
 	     }});
 }
 
+
 // Three freighters, the middle one scrapped, stepped ten times.
 void Play(Sim::SimWorld &world)
 {
@@ -74,6 +77,7 @@ void Play(Sim::SimWorld &world)
 		world.Step();
 }
 
+
 Sim::SaveGame Saved(const Sim::SimWorld &world)
 {
 	Sim::SaveGame save = Sim::SaveGame::Of(world, "Before the jump");
@@ -83,6 +87,7 @@ Sim::SaveGame Saved(const Sim::SimWorld &world)
 	save.AddSection("SaveGameTests.Purse", Serialise::BinaryArchive::Write(Purse{125'000}, {1}));
 	return save;
 }
+
 
 std::vector<std::byte> ReadFixture(const char *name)
 {
@@ -94,6 +99,7 @@ std::vector<std::byte> ReadFixture(const char *name)
 	return {bytes, bytes + text.size()};
 }
 } // namespace
+
 
 TEST_CASE("SaveGame: a save holds its info, the world and the game's sections, and reads back")
 {
@@ -132,6 +138,7 @@ TEST_CASE("SaveGame: a save holds its info, the world and the game's sections, a
 	CHECK(loaded.Save() == world.Save());
 }
 
+
 TEST_CASE("SaveGame: a save that does not fit is refused, whatever is cut from it")
 {
 	RegisterTypes();
@@ -157,6 +164,7 @@ TEST_CASE("SaveGame: a save that does not fit is refused, whatever is cut from i
 	CHECK_THROWS_AS(Sim::SaveGame::Read(document.Emit()), Serialise::FormatVersionError);
 	CHECK_THROWS_AS(Sim::SaveGame::ReadInfo(document.Emit()), Serialise::FormatVersionError);
 }
+
 
 // The save game's first version, as phase 8a's build wrote it (Saved, above): a save game at version
 // 1 holding a world at version 2. Every later build loads it, through whatever migrations the save

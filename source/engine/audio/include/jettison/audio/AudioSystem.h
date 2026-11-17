@@ -32,6 +32,7 @@ inline constexpr std::array kBuses{Bus::Master, Bus::Music, Bus::Effects, Bus::U
 
 // "master", "music", "effects", "ui", "voice": the names settings and the console use.
 std::string_view BusName(Bus bus);
+
 std::optional<Bus> BusFromName(std::string_view name);
 
 // A sound playing; generational, so a handle to one that ended names nothing.
@@ -103,12 +104,16 @@ class AudioSystem
   public:
 	// Throws std::runtime_error when miniaudio cannot start. The file system outlives it.
 	explicit AudioSystem(const Vfs::FileSystem &files, const AudioOptions &options = {});
+
 	~AudioSystem();
+
 	AudioSystem(const AudioSystem &) = delete;
+
 	AudioSystem &operator=(const AudioSystem &) = delete;
 
 	// Linear gain, from 0; 1 is as the sound was made. Clamped to [0, 4].
 	void SetBusVolume(Bus bus, float volume);
+
 	float BusVolume(Bus bus) const;
 
 	// A sound at a position, falling off with its distance from the listener; once, or looping until
@@ -118,19 +123,26 @@ class AudioSystem
 	SourceHandle Play(
 	    std::string_view virtualPath, Bus bus, const glm::dvec3 &position, bool loop = false,
 	    const Falloff &falloff = {});
+
 	// A sound with no position, heard alike wherever the listener is: the UI's.
 	SourceHandle PlayFlat(std::string_view virtualPath, Bus bus, bool loop = false);
+
 	// Music, streamed: decoded a little at a time as it plays, never whole, on the music bus with no
 	// position. One piece at a time; a second replaces the first.
 	SourceHandle PlayMusic(std::string_view virtualPath, bool loop = true);
+
 	void StopMusic();
 
 	// Do nothing for a handle that names nothing.
 	void Stop(SourceHandle source);
+
 	void SetPosition(SourceHandle source, const glm::dvec3 &position);
+
 	// Linear gain on the sound itself, under its bus's; from 0.
 	void SetVolume(SourceHandle source, float volume);
+
 	bool IsPlaying(SourceHandle source) const;
+
 	// Sounds playing now, music included.
 	std::size_t Playing() const;
 
@@ -145,10 +157,13 @@ class AudioSystem
 	// With no device, mixes the next frames of output into the buffer, interleaved stereo float, and
 	// returns how many frames it wrote. Throws std::logic_error with a device, which mixes on its own.
 	std::size_t Mix(std::span<float> interleaved);
+
 	bool HasDevice() const;
+
 	std::uint32_t SampleRate() const;
 
 	const AudioCounters &Counters() const;
+
 	std::size_t Problems() const;
 
   private:

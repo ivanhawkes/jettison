@@ -60,26 +60,45 @@ std::vector<glm::uvec2> BloomExtents(glm::uvec2 frame);
 namespace Post
 {
 int AoSamples();
+
 glm::vec3 ViewPositionAt(
     glm::vec2 pixel, float depth, glm::vec2 viewport, glm::vec2 projectionScale, float nearPlane);
+
 float ScreenRadius(float radius, float viewDepth, float viewportHeight, float verticalScale);
+
 glm::vec3 AoSpiralSample(int index, float angle);
+
 float AoPixelAngle(int x, int y);
+
 float ObscuranceSample(glm::vec3 p, glm::vec3 n, glm::vec3 q, float radius);
+
 float AmbientAccess(float sum, float samples, float radius, float intensity);
+
 float SpecularAccess(float nDotV, float access, float roughness);
+
 float AoBlurWeight(float depth, float neighbourDepth);
+
 int BloomLevels();
+
 // The thirteen taps, a to m, as post.glsl lays them out.
 glm::vec3 BloomDownsample(const glm::vec3 (&taps)[13], bool karis);
+
 glm::vec3 BloomUpsample(const glm::vec3 (&taps)[9]);
+
 glm::vec3 ApplyBloom(glm::vec3 frame, glm::vec3 bloomTop, float strength);
+
 std::uint32_t NoSeed();
+
 int FloodSteps();
+
 int FloodStride(int step);
+
 glm::uvec2 NearerSeed(glm::uvec2 pixel, glm::uvec2 best, glm::uvec2 candidate);
+
 float GlowFalloff(float distance, float width);
+
 std::uint32_t ObjectOutline(float objectId);
+
 glm::vec3 LutCoordinate(glm::vec3 encoded, float size);
 } // namespace Post
 } // namespace Jettison::Render

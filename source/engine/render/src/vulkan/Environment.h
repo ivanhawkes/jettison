@@ -92,11 +92,13 @@ class Environment
 	Environment(std::shared_ptr<DeviceContext> pDeviceContext, PipelineCache &pipelines);
 
 	Environment(const Environment &) = delete;
+
 	Environment &operator=(const Environment &) = delete;
 
 	// The sampler, the bake's layouts and pipelines, the lookup table, and a black environment, so
 	// there is always one to bind. A bake program missing from the asset tree throws here.
 	void Init();
+
 	// The device has to be idle. Safe after an Init that threw part-way, and twice.
 	void Destroy();
 
@@ -107,18 +109,22 @@ class Environment
 	{
 		return m_sampler;
 	}
+
 	VkImageView GetSpecularView() const
 	{
 		return m_specular.view;
 	}
+
 	VkImageView GetIrradianceView() const
 	{
 		return m_irradiance.view;
 	}
+
 	VkImageView GetBrdfLutView() const
 	{
 		return m_brdfLutView;
 	}
+
 	// The specular cube's last level, which roughness 1 samples.
 	float GetMaxSpecularLevel() const
 	{
@@ -133,10 +139,14 @@ class Environment
 	};
 
 	void CreateLayouts();
+
 	void BakeBrdfLut();
+
 	Cube CreateCube(
 	    std::uint32_t size, std::uint32_t levels, VkImageUsageFlags usage, const char *name);
+
 	void DestroyCube(Cube &cube);
+
 	// One fullscreen draw into a square target, with the program's set and push constants.
 	void RenderFace(
 	    VkCommandBuffer commandBuffer, VkImageView target, std::uint32_t size, VkPipeline pipeline,

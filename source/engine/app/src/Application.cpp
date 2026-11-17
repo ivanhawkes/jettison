@@ -112,6 +112,7 @@ constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
 constexpr std::size_t kMostTraffic = 16;
 constexpr float kTrafficSpeed = 80.0f;
 
+
 // A place on the traffic's ring about a station, in its axes: about its Z, the axis its dock is
 // at the end of, so the ship holding off the dock is clear of every one.
 glm::dvec3 TrafficPlace(std::size_t place, double ring)
@@ -148,6 +149,7 @@ constexpr float kStationHumVolume = 0.6f;
 // The language the screens are in (StringTable), in the settings.
 constexpr std::string_view kLanguageKey = "ui.language";
 
+
 // A bus's volume in the settings: audio.master, audio.music, ...
 std::string VolumeKey(Audio::Bus bus)
 {
@@ -155,6 +157,7 @@ std::string VolumeKey(Audio::Bus bus)
 }
 
 constexpr Physics::FlightControls kSmokeFlight{{0.0f, 0.0f, -0.2f}, {0.0f, 0.05f, 0.1f}};
+
 
 // Minimizing is X11-only: on Wayland a minimized surface leaves the frame loop parked in
 // DeviceContext::WaitOnWindowResized until the window is restored, and a headless run cannot
@@ -164,6 +167,7 @@ bool CanIconifyWindow()
 {
 	return glfwGetPlatform() == GLFW_PLATFORM_X11;
 }
+
 
 // Each celestial body's orbit about where its parent is now, as the line its next revolution
 // traces: on rails, so the body is on its line in every frame, and a body off it is a bug in the
@@ -194,6 +198,8 @@ void DrawOrbits(
 		draw.Polyline(points, {0.3f, 0.8f, 1.0f, 0.6f}, true);
 	}
 }
+
+
 // A light's reach: a point light's range as a sphere, and a spot's cone out to its range, the
 // outer angle's edge drawn as the circle where the cone meets the range's sphere.
 void DrawLight(
@@ -248,6 +254,7 @@ void Crash(std::span<const std::string> arguments)
 		Core::Log(Core::Severity::Warning, kShell, "crash takes fault, assert or exception");
 }
 } // namespace
+
 
 Application::Application(AppArguments arguments, std::string windowTitle)
     : m_arguments{std::move(arguments)}, m_windowTitle{std::move(windowTitle)}
@@ -1151,6 +1158,7 @@ void MakeUserDirectory(const std::filesystem::path &directory)
 		std::filesystem::permissions(directory, std::filesystem::perms::owner_all);
 }
 } // namespace
+
 
 void Application::InitUser()
 {
@@ -2463,6 +2471,7 @@ void Application::SetLanguage(DevTools::Console &console, std::span<const std::s
 	m_marketDirty = true;
 	console.Print(std::format("The screens are in '{}'", arguments[0]));
 }
+
 
 void Application::SetGrade(std::span<const std::string> arguments)
 {

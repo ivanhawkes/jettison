@@ -43,6 +43,7 @@ Rig MakeSlidingRig()
 	return rig;
 }
 
+
 // A clip of one second with events at its start, its middle and its end, and no tracks: the events
 // alone are what is played.
 Clip MakeEventClip()
@@ -53,6 +54,7 @@ Clip MakeEventClip()
 	clip.events = {{0.0f, "start"}, {0.5f, "middle"}, {1.0f, "end"}};
 	return clip;
 }
+
 
 // Advances the clip from time by each step in turn, and returns the names crossed and where it got.
 std::pair<std::vector<std::string>, float> Play(
@@ -71,6 +73,7 @@ std::pair<std::vector<std::string>, float> Play(
 
 using Names = std::vector<std::string>;
 } // namespace
+
 
 TEST_CASE("Rig: a linear clip is sampled between its keys")
 {
@@ -96,6 +99,7 @@ TEST_CASE("Rig: a linear clip is sampled between its keys")
 	CHECK_THROWS_AS(rig.EvaluateSkin("missing", 0.0f, joints, meshNode), std::runtime_error);
 }
 
+
 TEST_CASE("Playback: a rotation's phase stays inside one turn")
 {
 	RotationAnimationComponent rotation;
@@ -103,6 +107,7 @@ TEST_CASE("Playback: a rotation's phase stays inside one turn")
 	AdvanceRotation(rotation, 7.0f);
 	CHECK(rotation.angle == doctest::Approx(7.0f - 6.28318531f));
 }
+
 
 TEST_CASE("Playback: a looping clip wraps, a one-shot clip clamps, a paused clip holds")
 {
@@ -125,6 +130,7 @@ TEST_CASE("Playback: a looping clip wraps, a one-shot clip clamps, a paused clip
 	CHECK(empty.time == 0.0f);
 }
 
+
 TEST_CASE("Playback: a clip's events fire once each as it is played forwards and held at its end")
 {
 	const Clip clip = MakeEventClip();
@@ -139,6 +145,7 @@ TEST_CASE("Playback: a clip's events fire once each as it is played forwards and
 	CHECK(names == Names{"middle", "end"});
 }
 
+
 TEST_CASE("Playback: a clip played backwards meets its events in reverse, its start as it reaches it")
 {
 	const Clip clip = MakeEventClip();
@@ -146,6 +153,7 @@ TEST_CASE("Playback: a clip played backwards meets its events in reverse, its st
 	CHECK(names == Names{"end", "middle", "start"});
 	CHECK(time == 0.0f);
 }
+
 
 TEST_CASE("Playback: a looping clip fires its end and its start as it wraps, and each event once a lap")
 {
@@ -163,6 +171,7 @@ TEST_CASE("Playback: a looping clip fires its end and its start as it wraps, and
 	CHECK(names == Names{"end", "start", "middle"});
 	CHECK(time == doctest::Approx(0.25f));
 }
+
 
 TEST_CASE("Playback: a time past a clip's end shows the end without its events")
 {
@@ -182,6 +191,7 @@ TEST_CASE("Playback: a time past a clip's end shows the end without its events")
 	CHECK(names.empty());
 	CHECK(time == 0.0f);
 }
+
 
 TEST_CASE("Clip file: tracks on named nodes, rotations in radians about X then Y then Z, and events")
 {
@@ -232,6 +242,7 @@ clips:
 	CHECK(Sample(clip.tracks[2], 0.5f).x < 1.5f);
 }
 
+
 TEST_CASE("Clip file: a track or an event the player could not play is refused, naming the file")
 {
 	const auto refused = [](const std::string &clips)
@@ -267,6 +278,7 @@ TEST_CASE("Clip file: a track or an event the player could not play is refused, 
 	refused("  - name: a\n    events:\n      - {time: 0, name: now}\n");
 }
 
+
 TEST_CASE("Clip file: the pad clamp's clips, through the resource manager")
 {
 	using namespace Jettison;
@@ -294,6 +306,7 @@ TEST_CASE("Clip file: the pad clamp's clips, through the resource manager")
 	CHECK(open->events[0].time == 0.0f);
 	resources.Release(clamp);
 }
+
 
 TEST_CASE("Rig loader: a glTF file's hierarchy, skin and clips, through the resource manager")
 {

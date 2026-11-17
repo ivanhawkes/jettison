@@ -18,6 +18,7 @@ GLFWkeyfun g_previousKey = nullptr;
 GLFWmousebuttonfun g_previousButton = nullptr;
 GLFWcharfun g_previousChar = nullptr;
 
+
 WindowEvent Pressed(WindowEvent::Kind kind, int code, int action, int mods)
 {
 	WindowEvent event;
@@ -60,11 +61,13 @@ static_assert(GLFW_JOYSTICK_1 == 0 && GLFW_JOYSTICK_LAST + 1 == Input::kJoystick
 static_assert(Input::Keys::LeftShift.code == GLFW_KEY_LEFT_SHIFT);
 static_assert(Input::Keys::LeftControl.code == GLFW_KEY_LEFT_CONTROL);
 
+
 GlfwInput::~GlfwInput()
 {
 	if (g_pTarget == this)
 		g_pTarget = nullptr;
 }
+
 
 void GlfwInput::Attach(GLFWwindow *window)
 {
@@ -76,6 +79,7 @@ void GlfwInput::Attach(GLFWwindow *window)
 	g_previousButton = glfwSetMouseButtonCallback(window, &GlfwInput::OnMouseButton);
 	g_previousChar = glfwSetCharCallback(window, &GlfwInput::OnChar);
 }
+
 
 void GlfwInput::Detach()
 {
@@ -93,6 +97,7 @@ void GlfwInput::Detach()
 	m_pWindow = nullptr;
 }
 
+
 void GlfwInput::OnScroll(GLFWwindow *window, double x, double y)
 {
 	if (g_previousScroll)
@@ -107,6 +112,7 @@ void GlfwInput::OnScroll(GLFWwindow *window, double x, double y)
 	}
 }
 
+
 void GlfwInput::OnKey(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
 	if (g_previousKey)
@@ -115,6 +121,7 @@ void GlfwInput::OnKey(GLFWwindow *window, int key, int scancode, int action, int
 		g_pTarget->m_events.push_back(Pressed(WindowEvent::Kind::Key, key, action, mods));
 }
 
+
 void GlfwInput::OnMouseButton(GLFWwindow *window, int button, int action, int mods)
 {
 	if (g_previousButton)
@@ -122,6 +129,7 @@ void GlfwInput::OnMouseButton(GLFWwindow *window, int button, int action, int mo
 	if (g_pTarget && g_pTarget->m_pWindow == window)
 		g_pTarget->m_events.push_back(Pressed(WindowEvent::Kind::MouseButton, button, action, mods));
 }
+
 
 void GlfwInput::OnChar(GLFWwindow *window, unsigned int codepoint)
 {
@@ -136,6 +144,7 @@ void GlfwInput::OnChar(GLFWwindow *window, unsigned int codepoint)
 	}
 }
 
+
 std::vector<Input::JoystickDevice> GlfwInput::ConnectedJoysticks() const
 {
 	std::vector<Input::JoystickDevice> connected;
@@ -149,6 +158,7 @@ std::vector<Input::JoystickDevice> GlfwInput::ConnectedJoysticks() const
 	}
 	return connected;
 }
+
 
 void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCaptured)
 {

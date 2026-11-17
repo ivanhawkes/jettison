@@ -69,10 +69,12 @@ class ParticlePool
 	{
 		return m_slots;
 	}
+
 	std::uint32_t UsedSlots() const
 	{
 		return m_used;
 	}
+
 	// The emitters left out for want of room in the last frame.
 	std::uint32_t Refused() const
 	{
@@ -109,6 +111,7 @@ class ParticlePool
 	};
 
 	bool Allocate(std::uint32_t count, Range &range);
+
 	void Free(const Range &range);
 
 	std::uint32_t m_slots{0};
@@ -125,8 +128,11 @@ class ParticlePool
 
 // particles.glsl compiled as C++, the source particles.comp runs.
 std::uint32_t BirthOf(std::uint32_t slot, std::uint32_t first, std::uint32_t capacity);
+
 float ParticleRandom(std::uint32_t seed, std::uint32_t serial, std::uint32_t draw);
+
 GpuParticle SpawnParticle(
     const GpuEmitter &emitter, std::uint32_t serial, std::uint32_t birth, std::uint32_t births);
+
 GpuParticle StepParticle(const GpuParticle &particle, float seconds, float drag);
 } // namespace Jettison::Render

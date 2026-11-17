@@ -37,8 +37,11 @@ class Config
 	// underscores, or that would make one of the layer's keys both a value and a map ("render" and
 	// "render.vsync"): the file format cannot hold that.
 	void Set(ConfigLayer layer, std::string_view key, std::string value);
+
 	void SetNumber(ConfigLayer layer, std::string_view key, double value);
+
 	void SetBool(ConfigLayer layer, std::string_view key, bool value);
+
 	// Takes the key out of the layer, so a lower layer's value shows through; nothing if the layer
 	// does not have it.
 	void Unset(ConfigLayer layer, std::string_view key);
@@ -47,7 +50,9 @@ class Config
 	// does not read as that type is skipped with a warning, so a bad edit to the user file falls
 	// back to the default rather than to nothing.
 	std::optional<std::string> GetString(std::string_view key) const;
+
 	std::optional<double> GetNumber(std::string_view key) const;
+
 	// "true" or "false" only.
 	std::optional<bool> GetBool(std::string_view key) const;
 

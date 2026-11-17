@@ -45,6 +45,7 @@ template <typename State, typename Event> class StateMachine
 	{
 		Set(m_enter, state, std::move(hook));
 	}
+
 	void OnExit(State state, Hook hook)
 	{
 		Set(m_exit, state, std::move(hook));

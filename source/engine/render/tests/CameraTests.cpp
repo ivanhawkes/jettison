@@ -16,6 +16,7 @@ glm::vec3 Project(const glm::mat4 &projection, const glm::vec3 &point)
 }
 } // namespace
 
+
 TEST_CASE("Camera: reversed-Z puts the near plane at 1 and infinity at 0, monotonically")
 {
 	const glm::mat4 projection = ReversedInfinitePerspective(glm::radians(60.0f), 16.0f / 9.0f, 0.5f);
@@ -34,6 +35,7 @@ TEST_CASE("Camera: reversed-Z puts the near plane at 1 and infinity at 0, monoto
 	    Project(projection, {0.0f, std::tan(glm::radians(30.0f)) * 10.0f, -10.0f}).y ==
 	    doctest::Approx(-1.0f));
 }
+
 
 TEST_CASE("Camera: the scene's angles give the view direction the renderer has always used")
 {
@@ -58,6 +60,7 @@ TEST_CASE("Camera: the scene's angles give the view direction the renderer has a
 	CHECK(ahead.z == doctest::Approx(-1.0f));
 }
 
+
 TEST_CASE("Camera: render space takes the camera off in double precision first")
 {
 	// A station a hundred and fifty million kilometres out, a millimetre's detail on it.
@@ -71,6 +74,7 @@ TEST_CASE("Camera: render space takes the camera off in double precision first")
 	CHECK(relative[3].w == 1.0f);
 	CHECK(ToRenderSpace(camera + glm::dvec3{3.0, 0.0, 0.0}, camera) == glm::vec3{3.0f, 0.0f, 0.0f});
 }
+
 
 TEST_CASE("Camera: a screen ray passes through what is drawn at that point on the screen")
 {

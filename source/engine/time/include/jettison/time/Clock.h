@@ -22,11 +22,14 @@ class RealClock
 
 	// Seconds since the previous tick (or since construction), clamped to the maximum tick.
 	Duration Tick();
+
 	// The same, at a time the caller has already read: the frame loop reads the clock once per
 	// frame and hands the same instant to everything that frame times.
 	Duration Tick(Clock::time_point now);
+
 	// Unclamped seconds since construction.
 	Duration Elapsed() const;
+
 	Duration MaxTick() const
 	{
 		return m_maxTick;
@@ -54,29 +57,36 @@ class SimClock
 	{
 		return m_now;
 	}
+
 	std::uint64_t Step() const
 	{
 		return m_step;
 	}
+
 	bool Paused() const
 	{
 		return m_paused;
 	}
+
 	double Compression() const
 	{
 		return m_compression;
 	}
 
 	void SetPaused(bool paused);
+
 	// Where a loaded save left the clock: its step and its time, the time as the bits that were
 	// saved, since the sum of the steps that made it is not step * fixedStep in floating point.
 	void Restore(std::uint64_t step, double now);
+
 	// 1 is real time. Must be positive and finite; pausing is SetPaused, not a factor of 0. Refused
 	// near stations and other ships by the game, not here.
 	void SetCompression(double factor);
+
 	// A frame's real seconds as simulation seconds for the accumulator: 0 while paused, scaled by
 	// the compression factor otherwise.
 	double ScaledDelta(double realSeconds) const;
+
 	// One fixed step forward. Called by the accumulator's owner once per step it hands out. Not
 	// refused while paused, so a debugger can single-step a paused simulation.
 	void Advance(double fixedStep);

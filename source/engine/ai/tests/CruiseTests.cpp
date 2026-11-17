@@ -37,6 +37,7 @@ struct Fixture
 	Ai::LaneTravel &lanes;
 	Ai::CruiseTravel &cruises;
 
+
 	Fixture()
 	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)},
 	      cruises{Ai::CruiseTravel::Attach(world, physics)}
@@ -54,6 +55,7 @@ struct Fixture
 		lanes.SetGalaxy(AiTests::Sample());
 	}
 
+
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -62,6 +64,7 @@ struct Fixture
 		world.RegisterComponent<Sim::ControlledBy>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
+
 
 	// A ship at rest in the frame of a body of Halcyon, that far from it along the direction, with a
 	// shuttle's drive.
@@ -85,6 +88,7 @@ struct Fixture
 		return ship;
 	}
 
+
 	static glm::dvec3 Where(std::string_view body, double time)
 	{
 		const Celestial::StarSystem halcyon = AiTests::Halcyon();
@@ -92,11 +96,13 @@ struct Fixture
 		    .metres;
 	}
 
+
 	void Run(std::uint64_t steps)
 	{
 		for (std::uint64_t step = 0; step < steps; ++step)
 			world.Step();
 	}
+
 
 	template <typename T> std::vector<T> Events()
 	{
@@ -106,6 +112,7 @@ struct Fixture
 				found.push_back(*value);
 		return found;
 	}
+
 
 	// The cruise's refusal, from the step the command is applied in.
 	Sim::Reason Refusal(const Ai::Cruise &command)
@@ -121,11 +128,13 @@ struct Fixture
 	}
 };
 
+
 const Celestial::Body &BodyOf(std::string_view name)
 {
 	static const Celestial::StarSystem halcyon = AiTests::Halcyon();
 	return halcyon.bodies[static_cast<std::size_t>(halcyon.Find(name))];
 }
+
 
 // The way a transform's nose (-Z) points.
 glm::dvec3 Nose(const Sim::Transform &transform)
@@ -133,6 +142,7 @@ glm::dvec3 Nose(const Sim::Transform &transform)
 	return transform.orientation * glm::dvec3{0.0, 0.0, -1.0};
 }
 } // namespace
+
 
 TEST_CASE("Cruise: a drive's time rises as the distance's fourth root")
 {
@@ -144,6 +154,7 @@ TEST_CASE("Cruise: a drive's time rises as the distance's fourth root")
 	CHECK(Ai::CruiseTravel::ArrivalDistance(BodyOf("Pell")) == doctest::Approx(2.214688e6));
 	CHECK(Ai::CruiseTravel::ArrivalDistance(BodyOf("Ostra")) == doctest::Approx(1.996498e7));
 }
+
 
 TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arrives at rest off it")
 {
@@ -244,6 +255,7 @@ TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arri
 	        Ai::CruiseTravel::ArrivalDistance(BodyOf("Halcyon Gate"))) < 0.001);
 }
 
+
 TEST_CASE("Cruise: ships that arrive together at one body come out clear of each other")
 {
 	Fixture fixture;
@@ -279,6 +291,7 @@ TEST_CASE("Cruise: ships that arrive together at one body come out clear of each
 		    2.0 * hull + Ai::LaneTravel::kArrivalClearance);
 }
 
+
 TEST_CASE("Cruise: a course goes round the planet between a ship and its target")
 {
 	Fixture fixture;
@@ -312,6 +325,7 @@ TEST_CASE("Cruise: a course goes round the planet between a ship and its target"
 	CHECK(registry.get<Physics::LocalFrame>(ship).body == "Pell");
 }
 
+
 TEST_CASE("Cruise: off a planet where its pull is one its assist holds against")
 {
 	Fixture fixture;
@@ -336,6 +350,7 @@ TEST_CASE("Cruise: off a planet where its pull is one its assist holds against")
 	CHECK(glm::distance(held, arrived) < 5.0);
 }
 
+
 TEST_CASE("Cruise: to the star, a system's breadth, carried by nothing that moves")
 {
 	Fixture fixture;
@@ -357,6 +372,7 @@ TEST_CASE("Cruise: to the star, a system's breadth, carried by nothing that move
 	    glm::length(registry.get<Sim::Transform>(ship).position) ==
 	    doctest::Approx(Ai::CruiseTravel::ArrivalDistance(BodyOf("Halcyon"))).epsilon(1.0e-9));
 }
+
 
 TEST_CASE("Cruise: refused, with its reason")
 {
@@ -412,6 +428,7 @@ TEST_CASE("Cruise: refused, with its reason")
 	CHECK(lane[0].reason == reason(Ai::Reason::AlreadyCruising));
 	CHECK(registry.all_of<Ai::Cruising>(ship));
 }
+
 
 TEST_CASE("Cruise: a world saved mid-cruise arrives as the one saved does")
 {

@@ -33,6 +33,7 @@ template <typename Grade> std::string Cube(std::uint32_t size, Grade grade, std:
 	return text;
 }
 
+
 std::string Refusal(const std::string &text)
 {
 	try
@@ -45,6 +46,7 @@ std::string Refusal(const std::string &text)
 	}
 	return {};
 }
+
 
 // What a device's trilinear filter gives at a normalised coordinate into the table as a 3D texture,
 // as Vulkan's linear filtering defines it: the texel space's coordinate less a half, between the two
@@ -72,6 +74,7 @@ glm::vec3 FilterTexture(const ColourLut &lut, glm::vec3 coordinate)
 	return result;
 }
 } // namespace
+
 
 TEST_CASE("Colour grade: a .cube's table is read red fastest, its title and comments as written")
 {
@@ -101,6 +104,7 @@ TEST_CASE("Colour grade: a .cube's table is read red fastest, its title and comm
 	CHECK(graded.y == doctest::Approx(0.5f));
 	CHECK(graded.z == doctest::Approx(0.25f));
 }
+
 
 TEST_CASE("Colour grade: what a .cube cannot be is refused, naming the file and the line")
 {
@@ -133,6 +137,7 @@ TEST_CASE("Colour grade: what a .cube cannot be is refused, naming the file and 
 	CHECK(Refusal("LUT_1D_SIZE 16\n").find("Colour grade 'grades/test.cube'") != std::string::npos);
 }
 
+
 TEST_CASE("Colour grade: the identity leaves a colour as it was, and a grade's ends are clamped")
 {
 	const ColourLut identity = IdentityLut(17);
@@ -155,6 +160,7 @@ TEST_CASE("Colour grade: the identity leaves a colour as it was, and a grade's e
 	CHECK(inverted.y == doctest::Approx(0.4f));
 	CHECK(inverted.z == doctest::Approx(0.07f));
 }
+
 
 TEST_CASE("Colour grade: the output pass's lookup, through a trilinear filter, is the table's grade")
 {

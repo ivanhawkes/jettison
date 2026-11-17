@@ -117,10 +117,12 @@ struct Fixture
 	{
 		return world.Registry().get<Dock::Pad>(pad);
 	}
+
 	entt::entity PadNumbered(entt::entity station, std::uint32_t number) const
 	{
 		return world.Registry().get<Dock::Station>(station).pads.at(number - 1);
 	}
+
 	// The number of the pad the ship holds or is on its way to, or none.
 	std::uint32_t NumberOf(entt::entity ship) const
 	{

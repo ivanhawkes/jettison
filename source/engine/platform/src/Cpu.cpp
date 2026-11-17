@@ -21,6 +21,7 @@ constexpr Requirement kBaseline[] = {
 constexpr char kNeeds[] = "Jettison needs an x86-64 CPU with AVX2: Intel Haswell (2013), AMD Excavator "
                           "(2015) or later. This one is missing: ";
 
+
 // Plain write(2): the guard runs before the C++ runtime is initialised, and may not call any
 // function an AVX2-compiled translation unit could have supplied.
 void WriteError(const char *text)
@@ -28,6 +29,7 @@ void WriteError(const char *text)
 	const auto length = static_cast<size_t>(__builtin_strlen(text));
 	[[maybe_unused]] const ssize_t written = write(STDERR_FILENO, text, length);
 }
+
 
 // Called by the dynamic loader from .preinit_array, with the arguments it passes there.
 void GuardCpuBaseline(int /*argc*/, char ** /*argv*/, char ** /*environment*/)
@@ -50,6 +52,7 @@ void GuardCpuBaseline(int /*argc*/, char ** /*argv*/, char ** /*environment*/)
 }
 } // namespace
 
+
 CpuFeatures DetectCpuFeatures()
 {
 	// Initialises the compiler runtime's CPU model now: its own constructor has not run yet when
@@ -66,6 +69,7 @@ CpuFeatures DetectCpuFeatures()
 	};
 }
 
+
 std::optional<std::string> CheckCpuBaseline(const CpuFeatures &features)
 {
 	std::string missing;
@@ -81,6 +85,7 @@ std::optional<std::string> CheckCpuBaseline(const CpuFeatures &features)
 		return std::nullopt;
 	return std::string{kNeeds} + missing + ".";
 }
+
 
 std::optional<std::string> CheckCpuBaseline()
 {

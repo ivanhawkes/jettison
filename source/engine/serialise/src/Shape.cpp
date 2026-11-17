@@ -22,6 +22,7 @@ template <typename T> const void *View(const entt::meta_any &value)
 	return value.try_cast<T>();
 }
 
+
 template <typename T> entt::meta_any MakeFromBytes(const void *components)
 {
 	T value{};
@@ -29,10 +30,12 @@ template <typename T> entt::meta_any MakeFromBytes(const void *components)
 	return entt::meta_any{value};
 }
 
+
 entt::meta_any MakeString(const void *text)
 {
 	return entt::meta_any{*static_cast<const std::string *>(text)};
 }
+
 
 template <typename T> Kind ScalarKind()
 {
@@ -46,6 +49,7 @@ template <typename T> Kind ScalarKind()
 		return Kind::Unsigned;
 }
 
+
 template <typename T, typename Component, std::uint8_t Count> Shape Leaf()
 {
 	// Make copies the components into the value, so a GLM vector must be exactly its components.
@@ -53,10 +57,12 @@ template <typename T, typename Component, std::uint8_t Count> Shape Leaf()
 	return {ScalarKind<Component>(), sizeof(Component), Count, &View<T>, &MakeFromBytes<T>};
 }
 
+
 template <typename T> void Add(std::unordered_map<entt::id_type, Shape> &shapes, Shape shape)
 {
 	shapes.emplace(entt::type_id<T>().hash(), shape);
 }
+
 
 // Lookups only: no outcome depends on this map's iteration order.
 const std::unordered_map<entt::id_type, Shape> &LeafShapes()
@@ -100,6 +106,7 @@ const std::unordered_map<entt::id_type, Shape> &LeafShapes()
 	return shapes;
 }
 
+
 bool IsRegistered(const entt::meta_type &type)
 {
 	// resolve(type_info) finds registered types only, unlike the unnamed node EnTT keeps for
@@ -107,6 +114,7 @@ bool IsRegistered(const entt::meta_type &type)
 	return static_cast<bool>(entt::resolve(type.info()));
 }
 } // namespace
+
 
 Shape ShapeOf(const entt::meta_type &type, std::string_view path)
 {
@@ -138,11 +146,13 @@ Shape ShapeOf(const entt::meta_type &type, std::string_view path)
 	    type.info().name())};
 }
 
+
 bool IsEmptyOptional(const entt::meta_any &value)
 {
 	const Reflect::OptionalTraits *optional = Reflect::FindOptional(value.type());
 	return optional != nullptr && !optional->hasValue(value);
 }
+
 
 Path::Scope Path::Field(std::string_view name)
 {
@@ -152,12 +162,14 @@ Path::Scope Path::Field(std::string_view name)
 	return Scope{*this, length};
 }
 
+
 Path::Scope Path::Element(std::size_t index)
 {
 	const std::size_t length = m_text.size();
 	m_text += std::format("[{}]", index);
 	return Scope{*this, length};
 }
+
 
 std::string_view RootName(const entt::meta_type &type)
 {

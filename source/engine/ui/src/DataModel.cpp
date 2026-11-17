@@ -28,6 +28,7 @@ std::int64_t AsInteger(const EventArgument &argument)
 	return 0;
 }
 
+
 std::string AsText(const EventArgument &argument)
 {
 	return std::visit(
@@ -55,10 +56,12 @@ template <typename T> T Load(const void *pValue)
 	return value;
 }
 
+
 template <typename T> void Store(void *pValue, T value)
 {
 	std::memcpy(pValue, &value, sizeof(T));
 }
+
 
 std::int64_t LoadSigned(const void *pValue, std::size_t width)
 {
@@ -71,6 +74,7 @@ std::int64_t LoadSigned(const void *pValue, std::size_t width)
 	}
 }
 
+
 std::uint64_t LoadUnsigned(const void *pValue, std::size_t width)
 {
 	switch (width)
@@ -82,6 +86,7 @@ std::uint64_t LoadUnsigned(const void *pValue, std::size_t width)
 	}
 }
 
+
 void StoreInteger(void *pValue, std::size_t width, std::int64_t value)
 {
 	switch (width)
@@ -92,6 +97,7 @@ void StoreInteger(void *pValue, std::size_t width, std::int64_t value)
 		default: Store(pValue, value); break;
 	}
 }
+
 
 Kind KindOf(const entt::meta_type &type, const std::string &path)
 {
@@ -115,6 +121,7 @@ Kind KindOf(const entt::meta_type &type, const std::string &path)
 	    std::format(
 	        "DataModel: '{}' is of a type the UI cannot show (one Reflect has not registered)", path));
 }
+
 
 EventArgument FromVariant(const Rml::Variant &variant)
 {
@@ -146,6 +153,7 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 	{
 	}
 
+
 	// Called once the definition is in the table, so a type that holds itself (a tree of nodes)
 	// finds its own definition rather than recursing.
 	void Resolve(const std::string &path)
@@ -164,6 +172,7 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 		}
 	}
 
+
 	bool Get(void *pValue, Rml::Variant &variant) override
 	{
 		switch (m_kind)
@@ -180,6 +189,7 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 			default: return false;
 		}
 	}
+
 
 	bool Set(void *pValue, const Rml::Variant &variant) override
 	{
@@ -205,12 +215,14 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 		}
 	}
 
+
 	int Size(void *pValue) override
 	{
 		if (m_kind != Kind::Sequence)
 			return 0;
 		return static_cast<int>(m_type.from_void(pValue).as_sequence_container().size());
 	}
+
 
 	Rml::DataVariable Child(void *pValue, const Rml::DataAddressEntry &address) override
 	{
@@ -244,6 +256,7 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 		return {};
 	}
 
+
 	Rml::StringList ReflectMemberNames() override
 	{
 		Rml::StringList names;
@@ -259,6 +272,7 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 	std::vector<std::pair<entt::meta_data, Rml::VariableDefinition *>> m_fields;
 	Rml::VariableDefinition *m_element{nullptr};
 };
+
 
 Rml::VariableDefinition *Definitions::For(const entt::meta_type &type, const std::string &path)
 {
@@ -285,6 +299,7 @@ DataModel::DataModel(std::unique_ptr<Detail::DataModelState> pState) : m_pState{
 {
 }
 
+
 void Detail::RegisterTransforms(Rml::DataModelConstructor &constructor, const StringTable &strings)
 {
 	// {{trader.credits | thousands}}: 1,250,000, or as the language groups a number's thousands.
@@ -297,12 +312,15 @@ void Detail::RegisterTransforms(Rml::DataModelConstructor &constructor, const St
 	    });
 }
 
+
 DataModel::~DataModel() = default;
+
 
 const std::string &DataModel::Name() const
 {
 	return m_pState->name;
 }
+
 
 void DataModel::BindValue(std::string_view name, const entt::meta_type &type, void *pValue)
 {
@@ -316,6 +334,7 @@ void DataModel::BindValue(std::string_view name, const entt::meta_type &type, vo
 		    std::format("DataModel '{}': RmlUi refused the variable '{}'", m_pState->name, name));
 	m_pState->bound.insert(key);
 }
+
 
 void DataModel::BindEvent(
     std::string_view name, std::function<void(std::span<const EventArgument>)> handler)
@@ -338,10 +357,12 @@ void DataModel::BindEvent(
 	m_pState->bound.insert(key);
 }
 
+
 void DataModel::Changed(std::string_view name)
 {
 	m_pState->handle.DirtyVariable(std::string{name});
 }
+
 
 void DataModel::ChangedAll()
 {

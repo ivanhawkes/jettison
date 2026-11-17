@@ -45,6 +45,7 @@ constexpr std::uint32_t kSpecularSamples = 128;
 constexpr std::uint32_t kIrradianceSamples = 128;
 constexpr std::uint32_t kBrdfLutSamples = 512;
 
+
 std::uint32_t MipLevels(std::uint32_t size)
 {
 	std::uint32_t levels = 1;
@@ -52,6 +53,7 @@ std::uint32_t MipLevels(std::uint32_t size)
 		++levels;
 	return levels;
 }
+
 
 void Barrier(
     VkCommandBuffer commandBuffer, VkImage image, std::uint32_t baseLevel, std::uint32_t levels,
@@ -78,6 +80,7 @@ void Barrier(
 	vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
+
 // From nothing to a colour attachment, every level and layer.
 void ToAttachment(
     VkCommandBuffer commandBuffer, VkImage image, std::uint32_t levels, std::uint32_t layers)
@@ -87,6 +90,7 @@ void ToAttachment(
 	    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE,
 	    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 }
+
 
 // From the attachment the bake rendered to, to what the frame's fragment shaders sample.
 void AttachmentToSampled(
@@ -98,6 +102,7 @@ void AttachmentToSampled(
 	    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
 	    VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
 }
+
 
 RenderState BakeState(VkFormat format)
 {

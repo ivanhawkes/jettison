@@ -32,11 +32,13 @@ constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
 constexpr std::string_view kStation = "Ostra Highport";
 
+
 // A ship of the default thrusters: 150 m/s, braking at half its weakest thruster's 15 m/s².
 Agent Ship(const glm::dvec3 &position, const glm::dvec3 &velocity = glm::dvec3{0.0})
 {
 	return {position, velocity, 150.0, 7.5, 7.0};
 }
+
 
 // A step of a point mass whose velocity goes towards the one demanded at up to 15 m/s², as flight
 // assist's does: what the behaviours are judged by without the flight model's turning.
@@ -49,11 +51,13 @@ void Fly(Agent &agent, const glm::dvec3 &demanded)
 	agent.position += agent.velocity * kStep;
 }
 
+
 double Gap(const Agent &agent, const Obstacle &obstacle)
 {
 	return glm::distance(agent.position, obstacle.position) - agent.radius - obstacle.radius;
 }
 } // namespace
+
 
 TEST_CASE("Steering: seek goes at full speed, and arrive slows to stop at the target")
 {
@@ -80,6 +84,7 @@ TEST_CASE("Steering: seek goes at full speed, and arrive slows to stop at the ta
 	CHECK(glm::length(flown.position) < 0.01);
 	CHECK(glm::length(flown.velocity) < 0.01);
 }
+
 
 TEST_CASE("Steering: avoidance turns aside from what is ahead and leaves the rest alone")
 {
@@ -119,6 +124,7 @@ TEST_CASE("Steering: avoidance turns aside from what is ahead and leaves the res
 	CHECK(Ai::Avoid(within, ahead, std::span{&wall, 1}, 0.1, 20.0).z > 0.0);
 }
 
+
 TEST_CASE("Steering: a ship flown at a station's centre goes round it and on to its target")
 {
 	Agent agent = Ship({0.0, 0.0, 1500.0});
@@ -133,6 +139,7 @@ TEST_CASE("Steering: a ship flown at a station's centre goes round it and on to 
 	CHECK(closest > 10.0);
 	CHECK(glm::distance(agent.position, glm::dvec3{0.0, 0.0, -1500.0}) < 0.1);
 }
+
 
 TEST_CASE("Steering: separation pushes apart only what is nearer than it")
 {
@@ -160,6 +167,7 @@ struct Fixture
 	// Every contact begun between two bodies, neither a sensor.
 	std::vector<Physics::ContactEvent> collisions;
 
+
 	Fixture()
 	{
 		Physics::ShapeDefinition shape;
@@ -179,6 +187,7 @@ struct Fixture
 		    station, Physics::Body{Physics::BodyKind::Kinematic, "station"});
 	}
 
+
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -187,12 +196,14 @@ struct Fixture
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
+
 	static glm::dvec3 StationAt(double time)
 	{
 		const Celestial::StarSystem halcyon = AiTests::Halcyon();
 		return Celestial::EvaluateBody(halcyon, static_cast<std::size_t>(halcyon.Find(kStation)), time)
 		    .metres;
 	}
+
 
 	// A steered ship at rest that far from the station, in its frame, nose along -Z.
 	entt::entity Ship(const glm::dvec3 &offset, const Ai::Destination &destination)
@@ -213,6 +224,7 @@ struct Fixture
 		return ship;
 	}
 
+
 	void Step()
 	{
 		world.Step();
@@ -221,11 +233,13 @@ struct Fixture
 				collisions.push_back(contact);
 	}
 
+
 	void Run(double seconds)
 	{
 		for (long step = 0; step < std::lround(seconds / kStep); ++step)
 			Step();
 	}
+
 
 	// Steps until every ship has arrived, or the time is up; the seconds it took, or none.
 	std::optional<double> RunUntilArrived(std::span<const entt::entity> ships, double seconds)
@@ -242,6 +256,7 @@ struct Fixture
 		return std::nullopt;
 	}
 
+
 	// Where an entity is relative to the station, as the last step left both.
 	glm::dvec3 FromStation(entt::entity entity) const
 	{
@@ -249,6 +264,7 @@ struct Fixture
 		return registry.get<Sim::Transform>(entity).position -
 		       registry.get<Sim::Transform>(station).position;
 	}
+
 
 	template <typename T> std::vector<T> Events()
 	{
@@ -260,6 +276,7 @@ struct Fixture
 	}
 };
 
+
 Ai::Destination Point(const glm::dvec3 &offset, float speed = 0.0f)
 {
 	Ai::Destination destination;
@@ -268,6 +285,7 @@ Ai::Destination Point(const glm::dvec3 &offset, float speed = 0.0f)
 	return destination;
 }
 } // namespace
+
 
 TEST_CASE("Steering: steering runs after the spatial index and before the flight model")
 {
@@ -281,6 +299,7 @@ TEST_CASE("Steering: steering runs after the spatial index and before the flight
 	CHECK(at("steering") < at("flight"));
 	CHECK(at("flight") < at("physics"));
 }
+
 
 TEST_CASE("Steering: a ship flies to a point by the station, arrives at rest, and faces its way")
 {
@@ -309,6 +328,7 @@ TEST_CASE("Steering: a ship flies to a point by the station, arrives at rest, an
 	CHECK(fixture.Events<Ai::Arrived>().empty());
 }
 
+
 TEST_CASE("Steering: a ship whose way is through the station flies round it without touching")
 {
 	Fixture fixture;
@@ -325,6 +345,7 @@ TEST_CASE("Steering: a ship whose way is through the station flies round it with
 	// The station's 82 m sphere, the ship's 6.7 m and the 20 m clearance.
 	CHECK(nearest > 100.0);
 }
+
 
 TEST_CASE("Steering: a course's waypoints are flown through in order")
 {
@@ -350,6 +371,7 @@ TEST_CASE("Steering: a course's waypoints are flown through in order")
 	CHECK(fixture.world.Registry().get<Ai::Destination>(ship).arrived);
 	CHECK(fixture.collisions.empty());
 }
+
 
 TEST_CASE("Steering: a destination by an entity is its offset in the entity's axes")
 {
@@ -377,6 +399,7 @@ TEST_CASE("Steering: a destination by an entity is its offset in the entity's ax
 	CHECK_FALSE(registry.all_of<Ai::Destination>(ship));
 	CHECK(registry.get<Physics::FlightControls>(ship) == Physics::FlightControls{});
 }
+
 
 TEST_CASE("Steering: the commands set a destination from its start and take it away")
 {
@@ -447,6 +470,7 @@ struct Nearest
 	double station{std::numeric_limits<double>::infinity()};
 };
 
+
 void Measure(const Fixture &fixture, std::span<const entt::entity> ships, Nearest &nearest)
 {
 	constexpr double kShip = 6.68;
@@ -460,6 +484,7 @@ void Measure(const Fixture &fixture, std::span<const entt::entity> ships, Neares
 	}
 }
 } // namespace
+
 
 TEST_CASE("Steering: a group of ships reaches a station without colliding")
 {
@@ -485,6 +510,7 @@ TEST_CASE("Steering: a group of ships reaches a station without colliding")
 	CHECK(nearest.station > 5.0);
 	CHECK(fixture.Events<Ai::Arrived>().size() == ships.size());
 }
+
 
 TEST_CASE("Steering: the same start gives the same flight, and a save part-way carries on as it")
 {

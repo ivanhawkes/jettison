@@ -68,6 +68,7 @@ struct Galaxy
 
 	// The index of the system of that name, or -1.
 	int Find(std::string_view systemName) const;
+
 	// The index of the system whose system file is at that virtual path, or -1.
 	int FindBySystemFile(std::string_view virtualPath) const;
 };
@@ -103,6 +104,7 @@ void Resolve(Galaxy &galaxy);
 
 // A galaxy file (YAML, through Serialise::YamlArchive) read and resolved, and its writer.
 Galaxy ReadGalaxy(std::string_view text);
+
 std::string WriteGalaxy(const Galaxy &galaxy);
 
 // Checks a system's file against the galaxy: it is the system of that name, and each lane end in
@@ -114,6 +116,7 @@ void CheckJumpPoints(const Galaxy &galaxy, std::size_t system, const StarSystem 
 // Every lane with an end in the system, in the order the galaxy lists them, seen from that end. The
 // views are into the galaxy, which outlives them.
 std::vector<Exit> Exits(const Galaxy &galaxy, std::size_t system);
+
 // The lane leaving the system through that jump point, if one does.
 std::optional<Exit> ExitThrough(const Galaxy &galaxy, std::size_t system, std::string_view jumpPoint);
 } // namespace Jettison::Celestial

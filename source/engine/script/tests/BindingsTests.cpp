@@ -28,6 +28,7 @@ std::uint32_t OffsetOf(const Script::TypeLayout &layout, std::string_view field)
 	return 0;
 }
 
+
 std::string ReadText(const std::filesystem::path &path)
 {
 	std::ifstream file{path, std::ios::binary};
@@ -36,6 +37,7 @@ std::string ReadText(const std::filesystem::path &path)
 	return text.str();
 }
 } // namespace
+
 
 TEST_CASE("Script bindings: a type is laid out as a C compiler for wasm32 lays out its struct")
 {
@@ -62,6 +64,7 @@ TEST_CASE("Script bindings: a type is laid out as a C compiler for wasm32 lays o
 	CHECK(OffsetOf(inner, "weight") == 4);
 	CHECK_THROWS_AS(bindings.Layout(entt::resolve<int>()), Script::BindingError);
 }
+
 
 TEST_CASE("Script bindings: a value written into a script's memory reads back as it was")
 {
@@ -120,6 +123,7 @@ TEST_CASE("Script bindings: a value written into a script's memory reads back as
 	}
 }
 
+
 TEST_CASE("Script bindings: a bool that is neither 0 nor 1 is refused")
 {
 	ScriptTest::RegisterTypes();
@@ -132,6 +136,7 @@ TEST_CASE("Script bindings: a bool that is neither 0 nor 1 is refused")
 	    bindings.Read(layout, memory, 0, &read), doctest::Contains("Test.Ping.flag"),
 	    Script::BindingError);
 }
+
 
 TEST_CASE(
     "Script bindings: the C header and the Rust module the suite's scripts compile against are the "

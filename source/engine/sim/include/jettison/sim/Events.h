@@ -41,6 +41,7 @@ class EventQueue
 	{
 		return std::exchange(m_events, {});
 	}
+
 	const std::vector<SimEvent> &Pending() const
 	{
 		return m_events;

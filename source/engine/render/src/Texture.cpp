@@ -27,6 +27,7 @@ constexpr ktx_uint32_t kVkR8G8B8A8Srgb = 43;
 constexpr ktx_uint32_t kVkBc7Unorm = 145;
 constexpr ktx_uint32_t kVkBc7Srgb = 146;
 
+
 [[noreturn]] void Refuse(std::string_view name, const std::string &what)
 {
 	throw std::runtime_error("Texture '" + std::string{name} + "': " + what);
@@ -40,15 +41,18 @@ struct KtxDeleter
 	}
 };
 
+
 float SrgbToLinear(float value)
 {
 	return value <= 0.04045f ? value / 12.92f : std::pow((value + 0.055f) / 1.055f, 2.4f);
 }
 
+
 float LinearToSrgb(float value)
 {
 	return value <= 0.0031308f ? value * 12.92f : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
 }
+
 
 // The 256 sRGB-encoded bytes as linear values, built once: the box filter reads four of them for
 // every texel of every level.
@@ -64,10 +68,12 @@ const std::array<float, 256> &SrgbTable()
 	return table;
 }
 
+
 std::uint8_t ToByte(float value)
 {
 	return static_cast<std::uint8_t>(std::clamp(std::lround(value * 255.0f), 0L, 255L));
 }
+
 
 // The source texels a destination texel at `index` averages along one axis: two, or three for
 // the last one of an odd source, so that no source texel is dropped.
@@ -80,6 +86,7 @@ std::pair<std::uint32_t, std::uint32_t> Footprint(
 	const std::uint32_t count = (index + 1 == destination && source % 2 == 1) ? 3 : 2;
 	return {first, count};
 }
+
 
 void ProbeSize(std::span<const std::byte> bytes, std::string_view name)
 {
@@ -95,6 +102,7 @@ bool IsSrgb(TextureFormat format)
 {
 	return format == TextureFormat::Rgba8Srgb || format == TextureFormat::Bc7Srgb;
 }
+
 
 bool IsBlockCompressed(TextureFormat format)
 {

@@ -20,10 +20,12 @@ namespace
 	throw Serialise::FormatError("Galaxy '" + galaxy.name + "': " + what);
 }
 
+
 std::string Describe(const JumpLane &lane, std::size_t index)
 {
 	return "lane " + std::to_string(index) + " ('" + lane.a.system + "' to '" + lane.b.system + "')";
 }
+
 
 void CheckPath(
     const Galaxy &galaxy, const GalaxySystem &system, const std::string &path, const char *what)
@@ -35,6 +37,7 @@ void CheckPath(
 		                "forward-slashed)");
 }
 
+
 Exit ExitOf(const Galaxy &galaxy, std::size_t lane, bool fromA)
 {
 	const JumpLane &edge = galaxy.lanes[lane];
@@ -43,6 +46,7 @@ Exit ExitOf(const Galaxy &galaxy, std::size_t lane, bool fromA)
 	return {lane, here.jumpPoint, there.systemIndex, there.jumpPoint, edge.transitSeconds, edge.toll};
 }
 } // namespace
+
 
 void RegisterGalaxyTypes()
 {
@@ -71,6 +75,7 @@ void RegisterGalaxyTypes()
 	(void)registered;
 }
 
+
 int Galaxy::Find(std::string_view systemName) const
 {
 	for (std::size_t index = 0; index < systems.size(); ++index)
@@ -79,6 +84,7 @@ int Galaxy::Find(std::string_view systemName) const
 	return -1;
 }
 
+
 int Galaxy::FindBySystemFile(std::string_view virtualPath) const
 {
 	for (std::size_t index = 0; index < systems.size(); ++index)
@@ -86,6 +92,7 @@ int Galaxy::FindBySystemFile(std::string_view virtualPath) const
 			return static_cast<int>(index);
 	return -1;
 }
+
 
 void Resolve(Galaxy &galaxy)
 {
@@ -142,6 +149,7 @@ void Resolve(Galaxy &galaxy)
 	}
 }
 
+
 Galaxy ReadGalaxy(std::string_view text)
 {
 	RegisterGalaxyTypes();
@@ -151,11 +159,13 @@ Galaxy ReadGalaxy(std::string_view text)
 	return galaxy;
 }
 
+
 std::string WriteGalaxy(const Galaxy &galaxy)
 {
 	RegisterGalaxyTypes();
 	return Serialise::YamlArchive::Write(galaxy, Serialise::FormatVersion{kGalaxyFormatVersion});
 }
+
 
 void CheckJumpPoints(const Galaxy &galaxy, std::size_t system, const StarSystem &starSystem)
 {
@@ -180,6 +190,7 @@ void CheckJumpPoints(const Galaxy &galaxy, std::size_t system, const StarSystem 
 	}
 }
 
+
 std::vector<Exit> Exits(const Galaxy &galaxy, std::size_t system)
 {
 	std::vector<Exit> exits;
@@ -193,6 +204,7 @@ std::vector<Exit> Exits(const Galaxy &galaxy, std::size_t system)
 	}
 	return exits;
 }
+
 
 std::optional<Exit> ExitThrough(const Galaxy &galaxy, std::size_t system, std::string_view jumpPoint)
 {

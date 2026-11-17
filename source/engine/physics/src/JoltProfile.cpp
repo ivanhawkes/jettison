@@ -13,6 +13,8 @@
 #include <jettison/profile/Profile.h>
 
 #ifdef JPH_EXTERNAL_PROFILE
+
+
 // Jolt's zones on Tracy's timeline. Jolt names them with literals and function names, but a zone
 // made here has no source location of its own to point at, so each is a transient zone, its
 // location allocated when it starts: dearer than a static zone, and only while a profiler is
@@ -32,6 +34,7 @@ JPH::ExternalProfileMeasurement::ExternalProfileMeasurement(const char *inName, 
 	(void)mUserData;
 #endif
 }
+
 
 JPH::ExternalProfileMeasurement::~ExternalProfileMeasurement()
 {

@@ -100,9 +100,11 @@ class Application
 {
   public:
 	Application(AppArguments arguments, std::string windowTitle);
+
 	~Application();
 
 	Application(const Application &) = delete;
+
 	Application &operator=(const Application &) = delete;
 
 	// Init, the frame loop, Shutdown, then the headless sequence's verdict. A sequence that did
@@ -127,32 +129,46 @@ class Application
 	// the renderer's models, materials and textures, and the scene needs no device, so it loads
 	// before the renderer opens the window.
 	void Init();
+
 	// Where the user's files are (AppArguments::userDirectory, or the XDG directories), and the
 	// settings and bindings read from them.
 	void InitUser();
+
 	void InitResources();
+
 	void InitScene();
+
 	// Reads the galaxy (AppArguments::galaxyPath), when there is one to read.
 	void InitGalaxy();
+
 	// Loads the scene, and the star system it names; the smoke sequence's reload comes here too.
 	void LoadScene();
+
 	// Which of the galaxy's systems the scene shows, checked against the galaxy's lanes.
 	void FindShownSystem();
+
 	void InitRenderer();
+
 	// The window the renderer opened: its title and its size.
 	void InitWindow();
+
 	// The game UI over the window (docs/architecture.md, "UI"): its fonts, the market screen's data
 	// model and document, read through the asset tree.
 	void InitUi();
+
 	// The game's sound (docs/architecture.md, "Audio"): the mixer, its buses' volumes from the
 	// settings, the event sounds the definitions name, and the music. Needs no window.
 	void InitAudio();
+
 	// The listener at the camera, the station's hum on the station, and the mixer's frame.
 	void UpdateAudio(entt::registry &registry);
+
 	// The bus's volume from the settings, or 1 when they name none.
 	float SettingVolume(Audio::Bus bus);
+
 	// Plays what the data maps the event to, when it is about the player's ship.
 	void PlayEventSound(const Sim::SimEvent &event);
+
 	// Sounds started on the UI bus, which the smoke run's trade has to add to.
 	std::uint64_t UiSounds() const;
 
@@ -162,20 +178,28 @@ class Application
 
 	// The frame loop, and one frame of it: the scheduler's phases in order (Ecs::kTickPhases).
 	void RunFrameLoop();
+
 	void Tick();
+
 	void PollInput();
+
 	// The frame's camera input, into the scene's orbit rigs.
 	void DriveCameras(entt::registry &registry, double deltaTime);
+
 	// Moves each orbit camera to the next celestial body, with a transition.
 	void NextCameraTarget(entt::registry &registry);
+
 	// Points the orbit camera at the body's entity, out to three of its radii, eased from wherever
 	// the camera is.
 	void FrameBody(entt::registry &registry, entt::entity camera, entt::entity body);
+
 	// The console's orbit command: every orbit camera placed at once at a yaw, pitch and distance,
 	// about the body named if one is. Throws, saying why, on what it cannot do.
 	void PlaceOrbitCamera(std::span<const std::string> arguments);
+
 	// The console's grade: the scene's colour grade set, replaced or taken away.
 	void SetGrade(std::span<const std::string> arguments);
+
 	// The console's language: the screens read again in the language given, kept in the settings, or
 	// with none, the language they are in and those there are tables for.
 	void SetLanguage(DevTools::Console &console, std::span<const std::string> arguments);
@@ -185,33 +209,47 @@ class Application
 	// the last jump arrived by, so jumping again and again tours the galaxy's lanes. A scene of none
 	// of the galaxy's systems jumps to its first. False, saying why, if no jump started.
 	bool Jump(std::string_view systemName = {});
+
 	// The jump's swap, with its effect covering the frame: the scene replaced with the destination's,
 	// its system scene built, and the cameras on the jump point arrived at.
 	void ShowArrival(Scene::JumpArrival &arrival);
+
 	void DrawUI();
+
 	// The presentation phase: the market screen made again from the snapshot, when the step or what
 	// the shell shows moved, and the game UI laid out and drawn into its overlay.
 	void UpdateGameUi();
+
 	// The window's events since the last frame, to the game UI, unless the dev tools have the mouse or
 	// the keyboard.
 	void FeedGameUi();
+
 	// The market the screen shows: the one at the ship's station, else the first in the system shown,
 	// else none.
 	entt::entity ShownMarket() const;
+
 	void ShowMarket(bool shown);
+
 	// The saved-games screen, its list read again from the user mount as it is shown.
 	void ShowSaves(bool shown);
+
 	// A Trade the next step applies, from the screen's buttons: crates bought, or sold when negative.
 	void SendTrade(std::string_view good, std::int64_t crates);
+
 	// The renderer's counts and the GPU's time in each pass, in the dev tools.
 	void DrawRendererPanel();
+
 	// The star system shown, and the scene's layers, each shown or hidden.
 	void DrawScenePanel();
+
 	// The galaxy's half of it: the jump under way, and a button for each way out of the system shown.
 	void DrawGalaxy();
+
 	// The benchmark's frame count, the warm-up's end, and the report when it is done.
 	void AdvanceBenchmark();
+
 	void ReportBenchmark() const;
+
 	// Pushes and pops the flight and console input contexts to match whether a ship is flown and
 	// whether the console is open: the console's over the flight's, over the shell's.
 	void SyncContexts();
@@ -225,6 +263,7 @@ class Application
 	// Every system the galaxy has is defined in physics, for rails and gravity, and in lane travel,
 	// for where a ship comes out; the scene's own in physics too.
 	void DefineStarSystems();
+
 	// The ship bound to the first station of the system shown, the one it docks at and trades with:
 	// the station the docks built to its layout (OpenStations); or, for a station of no layout, its
 	// body, kinematic on its rails with a collision mesh from what the scene draws it with
@@ -232,83 +271,114 @@ class Application
 	// again in the world after that, which has no pads. False for a system with no station, or one
 	// of no layout drawn with no shape.
 	bool BindStation();
+
 	// Every station of the galaxy built to a layout, with the sample's ships parked on it, and the
 	// markets bound to them; once a run, as the markets are, and a load brings its own.
 	void OpenStations();
+
 	// The station bound, and the ship docked on its lowest numbered free pad, or, at a station of no
 	// pads, holding off it in its frame. Once a run: a reload of the scene leaves the simulation as
 	// it was.
 	void SpawnShip();
+
 	// The console's dock and undock: a pad asked of the bound station for the ship, flown in unless
 	// the pilot is to land it, and the pad given up, which lifts it clear if it is docked.
 	void RequestPad(bool fly);
+
 	void ReleasePad();
+
 	// The stations of the system shown dressed under their entities in the scene (DressStation), as
 	// each system scene is built.
 	void DrawStations();
+
 	// The presentation's sync, after the traffic layer's: each dressed station's lamps turned to its
 	// pads' states in the latest snapshot, its simulation entity found again when it has none there.
 	void ShowPadStates();
+
 	// The console's traffic: that many shuttles flown by steering (Ai::Steering) from 1 to 2 km about
 	// the bound station to places on a ring about it, clear of its hull and of each other, in the
 	// station's axes so the ring turns with it; or, for none, every one there is taken out of the
 	// world. Sixteen at most, the ring's places for its spacing.
 	void SpawnTraffic(int count);
+
 	// Sends the ship along the lane, when it is in the system shown, as the scene jumps along it: the
 	// tools' jump, which skips the gate and its toll.
 	void TakeShipAlong(const Celestial::Exit &exit);
+
 	// The console's transit: asks the gate of the jump point named in the ship's system, or of the
 	// one whose frame the ship is in, to clear the ship through it (Ai::RequestTransit), found in the
 	// snapshots.
 	void RequestTransit(std::string_view jumpPoint);
+
 	// The scene's jump along the lane a gate sent the ship down, from the system shown, unless a jump
 	// is under way already.
 	void FollowShipAlong(const Ai::OnLane &lane);
+
 	// The console's route: the quickest way from the ship to a system, at the ship's top speed
 	// across each system (Ai::PlotRoute, Ai::CrossingByCourse).
 	void LogRoute(std::string_view systemName) const;
+
 	// Says, for each trader, its run and how far it has got, and what its runs have made.
 	void LogTraders() const;
+
 	// The fleet (Fleet.h): the ship the shell follows, the attached one, which its camera, its
 	// market screen and its console's commands are for; bound to the station it is docked at or
 	// waiting for, and shown in its system, the scene jumping there, or along the lane it is on.
 	void AttachShip(entt::entity ship);
+
 	// The next ship of the player's fleet, or the one before, in the fleet's order.
 	void CycleAttached(int step);
+
 	// Whether the player is at the attached ship's helm, as the newest snapshot has it: the only ship
 	// their controls fly.
 	bool AtHelm() const;
+
 	// Takes the attached ship's helm, or leaves it to the ship's behaviour.
 	void ToggleHelm();
+
 	// The console's buy: a ship of the hull at the bound station (App::BuyShip), attached once bought.
 	void BuyShip(std::string_view hull);
+
 	// The console's fleet: each ship, where it is, who flies it and its hold.
 	void ListFleet(DevTools::Console &console) const;
+
 	// Whether the ship is in the system shown, which is the only one a camera can follow it in.
 	bool CanPilot() const;
+
 	bool StartPiloting(Scene::PilotView view);
+
 	void StopPiloting();
+
 	// A sequence in cinematics/<name>.sequence.yaml played on the active camera from a time, its
 	// roles bound to what the shell shows: the ship, the pad it is clamped to, and its station.
 	void PlaySequence(std::string_view name, double from);
+
 	// The sequence playing, cut short: the camera is its rigs' at once.
 	void StopSequence();
+
 	// The roles the shell binds a sequence's to, this frame.
 	void BindSequenceRoles(entt::registry &registry);
+
 	// What the playing sequence shows over the frame: its fade, unless a jump's is up, and its bars.
 	void ShowSequence(entt::registry &registry);
+
 	// The commands phase: the controls the flight context reads, as a SetFlightControls when they
 	// change. A ship not flown is held where it is by its assist.
 	void FlyShip();
+
 	// The presentation phase, before the rigs: the active camera given a pilot rig on the ship's
 	// proxy while it is flown, and its orbit rig back, eased, when it is not.
 	void SyncPilotCamera(entt::registry &registry);
+
 	void SetProxyFactory();
+
 	// A jump's streaks past the camera while its effect rises and lifts (an emitter of the scene's,
 	// built and not saved), and none once it is done.
 	void ShowJumpStreaks();
+
 	// The streaks' emitter ahead of this frame's camera, once the rigs have moved it.
 	void PlaceJumpStreaks(entt::registry &registry);
+
 	// The ship's speed and distance from the station, and the keys, while it is flown.
 	void DrawFlight();
 
@@ -316,17 +386,23 @@ class Application
 	// the cursor, as a Physics::Pick the next step answers with a Physics::Picked. Sends one through
 	// the point, in window pixels, and says whether it did: not in a scene of no system.
 	bool Pick(const glm::dvec2 &point);
+
 	// The sync phase: the steps' events, a pick answered and a ship docked or undocked.
 	void TakeEvents();
+
 	// The last pick, marked where it hit and named, until the next.
 	void DrawPicked();
+
 	// A simulation entity as the shell names it.
 	std::string Describe(entt::entity simEntity) const;
+
 	// A reason the step gave, as the player reads it, from the newest snapshot (Reasons.h).
 	std::string Word(const Sim::Reason &reason) const;
+
 	// The frame the ship's physics is in (Physics::LocalFrame), from the newest snapshot: the
 	// station's, another body's after a cruise, or none, the system's, while it cruises.
 	std::string ShipFrame() const;
+
 	// The origin of the ship's frame at a time, in the system frame: where its body is, or the
 	// primary when there is none.
 	glm::dvec3 PilotFrameOrigin(double simSeconds) const;
@@ -339,7 +415,9 @@ class Application
 	// one that does not load (of another galaxy, of a version this build cannot read, of a world that
 	// does not fit), which leaves the world as it was.
 	bool SaveTo(std::string_view name);
+
 	bool LoadFrom(std::string_view name);
+
 	// The bindings and the joysticks' names, written to the settings file after the player changes
 	// one, so the change survives a restart.
 	void SaveSettings();
@@ -487,6 +565,7 @@ class Application
 		bool mask{false};
 	};
 	std::vector<std::pair<entt::entity, ShellMark>> m_shellMarks;
+
 	void MarkScene(entt::registry &registry);
 
 	// The shell's own actions, in a "shell" context at the bottom of the stack: F1 toggles the

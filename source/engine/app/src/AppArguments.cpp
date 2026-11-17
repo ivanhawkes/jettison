@@ -34,6 +34,7 @@ std::filesystem::path DefaultAssets(const char *argv0, const std::filesystem::pa
 	           : directory;
 }
 
+
 // A positive whole number, all of the text, or nothing.
 std::optional<std::uint32_t> ParseCount(std::string_view text)
 {
@@ -44,6 +45,7 @@ std::optional<std::uint32_t> ParseCount(std::string_view text)
 	return value;
 }
 
+
 // A positive number of seconds, all of the text, or nothing.
 std::optional<double> ParseSeconds(std::string_view text)
 {
@@ -53,6 +55,7 @@ std::optional<double> ParseSeconds(std::string_view text)
 		return std::nullopt;
 	return value;
 }
+
 
 // The usage line names the flags this file reads, and goes to the stream the failure report
 // uses, so the two halves of one exit path arrive together.
@@ -68,6 +71,7 @@ void PrintUsage(const char *argv0)
 	       " [--frame-step <seconds>] [--run <console command>]...\n";
 }
 } // namespace
+
 
 std::optional<AppArguments> ParseAppArguments(
     int argc, char **argv, const std::filesystem::path &assetSubdirectory)

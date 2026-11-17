@@ -76,9 +76,12 @@ class Overlay
 	// Takes the texels, which must be width x height x 4 bytes; throws std::invalid_argument for
 	// any other count, or a texture of no texels.
 	OverlayTextureId AddTexture(OverlayTexture texture);
+
 	// Does nothing for an identifier the overlay does not hold.
 	void RemoveTexture(OverlayTextureId texture);
+
 	const OverlayTexture *FindTexture(OverlayTextureId texture) const;
+
 	const std::map<OverlayTextureId, OverlayTexture> &Textures() const
 	{
 		return m_textures;
@@ -93,6 +96,7 @@ class Overlay
 	{
 		m_scissor = scissor;
 	}
+
 	void SetTransform(const std::optional<glm::mat4> &transform);
 
 	// Appends a draw of the vertices by the indices, which count from the first of them. Throws
@@ -106,14 +110,17 @@ class Overlay
 	{
 		return m_vertices;
 	}
+
 	const std::vector<std::uint32_t> &Indices() const
 	{
 		return m_indices;
 	}
+
 	const std::vector<OverlayDraw> &Draws() const
 	{
 		return m_draws;
 	}
+
 	const std::vector<glm::mat4> &Transforms() const
 	{
 		return m_transforms;

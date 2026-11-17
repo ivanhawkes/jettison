@@ -18,6 +18,7 @@ namespace Jettison::Render
 {
 // How the mesh programs' vertex input reads a Vertex: one binding, every attribute in it.
 VkVertexInputBindingDescription VertexBindingDescription();
+
 std::vector<VkVertexInputAttributeDescription> VertexAttributeDescriptions();
 
 struct ModelPrimitive
@@ -39,7 +40,9 @@ class Model
 {
   public:
 	Model() = default;
+
 	Model(const Model &) = delete;
+
 	Model &operator=(const Model &) = delete;
 
 	// The geometry in a glTF file's bytes: its one mesh node's triangle primitives, each with the
@@ -56,10 +59,12 @@ class Model
 		std::vector<uint32_t> indices;
 		float error{};
 	};
+
 	static std::unique_ptr<Model> FromMeshes(std::vector<MeshLevel> levels, std::string_view name);
 
 	// Makes the buffers, named for the validation layer, and frees the CPU copy of the vertices.
 	void Upload(DeviceContext &deviceContext, const std::string &name);
+
 	// Hands the buffers over, leaving the model with none: to whoever frees them once no frame in
 	// flight reads them.
 	void TakeBuffers(Buffer &vertexBuffer, Buffer &indexBuffer);
@@ -82,6 +87,7 @@ class Model
 
   private:
 	void ReadGltf(std::span<const std::byte> bytes, const std::string &name);
+
 	void ComputeBounds();
 
 	std::vector<Vertex> m_vertices{};

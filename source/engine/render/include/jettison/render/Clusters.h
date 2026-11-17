@@ -48,20 +48,27 @@ struct ClusterBox
 };
 
 glm::vec2 ClusterTileSize(glm::vec2 viewport);
+
 // The view depth slice `slice` begins at.
 float ClusterSliceDepth(std::uint32_t slice, float nearPlane, float range);
+
 // The slice a view depth is in, or kClusterSlices outside the grid.
 std::uint32_t ClusterSlice(float depth, float nearPlane, float range);
+
 // The cluster a framebuffer position at a view depth is in, or kClusterCount outside the grid.
 std::uint32_t ClusterAt(glm::vec2 pixel, float depth, const ClusterView &view);
+
 ClusterBox ClusterBoundsOf(std::uint32_t cluster, const ClusterView &view);
+
 // Whether the light, in render space, can reach the cluster; the view matrix turns it into view
 // space. The margin widens the light by that many metres.
 bool LightReachesCluster(
     const GpuLight &light, const glm::mat3 &view, const ClusterBox &bounds, float margin = 0.0f);
+
 // The falloffs the lighting include applies: windowed inverse square over the distance squared,
 // and a spot's across its cone, with the light's packed scale and offset.
 float RangeAttenuation(float distanceSquared, float range);
+
 float SpotAttenuation(const GpuLight &light, const glm::vec3 &lightToSurface);
 
 // A light as the light list carries it: its position in render space, and for a spot the way it

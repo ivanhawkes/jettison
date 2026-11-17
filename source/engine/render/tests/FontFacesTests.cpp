@@ -35,6 +35,8 @@ class HeadlessImGui
 		io.DeltaTime = 1.0f / 60.0f;
 		io.IniFilename = nullptr;
 	}
+
+
 	~HeadlessImGui()
 	{
 		ImGuiContext *outer = ImGui::GetCurrentContext();
@@ -43,12 +45,17 @@ class HeadlessImGui
 		if (outer != m_context)
 			ImGui::SetCurrentContext(outer);
 	}
+
+
 	HeadlessImGui(const HeadlessImGui &) = delete;
+
+
 	HeadlessImGui &operator=(const HeadlessImGui &) = delete;
 
   private:
 	ImGuiContext *m_context{nullptr};
 };
+
 
 Vfs::FileSystem AssetFonts()
 {
@@ -57,6 +64,7 @@ Vfs::FileSystem AssetFonts()
 	return files;
 }
 } // namespace
+
 
 TEST_CASE("Fonts: the faces the dev tools draw with are named, and the UI face is the drawn one")
 {
@@ -99,6 +107,7 @@ TEST_CASE("Fonts: the faces the dev tools draw with are named, and the UI face i
 	for (const std::vector<std::byte> &bytes : faces.m_bytes)
 		CHECK(bytes.size() > 100); // ImGui's own heuristic for a font file
 }
+
 
 TEST_CASE("Fonts: a pack with no faces leaves the loader with none, and ImGui's own default draws")
 {

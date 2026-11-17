@@ -8,6 +8,7 @@
 
 using namespace Jettison::Math;
 
+
 TEST_CASE("Aabb: overlapping and touching boxes intersect, separated ones do not")
 {
 	const Aabb unit{glm::vec3{0.0f}, glm::vec3{1.0f}};
@@ -16,6 +17,7 @@ TEST_CASE("Aabb: overlapping and touching boxes intersect, separated ones do not
 	CHECK_FALSE(Intersects(unit, Aabb{glm::vec3{1.5f, 0.0f, 0.0f}, glm::vec3{2.0f, 1.0f, 1.0f}}));
 	CHECK_FALSE(Intersects(unit, Aabb{glm::vec3{0.0f, 0.0f, -2.0f}, glm::vec3{1.0f, 1.0f, -1.5f}}));
 }
+
 
 // Four million kilometres from the star, two boxes a centimetre apart. In float both edges round
 // to the same value and the boxes touch; the simulation's frame needs the double version.
@@ -31,6 +33,7 @@ TEST_CASE("DAabb: keeps a centimetre apart at four million kilometres")
 	CHECK(Intersects(aFloat, bFloat));
 }
 
+
 TEST_CASE("Sphere: intersect when the centres are within the sum of the radii")
 {
 	const Sphere a{glm::vec3{0.0f}, 1.0f};
@@ -39,6 +42,7 @@ TEST_CASE("Sphere: intersect when the centres are within the sum of the radii")
 	CHECK_FALSE(Intersects(a, Sphere{glm::vec3{0.0f, 0.0f, 2.5f}, 1.0f}));
 	CHECK(Intersects(DSphere{glm::dvec3{0.0}, 1.0}, DSphere{glm::dvec3{1.0, 1.0, 0.0}, 0.5}));
 }
+
 
 TEST_CASE("Ray against Aabb: distance to entry, 0 from inside, misses")
 {
@@ -56,6 +60,7 @@ TEST_CASE("Ray against Aabb: distance to entry, 0 from inside, misses")
 	CHECK_FALSE(Intersect(Ray{glm::vec3{3.0f, 0.0f, 10.0f}, down.direction}, box).has_value());
 }
 
+
 // The x and y components are zero: a division would give infinities, and NaN on the face.
 TEST_CASE("Ray against Aabb: axis-parallel rays, including one along a face")
 {
@@ -65,6 +70,7 @@ TEST_CASE("Ray against Aabb: axis-parallel rays, including one along a face")
 	CHECK(*Intersect(Ray{glm::vec3{1.0f, -1.0f, 5.0f}, down}, box) == doctest::Approx(4.0f));
 	CHECK_FALSE(Intersect(Ray{glm::vec3{1.001f, 0.0f, 5.0f}, down}, box).has_value());
 }
+
 
 TEST_CASE("Ray against Obb: tested in the box's own frame")
 {
@@ -84,6 +90,7 @@ TEST_CASE("Ray against Obb: tested in the box's own frame")
 	        .has_value());
 }
 
+
 TEST_CASE("Ray against Sphere: first hit, 0 from inside, misses")
 {
 	const Sphere sphere{glm::vec3{0.0f}, 1.0f};
@@ -98,6 +105,7 @@ TEST_CASE("Ray against Sphere: first hit, 0 from inside, misses")
 	        DRay{glm::dvec3{0.0, 0.0, 10.0}, glm::dvec3{0.0, 0.0, -1.0}},
 	        DSphere{glm::dvec3{0.0}, 1.0}) == doctest::Approx(9.0));
 }
+
 
 TEST_CASE("Ray against Plane: in front, behind, and parallel")
 {
@@ -115,6 +123,7 @@ TEST_CASE("Ray against Plane: in front, behind, and parallel")
 	        Ray{start, glm::vec3{0.0f, -1.0f, 0.0f}}, Plane{glm::vec3{0.0f, 1.0f, 0.0f}, -2.0f}) ==
 	    doctest::Approx(3.0f));
 }
+
 
 TEST_CASE("Transformed: a box turned and moved still bounds itself")
 {
@@ -141,10 +150,12 @@ namespace
 // d to either side.
 const glm::mat4 kView = glm::lookAt(glm::vec3{0.0f}, glm::vec3{0.0f, 0.0f, -1.0f}, glm::vec3{0, 1, 0});
 
+
 bool Sees(const Frustum &frustum, const glm::vec3 &point)
 {
 	return Intersects(frustum, Sphere{point, 0.0f});
 }
+
 
 // Zero-to-one depth, reversed, with no far plane: what phase 4 moves the renderer to. Depth is
 // near / distance, 1 at the near plane and 0 at infinity.
@@ -159,6 +170,7 @@ glm::mat4 ReversedInfinitePerspective(float verticalFov, float aspect, float nea
 	return projection;
 }
 } // namespace
+
 
 TEST_CASE("FrustumFromMatrix: conventional depth, the renderer's Vulkan Y flip included")
 {
@@ -181,6 +193,7 @@ TEST_CASE("FrustumFromMatrix: conventional depth, the renderer's Vulkan Y flip i
 	CHECK(Intersects(frustum, Sphere{glm::vec3{11.0f, 0.0f, -10.0f}, 1.0f}));
 }
 
+
 TEST_CASE("FrustumFromMatrix: reversed-Z with an infinite far plane")
 {
 	const Frustum frustum =
@@ -197,6 +210,7 @@ TEST_CASE("FrustumFromMatrix: reversed-Z with an infinite far plane")
 	CHECK_FALSE(Sees(frustum, glm::vec3{0.0f, 0.0f, 1.0f}));
 	CHECK_FALSE(Sees(frustum, glm::vec3{2.0e9f, 0.0f, -1.0e9f}));
 }
+
 
 TEST_CASE("Frustum against Aabb: inside, outside, and straddling a plane")
 {

@@ -21,11 +21,13 @@ constexpr Core::Category kUi{"ui"};
 // RmlUi is one instance a process.
 bool g_live = false;
 
+
 int KeyModifiers(Modifiers modifiers)
 {
 	return (modifiers.shift ? Rml::Input::KM_SHIFT : 0) |
 	       (modifiers.control ? Rml::Input::KM_CTRL : 0) | (modifiers.alt ? Rml::Input::KM_ALT : 0);
 }
+
 
 // GLFW's key numbers, as Input::InputCode has them (the shell checks a sample against GLFW's own
 // header), to RmlUi's: the keys a document's text fields and navigation read.
@@ -67,6 +69,7 @@ Rml::Input::KeyIdentifier ToRmlKey(std::int32_t code)
 }
 } // namespace
 
+
 Rml::ElementDocument *Detail::UiState::Find(DocumentHandle document) const
 {
 	if (document.index >= documents.size())
@@ -96,6 +99,7 @@ UiSystem::UiSystem(const Vfs::FileSystem &files, int width, int height)
 	}
 }
 
+
 UiSystem::~UiSystem()
 {
 	// The documents and the data models go with the context, before the interfaces and the
@@ -104,11 +108,13 @@ UiSystem::~UiSystem()
 	g_live = false;
 }
 
+
 void UiSystem::LoadFont(std::string_view virtualPath, bool fallback)
 {
 	if (!Rml::LoadFontFace(std::string{virtualPath}, fallback))
 		throw std::runtime_error(std::format("UiSystem: the font '{}' did not load", virtualPath));
 }
+
 
 DataModel &UiSystem::CreateDataModel(std::string_view name)
 {
@@ -126,6 +132,7 @@ DataModel &UiSystem::CreateDataModel(std::string_view name)
 	m_pState->models.emplace(key, std::move(pModel));
 	return model;
 }
+
 
 void UiSystem::SetLanguage(std::string_view language)
 {
@@ -149,10 +156,12 @@ void UiSystem::SetLanguage(std::string_view language)
 	}
 }
 
+
 const StringTable &UiSystem::Strings() const
 {
 	return m_pState->system.Strings();
 }
+
 
 DocumentHandle UiSystem::LoadDocument(std::string_view virtualPath)
 {
@@ -177,17 +186,20 @@ DocumentHandle UiSystem::LoadDocument(std::string_view virtualPath)
 	return {static_cast<std::uint32_t>(m_pState->documents.size() - 1), 0};
 }
 
+
 void UiSystem::Show(DocumentHandle document)
 {
 	if (Rml::ElementDocument *pDocument = m_pState->Find(document))
 		pDocument->Show();
 }
 
+
 void UiSystem::Hide(DocumentHandle document)
 {
 	if (Rml::ElementDocument *pDocument = m_pState->Find(document))
 		pDocument->Hide();
 }
+
 
 void UiSystem::Close(DocumentHandle document)
 {
@@ -200,11 +212,13 @@ void UiSystem::Close(DocumentHandle document)
 	++slot.generation;
 }
 
+
 bool UiSystem::IsShown(DocumentHandle document) const
 {
 	const Rml::ElementDocument *pDocument = m_pState->Find(document);
 	return pDocument != nullptr && pDocument->IsVisible();
 }
+
 
 std::size_t UiSystem::OpenDocuments() const
 {
@@ -214,11 +228,13 @@ std::size_t UiSystem::OpenDocuments() const
 	return open;
 }
 
+
 void UiSystem::SetSize(int width, int height, float pixelsPerDp)
 {
 	m_pState->pContext->SetDimensions({width, height});
 	m_pState->pContext->SetDensityIndependentPixelRatio(pixelsPerDp);
 }
+
 
 bool UiSystem::MouseMove(const glm::vec2 &position, Modifiers modifiers)
 {
@@ -226,11 +242,13 @@ bool UiSystem::MouseMove(const glm::vec2 &position, Modifiers modifiers)
 	    static_cast<int>(position.x), static_cast<int>(position.y), KeyModifiers(modifiers));
 }
 
+
 bool UiSystem::MouseButton(int button, bool pressed, Modifiers modifiers)
 {
 	return pressed ? !m_pState->pContext->ProcessMouseButtonDown(button, KeyModifiers(modifiers))
 	               : !m_pState->pContext->ProcessMouseButtonUp(button, KeyModifiers(modifiers));
 }
+
 
 bool UiSystem::MouseWheel(float steps, Modifiers modifiers)
 {
@@ -238,10 +256,12 @@ bool UiSystem::MouseWheel(float steps, Modifiers modifiers)
 	return !m_pState->pContext->ProcessMouseWheel(-steps, KeyModifiers(modifiers));
 }
 
+
 void UiSystem::MouseLeave()
 {
 	m_pState->pContext->ProcessMouseLeave();
 }
+
 
 bool UiSystem::Key(Input::InputCode key, bool pressed, Modifiers modifiers)
 {
@@ -258,6 +278,7 @@ bool UiSystem::Key(Input::InputCode key, bool pressed, Modifiers modifiers)
 	return !propagated || WantsKeyboard();
 }
 
+
 bool UiSystem::Text(char32_t character)
 {
 	if (!WantsKeyboard())
@@ -266,12 +287,14 @@ bool UiSystem::Text(char32_t character)
 	return true;
 }
 
+
 bool UiSystem::WantsMouse() const
 {
 	const Rml::Element *pHover = m_pState->pContext->GetHoverElement();
 	// The context's root is hovered when no document is under the mouse.
 	return pHover != nullptr && pHover != m_pState->pContext->GetRootElement();
 }
+
 
 bool UiSystem::WantsKeyboard() const
 {
@@ -282,6 +305,7 @@ bool UiSystem::WantsKeyboard() const
 	return tag == "input" || tag == "textarea" || tag == "select";
 }
 
+
 void UiSystem::Update(double presentationSeconds)
 {
 	m_pState->system.SetTime(presentationSeconds);
@@ -290,10 +314,12 @@ void UiSystem::Update(double presentationSeconds)
 	m_pState->pContext->Render();
 }
 
+
 const Render::Overlay &UiSystem::Overlay() const
 {
 	return m_pState->overlay;
 }
+
 
 std::string UiSystem::ElementText(DocumentHandle document, std::string_view id) const
 {
@@ -301,6 +327,7 @@ std::string UiSystem::ElementText(DocumentHandle document, std::string_view id) 
 	Rml::Element *pElement = pDocument ? pDocument->GetElementById(std::string{id}) : nullptr;
 	return pElement ? pElement->GetInnerRML() : std::string{};
 }
+
 
 bool UiSystem::Click(DocumentHandle document, std::string_view id)
 {
@@ -311,6 +338,7 @@ bool UiSystem::Click(DocumentHandle document, std::string_view id)
 	pElement->Click();
 	return true;
 }
+
 
 std::size_t UiSystem::Problems() const
 {

@@ -72,6 +72,7 @@ struct ShapeEntry
 	double radius{0.0};
 };
 
+
 // The smallest sphere about the origin holding the shape as its definition has it. Jolt's own
 // bounds are a box, whose corner is a ball's radius times √3 from its centre.
 double BoundingRadius(const ShapeDefinition &shape)
@@ -104,6 +105,7 @@ struct WorldKey
 	std::uint64_t system{Sim::kNoSystem};
 	std::string frame;
 
+
 	friend auto operator<=>(const WorldKey &, const WorldKey &) = default;
 };
 
@@ -135,10 +137,12 @@ struct FrameMotion
 	glm::dvec3 before{0.0};
 };
 
+
 std::string Describe(entt::entity entity)
 {
 	return std::format("entity {:#x}", entt::to_integral(entity));
 }
+
 
 // Why a body of this description cannot be made, or nothing.
 std::optional<std::string> Unmakeable(const Body &body, const ShapeEntry *shape, const WorldKey &key)
@@ -171,6 +175,7 @@ std::optional<std::string> Unmakeable(const Body &body, const ShapeEntry *shape,
 		    key.frame);
 	return std::nullopt;
 }
+
 
 JPH::BodyCreationSettings MakeSettings(
     entt::entity entity, const Body &body, const ShapeEntry &shape, const Sim::Transform &transform,
@@ -216,17 +221,20 @@ JPH::BodyCreationSettings MakeSettings(
 	return creation;
 }
 
+
 std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *inSystem = registry.try_get<Sim::InSystem>(entity);
 	return inSystem ? inSystem->system : Sim::kNoSystem;
 }
 
+
 WorldKey KeyOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *frame = registry.try_get<LocalFrame>(entity);
 	return {SystemOf(registry, entity), frame ? frame->body : std::string{}};
 }
+
 
 // Where an entity on rails is at a time: its place on its body, which is where the body is and turned
 // as it spins, or as a jump point faces.
@@ -247,6 +255,7 @@ struct Well
 	double radius;
 };
 
+
 std::vector<Well> Wells(const Celestial::StarSystem &system, double simSeconds)
 {
 	std::vector<Well> wells;
@@ -259,6 +268,7 @@ std::vector<Well> Wells(const Celestial::StarSystem &system, double simSeconds)
 			     system.bodies[body].radius});
 	return wells;
 }
+
 
 glm::dvec3 Pull(const std::vector<Well> &wells, const glm::dvec3 &position)
 {
@@ -280,10 +290,12 @@ glm::dvec3 Pull(const std::vector<Well> &wells, const glm::dvec3 &position)
 // Two entities' bodies, first below second, as contacts are kept.
 using Pair = std::pair<entt::entity, entt::entity>;
 
+
 Pair Ordered(entt::entity left, entt::entity right)
 {
 	return left < right ? Pair{left, right} : Pair{right, left};
 }
+
 
 entt::entity EntityOf(const JPH::Body &body)
 {
@@ -312,10 +324,13 @@ class ContactRecorder final : public JPH::ContactListener
 	{
 		m_origin = origin;
 	}
+
+
 	std::map<Pair, Meeting> Take()
 	{
 		return std::exchange(m_meetings, {});
 	}
+
 
 	void OnContactAdded(
 	    const JPH::Body &body1, const JPH::Body &body2, const JPH::ContactManifold &manifold,
@@ -355,6 +370,7 @@ class CastBodies final : public JPH::BodyFilter
 	{
 	}
 
+
 	bool ShouldCollideLocked(const JPH::Body &body) const override
 	{
 		return (m_options.sensors || !body.IsSensor()) && EntityOf(body) != m_options.ignore;
@@ -364,10 +380,12 @@ class CastBodies final : public JPH::BodyFilter
 	const CastOptions &m_options;
 };
 
+
 bool Finite(const glm::dvec3 &value)
 {
 	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
+
 
 // The cast's direction, of unit length; or why it is no cast.
 glm::dvec3 CastDirection(const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance)
@@ -388,11 +406,13 @@ struct PhysicsWorld::Impl
 	{
 	}
 
+
 	const ShapeEntry *FindShape(std::string_view name) const
 	{
 		const auto found = shapes.find(name);
 		return found == shapes.end() ? nullptr : &found->second;
 	}
+
 
 	// Why a body cannot be in the frame its key names, or nothing: the system's own frame always
 	// takes one, and a local frame has to be a body of a defined system.
@@ -411,6 +431,7 @@ struct PhysicsWorld::Impl
 		return std::nullopt;
 	}
 
+
 	// The frame's origin at a time, in the system frame: none for the system's own frame. The key
 	// has been checked (UnknownFrame).
 	glm::dvec3 Origin(const WorldKey &key, double simSeconds) const
@@ -422,6 +443,7 @@ struct PhysicsWorld::Impl
 		           system, static_cast<std::size_t>(system.Find(key.frame)), simSeconds)
 		    .metres;
 	}
+
 
 	// A world made for a key on this step, its frame where it is as the step begins and moving as it
 	// did over the step before: a body made still in a station's frame is moving with the station,
@@ -438,12 +460,14 @@ struct PhysicsWorld::Impl
 		return *world;
 	}
 
+
 	std::unique_ptr<Detail::StarSystemWorld> NewWorld() const
 	{
 		auto world = std::make_unique<Detail::StarSystemWorld>(layers, settings);
 		world->System().SetContactListener(&recorder);
 		return world;
 	}
+
 
 	// Every frame of the system, with its origin as a cast sees it, in the order worlds step in.
 	template <typename Visit>
@@ -455,6 +479,7 @@ struct PhysicsWorld::Impl
 			    *found->second, options.framesAt ? Origin(found->first, *options.framesAt)
 			                                     : found->second->frameOrigin);
 	}
+
 
 	// Ends every contact the entity's body had, as it is removed.
 	void EndContacts(entt::entity entity)
@@ -471,6 +496,7 @@ struct PhysicsWorld::Impl
 			found = touching.erase(found);
 		}
 	}
+
 
 	// Makes the body in its world, with the identifier the world gives it or, from a save, the one
 	// it had, at its place in the world's frame, and awake unless it is static or made asleep. Its
@@ -514,6 +540,7 @@ struct PhysicsWorld::Impl
 	JoltVersion savedJolt{BuiltJoltVersion()};
 };
 
+
 JoltVersion BuiltJoltVersion()
 {
 	// JPH_VERSION_FEATURES names Jolt's integer types unqualified.
@@ -521,6 +548,7 @@ JoltVersion BuiltJoltVersion()
 	return {
 	    JPH_VERSION_MAJOR, JPH_VERSION_MINOR, JPH_VERSION_PATCH, JPH_VERSION_FEATURES & kStateFeatures};
 }
+
 
 PhysicsWorld::PhysicsWorld(const PhysicsSettings &settings)
 {
@@ -536,7 +564,9 @@ PhysicsWorld::PhysicsWorld(const PhysicsSettings &settings)
 	m_pImpl = std::make_unique<Impl>(settings);
 }
 
+
 PhysicsWorld::~PhysicsWorld() = default;
+
 
 PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &settings)
 {
@@ -601,6 +631,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	return physics;
 }
 
+
 void PhysicsWorld::DefineShape(std::string name, const ShapeDefinition &shape)
 {
 	if (name.empty())
@@ -612,16 +643,19 @@ void PhysicsWorld::DefineShape(std::string name, const ShapeDefinition &shape)
 	m_pImpl->shapes.emplace(std::move(name), std::move(entry));
 }
 
+
 void PhysicsWorld::DefineShapes(const Sim::DefinitionRegistry &definitions)
 {
 	for (const std::string &name : definitions.Names<ShapeDefinition>())
 		DefineShape(name, *definitions.Find<ShapeDefinition>(name));
 }
 
+
 bool PhysicsWorld::HasShape(std::string_view name) const
 {
 	return m_pImpl->FindShape(name) != nullptr;
 }
+
 
 double PhysicsWorld::ShapeRadius(std::string_view name) const
 {
@@ -631,6 +665,7 @@ double PhysicsWorld::ShapeRadius(std::string_view name) const
 	return entry->radius;
 }
 
+
 double PhysicsWorld::LargestShapeRadius() const
 {
 	double largest = 0.0;
@@ -638,6 +673,7 @@ double PhysicsWorld::LargestShapeRadius() const
 		largest = std::max(largest, entry.radius);
 	return largest;
 }
+
 
 void PhysicsWorld::DefineStarSystem(Celestial::StarSystem system)
 {
@@ -655,10 +691,12 @@ void PhysicsWorld::DefineStarSystem(Celestial::StarSystem system)
 	m_pImpl->systems.emplace(id, std::move(system));
 }
 
+
 bool PhysicsWorld::HasStarSystem(std::uint64_t system) const
 {
 	return m_pImpl->systems.contains(system);
 }
+
 
 glm::dvec3 PhysicsWorld::Gravity(
     std::uint64_t system, const glm::dvec3 &position, double simSeconds) const
@@ -668,6 +706,7 @@ glm::dvec3 PhysicsWorld::Gravity(
 	                                       : Pull(Wells(found->second, simSeconds), position);
 }
 
+
 glm::dvec3 PhysicsWorld::FrameOrigin(
     std::uint64_t system, std::string_view frame, double simSeconds) const
 {
@@ -676,6 +715,7 @@ glm::dvec3 PhysicsWorld::FrameOrigin(
 		throw std::invalid_argument{std::format("Physics: no frame origin: a body there {}", *problem)};
 	return m_pImpl->Origin(key, simSeconds);
 }
+
 
 Sim::Transform PhysicsWorld::RailsPlace(
     std::uint64_t system, const OnRails &rails, double simSeconds) const
@@ -690,10 +730,12 @@ Sim::Transform PhysicsWorld::RailsPlace(
 	return RailsTransform(found->second, static_cast<std::size_t>(body), rails, simSeconds);
 }
 
+
 std::size_t PhysicsWorld::BodyCount() const
 {
 	return m_pImpl->records.size();
 }
+
 
 std::size_t PhysicsWorld::BodyCount(std::uint64_t system) const
 {
@@ -704,11 +746,13 @@ std::size_t PhysicsWorld::BodyCount(std::uint64_t system) const
 	return count;
 }
 
+
 std::size_t PhysicsWorld::FrameCount(std::uint64_t system) const
 {
 	return static_cast<std::size_t>(std::ranges::count(
 	    m_pImpl->worlds, system, [](const auto &entry) { return entry.first.system; }));
 }
+
 
 std::vector<std::uint64_t> PhysicsWorld::Systems() const
 {
@@ -719,10 +763,12 @@ std::vector<std::uint64_t> PhysicsWorld::Systems() const
 	return systems;
 }
 
+
 const std::vector<ContactEvent> &PhysicsWorld::Contacts() const
 {
 	return m_pImpl->contacts;
 }
+
 
 bool PhysicsWorld::Asleep(entt::entity entity) const
 {
@@ -730,6 +776,7 @@ bool PhysicsWorld::Asleep(entt::entity entity) const
 	return found != m_pImpl->records.end() && found->second.body.kind != BodyKind::Static &&
 	       !found->second.world->Bodies().IsActive(found->second.id);
 }
+
 
 std::vector<entt::entity> PhysicsWorld::Touching(entt::entity entity) const
 {
@@ -744,6 +791,7 @@ std::vector<entt::entity> PhysicsWorld::Touching(entt::entity entity) const
 	std::ranges::sort(touching);
 	return touching;
 }
+
 
 std::optional<CastHit> PhysicsWorld::CastRay(
     std::uint64_t system, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
@@ -774,6 +822,7 @@ std::optional<CastHit> PhysicsWorld::CastRay(
 	    });
 	return nearest;
 }
+
 
 std::optional<CastHit> PhysicsWorld::CastShape(
     std::uint64_t system, std::string_view shape, const Sim::Transform &start,
@@ -820,6 +869,7 @@ std::optional<CastHit> PhysicsWorld::CastShape(
 	    });
 	return nearest;
 }
+
 
 void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixedStep)
 {
@@ -1108,6 +1158,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	    { return std::tuple{event.first, event.second, event.phase == ContactPhase::Began}; });
 }
 
+
 void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 {
 	const Impl &impl = *m_pImpl;
@@ -1154,6 +1205,7 @@ void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 	}
 	writer.Write(impl.contacts);
 }
+
 
 std::function<void()> PhysicsWorld::Load(
     Serialise::BinaryReader &reader, const entt::registry & /*loaded*/)
@@ -1311,6 +1363,7 @@ std::function<void()> PhysicsWorld::Load(
 		m_pImpl->contacts = std::move(pending->contacts);
 	};
 }
+
 
 void PhysicsWorld::SaveAsJoltVersion(const JoltVersion &version)
 {

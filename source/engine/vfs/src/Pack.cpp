@@ -47,6 +47,7 @@ struct Entry
 	std::uint64_t size{0};
 };
 
+
 void Put(std::vector<std::byte> &out, std::uint64_t value, std::size_t width)
 {
 	for (std::size_t byte = 0; byte < width; ++byte)
@@ -60,10 +61,13 @@ class Cursor
 	{
 	}
 
+
 	std::size_t Left() const
 	{
 		return m_bytes.size() - m_at;
 	}
+
+
 	std::optional<std::uint64_t> Take(std::size_t width)
 	{
 		if (Left() < width)
@@ -74,6 +78,8 @@ class Cursor
 		m_at += width;
 		return value;
 	}
+
+
 	std::optional<std::string_view> Text(std::size_t length)
 	{
 		if (Left() < length)
@@ -116,12 +122,19 @@ class PackSource final : public Detail::Source
 			throw;
 		}
 	}
+
+
 	~PackSource() override
 	{
 		::close(m_descriptor);
 	}
+
+
 	PackSource(const PackSource &) = delete;
+
+
 	PackSource &operator=(const PackSource &) = delete;
+
 
 	std::optional<FileInfo> Find(std::string_view virtualPath) const override
 	{
@@ -130,6 +143,7 @@ class PackSource final : public Detail::Source
 			return std::nullopt;
 		return FileInfo{0, m_time, entry->size};
 	}
+
 
 	std::optional<std::vector<std::byte>> Read(std::string_view virtualPath) const override
 	{
@@ -155,6 +169,7 @@ class PackSource final : public Detail::Source
 		return bytes;
 	}
 
+
 	void List(std::string_view virtualDirectory, std::vector<std::string> &paths) const override
 	{
 		if (virtualDirectory.empty())
@@ -175,11 +190,13 @@ class PackSource final : public Detail::Source
 		throw std::runtime_error{std::format("{} is not a pack this build reads: {}", m_name, problem)};
 	}
 
+
 	const Entry *Lookup(std::string_view virtualPath) const
 	{
 		const auto entry = std::ranges::lower_bound(m_entries, virtualPath, {}, &Entry::path);
 		return entry != m_entries.end() && entry->path == virtualPath ? &*entry : nullptr;
 	}
+
 
 	std::vector<std::byte> ReadRange(
 	    std::uint64_t offset, std::uint64_t size, std::string_view what) const
@@ -201,6 +218,7 @@ class PackSource final : public Detail::Source
 		}
 		return bytes;
 	}
+
 
 	void ReadIndex()
 	{
@@ -269,6 +287,7 @@ class PackSource final : public Detail::Source
 	std::vector<Entry> m_entries;
 };
 
+
 std::vector<std::byte> ReadWhole(const std::filesystem::path &path)
 {
 	std::ifstream file{path, std::ios::binary | std::ios::ate};
@@ -291,6 +310,7 @@ struct ContextDeleter
 	}
 };
 
+
 // The size and checksum go in the frame: PackSource::Read checks both.
 std::vector<std::byte> Compress(ZSTD_CCtx &context, std::span<const std::byte> bytes, int level)
 {
@@ -308,10 +328,12 @@ std::vector<std::byte> Compress(ZSTD_CCtx &context, std::span<const std::byte> b
 }
 } // namespace
 
+
 std::shared_ptr<const Detail::Source> Detail::MakePackSource(const std::filesystem::path &pack)
 {
 	return std::make_shared<PackSource>(pack);
 }
+
 
 PackSummary WritePack(
     const std::filesystem::path &directory, const std::filesystem::path &pack, PackOptions options)

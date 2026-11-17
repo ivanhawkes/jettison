@@ -19,6 +19,7 @@ struct Market
 	bool answerHidden{false};
 };
 
+
 // Drives the sequence to its close the way the shell's frame loop does, with the window manager
 // answering each of the two resize requests or refusing it, and a jump that takes that many frames
 // (none started, when negative), and returns the verdict.
@@ -124,6 +125,7 @@ bool RunSequence(
 }
 } // namespace
 
+
 TEST_CASE("Smoke sequence: one handled resize of the two requested is a pass")
 {
 	CHECK(RunSequence(true, true));
@@ -131,10 +133,12 @@ TEST_CASE("Smoke sequence: one handled resize of the two requested is a pass")
 	CHECK(RunSequence(true, false));
 }
 
+
 TEST_CASE("Smoke sequence: no handled resize is a failure")
 {
 	CHECK_FALSE(RunSequence(false, false));
 }
+
 
 TEST_CASE("Smoke sequence: the jump is waited for however long it takes, and a run without one fails")
 {
@@ -143,10 +147,12 @@ TEST_CASE("Smoke sequence: the jump is waited for however long it takes, and a r
 	CHECK_FALSE(RunSequence(true, true, -1));
 }
 
+
 TEST_CASE("Smoke sequence: a save that does not load back as it was is a failure")
 {
 	CHECK_FALSE(RunSequence(true, true, 3, false));
 }
+
 
 TEST_CASE("Smoke sequence: a market screen has to show the snapshot's market and its trade's answer")
 {

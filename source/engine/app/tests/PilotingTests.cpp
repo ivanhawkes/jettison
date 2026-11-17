@@ -22,6 +22,8 @@ glm::vec3 Lowest(const Physics::ShapeDefinition &shape)
 		lowest = glm::min(lowest, vertex);
 	return lowest;
 }
+
+
 glm::vec3 Highest(const Physics::ShapeDefinition &shape)
 {
 	glm::vec3 highest{-1e30f};
@@ -30,6 +32,7 @@ glm::vec3 Highest(const Physics::ShapeDefinition &shape)
 	return highest;
 }
 } // namespace
+
 
 TEST_CASE("Piloting: a station's collision mesh is the shapes it is drawn with, where they are on it")
 {
@@ -88,6 +91,7 @@ TEST_CASE("Piloting: a station's collision mesh is the shapes it is drawn with, 
 	        mesh->shape.indices,
 	        [&](std::uint32_t index) { return index < mesh->shape.vertices.size(); }));
 }
+
 
 TEST_CASE("Piloting: a keyboard, a gamepad and a HOTAS fly the ship the same way")
 {

@@ -52,6 +52,7 @@ events:
   - {time: 0.5, name: early}
 )";
 
+
 std::string Refusal(const std::string &text)
 {
 	try
@@ -65,22 +66,26 @@ std::string Refusal(const std::string &text)
 	return {};
 }
 
+
 // A sequence of one shot in the system's frame, from the text of the shot's fields.
 std::string OneShot(const std::string &shot, const std::string &rest = {})
 {
 	return "version: 1\n" + rest + "shots:\n  - " + shot + "\n";
 }
 
+
 glm::dvec3 Forward(const CameraPose &pose)
 {
 	return pose.orientation * glm::dvec3{0.0, 0.0, -1.0};
 }
+
 
 void CheckNear(const glm::dvec3 &a, const glm::dvec3 &b, double within = 1e-9)
 {
 	CHECK(glm::length(a - b) < within);
 }
 } // namespace
+
 
 TEST_CASE("Sequence: a file's shots, roles and timeline are read as written")
 {
@@ -104,6 +109,7 @@ TEST_CASE("Sequence: a file's shots, roles and timeline are read as written")
 	CHECK(sequence.timeline.events[1].name == "cut");
 	CHECK(sequence.timeline.duration == 5.0f);
 }
+
 
 TEST_CASE("Sequence: what a sequence cannot be is refused, naming the file")
 {
@@ -148,6 +154,7 @@ TEST_CASE("Sequence: what a sequence cannot be is refused, naming the file")
 	    Serialise::FormatError);
 }
 
+
 TEST_CASE("Sequence: a rail is flown at an even speed through its points")
 {
 	// Three points on a line, unevenly spaced: the middle is a quarter of the way along. Between its
@@ -186,6 +193,7 @@ TEST_CASE("Sequence: a rail is flown at an even speed through its points")
 	const Sequence held = ReadSequence(OneShot("duration: 1\n    rail: [[1, 2, 3]]"), "held");
 	CheckNear(RailPoint(held.shots.front(), 0.7), {1.0, 2.0, 3.0});
 }
+
 
 TEST_CASE("Sequence: the game's camera blends in and out, shots cut and blend, and the bars follow")
 {
@@ -244,6 +252,7 @@ TEST_CASE("Sequence: the game's camera blends in and out, shots cut and blend, a
 	CheckNear(SampleSequence(blended, 2.0, {}, game, 45.0f).pose.position, {10.0, 0.0, 0.0});
 }
 
+
 TEST_CASE("Sequence: a rail in a moving frame rides it, far from the origin, and looks at another")
 {
 	const Sequence sequence = ReadSequence(kDock, "cinematics/dock.sequence.yaml");
@@ -267,6 +276,7 @@ TEST_CASE("Sequence: a rail in a moving frame rides it, far from the origin, and
 	CheckNear(overhead.pose.position, station + glm::dvec3{0.0, 20.0, 0.0}, 1e-6);
 	CheckNear(Forward(overhead.pose), glm::normalize(glm::dvec3{0.0, -19.0, 30.0}), 1e-9);
 }
+
 
 TEST_CASE("Sequence: a player plays its file over the camera's rig, hears its events once, and ends")
 {

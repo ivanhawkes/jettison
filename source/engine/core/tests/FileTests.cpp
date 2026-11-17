@@ -23,12 +23,14 @@ std::filesystem::path Scratch()
 	return directory;
 }
 
+
 std::string ReadFile(const std::filesystem::path &path)
 {
 	std::ifstream file{path, std::ios::binary};
 	return {std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
 }
 } // namespace
+
 
 TEST_CASE("File: a durable write makes its directory, replaces the file whole, and leaves no partial")
 {
@@ -47,6 +49,7 @@ TEST_CASE("File: a durable write makes its directory, replaces the file whole, a
 	CHECK(std::filesystem::file_size(path) == 0);
 	std::filesystem::remove_all(directory);
 }
+
 
 TEST_CASE("File: a write that fails says where, and leaves the old file and no partial")
 {

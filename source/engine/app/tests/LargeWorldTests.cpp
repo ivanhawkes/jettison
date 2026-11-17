@@ -26,6 +26,7 @@ constexpr double kWidth = 1920.0;
 constexpr double kHeight = 1080.0;
 constexpr double kStep = 1.0 / 60.0;
 
+
 Celestial::StarSystem SampleSystem()
 {
 	std::ifstream file{JETTISON_ASSET_SOURCE_DIR "/systems/halcyon.yaml"};
@@ -33,6 +34,7 @@ Celestial::StarSystem SampleSystem()
 	text << file.rdbuf();
 	return Celestial::ReadStarSystem(text.str());
 }
+
 
 // Where a point lands on a 1920x1080 screen, in pixels, from clip coordinates; nothing for a point
 // behind the camera or well off screen.
@@ -46,6 +48,7 @@ std::optional<glm::dvec2> ToPixels(const glm::dvec4 &clip)
 	return glm::dvec2{ndc.x * kWidth * 0.5, ndc.y * kHeight * 0.5};
 }
 
+
 // The reference: the point taken through the same transforms in double precision throughout.
 std::optional<glm::dvec2> Reference(
     const glm::dmat4 &world, const glm::vec3 &local, const Render::CameraView &camera)
@@ -57,6 +60,7 @@ std::optional<glm::dvec2> Reference(
 	    {focal / (kWidth / kHeight) * view.x, -focal * view.y, double{camera.nearPlane}, -view.z});
 }
 
+
 // What the GPU computes: the draw's render-space transform (Render::ToRenderSpace, which the
 // renderer's draw list makes each draw's from), the view and the projection, in float, in the order
 // the mesh program multiplies them.
@@ -66,6 +70,7 @@ std::optional<glm::dvec2> Engine(
 {
 	return ToPixels(glm::dvec4{projection * view * renderTransform * glm::vec4{local, 1.0f}});
 }
+
 
 // The control: every position made a float in the system frame first, and the camera taken off
 // afterwards, as a renderer without a floating origin would.
@@ -87,6 +92,7 @@ struct Errors
 	int stationSamples{0};
 	int planetSamples{0};
 };
+
 
 // Runs the presentation path a frame at a time and measures every sample point's distance, in
 // pixels, from where it should be.
@@ -153,12 +159,14 @@ Errors Measure(entt::registry &scene, const Celestial::StarSystem &system, doubl
 	return errors;
 }
 
+
 Scene::MeshComponent Mesh(Scene::Shape shape)
 {
 	Scene::MeshComponent mesh;
 	mesh.shape = shape;
 	return mesh;
 }
+
 
 entt::entity Body(entt::registry &scene, const char *body, const glm::vec3 &scale, Scene::Shape shape)
 {
@@ -169,6 +177,7 @@ entt::entity Body(entt::registry &scene, const char *body, const glm::vec3 &scal
 	return entity;
 }
 } // namespace
+
 
 TEST_CASE(
     "Large world: a station orbiting a planet at real scale is drawn within a hundredth of a pixel")

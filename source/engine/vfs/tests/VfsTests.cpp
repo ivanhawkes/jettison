@@ -27,13 +27,20 @@ class Scratch
 		std::filesystem::create_directories(m_directory / "base");
 		std::filesystem::create_directories(m_directory / "mod");
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -41,10 +48,13 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary} << contents;
 	}
+
+
 	std::filesystem::path Path(const std::string &name) const
 	{
 		return m_directory / name;
 	}
+
 
 	FileSystem Mounted() const
 	{
@@ -59,11 +69,13 @@ class Scratch
 	std::filesystem::path m_directory;
 };
 
+
 std::string Text(const std::optional<std::vector<std::byte>> &bytes)
 {
 	REQUIRE(bytes.has_value());
 	return {reinterpret_cast<const char *>(bytes->data()), bytes->size()};
 }
+
 
 std::vector<std::byte> Bytes(std::string_view text)
 {
@@ -71,6 +83,7 @@ std::vector<std::byte> Bytes(std::string_view text)
 	return {first, first + text.size()};
 }
 } // namespace
+
 
 TEST_CASE("Vfs: virtual paths are relative, forward-slashed, and cannot leave a mount")
 {
@@ -89,6 +102,7 @@ TEST_CASE("Vfs: virtual paths are relative, forward-slashed, and cannot leave a 
 		CHECK_FALSE(FileSystem::IsValidPath(invalid));
 	}
 }
+
 
 TEST_CASE("Vfs: a later mount shadows an earlier one path by path")
 {
@@ -115,6 +129,7 @@ TEST_CASE("Vfs: a later mount shadows an earlier one path by path")
 	CHECK(fileSystem.Read("empty.txt")->empty());
 }
 
+
 TEST_CASE("Vfs: an invalid path throws rather than reading as absent")
 {
 	const Scratch scratch;
@@ -127,6 +142,7 @@ TEST_CASE("Vfs: an invalid path throws rather than reading as absent")
 	CHECK_THROWS_AS(fileSystem.Write("../secret.txt", Bytes("x")), std::invalid_argument);
 	CHECK_THROWS_AS((void)fileSystem.Enumerate("models/"), std::invalid_argument);
 }
+
 
 TEST_CASE("Vfs: every mount's file at a path is read as a layer, the bottom mount's first")
 {
@@ -151,6 +167,7 @@ TEST_CASE("Vfs: every mount's file at a path is read as a layer, the bottom moun
 	CHECK(fileSystem.ReadLayers("defs/goods/mead.yaml").empty());
 }
 
+
 TEST_CASE("Vfs: writes go to the user mount, replace a file whole, and shadow the base")
 {
 	const Scratch scratch;
@@ -170,6 +187,7 @@ TEST_CASE("Vfs: writes go to the user mount, replace a file whole, and shadow th
 	std::ifstream base{scratch.Path("base/settings.yaml")};
 	CHECK(std::string{std::istreambuf_iterator<char>{base}, {}} == "base settings");
 }
+
 
 TEST_CASE("Vfs: enumeration lists every file under a directory once, sorted, across mounts")
 {
@@ -195,6 +213,7 @@ TEST_CASE("Vfs: enumeration lists every file under a directory once, sorted, acr
 	CHECK(fileSystem.Enumerate("nowhere").empty());
 	CHECK_FALSE(fileSystem.Exists("defs/ships/broken.yaml"));
 }
+
 
 TEST_CASE("Vfs: mounts are checked as they are added")
 {

@@ -9,6 +9,7 @@
 
 using namespace Jettison::Math;
 
+
 // The values pcg32-demo prints for its default seed, 42 on stream 54, published with the
 // reference implementation (pcg-c-basic) and checked by other ports against it. If this fails,
 // the generator is no longer PCG32.
@@ -20,6 +21,7 @@ TEST_CASE("Random: the PCG32 reference implementation's published output")
 	for (const std::uint32_t value : expected)
 		CHECK(random.NextU32() == value);
 }
+
 
 // The distributions are the engine's own, so there is no published output for them: these were
 // recorded from this implementation on 2026-11-10, and are compared bit for bit. A failure here
@@ -52,6 +54,7 @@ TEST_CASE("Random: the distributions' recorded output")
 		CHECK(wide.Range(-1000000, 1000000) == value);
 }
 
+
 TEST_CASE("Random: a seed and stream decide the sequence")
 {
 	Random a{99};
@@ -71,6 +74,7 @@ TEST_CASE("Random: a seed and stream decide the sequence")
 	CHECK(seedDiffers);
 }
 
+
 TEST_CASE("Random: a restored state carries on where the saved one was")
 {
 	Random original{5, 3};
@@ -81,6 +85,7 @@ TEST_CASE("Random: a restored state carries on where the saved one was")
 	for (int draw = 0; draw < 10; ++draw)
 		CHECK(restored.NextU64() == original.NextU64());
 }
+
 
 TEST_CASE("Random: unit floats stay in [0, 1)")
 {
@@ -98,6 +103,7 @@ TEST_CASE("Random: unit floats stay in [0, 1)")
 		CHECK(ranged <= 3.0f);
 	}
 }
+
 
 TEST_CASE("Random: integer ranges reach both ends, and nothing outside them")
 {
@@ -117,6 +123,7 @@ TEST_CASE("Random: integer ranges reach both ends, and nothing outside them")
 	CHECK(sawMin);
 	CHECK(sawMax);
 }
+
 
 // A die rolled 60,000 times: each face's count has a standard deviation of about 91, so five
 // percent either side of 10,000 is over five deviations. A biased range would sit well outside.

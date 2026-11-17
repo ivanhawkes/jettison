@@ -45,6 +45,7 @@ struct ClipFileRecord
 	std::vector<ClipRecord> clips;
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -78,10 +79,12 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 [[noreturn]] void Refuse(std::string_view file, const std::string &what)
 {
 	throw Serialise::FormatError(std::format("Clip file '{}': {}", file, what));
 }
+
 
 // A turn about X, then Y, then Z, as the scene's transform composes one.
 glm::vec4 Turn(const glm::vec3 &angles)
@@ -92,10 +95,12 @@ glm::vec4 Turn(const glm::vec3 &angles)
 	return {turn.x, turn.y, turn.z, turn.w};
 }
 
+
 bool Finite(const glm::vec3 &value)
 {
 	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
+
 
 Track ToTrack(
     const TrackRecord &record, std::size_t node, std::string_view file, const std::string &clip)
@@ -134,6 +139,7 @@ Track ToTrack(
 	return track;
 }
 } // namespace
+
 
 ClipFile ReadClipFile(std::string_view text, std::string_view name)
 {
@@ -185,6 +191,7 @@ ClipFile ReadClipFile(std::string_view text, std::string_view name)
 	return file;
 }
 
+
 std::size_t NodeIndex(const ClipFile &file, std::string_view node)
 {
 	for (std::size_t index = 0; index < file.nodes.size(); ++index)
@@ -192,6 +199,7 @@ std::size_t NodeIndex(const ClipFile &file, std::string_view node)
 			return index;
 	return file.nodes.size();
 }
+
 
 void RegisterClipFileLoader(Resource::ResourceManager &resources)
 {

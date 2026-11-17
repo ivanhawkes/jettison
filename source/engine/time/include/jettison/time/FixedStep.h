@@ -16,18 +16,22 @@ class FixedStepAccumulator
 	// Adds a frame's worth of simulation time (SimClock::ScaledDelta) and returns how many fixed
 	// steps to run.
 	int Accumulate(double scaledDelta);
+
 	// The fraction of a step not yet simulated, in [0, 1), for interpolating presentation.
 	double Alpha() const;
+
 	// Simulation seconds the cap has dropped since construction, for the console and the
 	// profiler: a number that grows says the simulation cannot keep up with the requested rate.
 	double DroppedTime() const
 	{
 		return m_droppedTime;
 	}
+
 	double FixedStep() const
 	{
 		return m_fixedStep;
 	}
+
 	int MaxStepsPerFrame() const
 	{
 		return m_maxStepsPerFrame;

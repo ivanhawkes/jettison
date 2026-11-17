@@ -110,8 +110,11 @@ struct MaterialDefinition
 // not: a program is named, names are not repeated, periods are positive, and a program fits the
 // device layout. Throws Serialise::FormatError naming the file.
 ProgramDefinition ReadProgram(std::string_view text, std::string_view name);
+
 std::string WriteProgram(const ProgramDefinition &program);
+
 MaterialDefinition ReadMaterial(std::string_view text, std::string_view name);
+
 std::string WriteMaterial(const MaterialDefinition &material);
 
 // A material bound to its program: everything a draw needs, by binding and by parameter index.
@@ -137,6 +140,7 @@ struct ResolvedMaterial
 
 // The program's defaults, for a draw that names no material.
 ResolvedMaterial ResolveDefaults(const ProgramDefinition &program);
+
 // Throws Serialise::FormatError for a parameter or texture slot the program does not have.
 ResolvedMaterial ResolveMaterial(
     const ProgramDefinition &program, const MaterialDefinition &material, std::string_view name);

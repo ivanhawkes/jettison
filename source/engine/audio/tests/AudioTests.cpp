@@ -46,13 +46,20 @@ class Scratch
 		m_files.AddMount({"sounds", std::filesystem::path(JETTISON_ASSET_SOURCE_DIR) / "audio", false});
 		m_files.AddMount({"scratch", m_directory, false});
 	}
+
+
 	~Scratch()
 	{
 		std::error_code error;
 		std::filesystem::remove_all(m_directory, error);
 	}
+
+
 	Scratch(const Scratch &) = delete;
+
+
 	Scratch &operator=(const Scratch &) = delete;
+
 
 	void Put(const std::string &path, const std::string &contents) const
 	{
@@ -60,6 +67,8 @@ class Scratch
 		std::filesystem::create_directories(file.parent_path());
 		std::ofstream{file, std::ios::binary | std::ios::trunc} << contents;
 	}
+
+
 	const Vfs::FileSystem &Files() const
 	{
 		return m_files;
@@ -69,6 +78,7 @@ class Scratch
 	std::filesystem::path m_directory;
 	Vfs::FileSystem m_files;
 };
+
 
 Audio::AudioOptions NoDevice()
 {
@@ -80,11 +90,15 @@ struct Peaks
 {
 	float left{0.0f};
 	float right{0.0f};
+
+
 	float Both() const
 	{
 		return std::max(left, right);
 	}
 };
+
+
 Peaks MixPeaks(AudioSystem &audio, double seconds)
 {
 	std::vector<float> buffer(std::size_t{2} * 4800);
@@ -118,6 +132,7 @@ struct TestUnheard
 	int count{0};
 };
 
+
 void RegisterTestTypes()
 {
 	static const bool registered = []
@@ -134,6 +149,7 @@ void RegisterTestTypes()
 	Audio::RegisterTypes();
 }
 
+
 Audio::SoundComponent SoundOf(const char *sound)
 {
 	Audio::SoundComponent component;
@@ -141,11 +157,13 @@ Audio::SoundComponent SoundOf(const char *sound)
 	return component;
 }
 
+
 Sim::SimEvent EventOf(auto event)
 {
 	return {1, entt::meta_any{std::move(event)}};
 }
 } // namespace
+
 
 TEST_CASE("Audio: the buses are named as settings and the console name them")
 {
@@ -154,6 +172,7 @@ TEST_CASE("Audio: the buses are named as settings and the console name them")
 	CHECK(Audio::BusName(Bus::Effects) == "effects");
 	CHECK_FALSE(Audio::BusFromName("sfx"));
 }
+
 
 TEST_CASE("Audio: a sound plays on its bus until it ends, and its handle then names nothing")
 {
@@ -186,6 +205,7 @@ TEST_CASE("Audio: a sound plays on its bus until it ends, and its handle then na
 	CHECK(audio.Problems() == 0);
 }
 
+
 TEST_CASE("Audio: a bus's volume scales what plays on it, and master's everything")
 {
 	Scratch scratch;
@@ -210,6 +230,7 @@ TEST_CASE("Audio: a bus's volume scales what plays on it, and master's everythin
 	audio.SetBusVolume(Bus::Master, 9.0f);
 	CHECK(audio.BusVolume(Bus::Master) == 4.0f);
 }
+
 
 TEST_CASE("Audio: a positioned sound is heard from its side, and quieter with distance")
 {
@@ -244,6 +265,7 @@ TEST_CASE("Audio: a positioned sound is heard from its side, and quieter with di
 	CHECK(audio.Problems() == 0);
 }
 
+
 TEST_CASE("Audio: a sound is placed relative to the listener, as precisely far from the origin")
 {
 	Scratch scratch;
@@ -261,6 +283,7 @@ TEST_CASE("Audio: a sound is placed relative to the listener, as precisely far f
 	CHECK(out.left == home.left);
 	CHECK(out.right == home.right);
 }
+
 
 TEST_CASE("Audio: a source follows the position it is given")
 {
@@ -280,6 +303,7 @@ TEST_CASE("Audio: a source follows the position it is given")
 	// A looping sound plays past its length.
 	CHECK(audio.IsPlaying(source));
 }
+
 
 TEST_CASE("Audio: music streams, loops, and a second piece replaces the first")
 {
@@ -310,6 +334,7 @@ TEST_CASE("Audio: music streams, loops, and a second piece replaces the first")
 	CHECK(audio.Problems() == 0);
 }
 
+
 TEST_CASE("Audio: a sound that cannot be played is reported and counted, not thrown")
 {
 	Scratch scratch;
@@ -326,6 +351,7 @@ TEST_CASE("Audio: a sound that cannot be played is reported and counted, not thr
 	audio.Stop({});
 }
 
+
 TEST_CASE("Audio: Mix is refused with a device, which mixes on its own")
 {
 	Scratch scratch;
@@ -335,6 +361,7 @@ TEST_CASE("Audio: Mix is refused with a device, which mixes on its own")
 	std::vector<float> buffer(64);
 	CHECK_THROWS_AS(audio.Mix(buffer), std::logic_error);
 }
+
 
 TEST_CASE("Audio: an event plays the sounds its definitions map it to, placed at the entity named")
 {
@@ -383,6 +410,7 @@ TEST_CASE("Audio: an event plays the sounds its definitions map it to, placed at
 	CHECK(audio.Problems() == 0);
 }
 
+
 TEST_CASE("Audio: an event sound naming what does not exist is refused, naming the definition")
 {
 	RegisterTestTypes();
@@ -424,6 +452,7 @@ TEST_CASE("Audio: an event sound naming what does not exist is refused, naming t
 	        .find("placed at no field") != std::string::npos);
 }
 
+
 TEST_CASE("Audio: a clip's event plays its sounds from where its player is, or flat for nowhere")
 {
 	RegisterTestTypes();
@@ -449,6 +478,7 @@ TEST_CASE("Audio: a clip's event plays its sounds from where its player is, or f
 	CHECK(audio.Counters().started[static_cast<std::size_t>(Bus::Effects)] == 2);
 	CHECK(audio.Problems() == 0);
 }
+
 
 TEST_CASE("Audio: a presentation entity's sound starts, follows it, and stops when it goes")
 {

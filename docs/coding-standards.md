@@ -16,6 +16,12 @@ next touched.
   or finds something that gets fixed. Exclusions carry their counts.
 - clang-format uses the project `.clang-format`: Microsoft base, Allman braces, tabs for
   indentation, 104 columns. The pre-commit hook checks it.
+- Every function and method declaration has blank lines above it, then its comment and `template`
+  line if it has them, then the declaration, so each reads as its own block: one blank line in a
+  header, two in a source file, where the bodies are. The first one after an opening brace or an access label
+  (`public:`) has none, since clang-format removes them there. clang-format cannot add these
+  lines (`SeparateDefinitionBlocks` skips declarations and collapses two blank lines to one), so
+  `scripts/space-declarations.py` adds them and the gate runs it with `--check`.
 
 ## Naming
 

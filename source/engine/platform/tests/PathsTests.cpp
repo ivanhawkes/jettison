@@ -25,6 +25,7 @@ EnvironmentLookup Environment(std::map<std::string, std::string> variables)
 }
 } // namespace
 
+
 TEST_CASE("Paths: with only HOME set, each directory is the specification's default under it")
 {
 	const Paths paths = ResolvePaths("jettison", Environment({{"HOME", "/home/pilot"}}));
@@ -33,6 +34,7 @@ TEST_CASE("Paths: with only HOME set, each directory is the specification's defa
 	CHECK(paths.state == "/home/pilot/.local/state/jettison");
 	CHECK(paths.cache == "/home/pilot/.cache/jettison");
 }
+
 
 TEST_CASE("Paths: an XDG variable overrides its default")
 {
@@ -49,6 +51,7 @@ TEST_CASE("Paths: an XDG variable overrides its default")
 	CHECK(paths.cache == "/tmp/cache/jettison");
 }
 
+
 TEST_CASE("Paths: an XDG variable that is empty or relative is ignored, as the specification says")
 {
 	const Paths paths = ResolvePaths(
@@ -57,6 +60,7 @@ TEST_CASE("Paths: an XDG variable that is empty or relative is ignored, as the s
 	CHECK(paths.userData == "/home/pilot/.local/share/jettison");
 	CHECK(paths.cache == "/home/pilot/.cache/jettison");
 }
+
 
 TEST_CASE("Paths: HOME is needed only for a directory with no XDG variable")
 {
@@ -71,6 +75,7 @@ TEST_CASE("Paths: HOME is needed only for a directory with no XDG variable")
 	CHECK(paths.config == "/c/jettison");
 }
 
+
 TEST_CASE("Paths: the application name is one relative path component")
 {
 	const auto environment = Environment({{"HOME", "/home/pilot"}});
@@ -80,6 +85,7 @@ TEST_CASE("Paths: the application name is one relative path component")
 	CHECK_THROWS_AS(ResolvePaths("..", environment), std::invalid_argument);
 	CHECK_THROWS_AS(ResolvePaths(".", environment), std::invalid_argument);
 }
+
 
 TEST_CASE("Paths: the process environment resolves to absolute paths under the application name")
 {
@@ -91,6 +97,7 @@ TEST_CASE("Paths: the process environment resolves to absolute paths under the a
 		CHECK(path.filename() == "jettison");
 	}
 }
+
 
 TEST_CASE("Paths: the executable path is this test executable")
 {

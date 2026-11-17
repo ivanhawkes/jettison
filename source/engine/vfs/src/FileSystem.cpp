@@ -29,6 +29,7 @@ class DirectorySource final : public Detail::Source
 	{
 	}
 
+
 	std::optional<FileInfo> Find(std::string_view virtualPath) const override
 	{
 		const std::filesystem::path path = m_root / virtualPath;
@@ -40,6 +41,7 @@ class DirectorySource final : public Detail::Source
 		info.size = std::filesystem::file_size(path, error);
 		return info;
 	}
+
 
 	std::optional<std::vector<std::byte>> Read(std::string_view virtualPath) const override
 	{
@@ -59,6 +61,7 @@ class DirectorySource final : public Detail::Source
 			throw std::runtime_error{std::format("Vfs: {} could not be read", path.string())};
 		return bytes;
 	}
+
 
 	void List(std::string_view virtualDirectory, std::vector<std::string> &paths) const override
 	{
@@ -89,10 +92,12 @@ class DirectorySource final : public Detail::Source
 };
 } // namespace
 
+
 std::shared_ptr<const Detail::Source> Detail::MakeDirectorySource(std::filesystem::path root)
 {
 	return std::make_shared<DirectorySource>(std::move(root));
 }
+
 
 bool FileSystem::IsValidPath(std::string_view virtualPath)
 {
@@ -115,6 +120,7 @@ bool FileSystem::IsValidPath(std::string_view virtualPath)
 		rest.remove_prefix(slash + 1);
 	}
 }
+
 
 void FileSystem::AddMount(Mount mount)
 {
@@ -165,10 +171,12 @@ void FileSystem::AddMount(Mount mount)
 	m_sources.push_back(std::move(source));
 }
 
+
 bool FileSystem::Exists(std::string_view virtualPath) const
 {
 	return Find(virtualPath).has_value();
 }
+
 
 std::optional<FileInfo> FileSystem::Find(std::string_view virtualPath) const
 {
@@ -184,6 +192,7 @@ std::optional<FileInfo> FileSystem::Find(std::string_view virtualPath) const
 	return std::nullopt;
 }
 
+
 std::optional<std::vector<std::byte>> FileSystem::Read(std::string_view virtualPath) const
 {
 	Validate(virtualPath);
@@ -194,6 +203,7 @@ std::optional<std::vector<std::byte>> FileSystem::Read(std::string_view virtualP
 	}
 	return std::nullopt;
 }
+
 
 std::vector<Layer> FileSystem::ReadLayers(std::string_view virtualPath) const
 {
@@ -206,6 +216,7 @@ std::vector<Layer> FileSystem::ReadLayers(std::string_view virtualPath) const
 	}
 	return layers;
 }
+
 
 void FileSystem::Write(std::string_view virtualPath, std::span<const std::byte> bytes) const
 {
@@ -226,6 +237,7 @@ void FileSystem::Write(std::string_view virtualPath, std::span<const std::byte> 
 		throw std::runtime_error{std::format("Vfs: {}", error.what())};
 	}
 }
+
 
 std::vector<std::string> FileSystem::Enumerate(std::string_view virtualDirectory) const
 {

@@ -22,16 +22,20 @@ class ByteRecorder final : public JPH::StateRecorder
 {
   public:
 	ByteRecorder() = default;
+
 	explicit ByteRecorder(std::vector<std::uint8_t> bytes) : m_bytes{std::move(bytes)}
 	{
 	}
 
 	void WriteBytes(const void *data, std::size_t size) override;
+
 	void ReadBytes(void *data, std::size_t size) override;
+
 	bool IsEOF() const override
 	{
 		return m_read == m_bytes.size();
 	}
+
 	bool IsFailed() const override
 	{
 		return m_failed;

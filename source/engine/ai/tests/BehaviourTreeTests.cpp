@@ -32,6 +32,7 @@ struct Tally
 	std::int64_t count{0};
 };
 
+
 BehaviourNode TaskNode(std::string task, std::vector<std::string> arguments = {})
 {
 	BehaviourNode node;
@@ -41,6 +42,7 @@ BehaviourNode TaskNode(std::string task, std::vector<std::string> arguments = {}
 	return node;
 }
 
+
 BehaviourNode Composite(NodeKind kind, std::vector<BehaviourNode> children, std::uint32_t count = 0)
 {
 	BehaviourNode node;
@@ -49,6 +51,7 @@ BehaviourNode Composite(NodeKind kind, std::vector<BehaviourNode> children, std:
 	node.count = count;
 	return node;
 }
+
 
 BehaviourNode WaitNode(double seconds)
 {
@@ -65,6 +68,7 @@ struct Trees
 	Sim::SimWorld world{kStep, 3};
 	Ai::Behaviours &behaviours{Attach(world)};
 	std::vector<std::string> trace;
+
 
 	Trees()
 	{
@@ -106,6 +110,7 @@ struct Trees
 		    });
 	}
 
+
 	static Ai::Behaviours &Attach(Sim::SimWorld &world)
 	{
 		static const bool registered = []
@@ -120,12 +125,14 @@ struct Trees
 		return Ai::Behaviours::Attach(world);
 	}
 
+
 	entt::entity Follow(std::string tree)
 	{
 		const entt::entity entity = world.Registry().create();
 		world.Registry().emplace<Ai::Behaviour>(entity, Ai::Behaviour{std::move(tree), {}, {}});
 		return entity;
 	}
+
 
 	// The trace of one tick, which is then cleared.
 	std::vector<std::string> Tick(entt::entity entity, Status expected)
@@ -137,6 +144,7 @@ struct Trees
 
 using Trace = std::vector<std::string>;
 } // namespace
+
 
 TEST_CASE("Behaviour trees: a sequence goes on past success and a selector past failure")
 {
@@ -153,6 +161,7 @@ TEST_CASE("Behaviour trees: a sequence goes on past success and a selector past 
 	CHECK(trees.Tick(trees.Follow("sequence"), Status::Failure) == Trace{"a+", "b+", "c-"});
 	CHECK(trees.Tick(trees.Follow("selector"), Status::Success) == Trace{"a-", "b+"});
 }
+
 
 TEST_CASE(
     "Behaviour trees: a running child is resumed where it is, and what came before it is not run again")
@@ -179,6 +188,7 @@ TEST_CASE(
 	CHECK(trees.Tick(other, Status::Running) == Trace{"a-", "b^"});
 	CHECK(trees.Tick(other, Status::Success) == Trace{"b."});
 }
+
 
 TEST_CASE("Behaviour trees: decorators invert, succeed, repeat and loop, a run a tick")
 {
@@ -217,6 +227,7 @@ TEST_CASE("Behaviour trees: decorators invert, succeed, repeat and loop, a run a
 	CHECK(trees.Tick(loop, Status::Success).empty());
 	CHECK(trees.world.Registry().get<Tally>(loop).count == 3);
 }
+
 
 TEST_CASE("Behaviour trees: the system ticks every tree each step, and a wait counts whole steps")
 {
@@ -260,6 +271,7 @@ TEST_CASE("Behaviour trees: the system ticks every tree each step, and a wait co
 	CHECK(trees.world.Registry().get<Ai::Behaviour>(lost).nodes.empty());
 }
 
+
 TEST_CASE("Behaviour trees: a world saved part-way through its trees carries on as the one saved")
 {
 	const auto setup = [](Trees &trees)
@@ -300,6 +312,7 @@ TEST_CASE("Behaviour trees: a world saved part-way through its trees carries on 
 	    loaded.behaviours.NodeCount("patrol"));
 	CHECK(loaded.world.Registry().get<Tally>(ship).count == 1);
 }
+
 
 TEST_CASE("Behaviour trees: a tree reads from data and is checked as it is defined")
 {
@@ -363,6 +376,7 @@ root:
 	refused(parent, "a wait with children");
 	CHECK_FALSE(trees.behaviours.HasTree("broken"));
 }
+
 
 TEST_CASE(
     "Behaviour trees: a ship's tree stands down while a player is at its helm, and starts again "

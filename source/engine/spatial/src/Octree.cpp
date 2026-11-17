@@ -16,6 +16,7 @@ namespace
 constexpr std::uint32_t kDeepestLevel = 48;
 constexpr std::size_t kStackSize = std::size_t{8} * (kDeepestLevel + 1);
 
+
 double PowerOfTwoAtLeast(double value)
 {
 	int exponent = 0;
@@ -23,16 +24,19 @@ double PowerOfTwoAtLeast(double value)
 	return std::ldexp(1.0, mantissa == 0.5 ? exponent - 1 : exponent);
 }
 
+
 std::uint32_t Octant(const glm::dvec3 &centre, const glm::dvec3 &position)
 {
 	return (position.x >= centre.x ? 1U : 0U) | (position.y >= centre.y ? 2U : 0U) |
 	       (position.z >= centre.z ? 4U : 0U);
 }
 
+
 glm::dvec3 OctantDirection(std::uint32_t octant)
 {
 	return {(octant & 1U) ? 1.0 : -1.0, (octant & 2U) ? 1.0 : -1.0, (octant & 4U) ? 1.0 : -1.0};
 }
+
 
 bool InCube(const glm::dvec3 &position, const glm::dvec3 &centre, double halfSize)
 {
@@ -48,10 +52,14 @@ class NodeStack
 		JETTISON_ASSERT(m_size < m_nodes.size());
 		m_nodes[m_size++] = node;
 	}
+
+
 	std::uint32_t Pop()
 	{
 		return m_nodes[--m_size];
 	}
+
+
 	bool Empty() const
 	{
 		return m_size == 0;
@@ -63,9 +71,11 @@ class NodeStack
 };
 } // namespace
 
+
 Octree::Octree() : Octree(Settings{})
 {
 }
+
 
 Octree::Octree(const Settings &settings) : m_settings(settings)
 {
@@ -77,6 +87,7 @@ Octree::Octree(const Settings &settings) : m_settings(settings)
 	Clear();
 }
 
+
 void Octree::Clear()
 {
 	m_nodes.clear();
@@ -86,6 +97,7 @@ void Octree::Clear()
 	m_nodes.emplace_back();
 	MakeNode(0, kNone, glm::dvec3{0.0}, m_settings.halfExtent);
 }
+
 
 void Octree::MakeNode(
     std::uint32_t index, std::uint32_t parent, const glm::dvec3 &centre, double halfSize)
@@ -102,16 +114,19 @@ void Octree::MakeNode(
 	node.items.clear();
 }
 
+
 bool Octree::Contains(entt::entity entity) const
 {
 	const std::uint32_t slot = m_slots.Find(entity);
 	return slot != kNone && m_items[slot].entity == entity;
 }
 
+
 bool Octree::InRootCube(const glm::dvec3 &position) const
 {
 	return InCube(position, m_nodes[0].centre, m_nodes[0].halfSize);
 }
+
 
 void Octree::Insert(entt::entity entity, const glm::dvec3 &position)
 {
@@ -122,6 +137,7 @@ void Octree::Insert(entt::entity entity, const glm::dvec3 &position)
 	m_slots.Set(entity, index);
 	Place(index);
 }
+
 
 void Octree::Update(entt::entity entity, const glm::dvec3 &position)
 {
@@ -142,6 +158,7 @@ void Octree::Update(entt::entity entity, const glm::dvec3 &position)
 	Place(index);
 }
 
+
 void Octree::Remove(entt::entity entity)
 {
 	JETTISON_ASSERT(Contains(entity));
@@ -159,6 +176,7 @@ void Octree::Remove(entt::entity entity)
 	m_slots.Clear(entity);
 }
 
+
 void Octree::AddToNode(std::uint32_t node, std::uint32_t item)
 {
 	std::vector<std::uint32_t> &items = m_nodes[node].items;
@@ -166,6 +184,7 @@ void Octree::AddToNode(std::uint32_t node, std::uint32_t item)
 	m_items[item].indexInNode = static_cast<std::uint32_t>(items.size());
 	items.push_back(item);
 }
+
 
 void Octree::RemoveFromNode(std::uint32_t item)
 {
@@ -177,6 +196,7 @@ void Octree::RemoveFromNode(std::uint32_t item)
 	items.pop_back();
 	m_items[item].node = kNone;
 }
+
 
 void Octree::Place(std::uint32_t item)
 {
@@ -198,6 +218,7 @@ void Octree::Place(std::uint32_t item)
 		Split(node);
 }
 
+
 void Octree::Unplace(std::uint32_t item)
 {
 	const std::uint32_t leaf = m_items[item].node;
@@ -215,6 +236,7 @@ void Octree::Unplace(std::uint32_t item)
 	if (gather != kNone)
 		Collapse(gather);
 }
+
 
 void Octree::Split(std::uint32_t node)
 {
@@ -272,6 +294,7 @@ void Octree::Split(std::uint32_t node)
 	}
 }
 
+
 void Octree::Collapse(std::uint32_t node)
 {
 	// Every point below the node is inside its loose cube, since a child's loose cube is inside its
@@ -296,6 +319,7 @@ void Octree::Collapse(std::uint32_t node)
 		AddToNode(node, item);
 }
 
+
 void Octree::FreeChildren(std::uint32_t node)
 {
 	const std::uint32_t first = m_nodes[node].firstChild;
@@ -310,6 +334,7 @@ void Octree::FreeChildren(std::uint32_t node)
 	m_freeBlocks.push_back(first);
 	m_nodes[node].firstChild = kNone;
 }
+
 
 void Octree::QueryBox(const Math::DAabb &box, std::vector<entt::entity> &out) const
 {
@@ -334,6 +359,7 @@ void Octree::QueryBox(const Math::DAabb &box, std::vector<entt::entity> &out) co
 	Detail::SortByIdentifier(out);
 }
 
+
 void Octree::QuerySphere(const glm::dvec3 &centre, double radius, std::vector<entt::entity> &out) const
 {
 	out.clear();
@@ -357,6 +383,7 @@ void Octree::QuerySphere(const glm::dvec3 &centre, double radius, std::vector<en
 	}
 	Detail::SortByIdentifier(out);
 }
+
 
 void Octree::QueryNearest(
     const glm::dvec3 &point, std::size_t count, double maxDistance, std::vector<Neighbour> &out) const

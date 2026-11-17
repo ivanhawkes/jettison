@@ -11,10 +11,12 @@ namespace
 {
 constexpr std::size_t kPhaseCount = static_cast<std::size_t>(TickPhase::Render) + 1;
 
+
 std::size_t Index(TickPhase phase)
 {
 	return static_cast<std::size_t>(phase);
 }
+
 
 bool Intersects(const std::vector<entt::id_type> &left, const std::vector<entt::id_type> &right)
 {
@@ -22,16 +24,19 @@ bool Intersects(const std::vector<entt::id_type> &left, const std::vector<entt::
 	    left, [&right](entt::id_type id) { return std::ranges::find(right, id) != right.end(); });
 }
 
+
 const SystemDescription *Named(const std::vector<SystemDescription> &systems, std::string_view name)
 {
 	const auto found = std::ranges::find(systems, name, &SystemDescription::name);
 	return found == systems.end() ? nullptr : &*found;
 }
 
+
 bool Names(const std::vector<std::string> &names, std::string_view name)
 {
 	return std::ranges::find(names, name) != names.end();
 }
+
 
 // Whether a constraint puts the first ahead of the second: the second runs after it, or it runs
 // before the second.
@@ -41,11 +46,13 @@ bool Precedes(const SystemDescription &first, const SystemDescription &second)
 }
 } // namespace
 
+
 bool Access::ConflictsWith(const Access &other) const
 {
 	return Intersects(writes, other.writes) || Intersects(writes, other.reads) ||
 	       Intersects(reads, other.writes);
 }
+
 
 void Scheduler::Register(SystemDescription system)
 {
@@ -90,6 +97,7 @@ void Scheduler::Register(SystemDescription system)
 	m_validated = false;
 }
 
+
 std::vector<std::size_t> Scheduler::Sort(TickPhase phase) const
 {
 	// Kahn's algorithm, always taking the earliest-registered system that is ready, so with no
@@ -132,6 +140,7 @@ std::vector<std::size_t> Scheduler::Sort(TickPhase phase) const
 	return order;
 }
 
+
 void Scheduler::Validate() const
 {
 	for (const SystemDescription &system : m_systems)
@@ -151,6 +160,7 @@ void Scheduler::Validate() const
 	m_validated = true;
 }
 
+
 void Scheduler::Run(TickPhase phase, entt::registry &registry, double deltaTime) const
 {
 	if (!m_validated)
@@ -160,6 +170,7 @@ void Scheduler::Run(TickPhase phase, entt::registry &registry, double deltaTime)
 	for (const std::size_t index : m_order[Index(phase)])
 		m_systems[index].run(registry, deltaTime);
 }
+
 
 std::vector<std::string> Scheduler::Order(TickPhase phase) const
 {
@@ -171,6 +182,7 @@ std::vector<std::string> Scheduler::Order(TickPhase phase) const
 	}
 	return names;
 }
+
 
 std::vector<std::pair<std::string, std::string>> Scheduler::Ambiguities(TickPhase phase) const
 {

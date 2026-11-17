@@ -70,6 +70,7 @@ void Resolve(StarSystem &system);
 // derived period is written back as the number it became, so a written file reads as the same
 // system without the parent's gravitational parameter.
 StarSystem ReadStarSystem(std::string_view text);
+
 std::string WriteStarSystem(const StarSystem &system);
 
 // Every body's system-frame position at a simulation time, in the order of StarSystem::bodies,

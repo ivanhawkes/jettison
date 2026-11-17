@@ -22,6 +22,7 @@ void Join(Graph &graph, NodeId a, NodeId b, double cost)
 	graph.adjacency[b].push_back({a, cost});
 }
 
+
 // Every pair's least cost, by Floyd and Warshall: what the search is checked against, by a method
 // that shares nothing with it.
 std::vector<std::vector<double>> AllPairs(const Graph &graph)
@@ -42,6 +43,7 @@ std::vector<std::vector<double>> AllPairs(const Graph &graph)
 	return cost;
 }
 
+
 // The cost of walking the path's nodes along the graph's cheapest edges between them, or infinity
 // for a step no edge makes.
 double Walk(const Graph &graph, const std::vector<NodeId> &nodes)
@@ -58,11 +60,13 @@ double Walk(const Graph &graph, const std::vector<NodeId> &nodes)
 	return total;
 }
 
+
 std::size_t Cell(int width, int x, int y)
 {
 	return static_cast<std::size_t>(x) +
 	       (static_cast<std::size_t>(width) * static_cast<std::size_t>(y));
 }
+
 
 // A grid of cells a unit apart, each joined to its four neighbours unless one is a wall, with node
 // x + width * y.
@@ -85,6 +89,7 @@ Graph Grid(int width, int height, const std::vector<bool> &walls)
 	return graph;
 }
 } // namespace
+
 
 TEST_CASE("Pathfinding: a small graph's shortest path, by its known answer")
 {
@@ -110,6 +115,7 @@ TEST_CASE("Pathfinding: a small graph's shortest path, by its known answer")
 	CHECK(still->cost == 0.0);
 }
 
+
 TEST_CASE("Pathfinding: edges are one way, and a goal they do not reach is no path")
 {
 	Graph graph;
@@ -120,6 +126,7 @@ TEST_CASE("Pathfinding: edges are one way, and a goal they do not reach is no pa
 	CHECK_FALSE(Ai::FindPath(graph, 2, 0));
 	CHECK_FALSE(Ai::FindPath(graph, 0, 3));
 }
+
 
 TEST_CASE("Pathfinding: of paths that cost the same, the same one every time")
 {
@@ -146,6 +153,7 @@ TEST_CASE("Pathfinding: of paths that cost the same, the same one every time")
 		CHECK(path->nodes == std::vector<NodeId>{0, 1, 3});
 	}
 }
+
 
 TEST_CASE("Pathfinding: a grid round a wall, with and without an estimate, against its known length")
 {
@@ -180,6 +188,7 @@ TEST_CASE("Pathfinding: a grid round a wall, with and without an estimate, again
 	walls[Cell(kWidth, 4, 6)] = true;
 	CHECK_FALSE(Ai::FindPath(Grid(kWidth, kHeight, walls), kStart, kGoal, manhattan));
 }
+
 
 TEST_CASE("Pathfinding: random graphs, against every pair's least cost, the same every run")
 {
@@ -221,6 +230,7 @@ TEST_CASE("Pathfinding: random graphs, against every pair's least cost, the same
 			}
 	}
 }
+
 
 TEST_CASE("Pathfinding: a graph or an estimate that is not one is refused")
 {

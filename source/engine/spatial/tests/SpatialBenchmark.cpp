@@ -34,6 +34,7 @@ constexpr int kSensors = 64;
 constexpr int kNeighbours = 64;
 constexpr int kOpenSpace = 16;
 
+
 double Microseconds(Clock::duration duration)
 {
 	return std::chrono::duration<double, std::micro>(duration).count();
@@ -50,6 +51,7 @@ struct Timings
 	std::size_t found{0};
 };
 
+
 void Print(const std::string &name, std::size_t count, const Timings &timings)
 {
 	std::printf(
@@ -58,6 +60,7 @@ void Print(const std::string &name, std::size_t count, const Timings &timings)
 	    timings.sensorsUs / (kSteps * kSensors), timings.neighboursUs / (kSteps * kNeighbours),
 	    timings.openSpaceUs / (kSteps * kOpenSpace), timings.found);
 }
+
 
 // Every structure, and brute force, sees the same traffic and the same queries.
 template <typename Index> Timings Measure(Index index, std::size_t count, double stepSeconds)
@@ -133,10 +136,14 @@ class Scan
 		m_entities.push_back(entity);
 		m_positions.push_back(position);
 	}
+
+
 	void Update(entt::entity entity, const glm::dvec3 &position)
 	{
 		m_positions[static_cast<std::size_t>(entt::to_integral(entity))] = position;
 	}
+
+
 	void QuerySphere(const glm::dvec3 &centre, double radius, std::vector<entt::entity> &out) const
 	{
 		out.clear();
@@ -144,6 +151,8 @@ class Scan
 			if (Spatial::InSphere(m_positions[i], centre, radius))
 				out.push_back(m_entities[i]);
 	}
+
+
 	void QueryNearest(
 	    const glm::dvec3 &point, std::size_t count, double maxDistance,
 	    std::vector<Spatial::Neighbour> &out) const
@@ -159,6 +168,7 @@ class Scan
 	std::vector<glm::dvec3> m_positions;
 };
 } // namespace
+
 
 TEST_CASE("Spatial benchmark: the octree over a system's traffic" * doctest::skip())
 {

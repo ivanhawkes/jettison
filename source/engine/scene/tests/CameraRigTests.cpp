@@ -16,6 +16,7 @@ glm::dvec3 Forward(const CameraPose &pose)
 	return pose.orientation * glm::dvec3{0.0, 0.0, -1.0};
 }
 
+
 // How far from looking straight at the point the camera is, in radians. By atan2, since acos near
 // 1 cannot resolve an angle below about 2e-8.
 double AimError(const CameraPose &pose, const glm::dvec3 &point)
@@ -25,6 +26,7 @@ double AimError(const CameraPose &pose, const glm::dvec3 &point)
 	return std::atan2(glm::length(glm::cross(forward, towards)), glm::dot(forward, towards));
 }
 } // namespace
+
 
 TEST_CASE("Camera rigs: a look rotation points -Z forward and keeps +Y up")
 {
@@ -36,6 +38,7 @@ TEST_CASE("Camera rigs: a look rotation points -Z forward and keeps +Y up")
 	CHECK(glm::length(down * glm::dvec3{0.0, 0.0, -1.0} - glm::dvec3{0.0, -1.0, 0.0}) < 1e-12);
 }
 
+
 TEST_CASE("Camera rigs: smoothing is the same whatever the frame rate")
 {
 	double many = 0.0;
@@ -45,6 +48,7 @@ TEST_CASE("Camera rigs: smoothing is the same whatever the frame rate")
 	CHECK(many == doctest::Approx(one).epsilon(1e-12));
 	CHECK(SmoothingFactor(0.0, 0.1) == 1.0);
 }
+
 
 TEST_CASE("Camera rigs: the orbit camera follows its target exactly, and smooths what the player moves")
 {
@@ -86,6 +90,7 @@ TEST_CASE("Camera rigs: the orbit camera follows its target exactly, and smooths
 	CHECK(Forward(top).y < -0.99);
 }
 
+
 TEST_CASE("Camera rigs: the chase camera lags a turn, not a speed")
 {
 	ChaseCamera chase;
@@ -112,6 +117,7 @@ TEST_CASE("Camera rigs: the chase camera lags a turn, not a speed")
 	CHECK(glm::length(chase.Update(1.0 / 60.0).position - settled) < 1e-3);
 }
 
+
 TEST_CASE("Camera rigs: the cockpit is rigid with the ship, and its free look is held in a cone")
 {
 	CockpitCamera cockpit{{.maxYaw = 1.0, .maxPitch = 0.5}};
@@ -137,6 +143,7 @@ TEST_CASE("Camera rigs: the cockpit is rigid with the ship, and its free look is
 	        Forward(cockpit.Update(1.0 / 60.0)) - ship.orientation * glm::dvec3{0.0, 0.0, -1.0}) <
 	    1e-6);
 }
+
 
 TEST_CASE("Camera rigs: the map zooms by ratios from a station to the whole system")
 {
@@ -171,6 +178,7 @@ TEST_CASE("Camera rigs: the map zooms by ratios from a station to the whole syst
 	CHECK(AimError(map.Update(1.0 / 60.0), planet) < 1e-6);
 }
 
+
 TEST_CASE("Camera rigs: a transition eases from one pose to a moving other, and ends on it")
 {
 	const CameraPose from{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0, 0.0}};
@@ -185,6 +193,7 @@ TEST_CASE("Camera rigs: a transition eases from one pose to a moving other, and 
 	CHECK_FALSE(transition.Active());
 	CHECK(transition.Update(to, 0.1).position.x == 200.0);
 }
+
 
 TEST_CASE("Camera rigs: a pilot camera follows its ship's world transform through either rig")
 {

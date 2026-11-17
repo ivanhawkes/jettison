@@ -39,12 +39,14 @@ constexpr std::string_view kMergeTag = "!merge=";
 // a fixed precision and accept what a stream accepts. std::to_chars writes the shortest text
 // that reads back to the same value, and std::from_chars must consume the whole scalar.
 
+
 std::string FormatInteger(auto value)
 {
 	std::array<char, 24> buffer{};
 	const auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
 	return {buffer.data(), result.ptr};
 }
+
 
 template <typename T> std::string FormatFloat(T value)
 {
@@ -58,6 +60,7 @@ template <typename T> std::string FormatFloat(T value)
 	return {buffer.data(), result.ptr};
 }
 
+
 template <typename T> bool ParseNumber(std::string_view text, T &value)
 {
 	if (text.starts_with('+'))
@@ -67,6 +70,7 @@ template <typename T> bool ParseNumber(std::string_view text, T &value)
 	const auto [stop, error] = std::from_chars(first, last, value);
 	return error == std::errc{} && stop == last;
 }
+
 
 template <typename T> bool ParseFloat(std::string_view text, T &value)
 {
@@ -99,6 +103,7 @@ template <typename T> bool ParseFloat(std::string_view text, T &value)
 	return true;
 }
 
+
 // Whether a string written bare would read as something else to a YAML reader that is not
 // type-directed, as this one is: a number, a bool (1.2's spellings and 1.1's, which yaml-cpp's
 // own conversion still accepts) or one of YAML's non-finite floats. yaml-cpp quotes the null
@@ -123,6 +128,7 @@ class Writer
 	{
 	}
 
+
 	std::string Finish()
 	{
 		if (!m_emitter.good())
@@ -130,6 +136,7 @@ class Writer
 			    std::format("YamlArchive: {}: {}", m_path.Text(), m_emitter.GetLastError())};
 		return std::string{m_emitter.c_str()} + '\n';
 	}
+
 
 	void Root(const entt::meta_any &value, FormatVersion version)
 	{
@@ -157,6 +164,7 @@ class Writer
 			Value(member);
 		}
 	}
+
 
 	void Value(const entt::meta_any &value)
 	{
@@ -202,6 +210,7 @@ class Writer
 		}
 	}
 
+
 	void Leaf(const Shape &shape, const void *components)
 	{
 		if (shape.count > 1)
@@ -212,6 +221,7 @@ class Writer
 		if (shape.count > 1)
 			m_emitter << YAML::EndSeq;
 	}
+
 
 	static std::string Component(const Shape &shape, const std::byte *bytes)
 	{
@@ -244,6 +254,7 @@ class Writer
 		}
 	}
 
+
 	void Sequence(const entt::meta_any &value)
 	{
 		// begin() is not const on a container, even one over a const value.
@@ -273,6 +284,7 @@ class Reader
 	{
 	}
 
+
 	// Data of another version is migrated by the chain when there is one, and refused when not.
 	void Root(
 	    entt::meta_any &value, const YAML::Node &document, FormatVersion expected,
@@ -280,6 +292,7 @@ class Reader
 	{
 		Fields(value, Current(document, expected, migrations), true);
 	}
+
 
 	// The document at the expected version: as it is, migrated by the chain, or refused.
 	YAML::Node Current(
@@ -306,6 +319,7 @@ class Reader
 		migrated[std::string{kVersionKey}] = expected.version;
 		return migrated;
 	}
+
 
 	// Merges a patch, a mapping at the document's version, into the mapping below it, as
 	// YamlArchive::ReadLayered describes. The patch's nodes are moved into the tree below rather
@@ -360,6 +374,7 @@ class Reader
 		}
 	}
 
+
 	// A sequence tagged !merge=<field> into the sequence below it, element by element, matched by
 	// the field.
 	void MergeBy(YAML::Node below, const YAML::Node &patch, std::string_view field)
@@ -398,6 +413,7 @@ class Reader
 		    std::format("YamlArchive: {}: {} (line {})", m_path.Text(), problem, mark.line + 1)};
 	}
 
+
 	static std::string Text(const YAML::Node &node)
 	{
 		if (node.IsScalar())
@@ -408,6 +424,7 @@ class Reader
 			return "a sequence";
 		return "nothing";
 	}
+
 
 	void Fields(entt::meta_any &value, const YAML::Node &node, bool root)
 	{
@@ -443,6 +460,7 @@ class Reader
 				    std::format("YamlArchive: {}: the field could not be set", m_path.Text())};
 		}
 	}
+
 
 	void Value(entt::meta_any &value, const YAML::Node &node)
 	{
@@ -487,6 +505,7 @@ class Reader
 		}
 	}
 
+
 	entt::meta_any Leaf(const Shape &shape, const YAML::Node &node)
 	{
 		alignas(8) std::array<std::byte, Detail::kMaxLeafBytes> components{};
@@ -504,6 +523,7 @@ class Reader
 		}
 		return shape.make(components.data());
 	}
+
 
 	void Component(const Shape &shape, const YAML::Node &node, std::byte *bytes)
 	{
@@ -549,6 +569,7 @@ class Reader
 		}
 	}
 
+
 	static bool Integer(const Shape &shape, std::string_view text, std::byte *bytes)
 	{
 		// Parsed at the field's own width, so from_chars reports a value out of its range.
@@ -578,10 +599,12 @@ class Reader
 		}
 	}
 
+
 	static std::string Describe(const YAML::Node &node)
 	{
 		return node.IsScalar() ? "'" + node.Scalar() + "'" : Text(node);
 	}
+
 
 	void Sequence(entt::meta_any &value, const YAML::Node &node)
 	{
@@ -604,6 +627,7 @@ class Reader
 	Path m_path;
 };
 } // namespace
+
 
 std::string YamlArchive::Write(const entt::meta_any &value, FormatVersion version)
 {
@@ -638,6 +662,7 @@ entt::meta_any ReadDocument(
 	reader.Root(value, document, expected, migrations);
 	return value;
 }
+
 
 entt::meta_any ReadLayers(
     std::span<const YamlLayer> layers, const entt::meta_type &type, FormatVersion expected,
@@ -700,11 +725,13 @@ entt::meta_any ReadLayers(
 }
 } // namespace
 
+
 entt::meta_any YamlArchive::Read(
     std::string_view text, const entt::meta_type &type, FormatVersion expected)
 {
 	return ReadDocument(text, type, expected, nullptr);
 }
+
 
 entt::meta_any YamlArchive::Read(
     std::string_view text, const entt::meta_type &type, const YamlMigrations &migrations)
@@ -724,6 +751,7 @@ entt::meta_any YamlArchive::ReadLayered(
 {
 	return ReadLayers(layers, type, expected, nullptr);
 }
+
 
 entt::meta_any YamlArchive::ReadLayered(
     std::span<const YamlLayer> layers, const entt::meta_type &type, const YamlMigrations &migrations)

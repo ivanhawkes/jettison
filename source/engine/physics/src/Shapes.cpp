@@ -25,17 +25,20 @@ namespace
 	throw std::invalid_argument{std::format("Physics: shape '{}' {}", name, problem)};
 }
 
+
 void RequireSize(std::string_view name, std::string_view what, float value)
 {
 	if (!std::isfinite(value) || value <= 0.0f)
 		Refuse(name, std::format("has a {} of {}, which is not a size", what, value));
 }
 
+
 void RequirePoint(std::string_view name, const glm::vec3 &point)
 {
 	if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z))
 		Refuse(name, "has a point that is not finite");
 }
+
 
 JPH::RefConst<JPH::Shape> Create(std::string_view name, const JPH::ShapeSettings &settings)
 {
@@ -45,6 +48,7 @@ JPH::RefConst<JPH::Shape> Create(std::string_view name, const JPH::ShapeSettings
 	return result.Get();
 }
 } // namespace
+
 
 JPH::RefConst<JPH::Shape> BuildShape(std::string_view name, const ShapeDefinition &shape)
 {

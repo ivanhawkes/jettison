@@ -23,11 +23,13 @@ const std::array<OverlayVertex, 4> kQuad{{
 }};
 const std::array<std::uint32_t, 6> kQuadIndices{0, 1, 2, 0, 2, 3};
 
+
 OverlayTexture Texels(std::uint32_t width, std::uint32_t height)
 {
 	return {width, height, std::vector<std::byte>(std::size_t{width} * height * 4, std::byte{255})};
 }
 } // namespace
+
 
 TEST_CASE("Overlay: each draw runs over its own indices, counted from its own vertices")
 {
@@ -50,6 +52,7 @@ TEST_CASE("Overlay: each draw runs over its own indices, counted from its own ve
 	CHECK(overlay.Vertices().empty());
 	CHECK(overlay.Indices().empty());
 }
+
 
 TEST_CASE("Overlay: a draw keeps the scissor and the transform in force when it was made")
 {
@@ -75,6 +78,7 @@ TEST_CASE("Overlay: a draw keeps the scissor and the transform in force when it 
 	CHECK_FALSE(overlay.Draws()[0].scissor.has_value());
 }
 
+
 TEST_CASE("Overlay: a draw that reads past its vertices, or is not whole triangles, is refused")
 {
 	Overlay overlay;
@@ -85,6 +89,7 @@ TEST_CASE("Overlay: a draw that reads past its vertices, or is not whole triangl
 	CHECK(overlay.Draws().empty());
 	CHECK(overlay.Vertices().empty());
 }
+
 
 TEST_CASE("Overlay: textures outlive the frame's draws, and an identifier is never given twice")
 {

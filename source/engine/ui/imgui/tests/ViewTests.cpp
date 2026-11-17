@@ -36,6 +36,8 @@ class HeadlessImGui
 		int height = 0;
 		io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 	}
+
+
 	~HeadlessImGui()
 	{
 		ImGuiContext *outer = ImGui::GetCurrentContext();
@@ -44,8 +46,13 @@ class HeadlessImGui
 		if (outer != m_context)
 			ImGui::SetCurrentContext(outer);
 	}
+
+
 	HeadlessImGui(const HeadlessImGui &) = delete;
+
+
 	HeadlessImGui &operator=(const HeadlessImGui &) = delete;
+
 
 	void Frame(const std::function<void()> &draw)
 	{
@@ -54,10 +61,13 @@ class HeadlessImGui
 		ImGui::Render();
 	}
 
+
 	static void Key(ImGuiKey key)
 	{
 		ImGui::GetIO().AddKeyEvent(key, true);
 	}
+
+
 	static void Release(ImGuiKey key)
 	{
 		ImGui::GetIO().AddKeyEvent(key, false);
@@ -67,6 +77,7 @@ class HeadlessImGui
 	ImGuiContext *m_context{nullptr};
 };
 } // namespace
+
 
 TEST_CASE("Views: the dev tools and every tool they open draw a frame")
 {
@@ -85,6 +96,7 @@ TEST_CASE("Views: the dev tools and every tool they open draw a frame")
 	CHECK(state.showConsole);
 	CHECK(ImGui::GetDrawData()->CmdListsCount > 0);
 }
+
 
 TEST_CASE("Views: a line typed into the console window and entered is executed")
 {

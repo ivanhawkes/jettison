@@ -7,6 +7,7 @@
 using namespace Jettison::Time;
 using namespace std::chrono_literals;
 
+
 TEST_CASE("RealClock: a tick is the time since the previous one")
 {
 	RealClock clock;
@@ -15,6 +16,7 @@ TEST_CASE("RealClock: a tick is the time since the previous one")
 	CHECK(clock.Tick(start + 10ms).count() == doctest::Approx(0.010));
 	CHECK(clock.Tick(start + 30ms).count() == doctest::Approx(0.020));
 }
+
 
 TEST_CASE("RealClock: a long frame is clamped, and an instant before the last is no time at all")
 {
@@ -27,6 +29,7 @@ TEST_CASE("RealClock: a long frame is clamped, and an instant before the last is
 	CHECK(clock.MaxTick().count() == doctest::Approx(0.1));
 }
 
+
 TEST_CASE("RealClock: elapsed time is unclamped and does not go backwards")
 {
 	const RealClock clock;
@@ -35,6 +38,7 @@ TEST_CASE("RealClock: elapsed time is unclamped and does not go backwards")
 	CHECK(first.count() >= 0.0);
 	CHECK(second >= first);
 }
+
 
 TEST_CASE("SimClock: a new clock is at zero, running, in real time")
 {
@@ -45,6 +49,7 @@ TEST_CASE("SimClock: a new clock is at zero, running, in real time")
 	CHECK(clock.Compression() == 1.0);
 }
 
+
 TEST_CASE("SimClock: each step advances time by the step and counts it")
 {
 	SimClock clock;
@@ -53,6 +58,7 @@ TEST_CASE("SimClock: each step advances time by the step and counts it")
 	CHECK(clock.Step() == 60);
 	CHECK(clock.Now() == doctest::Approx(1.0));
 }
+
 
 TEST_CASE("SimClock: pausing stops the scaled delta, and compression multiplies it")
 {
@@ -68,6 +74,7 @@ TEST_CASE("SimClock: pausing stops the scaled delta, and compression multiplies 
 	CHECK(clock.ScaledDelta(0.5) == 2.0);
 }
 
+
 TEST_CASE("SimClock: a paused clock can still be single-stepped")
 {
 	SimClock clock;
@@ -76,6 +83,7 @@ TEST_CASE("SimClock: a paused clock can still be single-stepped")
 	CHECK(clock.Step() == 1);
 	CHECK(clock.Now() == 0.25);
 }
+
 
 TEST_CASE("SimClock: a restored clock carries on from the step and time it was given")
 {

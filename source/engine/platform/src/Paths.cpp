@@ -24,6 +24,7 @@ std::optional<std::filesystem::path> AbsoluteVariable(
 	return path;
 }
 
+
 std::filesystem::path BaseDirectory(
     const EnvironmentLookup &environment, const char *variable, const std::filesystem::path &underHome)
 {
@@ -36,6 +37,7 @@ std::filesystem::path BaseDirectory(
 	return *home / underHome;
 }
 
+
 void CheckApplicationName(const std::filesystem::path &name)
 {
 	const bool oneComponent = !name.empty() && std::distance(name.begin(), name.end()) == 1;
@@ -44,6 +46,7 @@ void CheckApplicationName(const std::filesystem::path &name)
 		    "Platform: '{}' is not an application name: it must be one path component", name.string())};
 }
 } // namespace
+
 
 Paths ResolvePaths(const std::filesystem::path &applicationName)
 {
@@ -59,6 +62,7 @@ Paths ResolvePaths(const std::filesystem::path &applicationName)
 	    });
 }
 
+
 Paths ResolvePaths(const std::filesystem::path &applicationName, const EnvironmentLookup &environment)
 {
 	CheckApplicationName(applicationName);
@@ -69,6 +73,7 @@ Paths ResolvePaths(const std::filesystem::path &applicationName, const Environme
 	    .cache = BaseDirectory(environment, "XDG_CACHE_HOME", ".cache") / applicationName,
 	};
 }
+
 
 std::filesystem::path ExecutablePath()
 {

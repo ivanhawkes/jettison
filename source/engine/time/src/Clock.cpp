@@ -12,10 +12,12 @@ RealClock::RealClock(Duration maxTick) : m_maxTick{maxTick}, m_start{Clock::now(
 	JETTISON_VERIFY(maxTick > Duration::zero());
 }
 
+
 RealClock::Duration RealClock::Tick()
 {
 	return Tick(Clock::now());
 }
+
 
 RealClock::Duration RealClock::Tick(Clock::time_point now)
 {
@@ -24,15 +26,18 @@ RealClock::Duration RealClock::Tick(Clock::time_point now)
 	return std::clamp(delta, Duration::zero(), m_maxTick);
 }
 
+
 RealClock::Duration RealClock::Elapsed() const
 {
 	return Clock::now() - m_start;
 }
 
+
 void SimClock::SetPaused(bool paused)
 {
 	m_paused = paused;
 }
+
 
 void SimClock::Restore(std::uint64_t step, double now)
 {
@@ -41,17 +46,20 @@ void SimClock::Restore(std::uint64_t step, double now)
 	m_now = now;
 }
 
+
 void SimClock::SetCompression(double factor)
 {
 	JETTISON_VERIFY(std::isfinite(factor) && factor > 0.0);
 	m_compression = factor;
 }
 
+
 double SimClock::ScaledDelta(double realSeconds) const
 {
 	JETTISON_ASSERT(realSeconds >= 0.0);
 	return m_paused ? 0.0 : realSeconds * m_compression;
 }
+
 
 void SimClock::Advance(double fixedStep)
 {

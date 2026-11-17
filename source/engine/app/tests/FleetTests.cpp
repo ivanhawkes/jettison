@@ -31,6 +31,7 @@ namespace
 {
 constexpr Sim::Controller kPlayer{Sim::ControllerKind::Player, 0};
 
+
 // The player's first ship as the shell makes it (Application::SpawnShip): a shuttle on Highport's
 // lowest free pad that fits it, theirs, at its helm, with the credits they start with.
 entt::entity FirstShip(Galaxy &galaxy, std::int64_t credits = 250000)
@@ -52,6 +53,7 @@ entt::entity FirstShip(Galaxy &galaxy, std::int64_t credits = 250000)
 	return ship;
 }
 } // namespace
+
 
 TEST_CASE(
     "Fleet: a player buys a second ship and trades from it at its helm, while the first "
@@ -130,6 +132,7 @@ TEST_CASE(
 	CHECK(registry.get<Ai::Behaviour>(second).nodes.empty());
 }
 
+
 TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there is no pad for it")
 {
 	Galaxy galaxy;
@@ -187,6 +190,7 @@ TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there i
 	CHECK(registry.get<Sim::Helm>(galaxy.Events<App::ShipBought>().back().ship).controller == kPlayer);
 }
 
+
 TEST_CASE("Fleet: a world saved before the helm gives the player the helm of the ship it names")
 {
 	Galaxy galaxy;
@@ -205,6 +209,7 @@ TEST_CASE("Fleet: a world saved before the helm gives the player the helm of the
 	CHECK_FALSE(App::GiveOldShipItsHelm(registry, ship, kPlayer));
 	CHECK_FALSE(App::GiveOldShipItsHelm(registry, galaxy.traders.front(), kPlayer));
 }
+
 
 TEST_CASE("Fleet: a helm its pilot left is not given back as a save from before the helm's would be")
 {

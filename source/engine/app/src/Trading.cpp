@@ -23,6 +23,7 @@ namespace
 {
 constexpr Core::Category kTrading{"trading"};
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -115,6 +116,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 void Refuse(
     Sim::SimWorld &world, const Trade &trade, TradeReason reason,
     std::vector<Sim::ReasonArgument> arguments = {})
@@ -123,16 +125,19 @@ void Refuse(
 	    TradeRefused{trade.ship, trade.good, Sim::MakeReason(reason, std::move(arguments))});
 }
 
+
 Sim::ReasonArgument Crates(std::int64_t crates)
 {
 	return Sim::ReasonArgument::Integer(crates);
 }
+
 
 MarketGood *FindGood(Market &market, std::string_view good)
 {
 	const auto found = std::ranges::find(market.goods, good, &MarketGood::good);
 	return found != market.goods.end() ? &*found : nullptr;
 }
+
 
 // What crates of a good cost at a price, if it fits in a 64-bit count of credits.
 bool Cost(std::int64_t crates, std::int64_t price, std::int64_t &cost)
@@ -144,6 +149,7 @@ bool Cost(std::int64_t crates, std::int64_t price, std::int64_t &cost)
 }
 } // namespace
 
+
 std::int64_t Hold::Used() const
 {
 	std::int64_t used = 0;
@@ -152,11 +158,13 @@ std::int64_t Hold::Used() const
 	return used;
 }
 
+
 std::int64_t Hold::Crates(std::string_view good) const
 {
 	const auto found = std::ranges::find(cargo, good, &Cargo::good);
 	return found != cargo.end() ? found->crates : 0;
 }
+
 
 entt::entity MakeOwner(
     entt::registry &registry, const Sim::Controller &controller, std::int64_t credits)
@@ -169,6 +177,7 @@ entt::entity MakeOwner(
 	return owner;
 }
 
+
 entt::entity FindOwner(const entt::registry &registry, const Sim::Controller &controller)
 {
 	// One owner a controller (MakeOwner), so the view's order decides nothing.
@@ -178,11 +187,13 @@ entt::entity FindOwner(const entt::registry &registry, const Sim::Controller &co
 	return entt::null;
 }
 
+
 entt::entity OwnerOf(const entt::registry &registry, entt::entity ship)
 {
 	const auto *controlled = registry.valid(ship) ? registry.try_get<Sim::ControlledBy>(ship) : nullptr;
 	return controlled ? FindOwner(registry, controlled->controller) : entt::null;
 }
+
 
 Purse *PurseOf(entt::registry &registry, entt::entity ship)
 {
@@ -190,11 +201,13 @@ Purse *PurseOf(entt::registry &registry, entt::entity ship)
 	return owner != entt::null ? registry.try_get<Purse>(owner) : nullptr;
 }
 
+
 const Purse *PurseOf(const entt::registry &registry, entt::entity ship)
 {
 	const entt::entity owner = OwnerOf(registry, ship);
 	return owner != entt::null ? registry.try_get<Purse>(owner) : nullptr;
 }
+
 
 const Purse *PurseOf(const Sim::Snapshot &snapshot, entt::entity ship)
 {
@@ -207,11 +220,13 @@ const Purse *PurseOf(const Sim::Snapshot &snapshot, entt::entity ship)
 	return nullptr;
 }
 
+
 const GalacticPrice *GalacticPrices::Find(std::string_view good) const
 {
 	const auto found = std::ranges::find(goods, good, &GalacticPrice::good);
 	return found != goods.end() ? &*found : nullptr;
 }
+
 
 std::int64_t MoveMean(std::int64_t mean, std::int64_t price, std::int64_t crates)
 {
@@ -221,17 +236,20 @@ std::int64_t MoveMean(std::int64_t mean, std::int64_t price, std::int64_t crates
 	return (mean * kGalacticMemoryCrates + price * weight + total / 2) / total;
 }
 
+
 const GalacticPrices *FindGalacticPrices(const entt::registry &registry)
 {
 	const auto view = registry.view<const GalacticPrices>();
 	return view.empty() ? nullptr : &view.get<const GalacticPrices>(view.front());
 }
 
+
 const GalacticPrices *FindGalacticPrices(const Sim::Snapshot &snapshot)
 {
 	const auto samples = snapshot.Components<GalacticPrices>();
 	return samples.empty() ? nullptr : &samples.front().value;
 }
+
 
 std::size_t MovePursesToOwners(entt::registry &registry)
 {
@@ -253,6 +271,7 @@ std::size_t MovePursesToOwners(entt::registry &registry)
 	}
 	return ships.size();
 }
+
 
 void RegisterTrading(Sim::SimWorld &world)
 {
@@ -282,6 +301,7 @@ void RegisterTrading(Sim::SimWorld &world)
 	     }});
 }
 
+
 void LoadTradeDefinitions(Sim::DefinitionRegistry &definitions)
 {
 	RegisterTypes();
@@ -289,6 +309,7 @@ void LoadTradeDefinitions(Sim::DefinitionRegistry &definitions)
 	definitions.Load<MarketDefinition>(
 	    "defs/markets", Serialise::FormatVersion{kTradeDefinitionVersion});
 }
+
 
 std::vector<entt::entity> OpenMarkets(Sim::SimWorld &world, const Sim::DefinitionRegistry &definitions)
 {
@@ -332,12 +353,14 @@ std::vector<entt::entity> OpenMarkets(Sim::SimWorld &world, const Sim::Definitio
 	return opened;
 }
 
+
 std::int64_t ScarcityPrice(const MarketGood &good)
 {
 	const std::int64_t stock = std::max<std::int64_t>(good.stock, 0);
 	const std::int64_t price = good.basePrice * 2 * good.target / (good.target + stock);
 	return std::max<std::int64_t>(std::max(price, good.basePrice / 4), 1);
 }
+
 
 void Quote(MarketGood &good, std::uint32_t feeBps)
 {
@@ -346,6 +369,7 @@ void Quote(MarketGood &good, std::uint32_t feeBps)
 	good.ask = (price * (10000 + fee) + 9999) / 10000;
 	good.bid = std::max<std::int64_t>(price * (10000 - fee) / 10000, 1);
 }
+
 
 void TickMarkets(entt::registry &registry)
 {
@@ -358,6 +382,7 @@ void TickMarkets(entt::registry &registry)
 			Quote(good, market.feeBps);
 		}
 }
+
 
 void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 {
@@ -434,6 +459,7 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 	world.Events().Emit(
 	    Traded{trade.ship, trade.market, trade.good, trade.crates, price, purse.credits});
 }
+
 
 void ChargeTolls(Ai::Gates &gates)
 {

@@ -17,12 +17,14 @@ namespace
 {
 constexpr Core::Category kJump{"jump"};
 
+
 // The share of a fade a frame of that many seconds covers; a fade of no length is over at once.
 double Share(double realSeconds, double fadeSeconds)
 {
 	return fadeSeconds > 0.0 ? realSeconds / fadeSeconds : 1.0;
 }
 } // namespace
+
 
 void RegisterJumpLoaders(Resource::ResourceManager &resources)
 {
@@ -36,15 +38,18 @@ void RegisterJumpLoaders(Resource::ResourceManager &resources)
 	     {}});
 }
 
+
 JumpTransition::JumpTransition(Resource::ResourceManager &resources, Show show, JumpSettings settings)
     : m_resources{resources}, m_show{std::move(show)}, m_settings{settings}
 {
 }
 
+
 JumpTransition::~JumpTransition()
 {
 	ReleaseFiles();
 }
+
 
 bool JumpTransition::Begin(
     const Celestial::Galaxy &galaxy, std::size_t destination, std::string arrival)
@@ -68,6 +73,7 @@ bool JumpTransition::Begin(
 	    m_arrivalPoint.empty() ? std::string{} : " at '" + m_arrivalPoint + "'");
 	return true;
 }
+
 
 void JumpTransition::Advance(double realSeconds)
 {
@@ -134,11 +140,13 @@ void JumpTransition::Advance(double realSeconds)
 	}
 }
 
+
 float JumpTransition::Fade() const
 {
 	const double cover = std::clamp(m_cover, 0.0, 1.0);
 	return static_cast<float>(cover * cover * (3.0 - 2.0 * cover));
 }
+
 
 void JumpTransition::Read()
 {
@@ -202,6 +210,7 @@ void JumpTransition::Read()
 	}
 }
 
+
 void JumpTransition::Abandon(std::string error)
 {
 	Core::Log(Core::Severity::Error, kJump, "{}", error);
@@ -210,6 +219,7 @@ void JumpTransition::Abandon(std::string error)
 	m_arrival.reset();
 	m_stage = JumpStage::FadingIn;
 }
+
 
 void JumpTransition::ReleaseFiles()
 {

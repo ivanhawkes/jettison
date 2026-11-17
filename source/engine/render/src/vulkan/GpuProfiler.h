@@ -27,22 +27,29 @@ class GpuProfiler
 	GpuProfiler(
 	    std::shared_ptr<DeviceContext> pDeviceContext, std::uint32_t framesInFlight,
 	    std::vector<std::string> passNames);
+
 	~GpuProfiler();
 
 	GpuProfiler(const GpuProfiler &) = delete;
+
 	GpuProfiler &operator=(const GpuProfiler &) = delete;
 
 	// A device whose graphics queue has no timestamps measures nothing, and says so once.
 	void Init();
+
 	void Destroy();
 
 	// After the slot's fence: what the slot's last frame measured joins the timings.
 	void Collect(std::uint32_t slot);
+
 	// At the head of the slot's command buffer, outside any rendering: resets its queries, and hands
 	// Tracy's the commands it needs to read its own.
 	void BeginFrame(VkCommandBuffer commandBuffer, std::uint32_t slot);
+
 	void BeginPass(VkCommandBuffer commandBuffer, std::uint32_t slot, std::uint32_t pass);
+
 	void EndPass(VkCommandBuffer commandBuffer, std::uint32_t slot, std::uint32_t pass);
+
 	// Tracy's GPU context, for the zones the renderer opens around each pass; null when Tracy is
 	// compiled out, when its macros expand to nothing.
 	void *TracyContext() const
@@ -54,16 +61,19 @@ class GpuProfiler
 	{
 		return m_pool != VK_NULL_HANDLE;
 	}
+
 	// One per pass, in the pass list's order, then the frame's total, from the first pass's start to
 	// the last one's end.
 	const std::vector<PassTiming> &Timings() const
 	{
 		return m_timings;
 	}
+
 	std::uint64_t MeasuredFrames() const
 	{
 		return m_measuredFrames;
 	}
+
 	// Starts the means again: a benchmark's warm-up is not part of what it measures.
 	void ResetMeans();
 

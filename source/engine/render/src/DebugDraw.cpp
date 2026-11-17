@@ -14,6 +14,7 @@ void DebugDraw::Line(
 	List(depth).push_back({from, to, color});
 }
 
+
 void DebugDraw::Polyline(
     std::span<const glm::dvec3> points, const glm::vec4 &color, bool closed, DebugDepth depth)
 {
@@ -24,6 +25,7 @@ void DebugDraw::Polyline(
 	if (closed && points.size() > 2)
 		Line(points.back(), points.front(), color, depth);
 }
+
 
 void DebugDraw::Circle(
     const glm::dvec3 &center, const glm::dvec3 &normal, double radius, const glm::vec4 &color,
@@ -47,6 +49,7 @@ void DebugDraw::Circle(
 	}
 }
 
+
 void DebugDraw::Sphere(
     const glm::dvec3 &center, double radius, const glm::vec4 &color, int segments, DebugDepth depth)
 {
@@ -54,6 +57,7 @@ void DebugDraw::Sphere(
 	Circle(center, {0.0, 1.0, 0.0}, radius, color, segments, depth);
 	Circle(center, {0.0, 0.0, 1.0}, radius, color, segments, depth);
 }
+
 
 void DebugDraw::Box(
     const glm::dvec3 &center, const glm::dvec3 &halfExtents, const glm::dquat &orientation,
@@ -75,6 +79,7 @@ void DebugDraw::Box(
 				    corners[static_cast<std::size_t>(corner | bit)], color, depth);
 }
 
+
 void DebugDraw::Axes(
     const glm::dvec3 &origin, const glm::dquat &orientation, double length, DebugDepth depth)
 {
@@ -83,11 +88,13 @@ void DebugDraw::Axes(
 	Line(origin, origin + orientation * glm::dvec3{0.0, 0.0, length}, {0.2f, 0.4f, 1.0f, 1.0f}, depth);
 }
 
+
 void DebugDraw::Clear()
 {
 	m_tested.clear();
 	m_overlay.clear();
 }
+
 
 std::uint32_t DebugDraw::Build(const glm::dvec3 &camera, std::vector<LineVertex> &vertices) const
 {

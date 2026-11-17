@@ -72,6 +72,7 @@ struct Transfer
 	glm::dvec3 position{0.0};
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -112,6 +113,7 @@ const std::uint64_t kVesper = Sim::SystemId("Vesper");
 // The bay's half width, inside.
 constexpr float kBay = 30.0f;
 
+
 // A closed cube of twelve triangles, each facing in.
 ShapeDefinition Bay()
 {
@@ -127,6 +129,7 @@ ShapeDefinition Bay()
 	                 2, 6, 7, 2, 7, 3, 0, 4, 6, 0, 6, 2, 1, 3, 7, 1, 7, 5};
 	return shape;
 }
+
 
 // The game's start-up, the same every run.
 Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
@@ -224,10 +227,12 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 	return physics;
 }
 
+
 entt::entity Id(std::uint32_t identifier)
 {
 	return entt::entity{identifier};
 }
+
 
 void Feed(Sim::SimWorld &world, std::uint64_t step)
 {
@@ -325,6 +330,7 @@ void Feed(Sim::SimWorld &world, std::uint64_t step)
 	}
 }
 
+
 void Run(Sim::SimWorld &world, std::uint64_t until)
 {
 	while (world.Clock().Step() < until)
@@ -334,6 +340,7 @@ void Run(Sim::SimWorld &world, std::uint64_t until)
 	}
 }
 } // namespace
+
 
 TEST_CASE("Physics replay: bodies collide, and the same commands give the same state in every build")
 {
@@ -371,6 +378,7 @@ TEST_CASE("Physics replay: bodies collide, and the same commands give the same s
 	CHECK(first.StateHash() == 0xf43a6412c4576d3eull);
 }
 
+
 TEST_CASE("Physics replay: a world saved part-way and loaded carries on exactly as the original")
 {
 	Sim::SimWorld original{kStep, kSeed};
@@ -390,6 +398,7 @@ TEST_CASE("Physics replay: a world saved part-way and loaded carries on exactly 
 	Run(loaded, kSteps);
 	CHECK(loaded.Save() == original.Save());
 }
+
 
 TEST_CASE("Physics replay: the recorded commands replay a session from its start")
 {
@@ -411,6 +420,7 @@ TEST_CASE("Physics replay: the recorded commands replay a session from its start
 	}
 	CHECK(replay.StateHash() == session.StateHash());
 }
+
 
 TEST_CASE("Physics replay: a save naming a shape this world does not define is refused")
 {
@@ -444,6 +454,7 @@ TEST_CASE("Physics replay: a save naming a shape this world does not define is r
 	}
 }
 
+
 TEST_CASE("Physics replay: a save of layout 3, before Jolt's version was saved, keeps Jolt's state")
 {
 	// Written by commit 8177358 from the run below at step 130, with step 150's command queued: Jolt
@@ -471,6 +482,7 @@ TEST_CASE("Physics replay: a save of layout 3, before Jolt's version was saved, 
 	Run(loaded, kSteps);
 	CHECK(loaded.Save() == original.Save());
 }
+
 
 TEST_CASE("Physics replay: a save of another Jolt is made again from its records, and steps on")
 {

@@ -45,7 +45,9 @@ class JoystickMap
 	// Throws std::invalid_argument for a number past the last joystick or a GUID that is not hex
 	// digits.
 	void Name(std::uint8_t joystick, std::string guid);
+
 	void Forget(std::uint8_t joystick);
+
 	// The device the number is named after, or nothing.
 	std::optional<std::string_view> NameOf(std::uint8_t joystick) const;
 
@@ -60,6 +62,7 @@ class JoystickMap
 
 	// The names into the user layer, replacing what it has under input.devices.
 	void Save(Core::Config &config) const;
+
 	// Takes every input.devices.joystick<N> the config has, replacing the names held. Throws
 	// std::runtime_error naming the key for one that is not a GUID; nothing is changed then.
 	void Load(const Core::Config &config);

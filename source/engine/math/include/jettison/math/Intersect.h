@@ -23,6 +23,7 @@ template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const B
 // plane, is reported as intersecting. Culling can afford to draw it; it cannot afford a test
 // per box that is exact.
 bool Intersects(const Frustum &frustum, const Aabb &box);
+
 bool Intersects(const Frustum &frustum, const Sphere &sphere);
 
 // The frustum of a view-projection matrix with zero-to-one depth (GLM_FORCE_DEPTH_ZERO_TO_ONE),

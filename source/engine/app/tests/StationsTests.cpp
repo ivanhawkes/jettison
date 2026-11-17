@@ -32,6 +32,7 @@ namespace
 {
 constexpr double kStep = 1.0 / 60.0;
 
+
 Celestial::StarSystem System(const std::string &file)
 {
 	std::ifstream in{std::string{JETTISON_ASSET_SOURCE_DIR} + "/systems/" + file};
@@ -52,6 +53,7 @@ struct Sample
 	std::vector<Celestial::StarSystem> systems{System("halcyon.yaml"), System("vesper.yaml")};
 	Vfs::FileSystem files;
 
+
 	Sample()
 	{
 		for (const Celestial::StarSystem &system : systems)
@@ -63,6 +65,7 @@ struct Sample
 		docks.Define(definitions);
 	}
 
+
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -72,6 +75,7 @@ struct Sample
 	}
 };
 
+
 std::size_t Holding(const entt::registry &world, entt::entity station)
 {
 	return static_cast<std::size_t>(std::ranges::count_if(
@@ -79,6 +83,7 @@ std::size_t Holding(const entt::registry &world, entt::entity station)
 	    [&](entt::entity pad) { return world.get<Dock::Pad>(pad).state == Dock::PadState::Holding; }));
 }
 } // namespace
+
 
 TEST_CASE("Stations: every station built to a layout opens with its pads, ships parked on a few")
 {
@@ -117,6 +122,7 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, ships 
 	CHECK(sample.physics.Contacts().empty());
 	CHECK(Holding(world, highport) == 3);
 }
+
 
 TEST_CASE(
     "Stations: the shipped sounds play a pad's clamps closing and letting go on the effects bus, from "

@@ -30,6 +30,7 @@ EmitterInput At(std::uint64_t key, const ParticleEmitterComponent &emitter, cons
 	return input;
 }
 
+
 std::vector<EmitterDraw> Step(
     ParticlePool &pool, const std::vector<EmitterInput> &inputs, double seconds)
 {
@@ -38,6 +39,7 @@ std::vector<EmitterDraw> Step(
 	return draws;
 }
 } // namespace
+
 
 TEST_CASE("Particles: an emitter keeps its share of the pool while it is drawn, and gives it up after")
 {
@@ -92,6 +94,7 @@ TEST_CASE("Particles: an emitter keeps its share of the pool while it is drawn, 
 	CHECK(draws[0].gpu.slots.y == 64u);
 	CHECK(draws[0].gpu.spawn.z == 1u);
 }
+
 
 TEST_CASE("Particles: births follow the rate across frames, with a burst first and on each pulse")
 {
@@ -149,6 +152,7 @@ TEST_CASE("Particles: births follow the rate across frames, with a burst first a
 	CHECK(draws[0].gpu.spawn.z == 0u);
 }
 
+
 TEST_CASE("Particles: an emitter is placed in its particles' frame, and moves through it")
 {
 	ParticlePool pool{256};
@@ -190,6 +194,7 @@ TEST_CASE("Particles: an emitter is placed in its particles' frame, and moves th
 	CHECK(draws[0].gpu.previous.y == Approx(10.0));
 	CHECK(draws[0].gpu.origin.y == Approx(12.0));
 }
+
 
 TEST_CASE("Particles: particles.glsl's births are in the cone, the sphere and the speeds given")
 {
@@ -235,6 +240,7 @@ TEST_CASE("Particles: particles.glsl's births are in the cone, the sphere and th
 	CHECK(first.positionAge.x == Approx(0.25));
 	CHECK(first.positionAge.w == Approx(0.075));
 }
+
 
 TEST_CASE(
     "Particles: particles.glsl steps the same path however the frames fall, and empties a slot at its "

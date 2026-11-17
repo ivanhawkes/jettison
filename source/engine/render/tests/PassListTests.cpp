@@ -23,6 +23,7 @@ struct Frame
 	std::uint32_t opaque{};
 	std::uint32_t output{};
 
+
 	Frame()
 	{
 		msaa = list.AddImage("hdr-msaa");
@@ -43,10 +44,13 @@ struct Frame
 
 // Stand-in handles: Translate copies them into its barriers and never dereferences them.
 int g_handles[4];
+
+
 template <typename Handle> Handle Fake(int index)
 {
 	return reinterpret_cast<Handle>(&g_handles[index]);
 }
+
 
 const Barrier *Find(const std::vector<Barrier> &barriers, PassResource resource)
 {
@@ -56,6 +60,7 @@ const Barrier *Find(const std::vector<Barrier> &barriers, PassResource resource)
 	return nullptr;
 }
 } // namespace
+
 
 TEST_CASE("Pass list: the frame's first uses discard, and wait on the last frame's last use")
 {
@@ -80,6 +85,7 @@ TEST_CASE("Pass list: the frame's first uses discard, and wait on the last frame
 	CHECK(depth->before == std::vector<Usage>{Usage::DepthAttachment});
 }
 
+
 TEST_CASE("Pass list: a target written then sampled gets one barrier, and the swapchain is presented")
 {
 	const Frame frame;
@@ -102,6 +108,7 @@ TEST_CASE("Pass list: a target written then sampled gets one barrier, and the sw
 	CHECK(plan.final[0].before == std::vector<Usage>{Usage::ColorAttachment});
 	CHECK(plan.final[0].after == Usage::Present);
 }
+
 
 TEST_CASE("Pass list: compute passes sit beside graphics ones on the same terms")
 {
@@ -143,6 +150,7 @@ TEST_CASE("Pass list: compute passes sit beside graphics ones on the same terms"
 	CHECK(translated.images[0].oldLayout == VK_IMAGE_LAYOUT_UNDEFINED);
 	CHECK(translated.images[0].newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 }
+
 
 TEST_CASE("Pass list: transfer passes fill before compute and copy out after the fragments read")
 {
@@ -197,6 +205,7 @@ TEST_CASE("Pass list: transfer passes fill before compute and copy out after the
 	    std::logic_error);
 }
 
+
 TEST_CASE(
     "Pass list: a second read at a stage already waited for needs nothing; a write waits on every read")
 {
@@ -235,6 +244,7 @@ TEST_CASE(
 	CHECK(translated.images[0].srcAccessMask == VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
+
 TEST_CASE("Pass list: a read in a layout the image has left is waited for again")
 {
 	PassList list;
@@ -246,6 +256,7 @@ TEST_CASE("Pass list: a read in a layout the image has left is waited for again"
 	const PassPlan plan = list.Compile();
 	CHECK(Find(plan.passes[3].barriers, image) != nullptr);
 }
+
 
 TEST_CASE("Pass list: what cannot be planned is refused, naming the pass")
 {

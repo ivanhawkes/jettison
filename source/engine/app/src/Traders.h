@@ -91,9 +91,11 @@ void RegisterTraders(
 
 // What a trader works out for an option of its decision.
 inline constexpr std::array<std::string_view, 3> kTraderInputs{"margin", "rivals", "rate"};
+
 // The first input the decision asks for that neither a trader nor one of the scripts answers, or none.
 std::optional<std::string> UnansweredInput(
     const Ai::DecisionDefinition &decision, const Script::ScriptHost *pScripts);
+
 // The decisions (defs/decisions) and the trees (defs/behaviours) into the registry. Throws as the
 // registry's Load does, naming the file.
 void LoadTraderDefinitions(Sim::DefinitionRegistry &definitions);

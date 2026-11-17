@@ -54,11 +54,13 @@ constexpr float kLandingSpeed = 0.2f;
 
 using Detail::Sorted;
 
+
 std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *frame = registry.try_get<Physics::LocalFrame>(entity);
 	return frame ? std::string_view{frame->body} : std::string_view{};
 }
+
 
 std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
 {
@@ -66,10 +68,12 @@ std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
 	return inSystem ? inSystem->system : Sim::kNoSystem;
 }
 
+
 bool Fits(const HullDefinition &hull, const Pad &pad)
 {
 	return !pad.display && pad.padClass >= hull.pad;
 }
+
 
 // The ship's steering, as it keeps clear, given it by default if it has none: the docks fly it.
 const Ai::Steered &Steer(entt::registry &registry, entt::entity ship)
@@ -79,6 +83,7 @@ const Ai::Steered &Steer(entt::registry &registry, entt::entity ship)
 	return registry.emplace<Ai::Steered>(ship);
 }
 
+
 void Hold(entt::registry &registry, entt::entity ship)
 {
 	registry.remove<Ai::Destination>(ship);
@@ -87,11 +92,13 @@ void Hold(entt::registry &registry, entt::entity ship)
 }
 } // namespace
 
+
 bool IsDocked(const entt::registry &registry, entt::entity ship, entt::entity station)
 {
 	const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
 	return docking && docking->stage == Stage::Docked && docking->station == station;
 }
+
 
 Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 {
@@ -129,15 +136,18 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	return *docks;
 }
 
+
 std::string Docks::HullShape(std::string_view hull)
 {
 	return "hulls/" + std::string{hull};
 }
 
+
 std::string Docks::StationShape(std::string_view layout)
 {
 	return "stations/" + std::string{layout};
 }
+
 
 void Docks::DefineHull(std::string name, HullDefinition hull)
 {
@@ -151,6 +161,7 @@ void Docks::DefineHull(std::string name, HullDefinition hull)
 	m_hulls.emplace(std::move(name), std::move(hull));
 }
 
+
 void Docks::DefineLayout(std::string name, StationLayout layout)
 {
 	CheckLayout(name, layout);
@@ -161,6 +172,7 @@ void Docks::DefineLayout(std::string name, StationLayout layout)
 	m_layouts.emplace(std::move(name), std::move(layout));
 }
 
+
 void Docks::Define(const Sim::DefinitionRegistry &definitions)
 {
 	for (const std::string &name : definitions.Names<HullDefinition>())
@@ -169,11 +181,13 @@ void Docks::Define(const Sim::DefinitionRegistry &definitions)
 		DefineLayout(name, *definitions.Find<StationLayout>(name));
 }
 
+
 const HullDefinition *Docks::FindHull(std::string_view name) const
 {
 	const auto found = m_hulls.find(name);
 	return found == m_hulls.end() ? nullptr : &found->second;
 }
+
 
 const StationLayout *Docks::FindLayout(std::string_view name) const
 {
@@ -181,11 +195,13 @@ const StationLayout *Docks::FindLayout(std::string_view name) const
 	return found == m_layouts.end() ? nullptr : &found->second;
 }
 
+
 const RoadGraph *Docks::FindRoads(std::string_view layout) const
 {
 	const auto found = m_roads.find(layout);
 	return found == m_roads.end() ? nullptr : &found->second;
 }
+
 
 entt::entity Docks::MakeStation(
     Sim::SimWorld &world, std::uint64_t system, std::string_view body, std::string_view layoutName)
@@ -229,6 +245,7 @@ entt::entity Docks::MakeStation(
 	return station;
 }
 
+
 void Docks::Park(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity)
 {
 	entt::registry &registry = world.Registry();
@@ -247,6 +264,7 @@ void Docks::Park(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity
 	held.ship = ship;
 	Clamp(world, ship, world.Clock().Now());
 }
+
 
 void Docks::Request(Sim::SimWorld &world, const RequestPad &command)
 {
@@ -301,6 +319,7 @@ void Docks::Request(Sim::SimWorld &world, const RequestPad &command)
 		    PadQueued{ship, stationEntity, static_cast<std::uint32_t>(place - queue.begin() + 1)});
 }
 
+
 void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 {
 	entt::registry &registry = world.Registry();
@@ -337,6 +356,7 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 		case Stage::Leaving: return refuse(Reason::AlreadyLeaving);
 	}
 }
+
 
 void Docks::Step(Sim::SimWorld &world)
 {
@@ -446,6 +466,7 @@ void Docks::Step(Sim::SimWorld &world)
 	WorkDecks(world, time);
 }
 
+
 entt::entity Docks::FreePadFor(
     const entt::registry &registry, const Station &station, entt::entity ship) const
 {
@@ -464,6 +485,7 @@ entt::entity Docks::FreePadFor(
 	}
 	return best;
 }
+
 
 void Docks::Serve(Sim::SimWorld &world, entt::entity stationEntity, double time)
 {
@@ -484,6 +506,7 @@ void Docks::Serve(Sim::SimWorld &world, entt::entity stationEntity, double time)
 	}
 }
 
+
 void Docks::Give(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity, double time)
 {
 	entt::registry &registry = world.Registry();
@@ -501,6 +524,7 @@ void Docks::Give(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity
 	if (docking.fly)
 		FlyInbound(world, ship, time);
 }
+
 
 void Docks::GiveUp(Sim::SimWorld &world, entt::entity ship, bool announce)
 {
@@ -533,6 +557,7 @@ void Docks::GiveUp(Sim::SimWorld &world, entt::entity ship, bool announce)
 		world.Events().Emit(PadReleased{ship, docking.station});
 }
 
+
 void Docks::FlyInbound(Sim::SimWorld &world, entt::entity ship, double time)
 {
 	entt::registry &registry = world.Registry();
@@ -564,6 +589,7 @@ void Docks::FlyInbound(Sim::SimWorld &world, entt::entity ship, double time)
 	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
 }
 
+
 void Docks::FlyDown(Sim::SimWorld &world, entt::entity ship)
 {
 	entt::registry &registry = world.Registry();
@@ -580,6 +606,7 @@ void Docks::FlyDown(Sim::SimWorld &world, entt::entity ship)
 	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
 }
 
+
 void Docks::FlyUp(Sim::SimWorld &world, entt::entity ship)
 {
 	entt::registry &registry = world.Registry();
@@ -595,6 +622,7 @@ void Docks::FlyUp(Sim::SimWorld &world, entt::entity ship)
 	destination.arrivalSpeed = kAboveSpeed;
 	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
 }
+
 
 bool Docks::InClampReach(const entt::registry &registry, entt::entity ship) const
 {
@@ -613,6 +641,7 @@ bool Docks::InClampReach(const entt::registry &registry, entt::entity ship) cons
 	const auto *velocity = registry.try_get<Physics::Velocity>(ship);
 	return !velocity || glm::length(glm::dvec3{velocity->linear}) <= kClampSpeed;
 }
+
 
 void Docks::Clamp(Sim::SimWorld &world, entt::entity ship, double time)
 {
@@ -638,6 +667,7 @@ void Docks::Clamp(Sim::SimWorld &world, entt::entity ship, double time)
 	pad.ship = ship;
 }
 
+
 void Docks::Unclamp(Sim::SimWorld &world, entt::entity ship)
 {
 	entt::registry &registry = world.Registry();
@@ -656,6 +686,7 @@ void Docks::Unclamp(Sim::SimWorld &world, entt::entity ship)
 		Lift(registry, ship);
 }
 
+
 void Docks::Lift(entt::registry &registry, entt::entity ship)
 {
 	const Docking &docking = registry.get<Docking>(ship);
@@ -667,6 +698,7 @@ void Docks::Lift(entt::registry &registry, entt::entity ship)
 	              {0.0f, std::min(kLiftSpeed / maxSpeed, 1.0f), 0.0f}, {}, true, docking.station});
 }
 
+
 bool Docks::Lifted(const entt::registry &registry, entt::entity ship) const
 {
 	const Sim::Transform &padAt = registry.get<Sim::Transform>(registry.get<Docking>(ship).pad);
@@ -675,16 +707,19 @@ bool Docks::Lifted(const entt::registry &registry, entt::entity ship) const
 	return height - RestingHeight(*HullOf(registry, ship)) >= kLiftHeight;
 }
 
+
 const PadLayout &Docks::PadOf(const entt::registry &registry, const Pad &pad) const
 {
 	return m_layouts.at(registry.get<Station>(pad.station).layout).pads.at(pad.number - 1);
 }
+
 
 const HullDefinition *Docks::HullOf(const entt::registry &registry, entt::entity ship) const
 {
 	const auto *hull = registry.try_get<Hull>(ship);
 	return hull ? FindHull(hull->definition) : nullptr;
 }
+
 
 double Docks::AboveHeight(const entt::registry &registry, entt::entity ship, const Pad &pad) const
 {
@@ -697,6 +732,7 @@ double Docks::AboveHeight(const entt::registry &registry, entt::entity ship, con
 	const double along = glm::dot(place.position, place.normal);
 	return -along + std::sqrt(along * along - glm::dot(place.position, place.position) + reach * reach);
 }
+
 
 double Docks::RestingHeight(const HullDefinition &hull)
 {

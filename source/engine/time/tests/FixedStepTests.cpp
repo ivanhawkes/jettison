@@ -10,6 +10,7 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 } // namespace
 
+
 TEST_CASE("FixedStep: a frame one step long runs exactly one step, every frame")
 {
 	FixedStepAccumulator accumulator{kStep};
@@ -21,6 +22,7 @@ TEST_CASE("FixedStep: a frame one step long runs exactly one step, every frame")
 	CHECK(accumulator.DroppedTime() == 0.0);
 }
 
+
 TEST_CASE("FixedStep: frames shorter than a step carry their remainder for interpolation")
 {
 	FixedStepAccumulator accumulator{kStep};
@@ -30,6 +32,7 @@ TEST_CASE("FixedStep: frames shorter than a step carry their remainder for inter
 	CHECK(accumulator.Alpha() == doctest::Approx(0.0));
 	CHECK(accumulator.Accumulate(0.0) == 0);
 }
+
 
 TEST_CASE(
     "FixedStep: a slow frame is capped, the whole steps over the cap are dropped, and the "
@@ -44,6 +47,7 @@ TEST_CASE(
 	CHECK(accumulator.Accumulate(0.75 * kStep) == 1);
 }
 
+
 TEST_CASE("FixedStep: a delta too large for an int is still capped")
 {
 	FixedStepAccumulator accumulator{kStep, 8};
@@ -51,6 +55,7 @@ TEST_CASE("FixedStep: a delta too large for an int is still capped")
 	CHECK(accumulator.Alpha() >= 0.0);
 	CHECK(accumulator.Alpha() < 1.0);
 }
+
 
 TEST_CASE("FixedStep: the simulation clock's compression runs more steps, not longer ones")
 {

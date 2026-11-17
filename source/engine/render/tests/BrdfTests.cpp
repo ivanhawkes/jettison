@@ -23,6 +23,7 @@ using namespace glm;
 
 using doctest::Approx;
 
+
 TEST_CASE("BRDF: GGX, Smith and Schlick give the specification's values")
 {
 	CHECK(Glsl::DistributionGgx(1.0f, 0.25f) == Approx(5.092958).epsilon(1e-5));
@@ -39,6 +40,7 @@ TEST_CASE("BRDF: GGX, Smith and Schlick give the specification's values")
 	CHECK(grazing.z == Approx(1.0));
 	CHECK(Glsl::FresnelSchlick(glm::vec3{0.04f}, 0.5f).y == Approx(0.07).epsilon(1e-6));
 }
+
 
 TEST_CASE("BRDF: GGX is normalised, its projected area integrating to one")
 {
@@ -58,6 +60,7 @@ TEST_CASE("BRDF: GGX is normalised, its projected area integrating to one")
 		CHECK(integral == Approx(1.0).epsilon(1e-3));
 	}
 }
+
 
 TEST_CASE("BRDF: the metallic-roughness BRDF matches the specification at a reference configuration")
 {
@@ -84,6 +87,7 @@ TEST_CASE("BRDF: the metallic-roughness BRDF matches the specification at a refe
 	CHECK(forward.x == Approx(backward.x).epsilon(1e-4));
 	CHECK(forward.z == Approx(backward.z).epsilon(1e-4));
 }
+
 
 TEST_CASE("BRDF: the split sum's lookup table integrates the specular lobe")
 {
@@ -116,6 +120,7 @@ TEST_CASE("BRDF: the split sum's lookup table integrates the specular lobe")
 	}
 }
 
+
 TEST_CASE("BRDF: the samplers draw what the bake passes take them to")
 {
 	// The Hammersley set's second coordinate is the index's bits reversed.
@@ -133,6 +138,7 @@ TEST_CASE("BRDF: the samplers draw what the bake passes take them to")
 	// A mirror's half vectors are the normal.
 	CHECK(Glsl::ImportanceSampleGgx(glm::vec2{0.3f, 0.7f}, 0.0f).z == Approx(1.0));
 }
+
 
 TEST_CASE("Tonemap: PBR Neutral keeps colours below its knee and compresses what is above it")
 {
@@ -161,6 +167,7 @@ TEST_CASE("Tonemap: PBR Neutral keeps colours below its knee and compresses what
 	CHECK(hot.x < 1.0f);
 	CHECK(hot.z > 0.1f);
 }
+
 
 TEST_CASE("BRDF: a lit particle's phase law is a Lambertian sphere's disc, averaged")
 {

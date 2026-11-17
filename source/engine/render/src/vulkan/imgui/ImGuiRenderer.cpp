@@ -27,6 +27,7 @@ bool EncodesSrgb(VkFormat format)
 }
 } // namespace
 
+
 void ImGuiRenderer::Init(GLFWwindow *window, VkFormat colorFormat, uint32_t frameCount)
 {
 	IMGUI_CHECKVERSION();

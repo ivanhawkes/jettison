@@ -30,11 +30,13 @@ class OverlayRenderer
 	    bool encodesSrgb, std::uint32_t framesInFlight);
 
 	OverlayRenderer(const OverlayRenderer &) = delete;
+
 	OverlayRenderer &operator=(const OverlayRenderer &) = delete;
 
 	// The layouts, the sampler, the white texture an untextured draw reads, and the pipeline: a
 	// missing program throws here, naming it.
 	void Init();
+
 	// The device has to be idle. Safe after an Init that threw part-way, and twice.
 	void Destroy();
 
@@ -42,6 +44,7 @@ class OverlayRenderer
 	// overlay gained are uploaded, ones it lost are retired, and the draws' vertices and indices are
 	// written to the slot's buffers.
 	void Prepare(std::uint32_t slot, const Overlay &overlay);
+
 	// Inside the output pass's rendering, over a frame of that extent.
 	void Record(VkCommandBuffer commandBuffer, std::uint32_t slot, VkExtent2D extent) const;
 
@@ -75,7 +78,9 @@ class OverlayRenderer
 	};
 
 	DeviceTexture Upload(const OverlayTexture &texture, const std::string &name);
+
 	void Free(DeviceTexture &texture);
+
 	void EnsureCapacity(Buffer &buffer, VkDeviceSize bytes, VkBufferUsageFlags usage, const char *name);
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;

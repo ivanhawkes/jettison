@@ -24,11 +24,13 @@ namespace
 	throw Serialise::FormatError("Star system '" + system.name + "': body '" + body.name + "' " + what);
 }
 
+
 bool NonNegative(double value)
 {
 	return std::isfinite(value) && value >= 0.0;
 }
 } // namespace
+
 
 void RegisterTypes()
 {
@@ -71,6 +73,7 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 int StarSystem::Find(std::string_view bodyName) const
 {
 	for (std::size_t index = 0; index < bodies.size(); ++index)
@@ -78,6 +81,7 @@ int StarSystem::Find(std::string_view bodyName) const
 			return static_cast<int>(index);
 	return -1;
 }
+
 
 void Resolve(StarSystem &system)
 {
@@ -144,6 +148,7 @@ void Resolve(StarSystem &system)
 	}
 }
 
+
 StarSystem ReadStarSystem(std::string_view text)
 {
 	RegisterTypes();
@@ -153,11 +158,13 @@ StarSystem ReadStarSystem(std::string_view text)
 	return system;
 }
 
+
 std::string WriteStarSystem(const StarSystem &system)
 {
 	RegisterTypes();
 	return Serialise::YamlArchive::Write(system, Serialise::FormatVersion{kStarSystemFormatVersion});
 }
+
 
 std::vector<SystemPosition> EvaluateSystem(const StarSystem &system, double simSeconds)
 {
@@ -173,6 +180,7 @@ std::vector<SystemPosition> EvaluateSystem(const StarSystem &system, double simS
 	return positions;
 }
 
+
 SystemPosition EvaluateBody(const StarSystem &system, std::size_t body, double simSeconds)
 {
 	// Summed from the primary down, as EvaluateSystem sums: the same additions in the same order,
@@ -186,6 +194,7 @@ SystemPosition EvaluateBody(const StarSystem &system, std::size_t body, double s
 		position = position + Evaluate(system.bodies[link].orbit, simSeconds);
 	return {position};
 }
+
 
 glm::dquat JumpPointFacing(const StarSystem &system, std::size_t body, double simSeconds)
 {
@@ -228,12 +237,14 @@ glm::dquat JumpPointFacing(const StarSystem &system, std::size_t body, double si
 	return glm::quatLookAtRH(ahead, up);
 }
 
+
 glm::dquat BodyOrientation(const StarSystem &system, std::size_t body, double simSeconds)
 {
 	return system.bodies.at(body).kind == BodyKind::JumpPoint
 	           ? JumpPointFacing(system, body, simSeconds)
 	           : Orientation(system.bodies[body].rotation, simSeconds);
 }
+
 
 double PresentationTime(double previousSimSeconds, double currentSimSeconds, double alpha)
 {

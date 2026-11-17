@@ -18,6 +18,7 @@ float KnotInterval(const glm::vec3 &from, const glm::vec3 &to)
 	return std::max(std::sqrt(glm::length(to - from)), 1e-4f);
 }
 
+
 // The span from p1 to p2, by the Barry-Goldman pyramid of linear interpolations, u in [0, 1].
 glm::vec3 CentripetalSpan(
     const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2, const glm::vec3 &p3, float u)
@@ -39,6 +40,7 @@ glm::vec3 CentripetalSpan(
 }
 } // namespace
 
+
 glm::vec3 CubicBezier(
     const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2, const glm::vec3 &p3, float t)
 {
@@ -46,6 +48,7 @@ glm::vec3 CubicBezier(
 	const float u = 1.0f - t;
 	return p0 * (u * u * u) + p1 * (3.0f * u * u * t) + p2 * (3.0f * u * t * t) + p3 * (t * t * t);
 }
+
 
 glm::vec3 CatmullRom(std::span<const glm::vec3> points, float t)
 {

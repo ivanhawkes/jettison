@@ -223,7 +223,9 @@ class Steering
 	}
 
 	void Step(Sim::SimWorld &world);
+
 	double Radius(std::string_view shape);
+
 	// The velocity, slowed along its way to stop the clearance short of what the ship's hull, swept
 	// along it, would meet before its target (Destination::byHull).
 	glm::dvec3 HullLimited(

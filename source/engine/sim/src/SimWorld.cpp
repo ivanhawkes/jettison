@@ -21,6 +21,7 @@ constexpr std::string_view kFormat = "Jettison.World";
 // the component's own business, by its own version and chain (ComponentMigrations).
 constexpr Serialise::FormatVersion kVersion{3};
 
+
 const Serialise::BinaryMigrations &Migrations()
 {
 	static const Serialise::BinaryMigrations migrations = []
@@ -43,6 +44,7 @@ const Serialise::BinaryMigrations &Migrations()
 }
 } // namespace
 
+
 std::string_view Detail::ReflectedName(const entt::meta_type &type, std::string_view what)
 {
 	const entt::meta_type registered = type ? entt::resolve(type.info()) : entt::meta_type{};
@@ -53,6 +55,7 @@ std::string_view Detail::ReflectedName(const entt::meta_type &type, std::string_
 	return registered.name();
 }
 
+
 SimWorld::SimWorld(double fixedStep, std::uint64_t seed) : m_fixedStep{fixedStep}
 {
 	if (!std::isfinite(fixedStep) || fixedStep <= 0.0)
@@ -62,15 +65,18 @@ SimWorld::SimWorld(double fixedStep, std::uint64_t seed) : m_fixedStep{fixedStep
 	m_registry.ctx().emplace<EventQueue>();
 }
 
+
 Math::Random &SimWorld::Random()
 {
 	return m_registry.ctx().get<Math::Random>();
 }
 
+
 EventQueue &SimWorld::Events()
 {
 	return m_registry.ctx().get<EventQueue>();
 }
+
 
 void SimWorld::AddComponent(const entt::meta_type &type, Component component)
 {
@@ -85,12 +91,14 @@ void SimWorld::AddComponent(const entt::meta_type &type, Component component)
 	m_components.push_back(std::move(component));
 }
 
+
 void SimWorld::AddShown(entt::id_type type, ShownCapture capture)
 {
 	if (std::ranges::any_of(m_shown, [type](const auto &shown) { return shown.first == type; }))
 		throw std::logic_error("SimWorld: a component is shown in snapshots twice");
 	m_shown.emplace_back(type, std::move(capture));
 }
+
 
 void SimWorld::AddCommand(const entt::meta_type &type, Applier apply)
 {
@@ -99,6 +107,7 @@ void SimWorld::AddCommand(const entt::meta_type &type, Applier apply)
 		throw std::logic_error{std::format("SimWorld: command '{}' is already registered", name)};
 }
 
+
 void SimWorld::RegisterSystem(Ecs::SystemDescription system)
 {
 	if (system.phase != Ecs::TickPhase::Simulation)
@@ -106,6 +115,7 @@ void SimWorld::RegisterSystem(Ecs::SystemDescription system)
 		    std::format("SimWorld: system '{}' is not a simulation-phase system", system.name)};
 	m_scheduler.Register(std::move(system));
 }
+
 
 WorldService &SimWorld::AddService(std::string name, std::unique_ptr<WorldService> service)
 {
@@ -116,6 +126,7 @@ WorldService &SimWorld::AddService(std::string name, std::unique_ptr<WorldServic
 	m_services.push_back({std::move(name), std::move(service)});
 	return *m_services.back().service;
 }
+
 
 void SimWorld::Step()
 {
@@ -139,6 +150,7 @@ void SimWorld::Step()
 	m_clock.Advance(m_fixedStep);
 }
 
+
 void SimWorld::Apply(const entt::meta_any &command)
 {
 	const auto found = m_applies.find(command.type().info().hash());
@@ -148,10 +160,12 @@ void SimWorld::Apply(const entt::meta_any &command)
 	found->second(*this, command);
 }
 
+
 bool SimWorld::Accepts(const entt::meta_type &type) const
 {
 	return type && m_applies.contains(type.info().hash());
 }
+
 
 std::vector<std::byte> SimWorld::Save() const
 {
@@ -194,6 +208,7 @@ std::vector<std::byte> SimWorld::Save() const
 	}
 	return writer.Finish(kVersion);
 }
+
 
 void SimWorld::Load(std::span<const std::byte> save)
 {
@@ -303,6 +318,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 	// What was recorded led to the state just replaced.
 	m_recorded.clear();
 }
+
 
 std::uint64_t SimWorld::StateHash() const
 {

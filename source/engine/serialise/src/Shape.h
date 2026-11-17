@@ -71,11 +71,14 @@ class Path
 		Scope(Path &path, std::size_t length) : m_path{path}, m_length{length}
 		{
 		}
+
 		~Scope()
 		{
 			m_path.m_text.resize(m_length);
 		}
+
 		Scope(const Scope &) = delete;
+
 		Scope &operator=(const Scope &) = delete;
 
 	  private:
@@ -84,6 +87,7 @@ class Path
 	};
 
 	[[nodiscard]] Scope Field(std::string_view name);
+
 	[[nodiscard]] Scope Element(std::size_t index);
 
   private:

@@ -17,6 +17,7 @@
 
 using namespace Jettison;
 
+
 TEST_CASE("Saves: a save's name is one segment of a path, and the shell's state reads back")
 {
 	CHECK(App::SavePath("quicksave") == "saves/quicksave.save");
@@ -33,6 +34,7 @@ TEST_CASE("Saves: a save's name is one segment of a path, and the shell's state 
 	CHECK(read.stationBody == "Highport");
 	CHECK_THROWS_AS(App::ReadShellState({}), Serialise::FormatError);
 }
+
 
 TEST_CASE("Saves: the saves are the user mount's, by name")
 {
@@ -75,6 +77,7 @@ TEST_CASE("Saves: the saves are the user mount's, by name")
 	CHECK_FALSE(screen.saves[1].problem.empty());
 	std::filesystem::remove_all(directory);
 }
+
 
 TEST_CASE("Saves: the systems a world's entities are in that its galaxy does not have are named")
 {

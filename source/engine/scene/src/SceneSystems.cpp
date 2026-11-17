@@ -26,9 +26,11 @@ namespace
 {
 constexpr Core::Category kScene{"scene"};
 
+
 glm::dmat4 Finish(
     entt::entity entity, entt::registry &registry, glm::dmat4 local,
     std::unordered_map<entt::entity, glm::dmat4> &computed, std::unordered_set<entt::entity> &active);
+
 
 glm::dmat4 ComputeWorldTransform(
     entt::entity entity, entt::registry &registry,
@@ -77,6 +79,7 @@ glm::dmat4 ComputeWorldTransform(
 	return Finish(entity, registry, local, computed, active);
 }
 
+
 glm::dmat4 Finish(
     entt::entity entity, entt::registry &registry, glm::dmat4 local,
     std::unordered_map<entt::entity, glm::dmat4> &computed, std::unordered_set<entt::entity> &active)
@@ -94,11 +97,13 @@ glm::dmat4 Finish(
 	return local;
 }
 
+
 std::string_view NameOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *id = registry.try_get<SceneEntityId>(entity);
 	return id != nullptr ? std::string_view{id->value} : std::string_view{"(unnamed)"};
 }
+
 
 // Whether the entity's clip can play on this rig: the rig has the clip. Looked up once a revision,
 // and a clip that is missing reported then, since a file that names one is content the scene loaded
@@ -119,6 +124,7 @@ bool CheckClip(
 	    player->clipName, mesh.model);
 	return false;
 }
+
 
 // What keeps the player's clip from playing on what it is bound to, or nothing: the file lacks the
 // clip, a binding is to a node the file does not name or to an entity with no transform, or a node
@@ -146,6 +152,7 @@ std::string ProblemWith(
 	return {};
 }
 
+
 // Whether the player's clip can play on what it is bound to. Checked once for each revision of the
 // file and each clip the player is set to, and what is wrong reported then, as a rig's clip is.
 bool CheckPlayer(
@@ -160,6 +167,7 @@ bool CheckPlayer(
 	    NameOf(registry, entity), player.clip, problem);
 	return false;
 }
+
 
 // The pose's path the track moves, set to its value.
 void Pose(NodePoseComponent &pose, const Animation::Track &track, const glm::vec4 &value)
@@ -181,6 +189,7 @@ void Pose(NodePoseComponent &pose, const Animation::Track &track, const glm::vec
 	}
 }
 
+
 // The layer an entity is in: its own, or else its parent's, up to the environment at a root.
 Layer LayerOf(
     entt::entity entity, const entt::registry &registry, std::unordered_map<entt::entity, Layer> &found)
@@ -197,6 +206,7 @@ Layer LayerOf(
 	return layer;
 }
 
+
 // Every entity of a hidden layer tagged HiddenComponent, and every other one not.
 void ApplyLayerVisibility(entt::registry &registry)
 {
@@ -211,11 +221,13 @@ void ApplyLayerVisibility(entt::registry &registry)
 }
 } // namespace
 
+
 SceneUpdateSystem::~SceneUpdateSystem()
 {
 	for (const auto &[path, handle] : m_clipFiles)
 		m_pResources->Release(handle);
 }
+
 
 void SceneUpdateSystem::Update(
     entt::registry &registry, float deltaTime, std::vector<ClipEventFired> *pEvents) const
@@ -300,6 +312,7 @@ void SceneUpdateSystem::Update(
 	ApplyLayerVisibility(registry);
 }
 
+
 void UpdateOrbitCameras(entt::registry &registry, double deltaTime)
 {
 	for (const auto [entity, orbit] : registry.view<OrbitCameraComponent>().each())
@@ -321,6 +334,7 @@ void UpdateOrbitCameras(entt::registry &registry, double deltaTime)
 		registry.emplace_or_replace<CameraPoseComponent>(entity, pose.position, pose.orientation);
 	}
 }
+
 
 void UpdatePilotCameras(entt::registry &registry, double deltaTime)
 {
@@ -354,6 +368,7 @@ SequenceSystem::~SequenceSystem()
 	for (const auto &[path, handle] : m_sequences)
 		m_resources.Release(handle);
 }
+
 
 void SequenceSystem::Update(
     entt::registry &registry, double deltaTime, std::vector<SequenceEventFired> *pEvents)

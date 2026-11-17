@@ -18,6 +18,7 @@ auto Identifier(const TransformSample &sample)
 }
 } // namespace
 
+
 void RegisterTypes()
 {
 	// The tables are global, and a process may hold more than one world.
@@ -58,10 +59,12 @@ void RegisterTypes()
 	(void)registered;
 }
 
+
 std::uint64_t SystemId(std::string_view systemName)
 {
 	return Core::StringId{systemName}.Hash();
 }
+
 
 const TransformSample *Snapshot::FindSample(entt::entity entity) const
 {
@@ -69,11 +72,13 @@ const TransformSample *Snapshot::FindSample(entt::entity entity) const
 	return found != transforms.end() && found->entity == entity ? &*found : nullptr;
 }
 
+
 const Transform *Snapshot::Find(entt::entity entity) const
 {
 	const TransformSample *sample = FindSample(entity);
 	return sample ? &sample->transform : nullptr;
 }
+
 
 Snapshot Capture(const SimWorld &world)
 {
@@ -93,6 +98,7 @@ Snapshot Capture(const SimWorld &world)
 		capture(registry, snapshot.shown[type]);
 	return snapshot;
 }
+
 
 std::optional<Transform> Interpolate(
     const Snapshot &previous, const Snapshot &current, entt::entity entity, double alpha)

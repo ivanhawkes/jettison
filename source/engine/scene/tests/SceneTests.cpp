@@ -89,6 +89,7 @@ entities:
       speed: 0.785398163
 )";
 
+
 // One entity's block, refused for the reason named.
 void CheckRefused(Scene &scene, const std::string &entity, const char *reason)
 {
@@ -98,6 +99,7 @@ void CheckRefused(Scene &scene, const std::string &entity, const char *reason)
 	    std::runtime_error);
 }
 } // namespace
+
 
 TEST_CASE("Scene: a saved scene loads back to the same file, with the frame loop's phase unsaved")
 {
@@ -125,6 +127,7 @@ TEST_CASE("Scene: a saved scene loads back to the same file, with the frame loop
 	scene.LoadText(first);
 	CHECK(scene.SaveText() == first);
 }
+
 
 TEST_CASE("Scene: translations and the camera's position are doubles, in the file and in the world")
 {
@@ -159,6 +162,7 @@ entities:
 	CHECK(saved.find("149600000000.0625") != std::string::npos);
 }
 
+
 TEST_CASE("Scene: a file of another version, or with a field the scene does not save, is refused")
 {
 	Scene scene;
@@ -183,6 +187,7 @@ TEST_CASE("Scene: a file of another version, or with a field the scene does not 
 	CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains(path.string()), std::runtime_error);
 	std::filesystem::remove(path);
 }
+
 
 TEST_CASE("Scene: the star system, bodies, sun and orbit camera load and save as authored")
 {
@@ -233,6 +238,7 @@ entities:
 	CHECK(first.find("100000000000") == std::string::npos);
 }
 
+
 TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file loads")
 {
 	Scene scene;
@@ -264,6 +270,7 @@ TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file 
 	    doctest::Contains("'pyramid' is not a 'Scene.Shape'"), Jettison::Serialise::FormatError);
 }
 
+
 TEST_CASE(
     "Scene: every shape a file can name reads back as itself, by the name the renderer keys it on")
 {
@@ -280,6 +287,7 @@ TEST_CASE(
 		CHECK(meshes.get<const MeshComponent>(meshes.front()).shape == shape);
 	}
 }
+
 
 TEST_CASE("Scene: lights are points or spots with a range, and as many as the scene has")
 {
@@ -319,6 +327,7 @@ TEST_CASE("Scene: lights are points or spots with a range, and as many as the sc
 	    doctest::Contains("'area' is not a 'Scene.LightType'"), Jettison::Serialise::FormatError);
 }
 
+
 TEST_CASE("Scene: a light's intensity can move with time, and is saved with its wave")
 {
 	const std::string text = "version: 2\nentities:\n"
@@ -352,6 +361,7 @@ TEST_CASE("Scene: a light's intensity can move with time, and is saved with its 
 	refuses("        period: 0\n", "period that is not positive");
 	refuses("        from: -1\n", "negative or not finite");
 }
+
 
 TEST_CASE("Scene: outlines and masks load as given, are saved, and are checked")
 {
@@ -404,6 +414,7 @@ TEST_CASE("Scene: outlines and masks load as given, are saved, and are checked")
 	CheckRefused(scene, "  - id: m\n    mask:\n      game: 32\n", "five, 0 to 31");
 }
 
+
 TEST_CASE("Scene: a scene has one sky, with a band and a nebula it can draw")
 {
 	Scene scene;
@@ -413,6 +424,7 @@ TEST_CASE("Scene: a scene has one sky, with a band and a nebula it can draw")
 	    scene, "  - id: a\n    sky:\n      band:\n        normal: [0, 0, 0]\n", "cannot be zero");
 	CheckRefused(scene, "  - id: a\n    sky:\n      stars: -1\n", "cannot be negative");
 }
+
 
 TEST_CASE("Scene: an atmosphere and rings are over a shape, and saved as they were given")
 {
@@ -466,6 +478,7 @@ entities:
 	    "between 0 and 1");
 }
 
+
 TEST_CASE("Scene: an emitter loads with its frame found, and is saved as it was given")
 {
 	Scene scene;
@@ -516,6 +529,7 @@ entities:
 	CheckRefused(scene, "  - id: a\n    particles:\n      frame: b\n", "Invalid particles frame");
 	CheckRefused(scene, "  - id: a\n    particles:\n      frame: a\n", "Invalid particles frame");
 }
+
 
 TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig is in")
 {
@@ -625,6 +639,7 @@ entities:
       translation: [0, 0.7, 0]
 )";
 
+
 entt::entity Find(const entt::registry &registry, std::string_view id)
 {
 	for (const auto [entity, found] : registry.view<const SceneEntityId>().each())
@@ -633,11 +648,13 @@ entt::entity Find(const entt::registry &registry, std::string_view id)
 	return entt::null;
 }
 
+
 glm::dvec3 WorldPosition(const entt::registry &registry, std::string_view id)
 {
 	return glm::dvec3{registry.get<WorldTransformComponent>(Find(registry, id)).matrix[3]};
 }
 } // namespace
+
 
 TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its events are heard once")
 {
@@ -727,6 +744,7 @@ TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its eve
 	// The system held the file while it lived, and let it go with it.
 	CHECK(resources.Loading() == 0);
 }
+
 
 TEST_CASE("Scene: a clip's file, name, speed and bindings are checked as the scene loads")
 {

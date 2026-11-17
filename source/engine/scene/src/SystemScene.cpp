@@ -38,6 +38,7 @@ struct Look
 	Layer layer{Layer::Environment};
 };
 
+
 Look LookOf(BodyKind kind)
 {
 	switch (kind)
@@ -58,6 +59,7 @@ Look LookOf(BodyKind kind)
 	return {};
 }
 
+
 // What the first station, or else the first planet, or else the primary is: the body a camera
 // opens on.
 std::size_t OpeningBody(const Celestial::StarSystem &system)
@@ -68,6 +70,7 @@ std::size_t OpeningBody(const Celestial::StarSystem &system)
 				return body;
 	return 0;
 }
+
 
 // The sky a system's name makes: the sample's starfield, with the galaxy's band at an angle and a
 // nebula of a hue that are the system's own.
@@ -91,6 +94,7 @@ SkyComponent SkyOf(const Celestial::StarSystem &system)
 	return sky;
 }
 
+
 // The entities, and every entity parented to one of them however far down, destroyed.
 void DestroyWithDescendants(Scene &scene, std::unordered_set<entt::entity> doomed)
 {
@@ -108,6 +112,7 @@ void DestroyWithDescendants(Scene &scene, std::unordered_set<entt::entity> doome
 }
 } // namespace
 
+
 void ResolveCelestialBodies(const entt::registry &presentation, const Celestial::StarSystem &system)
 {
 	for (const auto [entity, celestial] : presentation.view<const CelestialBodyComponent>().each())
@@ -116,6 +121,7 @@ void ResolveCelestialBodies(const entt::registry &presentation, const Celestial:
 			    "The scene names celestial body '" + celestial.body + "', which star system '" +
 			    system.name + "' does not have");
 }
+
 
 void PlaceCelestialBodies(
     entt::registry &presentation, const Celestial::StarSystem &system, double simSeconds)
@@ -138,6 +144,7 @@ void PlaceCelestialBodies(
 	}
 }
 
+
 void SyncSimProxies(
     entt::registry &presentation, const Sim::Snapshot &previous, const Sim::Snapshot &current,
     double alpha)
@@ -157,6 +164,7 @@ void SyncSimProxies(
 		    rotation, transform.rotation.x, transform.rotation.y, transform.rotation.z);
 	}
 }
+
 
 std::string BodyEntityId(std::string_view bodyName)
 {
@@ -178,6 +186,7 @@ std::string BodyEntityId(std::string_view bodyName)
 	return id;
 }
 
+
 SystemScene::SystemScene(Scene &scene, Celestial::StarSystem system)
     : m_pScene{&scene}, m_system{std::move(system)}, m_systemId{Sim::SystemId(m_system.name)}
 {
@@ -191,6 +200,7 @@ SystemScene::SystemScene(Scene &scene, Celestial::StarSystem system)
 		throw;
 	}
 }
+
 
 void SystemScene::Build()
 {
@@ -257,6 +267,7 @@ void SystemScene::Build()
 	}
 }
 
+
 entt::entity SystemScene::BuildBody(std::size_t body)
 {
 	entt::registry &registry = m_pScene->Registry();
@@ -285,6 +296,7 @@ entt::entity SystemScene::BuildBody(std::size_t body)
 	return entity;
 }
 
+
 void SystemScene::BuildSky()
 {
 	entt::registry &registry = m_pScene->Registry();
@@ -295,16 +307,19 @@ void SystemScene::BuildSky()
 	registry.emplace<SkyComponent>(entity, SkyOf(m_system));
 }
 
+
 void SystemScene::Place(double simSeconds)
 {
 	PlaceCelestialBodies(m_pScene->Registry(), m_system, simSeconds);
 }
+
 
 bool SystemScene::IsHere(const Sim::Snapshot &current, entt::entity entity) const
 {
 	const Sim::TransformSample *sample = current.FindSample(entity);
 	return sample != nullptr && sample->system == m_systemId;
 }
+
 
 void SystemScene::SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha)
 {
@@ -347,6 +362,7 @@ void SystemScene::SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot
 	SyncSimProxies(registry, previous, current, alpha);
 }
 
+
 void SystemScene::ResetTraffic()
 {
 	entt::registry &registry = m_pScene->Registry();
@@ -359,6 +375,7 @@ void SystemScene::ResetTraffic()
 	if (!proxies.empty())
 		DestroyWithDescendants(*m_pScene, std::move(proxies));
 }
+
 
 void SystemScene::Unload()
 {

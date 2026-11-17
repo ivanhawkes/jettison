@@ -16,6 +16,7 @@ std::uint32_t Bits(float value)
 }
 } // namespace
 
+
 // Recorded from FastNoiseLite v1.1.1 through this wrapper on 2026-11-10, compared bit for bit.
 // Generated content is reproduced from its seed, so a library update that moves these moves
 // every generated world: it is a decision, not a version bump.
@@ -27,6 +28,7 @@ TEST_CASE("Noise: recorded output")
 	CHECK(Bits(noise.Sample(glm::vec3{0.25f, 0.5f, 0.75f})) == 0x3eaa22dcU);
 	CHECK(Bits(noise.Sample(glm::vec3{-7.5f, 2.0f, 100.125f})) == 0x3d860017U);
 }
+
 
 TEST_CASE("Noise: in [-1, 1], and different for a different seed")
 {
@@ -45,6 +47,7 @@ TEST_CASE("Noise: in [-1, 1], and different for a different seed")
 	}
 	CHECK(differs);
 }
+
 
 TEST_CASE("Noise: a copy, and a moved-to value, sample as the original did")
 {

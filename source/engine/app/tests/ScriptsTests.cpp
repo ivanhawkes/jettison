@@ -38,6 +38,7 @@ struct ModdedUser
 {
 	std::filesystem::path root{std::filesystem::path{JETTISON_APP_TEST_OUTPUT} / "scripts-user"};
 
+
 	ModdedUser()
 	{
 		std::filesystem::remove_all(root);
@@ -45,15 +46,22 @@ struct ModdedUser
 		std::filesystem::copy(
 		    JETTISON_SMOKE_MOD_DIR, root / "mods/smoke", std::filesystem::copy_options::recursive);
 	}
+
+
 	~ModdedUser()
 	{
 		std::error_code ignored;
 		std::filesystem::remove_all(root, ignored);
 	}
+
+
 	ModdedUser(const ModdedUser &) = delete;
+
+
 	ModdedUser &operator=(const ModdedUser &) = delete;
 };
 } // namespace
+
 
 TEST_CASE("Scripts: the shell's Rust bindings, which its scripts are built against, are this build's")
 {
@@ -86,6 +94,7 @@ TEST_CASE("Scripts: the shell's Rust bindings, which its scripts are built again
 		    written.string());
 	}
 }
+
 
 TEST_CASE(
     "Scripts: a script mod in the user's mods hears the trades filled and answers the traders' input")
@@ -135,6 +144,7 @@ TEST_CASE(
 	CHECK(inputs("crowding") == 0.5);
 	CHECK(inputs("rivals") == 1.0);
 }
+
 
 TEST_CASE("Scripts: a script's keys and the mods enabled go into a save and come out of a load")
 {

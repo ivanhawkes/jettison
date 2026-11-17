@@ -45,6 +45,7 @@ std::vector<std::uint32_t> Weld(const MeshData &mesh)
 	return indices;
 }
 
+
 // Closed and consistently wound once welded: every directed edge is used once, by one triangle,
 // and its reverse by one other. A hole leaves an edge without a twin; a flipped triangle repeats a
 // directed edge.
@@ -72,6 +73,7 @@ bool IsClosedAndOriented(const MeshData &mesh)
 	return true;
 }
 
+
 // Positive for triangles wound anticlockwise seen from outside.
 double SignedVolume(const MeshData &mesh)
 {
@@ -86,6 +88,7 @@ double SignedVolume(const MeshData &mesh)
 	return volume;
 }
 
+
 bool NormalsAreUnit(const MeshData &mesh)
 {
 	for (const Vertex &vertex : mesh.vertices)
@@ -93,6 +96,7 @@ bool NormalsAreUnit(const MeshData &mesh)
 			return false;
 	return true;
 }
+
 
 // Each triangle faces the way its vertices' normals say: its winding agrees with its shading.
 bool WindingMatchesNormals(const MeshData &mesh)
@@ -109,6 +113,7 @@ bool WindingMatchesNormals(const MeshData &mesh)
 	return true;
 }
 
+
 bool IndicesInRange(const MeshData &mesh)
 {
 	for (const std::uint32_t index : mesh.indices)
@@ -117,6 +122,7 @@ bool IndicesInRange(const MeshData &mesh)
 	return mesh.indices.size() % 3 == 0;
 }
 } // namespace
+
 
 TEST_CASE("Procedural: every closed shape is watertight, wound outwards, and of the right volume")
 {
@@ -150,6 +156,7 @@ TEST_CASE("Procedural: every closed shape is watertight, wound outwards, and of 
 	}
 }
 
+
 TEST_CASE("Procedural: an ico sphere has 10 * 4^n + 2 shared vertices, all on the unit sphere")
 {
 	for (int subdivisions = 0; subdivisions <= 4; ++subdivisions)
@@ -164,6 +171,7 @@ TEST_CASE("Procedural: an ico sphere has 10 * 4^n + 2 shared vertices, all on th
 	}
 	CHECK_THROWS_AS(IcoSphere(-1, glm::vec3{1.0f}), std::invalid_argument);
 }
+
 
 TEST_CASE("Procedural: a cube sphere's faces each cover 0 to 1 in texture space")
 {
@@ -187,6 +195,7 @@ TEST_CASE("Procedural: a cube sphere's faces each cover 0 to 1 in texture space"
 		CHECK(high == glm::vec2{1.0f});
 	}
 }
+
 
 TEST_CASE("Procedural: a ring is a flat annulus with a face up and a face down")
 {
@@ -226,6 +235,7 @@ TEST_CASE("Procedural: a ring is a flat annulus with a face up and a face down")
 	CHECK_THROWS_AS(Ring(32, 1.0f, glm::vec3{1.0f}), std::invalid_argument);
 	CHECK_THROWS_AS(Ring(2, 0.5f, glm::vec3{1.0f}), std::invalid_argument);
 }
+
 
 TEST_CASE(
     "Procedural: each shape's levels of detail are closed, coarser in turn, and their errors bound "

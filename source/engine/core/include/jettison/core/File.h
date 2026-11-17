@@ -20,6 +20,7 @@ inline constexpr std::string_view kPartialSuffix = ":partial";
 // Creates the file's directory if it is missing. Throws std::runtime_error naming the path and
 // what failed, with the partial file removed and any old file as it was.
 void WriteFileDurably(const std::filesystem::path &path, std::span<const std::byte> bytes);
+
 // The same for text.
 void WriteFileDurably(const std::filesystem::path &path, std::string_view text);
 } // namespace Jettison::Core

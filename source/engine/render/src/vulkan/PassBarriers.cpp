@@ -14,6 +14,7 @@ constexpr VkAccessFlags2 kDepthStencilAccess =
     VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 } // namespace
 
+
 UsageScope DestinationScope(Usage usage)
 {
 	switch (usage)
@@ -79,6 +80,7 @@ UsageScope DestinationScope(Usage usage)
 	throw std::logic_error("DestinationScope: a usage the table does not have");
 }
 
+
 UsageScope SourceScope(Usage usage)
 {
 	if (usage == Usage::Present)
@@ -91,6 +93,7 @@ UsageScope SourceScope(Usage usage)
 	                VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	return scope;
 }
+
 
 VulkanBarriers Translate(std::span<const Barrier> barriers, std::span<const BoundResource> bound)
 {
@@ -151,6 +154,7 @@ VulkanBarriers Translate(std::span<const Barrier> barriers, std::span<const Boun
 	}
 	return translated;
 }
+
 
 void RecordBarriers(
     VkCommandBuffer commandBuffer, std::span<const Barrier> barriers,

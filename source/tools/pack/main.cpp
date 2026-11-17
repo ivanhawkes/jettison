@@ -17,6 +17,7 @@ namespace
 {
 constexpr Jettison::Core::Category kPack{"pack"};
 
+
 int Usage()
 {
 	Jettison::Core::Log(
@@ -25,6 +26,7 @@ int Usage()
 	return 2;
 }
 } // namespace
+
 
 int main(int argc, char **argv)
 {

@@ -15,11 +15,13 @@ namespace
 {
 const DeviceCandidate kSoftware{"llvmpipe (LLVM 21.1.8, 256 bits)", DeviceType::Cpu, {}, std::nullopt};
 
+
 DeviceCandidate Gpu(std::string name, std::optional<bool> monitor, std::string unsuitable = {})
 {
 	return {std::move(name), DeviceType::Discrete, std::move(unsuitable), monitor};
 }
 } // namespace
+
 
 TEST_CASE("Device choice: the GPU with the monitor, over one kept for compute listed before it")
 {
@@ -33,6 +35,7 @@ TEST_CASE("Device choice: the GPU with the monitor, over one kept for compute li
 	CHECK(choice.reason.find("the monitor is on it") != std::string::npos);
 }
 
+
 TEST_CASE("Device choice: under Xvfb the cards cannot present, and the CPU device is drawn with")
 {
 	const std::vector<DeviceCandidate> candidates{
@@ -42,6 +45,7 @@ TEST_CASE("Device choice: under Xvfb the cards cannot present, and the CPU devic
 	REQUIRE(choice.index);
 	CHECK(*choice.index == 2);
 }
+
 
 TEST_CASE(
     "Device choice: with no monitor to go by, a discrete GPU, then an integrated one, then the CPU")
@@ -59,6 +63,7 @@ TEST_CASE(
 	candidates = {Gpu("GeForce", false), integrated};
 	CHECK(ChooseDevice(candidates).index == 1u);
 }
+
 
 TEST_CASE("Device choice: a GPU asked for by name is taken if it can be used, and refused if not")
 {
@@ -78,6 +83,7 @@ TEST_CASE("Device choice: a GPU asked for by name is taken if it can be used, an
 	CHECK_FALSE(nothing.index);
 	CHECK(nothing.reason == "no GPU can be drawn with; Old: it is not Vulkan 1.3");
 }
+
 
 TEST_CASE("Device choice: a monitor is connected when one of the card's connectors says so")
 {

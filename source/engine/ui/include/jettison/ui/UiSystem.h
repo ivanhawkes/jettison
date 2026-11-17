@@ -60,8 +60,11 @@ class UiSystem
   public:
 	// A UI over a frame of that size in pixels. The file system outlives it.
 	UiSystem(const Vfs::FileSystem &files, int width, int height);
+
 	~UiSystem();
+
 	UiSystem(const UiSystem &) = delete;
+
 	UiSystem &operator=(const UiSystem &) = delete;
 
 	// A TrueType or OpenType face by virtual path, under the family name the file gives; a fallback
@@ -79,16 +82,22 @@ class UiSystem
 	// Throws as StringTable::Load does, and the language before it stays. Until it is called the
 	// table is empty, and every [[key]] reads as its key.
 	void SetLanguage(std::string_view language);
+
 	const StringTable &Strings() const;
 
 	// Loads a document, hidden. Throws std::runtime_error naming it for one that is missing or that
 	// RmlUi cannot parse.
 	DocumentHandle LoadDocument(std::string_view virtualPath);
+
 	// Do nothing for a handle to a document that is closed.
 	void Show(DocumentHandle document);
+
 	void Hide(DocumentHandle document);
+
 	void Close(DocumentHandle document);
+
 	bool IsShown(DocumentHandle document) const;
+
 	std::size_t OpenDocuments() const;
 
 	// The frame's size in pixels, and how many pixels a density-independent pixel (dp) is.
@@ -98,25 +107,34 @@ class UiSystem
 	// over a shown document's element, a key into the element with focus. A key is GLFW's, as
 	// Input::InputCode has it; a button 0 for the left, 1 the right, 2 the middle.
 	bool MouseMove(const glm::vec2 &position, Modifiers modifiers);
+
 	bool MouseButton(int button, bool pressed, Modifiers modifiers);
+
 	bool MouseWheel(float steps, Modifiers modifiers);
+
 	void MouseLeave();
+
 	bool Key(Input::InputCode key, bool pressed, Modifiers modifiers);
+
 	bool Text(char32_t character);
+
 	// Whether the mouse is over a shown document's element, so a click there is not a click on the
 	// scene behind it.
 	bool WantsMouse() const;
+
 	// Whether an element that takes text has focus, so keys typed are not the game's bindings.
 	bool WantsKeyboard() const;
 
 	// Once a frame, in the presentation phase: the data models' changes, layout, and the documents
 	// drawn into the overlay, which is cleared first. The time drives transitions and animations.
 	void Update(double presentationSeconds);
+
 	const Render::Overlay &Overlay() const;
 
 	// An element's text as the document shows it now, by its id: what a test and the smoke sequence
 	// read. Empty for an element the document does not have.
 	std::string ElementText(DocumentHandle document, std::string_view id) const;
+
 	// A click on the element, as the mouse would make one, and false for an element the document does
 	// not have: the smoke sequence presses a screen's buttons with it.
 	bool Click(DocumentHandle document, std::string_view id);

@@ -43,6 +43,7 @@ struct Passed
 	double x{0.0};
 };
 
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -61,10 +62,12 @@ void RegisterTypes()
 
 constexpr double kStep = 0.125;
 
+
 glm::dquat Turn(double radians)
 {
 	return glm::angleAxis(radians, glm::dvec3{0.0, 1.0, 0.0});
 }
+
 
 void Populate(Sim::SimWorld &world)
 {
@@ -101,6 +104,7 @@ void Populate(Sim::SimWorld &world)
 }
 } // namespace
 
+
 TEST_CASE("Sim: a snapshot holds every transform, sorted, at the step it was taken")
 {
 	RegisterTypes();
@@ -126,6 +130,7 @@ TEST_CASE("Sim: a snapshot holds every transform, sorted, at the step it was tak
 	CHECK(snapshot.Find(hidden) == nullptr);
 	CHECK(snapshot.Find(entt::null) == nullptr);
 }
+
 
 TEST_CASE("Sim: a snapshot carries a copy of each component the world shows, and no other")
 {
@@ -159,6 +164,7 @@ TEST_CASE("Sim: a snapshot carries a copy of each component the world shows, and
 	CHECK(snapshot.Get<Sim::Transform>(entt::entity{0}) == nullptr);
 }
 
+
 TEST_CASE("Sim: interpolation runs along the line and the shorter arc, and knows births and deaths")
 {
 	const auto entity = entt::entity{3};
@@ -191,6 +197,7 @@ TEST_CASE("Sim: interpolation runs along the line and the shorter arc, and knows
 	CHECK(!Sim::Interpolate(previous, current, died, 0.25));
 	CHECK(!Sim::Interpolate(previous, current, entt::entity{6}, 0.25));
 }
+
 
 TEST_CASE("Sim: a snapshot says which system each entity is in, and no interpolation crosses a jump")
 {
@@ -238,6 +245,7 @@ TEST_CASE("Sim: a snapshot says which system each entity is in, and no interpola
 	CHECK(loaded.StateHash() != world.StateHash());
 }
 
+
 TEST_CASE("Sim: the stepper runs the frame's steps and keeps the states either side of the last")
 {
 	RegisterTypes();
@@ -284,6 +292,7 @@ TEST_CASE("Sim: the stepper runs the frame's steps and keeps the states either s
 	CHECK(stepper.Accumulator().DroppedTime() > 0.0);
 }
 
+
 TEST_CASE("Sim: after a load, the stepper resyncs and does not interpolate across it")
 {
 	RegisterTypes();
@@ -304,6 +313,7 @@ TEST_CASE("Sim: after a load, the stepper resyncs and does not interpolate acros
 	    kStep);
 }
 
+
 TEST_CASE("Sim: a transform is saved with the world, its orientation included")
 {
 	RegisterTypes();
@@ -322,6 +332,7 @@ TEST_CASE("Sim: a transform is saved with the world, its orientation included")
 	CHECK(read.orientation == saved.orientation);
 	CHECK(loaded.StateHash() == world.StateHash());
 }
+
 
 TEST_CASE("Sim: events reach presentation in the order they were raised, stamped with their step")
 {

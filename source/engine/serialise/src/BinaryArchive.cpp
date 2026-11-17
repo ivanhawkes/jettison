@@ -32,6 +32,7 @@ constexpr std::array<std::byte, 4> kMagic{
 // change to what a type saves is the type's own version, which FormatVersion carries.
 constexpr std::uint16_t kLayoutRevision = 1;
 
+
 // A leaf component, an integer or a float's bits, moved between its own width in memory and a
 // 64-bit value, so the byte order on disk is set by the shifts that write it, not by the host.
 std::uint64_t LoadBits(const std::byte *component, std::size_t width)
@@ -49,6 +50,7 @@ std::uint64_t LoadBits(const std::byte *component, std::size_t width)
 		default: return load(std::uint64_t{});
 	}
 }
+
 
 void StoreBits(std::byte *component, std::uint64_t bits, std::size_t width)
 {
@@ -69,6 +71,7 @@ class Writer
 	{
 	}
 
+
 	std::vector<std::byte> Finish(std::string_view root, FormatVersion version)
 	{
 		const std::uint32_t rootIndex = Intern(root);
@@ -83,6 +86,7 @@ class Writer
 		out.insert(out.end(), m_payload.begin(), m_payload.end());
 		return out;
 	}
+
 
 	void Class(const entt::meta_any &value)
 	{
@@ -114,6 +118,7 @@ class Writer
 			out[index] = static_cast<std::byte>((value >> (8 * index)) & 0xffu);
 	}
 
+
 	static void Unsigned(std::vector<std::byte> &out, std::uint64_t value, std::size_t width)
 	{
 		std::array<std::byte, 8> bytes{};
@@ -121,12 +126,14 @@ class Writer
 		out.insert(out.end(), bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(width));
 	}
 
+
 	void String(std::vector<std::byte> &out, std::string_view text) const
 	{
 		Unsigned(out, Count(text.size()), 4);
 		const auto *bytes = reinterpret_cast<const std::byte *>(text.data());
 		out.insert(out.end(), bytes, bytes + text.size());
 	}
+
 
 	std::uint32_t Count(std::size_t size) const
 	{
@@ -143,14 +150,19 @@ class Writer
 		for (const std::string &name : names)
 			Intern(name);
 	}
+
+
 	const std::vector<std::string> &Names() const
 	{
 		return m_names;
 	}
+
+
 	std::vector<std::byte> TakePayload()
 	{
 		return std::move(m_payload);
 	}
+
 
 	// The table is in order of first use, so the same values write the same bytes. Names are
 	// copied: a caller's name need not outlive the writer.
@@ -162,16 +174,19 @@ class Writer
 		return found->second;
 	}
 
+
 	void Unsigned(std::uint64_t value, std::size_t width)
 	{
 		Unsigned(m_payload, value, width);
 	}
+
 
 	void Bytes(std::span<const std::byte> bytes)
 	{
 		Unsigned(m_payload, Count(bytes.size()), 4);
 		m_payload.insert(m_payload.end(), bytes.begin(), bytes.end());
 	}
+
 
 	void Value(const entt::meta_any &value)
 	{
@@ -243,21 +258,29 @@ class Reader
 	Reader(std::span<const std::byte> bytes, std::string_view root) : m_bytes{bytes}, m_path{root}
 	{
 	}
+
+
 	// A value with no header, whose names index a table the caller keeps.
 	Reader(
 	    std::span<const std::byte> bytes, std::string_view root, const std::vector<std::string> &names)
 	    : m_bytes{bytes}, m_pNames{&names}, m_path{root}
 	{
 	}
+
+
 	// It points into itself.
 	Reader(const Reader &) = delete;
+
+
 	Reader &operator=(const Reader &) = delete;
+
 
 	void Header(std::string_view root, FormatVersion expected)
 	{
 		if (const std::uint32_t version = Open(root); version != expected.version)
 			throw FormatVersionError{root, version, expected.version};
 	}
+
 
 	// The header, up to the payload: the version the archive says it is.
 	std::uint32_t Open(std::string_view root)
@@ -279,25 +302,31 @@ class Reader
 		return static_cast<std::uint32_t>(Unsigned(4));
 	}
 
+
 	const std::vector<std::string> &Names() const
 	{
 		return *m_pNames;
 	}
+
+
 	std::span<const std::byte> Rest() const
 	{
 		return m_bytes.subspan(m_offset);
 	}
+
 
 	std::size_t Remaining() const
 	{
 		return m_bytes.size() - m_offset;
 	}
 
+
 	void End() const
 	{
 		if (m_offset != m_bytes.size())
 			Fail(std::format("{} bytes follow the value", m_bytes.size() - m_offset));
 	}
+
 
 	void Class(entt::meta_any &value)
 	{
@@ -332,11 +361,13 @@ class Reader
 		}
 	}
 
+
 	[[noreturn]] void Fail(std::string_view problem) const
 	{
 		throw FormatError{
 		    std::format("BinaryArchive: {}: {} (at byte {})", m_path.Text(), problem, m_offset)};
 	}
+
 
 	std::span<const std::byte> Take(std::size_t size)
 	{
@@ -347,6 +378,7 @@ class Reader
 		return taken;
 	}
 
+
 	std::uint64_t Unsigned(std::size_t width)
 	{
 		std::uint64_t value = 0;
@@ -356,10 +388,12 @@ class Reader
 		return value;
 	}
 
+
 	std::uint32_t Count()
 	{
 		return static_cast<std::uint32_t>(Unsigned(4));
 	}
+
 
 	std::string String()
 	{
@@ -367,6 +401,7 @@ class Reader
 		const auto bytes = Take(Count());
 		return {reinterpret_cast<const char *>(bytes.data()), bytes.size()};
 	}
+
 
 	std::string_view Name()
 	{
@@ -376,6 +411,7 @@ class Reader
 		return (*m_pNames)[index];
 	}
 
+
 	// Into the object value holds or refers to: replacing the meta_any itself would leave a
 	// reference's object as it was.
 	void Assign(entt::meta_any &value, entt::meta_any made) const
@@ -384,6 +420,7 @@ class Reader
 			throw UnsupportedTypeError{
 			    std::format("BinaryArchive: {}: the value could not be assigned", m_path.Text())};
 	}
+
 
 	void Value(entt::meta_any &value)
 	{
@@ -473,11 +510,14 @@ struct BinaryWriter::Impl
 	Writer writer;
 };
 
+
 BinaryWriter::BinaryWriter(std::string_view format) : m_pImpl{std::make_unique<Impl>(format)}
 {
 }
 
+
 BinaryWriter::~BinaryWriter() = default;
+
 
 void BinaryWriter::WriteUnsigned(std::uint64_t value, std::size_t width)
 {
@@ -487,20 +527,24 @@ void BinaryWriter::WriteUnsigned(std::uint64_t value, std::size_t width)
 	m_pImpl->writer.Unsigned(value, width);
 }
 
+
 void BinaryWriter::WriteName(std::string_view name)
 {
 	m_pImpl->writer.Unsigned(m_pImpl->writer.Intern(name), 4);
 }
+
 
 void BinaryWriter::WriteValue(const entt::meta_any &value)
 {
 	m_pImpl->writer.Value(value);
 }
 
+
 void BinaryWriter::WriteBytes(std::span<const std::byte> bytes)
 {
 	m_pImpl->writer.Bytes(bytes);
 }
+
 
 std::vector<std::byte> BinaryWriter::Finish(FormatVersion version)
 {
@@ -512,11 +556,15 @@ struct BinaryReader::Impl
 	Impl(std::span<const std::byte> bytes, std::string_view format) : name{format}, reader{bytes, name}
 	{
 	}
+
+
 	// Over data migrated to the current version, which the reader keeps.
 	Impl(std::vector<std::byte> owned, std::string_view format)
 	    : name{format}, migrated{std::move(owned)}, reader{migrated, name}
 	{
 	}
+
+
 	// Over a record's field.
 	Impl(
 	    std::span<const std::byte> bytes, const std::vector<std::string> &names,
@@ -532,12 +580,14 @@ struct BinaryReader::Impl
 	std::shared_ptr<std::vector<std::string>> pRecordNames;
 };
 
+
 BinaryReader::BinaryReader(
     std::span<const std::byte> bytes, std::string_view format, FormatVersion expected)
     : m_pImpl{std::make_unique<Impl>(bytes, format)}
 {
 	m_pImpl->reader.Header(m_pImpl->name, expected);
 }
+
 
 BinaryReader::BinaryReader(std::span<const std::byte> bytes, const BinaryMigrations &migrations)
 {
@@ -548,6 +598,7 @@ BinaryReader::BinaryReader(std::span<const std::byte> bytes, const BinaryMigrati
 	m_pImpl->reader.Header(m_pImpl->name, migrations.Current());
 }
 
+
 std::vector<std::byte> BinaryReader::ReadBytes()
 {
 	const auto count = static_cast<std::uint32_t>(m_pImpl->reader.Unsigned(4));
@@ -555,15 +606,22 @@ std::vector<std::byte> BinaryReader::ReadBytes()
 	return {bytes.begin(), bytes.end()};
 }
 
+
 BinaryReader::BinaryReader(
     std::span<const std::byte> bytes, const std::vector<std::string> &names, std::string_view context)
     : m_pImpl{std::make_unique<Impl>(bytes, names, context)}
 {
 }
 
+
 BinaryReader::~BinaryReader() = default;
+
+
 BinaryReader::BinaryReader(BinaryReader &&) noexcept = default;
+
+
 BinaryReader &BinaryReader::operator=(BinaryReader &&) noexcept = default;
+
 
 BinaryRecord BinaryReader::ReadRecord()
 {
@@ -586,6 +644,7 @@ BinaryRecord BinaryReader::ReadRecord()
 	return record;
 }
 
+
 std::uint64_t BinaryReader::ReadUnsigned(std::size_t width)
 {
 	if (width != 1 && width != 2 && width != 4 && width != 8)
@@ -594,25 +653,30 @@ std::uint64_t BinaryReader::ReadUnsigned(std::size_t width)
 	return m_pImpl->reader.Unsigned(width);
 }
 
+
 std::string_view BinaryReader::ReadName()
 {
 	return m_pImpl->reader.Name();
 }
+
 
 void BinaryReader::ReadValue(entt::meta_any &value)
 {
 	m_pImpl->reader.Value(value);
 }
 
+
 std::size_t BinaryReader::Remaining() const
 {
 	return m_pImpl->reader.Remaining();
 }
 
+
 void BinaryReader::Fail(std::string_view problem) const
 {
 	m_pImpl->reader.Fail(problem);
 }
+
 
 void BinaryReader::End() const
 {
@@ -630,6 +694,7 @@ std::uint32_t InternInto(std::vector<std::string> &names, std::string_view name)
 	return static_cast<std::uint32_t>(names.size() - 1);
 }
 
+
 void PutUnsigned(std::vector<std::byte> &out, std::uint64_t value, std::size_t width)
 {
 	for (std::size_t index = 0; index < width; ++index)
@@ -637,10 +702,12 @@ void PutUnsigned(std::vector<std::byte> &out, std::uint64_t value, std::size_t w
 }
 } // namespace
 
+
 bool BinaryRecord::Has(std::string_view name) const
 {
 	return std::ranges::find(m_fields, name, &Field::name) != m_fields.end();
 }
+
 
 BinaryReader BinaryRecord::Open(std::string_view name) const
 {
@@ -650,6 +717,7 @@ BinaryReader BinaryRecord::Open(std::string_view name) const
 		    std::format("BinaryRecord: {}: the record has no field '{}'", m_context, name)};
 	return BinaryReader{found->bytes, *m_pNames, std::format("{}.{}", m_context, name)};
 }
+
 
 void BinaryRecord::SetValue(std::string_view name, const entt::meta_any &value)
 {
@@ -670,6 +738,7 @@ void BinaryRecord::SetValue(std::string_view name, const entt::meta_any &value)
 		m_fields.push_back({std::string{name}, std::move(bytes)});
 }
 
+
 void BinaryRecord::Remove(std::string_view name)
 {
 	const auto found = std::ranges::find(m_fields, name, &Field::name);
@@ -678,6 +747,7 @@ void BinaryRecord::Remove(std::string_view name)
 		    std::format("BinaryRecord: {}: the record has no field '{}' to remove", m_context, name)};
 	m_fields.erase(found);
 }
+
 
 void BinaryRecord::Rename(std::string_view from, std::string_view to)
 {
@@ -691,6 +761,7 @@ void BinaryRecord::Rename(std::string_view from, std::string_view to)
 		    m_context, to, from)};
 	found->name = std::string{to};
 }
+
 
 void BinaryRecord::ReadInto(entt::meta_any &value) const
 {
@@ -710,12 +781,14 @@ void BinaryRecord::ReadInto(entt::meta_any &value) const
 	reader.End();
 }
 
+
 std::vector<std::byte> BinaryArchive::Write(const entt::meta_any &value, FormatVersion version)
 {
 	BinaryWriter writer{Detail::RootName(value.type())};
 	writer.WriteValue(value);
 	return writer.Finish(version);
 }
+
 
 entt::meta_any BinaryArchive::Read(
     std::span<const std::byte> bytes, const entt::meta_type &type, FormatVersion expected)
@@ -730,6 +803,7 @@ entt::meta_any BinaryArchive::Read(
 	reader.End();
 	return value;
 }
+
 
 entt::meta_any BinaryArchive::Read(
     std::span<const std::byte> bytes, const entt::meta_type &type, const BinaryMigrations &migrations)
@@ -749,6 +823,7 @@ entt::meta_any BinaryArchive::Read(
 	return value;
 }
 
+
 BinaryDocument BinaryDocument::Parse(std::span<const std::byte> bytes, std::string_view format)
 {
 	Reader reader{bytes, format};
@@ -760,6 +835,7 @@ BinaryDocument BinaryDocument::Parse(std::span<const std::byte> bytes, std::stri
 	document.payload.assign(payload.begin(), payload.end());
 	return document;
 }
+
 
 std::vector<std::byte> BinaryDocument::Emit() const
 {
@@ -792,6 +868,7 @@ std::vector<std::byte> BinaryDocument::Emit() const
 	return out;
 }
 
+
 void BinaryDocument::Rename(std::string_view from, std::string_view to)
 {
 	const auto found = std::ranges::find(names, from);
@@ -807,11 +884,13 @@ void BinaryDocument::Rename(std::string_view from, std::string_view to)
 	*found = std::string{to};
 }
 
+
 std::uint32_t PeekVersion(std::span<const std::byte> bytes, std::string_view format)
 {
 	Reader reader{bytes, format};
 	return reader.Open(format);
 }
+
 
 std::vector<std::byte> Migrate(std::span<const std::byte> bytes, const BinaryMigrations &migrations)
 {

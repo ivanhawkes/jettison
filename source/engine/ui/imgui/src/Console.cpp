@@ -25,12 +25,14 @@ struct Codec
 	std::string_view what;
 };
 
+
 template <typename T> std::string FormatNumber(const entt::meta_any &value)
 {
 	std::array<char, 32> buffer{};
 	const auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value.cast<T>());
 	return {buffer.data(), result.ptr};
 }
+
 
 template <typename T> std::optional<entt::meta_any> ParseNumber(std::string_view text)
 {
@@ -45,10 +47,12 @@ template <typename T> std::optional<entt::meta_any> ParseNumber(std::string_view
 	return entt::meta_any{value};
 }
 
+
 std::string FormatBool(const entt::meta_any &value)
 {
 	return value.cast<bool>() ? "true" : "false";
 }
+
 
 std::optional<entt::meta_any> ParseBool(std::string_view text)
 {
@@ -59,20 +63,24 @@ std::optional<entt::meta_any> ParseBool(std::string_view text)
 	return std::nullopt;
 }
 
+
 std::string FormatString(const entt::meta_any &value)
 {
 	return value.cast<const std::string &>();
 }
+
 
 std::optional<entt::meta_any> ParseString(std::string_view text)
 {
 	return entt::meta_any{std::string{text}};
 }
 
+
 template <typename T> std::pair<entt::id_type, Codec> Number(std::string_view what)
 {
 	return {entt::type_id<T>().hash(), Codec{&FormatNumber<T>, &ParseNumber<T>, what}};
 }
+
 
 const std::unordered_map<entt::id_type, Codec> &Codecs()
 {
@@ -96,16 +104,19 @@ const std::unordered_map<entt::id_type, Codec> &Codecs()
 	return codecs;
 }
 
+
 const Codec *CodecFor(const entt::meta_type &type)
 {
 	const auto found = Codecs().find(type.info().hash());
 	return found == Codecs().end() ? nullptr : &found->second;
 }
 
+
 bool IsRegisteredEnum(const entt::meta_type &type)
 {
 	return type.is_enum() && entt::resolve(type.info());
 }
+
 
 std::string FormatVariable(const entt::meta_any &value)
 {
@@ -115,12 +126,14 @@ std::string FormatVariable(const entt::meta_any &value)
 	return name.empty() ? std::string{"(unnamed)"} : std::string{name};
 }
 
+
 bool IsNameCharacter(char character)
 {
 	return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
 	       (character >= '0' && character <= '9') || character == '_' || character == '.';
 }
 } // namespace
+
 
 std::optional<std::vector<std::string>> SplitLine(std::string_view line)
 {
@@ -164,6 +177,7 @@ std::optional<std::vector<std::string>> SplitLine(std::string_view line)
 	return words;
 }
 
+
 Console::Console(std::size_t capacity) : m_capacity{std::max<std::size_t>(capacity, 1)}
 {
 	RegisterCommand(
@@ -193,11 +207,13 @@ Console::Console(std::size_t capacity) : m_capacity{std::max<std::size_t>(capaci
 	    });
 }
 
+
 Console::~Console()
 {
 	if (m_logCallback)
 		Core::RemoveLogCallback(*m_logCallback);
 }
+
 
 void Console::CaptureLog()
 {
@@ -214,6 +230,7 @@ void Console::CaptureLog()
 	    });
 }
 
+
 void Console::CheckName(std::string_view name) const
 {
 	if (name.empty() || !std::ranges::all_of(name, IsNameCharacter))
@@ -222,6 +239,7 @@ void Console::CheckName(std::string_view name) const
 		throw std::logic_error{std::format("Console: '{}' is already taken", name)};
 }
 
+
 void Console::RegisterCommand(std::string name, std::string help, Command run)
 {
 	CheckName(name);
@@ -229,6 +247,7 @@ void Console::RegisterCommand(std::string name, std::string help, Command run)
 		throw std::logic_error{std::format("Console: command '{}' has nothing to run", name)};
 	m_commands.emplace(std::move(name), Registered{std::move(help), std::move(run)});
 }
+
 
 void Console::BindReference(std::string_view prefix, entt::meta_any object)
 {
@@ -253,6 +272,7 @@ void Console::BindReference(std::string_view prefix, entt::meta_any object)
 		m_variables.emplace(std::move(name), Variable{object.as_ref(), field});
 }
 
+
 void Console::Add(ConsoleLine line)
 {
 	const std::scoped_lock lock{m_linesMutex};
@@ -261,15 +281,18 @@ void Console::Add(ConsoleLine line)
 		m_lines.pop_front();
 }
 
+
 void Console::Print(std::string text)
 {
 	Add({ConsoleLine::Kind::Output, Core::Severity::Info, {}, std::move(text)});
 }
 
+
 void Console::PrintError(std::string text)
 {
 	Add({ConsoleLine::Kind::Error, Core::Severity::Error, {}, std::move(text)});
 }
+
 
 void Console::Clear()
 {
@@ -277,11 +300,13 @@ void Console::Clear()
 	m_lines.clear();
 }
 
+
 std::vector<ConsoleLine> Console::Lines() const
 {
 	const std::scoped_lock lock{m_linesMutex};
 	return {m_lines.begin(), m_lines.end()};
 }
+
 
 void Console::Execute(std::string_view line)
 {
@@ -320,6 +345,7 @@ void Console::Execute(std::string_view line)
 	}
 	PrintError(std::format("there is no command or variable '{}'", name));
 }
+
 
 void Console::RunVariable(
     const std::string &name, Variable &variable, std::span<const std::string> arguments)
@@ -360,6 +386,7 @@ void Console::RunVariable(
 	Print(std::format("{} = {}", name, *Value(name)));
 }
 
+
 std::optional<std::string> Console::Value(std::string_view variable) const
 {
 	const auto found = m_variables.find(variable);
@@ -367,6 +394,7 @@ std::optional<std::string> Console::Value(std::string_view variable) const
 		return std::nullopt;
 	return FormatVariable(found->second.field.get(found->second.object));
 }
+
 
 std::vector<std::string> Console::Complete(std::string_view prefix) const
 {
@@ -384,6 +412,7 @@ std::vector<std::string> Console::Complete(std::string_view prefix) const
 	std::ranges::sort(names);
 	return names;
 }
+
 
 std::string Console::CompleteLine(std::string_view line) const
 {

@@ -47,6 +47,7 @@ struct Fixture
 	Ai::LaneTravel &lanes;
 	Ai::Gates &gates;
 
+
 	Fixture()
 	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)},
 	      gates{Ai::Gates::Attach(world, physics, lanes)}
@@ -90,6 +91,7 @@ struct Fixture
 		gates.MakeGates(world, kVesper);
 	}
 
+
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -98,10 +100,12 @@ struct Fixture
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
+
 	entt::entity Gate(std::string_view jumpPoint = "Halcyon Gate") const
 	{
 		return Ai::Gates::FindGate(world.Registry(), kHalcyon, jumpPoint);
 	}
+
 
 	// Which way Halcyon Gate faces now, a ship leaving it looking along its -Z.
 	glm::dquat Facing() const
@@ -110,6 +114,7 @@ struct Fixture
 		return Celestial::JumpPointFacing(
 		    halcyon, static_cast<std::size_t>(halcyon.Find("Halcyon Gate")), world.Clock().Now());
 	}
+
 
 	// A ship of the pilot's in Halcyon Gate's frame, so far behind its ring along the axis (ahead of
 	// it, for a negative distance), flying along the axis at that speed (through it, for a positive
@@ -139,11 +144,13 @@ struct Fixture
 		return ship;
 	}
 
+
 	void Run(std::uint64_t steps)
 	{
 		for (std::uint64_t step = 0; step < steps; ++step)
 			world.Step();
 	}
+
 
 	// Steps until the ship is on a lane, or the steps run out; the steps taken.
 	std::uint64_t RunUntilOnLane(entt::entity ship, std::uint64_t most)
@@ -157,6 +164,7 @@ struct Fixture
 		return steps;
 	}
 
+
 	template <typename T> std::vector<T> Events()
 	{
 		std::vector<T> found;
@@ -165,6 +173,7 @@ struct Fixture
 				found.push_back(*value);
 		return found;
 	}
+
 
 	// Every event of the kind among those raised, the rest dropped with them.
 	template <typename T> std::vector<T> EventsOf(const std::vector<Sim::SimEvent> &events) const
@@ -176,16 +185,20 @@ struct Fixture
 		return found;
 	}
 
+
 	std::int64_t CreditsOf(entt::entity ship) const
 	{
 		return world.Registry().get<Credits>(ship).amount;
 	}
+
+
 	const Ai::Gate &GateOf(entt::entity gate) const
 	{
 		return world.Registry().get<Ai::Gate>(gate);
 	}
 };
 } // namespace
+
 
 TEST_CASE("Gates: each jump point has a ring, a sensor on its rails facing as it does")
 {
@@ -210,6 +223,7 @@ TEST_CASE("Gates: each jump point has a ring, a sensor on its rails facing as it
 	CHECK(glm::dot(axis, fixture.Facing() * glm::dvec3{0.0, 0.0, -1.0}) == doctest::Approx(1.0));
 	CHECK(fixture.physics.ShapeRadius(body.shape) == doctest::Approx(std::hypot(500.0, 30.0)));
 }
+
 
 TEST_CASE("Gates: a cleared ship flown through the ring is sent, and its owner charged the toll")
 {
@@ -259,6 +273,7 @@ TEST_CASE("Gates: a cleared ship flown through the ring is sent, and its owner c
 	CHECK(fixture.physics.Touching(far).empty());
 }
 
+
 TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and is charged nothing")
 {
 	Fixture fixture;
@@ -304,6 +319,7 @@ TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and 
 	CHECK(fixture.GateOf(gate).cleared == first);
 }
 
+
 TEST_CASE("Gates: a clearance unused lapses, and the gate clears the next in its queue")
 {
 	Fixture fixture;
@@ -340,6 +356,7 @@ TEST_CASE("Gates: a clearance unused lapses, and the gate clears the next in its
 	CHECK(fixture.GateOf(gate).queue.empty());
 	CHECK(fixture.CreditsOf(first) == 10000);
 }
+
 
 TEST_CASE("Gates: what cannot be cleared through a gate is refused, saying why")
 {
@@ -379,6 +396,7 @@ TEST_CASE("Gates: what cannot be cleared through a gate is refused, saying why")
 		CHECK(fixture.CreditsOf(each) == 10000);
 }
 
+
 TEST_CASE("Gates: a gate no lane leaves through clears nothing")
 {
 	Fixture fixture;
@@ -396,6 +414,7 @@ TEST_CASE("Gates: a gate no lane leaves through clears nothing")
 	REQUIRE(refused.size() == 1);
 	CHECK(Sim::Describe(refused[0].reason) == "reason.ai.leads_nowhere('Vesper Deep Gate')");
 }
+
 
 TEST_CASE("Gates: a cleared ship whose owner can no longer pay passes through, and frees the gate")
 {
@@ -432,6 +451,7 @@ TEST_CASE("Gates: a cleared ship whose owner can no longer pay passes through, a
 	CHECK(cleared[0].ship == next);
 }
 
+
 TEST_CASE("Gates: a clearance is given up as its ship leaves the gate's frame, or goes")
 {
 	Fixture fixture;
@@ -459,6 +479,7 @@ TEST_CASE("Gates: a clearance is given up as its ship leaves the gate's frame, o
 	CHECK(lapsed[0].ship == going);
 	CHECK(fixture.GateOf(gate).cleared == entt::null);
 }
+
 
 TEST_CASE("Gates: a world saved with a ship cleared and one waiting goes on as the one saved does")
 {

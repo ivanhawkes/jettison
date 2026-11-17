@@ -37,6 +37,7 @@ struct BinaryDocument
 	// Throws FormatError for data that is not a binary archive of the format, or whose table does
 	// not fit in it.
 	static BinaryDocument Parse(std::span<const std::byte> bytes, std::string_view format);
+
 	// The archive again, byte for byte what Parse read if nothing was changed.
 	std::vector<std::byte> Emit() const;
 
@@ -93,10 +94,12 @@ template <typename Data> class Migrations
 	{
 		return m_format;
 	}
+
 	FormatVersion Current() const
 	{
 		return m_current;
 	}
+
 	// Whether data of the version is current or can be brought up to it.
 	bool Reaches(std::uint32_t found) const
 	{

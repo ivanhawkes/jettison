@@ -126,6 +126,7 @@ constexpr std::array<std::pair<Palette, std::string_view>, 4> kPalettes{{
 constexpr std::array<Palette, 4> kVariants{
     Palette::Mocha, Palette::Macchiato, Palette::Frappe, Palette::Latte};
 
+
 const std::array<Rgb, kTokenCount> &Tokens(Palette palette)
 {
 	switch (palette)
@@ -176,6 +177,8 @@ constexpr float kDisabledAlpha = 0.50f; // disabled:opacity-50
 // trusted to have a band.
 constexpr float kScaleFloor = 0.25f;
 constexpr float kScaleCeiling = 4.0f;
+
+
 float ScaleFor(const ThemeSettings &settings)
 {
 	if (!std::isfinite(settings.uiScale) || settings.uiScale <= 0.0f)
@@ -192,11 +195,13 @@ struct Applied
 	bool themed{false};
 };
 
+
 Applied &GetApplied()
 {
 	static Applied applied;
 	return applied;
 }
+
 
 // Whether the style is what these settings ask for, read from the style and not from a cache: two
 // fields a stock context does not have, a panel's padding on the sheet's scale and the panel's
@@ -221,12 +226,14 @@ bool StyleIsApplied(const ThemeSettings &settings, bool linearise)
 }
 } // namespace
 
+
 float DecodeSrgb(float encoded)
 {
 	// sRGB's transfer function, the piecewise one: the linear part for the darkest values, where a
 	// power of a near-zero would otherwise lose its precision.
 	return encoded <= 0.04045f ? encoded / 12.92f : std::powf((encoded + 0.055f) / 1.055f, 2.4f);
 }
+
 
 void RegisterThemeTypes()
 {
@@ -247,10 +254,12 @@ void RegisterThemeTypes()
 	(void)registered;
 }
 
+
 const std::array<Rgb, kTokenCount> &PaletteTokens(Palette palette)
 {
 	return Tokens(palette);
 }
+
 
 std::string_view PaletteName(Palette palette)
 {
@@ -260,10 +269,12 @@ std::string_view PaletteName(Palette palette)
 	return "mocha";
 }
 
+
 std::span<const Palette> PaletteVariants()
 {
 	return kVariants;
 }
+
 
 Rgba PaletteColour(Palette palette, Token token, float alpha, bool linearise)
 {
@@ -273,6 +284,7 @@ Rgba PaletteColour(Palette palette, Token token, float alpha, bool linearise)
 		return {encoded(rgb.r), encoded(rgb.g), encoded(rgb.b), alpha};
 	return {DecodeSrgb(encoded(rgb.r)), DecodeSrgb(encoded(rgb.g)), DecodeSrgb(encoded(rgb.b)), alpha};
 }
+
 
 Token LineToken(const ConsoleLine &line)
 {
@@ -295,11 +307,13 @@ Token LineToken(const ConsoleLine &line)
 	return Token::Muted;
 }
 
+
 Rgba ColourOf(Token token, float alpha)
 {
 	Applied &applied = GetApplied();
 	return PaletteColour(applied.settings.palette, token, alpha, applied.linearise);
 }
+
 
 void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 {
@@ -444,6 +458,7 @@ void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 	applied.themed = true;
 }
 
+
 bool ApplyThemeIfChanged(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 {
 	// The style is read, not remembered: a context made after the themed one reuses its address
@@ -457,6 +472,7 @@ bool ApplyThemeIfChanged(const ThemeSettings &settings, bool swapchainEncodesSrg
 	ApplyTheme(settings, swapchainEncodesSrgb);
 	return true;
 }
+
 
 const ThemeSettings &AppliedTheme()
 {

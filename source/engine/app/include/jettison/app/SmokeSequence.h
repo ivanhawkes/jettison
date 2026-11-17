@@ -69,6 +69,7 @@ class SmokeSequence
 	explicit SmokeSequence(SmokeActions actions, bool canIconify);
 
 	SmokeSequence(const SmokeSequence &) = delete;
+
 	SmokeSequence &operator=(const SmokeSequence &) = delete;
 
 	// One frame. frameResized says this frame recreated the swapchain, which is the only way the

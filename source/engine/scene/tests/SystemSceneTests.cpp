@@ -30,6 +30,7 @@ Celestial::StarSystem Halcyon()
 	return Celestial::ReadStarSystem(text.str());
 }
 
+
 bool Near(const glm::dmat4 &a, const glm::dmat4 &b)
 {
 	for (int column = 0; column < 4; ++column)
@@ -44,6 +45,7 @@ bool Near(const glm::dmat4 &a, const glm::dmat4 &b)
 	return true;
 }
 
+
 entt::entity Named(const entt::registry &registry, std::string_view id)
 {
 	for (const auto [entity, name] : registry.view<const Scene::SceneEntityId>().each())
@@ -51,6 +53,7 @@ entt::entity Named(const entt::registry &registry, std::string_view id)
 			return entity;
 	return entt::null;
 }
+
 
 glm::dvec3 WorldPosition(const entt::registry &registry, entt::entity entity)
 {
@@ -82,12 +85,14 @@ entities:
 )";
 } // namespace
 
+
 TEST_CASE("System scene: a body's entity id is its name in lower case, hyphenated")
 {
 	CHECK(Scene::BodyEntityId("Ostra Highport") == "ostra-highport");
 	CHECK(Scene::BodyEntityId("  Halcyon  Gate-2 ") == "halcyon-gate-2");
 	CHECK(Scene::BodyEntityId("Pell") == "pell");
 }
+
 
 TEST_CASE("System scene: a station built to no layout is drawn as a box the length of its radius")
 {
@@ -102,6 +107,7 @@ TEST_CASE("System scene: a station built to no layout is drawn as a box the leng
 	    scene.Registry().get<Scene::TransformComponent>(station).scale.z ==
 	    doctest::Approx(system.bodies[index].radius));
 }
+
 
 TEST_CASE(
     "System scene: halcyon.yaml alone builds a scene whose bodies and stations follow their orbits")
@@ -170,6 +176,7 @@ TEST_CASE(
 	    doctest::Approx(3.0 * 763.0).epsilon(0.01));
 }
 
+
 TEST_CASE("System scene: the file's bodies are its own, and only the rest are built")
 {
 	const Celestial::StarSystem system = Halcyon();
@@ -198,6 +205,7 @@ TEST_CASE("System scene: the file's bodies are its own, and only the rest are bu
 	CHECK(scene.SaveText() == authored);
 }
 
+
 TEST_CASE("System scene: a scene of a system alone saves as that system and no entities")
 {
 	Scene::Scene scene;
@@ -212,6 +220,7 @@ TEST_CASE("System scene: a scene of a system alone saves as that system and no e
 	CHECK(loaded.Registry().view<const Scene::SceneEntityId>().empty());
 	CHECK_THROWS_AS(scene.LoadSystem("../systems/halcyon.yaml"), std::runtime_error);
 }
+
 
 TEST_CASE("System scene: a body the system does not have is refused, and a clash of ids")
 {
@@ -241,6 +250,7 @@ entities:
 	CHECK(scene.Registry().view<const Scene::BuiltComponent>().empty());
 }
 
+
 TEST_CASE("System scene: a body's placement is its orbit, and the authored transform is left alone")
 {
 	const Celestial::StarSystem system = Halcyon();
@@ -256,6 +266,7 @@ TEST_CASE("System scene: a body's placement is its orbit, and the authored trans
 	Scene::SceneUpdateSystem{}.Update(scene, 0.0f);
 	CHECK(WorldPosition(scene, station) == placement.position);
 }
+
 
 TEST_CASE("System scene: the sky is the system's own, the same every time it is built")
 {
@@ -281,6 +292,7 @@ TEST_CASE("System scene: the sky is the system's own, the same every time it is 
 	CHECK(sky(third).seed != sky(first).seed);
 	CHECK(sky(third).bandNormal != sky(first).bandNormal);
 }
+
 
 TEST_CASE("System scene: a hidden layer is not drawn, and children are in their parent's layer")
 {
@@ -322,6 +334,7 @@ TEST_CASE("System scene: a hidden layer is not drawn, and children are in their 
 	CHECK(registry.view<const Scene::HiddenComponent>().empty());
 }
 
+
 TEST_CASE("System scene: an entity's layer is in its file, and a layer the file names is checked")
 {
 	Scene::Scene scene;
@@ -338,6 +351,7 @@ entities:
 )"),
 	    std::exception);
 }
+
 
 TEST_CASE("System scene: the simulation's entities are the traffic layer, made and unmade with them")
 {
@@ -428,6 +442,7 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 	CHECK(registry.view<const Scene::SceneEntityId>().size() == 3);
 }
 
+
 TEST_CASE("System scene: the traffic layer is this system's, and a ship that jumps leaves and arrives")
 {
 	Scene::Scene scene;
@@ -483,6 +498,7 @@ TEST_CASE("System scene: the traffic layer is this system's, and a ship that jum
 		if (proxy.simEntity == elsewhere)
 			CHECK(transform.translation.x == 4.0e11);
 }
+
 
 TEST_CASE(
     "System scene: a proxy shows its simulation entity's interpolated transform, in double precision")

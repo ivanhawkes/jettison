@@ -28,6 +28,7 @@ bool IsGltf(std::string_view path)
 	return extension == ".gltf" || extension == ".glb";
 }
 
+
 // One model per shape and colour, shared by every entity that asks for it, as a model file is.
 std::string ShapeKey(const Scene::MeshComponent &mesh)
 {
@@ -40,6 +41,7 @@ std::string ShapeKey(const Scene::MeshComponent &mesh)
 }
 } // namespace
 
+
 ModelCache::ModelCache(
     std::shared_ptr<DeviceContext> pDeviceContext, Resource::ResourceManager &resources,
     MaterialCache &materials, std::uint32_t framesInFlight)
@@ -47,6 +49,7 @@ ModelCache::ModelCache(
       m_framesInFlight{framesInFlight}
 {
 }
+
 
 void ModelCache::Init()
 {
@@ -67,6 +70,7 @@ void ModelCache::Init()
 	m_loaderRegistered = true;
 }
 
+
 void ModelCache::Destroy()
 {
 	for (auto &[path, file] : m_files)
@@ -86,6 +90,7 @@ void ModelCache::Destroy()
 	m_retired.clear();
 }
 
+
 void ModelCache::BeginFrame(std::uint64_t frameNumber)
 {
 	m_frame = frameNumber;
@@ -98,6 +103,7 @@ void ModelCache::BeginFrame(std::uint64_t frameNumber)
 		Free(*item);
 	m_retired.erase(done, m_retired.end());
 }
+
 
 const Model *ModelCache::Resolve(const Scene::MeshComponent &mesh)
 {
@@ -126,6 +132,7 @@ const Model *ModelCache::Resolve(const Scene::MeshComponent &mesh)
 	return m_resources.TryGet(found->second.handle);
 }
 
+
 void ModelCache::ReleaseUnresolved()
 {
 	std::erase_if(
@@ -148,6 +155,7 @@ void ModelCache::ReleaseUnresolved()
 	    });
 }
 
+
 void ModelCache::Retire(Model &model)
 {
 	// The model's own materials are keyed on its address, which the next model may be given once
@@ -157,6 +165,7 @@ void ModelCache::Retire(Model &model)
 	model.TakeBuffers(retired.vertexBuffer, retired.indexBuffer);
 	m_retired.push_back(retired);
 }
+
 
 void ModelCache::Free(Retired &retired)
 {

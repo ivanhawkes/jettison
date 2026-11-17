@@ -36,6 +36,7 @@ enum class PadClass : std::uint8_t
 // The largest hull of a class, length by beam by height, in metres: S a fighter's 25 x 20 x 8, M a
 // transport's 60 x 30 x 15, L the largest transport's 140 x 50 x 30, XL a liner's 300 x 80 x 60.
 glm::vec3 LargestHull(PadClass padClass);
+
 // A pad of the class, its width (across its heading) and length (along it): S 35 x 40, M 50 x 90,
 // L 80 x 180, XL 120 x 360. Room on each side of the largest hull for a clamp's reach and a buggy's
 // road beside it.

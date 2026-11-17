@@ -13,7 +13,9 @@ class Window
   public:
 	// Disable copying.
 	Window() = default;
+
 	Window(const Window &) = delete;
+
 	Window &operator=(const Window &) = delete;
 
 	void Init();

@@ -37,12 +37,14 @@ void SortByIdentifier(std::vector<entt::entity> &entities)
 	}
 }
 
+
 NearestSet::NearestSet(std::size_t count, double maxDistance)
     : m_count(count), m_limitSquared(maxDistance * maxDistance)
 {
 	JETTISON_ASSERT(maxDistance >= 0.0);
 	m_heap.reserve(count);
 }
+
 
 void NearestSet::Offer(entt::entity entity, double distanceSquared)
 {
@@ -62,10 +64,12 @@ void NearestSet::Offer(entt::entity entity, double distanceSquared)
 	std::ranges::push_heap(m_heap, NeighbourLess);
 }
 
+
 double NearestSet::Bound() const
 {
 	return Full() && m_count > 0 ? m_heap.front().distanceSquared : m_limitSquared;
 }
+
 
 void NearestSet::Take(std::vector<Neighbour> &out)
 {

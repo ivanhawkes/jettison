@@ -102,6 +102,7 @@ void FitForTrade(entt::registry &registry, entt::entity ship);
 
 // The ships the controller commands, in entity order, as the snapshot shows them.
 std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller);
+
 // The ship the controller is at the helm of, or none.
 entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller);
 

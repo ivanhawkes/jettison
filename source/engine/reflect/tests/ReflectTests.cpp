@@ -48,6 +48,7 @@ struct CollidingFields
 };
 } // namespace
 
+
 TEST_CASE("Reflect: attributes combine as a bit set, and None is in every set")
 {
 	using Jettison::Reflect::HasAll;
@@ -59,12 +60,14 @@ TEST_CASE("Reflect: attributes combine as a bit set, and None is in every set")
 	CHECK_FALSE(HasAll(Attribute::None, Attribute::Moddable));
 }
 
+
 TEST_CASE("Reflect: a name's ID is EnTT's hash of its text")
 {
 	constexpr Jettison::Reflect::Name name{"Cargo"};
 	static_assert(name.Id() == entt::hashed_string::value("Cargo"));
 	CHECK(std::string_view{name.Text()} == "Cargo");
 }
+
 
 TEST_CASE("Reflect: a registered type resolves by name, and lists its fields in registration order")
 {
@@ -103,6 +106,7 @@ TEST_CASE("Reflect: a registered type resolves by name, and lists its fields in 
 	CHECK(FindField(type, "quantity").type() == entt::resolve<int>());
 }
 
+
 TEST_CASE("Reflect: fields are read and written through the tables, as an archive does")
 {
 	using namespace Jettison::Reflect;
@@ -127,6 +131,7 @@ TEST_CASE("Reflect: fields are read and written through the tables, as an archiv
 	CHECK(FindField(type, "capacity").get(hold).cast<int>() == 400);
 }
 
+
 TEST_CASE("Reflect: a field's address is found in the object, so a reader can walk it in place")
 {
 	using namespace Jettison::Reflect;
@@ -149,6 +154,7 @@ TEST_CASE("Reflect: a field's address is found in the object, so a reader can wa
 	CHECK(AddressOf(entt::meta_data{}, &berth) == nullptr);
 }
 
+
 TEST_CASE("Reflect: a name that is not registered resolves to nothing")
 {
 	using Jettison::Reflect::Resolve;
@@ -157,6 +163,7 @@ TEST_CASE("Reflect: a name that is not registered resolves to nothing")
 	// EnTT knows every type it has seen, registered or not; Reflect does not count those.
 	CHECK_FALSE(Jettison::Reflect::Fields(entt::resolve<Unregistered>()).size());
 }
+
 
 TEST_CASE("Reflect: registering a type twice, or a name twice, throws naming it")
 {
@@ -191,6 +198,7 @@ TEST_CASE("Reflect: registering a type twice, or a name twice, throws naming it"
 	CHECK(FindField(Resolve("ReflectTests.Twice"), "a").get(twice).cast<int>() == 1);
 }
 
+
 TEST_CASE("Reflect: names whose hashes collide are refused, and do not resolve to each other")
 {
 	using namespace Jettison::Reflect;
@@ -211,6 +219,7 @@ TEST_CASE("Reflect: names whose hashes collide are refused, and do not resolve t
 	    doctest::Contains("hashes to the ID of 'declinate'"), RegistrationError);
 	CHECK_FALSE(FindField(Resolve("ReflectTests.CollidingFields"), "macallums"));
 }
+
 
 TEST_CASE("Reflect: an enumeration converts between its values and their names")
 {

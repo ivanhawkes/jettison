@@ -46,6 +46,7 @@ double SolveKepler(double meanAnomaly, double eccentricity);
 // The position relative to the parent body at a simulation time. A zero semi-major axis is a
 // body at its parent's position.
 glm::dvec3 Evaluate(const OrbitalElements &elements, double simSeconds);
+
 OrbitState EvaluateState(const OrbitalElements &elements, double simSeconds);
 
 // A body's spin: rotationPeriod seconds per sidereal day about its axis (negative for

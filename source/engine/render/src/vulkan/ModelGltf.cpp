@@ -55,6 +55,7 @@ std::vector<std::byte> ReadBaseColorImageData(
 }
 } // namespace
 
+
 void Model::ReadGltf(std::span<const std::byte> bytes, const std::string &path)
 {
 	auto data = fastgltf::GltfDataBuffer::FromBytes(bytes.data(), bytes.size());

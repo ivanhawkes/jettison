@@ -34,15 +34,18 @@ class Stepper
 	{
 		return m_previous;
 	}
+
 	const Snapshot &Current() const
 	{
 		return m_current;
 	}
+
 	// How far from Previous to Current presentation is, in [0, 1).
 	double Alpha() const
 	{
 		return m_accumulator.Alpha();
 	}
+
 	const Time::FixedStepAccumulator &Accumulator() const
 	{
 		return m_accumulator;

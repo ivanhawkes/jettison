@@ -24,6 +24,7 @@ CaptureLight PlanetAt(const glm::vec3 &centre, float radius)
 }
 } // namespace
 
+
 TEST_CASE("the capture is rebaked when a body or the sun has moved by more than a texel of it")
 {
 	// Ostra from Highport, 420 km up: the planet's centre 6,791 km away, 70 degrees across.

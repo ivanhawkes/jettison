@@ -78,6 +78,7 @@ struct Snapshot
 
 	// Null if the entity has no Transform in this snapshot.
 	const Transform *Find(entt::entity entity) const;
+
 	const TransformSample *FindSample(entt::entity entity) const;
 
 	// Every entity's copy of a shown component, by identifier; empty for a type the world does not
@@ -89,6 +90,7 @@ struct Snapshot
 			return {};
 		return std::any_cast<const std::vector<ComponentSample<T>> &>(found->second);
 	}
+
 	// The entity's copy, or null if it has none in this snapshot.
 	template <typename T> const T *Get(entt::entity entity) const
 	{

@@ -20,10 +20,12 @@ namespace
 // How far out an obstacle's ring of waypoints is, as a multiple of its radius plus the clearance.
 constexpr double kRingScale = 1.5;
 
+
 bool Finite(const glm::dvec3 &value)
 {
 	return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
+
 
 double DistanceToSegment(const glm::dvec3 &a, const glm::dvec3 &b, const glm::dvec3 &point)
 {
@@ -33,6 +35,7 @@ double DistanceToSegment(const glm::dvec3 &a, const glm::dvec3 &b, const glm::dv
 	    lengthSquared > 0.0 ? std::clamp(glm::dot(point - a, along) / lengthSquared, 0.0, 1.0) : 0.0;
 	return glm::length(a + along * t - point);
 }
+
 
 // The radius a leg has to keep outside of an obstacle, given the ends of it that are a course's
 // ends: none for an obstacle an end is inside, the radius alone for one whose clearance holds an
@@ -51,6 +54,7 @@ double Keep(const Sphere &obstacle, double clearance, std::span<const glm::dvec3
 	return keep;
 }
 
+
 bool LegClearOfEnds(
     const glm::dvec3 &a, const glm::dvec3 &b, std::span<const Sphere> obstacles, double clearance,
     std::span<const glm::dvec3> ends)
@@ -64,12 +68,14 @@ bool LegClearOfEnds(
 	return true;
 }
 
+
 void Join(Graph &graph, NodeId a, NodeId b, double cost)
 {
 	graph.adjacency[a].push_back({b, cost});
 	graph.adjacency[b].push_back({a, cost});
 }
 } // namespace
+
 
 std::optional<Route> PlotRoute(
     const Celestial::Galaxy &galaxy, const Place &from, const Place &to, const CrossingCost &crossing)
@@ -132,11 +138,13 @@ std::optional<Route> PlotRoute(
 	return route;
 }
 
+
 bool LegClear(
     const glm::dvec3 &a, const glm::dvec3 &b, std::span<const Sphere> obstacles, double clearance)
 {
 	return LegClearOfEnds(a, b, obstacles, clearance, {});
 }
+
 
 Waypoints::Waypoints(
     std::vector<Sphere> obstacles, double clearance, std::vector<glm::dvec3> extraPoints)
@@ -174,6 +182,7 @@ Waypoints::Waypoints(
 				    m_graph, static_cast<NodeId>(a), static_cast<NodeId>(b),
 				    glm::length(m_points[b] - m_points[a]));
 }
+
 
 std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::dvec3 &to) const
 {
@@ -226,6 +235,7 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 	return course;
 }
 
+
 std::vector<Sphere> SystemObstacles(const Celestial::StarSystem &system, double simSeconds)
 {
 	const std::vector<Celestial::SystemPosition> positions =
@@ -243,6 +253,7 @@ std::vector<Sphere> SystemObstacles(const Celestial::StarSystem &system, double 
 	return obstacles;
 }
 
+
 CrossingCost CrossingByCourse(
     std::vector<Celestial::StarSystem> systems, double simSeconds, double speed, double clearance)
 {
@@ -251,6 +262,7 @@ CrossingCost CrossingByCourse(
 	return CrossingByCourse(
 	    std::move(systems), simSeconds, [speed](double metres) { return metres / speed; }, clearance);
 }
+
 
 CrossingCost CrossingByCourse(
     std::vector<Celestial::StarSystem> systems, double simSeconds, CourseTime time, double clearance)

@@ -56,6 +56,7 @@ animated:
 )";
 } // namespace
 
+
 TEST_CASE("Material: a material and a program round-trip through the YAML archive")
 {
 	const MaterialDefinition material = ReadMaterial(kMaterial, "test.material.yaml");
@@ -89,6 +90,7 @@ TEST_CASE("Material: a material and a program round-trip through the YAML archiv
 	CHECK_THROWS_AS(ReadProgram(std::string{kProgram} + "blend: Murky\n", "murky"), FormatError);
 }
 
+
 TEST_CASE("Material: reading refuses what the format alone would let through")
 {
 	CHECK_THROWS_AS(ReadMaterial("version: 1\nparameters: []\n", "unnamed"), FormatError);
@@ -109,6 +111,7 @@ TEST_CASE("Material: reading refuses what the format alone would let through")
 		tooMany += "  - name: t" + std::to_string(slot) + "\n";
 	CHECK_THROWS_AS(ReadProgram(tooMany, "wide"), FormatError);
 }
+
 
 TEST_CASE("Material: resolving binds parameters and textures in the program's order")
 {
@@ -138,6 +141,7 @@ TEST_CASE("Material: resolving binds parameters and textures in the program's or
 	unknownSlot.textures.push_back({"occlusion", "textures/ao.png"});
 	CHECK_THROWS_AS(ResolveMaterial(program, unknownSlot, "occluded"), FormatError);
 }
+
 
 TEST_CASE("Material: waves run from 0 to 1 over a period, and time-driven values follow them")
 {
@@ -169,6 +173,7 @@ TEST_CASE("Material: waves run from 0 to 1 over a period, and time-driven values
 	EvaluateParameters(resolved, 1'000'000.0 + 1.0, later);
 	CHECK(later[1].y == doctest::Approx(parameters[2].y).epsilon(1e-4));
 }
+
 
 TEST_CASE("Material: the shipped materials resolve against the programs they name")
 {

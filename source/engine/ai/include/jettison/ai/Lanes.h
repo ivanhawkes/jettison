@@ -133,14 +133,17 @@ class LaneTravel
 	// The galaxy the lanes are; resolved, as reading one does. Until it is given, every EnterLane is
 	// refused.
 	void SetGalaxy(Celestial::Galaxy galaxy);
+
 	const Celestial::Galaxy *Galaxy() const
 	{
 		return m_galaxy ? &*m_galaxy : nullptr;
 	}
+
 	// A star system, for where its jump points are as an entity arrives. It has to be resolved;
 	// throws std::invalid_argument for a system already defined. An EnterLane to a system not
 	// defined is refused.
 	void DefineStarSystem(Celestial::StarSystem system);
+
 	bool HasStarSystem(std::uint64_t system) const;
 
   private:
@@ -149,6 +152,7 @@ class LaneTravel
 	}
 
 	void Enter(Sim::SimWorld &world, const EnterLane &command) const;
+
 	void Arrive(Sim::SimWorld &world) const;
 
 	const Physics::PhysicsWorld &m_physics;

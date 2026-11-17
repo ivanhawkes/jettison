@@ -90,6 +90,7 @@ void CheckDecision(std::string_view name, const DecisionDefinition &decision);
 
 // The curve's value at x, clamped to [0, 1], inverted if it says so.
 double Respond(const ResponseCurve &curve, double x);
+
 // The consideration's value for its raw input: brought into [0, 1] by the range, then the curve's.
 double Consider(const Consideration &consideration, double input);
 

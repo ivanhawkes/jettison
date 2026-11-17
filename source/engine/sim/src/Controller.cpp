@@ -10,6 +10,7 @@ bool MayCommand(const entt::registry &registry, entt::entity entity, const Contr
 	return !controlled || controlled->controller == sender;
 }
 
+
 bool MayFly(const entt::registry &registry, entt::entity entity, const Controller &sender)
 {
 	if (sender.kind == ControllerKind::None)

@@ -31,6 +31,7 @@ float SampleInterval(
 }
 } // namespace
 
+
 glm::vec4 Sample(const Track &track, float time)
 {
 	if (track.times.empty())
@@ -67,6 +68,7 @@ glm::vec4 Sample(const Track &track, float time)
 	}
 	return glm::mix(start, end, factor);
 }
+
 
 const Clip *FindClip(const std::vector<Clip> &clips, std::string_view name)
 {

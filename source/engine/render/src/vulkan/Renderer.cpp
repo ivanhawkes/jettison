@@ -67,6 +67,7 @@ struct ParticlePushConstants
 // And its workgroup, as particles.glsl declares it.
 constexpr uint32_t kParticleGroupSize = 64;
 
+
 // The order of a swapchain format's bytes, for one a screenshot can be written from: the 8-bit four
 // channel formats, sRGB-encoded or not (the output pass encodes for a UNORM one).
 std::optional<PixelOrder> ScreenshotOrder(VkFormat format)
@@ -115,6 +116,7 @@ struct SunView
 	double angularRadius{0.0};
 };
 
+
 SunView FindSun(const entt::registry &sceneRegistry, const glm::dvec3 &camera)
 {
 	for (const auto [entity, sun] : sceneRegistry.view<const Scene::SunComponent>().each())
@@ -136,6 +138,7 @@ SunView FindSun(const entt::registry &sceneRegistry, const glm::dvec3 &camera)
 	}
 	return {};
 }
+
 
 const Scene::SkyComponent *FindSky(const entt::registry &sceneRegistry)
 {

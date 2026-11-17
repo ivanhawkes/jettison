@@ -46,6 +46,7 @@ void RegisterMarketScreenTypes()
 	(void)registered;
 }
 
+
 std::string FormatCredits(std::int64_t credits)
 {
 	std::string digits = std::to_string(credits < 0 ? -credits : credits);
@@ -53,6 +54,7 @@ std::string FormatCredits(std::int64_t credits)
 		digits.insert(static_cast<std::size_t>(at), ",");
 	return credits < 0 ? "-" + digits : digits;
 }
+
 
 std::string GoodName(
     const Sim::DefinitionRegistry &definitions, const Ui::StringTable &strings, std::string_view good)
@@ -62,6 +64,7 @@ std::string GoodName(
 	const Good *definition = definitions.Find<Good>(good);
 	return definition ? definition->displayName : std::string{good};
 }
+
 
 MarketScreen BuildMarketScreen(
     const Sim::Snapshot &snapshot, const Sim::DefinitionRegistry &definitions,

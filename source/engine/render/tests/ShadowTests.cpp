@@ -26,6 +26,7 @@ const ShadowSettings kSettings{};
 const glm::dvec3 kStation{1.496e11, 2.1e6, -6.4e6};
 const glm::dvec3 kTowardsSun = glm::normalize(glm::dvec3{-0.8, 0.35, 0.45});
 
+
 CameraView MakeCamera(const glm::dvec3 &frameOrigin, const glm::dvec3 &offset, double yaw, double pitch)
 {
 	CameraView camera;
@@ -37,6 +38,7 @@ CameraView MakeCamera(const glm::dvec3 &frameOrigin, const glm::dvec3 &offset, d
 	return camera;
 }
 
+
 // A point of the view at a view depth, across its cross-section by the fractions (-1 to 1 each),
 // in render space.
 glm::vec3 ViewPoint(const CameraView &camera, double depth, double across, double up)
@@ -46,6 +48,7 @@ glm::vec3 ViewPoint(const CameraView &camera, double depth, double across, doubl
 	return glm::vec3{camera.orientation * view};
 }
 
+
 // Where a system position falls in a cascade's map, in texels, through the render-space position
 // the GPU would be given.
 glm::dvec2 TexelOf(const ShadowCascade &cascade, const CameraView &camera, const glm::dvec3 &system)
@@ -54,6 +57,7 @@ glm::dvec2 TexelOf(const ShadowCascade &cascade, const CameraView &camera, const
 	    ShadowMapCoordinate(cascade.matrix, ToRenderSpace(system, camera.position));
 	return glm::dvec2{coordinate.x, coordinate.y} * double(kSettings.resolution);
 }
+
 
 // How far apart two texel positions' places within their texels are, wrapping, in texels.
 double FractionApart(double a, double b)
@@ -71,6 +75,7 @@ constexpr std::array<glm::dvec3, 5> kStationPoints{{
     {13.3, -11.7, 12.0},
 }};
 } // namespace
+
 
 TEST_CASE("Shadows: the splits run from the near plane to the shadow distance")
 {
@@ -90,6 +95,7 @@ TEST_CASE("Shadows: the splits run from the near plane to the shadow distance")
 	tight.distance = 0.1f;
 	CHECK(ShadowSplits(0.5f, tight).back() == doctest::Approx(1.0f));
 }
+
 
 TEST_CASE("Shadows: each cascade's map holds every point that selects it, with the border to spare")
 {
@@ -127,6 +133,7 @@ TEST_CASE("Shadows: each cascade's map holds every point that selects it, with t
 		}
 }
 
+
 TEST_CASE("Shadows: a depth selects its cascade, and a band's depths are inside the next one")
 {
 	const CameraView camera = MakeCamera(kStation, {0.0, 0.0, 160.0}, 0.0, 0.0);
@@ -148,6 +155,7 @@ TEST_CASE("Shadows: a depth selects its cascade, and a band's depths are inside 
 	}
 }
 
+
 TEST_CASE("Shadows: a map is reversed, the sun's side at 1")
 {
 	const CameraView camera = MakeCamera(kStation, {0.0, 0.0, 160.0}, 0.0, 0.0);
@@ -165,6 +173,7 @@ TEST_CASE("Shadows: a map is reversed, the sun's side at 1")
 	CHECK(ShadowMapCoordinate(cascade.matrix, overhead).z > 1.0f);
 }
 
+
 TEST_CASE("Shadows: turning the camera keeps every cascade's texel size")
 {
 	const SunShadows ahead = FitSunShadows(
@@ -178,6 +187,7 @@ TEST_CASE("Shadows: turning the camera keeps every cascade's texel size")
 		CHECK(turned.cascades[index].radius == ahead.cascades[index].radius);
 	}
 }
+
 
 TEST_CASE("Shadows: a point still in the camera's frame stays on the same place in its texel")
 {
@@ -210,6 +220,7 @@ TEST_CASE("Shadows: a point still in the camera's frame stays on the same place 
 			}
 	}
 }
+
 
 TEST_CASE("Shadows: a grid fixed to the system would slide under a moving station")
 {

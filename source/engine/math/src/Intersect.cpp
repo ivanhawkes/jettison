@@ -18,10 +18,12 @@ Aabb Transformed(const Aabb &box, const glm::mat4 &matrix)
 	return {newCentre - newHalfExtents, newCentre + newHalfExtents};
 }
 
+
 template <typename T> bool Intersects(const BasicAabb<T> &a, const BasicAabb<T> &b)
 {
 	return glm::all(glm::lessThanEqual(a.min, b.max)) && glm::all(glm::lessThanEqual(b.min, a.max));
 }
+
 
 template <typename T> bool Intersects(const BasicSphere<T> &a, const BasicSphere<T> &b)
 {
@@ -29,6 +31,7 @@ template <typename T> bool Intersects(const BasicSphere<T> &a, const BasicSphere
 	const T reach = a.radius + b.radius;
 	return glm::dot(offset, offset) <= reach * reach;
 }
+
 
 // The slab method. An axis the ray runs parallel to is a test of the origin alone: dividing by its
 // zero component would give infinities, and a NaN where the origin lies on the slab's face.
@@ -58,6 +61,7 @@ template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const B
 	return entry;
 }
 
+
 // In the box's own frame it is an axis-aligned box about the origin. The axes are a rotation, so
 // the ray's direction keeps its length and the distance along it is unchanged.
 template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const BasicObb<T> &box)
@@ -66,6 +70,7 @@ template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const B
 	const BasicRay<T> local{toBox * (ray.origin - box.centre), toBox * ray.direction};
 	return Intersect(local, BasicAabb<T>{-box.halfExtents, box.halfExtents});
 }
+
 
 template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const BasicSphere<T> &sphere)
 {
@@ -82,6 +87,7 @@ template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const B
 		return std::nullopt;
 	return (-along - std::sqrt(discriminant)) / squaredLength;
 }
+
 
 template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const BasicPlane<T> &plane)
 {
@@ -107,6 +113,7 @@ template std::optional<double> Intersect(const DRay &, const DSphere &);
 template std::optional<float> Intersect(const Ray &, const Plane &);
 template std::optional<double> Intersect(const DRay &, const DPlane &);
 
+
 // Each plane is tested against the box's corner furthest along its normal: if even that corner is
 // behind the plane, the whole box is.
 bool Intersects(const Frustum &frustum, const Aabb &box)
@@ -121,12 +128,14 @@ bool Intersects(const Frustum &frustum, const Aabb &box)
 	return true;
 }
 
+
 bool Intersects(const Frustum &frustum, const Sphere &sphere)
 {
 	return std::ranges::all_of(
 	    frustum.planes, [&](const Plane &plane)
 	    { return glm::dot(plane.normal, sphere.centre) + plane.distance >= -sphere.radius; });
 }
+
 
 // Gribb and Hartmann: a point is inside when its clip coordinates satisfy -w <= x, y <= w and
 // 0 <= z <= w, and each of those inequalities is a plane in the space the matrix maps from,

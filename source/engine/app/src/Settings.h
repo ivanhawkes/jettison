@@ -32,6 +32,7 @@ class Settings
 	// and the first write after such a load keeps the file it replaces beside it as
 	// settings.yaml.unread, so a mistake in an edit by hand is not lost with the rest of the file.
 	void Load(Input::InputSystem &input);
+
 	// The bindings and the joysticks' names into the user layer, and the layer to the file. Throws
 	// std::runtime_error naming the file when it cannot be written.
 	void Save(const Input::InputSystem &input);
@@ -40,14 +41,17 @@ class Settings
 	{
 		return m_config;
 	}
+
 	Input::JoystickMap &Joysticks()
 	{
 		return m_joysticks;
 	}
+
 	const Input::JoystickMap &Joysticks() const
 	{
 		return m_joysticks;
 	}
+
 	const std::filesystem::path &File() const
 	{
 		return m_file;
@@ -71,7 +75,9 @@ struct BindResult
 	std::string message;
 	bool changed{false};
 };
+
 BindResult Bind(Input::InputSystem &input, std::span<const std::string> arguments);
+
 // The console's "unbind <context> <action>": back to the defaults.
 BindResult Unbind(Input::InputSystem &input, std::span<const std::string> arguments);
 } // namespace Jettison::App

@@ -18,11 +18,13 @@ constexpr int kKeplerIterations = 32;
 constexpr double kKeplerTolerance = 1.0e-15;
 } // namespace
 
+
 double PeriodFor(double semiMajorAxis, double gravitationalParameter)
 {
 	JETTISON_ASSERT(semiMajorAxis >= 0.0 && gravitationalParameter > 0.0);
 	return kTwoPi * std::sqrt(semiMajorAxis * semiMajorAxis * semiMajorAxis / gravitationalParameter);
 }
+
 
 double SolveKepler(double meanAnomaly, double eccentricity)
 {
@@ -45,6 +47,7 @@ double SolveKepler(double meanAnomaly, double eccentricity)
 	return eccentric;
 }
 
+
 double Phase(double simSeconds, double period)
 {
 	JETTISON_ASSERT(period > 0.0);
@@ -54,6 +57,7 @@ double Phase(double simSeconds, double period)
 	// A phase just below zero plus one rounds to one.
 	return phase < 1.0 ? phase : 0.0;
 }
+
 
 OrbitState EvaluateState(const OrbitalElements &elements, double simSeconds)
 {
@@ -97,10 +101,12 @@ OrbitState EvaluateState(const OrbitalElements &elements, double simSeconds)
 	return {toEngine(px, py), toEngine(vx, vy)};
 }
 
+
 glm::dvec3 Evaluate(const OrbitalElements &elements, double simSeconds)
 {
 	return EvaluateState(elements, simSeconds).position;
 }
+
 
 glm::dquat Orientation(const Rotation &rotation, double simSeconds)
 {

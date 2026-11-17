@@ -16,6 +16,7 @@ constexpr double kPi = std::numbers::pi;
 // Earth's GM, for orbits whose speed can be checked against vis-viva.
 constexpr double kMu = 3.986004418e14;
 
+
 OrbitalElements LowOrbit()
 {
 	OrbitalElements elements;
@@ -24,6 +25,7 @@ OrbitalElements LowOrbit()
 	return elements;
 }
 } // namespace
+
 
 TEST_CASE("Frames: render space is the difference taken in double, then made a float")
 {
@@ -43,6 +45,7 @@ TEST_CASE("Frames: render space is the difference taken in double, then made a f
 	CHECK(ToLocal(ToSystem(local, origin), origin).metres == local.metres);
 }
 
+
 TEST_CASE("Orbit: Kepler's equation is solved for every eccentricity below one")
 {
 	for (const double e : {0.0, 0.1, 0.5, 0.8, 0.9, 0.99, 0.999})
@@ -56,6 +59,7 @@ TEST_CASE("Orbit: Kepler's equation is solved for every eccentricity below one")
 			CHECK(std::abs(eccentric - e * std::sin(eccentric) - reduced) < 1e-14);
 		}
 }
+
 
 TEST_CASE("Orbit: a circular orbit starts on +X, runs prograde towards -Z, and keeps its radius")
 {
@@ -81,6 +85,7 @@ TEST_CASE("Orbit: a circular orbit starts on +X, runs prograde towards -Z, and k
 		    doctest::Approx(orbit.semiMajorAxis).epsilon(1e-12));
 }
 
+
 TEST_CASE("Orbit: an ellipse is nearest at periapsis, farthest half a period on, and obeys vis-viva")
 {
 	OrbitalElements orbit;
@@ -103,6 +108,7 @@ TEST_CASE("Orbit: an ellipse is nearest at periapsis, farthest half a period on,
 	}
 }
 
+
 TEST_CASE("Orbit: the velocity is the position's derivative")
 {
 	OrbitalElements orbit = LowOrbit();
@@ -119,6 +125,7 @@ TEST_CASE("Orbit: the velocity is the position's derivative")
 	}
 }
 
+
 TEST_CASE("Orbit: inclination tilts the plane about the ascending node, towards +Y")
 {
 	OrbitalElements orbit = LowOrbit();
@@ -133,6 +140,7 @@ TEST_CASE("Orbit: inclination tilts the plane about the ascending node, towards 
 	CHECK(node.z == doctest::Approx(-orbit.semiMajorAxis));
 }
 
+
 TEST_CASE("Orbit: the phase of a long clock keeps its precision, and a period later is the same place")
 {
 	const OrbitalElements orbit = LowOrbit();
@@ -146,10 +154,12 @@ TEST_CASE("Orbit: the phase of a long clock keeps its precision, and a period la
 	CHECK(Phase(25.0, 10.0) == doctest::Approx(0.5));
 }
 
+
 TEST_CASE("Orbit: a body with no orbit is at its parent")
 {
 	CHECK(Evaluate(OrbitalElements{}, 1234.0) == glm::dvec3{0.0});
 }
+
 
 TEST_CASE("Rotation: tilt, then spin about the tilted axis, a whole turn per period")
 {
@@ -172,6 +182,7 @@ TEST_CASE("Rotation: tilt, then spin about the tilted axis, a whole turn per per
 	upright.period = -100.0;
 	CHECK((Orientation(upright, 25.0) * glm::dvec3{1.0, 0.0, 0.0}).z == doctest::Approx(1.0));
 }
+
 
 TEST_CASE("Orbit: a position is the same bits in every build")
 {

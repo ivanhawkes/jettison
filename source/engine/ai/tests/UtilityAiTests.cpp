@@ -25,6 +25,7 @@ struct Table
 	std::map<std::string, double, std::less<>> values;
 	int asked{0};
 
+
 	Ai::Inputs Inputs()
 	{
 		return [this](std::string_view input)
@@ -35,6 +36,7 @@ struct Table
 	}
 };
 } // namespace
+
 
 TEST_CASE("Utility AI: each curve gives its known values, clamped to [0, 1] and inverted on asking")
 {
@@ -66,6 +68,7 @@ TEST_CASE("Utility AI: each curve gives its known values, clamped to [0, 1] and 
 	CHECK(Ai::Consider(Linear("time", 600.0, 0.0), NAN) == 0.0);
 }
 
+
 TEST_CASE("Utility AI: a score is the product of its considerations made up for their number")
 {
 	Table table{{{"a", 0.5}, {"b", 0.5}, {"c", 1.0}}};
@@ -89,6 +92,7 @@ TEST_CASE("Utility AI: a score is the product of its considerations made up for 
 	CHECK(Ai::Score({"light", 0.5, {Linear("c")}}, table.Inputs(), 0.5) == 0.0);
 	CHECK(table.asked == 0);
 }
+
 
 TEST_CASE(
     "Utility AI: the best option is chosen, the earliest of equals, and none when all score nothing")
@@ -124,6 +128,7 @@ TEST_CASE(
 	for (int run = 0; run < 3; ++run)
 		CHECK(Ai::Choose(decision, options)->option == 1);
 }
+
 
 TEST_CASE("Utility AI: a decision reads from data and is checked as it is defined")
 {

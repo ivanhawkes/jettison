@@ -28,6 +28,7 @@ struct Shell
 	Input::ActionId jump = input.DefineAction("jump_next", Input::ActionType::Button);
 	Input::ActionId throttle = input.DefineAction("throttle", Input::ActionType::Axis);
 
+
 	Shell()
 	{
 		input.DefineContext("shell");
@@ -36,6 +37,7 @@ struct Shell
 		input.Bind("flight", throttle, {Character('w'), Character('s')});
 	}
 };
+
 
 std::filesystem::path Scratch()
 {
@@ -46,11 +48,13 @@ std::filesystem::path Scratch()
 	return directory;
 }
 
+
 std::vector<std::string> Words(std::initializer_list<const char *> words)
 {
 	return {words.begin(), words.end()};
 }
 } // namespace
+
 
 TEST_CASE("Settings: a rebinding survives a restart, and so does putting it back")
 {
@@ -96,6 +100,7 @@ TEST_CASE("Settings: a rebinding survives a restart, and so does putting it back
 	}
 	std::filesystem::remove_all(directory);
 }
+
 
 TEST_CASE("Settings: a file that does not read leaves the defaults, and a bind that is not is refused")
 {

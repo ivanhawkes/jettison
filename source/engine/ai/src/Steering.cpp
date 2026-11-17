@@ -42,11 +42,13 @@ constexpr double kFacingSpeed = 1.0;
 // above the deck.
 constexpr double kHullSlack = 0.5;
 
+
 glm::dvec3 HeldTo(const glm::dvec3 &velocity, double maxSpeed)
 {
 	const double speed = glm::length(velocity);
 	return speed > maxSpeed && speed > 0.0 ? velocity * (maxSpeed / speed) : velocity;
 }
+
 
 // A direction square to the vector, chosen by the vector alone: crossed with the axis least along
 // it, so the vector reversed gives the direction reversed.
@@ -63,6 +65,7 @@ glm::dvec3 Square(const glm::dvec3 &vector)
 	return glm::normalize(glm::cross(vector, axis));
 }
 
+
 // The speed to close with what is the gap away at, stopping as it closes: √(2ad), and within the
 // last metres the gap over kSettleSeconds. A gap that is negative, within, is backed out of at
 // that rate.
@@ -73,11 +76,13 @@ double ClosingSpeed(double gap, double acceleration)
 	return std::min(std::sqrt(2.0 * acceleration * gap), gap / kSettleSeconds);
 }
 
+
 // A capability, none if it is not a positive number, as the flight model reads one.
 double Capability(float value)
 {
 	return value > 0.0f && std::isfinite(value) ? double{value} : 0.0;
 }
+
 
 // A turn of the angle about the axis, in the ship's axes, as rates a share of each axis's most: at
 // the rate the turn can still be stopped from at a share of the angular acceleration, about the
@@ -103,6 +108,7 @@ glm::vec3 Turn(
 	}
 	return demand;
 }
+
 
 // The controls that fly the velocity: with assist, a share of maxSpeed along each of the ship's
 // axes, and a turn of the nose (-Z) towards it about the axis square to both, at the rate the turn
@@ -150,11 +156,13 @@ Physics::FlightControls Controls(
 	return controls;
 }
 
+
 std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *frame = registry.try_get<Physics::LocalFrame>(entity);
 	return frame ? std::string_view{frame->body} : std::string_view{};
 }
+
 
 void RefuseDestination(Sim::SimWorld &world, const Sim::Controller &sender, entt::entity ship)
 {
@@ -162,12 +170,14 @@ void RefuseDestination(Sim::SimWorld &world, const Sim::Controller &sender, entt
 }
 } // namespace
 
+
 glm::dvec3 Seek(const Agent &agent, const glm::dvec3 &target)
 {
 	const glm::dvec3 way = target - agent.position;
 	const double distance = glm::length(way);
 	return distance > 0.0 ? way * (agent.maxSpeed / distance) : glm::dvec3{0.0};
 }
+
 
 glm::dvec3 Arrive(const Agent &agent, const glm::dvec3 &target, const glm::dvec3 &targetVelocity)
 {
@@ -178,6 +188,7 @@ glm::dvec3 Arrive(const Agent &agent, const glm::dvec3 &target, const glm::dvec3
 	const double speed = std::min(agent.maxSpeed, ClosingSpeed(distance, agent.maxAcceleration));
 	return targetVelocity + way * (speed / distance);
 }
+
 
 glm::dvec3 Avoid(
     const Agent &agent, const glm::dvec3 &desired, std::span<const Obstacle> obstacles,
@@ -245,6 +256,7 @@ glm::dvec3 Avoid(
 	return HeldTo(velocity, agent.maxSpeed);
 }
 
+
 glm::dvec3 Separate(const Agent &agent, std::span<const Obstacle> neighbours, double separation)
 {
 	glm::dvec3 push{0.0};
@@ -259,6 +271,7 @@ glm::dvec3 Separate(const Agent &agent, std::span<const Obstacle> neighbours, do
 	}
 	return HeldTo(push, agent.maxSpeed);
 }
+
 
 Steering &Steering::Attach(
     Sim::SimWorld &world, const Physics::PhysicsWorld &physics, const Spatial::SystemIndices &indices)
@@ -308,6 +321,7 @@ Steering &Steering::Attach(
 	return *steering;
 }
 
+
 glm::dvec3 Steering::HullLimited(
     std::uint64_t system, entt::entity ship, std::string_view shape, const Sim::Transform &at,
     const Agent &agent, const glm::dvec3 &velocity, const glm::dvec3 &target, double clearance) const
@@ -330,6 +344,7 @@ glm::dvec3 Steering::HullLimited(
 	return speed > allowed ? velocity * (allowed / speed) : velocity;
 }
 
+
 double Steering::Radius(std::string_view shape)
 {
 	const auto found = m_radii.find(shape);
@@ -337,6 +352,7 @@ double Steering::Radius(std::string_view shape)
 		return found->second;
 	return m_radii.emplace(std::string{shape}, m_physics.ShapeRadius(shape)).first->second;
 }
+
 
 void Steering::Step(Sim::SimWorld &world)
 {

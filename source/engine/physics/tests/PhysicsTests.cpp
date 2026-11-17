@@ -30,6 +30,7 @@ constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
 const std::uint64_t kVesper = Sim::SystemId("Vesper");
 
+
 ShapeDefinition Box(glm::vec3 halfExtents)
 {
 	ShapeDefinition shape;
@@ -38,6 +39,7 @@ ShapeDefinition Box(glm::vec3 halfExtents)
 	return shape;
 }
 
+
 ShapeDefinition Sphere(float radius)
 {
 	ShapeDefinition shape;
@@ -45,6 +47,7 @@ ShapeDefinition Sphere(float radius)
 	shape.radius = radius;
 	return shape;
 }
+
 
 // A square wall across x = 10, 40 m on a side, facing back along -x, where the bodies come from.
 ShapeDefinition Wall()
@@ -56,6 +59,7 @@ ShapeDefinition Wall()
 	shape.indices = {0, 2, 1, 0, 3, 2};
 	return shape;
 }
+
 
 Body Dynamic(std::string shape, float mass = 1000.0f)
 {
@@ -75,6 +79,7 @@ struct Fixture
 	{
 	}
 
+
 	static Physics::PhysicsWorld &Setup(
 	    Sim::SimWorld &world, std::function<void(Sim::SimWorld &)> before)
 	{
@@ -91,6 +96,7 @@ struct Fixture
 		return physics;
 	}
 
+
 	entt::entity Add(
 	    const Body &body, const glm::dvec3 &position, const glm::vec3 &velocity = glm::vec3{0.0f},
 	    std::uint64_t system = kHalcyon)
@@ -106,16 +112,20 @@ struct Fixture
 		return entity;
 	}
 
+
 	void Run(double seconds)
 	{
 		for (long step = 0; step < std::lround(seconds / kStep); ++step)
 			world.Step();
 	}
 
+
 	const glm::dvec3 &Position(entt::entity entity) const
 	{
 		return world.Registry().get<Sim::Transform>(entity).position;
 	}
+
+
 	const glm::vec3 &Linear(entt::entity entity) const
 	{
 		return world.Registry().get<Velocity>(entity).linear;
@@ -125,6 +135,7 @@ struct Fixture
 	Physics::PhysicsWorld &physics;
 };
 } // namespace
+
 
 TEST_CASE("Physics: every kind of shape is built, and one that describes none is refused by name")
 {
@@ -180,6 +191,7 @@ TEST_CASE("Physics: every kind of shape is built, and one that describes none is
 	CHECK_FALSE(physics.HasShape("torn"));
 }
 
+
 TEST_CASE("Physics: shapes are definitions a mod can override")
 {
 	const std::filesystem::path directory =
@@ -210,6 +222,7 @@ TEST_CASE("Physics: shapes are definitions a mod can override")
 	CHECK(physics.HasShape("crate"));
 	std::filesystem::remove_all(directory);
 }
+
 
 TEST_CASE("Physics: two bodies meet, and part as their restitution has them")
 {
@@ -244,6 +257,7 @@ TEST_CASE("Physics: two bodies meet, and part as their restitution has them")
 	CHECK(fixture.Position(thrown).x < 9.0);
 	CHECK(fixture.Position(thrown).x > 8.0);
 }
+
 
 TEST_CASE("Physics: a kinematic station on its orbit stops a ship that flies into it")
 {
@@ -285,6 +299,7 @@ TEST_CASE("Physics: a kinematic station on its orbit stops a ship that flies int
 	CHECK(fixture.Linear(ship).x == doctest::Approx(kOrbitalSpeed).epsilon(1e-4));
 }
 
+
 TEST_CASE("Physics: what the game writes between steps is what the body takes")
 {
 	Fixture fixture;
@@ -325,6 +340,7 @@ TEST_CASE("Physics: what the game writes between steps is what the body takes")
 	CHECK(fixture.Position(ship).x < registry.get<Sim::Transform>(barrier).position.x + 10.0);
 }
 
+
 TEST_CASE("Physics: a body is in its system's world, and leaves it with its entity or its system")
 {
 	Fixture fixture;
@@ -361,6 +377,7 @@ TEST_CASE("Physics: a body is in its system's world, and leaves it with its enti
 	CHECK(fixture.physics.Systems().empty());
 }
 
+
 TEST_CASE("Physics: a body that cannot be made is refused before the step changes anything")
 {
 	Fixture fixture;
@@ -396,6 +413,7 @@ TEST_CASE("Physics: a body that cannot be made is refused before the step change
 	    std::invalid_argument);
 	CHECK_THROWS_AS(Physics::PhysicsWorld::Attach(fixture.world), std::logic_error);
 }
+
 
 TEST_CASE("Physics: a system full of bodies refuses the next")
 {

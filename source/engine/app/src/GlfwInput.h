@@ -50,13 +50,17 @@ class GlfwInput
 {
   public:
 	GlfwInput() = default;
+
 	GlfwInput(const GlfwInput &) = delete;
+
 	GlfwInput &operator=(const GlfwInput &) = delete;
+
 	~GlfwInput();
 
 	// After the ImGui backend has installed its callbacks, so the wheel's, the keys', the buttons' and
 	// the text's come first and pass on to it. Detach puts the backend's back, before the window goes.
 	void Attach(GLFWwindow *window);
+
 	void Detach();
 
 	// Which device each binding's joystick number reads (Input::JoystickMap), from the next feed; with
@@ -65,17 +69,20 @@ class GlfwInput
 	{
 		m_pJoysticks = joysticks;
 	}
+
 	// The joysticks plugged in now, by slot, with their GUIDs.
 	std::vector<Input::JoystickDevice> ConnectedJoysticks() const;
 
 	// mouseCaptured is the UI's claim on the mouse (ImGui's WantCaptureMouse): the wheel scrolls a
 	// window under the cursor, not the camera behind it.
 	void Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCaptured = false);
+
 	// The window's events since the last take (WindowEvent).
 	std::vector<WindowEvent> TakeEvents()
 	{
 		return std::exchange(m_events, {});
 	}
+
 	// Where the cursor was at the last feed, in window pixels from the top left; none before the
 	// first.
 	std::optional<glm::dvec2> Cursor() const
@@ -85,8 +92,11 @@ class GlfwInput
 
   private:
 	static void OnScroll(GLFWwindow *window, double x, double y);
+
 	static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mods);
+
 	static void OnMouseButton(GLFWwindow *window, int button, int action, int mods);
+
 	static void OnChar(GLFWwindow *window, unsigned int codepoint);
 
 	GLFWwindow *m_pWindow{nullptr};

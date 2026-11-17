@@ -65,12 +65,14 @@ class StringTable
 	{
 		return m_language;
 	}
+
 	// The languages with tables under strings/, sorted.
 	static std::vector<std::string> Languages(const Vfs::FileSystem &files);
 
 	// The key's text, or nothing, without counting it missing: for text that falls back to the
 	// game's data, as a good's name falls back to its definition's.
 	std::optional<std::string_view> Find(std::string_view key) const;
+
 	// The key's text, or the key, counted and logged once, when no table has it.
 	std::string_view Text(std::string_view key) const;
 
@@ -80,6 +82,7 @@ class StringTable
 	{
 		return FormatText(key, Text(key), std::make_format_args(args...));
 	}
+
 	// The form of the key for the count, key.one or key.few, as the language's plural rule has it for
 	// a whole number (the CLDR's), or key.other when the table has no such form; the count is {0}
 	// and the arguments follow it.
@@ -93,7 +96,9 @@ class StringTable
 	// reason's are: at most kMaxArguments, past which the rest are left out and the call counted as
 	// a problem. Plural's count chooses the form and is not itself an argument.
 	static constexpr std::size_t kMaxArguments = 8;
+
 	std::string FormatArguments(std::string_view key, std::span<const std::string> arguments) const;
+
 	std::string PluralArguments(
 	    std::string_view key, std::int64_t count, std::span<const std::string> arguments) const;
 
@@ -110,6 +115,7 @@ class StringTable
 	{
 		return m_texts.size();
 	}
+
 	// Keys asked for that no table has, and translations refused.
 	std::size_t Problems() const
 	{
@@ -123,10 +129,13 @@ class StringTable
   private:
 	std::string FormatText(
 	    std::string_view key, std::string_view text, std::format_args arguments) const;
+
 	std::string_view PluralText(std::string_view key, std::int64_t count) const;
+
 	// The text as it is, for a call it does not format, logged and counted once.
 	std::string Unformatted(
 	    std::string_view key, std::string_view text, const std::format_error &error) const;
+
 	std::string FormatSpan(
 	    std::string_view key, std::string_view text, std::span<const std::string> arguments) const;
 

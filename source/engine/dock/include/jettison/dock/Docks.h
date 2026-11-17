@@ -325,17 +325,23 @@ class Docks
 
 	// The physics shapes a hull's and a layout's bodies name: "hulls/<name>", "stations/<name>".
 	static std::string HullShape(std::string_view hull);
+
 	static std::string StationShape(std::string_view layout);
 
 	// A hull and a layout, checked (CheckHull, CheckLayout), and their shapes defined in physics.
 	// Throws Serialise::FormatError for one that does not fit, and std::invalid_argument for a name
 	// already defined.
 	void DefineHull(std::string name, HullDefinition hull);
+
 	void DefineLayout(std::string name, StationLayout layout);
+
 	// Every HullDefinition and StationLayout the registry has loaded.
 	void Define(const Sim::DefinitionRegistry &definitions);
+
 	const HullDefinition *FindHull(std::string_view name) const;
+
 	const StationLayout *FindLayout(std::string_view name) const;
+
 	// A defined layout's roads, made as it was defined.
 	const RoadGraph *FindRoads(std::string_view layout) const;
 
@@ -358,49 +364,72 @@ class Docks
 	}
 
 	void Request(Sim::SimWorld &world, const RequestPad &command);
+
 	void Release(Sim::SimWorld &world, const ReleasePad &command);
+
 	void Step(Sim::SimWorld &world);
 
 	// The smallest free pad the ship's hull fits, the lowest numbered of those, or none.
 	entt::entity FreePadFor(
 	    const entt::registry &registry, const Station &station, entt::entity ship) const;
+
 	// Gives each ship in the station's queue, from the front, the smallest free pad it fits. The
 	// time is the one the world's transforms are at: the step's start in a command, its end in the
 	// system.
 	void Serve(Sim::SimWorld &world, entt::entity station, double time);
+
 	void Give(Sim::SimWorld &world, entt::entity ship, entt::entity pad, double time);
+
 	// Frees the ship's pad or its place, lets it go if it is clamped, takes away its business with
 	// the station and, if the docks flew it, its destination; and says so if asked to.
 	void GiveUp(Sim::SimWorld &world, entt::entity ship, bool announce);
+
 	// The destinations of each stage the docks fly a ship through.
 	void FlyInbound(Sim::SimWorld &world, entt::entity ship, double time);
+
 	void FlyDown(Sim::SimWorld &world, entt::entity ship);
+
 	void FlyUp(Sim::SimWorld &world, entt::entity ship);
+
 	// A ship its pilot flies, lifted off its pad by its own thrusters, straight up at the lift's speed
 	// against the station; and whether it is kLiftHeight off it.
 	static void Lift(entt::registry &registry, entt::entity ship);
+
 	bool Lifted(const entt::registry &registry, entt::entity ship) const;
+
 	bool InClampReach(const entt::registry &registry, entt::entity ship) const;
+
 	void Clamp(Sim::SimWorld &world, entt::entity ship, double time);
+
 	void Unclamp(Sim::SimWorld &world, entt::entity ship);
 
 	// Each station's deck, step 5 (Deck.cpp).
 	void WorkDecks(Sim::SimWorld &world, double time);
+
 	void DriveBuggy(Sim::SimWorld &world, entt::entity buggy, const std::vector<entt::entity> &others);
+
 	void ArriveBuggy(Sim::SimWorld &world, entt::entity buggy);
+
 	void PlaceBuggy(Sim::SimWorld &world, entt::entity buggy, double time);
+
 	void SendBuggies(Sim::SimWorld &world, entt::entity station, double time);
+
 	void MoveParked(Sim::SimWorld &world, entt::entity ship);
+
 	// Where the ship's hatch is on the deck, in the station's axes, as it is clamped to its pad.
 	glm::dvec3 HatchOnDeck(const entt::registry &registry, entt::entity ship) const;
+
 	// The length of a pad's road from its bay to that hatch.
 	double RoadLength(const RoadGraph &roads, const PadRoad &road, const glm::dvec3 &hatch) const;
 
 	const PadLayout &PadOf(const entt::registry &registry, const Pad &pad) const;
+
 	const HullDefinition *HullOf(const entt::registry &registry, entt::entity ship) const;
+
 	// How high above the pad, along its normal, a ship clears the station's sphere, its own hull and
 	// its clearance beyond that: the point it comes down from and lifts to.
 	double AboveHeight(const entt::registry &registry, entt::entity ship, const Pad &pad) const;
+
 	// Where a ship of the hull rests on the pad: its centre half its height above the deck, in the
 	// pad's axes.
 	static double RestingHeight(const HullDefinition &hull);

@@ -22,11 +22,13 @@ SystemIndices &SystemIndices::Attach(Sim::SimWorld &world, const Octree::Setting
 	return *indices;
 }
 
+
 const SpatialIndex *SystemIndices::Find(std::uint64_t system) const
 {
 	const auto found = m_indices.find(system);
 	return found == m_indices.end() ? nullptr : &found->second;
 }
+
 
 std::vector<std::uint64_t> SystemIndices::Systems() const
 {
@@ -36,6 +38,7 @@ std::vector<std::uint64_t> SystemIndices::Systems() const
 		systems.push_back(system);
 	return systems;
 }
+
 
 void SystemIndices::Update(const entt::registry &registry)
 {

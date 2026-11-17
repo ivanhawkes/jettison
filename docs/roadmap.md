@@ -171,6 +171,12 @@ player's report of a problem needs and the shell does not write.
   thrusting. The plain smoke test and the shell's checks under it would run in seconds; the
   reference frames stay on lavapipe, whose images they are, the sanitised smoke test too, since
   NVIDIA's driver fails under ASan, and so does CI. Not yet placed.
+- **The dock-sequence reference drifts under load** (the user's, 2026-11-18). One gate run, with
+  the machine loaded by the clang processes of an earlier stopped run, found `dock-sequence` 12,383
+  pixels off (of 518 allowed), the camera and textures shifted as if at another moment of the
+  blend; the same build passed with none on a rerun. A reference frame is meant to be the same to
+  the byte every run, so the sequence or its capture likely advances on wall-clock time rather
+  than a fixed step. Not yet placed.
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, so its reports
   reach only the default stderr sink. The run's reports (pass timings, the cluster check, the
   benchmark) went through `Log.h` on 2026-11-17; the failure report, usage line and teardown stay on
