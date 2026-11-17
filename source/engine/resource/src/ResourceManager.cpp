@@ -146,7 +146,6 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 	}
 
 
-	// Hands the slot's current value, if it has one, to the loader's retire before it is dropped.
 	static void Retire(const Pool &pool, Slot &slot) noexcept
 	{
 		if (slot.value && pool.loader->retire)
