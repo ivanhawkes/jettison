@@ -63,7 +63,7 @@ struct RendererOptions
 	bool depthPrepass{false};
 	// Ambient occlusion, and bloom's strength (0 for none), until the dev tools change them. Without a
 	// word either way, ambient occlusion is on, except on a CPU device: it runs the depth prepass,
-	// which in the dressed orbit scene costs lavapipe 11 ms of a 50 ms budget (docs/roadmap.md, 10c).
+	// which in the dressed orbit scene costs lavapipe 11 ms of a 50 ms budget (docs/history.md, 10c).
 	std::optional<bool> ambientOcclusion;
 	float bloom{0.04f};
 	// Part of the name of the GPU to draw with (--gpu), in place of the one the renderer would choose
@@ -71,9 +71,10 @@ struct RendererOptions
 	std::string gpu;
 };
 
-// The renderer as the rest of the engine sees it (docs/architecture.md, "Rendering"): the window it
-// draws into, the frame of a scene, the UI drawn over it, and what the frame cost. No Vulkan type
-// crosses it; the backend's objects are made and destroyed behind it (render/src/vulkan).
+// The renderer as the rest of the engine sees it (docs/architecture.md, "Rendering: clustered
+// forward"): the window it draws into, the frame of a scene, the UI drawn over it, and what the
+// frame cost. No Vulkan type crosses it; the backend's objects are made and destroyed behind it
+// (render/src/vulkan).
 //
 // Nothing behind it releases a GPU object in a destructor: Destroy does, in order, after the last
 // frame's fence.

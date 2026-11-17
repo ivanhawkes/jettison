@@ -47,6 +47,7 @@ MeshData Ring(int segments, float innerRadius, const glm::vec3 &color);
 // A cylinder of radius one from y = -1 to 1, `segments` around, with flat caps. The side has a seam
 // of duplicated vertices so u wraps; the caps have vertices of their own, for their normals.
 MeshData Cylinder(int segments, const glm::vec3 &color);
+
 // One level of a shape's detail: the mesh, and its geometric error, the furthest its surface strays
 // from the shape it stands for, in the unit shape's own units. The renderer draws the coarsest level
 // whose error, scaled by the transform and projected, covers less than its threshold in pixels.
@@ -56,9 +57,9 @@ struct MeshLod
 	float error{0.0f};
 };
 
-// A shape's levels of detail, finest first, each about half the resolution of the one before; the
-// finest is the resolution the scene drew every shape at before levels of detail. A box has the one
-// level, which is exact. `innerRadius` is the ring's, from 0 to 1, and the other shapes ignore it.
+// A shape's levels of detail, finest first, each about half the resolution of the one before. A box
+// has the one level, which is exact. `innerRadius` is the ring's, from 0 to 1, and the other shapes
+// ignore it.
 std::vector<MeshLod> GenerateLods(Scene::Shape shape, const glm::vec3 &color, float innerRadius = 0.5f);
 
 // How far inside the unit sphere a mesh whose vertices lie on it reaches: one less the nearest any of

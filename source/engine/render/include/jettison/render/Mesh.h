@@ -1,8 +1,8 @@
 #pragma once
 
-// GL Math. GLM's configuration macros are set on the glm target in source/external, not here:
-// they have to precede the first GLM include in every translation unit, which a header set
-// them in can only do for the files that include it first.
+// GLM's configuration macros are set on the glm target in source/external, not here: they have to
+// precede the first GLM include in every translation unit, which a header set them in can only do
+// for the files that include it first.
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 

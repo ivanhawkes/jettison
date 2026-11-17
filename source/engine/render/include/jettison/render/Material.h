@@ -13,10 +13,10 @@
 
 namespace Jettison::Render
 {
-// Materials are data (docs/architecture.md, "Rendering"): a file names a shader program, sets its
-// parameters, fills its texture slots, and may drive parameters from time. The program says what
-// it takes in a descriptor beside its SPIR-V, shaders/<program>.program.yaml, so a material is
-// checked against the program it names when it loads, not when it draws.
+// Materials are data (docs/architecture.md, "Rendering: clustered forward"): a file names a shader
+// program, sets its parameters, fills its texture slots, and may drive parameters from time. The
+// program says what it takes in a descriptor beside its SPIR-V, shaders/<program>.program.yaml, so
+// a material is checked against the program it names when it loads, not when it draws.
 //
 // On the device every scene program shares one layout: set 1 holds kMaterialTextureSlots combined
 // image samplers, in the program's slot order, and a material's parameters are vec4s in the
