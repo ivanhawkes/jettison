@@ -35,9 +35,9 @@ jobs:
       - name: Restore clang-tidy cache
         uses: actions/cache@v4
         with:
-          # The stage's 786 s of a 2 732 s gate is the cold sweep of all 252 units (docs says
-          # build-and-gates.md, "clang-tidy"); the cache answers it, and post-if: always() so a run
-          # that fails on findings still saves the units that came out clean.
+          # The stage's 786 s of a 2 732 s gate is the cold sweep of all 252 units
+          # (docs/build-and-gates.md, "clang-tidy"); the cache answers it, and post-if: always() so
+          # a run that fails on findings still saves the units that came out clean.
           path: ${{ github.workspace }}/.tidy-cache
           key: tidy-${{ runner.os }}-${{ hashFiles('.clang-tidy') }}-${{ github.sha }}
           restore-keys: |

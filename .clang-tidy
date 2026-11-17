@@ -53,9 +53,9 @@ Checks: >
 # against the house style rather than finding defects. readability-braces-around-statements
 # asked for 167 brace additions, readability-redundant-member-init for 80 removals of
 # explicit {} initialisation, and performance-enum-size 14 ABI suggestions about enums this
-# engine passes to Vulkan, where the size is not ours to choose. The one check I removed as
-# a duplicate is readability-implicit-virtual-destructor: -Wnon-virtual-dtor, which the
-# compiler runs, already says it.
+# engine passes to Vulkan, where the size is not ours to choose. The one check removed as a
+# duplicate is readability-implicit-virtual-destructor: -Wnon-virtual-dtor, which the compiler
+# runs, already says it.
 HeaderFilterRegex: 'source/(engine|tools|samples|test)/.*'
 
 WarningsAsErrors: ''

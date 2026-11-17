@@ -14,8 +14,7 @@
 # Keep the parentheses: find's -print binds to the last -name alone, so a pipeline
 # ending '-name "*.h" -o -name "*.cpp" -print' lists the .cpp files, the gate sees no
 # headers, and header drift passes every check. The gate itself is git ls-files based,
-# which cannot make that mistake, and it skips source/test/ImGuiMain.cpp (the dead
-# ImGui sample program, excluded from the build).
+# which cannot make that mistake.
 BasedOnStyle: Microsoft
 AlignAfterOpenBracket: AlwaysBreak
 AllowShortBlocksOnASingleLine: Always
