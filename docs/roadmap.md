@@ -29,7 +29,7 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   moves up a model.
 - **Done when** every module is through, the gate is green, and `coding-standards.md`'s test holds
   in a spot check of each tier.
-- **Progress:** `vfs` through (2026-11-18), for the user's review before the rest; then
+- **Progress:** `vfs` through (2026-11-18) and reviewed by the user; then
   `math`, `celestial`, `spatial`, `script`, `serialise` and `dock` (2026-11-18). Contracts tier
   still to do: `sim`, `physics`, `ai`, and the other modules' public headers.
 
