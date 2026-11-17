@@ -14,7 +14,7 @@ namespace Jettison::Core
 // Layered configuration: engine defaults, then the user settings file, then the command line,
 // each overriding the one before. Keys are dotted paths ("render.vsync", "audio.music"); in a file
 // each segment is a level of a YAML map. Values are stored as text and read as the type asked
-// for. Settings and keybindings are stored apart from saves (docs/roadmap.md, entry 25); where
+// for. Settings and keybindings are stored apart from saves (docs/history.md, entry 25); where
 // the user file lives is the platform module's answer (Paths::config), not this class's.
 //
 // Not thread-safe: it is read and written on the main thread.
