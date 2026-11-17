@@ -77,10 +77,10 @@ class OverlayRenderer;
 //
 // What the CPU writes each frame lives once per frame in flight: the frame constants, the skin
 // palette, the light list, the material parameters, and the command buffer that reads them; and
-// what the cluster check copies out. A frame
-// slot's fence is waited on before any of them is touched, so nothing a submission in flight reads is
-// ever rewritten. The render targets are one set, shared by the frames in flight, because the pass
-// list's barriers order each frame's first use of a target after the last frame's last use.
+// what the cluster check copies out. A frame slot's fence is waited on before any of them is
+// touched, so nothing a submission in flight reads is ever rewritten. The render targets are one
+// set, shared by the frames in flight, because the pass list's barriers order each frame's first
+// use of a target after the last frame's last use.
 class Renderer
 {
   public:

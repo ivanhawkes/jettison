@@ -1,6 +1,5 @@
 #include "vulkan/DeviceContext.h"
 
-// GLFW / Vulkan.
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -615,10 +614,8 @@ void DeviceContext::WaitOnWindowResized() const
 	int width{0};
 	int height{0};
 
-	// Initially test the size...
 	glfwGetFramebufferSize(m_pWindow->GetGLFWWindow(), &width, &height);
 
-	// Idle here until it's got a sensible values.
 	while (width == 0 || height == 0)
 	{
 		glfwGetFramebufferSize(m_pWindow->GetGLFWWindow(), &width, &height);
@@ -663,7 +660,6 @@ VkFormat DeviceContext::FindSupportedFormat(
 VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
     const std::vector<VkFormat> &candidates, VkColorSpaceKHR requestedColourSpace)
 {
-	// Discover what surface formats are available.
 	uint32_t availableCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &availableCount, nullptr);
 	std::vector<VkSurfaceFormatKHR> availableFormats;
@@ -691,13 +687,11 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 		}
 		else
 		{
-			// No point in searching another format.
 			return availableFormats[0];
 		}
 	}
 	else
 	{
-		// Request several formats, the first found will be used
 		for (VkFormat candidate : candidates)
 		{
 			for (uint32_t availableIndex = 0; availableIndex < availableCount; availableIndex++)
@@ -708,7 +702,6 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 			}
 		}
 
-		// If none of the requested image formats could be found, use the first available
 		return availableFormats[0];
 	}
 }
@@ -736,7 +729,6 @@ VkFormat DeviceContext::FindShadowFormat()
 
 VkPresentModeKHR DeviceContext::FindSupportedPresentMode(const std::vector<VkPresentModeKHR> candidates)
 {
-	// Discover what surface present modes are available.
 	uint32_t availableCount = 0;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &availableCount, nullptr);
 	std::vector<VkPresentModeKHR> availableModes;
@@ -753,7 +745,7 @@ VkPresentModeKHR DeviceContext::FindSupportedPresentMode(const std::vector<VkPre
 		}
 	}
 
-	// This mode is always available.
+	// The one mode every surface is required to have.
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 

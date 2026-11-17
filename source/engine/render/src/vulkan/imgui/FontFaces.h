@@ -40,8 +40,8 @@ struct DevToolFaces
 
 // Reads the faces through the assets' mounts — from a pack as from a directory — rasterised at
 // `size` (ImGuiRenderer::kFontSize, which is the size the theme's spacing is set against), names
-// them, and sets `io.FontDefault` to the UI face. A face the asset tree does not have is skipped,
-// as it always has been; `m_pMono` and `m_pUi` answer null when there is none, which is how a run
-// with no fonts and every test without faces draws: the UI face is then ImGui's own default.
+// them, and sets `io.FontDefault` to the UI face. A face the asset tree does not have is skipped;
+// `m_pMono` and `m_pUi` answer null when there is none, which is how a run with no fonts and every
+// test without faces draws: the UI face is then ImGui's own default.
 DevToolFaces LoadDevToolFaces(const Vfs::FileSystem &assets, float size);
 } // namespace Jettison::Render

@@ -84,8 +84,8 @@ struct RenderState
 
 // A program is a name: "mesh" is shaders/mesh.vert.spv and shaders/mesh.frag.spv, found through
 // the asset tree's mounts, so a mod can ship a program over the base one; a depth-only program,
-// such as "shadow_depth", is its vertex stage alone. The layout is the
-// renderer's, made once for its lifetime, so keying on its handle cannot outlive it.
+// such as "shadow_depth", is its vertex stage alone. The layout is the renderer's, made once for
+// its lifetime, so keying on its handle cannot outlive it.
 struct PipelineKey
 {
 	std::string program;

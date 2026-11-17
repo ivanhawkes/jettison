@@ -2,8 +2,7 @@
 // console reads them, with the face the UI draws in named rather than ordered. Measured here
 // because both facts are the runtime's, not a test's: a face loaded from memory has no name, and
 // the default face is the first one added, so a test that loads from a file and reads Fonts.back()
-// misses both (the cross-review of the theme found this, and the console's mono face and the UI's
-// face were the two facts it broke).
+// misses both.
 #include <imgui.h>
 
 #include <doctest.h>

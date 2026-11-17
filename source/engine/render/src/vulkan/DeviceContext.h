@@ -386,8 +386,7 @@ class DeviceContext
 	VkSurfaceFormatKHR FindSupportedSurfaceFormat(
 	    const std::vector<VkFormat> &candidates, VkColorSpaceKHR requestedColourSpace);
 
-	// Request a certain mode and confirm that it is available. If not use VK_PRESENT_MODE_FIFO_KHR
-	// which is mandatory
+	// The first of the candidates the surface offers, or else FIFO, which every surface has.
 	VkPresentModeKHR FindSupportedPresentMode(const std::vector<VkPresentModeKHR> candidates);
 
   private:

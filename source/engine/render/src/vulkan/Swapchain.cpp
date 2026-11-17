@@ -1,6 +1,5 @@
 #include "vulkan/Swapchain.h"
 
-// GLFW / Vulkan.
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -39,7 +38,8 @@ void Swapchain::Create()
 	extent.width = std::max(extent.width, 1u);
 	extent.height = std::max(extent.height, 1u);
 
-	// Get a reasonable amount of swapchain images.
+	// One more than the minimum, so an acquire need not wait for the driver to release an image; a
+	// maximum of 0 is no limit.
 	m_minImageCount = swapChainSupport.capabilities.minImageCount;
 	m_maxImageCount = swapChainSupport.capabilities.maxImageCount;
 	m_imageCount = m_minImageCount + 1;

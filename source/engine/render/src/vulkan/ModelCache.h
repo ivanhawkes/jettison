@@ -28,8 +28,7 @@ class MaterialCache;
 // resource: decoded on the I/O worker, uploaded by its loader's finish, reloaded when its file
 // changes, and keyed on its virtual path. A procedural shape is made here on first use, keyed on its
 // shape, colour and inner radius. Neither is keyed on an address, so a scene reload that frees one
-// model and makes another where it was cannot be mistaken for the old one: the cache that once was
-// keyed so needed the scene to count its reloads and the device to idle on each.
+// model and makes another where it was cannot be mistaken for the old one.
 //
 // Nothing a frame in flight may read is freed on the spot. A model that a reload replaced, or that no
 // scene draws any more, hands its buffers to a queue that waits out kFramesInFlight frames, and its

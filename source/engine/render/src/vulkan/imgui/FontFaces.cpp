@@ -17,7 +17,7 @@ namespace
 // Latin, Greek and Cyrillic, so the UI face needs no fallback for the words a log line holds; Hack
 // is the mono face of the Menlo and Consolas class that stack names, and is the face the console
 // looks for by name (devtools/Views.cpp). The names after the first in each list are what an asset
-// pack that ships no Hack, say, has instead: a missing face is skipped, as it always has been.
+// pack that ships no Hack, say, has instead: a missing face is skipped.
 constexpr std::array<const char *, 3> kMonoFaces{
     "Hack-Regular.ttf", "Cousine-Regular.ttf", "VeraMono.ttf"};
 constexpr std::array<const char *, 3> kUiFaces{
