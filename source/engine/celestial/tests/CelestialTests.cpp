@@ -144,7 +144,6 @@ TEST_CASE("Orbit: inclination tilts the plane about the ascending node, towards 
 TEST_CASE("Orbit: the phase of a long clock keeps its precision, and a period later is the same place")
 {
 	const OrbitalElements orbit = LowOrbit();
-	// A century of simulation seconds.
 	const double century = 100.0 * 365.25 * 86400.0;
 	const double turns = std::floor(century / orbit.period);
 	const double t = turns * orbit.period;

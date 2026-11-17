@@ -17,8 +17,8 @@ struct StarSystem;
 // the star systems, each at a position in light years, and whose edges are the jump lanes, each lane
 // joining a jump point in one system to a jump point in another, travelled either way. A ship
 // travels between systems only along a lane, through a gate at each end, and the distance between
-// the systems it joins is what its toll is reckoned by. Route planning over it is the AI's (phase
-// 9a); this is the graph and its file.
+// the systems it joins is what its toll is reckoned by. Route planning over it is the AI's; this
+// is the graph and its file.
 
 // A star system as the galaxy knows it: its name, which is the name its system file gives it, and
 // where its files are, by virtual path.
@@ -89,7 +89,6 @@ struct Exit
 // Registers GalaxySystem, LaneEnd, JumpLane and Galaxy with Reflect. Idempotent.
 void RegisterGalaxyTypes();
 
-// The galaxy file's version, which ReadGalaxy expects and WriteGalaxy writes.
 inline constexpr std::uint32_t kGalaxyFormatVersion = 1;
 
 // Checks the graph and fills in the ends' system indices, in one place that the reader and a
@@ -98,8 +97,8 @@ inline constexpr std::uint32_t kGalaxyFormatVersion = 1;
 // each naming a jump point; no jump point the end of two lanes, so a jump point says where it
 // leads; positions finite; transit times and the toll per light year not negative. Fills in each
 // lane's toll from its length. Throws Serialise::FormatError naming the galaxy and the system or the
-// lane. Whether each jump point is one in its system's file is CheckJumpPoints',
-// since this reads no system file.
+// lane. Whether each jump point is one in its system's file is CheckJumpPoints', since this reads no
+// system file.
 void Resolve(Galaxy &galaxy);
 
 // A galaxy file (YAML, through Serialise::YamlArchive) read and resolved, and its writer.

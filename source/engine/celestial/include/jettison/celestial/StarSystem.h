@@ -56,7 +56,6 @@ struct StarSystem
 // Registers BodyKind, OrbitalElements, Rotation, Body and StarSystem with Reflect. Idempotent.
 void RegisterTypes();
 
-// The system file's version, which ReadStarSystem expects and WriteStarSystem writes.
 inline constexpr std::uint32_t kStarSystemFormatVersion = 1;
 
 // Checks the hierarchy and fills in what data may leave out, in one place that the reader and a

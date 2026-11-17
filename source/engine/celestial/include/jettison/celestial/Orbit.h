@@ -49,9 +49,9 @@ glm::dvec3 Evaluate(const OrbitalElements &elements, double simSeconds);
 
 OrbitState EvaluateState(const OrbitalElements &elements, double simSeconds);
 
-// A body's spin: rotationPeriod seconds per sidereal day about its axis (negative for
-// retrograde), the axis tilted axialTilt radians from +Y about +X, at rotationAtEpoch radians at
-// simulation time 0. A zero period does not rotate.
+// A body's spin: period seconds per sidereal day about its axis (negative for retrograde), the
+// axis tilted axialTilt radians from +Y about +X, at angleAtEpoch radians at simulation time 0. A
+// zero period does not rotate.
 struct Rotation
 {
 	double period{0.0};

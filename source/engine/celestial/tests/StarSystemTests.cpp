@@ -95,7 +95,6 @@ TEST_CASE("Star system: a written system reads back as the same system")
 		CHECK(again.bodies[index].orbit.period == system.bodies[index].orbit.period);
 		CHECK(again.bodies[index].parentIndex == system.bodies[index].parentIndex);
 	}
-	// The runtime index is not part of the file.
 	CHECK(written.find("parentIndex") == std::string::npos);
 }
 
@@ -120,7 +119,6 @@ TEST_CASE("Star system: a hierarchy that does not hold is refused, naming the bo
 	    Replace(kSystem, "    kind: Planet\n", "    kind: Planet\n    layout: yard\n"),
 	    "'World' names a layout, which only a station is built to");
 
-	// A child listed before its parent.
 	StarSystem system = ReadStarSystem(kSystem);
 	std::swap(system.bodies[1], system.bodies[2]);
 	CHECK_THROWS_WITH_AS(
