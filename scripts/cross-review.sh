@@ -23,8 +23,8 @@
 # Rounds are kept in build/reviews/<branch>/: brief.md, round-N.md (the review), round-N.log (the
 # reviewer's transcript), reply-N.md (the author's answer to round N) and scratch/, the reviewer's
 # reproductions. If JETTISON_REVIEW_WEBHOOK is set, or ~/.config/jettison/review-webhook holds a
-# Discord webhook URL, each round's verdict and finding titles are posted there. Exit status: 0 approved, 1 changes asked for, 2 usage, 3 the
-# review failed or changed the tree and was discarded.
+# Discord webhook URL, each round's verdict and finding titles are posted there. Exit status: 0
+# approved, 1 changes asked for, 2 usage, 3 the review failed or changed the tree and was discarded.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 root="$(pwd)"

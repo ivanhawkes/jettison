@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Headless smoke test: renders the scene through Vulkan, exercises two window resizes and
+# Headless smoke test: renders the scene through Vulkan, walks the shell's headless sequence
+# (resizes, a reload, flight, a pick, a save, a trade and a jump: app/src/SmokeSequence.cpp) and
 # shuts down with validation layers enabled, on a virtual X display and a software driver.
 #
 # The project builds GLFW Wayland-only by default, so a headless run needs the

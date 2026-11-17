@@ -126,7 +126,7 @@ def main():
     # file:line:col: severity: message [check] line, so the print is capped to these, and the whole
     # text goes to a file whose name is printed. A header's finding is reported by every unit that
     # includes it, so the cap runs over the distinct lines, as the count below does. --full prints
-    # everything, as it did before.
+    # everything.
     parser.add_argument("--show", type=int, default=20, help="distinct diagnostic lines printed in all")
     parser.add_argument("--full", action="store_true", help="print clang-tidy's whole output")
     parser.add_argument(

@@ -9,7 +9,7 @@
 #  --skip-smoke     Format + compile only (use when no display/driver is available)
 #  --skip-release   Skip the Release build and its tests (CI runs them; hooks usually do not need
 #                   them)
-#  --skip-tidy       Skip clang-tidy (it needs a configured Debug tree for its database)
+#  --skip-tidy      Skip clang-tidy (it needs a configured Debug tree for its database)
 #  --werror         Configure with JETTISON_WERROR=ON, so warnings fail the build
 #  --asan           Build clang-asan and run the smoke test (on lavapipe, whatever else is
 #                   asked), and the simulation's suites, under the sanitizers
@@ -22,8 +22,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # The suites are separate processes, each writing only under a temporary directory named for its
 # process, so they run side by side, at the machine's core count; CTEST_PARALLEL_LEVEL overrides.
-# Nothing is bounded to 2 any more, on CI or here: the bound was a crash workaround and the crashes
-# are taken to be the development machine's clock, not the load (docs/build-and-gates.md, "CI").
+# Nothing bounds them, on CI or here (docs/build-and-gates.md, "The gate", says why).
 jobs="${CTEST_PARALLEL_LEVEL:-$(nproc)}"
 
 preset="clang-debug"
