@@ -312,7 +312,6 @@ Status Behaviours::TickNode(
 		case NodeKind::Sequence:
 		case NodeKind::Selector:
 		{
-			// A sequence goes on past a success and a selector past a failure.
 			const Status onward = node.kind == NodeKind::Sequence ? Status::Success : Status::Failure;
 			status = onward;
 			for (auto next = static_cast<std::size_t>(states[index].memory);

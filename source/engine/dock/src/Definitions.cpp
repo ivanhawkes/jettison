@@ -114,7 +114,6 @@ bool Inside(const Box &box, const glm::dvec3 &point)
 }
 
 
-// The decks and piers together.
 std::vector<Box> Structure(const StationLayout &layout)
 {
 	std::vector<Box> boxes = layout.decks;

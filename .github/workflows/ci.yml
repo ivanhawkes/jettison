@@ -1,12 +1,11 @@
 name: ci
 
+# main only: a run is about 45 runner minutes, and every commit has already passed ci.sh locally.
+# A branch is run by hand before a merge (gh workflow run ci --ref <branch>).
 on:
   push:
     branches:
       - main
-      - feature-base
-      - "feature/**"
-  pull_request:
   workflow_dispatch:
 
 permissions:

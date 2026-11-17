@@ -668,6 +668,11 @@ It installs Nix on Ubuntu 24.04, enables the public `devenv` Cachix cache, insta
 and runs the gate in the shell described by `devenv.nix` and `devenv.lock`. It does not duplicate
 the toolchain with apt packages.
 
+It runs on a push to `main` and by hand (`gh workflow run ci --ref <branch>`), not on every
+branch push: a run is about 45 runner minutes against the free tier's allowance, and every commit
+has already passed the gate locally. What it adds is a clean checkout on another distribution, so
+a branch is run by hand before it merges.
+
 **Status.** The gate passes locally in the locked devenv shell. The first GitHub run of the
 current workflow completed the builds, then failed when the smoke harness selected Ubuntu's
 `xvfb-run` wrapper. The harness now starts the shell's Xvfb directly, and that fix still needs
@@ -712,6 +717,7 @@ a GitHub run.
 **Checking CI from the command line.**
 
 ```bash
+gh workflow run ci --ref feature-base           # start a run; then the newest:
 gh run list --branch feature-base --limit 1
 gh run view <id> --json jobs -q '.jobs[].steps[] | select(.conclusion=="failure") | .name'
 gh run view <id> --log-failed | grep -E "<step name>" | grep -vE "\[\[36;1m" | tail -25

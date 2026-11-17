@@ -45,6 +45,13 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   earlier edits, and a class comment that had drifted onto the struct above it (`GlfwInput.h`).
   The tier is through. A comment-only commit skips the gate; `scripts/comment-only.sh` and the
   format check stand in for it.
+- **Done** 2026-11-18. The gate is green over the whole review (`--werror --asan`), but for
+  `dock-sequence` drifting under load (12,383 pixels, carried forward below), which three reruns
+  at idle matched with no pixel off. A spot check
+  of three files a tier (`BehaviourTree.cpp`, `dock/Definitions.cpp`, `PhysicsWorld.cpp`;
+  `AppArguments.cpp`, `EventSounds.cpp`, `AudioSystem.cpp`, a YAML patch, `time`'s CMake), and a
+  repository sweep for banners, labels and commented-out code, found two restatements, both cut;
+  the test holds. `Crash.cpp`'s two markers stay: they bound the signal handler's code.
 - **For later**, as the rule above says: `kFullTurn` (`animation/src/Playback.cpp`) as
   `glm::two_pi<float>()` and `kBelowOne` (`time/src/FixedStep.cpp`) as `kLargestBelowOne`
   (`std::nextafter` is constexpr only from C++23), each then needing no comment; and the trailing
@@ -196,7 +203,8 @@ player's report of a problem needs and the shell does not write.
   pixels off (of 518 allowed), the camera and textures shifted as if at another moment of the
   blend; the same build passed with none on a rerun. A reference frame is meant to be the same to
   the byte every run, so the sequence or its capture likely advances on wall-clock time rather
-  than a fixed step. Not yet placed.
+  than a fixed step. Seen again in the comment review's closing gate, the same 12,383 pixels, with
+  clang still running. Not yet placed.
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, so its reports
   reach only the default stderr sink. The run's reports (pass timings, the cluster check, the
   benchmark) went through `Log.h` on 2026-11-17; the failure report, usage line and teardown stay on
