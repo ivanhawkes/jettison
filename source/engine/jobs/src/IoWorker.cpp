@@ -28,9 +28,7 @@ struct Finished
 struct IoWorker::State
 {
 	std::mutex mutex;
-	// Woken by Enqueue and by the stop request.
 	std::condition_variable_any workAvailable;
-	// Woken when the worker goes idle.
 	std::condition_variable_any idle;
 	std::deque<Item> pending;
 	std::deque<Finished> finished;
