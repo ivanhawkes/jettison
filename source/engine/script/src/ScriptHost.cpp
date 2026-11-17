@@ -318,7 +318,6 @@ struct ScriptHost::Impl
 {
 	ScriptHost &host;
 	std::map<std::string, std::unique_ptr<Script>, std::less<>> scripts;
-	// Which script answers each input.
 	std::map<std::string, Script *, std::less<>> answers;
 	// Every script's keys, loaded or not.
 	ScriptStore store;

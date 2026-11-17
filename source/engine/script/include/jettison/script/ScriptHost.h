@@ -147,7 +147,6 @@ class ScriptHost
 	// Gives the event to each script with a handler for its type, in the scripts' name order.
 	void Dispatch(const Sim::SimEvent &event);
 
-	// Whether a loaded script answers the input.
 	bool Answers(std::string_view input) const;
 
 	// The input from the script that answers it, which may ask game for the option's other inputs;

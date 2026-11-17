@@ -21,9 +21,10 @@ jettison_add_module(script
 		tests/ScriptTests.cpp
 )
 
-# The suite's modules, compiled from tests/scripts against the bindings the suite's own types generate
-# (checked there, as tests/scripts/jettison_script.h and jettison_script.rs): built with the tree rather than as the suite's
-# dependency, so a change to the types still builds the suite that says the header is out of date.
+# The suite's modules, compiled from tests/scripts against the bindings the suite's own types
+# generate (checked there, as tests/scripts/jettison_script.h and jettison_script.rs): built with
+# the tree rather than as the suite's dependency, so a change to the types still builds the suite
+# that says the header is out of date.
 if(TARGET jettison_script_tests)
 	set(script_test_modules "${CMAKE_CURRENT_BINARY_DIR}/test-scripts")
 	# Rust, as scripts are written for the shell, and the host API's module in C as well, the same

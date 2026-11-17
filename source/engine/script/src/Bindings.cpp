@@ -201,7 +201,6 @@ bool IsEnumerator(const entt::meta_type &type, std::uint64_t bits)
 }
 
 
-// The engine's object for the field, through Reflect's address of it.
 void *FieldIn(const FieldLayout &field, void *pObject)
 {
 	return Reflect::AddressOf(field.field, pObject);
@@ -214,7 +213,6 @@ const void *FieldIn(const FieldLayout &field, const void *pObject)
 }
 
 
-// The sequence over an object of a vector type, through which its elements are read and added.
 entt::meta_sequence_container Sequence(const entt::meta_type &type, const void *pObject)
 {
 	return type.from_void(pObject).as_sequence_container();
