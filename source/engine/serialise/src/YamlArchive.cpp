@@ -34,7 +34,6 @@ constexpr std::string_view kVersionKey = "version";
 constexpr std::string_view kAppendTag = "!append";
 constexpr std::string_view kMergeTag = "!merge=";
 
-//
 // Numbers are formatted and parsed here rather than by yaml-cpp, whose stream conversions write
 // a fixed precision and accept what a stream accepts. std::to_chars writes the shortest text
 // that reads back to the same value, and std::from_chars must consume the whole scalar.
@@ -285,7 +284,6 @@ class Reader
 	}
 
 
-	// Data of another version is migrated by the chain when there is one, and refused when not.
 	void Root(
 	    entt::meta_any &value, const YAML::Node &document, FormatVersion expected,
 	    const YamlMigrations *migrations)

@@ -74,10 +74,11 @@ class UnsupportedTypeError : public std::logic_error
 	}
 };
 
-// Reflection-driven archives. The value is a class registered with Reflect; it is written field
-// by field, Saved fields only, in registration order, and read back the same way. The loader and
-// the writer are one pair, tested as a round trip: the scene's loader once refused a file its own
-// writer had produced. YAML for authored content, binary for saves.
+// The reflection-driven archives below, YamlArchive and BinaryArchive. The value is a class
+// registered with Reflect; it is written field by field, Saved fields only, in registration order,
+// and read back the same way. The loader and the writer are one pair, tested as a round trip: the
+// scene's loader once refused a file its own writer had produced. YAML for authored content,
+// binary for saves.
 //
 // A field's type is one of:
 //   bool, the integer types, float, double, std::string;
@@ -94,6 +95,7 @@ class UnsupportedTypeError : public std::logic_error
 //
 // The version sits beside the root's fields in YAML (version: 1, then the fields, as the scene
 // format already has it), so the root type cannot save a field named "version".
+
 // One layer of a document read in layers (YamlArchive::ReadLayered): its name, which its errors
 // carry, and its text.
 struct YamlLayer
