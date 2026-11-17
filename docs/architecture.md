@@ -991,7 +991,7 @@ and no part of the shuttle, so this reference is re-captured with the theme (`ca
 committed frames with a 2 % fuzz, all nine that are not `dock-sequence` land at nil pixels, and
 `dock-sequence` is byte for byte the committed frame — the 12 383 the gate read for it is that view's
 own sensitivity to load, 14 516 pixels in one of three runs with twelve busy loops running and nil in
-two at idle, against a 518-pixel allowance, which is the gate's to answer for and not the theme's
+two at idle, against the 518-pixel allowance of the time, which is the gate's to answer for and not the theme's
 ([build and gates](build-and-gates.md#reference-frames)). The game UI's own stylesheet is untouched,
 and left to match the palette by its own work ([carried forward](roadmap.md#carried-forward)).
 

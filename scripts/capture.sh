@@ -9,9 +9,11 @@
 #
 # The reference frames are the views source/test/frames/views.txt lists, one a line: a name, then
 # render_test's arguments, a | standing for a space within one. Each view is captured and compared
-# with source/test/frames/<name>.png, and the run fails if more than one pixel in a thousand
-# differs by more than 2% (another machine's lavapipe rounds a little differently), or if the
-# validation layer reported anything; the frames and their differences are kept in the build tree.
+# with source/test/frames/<name>.png, and the run fails if any pixel differs by more than 2%
+# (another machine's lavapipe rounds a little differently), or if the validation layer reported
+# anything; the frames and their differences are kept in the build tree. A capture is the same
+# frame on any load (docs/build-and-gates.md, "Reference frames"), so a pixel past the fuzz is a
+# change: one in a thousand, the allowance until 2026-11-18, hid stale references of up to 112.
 # --update writes the references instead, and is how a change that is meant to change a frame
 # records it. Names after --references take those views alone.
 #
@@ -69,7 +71,9 @@ capture() {
 	shift 2
 	local user status=0
 	user="$(mktemp -d "${TMPDIR:-/tmp}/jettison-capture-user.XXXXXX")"
-	env DISPLAY="$HEADLESS_DISPLAY" "$executable" --window "$window" --no-sound --user-dir "$user" \
+	# llvmpipe's vector width pinned to what it picks here, so a runner with wider vectors compiles
+	# the same shaders.
+	env DISPLAY="$HEADLESS_DISPLAY" LP_NATIVE_VECTOR_WIDTH=256 "$executable" --window "$window" --no-sound --user-dir "$user" \
 		--frame-step 0.0166666666666667 --after-frames "$frames" --screenshot "$out" "$@" \
 		>"$log" 2>&1 || status=$?
 	rm -rf "$user"
@@ -148,8 +152,7 @@ for index in "${!names[@]}"; do
 		status=1
 		continue
 	fi
-	read -r width height < <(magick identify -format '%w %h\n' "$out_dir/$name.png")
-	allowed=$((width * height / 1000))
+	allowed=0
 	differing="$(magick compare -metric AE -fuzz 2% "$frames_dir/$name.png" "$out_dir/$name.png" \
 		"$out_dir/$name-diff.png" 2>&1 >/dev/null || true)"
 	differing="${differing%% *}"

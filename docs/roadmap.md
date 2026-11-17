@@ -71,8 +71,9 @@ its materials' textures were asked for a frame late. `ResourceOptions::settleLoa
 out-of-date acquire recreates and draws, and the `dock-sequence` reference was recorded again a
 frame earlier. Exit as met: ten captures, five idle and five under 24 busy loops, each at frame
 34, and every view the same count idle and loaded ([build and gates](build-and-gates.md)). The
-residuals the other views carry (`effects` 112 pixels, the rest 5 or fewer) are now steady; the
-518-pixel allowance, tightened or kept, is the user's to decide. Codex's first round: a settled
+residuals the other views carried (`effects` 112 pixels, the rest 5 or fewer) were steady stale
+references, so at the user's word every view was recorded again and the allowance went from 518
+pixels to none, with llvmpipe's vector width pinned for other machines. Codex's first round: a settled
 `Update()` now loops until nothing is in flight, so a load a `finish` asks for settles too, which
 found `Finish` holding a slot that such a load could move (fixed, and `resource` joins the
 sanitised suites); and a shot is taken only once a frame has drawn it, should a retried acquire
@@ -219,6 +220,9 @@ player's report of a problem needs and the shell does not write.
   thrusting. The plain smoke test and the shell's checks under it would run in seconds; the
   reference frames stay on lavapipe, whose images they are, the sanitised smoke test too, since
   NVIDIA's driver fails under ASan, and so does CI. Not yet placed.
+- **A test of an acquire out of date twice** (the user's, 2026-11-18). `drawEveryFrame`'s recreate
+  loop and its failure after eight are not covered: it needs fault injection under the Vulkan
+  layer, which the engine does not have. Taken up when that branch is needed, if ever.
 - **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, so its reports
   reach only the default stderr sink. The run's reports (pass timings, the cluster check, the
   benchmark) went through `Log.h` on 2026-11-17; the failure report, usage line and teardown stay on

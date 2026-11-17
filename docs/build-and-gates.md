@@ -591,9 +591,13 @@ swapchain's, exact to the frame, and a console line given with `--run` places th
 ```
 
 The gate's reference-frames stage runs the views `source/test/frames/views.txt` lists, a name and
-`render_test`'s arguments a line, all at once on one display, and fails if more than one pixel in
-a thousand differs from its reference by more than 2% (another machine's lavapipe rounds a little
-differently), or if the validation layer reported anything. The frames and their differences are
+`render_test`'s arguments a line, all at once on one display, and fails if any pixel differs from
+its reference by more than 2% (another machine's lavapipe rounds a little differently), or if the
+validation layer reported anything. llvmpipe's vector width is pinned to 256 bits
+(`LP_NATIVE_VECTOR_WIDTH`), what it picks here, so a runner with wider vectors compiles the same
+shaders. Until 2026-11-18 a pixel in a thousand (518) was allowed; with captures the same on any
+load, that only hid stale references, `effects` 112 pixels behind the thrusters' plumes, so every
+view was recorded again and none is allowed. The frames and their differences are
 kept in `build/<preset>/frames`. The five views of phase 10a (the orbit scene as it opens, Ostra by
 day and by night, Corva and its rings, and the Vesper scene as it opens) took 23 seconds together
 on 2026-11-13, most of it each run transcoding the planet's maps on one thread; captured twice, no
@@ -613,7 +617,7 @@ follow the machine's timing instead, both found on `dock-sequence`, whose shot i
 animation and so the view a slip shows: a load requested and drained in one frame was seen at the
 next tick's start only when the I/O worker was slow, and the X server's first resize, arriving at
 its own time, made the renderer skip that frame's draw and so resolve its materials a frame late.
-Either moved the shot one frame, 12,383 pixels, 24 times the allowance. A fixed step now settles
+Either moved the shot one frame, 12,383 pixels, 24 times the allowance of the time. A fixed step now settles
 every load where it is drained (`ResourceOptions::settleLoads`, hot reload off), and an
 out-of-date acquire recreates the swapchain until the frame draws (`RendererOptions::drawEveryFrame`,
 eight recreates, then the run fails). Measured 2026-11-18: ten runs,
