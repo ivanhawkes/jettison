@@ -27,7 +27,6 @@ using Animation::AnimationPlayerComponent;
 using Animation::RotationAnimationComponent;
 using Reflect::Attribute;
 
-//
 // What the file says, field for field, where the scene's components hold it differently: a part an
 // entity may not have is an optional, so the archive leaves it out when it is absent and reads it as
 // present when the file names it. A component whose fields are the file's is registered as itself.
@@ -536,7 +535,7 @@ void CheckParticles(const ParticlesRecord &particles, const std::string &id)
 
 // Every rule a scene file is held to that its types do not already say, in one place: the loader
 // runs it on what it read and the writer on what it is about to write, so neither accepts what the
-// other refuses. The scene's loader and writer once each enforced a rule the other did not know.
+// other refuses.
 void Validate(const SceneDocument &document)
 {
 	if (document.system)

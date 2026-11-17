@@ -95,7 +95,6 @@ SkyComponent SkyOf(const Celestial::StarSystem &system)
 }
 
 
-// The entities, and every entity parented to one of them however far down, destroyed.
 void DestroyWithDescendants(Scene &scene, std::unordered_set<entt::entity> doomed)
 {
 	entt::registry &registry = scene.Registry();
