@@ -11,10 +11,10 @@ gameplay/content; Jettison provisions reusable engine capabilities after checkin
 current requirements. Small engine-local gameplay examples remain permitted for testing,
 but belong in explicit sample targets outside engine code and use public SDK interfaces.
 
-The implementation described below still mixes celestial assumptions into the scene's APIs;
-physics' star systems and the space transit AI are the `space` module's (W01), the snapshot's
-frames neutral (A01), and the sample's trading and content its own (H05). These are
-current coupling points, not the target boundary.
+Physics' star systems and the space transit AI are the `space` module's, and a star system's scene
+and the jump between two the `spacescene` module's (W01); the snapshot's frames are neutral (A01),
+and the sample's trading and content its own (H05). The dock's pad classes are still a closed
+enumeration, and no check yet holds the neutral modules to their dependencies (W01).
 Extract a neutral host, separate resources and generic modules, and make space services
 optional. No neutral engine target may depend on a sample or Manifest. Presentation
 must also work without celestial content. Preserve existing regressions through explicit
@@ -146,8 +146,9 @@ flowchart TB
     end
     subgraph T3[World]
         scene --> animation
-        scene --> celestial
         scene --> sim
+        spacescene --> scene
+        spacescene --> celestial
         sim; spatial; input
     end
     subgraph T4[Presentation and simulation services]
@@ -166,18 +167,19 @@ flowchart TB
 ```
 
 The World tier's listed sibling edges are `scene`'s: on `animation`, whose clip players its update
-drives, on `celestial`, whose star systems its system scenes are built from, and on `sim`, whose
-snapshots its traffic layer is made from (6b); and `spatial`'s on `sim` (9b), whose components its
+drives, and on `sim`, whose snapshots its proxies of the simulation's entities are made from
+(`scene/SimProxies.h`, 6b); `spacescene`'s, the space capability's presentation (W01), on `scene`
+and on `celestial`, whose star systems its system scenes and jump transitions are built from, which
+no neutral module depends on; and `spatial`'s on `sim` (9b), whose components its
 index of each system is kept from, by a simulation system. The scene reads `Sim::Snapshot` alone, never the
 world, and nothing in `sim` sees the scene. `render` depends on
 `scene` from the tier above, and reads it; the scene names no device. The Presentation tier's listed
 sibling edges are `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, a plain draw list in
 render's public headers, and decodes a document's images with render's CPU texture decoder; it
-includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9a): a
-ship coming out of a lane is put in a physics frame and stopped in it, and steering (9b) flies a
+includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9b): steering flies a
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
 `ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there, and on
-`space`, whose star systems its suites fly in. `space` is the optional space capability (W01): its
+`space`, whose cruise drive a hull defines and whose star systems its suites fly in. `space` is the optional space capability (W01): its
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
@@ -214,7 +216,7 @@ the key, `reason.dock.no_pad_fits`, so two modules cannot make the same one; pre
 in the player's language ([localisation](#localisation)). The step makes no English for the player,
 and a developer reads a reason as its key and arguments (`Sim::Describe`).
 
-A star system's presentation is a **system scene** (`scene/SystemScene.h`, 6b), built onto the
+A star system's presentation is a **system scene** (`spacescene/SystemScene.h`, 6b), built onto the
 scene from the system description, around whatever a scene file authored, and from the
 simulation's snapshots. Its content is in **layers**: the environment (bodies, stations, the sky:
 what the system places), traffic (the simulation's entities, through proxies a factory the game
@@ -242,7 +244,7 @@ credits, is the light years between its systems at the galaxy's toll per light y
 against the lanes that end in it when it is loaded.
 
 A jump replaces the system shown with another, behind an effect, without the frame loop stalling or
-the simulation stopping (`scene/JumpTransition.h`):
+the simulation stopping (`spacescene/JumpTransition.h`):
 
 1. The effect rises, a fade to black in the output pass, mixed in after tonemapping and under the
    UI. Meanwhile the destination's system file and scene file are read on the I/O worker.

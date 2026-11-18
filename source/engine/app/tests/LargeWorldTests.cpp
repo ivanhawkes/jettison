@@ -16,7 +16,7 @@
 #include <jettison/render/SceneView.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/SceneSystems.h>
-#include <jettison/scene/SystemScene.h>
+#include <jettison/spacescene/SystemScene.h>
 
 using namespace Jettison;
 
@@ -110,7 +110,7 @@ Errors Measure(entt::registry &scene, const Celestial::StarSystem &system, doubl
 	for (int frame = 0; frame < frames; ++frame)
 	{
 		const double time = startTime + frame * kStep;
-		Scene::PlaceCelestialBodies(scene, system, time);
+		SpaceScene::PlaceCelestialBodies(scene, system, time);
 		update.Update(scene, static_cast<float>(kStep));
 		Scene::UpdateOrbitCameras(scene, kStep);
 		const Render::CameraView camera = Render::ActiveCameraView(scene);
@@ -210,7 +210,7 @@ TEST_CASE(
 	orbit.pitch = std::asin(radial.y);
 	orbit.minDistance = 20.0;
 	scene.emplace<Scene::OrbitCameraComponent>(camera, std::move(orbit));
-	Scene::ResolveCelestialBodies(scene, system);
+	SpaceScene::ResolveCelestialBodies(scene, system);
 
 	// Three years into the clock, ten seconds of frames, the camera following the station at
 	// 7.7 km/s round a planet 150 million kilometres from its star.

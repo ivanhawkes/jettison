@@ -1,4 +1,4 @@
-#include <jettison/scene/SystemScene.h>
+#include <jettison/spacescene/SystemScene.h>
 
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -16,8 +16,26 @@
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
 
-namespace Jettison::Scene
+namespace Jettison::SpaceScene
 {
+using Scene::BuiltComponent;
+using Scene::CameraComponent;
+using Scene::CelestialBodyComponent;
+using Scene::Layer;
+using Scene::LayerComponent;
+using Scene::MeshComponent;
+using Scene::OrbitCameraComponent;
+using Scene::ParentComponent;
+using Scene::PlacementComponent;
+using Scene::SceneEntityId;
+using Scene::Shape;
+using Scene::SimProxyComponent;
+using Scene::SkyComponent;
+using Scene::SunComponent;
+using Scene::SyncSimProxies;
+using Scene::TransformComponent;
+
+
 namespace
 {
 using Celestial::BodyKind;
@@ -95,7 +113,7 @@ SkyComponent SkyOf(const Celestial::StarSystem &system)
 }
 
 
-void DestroyWithDescendants(Scene &scene, std::unordered_set<entt::entity> doomed)
+void DestroyWithDescendants(Scene::Scene &scene, std::unordered_set<entt::entity> doomed)
 {
 	entt::registry &registry = scene.Registry();
 	for (bool grew = true; grew;)
@@ -144,27 +162,6 @@ void PlaceCelestialBodies(
 }
 
 
-void SyncSimProxies(
-    entt::registry &presentation, const Sim::Snapshot &previous, const Sim::Snapshot &current,
-    double alpha)
-{
-	for (auto [entity, proxy, transform] :
-	     presentation.view<const SimProxyComponent, TransformComponent>().each())
-	{
-		const std::optional<Sim::Transform> shown =
-		    Sim::Interpolate(previous, current, proxy.simEntity, alpha);
-		if (!shown)
-			continue;
-		transform.translation = shown->position;
-		// The scene's rotation is Euler angles applied about x, then y, then z, which is the
-		// order extractEulerAngleXYZ reads them back in.
-		const glm::mat4 rotation = glm::mat4_cast(glm::quat{shown->orientation});
-		glm::extractEulerAngleXYZ(
-		    rotation, transform.rotation.x, transform.rotation.y, transform.rotation.z);
-	}
-}
-
-
 std::string BodyEntityId(std::string_view bodyName)
 {
 	std::string id;
@@ -186,7 +183,7 @@ std::string BodyEntityId(std::string_view bodyName)
 }
 
 
-SystemScene::SystemScene(Scene &scene, Celestial::StarSystem system)
+SystemScene::SystemScene(Scene::Scene &scene, Celestial::StarSystem system)
     : m_pScene{&scene}, m_system{std::move(system)}, m_systemId{Sim::FrameId(m_system.name)}
 {
 	try
@@ -384,4 +381,4 @@ void SystemScene::Unload()
 	m_proxies.clear();
 	m_declined.clear();
 }
-} // namespace Jettison::Scene
+} // namespace Jettison::SpaceScene

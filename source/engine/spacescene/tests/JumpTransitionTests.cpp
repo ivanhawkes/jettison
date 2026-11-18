@@ -1,4 +1,4 @@
-#include <jettison/scene/JumpTransition.h>
+#include <jettison/spacescene/JumpTransition.h>
 
 #include <doctest/doctest.h>
 
@@ -17,14 +17,14 @@
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
-#include <jettison/scene/SystemScene.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/sim/Stepper.h>
+#include <jettison/spacescene/SystemScene.h>
 #include <jettison/vfs/FileSystem.h>
 
 using namespace Jettison;
-using Scene::JumpStage;
+using SpaceScene::JumpStage;
 
 namespace
 {
@@ -59,7 +59,7 @@ struct Assets
 		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR});
 		resources.emplace(
 		    files, worker, Resource::ResourceOptions{.hotReload = false, .pollInterval = {}});
-		Scene::RegisterJumpLoaders(*resources);
+		SpaceScene::RegisterJumpLoaders(*resources);
 	}
 
 
@@ -85,14 +85,14 @@ struct Assets
 struct Shown
 {
 	Scene::Scene scene;
-	std::optional<Scene::SystemScene> systemScene;
+	std::optional<SpaceScene::SystemScene> systemScene;
 	Scene::ProxyFactory factory;
 	int shows{0};
 	float fadeAtShow{-1.0f};
 	std::string arrival;
 
 
-	void Show(Scene::JumpArrival &destination, float fade)
+	void Show(SpaceScene::JumpArrival &destination, float fade)
 	{
 		++shows;
 		fadeAtShow = fade;
@@ -111,7 +111,7 @@ constexpr double kFrame = 0.05;
 
 
 // Frames until the jump is over, at most a limit, recording each stage the frames were in.
-std::vector<JumpStage> RunJump(Scene::JumpTransition &jump, Assets &assets, int limit = 400)
+std::vector<JumpStage> RunJump(SpaceScene::JumpTransition &jump, Assets &assets, int limit = 400)
 {
 	std::vector<JumpStage> stages;
 	for (int frame = 0; frame < limit && jump.Active(); ++frame)
@@ -162,9 +162,10 @@ TEST_CASE("Jump: the effect covers the frame before the destination is shown, an
 {
 	Assets assets;
 	Shown shown;
-	Scene::JumpTransition *pJump = nullptr;
-	Scene::JumpTransition jump{
-	    *assets.resources, [&](Scene::JumpArrival &arrival) { shown.Show(arrival, pJump->Fade()); }};
+	SpaceScene::JumpTransition *pJump = nullptr;
+	SpaceScene::JumpTransition jump{
+	    *assets.resources,
+	    [&](SpaceScene::JumpArrival &arrival) { shown.Show(arrival, pJump->Fade()); }};
 	pJump = &jump;
 	CHECK(jump.Stage() == JumpStage::Idle);
 	CHECK(jump.Fade() == 0.0f);
@@ -212,10 +213,11 @@ TEST_CASE("Jump: the effect is held while the files are read, and while the dest
 {
 	Assets assets;
 	Shown shown;
-	Scene::JumpSettings settings;
+	SpaceScene::JumpSettings settings;
 	settings.streamTimeout = 1.0;
-	Scene::JumpTransition jump{
-	    *assets.resources, [&](Scene::JumpArrival &arrival) { shown.Show(arrival, 1.0f); }, settings};
+	SpaceScene::JumpTransition jump{
+	    *assets.resources, [&](SpaceScene::JumpArrival &arrival) { shown.Show(arrival, 1.0f); },
+	    settings};
 
 	// The worker is kept busy, so the files are still being read when the effect covers the frame.
 	std::promise<void> release;
@@ -237,7 +239,7 @@ TEST_CASE("Jump: the effect is held while the files are read, and while the dest
 	CHECK(jump.Stage() == JumpStage::Streaming);
 
 	// What the destination asked for is not in, so the effect stays over it until the timeout.
-	const auto pending = assets.resources->Load<Scene::TextFile>("systems/halcyon.yaml");
+	const auto pending = assets.resources->Load<SpaceScene::TextFile>("systems/halcyon.yaml");
 	for (int frame = 0; frame < 10; ++frame)
 	{
 		jump.Advance(kFrame);
@@ -261,7 +263,7 @@ TEST_CASE("Jump: the effect is held while the files are read, and while the dest
 		jump.Advance(kFrame);
 		assets.Settle();
 	}
-	const auto streamed = assets.resources->Load<Scene::TextFile>("systems/halcyon.yaml");
+	const auto streamed = assets.resources->Load<SpaceScene::TextFile>("systems/halcyon.yaml");
 	jump.Advance(kFrame);
 	jump.Advance(kFrame);
 	CHECK(jump.Stage() == JumpStage::Streaming);
@@ -278,8 +280,8 @@ TEST_CASE("Jump: a destination that fails is abandoned, and the effect lifts on 
 	Shown shown;
 	shown.scene.LoadSystem("systems/halcyon.yaml");
 	const std::uint64_t generation = shown.scene.Generation();
-	Scene::JumpTransition jump{
-	    *assets.resources, [&](Scene::JumpArrival &arrival) { shown.Show(arrival, 1.0f); }};
+	SpaceScene::JumpTransition jump{
+	    *assets.resources, [&](SpaceScene::JumpArrival &arrival) { shown.Show(arrival, 1.0f); }};
 
 	const auto abandons = [&](const Celestial::Galaxy &galaxy, std::size_t system, std::string arrival,
 	                          const char *message)
@@ -387,11 +389,12 @@ TEST_CASE(
 	Assets assets;
 	Shown shown;
 	shown.factory = [](entt::registry &presentation, entt::entity) { return presentation.create(); };
-	Scene::JumpSettings settings;
+	SpaceScene::JumpSettings settings;
 	settings.fadeOutSeconds = 0.5;
 	settings.fadeInSeconds = 0.5;
-	Scene::JumpTransition jump{
-	    *assets.resources, [&](Scene::JumpArrival &arrival) { shown.Show(arrival, 1.0f); }, settings};
+	SpaceScene::JumpTransition jump{
+	    *assets.resources, [&](SpaceScene::JumpArrival &arrival) { shown.Show(arrival, 1.0f); },
+	    settings};
 	const auto traffic = [&shown]
 	{
 		std::vector<entt::entity> entities;

@@ -1,4 +1,4 @@
-#include <jettison/scene/SystemScene.h>
+#include <jettison/spacescene/SystemScene.h>
 
 #include <doctest/doctest.h>
 
@@ -28,21 +28,6 @@ Celestial::StarSystem Halcyon()
 	std::stringstream text;
 	text << file.rdbuf();
 	return Celestial::ReadStarSystem(text.str());
-}
-
-
-bool Near(const glm::dmat4 &a, const glm::dmat4 &b)
-{
-	for (int column = 0; column < 4; ++column)
-	{
-		for (int row = 0; row < 4; ++row)
-		{
-			// Absolute: the translation is a trillion metres, held to the metre's fraction.
-			if (std::abs(a[column][row] - b[column][row]) > 1e-5)
-				return false;
-		}
-	}
-	return true;
 }
 
 
@@ -88,9 +73,9 @@ entities:
 
 TEST_CASE("System scene: a body's entity id is its name in lower case, hyphenated")
 {
-	CHECK(Scene::BodyEntityId("Ostra Highport") == "ostra-highport");
-	CHECK(Scene::BodyEntityId("  Halcyon  Gate-2 ") == "halcyon-gate-2");
-	CHECK(Scene::BodyEntityId("Pell") == "pell");
+	CHECK(SpaceScene::BodyEntityId("Ostra Highport") == "ostra-highport");
+	CHECK(SpaceScene::BodyEntityId("  Halcyon  Gate-2 ") == "halcyon-gate-2");
+	CHECK(SpaceScene::BodyEntityId("Pell") == "pell");
 }
 
 
@@ -100,7 +85,7 @@ TEST_CASE("System scene: a station built to no layout is drawn as a box the leng
 	const auto index = static_cast<std::size_t>(system.Find("Ostra Highport"));
 	system.bodies[index].layout.clear();
 	Scene::Scene scene;
-	Scene::SystemScene systemScene{scene, system};
+	SpaceScene::SystemScene systemScene{scene, system};
 	const entt::entity station = Named(scene.Registry(), "ostra-highport");
 	CHECK(scene.Registry().get<Scene::MeshComponent>(station).shape == Scene::Shape::Box);
 	CHECK(
@@ -115,14 +100,14 @@ TEST_CASE(
 	const Celestial::StarSystem system = Halcyon();
 	Scene::Scene scene;
 	scene.LoadSystem("systems/halcyon.yaml");
-	Scene::SystemScene systemScene{scene, system};
+	SpaceScene::SystemScene systemScene{scene, system};
 	entt::registry &registry = scene.Registry();
 
 	// An entity for every body, each built, each looking as its kind does.
 	CHECK(registry.view<const Scene::CelestialBodyComponent>().size() == system.bodies.size());
 	for (const Celestial::Body &body : system.bodies)
 	{
-		const entt::entity entity = Named(registry, Scene::BodyEntityId(body.name));
+		const entt::entity entity = Named(registry, SpaceScene::BodyEntityId(body.name));
 		REQUIRE(entity != entt::null);
 		CHECK(registry.get<Scene::CelestialBodyComponent>(entity).body == body.name);
 		CHECK(registry.all_of<Scene::BuiltComponent>(entity));
@@ -158,7 +143,8 @@ TEST_CASE(
 		update.Update(registry, 0.0f);
 		for (std::size_t body = 0; body < system.bodies.size(); ++body)
 		{
-			const entt::entity entity = Named(registry, Scene::BodyEntityId(system.bodies[body].name));
+			const entt::entity entity =
+			    Named(registry, SpaceScene::BodyEntityId(system.bodies[body].name));
 			CHECK(
 			    WorldPosition(registry, entity) == Celestial::EvaluateBody(system, body, time).metres);
 		}
@@ -183,7 +169,7 @@ TEST_CASE("System scene: the file's bodies are its own, and only the rest are bu
 	Scene::Scene scene;
 	scene.LoadText(kDressed);
 	const std::string authored = scene.SaveText();
-	Scene::SystemScene systemScene{scene, system};
+	SpaceScene::SystemScene systemScene{scene, system};
 	entt::registry &registry = scene.Registry();
 
 	CHECK(registry.view<const Scene::CelestialBodyComponent>().size() == system.bodies.size());
@@ -210,7 +196,7 @@ TEST_CASE("System scene: a scene of a system alone saves as that system and no e
 {
 	Scene::Scene scene;
 	scene.LoadSystem("systems/halcyon.yaml");
-	Scene::SystemScene systemScene{scene, Halcyon()};
+	SpaceScene::SystemScene systemScene{scene, Halcyon()};
 	const std::string text = scene.SaveText();
 	CHECK(text.find("system: systems/halcyon.yaml") != std::string::npos);
 	CHECK(text.find("halcyon-camera") == std::string::npos);
@@ -234,7 +220,7 @@ entities:
       body: Nowhere
 )");
 	CHECK_THROWS_WITH_AS(
-	    Scene::SystemScene(scene, system), doctest::Contains("'Nowhere'"), std::runtime_error);
+	    SpaceScene::SystemScene(scene, system), doctest::Contains("'Nowhere'"), std::runtime_error);
 
 	// An entity of the file has the id a built body would: refused, and nothing is built.
 	scene.LoadText(R"(version: 2
@@ -245,7 +231,7 @@ entities:
       translation: [1, 2, 3]
 )");
 	CHECK_THROWS_WITH_AS(
-	    Scene::SystemScene(scene, system), doctest::Contains("'pell'"), std::runtime_error);
+	    SpaceScene::SystemScene(scene, system), doctest::Contains("'pell'"), std::runtime_error);
 	CHECK(scene.Registry().view<const Scene::SceneEntityId>().size() == 1);
 	CHECK(scene.Registry().view<const Scene::BuiltComponent>().empty());
 }
@@ -258,7 +244,7 @@ TEST_CASE("System scene: a body's placement is its orbit, and the authored trans
 	const entt::entity station = scene.create();
 	scene.emplace<Scene::TransformComponent>(station);
 	scene.emplace<Scene::CelestialBodyComponent>(station, "Ostra Highport");
-	Scene::PlaceCelestialBodies(scene, system, 1234.5);
+	SpaceScene::PlaceCelestialBodies(scene, system, 1234.5);
 	const auto &placement = scene.get<Scene::PlacementComponent>(station);
 	const auto index = static_cast<std::size_t>(system.Find("Ostra Highport"));
 	CHECK(placement.position == Celestial::EvaluateBody(system, index, 1234.5).metres);
@@ -272,10 +258,10 @@ TEST_CASE("System scene: the sky is the system's own, the same every time it is 
 {
 	Scene::Scene first;
 	first.LoadSystem("systems/halcyon.yaml");
-	const Scene::SystemScene firstScene{first, Halcyon()};
+	const SpaceScene::SystemScene firstScene{first, Halcyon()};
 	Scene::Scene second;
 	second.LoadSystem("systems/halcyon.yaml");
-	const Scene::SystemScene secondScene{second, Halcyon()};
+	const SpaceScene::SystemScene secondScene{second, Halcyon()};
 	const auto sky = [](const Scene::Scene &scene)
 	{
 		const auto view = scene.Registry().view<const Scene::SkyComponent>();
@@ -288,7 +274,7 @@ TEST_CASE("System scene: the sky is the system's own, the same every time it is 
 	other.name = "Tessaly";
 	Scene::Scene third;
 	third.LoadSystem("systems/tessaly.yaml");
-	const Scene::SystemScene thirdScene{third, std::move(other)};
+	const SpaceScene::SystemScene thirdScene{third, std::move(other)};
 	CHECK(sky(third).seed != sky(first).seed);
 	CHECK(sky(third).bandNormal != sky(first).bandNormal);
 }
@@ -298,7 +284,7 @@ TEST_CASE("System scene: a hidden layer is not drawn, and children are in their 
 {
 	Scene::Scene scene;
 	scene.LoadText(kDressed);
-	Scene::SystemScene systemScene{scene, Halcyon()};
+	SpaceScene::SystemScene systemScene{scene, Halcyon()};
 	entt::registry &registry = scene.Registry();
 	const Scene::SceneUpdateSystem update;
 	systemScene.Place(0.0);
@@ -357,7 +343,7 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 {
 	Scene::Scene scene;
 	scene.LoadText(kDressed);
-	Scene::SystemScene systemScene{scene, Halcyon()};
+	SpaceScene::SystemScene systemScene{scene, Halcyon()};
 	entt::registry &registry = scene.Registry();
 	const std::size_t built = registry.view<const Scene::BuiltComponent>().size();
 
@@ -447,7 +433,7 @@ TEST_CASE("System scene: the traffic layer is this system's, and a ship that jum
 {
 	Scene::Scene scene;
 	scene.LoadSystem("systems/halcyon.yaml");
-	Scene::SystemScene systemScene{scene, Halcyon()};
+	SpaceScene::SystemScene systemScene{scene, Halcyon()};
 	entt::registry &registry = scene.Registry();
 	systemScene.SetProxyFactory([](entt::registry &presentation, entt::entity)
 	                            { return presentation.create(); });
@@ -497,39 +483,4 @@ TEST_CASE("System scene: the traffic layer is this system's, and a ship that jum
 	     registry.view<const Scene::SimProxyComponent, const Scene::TransformComponent>().each())
 		if (proxy.simEntity == elsewhere)
 			CHECK(transform.translation.x == 4.0e11);
-}
-
-
-TEST_CASE(
-    "System scene: a proxy shows its simulation entity's interpolated transform, in double precision")
-{
-	const auto ship = entt::entity{7};
-	const glm::dquat from = glm::angleAxis(0.2, glm::normalize(glm::dvec3{1.0, 2.0, 3.0}));
-	const glm::dquat to = glm::angleAxis(1.4, glm::normalize(glm::dvec3{-3.0, 1.0, 0.5}));
-	// A system position a float cannot hold to the metre: the scene keeps it whole.
-	const Sim::Snapshot previous{4, 0.4, {{ship, {{1.0e12, 2.0, -4.0}, from}}}, {}};
-	const Sim::Snapshot current{5, 0.5, {{ship, {{1.0e12 + 10.0, 4.0, -8.0}, to}}}, {}};
-
-	entt::registry presentation;
-	const entt::entity proxy = presentation.create();
-	presentation.emplace<Scene::SimProxyComponent>(proxy, ship);
-	presentation.emplace<Scene::TransformComponent>(proxy);
-	// A proxy whose entity the snapshots do not hold stays where it was.
-	const entt::entity orphan = presentation.create();
-	presentation.emplace<Scene::SimProxyComponent>(orphan, entt::entity{8});
-	presentation.emplace<Scene::TransformComponent>(orphan, glm::dvec3{1.0, 2.0, 3.0});
-
-	Scene::SyncSimProxies(presentation, previous, current, 0.25);
-	const auto &shown = presentation.get<Scene::TransformComponent>(proxy);
-	CHECK(shown.translation.x == 1.0e12 + 2.5);
-	CHECK(shown.translation.y == doctest::Approx(2.5));
-	CHECK(shown.translation.z == doctest::Approx(-5.0));
-	CHECK(presentation.get<Scene::TransformComponent>(orphan).translation == glm::dvec3{1.0, 2.0, 3.0});
-
-	// The Euler angles written are the ones the scene composes back into the same rotation.
-	Scene::SceneUpdateSystem{}.Update(presentation, 0.0f);
-	const glm::dquat expected{glm::quat{glm::slerp(from, to, 0.25)}};
-	const glm::dmat4 world =
-	    glm::translate(glm::dmat4{1.0}, glm::dvec3{1.0e12 + 2.5, 2.5, -5.0}) * glm::mat4_cast(expected);
-	CHECK(Near(presentation.get<Scene::WorldTransformComponent>(proxy).matrix, world));
 }

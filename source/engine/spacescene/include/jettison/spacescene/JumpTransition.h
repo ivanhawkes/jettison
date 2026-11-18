@@ -15,7 +15,7 @@ namespace Jettison::Resource
 class ResourceManager;
 }
 
-namespace Jettison::Scene
+namespace Jettison::SpaceScene
 {
 // A file's text, read on the I/O worker: what a jump reads its destination's files as. They are
 // parsed on the main thread. The archives read EnTT's meta context, which a registration on the
@@ -63,7 +63,7 @@ struct JumpArrival
 	Celestial::StarSystem starSystem;
 	// The scene file the galaxy names for the system; without one, the scene is the system alone
 	// (Scene::LoadSystem).
-	std::optional<SceneFile> sceneFile;
+	std::optional<Scene::SceneFile> sceneFile;
 	// The system file's virtual path, which the scene file names too.
 	std::string starSystemPath;
 	// The jump point the jump arrives at; empty for one that came along no lane.
@@ -172,4 +172,4 @@ class JumpTransition
 	Resource::ResourceHandle<TextFile> m_sceneFile;
 	std::optional<JumpArrival> m_arrival;
 };
-} // namespace Jettison::Scene
+} // namespace Jettison::SpaceScene

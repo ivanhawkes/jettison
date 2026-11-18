@@ -32,6 +32,7 @@ add_subdirectory(physics)
 add_subdirectory(ai)
 # The space capability over them, which no neutral module depends on.
 add_subdirectory(space)
+add_subdirectory(spacescene)
 add_subdirectory(dock)
 add_subdirectory(script)
 

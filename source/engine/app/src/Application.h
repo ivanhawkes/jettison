@@ -30,9 +30,7 @@
 #include <jettison/render/Clusters.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/FrameStats.h>
-#include <jettison/scene/JumpTransition.h>
 #include <jettison/scene/SceneSystems.h>
-#include <jettison/scene/SystemScene.h>
 #include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Reason.h>
@@ -41,6 +39,8 @@
 #include <jettison/sim/Stepper.h>
 #include <jettison/space/Gates.h>
 #include <jettison/space/Lanes.h>
+#include <jettison/spacescene/JumpTransition.h>
+#include <jettison/spacescene/SystemScene.h>
 #include <jettison/time/Clock.h>
 #include <jettison/ui/UiSystem.h>
 #include <jettison/vfs/FileSystem.h>
@@ -211,7 +211,7 @@ class Application final : private Shell
 
 	// The jump's swap, with its effect covering the frame: the scene replaced with the destination's,
 	// its system scene built, and the cameras on the jump point arrived at.
-	void ShowArrival(Scene::JumpArrival &arrival);
+	void ShowArrival(SpaceScene::JumpArrival &arrival);
 
 	void DrawUI();
 
@@ -669,7 +669,7 @@ class Application final : private Shell
 	// The scene of the star system the scene names, when it names one: its bodies placed on their
 	// orbits, the rest of what the system has built around the file's entities, and the traffic
 	// layer. Built on each load, after the scene, and released before it.
-	std::optional<Scene::SystemScene> m_systemScene;
+	std::optional<SpaceScene::SystemScene> m_systemScene;
 
 	// The galaxy a jump goes between; empty when the assets have none, and then nothing jumps. Its
 	// file's virtual path is what a save names it by.
@@ -702,7 +702,7 @@ class Application final : private Shell
 	// A jump from the system shown to another (docs/architecture.md, "Jumps"): made with the resource
 	// manager, which reads the destination's files, and released before it. The simulation steps
 	// through it as through any other frame; the step it began at is for its report.
-	std::optional<Scene::JumpTransition> m_jump;
+	std::optional<SpaceScene::JumpTransition> m_jump;
 	std::uint64_t m_jumpStep{0};
 	bool m_jumpWasActive{false};
 	// The emitter of a jump's streaks while its effect rises and lifts, in the scene shown.

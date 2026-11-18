@@ -53,7 +53,6 @@
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
-#include <jettison/scene/SystemScene.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
@@ -61,6 +60,7 @@
 #include <jettison/space/Lanes.h>
 #include <jettison/space/Routes.h>
 #include <jettison/space/StarSystemFrame.h>
+#include <jettison/spacescene/SystemScene.h>
 #include <jettison/spatial/SystemIndices.h>
 
 #include "Dressing.h"
@@ -1181,8 +1181,8 @@ void Application::InitResources()
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterSequenceLoader(*m_pResources);
 	m_sequences.emplace(*m_pResources);
-	Scene::RegisterJumpLoaders(*m_pResources);
-	m_jump.emplace(*m_pResources, [this](Scene::JumpArrival &arrival) { ShowArrival(arrival); });
+	SpaceScene::RegisterJumpLoaders(*m_pResources);
+	m_jump.emplace(*m_pResources, [this](SpaceScene::JumpArrival &arrival) { ShowArrival(arrival); });
 }
 
 
@@ -2074,7 +2074,7 @@ void Application::LogRoute(std::string_view systemName) const
 }
 
 
-void Application::ShowArrival(Scene::JumpArrival &arrival)
+void Application::ShowArrival(SpaceScene::JumpArrival &arrival)
 {
 	// What the old system scene built goes with the scene's old contents. The simulation did not
 	// change, so the stepper is not resynced: the traffic layer's proxies are made from the same
@@ -2708,7 +2708,7 @@ bool Application::BindStation()
 		return false;
 
 	// The station's hull, as the scene draws it.
-	const std::string shape = "stations/" + Scene::BodyEntityId(station->name);
+	const std::string shape = "stations/" + SpaceScene::BodyEntityId(station->name);
 	const std::optional<CollisionMesh> mesh = MakeCollisionMesh(scene, shown);
 	if (!mesh)
 	{
@@ -3210,8 +3210,9 @@ void Application::ShowJumpStreaks()
 	// The scene a jump arrives in is another, and the streaks the old one's.
 	if (!registry.valid(m_jumpStreaks))
 		m_jumpStreaks = entt::null;
-	const Scene::JumpStage stage = m_jump->Stage();
-	const bool streaking = stage == Scene::JumpStage::FadingOut || stage == Scene::JumpStage::FadingIn;
+	const SpaceScene::JumpStage stage = m_jump->Stage();
+	const bool streaking =
+	    stage == SpaceScene::JumpStage::FadingOut || stage == SpaceScene::JumpStage::FadingIn;
 	if (!m_jump->Active())
 	{
 		if (m_jumpStreaks != entt::null)

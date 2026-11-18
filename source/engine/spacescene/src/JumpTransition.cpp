@@ -1,4 +1,4 @@
-#include <jettison/scene/JumpTransition.h>
+#include <jettison/spacescene/JumpTransition.h>
 
 #include <algorithm>
 #include <exception>
@@ -11,8 +11,10 @@
 #include <jettison/core/Log.h>
 #include <jettison/resource/ResourceManager.h>
 
-namespace Jettison::Scene
+namespace Jettison::SpaceScene
 {
+using Scene::SceneFile;
+
 namespace
 {
 constexpr Core::Category kJump{"jump"};
@@ -230,4 +232,4 @@ void JumpTransition::ReleaseFiles()
 			*file = {};
 		}
 }
-} // namespace Jettison::Scene
+} // namespace Jettison::SpaceScene
