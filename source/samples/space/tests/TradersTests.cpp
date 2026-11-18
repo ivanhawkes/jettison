@@ -1,8 +1,8 @@
 #include "../src/Traders.h"
 #include "../src/Trading.h"
 #include "SampleGalaxy.h"
+#include "Stations.h"
 #include <jettison/app/Mounts.h>
-#include <jettison/app/Stations.h>
 
 #include <doctest/doctest.h>
 
@@ -62,7 +62,7 @@ TEST_CASE(
 		CHECK(galaxy.TraderOf(ship).good.empty());
 	}
 	// Corva's last free pad, a frigate, is all that is left for the traders that come to it.
-	const entt::entity corva = App::FindStation(registry, Sim::FrameId("Vesper"), "Corva Refinery");
+	const entt::entity corva = Sample::FindStation(registry, Sim::FrameId("Vesper"), "Corva Refinery");
 	std::size_t free = 0;
 	for (const entt::entity pad : registry.get<Dock::Station>(corva).pads)
 		free += registry.get<Dock::Pad>(pad).state == Dock::PadState::Free ? 1 : 0;

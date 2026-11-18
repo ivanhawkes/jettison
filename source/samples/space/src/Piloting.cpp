@@ -7,7 +7,7 @@
 #include <jettison/render/Procedural.h>
 #include <jettison/scene/Components.h>
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 namespace
 {
@@ -141,4 +141,4 @@ Physics::FlightControls PilotInput::Read(const Input::InputSystem &input) const
 	controls.angular = {input.Axis(m_pitch), input.Axis(m_yaw), input.Axis(m_roll)};
 	return controls;
 }
-} // namespace Jettison::App
+} // namespace Jettison::Sample

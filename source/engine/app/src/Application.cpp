@@ -4,7 +4,6 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/euler_angles.hpp>
 #include <imgui.h>
 
 #include <algorithm>
@@ -28,19 +27,13 @@
 #include <utility>
 #include <vector>
 
-#include <jettison/ai/BehaviourTree.h>
-#include <jettison/ai/Steering.h>
-#include <jettison/ai/UtilityAi.h>
 #include <jettison/animation/ClipFile.h>
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
-#include <jettison/celestial/StarSystem.h>
 #include <jettison/core/Assert.h>
 #include <jettison/core/Log.h>
 #include <jettison/core/Version.h>
-#include <jettison/dock/Docks.h>
 #include <jettison/jobs/IoWorker.h>
-#include <jettison/math/Random.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/platform/Crash.h>
@@ -53,22 +46,15 @@
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
+#include <jettison/scene/SimProxies.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
-#include <jettison/space/Cruise.h>
-#include <jettison/space/Lanes.h>
-#include <jettison/space/Routes.h>
-#include <jettison/space/StarSystemFrame.h>
-#include <jettison/spacescene/SystemScene.h>
-#include <jettison/spatial/SystemIndices.h>
 
-#include "Dressing.h"
 #include "Saves.h"
 #include <jettison/app/Game.h>
 #include <jettison/app/Mounts.h>
 #include <jettison/app/Reasons.h>
-#include <jettison/app/Stations.h>
 
 namespace Jettison::App
 {
@@ -83,47 +69,14 @@ constexpr int kSmokeWindowHeight = 480;
 // Frames a benchmark draws before it times any: the pipelines a material builds on its first draw,
 // the textures' uploads, and the driver's own warming up are not the frame it is measuring.
 constexpr std::uint32_t kBenchmarkWarmUp = 60;
-// What a jump's effect covers the frame with: black, so the frames it holds while the new system
-// loads are no brighter than space.
-constexpr glm::vec3 kJumpColor{0.0f};
-// And the flash it passes through on the way, rising and lifting: a blue-white over the frame at
-// half cover, darkening to black as it covers the rest.
-constexpr glm::vec3 kJumpFlash{0.72f, 0.84f, 1.0f};
-// The streaks a jump's effect draws past the camera as it rises and lifts: born within a sphere this
-// far ahead and this wide, at this speed towards it.
-constexpr double kStreaksAhead = 80.0;
-constexpr float kStreaksRadius = 30.0f;
-constexpr float kStreaksSpeed = 320.0f;
 constexpr Core::Category kShell{"shell"};
 // The scene a run of no --scene and no --system loads, by virtual path.
 constexpr std::string_view kDefaultScene = "scene/orbit.yaml";
 
-// The shell's ship, of the hull the game names (Game::StarterShip). At a station of no pads it holds
-// 150 m clear of the station's hull with its own, nose towards it. Its pilot plays in the first slot,
-// and its commands say so.
-constexpr double kShipStandOff = 150.0;
+// The player the shell's controls are for, in the first slot; their commands say so.
 constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
-
-// The most traffic the console sends to a station, and how fast it flies: a shuttle's full 150 m/s
-// crosses the ring's 2 km in a quarter of a minute, too fast to watch a ship give way.
-constexpr std::size_t kMostTraffic = 16;
-constexpr float kTrafficSpeed = 80.0f;
-
-
-// A place on the traffic's ring about a station, in its axes: about its Z, the axis its dock is
-// at the end of, so the ship holding off the dock is clear of every one.
-glm::dvec3 TrafficPlace(std::size_t place, double ring)
-{
-	const double angle = glm::two_pi<double>() * static_cast<double>(place) / kMostTraffic;
-	return {ring * std::cos(angle), ring * std::sin(angle), 0.0};
-}
 // How far a pick reaches: past any station a ship is flown by.
 constexpr double kPickDistance = 50000.0;
-// How long the camera eases into and out of the ship's rigs, and between them.
-constexpr double kPilotTransition = 1.5;
-constexpr double kViewTransition = 0.5;
-// The cinematic the ship landing on a pad plays (cinematics/dock.sequence.yaml).
-constexpr std::string_view kDockSequence = "dock";
 // The game UI's faces: Roboto for text, Hack for figures, and Droid Sans for a glyph neither has.
 constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/Roboto-Medium.ttf", false},
@@ -131,13 +84,8 @@ constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/DroidSans.ttf", true},
 }};
 
-// The shell's music, and the hum of the station the ship is bound to, each played from the content
-// where it has them: the hum heard at its full volume within a few hundred metres of the station's
-// centre, as a station is that size, and fading to a murmur two kilometres out.
+// The shell's music, played from the content where it has it.
 constexpr std::string_view kMusic = "audio/music/drift.flac";
-constexpr std::string_view kStationHum = "audio/effects/station-hum.wav";
-constexpr Audio::Falloff kStationHumFalloff{300.0f, 20000.0f, 1.0f};
-constexpr float kStationHumVolume = 0.6f;
 
 // The language the screens are in (StringTable), in the settings.
 constexpr std::string_view kLanguageKey = "ui.language";
@@ -149,8 +97,6 @@ std::string VolumeKey(Audio::Bus bus)
 	return std::format("audio.{}", Audio::BusName(bus));
 }
 
-constexpr Physics::FlightControls kSmokeFlight{{0.0f, 0.0f, -0.2f}, {0.0f, 0.05f, 0.1f}};
-
 
 // Minimizing is X11-only: on Wayland a minimized surface leaves the frame loop parked in
 // DeviceContext::WaitOnWindowResized until the window is restored, and a headless run cannot
@@ -159,37 +105,6 @@ constexpr Physics::FlightControls kSmokeFlight{{0.0f, 0.0f, -0.2f}, {0.0f, 0.05f
 bool CanIconifyWindow()
 {
 	return glfwGetPlatform() == GLFW_PLATFORM_X11;
-}
-
-
-// Each celestial body's orbit about where its parent is now, as the line its next revolution
-// traces: on rails, so the body is on its line in every frame, and a body off it is a bug in the
-// evaluation or in the placement.
-void DrawOrbits(
-    Render::DebugDraw &draw, const entt::registry &registry, const Celestial::StarSystem &system,
-    double time)
-{
-	constexpr std::size_t kPoints = 256;
-	for (const auto [entity, celestial] :
-	     registry.view<const Scene::CelestialBodyComponent>(entt::exclude<Scene::HiddenComponent>)
-	         .each())
-	{
-		const int index = system.Find(celestial.body);
-		if (index < 0)
-			continue;
-		const Celestial::Body &body = system.bodies[static_cast<std::size_t>(index)];
-		if (body.parentIndex < 0 || body.orbit.semiMajorAxis == 0.0)
-			continue;
-		const glm::dvec3 parent =
-		    Celestial::EvaluateBody(system, static_cast<std::size_t>(body.parentIndex), time).metres;
-		std::vector<glm::dvec3> points(kPoints);
-		for (std::size_t point = 0; point < kPoints; ++point)
-			points[point] =
-			    parent + Celestial::Evaluate(
-			                 body.orbit, time + body.orbit.period * static_cast<double>(point) /
-			                                        static_cast<double>(kPoints));
-		draw.Polyline(points, {0.3f, 0.8f, 1.0f, 0.6f}, true);
-	}
 }
 
 
@@ -266,11 +181,6 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	m_cameraLook = m_input.DefineAction("camera_look", Input::ActionType::Vector);
 	m_cameraNext = m_input.DefineAction("camera_next", Input::ActionType::Button);
 	m_cameraWheel = m_input.DefineAction("camera_wheel", Input::ActionType::Vector);
-	m_jumpNext = m_input.DefineAction("jump_next", Input::ActionType::Button);
-	m_pilot = m_input.DefineAction("pilot", Input::ActionType::Button);
-	m_shipNext = m_input.DefineAction("ship_next", Input::ActionType::Button);
-	m_shipPrevious = m_input.DefineAction("ship_previous", Input::ActionType::Button);
-	m_helm = m_input.DefineAction("helm", Input::ActionType::Button);
 	m_pickAction = m_input.DefineAction("pick", Input::ActionType::Button);
 	m_toggleSaves = m_input.DefineAction("toggle_saves", Input::ActionType::Button);
 	m_quickSave = m_input.DefineAction("quicksave", Input::ActionType::Button);
@@ -295,92 +205,17 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	m_input.Bind("shell", m_cameraLook, {{Input::Device::MouseAxis, 0}, {}, 1.0f, 0.0f, 0});
 	m_input.Bind("shell", m_cameraLook, {{Input::Device::MouseAxis, 1}, {}, 1.0f, 0.0f, 1});
 	m_input.Bind("shell", m_cameraNext, {Character('c')});
-	m_input.Bind("shell", m_jumpNext, {Character('j')});
 	m_input.Bind("shell", m_cameraWheel, {{Input::Device::MouseAxis, 3}});
-	m_input.Bind("shell", m_pilot, {Character('p')});
-	m_input.Bind("shell", m_pilot, {{Input::Device::GamepadButton, 7}});
-	m_input.Bind("shell", m_shipNext, {Character(']')});
-	m_input.Bind("shell", m_shipPrevious, {Character('[')});
-	m_input.Bind("shell", m_helm, {Character('h')});
 	m_input.Bind("shell", m_pickAction, {{Input::Device::MouseButton, 0}});
 	m_input.Bind("shell", m_toggleSaves, {Character('l')});
 	m_input.Bind("shell", m_quickSave, {Input::Keys::F5});
 	m_input.Bind("shell", m_quickLoad, {Input::Keys::F9});
-	m_pilotInput.emplace(m_input);
 	m_input.PushContext("shell");
 
 	m_console.CaptureLog();
 	m_console.RegisterCommand(
 	    "quit", "Closes the window and ends the run",
 	    [this](DevTools::Console &, std::span<const std::string>) { RequestClose(); });
-	m_console.RegisterCommand(
-	    "jump",
-	    "Jumps to the star system named, or out through the next lane, taking the ship along a "
-	    "lane as a tool, past the gate and its toll: jump [system]",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    std::string name;
-		    for (const std::string &word : arguments)
-			    name += (name.empty() ? "" : " ") + word;
-		    Jump(name);
-	    });
-	m_console.RegisterCommand(
-	    "cruise", "Sends the ship on a cruise to the body of its system named: cruise <body>",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    std::string name;
-		    for (const std::string &word : arguments)
-			    name += (name.empty() ? "" : " ") + word;
-		    if (!CanPilot())
-			    Core::Log(Core::Severity::Warning, kShell, "No cruise: no ship in the system shown");
-		    else
-			    m_sim.Commands().Push(Space::Cruise{kPilot, m_ship, name});
-	    });
-	m_console.RegisterCommand(
-	    "transit",
-	    "Asks a gate of the ship's system to clear it through, the one whose frame it is in unless "
-	    "another is named; flown through the ring, the gate sends it and charges the lane's toll: "
-	    "transit [gate]",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    std::string name;
-		    for (const std::string &word : arguments)
-			    name += (name.empty() ? "" : " ") + word;
-		    RequestTransit(name);
-	    });
-	m_console.RegisterCommand(
-	    "route", "Says the quickest way from the ship to the star system named: route <system>",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    std::string name;
-		    for (const std::string &word : arguments)
-			    name += (name.empty() ? "" : " ") + word;
-		    LogRoute(name);
-	    });
-
-	m_console.RegisterCommand(
-	    "traffic",
-	    "Sends shuttles to hold station about the ship's station, or takes them all away: traffic "
-	    "[count], 6 by default, 0 for none",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    int count = 6;
-		    if (!arguments.empty())
-		    {
-			    const auto [end, error] = std::from_chars(
-			        arguments[0].data(), arguments[0].data() + arguments[0].size(), count);
-			    if (error != std::errc{} || end != arguments[0].data() + arguments[0].size() ||
-			        count < 0)
-			    {
-				    Core::Log(
-				        Core::Severity::Warning, kShell, "traffic takes a count, not '{}'",
-				        arguments[0]);
-				    return;
-			    }
-		    }
-		    SpawnTraffic(count);
-	    });
-
 	m_console.RegisterCommand(
 	    "language",
 	    "Says the language the screens are in and those there are tables for, or reads them in "
@@ -470,7 +305,7 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 			    try
 			    {
 				    const Sim::SaveInfo info = Sim::SaveGame::ReadInfo(*bytes);
-				    const std::string_view system = info.Detail(kSystemDetail);
+				    const std::string_view system = info.Detail(kPlaceDetail);
 				    console.Print(
 				        std::format(
 				            "{}: step {} in {}, by engine {}", name, info.step,
@@ -535,56 +370,6 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 			    m_pAudio->StopMusic();
 	    });
 	m_console.RegisterCommand(
-	    "dock",
-	    "Asks the ship's station for a pad and flies the ship onto it, or leaves the landing to the "
-	    "pilot: dock [manual]",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    { RequestPad(arguments.empty() || arguments[0] != "manual"); });
-	m_console.RegisterCommand(
-	    "pilot",
-	    "Flies the ship from behind it or from its cockpit, or stops: pilot [chase|cockpit|off], "
-	    "chase by default",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    const std::string view = arguments.empty() ? "chase" : arguments[0];
-		    if (view == "off")
-			    StopPiloting();
-		    else if (view == "chase" || view == "cockpit")
-			    StartPiloting(view == "chase" ? Scene::PilotView::Chase : Scene::PilotView::Cockpit);
-		    else
-			    Core::Log(
-			        Core::Severity::Warning, kShell, "pilot takes chase, cockpit or off, not '{}'",
-			        view);
-	    });
-	m_console.RegisterCommand(
-	    "undock", "Lifts the ship 40 m off its pad and gives the pad up, or gives up one not landed on",
-	    [this](DevTools::Console &, std::span<const std::string>) { ReleasePad(); });
-	m_console.RegisterCommand(
-	    "fleet", "Lists the ships of the fleet: where each is, who flies it and what it holds",
-	    [this](DevTools::Console &console, std::span<const std::string>) { ListFleet(console); });
-	m_console.RegisterCommand(
-	    "attach",
-	    "Follows a ship of the fleet, by its number in the fleet's list, as ] and [ do: attach <n>",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    std::size_t number = 0;
-		    const auto [end, error] =
-		        arguments.size() == 1
-		            ? std::from_chars(
-		                  arguments[0].data(), arguments[0].data() + arguments[0].size(), number)
-		            : std::from_chars_result{nullptr, std::errc::invalid_argument};
-		    const std::vector<entt::entity> fleet = FleetOf(m_simStepper.Current(), kPilot);
-		    if (error != std::errc{} || end != arguments[0].data() + arguments[0].size() ||
-		        number == 0 || number > fleet.size())
-			    throw std::invalid_argument{
-			        std::format("takes a ship's number in the fleet, from 1 to {}", fleet.size())};
-		    Follow(fleet[number - 1]);
-	    });
-	m_console.RegisterCommand(
-	    "helm",
-	    "Takes the attached ship's helm, its behaviour standing down, or leaves it to trade, as H does",
-	    [this](DevTools::Console &, std::span<const std::string>) { ToggleHelm(); });
-	m_console.RegisterCommand(
 	    "screenshot", "Writes the next frame to a PNG, with the UI over it: screenshot <file.png>",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    {
@@ -640,8 +425,8 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	    [this](DevTools::Console &, std::span<const std::string> arguments) { SetGrade(arguments); });
 	m_console.RegisterCommand(
 	    "orbit",
-	    "Places the orbit camera at once, in radians and metres, about the celestial body named or "
-	    "the one it is on: orbit <yaw> <pitch> <distance> [body]",
+	    "Places the orbit camera at once, in radians and metres, about the target named or the one "
+	    "it is on: orbit <yaw> <pitch> <distance> [target]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { PlaceOrbitCamera(arguments); });
 
@@ -654,20 +439,13 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	m_sim.RegisterComponent<Sim::Transform>();
 	m_sim.RegisterComponent<Sim::InFrame>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
-	m_pLanes = &Space::LaneTravel::Attach(m_sim, *m_pPhysics);
-	m_pGates = &Space::Gates::Attach(m_sim, *m_pPhysics, *m_pLanes);
-	m_pCruises = &Space::CruiseTravel::Attach(m_sim, *m_pPhysics);
-	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
-	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
-	m_pDocks = &Dock::Docks::Attach(m_sim, *m_pPhysics);
-	m_pBehaviours = &Ai::Behaviours::Attach(m_sim);
 	m_sim.RegisterComponent<Sim::ControlledBy>();
-	// For what a reason says of a station or a gate, by its body's name (Reasons.h).
+	// For what a reason says of an entity on rails, by its body's name (Reasons.h).
 	m_sim.ShowInSnapshots<Physics::OnRails>();
-	// For the frame the ship flies in, which a cruise changes (ShipFrame).
+	// For the frame an entity's physics is in, which a game's presentation reads.
 	m_sim.ShowInSnapshots<Physics::LocalFrame>();
 	RegisterSavesScreenTypes();
-	m_pGame->Register(MakeShellWorld(), m_input);
+	m_pGame->Register(MakeShellWorld(), *this);
 	m_pGame->AddCommands(m_console, *this);
 	RegisterFrameSystems();
 }
@@ -701,17 +479,15 @@ void Application::RegisterFrameSystems()
 		     PollInput();
 	     }});
 
-	// The pilot's controls and the mouse's picks, as the commands the next step applies; a game's
-	// commands go here too.
+	// The mouse's picks, as the commands the next step applies; a game's commands go here too.
 	m_frame.Register(
-	    {"shell.flight",
+	    {"shell.pick",
 	     TickPhase::Commands,
 	     {},
 	     {},
 	     [this](entt::registry &, double)
 	     {
-		     JETTISON_PROFILE_ZONE("shell.flight");
-		     FlyShip();
+		     JETTISON_PROFILE_ZONE("shell.pick");
 		     if (m_clicked)
 			     Pick(*m_clicked);
 		     m_clicked.reset();
@@ -729,96 +505,32 @@ void Application::RegisterFrameSystems()
 		     JETTISON_PROFILE_PLOT("sim.steps", steps);
 	     }});
 
-	// A jump's stages, first in the sync phase: on the frame its effect covers the screen it replaces
-	// the scene, which the syncs after it then place and fill as they do any other.
-	m_frame.Register(
-	    {"scene.jump",
-	     TickPhase::Sync,
-	     {},
-	     {},
-	     [this](entt::registry &, double deltaTime)
-	     {
-		     JETTISON_PROFILE_ZONE("scene.jump");
-		     m_jump->Advance(deltaTime);
-		     const float fade = m_jump->Fade();
-		     m_pRenderer->SetFade(
-		         glm::mix(kJumpFlash, kJumpColor, glm::smoothstep(0.4f, 1.0f, fade)), fade);
-		     ShowJumpStreaks();
-		     const bool active = m_jump->Active();
-		     if (m_jumpWasActive && !active && m_jump->Error().empty())
-			     Core::Log(
-			         Core::Severity::Info, kShell, "The simulation ran {} steps through the jump",
-			         m_sim.Clock().Step() - m_jumpStep);
-		     m_jumpWasActive = active;
-	     }});
-
+	// The shell's systems in each phase name the one before them, so a game's system put between two
+	// of them (Game::RegisterFrame) leaves the rest in the order they are registered in here.
 	m_frame.Register(
 	    {"sim.sync",
 	     TickPhase::Sync,
 	     Access::Of<Scene::SimProxyComponent>().Writing<TransformComponent>(),
-	     {"scene.jump"},
+	     {},
 	     [this](entt::registry &registry, double)
 	     {
 		     JETTISON_PROFILE_ZONE("sim.sync");
-		     // A system's scene is the traffic layer's, with proxies made and unmade; a scene of no
-		     // system only shows the proxies it has.
-		     if (m_systemScene)
-			     m_systemScene->SyncTraffic(
-			         m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha());
-		     else
-			     Scene::SyncSimProxies(
-			         registry, m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha());
-	     }});
-	// Bodies on rails, at the moment presentation shows: between the last two steps, in time.
-	m_frame.Register(
-	    {"celestial.sync",
-	     TickPhase::Sync,
-	     Access::Of<Scene::CelestialBodyComponent>().Writing<Scene::PlacementComponent>(),
-	     {"sim.sync"},
-	     [this](entt::registry &, double)
-	     {
-		     m_shownTime = Celestial::PresentationTime(
-		         m_simStepper.Previous().time, m_simStepper.Current().time, m_simStepper.Alpha());
-		     if (!m_systemScene)
-			     return;
-		     JETTISON_PROFILE_ZONE("celestial.sync");
-		     m_systemScene->Place(m_shownTime);
-	     }});
-	// The stations' lamps, from the same snapshot the traffic layer drew.
-	m_frame.Register(
-	    {"shell.pads",
-	     TickPhase::Sync,
-	     Access::Of<>().Writing<Scene::MeshComponent>(),
-	     {"sim.sync"},
-	     [this](entt::registry &, double) { ShowPadStates(); }});
-	// What each buggy carries, from the same snapshot.
-	m_frame.Register(
-	    {"shell.buggies",
-	     TickPhase::Sync,
-	     Access::Of<BuggyLoad>().Writing<TransformComponent>(),
-	     {"sim.sync"},
-	     [this](entt::registry &registry, double)
-	     { ShowBuggyLoads(registry, m_simStepper.Current()); }});
-	// Each ship's plumes, jets and glowing nozzles, from what its thrusters fired in the same
-	// snapshot, at rest in the frame of the station the ships fly by.
-	m_frame.Register(
-	    {"shell.thrusters",
-	     TickPhase::Sync,
-	     Access::Of<>().Writing<ShipThrusters, Scene::ParticleEmitterComponent, Scene::MeshComponent>(),
-	     {"sim.sync"},
-	     [this](entt::registry &registry, double deltaTime)
-	     {
-		     entt::entity station = entt::null;
-		     for (const auto [entity, celestial] :
-		          registry.view<const Scene::CelestialBodyComponent>().each())
-			     if (celestial.body == m_stationBody)
-				     station = entity;
-		     ShowThrust(registry, m_simStepper.Current(), station, deltaTime);
+		     const Sim::Snapshot &previous = m_simStepper.Previous();
+		     const Sim::Snapshot &current = m_simStepper.Current();
+		     m_shownTime = previous.time + (current.time - previous.time) * m_simStepper.Alpha();
+		     // A game that keeps the proxies itself makes and unmakes them; otherwise the scene shows
+		     // only the proxies it has.
+		     if (!m_pGame->SyncProxies(*this))
+			     Scene::SyncSimProxies(registry, previous, current, m_simStepper.Alpha());
 	     }});
 	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
 	// handlers replace this system.
 	m_frame.Register(
-	    {"sim.events", TickPhase::Sync, {}, {}, [this](entt::registry &, double) { TakeEvents(); }});
+	    {"sim.events",
+	     TickPhase::Sync,
+	     {},
+	     {"sim.sync"},
+	     [this](entt::registry &, double) { TakeEvents(); }});
 
 	m_frame.Register(
 	    {"scene.update",
@@ -834,12 +546,6 @@ void Application::RegisterFrameSystems()
 		     m_clipEvents.clear();
 		     m_sceneUpdateSystem->Update(registry, static_cast<float>(deltaTime), &m_clipEvents);
 	     }});
-	m_frame.Register(
-	    {"shell.pilot",
-	     TickPhase::Presentation,
-	     Access::Of<Scene::SimProxyComponent, CameraComponent>().Writing<Scene::PilotCameraComponent>(),
-	     {"scene.update"},
-	     [this](entt::registry &registry, double) { SyncPilotCamera(registry); }});
 	// After the world transforms, which the rigs follow, and before anything that reads the pose.
 	m_frame.Register(
 	    {"camera.rig",
@@ -848,7 +554,7 @@ void Application::RegisterFrameSystems()
 	         .Writing<
 	             Scene::OrbitCameraComponent, Scene::PilotCameraComponent,
 	             Scene::CameraPoseComponent>(),
-	     {"scene.update", "shell.pilot"},
+	     {"scene.update"},
 	     [this](entt::registry &registry, double deltaTime)
 	     {
 		     JETTISON_PROFILE_ZONE("camera.rig");
@@ -866,25 +572,15 @@ void Application::RegisterFrameSystems()
 	     [this](entt::registry &registry, double deltaTime)
 	     {
 		     JETTISON_PROFILE_ZONE("camera.sequence");
-		     BindSequenceRoles(registry);
 		     m_sequences->Update(registry, deltaTime);
 		     ShowSequence(registry);
 	     }});
-	// A jump's streaks ahead of this frame's camera, after it has moved.
-	m_frame.Register(
-	    {"shell.streaks",
-	     TickPhase::Presentation,
-	     Access::Of<Scene::CameraPoseComponent>()
-	         .Writing<TransformComponent, WorldTransformComponent>(),
-	     {"camera.sequence"},
-	     [this](entt::registry &registry, double) { PlaceJumpStreaks(registry); }});
 	// After the cameras, so the listener is where this frame's camera is, and after the world
 	// transforms the sources follow.
 	m_frame.Register(
 	    {"audio.update",
 	     TickPhase::Presentation,
-	     Access::Of<
-	         WorldTransformComponent, Scene::CameraPoseComponent, Scene::CelestialBodyComponent>()
+	     Access::Of<WorldTransformComponent, Scene::CameraPoseComponent>()
 	         .Writing<Audio::SoundComponent>(),
 	     {"camera.sequence", "scene.update"},
 	     [this](entt::registry &registry, double)
@@ -896,7 +592,7 @@ void Application::RegisterFrameSystems()
 	    {"scene.debug",
 	     TickPhase::Presentation,
 	     Access::Of<WorldTransformComponent, MeshComponent, LightComponent>(),
-	     {"scene.update"},
+	     {"audio.update"},
 	     [this](entt::registry &registry, double)
 	     {
 		     if (!m_showSceneDebug)
@@ -917,12 +613,6 @@ void Application::RegisterFrameSystems()
 			     if (const auto *light = registry.try_get<LightComponent>(entity))
 				     DrawLight(m_debugDraw, *light, origin, -basis[2]);
 		     }
-		     if (m_systemScene)
-			     DrawOrbits(
-			         m_debugDraw, registry, m_systemScene->System(),
-			         Celestial::PresentationTime(
-			             m_simStepper.Previous().time, m_simStepper.Current().time,
-			             m_simStepper.Alpha()));
 	     }});
 	// Before the render, so a texture or material that finished loading, or reloaded, draws this
 	// frame.
@@ -930,7 +620,7 @@ void Application::RegisterFrameSystems()
 	    {"resource.update",
 	     TickPhase::Presentation,
 	     {},
-	     {},
+	     {"scene.debug"},
 	     [this](entt::registry &, double)
 	     {
 		     JETTISON_PROFILE_ZONE("resource.update");
@@ -940,20 +630,18 @@ void Application::RegisterFrameSystems()
 	    {"shell.ui",
 	     TickPhase::Presentation,
 	     {},
-	     {},
+	     {"resource.update"},
 	     [this](entt::registry &, double)
 	     {
 		     JETTISON_PROFILE_ZONE("shell.ui");
 		     DrawUI();
 	     }});
-	// What is picked outlined, and the hull flown from its seat marked as the cockpit, on the proxies
-	// the sync phase left (MarkScene).
+	// What is picked outlined, on the proxies the sync phase left (MarkScene).
 	m_frame.Register(
 	    {"shell.marks",
 	     TickPhase::Presentation,
-	     Access::Of<Scene::SimProxyComponent>()
-	         .Writing<Scene::OutlineComponent, Scene::MaskComponent>(),
-	     {},
+	     Access::Of<Scene::SimProxyComponent>().Writing<Scene::OutlineComponent>(),
+	     {"shell.ui"},
 	     [this](entt::registry &registry, double) { MarkScene(registry); }});
 	// The game UI, from the snapshots the sync phase took in: the market screen's data, then layout
 	// and drawing into the overlay.
@@ -961,7 +649,7 @@ void Application::RegisterFrameSystems()
 	    {"ui.update",
 	     TickPhase::Presentation,
 	     {},
-	     {},
+	     {"shell.marks"},
 	     [this](entt::registry &, double)
 	     {
 		     JETTISON_PROFILE_ZONE("ui.update");
@@ -1171,34 +859,17 @@ void Application::InitResources()
 	m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
 	m_pScripts->SendCommandsTo(m_sim);
 	m_pScripts->LoadAll(*m_definitions);
-	m_definitions->Load<Dock::PadClassDefinition>(
-	    Dock::kPadClassDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
-	m_definitions->Load<Dock::HullDefinition>(
-	    Dock::kHullDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
-	m_definitions->Load<Dock::StationLayout>(
-	    Dock::kStationDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
-	m_pDocks->Define(*m_definitions);
 	m_pGame->Define(MakeShellWorld(), *m_definitions);
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterSequenceLoader(*m_pResources);
 	m_sequences.emplace(*m_pResources);
-	SpaceScene::RegisterJumpLoaders(*m_pResources);
-	m_jump.emplace(*m_pResources, [this](SpaceScene::JumpArrival &arrival) { ShowArrival(arrival); });
 }
 
 
 void Application::InitScene()
 {
 	m_pScene = std::make_unique<Scene::Scene>(m_pResources.get());
-	InitGalaxy();
-	DefineStarSystems();
-	// What the game runs across the systems reads them.
-	m_pGame->OpenGalaxy(MakeShellWorld(), m_galaxySystems, *m_definitions, *m_pScripts);
 	LoadScene();
-	OpenStations();
-	if (const std::size_t gates = App::OpenGates(m_sim, *m_pGates, m_galaxySystems).size(); gates > 0)
-		Core::Log(Core::Severity::Info, kShell, "{} gates open", gates);
-	SpawnShip();
 	if (!m_arguments.saveScenePath.empty())
 		m_pScene->Save(m_arguments.saveScenePath);
 }
@@ -1311,19 +982,6 @@ void Application::UpdateAudio(entt::registry &registry)
 		return;
 	const Render::CameraView view = Render::ActiveCameraView(registry);
 	m_pAudio->SetListener(view.position, view.orientation);
-	// The station the ship is bound to hums, from wherever the system scene put it; a jump's new
-	// system scene makes a new one, which hums once it is there.
-	if (!m_stationBody.empty())
-		for (const auto [entity, celestial] :
-		     registry.view<const Scene::CelestialBodyComponent>().each())
-			if (celestial.body == m_stationBody && !registry.all_of<Audio::SoundComponent>(entity))
-			{
-				Audio::SoundComponent hum;
-				hum.sound = kStationHum;
-				hum.volume = kStationHumVolume;
-				hum.falloff = kStationHumFalloff;
-				registry.emplace<Audio::SoundComponent>(entity, std::move(hum));
-			}
 	// The clips' events this frame, each heard from its player: a pad's clamps closing on a ship and
 	// letting it go, wherever the ship is from.
 	if (m_eventSounds)
@@ -1345,15 +1003,15 @@ void Application::PlayEventSound(const Sim::SimEvent &event)
 {
 	if (!m_pAudio || !m_eventSounds)
 		return;
-	// The player's own ship's events, the ones about it by its "ship" field: another ship's docking or
-	// a trader's trade (phase 9) is not the player's to hear from the market screen.
+	// The events of what the player follows, the ones about it by their "ship" field: another ship's
+	// docking or a trader's trade is not the player's to hear from the market screen.
 	const entt::meta_type type = event.event.type();
 	const entt::meta_data ship = type ? Reflect::FindField(type, "ship") : entt::meta_data{};
 	if (!ship)
 		return;
 	const entt::meta_any value = ship.get(event.event);
 	const auto *pShip = value.try_cast<entt::entity>();
-	if (pShip == nullptr || *pShip != m_ship)
+	if (pShip == nullptr || *pShip == entt::null || *pShip != m_pGame->Followed())
 		return;
 	// Where presentation shows the entity this frame: between the last two steps, as the scene does.
 	m_eventSounds->Play(
@@ -1563,8 +1221,6 @@ void Application::DrawUI()
 	}
 	else if (m_devTools.showConsole)
 		DevTools::DrawConsole(m_console, m_devTools.console, m_theme, &m_devTools.showConsole);
-	if (m_piloting)
-		DrawFlight();
 	DrawPicked();
 	m_pGame->DrawPanels(*this, m_showUI);
 	m_pRenderer->EndUi();
@@ -1578,7 +1234,6 @@ void Application::DrawScenePanel()
 		ImGui::End();
 		return;
 	}
-	ImGui::Text("%s", m_systemScene ? m_systemScene->System().name.c_str() : "No star system");
 	ImGui::TextUnformatted("Layers");
 	constexpr std::array<std::pair<Scene::Layer, const char *>, Scene::kLayerCount> kLayers{
 	    {{Scene::Layer::Environment, "Environment"},
@@ -1590,45 +1245,7 @@ void Application::DrawScenePanel()
 		if (ImGui::Checkbox(name, &visible))
 			m_pScene->SetLayerVisible(layer, visible);
 	}
-	if (m_galaxy)
-		DrawGalaxy();
 	ImGui::End();
-}
-
-
-void Application::DrawGalaxy()
-{
-	constexpr std::array<const char *, 5> kStages{
-	    "", "fading out", "reading the files", "streaming in", "fading in"};
-	ImGui::Separator();
-	ImGui::Text("Galaxy %s", m_galaxy->name.c_str());
-	if (m_jump->Active())
-		ImGui::Text(
-		    "Jumping, %s (%.0f%%)", kStages[static_cast<std::size_t>(m_jump->Stage())],
-		    100.0 * double{m_jump->Fade()});
-	else if (!m_jump->Error().empty())
-		ImGui::TextWrapped("%s", m_jump->Error().c_str());
-	ImGui::BeginDisabled(m_jump->Active());
-	if (m_shownSystem)
-		for (const Celestial::Exit &exit : Celestial::Exits(*m_galaxy, *m_shownSystem))
-		{
-			const std::string label = std::format(
-			    "Jump to {} through {}", m_galaxy->systems[exit.destination].name, exit.jumpPoint);
-			if (ImGui::Button(label.c_str()))
-				Jump(m_galaxy->systems[exit.destination].name);
-		}
-	// Straight to any system, along no lane: a developer's shortcut.
-	for (std::size_t system = 0; system < m_galaxy->systems.size(); ++system)
-	{
-		if (system != 0)
-			ImGui::SameLine();
-		const std::string &name = m_galaxy->systems[system].name;
-		ImGui::BeginDisabled(m_shownSystem == system);
-		if (ImGui::SmallButton(name.c_str()))
-			Jump(name);
-		ImGui::EndDisabled();
-	}
-	ImGui::EndDisabled();
 }
 
 
@@ -1774,8 +1391,6 @@ void Application::PollInput()
 		toggleView(Render::DebugView::AmbientAccess);
 	if (m_input.WasPressedThisFrame(m_cameraNext))
 		NextCameraTarget(m_pScene->Registry());
-	if (m_input.WasPressedThisFrame(m_jumpNext))
-		Jump();
 	if (m_input.WasPressedThisFrame(m_quickSave))
 		SaveTo("quicksave");
 	if (m_input.WasPressedThisFrame(m_quickLoad))
@@ -1786,24 +1401,6 @@ void Application::PollInput()
 	// A click on the scene, not on a window over it, ImGui's or the game UI's.
 	if (m_input.WasPressedThisFrame(m_pickAction) && !uiMouse)
 		m_clicked = m_glfwInput.Cursor();
-	if (m_input.WasPressedThisFrame(m_shipNext))
-		CycleAttached(1);
-	if (m_input.WasPressedThisFrame(m_shipPrevious))
-		CycleAttached(-1);
-	if (m_input.WasPressedThisFrame(m_helm))
-		ToggleHelm();
-	if (m_input.WasPressedThisFrame(m_pilot))
-	{
-		if (m_piloting)
-			StopPiloting();
-		else
-			StartPiloting(m_pilotView);
-	}
-	if (m_piloting && m_pilotInput->AssistToggled(m_input))
-		m_assist = !m_assist;
-	if (m_piloting && m_pilotInput->ViewToggled(m_input))
-		m_pilotView = m_pilotView == Scene::PilotView::Chase ? Scene::PilotView::Cockpit
-		                                                     : Scene::PilotView::Chase;
 	if (m_input.WasPressedThisFrame(m_toggleConsole))
 	{
 		m_devTools.showConsole = !m_devTools.showConsole;
@@ -1823,8 +1420,6 @@ void Application::PollInput()
 		else if (m_pGame->Back(*this)) {}
 		else if (!m_pScene->Registry().view<Scene::SequencePlayerComponent>().empty())
 			StopSequence();
-		else if (m_piloting)
-			StopPiloting();
 		else
 			RequestClose();
 	}
@@ -1834,8 +1429,9 @@ void Application::PollInput()
 
 void Application::LoadScene()
 {
-	// What the old system scene built goes with the scene's old contents.
-	m_systemScene.reset();
+	// The outlined proxy goes with the scene's old contents: its number may be another entity's in
+	// the new.
+	m_outlined = entt::null;
 	if (!m_arguments.systemPath.empty())
 		m_pScene->LoadSystem(m_arguments.systemPath);
 	else if (!m_arguments.scenePath.empty())
@@ -1864,24 +1460,6 @@ void Application::LoadScene()
 			}
 		}
 	}
-	if (const std::string &path = m_pScene->StarSystem(); !path.empty())
-	{
-		const auto bytes = m_assets.Read(path);
-		if (!bytes)
-			throw std::runtime_error("Failed to read the scene's star system '" + path + "'");
-		m_systemScene.emplace(
-		    *m_pScene,
-		    Celestial::ReadStarSystem(
-		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
-		// A scene of a system the galaxy does not list is the system physics knows of it.
-		if (!m_pPhysics->HasFrame(Sim::FrameId(m_systemScene->System().name)))
-			Space::DefineStarSystem(*m_pPhysics, m_systemScene->System());
-		if (!m_pCruises->HasStarSystem(Sim::FrameId(m_systemScene->System().name)))
-			m_pCruises->DefineStarSystem(m_systemScene->System());
-		SetProxyFactory();
-		DrawStations();
-	}
-	FindShownSystem();
 	m_simStepper.Resync();
 	m_pGame->SceneLoaded(*this);
 }
@@ -1891,231 +1469,6 @@ void Application::ReloadScene()
 {
 	m_pGame->SceneUnloading(*this);
 	LoadScene();
-}
-
-
-void Application::InitGalaxy()
-{
-	constexpr std::string_view kDefaultGalaxy = "systems/galaxy.yaml";
-	const std::string path{m_arguments.galaxyPath.value_or(std::string{kDefaultGalaxy})};
-	const auto bytes = m_assets.Read(path);
-	if (!bytes)
-	{
-		if (m_arguments.galaxyPath)
-			throw std::runtime_error("Failed to read the galaxy '" + path + "'");
-		return;
-	}
-	try
-	{
-		m_galaxy.emplace(
-		    Celestial::ReadGalaxy(
-		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
-		m_galaxyPath = path;
-		m_pLanes->SetGalaxy(*m_galaxy);
-	}
-	catch (const std::exception &error)
-	{
-		throw std::runtime_error("Galaxy '" + path + "': " + error.what());
-	}
-}
-
-
-void Application::FindShownSystem()
-{
-	m_shownSystem.reset();
-	m_arrivedAt.clear();
-	if (!m_galaxy || !m_systemScene)
-		return;
-	const int index = m_galaxy->FindBySystemFile(m_pScene->StarSystem());
-	if (index < 0)
-		return;
-	m_shownSystem = static_cast<std::size_t>(index);
-	Celestial::CheckJumpPoints(*m_galaxy, *m_shownSystem, m_systemScene->System());
-}
-
-
-bool Application::Jump(std::string_view systemName)
-{
-	const auto refuse = [](std::string_view why)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No jump: {}", why);
-		return false;
-	};
-	if (!m_galaxy)
-		return refuse("there is no galaxy to jump in");
-	if (m_jump->Active())
-		return refuse("a jump is under way");
-
-	const std::vector<Celestial::Exit> exits =
-	    m_shownSystem ? Celestial::Exits(*m_galaxy, *m_shownSystem) : std::vector<Celestial::Exit>{};
-	if (!systemName.empty())
-	{
-		const int system = m_galaxy->Find(systemName);
-		if (system < 0)
-			return refuse(std::format("the galaxy has no system '{}'", systemName));
-		if (m_shownSystem && static_cast<std::size_t>(system) == *m_shownSystem)
-			return refuse(std::format("'{}' is the system shown", systemName));
-		const auto lane =
-		    std::ranges::find(exits, static_cast<std::size_t>(system), &Celestial::Exit::destination);
-		m_jumpStep = m_sim.Clock().Step();
-		if (!m_jump->Begin(
-		        *m_galaxy, static_cast<std::size_t>(system),
-		        lane == exits.end() ? std::string{} : std::string{lane->arrival}))
-			return false;
-		// Straight to a system no lane leads to is the tools' tour, and leaves the ship behind.
-		if (lane != exits.end())
-			TakeShipAlong(*lane);
-		return true;
-	}
-	if (!m_shownSystem)
-	{
-		m_jumpStep = m_sim.Clock().Step();
-		return m_jump->Begin(*m_galaxy, 0);
-	}
-	if (exits.empty())
-		return refuse(std::format("no lane leaves '{}'", m_galaxy->systems[*m_shownSystem].name));
-	// The exit after the one arrived by, which is the way the last jump came in.
-	const auto arrived = std::ranges::find(exits, m_arrivedAt, &Celestial::Exit::jumpPoint);
-	const Celestial::Exit &exit = arrived == exits.end() || std::next(arrived) == exits.end()
-	                                  ? exits.front()
-	                                  : *std::next(arrived);
-	m_jumpStep = m_sim.Clock().Step();
-	if (!m_jump->Begin(*m_galaxy, exit.destination, std::string{exit.arrival}))
-		return false;
-	TakeShipAlong(exit);
-	return true;
-}
-
-
-void Application::TakeShipAlong(const Celestial::Exit &exit)
-{
-	if (!CanPilot())
-		return;
-	m_sim.Commands().Push(Space::EnterLane{kPilot, m_ship, std::string{exit.jumpPoint}});
-}
-
-
-void Application::RequestTransit(std::string_view jumpPoint)
-{
-	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	const Sim::TransformSample *ship = m_ship == entt::null ? nullptr : snapshot.FindSample(m_ship);
-	if (!ship || ship->frame == Sim::kNoFrame)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No transit: the ship is in no system");
-		return;
-	}
-	const std::string name = jumpPoint.empty() ? ShipFrame() : std::string{jumpPoint};
-	for (const auto &[entity, gate] : snapshot.Components<Space::Gate>())
-		if (const Sim::TransformSample *at = snapshot.FindSample(entity);
-		    gate.jumpPoint == name && at && at->frame == ship->frame)
-		{
-			m_sim.Commands().Push(Space::RequestTransit{kPilot, m_ship, entity});
-			return;
-		}
-	Core::Log(
-	    Core::Severity::Warning, kShell, "No transit: {}",
-	    jumpPoint.empty() ? std::string{"the ship is not at a gate; name one"}
-	                      : std::format("the ship's system has no gate '{}'", jumpPoint));
-}
-
-
-void Application::FollowShipAlong(const Space::OnLane &lane)
-{
-	if (!m_galaxy || !m_shownSystem || m_jump->Active() ||
-	    Sim::FrameId(m_galaxy->systems[*m_shownSystem].name) != lane.from)
-		return;
-	const auto to = std::ranges::find(
-	    m_galaxy->systems, lane.to,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
-	if (to == m_galaxy->systems.end())
-		return;
-	m_jumpStep = m_sim.Clock().Step();
-	m_jump->Begin(*m_galaxy, static_cast<std::size_t>(to - m_galaxy->systems.begin()), lane.arrival);
-}
-
-
-void Application::LogRoute(std::string_view systemName) const
-{
-	if (!m_galaxy || m_galaxySystems.size() != m_galaxy->systems.size())
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No route: there is no galaxy");
-		return;
-	}
-	const int to = m_galaxy->Find(systemName);
-	const auto from = std::ranges::find(
-	    m_galaxy->systems, m_shipSystem,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
-	if (to < 0 || m_ship == entt::null || from == m_galaxy->systems.end())
-	{
-		Core::Log(
-		    Core::Severity::Warning, kShell, "No route: {}",
-		    to < 0 ? std::format("the galaxy has no system '{}'", systemName)
-		           : std::string{"the ship is in no system of the galaxy"});
-		return;
-	}
-	// From the station when the ship is bound to one in its system, and to the destination's first.
-	const auto index = static_cast<std::size_t>(from - m_galaxy->systems.begin());
-	const Celestial::StarSystem &destination = m_galaxySystems[static_cast<std::size_t>(to)];
-	const auto station =
-	    std::ranges::find(destination.bodies, Celestial::BodyKind::Station, &Celestial::Body::kind);
-	const Space::Place start{index, m_stationSystem == m_shipSystem ? m_stationBody : std::string{}};
-	const Space::Place end{
-	    static_cast<std::size_t>(to),
-	    station == destination.bodies.end() ? std::string{} : station->name};
-	constexpr double kClearance = 1.0e5;
-	const float speed = Physics::Thrusters{}.maxSpeed;
-	const std::optional<Space::Route> route = Space::PlotRoute(
-	    *m_galaxy, start, end,
-	    Space::CrossingByCourse(m_galaxySystems, m_sim.Clock().Now(), speed, kClearance));
-	if (!route)
-	{
-		Core::Log(Core::Severity::Info, kShell, "No lanes lead to {}", systemName);
-		return;
-	}
-	std::string jumps;
-	for (const Celestial::Exit &jump : route->jumps)
-		jumps += std::format(
-		    "{}through {} to {} ({:.0f} s)", jumps.empty() ? "" : ", ", jump.jumpPoint,
-		    m_galaxy->systems[jump.destination].name, jump.transitSeconds);
-	Core::Log(
-	    Core::Severity::Info, kShell, "Route to {}{}: {}; {:.0f} s at {:.0f} m/s", systemName,
-	    end.body.empty() ? "" : " (" + end.body + ")", jumps.empty() ? "no jumps" : jumps,
-	    route->seconds, speed);
-}
-
-
-void Application::ShowArrival(SpaceScene::JumpArrival &arrival)
-{
-	// What the old system scene built goes with the scene's old contents. The simulation did not
-	// change, so the stepper is not resynced: the traffic layer's proxies are made from the same
-	// snapshots, now for the entities in the new system. What was picked was in the old one.
-	m_pGame->SceneUnloading(*this);
-	m_systemScene.reset();
-	m_picked.reset();
-	if (arrival.sceneFile)
-		m_pScene->Load(*arrival.sceneFile);
-	else
-		m_pScene->LoadSystem(arrival.starSystemPath);
-	m_systemScene.emplace(*m_pScene, std::move(arrival.starSystem));
-	SetProxyFactory();
-	DrawStations();
-	// A jump along a lane took the ship with it (TakeShipAlong), and it comes out of the gate the
-	// cameras frame; one straight to a system leaves it behind.
-	if (m_piloting && !CanPilot())
-		StopPiloting();
-	m_shownSystem = arrival.system;
-	m_arrivedAt = arrival.arrival;
-	m_pGame->SceneLoaded(*this);
-	if (arrival.arrival.empty())
-		return;
-	entt::registry &registry = m_pScene->Registry();
-	for (const auto [body, celestial] : registry.view<const Scene::CelestialBodyComponent>().each())
-		if (celestial.body == arrival.arrival)
-		{
-			for (const entt::entity camera : registry.view<const Scene::OrbitCameraComponent>())
-				FrameBody(registry, camera, body);
-			return;
-		}
 }
 
 
@@ -2155,19 +1508,19 @@ void Application::DriveCameras(entt::registry &registry, double deltaTime)
 
 void Application::NextCameraTarget(entt::registry &registry)
 {
-	std::vector<entt::entity> bodies;
-	for (const entt::entity entity : registry.view<const Scene::CelestialBodyComponent>())
-		bodies.push_back(entity);
-	if (bodies.empty())
+	std::vector<entt::entity> targets;
+	for (const entt::entity entity : registry.view<const OrbitTarget>())
+		targets.push_back(entity);
+	if (targets.empty())
 		return;
-	std::ranges::sort(bodies);
+	std::ranges::sort(targets);
 	for (const auto [entity, orbit] : registry.view<const Scene::OrbitCameraComponent>().each())
 	{
-		const auto current = std::ranges::find(bodies, orbit.target);
-		FrameBody(
+		const auto current = std::ranges::find(targets, orbit.target);
+		FrameTarget(
 		    registry, entity,
-		    current == bodies.end() || std::next(current) == bodies.end() ? bodies.front()
-		                                                                  : *std::next(current));
+		    current == targets.end() || std::next(current) == targets.end() ? targets.front()
+		                                                                    : *std::next(current));
 	}
 }
 
@@ -2195,12 +1548,11 @@ void Application::PlaceOrbitCamera(std::span<const std::string> arguments)
 	entt::entity body = entt::null;
 	if (!name.empty())
 	{
-		for (const auto [entity, celestial] :
-		     registry.view<const Scene::CelestialBodyComponent>().each())
-			if (celestial.body == name)
+		for (const auto [entity, target] : registry.view<const OrbitTarget>().each())
+			if (target.name == name)
 				body = entity;
 		if (body == entt::null)
-			throw std::invalid_argument{std::format("there is no body '{}' in the scene", name)};
+			throw std::invalid_argument{std::format("there is no target '{}' in the scene", name)};
 	}
 	bool placed = false;
 	for (const auto [camera, orbit] : registry.view<Scene::OrbitCameraComponent>().each())
@@ -2252,42 +1604,14 @@ void Application::StopSequence()
 }
 
 
-void Application::BindSequenceRoles(entt::registry &registry)
-{
-	// What the shell binds, of what a sequence may name, each frame, since a proxy is made by the
-	// sync and a pad's clamps are shown closed from a snapshot: a sequence that names another role is
-	// refused, and one whose role the shell does not show yet waits for it.
-	entt::entity ship = entt::null;
-	entt::entity pad = entt::null;
-	entt::entity station = entt::null;
-	for (const auto [entity, proxy] : registry.view<const Scene::SimProxyComponent>().each())
-		if (m_ship != entt::null && proxy.simEntity == m_ship)
-			ship = entity;
-	for (const StationDressing &dressing : m_dressings)
-	{
-		if (dressing.body == m_stationBody)
-			station = dressing.station;
-		for (const PadClamps &clamps : dressing.clamps)
-			if (m_ship != entt::null && clamps.ship == m_ship)
-				pad = clamps.player;
-	}
-	for (const auto [camera, player] : registry.view<Scene::SequencePlayerComponent>().each())
-	{
-		player.roles.insert_or_assign("ship", ship);
-		player.roles.insert_or_assign("pad", pad);
-		player.roles.insert_or_assign("station", station);
-	}
-}
-
-
 void Application::ShowSequence(entt::registry &registry)
 {
 	const auto players = registry.view<const Scene::SequencePlayerComponent>();
 	const Scene::SequencePlayerComponent *player =
 	    players.empty() ? nullptr : &players.get<const Scene::SequencePlayerComponent>(players.front());
 	m_pRenderer->SetLetterbox(player != nullptr ? player->letterbox : 0.0f);
-	// A jump's fade is set in the sync phase, before this, and is the one shown while it is up.
-	if (player != nullptr && player->fade > 0.0f && !m_jump->Active())
+	// A game's fade over it, a jump's, is set after this.
+	if (player != nullptr && player->fade > 0.0f)
 		m_pRenderer->SetFade(player->fadeColor, player->fade);
 }
 
@@ -2354,22 +1678,17 @@ void Application::SetGrade(std::span<const std::string> arguments)
 }
 
 
-void Application::FrameBody(entt::registry &registry, entt::entity camera, entt::entity body)
+void Application::FrameTarget(entt::registry &registry, entt::entity camera, entt::entity target)
 {
-	// Out to three of the body's radii, eased over two seconds from wherever the camera is.
+	// Out to three of the target's radii, eased over two seconds from wherever the camera is.
 	double radius = 50.0;
-	if (m_systemScene)
-	{
-		const Celestial::StarSystem &system = m_systemScene->System();
-		if (const int index = system.Find(registry.get<Scene::CelestialBodyComponent>(body).body);
-		    index >= 0)
-			radius = std::max(radius, system.bodies[static_cast<std::size_t>(index)].radius);
-	}
+	if (const auto *marked = registry.try_get<OrbitTarget>(target))
+		radius = std::max(radius, marked->radius);
 	auto &orbit = registry.get<Scene::OrbitCameraComponent>(camera);
 	if (const auto *pose = registry.try_get<Scene::CameraPoseComponent>(camera))
 		orbit.transition =
 		    Scene::CameraTransition{{pose->position, pose->orientation}, 2.0, Math::Easing::InOutCubic};
-	orbit.target = body;
+	orbit.target = target;
 	orbit.minDistance = radius * 1.1;
 	orbit.distance = radius * 3.0;
 	orbit.placed = false;
@@ -2378,19 +1697,18 @@ void Application::FrameBody(entt::registry &registry, entt::entity camera, entt:
 
 void Application::SyncContexts()
 {
-	const bool flight = m_piloting;
-	if (m_devTools.showConsole == m_consoleContext && flight == m_flightContext)
+	if (m_devTools.showConsole == m_consoleContext && m_gameContext == m_pushedGameContext)
 		return;
 	// Down to the shell's, then up again in order, so the console is always on top.
 	if (m_consoleContext)
 		m_input.PopContext();
-	if (m_flightContext)
+	if (!m_pushedGameContext.empty())
 		m_input.PopContext();
-	if (flight)
-		m_input.PushContext(PilotInput::kContext);
+	if (!m_gameContext.empty())
+		m_input.PushContext(m_gameContext);
 	if (m_devTools.showConsole)
 		m_input.PushContext("console");
-	m_flightContext = flight;
+	m_pushedGameContext = m_gameContext;
 	m_consoleContext = m_devTools.showConsole;
 }
 
@@ -2421,13 +1739,6 @@ bool Application::SaveTo(std::string_view name)
 		                          std::chrono::system_clock::now().time_since_epoch())
 		                          .count();
 		save.info.mods = m_mods;
-		if (!m_galaxyPath.empty())
-			save.info.details.push_back({std::string{kGalaxyDetail}, m_galaxyPath});
-		if (m_systemScene)
-			save.info.details.push_back({std::string{kSystemDetail}, m_systemScene->System().name});
-		save.AddSection(
-		    std::string{kShellSection},
-		    WriteShellState({m_ship, m_station, m_shipSystem, m_stationBody}));
 		save.AddSection(std::string{Script::kStoreSection}, Script::WriteStore(m_pScripts->Store()));
 		m_pGame->WriteSave(save, *this);
 		const std::vector<std::byte> bytes = save.Write();
@@ -2456,24 +1767,13 @@ bool Application::LoadFrom(std::string_view name)
 		if (!bytes)
 			throw std::runtime_error(std::format("there is no save '{}'", name));
 		const Sim::SaveGame save = Sim::SaveGame::Read(*bytes);
-		if (const std::string_view galaxy = save.info.Detail(kGalaxyDetail); galaxy != m_galaxyPath)
-			throw std::runtime_error(
-			    std::format(
-			        "'{}' is of the galaxy '{}', and this run's is '{}'", name, galaxy, m_galaxyPath));
 		// Everything read before the world is replaced, so a save that does not fit changes nothing.
-		const Sim::SaveSection *section = save.FindSection(kShellSection);
-		const ShellState shell = section ? ReadShellState(section->data) : ShellState{};
 		// A save from before scripts kept keys holds none.
 		const Sim::SaveSection *keys = save.FindSection(Script::kStoreSection);
 		Script::ScriptStore store = keys ? Script::ReadStore(keys->data) : Script::ScriptStore{};
 		m_pGame->ReadSave(save, *this);
 		m_sim.Load(save.world);
-		// What an older save of the game lacks.
-		m_pGame->Loaded(m_sim.Registry(), shell.ship, kPilot);
-		// And one from before there were gates has none.
-		if (const std::size_t gates = App::OpenGates(m_sim, *m_pGates, m_galaxySystems).size();
-		    gates > 0)
-			Core::Log(Core::Severity::Info, kShell, "'{}' had no gates; {} are open", name, gates);
+		m_pGame->Loaded(*this);
 		m_pScripts->SetStore(std::move(store));
 		// Other mods may make another game of the save, which is the player's to judge: it loads.
 		for (const std::string &difference : Sim::ModDifferences(save.info.mods, m_mods))
@@ -2481,41 +1781,8 @@ bool Application::LoadFrom(std::string_view name)
 			    Core::Severity::Warning, kShell, "'{}' was saved with other mods: {}", name,
 			    difference);
 
-		StopPiloting();
-		const entt::registry &world = m_sim.Registry();
-		const auto valid = [&world](entt::entity entity)
-		{ return world.valid(entity) ? entity : entt::null; };
-		m_ship = valid(shell.ship);
-		m_station = valid(shell.station);
-		// The steered ships no behaviour flies, which are neither the fleet's nor the traders'.
-		m_traffic.clear();
-		for (const entt::entity entity : world.view<const Ai::Steered>(entt::exclude<Ai::Behaviour>))
-			if (entity != m_ship)
-				m_traffic.push_back(entity);
-		std::ranges::sort(m_traffic, {}, [](entt::entity entity) { return entt::to_integral(entity); });
-		// The systems from the world, which a ship saved on a lane or before its station was bound
-		// holds as the shell's section does not.
-		const auto systemOf = [&world](entt::entity entity)
-		{
-			const auto *inSystem = entity == entt::null ? nullptr : world.try_get<Sim::InFrame>(entity);
-			return inSystem ? inSystem->frame : Sim::kNoFrame;
-		};
-		m_shipSystem = m_ship == entt::null ? shell.shipSystem : systemOf(m_ship);
-		m_stationSystem = systemOf(m_station);
-		m_stationBody = shell.stationBody;
-		m_resumePiloting = false;
-		m_docked = Dock::IsDocked(world, m_ship, m_station);
-		m_sentControls.reset();
-		m_pickPending = false;
-		m_picked.reset();
+		ClearPick();
 		m_simStepper.Resync();
-		if (m_systemScene)
-			m_systemScene->ResetTraffic();
-		if (m_galaxy)
-			for (const std::uint64_t system : UnknownSystems(world, *m_galaxy))
-				Core::Log(
-				    Core::Severity::Warning, kShell,
-				    "'{}' has entities in a system {:#018x} the galaxy does not have", name, system);
 		Core::Log(
 		    Core::Severity::Info, kShell, "Loaded '{}' at step {}, saved by engine {}", name,
 		    save.info.step, save.info.engineVersion);
@@ -2545,20 +1812,9 @@ SmokeActions Application::MakeSmokeActions()
 		ReloadScene();
 		m_pResources->ReloadAll();
 	};
-	actions.pilot = [this](bool cockpit)
-	{
-		if (!StartPiloting(cockpit ? Scene::PilotView::Cockpit : Scene::PilotView::Chase))
-			return false;
-		// Traffic about the station, whose proxies the frames draw from here on and whose steering
-		// the save and load carries; and the ship let go of its pad and lifted clear by the docks.
-		if (!cockpit)
-		{
-			SpawnTraffic(4);
-			if (m_docked)
-				ReleasePad();
-		}
-		return true;
-	};
+	// The pilot's and the jump's stages are a game's to drive (DriveSmoke): the shell has nothing
+	// to fly and nowhere to jump.
+	actions.pilot = [](bool) { return false; };
 	actions.pick = [this]
 	{
 		int width = 0;
@@ -2583,8 +1839,8 @@ SmokeActions Application::MakeSmokeActions()
 	actions.gameUi = [] { return std::optional<bool>{}; };
 	actions.gameUiWaiting = [] { return false; };
 	actions.gameUiAnswered = [] { return true; };
-	actions.jump = [this] { return Jump(); };
-	actions.jumping = [this] { return m_jump->Active(); };
+	actions.jump = [] { return false; };
+	actions.jumping = [] { return false; };
 	actions.close = [this] { RequestClose(); };
 	m_pGame->DriveSmoke(actions, *this);
 	return actions;
@@ -2629,15 +1885,13 @@ void Application::Shutdown() noexcept
 	}
 
 	m_pRenderer.reset();
-	// The system scene holds the scene, and goes first. The scene's rigs are resource handles,
-	// released as it goes; then the manager, which holds no GPU object once the renderer has
-	// released its handles, goes before the worker it posts to.
-	m_systemScene.reset();
+	// What the game holds of the scene and the resources goes first. The scene's rigs are resource
+	// handles, released as it goes; then the manager, which holds no GPU object once the renderer
+	// has released its handles, goes before the worker it posts to.
+	m_pGame->ShuttingDown(*this);
 	m_pScene.reset();
 	m_sceneUpdateSystem.reset();
 	m_sequences.reset();
-	// The jump holds the handles of a destination's files while it reads them.
-	m_jump.reset();
 	m_pResources.reset();
 	m_pIoWorker.reset();
 	if (!m_scratchUser.empty())
@@ -2653,758 +1907,10 @@ void Application::Shutdown() noexcept
 }
 
 
-void Application::DefineStarSystems()
-{
-	if (!m_galaxy)
-		return;
-	for (const Celestial::GalaxySystem &entry : m_galaxy->systems)
-	{
-		const auto bytes = m_assets.Read(entry.system);
-		if (!bytes)
-			throw std::runtime_error("Failed to read star system '" + entry.system + "'");
-		Celestial::StarSystem system = Celestial::ReadStarSystem(
-		    std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()});
-		const std::uint64_t id = Sim::FrameId(system.name);
-		m_galaxySystems.push_back(system);
-		if (!m_pLanes->HasStarSystem(id))
-			m_pLanes->DefineStarSystem(system);
-		if (!m_pCruises->HasStarSystem(id))
-			m_pCruises->DefineStarSystem(system);
-		if (!m_pGates->HasStarSystem(id))
-			m_pGates->DefineStarSystem(system);
-		if (!m_pPhysics->HasFrame(id))
-			Space::DefineStarSystem(*m_pPhysics, std::move(system));
-	}
-}
-
-
-bool Application::BindStation()
-{
-	if (!m_systemScene)
-		return false;
-	const Celestial::StarSystem &system = m_systemScene->System();
-	const auto station =
-	    std::ranges::find(system.bodies, Celestial::BodyKind::Station, &Celestial::Body::kind);
-	if (station == system.bodies.end())
-		return false;
-	const std::uint64_t systemId = Sim::FrameId(system.name);
-	if (m_station != entt::null && m_stationSystem == systemId && m_stationBody == station->name)
-		return true;
-	entt::registry &world = m_sim.Registry();
-	const auto bind = [&](entt::entity entity)
-	{
-		m_station = entity;
-		m_stationSystem = systemId;
-		m_stationBody = station->name;
-		Core::Log(Core::Severity::Info, kShell, "The ship is bound to {}", m_stationBody);
-		return true;
-	};
-
-	// Built by the docks to its layout (OpenStations).
-	if (const entt::entity built = FindStation(world, systemId, station->name); built != entt::null)
-		return bind(built);
-	// A station of no layout, made on an earlier visit or in the world a save loaded: a body on the
-	// station's rails that is neither a pad nor a ship clamped to one.
-	for (const auto [entity, rails, inSystem, body] :
-	     world
-	         .view<const Physics::OnRails, const Sim::InFrame, const Physics::Body>(
-	             entt::exclude<Dock::Hull>)
-	         .each())
-		if (inSystem.frame == systemId && rails.body == station->name)
-			return bind(entity);
-
-	entt::registry &scene = m_pScene->Registry();
-	entt::entity shown = entt::null;
-	for (const auto [entity, celestial] : scene.view<const Scene::CelestialBodyComponent>().each())
-		if (celestial.body == station->name)
-			shown = entity;
-	if (shown == entt::null)
-		return false;
-
-	// The station's hull, as the scene draws it.
-	const std::string shape = "stations/" + SpaceScene::BodyEntityId(station->name);
-	const std::optional<CollisionMesh> mesh = MakeCollisionMesh(scene, shown);
-	if (!mesh)
-	{
-		Core::Log(
-		    Core::Severity::Warning, kShell, "No station: '{}' is drawn with no shape to meet",
-		    station->name);
-		return false;
-	}
-	if (!m_pPhysics->HasShape(shape))
-	{
-		if (mesh->skippedModels != 0)
-			Core::Log(
-			    Core::Severity::Warning, kShell,
-			    "Station '{}' has {} models, which its collision mesh leaves out", station->name,
-			    mesh->skippedModels);
-		m_pPhysics->DefineShape(shape, mesh->shape);
-		Core::Log(
-		    Core::Severity::Info, kShell, "Station '{}' collides as {} triangles, with no pads",
-		    station->name, mesh->shape.indices.size() / 3);
-	}
-
-	// Where the station is now: placed by its rails from the next step, and by the shell for the
-	// snapshots the stepper is resynced to.
-	const Physics::OnRails rails{station->name};
-	m_station = world.create();
-	world.emplace<Sim::Transform>(
-	    m_station, m_pPhysics->RailsPlace(systemId, rails, m_sim.Clock().Now()));
-	world.emplace<Sim::InFrame>(m_station, systemId);
-	world.emplace<Physics::OnRails>(m_station, rails);
-	world.emplace<Physics::LocalFrame>(m_station, station->name);
-	world.emplace<Physics::Body>(m_station, Physics::Body{Physics::BodyKind::Kinematic, shape});
-	m_simStepper.Resync();
-	return bind(m_station);
-}
-
-
-void Application::OpenStations()
-{
-	// Once a run, as the ship is: a load replaces them with the save's.
-	entt::registry &world = m_sim.Registry();
-	if (!world.view<Dock::Station>().empty())
-		return;
-	const ShellWorld shellWorld = MakeShellWorld();
-	const std::vector<entt::entity> stations = App::OpenStations(
-	    m_sim, *m_pDocks, m_galaxySystems, [&](entt::entity station, std::string_view body)
-	    { m_pGame->StationOpened(m_sim, *m_pDocks, station, body); });
-	std::size_t pads = 0;
-	for (const entt::entity station : stations)
-		pads += world.get<Dock::Station>(station).pads.size();
-	Core::Log(
-	    Core::Severity::Info, kShell, "{} stations open, with {} pads and {} ships parked",
-	    stations.size(), pads, world.view<const Dock::Hull>().size());
-
-	m_pGame->StationsOpened(shellWorld, *m_definitions);
-	m_simStepper.Resync();
-}
-
-
-void Application::SpawnShip()
-{
-	if (m_ship != entt::null || !BindStation())
-		return;
-	const std::optional<ShellShip> kind = m_pGame->StarterShip();
-	if (!kind)
-	{
-		Core::Log(Core::Severity::Info, kShell, "The game names no ship, so the player has none");
-		return;
-	}
-	entt::registry &world = m_sim.Registry();
-	const Sim::Transform at = world.get<Sim::Transform>(m_station);
-
-	// In the station's frame, flown by its pilot.
-	m_ship = world.create();
-	world.emplace<Sim::Transform>(m_ship, at);
-	world.emplace<Sim::InFrame>(m_ship, m_stationSystem);
-	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
-	MakeShip(world, *m_pDocks, m_ship, kind->hull, kind->mass, true);
-	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
-	world.emplace<Sim::ControlledBy>(m_ship, kPilot);
-	// The fleet's first ship, fitted by the game, at the player's helm.
-	m_pGame->FitShip(world, m_ship, kPilot);
-	world.emplace<Sim::Helm>(m_ship, kPilot);
-	m_shipSystem = m_stationSystem;
-
-	// Docked on the lowest numbered free pad it fits; at a station of none, off its -Z end, nose
-	// towards it.
-	const auto *station = world.try_get<Dock::Station>(m_station);
-	const Dock::HullDefinition *hull = m_pDocks->FindHull(kind->hull);
-	const entt::entity pad = station && hull ? FreePad(world, *m_pDocks, m_station, *hull) : entt::null;
-	if (pad != entt::null)
-	{
-		m_pDocks->Park(m_sim, m_ship, pad);
-		m_docked = true;
-		Core::Log(
-		    Core::Severity::Info, kShell,
-		    "The ship is docked on pad {} of {}: undock lifts it clear, and P flies it",
-		    world.get<Dock::Pad>(pad).number, m_stationBody);
-	}
-	else
-	{
-		// Clear by the ship's own reach as well as the station's: a game's hull may be any size.
-		const double standOff = m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_station).shape) +
-		                        m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_ship).shape) +
-		                        kShipStandOff;
-		world.replace<Sim::Transform>(
-		    m_ship, Sim::Transform{
-		                at.position + at.orientation * glm::dvec3{0.0, 0.0, -standOff},
-		                at.orientation * glm::angleAxis(glm::pi<double>(), glm::dvec3{0.0, 1.0, 0.0})});
-		Core::Log(
-		    Core::Severity::Info, kShell, "A ship holds station off {}: P flies it", m_stationBody);
-	}
-	m_simStepper.Resync();
-}
-
-
-void Application::RequestPad(bool fly)
-{
-	if (m_ship == entt::null || m_station == entt::null)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No ship, or no station to ask for a pad");
-		return;
-	}
-	m_sim.Commands().Push(Dock::RequestPad{kPilot, m_ship, m_station, fly});
-}
-
-
-void Application::ReleasePad()
-{
-	if (m_ship != entt::null)
-		m_sim.Commands().Push(Dock::ReleasePad{kPilot, m_ship, false});
-}
-
-
-void Application::DrawStations()
-{
-	m_dressings.clear();
-	m_dressedStations.clear();
-	if (!m_systemScene)
-		return;
-	entt::registry &scene = m_pScene->Registry();
-	for (const Celestial::Body &body : m_systemScene->System().bodies)
-	{
-		const Dock::StationLayout *layout =
-		    body.kind == Celestial::BodyKind::Station ? m_pDocks->FindLayout(body.layout) : nullptr;
-		if (!layout)
-			continue;
-		for (const auto [entity, celestial] : scene.view<const Scene::CelestialBodyComponent>().each())
-			if (celestial.body == body.name)
-			{
-				m_dressings.push_back(DressStation(scene, entity, *layout, *m_pDocks));
-				m_dressedStations.push_back(entt::null);
-			}
-	}
-}
-
-
-void Application::ShowPadStates()
-{
-	if (m_dressings.empty() || !m_systemScene)
-		return;
-	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	const std::uint64_t system = Sim::FrameId(m_systemScene->System().name);
-	for (std::size_t index = 0; index < m_dressings.size(); ++index)
-	{
-		entt::entity &station = m_dressedStations[index];
-		if (App::ShowPadStates(
-		        m_pScene->Registry(), m_dressings[index], snapshot, station, *m_pDocks) != 0)
-			continue;
-		// Not yet found, or a world loaded over the one it was found in: this frame's snapshot is the
-		// world's latest step, so the station found now is the one its pads name.
-		station = FindStation(m_sim.Registry(), system, m_dressings[index].body);
-		if (station != entt::null)
-			App::ShowPadStates(m_pScene->Registry(), m_dressings[index], snapshot, station, *m_pDocks);
-	}
-}
-
-
-void Application::SpawnTraffic(int count)
-{
-	entt::registry &world = m_sim.Registry();
-	std::erase_if(m_traffic, [&world](entt::entity entity) { return !world.valid(entity); });
-	if (count == 0)
-	{
-		for (const entt::entity entity : m_traffic)
-			world.destroy(entity);
-		Core::Log(Core::Severity::Info, kShell, "{} shuttles taken out of the world", m_traffic.size());
-		m_traffic.clear();
-		m_simStepper.Resync();
-		return;
-	}
-	const std::optional<ShellShip> kind = m_pGame->StarterShip();
-	if (!kind)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "The game names no ship to send as traffic");
-		return;
-	}
-	if (!BindStation())
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No station in the system shown to send traffic to");
-		return;
-	}
-	const std::size_t room = kMostTraffic - m_traffic.size();
-	const std::size_t sent = std::min(static_cast<std::size_t>(count), room);
-	if (sent == 0)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "Already {} shuttles, the most", kMostTraffic);
-		return;
-	}
-	// The ring is clear of the hull by more than a shuttle's clearance and separation together, and
-	// its places, in the station's axes, a sixteenth of it apart: 100 m or so, twice what two
-	// shuttles keep between them.
-	const Sim::Transform at = world.get<Sim::Transform>(m_station);
-	const double ring = m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_station).shape) + 150.0;
-	std::vector<bool> taken(kMostTraffic, false);
-	for (const entt::entity entity : m_traffic)
-		if (const auto *destination = world.try_get<Ai::Destination>(entity))
-			for (std::size_t place = 0; place < kMostTraffic; ++place)
-				if (glm::distance(destination->offset, TrafficPlace(place, ring)) < 1.0)
-					taken[place] = true;
-	// Drawn from a generator of the shell's, so sending traffic does not move the world's.
-	Math::Random random{m_sim.Clock().Step(), m_traffic.size()};
-	std::size_t place = 0;
-	for (std::size_t index = 0; index < sent; ++index)
-	{
-		while (taken[place])
-			++place;
-		taken[place] = true;
-		glm::dvec3 direction{0.0};
-		while (glm::length(direction) < 0.1 || glm::length(direction) > 1.0)
-			direction = {
-			    random.NextDouble() * 2.0 - 1.0, random.NextDouble() * 2.0 - 1.0,
-			    random.NextDouble() * 2.0 - 1.0};
-		const double distance = 1000.0 + random.NextDouble() * 1000.0;
-
-		const entt::entity shuttle = world.create();
-		world.emplace<Sim::Transform>(
-		    shuttle,
-		    Sim::Transform{at.position + glm::normalize(direction) * distance, at.orientation});
-		world.emplace<Sim::InFrame>(shuttle, m_stationSystem);
-		world.emplace<Physics::LocalFrame>(shuttle, m_stationBody);
-		MakeShip(world, *m_pDocks, shuttle, kind->hull, kind->mass, true);
-		world.emplace<Ai::Steered>(shuttle);
-		Ai::Destination destination;
-		destination.entity = m_station;
-		destination.offset = TrafficPlace(place, ring);
-		destination.speed = kTrafficSpeed;
-		world.emplace<Ai::Destination>(shuttle, destination);
-		m_traffic.push_back(shuttle);
-	}
-	std::ranges::sort(m_traffic, {}, [](entt::entity entity) { return entt::to_integral(entity); });
-	m_simStepper.Resync();
-	Core::Log(
-	    Core::Severity::Info, kShell, "{} shuttles sent to hold station by {}, {} in all", sent,
-	    m_stationBody, m_traffic.size());
-}
-
-
-void Application::Follow(entt::entity ship)
-{
-	const entt::registry &world = m_sim.Registry();
-	if (!world.valid(ship) || ship == m_ship)
-		return;
-	// A camera that followed the ship it leaves follows this one, once it is shown.
-	const bool following = m_piloting || m_resumePiloting;
-	StopPiloting();
-	m_ship = ship;
-	m_resumePiloting = following;
-	m_sentControls.reset();
-	m_pickPending = false;
-	m_picked.reset();
-	const auto *inSystem = world.try_get<Sim::InFrame>(ship);
-	m_shipSystem = inSystem ? inSystem->frame : Sim::kNoFrame;
-	// Bound to the station it is docked at or waiting for; else, once it is shown, to the one of
-	// its system (TakeEvents).
-	if (const auto *docking = world.try_get<Dock::Docking>(ship))
-	{
-		m_station = docking->station;
-		m_stationSystem = world.get<Sim::InFrame>(m_station).frame;
-		m_stationBody = world.get<Physics::OnRails>(m_station).body;
-	}
-	m_docked = Dock::IsDocked(world, m_ship, m_station);
-	const auto *hull = world.try_get<Dock::Hull>(ship);
-	const Dock::HullDefinition *definition = hull ? m_pDocks->FindHull(hull->definition) : nullptr;
-	Core::Log(
-	    Core::Severity::Info, kShell, "Attached to {}, a {}, {}", Describe(ship),
-	    definition ? definition->displayName : std::string{"ship"},
-	    AtHelm() ? "at your helm" : "which its behaviour flies");
-	if (m_resumePiloting && CanPilot())
-	{
-		m_resumePiloting = false;
-		StartPiloting(m_pilotView);
-	}
-
-	// Shown in its system: the scene jumps there, or along the lane it is on to where it comes out.
-	if (!m_galaxy || m_jump->Active())
-		return;
-	std::uint64_t system = m_shipSystem;
-	std::string arrival;
-	if (const auto *lane = world.try_get<Space::OnLane>(ship))
-	{
-		system = lane->to;
-		arrival = lane->arrival;
-	}
-	const auto shown = std::ranges::find(
-	    m_galaxy->systems, system,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
-	const auto index = static_cast<std::size_t>(shown - m_galaxy->systems.begin());
-	if (shown == m_galaxy->systems.end() || (m_shownSystem && *m_shownSystem == index))
-		return;
-	m_jumpStep = m_sim.Clock().Step();
-	m_jump->Begin(*m_galaxy, index, arrival);
-}
-
-
-void Application::CycleAttached(int step)
-{
-	const std::vector<entt::entity> fleet = FleetOf(m_simStepper.Current(), kPilot);
-	if (fleet.empty())
-		return;
-	const auto count = static_cast<std::ptrdiff_t>(fleet.size());
-	const std::ptrdiff_t at = std::ranges::find(fleet, m_ship) - fleet.begin();
-	// From a ship not of the fleet, the first, or the last going back.
-	const std::ptrdiff_t next =
-	    at == count ? (step > 0 ? 0 : count - 1) : ((at + step) % count + count) % count;
-	Follow(fleet[static_cast<std::size_t>(next)]);
-}
-
-
-bool Application::AtHelm() const
-{
-	return m_ship != entt::null && HelmOf(m_simStepper.Current(), kPilot) == m_ship;
-}
-
-
-void Application::ToggleHelm()
-{
-	if (m_ship == entt::null)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No ship to take the helm of");
-		return;
-	}
-	if (AtHelm())
-		m_sim.Commands().Push(Ai::LeaveHelm{kPilot, m_ship});
-	else
-		m_sim.Commands().Push(Ai::TakeHelm{kPilot, m_ship});
-}
-
-
-void Application::ListFleet(DevTools::Console &console) const
-{
-	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	const std::vector<entt::entity> fleet = FleetOf(snapshot, kPilot);
-	if (fleet.empty())
-	{
-		console.Print("The fleet has no ships");
-		return;
-	}
-	for (std::size_t number = 0; number < fleet.size(); ++number)
-	{
-		const entt::entity ship = fleet[number];
-		const auto *hull = snapshot.Get<Dock::Hull>(ship);
-		const Dock::HullDefinition *definition = hull ? m_pDocks->FindHull(hull->definition) : nullptr;
-		std::string where = "in no system, on a lane";
-		if (const auto *docking = snapshot.Get<Dock::Docking>(ship))
-			where = std::format(
-			    "{} {}", docking->stage == Dock::Stage::Docked ? "docked at" : "making for a pad at",
-			    Describe(docking->station));
-		else if (const auto *sample = snapshot.FindSample(ship);
-		         sample && sample->frame != Sim::kNoFrame)
-			if (const auto *frame = snapshot.Get<Physics::LocalFrame>(ship))
-				where = frame->body.empty() ? "cruising" : std::format("off {}", frame->body);
-		console.Print(
-		    std::format(
-		        "{}{}  {}  {}  {}", number + 1, ship == m_ship ? "*" : " ",
-		        definition ? definition->displayName : std::string{"?"}, where,
-		        m_pGame->DescribeShip(snapshot, ship, HelmOf(snapshot, kPilot) == ship)));
-	}
-}
-
-
-bool Application::CanPilot() const
-{
-	return m_ship != entt::null && m_systemScene &&
-	       Sim::FrameId(m_systemScene->System().name) == m_shipSystem;
-}
-
-
-bool Application::StartPiloting(Scene::PilotView view)
-{
-	if (!CanPilot())
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No ship to fly in the system shown");
-		return false;
-	}
-	if (m_sim.Clock().Compression() > 1.0)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No piloting under time compression");
-		return false;
-	}
-	m_piloting = true;
-	m_pilotView = view;
-	SyncContexts();
-	return true;
-}
-
-
-void Application::StopPiloting()
-{
-	m_piloting = false;
-	SyncContexts();
-}
-
-
-void Application::FlyShip()
-{
-	// A ship whose behaviour flies it, or another's, is followed, not flown: the step would refuse.
-	if (m_ship == entt::null || !AtHelm())
-		return;
-	// A frame's input is a minute of flight at 60x: piloting is suspended under compression, as it is
-	// in every game of the genre, and the assist holds the ship.
-	if (m_piloting && m_sim.Clock().Compression() > 1.0)
-		StopPiloting();
-	Physics::FlightControls controls;
-	if (m_piloting)
-		controls = m_arguments.smokeTest ? kSmokeFlight : m_pilotInput->Read(m_input);
-	// Let go, the ship holds station on its assist, whatever the pilot left it on.
-	controls.assist = m_piloting ? m_assist : true;
-	// Against the station while the ship is in its frame; against its frame elsewhere, on the way
-	// to the next system or off another body after a cruise.
-	controls.reference =
-	    m_stationSystem == m_shipSystem && ShipFrame() == m_stationBody ? m_station : entt::null;
-	if (m_sentControls == controls)
-		return;
-	m_sim.Commands().Push(Physics::SetFlightControls{kPilot, m_ship, controls});
-	m_sentControls = controls;
-}
-
-
-void Application::SyncPilotCamera(entt::registry &registry)
-{
-	entt::entity camera = entt::null;
-	for (const auto [entity, component] : registry.view<const Scene::CameraComponent>().each())
-		if (component.active)
-		{
-			camera = entity;
-			break;
-		}
-	if (camera == entt::null)
-		return;
-	const auto *pose = registry.try_get<Scene::CameraPoseComponent>(camera);
-	auto *pilot = registry.try_get<Scene::PilotCameraComponent>(camera);
-	if (!m_piloting)
-	{
-		if (!pilot)
-			return;
-		if (auto *orbit = registry.try_get<Scene::OrbitCameraComponent>(camera); orbit && pose)
-			orbit->transition = Scene::CameraTransition{
-			    {pose->position, pose->orientation}, kPilotTransition, Math::Easing::InOutCubic};
-		registry.remove<Scene::PilotCameraComponent>(camera);
-		return;
-	}
-
-	// The ship's proxy is made by the traffic layer's sync, once the ship is in the snapshots.
-	entt::entity proxy = entt::null;
-	for (const auto [entity, sim] : registry.view<const Scene::SimProxyComponent>().each())
-		if (sim.simEntity == m_ship)
-			proxy = entity;
-	if (proxy == entt::null)
-		return;
-	if (!pilot)
-	{
-		pilot = &registry.emplace<Scene::PilotCameraComponent>(camera);
-		// Behind and above the shuttle's ten metres, and in its seat, under the canopy.
-		Scene::ChaseCameraSettings chase;
-		chase.offset = {0.0, 4.5, 22.0};
-		chase.lookAhead = 40.0;
-		pilot->chase = Scene::ChaseCamera{chase};
-		Scene::CockpitCameraSettings cockpit;
-		cockpit.eye = {0.0, 1.0, -2.4};
-		pilot->cockpit = Scene::CockpitCamera{cockpit};
-		pilot->view = m_pilotView;
-		if (pose)
-			pilot->transition = Scene::CameraTransition{
-			    {pose->position, pose->orientation}, kPilotTransition, Math::Easing::InOutCubic};
-	}
-	else if (pilot->view != m_pilotView)
-	{
-		if (pose)
-			pilot->transition = Scene::CameraTransition{
-			    {pose->position, pose->orientation}, kViewTransition, Math::Easing::InOutCubic};
-		pilot->view = m_pilotView;
-	}
-	pilot->target = proxy;
-	pilot->frame = entt::null;
-	const std::string frame = ShipFrame();
-	for (const auto [entity, celestial] : registry.view<const Scene::CelestialBodyComponent>().each())
-		if (!frame.empty() && celestial.body == frame)
-			pilot->frame = entity;
-}
-
-
-void Application::ShowJumpStreaks()
-{
-	entt::registry &registry = m_pScene->Registry();
-	// The scene a jump arrives in is another, and the streaks the old one's.
-	if (!registry.valid(m_jumpStreaks))
-		m_jumpStreaks = entt::null;
-	const SpaceScene::JumpStage stage = m_jump->Stage();
-	const bool streaking =
-	    stage == SpaceScene::JumpStage::FadingOut || stage == SpaceScene::JumpStage::FadingIn;
-	if (!m_jump->Active())
-	{
-		if (m_jumpStreaks != entt::null)
-			registry.destroy(m_jumpStreaks);
-		m_jumpStreaks = entt::null;
-		return;
-	}
-	if (m_jumpStreaks == entt::null)
-	{
-		if (!streaking)
-			return;
-		m_jumpStreaks = registry.create();
-		registry.emplace<Scene::BuiltComponent>(m_jumpStreaks);
-		registry.emplace<Scene::TransformComponent>(m_jumpStreaks);
-		registry.emplace<Scene::LayerComponent>(m_jumpStreaks, Scene::Layer::Effects);
-		// At rest in their own frame, which keeps ahead of the camera, so they stream past it
-		// whatever it does.
-		Scene::ParticleEmitterComponent streaks;
-		streaks.rate = 700.0f;
-		streaks.lifetime = 0.32f;
-		streaks.speed = kStreaksSpeed;
-		streaks.speedJitter = 0.2f;
-		streaks.radius = kStreaksRadius;
-		streaks.size = {0.12f, 0.12f};
-		streaks.stretch = 0.05f;
-		// A streak spreads its light along its 16 m, which a 12 cm particle's middle line holds
-		// three-quarters of a percent of: bright at its middle, it is a line of about 4.
-		streaks.color = {0.7f, 0.85f, 1.0f, 500.0f};
-		streaks.colorEnd = streaks.color;
-		streaks.capacity = 512;
-		streaks.seed = 21;
-		registry.emplace<Scene::ParticleEmitterComponent>(m_jumpStreaks, streaks);
-	}
-	registry.get<Scene::ParticleEmitterComponent>(m_jumpStreaks).active = streaking;
-}
-
-
-void Application::PlaceJumpStreaks(entt::registry &registry)
-{
-	if (m_jumpStreaks == entt::null || !registry.valid(m_jumpStreaks))
-		return;
-	// Ahead of this frame's camera, turned to face it, so its -Z, which it sends its particles along,
-	// is back towards the camera. Its world transform is written here too, after the rigs: the camera
-	// moves tens of kilometres a second with the system's bodies, and one placed by the last frame's
-	// pose would be hundreds of metres behind it.
-	const Render::CameraView camera = Render::ActiveCameraView(registry);
-	const glm::dquat facing =
-	    camera.orientation * glm::angleAxis(glm::pi<double>(), glm::dvec3{0.0, 1.0, 0.0});
-	const glm::dvec3 at = camera.position + camera.orientation * glm::dvec3{0.0, 0.0, -kStreaksAhead};
-	glm::vec3 rotation{0.0f};
-	glm::extractEulerAngleXYZ(
-	    glm::mat4{glm::mat4_cast(glm::quat{facing})}, rotation.x, rotation.y, rotation.z);
-	auto &transform = registry.get<Scene::TransformComponent>(m_jumpStreaks);
-	transform.translation = at;
-	transform.rotation = rotation;
-	glm::dmat4 world = glm::mat4_cast(facing);
-	world[3] = glm::dvec4{at, 1.0};
-	registry.emplace_or_replace<Scene::WorldTransformComponent>(
-	    m_jumpStreaks, Scene::WorldTransformComponent{world});
-}
-
-
-void Application::SetProxyFactory()
-{
-	m_systemScene->SetProxyFactory(
-	    [this](entt::registry &registry, entt::entity simEntity)
-	    {
-		    const Sim::Snapshot &snapshot = m_simStepper.Current();
-		    if (snapshot.Get<Dock::Buggy>(simEntity))
-			    return MakeBuggyProxy(registry, simEntity);
-		    // Every ship as its hull, the fleet's, the traders' and the traffic's; a mod without the
-		    // hull still sees it, as a box.
-		    const auto *hull = snapshot.Get<Dock::Hull>(simEntity);
-		    if (!hull)
-			    return entt::entity{entt::null};
-		    const Dock::HullDefinition *definition = m_pDocks->FindHull(hull->definition);
-		    return MakeHullProxy(
-		        registry, definition ? *definition : Dock::HullDefinition{}, simEntity);
-	    });
-}
-
-
-void Application::DrawFlight()
-{
-	// A cinematic has the frame to itself.
-	if (!m_pScene->Registry().view<Scene::SequencePlayerComponent>().empty())
-		return;
-	// Speeds from the snapshots, which are what presentation may see: the ship's motion relative to
-	// the station's over the last step.
-	const Sim::Snapshot &previous = m_simStepper.Previous();
-	const Sim::Snapshot &current = m_simStepper.Current();
-	const auto *shipSample = current.FindSample(m_ship);
-	const auto *stationSample = current.FindSample(m_station);
-	// A station a system away, as it is until the ship's arrival binds it to the next, is no measure.
-	if (!shipSample || !stationSample || shipSample->frame != stationSample->frame)
-		return;
-	const Sim::Transform *ship = &shipSample->transform;
-	// Off another body after a cruise, the ship is measured against that body, where its rails have
-	// it at each snapshot's time, since the station may be a planet's breadth away.
-	std::string against = m_stationBody;
-	glm::dvec3 reference = stationSample->transform.position;
-	std::optional<glm::dvec3> referenceBefore;
-	if (const auto *stationBefore = previous.Find(m_station))
-		referenceBefore = stationBefore->position;
-	const std::string frame = ShipFrame();
-	if (!frame.empty() && frame != m_stationBody && m_systemScene &&
-	    Sim::FrameId(m_systemScene->System().name) == shipSample->frame)
-		if (const int body = m_systemScene->System().Find(frame); body >= 0)
-		{
-			const Celestial::StarSystem &system = m_systemScene->System();
-			against = frame;
-			reference =
-			    Celestial::EvaluateBody(system, static_cast<std::size_t>(body), current.time).metres;
-			referenceBefore =
-			    Celestial::EvaluateBody(system, static_cast<std::size_t>(body), previous.time).metres;
-		}
-	double speed = 0.0;
-	if (const auto *shipBefore = previous.Find(m_ship);
-	    shipBefore && referenceBefore && current.time > previous.time)
-		speed = glm::length((ship->position - shipBefore->position) - (reference - *referenceBefore)) /
-		        (current.time - previous.time);
-	const ImGuiViewport *viewport = ImGui::GetMainViewport();
-	ImGui::SetNextWindowPos(
-	    {viewport->WorkPos.x + 12.0f, viewport->WorkPos.y + viewport->WorkSize.y - 12.0f},
-	    ImGuiCond_Always, {0.0f, 1.0f});
-	ImGui::SetNextWindowBgAlpha(0.45f);
-	constexpr ImGuiWindowFlags kOverlay =
-	    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize |
-	    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-	if (ImGui::Begin("Flight", nullptr, kOverlay))
-	{
-		const bool helm = AtHelm();
-		ImGui::Text(
-		    "%s  %s", Describe(m_ship).c_str(),
-		    helm ? "at your helm" : "flown by its behaviour (H takes the helm)");
-		if (const auto *cruising = current.Get<Space::Cruising>(m_ship))
-			ImGui::Text(
-			    "Cruising to %s  %.0f km/s  %.0f s", cruising->target.c_str(), speed / 1000.0,
-			    static_cast<double>(
-			        cruising->arrivalStep - std::min(cruising->arrivalStep, current.step)) *
-			        m_sim.FixedStep());
-		ImGui::Text(
-		    "%s  %.1f m/s  %.0f m", against.c_str(), speed, glm::length(ship->position - reference));
-		if (m_docked)
-			ImGui::Text("Docked at %s", m_stationBody.c_str());
-		if (const auto *transit = current.Get<Space::Transit>(m_ship))
-			if (const auto *gate = current.Get<Space::Gate>(transit->gate))
-			{
-				if (transit->cleared)
-					ImGui::Text(
-					    "Cleared through %s  %.0f s", gate->jumpPoint.c_str(),
-					    static_cast<double>(gate->lapses - std::min(gate->lapses, current.step)) *
-					        m_sim.FixedStep());
-				else
-					ImGui::Text(
-					    "Waiting for %s, %d in the queue", gate->jumpPoint.c_str(),
-					    static_cast<int>(
-					        std::ranges::find(gate->queue, m_ship) - gate->queue.begin() + 1));
-			}
-		ImGui::Text(
-		    "Assist %s (Z)  View %s (V)  P lets go  [ ] other ships", m_assist ? "on" : "off",
-		    m_pilotView == Scene::PilotView::Chase ? "chase" : "cockpit");
-		if (helm)
-			ImGui::TextDisabled("W/S throttle  A/D R/F strafe  arrows pitch, yaw  Q/E roll");
-	}
-	ImGui::End();
-}
-
-
 bool Application::Pick(const glm::dvec2 &point)
 {
-	if (!m_systemScene)
+	const std::optional<PickSpace> space = m_pGame->PickIn(*this);
+	if (!space)
 		return false;
 	int width = 0;
 	int height = 0;
@@ -3414,14 +1920,11 @@ bool Application::Pick(const glm::dvec2 &point)
 	// The camera as it was drawn last frame, which is what was clicked on, and the time it showed.
 	const Math::DRay ray = Render::ScreenRay(
 	    Render::ActiveCameraView(m_pScene->Registry()), point, glm::dvec2{width, height});
-	// From the seat, the ray starts inside the hull.
-	const entt::entity ignore =
-	    m_piloting && m_pilotView == Scene::PilotView::Cockpit ? m_ship : entt::entity{entt::null};
 	m_pickTime = m_shownTime;
 	m_sim.Commands().Push(
 	    Physics::Pick{
-	        kPilot, ++m_pickRequest, Sim::FrameId(m_systemScene->System().name), ray.origin,
-	        ray.direction, kPickDistance, m_pickTime, ignore});
+	        kPilot, ++m_pickRequest, space->frame, ray.origin, ray.direction, kPickDistance, m_pickTime,
+	        space->ignore});
 	m_pickPending = true;
 	return true;
 }
@@ -3447,220 +1950,43 @@ void Application::TakeEvents()
 				continue;
 			}
 			m_picked = PickedMark{
-			    picked->entity, picked->distance, picked->point - PilotFrameOrigin(m_pickTime),
-			    picked->normal};
+			    picked->entity, picked->distance,
+			    picked->point - m_pGame->PickOrigin(*this, m_pickTime), picked->normal};
 			Core::Log(
 			    Core::Severity::Info, kShell, "Picked {} at {:.0f} m", Describe(picked->entity),
 			    picked->distance);
 		}
-		else if (const auto *entered = event.event.try_cast<Space::LaneEntered>();
-		         entered && entered->entity == m_ship)
-		{
-			m_shipSystem = Sim::kNoFrame;
-			m_resumePiloting = m_piloting;
-			if (m_piloting)
-				StopPiloting();
-			Core::Log(
-			    Core::Severity::Info, kShell,
-			    "The ship entered the lane through {}, out at {} in {:.0f} s", entered->lane.departure,
-			    entered->lane.arrival, entered->transitSeconds);
-			// Sent by a gate rather than the tools' jump, which has the scene jumping already.
-			FollowShipAlong(entered->lane);
-		}
-		else if (const auto *cleared = event.event.try_cast<Space::TransitCleared>();
-		         cleared && cleared->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell,
-			    "{} clears the ship through for {} credits: fly through its ring within {:.0f} s",
-			    Describe(cleared->gate), cleared->toll, Space::Gates::kClearanceSeconds);
-		else if (const auto *waiting = event.event.try_cast<Space::TransitQueued>();
-		         waiting && waiting->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell, "The ship waits for {}, {} in the queue",
-			    Describe(waiting->gate), waiting->place);
-		else if (const auto *noTransit = event.event.try_cast<Space::TransitRefused>();
-		         noTransit && noTransit->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "{} will not clear the ship: {}",
-			    Describe(noTransit->gate), Word(noTransit->reason));
-		else if (const auto *unused = event.event.try_cast<Space::TransitLapsed>();
-		         unused && unused->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "The ship's clearance through {} has lapsed",
-			    Describe(unused->gate));
-		else if (const auto *sent = event.event.try_cast<Space::TransitSent>();
-		         sent && sent->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell, "{} sends the ship through, charging {} credits",
-			    Describe(sent->gate), sent->toll);
-		else if (const auto *passed = event.event.try_cast<Space::GatePassed>();
-		         passed && passed->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "The ship passed through {} unsent: {}",
-			    Describe(passed->gate), Word(passed->reason));
-		else if (const auto *arrived = event.event.try_cast<Space::LaneLeft>();
-		         arrived && arrived->entity == m_ship)
-		{
-			m_shipSystem = arrived->system;
-			Core::Log(Core::Severity::Info, kShell, "The ship came out at {}", arrived->arrival);
-		}
-		else if (const auto *cruise = event.event.try_cast<Space::CruiseStarted>();
-		         cruise && cruise->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell, "The ship cruises to {}, {:.0f} km in {:.1f} s",
-			    cruise->body, cruise->metres / 1000.0, cruise->seconds);
-		else if (const auto *cruised = event.event.try_cast<Space::CruiseEnded>();
-		         cruised && cruised->ship == m_ship)
-			Core::Log(Core::Severity::Info, kShell, "The ship has arrived off {}", cruised->body);
-		else if (const auto *noCruise = event.event.try_cast<Space::CruiseRefused>();
-		         noCruise && noCruise->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "The ship cannot cruise to {}: {}", noCruise->body,
-			    Word(noCruise->reason));
-		else if (const auto *noLane = event.event.try_cast<Space::LaneRefused>();
-		         noLane && noLane->entity == m_ship)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "The ship cannot enter the lane through {}: {}",
-			    noLane->jumpPoint, Word(noLane->reason));
-		// The console's traffic holds station where it arrives; a trader arriving is on its way on.
-		else if (const auto *holding = event.event.try_cast<Ai::Arrived>();
-		         holding && std::ranges::binary_search(
-		                        m_traffic, entt::to_integral(holding->ship), {},
-		                        [](entt::entity entity) { return entt::to_integral(entity); }))
-			Core::Log(
-			    Core::Severity::Info, kShell, "{} holds station by {}", Describe(holding->ship),
-			    m_stationBody);
-		else if (const auto *landed = event.event.try_cast<Dock::Landed>();
-		         landed && landed->ship == m_ship)
-		{
-			m_docked = true;
-			Core::Log(
-			    Core::Severity::Info, kShell, "The ship is clamped to pad {} of {}", landed->number,
-			    m_stationBody);
-			PlaySequence(kDockSequence, 0.0);
-		}
-		else if (const auto *left = event.event.try_cast<Dock::Left>(); left && left->ship == m_ship)
-		{
-			m_docked = false;
-			Core::Log(
-			    Core::Severity::Info, kShell, "The clamps of pad {} of {} let the ship go",
-			    left->number, m_stationBody);
-		}
-		else if (const auto *given = event.event.try_cast<Dock::PadGiven>();
-		         given && given->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell, "{} gives the ship pad {}", m_stationBody, given->number);
-		else if (const auto *queued = event.event.try_cast<Dock::PadQueued>();
-		         queued && queued->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell, "The ship waits for a pad at {}, {} in the queue",
-			    m_stationBody, queued->place);
-		else if (const auto *noPad = event.event.try_cast<Dock::PadRefused>();
-		         noPad && noPad->ship == m_ship)
-			Core::Log(Core::Severity::Warning, kShell, "No pad: {}", Word(noPad->reason));
-		else if (const auto *lapsed = event.event.try_cast<Dock::PadLapsed>();
-		         lapsed && lapsed->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "Pad {} was not landed on in time, and is given up",
-			    lapsed->number);
-		else if (const auto *carried = event.event.try_cast<Dock::CargoCarried>();
-		         carried && carried->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell, "The ship's cargo has crossed the deck of pad {} of {}",
-			    carried->number, m_stationBody);
-		else if (const auto *released = event.event.try_cast<Dock::PadReleased>();
-		         released && released->ship == m_ship)
-		{
-			// Sent along a lane from its pad, the clamps let it go without a Left.
-			m_docked = false;
-			// The docks held it as they gave the pad up: the pilot's controls go again, held or not.
-			m_sentControls.reset();
-			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);
-		}
-		else if (const auto *helmTaken = event.event.try_cast<Ai::HelmTaken>();
-		         helmTaken && helmTaken->controller == kPilot)
-		{
-			// Its controls were let go as the helm was taken: the pilot's go again.
-			m_sentControls.reset();
-			Core::Log(Core::Severity::Info, kShell, "At the helm of {}", Describe(helmTaken->ship));
-		}
-		else if (const auto *helmLeft = event.event.try_cast<Ai::HelmLeft>();
-		         helmLeft && helmLeft->controller == kPilot)
-			Core::Log(
-			    Core::Severity::Info, kShell, "{} is left to its behaviour", Describe(helmLeft->ship));
-		else if (const auto *noHelm = event.event.try_cast<Ai::HelmRefused>();
-		         noHelm && noHelm->sender == kPilot)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "No helm of {}: {}", Describe(noHelm->ship),
-			    Word(noHelm->reason));
-		else if (const auto *unflown = event.event.try_cast<Physics::FlightControlsRefused>();
-		         unflown && unflown->sender == kPilot && unflown->ship == m_ship)
-			Core::Log(
-			    Core::Severity::Info, kShell, "{} does not answer the controls: {}",
-			    Describe(unflown->ship), Word(unflown->reason));
 		m_pGame->TakeEvent(event, *this);
-	}
-	// Out of a lane into the system shown, whichever came first, the ship is bound to the station
-	// there, and flown again if it was flown in.
-	if (CanPilot() && m_stationSystem != m_shipSystem)
-		BindStation();
-	if (m_resumePiloting && CanPilot())
-	{
-		m_resumePiloting = false;
-		StartPiloting(m_pilotView);
 	}
 }
 
 
 void Application::MarkScene(entt::registry &registry)
 {
-	// The marks the shell placed last frame come off, and this frame's go on: the proxies of the
-	// simulation's entities come and go with its snapshots, so a mark is placed on what is there now.
-	// Marks a scene file authored are its own, and stay.
-	for (const auto [entity, owned] : m_shellMarks)
-		if (registry.valid(entity))
-		{
-			if (owned.outline)
-				registry.remove<Scene::OutlineComponent>(entity);
-			if (owned.mask)
-				registry.remove<Scene::MaskComponent>(entity);
-		}
-	m_shellMarks.clear();
-	const auto proxyOf = [&](entt::entity simEntity)
+	// The outline the shell placed last frame comes off, and this frame's goes on: the proxies of the
+	// simulation's entities come and go with its snapshots, so it is placed on what is there now. An
+	// outline a scene file authored is its own, and stays.
+	if (m_outlined != entt::null && registry.valid(m_outlined))
+		registry.remove<Scene::OutlineComponent>(m_outlined);
+	m_outlined = entt::null;
+	if (!m_picked)
+		return;
+	entt::entity proxy = entt::null;
+	for (const auto [entity, sim] : registry.view<const Scene::SimProxyComponent>().each())
+		if (sim.simEntity == m_picked->entity)
+			proxy = entity;
+	if (proxy == entt::null || registry.all_of<Scene::OutlineComponent>(proxy))
+		return;
+	// What was picked is selected, a line about it; as the game's target, a glow.
+	Scene::OutlineComponent outline;
+	if (const std::optional<PickSpace> space = m_pGame->PickIn(*this); space && space->targeting)
 	{
-		for (const auto [entity, sim] : registry.view<const Scene::SimProxyComponent>().each())
-			if (sim.simEntity == simEntity)
-				return entity;
-		return entt::entity{entt::null};
-	};
-	// What was picked is selected, a line about it; while flying, it is the ship's target, a glow.
-	if (m_picked)
-		if (const entt::entity proxy = proxyOf(m_picked->entity);
-		    proxy != entt::null && !registry.all_of<Scene::OutlineComponent>(proxy))
-		{
-			Scene::OutlineComponent outline;
-			if (m_piloting)
-			{
-				outline.style = Scene::OutlineStyle::Targeted;
-				outline.color = {1.0f, 0.2f, 0.1f, 2.0f};
-				outline.width = 14.0f;
-			}
-			registry.emplace<Scene::OutlineComponent>(proxy, outline);
-			m_shellMarks.push_back({proxy, {true, false}});
-		}
-	// From the seat, the ship's own hull is the cockpit, which an outline is not drawn over.
-	if (m_piloting && m_pilotView == Scene::PilotView::Cockpit)
-		if (const entt::entity proxy = proxyOf(m_ship);
-		    proxy != entt::null && !registry.all_of<Scene::MaskComponent>(proxy))
-		{
-			registry.emplace<Scene::MaskComponent>(proxy, Scene::MaskComponent{.cockpit = true});
-			const auto found = std::ranges::find_if(
-			    m_shellMarks, [&](const auto &mark) { return mark.first == proxy; });
-			if (found != m_shellMarks.end())
-				found->second.mask = true;
-			else
-				m_shellMarks.push_back({proxy, {false, true}});
-		}
+		outline.style = Scene::OutlineStyle::Targeted;
+		outline.color = {1.0f, 0.2f, 0.1f, 2.0f};
+		outline.width = 14.0f;
+	}
+	registry.emplace<Scene::OutlineComponent>(proxy, outline);
+	m_outlined = proxy;
 }
 
 
@@ -3668,9 +1994,9 @@ void Application::DrawPicked()
 {
 	if (!m_picked)
 		return;
-	// Where it was hit, carried with the station's frame, and the surface's normal there; a
+	// Where it was hit, carried with its frame (Game::PickOrigin), and the surface's normal there; a
 	// marker that keeps its size on the screen, about a hundredth of the distance across.
-	const glm::dvec3 at = PilotFrameOrigin(m_shownTime) + m_picked->local;
+	const glm::dvec3 at = m_pGame->PickOrigin(*this, m_shownTime) + m_picked->local;
 	const double size = std::max(0.25, m_picked->distance * 0.01);
 	constexpr glm::vec4 kMarker{1.0f, 0.8f, 0.2f, 1.0f};
 	m_debugDraw.Sphere(at, size, kMarker, 24, Render::DebugDepth::Overlay);
@@ -3697,31 +2023,40 @@ std::string Application::Word(const Sim::Reason &reason) const
 }
 
 
+void Application::ClearPick()
+{
+	// Its outline off now, as a game clears it before it replaces the scene.
+	if (m_outlined != entt::null && m_pScene && m_pScene->Registry().valid(m_outlined))
+		m_pScene->Registry().remove<Scene::OutlineComponent>(m_outlined);
+	m_outlined = entt::null;
+	m_picked.reset();
+	m_pickPending = false;
+}
+
+
 std::string Application::Describe(entt::entity simEntity) const
 {
-	const std::vector<entt::entity> fleet = FleetOf(m_simStepper.Current(), kPilot);
-	if (const auto found = std::ranges::find(fleet, simEntity); found != fleet.end())
-		return std::format("Ship {}", found - fleet.begin() + 1);
-	if (simEntity == m_ship)
-		return "Ship";
-	if (simEntity == m_station)
-		return m_stationBody;
-	if (const auto found = std::ranges::find(m_traffic, simEntity); found != m_traffic.end())
-		return std::format("Shuttle {}", found - m_traffic.begin() + 1);
-	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	if (const auto *gate = snapshot.Get<Space::Gate>(simEntity))
-		return gate->jumpPoint;
-	// Another station, by the body it rides: not a pad, nor a ship clamped to one, which ride it too.
-	if (const auto *rails = snapshot.Get<Physics::OnRails>(simEntity);
-	    rails && !snapshot.Get<Dock::Pad>(simEntity) && !snapshot.Get<Dock::Hull>(simEntity))
-		return rails->body;
+	if (std::optional<std::string> name = m_pGame->Describe(simEntity))
+		return *std::move(name);
 	return std::format("Entity {:#x}", entt::to_integral(simEntity));
+}
+
+
+const AppArguments &Application::Arguments() const
+{
+	return m_arguments;
 }
 
 
 Sim::SimWorld &Application::World()
 {
 	return m_sim;
+}
+
+
+void Application::Resync()
+{
+	m_simStepper.Resync();
 }
 
 
@@ -3765,6 +2100,12 @@ Render::DebugDraw &Application::DebugLines()
 }
 
 
+bool Application::DebugShown() const
+{
+	return m_showSceneDebug;
+}
+
+
 void Application::SetFade(const glm::vec3 &colour, float amount)
 {
 	if (m_pRenderer)
@@ -3797,9 +2138,22 @@ Input::InputSystem &Application::Input()
 }
 
 
+void Application::SetGameContext(std::string_view context)
+{
+	m_gameContext = context;
+	SyncContexts();
+}
+
+
 const Sim::DefinitionRegistry &Application::Definitions() const
 {
 	return *m_definitions;
+}
+
+
+Script::ScriptHost &Application::Scripts()
+{
+	return *m_pScripts;
 }
 
 
@@ -3809,27 +2163,11 @@ Sim::Controller Application::Player() const
 }
 
 
-entt::entity Application::Followed() const
+void Application::Frame(entt::entity target)
 {
-	return m_ship;
-}
-
-
-entt::entity Application::Station() const
-{
-	return m_station;
-}
-
-
-bool Application::Docked() const
-{
-	return m_docked;
-}
-
-
-std::string Application::ShownSystem() const
-{
-	return m_systemScene ? m_systemScene->System().name : std::string{};
+	entt::registry &registry = m_pScene->Registry();
+	for (const entt::entity camera : registry.view<const Scene::OrbitCameraComponent>())
+		FrameTarget(registry, camera, target);
 }
 
 
@@ -3847,27 +2185,6 @@ bool Application::SmokeTest() const
 
 ShellWorld Application::MakeShellWorld()
 {
-	return {m_sim, *m_pPhysics, *m_pLanes, *m_pGates, *m_pDocks, *m_pBehaviours};
-}
-
-
-std::string Application::ShipFrame() const
-{
-	const auto *frame =
-	    m_ship == entt::null ? nullptr : m_simStepper.Current().Get<Physics::LocalFrame>(m_ship);
-	return frame ? frame->body : std::string{};
-}
-
-
-glm::dvec3 Application::PilotFrameOrigin(double simSeconds) const
-{
-	const std::string frame = ShipFrame();
-	if (frame.empty() || !CanPilot())
-		return glm::dvec3{0.0};
-	const Celestial::StarSystem &system = m_systemScene->System();
-	const int index = system.Find(frame);
-	return index < 0
-	           ? glm::dvec3{0.0}
-	           : Celestial::EvaluateBody(system, static_cast<std::size_t>(index), simSeconds).metres;
+	return {m_sim, *m_pPhysics};
 }
 } // namespace Jettison::App

@@ -16,9 +16,9 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
+#include "Stations.h"
 #include "Traders.h"
 #include "Trading.h"
-#include <jettison/app/Stations.h>
 
 namespace Jettison::Sample
 {
@@ -96,7 +96,7 @@ void Buy(
 	const Sim::ReasonArgument at = Sim::ReasonArgument::Entity(command.station);
 	if (!FleetDockedAt(registry, command.sender, command.station))
 		return refuse(TradeReason::NoneDocked, {at});
-	const entt::entity pad = App::FreePad(registry, docks, command.station, *hull);
+	const entt::entity pad = FreePad(registry, docks, command.station, *hull);
 	if (pad == entt::null)
 		return refuse(
 		    TradeReason::NoPadFree,
@@ -112,7 +112,7 @@ void Buy(
 	registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(command.station));
 	registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(command.station).frame);
 	registry.emplace<Physics::LocalFrame>(ship, registry.get<Physics::OnRails>(command.station).body);
-	App::MakeShip(registry, docks, ship, command.hull, sale.mass, true);
+	MakeShip(registry, docks, ship, command.hull, sale.mass, true);
 	registry.replace<Physics::FlightControls>(
 	    ship, Physics::FlightControls{{}, {}, true, command.station});
 	registry.emplace<Sim::ControlledBy>(ship, command.sender);

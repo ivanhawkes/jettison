@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include <jettison/dock/Definitions.h>
 #include <jettison/physics/Components.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Reason.h>
@@ -16,20 +15,6 @@
 
 namespace Jettison::App
 {
-namespace
-{
-constexpr std::string_view kHull = "Dock.HullDefinition";
-
-
-// A hull by its definition's name, as a mod may have changed it; one not defined as it is named.
-std::string HullName(const Sim::DefinitionRegistry &definitions, const std::string &hull)
-{
-	const auto *definition = definitions.Find<Dock::HullDefinition>(hull);
-	return definition && !definition->displayName.empty() ? definition->displayName : hull;
-}
-} // namespace
-
-
 std::string EntityName(
     const Sim::Snapshot &snapshot, const Ui::StringTable &strings, entt::entity entity,
     const Game *game)
@@ -66,8 +51,6 @@ std::string WordReason(
 				                   argument.definition, argument.identifier, definitions, strings)
 				             : std::nullopt)
 					words.push_back(*std::move(name));
-				else if (argument.definition == kHull)
-					words.push_back(HullName(definitions, argument.identifier));
 				else
 					words.push_back(argument.identifier);
 				break;

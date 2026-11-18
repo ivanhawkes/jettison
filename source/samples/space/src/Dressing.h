@@ -19,7 +19,7 @@ namespace Jettison::Physics
 struct Thrust;
 }
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 // The station dressing (docs/roadmap.md, 9d): a station's layout drawn under its entity in the
 // presentation scene, built (Scene::BuiltComponent), so a scene file never holds it. None of it is
@@ -110,7 +110,7 @@ void FitClamps(entt::registry &scene, const PadClamps &clamps, const Dock::HullD
 
 // A ship's proxy for the traffic layer, in its own axes (nose -Z): the hull's model, if it names
 // one, or a proxy made of procedural shapes, chosen by its length and fitted to its length, beam and
-// height, so the box it collides as holds what is drawn. Up to 25 m it is the shell's shuttle, to
+// height, so the box it collides as holds what is drawn. Up to 25 m it is the sample's shuttle, to
 // 60 m a transport of four cargo pods behind a cab, to 140 m a spine of racked containers under a
 // bridge, and beyond that a long hull under a superstructure, which the sample's liner and cruiser
 // share.
@@ -171,4 +171,4 @@ entt::entity MakeBuggyProxy(entt::registry &scene, entt::entity buggy);
 
 // Shows on each buggy's bed as many crates as the snapshot has it carry, four at most.
 void ShowBuggyLoads(entt::registry &scene, const Sim::Snapshot &snapshot);
-} // namespace Jettison::App
+} // namespace Jettison::Sample

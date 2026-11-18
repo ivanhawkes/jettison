@@ -12,8 +12,8 @@
 #include <string_view>
 #include <vector>
 
+#include "Stations.h"
 #include <jettison/ai/Steering.h>
-#include <jettison/app/Stations.h>
 #include <jettison/audio/AudioSystem.h>
 #include <jettison/audio/EventSounds.h>
 #include <jettison/celestial/StarSystem.h>
@@ -94,18 +94,19 @@ TEST_CASE("Stations: the sample parks its ships on a few pads of each station as
 {
 	Stations sample;
 	Sample::SpaceGame game;
-	const std::vector<entt::entity> stations = App::OpenStations(
+	const std::vector<entt::entity> stations = Sample::OpenStations(
 	    sample.world, sample.docks, sample.systems, [&](entt::entity station, std::string_view body)
 	    { game.StationOpened(sample.world, sample.docks, station, body); });
 	REQUIRE(stations.size() == 3);
 	const entt::registry &world = sample.world.Registry();
-	const entt::entity highport = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Highport");
-	const entt::entity corva = App::FindStation(world, Sim::FrameId("Vesper"), "Corva Refinery");
-	const entt::entity anchorage = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Anchorage");
+	const entt::entity highport = Sample::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Highport");
+	const entt::entity corva = Sample::FindStation(world, Sim::FrameId("Vesper"), "Corva Refinery");
+	const entt::entity anchorage =
+	    Sample::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Anchorage");
 	CHECK(highport == stations[0]);
 	CHECK(anchorage == stations[1]);
 	CHECK(corva == stations[2]);
-	CHECK(App::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
+	CHECK(Sample::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
 
 	// Three heavy transports on Highport's twelve destroyer pads, and its display wing's six; two
 	// transports and a fighter at Corva's six. At least two pads of each are left free.

@@ -1,5 +1,5 @@
-#include "../src/Dressing.h"
-#include <jettison/app/Stations.h>
+#include "Dressing.h"
+#include "Stations.h"
 
 #include <doctest/doctest.h>
 
@@ -92,7 +92,7 @@ struct Dressed
 	std::vector<entt::entity> Open()
 	{
 		entt::registry &registry = world.Registry();
-		return App::OpenStations(
+		return Sample::OpenStations(
 		    world, docks, systems,
 		    [&](entt::entity built, std::string_view body)
 		    {
@@ -104,7 +104,7 @@ struct Dressed
 				    registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(built));
 				    registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(built));
 				    registry.emplace<Physics::LocalFrame>(ship, std::string{body});
-				    App::MakeShip(registry, docks, ship, "heavy-transport", 1.2e7f, false);
+				    Sample::MakeShip(registry, docks, ship, "heavy-transport", 1.2e7f, false);
 				    docks.Park(world, ship, registry.get<Dock::Station>(built).pads.at(pad - 1));
 			    }
 		    });
@@ -170,8 +170,8 @@ TEST_CASE(
 {
 	Dressed dressed;
 	const Dock::StationLayout &layout = dressed.Layout();
-	const App::StationDressing dressing =
-	    App::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
+	const Sample::StationDressing dressing =
+	    Sample::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
 	CHECK(dressing.station == dressed.station);
 	CHECK(dressing.body == "Ostra Highport");
 	const entt::registry &scene = dressed.scene;
@@ -236,8 +236,8 @@ TEST_CASE(
 {
 	Dressed dressed;
 	const Dock::StationLayout &layout = dressed.Layout();
-	const App::StationDressing dressing =
-	    App::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
+	const Sample::StationDressing dressing =
+	    Sample::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
 	const entt::registry &scene = dressed.scene;
 	const std::vector<entt::entity> nodes = PadNodes(dressed);
 	REQUIRE(nodes.size() == 18);
@@ -256,7 +256,7 @@ TEST_CASE(
 			CHECK(scene.get<Scene::MeshComponent>(lamp).material == "materials/lamp.material.yaml");
 			CHECK(
 			    scene.get<Scene::MeshComponent>(lamp).color ==
-			    App::LampColour(Dock::PadState::Free, layout.pads[index].display));
+			    Sample::LampColour(Dock::PadState::Free, layout.pads[index].display));
 		}
 	}
 	CHECK(dressing.floodlights == 104);
@@ -318,8 +318,8 @@ TEST_CASE("Dressing: the display wing shows a liner, a cruiser and four fighters
 {
 	Dressed dressed;
 	const Dock::StationLayout &layout = dressed.Layout();
-	const App::StationDressing dressing =
-	    App::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
+	const Sample::StationDressing dressing =
+	    Sample::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
 	const entt::registry &scene = dressed.scene;
 	const std::vector<entt::entity> nodes = PadNodes(dressed);
 
@@ -361,17 +361,17 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 	REQUIRE(!stations.empty());
 	entt::registry &world = dressed.world.Registry();
 	const entt::entity highport = stations.front();
-	App::StationDressing dressing =
-	    App::DressStation(dressed.scene, dressed.station, dressed.Layout(), dressed.docks);
+	Sample::StationDressing dressing =
+	    Sample::DressStation(dressed.scene, dressed.station, dressed.Layout(), dressed.docks);
 	const auto colour = [&](std::uint32_t number)
 	{ return dressed.scene.get<Scene::MeshComponent>(dressing.lamps[number - 1].front()).color; };
 
 	// Pads 2, 7 and 11 hold the parked transports; the rest are free, and 13 to 18 are display pads.
 	Sim::Snapshot snapshot = Sim::Capture(dressed.world);
-	CHECK(App::ShowPadStates(dressed.scene, dressing, snapshot, highport, dressed.docks) == 18);
-	CHECK(colour(1) == App::LampColour(Dock::PadState::Free, false));
-	CHECK(colour(2) == App::LampColour(Dock::PadState::Holding, false));
-	CHECK(colour(13) == App::LampColour(Dock::PadState::Free, true));
+	CHECK(Sample::ShowPadStates(dressed.scene, dressing, snapshot, highport, dressed.docks) == 18);
+	CHECK(colour(1) == Sample::LampColour(Dock::PadState::Free, false));
+	CHECK(colour(2) == Sample::LampColour(Dock::PadState::Holding, false));
+	CHECK(colour(13) == Sample::LampColour(Dock::PadState::Free, true));
 	for (const entt::entity lamp : dressing.lamps[1])
 		CHECK(dressed.scene.get<Scene::MeshComponent>(lamp).color == colour(2));
 
@@ -379,10 +379,10 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 	// the next snapshot carries.
 	const entt::entity pad = world.get<Dock::Station>(highport).pads.front();
 	world.get<Dock::Pad>(pad).state = Dock::PadState::Reserved;
-	CHECK(colour(1) == App::LampColour(Dock::PadState::Free, false));
+	CHECK(colour(1) == Sample::LampColour(Dock::PadState::Free, false));
 	snapshot = Sim::Capture(dressed.world);
-	App::ShowPadStates(dressed.scene, dressing, snapshot, highport, dressed.docks);
-	CHECK(colour(1) == App::LampColour(Dock::PadState::Reserved, false));
+	Sample::ShowPadStates(dressed.scene, dressing, snapshot, highport, dressed.docks);
+	CHECK(colour(1) == Sample::LampColour(Dock::PadState::Reserved, false));
 	for (const entt::entity lamp : dressing.lamps[0])
 		CHECK(
 		    dressed.scene.get<Scene::MeshComponent>(lamp).material ==
@@ -391,7 +391,7 @@ TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a disp
 		CHECK(dressed.scene.get<Scene::MeshComponent>(lamp).material == "materials/lamp.material.yaml");
 
 	// Without its station, none of the pads are the dressing's.
-	CHECK(App::ShowPadStates(dressed.scene, dressing, snapshot, entt::null, dressed.docks) == 0);
+	CHECK(Sample::ShowPadStates(dressed.scene, dressing, snapshot, entt::null, dressed.docks) == 0);
 }
 
 
@@ -404,8 +404,8 @@ TEST_CASE(
 	REQUIRE(!stations.empty());
 	entt::registry &world = dressed.world.Registry();
 	const entt::entity highport = stations.front();
-	App::StationDressing dressing =
-	    App::DressStation(dressed.scene, dressed.station, dressed.Layout(), dressed.docks);
+	Sample::StationDressing dressing =
+	    Sample::DressStation(dressed.scene, dressed.station, dressed.Layout(), dressed.docks);
 	REQUIRE(dressing.clamps.size() == 18);
 	const auto player = [&](std::uint32_t number) -> const Scene::ClipPlayerComponent &
 	{ return dressed.scene.get<Scene::ClipPlayerComponent>(dressing.clamps[number - 1].player); };
@@ -413,25 +413,26 @@ TEST_CASE(
 
 	// Dressed, every pad's clamps are stowed, each name of the clip bound to the four parts bearing
 	// it, but a display pad's, which hold the ship it shows from the first frame.
-	CHECK(player(1).file == App::kClampClip);
-	CHECK(player(1).clip == App::kClampOpen);
+	CHECK(player(1).file == Sample::kClampClip);
+	CHECK(player(1).clip == Sample::kClampOpen);
 	CHECK(player(1).time == kAtEnd);
 	CHECK(player(1).nodes.size() == 16);
-	CHECK(player(13).clip == App::kClampClose);
+	CHECK(player(13).clip == Sample::kClampClose);
 	CHECK(player(13).time == kAtEnd);
 
 	// The parked transports on 2, 7 and 11 are held as the first snapshot shows them, at the end of
 	// the close and not heard closing; fitted beside the hull, two a side, a quarter of its length
 	// fore and aft, and as large as its height asks.
-	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
-	CHECK(player(1).clip == App::kClampOpen);
-	CHECK(player(2).clip == App::kClampClose);
+	Sample::ShowPadStates(
+	    dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	CHECK(player(1).clip == Sample::kClampOpen);
+	CHECK(player(2).clip == Sample::kClampClose);
 	CHECK(player(2).time == kAtEnd);
 	const entt::entity parked = world.get<Dock::Pad>(world.get<Dock::Station>(highport).pads[1]).ship;
 	const Dock::HullDefinition &transport =
 	    *dressed.docks.FindHull(world.get<Dock::Hull>(parked).definition);
 	const auto &fore = dressed.scene.get<Scene::TransformComponent>(dressing.clamps[1].clamps[0]);
-	const float size = transport.height * App::kClampSize;
+	const float size = transport.height * Sample::kClampSize;
 	CHECK(fore.scale == glm::vec3{size});
 	CHECK(fore.translation.x == doctest::Approx(transport.beam * 0.5 + 0.94 * size));
 	CHECK(fore.translation.z == doctest::Approx(-0.25 * transport.length));
@@ -449,24 +450,27 @@ TEST_CASE(
 	world.emplace<Dock::Docking>(shuttle, highport, pad, Dock::Stage::Docked, false);
 	world.get<Dock::Pad>(pad).state = Dock::PadState::Holding;
 	world.get<Dock::Pad>(pad).ship = shuttle;
-	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
-	CHECK(player(1).clip == App::kClampClose);
+	Sample::ShowPadStates(
+	    dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	CHECK(player(1).clip == Sample::kClampClose);
 	CHECK(player(1).time == 0.0f);
-	const float shuttleSize = dressed.docks.FindHull("shuttle")->height * App::kClampSize;
+	const float shuttleSize = dressed.docks.FindHull("shuttle")->height * Sample::kClampSize;
 	CHECK(
 	    dressed.scene.get<Scene::TransformComponent>(dressing.clamps[0].clamps[0]).scale ==
 	    glm::vec3{shuttleSize});
 	// Shown again from the same snapshot, nothing starts again.
 	dressed.scene.get<Scene::ClipPlayerComponent>(dressing.clamps[0].player).time = 1.0f;
-	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	Sample::ShowPadStates(
+	    dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
 	CHECK(player(1).time == 1.0f);
 
 	world.get<Dock::Docking>(shuttle).stage = Dock::Stage::Leaving;
-	App::ShowPadStates(dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
-	CHECK(player(1).clip == App::kClampOpen);
+	Sample::ShowPadStates(
+	    dressed.scene, dressing, Sim::Capture(dressed.world), highport, dressed.docks);
+	CHECK(player(1).clip == Sample::kClampOpen);
 	CHECK(player(1).time == 0.0f);
 	// The display pads' clamps are the dressing's, whatever the snapshots say.
-	CHECK(player(13).clip == App::kClampClose);
+	CHECK(player(13).clip == Sample::kClampClose);
 }
 
 
@@ -481,7 +485,7 @@ TEST_CASE(
 		const Dock::HullDefinition *hull = dressed.docks.FindHull(name);
 		REQUIRE(hull);
 		entt::registry scene;
-		const entt::entity root = App::MakeHullProxy(scene, *hull);
+		const entt::entity root = Sample::MakeHullProxy(scene, *hull);
 		const glm::dvec3 half = glm::dvec3{hull->beam, hull->height, hull->length} * 0.5;
 		std::size_t parts = 0;
 		glm::dvec3 reach{0.0};
@@ -514,7 +518,7 @@ TEST_CASE(
 	Dock::HullDefinition modelled = *dressed.docks.FindHull("transport");
 	modelled.model = "models/transport.glb";
 	entt::registry scene;
-	const entt::entity root = App::MakeHullProxy(scene, modelled);
+	const entt::entity root = Sample::MakeHullProxy(scene, modelled);
 	std::size_t models = 0;
 	for (const auto [entity, mesh] : scene.view<const Scene::MeshComponent>().each())
 	{
@@ -533,15 +537,15 @@ TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets 
 	REQUIRE(shuttle);
 	entt::registry &world = dressed.world.Registry();
 	const entt::entity ship = world.create();
-	const entt::entity proxy = App::MakeHullProxy(dressed.scene, *shuttle, ship);
-	REQUIRE(dressed.scene.all_of<App::ShipThrusters>(proxy));
-	const auto &thrusters = dressed.scene.get<App::ShipThrusters>(proxy);
+	const entt::entity proxy = Sample::MakeHullProxy(dressed.scene, *shuttle, ship);
+	REQUIRE(dressed.scene.all_of<Sample::ShipThrusters>(proxy));
+	const auto &thrusters = dressed.scene.get<Sample::ShipThrusters>(proxy);
 	// The shuttle's two engines, each a plume aft of its nozzle; and fourteen jets, three at each
 	// side of the bow and the stern and the bow's two forward. All in the effects layer.
-	const auto engines = std::ranges::count_if(thrusters.ports, &App::ThrusterPort::engine);
+	const auto engines = std::ranges::count_if(thrusters.ports, &Sample::ThrusterPort::engine);
 	CHECK(engines == 2);
 	CHECK(thrusters.ports.size() == 16);
-	for (const App::ThrusterPort &port : thrusters.ports)
+	for (const Sample::ThrusterPort &port : thrusters.ports)
 	{
 		CHECK(dressed.scene.get<Scene::LayerComponent>(port.emitter).layer == Scene::Layer::Effects);
 		if (port.engine)
@@ -552,12 +556,12 @@ TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets 
 	const auto show = [&](const Physics::Thrust &thrust, double seconds = 0.0)
 	{
 		world.emplace_or_replace<Physics::Thrust>(ship, thrust);
-		App::ShowThrust(dressed.scene, Sim::Capture(dressed.world), dressed.station, seconds);
+		Sample::ShowThrust(dressed.scene, Sim::Capture(dressed.world), dressed.station, seconds);
 	};
 	const auto active = [&](bool engine)
 	{
 		std::size_t count = 0;
-		for (const App::ThrusterPort &port : thrusters.ports)
+		for (const Sample::ThrusterPort &port : thrusters.ports)
 			if (port.engine == engine &&
 			    dressed.scene.get<Scene::ParticleEmitterComponent>(port.emitter).active)
 				++count;
@@ -593,12 +597,12 @@ TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets 
 	CHECK(active(false) == 3);
 	// A ship with no thrust in the snapshot, docked or cruising, fires nothing.
 	world.remove<Physics::Thrust>(ship);
-	App::ShowThrust(dressed.scene, Sim::Capture(dressed.world), dressed.station, 0.0);
+	Sample::ShowThrust(dressed.scene, Sim::Capture(dressed.world), dressed.station, 0.0);
 	CHECK(active(false) == 0);
 
 	// An engine's nozzle glows dimly at rest, warms over about a second of firing and cools over two
 	// and a half, a frame at a time.
-	const App::ThrusterPort &engine = thrusters.ports.front();
+	const Sample::ThrusterPort &engine = thrusters.ports.front();
 	const auto glow = [&] { return dressed.scene.get<Scene::MeshComponent>(engine.nozzle).color.x; };
 	CHECK(glow() == doctest::Approx(0.03));
 	for (int frame = 0; frame < 60; ++frame)
@@ -613,9 +617,9 @@ TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets 
 
 	// The display wing's ships are of no simulation entity: no plumes or jets, their nozzles dim.
 	entt::registry display;
-	App::MakeHullProxy(display, *shuttle);
+	Sample::MakeHullProxy(display, *shuttle);
 	CHECK(display.view<const Scene::ParticleEmitterComponent>().empty());
-	CHECK(display.view<const App::ShipThrusters>().empty());
+	CHECK(display.view<const Sample::ShipThrusters>().empty());
 }
 
 
@@ -635,17 +639,17 @@ TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots
 	REQUIRE(buggies.size() == 1);
 	const entt::entity loaded = buggies.front();
 	REQUIRE(world.get<Dock::Buggy>(loaded).crates == 4);
-	const entt::entity proxy = App::MakeBuggyProxy(dressed.scene, loaded);
+	const entt::entity proxy = Sample::MakeBuggyProxy(dressed.scene, loaded);
 
 	const auto shown = [&]
 	{
 		std::size_t crates = 0;
-		for (const entt::entity crate : dressed.scene.get<App::BuggyLoad>(proxy).crates)
+		for (const entt::entity crate : dressed.scene.get<Sample::BuggyLoad>(proxy).crates)
 			crates += dressed.scene.get<Scene::TransformComponent>(crate).scale.x > 0.0f ? 1 : 0;
 		return crates;
 	};
 	CHECK(shown() == 0);
-	App::ShowBuggyLoads(dressed.scene, Sim::Capture(dressed.world));
+	Sample::ShowBuggyLoads(dressed.scene, Sim::Capture(dressed.world));
 	CHECK(shown() == 4);
 	// Each part on the buggy's 4 x 2.4 m footprint, on the deck or above it.
 	for (const auto [entity, mesh] : dressed.scene.view<const Scene::MeshComponent>().each())
@@ -663,7 +667,7 @@ TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots
 	}
 	// Without it in the snapshot, its bed is bare.
 	world.get<Dock::Buggy>(loaded).crates = 0;
-	App::ShowBuggyLoads(dressed.scene, Sim::Capture(dressed.world));
+	Sample::ShowBuggyLoads(dressed.scene, Sim::Capture(dressed.world));
 	CHECK(shown() == 0);
 }
 
@@ -673,12 +677,12 @@ TEST_CASE("Dressing: a station whose buggies are parked shows them across each p
 	Dressed dressed;
 	Dock::StationLayout layout = dressed.Layout();
 	layout.traffic.working = false;
-	const App::StationDressing dressing =
-	    App::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
+	const Sample::StationDressing dressing =
+	    Sample::DressStation(dressed.scene, dressed.station, layout, dressed.docks);
 	// Three a pad on the twelve pads ships land on, none on the display pads.
 	CHECK(dressing.parked == 36);
 	std::size_t onPads = 0;
-	for (const auto [entity, load] : dressed.scene.view<const App::BuggyLoad>().each())
+	for (const auto [entity, load] : dressed.scene.view<const Sample::BuggyLoad>().each())
 	{
 		CHECK(load.buggy == entt::null);
 		const glm::dvec3 at = dressed.scene.get<Scene::TransformComponent>(entity).translation;

@@ -1,4 +1,4 @@
-#include "../src/Piloting.h"
+#include "Piloting.h"
 
 #include <doctest/doctest.h>
 
@@ -8,10 +8,10 @@
 #include <jettison/scene/Components.h>
 
 using namespace Jettison;
-using App::CollisionMesh;
-using App::MakeCollisionMesh;
 using Input::Device;
 using Input::InputCode;
+using Sample::CollisionMesh;
+using Sample::MakeCollisionMesh;
 
 namespace
 {
@@ -96,8 +96,8 @@ TEST_CASE("Piloting: a station's collision mesh is the shapes it is drawn with, 
 TEST_CASE("Piloting: a keyboard, a gamepad and a HOTAS fly the ship the same way")
 {
 	Input::InputSystem input;
-	const App::PilotInput pilot{input};
-	input.PushContext(App::PilotInput::kContext);
+	const Sample::PilotInput pilot{input};
+	input.PushContext(Sample::PilotInput::kContext);
 
 	const auto read = [&]
 	{

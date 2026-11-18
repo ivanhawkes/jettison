@@ -2,7 +2,7 @@
 
 namespace Jettison::App
 {
-void Game::Register(const ShellWorld & /*world*/, Input::InputSystem & /*input*/)
+void Game::Register(const ShellWorld & /*world*/, Shell & /*shell*/)
 {
 }
 
@@ -17,38 +17,7 @@ void Game::Define(const ShellWorld & /*world*/, const Sim::DefinitionRegistry & 
 }
 
 
-void Game::OpenGalaxy(
-    const ShellWorld & /*world*/, std::span<const Celestial::StarSystem> /*systems*/,
-    const Sim::DefinitionRegistry & /*definitions*/, Script::ScriptHost & /*scripts*/)
-{
-}
-
-
-void Game::StationOpened(
-    Sim::SimWorld & /*world*/, Dock::Docks & /*docks*/, entt::entity /*station*/,
-    std::string_view /*body*/)
-{
-}
-
-
-void Game::StationsOpened(const ShellWorld & /*world*/, const Sim::DefinitionRegistry & /*definitions*/)
-{
-}
-
-
-std::optional<ShellShip> Game::StarterShip() const
-{
-	return std::nullopt;
-}
-
-
-void Game::FitShip(
-    entt::registry & /*world*/, entt::entity /*ship*/, const Sim::Controller & /*player*/)
-{
-}
-
-
-void Game::Loaded(entt::registry & /*world*/, entt::entity /*ship*/, const Sim::Controller & /*player*/)
+void Game::Loaded(Shell & /*shell*/)
 {
 }
 
@@ -69,6 +38,17 @@ void Game::SceneLoaded(Shell & /*shell*/)
 
 
 void Game::SceneUnloading(Shell & /*shell*/)
+{
+}
+
+
+bool Game::SyncProxies(Shell & /*shell*/)
+{
+	return false;
+}
+
+
+void Game::ShuttingDown(Shell & /*shell*/) noexcept
 {
 }
 
@@ -114,6 +94,30 @@ void Game::TakeEvent(const Sim::SimEvent & /*event*/, Shell & /*shell*/)
 }
 
 
+entt::entity Game::Followed() const
+{
+	return entt::null;
+}
+
+
+std::optional<std::string> Game::Describe(entt::entity /*entity*/) const
+{
+	return std::nullopt;
+}
+
+
+std::optional<PickSpace> Game::PickIn(const Shell & /*shell*/) const
+{
+	return std::nullopt;
+}
+
+
+glm::dvec3 Game::PickOrigin(const Shell & /*shell*/, double /*simSeconds*/) const
+{
+	return glm::dvec3{0.0};
+}
+
+
 std::optional<std::string> Game::NameEntity(
     const Sim::Snapshot & /*snapshot*/, entt::entity /*entity*/) const
 {
@@ -126,13 +130,6 @@ std::optional<std::string> Game::NameIdentifier(
     const Sim::DefinitionRegistry & /*definitions*/, const Ui::StringTable & /*strings*/) const
 {
 	return std::nullopt;
-}
-
-
-std::string Game::DescribeShip(
-    const Sim::Snapshot & /*snapshot*/, entt::entity /*ship*/, bool atHelm) const
-{
-	return atHelm ? "at your helm" : "left to its behaviour";
 }
 
 

@@ -17,7 +17,7 @@
 #include <jettison/render/Clusters.h>
 #include <jettison/scene/Components.h>
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 namespace
 {
@@ -462,7 +462,7 @@ constexpr auto kIco = Scene::Shape::IcoSphere;
 constexpr auto kCylinder = Scene::Shape::Cylinder;
 
 
-// The shell's shuttle, 9.8 x 6.4 x 1.8 m, from which this was measured: a hull, a canopy over its
+// The sample's shuttle, 9.8 x 6.4 x 1.8 m, from which this was measured: a hull, a canopy over its
 // fore end, wings aft, and two engines whose nozzles glow.
 std::vector<ProxyPart> SmallProxy()
 {
@@ -1013,4 +1013,4 @@ void ShowBuggyLoads(entt::registry &scene, const Sim::Snapshot &snapshot)
 		}
 	}
 }
-} // namespace Jettison::App
+} // namespace Jettison::Sample

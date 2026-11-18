@@ -9,13 +9,14 @@
 #include <utility>
 #include <vector>
 
+#include "Stations.h"
 #include <jettison/ai/BehaviourTree.h>
 #include <jettison/ai/UtilityAi.h>
 #include <jettison/app/SmokeSequence.h>
-#include <jettison/app/Stations.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/core/Log.h>
 #include <jettison/devtools/Console.h>
+#include <jettison/dock/Definitions.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/physics/Components.h>
 #include <jettison/script/ScriptHost.h>
@@ -27,6 +28,7 @@
 #include "Fleet.h"
 #include "MarketScreen.h"
 #include "Repair.h"
+#include "SpaceLayer.h"
 #include "Traders.h"
 #include "Trading.h"
 
@@ -36,6 +38,7 @@ namespace
 {
 constexpr Core::Category kSample{"sample"};
 constexpr std::string_view kGood = "Shell.Good";
+constexpr std::string_view kHull = "Dock.HullDefinition";
 
 // The player's first ship as the sample starts it: a small hauler's hold, and the credits to fill most
 // of it with what the station it starts at has to spare.
@@ -69,7 +72,14 @@ SpaceGame::SpaceGame() : m_pMarketScreen{std::make_unique<MarketScreen>()}
 SpaceGame::~SpaceGame() = default;
 
 
-void SpaceGame::Register(const App::ShellWorld &world, Input::InputSystem &input)
+void SpaceGame::Register(const App::ShellWorld &world, App::Shell &shell)
+{
+	m_pLayer = std::make_unique<SpaceLayer>(*this, world, shell);
+	RegisterOwn(m_pLayer->World(), shell.Input());
+}
+
+
+void SpaceGame::RegisterOwn(const SpaceWorld &world, Input::InputSystem &input)
 {
 	RegisterTrading(world.world);
 	RegisterRepair(world.world, world.physics, world.docks);
@@ -85,18 +95,26 @@ void SpaceGame::LoadDefinitions(Sim::DefinitionRegistry &definitions)
 	LoadTradeDefinitions(definitions);
 	LoadTraderDefinitions(definitions);
 	LoadShipyard(definitions);
+	SpaceLayer::LoadDefinitions(definitions);
 }
 
 
-void SpaceGame::Define(const App::ShellWorld &world, const Sim::DefinitionRegistry &definitions)
+void SpaceGame::Define(const App::ShellWorld & /*world*/, const Sim::DefinitionRegistry &definitions)
 {
-	// The fleet's command sells from the shipyard, of hulls the docks now know.
+	m_pLayer->Define(definitions);
+	DefineOwn(m_pLayer->World(), definitions);
+	m_pLayer->OpenGalaxy(definitions);
+}
+
+
+void SpaceGame::DefineOwn(const SpaceWorld &world, const Sim::DefinitionRegistry &definitions)
+{
 	RegisterFleet(world.world, world.docks, definitions);
 }
 
 
 void SpaceGame::OpenGalaxy(
-    const App::ShellWorld &world, std::span<const Celestial::StarSystem> systems,
+    const SpaceWorld &world, std::span<const Celestial::StarSystem> systems,
     const Sim::DefinitionRegistry &definitions, Script::ScriptHost &scripts)
 {
 	for (const Celestial::StarSystem &system : systems)
@@ -139,13 +157,13 @@ void SpaceGame::StationOpened(
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InFrame>(ship, system);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{body});
-		App::MakeShip(registry, docks, ship, parked.hull, parked.mass, false);
+		MakeShip(registry, docks, ship, parked.hull, parked.mass, false);
 		docks.Park(world, ship, registry.get<Dock::Station>(station).pads.at(parked.pad - 1));
 	}
 }
 
 
-void SpaceGame::StationsOpened(const App::ShellWorld &world, const Sim::DefinitionRegistry &definitions)
+void SpaceGame::StationsOpened(const SpaceWorld &world, const Sim::DefinitionRegistry &definitions)
 {
 	entt::registry &registry = world.world.Registry();
 	if (!registry.view<Market>().empty())
@@ -154,7 +172,7 @@ void SpaceGame::StationsOpened(const App::ShellWorld &world, const Sim::Definiti
 	for (const entt::entity entity : markets)
 	{
 		Market &market = registry.get<Market>(entity);
-		market.stationEntity = App::FindStation(registry, market.system, market.station);
+		market.stationEntity = FindStation(registry, market.system, market.station);
 	}
 	Core::Log(Core::Severity::Info, kSample, "{} markets open", markets.size());
 	if (world.behaviours.HasTree(kTraderTree))
@@ -164,9 +182,9 @@ void SpaceGame::StationsOpened(const App::ShellWorld &world, const Sim::Definiti
 }
 
 
-std::optional<App::ShellShip> SpaceGame::StarterShip() const
+ShipKind SpaceGame::StarterShip()
 {
-	return App::ShellShip{"shuttle", 20000.0f};
+	return {"shuttle", 20000.0f};
 }
 
 
@@ -181,7 +199,15 @@ void SpaceGame::FitShip(entt::registry &world, entt::entity ship, const Sim::Con
 }
 
 
-void SpaceGame::Loaded(entt::registry &world, entt::entity ship, const Sim::Controller &player)
+void SpaceGame::Loaded(App::Shell & /*shell*/)
+{
+	m_pLayer->Loaded();
+	m_tradeMessage.clear();
+	m_marketDirty = true;
+}
+
+
+void SpaceGame::UpgradeSave(entt::registry &world, entt::entity ship, const Sim::Controller &player)
 {
 	// A save from before purses were their owners' holds them on the ships.
 	if (const std::size_t moved = MovePursesToOwners(world); moved > 0)
@@ -195,13 +221,12 @@ void SpaceGame::Loaded(entt::registry &world, entt::entity ship, const Sim::Cont
 	// One from before the helm (13d) has the player's ship flown by no one.
 	if (GiveOldShipItsHelm(world, ship, player))
 		Core::Log(Core::Severity::Info, kSample, "The save had no helm; the player is at its ship's");
-	m_tradeMessage.clear();
-	m_marketDirty = true;
 }
 
 
 void SpaceGame::AddCommands(DevTools::Console &console, App::Shell &shell)
 {
+	m_pLayer->AddCommands(console);
 	console.RegisterCommand(
 	    "traders", "Says what each trader is doing, and what its runs have made",
 	    [this, &shell](DevTools::Console &, std::span<const std::string>) { LogTraders(shell); });
@@ -209,22 +234,22 @@ void SpaceGame::AddCommands(DevTools::Console &console, App::Shell &shell)
 	    "buy",
 	    "Buys a ship at the bound station, where a ship of the fleet is docked, and takes its helm: "
 	    "buy shuttle|transport",
-	    [&shell](DevTools::Console &, std::span<const std::string> arguments)
+	    [this, &shell](DevTools::Console &, std::span<const std::string> arguments)
 	    {
 		    if (arguments.size() != 1)
 			    throw std::invalid_argument{"takes the hull to buy"};
-		    if (shell.Station() == entt::null)
+		    if (m_pLayer->Station() == entt::null)
 		    {
 			    Core::Log(Core::Severity::Warning, kSample, "No station to buy a ship at");
 			    return;
 		    }
-		    shell.World().Commands().Push(BuyShip{shell.Player(), shell.Station(), arguments[0]});
+		    shell.World().Commands().Push(BuyShip{shell.Player(), m_pLayer->Station(), arguments[0]});
 	    });
 	console.RegisterCommand(
 	    "trade",
 	    "Buys crates of a good at the market of the system shown, or sells them with a negative "
 	    "count, as the market screen does: trade <good> <crates>",
-	    [&shell](DevTools::Console &, std::span<const std::string> arguments)
+	    [this, &shell](DevTools::Console &, std::span<const std::string> arguments)
 	    {
 		    std::int64_t crates = 0;
 		    const auto [end, error] =
@@ -243,25 +268,68 @@ void SpaceGame::AddCommands(DevTools::Console &console, App::Shell &shell)
 	    "drydock",
 	    "Asks the bound station for a pad that offers a dry dock, and flies the ship in, as dock does "
 	    "for any pad",
-	    [&shell](DevTools::Console &, std::span<const std::string>)
+	    [this, &shell](DevTools::Console &, std::span<const std::string>)
 	    {
-		    if (shell.Followed() == entt::null || shell.Station() == entt::null)
+		    if (m_pLayer->Ship() == entt::null || m_pLayer->Station() == entt::null)
 		    {
 			    Core::Log(Core::Severity::Warning, kSample, "No ship, or no station to ask");
 			    return;
 		    }
 		    shell.World().Commands().Push(
 		        Dock::RequestPad{
-		            shell.Player(), shell.Followed(), shell.Station(), true, std::string{kDryDock}});
+		            shell.Player(), m_pLayer->Ship(), m_pLayer->Station(), true,
+		            std::string{kDryDock}});
 	    });
 	console.RegisterCommand(
 	    "repair", "Repairs the ship's damage, docked on a pad that offers a dry dock",
-	    [&shell](DevTools::Console &, std::span<const std::string>)
-	    { shell.World().Commands().Push(Repair{shell.Player(), shell.Followed()}); });
+	    [this, &shell](DevTools::Console &, std::span<const std::string>)
+	    { shell.World().Commands().Push(Repair{shell.Player(), m_pLayer->Ship()}); });
 	console.RegisterCommand(
 	    "market", "Shows or hides the market screen: market [on|off]",
 	    [this, &shell](DevTools::Console &, std::span<const std::string> arguments)
 	    { ShowMarket(shell, arguments.empty() ? !m_showMarket : arguments[0] != "off"); });
+}
+
+
+void SpaceGame::RegisterFrame(Ecs::Scheduler &frame, App::Shell & /*shell*/)
+{
+	m_pLayer->RegisterFrame(frame);
+}
+
+
+void SpaceGame::SceneLoaded(App::Shell & /*shell*/)
+{
+	m_pLayer->SceneLoaded();
+}
+
+
+void SpaceGame::SceneUnloading(App::Shell & /*shell*/)
+{
+	m_pLayer->SceneUnloading();
+}
+
+
+bool SpaceGame::SyncProxies(App::Shell & /*shell*/)
+{
+	return m_pLayer->SyncProxies();
+}
+
+
+void SpaceGame::ShuttingDown(App::Shell & /*shell*/) noexcept
+{
+	m_pLayer->ShuttingDown();
+}
+
+
+void SpaceGame::WriteSave(Sim::SaveGame &save, App::Shell & /*shell*/)
+{
+	m_pLayer->WriteSave(save);
+}
+
+
+void SpaceGame::ReadSave(const Sim::SaveGame &save, App::Shell & /*shell*/)
+{
+	m_pLayer->ReadSave(save);
 }
 
 
@@ -272,7 +340,7 @@ void SpaceGame::OpenUi(Ui::UiSystem &ui, App::Shell &shell)
 	market.Bind("screen", m_pMarketScreen.get());
 	market.BindEvent(
 	    "buy",
-	    [&shell](std::span<const Ui::EventArgument> arguments)
+	    [this, &shell](std::span<const Ui::EventArgument> arguments)
 	    {
 		    SendTrade(
 		        shell, arguments.empty() ? "" : Ui::AsText(arguments[0]),
@@ -280,7 +348,7 @@ void SpaceGame::OpenUi(Ui::UiSystem &ui, App::Shell &shell)
 	    });
 	market.BindEvent(
 	    "sell",
-	    [&shell](std::span<const Ui::EventArgument> arguments)
+	    [this, &shell](std::span<const Ui::EventArgument> arguments)
 	    {
 		    SendTrade(
 		        shell, arguments.empty() ? "" : Ui::AsText(arguments[0]),
@@ -301,6 +369,7 @@ void SpaceGame::OpenUi(Ui::UiSystem &ui, App::Shell &shell)
 
 void SpaceGame::PollInput(const Input::InputSystem &input, App::Shell &shell)
 {
+	m_pLayer->PollInput(input);
 	const Ui::UiSystem *ui = shell.GameUi();
 	if (input.WasPressedThisFrame(m_toggleMarket) && !(ui && ui->WantsKeyboard()))
 		ShowMarket(shell, !m_showMarket);
@@ -310,7 +379,7 @@ void SpaceGame::PollInput(const Input::InputSystem &input, App::Shell &shell)
 bool SpaceGame::Back(App::Shell &shell)
 {
 	if (!m_showMarket)
-		return false;
+		return m_pLayer->Back();
 	ShowMarket(shell, false);
 	return true;
 }
@@ -322,9 +391,9 @@ void SpaceGame::UpdateUi(App::Shell &shell)
 	if (!ui || !m_showMarket)
 		return;
 	// Another ship followed, or the screens read in another language, and the screen is another's.
-	if (shell.Followed() != m_marketShip)
+	if (m_pLayer->Ship() != m_marketShip)
 	{
-		m_marketShip = shell.Followed();
+		m_marketShip = m_pLayer->Ship();
 		m_tradeMessage.clear();
 		m_marketDirty = true;
 	}
@@ -340,9 +409,9 @@ void SpaceGame::UpdateUi(App::Shell &shell)
 		return;
 	MarketView view;
 	view.market = ShownMarket(shell);
-	view.ship = shell.Followed();
-	view.system = shell.ShownSystem();
-	view.docked = shell.Docked();
+	view.ship = m_pLayer->Ship();
+	view.system = m_pLayer->ShownSystem();
+	view.docked = m_pLayer->Docked();
 	view.lot = m_lot;
 	view.message = m_tradeMessage;
 	MarketScreen screen = BuildMarketScreen(snapshot, shell.Definitions(), ui->Strings(), view);
@@ -358,6 +427,7 @@ void SpaceGame::UpdateUi(App::Shell &shell)
 
 void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 {
+	m_pLayer->TakeEvent(event);
 	const Sim::Controller player = shell.Player();
 	if (const auto *bought = event.event.try_cast<ShipBought>(); bought && bought->buyer == player)
 	{
@@ -365,7 +435,7 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		    Core::Severity::Info, kSample, "Bought a {} at {} for {} credits; {} credits left",
 		    bought->hull, shell.Describe(bought->station), FormatCredits(bought->price),
 		    FormatCredits(bought->credits));
-		shell.Follow(bought->ship);
+		m_pLayer->Follow(bought->ship);
 	}
 	else if (const auto *notBought = event.event.try_cast<BuyRefused>();
 	         notBought && notBought->sender == player)
@@ -373,7 +443,7 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		    Core::Severity::Warning, kSample, "No {} bought: {}", notBought->hull,
 		    shell.Word(notBought->reason));
 	else if (const auto *traded = event.event.try_cast<Traded>();
-	         traded && traded->ship == shell.Followed() && shell.GameUi())
+	         traded && traded->ship == m_pLayer->Ship() && shell.GameUi())
 	{
 		const Ui::StringTable &strings = shell.GameUi()->Strings();
 		const std::int64_t crates = traded->crates < 0 ? -traded->crates : traded->crates;
@@ -386,7 +456,7 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		    FormatCredits(traded->credits));
 	}
 	else if (const auto *refused = event.event.try_cast<TradeRefused>();
-	         refused && refused->ship == shell.Followed() && shell.GameUi())
+	         refused && refused->ship == m_pLayer->Ship() && shell.GameUi())
 	{
 		++m_tradeAnswers;
 		m_tradeMessage =
@@ -394,16 +464,46 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		Core::Log(Core::Severity::Info, kSample, "{}", m_tradeMessage);
 	}
 	else if (const auto *repaired = event.event.try_cast<Repaired>();
-	         repaired && repaired->ship == shell.Followed())
+	         repaired && repaired->ship == m_pLayer->Ship())
 		Core::Log(
 		    Core::Severity::Info, kSample,
 		    "Repaired {} points of damage for {} credits; {} credits left", repaired->points,
 		    FormatCredits(repaired->cost), FormatCredits(repaired->credits));
 	else if (const auto *notRepaired = event.event.try_cast<RepairRefused>();
-	         notRepaired && notRepaired->ship == shell.Followed())
+	         notRepaired && notRepaired->ship == m_pLayer->Ship())
 		Core::Log(Core::Severity::Warning, kSample, "No repair: {}", shell.Word(notRepaired->reason));
 	if (m_showMarket)
 		m_marketDirty = true;
+}
+
+
+void SpaceGame::DrawPanels(App::Shell & /*shell*/, bool devTools)
+{
+	m_pLayer->DrawPanels(devTools);
+}
+
+
+entt::entity SpaceGame::Followed() const
+{
+	return m_pLayer ? m_pLayer->Ship() : entt::entity{entt::null};
+}
+
+
+std::optional<std::string> SpaceGame::Describe(entt::entity entity) const
+{
+	return m_pLayer->Describe(entity);
+}
+
+
+std::optional<App::PickSpace> SpaceGame::PickIn(const App::Shell & /*shell*/) const
+{
+	return m_pLayer->PickIn();
+}
+
+
+glm::dvec3 SpaceGame::PickOrigin(const App::Shell & /*shell*/, double simSeconds) const
+{
+	return m_pLayer->PickOrigin(simSeconds);
 }
 
 
@@ -422,11 +522,17 @@ std::optional<std::string> SpaceGame::NameIdentifier(
 {
 	if (definition == kGood)
 		return GoodName(definitions, strings, identifier);
+	// A hull by its definition's name, as a mod may have changed it; one not defined as it is named.
+	if (definition == kHull)
+	{
+		const auto *hull = definitions.Find<Dock::HullDefinition>(identifier);
+		return hull && !hull->displayName.empty() ? hull->displayName : identifier;
+	}
 	return std::nullopt;
 }
 
 
-std::string SpaceGame::DescribeShip(const Sim::Snapshot &snapshot, entt::entity ship, bool atHelm) const
+std::string SpaceGame::DescribeShip(const Sim::Snapshot &snapshot, entt::entity ship, bool atHelm)
 {
 	std::string flown = "at your helm";
 	if (!atHelm)
@@ -442,6 +548,7 @@ std::string SpaceGame::DescribeShip(const Sim::Snapshot &snapshot, entt::entity 
 
 void SpaceGame::DriveSmoke(App::SmokeActions &actions, App::Shell &shell)
 {
+	m_pLayer->DriveSmoke(actions);
 	actions.gameUi = [this, &shell] { return SmokeMarket(shell); };
 	actions.gameUiWaiting = [this] { return m_tradeAnswers == m_smokeTradeAnswers; };
 	actions.gameUiAnswered = [this, &shell] { return SmokeTradeShown(shell); };
@@ -453,7 +560,7 @@ std::optional<bool> SpaceGame::SmokeMarket(App::Shell &shell)
 	Ui::UiSystem *ui = shell.GameUi();
 	const entt::entity market = ShownMarket(shell);
 	const auto *shown = shell.Snapshot().Get<Market>(market);
-	if (!ui || !shown || shown->goods.empty() || shell.Followed() == entt::null)
+	if (!ui || !shown || shown->goods.empty() || m_pLayer->Ship() == entt::null)
 		return std::nullopt;
 	ShowMarket(shell, true);
 	// Made from this snapshot and laid out, so what it shows is what the snapshot has.
@@ -489,15 +596,15 @@ bool SpaceGame::SmokeTradeShown(App::Shell &shell)
 }
 
 
-entt::entity SpaceGame::ShownMarket(App::Shell &shell)
+entt::entity SpaceGame::ShownMarket(App::Shell &shell) const
 {
 	const Sim::Snapshot &snapshot = shell.Snapshot();
 	const auto markets = snapshot.Components<Market>();
-	if (const entt::entity station = shell.Station(); station != entt::null)
+	if (const entt::entity station = m_pLayer->Station(); station != entt::null)
 		for (const auto &market : markets)
 			if (market.value.stationEntity == station)
 				return market.entity;
-	if (const std::string system = shell.ShownSystem(); !system.empty())
+	if (const std::string system = m_pLayer->ShownSystem(); !system.empty())
 	{
 		const std::uint64_t shown = Sim::FrameId(system);
 		for (const auto &market : markets)
@@ -524,13 +631,13 @@ void SpaceGame::ShowMarket(App::Shell &shell, bool shown)
 }
 
 
-void SpaceGame::SendTrade(App::Shell &shell, std::string_view good, std::int64_t crates)
+void SpaceGame::SendTrade(App::Shell &shell, std::string_view good, std::int64_t crates) const
 {
 	const entt::entity market = ShownMarket(shell);
-	if (shell.Followed() == entt::null || market == entt::null || good.empty() || crates == 0)
+	if (m_pLayer->Ship() == entt::null || market == entt::null || good.empty() || crates == 0)
 		return;
 	shell.World().Commands().Push(
-	    Trade{shell.Player(), shell.Followed(), market, std::string{good}, crates});
+	    Trade{shell.Player(), m_pLayer->Ship(), market, std::string{good}, crates});
 }
 
 

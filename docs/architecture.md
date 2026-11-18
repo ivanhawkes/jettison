@@ -75,8 +75,9 @@ jettison/
     │   ├── flotsam/            editor
     │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/
-    │   ├── space/              the space-trading sample as a game composed into the shell:
-    │   │   │                   trading, traders, fleet and shipyard, market screen (Sample::)
+    │   ├── space/              the space-trading sample as a game composed into the shell: the
+    │   │   │                   space layer (galaxy, jumps, stations, ship, piloting), trading,
+    │   │   │                   traders, fleet and shipyard, market screen (Sample::)
     │   │   └── assets/         its content, mounted as base: definitions, systems, scenes,
     │   │                       models, textures, sounds, the market screen and its strings
     │   └── jetsam/             the runtime entry point, the shell with the space sample
@@ -725,11 +726,12 @@ details, key and value strings a list shows and a load checks), the world's save
 sections, each a binary archive in a format of the game's that the save holds and does not read:
 what a save contains beyond the engine's state is the game's ([scope](scope.md)). The info comes
 first, so a list of saves reads no further. A change to the world's layout is a step in the world's
-migrations and leaves the save game's format and the game's sections alone. The shell's sections are
-its own state (`Shell.State`) and what scripts keep by key (`Script.Store`, [scripts](#scripts)); its
-details are the galaxy's file, which a load must match, and the system shown (`galaxy`, `system`),
-which the save game's version 1 held as fields of the info and its step to version 2 (A01) moves
-into the details, an edit of the record the save begins with (`BinaryDocument::EditFirstRecord`), so
+migrations and leaves the save game's format and the game's sections alone. The shell's own section
+is what scripts keep by key (`Script.Store`, [scripts](#scripts)), and its saves' list shows the
+`system` detail where a game writes one. The space sample's section is its layer's state, under the
+name the shell gave it before G01 (`Shell.State`), and its details the galaxy's file, which its load
+must match, and the system shown (`galaxy`, `system`), which the save game's version 1 held as fields
+of the info and its step to version 2 (A01) moves into the details, an edit of the record the save begins with (`BinaryDocument::EditFirstRecord`), so
 the chain alone brings a version 1 save up.
 
 Every versioned format reads its earlier versions through a chain of migrations
@@ -1773,17 +1775,20 @@ has them all, so the headless render test on lavapipe covers every pass.
 systems register into, each declaring the components it reads and writes:
 
 1. **Input**: poll devices and map them to actions in the active contexts.
-2. **Commands**: turn actions and UI into simulation commands: the shell's `shell.flight`, the
-   pilot's controls.
+2. **Commands**: turn actions and UI into simulation commands: the shell's picks (`shell.pick`), and
+   a game's, the space sample's pilot controls.
 3. **Simulation**: zero or more fixed steps (commands, AI, economy, physics, orbits), as the
    accumulator allows.
-4. **Sync**: a jump's stage first, which may replace the scene, then copy simulation snapshots into
-   presentation and interpolate, and place the bodies on their orbits.
+4. **Sync**: a game's stage first (the space sample's jump, which may replace the scene), then copy
+   simulation snapshots into presentation and interpolate, and a game's syncs (the sample's bodies on
+   their orbits, pads' lamps, thrusters), then the steps' events.
 5. **Presentation**: animation, cameras, audio, particles, UI layout.
 6. **Render**: cull, collect lights, record the pass list (shadows, cluster light assignment,
    forward passes, post), submit, present. See [rendering](#rendering-clustered-forward).
 
-Declared reads and writes are what let the job system parallelise later without a rewrite.
+Declared reads and writes are what let the job system parallelise later without a rewrite. Each of
+the shell's systems names the one before it in its phase, so a game's system put between two of them
+(`Game::RegisterFrame`, by `after` and `before`) leaves the shell's in the order they had.
 
 ## Threading
 
@@ -1864,15 +1869,17 @@ proves it headlessly. What exists:
   a fixed step a frame, none while anything loads, so the same frame is drawn however long frames
   take; `--run` runs console lines before the first frame, failing the run on one the console
   refuses. The console's `screenshot <file>` writes one without ending the run, and `orbit <yaw>
-  <pitch> <distance> [body]` places the orbit camera at once.
+  <pitch> <distance> [target]` places the orbit camera at once, about an entity a game marks as a
+  target (`App::OrbitTarget`), which C moves it between.
   `Application::Init` stages are user (the XDG data and configuration directories, or the ones under
   `--user-dir`, the crash handler into the state directory ([crashes](#crashes)), and the settings
   and bindings read from them), resources (the asset VFS, the base,
   the user's mods and the user's data directory writable over them ([files](#files-packs-and-mods)),
   the I/O worker, the resource manager and the rig loader, the definitions and the mods' scripts
-  ([scripts](#scripts)), which hear every event the shell takes), scene (the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another,
-  and the system scene of the star system the scene names, read through the VFS, or of the one
-  `--system` names with nothing authored), renderer, and window (its title and
+  ([scripts](#scripts)), which hear every event the shell takes, then the game's definitions, which
+  for the space sample read the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another), scene
+  (the scene, `--system`'s star system with nothing authored, then the game's, which for the sample
+  is the system scene of the star system the scene names, read through the VFS), renderer, and window (its title and
   size). The shell holds the renderer as `Render::IRenderer` alone and
   includes no Vulkan header. The resource manager updates once a frame, before the render.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
@@ -2004,22 +2011,30 @@ proves it headlessly. What exists:
   through the VFS, data models bound to reflected types ([UI](#ui)). The shell's own screen is the
   saved games (L), whose Load loads a save as F9 does; the space sample adds its market (M).
 - **The game a program composes** (H05, `app/Game.h`). `RunRenderApplication` takes an `App::Game`,
-  which the shell calls at its points: its types, commands and input actions as the shell is made,
-  its definitions, what it builds on the docks, what it runs across the galaxy's systems, what it
-  parks at each station as the station is built and puts at them all once they are, the hull the
-  player's first ship and the console's traffic are made of, that first ship fitted, what an older save of it lacks, its console commands, its screens, input and
-  Escape, each step's event, a reason's words for its entities and identifiers, its ships in the
-  fleet list, its frame systems in the shell's phases (`RegisterFrame`, ordered against the shell's
-  systems by name and validated with them), each scene loaded and about to unload, its save sections
-  and details and a load's refusal of a save not its own (`WriteSave`, `ReadSave`, before the world
-  is replaced), its dev-tools panels, and the render test's stages it drives (`DriveSmoke`, the game
-  UI stage among them). It reads the shell through `App::Shell`: the world, the scene, the newest
-  snapshot and the one before it with the time shown between them, the active camera, the debug
-  lines, the screen's fade, the asset tree and resources, the console and input, the definitions,
-  the player, the entity followed, its station and the system shown, and the game UI. With none, as Flotsam runs, the shell registers no market, trader
-  or fleet, and makes no ship (`GameTests`). Jetsam and the render test compose the space sample.
+  which the shell calls at its points: its types, commands and input actions as the shell is made, on
+  the world with physics attached (`ShellWorld`); its definitions and what it builds on them; its
+  console commands, its screens, input and Escape; its frame systems in the shell's phases
+  (`RegisterFrame`, ordered against the shell's systems by name and validated with them); each scene
+  loaded and about to unload, and as the shell shuts down; the scene's proxies of the world's
+  entities where it keeps them itself (`SyncProxies`); each step's event, the entity the player
+  follows, whose events' sounds play, and an entity's name for the log; where a click picks
+  (`PickIn`, `PickOrigin`); a reason's words for its entities and identifiers; its save sections and
+  details, a load's refusal of a save not its own (`WriteSave`, `ReadSave`, before the world is
+  replaced) and what it applies once the world has loaded (`Loaded`); its dev-tools panels; and the
+  render test's stages it drives (`DriveSmoke`). It reads the shell through `App::Shell`: the command
+  line, the world, the scene, the newest snapshot and the one before it with the time shown between
+  them, the active camera, the debug lines and whether they are shown, the screen's fade, the asset
+  tree and resources, the console, input and a context of the game's over the shell's, the
+  definitions and the scripts, the player, the orbit cameras framed on a target, a sequence played,
+  the pick cleared, and the game UI. With none, as Flotsam runs, the shell has physics and no space:
+  no galaxy, station, ship or market (`GameTests`). Jetsam and the render test compose the space
+  sample.
 - **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md)):
-  the first slice of Manifest's plan, as a game composed into the shell. Its reflected names keep
+  the first slice of Manifest's plan, as a game composed into the shell. Its space layer
+  (`SpaceLayer`, G01b) is what the shell was of a space game: the galaxy, the system shown and the
+  jumps between them, lanes, gates, cruises and routes, the stations built and dressed, the
+  player's ship and fleet, piloting from behind or the seat, the console's traffic and the flight
+  panel, with their console commands, keys and render-test stages. Its reflected names keep
   their `Shell.` prefix, which saves and the scripts' bindings carry. Eight goods
   from its data, traded by the crate (an IBC cube) in whole credits, a market at each of the
   galaxy's two stations that makes and uses its goods each market tick (ten seconds) and prices each
@@ -2029,7 +2044,7 @@ proves it headlessly. What exists:
   an `Owner`, the player's and each trader's, found by the controller its ships are commanded by
   (`Sim::ControlledBy`), so a fleet's ships share it, and a trade carries its sender and is refused
   from one that does not command the ship; a save from before keeps each purse on its ship, which
-  the sample's load (`Game::Loaded`) moves to the owner. Each good has a galactic mean (`GalacticPrices`, an
+  the sample's load (`SpaceGame::UpgradeSave`) moves to the owner. Each good has a galactic mean (`GalacticPrices`, an
   entity of its own made with the markets, saved and in the snapshots): it starts at the good's
   base price and each trade filled anywhere, the player's or a trader's, moves it towards the price
   paid by n / (n + 400) of the way for n crates, in whole credits, so a transport's forty crates move

@@ -11,28 +11,9 @@
 
 #include <jettison/sim/Controller.h>
 
-namespace Jettison::Ai
-{
-class Behaviours;
-}
-
-namespace Jettison::Space
-{
-class Gates;
-class LaneTravel;
-} // namespace Jettison::Space
-
-namespace Jettison::Celestial
-{
-struct StarSystem;
-}
 namespace Jettison::DevTools
 {
 class Console;
-}
-namespace Jettison::Dock
-{
-class Docks;
 }
 namespace Jettison::Ecs
 {
@@ -83,7 +64,27 @@ class FileSystem;
 
 namespace Jettison::App
 {
+struct AppArguments;
 struct SmokeActions;
+
+// A scene entity the shell's orbit camera frames, out to three of its radii in metres and no nearer
+// than 50 m: C moves the camera from one to the next, in entity order, and the console's orbit names
+// one. A game marks them; not written to the scene file.
+struct OrbitTarget
+{
+	std::string name;
+	double radius{0.0};
+};
+
+// Where a pick is cast (docs/architecture.md, "Physics"): the frame of the world's physics it is cast
+// in, the entity it passes through, which the camera is inside, and whether what it picks is a target,
+// outlined as one (Scene::OutlineStyle::Targeted), rather than a selection.
+struct PickSpace
+{
+	std::uint64_t frame{0};
+	entt::entity ignore{entt::null};
+	bool targeting{false};
+};
 
 // What the shell shows and follows, as a game composed into it (Game) reads it. The shell outlives
 // what a hook registers with it (frame systems, console commands, smoke actions), which may keep a
@@ -91,7 +92,13 @@ struct SmokeActions;
 class Shell
 {
   public:
+	// The command line the shell was started with.
+	virtual const AppArguments &Arguments() const = 0;
+
 	virtual Sim::SimWorld &World() = 0;
+
+	// The snapshots taken again from the world, after a game changed it outside a step.
+	virtual void Resync() = 0;
 
 	// The scene shown, which is presentation's world: there once the shell has started
 	// (Game::SceneLoaded), and replaced as it reloads or a jump arrives.
@@ -108,8 +115,11 @@ class Shell
 	// The scene's entity whose camera is active (Scene::CameraComponent::active), or null.
 	virtual entt::entity ActiveCamera() const = 0;
 
-	// The frame's debug lines, cleared as each frame starts.
+	// The frame's debug lines, cleared as each frame starts, and whether the scene's are shown (F2),
+	// which a game's own wait for.
 	virtual Render::DebugDraw &DebugLines() = 0;
+
+	virtual bool DebugShown() const = 0;
 
 	// The screen faded towards a colour, by 0 (none) to 1 (all of it), until it is set again; nothing
 	// until the window is open.
@@ -124,20 +134,27 @@ class Shell
 
 	virtual Input::InputSystem &Input() = 0;
 
+	// An input context of the game's, which the shell keeps over its own and under the console's; an
+	// empty name for none.
+	virtual void SetGameContext(std::string_view context) = 0;
+
 	virtual const Sim::DefinitionRegistry &Definitions() const = 0;
 
-	// The player the shell's controls are for, the entity of theirs it follows and the station that
-	// entity is bound to, as simulation entities (null for none), and whether it is docked there.
+	// The mods' scripts, loaded with the definitions.
+	virtual Script::ScriptHost &Scripts() = 0;
+
+	// The player the shell's controls are for.
 	virtual Sim::Controller Player() const = 0;
 
-	virtual entt::entity Followed() const = 0;
+	// Every orbit camera eased onto the entity of the scene, a target the game marks (OrbitTarget).
+	virtual void Frame(entt::entity target) = 0;
 
-	virtual entt::entity Station() const = 0;
+	// A sequence in cinematics/<name>.sequence.yaml played on the active camera from a time in
+	// seconds; the console's sequence does the same.
+	virtual void PlaySequence(std::string_view name, double from) = 0;
 
-	virtual bool Docked() const = 0;
-
-	// The name of the star system the scene shows, or empty.
-	virtual std::string ShownSystem() const = 0;
+	// What was picked forgotten, and the pick waiting for its answer too.
+	virtual void ClearPick() = 0;
 
 	// The game UI: null until the window is open.
 	virtual Ui::UiSystem *GameUi() = 0;
@@ -146,10 +163,7 @@ class Shell
 	// the frame would have them.
 	virtual void UpdateGameUi() = 0;
 
-	// Follows the entity, as ] and [ do.
-	virtual void Follow(entt::entity entity) = 0;
-
-	// A reason as the player reads it, and an entity as the log names it.
+	// A reason as the player reads it, and an entity as the log names it (Game::Describe).
 	virtual std::string Word(const Sim::Reason &reason) const = 0;
 
 	virtual std::string Describe(entt::entity entity) const = 0;
@@ -164,22 +178,11 @@ class Shell
 	~Shell() = default;
 };
 
-// The simulation the shell attaches to its world, which a game's own is built on: physics, lane and
-// gate travel, the docks and the behaviour trees.
+// The simulation the shell attaches to its world, which a game's own is built on: physics.
 struct ShellWorld
 {
 	Sim::SimWorld &world;
 	Physics::PhysicsWorld &physics;
-	Space::LaneTravel &lanes;
-	Space::Gates &gates;
-	Dock::Docks &docks;
-	Ai::Behaviours &behaviours;
-};
-
-struct ShellShip
-{
-	std::string hull;
-	float mass{0.0f};
 };
 
 // A game composed into the shell (RunRenderApplication): its types, definitions and world, its
@@ -192,8 +195,9 @@ class Game
 	virtual ~Game() = default;
 
 	// As the shell is made, after its own systems attach: the game's types, components, commands and
-	// systems on the world, and its input actions, bound before the settings' bindings are read.
-	virtual void Register(const ShellWorld &world, Input::InputSystem &input);
+	// systems on the world, and its input actions (Shell::Input), bound before the settings'
+	// bindings are read.
+	virtual void Register(const ShellWorld &world, Shell &shell);
 
 	// The game's definitions, read through the asset tree before the mods' scripts load.
 	virtual void LoadDefinitions(Sim::DefinitionRegistry &definitions);
@@ -201,29 +205,9 @@ class Game
 	// Once the docks have their hulls and layouts: what the game builds on them.
 	virtual void Define(const ShellWorld &world, const Sim::DefinitionRegistry &definitions);
 
-	// Once the galaxy's systems are known, before the scene loads: what the game runs across them,
-	// whose inputs the mods' scripts may answer.
-	virtual void OpenGalaxy(
-	    const ShellWorld &world, std::span<const Celestial::StarSystem> systems,
-	    const Sim::DefinitionRegistry &definitions, Script::ScriptHost &scripts);
-
-	// Each station the shell builds to its layout, as it is built, and then all of them once they are:
-	// once a run, as a load brings its own.
-	virtual void StationOpened(
-	    Sim::SimWorld &world, Dock::Docks &docks, entt::entity station, std::string_view body);
-
-	virtual void StationsOpened(const ShellWorld &world, const Sim::DefinitionRegistry &definitions);
-
-	// The hull of the game's content the shell makes the player's first ship and the console's
-	// traffic of, and its mass in kilograms; with none, the default, it makes neither.
-	virtual std::optional<ShellShip> StarterShip() const;
-
-	// The player's first ship as the shell makes it, before they take its helm.
-	virtual void FitShip(entt::registry &world, entt::entity ship, const Sim::Controller &player);
-
-	// A save loaded into the world, the player's ship as its shell section names it: what an older
-	// save of the game lacks.
-	virtual void Loaded(entt::registry &world, entt::entity ship, const Sim::Controller &player);
+	// A save loaded into the world: what an older save of the game lacks, and what the game read of it
+	// (ReadSave) applied.
+	virtual void Loaded(Shell &shell);
 
 	// The game's console commands, which run with the shell they are given.
 	virtual void AddCommands(DevTools::Console &console, Shell &shell);
@@ -234,11 +218,20 @@ class Game
 	// cycle, throws from the shell's constructor.
 	virtual void RegisterFrame(Ecs::Scheduler &frame, Shell &shell);
 
-	// Each scene the shell shows, once it is loaded, and before the shell replaces it: as it starts, as
-	// it reloads and as a jump arrives. Not as the shell shuts down.
+	// Each scene the shell loads, once it is loaded, and before the shell replaces it: as it starts and
+	// as it reloads.
 	virtual void SceneLoaded(Shell &shell);
 
 	virtual void SceneUnloading(Shell &shell);
+
+	// The sync phase's proxies of the world's entities in the scene, made, placed and unmade from the
+	// snapshots, where the game keeps them itself: true if it did. False, the default, leaves them to
+	// the shell (Scene::SyncSimProxies).
+	virtual bool SyncProxies(Shell &shell);
+
+	// As the shell shuts down, before it releases the scene and the resources: what the game holds of
+	// either released. Must not throw.
+	virtual void ShuttingDown(Shell &shell) noexcept;
 
 	// A save the shell writes: the game's sections beside the shell's, and its details, which the
 	// saves' list shows and a load reads first. A section of a name already taken throws, and nothing
@@ -270,6 +263,21 @@ class Game
 	// Each event of the steps, after the shell's own handling of it.
 	virtual void TakeEvent(const Sim::SimEvent &event, Shell &shell);
 
+	// The simulation entity the player follows, whose events the shell plays the sounds of (an event
+	// whose `ship` it is), or null, the default, for none.
+	virtual entt::entity Followed() const;
+
+	// An entity as the log names it, where the game names it; none leaves it to the shell, which
+	// names it by its number.
+	virtual std::optional<std::string> Describe(entt::entity entity) const;
+
+	// Where the player's click picks, or none, the default, and the shell does not pick; and where the
+	// origin of the frame a hit is kept relative to is, in the frame's system, at a time in simulation
+	// seconds, so a mark on a moving body moves with it.
+	virtual std::optional<PickSpace> PickIn(const Shell &shell) const;
+
+	virtual glm::dvec3 PickOrigin(const Shell &shell, double simSeconds) const;
+
 	// What a reason's argument reads as, where the game names it: an entity in the snapshot, or an
 	// identifier of one of its definitions' kinds (Reflect's name for the definition). None leaves it
 	// to the shell.
@@ -279,11 +287,6 @@ class Game
 	virtual std::optional<std::string> NameIdentifier(
 	    std::string_view definition, const std::string &identifier,
 	    const Sim::DefinitionRegistry &definitions, const Ui::StringTable &strings) const;
-
-	// Who flies a ship of the player's fleet and what it carries, for the console's fleet list: the
-	// player, at its helm, or its behaviour.
-	virtual std::string DescribeShip(
-	    const Sim::Snapshot &snapshot, entt::entity ship, bool atHelm) const;
 
 	// The render test's stages (SmokeSequence) the game drives: the shell's actions, which it replaces
 	// where it drives a stage itself. The shell's game UI stage has no screen to drive.

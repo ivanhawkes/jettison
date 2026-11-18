@@ -10,7 +10,7 @@
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/Shape.h>
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 // A station's collision mesh, made from what the scene draws it with: every procedural shape on
 // the entity or parented to it, however far down, at its place relative to the entity, which is a
@@ -27,9 +27,10 @@ struct CollisionMesh
 
 std::optional<CollisionMesh> MakeCollisionMesh(const entt::registry &scene, entt::entity root);
 
-// The pilot's controls as input actions, in a context of their own ("flight") that the shell pushes
-// over its own while a ship is flown, so the keys that turn the orbit camera fly the ship instead.
-// Defaults for a keyboard, a gamepad and a HOTAS, every one rebindable (Input::InputSystem::Rebind):
+// The pilot's controls as input actions, in a context of their own ("flight") that the layer has the
+// shell push over its own while a ship is flown, so the keys that turn the orbit camera fly the ship
+// instead. Defaults for a keyboard, a gamepad and a HOTAS, every one rebindable
+// (Input::InputSystem::Rebind):
 //
 //   action    keyboard      gamepad              joystick 1, a HOTAS's stick
 //   throttle  W / S         left stick Y         axis 2, the throttle
@@ -76,4 +77,4 @@ class PilotInput
 	Input::ActionId m_assist;
 	Input::ActionId m_view;
 };
-} // namespace Jettison::App
+} // namespace Jettison::Sample

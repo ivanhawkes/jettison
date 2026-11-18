@@ -1,4 +1,4 @@
-#include <jettison/app/Stations.h>
+#include "Stations.h"
 
 
 #include <algorithm>
@@ -17,7 +17,7 @@
 #include <jettison/space/Cruise.h>
 #include <jettison/space/Gates.h>
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 namespace
 {
@@ -140,4 +140,4 @@ entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &contro
 }
 
 
-} // namespace Jettison::App
+} // namespace Jettison::Sample

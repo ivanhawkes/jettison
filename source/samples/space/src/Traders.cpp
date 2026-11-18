@@ -1,7 +1,7 @@
 #include "Traders.h"
 
+#include "Stations.h"
 #include "Trading.h"
-#include <jettison/app/Stations.h>
 
 #include <algorithm>
 #include <array>
@@ -477,7 +477,7 @@ class Round
 			if (destination && !context.starting)
 				return Status::Running;
 			const auto *frame = registry.try_get<Physics::LocalFrame>(context.entity);
-			const entt::entity leaving = App::FindStation(registry, system, near->name);
+			const entt::entity leaving = FindStation(registry, system, near->name);
 			if (!frame || leaving == entt::null)
 				return Status::Failure;
 			// A point just beyond its reach, on the side of the body to cruise to.
@@ -819,7 +819,7 @@ std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(station).frame);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{start.station});
-		App::MakeShip(registry, docks, ship, start.hull, start.mass, true);
+		MakeShip(registry, docks, ship, start.hull, start.mass, true);
 		registry.emplace<Ai::Steered>(ship);
 		// Each trader the owner of its one ship.
 		const Sim::Controller controller = TraderController(static_cast<std::uint32_t>(index));

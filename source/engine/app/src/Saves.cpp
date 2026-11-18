@@ -6,11 +6,8 @@
 #include <format>
 #include <stdexcept>
 
-#include <jettison/celestial/Galaxy.h>
 #include <jettison/reflect/Reflect.h>
-#include <jettison/serialise/Archive.h>
 #include <jettison/sim/SaveGame.h>
-#include <jettison/sim/Snapshot.h>
 #include <jettison/vfs/FileSystem.h>
 
 namespace Jettison::App
@@ -19,26 +16,6 @@ namespace
 {
 constexpr std::string_view kSaveDirectory = "saves";
 constexpr std::string_view kSaveExtension = ".save";
-// Version 2 since 9c, which took the station's docking port out of it as the docks took docking from
-// the shell. A version 1 section is of a world that holds the shell's port, which this build does not
-// register, so its save is refused whole, and the section with it, rather than migrated.
-constexpr Serialise::FormatVersion kShellVersion{2};
-
-
-void RegisterShellState()
-{
-	static const bool registered = []
-	{
-		using Reflect::Attribute;
-		Reflect::RegisterType<ShellState>("Shell.State")
-		    .Field<&ShellState::ship>("ship", Attribute::Saved)
-		    .Field<&ShellState::station>("station", Attribute::Saved)
-		    .Field<&ShellState::shipSystem>("shipSystem", Attribute::Saved)
-		    .Field<&ShellState::stationBody>("stationBody", Attribute::Saved);
-		return true;
-	}();
-	(void)registered;
-}
 
 
 bool IsSaveName(std::string_view name)
@@ -53,20 +30,6 @@ bool IsSaveName(std::string_view name)
 	           });
 }
 } // namespace
-
-
-std::vector<std::byte> WriteShellState(const ShellState &state)
-{
-	RegisterShellState();
-	return Serialise::BinaryArchive::Write(state, kShellVersion);
-}
-
-
-ShellState ReadShellState(std::span<const std::byte> bytes)
-{
-	RegisterShellState();
-	return Serialise::BinaryArchive::Read<ShellState>(bytes, kShellVersion);
-}
 
 
 std::string SavePath(std::string_view name)
@@ -125,7 +88,7 @@ SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem)
 			const auto bytes = fileSystem.Read(SavePath(name));
 			const Sim::SaveInfo info =
 			    Sim::SaveGame::ReadInfo(bytes ? *bytes : std::vector<std::byte>{});
-			const std::string_view system = info.Detail(kSystemDetail);
+			const std::string_view system = info.Detail(kPlaceDetail);
 			row.system = system.empty() ? "no system" : system;
 			row.written = std::format(
 			    "{:%Y-%m-%d %H:%M}", std::chrono::sys_seconds{std::chrono::seconds{info.writtenAt}});
@@ -142,21 +105,4 @@ SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem)
 }
 
 
-std::vector<std::uint64_t> UnknownSystems(const entt::registry &world, const Celestial::Galaxy &galaxy)
-{
-	std::vector<std::uint64_t> known;
-	known.reserve(galaxy.systems.size());
-	for (const Celestial::GalaxySystem &system : galaxy.systems)
-		known.push_back(Sim::FrameId(system.name));
-	std::ranges::sort(known);
-
-	std::vector<std::uint64_t> unknown;
-	for (const auto [entity, in] : world.view<const Sim::InFrame>().each())
-		if (in.frame != Sim::kNoFrame && !std::ranges::binary_search(known, in.frame))
-			unknown.push_back(in.frame);
-	std::ranges::sort(unknown);
-	const auto duplicates = std::ranges::unique(unknown);
-	unknown.erase(duplicates.begin(), duplicates.end());
-	return unknown;
-}
 } // namespace Jettison::App

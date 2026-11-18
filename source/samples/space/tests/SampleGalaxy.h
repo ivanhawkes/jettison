@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../src/Fleet.h"
+#include "../src/Stations.h"
 #include "../src/Traders.h"
 #include "../src/Trading.h"
 #include <jettison/app/Mounts.h>
-#include <jettison/app/Stations.h>
 
 #include <doctest/doctest.h>
 
@@ -118,14 +118,14 @@ struct Galaxy
 
 		// The sample's ships parked as each station is built, as the shell has the game park them.
 		Sample::SpaceGame game;
-		App::OpenStations(
+		Sample::OpenStations(
 		    world, docks, systems, [&](entt::entity station, std::string_view body)
 		    { game.StationOpened(world, docks, station, body); });
-		App::OpenGates(world, gates, systems);
+		Sample::OpenGates(world, gates, systems);
 		for (const entt::entity entity : Sample::OpenMarkets(world, definitions))
 		{
 			Sample::Market &market = world.Registry().get<Sample::Market>(entity);
-			market.stationEntity = App::FindStation(world.Registry(), market.system, market.station);
+			market.stationEntity = Sample::FindStation(world.Registry(), market.system, market.station);
 		}
 		traders = Sample::OpenTraders(world, docks);
 	}

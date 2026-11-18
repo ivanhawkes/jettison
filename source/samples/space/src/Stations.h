@@ -31,17 +31,17 @@ struct Controller;
 struct Snapshot;
 } // namespace Jettison::Sim
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
-// The shell's stations and ships: every station of the galaxy built to a layout is in the world from
-// the start, its pads among it (Dock::Docks::MakeStation), for a game to put what it has at; and the
-// ships a player commands, their fleet, one of which they may be at the helm of.
+// The space layer's stations and ships: every station of the galaxy built to a layout is in the world
+// from the start, its pads among it (Dock::Docks::MakeStation), for a game to put what it has at; and
+// the ships a player commands, their fleet, one of which they may be at the helm of.
 
 // The station the docks built for the celestial body of that name in the system, or none.
 entt::entity FindStation(const entt::registry &world, std::uint64_t system, std::string_view body);
 
 // Builds each station of the systems that names a layout the docks know, calling opened with each as
-// it is built, before the next: a game parks its ships there (Game::StationOpened). A station of a
+// it is built, before the next: a game parks its ships there (SpaceGame::StationOpened). A station of a
 // layout the docks do not know is left out, saying so. Returns the stations built.
 std::vector<entt::entity> OpenStations(
     Sim::SimWorld &world, Dock::Docks &docks, std::span<const Celestial::StarSystem> systems,
@@ -53,7 +53,7 @@ std::vector<entt::entity> OpenStations(
 std::vector<entt::entity> OpenGates(
     Sim::SimWorld &world, const Space::Gates &gates, std::span<const Celestial::StarSystem> systems);
 
-// A ship of the hull, the docks' and its physics' (Dock::Docks::HullShape), as the shell makes
+// A ship of the hull, the docks' and its physics' (Dock::Docks::HullShape), as the layer makes
 // them: of that mass, swept as it flies if continuous, with the default thrusters and the hull's
 // cruise drive (Space::CruiseDrive), or the default one for a hull the docks do not define.
 void MakeShip(
@@ -71,4 +71,4 @@ std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Cont
 // The ship the controller is at the helm of (Sim::Helm), or none.
 entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller);
 
-} // namespace Jettison::App
+} // namespace Jettison::Sample

@@ -4,8 +4,8 @@
 #include "../src/Repair.h"
 #include "../src/Traders.h"
 #include "../src/Trading.h"
+#include "Stations.h"
 #include <jettison/app/Game.h>
-#include <jettison/app/Stations.h>
 #include <jettison/sample/SpaceGame.h>
 
 #include <doctest/doctest.h>
@@ -32,10 +32,10 @@ namespace
 constexpr Sim::Controller kPlayer{Sim::ControllerKind::Player, 0};
 
 
-// The sample as the shell composes it (Application's constructor, InitResources and InitScene):
-// the shell's own systems attached in its order, and everything of the game's through
-// Sample::SpaceGame's hooks, in the order the shell calls them. The other suites' Galaxy registers
-// the sample's parts itself; this is the game's own registration, which a ship then runs on.
+// The sample as the shell and the space layer compose it (SpaceLayer, through the shell's
+// constructor, InitResources and its first scene): the layer's systems attached in its order, and the
+// sample's own through SpaceGame's parts, in the order the layer calls them. The other suites' Galaxy
+// registers the sample's parts itself; this is the game's own registration, which a ship then runs on.
 struct Composed
 {
 	Sim::SimWorld world{Testing::kStep, 11};
@@ -58,10 +58,10 @@ struct Composed
 
 	Composed()
 	{
-		const App::ShellWorld shell{world, physics, lanes, gates, docks, behaviours};
+		const Sample::SpaceWorld space{world, physics, lanes, gates, docks, behaviours};
 		world.RegisterComponent<Sim::ControlledBy>();
 		input.DefineContext("shell");
-		game.Register(shell, input);
+		game.RegisterOwn(space, input);
 
 		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		pDefinitions = std::make_unique<Sim::DefinitionRegistry>(files);
@@ -70,12 +70,8 @@ struct Composed
 		pScripts = std::make_unique<Script::ScriptHost>(files);
 		pScripts->SendCommandsTo(world);
 		pScripts->LoadAll(*pDefinitions);
-		pDefinitions->Load<Dock::PadClassDefinition>(
-		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
-		pDefinitions->Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
-		pDefinitions->Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
 		docks.Define(*pDefinitions);
-		game.Define(shell, *pDefinitions);
+		Sample::SpaceGame::DefineOwn(space, *pDefinitions);
 
 		Celestial::Galaxy galaxy = Celestial::ReadGalaxy(Testing::ReadAsset("systems/galaxy.yaml"));
 		for (const Celestial::GalaxySystem &entry : galaxy.systems)
@@ -87,12 +83,12 @@ struct Composed
 			Space::DefineStarSystem(physics, systems.back());
 		}
 		lanes.SetGalaxy(std::move(galaxy));
-		game.OpenGalaxy(shell, systems, *pDefinitions, *pScripts);
-		App::OpenStations(
+		game.OpenGalaxy(space, systems, *pDefinitions, *pScripts);
+		Sample::OpenStations(
 		    world, docks, systems, [&](entt::entity station, std::string_view body)
-		    { game.StationOpened(world, docks, station, body); });
-		App::OpenGates(world, gates, systems);
-		game.StationsOpened(shell, *pDefinitions);
+		    { Sample::SpaceGame::StationOpened(world, docks, station, body); });
+		Sample::OpenGates(world, gates, systems);
+		Sample::SpaceGame::StationsOpened(space, *pDefinitions);
 	}
 
 
@@ -116,7 +112,7 @@ struct Composed
 
 	entt::entity Highport() const
 	{
-		return App::FindStation(world.Registry(), Sim::FrameId("Halcyon"), "Ostra Highport");
+		return Sample::FindStation(world.Registry(), Sim::FrameId("Halcyon"), "Ostra Highport");
 	}
 
 
@@ -129,8 +125,8 @@ struct Composed
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InFrame>(ship, Sim::FrameId("Halcyon"));
 		registry.emplace<Physics::LocalFrame>(ship, std::string{"Ostra Highport"});
-		const App::ShellShip starter = game.StarterShip().value();
-		App::MakeShip(registry, docks, ship, starter.hull, starter.mass, true);
+		const Sample::ShipKind starter = Sample::SpaceGame::StarterShip();
+		Sample::MakeShip(registry, docks, ship, starter.hull, starter.mass, true);
 		registry.emplace<Sim::ControlledBy>(ship, kPlayer);
 		if (Sample::FindOwner(registry, kPlayer) == entt::null)
 			Sample::MakeOwner(registry, kPlayer, credits);
@@ -174,10 +170,9 @@ TEST_CASE("Game: the sample registered through its own hooks has traders that ru
 TEST_CASE("Game: the ship the sample names the shell's first and its traffic is a hull of its content")
 {
 	const Composed sample;
-	const std::optional<App::ShellShip> starter = sample.game.StarterShip();
-	REQUIRE(starter);
-	CHECK(sample.docks.FindHull(starter->hull) != nullptr);
-	CHECK(starter->mass > 0.0f);
+	const Sample::ShipKind starter = Sample::SpaceGame::StarterShip();
+	CHECK(sample.docks.FindHull(starter.hull) != nullptr);
+	CHECK(starter.mass > 0.0f);
 }
 
 

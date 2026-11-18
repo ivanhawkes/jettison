@@ -143,8 +143,6 @@ TEST_CASE("Game: the shell with no game composed into it registers no market, tr
 	}
 	// The shell's own world is registered all the same.
 	CHECK(Reflect::Resolve("Sim.Transform"));
-	// And it makes no ship, for the player or as traffic, of a hull no content need define.
-	CHECK_FALSE(App::Game{}.StarterShip());
 }
 
 

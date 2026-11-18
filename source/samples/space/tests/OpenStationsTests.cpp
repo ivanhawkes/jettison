@@ -1,4 +1,4 @@
-#include <jettison/app/Stations.h>
+#include "Stations.h"
 
 #include <doctest/doctest.h>
 
@@ -39,7 +39,7 @@ Celestial::StarSystem System(const std::string &file)
 
 // The two systems with stations the assets ship, defined in physics, and the docks given the hulls
 // and layouts, as the shell has them.
-struct Sample
+struct TwoSystems
 {
 	Sim::SimWorld world{kStep, 5};
 	Physics::PhysicsWorld &physics{Setup(world)};
@@ -50,7 +50,7 @@ struct Sample
 	Vfs::FileSystem files;
 
 
-	Sample()
+	TwoSystems()
 	{
 		for (const Celestial::StarSystem &system : systems)
 			Space::DefineStarSystem(physics, system);
@@ -85,9 +85,9 @@ std::size_t Holding(const entt::registry &world, entt::entity station)
 
 TEST_CASE("Stations: every station built to a layout opens with its pads, and the shell parks nothing")
 {
-	Sample sample;
+	TwoSystems sample;
 	std::vector<std::string> opened;
-	const std::vector<entt::entity> stations = App::OpenStations(
+	const std::vector<entt::entity> stations = Sample::OpenStations(
 	    sample.world, sample.docks, sample.systems,
 	    [&](entt::entity station, std::string_view body)
 	    {
@@ -98,13 +98,14 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, and th
 	// Each told to the game as it is built, in the systems' order.
 	CHECK(opened == std::vector<std::string>{"Ostra Highport", "Ostra Anchorage", "Corva Refinery"});
 	const entt::registry &world = sample.world.Registry();
-	const entt::entity highport = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Highport");
-	const entt::entity corva = App::FindStation(world, Sim::FrameId("Vesper"), "Corva Refinery");
-	const entt::entity anchorage = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Anchorage");
+	const entt::entity highport = Sample::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Highport");
+	const entt::entity corva = Sample::FindStation(world, Sim::FrameId("Vesper"), "Corva Refinery");
+	const entt::entity anchorage =
+	    Sample::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Anchorage");
 	CHECK(highport == stations[0]);
 	CHECK(anchorage == stations[1]);
 	CHECK(corva == stations[2]);
-	CHECK(App::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
+	CHECK(Sample::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
 
 	// Highport's twelve destroyer pads and its display wing's six; six at Corva and at the Anchorage.
 	// No ship is parked on any: that is a game's to do.
