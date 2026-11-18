@@ -11,9 +11,9 @@ gameplay/content; Jettison provisions reusable engine capabilities after checkin
 current requirements. Small engine-local gameplay examples remain permitted for testing,
 but belong in explicit sample targets outside engine code and use public SDK interfaces.
 
-The implementation described below still mixes space transit into `ai` and celestial
-assumptions into the scene's APIs; physics' star systems are the `space` module's (W01), the
-snapshot's frames neutral (A01), and the sample's trading and content its own (H05). These are
+The implementation described below still mixes celestial assumptions into the scene's APIs;
+physics' star systems and the space transit AI are the `space` module's (W01), the snapshot's
+frames neutral (A01), and the sample's trading and content its own (H05). These are
 current coupling points, not the target boundary.
 Extract a neutral host, separate resources and generic modules, and make space services
 optional. No neutral engine target may depend on a sample or Manifest. Presentation
@@ -153,6 +153,7 @@ flowchart TB
     subgraph T4[Presentation and simulation services]
         render; physics; audio; ui; ai; dock; script
         space --> physics
+        space --> ai
     end
     subgraph T5[Hosts]
         app --> host
@@ -177,8 +178,11 @@ ship coming out of a lane is put in a physics frame and stopped in it, and steer
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
 `ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there, and on
 `space`, whose star systems its suites fly in. `space` is the optional space capability (W01): its
-edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and it depends on
-`celestial` below; no neutral module depends on it.
+edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
+transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
+saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
+neutral module depends on it. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
+search, courses round spheres (`ai/Courses.h`) and steering.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `space`, `ai` and `dock` never
 include `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
@@ -257,10 +261,10 @@ The effect runs in real seconds, the same at any time compression. The simulatio
 every frame of it, and the stepper is not resynced: the world did not change, and the new system's
 traffic is made from the same snapshots.
 
-That is presentation's jump, which changes what is shown. The simulation's (`ai/Lanes.h`, 9a)
-carries an entity along a lane: the command `Ai::EnterLane`, from a sender that commands it (a gate
+That is presentation's jump, which changes what is shown. The simulation's (`space/Lanes.h`, 9a)
+carries an entity along a lane: the command `Space::EnterLane`, from a sender that commands it (a gate
 sends a ship it cleared as no one in particular), takes it out of its system through a jump
-point (its `InFrame` none, an `Ai::OnLane` saying where it is going and the step it arrives), gives
+point (its `InFrame` none, an `Space::OnLane` saying where it is going and the step it arrives), gives
 up its destination, and the system `lanes`, after physics, brings it out at the far jump point when
 the transit's whole steps are run. A body comes out at rest in the gate's own frame (or that of a
 station it keeps by), facing the way the gate faces (`Celestial::JumpPointFacing`: its planet), with
@@ -272,21 +276,21 @@ further out (9f), so two traders through one gate a moment apart do not come out
 
 ### Gates
 
-A gate sends the ships it has cleared ([decided](roadmap.md#decided); `ai/Gates.h`, 13c). Each jump
-point's gate is an entity of its own, `Ai::Gate`, made at a game's start (`Gates::MakeGates`) and
+A gate sends the ships it has cleared ([decided](roadmap.md#decided); `space/Gates.h`, 13c). Each jump
+point's gate is an entity of its own, `Space::Gate`, made at a game's start (`Gates::MakeGates`) and
 saved: a kinematic sensor on the jump point's rails and in its frame, a cylinder of the ring's
 radius and 60 m deep (`Gates::RingShape`, defined in physics as the system is), turned by its rails
 to face as the jump point does (`Celestial::BodyOrientation`). It is a shared facility given in
-command order, as a pad is: `Ai::RequestTransit`, with its sender, clears a ship through it at once
-if the gate is free, or puts it at the back of the gate's queue, and the ship holds an `Ai::Transit`
+command order, as a pad is: `Space::RequestTransit`, with its sender, clears a ship through it at once
+if the gate is free, or puts it at the back of the gate's queue, and the ship holds an `Space::Transit`
 saying which. The engine's checks are its sender's command of the ship, the ship flying and in the
 gate's system and frame, a lane leaving through the gate, and the hull's shape fitting the ring; the
-game's are a rule it gives (`Ai::TollRule`), asked whether the ship's owner can pay the lane's toll,
+game's are a rule it gives (`Space::TollRule`), asked whether the ship's owner can pay the lane's toll,
 and told to charge it. Each step the system `gates`, after the lanes', gives up a clearance or a
 place whose ship has gone, left the gate's frame or is cruising; sends a cleared ship touching its
 ring along the lane (`EnterLane`, applied then), its owner charged as it enters rather than as it is
 cleared, which frees the gate; lets every other body that began to touch a ring pass through,
-saying why (`Ai::GatePassed`) and charging nothing, so traffic crossing a ring is never sent; lapses
+saying why (`Space::GatePassed`) and charging nothing, so traffic crossing a ring is never sent; lapses
 a clearance unused for two minutes; and clears the next in each free gate's queue. A ring is placed,
 not swept, so a ship crossing it at under its depth a step, 3.6 km/s, is seen.
 
@@ -301,17 +305,17 @@ ship. The console's `jump`, the J key and the galaxy panel's buttons are the too
 sends the ship along a lane wherever it is in its system, past the gate and its toll, and which goes
 once nothing depends on it: all travel between systems is by gates.
 
-A route across the galaxy (`ai/Routes.h`) is A* over its jump points, each lane an edge at its transit
+A route across the galaxy (`space/Routes.h`) is A* over its jump points, each lane an edge at its transit
 time and each pair of a system's gates an edge at what crossing the system costs, which the caller
-says; `Ai::CrossingByCourse` says it from a course through the system's waypoints, round its star,
+says; `Space::CrossingByCourse` says it from a course through the system's waypoints, round its star,
 planets and moons, at a speed.
 
 ### Cruising
 
 A system is crossed by cruising ([decided](roadmap.md#decided)): Corva Refinery is 1.4 × 10⁸ m
 from Corva and Corva 3 × 10¹⁰ m from Vesper, days at the flight model's 150 m/s. The command
-`Ai::Cruise`, with its sender, takes a ship to a body of its system (`ai/Cruise.h`, 13a): it leaves
-physics and its frame, its body kept in its `Ai::Cruising` until it arrives, and stays in its system,
+`Space::Cruise`, with its sender, takes a ship to a body of its system (`space/Cruise.h`, 13a): it leaves
+physics and its frame, its body kept in its `Space::Cruising` until it arrives, and stays in its system,
 placed each step along its course by the system `cruise`, after the lanes'. It arrives at rest,
 facing the body, a quarter of the body's radius and 4 km beyond it, in the body's frame or, for a
 gate that keeps by a station, the station's; physics makes its body there in the next step. A
@@ -324,7 +328,7 @@ changes at a cruise's ends and a lane's and nowhere else, so nothing places a ra
 where a ship would change frame. A cruise does not engage within 2 km of a station's radius, so
 docking stays in physics, and is refused with a reason.
 
-How long a cruise takes is its hull's drive (`Ai::CruiseDrive`, a hull definition's `cruise`): the
+How long a cruise takes is its hull's drive (`Space::CruiseDrive`, a hull definition's `cruise`): the
 seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the shuttle crosses from
 Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. The bodies are on
 rails, so where the target will be on arrival is solved rather than chased: the time gives the
@@ -344,7 +348,7 @@ camera stays on it, the flight panel says where it is cruising to and how long i
 shell's console sends one (`cruise <body>`). What flies a ship no one is at the helm of crosses by a task of its own: a
 trader's `cruise` (13b) flies it out of any station's reach, round the station, then sends the
 command with its own sender and runs until it arrives; a run's time across a system is the ship's
-drive's (`Ai::CrossingByCourse` with a `CourseTime`), so a trader weighs a run in the seconds it
+drive's (`Space::CrossingByCourse` with a `CourseTime`), so a trader weighs a run in the seconds it
 takes. A ship of the player's fleet no one is at the helm of follows the same tree (13d).
 
 An arrival is placed clear of what is there: the lanes' and the cruises' arrivals share one placement
@@ -678,7 +682,7 @@ again.
 **The sample's traders** (`samples/space/src/Traders.h`, [sample game](sample-game.md)) are the first to use
 both. Each follows `defs/behaviours/trader.yaml` and chooses its run by `defs/decisions/trade.yaml`,
 weighing a run's margin, the rivals after the same shelf and its credits a second over the route
-(`Ai::PlotRoute`, crossing each system by course), and then flies it: off its pad, round the station
+(`Space::PlotRoute`, crossing each system by course), and then flies it: off its pad, round the station
 to the gate, through it, onto a pad or into the queue for one, held off the station in its place, the
 trade, and the wait while the buggies carry its crates. Seven trade between Highport and Corva, whose
 one free pad keeps a queue; in twenty minutes of the `sample-space` suite they sell fourteen runs

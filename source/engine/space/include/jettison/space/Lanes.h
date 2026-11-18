@@ -24,7 +24,7 @@ namespace Jettison::Sim
 class SimWorld;
 }
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
 // The simulation's jump (docs/architecture.md, "Jumps"): an entity's passage along a jump lane, out
 // of its system through a jump point, in none for the lane's transit time, and into the system at
@@ -52,7 +52,7 @@ struct OnLane
 
 // The command that sends an entity along the lane leaving its system through that jump point,
 // applied as the step begins, or as a gate applies it to a ship it has cleared. The entity gives up
-// its Destination (Steering.h), which is in the system it leaves. Refused, with a LaneRefused, for a
+// its Destination (ai/Steering.h), which is in the system it leaves. Refused, with a LaneRefused, for a
 // sender that does not command the entity (Sim::MayCommand), an entity not in a system of the galaxy
 // (one already on a lane is in none), a cruising one, or a jump point no lane leaves through. A gate
 // sends a ship it cleared as no one in particular, the game's rule; a player asks for a gate's
@@ -160,4 +160,4 @@ class LaneTravel
 	// By Sim::FrameId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;
 };
-} // namespace Jettison::Ai
+} // namespace Jettison::Space

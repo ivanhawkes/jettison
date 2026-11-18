@@ -7,10 +7,10 @@
 
 namespace Jettison::Ai
 {
-// A* over a directed graph with non-negative edge costs: the jump points of the galaxy and the
-// lanes between them (Routes.h, PlotRoute), and the waypoints of a course across one system
-// (Routes.h, PlotCourse). Nodes are indices into the adjacency list; what a node stands for is the
-// caller's.
+// A* over a directed graph with non-negative edge costs: the waypoints of a course round spheres
+// (Courses.h, PlotCourse), and in the space sample the galaxy's jump points and the lanes between
+// them (space/Routes.h, PlotRoute). Nodes are indices into the adjacency list; what a node stands for
+// is the caller's.
 using NodeId = std::uint32_t;
 
 struct Edge

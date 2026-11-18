@@ -17,9 +17,6 @@
 #include <vector>
 
 #include <jettison/ai/BehaviourTree.h>
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Gates.h>
-#include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/UtilityAi.h>
 #include <jettison/celestial/Galaxy.h>
@@ -32,6 +29,9 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Gates.h>
+#include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 #include <jettison/vfs/FileSystem.h>
@@ -58,9 +58,9 @@ struct Galaxy
 {
 	Sim::SimWorld world{kStep, 11};
 	Physics::PhysicsWorld &physics{Setup(world)};
-	Ai::LaneTravel &lanes{Ai::LaneTravel::Attach(world, physics)};
-	Ai::CruiseTravel &cruises{Ai::CruiseTravel::Attach(world, physics)};
-	Ai::Gates &gates{Ai::Gates::Attach(world, physics, lanes)};
+	Space::LaneTravel &lanes{Space::LaneTravel::Attach(world, physics)};
+	Space::CruiseTravel &cruises{Space::CruiseTravel::Attach(world, physics)};
+	Space::Gates &gates{Space::Gates::Attach(world, physics, lanes)};
 	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};

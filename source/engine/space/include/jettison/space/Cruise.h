@@ -24,7 +24,7 @@ namespace Jettison::Sim
 class SimWorld;
 }
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
 // The cruise (docs/architecture.md, "Cruising"; docs/roadmap.md, "Decided": a ship crosses a system
 // by cruising): a ship taken across its system to a body, out of physics and its frame as on a lane
@@ -187,4 +187,4 @@ class CruiseTravel
 	// By Sim::FrameId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;
 };
-} // namespace Jettison::Ai
+} // namespace Jettison::Space

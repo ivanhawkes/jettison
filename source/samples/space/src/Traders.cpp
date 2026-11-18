@@ -15,10 +15,6 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <jettison/ai/BehaviourTree.h>
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Gates.h>
-#include <jettison/ai/Lanes.h>
-#include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 #include <jettison/ai/UtilityAi.h>
@@ -32,6 +28,11 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Gates.h>
+#include <jettison/space/Lanes.h>
+#include <jettison/space/Routes.h>
+#include <jettison/space/Types.h>
 
 namespace Jettison::Sample
 {
@@ -67,7 +68,7 @@ void RegisterTypes()
 	static const bool registered = []
 	{
 		using namespace Reflect;
-		Ai::RegisterTypes();
+		Space::RegisterTypes();
 		RegisterType<Trader>("Shell.Trader")
 		    .Field<&Trader::good>("good", Attribute::Saved)
 		    .Field<&Trader::buyAt>("buyAt", Attribute::Saved)
@@ -107,7 +108,7 @@ class Round
 {
   public:
 	Round(
-	    const Physics::PhysicsWorld &physics, const Ai::LaneTravel &lanes,
+	    const Physics::PhysicsWorld &physics, const Space::LaneTravel &lanes,
 	    std::vector<Celestial::StarSystem> systems, Ai::DecisionDefinition decision,
 	    Script::ScriptHost *pScripts)
 	    : m_physics{physics}, m_lanes{lanes}, m_systems{std::move(systems)},
@@ -196,9 +197,9 @@ class Round
 			std::int64_t tolls{0};
 		};
 		std::map<std::pair<std::string, std::string>, Leg> legs;
-		std::optional<Ai::CrossingCost> crossing;
-		const Ai::Place here = PlaceOf(registry, context.entity);
-		const auto leg = [&](const Ai::Place &from, const Ai::Place &to)
+		std::optional<Space::CrossingCost> crossing;
+		const Space::Place here = PlaceOf(registry, context.entity);
+		const auto leg = [&](const Space::Place &from, const Space::Place &to)
 		{
 			const auto key = std::pair{
 			    std::format("{}/{}", from.system, from.body), std::format("{}/{}", to.system, to.body)};
@@ -206,8 +207,8 @@ class Round
 				return known->second;
 			if (!crossing)
 				crossing = Crossing(context.world, context.entity);
-			const std::optional<Ai::Route> route =
-			    Ai::PlotRoute(*m_lanes.Galaxy(), from, to, *crossing);
+			const std::optional<Space::Route> route =
+			    Space::PlotRoute(*m_lanes.Galaxy(), from, to, *crossing);
 			const Leg found = route ? Leg{route->seconds + kStopSeconds, Tolls(*route)} : Leg{};
 			legs.emplace(key, found);
 			return found;
@@ -237,11 +238,11 @@ class Round
 					return rivals(run);
 				if (input == "rate")
 				{
-					const Ai::Place sell = MarketPlace(registry, run.sellAt);
+					const Space::Place sell = MarketPlace(registry, run.sellAt);
 					Leg whole;
 					if (run.buyAt != entt::null)
 					{
-						const Ai::Place buy = MarketPlace(registry, run.buyAt);
+						const Space::Place buy = MarketPlace(registry, run.buyAt);
 						const Leg there = leg(here, buy);
 						const Leg on = leg(buy, sell);
 						if (there.seconds < 0.0 || on.seconds < 0.0)
@@ -307,8 +308,8 @@ class Round
 		if (trader.bound == entt::null || !m_lanes.Galaxy() ||
 		    registry.get<Sim::InFrame>(context.entity).frame == Sim::kNoFrame)
 			return Status::Failure;
-		const Ai::Place to = MarketPlace(registry, trader.bound);
-		const std::optional<Ai::Route> route = Ai::PlotRoute(
+		const Space::Place to = MarketPlace(registry, trader.bound);
+		const std::optional<Space::Route> route = Space::PlotRoute(
 		    *m_lanes.Galaxy(), PlaceOf(registry, context.entity), to,
 		    Crossing(context.world, context.entity));
 		if (!route)
@@ -357,14 +358,14 @@ class Round
 		const Trader &trader = registry.get<Trader>(context.entity);
 		if (trader.jumps.empty())
 			return Status::Failure;
-		const entt::entity gate = Ai::Gates::FindGate(
+		const entt::entity gate = Space::Gates::FindGate(
 		    registry, registry.get<Sim::InFrame>(context.entity).frame, trader.jumps.front());
 		if (gate == entt::null)
 			return Status::Failure;
-		if (context.starting && !registry.all_of<Ai::Transit>(context.entity))
+		if (context.starting && !registry.all_of<Space::Transit>(context.entity))
 			context.world.Apply(
-			    Ai::RequestTransit{SenderOf(registry, context.entity), context.entity, gate});
-		const auto *transit = registry.try_get<Ai::Transit>(context.entity);
+			    Space::RequestTransit{SenderOf(registry, context.entity), context.entity, gate});
+		const auto *transit = registry.try_get<Space::Transit>(context.entity);
 		if (!transit || transit->gate != gate)
 			return Status::Failure;
 		return transit->cleared ? Status::Success : Status::Running;
@@ -378,9 +379,9 @@ class Round
 	Status FlyThrough(TaskContext &context) const
 	{
 		entt::registry &registry = context.world.Registry();
-		if (registry.all_of<Ai::OnLane>(context.entity))
+		if (registry.all_of<Space::OnLane>(context.entity))
 			return Status::Success;
-		const auto *transit = registry.try_get<Ai::Transit>(context.entity);
+		const auto *transit = registry.try_get<Space::Transit>(context.entity);
 		if (!transit || !transit->cleared)
 			return Status::Failure;
 		if (!context.starting && registry.all_of<Ai::Destination>(context.entity))
@@ -438,7 +439,7 @@ class Round
 		const int index = starSystem->Find(name);
 		if (index < 0)
 			return Status::Failure;
-		if (registry.all_of<Ai::Cruising>(context.entity))
+		if (registry.all_of<Space::Cruising>(context.entity))
 			return Status::Running;
 
 		const double now = context.world.Clock().Now();
@@ -448,8 +449,8 @@ class Round
 		const glm::dvec3 target = bodies[static_cast<std::size_t>(index)].metres;
 		const bool there =
 		    glm::distance(at, target) <
-		    Ai::CruiseTravel::ArrivalDistance(starSystem->bodies[static_cast<std::size_t>(index)]) +
-		        Ai::CruiseTravel::kStationReach;
+		    Space::CruiseTravel::ArrivalDistance(starSystem->bodies[static_cast<std::size_t>(index)]) +
+		        Space::CruiseTravel::kStationReach;
 		const auto *destination = registry.try_get<Ai::Destination>(context.entity);
 		// Not flying out, and not cruising: it was, and has come out.
 		if (!context.starting && !destination)
@@ -463,7 +464,8 @@ class Round
 		for (std::size_t each = 0; each < starSystem->bodies.size(); ++each)
 			if (const Celestial::Body &body = starSystem->bodies[each];
 			    body.kind == Celestial::BodyKind::Station &&
-			    glm::distance(at, bodies[each].metres) < body.radius + Ai::CruiseTravel::kStationReach)
+			    glm::distance(at, bodies[each].metres) <
+			        body.radius + Space::CruiseTravel::kStationReach)
 			{
 				near = &body;
 				nearIndex = each;
@@ -484,7 +486,7 @@ class Round
 			const glm::dvec3 out =
 			    glm::length(way) > 1.0 ? glm::normalize(way) : glm::dvec3{0.0, 0.0, 1.0};
 			const glm::dvec3 clear =
-			    centre + out * (near->radius + Ai::CruiseTravel::kStationReach + kReachMargin);
+			    centre + out * (near->radius + Space::CruiseTravel::kStationReach + kReachMargin);
 			const glm::dvec3 origin = m_physics.FrameOrigin(system, frame->body, now);
 			Ai::Destination flight;
 			flight.offset = clear - origin;
@@ -495,8 +497,8 @@ class Round
 			return Status::Running;
 		}
 
-		context.world.Apply(Ai::Cruise{SenderOf(registry, context.entity), context.entity, name});
-		return registry.all_of<Ai::Cruising>(context.entity) ? Status::Running : Status::Failure;
+		context.world.Apply(Space::Cruise{SenderOf(registry, context.entity), context.entity, name});
+		return registry.all_of<Space::Cruising>(context.entity) ? Status::Running : Status::Failure;
 	}
 
 
@@ -505,7 +507,7 @@ class Round
 	{
 		entt::registry &registry = context.world.Registry();
 		Trader &trader = registry.get<Trader>(context.entity);
-		if (registry.all_of<Ai::OnLane>(context.entity))
+		if (registry.all_of<Space::OnLane>(context.entity))
 			return Status::Running;
 		if (context.starting || trader.jumps.empty())
 			return Status::Failure;
@@ -566,9 +568,9 @@ class Round
 			if (!good)
 				return Status::Failure;
 			// What the route on to where it sells charges is kept back, so the ship can get there.
-			const std::optional<Ai::Route> route =
+			const std::optional<Space::Route> route =
 			    m_lanes.Galaxy() && registry.valid(trader.sellAt)
-			        ? Ai::PlotRoute(
+			        ? Space::PlotRoute(
 			              *m_lanes.Galaxy(), PlaceOf(registry, context.entity),
 			              MarketPlace(registry, trader.sellAt), Crossing(context.world, context.entity))
 			        : std::nullopt;
@@ -634,7 +636,7 @@ class Round
 
 
 	// The lanes' tolls along a route.
-	static std::int64_t Tolls(const Ai::Route &route)
+	static std::int64_t Tolls(const Space::Route &route)
 	{
 		std::int64_t tolls = 0;
 		for (const Celestial::Exit &exit : route.jumps)
@@ -687,9 +689,9 @@ class Round
 
 
 	// Where the ship is, as a route starts: the station it is docked at, or its system.
-	Ai::Place PlaceOf(const entt::registry &registry, entt::entity ship) const
+	Space::Place PlaceOf(const entt::registry &registry, entt::entity ship) const
 	{
-		Ai::Place place{SystemIndex(registry.get<Sim::InFrame>(ship).frame), {}};
+		Space::Place place{SystemIndex(registry.get<Sim::InFrame>(ship).frame), {}};
 		if (const auto *docking = registry.try_get<Dock::Docking>(ship);
 		    docking && docking->stage == Dock::Stage::Docked)
 			place.body = registry.get<Physics::OnRails>(docking->station).body;
@@ -697,7 +699,7 @@ class Round
 	}
 
 
-	Ai::Place MarketPlace(const entt::registry &registry, entt::entity market) const
+	Space::Place MarketPlace(const entt::registry &registry, entt::entity market) const
 	{
 		const Market &found = registry.get<Market>(market);
 		return {SystemIndex(found.system), found.station};
@@ -706,17 +708,21 @@ class Round
 
 	// What a crossing of a system costs the ship: its drive's time for the course's length, and what
 	// the flights out of a station's reach and in to a gate come to.
-	Ai::CrossingCost Crossing(const Sim::SimWorld &world, entt::entity ship) const
+	Space::CrossingCost Crossing(const Sim::SimWorld &world, entt::entity ship) const
 	{
-		const Ai::CruiseDrive drive = world.Registry().get<Ai::CruiseDrive>(ship);
-		return Ai::CrossingByCourse(
-		    m_systems, world.Clock().Now(), [drive](double metres)
-		    { return metres > 0.0 ? Ai::CruiseSeconds(drive, metres) + kCruiseHandlingSeconds : 0.0; },
-		    Ai::CruiseTravel::kCourseClearance);
+		const Space::CruiseDrive drive = world.Registry().get<Space::CruiseDrive>(ship);
+		return Space::CrossingByCourse(
+		    m_systems, world.Clock().Now(),
+		    [drive](double metres)
+		    {
+			    return metres > 0.0 ? Space::CruiseSeconds(drive, metres) + kCruiseHandlingSeconds
+			                        : 0.0;
+		    },
+		    Space::CruiseTravel::kCourseClearance);
 	}
 
 	const Physics::PhysicsWorld &m_physics;
-	const Ai::LaneTravel &m_lanes;
+	const Space::LaneTravel &m_lanes;
 	std::vector<Celestial::StarSystem> m_systems;
 	Ai::DecisionDefinition m_decision;
 	Script::ScriptHost *m_pScripts;
@@ -746,7 +752,7 @@ constexpr std::array<Start, 7> kTraders{{
 
 void RegisterTraders(
     Sim::SimWorld &world, Ai::Behaviours &behaviours, const Physics::PhysicsWorld &physics,
-    const Ai::LaneTravel &lanes, std::vector<Celestial::StarSystem> systems,
+    const Space::LaneTravel &lanes, std::vector<Celestial::StarSystem> systems,
     const Ai::DecisionDefinition &decision, Script::ScriptHost *pScripts)
 {
 	RegisterTypes();
@@ -771,7 +777,7 @@ std::optional<std::string> UnansweredInput(
 
 void LoadTraderDefinitions(Sim::DefinitionRegistry &definitions)
 {
-	Ai::RegisterTypes();
+	Space::RegisterTypes();
 	definitions.Load<Ai::DecisionDefinition>(
 	    Ai::kDecisionDirectory, Serialise::FormatVersion{Ai::kDecisionVersion});
 	definitions.Load<Ai::BehaviourDefinition>(

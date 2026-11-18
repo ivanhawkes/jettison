@@ -29,9 +29,6 @@
 #include <vector>
 
 #include <jettison/ai/BehaviourTree.h>
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Lanes.h>
-#include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/UtilityAi.h>
 #include <jettison/animation/ClipFile.h>
@@ -60,6 +57,9 @@
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Lanes.h>
+#include <jettison/space/Routes.h>
 #include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 
@@ -336,7 +336,7 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 		    if (!CanPilot())
 			    Core::Log(Core::Severity::Warning, kShell, "No cruise: no ship in the system shown");
 		    else
-			    m_sim.Commands().Push(Ai::Cruise{kPilot, m_ship, name});
+			    m_sim.Commands().Push(Space::Cruise{kPilot, m_ship, name});
 	    });
 	m_console.RegisterCommand(
 	    "transit",
@@ -656,9 +656,9 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	m_sim.RegisterComponent<Sim::Transform>();
 	m_sim.RegisterComponent<Sim::InFrame>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
-	m_pLanes = &Ai::LaneTravel::Attach(m_sim, *m_pPhysics);
-	m_pGates = &Ai::Gates::Attach(m_sim, *m_pPhysics, *m_pLanes);
-	m_pCruises = &Ai::CruiseTravel::Attach(m_sim, *m_pPhysics);
+	m_pLanes = &Space::LaneTravel::Attach(m_sim, *m_pPhysics);
+	m_pGates = &Space::Gates::Attach(m_sim, *m_pPhysics, *m_pLanes);
+	m_pCruises = &Space::CruiseTravel::Attach(m_sim, *m_pPhysics);
 	m_pIndices = &Spatial::SystemIndices::Attach(m_sim);
 	m_pSteering = &Ai::Steering::Attach(m_sim, *m_pPhysics, *m_pIndices);
 	m_pDocks = &Dock::Docks::Attach(m_sim, *m_pPhysics);
@@ -1981,7 +1981,7 @@ void Application::TakeShipAlong(const Celestial::Exit &exit)
 {
 	if (!CanPilot())
 		return;
-	m_sim.Commands().Push(Ai::EnterLane{kPilot, m_ship, std::string{exit.jumpPoint}});
+	m_sim.Commands().Push(Space::EnterLane{kPilot, m_ship, std::string{exit.jumpPoint}});
 }
 
 
@@ -1995,11 +1995,11 @@ void Application::RequestTransit(std::string_view jumpPoint)
 		return;
 	}
 	const std::string name = jumpPoint.empty() ? ShipFrame() : std::string{jumpPoint};
-	for (const auto &[entity, gate] : snapshot.Components<Ai::Gate>())
+	for (const auto &[entity, gate] : snapshot.Components<Space::Gate>())
 		if (const Sim::TransformSample *at = snapshot.FindSample(entity);
 		    gate.jumpPoint == name && at && at->frame == ship->frame)
 		{
-			m_sim.Commands().Push(Ai::RequestTransit{kPilot, m_ship, entity});
+			m_sim.Commands().Push(Space::RequestTransit{kPilot, m_ship, entity});
 			return;
 		}
 	Core::Log(
@@ -2009,7 +2009,7 @@ void Application::RequestTransit(std::string_view jumpPoint)
 }
 
 
-void Application::FollowShipAlong(const Ai::OnLane &lane)
+void Application::FollowShipAlong(const Space::OnLane &lane)
 {
 	if (!m_galaxy || !m_shownSystem || m_jump->Active() ||
 	    Sim::FrameId(m_galaxy->systems[*m_shownSystem].name) != lane.from)
@@ -2048,15 +2048,15 @@ void Application::LogRoute(std::string_view systemName) const
 	const Celestial::StarSystem &destination = m_galaxySystems[static_cast<std::size_t>(to)];
 	const auto station =
 	    std::ranges::find(destination.bodies, Celestial::BodyKind::Station, &Celestial::Body::kind);
-	const Ai::Place start{index, m_stationSystem == m_shipSystem ? m_stationBody : std::string{}};
-	const Ai::Place end{
+	const Space::Place start{index, m_stationSystem == m_shipSystem ? m_stationBody : std::string{}};
+	const Space::Place end{
 	    static_cast<std::size_t>(to),
 	    station == destination.bodies.end() ? std::string{} : station->name};
 	constexpr double kClearance = 1.0e5;
 	const float speed = Physics::Thrusters{}.maxSpeed;
-	const std::optional<Ai::Route> route = Ai::PlotRoute(
+	const std::optional<Space::Route> route = Space::PlotRoute(
 	    *m_galaxy, start, end,
-	    Ai::CrossingByCourse(m_galaxySystems, m_sim.Clock().Now(), speed, kClearance));
+	    Space::CrossingByCourse(m_galaxySystems, m_sim.Clock().Now(), speed, kClearance));
 	if (!route)
 	{
 		Core::Log(Core::Severity::Info, kShell, "No lanes lead to {}", systemName);
@@ -3001,7 +3001,7 @@ void Application::AttachShip(entt::entity ship)
 		return;
 	std::uint64_t system = m_shipSystem;
 	std::string arrival;
-	if (const auto *lane = world.try_get<Ai::OnLane>(ship))
+	if (const auto *lane = world.try_get<Space::OnLane>(ship))
 	{
 		system = lane->to;
 		arrival = lane->arrival;
@@ -3347,7 +3347,7 @@ void Application::DrawFlight()
 		ImGui::Text(
 		    "%s  %s", Describe(m_ship).c_str(),
 		    helm ? "at your helm" : "flown by its behaviour (H takes the helm)");
-		if (const auto *cruising = current.Get<Ai::Cruising>(m_ship))
+		if (const auto *cruising = current.Get<Space::Cruising>(m_ship))
 			ImGui::Text(
 			    "Cruising to %s  %.0f km/s  %.0f s", cruising->target.c_str(), speed / 1000.0,
 			    static_cast<double>(
@@ -3357,8 +3357,8 @@ void Application::DrawFlight()
 		    "%s  %.1f m/s  %.0f m", against.c_str(), speed, glm::length(ship->position - reference));
 		if (m_docked)
 			ImGui::Text("Docked at %s", m_stationBody.c_str());
-		if (const auto *transit = current.Get<Ai::Transit>(m_ship))
-			if (const auto *gate = current.Get<Ai::Gate>(transit->gate))
+		if (const auto *transit = current.Get<Space::Transit>(m_ship))
+			if (const auto *gate = current.Get<Space::Gate>(transit->gate))
 			{
 				if (transit->cleared)
 					ImGui::Text(
@@ -3432,7 +3432,7 @@ void Application::TakeEvents()
 			    Core::Severity::Info, kShell, "Picked {} at {:.0f} m", Describe(picked->entity),
 			    picked->distance);
 		}
-		else if (const auto *entered = event.event.try_cast<Ai::LaneEntered>();
+		else if (const auto *entered = event.event.try_cast<Space::LaneEntered>();
 		         entered && entered->entity == m_ship)
 		{
 			m_shipSystem = Sim::kNoFrame;
@@ -3446,57 +3446,57 @@ void Application::TakeEvents()
 			// Sent by a gate rather than the tools' jump, which has the scene jumping already.
 			FollowShipAlong(entered->lane);
 		}
-		else if (const auto *cleared = event.event.try_cast<Ai::TransitCleared>();
+		else if (const auto *cleared = event.event.try_cast<Space::TransitCleared>();
 		         cleared && cleared->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Info, kShell,
 			    "{} clears the ship through for {} credits: fly through its ring within {:.0f} s",
-			    Describe(cleared->gate), cleared->toll, Ai::Gates::kClearanceSeconds);
-		else if (const auto *waiting = event.event.try_cast<Ai::TransitQueued>();
+			    Describe(cleared->gate), cleared->toll, Space::Gates::kClearanceSeconds);
+		else if (const auto *waiting = event.event.try_cast<Space::TransitQueued>();
 		         waiting && waiting->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Info, kShell, "The ship waits for {}, {} in the queue",
 			    Describe(waiting->gate), waiting->place);
-		else if (const auto *noTransit = event.event.try_cast<Ai::TransitRefused>();
+		else if (const auto *noTransit = event.event.try_cast<Space::TransitRefused>();
 		         noTransit && noTransit->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Warning, kShell, "{} will not clear the ship: {}",
 			    Describe(noTransit->gate), Word(noTransit->reason));
-		else if (const auto *unused = event.event.try_cast<Ai::TransitLapsed>();
+		else if (const auto *unused = event.event.try_cast<Space::TransitLapsed>();
 		         unused && unused->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Warning, kShell, "The ship's clearance through {} has lapsed",
 			    Describe(unused->gate));
-		else if (const auto *sent = event.event.try_cast<Ai::TransitSent>();
+		else if (const auto *sent = event.event.try_cast<Space::TransitSent>();
 		         sent && sent->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Info, kShell, "{} sends the ship through, charging {} credits",
 			    Describe(sent->gate), sent->toll);
-		else if (const auto *passed = event.event.try_cast<Ai::GatePassed>();
+		else if (const auto *passed = event.event.try_cast<Space::GatePassed>();
 		         passed && passed->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Warning, kShell, "The ship passed through {} unsent: {}",
 			    Describe(passed->gate), Word(passed->reason));
-		else if (const auto *arrived = event.event.try_cast<Ai::LaneLeft>();
+		else if (const auto *arrived = event.event.try_cast<Space::LaneLeft>();
 		         arrived && arrived->entity == m_ship)
 		{
 			m_shipSystem = arrived->system;
 			Core::Log(Core::Severity::Info, kShell, "The ship came out at {}", arrived->arrival);
 		}
-		else if (const auto *cruise = event.event.try_cast<Ai::CruiseStarted>();
+		else if (const auto *cruise = event.event.try_cast<Space::CruiseStarted>();
 		         cruise && cruise->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Info, kShell, "The ship cruises to {}, {:.0f} km in {:.1f} s",
 			    cruise->body, cruise->metres / 1000.0, cruise->seconds);
-		else if (const auto *cruised = event.event.try_cast<Ai::CruiseEnded>();
+		else if (const auto *cruised = event.event.try_cast<Space::CruiseEnded>();
 		         cruised && cruised->ship == m_ship)
 			Core::Log(Core::Severity::Info, kShell, "The ship has arrived off {}", cruised->body);
-		else if (const auto *noCruise = event.event.try_cast<Ai::CruiseRefused>();
+		else if (const auto *noCruise = event.event.try_cast<Space::CruiseRefused>();
 		         noCruise && noCruise->ship == m_ship)
 			Core::Log(
 			    Core::Severity::Warning, kShell, "The ship cannot cruise to {}: {}", noCruise->body,
 			    Word(noCruise->reason));
-		else if (const auto *noLane = event.event.try_cast<Ai::LaneRefused>();
+		else if (const auto *noLane = event.event.try_cast<Space::LaneRefused>();
 		         noLane && noLane->entity == m_ship)
 			Core::Log(
 			    Core::Severity::Warning, kShell, "The ship cannot enter the lane through {}: {}",
@@ -3688,7 +3688,7 @@ std::string Application::Describe(entt::entity simEntity) const
 	if (const auto found = std::ranges::find(m_traffic, simEntity); found != m_traffic.end())
 		return std::format("Shuttle {}", found - m_traffic.begin() + 1);
 	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	if (const auto *gate = snapshot.Get<Ai::Gate>(simEntity))
+	if (const auto *gate = snapshot.Get<Space::Gate>(simEntity))
 		return gate->jumpPoint;
 	// Another station, by the body it rides: not a pad, nor a ship clamped to one, which ride it too.
 	if (const auto *rails = snapshot.Get<Physics::OnRails>(simEntity);

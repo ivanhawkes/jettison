@@ -63,8 +63,8 @@ VFS or physics integration in Manifest because its public seam needs a bounded i
 The space sample's Trading, Traders, Fleet and market screen are a game composed into the shell
 (`source/samples/space`, `App::Game`), out of the `app` library, and its content is a tree and pack
 of its own (`source/samples/space/assets`), mounted as `base` over the engine's assets (H05,
-2026-11-18). AI combines generic algorithms with cruise/gates/lanes, and the scene depends on celestial
-concepts; physics does not, its frames' rails and gravity the game's model, a star system the
+2026-11-18). The scene depends on celestial concepts; physics and AI do not, physics' frames' rails and
+gravity the game's model, and a star system and the cruise, lanes, gates and galaxy routes the
 `space` module's (W01, 2026-11-18). Frames and a save's details are neutral (A01, 2026-11-18): an entity's
 `Sim::InFrame` is a partition of the game's, a star system the sample's use of one, and
 `SaveInfo::details` the game's strings, the shell's galaxy and system among them. The shell still names some

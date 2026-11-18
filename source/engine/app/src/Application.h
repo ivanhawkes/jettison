@@ -12,8 +12,6 @@
 #include <vector>
 
 #include <jettison/ai/BehaviourTree.h>
-#include <jettison/ai/Gates.h>
-#include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/Game.h>
@@ -41,6 +39,8 @@
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Stepper.h>
+#include <jettison/space/Gates.h>
+#include <jettison/space/Lanes.h>
 #include <jettison/time/Clock.h>
 #include <jettison/ui/UiSystem.h>
 #include <jettison/vfs/FileSystem.h>
@@ -243,7 +243,7 @@ class Application final : private Shell
 	// Piloting (docs/architecture.md, "Physics"). The shell is the engine with no game, so it plays
 	// the game's part: a ship docked on a pad of the first station of the system it opens on, which
 	// the console's undock lifts clear and dock flies back in, which P flies and V looks at from
-	// behind or from its seat, and which a jump along a lane takes with it (Ai::LaneTravel) when it
+	// behind or from its seat, and which a jump along a lane takes with it (Space::LaneTravel) when it
 	// is in the system shown.
 	//
 	// Every system the galaxy has is defined in physics, for rails and gravity, and in lane travel,
@@ -292,16 +292,16 @@ class Application final : private Shell
 	void TakeShipAlong(const Celestial::Exit &exit);
 
 	// The console's transit: asks the gate of the jump point named in the ship's system, or of the
-	// one whose frame the ship is in, to clear the ship through it (Ai::RequestTransit), found in the
-	// snapshots.
+	// one whose frame the ship is in, to clear the ship through it (Space::RequestTransit), found in
+	// the snapshots.
 	void RequestTransit(std::string_view jumpPoint);
 
 	// The scene's jump along the lane a gate sent the ship down, from the system shown, unless a jump
 	// is under way already.
-	void FollowShipAlong(const Ai::OnLane &lane);
+	void FollowShipAlong(const Space::OnLane &lane);
 
 	// The console's route: the quickest way from the ship to a system, at the ship's top speed
-	// across each system (Ai::PlotRoute, Ai::CrossingByCourse).
+	// across each system (Space::PlotRoute, Space::CrossingByCourse).
 	void LogRoute(std::string_view systemName) const;
 
 	// The fleet (FleetOf): the ship the shell follows, the attached one, which its camera, the game's
@@ -679,9 +679,9 @@ class Application final : private Shell
 	std::vector<Celestial::StarSystem> m_galaxySystems;
 	// Lane travel in the simulation, given the galaxy and its systems; the spatial index kept from
 	// the simulation, and steering, which reads it. The world holds them.
-	Ai::LaneTravel *m_pLanes{nullptr};
-	Ai::Gates *m_pGates{nullptr};
-	Ai::CruiseTravel *m_pCruises{nullptr};
+	Space::LaneTravel *m_pLanes{nullptr};
+	Space::Gates *m_pGates{nullptr};
+	Space::CruiseTravel *m_pCruises{nullptr};
 	Spatial::SystemIndices *m_pIndices{nullptr};
 	Ai::Steering *m_pSteering{nullptr};
 	// The stations' pads and the ships on them, which the world holds too.

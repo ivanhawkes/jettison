@@ -29,9 +29,9 @@ add_subdirectory(input)
 
 # Simulation services.
 add_subdirectory(physics)
+add_subdirectory(ai)
 # The space capability over them, which no neutral module depends on.
 add_subdirectory(space)
-add_subdirectory(ai)
 add_subdirectory(dock)
 add_subdirectory(script)
 

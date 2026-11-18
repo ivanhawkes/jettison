@@ -1,13 +1,13 @@
 #include "Systems.h"
 
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Gates.h>
-#include <jettison/ai/Lanes.h>
 #include <jettison/ai/Types.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Gates.h>
+#include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
 
 #include <doctest/doctest.h>
@@ -45,13 +45,13 @@ struct Fixture
 {
 	Sim::SimWorld world{kStep, 7};
 	Physics::PhysicsWorld &physics;
-	Ai::LaneTravel &lanes;
-	Ai::Gates &gates;
+	Space::LaneTravel &lanes;
+	Space::Gates &gates;
 
 
 	Fixture()
-	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)},
-	      gates{Ai::Gates::Attach(world, physics, lanes)}
+	    : physics{Setup(world)}, lanes{Space::LaneTravel::Attach(world, physics)},
+	      gates{Space::Gates::Attach(world, physics, lanes)}
 	{
 		static const bool registered = []
 		{
@@ -104,7 +104,7 @@ struct Fixture
 
 	entt::entity Gate(std::string_view jumpPoint = "Halcyon Gate") const
 	{
-		return Ai::Gates::FindGate(world.Registry(), kHalcyon, jumpPoint);
+		return Space::Gates::FindGate(world.Registry(), kHalcyon, jumpPoint);
 	}
 
 
@@ -157,7 +157,7 @@ struct Fixture
 	std::uint64_t RunUntilOnLane(entt::entity ship, std::uint64_t most)
 	{
 		std::uint64_t steps = 0;
-		while (steps < most && !world.Registry().all_of<Ai::OnLane>(ship))
+		while (steps < most && !world.Registry().all_of<Space::OnLane>(ship))
 		{
 			world.Step();
 			++steps;
@@ -193,9 +193,9 @@ struct Fixture
 	}
 
 
-	const Ai::Gate &GateOf(entt::entity gate) const
+	const Space::Gate &GateOf(entt::entity gate) const
 	{
-		return world.Registry().get<Ai::Gate>(gate);
+		return world.Registry().get<Space::Gate>(gate);
 	}
 };
 } // namespace
@@ -207,9 +207,9 @@ TEST_CASE("Gates: each jump point has a ring, a sensor on its rails facing as it
 	entt::registry &registry = fixture.world.Registry();
 	const entt::entity gate = fixture.Gate();
 	REQUIRE(gate != entt::null);
-	CHECK(Ai::Gates::FindGate(registry, kVesper, "Vesper Gate") != entt::null);
-	CHECK(Ai::Gates::FindGate(registry, kVesper, "Vesper Deep Gate") != entt::null);
-	CHECK(Ai::Gates::FindGate(registry, kHalcyon, "Vesper Gate") == entt::null);
+	CHECK(Space::Gates::FindGate(registry, kVesper, "Vesper Gate") != entt::null);
+	CHECK(Space::Gates::FindGate(registry, kVesper, "Vesper Deep Gate") != entt::null);
+	CHECK(Space::Gates::FindGate(registry, kHalcyon, "Vesper Gate") == entt::null);
 	CHECK_THROWS_AS(fixture.gates.MakeGates(fixture.world, kHalcyon), std::logic_error);
 
 	const Physics::Body &body = registry.get<Physics::Body>(gate);
@@ -233,17 +233,17 @@ TEST_CASE("Gates: a cleared ship flown through the ring is sent, and its owner c
 	const entt::entity gate = fixture.Gate();
 	// 400 m short of the ring at 100 m/s.
 	const entt::entity ship = fixture.Ship(400.0, 100.0f);
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, ship, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, ship, gate});
 	const std::uint64_t asked = fixture.world.Clock().Step();
 	fixture.Run(1);
-	const std::vector<Ai::TransitCleared> cleared = fixture.Events<Ai::TransitCleared>();
+	const std::vector<Space::TransitCleared> cleared = fixture.Events<Space::TransitCleared>();
 	REQUIRE(cleared.size() == 1);
 	CHECK(cleared[0].ship == ship);
 	CHECK(cleared[0].gate == gate);
 	CHECK(cleared[0].toll == kToll);
 	CHECK(cleared[0].lapses == asked + kClearanceSteps);
 	CHECK(fixture.GateOf(gate).cleared == ship);
-	CHECK(registry.get<Ai::Transit>(ship) == Ai::Transit{gate, true});
+	CHECK(registry.get<Space::Transit>(ship) == Space::Transit{gate, true});
 	// Nothing is charged until it enters.
 	CHECK(fixture.CreditsOf(ship) == 10000);
 
@@ -251,22 +251,22 @@ TEST_CASE("Gates: a cleared ship flown through the ring is sent, and its owner c
 	const std::uint64_t steps = fixture.RunUntilOnLane(ship, 600);
 	CHECK(steps == doctest::Approx(222.0).epsilon(0.02));
 	const std::vector<Sim::SimEvent> events = fixture.world.Events().Take();
-	const std::vector<Ai::TransitSent> sent = fixture.EventsOf<Ai::TransitSent>(events);
+	const std::vector<Space::TransitSent> sent = fixture.EventsOf<Space::TransitSent>(events);
 	REQUIRE(sent.size() == 1);
 	CHECK(sent[0].ship == ship);
 	CHECK(sent[0].toll == kToll);
-	CHECK(fixture.EventsOf<Ai::LaneEntered>(events).size() == 1);
-	CHECK(fixture.EventsOf<Ai::GatePassed>(events).empty());
+	CHECK(fixture.EventsOf<Space::LaneEntered>(events).size() == 1);
+	CHECK(fixture.EventsOf<Space::GatePassed>(events).empty());
 	CHECK(fixture.CreditsOf(ship) == 10000 - kToll);
-	CHECK(registry.get<Ai::OnLane>(ship).departure == "Halcyon Gate");
-	CHECK_FALSE(registry.all_of<Ai::Transit>(ship));
+	CHECK(registry.get<Space::OnLane>(ship).departure == "Halcyon Gate");
+	CHECK_FALSE(registry.all_of<Space::Transit>(ship));
 	CHECK(fixture.GateOf(gate).cleared == entt::null);
 
 	// Out at Vesper Gate 40 s on, ahead of its ring, which does not see it pass.
 	fixture.Run(2400 + 120);
 	CHECK(registry.get<Sim::InFrame>(ship).frame == kVesper);
-	CHECK(fixture.Events<Ai::GatePassed>().empty());
-	const entt::entity far = Ai::Gates::FindGate(registry, kVesper, "Vesper Gate");
+	CHECK(fixture.Events<Space::GatePassed>().empty());
+	const entt::entity far = Space::Gates::FindGate(registry, kVesper, "Vesper Gate");
 	const glm::dvec3 out =
 	    registry.get<Sim::Transform>(ship).position - registry.get<Sim::Transform>(far).position;
 	const glm::dvec3 ahead = registry.get<Sim::Transform>(far).orientation * glm::dvec3{0.0, 1.0, 0.0};
@@ -284,22 +284,22 @@ TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and 
 	// Waiting behind another, it is not cleared either.
 	const entt::entity first = fixture.Ship(3000.0, 0.0f);
 	const entt::entity waiting = fixture.Ship(500.0, 100.0f);
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, first, gate});
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, waiting, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, first, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, waiting, gate});
 	fixture.Run(1);
-	CHECK(fixture.Events<Ai::TransitQueued>().size() == 1);
+	CHECK(fixture.Events<Space::TransitQueued>().size() == 1);
 
-	std::vector<Ai::GatePassed> passed;
+	std::vector<Space::GatePassed> passed;
 	for (int step = 0; step < 600; ++step)
 	{
 		fixture.Run(1);
-		for (const Ai::GatePassed &each : fixture.Events<Ai::GatePassed>())
+		for (const Space::GatePassed &each : fixture.Events<Space::GatePassed>())
 			passed.push_back(each);
 	}
 	REQUIRE(passed.size() == 2);
 	CHECK(passed[0].ship == ship);
 	CHECK(passed[1].ship == waiting);
-	for (const Ai::GatePassed &each : passed)
+	for (const Space::GatePassed &each : passed)
 	{
 		CHECK(each.gate == gate);
 		CHECK(Sim::Describe(each.reason) == "reason.ai.not_cleared('Halcyon Gate')");
@@ -308,7 +308,7 @@ TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and 
 	for (const entt::entity each : {ship, waiting})
 	{
 		CHECK(registry.get<Sim::InFrame>(each).frame == kHalcyon);
-		CHECK_FALSE(registry.all_of<Ai::OnLane>(each));
+		CHECK_FALSE(registry.all_of<Space::OnLane>(each));
 		CHECK(fixture.CreditsOf(each) == 10000);
 	}
 	const glm::dvec3 through =
@@ -316,7 +316,7 @@ TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and 
 	CHECK(
 	    glm::dot(through, fixture.Facing() * glm::dvec3{0.0, 0.0, -1.0}) ==
 	    doctest::Approx(600.0).epsilon(0.01));
-	CHECK(registry.get<Ai::Transit>(waiting) == Ai::Transit{gate, false});
+	CHECK(registry.get<Space::Transit>(waiting) == Space::Transit{gate, false});
 	CHECK(fixture.GateOf(gate).cleared == first);
 }
 
@@ -329,10 +329,10 @@ TEST_CASE("Gates: a clearance unused lapses, and the gate clears the next in its
 	const entt::entity first = fixture.Ship(3000.0, 0.0f);
 	const entt::entity second = fixture.Ship(3500.0, 0.0f);
 	const std::uint64_t asked = fixture.world.Clock().Step();
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, first, gate});
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, second, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, first, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, second, gate});
 	fixture.Run(1);
-	const std::vector<Ai::TransitQueued> queued = fixture.Events<Ai::TransitQueued>();
+	const std::vector<Space::TransitQueued> queued = fixture.Events<Space::TransitQueued>();
 	REQUIRE(queued.size() == 1);
 	CHECK(queued[0].ship == second);
 	CHECK(queued[0].place == 1);
@@ -340,16 +340,16 @@ TEST_CASE("Gates: a clearance unused lapses, and the gate clears the next in its
 
 	// Held to the step before it lapses.
 	fixture.Run(kClearanceSteps - 2);
-	CHECK(fixture.Events<Ai::TransitLapsed>().empty());
+	CHECK(fixture.Events<Space::TransitLapsed>().empty());
 	CHECK(fixture.GateOf(gate).cleared == first);
 	fixture.Run(1);
 	CHECK(fixture.world.Clock().Step() == asked + kClearanceSteps);
 	const std::vector<Sim::SimEvent> events = fixture.world.Events().Take();
-	const std::vector<Ai::TransitLapsed> lapsed = fixture.EventsOf<Ai::TransitLapsed>(events);
+	const std::vector<Space::TransitLapsed> lapsed = fixture.EventsOf<Space::TransitLapsed>(events);
 	REQUIRE(lapsed.size() == 1);
 	CHECK(lapsed[0].ship == first);
-	CHECK_FALSE(registry.all_of<Ai::Transit>(first));
-	const std::vector<Ai::TransitCleared> next = fixture.EventsOf<Ai::TransitCleared>(events);
+	CHECK_FALSE(registry.all_of<Space::Transit>(first));
+	const std::vector<Space::TransitCleared> next = fixture.EventsOf<Space::TransitCleared>(events);
 	REQUIRE(next.size() == 1);
 	CHECK(next[0].ship == second);
 	CHECK(next[0].lapses == fixture.world.Clock().Step() - 1 + kClearanceSteps);
@@ -372,11 +372,11 @@ TEST_CASE("Gates: what cannot be cleared through a gate is refused, saying why")
 	const entt::entity gone = registry.create();
 	registry.destroy(gone);
 
-	const auto refused = [&](const Ai::RequestTransit &command)
+	const auto refused = [&](const Space::RequestTransit &command)
 	{
 		fixture.world.Commands().Push(command);
 		fixture.Run(1);
-		const std::vector<Ai::TransitRefused> found = fixture.Events<Ai::TransitRefused>();
+		const std::vector<Space::TransitRefused> found = fixture.Events<Space::TransitRefused>();
 		REQUIRE(found.size() == 1);
 		CHECK(found[0].ship == command.ship);
 		return Sim::Describe(found[0].reason);
@@ -387,9 +387,9 @@ TEST_CASE("Gates: what cannot be cleared through a gate is refused, saying why")
 	CHECK(refused({kPilot, elsewhere, gate}) == "reason.ai.not_at_gate('Halcyon Gate')");
 	CHECK(refused({kPilot, wide, gate}) == "reason.ai.hull_too_large('Halcyon Gate', 500)");
 	CHECK(refused({kPilot, poor, gate}) == "reason.test.short(2000)");
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, ship, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, ship, gate});
 	fixture.Run(1);
-	CHECK(fixture.Events<Ai::TransitCleared>().size() == 1);
+	CHECK(fixture.Events<Space::TransitCleared>().size() == 1);
 	CHECK(refused({kPilot, ship, gate}) == "reason.ai.already_cleared('Halcyon Gate')");
 	CHECK(refused({kPilot, elsewhere, gate}) == "reason.ai.not_at_gate('Halcyon Gate')");
 	// Nothing was taken from any of them.
@@ -405,13 +405,13 @@ TEST_CASE("Gates: a gate no lane leaves through clears nothing")
 	galaxy.lanes.pop_back();
 	fixture.lanes.SetGalaxy(std::move(galaxy));
 	entt::registry &registry = fixture.world.Registry();
-	const entt::entity deep = Ai::Gates::FindGate(registry, kVesper, "Vesper Deep Gate");
+	const entt::entity deep = Space::Gates::FindGate(registry, kVesper, "Vesper Deep Gate");
 	const entt::entity ship = fixture.Ship(3000.0, 0.0f);
 	registry.replace<Sim::InFrame>(ship, kVesper);
 	registry.replace<Physics::LocalFrame>(ship, "Vesper Deep Gate");
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, ship, deep});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, ship, deep});
 	fixture.Run(1);
-	const std::vector<Ai::TransitRefused> refused = fixture.Events<Ai::TransitRefused>();
+	const std::vector<Space::TransitRefused> refused = fixture.Events<Space::TransitRefused>();
 	REQUIRE(refused.size() == 1);
 	CHECK(Sim::Describe(refused[0].reason) == "reason.ai.leads_nowhere('Vesper Deep Gate')");
 }
@@ -424,10 +424,10 @@ TEST_CASE("Gates: a cleared ship whose owner can no longer pay passes through, a
 	const entt::entity gate = fixture.Gate();
 	const entt::entity ship = fixture.Ship(400.0, 100.0f);
 	const entt::entity next = fixture.Ship(3000.0, 0.0f);
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, ship, gate});
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, next, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, ship, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, next, gate});
 	fixture.Run(1);
-	fixture.Events<Ai::TransitCleared>();
+	fixture.Events<Space::TransitCleared>();
 	// Spent, after it was cleared.
 	registry.get<Credits>(ship).amount = 500;
 
@@ -436,18 +436,19 @@ TEST_CASE("Gates: a cleared ship whose owner can no longer pay passes through, a
 	{
 		fixture.Run(1);
 		for (Sim::SimEvent &event : fixture.world.Events().Take())
-			if (event.event.try_cast<Ai::GatePassed>() || event.event.try_cast<Ai::TransitCleared>())
+			if (event.event.try_cast<Space::GatePassed>() ||
+			    event.event.try_cast<Space::TransitCleared>())
 				events.push_back(std::move(event));
 	}
-	const std::vector<Ai::GatePassed> passed = fixture.EventsOf<Ai::GatePassed>(events);
+	const std::vector<Space::GatePassed> passed = fixture.EventsOf<Space::GatePassed>(events);
 	REQUIRE(passed.size() == 1);
 	CHECK(passed[0].ship == ship);
 	CHECK(Sim::Describe(passed[0].reason) == "reason.test.short(2000)");
 	CHECK(fixture.CreditsOf(ship) == 500);
-	CHECK_FALSE(registry.all_of<Ai::OnLane>(ship));
-	CHECK_FALSE(registry.all_of<Ai::Transit>(ship));
+	CHECK_FALSE(registry.all_of<Space::OnLane>(ship));
+	CHECK_FALSE(registry.all_of<Space::Transit>(ship));
 	// The next in the queue cleared in the same step.
-	const std::vector<Ai::TransitCleared> cleared = fixture.EventsOf<Ai::TransitCleared>(events);
+	const std::vector<Space::TransitCleared> cleared = fixture.EventsOf<Space::TransitCleared>(events);
 	REQUIRE(cleared.size() == 1);
 	CHECK(cleared[0].ship == next);
 }
@@ -460,22 +461,22 @@ TEST_CASE("Gates: a clearance is given up as its ship leaves the gate's frame, o
 	const entt::entity gate = fixture.Gate();
 	const entt::entity leaving = fixture.Ship(3000.0, 0.0f);
 	const entt::entity going = fixture.Ship(3500.0, 0.0f);
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, leaving, gate});
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, going, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, leaving, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, going, gate});
 	fixture.Run(1);
 	fixture.world.Events().Take();
 
 	registry.replace<Physics::LocalFrame>(leaving, "Ostra Highport");
 	fixture.Run(1);
-	std::vector<Ai::TransitLapsed> lapsed = fixture.Events<Ai::TransitLapsed>();
+	std::vector<Space::TransitLapsed> lapsed = fixture.Events<Space::TransitLapsed>();
 	REQUIRE(lapsed.size() == 1);
 	CHECK(lapsed[0].ship == leaving);
-	CHECK_FALSE(registry.all_of<Ai::Transit>(leaving));
+	CHECK_FALSE(registry.all_of<Space::Transit>(leaving));
 	CHECK(fixture.GateOf(gate).cleared == going);
 
 	registry.destroy(going);
 	fixture.Run(1);
-	lapsed = fixture.Events<Ai::TransitLapsed>();
+	lapsed = fixture.Events<Space::TransitLapsed>();
 	REQUIRE(lapsed.size() == 1);
 	CHECK(lapsed[0].ship == going);
 	CHECK(fixture.GateOf(gate).cleared == entt::null);
@@ -488,12 +489,12 @@ TEST_CASE("Gates: a world saved with a ship cleared and one waiting goes on as t
 	const entt::entity gate = fixture.Gate();
 	const entt::entity ship = fixture.Ship(1500.0, 100.0f);
 	const entt::entity next = fixture.Ship(3000.0, 0.0f);
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, ship, gate});
-	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, next, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, ship, gate});
+	fixture.world.Commands().Push(Space::RequestTransit{kPilot, next, gate});
 	fixture.Run(300);
 	const std::vector<std::byte> saved = fixture.world.Save();
 	fixture.Run(1200);
-	CHECK(fixture.world.Registry().all_of<Ai::OnLane>(ship));
+	CHECK(fixture.world.Registry().all_of<Space::OnLane>(ship));
 	CHECK(fixture.GateOf(gate).cleared == next);
 	const std::uint64_t hash = fixture.world.StateHash();
 

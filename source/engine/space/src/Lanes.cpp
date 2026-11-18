@@ -1,8 +1,9 @@
-#include <jettison/ai/Lanes.h>
+#include <jettison/space/Lanes.h>
 
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Gates.h>
 #include <jettison/ai/Steering.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Gates.h>
+#include <jettison/space/Types.h>
 
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
@@ -20,8 +21,13 @@
 
 #include "Transit.h"
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
+using Ai::Destination;
+using Ai::Reason;
+using Ai::Steered;
+
+
 LaneTravel &LaneTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics)
 {
 	RegisterTypes();
@@ -195,4 +201,4 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		world.Events().Emit(LaneLeft{entity, lane.to, lane.arrival});
 	}
 }
-} // namespace Jettison::Ai
+} // namespace Jettison::Space

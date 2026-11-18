@@ -1,12 +1,12 @@
 #include "Systems.h"
 
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Lanes.h>
 #include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
 
 #include <doctest/doctest.h>
@@ -27,7 +27,7 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 // A shuttle's drive (defs/hulls/shuttle.yaml).
-constexpr Ai::CruiseDrive kDrive{40.0f, 1.0e8, 0.25f};
+constexpr Space::CruiseDrive kDrive{40.0f, 1.0e8, 0.25f};
 
 // A world as a game's start-up makes one: physics, the lanes, then cruising, given the sample
 // galaxy's systems.
@@ -35,13 +35,13 @@ struct Fixture
 {
 	Sim::SimWorld world{kStep, 7};
 	Physics::PhysicsWorld &physics;
-	Ai::LaneTravel &lanes;
-	Ai::CruiseTravel &cruises;
+	Space::LaneTravel &lanes;
+	Space::CruiseTravel &cruises;
 
 
 	Fixture()
-	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)},
-	      cruises{Ai::CruiseTravel::Attach(world, physics)}
+	    : physics{Setup(world)}, lanes{Space::LaneTravel::Attach(world, physics)},
+	      cruises{Space::CruiseTravel::Attach(world, physics)}
 	{
 		Physics::ShapeDefinition hull;
 		hull.halfExtents = {3.2f, 0.9f, 4.9f};
@@ -85,7 +85,7 @@ struct Fixture
 		registry.emplace<Physics::Body>(ship, body);
 		registry.emplace<Physics::Velocity>(ship);
 		registry.emplace<Physics::FlightControls>(ship);
-		registry.emplace<Ai::CruiseDrive>(ship, kDrive);
+		registry.emplace<Space::CruiseDrive>(ship, kDrive);
 		return ship;
 	}
 
@@ -116,12 +116,12 @@ struct Fixture
 
 
 	// The cruise's refusal, from the step the command is applied in.
-	Sim::Reason Refusal(const Ai::Cruise &command)
+	Sim::Reason Refusal(const Space::Cruise &command)
 	{
-		Events<Ai::CruiseRefused>();
+		Events<Space::CruiseRefused>();
 		world.Commands().Push(command);
 		Run(1);
-		const std::vector<Ai::CruiseRefused> refused = Events<Ai::CruiseRefused>();
+		const std::vector<Space::CruiseRefused> refused = Events<Space::CruiseRefused>();
 		REQUIRE(refused.size() == 1);
 		CHECK(refused[0].ship == command.ship);
 		CHECK(refused[0].body == command.body);
@@ -147,13 +147,13 @@ glm::dvec3 Nose(const Sim::Transform &transform)
 
 TEST_CASE("Cruise: a drive's time rises as the distance's fourth root")
 {
-	CHECK(Ai::CruiseSeconds(kDrive, 1.0e8) == doctest::Approx(40.0));
-	CHECK(Ai::CruiseSeconds(kDrive, 1.6e9) == doctest::Approx(80.0));
-	CHECK(Ai::CruiseSeconds(kDrive, 0.0) == 0.0);
+	CHECK(Space::CruiseSeconds(kDrive, 1.0e8) == doctest::Approx(40.0));
+	CHECK(Space::CruiseSeconds(kDrive, 1.6e9) == doctest::Approx(80.0));
+	CHECK(Space::CruiseSeconds(kDrive, 0.0) == 0.0);
 	// Off a station by its radius, off a body with gravity where it pulls at 1 m/s².
-	CHECK(Ai::CruiseTravel::ArrivalDistance(BodyOf("Ostra Highport")) == doctest::Approx(4075.0));
-	CHECK(Ai::CruiseTravel::ArrivalDistance(BodyOf("Pell")) == doctest::Approx(2.214688e6));
-	CHECK(Ai::CruiseTravel::ArrivalDistance(BodyOf("Ostra")) == doctest::Approx(1.996498e7));
+	CHECK(Space::CruiseTravel::ArrivalDistance(BodyOf("Ostra Highport")) == doctest::Approx(4075.0));
+	CHECK(Space::CruiseTravel::ArrivalDistance(BodyOf("Pell")) == doctest::Approx(2.214688e6));
+	CHECK(Space::CruiseTravel::ArrivalDistance(BodyOf("Ostra")) == doctest::Approx(1.996498e7));
 }
 
 
@@ -164,24 +164,24 @@ TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arri
 	const entt::entity ship = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
 	fixture.Run(5);
 	CHECK(fixture.physics.BodyCount(kHalcyon) == 1);
-	fixture.Events<Ai::CruiseStarted>();
+	fixture.Events<Space::CruiseStarted>();
 
 	const std::uint64_t departure = fixture.world.Clock().Step();
-	fixture.world.Commands().Push(Ai::Cruise{{}, ship, "Pell"});
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
 	fixture.Run(1);
-	const std::vector<Ai::CruiseStarted> started = fixture.Events<Ai::CruiseStarted>();
+	const std::vector<Space::CruiseStarted> started = fixture.Events<Space::CruiseStarted>();
 	REQUIRE(started.size() == 1);
 	CHECK(started[0].ship == ship);
 	CHECK(started[0].body == "Pell");
 	// The time its drive takes over its course, to within the step it is rounded up to and what the
 	// last round of the solve moved the course by.
 	CHECK(started[0].metres > 3.6e8);
-	CHECK(std::abs(started[0].seconds - Ai::CruiseSeconds(kDrive, started[0].metres)) < 2.0 * kStep);
+	CHECK(std::abs(started[0].seconds - Space::CruiseSeconds(kDrive, started[0].metres)) < 2.0 * kStep);
 	const std::uint64_t arrival = started[0].arrivalStep;
 	CHECK(arrival == departure + static_cast<std::uint64_t>(std::llround(started[0].seconds / kStep)));
 
 	// Out of physics and its frame, and still in its system, placed along its course.
-	const Ai::Cruising *cruising = registry.try_get<Ai::Cruising>(ship);
+	const Space::Cruising *cruising = registry.try_get<Space::Cruising>(ship);
 	REQUIRE(cruising);
 	CHECK(cruising->target == "Pell");
 	CHECK(cruising->frame == "Pell");
@@ -213,24 +213,24 @@ TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arri
 	CHECK(nearestOstra > BodyOf("Ostra").radius);
 	CHECK(firstSecond > 0.0);
 	CHECK(firstSecond < 20000.0);
-	CHECK(registry.all_of<Ai::Cruising>(ship));
-	CHECK(fixture.Events<Ai::CruiseEnded>().empty());
+	CHECK(registry.all_of<Space::Cruising>(ship));
+	CHECK(fixture.Events<Space::CruiseEnded>().empty());
 
 	// The step that ends the cruise brings it out, facing Pell, at rest in its frame, its body back.
 	fixture.Run(1);
 	CHECK(fixture.world.Clock().Step() == arrival);
-	const std::vector<Ai::CruiseEnded> ended = fixture.Events<Ai::CruiseEnded>();
+	const std::vector<Space::CruiseEnded> ended = fixture.Events<Space::CruiseEnded>();
 	REQUIRE(ended.size() == 1);
 	CHECK(ended[0].ship == ship);
 	CHECK(ended[0].body == "Pell");
-	CHECK(!registry.all_of<Ai::Cruising>(ship));
+	CHECK(!registry.all_of<Space::Cruising>(ship));
 	CHECK(registry.get<Physics::LocalFrame>(ship).body == "Pell");
 	CHECK(registry.get<Physics::Velocity>(ship) == Physics::Velocity{});
 	const Sim::Transform arrived = registry.get<Sim::Transform>(ship);
 	const glm::dvec3 pell = Fixture::Where("Pell", fixture.world.Clock().Now());
 	CHECK(
 	    glm::distance(arrived.position, pell) ==
-	    doctest::Approx(Ai::CruiseTravel::ArrivalDistance(BodyOf("Pell"))).epsilon(1.0e-9));
+	    doctest::Approx(Space::CruiseTravel::ArrivalDistance(BodyOf("Pell"))).epsilon(1.0e-9));
 	CHECK(glm::dot(Nose(arrived), glm::normalize(pell - arrived.position)) > 0.999999);
 
 	// Physics makes its body again in the next step, in Pell's frame, where it is all but still.
@@ -240,12 +240,12 @@ TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arri
 	CHECK(glm::length(registry.get<Physics::Velocity>(ship).linear) < 0.1f);
 
 	// And back to the gate, which keeps station by Highport, in whose frame it arrives.
-	fixture.world.Commands().Push(Ai::Cruise{{}, ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
-	REQUIRE(registry.all_of<Ai::Cruising>(ship));
-	CHECK(registry.get<Ai::Cruising>(ship).frame == "Ostra Highport");
-	fixture.Run(registry.get<Ai::Cruising>(ship).arrivalStep - fixture.world.Clock().Step());
-	CHECK(!registry.all_of<Ai::Cruising>(ship));
+	REQUIRE(registry.all_of<Space::Cruising>(ship));
+	CHECK(registry.get<Space::Cruising>(ship).frame == "Ostra Highport");
+	fixture.Run(registry.get<Space::Cruising>(ship).arrivalStep - fixture.world.Clock().Step());
+	CHECK(!registry.all_of<Space::Cruising>(ship));
 	CHECK(registry.get<Physics::LocalFrame>(ship).body == "Ostra Highport");
 	// To the millimetre: a place 1.5 x 10^11 m from the star is held to about 30 µm.
 	CHECK(
@@ -253,7 +253,7 @@ TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arri
 	        glm::distance(
 	            registry.get<Sim::Transform>(ship).position,
 	            Fixture::Where("Halcyon Gate", fixture.world.Clock().Now())) -
-	        Ai::CruiseTravel::ArrivalDistance(BodyOf("Halcyon Gate"))) < 0.001);
+	        Space::CruiseTravel::ArrivalDistance(BodyOf("Halcyon Gate"))) < 0.001);
 }
 
 
@@ -265,31 +265,32 @@ TEST_CASE("Cruise: ships that arrive together at one body come out clear of each
 	const entt::entity first = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
 	const entt::entity second = fixture.Ship("Ostra Highport", {4.0, 0.0, 3000.0});
 	fixture.Run(5);
-	fixture.world.Commands().Push(Ai::Cruise{{}, first, "Pell"});
-	fixture.world.Commands().Push(Ai::Cruise{{}, second, "Pell"});
+	fixture.world.Commands().Push(Space::Cruise{{}, first, "Pell"});
+	fixture.world.Commands().Push(Space::Cruise{{}, second, "Pell"});
 	fixture.Run(1);
-	REQUIRE(registry.all_of<Ai::Cruising>(first));
-	REQUIRE(registry.all_of<Ai::Cruising>(second));
+	REQUIRE(registry.all_of<Space::Cruising>(first));
+	REQUIRE(registry.all_of<Space::Cruising>(second));
 	const std::uint64_t arrival = std::max(
-	    registry.get<Ai::Cruising>(first).arrivalStep, registry.get<Ai::Cruising>(second).arrivalStep);
+	    registry.get<Space::Cruising>(first).arrivalStep,
+	    registry.get<Space::Cruising>(second).arrivalStep);
 	fixture.Run(arrival - fixture.world.Clock().Step());
-	REQUIRE(!registry.all_of<Ai::Cruising>(first));
-	REQUIRE(!registry.all_of<Ai::Cruising>(second));
+	REQUIRE(!registry.all_of<Space::Cruising>(first));
+	REQUIRE(!registry.all_of<Space::Cruising>(second));
 
 	const double hull = fixture.physics.ShapeRadius("hull");
 	const glm::dvec3 firstAt = registry.get<Sim::Transform>(first).position;
 	const glm::dvec3 secondAt = registry.get<Sim::Transform>(second).position;
 	const double apart = glm::distance(firstAt, secondAt) - 2.0 * hull;
 	MESSAGE("Arrived " << apart << " m between hulls");
-	CHECK(apart >= Ai::LaneTravel::kArrivalClearance);
+	CHECK(apart >= Space::LaneTravel::kArrivalClearance);
 	// Not further than the first ring, a hull's breadth and the clearance out, and the few metres
 	// the two courses differ by.
-	CHECK(glm::distance(firstAt, secondAt) <= 2.0 * hull + Ai::LaneTravel::kArrivalClearance + 10.0);
+	CHECK(glm::distance(firstAt, secondAt) <= 2.0 * hull + Space::LaneTravel::kArrivalClearance + 10.0);
 	const glm::dvec3 pell = Fixture::Where("Pell", fixture.world.Clock().Now());
 	for (const glm::dvec3 &at : {firstAt, secondAt})
 		CHECK(
-		    std::abs(glm::distance(at, pell) - Ai::CruiseTravel::ArrivalDistance(BodyOf("Pell"))) <
-		    2.0 * hull + Ai::LaneTravel::kArrivalClearance);
+		    std::abs(glm::distance(at, pell) - Space::CruiseTravel::ArrivalDistance(BodyOf("Pell"))) <
+		    2.0 * hull + Space::LaneTravel::kArrivalClearance);
 }
 
 
@@ -300,9 +301,9 @@ TEST_CASE("Cruise: a course goes round the planet between a ship and its target"
 	// In Ostra's frame, three of its radii out on the far side from Pell.
 	const glm::dvec3 away = glm::normalize(Fixture::Where("Ostra", 0.0) - Fixture::Where("Pell", 0.0));
 	const entt::entity ship = fixture.Ship("Ostra", away * 2.0e7);
-	fixture.world.Commands().Push(Ai::Cruise{{}, ship, "Pell"});
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
 	fixture.Run(1);
-	const Ai::Cruising *cruising = registry.try_get<Ai::Cruising>(ship);
+	const Space::Cruising *cruising = registry.try_get<Space::Cruising>(ship);
 	REQUIRE(cruising);
 	CHECK(cruising->carrier == "Ostra");
 	CHECK(cruising->course.size() > 2);
@@ -322,7 +323,7 @@ TEST_CASE("Cruise: a course goes round the planet between a ship and its target"
 	MESSAGE(
 	    "Round Ostra to Pell: " << cruisingPoints << " points, "
 	                            << (nearest - BodyOf("Ostra").radius) / 1000.0 << " km up at nearest");
-	CHECK(nearest > BodyOf("Ostra").radius + Ai::CruiseTravel::kCourseClearance - 1.0);
+	CHECK(nearest > BodyOf("Ostra").radius + Space::CruiseTravel::kCourseClearance - 1.0);
 	CHECK(registry.get<Physics::LocalFrame>(ship).body == "Pell");
 }
 
@@ -334,10 +335,10 @@ TEST_CASE("Cruise: off a planet where its pull is one its assist holds against")
 	// From Pell: Highport, in low orbit, is already where a cruise to Ostra would arrive.
 	const entt::entity ship = fixture.Ship("Pell", {0.0, 3.0e6, 0.0});
 	registry.emplace<Physics::Thrusters>(ship);
-	fixture.world.Commands().Push(Ai::Cruise{{}, ship, "Ostra"});
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Ostra"});
 	fixture.Run(1);
-	REQUIRE(registry.all_of<Ai::Cruising>(ship));
-	fixture.Run(registry.get<Ai::Cruising>(ship).arrivalStep - fixture.world.Clock().Step());
+	REQUIRE(registry.all_of<Space::Cruising>(ship));
+	fixture.Run(registry.get<Space::Cruising>(ship).arrivalStep - fixture.world.Clock().Step());
 	REQUIRE(registry.get<Physics::LocalFrame>(ship).body == "Ostra");
 	const glm::dvec3 arrived = registry.get<Sim::Transform>(ship).position -
 	                           Fixture::Where("Ostra", fixture.world.Clock().Now());
@@ -357,9 +358,9 @@ TEST_CASE("Cruise: to the star, a system's breadth, carried by nothing that move
 	Fixture fixture;
 	entt::registry &registry = fixture.world.Registry();
 	const entt::entity ship = fixture.Ship("Ostra Highport", {0.0, 3000.0, 0.0});
-	fixture.world.Commands().Push(Ai::Cruise{{}, ship, "Halcyon"});
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Halcyon"});
 	fixture.Run(1);
-	const Ai::Cruising *cruising = registry.try_get<Ai::Cruising>(ship);
+	const Space::Cruising *cruising = registry.try_get<Space::Cruising>(ship);
 	REQUIRE(cruising);
 	CHECK(cruising->carrier == "Halcyon");
 	// A few minutes for a hundred and fifty million kilometres.
@@ -371,7 +372,7 @@ TEST_CASE("Cruise: to the star, a system's breadth, carried by nothing that move
 	CHECK(registry.get<Physics::LocalFrame>(ship).body == "Halcyon");
 	CHECK(
 	    glm::length(registry.get<Sim::Transform>(ship).position) ==
-	    doctest::Approx(Ai::CruiseTravel::ArrivalDistance(BodyOf("Halcyon"))).epsilon(1.0e-9));
+	    doctest::Approx(Space::CruiseTravel::ArrivalDistance(BodyOf("Halcyon"))).epsilon(1.0e-9));
 }
 
 
@@ -404,10 +405,10 @@ TEST_CASE("Cruise: refused, with its reason")
 	    reason(Ai::Reason::NearStation, {identifier("Ostra Highport")}));
 
 	// Without a drive, and held on rails.
-	registry.remove<Ai::CruiseDrive>(docking);
+	registry.remove<Space::CruiseDrive>(docking);
 	registry.get<Sim::Transform>(docking).position += glm::dvec3{0.0, 0.0, 2000.0};
 	CHECK(fixture.Refusal({{}, docking, "Pell"}) == reason(Ai::Reason::CannotCruise));
-	registry.emplace<Ai::CruiseDrive>(docking, kDrive);
+	registry.emplace<Space::CruiseDrive>(docking, kDrive);
 	registry.emplace<Physics::OnRails>(docking, Physics::OnRails{"Ostra Highport"});
 	CHECK(fixture.Refusal({{}, docking, "Pell"}) == reason(Ai::Reason::CannotCruise));
 
@@ -417,17 +418,17 @@ TEST_CASE("Cruise: refused, with its reason")
 	    fixture.Refusal({{}, near, "Pell"}) == reason(Ai::Reason::AlreadyThere, {identifier("Pell")}));
 
 	// Cruising, a second cruise and a lane are refused.
-	fixture.world.Commands().Push(Ai::Cruise{player, ship, "Pell"});
+	fixture.world.Commands().Push(Space::Cruise{player, ship, "Pell"});
 	fixture.Run(1);
-	REQUIRE(registry.all_of<Ai::Cruising>(ship));
+	REQUIRE(registry.all_of<Space::Cruising>(ship));
 	CHECK(fixture.Refusal({player, ship, "Halcyon"}) == reason(Ai::Reason::AlreadyCruising));
-	fixture.Events<Ai::LaneRefused>();
-	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
+	fixture.Events<Space::LaneRefused>();
+	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
-	const std::vector<Ai::LaneRefused> lane = fixture.Events<Ai::LaneRefused>();
+	const std::vector<Space::LaneRefused> lane = fixture.Events<Space::LaneRefused>();
 	REQUIRE(lane.size() == 1);
 	CHECK(lane[0].reason == reason(Ai::Reason::AlreadyCruising));
-	CHECK(registry.all_of<Ai::Cruising>(ship));
+	CHECK(registry.all_of<Space::Cruising>(ship));
 }
 
 
@@ -436,16 +437,16 @@ TEST_CASE("Cruise: a world saved mid-cruise arrives as the one saved does")
 	Fixture fixture;
 	const entt::entity ship = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
 	fixture.Run(10);
-	fixture.world.Commands().Push(Ai::Cruise{{}, ship, "Pell"});
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
 	fixture.Run(1000);
 	const std::vector<std::byte> midway = fixture.world.Save();
-	const std::uint64_t arrival = fixture.world.Registry().get<Ai::Cruising>(ship).arrivalStep;
+	const std::uint64_t arrival = fixture.world.Registry().get<Space::Cruising>(ship).arrivalStep;
 	fixture.Run(arrival - fixture.world.Clock().Step() + 30);
 	const std::uint64_t arrived = fixture.world.StateHash();
 
 	Fixture loaded;
 	loaded.world.Load(midway);
-	REQUIRE(loaded.world.Registry().all_of<Ai::Cruising>(ship));
+	REQUIRE(loaded.world.Registry().all_of<Space::Cruising>(ship));
 	loaded.Run(arrival - loaded.world.Clock().Step() + 30);
 	CHECK(loaded.world.Registry().get<Physics::LocalFrame>(ship).body == "Pell");
 	CHECK(loaded.world.StateHash() == arrived);

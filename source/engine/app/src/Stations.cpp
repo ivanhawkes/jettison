@@ -7,8 +7,6 @@
 #include <string>
 #include <utility>
 
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Gates.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/core/Log.h>
 #include <jettison/dock/Docks.h>
@@ -16,6 +14,8 @@
 #include <jettison/physics/Flight.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Gates.h>
 
 namespace Jettison::App
 {
@@ -51,8 +51,8 @@ void MakeShip(
 	world.emplace_or_replace<Physics::FlightControls>(ship);
 	world.emplace_or_replace<Dock::Hull>(ship, std::string{hull});
 	const Dock::HullDefinition *definition = docks.FindHull(hull);
-	world.emplace_or_replace<Ai::CruiseDrive>(
-	    ship, definition ? definition->cruise : Ai::CruiseDrive{});
+	world.emplace_or_replace<Space::CruiseDrive>(
+	    ship, definition ? definition->cruise : Space::CruiseDrive{});
 }
 
 
@@ -85,7 +85,7 @@ std::vector<entt::entity> OpenStations(
 
 
 std::vector<entt::entity> OpenGates(
-    Sim::SimWorld &world, const Ai::Gates &gates, std::span<const Celestial::StarSystem> systems)
+    Sim::SimWorld &world, const Space::Gates &gates, std::span<const Celestial::StarSystem> systems)
 {
 	std::vector<entt::entity> opened;
 	for (const Celestial::StarSystem &system : systems)
@@ -94,7 +94,7 @@ std::vector<entt::entity> OpenGates(
 		const auto made = [&](const Celestial::Body &body)
 		{
 			return body.kind == Celestial::BodyKind::JumpPoint &&
-			       Ai::Gates::FindGate(world.Registry(), id, body.name) != entt::null;
+			       Space::Gates::FindGate(world.Registry(), id, body.name) != entt::null;
 		};
 		if (!gates.HasStarSystem(id) || std::ranges::any_of(system.bodies, made))
 			continue;

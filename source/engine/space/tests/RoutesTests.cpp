@@ -1,8 +1,9 @@
 #include "Systems.h"
 
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Routes.h>
+#include <jettison/ai/Courses.h>
 #include <jettison/celestial/Frames.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Routes.h>
 
 #include <doctest/doctest.h>
 
@@ -16,8 +17,8 @@
 #include <vector>
 
 using namespace Jettison;
-using Ai::Place;
 using Ai::Sphere;
+using Space::Place;
 
 namespace
 {
@@ -70,7 +71,7 @@ TEST_CASE("Routes: across the sample galaxy, end to end and back, by its lanes")
 	Celestial::Galaxy galaxy = AiTests::Sample();
 	galaxy.lanes[1].toll = 6000;
 
-	const auto out = Ai::PlotRoute(galaxy, {0, ""}, {2, ""});
+	const auto out = Space::PlotRoute(galaxy, {0, ""}, {2, ""});
 	REQUIRE(out);
 	CHECK(out->seconds == 105.0);
 	REQUIRE(out->jumps.size() == 2);
@@ -85,7 +86,7 @@ TEST_CASE("Routes: across the sample galaxy, end to end and back, by its lanes")
 	CHECK(out->jumps[0].toll == 0);
 	CHECK(out->jumps[1].toll == 6000);
 
-	const auto back = Ai::PlotRoute(galaxy, {2, ""}, {0, ""});
+	const auto back = Space::PlotRoute(galaxy, {2, ""}, {0, ""});
 	REQUIRE(back);
 	CHECK(back->seconds == 105.0);
 	REQUIRE(back->jumps.size() == 2);
@@ -93,7 +94,7 @@ TEST_CASE("Routes: across the sample galaxy, end to end and back, by its lanes")
 	CHECK(back->jumps[1].jumpPoint == "Vesper Gate");
 	CHECK(back->jumps[1].arrival == "Halcyon Gate");
 
-	const auto home = Ai::PlotRoute(galaxy, {1, "Corva Refinery"}, {1, ""});
+	const auto home = Space::PlotRoute(galaxy, {1, "Corva Refinery"}, {1, ""});
 	REQUIRE(home);
 	CHECK(home->jumps.empty());
 	CHECK(home->seconds == 0.0);
@@ -104,7 +105,7 @@ TEST_CASE("Routes: two jumps against one, and the crossing between them weighed"
 {
 	// A to C is 20 s through B, or 30 s straight.
 	const Celestial::Galaxy galaxy = Triangle(10.0, 10.0, 30.0);
-	const auto lanesOnly = Ai::PlotRoute(galaxy, {0, ""}, {2, ""});
+	const auto lanesOnly = Space::PlotRoute(galaxy, {0, ""}, {2, ""});
 	REQUIRE(lanesOnly);
 	CHECK(lanesOnly->seconds == 20.0);
 	REQUIRE(lanesOnly->jumps.size() == 2);
@@ -112,9 +113,9 @@ TEST_CASE("Routes: two jumps against one, and the crossing between them weighed"
 	CHECK(lanesOnly->jumps[1].jumpPoint == "B to C");
 
 	// Crossing B from one gate to the other takes 15 s, which makes the way through B 35 s.
-	const Ai::CrossingCost slowB = [](std::size_t system, std::string_view, std::string_view)
+	const Space::CrossingCost slowB = [](std::size_t system, std::string_view, std::string_view)
 	{ return system == 1 ? 15.0 : 0.0; };
-	const auto direct = Ai::PlotRoute(galaxy, {0, ""}, {2, ""}, slowB);
+	const auto direct = Space::PlotRoute(galaxy, {0, ""}, {2, ""}, slowB);
 	REQUIRE(direct);
 	CHECK(direct->seconds == 30.0);
 	REQUIRE(direct->jumps.size() == 1);
@@ -123,13 +124,14 @@ TEST_CASE("Routes: two jumps against one, and the crossing between them weighed"
 
 	// From a station in A whose gate to C is far from it and from the gate to B, which is close by:
 	// 1 + 10 + 15 + 10 through B, against 50 + 30 straight, or 1 + 50 + 30 by way of the gate to B.
-	const Ai::CrossingCost station = [](std::size_t system, std::string_view from, std::string_view to)
+	const Space::CrossingCost station =
+	    [](std::size_t system, std::string_view from, std::string_view to)
 	{
 		if (system == 0)
 			return from == "A to C" || to == "A to C" ? 50.0 : 1.0;
 		return system == 1 ? 15.0 : 0.0;
 	};
-	const auto fromStation = Ai::PlotRoute(galaxy, {0, "Station"}, {2, ""}, station);
+	const auto fromStation = Space::PlotRoute(galaxy, {0, "Station"}, {2, ""}, station);
 	REQUIRE(fromStation);
 	CHECK(fromStation->seconds == 36.0);
 	REQUIRE(fromStation->jumps.size() == 2);
@@ -141,7 +143,8 @@ TEST_CASE("Routes: a crossing is asked only between two bodies, and each route i
 {
 	const Celestial::Galaxy galaxy = Triangle(10.0, 10.0, 30.0);
 	std::vector<std::string> asked;
-	const Ai::CrossingCost record = [&](std::size_t system, std::string_view from, std::string_view to)
+	const Space::CrossingCost record =
+	    [&](std::size_t system, std::string_view from, std::string_view to)
 	{
 		CHECK_FALSE(from.empty());
 		CHECK_FALSE(to.empty());
@@ -149,11 +152,11 @@ TEST_CASE("Routes: a crossing is asked only between two bodies, and each route i
 		asked.push_back(std::to_string(system) + ':' + std::string{from} + '>' + std::string{to});
 		return 1.0;
 	};
-	const auto route = Ai::PlotRoute(galaxy, {0, ""}, {2, "Station"}, record);
+	const auto route = Space::PlotRoute(galaxy, {0, ""}, {2, "Station"}, record);
 	REQUIRE(route);
 	const std::vector<std::string> first = asked;
 	asked.clear();
-	const auto again = Ai::PlotRoute(galaxy, {0, ""}, {2, "Station"}, record);
+	const auto again = Space::PlotRoute(galaxy, {0, ""}, {2, "Station"}, record);
 	REQUIRE(again);
 	CHECK(asked == first);
 	CHECK(again->seconds == route->seconds);
@@ -166,88 +169,13 @@ TEST_CASE("Routes: a crossing is asked only between two bodies, and each route i
 TEST_CASE("Routes: a system no lane reaches has no route, and one the galaxy lacks is refused")
 {
 	const Celestial::Galaxy galaxy = Triangle(10.0, 10.0, 30.0);
-	CHECK_FALSE(Ai::PlotRoute(galaxy, {0, ""}, {3, ""}));
-	CHECK_FALSE(Ai::PlotRoute(galaxy, {3, ""}, {0, ""}));
-	CHECK(Ai::PlotRoute(galaxy, {3, ""}, {3, ""}));
-	CHECK_THROWS_AS(Ai::PlotRoute(galaxy, {0, ""}, {4, ""}), std::invalid_argument);
-	const Ai::CrossingCost negative = [](std::size_t, std::string_view, std::string_view)
+	CHECK_FALSE(Space::PlotRoute(galaxy, {0, ""}, {3, ""}));
+	CHECK_FALSE(Space::PlotRoute(galaxy, {3, ""}, {0, ""}));
+	CHECK(Space::PlotRoute(galaxy, {3, ""}, {3, ""}));
+	CHECK_THROWS_AS(Space::PlotRoute(galaxy, {0, ""}, {4, ""}), std::invalid_argument);
+	const Space::CrossingCost negative = [](std::size_t, std::string_view, std::string_view)
 	{ return -1.0; };
-	CHECK_THROWS_AS(Ai::PlotRoute(galaxy, {0, "Station"}, {2, ""}, negative), std::invalid_argument);
-}
-
-
-TEST_CASE("Courses: a clear leg is straight, and a planet in the way is gone round by its ring")
-{
-	const std::vector<Sphere> planet{{glm::dvec3{0.0}, 1.0}};
-	const Ai::Waypoints waypoints{planet, 0.0};
-	REQUIRE(waypoints.Points().size() == 6);
-
-	const auto past = waypoints.PlotCourse({-10.0, 2.0, 0.0}, {10.0, 2.0, 0.0});
-	REQUIRE(past);
-	CHECK(past->points.size() == 2);
-	CHECK(past->length == 20.0);
-
-	// Straight through the middle: the way round is over any of the four corners square to the
-	// line, 1.5 from the centre, each the same length; the first is the corner along +y.
-	const glm::dvec3 from{-10.0, 0.0, 0.0};
-	const glm::dvec3 to{10.0, 0.0, 0.0};
-	CHECK_FALSE(Ai::LegClear(from, to, planet, 0.0));
-	const auto round = waypoints.PlotCourse(from, to);
-	REQUIRE(round);
-	REQUIRE(round->points.size() == 3);
-	CHECK(round->points[1] == glm::dvec3{0.0, 1.5, 0.0});
-	CHECK(round->length == doctest::Approx(2.0 * std::sqrt(100.0 + 2.25)));
-	CHECK(round->length == doctest::Approx(Length(*round)));
-	CHECK(Clear(*round, planet, 0.0));
-	// No shorter than going round the sphere itself: the tangents from each end and the arc between.
-	const double tangent = std::sqrt(100.0 - 1.0);
-	const double arc = std::numbers::pi - (2.0 * std::acos(1.0 / 10.0));
-	CHECK(round->length >= (2.0 * tangent) + arc);
-}
-
-
-TEST_CASE("Courses: a clearance keeps a course off a planet, and every way blocked is none")
-{
-	const std::vector<Sphere> planet{{glm::dvec3{0.0}, 1.0}};
-	// Passing 2 from the centre is clear by 1, not by a clearance of 1.5.
-	const glm::dvec3 from{-10.0, 2.0, 0.0};
-	const glm::dvec3 to{10.0, 2.0, 0.0};
-	CHECK(Ai::LegClear(from, to, planet, 0.5));
-	CHECK_FALSE(Ai::LegClear(from, to, planet, 1.5));
-	const Ai::Waypoints wide{planet, 1.5};
-	const auto course = wide.PlotCourse(from, to);
-	REQUIRE(course);
-	CHECK(course->points.size() > 2);
-	CHECK(Clear(*course, planet, 1.5));
-
-	// A shell of planets with a ship inside it, each ring blocked by its neighbours.
-	std::vector<Sphere> shell;
-	for (int axis = 0; axis < 3; ++axis)
-		for (const double side : {1.0, -1.0})
-		{
-			glm::dvec3 centre{0.0};
-			centre[axis] = side * 3.0;
-			shell.push_back({centre, 2.9});
-		}
-	const Ai::Waypoints trapped{shell, 0.0};
-	CHECK_FALSE(trapped.PlotCourse(glm::dvec3{0.0}, {100.0, 0.0, 0.0}));
-}
-
-
-TEST_CASE("Courses: an end just above a planet, under a face of its ring, still finds a way out")
-{
-	// Above the middle of the face between the +x, +y and +z corners, a thousandth of its radius
-	// over the surface: no corner is in sight past the limb, so the course leaves straight up to its
-	// own waypoint first. At a hundredth the nearest corner is in sight, just.
-	const std::vector<Sphere> planet{{glm::dvec3{0.0}, 1.0}};
-	const Ai::Waypoints waypoints{planet, 0.0};
-	const glm::dvec3 above = glm::normalize(glm::dvec3{1.0}) * 1.001;
-	for (const glm::dvec3 &corner : waypoints.Points())
-		CHECK_FALSE(Ai::LegClear(above, corner, planet, 0.0));
-	const auto course = waypoints.PlotCourse(above, -above);
-	REQUIRE(course);
-	CHECK(Clear(*course, planet, 0.0));
-	CHECK(glm::length(course->points[1]) == doctest::Approx(1.5));
+	CHECK_THROWS_AS(Space::PlotRoute(galaxy, {0, "Station"}, {2, ""}, negative), std::invalid_argument);
 }
 
 
@@ -261,7 +189,7 @@ TEST_CASE("Courses: from Ostra Highport to Pell round Ostra when it is in the wa
 	for (double time = 0.0; time < 5569.0; time += 600.0)
 	{
 		CAPTURE(time);
-		const std::vector<Sphere> obstacles = Ai::SystemObstacles(halcyon, time);
+		const std::vector<Sphere> obstacles = Space::SystemObstacles(halcyon, time);
 		REQUIRE(obstacles.size() == 3);
 		const Ai::Waypoints waypoints{obstacles, kClearance};
 		const auto at = [&](std::string_view name)
@@ -291,7 +219,8 @@ TEST_CASE("Courses: from Ostra Highport to Pell round Ostra when it is in the wa
 		CHECK(again->points == course->points);
 
 		// The crossing cost is the course's length at the speed.
-		const Ai::CrossingCost crossing = Ai::CrossingByCourse({halcyon}, time, 1.0e3, kClearance);
+		const Space::CrossingCost crossing =
+		    Space::CrossingByCourse({halcyon}, time, 1.0e3, kClearance);
 		CHECK(crossing(0, "Ostra Highport", "Pell") == doctest::Approx(course->length / 1.0e3));
 	}
 	CHECK(blocked > 0);
@@ -304,8 +233,8 @@ TEST_CASE("Courses: a route across the galaxy at a cruising speed adds each cros
 	const std::vector<Celestial::StarSystem> systems{
 	    AiTests::Halcyon(), AiTests::Vesper(), AiTests::Marrow()};
 	constexpr double kSpeed = 1.0e7;
-	const Ai::CrossingCost crossing = Ai::CrossingByCourse(systems, 0.0, kSpeed, 1.0e5);
-	const auto route = Ai::PlotRoute(galaxy, {0, "Ostra Highport"}, {2, "Marrow Gate"}, crossing);
+	const Space::CrossingCost crossing = Space::CrossingByCourse(systems, 0.0, kSpeed, 1.0e5);
+	const auto route = Space::PlotRoute(galaxy, {0, "Ostra Highport"}, {2, "Marrow Gate"}, crossing);
 	REQUIRE(route);
 	REQUIRE(route->jumps.size() == 2);
 	const double expected = crossing(0, "Ostra Highport", "Halcyon Gate") + 40.0 +
@@ -314,7 +243,7 @@ TEST_CASE("Courses: a route across the galaxy at a cruising speed adds each cros
 
 	CHECK_THROWS_AS(crossing(0, "Ostra Highport", "Nowhere"), std::invalid_argument);
 	CHECK_THROWS_AS(crossing(5, "Ostra Highport", "Halcyon Gate"), std::invalid_argument);
-	CHECK_THROWS_AS(Ai::CrossingByCourse(systems, 0.0, 0.0, 1.0e5), std::invalid_argument);
+	CHECK_THROWS_AS(Space::CrossingByCourse(systems, 0.0, 0.0, 1.0e5), std::invalid_argument);
 }
 
 
@@ -323,34 +252,26 @@ TEST_CASE("Courses: a crossing costed by a time of the course's length, which ha
 	const std::vector<Celestial::StarSystem> systems{
 	    AiTests::Halcyon(), AiTests::Vesper(), AiTests::Marrow()};
 	// The same course as at a speed, in the seconds the function gives for its length.
-	const Ai::CrossingCost bySpeed = Ai::CrossingByCourse(systems, 0.0, 2.0e3, 1.0e5);
-	const Ai::CrossingCost byTime =
-	    Ai::CrossingByCourse(systems, 0.0, [](double metres) { return metres / 2.0e3; }, 1.0e5);
+	const Space::CrossingCost bySpeed = Space::CrossingByCourse(systems, 0.0, 2.0e3, 1.0e5);
+	const Space::CrossingCost byTime =
+	    Space::CrossingByCourse(systems, 0.0, [](double metres) { return metres / 2.0e3; }, 1.0e5);
 	CHECK(byTime(0, "Ostra Highport", "Pell") == doctest::Approx(bySpeed(0, "Ostra Highport", "Pell")));
 	// A drive's time is not linear in the length: a fourth root of it, rising slower than the speed's.
-	const Ai::CruiseDrive drive{40.0f, 1.0e8, 0.25f};
-	const Ai::CrossingCost cruised = Ai::CrossingByCourse(
-	    systems, 0.0, [drive](double metres) { return Ai::CruiseSeconds(drive, metres); }, 1.0e5);
+	const Space::CruiseDrive drive{40.0f, 1.0e8, 0.25f};
+	const Space::CrossingCost cruised = Space::CrossingByCourse(
+	    systems, 0.0, [drive](double metres) { return Space::CruiseSeconds(drive, metres); }, 1.0e5);
 	const double seconds = cruised(0, "Ostra Highport", "Pell");
 	CHECK(seconds > 40.0);
 	CHECK(seconds < 80.0);
 
-	const auto asked = [&](Ai::CourseTime time)
-	{ return Ai::CrossingByCourse(systems, 0.0, std::move(time), 1.0e5)(0, "Ostra Highport", "Pell"); };
-	CHECK_THROWS_AS(Ai::CrossingByCourse(systems, 0.0, Ai::CourseTime{}, 1.0e5), std::invalid_argument);
+	const auto asked = [&](Space::CourseTime time)
+	{
+		return Space::CrossingByCourse(systems, 0.0, std::move(time), 1.0e5)(
+		    0, "Ostra Highport", "Pell");
+	};
+	CHECK_THROWS_AS(
+	    Space::CrossingByCourse(systems, 0.0, Space::CourseTime{}, 1.0e5), std::invalid_argument);
 	CHECK_THROWS_AS(asked([](double) { return -1.0; }), std::invalid_argument);
 	CHECK_THROWS_AS(
 	    asked([](double) { return std::numeric_limits<double>::infinity(); }), std::invalid_argument);
-}
-
-
-TEST_CASE("Courses: an obstacle or a clearance that is not one is refused")
-{
-	const double nan = std::numeric_limits<double>::quiet_NaN();
-	CHECK_THROWS_AS(Ai::Waypoints({{glm::dvec3{0.0}, -1.0}}, 0.0), std::invalid_argument);
-	CHECK_THROWS_AS(Ai::Waypoints({{glm::dvec3{nan}, 1.0}}, 0.0), std::invalid_argument);
-	CHECK_THROWS_AS(Ai::Waypoints({}, -1.0), std::invalid_argument);
-	CHECK_THROWS_AS(Ai::Waypoints({}, 0.0, {glm::dvec3{nan}}), std::invalid_argument);
-	const Ai::Waypoints none{{}, 0.0};
-	CHECK_THROWS_AS((void)none.PlotCourse(glm::dvec3{nan}, glm::dvec3{0.0}), std::invalid_argument);
 }

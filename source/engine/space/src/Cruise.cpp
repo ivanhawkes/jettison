@@ -1,13 +1,14 @@
-#include <jettison/ai/Cruise.h>
+#include <jettison/space/Cruise.h>
 
-#include <jettison/ai/Lanes.h>
-#include <jettison/ai/Routes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Lanes.h>
+#include <jettison/space/Routes.h>
+#include <jettison/space/Types.h>
 
 #include <glm/geometric.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -22,8 +23,15 @@
 
 #include "Transit.h"
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
+using Ai::Course;
+using Ai::Destination;
+using Ai::Reason;
+using Ai::Sphere;
+using Ai::Steered;
+using Ai::Waypoints;
+
 namespace
 {
 // Eases out of the start and into the end: a cruise leaves its station gently enough to be seen
@@ -380,4 +388,4 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 		world.Events().Emit(CruiseEnded{ship, body});
 	}
 }
-} // namespace Jettison::Ai
+} // namespace Jettison::Space

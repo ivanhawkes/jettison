@@ -21,9 +21,6 @@
 #include <vector>
 
 #include <jettison/ai/BehaviourTree.h>
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Gates.h>
-#include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/UtilityAi.h>
 #include <jettison/celestial/Galaxy.h>
@@ -36,6 +33,9 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Gates.h>
+#include <jettison/space/Lanes.h>
 #include <jettison/spatial/SystemIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -199,9 +199,9 @@ TEST_CASE(
 		for (std::size_t index = seen; index < galaxy.events.size(); ++index)
 		{
 			entt::entity arrived = entt::null;
-			if (const auto *ended = galaxy.events[index].event.try_cast<Ai::CruiseEnded>())
+			if (const auto *ended = galaxy.events[index].event.try_cast<Space::CruiseEnded>())
 				arrived = ended->ship;
-			else if (const auto *left = galaxy.events[index].event.try_cast<Ai::LaneLeft>())
+			else if (const auto *left = galaxy.events[index].event.try_cast<Space::LaneLeft>())
 				arrived = left->entity;
 			if (arrived == entt::null)
 				continue;
@@ -256,7 +256,8 @@ TEST_CASE(
 					    registry.get<Sim::InFrame>(first).frame == Sim::kNoFrame ||
 					    registry.all_of<Dock::Docking>(first) ||
 					    registry.all_of<Dock::Docking>(second) ||
-					    registry.all_of<Ai::Cruising>(first) || registry.all_of<Ai::Cruising>(second))
+					    registry.all_of<Space::Cruising>(first) ||
+					    registry.all_of<Space::Cruising>(second))
 						continue;
 					const double apart =
 					    glm::distance(
@@ -287,7 +288,7 @@ TEST_CASE(
 		runs += trader.runs;
 	}
 	CHECK(crossings >= galaxy.traders.size());
-	CHECK(galaxy.Events<Ai::LaneEntered>().size() >= galaxy.traders.size());
+	CHECK(galaxy.Events<Space::LaneEntered>().size() >= galaxy.traders.size());
 	// Corva's one free pad made a queue, which was served.
 	CHECK_FALSE(galaxy.Events<Dock::PadQueued>().empty());
 	// Every crate bought and sold crossed the deck: a transfer done for each trade.
@@ -296,49 +297,49 @@ TEST_CASE(
 	    galaxy.Events<Sample::Traded>().size() - galaxy.traders.size());
 	CHECK(galaxy.Events<Sample::TradeRefused>().empty());
 	CHECK(galaxy.Events<Dock::PadRefused>().empty());
-	CHECK(galaxy.Events<Ai::LaneRefused>().empty());
+	CHECK(galaxy.Events<Space::LaneRefused>().empty());
 	// Every lane was entered through a gate's ring, its ship cleared and its owner charged the toll;
 	// no clearance was refused or lapsed, and no ship flew through a ring it was not cleared through.
-	const std::vector<Ai::TransitSent> sent = galaxy.Events<Ai::TransitSent>();
-	CHECK(sent.size() == galaxy.Events<Ai::LaneEntered>().size());
+	const std::vector<Space::TransitSent> sent = galaxy.Events<Space::TransitSent>();
+	CHECK(sent.size() == galaxy.Events<Space::LaneEntered>().size());
 	std::int64_t tolls = 0;
-	for (const Ai::TransitSent &transit : sent)
+	for (const Space::TransitSent &transit : sent)
 	{
 		CHECK(transit.toll > 0);
 		tolls += transit.toll;
 	}
-	CHECK(galaxy.Events<Ai::TransitRefused>().empty());
-	CHECK(galaxy.Events<Ai::TransitLapsed>().empty());
-	CHECK(galaxy.Events<Ai::GatePassed>().empty());
+	CHECK(galaxy.Events<Space::TransitRefused>().empty());
+	CHECK(galaxy.Events<Space::TransitLapsed>().empty());
+	CHECK(galaxy.Events<Space::GatePassed>().empty());
 	// How long a clearance waited to be flown through, against the two minutes it is held for.
 	std::map<entt::entity, std::uint64_t> clearedAt;
 	std::uint64_t longestFlight = 0;
 	for (const Sim::SimEvent &event : galaxy.events)
-		if (const auto *cleared = event.event.try_cast<Ai::TransitCleared>())
+		if (const auto *cleared = event.event.try_cast<Space::TransitCleared>())
 			clearedAt[cleared->ship] = event.step;
-		else if (const auto *through = event.event.try_cast<Ai::TransitSent>())
+		else if (const auto *through = event.event.try_cast<Space::TransitSent>())
 			longestFlight = std::max(longestFlight, event.step - clearedAt.at(through->ship));
 	MESSAGE(
 	    sent.size(), " ships sent through the gates for ", tolls, " credits of tolls, ",
-	    galaxy.Events<Ai::TransitQueued>().size(),
+	    galaxy.Events<Space::TransitQueued>().size(),
 	    " waiting their turn; the longest from cleared to sent ",
 	    static_cast<double>(longestFlight) * kStep, " s");
 	// Every ship crossed a system by cruise, in both directions of each run, and never was refused;
 	// every arrival, by cruise or lane, came out clear of the ships there.
-	CHECK(galaxy.Events<Ai::CruiseStarted>().size() >= 2 * runs);
-	CHECK(galaxy.Events<Ai::CruiseRefused>().empty());
-	CHECK(arrivals >= galaxy.Events<Ai::CruiseEnded>().size());
-	CHECK(tightest >= Ai::LaneTravel::kArrivalClearance);
+	CHECK(galaxy.Events<Space::CruiseStarted>().size() >= 2 * runs);
+	CHECK(galaxy.Events<Space::CruiseRefused>().empty());
+	CHECK(arrivals >= galaxy.Events<Space::CruiseEnded>().size());
+	CHECK(tightest >= Space::LaneTravel::kArrivalClearance);
 	double shortest = std::numeric_limits<double>::max();
 	double longest = 0.0;
-	for (const Ai::CruiseStarted &started : galaxy.Events<Ai::CruiseStarted>())
+	for (const Space::CruiseStarted &started : galaxy.Events<Space::CruiseStarted>())
 	{
 		shortest = std::min(shortest, started.seconds);
 		longest = std::max(longest, started.seconds);
 	}
 	MESSAGE(
 	    arrivals, " arrivals, the tightest ", tightest, " m between hulls; ",
-	    galaxy.Events<Ai::CruiseStarted>().size(), " cruises of ", shortest, " to ", longest, " s");
+	    galaxy.Events<Space::CruiseStarted>().size(), " cruises of ", shortest, " to ", longest, " s");
 	MESSAGE(
 	    runs, " runs sold in ", kSteps / 3600, " minutes, ", crossings, " crossings, ",
 	    galaxy.Events<Dock::PadQueued>().size(), " places queued, ", onPads,

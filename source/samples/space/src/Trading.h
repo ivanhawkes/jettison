@@ -10,7 +10,7 @@
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
 class Gates;
 }
@@ -320,8 +320,8 @@ void TickMarkets(entt::registry &registry);
 // one is given then.
 void ApplyTrade(Sim::SimWorld &world, const Trade &trade);
 
-// The gates' toll rule as the sample plays it (Ai::TollRule): a lane's toll is drawn on the ship's
+// The gates' toll rule as the sample plays it (Space::TollRule): a lane's toll is drawn on the ship's
 // owner's purse as the ship enters it, and a gate clears no ship, and sends none through, whose owner
 // has no purse (TradeReason::NoOwner) or one short of the toll (TradeReason::ShortOfToll).
-void ChargeTolls(Ai::Gates &gates);
+void ChargeTolls(Space::Gates &gates);
 } // namespace Jettison::Sample

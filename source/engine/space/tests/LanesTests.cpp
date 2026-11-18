@@ -1,11 +1,11 @@
 #include "Systems.h"
 
-#include <jettison/ai/Gates.h>
-#include <jettison/ai/Lanes.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Gates.h>
+#include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
 
 #include <doctest/doctest.h>
@@ -32,11 +32,11 @@ struct Fixture
 {
 	Sim::SimWorld world{kStep, 7};
 	Physics::PhysicsWorld &physics;
-	Ai::LaneTravel &lanes;
+	Space::LaneTravel &lanes;
 
 
 	explicit Fixture(bool withGalaxy = true)
-	    : physics{Setup(world)}, lanes{Ai::LaneTravel::Attach(world, physics)}
+	    : physics{Setup(world)}, lanes{Space::LaneTravel::Attach(world, physics)}
 	{
 		Physics::ShapeDefinition hull;
 		hull.halfExtents = {5.0f, 2.0f, 8.0f};
@@ -126,12 +126,12 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	const entt::entity ship = fixture.Ship();
 	fixture.Run(10);
 	CHECK(fixture.physics.BodyCount(kHalcyon) == 1);
-	fixture.Events<Ai::LaneEntered>();
+	fixture.Events<Space::LaneEntered>();
 
 	const std::uint64_t entered = fixture.world.Clock().Step();
-	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
-	const std::vector<Ai::LaneEntered> entries = fixture.Events<Ai::LaneEntered>();
+	const std::vector<Space::LaneEntered> entries = fixture.Events<Space::LaneEntered>();
 	REQUIRE(entries.size() == 1);
 	CHECK(entries[0].entity == ship);
 	CHECK(entries[0].lane.from == kHalcyon);
@@ -141,17 +141,17 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	CHECK(entries[0].lane.arrivalStep == entered + kTransitSteps);
 	CHECK(entries[0].transitSeconds == 40.0);
 	CHECK(fixture.SystemOf(ship) == Sim::kNoFrame);
-	CHECK(fixture.world.Registry().all_of<Ai::OnLane>(ship));
+	CHECK(fixture.world.Registry().all_of<Space::OnLane>(ship));
 	// Physics removed its body in the step it entered.
 	CHECK(fixture.physics.BodyCount() == 0);
 
 	// One step short of the transit it is still on the lane; the step that ends it brings it out.
 	fixture.Run(kTransitSteps - 2);
 	CHECK(fixture.SystemOf(ship) == Sim::kNoFrame);
-	CHECK(fixture.Events<Ai::LaneLeft>().empty());
+	CHECK(fixture.Events<Space::LaneLeft>().empty());
 	fixture.Run(1);
 	CHECK(fixture.world.Clock().Step() == entered + kTransitSteps);
-	const std::vector<Ai::LaneLeft> exits = fixture.Events<Ai::LaneLeft>();
+	const std::vector<Space::LaneLeft> exits = fixture.Events<Space::LaneLeft>();
 	REQUIRE(exits.size() == 1);
 	CHECK(exits[0].entity == ship);
 	CHECK(exits[0].system == kVesper);
@@ -159,7 +159,7 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 
 	entt::registry &registry = fixture.world.Registry();
 	CHECK(fixture.SystemOf(ship) == kVesper);
-	CHECK_FALSE(registry.all_of<Ai::OnLane>(ship));
+	CHECK_FALSE(registry.all_of<Space::OnLane>(ship));
 	// In the frame of the refinery the gate keeps station by, so it can fly to it and dock.
 	CHECK(registry.get<Physics::LocalFrame>(ship).body == "Corva Refinery");
 	CHECK(registry.get<Physics::FlightControls>(ship).reference == entt::null);
@@ -168,8 +168,8 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	const auto gate = static_cast<std::size_t>(vesper.Find("Vesper Gate"));
 	// Ahead of the ring, clear of its sensor by its hull and the clearance, looking the way it faces.
 	const glm::dquat facing = Celestial::JumpPointFacing(vesper, gate, arrivedAt);
-	const double outAhead = Ai::Gates::kRingDepth / 2.0 + fixture.physics.ShapeRadius("hull") +
-	                        Ai::LaneTravel::kArrivalClearance;
+	const double outAhead = Space::Gates::kRingDepth / 2.0 + fixture.physics.ShapeRadius("hull") +
+	                        Space::LaneTravel::kArrivalClearance;
 	CHECK(
 	    glm::distance(
 	        registry.get<Sim::Transform>(ship).position,
@@ -212,17 +212,17 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	const entt::entity gone = fixture.world.Registry().create();
 	fixture.world.Registry().destroy(gone);
 
-	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Ostra Highport"});
-	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Vesper Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{{}, drifting, "Halcyon Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{{}, gone, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Ostra Highport"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Vesper Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, drifting, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, gone, "Halcyon Gate"});
 	// From a sender that does not command the ship.
 	fixture.world.Registry().emplace<Sim::ControlledBy>(
 	    ship, Sim::Controller{Sim::ControllerKind::Player, 1});
 	fixture.world.Commands().Push(
-	    Ai::EnterLane{{Sim::ControllerKind::Player, 2}, ship, "Halcyon Gate"});
+	    Space::EnterLane{{Sim::ControllerKind::Player, 2}, ship, "Halcyon Gate"});
 	fixture.Run(1);
-	const std::vector<Ai::LaneRefused> refused = fixture.Events<Ai::LaneRefused>();
+	const std::vector<Space::LaneRefused> refused = fixture.Events<Space::LaneRefused>();
 	REQUIRE(refused.size() == 5);
 	CHECK(refused[0].entity == ship);
 	CHECK(Sim::Describe(refused[0].reason) == "reason.ai.no_lane('Halcyon', 'Ostra Highport')");
@@ -231,22 +231,22 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	CHECK(refused[3].reason == Sim::MakeReason(Ai::Reason::NoSuchEntity));
 	CHECK(refused[4].reason == Sim::MakeReason(Ai::Reason::NotController));
 	CHECK(fixture.SystemOf(ship) == kHalcyon);
-	CHECK_FALSE(fixture.world.Registry().all_of<Ai::OnLane>(ship));
+	CHECK_FALSE(fixture.world.Registry().all_of<Space::OnLane>(ship));
 
 	// Once on a lane, it cannot enter another.
-	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
-	const std::vector<Ai::LaneRefused> twice = fixture.Events<Ai::LaneRefused>();
+	const std::vector<Space::LaneRefused> twice = fixture.Events<Space::LaneRefused>();
 	REQUIRE(twice.size() == 1);
 	CHECK(twice[0].reason == Sim::MakeReason(Ai::Reason::OnLane));
 
 	// A world given no galaxy has no lanes.
 	Fixture bare{false};
 	const entt::entity alone = bare.Ship();
-	bare.world.Commands().Push(Ai::EnterLane{{}, alone, "Halcyon Gate"});
+	bare.world.Commands().Push(Space::EnterLane{{}, alone, "Halcyon Gate"});
 	bare.Run(1);
-	const std::vector<Ai::LaneRefused> none = bare.Events<Ai::LaneRefused>();
+	const std::vector<Space::LaneRefused> none = bare.Events<Space::LaneRefused>();
 	REQUIRE(none.size() == 1);
 	CHECK(none[0].reason == Sim::MakeReason(Ai::Reason::NoGalaxy));
 }
@@ -259,7 +259,7 @@ TEST_CASE("Lanes: a world saved mid-transit arrives as the one saved does, and a
 	fixture.world.SetRecording(true);
 	const std::vector<std::byte> start = fixture.world.Save();
 	fixture.Run(30);
-	fixture.world.Commands().Push(Ai::EnterLane{{}, ship, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1000);
 	const std::vector<std::byte> midway = fixture.world.Save();
 	fixture.Run(kTransitSteps);
@@ -298,7 +298,7 @@ TEST_CASE("Lanes: a transit shorter than a step takes one, and arrives as the st
 	registry.emplace<Sim::Transform>(probe);
 	registry.emplace<Sim::InFrame>(probe, kVesper);
 
-	fixture.world.Commands().Push(Ai::EnterLane{{}, probe, "Vesper Deep Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, probe, "Vesper Deep Gate"});
 	fixture.Run(1);
 	CHECK(fixture.SystemOf(probe) == Sim::FrameId("Marrow"));
 	// Not a body, so given no frame.
@@ -309,8 +309,8 @@ TEST_CASE("Lanes: a transit shorter than a step takes one, and arrives as the st
 	CHECK_FALSE(registry.all_of<Physics::Velocity>(probe));
 	const std::vector<Sim::SimEvent> events = fixture.world.Events().Take();
 	REQUIRE(events.size() == 2);
-	CHECK(events[0].event.try_cast<Ai::LaneEntered>());
-	CHECK(events[1].event.try_cast<Ai::LaneLeft>());
+	CHECK(events[0].event.try_cast<Space::LaneEntered>());
+	CHECK(events[1].event.try_cast<Space::LaneLeft>());
 }
 
 
@@ -323,10 +323,10 @@ TEST_CASE(
 	const entt::entity second = fixture.Ship();
 	const entt::entity third = fixture.Ship();
 	// Two in one step, and the third a second later, while they still sit where they came out.
-	fixture.world.Commands().Push(Ai::EnterLane{{}, first, "Halcyon Gate"});
-	fixture.world.Commands().Push(Ai::EnterLane{{}, second, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, first, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, second, "Halcyon Gate"});
 	fixture.Run(60);
-	fixture.world.Commands().Push(Ai::EnterLane{{}, third, "Halcyon Gate"});
+	fixture.world.Commands().Push(Space::EnterLane{{}, third, "Halcyon Gate"});
 	fixture.Run(kTransitSteps - 60);
 	REQUIRE(fixture.SystemOf(first) == kVesper);
 	REQUIRE(fixture.SystemOf(second) == kVesper);
@@ -337,14 +337,14 @@ TEST_CASE(
 	// The first ahead of the ring, as a ship alone would be; the second on the first ring about it,
 	// across the way the gate faces, a hull's breadth and the clearance out.
 	const double hull = fixture.physics.ShapeRadius("hull");
-	const double spacing = 2.0 * hull + Ai::LaneTravel::kArrivalClearance;
+	const double spacing = 2.0 * hull + Space::LaneTravel::kArrivalClearance;
 	const double arrived = fixture.world.Clock().Now();
 	const glm::dvec3 gate = Where(vesper, "Vesper Gate", arrived);
 	const glm::dquat facing = Celestial::JumpPointFacing(
 	    vesper, static_cast<std::size_t>(vesper.Find("Vesper Gate")), arrived);
 	CHECK(glm::distance(at(second), at(first)) == doctest::Approx(spacing).epsilon(0.01));
 	CHECK(std::abs(glm::dot(at(second) - at(first), facing * glm::dvec3{0.0, 0.0, -1.0})) < 0.5);
-	const double ahead = Ai::Gates::kRingDepth / 2.0 + hull + Ai::LaneTravel::kArrivalClearance;
+	const double ahead = Space::Gates::kRingDepth / 2.0 + hull + Space::LaneTravel::kArrivalClearance;
 	CHECK(glm::distance(at(first), gate + facing * glm::dvec3{0.0, 0.0, -ahead}) < 1e-3);
 
 	fixture.Run(60);
@@ -352,7 +352,7 @@ TEST_CASE(
 	for (const entt::entity other : {first, second})
 		CHECK(
 		    glm::distance(at(third), at(other)) >=
-		    2.0 * hull + Ai::LaneTravel::kArrivalClearance - 1e-6);
+		    2.0 * hull + Space::LaneTravel::kArrivalClearance - 1e-6);
 	// Nothing came out inside another.
 	fixture.Run(30);
 	for (const Physics::ContactEvent &contact : fixture.physics.Contacts())

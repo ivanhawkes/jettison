@@ -7,7 +7,6 @@
 #include <string>
 #include <utility>
 
-#include <jettison/ai/Gates.h>
 #include <jettison/core/Log.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/reflect/Reflect.h>
@@ -15,6 +14,7 @@
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Gates.h>
 
 
 namespace Jettison::Sample
@@ -461,7 +461,7 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 }
 
 
-void ChargeTolls(Ai::Gates &gates)
+void ChargeTolls(Space::Gates &gates)
 {
 	gates.SetTollRule(
 	    {[](const entt::registry &registry, entt::entity ship,

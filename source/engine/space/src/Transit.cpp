@@ -7,7 +7,7 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-namespace Jettison::Ai::Detail
+namespace Jettison::Space::Detail
 {
 std::vector<Occupant> Occupants(
     const entt::registry &registry, const Physics::PhysicsWorld &physics,
@@ -53,4 +53,4 @@ glm::dvec3 ClearPlace(
 				return at;
 		}
 }
-} // namespace Jettison::Ai::Detail
+} // namespace Jettison::Space::Detail

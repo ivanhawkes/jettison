@@ -53,7 +53,7 @@ struct JumpLane
 	// Simulation seconds between entering one end and leaving the other.
 	double transitSeconds{0.0};
 	// Runtime: what a ship's owner is charged to enter it, in whole credits, the game's currency
-	// (ai/Gates.h): the light years between its systems at the galaxy's toll per light year, rounded
+	// (space/Gates.h): the light years between its systems at the galaxy's toll per light year, rounded
 	// to the nearest credit. Filled in by Resolve, not written to the file.
 	std::int64_t toll{0};
 };

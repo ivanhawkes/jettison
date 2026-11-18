@@ -13,9 +13,14 @@
 namespace Jettison::Ai
 {
 class Behaviours;
+}
+
+namespace Jettison::Space
+{
 class Gates;
 class LaneTravel;
-} // namespace Jettison::Ai
+} // namespace Jettison::Space
+
 namespace Jettison::Celestial
 {
 struct StarSystem;
@@ -113,8 +118,8 @@ struct ShellWorld
 {
 	Sim::SimWorld &world;
 	Physics::PhysicsWorld &physics;
-	Ai::LaneTravel &lanes;
-	Ai::Gates &gates;
+	Space::LaneTravel &lanes;
+	Space::Gates &gates;
 	Dock::Docks &docks;
 	Ai::Behaviours &behaviours;
 };

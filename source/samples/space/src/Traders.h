@@ -14,9 +14,13 @@
 namespace Jettison::Ai
 {
 class Behaviours;
-class LaneTravel;
 struct DecisionDefinition;
 } // namespace Jettison::Ai
+
+namespace Jettison::Space
+{
+class LaneTravel;
+}
 
 namespace Jettison::Celestial
 {
@@ -86,7 +90,7 @@ inline constexpr std::string_view kTradeDecision = "trade";
 // scripts outlive its last step.
 void RegisterTraders(
     Sim::SimWorld &world, Ai::Behaviours &behaviours, const Physics::PhysicsWorld &physics,
-    const Ai::LaneTravel &lanes, std::vector<Celestial::StarSystem> systems,
+    const Space::LaneTravel &lanes, std::vector<Celestial::StarSystem> systems,
     const Ai::DecisionDefinition &decision, Script::ScriptHost *pScripts = nullptr);
 
 // What a trader works out for an option of its decision.

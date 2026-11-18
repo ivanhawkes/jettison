@@ -2,7 +2,7 @@
 # to the other is two jumps. Halcyon is shown as the orbit scene authors it; Vesper and Marrow as
 # their system scenes build them from the system files alone. A lane's transit time is in
 # simulation seconds. Each system is at a position in light years, and a lane's toll, charged to a
-# ship's owner as it enters (ai/Gates.h), is the light years between its systems at the toll per light
+# ship's owner as it enters (space/Gates.h), is the light years between its systems at the toll per light
 # year, in whole credits: Vesper is 4 from Halcyon and Marrow 12 beyond it, so the moon gates' short
 # hop costs 2,000 and the star gates' deep lane 6,000.
 version: 1

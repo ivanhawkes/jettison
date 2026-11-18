@@ -113,7 +113,7 @@ struct Steered
 // frame, metres from the frame's body in the system's axes (Physics::PhysicsWorld::FrameOrigin), so
 // a holding point by a station moves with it on its orbit. The waypoints, in the ship's frame as a
 // point is, are flown through in order on the way, each passed within the pass radius: a course
-// (Routes.h, PlotCourse) made relative to the frame. It has arrived within the arrival radius of
+// (Courses.h, PlotCourse) made relative to the frame. It has arrived within the arrival radius of
 // the destination, moving no faster than the arrival speed relative to it, and from then holds
 // there. Registered with Reflect, every field Saved, by RegisterTypes.
 struct Destination

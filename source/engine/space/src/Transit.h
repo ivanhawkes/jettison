@@ -16,7 +16,7 @@ namespace Jettison::Physics
 class PhysicsWorld;
 }
 
-namespace Jettison::Ai::Detail
+namespace Jettison::Space::Detail
 {
 // A transit in whole steps, rounded up, and at least one: a lane's and a cruise's. A millionth of a
 // step is let go before rounding up, since a transit authored in seconds is rarely a whole number of
@@ -49,4 +49,4 @@ std::vector<Occupant> Occupants(
 glm::dvec3 ClearPlace(
     std::span<const Occupant> occupants, std::uint64_t system, const Sim::Transform &place,
     double radius, double clearance);
-} // namespace Jettison::Ai::Detail
+} // namespace Jettison::Space::Detail

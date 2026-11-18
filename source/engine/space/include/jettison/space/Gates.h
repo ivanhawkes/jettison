@@ -24,7 +24,7 @@ namespace Jettison::Sim
 class SimWorld;
 }
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
 class LaneTravel;
 
@@ -231,4 +231,4 @@ class Gates
 	// By Sim::FrameId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;
 };
-} // namespace Jettison::Ai
+} // namespace Jettison::Space

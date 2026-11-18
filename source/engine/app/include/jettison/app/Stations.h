@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
 class Gates;
 }
@@ -48,14 +48,14 @@ std::vector<entt::entity> OpenStations(
     const std::function<void(entt::entity station, std::string_view body)> &opened = {});
 
 // A gate for each jump point of each of the systems the gates know that has none yet
-// (Ai::Gates::MakeGates): every gate of a new world, and every one a world saved before there were
+// (Space::Gates::MakeGates): every gate of a new world, and every one a world saved before there were
 // gates lacks. Returns the gates made, in the systems' order.
 std::vector<entt::entity> OpenGates(
-    Sim::SimWorld &world, const Ai::Gates &gates, std::span<const Celestial::StarSystem> systems);
+    Sim::SimWorld &world, const Space::Gates &gates, std::span<const Celestial::StarSystem> systems);
 
 // A ship of the hull, the docks' and its physics' (Dock::Docks::HullShape), as the shell makes
 // them: of that mass, swept as it flies if continuous, with the default thrusters and the hull's
-// cruise drive (Ai::CruiseDrive), or the default one for a hull the docks do not define.
+// cruise drive (Space::CruiseDrive), or the default one for a hull the docks do not define.
 void MakeShip(
     entt::registry &world, const Dock::Docks &docks, entt::entity ship, std::string_view hull,
     float mass, bool continuous);

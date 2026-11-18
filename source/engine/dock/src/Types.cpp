@@ -5,6 +5,7 @@
 #include <jettison/physics/Components.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Types.h>
 
 namespace Jettison::Dock
 {
@@ -15,7 +16,7 @@ void RegisterTypes()
 		using namespace Reflect;
 		Physics::RegisterTypes();
 		Sim::RegisterTypes();
-		Ai::RegisterTypes();
+		Space::RegisterTypes();
 		RegisterEnum<PadClass>("Dock.PadClass")
 		    .Value<PadClass::S>("S")
 		    .Value<PadClass::M>("M")

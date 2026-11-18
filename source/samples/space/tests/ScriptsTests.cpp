@@ -19,6 +19,7 @@
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/SimWorld.h>
+#include <jettison/space/Types.h>
 #include <jettison/vfs/FileSystem.h>
 
 using namespace Jettison;
@@ -67,7 +68,7 @@ TEST_CASE("Scripts: the shell's Rust bindings, which its scripts are built again
 {
 	Sim::SimWorld world{1.0 / 60.0, 1};
 	Sample::RegisterTrading(world);
-	Ai::RegisterTypes();
+	Space::RegisterTypes();
 	Dock::RegisterTypes();
 	const Vfs::FileSystem files;
 	Script::ScriptHost host{files};

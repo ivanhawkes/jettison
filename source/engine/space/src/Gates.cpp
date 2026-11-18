@@ -1,7 +1,5 @@
-#include <jettison/ai/Gates.h>
+#include <jettison/space/Gates.h>
 
-#include <jettison/ai/Cruise.h>
-#include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 #include <jettison/celestial/Galaxy.h>
@@ -10,6 +8,9 @@
 #include <jettison/physics/Shape.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Lanes.h>
+#include <jettison/space/Types.h>
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -22,8 +23,12 @@
 
 #include "Transit.h"
 
-namespace Jettison::Ai
+namespace Jettison::Space
 {
+using Ai::Destination;
+using Ai::Reason;
+using Ai::Steered;
+
 namespace
 {
 // The frame an entity's body is in: its LocalFrame's body, or the system's own (empty).
@@ -400,4 +405,4 @@ void Gates::Step(Sim::SimWorld &world)
 	for (const entt::entity gate : gates)
 		Serve(world, gate);
 }
-} // namespace Jettison::Ai
+} // namespace Jettison::Space

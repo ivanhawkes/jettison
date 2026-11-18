@@ -78,10 +78,10 @@ struct Velocity
 // An entity on rails: each step its Transform is put where the body of that name in the frame its
 // Sim::InFrame names is at the time the step ends, and turned as that body is (FrameModel::BodyAt):
 // in the space sample, a celestial body, spinning, or a jump point, facing as a gate's ring does
-// (ai/Gates.h). A station's body is kinematic and on rails, so it pushes a ship it meets as its orbit
-// carries it, and is where presentation draws it. The frame has to be defined in the physics world
-// (PhysicsWorld::DefineFrame); an entity in no frame is left where it is. Registered with Reflect,
-// every field Saved, by RegisterTypes.
+// (space/Gates.h). A station's body is kinematic and on rails, so it pushes a ship it meets as its
+// orbit carries it, and is where presentation draws it. The frame has to be defined in the physics
+// world (PhysicsWorld::DefineFrame); an entity in no frame is left where it is. Registered with
+// Reflect, every field Saved, by RegisterTypes.
 //
 // The offset puts it at a place on the body rather than at its centre, in the body's own axes, and
 // the turn turns it there, so it turns with the body: a pad on a station's deck, and a ship clamped

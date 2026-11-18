@@ -1,6 +1,5 @@
 #include "Systems.h"
 
-#include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 #include <jettison/math/Random.h>

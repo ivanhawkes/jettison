@@ -1,7 +1,9 @@
+# The AI that knows no genre (docs/architecture.md, "AI"): utility decisions, behaviour trees, graph
+# search, courses round spheres, and steering, which flies a body through physics' flight controls.
+# Space transit (cruise, gates, lanes, galaxy routes) is the space module's.
 jettison_add_module(ai
 	DETERMINISTIC
 	DEPENDS
-		celestial
 		core
 		math
 		physics
@@ -11,33 +13,23 @@ jettison_add_module(ai
 		sim
 		spatial
 	HEADERS
-		include/jettison/ai/UtilityAi.h
 		include/jettison/ai/BehaviourTree.h
-		include/jettison/ai/Cruise.h
-		include/jettison/ai/Gates.h
-		include/jettison/ai/Lanes.h
+		include/jettison/ai/Courses.h
 		include/jettison/ai/Pathfinding.h
-		include/jettison/ai/Routes.h
 		include/jettison/ai/Steering.h
 		include/jettison/ai/Types.h
+		include/jettison/ai/UtilityAi.h
 	SOURCES
 		src/Ai.cpp
 		src/BehaviourTree.cpp
-		src/Cruise.cpp
-		src/Gates.cpp
-		src/Lanes.cpp
+		src/Courses.cpp
 		src/Pathfinding.cpp
-		src/Routes.cpp
 		src/Steering.cpp
-		src/Transit.cpp
 		src/UtilityAi.cpp
 	TESTS
 		tests/BehaviourTreeTests.cpp
-		tests/CruiseTests.cpp
-		tests/GatesTests.cpp
-		tests/LanesTests.cpp
+		tests/CoursesTests.cpp
 		tests/PathfindingTests.cpp
-		tests/RoutesTests.cpp
 		tests/SteeringTests.cpp
 		tests/UtilityAiTests.cpp
 	PUBLIC_LIBRARIES
@@ -45,7 +37,10 @@ jettison_add_module(ai
 		EnTT::EnTT
 )
 
-# The suites of cruise, gates and lanes fly in star systems (space/StarSystemFrame.h).
+# Steering's suite flies round a station on its orbit in the space suite's Halcyon (Systems.h): the
+# test's, not the library's, which links no space module.
 if(TARGET jettison_ai_tests)
-	target_link_libraries(jettison_ai_tests PRIVATE Jettison::Space)
+	target_link_libraries(jettison_ai_tests PRIVATE jettison_space)
+	target_include_directories(jettison_ai_tests PRIVATE
+		"${PROJECT_SOURCE_DIR}/source/engine/space/tests")
 endif()

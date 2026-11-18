@@ -173,7 +173,7 @@ void CheckHull(std::string_view name, const HullDefinition &hull)
 	if (!(glm::all(glm::lessThanEqual(glm::abs(hull.hatch), half + 0.01f))))
 		Refuse(kWhat, name, "has its cargo hatch outside its hull");
 	// A drive's time rises with the distance, and no faster than it.
-	const Ai::CruiseDrive &cruise = hull.cruise;
+	const Space::CruiseDrive &cruise = hull.cruise;
 	if (!(cruise.seconds > 0.0f) || !std::isfinite(cruise.seconds) || !(cruise.reference > 0.0) ||
 	    !std::isfinite(cruise.reference) || !(cruise.exponent > 0.0f) || !(cruise.exponent <= 1.0f))
 		Refuse(

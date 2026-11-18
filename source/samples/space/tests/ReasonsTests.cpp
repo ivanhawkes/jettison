@@ -10,6 +10,7 @@
 #include <jettison/sim/Reason.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Types.h>
 #include <jettison/ui/StringTable.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -43,7 +44,7 @@ TEST_CASE("Reasons: every reason the step gives has its words in English and in 
 {
 	Sim::SimWorld world{1.0 / 60.0, 1};
 	Sample::RegisterTrading(world);
-	Ai::RegisterTypes();
+	Space::RegisterTypes();
 	Dock::RegisterTypes();
 	Words words;
 	for (const std::string language : {"en", "de"})
