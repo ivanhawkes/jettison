@@ -90,11 +90,11 @@ class SpaceGame final : public App::Game
 
 	// The market screen shown, checked against the snapshot's market, and its first Buy pressed; then
 	// its answer, shown and heard.
-	std::optional<bool> SmokeTrade(App::Shell &shell) override;
+	std::optional<bool> SmokeGameUi(App::Shell &shell) override;
 
-	bool SmokeTrading(App::Shell &shell) override;
+	bool SmokeGameUiWaiting(App::Shell &shell) override;
 
-	bool SmokeTraded(App::Shell &shell) override;
+	bool SmokeGameUiAnswered(App::Shell &shell) override;
 
   private:
 	// The market the screen shows: the one at the ship's station, else the first in the system shown,

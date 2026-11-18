@@ -54,6 +54,7 @@ struct Composed
 	std::vector<Celestial::StarSystem> systems;
 	std::vector<Sim::SimEvent> events;
 
+
 	Composed()
 	{
 		const App::ShellWorld shell{world, physics, lanes, gates, docks, behaviours};

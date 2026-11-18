@@ -2569,9 +2569,9 @@ SmokeActions Application::MakeSmokeActions()
 	};
 	// The game UI's stage is the game's: a screen of its bound to the snapshot, driven as a player
 	// would.
-	actions.trade = [this] { return m_pGame->SmokeTrade(*this); };
-	actions.trading = [this] { return m_pGame->SmokeTrading(*this); };
-	actions.traded = [this] { return m_pGame->SmokeTraded(*this); };
+	actions.gameUi = [this] { return m_pGame->SmokeGameUi(*this); };
+	actions.gameUiWaiting = [this] { return m_pGame->SmokeGameUiWaiting(*this); };
+	actions.gameUiAnswered = [this] { return m_pGame->SmokeGameUiAnswered(*this); };
 	actions.jump = [this] { return Jump(); };
 	actions.jumping = [this] { return m_jump->Active(); };
 	actions.close = [this] { RequestClose(); };

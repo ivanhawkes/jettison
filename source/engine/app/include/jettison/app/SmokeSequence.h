@@ -28,13 +28,13 @@ struct SmokeActions
 	// Saves the game to the user mount and loads it back, and says whether the world loaded is the
 	// world saved, by its state hash.
 	std::function<bool()> saveAndLoad;
-	// Shows the market screen, checks it shows the market of the snapshot, and presses its first Buy
-	// button: none where the system shown has no market, false where the screen does not show what
-	// the snapshot has. Then whether the trade's answer is still to come, and once it has come,
-	// whether the screen shows it.
-	std::function<std::optional<bool>()> trade;
-	std::function<bool()> trading;
-	std::function<bool()> traded;
+	// The game's: shows a screen of its, checks it shows what the snapshot has, and presses a control
+	// that sends a command: none where the game has no screen to drive here, false where the screen
+	// does not show what the snapshot has. Then whether the command's answer is still to come, and
+	// once it has come, whether the screen shows it.
+	std::function<std::optional<bool>()> gameUi;
+	std::function<bool()> gameUiWaiting;
+	std::function<bool()> gameUiAnswered;
 	// Starts a jump to another star system, and says whether one started: false where there is no
 	// galaxy to jump in. Then whether it is still under way.
 	std::function<bool()> jump;
@@ -50,8 +50,8 @@ struct SmokeActions
 // traffic steered to the station (the spatial index and steering, and the shuttles' proxies), a pick
 // through the middle of the window (a ray from the camera cast by physics and answered as an
 // event), a save and a load of it (the world, physics' state among it, written durably and read
-// back, with the scene's proxies on it), a trade at the market screen (a document bound to the
-// snapshot's market, its button sending a command, the step's answer shown), a jump to another star
+// back, with the scene's proxies on it), the game's screen (a document bound to the snapshot, its
+// control sending a command, the step's answer shown), a jump to another star
 // system (the scene replaced behind its effect, with frames in flight, and the new system streamed in),
 // and a settle. Each stage acts, waits for the frames it triggered to settle, then advances; validation
 // and the sanitizers read the result, so the sequence only has to reach the end.
@@ -82,7 +82,7 @@ class SmokeSequence
 	bool Passed() const;
 
 	// The counters in the words the failure report uses: "resizes=1, reloads=1, pilots=2, picks=1,
-	// saves=1, markets=1, trades=1, jumps=1, stage=11".
+	// saves=1, screens=1, answers=1, jumps=1, stage=11".
 	std::string Summary() const;
 
   private:
@@ -107,12 +107,12 @@ class SmokeSequence
 	bool m_pickPending{false};
 	// Saves that loaded back to the state saved.
 	int m_saves{0};
-	// Market screens that showed the snapshot's market and pressed Buy, and the trades among them
-	// whose answer the screen then showed: a verdict, every market tried has to be answered.
-	int m_markets{0};
-	int m_trades{0};
-	bool m_tradePending{false};
-	bool m_marketWrong{false};
+	// The game's screens that showed the snapshot and sent their command, and the answers among them
+	// the screen then showed: a verdict, every screen tried has to be answered.
+	int m_screens{0};
+	int m_answers{0};
+	bool m_gameUiPending{false};
+	bool m_screenWrong{false};
 	int m_jumps{0};
 	// The jump stage's action is pending until the jump is over, however many frames that takes.
 	bool m_jumpPending{false};

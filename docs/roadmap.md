@@ -12,7 +12,7 @@ built, and the work finished since are recorded in [history](history.md).
 Approved 2026-11-15. H02, H03, H04, H05, A01, W01 and M03 are done, in
 [history](history.md#neutral-sdk-and-manifest-integration). Their
 [cross-review](build-and-gates.md#cross-review) is still to run: one round from `c04303c` to
-`fafa758`, no earlier than 2026-11-21. Manifest's H07 waits on it.
+`fafa758`, with the pre-review's fixes after it, no earlier than 2026-11-21. Manifest's H07 waits on it.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.

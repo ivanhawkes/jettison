@@ -79,7 +79,7 @@ bool RunSequence(
 	// After the save, before the jump.
 	int trades = 0;
 	int tradeLeft = 0;
-	actions.trade = [&]() -> std::optional<bool>
+	actions.gameUi = [&]() -> std::optional<bool>
 	{
 		CHECK(saves == 1);
 		CHECK(jumps == 0);
@@ -89,8 +89,8 @@ bool RunSequence(
 		tradeLeft = market.never ? 1000 : 2;
 		return !market.screenWrong;
 	};
-	actions.trading = [&] { return tradeLeft > 0; };
-	actions.traded = [&] { return !market.answerHidden; };
+	actions.gameUiWaiting = [&] { return tradeLeft > 0; };
+	actions.gameUiAnswered = [&] { return !market.answerHidden; };
 	actions.close = [&]
 	{
 		// Nothing closes the window while a jump is under way.

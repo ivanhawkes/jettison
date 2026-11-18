@@ -175,12 +175,16 @@ user's ship classes and dry docks with it.
   game's.
 - **Damage and repair, in the sample.** A hull is damaged by a contact of 5 m/s or more, and
   repaired for its owner's credits docked on a pad that offers `dry-dock`, two of Highport's.
+- **The shell's smoke hooks are the game's screen, not a trade** (`Game::SmokeGameUi`,
+  `SmokeGameUiWaiting`, `SmokeGameUiAnswered`, after the review's `SmokeTrade` three); the summary
+  counts `screens=` and `answers=`.
 
 Three pinned hashes moved twice, the dock's approach and deck and the sample's traders, each time
 by bytes alone: with the classes' old names written back into the save, the old pins passed; then
 with a docking's feature left unsaved, the hashes were those after the rename. Manifest's seven
 classes (skiff to heavy destroyer) and its dry-dock platform are its own data, not yet authored.
-Not done: the commit `3f8fb1c`, which carries H05's code under another message, is as it was.
+The commit `3f8fb1c` carries H05's code under the message of a gate change; it stays as it is (the
+user's decision, 2026-11-18), as it is pushed and Manifest's pin follows it.
 
 ### Neutral SDK and Manifest integration
 

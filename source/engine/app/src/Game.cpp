@@ -100,19 +100,19 @@ std::string Game::DescribeShip(
 }
 
 
-std::optional<bool> Game::SmokeTrade(Shell & /*shell*/)
+std::optional<bool> Game::SmokeGameUi(Shell & /*shell*/)
 {
 	return std::nullopt;
 }
 
 
-bool Game::SmokeTrading(Shell & /*shell*/)
+bool Game::SmokeGameUiWaiting(Shell & /*shell*/)
 {
 	return false;
 }
 
 
-bool Game::SmokeTraded(Shell & /*shell*/)
+bool Game::SmokeGameUiAnswered(Shell & /*shell*/)
 {
 	return true;
 }

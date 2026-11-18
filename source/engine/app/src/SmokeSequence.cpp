@@ -30,8 +30,8 @@ constexpr int kFinalStage = 11;
 // The frames a pick is given to be answered: the next simulation step answers it, which is a frame
 // or two at most, unless the world is not stepping, and then the sequence moves on without it.
 constexpr int kPickFrames = 60;
-// A trade is answered by the next step, as a pick is.
-constexpr int kTradeFrames = 60;
+// The game's command is answered by the next step, as a pick is.
+constexpr int kGameUiFrames = 60;
 
 // The resize stages ask for a size relative to the current one, growing then shrinking: the
 // opening size, the compositor's idea of it and the Xvfb screen all vary, and a fixed target can
@@ -86,14 +86,14 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 			m_frames = 0;
 		}
 	}
-	else if (m_tradePending)
+	else if (m_gameUiPending)
 	{
-		const bool answered = !m_actions.trading();
-		if (answered || m_frames >= kTradeFrames)
+		const bool answered = !m_actions.gameUiWaiting();
+		if (answered || m_frames >= kGameUiFrames)
 		{
-			if (answered && m_actions.traded())
-				++m_trades;
-			m_tradePending = false;
+			if (answered && m_actions.gameUiAnswered())
+				++m_answers;
+			m_gameUiPending = false;
 			m_actionPending = false;
 			m_frames = 0;
 		}
@@ -110,8 +110,8 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 	++m_frames;
 
 	// The stages, in order: grow the window, shrink it, minimize, restore, reload the scene, fly the
-	// ship behind it and from its seat, pick, save and load, trade, jump, settle. The last one has no
-	// action.
+	// ship behind it and from its seat, pick, save and load, the game's screen, jump, settle. The last
+	// one has no action.
 	if (m_stage < kFinalStage && m_frames >= kStageFrames && !m_actionPending)
 	{
 		m_actionPending = true;
@@ -188,16 +188,16 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 			break;
 		case 9:
 		{
-			// The market screen, its data made from the snapshot, shows that market, and its button
+			// The game's screen, its data made from the snapshot, shows what it has, and its control
 			// sends a command the next step answers, which the screen then shows.
-			const std::optional<bool> pressed = m_actions.trade();
+			const std::optional<bool> pressed = m_actions.gameUi();
 			if (pressed)
 			{
-				++m_markets;
-				m_marketWrong = !*pressed;
+				++m_screens;
+				m_screenWrong = !*pressed;
 			}
-			m_tradePending = pressed.value_or(false);
-			m_actionPending = m_tradePending;
+			m_gameUiPending = pressed.value_or(false);
+			m_actionPending = m_gameUiPending;
 			break;
 		}
 		case 10:
@@ -223,10 +223,10 @@ bool SmokeSequence::Passed() const
 	// reloaded has not tested that.
 	// The jump likewise: once, and over before the close. And the save: a world that does not load
 	// back as it was saved is a save that loses the game.
-	// A market screen that showed something other than the snapshot, or whose trade was never
+	// A game's screen that showed something other than the snapshot, or whose command was never
 	// answered on it, is a screen not bound to the simulation.
-	return m_resizes >= 1 && m_reloads == 1 && m_saves == 1 && m_trades == m_markets &&
-	       !m_marketWrong && m_jumps == 1 && !m_jumpPending && m_stage == kFinalStage;
+	return m_resizes >= 1 && m_reloads == 1 && m_saves == 1 && m_answers == m_screens &&
+	       !m_screenWrong && m_jumps == 1 && !m_jumpPending && m_stage == kFinalStage;
 }
 
 
@@ -234,8 +234,8 @@ std::string SmokeSequence::Summary() const
 {
 	return "resizes=" + std::to_string(m_resizes) + ", reloads=" + std::to_string(m_reloads) +
 	       ", pilots=" + std::to_string(m_pilots) + ", picks=" + std::to_string(m_picks) +
-	       ", saves=" + std::to_string(m_saves) + ", markets=" + std::to_string(m_markets) +
-	       ", trades=" + std::to_string(m_trades) + ", jumps=" + std::to_string(m_jumps) +
+	       ", saves=" + std::to_string(m_saves) + ", screens=" + std::to_string(m_screens) +
+	       ", answers=" + std::to_string(m_answers) + ", jumps=" + std::to_string(m_jumps) +
 	       ", stage=" + std::to_string(m_stage);
 }
 } // namespace Jettison::App

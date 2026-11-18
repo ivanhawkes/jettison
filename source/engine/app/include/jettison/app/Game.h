@@ -196,13 +196,14 @@ class Game
 	virtual std::string DescribeShip(
 	    const Sim::Snapshot &snapshot, entt::entity ship, bool atHelm) const;
 
-	// The render test's game UI stage (SmokeActions::trade, trading and traded): none where the game
+	// The render test's game UI stage (SmokeActions::gameUi, gameUiWaiting and
+	// gameUiAnswered): none where the game
 	// has no screen to drive.
-	virtual std::optional<bool> SmokeTrade(Shell &shell);
+	virtual std::optional<bool> SmokeGameUi(Shell &shell);
 
-	virtual bool SmokeTrading(Shell &shell);
+	virtual bool SmokeGameUiWaiting(Shell &shell);
 
-	virtual bool SmokeTraded(Shell &shell);
+	virtual bool SmokeGameUiAnswered(Shell &shell);
 };
 
 } // namespace Jettison::App

@@ -532,12 +532,12 @@ back over itself with the scene drawing it; the run fails unless the world loade
 of the world saved (20,980 bytes for the sample scene's world on 2026-11-12, and 27,296 for the
 orbit scene's, physics' state, the shell's ship and the four shuttles under way among it). The game UI's two screens, the market
 and the saved games, are shown from the first frame, so the overlay is drawn in every stage, over
-every resize and the reload; the save stage lists its save on one. The trade stage reads the market
-screen of the station the ship is at: its station and its first good's stock have to be the ones the
+every resize and the reload; the save stage lists its save on one. The game UI stage is the game's
+(`Game::SmokeGameUi` and the two after it); the sample's reads the market screen of the station the ship is at: its station and its first good's stock have to be the ones the
 snapshot has, and its first Buy button, pressed, sends a trade the next step answers, whose answer
 the screen then has to show, and to play on the UI bus. In the orbit scene the ship is off the dock,
-so the answer is a refusal (the trade itself is the `sample-space` suite's); the sample scene has no market, and the summary's `markets=`
-and `trades=` say what was tried. The sample scene has no sun,
+so the answer is a refusal (the trade itself is the `sample-space` suite's); the sample scene has no market, and the summary's `screens=`
+and `answers=` say what was tried. The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and
 the frame sets rewritten after it run under validation too. The reload also reads every resource

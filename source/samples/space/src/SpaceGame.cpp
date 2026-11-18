@@ -433,7 +433,7 @@ std::string SpaceGame::DescribeShip(const Sim::Snapshot &snapshot, entt::entity 
 }
 
 
-std::optional<bool> SpaceGame::SmokeTrade(App::Shell &shell)
+std::optional<bool> SpaceGame::SmokeGameUi(App::Shell &shell)
 {
 	Ui::UiSystem *ui = shell.GameUi();
 	const entt::entity market = ShownMarket(shell);
@@ -459,13 +459,13 @@ std::optional<bool> SpaceGame::SmokeTrade(App::Shell &shell)
 }
 
 
-bool SpaceGame::SmokeTrading(App::Shell & /*shell*/)
+bool SpaceGame::SmokeGameUiWaiting(App::Shell & /*shell*/)
 {
 	return m_tradeAnswers == m_smokeTradeAnswers;
 }
 
 
-bool SpaceGame::SmokeTraded(App::Shell &shell)
+bool SpaceGame::SmokeGameUiAnswered(App::Shell &shell)
 {
 	const std::string shown = shell.GameUi()->ElementText(m_marketDocument, "message");
 	if (shown != m_tradeMessage)
