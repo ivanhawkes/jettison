@@ -45,9 +45,8 @@ does not restate it.
 
 ## Engine and game responsibilities
 
-- Before engine integration work, read `docs/game-integration.md` and inspect the sibling
-  `../manifest` requirements: `docs/development-stages.md`, the relevant stage plan,
-  `docs/gameplay-and-server-plan.md` and `docs/engine-game-boundary-assessment.md`.
+- Before engine integration work, read `docs/game-integration.md` and the sibling
+  `../manifest` documents it lists, starting with the task queue, `docs/delivery-order.md`.
 - Map required gameplay mechanics to public SDK capabilities. Provision demonstrated
   reusable gaps in Jettison; leave game rules, ownership policy, prices and content in
   Manifest. Record acceptance tests in both an independent engine consumer and Manifest.

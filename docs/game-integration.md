@@ -1,8 +1,8 @@
 # Game integration and responsibility contract
 
-Approved direction, 2026-11-15. This document sets the target boundary and implementation
-workflow. Extraction and consumer checks described here are pending, but for the CPU lifecycle
-consumer (H04); documentation does not establish that the current engine is already genre-neutral.
+Approved direction, 2026-11-15. This document sets the boundary and the workflow. The
+extraction it describes (H02–H05, A01, W01) is done and is in Manifest's SDK pin; the
+[history](history.md#neutral-sdk-and-manifest-integration) records what each step built.
 
 ## Responsibilities
 
@@ -24,8 +24,8 @@ assets; example markets, galaxies, ships, music and trading screens are sample a
 For each engine integration task, inspect the sibling `../manifest` checkout and record
 its branch/commit and relevant uncommitted requirements. Read its `AGENTS.md`, then:
 
-1. `docs/development-stages.md` and the relevant `docs/stage-*-plan.md` for delivery order
-   and acceptance criteria.
+1. `docs/delivery-order.md` for the task queue and its status, then
+   `docs/development-stages.md` and the relevant `docs/stage-*-plan.md` for acceptance criteria.
 2. `docs/gameplay-and-server-plan.md`, `docs/architecture.md` and
    `docs/host-script-boundary.md` for ownership, commands, simulation and scripting.
 3. `docs/engine-game-boundary-assessment.md` for the boundary inventory and planned splits.
@@ -58,21 +58,12 @@ Avoid promoting a game rule merely by making its constants configurable. A prici
 formula is still game policy. Conversely, do not duplicate an existing archive, scheduler,
 VFS or physics integration in Manifest because its public seam needs a bounded improvement.
 
-## Current gaps and extraction order
+## Remaining gaps and extraction order
 
-The space sample's Trading, Traders, Fleet and market screen are a game composed into the shell
-(`source/samples/space`, `App::Game`), out of the `app` library, and its content is a tree and pack
-of its own (`source/samples/space/assets`), mounted as `base` over the engine's assets (H05,
-2026-11-18). Physics, AI and the scene depend on no celestial concept: physics' frames' rails and gravity are
-the game's model, a star system and the cruise, lanes, gates and galaxy routes the `space`
-module's, and a star system's scene and the jump transition the `spacescene` module's (W01,
-2026-11-18). Frames and a save's details are neutral (A01, 2026-11-18): an entity's
-`Sim::InFrame` is a partition of the game's, a star system the sample's use of one, and
-`SaveInfo::details` the game's strings, the shell's galaxy and system among them. The shell still names some
-content by path, each optional (the default scene, the galaxy, the music, the station hum, a
-station's dressing), and several engine suites read the sample's content as test data.
-`JETTISON_PRESENTATION=OFF` configures the CPU engine without
-graphics tools (H03, 2026-11-18).
+Slices 1–3 below are done ([history](history.md#neutral-sdk-and-manifest-integration)). What
+remains of the boundary: the shell still names some content by path, each optional (the default
+scene, the galaxy, the music, the station hum, a station's dressing), and several engine suites
+read the sample's content as test data. Slice 4 recurs with every Manifest stage.
 
 Implement the boundary in reviewable slices:
 
@@ -94,15 +85,21 @@ exercise gameplay, but must use the same public interfaces as an external game.
 
 ## Enforcement and completion
 
-Add dependency checks for public headers and CMake target closures: no core-to-game,
-core-to-sample or neutral-core-to-space-extension edges. Assert that neutral startup
-registers no sample traders, markets or fleet systems. Inspect resource-pack contents
-against explicit manifests; no sample asset fallback is allowed in a production consumer.
+These checks hold the boundary, and each exists:
 
-The consumer matrix must include a tiny CPU board-game-like simulation with no galaxy
-or transforms, a non-space physics scene without celestial definitions, and the explicit
-space example. Exercise definitions, stepping and save/load, plus coherent options with
-samples/tests/editor/presentation disabled. These are small API tests, not new products.
+- **Dependency checks:** at every configure, `jettison_check_optional` refuses a core-to-sample
+  edge, and a neutral-module-to-space edge in a target closure or a public header.
+- **Neutral start-up:** it registers no sample traders, markets or fleet. The `app` suite's `Game`
+  cases check this.
+- **Engine packs:** their contents are held to the engine's own directories. No production
+  consumer may fall back to a sample asset.
+- **The consumer matrix:**
+  - a CPU race with no galaxy or transforms (`source/test/consumer`);
+  - a non-space physics room (the `physics` suite);
+  - the explicit space sample;
+  - a CPU configure with presentation off (`clang-cpu`).
+
+  These are small API tests, not new products. A new capability adds to this list.
 
 The implementer runs relevant presets and required gates at the machine's own core count,
 clang-tidy included, reading `MemAvailable` before a full-parallel run

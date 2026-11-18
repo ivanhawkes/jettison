@@ -10,8 +10,10 @@ built, and the work finished since are recorded in [history](history.md).
 ## Current priority: neutral SDK and Manifest integration
 
 Approved 2026-11-15. H02, H03, H04, H05, A01, W01 and M03 are done, in
-[history](history.md#neutral-sdk-and-manifest-integration). Follow [game integration](game-integration.md)
-and inspect Manifest's current development-stage/gameplay requirements before each task.
+[history](history.md#neutral-sdk-and-manifest-integration). Their
+[cross-review](build-and-gates.md#cross-review) is still to run: one round from `c04303c` to
+`fafa758`, no earlier than 2026-11-21. Manifest's H07 waits on it.
+Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
 
@@ -20,6 +22,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
+| Content pipeline gaps | C02, C03 (2) | Each gap that Manifest's C01 schema mapping demonstrates in reflected definitions, layering or migration is provisioned with an engine fixture before C02 consumes it. No row of work until C01 names one. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
