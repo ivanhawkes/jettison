@@ -62,7 +62,8 @@ void MakeShip(
 
 // The station's lowest numbered free pad the hull fits, not a display one, or none.
 entt::entity FreePad(
-    const entt::registry &registry, entt::entity station, const Dock::HullDefinition &hull);
+    const entt::registry &registry, const Dock::Docks &docks, entt::entity station,
+    const Dock::HullDefinition &hull);
 
 // The ships the controller commands (Sim::ControlledBy), in entity order, as the snapshot shows them.
 std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller);

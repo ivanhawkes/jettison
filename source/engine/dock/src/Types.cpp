@@ -4,11 +4,32 @@
 #include <jettison/ai/Types.h>
 #include <jettison/physics/Components.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Binary.h>
+#include <jettison/serialise/Migration.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/space/Types.h>
 
 namespace Jettison::Dock
 {
+const Serialise::Migrations<Serialise::BinaryRecord> &Pad::Migrations()
+{
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
+	{
+		Serialise::Migrations<Serialise::BinaryRecord> chain{"Dock.Pad", {2}};
+		// An enumerator is its name in the archive's table; the class's name is the same text.
+		chain.Add(
+		    1,
+		    [](Serialise::BinaryRecord &record)
+		    {
+			    const std::string padClass{record.Open("padClass").ReadName()};
+			    record.Set("padClass", padClass);
+		    });
+		return chain;
+	}();
+	return migrations;
+}
+
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -17,12 +38,11 @@ void RegisterTypes()
 		Physics::RegisterTypes();
 		Sim::RegisterTypes();
 		Space::RegisterTypes();
-		RegisterEnum<PadClass>("Dock.PadClass")
-		    .Value<PadClass::S>("S")
-		    .Value<PadClass::M>("M")
-		    .Value<PadClass::L>("L")
-		    .Value<PadClass::XL>("XL");
 		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
+		RegisterType<PadClassDefinition>("Dock.PadClassDefinition", Attribute::Moddable)
+		    .Field<&PadClassDefinition::rank>("rank", kDefined)
+		    .Field<&PadClassDefinition::largestHull>("largestHull", kDefined)
+		    .Field<&PadClassDefinition::padSize>("padSize", kDefined);
 		RegisterType<HullDefinition>("Dock.HullDefinition", Attribute::Moddable)
 		    .Field<&HullDefinition::displayName>("displayName", kDefined)
 		    .Field<&HullDefinition::length>("length", kDefined)

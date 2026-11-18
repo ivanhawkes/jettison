@@ -79,6 +79,7 @@ inline constexpr double kNodeReach = 6.0;
 // How near the buggy ahead in its lane a buggy comes, middle to middle: 4 m buggies a length apart.
 inline constexpr double kBuggyGap = 8.0;
 
-// The layout's roads. A layout with no bays has none, and every pad is unreached.
-RoadGraph Roads(const StationLayout &layout);
+// The layout's roads, its pads of those classes. A layout with no bays has none, and every pad is
+// unreached.
+RoadGraph Roads(const StationLayout &layout, const PadClasses &classes);
 } // namespace Jettison::Dock

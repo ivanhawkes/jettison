@@ -1,5 +1,8 @@
 #include "Fixture.h"
 
+#include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Binary.h>
+
 #include <doctest/doctest.h>
 
 #include <glm/gtc/quaternion.hpp>
@@ -10,7 +13,6 @@
 #include <vector>
 
 using namespace Jettison;
-using Dock::PadClass;
 using DockTests::Fixture;
 
 namespace
@@ -24,11 +26,11 @@ Dock::StationLayout YardLayout()
 	yard.reservationSeconds = 2.0f;
 	yard.decks = {{{0.0, 0.0, 0.0}, {400.0, 20.0, 400.0}}};
 	yard.pads = {
-	    {PadClass::M, {-100.0, 10.0, -100.0}},
-	    {PadClass::S, {100.0, 10.0, -100.0}},
-	    {PadClass::L, {0.0, 10.0, 100.0}, {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0}},
-	    {PadClass::S, {100.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}, true},
-	    {PadClass::M, {-100.0, 10.0, 0.0}},
+	    {"M", {-100.0, 10.0, -100.0}},
+	    {"S", {100.0, 10.0, -100.0}},
+	    {"L", {0.0, 10.0, 100.0}, {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0}},
+	    {"S", {100.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}, true},
+	    {"M", {-100.0, 10.0, 0.0}},
 	};
 	return yard;
 }
@@ -42,10 +44,12 @@ struct Yard : Fixture
 
 	Yard() : Fixture{false}
 	{
-		docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, PadClass::S, {}});
-		docks.DefineHull("hauler", {"Hauler", 50.0f, 25.0f, 12.0f, PadClass::M, {}});
-		docks.DefineHull("barge", {"Barge", 130.0f, 45.0f, 25.0f, PadClass::L, {}});
-		docks.DefineHull("liner", {"Liner", 280.0f, 70.0f, 50.0f, PadClass::XL, {}});
+		for (const auto &[name, padClass] : DockTests::SampleClasses())
+			docks.DefinePadClass(name, padClass);
+		docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "S", {}});
+		docks.DefineHull("hauler", {"Hauler", 50.0f, 25.0f, 12.0f, "M", {}});
+		docks.DefineHull("barge", {"Barge", 130.0f, 45.0f, 25.0f, "L", {}});
+		docks.DefineHull("liner", {"Liner", 280.0f, 70.0f, 50.0f, "XL", {}});
 		docks.DefineLayout("yard", YardLayout());
 		station = docks.MakeStation(world, DockTests::kHalcyon, DockTests::kHighport, "yard");
 	}
@@ -138,6 +142,42 @@ TEST_CASE("Docks: a hull that fits only an L pad is never given an M one, and wa
 	// Both M pads are still free.
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 1)).state == Dock::PadState::Free);
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 5)).state == Dock::PadState::Free);
+}
+
+
+TEST_CASE("Docks: a game's own pad classes, a compact berth below a bay, are given by their ranks")
+{
+	DockTests::Fixture fixture{false};
+	Dock::Docks &docks = fixture.docks;
+	docks.DefinePadClass("berth", {0, {6.0f, 4.0f, 3.0f}, {8.0f, 10.0f}});
+	docks.DefinePadClass("bay", {1, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}});
+	CHECK_THROWS_AS(
+	    docks.DefinePadClass("bay", {0, {6.0f, 4.0f, 3.0f}, {8.0f, 10.0f}}), std::invalid_argument);
+	docks.DefineHull("pod", {"Pod", 5.0f, 3.0f, 2.0f, "berth", {}});
+	docks.DefineHull("tug", {"Tug", 18.0f, 12.0f, 5.0f, "bay", {}});
+	CHECK(docks.Fits(*docks.FindHull("pod"), "bay"));
+	CHECK_FALSE(docks.Fits(*docks.FindHull("tug"), "berth"));
+	CHECK_FALSE(docks.Fits(*docks.FindHull("pod"), "hangar"));
+
+	// Pad 1 a bay and pad 2 a berth; a pod takes the berth, the smaller, and a second tug waits for
+	// the bay rather than take it.
+	Dock::StationLayout dock;
+	dock.displayName = "Dock";
+	dock.decks = {{{0.0, 0.0, 0.0}, {100.0, 20.0, 100.0}}};
+	dock.pads = {{"bay", {-20.0, 10.0, 0.0}}, {"berth", {20.0, 10.0, 0.0}}};
+	docks.DefineLayout("dock", dock);
+	const entt::entity station =
+	    docks.MakeStation(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "dock");
+	const entt::entity pod = fixture.Ship(station, "pod", {0.0, 2000.0, 0.0});
+	const entt::entity tug = fixture.Ship(station, "tug", {300.0, 2000.0, 0.0});
+	const entt::entity second = fixture.Ship(station, "tug", {600.0, 2000.0, 0.0});
+	for (const entt::entity ship : {pod, tug, second})
+		fixture.world.Commands().Push(Dock::RequestPad{{}, ship, station, false});
+	fixture.Step();
+	CHECK(fixture.NumberOf(pod) == 2);
+	CHECK(fixture.NumberOf(tug) == 1);
+	CHECK(fixture.NumberOf(second) == 0);
+	CHECK(fixture.Events<Dock::PadQueued>().size() == 1);
 }
 
 
@@ -287,4 +327,64 @@ TEST_CASE("Docks: a pad clamps only the ship it was given to")
 	CHECK(landed[0].number == 2);
 	CHECK(Dock::IsDocked(yard.world.Registry(), given, yard.station));
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 2)).state == Dock::PadState::Holding);
+}
+
+
+namespace
+{
+// A pad as version 1 had it, its class an enumerator of the closed four.
+enum class PadClassV1 : std::uint8_t
+{
+	S,
+	M,
+	L,
+	XL
+};
+
+struct PadV1
+{
+	entt::entity station{entt::null};
+	std::uint32_t number{0};
+	PadClassV1 padClass{PadClassV1::S};
+	bool display{false};
+	Dock::PadState state{Dock::PadState::Free};
+	entt::entity ship{entt::null};
+	std::uint64_t lapses{0};
+};
+} // namespace
+
+
+TEST_CASE("Docks: a pad saved with its class an enumerator loads with the class's name")
+{
+	using Reflect::Attribute;
+	Dock::RegisterTypes();
+	Reflect::RegisterEnum<PadClassV1>("DockTests.PadClassV1")
+	    .Value<PadClassV1::S>("S")
+	    .Value<PadClassV1::M>("M")
+	    .Value<PadClassV1::L>("L")
+	    .Value<PadClassV1::XL>("XL");
+	Reflect::RegisterType<PadV1>("DockTests.PadV1")
+	    .Field<&PadV1::station>("station", Attribute::Saved)
+	    .Field<&PadV1::number>("number", Attribute::Saved)
+	    .Field<&PadV1::padClass>("padClass", Attribute::Saved)
+	    .Field<&PadV1::display>("display", Attribute::Saved)
+	    .Field<&PadV1::state>("state", Attribute::Saved)
+	    .Field<&PadV1::ship>("ship", Attribute::Saved)
+	    .Field<&PadV1::lapses>("lapses", Attribute::Saved);
+
+	Sim::SimWorld old{DockTests::kStep, 1};
+	old.RegisterComponent<PadV1>();
+	const entt::entity station = old.Registry().create();
+	old.Registry().emplace<PadV1>(
+	    old.Registry().create(),
+	    PadV1{station, 3, PadClassV1::XL, true, Dock::PadState::Holding, station, 42});
+	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(old.Save(), "Jettison.World");
+	document.Rename("DockTests.PadV1", "Dock.Pad");
+
+	Sim::SimWorld world{DockTests::kStep, 1};
+	world.RegisterComponent<Dock::Pad>();
+	world.Load(document.Emit());
+	CHECK(
+	    world.Registry().get<Dock::Pad>(entt::entity{1}) ==
+	    Dock::Pad{station, 3, "XL", true, Dock::PadState::Holding, station, 42});
 }

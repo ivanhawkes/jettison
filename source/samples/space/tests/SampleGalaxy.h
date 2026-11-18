@@ -90,6 +90,8 @@ struct Galaxy
 			pScripts->SendCommandsTo(world);
 			pScripts->LoadAll(definitions);
 		}
+		definitions.Load<Dock::PadClassDefinition>(
+		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
 		docks.Define(definitions);

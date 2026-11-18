@@ -13,8 +13,8 @@ but belong in explicit sample targets outside engine code and use public SDK int
 
 Physics' star systems and the space transit AI are the `space` module's, and a star system's scene
 and the jump between two the `spacescene` module's (W01); the snapshot's frames are neutral (A01),
-and the sample's trading and content its own (H05). The dock's pad classes are still a closed
-enumeration, and no check yet holds the neutral modules to their dependencies (W01).
+and the sample's trading and content its own (H05). The dock's pad classes are data (W01), and no
+check yet holds the neutral modules to their dependencies (W01).
 Extract a neutral host, separate resources and generic modules, and make space services
 optional. No neutral engine target may depend on a sample or Manifest. Presentation
 must also work without celestial content. Preserve existing regressions through explicit
@@ -543,8 +543,11 @@ three axes, rolled too, rather than turning its nose to its velocity: a pad's he
 A station's pads are the simulation's (`dock/Docks.h`, 9c, catalogue entry 31,
 [decided](roadmap.md#decided)): who holds a pad is authoritative state that every player is to see
 the same, so it is given by commands in their order, saved, and nothing in the module assumes one
-player. Its data are definitions: a hull (`defs/hulls`, `Dock::HullDefinition`) has a size, the
-class of pad it lands on and its cargo hatch, and collides as the box of its size; a station's
+player. Its data are definitions: a pad class (`defs/pads`, `Dock::PadClassDefinition`, W01) has
+the largest hull it takes, its pad's size and its rank, a hull fitting a pad of its own class or one
+ranked above it, so a game's classes, a compact berth among them, need no engine edit; a hull
+(`defs/hulls`, `Dock::HullDefinition`) has a size, within its class's largest hull, the class of
+pad it lands on and its cargo hatch, and collides as the box of its size; a station's
 layout (`defs/stations`, `Dock::StationLayout`), which a station names in its system's file
 (`Celestial::Body::layout`), has its decks and piers as boxes, which the station collides as, its
 pads (class, place, normal, heading, and whether it is for display, with the hull it shows) and its
@@ -555,10 +558,10 @@ presentation's, drawn on it and never a body: no ship is given the pad, and `Par
 
 `Docks::MakeStation` builds a station: its kinematic body on its celestial body's rails, in its
 frame, and an entity for each pad on the same rails at its place, free, reserved for a ship until
-a step, or holding one. `RequestPad` gives a ship the smallest free pad its hull fits, the lowest
-numbered of those, or a place at the back of the station's queue, and the queue is served from the
-front, each ship the smallest free pad it fits, as pads come free; a reservation not landed on in
-time lapses. `ReleasePad` gives a pad or a place up, or lets a docked ship go. Both carry their
+a step, or holding one, its class saved by name. `RequestPad` gives a ship the lowest ranked free
+pad its hull fits, the lowest numbered of those, or a place at the back of the station's queue, and
+the queue is served from the front, each ship the lowest ranked free pad it fits, as pads come free;
+a reservation not landed on in time lapses. `ReleasePad` gives a pad or a place up, or lets a docked ship go. Both carry their
 sender (`Sim::Controller`, a player's slot or the AI), and a ship's `Sim::ControlledBy` refuses a
 command from anyone else; a refusal says why, as an event, among the given, queued, lapsed, landed,
 left and released.

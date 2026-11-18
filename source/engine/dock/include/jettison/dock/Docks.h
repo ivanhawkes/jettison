@@ -20,6 +20,12 @@ namespace Jettison::Physics
 class PhysicsWorld;
 }
 
+namespace Jettison::Serialise
+{
+class BinaryRecord;
+template <typename Data> class Migrations;
+} // namespace Jettison::Serialise
+
 namespace Jettison::Sim
 {
 class DefinitionRegistry;
@@ -67,18 +73,24 @@ enum class PadState : std::uint8_t
 // A pad, an entity of its station's, on the station's rails at its place on the deck
 // (Physics::OnRails) and in its frame, so a ship's destination by it turns and moves with the
 // station. The ship it is reserved for or holds, and the step its reservation lapses at
-// (Time::SimClock::Step). Registered with Reflect, every field Saved, by RegisterTypes.
+// (Time::SimClock::Step). Registered with Reflect, every field Saved, by RegisterTypes; Docks::Attach
+// registers it with its chain (Migrations).
 struct Pad
 {
 	entt::entity station{entt::null};
 	std::uint32_t number{0};
-	PadClass padClass{PadClass::S};
+	// Its pad class's name (PadClassDefinition).
+	std::string padClass;
 	bool display{false};
 	PadState state{PadState::Free};
 	entt::entity ship{entt::null};
 	std::uint64_t lapses{0};
 
 	bool operator==(const Pad &) const = default;
+
+	// Version 2 (W01) holds the pad class as its name, where version 1 held an enumerator of the
+	// closed S, M, L and XL, under the same names.
+	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
 enum class Stage : std::uint8_t
@@ -327,15 +339,32 @@ class Docks
 
 	static std::string StationShape(std::string_view layout);
 
-	// A hull and a layout, checked (CheckHull, CheckLayout), and their shapes defined in physics.
+	// A pad class, checked (CheckPadClass), which hulls and layouts defined after it may name.
 	// Throws Serialise::FormatError for one that does not fit, and std::invalid_argument for a name
 	// already defined.
+	void DefinePadClass(std::string name, PadClassDefinition padClass);
+
+	// A hull and a layout, checked (CheckHull, CheckLayout) against the pad classes defined, and
+	// their shapes defined in physics. Throws Serialise::FormatError for one that does not fit, and
+	// std::invalid_argument for a name already defined.
 	void DefineHull(std::string name, HullDefinition hull);
 
 	void DefineLayout(std::string name, StationLayout layout);
 
-	// Every HullDefinition and StationLayout the registry has loaded.
+	// Every PadClassDefinition, HullDefinition and StationLayout the registry has loaded, in that
+	// order.
 	void Define(const Sim::DefinitionRegistry &definitions);
+
+	const PadClassDefinition *FindPadClass(std::string_view name) const;
+
+	const PadClasses &DefinedPadClasses() const
+	{
+		return m_padClasses;
+	}
+
+	// Whether a hull lands on a pad of that class: its own, or one ranked above it. A class not
+	// defined takes none.
+	bool Fits(const HullDefinition &hull, std::string_view padClass) const;
 
 	const HullDefinition *FindHull(std::string_view name) const;
 
@@ -434,6 +463,7 @@ class Docks
 	static double RestingHeight(const HullDefinition &hull);
 
 	Physics::PhysicsWorld &m_physics;
+	PadClasses m_padClasses;
 	std::map<std::string, HullDefinition, std::less<>> m_hulls;
 	std::map<std::string, StationLayout, std::less<>> m_layouts;
 	std::map<std::string, RoadGraph, std::less<>> m_roads;

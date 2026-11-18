@@ -95,7 +95,7 @@ void Buy(
 	const Sim::ReasonArgument at = Sim::ReasonArgument::Entity(command.station);
 	if (!FleetDockedAt(registry, command.sender, command.station))
 		return refuse(TradeReason::NoneDocked, {at});
-	const entt::entity pad = App::FreePad(registry, command.station, *hull);
+	const entt::entity pad = App::FreePad(registry, docks, command.station, *hull);
 	if (pad == entt::null)
 		return refuse(
 		    TradeReason::NoPadFree,

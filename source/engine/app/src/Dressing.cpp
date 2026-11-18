@@ -199,10 +199,11 @@ void Digit(
 
 
 // The paint on a pad, in its axes: x across, z along with the bow at -Z.
-void Paint(entt::registry &scene, entt::entity pad, const Dock::PadLayout &layout, unsigned number)
+void Paint(
+    entt::registry &scene, entt::entity pad, const Dock::PadClassDefinition &padClass, unsigned number)
 {
-	const glm::vec2 size = Dock::PadSize(layout.padClass);
-	const glm::vec3 largest = Dock::LargestHull(layout.padClass);
+	const glm::vec2 size = padClass.padSize;
+	const glm::vec3 largest = padClass.largestHull;
 	const float width = size.x * 0.012f;
 	const glm::vec2 half = size * 0.5f - glm::vec2{width * 2.0f};
 	Outline(scene, pad, {0.0f, 0.0f}, half, width, kLineColour);
@@ -233,7 +234,7 @@ void Paint(entt::registry &scene, entt::entity pad, const Dock::PadLayout &layou
 
 	// The keep-clear box over where a hatch is, aft of the middle under the hull, with its diagonals.
 	const glm::vec2 keepClear{largest.y * 0.2f, largest.x * 0.1f};
-	const glm::vec2 hatchAt{0.0f, largest.x * 0.21f};
+	const glm::vec2 hatchAt{0.0f, Dock::HatchAft(padClass)};
 	Outline(scene, pad, hatchAt, keepClear, width, kKeepClearColour);
 	Line(scene, pad, hatchAt - keepClear, hatchAt + keepClear, width, kKeepClearColour);
 	Line(
@@ -250,11 +251,11 @@ void Paint(entt::registry &scene, entt::entity pad, const Dock::PadLayout &layou
 
 // The floodlight poles along a pad's long sides, in its axes, and their lamps. Returns the lamps.
 std::vector<entt::entity> Floodlights(
-    entt::registry &scene, entt::entity pad, const Dock::PadLayout &layout, bool display,
+    entt::registry &scene, entt::entity pad, const Dock::PadClassDefinition &padClass, bool display,
     std::size_t &floodlights)
 {
-	const glm::vec2 size = Dock::PadSize(layout.padClass);
-	const glm::vec3 largest = Dock::LargestHull(layout.padClass);
+	const glm::vec2 size = padClass.padSize;
+	const glm::vec3 largest = padClass.largestHull;
 	const float out = size.x * 0.04f;
 	const float radius = size.x * 0.008f;
 	const float height = largest.z * 1.25f + 1.0f;
@@ -553,16 +554,16 @@ std::vector<ProxyPart> ExtraLargeProxy()
 }
 
 
-std::vector<ProxyPart> ProxyOf(Dock::PadClass padClass)
+// The space sample's classes have a proxy each; a game's own classes are drawn as an M's.
+std::vector<ProxyPart> ProxyOf(std::string_view padClass)
 {
-	switch (padClass)
-	{
-		case Dock::PadClass::S: return SmallProxy();
-		case Dock::PadClass::M: return MediumProxy();
-		case Dock::PadClass::L: return LargeProxy();
-		case Dock::PadClass::XL: return ExtraLargeProxy();
-	}
-	return {};
+	if (padClass == "S")
+		return SmallProxy();
+	if (padClass == "L")
+		return LargeProxy();
+	if (padClass == "XL")
+		return ExtraLargeProxy();
+	return MediumProxy();
 }
 
 // One clamp of a pad's, stowed as the clip leaves it: put away at no size, its post flat in the deck
@@ -702,18 +703,20 @@ StationDressing DressStation(
 		const auto number = static_cast<unsigned>(index + 1);
 		const entt::entity node =
 		    Node(scene, station, pad.position, SceneRotation(Dock::PadOrientation(pad)));
-		const glm::vec2 size = Dock::PadSize(pad.padClass);
+		// The layout was checked against the classes defined (Dock::CheckLayout).
+		const Dock::PadClassDefinition &padClass = *docks.FindPadClass(pad.padClass);
+		const glm::vec2 size = padClass.padSize;
 		Part(
 		    scene, node, glm::dvec3{0.0}, {}, {size.x * 0.5f, kPadThickness * 0.5f, size.y * 0.5f},
 		    {Scene::Shape::Box, kPadColour, {}, {}});
-		Paint(scene, node, pad, number);
-		dressing.lamps.push_back(Floodlights(scene, node, pad, pad.display, dressing.floodlights));
+		Paint(scene, node, padClass, number);
+		dressing.lamps.push_back(Floodlights(scene, node, padClass, pad.display, dressing.floodlights));
 		dressing.clamps.push_back(Clamps(scene, node));
 
 		if (pad.ship.empty())
 			continue;
 		const Dock::HullDefinition *hull = docks.FindHull(pad.ship);
-		if (!hull || hull->pad > pad.padClass)
+		if (!hull || !docks.Fits(*hull, pad.padClass))
 		{
 			Core::Log(
 			    Core::Severity::Warning, kDressing,
@@ -738,7 +741,7 @@ StationDressing DressStation(
 
 	// The roads' lane dividers, on the deck between their nodes; a pad's own centre line is its
 	// paint's.
-	const Dock::RoadGraph roads = Dock::Roads(layout);
+	const Dock::RoadGraph roads = Dock::Roads(layout, docks.DefinedPadClasses());
 	for (const auto &[from, to] : roads.edges)
 	{
 		if (roads.nodes[from].kind == Dock::RoadNodeKind::Hatch ||
@@ -762,7 +765,7 @@ StationDressing DressStation(
 		{
 			if (pad.display)
 				continue;
-			const glm::vec2 size = Dock::PadSize(pad.padClass);
+			const glm::vec2 size = docks.FindPadClass(pad.padClass)->padSize;
 			const glm::dquat turn = Dock::PadOrientation(pad);
 			for (std::uint32_t index = 0; index < layout.traffic.buggies; ++index)
 			{
@@ -825,15 +828,17 @@ std::size_t ShowPadStates(
 			const auto *hull = snapshot.Get<Dock::Hull>(ship);
 			const Dock::HullDefinition *definition = hull ? docks.FindHull(hull->definition) : nullptr;
 			Dock::HullDefinition largest;
-			if (definition == nullptr)
+			const Dock::PadClassDefinition *padClass = docks.FindPadClass(pad.padClass);
+			if (definition == nullptr && padClass != nullptr)
 			{
-				const glm::vec3 size = Dock::LargestHull(pad.padClass);
+				const glm::vec3 size = padClass->largestHull;
 				largest.beam = size.y;
 				largest.height = size.z;
 				largest.length = size.x;
 				definition = &largest;
 			}
-			FitClamps(scene, clamps, *definition);
+			if (definition != nullptr)
+				FitClamps(scene, clamps, *definition);
 		}
 		PlayClamps(scene, clamps, closed, atEnd);
 		clamps.closed = closed;

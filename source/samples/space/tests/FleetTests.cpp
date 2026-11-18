@@ -49,7 +49,8 @@ entt::entity FirstShip(Galaxy &galaxy, std::int64_t credits = 250000)
 	registry.emplace<Sim::Helm>(ship, kPlayer);
 	Sample::MakeOwner(registry, kPlayer, credits);
 	galaxy.docks.Park(
-	    galaxy.world, ship, App::FreePad(registry, station, *galaxy.docks.FindHull("shuttle")));
+	    galaxy.world, ship,
+	    App::FreePad(registry, galaxy.docks, station, *galaxy.docks.FindHull("shuttle")));
 	return ship;
 }
 } // namespace

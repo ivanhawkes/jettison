@@ -1172,6 +1172,8 @@ void Application::InitResources()
 	m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
 	m_pScripts->SendCommandsTo(m_sim);
 	m_pScripts->LoadAll(*m_definitions);
+	m_definitions->Load<Dock::PadClassDefinition>(
+	    Dock::kPadClassDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
 	m_definitions->Load<Dock::HullDefinition>(
 	    Dock::kHullDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
 	m_definitions->Load<Dock::StationLayout>(
@@ -2791,23 +2793,15 @@ void Application::SpawnShip()
 	// towards it.
 	const auto *station = world.try_get<Dock::Station>(m_station);
 	const Dock::HullDefinition *hull = m_pDocks->FindHull(kShipHull);
-	const auto pad = station && hull ? std::ranges::find_if(
-	                                       station->pads,
-	                                       [&](entt::entity entity)
-	                                       {
-		                                       const Dock::Pad &found = world.get<Dock::Pad>(entity);
-		                                       return found.state == Dock::PadState::Free &&
-		                                              !found.display && found.padClass >= hull->pad;
-	                                       })
-	                                 : std::vector<entt::entity>::const_iterator{};
-	if (station && hull && pad != station->pads.end())
+	const entt::entity pad = station && hull ? FreePad(world, *m_pDocks, m_station, *hull) : entt::null;
+	if (pad != entt::null)
 	{
-		m_pDocks->Park(m_sim, m_ship, *pad);
+		m_pDocks->Park(m_sim, m_ship, pad);
 		m_docked = true;
 		Core::Log(
 		    Core::Severity::Info, kShell,
 		    "The ship is docked on pad {} of {}: undock lifts it clear, and P flies it",
-		    world.get<Dock::Pad>(*pad).number, m_stationBody);
+		    world.get<Dock::Pad>(pad).number, m_stationBody);
 	}
 	else
 	{

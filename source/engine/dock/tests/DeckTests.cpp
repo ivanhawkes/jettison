@@ -14,7 +14,6 @@
 #include <vector>
 
 using namespace Jettison;
-using Dock::PadClass;
 using DockTests::Fixture;
 
 namespace
@@ -161,12 +160,12 @@ TEST_CASE("Deck: a layout with a pad no road reaches from a bay is refused")
 	Dock::StationLayout layout;
 	layout.decks = {
 	    {{0.0, 0.0, 0.0}, {200.0, 20.0, 200.0}}, {{150.0, 10.0, 0.0}, {100.0, 40.0, 100.0}}};
-	layout.pads = {{PadClass::M, {0.0, 10.0, 0.0}}};
+	layout.pads = {{"M", {0.0, 10.0, 0.0}}};
 	layout.bays = {{{150.0, 30.0, 0.0}, {0.0, 1.0, 0.0}}};
 	std::string refusal;
 	try
 	{
-		Dock::CheckLayout("terrace", layout);
+		Dock::CheckLayout("terrace", layout, DockTests::SampleClasses());
 	}
 	catch (const Serialise::FormatError &error)
 	{
@@ -176,11 +175,12 @@ TEST_CASE("Deck: a layout with a pad no road reaches from a bay is refused")
 
 	// The bay on the deck's top beside the pad's stern reaches it.
 	layout.bays = {{{0.0, 10.0, 80.0}, {0.0, 1.0, 0.0}}};
-	CHECK_NOTHROW(Dock::CheckLayout("terrace", layout));
-	CHECK(Dock::Roads(layout).pads[0].reached);
+	CHECK_NOTHROW(Dock::CheckLayout("terrace", layout, DockTests::SampleClasses()));
+	CHECK(Dock::Roads(layout, DockTests::SampleClasses()).pads[0].reached);
 
 	layout.traffic.cratesPerTrip = 0;
-	CHECK_THROWS_AS(Dock::CheckLayout("terrace", layout), Serialise::FormatError);
+	CHECK_THROWS_AS(
+	    Dock::CheckLayout("terrace", layout, DockTests::SampleClasses()), Serialise::FormatError);
 }
 
 
@@ -313,10 +313,11 @@ TEST_CASE("Deck: parked buggies, the cargo moved at the rate working ones would 
 TEST_CASE("Deck: a station with no bays has its cargo aboard at once")
 {
 	Fixture fixture{false};
-	fixture.docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, PadClass::S, {}});
+	fixture.docks.DefinePadClass("S", DockTests::SampleClasses().at("S"));
+	fixture.docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "S", {}});
 	Dock::StationLayout slab;
 	slab.decks = {{{0.0, 0.0, 0.0}, {200.0, 20.0, 200.0}}};
-	slab.pads = {{PadClass::S, {0.0, 10.0, 0.0}}};
+	slab.pads = {{"S", {0.0, 10.0, 0.0}}};
 	fixture.docks.DefineLayout("slab", slab);
 	const entt::entity station =
 	    fixture.docks.MakeStation(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "slab");
@@ -376,7 +377,8 @@ TEST_CASE(
 	CHECK(run(unused, -1) == first);
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too, as
 	// the approach's is: a change here is a change to how buggies drive, or to what a save holds.
-	CHECK(first == 0xa94877d2618f8e46ull);
+	// Re-pinned in W01 for a pad's class saved as its name, as the approach's was.
+	CHECK(first == 0xa89f23996f498b22ull);
 
 	Deck loaded;
 	loaded.world.Load(*save);

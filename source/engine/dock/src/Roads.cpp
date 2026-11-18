@@ -82,9 +82,16 @@ std::pair<glm::dvec3, glm::dvec3> PadAxes(const PadLayout &pad)
 }
 
 
+glm::vec2 SizeOf(const PadClasses &classes, const PadLayout &pad)
+{
+	return PadClassOf(classes, pad.padClass, "a pad of a layout").padSize;
+}
+
+
 // Whether a straight leg from a to b, both at the deck's height, lies on the tops of the
 // structure's boxes there the whole way, through none of them, and across no pad.
-bool Clear(const StationLayout &layout, const glm::dvec3 &a, const glm::dvec3 &b)
+bool Clear(
+    const StationLayout &layout, const PadClasses &classes, const glm::dvec3 &a, const glm::dvec3 &b)
 {
 	const double height = a.y;
 	const double length = glm::length(Flat(b) - Flat(a));
@@ -130,7 +137,7 @@ bool Clear(const StationLayout &layout, const glm::dvec3 &a, const glm::dvec3 &b
 			const glm::dvec3 offset = point - pad.position;
 			return glm::dvec2{glm::dot(offset, across), glm::dot(offset, back)};
 		};
-		const glm::dvec2 half = glm::dvec2{PadSize(pad.padClass)} * 0.5 - kTolerance;
+		const glm::dvec2 half = glm::dvec2{SizeOf(classes, pad)} * 0.5 - kTolerance;
 		if (const auto part = Clip(local(a), local(b), -half, half);
 		    part && part->second - part->first > slack)
 			return false;
@@ -148,7 +155,7 @@ struct Road
 };
 
 
-std::optional<Road> PierRoad(const StationLayout &layout, const Box &pier)
+std::optional<Road> PierRoad(const StationLayout &layout, const PadClasses &classes, const Box &pier)
 {
 	const bool alongX = pier.size.x >= pier.size.z;
 	const glm::dvec3 along = alongX ? glm::dvec3{1.0, 0.0, 0.0} : glm::dvec3{0.0, 0.0, 1.0};
@@ -168,7 +175,7 @@ std::optional<Road> PierRoad(const StationLayout &layout, const Box &pier)
 		    offset.z > pier.size.z * 0.5)
 			continue;
 		const auto [across, back] = PadAxes(pad);
-		const glm::dvec2 size = PadSize(pad.padClass);
+		const glm::dvec2 size = SizeOf(classes, pad);
 		const double reach = std::abs(glm::dot(across, side)) * size.x * 0.5 +
 		                     std::abs(glm::dot(back, side)) * size.y * 0.5;
 		const double at = glm::dot(pad.position, side);
@@ -219,13 +226,13 @@ Ai::NodeId Add(RoadGraph &roads, const glm::dvec3 &position, RoadNodeKind kind, 
 } // namespace
 
 
-float HatchAft(PadClass padClass)
+float HatchAft(const PadClassDefinition &padClass)
 {
-	return LargestHull(padClass).x * 0.21f;
+	return padClass.largestHull.x * 0.21f;
 }
 
 
-RoadGraph Roads(const StationLayout &layout)
+RoadGraph Roads(const StationLayout &layout, const PadClasses &classes)
 {
 	RoadGraph roads;
 	roads.pads.resize(layout.pads.size());
@@ -243,10 +250,13 @@ RoadGraph Roads(const StationLayout &layout)
 		const glm::dvec3 back = -pad.heading;
 		PadRoad &road = roads.pads[index];
 		road.apron =
-		    Add(roads, pad.position + back * (double{PadSize(pad.padClass).y} * 0.5),
+		    Add(roads, pad.position + back * (double{SizeOf(classes, pad).y} * 0.5),
 		        RoadNodeKind::Apron, index);
-		road.hatch = Add(
-		    roads, pad.position + back * double{HatchAft(pad.padClass)}, RoadNodeKind::Hatch, index);
+		road.hatch =
+		    Add(roads,
+		        pad.position +
+		            back * double{HatchAft(PadClassOf(classes, pad.padClass, "a pad of a layout"))},
+		        RoadNodeKind::Hatch, index);
 		Join(roads, road.apron, road.hatch);
 		aprons.push_back(road.apron);
 	}
@@ -254,7 +264,7 @@ RoadGraph Roads(const StationLayout &layout)
 	// The legs that join each bay and apron to a pier's road, and each bay to each apron.
 	std::vector<Road> piers;
 	for (const Box &pier : layout.piers)
-		if (std::optional<Road> road = PierRoad(layout, pier))
+		if (std::optional<Road> road = PierRoad(layout, classes, pier))
 			piers.push_back(std::move(*road));
 	std::vector<Ai::NodeId> joiners = roads.bays;
 	joiners.insert(joiners.end(), aprons.begin(), aprons.end());
@@ -267,14 +277,14 @@ RoadGraph Roads(const StationLayout &layout)
 			const double length = glm::length(way);
 			const double along = std::clamp(glm::dot(from - road.start, way / length), 0.0, length);
 			const glm::dvec3 to = road.start + way * (along / length);
-			if (glm::distance(from, to) >= kShortest && Clear(layout, from, to))
+			if (glm::distance(from, to) >= kShortest && Clear(layout, classes, from, to))
 				road.joins.emplace_back(along, joiner);
 		}
 	}
 	for (const Ai::NodeId bay : roads.bays)
 		for (const Ai::NodeId apron : aprons)
 			if (Distance(roads, bay, apron) >= kShortest &&
-			    Clear(layout, roads.nodes[bay].position, roads.nodes[apron].position))
+			    Clear(layout, classes, roads.nodes[bay].position, roads.nodes[apron].position))
 				Join(roads, bay, apron);
 
 	// Each road's nodes where legs join it, in order along it, one too near the last being that one.
@@ -295,7 +305,7 @@ RoadGraph Roads(const StationLayout &layout)
 			}
 			const glm::dvec3 &at = roads.nodes[last->second].position;
 			if (Distance(roads, joiner, last->second) >= kShortest &&
-			    Clear(layout, roads.nodes[joiner].position, at))
+			    Clear(layout, classes, roads.nodes[joiner].position, at))
 				Join(roads, joiner, last->second);
 		}
 	}

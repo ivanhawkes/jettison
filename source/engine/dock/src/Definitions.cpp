@@ -65,9 +65,8 @@ std::array<glm::dvec3, 3> PadAxes(const PadLayout &pad)
 
 // The space from `from` to `to` above the pad along its normal, over its footprint, less the
 // shrink on every side.
-Oriented Above(const PadLayout &pad, double from, double to, double shrink)
+Oriented Above(const PadLayout &pad, glm::vec2 size, double from, double to, double shrink)
 {
-	const glm::vec2 size = PadSize(pad.padClass);
 	Oriented oriented;
 	oriented.axes = PadAxes(pad);
 	oriented.centre = pad.position + pad.normal * ((from + to) * 0.5);
@@ -129,40 +128,44 @@ std::string PadName(std::size_t index)
 } // namespace
 
 
-glm::vec3 LargestHull(PadClass padClass)
+const PadClassDefinition &PadClassOf(
+    const PadClasses &classes, std::string_view padClass, std::string_view namedBy)
 {
-	switch (padClass)
-	{
-		case PadClass::S: return {25.0f, 20.0f, 8.0f};
-		case PadClass::M: return {60.0f, 30.0f, 15.0f};
-		case PadClass::L: return {140.0f, 50.0f, 30.0f};
-		case PadClass::XL: return {300.0f, 80.0f, 60.0f};
-	}
-	return {};
+	const auto found = classes.find(padClass);
+	if (found == classes.end())
+		throw Serialise::FormatError{
+		    std::format("{} names pad class '{}', which is not defined", namedBy, padClass)};
+	return found->second;
 }
 
 
-glm::vec2 PadSize(PadClass padClass)
+void CheckPadClass(std::string_view name, const PadClassDefinition &padClass)
 {
-	switch (padClass)
-	{
-		case PadClass::S: return {35.0f, 40.0f};
-		case PadClass::M: return {50.0f, 90.0f};
-		case PadClass::L: return {80.0f, 180.0f};
-		case PadClass::XL: return {120.0f, 360.0f};
-	}
-	return {};
+	constexpr std::string_view kWhat = "Pad class";
+	const glm::vec3 &hull = padClass.largestHull;
+	const glm::vec2 &pad = padClass.padSize;
+	for (const float size : {hull.x, hull.y, hull.z, pad.x, pad.y})
+		if (!(size > 0.0f) || !std::isfinite(size))
+			Refuse(kWhat, name, "has a largest hull or a pad that is not of positive size");
+	if (hull.y > pad.x || hull.x > pad.y)
+		Refuse(
+		    kWhat, name,
+		    std::format(
+		        "has a largest hull of {} x {} m, length by beam, that its {} x {} m pad, width by "
+		        "length, does not hold",
+		        hull.x, hull.y, pad.x, pad.y));
 }
 
 
-void CheckHull(std::string_view name, const HullDefinition &hull)
+void CheckHull(std::string_view name, const HullDefinition &hull, const PadClasses &classes)
 {
 	constexpr std::string_view kWhat = "Hull";
 	const glm::vec3 size{hull.length, hull.beam, hull.height};
 	for (glm::length_t index = 0; index < 3; ++index)
 		if (!(size[index] > 0.0f) || !std::isfinite(size[index]))
 			Refuse(kWhat, name, "has a length, beam or height that is not a positive size");
-	const glm::vec3 largest = LargestHull(hull.pad);
+	const glm::vec3 largest =
+	    PadClassOf(classes, hull.pad, std::format("{} '{}'", kWhat, name)).largestHull;
 	if (hull.length > largest.x || hull.beam > largest.y || hull.height > largest.z)
 		Refuse(
 		    kWhat, name,
@@ -192,7 +195,7 @@ double Radius(const StationLayout &layout)
 }
 
 
-void CheckLayout(std::string_view name, const StationLayout &layout)
+void CheckLayout(std::string_view name, const StationLayout &layout, const PadClasses &classes)
 {
 	constexpr std::string_view kWhat = "Station layout";
 	const std::vector<Box> boxes = Structure(layout);
@@ -224,7 +227,8 @@ void CheckLayout(std::string_view name, const StationLayout &layout)
 		// All of it on the structure: its middle, its corners and the middles of its sides each
 		// just under its face in a deck or a pier, and its middle not inside one.
 		const std::array<glm::dvec3, 3> axes = PadAxes(pad);
-		const glm::vec2 size = PadSize(pad.padClass);
+		const glm::vec2 size =
+		    PadClassOf(classes, pad.padClass, std::format("{} '{}': {}", kWhat, name, padName)).padSize;
 		for (const double across : {-0.5, 0.0, 0.5})
 			for (const double along : {-0.5, 0.0, 0.5})
 			{
@@ -238,14 +242,17 @@ void CheckLayout(std::string_view name, const StationLayout &layout)
 			Refuse(kWhat, name, padName + " is under a deck or a pier, not on one");
 
 		// Clear above, from just over its face to beyond anything of the station.
-		const Oriented column = Above(pad, kProbe, kProbe + 2.0 * radius, kTouching);
+		const Oriented column = Above(pad, size, kProbe, kProbe + 2.0 * radius, kTouching);
 		if (std::ranges::any_of(
 		        boxes, [&](const Box &box) { return Overlap(column, Square(box, kTouching)); }))
 			Refuse(kWhat, name, padName + " has the station over it");
 
-		const Oriented footprint = Above(pad, -kProbe, kProbe, kTouching);
+		const Oriented footprint = Above(pad, size, -kProbe, kProbe, kTouching);
 		for (std::size_t other = 0; other < index; ++other)
-			if (Overlap(footprint, Above(layout.pads[other], -kProbe, kProbe, kTouching)))
+			if (Overlap(
+			        footprint, Above(
+			                       layout.pads[other], classes.at(layout.pads[other].padClass).padSize,
+			                       -kProbe, kProbe, kTouching)))
 				Refuse(kWhat, name, std::format("{} overlaps {}", padName, PadName(other)));
 	}
 	for (const Bay &bay : layout.bays)
@@ -260,7 +267,7 @@ void CheckLayout(std::string_view name, const StationLayout &layout)
 		    "has deck traffic of no buggies, no crates a trip or a speed that is not a positive one");
 	if (layout.bays.empty())
 		return;
-	const RoadGraph roads = Roads(layout);
+	const RoadGraph roads = Roads(layout, classes);
 	for (std::size_t index = 0; index < layout.pads.size(); ++index)
 		if (!layout.pads[index].display && !roads.pads[index].reached)
 			Refuse(kWhat, name, PadName(index) + " is not reached by road from a cargo bay");

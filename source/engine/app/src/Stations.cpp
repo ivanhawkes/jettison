@@ -105,7 +105,8 @@ std::vector<entt::entity> OpenGates(
 
 
 entt::entity FreePad(
-    const entt::registry &registry, entt::entity station, const Dock::HullDefinition &hull)
+    const entt::registry &registry, const Dock::Docks &docks, entt::entity station,
+    const Dock::HullDefinition &hull)
 {
 	const auto *built = registry.try_get<Dock::Station>(station);
 	if (!built)
@@ -113,7 +114,7 @@ entt::entity FreePad(
 	// The station's pads are in their numbers' order.
 	for (const entt::entity entity : built->pads)
 		if (const Dock::Pad &pad = registry.get<Dock::Pad>(entity);
-		    pad.state == Dock::PadState::Free && !pad.display && pad.padClass >= hull.pad)
+		    pad.state == Dock::PadState::Free && !pad.display && docks.Fits(hull, pad.padClass))
 			return entity;
 	return entt::null;
 }

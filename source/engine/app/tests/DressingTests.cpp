@@ -62,6 +62,8 @@ struct Dressed
 			Space::DefineStarSystem(physics, system);
 		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
+		definitions.Load<Dock::PadClassDefinition>(
+		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
 		docks.Define(definitions);
@@ -218,8 +220,9 @@ TEST_CASE(
 			if (parent.entity == nodes[index] && transform.translation == glm::dvec3{0.0} &&
 			    scene.all_of<Scene::MeshComponent>(entity))
 			{
-				CHECK(transform.scale.x == doctest::Approx(Dock::PadSize(pad.padClass).x * 0.5f));
-				CHECK(transform.scale.z == doctest::Approx(Dock::PadSize(pad.padClass).y * 0.5f));
+				const glm::vec2 size = dressed.docks.FindPadClass(pad.padClass)->padSize;
+				CHECK(transform.scale.x == doctest::Approx(size.x * 0.5f));
+				CHECK(transform.scale.z == doctest::Approx(size.y * 0.5f));
 				++plates;
 			}
 		CHECK(plates == 1);
@@ -245,13 +248,8 @@ TEST_CASE(
 	for (std::size_t index = 0; index < layout.pads.size(); ++index)
 	{
 		const std::size_t poles = dressing.lamps[index].size();
-		switch (layout.pads[index].padClass)
-		{
-			case Dock::PadClass::S: CHECK(poles == 4); break;
-			case Dock::PadClass::M: CHECK(poles == 4); break;
-			case Dock::PadClass::L: CHECK(poles == 6); break;
-			case Dock::PadClass::XL: CHECK(poles == 8); break;
-		}
+		const std::string &padClass = layout.pads[index].padClass;
+		CHECK(poles == (padClass == "L" ? 6 : padClass == "XL" ? 8 : 4));
 		for (const entt::entity lamp : dressing.lamps[index])
 		{
 			CHECK(LayerOf(scene, lamp) == Scene::Layer::Effects);
@@ -687,11 +685,12 @@ TEST_CASE("Dressing: a station whose buggies are parked shows them across each p
 		for (const Dock::PadLayout &pad : layout.pads)
 		{
 			const glm::dvec3 local = glm::conjugate(Dock::PadOrientation(pad)) * (at - pad.position);
-			const glm::vec2 size = Dock::PadSize(pad.padClass);
+			const Dock::PadClassDefinition &padClass = *dressed.docks.FindPadClass(pad.padClass);
+			const glm::vec2 size = padClass.padSize;
 			// On the plate, behind where the largest hull's stern is.
 			if (std::abs(local.x) < size.x * 0.5 && std::abs(local.z) < size.y * 0.5)
 			{
-				CHECK(local.z > Dock::LargestHull(pad.padClass).x * 0.5 + 1.2);
+				CHECK(local.z > padClass.largestHull.x * 0.5 + 1.2);
 				++onPads;
 			}
 		}

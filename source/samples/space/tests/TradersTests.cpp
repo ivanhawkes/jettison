@@ -231,7 +231,8 @@ TEST_CASE(
 					const glm::dvec3 at =
 					    glm::conjugate(pad.orientation) * (contact.point - pad.position);
 					const glm::vec2 size =
-					    Dock::PadSize(registry.get<Dock::Pad>(docking->pad).padClass);
+					    galaxy.docks.FindPadClass(registry.get<Dock::Pad>(docking->pad).padClass)
+					        ->padSize;
 					if (std::abs(at.y) < 0.5 && std::abs(at.x) < size.x / 2.0 &&
 					    std::abs(at.z) < size.y / 2.0)
 					{
@@ -385,6 +386,7 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 	for (int step = 0; step < kSteps; ++step)
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
-	// The same in every build: pinned in Debug, and checked in Release.
-	CHECK(original.world.StateHash() == 0xcf3b48260ad2a1c1ULL);
+	// The same in every build: pinned in Debug, and checked in Release. Re-pinned in W01 for a pad's
+	// class saved as its name, the old build's saves loaded and saved again the same.
+	CHECK(original.world.StateHash() == 0x9c40dc69a6171b4cULL);
 }

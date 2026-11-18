@@ -1,0 +1,7 @@
+# The largest transport's pad.
+# A pad class of the docks (Dock.PadClassDefinition): metres, a hull length by beam by height
+# and a pad width by length.
+version: 1
+rank: 2
+largestHull: [140, 50, 30]
+padSize: [80, 180]

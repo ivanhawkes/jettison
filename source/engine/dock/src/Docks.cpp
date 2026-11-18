@@ -69,12 +69,6 @@ std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
 }
 
 
-bool Fits(const HullDefinition &hull, const Pad &pad)
-{
-	return !pad.display && pad.padClass >= hull.pad;
-}
-
-
 // The ship's steering, as it keeps clear, given it by default if it has none: the docks fly it.
 const Ai::Steered &Steer(entt::registry &registry, entt::entity ship)
 {
@@ -149,9 +143,18 @@ std::string Docks::StationShape(std::string_view layout)
 }
 
 
+void Docks::DefinePadClass(std::string name, PadClassDefinition padClass)
+{
+	CheckPadClass(name, padClass);
+	if (m_padClasses.contains(name))
+		throw std::invalid_argument{std::format("Dock: pad class '{}' is already defined", name)};
+	m_padClasses.emplace(std::move(name), padClass);
+}
+
+
 void Docks::DefineHull(std::string name, HullDefinition hull)
 {
-	CheckHull(name, hull);
+	CheckHull(name, hull, m_padClasses);
 	if (m_hulls.contains(name))
 		throw std::invalid_argument{std::format("Dock: hull '{}' is already defined", name)};
 	Physics::ShapeDefinition shape;
@@ -164,21 +167,38 @@ void Docks::DefineHull(std::string name, HullDefinition hull)
 
 void Docks::DefineLayout(std::string name, StationLayout layout)
 {
-	CheckLayout(name, layout);
+	CheckLayout(name, layout, m_padClasses);
 	if (m_layouts.contains(name))
 		throw std::invalid_argument{std::format("Dock: station layout '{}' is already defined", name)};
 	m_physics.DefineShape(StationShape(name), DeckShape(layout));
-	m_roads.emplace(name, Roads(layout));
+	m_roads.emplace(name, Roads(layout, m_padClasses));
 	m_layouts.emplace(std::move(name), std::move(layout));
 }
 
 
 void Docks::Define(const Sim::DefinitionRegistry &definitions)
 {
+	for (const std::string &name : definitions.Names<PadClassDefinition>())
+		DefinePadClass(name, *definitions.Find<PadClassDefinition>(name));
 	for (const std::string &name : definitions.Names<HullDefinition>())
 		DefineHull(name, *definitions.Find<HullDefinition>(name));
 	for (const std::string &name : definitions.Names<StationLayout>())
 		DefineLayout(name, *definitions.Find<StationLayout>(name));
+}
+
+
+const PadClassDefinition *Docks::FindPadClass(std::string_view name) const
+{
+	const auto found = m_padClasses.find(name);
+	return found == m_padClasses.end() ? nullptr : &found->second;
+}
+
+
+bool Docks::Fits(const HullDefinition &hull, std::string_view padClass) const
+{
+	const PadClassDefinition *pad = FindPadClass(padClass);
+	const PadClassDefinition *own = FindPadClass(hull.pad);
+	return pad && own && pad->rank >= own->rank;
 }
 
 
@@ -254,8 +274,8 @@ void Docks::Park(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity
 		throw std::invalid_argument{"Dock: a ship is parked on a free pad that is not for display"};
 	const HullDefinition *hull = registry.valid(ship) ? HullOf(registry, ship) : nullptr;
 	const auto *body = hull ? registry.try_get<Physics::Body>(ship) : nullptr;
-	if (!body || body->kind != Physics::BodyKind::Dynamic || !Fits(*hull, *pad) ||
-	    SystemOf(registry, ship) != SystemOf(registry, pad->station))
+	if (!body || body->kind != Physics::BodyKind::Dynamic || pad->display ||
+	    !Fits(*hull, pad->padClass) || SystemOf(registry, ship) != SystemOf(registry, pad->station))
 		throw std::invalid_argument{
 		    "Dock: a ship parked is a dynamic body with a hull that fits the pad, in its system"};
 	registry.emplace_or_replace<Docking>(ship, Docking{pad->station, padEntity, Stage::Docked, false});
@@ -307,7 +327,12 @@ void Docks::Request(Sim::SimWorld &world, const RequestPad &command)
 	}
 	Station &station = registry.get<Station>(stationEntity);
 	if (std::ranges::none_of(
-	        station.pads, [&](entt::entity pad) { return Fits(*hull, registry.get<Pad>(pad)); }))
+	        station.pads,
+	        [&](entt::entity pad)
+	        {
+		        const Pad &candidate = registry.get<Pad>(pad);
+		        return !candidate.display && Fits(*hull, candidate.padClass);
+	        }))
 		return refuse(Reason::NoPadFits, {Sim::ReasonArgument::Entity(stationEntity)});
 
 	station.queue.push_back(ship);
@@ -477,10 +502,11 @@ entt::entity Docks::FreePadFor(
 	for (const entt::entity padEntity : station.pads)
 	{
 		const Pad &pad = registry.get<Pad>(padEntity);
-		if (pad.state != PadState::Free || !Fits(*hull, pad))
+		if (pad.state != PadState::Free || pad.display || !Fits(*hull, pad.padClass))
 			continue;
 		// In number order, so the first of a class is the lowest numbered.
-		if (best == entt::null || pad.padClass < registry.get<Pad>(best).padClass)
+		if (best == entt::null ||
+		    m_padClasses.at(pad.padClass).rank < m_padClasses.at(registry.get<Pad>(best).padClass).rank)
 			best = padEntity;
 	}
 	return best;

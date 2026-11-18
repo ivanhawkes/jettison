@@ -5,6 +5,8 @@
 #include <glm/vec3.hpp>
 
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -14,38 +16,42 @@
 
 namespace Jettison::Dock
 {
-// What a station's docks are made of, as data (docs/history.md, catalogue entry 31): the hulls that
-// land on its pads, and its layout, which a station in its system's file names
-// (Celestial::Body::layout). Both are definitions (Sim::DefinitionRegistry), so a mod adds a hull
-// or rebuilds a station, and a save names them and holds neither.
+// What a station's docks are made of, as data (docs/history.md, catalogue entry 31): the classes of
+// its pads, the hulls that land on them, and its layout, which a station in its system's file names
+// (Celestial::Body::layout). All are definitions (Sim::DefinitionRegistry), so a mod adds a pad
+// class or a hull or rebuilds a station, and a save names them and holds none.
 //
 // Axes are the station's and a hull's own, as Sim::Transform has them: a hull's nose is -Z, its
 // starboard +X and its top +Y, so its length is along Z, its beam along X and its height along Y.
 
-// A pad's size, and the largest hull of each class that lands on one. A hull lands on a pad of its
-// class or larger.
-enum class PadClass : std::uint8_t
+// A class of pad (Manifest's D-044: a berth's size is the game's data, not the engine's): the largest
+// hull that lands on one, length by beam by height in metres; a pad's width (across its heading) and
+// length (along it), with room on each side of that hull for a clamp's reach and a road beside it;
+// and its rank among the classes. A hull lands on a pad of its own class or of one ranked above it,
+// so one too large for a class is never given its pads. defs/pads/<name>.yaml; the space sample's
+// are S, M, L and XL, a fighter's to a liner's. Registered with Reflect as "Dock.PadClassDefinition",
+// every field Saved and Moddable, by RegisterTypes.
+struct PadClassDefinition
 {
-	S,
-	M,
-	L,
-	// Display bays only: no ship is given one (scope).
-	XL
+	std::uint32_t rank{0};
+	glm::vec3 largestHull{0.0f};
+	glm::vec2 padSize{0.0f};
+
+	bool operator==(const PadClassDefinition &) const = default;
 };
 
-// The largest hull of a class, length by beam by height, in metres: S a fighter's 25 x 20 x 8, M a
-// transport's 60 x 30 x 15, L the largest transport's 140 x 50 x 30, XL a liner's 300 x 80 x 60.
-glm::vec3 LargestHull(PadClass padClass);
+// The pad classes defined, by name.
+using PadClasses = std::map<std::string, PadClassDefinition, std::less<>>;
 
-// A pad of the class, its width (across its heading) and length (along it): S 35 x 40, M 50 x 90,
-// L 80 x 180, XL 120 x 360. Room on each side of the largest hull for a clamp's reach and a buggy's
-// road beside it.
-glm::vec2 PadSize(PadClass padClass);
+// The class of that name. Throws Serialise::FormatError for one that is not defined, naming what
+// names it.
+const PadClassDefinition &PadClassOf(
+    const PadClasses &classes, std::string_view padClass, std::string_view namedBy);
 
 // How far aft of a pad's middle, along its centre line, the hatch of its class's largest hull is:
 // a fifth of that hull's length and a little more, where the dressing paints the keep-clear box and
 // the road graph's node for the pad's hatch is.
-float HatchAft(PadClass padClass);
+float HatchAft(const PadClassDefinition &padClass);
 
 // A hull: its size, the pad class it lands on, and where its cargo hatch is, in its own axes from
 // its centre, which the deck's buggies drive to. defs/hulls/<name>.yaml; its collision shape
@@ -60,7 +66,8 @@ struct HullDefinition
 	float length{10.0f};
 	float beam{6.0f};
 	float height{2.0f};
-	PadClass pad{PadClass::S};
+	// Its pad class's name.
+	std::string pad;
 	glm::vec3 hatch{0.0f};
 	std::string model{};
 	Space::CruiseDrive cruise{};
@@ -82,7 +89,8 @@ struct Box
 // Registered with Reflect as "Dock.PadLayout", every field Saved and Moddable.
 struct PadLayout
 {
-	PadClass padClass{PadClass::S};
+	// A pad class's name.
+	std::string padClass;
 	glm::dvec3 position{0.0};
 	glm::dvec3 normal{0.0, 1.0, 0.0};
 	glm::dvec3 heading{0.0, 0.0, -1.0};
@@ -131,22 +139,29 @@ struct StationLayout
 };
 
 inline constexpr std::uint32_t kDefinitionVersion = 1;
+inline constexpr std::string_view kPadClassDirectory = "defs/pads";
 inline constexpr std::string_view kHullDirectory = "defs/hulls";
 inline constexpr std::string_view kStationDirectory = "defs/stations";
 
-// Checks a hull, in the one place a file read and a hull made in code both go through: a size that
-// is positive and within its class's largest hull, and its hatch within it. Throws
-// Serialise::FormatError naming the hull.
-void CheckHull(std::string_view name, const HullDefinition &hull);
+// Checks a pad class: a largest hull and a pad of positive, finite size, the hull's beam within the
+// pad's width and its length within the pad's length. Throws Serialise::FormatError naming the
+// class.
+void CheckPadClass(std::string_view name, const PadClassDefinition &padClass);
+
+// Checks a hull, in the one place a file read and a hull made in code both go through: a pad class
+// of those defined, a size that is positive and within its class's largest hull, and its hatch
+// within it. Throws Serialise::FormatError naming the hull.
+void CheckHull(std::string_view name, const HullDefinition &hull, const PadClasses &classes);
 
 // Checks a layout the same way: boxes of positive size; at least one; each pad's normal and heading
 // of unit length and square to each other; each pad lying on the face of a deck or a pier, all of
 // it on the structure; no two pads overlapping; nothing of the station over any pad, between it
 // and the sphere about the station that holds it all (Radius), so a ship comes down onto it from
 // outside that sphere straight along its normal; deck traffic of a buggy or more a pad, a crate or
-// more a trip and a speed; and, for a layout with bays, every pad not for display reached by road
-// from one (Roads). Throws Serialise::FormatError naming the layout and what does not fit.
-void CheckLayout(std::string_view name, const StationLayout &layout);
+// more a trip and a speed; each pad of a class of those defined; and, for a layout with bays, every
+// pad not for display reached by road from one (Roads). Throws Serialise::FormatError naming the
+// layout and what does not fit.
+void CheckLayout(std::string_view name, const StationLayout &layout, const PadClasses &classes);
 
 // The radius of the smallest sphere about the station's centre holding its decks and piers.
 double Radius(const StationLayout &layout);
