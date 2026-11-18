@@ -13,7 +13,7 @@
 using namespace Jettison;
 
 
-TEST_CASE("Game: the shell with no game composed into it registers no market, trader or fleet")
+TEST_CASE("Game: the shell with no game composed into it registers no market, trader, fleet or ship")
 {
 	// The shell as Flotsam makes it: its world's systems attached, its commands and console's, and no
 	// game. Nothing of the space-trading sample is in this suite's link, so a type of the sample's
@@ -30,6 +30,8 @@ TEST_CASE("Game: the shell with no game composed into it registers no market, tr
 	}
 	// The shell's own world is registered all the same.
 	CHECK(Reflect::Resolve("Sim.Transform"));
+	// And it makes no ship, for the player or as traffic, of a hull no content need define.
+	CHECK_FALSE(App::Game{}.StarterShip());
 }
 
 

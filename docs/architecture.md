@@ -2006,13 +2006,13 @@ proves it headlessly. What exists:
 - **The game a program composes** (H05, `app/Game.h`). `RunRenderApplication` takes an `App::Game`,
   which the shell calls at its points: its types, commands and input actions as the shell is made,
   its definitions, what it builds on the docks, what it runs across the galaxy's systems, what it
-  parks at each station as the station is built and puts at them all once they are, the player's
-  first ship fitted, what an older save of it lacks, its console commands, its screens, input and
+  parks at each station as the station is built and puts at them all once they are, the hull the
+  player's first ship and the console's traffic are made of, that first ship fitted, what an older save of it lacks, its console commands, its screens, input and
   Escape, each step's event, a reason's words for its entities and identifiers, its ships in the
   fleet list, and the render test's game UI stage. It reads the shell through `App::Shell`: the
   world, the newest snapshot, the definitions, the player, the attached ship, its station and the
   system shown, and the game UI. With none, as Flotsam runs, the shell registers no market, trader
-  or fleet (`GameTests`). Jetsam and the render test compose the space sample.
+  or fleet, and makes no ship (`GameTests`). Jetsam and the render test compose the space sample.
 - **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md)):
   the first slice of Manifest's plan, as a game composed into the shell. Its reflected names keep
   their `Shell.` prefix, which saves and the scripts' bindings carry. Eight goods

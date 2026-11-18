@@ -52,6 +52,10 @@ class SpaceGame final : public App::Game
 	void StationsOpened(
 	    const App::ShellWorld &world, const Sim::DefinitionRegistry &definitions) override;
 
+	// The shuttle, about ten metres long as its proxy draws it, whose hull (defs/hulls/shuttle.yaml)
+	// is the proxy's bounds.
+	std::optional<App::ShellShip> StarterShip() const override;
+
 	// A small hauler's hold, fitted to trade once the player leaves its helm, and the player's credits,
 	// enough to fill most of the hold with what the station has to spare.
 	void FitShip(entt::registry &world, entt::entity ship, const Sim::Controller &player) override;

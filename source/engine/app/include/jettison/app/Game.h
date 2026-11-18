@@ -124,6 +124,12 @@ struct ShellWorld
 	Ai::Behaviours &behaviours;
 };
 
+struct ShellShip
+{
+	std::string hull;
+	float mass{0.0f};
+};
+
 // A game composed into the shell (RunRenderApplication): its types, definitions and world, its
 // commands and its UI, at the shell's points. The shell without one is the engine with no game: no
 // market, trader or fleet of the game's is registered, and nothing here is called. Every hook does
@@ -155,6 +161,10 @@ class Game
 	    Sim::SimWorld &world, Dock::Docks &docks, entt::entity station, std::string_view body);
 
 	virtual void StationsOpened(const ShellWorld &world, const Sim::DefinitionRegistry &definitions);
+
+	// The hull of the game's content the shell makes the player's first ship and the console's
+	// traffic of, and its mass in kilograms; with none, the default, it makes neither.
+	virtual std::optional<ShellShip> StarterShip() const;
 
 	// The player's first ship as the shell makes it, before they take its helm.
 	virtual void FitShip(entt::registry &world, entt::entity ship, const Sim::Controller &player);

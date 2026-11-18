@@ -98,11 +98,9 @@ constexpr Core::Category kShell{"shell"};
 // The scene a run of no --scene and no --system loads, by virtual path.
 constexpr std::string_view kDefaultScene = "scene/orbit.yaml";
 
-// The shell's ship: a shuttle about ten metres long, as its proxy draws it, whose hull
-// (defs/hulls/shuttle.yaml) is the proxy's bounds. At a station of no pads it holds 150 m off the
-// station's hull, nose towards it. Its pilot plays in the first slot, and its commands say so.
-constexpr std::string_view kShipHull = "shuttle";
-constexpr float kShipMass = 20000.0f;
+// The shell's ship, of the hull the game names (Game::StarterShip). At a station of no pads it holds
+// 150 m clear of the station's hull with its own, nose towards it. Its pilot plays in the first slot,
+// and its commands say so.
 constexpr double kShipStandOff = 150.0;
 constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
 
@@ -2773,6 +2771,12 @@ void Application::SpawnShip()
 {
 	if (m_ship != entt::null || !BindStation())
 		return;
+	const std::optional<ShellShip> kind = m_pGame->StarterShip();
+	if (!kind)
+	{
+		Core::Log(Core::Severity::Info, kShell, "The game names no ship, so the player has none");
+		return;
+	}
 	entt::registry &world = m_sim.Registry();
 	const Sim::Transform at = world.get<Sim::Transform>(m_station);
 
@@ -2781,7 +2785,7 @@ void Application::SpawnShip()
 	world.emplace<Sim::Transform>(m_ship, at);
 	world.emplace<Sim::InFrame>(m_ship, m_stationSystem);
 	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
-	MakeShip(world, *m_pDocks, m_ship, kShipHull, kShipMass, true);
+	MakeShip(world, *m_pDocks, m_ship, kind->hull, kind->mass, true);
 	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
 	world.emplace<Sim::ControlledBy>(m_ship, kPilot);
 	// The fleet's first ship, fitted by the game, at the player's helm.
@@ -2792,7 +2796,7 @@ void Application::SpawnShip()
 	// Docked on the lowest numbered free pad it fits; at a station of none, off its -Z end, nose
 	// towards it.
 	const auto *station = world.try_get<Dock::Station>(m_station);
-	const Dock::HullDefinition *hull = m_pDocks->FindHull(kShipHull);
+	const Dock::HullDefinition *hull = m_pDocks->FindHull(kind->hull);
 	const entt::entity pad = station && hull ? FreePad(world, *m_pDocks, m_station, *hull) : entt::null;
 	if (pad != entt::null)
 	{
@@ -2805,8 +2809,10 @@ void Application::SpawnShip()
 	}
 	else
 	{
-		const double standOff =
-		    m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_station).shape) + kShipStandOff;
+		// Clear by the ship's own reach as well as the station's: a game's hull may be any size.
+		const double standOff = m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_station).shape) +
+		                        m_pPhysics->ShapeRadius(world.get<Physics::Body>(m_ship).shape) +
+		                        kShipStandOff;
 		world.replace<Sim::Transform>(
 		    m_ship, Sim::Transform{
 		                at.position + at.orientation * glm::dvec3{0.0, 0.0, -standOff},
@@ -2893,6 +2899,12 @@ void Application::SpawnTraffic(int count)
 		m_simStepper.Resync();
 		return;
 	}
+	const std::optional<ShellShip> kind = m_pGame->StarterShip();
+	if (!kind)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "The game names no ship to send as traffic");
+		return;
+	}
 	if (!BindStation())
 	{
 		Core::Log(Core::Severity::Warning, kShell, "No station in the system shown to send traffic to");
@@ -2937,7 +2949,7 @@ void Application::SpawnTraffic(int count)
 		    Sim::Transform{at.position + glm::normalize(direction) * distance, at.orientation});
 		world.emplace<Sim::InFrame>(shuttle, m_stationSystem);
 		world.emplace<Physics::LocalFrame>(shuttle, m_stationBody);
-		MakeShip(world, *m_pDocks, shuttle, kShipHull, kShipMass, true);
+		MakeShip(world, *m_pDocks, shuttle, kind->hull, kind->mass, true);
 		world.emplace<Ai::Steered>(shuttle);
 		Ai::Destination destination;
 		destination.entity = m_station;

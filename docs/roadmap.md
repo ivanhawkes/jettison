@@ -11,8 +11,10 @@ built, and the work finished since are recorded in [history](history.md).
 
 Approved 2026-11-15. H02, H03, H04, H05, A01, W01 and M03 are done, in
 [history](history.md#neutral-sdk-and-manifest-integration). Their
-[cross-review](build-and-gates.md#cross-review) is still to run: one round from `c04303c` to
-`fafa758`, with the pre-review's fixes after it, no earlier than 2026-11-21. Manifest's H07 waits on it.
+[cross-review](build-and-gates.md#cross-review) ran 2026-11-18 over `c04303c` to `96c1ace`, two
+rounds: its findings were fixed (the commit after `96c1ace` records them), with the host API's
+`Game::StarterShip` added, so Manifest's pin moves inside H07. G01, the generic shell, is
+the next engine work (2026-11-18, the user's); it does not gate Manifest's Stage 1.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -22,6 +24,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
+| Generic shell | G01 (engine; Manifest's graphical client, L15, stands on it) | The shell is generic and the gameplay a game's ([decided](#decided)). `app` and `dock` come off `jettison_check_optional`'s users, so no engine module but `celestial`, `space` and `spacescene` links one of them, held at every configure. The shell's galaxy and star systems, stations, docking commands, piloting, cruise and jump, traffic, chase and cockpit cameras and flight panel move to the space sample, composed through `App::Game` on the shell's seams (scene loading, the controlled entity, a camera rig, console commands, panels); a hull's cruise drive is the game's component, not `Dock::HullDefinition`'s. Physics' and the AI's `ship` fields and `Thrusters` take neutral names, their saved names kept or migrated so no save breaks. A non-space game composed into the shell, with its own scene, input and camera, runs in the smoke test; the space sample's smoke test, reference frames and pinned hashes are unchanged. |
 | Content pipeline gaps | C02, C03 (2) | Each gap that Manifest's C01 schema mapping demonstrates in reflected definitions, layering or migration is provisioned with an engine fixture before C02 consumes it. No row of work until C01 names one. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
@@ -886,6 +889,15 @@ Settled on 2026-11-10:
   ranked among the others, a hull fitting its own class's pads and those ranked above (Manifest's
   D-044); fitting by size alone was the alternative, which would let a ship onto a pad the game
   means for another kind.
+- **The engine's shell is generic; gameplay is the game's, extending it** (2026-11-18, the user's,
+  scheduled as G01). The rendered shell (`app`) provides what any game needs: the window,
+  renderer, game UI and console, saves, mods and settings, input, the developer views, and a
+  camera and controlled-entity seam a game drives. It has no gameplay of its own: star systems and
+  the galaxy, stations and docking, piloting, cruising and jumps, traffic and their cameras and
+  panels are a game's, composed into the shell through `App::Game` and built on the engine's
+  facilities (`space`, `spacescene`, `dock`). The dock depends on no space module either. Keeping
+  a space shell with a neutral mode was the alternative, which leaves every other genre carrying
+  and switching off a game it does not play.
 - **An entity's frame is the game's, and a save's details are the game's strings** (2026-11-18,
   with A01). `Sim::InFrame` and `Sim::FrameId` replace `InSystem` and `SystemId`: a frame is a
   partition the game defines, a game of one frame gives its entities none, and a star system is the

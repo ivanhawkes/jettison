@@ -163,6 +163,12 @@ void SpaceGame::StationsOpened(const App::ShellWorld &world, const Sim::Definiti
 }
 
 
+std::optional<App::ShellShip> SpaceGame::StarterShip() const
+{
+	return App::ShellShip{"shuttle", 20000.0f};
+}
+
+
 void SpaceGame::FitShip(entt::registry &world, entt::entity ship, const Sim::Controller &player)
 {
 	world.emplace<Hold>(ship, Hold{kShipHold, {}});

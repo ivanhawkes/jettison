@@ -158,7 +158,11 @@ std::vector<Sim::ModVersion> MountAssets(
 	{
 		try
 		{
-			Describe(content, "The content");
+			// Only the engine's assets are mounted before it, as Host::Session holds a source to.
+			for (const std::string &required : Describe(content, "The content").required)
+				if (required != "engine")
+					throw std::runtime_error{std::format(
+					    "it requires the package {}, which is not mounted before it", required)};
 		}
 		catch (const std::exception &problem)
 		{

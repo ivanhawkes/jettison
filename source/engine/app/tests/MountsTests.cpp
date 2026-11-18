@@ -251,7 +251,7 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 }
 
 
-TEST_CASE("Mounts: a game's content over the engine's assets, and content for a newer engine refused")
+TEST_CASE("Mounts: content over the engine's assets, refused for a newer engine or a missing package")
 {
 	const Scratch scratch;
 	scratch.Put("engine/strings/en/numbers.yaml", "version: 1\n");
@@ -272,4 +272,17 @@ TEST_CASE("Mounts: a game's content over the engine's assets, and content for a 
 	CHECK_THROWS_WITH(
 	    App::MountAssets(newer, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user")),
 	    doctest::Contains("written for engine 0.2.0"));
+
+	// So does content requiring a package not mounted before it: only the engine's assets are.
+	scratch.Put("content/mod.yaml", "version: 1\nrequires: [engine]\n");
+	Vfs::FileSystem engine;
+	CHECK_NOTHROW(
+	    App::MountAssets(
+	        engine, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user")));
+	scratch.Put("content/mod.yaml", "version: 1\nrequires: [missing-package]\n");
+	Vfs::FileSystem missing;
+	CHECK_THROWS_WITH(
+	    App::MountAssets(
+	        missing, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user")),
+	    doctest::Contains("requires the package missing-package, which is not mounted before it"));
 }

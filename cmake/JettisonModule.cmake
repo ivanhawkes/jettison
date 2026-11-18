@@ -101,10 +101,11 @@ endfunction()
 # every target is added: it stops the configure when a module has a target defined under SAMPLES in
 # its link closure, whatever the target is called; or when one neither optional nor a user has an
 # optional module in its closure, reached through any target, or includes one's headers in its own
-# public headers, where a consumer would need it; or when a module's link is a generator expression
-# it cannot read a target from. A module is
-# held to it unless it is listed, so a new one is from the start. The suites are not modules: a
-# neutral module's may fly in a star system.
+# public headers, where a consumer would need it; or when a link of any target in a module's closure
+# has a generator expression anywhere in it that the check cannot read a target from, since a
+# helper's conditional link would otherwise drop out of the closure. A module is held to it unless
+# it is listed, so a new one is from the start. The suites are not modules: a neutral module's may
+# fly in a star system.
 function(jettison_check_optional)
 	cmake_parse_arguments(PARSE_ARGV 0 arg "" "SAMPLES" "OPTIONAL;USERS")
 	set(listed)
@@ -137,7 +138,7 @@ function(jettison_check_optional)
 					list(PREPEND links ${grouped})
 					continue()
 				endif()
-				if(link MATCHES "^\\$<" AND current IN_LIST modules)
+				if(link MATCHES "\\$<")
 					message(FATAL_ERROR
 						"${current} links '${link}', an expression the dependency check cannot follow; "
 						"name the target (docs/architecture.md, Module dependencies).")

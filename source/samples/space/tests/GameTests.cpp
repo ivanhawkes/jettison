@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -128,7 +129,8 @@ struct Composed
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InFrame>(ship, Sim::FrameId("Halcyon"));
 		registry.emplace<Physics::LocalFrame>(ship, std::string{"Ostra Highport"});
-		App::MakeShip(registry, docks, ship, "shuttle", 2.0e4f, true);
+		const App::ShellShip starter = game.StarterShip().value();
+		App::MakeShip(registry, docks, ship, starter.hull, starter.mass, true);
 		registry.emplace<Sim::ControlledBy>(ship, kPlayer);
 		if (Sample::FindOwner(registry, kPlayer) == entt::null)
 			Sample::MakeOwner(registry, kPlayer, credits);
@@ -166,6 +168,16 @@ TEST_CASE("Game: the sample registered through its own hooks has traders that ru
 				sale = sold(*traded);
 	}
 	CHECK(sale);
+}
+
+
+TEST_CASE("Game: the ship the sample names the shell's first and its traffic is a hull of its content")
+{
+	const Composed sample;
+	const std::optional<App::ShellShip> starter = sample.game.StarterShip();
+	REQUIRE(starter);
+	CHECK(sample.docks.FindHull(starter->hull) != nullptr);
+	CHECK(starter->mass > 0.0f);
 }
 
 

@@ -36,6 +36,12 @@ void Game::StationsOpened(const ShellWorld & /*world*/, const Sim::DefinitionReg
 }
 
 
+std::optional<ShellShip> Game::StarterShip() const
+{
+	return std::nullopt;
+}
+
+
 void Game::FitShip(
     entt::registry & /*world*/, entt::entity /*ship*/, const Sim::Controller & /*player*/)
 {
