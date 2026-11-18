@@ -4,86 +4,13 @@ The order is set by what is expensive to change later, then by what later work s
 is not set by what looks good in a screenshot. Architectural decisions (layout, the
 simulation split, coordinate precision, colour space, serialisation) come before the systems
 that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
-commit that did it in the history. Phases 0–13, and the catalogue entries for the systems they
-built, are recorded in [history](history.md).
-
-## First: the comment review
-
-Approved 2026-11-18; starts before the SDK work below, which it runs ahead of because every later
-change reads these comments. The rule is [coding standards](coding-standards.md#comments): a
-comment stays only if deleting it loses something the code, its names and its types cannot give
-back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML, CMake and scripts.
-
-| Tier | Scope | Model and effort |
-| --- | --- | --- |
-| Contracts | Public headers (`include/jettison/...`) and the deterministic modules (`sim`, `celestial`, `spatial`, `physics`, `ai`, `dock`, `script`, `math`) and `serialise`, where a comment holds an ordering, a layout on disk or a determinism hazard | Opus 5.5, high |
-| The rest | The other modules' sources, tests, tools, YAML, CMake, scripts | Sonnet 5, high |
-
-- **Comments only.** A commit changes no code: `scripts/comment-only.sh` (every changed line a
-  comment or blank) runs before the gate. A comment that would be better as a
-  name or a type is listed for later, not changed here.
-- **Trim, not delete.** A paragraph that mixes what and why is cut down to the why; a measurement,
-  a hazard or a contract is kept, reworded if need be.
-- **One module per commit**, so the diff stays reviewable. The first module (`vfs`, small and with
-  every kind of comment) is reviewed by the user before the rest; if it lost a hazard, that tier
-  moves up a model.
-- **Done when** every module is through, the gate is green, and `coding-standards.md`'s test holds
-  in a spot check of each tier.
-- **Progress:** `vfs` through (2026-11-18) and reviewed by the user; then
-  `math`, `celestial`, `spatial`, `script`, `serialise`, `dock`, `sim`, `physics` and `ai`
-  (2026-11-18); then every other module's public headers (2026-11-18), with commits for those
-  that changed: `reflect`, `audio`, `input`, `core`, `animation`, `scene` and `render`. The
-  contracts tier is through. The rest, begun 2026-11-18 on Sonnet 5.5: `app` (twelve
-  restating comments out), `render`'s sources (member labels), and the repository's mechanical
-  findings (include labels, "Disable copying.", the shader's and the dependency CMake's banners).
-  That pass looked at the rest for those patterns alone, so the tier was read again file by file
-  the same day on Opus 5.5: every other module's sources and tests, `source/test`, `scripts`, the
-  shaders, the assets' YAML, the build's CMake and the formatter's, tidy's and CI's configuration,
-  a commit each. Out went restating labels, the step narration left in `DeviceContext.cpp`, history
-  clauses, stale claims (the probe's "Planned.", a deleted file in `.clang-format`, bloom as still
-  to come in `planet.frag`, the smoke test's "two resizes"), comments broken mid-sentence by
-  earlier edits, and a class comment that had drifted onto the struct above it (`GlfwInput.h`).
-  The tier is through. A comment-only commit skips the gate; `scripts/comment-only.sh` and the
-  format check stand in for it.
-- **Done** 2026-11-18. The gate is green over the whole review (`--werror --asan`), but for
-  `dock-sequence` drifting under load (12,383 pixels, carried forward below), which three reruns
-  at idle matched with no pixel off. A spot check
-  of three files a tier (`BehaviourTree.cpp`, `dock/Definitions.cpp`, `PhysicsWorld.cpp`;
-  `AppArguments.cpp`, `EventSounds.cpp`, `AudioSystem.cpp`, a YAML patch, `time`'s CMake), and a
-  repository sweep for banners, labels and commented-out code, found two restatements, both cut;
-  the test holds. `Crash.cpp`'s two markers stay: they bound the signal handler's code.
-- **For later**, as the rule above says: `kFullTurn` (`animation/src/Playback.cpp`) as
-  `glm::two_pi<float>()` and `kBelowOne` (`time/src/FixedStep.cpp`) as `kLargestBelowOne`
-  (`std::nextafter` is constexpr only from C++23), each then needing no comment; and the trailing
-  comments, which `comment-only.sh` cannot tell from code and so were left: `Theme.cpp`'s glosses
-  on the console lines' tokens and the trailing comment `FontFaces.cpp` wraps over three lines.
-
-## Done: reference frames that hold under load
-
-Done 2026-11-18 (the user's, high priority). `dock-sequence` had come out 12,383 pixels off (of
-518 allowed) in two gate runs with clang still running, and with none at idle. A line at the
-screenshot (frame, fixed time, each sequence's time) showed the shot one frame early under load,
-and a trace of each tick's loads found two causes, both a frame's timeline following the machine's
-clock: a load requested and drained in one frame was seen at the next tick only when the I/O
-worker was slow, and the X server's first resize made `Renderer::Render` skip a frame's draw, so
-its materials' textures were asked for a frame late. `ResourceOptions::settleLoads` (set with
-`--frame-step`, which also turns hot reload off) drains every load where it is asked for, an
-out-of-date acquire recreates and draws, and the `dock-sequence` reference was recorded again a
-frame earlier. Exit as met: ten captures, five idle and five under 24 busy loops, each at frame
-34, and every view the same count idle and loaded ([build and gates](build-and-gates.md)). The
-residuals the other views carried (`effects` 112 pixels, the rest 5 or fewer) were steady stale
-references, so at the user's word every view was recorded again and the allowance went from 518
-pixels to none, with llvmpipe's vector width pinned for other machines. Codex's first round: a settled
-`Update()` now loops until nothing is in flight, so a load a `finish` asks for settles too, which
-found `Finish` holding a slot that such a load could move (fixed, and `resource` joins the
-sanitised suites); and a shot is taken only once a frame has drawn it, should a retried acquire
-still be out of date. Its second round found that retry a frame late; the user settled it: with
-`--frame-step` the renderer recreates until the frame draws (`RendererOptions::drawEveryFrame`).
+commit that did it in the history. Phases 0–13, the catalogue entries for the systems they
+built, and the work finished since are recorded in [history](history.md).
 
 ## Then: the gate inside the sandbox
 
-After the comment review. Claude Code's sandbox (the managed settings in `~/nixos-config`,
-`roles/development.nix`) now lets ccache and `/tmp` be written, so the builds, unit tests and
+Claude Code's sandbox (the managed settings in `~/nixos-config`, `roles/development.nix`)
+now lets ccache and `/tmp` be written, so the builds, unit tests and
 clang-tidy pass inside it (2026-11-18), but Xvfb still cannot start: the sandbox refuses the Unix
 socket it listens on (`_XSERVTransSocketOpenCOTSServer: Unable to open socket for unix`), so the
 smoke tests and reference frames run outside it, with the user's approval each run. The obvious
@@ -93,7 +20,8 @@ for the gate, or Xvfb listening only where the sandbox allows, are the narrower 
 
 ## Current priority: neutral SDK and Manifest integration
 
-Approved 2026-11-15; H02, H03, H04, H05, A01 and W01 done 2026-11-18. Follow [game integration](game-integration.md)
+Approved 2026-11-15. H02, H03, H04, H05, A01, W01 and M03 are done, in
+[history](history.md#neutral-sdk-and-manifest-integration). Follow [game integration](game-integration.md)
 and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -103,15 +31,8 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
-| CPU-only build | H03 (1) | The engine configures without ImGui/Vulkan/glslc/sample assets, its CPU modules and their suites build and pass, and the packer stays available. **Done** 2026-11-18: `JETTISON_PRESENTATION` (ON by default) gates the presentation modules, the assets, Flotsam, Jetsam, the render harness and the libraries only they use, replacing `PLUGIN_IMGUI`, which had returned before the engine was defined; the `clang-cpu` preset refuses `find_package(Vulkan)`, and its fresh configure fetched none of GLFW, FreeType, RmlUi, miniaudio, ImGui, stb, VMA or KTX, built in 720 steps and passed its 22 suites; the gate configures, builds and tests it. Splitting renderer resources from example content moved to H05, where the sample's content leaves the engine. |
-| Independent CPU consumer | H04 (1) | A non-space CPU consumer defines, steps, saves, loads and tears down through the public host, with no galaxy, transform or star system. **Done** 2026-11-18: `source/test/consumer` fetches the engine with `JETTISON_PRESENTATION` off and Vulkan refused, and runs a race (a `Piece` definition read from its own content directory, a `Token` component, a `Place` command, a stepped system that rolls the world's generator) through `Host::Session`: a second session from the same seed and commands reaches the same state hash, a third loads the save and reaches it too, and teardown runs world before game. Its link line names no presentation library and no sample content; it needs an explicit `JETTISON_SOURCE_DIR` or `JETTISON_GIT_TAG`, the `main` fallback gone. It is a manual check, not a gate stage (a second fetch of the dependency set). |
-| Sample extraction | H05 (1) | Sample trading/UI/assets reside in sample/test targets outside engine code; renderer resources and example content have separate targets/manifests; Jetsam selects the example explicitly and Flotsam does not by default; neutral start-up registers no traders, markets or fleet; existing sample checks still pass. **Done** 2026-11-18: `App::Game` (`app/Game.h`) is the composition seam `RunRenderApplication` takes, its hooks the shell's points from registration to the render test's game UI stage, reading the shell through `App::Shell`; Trading, Traders, the fleet's shipyard, the market screen and the parked ships are `Sample::SpaceGame` in `source/samples/space`, with their suite (`space`), linked by Jetsam and the render test; Flotsam composes none, and `GameTests` holds a shell of no game to no market, trader or fleet type. The assets split: `assets/` is the engine's alone (shaders, fonts, the saves screen, the engine modules' strings), and the sample's content is `source/samples/space/assets` with its `mod.yaml`, each staged by `jettison_add_assets` and packed (`jettison_assets_pack`, `jettison_sample_space_pack`); the shell mounts the content as `base` over the engine's `engine`, refusing content for a newer engine, Jetsam and the render test taking the sample's by default (`jettison_use_content`) and Flotsam none (`--content` names some). Run with none, Flotsam started on an empty scene and drew it, with no warning. The app suite's `Game` cases hold the engine's assets to their four directories with none of the sample's paths in them, and the packed smoke test runs from both packs and checks the content's description. The traders' pinned hash is unchanged, and every suite, the smoke tests and the reference frames pass. |
-| Frame and save metadata seams | A01 (3) | Neutral frame/partition identity and game save metadata sections, with migrations that preserve the existing fixtures. **Done** 2026-11-18 ([decided](#decided)): `Sim::InFrame`, `kNoFrame` and `Sim::FrameId` in place of `InSystem`, `kNoSystem` and `SystemId`, a frame the game's partition and none for a game of one, the snapshot's sample carrying it as `frame`; the world's version 4 renames the component, and `InFrame`'s own chain (version 2, which `RegisterComponent<T>()` now takes from a type's static `Migrations()`) its field. `SaveInfo::details`, the game's key and value strings, replace `galaxy` and `system`, the save game's version 2 moving a version 1 save's into them, and the shell writes, lists and checks its own as `galaxy` and `system`. `replay-layout3.save` (a world of version 3 of `Sim.InSystem`) and `save-v1.save` load unchanged, the sim suite turns this build's save back into version 3's names and loads it as `InFrame`, and the round trip of a save's details holds keys of no space game. The eight pinned hashes moved with the version and the names alone: with the world written as version 3 under the old names, every one passed at its old value. |
-| Generic module boundaries | W01 (4) | Non-space physics and scene consumers require no celestial definitions; generic AI is independent of space transit; the docking/berth seams Manifest needs (pad classes as data, Manifest's D-044) are provisioned. **Done** 2026-11-18 ([decided](#decided)), in five commits: physics, AI, scene, the dock's pad classes, the dependency checks. Physics done 2026-11-18: a frame's rails, local frames and gravity are the game's `Physics::FrameModel` (`PhysicsWorld::DefineFrame`), physics depends on no celestial, and a star system is the new `space` module's model (`Space::DefineStarSystem`), with the flight and contact suites that fly in one; the physics suite's room stacks crates in its own gravity and carries one on a lift's rails, and saves and loads, with no star system. The sample's suite is `sample-space`, the module's `space`, which the sanitised run takes. The pinned hashes are unchanged. AI done 2026-11-18: cruise, gates, lanes, transit and galaxy routes are `space`'s (namespace `Space`), courses round spheres stay the AI's (`ai/Courses.h`, which the dock flies by), and `ai` depends on no celestial or space module; their types keep their `Ai.*` names, and `Ai::Reason` keeps the transit's reasons, whose `reason.ai.*` keys are authored text and saved in events. Steering's suite flies round Halcyon's station through a test-only link to `space`. Every pinned hash and the script bindings are unchanged. Scene done 2026-11-18: the system scene and the jump transition are the new `spacescene` module's (namespace `SpaceScene`), with their suite, and the scene's proxies of the simulation's entities stay the scene's (`scene/SimProxies.h`); the scene depends on no celestial module. Its file keeps its optional `system` and `celestial` fields, authored data a scene without them never reads. Pad classes done 2026-11-18: a pad class is a definition (`Dock::PadClassDefinition`, `defs/pads`: its largest hull, its pad's size and its rank, checked by `CheckPadClass`), loaded before the hulls and layouts that name it; a hull, a layout's pad and the `Dock.Pad` component name their class, and a hull lands on a pad of its class or one ranked above (`Docks::Fits`), the shell's dressing and its free pad asking the docks. The sample's S, M, L and XL are its data at their old sizes. `Dock.Pad`'s chain (version 2) turns version 1's enumerator into its name, with a test of it; the dock suite gives a game's own compact berth and bay by rank, a pod the berth and a second tug queued for the bay, and refuses a hull or a pad of a class not defined. Three pinned hashes moved, the dock's approach and deck and the sample's traders: every world the old build's dock and sample suites hashed, saved by it, loads through the chain into this build and saves to the same bytes as this build's own. The dependency checks done 2026-11-18: every configure, once every target is added (`jettison_check_optional`, `source/CMakeLists.txt`), refuses an engine module with a sample's target in its link closure, and holds each module but `celestial`, `space`, `spacescene` and their users, the dock and the shell, to having none of the three in its closure or its public headers, a new module held to it unless it is listed; the sample linked by the dock, a celestial dependency given to `spatial`, and a space header included in physics' public one each stopped the configure. Met: physics' room and the scene need no celestial definition, the AI no space transit, and Manifest authors its compact berth as a pad class. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
-| Maintenance: shared environment | M03 (0) | Done: `lazygit` is in the SDK shell (5ebfc9b), and `devenv.nix`, `devenv.yaml` and `devenv.lock` match Manifest's. The pin-based parity check (T5, M04) is Manifest's. |
 
 These deliveries precede discretionary expansion of the sample. The historical space
 features and decisions below describe existing coverage and possible extension work,
@@ -288,6 +209,12 @@ player's report of a problem needs and the shell does not write.
   attribute, which RmlUi does not hand to the table; right-to-left and shaped scripts, which RmlUi
   can lay out with HarfBuzz and the fonts shipped cannot draw; and the player's language chosen at
   the first start from the platform's (Steam's, the environment's), which the setting stands in for.
+- **Comments better as names** (the comment review, 2026-11-18). `kFullTurn`
+  (`animation/src/Playback.cpp`) as `glm::two_pi<float>()` and `kBelowOne`
+  (`time/src/FixedStep.cpp`) as `kLargestBelowOne` (`std::nextafter` is constexpr only from C++23),
+  each then needing no comment; and the trailing comments, which `comment-only.sh` cannot tell from
+  code and so were left: `Theme.cpp`'s glosses on the console lines' tokens and the trailing comment
+  `FontFaces.cpp` wraps over three lines.
 
 ### Last: presentation, when a scene asks for it
 
