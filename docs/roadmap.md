@@ -16,8 +16,8 @@ rounds: its findings were fixed (the commit after `96c1ace` records them), with 
 `Game::StarterShip` added. G01, the generic shell, is done, in
 [history](history.md#neutral-sdk-and-manifest-integration). H07 closed Manifest's Stage 1 on
 2026-11-18: its pin is `e53681e`, and the acceptance matrix passed against that fetch
-([Manifest's handoff](../../manifest/docs/session-handoff.md)). Manifest's C01 schema contract
-and C02 definitions (2026-11-18) named no engine gap; next is its C03.
+([Manifest's handoff](../../manifest/docs/session-handoff.md)). Manifest's C01 schema contract,
+C02 definitions and C03 content set (2026-11-18) named no engine gap; next is its C04.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -27,7 +27,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Content pipeline gaps | C02, C03 (2) | Each gap that Manifest's C01 schema mapping demonstrates in reflected definitions, layering or migration is provisioned with an engine fixture before C02 consumes it. C01 and C02 named none (2026-11-18); no row of work until C03 demonstrates one. |
+| Content pipeline gaps | C02, C03 (2) | Each gap that Manifest's C01 schema mapping demonstrates in reflected definitions, layering or migration is provisioned with an engine fixture before C02 consumes it. C01, C02 and C03 named none (2026-11-18): layering, migration and per-mount layers are public SDK calls. No row of work until a later item demonstrates one. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
