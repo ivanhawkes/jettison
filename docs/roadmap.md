@@ -7,17 +7,6 @@ that would otherwise bake in the wrong answer. "Done" means the gate covers it, 
 commit that did it in the history. Phases 0–13, the catalogue entries for the systems they
 built, and the work finished since are recorded in [history](history.md).
 
-## Then: the gate inside the sandbox
-
-Claude Code's sandbox (the managed settings in `~/nixos-config`, `roles/development.nix`)
-now lets ccache and `/tmp` be written, so the builds, unit tests and
-clang-tidy pass inside it (2026-11-18), but Xvfb still cannot start: the sandbox refuses the Unix
-socket it listens on (`_XSERVTransSocketOpenCOTSServer: Unable to open socket for unix`), so the
-smoke tests and reference frames run outside it, with the user's approval each run. The obvious
-fix, `sandbox.network.allowAllUnixSockets`, lets any sandboxed command reach any socket on the
-machine, Docker's included, so it is not taken without weighing that; `sandbox.excludedCommands`
-for the gate, or Xvfb listening only where the sandbox allows, are the narrower candidates.
-
 ## Current priority: neutral SDK and Manifest integration
 
 Approved 2026-11-15. H02, H03, H04, H05, A01, W01 and M03 are done, in

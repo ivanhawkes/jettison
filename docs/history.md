@@ -136,6 +136,16 @@ sanitised suites); and a shot is taken only once a frame has drawn it, should a 
 still be out of date. Its second round found that retry a frame late; the user settled it: with
 `--frame-step` the renderer recreates until the frame draws (`RendererOptions::drawEveryFrame`).
 
+### The gate inside the sandbox
+
+Done 2026-11-18. Claude Code's sandbox (the managed settings in `~/nixos-config`) lets ccache and
+`/tmp` be written and, with `sandbox.network.allowAllUnixSockets` (the user's), Xvfb listen, so the
+whole gate runs inside it. With no `/dev/dri` there, Mesa's hardware drivers failed to enumerate
+and their loader errors failed the smoke test's missing-shader check, so `ci.sh` pins lavapipe
+when there is no `/dev/dri`. Met: `./scripts/ci.sh --werror --asan` passed inside the sandbox, the
+reference frames at 0 pixels. Xvfb also served over loopback TCP there (`-listen tcp`), should the
+Unix sockets be taken away again.
+
 ### Neutral SDK and Manifest integration
 
 The current priority's rows as they were closed (approved 2026-11-15), each the Manifest task it is

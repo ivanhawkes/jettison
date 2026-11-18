@@ -49,6 +49,8 @@ while [ "$#" -gt 0 ]; do
 	*) echo "ci: unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
+# No GPU device nodes (Claude Code's sandbox): the hardware drivers fail to enumerate, noisily.
+[ -e /dev/dri ] || software=(--llvmpipe)
 
 # Each stage is timed, and the run ends with one line per stage whether it passed or not, so a
 # reader (or an agent) can see what ran without reading the build's output. With --log that output

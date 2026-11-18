@@ -353,7 +353,7 @@ which an executable of the same name collides with, so it is `render_test` now.
 ```bash
 ./scripts/format-check.sh      # clang-format >= 20 gate over the tracked sources
 ./scripts/ci.sh --skip-smoke   # format gate + Debug and Release builds
-./scripts/ci.sh --llvmpipe     # everything, on the software Vulkan driver
+./scripts/ci.sh --llvmpipe     # everything, on the software Vulkan driver (implied with no /dev/dri)
 ./scripts/ci.sh --werror       # the same, with warnings as errors
 ./scripts/ci.sh --asan         # the same, plus a sanitized render test
 ./scripts/ci.sh --skip-tidy    # for a machine without a configured Debug tree
