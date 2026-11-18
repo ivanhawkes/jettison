@@ -471,10 +471,11 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 			    try
 			    {
 				    const Sim::SaveInfo info = Sim::SaveGame::ReadInfo(*bytes);
+				    const std::string_view system = info.Detail(kSystemDetail);
 				    console.Print(
 				        std::format(
 				            "{}: step {} in {}, by engine {}", name, info.step,
-				            info.system.empty() ? "no system" : info.system, info.engineVersion));
+				            system.empty() ? "no system" : system, info.engineVersion));
 			    }
 			    catch (const std::exception &error)
 			    {
@@ -652,7 +653,7 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 
 	Sim::RegisterTypes();
 	m_sim.RegisterComponent<Sim::Transform>();
-	m_sim.RegisterComponent<Sim::InSystem>();
+	m_sim.RegisterComponent<Sim::InFrame>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
 	m_pLanes = &Ai::LaneTravel::Attach(m_sim, *m_pPhysics);
 	m_pGates = &Ai::Gates::Attach(m_sim, *m_pPhysics, *m_pLanes);
@@ -1870,9 +1871,9 @@ void Application::LoadScene()
 		    Celestial::ReadStarSystem(
 		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
 		// A scene of a system the galaxy does not list is the system physics knows of it.
-		if (!m_pPhysics->HasStarSystem(Sim::SystemId(m_systemScene->System().name)))
+		if (!m_pPhysics->HasStarSystem(Sim::FrameId(m_systemScene->System().name)))
 			m_pPhysics->DefineStarSystem(m_systemScene->System());
-		if (!m_pCruises->HasStarSystem(Sim::SystemId(m_systemScene->System().name)))
+		if (!m_pCruises->HasStarSystem(Sim::FrameId(m_systemScene->System().name)))
 			m_pCruises->DefineStarSystem(m_systemScene->System());
 		SetProxyFactory();
 		DrawStations();
@@ -1987,7 +1988,7 @@ void Application::RequestTransit(std::string_view jumpPoint)
 {
 	const Sim::Snapshot &snapshot = m_simStepper.Current();
 	const Sim::TransformSample *ship = m_ship == entt::null ? nullptr : snapshot.FindSample(m_ship);
-	if (!ship || ship->system == Sim::kNoSystem)
+	if (!ship || ship->frame == Sim::kNoFrame)
 	{
 		Core::Log(Core::Severity::Warning, kShell, "No transit: the ship is in no system");
 		return;
@@ -1995,7 +1996,7 @@ void Application::RequestTransit(std::string_view jumpPoint)
 	const std::string name = jumpPoint.empty() ? ShipFrame() : std::string{jumpPoint};
 	for (const auto &[entity, gate] : snapshot.Components<Ai::Gate>())
 		if (const Sim::TransformSample *at = snapshot.FindSample(entity);
-		    gate.jumpPoint == name && at && at->system == ship->system)
+		    gate.jumpPoint == name && at && at->frame == ship->frame)
 		{
 			m_sim.Commands().Push(Ai::RequestTransit{kPilot, m_ship, entity});
 			return;
@@ -2010,11 +2011,11 @@ void Application::RequestTransit(std::string_view jumpPoint)
 void Application::FollowShipAlong(const Ai::OnLane &lane)
 {
 	if (!m_galaxy || !m_shownSystem || m_jump->Active() ||
-	    Sim::SystemId(m_galaxy->systems[*m_shownSystem].name) != lane.from)
+	    Sim::FrameId(m_galaxy->systems[*m_shownSystem].name) != lane.from)
 		return;
 	const auto to = std::ranges::find(
 	    m_galaxy->systems, lane.to,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
 	if (to == m_galaxy->systems.end())
 		return;
 	m_jumpStep = m_sim.Clock().Step();
@@ -2032,7 +2033,7 @@ void Application::LogRoute(std::string_view systemName) const
 	const int to = m_galaxy->Find(systemName);
 	const auto from = std::ranges::find(
 	    m_galaxy->systems, m_shipSystem,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
 	if (to < 0 || m_ship == entt::null || from == m_galaxy->systems.end())
 	{
 		Core::Log(
@@ -2406,9 +2407,11 @@ bool Application::SaveTo(std::string_view name)
 		save.info.writtenAt = std::chrono::duration_cast<std::chrono::seconds>(
 		                          std::chrono::system_clock::now().time_since_epoch())
 		                          .count();
-		save.info.galaxy = m_galaxyPath;
-		save.info.system = m_systemScene ? m_systemScene->System().name : std::string{};
 		save.info.mods = m_mods;
+		if (!m_galaxyPath.empty())
+			save.info.details.push_back({std::string{kGalaxyDetail}, m_galaxyPath});
+		if (m_systemScene)
+			save.info.details.push_back({std::string{kSystemDetail}, m_systemScene->System().name});
 		save.AddSection(
 		    std::string{kShellSection},
 		    WriteShellState({m_ship, m_station, m_shipSystem, m_stationBody}));
@@ -2439,11 +2442,10 @@ bool Application::LoadFrom(std::string_view name)
 		if (!bytes)
 			throw std::runtime_error(std::format("there is no save '{}'", name));
 		const Sim::SaveGame save = Sim::SaveGame::Read(*bytes);
-		if (save.info.galaxy != m_galaxyPath)
+		if (const std::string_view galaxy = save.info.Detail(kGalaxyDetail); galaxy != m_galaxyPath)
 			throw std::runtime_error(
 			    std::format(
-			        "'{}' is of the galaxy '{}', and this run's is '{}'", name, save.info.galaxy,
-			        m_galaxyPath));
+			        "'{}' is of the galaxy '{}', and this run's is '{}'", name, galaxy, m_galaxyPath));
 		// Everything read before the world is replaced, so a save that does not fit changes nothing.
 		const Sim::SaveSection *section = save.FindSection(kShellSection);
 		const ShellState shell = section ? ReadShellState(section->data) : ShellState{};
@@ -2480,9 +2482,8 @@ bool Application::LoadFrom(std::string_view name)
 		// holds as the shell's section does not.
 		const auto systemOf = [&world](entt::entity entity)
 		{
-			const auto *inSystem =
-			    entity == entt::null ? nullptr : world.try_get<Sim::InSystem>(entity);
-			return inSystem ? inSystem->system : Sim::kNoSystem;
+			const auto *inSystem = entity == entt::null ? nullptr : world.try_get<Sim::InFrame>(entity);
+			return inSystem ? inSystem->frame : Sim::kNoFrame;
 		};
 		m_shipSystem = m_ship == entt::null ? shell.shipSystem : systemOf(m_ship);
 		m_stationSystem = systemOf(m_station);
@@ -2648,7 +2649,7 @@ void Application::DefineStarSystems()
 			throw std::runtime_error("Failed to read star system '" + entry.system + "'");
 		Celestial::StarSystem system = Celestial::ReadStarSystem(
 		    std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()});
-		const std::uint64_t id = Sim::SystemId(system.name);
+		const std::uint64_t id = Sim::FrameId(system.name);
 		m_galaxySystems.push_back(system);
 		if (!m_pLanes->HasStarSystem(id))
 			m_pLanes->DefineStarSystem(system);
@@ -2671,7 +2672,7 @@ bool Application::BindStation()
 	    std::ranges::find(system.bodies, Celestial::BodyKind::Station, &Celestial::Body::kind);
 	if (station == system.bodies.end())
 		return false;
-	const std::uint64_t systemId = Sim::SystemId(system.name);
+	const std::uint64_t systemId = Sim::FrameId(system.name);
 	if (m_station != entt::null && m_stationSystem == systemId && m_stationBody == station->name)
 		return true;
 	entt::registry &world = m_sim.Registry();
@@ -2691,10 +2692,10 @@ bool Application::BindStation()
 	// station's rails that is neither a pad nor a ship clamped to one.
 	for (const auto [entity, rails, inSystem, body] :
 	     world
-	         .view<const Physics::OnRails, const Sim::InSystem, const Physics::Body>(
+	         .view<const Physics::OnRails, const Sim::InFrame, const Physics::Body>(
 	             entt::exclude<Dock::Hull>)
 	         .each())
-		if (inSystem.system == systemId && rails.body == station->name)
+		if (inSystem.frame == systemId && rails.body == station->name)
 			return bind(entity);
 
 	entt::registry &scene = m_pScene->Registry();
@@ -2734,7 +2735,7 @@ bool Application::BindStation()
 	m_station = world.create();
 	world.emplace<Sim::Transform>(
 	    m_station, m_pPhysics->RailsPlace(systemId, rails, m_sim.Clock().Now()));
-	world.emplace<Sim::InSystem>(m_station, systemId);
+	world.emplace<Sim::InFrame>(m_station, systemId);
 	world.emplace<Physics::OnRails>(m_station, rails);
 	world.emplace<Physics::LocalFrame>(m_station, station->name);
 	world.emplace<Physics::Body>(m_station, Physics::Body{Physics::BodyKind::Kinematic, shape});
@@ -2775,7 +2776,7 @@ void Application::SpawnShip()
 	// In the station's frame, flown by its pilot.
 	m_ship = world.create();
 	world.emplace<Sim::Transform>(m_ship, at);
-	world.emplace<Sim::InSystem>(m_ship, m_stationSystem);
+	world.emplace<Sim::InFrame>(m_ship, m_stationSystem);
 	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
 	MakeShip(world, *m_pDocks, m_ship, kShipHull, kShipMass, true);
 	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
@@ -2868,7 +2869,7 @@ void Application::ShowPadStates()
 	if (m_dressings.empty() || !m_systemScene)
 		return;
 	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	const std::uint64_t system = Sim::SystemId(m_systemScene->System().name);
+	const std::uint64_t system = Sim::FrameId(m_systemScene->System().name);
 	for (std::size_t index = 0; index < m_dressings.size(); ++index)
 	{
 		entt::entity &station = m_dressedStations[index];
@@ -2939,7 +2940,7 @@ void Application::SpawnTraffic(int count)
 		world.emplace<Sim::Transform>(
 		    shuttle,
 		    Sim::Transform{at.position + glm::normalize(direction) * distance, at.orientation});
-		world.emplace<Sim::InSystem>(shuttle, m_stationSystem);
+		world.emplace<Sim::InFrame>(shuttle, m_stationSystem);
 		world.emplace<Physics::LocalFrame>(shuttle, m_stationBody);
 		MakeShip(world, *m_pDocks, shuttle, kShipHull, kShipMass, true);
 		world.emplace<Ai::Steered>(shuttle);
@@ -2971,14 +2972,14 @@ void Application::AttachShip(entt::entity ship)
 	m_sentControls.reset();
 	m_pickPending = false;
 	m_picked.reset();
-	const auto *inSystem = world.try_get<Sim::InSystem>(ship);
-	m_shipSystem = inSystem ? inSystem->system : Sim::kNoSystem;
+	const auto *inSystem = world.try_get<Sim::InFrame>(ship);
+	m_shipSystem = inSystem ? inSystem->frame : Sim::kNoFrame;
 	// Bound to the station it is docked at or waiting for; else, once it is shown, to the one of
 	// its system (TakeEvents).
 	if (const auto *docking = world.try_get<Dock::Docking>(ship))
 	{
 		m_station = docking->station;
-		m_stationSystem = world.get<Sim::InSystem>(m_station).system;
+		m_stationSystem = world.get<Sim::InFrame>(m_station).frame;
 		m_stationBody = world.get<Physics::OnRails>(m_station).body;
 	}
 	m_docked = Dock::IsDocked(world, m_ship, m_station);
@@ -3006,7 +3007,7 @@ void Application::AttachShip(entt::entity ship)
 	}
 	const auto shown = std::ranges::find(
 	    m_galaxy->systems, system,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
 	const auto index = static_cast<std::size_t>(shown - m_galaxy->systems.begin());
 	if (shown == m_galaxy->systems.end() || (m_shownSystem && *m_shownSystem == index))
 		return;
@@ -3069,7 +3070,7 @@ void Application::ListFleet(DevTools::Console &console) const
 			    "{} {}", docking->stage == Dock::Stage::Docked ? "docked at" : "making for a pad at",
 			    Describe(docking->station));
 		else if (const auto *sample = snapshot.FindSample(ship);
-		         sample && sample->system != Sim::kNoSystem)
+		         sample && sample->frame != Sim::kNoFrame)
 			if (const auto *frame = snapshot.Get<Physics::LocalFrame>(ship))
 				where = frame->body.empty() ? "cruising" : std::format("off {}", frame->body);
 		console.Print(
@@ -3084,7 +3085,7 @@ void Application::ListFleet(DevTools::Console &console) const
 bool Application::CanPilot() const
 {
 	return m_ship != entt::null && m_systemScene &&
-	       Sim::SystemId(m_systemScene->System().name) == m_shipSystem;
+	       Sim::FrameId(m_systemScene->System().name) == m_shipSystem;
 }
 
 
@@ -3304,7 +3305,7 @@ void Application::DrawFlight()
 	const auto *shipSample = current.FindSample(m_ship);
 	const auto *stationSample = current.FindSample(m_station);
 	// A station a system away, as it is until the ship's arrival binds it to the next, is no measure.
-	if (!shipSample || !stationSample || shipSample->system != stationSample->system)
+	if (!shipSample || !stationSample || shipSample->frame != stationSample->frame)
 		return;
 	const Sim::Transform *ship = &shipSample->transform;
 	// Off another body after a cruise, the ship is measured against that body, where its rails have
@@ -3316,7 +3317,7 @@ void Application::DrawFlight()
 		referenceBefore = stationBefore->position;
 	const std::string frame = ShipFrame();
 	if (!frame.empty() && frame != m_stationBody && m_systemScene &&
-	    Sim::SystemId(m_systemScene->System().name) == shipSample->system)
+	    Sim::FrameId(m_systemScene->System().name) == shipSample->frame)
 		if (const int body = m_systemScene->System().Find(frame); body >= 0)
 		{
 			const Celestial::StarSystem &system = m_systemScene->System();
@@ -3397,7 +3398,7 @@ bool Application::Pick(const glm::dvec2 &point)
 	m_pickTime = m_shownTime;
 	m_sim.Commands().Push(
 	    Physics::Pick{
-	        kPilot, ++m_pickRequest, Sim::SystemId(m_systemScene->System().name), ray.origin,
+	        kPilot, ++m_pickRequest, Sim::FrameId(m_systemScene->System().name), ray.origin,
 	        ray.direction, kPickDistance, m_pickTime, ignore});
 	m_pickPending = true;
 	return true;
@@ -3433,7 +3434,7 @@ void Application::TakeEvents()
 		else if (const auto *entered = event.event.try_cast<Ai::LaneEntered>();
 		         entered && entered->entity == m_ship)
 		{
-			m_shipSystem = Sim::kNoSystem;
+			m_shipSystem = Sim::kNoFrame;
 			m_resumePiloting = m_piloting;
 			if (m_piloting)
 				StopPiloting();

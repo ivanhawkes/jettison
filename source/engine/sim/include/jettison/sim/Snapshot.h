@@ -13,11 +13,17 @@
 #include <string_view>
 #include <vector>
 
+namespace Jettison::Serialise
+{
+class BinaryRecord;
+template <typename Data> class Migrations;
+} // namespace Jettison::Serialise
+
 namespace Jettison::Sim
 {
 class SimWorld;
 
-// Where a simulation entity is: a position in the system frame, in metres, and an orientation,
+// Where a simulation entity is: a position in its frame (InFrame), in metres, and an orientation,
 // both in double precision (docs/architecture.md, "Coordinate frames and units"). What physics
 // will write and what presentation interpolates. Registered with Reflect, both fields Saved, by
 // RegisterTypes.
@@ -27,32 +33,36 @@ struct Transform
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 };
 
-// Which star system an entity is in, so whose frame its Transform is in: the simulation is the
-// whole galaxy's, and every system's positions are metres from that system's primary. The system is
-// its name hashed as Core::StringId hashes it (SystemId), which a save keeps, so renaming a system
-// in the galaxy file moves its entities nowhere rather than into another system. An entity in
-// transit along a jump lane is in none (kNoSystem) until it arrives. Registered with Reflect, its
-// field Saved, by RegisterTypes.
-struct InSystem
+// Which frame an entity's Transform is in, for a world of more than one: a partition of the game's,
+// each with its own origin, so two positions are comparable only in the same frame. A game of one
+// frame gives its entities none. A frame is its name hashed as Core::StringId hashes it (FrameId),
+// which a save keeps, so renaming one in the game's data moves its entities nowhere rather than into
+// another frame. An entity between frames is in none (kNoFrame) until it arrives. The space sample's
+// frames are its star systems, an entity crossing a jump lane in none. Registered with Reflect, its
+// field Saved, by RegisterTypes; a world registers it with its chain (Migrations).
+struct InFrame
 {
-	std::uint64_t system{0};
+	std::uint64_t frame{0};
+
+	// Version 2 (A01) renamed the component, from "Sim.InSystem", and its field, from "system".
+	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
-inline constexpr std::uint64_t kNoSystem = 0;
+inline constexpr std::uint64_t kNoFrame = 0;
 
-// The identifier InSystem holds for the system of that name.
-std::uint64_t SystemId(std::string_view systemName);
+// The identifier InFrame holds for the frame of that name.
+std::uint64_t FrameId(std::string_view frameName);
 
 // Registers the simulation's own types with Reflect. Idempotent; a world that holds Transforms
-// calls it before RegisterComponent<Transform>() and RegisterComponent<InSystem>().
+// calls it before RegisterComponent<Transform>() and RegisterComponent<InFrame>().
 void RegisterTypes();
 
 struct TransformSample
 {
 	entt::entity entity{entt::null};
 	Transform transform;
-	// The entity's InSystem, or kNoSystem for one that has none.
-	std::uint64_t system{kNoSystem};
+	// The entity's InFrame, or kNoFrame for one that has none.
+	std::uint64_t frame{kNoFrame};
 };
 
 // One entity's copy of a component the world shows (SimWorld::ShowInSnapshots).
@@ -63,10 +73,10 @@ template <typename T> struct ComponentSample
 };
 
 // The part of a world presentation may see, taken after a step: every entity with a Transform and
-// the system it is in, and every entity's copy of each component the world shows, each sorted by
+// the frame it is in, and every entity's copy of each component the world shows, each sorted by
 // identifier so a lookup is a search. Presentation reads snapshots, never the world: a system scene
-// shows the entities in its own system (scene/SystemScene.h), and the UI's data models read what
-// the game shows, a station's market or a ship's hold (ui/DataModel.h).
+// shows the entities in its own system's frame (scene/SystemScene.h), and the UI's data models read
+// what the game shows, a station's market or a ship's hold (ui/DataModel.h).
 struct Snapshot
 {
 	// The clock after the step: the steps run, and simulation seconds.
@@ -108,8 +118,8 @@ Snapshot Capture(const SimWorld &world);
 // the orientation along the shorter arc. An entity only current has (made by the last step) is
 // where current has it, with nothing to come from; one only previous has (destroyed by the last
 // step) has no transform. An identifier carries its version, so an index the last step reused is
-// a different entity, not a jump. An entity whose system changed in the last step is where current
-// has it too: the two positions are in different systems' frames, and the line between them is
+// a different entity, not a jump. An entity whose frame changed in the last step is where current
+// has it too: the two positions are in different frames, and the line between them is
 // nowhere.
 std::optional<Transform> Interpolate(
     const Snapshot &previous, const Snapshot &current, entt::entity entity, double alpha);

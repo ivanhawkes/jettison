@@ -32,7 +32,7 @@ namespace
 {
 constexpr double kStep = 1.0 / 60.0;
 // A system no star system definition names: no gravity, no rails, and bodies that sleep.
-const std::uint64_t kQuiet = Sim::SystemId("Quiet");
+const std::uint64_t kQuiet = Sim::FrameId("Quiet");
 
 
 ShapeDefinition Box(glm::vec3 halfExtents)
@@ -72,7 +72,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
 		physics.DefineStarSystem(Halcyon());
 		physics.DefineShape("crate", Box({1.0f, 1.0f, 1.0f}));
@@ -91,7 +91,7 @@ struct Fixture
 		const entt::entity entity = registry.create();
 		registry.emplace<Sim::Transform>(
 		    entity, Sim::Transform{position, glm::dquat{1.0, 0.0, 0.0, 0.0}});
-		registry.emplace<Sim::InSystem>(entity, system);
+		registry.emplace<Sim::InFrame>(entity, system);
 		registry.emplace<Body>(entity, body);
 		if (body.kind != BodyKind::Static)
 			registry.emplace<Velocity>(entity, velocity, glm::vec3{0.0f});
@@ -105,7 +105,7 @@ struct Fixture
 		entt::registry &registry = world.Registry();
 		const entt::entity station = registry.create();
 		registry.emplace<Sim::Transform>(station);
-		registry.emplace<Sim::InSystem>(station, kHalcyon);
+		registry.emplace<Sim::InFrame>(station, kHalcyon);
 		registry.emplace<Physics::OnRails>(station, std::string{kStation});
 		registry.emplace<Physics::LocalFrame>(station, std::string{kStation});
 		registry.emplace<Body>(station, Make(BodyKind::Kinematic, "hub"));
@@ -118,7 +118,7 @@ struct Fixture
 		entt::registry &registry = world.Registry();
 		const entt::entity zone = registry.create();
 		registry.emplace<Sim::Transform>(zone);
-		registry.emplace<Sim::InSystem>(zone, kHalcyon);
+		registry.emplace<Sim::InFrame>(zone, kHalcyon);
 		registry.emplace<Physics::OnRails>(zone, std::string{kStation}, offset);
 		registry.emplace<Physics::LocalFrame>(zone, std::string{kStation});
 		registry.emplace<Body>(zone, Sensor(BodyKind::Kinematic, "zone"));
@@ -349,7 +349,7 @@ TEST_CASE("Contacts: a body removed ends its contacts, and one made again begins
 
 	// Gone, or out of the system, it touches nothing.
 	registry.destroy(crate);
-	registry.get<Sim::InSystem>(other).system = Sim::kNoSystem;
+	registry.get<Sim::InFrame>(other).frame = Sim::kNoFrame;
 	fixture.Run(1);
 	CHECK(
 	    fixture.physics.Contacts() == std::vector{

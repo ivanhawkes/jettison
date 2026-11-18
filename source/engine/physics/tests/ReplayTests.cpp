@@ -108,8 +108,8 @@ void RegisterTypes()
 constexpr double kStep = 1.0 / 60.0;
 constexpr std::uint64_t kSeed = 0x0b0d1e5;
 constexpr std::uint64_t kSteps = 300;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
-const std::uint64_t kVesper = Sim::SystemId("Vesper");
+const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
+const std::uint64_t kVesper = Sim::FrameId("Vesper");
 // The bay's half width, inside.
 constexpr float kBay = 30.0f;
 
@@ -136,7 +136,7 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 {
 	RegisterTypes();
 	world.RegisterComponent<Sim::Transform>();
-	world.RegisterComponent<Sim::InSystem>();
+	world.RegisterComponent<Sim::InFrame>();
 	world.RegisterComponent<Spin>();
 	world.RegisterSystem(
 	    {"spin",
@@ -185,7 +185,7 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 		    entt::registry &registry = target.Registry();
 		    const entt::entity entity = registry.create();
 		    registry.emplace<Sim::Transform>(entity, Sim::Transform{command.position});
-		    registry.emplace<Sim::InSystem>(entity, command.system);
+		    registry.emplace<Sim::InFrame>(entity, command.system);
 		    Body body;
 		    body.kind = command.kind;
 		    body.shape = command.shape;
@@ -221,7 +221,7 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 	    {
 		    if (!target.Registry().valid(command.body))
 			    return;
-		    target.Registry().get<Sim::InSystem>(command.body).system = command.system;
+		    target.Registry().get<Sim::InFrame>(command.body).frame = command.system;
 		    target.Registry().get<Sim::Transform>(command.body).position = command.position;
 	    });
 	return physics;
@@ -325,7 +325,7 @@ void Feed(Sim::SimWorld &world, std::uint64_t step)
 			break;
 		case 150: commands.Push(Refit{Id(4), 2000.0f}); break;
 		case 200: commands.Push(Transfer{Id(6), kVesper, {0.0, 8.0, 0.0}}); break;
-		case 250: commands.Push(Transfer{Id(7), Sim::kNoSystem, {0.0, 0.0, 0.0}}); break;
+		case 250: commands.Push(Transfer{Id(7), Sim::kNoFrame, {0.0, 0.0, 0.0}}); break;
 		default: break;
 	}
 }
@@ -357,9 +357,9 @@ TEST_CASE("Physics replay: bodies collide, and the same commands give the same s
 	const entt::registry &registry = first.Registry();
 	int inside = 0;
 	for (auto [entity, body, transform, system] :
-	     registry.view<const Body, const Sim::Transform, const Sim::InSystem>().each())
+	     registry.view<const Body, const Sim::Transform, const Sim::InFrame>().each())
 	{
-		if (system.system != kHalcyon || body.kind != BodyKind::Dynamic)
+		if (system.frame != kHalcyon || body.kind != BodyKind::Dynamic)
 			continue;
 		CAPTURE(entt::to_integral(entity));
 		CHECK(glm::all(glm::lessThan(glm::abs(transform.position), glm::dvec3{kBay})));
@@ -375,7 +375,7 @@ TEST_CASE("Physics replay: bodies collide, and the same commands give the same s
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too: a
 	// change here is a change to physics' results or to what a save holds, and either is a
 	// decision, not drift.
-	CHECK(first.StateHash() == 0xf43a6412c4576d3eull);
+	CHECK(first.StateHash() == 0x791297f6f8f371e6ull);
 }
 
 
@@ -432,7 +432,7 @@ TEST_CASE("Physics replay: a save naming a shape this world does not define is r
 	Sim::SimWorld bare{kStep, kSeed};
 	RegisterTypes();
 	bare.RegisterComponent<Sim::Transform>();
-	bare.RegisterComponent<Sim::InSystem>();
+	bare.RegisterComponent<Sim::InFrame>();
 	bare.RegisterComponent<Spin>();
 	Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(bare);
 	const std::uint64_t before = bare.StateHash();

@@ -30,8 +30,8 @@ constexpr Core::Category kStations{"stations"};
 entt::entity FindStation(const entt::registry &world, std::uint64_t system, std::string_view body)
 {
 	for (const auto [entity, station, rails, inSystem] :
-	     world.view<const Dock::Station, const Physics::OnRails, const Sim::InSystem>().each())
-		if (inSystem.system == system && rails.body == body)
+	     world.view<const Dock::Station, const Physics::OnRails, const Sim::InFrame>().each())
+		if (inSystem.frame == system && rails.body == body)
 			return entity;
 	return entt::null;
 }
@@ -74,7 +74,7 @@ std::vector<entt::entity> OpenStations(
 				    body.layout);
 				continue;
 			}
-			const std::uint64_t id = Sim::SystemId(system.name);
+			const std::uint64_t id = Sim::FrameId(system.name);
 			const entt::entity station = docks.MakeStation(world, id, body.name, body.layout);
 			built.push_back(station);
 			if (opened)
@@ -90,7 +90,7 @@ std::vector<entt::entity> OpenGates(
 	std::vector<entt::entity> opened;
 	for (const Celestial::StarSystem &system : systems)
 	{
-		const std::uint64_t id = Sim::SystemId(system.name);
+		const std::uint64_t id = Sim::FrameId(system.name);
 		const auto made = [&](const Celestial::Body &body)
 		{
 			return body.kind == Celestial::BodyKind::JumpPoint &&

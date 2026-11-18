@@ -182,7 +182,7 @@ class Gates
 	// The game's rule for tolls, replacing any given before.
 	void SetTollRule(TollRule rule);
 
-	// A gate for each jump point of the defined system (Sim::SystemId), as a game makes them at its
+	// A gate for each jump point of the defined system (Sim::FrameId), as a game makes them at its
 	// start, placed where the rails have it now; a save holds them after. Throws
 	// std::invalid_argument for a system not defined, and std::logic_error for one whose gates are
 	// already made. Returns them, in the jump points' order.
@@ -228,7 +228,7 @@ class Gates
 	Physics::PhysicsWorld &m_physics;
 	const LaneTravel &m_lanes;
 	TollRule m_rule;
-	// By Sim::SystemId; looked up, and ordered regardless.
+	// By Sim::FrameId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;
 };
 } // namespace Jettison::Ai

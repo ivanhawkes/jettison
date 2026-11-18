@@ -25,7 +25,7 @@
 namespace Jettison::DockTests
 {
 inline constexpr double kStep = 1.0 / 60.0;
-inline const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
+inline const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 inline constexpr std::string_view kHighport = "Ostra Highport";
 
 inline std::string ReadAsset(std::string_view path)
@@ -64,7 +64,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		world.RegisterComponent<Sim::ControlledBy>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
@@ -76,7 +76,7 @@ struct Fixture
 		const entt::entity ship = registry.create();
 		registry.emplace<Sim::Transform>(
 		    ship, Sim::Transform{registry.get<Sim::Transform>(station).position + offset});
-		registry.emplace<Sim::InSystem>(ship, kHalcyon);
+		registry.emplace<Sim::InFrame>(ship, kHalcyon);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{kHighport});
 		Physics::Body body{Physics::BodyKind::Dynamic, Dock::Docks::HullShape(hull), 20000.0f};
 		body.continuous = true;

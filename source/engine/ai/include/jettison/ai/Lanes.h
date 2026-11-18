@@ -32,12 +32,12 @@ namespace Jettison::Ai
 // through the gate's ring that cleared it (Gates.h), or a tool, is the game's; this is how the
 // simulation carries it.
 
-// An entity on a lane: its Sim::InSystem names no system (Sim::kNoSystem) from the step it entered
+// An entity on a lane: its Sim::InFrame names no system (Sim::kNoFrame) from the step it entered
 // to the step it arrives in. Its Transform is where it left, which nothing shows, since an entity
 // in no system is in no system scene. Registered with Reflect, every field Saved, by RegisterTypes.
 struct OnLane
 {
-	// The system it left (Sim::SystemId) and the jump point it entered by.
+	// The system it left (Sim::FrameId) and the jump point it entered by.
 	std::uint64_t from{0};
 	std::string departure;
 	// The system it arrives in and the jump point it arrives at.
@@ -88,7 +88,7 @@ struct LaneRefused
 // Lane travel in a simulation world: the OnLane component, the EnterLane command, and the system
 // "lanes" (kSystemName), which runs after physics' and brings out each entity whose transit ends
 // with the step:
-//   - its Sim::InSystem names the system it arrives in, and its Transform is at the jump point
+//   - its Sim::InFrame names the system it arrives in, and its Transform is at the jump point
 //     arrived at, where the jump point is as the step ends, turned the way the jump point faces
 //     (Celestial::JumpPointFacing): towards its planet, with its station before it;
 //   - an entity with a Physics::Body arrives at rest in the frame of the station the jump point
@@ -157,7 +157,7 @@ class LaneTravel
 
 	const Physics::PhysicsWorld &m_physics;
 	std::optional<Celestial::Galaxy> m_galaxy;
-	// By Sim::SystemId; looked up, and ordered regardless.
+	// By Sim::FrameId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;
 };
 } // namespace Jettison::Ai

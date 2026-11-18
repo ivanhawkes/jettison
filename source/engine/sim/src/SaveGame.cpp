@@ -13,6 +13,41 @@
 
 namespace Jettison::Sim
 {
+namespace
+{
+// The info, read as its record and brought up from the version the save game was written at:
+// version 1's galaxy and system become details, each only if it named one.
+SaveInfo ReadInfoOf(Serialise::BinaryReader &reader, std::uint32_t version)
+{
+	Serialise::BinaryRecord record = reader.ReadRecord();
+	if (version < 2)
+	{
+		std::vector<SaveDetail> details;
+		for (const std::string_view key : {"galaxy", "system"})
+		{
+			if (!record.Has(key))
+				continue;
+			auto value = record.Get<std::string>(key);
+			record.Remove(key);
+			if (!value.empty())
+				details.push_back({std::string{key}, std::move(value)});
+		}
+		record.Set("details", details);
+	}
+	SaveInfo info;
+	record.ReadInto(info);
+	return info;
+}
+} // namespace
+
+
+std::string_view SaveInfo::Detail(std::string_view key) const
+{
+	const auto found = std::ranges::find(details, key, &SaveDetail::key);
+	return found == details.end() ? std::string_view{} : found->value;
+}
+
+
 void RegisterSaveTypes()
 {
 	static const bool registered = []
@@ -21,15 +56,17 @@ void RegisterSaveTypes()
 		Reflect::RegisterType<ModVersion>("Sim.ModVersion")
 		    .Field<&ModVersion::mod>("mod", Attribute::Saved)
 		    .Field<&ModVersion::version>("version", Attribute::Saved);
+		Reflect::RegisterType<SaveDetail>("Sim.SaveDetail")
+		    .Field<&SaveDetail::key>("key", Attribute::Saved)
+		    .Field<&SaveDetail::value>("value", Attribute::Saved);
 		Reflect::RegisterType<SaveInfo>("Sim.SaveInfo")
 		    .Field<&SaveInfo::name>("name", Attribute::Saved)
 		    .Field<&SaveInfo::engineVersion>("engineVersion", Attribute::Saved)
 		    .Field<&SaveInfo::writtenAt>("writtenAt", Attribute::Saved)
 		    .Field<&SaveInfo::step>("step", Attribute::Saved)
 		    .Field<&SaveInfo::time>("time", Attribute::Saved)
-		    .Field<&SaveInfo::galaxy>("galaxy", Attribute::Saved)
-		    .Field<&SaveInfo::system>("system", Attribute::Saved)
-		    .Field<&SaveInfo::mods>("mods", Attribute::Saved);
+		    .Field<&SaveInfo::mods>("mods", Attribute::Saved)
+		    .Field<&SaveInfo::details>("details", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;
@@ -121,9 +158,10 @@ std::vector<std::byte> SaveGame::Write() const
 SaveGame SaveGame::Read(std::span<const std::byte> bytes)
 {
 	RegisterSaveTypes();
+	const std::uint32_t version = Serialise::PeekVersion(bytes, kFormat);
 	Serialise::BinaryReader reader{bytes, Migrations()};
 	SaveGame save;
-	reader.Read(save.info);
+	save.info = ReadInfoOf(reader, version);
 	save.world = reader.ReadBytes();
 	const auto count = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 	// A section is at least its name's index and its count.
@@ -144,16 +182,21 @@ SaveGame SaveGame::Read(std::span<const std::byte> bytes)
 SaveInfo SaveGame::ReadInfo(std::span<const std::byte> bytes)
 {
 	RegisterSaveTypes();
+	const std::uint32_t version = Serialise::PeekVersion(bytes, kFormat);
 	Serialise::BinaryReader reader{bytes, Migrations()};
-	SaveInfo info;
-	reader.Read(info);
-	return info;
+	return ReadInfoOf(reader, version);
 }
 
 
 const Serialise::BinaryMigrations &SaveGame::Migrations()
 {
-	static const Serialise::BinaryMigrations migrations{std::string{kFormat}, kVersion};
+	static const Serialise::BinaryMigrations migrations = []
+	{
+		Serialise::BinaryMigrations chain{std::string{kFormat}, kVersion};
+		// The layout around the info is as it was; the info's fields move in ReadInfoOf.
+		chain.Add(1, [](Serialise::BinaryDocument &) {});
+		return chain;
+	}();
 	return migrations;
 }
 } // namespace Jettison::Sim

@@ -24,8 +24,8 @@ using namespace Jettison;
 namespace
 {
 constexpr double kStep = 1.0 / 60.0;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
-const std::uint64_t kVesper = Sim::SystemId("Vesper");
+const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
+const std::uint64_t kVesper = Sim::FrameId("Vesper");
 constexpr std::int64_t kToll = 2000;
 // Two minutes, at 60 steps a second.
 constexpr std::uint64_t kClearanceSteps = 7200;
@@ -96,7 +96,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
@@ -130,7 +130,7 @@ struct Fixture
 		              physics.FrameOrigin(kHalcyon, "Halcyon Gate", world.Clock().Now()) +
 		                  facing * glm::dvec3{0.0, 0.0, behind},
 		              facing});
-		registry.emplace<Sim::InSystem>(ship, kHalcyon);
+		registry.emplace<Sim::InFrame>(ship, kHalcyon);
 		registry.emplace<Physics::LocalFrame>(ship, "Halcyon Gate");
 		Physics::Body body;
 		body.kind = Physics::BodyKind::Dynamic;
@@ -263,7 +263,7 @@ TEST_CASE("Gates: a cleared ship flown through the ring is sent, and its owner c
 
 	// Out at Vesper Gate 40 s on, ahead of its ring, which does not see it pass.
 	fixture.Run(2400 + 120);
-	CHECK(registry.get<Sim::InSystem>(ship).system == kVesper);
+	CHECK(registry.get<Sim::InFrame>(ship).frame == kVesper);
 	CHECK(fixture.Events<Ai::GatePassed>().empty());
 	const entt::entity far = Ai::Gates::FindGate(registry, kVesper, "Vesper Gate");
 	const glm::dvec3 out =
@@ -306,7 +306,7 @@ TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and 
 	// Through and out the far side, in Halcyon still, on its credits, and still waiting.
 	for (const entt::entity each : {ship, waiting})
 	{
-		CHECK(registry.get<Sim::InSystem>(each).system == kHalcyon);
+		CHECK(registry.get<Sim::InFrame>(each).frame == kHalcyon);
 		CHECK_FALSE(registry.all_of<Ai::OnLane>(each));
 		CHECK(fixture.CreditsOf(each) == 10000);
 	}
@@ -406,7 +406,7 @@ TEST_CASE("Gates: a gate no lane leaves through clears nothing")
 	entt::registry &registry = fixture.world.Registry();
 	const entt::entity deep = Ai::Gates::FindGate(registry, kVesper, "Vesper Deep Gate");
 	const entt::entity ship = fixture.Ship(3000.0, 0.0f);
-	registry.replace<Sim::InSystem>(ship, kVesper);
+	registry.replace<Sim::InFrame>(ship, kVesper);
 	registry.replace<Physics::LocalFrame>(ship, "Vesper Deep Gate");
 	fixture.world.Commands().Push(Ai::RequestTransit{kPilot, ship, deep});
 	fixture.Run(1);

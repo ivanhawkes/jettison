@@ -19,7 +19,7 @@ constexpr std::string_view kFormat = "Jettison.World";
 // The layout Save writes. A change to it, or to what the world saves around its components, is a
 // new version, with a step in Migrations from the one before; a change to a component's fields is
 // the component's own business, by its own version and chain (ComponentMigrations).
-constexpr Serialise::FormatVersion kVersion{3};
+constexpr Serialise::FormatVersion kVersion{4};
 
 
 const Serialise::BinaryMigrations &Migrations()
@@ -38,6 +38,16 @@ const Serialise::BinaryMigrations &Migrations()
 		chain.Add(
 		    2, [](Serialise::BinaryDocument &document)
 		    { document.payload.insert(document.payload.begin(), 4, std::byte{0}); });
+		// Version 4 (A01) renamed "Sim.InSystem" to "Sim.InFrame", a frame of the game's rather than
+		// a star system; its field is renamed by its own chain (InFrame::Migrations), its storage
+		// being at version 1 in the table.
+		chain.Add(
+		    3,
+		    [](Serialise::BinaryDocument &document)
+		    {
+			    if (std::ranges::find(document.names, "Sim.InSystem") != document.names.end())
+				    document.Rename("Sim.InSystem", "Sim.InFrame");
+		    });
 		return chain;
 	}();
 	return migrations;

@@ -27,8 +27,8 @@ using Physics::Velocity;
 namespace
 {
 constexpr double kStep = 1.0 / 60.0;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
-const std::uint64_t kVesper = Sim::SystemId("Vesper");
+const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
+const std::uint64_t kVesper = Sim::FrameId("Vesper");
 
 
 ShapeDefinition Box(glm::vec3 halfExtents)
@@ -85,7 +85,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		if (before)
 			before(world);
 		Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
@@ -105,7 +105,7 @@ struct Fixture
 		const entt::entity entity = registry.create();
 		registry.emplace<Sim::Transform>(
 		    entity, Sim::Transform{position, glm::dquat{1.0, 0.0, 0.0, 0.0}});
-		registry.emplace<Sim::InSystem>(entity, system);
+		registry.emplace<Sim::InFrame>(entity, system);
 		registry.emplace<Body>(entity, body);
 		if (velocity != glm::vec3{0.0f})
 			registry.emplace<Velocity>(entity, velocity, glm::vec3{0.0f});
@@ -355,7 +355,7 @@ TEST_CASE("Physics: a body is in its system's world, and leaves it with its enti
 	CHECK(fixture.Position(here) == glm::dvec3{0.0});
 	CHECK(fixture.Position(there) == glm::dvec3{0.5, 0.0, 0.0});
 
-	registry.get<Sim::InSystem>(there).system = kHalcyon;
+	registry.get<Sim::InFrame>(there).frame = kHalcyon;
 	fixture.Run(0.5);
 	CHECK(fixture.physics.BodyCount(kHalcyon) == 2);
 	CHECK(fixture.physics.BodyCount(kVesper) == 0);
@@ -363,10 +363,10 @@ TEST_CASE("Physics: a body is in its system's world, and leaves it with its enti
 	CHECK(glm::distance(fixture.Position(here), fixture.Position(there)) > 1.9);
 
 	// On a lane it is in no world; arrived, it is in one again.
-	registry.get<Sim::InSystem>(there).system = Sim::kNoSystem;
+	registry.get<Sim::InFrame>(there).frame = Sim::kNoFrame;
 	fixture.world.Step();
 	CHECK(fixture.physics.BodyCount() == 1);
-	registry.get<Sim::InSystem>(there).system = kVesper;
+	registry.get<Sim::InFrame>(there).frame = kVesper;
 	fixture.world.Step();
 	CHECK(fixture.physics.BodyCount(kVesper) == 1);
 
@@ -420,7 +420,7 @@ TEST_CASE("Physics: a system full of bodies refuses the next")
 	Sim::SimWorld world{kStep, 1};
 	Sim::RegisterTypes();
 	world.RegisterComponent<Sim::Transform>();
-	world.RegisterComponent<Sim::InSystem>();
+	world.RegisterComponent<Sim::InFrame>();
 	Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world, {.maxBodies = 2});
 	physics.DefineShape("ball", Sphere(1.0f));
 	entt::registry &registry = world.Registry();
@@ -428,7 +428,7 @@ TEST_CASE("Physics: a system full of bodies refuses the next")
 	{
 		const entt::entity entity = registry.create();
 		registry.emplace<Sim::Transform>(entity, Sim::Transform{{x, 0.0, 0.0}});
-		registry.emplace<Sim::InSystem>(entity, kHalcyon);
+		registry.emplace<Sim::InFrame>(entity, kHalcyon);
 		registry.emplace<Body>(entity, Dynamic("ball"));
 		return entity;
 	};

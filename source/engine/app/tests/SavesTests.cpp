@@ -61,7 +61,7 @@ TEST_CASE("Saves: the saves are the user mount's, by name")
 	info.engineVersion = "0.1.0";
 	info.writtenAt = 1794476280;
 	info.step = 1200;
-	info.system = "Halcyon";
+	info.details = {{std::string{App::kSystemDetail}, "Halcyon"}};
 	Sim::SaveGame save;
 	save.info = info;
 	files.Write(App::SavePath("first"), save.Write());
@@ -85,10 +85,10 @@ TEST_CASE("Saves: the systems a world's entities are in that its galaxy does not
 	Celestial::Galaxy galaxy;
 	galaxy.systems = {{"Halcyon", "systems/halcyon.yaml", {}}, {"Vesper", "systems/vesper.yaml", {}}};
 	entt::registry world;
-	world.emplace<Sim::InSystem>(world.create(), Sim::SystemId("Halcyon"));
-	world.emplace<Sim::InSystem>(world.create(), Sim::kNoSystem);
+	world.emplace<Sim::InFrame>(world.create(), Sim::FrameId("Halcyon"));
+	world.emplace<Sim::InFrame>(world.create(), Sim::kNoFrame);
 	CHECK(App::UnknownSystems(world, galaxy).empty());
-	world.emplace<Sim::InSystem>(world.create(), Sim::SystemId("Gone"));
-	world.emplace<Sim::InSystem>(world.create(), Sim::SystemId("Gone"));
-	CHECK(App::UnknownSystems(world, galaxy) == std::vector<std::uint64_t>{Sim::SystemId("Gone")});
+	world.emplace<Sim::InFrame>(world.create(), Sim::FrameId("Gone"));
+	world.emplace<Sim::InFrame>(world.create(), Sim::FrameId("Gone"));
+	CHECK(App::UnknownSystems(world, galaxy) == std::vector<std::uint64_t>{Sim::FrameId("Gone")});
 }

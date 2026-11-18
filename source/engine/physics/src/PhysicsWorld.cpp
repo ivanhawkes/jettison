@@ -102,7 +102,7 @@ double BoundingRadius(const ShapeDefinition &shape)
 // none for the system's own. Ordered, system first, which is the order worlds step and save in.
 struct WorldKey
 {
-	std::uint64_t system{Sim::kNoSystem};
+	std::uint64_t system{Sim::kNoFrame};
 	std::string frame;
 
 
@@ -224,8 +224,8 @@ JPH::BodyCreationSettings MakeSettings(
 
 std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
 {
-	const auto *inSystem = registry.try_get<Sim::InSystem>(entity);
-	return inSystem ? inSystem->system : Sim::kNoSystem;
+	const auto *inSystem = registry.try_get<Sim::InFrame>(entity);
+	return inSystem ? inSystem->frame : Sim::kNoFrame;
 }
 
 
@@ -533,7 +533,7 @@ struct PhysicsWorld::Impl
 	// began and ended. State, saved.
 	std::map<Pair, bool> touching;
 	std::vector<ContactEvent> contacts;
-	// By Sim::SystemId: definitions, not state, so neither saved nor hashed.
+	// By Sim::FrameId: definitions, not state, so neither saved nor hashed.
 	std::map<std::uint64_t, Celestial::StarSystem> systems;
 	bool reportedUpdateError{false};
 	JoltVersion savedJolt{BuiltJoltVersion()};
@@ -621,8 +621,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Body, Sim::InSystem, OnRails, LocalFrame>()
-	         .Writing<Sim::Transform, Velocity>(),
+	     Ecs::Access::Of<Body, Sim::InFrame, OnRails, LocalFrame>().Writing<Sim::Transform, Velocity>(),
 	     {std::string{kFlightSystemName}},
 	     [&physics, &world](entt::registry &registry, double fixedStep)
 	     { physics.Step(registry, world.Clock().Now(), fixedStep); }});
@@ -682,7 +681,7 @@ void PhysicsWorld::DefineStarSystem(Celestial::StarSystem system)
 			throw std::invalid_argument{std::format(
 			    "Physics: star system '{}' is not resolved: '{}' has no parent", system.name,
 			    system.bodies[body].name)};
-	const std::uint64_t id = Sim::SystemId(system.name);
+	const std::uint64_t id = Sim::FrameId(system.name);
 	if (m_pImpl->systems.contains(id))
 		throw std::invalid_argument{
 		    std::format("Physics: star system '{}' is already defined", system.name)};
@@ -888,7 +887,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	     registry.view<const OnRails, const Sim::Transform>().each())
 	{
 		const std::uint64_t system = SystemOf(registry, entity);
-		if (system == Sim::kNoSystem)
+		if (system == Sim::kNoFrame)
 			continue;
 		const auto found = impl.systems.find(system);
 		const int body = found == impl.systems.end() ? -1 : found->second.Find(rails.body);
@@ -922,7 +921,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	{
 		const Body &body = candidates.get<const Body>(entity);
 		WorldKey key = KeyOf(registry, entity);
-		if (key.system == Sim::kNoSystem ||
+		if (key.system == Sim::kNoFrame ||
 		    (impl.records.contains(entity) && !std::ranges::binary_search(removals, entity)))
 			continue;
 		const ShapeEntry *shape = impl.FindShape(body.shape);
@@ -1242,7 +1241,7 @@ std::function<void()> PhysicsWorld::Load(
 		WorldKey key;
 		reader.Read(key.system);
 		reader.Read(key.frame);
-		if (key.system == Sim::kNoSystem ||
+		if (key.system == Sim::kNoFrame ||
 		    (!pending->worlds.empty() && key <= pending->worlds.rbegin()->first))
 			reader.Fail(
 			    std::format(

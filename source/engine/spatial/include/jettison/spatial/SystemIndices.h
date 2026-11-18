@@ -17,7 +17,7 @@ class SimWorld;
 namespace Jettison::Spatial
 {
 // The spatial index kept from the simulation: one SpatialIndex for each star system, of every
-// entity with a Sim::Transform and a Sim::InSystem naming that system, at its Transform's position.
+// entity with a Sim::Transform and a Sim::InFrame naming that system, at its Transform's position.
 // An entity on a jump lane, in no system, is in none. Kept by the system "spatial" (kSystemName),
 // which a system reading it runs after: it then sees every entity where the step found it, before
 // anything in the step has moved it. Steering (ai/Steering.h) is its first reader.
@@ -43,7 +43,7 @@ class SystemIndices
 	std::vector<std::uint64_t> Systems() const;
 
 	// Brings every index up to the registry: what the system does each step. An entity indexed
-	// that has gone, lost its Transform or its InSystem, or is in no system is removed; one that
+	// that has gone, lost its Transform or its InFrame, or is in no system is removed; one that
 	// changed system moves to the other's index.
 	void Update(const entt::registry &registry);
 

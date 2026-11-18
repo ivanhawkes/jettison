@@ -131,7 +131,7 @@ struct Galaxy
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
 

@@ -20,7 +20,7 @@ enum class BodyKind : std::uint8_t
 };
 
 // A simulation entity in the physics world (PhysicsWorld.h): with a Sim::Transform and a
-// Sim::InSystem naming a star system, it is a body in that system's physics, and one in no system
+// Sim::InFrame naming a star system, it is a body in that system's physics, and one in no system
 // (on a jump lane) is in none. Read when the body is made; a change to any field remakes the body
 // at the next step, keeping its velocity. Registered with Reflect, every field Saved, by
 // RegisterTypes.
@@ -75,7 +75,7 @@ struct Velocity
 };
 
 // An entity on rails: each step its Transform is put where the celestial body of that name is, in
-// the star system its Sim::InSystem names, at the time the step ends, turned as the body spins, or
+// the star system its Sim::InFrame names, at the time the step ends, turned as the body spins, or
 // as a jump point faces (Celestial::BodyOrientation), as a gate's ring is (ai/Gates.h). A
 // station's body is kinematic and on rails, so it pushes a ship it meets as its orbit carries it,
 // and is where presentation draws it (scene/SystemScene.h places the body at the same times). The

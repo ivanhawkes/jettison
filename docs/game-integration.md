@@ -64,7 +64,9 @@ The space sample's Trading, Traders, Fleet and market screen are a game composed
 (`source/samples/space`, `App::Game`), out of the `app` library, and its content is a tree and pack
 of its own (`source/samples/space/assets`), mounted as `base` over the engine's assets (H05,
 2026-11-18). AI combines generic algorithms with cruise/gates/lanes; physics and scene depend on
-celestial concepts; snapshots/save metadata carry star-system fields. The shell still names some
+celestial concepts. Frames and a save's details are neutral (A01, 2026-11-18): an entity's
+`Sim::InFrame` is a partition of the game's, a star system the sample's use of one, and
+`SaveInfo::details` the game's strings, the shell's galaxy and system among them. The shell still names some
 content by path, each optional (the default scene, the galaxy, the music, the station hum, a
 station's dressing), and several engine suites read the sample's content as test data.
 `JETTISON_PRESENTATION=OFF` configures the CPU engine without

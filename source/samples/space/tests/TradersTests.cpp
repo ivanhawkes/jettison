@@ -62,7 +62,7 @@ TEST_CASE(
 		CHECK(galaxy.TraderOf(ship).good.empty());
 	}
 	// Corva's last free pad, an M, is all that is left for the traders that come to it.
-	const entt::entity corva = App::FindStation(registry, Sim::SystemId("Vesper"), "Corva Refinery");
+	const entt::entity corva = App::FindStation(registry, Sim::FrameId("Vesper"), "Corva Refinery");
 	std::size_t free = 0;
 	for (const entt::entity pad : registry.get<Dock::Station>(corva).pads)
 		free += registry.get<Dock::Pad>(pad).state == Dock::PadState::Free ? 1 : 0;
@@ -206,12 +206,12 @@ TEST_CASE(
 			if (arrived == entt::null)
 				continue;
 			++arrivals;
-			const std::uint64_t system = registry.get<Sim::InSystem>(arrived).system;
+			const std::uint64_t system = registry.get<Sim::InFrame>(arrived).frame;
 			const double radius =
 			    galaxy.physics.ShapeRadius(registry.get<Physics::Body>(arrived).shape);
 			for (const auto [other, body, inSystem, transform] :
-			     registry.view<const Physics::Body, const Sim::InSystem, const Sim::Transform>().each())
-				if (other != arrived && inSystem.system == system && !body.sensor)
+			     registry.view<const Physics::Body, const Sim::InFrame, const Sim::Transform>().each())
+				if (other != arrived && inSystem.frame == system && !body.sensor)
 					tightest = std::min(
 					    tightest,
 					    glm::distance(
@@ -251,9 +251,9 @@ TEST_CASE(
 				{
 					const entt::entity first = galaxy.traders[a];
 					const entt::entity second = galaxy.traders[b];
-					if (registry.get<Sim::InSystem>(first).system !=
-					        registry.get<Sim::InSystem>(second).system ||
-					    registry.get<Sim::InSystem>(first).system == Sim::kNoSystem ||
+					if (registry.get<Sim::InFrame>(first).frame !=
+					        registry.get<Sim::InFrame>(second).frame ||
+					    registry.get<Sim::InFrame>(first).frame == Sim::kNoFrame ||
 					    registry.all_of<Dock::Docking>(first) ||
 					    registry.all_of<Dock::Docking>(second) ||
 					    registry.all_of<Ai::Cruising>(first) || registry.all_of<Ai::Cruising>(second))
@@ -268,10 +268,10 @@ TEST_CASE(
 				}
 		for (const entt::entity ship : galaxy.traders)
 		{
-			const std::uint64_t system = registry.get<Sim::InSystem>(ship).system;
-			if (system != Sim::kNoSystem && systemOf.contains(ship) && systemOf[ship] != system)
+			const std::uint64_t system = registry.get<Sim::InFrame>(ship).frame;
+			if (system != Sim::kNoFrame && systemOf.contains(ship) && systemOf[ship] != system)
 				++crossings;
-			if (system != Sim::kNoSystem)
+			if (system != Sim::kNoFrame)
 				systemOf[ship] = system;
 		}
 	}
@@ -385,5 +385,5 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release.
-	CHECK(original.world.StateHash() == 0x564e0148747bcaf8ULL);
+	CHECK(original.world.StateHash() == 0xcf3b48260ad2a1c1ULL);
 }

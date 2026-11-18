@@ -37,10 +37,10 @@ constexpr Sim::Controller kPlayer{Sim::ControllerKind::Player, 0};
 entt::entity FirstShip(Galaxy &galaxy, std::int64_t credits = 250000)
 {
 	entt::registry &registry = galaxy.world.Registry();
-	const entt::entity station = App::FindStation(registry, Sim::SystemId("Halcyon"), "Ostra Highport");
+	const entt::entity station = App::FindStation(registry, Sim::FrameId("Halcyon"), "Ostra Highport");
 	const entt::entity ship = registry.create();
 	registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
-	registry.emplace<Sim::InSystem>(ship, Sim::SystemId("Halcyon"));
+	registry.emplace<Sim::InFrame>(ship, Sim::FrameId("Halcyon"));
 	registry.emplace<Physics::LocalFrame>(ship, std::string{"Ostra Highport"});
 	App::MakeShip(registry, galaxy.docks, ship, "shuttle", 2.0e4f, true);
 	registry.emplace<Sim::ControlledBy>(ship, kPlayer);
@@ -61,8 +61,7 @@ TEST_CASE(
 {
 	Galaxy galaxy;
 	entt::registry &registry = galaxy.world.Registry();
-	const entt::entity highport =
-	    App::FindStation(registry, Sim::SystemId("Halcyon"), "Ostra Highport");
+	const entt::entity highport = App::FindStation(registry, Sim::FrameId("Halcyon"), "Ostra Highport");
 	const entt::entity first = FirstShip(galaxy);
 	galaxy.Step();
 
@@ -137,9 +136,8 @@ TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there i
 {
 	Galaxy galaxy;
 	entt::registry &registry = galaxy.world.Registry();
-	const entt::entity highport =
-	    App::FindStation(registry, Sim::SystemId("Halcyon"), "Ostra Highport");
-	const entt::entity corva = App::FindStation(registry, Sim::SystemId("Vesper"), "Corva Refinery");
+	const entt::entity highport = App::FindStation(registry, Sim::FrameId("Halcyon"), "Ostra Highport");
+	const entt::entity corva = App::FindStation(registry, Sim::FrameId("Vesper"), "Corva Refinery");
 	const entt::entity first = FirstShip(galaxy);
 	galaxy.Step();
 

@@ -24,7 +24,7 @@ using namespace Jettison;
 namespace
 {
 constexpr double kStep = 1.0 / 60.0;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
+const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 // A shuttle's drive (defs/hulls/shuttle.yaml).
 constexpr Ai::CruiseDrive kDrive{40.0f, 1.0e8, 0.25f};
 
@@ -60,7 +60,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		world.RegisterComponent<Sim::ControlledBy>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
@@ -75,7 +75,7 @@ struct Fixture
 		registry.emplace<Sim::Transform>(
 		    ship,
 		    Sim::Transform{Where(frame, world.Clock().Now()) + offset, glm::dquat{1.0, 0.0, 0.0, 0.0}});
-		registry.emplace<Sim::InSystem>(ship, kHalcyon);
+		registry.emplace<Sim::InFrame>(ship, kHalcyon);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{frame});
 		Physics::Body body;
 		body.kind = Physics::BodyKind::Dynamic;
@@ -188,7 +188,7 @@ TEST_CASE("Cruise: a ship crosses from Highport to Pell out of physics, and arri
 	CHECK(cruising->departureStep == departure);
 	CHECK(!registry.any_of<Physics::Body, Physics::Velocity, Physics::LocalFrame>(ship));
 	CHECK(fixture.physics.BodyCount() == 0);
-	CHECK(registry.get<Sim::InSystem>(ship).system == kHalcyon);
+	CHECK(registry.get<Sim::InFrame>(ship).frame == kHalcyon);
 
 	// Clear of Ostra and Pell at every step, and closing on Pell, slowly at first.
 	double nearestOstra = std::numeric_limits<double>::infinity();

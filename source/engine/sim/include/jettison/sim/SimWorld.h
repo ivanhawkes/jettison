@@ -156,10 +156,14 @@ class SimWorld
 	// rename is a step of the world's over the table of names); removing a field, or changing its
 	// type, does. Throws std::logic_error for a type Reflect does not know, one registered twice, or
 	// a chain under another name than the type's.
+	// A type with a static Migrations() is registered with that chain.
 	template <typename T> void RegisterComponent()
 	{
-		RegisterComponent<T>(ComponentMigrations{
-		    std::string{Detail::ReflectedName(entt::resolve<T>(), "component")}, {}});
+		if constexpr (requires { T::Migrations(); })
+			RegisterComponent<T>(T::Migrations());
+		else
+			RegisterComponent<T>(ComponentMigrations{
+			    std::string{Detail::ReflectedName(entt::resolve<T>(), "component")}, {}});
 	}
 
 	template <typename T> void RegisterComponent(ComponentMigrations migrations)

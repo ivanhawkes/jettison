@@ -16,7 +16,7 @@ SystemIndices &SystemIndices::Attach(Sim::SimWorld &world, const Octree::Setting
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Sim::Transform, Sim::InSystem>(),
+	     Ecs::Access::Of<Sim::Transform, Sim::InFrame>(),
 	     {},
 	     [indices](entt::registry &registry, double /*fixedStep*/) { indices->Update(registry); }});
 	return *indices;
@@ -54,27 +54,27 @@ void SystemIndices::Update(const entt::registry &registry)
 	};
 
 	for (const auto [entity, transform, inSystem] :
-	     registry.view<const Sim::Transform, const Sim::InSystem>().each())
+	     registry.view<const Sim::Transform, const Sim::InFrame>().each())
 	{
-		if (inSystem.system == Sim::kNoSystem)
+		if (inSystem.frame == Sim::kNoFrame)
 			continue;
 		const auto slot = static_cast<std::size_t>(entt::to_entity(entity));
 		if (slot >= m_entries.size())
 			m_entries.resize(slot + 1);
 		Entry &entry = m_entries[slot];
-		if (entry.entity == entity && entry.system == inSystem.system)
+		if (entry.entity == entity && entry.system == inSystem.frame)
 			m_indices.at(entry.system).Update(entity, transform.position);
 		else
 		{
 			// Indexed in another system, or an earlier entity at the same index.
 			if (entry.entity != entt::null)
 				remove(entry);
-			auto index = m_indices.find(inSystem.system);
+			auto index = m_indices.find(inSystem.frame);
 			if (index == m_indices.end())
-				index = m_indices.emplace(inSystem.system, SpatialIndex{m_settings}).first;
+				index = m_indices.emplace(inSystem.frame, SpatialIndex{m_settings}).first;
 			index->second.Insert(entity, transform.position);
 			entry.entity = entity;
-			entry.system = inSystem.system;
+			entry.system = inSystem.frame;
 		}
 		entry.pass = m_pass;
 	}

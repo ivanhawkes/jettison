@@ -93,7 +93,7 @@ for the gate, or Xvfb listening only where the sandbox allows, are the narrower 
 
 ## Current priority: neutral SDK and Manifest integration
 
-Approved 2026-11-15; H02, H03, H04 and H05 done 2026-11-18, A01 next. Follow [game integration](game-integration.md)
+Approved 2026-11-15; H02, H03, H04, H05 and A01 done 2026-11-18, W01 next. Follow [game integration](game-integration.md)
 and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -107,7 +107,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 | CPU-only build | H03 (1) | The engine configures without ImGui/Vulkan/glslc/sample assets, its CPU modules and their suites build and pass, and the packer stays available. **Done** 2026-11-18: `JETTISON_PRESENTATION` (ON by default) gates the presentation modules, the assets, Flotsam, Jetsam, the render harness and the libraries only they use, replacing `PLUGIN_IMGUI`, which had returned before the engine was defined; the `clang-cpu` preset refuses `find_package(Vulkan)`, and its fresh configure fetched none of GLFW, FreeType, RmlUi, miniaudio, ImGui, stb, VMA or KTX, built in 720 steps and passed its 22 suites; the gate configures, builds and tests it. Splitting renderer resources from example content moved to H05, where the sample's content leaves the engine. |
 | Independent CPU consumer | H04 (1) | A non-space CPU consumer defines, steps, saves, loads and tears down through the public host, with no galaxy, transform or star system. **Done** 2026-11-18: `source/test/consumer` fetches the engine with `JETTISON_PRESENTATION` off and Vulkan refused, and runs a race (a `Piece` definition read from its own content directory, a `Token` component, a `Place` command, a stepped system that rolls the world's generator) through `Host::Session`: a second session from the same seed and commands reaches the same state hash, a third loads the save and reaches it too, and teardown runs world before game. Its link line names no presentation library and no sample content; it needs an explicit `JETTISON_SOURCE_DIR` or `JETTISON_GIT_TAG`, the `main` fallback gone. It is a manual check, not a gate stage (a second fetch of the dependency set). |
 | Sample extraction | H05 (1) | Sample trading/UI/assets reside in sample/test targets outside engine code; renderer resources and example content have separate targets/manifests; Jetsam selects the example explicitly and Flotsam does not by default; neutral start-up registers no traders, markets or fleet; existing sample checks still pass. **Done** 2026-11-18: `App::Game` (`app/Game.h`) is the composition seam `RunRenderApplication` takes, its hooks the shell's points from registration to the render test's game UI stage, reading the shell through `App::Shell`; Trading, Traders, the fleet's shipyard, the market screen and the parked ships are `Sample::SpaceGame` in `source/samples/space`, with their suite (`space`), linked by Jetsam and the render test; Flotsam composes none, and `GameTests` holds a shell of no game to no market, trader or fleet type. The assets split: `assets/` is the engine's alone (shaders, fonts, the saves screen, the engine modules' strings), and the sample's content is `source/samples/space/assets` with its `mod.yaml`, each staged by `jettison_add_assets` and packed (`jettison_assets_pack`, `jettison_sample_space_pack`); the shell mounts the content as `base` over the engine's `engine`, refusing content for a newer engine, Jetsam and the render test taking the sample's by default (`jettison_use_content`) and Flotsam none (`--content` names some). Run with none, Flotsam started on an empty scene and drew it, with no warning. The app suite's `Game` cases hold the engine's assets to their four directories with none of the sample's paths in them, and the packed smoke test runs from both packs and checks the content's description. The traders' pinned hash is unchanged, and every suite, the smoke tests and the reference frames pass. |
-| Frame and save metadata seams | A01 (3) | Neutral frame/partition identity and game save metadata sections, with migrations that preserve the existing fixtures. |
+| Frame and save metadata seams | A01 (3) | Neutral frame/partition identity and game save metadata sections, with migrations that preserve the existing fixtures. **Done** 2026-11-18 ([decided](#decided)): `Sim::InFrame`, `kNoFrame` and `Sim::FrameId` in place of `InSystem`, `kNoSystem` and `SystemId`, a frame the game's partition and none for a game of one, the snapshot's sample carrying it as `frame`; the world's version 4 renames the component, and `InFrame`'s own chain (version 2, which `RegisterComponent<T>()` now takes from a type's static `Migrations()`) its field. `SaveInfo::details`, the game's key and value strings, replace `galaxy` and `system`, the save game's version 2 moving a version 1 save's into them, and the shell writes, lists and checks its own as `galaxy` and `system`. `replay-layout3.save` (a world of version 3 of `Sim.InSystem`) and `save-v1.save` load unchanged, the sim suite turns this build's save back into version 3's names and loads it as `InFrame`, and the round trip of a save's details holds keys of no space game. The eight pinned hashes moved with the version and the names alone: with the world written as version 3 under the old names, every one passed at its old value. |
 | Generic module boundaries | W01 (4) | Non-space physics and scene consumers require no celestial definitions; generic AI is independent of space transit; the docking/berth seams Manifest needs (pad classes as data, Manifest's D-044) are provisioned. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
@@ -957,16 +957,23 @@ Settled on 2026-11-10:
   self-hosted GlitchTip) is sent each report on the next start, with the player's consent, and never
   from the handler. Not Crashpad or sentry-native, which would replace the handler with minidumps,
   unless the frames and the tail prove not to be enough.
+- **An entity's frame is the game's, and a save's details are the game's strings** (2026-11-18,
+  with A01). `Sim::InFrame` and `Sim::FrameId` replace `InSystem` and `SystemId`: a frame is a
+  partition the game defines, a game of one frame gives its entities none, and a star system is the
+  space sample's use of one. Moving it into celestial instead would have left the neutral snapshot no
+  frame to stop interpolation at, and given physics, AI, docks and spatial a dependency W01 is to
+  remove. `SaveInfo::details`, key and value strings read with the info, replace its `galaxy` and
+  `system`; binary metadata sections were the alternative, which a list would have to decode and a
+  version 1 save's step would have to write in a format the simulation defined for the shell.
 
 ## Open decisions
 
 Each settled before the work it blocks. The first tier's and second tier's of
 [carried forward](#carried-forward) were settled on 2026-11-13, under [decided](#decided); these
 came with the [current priority](#current-priority-neutral-sdk-and-manifest-integration). The
-public host's shape was settled with H02 (2026-11-18, [architecture](architecture.md)).
+public host's shape was settled with H02 (2026-11-18, [architecture](architecture.md)), and the
+frame identity and the save's details with A01 (2026-11-18, [decided](#decided)).
 
 | Decision | Blocks | Re-enters |
 | --- | --- | --- |
-| Save metadata sections: a game's own section in place of the galaxy/system fields `SaveGame.h` carries | A01 (Manifest Stage 3) | Inventoried at H02 only where the minimal host is blocked; settled before Stage 3 |
-| Neutral frame identity: what replaces `InSystem` in `Snapshot.h` for a game with no star system | A01 | As above |
 | The network seam: transport, sessions and replication against Manifest's N01 map | N01, N02 | When Manifest's N01 lands |

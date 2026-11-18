@@ -37,7 +37,7 @@ namespace
 {
 constexpr double kStep = 1.0 / 60.0;
 constexpr std::uint64_t kSeed = 0x5ee1;
-const std::uint64_t kEmpty = Sim::SystemId("Empty");
+const std::uint64_t kEmpty = Sim::FrameId("Empty");
 
 
 // The game's start-up, the same every run: the station's hull, a panel, a ship's hull, a ball, and
@@ -46,7 +46,7 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 {
 	Physics::RegisterTypes();
 	world.RegisterComponent<Sim::Transform>();
-	world.RegisterComponent<Sim::InSystem>();
+	world.RegisterComponent<Sim::InFrame>();
 	Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
 	physics.DefineStarSystem(Halcyon());
 	physics.DefineShape("hub", MeshBox({6.0f, 6.0f, 30.0f}));
@@ -70,7 +70,7 @@ entt::entity Station(Sim::SimWorld &world, std::string_view shape, bool framed =
 	entt::registry &registry = world.Registry();
 	const entt::entity station = registry.create();
 	registry.emplace<Sim::Transform>(station);
-	registry.emplace<Sim::InSystem>(station, kHalcyon);
+	registry.emplace<Sim::InFrame>(station, kHalcyon);
 	registry.emplace<OnRails>(station, std::string{kStation});
 	if (framed)
 		registry.emplace<LocalFrame>(station, std::string{kStation});
@@ -103,7 +103,7 @@ entt::entity Beside(
 	const double now = world.Clock().Now();
 	const entt::entity ship = registry.create();
 	registry.emplace<Sim::Transform>(ship, StationAt(now).position + offset, orientation);
-	registry.emplace<Sim::InSystem>(ship, kHalcyon);
+	registry.emplace<Sim::InFrame>(ship, kHalcyon);
 	Body body{BodyKind::Dynamic, std::string{shape}, mass};
 	body.restitution = 0.3f;
 	body.continuous = continuous;
@@ -120,7 +120,7 @@ entt::entity Ship(Sim::SimWorld &world, const glm::dquat &orientation = {1.0, 0.
 	entt::registry &registry = world.Registry();
 	const entt::entity ship = registry.create();
 	registry.emplace<Sim::Transform>(ship, glm::dvec3{0.0}, orientation);
-	registry.emplace<Sim::InSystem>(ship, kEmpty);
+	registry.emplace<Sim::InFrame>(ship, kEmpty);
 	registry.emplace<Body>(ship, Body{BodyKind::Dynamic, "hull", 20000.0f});
 	registry.emplace<Velocity>(ship);
 	registry.emplace<Thrusters>(ship);
@@ -415,7 +415,7 @@ TEST_CASE("Flight: an entity on rails is where its body is as each step ends")
 	world.Registry().destroy(framed);
 
 	// One on no system stays where it is.
-	world.Registry().get<Sim::InSystem>(station).system = Sim::kNoSystem;
+	world.Registry().get<Sim::InFrame>(station).frame = Sim::kNoFrame;
 	const glm::dvec3 left = placed.position;
 	world.Step();
 	CHECK(world.Registry().get<Sim::Transform>(station).position == left);
@@ -434,10 +434,10 @@ TEST_CASE("Flight: rails that lead nowhere are refused before the step changes a
 	CHECK(physics.BodyCount() == 0);
 
 	world.Registry().get<OnRails>(station).body = std::string{kStation};
-	world.Registry().get<Sim::InSystem>(station).system = kEmpty;
+	world.Registry().get<Sim::InFrame>(station).frame = kEmpty;
 	CHECK_THROWS_WITH_AS(world.Step(), doctest::Contains("is not defined"), std::invalid_argument);
 	CHECK(physics.BodyCount() == 0);
-	world.Registry().get<Sim::InSystem>(station).system = kHalcyon;
+	world.Registry().get<Sim::InFrame>(station).frame = kHalcyon;
 	world.Registry().get<OnRails>(station).body = "Ostra Lowport";
 	CHECK(world.StateHash() == before);
 }
@@ -568,7 +568,7 @@ Approach Begin(Sim::SimWorld &world)
 	entt::registry &registry = world.Registry();
 	const entt::entity zone = registry.create();
 	registry.emplace<Sim::Transform>(zone);
-	registry.emplace<Sim::InSystem>(zone, kHalcyon);
+	registry.emplace<Sim::InFrame>(zone, kHalcyon);
 	registry.emplace<OnRails>(zone, std::string{kStation}, glm::dvec3{0.0, 0.0, -46.0});
 	registry.emplace<LocalFrame>(zone, std::string{kStation});
 	Body sensor{BodyKind::Kinematic, "zone"};
@@ -730,7 +730,7 @@ TEST_CASE(
 	CHECK(picked->step == kPickStep);
 
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers.
-	CHECK(world.StateHash() == 0x5bd03869c87a7364ull);
+	CHECK(world.StateHash() == 0x169a27fed60c85bcull);
 
 	// The recorded commands replay it from the start, the pick among them.
 	REQUIRE(world.Recorded().size() == 5);

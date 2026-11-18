@@ -311,7 +311,7 @@ Steering &Steering::Attach(
 	    Ecs::TickPhase::Simulation,
 	    Ecs::Access::Of<
 	        Steered, Physics::Thrusters, Physics::Velocity, Physics::Body, Physics::LocalFrame,
-	        Sim::Transform, Sim::InSystem>()
+	        Sim::Transform, Sim::InFrame>()
 	        .Writing<Destination, Physics::FlightControls>(),
 	    {std::string{Spatial::SystemIndices::kSystemName}},
 	    [steering, &world](entt::registry & /*registry*/, double /*fixedStep*/)
@@ -363,7 +363,7 @@ void Steering::Step(Sim::SimWorld &world)
 	for (const entt::entity ship :
 	     registry.view<
 	         const Steered, Destination, const Physics::Thrusters, const Physics::FlightControls,
-	         const Physics::Velocity, const Physics::Body, const Sim::Transform, const Sim::InSystem>())
+	         const Physics::Velocity, const Physics::Body, const Sim::Transform, const Sim::InFrame>())
 		ships.push_back(ship);
 	std::ranges::sort(ships, {}, [](entt::entity ship) { return entt::to_integral(ship); });
 
@@ -384,8 +384,8 @@ void Steering::Step(Sim::SimWorld &world)
 	std::vector<Obstacle> neighbours;
 	for (const entt::entity ship : ships)
 	{
-		const std::uint64_t system = registry.get<const Sim::InSystem>(ship).system;
-		if (system == Sim::kNoSystem)
+		const std::uint64_t system = registry.get<const Sim::InFrame>(ship).frame;
+		if (system == Sim::kNoFrame)
 			continue;
 		const Steered &steered = registry.get<const Steered>(ship);
 		Destination &destination = registry.get<Destination>(ship);
@@ -404,9 +404,9 @@ void Steering::Step(Sim::SimWorld &world)
 		{
 			const entt::entity entity = destination.entity;
 			std::optional<Reason> lost;
-			if (!registry.valid(entity) || !registry.all_of<Sim::Transform, Sim::InSystem>(entity))
+			if (!registry.valid(entity) || !registry.all_of<Sim::Transform, Sim::InFrame>(entity))
 				lost = Reason::DestinationGone;
-			else if (registry.get<const Sim::InSystem>(entity).system != system)
+			else if (registry.get<const Sim::InFrame>(entity).frame != system)
 				lost = Reason::DestinationOtherSystem;
 			else if (FrameOf(registry, entity) != frame)
 				lost = Reason::DestinationOtherFrame;

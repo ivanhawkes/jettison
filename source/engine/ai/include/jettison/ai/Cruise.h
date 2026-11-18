@@ -51,7 +51,7 @@ struct CruiseDrive
 // exponent. None for no distance.
 double CruiseSeconds(const CruiseDrive &drive, double metres);
 
-// A ship cruising: its Sim::InSystem stays its system, and it has no Physics::Body, Velocity or
+// A ship cruising: its Sim::InFrame stays its system, and it has no Physics::Body, Velocity or
 // LocalFrame from the step it set out in to the step it arrives in, so physics, steering, the docks
 // and the lanes leave it alone; its Transform is where its course puts it at each step's end.
 // Registered with Reflect, every field Saved, by RegisterTypes, and shown in snapshots.
@@ -184,7 +184,7 @@ class CruiseTravel
 	void Place(Sim::SimWorld &world) const;
 
 	const Physics::PhysicsWorld &m_physics;
-	// By Sim::SystemId; looked up, and ordered regardless.
+	// By Sim::FrameId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;
 };
 } // namespace Jettison::Ai

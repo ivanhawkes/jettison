@@ -199,50 +199,84 @@ TEST_CASE("Sim: interpolation runs along the line and the shorter arc, and knows
 }
 
 
-TEST_CASE("Sim: a snapshot says which system each entity is in, and no interpolation crosses a jump")
+TEST_CASE("Sim: a snapshot says which frame each entity is in, and no interpolation crosses frames")
 {
 	RegisterTypes();
 	Sim::SimWorld world{kStep, 1};
 	Populate(world);
-	world.RegisterComponent<Sim::InSystem>();
+	world.RegisterComponent<Sim::InFrame>();
 	world.Commands().Push(Launch{0.0});
 	world.Commands().Push(Launch{10.0});
 	world.Step();
 	const entt::entity here{0};
-	const entt::entity nowhere{1};
-	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
-	const std::uint64_t vesper = Sim::SystemId("Vesper");
-	CHECK(halcyon != vesper);
-	CHECK(halcyon != Sim::kNoSystem);
-	world.Registry().emplace<Sim::InSystem>(here, halcyon);
+	const entt::entity unframed{1};
+	const std::uint64_t kitchen = Sim::FrameId("Kitchen");
+	const std::uint64_t cellar = Sim::FrameId("Cellar");
+	CHECK(kitchen != cellar);
+	CHECK(kitchen != Sim::kNoFrame);
+	world.Registry().emplace<Sim::InFrame>(here, kitchen);
 
 	const Sim::Snapshot before = Sim::Capture(world);
 	REQUIRE(before.FindSample(here) != nullptr);
-	CHECK(before.FindSample(here)->system == halcyon);
-	CHECK(before.FindSample(nowhere)->system == Sim::kNoSystem);
+	CHECK(before.FindSample(here)->frame == kitchen);
+	CHECK(before.FindSample(unframed)->frame == Sim::kNoFrame);
 	CHECK(before.FindSample(entt::entity{7}) == nullptr);
 
-	// Within a system the entity moves along the line; across a jump it is where it arrived, since
-	// the two positions are in different systems' frames.
+	// Within a frame the entity moves along the line; into another it is where it arrived, since
+	// the two positions are from different origins.
 	world.Step();
 	const Sim::Snapshot moved = Sim::Capture(world);
 	CHECK(Sim::Interpolate(before, moved, here, 0.5)->position.x == doctest::Approx(1.5 * kStep));
-	world.Registry().get<Sim::InSystem>(here).system = vesper;
+	world.Registry().get<Sim::InFrame>(here).frame = cellar;
 	world.Registry().get<Sim::Transform>(here).position = {4.0e10, 0.0, 0.0};
-	const Sim::Snapshot jumped = Sim::Capture(world);
-	CHECK(jumped.FindSample(here)->system == vesper);
-	CHECK(Sim::Interpolate(moved, jumped, here, 0.5)->position.x == 4.0e10);
+	const Sim::Snapshot crossed = Sim::Capture(world);
+	CHECK(crossed.FindSample(here)->frame == cellar);
+	CHECK(Sim::Interpolate(moved, crossed, here, 0.5)->position.x == 4.0e10);
 
-	// The system is part of the state: saved, loaded and hashed.
+	// The frame is part of the state: saved, loaded and hashed.
 	Sim::SimWorld loaded{kStep, 2};
 	Populate(loaded);
-	loaded.RegisterComponent<Sim::InSystem>();
+	loaded.RegisterComponent<Sim::InFrame>();
 	loaded.Load(world.Save());
-	CHECK(loaded.Registry().get<Sim::InSystem>(here).system == vesper);
-	CHECK_FALSE(loaded.Registry().all_of<Sim::InSystem>(nowhere));
+	CHECK(loaded.Registry().get<Sim::InFrame>(here).frame == cellar);
+	CHECK_FALSE(loaded.Registry().all_of<Sim::InFrame>(unframed));
 	CHECK(loaded.StateHash() == world.StateHash());
-	world.Registry().get<Sim::InSystem>(here).system = halcyon;
+	world.Registry().get<Sim::InFrame>(here).frame = kitchen;
 	CHECK(loaded.StateHash() != world.StateHash());
+}
+
+
+// A world of version 3 named the component "Sim.InSystem" and its field "system", and gave its
+// storage version 1. Made here from this build's save, as only the names and the versions differ.
+TEST_CASE("Sim: a save of version 3, of InSystem, loads as InFrame")
+{
+	RegisterTypes();
+	Sim::SimWorld world{kStep, 1};
+	Populate(world);
+	world.RegisterComponent<Sim::InFrame>();
+	world.Commands().Push(Launch{0.0});
+	world.Step();
+	world.Registry().emplace<Sim::InFrame>(entt::entity{0}, Sim::FrameId("Halcyon"));
+	const std::vector<std::byte> save = world.Save();
+
+	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(save, "Jettison.World");
+	REQUIRE(document.version == 4);
+	document.version = 3;
+	document.Rename("Sim.InFrame", "Sim.InSystem");
+	document.Rename("frame", "system");
+	// The table of versions comes first: its count, then a name's index and a version each, the
+	// Transform's then InFrame's after the test's own; InFrame's is the last.
+	const auto count = std::to_integer<std::uint32_t>(document.payload[0]);
+	const std::size_t version = 4 + (count - 1) * 8 + 4;
+	REQUIRE(std::to_integer<int>(document.payload[version]) == 2);
+	document.payload[version] = std::byte{1};
+
+	Sim::SimWorld loaded{kStep, 2};
+	Populate(loaded);
+	loaded.RegisterComponent<Sim::InFrame>();
+	loaded.Load(document.Emit());
+	CHECK(loaded.Registry().get<Sim::InFrame>(entt::entity{0}).frame == Sim::FrameId("Halcyon"));
+	CHECK(loaded.Save() == save);
 }
 
 

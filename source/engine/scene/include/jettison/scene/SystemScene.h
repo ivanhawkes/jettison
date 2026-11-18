@@ -63,7 +63,7 @@ using ProxyFactory = std::function<entt::entity(entt::registry &presentation, en
 // it builds is a BuiltComponent, which the scene's writer leaves out.
 //
 // The traffic layer is the simulation's entities in this system: SyncTraffic gives each entity the
-// snapshots put in it (Sim::InSystem) a proxy from the factory, and destroys the proxy when its
+// snapshots put in it (Sim::InFrame) a proxy from the factory, and destroys the proxy when its
 // entity leaves the snapshots or the system. The simulation is the galaxy's, so an entity in another
 // system, or in transit between two, is not this scene's to show.
 //
@@ -123,7 +123,7 @@ class SystemScene
 
 	Scene *m_pScene;
 	Celestial::StarSystem m_system;
-	// The system's Sim::SystemId, which the snapshots name it by.
+	// The system's Sim::FrameId, which the snapshots name it by.
 	std::uint64_t m_systemId;
 	ProxyFactory m_factory;
 	// Simulation entity to the proxy the factory made for it, and the entities it declined.

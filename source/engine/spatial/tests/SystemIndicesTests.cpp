@@ -15,8 +15,8 @@ using namespace Jettison;
 namespace
 {
 constexpr double kStep = 1.0 / 60.0;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
-const std::uint64_t kVesper = Sim::SystemId("Vesper");
+const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
+const std::uint64_t kVesper = Sim::FrameId("Vesper");
 
 
 double Coordinate(Math::Random &random)
@@ -34,7 +34,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Spatial::SystemIndices::Attach(world);
 	}
 
@@ -44,7 +44,7 @@ struct Fixture
 		entt::registry &registry = world.Registry();
 		const entt::entity entity = registry.create();
 		registry.emplace<Sim::Transform>(entity, Sim::Transform{position});
-		registry.emplace<Sim::InSystem>(entity, system);
+		registry.emplace<Sim::InFrame>(entity, system);
 		return entity;
 	}
 
@@ -57,8 +57,8 @@ struct Fixture
 		std::vector<entt::entity> found;
 		const entt::registry &registry = world.Registry();
 		for (const auto [entity, transform, inSystem] :
-		     registry.view<const Sim::Transform, const Sim::InSystem>().each())
-			if (inSystem.system == system && Spatial::InSphere(transform.position, centre, radius))
+		     registry.view<const Sim::Transform, const Sim::InFrame>().each())
+			if (inSystem.frame == system && Spatial::InSphere(transform.position, centre, radius))
 				found.push_back(entity);
 		std::ranges::sort(found, Spatial::IdentifierLess);
 		return found;
@@ -86,7 +86,7 @@ TEST_CASE("System indices: each system's entities are in its own index, as the s
 		ships.push_back(fixture.Add(
 		    station + glm::dvec3{Coordinate(random), Coordinate(random), Coordinate(random)},
 		    ship % 3 == 0 ? kVesper : kHalcyon));
-	const entt::entity lane = fixture.Add(station, Sim::kNoSystem);
+	const entt::entity lane = fixture.Add(station, Sim::kNoFrame);
 	CHECK(fixture.indices.Systems().empty());
 
 	fixture.world.Step();
@@ -106,14 +106,14 @@ TEST_CASE("System indices: each system's entities are in its own index, as the s
 	for (std::size_t ship = 0; ship < ships.size(); ++ship)
 		registry.get<Sim::Transform>(ships[ship]).position +=
 		    glm::dvec3{3.0 * double(ship % 7), 0.0, -1.5};
-	registry.replace<Sim::InSystem>(ships[1], kVesper);
-	registry.remove<Sim::InSystem>(ships[2]);
+	registry.replace<Sim::InFrame>(ships[1], kVesper);
+	registry.remove<Sim::InFrame>(ships[2]);
 	registry.remove<Sim::Transform>(ships[4]);
-	registry.replace<Sim::InSystem>(ships[5], Sim::kNoSystem);
+	registry.replace<Sim::InFrame>(ships[5], Sim::kNoFrame);
 	registry.destroy(ships[7]);
 	const entt::entity reused = fixture.Add(station, kVesper);
 	CHECK(entt::to_entity(reused) == entt::to_entity(ships[7]));
-	registry.replace<Sim::InSystem>(lane, kHalcyon);
+	registry.replace<Sim::InFrame>(lane, kHalcyon);
 	fixture.world.Step();
 
 	CHECK(fixture.indices.Find(kVesper)->Contains(ships[1]));
@@ -130,9 +130,9 @@ TEST_CASE("System indices: each system's entities are in its own index, as the s
 			CHECK(fixture.Found(system, station, radius) == fixture.Expected(system, station, radius));
 
 	// A system everything has left has no index.
-	for (const auto [entity, inSystem] : registry.view<Sim::InSystem>().each())
-		if (inSystem.system == kVesper)
-			inSystem.system = kHalcyon;
+	for (const auto [entity, inSystem] : registry.view<Sim::InFrame>().each())
+		if (inSystem.frame == kVesper)
+			inSystem.frame = kHalcyon;
 	fixture.world.Step();
 	CHECK(fixture.indices.Find(kVesper) == nullptr);
 	CHECK(fixture.indices.Systems() == std::vector<std::uint64_t>{kHalcyon});

@@ -31,6 +31,17 @@ struct ModVersion
 	bool operator==(const ModVersion &) const = default;
 };
 
+// A detail of a game's in a save's info, for a list to show or a load to check: the space sample's
+// galaxy and the star system it showed. Registered with Reflect as "Sim.SaveDetail", every field
+// Saved.
+struct SaveDetail
+{
+	std::string key;
+	std::string value;
+
+	bool operator==(const SaveDetail &) const = default;
+};
+
 // What a list of saves shows without loading one, and what a load checks first. Registered with
 // Reflect, every field Saved, as "Sim.SaveInfo".
 struct SaveInfo
@@ -45,15 +56,16 @@ struct SaveInfo
 	// The world's clock as it was saved.
 	std::uint64_t step{0};
 	double time{0.0};
-	// The galaxy the world is of (Celestial::Galaxy), by the virtual path of its file, or empty for
-	// a world of no galaxy: entities name their systems by Sim::InSystem, which only that galaxy's
-	// systems answer to.
-	std::string galaxy;
-	// The star system presentation showed, by name, for the list and for the game to show again.
-	std::string system;
 	// The mods enabled as it was saved, in mount order: the caller's to set, as the mods are the
 	// game's. A save from before phase 12a names none.
 	std::vector<ModVersion> mods;
+	// The game's own, by key: what a list shows of a save and a load checks first, read with the
+	// rest of the info. A save of version 1 has its galaxy and system here, as "galaxy" and
+	// "system", each only if it named one.
+	std::vector<SaveDetail> details;
+
+	// The value of the first detail of the key, or empty for none.
+	std::string_view Detail(std::string_view key) const;
 };
 
 // What differs between the mods a save was made with and the mods running, a line each, for a load
@@ -80,14 +92,14 @@ struct SaveSection
 struct SaveGame
 {
 	static constexpr std::string_view kFormat = "Jettison.Save";
-	static constexpr Serialise::FormatVersion kVersion{1};
+	static constexpr Serialise::FormatVersion kVersion{2};
 
 	SaveInfo info;
 	std::vector<std::byte> world;
 	std::vector<SaveSection> sections;
 
-	// The world's state and clock, this build's version, and a name; writtenAt, the galaxy and the
-	// system are the caller's.
+	// The world's state and clock, this build's version, and a name; writtenAt, the mods and the
+	// details are the caller's.
 	static SaveGame Of(const SimWorld &world, std::string name);
 
 	// Throws std::logic_error for a name that is empty or already taken.
@@ -105,7 +117,8 @@ struct SaveGame
 	// The info alone, read from the front of the file, for a list of saves. Throws as Read does.
 	static SaveInfo ReadInfo(std::span<const std::byte> bytes);
 
-	// The save game format's migrations: none yet, since version 1 is the first.
+	// The save game format's migrations. Version 2 (A01) moved the info's galaxy and system into its
+	// details, a step of the info's record that Read and ReadInfo take for a save of version 1.
 	static const Serialise::BinaryMigrations &Migrations();
 };
 

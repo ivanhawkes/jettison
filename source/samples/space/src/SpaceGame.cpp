@@ -97,7 +97,7 @@ void SpaceGame::OpenGalaxy(
     const Sim::DefinitionRegistry &definitions, Script::ScriptHost &scripts)
 {
 	for (const Celestial::StarSystem &system : systems)
-		m_systemNames.emplace(Sim::SystemId(system.name), system.name);
+		m_systemNames.emplace(Sim::FrameId(system.name), system.name);
 	// The traders' tasks read the systems; their trees name the tasks.
 	const auto *decision = definitions.Find<Ai::DecisionDefinition>(kTradeDecision);
 	if (!decision)
@@ -127,14 +127,14 @@ void SpaceGame::StationOpened(
     Sim::SimWorld &world, Dock::Docks &docks, entt::entity station, std::string_view body)
 {
 	entt::registry &registry = world.Registry();
-	const std::uint64_t system = registry.get<Sim::InSystem>(station).system;
+	const std::uint64_t system = registry.get<Sim::InFrame>(station).frame;
 	for (const Parked &parked : kParked)
 	{
 		if (parked.station != body || !docks.FindHull(parked.hull))
 			continue;
 		const entt::entity ship = registry.create();
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
-		registry.emplace<Sim::InSystem>(ship, system);
+		registry.emplace<Sim::InFrame>(ship, system);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{body});
 		App::MakeShip(registry, docks, ship, parked.hull, parked.mass, false);
 		docks.Park(world, ship, registry.get<Dock::Station>(station).pads.at(parked.pad - 1));
@@ -456,7 +456,7 @@ entt::entity SpaceGame::ShownMarket(App::Shell &shell)
 				return market.entity;
 	if (const std::string system = shell.ShownSystem(); !system.empty())
 	{
-		const std::uint64_t shown = Sim::SystemId(system);
+		const std::uint64_t shown = Sim::FrameId(system);
 		for (const auto &market : markets)
 			if (market.value.system == shown)
 				return market.entity;
@@ -509,8 +509,8 @@ void SpaceGame::LogTraders(App::Shell &shell) const
 		const auto *purse = PurseOf(snapshot, entity);
 		const Sim::TransformSample *sample = snapshot.FindSample(entity);
 		std::string where{"on a lane"};
-		if (sample && sample->system != Sim::kNoSystem)
-			if (const auto found = m_systemNames.find(sample->system); found != m_systemNames.end())
+		if (sample && sample->frame != Sim::kNoFrame)
+			if (const auto found = m_systemNames.find(sample->frame); found != m_systemNames.end())
 				where = "in " + found->second;
 		const std::string run =
 		    trader.good.empty()

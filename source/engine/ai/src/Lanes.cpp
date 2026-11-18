@@ -35,7 +35,7 @@ LaneTravel &LaneTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld
 	     Ecs::TickPhase::Simulation,
 	     Ecs::Access::Of<Physics::Body>()
 	         .Writing<
-	             OnLane, Sim::InSystem, Sim::Transform, Physics::LocalFrame, Physics::FlightControls>(),
+	             OnLane, Sim::InFrame, Sim::Transform, Physics::LocalFrame, Physics::FlightControls>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
 	     [lanes, &world](entt::registry & /*registry*/, double /*fixedStep*/)
 	     { lanes->Arrive(world); }});
@@ -51,7 +51,7 @@ void LaneTravel::SetGalaxy(Celestial::Galaxy galaxy)
 
 void LaneTravel::DefineStarSystem(Celestial::StarSystem system)
 {
-	const std::uint64_t id = Sim::SystemId(system.name);
+	const std::uint64_t id = Sim::FrameId(system.name);
 	if (m_systems.contains(id))
 		throw std::invalid_argument{
 		    std::format("Ai: star system '{}' is already defined", system.name)};
@@ -78,16 +78,16 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 		return refuse(Reason::NoSuchEntity);
 	if (!Sim::MayCommand(registry, command.entity, command.sender))
 		return refuse(Reason::NotController);
-	const auto *inSystem = registry.try_get<Sim::InSystem>(command.entity);
-	if (!inSystem || inSystem->system == Sim::kNoSystem)
+	const auto *inSystem = registry.try_get<Sim::InFrame>(command.entity);
+	if (!inSystem || inSystem->frame == Sim::kNoFrame)
 		return refuse(registry.all_of<OnLane>(command.entity) ? Reason::OnLane : Reason::InNoSystem);
 	if (registry.all_of<Cruising>(command.entity))
 		return refuse(Reason::AlreadyCruising);
 	if (!m_galaxy)
 		return refuse(Reason::NoGalaxy);
 	const auto system = std::ranges::find(
-	    m_galaxy->systems, inSystem->system,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	    m_galaxy->systems, inSystem->frame,
+	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
 	if (system == m_galaxy->systems.end())
 		return refuse(Reason::SystemNotInGalaxy);
 	const std::optional<Celestial::Exit> exit = Celestial::ExitThrough(
@@ -96,17 +96,17 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 		return refuse(
 		    Reason::NoLane, {Sim::ReasonArgument::Identifier(system->name),
 		                     Sim::ReasonArgument::Identifier(command.jumpPoint)});
-	const std::uint64_t destination = Sim::SystemId(m_galaxy->systems[exit->destination].name);
+	const std::uint64_t destination = Sim::FrameId(m_galaxy->systems[exit->destination].name);
 	if (!m_systems.contains(destination))
 		return refuse(
 		    Reason::ArrivalUndefined,
 		    {Sim::ReasonArgument::Identifier(m_galaxy->systems[exit->destination].name)});
 
 	const OnLane lane{
-	    inSystem->system, command.jumpPoint, destination, std::string{exit->arrival},
+	    inSystem->frame, command.jumpPoint, destination, std::string{exit->arrival},
 	    world.Clock().Step() + Detail::TransitSteps(exit->transitSeconds, world.FixedStep())};
 	registry.emplace_or_replace<OnLane>(command.entity, lane);
-	registry.replace<Sim::InSystem>(command.entity, Sim::kNoSystem);
+	registry.replace<Sim::InFrame>(command.entity, Sim::kNoFrame);
 	// Where it was going is in the system it left.
 	registry.remove<Destination>(command.entity);
 	world.Events().Emit(LaneEntered{command.entity, lane, exit->transitSeconds});
@@ -183,7 +183,7 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		const entt::entity entity = arriving[index];
 		const OnLane lane = registry.get<const OnLane>(entity);
 		registry.emplace_or_replace<Sim::Transform>(entity, places[index].transform);
-		registry.emplace_or_replace<Sim::InSystem>(entity, lane.to);
+		registry.emplace_or_replace<Sim::InFrame>(entity, lane.to);
 		if (registry.all_of<Physics::Body>(entity))
 		{
 			registry.emplace_or_replace<Physics::LocalFrame>(entity, places[index].frame);

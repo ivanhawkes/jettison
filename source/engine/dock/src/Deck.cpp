@@ -283,7 +283,7 @@ void Docks::PlaceBuggy(Sim::SimWorld &world, entt::entity entity, double time)
 	const Physics::OnRails &rails = registry.get<Physics::OnRails>(buggy.station);
 	const Physics::OnRails place{rails.body, rails.offset + rails.turn * at, rails.turn * facing};
 	registry.emplace_or_replace<Sim::Transform>(
-	    entity, m_physics.RailsPlace(registry.get<Sim::InSystem>(buggy.station).system, place, time));
+	    entity, m_physics.RailsPlace(registry.get<Sim::InFrame>(buggy.station).frame, place, time));
 }
 
 
@@ -318,8 +318,8 @@ void Docks::SendBuggies(Sim::SimWorld &world, entt::entity stationEntity, double
 		sent.crates = Take(registry.get<Transfer>(ship).aboard, traffic.cratesPerTrip);
 		const entt::entity buggy = registry.create();
 		// A copy: the station's is in the storage the buggy's goes into.
-		const Sim::InSystem system = registry.get<Sim::InSystem>(stationEntity);
-		registry.emplace<Sim::InSystem>(buggy, system);
+		const Sim::InFrame system = registry.get<Sim::InFrame>(stationEntity);
+		registry.emplace<Sim::InFrame>(buggy, system);
 		registry.emplace<Buggy>(buggy, std::move(sent));
 		PlaceBuggy(world, buggy, time);
 	}

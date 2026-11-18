@@ -13,7 +13,7 @@
 // What the physics suite's station runs share: Halcyon, and a station's hull as a mesh.
 namespace Jettison::PhysicsTests
 {
-inline const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
+inline const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 inline constexpr std::string_view kStation = "Ostra Highport";
 
 // Halcyon as its system file has it (source/samples/space/assets/systems/halcyon.yaml): a Sun-like

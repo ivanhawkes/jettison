@@ -187,7 +187,7 @@ std::string BodyEntityId(std::string_view bodyName)
 
 
 SystemScene::SystemScene(Scene &scene, Celestial::StarSystem system)
-    : m_pScene{&scene}, m_system{std::move(system)}, m_systemId{Sim::SystemId(m_system.name)}
+    : m_pScene{&scene}, m_system{std::move(system)}, m_systemId{Sim::FrameId(m_system.name)}
 {
 	try
 	{
@@ -316,7 +316,7 @@ void SystemScene::Place(double simSeconds)
 bool SystemScene::IsHere(const Sim::Snapshot &current, entt::entity entity) const
 {
 	const Sim::TransformSample *sample = current.FindSample(entity);
-	return sample != nullptr && sample->system == m_systemId;
+	return sample != nullptr && sample->frame == m_systemId;
 }
 
 
@@ -340,7 +340,7 @@ void SystemScene::SyncTraffic(const Sim::Snapshot &previous, const Sim::Snapshot
 	if (m_factory)
 		for (const Sim::TransformSample &sample : current.transforms)
 		{
-			if (sample.system != m_systemId || m_proxies.contains(sample.entity) ||
+			if (sample.frame != m_systemId || m_proxies.contains(sample.entity) ||
 			    m_declined.contains(sample.entity))
 				continue;
 			const entt::entity proxy = m_factory(registry, sample.entity);

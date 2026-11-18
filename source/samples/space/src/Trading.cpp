@@ -319,7 +319,7 @@ std::vector<entt::entity> OpenMarkets(Sim::SimWorld &world, const Sim::Definitio
 	{
 		const MarketDefinition &definition = *definitions.Find<MarketDefinition>(name);
 		Market market{
-		    definition.station, Sim::SystemId(definition.system), entt::null, definition.feeBps, {}};
+		    definition.station, Sim::FrameId(definition.system), entt::null, definition.feeBps, {}};
 		for (const MarketListing &listing : definition.goods)
 		{
 			const Good *good = definitions.Find<Good>(listing.good);

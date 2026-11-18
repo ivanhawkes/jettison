@@ -125,7 +125,8 @@ SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem)
 			const auto bytes = fileSystem.Read(SavePath(name));
 			const Sim::SaveInfo info =
 			    Sim::SaveGame::ReadInfo(bytes ? *bytes : std::vector<std::byte>{});
-			row.system = info.system.empty() ? "no system" : info.system;
+			const std::string_view system = info.Detail(kSystemDetail);
+			row.system = system.empty() ? "no system" : system;
 			row.written = std::format(
 			    "{:%Y-%m-%d %H:%M}", std::chrono::sys_seconds{std::chrono::seconds{info.writtenAt}});
 			row.step = info.step;
@@ -146,13 +147,13 @@ std::vector<std::uint64_t> UnknownSystems(const entt::registry &world, const Cel
 	std::vector<std::uint64_t> known;
 	known.reserve(galaxy.systems.size());
 	for (const Celestial::GalaxySystem &system : galaxy.systems)
-		known.push_back(Sim::SystemId(system.name));
+		known.push_back(Sim::FrameId(system.name));
 	std::ranges::sort(known);
 
 	std::vector<std::uint64_t> unknown;
-	for (const auto [entity, in] : world.view<const Sim::InSystem>().each())
-		if (in.system != Sim::kNoSystem && !std::ranges::binary_search(known, in.system))
-			unknown.push_back(in.system);
+	for (const auto [entity, in] : world.view<const Sim::InFrame>().each())
+		if (in.frame != Sim::kNoFrame && !std::ranges::binary_search(known, in.frame))
+			unknown.push_back(in.frame);
 	std::ranges::sort(unknown);
 	const auto duplicates = std::ranges::unique(unknown);
 	unknown.erase(duplicates.begin(), duplicates.end());

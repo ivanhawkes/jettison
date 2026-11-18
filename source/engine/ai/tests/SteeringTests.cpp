@@ -29,7 +29,7 @@ using Ai::Obstacle;
 namespace
 {
 constexpr double kStep = 1.0 / 60.0;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
+const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 constexpr std::string_view kStation = "Ostra Highport";
 
 
@@ -180,7 +180,7 @@ struct Fixture
 		entt::registry &registry = world.Registry();
 		station = registry.create();
 		registry.emplace<Sim::Transform>(station, Sim::Transform{StationAt(0.0)});
-		registry.emplace<Sim::InSystem>(station, kHalcyon);
+		registry.emplace<Sim::InFrame>(station, kHalcyon);
 		registry.emplace<Physics::OnRails>(station, std::string{kStation});
 		registry.emplace<Physics::LocalFrame>(station, std::string{kStation});
 		registry.emplace<Physics::Body>(
@@ -192,7 +192,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
@@ -211,7 +211,7 @@ struct Fixture
 		entt::registry &registry = world.Registry();
 		const entt::entity ship = registry.create();
 		registry.emplace<Sim::Transform>(ship, Sim::Transform{StationAt(world.Clock().Now()) + offset});
-		registry.emplace<Sim::InSystem>(ship, kHalcyon);
+		registry.emplace<Sim::InFrame>(ship, kHalcyon);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{kStation});
 		Physics::Body body{Physics::BodyKind::Dynamic, "shuttle", 20000.0f};
 		body.continuous = true;
@@ -534,7 +534,7 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	// change here is a change to how steering flies, or to what a save holds, and either is a
 	// decision, not drift. 9c's destination saves whether it is kept clear by its hull and which
 	// way it faces; without those fields saved the flight still hashes to 9b's 0x7b531286df2bea60.
-	CHECK(first == 0xc15b7d0f8889e645ull);
+	CHECK(first == 0x26095807ff135735ull);
 
 	Fixture loaded;
 	(void)Gathering(loaded);

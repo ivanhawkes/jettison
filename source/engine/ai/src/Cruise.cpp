@@ -180,7 +180,7 @@ CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsW
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<CruiseDrive, Sim::InSystem>()
+	     Ecs::Access::Of<CruiseDrive, Sim::InFrame>()
 	         .Writing<
 	             Cruising, Sim::Transform, Physics::Body, Physics::LocalFrame, Physics::Velocity,
 	             Physics::FlightControls>(),
@@ -193,7 +193,7 @@ CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsW
 
 void CruiseTravel::DefineStarSystem(Celestial::StarSystem system)
 {
-	const std::uint64_t id = Sim::SystemId(system.name);
+	const std::uint64_t id = Sim::FrameId(system.name);
 	if (m_systems.contains(id))
 		throw std::invalid_argument{
 		    std::format("Ai: star system '{}' is already defined", system.name)};
@@ -220,8 +220,8 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 		return refuse(Reason::NoSuchEntity);
 	if (!Sim::MayCommand(registry, ship, command.sender))
 		return refuse(Reason::NotController);
-	const auto *inSystem = registry.try_get<Sim::InSystem>(ship);
-	if (!inSystem || inSystem->system == Sim::kNoSystem)
+	const auto *inSystem = registry.try_get<Sim::InFrame>(ship);
+	if (!inSystem || inSystem->frame == Sim::kNoFrame)
 		return refuse(registry.all_of<OnLane>(ship) ? Reason::OnLane : Reason::InNoSystem);
 	if (registry.all_of<Cruising>(ship))
 		return refuse(Reason::AlreadyCruising);
@@ -231,7 +231,7 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 	if (!body || body->kind != Physics::BodyKind::Dynamic || !drive || !transform ||
 	    registry.all_of<Physics::OnRails>(ship))
 		return refuse(Reason::CannotCruise);
-	const auto found = m_systems.find(inSystem->system);
+	const auto found = m_systems.find(inSystem->frame);
 	if (found == m_systems.end())
 		return refuse(Reason::SystemUndefined);
 	const Celestial::StarSystem &system = found->second;
@@ -328,7 +328,7 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 	for (const entt::entity ship : ships)
 	{
 		const Cruising &cruising = registry.get<const Cruising>(ship);
-		const std::uint64_t system = registry.get<const Sim::InSystem>(ship).system;
+		const std::uint64_t system = registry.get<const Sim::InFrame>(ship).frame;
 		const auto found = m_systems.find(system);
 		const int carrier = found == m_systems.end() ? -1 : found->second.Find(cruising.carrier);
 		const int target = found == m_systems.end() ? -1 : found->second.Find(cruising.target);
@@ -357,7 +357,7 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 			std::vector<std::uint64_t> inSystems;
 			inSystems.reserve(ships.size());
 			for (const entt::entity other : ships)
-				inSystems.push_back(registry.get<const Sim::InSystem>(other).system);
+				inSystems.push_back(registry.get<const Sim::InFrame>(other).frame);
 			occupants = Detail::Occupants(registry, m_physics, inSystems);
 		}
 		const glm::dvec3 end = origin + cruising.course.back();

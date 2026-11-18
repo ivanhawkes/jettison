@@ -64,8 +64,8 @@ std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
 
 std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
 {
-	const auto *inSystem = registry.try_get<Sim::InSystem>(entity);
-	return inSystem ? inSystem->system : Sim::kNoSystem;
+	const auto *inSystem = registry.try_get<Sim::InFrame>(entity);
+	return inSystem ? inSystem->frame : Sim::kNoFrame;
 }
 
 
@@ -129,7 +129,7 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	     Ecs::Access::Of<Hull, Physics::LocalFrame, Physics::Thrusters>()
 	         .Writing<
 	             Station, Pad, Docking, Transfer, Buggy, Physics::Body, Physics::OnRails,
-	             Physics::Velocity, Physics::FlightControls, Sim::Transform, Sim::InSystem,
+	             Physics::Velocity, Physics::FlightControls, Sim::Transform, Sim::InFrame,
 	             Ai::Destination, Ai::Steered>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
 	     [docks, &world](entt::registry & /*registry*/, double /*fixedStep*/) { docks->Step(world); }});
@@ -218,7 +218,7 @@ entt::entity Docks::MakeStation(
 
 	const entt::entity station = registry.create();
 	registry.emplace<Sim::Transform>(station, at);
-	registry.emplace<Sim::InSystem>(station, system);
+	registry.emplace<Sim::InFrame>(station, system);
 	registry.emplace<Physics::OnRails>(station, rails);
 	registry.emplace<Physics::LocalFrame>(station, std::string{body});
 	registry.emplace<Physics::Body>(
@@ -230,7 +230,7 @@ entt::entity Docks::MakeStation(
 		const Physics::OnRails padRails{std::string{body}, place.position, PadOrientation(place)};
 		const entt::entity pad = registry.create();
 		registry.emplace<Sim::Transform>(pad, m_physics.RailsPlace(system, padRails, now));
-		registry.emplace<Sim::InSystem>(pad, system);
+		registry.emplace<Sim::InFrame>(pad, system);
 		registry.emplace<Physics::OnRails>(pad, padRails);
 		registry.emplace<Physics::LocalFrame>(pad, std::string{body});
 		Pad made;

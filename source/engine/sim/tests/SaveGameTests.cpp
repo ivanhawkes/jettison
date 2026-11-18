@@ -82,8 +82,7 @@ Sim::SaveGame Saved(const Sim::SimWorld &world)
 {
 	Sim::SaveGame save = Sim::SaveGame::Of(world, "Before the jump");
 	save.info.writtenAt = 1'794'400'000;
-	save.info.galaxy = "systems/galaxy.yaml";
-	save.info.system = "Halcyon";
+	save.info.details = {{"company", "Ostra Freight"}, {"day", "12"}};
 	save.AddSection("SaveGameTests.Purse", Serialise::BinaryArchive::Write(Purse{125'000}, {1}));
 	return save;
 }
@@ -116,8 +115,10 @@ TEST_CASE("SaveGame: a save holds its info, the world and the game's sections, a
 	const Sim::SaveGame read = Sim::SaveGame::Read(bytes);
 	CHECK(read.info.name == "Before the jump");
 	CHECK(read.info.writtenAt == 1'794'400'000);
-	CHECK(read.info.galaxy == "systems/galaxy.yaml");
-	CHECK(read.info.system == "Halcyon");
+	CHECK(read.info.details == save.info.details);
+	CHECK(read.info.Detail("company") == "Ostra Freight");
+	CHECK(read.info.Detail("galaxy").empty());
+	CHECK(Sim::SaveGame::ReadInfo(bytes).Detail("day") == "12");
 	CHECK(read.world == world.Save());
 	REQUIRE(read.FindSection("SaveGameTests.Purse"));
 	CHECK(
@@ -178,7 +179,9 @@ TEST_CASE("SaveGame: a save written by version 1 loads")
 	CHECK(save.info.name == "Before the jump");
 	CHECK(save.info.engineVersion == "0.1.0");
 	CHECK(save.info.step == 10);
-	CHECK(save.info.system == "Halcyon");
+	// Its galaxy and system are details now, the galaxy's only as it named none.
+	CHECK(save.info.Detail("system") == "Halcyon");
+	CHECK(Sim::SaveGame::ReadInfo(fixture).details == save.info.details);
 	CHECK(
 	    Serialise::BinaryArchive::Read<Purse>(save.FindSection("SaveGameTests.Purse")->data, {1})
 	        .credits == 125'000);

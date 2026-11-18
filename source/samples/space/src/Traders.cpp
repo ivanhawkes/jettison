@@ -145,7 +145,7 @@ class Round
 	{
 		entt::registry &registry = context.world.Registry();
 		// A ship on a lane is in no system to set out from.
-		if (!m_lanes.Galaxy() || registry.get<Sim::InSystem>(context.entity).system == Sim::kNoSystem)
+		if (!m_lanes.Galaxy() || registry.get<Sim::InFrame>(context.entity).frame == Sim::kNoFrame)
 			return Status::Failure;
 		Trader &trader = registry.get<Trader>(context.entity);
 		const Hold &hold = registry.get<Hold>(context.entity);
@@ -305,7 +305,7 @@ class Round
 		    !context.arguments.empty() && context.arguments[0] == "buy" ? trader.buyAt : trader.sellAt;
 		trader.jumps.clear();
 		if (trader.bound == entt::null || !m_lanes.Galaxy() ||
-		    registry.get<Sim::InSystem>(context.entity).system == Sim::kNoSystem)
+		    registry.get<Sim::InFrame>(context.entity).frame == Sim::kNoFrame)
 			return Status::Failure;
 		const Ai::Place to = MarketPlace(registry, trader.bound);
 		const std::optional<Ai::Route> route = Ai::PlotRoute(
@@ -358,7 +358,7 @@ class Round
 		if (trader.jumps.empty())
 			return Status::Failure;
 		const entt::entity gate = Ai::Gates::FindGate(
-		    registry, registry.get<Sim::InSystem>(context.entity).system, trader.jumps.front());
+		    registry, registry.get<Sim::InFrame>(context.entity).frame, trader.jumps.front());
 		if (gate == entt::null)
 			return Status::Failure;
 		if (context.starting && !registry.all_of<Ai::Transit>(context.entity))
@@ -424,7 +424,7 @@ class Round
 		entt::registry &registry = context.world.Registry();
 		const Trader &trader = registry.get<Trader>(context.entity);
 		const bool gate = !context.arguments.empty() && context.arguments[0] == "gate";
-		const std::uint64_t system = registry.get<Sim::InSystem>(context.entity).system;
+		const std::uint64_t system = registry.get<Sim::InFrame>(context.entity).frame;
 		const Celestial::StarSystem *starSystem = SystemOf(system);
 		if (!starSystem || (gate && trader.jumps.empty()))
 			return Status::Failure;
@@ -671,7 +671,7 @@ class Round
 	{
 		const auto found = std::ranges::find(
 		    m_systems, system,
-		    [](const Celestial::StarSystem &each) { return Sim::SystemId(each.name); });
+		    [](const Celestial::StarSystem &each) { return Sim::FrameId(each.name); });
 		return found != m_systems.end() ? &*found : nullptr;
 	}
 
@@ -681,7 +681,7 @@ class Round
 		const auto &systems = m_lanes.Galaxy()->systems;
 		const auto found = std::ranges::find(
 		    systems, system,
-		    [](const Celestial::GalaxySystem &each) { return Sim::SystemId(each.name); });
+		    [](const Celestial::GalaxySystem &each) { return Sim::FrameId(each.name); });
 		return static_cast<std::size_t>(found - systems.begin());
 	}
 
@@ -689,7 +689,7 @@ class Round
 	// Where the ship is, as a route starts: the station it is docked at, or its system.
 	Ai::Place PlaceOf(const entt::registry &registry, entt::entity ship) const
 	{
-		Ai::Place place{SystemIndex(registry.get<Sim::InSystem>(ship).system), {}};
+		Ai::Place place{SystemIndex(registry.get<Sim::InFrame>(ship).frame), {}};
 		if (const auto *docking = registry.try_get<Dock::Docking>(ship);
 		    docking && docking->stage == Dock::Stage::Docked)
 			place.body = registry.get<Physics::OnRails>(docking->station).body;
@@ -811,7 +811,7 @@ std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 		}
 		const entt::entity ship = registry.create();
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
-		registry.emplace<Sim::InSystem>(ship, registry.get<Sim::InSystem>(station).system);
+		registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(station).frame);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{start.station});
 		App::MakeShip(registry, docks, ship, start.hull, start.mass, true);
 		registry.emplace<Ai::Steered>(ship);

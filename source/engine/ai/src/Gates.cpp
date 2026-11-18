@@ -37,10 +37,10 @@ std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
 // Whether the ship is in the gate's system and frame, where its ring can meet it.
 bool AtGate(const entt::registry &registry, entt::entity ship, entt::entity gate)
 {
-	const auto *shipSystem = registry.try_get<Sim::InSystem>(ship);
-	const auto *gateSystem = registry.try_get<Sim::InSystem>(gate);
-	return shipSystem && gateSystem && shipSystem->system == gateSystem->system &&
-	       shipSystem->system != Sim::kNoSystem && FrameOf(registry, ship) == FrameOf(registry, gate);
+	const auto *shipSystem = registry.try_get<Sim::InFrame>(ship);
+	const auto *gateSystem = registry.try_get<Sim::InFrame>(gate);
+	return shipSystem && gateSystem && shipSystem->frame == gateSystem->frame &&
+	       shipSystem->frame != Sim::kNoFrame && FrameOf(registry, ship) == FrameOf(registry, gate);
 }
 
 
@@ -78,7 +78,7 @@ Gates &Gates::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics, const
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
 	     Ecs::Access::Of<Physics::Body, Physics::LocalFrame, Cruising>()
-	         .Writing<Gate, Transit, OnLane, Sim::InSystem, Destination>(),
+	         .Writing<Gate, Transit, OnLane, Sim::InFrame, Destination>(),
 	     {std::string{LaneTravel::kSystemName}},
 	     [gates, &world](entt::registry & /*registry*/, double /*fixedStep*/) { gates->Step(world); }});
 	return *gates;
@@ -93,7 +93,7 @@ std::string Gates::RingShape(double radius)
 
 void Gates::DefineStarSystem(const Celestial::StarSystem &system)
 {
-	const std::uint64_t id = Sim::SystemId(system.name);
+	const std::uint64_t id = Sim::FrameId(system.name);
 	if (m_systems.contains(id))
 		throw std::invalid_argument{
 		    std::format("Ai: star system '{}' is already defined", system.name)};
@@ -136,8 +136,8 @@ std::vector<entt::entity> Gates::MakeGates(Sim::SimWorld &world, std::uint64_t s
 		throw std::invalid_argument{
 		    std::format("Ai: gates for system {:#x}, which is not defined", system)};
 	entt::registry &registry = world.Registry();
-	for (const auto [entity, gate, inSystem] : registry.view<const Gate, const Sim::InSystem>().each())
-		if (inSystem.system == system)
+	for (const auto [entity, gate, inSystem] : registry.view<const Gate, const Sim::InFrame>().each())
+		if (inSystem.frame == system)
 			throw std::logic_error{
 			    std::format("Ai: the gates of '{}' are already made", found->second.name)};
 
@@ -155,7 +155,7 @@ std::vector<entt::entity> Gates::MakeGates(Sim::SimWorld &world, std::uint64_t s
 		registry.emplace<Gate>(gate, Gate{body.name, entt::null, 0, {}});
 		registry.emplace<Sim::Transform>(
 		    gate, m_physics.RailsPlace(system, rails, world.Clock().Now()));
-		registry.emplace<Sim::InSystem>(gate, system);
+		registry.emplace<Sim::InFrame>(gate, system);
 		registry.emplace<Physics::OnRails>(gate, rails);
 		registry.emplace<Physics::LocalFrame>(gate, body.name);
 		registry.emplace<Physics::Body>(gate, std::move(ring));
@@ -168,8 +168,8 @@ std::vector<entt::entity> Gates::MakeGates(Sim::SimWorld &world, std::uint64_t s
 entt::entity Gates::FindGate(
     const entt::registry &registry, std::uint64_t system, std::string_view jumpPoint)
 {
-	for (const auto [entity, gate, inSystem] : registry.view<const Gate, const Sim::InSystem>().each())
-		if (inSystem.system == system && gate.jumpPoint == jumpPoint)
+	for (const auto [entity, gate, inSystem] : registry.view<const Gate, const Sim::InFrame>().each())
+		if (inSystem.frame == system && gate.jumpPoint == jumpPoint)
 			return entity;
 	return entt::null;
 }
@@ -177,8 +177,8 @@ entt::entity Gates::FindGate(
 
 const Celestial::Body *Gates::JumpPointOf(const entt::registry &registry, entt::entity gate) const
 {
-	const auto *inSystem = registry.try_get<Sim::InSystem>(gate);
-	const auto system = inSystem ? m_systems.find(inSystem->system) : m_systems.end();
+	const auto *inSystem = registry.try_get<Sim::InFrame>(gate);
+	const auto system = inSystem ? m_systems.find(inSystem->frame) : m_systems.end();
 	if (system == m_systems.end())
 		return nullptr;
 	const int body = system->second.Find(registry.get<Gate>(gate).jumpPoint);
@@ -189,18 +189,18 @@ const Celestial::Body *Gates::JumpPointOf(const entt::registry &registry, entt::
 std::optional<std::int64_t> Gates::TollThrough(const entt::registry &registry, entt::entity gate) const
 {
 	const Celestial::Galaxy *galaxy = m_lanes.Galaxy();
-	const auto *inSystem = registry.try_get<Sim::InSystem>(gate);
+	const auto *inSystem = registry.try_get<Sim::InFrame>(gate);
 	if (!galaxy || !inSystem)
 		return std::nullopt;
 	const auto system = std::ranges::find(
-	    galaxy->systems, inSystem->system,
-	    [](const Celestial::GalaxySystem &entry) { return Sim::SystemId(entry.name); });
+	    galaxy->systems, inSystem->frame,
+	    [](const Celestial::GalaxySystem &entry) { return Sim::FrameId(entry.name); });
 	if (system == galaxy->systems.end())
 		return std::nullopt;
 	const std::optional<Celestial::Exit> exit = Celestial::ExitThrough(
 	    *galaxy, static_cast<std::size_t>(system - galaxy->systems.begin()),
 	    registry.get<Gate>(gate).jumpPoint);
-	if (!exit || !m_lanes.HasStarSystem(Sim::SystemId(galaxy->systems[exit->destination].name)))
+	if (!exit || !m_lanes.HasStarSystem(Sim::FrameId(galaxy->systems[exit->destination].name)))
 		return std::nullopt;
 	return exit->toll;
 }
@@ -228,8 +228,8 @@ void Gates::Request(Sim::SimWorld &world, const RequestTransit &command)
 		return refuse(because(Reason::NotController));
 	if (!registry.valid(command.gate) || !registry.all_of<Gate>(command.gate))
 		return refuse(because(Reason::NotAGate));
-	const auto *inSystem = registry.try_get<Sim::InSystem>(ship);
-	if (!inSystem || inSystem->system == Sim::kNoSystem)
+	const auto *inSystem = registry.try_get<Sim::InFrame>(ship);
+	if (!inSystem || inSystem->frame == Sim::kNoFrame)
 		return refuse(because(registry.all_of<OnLane>(ship) ? Reason::OnLane : Reason::InNoSystem));
 	if (registry.all_of<Cruising>(ship))
 		return refuse(because(Reason::AlreadyCruising));

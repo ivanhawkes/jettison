@@ -73,7 +73,7 @@ struct Dressed
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
@@ -99,7 +99,7 @@ struct Dressed
 			    {
 				    const entt::entity ship = registry.create();
 				    registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(built));
-				    registry.emplace<Sim::InSystem>(ship, registry.get<Sim::InSystem>(built));
+				    registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(built));
 				    registry.emplace<Physics::LocalFrame>(ship, std::string{body});
 				    App::MakeShip(registry, docks, ship, "heavy-transport", 1.2e7f, false);
 				    docks.Park(world, ship, registry.get<Dock::Station>(built).pads.at(pad - 1));

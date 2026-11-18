@@ -109,7 +109,7 @@ void Buy(
 	// Made where the station is, then parked: as the traders are (OpenTraders).
 	const entt::entity ship = registry.create();
 	registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(command.station));
-	registry.emplace<Sim::InSystem>(ship, registry.get<Sim::InSystem>(command.station).system);
+	registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(command.station).frame);
 	registry.emplace<Physics::LocalFrame>(ship, registry.get<Physics::OnRails>(command.station).body);
 	App::MakeShip(registry, docks, ship, command.hull, sale.mass, true);
 	registry.replace<Physics::FlightControls>(

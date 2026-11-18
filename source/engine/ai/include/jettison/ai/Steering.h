@@ -93,7 +93,7 @@ glm::dvec3 Avoid(
 glm::dvec3 Separate(const Agent &agent, std::span<const Obstacle> neighbours, double separation);
 
 // A ship flown by steering, and how it keeps clear. With Physics::Thrusters, FlightControls, a
-// Velocity, a Body (whose shape's ShapeRadius is its hull's) and a Sim::Transform and InSystem, the
+// Velocity, a Body (whose shape's ShapeRadius is its hull's) and a Sim::Transform and InFrame, the
 // system "steering" flies it to its Destination. Registered with Reflect, every field Saved, by
 // RegisterTypes.
 struct Steered

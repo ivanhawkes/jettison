@@ -142,7 +142,7 @@ JoltVersion BuiltJoltVersion();
 // "Simulation and presentation"). Its state is the simulation's: the world owns it as a service
 // (Sim::WorldService), a save holds its bodies and their contacts, and a world loaded from a save
 // steps on exactly as the one saved did. Jolt's types stay inside this module; the engine sees
-// bodies as entities with a Body, a Sim::Transform and a Sim::InSystem (Components.h).
+// bodies as entities with a Body, a Sim::Transform and a Sim::InFrame (Components.h).
 //
 // Each frame of each star system with bodies is a Jolt world of its own (LocalFrame), made when the
 // first body enters it and gone when the last leaves: every system's positions are metres from its
@@ -195,7 +195,7 @@ class PhysicsWorld final : public Sim::WorldService
 	// Makes a physics world and gives it to the simulation world, which owns it from then on:
 	// registers Body, Velocity, OnRails, Thrusters and FlightControls as components, the
 	// SetFlightControls and Pick commands, the service, and the "flight" and "physics" systems, and
-	// shows Thrust (Flight.h) in the snapshots. The game registers Sim::Transform and Sim::InSystem
+	// shows Thrust (Flight.h) in the snapshots. The game registers Sim::Transform and Sim::InFrame
 	// itself, as it always does. Throws std::logic_error as SimWorld's registrations do, for one
 	// already made.
 	static PhysicsWorld &Attach(Sim::SimWorld &world, const PhysicsSettings &settings = {});
@@ -221,7 +221,7 @@ class PhysicsWorld final : public Sim::WorldService
 	// which a query for what is near widens itself by. None while no shape is defined.
 	double LargestShapeRadius() const;
 
-	// A star system's bodies, for rails and gravity in the system of that name (Sim::SystemId). It
+	// A star system's bodies, for rails and gravity in the system of that name (Sim::FrameId). It
 	// has to be resolved (Celestial::Resolve), as reading one does; throws std::invalid_argument for
 	// a system already defined.
 	void DefineStarSystem(Celestial::StarSystem system);

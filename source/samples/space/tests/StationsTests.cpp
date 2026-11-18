@@ -72,7 +72,7 @@ struct Stations
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
 };
@@ -96,13 +96,13 @@ TEST_CASE("Stations: the sample parks its ships on a few pads of each station as
 	    { game.StationOpened(sample.world, sample.docks, station, body); });
 	REQUIRE(stations.size() == 3);
 	const entt::registry &world = sample.world.Registry();
-	const entt::entity highport = App::FindStation(world, Sim::SystemId("Halcyon"), "Ostra Highport");
-	const entt::entity corva = App::FindStation(world, Sim::SystemId("Vesper"), "Corva Refinery");
-	const entt::entity anchorage = App::FindStation(world, Sim::SystemId("Halcyon"), "Ostra Anchorage");
+	const entt::entity highport = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Highport");
+	const entt::entity corva = App::FindStation(world, Sim::FrameId("Vesper"), "Corva Refinery");
+	const entt::entity anchorage = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Anchorage");
 	CHECK(highport == stations[0]);
 	CHECK(anchorage == stations[1]);
 	CHECK(corva == stations[2]);
-	CHECK(App::FindStation(world, Sim::SystemId("Vesper"), "Ostra Highport") == entt::null);
+	CHECK(App::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
 
 	// Three heavy transports on Highport's twelve L pads, and its display wing's six; two transports
 	// and a fighter at Corva's six. At least two pads of each are left free.

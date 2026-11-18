@@ -2,6 +2,8 @@
 
 #include <jettison/core/StringId.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Binary.h>
+#include <jettison/serialise/Migration.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 #include <jettison/sim/SimWorld.h>
@@ -28,8 +30,7 @@ void RegisterTypes()
 		Reflect::RegisterType<Transform>("Sim.Transform")
 		    .Field<&Transform::position>("position", Attribute::Saved)
 		    .Field<&Transform::orientation>("orientation", Attribute::Saved);
-		Reflect::RegisterType<InSystem>("Sim.InSystem")
-		    .Field<&InSystem::system>("system", Attribute::Saved);
+		Reflect::RegisterType<InFrame>("Sim.InFrame").Field<&InFrame::frame>("frame", Attribute::Saved);
 		Reflect::RegisterEnum<ControllerKind>("Sim.ControllerKind")
 		    .Value<ControllerKind::None>("None")
 		    .Value<ControllerKind::Player>("Player")
@@ -60,9 +61,23 @@ void RegisterTypes()
 }
 
 
-std::uint64_t SystemId(std::string_view systemName)
+const Serialise::Migrations<Serialise::BinaryRecord> &InFrame::Migrations()
 {
-	return Core::StringId{systemName}.Hash();
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
+	{
+		Serialise::Migrations<Serialise::BinaryRecord> chain{"Sim.InFrame", {2}};
+		// The world's version 4 renamed the component; its field is renamed here, as the name "system"
+		// is other types' fields too.
+		chain.Add(1, [](Serialise::BinaryRecord &record) { record.Rename("system", "frame"); });
+		return chain;
+	}();
+	return migrations;
+}
+
+
+std::uint64_t FrameId(std::string_view frameName)
+{
+	return Core::StringId{frameName}.Hash();
 }
 
 
@@ -90,8 +105,8 @@ Snapshot Capture(const SimWorld &world)
 	const auto &registry = world.Registry();
 	for (const auto [entity, transform] : view.each())
 	{
-		const auto *system = registry.try_get<InSystem>(entity);
-		snapshot.transforms.push_back({entity, transform, system ? system->system : kNoSystem});
+		const auto *frame = registry.try_get<InFrame>(entity);
+		snapshot.transforms.push_back({entity, transform, frame ? frame->frame : kNoFrame});
 	}
 	std::ranges::sort(snapshot.transforms, {}, Identifier);
 	for (const auto &[type, capture] : world.Shown())
@@ -107,7 +122,7 @@ std::optional<Transform> Interpolate(
 	if (!to)
 		return std::nullopt;
 	const TransformSample *from = previous.FindSample(entity);
-	if (!from || from->system != to->system)
+	if (!from || from->frame != to->frame)
 		return to->transform;
 	return Transform{
 	    glm::mix(from->transform.position, to->transform.position, alpha),

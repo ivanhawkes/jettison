@@ -35,6 +35,11 @@ struct ShellState
 
 inline constexpr std::string_view kShellSection = "Shell.State";
 
+// The shell's details in a save's info (Sim::SaveInfo::details): the galaxy's virtual path, which a
+// load must match, and the star system shown, for the list.
+inline constexpr std::string_view kGalaxyDetail = "galaxy";
+inline constexpr std::string_view kSystemDetail = "system";
+
 std::vector<std::byte> WriteShellState(const ShellState &state);
 
 // Throws FormatError or FormatVersionError for a section that does not fit.
@@ -76,7 +81,7 @@ void RegisterSavesScreenTypes();
 // The saves the mounts hold, by name.
 SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem);
 
-// The systems the world's entities are in (Sim::InSystem) that the galaxy does not have, sorted:
+// The systems the world's entities are in (Sim::InFrame) that the galaxy does not have, sorted:
 // a save of another galaxy, or of one a mod has since changed. Entities on a lane are in none.
 std::vector<std::uint64_t> UnknownSystems(const entt::registry &world, const Celestial::Galaxy &galaxy);
 } // namespace Jettison::App

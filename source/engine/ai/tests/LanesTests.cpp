@@ -21,8 +21,8 @@ using namespace Jettison;
 namespace
 {
 constexpr double kStep = 1.0 / 60.0;
-const std::uint64_t kHalcyon = Sim::SystemId("Halcyon");
-const std::uint64_t kVesper = Sim::SystemId("Vesper");
+const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
+const std::uint64_t kVesper = Sim::FrameId("Vesper");
 // 40 s from Halcyon to Vesper, at 60 steps a second.
 constexpr std::uint64_t kTransitSteps = 2400;
 
@@ -55,7 +55,7 @@ struct Fixture
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
@@ -75,7 +75,7 @@ struct Fixture
 		registry.emplace<Sim::Transform>(
 		    ship,
 		    Sim::Transform{station + glm::dvec3{0.0, 0.0, 200.0}, glm::dquat{0.6, 0.0, 0.8, 0.0}});
-		registry.emplace<Sim::InSystem>(ship, kHalcyon);
+		registry.emplace<Sim::InFrame>(ship, kHalcyon);
 		registry.emplace<Physics::LocalFrame>(ship, "Ostra Highport");
 		Physics::Body body;
 		body.kind = Physics::BodyKind::Dynamic;
@@ -107,7 +107,7 @@ struct Fixture
 
 	std::uint64_t SystemOf(entt::entity entity) const
 	{
-		return world.Registry().get<Sim::InSystem>(entity).system;
+		return world.Registry().get<Sim::InFrame>(entity).frame;
 	}
 };
 
@@ -139,14 +139,14 @@ TEST_CASE("Lanes: a ship enters the gate, is in no system for the transit, and l
 	CHECK(entries[0].lane.arrival == "Vesper Gate");
 	CHECK(entries[0].lane.arrivalStep == entered + kTransitSteps);
 	CHECK(entries[0].transitSeconds == 40.0);
-	CHECK(fixture.SystemOf(ship) == Sim::kNoSystem);
+	CHECK(fixture.SystemOf(ship) == Sim::kNoFrame);
 	CHECK(fixture.world.Registry().all_of<Ai::OnLane>(ship));
 	// Physics removed its body in the step it entered.
 	CHECK(fixture.physics.BodyCount() == 0);
 
 	// One step short of the transit it is still on the lane; the step that ends it brings it out.
 	fixture.Run(kTransitSteps - 2);
-	CHECK(fixture.SystemOf(ship) == Sim::kNoSystem);
+	CHECK(fixture.SystemOf(ship) == Sim::kNoFrame);
 	CHECK(fixture.Events<Ai::LaneLeft>().empty());
 	fixture.Run(1);
 	CHECK(fixture.world.Clock().Step() == entered + kTransitSteps);
@@ -207,7 +207,7 @@ TEST_CASE("Lanes: what no lane leaves through, or nothing in a system, is refuse
 	Fixture fixture;
 	const entt::entity ship = fixture.Ship();
 	const entt::entity drifting = fixture.world.Registry().create();
-	fixture.world.Registry().emplace<Sim::InSystem>(drifting, Sim::kNoSystem);
+	fixture.world.Registry().emplace<Sim::InFrame>(drifting, Sim::kNoFrame);
 	const entt::entity gone = fixture.world.Registry().create();
 	fixture.world.Registry().destroy(gone);
 
@@ -267,7 +267,7 @@ TEST_CASE("Lanes: a world saved mid-transit arrives as the one saved does, and a
 
 	Fixture loaded;
 	loaded.world.Load(midway);
-	CHECK(loaded.SystemOf(ship) == Sim::kNoSystem);
+	CHECK(loaded.SystemOf(ship) == Sim::kNoFrame);
 	loaded.Run(kTransitSteps);
 	CHECK(loaded.SystemOf(ship) == kVesper);
 	CHECK(loaded.world.StateHash() == arrived);
@@ -295,11 +295,11 @@ TEST_CASE("Lanes: a transit shorter than a step takes one, and arrives as the st
 	entt::registry &registry = fixture.world.Registry();
 	const entt::entity probe = registry.create();
 	registry.emplace<Sim::Transform>(probe);
-	registry.emplace<Sim::InSystem>(probe, kVesper);
+	registry.emplace<Sim::InFrame>(probe, kVesper);
 
 	fixture.world.Commands().Push(Ai::EnterLane{{}, probe, "Vesper Deep Gate"});
 	fixture.Run(1);
-	CHECK(fixture.SystemOf(probe) == Sim::SystemId("Marrow"));
+	CHECK(fixture.SystemOf(probe) == Sim::FrameId("Marrow"));
 	// Not a body, so given no frame.
 	CHECK_FALSE(registry.all_of<Physics::LocalFrame>(probe));
 	CHECK(
@@ -329,7 +329,7 @@ TEST_CASE(
 	fixture.Run(kTransitSteps - 60);
 	REQUIRE(fixture.SystemOf(first) == kVesper);
 	REQUIRE(fixture.SystemOf(second) == kVesper);
-	CHECK(fixture.SystemOf(third) == Sim::kNoSystem);
+	CHECK(fixture.SystemOf(third) == Sim::kNoFrame);
 
 	const Celestial::StarSystem vesper = AiTests::Vesper();
 	const auto at = [&](entt::entity ship) { return registry.get<Sim::Transform>(ship).position; };

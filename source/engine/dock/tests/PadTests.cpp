@@ -243,7 +243,7 @@ TEST_CASE(
 	yard.world.Commands().Push(Dock::RequestPad{{}, ship, ship, false});
 	yard.Ask(yard.Waiting("liner"));
 	const entt::entity away = yard.Waiting("skiff");
-	registry.replace<Sim::InSystem>(away, Sim::SystemId("Vesper"));
+	registry.replace<Sim::InFrame>(away, Sim::FrameId("Vesper"));
 	registry.remove<Physics::LocalFrame>(away);
 	yard.Ask(away);
 	yard.world.Commands().Push(Dock::ReleasePad{two, ship});

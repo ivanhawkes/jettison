@@ -213,11 +213,13 @@ supplies makes) and effects (markers, beacons). An entity's layer is its own or 
 hidden layer is neither drawn nor lights the scene; the sun and the sky are always the system's.
 What the system scene builds is never saved, so a scene file is only ever what its author wrote.
 
-The simulation is the whole **galaxy's**, and presentation shows one system of it. Each entity's
-`Sim::InSystem` names the system whose frame its `Transform` is in (the system's name hashed, so a
-save keeps it), and an entity on a jump lane is in none. Snapshots carry it; a system scene's traffic
-layer is the entities in its own system, and no interpolation runs across a change of system, whose
-two positions are in different frames.
+The engine's frames are neutral (A01): `Sim::InFrame` names the frame an entity's `Transform` is
+in, a partition of the game's with its own origin (its name hashed by `Sim::FrameId`, so a save keeps
+it), and a game of one frame gives its entities none. Snapshots carry it, and no interpolation runs
+across a change of frame, whose two positions are from different origins. In the space sample the
+simulation is the whole **galaxy's** and each star system is a frame, named by the system's name;
+presentation shows one system of it, a system scene's traffic layer being the entities in its own
+system's frame, and an entity on a jump lane is in none (`Sim::kNoFrame`).
 
 ### Jumps
 
@@ -253,7 +255,7 @@ traffic is made from the same snapshots.
 That is presentation's jump, which changes what is shown. The simulation's (`ai/Lanes.h`, 9a)
 carries an entity along a lane: the command `Ai::EnterLane`, from a sender that commands it (a gate
 sends a ship it cleared as no one in particular), takes it out of its system through a jump
-point (its `InSystem` none, an `Ai::OnLane` saying where it is going and the step it arrives), gives
+point (its `InFrame` none, an `Ai::OnLane` saying where it is going and the step it arrives), gives
 up its destination, and the system `lanes`, after physics, brings it out at the far jump point when
 the transit's whole steps are run. A body comes out at rest in the gate's own frame (or that of a
 station it keeps by), facing the way the gate faces (`Celestial::JumpPointFacing`: its planet), with
@@ -356,7 +358,7 @@ Physics is part of the simulation's state, not a service beside it (`physics/Phy
 registry, which it owns, saves after the components and hashes with them, and loads in two halves,
 read against the registry being loaded and then committed with it, so a save that does not fit
 leaves world and physics as they were. A body is an entity with a `Physics::Body` (its kind, a
-shape by name, its mass and material), a `Sim::Transform` and a `Sim::InSystem`; the game sees no
+shape by name, its mass and material), a `Sim::Transform` and a `Sim::InFrame`; the game sees no
 Jolt type. Shapes are definitions (`Physics::ShapeDefinition`, through the definition registry, so
 a mod can replace one), built into Jolt shapes when they are defined, and a save names them.
 
@@ -501,7 +503,7 @@ nose towards it. Positions are in the system frame and velocities in the ship's 
 it steers about, as bodies in two frames never meet.
 
 What is near comes from the **spatial index kept from the simulation** (`spatial/SystemIndices.h`):
-one octree a system, of every entity with a `Transform` and an `InSystem`, brought up to the
+one octree a system, of every entity with a `Transform` and an `InFrame`, brought up to the
 registry by the system `spatial` as the step's systems begin. It is not state: it is made from the
 components each step, so a save does not hold it and a world loaded from one has it from its next
 step, and what a query returns depends on the positions alone. Every body but a sensor within reach
@@ -690,13 +692,16 @@ helm. A save from before the helm gives the player the helm of the ship it names
 
 A save game (`sim/SaveGame.h`, 8a) is one file in its own format, `Jettison.Save`, holding parts
 that are each versioned on their own: its `SaveInfo` (the player's name for it, the engine version
-that wrote it, when, the world's step and time, the galaxy's file, the system shown and the mods
-enabled with their versions), the world's save (`SimWorld::Save`, `Jettison.World`), and the game's
+that wrote it, when, the world's step and time, the mods enabled with their versions, and the game's
+details, key and value strings a list shows and a load checks), the world's save (`SimWorld::Save`, `Jettison.World`), and the game's
 sections, each a binary archive in a format of the game's that the save holds and does not read:
 what a save contains beyond the engine's state is the game's ([scope](scope.md)). The info comes
 first, so a list of saves reads no further. A change to the world's layout is a step in the world's
 migrations and leaves the save game's format and the game's sections alone. The shell's sections are
-its own state (`Shell.State`) and what scripts keep by key (`Script.Store`, [scripts](#scripts)).
+its own state (`Shell.State`) and what scripts keep by key (`Script.Store`, [scripts](#scripts)); its
+details are the galaxy's file, which a load must match, and the system shown (`galaxy`, `system`),
+which the save game's version 1 held as fields of the info and its step to version 2 (A01) moves
+into the details.
 
 Every versioned format reads its earlier versions through a chain of migrations
 (`serialise/Migration.h`), a step from each version to the next, written once, when its version is
@@ -707,18 +712,21 @@ change inside a value needs the types that wrote it, and a step that has them re
 with them and writes the new.
 
 A component changes by a chain of its own (12a, [decided](roadmap.md#decided)). The world's save
-(version 3) begins with each component storage's version, so a load knows them all before it reads
+(version 4) begins with each component storage's version, so a load knows them all before it reads
 one, and a version newer than the component's chain is refused by the component's name before
 anything else is read; a storage of an older save is at version 1, which the world's step from 2
 sets by writing an empty table. A component registered with a chain
-(`SimWorld::RegisterComponent<T>(Sim::ComponentMigrations)`, under its registered name) has each
+(`SimWorld::RegisterComponent<T>(Sim::ComponentMigrations)`, under its registered name, or its own
+static `T::Migrations()`, which `RegisterComponent<T>()` takes) has each
 value of an older storage read as its record (`Serialise::BinaryRecord`): the field table the binary
 archive writes, each field's name and its bytes, which a step edits. A field removed is read, if the
 step wants it, and taken out; a field retyped is decoded with the reader's primitives by the layout
 the step knows, and set again; the record is then read as the type is now, by name as any value is.
 So the old C++ type is never needed, and a struct inside a component is migrated by the component's
 steps. Adding a field or renaming one needs no version: fields are found by name, and a rename is a
-world step over the table of names. A YAML step edits the parsed tree, keeping the lines a mistake is
+world step over the table of names, unless other types share the field's name, which that step would
+rename too: the world's version 4 renamed `Sim.InSystem` to `Sim.InFrame` over the table, and
+`InFrame`'s own version 2 renamed its field from `system` to `frame`, a name markets' fields have. A YAML step edits the parsed tree, keeping the lines a mistake is
 reported at. Definitions migrate the same way ([decided](roadmap.md#decided)). A version newer than
 the build's, or one the chain does not reach, is refused by name before any step runs, and every
 read leaves what it was reading into as it was when the data does not fit.
@@ -727,9 +735,10 @@ What a build wrote, every later build loads: the suites keep saves written by ea
 fixtures (`sim/tests/data`), never regenerated. `world-v1.save` was written by the phase 6d build
 (commit `a5d0c83`) and `world-v2.save`, the same world with a service's state, by phase 11's
 (`cfb86e9`); each loads, through the world's migrations, into the state this build reaches at the
-same step. `save-v1.save` is the save game's first version, written by phase 8a's.
-`physics/tests/data/replay-layout3.save`, physics' layout 3 from phase 12a's build (`8177358`), loads
-with Jolt's state kept and steps on to the bytes the run not saved reaches.
+same step. `save-v1.save` is the save game's first version, written by phase 8a's, its system now a
+detail. `physics/tests/data/replay-layout3.save`, physics' layout 3 from phase 12a's build
+(`8177358`), a world of version 3 of `Sim.InSystem`, loads with Jolt's state kept and steps on to the
+bytes the run not saved reaches.
 
 A save is written through the VFS to the user mount, the user's data directory
 (`~/.local/share/jettison/saves/<name>.save`), whole and durably (`Core::WriteFileDurably`): to a

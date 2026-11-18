@@ -384,7 +384,7 @@ TEST_CASE("System scene: the simulation's entities are the traffic layer, made a
 		    return hull;
 	    });
 
-	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
+	const std::uint64_t halcyon = Sim::FrameId("Halcyon");
 	const Sim::Snapshot first{
 	    1,
 	    0.1,
@@ -456,8 +456,8 @@ TEST_CASE("System scene: the traffic layer is this system's, and a ship that jum
 	const auto elsewhere = entt::entity{2};
 	const auto traveller = entt::entity{3};
 	const auto unplaced = entt::entity{4};
-	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
-	const std::uint64_t vesper = Sim::SystemId("Vesper");
+	const std::uint64_t halcyon = Sim::FrameId("Halcyon");
+	const std::uint64_t vesper = Sim::FrameId("Vesper");
 	const auto shown = [&registry]
 	{
 		std::vector<entt::entity> entities;
@@ -474,7 +474,7 @@ TEST_CASE("System scene: the traffic layer is this system's, and a ship that jum
 	    {{local, {{1.0, 0.0, 0.0}, {}}, halcyon},
 	     {elsewhere, {{2.0, 0.0, 0.0}, {}}, vesper},
 	     {traveller, {{3.0, 0.0, 0.0}, {}}, halcyon},
-	     {unplaced, {{4.0, 0.0, 0.0}, {}}, Sim::kNoSystem}},
+	     {unplaced, {{4.0, 0.0, 0.0}, {}}, Sim::kNoFrame}},
 	    {}};
 	systemScene.SyncTraffic(docked, docked, 0.0);
 	CHECK(shown() == std::vector{local, traveller});
@@ -482,14 +482,14 @@ TEST_CASE("System scene: the traffic layer is this system's, and a ship that jum
 	// The traveller enters the lane: in no system, it leaves Halcyon's traffic layer.
 	Sim::Snapshot transit = docked;
 	transit.step = 2;
-	transit.transforms[2].system = Sim::kNoSystem;
+	transit.transforms[2].frame = Sim::kNoFrame;
 	systemScene.SyncTraffic(docked, transit, 0.5);
 	CHECK(shown() == std::vector{local});
 
 	// A ship arriving from Vesper is made a proxy, at the gate it arrived at, not between the two.
 	Sim::Snapshot arrived = transit;
 	arrived.step = 3;
-	arrived.transforms[1].system = halcyon;
+	arrived.transforms[1].frame = halcyon;
 	arrived.transforms[1].transform.position = {4.0e11, 0.0, 0.0};
 	systemScene.SyncTraffic(transit, arrived, 0.5);
 	CHECK(shown() == std::vector{local, elsewhere});

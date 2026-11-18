@@ -329,7 +329,7 @@ TEST_CASE(
 	constexpr double kStep = 1.0 / 60.0;
 	Sim::SimWorld world{kStep, 6};
 	world.RegisterComponent<Sim::Transform>();
-	world.RegisterComponent<Sim::InSystem>();
+	world.RegisterComponent<Sim::InFrame>();
 	world.RegisterComponent<Cruise>();
 	world.RegisterComponent<Transiting>();
 	world.RegisterSystem(
@@ -346,7 +346,7 @@ TEST_CASE(
 	world.RegisterSystem(
 	    {"lanes",
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Transiting>().Writing<Sim::InSystem, Sim::Transform>(),
+	     Ecs::Access::Of<Transiting>().Writing<Sim::InFrame, Sim::Transform>(),
 	     {"cruise"},
 	     [](entt::registry &registry, double)
 	     {
@@ -357,20 +357,20 @@ TEST_CASE(
 		     for (const entt::entity entity : arrived)
 		     {
 			     const Transiting transit = registry.get<Transiting>(entity);
-			     registry.get<Sim::InSystem>(entity).system = transit.destination;
+			     registry.get<Sim::InFrame>(entity).frame = transit.destination;
 			     registry.get<Sim::Transform>(entity).position = transit.arrival;
 			     registry.remove<Transiting>(entity);
 		     }
 	     }});
 
-	const std::uint64_t halcyon = Sim::SystemId("Halcyon");
-	const std::uint64_t vesper = Sim::SystemId("Vesper");
+	const std::uint64_t halcyon = Sim::FrameId("Halcyon");
+	const std::uint64_t vesper = Sim::FrameId("Vesper");
 	entt::registry &simulation = world.Registry();
 	const auto ship = [&](std::uint64_t system, double x, double speed)
 	{
 		const entt::entity entity = simulation.create();
 		simulation.emplace<Sim::Transform>(entity, glm::dvec3{x, 0.0, 0.0});
-		simulation.emplace<Sim::InSystem>(entity, system);
+		simulation.emplace<Sim::InFrame>(entity, system);
 		simulation.emplace<Cruise>(entity, glm::dvec3{speed, 0.0, 0.0});
 		return entity;
 	};
@@ -431,7 +431,7 @@ TEST_CASE(
 	const auto exit = Celestial::ExitThrough(assets.galaxy, assets.Index("Halcyon"), "Halcyon Gate");
 	REQUIRE(exit);
 	const std::uint64_t departed = world.Clock().Step();
-	simulation.get<Sim::InSystem>(courier).system = Sim::kNoSystem;
+	simulation.get<Sim::InFrame>(courier).frame = Sim::kNoFrame;
 	simulation.emplace<Transiting>(courier, vesper, std::uint64_t{45}, vesperGate);
 	REQUIRE(jump.Begin(assets.galaxy, exit->destination, std::string{exit->arrival}));
 	std::uint64_t shownAt = 0;
@@ -463,7 +463,7 @@ TEST_CASE(
 	// Halcyon's ships went on while it was not shown, and are where every step since put them.
 	const std::uint64_t steps = world.Clock().Step();
 	const Sim::Snapshot &now = stepper.Current();
-	CHECK(now.FindSample(trader)->system == halcyon);
+	CHECK(now.FindSample(trader)->frame == halcyon);
 	CHECK(
 	    now.Find(trader)->position.x ==
 	    doctest::Approx(1.0e11 + 250.0 * kStep * static_cast<double>(steps)));
@@ -473,7 +473,7 @@ TEST_CASE(
 	CHECK(
 	    now.Find(hauler)->position.x ==
 	    doctest::Approx(3.0e10 + 120.0 * kStep * static_cast<double>(steps)));
-	CHECK(now.FindSample(courier)->system == vesper);
+	CHECK(now.FindSample(courier)->frame == vesper);
 
 	// And back: Halcyon's scene again, its traffic as it is now.
 	REQUIRE(jump.Begin(assets.galaxy, assets.Index("Halcyon"), "Halcyon Gate"));

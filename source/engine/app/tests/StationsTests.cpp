@@ -65,7 +65,7 @@ struct Sample
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InSystem>();
+		world.RegisterComponent<Sim::InFrame>();
 		return Physics::PhysicsWorld::Attach(world);
 	}
 };
@@ -95,13 +95,13 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, and th
 	// Each told to the game as it is built, in the systems' order.
 	CHECK(opened == std::vector<std::string>{"Ostra Highport", "Ostra Anchorage", "Corva Refinery"});
 	const entt::registry &world = sample.world.Registry();
-	const entt::entity highport = App::FindStation(world, Sim::SystemId("Halcyon"), "Ostra Highport");
-	const entt::entity corva = App::FindStation(world, Sim::SystemId("Vesper"), "Corva Refinery");
-	const entt::entity anchorage = App::FindStation(world, Sim::SystemId("Halcyon"), "Ostra Anchorage");
+	const entt::entity highport = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Highport");
+	const entt::entity corva = App::FindStation(world, Sim::FrameId("Vesper"), "Corva Refinery");
+	const entt::entity anchorage = App::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Anchorage");
 	CHECK(highport == stations[0]);
 	CHECK(anchorage == stations[1]);
 	CHECK(corva == stations[2]);
-	CHECK(App::FindStation(world, Sim::SystemId("Vesper"), "Ostra Highport") == entt::null);
+	CHECK(App::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
 
 	// Highport's twelve L pads and its display wing's six; six at Corva and at the Anchorage. No
 	// ship is parked on any: that is a game's to do.

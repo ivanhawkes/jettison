@@ -67,7 +67,7 @@ struct Harbour
 		pad = registry.create();
 		market = registry.create();
 		registry.emplace<Market>(
-		    market, Market{"Ostra Highport", Sim::SystemId("Halcyon"), station, 150, {Copper(6), {}}});
+		    market, Market{"Ostra Highport", Sim::FrameId("Halcyon"), station, 150, {Copper(6), {}}});
 		registry.get<Market>(market).goods[1] = MarketGood{"beer", 1200, 70, 2, 1, 40, 0, 0};
 		Quote(registry.get<Market>(market).goods[1], 150);
 		ship = registry.create();
@@ -397,7 +397,7 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 	MarketGood beer{"beer", 1200, 2, 0, 1, 30, 0, 0};
 	Quote(beer, 120);
 	registry.emplace<Market>(
-	    corva, Market{"Corva Refinery", Sim::SystemId("Vesper"), entt::null, 120, {beer}});
+	    corva, Market{"Corva Refinery", Sim::FrameId("Vesper"), entt::null, 120, {beer}});
 	registry.get<Hold>(harbour.ship).cargo.push_back({"beer", 3});
 	// The galaxy has traded beer up from its base; copper it has no mean for yet.
 	registry.emplace<GalacticPrices>(registry.create(), GalacticPrices{{{"beer", 1500}}});
@@ -484,7 +484,7 @@ TEST_CASE("Trading: the sample game's goods and markets load, and every market's
 	}
 	CHECK(world.Registry().get<Market>(markets[1]).station == "Ostra Anchorage");
 	CHECK(world.Registry().get<Market>(markets[2]).station == "Ostra Highport");
-	CHECK(world.Registry().get<Market>(markets[2]).system == Sim::SystemId("Halcyon"));
+	CHECK(world.Registry().get<Market>(markets[2]).system == Sim::FrameId("Halcyon"));
 
 	// The galaxy's means open at the goods' base prices, every good defined, in their order.
 	const GalacticPrices *prices = FindGalacticPrices(world.Registry());
