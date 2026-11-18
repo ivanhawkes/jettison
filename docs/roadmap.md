@@ -13,8 +13,11 @@ Approved 2026-11-15. H02, H03, H04, H05, A01, W01 and M03 are done, in
 [history](history.md#neutral-sdk-and-manifest-integration). Their
 [cross-review](build-and-gates.md#cross-review) ran 2026-11-18 over `c04303c` to `96c1ace`, two
 rounds: its findings were fixed (the commit after `96c1ace` records them), with the host API's
-`Game::StarterShip` added, so Manifest's pin moves inside H07. G01, the generic shell, is
-done, in [history](history.md#neutral-sdk-and-manifest-integration).
+`Game::StarterShip` added. G01, the generic shell, is done, in
+[history](history.md#neutral-sdk-and-manifest-integration). H07 closed Manifest's Stage 1 on
+2026-11-18: its pin is `e53681e`, and the acceptance matrix passed against that fetch
+([Manifest's handoff](../../manifest/docs/session-handoff.md)). Next is Manifest's C01, which the
+content pipeline row waits on.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
