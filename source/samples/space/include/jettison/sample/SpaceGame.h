@@ -92,15 +92,15 @@ class SpaceGame final : public App::Game
 	std::string DescribeShip(
 	    const Sim::Snapshot &snapshot, entt::entity ship, bool atHelm) const override;
 
-	// The market screen shown, checked against the snapshot's market, and its first Buy pressed; then
-	// its answer, shown and heard.
-	std::optional<bool> SmokeGameUi(App::Shell &shell) override;
-
-	bool SmokeGameUiWaiting(App::Shell &shell) override;
-
-	bool SmokeGameUiAnswered(App::Shell &shell) override;
+	// The game UI stage: the market screen shown, checked against the snapshot's market, and its first
+	// Buy pressed; then its answer, shown and heard.
+	void DriveSmoke(App::SmokeActions &actions, App::Shell &shell) override;
 
   private:
+	std::optional<bool> SmokeMarket(App::Shell &shell);
+
+	bool SmokeTradeShown(App::Shell &shell);
+
 	// The market the screen shows: the one at the ship's station, else the first in the system shown,
 	// else none.
 	static entt::entity ShownMarket(App::Shell &shell);

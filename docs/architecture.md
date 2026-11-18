@@ -2009,9 +2009,14 @@ proves it headlessly. What exists:
   parks at each station as the station is built and puts at them all once they are, the hull the
   player's first ship and the console's traffic are made of, that first ship fitted, what an older save of it lacks, its console commands, its screens, input and
   Escape, each step's event, a reason's words for its entities and identifiers, its ships in the
-  fleet list, and the render test's game UI stage. It reads the shell through `App::Shell`: the
-  world, the newest snapshot, the definitions, the player, the attached ship, its station and the
-  system shown, and the game UI. With none, as Flotsam runs, the shell registers no market, trader
+  fleet list, its frame systems in the shell's phases (`RegisterFrame`, ordered against the shell's
+  systems by name and validated with them), each scene loaded and about to unload, its save sections
+  and details and a load's refusal of a save not its own (`WriteSave`, `ReadSave`, before the world
+  is replaced), its dev-tools panels, and the render test's stages it drives (`DriveSmoke`, the game
+  UI stage among them). It reads the shell through `App::Shell`: the world, the scene, the newest
+  snapshot and the one before it with the time shown between them, the active camera, the debug
+  lines, the screen's fade, the asset tree and resources, the console and input, the definitions,
+  the player, the entity followed, its station and the system shown, and the game UI. With none, as Flotsam runs, the shell registers no market, trader
   or fleet, and makes no ship (`GameTests`). Jetsam and the render test compose the space sample.
 - **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md)):
   the first slice of Manifest's plan, as a game composed into the shell. Its reflected names keep

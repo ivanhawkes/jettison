@@ -1,6 +1,7 @@
 #pragma once
 
 #include <entt/entt.hpp>
+#include <glm/vec3.hpp>
 
 #include <cstdint>
 #include <optional>
@@ -33,6 +34,10 @@ namespace Jettison::Dock
 {
 class Docks;
 }
+namespace Jettison::Ecs
+{
+class Scheduler;
+}
 namespace Jettison::Input
 {
 class InputSystem;
@@ -40,6 +45,18 @@ class InputSystem;
 namespace Jettison::Physics
 {
 class PhysicsWorld;
+}
+namespace Jettison::Render
+{
+class DebugDraw;
+}
+namespace Jettison::Resource
+{
+class ResourceManager;
+}
+namespace Jettison::Scene
+{
+class Scene;
 }
 namespace Jettison::Script
 {
@@ -50,6 +67,7 @@ namespace Jettison::Sim
 class DefinitionRegistry;
 class SimWorld;
 struct Reason;
+struct SaveGame;
 struct SimEvent;
 struct Snapshot;
 } // namespace Jettison::Sim
@@ -58,27 +76,61 @@ namespace Jettison::Ui
 class StringTable;
 class UiSystem;
 } // namespace Jettison::Ui
+namespace Jettison::Vfs
+{
+class FileSystem;
+}
 
 namespace Jettison::App
 {
+struct SmokeActions;
 
-// What the shell shows and follows, as a game composed into it (Game) reads it while one of its
-// hooks runs: nothing of it is kept past the hook.
+// What the shell shows and follows, as a game composed into it (Game) reads it. The shell outlives
+// what a hook registers with it (frame systems, console commands, smoke actions), which may keep a
+// reference to it; what it returns is not kept past the call.
 class Shell
 {
   public:
 	virtual Sim::SimWorld &World() = 0;
 
-	// The newest snapshot, which presentation shows.
+	// The scene shown, which is presentation's world: there once the shell has started
+	// (Game::SceneLoaded), and replaced as it reloads or a jump arrives.
+	virtual Scene::Scene &Scene() = 0;
+
+	// The newest snapshot and the one before it, which presentation shows the world between, Alpha of
+	// the way from the earlier to the newer.
 	virtual const Sim::Snapshot &Snapshot() const = 0;
+
+	virtual const Sim::Snapshot &Previous() const = 0;
+
+	virtual double Alpha() const = 0;
+
+	// The scene's entity whose camera is active (Scene::CameraComponent::active), or null.
+	virtual entt::entity ActiveCamera() const = 0;
+
+	// The frame's debug lines, cleared as each frame starts.
+	virtual Render::DebugDraw &DebugLines() = 0;
+
+	// The screen faded towards a colour, by 0 (none) to 1 (all of it), until it is set again; nothing
+	// until the window is open.
+	virtual void SetFade(const glm::vec3 &colour, float amount) = 0;
+
+	// The asset tree, its mounts and the user's writable one, and the resources read through it.
+	virtual Vfs::FileSystem &Assets() = 0;
+
+	virtual Resource::ResourceManager &Resources() = 0;
+
+	virtual DevTools::Console &Console() = 0;
+
+	virtual Input::InputSystem &Input() = 0;
 
 	virtual const Sim::DefinitionRegistry &Definitions() const = 0;
 
-	// The player the shell's controls are for, the ship of theirs it follows and the station that ship
-	// is bound to, as simulation entities (null for none), and whether it is docked there.
+	// The player the shell's controls are for, the entity of theirs it follows and the station that
+	// entity is bound to, as simulation entities (null for none), and whether it is docked there.
 	virtual Sim::Controller Player() const = 0;
 
-	virtual entt::entity Ship() const = 0;
+	virtual entt::entity Followed() const = 0;
 
 	virtual entt::entity Station() const = 0;
 
@@ -94,8 +146,8 @@ class Shell
 	// the frame would have them.
 	virtual void UpdateGameUi() = 0;
 
-	// Follows the ship, as ] and [ do.
-	virtual void AttachShip(entt::entity ship) = 0;
+	// Follows the entity, as ] and [ do.
+	virtual void Follow(entt::entity entity) = 0;
 
 	// A reason as the player reads it, and an entity as the log names it.
 	virtual std::string Word(const Sim::Reason &reason) const = 0;
@@ -176,6 +228,29 @@ class Game
 	// The game's console commands, which run with the shell they are given.
 	virtual void AddCommands(DevTools::Console &console, Shell &shell);
 
+	// As the shell is made, once its own frame systems are registered: the game's, in the shell's
+	// phases, ordered against the shell's by name (Ecs::SystemDescription::after and before). The
+	// shell validates the order once this returns, so a system naming none there is, or closing a
+	// cycle, throws from the shell's constructor.
+	virtual void RegisterFrame(Ecs::Scheduler &frame, Shell &shell);
+
+	// Each scene the shell shows, once it is loaded, and before the shell replaces it: as it starts, as
+	// it reloads and as a jump arrives. Not as the shell shuts down.
+	virtual void SceneLoaded(Shell &shell);
+
+	virtual void SceneUnloading(Shell &shell);
+
+	// A save the shell writes: the game's sections beside the shell's, and its details, which the
+	// saves' list shows and a load reads first. A section of a name already taken throws, and nothing
+	// is saved.
+	virtual void WriteSave(Sim::SaveGame &save, Shell &shell);
+
+	// A save the shell is about to load, before anything of the world is replaced: the game reads its
+	// sections and checks its details, and throws, saying why, for a save not its own or one that does
+	// not fit, which leaves the world as it was. What it read it applies once the world has loaded
+	// (Loaded).
+	virtual void ReadSave(const Sim::SaveGame &save, Shell &shell);
+
 	// Once the game UI is made: the game's data models and documents.
 	virtual void OpenUi(Ui::UiSystem &ui, Shell &shell);
 
@@ -187,6 +262,10 @@ class Game
 
 	// The presentation phase, before the game UI lays out.
 	virtual void UpdateUi(Shell &shell);
+
+	// The game's dev-tools windows, drawn with ImGui each frame after the shell's: devTools says
+	// whether the dev tools are shown (F1), which a panel of the tools' own waits for.
+	virtual void DrawPanels(Shell &shell, bool devTools);
 
 	// Each event of the steps, after the shell's own handling of it.
 	virtual void TakeEvent(const Sim::SimEvent &event, Shell &shell);
@@ -206,14 +285,9 @@ class Game
 	virtual std::string DescribeShip(
 	    const Sim::Snapshot &snapshot, entt::entity ship, bool atHelm) const;
 
-	// The render test's game UI stage (SmokeActions::gameUi, gameUiWaiting and
-	// gameUiAnswered): none where the game
-	// has no screen to drive.
-	virtual std::optional<bool> SmokeGameUi(Shell &shell);
-
-	virtual bool SmokeGameUiWaiting(Shell &shell);
-
-	virtual bool SmokeGameUiAnswered(Shell &shell);
+	// The render test's stages (SmokeSequence) the game drives: the shell's actions, which it replaces
+	// where it drives a stage itself. The shell's game UI stage has no screen to drive.
+	virtual void DriveSmoke(SmokeActions &actions, Shell &shell);
 };
 
 } // namespace Jettison::App

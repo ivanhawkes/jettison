@@ -11,6 +11,7 @@
 
 #include <jettison/ai/BehaviourTree.h>
 #include <jettison/ai/UtilityAi.h>
+#include <jettison/app/SmokeSequence.h>
 #include <jettison/app/Stations.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/core/Log.h>
@@ -244,19 +245,19 @@ void SpaceGame::AddCommands(DevTools::Console &console, App::Shell &shell)
 	    "for any pad",
 	    [&shell](DevTools::Console &, std::span<const std::string>)
 	    {
-		    if (shell.Ship() == entt::null || shell.Station() == entt::null)
+		    if (shell.Followed() == entt::null || shell.Station() == entt::null)
 		    {
 			    Core::Log(Core::Severity::Warning, kSample, "No ship, or no station to ask");
 			    return;
 		    }
 		    shell.World().Commands().Push(
 		        Dock::RequestPad{
-		            shell.Player(), shell.Ship(), shell.Station(), true, std::string{kDryDock}});
+		            shell.Player(), shell.Followed(), shell.Station(), true, std::string{kDryDock}});
 	    });
 	console.RegisterCommand(
 	    "repair", "Repairs the ship's damage, docked on a pad that offers a dry dock",
 	    [&shell](DevTools::Console &, std::span<const std::string>)
-	    { shell.World().Commands().Push(Repair{shell.Player(), shell.Ship()}); });
+	    { shell.World().Commands().Push(Repair{shell.Player(), shell.Followed()}); });
 	console.RegisterCommand(
 	    "market", "Shows or hides the market screen: market [on|off]",
 	    [this, &shell](DevTools::Console &, std::span<const std::string> arguments)
@@ -321,9 +322,9 @@ void SpaceGame::UpdateUi(App::Shell &shell)
 	if (!ui || !m_showMarket)
 		return;
 	// Another ship followed, or the screens read in another language, and the screen is another's.
-	if (shell.Ship() != m_marketShip)
+	if (shell.Followed() != m_marketShip)
 	{
-		m_marketShip = shell.Ship();
+		m_marketShip = shell.Followed();
 		m_tradeMessage.clear();
 		m_marketDirty = true;
 	}
@@ -339,7 +340,7 @@ void SpaceGame::UpdateUi(App::Shell &shell)
 		return;
 	MarketView view;
 	view.market = ShownMarket(shell);
-	view.ship = shell.Ship();
+	view.ship = shell.Followed();
 	view.system = shell.ShownSystem();
 	view.docked = shell.Docked();
 	view.lot = m_lot;
@@ -364,7 +365,7 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		    Core::Severity::Info, kSample, "Bought a {} at {} for {} credits; {} credits left",
 		    bought->hull, shell.Describe(bought->station), FormatCredits(bought->price),
 		    FormatCredits(bought->credits));
-		shell.AttachShip(bought->ship);
+		shell.Follow(bought->ship);
 	}
 	else if (const auto *notBought = event.event.try_cast<BuyRefused>();
 	         notBought && notBought->sender == player)
@@ -372,7 +373,7 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		    Core::Severity::Warning, kSample, "No {} bought: {}", notBought->hull,
 		    shell.Word(notBought->reason));
 	else if (const auto *traded = event.event.try_cast<Traded>();
-	         traded && traded->ship == shell.Ship() && shell.GameUi())
+	         traded && traded->ship == shell.Followed() && shell.GameUi())
 	{
 		const Ui::StringTable &strings = shell.GameUi()->Strings();
 		const std::int64_t crates = traded->crates < 0 ? -traded->crates : traded->crates;
@@ -385,7 +386,7 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		    FormatCredits(traded->credits));
 	}
 	else if (const auto *refused = event.event.try_cast<TradeRefused>();
-	         refused && refused->ship == shell.Ship() && shell.GameUi())
+	         refused && refused->ship == shell.Followed() && shell.GameUi())
 	{
 		++m_tradeAnswers;
 		m_tradeMessage =
@@ -393,13 +394,13 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		Core::Log(Core::Severity::Info, kSample, "{}", m_tradeMessage);
 	}
 	else if (const auto *repaired = event.event.try_cast<Repaired>();
-	         repaired && repaired->ship == shell.Ship())
+	         repaired && repaired->ship == shell.Followed())
 		Core::Log(
 		    Core::Severity::Info, kSample,
 		    "Repaired {} points of damage for {} credits; {} credits left", repaired->points,
 		    FormatCredits(repaired->cost), FormatCredits(repaired->credits));
 	else if (const auto *notRepaired = event.event.try_cast<RepairRefused>();
-	         notRepaired && notRepaired->ship == shell.Ship())
+	         notRepaired && notRepaired->ship == shell.Followed())
 		Core::Log(Core::Severity::Warning, kSample, "No repair: {}", shell.Word(notRepaired->reason));
 	if (m_showMarket)
 		m_marketDirty = true;
@@ -439,12 +440,20 @@ std::string SpaceGame::DescribeShip(const Sim::Snapshot &snapshot, entt::entity 
 }
 
 
-std::optional<bool> SpaceGame::SmokeGameUi(App::Shell &shell)
+void SpaceGame::DriveSmoke(App::SmokeActions &actions, App::Shell &shell)
+{
+	actions.gameUi = [this, &shell] { return SmokeMarket(shell); };
+	actions.gameUiWaiting = [this] { return m_tradeAnswers == m_smokeTradeAnswers; };
+	actions.gameUiAnswered = [this, &shell] { return SmokeTradeShown(shell); };
+}
+
+
+std::optional<bool> SpaceGame::SmokeMarket(App::Shell &shell)
 {
 	Ui::UiSystem *ui = shell.GameUi();
 	const entt::entity market = ShownMarket(shell);
 	const auto *shown = shell.Snapshot().Get<Market>(market);
-	if (!ui || !shown || shown->goods.empty() || shell.Ship() == entt::null)
+	if (!ui || !shown || shown->goods.empty() || shell.Followed() == entt::null)
 		return std::nullopt;
 	ShowMarket(shell, true);
 	// Made from this snapshot and laid out, so what it shows is what the snapshot has.
@@ -465,13 +474,7 @@ std::optional<bool> SpaceGame::SmokeGameUi(App::Shell &shell)
 }
 
 
-bool SpaceGame::SmokeGameUiWaiting(App::Shell & /*shell*/)
-{
-	return m_tradeAnswers == m_smokeTradeAnswers;
-}
-
-
-bool SpaceGame::SmokeGameUiAnswered(App::Shell &shell)
+bool SpaceGame::SmokeTradeShown(App::Shell &shell)
 {
 	const std::string shown = shell.GameUi()->ElementText(m_marketDocument, "message");
 	if (shown != m_tradeMessage)
@@ -524,10 +527,10 @@ void SpaceGame::ShowMarket(App::Shell &shell, bool shown)
 void SpaceGame::SendTrade(App::Shell &shell, std::string_view good, std::int64_t crates)
 {
 	const entt::entity market = ShownMarket(shell);
-	if (shell.Ship() == entt::null || market == entt::null || good.empty() || crates == 0)
+	if (shell.Followed() == entt::null || market == entt::null || good.empty() || crates == 0)
 		return;
 	shell.World().Commands().Push(
-	    Trade{shell.Player(), shell.Ship(), market, std::string{good}, crates});
+	    Trade{shell.Player(), shell.Followed(), market, std::string{good}, crates});
 }
 
 

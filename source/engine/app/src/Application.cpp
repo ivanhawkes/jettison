@@ -578,7 +578,7 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 		        number == 0 || number > fleet.size())
 			    throw std::invalid_argument{
 			        std::format("takes a ship's number in the fleet, from 1 to {}", fleet.size())};
-		    AttachShip(fleet[number - 1]);
+		    Follow(fleet[number - 1]);
 	    });
 	m_console.RegisterCommand(
 	    "helm",
@@ -1014,6 +1014,7 @@ void Application::RegisterFrameSystems()
 			     AdvanceBenchmark();
 	     }});
 
+	m_pGame->RegisterFrame(m_frame, *this);
 	m_frame.Validate();
 }
 
@@ -1565,6 +1566,7 @@ void Application::DrawUI()
 	if (m_piloting)
 		DrawFlight();
 	DrawPicked();
+	m_pGame->DrawPanels(*this, m_showUI);
 	m_pRenderer->EndUi();
 }
 
@@ -1881,6 +1883,14 @@ void Application::LoadScene()
 	}
 	FindShownSystem();
 	m_simStepper.Resync();
+	m_pGame->SceneLoaded(*this);
+}
+
+
+void Application::ReloadScene()
+{
+	m_pGame->SceneUnloading(*this);
+	LoadScene();
 }
 
 
@@ -2079,6 +2089,7 @@ void Application::ShowArrival(SpaceScene::JumpArrival &arrival)
 	// What the old system scene built goes with the scene's old contents. The simulation did not
 	// change, so the stepper is not resynced: the traffic layer's proxies are made from the same
 	// snapshots, now for the entities in the new system. What was picked was in the old one.
+	m_pGame->SceneUnloading(*this);
 	m_systemScene.reset();
 	m_picked.reset();
 	if (arrival.sceneFile)
@@ -2094,6 +2105,7 @@ void Application::ShowArrival(SpaceScene::JumpArrival &arrival)
 		StopPiloting();
 	m_shownSystem = arrival.system;
 	m_arrivedAt = arrival.arrival;
+	m_pGame->SceneLoaded(*this);
 	if (arrival.arrival.empty())
 		return;
 	entt::registry &registry = m_pScene->Registry();
@@ -2417,6 +2429,7 @@ bool Application::SaveTo(std::string_view name)
 		    std::string{kShellSection},
 		    WriteShellState({m_ship, m_station, m_shipSystem, m_stationBody}));
 		save.AddSection(std::string{Script::kStoreSection}, Script::WriteStore(m_pScripts->Store()));
+		m_pGame->WriteSave(save, *this);
 		const std::vector<std::byte> bytes = save.Write();
 		m_assets.Write(path, bytes);
 		if (m_showSaves)
@@ -2453,6 +2466,7 @@ bool Application::LoadFrom(std::string_view name)
 		// A save from before scripts kept keys holds none.
 		const Sim::SaveSection *keys = save.FindSection(Script::kStoreSection);
 		Script::ScriptStore store = keys ? Script::ReadStore(keys->data) : Script::ScriptStore{};
+		m_pGame->ReadSave(save, *this);
 		m_sim.Load(save.world);
 		// What an older save of the game lacks.
 		m_pGame->Loaded(m_sim.Registry(), shell.ship, kPilot);
@@ -2528,7 +2542,7 @@ SmokeActions Application::MakeSmokeActions()
 	// frame in flight reads - without writing to the asset tree.
 	actions.reload = [this]
 	{
-		LoadScene();
+		ReloadScene();
 		m_pResources->ReloadAll();
 	};
 	actions.pilot = [this](bool cockpit)
@@ -2565,14 +2579,14 @@ SmokeActions Application::MakeSmokeActions()
 			    loaded, saved);
 		return loaded == saved;
 	};
-	// The game UI's stage is the game's: a screen of its bound to the snapshot, driven as a player
-	// would.
-	actions.gameUi = [this] { return m_pGame->SmokeGameUi(*this); };
-	actions.gameUiWaiting = [this] { return m_pGame->SmokeGameUiWaiting(*this); };
-	actions.gameUiAnswered = [this] { return m_pGame->SmokeGameUiAnswered(*this); };
+	// The game UI's stage is the game's (DriveSmoke): the shell has no screen of its own to drive.
+	actions.gameUi = [] { return std::optional<bool>{}; };
+	actions.gameUiWaiting = [] { return false; };
+	actions.gameUiAnswered = [] { return true; };
 	actions.jump = [this] { return Jump(); };
 	actions.jumping = [this] { return m_jump->Active(); };
 	actions.close = [this] { RequestClose(); };
+	m_pGame->DriveSmoke(actions, *this);
 	return actions;
 }
 
@@ -2966,7 +2980,7 @@ void Application::SpawnTraffic(int count)
 }
 
 
-void Application::AttachShip(entt::entity ship)
+void Application::Follow(entt::entity ship)
 {
 	const entt::registry &world = m_sim.Registry();
 	if (!world.valid(ship) || ship == m_ship)
@@ -3033,7 +3047,7 @@ void Application::CycleAttached(int step)
 	// From a ship not of the fleet, the first, or the last going back.
 	const std::ptrdiff_t next =
 	    at == count ? (step > 0 ? 0 : count - 1) : ((at + step) % count + count) % count;
-	AttachShip(fleet[static_cast<std::size_t>(next)]);
+	Follow(fleet[static_cast<std::size_t>(next)]);
 }
 
 
@@ -3711,9 +3725,75 @@ Sim::SimWorld &Application::World()
 }
 
 
+Scene::Scene &Application::Scene()
+{
+	JETTISON_ASSERT(m_pScene);
+	return *m_pScene;
+}
+
+
 const Sim::Snapshot &Application::Snapshot() const
 {
 	return m_simStepper.Current();
+}
+
+
+const Sim::Snapshot &Application::Previous() const
+{
+	return m_simStepper.Previous();
+}
+
+
+double Application::Alpha() const
+{
+	return m_simStepper.Alpha();
+}
+
+
+entt::entity Application::ActiveCamera() const
+{
+	for (const auto [entity, camera] : m_pScene->Registry().view<const Scene::CameraComponent>().each())
+		if (camera.active)
+			return entity;
+	return entt::null;
+}
+
+
+Render::DebugDraw &Application::DebugLines()
+{
+	return m_debugDraw;
+}
+
+
+void Application::SetFade(const glm::vec3 &colour, float amount)
+{
+	if (m_pRenderer)
+		m_pRenderer->SetFade(colour, amount);
+}
+
+
+Vfs::FileSystem &Application::Assets()
+{
+	return m_assets;
+}
+
+
+Resource::ResourceManager &Application::Resources()
+{
+	JETTISON_ASSERT(m_pResources);
+	return *m_pResources;
+}
+
+
+DevTools::Console &Application::Console()
+{
+	return m_console;
+}
+
+
+Input::InputSystem &Application::Input()
+{
+	return m_input;
 }
 
 
@@ -3729,7 +3809,7 @@ Sim::Controller Application::Player() const
 }
 
 
-entt::entity Application::Ship() const
+entt::entity Application::Followed() const
 {
 	return m_ship;
 }

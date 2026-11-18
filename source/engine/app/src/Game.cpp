@@ -58,6 +58,31 @@ void Game::AddCommands(DevTools::Console & /*console*/, Shell & /*shell*/)
 }
 
 
+void Game::RegisterFrame(Ecs::Scheduler & /*frame*/, Shell & /*shell*/)
+{
+}
+
+
+void Game::SceneLoaded(Shell & /*shell*/)
+{
+}
+
+
+void Game::SceneUnloading(Shell & /*shell*/)
+{
+}
+
+
+void Game::WriteSave(Sim::SaveGame & /*save*/, Shell & /*shell*/)
+{
+}
+
+
+void Game::ReadSave(const Sim::SaveGame & /*save*/, Shell & /*shell*/)
+{
+}
+
+
 void Game::OpenUi(Ui::UiSystem & /*ui*/, Shell & /*shell*/)
 {
 }
@@ -75,6 +100,11 @@ bool Game::Back(Shell & /*shell*/)
 
 
 void Game::UpdateUi(Shell & /*shell*/)
+{
+}
+
+
+void Game::DrawPanels(Shell & /*shell*/, bool /*devTools*/)
 {
 }
 
@@ -106,21 +136,8 @@ std::string Game::DescribeShip(
 }
 
 
-std::optional<bool> Game::SmokeGameUi(Shell & /*shell*/)
+void Game::DriveSmoke(SmokeActions & /*actions*/, Shell & /*shell*/)
 {
-	return std::nullopt;
-}
-
-
-bool Game::SmokeGameUiWaiting(Shell & /*shell*/)
-{
-	return false;
-}
-
-
-bool Game::SmokeGameUiAnswered(Shell & /*shell*/)
-{
-	return true;
 }
 
 } // namespace Jettison::App

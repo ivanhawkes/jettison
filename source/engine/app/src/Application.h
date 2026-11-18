@@ -100,6 +100,9 @@ namespace Jettison::App
 // nothing.
 class Application final : private Shell
 {
+	// The app suite's view of the shell's stages, which it runs without a window (GameTests.cpp).
+	friend struct ApplicationProbe;
+
   public:
 	Application(AppArguments arguments, std::string windowTitle, Game *game = nullptr);
 
@@ -141,8 +144,12 @@ class Application final : private Shell
 
 	void InitGalaxy();
 
-	// Loads the scene, and the star system it names; the smoke sequence's reload comes here too.
+	// Loads the scene, and the star system it names; then the game's hook (Game::SceneLoaded).
 	void LoadScene();
+
+	// The smoke sequence's reload: the game told the scene is going (Game::SceneUnloading), and it
+	// loaded again.
+	void ReloadScene();
 
 	// Which of the galaxy's systems the scene shows, checked against the galaxy's lanes.
 	void FindShownSystem();
@@ -307,7 +314,7 @@ class Application final : private Shell
 	// The fleet (FleetOf): the ship the shell follows, the attached one, which its camera, the game's
 	// screens and the console's commands are for; bound to the station it is docked at or waiting
 	// for, and shown in its system, the scene jumping there, or along the lane it is on.
-	void AttachShip(entt::entity ship) override;
+	void Follow(entt::entity ship) override;
 
 	void CycleAttached(int step);
 
@@ -407,13 +414,33 @@ class Application final : private Shell
 	// The shell as the game reads it (Shell).
 	Sim::SimWorld &World() override;
 
+	Scene::Scene &Scene() override;
+
 	const Sim::Snapshot &Snapshot() const override;
+
+	const Sim::Snapshot &Previous() const override;
+
+	double Alpha() const override;
+
+	entt::entity ActiveCamera() const override;
+
+	Render::DebugDraw &DebugLines() override;
+
+	void SetFade(const glm::vec3 &colour, float amount) override;
+
+	Vfs::FileSystem &Assets() override;
+
+	Resource::ResourceManager &Resources() override;
+
+	DevTools::Console &Console() override;
+
+	Input::InputSystem &Input() override;
 
 	const Sim::DefinitionRegistry &Definitions() const override;
 
 	Sim::Controller Player() const override;
 
-	entt::entity Ship() const override;
+	entt::entity Followed() const override;
 
 	entt::entity Station() const override;
 
