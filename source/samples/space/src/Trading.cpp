@@ -17,7 +17,7 @@
 #include <jettison/sim/Snapshot.h>
 
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 namespace
 {
@@ -477,4 +477,4 @@ void ChargeTolls(Ai::Gates &gates)
 	     [](entt::registry &registry, entt::entity ship, std::int64_t toll)
 	     { PurseOf(registry, ship)->credits -= toll; }});
 }
-} // namespace Jettison::App
+} // namespace Jettison::Sample

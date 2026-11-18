@@ -1,5 +1,5 @@
-#include "../src/Mounts.h"
-#include "../src/Stations.h"
+#include <jettison/app/Mounts.h>
+#include <jettison/app/Stations.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
 #include "SampleGalaxy.h"
@@ -50,15 +50,15 @@ TEST_CASE(
     "Traders: the sample's tree and decision load, and the traders open docked, with nothing chosen")
 {
 	Galaxy galaxy;
-	CHECK(galaxy.behaviours.HasTree(App::kTraderTree));
-	CHECK(galaxy.behaviours.NodeCount(App::kTraderTree) == 35);
+	CHECK(galaxy.behaviours.HasTree(Sample::kTraderTree));
+	CHECK(galaxy.behaviours.NodeCount(Sample::kTraderTree) == 35);
 	REQUIRE(galaxy.traders.size() == 7);
 	const entt::registry &registry = galaxy.world.Registry();
 	for (const entt::entity ship : galaxy.traders)
 	{
 		CHECK(registry.get<Dock::Docking>(ship).stage == Dock::Stage::Docked);
 		CHECK(registry.get<Sim::ControlledBy>(ship).controller.kind == Sim::ControllerKind::Ai);
-		CHECK(registry.get<Ai::Behaviour>(ship).tree == App::kTraderTree);
+		CHECK(registry.get<Ai::Behaviour>(ship).tree == Sample::kTraderTree);
 		CHECK(galaxy.TraderOf(ship).good.empty());
 	}
 	// Corva's last free pad, an M, is all that is left for the traders that come to it.
@@ -68,7 +68,7 @@ TEST_CASE(
 		free += registry.get<Dock::Pad>(pad).state == Dock::PadState::Free ? 1 : 0;
 	CHECK(free == 1);
 	// A pad that is taken is left alone, and its trader left out.
-	CHECK(App::OpenTraders(galaxy.world, galaxy.docks).empty());
+	CHECK(Sample::OpenTraders(galaxy.world, galaxy.docks).empty());
 }
 
 
@@ -80,29 +80,29 @@ TEST_CASE("Traders: each chooses the run worth most, steered off what its rivals
 	for (std::size_t other = 1; other < alone.traders.size(); ++other)
 		registry.remove<Ai::Behaviour>(alone.traders[other]);
 	alone.Step();
-	const App::Trader first = alone.TraderOf(alone.traders[0]);
+	const Sample::Trader first = alone.TraderOf(alone.traders[0]);
 	REQUIRE_FALSE(first.good.empty());
 	CHECK(first.buyAt != first.sellAt);
 	CHECK(first.sellAt != entt::null);
 	MESSAGE(
-	    "Alone, it buys ", first.good, " at ", registry.get<App::Market>(first.buyAt).station,
-	    " to sell at ", registry.get<App::Market>(first.sellAt).station);
+	    "Alone, it buys ", first.good, " at ", registry.get<Sample::Market>(first.buyAt).station,
+	    " to sell at ", registry.get<Sample::Market>(first.sellAt).station);
 
 	Galaxy crowded;
 	entt::registry &crowd = crowded.world.Registry();
 	for (std::size_t other = 1; other < crowded.traders.size(); ++other)
 	{
 		crowd.remove<Ai::Behaviour>(crowded.traders[other]);
-		App::Trader &rival = crowd.get<App::Trader>(crowded.traders[other]);
+		Sample::Trader &rival = crowd.get<Sample::Trader>(crowded.traders[other]);
 		rival.good = first.good;
 		rival.buyAt = first.buyAt;
 		rival.sellAt = first.sellAt;
 	}
 	crowded.Step();
-	const App::Trader &steered = crowded.TraderOf(crowded.traders[0]);
+	const Sample::Trader &steered = crowded.TraderOf(crowded.traders[0]);
 	REQUIRE_FALSE(steered.good.empty());
 	CHECK((steered.good != first.good || steered.buyAt != first.buyAt));
-	MESSAGE("Crowded, it buys ", steered.good, " at ", crowd.get<App::Market>(steered.buyAt).station);
+	MESSAGE("Crowded, it buys ", steered.good, " at ", crowd.get<Sample::Market>(steered.buyAt).station);
 
 	// Run all together, the first step's choices spread over the shelves.
 	Galaxy galaxy;
@@ -114,17 +114,17 @@ TEST_CASE("Traders: each chooses the run worth most, steered off what its rivals
 
 	// A trader with no credits has nothing worth flying, and waits.
 	Galaxy broke;
-	App::PurseOf(broke.world.Registry(), broke.traders[0])->credits = 0;
+	Sample::PurseOf(broke.world.Registry(), broke.traders[0])->credits = 0;
 	broke.Step();
 	CHECK(broke.TraderOf(broke.traders[0]).good.empty());
-	CHECK(broke.world.Registry().get<App::Hold>(broke.traders[0]).cargo.empty());
+	CHECK(broke.world.Registry().get<Sample::Hold>(broke.traders[0]).cargo.empty());
 
 	// One with a good in its hold already sells it, at the market that pays most for it.
 	Galaxy laden;
 	entt::registry &ladenWorld = laden.world.Registry();
-	ladenWorld.get<App::Hold>(laden.traders[0]).cargo.push_back({"copper", 5});
+	ladenWorld.get<Sample::Hold>(laden.traders[0]).cargo.push_back({"copper", 5});
 	laden.Step();
-	const App::Trader &seller = laden.TraderOf(laden.traders[0]);
+	const Sample::Trader &seller = laden.TraderOf(laden.traders[0]);
 	CHECK(seller.good == "copper");
 	CHECK(seller.buyAt == entt::null);
 	CHECK(seller.sellAt != entt::null);
@@ -153,9 +153,9 @@ TEST_CASE("Traders: a mod's script, from the user's mods, weighs their runs and 
 		galaxy.Step();
 		const std::uint64_t chosen = galaxy.pScripts->Scripts().front().calls;
 		CHECK(chosen >= galaxy.traders.size());
-		for (int step = 0; step < 60 * 120 && galaxy.Events<App::Traded>().empty(); ++step)
+		for (int step = 0; step < 60 * 120 && galaxy.Events<Sample::Traded>().empty(); ++step)
 			galaxy.Step();
-		const std::vector<App::Traded> traded = galaxy.Events<App::Traded>();
+		const std::vector<Sample::Traded> traded = galaxy.Events<Sample::Traded>();
 		REQUIRE_FALSE(traded.empty());
 		CHECK(heard.size() == traded.size());
 		CHECK(galaxy.pScripts->Scripts().front().traps == 0);
@@ -279,7 +279,7 @@ TEST_CASE(
 	std::uint32_t runs = 0;
 	for (const entt::entity ship : galaxy.traders)
 	{
-		const App::Trader &trader = galaxy.TraderOf(ship);
+		const Sample::Trader &trader = galaxy.TraderOf(ship);
 		CAPTURE(entt::to_integral(ship));
 		CHECK(trader.runs >= 1);
 		CHECK(trader.earned > 0);
@@ -292,8 +292,8 @@ TEST_CASE(
 	// Every crate bought and sold crossed the deck: a transfer done for each trade.
 	CHECK(
 	    galaxy.Events<Dock::CargoCarried>().size() >=
-	    galaxy.Events<App::Traded>().size() - galaxy.traders.size());
-	CHECK(galaxy.Events<App::TradeRefused>().empty());
+	    galaxy.Events<Sample::Traded>().size() - galaxy.traders.size());
+	CHECK(galaxy.Events<Sample::TradeRefused>().empty());
 	CHECK(galaxy.Events<Dock::PadRefused>().empty());
 	CHECK(galaxy.Events<Ai::LaneRefused>().empty());
 	// Every lane was entered through a gate's ring, its ship cleared and its owner charged the toll;
@@ -343,15 +343,15 @@ TEST_CASE(
 	    galaxy.Events<Dock::PadQueued>().size(), " places queued, ", onPads,
 	    " contacts on their pads as they were let go; nearest flying hulls ", nearest, " m apart");
 	// The traders' trades moved the galaxy's means off the goods' base prices.
-	const App::GalacticPrices *prices = App::FindGalacticPrices(registry);
+	const Sample::GalacticPrices *prices = Sample::FindGalacticPrices(registry);
 	REQUIRE(prices);
 	std::string means;
 	std::size_t moved = 0;
-	for (const App::GalacticPrice &price : prices->goods)
+	for (const Sample::GalacticPrice &price : prices->goods)
 	{
 		means += std::format(" {} {}", price.good, price.mean);
-		for (const auto [entity, market] : registry.view<const App::Market>().each())
-			if (const auto good = std::ranges::find(market.goods, price.good, &App::MarketGood::good);
+		for (const auto [entity, market] : registry.view<const Sample::Market>().each())
+			if (const auto good = std::ranges::find(market.goods, price.good, &Sample::MarketGood::good);
 			    good != market.goods.end())
 			{
 				moved += price.mean != good->basePrice ? 1 : 0;

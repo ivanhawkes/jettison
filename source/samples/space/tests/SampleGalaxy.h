@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../src/Fleet.h"
-#include "../src/Mounts.h"
-#include "../src/Stations.h"
+#include <jettison/app/Mounts.h>
+#include <jettison/app/Stations.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
 
@@ -13,6 +13,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <string_view>
 #include <vector>
 
@@ -27,6 +28,7 @@
 #include <jettison/dock/Docks.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/sample/SpaceGame.h>
 #include <jettison/script/ScriptHost.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
@@ -73,14 +75,14 @@ struct Galaxy
 	explicit Galaxy(bool open = true, const std::filesystem::path &userData = {})
 	{
 		world.RegisterComponent<Sim::ControlledBy>();
-		App::RegisterTrading(world);
+		Sample::RegisterTrading(world);
 		if (userData.empty())
 			files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
 		else
 			App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, userData);
 		Sim::DefinitionRegistry definitions{files};
-		App::LoadTradeDefinitions(definitions);
-		App::LoadTraderDefinitions(definitions);
+		Sample::LoadTradeDefinitions(definitions);
+		Sample::LoadTraderDefinitions(definitions);
 		if (!userData.empty())
 		{
 			Script::LoadDefinitions(definitions);
@@ -91,8 +93,8 @@ struct Galaxy
 		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
 		docks.Define(definitions);
-		App::LoadShipyard(definitions);
-		App::RegisterFleet(world, docks, definitions);
+		Sample::LoadShipyard(definitions);
+		Sample::RegisterFleet(world, docks, definitions);
 
 		Celestial::Galaxy galaxy = Celestial::ReadGalaxy(ReadAsset("systems/galaxy.yaml"));
 		for (const Celestial::GalaxySystem &entry : galaxy.systems)
@@ -104,22 +106,26 @@ struct Galaxy
 			physics.DefineStarSystem(systems.back());
 		}
 		lanes.SetGalaxy(std::move(galaxy));
-		App::ChargeTolls(gates);
-		App::RegisterTraders(
+		Sample::ChargeTolls(gates);
+		Sample::RegisterTraders(
 		    world, behaviours, physics, lanes, systems,
-		    *definitions.Find<Ai::DecisionDefinition>(App::kTradeDecision), pScripts.get());
+		    *definitions.Find<Ai::DecisionDefinition>(Sample::kTradeDecision), pScripts.get());
 		behaviours.Define(definitions);
 		if (!open)
 			return;
 
-		App::OpenStations(world, docks, systems);
+		// The sample's ships parked as each station is built, as the shell has the game park them.
+		Sample::SpaceGame game;
+		App::OpenStations(
+		    world, docks, systems, [&](entt::entity station, std::string_view body)
+		    { game.StationOpened(world, docks, station, body); });
 		App::OpenGates(world, gates, systems);
-		for (const entt::entity entity : App::OpenMarkets(world, definitions))
+		for (const entt::entity entity : Sample::OpenMarkets(world, definitions))
 		{
-			App::Market &market = world.Registry().get<App::Market>(entity);
+			Sample::Market &market = world.Registry().get<Sample::Market>(entity);
 			market.stationEntity = App::FindStation(world.Registry(), market.system, market.station);
 		}
-		traders = App::OpenTraders(world, docks);
+		traders = Sample::OpenTraders(world, docks);
 	}
 
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
@@ -153,14 +159,14 @@ struct Galaxy
 		return found;
 	}
 
-	const App::Trader &TraderOf(entt::entity ship) const
+	const Sample::Trader &TraderOf(entt::entity ship) const
 	{
-		return world.Registry().get<App::Trader>(ship);
+		return world.Registry().get<Sample::Trader>(ship);
 	}
 
 	entt::entity MarketAt(std::string_view station) const
 	{
-		for (const auto [entity, market] : world.Registry().view<const App::Market>().each())
+		for (const auto [entity, market] : world.Registry().view<const Sample::Market>().each())
 			if (market.station == station)
 				return entity;
 		return entt::null;

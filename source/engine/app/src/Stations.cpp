@@ -1,4 +1,4 @@
-#include "Stations.h"
+#include <jettison/app/Stations.h>
 
 
 #include <algorithm>
@@ -23,22 +23,6 @@ namespace
 {
 constexpr Core::Category kStations{"stations"};
 
-// The sample's parked ships: on two or three pads of each station, leaving at least two free.
-struct Parked
-{
-	std::string_view station;
-	std::uint32_t pad;
-	std::string_view hull;
-	float mass;
-};
-constexpr std::array<Parked, 6> kParked{{
-    {"Ostra Highport", 2, "heavy-transport", 1.2e7f},
-    {"Ostra Highport", 7, "heavy-transport", 1.2e7f},
-    {"Ostra Highport", 11, "heavy-transport", 1.2e7f},
-    {"Corva Refinery", 2, "transport", 1.5e6f},
-    {"Corva Refinery", 3, "transport", 1.5e6f},
-    {"Corva Refinery", 6, "fighter", 3.0e4f},
-}};
 
 } // namespace
 
@@ -73,10 +57,10 @@ void MakeShip(
 
 
 std::vector<entt::entity> OpenStations(
-    Sim::SimWorld &world, Dock::Docks &docks, std::span<const Celestial::StarSystem> systems)
+    Sim::SimWorld &world, Dock::Docks &docks, std::span<const Celestial::StarSystem> systems,
+    const std::function<void(entt::entity station, std::string_view body)> &opened)
 {
-	std::vector<entt::entity> opened;
-	entt::registry &registry = world.Registry();
+	std::vector<entt::entity> built;
 	for (const Celestial::StarSystem &system : systems)
 		for (const Celestial::Body &body : system.bodies)
 		{
@@ -92,20 +76,11 @@ std::vector<entt::entity> OpenStations(
 			}
 			const std::uint64_t id = Sim::SystemId(system.name);
 			const entt::entity station = docks.MakeStation(world, id, body.name, body.layout);
-			opened.push_back(station);
-			for (const Parked &parked : kParked)
-			{
-				if (parked.station != body.name || !docks.FindHull(parked.hull))
-					continue;
-				const entt::entity ship = registry.create();
-				registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
-				registry.emplace<Sim::InSystem>(ship, id);
-				registry.emplace<Physics::LocalFrame>(ship, body.name);
-				MakeShip(registry, docks, ship, parked.hull, parked.mass, false);
-				docks.Park(world, ship, registry.get<Dock::Station>(station).pads.at(parked.pad - 1));
-			}
+			built.push_back(station);
+			if (opened)
+				opened(station, body.name);
 		}
-	return opened;
+	return built;
 }
 
 
@@ -127,5 +102,40 @@ std::vector<entt::entity> OpenGates(
 	}
 	return opened;
 }
+
+entt::entity FreePad(
+    const entt::registry &registry, entt::entity station, const Dock::HullDefinition &hull)
+{
+	const auto *built = registry.try_get<Dock::Station>(station);
+	if (!built)
+		return entt::null;
+	// The station's pads are in their numbers' order.
+	for (const entt::entity entity : built->pads)
+		if (const Dock::Pad &pad = registry.get<Dock::Pad>(entity);
+		    pad.state == Dock::PadState::Free && !pad.display && pad.padClass >= hull.pad)
+			return entity;
+	return entt::null;
+}
+
+
+std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller)
+{
+	std::vector<entt::entity> fleet;
+	for (const auto &[entity, controlled] : snapshot.Components<Sim::ControlledBy>())
+		if (controlled.controller == controller)
+			fleet.push_back(entity);
+	std::ranges::sort(fleet, {}, [](entt::entity entity) { return entt::to_integral(entity); });
+	return fleet;
+}
+
+
+entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller)
+{
+	for (const auto &[entity, helm] : snapshot.Components<Sim::Helm>())
+		if (helm.controller == controller)
+			return entity;
+	return entt::null;
+}
+
 
 } // namespace Jettison::App

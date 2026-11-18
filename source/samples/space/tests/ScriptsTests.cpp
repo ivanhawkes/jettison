@@ -1,4 +1,4 @@
-#include "../src/Mounts.h"
+#include <jettison/app/Mounts.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
 
@@ -66,7 +66,7 @@ struct ModdedUser
 TEST_CASE("Scripts: the shell's Rust bindings, which its scripts are built against, are this build's")
 {
 	Sim::SimWorld world{1.0 / 60.0, 1};
-	App::RegisterTrading(world);
+	Sample::RegisterTrading(world);
 	Ai::RegisterTypes();
 	Dock::RegisterTypes();
 	const Vfs::FileSystem files;
@@ -103,22 +103,22 @@ TEST_CASE(
 	Vfs::FileSystem files;
 	App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, user.root);
 	Sim::SimWorld world{1.0 / 60.0, 1};
-	App::RegisterTrading(world);
+	Sample::RegisterTrading(world);
 	Sim::DefinitionRegistry definitions{files};
-	App::LoadTradeDefinitions(definitions);
-	App::LoadTraderDefinitions(definitions);
+	Sample::LoadTradeDefinitions(definitions);
+	Sample::LoadTraderDefinitions(definitions);
 	Script::LoadDefinitions(definitions);
 
 	// The mod's patch weighs a run by the script's input, which a trader does not answer.
-	const auto *decision = definitions.Find<Ai::DecisionDefinition>(App::kTradeDecision);
+	const auto *decision = definitions.Find<Ai::DecisionDefinition>(Sample::kTradeDecision);
 	REQUIRE(decision != nullptr);
 	CHECK(decision->actions[0].considerations.back().input == "crowding");
-	CHECK(App::UnansweredInput(*decision, nullptr) == "crowding");
+	CHECK(Sample::UnansweredInput(*decision, nullptr) == "crowding");
 
 	Script::ScriptHost host{files};
 	host.SendCommandsTo(world);
 	REQUIRE(host.LoadAll(definitions) == 1);
-	CHECK_FALSE(App::UnansweredInput(*decision, &host).has_value());
+	CHECK_FALSE(Sample::UnansweredInput(*decision, &host).has_value());
 
 	std::vector<std::string> said;
 	const Core::LogCallbackId listening = Core::AddLogCallback(
@@ -129,10 +129,10 @@ TEST_CASE(
 	    });
 	host.Dispatch(
 	    Sim::SimEvent{
-	        1, entt::meta_any{App::Traded{entt::entity{3}, entt::entity{4}, "beer", 3, 290, 1000}}});
+	        1, entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{4}, "beer", 3, 290, 1000}}});
 	host.Dispatch(
 	    Sim::SimEvent{
-	        2, entt::meta_any{App::Traded{entt::entity{3}, entt::entity{5}, "beer", -3, 410, 1360}}});
+	        2, entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{5}, "beer", -3, 410, 1360}}});
 	Core::RemoveLogCallback(listening);
 	CHECK(
 	    said == std::vector<std::string>{
@@ -154,10 +154,10 @@ TEST_CASE("Scripts: a script's keys and the mods enabled go into a save and come
 	    App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, user.root);
 	CHECK(mods == std::vector<Sim::ModVersion>{{"smoke", "1.0.0"}});
 	Sim::SimWorld world{1.0 / 60.0, 1};
-	App::RegisterTrading(world);
+	Sample::RegisterTrading(world);
 	Sim::DefinitionRegistry definitions{files};
-	App::LoadTradeDefinitions(definitions);
-	App::LoadTraderDefinitions(definitions);
+	Sample::LoadTradeDefinitions(definitions);
+	Sample::LoadTraderDefinitions(definitions);
 	Script::LoadDefinitions(definitions);
 
 	std::vector<std::string> said;
@@ -170,7 +170,7 @@ TEST_CASE("Scripts: a script's keys and the mods enabled go into a save and come
 	const auto trade = [](std::uint64_t step)
 	{
 		return Sim::SimEvent{
-		    step, entt::meta_any{App::Traded{entt::entity{3}, entt::entity{4}, "beer", 2, 300, 600}}};
+		    step, entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{4}, "beer", 2, 300, 600}}};
 	};
 
 	// The shell's save: the world, the script's keys in their section, and the mods.

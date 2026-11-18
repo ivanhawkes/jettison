@@ -11,7 +11,7 @@
 
 #include "Trading.h"
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 void RegisterMarketScreenTypes()
 {
@@ -146,4 +146,4 @@ MarketScreen BuildMarketScreen(
 	}
 	return screen;
 }
-} // namespace Jettison::App
+} // namespace Jettison::Sample

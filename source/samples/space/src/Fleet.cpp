@@ -15,11 +15,11 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
-#include "Stations.h"
+#include <jettison/app/Stations.h>
 #include "Traders.h"
 #include "Trading.h"
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 namespace
 {
@@ -95,7 +95,7 @@ void Buy(
 	const Sim::ReasonArgument at = Sim::ReasonArgument::Entity(command.station);
 	if (!FleetDockedAt(registry, command.sender, command.station))
 		return refuse(TradeReason::NoneDocked, {at});
-	const entt::entity pad = FreePad(registry, command.station, *hull);
+	const entt::entity pad = App::FreePad(registry, command.station, *hull);
 	if (pad == entt::null)
 		return refuse(
 		    TradeReason::NoPadFree,
@@ -111,7 +111,7 @@ void Buy(
 	registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(command.station));
 	registry.emplace<Sim::InSystem>(ship, registry.get<Sim::InSystem>(command.station).system);
 	registry.emplace<Physics::LocalFrame>(ship, registry.get<Physics::OnRails>(command.station).body);
-	MakeShip(registry, docks, ship, command.hull, sale.mass, true);
+	App::MakeShip(registry, docks, ship, command.hull, sale.mass, true);
 	registry.replace<Physics::FlightControls>(
 	    ship, Physics::FlightControls{{}, {}, true, command.station});
 	registry.emplace<Sim::ControlledBy>(ship, command.sender);
@@ -144,21 +144,6 @@ void RegisterFleet(Sim::SimWorld &world, Dock::Docks &docks, const Sim::Definiti
 }
 
 
-entt::entity FreePad(
-    const entt::registry &registry, entt::entity station, const Dock::HullDefinition &hull)
-{
-	const auto *built = registry.try_get<Dock::Station>(station);
-	if (!built)
-		return entt::null;
-	// The station's pads are in their numbers' order.
-	for (const entt::entity entity : built->pads)
-		if (const Dock::Pad &pad = registry.get<Dock::Pad>(entity);
-		    pad.state == Dock::PadState::Free && !pad.display && pad.padClass >= hull.pad)
-			return entity;
-	return entt::null;
-}
-
-
 void FitForTrade(entt::registry &registry, entt::entity ship)
 {
 	if (!registry.all_of<Ai::Steered>(ship))
@@ -167,26 +152,6 @@ void FitForTrade(entt::registry &registry, entt::entity ship)
 		registry.emplace<Trader>(ship);
 	if (!registry.all_of<Ai::Behaviour>(ship))
 		registry.emplace<Ai::Behaviour>(ship, Ai::Behaviour{std::string{kTraderTree}, {}, {}});
-}
-
-
-std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller)
-{
-	std::vector<entt::entity> fleet;
-	for (const auto &[entity, controlled] : snapshot.Components<Sim::ControlledBy>())
-		if (controlled.controller == controller)
-			fleet.push_back(entity);
-	std::ranges::sort(fleet, {}, [](entt::entity entity) { return entt::to_integral(entity); });
-	return fleet;
-}
-
-
-entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller)
-{
-	for (const auto &[entity, helm] : snapshot.Components<Sim::Helm>())
-		if (helm.controller == controller)
-			return entity;
-	return entt::null;
 }
 
 
@@ -204,4 +169,4 @@ bool GiveOldShipItsHelm(entt::registry &registry, entt::entity ship, const Sim::
 	FitForTrade(registry, ship);
 	return true;
 }
-} // namespace Jettison::App
+} // namespace Jettison::Sample

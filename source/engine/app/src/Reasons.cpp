@@ -1,7 +1,9 @@
-#include "Reasons.h"
+#include <jettison/app/Reasons.h>
+#include <jettison/app/Game.h>
 
 #include <format>
 #include <optional>
+#include <utility>
 #include <string_view>
 #include <vector>
 
@@ -12,14 +14,10 @@
 #include <jettison/sim/Snapshot.h>
 #include <jettison/ui/StringTable.h>
 
-#include "MarketScreen.h"
-#include "Trading.h"
-
 namespace Jettison::App
 {
 namespace
 {
-constexpr std::string_view kGood = "Shell.Good";
 constexpr std::string_view kHull = "Dock.HullDefinition";
 
 
@@ -33,10 +31,12 @@ std::string HullName(const Sim::DefinitionRegistry &definitions, const std::stri
 
 
 std::string EntityName(
-    const Sim::Snapshot &snapshot, const Ui::StringTable &strings, entt::entity entity)
+    const Sim::Snapshot &snapshot, const Ui::StringTable &strings, entt::entity entity,
+    const Game *game)
 {
-	if (const auto *market = snapshot.Get<Market>(entity))
-		return market->station;
+	if (game)
+		if (std::optional<std::string> name = game->NameEntity(snapshot, entity))
+			return *std::move(name);
 	if (const auto *rails = snapshot.Get<Physics::OnRails>(entity))
 		return rails->body;
 	return std::string{strings.Text("reason.entity")};
@@ -45,7 +45,7 @@ std::string EntityName(
 
 std::string WordReason(
     const Sim::Reason &reason, const Sim::Snapshot &snapshot,
-    const Sim::DefinitionRegistry &definitions, const Ui::StringTable &strings)
+    const Sim::DefinitionRegistry &definitions, const Ui::StringTable &strings, const Game *game)
 {
 	std::vector<std::string> words;
 	std::optional<std::int64_t> count;
@@ -58,11 +58,14 @@ std::string WordReason(
 				words.push_back(strings.Number(argument.integer));
 				break;
 			case Sim::ReasonValue::Entity:
-				words.push_back(EntityName(snapshot, strings, argument.entity));
+				words.push_back(EntityName(snapshot, strings, argument.entity, game));
 				break;
 			case Sim::ReasonValue::Identifier:
-				if (argument.definition == kGood)
-					words.push_back(GoodName(definitions, strings, argument.identifier));
+				if (std::optional<std::string> name =
+				        game ? game->NameIdentifier(
+				                   argument.definition, argument.identifier, definitions, strings)
+				             : std::nullopt)
+					words.push_back(*std::move(name));
 				else if (argument.definition == kHull)
 					words.push_back(HullName(definitions, argument.identifier));
 				else

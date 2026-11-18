@@ -148,7 +148,8 @@ add_subdirectory("tools/pack")
 
 if(JETTISON_PRESENTATION)
 	add_subdirectory("tools/flotsam")
-	# The runtime viewer: the engine with no game.
+	# The space-trading sample, a game composed into the shell, and the runtime viewer that runs it.
+	add_subdirectory("samples/space")
 	add_subdirectory("samples/jetsam")
 	# The render smoke harness and the dependency probe.
 	add_subdirectory("test")

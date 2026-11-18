@@ -63,13 +63,11 @@
 #include <jettison/spatial/SystemIndices.h>
 
 #include "Dressing.h"
-#include "Fleet.h"
-#include "Mounts.h"
-#include "Reasons.h"
+#include <jettison/app/Game.h>
+#include <jettison/app/Mounts.h>
+#include <jettison/app/Reasons.h>
 #include "Saves.h"
-#include "Stations.h"
-#include "Traders.h"
-#include "Trading.h"
+#include <jettison/app/Stations.h>
 
 namespace Jettison::App
 {
@@ -127,10 +125,6 @@ constexpr double kPilotTransition = 1.5;
 constexpr double kViewTransition = 0.5;
 // The cinematic the ship landing on a pad plays (cinematics/dock.sequence.yaml).
 constexpr std::string_view kDockSequence = "dock";
-// The shell's ship as the sample game starts it: a small hauler's hold, and the credits to fill most
-// of it with what the station it starts at has to spare (docs/sample-game.md).
-constexpr std::int64_t kShipHold = 20;
-constexpr std::int64_t kStartingCredits = 250000;
 // The game UI's faces: Roboto for text, Hack for figures, and Droid Sans for a glyph neither has.
 constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/Roboto-Medium.ttf", false},
@@ -256,8 +250,9 @@ void Crash(std::span<const std::string> arguments)
 } // namespace
 
 
-Application::Application(AppArguments arguments, std::string windowTitle)
-    : m_arguments{std::move(arguments)}, m_windowTitle{std::move(windowTitle)}
+Application::Application(AppArguments arguments, std::string windowTitle, Game *game)
+    : m_arguments{std::move(arguments)}, m_windowTitle{std::move(windowTitle)},
+      m_pGame{game != nullptr ? game : &m_noGame}
 {
 	m_toggleUi = m_input.DefineAction("toggle_ui", Input::ActionType::Button);
 	m_toggleConsole = m_input.DefineAction("toggle_console", Input::ActionType::Button);
@@ -278,7 +273,6 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_shipPrevious = m_input.DefineAction("ship_previous", Input::ActionType::Button);
 	m_helm = m_input.DefineAction("helm", Input::ActionType::Button);
 	m_pickAction = m_input.DefineAction("pick", Input::ActionType::Button);
-	m_toggleMarket = m_input.DefineAction("toggle_market", Input::ActionType::Button);
 	m_toggleSaves = m_input.DefineAction("toggle_saves", Input::ActionType::Button);
 	m_quickSave = m_input.DefineAction("quicksave", Input::ActionType::Button);
 	m_quickLoad = m_input.DefineAction("quickload", Input::ActionType::Button);
@@ -310,7 +304,6 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_input.Bind("shell", m_shipPrevious, {Character('[')});
 	m_input.Bind("shell", m_helm, {Character('h')});
 	m_input.Bind("shell", m_pickAction, {{Input::Device::MouseButton, 0}});
-	m_input.Bind("shell", m_toggleMarket, {Character('m')});
 	m_input.Bind("shell", m_toggleSaves, {Character('l')});
 	m_input.Bind("shell", m_quickSave, {Input::Keys::F5});
 	m_input.Bind("shell", m_quickLoad, {Input::Keys::F9});
@@ -401,9 +394,6 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    "Ends the shell as a defect would, to see the crash report it writes: crash fault | assert | "
 	    "exception",
 	    [](DevTools::Console &, std::span<const std::string> arguments) { Crash(arguments); });
-	m_console.RegisterCommand(
-	    "traders", "Says what each trader is doing, and what its runs have made",
-	    [this](DevTools::Console &, std::span<const std::string>) { LogTraders(); });
 	m_console.RegisterCommand(
 	    "scripts", "Says which mods' scripts are loaded, how often each was called, and how it trapped",
 	    [this](DevTools::Console &console, std::span<const std::string>)
@@ -573,16 +563,6 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    "fleet", "Lists the ships of the fleet: where each is, who flies it and what it holds",
 	    [this](DevTools::Console &console, std::span<const std::string>) { ListFleet(console); });
 	m_console.RegisterCommand(
-	    "buy",
-	    "Buys a ship at the bound station, where a ship of the fleet is docked, and takes its helm: "
-	    "buy shuttle|transport",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    if (arguments.size() != 1)
-			    throw std::invalid_argument{"takes the hull to buy"};
-		    BuyShip(arguments[0]);
-	    });
-	m_console.RegisterCommand(
 	    "attach",
 	    "Follows a ship of the fleet, by its number in the fleet's list, as ] and [ do: attach <n>",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
@@ -604,29 +584,6 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	    "helm",
 	    "Takes the attached ship's helm, its behaviour standing down, or leaves it to trade, as H does",
 	    [this](DevTools::Console &, std::span<const std::string>) { ToggleHelm(); });
-	m_console.RegisterCommand(
-	    "trade",
-	    "Buys crates of a good at the market of the system shown, or sells them with a negative "
-	    "count, as the market screen does: trade <good> <crates>",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    {
-		    std::int64_t crates = 0;
-		    const auto [end, error] =
-		        arguments.size() == 2
-		            ? std::from_chars(
-		                  arguments[1].data(), arguments[1].data() + arguments[1].size(), crates)
-		            : std::from_chars_result{nullptr, std::errc::invalid_argument};
-		    if (error != std::errc{} || end != arguments[1].data() + arguments[1].size() || crates == 0)
-		    {
-			    Core::Log(Core::Severity::Warning, kShell, "trade takes a good and a count of crates");
-			    return;
-		    }
-		    SendTrade(arguments[0], crates);
-	    });
-	m_console.RegisterCommand(
-	    "market", "Shows or hides the market screen: market [on|off]",
-	    [this](DevTools::Console &, std::span<const std::string> arguments)
-	    { ShowMarket(arguments.empty() ? !m_showMarket : arguments[0] != "off"); });
 	m_console.RegisterCommand(
 	    "screenshot", "Writes the next frame to a PNG, with the UI over it: screenshot <file.png>",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
@@ -709,10 +666,9 @@ Application::Application(AppArguments arguments, std::string windowTitle)
 	m_sim.ShowInSnapshots<Physics::OnRails>();
 	// For the frame the ship flies in, which a cruise changes (ShipFrame).
 	m_sim.ShowInSnapshots<Physics::LocalFrame>();
-	RegisterTrading(m_sim);
-	ChargeTolls(*m_pGates);
-	RegisterMarketScreenTypes();
 	RegisterSavesScreenTypes();
+	m_pGame->Register(MakeShellWorld(), m_input);
+	m_pGame->AddCommands(m_console, *this);
 	RegisterFrameSystems();
 }
 
@@ -1208,8 +1164,7 @@ void Application::InitResources()
 	Animation::RegisterRigLoader(*m_pResources);
 	Animation::RegisterClipFileLoader(*m_pResources);
 	m_definitions.emplace(m_assets);
-	LoadTradeDefinitions(*m_definitions);
-	LoadTraderDefinitions(*m_definitions);
+	m_pGame->LoadDefinitions(*m_definitions);
 	Script::LoadDefinitions(*m_definitions);
 	m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
 	m_pScripts->SendCommandsTo(m_sim);
@@ -1219,8 +1174,7 @@ void Application::InitResources()
 	m_definitions->Load<Dock::StationLayout>(
 	    Dock::kStationDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
 	m_pDocks->Define(*m_definitions);
-	LoadShipyard(*m_definitions);
-	RegisterFleet(m_sim, *m_pDocks, *m_definitions);
+	m_pGame->Define(MakeShellWorld(), *m_definitions);
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterSequenceLoader(*m_pResources);
 	m_sequences.emplace(*m_pResources);
@@ -1234,28 +1188,8 @@ void Application::InitScene()
 	m_pScene = std::make_unique<Scene::Scene>(m_pResources.get());
 	InitGalaxy();
 	DefineStarSystems();
-	// The traders' tasks read the systems; their trees name the tasks.
-	const auto *decision = m_definitions->Find<Ai::DecisionDefinition>(kTradeDecision);
-	const std::optional<std::string> unanswered =
-	    decision ? UnansweredInput(*decision, m_pScripts.get()) : std::nullopt;
-	if (unanswered)
-		Core::Log(
-		    Core::Severity::Error, kShell,
-		    "The decision '{}' asks for '{}', which neither a trader nor a script answers; the galaxy "
-		    "has "
-		    "no traders",
-		    kTradeDecision, *unanswered);
-	else if (decision)
-	{
-		RegisterTraders(
-		    m_sim, *m_pBehaviours, *m_pPhysics, *m_pLanes, m_galaxySystems, *decision,
-		    m_pScripts.get());
-		m_pBehaviours->Define(*m_definitions);
-	}
-	else
-		Core::Log(
-		    Core::Severity::Warning, kShell, "No decision '{}' is defined; the galaxy has no traders",
-		    kTradeDecision);
+	// What the game runs across the systems reads them.
+	m_pGame->OpenGalaxy(MakeShellWorld(), m_galaxySystems, *m_definitions, *m_pScripts);
 	LoadScene();
 	OpenStations();
 	if (const std::size_t gates = App::OpenGates(m_sim, *m_pGates, m_galaxySystems).size(); gates > 0)
@@ -1311,34 +1245,6 @@ void Application::InitUi()
 	                       .GetString(kLanguageKey)
 	                       .value_or(std::string{Ui::StringTable::kBaseLanguage}));
 
-	Ui::DataModel &market = m_pUi->CreateDataModel("market");
-	m_pMarketModel = &market;
-	market.Bind("screen", &m_marketScreen);
-	market.BindEvent(
-	    "buy",
-	    [this](std::span<const Ui::EventArgument> arguments)
-	    {
-		    SendTrade(
-		        arguments.empty() ? "" : Ui::AsText(arguments[0]),
-		        arguments.size() < 2 ? 1 : Ui::AsInteger(arguments[1]));
-	    });
-	market.BindEvent(
-	    "sell",
-	    [this](std::span<const Ui::EventArgument> arguments)
-	    {
-		    SendTrade(
-		        arguments.empty() ? "" : Ui::AsText(arguments[0]),
-		        -(arguments.size() < 2 ? 1 : Ui::AsInteger(arguments[1])));
-	    });
-	market.BindEvent(
-	    "lot",
-	    [this](std::span<const Ui::EventArgument> arguments)
-	    {
-		    m_lot = std::max<std::int64_t>(arguments.empty() ? 1 : Ui::AsInteger(arguments[0]), 1);
-		    m_marketDirty = true;
-	    });
-	m_marketDocument = m_pUi->LoadDocument("ui/market.rml");
-
 	Ui::DataModel &saves = m_pUi->CreateDataModel("saves");
 	m_pSavesModel = &saves;
 	saves.Bind("screen", &m_savesScreen);
@@ -1350,10 +1256,10 @@ void Application::InitUi()
 			    ShowSaves(false);
 	    });
 	m_savesDocument = m_pUi->LoadDocument("ui/saves.rml");
-	// The headless run shows both screens from its first frame, so the overlay's path is drawn in
-	// every stage the render test walks, and the save stage lists its save on one of them.
-	ShowMarket(m_arguments.smokeTest);
+	// The headless run shows the screens from its first frame, so the overlay's path is drawn in every
+	// stage the render test walks, and the save stage lists its save on one of them.
 	ShowSaves(m_arguments.smokeTest);
+	m_pGame->OpenUi(*m_pUi, *this);
 }
 
 
@@ -1455,21 +1361,6 @@ void Application::PlayEventSound(const Sim::SimEvent &event)
 }
 
 
-void Application::ShowMarket(bool shown)
-{
-	m_showMarket = shown;
-	if (!m_pUi)
-		return;
-	if (shown)
-	{
-		m_marketDirty = true;
-		m_pUi->Show(m_marketDocument);
-	}
-	else
-		m_pUi->Hide(m_marketDocument);
-}
-
-
 void Application::ShowSaves(bool shown)
 {
 	m_showSaves = shown;
@@ -1487,34 +1378,6 @@ void Application::ShowSaves(bool shown)
 		m_pSavesModel->Changed("screen");
 	}
 	m_pUi->Show(m_savesDocument);
-}
-
-
-entt::entity Application::ShownMarket() const
-{
-	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	const auto markets = snapshot.Components<Market>();
-	if (m_station != entt::null)
-		for (const auto &market : markets)
-			if (market.value.stationEntity == m_station)
-				return market.entity;
-	if (m_systemScene)
-	{
-		const std::uint64_t shown = Sim::SystemId(m_systemScene->System().name);
-		for (const auto &market : markets)
-			if (market.value.system == shown)
-				return market.entity;
-	}
-	return entt::null;
-}
-
-
-void Application::SendTrade(std::string_view good, std::int64_t crates)
-{
-	const entt::entity market = ShownMarket();
-	if (m_ship == entt::null || market == entt::null || good.empty() || crates == 0)
-		return;
-	m_sim.Commands().Push(Trade{kPilot, m_ship, market, std::string{good}, crates});
 }
 
 
@@ -1585,27 +1448,7 @@ void Application::UpdateGameUi()
 		m_uiSize = size;
 	}
 
-	// The screen is made again only when a step brought a new snapshot or the shell's side of it
-	// moved, and the model told only when what it shows differs, so a still market costs nothing.
-	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	if (m_showMarket && (m_marketDirty || m_marketStep != snapshot.step))
-	{
-		MarketView view;
-		view.market = ShownMarket();
-		view.ship = m_ship;
-		view.system = m_systemScene ? m_systemScene->System().name : std::string{};
-		view.docked = m_docked;
-		view.lot = m_lot;
-		view.message = m_tradeMessage;
-		MarketScreen screen = BuildMarketScreen(snapshot, *m_definitions, m_pUi->Strings(), view);
-		if (screen != m_marketScreen)
-		{
-			m_marketScreen = std::move(screen);
-			m_pMarketModel->Changed("screen");
-		}
-		m_marketStep = snapshot.step;
-		m_marketDirty = false;
-	}
+	m_pGame->UpdateUi(*this);
 	const double presentationTime = std::chrono::duration<double>(m_frameStart - m_loopStart).count();
 	m_pUi->Update(presentationTime);
 }
@@ -1930,10 +1773,9 @@ void Application::PollInput()
 		SaveTo("quicksave");
 	if (m_input.WasPressedThisFrame(m_quickLoad))
 		LoadFrom("quicksave");
-	if (m_input.WasPressedThisFrame(m_toggleMarket) && !(m_pUi && m_pUi->WantsKeyboard()))
-		ShowMarket(!m_showMarket);
 	if (m_input.WasPressedThisFrame(m_toggleSaves) && !(m_pUi && m_pUi->WantsKeyboard()))
 		ShowSaves(!m_showSaves);
+	m_pGame->PollInput(m_input, *this);
 	// A click on the scene, not on a window over it, ImGui's or the game UI's.
 	if (m_input.WasPressedThisFrame(m_pickAction) && !uiMouse)
 		m_clicked = m_glfwInput.Cursor();
@@ -1971,8 +1813,9 @@ void Application::PollInput()
 			m_showUI = false;
 		else if (m_showSaves)
 			ShowSaves(false);
-		else if (m_showMarket)
-			ShowMarket(false);
+		else if (m_pGame->Back(*this))
+		{
+		}
 		else if (!m_pScene->Registry().view<Scene::SequencePlayerComponent>().empty())
 			StopSequence();
 		else if (m_piloting)
@@ -2170,43 +2013,7 @@ void Application::FollowShipAlong(const Ai::OnLane &lane)
 }
 
 
-void Application::LogTraders() const
-{
-	// From the snapshot, as the market screen is: presentation sees the traders as they were shown.
-	const Sim::Snapshot &snapshot = m_simStepper.Current();
-	const auto stationOf = [&](entt::entity market)
-	{
-		const Market *found = market == entt::null ? nullptr : snapshot.Get<Market>(market);
-		return found ? found->station : std::string{"nowhere"};
-	};
-	const std::span<const Sim::ComponentSample<Trader>> traders = snapshot.Components<Trader>();
-	if (traders.empty())
-		Core::Log(Core::Severity::Info, kShell, "No traders");
-	for (const auto &[entity, trader] : traders)
-	{
-		const auto *hold = snapshot.Get<Hold>(entity);
-		const auto *purse = PurseOf(snapshot, entity);
-		const Sim::TransformSample *sample = snapshot.FindSample(entity);
-		std::string where{"on a lane"};
-		if (m_galaxy && sample && sample->system != Sim::kNoSystem)
-			for (const Celestial::GalaxySystem &system : m_galaxy->systems)
-				if (Sim::SystemId(system.name) == sample->system)
-					where = "in " + system.name;
-		const std::string run =
-		    trader.good.empty()
-		        ? std::string{"choosing a run"}
-		        : std::format(
-		              "{} {} {}, bound for {} with {} jumps to go", trader.good,
-		              trader.buyAt == entt::null ? "held, to sell at"
-		                                         : "from " + stationOf(trader.buyAt) + " to",
-		              stationOf(trader.sellAt), stationOf(trader.bound), trader.jumps.size());
-		Core::Log(
-		    Core::Severity::Info, kShell,
-		    "Trader {:#x}, {}: {}; {} crates aboard, {} credits; {} runs made {}",
-		    entt::to_integral(entity), where, run, hold ? hold->Used() : 0, purse ? purse->credits : 0,
-		    trader.runs, trader.earned);
-	}
-}
+
 
 
 void Application::LogRoute(std::string_view systemName) const
@@ -2483,9 +2290,6 @@ void Application::SetLanguage(DevTools::Console &console, std::span<const std::s
 	m_pUi->SetLanguage(arguments[0]);
 	m_settings->Values().Set(Core::ConfigLayer::User, kLanguageKey, arguments[0]);
 	SaveSettings();
-	// The screens' text the shell writes is made again in it, as the trade's answer is when it next
-	// comes.
-	m_marketDirty = true;
 	console.Print(std::format("The screens are in '{}'", arguments[0]));
 }
 
@@ -2641,15 +2445,8 @@ bool Application::LoadFrom(std::string_view name)
 		const Sim::SaveSection *keys = save.FindSection(Script::kStoreSection);
 		Script::ScriptStore store = keys ? Script::ReadStore(keys->data) : Script::ScriptStore{};
 		m_sim.Load(save.world);
-		// A save from before purses were their owners' holds them on the ships.
-		if (const std::size_t moved = MovePursesToOwners(m_sim.Registry()); moved > 0)
-			Core::Log(
-			    Core::Severity::Info, kShell, "'{}' kept {} purses on ships, now their owners'", name,
-			    moved);
-		// One from before the helm (13d) has the player's ship flown by no one.
-		if (GiveOldShipItsHelm(m_sim.Registry(), shell.ship, kPilot))
-			Core::Log(
-			    Core::Severity::Info, kShell, "'{}' had no helm; the player is at its ship's", name);
+		// What an older save of the game lacks.
+		m_pGame->Loaded(m_sim.Registry(), shell.ship, kPilot);
 		// And one from before there were gates has none.
 		if (const std::size_t gates = App::OpenGates(m_sim, *m_pGates, m_galaxySystems).size();
 		    gates > 0)
@@ -2689,8 +2486,6 @@ bool Application::LoadFrom(std::string_view name)
 		m_sentControls.reset();
 		m_pickPending = false;
 		m_picked.reset();
-		m_tradeMessage.clear();
-		m_marketDirty = true;
 		m_simStepper.Resync();
 		if (m_systemScene)
 			m_systemScene->ResetTraffic();
@@ -2762,44 +2557,11 @@ SmokeActions Application::MakeSmokeActions()
 			    loaded, saved);
 		return loaded == saved;
 	};
-	actions.trade = [this]() -> std::optional<bool>
-	{
-		const entt::entity market = ShownMarket();
-		const auto *shown = m_simStepper.Current().Get<Market>(market);
-		if (!shown || shown->goods.empty() || m_ship == entt::null)
-			return std::nullopt;
-		ShowMarket(true);
-		// Laid out with the screen made from this snapshot, so what it shows is what the snapshot has.
-		UpdateGameUi();
-		const std::string station = m_pUi->ElementText(m_marketDocument, "station");
-		const std::string stock = m_pUi->ElementText(m_marketDocument, "stock-0");
-		if (station != shown->station || stock != std::to_string(shown->goods.front().stock))
-		{
-			Core::Log(
-			    Core::Severity::Error, kShell,
-			    "The market screen shows '{}' with {} crates, and the snapshot has '{}' with {}",
-			    station, stock, shown->station, shown->goods.front().stock);
-			return false;
-		}
-		m_smokeTradeAnswers = m_tradeAnswers;
-		m_smokeUiSounds = UiSounds();
-		return m_pUi->Click(m_marketDocument, "buy-0");
-	};
-	actions.trading = [this] { return m_tradeAnswers == m_smokeTradeAnswers; };
-	actions.traded = [this]
-	{
-		const std::string shown = m_pUi->ElementText(m_marketDocument, "message");
-		if (shown != m_tradeMessage)
-			Core::Log(
-			    Core::Severity::Error, kShell,
-			    "The market screen says '{}', and the trade's answer was '{}'", shown, m_tradeMessage);
-		// The answer is heard as well as shown: filled or refused, it plays on the UI bus.
-		if (UiSounds() == m_smokeUiSounds)
-			Core::Log(
-			    Core::Severity::Error, kShell, "The trade's answer '{}' played no sound",
-			    m_tradeMessage);
-		return !m_tradeMessage.empty() && shown == m_tradeMessage && UiSounds() > m_smokeUiSounds;
-	};
+	// The game UI's stage is the game's: a screen of its bound to the snapshot, driven as a player
+	// would.
+	actions.trade = [this] { return m_pGame->SmokeTrade(*this); };
+	actions.trading = [this] { return m_pGame->SmokeTrading(*this); };
+	actions.traded = [this] { return m_pGame->SmokeTraded(*this); };
 	actions.jump = [this] { return Jump(); };
 	actions.jumping = [this] { return m_jump->Active(); };
 	actions.close = [this] { RequestClose(); };
@@ -2826,7 +2588,6 @@ void Application::Shutdown() noexcept
 			m_soundSources.Clear(*m_pAudio);
 		m_eventSounds.reset();
 		m_pAudio.reset();
-		m_pMarketModel = nullptr;
 		m_pSavesModel = nullptr;
 		m_pUi.reset();
 		if (m_pRenderer)
@@ -2980,9 +2741,12 @@ void Application::OpenStations()
 {
 	// Once a run, as the ship is: a load replaces them with the save's.
 	entt::registry &world = m_sim.Registry();
-	if (!world.view<Dock::Station>().empty() || !world.view<Market>().empty())
+	if (!world.view<Dock::Station>().empty())
 		return;
-	const std::vector<entt::entity> stations = App::OpenStations(m_sim, *m_pDocks, m_galaxySystems);
+	const ShellWorld shellWorld = MakeShellWorld();
+	const std::vector<entt::entity> stations = App::OpenStations(
+	    m_sim, *m_pDocks, m_galaxySystems, [&](entt::entity station, std::string_view body)
+	    { m_pGame->StationOpened(m_sim, *m_pDocks, station, body); });
 	std::size_t pads = 0;
 	for (const entt::entity station : stations)
 		pads += world.get<Dock::Station>(station).pads.size();
@@ -2990,16 +2754,7 @@ void Application::OpenStations()
 	    Core::Severity::Info, kShell, "{} stations open, with {} pads and {} ships parked",
 	    stations.size(), pads, world.view<const Dock::Hull>().size());
 
-	const std::vector<entt::entity> markets = OpenMarkets(m_sim, *m_definitions);
-	for (const entt::entity entity : markets)
-	{
-		Market &market = world.get<Market>(entity);
-		market.stationEntity = FindStation(world, market.system, market.station);
-	}
-	Core::Log(Core::Severity::Info, kShell, "{} markets open", markets.size());
-	if (m_pBehaviours->HasTree(kTraderTree))
-		Core::Log(
-		    Core::Severity::Info, kShell, "{} traders open", OpenTraders(m_sim, *m_pDocks).size());
+	m_pGame->StationsOpened(shellWorld, *m_definitions);
 	m_simStepper.Resync();
 }
 
@@ -3019,13 +2774,9 @@ void Application::SpawnShip()
 	MakeShip(world, *m_pDocks, m_ship, kShipHull, kShipMass, true);
 	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
 	world.emplace<Sim::ControlledBy>(m_ship, kPilot);
-	world.emplace<Hold>(m_ship, Hold{kShipHold, {}});
-	// The fleet's first ship, at the player's helm; its behaviour trades with it once they leave it.
-	FitForTrade(world, m_ship);
+	// The fleet's first ship, fitted by the game, at the player's helm.
+	m_pGame->FitShip(world, m_ship, kPilot);
 	world.emplace<Sim::Helm>(m_ship, kPilot);
-	// The player's credits are their own, not the ship's, and outlast it.
-	if (FindOwner(world, kPilot) == entt::null)
-		MakeOwner(world, kPilot, kStartingCredits);
 	m_shipSystem = m_stationSystem;
 
 	// Docked on the lowest numbered free pad it fits; at a station of none, off its -Z end, nose
@@ -3214,8 +2965,6 @@ void Application::AttachShip(entt::entity ship)
 	m_sentControls.reset();
 	m_pickPending = false;
 	m_picked.reset();
-	m_tradeMessage.clear();
-	m_marketDirty = true;
 	const auto *inSystem = world.try_get<Sim::InSystem>(ship);
 	m_shipSystem = inSystem ? inSystem->system : Sim::kNoSystem;
 	// Bound to the station it is docked at or waiting for; else, once it is shown, to the one of
@@ -3294,17 +3043,6 @@ void Application::ToggleHelm()
 }
 
 
-void Application::BuyShip(std::string_view hull)
-{
-	if (m_station == entt::null)
-	{
-		Core::Log(Core::Severity::Warning, kShell, "No station to buy a ship at");
-		return;
-	}
-	m_sim.Commands().Push(App::BuyShip{kPilot, m_station, std::string{hull}});
-}
-
-
 void Application::ListFleet(DevTools::Console &console) const
 {
 	const Sim::Snapshot &snapshot = m_simStepper.Current();
@@ -3328,19 +3066,11 @@ void Application::ListFleet(DevTools::Console &console) const
 		         sample && sample->system != Sim::kNoSystem)
 			if (const auto *frame = snapshot.Get<Physics::LocalFrame>(ship))
 				where = frame->body.empty() ? "cruising" : std::format("off {}", frame->body);
-		std::string flown = "at your helm";
-		if (HelmOf(snapshot, kPilot) != ship)
-		{
-			const auto *trader = snapshot.Get<Trader>(ship);
-			flown = trader && !trader->good.empty() ? std::format("trading {}", trader->good)
-			                                        : std::string{"choosing a run"};
-		}
-		const auto *hold = snapshot.Get<Hold>(ship);
 		console.Print(
 		    std::format(
-		        "{}{}  {}  {}  {}  {}/{} crates", number + 1, ship == m_ship ? "*" : " ",
-		        definition ? definition->displayName : std::string{"?"}, where, flown,
-		        hold ? hold->Used() : 0, hold ? hold->capacity : 0));
+		        "{}{}  {}  {}  {}", number + 1, ship == m_ship ? "*" : " ",
+		        definition ? definition->displayName : std::string{"?"}, where,
+		        m_pGame->DescribeShip(snapshot, ship, HelmOf(snapshot, kPilot) == ship)));
 	}
 }
 
@@ -3818,20 +3548,6 @@ void Application::TakeEvents()
 			m_sentControls.reset();
 			Core::Log(Core::Severity::Info, kShell, "The ship gives up its pad at {}", m_stationBody);
 		}
-		else if (const auto *shipBought = event.event.try_cast<ShipBought>();
-		         shipBought && shipBought->buyer == kPilot)
-		{
-			Core::Log(
-			    Core::Severity::Info, kShell, "Bought a {} at {} for {} credits; {} credits left",
-			    shipBought->hull, Describe(shipBought->station), FormatCredits(shipBought->price),
-			    FormatCredits(shipBought->credits));
-			AttachShip(shipBought->ship);
-		}
-		else if (const auto *notBought = event.event.try_cast<BuyRefused>();
-		         notBought && notBought->sender == kPilot)
-			Core::Log(
-			    Core::Severity::Warning, kShell, "No {} bought: {}", notBought->hull,
-			    Word(notBought->reason));
 		else if (const auto *helmTaken = event.event.try_cast<Ai::HelmTaken>();
 		         helmTaken && helmTaken->controller == kPilot)
 		{
@@ -3842,7 +3558,7 @@ void Application::TakeEvents()
 		else if (const auto *helmLeft = event.event.try_cast<Ai::HelmLeft>();
 		         helmLeft && helmLeft->controller == kPilot)
 			Core::Log(
-			    Core::Severity::Info, kShell, "{} is left to its behaviour, which trades with it",
+			    Core::Severity::Info, kShell, "{} is left to its behaviour",
 			    Describe(helmLeft->ship));
 		else if (const auto *noHelm = event.event.try_cast<Ai::HelmRefused>();
 		         noHelm && noHelm->sender == kPilot)
@@ -3854,27 +3570,7 @@ void Application::TakeEvents()
 			Core::Log(
 			    Core::Severity::Info, kShell, "{} does not answer the controls: {}",
 			    Describe(unflown->ship), Word(unflown->reason));
-		else if (const auto *traded = event.event.try_cast<Traded>(); traded && traded->ship == m_ship)
-		{
-			const std::int64_t crates = traded->crates < 0 ? -traded->crates : traded->crates;
-			++m_tradeAnswers;
-			m_tradeMessage = m_pUi->Strings().Plural(
-			    traded->crates > 0 ? "market.bought" : "market.sold", crates,
-			    GoodName(*m_definitions, m_pUi->Strings(), traded->good),
-			    m_pUi->Strings().Number(traded->price));
-			Core::Log(
-			    Core::Severity::Info, kShell, "{}; {} credits left", m_tradeMessage,
-			    FormatCredits(traded->credits));
-		}
-		else if (const auto *refused = event.event.try_cast<TradeRefused>();
-		         refused && refused->ship == m_ship)
-		{
-			++m_tradeAnswers;
-			m_tradeMessage = m_pUi->Strings().Format("market.refused", Word(refused->reason));
-			Core::Log(Core::Severity::Info, kShell, "{}", m_tradeMessage);
-		}
-		if (m_showMarket)
-			m_marketDirty = true;
+		m_pGame->TakeEvent(event, *this);
 	}
 	// Out of a lane into the system shown, whichever came first, the ship is bound to the station
 	// there, and flown again if it was flown in.
@@ -3969,7 +3665,7 @@ void Application::DrawPicked()
 
 std::string Application::Word(const Sim::Reason &reason) const
 {
-	return WordReason(reason, m_simStepper.Current(), *m_definitions, m_pUi->Strings());
+	return WordReason(reason, m_simStepper.Current(), *m_definitions, m_pUi->Strings(), m_pGame);
 }
 
 
@@ -3992,6 +3688,72 @@ std::string Application::Describe(entt::entity simEntity) const
 	    rails && !snapshot.Get<Dock::Pad>(simEntity) && !snapshot.Get<Dock::Hull>(simEntity))
 		return rails->body;
 	return std::format("Entity {:#x}", entt::to_integral(simEntity));
+}
+
+
+Sim::SimWorld &Application::World()
+{
+	return m_sim;
+}
+
+
+const Sim::Snapshot &Application::Snapshot() const
+{
+	return m_simStepper.Current();
+}
+
+
+const Sim::DefinitionRegistry &Application::Definitions() const
+{
+	return *m_definitions;
+}
+
+
+Sim::Controller Application::Player() const
+{
+	return kPilot;
+}
+
+
+entt::entity Application::Ship() const
+{
+	return m_ship;
+}
+
+
+entt::entity Application::Station() const
+{
+	return m_station;
+}
+
+
+bool Application::Docked() const
+{
+	return m_docked;
+}
+
+
+std::string Application::ShownSystem() const
+{
+	return m_systemScene ? m_systemScene->System().name : std::string{};
+}
+
+
+Ui::UiSystem *Application::GameUi()
+{
+	return m_pUi.get();
+}
+
+
+bool Application::SmokeTest() const
+{
+	return m_arguments.smokeTest;
+}
+
+
+ShellWorld Application::MakeShellWorld()
+{
+	return {m_sim, *m_pPhysics, *m_pLanes, *m_pGates, *m_pDocks, *m_pBehaviours};
 }
 
 

@@ -44,7 +44,7 @@ class DefinitionRegistry;
 class SimWorld;
 } // namespace Jettison::Sim
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 // The sample game's traders (docs/sample-game.md), the plan's other ships: each chooses a run by
 // utility (defs/decisions/trade.yaml: which good, bought at which market and sold at which), and
@@ -111,4 +111,4 @@ Sim::Controller TraderController(std::uint32_t number);
 // queue. A station not open, or a pad already taken, is left out, saying so. Returns the traders, in
 // the order made.
 std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks);
-} // namespace Jettison::App
+} // namespace Jettison::Sample

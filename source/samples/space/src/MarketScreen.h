@@ -17,7 +17,7 @@ namespace Jettison::Ui
 class StringTable;
 }
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 // The market screen's data (assets/ui/market.rml), which the UI's "market" model is bound to as
 // "screen": presentation's copy, made from a snapshot's markets, hold and purse (Trading.h) and the
@@ -86,4 +86,4 @@ std::string GoodName(
 // A count of credits as the log writes one: 1,250,000. The screens write theirs in the player's
 // language (Ui::StringTable::Number).
 std::string FormatCredits(std::int64_t credits);
-} // namespace Jettison::App
+} // namespace Jettison::Sample

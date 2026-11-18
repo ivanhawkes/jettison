@@ -1,10 +1,11 @@
-#include "Reasons.h"
+#include <jettison/app/Reasons.h>
 #include "Trading.h"
 
 #include <jettison/ai/Types.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
+#include <jettison/sample/SpaceGame.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Reason.h>
 #include <jettison/sim/SimWorld.h>
@@ -40,7 +41,7 @@ struct Words
 TEST_CASE("Reasons: every reason the step gives has its words in English and in German")
 {
 	Sim::SimWorld world{1.0 / 60.0, 1};
-	App::RegisterTrading(world);
+	Sample::RegisterTrading(world);
 	Ai::RegisterTypes();
 	Dock::RegisterTypes();
 	Words words;
@@ -49,7 +50,7 @@ TEST_CASE("Reasons: every reason the step gives has its words in English and in 
 		words.strings.Load(words.assets, language);
 		for (const entt::meta_type reasons :
 		     {entt::resolve<Dock::Reason>(), entt::resolve<Ai::Reason>(),
-		      entt::resolve<Physics::Reason>(), entt::resolve<App::TradeReason>()})
+		      entt::resolve<Physics::Reason>(), entt::resolve<Sample::TradeReason>()})
 			for (const std::string &key : Sim::ReasonKeys(reasons))
 			{
 				INFO(language, " ", key);
@@ -65,18 +66,19 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	Sim::SimWorld world{1.0 / 60.0, 1};
 	Sim::RegisterTypes();
 	world.ShowInSnapshots<Physics::OnRails>();
-	App::RegisterTrading(world);
+	Sample::RegisterTrading(world);
 	Dock::RegisterTypes();
 	entt::registry &registry = world.Registry();
 	const entt::entity station = registry.create();
 	registry.emplace<Physics::OnRails>(station, Physics::OnRails{"Ostra Highport", {}, {}});
 	const entt::entity market = registry.create();
-	registry.emplace<App::Market>(market, App::Market{"Corva Refinery", 0, entt::null, 150, {}});
+	registry.emplace<Sample::Market>(market, Sample::Market{"Corva Refinery", 0, entt::null, 150, {}});
 	const entt::entity nameless = registry.create();
 	const Sim::Snapshot snapshot = Sim::Capture(world);
 	Words words;
+	const Sample::SpaceGame game;
 	const auto word = [&](const Sim::Reason &reason)
-	{ return App::WordReason(reason, snapshot, words.definitions, words.strings); };
+	{ return App::WordReason(reason, snapshot, words.definitions, words.strings, &game); };
 	using Argument = Sim::ReasonArgument;
 
 	CHECK(
@@ -87,10 +89,10 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	CHECK(
 	    word(
 	        Sim::MakeReason(
-	            App::TradeReason::ShortOfStock, {Argument::Entity(market), Argument::Integer(1)})) ==
+	            Sample::TradeReason::ShortOfStock, {Argument::Entity(market), Argument::Integer(1)})) ==
 	    "Corva Refinery has 1 crate");
 	CHECK(
-	    word(Sim::MakeReason(App::TradeReason::TooDear, {Argument::Integer(1200)})) ==
+	    word(Sim::MakeReason(Sample::TradeReason::TooDear, {Argument::Integer(1200)})) ==
 	    "1,200 crates cost more than the purse holds");
 	CHECK(
 	    word(Sim::MakeReason(Dock::Reason::OtherSystem, {Argument::Entity(nameless)})) ==
@@ -105,12 +107,12 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 
 	words.strings.Load(words.assets, "de");
 	CHECK(
-	    word(Sim::MakeReason(App::TradeReason::TooDear, {Argument::Integer(1)})) ==
+	    word(Sim::MakeReason(Sample::TradeReason::TooDear, {Argument::Integer(1)})) ==
 	    "1 Kiste kostet mehr als das Guthaben");
 	CHECK(
 	    word(
 	        Sim::MakeReason(
-	            App::TradeReason::NotDealt,
+	            Sample::TradeReason::NotDealt,
 	            {Argument::Entity(market), Argument::Identifier("beer", "Shell.Good")})) ==
 	    "Corva Refinery handelt nicht mit Bier");
 	CHECK(words.strings.Problems() == 0);

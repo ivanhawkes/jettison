@@ -1,6 +1,6 @@
 #include "Traders.h"
 
-#include "Stations.h"
+#include <jettison/app/Stations.h>
 #include "Trading.h"
 
 #include <algorithm>
@@ -33,7 +33,7 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 namespace
 {
@@ -148,7 +148,7 @@ class Round
 		if (!m_lanes.Galaxy() || registry.get<Sim::InSystem>(context.entity).system == Sim::kNoSystem)
 			return Status::Failure;
 		Trader &trader = registry.get<Trader>(context.entity);
-		const App::Hold &hold = registry.get<App::Hold>(context.entity);
+		const Hold &hold = registry.get<Hold>(context.entity);
 		const std::int64_t credits = CreditsOf(registry, context.entity);
 		const std::vector<entt::entity> markets = Markets(registry);
 
@@ -475,7 +475,7 @@ class Round
 			if (destination && !context.starting)
 				return Status::Running;
 			const auto *frame = registry.try_get<Physics::LocalFrame>(context.entity);
-			const entt::entity leaving = FindStation(registry, system, near->name);
+			const entt::entity leaving = App::FindStation(registry, system, near->name);
 			if (!frame || leaving == entt::null)
 				return Status::Failure;
 			// A point just beyond its reach, on the side of the body to cruise to.
@@ -553,7 +553,7 @@ class Round
 	{
 		entt::registry &registry = context.world.Registry();
 		Trader &trader = registry.get<Trader>(context.entity);
-		const App::Hold &hold = registry.get<App::Hold>(context.entity);
+		const Hold &hold = registry.get<Hold>(context.entity);
 		const std::int64_t before = CreditsOf(registry, context.entity);
 		const bool buying = !context.arguments.empty() && context.arguments[0] == "buy";
 		const entt::entity market = buying ? trader.buyAt : trader.sellAt;
@@ -583,9 +583,9 @@ class Round
 			return Status::Failure;
 		const std::int64_t held = hold.Crates(trader.good);
 		context.world.Apply(
-		    App::Trade{
+		    Trade{
 		        SenderOf(registry, context.entity), context.entity, market, trader.good, crates});
-		if (registry.get<App::Hold>(context.entity).Crates(trader.good) == held)
+		if (registry.get<Hold>(context.entity).Crates(trader.good) == held)
 			return Status::Failure;
 		const std::int64_t credits = CreditsOf(registry, context.entity) - before;
 		if (buying)
@@ -814,12 +814,12 @@ std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InSystem>(ship, registry.get<Sim::InSystem>(station).system);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{start.station});
-		MakeShip(registry, docks, ship, start.hull, start.mass, true);
+		App::MakeShip(registry, docks, ship, start.hull, start.mass, true);
 		registry.emplace<Ai::Steered>(ship);
 		// Each trader the owner of its one ship.
 		const Sim::Controller controller = TraderController(static_cast<std::uint32_t>(index));
 		registry.emplace<Sim::ControlledBy>(ship, controller);
-		registry.emplace<App::Hold>(ship, App::Hold{start.hold, {}});
+		registry.emplace<Hold>(ship, Hold{start.hold, {}});
 		if (FindOwner(registry, controller) == entt::null)
 			MakeOwner(registry, controller, start.credits);
 		registry.emplace<Trader>(ship);
@@ -829,4 +829,4 @@ std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 	}
 	return traders;
 }
-} // namespace Jettison::App
+} // namespace Jettison::Sample

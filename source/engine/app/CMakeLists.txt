@@ -29,26 +29,25 @@ jettison_add_module(app
 		vfs
 	HEADERS
 		include/jettison/app/AppArguments.h
+		include/jettison/app/Game.h
+		include/jettison/app/Mounts.h
+		include/jettison/app/Reasons.h
 		include/jettison/app/RenderApplication.h
 		include/jettison/app/SmokeSequence.h
+		include/jettison/app/Stations.h
 	SOURCES
 		src/AppArguments.cpp
 		src/Application.cpp
 		src/Application.h
 		src/Dressing.cpp
 		src/Dressing.h
+		src/Game.cpp
 		src/GlfwInput.cpp
 		src/GlfwInput.h
-		src/MarketScreen.cpp
-		src/MarketScreen.h
-		src/Fleet.cpp
-		src/Fleet.h
 		src/Mounts.cpp
-		src/Mounts.h
 		src/Piloting.cpp
 		src/Piloting.h
 		src/Reasons.cpp
-		src/Reasons.h
 		src/RenderApplication.cpp
 		src/Saves.cpp
 		src/Saves.h
@@ -56,36 +55,24 @@ jettison_add_module(app
 		src/Settings.h
 		src/SmokeSequence.cpp
 		src/Stations.cpp
-		src/Stations.h
-		src/Traders.cpp
-		src/Traders.h
-		src/Trading.cpp
-		src/Trading.h
 	TESTS
 		tests/AppArgumentsTests.cpp
 		tests/DressingTests.cpp
-		tests/FleetTests.cpp
+		tests/GameTests.cpp
 		tests/LargeWorldTests.cpp
 		tests/MountsTests.cpp
 		tests/PilotingTests.cpp
-		tests/ReasonsTests.cpp
 		tests/SavesTests.cpp
-		tests/ScriptsTests.cpp
 		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp
 		tests/StationsTests.cpp
-		tests/TradersTests.cpp
-		tests/TradingTests.cpp
 	PRIVATE_LIBRARIES
 		glfw
 )
 
-# The large-world test reads the sample star system the assets ship; the scripts' tests, the smoke
-# mod as source/test stages it, and the shell's bindings its script is built against.
+# The large-world, dressing, mounts and stations tests read the star systems and definitions the
+# assets ship.
 if(TARGET jettison_app_tests)
 	target_compile_definitions(jettison_app_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets"
-		JETTISON_SMOKE_MOD_DIR="${PROJECT_BINARY_DIR}/source/test/mods/smoke"
-		JETTISON_TEST_SCRIPT_DIR="${PROJECT_SOURCE_DIR}/source/test/scripts"
-		JETTISON_APP_TEST_OUTPUT="${CMAKE_CURRENT_BINARY_DIR}")
+		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
 endif()

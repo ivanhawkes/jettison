@@ -23,7 +23,7 @@ class SimWorld;
 struct Snapshot;
 } // namespace Jettison::Sim
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 // The sample game's fleet (docs/sample-game.md; docs/roadmap.md, "Decided": a player has a fleet):
 // every ship a player commands (Sim::ControlledBy) is theirs, bought at a station with the credits of
@@ -92,23 +92,13 @@ void LoadShipyard(Sim::DefinitionRegistry &definitions);
 void RegisterFleet(
     Sim::SimWorld &world, Dock::Docks &docks, const Sim::DefinitionRegistry &definitions);
 
-// The station's lowest numbered free pad the hull fits, not a display one, or none.
-entt::entity FreePad(
-    const entt::registry &registry, entt::entity station, const Dock::HullDefinition &hull);
-
 // Fits the ship to trade for its owner when no one is at its helm: steered, with a Trader and the
 // trader's tree. What it already has is kept.
 void FitForTrade(entt::registry &registry, entt::entity ship);
-
-// The ships the controller commands, in entity order, as the snapshot shows them.
-std::vector<entt::entity> FleetOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller);
-
-// The ship the controller is at the helm of, or none.
-entt::entity HelmOf(const Sim::Snapshot &snapshot, const Sim::Controller &controller);
 
 // A world saved before the helm (13d) has the player's one ship flown by no one, and not fitted to
 // trade: the ship is given to the controller's helm, unless they are at one already, and fitted to
 // trade once they leave it. A ship already fitted is of a later save, its helm left on purpose, and
 // is left to its behaviour. Returns whether it was given.
 bool GiveOldShipItsHelm(entt::registry &registry, entt::entity ship, const Sim::Controller &controller);
-} // namespace Jettison::App
+} // namespace Jettison::Sample

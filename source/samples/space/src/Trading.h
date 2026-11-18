@@ -22,7 +22,7 @@ class SimWorld;
 struct Snapshot;
 } // namespace Jettison::Sim
 
-namespace Jettison::App
+namespace Jettison::Sample
 {
 // Trading as the shell plays it: the first slice of the sample game, whose plan is the Manifest
 // project's (docs/sample-game.md). The engine's part is the definitions, the deterministic
@@ -324,4 +324,4 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade);
 // owner's purse as the ship enters it, and a gate clears no ship, and sends none through, whose owner
 // has no purse (TradeReason::NoOwner) or one short of the toll (TradeReason::ShortOfToll).
 void ChargeTolls(Ai::Gates &gates);
-} // namespace Jettison::App
+} // namespace Jettison::Sample

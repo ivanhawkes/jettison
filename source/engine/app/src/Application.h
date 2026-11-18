@@ -16,6 +16,7 @@
 #include <jettison/ai/Lanes.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/app/AppArguments.h>
+#include <jettison/app/Game.h>
 #include <jettison/app/SmokeSequence.h>
 #include <jettison/audio/AudioSystem.h>
 #include <jettison/audio/EventSounds.h>
@@ -46,7 +47,6 @@
 
 #include "Dressing.h"
 #include "GlfwInput.h"
-#include "MarketScreen.h"
 #include "Piloting.h"
 #include "Saves.h"
 #include "Settings.h"
@@ -94,10 +94,14 @@ namespace Jettison::App
 //
 // The state machine is private and exists for one reason: Shutdown() is guarded by it, so the
 // loop and ~Application can both ask for teardown and the second one is free.
-class Application
+//
+// A game composed into it (Game) is given its points in the lifecycle, and reads the shell through
+// Shell; with none, the shell is the engine with no game, and its hooks are Game's own, which do
+// nothing.
+class Application final : private Shell
 {
   public:
-	Application(AppArguments arguments, std::string windowTitle);
+	Application(AppArguments arguments, std::string windowTitle, Game *game = nullptr);
 
 	~Application();
 
@@ -147,8 +151,8 @@ class Application
 
 	void InitWindow();
 
-	// The game UI over the window (docs/architecture.md, "UI"): its fonts, the market screen's data
-	// model and document, read through the asset tree.
+	// The game UI over the window (docs/architecture.md, "UI"): its fonts, the saved games' data model
+	// and document, read through the asset tree, then the game's (Game::OpenUi).
 	void InitUi();
 
 	// The game's sound (docs/architecture.md, "Audio"): the mixer, its buses' volumes from the
@@ -165,7 +169,7 @@ class Application
 	void PlayEventSound(const Sim::SimEvent &event);
 
 	// Sounds started on the UI bus, which the smoke run's trade has to add to.
-	std::uint64_t UiSounds() const;
+	std::uint64_t UiSounds() const override;
 
 	// The frame's systems, one or two to a phase; registered in the constructor, so a mistake in
 	// the order is a start-up error, before a window opens.
@@ -211,25 +215,16 @@ class Application
 
 	void DrawUI();
 
-	// The presentation phase: the market screen made again from the snapshot, when the step or what
-	// the shell shows moved, and the game UI laid out and drawn into its overlay.
-	void UpdateGameUi();
+	// The presentation phase: the game's screens made again (Game::UpdateUi), and the game UI laid
+	// out and drawn into its overlay.
+	void UpdateGameUi() override;
 
 	// The window's events since the last frame, to the game UI, unless the dev tools have the mouse or
 	// the keyboard.
 	void FeedGameUi();
 
-	// The market the screen shows: the one at the ship's station, else the first in the system shown,
-	// else none.
-	entt::entity ShownMarket() const;
-
-	void ShowMarket(bool shown);
-
 	// The saved-games screen, its list read again from the user mount as it is shown.
 	void ShowSaves(bool shown);
-
-	// A Trade the next step applies, from the screen's buttons: crates bought, or sold when negative.
-	void SendTrade(std::string_view good, std::int64_t crates);
 
 	void DrawRendererPanel();
 
@@ -263,8 +258,8 @@ class Application
 	// of no layout drawn with no shape.
 	bool BindStation();
 
-	// Every station of the galaxy built to a layout, with the sample's ships parked on it, and the
-	// markets bound to them; once a run, as the markets are, and a load brings its own.
+	// Every station of the galaxy built to a layout, and what the game puts at them (Game::StationOpened,
+	// StationsOpened); once a run, and a load brings its own.
 	void OpenStations();
 
 	// The station bound, and the ship docked on its lowest numbered free pad, or, at a station of no
@@ -309,13 +304,10 @@ class Application
 	// across each system (Ai::PlotRoute, Ai::CrossingByCourse).
 	void LogRoute(std::string_view systemName) const;
 
-	// Says, for each trader, its run and how far it has got, and what its runs have made.
-	void LogTraders() const;
-
-	// The fleet (Fleet.h): the ship the shell follows, the attached one, which its camera, its
-	// market screen and its console's commands are for; bound to the station it is docked at or
-	// waiting for, and shown in its system, the scene jumping there, or along the lane it is on.
-	void AttachShip(entt::entity ship);
+	// The fleet (FleetOf): the ship the shell follows, the attached one, which its camera, the game's
+	// screens and the console's commands are for; bound to the station it is docked at or waiting
+	// for, and shown in its system, the scene jumping there, or along the lane it is on.
+	void AttachShip(entt::entity ship) override;
 
 	void CycleAttached(int step);
 
@@ -324,9 +316,6 @@ class Application
 	bool AtHelm() const;
 
 	void ToggleHelm();
-
-	// The console's buy: a ship of the hull at the bound station (App::BuyShip), attached once bought.
-	void BuyShip(std::string_view hull);
 
 	void ListFleet(DevTools::Console &console) const;
 
@@ -379,10 +368,10 @@ class Application
 
 	void DrawPicked();
 
-	std::string Describe(entt::entity simEntity) const;
+	std::string Describe(entt::entity simEntity) const override;
 
 	// A reason the step gave, as the player reads it, from the newest snapshot (Reasons.h).
-	std::string Word(const Sim::Reason &reason) const;
+	std::string Word(const Sim::Reason &reason) const override;
 
 	// The frame the ship's physics is in (Physics::LocalFrame), from the newest snapshot: the
 	// station's, another body's after a cruise, or none, the system's, while it cruises.
@@ -415,8 +404,35 @@ class Application
 	// The headless sequence's side effects, bound to this shell's window and scene.
 	SmokeActions MakeSmokeActions();
 
+	// The shell as the game reads it (Shell).
+	Sim::SimWorld &World() override;
+
+	const Sim::Snapshot &Snapshot() const override;
+
+	const Sim::DefinitionRegistry &Definitions() const override;
+
+	Sim::Controller Player() const override;
+
+	entt::entity Ship() const override;
+
+	entt::entity Station() const override;
+
+	bool Docked() const override;
+
+	std::string ShownSystem() const override;
+
+	Ui::UiSystem *GameUi() override;
+
+	bool SmokeTest() const override;
+
+	// The world's systems as a game's hooks are given them.
+	ShellWorld MakeShellWorld();
+
 	AppArguments m_arguments;
 	std::string m_windowTitle;
+	// The game composed into the shell, or the shell's own Game, which does nothing.
+	Game m_noGame;
+	Game *m_pGame;
 	State m_state{State::Uninitialised};
 
 	// The user's directories: the XDG ones, or the ones under AppArguments::userDirectory. The headless
@@ -497,8 +513,8 @@ class Application
 	Sim::Stepper m_simStepper{m_sim};
 	// Attached in the constructor, and the world's from then on.
 	Physics::PhysicsWorld *m_pPhysics{nullptr};
-	// The sample game's definitions, its goods and markets (Trading.h), read through the asset tree in
-	// InitResources.
+	// The definitions, the engine's and the game's (Game::LoadDefinitions), read through the asset tree
+	// in InitResources.
 	std::optional<Sim::DefinitionRegistry> m_definitions;
 	// The mods' scripts (defs/scripts), made beside the definitions in InitResources: given every
 	// event TakeEvents takes, and answering the traders' inputs they name. After the world, so it goes
@@ -586,8 +602,7 @@ class Application
 	Input::ActionId m_shipNext;
 	Input::ActionId m_shipPrevious;
 	Input::ActionId m_helm;
-	// M: the market screen, shown and hidden; L the saved games.
-	Input::ActionId m_toggleMarket;
+	// L: the saved games, shown and hidden.
 	Input::ActionId m_toggleSaves;
 	// F5 saves to "quicksave", and F9 loads it.
 	Input::ActionId m_quickSave;
@@ -630,27 +645,12 @@ class Application
 	Audio::SoundSources m_soundSources;
 	Audio::SourceHandle m_music;
 	// The warnings and errors the audio logged over the run, and the sounds that would not play,
-	// which the headless run holds at none; and the UI's sounds when the smoke run's trade was sent.
+	// which the headless run holds at none.
 	std::size_t m_audioProblems{0};
-	std::uint64_t m_smokeUiSounds{0};
-	Ui::DataModel *m_pMarketModel{nullptr};
-	Ui::DocumentHandle m_marketDocument;
-	bool m_showMarket{false};
 	Ui::DataModel *m_pSavesModel{nullptr};
 	Ui::DocumentHandle m_savesDocument;
 	bool m_showSaves{false};
 	SavesScreen m_savesScreen;
-	// The screen's data, which the "market" model is bound to, the step it was made at, and what made
-	// it: a click's answer, the lot.
-	MarketScreen m_marketScreen;
-	std::optional<std::uint64_t> m_marketStep;
-	std::int64_t m_lot{1};
-	std::string m_tradeMessage;
-	// The ship's trades answered, filled or refused, and how many there were when the smoke run's
-	// trade was sent.
-	std::uint64_t m_tradeAnswers{0};
-	std::uint64_t m_smokeTradeAnswers{0};
-	bool m_marketDirty{true};
 	// The warnings and errors RmlUi logged over the run, which the headless run holds at none.
 	std::size_t m_uiProblems{0};
 	// The frame's size the UI was last given, in pixels.

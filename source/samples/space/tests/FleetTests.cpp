@@ -1,7 +1,7 @@
 #include "SampleGalaxy.h"
 
 #include "../src/Fleet.h"
-#include "../src/Stations.h"
+#include <jettison/app/Stations.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
 
@@ -44,10 +44,10 @@ entt::entity FirstShip(Galaxy &galaxy, std::int64_t credits = 250000)
 	registry.emplace<Physics::LocalFrame>(ship, std::string{"Ostra Highport"});
 	App::MakeShip(registry, galaxy.docks, ship, "shuttle", 2.0e4f, true);
 	registry.emplace<Sim::ControlledBy>(ship, kPlayer);
-	registry.emplace<App::Hold>(ship, App::Hold{20, {}});
-	App::FitForTrade(registry, ship);
+	registry.emplace<Sample::Hold>(ship, Sample::Hold{20, {}});
+	Sample::FitForTrade(registry, ship);
 	registry.emplace<Sim::Helm>(ship, kPlayer);
-	App::MakeOwner(registry, kPlayer, credits);
+	Sample::MakeOwner(registry, kPlayer, credits);
 	galaxy.docks.Park(
 	    galaxy.world, ship, App::FreePad(registry, station, *galaxy.docks.FindHull("shuttle")));
 	return ship;
@@ -68,18 +68,18 @@ TEST_CASE(
 
 	// Bought at the station the first is docked at, on its next free pad, and the helm is the new
 	// ship's: the first's behaviour takes it over.
-	galaxy.world.Commands().Push(App::BuyShip{kPlayer, highport, "shuttle"});
+	galaxy.world.Commands().Push(Sample::BuyShip{kPlayer, highport, "shuttle"});
 	galaxy.Step();
-	const std::vector<App::ShipBought> bought = galaxy.Events<App::ShipBought>();
+	const std::vector<Sample::ShipBought> bought = galaxy.Events<Sample::ShipBought>();
 	REQUIRE(bought.size() == 1);
 	const entt::entity second = bought[0].ship;
 	CHECK(bought[0].buyer == kPlayer);
 	CHECK(bought[0].price == 120000);
 	CHECK(bought[0].credits == 130000);
-	CHECK(App::PurseOf(registry, first)->credits == 130000);
+	CHECK(Sample::PurseOf(registry, first)->credits == 130000);
 	CHECK(Dock::IsDocked(registry, second, highport));
 	CHECK(registry.get<Sim::ControlledBy>(second).controller == kPlayer);
-	CHECK(registry.get<App::Hold>(second).capacity == 20);
+	CHECK(registry.get<Sample::Hold>(second).capacity == 20);
 	CHECK(registry.get<Sim::Helm>(second).controller == kPlayer);
 	CHECK_FALSE(registry.all_of<Sim::Helm>(first));
 	const std::vector<Ai::HelmLeft> left = galaxy.Events<Ai::HelmLeft>();
@@ -88,16 +88,16 @@ TEST_CASE(
 
 	// Traded from at the helm: the market's cheapest good, five crates.
 	const entt::entity market = galaxy.MarketAt("Ostra Highport");
-	const App::MarketGood &cheapest = std::ranges::min(
-	    registry.get<App::Market>(market).goods, {},
-	    [](const App::MarketGood &good) { return good.ask; });
+	const Sample::MarketGood &cheapest = std::ranges::min(
+	    registry.get<Sample::Market>(market).goods, {},
+	    [](const Sample::MarketGood &good) { return good.ask; });
 	const std::string good = cheapest.good;
-	galaxy.world.Commands().Push(App::Trade{kPlayer, second, market, good, 5});
+	galaxy.world.Commands().Push(Sample::Trade{kPlayer, second, market, good, 5});
 	galaxy.Step();
-	const std::vector<App::Traded> traded = galaxy.Events<App::Traded>();
+	const std::vector<Sample::Traded> traded = galaxy.Events<Sample::Traded>();
 	REQUIRE_FALSE(traded.empty());
 	CHECK(traded.back().ship == second);
-	CHECK(registry.get<App::Hold>(second).Crates(good) == 5);
+	CHECK(registry.get<Sample::Hold>(second).Crates(good) == 5);
 
 	// Its pilot's controls fly the ship at the helm; the first, which its behaviour flies, and the
 	// second from another player, are refused.
@@ -144,15 +144,15 @@ TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there i
 	galaxy.Step();
 
 	const Sim::Controller stranger{Sim::ControllerKind::Player, 1};
-	galaxy.world.Commands().Push(App::BuyShip{kPlayer, first, "shuttle"});
-	galaxy.world.Commands().Push(App::BuyShip{kPlayer, highport, "liner"});
-	galaxy.world.Commands().Push(App::BuyShip{stranger, highport, "shuttle"});
-	galaxy.world.Commands().Push(App::BuyShip{{}, highport, "shuttle"});
-	galaxy.world.Commands().Push(App::BuyShip{kPlayer, corva, "shuttle"});
-	galaxy.world.Commands().Push(App::BuyShip{kPlayer, highport, "transport"});
+	galaxy.world.Commands().Push(Sample::BuyShip{kPlayer, first, "shuttle"});
+	galaxy.world.Commands().Push(Sample::BuyShip{kPlayer, highport, "liner"});
+	galaxy.world.Commands().Push(Sample::BuyShip{stranger, highport, "shuttle"});
+	galaxy.world.Commands().Push(Sample::BuyShip{{}, highport, "shuttle"});
+	galaxy.world.Commands().Push(Sample::BuyShip{kPlayer, corva, "shuttle"});
+	galaxy.world.Commands().Push(Sample::BuyShip{kPlayer, highport, "transport"});
 	galaxy.Step();
 	std::vector<std::string> reasons;
-	for (const App::BuyRefused &refused : galaxy.Events<App::BuyRefused>())
+	for (const Sample::BuyRefused &refused : galaxy.Events<Sample::BuyRefused>())
 		reasons.push_back(Sim::Describe(refused.reason));
 	CHECK(
 	    reasons == std::vector<std::string>{
@@ -161,8 +161,8 @@ TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there i
 	                   "reason.shell.no_owner()", "reason.shell.no_owner()",
 	                   std::format("reason.shell.none_docked(entity {:#x})", entt::to_integral(corva)),
 	                   "reason.shell.short_of_price(900000)"});
-	CHECK(App::PurseOf(registry, first)->credits == 250000);
-	CHECK(galaxy.Events<App::ShipBought>().empty());
+	CHECK(Sample::PurseOf(registry, first)->credits == 250000);
+	CHECK(galaxy.Events<Sample::ShipBought>().empty());
 
 	// Every free pad a shuttle fits, and then none: each bought on the next.
 	std::size_t free = 0;
@@ -172,13 +172,13 @@ TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there i
 		            ? 1
 		            : 0;
 	REQUIRE(free > 0);
-	App::PurseOf(registry, first)->credits = 100000000;
+	Sample::PurseOf(registry, first)->credits = 100000000;
 	for (std::size_t buy = 0; buy <= free; ++buy)
-		galaxy.world.Commands().Push(App::BuyShip{kPlayer, highport, "shuttle"});
+		galaxy.world.Commands().Push(Sample::BuyShip{kPlayer, highport, "shuttle"});
 	galaxy.events.clear();
 	galaxy.Step();
-	CHECK(galaxy.Events<App::ShipBought>().size() == free);
-	const std::vector<App::BuyRefused> full = galaxy.Events<App::BuyRefused>();
+	CHECK(galaxy.Events<Sample::ShipBought>().size() == free);
+	const std::vector<Sample::BuyRefused> full = galaxy.Events<Sample::BuyRefused>();
 	REQUIRE(full.size() == 1);
 	CHECK(
 	    Sim::Describe(full[0].reason) ==
@@ -187,7 +187,7 @@ TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there i
 	        entt::to_integral(highport)));
 	// One helm, the last bought's.
 	CHECK(registry.view<Sim::Helm>().size() == 1);
-	CHECK(registry.get<Sim::Helm>(galaxy.Events<App::ShipBought>().back().ship).controller == kPlayer);
+	CHECK(registry.get<Sim::Helm>(galaxy.Events<Sample::ShipBought>().back().ship).controller == kPlayer);
 }
 
 
@@ -198,16 +198,16 @@ TEST_CASE("Fleet: a world saved before the helm gives the player the helm of the
 	const entt::entity ship = FirstShip(galaxy);
 	// As a save from before 13d holds it: no helm, and not fitted to trade.
 	registry.remove<Sim::Helm>(ship);
-	registry.remove<App::Trader>(ship);
+	registry.remove<Sample::Trader>(ship);
 	registry.remove<Ai::Behaviour>(ship);
 	registry.remove<Ai::Steered>(ship);
-	CHECK(App::GiveOldShipItsHelm(registry, ship, kPlayer));
+	CHECK(Sample::GiveOldShipItsHelm(registry, ship, kPlayer));
 	CHECK(registry.get<Sim::Helm>(ship).controller == kPlayer);
-	CHECK(registry.get<Ai::Behaviour>(ship).tree == App::kTraderTree);
-	CHECK(registry.all_of<App::Trader, Ai::Steered>(ship));
+	CHECK(registry.get<Ai::Behaviour>(ship).tree == Sample::kTraderTree);
+	CHECK(registry.all_of<Sample::Trader, Ai::Steered>(ship));
 	// Once only, and not for a ship another commands.
-	CHECK_FALSE(App::GiveOldShipItsHelm(registry, ship, kPlayer));
-	CHECK_FALSE(App::GiveOldShipItsHelm(registry, galaxy.traders.front(), kPlayer));
+	CHECK_FALSE(Sample::GiveOldShipItsHelm(registry, ship, kPlayer));
+	CHECK_FALSE(Sample::GiveOldShipItsHelm(registry, galaxy.traders.front(), kPlayer));
 }
 
 
@@ -220,6 +220,6 @@ TEST_CASE("Fleet: a helm its pilot left is not given back as a save from before 
 	galaxy.Step();
 	REQUIRE_FALSE(registry.all_of<Sim::Helm>(ship));
 	// No helm is the player's, as in an old save, but the ship is fitted to trade, as none was then.
-	CHECK_FALSE(App::GiveOldShipItsHelm(registry, ship, kPlayer));
+	CHECK_FALSE(Sample::GiveOldShipItsHelm(registry, ship, kPlayer));
 	CHECK_FALSE(registry.all_of<Sim::Helm>(ship));
 }

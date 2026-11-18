@@ -1,5 +1,4 @@
-#include "../src/Mounts.h"
-#include "../src/Trading.h"
+#include <jettison/app/Mounts.h>
 
 #include <doctest/doctest.h>
 
@@ -117,47 +116,6 @@ TEST_CASE("Mounts: the base, then the user's mods in the order of their identifi
 	CHECK(NamesOf(plain) == std::vector<std::string>{"base", "user"});
 }
 
-
-TEST_CASE("Mounts: a data mod in the user's directory changes the game's definitions over a pack")
-{
-	const Scratch scratch;
-	// The sample game's definitions, packed as a shipped build has them.
-	Vfs::WritePack(
-	    JETTISON_ASSET_SOURCE_DIR, scratch.Path("assets.pack"), {.level = 19, .directories = {"defs"}});
-	// A mod that makes beer dearer, and has Ostra Highport's market want more of it and deal in
-	// wine, a good it adds.
-	scratch.Put("user/mods/beer-and-wine/defs/goods/beer.patch.yaml", "version: 1\nbasePrice: 1500\n");
-	scratch.Put(
-	    "user/mods/beer-and-wine/defs/goods/wine.yaml",
-	    "version: 1\ndisplayName: Wine\ncategory: CategoryFerments\nage: AgeIron\n"
-	    "crate: a kilolitre of wine in casks\nbasePrice: 4000\n");
-	scratch.Put(
-	    "user/mods/beer-and-wine/defs/markets/ostra-highport.patch.yaml",
-	    "version: 1\ngoods: !merge=good\n  - {good: beer, target: 60}\n"
-	    "  - {good: wine, stock: 10, production: 0, consumption: 1, target: 20}\n");
-
-	Vfs::FileSystem files;
-	App::MountAssets(files, scratch.Path("assets.pack"), scratch.Path("user"));
-	Sim::DefinitionRegistry definitions{files};
-	App::LoadTradeDefinitions(definitions);
-
-	CHECK(definitions.Names<App::Good>().size() == 9);
-	const auto *beer = definitions.Find<App::Good>("beer");
-	REQUIRE(beer != nullptr);
-	CHECK(beer->basePrice == 1500);
-	CHECK(beer->displayName == "Beer");
-	CHECK(definitions.Find<App::Good>("wine")->basePrice == 4000);
-
-	const auto *highport = definitions.Find<App::MarketDefinition>("ostra-highport");
-	REQUIRE(highport != nullptr);
-	REQUIRE(highport->goods.size() == 9);
-	CHECK(highport->goods[2].good == "beer");
-	CHECK(highport->goods[2].stock == 55);
-	CHECK(highport->goods[2].target == 60);
-	CHECK(highport->goods[8].good == "wine");
-	// The other market is the base's.
-	CHECK(definitions.Find<App::MarketDefinition>("corva-refinery")->goods.size() == 8);
-}
 
 namespace
 {

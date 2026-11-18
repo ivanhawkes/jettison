@@ -15,7 +15,8 @@ namespace Jettison::App
 // order on every path - the frame loop's exit, an exception thrown from a frame, a start-up that
 // failed - before this function's handler prints.
 int RunRenderApplication(
-    int argc, char **argv, const char *windowTitle, const std::filesystem::path &assetSubdirectory)
+    int argc, char **argv, const char *windowTitle, const std::filesystem::path &assetSubdirectory,
+    Game *game)
 {
 	const auto arguments = ParseAppArguments(argc, argv, assetSubdirectory);
 	if (!arguments)
@@ -23,7 +24,7 @@ int RunRenderApplication(
 
 	try
 	{
-		Application application{*arguments, windowTitle};
+		Application application{*arguments, windowTitle, game};
 		application.Run();
 	}
 	catch (const std::exception &e)

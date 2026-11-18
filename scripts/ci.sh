@@ -125,10 +125,12 @@ stage "format gate (.clang-format, clang-format $(clang-format --version | awk '
 stage "configure + build: $preset"
 cmake --preset "$preset" ${werror[@]+"${werror[@]}"}
 cmake --build --preset "$preset"
-stage "unit tests: $preset (CTest)"
-ctest --test-dir "build/$preset" --output-on-failure --no-tests=error -j "$jobs"
+# As soon as the build has written the compile database and the module maps clang-query reads, so
+# a declaration without its blank lines fails before the suites run.
 stage "declaration spacing (blank lines, $preset database)"
 ./scripts/space-declarations.py --check --build "build/$preset"
+stage "unit tests: $preset (CTest)"
+ctest --test-dir "build/$preset" --output-on-failure --no-tests=error -j "$jobs"
 
 if [ "$tidy" -eq 1 ]; then
 	stage "clang-tidy (.clang-tidy, $preset database)"

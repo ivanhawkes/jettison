@@ -1,5 +1,5 @@
 #include "../src/Dressing.h"
-#include "../src/Stations.h"
+#include <jettison/app/Stations.h>
 
 #include <doctest/doctest.h>
 
@@ -81,6 +81,30 @@ struct Dressed
 	const Dock::StationLayout &Layout() const
 	{
 		return *docks.FindLayout("ostra-highport");
+	}
+
+
+	// The stations opened, with heavy transports parked on Highport's pads 2, 7 and 11, as a game
+	// parks its ships (Game::StationOpened).
+	std::vector<entt::entity> Open()
+	{
+		entt::registry &registry = world.Registry();
+		return App::OpenStations(
+		    world, docks, systems,
+		    [&](entt::entity built, std::string_view body)
+		    {
+			    if (body != "Ostra Highport")
+				    return;
+			    for (const std::size_t pad : std::array<std::size_t, 3>{2, 7, 11})
+			    {
+				    const entt::entity ship = registry.create();
+				    registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(built));
+				    registry.emplace<Sim::InSystem>(ship, registry.get<Sim::InSystem>(built));
+				    registry.emplace<Physics::LocalFrame>(ship, std::string{body});
+				    App::MakeShip(registry, docks, ship, "heavy-transport", 1.2e7f, false);
+				    docks.Park(world, ship, registry.get<Dock::Station>(built).pads.at(pad - 1));
+			    }
+		    });
 	}
 };
 
@@ -334,8 +358,7 @@ TEST_CASE("Dressing: the display wing shows a liner, a frigate and four fighters
 TEST_CASE("Dressing: a pad's lamps show its state from the snapshots, and a display pad's stay blue")
 {
 	Dressed dressed;
-	const std::vector<entt::entity> stations =
-	    App::OpenStations(dressed.world, dressed.docks, dressed.systems);
+	const std::vector<entt::entity> stations = dressed.Open();
 	REQUIRE(!stations.empty());
 	entt::registry &world = dressed.world.Registry();
 	const entt::entity highport = stations.front();
@@ -378,8 +401,7 @@ TEST_CASE(
     "is let go")
 {
 	Dressed dressed;
-	const std::vector<entt::entity> stations =
-	    App::OpenStations(dressed.world, dressed.docks, dressed.systems);
+	const std::vector<entt::entity> stations = dressed.Open();
 	REQUIRE(!stations.empty());
 	entt::registry &world = dressed.world.Registry();
 	const entt::entity highport = stations.front();
@@ -601,8 +623,7 @@ TEST_CASE("Dressing: a ship's proxy shows what its thrusters fire: plumes, jets 
 TEST_CASE("Dressing: a buggy's proxy carries on its bed the crates the snapshots have it carry")
 {
 	Dressed dressed;
-	const std::vector<entt::entity> stations =
-	    App::OpenStations(dressed.world, dressed.docks, dressed.systems);
+	const std::vector<entt::entity> stations = dressed.Open();
 	REQUIRE(!stations.empty());
 	entt::registry &world = dressed.world.Registry();
 	// The heavy transport parked on Highport's pad 2, loading six crates: the first buggy out of the

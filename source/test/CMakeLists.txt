@@ -4,7 +4,7 @@
 add_executable(render_test main.cpp)
 jettison_use_shared_assets(render_test)
 set_property(TARGET render_test PROPERTY FOLDER "Test")
-target_link_libraries(render_test PRIVATE Jettison::App jettison_warnings)
+target_link_libraries(render_test PRIVATE Jettison::App jettison_sample_space jettison_warnings)
 
 # One executable linking the engine and every third-party library it has or plans to have (see
 # source/external/CMakeLists.txt). The gate runs it after the Debug build. The libraries the
