@@ -22,17 +22,19 @@ struct Market
 
 // Drives the sequence to its close the way the shell's frame loop does, with the window manager
 // answering each of the two resize requests or refusing it, and a jump that takes that many frames
-// (none started, when negative, and no jump stage, as a game of no galaxy has, for none), and returns
-// the verdict.
+// (none started, when negative, and no jump stage, as a game of no galaxy has, for none), and each
+// piloting stage that many frames showing what it flew moved (over once it starts, for none), and
+// returns the verdict.
 bool RunSequence(
     bool firstResize, bool secondResize, std::optional<int> jumpFrames = 3, bool saveLoads = true,
-    Market market = {})
+    Market market = {}, std::optional<int> pilotFrames = std::nullopt)
 {
 	int requests = 0;
 	int handled = 0;
 	int jumps = 0;
 	int jumpLeft = 0;
 	int pilots = 0;
+	int pilotLeft = 0;
 	bool close = false;
 	SmokeActions actions;
 	actions.resize = [&](int, int) { ++requests; };
@@ -44,9 +46,14 @@ bool RunSequence(
 	{
 		CHECK(cockpit == (pilots == 1));
 		CHECK(jumps == 0);
+		// The second waits for the first to have shown.
+		CHECK(pilotLeft == 0);
 		++pilots;
+		pilotLeft = pilotFrames.value_or(0);
 		return true;
 	};
+	if (pilotFrames)
+		actions.piloting = [&] { return pilotLeft > 0; };
 	if (jumpFrames)
 	{
 		actions.jump = [&]
@@ -65,6 +72,7 @@ bool RunSequence(
 	actions.pick = [&]
 	{
 		CHECK(pilots == 2);
+		CHECK(pilotLeft == 0);
 		CHECK(jumps == 0);
 		++picks;
 		pickLeft = 2;
@@ -107,6 +115,8 @@ bool RunSequence(
 	{
 		if (jumpLeft > 0)
 			--jumpLeft;
+		if (pilotLeft > 0)
+			--pilotLeft;
 		if (pickLeft > 0)
 			--pickLeft;
 		if (tradeLeft > 0)
@@ -170,4 +180,12 @@ TEST_CASE("Smoke sequence: a market screen has to show the snapshot's market and
 	CHECK_FALSE(RunSequence(true, true, 3, true, {.screenWrong = true}));
 	CHECK_FALSE(RunSequence(true, true, 3, true, {.never = true}));
 	CHECK_FALSE(RunSequence(true, true, 3, true, {.answerHidden = true}));
+}
+
+
+TEST_CASE("Smoke sequence: a piloting stage waits for what it flew to show it moved")
+{
+	CHECK(RunSequence(true, true, 3, true, {}, 0));
+	CHECK(RunSequence(true, true, 3, true, {}, 40));
+	CHECK(RunSequence(true, true, std::nullopt, true, {.present = false}, 40));
 }

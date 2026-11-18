@@ -35,6 +35,8 @@ if(JETTISON_BUILD_TESTS)
 	target_include_directories(jettison_sample_ground_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 	target_link_libraries(jettison_sample_ground_tests PRIVATE
 		jettison_sample_ground doctest::doctest_with_main jettison_warnings)
+	target_compile_definitions(jettison_sample_ground_tests PRIVATE
+		JETTISON_GROUND_SCENE="${CMAKE_CURRENT_SOURCE_DIR}/assets/scene/main.yaml")
 	set_property(TARGET jettison_sample_ground_tests PROPERTY FOLDER "Test")
 	add_test(NAME sample-ground COMMAND jettison_sample_ground_tests)
 endif()

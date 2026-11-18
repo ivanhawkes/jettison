@@ -14,7 +14,6 @@ namespace Jettison::Sample
 namespace
 {
 constexpr glm::vec3 kGroundHalfExtents{200.0f, 0.5f, 200.0f};
-constexpr glm::vec3 kRoverHalfExtents{1.0f, 0.4f, 1.5f};
 
 class GroundModel final : public Physics::FrameModel
 {

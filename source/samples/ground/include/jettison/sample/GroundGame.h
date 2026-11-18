@@ -23,17 +23,13 @@ class GroundGame final : public App::Game
 	// The camera behind the rover, after the shell's rigs.
 	void RegisterFrame(Ecs::Scheduler &frame, App::Shell &shell) override;
 
-	// The rover made on the first scene, the scene's "rover" made its proxy, and the drive context
-	// taken.
+	// The rover made on the first scene, its proxy made in the scene (BindProxy), and the drive
+	// context taken.
 	void SceneLoaded(App::Shell &shell) override;
 
 	// The rover found again, and its controls as the save has them taken as the ones last sent, so
 	// the keys' next change is sent whatever was held as the game saved.
 	void Loaded(App::Shell &shell) override;
-
-	// Where the rover is, how fast it goes and how far it has turned, logged, which the smoke test
-	// reads.
-	void ShuttingDown(App::Shell &shell) noexcept override;
 
 	// The game's detail in its saves, and a save without it, another game's, refused.
 	void WriteSave(Sim::SaveGame &save, App::Shell &shell) override;
@@ -50,7 +46,8 @@ class GroundGame final : public App::Game
 
 	std::optional<App::PickSpace> PickIn(const App::Shell &shell) const override;
 
-	// The render test's piloting stages drive the rover ahead, then turning.
+	// The render test's piloting stages drive the rover ahead, then turning, each until it shows it:
+	// past 1 m/s, then 10 degrees from where it faced, which the game logs and the smoke test reads.
 	void DriveSmoke(App::SmokeActions &actions, App::Shell &shell) override;
 
   private:

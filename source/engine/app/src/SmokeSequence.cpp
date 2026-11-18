@@ -74,6 +74,16 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 			m_frames = 0;
 		}
 	}
+	else if (m_pilotPending)
+	{
+		// Like a jump, as long as it takes; the watchdog is what stops one that never shows.
+		if (!m_actions.piloting())
+		{
+			m_pilotPending = false;
+			m_actionPending = false;
+			m_frames = 0;
+		}
+	}
 	else if (m_pickPending)
 	{
 		const bool answered = !m_actions.picking();
@@ -170,8 +180,11 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 			// transition, while the flight commands move it; the jump that follows takes it along the
 			// lane.
 			if (m_actions.pilot(stage == 6))
+			{
 				++m_pilots;
-			m_actionPending = false;
+				m_pilotPending = static_cast<bool>(m_actions.piloting);
+			}
+			m_actionPending = m_pilotPending;
 			break;
 		case 7:
 			// A ray from the camera through the middle of the window, from the seat, cast by the next

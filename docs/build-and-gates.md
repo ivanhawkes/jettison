@@ -550,10 +550,11 @@ from its system file alone; each is about 1.7 s on lavapipe.
 
 The ground sample walks the same stages from its own content, unpacked in either run: its piloting
 stages drive its rover ahead and then turning, its pick lands on its ground, its save and load hold
-its world's state hash, and it drives no jump, so its run has none. The game logs where its rover
-is, how fast it goes and how far it turned as it shuts down, and the run fails unless it goes faster
-than 1 m/s and turned more than 10 degrees: the stages after the piloting are a second or so on a
-scene this small, and how far it went depends on the frame rate. The whole run took 4 seconds on a
+its world's state hash, and it drives no jump, so its run has none. Each piloting stage waits, as
+the jump does, until the game says its rover has shown it moved (`SmokeActions::piloting`): past
+1 m/s ahead, then 10 degrees turned, since a stage's four frames are fast or slow with the machine
+and the rover moves by simulation time. The game logs each, and the run fails unless it said both;
+a rover that never moves is a run the watchdog stops. The whole run took 4 seconds on a
 workstation on 2026-11-11, from about 40 before phase 5e gave lavapipe RGBA8 textures and culled
 the planet out of the shadow cascades; the script, its start-up checks and the two jumps included,
 took 15 seconds after phase 6d. Budget more on a runner.

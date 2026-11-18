@@ -21,6 +21,10 @@ struct SmokeActions
 	// false in a scene of no system, or of one with no station. Behind it, four shuttles are sent to
 	// the station too, flown by steering.
 	std::function<bool(bool cockpit)> pilot;
+	// Then whether what was flown has still to show it moved as the stage asked, which the stage waits
+	// for, as long as it takes, since it moves by simulation time and a stage's frames are fast or
+	// slow with the machine. Left empty by a game whose stage is over once it starts.
+	std::function<bool()> piloting;
 	// Picks through the middle of the window, and says whether a pick was sent: false in a scene of
 	// no system. Then whether it is still unanswered.
 	std::function<bool()> pick;
@@ -106,6 +110,8 @@ class SmokeSequence
 	// The picks answered. Not a verdict either: a pick needs a system's physics to be cast in.
 	int m_picks{0};
 	bool m_pickPending{false};
+	// A piloting stage's action is pending until the game says what it flew has shown it moved.
+	bool m_pilotPending{false};
 	// Saves that loaded back to the state saved.
 	int m_saves{0};
 	// The game's screens that showed the snapshot and sent their command, and the answers among them

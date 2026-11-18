@@ -18,13 +18,15 @@ shell alone, which links no space module. A rover, a box under the flight model 
 sideways thrust, stands on a static slab in a frame of its own whose gravity is the game's
 (`Physics::FrameModel`); the player is at its helm, W and S drive it and A and D turn it, from the
 game's input context (`Sample::RoverInput`), and a chase rig of the game's (`Scene::ChaseCamera`)
-places the scene's camera behind its proxy. It hears its rover's events, marks its saves and refuses
+places the scene's camera behind its proxy, which the game builds as each scene loads and the scene
+writer leaves out, so a scene saved while it drives is the file loaded. It hears its rover's events, marks its saves and refuses
 another game's. Its suite, `sample-ground`, drives the rover on the ground, replays a drive and a save
 taken part-way to the same state hash, reads the keys, and runs the game's hooks on a shell of its
-own: the proxy bound, the keys sent, and a save loaded with W held stopping the rover once the keys
-are read again. The smoke test runs it after the space sample's two scenes: its piloting stages
-drive the rover ahead and then turning, and the run fails unless it ends faster than 1 m/s and
-turned more than 10 degrees. It has no jump, so its run has no jump stage.
+own: the proxy built and the scene as authored while it drives, the keys sent, and a save loaded
+with W held stopping the rover once the keys are read again. The smoke test runs it after the space
+sample's two scenes: its piloting stages drive the rover ahead and then turning, each waiting
+(`SmokeActions::piloting`) until it is past 1 m/s and then 10 degrees from where it faced, which the
+game logs and the smoke test reads. It has no jump, so its run has no jump stage.
 
 ## Manifest informs capability requirements
 

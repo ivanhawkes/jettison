@@ -16,8 +16,8 @@ entities:
       intensity: 4000
       range: 200
       active: true
-  # The ground and the rover as the physics shapes have them (src/Ground.cpp): a box's scale is its
-  # half-extents.
+  # The ground as its physics shape has it (src/Ground.cpp): a box's scale is its half-extents. The
+  # rover's proxy is the game's, made as the scene loads (GroundGame::BindProxy).
   - id: ground
     transform:
       translation: [0, -0.5, 0]
@@ -25,11 +25,3 @@ entities:
     mesh:
       shape: box
       color: [0.35, 0.45, 0.3]
-  # The rover's proxy, which the game binds to the rover (GroundGame::SceneLoaded).
-  - id: rover
-    transform:
-      translation: [0, 0.4, 0]
-      scale: [1, 0.4, 1.5]
-    mesh:
-      shape: box
-      color: [0.8, 0.45, 0.15]

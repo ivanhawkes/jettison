@@ -1,6 +1,7 @@
 #pragma once
 
 #include <entt/entt.hpp>
+#include <glm/vec3.hpp>
 
 #include <cstdint>
 
@@ -20,6 +21,9 @@ namespace Jettison::Sample
 // The ground sample's world (docs/sample-game.md): one frame under a planet's gravity, a static slab
 // of ground in it and a rover on the slab, driven by the flight model with no vertical thrust, so it
 // stays on the ground and turns only about its up axis.
+
+// Half of each of the rover's sides, its shape's and its proxy's: 2 m wide, 0.8 m high and 3 m long.
+inline constexpr glm::vec3 kRoverHalfExtents{1.0f, 0.4f, 1.5f};
 
 // The frame's identifier (Sim::FrameId("ground")).
 std::uint64_t GroundFrame();

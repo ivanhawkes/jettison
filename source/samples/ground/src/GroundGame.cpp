@@ -24,6 +24,10 @@ namespace Jettison::Sample
 namespace
 {
 constexpr Core::Category kGround{"ground"};
+// What the render test's piloting stages wait for the rover to show: driven past this speed, then
+// turned past this far from where it faced.
+constexpr double kSmokeSpeed = 1.0;
+constexpr double kSmokeTurnDegrees = 10.0;
 // The detail that marks a save as the ground sample's.
 constexpr std::string_view kSaveDetail = "ground";
 } // namespace
@@ -87,33 +91,27 @@ void GroundGame::ReadSave(const Sim::SaveGame &save, App::Shell & /*shell*/)
 }
 
 
-void GroundGame::ShuttingDown(App::Shell &shell) noexcept
-{
-	const entt::registry &world = shell.World().Registry();
-	if (m_rover == entt::null)
-		return;
-	const auto *rover = world.try_get<Sim::Transform>(m_rover);
-	const auto *velocity = world.try_get<Physics::Velocity>(m_rover);
-	if (rover == nullptr || velocity == nullptr)
-		return;
-	// It starts facing -Z, so a turn left is towards -X.
-	const glm::dvec3 ahead = rover->orientation * glm::dvec3{0.0, 0.0, -1.0};
-	Core::Log(
-	    Core::Severity::Info, kGround,
-	    "The rover is {:.1f} m from where it started, at {:.1f} m/s, turned {:.0f} degrees",
-	    glm::length(glm::dvec2{rover->position.x, rover->position.z}),
-	    glm::length(glm::dvec3{velocity->linear}),
-	    std::atan2(-ahead.x, -ahead.z) * 180.0 / glm::pi<double>());
-}
-
-
 void GroundGame::BindProxy(App::Shell &shell)
 {
 	m_rover = FindRover(shell.World().Registry());
 	entt::registry &scene = shell.Scene().Registry();
-	for (const auto [entity, id] : scene.view<const Scene::SceneEntityId>().each())
-		if (id.value == "rover")
-			scene.emplace_or_replace<Scene::SimProxyComponent>(entity, m_rover);
+	const auto proxies = scene.view<Scene::SimProxyComponent>();
+	if (!proxies.empty())
+	{
+		proxies.get<Scene::SimProxyComponent>(proxies.front()).simEntity = m_rover;
+		return;
+	}
+	// Built, not authored: the proxy's transform is the rover's, which the scene writer leaves out, so
+	// a scene saved while the rover drives is the file that was loaded.
+	const entt::entity proxy = scene.create();
+	scene.emplace<Scene::BuiltComponent>(proxy);
+	scene.emplace<Scene::TransformComponent>(
+	    proxy, glm::dvec3{0.0}, glm::vec3{0.0f}, kRoverHalfExtents);
+	Scene::MeshComponent mesh;
+	mesh.shape = Scene::Shape::Box;
+	mesh.color = {0.8f, 0.45f, 0.15f};
+	scene.emplace<Scene::MeshComponent>(proxy, std::move(mesh));
+	scene.emplace<Scene::SimProxyComponent>(proxy, m_rover);
 }
 
 
@@ -168,7 +166,7 @@ std::optional<App::PickSpace> GroundGame::PickIn(const App::Shell & /*shell*/) c
 }
 
 
-void GroundGame::DriveSmoke(App::SmokeActions &actions, App::Shell & /*shell*/)
+void GroundGame::DriveSmoke(App::SmokeActions &actions, App::Shell &shell)
 {
 	actions.pilot = [this](bool turning)
 	{
@@ -177,6 +175,25 @@ void GroundGame::DriveSmoke(App::SmokeActions &actions, App::Shell & /*shell*/)
 		controls.angular.y = turning ? 1.0f : 0.0f;
 		m_smokeControls = controls;
 		return m_rover != entt::null;
+	};
+	actions.piloting = [this, &shell]
+	{
+		const entt::registry &world = shell.World().Registry();
+		const auto *rover = world.try_get<Sim::Transform>(m_rover);
+		const auto *velocity = world.try_get<Physics::Velocity>(m_rover);
+		if (rover == nullptr || velocity == nullptr)
+			return true;
+		const double speed = glm::length(glm::dvec3{velocity->linear});
+		// It starts facing -Z, so a turn left is towards -X.
+		const glm::dvec3 ahead = rover->orientation * glm::dvec3{0.0, 0.0, -1.0};
+		const double turned = std::atan2(-ahead.x, -ahead.z) * 180.0 / glm::pi<double>();
+		const bool turning = m_smokeControls && m_smokeControls->angular.y != 0.0f;
+		if (turning ? turned < kSmokeTurnDegrees : speed < kSmokeSpeed)
+			return true;
+		Core::Log(
+		    Core::Severity::Info, kGround, "The rover {}, at {:.1f} m/s and {:.0f} degrees",
+		    turning ? "turned" : "drove", speed, turned);
+		return false;
 	};
 }
 } // namespace Jettison::Sample

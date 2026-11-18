@@ -291,15 +291,15 @@ if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
 	fi
 fi
 
-# The ground sample's rover was driven ahead and then turned left by its piloting stages, as its game
-# says as it shuts down: at more than 1 m/s and more than 10 degrees from where it faced, whatever
-# the run's frame rate gave the stages after them.
+# The ground sample's piloting stages each waited for its rover to show it was driven and then
+# turned, as its game says; a rover that never did is a run the watchdog stopped.
 if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
-	driven=$(sed -n 's/.*The rover is [-0-9.]* m from where it started, at \([-0-9.]*\) m\/s, turned \([-0-9.]*\) degrees.*/\1 \2/p' "$app_log" | tail -1)
-	if [ -z "$driven" ] || ! awk -v speed="${driven% *}" -v turned="${driven#* }" 'BEGIN { exit !(speed > 1.0 && turned > 10.0) }'; then
-		echo "smoke-test: FAIL (the ground sample's rover was not driven and turned: '${driven:-no report}')" >&2
-		status=1
-	fi
+	for said in "[ground] The rover drove" "[ground] The rover turned"; do
+		if [ "$(grep -cF "$said" "$app_log" || true)" -ne 1 ]; then
+			echo "smoke-test: FAIL (the ground sample did not say '$said' once)" >&2
+			status=1
+		fi
+	done
 fi
 
 if [ "$status" -eq 0 ]; then

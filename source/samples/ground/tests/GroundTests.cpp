@@ -18,6 +18,7 @@
 #include <jettison/sample/RoverInput.h>
 #include <jettison/scene/Components.h>
 #include <jettison/scene/Scene.h>
+#include <jettison/scene/SimProxies.h>
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/SimWorld.h>
@@ -147,9 +148,9 @@ TEST_CASE("Ground: W and S drive the rover, and A and D turn it, in the game's c
 
 namespace
 {
-// The shell as the ground game reads it, without a window: a world with physics, a scene with the
-// rover's proxy, the input with the game's context pushed, and the snapshots taken again on a resync.
-// What the game does not read throws.
+// The shell as the ground game reads it, without a window: a world with physics, the sample's scene,
+// the input with the game's context pushed, and the snapshots taken again on a resync. What the game
+// does not read throws.
 class TestShell final : public App::Shell
 {
   public:
@@ -159,7 +160,7 @@ class TestShell final : public App::Shell
 		world.RegisterComponent<Sim::Transform>();
 		world.RegisterComponent<Sim::InFrame>();
 		physics = &Physics::PhysicsWorld::Attach(world);
-		scene.Registry().emplace<Scene::SceneEntityId>(scene.Registry().create(), "rover");
+		scene.Load(JETTISON_GROUND_SCENE);
 	}
 
 
@@ -334,12 +335,16 @@ class TestShell final : public App::Shell
 };
 
 
-// A frame of the shell's: the keys polled, read by the game, and a step.
+// A frame of the shell's: the keys polled, read by the game, a step, and the proxies placed from the
+// snapshots, as the shell's sync does.
 void Frame(Sample::GroundGame &game, TestShell &shell)
 {
 	shell.input.Poll();
 	game.PollInput(shell.input, shell);
 	shell.world.Step();
+	const Sim::Snapshot previous = shell.snapshot;
+	shell.Resync();
+	Scene::SyncSimProxies(shell.scene.Registry(), previous, shell.snapshot, 1.0);
 }
 } // namespace
 
@@ -355,14 +360,22 @@ TEST_CASE("Ground: the game drives its rover from the keys, through a save held 
 	REQUIRE(rover != entt::null);
 	const auto controls = [&] { return shell.world.Registry().get<Physics::FlightControls>(rover); };
 
-	// The scene's rover is the world's.
-	const auto proxies = shell.scene.Registry().view<const Scene::SimProxyComponent>();
+	// The rover's proxy is the game's, built rather than authored, so the scene written while the rover
+	// drives is the scene loaded.
+	entt::registry &scene = shell.scene.Registry();
+	const auto proxies = scene.view<const Scene::SimProxyComponent>();
 	REQUIRE(proxies.size() == 1);
-	CHECK(proxies.get<const Scene::SimProxyComponent>(proxies.front()).simEntity == rover);
+	const entt::entity proxy = proxies.front();
+	CHECK(proxies.get<const Scene::SimProxyComponent>(proxy).simEntity == rover);
+	CHECK(scene.all_of<Scene::BuiltComponent>(proxy));
+	const std::string authored = shell.scene.SaveText();
 
 	shell.input.SetButton(Character('w'), true);
-	Frame(game, shell);
+	for (int frame = 0; frame < 60; ++frame)
+		Frame(game, shell);
 	CHECK(controls().linear.z == -1.0f);
+	CHECK(scene.get<Scene::TransformComponent>(proxy).translation.z < -1.0);
+	CHECK(shell.scene.SaveText() == authored);
 
 	// Saved with W held, then let go, then loaded: the keys, still let go, stop the rover again.
 	const std::vector<std::byte> saved = shell.world.Save();
@@ -374,6 +387,7 @@ TEST_CASE("Ground: the game drives its rover from the keys, through a save held 
 	REQUIRE(controls().linear.z == -1.0f);
 	Frame(game, shell);
 	CHECK(controls().linear.z == 0.0f);
+	CHECK(proxies.size() == 1);
 
 	// The rover's events are the player's to hear, and another's are not.
 	const entt::entity other = shell.world.Registry().create();
