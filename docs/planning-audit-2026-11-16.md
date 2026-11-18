@@ -179,8 +179,8 @@ so H07's fetch from `github.com/ivanhawkes/jettison` can proceed.
 - A07: the current-priority rows carry Manifest's task IDs and stages; row 3 is split into A01
   (frame and save seams) and W01 (module split), and the first row into H02 and H05.
 - A08: the open decisions are listed, each with what it blocks.
-- A02: still open. The restated balance values in Manifest's `development-stages.md` and
-  `roadmap.md` (the region of 25,000 people included) remain to be replaced with ledger links.
+- A02: done 2026-11-18. Manifest's `development-stages.md` and `roadmap.md` link each balance
+  value to its canonical plan, and the roadmap's region of 25,000 people is gone.
 
 ## Method and limits
 
