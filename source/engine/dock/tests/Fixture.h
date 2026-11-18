@@ -97,7 +97,7 @@ struct Fixture
 		body.continuous = true;
 		registry.emplace<Physics::Body>(ship, body);
 		registry.emplace<Physics::Velocity>(ship);
-		registry.emplace<Physics::Thrusters>(ship);
+		registry.emplace<Physics::Handling>(ship);
 		registry.emplace<Physics::FlightControls>(ship);
 		registry.emplace<Dock::Hull>(ship, std::string{hull});
 		return ship;

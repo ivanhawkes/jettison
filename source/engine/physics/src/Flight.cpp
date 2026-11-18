@@ -62,8 +62,8 @@ void StepFlight(entt::registry &registry, double fixedStep)
 	JETTISON_PROFILE_ZONE("Physics::StepFlight");
 	std::vector<Change3> changes;
 	const auto ships =
-	    registry.view<const Thrusters, const FlightControls, const Sim::Transform, const Velocity>();
-	for (const auto [entity, thrusters, controls, transform, velocity] : ships.each())
+	    registry.view<const Handling, const FlightControls, const Sim::Transform, const Velocity>();
+	for (const auto [entity, handling, controls, transform, velocity] : ships.each())
 	{
 		glm::dvec3 reference{0.0};
 		if (registry.valid(controls.reference) && controls.reference != entity)
@@ -77,12 +77,10 @@ void StepFlight(entt::registry &registry, double fixedStep)
 
 		// Each axis's thrust each way: starboard and port, up and down, astern (+Z) and ahead (-Z).
 		const glm::dvec3 positive{
-		    Capability(thrusters.lateral), Capability(thrusters.vertical),
-		    Capability(thrusters.reverse)};
+		    Capability(handling.lateral), Capability(handling.vertical), Capability(handling.reverse)};
 		const glm::dvec3 negative{
-		    Capability(thrusters.lateral), Capability(thrusters.vertical),
-		    Capability(thrusters.forward)};
-		const double maxSpeed = Capability(thrusters.maxSpeed);
+		    Capability(handling.lateral), Capability(handling.vertical), Capability(handling.forward)};
+		const double maxSpeed = Capability(handling.maxSpeed);
 
 		glm::dvec3 linear{0.0};
 		glm::dvec3 angular{0.0};
@@ -92,9 +90,9 @@ void StepFlight(entt::registry &registry, double fixedStep)
 			linear[axis] = Change(
 			    Demand(controls.linear[axis]), relative[axis], maxSpeed, positive[axis], negative[axis],
 			    controls.assist, fixedStep);
-			const double turn = Capability(thrusters.angularAcceleration[axis]);
+			const double turn = Capability(handling.angularAcceleration[axis]);
 			angular[axis] = Change(
-			    Demand(controls.angular[axis]), spin[axis], Capability(thrusters.maxAngularRate[axis]),
+			    Demand(controls.angular[axis]), spin[axis], Capability(handling.maxAngularRate[axis]),
 			    turn, turn, controls.assist, fixedStep);
 			thrust.linear[axis] = Share(linear[axis], positive[axis], negative[axis], fixedStep);
 			thrust.angular[axis] = Share(angular[axis], turn, turn, fixedStep);

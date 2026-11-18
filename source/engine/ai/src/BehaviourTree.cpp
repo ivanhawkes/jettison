@@ -110,43 +110,43 @@ void Take(Sim::SimWorld &world, const TakeHelm &command)
 {
 	entt::registry &registry = world.Registry();
 	const auto refuse = [&](Reason reason)
-	{ world.Events().Emit(HelmRefused{command.sender, command.ship, Sim::MakeReason(reason)}); };
-	if (!registry.valid(command.ship))
+	{ world.Events().Emit(HelmRefused{command.sender, command.vehicle, Sim::MakeReason(reason)}); };
+	if (!registry.valid(command.vehicle))
 		return refuse(Reason::NoSuchEntity);
 	if (command.sender.kind == Sim::ControllerKind::None)
 		return refuse(Reason::NoPilot);
-	if (!Sim::MayCommand(registry, command.ship, command.sender))
+	if (!Sim::MayCommand(registry, command.vehicle, command.sender))
 		return refuse(Reason::NotController);
-	if (const auto *helm = registry.try_get<Sim::Helm>(command.ship);
+	if (const auto *helm = registry.try_get<Sim::Helm>(command.vehicle);
 	    helm && helm->controller != command.sender)
 		return refuse(Reason::HelmHeld);
 	// The helm it was at, in entity order, should a save hold more than one.
 	std::vector<entt::entity> held;
 	for (const auto [ship, helm] : registry.view<const Sim::Helm>().each())
-		if (ship != command.ship && helm.controller == command.sender)
+		if (ship != command.vehicle && helm.controller == command.sender)
 			held.push_back(ship);
 	std::ranges::sort(held, {}, [](entt::entity ship) { return entt::to_integral(ship); });
 	for (const entt::entity ship : held)
 		Leave(world, ship);
-	registry.emplace_or_replace<Sim::Helm>(command.ship, command.sender);
-	registry.remove<Destination>(command.ship);
-	LetGo(registry, command.ship);
-	world.Events().Emit(HelmTaken{command.sender, command.ship});
+	registry.emplace_or_replace<Sim::Helm>(command.vehicle, command.sender);
+	registry.remove<Destination>(command.vehicle);
+	LetGo(registry, command.vehicle);
+	world.Events().Emit(HelmTaken{command.sender, command.vehicle});
 }
 
 
 void Leave(Sim::SimWorld &world, const LeaveHelm &command)
 {
 	const entt::registry &registry = world.Registry();
-	if (!registry.valid(command.ship))
+	if (!registry.valid(command.vehicle))
 		return world.Events().Emit(
-		    HelmRefused{command.sender, command.ship, Sim::MakeReason(Reason::NoSuchEntity)});
-	const auto *helm = registry.try_get<Sim::Helm>(command.ship);
+		    HelmRefused{command.sender, command.vehicle, Sim::MakeReason(Reason::NoSuchEntity)});
+	const auto *helm = registry.try_get<Sim::Helm>(command.vehicle);
 	if (!helm ||
 	    (command.sender.kind != Sim::ControllerKind::None && helm->controller != command.sender))
 		return world.Events().Emit(
-		    HelmRefused{command.sender, command.ship, Sim::MakeReason(Reason::NotAtHelm)});
-	Leave(world, command.ship);
+		    HelmRefused{command.sender, command.vehicle, Sim::MakeReason(Reason::NotAtHelm)});
+	Leave(world, command.vehicle);
 }
 } // namespace
 

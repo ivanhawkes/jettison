@@ -291,7 +291,7 @@ TEST_CASE(
 	{
 		const entt::entity crate =
 		    fixture.Add(Make(BodyKind::Dynamic, "crate", 100.0f), {2.995 - 2.0 * index, 0.0, 0.0});
-		registry.emplace<Physics::Thrusters>(crate);
+		registry.emplace<Physics::Handling>(crate);
 		registry.emplace<Physics::FlightControls>(
 		    crate, glm::vec3{1.0f, 0.0f, 0.0f}, glm::vec3{0.0f}, false);
 		crates.push_back(crate);

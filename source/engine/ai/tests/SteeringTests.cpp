@@ -217,7 +217,7 @@ struct Fixture
 		body.continuous = true;
 		registry.emplace<Physics::Body>(ship, body);
 		registry.emplace<Physics::Velocity>(ship);
-		registry.emplace<Physics::Thrusters>(ship);
+		registry.emplace<Physics::Handling>(ship);
 		registry.emplace<Physics::FlightControls>(ship);
 		registry.emplace<Ai::Steered>(ship);
 		registry.emplace<Ai::Destination>(ship, destination);
@@ -314,7 +314,7 @@ TEST_CASE("Steering: a ship flies to a point by the station, arrives at rest, an
 	CHECK(*took < 30.0);
 	const std::vector<Ai::Arrived> arrived = fixture.Events<Ai::Arrived>();
 	REQUIRE(arrived.size() == 1);
-	CHECK(arrived[0].ship == ship);
+	CHECK(arrived[0].vehicle == ship);
 	CHECK(arrived[0].entity == entt::null);
 
 	// Held there, in the station's frame as it orbits.
@@ -394,7 +394,7 @@ TEST_CASE("Steering: a destination by an entity is its offset in the entity's ax
 	fixture.Step();
 	const std::vector<Ai::DestinationLost> lost = fixture.Events<Ai::DestinationLost>();
 	REQUIRE(lost.size() == 1);
-	CHECK(lost[0].ship == ship);
+	CHECK(lost[0].vehicle == ship);
 	CHECK(lost[0].reason == Sim::MakeReason(Ai::Reason::DestinationGone));
 	CHECK_FALSE(registry.all_of<Ai::Destination>(ship));
 	CHECK(registry.get<Physics::FlightControls>(ship) == Physics::FlightControls{});
@@ -425,9 +425,9 @@ TEST_CASE("Steering: the commands set a destination from its start and take it a
 	const std::vector<Ai::DestinationRefused> refused = fixture.Events<Ai::DestinationRefused>();
 	REQUIRE(refused.size() == 2);
 	CHECK(refused[0].sender == stranger);
-	CHECK(refused[0].ship == ship);
+	CHECK(refused[0].vehicle == ship);
 	CHECK(refused[0].reason == Sim::MakeReason(Ai::Reason::NotController));
-	CHECK(refused[1].ship == ship);
+	CHECK(refused[1].vehicle == ship);
 	CHECK(registry.get<Ai::Destination>(ship).offset == far.offset);
 
 	fixture.world.Commands().Push(Ai::ClearDestination{{}, ship});

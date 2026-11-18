@@ -92,7 +92,7 @@ glm::dvec3 Avoid(
 // settle at its clearance. Nothing from a neighbour at the agent's own position.
 glm::dvec3 Separate(const Agent &agent, std::span<const Obstacle> neighbours, double separation);
 
-// A ship flown by steering, and how it keeps clear. With Physics::Thrusters, FlightControls, a
+// A ship flown by steering, and how it keeps clear. With Physics::Handling, FlightControls, a
 // Velocity, a Body (whose shape's ShapeRadius is its hull's) and a Sim::Transform and InFrame, the
 // system "steering" flies it to its Destination. Registered with Reflect, every field Saved, by
 // RegisterTypes.
@@ -148,38 +148,39 @@ struct Destination
 // The commands that set a steered ship's destination, from its first waypoint, and take it away,
 // which leaves the ship holding still where it is. A ship that is no longer in the world is not one
 // to fly, and either does nothing. Refused, with a DestinationRefused, from a sender that does not
-// command the ship (Sim::MayCommand). Registered with Reflect, every field Saved, by RegisterTypes.
+// command the ship (Sim::MayCommand). Registered with Reflect, every field Saved (the vehicle as
+// "ship", its name before G01e), by RegisterTypes.
 struct SetDestination
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 	Destination destination;
 };
 struct ClearDestination
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 };
 
 // Raised as a ship arrives, once for each destination, and as its destination is taken from it
 // because it cannot be flown to: its entity has gone, or is in another system or frame. Registered
-// with Reflect, every field Saved, by RegisterTypes.
+// with Reflect, every field Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
 struct Arrived
 {
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 	entt::entity entity{entt::null};
 };
 struct DestinationLost
 {
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 	Sim::Reason reason;
 };
 // Raised as a SetDestination or a ClearDestination is refused, saying why. Registered with Reflect,
-// every field Saved, by RegisterTypes.
+// every field Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
 struct DestinationRefused
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 	Sim::Reason reason;
 };
 

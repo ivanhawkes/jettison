@@ -144,34 +144,35 @@ using Task = std::function<Status(TaskContext &context)>;
 // a task it was running when the helm was taken is not finished, and what it asked for (a pad, a
 // gate's clearance) goes on or lapses as it would for a ship that did not come. Left by the one at
 // it, or by no one in particular, the game's rules, from whoever is. Registered with Reflect, every
-// field Saved, by RegisterTypes.
+// field Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
 struct TakeHelm
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 };
 struct LeaveHelm
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 };
 
 // Raised as a helm is taken and left, by whom, and as a TakeHelm or a LeaveHelm is refused, saying
-// why. Registered with Reflect, every field Saved, by RegisterTypes.
+// why. Registered with Reflect, every field Saved (the vehicle as "ship", its name before G01e), by
+// RegisterTypes.
 struct HelmTaken
 {
 	Sim::Controller controller;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 };
 struct HelmLeft
 {
 	Sim::Controller controller;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 };
 struct HelmRefused
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 	Sim::Reason reason;
 };
 

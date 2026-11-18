@@ -414,7 +414,7 @@ body in it, and within a station's frame what is left of the planet's 8.6 m/s² 
 ten-thousandths: a ship let drift beside Highport stays within 5 mm of where it was for a minute.
 
 The flight model runs before physics, as the system `flight` (`physics/Flight.h`). A ship is a
-dynamic body with `Physics::Thrusters` (accelerations along and about its axes, so its handling does
+dynamic body with `Physics::Handling` (accelerations along and about its axes, so its handling does
 not change with its mass, and with flight assist the speed and rates it is held to) and
 `Physics::FlightControls` (demands from -1 to 1, the assist, and the entity its velocity is taken
 against), which the command `Physics::SetFlightControls` sets. It carries its sender, and is taken

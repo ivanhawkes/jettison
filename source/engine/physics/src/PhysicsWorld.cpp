@@ -551,23 +551,23 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	world.RegisterComponent<Velocity>();
 	world.RegisterComponent<OnRails>();
 	world.RegisterComponent<LocalFrame>();
-	world.RegisterComponent<Thrusters>();
+	world.RegisterComponent<Handling>();
 	world.RegisterComponent<FlightControls>();
 	world.ShowInSnapshots<Thrust>();
 	world.RegisterCommand<SetFlightControls>(
 	    [](Sim::SimWorld &target, const SetFlightControls &command)
 	    {
 		    entt::registry &registry = target.Registry();
-		    if (!registry.valid(command.ship))
+		    if (!registry.valid(command.vehicle))
 			    return;
-		    if (!Sim::MayFly(registry, command.ship, command.sender))
+		    if (!Sim::MayFly(registry, command.vehicle, command.sender))
 		    {
 			    target.Events().Emit(
 			        FlightControlsRefused{
-			            command.sender, command.ship, Sim::MakeReason(Reason::NotAtHelm)});
+			            command.sender, command.vehicle, Sim::MakeReason(Reason::NotAtHelm)});
 			    return;
 		    }
-		    registry.emplace_or_replace<FlightControls>(command.ship, command.controls);
+		    registry.emplace_or_replace<FlightControls>(command.vehicle, command.controls);
 	    });
 	world.RegisterCommand<Pick>(
 	    [&physics](Sim::SimWorld &target, const Pick &pick)
@@ -588,7 +588,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	world.RegisterSystem(
 	    {std::string{kFlightSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Thrusters, FlightControls, Sim::Transform>().Writing<Velocity>(),
+	     Ecs::Access::Of<Handling, FlightControls, Sim::Transform>().Writing<Velocity>(),
 	     {},
 	     [](entt::registry &registry, double fixedStep) { StepFlight(registry, fixedStep); }});
 	world.RegisterSystem(

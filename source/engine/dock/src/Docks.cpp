@@ -120,7 +120,7 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Hull, Physics::LocalFrame, Physics::Thrusters>()
+	     Ecs::Access::Of<Hull, Physics::LocalFrame, Physics::Handling>()
 	         .Writing<
 	             Station, Pad, Docking, Transfer, Buggy, Physics::Body, Physics::OnRails,
 	             Physics::Velocity, Physics::FlightControls, Sim::Transform, Sim::InFrame,
@@ -324,9 +324,8 @@ void Docks::Request(Sim::SimWorld &world, const RequestPad &command)
 		return refuse(Reason::NoHull);
 	const auto *body = registry.try_get<Physics::Body>(ship);
 	if (!body || body->kind != Physics::BodyKind::Dynamic ||
-	    !registry
-	         .all_of<Physics::Thrusters, Physics::FlightControls, Physics::Velocity, Sim::Transform>(
-	             ship))
+	    !registry.all_of<Physics::Handling, Physics::FlightControls, Physics::Velocity, Sim::Transform>(
+	        ship))
 		return refuse(Reason::CannotFly);
 	if (SystemOf(registry, ship) != SystemOf(registry, stationEntity))
 		return refuse(Reason::OtherSystem, {Sim::ReasonArgument::Entity(stationEntity)});
@@ -747,7 +746,7 @@ void Docks::Unclamp(Sim::SimWorld &world, entt::entity ship)
 void Docks::Lift(entt::registry &registry, entt::entity ship)
 {
 	const Docking &docking = registry.get<Docking>(ship);
-	const float maxSpeed = registry.get<Physics::Thrusters>(ship).maxSpeed;
+	const float maxSpeed = registry.get<Physics::Handling>(ship).maxSpeed;
 	registry.remove<Ai::Destination>(ship);
 	// Clamped, the ship's up is its pad's; with assist, a demand along it is that share of maxSpeed.
 	registry.replace<Physics::FlightControls>(

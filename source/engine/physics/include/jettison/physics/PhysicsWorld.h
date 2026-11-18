@@ -218,7 +218,7 @@ class PhysicsWorld final : public Sim::WorldService
 	static constexpr std::string_view kServiceName = "physics";
 
 	// Makes a physics world and gives it to the simulation world, which owns it from then on:
-	// registers Body, Velocity, OnRails, Thrusters and FlightControls as components, the
+	// registers Body, Velocity, OnRails, Handling and FlightControls as components, the
 	// SetFlightControls and Pick commands, the service, and the "flight" and "physics" systems, and
 	// shows Thrust (Flight.h) in the snapshots. The game registers Sim::Transform and Sim::InFrame
 	// itself, as it always does. Throws std::logic_error as SimWorld's registrations do, for one

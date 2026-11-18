@@ -86,7 +86,7 @@ TEST_CASE(
 	CHECK_FALSE(registry.all_of<Sim::Helm>(first));
 	const std::vector<Ai::HelmLeft> left = galaxy.Events<Ai::HelmLeft>();
 	REQUIRE(left.size() == 1);
-	CHECK(left[0].ship == first);
+	CHECK(left[0].vehicle == first);
 
 	// Traded from at the helm: the market's cheapest good, five crates.
 	const entt::entity market = galaxy.MarketAt("Ostra Highport");
@@ -112,9 +112,9 @@ TEST_CASE(
 	const std::vector<Physics::FlightControlsRefused> refused =
 	    galaxy.Events<Physics::FlightControlsRefused>();
 	REQUIRE(refused.size() == 2);
-	CHECK(refused[0].ship == first);
+	CHECK(refused[0].vehicle == first);
 	CHECK(refused[0].reason == Sim::MakeReason(Physics::Reason::NotAtHelm));
-	CHECK(refused[1].ship == second);
+	CHECK(refused[1].vehicle == second);
 	CHECK(refused[1].sender == other);
 	CHECK(registry.get<Physics::FlightControls>(second) == ahead);
 	galaxy.world.Commands().Push(Physics::SetFlightControls{kPlayer, second, {}});

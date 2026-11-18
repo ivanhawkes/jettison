@@ -11,11 +11,12 @@
 
 namespace Jettison::Physics
 {
-// What a ship's thrusters can do: accelerations rather than forces, so a ship's handling does not
-// change with the cargo it carries until a design wants it to. In the ship's own frame, which is
-// the Sim::Transform's: +X to starboard, +Y up, and forward along -Z, as a camera looks (the chase
-// camera sits on +Z, behind). Registered with Reflect, every field Saved, by RegisterTypes.
-struct Thrusters
+// What a flown vehicle's thrust can do (a ship's thrusters): accelerations rather than forces, so
+// its handling does not change with the cargo it carries until a design wants it to. In its own
+// frame, which is the Sim::Transform's: +X to starboard, +Y up, and forward along -Z, as a camera
+// looks (the chase camera sits on +Z, behind). Registered with Reflect as "Physics.Thrusters", the
+// name it was saved by before G01e, every field Saved, by RegisterTypes.
+struct Handling
 {
 	// Metres a second squared: ahead (-Z), astern (+Z), to either side (X) and up or down (Y).
 	float forward{30.0f};
@@ -29,12 +30,12 @@ struct Thrusters
 	float maxSpeed{150.0f};
 	glm::vec3 maxAngularRate{1.2f, 0.9f, 1.8f};
 
-	bool operator==(const Thrusters &) const = default;
+	bool operator==(const Handling &) const = default;
 };
 
 // What the pilot asks of the ship: simulation state, set by SetFlightControls and kept until the
 // next one, so a recording holds a command when a control moves and not one a frame. Each demand is
-// from -1 to 1, along or about the ship's axes as Thrusters has them (full ahead is linear.z = -1;
+// from -1 to 1, along or about the ship's axes as Handling has them (full ahead is linear.z = -1;
 // pitching the nose up is angular.x = 1, a turn about +X). Registered with Reflect, every field
 // Saved, by RegisterTypes.
 //
@@ -63,11 +64,11 @@ struct FlightControls
 // fly, and the command does nothing. Refused, with a FlightControlsRefused, from a sender not at
 // the ship's helm (Sim::MayFly): a player flies only the ship they have the helm of, and the one
 // whose behaviour flies it, or another player's, not at all. Registered with Reflect, every field
-// Saved, by RegisterTypes.
+// Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
 struct SetFlightControls
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 	FlightControls controls;
 };
 
@@ -78,12 +79,12 @@ enum class Reason : std::uint8_t
 	NotAtHelm
 };
 
-// Raised as flight controls are refused, saying why. Registered with Reflect, every field Saved, by
-// RegisterTypes.
+// Raised as flight controls are refused, saying why. Registered with Reflect, every field Saved (the
+// vehicle as "ship", its name before G01e), by RegisterTypes.
 struct FlightControlsRefused
 {
 	Sim::Controller sender;
-	entt::entity ship{entt::null};
+	entt::entity vehicle{entt::null};
 	Sim::Reason reason;
 };
 
@@ -109,7 +110,7 @@ struct Thrust
 inline constexpr std::string_view kFlightSystemName = "flight";
 
 // The flight model's step, which PhysicsWorld::Attach registers as the system "flight", before
-// "physics": each entity with Thrusters, FlightControls, a Sim::Transform and a Velocity (a dynamic
+// "physics": each entity with Handling, FlightControls, a Sim::Transform and a Velocity (a dynamic
 // body) has its velocity changed by what its thrusters do over the step, and physics then steps it
 // with that velocity, so a ship flown into a station meets it as any body would. Every ship's change
 // is worked out before any is applied, so a ship whose reference is another ship sees that ship's

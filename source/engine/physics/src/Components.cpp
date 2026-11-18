@@ -39,14 +39,14 @@ void RegisterTypes()
 		RegisterType<LocalFrame>("Physics.LocalFrame")
 		    .Field<&LocalFrame::body>("body", Attribute::Saved);
 
-		RegisterType<Thrusters>("Physics.Thrusters")
-		    .Field<&Thrusters::forward>("forward", Attribute::Saved)
-		    .Field<&Thrusters::reverse>("reverse", Attribute::Saved)
-		    .Field<&Thrusters::lateral>("lateral", Attribute::Saved)
-		    .Field<&Thrusters::vertical>("vertical", Attribute::Saved)
-		    .Field<&Thrusters::angularAcceleration>("angularAcceleration", Attribute::Saved)
-		    .Field<&Thrusters::maxSpeed>("maxSpeed", Attribute::Saved)
-		    .Field<&Thrusters::maxAngularRate>("maxAngularRate", Attribute::Saved);
+		RegisterType<Handling>("Physics.Thrusters")
+		    .Field<&Handling::forward>("forward", Attribute::Saved)
+		    .Field<&Handling::reverse>("reverse", Attribute::Saved)
+		    .Field<&Handling::lateral>("lateral", Attribute::Saved)
+		    .Field<&Handling::vertical>("vertical", Attribute::Saved)
+		    .Field<&Handling::angularAcceleration>("angularAcceleration", Attribute::Saved)
+		    .Field<&Handling::maxSpeed>("maxSpeed", Attribute::Saved)
+		    .Field<&Handling::maxAngularRate>("maxAngularRate", Attribute::Saved);
 		RegisterType<FlightControls>("Physics.FlightControls")
 		    .Field<&FlightControls::linear>("linear", Attribute::Saved)
 		    .Field<&FlightControls::angular>("angular", Attribute::Saved)
@@ -54,12 +54,12 @@ void RegisterTypes()
 		    .Field<&FlightControls::reference>("reference", Attribute::Saved);
 		RegisterType<SetFlightControls>("Physics.SetFlightControls")
 		    .Field<&SetFlightControls::sender>("sender", Attribute::Saved)
-		    .Field<&SetFlightControls::ship>("ship", Attribute::Saved)
+		    .Field<&SetFlightControls::vehicle>("ship", Attribute::Saved)
 		    .Field<&SetFlightControls::controls>("controls", Attribute::Saved);
 		RegisterEnum<Reason>("Physics.Reason").Value<Reason::NotAtHelm>("not_at_helm");
 		RegisterType<FlightControlsRefused>("Physics.FlightControlsRefused")
 		    .Field<&FlightControlsRefused::sender>("sender", Attribute::Saved)
-		    .Field<&FlightControlsRefused::ship>("ship", Attribute::Saved)
+		    .Field<&FlightControlsRefused::vehicle>("ship", Attribute::Saved)
 		    .Field<&FlightControlsRefused::reason>("reason", Attribute::Saved);
 
 		RegisterEnum<ContactPhase>("Physics.ContactPhase")

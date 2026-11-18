@@ -101,19 +101,19 @@ void RegisterTypes()
 		    .Field<&Behaviour::last>("last", Attribute::Saved);
 		RegisterType<TakeHelm>("Ai.TakeHelm")
 		    .Field<&TakeHelm::sender>("sender", Attribute::Saved)
-		    .Field<&TakeHelm::ship>("ship", Attribute::Saved);
+		    .Field<&TakeHelm::vehicle>("ship", Attribute::Saved);
 		RegisterType<LeaveHelm>("Ai.LeaveHelm")
 		    .Field<&LeaveHelm::sender>("sender", Attribute::Saved)
-		    .Field<&LeaveHelm::ship>("ship", Attribute::Saved);
+		    .Field<&LeaveHelm::vehicle>("ship", Attribute::Saved);
 		RegisterType<HelmTaken>("Ai.HelmTaken")
 		    .Field<&HelmTaken::controller>("controller", Attribute::Saved)
-		    .Field<&HelmTaken::ship>("ship", Attribute::Saved);
+		    .Field<&HelmTaken::vehicle>("ship", Attribute::Saved);
 		RegisterType<HelmLeft>("Ai.HelmLeft")
 		    .Field<&HelmLeft::controller>("controller", Attribute::Saved)
-		    .Field<&HelmLeft::ship>("ship", Attribute::Saved);
+		    .Field<&HelmLeft::vehicle>("ship", Attribute::Saved);
 		RegisterType<HelmRefused>("Ai.HelmRefused")
 		    .Field<&HelmRefused::sender>("sender", Attribute::Saved)
-		    .Field<&HelmRefused::ship>("ship", Attribute::Saved)
+		    .Field<&HelmRefused::vehicle>("ship", Attribute::Saved)
 		    .Field<&HelmRefused::reason>("reason", Attribute::Saved);
 
 		RegisterType<Steered>("Ai.Steered")
@@ -135,20 +135,20 @@ void RegisterTypes()
 		    .Field<&Destination::arrived>("arrived", Attribute::Saved);
 		RegisterType<SetDestination>("Ai.SetDestination")
 		    .Field<&SetDestination::sender>("sender", Attribute::Saved)
-		    .Field<&SetDestination::ship>("ship", Attribute::Saved)
+		    .Field<&SetDestination::vehicle>("ship", Attribute::Saved)
 		    .Field<&SetDestination::destination>("destination", Attribute::Saved);
 		RegisterType<ClearDestination>("Ai.ClearDestination")
 		    .Field<&ClearDestination::sender>("sender", Attribute::Saved)
-		    .Field<&ClearDestination::ship>("ship", Attribute::Saved);
+		    .Field<&ClearDestination::vehicle>("ship", Attribute::Saved);
 		RegisterType<Arrived>("Ai.Arrived")
-		    .Field<&Arrived::ship>("ship", Attribute::Saved)
+		    .Field<&Arrived::vehicle>("ship", Attribute::Saved)
 		    .Field<&Arrived::entity>("entity", Attribute::Saved);
 		RegisterType<DestinationLost>("Ai.DestinationLost")
-		    .Field<&DestinationLost::ship>("ship", Attribute::Saved)
+		    .Field<&DestinationLost::vehicle>("ship", Attribute::Saved)
 		    .Field<&DestinationLost::reason>("reason", Attribute::Saved);
 		RegisterType<DestinationRefused>("Ai.DestinationRefused")
 		    .Field<&DestinationRefused::sender>("sender", Attribute::Saved)
-		    .Field<&DestinationRefused::ship>("ship", Attribute::Saved)
+		    .Field<&DestinationRefused::vehicle>("ship", Attribute::Saved)
 		    .Field<&DestinationRefused::reason>("reason", Attribute::Saved);
 		return true;
 	}();

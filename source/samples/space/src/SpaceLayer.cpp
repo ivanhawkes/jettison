@@ -877,7 +877,7 @@ void SpaceLayer::LogRoute(std::string_view systemName) const
 	    static_cast<std::size_t>(to),
 	    station == destination.bodies.end() ? std::string{} : station->name};
 	constexpr double kClearance = 1.0e5;
-	const float speed = Physics::Thrusters{}.maxSpeed;
+	const float speed = Physics::Handling{}.maxSpeed;
 	const std::optional<Space::Route> route = Space::PlotRoute(
 	    *m_galaxy, start, end,
 	    Space::CrossingByCourse(m_galaxySystems, m_sim.Clock().Now(), speed, kClearance));
@@ -1785,10 +1785,10 @@ void SpaceLayer::TakeEvent(const Sim::SimEvent &event)
 	// The console's traffic holds station where it arrives; a trader arriving is on its way on.
 	else if (const auto *holding = event.event.try_cast<Ai::Arrived>();
 	         holding && std::ranges::binary_search(
-	                        m_traffic, entt::to_integral(holding->ship), {},
+	                        m_traffic, entt::to_integral(holding->vehicle), {},
 	                        [](entt::entity entity) { return entt::to_integral(entity); }))
 		Core::Log(
-		    Core::Severity::Info, kSpace, "{} holds station by {}", m_shell.Describe(holding->ship),
+		    Core::Severity::Info, kSpace, "{} holds station by {}", m_shell.Describe(holding->vehicle),
 		    m_stationBody);
 	else if (const auto *landed = event.event.try_cast<Dock::Landed>();
 	         landed && landed->ship == m_ship)
@@ -1841,23 +1841,24 @@ void SpaceLayer::TakeEvent(const Sim::SimEvent &event)
 	{
 		// Its controls were let go as the helm was taken: the pilot's go again.
 		m_sentControls.reset();
-		Core::Log(Core::Severity::Info, kSpace, "At the helm of {}", m_shell.Describe(helmTaken->ship));
+		Core::Log(
+		    Core::Severity::Info, kSpace, "At the helm of {}", m_shell.Describe(helmTaken->vehicle));
 	}
 	else if (const auto *helmLeft = event.event.try_cast<Ai::HelmLeft>();
 	         helmLeft && helmLeft->controller == m_shell.Player())
 		Core::Log(
 		    Core::Severity::Info, kSpace, "{} is left to its behaviour",
-		    m_shell.Describe(helmLeft->ship));
+		    m_shell.Describe(helmLeft->vehicle));
 	else if (const auto *noHelm = event.event.try_cast<Ai::HelmRefused>();
 	         noHelm && noHelm->sender == m_shell.Player())
 		Core::Log(
-		    Core::Severity::Warning, kSpace, "No helm of {}: {}", m_shell.Describe(noHelm->ship),
+		    Core::Severity::Warning, kSpace, "No helm of {}: {}", m_shell.Describe(noHelm->vehicle),
 		    m_shell.Word(noHelm->reason));
 	else if (const auto *unflown = event.event.try_cast<Physics::FlightControlsRefused>();
-	         unflown && unflown->sender == m_shell.Player() && unflown->ship == m_ship)
+	         unflown && unflown->sender == m_shell.Player() && unflown->vehicle == m_ship)
 		Core::Log(
 		    Core::Severity::Info, kSpace, "{} does not answer the controls: {}",
-		    m_shell.Describe(unflown->ship), m_shell.Word(unflown->reason));
+		    m_shell.Describe(unflown->vehicle), m_shell.Word(unflown->reason));
 }
 
 

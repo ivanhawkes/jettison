@@ -88,21 +88,21 @@ double Capability(float value)
 // the rate the turn can still be stopped from at a share of the angular acceleration, about the
 // axes it is given (pitch and yaw, or all three).
 glm::vec3 Turn(
-    const Physics::Thrusters &thrusters, const glm::dvec3 &axis, double angle, glm::length_t axes)
+    const Physics::Handling &handling, const glm::dvec3 &axis, double angle, glm::length_t axes)
 {
 	double maxRate = std::numeric_limits<double>::infinity();
 	double acceleration = std::numeric_limits<double>::infinity();
 	for (glm::length_t index = 0; index < axes; ++index)
 	{
-		maxRate = std::min(maxRate, Capability(thrusters.maxAngularRate[index]));
-		acceleration = std::min(acceleration, Capability(thrusters.angularAcceleration[index]));
+		maxRate = std::min(maxRate, Capability(handling.maxAngularRate[index]));
+		acceleration = std::min(acceleration, Capability(handling.angularAcceleration[index]));
 	}
 	const glm::dvec3 turn =
 	    axis * std::min(maxRate, std::sqrt(2.0 * kTurnShare * acceleration * angle));
 	glm::vec3 demand{0.0f};
 	for (glm::length_t index = 0; index < axes; ++index)
 	{
-		const double rate = Capability(thrusters.maxAngularRate[index]);
+		const double rate = Capability(handling.maxAngularRate[index]);
 		demand[index] =
 		    rate > 0.0 ? static_cast<float>(std::clamp(turn[index] / rate, -1.0, 1.0)) : 0.0f;
 	}
@@ -114,13 +114,13 @@ glm::vec3 Turn(
 // axes, and a turn of the nose (-Z) towards it about the axis square to both, at the rate the turn
 // can still be stopped from; or, given a facing, a turn to that orientation, rolled too.
 Physics::FlightControls Controls(
-    const glm::dquat &orientation, const Physics::Thrusters &thrusters, const glm::dvec3 &velocity,
+    const glm::dquat &orientation, const Physics::Handling &handling, const glm::dvec3 &velocity,
     const glm::dquat *facing)
 {
 	Physics::FlightControls controls;
 	controls.assist = true;
 	const glm::dquat inverse = glm::conjugate(glm::normalize(orientation));
-	if (const double maxSpeed = Capability(thrusters.maxSpeed); maxSpeed > 0.0)
+	if (const double maxSpeed = Capability(handling.maxSpeed); maxSpeed > 0.0)
 		controls.linear = glm::vec3{glm::clamp(inverse * velocity / maxSpeed, -1.0, 1.0)};
 
 	if (facing)
@@ -133,7 +133,7 @@ Physics::FlightControls Controls(
 		const double sine = glm::length(vector);
 		if (sine > 1.0e-9)
 			controls.angular =
-			    Turn(thrusters, vector / sine, 2.0 * std::atan2(sine, rest.w), glm::length_t{3});
+			    Turn(handling, vector / sine, 2.0 * std::atan2(sine, rest.w), glm::length_t{3});
 		return controls;
 	}
 
@@ -152,7 +152,7 @@ Physics::FlightControls Controls(
 	else
 		return controls;
 
-	controls.angular = Turn(thrusters, axis, angle, glm::length_t{2});
+	controls.angular = Turn(handling, axis, angle, glm::length_t{2});
 	return controls;
 }
 
@@ -285,32 +285,32 @@ Steering &Steering::Attach(
 	    [](Sim::SimWorld &target, const SetDestination &command)
 	    {
 		    entt::registry &registry = target.Registry();
-		    if (!registry.valid(command.ship))
+		    if (!registry.valid(command.vehicle))
 			    return;
-		    if (!Sim::MayCommand(registry, command.ship, command.sender))
-			    return RefuseDestination(target, command.sender, command.ship);
+		    if (!Sim::MayCommand(registry, command.vehicle, command.sender))
+			    return RefuseDestination(target, command.sender, command.vehicle);
 		    Destination destination = command.destination;
 		    destination.next = 0;
 		    destination.arrived = false;
-		    registry.emplace_or_replace<Destination>(command.ship, std::move(destination));
+		    registry.emplace_or_replace<Destination>(command.vehicle, std::move(destination));
 	    });
 	world.RegisterCommand<ClearDestination>(
 	    [](Sim::SimWorld &target, const ClearDestination &command)
 	    {
 		    entt::registry &registry = target.Registry();
-		    if (!registry.valid(command.ship))
+		    if (!registry.valid(command.vehicle))
 			    return;
-		    if (!Sim::MayCommand(registry, command.ship, command.sender))
-			    return RefuseDestination(target, command.sender, command.ship);
-		    registry.remove<Destination>(command.ship);
-		    if (auto *controls = registry.try_get<Physics::FlightControls>(command.ship))
+		    if (!Sim::MayCommand(registry, command.vehicle, command.sender))
+			    return RefuseDestination(target, command.sender, command.vehicle);
+		    registry.remove<Destination>(command.vehicle);
+		    if (auto *controls = registry.try_get<Physics::FlightControls>(command.vehicle))
 			    *controls = Physics::FlightControls{};
 	    });
 	Ecs::SystemDescription system{
 	    std::string{kSystemName},
 	    Ecs::TickPhase::Simulation,
 	    Ecs::Access::Of<
-	        Steered, Physics::Thrusters, Physics::Velocity, Physics::Body, Physics::LocalFrame,
+	        Steered, Physics::Handling, Physics::Velocity, Physics::Body, Physics::LocalFrame,
 	        Sim::Transform, Sim::InFrame>()
 	        .Writing<Destination, Physics::FlightControls>(),
 	    {std::string{Spatial::SystemIndices::kSystemName}},
@@ -362,7 +362,7 @@ void Steering::Step(Sim::SimWorld &world)
 	std::vector<entt::entity> ships;
 	for (const entt::entity ship :
 	     registry.view<
-	         const Steered, Destination, const Physics::Thrusters, const Physics::FlightControls,
+	         const Steered, Destination, const Physics::Handling, const Physics::FlightControls,
 	         const Physics::Velocity, const Physics::Body, const Sim::Transform, const Sim::InFrame>())
 		ships.push_back(ship);
 	std::ranges::sort(ships, {}, [](entt::entity ship) { return entt::to_integral(ship); });
@@ -389,7 +389,7 @@ void Steering::Step(Sim::SimWorld &world)
 			continue;
 		const Steered &steered = registry.get<const Steered>(ship);
 		Destination &destination = registry.get<Destination>(ship);
-		const Physics::Thrusters &thrusters = registry.get<const Physics::Thrusters>(ship);
+		const Physics::Handling &handling = registry.get<const Physics::Handling>(ship);
 		const Sim::Transform &transform = registry.get<const Sim::Transform>(ship);
 		const std::string_view frame = FrameOf(registry, ship);
 		const glm::dvec3 &origin = originOf(system, frame);
@@ -435,16 +435,15 @@ void Steering::Step(Sim::SimWorld &world)
 		           double{destination.passRadius})
 			++destination.next;
 
-		const double maxSpeed =
-		    destination.speed > 0.0f
-		        ? std::min(double{destination.speed}, Capability(thrusters.maxSpeed))
-		        : Capability(thrusters.maxSpeed);
+		const double maxSpeed = destination.speed > 0.0f
+		                            ? std::min(double{destination.speed}, Capability(handling.maxSpeed))
+		                            : Capability(handling.maxSpeed);
 		const Agent agent{
 		    transform.position, glm::dvec3{registry.get<const Physics::Velocity>(ship).linear},
 		    maxSpeed,
 		    kBrakingShare * std::min(
-		                        {Capability(thrusters.reverse), Capability(thrusters.lateral),
-		                         Capability(thrusters.vertical)}),
+		                        {Capability(handling.reverse), Capability(handling.lateral),
+		                         Capability(handling.vertical)}),
 		    Radius(registry.get<const Physics::Body>(ship).shape)};
 
 		// What is near, in its frame.
@@ -500,7 +499,7 @@ void Steering::Step(Sim::SimWorld &world)
 		}
 		registry.replace<Physics::FlightControls>(
 		    ship, Controls(
-		              transform.orientation, thrusters, velocity,
+		              transform.orientation, handling, velocity,
 		              destination.face && !onCourse ? &facing : nullptr));
 	}
 }

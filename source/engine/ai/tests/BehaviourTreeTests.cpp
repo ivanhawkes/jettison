@@ -413,14 +413,15 @@ TEST_CASE(
 		for (const Sim::SimEvent &event : trees.world.Events().Take())
 			if (const auto *taken = event.event.try_cast<Ai::HelmTaken>())
 				said.push_back(
-				    std::format("taken {} {}", taken->controller.slot, entt::to_integral(taken->ship)));
+				    std::format(
+				        "taken {} {}", taken->controller.slot, entt::to_integral(taken->vehicle)));
 			else if (const auto *left = event.event.try_cast<Ai::HelmLeft>())
 				said.push_back(
-				    std::format("left {} {}", left->controller.slot, entt::to_integral(left->ship)));
+				    std::format("left {} {}", left->controller.slot, entt::to_integral(left->vehicle)));
 			else if (const auto *refused = event.event.try_cast<Ai::HelmRefused>())
 				said.push_back(
 				    std::format(
-				        "refused {} {}", entt::to_integral(refused->ship), refused->reason.key));
+				        "refused {} {}", entt::to_integral(refused->vehicle), refused->reason.key));
 		return said;
 	};
 

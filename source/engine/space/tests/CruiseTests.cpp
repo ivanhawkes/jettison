@@ -347,7 +347,7 @@ TEST_CASE("Cruise: off a planet where its pull is one its assist holds against")
 	entt::registry &registry = fixture.world.Registry();
 	// From Pell: Highport, in low orbit, is already where a cruise to Ostra would arrive.
 	const entt::entity ship = fixture.Ship("Pell", {0.0, 3.0e6, 0.0});
-	registry.emplace<Physics::Thrusters>(ship);
+	registry.emplace<Physics::Handling>(ship);
 	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Ostra"});
 	fixture.Run(1);
 	REQUIRE(registry.all_of<Space::Cruising>(ship));

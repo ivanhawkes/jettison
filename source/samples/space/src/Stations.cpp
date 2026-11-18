@@ -74,7 +74,7 @@ void MakeShip(
 	body.continuous = continuous;
 	world.emplace_or_replace<Physics::Body>(ship, body);
 	world.emplace_or_replace<Physics::Velocity>(ship);
-	world.emplace_or_replace<Physics::Thrusters>(ship);
+	world.emplace_or_replace<Physics::Handling>(ship);
 	world.emplace_or_replace<Physics::FlightControls>(ship);
 	world.emplace_or_replace<Dock::Hull>(ship, std::string{hull});
 	const auto drive = drives.find(hull);

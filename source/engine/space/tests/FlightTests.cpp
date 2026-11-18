@@ -25,13 +25,13 @@ using namespace Jettison::SpaceTests;
 using Physics::Body;
 using Physics::BodyKind;
 using Physics::FlightControls;
+using Physics::Handling;
 using Physics::LocalFrame;
 using Physics::OnRails;
 using Physics::SetFlightControls;
 using Physics::ShapeDefinition;
 using Physics::ShapeKind;
 using Physics::Thrust;
-using Physics::Thrusters;
 using Physics::Velocity;
 
 namespace
@@ -124,7 +124,7 @@ entt::entity Ship(Sim::SimWorld &world, const glm::dquat &orientation = {1.0, 0.
 	registry.emplace<Sim::InFrame>(ship, kEmpty);
 	registry.emplace<Body>(ship, Body{BodyKind::Dynamic, "hull", 20000.0f});
 	registry.emplace<Velocity>(ship);
-	registry.emplace<Thrusters>(ship);
+	registry.emplace<Handling>(ship);
 	return ship;
 }
 
@@ -189,9 +189,9 @@ TEST_CASE("Flight: a ship takes flight controls only from the one at its helm, o
 	REQUIRE(other);
 	REQUIRE(own);
 	CHECK(other->sender == two);
-	CHECK(other->ship == flown);
+	CHECK(other->vehicle == flown);
 	CHECK(other->reason == Sim::MakeReason(Physics::Reason::NotAtHelm));
-	CHECK(own->ship == unflown);
+	CHECK(own->vehicle == unflown);
 	CHECK_FALSE(world.Registry().all_of<FlightControls>(flown));
 	CHECK_FALSE(world.Registry().all_of<FlightControls>(unflown));
 
@@ -357,7 +357,7 @@ TEST_CASE("Flight: assist holds a ship to its reference, not to the system")
 	Populate(world);
 	// A hulk coasting at 7 km/s, and a ship beside it at its speed.
 	const entt::entity hulk = Ship(world);
-	world.Registry().remove<Thrusters>(hulk);
+	world.Registry().remove<Handling>(hulk);
 	world.Registry().get<Sim::Transform>(hulk).position.x = -500.0;
 	world.Registry().get<Velocity>(hulk).linear = {7000.0f, 0.0f, 0.0f};
 	const entt::entity ship = Ship(world);
@@ -578,7 +578,7 @@ Approach Begin(Sim::SimWorld &world)
 	const entt::entity ship = Beside(
 	    world, "hull", 20000.0f, {0.0, 1.5, -190.0},
 	    glm::angleAxis(glm::pi<double>(), glm::dvec3{0, 1, 0}), true);
-	registry.emplace<Thrusters>(ship);
+	registry.emplace<Handling>(ship);
 	return {station, zone, ship};
 }
 
