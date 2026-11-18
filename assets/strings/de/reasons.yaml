@@ -19,6 +19,7 @@ reason:
       one: die Fracht ist noch auf dem Deck unterwegs, {0} Kiste
       other: die Fracht ist noch auf dem Deck unterwegs, {0} Kisten
     already_leaving: das Schiff verlässt seine Landeplattform bereits
+    no_pad_offers: "{0} hat keine passende Landeplattform, die das Gewünschte bietet"
   ai:
     no_such_entity: dieses Schiff gibt es nicht
     on_lane: es ist bereits auf einer Sprungroute

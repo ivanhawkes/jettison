@@ -8,6 +8,8 @@ add_library(jettison_sample_space STATIC
 	src/Fleet.h
 	src/MarketScreen.cpp
 	src/MarketScreen.h
+	src/Repair.cpp
+	src/Repair.h
 	src/SpaceGame.cpp
 	src/Traders.cpp
 	src/Traders.h
@@ -42,6 +44,7 @@ jettison_add_pack(jettison_sample_space_pack
 if(JETTISON_BUILD_TESTS)
 	add_executable(jettison_sample_space_tests
 		tests/FleetTests.cpp
+		tests/GameTests.cpp
 		tests/ReasonsTests.cpp
 		tests/ModsTests.cpp
 		tests/SampleGalaxy.h

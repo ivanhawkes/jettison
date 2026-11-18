@@ -106,8 +106,8 @@ TEST_CASE("Stations: every station built to a layout opens with its pads, and th
 	CHECK(corva == stations[2]);
 	CHECK(App::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
 
-	// Highport's twelve L pads and its display wing's six; six at Corva and at the Anchorage. No
-	// ship is parked on any: that is a game's to do.
+	// Highport's twelve destroyer pads and its display wing's six; six at Corva and at the Anchorage.
+	// No ship is parked on any: that is a game's to do.
 	CHECK(world.get<Dock::Station>(highport).pads.size() == 18);
 	CHECK(world.get<Dock::Station>(corva).pads.size() == 6);
 	CHECK(world.get<Dock::Station>(anchorage).pads.size() == 6);

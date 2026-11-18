@@ -15,28 +15,20 @@ namespace Jettison::Sim
 {
 namespace
 {
-// The info, read as its record and brought up from the version the save game was written at:
-// version 1's galaxy and system become details, each only if it named one.
-SaveInfo ReadInfoOf(Serialise::BinaryReader &reader, std::uint32_t version)
+// Version 2 (A01): the info's galaxy and system become details, each only if it named one.
+void MoveGalaxyAndSystem(Serialise::BinaryRecord &info)
 {
-	Serialise::BinaryRecord record = reader.ReadRecord();
-	if (version < 2)
+	std::vector<SaveDetail> details;
+	for (const std::string_view key : {"galaxy", "system"})
 	{
-		std::vector<SaveDetail> details;
-		for (const std::string_view key : {"galaxy", "system"})
-		{
-			if (!record.Has(key))
-				continue;
-			auto value = record.Get<std::string>(key);
-			record.Remove(key);
-			if (!value.empty())
-				details.push_back({std::string{key}, std::move(value)});
-		}
-		record.Set("details", details);
+		if (!info.Has(key))
+			continue;
+		auto value = info.Get<std::string>(key);
+		info.Remove(key);
+		if (!value.empty())
+			details.push_back({std::string{key}, std::move(value)});
 	}
-	SaveInfo info;
-	record.ReadInto(info);
-	return info;
+	info.Set("details", details);
 }
 } // namespace
 
@@ -158,10 +150,9 @@ std::vector<std::byte> SaveGame::Write() const
 SaveGame SaveGame::Read(std::span<const std::byte> bytes)
 {
 	RegisterSaveTypes();
-	const std::uint32_t version = Serialise::PeekVersion(bytes, kFormat);
 	Serialise::BinaryReader reader{bytes, Migrations()};
 	SaveGame save;
-	save.info = ReadInfoOf(reader, version);
+	reader.Read(save.info);
 	save.world = reader.ReadBytes();
 	const auto count = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 	// A section is at least its name's index and its count.
@@ -182,19 +173,24 @@ SaveGame SaveGame::Read(std::span<const std::byte> bytes)
 SaveInfo SaveGame::ReadInfo(std::span<const std::byte> bytes)
 {
 	RegisterSaveTypes();
-	const std::uint32_t version = Serialise::PeekVersion(bytes, kFormat);
 	Serialise::BinaryReader reader{bytes, Migrations()};
-	return ReadInfoOf(reader, version);
+	SaveInfo info;
+	reader.Read(info);
+	return info;
 }
 
 
 const Serialise::BinaryMigrations &SaveGame::Migrations()
 {
+	// The step from version 1 writes details, whose type it needs registered whoever runs the chain.
+	RegisterSaveTypes();
 	static const Serialise::BinaryMigrations migrations = []
 	{
 		Serialise::BinaryMigrations chain{std::string{kFormat}, kVersion};
-		// The layout around the info is as it was; the info's fields move in ReadInfoOf.
-		chain.Add(1, [](Serialise::BinaryDocument &) {});
+		// The info is the save's first value; the world and the sections after it are as they were.
+		chain.Add(
+		    1,
+		    [](Serialise::BinaryDocument &document) { document.EditFirstRecord(MoveGalaxyAndSystem); });
 		return chain;
 	}();
 	return migrations;

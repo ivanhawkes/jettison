@@ -2,6 +2,7 @@
 
 #include <entt/entt.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -101,4 +102,10 @@ void FitForTrade(entt::registry &registry, entt::entity ship);
 // trade once they leave it. A ship already fitted is of a later save, its helm left on purpose, and
 // is left to its behaviour. Returns whether it was given.
 bool GiveOldShipItsHelm(entt::registry &registry, entt::entity ship, const Sim::Controller &controller);
+
+// A world saved before the sample's pad classes had their names holds its pads' as S, M, L and XL
+// (Dock::Pad::padClass), which no class is now: each is given the class that took its place,
+// corvette, frigate, destroyer and cruiser. The sample's step, not the dock's chain's, since the
+// names are the sample's data. Returns how many pads were renamed.
+std::size_t NameOldPadClasses(entt::registry &registry);
 } // namespace Jettison::Sample

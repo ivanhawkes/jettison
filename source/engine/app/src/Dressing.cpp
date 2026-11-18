@@ -534,7 +534,7 @@ std::vector<ProxyPart> LargeProxy()
 }
 
 
-// A liner or a frigate: a long round hull with a rounded bow, a superstructure along its top, fins
+// A liner or a cruiser: a long round hull with a rounded bow, a superstructure along its top, fins
 // aft and three engines.
 std::vector<ProxyPart> ExtraLargeProxy()
 {
@@ -554,16 +554,17 @@ std::vector<ProxyPart> ExtraLargeProxy()
 }
 
 
-// The space sample's classes have a proxy each; a game's own classes are drawn as an M's.
-std::vector<ProxyPart> ProxyOf(std::string_view padClass)
+// By the hull's length, in metres, not its pad class, whose names are the game's: the lengths are
+// where the four shapes stop looking like a ship of that size.
+std::vector<ProxyPart> ProxyOf(const Dock::HullDefinition &hull)
 {
-	if (padClass == "S")
+	if (hull.length <= 25.0f)
 		return SmallProxy();
-	if (padClass == "L")
+	if (hull.length <= 60.0f)
+		return MediumProxy();
+	if (hull.length <= 140.0f)
 		return LargeProxy();
-	if (padClass == "XL")
-		return ExtraLargeProxy();
-	return MediumProxy();
+	return ExtraLargeProxy();
 }
 
 // One clamp of a pad's, stowed as the clip leaves it: put away at no size, its post flat in the deck
@@ -865,7 +866,7 @@ entt::entity MakeHullProxy(entt::registry &scene, const Dock::HullDefinition &hu
 	const glm::vec3 half = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
 	const glm::vec3 idle = kWhite * kIdleGlow;
 	ShipThrusters thrusters{ship, {}};
-	for (const ProxyPart &part : ProxyOf(hull.pad))
+	for (const ProxyPart &part : ProxyOf(hull))
 	{
 		const glm::vec3 extent = part.half * half;
 		// A cylinder turned a quarter about X has its own Y along the hull's Z, and its Z along Y.

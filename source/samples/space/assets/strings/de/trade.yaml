@@ -29,3 +29,6 @@ reason:
     none_docked: kein Schiff der Flotte ist an {0} angedockt
     no_pad_free: "{0} hat keine freie Landeplattform, auf die {1} passt"
     short_of_price: sein Preis von {0} Credits ist mehr, als das Guthaben hält
+    not_damaged: das Schiff hat keinen Schaden zu reparieren
+    not_in_dry_dock: das Schiff liegt nicht auf einer Landeplattform mit Trockendock
+    short_of_repair: die Reparatur kostet {0} Credits, mehr, als das Guthaben hält

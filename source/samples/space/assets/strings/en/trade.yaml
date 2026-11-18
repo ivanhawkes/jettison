@@ -30,3 +30,6 @@ reason:
     none_docked: none of the fleet is docked at {0}
     no_pad_free: "{0} has no free pad a {1} fits"
     short_of_price: its price of {0} credits is more than the purse holds
+    not_damaged: the ship has no damage to repair
+    not_in_dry_dock: the ship is not docked on a pad that offers a dry dock
+    short_of_repair: the repair's cost of {0} credits is more than the purse holds

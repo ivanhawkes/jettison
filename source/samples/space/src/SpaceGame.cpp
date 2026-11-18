@@ -25,6 +25,7 @@
 
 #include "Fleet.h"
 #include "MarketScreen.h"
+#include "Repair.h"
 #include "Traders.h"
 #include "Trading.h"
 
@@ -70,6 +71,7 @@ SpaceGame::~SpaceGame() = default;
 void SpaceGame::Register(const App::ShellWorld &world, Input::InputSystem &input)
 {
 	RegisterTrading(world.world);
+	RegisterRepair(world.world, world.physics, world.docks);
 	ChargeTolls(world.gates);
 	RegisterMarketScreenTypes();
 	m_toggleMarket = input.DefineAction("toggle_market", Input::ActionType::Button);
@@ -179,6 +181,10 @@ void SpaceGame::Loaded(entt::registry &world, entt::entity ship, const Sim::Cont
 		Core::Log(
 		    Core::Severity::Info, kSample, "The save kept {} purses on ships, now their owners'",
 		    moved);
+	if (const std::size_t renamed = NameOldPadClasses(world); renamed > 0)
+		Core::Log(
+		    Core::Severity::Info, kSample, "The save named {} pads by their old classes, now renamed",
+		    renamed);
 	// One from before the helm (13d) has the player's ship flown by no one.
 	if (GiveOldShipItsHelm(world, ship, player))
 		Core::Log(Core::Severity::Info, kSample, "The save had no helm; the player is at its ship's");
@@ -226,6 +232,25 @@ void SpaceGame::AddCommands(DevTools::Console &console, App::Shell &shell)
 		    }
 		    SendTrade(shell, arguments[0], crates);
 	    });
+	console.RegisterCommand(
+	    "drydock",
+	    "Asks the bound station for a pad that offers a dry dock, and flies the ship in, as dock does "
+	    "for any pad",
+	    [&shell](DevTools::Console &, std::span<const std::string>)
+	    {
+		    if (shell.Ship() == entt::null || shell.Station() == entt::null)
+		    {
+			    Core::Log(Core::Severity::Warning, kSample, "No ship, or no station to ask");
+			    return;
+		    }
+		    shell.World().Commands().Push(
+		        Dock::RequestPad{
+		            shell.Player(), shell.Ship(), shell.Station(), true, std::string{kDryDock}});
+	    });
+	console.RegisterCommand(
+	    "repair", "Repairs the ship's damage, docked on a pad that offers a dry dock",
+	    [&shell](DevTools::Console &, std::span<const std::string>)
+	    { shell.World().Commands().Push(Repair{shell.Player(), shell.Ship()}); });
 	console.RegisterCommand(
 	    "market", "Shows or hides the market screen: market [on|off]",
 	    [this, &shell](DevTools::Console &, std::span<const std::string> arguments)
@@ -361,6 +386,15 @@ void SpaceGame::TakeEvent(const Sim::SimEvent &event, App::Shell &shell)
 		    shell.GameUi()->Strings().Format("market.refused", shell.Word(refused->reason));
 		Core::Log(Core::Severity::Info, kSample, "{}", m_tradeMessage);
 	}
+	else if (const auto *repaired = event.event.try_cast<Repaired>();
+	         repaired && repaired->ship == shell.Ship())
+		Core::Log(
+		    Core::Severity::Info, kSample,
+		    "Repaired {} points of damage for {} credits; {} credits left", repaired->points,
+		    FormatCredits(repaired->cost), FormatCredits(repaired->credits));
+	else if (const auto *notRepaired = event.event.try_cast<RepairRefused>();
+	         notRepaired && notRepaired->ship == shell.Ship())
+		Core::Log(Core::Severity::Warning, kSample, "No repair: {}", shell.Word(notRepaired->reason));
 	if (m_showMarket)
 		m_marketDirty = true;
 }

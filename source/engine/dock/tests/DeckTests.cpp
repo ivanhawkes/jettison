@@ -116,8 +116,8 @@ TEST_CASE("Deck: Highport's and Corva's roads, and each pad's way from its bay")
 {
 	Fixture fixture;
 	const Dock::RoadGraph &highport = *fixture.docks.FindRoads("ostra-highport");
-	// Four bays, an apron and a hatch for each of the twelve L pads, and on each pier's road a node
-	// where its bay and each of its three pads join it.
+	// Four bays, an apron and a hatch for each of the twelve destroyer pads, and on each pier's road a
+	// node where its bay and each of its three pads join it.
 	CHECK(highport.nodes.size() == 4 + 24 + 16);
 	CHECK(highport.edges.size() == 44);
 	for (std::uint32_t pier = 0; pier < 4; ++pier)
@@ -140,8 +140,8 @@ TEST_CASE("Deck: Highport's and Corva's roads, and each pad's way from its bay")
 	for (const auto &[from, to] : highport.edges)
 		CHECK(glm::distance(at(from), at(to)) >= 2.0 * Dock::kNodeReach);
 
-	// Corva's pier pads from the bays in its walls, and its S pads on the hub's top from the hatch
-	// between them.
+	// Corva's pier pads from the bays in its walls, and its corvette pads on the hub's top from the
+	// hatch between them.
 	const Dock::RoadGraph &corva = *fixture.docks.FindRoads("corva-refinery");
 	CHECK(corva.pads[0].bay == 0);
 	CHECK(corva.pads[1].bay == 0);
@@ -156,11 +156,11 @@ TEST_CASE("Deck: Highport's and Corva's roads, and each pad's way from its bay")
 
 TEST_CASE("Deck: a layout with a pad no road reaches from a bay is refused")
 {
-	// A deck with an M pad, and a bay on a block beside it whose top is higher.
+	// A deck with a frigate pad, and a bay on a block beside it whose top is higher.
 	Dock::StationLayout layout;
 	layout.decks = {
 	    {{0.0, 0.0, 0.0}, {200.0, 20.0, 200.0}}, {{150.0, 10.0, 0.0}, {100.0, 40.0, 100.0}}};
-	layout.pads = {{"M", {0.0, 10.0, 0.0}}};
+	layout.pads = {{"frigate", {0.0, 10.0, 0.0}}};
 	layout.bays = {{{150.0, 30.0, 0.0}, {0.0, 1.0, 0.0}}};
 	std::string refusal;
 	try
@@ -313,11 +313,11 @@ TEST_CASE("Deck: parked buggies, the cargo moved at the rate working ones would 
 TEST_CASE("Deck: a station with no bays has its cargo aboard at once")
 {
 	Fixture fixture{false};
-	fixture.docks.DefinePadClass("S", DockTests::SampleClasses().at("S"));
-	fixture.docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "S", {}});
+	fixture.docks.DefinePadClass("corvette", DockTests::SampleClasses().at("corvette"));
+	fixture.docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "corvette", {}});
 	Dock::StationLayout slab;
 	slab.decks = {{{0.0, 0.0, 0.0}, {200.0, 20.0, 200.0}}};
-	slab.pads = {{"S", {0.0, 10.0, 0.0}}};
+	slab.pads = {{"corvette", {0.0, 10.0, 0.0}}};
 	fixture.docks.DefineLayout("slab", slab);
 	const entt::entity station =
 	    fixture.docks.MakeStation(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "slab");
@@ -377,8 +377,9 @@ TEST_CASE(
 	CHECK(run(unused, -1) == first);
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too, as
 	// the approach's is: a change here is a change to how buggies drive, or to what a save holds.
-	// Re-pinned in W01 for a pad's class saved as its name, as the approach's was.
-	CHECK(first == 0xa89f23996f498b22ull);
+	// Re-pinned in W01 for a pad's class saved as its name, and for the classes' ship names and a
+	// docking's feature, as the approach's was.
+	CHECK(first == 0x0fa9f94cab2a2c11ull);
 
 	Deck loaded;
 	loaded.world.Load(*save);

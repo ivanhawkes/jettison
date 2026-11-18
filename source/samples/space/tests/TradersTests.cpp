@@ -61,7 +61,7 @@ TEST_CASE(
 		CHECK(registry.get<Ai::Behaviour>(ship).tree == Sample::kTraderTree);
 		CHECK(galaxy.TraderOf(ship).good.empty());
 	}
-	// Corva's last free pad, an M, is all that is left for the traders that come to it.
+	// Corva's last free pad, a frigate, is all that is left for the traders that come to it.
 	const entt::entity corva = App::FindStation(registry, Sim::FrameId("Vesper"), "Corva Refinery");
 	std::size_t free = 0;
 	for (const entt::entity pad : registry.get<Dock::Station>(corva).pads)
@@ -387,6 +387,7 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release. Re-pinned in W01 for a pad's
-	// class saved as its name, the old build's saves loaded and saved again the same.
-	CHECK(original.world.StateHash() == 0x9c40dc69a6171b4cULL);
+	// class saved as its name, the old build's saves loaded and saved again the same; and for the
+	// classes' ship names and a docking's feature, as the dock's approach was.
+	CHECK(original.world.StateHash() == 0x35988e71d33f548eULL);
 }

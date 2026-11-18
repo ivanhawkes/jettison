@@ -6,7 +6,7 @@ displayName: Shuttle
 length: 9.8
 beam: 6.4
 height: 1.8
-pad: S
+pad: corvette
 hatch: [0, -0.9, 3]
 # Its cruises across a system (Ai.CruiseDrive): 40 s for 100,000 km, rising as the distance's
 # fourth root.

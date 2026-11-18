@@ -623,6 +623,27 @@ BinaryReader::BinaryReader(BinaryReader &&) noexcept = default;
 BinaryReader &BinaryReader::operator=(BinaryReader &&) noexcept = default;
 
 
+namespace
+{
+// A class's value as its fields, each undecoded: a count, then a name, a size and the bytes each.
+std::vector<BinaryRecord::Field> TakeFields(Reader &reader)
+{
+	std::vector<BinaryRecord::Field> fields;
+	// Not reserved, for the reason Reader::Value gives for a sequence.
+	const std::uint32_t count = reader.Count();
+	for (std::uint32_t index = 0; index < count; ++index)
+	{
+		std::string name{reader.Name()};
+		if (std::ranges::find(fields, name, &BinaryRecord::Field::name) != fields.end())
+			reader.Fail(std::format("the record gives field '{}' twice", name));
+		const std::span<const std::byte> bytes = reader.Take(reader.Count());
+		fields.push_back({std::move(name), {bytes.begin(), bytes.end()}});
+	}
+	return fields;
+}
+} // namespace
+
+
 BinaryRecord BinaryReader::ReadRecord()
 {
 	Reader &reader = m_pImpl->reader;
@@ -631,16 +652,7 @@ BinaryRecord BinaryReader::ReadRecord()
 	BinaryRecord record;
 	record.m_pNames = m_pImpl->pRecordNames;
 	record.m_context = m_pImpl->name;
-	// Not reserved, for the reason Reader::Value gives for a sequence.
-	const std::uint32_t count = reader.Count();
-	for (std::uint32_t index = 0; index < count; ++index)
-	{
-		std::string name{reader.Name()};
-		if (record.Has(name))
-			reader.Fail(std::format("the record gives field '{}' twice", name));
-		const std::span<const std::byte> bytes = reader.Take(reader.Count());
-		record.m_fields.push_back({std::move(name), {bytes.begin(), bytes.end()}});
-	}
+	record.m_fields = TakeFields(reader);
 	return record;
 }
 
@@ -699,6 +711,21 @@ void PutUnsigned(std::vector<std::byte> &out, std::uint64_t value, std::size_t w
 {
 	for (std::size_t index = 0; index < width; ++index)
 		out.push_back(static_cast<std::byte>((value >> (8 * index)) & 0xffu));
+}
+
+
+// TakeFields' layout, the names interned in the table given.
+void PutFields(
+    std::vector<std::byte> &out, const std::vector<BinaryRecord::Field> &fields,
+    std::vector<std::string> &names)
+{
+	PutUnsigned(out, fields.size(), 4);
+	for (const BinaryRecord::Field &field : fields)
+	{
+		PutUnsigned(out, InternInto(names, field.name), 4);
+		PutUnsigned(out, field.bytes.size(), 4);
+		out.insert(out.end(), field.bytes.begin(), field.bytes.end());
+	}
 }
 } // namespace
 
@@ -769,13 +796,7 @@ void BinaryRecord::ReadInto(entt::meta_any &value) const
 	std::vector<std::string> empty;
 	std::vector<std::string> &names = m_pNames ? *m_pNames : empty;
 	std::vector<std::byte> bytes;
-	PutUnsigned(bytes, m_fields.size(), 4);
-	for (const Field &field : m_fields)
-	{
-		PutUnsigned(bytes, InternInto(names, field.name), 4);
-		PutUnsigned(bytes, field.bytes.size(), 4);
-		bytes.insert(bytes.end(), field.bytes.begin(), field.bytes.end());
-	}
+	PutFields(bytes, m_fields, names);
 	Reader reader{bytes, m_context, names};
 	reader.Class(value);
 	reader.End();
@@ -882,6 +903,26 @@ void BinaryDocument::Rename(std::string_view from, std::string_view to)
 	if (format == from)
 		format = std::string{to};
 	*found = std::string{to};
+}
+
+
+void BinaryDocument::EditFirstRecord(const std::function<void(BinaryRecord &)> &edit)
+{
+	Reader reader{payload, format, names};
+	BinaryRecord record;
+	// Its own copy of the table, which a field set adds to, so an edit that throws changes nothing.
+	record.m_pNames = std::make_shared<std::vector<std::string>>(names);
+	record.m_context = format;
+	record.m_fields = TakeFields(reader);
+	const std::span<const std::byte> rest = reader.Rest();
+	edit(record);
+
+	std::vector<std::string> table = *record.m_pNames;
+	std::vector<std::byte> edited;
+	PutFields(edited, record.m_fields, table);
+	edited.insert(edited.end(), rest.begin(), rest.end());
+	payload = std::move(edited);
+	names = std::move(table);
 }
 
 

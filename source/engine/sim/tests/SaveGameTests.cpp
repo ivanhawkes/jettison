@@ -182,6 +182,15 @@ TEST_CASE("SaveGame: a save written by version 1 loads")
 	// Its galaxy and system are details now, the galaxy's only as it named none.
 	CHECK(save.info.Detail("system") == "Halcyon");
 	CHECK(Sim::SaveGame::ReadInfo(fixture).details == save.info.details);
+
+	// The chain alone brings it to this version: what it makes says so, and reads the same.
+	const std::vector<std::byte> migrated = Serialise::Migrate(fixture, Sim::SaveGame::Migrations());
+	CHECK(Serialise::PeekVersion(migrated, "Jettison.Save") == Sim::SaveGame::kVersion.version);
+	const Sim::SaveGame again = Sim::SaveGame::Read(migrated);
+	CHECK(again.info.details == save.info.details);
+	CHECK(again.info.name == save.info.name);
+	CHECK(again.world == save.world);
+	CHECK(again.sections.size() == save.sections.size());
 	CHECK(
 	    Serialise::BinaryArchive::Read<Purse>(save.FindSection("SaveGameTests.Purse")->data, {1})
 	        .credits == 125'000);

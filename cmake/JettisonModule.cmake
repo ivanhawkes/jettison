@@ -99,8 +99,10 @@ endfunction()
 #
 # Holds the modules to their dependencies (docs/architecture.md, "Module dependencies"), called once
 # every target is added: it stops the configure when a module has a target defined under SAMPLES in
-# its link closure; or when one neither optional nor a user has an optional module in its closure,
-# or includes one's headers in its own public headers, where a consumer would need it. A module is
+# its link closure, whatever the target is called; or when one neither optional nor a user has an
+# optional module in its closure, reached through any target, or includes one's headers in its own
+# public headers, where a consumer would need it; or when a module's link is a generator expression
+# it cannot read a target from. A module is
 # held to it unless it is listed, so a new one is from the start. The suites are not modules: a
 # neutral module's may fly in a star system.
 function(jettison_check_optional)
@@ -112,15 +114,34 @@ function(jettison_check_optional)
 	list(JOIN arg_OPTIONAL "|" optional)
 	list(JOIN arg_USERS ", " users)
 	get_property(modules GLOBAL PROPERTY JETTISON_MODULES)
+	set(wrappers "BUILD_INTERFACE|BUILD_LOCAL_INTERFACE|INSTALL_INTERFACE|LINK_ONLY|TARGET_NAME")
 	foreach(target IN LISTS modules)
-		# The project's own targets it links, through every one of them.
+		# Every target it links, through every one of them, whatever its name: a sample's library or
+		# a helper that carries an optional module need not be named jettison_*. A link wrapped in a
+		# generator expression that only says where it applies is the target inside it.
 		set(closure)
 		set(pending ${target})
 		while(pending)
 			list(POP_FRONT pending current)
 			get_target_property(private ${current} LINK_LIBRARIES)
 			get_target_property(public ${current} INTERFACE_LINK_LIBRARIES)
-			foreach(link IN LISTS private public)
+			set(links ${private} ${public})
+			while(links)
+				list(POP_FRONT links link)
+				while(link MATCHES "^\\$<(${wrappers}):(.*)>$")
+					set(link "${CMAKE_MATCH_2}")
+				endwhile()
+				# A group or a library feature: the targets after the feature's name.
+				if(link MATCHES "^\\$<(LINK_GROUP|LINK_LIBRARY):[^,>]*,(.*)>$")
+					string(REPLACE "," ";" grouped "${CMAKE_MATCH_2}")
+					list(PREPEND links ${grouped})
+					continue()
+				endif()
+				if(link MATCHES "^\\$<" AND current IN_LIST modules)
+					message(FATAL_ERROR
+						"${current} links '${link}', an expression the dependency check cannot follow; "
+						"name the target (docs/architecture.md, Module dependencies).")
+				endif()
 				if(NOT TARGET "${link}")
 					continue()
 				endif()
@@ -128,11 +149,11 @@ function(jettison_check_optional)
 				if(aliased)
 					set(link ${aliased})
 				endif()
-				if(link MATCHES "^jettison_" AND NOT link IN_LIST closure)
+				if(NOT link IN_LIST closure)
 					list(APPEND closure ${link})
 					list(APPEND pending ${link})
 				endif()
-			endforeach()
+			endwhile()
 		endwhile()
 
 		foreach(linked IN LISTS closure)

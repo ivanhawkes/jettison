@@ -1,11 +1,11 @@
-# A frigate, shown beside the liner on Highport's display wing, as dressing like it. A hull of the
+# A cruiser, shown beside the liner on Highport's display wing, as dressing like it. A hull of the
 # docks (Dock.HullDefinition): metres, its nose along -Z.
 version: 1
-displayName: Frigate
+displayName: Cruiser
 length: 220
 beam: 60
 height: 40
-pad: XL
+pad: cruiser
 hatch: [0, -20, 30]
 # Its cruises across a system (Ai.CruiseDrive): 40 s for 100,000 km, rising as the distance's
 # fourth root.

@@ -211,6 +211,27 @@ TEST_CASE("Fleet: a world saved before the helm gives the player the helm of the
 }
 
 
+TEST_CASE("Fleet: a save's pads of the classes' old names are given the classes that replaced them")
+{
+	Galaxy galaxy;
+	entt::registry &registry = galaxy.world.Registry();
+	const entt::entity highport = App::FindStation(registry, Sim::FrameId("Halcyon"), "Ostra Highport");
+	const std::vector<entt::entity> pads = registry.get<Dock::Station>(highport).pads;
+	// As the dock's chain leaves a save of the old build: pad 1 an L, and the display wing's XL and S.
+	REQUIRE(registry.get<Dock::Pad>(pads[0]).padClass == "destroyer");
+	registry.get<Dock::Pad>(pads[0]).padClass = "L";
+	registry.get<Dock::Pad>(pads[12]).padClass = "XL";
+	registry.get<Dock::Pad>(pads[14]).padClass = "S";
+	CHECK(Sample::NameOldPadClasses(registry) == 3);
+	CHECK(registry.get<Dock::Pad>(pads[0]).padClass == "destroyer");
+	CHECK(registry.get<Dock::Pad>(pads[12]).padClass == "cruiser");
+	CHECK(registry.get<Dock::Pad>(pads[14]).padClass == "corvette");
+	for (const auto [entity, pad] : registry.view<const Dock::Pad>().each())
+		CHECK(galaxy.docks.FindPadClass(pad.padClass) != nullptr);
+	CHECK(Sample::NameOldPadClasses(registry) == 0);
+}
+
+
 TEST_CASE("Fleet: a helm its pilot left is not given back as a save from before the helm's would be")
 {
 	Galaxy galaxy;

@@ -236,8 +236,11 @@ TEST_CASE(
 	// Re-pinned in 9d for Highport's display wing, six more pads and a deck more in its shape, with
 	// the approach's times unchanged (111 s to the point above the pad, 23.75 s down); and in 9e for
 	// the empty storages of transfers and buggies a save now holds, 9d's hash without them; and in
-	// W01 for a pad's class saved as its name, the old build's saves loaded and saved again the same.
-	CHECK(first == 0x7b273e55d4803c80ull);
+	// W01 for a pad's class saved as its name, the old build's saves loaded and saved again the same;
+	// and for the sample's classes under their ship names and the feature a docking asked for, each
+	// by its bytes alone: the old names written back, and then the feature left unsaved, gave the
+	// hash before each.
+	CHECK(first == 0x12b047dd467dac59ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);

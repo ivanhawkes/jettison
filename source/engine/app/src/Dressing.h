@@ -80,8 +80,8 @@ struct StationDressing
 	std::size_t parked{0};
 };
 
-// How far apart a pad's floodlight poles stand along its long sides, at most: two a side for an S or
-// an M pad, three for an L and four for an XL.
+// How far apart a pad's floodlight poles stand along its long sides, at most: two a side for a corvette
+// or a frigate pad, three for a destroyer and four for a cruiser.
 inline constexpr float kPoleSpacing = 120.0f;
 
 // Dresses the station's entity with its layout. A display pad's ship is looked up in the docks; one
@@ -109,10 +109,11 @@ std::size_t ShowPadStates(
 void FitClamps(entt::registry &scene, const PadClamps &clamps, const Dock::HullDefinition &hull);
 
 // A ship's proxy for the traffic layer, in its own axes (nose -Z): the hull's model, if it names
-// one, or its class's proxy made of procedural shapes, fitted to its length, beam and height, so the
-// box it collides as holds what is drawn. S is the shell's shuttle, M a transport of four cargo pods
-// behind a cab, L a spine of racked containers under a bridge, and XL a long hull under a
-// superstructure, which the liner and the frigate share.
+// one, or a proxy made of procedural shapes, chosen by its length and fitted to its length, beam and
+// height, so the box it collides as holds what is drawn. Up to 25 m it is the shell's shuttle, to
+// 60 m a transport of four cargo pods behind a cab, to 140 m a spine of racked containers under a
+// bridge, and beyond that a long hull under a superstructure, which the sample's liner and cruiser
+// share.
 // Every engine nozzle glows dimly, as a cold one would against the hull. A proxy for a simulation
 // entity, ship, shows its thrust (ShipThrusters): a plume at each engine and a jet at each of its
 // manoeuvring ports, a cluster each side of its bow and its stern firing out to that side, up and

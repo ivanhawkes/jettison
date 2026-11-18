@@ -1,4 +1,4 @@
-# The transport a station with an M pad free sells (app/src/Fleet.h): the traders' forty-crate
+# The transport a station with a frigate pad free sells (app/src/Fleet.h): the traders' forty-crate
 # hauler, a few profitable runs away from the player's start. A ship for sale (Shell.ShipForSale),
 # named by its hull (defs/hulls/transport.yaml): credits, kilograms empty, crates.
 version: 1

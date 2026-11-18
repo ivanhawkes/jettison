@@ -57,6 +57,7 @@ class BinaryWriter
 };
 
 class BinaryReader;
+struct BinaryDocument;
 
 // A reflected class's value as a binary archive wrote it, each field's bytes kept undecoded: what a
 // migration of one value edits, as a component's chain does (Sim::SimWorld::RegisterComponent). A
@@ -117,6 +118,7 @@ class BinaryRecord
 
   private:
 	friend class BinaryReader;
+	friend struct BinaryDocument;
 
 	std::vector<Field> m_fields;
 	std::shared_ptr<std::vector<std::string>> m_pNames;

@@ -22,6 +22,7 @@ reason:
       one: its cargo is still crossing the deck, {0} crate
       other: its cargo is still crossing the deck, {0} crates
     already_leaving: the ship is already leaving its pad
+    no_pad_offers: "{0} has no pad its hull fits that offers what it asks for"
   ai:
     no_such_entity: there is no such ship
     on_lane: it is on a lane already

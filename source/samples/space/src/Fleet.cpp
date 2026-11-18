@@ -1,6 +1,7 @@
 #include "Fleet.h"
 
 #include <algorithm>
+#include <array>
 #include <map>
 #include <memory>
 #include <utility>
@@ -141,6 +142,22 @@ void RegisterFleet(Sim::SimWorld &world, Dock::Docks &docks, const Sim::Definiti
 		yard->emplace(name, *definitions.Find<ShipForSale>(name));
 	world.RegisterCommand<BuyShip>([&docks, yard](Sim::SimWorld &target, const BuyShip &command)
 	                               { Buy(target, docks, *yard, command); });
+}
+
+
+std::size_t NameOldPadClasses(entt::registry &registry)
+{
+	constexpr std::array<std::pair<std::string_view, std::string_view>, 4> kRenamed{
+	    {{"S", "corvette"}, {"M", "frigate"}, {"L", "destroyer"}, {"XL", "cruiser"}}};
+	std::size_t renamed = 0;
+	for (const auto [entity, pad] : registry.view<Dock::Pad>().each())
+		for (const auto &[old, now] : kRenamed)
+			if (pad.padClass == old)
+			{
+				pad.padClass = now;
+				++renamed;
+			}
+	return renamed;
 }
 
 

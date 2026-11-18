@@ -242,14 +242,14 @@ TEST_CASE(
 	const std::vector<entt::entity> nodes = PadNodes(dressed);
 	REQUIRE(nodes.size() == 18);
 
-	// Six poles an L pad, eight an XL and four an S, each a lamp and a floodlight: 12 x 6 + 2 x 8 +
-	// 4 x 4.
+	// Six poles a destroyer pad, eight a cruiser and four a corvette, each a lamp and a floodlight: 12
+	// x 6 + 2 x 8 + 4 x 4.
 	REQUIRE(dressing.lamps.size() == layout.pads.size());
 	for (std::size_t index = 0; index < layout.pads.size(); ++index)
 	{
 		const std::size_t poles = dressing.lamps[index].size();
 		const std::string &padClass = layout.pads[index].padClass;
-		CHECK(poles == (padClass == "L" ? 6 : padClass == "XL" ? 8 : 4));
+		CHECK(poles == (padClass == "destroyer" ? 6 : padClass == "cruiser" ? 8 : 4));
 		for (const entt::entity lamp : dressing.lamps[index])
 		{
 			CHECK(LayerOf(scene, lamp) == Scene::Layer::Effects);
@@ -314,7 +314,7 @@ TEST_CASE(
 }
 
 
-TEST_CASE("Dressing: the display wing shows a liner, a frigate and four fighters, as dressing")
+TEST_CASE("Dressing: the display wing shows a liner, a cruiser and four fighters, as dressing")
 {
 	Dressed dressed;
 	const Dock::StationLayout &layout = dressed.Layout();
@@ -350,7 +350,7 @@ TEST_CASE("Dressing: the display wing shows a liner, a frigate and four fighters
 	}
 	CHECK(
 	    shown ==
-	    std::multiset<std::string>{"fighter", "fighter", "fighter", "fighter", "frigate", "liner"});
+	    std::multiset<std::string>{"cruiser", "fighter", "fighter", "fighter", "fighter", "liner"});
 }
 
 
@@ -475,7 +475,7 @@ TEST_CASE(
 {
 	Dressed dressed;
 	for (const std::string_view name :
-	     {"shuttle", "fighter", "transport", "heavy-transport", "liner", "frigate"})
+	     {"shuttle", "fighter", "transport", "heavy-transport", "liner", "cruiser"})
 	{
 		CAPTURE(name);
 		const Dock::HullDefinition *hull = dressed.docks.FindHull(name);

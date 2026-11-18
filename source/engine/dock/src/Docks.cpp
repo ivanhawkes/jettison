@@ -198,7 +198,24 @@ bool Docks::Fits(const HullDefinition &hull, std::string_view padClass) const
 {
 	const PadClassDefinition *pad = FindPadClass(padClass);
 	const PadClassDefinition *own = FindPadClass(hull.pad);
-	return pad && own && pad->rank >= own->rank;
+	// The rank orders the classes; the size is what holds the hull. Ranks are the game's data, and
+	// nothing makes a class ranked above another the larger in every dimension.
+	return pad && own && pad->rank >= own->rank && hull.length <= pad->largestHull.x &&
+	       hull.beam <= pad->largestHull.y && hull.height <= pad->largestHull.z;
+}
+
+
+bool Docks::Offers(
+    const entt::registry &registry, entt::entity padEntity, std::string_view feature) const
+{
+	const auto *pad = registry.valid(padEntity) ? registry.try_get<Pad>(padEntity) : nullptr;
+	const auto *station =
+	    pad && registry.valid(pad->station) ? registry.try_get<Station>(pad->station) : nullptr;
+	const StationLayout *layout = station ? FindLayout(station->layout) : nullptr;
+	if (!layout || pad->number == 0 || pad->number > layout->pads.size())
+		return false;
+	const std::vector<std::string> &features = layout->pads[pad->number - 1].features;
+	return std::ranges::find(features, feature) != features.end();
 }
 
 
@@ -334,9 +351,20 @@ void Docks::Request(Sim::SimWorld &world, const RequestPad &command)
 		        return !candidate.display && Fits(*hull, candidate.padClass);
 	        }))
 		return refuse(Reason::NoPadFits, {Sim::ReasonArgument::Entity(stationEntity)});
+	if (!command.feature.empty() && std::ranges::none_of(
+	                                    station.pads,
+	                                    [&](entt::entity pad)
+	                                    {
+		                                    const Pad &candidate = registry.get<Pad>(pad);
+		                                    return !candidate.display &&
+		                                           Fits(*hull, candidate.padClass) &&
+		                                           Offers(registry, pad, command.feature);
+	                                    }))
+		return refuse(Reason::NoPadOffers, {Sim::ReasonArgument::Entity(stationEntity)});
 
 	station.queue.push_back(ship);
-	registry.emplace<Docking>(ship, Docking{stationEntity, entt::null, Stage::Queued, command.fly});
+	registry.emplace<Docking>(
+	    ship, Docking{stationEntity, entt::null, Stage::Queued, command.fly, command.feature});
 	Serve(world, stationEntity, world.Clock().Now());
 	const std::vector<entt::entity> &queue = registry.get<Station>(stationEntity).queue;
 	if (const auto place = std::ranges::find(queue, ship); place != queue.end())
@@ -498,11 +526,14 @@ entt::entity Docks::FreePadFor(
 	const HullDefinition *hull = HullOf(registry, ship);
 	if (!hull)
 		return entt::null;
+	const auto *docking = registry.try_get<Docking>(ship);
+	const std::string_view feature = docking ? std::string_view{docking->feature} : std::string_view{};
 	entt::entity best = entt::null;
 	for (const entt::entity padEntity : station.pads)
 	{
 		const Pad &pad = registry.get<Pad>(padEntity);
-		if (pad.state != PadState::Free || pad.display || !Fits(*hull, pad.padClass))
+		if (pad.state != PadState::Free || pad.display || !Fits(*hull, pad.padClass) ||
+		    (!feature.empty() && !Offers(registry, padEntity, feature)))
 			continue;
 		// In number order, so the first of a class is the lowest numbered.
 		if (best == entt::null ||

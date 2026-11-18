@@ -394,3 +394,44 @@ TEST_CASE("BinaryRecord: a value's fields edited as bytes, then read as the type
 	CHECK_THROWS_AS(first.Remove("mass"), std::logic_error);
 	CHECK_THROWS_AS(first.Rename("label", "crates"), std::logic_error);
 }
+
+
+TEST_CASE("Migration: a step edits the record a document begins with, and what follows it is kept")
+{
+	RegisterTypes();
+	// Version 2's cargo, and a count after it that the step knows nothing of.
+	BinaryWriter writer{kCargo};
+	writer.Write(CargoV2{"Halcyon ore", 40});
+	writer.WriteUnsigned(0xfeedu, 4);
+	BinaryDocument document = BinaryDocument::Parse(writer.Finish({2}), kCargo);
+	const std::size_t names = document.names.size();
+
+	document.EditFirstRecord([](BinaryRecord &record)
+	                         { record.Set("origin", OriginOf(record.Get<std::string>("label"))); });
+	document.version = 3;
+	CHECK(document.names.size() == names + 1);
+	const std::vector<std::byte> edited = document.Emit();
+	BinaryReader reader{edited, kCargo, {3}};
+	Cargo cargo;
+	reader.Read(cargo);
+	CHECK(cargo.label == "Halcyon ore");
+	CHECK(cargo.tonnes == 40);
+	CHECK(cargo.origin == "Halcyon");
+	CHECK(reader.ReadUnsigned(4) == 0xfeedu);
+	reader.End();
+
+	// An edit that throws leaves the document as it was, and a payload that begins with no record
+	// is refused.
+	const std::vector<std::byte> before = document.Emit();
+	CHECK_THROWS_AS(
+	    document.EditFirstRecord(
+	        [](BinaryRecord &record)
+	        {
+		        record.Remove("label");
+		        record.Remove("label");
+	        }),
+	    std::logic_error);
+	CHECK(document.Emit() == before);
+	BinaryDocument empty = BinaryDocument::Parse(BinaryWriter{kCargo}.Finish({3}), kCargo);
+	CHECK_THROWS_AS(empty.EditFirstRecord([](BinaryRecord &) {}), FormatError);
+}

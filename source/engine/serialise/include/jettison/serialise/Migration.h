@@ -21,12 +21,15 @@ class Node;
 
 namespace Jettison::Serialise
 {
+class BinaryRecord;
+
 // A binary archive opened for a migration to edit: the layout BinaryWriter::Finish writes
 // (Archive.h), as its format's name, its version, its table of names and its payload. Fields and
 // enumerators are found by name, so renaming a field, a component, a command or an enumerator is
 // an edit to the table alone (Rename); a change that adds to the payload, as the world's version 2
-// added its services' state after the components, appends to it. A change inside a value needs the
-// types that wrote it, and is the migration of whoever has them.
+// added its services' state after the components, appends to it. A change inside the class's value
+// the payload begins with, as a save game's info is, is an edit of its record (EditFirstRecord); one
+// inside any other value needs the types that wrote it, and is the migration of whoever has them.
 struct BinaryDocument
 {
 	std::string format;
@@ -45,6 +48,12 @@ struct BinaryDocument
 	// type. Throws std::logic_error if the document does not use the name, or already uses the new
 	// one, which would merge the two.
 	void Rename(std::string_view from, std::string_view to);
+
+	// The class's value the payload begins with, given to the edit as a record (Binary.h) and written
+	// back as the edit leaves it, the names it added joining the table. Throws FormatError for a
+	// payload that does not begin with one; the edit's own error is the edit's, and leaves the
+	// document as it was.
+	void EditFirstRecord(const std::function<void(BinaryRecord &)> &edit);
 };
 
 // The version a binary archive of the format says it is, read from its header alone. Throws

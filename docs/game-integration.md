@@ -16,7 +16,8 @@ The small space-trading example may remain in this repository to exercise engine
 and support automated testing. Put its rules, registration, scripts and content in
 explicit sample/test targets outside `source/engine`. The neutral engine cannot depend
 on them. The example is neither Manifest's production implementation nor a second
-economy that must grow in parallel with it. Reusable renderer resources remain engine
+economy that must grow in parallel with it. It has one rule beyond trading, damage and its
+repair in a dry dock (2026-11-18, the user's decision), there to exercise a pad's features. Reusable renderer resources remain engine
 assets; example markets, galaxies, ships, music and trading screens are sample assets.
 
 ## Check Manifest before implementing capabilities

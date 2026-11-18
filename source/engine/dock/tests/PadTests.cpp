@@ -1,6 +1,7 @@
 #include "Fixture.h"
 
 #include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Archive.h>
 #include <jettison/serialise/Binary.h>
 
 #include <doctest/doctest.h>
@@ -17,8 +18,8 @@ using DockTests::Fixture;
 
 namespace
 {
-// A yard of every kind of pad on one deck 400 m square, on Highport's rails: 1 M, 2 S, 3 L, 4 an S
-// for display, 5 M. A reservation is held two seconds.
+// A yard of every kind of pad on one deck 400 m square, on Highport's rails: 1 frigate, 2 corvette, 3
+// destroyer, 4 a corvette for display, 5 frigate. A reservation is held two seconds.
 Dock::StationLayout YardLayout()
 {
 	Dock::StationLayout yard;
@@ -26,11 +27,11 @@ Dock::StationLayout YardLayout()
 	yard.reservationSeconds = 2.0f;
 	yard.decks = {{{0.0, 0.0, 0.0}, {400.0, 20.0, 400.0}}};
 	yard.pads = {
-	    {"M", {-100.0, 10.0, -100.0}},
-	    {"S", {100.0, 10.0, -100.0}},
-	    {"L", {0.0, 10.0, 100.0}, {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0}},
-	    {"S", {100.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}, true},
-	    {"M", {-100.0, 10.0, 0.0}},
+	    {"frigate", {-100.0, 10.0, -100.0}},
+	    {"corvette", {100.0, 10.0, -100.0}},
+	    {"destroyer", {0.0, 10.0, 100.0}, {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0}},
+	    {"corvette", {100.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}, true},
+	    {"frigate", {-100.0, 10.0, 0.0}},
 	};
 	return yard;
 }
@@ -46,10 +47,10 @@ struct Yard : Fixture
 	{
 		for (const auto &[name, padClass] : DockTests::SampleClasses())
 			docks.DefinePadClass(name, padClass);
-		docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "S", {}});
-		docks.DefineHull("hauler", {"Hauler", 50.0f, 25.0f, 12.0f, "M", {}});
-		docks.DefineHull("barge", {"Barge", 130.0f, 45.0f, 25.0f, "L", {}});
-		docks.DefineHull("liner", {"Liner", 280.0f, 70.0f, 50.0f, "XL", {}});
+		docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "corvette", {}});
+		docks.DefineHull("hauler", {"Hauler", 50.0f, 25.0f, 12.0f, "frigate", {}});
+		docks.DefineHull("barge", {"Barge", 130.0f, 45.0f, 25.0f, "destroyer", {}});
+		docks.DefineHull("liner", {"Liner", 280.0f, 70.0f, 50.0f, "cruiser", {}});
 		docks.DefineLayout("yard", YardLayout());
 		station = docks.MakeStation(world, DockTests::kHalcyon, DockTests::kHighport, "yard");
 	}
@@ -113,7 +114,8 @@ TEST_CASE("Docks: two ships asking in one step are given pads in command order, 
 		yard.Step();
 		return std::pair{yard.Given(), std::pair{first, second}};
 	};
-	// The smallest free pad a skiff fits is pad 2, the S; then the M pads, lowest numbered first.
+	// The smallest free pad a skiff fits is pad 2, the corvette; then the frigate pads, lowest numbered
+	// first.
 	const auto [given, ships] = ask(false);
 	CHECK(
 	    given ==
@@ -126,7 +128,9 @@ TEST_CASE("Docks: two ships asking in one step are given pads in command order, 
 }
 
 
-TEST_CASE("Docks: a hull that fits only an L pad is never given an M one, and waits for the L")
+TEST_CASE(
+    "Docks: a hull that fits only a destroyer pad is never given a frigate one, and waits for the "
+    "destroyer")
 {
 	Yard yard;
 	const entt::entity barge = yard.Waiting("barge");
@@ -139,7 +143,7 @@ TEST_CASE("Docks: a hull that fits only an L pad is never given an M one, and wa
 	REQUIRE(queued.size() == 1);
 	CHECK(queued[0].ship == second);
 	CHECK(queued[0].place == 1);
-	// Both M pads are still free.
+	// Both frigate pads are still free.
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 1)).state == Dock::PadState::Free);
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 5)).state == Dock::PadState::Free);
 }
@@ -181,6 +185,124 @@ TEST_CASE("Docks: a game's own pad classes, a compact berth below a bay, are giv
 }
 
 
+TEST_CASE("Docks: a class ranked above or level with a larger one is not given its hulls")
+{
+	DockTests::Fixture fixture{false};
+	Dock::Docks &docks = fixture.docks;
+	// Each is a class by itself; the ranks are the game's, and these do not follow the sizes.
+	docks.DefinePadClass("long", {0, {140.0f, 50.0f, 30.0f}, {80.0f, 180.0f}});
+	docks.DefinePadClass("short", {1, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}});
+	docks.DefinePadClass("level", {0, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}});
+	docks.DefineHull("barge", {"Barge", 130.0f, 45.0f, 25.0f, "long", {}});
+	docks.DefineHull("pod", {"Pod", 18.0f, 12.0f, 5.0f, "level", {}});
+	CHECK_FALSE(docks.Fits(*docks.FindHull("barge"), "short"));
+	CHECK_FALSE(docks.Fits(*docks.FindHull("barge"), "level"));
+	CHECK(docks.Fits(*docks.FindHull("barge"), "long"));
+	// Level in rank and within its largest hull: a pod lands on a long pad, and on a short one.
+	CHECK(docks.Fits(*docks.FindHull("pod"), "long"));
+	CHECK(docks.Fits(*docks.FindHull("pod"), "short"));
+
+	Dock::StationLayout dock;
+	dock.displayName = "Dock";
+	dock.decks = {{{0.0, 0.0, 0.0}, {400.0, 20.0, 400.0}}};
+	dock.pads = {{"short", {0.0, 10.0, 0.0}}};
+	docks.DefineLayout("dock", dock);
+	const entt::entity station =
+	    docks.MakeStation(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "dock");
+	const entt::entity barge = fixture.Ship(station, "barge", {0.0, 2000.0, 0.0});
+	fixture.world.Commands().Push(Dock::RequestPad{{}, barge, station, false});
+	fixture.Step();
+	CHECK(fixture.NumberOf(barge) == 0);
+	REQUIRE(fixture.Events<Dock::PadRefused>().size() == 1);
+	CHECK(fixture.Events<Dock::PadRefused>()[0].reason.key == "reason.dock.no_pad_fits");
+}
+
+
+TEST_CASE("Docks: a ship asking for a feature is given only a pad that offers it, and queues for one")
+{
+	DockTests::Fixture fixture{false};
+	Dock::Docks &docks = fixture.docks;
+	for (const auto &[name, padClass] : DockTests::SampleClasses())
+		docks.DefinePadClass(name, padClass);
+	docks.DefineHull("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "corvette", {}});
+	// Pad 1 a plain corvette's, pad 2 a frigate's that offers a dry dock, pad 3 one for display that
+	// says it does, which no ship is given.
+	Dock::StationLayout yard;
+	yard.displayName = "Yard";
+	yard.decks = {{{0.0, 0.0, 0.0}, {400.0, 20.0, 400.0}}};
+	yard.pads = {
+	    {"corvette", {-100.0, 10.0, 0.0}},
+	    {"frigate", {0.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}, false, {}, {"dry-dock"}},
+	    {"corvette", {100.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}, true, {}, {"dry-dock"}},
+	};
+	docks.DefineLayout("yard", yard);
+	const entt::entity station =
+	    docks.MakeStation(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "yard");
+	const entt::registry &registry = fixture.world.Registry();
+	CHECK_FALSE(docks.Offers(registry, fixture.PadNumbered(station, 1), "dry-dock"));
+	CHECK(docks.Offers(registry, fixture.PadNumbered(station, 2), "dry-dock"));
+	CHECK_FALSE(docks.Offers(registry, fixture.PadNumbered(station, 2), "paint"));
+	CHECK_FALSE(docks.Offers(registry, station, "dry-dock"));
+
+	// The first is given the dry dock over the smaller free pad, which the second, asking for none,
+	// takes; the third waits for the dry dock; the fourth asks for what no pad offers.
+	const entt::entity first = fixture.Ship(station, "skiff", {0.0, 2000.0, 0.0});
+	const entt::entity second = fixture.Ship(station, "skiff", {300.0, 2000.0, 0.0});
+	const entt::entity third = fixture.Ship(station, "skiff", {600.0, 2000.0, 0.0});
+	const entt::entity fourth = fixture.Ship(station, "skiff", {900.0, 2000.0, 0.0});
+	fixture.world.Commands().Push(Dock::RequestPad{{}, first, station, false, "dry-dock"});
+	fixture.world.Commands().Push(Dock::RequestPad{{}, second, station, false});
+	fixture.world.Commands().Push(Dock::RequestPad{{}, third, station, false, "dry-dock"});
+	fixture.world.Commands().Push(Dock::RequestPad{{}, fourth, station, false, "paint"});
+	fixture.Step();
+	CHECK(fixture.NumberOf(first) == 2);
+	CHECK(fixture.NumberOf(second) == 1);
+	CHECK(fixture.NumberOf(third) == 0);
+	CHECK(registry.get<Dock::Docking>(third).stage == Dock::Stage::Queued);
+	CHECK_FALSE(registry.all_of<Dock::Docking>(fourth));
+	REQUIRE(fixture.Events<Dock::PadRefused>().size() == 1);
+	CHECK(fixture.Events<Dock::PadRefused>()[0].ship == fourth);
+	CHECK(fixture.Events<Dock::PadRefused>()[0].reason.key == "reason.dock.no_pad_offers");
+
+	// The plain pad coming free is not the third's; the dry dock is.
+	fixture.world.Commands().Push(Dock::ReleasePad{{}, second});
+	fixture.Step();
+	CHECK(fixture.NumberOf(third) == 0);
+	fixture.world.Commands().Push(Dock::ReleasePad{{}, first});
+	fixture.Step();
+	CHECK(fixture.NumberOf(third) == 2);
+
+	CHECK(registry.get<Dock::Docking>(third).feature == "dry-dock");
+}
+
+
+TEST_CASE("Dock definitions: a layout's pad keeps its features through its file")
+{
+	Dock::RegisterTypes();
+	Dock::StationLayout layout;
+	layout.decks = {{{0.0, 0.0, 0.0}, {200.0, 20.0, 200.0}}};
+	layout.pads = {
+	    {"frigate",
+	     {0.0, 10.0, 0.0},
+	     {0.0, 1.0, 0.0},
+	     {0.0, 0.0, -1.0},
+	     false,
+	     {},
+	     {"dry-dock", "fuel"}},
+	    {"frigate", {0.0, 10.0, 90.0}}};
+	const auto read = Serialise::YamlArchive::Read<Dock::StationLayout>(
+	    Serialise::YamlArchive::Write(layout, {Dock::kDefinitionVersion}), {Dock::kDefinitionVersion});
+	REQUIRE(read.pads.size() == 2);
+	CHECK(read.pads[0].features == std::vector<std::string>{"dry-dock", "fuel"});
+	CHECK(read.pads[1].features.empty());
+	// A file that leaves the field out, as every one written before it does, reads as offering none.
+	const auto bare = Serialise::YamlArchive::Read<Dock::StationLayout>(
+	    "version: 1\npads:\n  - {class: frigate, position: [0, 10, 0]}\n", {Dock::kDefinitionVersion});
+	REQUIRE(bare.pads.size() == 1);
+	CHECK(bare.pads[0].features.empty());
+}
+
+
 TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 {
 	Yard yard;
@@ -194,8 +316,8 @@ TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 	for (const entt::entity ship : {first, second, barge, waiting, skiff, small, last})
 		yard.Ask(ship);
 	yard.Step();
-	// The skiff behind the waiting hauler takes the S pad, which the hauler does not fit; the next
-	// skiff finds nothing, the display pad being no one's.
+	// The skiff behind the waiting hauler takes the corvette pad, which the hauler does not fit; the
+	// next skiff finds nothing, the display pad being no one's.
 	CHECK(
 	    yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{
 	                        {first, 1}, {second, 5}, {barge, 3}, {skiff, 2}});
@@ -221,7 +343,7 @@ TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 TEST_CASE("Docks: a reservation not landed on in time lapses, and the pad goes to the next in line")
 {
 	Yard yard;
-	// The M and L pads held by ships parked on them, which hold them for good.
+	// The frigate and destroyer pads held by ships parked on them, which hold them for good.
 	for (const auto &[hull, number] :
 	     std::vector<std::pair<std::string, std::uint32_t>>{{"hauler", 1}, {"hauler", 5}, {"barge", 3}})
 		yard.docks.Park(yard.world, yard.Waiting(hull), yard.PadNumbered(yard.station, number));

@@ -131,6 +131,9 @@ std::string PadName(std::size_t index)
 const PadClassDefinition &PadClassOf(
     const PadClasses &classes, std::string_view padClass, std::string_view namedBy)
 {
+	// No class is a default: the classes are the game's, so a file has to name one.
+	if (padClass.empty())
+		throw Serialise::FormatError{std::format("{} names no pad class", namedBy)};
 	const auto found = classes.find(padClass);
 	if (found == classes.end())
 		throw Serialise::FormatError{

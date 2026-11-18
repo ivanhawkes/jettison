@@ -184,7 +184,7 @@ edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
 neutral module depends on it. The configure holds them to that: `jettison_check_optional` stops it
-when any engine module links a sample's target, and when a module other than `celestial`, `space`, `spacescene`, `dock` and `app` has one of the first
+when any engine module links a sample's target, through any target and whatever either is called, and when a module other than `celestial`, `space`, `spacescene`, `dock` and `app` has one of the first
 three in its link closure or includes one's header in its public headers, and a module added later
 is neutral unless it is listed there. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
 search, courses round spheres (`ai/Courses.h`) and steering.
@@ -548,13 +548,18 @@ A station's pads are the simulation's (`dock/Docks.h`, 9c, catalogue entry 31,
 the same, so it is given by commands in their order, saved, and nothing in the module assumes one
 player. Its data are definitions: a pad class (`defs/pads`, `Dock::PadClassDefinition`, W01) has
 the largest hull it takes, its pad's size and its rank, a hull fitting a pad of its own class or one
-ranked above it, so a game's classes, a compact berth among them, need no engine edit; a hull
+ranked above it whose largest hull holds it (`Docks::Fits`: the rank orders the choice, the size is
+the limit), so a game's classes, a compact berth among them, need no engine edit; a hull
 (`defs/hulls`, `Dock::HullDefinition`) has a size, within its class's largest hull, the class of
 pad it lands on and its cargo hatch, and collides as the box of its size; a station's
 layout (`defs/stations`, `Dock::StationLayout`), which a station names in its system's file
 (`Celestial::Body::layout`), has its decks and piers as boxes, which the station collides as, its
-pads (class, place, normal, heading, and whether it is for display, with the hull it shows) and its
-cargo bays, each the middle of its door's sill on the deck. A layout is checked as it is defined:
+pads (class, place, normal, heading, the features it offers, and whether it is for display, with the
+hull it shows) and its cargo bays, each the middle of its door's sill on the deck. A pad's features
+are names of the game's (the sample's `dry-dock`): a ship that asks for one
+(`RequestPad::feature`) is given only a pad that offers it, the smallest free, and queues for one or
+is refused where none does; what a feature is for is the game's, and a pad saves none
+(`Docks::Offers` reads the layout). A layout is checked as it is defined:
 every pad all on a deck or a pier, none overlapping another, nothing of the station over any, out to
 the sphere that holds it all, and a ship shown only on a display pad. A display pad's ship is
 presentation's, drawn on it and never a body: no ship is given the pad, and `Park` refuses it.
@@ -597,9 +602,10 @@ intensity that puts 1.6 on it (half the sun's irradiance), and a lamp under its 
 layer showing the pad's state. The pads are shown in the snapshots (`Docks::Attach`), so the lamps
 are turned from what presentation may see, never from the world: green free, amber reserved, red
 holding a ship, blue on display. Each bay has its door, a panel up from its sill or a hatch in the
-deck. A ship's proxy, a parked ship's or a display pad's, is its class's, made of procedural shapes
-fitted to its hull's box, or the hull's own glTF model when it names one (`HullDefinition::model`).
-Highport carries 104 floodlights: six on each L pad, eight on each XL and four on each S, every one
+deck. A ship's proxy, a parked ship's or a display pad's, is one of four chosen by its hull's length,
+made of procedural shapes fitted to its hull's box, or the hull's own glTF model when it names one
+(`HullDefinition::model`). Highport carries 104 floodlights: six on each destroyer pad, eight on each
+cruiser bay and four on each corvette pad, every one
 reaching no further than 900 m from the station's centre.
 
 **Docking clamps** (10d) are the dressing's too, four to a pad (`App::PadClamps`): each a post that
@@ -626,7 +632,7 @@ wherever the leg lies on the deck, passes through nothing of the station and cro
 legs join a road are its nodes. Each pad is routed once, by A* (9a), from the bay nearest it by road,
 and a layout with bays is refused if a pad ships land on is not reached. Highport's twelve pads are
 each served from the bay at their pier's root, 90.6, 396.8 and 606.8 m to the hatch from the first
-pad out to the third; Corva's S pads on its hub's top from the hatch between them.
+pad out to the third; Corva's corvette pads on its hub's top from the hatch between them.
 
 A game's trade settles its crates and its price at once, then calls `Dock::Carry`, which gives the
 docked ship a `Dock::Transfer`: crates in the bay still to go aboard and crates in the hold still to
@@ -723,7 +729,8 @@ migrations and leaves the save game's format and the game's sections alone. The 
 its own state (`Shell.State`) and what scripts keep by key (`Script.Store`, [scripts](#scripts)); its
 details are the galaxy's file, which a load must match, and the system shown (`galaxy`, `system`),
 which the save game's version 1 held as fields of the info and its step to version 2 (A01) moves
-into the details.
+into the details, an edit of the record the save begins with (`BinaryDocument::EditFirstRecord`), so
+the chain alone brings a version 1 save up.
 
 Every versioned format reads its earlier versions through a chain of migrations
 (`serialise/Migration.h`), a step from each version to the next, written once, when its version is
@@ -2042,7 +2049,8 @@ proves it headlessly. What exists:
 - **Docks** (`engine/dock`, 9c to 9e). Hulls and station layouts as definitions, stations built to
   them with their pads, pads given, queued and lapsing, the approach and the clamp, and the deck's
   roads and buggies carrying a docked ship's cargo ([as above](#docks)). The shell builds every
-  station of the galaxy that names a layout at the start, Ostra Highport with twelve L pads and
-  Corva Refinery with four M and two S, parks three ships at each, and dresses each layout
+  station of the galaxy that names a layout at the start, Ostra Highport with twelve destroyer pads
+  and Corva Refinery with four frigate and two corvette, parks three ships at each, and dresses each
+  layout
   (`app/src/Dressing.h`, 9d), its roads painted and its buggies drawn from the snapshots; a trade's
   crates cross the deck before the ship may leave.

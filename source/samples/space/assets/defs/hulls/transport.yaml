@@ -1,11 +1,11 @@
-# A transport, the M pads' ship: up to 60 x 30 x 15 m, and this one is nearly that. A hull of the
+# A transport, the frigate pads' ship: up to 60 x 30 x 15 m, and this one is nearly that. A hull of the
 # docks (Dock.HullDefinition): metres, its nose along -Z.
 version: 1
 displayName: Transport
 length: 56
 beam: 28
 height: 14
-pad: M
+pad: frigate
 hatch: [0, -7, 12]
 # Its cruises across a system (Ai.CruiseDrive): 45 s for 100,000 km, rising as the distance's
 # fourth root.

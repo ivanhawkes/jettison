@@ -110,7 +110,10 @@ void RegisterTypes()
 		    .Value<TradeReason::NotForSale>("not_for_sale")
 		    .Value<TradeReason::NoneDocked>("none_docked")
 		    .Value<TradeReason::NoPadFree>("no_pad_free")
-		    .Value<TradeReason::ShortOfPrice>("short_of_price");
+		    .Value<TradeReason::ShortOfPrice>("short_of_price")
+		    .Value<TradeReason::NotDamaged>("not_damaged")
+		    .Value<TradeReason::NotInDryDock>("not_in_dry_dock")
+		    .Value<TradeReason::ShortOfRepair>("short_of_repair");
 		return true;
 	}();
 	(void)registered;

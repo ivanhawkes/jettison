@@ -27,10 +27,12 @@ namespace Jettison::Dock
 // A class of pad (Manifest's D-044: a berth's size is the game's data, not the engine's): the largest
 // hull that lands on one, length by beam by height in metres; a pad's width (across its heading) and
 // length (along it), with room on each side of that hull for a clamp's reach and a road beside it;
-// and its rank among the classes. A hull lands on a pad of its own class or of one ranked above it,
-// so one too large for a class is never given its pads. defs/pads/<name>.yaml; the space sample's
-// are S, M, L and XL, a fighter's to a liner's. Registered with Reflect as "Dock.PadClassDefinition",
-// every field Saved and Moddable, by RegisterTypes.
+// and its rank among the classes. A hull lands on a pad of its own class or of one ranked above it
+// that holds it (Docks::Fits), the lowest ranked first: the rank orders the choice and the largest
+// hull is the limit, so a class ranked above a smaller one is never given the larger one's hulls.
+// defs/pads/<name>.yaml; the space sample's are corvette, frigate, destroyer and cruiser, a fighter's
+// to a liner's. Registered with Reflect as "Dock.PadClassDefinition", every field Saved and Moddable,
+// by RegisterTypes.
 struct PadClassDefinition
 {
 	std::uint32_t rank{0};
@@ -86,6 +88,10 @@ struct Box
 // axes. A display pad is the layout's dressing, and no ship is given it: the ship it shows is a
 // hull drawn on it by presentation (the station dressing), not a body, so it is named by its hull
 // alone, and only a display pad names one. Pads are numbered from 1 in the layout's order.
+//
+// A pad's features are what it offers besides a place to land, by names that are the game's (the
+// space sample's "dry-dock", where a ship is repaired): the docks give a ship that asks for one a
+// pad that offers it (RequestPad::feature) and know nothing of what it is for.
 // Registered with Reflect as "Dock.PadLayout", every field Saved and Moddable.
 struct PadLayout
 {
@@ -96,6 +102,7 @@ struct PadLayout
 	glm::dvec3 heading{0.0, 0.0, -1.0};
 	bool display{false};
 	std::string ship{};
+	std::vector<std::string> features{};
 };
 
 // A cargo bay's door, which buggies carry crates between and a ship's hatch: the middle of its

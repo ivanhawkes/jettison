@@ -118,7 +118,7 @@ struct SaveGame
 	static SaveInfo ReadInfo(std::span<const std::byte> bytes);
 
 	// The save game format's migrations. Version 2 (A01) moved the info's galaxy and system into its
-	// details, a step of the info's record that Read and ReadInfo take for a save of version 1.
+	// details, a step over the info's record at the front of the save.
 	static const Serialise::BinaryMigrations &Migrations();
 };
 

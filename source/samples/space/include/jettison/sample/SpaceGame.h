@@ -43,8 +43,8 @@ class SpaceGame final : public App::Game
 	    const Sim::DefinitionRegistry &definitions, Script::ScriptHost &scripts) override;
 
 	// The sample's ships parked on two or three pads of each station, leaving at least two free, so a
-	// ship flown to one finds some taken: heavy transports on three of Highport's twelve L pads, and
-	// at Corva two transports on M pads and a fighter on an S.
+	// ship flown to one finds some taken: heavy transports on three of Highport's twelve destroyer
+	// pads, and at Corva two transports on frigate pads and a fighter on a corvette.
 	void StationOpened(
 	    Sim::SimWorld &world, Dock::Docks &docks, entt::entity station, std::string_view body) override;
 
@@ -56,15 +56,16 @@ class SpaceGame final : public App::Game
 	// enough to fill most of the hold with what the station has to spare.
 	void FitShip(entt::registry &world, entt::entity ship, const Sim::Controller &player) override;
 
-	// Purses kept on ships before they were their owners', and a ship saved before the helm (13d).
+	// Purses kept on ships before they were their owners', pads of the classes' old names, and a ship
+	// saved before the helm (13d).
 	void Loaded(entt::registry &world, entt::entity ship, const Sim::Controller &player) override;
 
-	// traders, buy, trade and market.
+	// traders, buy, trade, drydock, repair and market.
 	void AddCommands(DevTools::Console &console, App::Shell &shell) override;
 
 	void OpenUi(Ui::UiSystem &ui, App::Shell &shell) override;
 
-	// M shows and hides the market screen; Escape hides it.
+	// frigate shows and hides the market screen; Escape hides it.
 	void PollInput(const Input::InputSystem &input, App::Shell &shell) override;
 
 	bool Back(App::Shell &shell) override;
@@ -72,7 +73,7 @@ class SpaceGame final : public App::Game
 	// The market screen made again from the snapshot, when the step or what the shell shows moved.
 	void UpdateUi(App::Shell &shell) override;
 
-	// A trade's answer, shown on the screen, and a ship bought, followed.
+	// A trade's answer, shown on the screen, a ship bought, followed, and a repair's answer.
 	void TakeEvent(const Sim::SimEvent &event, App::Shell &shell) override;
 
 	// A market by its station, and a good by its name.

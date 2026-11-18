@@ -15,10 +15,10 @@ namespace
 {
 Dock::StationLayout Slab()
 {
-	// A deck 200 m square with its top at y = 10, and one M pad on it.
+	// A deck 200 m square with its top at y = 10, and one frigate pad on it.
 	Dock::StationLayout layout;
 	layout.decks = {{{0.0, 0.0, 0.0}, {200.0, 20.0, 200.0}}};
-	layout.pads = {{"M", {0.0, 10.0, 0.0}}};
+	layout.pads = {{"frigate", {0.0, 10.0, 0.0}}};
 	return layout;
 }
 
@@ -59,20 +59,21 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 	const Dock::HullDefinition *shuttle = docks.FindHull("shuttle");
 	REQUIRE(shuttle);
 	CHECK(docks.DefinedPadClasses() == DockTests::SampleClasses());
-	CHECK(shuttle->pad == "S");
+	CHECK(shuttle->pad == "corvette");
 	CHECK(fixture.physics.HasShape(Dock::Docks::HullShape("shuttle")));
 	REQUIRE(docks.FindHull("heavy-transport"));
-	CHECK(docks.FindHull("heavy-transport")->pad == "L");
+	CHECK(docks.FindHull("heavy-transport")->pad == "destroyer");
 
-	// Twelve L pads at Highport, a kilometre and a half across: within the 2 km cluster range from
-	// its centre, and inside the gates at 5 and 6 km. Its display wing's six beyond them, two XL bays
-	// and four S pads, each showing a hull that fits it, inside the sphere the piers make.
+	// Twelve destroyer pads at Highport, a kilometre and a half across: within the 2 km cluster range
+	// from its centre, and inside the gates at 5 and 6 km. Its display wing's six beyond them, two
+	// cruiser bays and four corvette pads, each showing a hull that fits it, inside the sphere the
+	// piers make.
 	const Dock::StationLayout *highport = docks.FindLayout("ostra-highport");
 	REQUIRE(highport);
 	REQUIRE(highport->pads.size() == 18);
 	for (std::size_t index = 0; index < 12; ++index)
 	{
-		CHECK(highport->pads[index].padClass == "L");
+		CHECK(highport->pads[index].padClass == "destroyer");
 		CHECK(!highport->pads[index].display);
 		CHECK(highport->pads[index].ship.empty());
 	}
@@ -84,9 +85,9 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 		REQUIRE(shown);
 		CHECK(docks.Fits(*shown, pad.padClass));
 	}
-	CHECK(std::ranges::count(highport->pads, "XL", &Dock::PadLayout::padClass) == 2);
-	CHECK(docks.FindHull("liner")->pad == "XL");
-	CHECK(docks.FindHull("frigate")->pad == "XL");
+	CHECK(std::ranges::count(highport->pads, "cruiser", &Dock::PadLayout::padClass) == 2);
+	CHECK(docks.FindHull("liner")->pad == "cruiser");
+	CHECK(docks.FindHull("cruiser")->pad == "cruiser");
 	CHECK(Dock::Radius(*highport) == doctest::Approx(762.4).epsilon(0.001));
 	// Its deck as the station collides: twelve triangles a box, every one facing out of its box.
 	const Physics::ShapeDefinition deck = Dock::DeckShape(*highport);
@@ -106,11 +107,11 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 		CHECK(glm::dot(glm::cross(b - a, c - a), (a + b + c) / 3.0 - centre) > 0.0);
 	}
 
-	// Four M pads and two S at Corva, 600 m across.
+	// Four frigate pads and two corvette at Corva, 600 m across.
 	const Dock::StationLayout *corva = docks.FindLayout("corva-refinery");
 	REQUIRE(corva);
-	CHECK(std::ranges::count(corva->pads, "M", &Dock::PadLayout::padClass) == 4);
-	CHECK(std::ranges::count(corva->pads, "S", &Dock::PadLayout::padClass) == 2);
+	CHECK(std::ranges::count(corva->pads, "frigate", &Dock::PadLayout::padClass) == 4);
+	CHECK(std::ranges::count(corva->pads, "corvette", &Dock::PadLayout::padClass) == 2);
 	CHECK(Dock::Radius(*corva) == doctest::Approx(302.8).epsilon(0.001));
 }
 
@@ -118,14 +119,14 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 TEST_CASE(
     "Dock definitions: a hull larger than its pad's largest, or with its hatch outside it, is refused")
 {
-	Dock::HullDefinition fighter{"Fighter", 18.0f, 14.0f, 5.0f, "S", {0.0f, -2.5f, 4.0f}};
+	Dock::HullDefinition fighter{"Fighter", 18.0f, 14.0f, 5.0f, "corvette", {0.0f, -2.5f, 4.0f}};
 	CHECK(Refusal(fighter).empty());
 	Dock::HullDefinition longer = fighter;
 	longer.length = 26.0f;
 	CHECK(
 	    Refusal(longer) ==
 	    "Hull 'hull' is 26 x 14 x 5 m, larger than its pad's largest hull, 25 x 20 x 8 m");
-	longer.pad = "M";
+	longer.pad = "frigate";
 	CHECK(Refusal(longer).empty());
 	Dock::HullDefinition flat = fighter;
 	flat.height = 0.0f;
@@ -151,9 +152,9 @@ TEST_CASE("Dock definitions: a pad off its deck, under it, overlapping another o
 	under.pads[0].normal = {0.0, -1.0, 0.0};
 	CHECK(Refusal(under).empty());
 
-	// Two M pads end to end along the deck, 90 m long each, and then one moved onto the other.
+	// Two frigate pads end to end along the deck, 90 m long each, and then one moved onto the other.
 	Dock::StationLayout two = Slab();
-	two.pads = {{"M", {0.0, 10.0, -50.0}}, {"M", {0.0, 10.0, 50.0}}};
+	two.pads = {{"frigate", {0.0, 10.0, -50.0}}, {"frigate", {0.0, 10.0, 50.0}}};
 	CHECK(Refusal(two).empty());
 	two.pads[1].position.z = 30.0;
 	CHECK(Refusal(two) == "Station layout 'slab' pad 2 overlaps pad 1");
@@ -214,6 +215,8 @@ TEST_CASE("Dock definitions: a pad class too small for its hull, or a class not 
 
 	Dock::HullDefinition pod{"Pod", 5.0f, 3.0f, 2.0f, "berth", {}};
 	CHECK(Refusal(pod) == "Hull 'hull' names pad class 'berth', which is not defined");
+	pod.pad.clear();
+	CHECK(Refusal(pod) == "Hull 'hull' names no pad class");
 	Dock::StationLayout slab = Slab();
 	slab.pads[0].padClass = "berth";
 	CHECK(
@@ -223,7 +226,7 @@ TEST_CASE("Dock definitions: a pad class too small for its hull, or a class not 
 
 TEST_CASE("Dock definitions: a pad's orientation has its normal up and its heading ahead")
 {
-	const Dock::PadLayout pad{"L", {220.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0}};
+	const Dock::PadLayout pad{"destroyer", {220.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0}};
 	const glm::dquat turn = Dock::PadOrientation(pad);
 	CHECK(glm::distance(turn * glm::dvec3{0.0, 1.0, 0.0}, pad.normal) < 1.0e-9);
 	CHECK(glm::distance(turn * glm::dvec3{0.0, 0.0, -1.0}, pad.heading) < 1.0e-9);

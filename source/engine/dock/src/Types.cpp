@@ -61,7 +61,8 @@ void RegisterTypes()
 		    .Field<&PadLayout::normal>("normal", kDefined)
 		    .Field<&PadLayout::heading>("heading", kDefined)
 		    .Field<&PadLayout::display>("display", kDefined)
-		    .Field<&PadLayout::ship>("ship", kDefined);
+		    .Field<&PadLayout::ship>("ship", kDefined)
+		    .Field<&PadLayout::features>("features", kDefined);
 		RegisterType<Bay>("Dock.Bay")
 		    .Field<&Bay::position>("position", kDefined)
 		    .Field<&Bay::normal>("normal", kDefined);
@@ -106,7 +107,8 @@ void RegisterTypes()
 		    .Field<&Docking::station>("station", Attribute::Saved)
 		    .Field<&Docking::pad>("pad", Attribute::Saved)
 		    .Field<&Docking::stage>("stage", Attribute::Saved)
-		    .Field<&Docking::fly>("fly", Attribute::Saved);
+		    .Field<&Docking::fly>("fly", Attribute::Saved)
+		    .Field<&Docking::feature>("feature", Attribute::Saved);
 
 		RegisterType<Transfer>("Dock.Transfer")
 		    .Field<&Transfer::aboard>("aboard", Attribute::Saved)
@@ -127,7 +129,8 @@ void RegisterTypes()
 		    .Field<&RequestPad::sender>("sender", Attribute::Saved)
 		    .Field<&RequestPad::ship>("ship", Attribute::Saved)
 		    .Field<&RequestPad::station>("station", Attribute::Saved)
-		    .Field<&RequestPad::fly>("fly", Attribute::Saved);
+		    .Field<&RequestPad::fly>("fly", Attribute::Saved)
+		    .Field<&RequestPad::feature>("feature", Attribute::Saved);
 		RegisterType<ReleasePad>("Dock.ReleasePad")
 		    .Field<&ReleasePad::sender>("sender", Attribute::Saved)
 		    .Field<&ReleasePad::ship>("ship", Attribute::Saved)
@@ -146,7 +149,8 @@ void RegisterTypes()
 		    .Value<Reason::NoPadFits>("no_pad_fits")
 		    .Value<Reason::HoldsNothing>("holds_nothing")
 		    .Value<Reason::CargoCrossing>("cargo_crossing")
-		    .Value<Reason::AlreadyLeaving>("already_leaving");
+		    .Value<Reason::AlreadyLeaving>("already_leaving")
+		    .Value<Reason::NoPadOffers>("no_pad_offers");
 		RegisterType<PadGiven>("Dock.PadGiven", Attribute::Script)
 		    .Field<&PadGiven::ship>("ship", Attribute::Saved)
 		    .Field<&PadGiven::station>("station", Attribute::Saved)

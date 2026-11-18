@@ -111,14 +111,16 @@ enum class Stage : std::uint8_t
 
 // A ship's business with a station: its place in the queue, or its pad and how far it has got. A
 // ship flown by the docks (fly) is steered through each stage; one that is not is the game's or the
-// pilot's to fly, and is clamped once it is on its pad as one flown would be. Registered with
-// Reflect, every field Saved, by RegisterTypes.
+// pilot's to fly, and is clamped once it is on its pad as one flown would be. The feature it asked
+// for (RequestPad::feature) is kept, so the queue gives it only a pad that offers it. Registered
+// with Reflect, every field Saved, by RegisterTypes.
 struct Docking
 {
 	entt::entity station{entt::null};
 	entt::entity pad{entt::null};
 	Stage stage{Stage::Queued};
 	bool fly{true};
+	std::string feature{};
 
 	bool operator==(const Docking &) const = default;
 };
@@ -180,7 +182,9 @@ std::int64_t ToCarry(const entt::registry &registry, entt::entity ship);
 // of the station's queue. Flown in by the docks if fly is set. Refused, with a PadRefused, for a
 // sender that does not control the ship (Sim::MayCommand); a ship that is not a dynamic body with a
 // hull, or is in another system or frame than the station; one that already holds a pad or a place;
-// and a station that is not one, or has no pad the hull fits. Registered with Reflect, every field
+// and a station that is not one, or has no pad the hull fits. With a feature (PadLayout::features),
+// only a pad that offers it is given, the smallest and lowest numbered of those, and a station
+// with no such pad the hull fits refuses; with none, any pad. Registered with Reflect, every field
 // Saved, by RegisterTypes.
 struct RequestPad
 {
@@ -188,6 +192,7 @@ struct RequestPad
 	entt::entity ship{entt::null};
 	entt::entity station{entt::null};
 	bool fly{true};
+	std::string feature{};
 };
 
 // The command that gives up a ship's pad: its place in the queue, or its reservation, which frees
@@ -232,7 +237,9 @@ enum class Reason : std::uint8_t
 	HoldsNothing,
 	// The crates still to cross.
 	CargoCrossing,
-	AlreadyLeaving
+	AlreadyLeaving,
+	// The station.
+	NoPadOffers
 };
 
 // The answers, raised as events (Sim::EventQueue): a pad given, a place in the queue (from 1), a
@@ -362,9 +369,14 @@ class Docks
 		return m_padClasses;
 	}
 
-	// Whether a hull lands on a pad of that class: its own, or one ranked above it. A class not
-	// defined takes none.
+	// Whether a hull lands on a pad of that class: its own, or one ranked above or level with it
+	// whose largest hull is no smaller than the hull in any dimension. A class not defined takes
+	// none.
 	bool Fits(const HullDefinition &hull, std::string_view padClass) const;
+
+	// Whether the pad offers the feature, by its place in its station's layout
+	// (PadLayout::features): a definition's answer, so a pad saves none.
+	bool Offers(const entt::registry &registry, entt::entity pad, std::string_view feature) const;
 
 	const HullDefinition *FindHull(std::string_view name) const;
 
@@ -397,7 +409,8 @@ class Docks
 
 	void Step(Sim::SimWorld &world);
 
-	// The smallest free pad the ship's hull fits, the lowest numbered of those, or none.
+	// The smallest free pad the ship's hull fits, the lowest numbered of those, that offers the
+	// feature the ship asked for if it asked for one (Docking::feature), or none.
 	entt::entity FreePadFor(
 	    const entt::registry &registry, const Station &station, entt::entity ship) const;
 

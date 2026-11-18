@@ -243,9 +243,9 @@ struct TradeRefused
 	Sim::Reason reason;
 };
 
-// Why a trade is refused, a gate will not clear a ship for its toll, or a ship is not sold
-// (Sim::Reason), each worded by the string tables under reason.shell.<name>; the arguments, where
-// there are any, follow. Registered with Reflect as "Shell.Reason".
+// Why a trade is refused, a gate will not clear a ship for its toll, a ship is not sold, or one is
+// not repaired (Sim::Reason), each worded by the string tables under reason.shell.<name>; the
+// arguments, where there are any, follow. Registered with Reflect as "Shell.Reason".
 enum class TradeReason : std::uint8_t
 {
 	NoCrates,
@@ -276,7 +276,11 @@ enum class TradeReason : std::uint8_t
 	// The station, and the hull.
 	NoPadFree,
 	// The ship's price, in credits.
-	ShortOfPrice
+	ShortOfPrice,
+	NotDamaged,
+	NotInDryDock,
+	// The repair's cost, in credits.
+	ShortOfRepair
 };
 
 inline constexpr std::string_view kMarketSystemName = "shell.market";

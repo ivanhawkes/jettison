@@ -107,8 +107,8 @@ TEST_CASE("Stations: the sample parks its ships on a few pads of each station as
 	CHECK(corva == stations[2]);
 	CHECK(App::FindStation(world, Sim::FrameId("Vesper"), "Ostra Highport") == entt::null);
 
-	// Three heavy transports on Highport's twelve L pads, and its display wing's six; two transports
-	// and a fighter at Corva's six. At least two pads of each are left free.
+	// Three heavy transports on Highport's twelve destroyer pads, and its display wing's six; two
+	// transports and a fighter at Corva's six. At least two pads of each are left free.
 	CHECK(world.get<Dock::Station>(highport).pads.size() == 18);
 	CHECK(Holding(world, highport) == 3);
 	CHECK(world.get<Dock::Station>(corva).pads.size() == 6);
