@@ -114,6 +114,9 @@ class SpaceGame final : public App::Game
 	// A trade's answer, shown on the screen, a ship bought, followed, and a repair's answer.
 	void TakeEvent(const Sim::SimEvent &event, App::Shell &shell) override;
 
+	// The large-world scene: a station over a planet at real scale, in the galaxy's first system.
+	std::string_view DefaultScene() const override;
+
 	entt::entity Followed() const override;
 
 	std::optional<std::string> Describe(entt::entity entity) const override;

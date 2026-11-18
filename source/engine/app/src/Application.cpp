@@ -70,8 +70,6 @@ constexpr int kSmokeWindowHeight = 480;
 // the textures' uploads, and the driver's own warming up are not the frame it is measuring.
 constexpr std::uint32_t kBenchmarkWarmUp = 60;
 constexpr Core::Category kShell{"shell"};
-// The scene a run of no --scene and no --system loads, by virtual path.
-constexpr std::string_view kDefaultScene = "scene/orbit.yaml";
 
 // The player the shell's controls are for, in the first slot; their commands say so.
 constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
@@ -1345,7 +1343,7 @@ void Application::ReportBenchmark() const
 	    "Transparent: {} draws; {} emitters in {} particle slots\n"
 	    "Outlines {}",
 	    !m_arguments.systemPath.empty() ? m_arguments.systemPath
-	    : m_arguments.scenePath.empty() ? std::string{kDefaultScene}
+	    : m_arguments.scenePath.empty() ? std::string{m_pGame->DefaultScene()}
 	                                    : m_arguments.scenePath.filename().string(),
 	    m_deviceName, m_frameWidth, m_frameHeight, m_arguments.benchmarkFrames, kBenchmarkWarmUp,
 	    m_measuredFrames, m_arguments.depthPrepass ? "on" : "off",
@@ -1440,12 +1438,12 @@ void Application::LoadScene()
 	{
 		// The content's own scene, through the mounts, so a packed build and a mod's scene are read
 		// as a directory's; without one, as the engine with no content runs, the scene is empty.
-		const auto bytes = m_assets.Read(kDefaultScene);
+		const std::string_view scene = m_pGame->DefaultScene();
+		const auto bytes = m_assets.Read(scene);
 		if (!bytes)
 		{
 			Core::Log(
-			    Core::Severity::Info, kShell, "The content has no {}, so the scene is empty",
-			    kDefaultScene);
+			    Core::Severity::Info, kShell, "The content has no {}, so the scene is empty", scene);
 			m_pScene->Clear();
 		}
 		else
@@ -1456,7 +1454,7 @@ void Application::LoadScene()
 			}
 			catch (const std::exception &error)
 			{
-				throw std::runtime_error(std::format("Scene '{}': {}", kDefaultScene, error.what()));
+				throw std::runtime_error(std::format("Scene '{}': {}", scene, error.what()));
 			}
 		}
 	}
@@ -1839,8 +1837,6 @@ SmokeActions Application::MakeSmokeActions()
 	actions.gameUi = [] { return std::optional<bool>{}; };
 	actions.gameUiWaiting = [] { return false; };
 	actions.gameUiAnswered = [] { return true; };
-	actions.jump = [] { return false; };
-	actions.jumping = [] { return false; };
 	actions.close = [this] { RequestClose(); };
 	m_pGame->DriveSmoke(actions, *this);
 	return actions;

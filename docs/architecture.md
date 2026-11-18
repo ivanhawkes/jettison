@@ -80,6 +80,8 @@ jettison/
     │   │   │                   traders, fleet and shipyard, market screen (Sample::)
     │   │   └── assets/         its content, mounted as base: definitions, systems, scenes,
     │   │                       models, textures, sounds, the market screen and its strings
+    │   ├── ground/             a game of no space: a rover driven on the ground under gravity,
+    │   │                       its scene, keys and chase camera, and its entry point (Sample::)
     │   └── jetsam/             the runtime entry point, the shell with the space sample
     └── test/                   the render smoke harness (test executable), its reference
                                 frames and the data mod its packed run loads
@@ -185,9 +187,9 @@ edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
 neutral module depends on it. The configure holds them to that: `jettison_check_optional` stops it
-when any engine module links a sample's target, through any target and whatever either is called, and when a module other than `celestial`, `space`, `spacescene`, `dock` and `app` has one of the first
+when any engine module links a sample's target, through any target and whatever either is called, and when a module other than `celestial`, `space` and `spacescene` has one of the
 three in its link closure or includes one's header in its public headers, and a module added later
-is neutral unless it is listed there. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
+is neutral unless it is listed there; the shell and the dock are neutral (G01). `ai` is the AI of no genre: utility decisions, behaviour trees, graph
 search, courses round spheres (`ai/Courses.h`) and steering.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `space`, `ai` and `dock` never
@@ -827,14 +829,16 @@ modules (`numbers`, `saves`, and the `dock`, `ai` and `physics` reasons). The sa
 systems, scenes, models, materials, textures, clips, sequences, grades, sounds and music, the market
 screen and the strings of its goods, markets and trades. `jettison_add_assets` stages a tree as a
 target, which `jettison_use_content` gives an executable as its default content; Jetsam and the
-render test take the sample's, and Flotsam none, starting on an empty scene. The shell still names
-some content by convention, each optional: the default scene, the galaxy, the music, the station
-hum, and the materials and clip a station's dressing uses; content without them runs without them,
+render test take the sample's, the `ground` executable the ground sample's, and Flotsam none,
+starting on an empty scene. The shell still names some content by convention, each optional: the
+default scene, unless the game names its own, and the music; the galaxy, the station hum and the
+materials and clip a station's dressing uses are the space sample's; content without them runs without them,
 in silence where the music is missing. Several engine suites read the sample's content as test data
 (`JETTISON_SAMPLE_ASSET_DIR`); none of the engine's code does.
 
-Nothing that reads content names a host path: the default scene is `scene/orbit.yaml`, Halcyon
-with the ship docked at Ostra Highport, through the mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
+Nothing that reads content names a host path: the default scene is the game's
+(`Game::DefaultScene`, `scene/main.yaml` unless it names another; the space sample's is
+`scene/orbit.yaml`, Halcyon with the ship docked at Ostra Highport), through the mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
 disk, for the development scenes the reference views use).
 
 A pack is a directory's files in one file, each stored as it is or compressed as one zstd frame
@@ -2016,8 +2020,8 @@ proves it headlessly. What exists:
   which the shell calls at its points: its types, commands and input actions as the shell is made, on
   the world with physics attached (`ShellWorld`); its definitions and what it builds on them; its
   console commands, its screens, input and Escape; its frame systems in the shell's phases
-  (`RegisterFrame`, ordered against the shell's systems by name and validated with them); each scene
-  loaded and about to unload, and as the shell shuts down; the scene's proxies of the world's
+  (`RegisterFrame`, ordered against the shell's systems by name and validated with them); the scene
+  a run loads by default (`DefaultScene`), and each scene loaded and about to unload, and as the shell shuts down; the scene's proxies of the world's
   entities where it keeps them itself (`SyncProxies`); each step's event, the entity the player
   follows, whose events' sounds play, and an entity's name for the log; where a click picks
   (`PickIn`, `PickOrigin`); a reason's words for its entities and identifiers; its save sections and
@@ -2030,7 +2034,7 @@ proves it headlessly. What exists:
   definitions and the scripts, the player, the orbit cameras framed on a target, a sequence played,
   the pick cleared, and the game UI. With none, as Flotsam runs, the shell has physics and no space:
   no galaxy, station, ship or market (`GameTests`). Jetsam and the render test compose the space
-  sample.
+  sample, and the `ground` executable the ground sample ([sample game](sample-game.md#the-ground-sample)).
 - **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md)):
   the first slice of Manifest's plan, as a game composed into the shell. Its space layer
   (`SpaceLayer`, G01b) is what the shell was of a space game: the galaxy, the system shown and the

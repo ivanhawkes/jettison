@@ -484,6 +484,12 @@ void SpaceGame::DrawPanels(App::Shell & /*shell*/, bool devTools)
 }
 
 
+std::string_view SpaceGame::DefaultScene() const
+{
+	return "scene/orbit.yaml";
+}
+
+
 entt::entity SpaceGame::Followed() const
 {
 	return m_pLayer ? m_pLayer->Ship() : entt::entity{entt::null};

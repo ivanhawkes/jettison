@@ -27,6 +27,12 @@ void Game::AddCommands(DevTools::Console & /*console*/, Shell & /*shell*/)
 }
 
 
+std::string_view Game::DefaultScene() const
+{
+	return "scene/main.yaml";
+}
+
+
 void Game::RegisterFrame(Ecs::Scheduler & /*frame*/, Shell & /*shell*/)
 {
 }

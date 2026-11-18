@@ -1,0 +1,5 @@
+# The ground sample's content, mounted as "base" over the engine's assets.
+version: 1
+name: Ground sample
+release: 1.0.0
+engine: 0.1.0

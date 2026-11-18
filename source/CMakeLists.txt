@@ -193,6 +193,8 @@ if(JETTISON_PRESENTATION)
 	add_subdirectory("tools/flotsam")
 	# The space-trading sample, a game composed into the shell, and the runtime viewer that runs it.
 	add_subdirectory("samples/space")
+	# A game of no space, a rover on the ground, which the smoke test runs as well.
+	add_subdirectory("samples/ground")
 	add_subdirectory("samples/jetsam")
 	# The render smoke harness and the dependency probe.
 	add_subdirectory("test")
@@ -207,7 +209,4 @@ jettison_check_optional(
 	OPTIONAL
 		celestial
 		space
-		spacescene
-	USERS
-		dock
-		app)
+		spacescene)

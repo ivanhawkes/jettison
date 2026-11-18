@@ -2,7 +2,9 @@
 #
 # Headless smoke test: renders the scene through Vulkan, walks the shell's headless sequence
 # (resizes, a reload, flight, a pick, a save, a trade and a jump: app/src/SmokeSequence.cpp) and
-# shuts down with validation layers enabled, on a virtual X display and a software driver.
+# shuts down with validation layers enabled, on a virtual X display and a software driver: the space
+# sample's two scenes in the render test, then the ground sample, a game of no space, in its own
+# executable (source/samples/ground).
 #
 # The project builds GLFW Wayland-only by default, so a headless run needs the
 # 'clang-headless' preset, which turns on GLFW's X11 backend, and a Vulkan implementation
@@ -100,13 +102,14 @@ done
 
 [ -n "$build_dir" ] || build_dir="build/$preset"
 executable="$build_dir/source/test/render_test"
+ground="$build_dir/source/samples/ground/ground"
 
 if [ "$build" -eq 1 ]; then
 	cmake --preset "$preset" ${werror[@]+"${werror[@]}"} >/dev/null
 	# The render test alone, with the shaders and assets it stages: nothing else in this tree is run
 	# here, and the Debug tree builds and tests the rest. In the sanitised tree the rest was a third
 	# of the build, 18 s of 68 after a change to a header most of the engine includes.
-	cmake --build --preset "$preset" --target render_test >/dev/null
+	cmake --build --preset "$preset" --target render_test ground >/dev/null
 	if [ "$packed" -eq 1 ]; then
 		cmake --build --preset "$preset" --target jettison_assets_pack jettison_sample_space_pack render_test_smoke_mod >/dev/null
 	fi
@@ -123,10 +126,12 @@ if [ "$packed" -eq 1 ]; then
 	done
 fi
 
-if [ ! -x "$executable" ]; then
-	echo "smoke-test: no executable at $executable (GLFW's X11 backend needs the $preset preset)" >&2
-	exit 1
-fi
+for program in "$executable" "$ground"; do
+	if [ ! -x "$program" ]; then
+		echo "smoke-test: no executable at $program (GLFW's X11 backend needs the $preset preset)" >&2
+		exit 1
+	fi
+done
 
 # Software rendering is optional: on a machine with a GPU the same test is a real device run.
 if [ -n "$icd" ] || [ "$software" -eq 1 ]; then
@@ -217,6 +222,19 @@ run_app() {
 		fi
 		if [ "$packed" -eq 1 ]; then rm -rf "$packed_user"; fi
 	done
+	# The ground sample, from its staged content, packed or not: its scene, the rover its piloting
+	# stages drive and the camera behind it, and no jump, since it has none.
+	echo "smoke-test: the ground sample"
+	ground_command=()
+	for word in "$@"; do
+		[ "$word" = "$executable" ] && word="$ground"
+		ground_command+=("$word")
+	done
+	if ! "${ground_command[@]}" 2>&1 | tee -a "$app_log"; then
+		ground_status=${PIPESTATUS[0]}
+		[ "$ground_status" -ne 0 ] || ground_status=1
+		status=$ground_status
+	fi
 }
 
 if [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ]; }; then
@@ -273,8 +291,17 @@ if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
 	fi
 fi
 
+# The ground sample's rover was driven: its game says how far it went as it shuts down.
+if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
+	driven=$(sed -n 's/.*The rover is \([0-9.]*\) m from where it started.*/\1/p' "$app_log" | tail -1)
+	if [ -z "$driven" ] || ! awk -v metres="$driven" 'BEGIN { exit !(metres > 0.1) }'; then
+		echo "smoke-test: FAIL (the ground sample's rover was not driven: '${driven:-no report}')" >&2
+		status=1
+	fi
+fi
+
 if [ "$status" -eq 0 ]; then
-	echo "smoke-test: PASS (two scenes; window resizes, minimize/restore, a scene reload, a ship flown and a jump handled, validation enabled)"
+	echo "smoke-test: PASS (the space sample's two scenes and the ground sample; window resizes, minimize/restore, a scene reload, a ship flown, a rover driven and a jump handled, validation enabled)"
 else
 	echo "smoke-test: FAIL (exit $status)" >&2
 fi

@@ -203,7 +203,7 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 		case 10:
 			// The system shown is replaced by another while frames that drew it are in flight, and
 			// the new one's models, materials and environment are made under the jump's effect.
-			m_jumpPending = m_actions.jump();
+			m_jumpPending = m_actions.jump && m_actions.jump();
 			if (m_jumpPending)
 				++m_jumps;
 			m_actionPending = m_jumpPending;
@@ -221,12 +221,13 @@ bool SmokeSequence::Passed() const
 	// manager can refuse the second request. The reload has to happen exactly once, because a
 	// reload is the stage that invalidates the pipeline's model resources, and a run that never
 	// reloaded has not tested that.
-	// The jump likewise: once, and over before the close. And the save: a world that does not load
-	// back as it was saved is a save that loses the game.
+	// The jump likewise, for a game that drives one: once, and over before the close. And the save: a
+	// world that does not load back as it was saved is a save that loses the game.
 	// A game's screen that showed something other than the snapshot, or whose command was never
 	// answered on it, is a screen not bound to the simulation.
 	return m_resizes >= 1 && m_reloads == 1 && m_saves == 1 && m_answers == m_screens &&
-	       !m_screenWrong && m_jumps == 1 && !m_jumpPending && m_stage == kFinalStage;
+	       !m_screenWrong && (m_jumps == 1 || !m_actions.jump) && !m_jumpPending &&
+	       m_stage == kFinalStage;
 }
 
 

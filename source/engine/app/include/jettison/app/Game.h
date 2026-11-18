@@ -218,6 +218,10 @@ class Game
 	// cycle, throws from the shell's constructor.
 	virtual void RegisterFrame(Ecs::Scheduler &frame, Shell &shell);
 
+	// The scene a run of no --scene and no --system loads, by virtual path: scene/main.yaml unless the
+	// game names another. Without the file the scene is empty.
+	virtual std::string_view DefaultScene() const;
+
 	// Each scene the shell loads, once it is loaded, and before the shell replaces it: as it starts and
 	// as it reloads.
 	virtual void SceneLoaded(Shell &shell);

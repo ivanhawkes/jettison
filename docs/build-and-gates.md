@@ -234,8 +234,8 @@ consumer (H04, above), and the engine's assets are held to their own directories
 sample's content in them (H05, the app suite's `Game` cases), and the physics suite's room is a
 non-space physics scene, its own frame model's gravity and lift and no celestial definition (W01).
 Every configure checks the target and header dependencies (W01, `jettison_check_optional`): no
-engine module has a sample's target in its link closure, and no module but the space capability's (`celestial`, `space`, `spacescene`) and its users (`dock`,
-`app`) has one of the three in its link closure or its public headers. The space example is the
+engine module has a sample's target in its link closure, and no module but the space capability's (`celestial`, `space`, `spacescene`)
+has one of the three in its link closure or its public headers. The space example is the
 sample (`source/samples/space`), which composes them through the shell.
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
@@ -490,8 +490,9 @@ marked all six blockers, which overstates the last: an obstructed view is a majo
 
 ## Headless render test
 
-`scripts/smoke-test.sh` runs `render_test --smoke-test` with no desktop session. It builds the
-`clang-headless` preset, starts a virtual X server, and can pin Mesa's lavapipe software driver so
+`scripts/smoke-test.sh` runs `render_test --smoke-test`, then the ground sample's `ground
+--smoke-test` (a game of no space, [sample game](sample-game.md#the-ground-sample)), with no desktop
+session. It builds the `clang-headless` preset, starts a virtual X server, and can pin Mesa's lavapipe software driver so
 the run does not depend on a GPU.
 
 ```bash
@@ -545,7 +546,13 @@ again, models and rigs included, so a model's buffers are retired while a frame 
 them and freed after it, under validation. The jump replaces the scene with another system's
 behind its fade while frames that drew the old one are in flight: the sample scene jumps to the
 galaxy's first system (the orbit scene), and the orbit scene through Halcyon's gate to Vesper, built
-from its system file alone; each is about 1.7 s on lavapipe. The whole run took 4 seconds on a
+from its system file alone; each is about 1.7 s on lavapipe.
+
+The ground sample walks the same stages from its own content, unpacked in either run: its piloting
+stages drive its rover ahead and then turning, its pick lands on its ground, its save and load hold
+its world's state hash, and it drives no jump, so its run has none. The game logs how far its rover
+went as it shuts down, and the run fails unless that is more than 0.1 m (0.9 m on 2026-11-18, the
+stages after the piloting being a second or so on a scene this small). The whole run took 4 seconds on a
 workstation on 2026-11-11, from about 40 before phase 5e gave lavapipe RGBA8 textures and culled
 the planet out of the shadow cascades; the script, its start-up checks and the two jumps included,
 took 15 seconds after phase 6d. Budget more on a runner.

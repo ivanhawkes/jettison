@@ -10,6 +10,17 @@ test select both explicitly; Flotsam composes no game and mounts no content unle
 names some. Keep useful command, save, script, docking and render regressions through this
 example.
 
+## The ground sample
+
+A second, smaller game, of no space (G01f): `Sample::GroundGame` in `source/samples/ground`, run by
+its own `ground` executable with its content (`scene/main.yaml`) mounted as `base`. It links the
+shell alone, which links no space module. A rover, a box under the flight model with no vertical or
+sideways thrust, stands on a static slab in a frame of its own whose gravity is the game's
+(`Physics::FrameModel`); the player is at its helm, W and S drive it and A and D turn it, from the
+game's input context, and a chase rig of the game's (`Scene::ChaseCamera`) places the scene's camera
+behind its proxy. The smoke test runs it after the space sample's two scenes: its piloting stages
+drive the rover, and the run fails unless it moved. It has no jump, so its run has no jump stage.
+
 ## Manifest informs capability requirements
 
 Before extending the engine, inspect the sibling `../manifest` checkout using

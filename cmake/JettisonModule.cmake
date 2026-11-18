@@ -95,11 +95,11 @@ function(jettison_add_module name)
 endfunction()
 
 
-# jettison_check_optional(SAMPLES <directory> OPTIONAL <module>... USERS <module>...)
+# jettison_check_optional(SAMPLES <directory> OPTIONAL <module>...)
 #
 # Holds the modules to their dependencies (docs/architecture.md, "Module dependencies"), called once
 # every target is added: it stops the configure when a module has a target defined under SAMPLES in
-# its link closure, whatever the target is called; or when one neither optional nor a user has an
+# its link closure, whatever the target is called; or when one not optional has an
 # optional module in its closure, reached through any target, or includes one's headers in its own
 # public headers, where a consumer would need it; or when a link of any target in a module's closure
 # has a generator expression anywhere in it that the check cannot read a target from, since a
@@ -107,13 +107,12 @@ endfunction()
 # it is listed, so a new one is from the start. The suites are not modules: a neutral module's may
 # fly in a star system.
 function(jettison_check_optional)
-	cmake_parse_arguments(PARSE_ARGV 0 arg "" "SAMPLES" "OPTIONAL;USERS")
+	cmake_parse_arguments(PARSE_ARGV 0 arg "" "SAMPLES" "OPTIONAL")
 	set(listed)
-	foreach(module IN LISTS arg_OPTIONAL arg_USERS)
+	foreach(module IN LISTS arg_OPTIONAL)
 		list(APPEND listed jettison_${module})
 	endforeach()
 	list(JOIN arg_OPTIONAL "|" optional)
-	list(JOIN arg_USERS ", " users)
 	get_property(modules GLOBAL PROPERTY JETTISON_MODULES)
 	set(wrappers "BUILD_INTERFACE|BUILD_LOCAL_INTERFACE|INSTALL_INTERFACE|LINK_ONLY|TARGET_NAME")
 	foreach(target IN LISTS modules)
@@ -174,7 +173,7 @@ function(jettison_check_optional)
 			if(jettison_${module} IN_LIST closure)
 				message(FATAL_ERROR
 					"${target} depends on the optional '${module}', directly or through another module; "
-					"only ${users} may (docs/architecture.md, Module dependencies).")
+					"only an optional module may (docs/architecture.md, Module dependencies).")
 			endif()
 		endforeach()
 

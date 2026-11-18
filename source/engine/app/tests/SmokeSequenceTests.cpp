@@ -22,9 +22,11 @@ struct Market
 
 // Drives the sequence to its close the way the shell's frame loop does, with the window manager
 // answering each of the two resize requests or refusing it, and a jump that takes that many frames
-// (none started, when negative), and returns the verdict.
+// (none started, when negative, and no jump stage, as a game of no galaxy has, for none), and returns
+// the verdict.
 bool RunSequence(
-    bool firstResize, bool secondResize, int jumpFrames = 3, bool saveLoads = true, Market market = {})
+    bool firstResize, bool secondResize, std::optional<int> jumpFrames = 3, bool saveLoads = true,
+    Market market = {})
 {
 	int requests = 0;
 	int handled = 0;
@@ -45,15 +47,18 @@ bool RunSequence(
 		++pilots;
 		return true;
 	};
-	actions.jump = [&]
+	if (jumpFrames)
 	{
-		if (jumpFrames < 0)
-			return false;
-		++jumps;
-		jumpLeft = jumpFrames;
-		return true;
-	};
-	actions.jumping = [&] { return jumpLeft > 0; };
+		actions.jump = [&]
+		{
+			if (*jumpFrames < 0)
+				return false;
+			++jumps;
+			jumpLeft = *jumpFrames;
+			return true;
+		};
+		actions.jumping = [&] { return jumpLeft > 0; };
+	}
 	// Answered two frames on, after both pilot stages and before the jump.
 	int picks = 0;
 	int pickLeft = 0;
@@ -114,7 +119,7 @@ bool RunSequence(
 	}
 	REQUIRE_MESSAGE(close, sequence.Summary());
 	INFO(sequence.Summary());
-	CHECK(jumps == (jumpFrames < 0 ? 0 : 1));
+	CHECK(jumps == (jumpFrames.value_or(-1) < 0 ? 0 : 1));
 	CHECK(pilots == 2);
 	CHECK(picks == 1);
 	CHECK(saves == 1);
@@ -140,11 +145,14 @@ TEST_CASE("Smoke sequence: no handled resize is a failure")
 }
 
 
-TEST_CASE("Smoke sequence: the jump is waited for however long it takes, and a run without one fails")
+TEST_CASE(
+    "Smoke sequence: the jump is waited for however long it takes, and a run without one fails, unless "
+    "its game drives none")
 {
 	CHECK(RunSequence(true, true, 0));
 	CHECK(RunSequence(true, true, 60));
 	CHECK_FALSE(RunSequence(true, true, -1));
+	CHECK(RunSequence(true, true, std::nullopt));
 }
 
 

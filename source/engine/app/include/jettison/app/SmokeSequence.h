@@ -36,7 +36,8 @@ struct SmokeActions
 	std::function<bool()> gameUiWaiting;
 	std::function<bool()> gameUiAnswered;
 	// Starts a jump to another star system, and says whether one started: false where there is no
-	// galaxy to jump in. Then whether it is still under way.
+	// galaxy to jump in. Then whether it is still under way. Left empty by a game that drives no jump,
+	// whose run has no jump stage.
 	std::function<bool()> jump;
 	std::function<bool()> jumping;
 	std::function<void()> close;
