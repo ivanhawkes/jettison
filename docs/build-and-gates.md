@@ -250,7 +250,8 @@ out of the shared shell, and nothing in the shell becomes a release/runtime depe
 
 Order: format gate → Debug build → declaration spacing (`scripts/space-declarations.py --check`,
 about 50 s on the Debug database, first after the build, which writes the module maps its
-`clang-query` reads, so it fails before the suites run; without `--check` it adds the blank lines)
+`clang-query` reads; it warns and does not fail the gate, since whitespace is its formatter's to
+fix, run before the next change; without `--check` it adds the blank lines)
 → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
 headless render test, from the packed assets → reference frames,
