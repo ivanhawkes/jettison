@@ -29,6 +29,20 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
+G01 is worked in six sub-phases, each a commit leaving the gate green and the space sample's run,
+frames and pinned hashes as they were. The code that moves goes to the space sample
+(`source/samples/space`), the game app that extends the shell; what is reusable across space games
+stays in or goes to `space` and `spacescene`.
+
+| Sub-phase | Work | Exit criterion |
+| --- | --- | --- |
+| G01a: the shell's seams | `App::Game` takes what the moving code needs, with the shell's own space code still where it is: its frame systems in the shell's phases, ordered by the shell's systems' names (`RegisterFrame`, on the `Ecs::Scheduler` the shell validates); the scene loaded and about to unload; its own save sections and save details, and a load's refusal of a save not its own; its dev-tools panels; the render test's stages it drives. `App::Shell` gives the scene, the snapshots and the time shown between them, the debug lines, the screen's fade, the asset tree and resources, the console and input, the active camera, and the entity followed in place of the ship. | The app suite composes a test game whose frame system runs in its phase after the one it names, whose save section round-trips and whose scene hooks are called, with no space module in it. |
+| G01b: star systems out | The galaxy and its systems, the system scene, jumps, lanes, transit, routes, the jump streaks, the galaxy panel and the orbits' debug lines move to the sample, on G01a's seams; the shell's orbit camera frames any entity a game marks, not celestial bodies. The save's `galaxy` and `system` details are the sample's. | The shell includes no `celestial` or `spacescene` header; `save-v1.save` and the shell section of today's saves load. |
+| G01c: ship and stations out | Stations and their dressing, docking commands, the player's ship and the traffic, the fleet and the helm, piloting and its cameras, the flight panel, the thruster, buggy and pad-lamp syncs and the cockpit mask move to the sample, with the render test's pilot and jump stages. The space-specific hooks (`OpenGalaxy`, `StationOpened`, `StationsOpened`, `StarterShip`, `FitShip`, `DescribeShip`) and `ShellWorld`'s lanes, gates and docks leave `App::Game`: the sample attaches and calls them itself. Picking and its outline stay the shell's. | `app` includes no `space` or `dock` header; the sample's smoke test, reference frames and hashes are unchanged. |
+| G01d: docks without space | A hull's cruise drive is a component the game gives a ship, not a field of `Dock::HullDefinition`; definitions that author it still load. | `dock` links no `space`. |
+| G01e: neutral names | Physics' and the AI's `ship` fields and `Thrusters` take names of no genre, their saved names kept or migrated. | Every pinned hash and save fixture holds. |
+| G01f: a non-space game | A non-space game composed into the shell, with its own scene, input and camera, in the smoke test; `app` and `dock` off `jettison_check_optional`'s users; the history and documents updated. | The G01 row's exit criterion. |
+
 These deliveries precede discretionary expansion of the sample. The historical space
 features and decisions below describe existing coverage and possible extension work,
 not permission to make space gameplay a neutral engine requirement. Completed phases
