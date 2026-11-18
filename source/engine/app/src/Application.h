@@ -148,7 +148,7 @@ class Application final : private Shell
 	// The bus's volume from the settings, or 1 when they name none.
 	float SettingVolume(Audio::Bus bus);
 
-	// Plays what the data maps the event to, when it is about what the player follows (Game::Followed).
+	// Plays what the data maps the event to, when the game says the player hears it (Game::Hears).
 	void PlayEventSound(const Sim::SimEvent &event);
 
 	// Sounds started on the UI bus, which the smoke run's trade has to add to.
@@ -354,6 +354,8 @@ class Application final : private Shell
 	// The cinematics' player, after the camera rigs; made with the resource manager it reads them
 	// from.
 	std::optional<Scene::SequenceSystem> m_sequences;
+	// Whether the last frame showed a sequence's fade, which the next clears once it is over.
+	bool m_sequenceFaded{false};
 
 	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
 	// include the time start-up took.

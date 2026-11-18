@@ -267,9 +267,9 @@ class Game
 	// Each event of the steps, after the shell's own handling of it.
 	virtual void TakeEvent(const Sim::SimEvent &event, Shell &shell);
 
-	// The simulation entity the player follows, whose events the shell plays the sounds of (an event
-	// whose `ship` it is), or null, the default, for none.
-	virtual entt::entity Followed() const;
+	// Whether the player hears an event, whose sound the shell then plays (audio/EventSounds.h): one
+	// about what they follow, as the game names it (EventEntity). None, the default.
+	virtual bool Hears(const Sim::SimEvent &event) const;
 
 	// An entity as the log names it, where the game names it; none leaves it to the shell, which
 	// names it by its number.
@@ -296,5 +296,9 @@ class Game
 	// where it drives a stage itself. The shell's game UI stage has no screen to drive.
 	virtual void DriveSmoke(SmokeActions &actions, Shell &shell);
 };
+
+// The entity an event names in a reflected field of that name, or null for an event with no such
+// field or one that does not hold an entity.
+entt::entity EventEntity(const Sim::SimEvent &event, std::string_view field);
 
 } // namespace Jettison::App

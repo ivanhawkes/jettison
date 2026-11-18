@@ -117,7 +117,9 @@ class SpaceGame final : public App::Game
 	// The large-world scene: a station over a planet at real scale, in the galaxy's first system.
 	std::string_view DefaultScene() const override;
 
-	entt::entity Followed() const override;
+	// The events about the player's ship, by their "ship" field: another ship's docking or a trader's
+	// trade is not the player's to hear from the market screen.
+	bool Hears(const Sim::SimEvent &event) const override;
 
 	std::optional<std::string> Describe(entt::entity entity) const override;
 

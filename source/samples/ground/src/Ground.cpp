@@ -24,10 +24,12 @@ class GroundModel final : public Physics::FrameModel
 		return false;
 	}
 
+
 	Sim::Transform BodyAt(std::string_view /*body*/, double /*simSeconds*/) const override
 	{
 		return {};
 	}
+
 
 	std::function<glm::dvec3(const glm::dvec3 &)> GravityAt(double /*simSeconds*/) const override
 	{

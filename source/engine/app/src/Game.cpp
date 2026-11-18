@@ -1,5 +1,8 @@
 #include <jettison/app/Game.h>
 
+#include <jettison/reflect/Reflect.h>
+#include <jettison/sim/Events.h>
+
 namespace Jettison::App
 {
 void Game::Register(const ShellWorld & /*world*/, Shell & /*shell*/)
@@ -100,9 +103,9 @@ void Game::TakeEvent(const Sim::SimEvent & /*event*/, Shell & /*shell*/)
 }
 
 
-entt::entity Game::Followed() const
+bool Game::Hears(const Sim::SimEvent & /*event*/) const
 {
-	return entt::null;
+	return false;
 }
 
 
@@ -143,4 +146,15 @@ void Game::DriveSmoke(SmokeActions & /*actions*/, Shell & /*shell*/)
 {
 }
 
+
+entt::entity EventEntity(const Sim::SimEvent &event, std::string_view field)
+{
+	const entt::meta_type type = event.event.type();
+	const entt::meta_data data = type ? Reflect::FindField(type, field) : entt::meta_data{};
+	if (!data)
+		return entt::null;
+	const entt::meta_any value = data.get(event.event);
+	const auto *entity = value.try_cast<entt::entity>();
+	return entity != nullptr ? *entity : entt::entity{entt::null};
+}
 } // namespace Jettison::App

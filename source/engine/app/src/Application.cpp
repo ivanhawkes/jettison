@@ -38,7 +38,6 @@
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/platform/Crash.h>
 #include <jettison/profile/Profile.h>
-#include <jettison/reflect/Reflect.h>
 #include <jettison/render/Camera.h>
 #include <jettison/render/IRenderer.h>
 #include <jettison/render/Overlay.h>
@@ -1001,15 +1000,7 @@ void Application::PlayEventSound(const Sim::SimEvent &event)
 {
 	if (!m_pAudio || !m_eventSounds)
 		return;
-	// The events of what the player follows, the ones about it by their "ship" field: another ship's
-	// docking or a trader's trade is not the player's to hear from the market screen.
-	const entt::meta_type type = event.event.type();
-	const entt::meta_data ship = type ? Reflect::FindField(type, "ship") : entt::meta_data{};
-	if (!ship)
-		return;
-	const entt::meta_any value = ship.get(event.event);
-	const auto *pShip = value.try_cast<entt::entity>();
-	if (pShip == nullptr || *pShip == entt::null || *pShip != m_pGame->Followed())
+	if (!m_pGame->Hears(event))
 		return;
 	// Where presentation shows the entity this frame: between the last two steps, as the scene does.
 	m_eventSounds->Play(
@@ -1608,9 +1599,12 @@ void Application::ShowSequence(entt::registry &registry)
 	const Scene::SequencePlayerComponent *player =
 	    players.empty() ? nullptr : &players.get<const Scene::SequencePlayerComponent>(players.front());
 	m_pRenderer->SetLetterbox(player != nullptr ? player->letterbox : 0.0f);
-	// A game's fade over it, a jump's, is set after this.
-	if (player != nullptr && player->fade > 0.0f)
-		m_pRenderer->SetFade(player->fadeColor, player->fade);
+	// A game's fade over it, a jump's, is set after this. The renderer keeps a fade until it is set
+	// again, so the sequence's is cleared the frame it ends, and otherwise left to the game's.
+	const float fade = player != nullptr ? player->fade : 0.0f;
+	if (fade > 0.0f || m_sequenceFaded)
+		m_pRenderer->SetFade(player != nullptr ? player->fadeColor : glm::vec3{0.0f}, fade);
+	m_sequenceFaded = fade > 0.0f;
 }
 
 

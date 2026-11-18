@@ -15,6 +15,10 @@
 
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/render/IRenderer.h>
+#include <jettison/scene/Components.h>
+#include <jettison/scene/Scene.h>
+#include <jettison/sim/Events.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/SimWorld.h>
 
@@ -61,6 +65,24 @@ struct ApplicationProbe
 	static Sim::SimWorld &World(Application &shell)
 	{
 		return shell.m_sim;
+	}
+
+
+	static void SetRenderer(Application &shell, std::unique_ptr<Render::IRenderer> renderer)
+	{
+		shell.m_pRenderer = std::move(renderer);
+	}
+
+
+	static void ShowSequence(Application &shell)
+	{
+		shell.ShowSequence(shell.m_pScene->Registry());
+	}
+
+
+	static Scene::Scene &SceneOf(Application &shell)
+	{
+		return *shell.m_pScene;
 	}
 };
 } // namespace Jettison::App
@@ -112,6 +134,181 @@ class SeamGame final : public App::Game
 	std::vector<std::byte> read;
 	int loaded{0};
 	int unloading{0};
+};
+
+
+// A renderer that draws nothing and keeps the fade it was last given.
+class FadeRenderer final : public Render::IRenderer
+{
+  public:
+	void Init() override
+	{
+	}
+
+
+	void Destroy() override
+	{
+	}
+
+
+	GLFWwindow *GetGLFWWindow() const override
+	{
+		return nullptr;
+	}
+
+
+	void BeginUi() override
+	{
+	}
+
+
+	void EndUi() override
+	{
+	}
+
+
+	bool UiColoursLinearised() const override
+	{
+		return true;
+	}
+
+
+	bool Render(
+	    const Scene::Scene & /*scene*/, const Render::DebugDraw & /*debug*/,
+	    const Render::Overlay & /*overlay*/, double /*seconds*/) override
+	{
+		return false;
+	}
+
+
+	void SetExposure(float /*exposure*/) override
+	{
+	}
+
+
+	void SetFade(const glm::vec3 & /*color*/, float amount) override
+	{
+		fade = amount;
+	}
+
+
+	void SetLetterbox(float /*share*/) override
+	{
+	}
+
+
+	void SetDebugView(Render::DebugView /*view*/) override
+	{
+	}
+
+
+	Render::DebugView GetDebugView() const override
+	{
+		return Render::DebugView::Shaded;
+	}
+
+
+	void SetDepthPrepass(bool /*enabled*/) override
+	{
+	}
+
+
+	bool GetDepthPrepass() const override
+	{
+		return false;
+	}
+
+
+	void SetAmbientOcclusion(bool /*enabled*/) override
+	{
+	}
+
+
+	bool GetAmbientOcclusion() const override
+	{
+		return false;
+	}
+
+
+	void SetBloom(float /*strength*/) override
+	{
+	}
+
+
+	float GetBloom() const override
+	{
+		return 0.0f;
+	}
+
+
+	const Render::FrameStats &GetFrameStats() const override
+	{
+		return stats;
+	}
+
+
+	const std::vector<Render::PassTiming> &GetPassTimings() const override
+	{
+		return timings;
+	}
+
+
+	std::uint64_t GetMeasuredFrames() const override
+	{
+		return 0;
+	}
+
+
+	void ResetPassTimings() override
+	{
+	}
+
+
+	const Render::ClusterCheckTotals &GetClusterChecks() const override
+	{
+		return checks;
+	}
+
+
+	void RequestScreenshot(const std::filesystem::path & /*path*/) override
+	{
+	}
+
+
+	bool ScreenshotRequested() const override
+	{
+		return false;
+	}
+
+
+	const std::string &DeviceName() const override
+	{
+		return device;
+	}
+
+
+	std::uint32_t FrameWidth() const override
+	{
+		return 640;
+	}
+
+
+	std::uint32_t FrameHeight() const override
+	{
+		return 480;
+	}
+
+	float fade{-1.0f};
+	Render::FrameStats stats;
+	std::vector<Render::PassTiming> timings;
+	Render::ClusterCheckTotals checks;
+	std::string device;
+};
+
+struct VehicleEvent
+{
+	entt::entity vehicle{entt::null};
+	int count{0};
 };
 
 
@@ -222,4 +419,58 @@ TEST_CASE("Game: a game's frame system naming no system of the shell's fails the
 	SeamGame game;
 	game.after = "no.such.system";
 	CHECK_THROWS_AS(App::Application(App::AppArguments{}, "Seams", &game), std::logic_error);
+}
+
+
+TEST_CASE("Game: a sequence's fade is cleared once it is over, and left alone otherwise")
+{
+	const auto user =
+	    std::filesystem::temp_directory_path() / ("jettison-fade-tests-" + std::to_string(getpid()));
+	std::error_code error;
+	std::filesystem::remove_all(user, error);
+	{
+		App::Application shell{WindowlessArguments(user), "Fades"};
+		App::ApplicationProbe::Start(shell);
+		auto owned = std::make_unique<FadeRenderer>();
+		FadeRenderer &renderer = *owned;
+		App::ApplicationProbe::SetRenderer(shell, std::move(owned));
+		entt::registry &scene = App::ApplicationProbe::SceneOf(shell).Registry();
+
+		// No sequence has faded: a game's fade is the game's.
+		App::ApplicationProbe::ShowSequence(shell);
+		CHECK(renderer.fade == -1.0f);
+
+		const entt::entity camera = scene.create();
+		scene.emplace<Scene::SequencePlayerComponent>(camera).fade = 0.75f;
+		App::ApplicationProbe::ShowSequence(shell);
+		CHECK(renderer.fade == 0.75f);
+		scene.get<Scene::SequencePlayerComponent>(camera).fade = 0.0f;
+		App::ApplicationProbe::ShowSequence(shell);
+		CHECK(renderer.fade == 0.0f);
+
+		// Stopped while faded, as a cancelled sequence is.
+		scene.get<Scene::SequencePlayerComponent>(camera).fade = 0.5f;
+		App::ApplicationProbe::ShowSequence(shell);
+		scene.remove<Scene::SequencePlayerComponent>(camera);
+		App::ApplicationProbe::ShowSequence(shell);
+		CHECK(renderer.fade == 0.0f);
+		renderer.fade = -1.0f;
+		App::ApplicationProbe::ShowSequence(shell);
+		CHECK(renderer.fade == -1.0f);
+	}
+	std::filesystem::remove_all(user, error);
+}
+
+
+TEST_CASE("Game: an event's entity is read by its field's reflected name")
+{
+	Reflect::RegisterType<VehicleEvent>("Test.VehicleEvent")
+	    .Field<&VehicleEvent::vehicle>("vehicle", Reflect::Attribute::Saved)
+	    .Field<&VehicleEvent::count>("count", Reflect::Attribute::Saved);
+	const auto entity = static_cast<entt::entity>(7);
+	const Sim::SimEvent event{0, entt::meta_any{VehicleEvent{entity, 3}}};
+	CHECK(App::EventEntity(event, "vehicle") == entity);
+	CHECK(App::EventEntity(event, "ship") == entt::null);
+	CHECK(App::EventEntity(event, "count") == entt::null);
+	CHECK(App::EventEntity({0, entt::meta_any{}}, "vehicle") == entt::null);
 }

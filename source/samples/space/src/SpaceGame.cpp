@@ -490,9 +490,10 @@ std::string_view SpaceGame::DefaultScene() const
 }
 
 
-entt::entity SpaceGame::Followed() const
+bool SpaceGame::Hears(const Sim::SimEvent &event) const
 {
-	return m_pLayer ? m_pLayer->Ship() : entt::entity{entt::null};
+	const entt::entity ship = App::EventEntity(event, "ship");
+	return m_pLayer && ship != entt::null && ship == m_pLayer->Ship();
 }
 
 

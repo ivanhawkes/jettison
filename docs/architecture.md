@@ -2022,8 +2022,9 @@ proves it headlessly. What exists:
   console commands, its screens, input and Escape; its frame systems in the shell's phases
   (`RegisterFrame`, ordered against the shell's systems by name and validated with them); the scene
   a run loads by default (`DefaultScene`), and each scene loaded and about to unload, and as the shell shuts down; the scene's proxies of the world's
-  entities where it keeps them itself (`SyncProxies`); each step's event, the entity the player
-  follows, whose events' sounds play, and an entity's name for the log; where a click picks
+  entities where it keeps them itself (`SyncProxies`); each step's event, which events the player
+  hears, whose sounds play (`Hears`, an event's entity read by its field's name with
+  `EventEntity`), and an entity's name for the log; where a click picks
   (`PickIn`, `PickOrigin`); a reason's words for its entities and identifiers; its save sections and
   details, a load's refusal of a save not its own (`WriteSave`, `ReadSave`, before the world is
   replaced) and what it applies once the world has loaded (`Loaded`); its dev-tools panels; and the

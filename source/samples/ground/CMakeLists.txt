@@ -3,9 +3,11 @@
 # (jettison_check_optional), and the smoke test runs it beside the space sample.
 add_library(jettison_sample_ground STATIC
 	include/jettison/sample/GroundGame.h
+	include/jettison/sample/RoverInput.h
 	src/Ground.cpp
 	src/Ground.h
 	src/GroundGame.cpp
+	src/RoverInput.cpp
 )
 target_include_directories(jettison_sample_ground
 	PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"

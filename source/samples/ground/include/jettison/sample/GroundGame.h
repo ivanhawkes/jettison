@@ -2,9 +2,11 @@
 
 #include <entt/entt.hpp>
 
+#include <optional>
+
 #include <jettison/app/Game.h>
-#include <jettison/input/Actions.h>
 #include <jettison/physics/Flight.h>
+#include <jettison/sample/RoverInput.h>
 #include <jettison/scene/CameraRigs.h>
 
 namespace Jettison::Sample
@@ -15,8 +17,7 @@ namespace Jettison::Sample
 class GroundGame final : public App::Game
 {
   public:
-	// The ground and the rover's shapes and gravity, the helm, and the drive context: W and S drive,
-	// A and D turn.
+	// The ground and the rover's shapes and gravity, the helm, and the drive keys (RoverInput).
 	void Register(const App::ShellWorld &world, App::Shell &shell) override;
 
 	// The camera behind the rover, after the shell's rigs.
@@ -26,15 +27,24 @@ class GroundGame final : public App::Game
 	// taken.
 	void SceneLoaded(App::Shell &shell) override;
 
+	// The rover found again, and its controls as the save has them taken as the ones last sent, so
+	// the keys' next change is sent whatever was held as the game saved.
 	void Loaded(App::Shell &shell) override;
 
-	// How far the rover is from where it started, logged, which the smoke test reads.
+	// Where the rover is, how fast it goes and how far it has turned, logged, which the smoke test
+	// reads.
 	void ShuttingDown(App::Shell &shell) noexcept override;
+
+	// The game's detail in its saves, and a save without it, another game's, refused.
+	void WriteSave(Sim::SaveGame &save, App::Shell &shell) override;
+
+	void ReadSave(const Sim::SaveGame &save, App::Shell &shell) override;
 
 	// The keys, as the rover's controls when they change.
 	void PollInput(const Input::InputSystem &input, App::Shell &shell) override;
 
-	entt::entity Followed() const override;
+	// The events about the rover: physics', which name it as their vehicle.
+	bool Hears(const Sim::SimEvent &event) const override;
 
 	std::optional<std::string> Describe(entt::entity entity) const override;
 
@@ -48,8 +58,7 @@ class GroundGame final : public App::Game
 
 	void PlaceCamera(entt::registry &scene, App::Shell &shell, double deltaTime);
 
-	Input::ActionId m_drive;
-	Input::ActionId m_steer;
+	std::optional<RoverInput> m_input;
 	entt::entity m_rover{entt::null};
 	Physics::FlightControls m_sent;
 	Scene::ChaseCamera m_camera{{.offset = {0.0, 3.0, 9.0}, .lookAhead = 6.0, .smoothing = 4.0}};

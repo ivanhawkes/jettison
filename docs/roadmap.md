@@ -76,6 +76,11 @@ SDK work above and does not transfer production game rules into Jettison.
 - **Manifest integration, not sample expansion** ([game integration](game-integration.md)):
   provision public world/definition/command/persistence/script capabilities required by the
   game's current stages. Its order book, economy and progression remain in Manifest.
+- **The ground sample's frames held** (the user's, 2026-11-18, after G01): `scripts/capture.sh`
+  runs `render_test` alone, so the ground sample's scene and chase camera were checked once, by eye,
+  and no reference view holds them as the space sample's are held. The script taking the executable
+  to run, and a ground view in `source/test/frames/views.txt`, would. Before L15's graphical client,
+  when a second game's look starts to matter.
 - **A screen to buy ships from** (the user's, 2026-11-14, as 13d began): 13d buys a ship with the
   console's `buy <hull>` and lists and attaches to the fleet with `fleet` and `attach`, ] and [; a
   shipyard screen of the game UI's, beside the market screen, with the hulls a station sells, their
@@ -150,6 +155,10 @@ player's report of a problem needs and the shell does not write.
   reach only the default stderr sink. The run's reports (pass timings, the cluster check, the
   benchmark) went through `Log.h` on 2026-11-17; the failure report, usage line and teardown stay on
   `std::cerr` ([coding standards](coding-standards.md#errors)).
+- **The ground sample's loose ends** (the user's, 2026-11-18, after G01): its ground has no name, so
+  a pick logs it as `Entity 0x0`; and its rover is a box sliding on the ground's friction, which
+  needed 8 rad/s² to turn and drifts sideways, not a vehicle that grips. Sample polish, whenever the
+  sample is next touched; nothing stands on it.
 - **Crash handling, not yet placed** (entry 30, 11d): a report from a thread other than the main
   one whose stack overflowed, which wants an alternate stack set by every thread the engine starts
   (the I/O worker, the scripts' watchdog) and by Jolt's; each module's build ID in the report, and a

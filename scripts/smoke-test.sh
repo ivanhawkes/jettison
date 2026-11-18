@@ -291,11 +291,13 @@ if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
 	fi
 fi
 
-# The ground sample's rover was driven: its game says how far it went as it shuts down.
+# The ground sample's rover was driven ahead and then turned left by its piloting stages, as its game
+# says as it shuts down: at more than 1 m/s and more than 10 degrees from where it faced, whatever
+# the run's frame rate gave the stages after them.
 if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
-	driven=$(sed -n 's/.*The rover is \([0-9.]*\) m from where it started.*/\1/p' "$app_log" | tail -1)
-	if [ -z "$driven" ] || ! awk -v metres="$driven" 'BEGIN { exit !(metres > 0.1) }'; then
-		echo "smoke-test: FAIL (the ground sample's rover was not driven: '${driven:-no report}')" >&2
+	driven=$(sed -n 's/.*The rover is [-0-9.]* m from where it started, at \([-0-9.]*\) m\/s, turned \([-0-9.]*\) degrees.*/\1 \2/p' "$app_log" | tail -1)
+	if [ -z "$driven" ] || ! awk -v speed="${driven% *}" -v turned="${driven#* }" 'BEGIN { exit !(speed > 1.0 && turned > 10.0) }'; then
+		echo "smoke-test: FAIL (the ground sample's rover was not driven and turned: '${driven:-no report}')" >&2
 		status=1
 	fi
 fi
