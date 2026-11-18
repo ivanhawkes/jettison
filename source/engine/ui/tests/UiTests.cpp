@@ -77,7 +77,8 @@ void RegisterTypes()
 	(void)registered;
 }
 
-// The shipped fonts below a base and a mod mount of the case's own, removed when it goes.
+// The engine's fonts and the sample's market screen below a base and a mod mount of the case's own,
+// removed when it goes.
 class Scratch
 {
   public:
@@ -90,6 +91,7 @@ class Scratch
 		std::filesystem::create_directories(m_directory / "base");
 		std::filesystem::create_directories(m_directory / "mod");
 		m_files.AddMount({"assets", JETTISON_ASSET_SOURCE_DIR, false});
+		m_files.AddMount({"content", JETTISON_SAMPLE_ASSET_DIR, false});
 		m_files.AddMount({"base", m_directory / "base", false});
 		m_files.AddMount({"mod", m_directory / "mod", false});
 	}

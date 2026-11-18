@@ -36,5 +36,5 @@ jettison_add_module(dock
 # The suites read the sample's hulls and stations, and the star system they are in.
 if(TARGET jettison_dock_tests)
 	target_compile_definitions(jettison_dock_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
 endif()

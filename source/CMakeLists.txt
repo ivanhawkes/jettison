@@ -17,6 +17,49 @@ function(jettison_use_shared_assets target)
     add_dependencies(${target} jettison_assets)
 endfunction()
 
+# Stages a tree of assets as a target, for the executables that mount it and for packing
+# (jettison_add_pack): the DIRECTORIES under SOURCE copied to OUTPUT when the tree is configured
+# and again by every build of the target, so an edit to a scene, a clip or a material reaches the
+# build's copy, which the running app reads and hot-reloads from; the CONFIGURED directories, large
+# and rarely changed (sounds, fonts, models), at configure time only, a file added to them
+# reconfiguring the tree; and FILES, paths under SOURCE (a package's mod.yaml), at both. The target
+# keeps OUTPUT as JETTISON_ASSET_DIRECTORY, which jettison_use_content reads.
+function(jettison_add_assets target)
+	cmake_parse_arguments(PARSE_ARGV 1 assets "" "SOURCE;OUTPUT" "DIRECTORIES;CONFIGURED;FILES")
+	if(NOT assets_SOURCE OR NOT assets_OUTPUT)
+		message(FATAL_ERROR "jettison_add_assets(${target}) needs SOURCE and OUTPUT")
+	endif()
+	set(globs)
+	foreach(directory IN LISTS assets_DIRECTORIES assets_CONFIGURED)
+		list(APPEND globs "${assets_SOURCE}/${directory}/*")
+		file(COPY "${assets_SOURCE}/${directory}" DESTINATION "${assets_OUTPUT}")
+	endforeach()
+	file(GLOB_RECURSE staged CONFIGURE_DEPENDS ${globs})
+	set(commands)
+	foreach(directory IN LISTS assets_DIRECTORIES)
+		list(APPEND commands COMMAND ${CMAKE_COMMAND} -E copy_directory
+			"${assets_SOURCE}/${directory}" "${assets_OUTPUT}/${directory}")
+	endforeach()
+	foreach(path IN LISTS assets_FILES)
+		cmake_path(GET path PARENT_PATH parent)
+		file(COPY "${assets_SOURCE}/${path}" DESTINATION "${assets_OUTPUT}/${parent}")
+		list(APPEND commands COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"${assets_SOURCE}/${path}" "${assets_OUTPUT}/${path}")
+	endforeach()
+	add_custom_target(${target} ${commands} VERBATIM)
+	set_property(TARGET ${target} PROPERTY JETTISON_ASSET_DIRECTORY "${assets_OUTPUT}")
+endfunction()
+
+# A game's content (a jettison_add_assets target) for the executable to mount over the engine's
+# assets, as "base", by default: its staged tree, or the pack of it beside it as a shipped build
+# has. --content names another.
+function(jettison_use_content target content)
+	get_property(directory TARGET ${content} PROPERTY JETTISON_ASSET_DIRECTORY)
+	file(RELATIVE_PATH subdirectory "${CMAKE_CURRENT_BINARY_DIR}" "${directory}")
+	target_compile_definitions(${target} PRIVATE "JETTISON_CONTENT_SUBDIRECTORY=\"${subdirectory}\"")
+	add_dependencies(${target} ${content})
+endfunction()
+
 # Packs a directory into a pack file (vfs/Pack.h), which the VFS mounts as it would the directory,
 # when the target is built: a game's assets for shipping, a mod for its players. DIRECTORIES names
 # the directories under SOURCE to pack, every file under it when none are named; DEPENDS, the

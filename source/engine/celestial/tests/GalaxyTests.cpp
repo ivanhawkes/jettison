@@ -243,7 +243,7 @@ TEST_CASE("Galaxy: a system's file is checked against the lanes that end in it")
 
 TEST_CASE("Galaxy: the sample galaxy in the assets reads, and every lane ends at a jump point")
 {
-	const Galaxy galaxy = ReadGalaxy(ReadFile(JETTISON_ASSET_SOURCE_DIR "/systems/galaxy.yaml"));
+	const Galaxy galaxy = ReadGalaxy(ReadFile(JETTISON_SAMPLE_ASSET_DIR "/systems/galaxy.yaml"));
 	REQUIRE(galaxy.systems.size() == 3);
 	CHECK(galaxy.systems[0].name == "Halcyon");
 	CHECK(galaxy.systems[0].scene == "scene/orbit.yaml");
@@ -251,7 +251,7 @@ TEST_CASE("Galaxy: the sample galaxy in the assets reads, and every lane ends at
 	{
 		CAPTURE(galaxy.systems[system].name);
 		const StarSystem starSystem =
-		    ReadStarSystem(ReadFile(JETTISON_ASSET_SOURCE_DIR "/" + galaxy.systems[system].system));
+		    ReadStarSystem(ReadFile(JETTISON_SAMPLE_ASSET_DIR "/" + galaxy.systems[system].system));
 		CHECK_NOTHROW(CheckJumpPoints(galaxy, system, starSystem));
 		CHECK_FALSE(Exits(galaxy, system).empty());
 	}

@@ -1,0 +1,6 @@
+# The space-trading sample's content (docs/sample-game.md), mounted as "base" over the engine's
+# assets: what the log names it, and the engine it needs.
+version: 1
+name: Space-trading sample
+release: 1.0.0
+engine: 0.1.0

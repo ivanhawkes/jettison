@@ -1,42 +1,15 @@
-file(GLOB_RECURSE JETTISON_ASSET_FILES CONFIGURE_DEPENDS
-	"${CMAKE_CURRENT_SOURCE_DIR}/animations/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/audio/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/cinematics/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/defs/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/fonts/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/grades/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/materials/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/models/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/scene/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.program.yaml"
-	"${CMAKE_CURRENT_SOURCE_DIR}/strings/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/systems/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/textures/*"
-	"${CMAKE_CURRENT_SOURCE_DIR}/ui/*"
-)
-# The asset directories are copied when the tree is configured and again by every build, so an
-# edit to a scene, a clip, a material or a texture reaches the build's copy, which the running app reads
-# and hot-reloads from. Sounds, fonts and models are copied at configure time only: they are large
-# and rarely change.
-foreach(asset_dir IN ITEMS
-		animations audio cinematics defs fonts grades materials models scene strings systems textures ui)
-	file(COPY "${asset_dir}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
-endforeach()
-file(GLOB JETTISON_PROGRAM_DESCRIPTORS CONFIGURE_DEPENDS
+# The engine's own assets, what the shell needs to start and draw with no game's content mounted:
+# the shaders and their programs, the fonts, the saves screen and its stylesheet, and the strings of
+# the engine's modules. A game's content (the sample's is source/samples/space/assets) mounts over
+# them as "base" (app/Mounts.h).
+file(GLOB JETTISON_PROGRAM_DESCRIPTORS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.program.yaml")
-file(COPY ${JETTISON_PROGRAM_DESCRIPTORS} DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/shaders")
-
-set(JETTISON_COPIED_ASSET_DIRS
-	animations cinematics defs grades materials scene strings systems textures ui)
-set(copy_commands)
-foreach(asset_dir IN LISTS JETTISON_COPIED_ASSET_DIRS)
-	list(APPEND copy_commands COMMAND ${CMAKE_COMMAND} -E copy_directory
-		"${CMAKE_CURRENT_SOURCE_DIR}/${asset_dir}" "${CMAKE_CURRENT_BINARY_DIR}/${asset_dir}")
-endforeach()
-add_custom_target(jettison_assets
-	${copy_commands}
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different
-		${JETTISON_PROGRAM_DESCRIPTORS} "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+jettison_add_assets(jettison_assets
+	SOURCE "${CMAKE_CURRENT_SOURCE_DIR}"
+	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}"
+	DIRECTORIES strings ui
+	CONFIGURED fonts
+	FILES ${JETTISON_PROGRAM_DESCRIPTORS}
 )
 jettison_compile_shaders(jettison_assets
 	shaders/debug_line.vert
@@ -99,12 +72,10 @@ endforeach()
 
 # The staged assets as one pack beside them, as a shipped build has them (assets.pack, which the
 # shell mounts when there is no assets directory, or given with --assets). Not built by default:
-# the smoke test builds it and runs from it.
+# the smoke test builds it, and the sample's content pack, and runs from them.
 jettison_add_pack(jettison_assets_pack
 	SOURCE "${CMAKE_CURRENT_BINARY_DIR}"
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}.pack"
-	DIRECTORIES
-		animations audio cinematics defs fonts grades materials models scene shaders strings systems
-		textures ui
+	DIRECTORIES fonts shaders strings ui
 	DEPENDS jettison_assets
 )

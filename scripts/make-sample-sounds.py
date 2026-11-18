@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-# Rebuilds the sample sounds in assets/audio, synthesised here so that nothing in them is anyone
-# else's work: the four sounds the sample game plays for its events (8c), a station's hum and a
-# music loop. The effects are written as WAV straight into assets/audio; the music is written as WAV
-# to the current directory and encoded with the reference FLAC encoder, which devenv does not carry:
+# Rebuilds the sample sounds in source/samples/space/assets/audio, synthesised here so that nothing in
+# them is anyone else's work: the four sounds the sample game plays for its events (8c), a station's
+# hum and a music loop. The effects are written as WAV straight into the sample's audio; the music is
+# written as WAV to the current directory and encoded with the reference FLAC encoder, which devenv
+# does not carry:
 #
 #   nix shell nixpkgs#flac
 #   python3 scripts/make-sample-sounds.py
-#   flac --best --force --silent -o assets/audio/music/drift.flac drift.wav
+#   flac --best --force --silent -o source/samples/space/assets/audio/music/drift.flac drift.wav
 #
 # The effects are mono, as a positioned sound must be for miniaudio to place it, and the music is
 # stereo. Everything is 48 kHz and 16-bit. The seed is fixed: the same script makes the same sounds.
@@ -14,7 +15,8 @@ import math, os, random, struct, wave
 
 RATE = 48000
 random.seed(11)
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'audio')
+ROOT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..', 'source', 'samples', 'space', 'assets', 'audio')
 
 def write(path, channels, frames):
     """frames: a list of floats (mono) or of (left, right) pairs, in [-1, 1]."""

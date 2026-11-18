@@ -34,8 +34,8 @@ jettison/
 ├── CMakeLists.txt              project, warnings target, shader helper, package export
 ├── CMakePresets.json
 ├── cmake/                      jettison_add_module(), JettisonConfig.cmake.in
-├── assets/                     sample and test content (Git LFS), staged beside executables;
-│                               the sample game's goods and markets (defs/) and screens (ui/)
+├── assets/                     the engine's assets (Git LFS), staged beside executables: shaders,
+│                               fonts, the saves screen, the engine modules' strings
 ├── docs/                       this documentation
 ├── scripts/                    gates: ci.sh, format-check.sh, smoke-test.sh, tidy.sh
 └── source/
@@ -75,7 +75,9 @@ jettison/
     │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/
     │   ├── space/              the space-trading sample as a game composed into the shell:
-    │   │                       trading, traders, fleet and shipyard, market screen (Sample::)
+    │   │   │                   trading, traders, fleet and shipyard, market screen (Sample::)
+    │   │   └── assets/         its content, mounted as base: definitions, systems, scenes,
+    │   │                       models, textures, sounds, the market screen and its strings
     │   └── jetsam/             the runtime entry point, the shell with the space sample
     └── test/                   the render smoke harness (test executable), its reference
                                 frames and the data mod its packed run loads
@@ -219,7 +221,8 @@ two positions are in different frames.
 
 ### Jumps
 
-The galaxy (`celestial/Galaxy.h`, `assets/systems/galaxy.yaml`) is a graph: each system by name,
+The galaxy (`celestial/Galaxy.h`; the sample's is
+`source/samples/space/assets/systems/galaxy.yaml`) is a graph: each system by name,
 with its system file, where one is authored a scene file, and its position in light years; each lane
 joining a jump point in one system to a jump point in another, travelled both ways, with a transit
 time in simulation seconds. A jump point is the end of one lane, so a gate says where it leads, and
@@ -750,8 +753,10 @@ did.
 
 Everything the engine reads as content goes through `Vfs::FileSystem` (11a): ordered mounts, each a
 directory or a pack file (`vfs/Pack.h`), a later mount shadowing an earlier one path by path. The
-shell mounts, bottom to top (`App::MountAssets`): the assets as `base`, the staged directory or,
-where a build has none, `assets.pack` beside it, or whichever `--assets` names; each of the user's
+shell mounts, bottom to top (`App::MountAssets`): the engine's assets as `engine`, the staged
+directory or, where a build has none, `assets.pack` beside it, or whichever `--assets` names; the
+game's content over them as `base`, found the same way from the program's own subdirectory
+(`jettison_use_content`) or named with `--content`, and absent where there is none; each of the user's
 mods the player's list enables, the directories and `.pack` files under
 `~/.local/share/jettison/mods`, as `mod:<identifier>`, a directory's name or a pack's without
 `.pack`, so a mod is the same mod packed or not (a second of one identifier is reported and ignored,
@@ -768,7 +773,24 @@ found then mounting by identifier. Each mod may describe itself in a `mod.yaml` 
 to show, its `release`, which a save records it by,
 the engine version it was written for, refused when newer than the engine's, and `requires`, the
 mods it needs before it in the list, refused with the reason when one is missing or after it rather
-than the list reordered. A mod with none mounts as before, of no release.
+than the list reordered. A mod with none mounts as before, of no release. The content describes
+itself the same way, and content for a newer engine stops the start-up where a mod would be left
+out.
+
+The engine's assets and a game's content are two trees, each its own target and pack (H05). The
+engine's, `assets/`, are what the shell needs to start and draw with no content: the shaders and
+their programs, the fonts, the saves screen and its stylesheet, and the strings of the engine's
+modules (`numbers`, `saves`, and the `dock`, `ai` and `physics` reasons). The sample's,
+`source/samples/space/assets/` with its `mod.yaml`, are everything else: its definitions, star
+systems, scenes, models, materials, textures, clips, sequences, grades, sounds and music, the market
+screen and the strings of its goods, markets and trades. `jettison_add_assets` stages a tree as a
+target, which `jettison_use_content` gives an executable as its default content; Jetsam and the
+render test take the sample's, and Flotsam none, starting on an empty scene. The shell still names
+some content by convention, each optional: the default scene, the galaxy, the music, the station
+hum, and the materials and clip a station's dressing uses; content without them runs without them,
+in silence where the music is missing. Several engine suites read the sample's content as test data
+(`JETTISON_SAMPLE_ASSET_DIR`); none of the engine's code does.
+
 Nothing that reads content names a host path: the default scene is `scene/orbit.yaml`, Halcyon
 with the ship docked at Ostra Highport, through the mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
 disk, for the development scenes the reference views use).
@@ -778,8 +800,10 @@ with its checksum, so a file is read on its own and a damaged one is caught as i
 is read and checked whole as it is mounted, and a pack that breaks its layout is refused naming what
 is wrong. Its file is held open for the run and read with `pread`, so the I/O worker and the main
 thread read at once, and a pack replaced on the disk is read as it was mounted. `jettison_pack`
-writes one, and `jettison_add_pack` is the build's rule for it; the sample assets are
-`jettison_assets_pack` (`build/<preset>/assets.pack`), which the smoke test runs from. The same
+writes one, and `jettison_add_pack` is the build's rule for it; the engine's assets are
+`jettison_assets_pack` (`build/<preset>/assets.pack`) and the sample's content
+`jettison_sample_space_pack` (`build/<preset>/source/samples/space/assets.pack`), which the smoke
+test runs from. The same
 files give the same bytes. A file is compressed only where zstd at level 1 saves a thirty-second of
 it, then at level 19: of the sample assets' 90.3 MB, the KTX 2 textures are zstd-supercompressed
 already and the models and music barely shrink, so 127 of 136 files are compressed and the pack is
@@ -1792,7 +1816,7 @@ proves it headlessly. What exists:
   no presentation module; the render shell does not start through it yet (H05).
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
+  `--content`, `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
   written to a file, `--screenshot`, `--after-frames`, `--frame-step` and `--run`), builds
   `Application`, and prints any exception the run threw. A screenshot (10a) is the swapchain image
   as the output pass left it, UI and all, copied out by a transfer pass of the plan in the frame
@@ -1862,7 +1886,7 @@ proves it headlessly. What exists:
   machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML
-  (`assets/scene/orbit.yaml` at real scale, the default, and `main.yaml`, the sample models) through `serialise`'s archives, at
+  (`source/samples/space/assets/scene/orbit.yaml` at real scale, the default, and `main.yaml`, the sample models) through `serialise`'s archives, at
   file version 2: a field the file does not know is refused, naming its path and line, and the
   loader and the writer share one check of what a file may say. It has transform, parent,
   world-transform, camera, light (a point or a spot, with a range), sun, sky, colour grade and mesh

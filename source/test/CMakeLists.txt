@@ -3,6 +3,7 @@
 # which an executable of that name in this directory collides with.
 add_executable(render_test main.cpp)
 jettison_use_shared_assets(render_test)
+jettison_use_content(render_test jettison_sample_space_assets)
 set_property(TARGET render_test PROPERTY FOLDER "Test")
 target_link_libraries(render_test PRIVATE Jettison::App jettison_sample_space jettison_warnings)
 

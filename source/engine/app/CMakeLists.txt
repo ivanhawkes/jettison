@@ -70,9 +70,10 @@ jettison_add_module(app
 		glfw
 )
 
-# The large-world, dressing, mounts and stations tests read the star systems and definitions the
-# assets ship.
+# The large-world, dressing and stations tests read the star systems and definitions the sample's
+# content ships; the game tests hold the engine's assets to what the engine ships.
 if(TARGET jettison_app_tests)
 	target_compile_definitions(jettison_app_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets"
+		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
 endif()

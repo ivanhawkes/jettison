@@ -61,10 +61,13 @@ VFS or physics integration in Manifest because its public seam needs a bounded i
 ## Current gaps and extraction order
 
 The space sample's Trading, Traders, Fleet and market screen are a game composed into the shell
-(`source/samples/space`, `App::Game`), out of the `app` library (H05, 2026-11-18). AI combines
-generic algorithms with cruise/gates/lanes; physics and scene depend on celestial
-concepts; snapshots/save metadata carry star-system fields. Assets combine renderer
-resources and sample gameplay. `JETTISON_PRESENTATION=OFF` configures the CPU engine without
+(`source/samples/space`, `App::Game`), out of the `app` library, and its content is a tree and pack
+of its own (`source/samples/space/assets`), mounted as `base` over the engine's assets (H05,
+2026-11-18). AI combines generic algorithms with cruise/gates/lanes; physics and scene depend on
+celestial concepts; snapshots/save metadata carry star-system fields. The shell still names some
+content by path, each optional (the default scene, the galaxy, the music, the station hum, a
+station's dressing), and several engine suites read the sample's content as test data.
+`JETTISON_PRESENTATION=OFF` configures the CPU engine without
 graphics tools (H03, 2026-11-18).
 
 Implement the boundary in reviewable slices:

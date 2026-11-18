@@ -129,12 +129,13 @@ jettison_add_module(render
 # shadows.glsl, so the fit is checked against the source the lighting include runs (Shadows.cpp).
 target_include_directories(jettison_render PRIVATE "${PROJECT_SOURCE_DIR}/assets/shaders/include")
 
-# The texture and material tests read the files the assets ship (the sample KTX 2 texture, the
-# program descriptors and materials), not copies of them; the BRDF tests compile the shaders' own
-# lighting includes as C++.
+# The texture and material tests read the files the engine's assets and the sample's content ship
+# (the program descriptors; the sample's KTX 2 texture and materials), not copies of them; the BRDF
+# tests compile the shaders' own lighting includes as C++.
 if(TARGET jettison_render_tests)
 	target_compile_definitions(jettison_render_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets"
+		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
 	target_include_directories(jettison_render_tests PRIVATE
 		"${PROJECT_SOURCE_DIR}/assets/shaders/include")
 	# The pass list's barriers are tested through the backend's private header (vulkan/PassBarriers.h),

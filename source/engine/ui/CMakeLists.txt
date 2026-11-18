@@ -30,8 +30,9 @@ jettison_add_module(ui
 		yaml-cpp::yaml-cpp
 )
 
-# The tests read the fonts the assets ship.
+# The tests read the fonts the engine's assets ship, and the sample's market screen.
 if(TARGET jettison_ui_tests)
 	target_compile_definitions(jettison_ui_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets"
+		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
 endif()

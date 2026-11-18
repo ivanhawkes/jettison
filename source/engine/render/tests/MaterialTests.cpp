@@ -178,8 +178,9 @@ TEST_CASE("Material: waves run from 0 to 1 over a period, and time-driven values
 TEST_CASE("Material: the shipped materials resolve against the programs they name")
 {
 	const std::filesystem::path assets{JETTISON_ASSET_SOURCE_DIR};
+	const std::filesystem::path content{JETTISON_SAMPLE_ASSET_DIR};
 	std::size_t materials = 0;
-	for (const auto &entry : std::filesystem::directory_iterator{assets / "materials"})
+	for (const auto &entry : std::filesystem::directory_iterator{content / "materials"})
 	{
 		const std::string name = entry.path().filename().string();
 		if (!name.ends_with(".material.yaml"))
@@ -192,7 +193,7 @@ TEST_CASE("Material: the shipped materials resolve against the programs they nam
 		const ResolvedMaterial resolved = ResolveMaterial(program, material, name);
 		for (const std::string &texture : resolved.textures)
 			if (!texture.empty())
-				CHECK(std::filesystem::is_regular_file(assets / texture));
+				CHECK(std::filesystem::is_regular_file(content / texture));
 		++materials;
 	}
 	CHECK(materials >= 3);

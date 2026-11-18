@@ -37,7 +37,8 @@ struct ModList
 	std::vector<ModEntry> mods;
 };
 
-// The shell's mounts, bottom to top: the assets (a directory or a pack) as "base"; the user's mods
+// The shell's mounts, bottom to top: the engine's assets (a directory or a pack) as "engine"; the
+// game's content over them (likewise), unless there is none, as "base"; the user's mods
 // in the data directory, as "mod:<identifier>"; the user's data directory itself, writable, as "user",
 // where saves go. The mods are in the list's order and only those it enables; a mod found and not
 // listed is added at the end, enabled, in the order of the identifiers' bytes, and the list written
@@ -49,15 +50,17 @@ struct ModList
 // description does not read, is for a newer engine, or needs a mod not mounted before it, is
 // reported and left out; anything else in the mods directory is reported and ignored; a list that
 // does not read is reported, every mod found mounts, and the list is left as it is for its player to
-// mend. Throws as Vfs::FileSystem::AddMount does for the assets or the user's directory.
+// mend. Throws as Vfs::FileSystem::AddMount does for the assets, the content or the user's
+// directory, and for content whose description (Host::PackageDescription) does not read or is for a
+// newer engine: a game does not start on content it cannot run.
 //
 // Returns the mods mounted, in order, with their versions, which a save records.
 //
 // The user mount's root is the data directory, so its mods are under "mods/" in the virtual tree
 // too; nothing reads there.
 std::vector<Sim::ModVersion> MountAssets(
-    Vfs::FileSystem &files, const std::filesystem::path &assets, const std::filesystem::path &userData,
-    const std::filesystem::path &modList = {});
+    Vfs::FileSystem &files, const std::filesystem::path &assets, const std::filesystem::path &content,
+    const std::filesystem::path &userData, const std::filesystem::path &modList = {});
 
 void RegisterModTypes();
 } // namespace Jettison::App

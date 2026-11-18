@@ -59,7 +59,8 @@ struct Harbour
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::ControlledBy>();
 		RegisterTrading(world);
-		assets.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+		assets.AddMount({"engine", JETTISON_ASSET_SOURCE_DIR, false});
+		assets.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		strings.Load(assets, "en");
 		entt::registry &registry = world.Registry();
 		station = registry.create();
@@ -460,7 +461,7 @@ TEST_CASE("Trading: the market screen is made from a snapshot, never from the wo
 TEST_CASE("Trading: the sample game's goods and markets load, and every market's goods are defined")
 {
 	Vfs::FileSystem files;
-	files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+	files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 	Sim::DefinitionRegistry definitions{files};
 	LoadTradeDefinitions(definitions);
 	CHECK(definitions.Names<Good>().size() == 8);
@@ -504,7 +505,8 @@ TEST_CASE(
 {
 	RegisterMarketScreenTypes();
 	Vfs::FileSystem files;
-	files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+	files.AddMount({"engine", JETTISON_ASSET_SOURCE_DIR, false});
+	files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 	Ui::UiSystem ui{files, 1920, 1080};
 	ui.LoadFont("fonts/Roboto-Medium.ttf");
 	ui.LoadFont("fonts/Hack-Regular.ttf");

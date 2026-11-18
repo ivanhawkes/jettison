@@ -132,9 +132,9 @@ constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/DroidSans.ttf", true},
 }};
 
-// The shell's music, and the hum of the station the ship is bound to: heard at its full volume within
-// a few hundred metres of the station's centre, as a station is that size, and fading to a murmur
-// two kilometres out.
+// The shell's music, and the hum of the station the ship is bound to, each played from the content
+// where it has them: the hum heard at its full volume within a few hundred metres of the station's
+// centre, as a station is that size, and fading to a murmur two kilometres out.
 constexpr std::string_view kMusic = "audio/music/drift.flac";
 constexpr std::string_view kStationHum = "audio/effects/station-hum.wav";
 constexpr Audio::Falloff kStationHumFalloff{300.0f, 20000.0f, 1.0f};
@@ -1153,7 +1153,8 @@ void Application::InitResources()
 {
 	if (m_assets.Mounts().empty())
 		m_mods = MountAssets(
-		    m_assets, m_arguments.assets, m_userPaths.userData, m_userPaths.config / kModListFile);
+		    m_assets, m_arguments.assets, m_arguments.content, m_userPaths.userData,
+		    m_userPaths.config / kModListFile);
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
 	// A fixed step's frames are the same every run only if each load ends on a frame the count sets,
 	// and a reload would change one mid-run.
@@ -1281,7 +1282,9 @@ void Application::InitAudio()
 	Core::Log(
 	    Core::Severity::Info, kShell, "{} event sounds for {} events", m_eventSounds->Sounds(),
 	    m_eventSounds->Events());
-	m_music = m_pAudio->PlayMusic(kMusic);
+	// Content with no music, as the engine with none runs, starts in silence and says nothing.
+	if (m_assets.Find(kMusic))
+		m_music = m_pAudio->PlayMusic(kMusic);
 }
 
 
@@ -1835,18 +1838,26 @@ void Application::LoadScene()
 		m_pScene->Load(m_arguments.scenePath);
 	else
 	{
-		// The assets' own scene, through the mounts, so a packed build and a mod's scene are read
-		// as a directory's.
+		// The content's own scene, through the mounts, so a packed build and a mod's scene are read
+		// as a directory's; without one, as the engine with no content runs, the scene is empty.
 		const auto bytes = m_assets.Read(kDefaultScene);
 		if (!bytes)
-			throw std::runtime_error(std::format("Scene '{}': the assets have none", kDefaultScene));
-		try
 		{
-			m_pScene->LoadText({reinterpret_cast<const char *>(bytes->data()), bytes->size()});
+			Core::Log(
+			    Core::Severity::Info, kShell, "The content has no {}, so the scene is empty",
+			    kDefaultScene);
+			m_pScene->Clear();
 		}
-		catch (const std::exception &error)
+		else
 		{
-			throw std::runtime_error(std::format("Scene '{}': {}", kDefaultScene, error.what()));
+			try
+			{
+				m_pScene->LoadText({reinterpret_cast<const char *>(bytes->data()), bytes->size()});
+			}
+			catch (const std::exception &error)
+			{
+				throw std::runtime_error(std::format("Scene '{}': {}", kDefaultScene, error.what()));
+			}
 		}
 	}
 	if (const std::string &path = m_pScene->StarSystem(); !path.empty())

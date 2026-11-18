@@ -42,7 +42,7 @@ inline constexpr double kStep = 1.0 / 60.0;
 
 inline std::string ReadAsset(const std::string &path)
 {
-	std::ifstream in{std::string{JETTISON_ASSET_SOURCE_DIR} + "/" + path};
+	std::ifstream in{std::string{JETTISON_SAMPLE_ASSET_DIR} + "/" + path};
 	std::stringstream text;
 	text << in.rdbuf();
 	return text.str();
@@ -76,9 +76,9 @@ struct Galaxy
 		world.RegisterComponent<Sim::ControlledBy>();
 		Sample::RegisterTrading(world);
 		if (userData.empty())
-			files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+			files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		else
-			App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, userData);
+			App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, JETTISON_SAMPLE_ASSET_DIR, userData);
 		Sim::DefinitionRegistry definitions{files};
 		Sample::LoadTradeDefinitions(definitions);
 		Sample::LoadTraderDefinitions(definitions);

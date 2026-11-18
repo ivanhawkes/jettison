@@ -7,5 +7,6 @@
 int main(int argc, char **argv)
 {
 	Jettison::Sample::SpaceGame game;
-	return Jettison::App::RunRenderApplication(argc, argv, "Test", JETTISON_ASSET_SUBDIRECTORY, &game);
+	return Jettison::App::RunRenderApplication(
+	    argc, argv, "Test", JETTISON_ASSET_SUBDIRECTORY, &game, JETTISON_CONTENT_SUBDIRECTORY);
 }

@@ -76,7 +76,7 @@ std::vector<std::string> NamesOf(const Vfs::FileSystem &files)
 } // namespace
 
 
-TEST_CASE("Mounts: the base, then the user's mods in the order of their identifiers, then the user")
+TEST_CASE("Mounts: the engine's assets, then the user's mods by their identifiers, then the user")
 {
 	const Scratch scratch;
 	scratch.Put("assets/defs/goods/beer.yaml", "version: 1\n");
@@ -96,10 +96,11 @@ TEST_CASE("Mounts: the base, then the user's mods in the order of their identifi
 			    said.emplace_back(record.message);
 	    });
 	Vfs::FileSystem files;
-	App::MountAssets(files, scratch.Path("assets"), scratch.Path("user"));
+	App::MountAssets(files, scratch.Path("assets"), {}, scratch.Path("user"));
 	Core::RemoveLogCallback(listening);
 
-	CHECK(NamesOf(files) == std::vector<std::string>{"base", "mod:a-pack", "mod:b-directory", "user"});
+	CHECK(
+	    NamesOf(files) == std::vector<std::string>{"engine", "mod:a-pack", "mod:b-directory", "user"});
 	CHECK(files.Mounts().back().writable);
 	CHECK(files.Find("defs/goods/ale.yaml")->mount == 1);
 	CHECK_FALSE(files.Find("defs/goods/mead.yaml"));
@@ -112,8 +113,8 @@ TEST_CASE("Mounts: the base, then the user's mods in the order of their identifi
 
 	// No mods directory is no mods.
 	Vfs::FileSystem plain;
-	App::MountAssets(plain, scratch.Path("assets"), scratch.Path("elsewhere"));
-	CHECK(NamesOf(plain) == std::vector<std::string>{"base", "user"});
+	App::MountAssets(plain, scratch.Path("assets"), {}, scratch.Path("elsewhere"));
+	CHECK(NamesOf(plain) == std::vector<std::string>{"engine", "user"});
 }
 
 
@@ -184,10 +185,10 @@ TEST_CASE("Mounts: the player's list orders the mods and enables them, and a mod
 	const Reported reported;
 	Vfs::FileSystem files;
 	const std::vector<Sim::ModVersion> mounted =
-	    App::MountAssets(files, scratch.Path("assets"), scratch.Path("user"), list);
+	    App::MountAssets(files, scratch.Path("assets"), {}, scratch.Path("user"), list);
 	CHECK(
 	    NamesOf(files) ==
-	    std::vector<std::string>{"base", "mod:gamma", "mod:alpha", "mod:delta", "user"});
+	    std::vector<std::string>{"engine", "mod:gamma", "mod:alpha", "mod:delta", "user"});
 	CHECK(mounted == std::vector<Sim::ModVersion>{{"gamma", ""}, {"alpha", "2.1.0"}, {"delta", ""}});
 	CHECK(reported.Contains("The mod gone is in the list and not in"));
 	CHECK(reported.lines.size() == 1);
@@ -204,18 +205,18 @@ TEST_CASE("Mounts: the player's list orders the mods and enables them, and a mod
 	// Read again, the list is what the directory has, and nothing is written.
 	const std::string before = ReadFile(list);
 	Vfs::FileSystem again;
-	CHECK(App::MountAssets(again, scratch.Path("assets"), scratch.Path("user"), list) == mounted);
+	CHECK(App::MountAssets(again, scratch.Path("assets"), {}, scratch.Path("user"), list) == mounted);
 	CHECK(ReadFile(list) == before);
 
 	// A list that does not read is said, every mod mounts by name, and the player's file is kept.
 	scratch.Put("config/mods.yaml", "version: 1\nmods: [{mod: alpha}, {mod: alpha}]\n");
 	const Reported broken;
 	Vfs::FileSystem unlisted;
-	App::MountAssets(unlisted, scratch.Path("assets"), scratch.Path("user"), list);
+	App::MountAssets(unlisted, scratch.Path("assets"), {}, scratch.Path("user"), list);
 	CHECK(broken.Contains("names the mod 'alpha' twice"));
 	CHECK(
 	    NamesOf(unlisted) ==
-	    std::vector<std::string>{"base", "mod:alpha", "mod:beta", "mod:delta", "mod:gamma", "user"});
+	    std::vector<std::string>{"engine", "mod:alpha", "mod:beta", "mod:delta", "mod:gamma", "user"});
 	CHECK(ReadFile(list) == "version: 1\nmods: [{mod: alpha}, {mod: alpha}]\n");
 }
 
@@ -235,10 +236,10 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 	const Reported reported;
 	Vfs::FileSystem files;
 	const std::vector<Sim::ModVersion> mounted =
-	    App::MountAssets(files, scratch.Path("assets"), scratch.Path("user"));
+	    App::MountAssets(files, scratch.Path("assets"), {}, scratch.Path("user"));
 	CHECK(
 	    NamesOf(files) ==
-	    std::vector<std::string>{"base", "mod:base-goods", "mod:needs-base", "mod:zz-later", "user"});
+	    std::vector<std::string>{"engine", "mod:base-goods", "mod:needs-base", "mod:zz-later", "user"});
 	CHECK(mounted.front() == Sim::ModVersion{"base-goods", "1.0.0"});
 	CHECK(reported.Contains("written for engine 0.2.0, newer than this build's 0.1.0"));
 	// A mod whose requirement was left out is left out with it; one that would need reordering is not
@@ -247,4 +248,28 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 	CHECK(reported.Contains("requires the mod zz-later, which is not mounted before it"));
 	CHECK(reported.Contains("misspelt is left out"));
 	CHECK(reported.lines.size() == 4);
+}
+
+
+TEST_CASE("Mounts: a game's content over the engine's assets, and content for a newer engine refused")
+{
+	const Scratch scratch;
+	scratch.Put("engine/strings/en/numbers.yaml", "version: 1\n");
+	scratch.Put("content/strings/en/numbers.yaml", "version: 1\n");
+	scratch.Put("content/mod.yaml", "version: 1\nname: Sample\nrelease: 1.0.0\nengine: 0.1.0\n");
+	scratch.Put("user/mods/a/strings/en/numbers.yaml", "version: 1\n");
+
+	Vfs::FileSystem files;
+	CHECK(
+	    App::MountAssets(files, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user"))
+	        .size() == 1);
+	CHECK(NamesOf(files) == std::vector<std::string>{"engine", "base", "mod:a", "user"});
+	CHECK(files.ReadLayers("strings/en/numbers.yaml").size() == 3);
+
+	// Content a game cannot run on stops the start-up, where a mod would be left out.
+	scratch.Put("content/mod.yaml", "version: 1\nengine: 0.2.0\n");
+	Vfs::FileSystem newer;
+	CHECK_THROWS_WITH(
+	    App::MountAssets(newer, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user")),
+	    doctest::Contains("written for engine 0.2.0"));
 }

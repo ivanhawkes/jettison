@@ -30,7 +30,7 @@ namespace
 {
 std::string ReadAsset(const std::string &path)
 {
-	std::ifstream file{JETTISON_ASSET_SOURCE_DIR "/" + path};
+	std::ifstream file{JETTISON_SAMPLE_ASSET_DIR "/" + path};
 	std::stringstream text;
 	text << file.rdbuf();
 	return text.str();
@@ -56,7 +56,7 @@ struct Assets
 
 	Assets()
 	{
-		files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR});
+		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR});
 		resources.emplace(
 		    files, worker, Resource::ResourceOptions{.hotReload = false, .pollInterval = {}});
 		Scene::RegisterJumpLoaders(*resources);

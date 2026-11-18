@@ -112,6 +112,24 @@ std::optional<ModList> ReadList(const std::filesystem::path &path, bool &readabl
 	}
 }
 
+
+// The package's description, or an empty one for none; throws for one that does not read or is for
+// a newer engine than this build, and logs what it names.
+Host::PackageDescription Describe(const std::filesystem::path &source, std::string_view mount)
+{
+	const Host::PackageDescription description =
+	    Host::DescribePackage(source).value_or(Host::PackageDescription{});
+	if (!description.engine.empty() && !Host::EngineAtLeast(Core::EngineVersion(), description.engine))
+		throw std::runtime_error{std::format(
+		    "it was written for engine {}, newer than this build's {}", description.engine,
+		    Core::EngineVersion())};
+	if (!description.name.empty())
+		Core::Log(
+		    Core::Severity::Info, kMounts, "{} is {}{}", mount, description.name,
+		    description.release.empty() ? "" : " " + description.release);
+	return description;
+}
+
 } // namespace
 
 
@@ -131,11 +149,24 @@ void RegisterModTypes()
 
 
 std::vector<Sim::ModVersion> MountAssets(
-    Vfs::FileSystem &files, const std::filesystem::path &assets, const std::filesystem::path &userData,
-    const std::filesystem::path &modList)
+    Vfs::FileSystem &files, const std::filesystem::path &assets, const std::filesystem::path &content,
+    const std::filesystem::path &userData, const std::filesystem::path &modList)
 {
 	RegisterModTypes();
-	files.AddMount({"base", assets});
+	files.AddMount({"engine", assets});
+	if (!content.empty())
+	{
+		try
+		{
+			Describe(content, "The content");
+		}
+		catch (const std::exception &problem)
+		{
+			throw std::runtime_error{
+			    std::format("The content {} does not start: {}", content.string(), problem.what())};
+		}
+		files.AddMount({"base", content});
+	}
 
 	const std::vector<std::filesystem::path> found = FindMods(userData);
 	const auto pathOf = [&found](std::string_view mod) -> const std::filesystem::path *
@@ -193,22 +224,13 @@ std::vector<Sim::ModVersion> MountAssets(
 		try
 		{
 			const Host::PackageDescription description =
-			    Host::DescribePackage(*pPath).value_or(Host::PackageDescription{});
-			if (!description.engine.empty() &&
-			    !Host::EngineAtLeast(Core::EngineVersion(), description.engine))
-				throw std::runtime_error{std::format(
-				    "it was written for engine {}, newer than this build's {}", description.engine,
-				    Core::EngineVersion())};
+			    Describe(*pPath, std::format("The mod {}", entry.mod));
 			for (const std::string &required : description.required)
 				if (std::ranges::find(mounted, required, &Sim::ModVersion::mod) == mounted.end())
 					throw std::runtime_error{std::format(
 					    "it requires the mod {}, which is not mounted before it", required)};
 			files.AddMount({"mod:" + entry.mod, *pPath});
 			mounted.push_back({entry.mod, description.release});
-			if (!description.name.empty())
-				Core::Log(
-				    Core::Severity::Info, kMounts, "The mod {} is {}{}", entry.mod, description.name,
-				    description.release.empty() ? "" : " " + description.release);
 		}
 		catch (const std::exception &problem)
 		{

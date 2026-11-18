@@ -30,7 +30,7 @@ inline constexpr std::string_view kHighport = "Ostra Highport";
 
 inline std::string ReadAsset(std::string_view path)
 {
-	std::ifstream file{std::string{JETTISON_ASSET_SOURCE_DIR} + "/" + std::string{path}};
+	std::ifstream file{std::string{JETTISON_SAMPLE_ASSET_DIR} + "/" + std::string{path}};
 	std::stringstream text;
 	text << file.rdbuf();
 	return text.str();
@@ -53,7 +53,7 @@ struct Fixture
 		if (!sample)
 			return;
 		Vfs::FileSystem files;
-		files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
 		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});

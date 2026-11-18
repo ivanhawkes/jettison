@@ -16,11 +16,15 @@ struct AppArguments
 	// The headless render test: the sequence of stages the shell hands to SmokeSequence.
 	bool smokeTest{false};
 
-	// Models, shaders, textures and scene graphs: a directory, or a pack of one (vfs/Pack.h), mounted
-	// as the base under the user's mods. Defaults to the tree the build stages beside the
-	// executable, or, where there is none, the pack of the same name beside it, as a shipped build
-	// has; --assets names either.
+	// The engine's assets, its shaders, fonts and the shell's own screens and strings: a directory, or
+	// a pack of one (vfs/Pack.h), mounted as "engine" at the bottom. Defaults to the tree the build
+	// stages beside the executable, or, where there is none, the pack of the same name beside it, as
+	// a shipped build has; --assets names either.
 	std::filesystem::path assets;
+	// The game's content over them, its definitions, scenes, models and sounds, mounted as "base"
+	// under the user's mods: found as the assets are, from the program's own subdirectory, and named
+	// with --content. Empty for none, as Flotsam runs: the engine with no game's content.
+	std::filesystem::path content;
 
 	// The scene graph file loaded at start-up (--scene), and an optional second file to write it back
 	// to. Empty for the assets' own, scene/orbit.yaml (Halcyon, the ship docked at Ostra Highport),
@@ -77,9 +81,11 @@ struct AppArguments
 	std::optional<std::filesystem::path> userDirectory;
 };
 
-// Resolves the default assets - the tree beside the executable, or its pack - then reads the flags.
-// --scene and --system together are not understood. Returns nothing, having printed the usage line,
-// when an argument is not understood; the caller exits with failure.
+// Resolves the default assets and content - each the tree beside the executable, or its pack; no
+// content for no subdirectory - then reads the flags. --scene and --system together are not
+// understood. Returns nothing, having printed the usage line, when an argument is not understood; the
+// caller exits with failure.
 std::optional<AppArguments> ParseAppArguments(
-    int argc, char **argv, const std::filesystem::path &assetSubdirectory);
+    int argc, char **argv, const std::filesystem::path &assetSubdirectory,
+    const std::filesystem::path &contentSubdirectory = {});
 } // namespace Jettison::App

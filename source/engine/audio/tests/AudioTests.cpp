@@ -43,7 +43,7 @@ class Scratch
 	{
 		std::filesystem::remove_all(m_directory);
 		std::filesystem::create_directories(m_directory);
-		m_files.AddMount({"sounds", std::filesystem::path(JETTISON_ASSET_SOURCE_DIR) / "audio", false});
+		m_files.AddMount({"sounds", std::filesystem::path(JETTISON_SAMPLE_ASSET_DIR) / "audio", false});
 		m_files.AddMount({"scratch", m_directory, false});
 	}
 

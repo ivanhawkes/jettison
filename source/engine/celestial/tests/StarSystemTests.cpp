@@ -159,7 +159,7 @@ TEST_CASE("Star system: presentation time is interpolated between the steps")
 TEST_CASE("Star system: the sample system in the assets reads")
 {
 	const StarSystem system =
-	    ReadStarSystem(ReadFile(JETTISON_ASSET_SOURCE_DIR "/systems/halcyon.yaml"));
+	    ReadStarSystem(ReadFile(JETTISON_SAMPLE_ASSET_DIR "/systems/halcyon.yaml"));
 	CHECK(system.name == "Halcyon");
 	const int station = system.Find("Ostra Highport");
 	REQUIRE(station > 0);
@@ -190,7 +190,7 @@ TEST_CASE("Star system: the sample gates keep to their planets, moons and stars,
 	{
 		CAPTURE(gate.gate);
 		const StarSystem system = ReadStarSystem(
-		    ReadFile(std::string{JETTISON_ASSET_SOURCE_DIR "/systems/"} + gate.file + ".yaml"));
+		    ReadFile(std::string{JETTISON_SAMPLE_ASSET_DIR "/systems/"} + gate.file + ".yaml"));
 		const auto index = static_cast<std::size_t>(system.Find(gate.gate));
 		REQUIRE(system.bodies[index].kind == BodyKind::JumpPoint);
 		CHECK(system.bodies[index].parentIndex == system.Find(gate.parent));

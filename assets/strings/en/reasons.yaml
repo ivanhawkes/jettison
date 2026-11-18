@@ -54,31 +54,3 @@ reason:
     not_at_helm: its sender is not at the ship's helm
   physics:
     not_at_helm: its sender is not at the ship's helm
-  shell:
-    no_crates: no crates were asked for
-    no_ship: there is no such ship
-    not_owner: its sender does not own the ship
-    no_owner: the ship has no owner
-    no_market: there is no such market
-    not_docked: the ship is not docked at {0}
-    not_dealt: "{0} does not deal in {1}"
-    # The station, then the crates it has.
-    short_of_stock:
-      one: "{0} has {1} crate"
-      other: "{0} has {1} crates"
-    no_room:
-      one: the hold has room for {0} crate
-      other: the hold has room for {0} crates
-    too_dear:
-      one: "{0} crate costs more than the purse holds"
-      other: "{0} crates cost more than the purse holds"
-    hold_short:
-      one: the hold has {0} crate of it
-      other: the hold has {0} crates of it
-    sale_too_large: the sale is worth more than a purse holds
-    short_of_toll: the lane's toll of {0} credits is more than the purse holds
-    no_station: there is no such station
-    not_for_sale: no {0} is for sale
-    none_docked: none of the fleet is docked at {0}
-    no_pad_free: "{0} has no free pad a {1} fits"
-    short_of_price: its price of {0} credits is more than the purse holds

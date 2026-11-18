@@ -16,9 +16,9 @@ namespace Jettison::App
 // failed - before this function's handler prints.
 int RunRenderApplication(
     int argc, char **argv, const char *windowTitle, const std::filesystem::path &assetSubdirectory,
-    Game *game)
+    Game *game, const std::filesystem::path &contentSubdirectory)
 {
-	const auto arguments = ParseAppArguments(argc, argv, assetSubdirectory);
+	const auto arguments = ParseAppArguments(argc, argv, assetSubdirectory, contentSubdirectory);
 	if (!arguments)
 		return EXIT_FAILURE;
 

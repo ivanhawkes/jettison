@@ -1,4 +1,5 @@
 add_executable(jetsam main.cpp)
 jettison_use_shared_assets(jetsam)
+jettison_use_content(jetsam jettison_sample_space_assets)
 set_property(TARGET jetsam PROPERTY FOLDER "Jetsam")
 target_link_libraries(jetsam PRIVATE Jettison::App jettison_sample_space jettison_warnings)

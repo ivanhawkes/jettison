@@ -24,7 +24,7 @@ namespace
 {
 Celestial::StarSystem Halcyon()
 {
-	std::ifstream file{JETTISON_ASSET_SOURCE_DIR "/systems/halcyon.yaml"};
+	std::ifstream file{JETTISON_SAMPLE_ASSET_DIR "/systems/halcyon.yaml"};
 	std::stringstream text;
 	text << file.rdbuf();
 	return Celestial::ReadStarSystem(text.str());

@@ -19,9 +19,10 @@ class StringTable;
 
 namespace Jettison::Sample
 {
-// The market screen's data (assets/ui/market.rml), which the UI's "market" model is bound to as
-// "screen": presentation's copy, made from a snapshot's markets, hold and purse (Trading.h) and the
-// goods' definitions, never from the world. Registered with Reflect, for the data model to read.
+// The market screen's data (source/samples/space/assets/ui/market.rml), which the UI's "market" model
+// is bound to as "screen": presentation's copy, made from a snapshot's markets, hold and purse
+// (Trading.h) and the goods' definitions, never from the world. Registered with Reflect, for the data
+// model to read.
 struct MarketRow
 {
 	std::string good;

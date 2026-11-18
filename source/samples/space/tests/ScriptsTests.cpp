@@ -101,7 +101,7 @@ TEST_CASE(
 {
 	const ModdedUser user;
 	Vfs::FileSystem files;
-	App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, user.root);
+	App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, JETTISON_SAMPLE_ASSET_DIR, user.root);
 	Sim::SimWorld world{1.0 / 60.0, 1};
 	Sample::RegisterTrading(world);
 	Sim::DefinitionRegistry definitions{files};
@@ -152,7 +152,7 @@ TEST_CASE("Scripts: a script's keys and the mods enabled go into a save and come
 	const ModdedUser user;
 	Vfs::FileSystem files;
 	const std::vector<Sim::ModVersion> mods =
-	    App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, user.root);
+	    App::MountAssets(files, JETTISON_ASSET_SOURCE_DIR, JETTISON_SAMPLE_ASSET_DIR, user.root);
 	CHECK(mods == std::vector<Sim::ModVersion>{{"smoke", "1.0.0"}});
 	Sim::SimWorld world{1.0 / 60.0, 1};
 	Sample::RegisterTrading(world);

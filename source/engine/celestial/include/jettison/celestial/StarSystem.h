@@ -85,9 +85,9 @@ SystemPosition EvaluateBody(const StarSystem &system, std::size_t body, double s
 // the two are the same line). That is the planet or moon it orbits, however far up its parents; or
 // else the planet nearest it; or else the station nearest it; or, in a system of none, its own
 // spin. A gate is placed beyond its station from the planet, so the station is in front of the
-// planet seen from it (assets/systems). The ring presentation draws (scene/SystemScene.h) and a ship
-// leaving a lane (ai/Lanes.h) both face this way. Throws std::invalid_argument for a body that is
-// not a jump point; the system has to be resolved.
+// planet seen from it (source/samples/space/assets/systems). The ring presentation draws
+// (scene/SystemScene.h) and a ship leaving a lane (ai/Lanes.h) both face this way. Throws
+// std::invalid_argument for a body that is not a jump point; the system has to be resolved.
 glm::dquat JumpPointFacing(const StarSystem &system, std::size_t body, double simSeconds);
 
 // Which way a body is turned at a simulation time: a jump point the way it faces (JumpPointFacing),

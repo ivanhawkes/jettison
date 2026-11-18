@@ -70,7 +70,7 @@ TEST_CASE("Mounts: a data mod in the user's directory changes the game's definit
 	const Scratch scratch;
 	// The sample game's definitions, packed as a shipped build has them.
 	Vfs::WritePack(
-	    JETTISON_ASSET_SOURCE_DIR, scratch.Path("assets.pack"), {.level = 19, .directories = {"defs"}});
+	    JETTISON_SAMPLE_ASSET_DIR, scratch.Path("assets.pack"), {.level = 19, .directories = {"defs"}});
 	// A mod that makes beer dearer, and has Ostra Highport's market want more of it and deal in
 	// wine, a good it adds.
 	scratch.Put("user/mods/beer-and-wine/defs/goods/beer.patch.yaml", "version: 1\nbasePrice: 1500\n");
@@ -84,7 +84,8 @@ TEST_CASE("Mounts: a data mod in the user's directory changes the game's definit
 	    "  - {good: wine, stock: 10, production: 0, consumption: 1, target: 20}\n");
 
 	Vfs::FileSystem files;
-	App::MountAssets(files, scratch.Path("assets.pack"), scratch.Path("user"));
+	App::MountAssets(
+	    files, JETTISON_ASSET_SOURCE_DIR, scratch.Path("assets.pack"), scratch.Path("user"));
 	Sim::DefinitionRegistry definitions{files};
 	Sample::LoadTradeDefinitions(definitions);
 

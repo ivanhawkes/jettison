@@ -25,8 +25,8 @@ jettison_add_module(celestial
 		glm
 )
 
-# The sample system's and galaxy's own tests read the files the assets ship, not copies of them.
+# The sample system's and galaxy's own tests read the sample's files, not copies of them.
 if(TARGET jettison_celestial_tests)
 	target_compile_definitions(jettison_celestial_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
 endif()

@@ -44,8 +44,8 @@ jettison_add_module(scene
 		EnTT::EnTT
 )
 
-# The scene tests load the sample scenes and models the assets ship.
+# The scene tests load the sample's scenes and models.
 if(TARGET jettison_scene_tests)
 	target_compile_definitions(jettison_scene_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
 endif()

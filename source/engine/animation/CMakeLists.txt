@@ -27,8 +27,8 @@ jettison_add_module(animation
 		fastgltf
 )
 
-# The rig loader's test reads the models the assets ship.
+# The rig loader's test reads the models the sample's content ships.
 if(TARGET jettison_animation_tests)
 	target_compile_definitions(jettison_animation_tests PRIVATE
-		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets")
+		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
 endif()

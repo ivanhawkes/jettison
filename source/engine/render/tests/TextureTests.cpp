@@ -81,7 +81,7 @@ void CheckChain(const TextureData &texture, std::size_t bytesPerTexel, std::uint
 
 std::filesystem::path Sample(const char *name)
 {
-	return std::filesystem::path{JETTISON_ASSET_SOURCE_DIR} / "textures" / "hulls" / "hull-panels" /
+	return std::filesystem::path{JETTISON_SAMPLE_ASSET_DIR} / "textures" / "hulls" / "hull-panels" /
 	       name;
 }
 } // namespace

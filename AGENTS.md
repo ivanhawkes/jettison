@@ -2,8 +2,8 @@
 
 A C++20 game engine with a Vulkan renderer, intended for multiple game types. Manifest is
 its first production consumer and owns its gameplay and content. The small space-trading
-example remains automated-test/sample coverage, separate from reusable engine code.
-That extraction is planned, not complete. Linux, Clang 21; `docs/` records the contracts.
+example remains automated-test/sample coverage, separate from reusable engine code: its code
+and content are in `source/samples/space` (H05). Linux, Clang 21; `docs/` records the contracts.
 
 ## Agent Directions
 

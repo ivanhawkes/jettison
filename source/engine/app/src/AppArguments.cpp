@@ -61,23 +61,26 @@ std::optional<double> ParseSeconds(std::string_view text)
 // uses, so the two halves of one exit path arrive together.
 void PrintUsage(const char *argv0)
 {
-	std::cerr
-	    << "Usage: " << argv0
-	    << " [--smoke-test] [--assets <directory | pack>] [--scene <file> | --system <virtual path>]"
-	       " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
-	       " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
-	       " [--galaxy <virtual path>] [--user-dir <directory>]"
-	       " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
-	       " [--frame-step <seconds>] [--run <console command>]...\n";
+	std::cerr << "Usage: " << argv0
+	          << " [--smoke-test] [--assets <directory | pack>] [--content <directory | pack>] "
+	             "[--scene <file> | --system <virtual path>]"
+	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
+	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
+	             " [--galaxy <virtual path>] [--user-dir <directory>]"
+	             " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
+	             " [--frame-step <seconds>] [--run <console command>]...\n";
 }
 } // namespace
 
 
 std::optional<AppArguments> ParseAppArguments(
-    int argc, char **argv, const std::filesystem::path &assetSubdirectory)
+    int argc, char **argv, const std::filesystem::path &assetSubdirectory,
+    const std::filesystem::path &contentSubdirectory)
 {
 	AppArguments arguments;
 	arguments.assets = DefaultAssets(argv[0], assetSubdirectory);
+	if (!contentSubdirectory.empty())
+		arguments.content = DefaultAssets(argv[0], contentSubdirectory);
 	for (int index = 1; index < argc; ++index)
 	{
 		const std::string argument = argv[index];
@@ -85,6 +88,8 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.smokeTest = true;
 		else if (argument == "--assets" && index + 1 < argc)
 			arguments.assets = std::filesystem::absolute(argv[++index]);
+		else if (argument == "--content" && index + 1 < argc)
+			arguments.content = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--scene" && index + 1 < argc)
 			arguments.scenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--system" && index + 1 < argc)

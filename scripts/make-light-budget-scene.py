@@ -6,9 +6,10 @@
 # path, found through the asset mounts, so it can be written anywhere; it goes beside the orbit scene
 # it is made from, in a build tree's asset copy rather than the source tree:
 #
-#   python3 scripts/make-light-budget-scene.py build/clang-release/assets/scene/orbit.yaml
+#   python3 scripts/make-light-budget-scene.py \
+#       build/clang-release/source/samples/space/assets/scene/orbit.yaml
 #   build/clang-release/source/test/render_test \
-#       --scene build/clang-release/assets/scene/light-budget.yaml --benchmark 600
+#       --scene build/clang-release/source/samples/space/assets/scene/light-budget.yaml --benchmark 600
 #
 # The seed is fixed: the same script makes the same scene.
 import math, os, random, sys

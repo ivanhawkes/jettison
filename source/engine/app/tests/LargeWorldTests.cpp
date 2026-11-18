@@ -29,7 +29,7 @@ constexpr double kStep = 1.0 / 60.0;
 
 Celestial::StarSystem SampleSystem()
 {
-	std::ifstream file{JETTISON_ASSET_SOURCE_DIR "/systems/halcyon.yaml"};
+	std::ifstream file{JETTISON_SAMPLE_ASSET_DIR "/systems/halcyon.yaml"};
 	std::stringstream text;
 	text << file.rdbuf();
 	return Celestial::ReadStarSystem(text.str());

@@ -31,7 +31,8 @@ struct Words
 
 	Words()
 	{
-		assets.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+		assets.AddMount({"engine", JETTISON_ASSET_SOURCE_DIR, false});
+		assets.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		strings.Load(assets, "en");
 	}
 };

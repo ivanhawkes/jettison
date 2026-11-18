@@ -8,8 +8,8 @@
 #include <utility>
 
 // What the AI suite's routes and lanes share: the sample galaxy's three systems in a line, Halcyon
-// to Vesper to Marrow, built in code from their files (assets/systems) without the bodies' spin,
-// so a route from one end to the other is two jumps.
+// to Vesper to Marrow, built in code from their files (source/samples/space/assets/systems) without the
+// bodies' spin, so a route from one end to the other is two jumps.
 namespace Jettison::AiTests
 {
 inline Celestial::Body MakeBody(
@@ -27,7 +27,8 @@ inline Celestial::Body MakeBody(
 }
 
 // A Sun-like star, an Earth-like planet with a moon, a station in low orbit over the planet, and
-// the gate to Vesper keeping station 5 km above the station, as assets/systems/halcyon.yaml has them.
+// the gate to Vesper keeping station 5 km above the station, as
+// source/samples/space/assets/systems/halcyon.yaml has them.
 inline Celestial::StarSystem Halcyon()
 {
 	using enum Celestial::BodyKind;
@@ -98,7 +99,8 @@ inline Celestial::JumpLane Lane(
 	return {{std::string{a}, std::string{aGate}}, {std::string{b}, std::string{bGate}}, transitSeconds};
 }
 
-// The sample galaxy (assets/systems/galaxy.yaml): Halcyon to Vesper in 40 s, Vesper to Marrow in 65.
+// The sample galaxy (source/samples/space/assets/systems/galaxy.yaml): Halcyon to Vesper in 40 s,
+// Vesper to Marrow in 65.
 inline Celestial::Galaxy Sample()
 {
 	Celestial::Galaxy galaxy;

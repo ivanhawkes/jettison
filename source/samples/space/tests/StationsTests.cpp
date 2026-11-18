@@ -37,7 +37,7 @@ constexpr double kStep = 1.0 / 60.0;
 
 Celestial::StarSystem System(const std::string &file)
 {
-	std::ifstream in{std::string{JETTISON_ASSET_SOURCE_DIR} + "/systems/" + file};
+	std::ifstream in{std::string{JETTISON_SAMPLE_ASSET_DIR} + "/systems/" + file};
 	std::stringstream text;
 	text << in.rdbuf();
 	return Celestial::ReadStarSystem(text.str());
@@ -60,7 +60,7 @@ struct Stations
 	{
 		for (const Celestial::StarSystem &system : systems)
 			physics.DefineStarSystem(system);
-		files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
 		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
 		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
@@ -133,7 +133,7 @@ TEST_CASE(
     "the pad")
 {
 	Vfs::FileSystem files;
-	files.AddMount({"base", JETTISON_ASSET_SOURCE_DIR, false});
+	files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 	Audio::RegisterTypes();
 	Dock::RegisterTypes();
 	// The definitions name the trading events too, which registering trading on a world of its own

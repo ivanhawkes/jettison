@@ -159,10 +159,13 @@ stb, VMA and KTX. OFF leaves the CPU modules, the host, their suites and the pac
 FastNoiseLite, GLM, Jolt, mikktspace, spdlog, Tracy, WAMR, yaml-cpp and zstd and nothing else; the
 tree builds in 720 steps and its 22 suites pass.
 
-Shaders compile as part of the build (`jettison_compile_shaders`). Assets are staged beside the
-executable, and `jettison_assets_pack` packs them into `assets.pack` beside that directory
-([files, packs and mods](architecture.md#files-packs-and-mods)), which the shell mounts when there is
-no directory, as in a shipped build. `--assets <directory | pack>` selects other assets, and
+Shaders compile as part of the build (`jettison_compile_shaders`). The engine's assets are staged
+beside the executable, and `jettison_assets_pack` packs them into `assets.pack` beside that
+directory ([files, packs and mods](architecture.md#files-packs-and-mods)), which the shell mounts
+when there is no directory, as in a shipped build; the sample's content likewise
+(`jettison_sample_space_assets`, `jettison_sample_space_pack`), under
+`build/<preset>/source/samples/space`. `--assets <directory | pack>` selects other engine assets,
+`--content <directory | pack>` other content, and
 `--scene <file>` / `--save-scene <file>` load and write scene graphs, and `--system <virtual path>`
 (`systems/halcyon.yaml`) runs the scene a star system builds alone, in place of a scene file.
 `--gpu <name>` draws with the GPU whose name has that text in it (`5060`, `llvmpipe`), in place of
@@ -227,8 +230,9 @@ Configure CPU-only consumption without ImGui, Vulkan/glslc or sample content ins
 Test samples/editor/presentation disabled independently; keep sample render regressions.
 
 The CPU-only configure is in (`clang-cpu`, above, and a gate stage) and so is the non-space CPU
-consumer (H04, above); the physics scene and space example consumers, the resource manifests and
-the dependency checks are still to come (W01, H05).
+consumer (H04, above), and the engine's assets are held to their own directories, none of the
+sample's content in them (H05, the app suite's `Game` cases); the physics scene and space example
+consumers and the dependency checks are still to come (W01).
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
 development environment aligned with Manifest, including developer-only `lazygit`; it must not
@@ -490,14 +494,16 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --no-build --xvfb           # existing tree, virtual display
 ./scripts/smoke-test.sh --no-xvfb                   # your own Wayland/X11 session
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
-./scripts/smoke-test.sh --llvmpipe --packed         # from assets.pack, with the test's data mod
+./scripts/smoke-test.sh --llvmpipe --packed         # from the two packs, with the test's data mod
 ```
 
 **Packed.** The gate runs the headless tree's smoke test with `--packed`: it builds
-`jettison_assets_pack` and `render_test_smoke_mod` (`source/test/mods/smoke`: a patch of beer's
-crate words, a patch of the traders' decision and a script, `smoke.rs`, packed), and runs each scene
-with `--assets build/<preset>/assets.pack` and a user directory of its own with the mod's pack in its
-mods. The run fails unless the shell says, once a scene, that it mounted the base and the mod as packs,
+`jettison_assets_pack`, `jettison_sample_space_pack` and `render_test_smoke_mod`
+(`source/test/mods/smoke`: a patch of beer's crate words, a patch of the traders' decision and a
+script, `smoke.rs`, packed), and runs each scene with `--assets build/<preset>/assets.pack`,
+`--content build/<preset>/source/samples/space/assets.pack` and a user directory of its own with the
+mod's pack in its mods. The run fails unless the shell says, once a scene, that it mounted the
+engine's assets, the content and the mod as packs and read the content's description,
 that the mod patched beer and the trade decision and that its script loaded; unless the script says
 it heard a trade, called from the trade's event; and if the script trapped or was left out. The sanitised run
 and the reference frames read the staged directory, so both kinds of mount are drawn from every gate.
@@ -507,7 +513,7 @@ restore, scene reload, pilot from behind, pilot from the seat, pick, save and lo
 settle. Each stage runs four frames, the pick, the trade and the jump as many as they take, inside a
 120-second watchdog. It walks
 them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
-lines) and once for `assets/scene/orbit.yaml` (a station over a planet at real scale, placed by
+lines) and once for the sample's `scene/orbit.yaml` (a station over a planet at real scale, placed by
 the star system, under an orbit camera and the sun, which shadows it through four cascades, Ostra
 Highport drawn from its layout: its 104 floodlights about its pads assigned to the clusters, and its
 pads' paint, poles and lamps, hundreds of one shape and colour each, drawn as instanced draws). In the orbit scene the piloting stages fly the shell's ship, held off
@@ -605,7 +611,7 @@ swapchain's, exact to the frame, and a console line given with `--run` places th
 `xdotool` keys held for seconds used to.
 
 ```bash
-./scripts/capture.sh out.png --scene $PWD/assets/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 Ostra"
+./scripts/capture.sh out.png --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 Ostra"
 ./scripts/capture.sh --references            # compare every view with its reference
 ./scripts/capture.sh --references --update   # record a change that is meant to change a frame
 ./scripts/capture.sh --references corva      # one view
@@ -667,12 +673,12 @@ sets bloom's, 0 for none.
 ```bash
 # Hardware: a Release tree, on the desktop session. NVIDIA's driver cannot present to Xvfb.
 build/clang-release/source/test/render_test \
-    --scene build/clang-release/assets/scene/orbit.yaml --benchmark 600
+    --scene build/clang-release/source/samples/space/assets/scene/orbit.yaml --benchmark 600
 # Lavapipe: the headless tree on Xvfb, at the smoke test's size.
 VK_DRIVER_FILES=<lvp_icd.x86_64.json> DISPLAY=:<n> build/clang-headless/source/test/render_test \
-    --scene build/clang-headless/assets/scene/orbit.yaml --benchmark 60 --window 640x480
+    --scene build/clang-headless/source/samples/space/assets/scene/orbit.yaml --benchmark 60 --window 640x480
 # A station with 265 more lights, written beside the orbit scene in a build tree.
-python3 scripts/make-light-budget-scene.py build/clang-release/assets/scene/orbit.yaml
+python3 scripts/make-light-budget-scene.py build/clang-release/source/samples/space/assets/scene/orbit.yaml
 ```
 
 The budgets and what phase 5 measured are in [architecture](architecture.md#the-budget).

@@ -22,8 +22,9 @@
 #  --no-xvfb       Run on the current DISPLAY / compositor session
 #  --screen GEOM   Xvfb screen geometry, WxHxD (default: 1280x720x24; keep it small for
 #                  software rendering, which is fill-rate bound)
-#  --packed        Run from the assets packed into one file (assets.pack, as a shipped build has
-#                  them), with the test's data mod (source/test/mods/smoke) in the run's user mods
+#  --packed        Run from the engine's assets and the sample's content, each packed into one file
+#                  (assets.pack, as a shipped build has them), with the test's data mod
+#                  (source/test/mods/smoke) in the run's user mods
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # shellcheck source=lib/headless.sh
@@ -107,17 +108,18 @@ if [ "$build" -eq 1 ]; then
 	# of the build, 18 s of 68 after a change to a header most of the engine includes.
 	cmake --build --preset "$preset" --target render_test >/dev/null
 	if [ "$packed" -eq 1 ]; then
-		cmake --build --preset "$preset" --target jettison_assets_pack render_test_smoke_mod >/dev/null
+		cmake --build --preset "$preset" --target jettison_assets_pack jettison_sample_space_pack render_test_smoke_mod >/dev/null
 	fi
 fi
 
-# The packed run: every asset from the pack, and for each scene a user directory of its own holding
+# The packed run: every asset from the two packs, and for each scene a user directory of its own holding
 # the mod, which the shell mounts between the two and logs.
 if [ "$packed" -eq 1 ]; then
 	pack="$build_dir/assets.pack"
+	content="$build_dir/source/samples/space/assets.pack"
 	mod="$build_dir/source/test/mods/smoke.pack"
-	for file in "$pack" "$mod"; do
-		[ -f "$file" ] || { echo "smoke-test: no pack at $file (build jettison_assets_pack and render_test_smoke_mod)" >&2; exit 1; }
+	for file in "$pack" "$content" "$mod"; do
+		[ -f "$file" ] || { echo "smoke-test: no pack at $file (build jettison_assets_pack, jettison_sample_space_pack and render_test_smoke_mod)" >&2; exit 1; }
 	done
 fi
 
@@ -178,7 +180,7 @@ run_app() {
 		echo "smoke-test: missing validation layer exits cleanly"
 		empty_assets="$(mktemp -d "${TMPDIR:-/tmp}/jettison-empty-assets.XXXXXX")"
 		startup_status=0
-		startup_output="$("$@" --assets "$empty_assets" --scene "$PWD/assets/scene/main.yaml" 2>&1)" || startup_status=$?
+		startup_output="$("$@" --assets "$empty_assets" --scene "$PWD/source/samples/space/assets/scene/main.yaml" 2>&1)" || startup_status=$?
 		rmdir "$empty_assets"
 		if [ "$startup_status" -ne 1 ] || [[ "$startup_output" != *"failed to open file"* ]] ||
 			[[ "$startup_output" == *"[vulkan:error"* ]] || [[ "$startup_output" == *"Validation Error:"* ]]; then
@@ -197,7 +199,7 @@ run_app() {
 	# system alone.
 	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
 	status=0
-	for scene in "$PWD/assets/scene/main.yaml" ""; do
+	for scene in "$PWD/source/samples/space/assets/scene/main.yaml" ""; do
 		scene_args=()
 		[ -n "$scene" ] && scene_args=(--scene "$scene")
 		echo "smoke-test: scene ${scene:-default}"
@@ -206,7 +208,7 @@ run_app() {
 			packed_user="$(mktemp -d "${TMPDIR:-/tmp}/jettison-smoke-user.XXXXXX")"
 			mkdir -p "$packed_user/data/mods"
 			cp "$mod" "$packed_user/data/mods/"
-			packed_args=(--assets "$PWD/$pack" --user-dir "$packed_user")
+			packed_args=(--assets "$PWD/$pack" --content "$PWD/$content" --user-dir "$packed_user")
 		fi
 		if ! "$@" ${packed_args[@]+"${packed_args[@]}"} ${scene_args[@]+"${scene_args[@]}"} 2>&1 | tee -a "$app_log"; then
 			scene_status=${PIPESTATUS[0]}
@@ -243,11 +245,13 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 	fi
 fi
 
-# A packed run proves what it read: the base a pack, the mod mounted over it, the mod's patches
-# taken and its script loaded from it, each said by the shell as it starts, once a scene; and that the
-# script was called from an event, a trade filled, which it says it heard, and never trapped.
+# A packed run proves what it read: the engine's assets a pack, the content a pack over them,
+# described by its mod.yaml, the mod mounted over it, the mod's patches taken and its script loaded
+# from it, each said by the shell as it starts, once a scene; and that the script was called from an
+# event, a trade filled, which it says it heard, and never trapped.
 if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
-	for said in "base: the pack " "mod:smoke: the pack " "defs/goods/beer: patched by 'mod:smoke'" \
+	for said in "engine: the pack " "base: the pack " "The content is Space-trading sample 1.0.0" \
+		"mod:smoke: the pack " "defs/goods/beer: patched by 'mod:smoke'" \
 		"defs/decisions/trade: patched by 'mod:smoke'" "Script 'smoke': scripts/smoke.wasm loaded"; do
 		count=$(grep -cF "$said" "$app_log" || true)
 		if [ "${count:-0}" -ne 2 ]; then
@@ -265,7 +269,7 @@ if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
 		status=1
 	fi
 	if [ "$status" -eq 0 ]; then
-		echo "smoke-test: the assets were read from $pack, the mod in the user's mods loaded, and its script heard $heard trade(s)"
+		echo "smoke-test: the assets were read from $pack and $content, the mod in the user's mods loaded, and its script heard $heard trade(s)"
 	fi
 fi
 

@@ -1,0 +1,31 @@
+# Why the sample's trades, tolls and sales are refused, in German, over the base's English
+# (strings/en/trade.yaml).
+version: 1
+reason:
+  shell:
+    no_crates: es wurden keine Kisten verlangt
+    no_ship: dieses Schiff gibt es nicht
+    not_owner: das Schiff gehört nicht dem Absender
+    no_owner: das Schiff hat keinen Eigentümer
+    no_market: diesen Markt gibt es nicht
+    not_docked: das Schiff ist nicht an {0} angedockt
+    not_dealt: "{0} handelt nicht mit {1}"
+    short_of_stock:
+      one: "{0} hat {1} Kiste"
+      other: "{0} hat {1} Kisten"
+    no_room:
+      one: im Laderaum ist Platz für {0} Kiste
+      other: im Laderaum ist Platz für {0} Kisten
+    too_dear:
+      one: "{0} Kiste kostet mehr als das Guthaben"
+      other: "{0} Kisten kosten mehr als das Guthaben"
+    hold_short:
+      one: der Laderaum hat {0} Kiste davon
+      other: der Laderaum hat {0} Kisten davon
+    sale_too_large: der Verkauf ist mehr wert, als ein Guthaben fassen kann
+    short_of_toll: die Maut der Sprungroute von {0} Credits ist mehr, als das Guthaben hält
+    no_station: diese Station gibt es nicht
+    not_for_sale: "{0} steht nicht zum Verkauf"
+    none_docked: kein Schiff der Flotte ist an {0} angedockt
+    no_pad_free: "{0} hat keine freie Landeplattform, auf die {1} passt"
+    short_of_price: sein Preis von {0} Credits ist mehr, als das Guthaben hält
