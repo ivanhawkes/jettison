@@ -43,7 +43,7 @@ entt::entity FirstShip(Galaxy &galaxy, std::int64_t credits = 250000)
 	registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 	registry.emplace<Sim::InFrame>(ship, Sim::FrameId("Halcyon"));
 	registry.emplace<Physics::LocalFrame>(ship, std::string{"Ostra Highport"});
-	Sample::MakeShip(registry, galaxy.docks, ship, "shuttle", 2.0e4f, true);
+	Sample::MakeShip(registry, galaxy.drives, ship, "shuttle", 2.0e4f, true);
 	registry.emplace<Sim::ControlledBy>(ship, kPlayer);
 	registry.emplace<Sample::Hold>(ship, Sample::Hold{20, {}});
 	Sample::FitForTrade(registry, ship);

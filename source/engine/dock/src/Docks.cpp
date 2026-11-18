@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <jettison/ai/Courses.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
@@ -20,7 +21,6 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
-#include <jettison/space/Routes.h>
 
 #include "Sorted.h"
 

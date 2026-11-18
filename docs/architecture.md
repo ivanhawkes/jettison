@@ -179,8 +179,8 @@ sibling edges are `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, 
 render's public headers, and decodes a document's images with render's CPU texture decoder; it
 includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9b): steering flies a
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
-`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there, and on
-`space`, whose cruise drive a hull defines and whose star systems its suites fly in. `space` is the optional space capability (W01): its
+`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there; it links no
+`space` or `celestial` (G01d), though its suites fly in the sample's star system. `space` is the optional space capability (W01): its
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
@@ -334,7 +334,9 @@ changes at a cruise's ends and a lane's and nowhere else, so nothing places a ra
 where a ship would change frame. A cruise does not engage within 2 km of a station's radius, so
 docking stays in physics, and is refused with a reason.
 
-How long a cruise takes is its hull's drive (`Space::CruiseDrive`, a hull definition's `cruise`): the
+How long a cruise takes is the ship's drive (`Space::CruiseDrive`), a component the game gives it,
+the sample from its hull's (`defs/drives/<hull>.yaml`, G01d; a hull file of version 1 that gives one
+still loads, its drive left out, through `Dock::HullMigrations`): the
 seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the shuttle crosses from
 Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. The bodies are on
 rails, so where the target will be on arrival is solved rather than chased: the time gives the

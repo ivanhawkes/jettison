@@ -7,7 +7,6 @@
 #include <jettison/serialise/Binary.h>
 #include <jettison/serialise/Migration.h>
 #include <jettison/sim/Snapshot.h>
-#include <jettison/space/Types.h>
 
 namespace Jettison::Dock
 {
@@ -37,7 +36,6 @@ void RegisterTypes()
 		using namespace Reflect;
 		Physics::RegisterTypes();
 		Sim::RegisterTypes();
-		Space::RegisterTypes();
 		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
 		RegisterType<PadClassDefinition>("Dock.PadClassDefinition", Attribute::Moddable)
 		    .Field<&PadClassDefinition::rank>("rank", kDefined)
@@ -50,8 +48,7 @@ void RegisterTypes()
 		    .Field<&HullDefinition::height>("height", kDefined)
 		    .Field<&HullDefinition::pad>("pad", kDefined)
 		    .Field<&HullDefinition::hatch>("hatch", kDefined)
-		    .Field<&HullDefinition::model>("model", kDefined)
-		    .Field<&HullDefinition::cruise>("cruise", kDefined);
+		    .Field<&HullDefinition::model>("model", kDefined);
 		RegisterType<Box>("Dock.Box")
 		    .Field<&Box::centre>("centre", kDefined)
 		    .Field<&Box::size>("size", kDefined);

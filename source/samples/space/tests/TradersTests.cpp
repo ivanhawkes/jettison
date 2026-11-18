@@ -68,7 +68,7 @@ TEST_CASE(
 		free += registry.get<Dock::Pad>(pad).state == Dock::PadState::Free ? 1 : 0;
 	CHECK(free == 1);
 	// A pad that is taken is left alone, and its trader left out.
-	CHECK(Sample::OpenTraders(galaxy.world, galaxy.docks).empty());
+	CHECK(Sample::OpenTraders(galaxy.world, galaxy.docks, galaxy.drives).empty());
 }
 
 

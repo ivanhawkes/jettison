@@ -23,6 +23,7 @@
 #include "Dressing.h"
 #include "Piloting.h"
 #include "ShellState.h"
+#include "Stations.h"
 
 namespace Jettison::Ai
 {
@@ -64,11 +65,9 @@ class SpaceLayer
 
 	SpaceLayer &operator=(const SpaceLayer &) = delete;
 
-	// The docks' definitions, read before the mods' scripts load.
-	static void LoadDefinitions(Sim::DefinitionRegistry &definitions);
-
-	// The docks defined; then the galaxy and its systems read and defined in the simulation, what the
-	// game runs across them (SpaceGame::OpenGalaxy), and the jump between them made.
+	// The docks defined and the hulls' drives read (ReadDrives); then the galaxy and its systems read
+	// and defined in the simulation, what the game runs across them (SpaceGame::OpenGalaxy), and the
+	// jump between them made.
 	void Define(const Sim::DefinitionRegistry &definitions);
 
 	void OpenGalaxy(const Sim::DefinitionRegistry &definitions);
@@ -333,6 +332,7 @@ class SpaceLayer
 	std::optional<Celestial::Galaxy> m_galaxy;
 	std::string m_galaxyPath;
 	std::vector<Celestial::StarSystem> m_galaxySystems;
+	Drives m_drives;
 	// The system shown's stations as they are dressed, and each one's simulation entity, found from
 	// its celestial body (FindStation) once its pads are in the snapshots.
 	std::vector<StationDressing> m_dressings;

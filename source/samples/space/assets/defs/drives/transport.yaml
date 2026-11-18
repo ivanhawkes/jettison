@@ -1,0 +1,7 @@
+# How long the transport hull's cruises across a system take (Ai.CruiseDrive), which the sample
+# gives each ship of the hull (defs/hulls/transport.yaml): 45 s for 100,000 km, rising as the
+# distance's fourth root.
+version: 1
+seconds: 45
+reference: 1.0e8
+exponent: 0.25

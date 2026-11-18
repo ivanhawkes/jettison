@@ -34,9 +34,9 @@ namespace Jettison::Space
 
 // How long a ship's cruises take: the seconds a cruise of the reference distance takes, rising with
 // the distance to the exponent, slower than it, so one planet's stations are about a minute apart
-// and two planets a few. A hull's definition gives it (Dock::HullDefinition::cruise), and the game
-// puts it on each ship that cruises. Registered with Reflect, every field Saved and Moddable, by
-// RegisterTypes.
+// and two planets a few. The game puts one on each ship that cruises, from its own data (the space
+// sample's defs/drives, by hull). Registered with Reflect as "Ai.CruiseDrive", every field Saved and
+// Moddable, by RegisterTypes.
 struct CruiseDrive
 {
 	float seconds{45.0f};
@@ -50,6 +50,11 @@ struct CruiseDrive
 // The seconds a cruise of that many metres takes on the drive: seconds × (metres / reference) to the
 // exponent. None for no distance.
 double CruiseSeconds(const CruiseDrive &drive, double metres);
+
+// Checks a drive a game defines: its seconds and reference positive and finite, and its exponent
+// above 0 and at most 1, so its time rises with the distance and no faster than it. Throws
+// Serialise::FormatError naming the drive.
+void CheckCruiseDrive(std::string_view name, const CruiseDrive &drive);
 
 // A ship cruising: its Sim::InFrame stays its system, and it has no Physics::Body, Velocity or
 // LocalFrame from the step it set out in to the step it arrives in, so physics, steering, the docks

@@ -25,6 +25,7 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
 #include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 #include <jettison/vfs/FileSystem.h>
@@ -55,6 +56,7 @@ struct Stations
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
 	std::vector<Celestial::StarSystem> systems{System("halcyon.yaml"), System("vesper.yaml")};
 	Vfs::FileSystem files;
+	Sim::DefinitionRegistry definitions{files};
 
 
 	Stations()
@@ -62,11 +64,7 @@ struct Stations
 		for (const Celestial::StarSystem &system : systems)
 			Space::DefineStarSystem(physics, system);
 		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
-		Sim::DefinitionRegistry definitions{files};
-		definitions.Load<Dock::PadClassDefinition>(
-		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
+		Sample::LoadStationDefinitions(definitions);
 		docks.Define(definitions);
 	}
 
@@ -96,7 +94,7 @@ TEST_CASE("Stations: the sample parks its ships on a few pads of each station as
 	Sample::SpaceGame game;
 	const std::vector<entt::entity> stations = Sample::OpenStations(
 	    sample.world, sample.docks, sample.systems, [&](entt::entity station, std::string_view body)
-	    { game.StationOpened(sample.world, sample.docks, station, body); });
+	    { game.StationOpened(sample.world, sample.docks, sample.definitions, station, body); });
 	REQUIRE(stations.size() == 3);
 	const entt::registry &world = sample.world.Registry();
 	const entt::entity highport = Sample::FindStation(world, Sim::FrameId("Halcyon"), "Ostra Highport");
@@ -122,7 +120,14 @@ TEST_CASE("Stations: the sample parks its ships on a few pads of each station as
 		CHECK(docking.stage == Dock::Stage::Docked);
 		CHECK(world.get<Physics::Body>(ship).kind == Physics::BodyKind::Kinematic);
 		CHECK(world.get<Physics::Body>(ship).shape == Dock::Docks::HullShape(hull.definition));
+		// Each with its hull's drive (defs/drives): a heavy transport's 60 s, a fighter's 30.
+		const auto *drive = sample.definitions.Find<Space::CruiseDrive>(hull.definition);
+		REQUIRE(drive != nullptr);
+		CHECK(world.get<Space::CruiseDrive>(ship) == *drive);
 	}
+	// Every hull the docks define has a drive.
+	for (const std::string &hull : sample.definitions.Names<Dock::HullDefinition>())
+		CHECK(sample.definitions.Find<Space::CruiseDrive>(hull) != nullptr);
 
 	// They stay where they are parked as the stations go round their orbits, touching nothing.
 	for (int step = 0; step < 120; ++step)

@@ -62,10 +62,7 @@ struct Dressed
 			Space::DefineStarSystem(physics, system);
 		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
-		definitions.Load<Dock::PadClassDefinition>(
-		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
+		Sample::LoadStationDefinitions(definitions);
 		docks.Define(definitions);
 		scene.emplace<Scene::CelestialBodyComponent>(station, "Ostra Highport");
 		scene.emplace<Scene::TransformComponent>(station);
@@ -104,7 +101,7 @@ struct Dressed
 				    registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(built));
 				    registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(built));
 				    registry.emplace<Physics::LocalFrame>(ship, std::string{body});
-				    Sample::MakeShip(registry, docks, ship, "heavy-transport", 1.2e7f, false);
+				    Sample::MakeShip(registry, {}, ship, "heavy-transport", 1.2e7f, false);
 				    docks.Park(world, ship, registry.get<Dock::Station>(built).pads.at(pad - 1));
 			    }
 		    });

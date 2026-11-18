@@ -4,7 +4,6 @@ jettison_add_module(dock
 	DETERMINISTIC
 	DEPENDS
 		ai
-		celestial
 		core
 		math
 		physics
@@ -12,7 +11,6 @@ jettison_add_module(dock
 		reflect
 		serialise
 		sim
-		space
 		spatial
 	HEADERS
 		include/jettison/dock/Definitions.h
@@ -32,10 +30,14 @@ jettison_add_module(dock
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT
+	PRIVATE_LIBRARIES
+		yaml-cpp::yaml-cpp
 )
 
-# The suites read the sample's hulls and stations, and the star system they are in.
+# The suites read the sample's hulls and stations, and the star system they are in, which space
+# makes a physics frame.
 if(TARGET jettison_dock_tests)
 	target_compile_definitions(jettison_dock_tests PRIVATE
 		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
+	target_link_libraries(jettison_dock_tests PRIVATE jettison_space)
 endif()

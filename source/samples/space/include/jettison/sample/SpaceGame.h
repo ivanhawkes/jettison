@@ -150,9 +150,11 @@ class SpaceGame final : public App::Game
 
 	// The sample's ships parked on two or three pads of each station, leaving at least two free, so a
 	// ship flown to one finds some taken: heavy transports on three of Highport's twelve destroyer
-	// pads, and at Corva two transports on frigate pads and a fighter on a corvette.
+	// pads, and at Corva two transports on frigate pads and a fighter on a corvette, each with its
+	// hull's drive.
 	static void StationOpened(
-	    Sim::SimWorld &world, Dock::Docks &docks, entt::entity station, std::string_view body);
+	    Sim::SimWorld &world, Dock::Docks &docks, const Sim::DefinitionRegistry &definitions,
+	    entt::entity station, std::string_view body);
 
 	// The markets, bound to their stations, and the traders on their pads.
 	static void StationsOpened(const SpaceWorld &world, const Sim::DefinitionRegistry &definitions);

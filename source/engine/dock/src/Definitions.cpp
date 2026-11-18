@@ -13,6 +13,8 @@
 #include <jettison/dock/Roads.h>
 #include <jettison/serialise/Archive.h>
 
+#include <yaml-cpp/yaml.h>
+
 namespace Jettison::Dock
 {
 namespace
@@ -160,6 +162,18 @@ void CheckPadClass(std::string_view name, const PadClassDefinition &padClass)
 }
 
 
+const Serialise::YamlMigrations &HullMigrations()
+{
+	static const Serialise::YamlMigrations migrations = []
+	{
+		Serialise::YamlMigrations chain{"Dock.HullDefinition", {kHullVersion}};
+		chain.Add(1, [](YAML::Node &root) { root.remove("cruise"); });
+		return chain;
+	}();
+	return migrations;
+}
+
+
 void CheckHull(std::string_view name, const HullDefinition &hull, const PadClasses &classes)
 {
 	constexpr std::string_view kWhat = "Hull";
@@ -178,14 +192,6 @@ void CheckHull(std::string_view name, const HullDefinition &hull, const PadClass
 	const glm::vec3 half = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
 	if (!(glm::all(glm::lessThanEqual(glm::abs(hull.hatch), half + 0.01f))))
 		Refuse(kWhat, name, "has its cargo hatch outside its hull");
-	// A drive's time rises with the distance, and no faster than it.
-	const Space::CruiseDrive &cruise = hull.cruise;
-	if (!(cruise.seconds > 0.0f) || !std::isfinite(cruise.seconds) || !(cruise.reference > 0.0) ||
-	    !std::isfinite(cruise.reference) || !(cruise.exponent > 0.0f) || !(cruise.exponent <= 1.0f))
-		Refuse(
-		    kWhat, name,
-		    "has a cruise drive whose seconds or reference is not positive, or whose exponent is "
-		    "not above 0 and at most 1");
 }
 
 

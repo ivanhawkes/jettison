@@ -86,7 +86,7 @@ struct Composed
 		game.OpenGalaxy(space, systems, *pDefinitions, *pScripts);
 		Sample::OpenStations(
 		    world, docks, systems, [&](entt::entity station, std::string_view body)
-		    { Sample::SpaceGame::StationOpened(world, docks, station, body); });
+		    { Sample::SpaceGame::StationOpened(world, docks, *pDefinitions, station, body); });
 		Sample::OpenGates(world, gates, systems);
 		Sample::SpaceGame::StationsOpened(space, *pDefinitions);
 	}
@@ -126,7 +126,8 @@ struct Composed
 		registry.emplace<Sim::InFrame>(ship, Sim::FrameId("Halcyon"));
 		registry.emplace<Physics::LocalFrame>(ship, std::string{"Ostra Highport"});
 		const Sample::ShipKind starter = Sample::SpaceGame::StarterShip();
-		Sample::MakeShip(registry, docks, ship, starter.hull, starter.mass, true);
+		Sample::MakeShip(
+		    registry, Sample::ReadDrives(*pDefinitions), ship, starter.hull, starter.mass, true);
 		registry.emplace<Sim::ControlledBy>(ship, kPlayer);
 		if (Sample::FindOwner(registry, kPlayer) == entt::null)
 			Sample::MakeOwner(registry, kPlayer, credits);

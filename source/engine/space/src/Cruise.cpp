@@ -4,6 +4,7 @@
 #include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/serialise/Archive.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/space/Lanes.h>
@@ -164,6 +165,17 @@ double CruiseSeconds(const CruiseDrive &drive, double metres)
 	if (metres <= 0.0)
 		return 0.0;
 	return double{drive.seconds} * std::pow(metres / drive.reference, double{drive.exponent});
+}
+
+
+void CheckCruiseDrive(std::string_view name, const CruiseDrive &drive)
+{
+	if (!(drive.seconds > 0.0f) || !std::isfinite(drive.seconds) || !(drive.reference > 0.0) ||
+	    !std::isfinite(drive.reference) || !(drive.exponent > 0.0f) || !(drive.exponent <= 1.0f))
+		throw Serialise::FormatError{std::format(
+		    "Cruise drive '{}' has seconds or a reference that is not positive, or an exponent that "
+		    "is not above 0 and at most 1",
+		    name)};
 }
 
 

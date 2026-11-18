@@ -9,13 +9,16 @@
 
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/core/Log.h>
+#include <jettison/dock/Definitions.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
+#include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/space/Cruise.h>
 #include <jettison/space/Gates.h>
+#include <jettison/space/Types.h>
 
 namespace Jettison::Sample
 {
@@ -37,9 +40,33 @@ entt::entity FindStation(const entt::registry &world, std::uint64_t system, std:
 }
 
 
+void LoadStationDefinitions(Sim::DefinitionRegistry &definitions)
+{
+	Dock::RegisterTypes();
+	Space::RegisterTypes();
+	definitions.Load<Dock::PadClassDefinition>(
+	    Dock::kPadClassDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
+	definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, Dock::HullMigrations());
+	definitions.Load<Dock::StationLayout>(
+	    Dock::kStationDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
+	definitions.Load<Space::CruiseDrive>(kDriveDirectory, Serialise::FormatVersion{kDriveVersion});
+	for (const std::string &name : definitions.Names<Space::CruiseDrive>())
+		Space::CheckCruiseDrive(name, *definitions.Find<Space::CruiseDrive>(name));
+}
+
+
+Drives ReadDrives(const Sim::DefinitionRegistry &definitions)
+{
+	Drives drives;
+	for (const std::string &name : definitions.Names<Space::CruiseDrive>())
+		drives.emplace(name, *definitions.Find<Space::CruiseDrive>(name));
+	return drives;
+}
+
+
 void MakeShip(
-    entt::registry &world, const Dock::Docks &docks, entt::entity ship, std::string_view hull,
-    float mass, bool continuous)
+    entt::registry &world, const Drives &drives, entt::entity ship, std::string_view hull, float mass,
+    bool continuous)
 {
 	Physics::Body body{Physics::BodyKind::Dynamic, Dock::Docks::HullShape(hull), mass};
 	body.friction = 0.4f;
@@ -50,9 +77,9 @@ void MakeShip(
 	world.emplace_or_replace<Physics::Thrusters>(ship);
 	world.emplace_or_replace<Physics::FlightControls>(ship);
 	world.emplace_or_replace<Dock::Hull>(ship, std::string{hull});
-	const Dock::HullDefinition *definition = docks.FindHull(hull);
+	const auto drive = drives.find(hull);
 	world.emplace_or_replace<Space::CruiseDrive>(
-	    ship, definition ? definition->cruise : Space::CruiseDrive{});
+	    ship, drive == drives.end() ? Space::CruiseDrive{} : drive->second);
 }
 
 

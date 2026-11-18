@@ -11,6 +11,8 @@
 
 #include <jettison/sim/Controller.h>
 
+#include "Stations.h"
+
 namespace Jettison::Ai
 {
 class Behaviours;
@@ -114,5 +116,5 @@ Sim::Controller TraderController(std::uint32_t number);
 // shuttles on an destroyer pad and Corva's corvette pad, which leaves Corva one pad free for the
 // traders that come to it, so they queue. A station not open, or a pad already taken, is left out,
 // saying so. Returns the traders, in the order made.
-std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks);
+std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks, const Drives &drives);
 } // namespace Jettison::Sample

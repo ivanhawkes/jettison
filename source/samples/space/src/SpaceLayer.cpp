@@ -194,20 +194,10 @@ SpaceWorld SpaceLayer::World() const
 }
 
 
-void SpaceLayer::LoadDefinitions(Sim::DefinitionRegistry &definitions)
-{
-	definitions.Load<Dock::PadClassDefinition>(
-	    Dock::kPadClassDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
-	definitions.Load<Dock::HullDefinition>(
-	    Dock::kHullDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
-	definitions.Load<Dock::StationLayout>(
-	    Dock::kStationDirectory, Serialise::FormatVersion{Dock::kDefinitionVersion});
-}
-
-
 void SpaceLayer::Define(const Sim::DefinitionRegistry &definitions)
 {
 	m_pDocks->Define(definitions);
+	m_drives = ReadDrives(definitions);
 }
 
 
@@ -1029,7 +1019,7 @@ void SpaceLayer::OpenStations()
 		return;
 	const std::vector<entt::entity> stations = Sample::OpenStations(
 	    m_sim, *m_pDocks, m_galaxySystems, [&](entt::entity station, std::string_view body)
-	    { m_game.StationOpened(m_sim, *m_pDocks, station, body); });
+	    { m_game.StationOpened(m_sim, *m_pDocks, m_shell.Definitions(), station, body); });
 	std::size_t pads = 0;
 	for (const entt::entity station : stations)
 		pads += world.get<Dock::Station>(station).pads.size();
@@ -1056,7 +1046,7 @@ void SpaceLayer::SpawnShip()
 	world.emplace<Sim::Transform>(m_ship, at);
 	world.emplace<Sim::InFrame>(m_ship, m_stationSystem);
 	world.emplace<Physics::LocalFrame>(m_ship, m_stationBody);
-	MakeShip(world, *m_pDocks, m_ship, kind.hull, kind.mass, true);
+	MakeShip(world, m_drives, m_ship, kind.hull, kind.mass, true);
 	world.replace<Physics::FlightControls>(m_ship, Physics::FlightControls{{}, {}, true, m_station});
 	world.emplace<Sim::ControlledBy>(m_ship, player);
 	// The fleet's first ship, fitted by the game, at the player's helm.
@@ -1215,7 +1205,7 @@ void SpaceLayer::SpawnTraffic(int count)
 		    Sim::Transform{at.position + glm::normalize(direction) * distance, at.orientation});
 		world.emplace<Sim::InFrame>(shuttle, m_stationSystem);
 		world.emplace<Physics::LocalFrame>(shuttle, m_stationBody);
-		MakeShip(world, *m_pDocks, shuttle, kind.hull, kind.mass, true);
+		MakeShip(world, m_drives, shuttle, kind.hull, kind.mass, true);
 		world.emplace<Ai::Steered>(shuttle);
 		Ai::Destination destination;
 		destination.entity = m_station;

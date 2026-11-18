@@ -70,7 +70,7 @@ struct Fixture
 		Sim::DefinitionRegistry definitions{files};
 		definitions.Load<Dock::PadClassDefinition>(
 		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
+		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, Dock::HullMigrations());
 		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
 		docks.Define(definitions);
 	}

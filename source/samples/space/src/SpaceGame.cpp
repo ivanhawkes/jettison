@@ -95,7 +95,7 @@ void SpaceGame::LoadDefinitions(Sim::DefinitionRegistry &definitions)
 	LoadTradeDefinitions(definitions);
 	LoadTraderDefinitions(definitions);
 	LoadShipyard(definitions);
-	SpaceLayer::LoadDefinitions(definitions);
+	LoadStationDefinitions(definitions);
 }
 
 
@@ -145,7 +145,8 @@ void SpaceGame::OpenGalaxy(
 
 
 void SpaceGame::StationOpened(
-    Sim::SimWorld &world, Dock::Docks &docks, entt::entity station, std::string_view body)
+    Sim::SimWorld &world, Dock::Docks &docks, const Sim::DefinitionRegistry &definitions,
+    entt::entity station, std::string_view body)
 {
 	entt::registry &registry = world.Registry();
 	const std::uint64_t system = registry.get<Sim::InFrame>(station).frame;
@@ -157,7 +158,7 @@ void SpaceGame::StationOpened(
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InFrame>(ship, system);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{body});
-		MakeShip(registry, docks, ship, parked.hull, parked.mass, false);
+		MakeShip(registry, ReadDrives(definitions), ship, parked.hull, parked.mass, false);
 		docks.Park(world, ship, registry.get<Dock::Station>(station).pads.at(parked.pad - 1));
 	}
 }
@@ -178,7 +179,7 @@ void SpaceGame::StationsOpened(const SpaceWorld &world, const Sim::DefinitionReg
 	if (world.behaviours.HasTree(kTraderTree))
 		Core::Log(
 		    Core::Severity::Info, kSample, "{} traders open",
-		    OpenTraders(world.world, world.docks).size());
+		    OpenTraders(world.world, world.docks, ReadDrives(definitions)).size());
 }
 
 

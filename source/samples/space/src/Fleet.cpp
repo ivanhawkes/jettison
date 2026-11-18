@@ -71,7 +71,8 @@ bool FleetDockedAt(
 
 void Buy(
     Sim::SimWorld &world, Dock::Docks &docks,
-    const std::map<std::string, ShipForSale, std::less<>> &yard, const BuyShip &command)
+    const std::map<std::string, ShipForSale, std::less<>> &yard, const Drives &drives,
+    const BuyShip &command)
 {
 	entt::registry &registry = world.Registry();
 	const auto refuse = [&](TradeReason reason, std::vector<Sim::ReasonArgument> arguments = {})
@@ -112,7 +113,7 @@ void Buy(
 	registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(command.station));
 	registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(command.station).frame);
 	registry.emplace<Physics::LocalFrame>(ship, registry.get<Physics::OnRails>(command.station).body);
-	MakeShip(registry, docks, ship, command.hull, sale.mass, true);
+	MakeShip(registry, drives, ship, command.hull, sale.mass, true);
 	registry.replace<Physics::FlightControls>(
 	    ship, Physics::FlightControls{{}, {}, true, command.station});
 	registry.emplace<Sim::ControlledBy>(ship, command.sender);
@@ -140,8 +141,9 @@ void RegisterFleet(Sim::SimWorld &world, Dock::Docks &docks, const Sim::Definiti
 	auto yard = std::make_shared<std::map<std::string, ShipForSale, std::less<>>>();
 	for (const std::string &name : definitions.Names<ShipForSale>())
 		yard->emplace(name, *definitions.Find<ShipForSale>(name));
-	world.RegisterCommand<BuyShip>([&docks, yard](Sim::SimWorld &target, const BuyShip &command)
-	                               { Buy(target, docks, *yard, command); });
+	auto drives = std::make_shared<const Drives>(ReadDrives(definitions));
+	world.RegisterCommand<BuyShip>([&docks, yard, drives](Sim::SimWorld &target, const BuyShip &command)
+	                               { Buy(target, docks, *yard, *drives, command); });
 }
 
 

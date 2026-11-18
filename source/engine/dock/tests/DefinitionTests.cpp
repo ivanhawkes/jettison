@@ -116,6 +116,24 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 }
 
 
+TEST_CASE("Dock definitions: a hull of version 1 loads, its cruise drive, the game's now, left out")
+{
+	Dock::RegisterTypes();
+	const auto hull = Serialise::YamlArchive::Read<Dock::HullDefinition>(
+	    "version: 1\ndisplayName: Shuttle\nlength: 9.8\npad: corvette\n"
+	    "cruise: {seconds: 40, reference: 1.0e8, exponent: 0.25}\n",
+	    Dock::HullMigrations());
+	CHECK(hull.displayName == "Shuttle");
+	CHECK(hull.length == 9.8f);
+	CHECK(hull.pad == "corvette");
+	// The current version has no drive to give.
+	CHECK_THROWS_AS(
+	    Serialise::YamlArchive::Read<Dock::HullDefinition>(
+	        "version: 2\ncruise: {seconds: 40}\n", Dock::HullMigrations()),
+	    Serialise::FormatError);
+}
+
+
 TEST_CASE(
     "Dock definitions: a hull larger than its pad's largest, or with its hatch outside it, is refused")
 {

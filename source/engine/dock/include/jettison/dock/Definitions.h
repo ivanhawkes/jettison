@@ -12,7 +12,7 @@
 #include <vector>
 
 #include <jettison/physics/Shape.h>
-#include <jettison/space/Cruise.h>
+#include <jettison/serialise/Migration.h>
 
 namespace Jettison::Dock
 {
@@ -59,8 +59,8 @@ float HatchAft(const PadClassDefinition &padClass);
 // its centre, which the deck's buggies drive to. defs/hulls/<name>.yaml; its collision shape
 // is the box of its size (Docks::HullShape), whatever it is drawn as. The model is presentation's
 // alone, a glTF file by virtual path in the hull's axes and metres, drawn in place of its class's
-// proxy; the simulation never reads it. Its cruise drive is how long its cruises across a system
-// take (Space::CruiseDrive), which the game gives each ship of the hull. Registered with Reflect as
+// proxy; the simulation never reads it. How it travels between stations is the game's, as a
+// component the game gives its ships (the space sample's cruise drive). Registered with Reflect as
 // "Dock.HullDefinition", every field Saved and Moddable, by RegisterTypes.
 struct HullDefinition
 {
@@ -72,7 +72,6 @@ struct HullDefinition
 	std::string pad;
 	glm::vec3 hatch{0.0f};
 	std::string model{};
-	Space::CruiseDrive cruise{};
 };
 
 // A box of a station's structure, in its axes, square to them: its centre and its whole size.
@@ -146,6 +145,9 @@ struct StationLayout
 };
 
 inline constexpr std::uint32_t kDefinitionVersion = 1;
+// A hull's file is of version 2; one of version 1 may give a cruise drive, the game's now, and
+// loads through HullMigrations with it left out.
+inline constexpr std::uint32_t kHullVersion = 2;
 inline constexpr std::string_view kPadClassDirectory = "defs/pads";
 inline constexpr std::string_view kHullDirectory = "defs/hulls";
 inline constexpr std::string_view kStationDirectory = "defs/stations";
@@ -154,6 +156,9 @@ inline constexpr std::string_view kStationDirectory = "defs/stations";
 // pad's width and its length within the pad's length. Throws Serialise::FormatError naming the
 // class.
 void CheckPadClass(std::string_view name, const PadClassDefinition &padClass);
+
+// A hull's files from version 1 up (Sim::DefinitionRegistry::Load), its format "Dock.HullDefinition".
+const Serialise::YamlMigrations &HullMigrations();
 
 // Checks a hull, in the one place a file read and a hull made in code both go through: a pad class
 // of those defined, a size that is positive and within its class's largest hull, and its hatch

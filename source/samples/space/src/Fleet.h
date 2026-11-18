@@ -88,8 +88,8 @@ struct BuyRefused
 void LoadShipyard(Sim::DefinitionRegistry &definitions);
 
 // Registers the types with Reflect and the BuyShip command, which sells from the shipyard's
-// definitions as they are now; the world keeps the docks and its copy of them for as long as it
-// lives.
+// definitions as they are now, each ship with its hull's drive (ReadDrives); the world keeps the docks
+// and its copies of them for as long as it lives.
 void RegisterFleet(
     Sim::SimWorld &world, Dock::Docks &docks, const Sim::DefinitionRegistry &definitions);
 

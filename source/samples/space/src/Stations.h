@@ -4,9 +4,13 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
+
+#include <jettison/space/Cruise.h>
 
 namespace Jettison::Space
 {
@@ -26,6 +30,7 @@ struct HullDefinition;
 
 namespace Jettison::Sim
 {
+class DefinitionRegistry;
 class SimWorld;
 struct Controller;
 struct Snapshot;
@@ -53,12 +58,26 @@ std::vector<entt::entity> OpenStations(
 std::vector<entt::entity> OpenGates(
     Sim::SimWorld &world, const Space::Gates &gates, std::span<const Celestial::StarSystem> systems);
 
+// Each hull's cruise drive (Space::CruiseDrive), by the hull's name: the sample's, not the docks',
+// defs/drives/<hull>.yaml, each an "Ai.CruiseDrive".
+using Drives = std::map<std::string, Space::CruiseDrive, std::less<>>;
+
+inline constexpr std::string_view kDriveDirectory = "defs/drives";
+inline constexpr std::uint32_t kDriveVersion = 1;
+
+// The docks' pad classes, hulls and station layouts, and the hulls' drives, each drive checked
+// (Space::CheckCruiseDrive). Throws Serialise::FormatError for a file refused.
+void LoadStationDefinitions(Sim::DefinitionRegistry &definitions);
+
+// The drives loaded, copied, so a ship is given its hull's as the definitions were at start-up.
+Drives ReadDrives(const Sim::DefinitionRegistry &definitions);
+
 // A ship of the hull, the docks' and its physics' (Dock::Docks::HullShape), as the layer makes
 // them: of that mass, swept as it flies if continuous, with the default thrusters and the hull's
-// cruise drive (Space::CruiseDrive), or the default one for a hull the docks do not define.
+// cruise drive, or the default one for a hull of none.
 void MakeShip(
-    entt::registry &world, const Dock::Docks &docks, entt::entity ship, std::string_view hull,
-    float mass, bool continuous);
+    entt::registry &world, const Drives &drives, entt::entity ship, std::string_view hull, float mass,
+    bool continuous);
 
 // The station's lowest numbered free pad the hull fits, not a display one, or none.
 entt::entity FreePad(

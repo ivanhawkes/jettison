@@ -3,6 +3,7 @@
 #include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/serialise/Archive.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/space/Cruise.h>
@@ -154,6 +155,18 @@ TEST_CASE("Cruise: a drive's time rises as the distance's fourth root")
 	CHECK(Space::CruiseTravel::ArrivalDistance(BodyOf("Ostra Highport")) == doctest::Approx(4075.0));
 	CHECK(Space::CruiseTravel::ArrivalDistance(BodyOf("Pell")) == doctest::Approx(2.214688e6));
 	CHECK(Space::CruiseTravel::ArrivalDistance(BodyOf("Ostra")) == doctest::Approx(1.996498e7));
+}
+
+
+TEST_CASE("Cruise: a drive of no time, no reference or an exponent outside (0, 1] is refused")
+{
+	CHECK_NOTHROW(Space::CheckCruiseDrive("shuttle", kDrive));
+	CHECK_NOTHROW(Space::CheckCruiseDrive("linear", {40.0f, 1.0e8, 1.0f}));
+	for (const Space::CruiseDrive drive :
+	     {Space::CruiseDrive{0.0f, 1.0e8, 0.25f}, Space::CruiseDrive{40.0f, 0.0, 0.25f},
+	      Space::CruiseDrive{40.0f, 1.0e8, 0.0f}, Space::CruiseDrive{40.0f, 1.0e8, 1.5f},
+	      Space::CruiseDrive{std::numeric_limits<float>::infinity(), 1.0e8, 0.25f}})
+		CHECK_THROWS_AS(Space::CheckCruiseDrive("bad", drive), Serialise::FormatError);
 }
 
 

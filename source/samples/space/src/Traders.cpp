@@ -793,7 +793,7 @@ Sim::Controller TraderController(std::uint32_t number)
 }
 
 
-std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
+std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks, const Drives &drives)
 {
 	std::vector<entt::entity> traders;
 	entt::registry &registry = world.Registry();
@@ -819,7 +819,7 @@ std::vector<entt::entity> OpenTraders(Sim::SimWorld &world, Dock::Docks &docks)
 		registry.emplace<Sim::Transform>(ship, registry.get<Sim::Transform>(station));
 		registry.emplace<Sim::InFrame>(ship, registry.get<Sim::InFrame>(station).frame);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{start.station});
-		MakeShip(registry, docks, ship, start.hull, start.mass, true);
+		MakeShip(registry, drives, ship, start.hull, start.mass, true);
 		registry.emplace<Ai::Steered>(ship);
 		// Each trader the owner of its one ship.
 		const Sim::Controller controller = TraderController(static_cast<std::uint32_t>(index));

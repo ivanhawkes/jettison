@@ -69,6 +69,7 @@ struct Galaxy
 	std::unique_ptr<Script::ScriptHost> pScripts;
 	std::vector<Celestial::StarSystem> systems;
 	std::vector<entt::entity> traders;
+	Sample::Drives drives;
 	std::vector<Physics::ContactEvent> contacts;
 	std::vector<Sim::SimEvent> events;
 
@@ -90,11 +91,9 @@ struct Galaxy
 			pScripts->SendCommandsTo(world);
 			pScripts->LoadAll(definitions);
 		}
-		definitions.Load<Dock::PadClassDefinition>(
-		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
+		Sample::LoadStationDefinitions(definitions);
 		docks.Define(definitions);
+		drives = Sample::ReadDrives(definitions);
 		Sample::LoadShipyard(definitions);
 		Sample::RegisterFleet(world, docks, definitions);
 
@@ -120,14 +119,14 @@ struct Galaxy
 		Sample::SpaceGame game;
 		Sample::OpenStations(
 		    world, docks, systems, [&](entt::entity station, std::string_view body)
-		    { game.StationOpened(world, docks, station, body); });
+		    { game.StationOpened(world, docks, definitions, station, body); });
 		Sample::OpenGates(world, gates, systems);
 		for (const entt::entity entity : Sample::OpenMarkets(world, definitions))
 		{
 			Sample::Market &market = world.Registry().get<Sample::Market>(entity);
 			market.stationEntity = Sample::FindStation(world.Registry(), market.system, market.station);
 		}
-		traders = Sample::OpenTraders(world, docks);
+		traders = Sample::OpenTraders(world, docks, drives);
 	}
 
 	static Physics::PhysicsWorld &Setup(Sim::SimWorld &world)
