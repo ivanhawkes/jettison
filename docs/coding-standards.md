@@ -142,11 +142,11 @@ same edit. A reviewer strips any new comment that fails the test.
 
 ## Simulation code
 
-Code in `sim`, `celestial`, `spatial`, `physics`, `ai` and `dock` must be deterministic across runs and
-across Debug and Release builds. `math` follows the same rules, because those modules call it and
-its `Random` and `Noise` output is part of the save format, and so does `script`, because a script
-answers a decision's inputs inside the step: its input calls are on a fresh instance each, counted in
-fuel rather than timed, and WAMR's interpreter is compiled with `-ffp-contract=off` too
+Code in `sim`, `celestial`, `spatial`, `physics`, `space`, `ai` and `dock` must be deterministic across
+runs and across Debug and Release builds. `math` follows the same rules, because those modules call
+it and its `Random` and `Noise` output is part of the save format, and so does `script`, because a
+script answers a decision's inputs inside the step: its input calls are on a fresh instance each,
+counted in fuel rather than timed, and WAMR's interpreter is compiled with `-ffp-contract=off` too
 ([architecture](architecture.md#scripts)). Its watchdog's wall clock stops a script and never decides
 what a call returns:
 

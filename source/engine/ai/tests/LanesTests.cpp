@@ -6,6 +6,7 @@
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 
 #include <doctest/doctest.h>
 
@@ -42,7 +43,7 @@ struct Fixture
 		physics.DefineShape("hull", hull);
 		for (Celestial::StarSystem system : {AiTests::Halcyon(), AiTests::Vesper(), AiTests::Marrow()})
 		{
-			physics.DefineStarSystem(system);
+			Space::DefineStarSystem(physics, system);
 			if (withGalaxy)
 				lanes.DefineStarSystem(std::move(system));
 		}

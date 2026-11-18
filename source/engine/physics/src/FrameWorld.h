@@ -21,7 +21,7 @@
 
 namespace Jettison::Physics::Detail
 {
-// The layers every system's world shares: static bodies, which never meet each other, and moving
+// The layers every frame's world shares: static bodies, which never meet each other, and moving
 // ones, kinematic and dynamic, which meet everything. Jolt keeps references to them, so they
 // outlive every world made with them.
 class Layers
@@ -42,7 +42,7 @@ class Layers
 	std::optional<JPH::ObjectVsBroadPhaseLayerFilterTable> objectVsBroadPhase;
 };
 
-// One star system's bodies in one frame: a Jolt world, the identifiers its bodies are given, and
+// One frame's bodies in one local frame: a Jolt world, the identifiers its bodies are given, and
 // where its frame is. Jolt's positions are metres from the frame's origin and its velocities are
 // relative to the frame's motion (PhysicsWorld.h, "frames").
 //
@@ -52,14 +52,14 @@ class Layers
 // chosen here: the lowest index free, with a sequence number per index that goes up each time the
 // index is freed, so a body made where one was just removed is not taken for it by the contacts
 // the last step left. The sequence numbers are saved; the free indices are what no body has.
-class StarSystemWorld
+class FrameWorld
 {
   public:
-	StarSystemWorld(const Layers &layers, const PhysicsSettings &settings);
+	FrameWorld(const Layers &layers, const PhysicsSettings &settings);
 
-	StarSystemWorld(const StarSystemWorld &) = delete;
+	FrameWorld(const FrameWorld &) = delete;
 
-	StarSystemWorld &operator=(const StarSystemWorld &) = delete;
+	FrameWorld &operator=(const FrameWorld &) = delete;
 
 	JPH::PhysicsSystem &System()
 	{
@@ -102,10 +102,10 @@ class StarSystemWorld
 		return m_bodyCount;
 	}
 
-	// The frame's origin in the system frame as the last step ended, and its velocity over that
+	// The local frame's origin in its frame as the last step ended, and its velocity over that
 	// step: what the next step's Jolt coordinates are from, and what its velocities were relative
 	// to. Saved, since a velocity changes frame by the difference between two steps' velocities.
-	// Zero for the system's own frame.
+	// Zero for the frame's own.
 	glm::dvec3 frameOrigin{0.0};
 	glm::dvec3 frameVelocity{0.0};
 

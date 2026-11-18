@@ -20,8 +20,8 @@ enum class BodyKind : std::uint8_t
 };
 
 // A simulation entity in the physics world (PhysicsWorld.h): with a Sim::Transform and a
-// Sim::InFrame naming a star system, it is a body in that system's physics, and one in no system
-// (on a jump lane) is in none. Read when the body is made; a change to any field remakes the body
+// Sim::InFrame, it is a body in that frame's physics, and one in no frame (the space sample's ship on
+// a jump lane) is in none. Read when the body is made; a change to any field remakes the body
 // at the next step, keeping its velocity. Registered with Reflect, every field Saved, by
 // RegisterTypes.
 //
@@ -63,7 +63,8 @@ struct Body
 // before a step is the body's new velocity, and one written over a kinematic body's is replaced.
 // Physics adds one, at rest, to a moving body that has none. Floats, as Jolt keeps it, which is
 // why it is relative to the frame: a ship beside a station is a few metres a second from still,
-// where in the system's frame it moves at the planet's 30 km/s, and a float's step there is 4 mm/s.
+// where in a star system's own frame it moves at the planet's 30 km/s, and a float's step there is
+// 4 mm/s.
 // Velocities in different frames are not comparable. Registered with Reflect, both fields Saved,
 // by RegisterTypes.
 struct Velocity
@@ -74,13 +75,13 @@ struct Velocity
 	bool operator==(const Velocity &) const = default;
 };
 
-// An entity on rails: each step its Transform is put where the celestial body of that name is, in
-// the star system its Sim::InFrame names, at the time the step ends, turned as the body spins, or
-// as a jump point faces (Celestial::BodyOrientation), as a gate's ring is (ai/Gates.h). A
-// station's body is kinematic and on rails, so it pushes a ship it meets as its orbit carries it,
-// and is where presentation draws it (scene/SystemScene.h places the body at the same times). The
-// system has to be defined in the physics world (PhysicsWorld::DefineStarSystem); an entity on no
-// system is left where it is. Registered with Reflect, every field Saved, by RegisterTypes.
+// An entity on rails: each step its Transform is put where the body of that name in the frame its
+// Sim::InFrame names is at the time the step ends, and turned as that body is (FrameModel::BodyAt):
+// in the space sample, a celestial body, spinning, or a jump point, facing as a gate's ring does
+// (ai/Gates.h). A station's body is kinematic and on rails, so it pushes a ship it meets as its orbit
+// carries it, and is where presentation draws it. The frame has to be defined in the physics world
+// (PhysicsWorld::DefineFrame); an entity in no frame is left where it is. Registered with Reflect,
+// every field Saved, by RegisterTypes.
 //
 // The offset puts it at a place on the body rather than at its centre, in the body's own axes, and
 // the turn turns it there, so it turns with the body: a pad on a station's deck, and a ship clamped
@@ -95,15 +96,15 @@ struct OnRails
 };
 
 // The frame a body's physics runs in (docs/architecture.md, "Coordinate frames and units"): the
-// local frame of that celestial body in its star system, a station or a planet, which moves with
-// the body on its orbit and does not turn with it. A body without one is in the system's own frame,
-// at rest at the primary. Each frame with bodies is a Jolt world of its own, so only bodies in one
-// frame meet, and a body that changes frame is made again in the other's, its velocity carried
+// local frame of that body of its frame's (FrameModel), in the space sample a station or a planet,
+// which moves with the body and does not turn with it. A body without one is in the frame's own,
+// at rest at its origin. Each local frame with bodies is a Jolt world of its own, so only bodies in
+// one meet, and a body that changes local frame is made again in the other's, its velocity carried
 // across. Jolt sweeps a fast body and sorts the broadphase in floats: relative to a station they are
-// metres and metres a second, where relative to the primary a station 150 million kilometres out is
-// 8 km between floats and moves 500 m a step, and nothing sweeps against it. The system has to be
-// defined (PhysicsWorld::DefineStarSystem), and a static body is in the system's frame: one carried
-// by a frame is a kinematic body. Registered with Reflect, its field Saved, by RegisterTypes.
+// metres and metres a second, where relative to a star a station 150 million kilometres out is
+// 8 km between floats and moves 500 m a step, and nothing sweeps against it. The frame has to be
+// defined (PhysicsWorld::DefineFrame), and a static body is in the frame's own: one carried by a
+// local frame is a kinematic body. Registered with Reflect, its field Saved, by RegisterTypes.
 struct LocalFrame
 {
 	std::string body;

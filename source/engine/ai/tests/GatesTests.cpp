@@ -8,6 +8,7 @@
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 
 #include <doctest/doctest.h>
 
@@ -69,7 +70,7 @@ struct Fixture
 		for (const Celestial::StarSystem &system :
 		     {AiTests::Halcyon(), AiTests::Vesper(), AiTests::Marrow()})
 		{
-			physics.DefineStarSystem(system);
+			Space::DefineStarSystem(physics, system);
 			lanes.DefineStarSystem(system);
 			gates.DefineStarSystem(system);
 		}

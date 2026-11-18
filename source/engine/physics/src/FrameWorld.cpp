@@ -1,4 +1,4 @@
-#include "StarSystemWorld.h"
+#include "FrameWorld.h"
 
 #include <utility>
 
@@ -16,7 +16,7 @@ Layers::Layers()
 }
 
 
-StarSystemWorld::StarSystemWorld(const Layers &layers, const PhysicsSettings &settings)
+FrameWorld::FrameWorld(const Layers &layers, const PhysicsSettings &settings)
 {
 	m_system.Init(
 	    settings.maxBodies, 0, settings.maxBodyPairs, settings.maxContactConstraints, layers.broadPhase,
@@ -26,7 +26,7 @@ StarSystemWorld::StarSystemWorld(const Layers &layers, const PhysicsSettings &se
 }
 
 
-JPH::BodyID StarSystemWorld::Allocate()
+JPH::BodyID FrameWorld::Allocate()
 {
 	std::uint32_t index = 0;
 	if (m_free.empty())
@@ -44,7 +44,7 @@ JPH::BodyID StarSystemWorld::Allocate()
 }
 
 
-void StarSystemWorld::Release(const JPH::BodyID &id)
+void FrameWorld::Release(const JPH::BodyID &id)
 {
 	const std::uint32_t index = id.GetIndex();
 	JETTISON_ASSERT(index < m_sequences.size() && !m_free.contains(index));
@@ -55,7 +55,7 @@ void StarSystemWorld::Release(const JPH::BodyID &id)
 }
 
 
-void StarSystemWorld::RestoreIdentifiers(
+void FrameWorld::RestoreIdentifiers(
     std::vector<std::uint8_t> sequences, const std::vector<std::uint32_t> &held)
 {
 	m_sequences = std::move(sequences);

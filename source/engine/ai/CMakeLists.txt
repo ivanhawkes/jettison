@@ -44,3 +44,8 @@ jettison_add_module(ai
 		glm
 		EnTT::EnTT
 )
+
+# The suites of cruise, gates and lanes fly in star systems (space/StarSystemFrame.h).
+if(TARGET jettison_ai_tests)
+	target_link_libraries(jettison_ai_tests PRIVATE Jettison::Space)
+endif()

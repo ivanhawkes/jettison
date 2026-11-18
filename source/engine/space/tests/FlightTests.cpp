@@ -5,6 +5,7 @@
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 
 #include <doctest/doctest.h>
 
@@ -20,7 +21,7 @@
 #include "Halcyon.h"
 
 using namespace Jettison;
-using namespace Jettison::PhysicsTests;
+using namespace Jettison::SpaceTests;
 using Physics::Body;
 using Physics::BodyKind;
 using Physics::FlightControls;
@@ -48,7 +49,7 @@ Physics::PhysicsWorld &Populate(Sim::SimWorld &world)
 	world.RegisterComponent<Sim::Transform>();
 	world.RegisterComponent<Sim::InFrame>();
 	Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
-	physics.DefineStarSystem(Halcyon());
+	Space::DefineStarSystem(physics, Halcyon());
 	physics.DefineShape("hub", MeshBox({6.0f, 6.0f, 30.0f}));
 	physics.DefineShape("panel", MeshBox({12.0f, 7.0f, 0.075f}));
 	ShapeDefinition shape;
@@ -387,13 +388,13 @@ TEST_CASE("Flight: an entity on rails is where its body is as each step ends")
 {
 	Sim::SimWorld world{kStep, kSeed};
 	Physics::PhysicsWorld &physics = Populate(world);
-	CHECK(physics.HasStarSystem(kHalcyon));
-	CHECK_THROWS_AS(physics.DefineStarSystem(Halcyon()), std::invalid_argument);
+	CHECK(physics.HasFrame(kHalcyon));
+	CHECK_THROWS_AS(Space::DefineStarSystem(physics, Halcyon()), std::invalid_argument);
 	Celestial::StarSystem unresolved = Halcyon();
 	unresolved.name = "Unresolved";
 	unresolved.bodies[2].parentIndex = -1;
 	CHECK_THROWS_WITH_AS(
-	    physics.DefineStarSystem(unresolved), doctest::Contains("is not resolved"),
+	    Space::DefineStarSystem(physics, unresolved), doctest::Contains("is not resolved"),
 	    std::invalid_argument);
 
 	// In the system's frame, and in its own, which it is still in.
@@ -478,8 +479,7 @@ TEST_CASE("Flight: a frame's origin is its body's position, and none for the sys
 	CHECK(physics.FrameOrigin(kEmpty, "", 10.0) == glm::dvec3{0.0});
 	CHECK_THROWS_WITH_AS(
 	    (void)physics.FrameOrigin(kHalcyon, "Nowhere", 0.0),
-	    doctest::Contains("the frame of 'Nowhere', which system 'Halcyon' has no body of"),
-	    std::invalid_argument);
+	    doctest::Contains("the local frame of 'Nowhere', which frame "), std::invalid_argument);
 	CHECK_THROWS_WITH_AS(
 	    (void)physics.FrameOrigin(kEmpty, kStation, 0.0), doctest::Contains("which is not defined"),
 	    std::invalid_argument);

@@ -8,6 +8,7 @@
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 
 #include <doctest/doctest.h>
@@ -175,7 +176,7 @@ struct Fixture
 		physics.DefineShape("station", shape);
 		shape.halfExtents = {2.5f, 1.5f, 6.0f};
 		physics.DefineShape("shuttle", shape);
-		physics.DefineStarSystem(AiTests::Halcyon());
+		Space::DefineStarSystem(physics, AiTests::Halcyon());
 
 		entt::registry &registry = world.Registry();
 		station = registry.create();

@@ -10,6 +10,7 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -49,7 +50,7 @@ struct Fixture
 	// With the sample's definitions loaded, or with none, for a suite that defines its own.
 	explicit Fixture(bool sample = true)
 	{
-		physics.DefineStarSystem(Celestial::ReadStarSystem(ReadAsset("systems/halcyon.yaml")));
+		Space::DefineStarSystem(physics, Celestial::ReadStarSystem(ReadAsset("systems/halcyon.yaml")));
 		if (!sample)
 			return;
 		Vfs::FileSystem files;

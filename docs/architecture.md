@@ -11,9 +11,10 @@ gameplay/content; Jettison provisions reusable engine capabilities after checkin
 current requirements. Small engine-local gameplay examples remain permitted for testing,
 but belong in explicit sample targets outside engine code and use public SDK interfaces.
 
-The implementation described below still mixes sample trading into `app`, space transit
-into `ai`, celestial assumptions into physics/scene/snapshot APIs, and sample content
-into the shared asset pack. These are current coupling points, not the target boundary.
+The implementation described below still mixes space transit into `ai` and celestial
+assumptions into the scene's APIs; physics' star systems are the `space` module's (W01), the
+snapshot's frames neutral (A01), and the sample's trading and content its own (H05). These are
+current coupling points, not the target boundary.
 Extract a neutral host, separate resources and generic modules, and make space services
 optional. No neutral engine target may depend on a sample or Manifest. Presentation
 must also work without celestial content. Preserve existing regressions through explicit
@@ -151,6 +152,7 @@ flowchart TB
     end
     subgraph T4[Presentation and simulation services]
         render; physics; audio; ui; ai; dock; script
+        space --> physics
     end
     subgraph T5[Hosts]
         app --> host
@@ -173,10 +175,13 @@ render's public headers, and decodes a document's images with render's CPU textu
 includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9a): a
 ship coming out of a lane is put in a physics frame and stopped in it, and steering (9b) flies a
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
-`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there.
+`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there, and on
+`space`, whose star systems its suites fly in. `space` is the optional space capability (W01): its
+edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and it depends on
+`celestial` below; no neutral module depends on it.
 
-The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `ai` and `dock` never include
-`render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
+The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `space`, `ai` and `dock` never
+include `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
 from it, and then it is no longer deterministic or testable without a GPU.
 
 ## Simulation and presentation
@@ -362,15 +367,16 @@ shape by name, its mass and material), a `Sim::Transform` and a `Sim::InFrame`; 
 Jolt type. Shapes are definitions (`Physics::ShapeDefinition`, through the definition registry, so
 a mod can replace one), built into Jolt shapes when they are defined, and a save names them.
 
-Each **frame** of each star system with bodies is a Jolt world of its own (7b), made with its first
-body and gone with its last (0.7 MB at the default capacities of 8,192 bodies). A frame is the
-system's own, at rest at the primary, or the local frame of one of its bodies (`Physics::LocalFrame`,
-a station or a planet): it moves with the body on its orbit and does not turn with it, as the
-[local frame](#coordinate-frames-and-units) does. In it, Jolt's positions are metres from the body
-and its velocities are relative to the body's motion; `Sim::Transform` stays in the system frame,
-and `Physics::Velocity` is relative to the body's frame. Every system's positions are metres from its
-own primary, so bodies of two systems at the same coordinates must never meet, and only bodies in one
-frame meet each other. A body on a jump lane is in none; one that changes frame is made again in the
+Each **local frame** of each frame with bodies (`Sim::InFrame`, in the sample a star system) is a
+Jolt world of its own (7b), made with its first body and gone with its last (0.7 MB at the default
+capacities of 8,192 bodies). A local frame is the frame's own, at rest at its origin, or that of one
+of its bodies (`Physics::LocalFrame`, in the sample a station or a planet): it moves with the body
+and does not turn with it, as the [local frame](#coordinate-frames-and-units) does. In it, Jolt's
+positions are metres from the body and its velocities are relative to the body's motion;
+`Sim::Transform` stays in the frame's coordinates, and `Physics::Velocity` is relative to the local
+frame. Every frame's positions are metres from its own origin, so bodies of two frames at the same
+coordinates must never meet, and only bodies in one local frame meet each other. A body in no frame
+(the sample's ship on a jump lane) has none; one that changes local frame is made again in the
 other's, its velocity carried across.
 
 Frames are what let a ship meet a station at all. Highport moves at 30 km/s about the star, 500 m a
@@ -381,11 +387,15 @@ their orbit never find each other however slowly they close; its broadphase keep
 between values. In the station's frame each of these is metres and metres a second
 ([decided](roadmap.md#decided)).
 
-Star systems are definitions in physics, as shapes are (`PhysicsWorld::DefineStarSystem`): the shell
-defines every system its galaxy lists. They put an entity on rails (`Physics::OnRails`), placing its
-`Transform` where its celestial body is as each step ends, which is how a station's kinematic body
-follows its orbit, and they give dynamic bodies their system's gravity, each body with a
-gravitational parameter pulling as a point mass. Orbits stay on rails, so gravity moves only dynamic
+What moves a frame's named bodies, and what pulls in it, is a definition of the game's, as shapes
+are (`Physics::FrameModel`, `PhysicsWorld::DefineFrame`): a frame with none has no rails, no local
+frames and no gravity, and the physics suite's room is a model of the test's, with a lift and its own
+gravity, and no star system. The model puts an entity on rails (`Physics::OnRails`), placing its
+`Transform` where the body of that name is as each step ends, carries a local frame with that body,
+and gives dynamic bodies the frame's gravity, asked once a step for a field over the frame. A star
+system is the `space` module's model (`Space::DefineStarSystem`), and the shell defines every system
+its galaxy lists: a station's kinematic body follows its orbit on rails, and each body with a
+gravitational parameter pulls as a point mass. Orbits stay on rails, so gravity moves only dynamic
 bodies; a ship beside a station falls round the planet with it, as the station's rails carry it,
 and is left with the tide. A frame's change of speed between two steps is taken off every dynamic
 body in it, and within a station's frame what is left of the planet's 8.6 m/s² is the tide's few
@@ -671,8 +681,8 @@ weighing a run's margin, the rivals after the same shelf and its credits a secon
 (`Ai::PlotRoute`, crossing each system by course), and then flies it: off its pad, round the station
 to the gate, through it, onto a pad or into the queue for one, held off the station in its place, the
 trade, and the wait while the buggies carry its crates. Seven trade between Highport and Corva, whose
-one free pad keeps a queue; in twenty minutes of the `space` suite they sell fourteen runs across the
-lane, queue five times, and no two hulls come within 35 m in flight.
+one free pad keeps a queue; in twenty minutes of the `sample-space` suite they sell fourteen runs
+across the lane, queue five times, and no two hulls come within 35 m in flight.
 
 **The fleet** (`samples/space/src/Fleet.h`, 13d, [decided](roadmap.md#decided): a player has a fleet) is the
 ships a player commands (`Sim::ControlledBy`), each fitted as a trader is, with a hold, an
@@ -1084,8 +1094,8 @@ entity by its name in the snapshot (a market's station, or the body a station or
 rails of), a good by its name and any other identifier as the data gives it, then formatted by
 position (`FormatArguments`); a key with plural forms is chosen by its first integer
 (`PluralArguments`). The arguments are positional as the tables' are, so the check that holds a
-translation to its base text holds it to the reason's. The `space` suite holds every reason of the
-docks, the AI and the trade to a text in English and German.
+translation to its base text holds it to the reason's. The `sample-space` suite holds every reason of
+the docks, the AI and the trade to a text in English and German.
 
 The language is the player's setting (`ui.language`), not the environment's locale, so a run reads
 the same on every machine until the player chooses; `UiSystem::SetLanguage` reads the tables and

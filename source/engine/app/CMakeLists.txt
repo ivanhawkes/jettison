@@ -23,6 +23,7 @@ jettison_add_module(app
 		scene
 		script
 		sim
+		space
 		spatial
 		time
 		ui

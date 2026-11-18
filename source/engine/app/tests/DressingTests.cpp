@@ -23,6 +23,7 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -58,7 +59,7 @@ struct Dressed
 	Dressed()
 	{
 		for (const Celestial::StarSystem &system : systems)
-			physics.DefineStarSystem(system);
+			Space::DefineStarSystem(physics, system);
 		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
 		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, {Dock::kDefinitionVersion});

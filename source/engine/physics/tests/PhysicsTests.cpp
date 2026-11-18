@@ -235,7 +235,7 @@ TEST_CASE("Physics: two bodies meet, and part as their restitution has them")
 
 	fixture.world.Step();
 	CHECK(fixture.physics.BodyCount() == 2);
-	CHECK(fixture.physics.Systems() == std::vector{kHalcyon});
+	CHECK(fixture.physics.Frames() == std::vector{kHalcyon});
 	CHECK(fixture.Position(left).x == doctest::Approx(-5.0 + 10.0 * kStep));
 
 	// They meet 0.4 s in, and an elastic collision of equal masses swaps their velocities.
@@ -359,7 +359,7 @@ TEST_CASE("Physics: a body is in its system's world, and leaves it with its enti
 	fixture.Run(0.5);
 	CHECK(fixture.physics.BodyCount(kHalcyon) == 2);
 	CHECK(fixture.physics.BodyCount(kVesper) == 0);
-	CHECK(fixture.physics.Systems() == std::vector{kHalcyon});
+	CHECK(fixture.physics.Frames() == std::vector{kHalcyon});
 	CHECK(glm::distance(fixture.Position(here), fixture.Position(there)) > 1.9);
 
 	// On a lane it is in no world; arrived, it is in one again.
@@ -374,7 +374,7 @@ TEST_CASE("Physics: a body is in its system's world, and leaves it with its enti
 	registry.destroy(there);
 	fixture.world.Step();
 	CHECK(fixture.physics.BodyCount() == 0);
-	CHECK(fixture.physics.Systems().empty());
+	CHECK(fixture.physics.Frames().empty());
 }
 
 

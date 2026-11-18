@@ -1,7 +1,7 @@
 # The space-trading sample (docs/sample-game.md): goods, markets, traders, the fleet's shipyard and
 # the market screen, as a game composed into the shell (App::Game). Jetsam and the render test link
-# it; no engine module does. Its suite, `space`, holds what was the shell's trading, traders, fleet,
-# reasons and scripts tests.
+# it; no engine module does. Its suite, `sample-space`, holds what was the shell's trading, traders,
+# fleet, reasons and scripts tests.
 add_library(jettison_sample_space STATIC
 	include/jettison/sample/SpaceGame.h
 	src/Fleet.cpp
@@ -62,5 +62,5 @@ if(JETTISON_BUILD_TESTS)
 		JETTISON_TEST_SCRIPT_DIR="${PROJECT_SOURCE_DIR}/source/test/scripts"
 		JETTISON_APP_TEST_OUTPUT="${CMAKE_CURRENT_BINARY_DIR}")
 	set_property(TARGET jettison_sample_space_tests PROPERTY FOLDER "Test")
-	add_test(NAME space COMMAND jettison_sample_space_tests)
+	add_test(NAME sample-space COMMAND jettison_sample_space_tests)
 endif()

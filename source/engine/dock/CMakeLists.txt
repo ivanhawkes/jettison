@@ -12,6 +12,7 @@ jettison_add_module(dock
 		reflect
 		serialise
 		sim
+		space
 		spatial
 	HEADERS
 		include/jettison/dock/Definitions.h

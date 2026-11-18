@@ -48,12 +48,12 @@ The script suite's modules (`source/engine/script/tests/scripts`: `limits` and `
 the tree, not as the suites' dependencies, so a change to a reflected type still builds the suite
 that says the bindings are out of date. Each suite checks the bindings its scripts are built against
 byte for byte against what its types make: the script suite its own `jettison_script.h` and
-`jettison_script.rs`, the space sample's suite (`space`) the shell's with the sample's,
+`jettison_script.rs`, the space sample's suite (`sample-space`) the shell's with the sample's,
 `source/test/scripts/jettison_script.rs`; on a
 difference it writes what they make into the build tree, to copy over. The generated header is left
 out of the format gate. The smoke mod is staged in the build tree (`source/test/mods/smoke`, its
-definitions and its built script), which the `space` suite mounts as a player's unpacked mod and
-`render_test_smoke_mod` packs.
+definitions and its built script), which the `sample-space` suite mounts as a player's unpacked mod
+and `render_test_smoke_mod` packs.
 
 ### Planned dependencies and the probe
 
@@ -231,8 +231,9 @@ Test samples/editor/presentation disabled independently; keep sample render regr
 
 The CPU-only configure is in (`clang-cpu`, above, and a gate stage) and so is the non-space CPU
 consumer (H04, above), and the engine's assets are held to their own directories, none of the
-sample's content in them (H05, the app suite's `Game` cases); the physics scene and space example
-consumers and the dependency checks are still to come (W01).
+sample's content in them (H05, the app suite's `Game` cases), and the physics suite's room is a
+non-space physics scene, its own frame model's gravity and lift and no celestial definition (W01);
+the space example consumer and the dependency checks are still to come (W01).
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
 development environment aligned with Manifest, including developer-only `lazygit`; it must not
@@ -251,13 +252,13 @@ about 50 s on the Debug database, first after the build, which writes the module
 Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
 headless render test, from the packed assets → reference frames,
 from the staged directory, and with `--asan`, the render test and the `vfs`, `resource`, `sim`,
-`spatial`, `physics`, `ai`, `dock`, `script` and `host` suites under the sanitisers (`vfs` and
+`spatial`, `physics`, `space`, `ai`, `dock`, `script` and `host` suites under the sanitisers (`vfs` and
 `script` for the packs and the modules, whose bytes are a mod's; `resource` for loaders' callbacks
 that load more, which once moved the slot `Finish` held; `host` for what a failed start-up and a
 teardown release). The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug
-build's results. The sample's traders' hash is pinned in the `space` suite, which runs in Debug and
-Release but not under the sanitisers: its twenty minutes of seven traders is the gate's longest
+build's results. The sample's traders' hash is pinned in the `sample-space` suite, which runs in Debug
+and Release but not under the sanitisers: its twenty minutes of seven traders is the gate's longest
 simulation, and every module it steps is in the sanitised suites already.
 
 Each stage is timed, and the run ends with a summary, one line per stage: `ok` with its seconds,
@@ -531,7 +532,7 @@ every resize and the reload; the save stage lists its save on one. The trade sta
 screen of the station the ship is at: its station and its first good's stock have to be the ones the
 snapshot has, and its first Buy button, pressed, sends a trade the next step answers, whose answer
 the screen then has to show, and to play on the UI bus. In the orbit scene the ship is off the dock,
-so the answer is a refusal (the trade itself is the `space` suite's); the sample scene has no market, and the summary's `markets=`
+so the answer is a refusal (the trade itself is the `sample-space` suite's); the sample scene has no market, and the summary's `markets=`
 and `trades=` say what was tried. The sample scene has no sun,
 so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
 environment when it loads and again when the reload stage replaces it, so the bake's passes and

@@ -12,7 +12,6 @@
 #include <string_view>
 #include <vector>
 
-#include <jettison/celestial/StarSystem.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Shape.h>
 #include <jettison/sim/Controller.h>
@@ -26,14 +25,15 @@ class DefinitionRegistry;
 
 namespace Jettison::Physics
 {
-// Jolt's capacities for one star system's bodies, fixed when that system's physics is made.
+// Jolt's capacities for one frame's bodies (Sim::InFrame), fixed when that frame's physics is made.
 struct PhysicsSettings
 {
 	std::uint32_t maxBodies{8192};
 	std::uint32_t maxBodyPairs{32768};
 	std::uint32_t maxContactConstraints{16384};
-	// The fastest a body moves in its system's frame. Jolt's default, 500 m/s, is far below a
-	// station's 7.7 km/s on its orbit, and a kinematic body following one would be held to it.
+	// The fastest a body moves in its frame. Jolt's default, 500 m/s, is far below a station's
+	// 7.7 km/s on its orbit in the space sample, and a kinematic body following one would be held to
+	// it.
 	float maxLinearVelocity{1.0e5f};
 };
 
@@ -46,7 +46,7 @@ enum class ContactPhase : std::uint8_t
 };
 
 // What one step changed about two bodies' contact. The pair is in entity order, first below second.
-// A beginning says where they met and how hard: the point in the system frame, the normal from the
+// A beginning says where they met and how hard: the point in the frame, the normal from the
 // first towards the second, and the speed they closed at along it as they met, before physics
 // pushed them apart, which is what an impact's sound or damage is judged by. An end carries none of
 // it. Registered with Reflect, every field Saved, by RegisterTypes.
@@ -64,7 +64,7 @@ struct ContactEvent
 	bool operator==(const ContactEvent &) const = default;
 };
 
-// What a cast found: the entity, how far along the cast in metres, and where, in the system frame,
+// What a cast found: the entity, how far along the cast in metres, and where, in the frame,
 // with the surface's normal there, facing back along the cast.
 struct CastHit
 {
@@ -98,6 +98,7 @@ struct Pick
 {
 	Sim::Controller sender;
 	std::uint64_t request{0};
+	// The frame cast in (Sim::InFrame), saved as "system".
 	std::uint64_t system{0};
 	glm::dvec3 origin{0.0};
 	glm::dvec3 direction{0.0, 0.0, -1.0};
@@ -138,24 +139,48 @@ struct JoltVersion
 // This build's: what a save is written as, and a load keeps Jolt's state for.
 JoltVersion BuiltJoltVersion();
 
+// What a frame holds besides its bodies (PhysicsWorld::DefineFrame): the bodies of the game's that
+// rails and local frames name (OnRails, LocalFrame), each where the game's rules put it at a time, and
+// the frame's gravity. A definition, not state: neither saved nor hashed, so it gives the same answer
+// for the same time in every run. Called on the simulation's thread, during a step and from the
+// queries that take a frame.
+class FrameModel
+{
+  public:
+	virtual ~FrameModel() = default;
+
+	// Whether the frame has a body of that name.
+	virtual bool HasBody(std::string_view body) const = 0;
+
+	// Where the body is at a time, in the frame, and how it is turned. Only asked of a body the frame
+	// has (HasBody).
+	virtual Sim::Transform BodyAt(std::string_view body, double simSeconds) const = 0;
+
+	// The acceleration gravity gives at a time, in metres a second squared, at each position in the
+	// frame: what a step adds to each dynamic body, at where the body is as the step begins. Asked
+	// once a step; none, an empty function, for a frame without gravity, as it is unless overridden.
+	virtual std::function<glm::dvec3(const glm::dvec3 &)> GravityAt(double simSeconds) const;
+};
+
 // Jolt in double precision, stepped inside the simulation's fixed step (docs/architecture.md,
 // "Simulation and presentation"). Its state is the simulation's: the world owns it as a service
 // (Sim::WorldService), a save holds its bodies and their contacts, and a world loaded from a save
 // steps on exactly as the one saved did. Jolt's types stay inside this module; the engine sees
 // bodies as entities with a Body, a Sim::Transform and a Sim::InFrame (Components.h).
 //
-// Each frame of each star system with bodies is a Jolt world of its own (LocalFrame), made when the
-// first body enters it and gone when the last leaves: every system's positions are metres from its
-// own primary, so two systems' bodies at the same coordinates are nowhere near each other, and in a
-// frame on rails Jolt's coordinates are metres from the frame's body and its velocities relative to
-// the body's motion, which keeps Jolt's floats and its sweeps on the small numbers that separate a
-// ship from a station. A body that changes system or frame is made again in the other's.
+// Each frame with bodies (Sim::InFrame), and each local frame in it (LocalFrame), is a Jolt world of
+// its own, made when the first body enters it and gone when the last leaves: two frames' bodies at
+// the same coordinates are nowhere near each other, and in a local frame Jolt's coordinates are
+// metres from the frame's body and its velocities relative to the body's motion, which keeps Jolt's
+// floats and its sweeps on the small numbers that separate a ship from a station. A body that changes
+// frame or local frame is made again in the other's.
 //
-// Star systems are definitions too (DefineStarSystem), the game's start-up as shapes are: what puts
-// an entity on rails (OnRails) where its celestial body is, and the gravity of a system's bodies.
-// Orbits stay on rails (celestial), so gravity moves only dynamic bodies, and only in a defined
-// system: a ship beside a station falls round the planet with it, as the station's rails carry it,
-// rather than falling away from it at the planet's pull.
+// What moves a frame's named bodies, and what pulls in it, is the game's (FrameModel, DefineFrame),
+// its start-up as shapes are: what puts an entity on rails (OnRails) and carries a local frame, and
+// the frame's gravity, which moves only dynamic bodies. A frame with no model has no rails, no local
+// frames and no gravity. The space sample's frames are star systems (space/StarSystemFrame.h), whose
+// orbits stay on rails, so a ship beside a station falls round the planet with it rather than away
+// from it at the planet's pull.
 //
 // One fixed step, as the simulation system "physics" (kSystemName), after the flight model
 // ("flight", Flight.h), which a game's systems order themselves against with `after`:
@@ -168,10 +193,10 @@ JoltVersion BuiltJoltVersion();
 //      step moves it with its orbit's velocity from the first.
 //   3. What the game wrote is applied: a static or dynamic body whose Transform was written is
 //      placed there, a dynamic body whose Velocity was written takes it, and every kinematic body
-//      is moved towards its Transform over the step. Then each dynamic body in a defined system
-//      gains what its system's gravity gives it over the step, from where the bodies are as the
+//      is moved towards its Transform over the step. Then each dynamic body in a defined frame
+//      gains what its frame's gravity gives it over the step, from where the bodies are as the
 //      step begins.
-//   4. Each system's world steps, in identifier order, on one thread.
+//   4. Each frame's worlds step, in identifier order, on one thread.
 //   5. Each moving body's Velocity, and each dynamic body's Transform, are written from it.
 //   6. The contacts the step began and ended are what Contacts() returns until the next.
 // Bodies are visited in entity order throughout, so the same state and commands give the same
@@ -184,7 +209,7 @@ JoltVersion BuiltJoltVersion();
 // Jolt has a contact between them, which begins a couple of centimetres before they meet, as
 // Jolt's speculative contacts do; a body touches a sensor while it overlaps it. A body asleep on
 // another, or on a static body, still touches it, though Jolt drops a sleeping body's contacts.
-// A body removed, or made again (a change of Body, system or frame), ends every contact it had in
+// A body removed, or made again (a change of Body, frame or local frame), ends every contact it had in
 // the step that removes it, and one made again begins its own afresh.
 class PhysicsWorld final : public Sim::WorldService
 {
@@ -221,39 +246,36 @@ class PhysicsWorld final : public Sim::WorldService
 	// which a query for what is near widens itself by. None while no shape is defined.
 	double LargestShapeRadius() const;
 
-	// A star system's bodies, for rails and gravity in the system of that name (Sim::FrameId). It
-	// has to be resolved (Celestial::Resolve), as reading one does; throws std::invalid_argument for
-	// a system already defined.
-	void DefineStarSystem(Celestial::StarSystem system);
+	// The model of the frame of that identifier (Sim::InFrame). Throws std::invalid_argument for no
+	// model, or a frame already defined.
+	void DefineFrame(std::uint64_t frame, std::unique_ptr<const FrameModel> model);
 
-	bool HasStarSystem(std::uint64_t system) const;
+	bool HasFrame(std::uint64_t frame) const;
 
-	// The acceleration the defined system's gravity gives a body at a position at a time, in metres
-	// a second squared: each body with a gravitational parameter pulling as a point mass, and as one
-	// whose mass is all within the point's distance from its centre, inside its radius. None in a
-	// system that is not defined.
-	glm::dvec3 Gravity(std::uint64_t system, const glm::dvec3 &position, double simSeconds) const;
+	// The acceleration the defined frame's gravity gives a body at a position at a time, in metres a
+	// second squared (FrameModel::GravityAt). None in a frame that is not defined or has no gravity.
+	glm::dvec3 Gravity(std::uint64_t frame, const glm::dvec3 &position, double simSeconds) const;
 
-	// Where the frame of a body of a defined system (LocalFrame) is at a time, in the system frame:
-	// the body's position, or none for the system's own frame (an empty name). A point a ship is
-	// flown to in its frame is this far from the system's. Throws std::invalid_argument for a frame
-	// a body could not be in.
-	glm::dvec3 FrameOrigin(std::uint64_t system, std::string_view frame, double simSeconds) const;
+	// Where a local frame (LocalFrame) is at a time, in the frame: its body's position, or none for
+	// the frame's own (an empty name). A point a ship is flown to in its local frame is this far from
+	// the frame's. Throws std::invalid_argument for a local frame a body could not be in.
+	glm::dvec3 FrameOrigin(std::uint64_t frame, std::string_view local, double simSeconds) const;
 
-	// Where an entity on those rails in the defined system is at a time, as each step puts it: what
-	// a game places an entity at before the first step that moves it, so nothing reads it elsewhere
-	// in between. Throws std::invalid_argument for a system not defined or a body it does not have.
-	Sim::Transform RailsPlace(std::uint64_t system, const OnRails &rails, double simSeconds) const;
+	// Where an entity on those rails in the defined frame is at a time, as each step puts it: what a
+	// game places an entity at before the first step that moves it, so nothing reads it elsewhere in
+	// between. Throws std::invalid_argument for a frame not defined or a body it does not have.
+	Sim::Transform RailsPlace(std::uint64_t frame, const OnRails &rails, double simSeconds) const;
 
 	std::size_t BodyCount() const;
 
-	std::size_t BodyCount(std::uint64_t system) const;
+	std::size_t BodyCount(std::uint64_t frame) const;
 
-	// The frames of a system that have bodies: each is a Jolt world (LocalFrame).
-	std::size_t FrameCount(std::uint64_t system) const;
+	// The local frames of a frame that have bodies, its own among them: each is a Jolt world
+	// (LocalFrame).
+	std::size_t FrameCount(std::uint64_t frame) const;
 
-	// The star systems that have bodies, in identifier order.
-	std::vector<std::uint64_t> Systems() const;
+	// The frames that have bodies, in identifier order.
+	std::vector<std::uint64_t> Frames() const;
 
 	// The contacts the last step began and ended, in order of pair, and for one pair an end before
 	// a beginning (a body made again).
@@ -266,12 +288,12 @@ class PhysicsWorld final : public Sim::WorldService
 	// What touches the entity's body now, in entity order: none for an entity with no body.
 	std::vector<entt::entity> Touching(entt::entity entity) const;
 
-	// The first body a ray from the origin meets within the distance, across every frame of the
-	// system, as the last step left them. A ray from inside a convex body hits it at once, and one
+	// The first body a ray from the origin meets within the distance, across every local frame of
+	// the frame, as the last step left them. A ray from inside a convex body hits it at once, and one
 	// from inside a mesh, which has no inside, passes out through it. Throws std::invalid_argument
 	// for a direction of no length or a distance that is not positive and finite.
 	std::optional<CastHit> CastRay(
-	    std::uint64_t system, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
+	    std::uint64_t frame, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
 	    const CastOptions &options = {}) const;
 
 	// The first body the shape meets swept from where it starts along the direction, within the
@@ -279,10 +301,10 @@ class PhysicsWorld final : public Sim::WorldService
 	// station. A shape that starts overlapping a body meets it at once. Throws std::invalid_argument
 	// as CastRay does, and for a shape that is not defined.
 	std::optional<CastHit> CastShape(
-	    std::uint64_t system, std::string_view shape, const Sim::Transform &start,
+	    std::uint64_t frame, std::string_view shape, const Sim::Transform &start,
 	    const glm::dvec3 &direction, double maxDistance, const CastOptions &options = {}) const;
 
-	// Every system's bodies, each with what it was made from and was last placed at, and Jolt's own
+	// Every frame's bodies, each with what it was made from and was last placed at, and Jolt's own
 	// state, under its version: positions, velocities, sleep, and the contacts each step starts
 	// from; and the contacts as the engine sees them, what touches and what the last step began and
 	// ended.

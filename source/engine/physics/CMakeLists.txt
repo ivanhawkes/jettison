@@ -3,7 +3,6 @@
 jettison_add_module(physics
 	DETERMINISTIC
 	DEPENDS
-		celestial
 		core
 		math
 		profile
@@ -19,19 +18,17 @@ jettison_add_module(physics
 		src/Components.cpp
 		src/Convert.h
 		src/Flight.cpp
+		src/FrameWorld.cpp
+		src/FrameWorld.h
 		src/JoltRuntime.cpp
 		src/JoltRuntime.h
 		src/PhysicsWorld.cpp
 		src/Shapes.cpp
 		src/Shapes.h
-		src/StarSystemWorld.cpp
-		src/StarSystemWorld.h
 	TESTS
-		tests/ContactTests.cpp
-		tests/FlightTests.cpp
-		tests/Halcyon.h
 		tests/PhysicsTests.cpp
 		tests/ReplayTests.cpp
+		tests/RoomTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

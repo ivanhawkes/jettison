@@ -3,6 +3,7 @@
 #include <jettison/celestial/Orbit.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 
 #include <doctest/doctest.h>
 
@@ -18,7 +19,7 @@
 #include "Halcyon.h"
 
 using namespace Jettison;
-using namespace Jettison::PhysicsTests;
+using namespace Jettison::SpaceTests;
 using Physics::Body;
 using Physics::BodyKind;
 using Physics::CastOptions;
@@ -74,7 +75,7 @@ struct Fixture
 		world.RegisterComponent<Sim::Transform>();
 		world.RegisterComponent<Sim::InFrame>();
 		Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
-		physics.DefineStarSystem(Halcyon());
+		Space::DefineStarSystem(physics, Halcyon());
 		physics.DefineShape("crate", Box({1.0f, 1.0f, 1.0f}));
 		physics.DefineShape("block", Box({1.0f, 5.0f, 5.0f}));
 		physics.DefineShape("zone", Box({5.0f, 5.0f, 5.0f}));

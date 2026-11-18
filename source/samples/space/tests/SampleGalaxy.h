@@ -32,6 +32,7 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -102,7 +103,7 @@ struct Galaxy
 			lanes.DefineStarSystem(systems.back());
 			cruises.DefineStarSystem(systems.back());
 			gates.DefineStarSystem(systems.back());
-			physics.DefineStarSystem(systems.back());
+			Space::DefineStarSystem(physics, systems.back());
 		}
 		lanes.SetGalaxy(std::move(galaxy));
 		Sample::ChargeTolls(gates);

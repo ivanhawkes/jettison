@@ -10,8 +10,8 @@
 #include <string>
 #include <string_view>
 
-// What the physics suite's station runs share: Halcyon, and a station's hull as a mesh.
-namespace Jettison::PhysicsTests
+// What the space suite's station runs share: Halcyon, and a station's hull as a mesh.
+namespace Jettison::SpaceTests
 {
 inline const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 inline constexpr std::string_view kStation = "Ostra Highport";
@@ -60,4 +60,4 @@ inline Physics::ShapeDefinition MeshBox(const glm::vec3 &half)
 	                 2, 7, 6, 2, 3, 7, 0, 6, 4, 0, 2, 6, 1, 7, 3, 1, 5, 7};
 	return shape;
 }
-} // namespace Jettison::PhysicsTests
+} // namespace Jettison::SpaceTests

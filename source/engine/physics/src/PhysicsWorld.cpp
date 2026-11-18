@@ -27,7 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include <jettison/celestial/Orbit.h>
 #include <jettison/core/Assert.h>
 #include <jettison/core/Log.h>
 #include <jettison/physics/Flight.h>
@@ -37,9 +36,9 @@
 #include <jettison/sim/Snapshot.h>
 
 #include "Convert.h"
+#include "FrameWorld.h"
 #include "JoltRuntime.h"
 #include "Shapes.h"
-#include "StarSystemWorld.h"
 
 namespace Jettison::Physics
 {
@@ -61,7 +60,7 @@ constexpr std::uint64_t kStateFeatures = 0b1'0000'0011;
 // cross-platform deterministic, with 16-bit object layers, since the engine first linked it.
 constexpr JoltVersion kLayout3Jolt{5, 6, 0, 0b11};
 
-// Jolt's scratch memory for a step: what a step of a busy system needs, with the heap behind it
+// Jolt's scratch memory for a step: what a step of a busy frame needs, with the heap behind it
 // for one that needs more, rather than Jolt's fixed block failing.
 constexpr JPH::uint kTempAllocatorBytes = 8u * 1024u * 1024u;
 
@@ -98,8 +97,8 @@ double BoundingRadius(const ShapeDefinition &shape)
 	return 0.0;
 }
 
-// Which Jolt world a body is in: its star system, and the celestial body whose frame it is in, or
-// none for the system's own. Ordered, system first, which is the order worlds step and save in.
+// Which Jolt world a body is in: its frame, and the body whose local frame it is in, or none for the
+// frame's own. Ordered, frame first, which is the order worlds step and save in.
 struct WorldKey
 {
 	std::uint64_t system{Sim::kNoFrame};
@@ -116,14 +115,14 @@ struct Record
 	JPH::BodyID id;
 	// What the body was made from, so a change to the entity's Body is seen.
 	Body body;
-	// Where physics last put the body, or last saw the game put it, in the system frame: a Transform
+	// Where physics last put the body, or last saw the game put it, in its frame: a Transform
 	// that differs was written by the game. Exact, and compared with what the game wrote rather than
 	// with Jolt's position, which comes back through the body's centre of mass and need not round to
 	// it.
 	Sim::Transform placed;
 	// The same, for a moving body's velocity, relative to its frame.
 	Velocity velocity;
-	Detail::StarSystemWorld *world{nullptr};
+	Detail::FrameWorld *world{nullptr};
 };
 
 // Where a frame is over one step: its origin as the step begins and ends, the velocity that
@@ -237,54 +236,11 @@ WorldKey KeyOf(const entt::registry &registry, entt::entity entity)
 
 
 // Where an entity on rails is at a time: its place on its body, which is where the body is and turned
-// as it spins, or as a jump point faces.
-Sim::Transform RailsTransform(
-    const Celestial::StarSystem &system, std::size_t body, const OnRails &rails, double simSeconds)
+// as the body is.
+Sim::Transform RailsTransform(const FrameModel &model, const OnRails &rails, double simSeconds)
 {
-	const glm::dquat spin = Celestial::BodyOrientation(system, body, simSeconds);
-	return {
-	    Celestial::EvaluateBody(system, body, simSeconds).metres + spin * rails.offset,
-	    spin * rails.turn};
-}
-
-// Each body that pulls, where it is at a time: the system's bodies with a gravitational parameter.
-struct Well
-{
-	glm::dvec3 position;
-	double gravitationalParameter;
-	double radius;
-};
-
-
-std::vector<Well> Wells(const Celestial::StarSystem &system, double simSeconds)
-{
-	std::vector<Well> wells;
-	const std::vector<Celestial::SystemPosition> positions =
-	    Celestial::EvaluateSystem(system, simSeconds);
-	for (std::size_t body = 0; body < system.bodies.size(); ++body)
-		if (system.bodies[body].gravitationalParameter > 0.0)
-			wells.push_back(
-			    {positions[body].metres, system.bodies[body].gravitationalParameter,
-			     system.bodies[body].radius});
-	return wells;
-}
-
-
-glm::dvec3 Pull(const std::vector<Well> &wells, const glm::dvec3 &position)
-{
-	glm::dvec3 acceleration{0.0};
-	for (const Well &well : wells)
-	{
-		const glm::dvec3 towards = well.position - position;
-		const double distance = glm::length(towards);
-		if (distance <= 0.0)
-			continue;
-		// Inside the body, the mass within the distance pulls, as a uniform sphere's does, so the
-		// pull falls to nothing at the centre rather than growing without bound.
-		const double reach = std::max(distance, well.radius);
-		acceleration += towards * (well.gravitationalParameter / (reach * reach * reach));
-	}
-	return acceleration;
+	const Sim::Transform body = model.BodyAt(rails.body, simSeconds);
+	return {body.position + body.orientation * rails.offset, body.orientation * rails.turn};
 }
 
 // Two entities' bodies, first below second, as contacts are kept.
@@ -413,43 +369,60 @@ struct PhysicsWorld::Impl
 	}
 
 
-	// Why a body cannot be in the frame its key names, or nothing: the system's own frame always
-	// takes one, and a local frame has to be a body of a defined system.
+	const FrameModel *FindFrame(std::uint64_t frame) const
+	{
+		const auto found = frames.find(frame);
+		return found == frames.end() ? nullptr : found->second.get();
+	}
+
+
+	// Why a body cannot be in the local frame its key names, or nothing: the frame's own always
+	// takes one, and a local frame has to be a body of a defined frame.
 	std::optional<std::string> UnknownFrame(const WorldKey &key) const
 	{
 		if (key.frame.empty())
 			return std::nullopt;
-		const auto system = systems.find(key.system);
-		if (system == systems.end())
+		const FrameModel *model = FindFrame(key.system);
+		if (!model)
 			return std::format(
-			    "is in the frame of '{}' in system {:#x}, which is not defined", key.frame, key.system);
-		if (system->second.Find(key.frame) < 0)
+			    "is in the local frame of '{}' in frame {:#x}, which is not defined", key.frame,
+			    key.system);
+		if (!model->HasBody(key.frame))
 			return std::format(
-			    "is in the frame of '{}', which system '{}' has no body of", key.frame,
-			    system->second.name);
+			    "is in the local frame of '{}', which frame {:#x} has no body of", key.frame,
+			    key.system);
 		return std::nullopt;
 	}
 
 
-	// The frame's origin at a time, in the system frame: none for the system's own frame. The key
-	// has been checked (UnknownFrame).
+	// The local frame's origin at a time, in its frame: none for the frame's own. The key has been
+	// checked (UnknownFrame).
 	glm::dvec3 Origin(const WorldKey &key, double simSeconds) const
 	{
 		if (key.frame.empty())
 			return glm::dvec3{0.0};
-		const Celestial::StarSystem &system = systems.at(key.system);
-		return Celestial::EvaluateBody(
-		           system, static_cast<std::size_t>(system.Find(key.frame)), simSeconds)
-		    .metres;
+		return FindFrame(key.system)->BodyAt(key.frame, simSeconds).position;
+	}
+
+
+	// Why an entity cannot be on those rails in the frame, or nothing.
+	std::optional<std::string> UnknownRails(std::uint64_t frame, const OnRails &rails) const
+	{
+		const FrameModel *model = FindFrame(frame);
+		if (!model)
+			return std::format("frame {:#x} is not defined", frame);
+		if (!model->HasBody(rails.body))
+			return std::format("frame {:#x} has no body '{}'", frame, rails.body);
+		return std::nullopt;
 	}
 
 
 	// A world made for a key on this step, its frame where it is as the step begins and moving as it
 	// did over the step before: a body made still in a station's frame is moving with the station,
 	// and falls with it, gaining the step's gravity as the frame gains its change of speed.
-	Detail::StarSystemWorld &World(const WorldKey &key, const FrameMotion &motion)
+	Detail::FrameWorld &World(const WorldKey &key, const FrameMotion &motion)
 	{
-		std::unique_ptr<Detail::StarSystemWorld> &world = worlds[key];
+		std::unique_ptr<Detail::FrameWorld> &world = worlds[key];
 		if (!world)
 		{
 			world = NewWorld();
@@ -460,15 +433,15 @@ struct PhysicsWorld::Impl
 	}
 
 
-	std::unique_ptr<Detail::StarSystemWorld> NewWorld() const
+	std::unique_ptr<Detail::FrameWorld> NewWorld() const
 	{
-		auto world = std::make_unique<Detail::StarSystemWorld>(layers, settings);
+		auto world = std::make_unique<Detail::FrameWorld>(layers, settings);
 		world->System().SetContactListener(&recorder);
 		return world;
 	}
 
 
-	// Every frame of the system, with its origin as a cast sees it, in the order worlds step in.
+	// Every local frame of the frame, with its origin as a cast sees it, in the order worlds step in.
 	template <typename Visit>
 	void ForEachFrame(std::uint64_t system, const CastOptions &options, Visit visit) const
 	{
@@ -501,8 +474,8 @@ struct PhysicsWorld::Impl
 	// it had, at its place in the world's frame, and awake unless it is static or made asleep. Its
 	// record is the caller's to keep.
 	void Make(
-	    Detail::StarSystemWorld &world, const JPH::BodyID &id, entt::entity entity,
-	    const Record &record, const ShapeEntry &shape, bool asleep = false) const
+	    Detail::FrameWorld &world, const JPH::BodyID &id, entt::entity entity, const Record &record,
+	    const ShapeEntry &shape, bool asleep = false) const
 	{
 		const JPH::BodyCreationSettings creation = MakeSettings(
 		    entity, record.body, shape, record.placed, world.frameOrigin, record.velocity, settings);
@@ -526,15 +499,15 @@ struct PhysicsWorld::Impl
 	// world read from a save is given it before the load is committed. Before the worlds, which
 	// point to it.
 	mutable ContactRecorder recorder;
-	std::map<WorldKey, std::unique_ptr<Detail::StarSystemWorld>> worlds;
+	std::map<WorldKey, std::unique_ptr<Detail::FrameWorld>> worlds;
 	// Ordered by entity, which is the order every step visits bodies in.
 	std::map<entt::entity, Record> records;
 	// What touches what, and whether one of each pair is a sensor; and the contacts the last step
 	// began and ended. State, saved.
 	std::map<Pair, bool> touching;
 	std::vector<ContactEvent> contacts;
-	// By Sim::FrameId: definitions, not state, so neither saved nor hashed.
-	std::map<std::uint64_t, Celestial::StarSystem> systems;
+	// By frame: definitions, not state, so neither saved nor hashed.
+	std::map<std::uint64_t, std::unique_ptr<const FrameModel>> frames;
 	bool reportedUpdateError{false};
 	JoltVersion savedJolt{BuiltJoltVersion()};
 };
@@ -672,42 +645,41 @@ double PhysicsWorld::LargestShapeRadius() const
 }
 
 
-void PhysicsWorld::DefineStarSystem(Celestial::StarSystem system)
+std::function<glm::dvec3(const glm::dvec3 &)> FrameModel::GravityAt(double /*simSeconds*/) const
 {
-	if (system.name.empty() || system.bodies.empty())
-		throw std::invalid_argument{"Physics: a star system needs a name and bodies"};
-	for (std::size_t body = 1; body < system.bodies.size(); ++body)
-		if (system.bodies[body].parentIndex < 0)
-			throw std::invalid_argument{std::format(
-			    "Physics: star system '{}' is not resolved: '{}' has no parent", system.name,
-			    system.bodies[body].name)};
-	const std::uint64_t id = Sim::FrameId(system.name);
-	if (m_pImpl->systems.contains(id))
-		throw std::invalid_argument{
-		    std::format("Physics: star system '{}' is already defined", system.name)};
-	m_pImpl->systems.emplace(id, std::move(system));
+	return {};
 }
 
 
-bool PhysicsWorld::HasStarSystem(std::uint64_t system) const
+void PhysicsWorld::DefineFrame(std::uint64_t frame, std::unique_ptr<const FrameModel> model)
 {
-	return m_pImpl->systems.contains(system);
+	if (!model)
+		throw std::invalid_argument{std::format("Physics: frame {:#x} is defined as nothing", frame)};
+	if (m_pImpl->frames.contains(frame))
+		throw std::invalid_argument{std::format("Physics: frame {:#x} is already defined", frame)};
+	m_pImpl->frames.emplace(frame, std::move(model));
+}
+
+
+bool PhysicsWorld::HasFrame(std::uint64_t frame) const
+{
+	return m_pImpl->frames.contains(frame);
 }
 
 
 glm::dvec3 PhysicsWorld::Gravity(
-    std::uint64_t system, const glm::dvec3 &position, double simSeconds) const
+    std::uint64_t frame, const glm::dvec3 &position, double simSeconds) const
 {
-	const auto found = m_pImpl->systems.find(system);
-	return found == m_pImpl->systems.end() ? glm::dvec3{0.0}
-	                                       : Pull(Wells(found->second, simSeconds), position);
+	const FrameModel *model = m_pImpl->FindFrame(frame);
+	const auto field = model ? model->GravityAt(simSeconds) : nullptr;
+	return field ? field(position) : glm::dvec3{0.0};
 }
 
 
 glm::dvec3 PhysicsWorld::FrameOrigin(
-    std::uint64_t system, std::string_view frame, double simSeconds) const
+    std::uint64_t frame, std::string_view local, double simSeconds) const
 {
-	const WorldKey key{system, std::string{frame}};
+	const WorldKey key{frame, std::string{local}};
 	if (const std::optional<std::string> problem = m_pImpl->UnknownFrame(key))
 		throw std::invalid_argument{std::format("Physics: no frame origin: a body there {}", *problem)};
 	return m_pImpl->Origin(key, simSeconds);
@@ -715,16 +687,11 @@ glm::dvec3 PhysicsWorld::FrameOrigin(
 
 
 Sim::Transform PhysicsWorld::RailsPlace(
-    std::uint64_t system, const OnRails &rails, double simSeconds) const
+    std::uint64_t frame, const OnRails &rails, double simSeconds) const
 {
-	const auto found = m_pImpl->systems.find(system);
-	const int body = found == m_pImpl->systems.end() ? -1 : found->second.Find(rails.body);
-	if (body < 0)
-		throw std::invalid_argument{std::format(
-		    "Physics: nowhere on rails: system {:#x} {}", system,
-		    found == m_pImpl->systems.end() ? std::string{"is not defined"}
-		                                    : std::format("has no body '{}'", rails.body))};
-	return RailsTransform(found->second, static_cast<std::size_t>(body), rails, simSeconds);
+	if (const std::optional<std::string> problem = m_pImpl->UnknownRails(frame, rails))
+		throw std::invalid_argument{std::format("Physics: nowhere on rails: {}", *problem)};
+	return RailsTransform(*m_pImpl->FindFrame(frame), rails, simSeconds);
 }
 
 
@@ -734,30 +701,30 @@ std::size_t PhysicsWorld::BodyCount() const
 }
 
 
-std::size_t PhysicsWorld::BodyCount(std::uint64_t system) const
+std::size_t PhysicsWorld::BodyCount(std::uint64_t frame) const
 {
 	std::size_t count = 0;
 	for (const auto &[key, world] : m_pImpl->worlds)
-		if (key.system == system)
+		if (key.system == frame)
 			count += world->BodyCount();
 	return count;
 }
 
 
-std::size_t PhysicsWorld::FrameCount(std::uint64_t system) const
+std::size_t PhysicsWorld::FrameCount(std::uint64_t frame) const
 {
 	return static_cast<std::size_t>(std::ranges::count(
-	    m_pImpl->worlds, system, [](const auto &entry) { return entry.first.system; }));
+	    m_pImpl->worlds, frame, [](const auto &entry) { return entry.first.system; }));
 }
 
 
-std::vector<std::uint64_t> PhysicsWorld::Systems() const
+std::vector<std::uint64_t> PhysicsWorld::Frames() const
 {
-	std::vector<std::uint64_t> systems;
+	std::vector<std::uint64_t> frames;
 	for (const auto &[key, world] : m_pImpl->worlds)
-		if (systems.empty() || systems.back() != key.system)
-			systems.push_back(key.system);
-	return systems;
+		if (frames.empty() || frames.back() != key.system)
+			frames.push_back(key.system);
+	return frames;
 }
 
 
@@ -791,15 +758,15 @@ std::vector<entt::entity> PhysicsWorld::Touching(entt::entity entity) const
 
 
 std::optional<CastHit> PhysicsWorld::CastRay(
-    std::uint64_t system, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
+    std::uint64_t frame, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
     const CastOptions &options) const
 {
 	const glm::dvec3 along = CastDirection(origin, direction, maxDistance);
 	const CastBodies filter{options};
 	std::optional<CastHit> nearest;
 	m_pImpl->ForEachFrame(
-	    system, options,
-	    [&](const Detail::StarSystemWorld &world, const glm::dvec3 &frameOrigin)
+	    frame, options,
+	    [&](const Detail::FrameWorld &world, const glm::dvec3 &frameOrigin)
 	    {
 		    // In the frame's coordinates, which are metres from its body.
 		    const JPH::RRayCast ray{
@@ -822,7 +789,7 @@ std::optional<CastHit> PhysicsWorld::CastRay(
 
 
 std::optional<CastHit> PhysicsWorld::CastShape(
-    std::uint64_t system, std::string_view shape, const Sim::Transform &start,
+    std::uint64_t frame, std::string_view shape, const Sim::Transform &start,
     const glm::dvec3 &direction, double maxDistance, const CastOptions &options) const
 {
 	const glm::dvec3 along = CastDirection(start.position, direction, maxDistance);
@@ -836,8 +803,8 @@ std::optional<CastHit> PhysicsWorld::CastShape(
 	const CastBodies filter{options};
 	std::optional<CastHit> nearest;
 	m_pImpl->ForEachFrame(
-	    system, options,
-	    [&](const Detail::StarSystemWorld &world, const glm::dvec3 &frameOrigin)
+	    frame, options,
+	    [&](const Detail::FrameWorld &world, const glm::dvec3 &frameOrigin)
 	    {
 		    const JPH::RVec3 at = Detail::ToJolt(start.position - frameOrigin);
 		    const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
@@ -878,25 +845,20 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	struct Placement
 	{
 		entt::entity entity;
-		const Celestial::StarSystem *system;
-		std::size_t body;
+		const FrameModel *model;
 		const OnRails *rails;
 	};
 	std::vector<Placement> placements;
 	for (const auto [entity, rails, transform] :
 	     registry.view<const OnRails, const Sim::Transform>().each())
 	{
-		const std::uint64_t system = SystemOf(registry, entity);
-		if (system == Sim::kNoFrame)
+		const std::uint64_t frame = SystemOf(registry, entity);
+		if (frame == Sim::kNoFrame)
 			continue;
-		const auto found = impl.systems.find(system);
-		const int body = found == impl.systems.end() ? -1 : found->second.Find(rails.body);
-		if (body < 0)
-			throw std::invalid_argument{std::format(
-			    "Physics: {} cannot be on rails: system {:#x} {}", Describe(entity), system,
-			    found == impl.systems.end() ? "is not defined"
-			                                : std::format("has no body '{}'", rails.body))};
-		placements.push_back({entity, &found->second, static_cast<std::size_t>(body), &rails});
+		if (const std::optional<std::string> problem = impl.UnknownRails(frame, rails))
+			throw std::invalid_argument{
+			    std::format("Physics: {} cannot be on rails: {}", Describe(entity), *problem)};
+		placements.push_back({entity, impl.FindFrame(frame), &rails});
 	}
 
 	// 2. What changes: the bodies whose entity no longer makes them what they were, then the
@@ -944,7 +906,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		{
 			if (++counts[creation.key.system] > impl.settings.maxBodies)
 				throw std::invalid_argument{std::format(
-				    "Physics: {} cannot be a body: system {:#x} has its {} already",
+				    "Physics: {} cannot be a body: frame {:#x} has its {} already",
 				    Describe(creation.entity), creation.key.system, impl.settings.maxBodies)};
 		}
 	}
@@ -952,7 +914,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	impl.contacts.clear();
 	for (const Placement &placement : placements)
 		registry.get<Sim::Transform>(placement.entity) =
-		    RailsTransform(*placement.system, placement.body, *placement.rails, stepEnd);
+		    RailsTransform(*placement.model, *placement.rails, stepEnd);
 
 	// Every frame's motion over the step: a world's frame starts where the last step left it, and a
 	// new one's where its body is now.
@@ -975,14 +937,14 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		return found->second;
 	};
 
-	// A body made again in another frame of its system keeps its velocity, relative to the new
+	// A body made again in another local frame of its frame keeps its velocity, relative to the new
 	// frame as it moved over the last step: the world it joins takes its own change of speed off
 	// every body in it below.
 	std::map<entt::entity, glm::dvec3> leftFrames;
 	for (const entt::entity entity : removals)
 	{
 		const auto found = impl.records.find(entity);
-		Detail::StarSystemWorld &world = *found->second.world;
+		Detail::FrameWorld &world = *found->second.world;
 		if (registry.valid(entity) && SystemOf(registry, entity) == found->second.key.system)
 			leftFrames.emplace(entity, world.frameVelocity);
 		impl.EndContacts(entity);
@@ -999,11 +961,8 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		record.world = &impl.World(creation.key, motionOf(creation.key));
 		if (record.body.kind == BodyKind::Kinematic)
 			if (const auto *rails = registry.try_get<OnRails>(creation.entity))
-			{
-				const Celestial::StarSystem &system = impl.systems.at(creation.key.system);
-				record.placed = RailsTransform(
-				    system, static_cast<std::size_t>(system.Find(rails->body)), *rails, simSeconds);
-			}
+				record.placed =
+				    RailsTransform(*impl.FindFrame(creation.key.system), *rails, simSeconds);
 		if (record.body.kind != BodyKind::Static)
 		{
 			Velocity &velocity = registry.get_or_emplace<Velocity>(creation.entity);
@@ -1022,12 +981,12 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		motionOf(key);
 
 	// 3. What the game wrote since the last step, then what changes a dynamic body's velocity
-	// besides: its system's gravity, from where the bodies are as the step begins (semi-implicit
+	// besides: its frame's gravity, from where the bodies are as the step begins (semi-implicit
 	// Euler, as Jolt integrates, whose error over a low orbit's revolution is centimetres), less its
 	// frame's change of speed since the last step. A frame on rails falls with its body, so beside a
 	// station that leaves the tide, a few ten-thousandths of a metre a second squared.
 	const auto step = static_cast<float>(fixedStep);
-	std::map<std::uint64_t, std::vector<Well>> wells;
+	std::map<std::uint64_t, std::function<glm::dvec3(const glm::dvec3 &)>> fields;
 	for (auto &[entity, record] : impl.records)
 	{
 		JPH::BodyInterface &bodies = record.world->Bodies();
@@ -1068,12 +1027,13 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 			    record.id, Detail::ToJolt(velocity.linear), Detail::ToJolt(velocity.angular));
 			record.velocity = velocity;
 		}
-		if (const auto system = impl.systems.find(record.key.system); system != impl.systems.end())
+		if (const FrameModel *model = impl.FindFrame(record.key.system))
 		{
-			auto [found, made] = wells.try_emplace(record.key.system);
+			auto [found, made] = fields.try_emplace(record.key.system);
 			if (made)
-				found->second = Wells(system->second, simSeconds);
-			change += Pull(found->second, record.placed.position) * fixedStep;
+				found->second = model->GravityAt(simSeconds);
+			if (found->second)
+				change += found->second(record.placed.position) * fixedStep;
 		}
 		if (change != glm::dvec3{0.0})
 			bodies.AddLinearVelocity(record.id, Detail::ToJolt(glm::vec3{change}));
@@ -1094,10 +1054,10 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		if (errors != JPH::EPhysicsUpdateError::None && !impl.reportedUpdateError)
 		{
 			// Jolt carries on with what fitted, as deterministically as ever; the step's contacts
-			// were incomplete, and the capacities are too small for this system.
+			// were incomplete, and the capacities are too small for this frame.
 			Core::Log(
 			    Core::Severity::Warning, kPhysics,
-			    "system {:#x} outgrew its capacities ({:#x}: manifolds 1, pairs 2, contacts 4); "
+			    "frame {:#x} outgrew its capacities ({:#x}: manifolds 1, pairs 2, contacts 4); "
 			    "said once",
 			    key.system, static_cast<unsigned>(errors));
 			impl.reportedUpdateError = true;
@@ -1207,7 +1167,7 @@ void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 std::function<void()> PhysicsWorld::Load(
     Serialise::BinaryReader &reader, const entt::registry & /*loaded*/)
 {
-	// The records may name entities the save no longer has, or whose Body, system or frame changed
+	// The records may name entities the save no longer has, or whose Body, frame or local frame changed
 	// after physics ran in the step the save was taken after: the next step deals with them as it
 	// would have in the world saved, so they are read as they are.
 	const Impl &impl = *m_pImpl;
@@ -1228,7 +1188,7 @@ std::function<void()> PhysicsWorld::Load(
 
 	struct Pending
 	{
-		std::map<WorldKey, std::unique_ptr<Detail::StarSystemWorld>> worlds;
+		std::map<WorldKey, std::unique_ptr<Detail::FrameWorld>> worlds;
 		std::map<entt::entity, Record> records;
 		std::map<Pair, bool> touching;
 		std::vector<ContactEvent> contacts;
@@ -1249,7 +1209,7 @@ std::function<void()> PhysicsWorld::Load(
 			        key.frame));
 		if (const std::optional<std::string> problem = impl.UnknownFrame(key))
 			reader.Fail(std::format("a world {}", *problem));
-		std::unique_ptr<Detail::StarSystemWorld> world = impl.NewWorld();
+		std::unique_ptr<Detail::FrameWorld> world = impl.NewWorld();
 		reader.Read(world->frameOrigin);
 		reader.Read(world->frameVelocity);
 		std::vector<std::uint8_t> sequences;
@@ -1257,14 +1217,14 @@ std::function<void()> PhysicsWorld::Load(
 		if (sequences.size() > impl.settings.maxBodies)
 			reader.Fail(
 			    std::format(
-			        "system {:#x} has {} body identifiers, more than its {}", key.system,
+			        "frame {:#x} has {} body identifiers, more than its {}", key.system,
 			        sequences.size(), impl.settings.maxBodies));
 
 		const auto bodyCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 		if (bodyCount == 0 || bodyCount > sequences.size())
 			reader.Fail(
 			    std::format(
-			        "system {:#x} has {} bodies for {} identifiers", key.system, bodyCount,
+			        "frame {:#x} has {} bodies for {} identifiers", key.system, bodyCount,
 			        sequences.size()));
 		std::vector<std::uint32_t> held;
 		struct Made
@@ -1315,7 +1275,7 @@ std::function<void()> PhysicsWorld::Load(
 		    (!world->System().RestoreState(recorder) || recorder.IsFailed() || !recorder.IsEOF()))
 			reader.Fail(
 			    std::format(
-			        "system {:#x} '{}''s Jolt state does not fit its bodies", key.system, key.frame));
+			        "frame {:#x} '{}''s Jolt state does not fit its bodies", key.system, key.frame));
 		pending->worlds.emplace(std::move(key), std::move(world));
 	}
 

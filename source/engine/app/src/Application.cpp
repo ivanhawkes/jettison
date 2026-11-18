@@ -60,6 +60,7 @@
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/SystemIndices.h>
 
 #include "Dressing.h"
@@ -1871,8 +1872,8 @@ void Application::LoadScene()
 		    Celestial::ReadStarSystem(
 		        std::string_view{reinterpret_cast<const char *>(bytes->data()), bytes->size()}));
 		// A scene of a system the galaxy does not list is the system physics knows of it.
-		if (!m_pPhysics->HasStarSystem(Sim::FrameId(m_systemScene->System().name)))
-			m_pPhysics->DefineStarSystem(m_systemScene->System());
+		if (!m_pPhysics->HasFrame(Sim::FrameId(m_systemScene->System().name)))
+			Space::DefineStarSystem(*m_pPhysics, m_systemScene->System());
 		if (!m_pCruises->HasStarSystem(Sim::FrameId(m_systemScene->System().name)))
 			m_pCruises->DefineStarSystem(m_systemScene->System());
 		SetProxyFactory();
@@ -2657,8 +2658,8 @@ void Application::DefineStarSystems()
 			m_pCruises->DefineStarSystem(system);
 		if (!m_pGates->HasStarSystem(id))
 			m_pGates->DefineStarSystem(system);
-		if (!m_pPhysics->HasStarSystem(id))
-			m_pPhysics->DefineStarSystem(std::move(system));
+		if (!m_pPhysics->HasFrame(id))
+			Space::DefineStarSystem(*m_pPhysics, std::move(system));
 	}
 }
 
