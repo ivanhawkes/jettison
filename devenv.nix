@@ -12,7 +12,6 @@
     git
     git-lfs
     github-cli
-    lazygit
 
     # Node and PNPM added directly via standard system package attributes
     nodejs_24

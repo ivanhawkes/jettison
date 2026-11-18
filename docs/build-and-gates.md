@@ -239,8 +239,8 @@ engine module has a sample's target in its link closure, and no module but the s
 sample (`source/samples/space`), which composes them through the shell.
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
-development environment aligned with Manifest, including developer-only `lazygit`; it must not
-become a release/runtime dependency.
+development environment's three files identical to Manifest's. Desktop tools stay on the desktop,
+out of the shared shell, and nothing in the shell becomes a release/runtime dependency.
 
 ## The gate
 
