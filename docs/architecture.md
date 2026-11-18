@@ -13,8 +13,8 @@ but belong in explicit sample targets outside engine code and use public SDK int
 
 Physics' star systems and the space transit AI are the `space` module's, and a star system's scene
 and the jump between two the `spacescene` module's (W01); the snapshot's frames are neutral (A01),
-and the sample's trading and content its own (H05). The dock's pad classes are data (W01), and no
-check yet holds the neutral modules to their dependencies (W01).
+and the sample's trading and content its own (H05). The dock's pad classes are data, and every
+configure holds the neutral modules to needing none of the space capability (W01).
 Extract a neutral host, separate resources and generic modules, and make space services
 optional. No neutral engine target may depend on a sample or Manifest. Presentation
 must also work without celestial content. Preserve existing regressions through explicit
@@ -183,7 +183,10 @@ ship through its flight controls and keeps it clear of the bodies' shapes. The l
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
-neutral module depends on it. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
+neutral module depends on it. The configure holds them to that: `jettison_check_optional` stops it
+when any engine module links a sample's target, and when a module other than `celestial`, `space`, `spacescene`, `dock` and `app` has one of the first
+three in its link closure or includes one's header in its public headers, and a module added later
+is neutral unless it is listed there. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
 search, courses round spheres (`ai/Courses.h`) and steering.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `space`, `ai` and `dock` never

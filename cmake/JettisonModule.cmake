@@ -93,3 +93,81 @@ function(jettison_add_module name)
 		add_test(NAME ${name} COMMAND ${tests})
 	endif()
 endfunction()
+
+
+# jettison_check_optional(SAMPLES <directory> OPTIONAL <module>... USERS <module>...)
+#
+# Holds the modules to their dependencies (docs/architecture.md, "Module dependencies"), called once
+# every target is added: it stops the configure when a module has a target defined under SAMPLES in
+# its link closure; or when one neither optional nor a user has an optional module in its closure,
+# or includes one's headers in its own public headers, where a consumer would need it. A module is
+# held to it unless it is listed, so a new one is from the start. The suites are not modules: a
+# neutral module's may fly in a star system.
+function(jettison_check_optional)
+	cmake_parse_arguments(PARSE_ARGV 0 arg "" "SAMPLES" "OPTIONAL;USERS")
+	set(listed)
+	foreach(module IN LISTS arg_OPTIONAL arg_USERS)
+		list(APPEND listed jettison_${module})
+	endforeach()
+	list(JOIN arg_OPTIONAL "|" optional)
+	list(JOIN arg_USERS ", " users)
+	get_property(modules GLOBAL PROPERTY JETTISON_MODULES)
+	foreach(target IN LISTS modules)
+		# The project's own targets it links, through every one of them.
+		set(closure)
+		set(pending ${target})
+		while(pending)
+			list(POP_FRONT pending current)
+			get_target_property(private ${current} LINK_LIBRARIES)
+			get_target_property(public ${current} INTERFACE_LINK_LIBRARIES)
+			foreach(link IN LISTS private public)
+				if(NOT TARGET "${link}")
+					continue()
+				endif()
+				get_target_property(aliased ${link} ALIASED_TARGET)
+				if(aliased)
+					set(link ${aliased})
+				endif()
+				if(link MATCHES "^jettison_" AND NOT link IN_LIST closure)
+					list(APPEND closure ${link})
+					list(APPEND pending ${link})
+				endif()
+			endforeach()
+		endwhile()
+
+		foreach(linked IN LISTS closure)
+			get_target_property(directory ${linked} SOURCE_DIR)
+			cmake_path(IS_PREFIX arg_SAMPLES "${directory}" NORMALIZE sample)
+			if(sample)
+				message(FATAL_ERROR
+					"${target} depends on ${linked}, a sample's, directly or through another module; "
+					"no engine module may (docs/architecture.md, Module dependencies).")
+			endif()
+		endforeach()
+
+		if(target IN_LIST listed)
+			continue()
+		endif()
+		foreach(module IN LISTS arg_OPTIONAL)
+			if(jettison_${module} IN_LIST closure)
+				message(FATAL_ERROR
+					"${target} depends on the optional '${module}', directly or through another module; "
+					"only ${users} may (docs/architecture.md, Module dependencies).")
+			endif()
+		endforeach()
+
+		get_target_property(directory ${target} SOURCE_DIR)
+		get_target_property(headers ${target} HEADER_SET)
+		foreach(header IN LISTS headers)
+			if(NOT IS_ABSOLUTE "${header}")
+				set(header "${directory}/${header}")
+			endif()
+			file(STRINGS "${header}" includes REGEX "#[ \t]*include[ \t]*<jettison/(${optional})/")
+			if(includes)
+				message(FATAL_ERROR
+					"${header}, a public header of ${target}, has '${includes}', a header of an optional "
+					"module (docs/architecture.md, Module dependencies).")
+			endif()
+		endforeach()
+	endforeach()
+endfunction()

@@ -197,3 +197,17 @@ if(JETTISON_PRESENTATION)
 	# The render smoke harness and the dependency probe.
 	add_subdirectory("test")
 endif()
+
+# Once every target is added (W01): no engine module needs a sample, and the space capability, star
+# systems, space transit and their scenes, is optional, which a game of none links none of. Every
+# other module is neutral and is held to needing none of it.
+jettison_check_optional(
+	SAMPLES
+		"${CMAKE_CURRENT_SOURCE_DIR}/samples"
+	OPTIONAL
+		celestial
+		space
+		spacescene
+	USERS
+		dock
+		app)

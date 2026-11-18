@@ -232,8 +232,11 @@ Test samples/editor/presentation disabled independently; keep sample render regr
 The CPU-only configure is in (`clang-cpu`, above, and a gate stage) and so is the non-space CPU
 consumer (H04, above), and the engine's assets are held to their own directories, none of the
 sample's content in them (H05, the app suite's `Game` cases), and the physics suite's room is a
-non-space physics scene, its own frame model's gravity and lift and no celestial definition (W01);
-the space example consumer and the dependency checks are still to come (W01).
+non-space physics scene, its own frame model's gravity and lift and no celestial definition (W01).
+Every configure checks the target and header dependencies (W01, `jettison_check_optional`): no
+engine module has a sample's target in its link closure, and no module but the space capability's (`celestial`, `space`, `spacescene`) and its users (`dock`,
+`app`) has one of the three in its link closure or its public headers. The space example is the
+sample (`source/samples/space`), which composes them through the shell.
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
 development environment aligned with Manifest, including developer-only `lazygit`; it must not
