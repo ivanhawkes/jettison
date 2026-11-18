@@ -60,7 +60,8 @@ VFS or physics integration in Manifest because its public seam needs a bounded i
 
 ## Current gaps and extraction order
 
-The current `app` library contains Trading, Traders, Fleet and game UI code. AI combines
+The space sample's Trading, Traders, Fleet and market screen are a game composed into the shell
+(`source/samples/space`, `App::Game`), out of the `app` library (H05, 2026-11-18). AI combines
 generic algorithms with cruise/gates/lanes; physics and scene depend on celestial
 concepts; snapshots/save metadata carry star-system fields. Assets combine renderer
 resources and sample gameplay. `JETTISON_PRESENTATION=OFF` configures the CPU engine without

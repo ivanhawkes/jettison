@@ -1,6 +1,6 @@
-#include <jettison/app/Mounts.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
+#include <jettison/app/Mounts.h>
 
 #include <doctest/doctest.h>
 
@@ -132,7 +132,8 @@ TEST_CASE(
 	        1, entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{4}, "beer", 3, 290, 1000}}});
 	host.Dispatch(
 	    Sim::SimEvent{
-	        2, entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{5}, "beer", -3, 410, 1360}}});
+	        2,
+	        entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{5}, "beer", -3, 410, 1360}}});
 	Core::RemoveLogCallback(listening);
 	CHECK(
 	    said == std::vector<std::string>{
@@ -170,7 +171,8 @@ TEST_CASE("Scripts: a script's keys and the mods enabled go into a save and come
 	const auto trade = [](std::uint64_t step)
 	{
 		return Sim::SimEvent{
-		    step, entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{4}, "beer", 2, 300, 600}}};
+		    step,
+		    entt::meta_any{Sample::Traded{entt::entity{3}, entt::entity{4}, "beer", 2, 300, 600}}};
 	};
 
 	// The shell's save: the world, the script's keys in their section, and the mods.

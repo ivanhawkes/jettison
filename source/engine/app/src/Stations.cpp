@@ -103,6 +103,7 @@ std::vector<entt::entity> OpenGates(
 	return opened;
 }
 
+
 entt::entity FreePad(
     const entt::registry &registry, entt::entity station, const Dock::HullDefinition &hull)
 {

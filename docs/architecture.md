@@ -68,12 +68,15 @@ jettison/
     │   ├── dock/               stations' pads and the ships on them: given, queued, flown in, clamped
     │   ├── script/             Wasm host: scripts, their limits, bindings from reflection
     │   ├── host/               the CPU session a game starts through: content, definitions, world
-    │   └── app/                Application shell, argument parsing, smoke sequence
+    │   └── app/                Application shell, argument parsing, smoke sequence, and the
+    │                           game a program composes into it (App::Game, app/Game.h)
     ├── tools/
     │   ├── flotsam/            editor
     │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/
-    │   └── jetsam/             space sample entry point; gameplay extraction from app is pending
+    │   ├── space/              the space-trading sample as a game composed into the shell:
+    │   │                       trading, traders, fleet and shipyard, market screen (Sample::)
+    │   └── jetsam/             the runtime entry point, the shell with the space sample
     └── test/                   the render smoke harness (test executable), its reference
                                 frames and the data mod its packed run loads
 ```
@@ -277,7 +280,7 @@ saying why (`Ai::GatePassed`) and charging nothing, so traffic crossing a ring i
 a clearance unused for two minutes; and clears the next in each free gate's queue. A ring is placed,
 not swept, so a ship crossing it at under its depth a step, 3.6 km/s, is seen.
 
-The sample's rule draws the toll on the ship's owner's purse (`App::ChargeTolls`): 500 credits a
+The sample's rule draws the toll on the ship's owner's purse (`Sample::ChargeTolls`): 500 credits a
 light year, so the moon gates' hop from Halcyon to Vesper, 4 light years, costs 2,000 and the star
 gates' 12 on to Marrow 6,000. A trader asks the gate on its route for a clearance once
 its cruise has brought it there, waits its turn, and flies in along the ring's axis and through
@@ -657,19 +660,19 @@ a step's work is bounded however soon a child succeeds. A task acts through comm
 they carry one, and are not recorded: they are the state's own consequence, which a replay sends
 again.
 
-**The sample's traders** (`app/src/Traders.h`, [sample game](sample-game.md)) are the first to use
+**The sample's traders** (`samples/space/src/Traders.h`, [sample game](sample-game.md)) are the first to use
 both. Each follows `defs/behaviours/trader.yaml` and chooses its run by `defs/decisions/trade.yaml`,
 weighing a run's margin, the rivals after the same shelf and its credits a second over the route
 (`Ai::PlotRoute`, crossing each system by course), and then flies it: off its pad, round the station
 to the gate, through it, onto a pad or into the queue for one, held off the station in its place, the
 trade, and the wait while the buggies carry its crates. Seven trade between Highport and Corva, whose
-one free pad keeps a queue; in twenty minutes of the app suite they sell fourteen runs across the
+one free pad keeps a queue; in twenty minutes of the `space` suite they sell fourteen runs across the
 lane, queue five times, and no two hulls come within 35 m in flight.
 
-**The fleet** (`app/src/Fleet.h`, 13d, [decided](roadmap.md#decided): a player has a fleet) is the
+**The fleet** (`samples/space/src/Fleet.h`, 13d, [decided](roadmap.md#decided): a player has a fleet) is the
 ships a player commands (`Sim::ControlledBy`), each fitted as a trader is, with a hold, an
-`App::Trader` and the trader's tree, so every one they are not at the helm of trades for them, from
-their purse and from wherever it is. `App::BuyShip` sells a hull of `defs/shipyard` (`ShipForSale`:
+`Sample::Trader` and the trader's tree, so every one they are not at the helm of trades for them, from
+their purse and from wherever it is. `Sample::BuyShip` sells a hull of `defs/shipyard` (`ShipForSale`:
 its price, mass and hold) at a station where a ship of the buyer's fleet is docked: the ship is
 parked on the lowest numbered free pad it fits, its price drawn, and the buyer takes its helm, which
 hands the ship they were flying to its behaviour; refused, with a reason, for a hull not for sale,
@@ -1048,7 +1051,7 @@ entity by its name in the snapshot (a market's station, or the body a station or
 rails of), a good by its name and any other identifier as the data gives it, then formatted by
 position (`FormatArguments`); a key with plural forms is chosen by its first integer
 (`PluralArguments`). The arguments are positional as the tables' are, so the check that holds a
-translation to its base text holds it to the reason's. The app suite holds every reason of the
+translation to its base text holds it to the reason's. The `space` suite holds every reason of the
 docks, the AI and the trade to a text in English and German.
 
 The language is the player's setting (`ui.language`), not the environment's locale, so a run reads
@@ -1936,19 +1939,30 @@ proves it headlessly. What exists:
 - **ImGui** for a demo window, toggled with F1, and the Renderer panel: the frame's counts and
   each pass's GPU time. Its fonts are rasterised by FreeType, as the game UI's are.
 - **Game UI** (`engine/ui`, 8b). RmlUi drawn through the renderer's overlay, documents and styles
-  through the VFS, data models bound to reflected types ([UI](#ui)). The shell's two screens are the
-  market (M) and the saved games (L), whose Load loads a save as F9 does.
-- **The sample game** (8b, [sample game](sample-game.md)). The shell plays the game's part as it
-  does for piloting and docking: the first slice of Manifest's plan. Eight goods
+  through the VFS, data models bound to reflected types ([UI](#ui)). The shell's own screen is the
+  saved games (L), whose Load loads a save as F9 does; the space sample adds its market (M).
+- **The game a program composes** (H05, `app/Game.h`). `RunRenderApplication` takes an `App::Game`,
+  which the shell calls at its points: its types, commands and input actions as the shell is made,
+  its definitions, what it builds on the docks, what it runs across the galaxy's systems, what it
+  parks at each station as the station is built and puts at them all once they are, the player's
+  first ship fitted, what an older save of it lacks, its console commands, its screens, input and
+  Escape, each step's event, a reason's words for its entities and identifiers, its ships in the
+  fleet list, and the render test's game UI stage. It reads the shell through `App::Shell`: the
+  world, the newest snapshot, the definitions, the player, the attached ship, its station and the
+  system shown, and the game UI. With none, as Flotsam runs, the shell registers no market, trader
+  or fleet (`GameTests`). Jetsam and the render test compose the space sample.
+- **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md)):
+  the first slice of Manifest's plan, as a game composed into the shell. Its reflected names keep
+  their `Shell.` prefix, which saves and the scripts' bindings carry. Eight goods
   from its data, traded by the crate (an IBC cube) in whole credits, a market at each of the
   galaxy's two stations that makes and uses its goods each market tick (ten seconds) and prices each
   by scarcity, either side of the price by its listing fee; the ship starts with an empty hold of
   twenty crates and 250,000 credits, and trades at the market of the station it is docked at
-  (`app/src/Trading.h`). The credits are the owner's (12c): a `Purse` on an entity of its own with
+  (`samples/space/src/Trading.h`). The credits are the owner's (12c): a `Purse` on an entity of its own with
   an `Owner`, the player's and each trader's, found by the controller its ships are commanded by
   (`Sim::ControlledBy`), so a fleet's ships share it, and a trade carries its sender and is refused
   from one that does not command the ship; a save from before keeps each purse on its ship, which
-  the shell's load moves to the owner. Each good has a galactic mean (`GalacticPrices`, an
+  the sample's load (`Game::Loaded`) moves to the owner. Each good has a galactic mean (`GalacticPrices`, an
   entity of its own made with the markets, saved and in the snapshots): it starts at the good's
   base price and each trade filled anywhere, the player's or a trader's, moves it towards the price
   paid by n / (n + 400) of the way for n crates, in whole credits, so a transport's forty crates move

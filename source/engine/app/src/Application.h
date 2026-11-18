@@ -258,8 +258,8 @@ class Application final : private Shell
 	// of no layout drawn with no shape.
 	bool BindStation();
 
-	// Every station of the galaxy built to a layout, and what the game puts at them (Game::StationOpened,
-	// StationsOpened); once a run, and a load brings its own.
+	// Every station of the galaxy built to a layout, and what the game puts at them
+	// (Game::StationOpened, StationsOpened); once a run, and a load brings its own.
 	void OpenStations();
 
 	// The station bound, and the ship docked on its lowest numbered free pad, or, at a station of no

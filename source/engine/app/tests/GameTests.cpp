@@ -9,6 +9,7 @@
 
 using namespace Jettison;
 
+
 TEST_CASE("Game: the shell with no game composed into it registers no market, trader or fleet")
 {
 	// The shell as Flotsam makes it: its world's systems attached, its commands and console's, and no

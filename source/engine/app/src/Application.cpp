@@ -63,10 +63,10 @@
 #include <jettison/spatial/SystemIndices.h>
 
 #include "Dressing.h"
+#include "Saves.h"
 #include <jettison/app/Game.h>
 #include <jettison/app/Mounts.h>
 #include <jettison/app/Reasons.h>
-#include "Saves.h"
 #include <jettison/app/Stations.h>
 
 namespace Jettison::App
@@ -1813,9 +1813,7 @@ void Application::PollInput()
 			m_showUI = false;
 		else if (m_showSaves)
 			ShowSaves(false);
-		else if (m_pGame->Back(*this))
-		{
-		}
+		else if (m_pGame->Back(*this)) {}
 		else if (!m_pScene->Registry().view<Scene::SequencePlayerComponent>().empty())
 			StopSequence();
 		else if (m_piloting)
@@ -2011,9 +2009,6 @@ void Application::FollowShipAlong(const Ai::OnLane &lane)
 	m_jumpStep = m_sim.Clock().Step();
 	m_jump->Begin(*m_galaxy, static_cast<std::size_t>(to - m_galaxy->systems.begin()), lane.arrival);
 }
-
-
-
 
 
 void Application::LogRoute(std::string_view systemName) const
@@ -3558,8 +3553,7 @@ void Application::TakeEvents()
 		else if (const auto *helmLeft = event.event.try_cast<Ai::HelmLeft>();
 		         helmLeft && helmLeft->controller == kPilot)
 			Core::Log(
-			    Core::Severity::Info, kShell, "{} is left to its behaviour",
-			    Describe(helmLeft->ship));
+			    Core::Severity::Info, kShell, "{} is left to its behaviour", Describe(helmLeft->ship));
 		else if (const auto *noHelm = event.event.try_cast<Ai::HelmRefused>();
 		         noHelm && noHelm->sender == kPilot)
 			Core::Log(

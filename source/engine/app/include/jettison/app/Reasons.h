@@ -23,8 +23,9 @@ class Game;
 // the text under its key, its arguments by position, each in words first: an integer as the
 // language writes numbers (StringTable::Number), credits among them; an entity by its name in the
 // snapshot (EntityName); an identifier by its name where the game names it (Game::NameIdentifier),
-// a hull by its definition's name, and any other as the data gives it. A key whose text has plural forms (key.one, key.other) chooses one by its first integer
-// argument. A key no table has reads as itself, and counts among the table's problems.
+// a hull by its definition's name, and any other as the data gives it. A key whose text has plural
+// forms (key.one, key.other) chooses one by its first integer argument. A key no table has reads as
+// itself, and counts among the table's problems.
 std::string WordReason(
     const Sim::Reason &reason, const Sim::Snapshot &snapshot,
     const Sim::DefinitionRegistry &definitions, const Ui::StringTable &strings,

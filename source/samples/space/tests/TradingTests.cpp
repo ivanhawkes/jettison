@@ -1,16 +1,16 @@
 #include "MarketScreen.h"
-#include <jettison/app/Reasons.h>
 #include "Trading.h"
+#include <jettison/app/Reasons.h>
 
 #include <jettison/dock/Docks.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/sample/SpaceGame.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/ui/StringTable.h>
-#include <jettison/sample/SpaceGame.h>
 #include <jettison/ui/UiSystem.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -97,7 +97,8 @@ struct Harbour
 		std::vector<std::string> reasons;
 		for (const Sim::SimEvent &event : world.Events().Take())
 			if (const auto *refused = event.event.try_cast<TradeRefused>())
-				reasons.push_back(App::WordReason(refused->reason, snapshot, definitions, strings, &game));
+				reasons.push_back(
+				    App::WordReason(refused->reason, snapshot, definitions, strings, &game));
 		return reasons;
 	}
 

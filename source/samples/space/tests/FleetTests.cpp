@@ -1,9 +1,9 @@
 #include "SampleGalaxy.h"
 
 #include "../src/Fleet.h"
-#include <jettison/app/Stations.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
+#include <jettison/app/Stations.h>
 
 #include <doctest/doctest.h>
 
@@ -187,7 +187,8 @@ TEST_CASE("Fleet: a ship is not sold to one who cannot buy it, nor where there i
 	        entt::to_integral(highport)));
 	// One helm, the last bought's.
 	CHECK(registry.view<Sim::Helm>().size() == 1);
-	CHECK(registry.get<Sim::Helm>(galaxy.Events<Sample::ShipBought>().back().ship).controller == kPlayer);
+	CHECK(
+	    registry.get<Sim::Helm>(galaxy.Events<Sample::ShipBought>().back().ship).controller == kPlayer);
 }
 
 

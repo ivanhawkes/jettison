@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../src/Fleet.h"
-#include <jettison/app/Mounts.h>
-#include <jettison/app/Stations.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
+#include <jettison/app/Mounts.h>
+#include <jettison/app/Stations.h>
 
 #include <doctest/doctest.h>
 
@@ -13,7 +13,6 @@
 #include <memory>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <string_view>
 #include <vector>
 

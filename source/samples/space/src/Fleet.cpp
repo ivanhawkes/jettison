@@ -15,9 +15,9 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
-#include <jettison/app/Stations.h>
 #include "Traders.h"
 #include "Trading.h"
+#include <jettison/app/Stations.h>
 
 namespace Jettison::Sample
 {

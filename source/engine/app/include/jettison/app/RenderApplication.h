@@ -12,4 +12,4 @@ class Game;
 int RunRenderApplication(
     int argc, char **argv, const char *windowTitle, const std::filesystem::path &assetSubdirectory,
     Game *game = nullptr);
-}
+} // namespace Jettison::App

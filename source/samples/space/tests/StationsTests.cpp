@@ -92,8 +92,7 @@ TEST_CASE("Stations: the sample parks its ships on a few pads of each station as
 	Stations sample;
 	Sample::SpaceGame game;
 	const std::vector<entt::entity> stations = App::OpenStations(
-	    sample.world, sample.docks, sample.systems,
-	    [&](entt::entity station, std::string_view body)
+	    sample.world, sample.docks, sample.systems, [&](entt::entity station, std::string_view body)
 	    { game.StationOpened(sample.world, sample.docks, station, body); });
 	REQUIRE(stations.size() == 3);
 	const entt::registry &world = sample.world.Registry();

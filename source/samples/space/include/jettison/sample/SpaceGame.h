@@ -46,8 +46,7 @@ class SpaceGame final : public App::Game
 	// ship flown to one finds some taken: heavy transports on three of Highport's twelve L pads, and
 	// at Corva two transports on M pads and a fighter on an S.
 	void StationOpened(
-	    Sim::SimWorld &world, Dock::Docks &docks, entt::entity station,
-	    std::string_view body) override;
+	    Sim::SimWorld &world, Dock::Docks &docks, entt::entity station, std::string_view body) override;
 
 	// The markets, bound to their stations, and the traders on their pads.
 	void StationsOpened(

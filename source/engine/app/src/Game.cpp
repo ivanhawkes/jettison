@@ -2,7 +2,6 @@
 
 namespace Jettison::App
 {
-
 void Game::Register(const ShellWorld & /*world*/, Input::InputSystem & /*input*/)
 {
 }

@@ -1,8 +1,8 @@
-#include <jettison/app/Mounts.h>
-#include <jettison/app/Stations.h>
 #include "../src/Traders.h"
 #include "../src/Trading.h"
 #include "SampleGalaxy.h"
+#include <jettison/app/Mounts.h>
+#include <jettison/app/Stations.h>
 
 #include <doctest/doctest.h>
 
@@ -102,7 +102,8 @@ TEST_CASE("Traders: each chooses the run worth most, steered off what its rivals
 	const Sample::Trader &steered = crowded.TraderOf(crowded.traders[0]);
 	REQUIRE_FALSE(steered.good.empty());
 	CHECK((steered.good != first.good || steered.buyAt != first.buyAt));
-	MESSAGE("Crowded, it buys ", steered.good, " at ", crowd.get<Sample::Market>(steered.buyAt).station);
+	MESSAGE(
+	    "Crowded, it buys ", steered.good, " at ", crowd.get<Sample::Market>(steered.buyAt).station);
 
 	// Run all together, the first step's choices spread over the shelves.
 	Galaxy galaxy;
@@ -351,7 +352,8 @@ TEST_CASE(
 	{
 		means += std::format(" {} {}", price.good, price.mean);
 		for (const auto [entity, market] : registry.view<const Sample::Market>().each())
-			if (const auto good = std::ranges::find(market.goods, price.good, &Sample::MarketGood::good);
+			if (const auto good =
+			        std::ranges::find(market.goods, price.good, &Sample::MarketGood::good);
 			    good != market.goods.end())
 			{
 				moved += price.mean != good->basePrice ? 1 : 0;

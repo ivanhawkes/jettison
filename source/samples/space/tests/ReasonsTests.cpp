@@ -1,5 +1,5 @@
-#include <jettison/app/Reasons.h>
 #include "Trading.h"
+#include <jettison/app/Reasons.h>
 
 #include <jettison/ai/Types.h>
 #include <jettison/dock/Docks.h>

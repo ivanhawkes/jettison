@@ -1,7 +1,7 @@
 #include "Traders.h"
 
-#include <jettison/app/Stations.h>
 #include "Trading.h"
+#include <jettison/app/Stations.h>
 
 #include <algorithm>
 #include <array>
@@ -583,8 +583,7 @@ class Round
 			return Status::Failure;
 		const std::int64_t held = hold.Crates(trader.good);
 		context.world.Apply(
-		    Trade{
-		        SenderOf(registry, context.entity), context.entity, market, trader.good, crates});
+		    Trade{SenderOf(registry, context.entity), context.entity, market, trader.good, crates});
 		if (registry.get<Hold>(context.entity).Crates(trader.good) == held)
 			return Status::Failure;
 		const std::int64_t credits = CreditsOf(registry, context.entity) - before;
