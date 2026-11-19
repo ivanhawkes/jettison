@@ -348,6 +348,42 @@ TEST_CASE("Host: options, sources and package descriptions that cannot start fai
 }
 
 
+TEST_CASE("Host: a file system's packages are checked as a session's are, with no world")
+{
+	const Scratch scratch;
+	PutContent(scratch);
+	scratch.Put("needy/mod.yaml", "version: 1\nrequires: [farm]\n");
+	scratch.Put("bare/defs/crops/wheat.yaml", "version: 1\n");
+
+	Vfs::FileSystem files;
+	files.AddMount({"farm", scratch.Path("content")});
+	files.AddMount({"needy", scratch.Path("needy")});
+	files.AddMount({"bare", scratch.Path("bare")});
+	const std::vector<Host::Package> packages = Host::DescribePackages(files);
+	REQUIRE(packages.size() == 3);
+	CHECK(packages[0].mount == "farm");
+	REQUIRE(packages[0].description.has_value());
+	CHECK(packages[0].description->name == "Farm");
+	CHECK(packages[1].mount == "needy");
+	CHECK_FALSE(packages[2].description.has_value());
+
+	// Its requirement is not before it.
+	Vfs::FileSystem alone;
+	alone.AddMount({"needy", scratch.Path("needy")});
+	try
+	{
+		(void)Host::DescribePackages(alone);
+		FAIL("described");
+	}
+	catch (const Host::StartupError &error)
+	{
+		CHECK(error.FailedPhase() == Host::Phase::Content);
+		CHECK(error.Source() == std::filesystem::absolute(scratch.Path("needy")).lexically_normal());
+		CHECK(std::string{error.what()}.find("requires the package 'farm'") != std::string::npos);
+	}
+}
+
+
 TEST_CASE("Host: a package reads the same from its directory and its pack")
 {
 	const Scratch scratch;

@@ -78,6 +78,15 @@ Package Describe(const Vfs::Mount &mount, std::span<const Package> before)
 } // namespace
 
 
+std::vector<Package> DescribePackages(const Vfs::FileSystem &files)
+{
+	std::vector<Package> packages;
+	for (const Vfs::Mount &mount : files.Mounts())
+		Run(Phase::Content, mount.source, [&] { packages.push_back(Describe(mount, packages)); });
+	return packages;
+}
+
+
 std::string_view NameOf(Phase phase)
 {
 	switch (phase)
@@ -117,8 +126,7 @@ Session::Session(Options options, std::unique_ptr<Game> game) : m_pGame{std::mov
 	    });
 
 	m_pDefinitions = std::make_unique<Sim::DefinitionRegistry>(*m_pFiles);
-	for (const Vfs::Mount &mount : m_pFiles->Mounts())
-		Run(Phase::Content, mount.source, [&] { m_packages.push_back(Describe(mount, m_packages)); });
+	m_packages = DescribePackages(*m_pFiles);
 	Run(Phase::Content, {}, [&] { m_pGame->LoadContent(*m_pFiles, m_packages, *m_pDefinitions); });
 
 	Run(Phase::World, {},

@@ -68,6 +68,12 @@ struct Package
 	std::optional<PackageDescription> description;
 };
 
+// Each source of the file system as a package, in mount order, checked as a session's content phase
+// checks them before the game's hook: a package for a newer engine, or one requiring a package that
+// is not mounted before it, is refused. For a tool that loads a game's content with no world, such
+// as a validator. Throws StartupError for the content phase, naming the source.
+std::vector<Package> DescribePackages(const Vfs::FileSystem &files);
+
 // What a game composes into a session: one hook a phase, each called once, in phase order. A hook
 // throws to fail start-up; no later hook is called after one has thrown. The session owns the game
 // and destroys it after the world, so state a world callback captures from the game outlives it.

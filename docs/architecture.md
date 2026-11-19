@@ -1857,7 +1857,8 @@ proves it headlessly. What exists:
   definition registry and world, built from `Host::Options` (read-only content sources in mount
   order, the fixed step, the seed) and a `Host::Game` the session owns, in phases: options, mount,
   types, content (each source's `mod.yaml` read as a `Host::PackageDescription`, its engine
-  requirement and its `requires` checked against the sources before it, then the game's
+  requirement and its `requires` checked against the sources before it by `Host::DescribePackages`,
+  which a validator calls over its own file system with no world, then the game's
   `LoadContent`), world (`RegisterWorld`) and initial state. A constructed session is ready; a
   failed phase throws `Host::StartupError` with the phase and the source, runs no later hook and
   has released what it built. Shutdown, idempotent, destroys the world, the definitions, the file
