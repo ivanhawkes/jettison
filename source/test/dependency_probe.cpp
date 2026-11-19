@@ -8,6 +8,7 @@
 #include <doctest/doctest.h>
 
 #include <GLFW/glfw3.h>
+#include <enet/enet.h>
 #include <entt/entt.hpp>
 #include <fastgltf/core.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -30,6 +31,7 @@
 #include <ktx.h>
 #include <mikktspace.h>
 #include <miniaudio.h>
+#include <sodium.h>
 #include <spdlog/logger.h>
 #include <spdlog/sinks/ostream_sink.h>
 #include <tracy/Tracy.hpp>
@@ -348,4 +350,29 @@ TEST_CASE("WAMR runs a module")
 	wasm_runtime_deinstantiate(instance);
 	wasm_runtime_unload(loaded);
 	wasm_runtime_destroy();
+}
+
+
+TEST_CASE("ENet opens a host on an ephemeral loopback port")
+{
+	REQUIRE(enet_initialize() == 0);
+	ENetAddress address{};
+	REQUIRE(enet_address_set_host_ip(&address, "127.0.0.1") == 0);
+	ENetHost *pHost = enet_host_create(&address, 1, 2, 0, 0);
+	REQUIRE(pHost != nullptr);
+	CHECK(pHost->address.port != 0);
+	enet_host_destroy(pHost);
+}
+
+
+TEST_CASE("libsodium: the static build hashes as BLAKE2b's test vector says")
+{
+	REQUIRE(sodium_init() >= 0);
+	std::array<unsigned char, crypto_generichash_BYTES> digest{};
+	REQUIRE(crypto_generichash(digest.data(), digest.size(), nullptr, 0, nullptr, 0) == 0);
+	std::array<char, crypto_generichash_BYTES * 2 + 1> hex{};
+	sodium_bin2hex(hex.data(), hex.size(), digest.data(), digest.size());
+	CHECK(
+	    std::string_view{hex.data()} ==
+	    "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8");
 }

@@ -505,6 +505,39 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(wamr)
 add_subdirectory(wamr)
 
+# The network transport, behind net (N02): ENet, reliable-ordered and unreliable-sequenced channels
+# over UDP, so one stack carries an idle game's requests and a real-time game's snapshots and inputs
+# (decided 2026-11-20). TCP through Asio would serve the first and not the second; yojimbo's connect
+# tokens would shape the game's accounts. 1.3.18 is the newest release. Its build puts its headers
+# on the directory, not the target, so the target is given them here.
+FetchContent_Declare(
+  enet
+  GIT_REPOSITORY https://github.com/lsalzman/enet.git
+  GIT_TAG v1.3.18
+  GIT_SHALLOW TRUE
+  SYSTEM
+)
+FetchContent_MakeAvailable(enet)
+target_include_directories(enet SYSTEM INTERFACE "${enet_SOURCE_DIR}/include")
+
+# Bearer tokens' randomness, digests and constant-time checks in net (N02), and its encryption
+# later. libsodium's own build is autotools, so it comes through robinlinden's CMake build of it,
+# whose submodule pins libsodium's stable branch (2026-01-06, 1.0.20 by its version header): static
+# and fetched as the rest of the set is (the user's, 2026-11-20). nixpkgs ships it shared only, which
+# was N01's first plan, through devenv.nix. The wrapper has no release tags; this is its newest
+# commit.
+block()
+	set(SODIUM_DISABLE_TESTS ON)
+	FetchContent_Declare(
+	  sodium
+	  GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
+	  GIT_TAG 9b2848dfc1b917a9410f0de9d81059b26cbfaa8d
+	  GIT_SUBMODULES libsodium
+	  SYSTEM
+	)
+	FetchContent_MakeAvailable(sodium)
+endblock()
+
 # Planned: the libraries docs/roadmap.md names for later phases, fetched before a phase depends on
 # them so the whole set is proven to link together, and EXCLUDE_FROM_ALL, so a tree builds only what
 # something links. WAMR was the last of them, and left as phase 11b began to use it; the set is

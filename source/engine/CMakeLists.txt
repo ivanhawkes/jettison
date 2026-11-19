@@ -39,6 +39,9 @@ add_subdirectory(script)
 # The CPU session a game starts through.
 add_subdirectory(host)
 
+# The network transport a game's server and clients are built on.
+add_subdirectory(net)
+
 # Presentation, and the render shell on it.
 if(JETTISON_PRESENTATION)
 	add_subdirectory(render)

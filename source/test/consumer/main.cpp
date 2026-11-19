@@ -1,20 +1,30 @@
 // A game's smallest build with nothing of space in it: a race along a track, composed into the
 // public host and run through its whole life: definitions, commands, fixed steps, a save, a load
 // and teardown. The world holds one component, Token, and the game registers no transform, galaxy
-// or star system. It exits non-zero at the first check that fails.
+// or star system. Then it serves the race over loopback: players with bearer tokens, refused for a
+// bad token, a wrong version and a flood, reconnecting, placing their pieces by request and seeing
+// only their own in a snapshot. It exits non-zero at the first check that fails.
 #include <jettison/core/Assert.h>
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/host/Session.h>
+#include <jettison/net/Client.h>
+#include <jettison/net/Server.h>
+#include <jettison/net/Token.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Binary.h>
 #include <jettison/sim/CommandQueue.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <functional>
+#include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -155,6 +165,170 @@ int Play()
 		return EXIT_FAILURE;
 	return EXIT_SUCCESS;
 }
+
+
+// The race's protocol: a request to place the player's own piece, and a view of the pieces a player
+// may see, in the binary archive.
+constexpr Net::MessageKind kPlaceMine = 1;
+constexpr std::string_view kViewFormat = "consumer.view";
+constexpr std::uint32_t kVersion = 1;
+
+
+std::vector<std::byte> Bytes(const std::string &text)
+{
+	const auto *pFirst = reinterpret_cast<const std::byte *>(text.data());
+	return {pFirst, pFirst + text.size()};
+}
+
+
+// Both ends polled until the condition holds of what the client reported, for at most two seconds.
+bool Pump(
+    Net::Server &server, Net::Client &client,
+    const std::function<bool(std::vector<Net::ClientEvent> &)> &condition)
+{
+	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+	std::vector<Net::ClientEvent> events;
+	while (!condition(events))
+	{
+		if (std::chrono::steady_clock::now() > deadline)
+			return false;
+		(void)server.Poll(std::chrono::milliseconds{1});
+		events = client.Poll();
+	}
+	return true;
+}
+
+
+// What closed the client: Closed itself if it is still open after the wait.
+Net::Reason ClosedWith(Net::Server &server, Net::Client &client)
+{
+	std::optional<Net::Reason> reason;
+	Pump(
+	    server, client,
+	    [&](std::vector<Net::ClientEvent> &events)
+	    {
+		    for (const Net::ClientEvent &event : events)
+			    if (event.type == Net::ClientEvent::Type::Closed)
+				    reason = event.reason;
+		    return reason.has_value();
+	    });
+	return reason.value_or(Net::Reason::Closed);
+}
+
+
+int Serve()
+{
+	const std::unique_ptr<Host::Session> pSession = Start();
+	Sim::SimWorld &world = pSession->World();
+	world.Commands().Push(Place{"tortoise"});
+
+	// The operator issued the hare's player a token and kept its digest; the session's actor is
+	// the verifier's to record, so no request names a piece.
+	const std::string hareToken = Net::GenerateToken();
+	const std::map<std::string, std::string> digests{{Net::DigestToken(hareToken), "hare"}};
+	std::map<Net::SessionId, std::string> actors;
+	Net::ServerConfig config;
+	config.protocol = "race";
+	config.versions = {kVersion};
+	config.maxInbound = 2;
+	Net::Server server{
+	    config, [&](Net::SessionId session, std::span<const std::byte> credential)
+	    {
+		    const std::string token{
+		        reinterpret_cast<const char *>(credential.data()), credential.size()};
+		    for (const auto &[digest, piece] : digests)
+			    if (Net::TokenMatches(token, digest))
+			    {
+				    actors[session] = piece;
+				    return true;
+			    }
+		    return false;
+	    }};
+
+	Net::ClientConfig player;
+	player.port = server.Port();
+	player.protocol = {"race", kVersion};
+	player.credential = Bytes(Net::GenerateToken());
+	Net::Client impostor{player};
+	if (!Expect(
+	        ClosedWith(server, impostor) == Net::Reason::BadCredential, "a bad token was not refused"))
+		return EXIT_FAILURE;
+
+	player.credential = Bytes(hareToken);
+	player.protocol.version = kVersion + 1;
+	Net::Client stale{player};
+	if (!Expect(
+	        ClosedWith(server, stale) == Net::Reason::VersionMismatch,
+	        "a wrong version was not refused"))
+		return EXIT_FAILURE;
+
+	player.protocol.version = kVersion;
+	Net::Client flood{player};
+	if (!Expect(
+	        Pump(server, flood, [&](auto &) { return flood.Admitted(); }),
+	        "the player was not admitted"))
+		return EXIT_FAILURE;
+	for (int request = 0; request < 3; ++request)
+		(void)flood.Send(Net::Channel::Reliable, kPlaceMine, {});
+	if (!Expect(ClosedWith(server, flood) == Net::Reason::InboundOverflow, "a flood was not closed"))
+		return EXIT_FAILURE;
+
+	// Reconnected, the player places their piece; the world steps between polls.
+	Net::Client client{player};
+	if (!Expect(
+	        Pump(server, client, [&](auto &) { return client.Admitted(); }),
+	        "the player did not reconnect") ||
+	    !Expect(client.Send(Net::Channel::Reliable, kPlaceMine, {}), "the request was not sent"))
+		return EXIT_FAILURE;
+	const Net::SessionId session = server.Sessions().front();
+	const bool placed = Pump(
+	    server, client,
+	    [&](auto &)
+	    {
+		    const std::optional<Net::Message> request = server.Receive(session);
+		    if (request && request->kind == kPlaceMine)
+			    world.Commands().Push(Place{actors.at(session)});
+		    return request.has_value();
+	    });
+	Run(world, 3);
+	if (!Expect(placed && world.Registry().view<Token>().size() == 2, "the request placed no piece"))
+		return EXIT_FAILURE;
+
+	server.SendSnapshots(
+	    world.Clock().Step(),
+	    [&](Net::SessionId viewer) -> std::optional<std::vector<std::byte>>
+	    {
+		    std::vector<Token> visible;
+		    for (auto [entity, token] : world.Registry().view<Token>().each())
+			    if (token.piece == actors.at(viewer))
+				    visible.push_back(token);
+		    Serialise::BinaryWriter writer{kViewFormat};
+		    writer.Write(visible);
+		    return writer.Finish({1});
+	    });
+	std::optional<Net::ClientEvent> snapshot;
+	Pump(
+	    server, client,
+	    [&](std::vector<Net::ClientEvent> &events)
+	    {
+		    for (Net::ClientEvent &event : events)
+			    if (event.type == Net::ClientEvent::Type::Snapshot)
+				    snapshot = std::move(event);
+		    return snapshot.has_value();
+	    });
+	if (!Expect(snapshot.has_value(), "no snapshot arrived"))
+		return EXIT_FAILURE;
+	std::vector<Token> seen;
+	Serialise::BinaryReader reader{snapshot->message.body, kViewFormat, {1}};
+	reader.Read(seen);
+	reader.End();
+	if (!Expect(
+	        seen.size() == 1 && seen.front().piece == "hare",
+	        "the snapshot was not the player's own") ||
+	    !Expect(snapshot->step == world.Clock().Step(), "the snapshot named another step"))
+		return EXIT_FAILURE;
+	return EXIT_SUCCESS;
+}
 } // namespace
 
 
@@ -163,7 +337,7 @@ int main()
 	try
 	{
 		// The sessions are gone, world before game, when Play returns.
-		if (Play() != EXIT_SUCCESS)
+		if (Play() != EXIT_SUCCESS || Serve() != EXIT_SUCCESS)
 			return EXIT_FAILURE;
 	}
 	catch (const std::exception &error)
@@ -171,6 +345,8 @@ int main()
 		std::fprintf(stderr, "consumer: %s\n", error.what());
 		return EXIT_FAILURE;
 	}
-	std::puts("consumer: a race defined, stepped, saved, loaded and torn down through Jettison::Host");
+	std::puts(
+	    "consumer: a race defined, stepped, saved, loaded, served and torn down through Jettison::Host "
+	    "and Jettison::Net");
 	return EXIT_SUCCESS;
 }

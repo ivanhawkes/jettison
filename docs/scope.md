@@ -213,7 +213,7 @@ target. The engine adds:
 
 | Item | Verdict | Reason |
 |---|---|---|
-| Low-level networking | In (2026-11-18) | What a wide range of networked games share: transport, connections and sessions, message framing, bounded queues, the mechanics of an authentication handshake, and snapshot replication with a per-client visibility hook. A game's dedicated server, its protocol, how an account maps to a player, authorisation and visibility rules stay in the game (Manifest's D-057). ENet over UDP, so the same stack serves an idle game and real-time combat ([decided](decisions.md), 2026-11-20); Manifest's N01 named the gaps, and N02 builds them. Nothing is replicated yet. |
+| Low-level networking | In (2026-11-18) | What a wide range of networked games share: transport, connections and sessions, message framing, bounded queues, the mechanics of an authentication handshake, and snapshot replication with a per-client visibility hook. A game's dedicated server, its protocol, how an account maps to a player, authorisation and visibility rules stay in the game (Manifest's D-057). ENet over UDP, so the same stack serves an idle game and real-time combat ([decided](decisions.md), 2026-11-20); Manifest's N01 named the gaps, and N02 built them in `net` ([architecture](architecture.md#networking)). Encryption follows, before a game hosts outside a trusted network. |
 | Rollback | Deferred | No game asks for it. The simulation stays ready for it: commands say who sent them, shared state is given in command order. |
 | Local server | Reframed | The in-process simulation/presentation split. Commands flow into the simulation through a queue, which is also the seam for replays and any later networking. |
 

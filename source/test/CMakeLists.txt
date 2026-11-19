@@ -33,6 +33,8 @@ if(JETTISON_PLANNED_DEPENDENCIES)
 		ktx_read
 		zstd::zstd
 		wamr
+		enet
+		sodium
 		jettison_warnings
 	)
 	set_property(TARGET dependency_probe PROPERTY FOLDER "Test")

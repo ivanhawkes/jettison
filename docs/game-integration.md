@@ -95,7 +95,7 @@ These checks hold the boundary, and each exists:
 - **Engine packs:** their contents are held to the engine's own directories. No production
   consumer may fall back to a sample asset.
 - **The consumer matrix:**
-  - a CPU race with no galaxy or transforms (`source/test/consumer`);
+  - a CPU race with no galaxy or transforms, served over loopback with tokens (`source/test/consumer`);
   - a non-space physics room (the `physics` suite);
   - the explicit space sample;
   - a CPU configure with presentation off (`clang-cpu`).

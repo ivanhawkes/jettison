@@ -196,7 +196,9 @@ target_link_libraries(game PRIVATE Jettison::Engine)
 `source/test/consumer` is that build at its smallest: a project that fetches the engine from a
 directory with the presentation modules off and Vulkan refused, and runs a small race, a game with
 nothing of space in it, through `Host::Session`: a definition from its own `content/`, a component, a
-command and a system, two runs and a load reaching the same state hash, and teardown. It is the
+command and a system, two runs and a load reaching the same state hash, and teardown; then it serves
+the race over loopback through `Net::Server` (N02): a bad token, a wrong version and a flood refused,
+a reconnection admitted, a request placing the player's piece and a snapshot of only that piece. It is the
 exit test for packaging and for H04's independent CPU consumer, and it is not in the gate, because
 it fetches and compiles the dependency set a second time. Run it when the module layout, the host or
 the public interface changes:

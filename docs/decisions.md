@@ -603,3 +603,6 @@ Settled on 2026-11-10:
   exchange in the handshake, the server's key pinned), which hosting outside a trusted network
   waits for. TCP through Asio was the alternative, which a real-time variant would outgrow; TLS
   does not run over UDP, and yojimbo's connect tokens would have shaped the game's accounts.
+  libsodium is fetched and built static like the rest of the set, through robinlinden's CMake
+  build of it (the user's, 2026-11-20, as N02 began). N01 had put it in both `devenv.nix` files,
+  but nixpkgs ships it shared only, and its own build is autotools.

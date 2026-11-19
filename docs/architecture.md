@@ -69,6 +69,7 @@ jettison/
     │   ├── dock/               stations' pads and the ships on them: given, queued, flown in, clamped
     │   ├── script/             Wasm host: scripts, their limits, bindings from reflection
     │   ├── host/               the CPU session a game starts through: content, definitions, world
+    │   ├── net/                ENet server and client: handshake, tokens, framing, snapshots
     │   └── app/                Application shell, argument parsing, smoke sequence, and the
     │                           game a program composes into it (App::Game, app/Game.h)
     ├── tools/
@@ -155,7 +156,7 @@ flowchart TB
         sim; spatial; input
     end
     subgraph T4[Presentation and simulation services]
-        render; physics; audio; ui; ai; dock; script
+        render; physics; audio; ui; ai; dock; script; net
         space --> physics
         space --> ai
     end
@@ -976,6 +977,51 @@ as a `no_std` cdylib for `wasm32-unknown-unknown` by rustc, linked by the same w
 16 KiB stack, placed first, below the data, so a stack that overflows runs off the bottom of memory and
 traps rather than into the data. The script suite's modules are in both languages, the same calls
 made from each.
+
+## Networking
+
+`net` (N02, [decided](decisions.md)) is the transport a game's dedicated server and its clients
+are built on: `Net::Server` and `Net::Client` over ENet on UDP, plaintext until encryption is
+provisioned, single-threaded and polled. The network never steps the world. A game polls between its
+steps (`Server::Poll`), drains each session's queue into its own requests (`Server::Receive`), and
+sends snapshots after a step (`Server::SendSnapshots`). With no sessions the world steps as before.
+What the protocol means stays the game's: its name and versions, its message kinds and bodies,
+whose credential is whose, what a session may do, and what it may see.
+
+- **Channels.** Reliable-ordered for the handshake, requests and their results, and
+  unreliable-sequenced for snapshots and a real-time game's inputs. A packet older than one already
+  delivered on that channel is dropped. A snapshot longer than the MTU goes in unreliable fragments,
+  so a lost one does not hold back the next.
+- **The wire.** A packet is a kind, two bytes little-endian, then its body. A snapshot's body begins
+  with the step it was taken at, eight bytes. Kinds from `kFirstEngineKind` (0xFF00) up are the
+  engine's own (the hello, the welcome, a snapshot). A game's message of one of those kinds closes
+  its session, and neither end sends one. The hello is a binary archive (`jettison.hello`, version
+  1) of the protocol's name, its version and the credential's bytes.
+- **The handshake.** A connection carries nothing but a hello until it is admitted, or it is closed
+  as `BadMessage`. It is closed as `HandshakeTimeout` if no hello comes within the bound. The server
+  checks the protocol's name, then the version against those it lists, then that a place is free,
+  then asks the game's verifier, which records the session's actor. Each refusal closes the
+  connection with its reason, which ENet's disconnect carries, so the client reads it in its `Closed`
+  event. Admission sends the welcome, and only then does either end accept a game's message.
+- **Bounds.** A packet over `Limits::maxMessageBytes` is dropped by ENet before it is reassembled
+  (`maximumPacketSize`), and `Send` refuses to make one. A malicious peer's oversize packet
+  therefore stalls its own reliable channel until it times out, rather than closing with a reason.
+  A session with `maxInbound` messages still waiting is closed as `InboundOverflow` when the next
+  one arrives. ENet's peer count is `maxSessions` plus `maxPending`: past it, a new connection is
+  ignored and times out at its client. Within it, a hello past `maxSessions` is `ServerFull`.
+- **Snapshots.** `SendSnapshots` asks the game's view for each admitted session whose last
+  snapshot is at least `snapshotInterval` old, so filtering is on the server and the rate bounded
+  per session. A view of nullopt sends nothing, and the session is asked again next time.
+- **Tokens.** `Net::GenerateToken` gives 32 random bytes as hex, `DigestToken` their BLAKE2b-256,
+  and `TokenMatches` compares in constant time. A token's entropy makes a fast digest enough, where
+  a password would want a slow one. The game issues, stores and revokes them; revoking closes a
+  session with `Server::Disconnect(session, Reason::Revoked)`.
+
+Not provisioned: encryption (a key exchange in the hello with the server's key pinned, then every
+packet sealed, before a game hosts outside a trusted network); IPv6, which ENet 1.3 does not have;
+deltas against an acknowledged snapshot; and a real-time game's inputs at step rate, which need
+nothing new until a variant measures them. The `net` suite and the scratch consumer
+(`source/test/consumer`) cover the contract over loopback.
 
 ## UI
 

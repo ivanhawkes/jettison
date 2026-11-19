@@ -14,7 +14,8 @@ Approved 2026-11-15. What is done, and what each Manifest task named of the engi
 on the pin `30ea3f3`, Stage 3 (A02 to A07) with no engine gap. That stage's cross-review named
 one, a service loaded with the commands a save queues, provisioned in
 [history](history.md#neutral-sdk-and-manifest-integration). Its N01 (2026-11-20) settled the network
-seam ([decided](decisions.md)) and named the gaps in the row below; its next is N02.
+seam ([decided](decisions.md)), and N02's engine gaps are provisioned in `net` (2026-11-20,
+[history](history.md#neutral-sdk-and-manifest-integration)); Manifest's half of N02 is next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -24,7 +25,8 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Low-level networking | N02 (before 4's remote foundation) | The gaps [N01's contract](../../manifest/docs/gameplay-and-server-plan.md#network-contract-n01-2026-11-20) names: a `net` module on ENet (server, client, reliable-ordered and unreliable-sequenced channels, timeouts, peer limit, non-blocking poll); the handshake with a game's verifier; bearer tokens on libsodium (in both identical `devenv.nix` files); framing under a size limit and a bounded inbound queue per session; the newest snapshot per session at a bounded rate. An independent consumer connects, is refused, reconnects and receives a filtered snapshot over loopback; Manifest's dedicated server builds on it without an engine edit. Encryption follows, before Manifest hosts. |
+| Low-level networking: Manifest's server | N02 (before 4's remote foundation) | The engine's provision is done ([history](history.md#neutral-sdk-and-manifest-integration)): `net`, its suite and the consumer's loopback run. Left: Manifest's dedicated server and its TUI's `connect` and `disconnect` build on it through a local SDK override with no engine edit, then the pin moves to the engine's commit. |
+| Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
 These deliveries precede discretionary expansion of the sample. The historical space
