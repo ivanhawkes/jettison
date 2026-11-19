@@ -30,7 +30,7 @@ upstream's newest release. Versions were last reviewed on 2026-11-10.
 | RmlUi | 6.3 | now | Private to ui, since 8b |
 | miniaudio | 0.11.26 | now | Private to audio, since 8c; Vorbis and Opus off, backends loaded at run time |
 | KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read`, built against the engine's zstd in place of its own copy (11a) |
-| WAMR | 2.4.5 | now | The script host's runtime, since 11b: its fast interpreter with instruction metering and the thread manager, software bounds checks, bulk memory and reference types, no libc or WASI; private to script ([decided](roadmap.md#decided)) |
+| WAMR | 2.4.5 | now | The script host's runtime, since 11b: its fast interpreter with instruction metering and the thread manager, software bounds checks, bulk memory and reference types, no libc or WASI; private to script ([decided](decisions.md)) |
 | zstd | v1.5.7 | now | The library alone, static; vfs links it privately for pack files, and `ktx_read` links it in place of the 1.5.5 it carries (11a) |
 
 The Vulkan headers, loader, validation layers and `glslc` come from the devenv shell (Vulkan
@@ -123,7 +123,7 @@ this set:
 - **Instruction sets travel.** Jolt adds `-mavx2 -mbmi -mpopcnt -mlzcnt -mf16c` as public
   options. `physics` links Jolt privately (7a), so they reach its own translation units and
   nothing above it, and the engine's CPU baseline is x86-64 with AVX2, which is the decided minimum
-  ([roadmap](roadmap.md#decided)). A dependency that would raise it further (AVX-512, for
+  ([roadmap](decisions.md)). A dependency that would raise it further (AVX-512, for
   example) is a new decision, not a default.
 
 Large media (`.glb`, images, fonts, audio) is in Git LFS: run `git lfs install` before the first
@@ -718,7 +718,7 @@ The budgets and what phase 5 measured are in [architecture](architecture.md#the-
 The spatial index has a benchmark of its own, a doctest case skipped in the gate: a system's traffic
 of 1,000 to 100,000 ships stepped 60 times, every ship moved in the index each step, and the time
 of each kind of query AI makes, for the octree's leaf sizes and looseness and for a walk over every
-position. What phase 6c measured with it is under [decided](roadmap.md#decided).
+position. What phase 6c measured with it is under [decided](decisions.md).
 
 ```bash
 build/clang-release/source/engine/spatial/jettison_spatial_tests --no-skip -tc='Spatial benchmark*'

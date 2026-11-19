@@ -129,11 +129,11 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Item | Verdict | Reason |
 |---|---|---|
 | Extensions / mods / addons | In | Data packs mounted over the base content, plus Wasm script modules. |
-| Scripting: Wasm | In (11b) | Sandboxed mod behaviour (events, AI considerations; missions are the game's, written as handlers). WAMR's interpreter as the runtime, scripts in C or Rust against bindings generated from reflection ([decided](roadmap.md#decided)). |
+| Scripting: Wasm | In (11b) | Sandboxed mod behaviour (events, AI considerations; missions are the game's, written as handlers). WAMR's interpreter as the runtime, scripts in C or Rust against bindings generated from reflection ([decided](decisions.md)). |
 | Scripting: native C++ | Reframed | Game logic is native C++ in the game repository. There is no native plugin loading for mods: it is unsandboxed and ABI-fragile. |
 | File system | In | A virtual file system with ordered mounts (base, DLC, mods, user), each a directory or a pack. Mods override by path, and patch definitions field by field. |
 | Streaming | Reframed | Asynchronous asset loading when a star system is entered, behind a loading transition. Not open-world streaming. |
-| Compression, zipping | In (11a) | Pack files for shipping and for mods, each file its own zstd frame; development reads loose files. Mods are directories or packs, not zip archives ([decided](roadmap.md#decided)). |
+| Compression, zipping | In (11a) | Pack files for shipping and for mods, each file its own zstd frame; development reads loose files. Mods are directories or packs, not zip archives ([decided](decisions.md)). |
 | Resource manager | In | Typed handles, asynchronous load, reference counting, hot reload in development builds. |
 | Serialisation: load, save | In | YAML for authored content (the scene format exists); a versioned binary format for saves. Both reflection-driven. |
 | Persistence | In | Save games of simulation state, versioned with migrations. Settings and keybindings saved separately. |
@@ -152,7 +152,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Shadows | In | Sun shadows on stations and ships; cascaded for close-ups. |
 | Atmosphere halo | In | An orbit-view scattering shell around planets. |
 | Sky | In | Starfield and nebula skybox, per system. |
-| Reflections | In | Through image-based lighting, with the planets added to the environment's capture (phase 10a). Screen-space reflections are out, reconsidered on 2026-11-11: they need most of a G-buffer, and where a ray leaves the screen they fall back to the environment at a seam black space makes plain ([decided](roadmap.md#decided)). |
+| Reflections | In | Through image-based lighting, with the planets added to the environment's capture (phase 10a). Screen-space reflections are out, reconsidered on 2026-11-11: they need most of a G-buffer, and where a ray leaves the screen they fall back to the environment at a seam black space makes plain ([decided](decisions.md)). |
 | Particles | In | GPU billboards: engine exhaust, debris, docking sparks, jump effects. Simulated and drawn on the GPU, in the transparent pass (phase 10b). |
 | Post processing | In | HDR, tonemapping, and a chain of post passes on the HDR target: bloom first (stars and engines are far brighter than the hull). Phase 10c. |
 | Screen-space ambient occlusion | In (added 2026-11-11) | Contact shadow in docking bays, between hull modules and under racked cargo, where the sky's light reaches in full today. From the depth prepass, which writes normals for it, attenuating the image-based light alone. Phase 10c. |

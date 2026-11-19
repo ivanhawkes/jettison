@@ -215,7 +215,7 @@ The game is single-player, but the simulation runs as if it were a local server.
   "docked", "trade filled" or "contact" that presentation turns into sound, effects and UI.
 
 An event that says why something was refused or given up carries a reason (`sim/Reason.h`, 12c,
-[decided](roadmap.md#decided)), never text: a key and its arguments, each an integer, an entity or
+[decided](decisions.md)), never text: a key and its arguments, each an integer, an entity or
 an identifier from the game's data. Each module's reasons are an enumeration registered with Reflect
 as `<Module>.Reason` (`Dock.Reason`, `Ai.Reason`, the shell's `Shell.Reason`), whose enumerator names
 the key, `reason.dock.no_pad_fits`, so two modules cannot make the same one; presentation words it
@@ -256,7 +256,7 @@ the simulation stopping (`spacescene/JumpTransition.h`):
    UI. Meanwhile the destination's system file and scene file are read on the I/O worker.
 2. Once they are read they are parsed and checked on the main thread, since the archives read the
    reflection tables, which a registration on the main thread may be writing to
-   ([decided](roadmap.md#decided)). A destination that fails is abandoned before anything is
+   ([decided](decisions.md)). A destination that fails is abandoned before anything is
    touched, and the effect lifts on the system the jump left.
 3. With the effect covering the frame, the scene is replaced (`SceneFile`, already read and
    checked, or the system alone) and its system scene built.
@@ -284,7 +284,7 @@ further out (9f), so two traders through one gate a moment apart do not come out
 
 ### Gates
 
-A gate sends the ships it has cleared ([decided](roadmap.md#decided); `space/Gates.h`, 13c). Each jump
+A gate sends the ships it has cleared ([decided](decisions.md); `space/Gates.h`, 13c). Each jump
 point's gate is an entity of its own, `Space::Gate`, made at a game's start (`Gates::MakeGates`) and
 saved: a kinematic sensor on the jump point's rails and in its frame, a cylinder of the ring's
 radius and 60 m deep (`Gates::RingShape`, defined in physics as the system is), turned by its rails
@@ -320,7 +320,7 @@ planets and moons, at a speed.
 
 ### Cruising
 
-A system is crossed by cruising ([decided](roadmap.md#decided)): Corva Refinery is 1.4 × 10⁸ m
+A system is crossed by cruising ([decided](decisions.md)): Corva Refinery is 1.4 × 10⁸ m
 from Corva and Corva 3 × 10¹⁰ m from Vesper, days at the flight model's 150 m/s. The command
 `Space::Cruise`, with its sender, takes a ship to a body of its system (`space/Cruise.h`, 13a): it leaves
 physics and its frame, its body kept in its `Space::Cruising` until it arrives, and stays in its system,
@@ -399,7 +399,7 @@ to sweep against with that motion's absolute length, so a ship and a station bot
 their orbit never find each other however slowly they close; its broadphase keeps bounds in floats,
 8 km apart 150 million kilometres from the primary; and a float velocity at 30 km/s is 4 mm/s
 between values. In the station's frame each of these is metres and metres a second
-([decided](roadmap.md#decided)).
+([decided](decisions.md)).
 
 What moves a frame's named bodies, and what pulls in it, is a definition of the game's, as shapes
 are (`Physics::FrameModel`, `PhysicsWorld::DefineFrame`): a frame with none has no rails, no local
@@ -445,7 +445,7 @@ so a ship flown into a station meets it as any body would. The system `physics` 
    presentation interpolates like any other entity's.
 6. What began and ended touching is worked out, for the simulation to read (below).
 
-**Contacts** are the simulation's to read, not presentation's (7c, [decided](roadmap.md#decided)):
+**Contacts** are the simulation's to read, not presentation's (7c, [decided](decisions.md)):
 `PhysicsWorld::Contacts` is what the last step began and ended, in order of pair, and `Touching`
 what touches a body now. A beginning carries where the two met, the normal from the first towards
 the second and the speed they closed at, which is what a game judges an impact's damage or sound
@@ -470,7 +470,7 @@ never reads the simulation's state: a click is a `Physics::Pick`, the ray throug
 `Physics::Picked` event, a frame later. Presentation shows the world half a step behind on average,
 and a station's frame moves 500 m a step about the star, so the pick carries the time it was drawn
 at (and its sender, which the answer hands back, so each player's presentation takes its own), and each frame is placed where its body was then (`CastOptions::framesAt`)
-([decided](roadmap.md#decided)).
+([decided](decisions.md)).
 
 Jolt is deterministic across builds (`CROSS_PLATFORM_DETERMINISTIC`) given the same calls in the
 same order and the same body identifiers. The calls are made in entity order. The identifiers are
@@ -482,7 +482,7 @@ contact cache each step warm-starts from, under the version of Jolt that wrote i
 same bodies with the same identifiers and restores it, and steps on to the same bytes as the world
 saved.
 
-That version is physics' layout 4 (12b, [decided](roadmap.md#decided)): Jolt's major, minor and
+That version is physics' layout 4 (12b, [decided](decisions.md)): Jolt's major, minor and
 patch (`Physics::BuiltJoltVersion`, 5.6.0) and those of its feature bits that change what it saves
 or how it steps, double precision, the cross-platform determinism and 32-bit object layers. The
 others, assertions above all, differ between a Debug and a Release tree and change neither, so a
@@ -520,7 +520,7 @@ Steering (`ai/Steering.h`, 9b) flies a ship to a place: an `Ai::Destination`, a 
 frame or an offset from an entity in the entity's own axes, with a course's waypoints on the way, and
 an `Ai::Steered` saying how far it keeps from what is near. Its behaviours (seek, arrive, avoid,
 separate) are velocities rather than accelerations, since the flight model's assist already holds a
-demanded velocity and reaches it as fast as the thrusters allow ([decided](roadmap.md#decided)): the
+demanded velocity and reaches it as fast as the thrusters allow ([decided](decisions.md)): the
 system `steering`, after `spatial` and before `flight`, sums them and sets the ship's
 `FlightControls`, its velocity as a share of its top speed along each of its axes and a turn of the
 nose towards it. Positions are in the system frame and velocities in the ship's frame, which is all
@@ -549,7 +549,7 @@ three axes, rolled too, rather than turning its nose to its velocity: a pad's he
 ### Docks
 
 A station's pads are the simulation's (`dock/Docks.h`, 9c, catalogue entry 31,
-[decided](roadmap.md#decided)): who holds a pad is authoritative state that every player is to see
+[decided](decisions.md)): who holds a pad is authoritative state that every player is to see
 the same, so it is given by commands in their order, saved, and nothing in the module assumes one
 player. Its data are definitions: a pad class (`defs/pads`, `Dock::PadClassDefinition`, W01) has
 the largest hull it takes, its pad's size and its rank, a hull fitting a pad of its own class or one
@@ -627,7 +627,7 @@ its events, so a ship parked as a world opens is held from its first frame and n
 display pad's hold the ship it shows. Stowed, a clamp is put away at no size, and a mesh scaled to
 nothing is neither drawn nor casts a shadow.
 
-**Deck traffic** (9e, [decided](roadmap.md#decided)) carries a docked ship's cargo across the deck in
+**Deck traffic** (9e, [decided](decisions.md)) carries a docked ship's cargo across the deck in
 the simulation, so every player sees the same buggy at the same place and the buggies decide when
 the ship may leave. A layout's roads (`dock/Roads.h`, `Dock::Roads`) are made from it as it is
 defined, and are never state: a road down each pier's side, in the wider strip of its top beside its
@@ -680,7 +680,7 @@ onto a pad, the trade, the wait for the cargo. A tree (`defs/behaviours`, `Ai::B
 is nested nodes: the engine's sequence, selector, invert, succeed, repeat, loop and wait, and tasks,
 the game's leaves, by name with arguments, defined with `Ai::Behaviours` before any tree that names
 them and checked as the tree is. The system `behaviour` ticks every entity's tree each step, in
-entity order, and runs first in the step, before `spatial` ([decided](roadmap.md#decided)): a tree
+entity order, and runs first in the step, before `spatial` ([decided](decisions.md)): a tree
 acts on the world where it is as the step begins, as the queue's commands do, and what a task sets (a
 destination, a pad asked for) is flown and answered in the same step. Its composites remember their
 running child, so a running node is resumed rather than entered again from the top, and is never
@@ -707,7 +707,7 @@ trade, and the wait while the buggies carry its crates. Seven trade between High
 one free pad keeps a queue; in twenty minutes of the `sample-space` suite they sell fourteen runs
 across the lane, queue five times, and no two hulls come within 35 m in flight.
 
-**The fleet** (`samples/space/src/Fleet.h`, 13d, [decided](roadmap.md#decided): a player has a fleet) is the
+**The fleet** (`samples/space/src/Fleet.h`, 13d, [decided](decisions.md): a player has a fleet) is the
 ships a player commands (`Sim::ControlledBy`), each fitted as a trader is, with a hold, an
 `Sample::Trader` and the trader's tree, so every one they are not at the helm of trades for them, from
 their purse and from wherever it is. `Sample::BuyShip` sells a hull of `defs/shipyard` (`ShipForSale`:
@@ -746,7 +746,7 @@ its payload, which the world's step from version 1 to 2 appends its services' em
 change inside a value needs the types that wrote it, and a step that has them reads the old version
 with them and writes the new.
 
-A component changes by a chain of its own (12a, [decided](roadmap.md#decided)). The world's save
+A component changes by a chain of its own (12a, [decided](decisions.md)). The world's save
 (version 4) begins with each component storage's version, so a load knows them all before it reads
 one, and a version newer than the component's chain is refused by the component's name before
 anything else is read; a storage of an older save is at version 1, which the world's step from 2
@@ -762,7 +762,7 @@ steps. Adding a field or renaming one needs no version: fields are found by name
 world step over the table of names, unless other types share the field's name, which that step would
 rename too: the world's version 4 renamed `Sim.InSystem` to `Sim.InFrame` over the table, and
 `InFrame`'s own version 2 renamed its field from `system` to `frame`, a name markets' fields have. A YAML step edits the parsed tree, keeping the lines a mistake is
-reported at. Definitions migrate the same way ([decided](roadmap.md#decided)). A version newer than
+reported at. Definitions migrate the same way ([decided](decisions.md)). A version newer than
 the build's, or one the chain does not reach, is refused by name before any step runs, and every
 read leaves what it was reading into as it was when the data does not fit.
 
@@ -808,7 +808,7 @@ the directory kept); and the user's data directory, writable and last,
 where saves go. It logs the mounts in order. A mod that cannot be mounted is reported and left out,
 and anything else in the mods directory is reported and ignored.
 
-The list is `mods.yaml`, beside `settings.yaml` (12a, [decided](roadmap.md#decided)): the mods in
+The list is `mods.yaml`, beside `settings.yaml` (12a, [decided](decisions.md)): the mods in
 mount order, a later one winning, each enabled or not, written by the game's menu. A mod found and
 not listed is added at the end, enabled, in the order of the names' bytes, and the list written
 again, so a directory dropped in works and keeps its place; one listed and missing is reported and
@@ -855,7 +855,7 @@ it, then at level 19: of the sample assets' 90.3 MB, the KTX 2 textures are zstd
 already and the models and music barely shrink, so 127 of 136 files are compressed and the pack is
 88.6 MB, written in about a second.
 
-Definitions layer finer than a file ([decided](roadmap.md#decided)). Every mount's file for a
+Definitions layer finer than a file ([decided](decisions.md)). Every mount's file for a
 definition is read (`FileSystem::ReadLayers`), not the topmost alone: a whole file
 (`defs/goods/beer.yaml`) replaces the definition and everything below it, and a patch beside it
 (`defs/goods/beer.patch.yaml`) changes what it names and keeps the rest, merged in mount order over
@@ -878,7 +878,7 @@ mount changes, naming the mounts, and an error names the files and their mounts.
 ## Scripts
 
 Behaviour a mod changes runs as WebAssembly (`script/ScriptHost.h`, 11b), in WAMR's fast
-interpreter ([decided](roadmap.md#decided)). A script is a definition, `defs/scripts/<name>.yaml`,
+interpreter ([decided](decisions.md)). A script is a definition, `defs/scripts/<name>.yaml`,
 loaded through the definition registry and so layered as any other: a mod adds one with a file and
 changes another's grants or fuel with a patch. It names its module (a `.wasm` read through the VFS,
 usually from the same mod), the fuel a call may spend, the pages its memory may grow to, what it is
@@ -932,7 +932,7 @@ the rest to any module, is not built; WASI is not either.
   nothing. Neither `ai` nor the decision knows of scripts; the game wraps its inputs. A decision that
   asks for an input neither a trader nor a script answers gives the shell no traders, logged.
 
-**What a script keeps** (12a, [decided](roadmap.md#decided)). A handler's memory is not saved: it is
+**What a script keeps** (12a, [decided](decisions.md)). A handler's memory is not saved: it is
 up to 16 MB a script, and a module rebuilt would no longer read it. A script keeps what should
 outlast its instance by key instead, through `store`, which keeps bytes under a key (no bytes take
 it away), and `load`, which copies them back and says how many there are, in an encoding the script
@@ -966,7 +966,7 @@ with one, the instance took 41 µs. A trader weighing its runs asks the smoke mo
 inputs in the first step, a quarter of a millisecond once, and a trader chooses again only when it is
 idle.
 
-**Writing one.** A script is C or Rust ([decided](roadmap.md#decided)), compiled for wasm32
+**Writing one.** A script is C or Rust ([decided](decisions.md)), compiled for wasm32
 freestanding against the bindings, and the shell's own are Rust. `jettison_add_script` builds one: C
 by clang (the compiler Nix's wrapper wraps, which cannot compile for a second target) and wasm-ld, Rust
 as a `no_std` cdylib for `wasm32-unknown-unknown` by rustc, linked by the same wasm-ld; both with a
@@ -1194,7 +1194,7 @@ alike (`Sample`); and events, which only a clip file's have, since glTF has no p
 named nodes, checked as they are read, a rotation written as turns about X, then Y, then Z as the
 scene's transform turns. They are resources, the bytes read on the I/O worker and the YAML parsed
 on the main thread, since the archive reads the reflection tables that thread registers into
-([decided](roadmap.md#decided)). A `Scene::ClipPlayerComponent` plays one of a file's clips on the
+([decided](decisions.md)). A `Scene::ClipPlayerComponent` plays one of a file's clips on the
 entities its nodes are bound to, which need not be its own, and a node bound to several moves them
 alike; a scene file's `clip` binds them by entity id, and a builder in code by entity. The update
 loads each file a player names and holds it while it lives, checks a player's bindings once for each
@@ -1234,7 +1234,7 @@ by then.
 - **Blends.** The game's camera is blended in over the first shot's blend and out over the last
   seconds, and a shot from the one before, held where it ended, over its own blend; none is a cut.
   A blend moves the camera along a line and the point it looks at along another, its up slerped
-  ([decided](roadmap.md#decided)), so a shot's subject stays in view; the game camera's point is along
+  ([decided](decisions.md)), so a shot's subject stays in view; the game camera's point is along
   its view. How much of the camera is the sequence's weighs the bars too.
 - **Fade and events.** A fade's amount keyed by time, in the sequence's colour, which the shell shows
   unless a jump's is up; and named events, on a clip of no tracks, crossed as a clip's are
@@ -1273,7 +1273,7 @@ setting is the prerequisite for that.
 ## Rendering: clustered forward
 
 The renderer is a **clustered forward** renderer (decided 2026-11-10, see the
-[roadmap](roadmap.md#decided)). Lights are assigned to a 3D grid of view-space clusters by a
+[roadmap](decisions.md)). Lights are assigned to a 3D grid of view-space clusters by a
 compute pass. Each surface is then shaded once, in its own material program, from the lights
 listed for the cluster it falls in. There is no G-buffer. It was chosen over deferred shading
 for what this game draws:
@@ -1618,7 +1618,7 @@ A scene's look is a grade (11c, `Scene::ColourGradeComponent`, one a scene): a `
 (`render/ColourGrade.h`), 2 to 65 entries a side, applied by the output pass after the tonemap and
 before the fade, the bars and the UI, by a strength from 0 to 1 that mixes the graded colour with
 the ungraded. The table is looked up with the display's colour encoded sRGB, what a screenshot holds
-and a grading tool shows ([decided](roadmap.md#decided)), so a grade made in Resolve or Photoshop
+and a grading tool shows ([decided](decisions.md)), so a grade made in Resolve or Photoshop
 from a capture of the frame is the frame graded: the orbit scene graded by the sample's table
 (`grades/cold-light.cube`) is within one level, at every pixel, of its ungraded capture put through
 the table on the CPU (`Render::SampleLut`). The table is a resource, parsed on the I/O worker and
@@ -1635,7 +1635,7 @@ on its active camera, which a scene saved from the Scene panel keeps.
 The grid is screen tiles times depth slices, exponential in view distance: 32 × 18 × 48, tuned in
 5e against a station of 265 lights (`scripts/make-light-budget-scene.py`), where it shaded the
 opaque pass a fifth faster than the 16 × 9 × 24 it started at, on hardware and on lavapipe alike
-([decided](roadmap.md#decided)). Depth is reversed-Z with an infinite far plane,
+([decided](decisions.md)). Depth is reversed-Z with an infinite far plane,
 so the slices are computed from view-space distance, never from the depth buffer. They span the
 near plane to a finite **cluster range**. Past it, no local light is assigned, and a surface is lit
 by the sun, image-based lighting and its own emission. A station's lights seen from tens of
@@ -1763,7 +1763,7 @@ occlusion.
 - **No G-buffer.** Effects that need one stay out, and screen-space reflections are one: they
   would need each pixel's roughness, metalness and a scene colour to march through, and fall back
   to the environment cube at a seam black space makes plain (reconsidered 2026-11-11,
-  [decided](roadmap.md#decided)). Ambient occlusion is in (10c): the depth prepass writes
+  [decided](decisions.md)). Ambient occlusion is in (10c): the depth prepass writes
   view-space normals for it, and it attenuates the image-based light alone. The prepass writes
   object IDs too, for outlines, beside a stencil on the depth target (10c): masks that no material
   program writes.
@@ -1970,7 +1970,7 @@ proves it headlessly. What exists:
   and the UI, and the interface is what the shell calls. `DeviceContext` holds the
   instance, device, debug-utils messenger (with synchronization validation in Debug), object
   names, and the VMA allocator every buffer and image comes from. It draws with the GPU
-  `vulkan/DeviceChoice.h` chooses ([decided](roadmap.md#decided)): of the devices that can present to
+  `vulkan/DeviceChoice.h` chooses ([decided](decisions.md)): of the devices that can present to
   the window and have what the renderer needs, the one with a monitor connected, as its DRM card's
   connectors say, then a discrete GPU over an integrated one over the CPU; `--gpu <name>` asks for
   one, and the log lists every device and why it was or was not chosen. `Swapchain` prefers an sRGB
