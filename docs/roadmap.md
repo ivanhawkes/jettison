@@ -17,8 +17,8 @@ rounds: its findings were fixed (the commit after `96c1ace` records them), with 
 [history](history.md#neutral-sdk-and-manifest-integration). H07 closed Manifest's Stage 1 on
 2026-11-18: its pin is `e53681e`, and the acceptance matrix passed against that fetch
 ([Manifest's handoff](../../manifest/docs/session-handoff.md)). Manifest's C01 schema contract,
-C02 definitions and C03 content set (2026-11-18) named no engine gap; its C04 (in progress) named
-map fields, provisioned 2026-11-19.
+C02 definitions and C03 content set (2026-11-18) named no engine gap; its C04 (done 2026-11-19)
+named map fields, provisioned in `4d60ea0`, Manifest's pin. Next is its C05.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
