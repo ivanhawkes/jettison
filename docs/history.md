@@ -211,7 +211,7 @@ rounds: its findings were fixed (the commit after `96c1ace` records them), with 
 `Game::StarterShip` added. G01, the generic shell, is done, in
 [history](history.md#neutral-sdk-and-manifest-integration). H07 closed Manifest's Stage 1 on
 2026-11-18: its pin is `e53681e`, and the acceptance matrix passed against that fetch
-([Manifest's handoff](../../manifest/docs/session-handoff.md)). Manifest's C01 schema contract,
+([Manifest's history](../../manifest/docs/history.md)). Manifest's C01 schema contract,
 C02 definitions and C03 content set (2026-11-18) named no engine gap; its C04 (done 2026-11-19)
 named map fields, provisioned in `4d60ea0`, Manifest's pin; its C05 scenarios (done 2026-11-19)
 named none. Its C09, Jettison's ship and station definitions shared (done 2026-11-19), named
