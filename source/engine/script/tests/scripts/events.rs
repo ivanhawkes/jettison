@@ -24,6 +24,8 @@ pub extern "C" fn on_ping(ping: &Test_Ping) {
         total,
         text: ping.text,
         items: jettison_array_Test_Inner::new(&items),
+        // As a player, which the host does not let it be.
+        sender: Sim_Controller { kind: Sim_ControllerKind_Player, slot: 1 },
     });
     log(JETTISON_INFO, ping.text.as_str());
 }
@@ -41,6 +43,7 @@ pub extern "C" fn bad_send(ping: &Test_Ping) {
         total: 0,
         text: jettison_string { data: 0x7fff_fff0 as *const u8, size: 100 },
         items: jettison_array_Test_Inner::new(&[]),
+        sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
     });
 }
 
@@ -67,6 +70,7 @@ pub extern "C" fn sends() -> f64 {
         total: 0,
         text: jettison_string::new(""),
         items: jettison_array_Test_Inner::new(&[]),
+        sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
     });
     1.0
 }

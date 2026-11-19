@@ -86,6 +86,8 @@ Script::ScriptDefinition Limits()
 
 // The host API's module, in C and in Rust: each test of it runs against both.
 constexpr std::array<const char *, 2> kEventModules{"events.wasm", "events_rs.wasm"};
+// Who the game has scripts command as.
+constexpr Sim::Controller kScripts{Sim::ControllerKind::Ai, 9};
 
 
 Script::ScriptDefinition Events(const char *module = kEventModules[0])
@@ -264,7 +266,7 @@ TEST_CASE("Script: a module is refused for what it imports and is not granted")
 		World world;
 		const Vfs::FileSystem files = Modules();
 		Script::ScriptHost host{files};
-		host.SendCommandsTo(world.world);
+		host.SendCommandsTo(world.world, kScripts);
 
 		SUBCASE("a command it sends")
 		{
@@ -330,7 +332,7 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 
 	Script::ScriptDefinition definition = Events();
 	CHECK(refused(definition) == "Script 'events': 'send:Test.Pong' grants a command nothing applies");
-	host.SendCommandsTo(world.world);
+	host.SendCommandsTo(world.world, kScripts);
 	CHECK(refused(definition).empty());
 
 	definition = Events();
@@ -397,7 +399,7 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 		World world;
 		const Vfs::FileSystem files = Modules();
 		Script::ScriptHost host{files};
-		host.SendCommandsTo(world.world);
+		host.SendCommandsTo(world.world, kScripts);
 		host.Load("events", Events(module));
 
 		const Said said;
@@ -423,6 +425,8 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 		CHECK(sent[0].total == 106 + 7);
 		CHECK(sent[0].text == "a ping");
 		CHECK(sent[0].items == std::vector<Inner>{{Mood::Cross, 9}, {Mood::Cross, 1}});
+		// The script names a player as the sender; the host's replaces it.
+		CHECK(sent[0].sender == kScripts);
 		CHECK(sent[1].total == 106);
 		CHECK(sent[1].text.empty());
 		// The second ping is the handler's second: what it counted was kept.
@@ -444,7 +448,7 @@ TEST_CASE("Script: a command whose memory does not read is refused, and nothing 
 		World world;
 		const Vfs::FileSystem files = Modules();
 		Script::ScriptHost host{files};
-		host.SendCommandsTo(world.world);
+		host.SendCommandsTo(world.world, kScripts);
 		Script::ScriptDefinition definition = Events(module);
 		definition.events = {{"Test.Ping", "bad_send"}};
 		host.Load("events", definition);
@@ -452,6 +456,27 @@ TEST_CASE("Script: a command whose memory does not read is refused, and nothing 
 		host.Dispatch(Sim::SimEvent{1, entt::meta_any{Ping{}}});
 		CHECK(said.Contains(
 		    "bad_send trapped: Script: Test.Pong.text: 100 bytes at 2147483632 are past the end"));
+		CHECK(Queued(world.world).empty());
+		CHECK(Traps(host, "events") == 1);
+	}
+}
+
+
+TEST_CASE("Script: a command naming its sender is refused where the host gives scripts no sender")
+{
+	for (const char *module : kEventModules)
+	{
+		CAPTURE(module);
+		World world;
+		const Vfs::FileSystem files = Modules();
+		Script::ScriptHost host{files};
+		host.SendCommandsTo(world.world);
+		host.Load("events", Events(module));
+		const Said said;
+		host.Dispatch(Sim::SimEvent{1, entt::meta_any{Ping{}}});
+		CHECK(said.Contains(
+		    "on_ping trapped: Script: a 'Test.Pong' names its sender, and the host gives scripts "
+		    "none"));
 		CHECK(Queued(world.world).empty());
 		CHECK(Traps(host, "events") == 1);
 	}
@@ -467,7 +492,7 @@ TEST_CASE(
 		World world;
 		const Vfs::FileSystem files = Modules();
 		Script::ScriptHost host{files};
-		host.SendCommandsTo(world.world);
+		host.SendCommandsTo(world.world, kScripts);
 		host.Load("events", Events(module));
 
 		const Script::Inputs game = [](std::string_view input) -> double
@@ -519,7 +544,7 @@ TEST_CASE("Script: every script the registry defines loads, and one that does no
 	Sim::DefinitionRegistry definitions{files};
 	Script::LoadDefinitions(definitions);
 	Script::ScriptHost host{files};
-	host.SendCommandsTo(world.world);
+	host.SendCommandsTo(world.world, kScripts);
 	const Said said;
 	CHECK(host.LoadAll(definitions) == 1);
 	CHECK(said.Contains(

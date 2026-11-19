@@ -42,8 +42,13 @@ the most pressing. The decisions they waited on are settled, under [decided](dec
 Each of these fixes what a save holds or the shape of what goes into and out of the step, and gets
 dearer with every save a player has and once a second player sends commands.
 
-Empty since phase 12 and 13d took it ([history](history.md)). What comes up next that fixes a
-save's shape or the step's interface goes here first.
+- **Who a script commands as, under networked play** (with N01, N02): the host now replaces every
+  top-level `Sim::Controller` of a script's command with the one sender `SendCommandsTo` was given,
+  and the shell gives none ([architecture](architecture.md#scripts)). With several players the
+  server is authoritative over whose context a script runs in, call by call: a handler run for a
+  player's event sends as that player, an NPC's as that NPC, and no client or script can name
+  another player or an NPC. It also reaches a `Sim::Controller` nested inside a command's fields,
+  which the host does not yet stamp.
 
 ### Next: what the game's next slices stand on
 

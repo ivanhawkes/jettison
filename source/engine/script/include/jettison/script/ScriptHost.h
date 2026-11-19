@@ -17,6 +17,7 @@
 
 #include <jettison/script/Bindings.h>
 #include <jettison/script/ScriptDefinition.h>
+#include <jettison/sim/Controller.h>
 
 namespace Jettison::Vfs
 {
@@ -128,7 +129,12 @@ class ScriptHost
 
 	// Where scripts' commands go: the world's queue, for a command type the world applies and
 	// Reflect marks Script. Without a world, a definition granting a command does not load.
-	void SendCommandsTo(Sim::SimWorld &world);
+	//
+	// A command's sender is the host's to say, not the script's: each of its fields that is a
+	// Sim::Controller is replaced by the sender given, the game's choice of who scripts command as.
+	// With none given, a command with such a field is refused as it is sent, a trap, so a script
+	// cannot command as no one in particular (which MayCommand lets command anything) or as a player.
+	void SendCommandsTo(Sim::SimWorld &world, std::optional<Sim::Controller> sender = std::nullopt);
 
 	// Loads a script under its name: its definition checked against the host's limits, its module
 	// read and parsed, every import checked against what it is granted, every handler's and input's
@@ -198,6 +204,7 @@ class ScriptHost
 	const Vfs::FileSystem &m_fileSystem;
 	HostLimits m_limits;
 	Sim::SimWorld *m_pWorld{nullptr};
+	std::optional<Sim::Controller> m_sender;
 	Bindings m_bindings;
 	struct Impl;
 	std::unique_ptr<Impl> m_pImpl;

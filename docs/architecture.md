@@ -903,7 +903,10 @@ a string or a vector as a pointer and a count, a registered class nested. A fiel
 `std::optional`) is left out, and said to be. The host copies an event into a handler's memory in
 that layout, and reads a command out of it, checking every pointer and count against the memory's
 bounds, every bool and every enumerator; so nothing crosses the boundary but bytes, and a script reads
-and writes plain structs. From the same layouts the host writes the bindings a script is built
+and writes plain structs. A command's sender is the host's, not the script's: each `Sim::Controller`
+field of a command a script sends is replaced by the one the game gives `ScriptHost::SendCommandsTo`,
+and with none given such a command traps, so a script commands neither as no one in particular, which
+commands anything, nor as a player. The shell gives none yet. From the same layouts the host writes the bindings a script is built
 against, a C header (`jettison_script.h`) and a Rust module (`jettison_script.rs`), each asserting
 every size and offset, so a script built against another build's types fails to compile rather than
 misreading. The shell's console writes both (`script_bindings <directory>`).

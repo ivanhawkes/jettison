@@ -1,6 +1,8 @@
 #pragma once
 
 #include <jettison/reflect/Reflect.h>
+#include <jettison/sim/Controller.h>
+#include <jettison/sim/Snapshot.h>
 
 #include <entt/entt.hpp>
 #include <glm/vec3.hpp>
@@ -47,6 +49,8 @@ struct Pong
 	std::int64_t total{0};
 	std::string text;
 	std::vector<Inner> items;
+	// Whatever the script writes, the host's sender.
+	Jettison::Sim::Controller sender;
 };
 
 inline void RegisterTypes()
@@ -54,6 +58,7 @@ inline void RegisterTypes()
 	static const bool registered = []
 	{
 		using namespace Jettison::Reflect;
+		Jettison::Sim::RegisterTypes();
 		RegisterEnum<Mood>("Test.Mood").Value<Mood::Calm>("Calm").Value<Mood::Cross>("Cross");
 		RegisterType<Inner>("Test.Inner").Field<&Inner::mood>("mood").Field<&Inner::weight>("weight");
 		RegisterType<Ping>("Test.Ping", Attribute::Script)
@@ -70,7 +75,8 @@ inline void RegisterTypes()
 		    .Field<&Pong::ship>("ship", Attribute::Saved)
 		    .Field<&Pong::total>("total", Attribute::Saved)
 		    .Field<&Pong::text>("text", Attribute::Saved)
-		    .Field<&Pong::items>("items", Attribute::Saved);
+		    .Field<&Pong::items>("items", Attribute::Saved)
+		    .Field<&Pong::sender>("sender", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;

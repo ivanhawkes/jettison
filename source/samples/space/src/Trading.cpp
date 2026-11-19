@@ -435,6 +435,10 @@ void ApplyTrade(Sim::SimWorld &world, const Trade &trade)
 	}
 	else
 	{
+		// The one count with no positive twin: negated, it stays negative, passes the hold's check
+		// and wraps the purse and the hold.
+		if (trade.crates == std::numeric_limits<std::int64_t>::min())
+			return Refuse(world, trade, TradeReason::SaleTooLarge);
 		const std::int64_t crates = -trade.crates;
 		price = good->bid;
 		if (held == hold.cargo.end() || held->crates < crates)

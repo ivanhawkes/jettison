@@ -16,6 +16,8 @@
 
 #include <doctest/doctest.h>
 
+#include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -255,6 +257,21 @@ TEST_CASE("Trading: a trade that cannot be made is refused, saying why, and chan
 	harbour.world.Step();
 	CHECK(harbour.Refusals() == std::vector<std::string>{"the ship is not docked at Ostra Highport"});
 	CHECK(registry.get<Hold>(harbour.ship).cargo.empty());
+}
+
+
+TEST_CASE("Trading: a sale of the lowest count of crates is refused, its negation being no count")
+{
+	Harbour harbour;
+	harbour.Push("beer", 2);
+	harbour.world.Step();
+	harbour.world.Events().Take();
+	const std::int64_t credits = harbour.Credits();
+	harbour.Push("beer", std::numeric_limits<std::int64_t>::min());
+	harbour.world.Step();
+	CHECK(harbour.Refusals() == std::vector<std::string>{"the sale is worth more than a purse holds"});
+	CHECK(harbour.Credits() == credits);
+	CHECK(harbour.world.Registry().get<Hold>(harbour.ship).Used() == 2);
 }
 
 

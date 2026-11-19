@@ -582,9 +582,10 @@ ScriptHost::ScriptHost(const Vfs::FileSystem &fileSystem, HostLimits limits)
 ScriptHost::~ScriptHost() = default;
 
 
-void ScriptHost::SendCommandsTo(Sim::SimWorld &world)
+void ScriptHost::SendCommandsTo(Sim::SimWorld &world, std::optional<Sim::Controller> sender)
 {
 	m_pWorld = &world;
+	m_sender = sender;
 }
 
 namespace
@@ -1041,6 +1042,19 @@ void ScriptHost::Impl::Send(
 	        wasm_memory_get_cur_page_count(memory) * wasm_memory_get_bytes_per_page(memory))};
 	entt::meta_any command = type.construct();
 	host.m_bindings.Read(layout, bytes, offset, ObjectOf(command));
+	const entt::meta_type controller = entt::resolve<Sim::Controller>();
+	for (const entt::meta_data &field : Reflect::Fields(type))
+	{
+		if (field.type() != controller)
+			continue;
+		if (!host.m_sender)
+			throw BindingError{std::format(
+			    "Script: a '{}' names its sender, and the host gives scripts none to send as",
+			    type.name())};
+		if (!field.set(command, *host.m_sender))
+			throw BindingError{
+			    std::format("Script: the sender of a '{}' could not be set", type.name())};
+	}
 	host.m_pWorld->Commands().Push(std::move(command));
 }
 

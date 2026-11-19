@@ -187,6 +187,24 @@ TEST_CASE("Pack: a file no virtual path could name is left out and reported")
 }
 
 
+TEST_CASE("Pack: a pack that cannot be written leaves nothing behind it, and the old pack as it was")
+{
+	const Scratch scratch;
+	PutBase(scratch);
+	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
+	const std::string before = scratch.Contents("base.pack");
+	scratch.Put("assets/locked.yaml", "locked");
+	std::filesystem::permissions(scratch.Path("assets/locked.yaml"), std::filesystem::perms::none);
+	// Root reads it anyway, and the case is not made.
+	if (std::ifstream{scratch.Path("assets/locked.yaml")})
+		return;
+
+	CHECK_THROWS_AS(WritePack(scratch.Path("assets"), scratch.Path("base.pack")), std::runtime_error);
+	CHECK_FALSE(std::filesystem::exists(scratch.Path("base.pack.partial")));
+	CHECK(scratch.Contents("base.pack") == before);
+}
+
+
 TEST_CASE("Pack: the directories named are packed, each file once, and nothing beside them")
 {
 	const Scratch scratch;

@@ -32,4 +32,7 @@ std::shared_ptr<const Source> MakeDirectorySource(std::filesystem::path root);
 
 // Throws std::runtime_error naming the pack and what is wrong with it.
 std::shared_ptr<const Source> MakePackSource(const std::filesystem::path &pack);
+
+// A file on the disk, whole. Throws std::runtime_error naming it if it cannot be opened or read.
+std::vector<std::byte> ReadWhole(const std::filesystem::path &path);
 } // namespace Jettison::Vfs::Detail

@@ -257,6 +257,9 @@ TEST_CASE("Deck: bought and sold back before crossing, crates do not cross")
 	CHECK(registry.get<Dock::Transfer>(ship) == Dock::Transfer{4, 0, 0});
 	REQUIRE(Dock::Carry(registry, ship, -9));
 	CHECK(registry.get<Dock::Transfer>(ship) == Dock::Transfer{0, 5, 0});
+	// The lowest count, which negated is still negative, is refused.
+	CHECK_FALSE(Dock::Carry(registry, ship, std::numeric_limits<std::int64_t>::min()));
+	CHECK(registry.get<Dock::Transfer>(ship) == Dock::Transfer{0, 5, 0});
 
 	// A ship that is not docked has nothing carried.
 	const entt::entity flying = deck.Ship(deck.station, "shuttle", {0.0, 3000.0, 0.0});

@@ -170,7 +170,8 @@ struct Buggy
 // Crates to cross the deck for a ship docked at a station: carried aboard (a positive count) or off
 // (a negative one), the game's trade having settled them. Crates bought back before they are off,
 // or sold before they are aboard, need not cross. Called from a command, as the game's trade is.
-// Returns false, doing nothing, for a ship that is not docked.
+// Returns false, doing nothing, for a ship that is not docked, or for the lowest std::int64_t,
+// which has no count of crates off to match it.
 bool Carry(entt::registry &registry, entt::entity ship, std::int64_t crates);
 
 // The crates still to cross the deck for a ship, aboard and off it together, the ones on their way

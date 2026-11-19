@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -104,7 +105,9 @@ std::int64_t Take(std::int64_t &from, std::int64_t most)
 bool Carry(entt::registry &registry, entt::entity ship, std::int64_t crates)
 {
 	const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
-	if (!docking || docking->stage != Stage::Docked)
+	// The lowest count has no positive twin: negated, it would stay negative.
+	if (!docking || docking->stage != Stage::Docked ||
+	    crates == std::numeric_limits<std::int64_t>::min())
 		return false;
 	Transfer &transfer = registry.get_or_emplace<Transfer>(ship);
 	if (crates > 0)

@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <format>
-#include <fstream>
 #include <ranges>
 #include <stdexcept>
 #include <system_error>
@@ -49,17 +48,7 @@ class DirectorySource final : public Detail::Source
 		std::error_code error;
 		if (!std::filesystem::is_regular_file(path, error))
 			return std::nullopt;
-
-		std::ifstream file{path, std::ios::binary | std::ios::ate};
-		const std::streamoff size = file ? static_cast<std::streamoff>(file.tellg()) : -1;
-		if (size < 0)
-			throw std::runtime_error{std::format("Vfs: {} could not be opened", path.string())};
-		std::vector<std::byte> bytes(static_cast<std::size_t>(size));
-		file.seekg(0);
-		file.read(reinterpret_cast<char *>(bytes.data()), size);
-		if (file.gcount() != size)
-			throw std::runtime_error{std::format("Vfs: {} could not be read", path.string())};
-		return bytes;
+		return Detail::ReadWhole(path);
 	}
 
 

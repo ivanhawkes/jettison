@@ -129,6 +129,23 @@ impl jettison_array_Test_Inner {
     }
 }
 
+/// Sim.ControllerKind
+pub type Sim_ControllerKind = u8;
+pub const Sim_ControllerKind_None: Sim_ControllerKind = 0;
+pub const Sim_ControllerKind_Player: Sim_ControllerKind = 1;
+pub const Sim_ControllerKind_Ai: Sim_ControllerKind = 2;
+
+/// Sim.Controller
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Sim_Controller {
+    pub kind: Sim_ControllerKind,
+    pub slot: u32,
+}
+const _: () = assert!(size_of::<Sim_Controller>() == 8);
+const _: () = assert!(offset_of!(Sim_Controller, kind) == 0);
+const _: () = assert!(offset_of!(Sim_Controller, slot) == 4);
+
 /// Test.Pong
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -137,12 +154,14 @@ pub struct Test_Pong {
     pub total: i64,
     pub text: jettison_string,
     pub items: jettison_array_Test_Inner,
+    pub sender: Sim_Controller,
 }
-const _: () = assert!(size_of::<Test_Pong>() == 32);
+const _: () = assert!(size_of::<Test_Pong>() == 40);
 const _: () = assert!(offset_of!(Test_Pong, ship) == 0);
 const _: () = assert!(offset_of!(Test_Pong, total) == 8);
 const _: () = assert!(offset_of!(Test_Pong, text) == 16);
 const _: () = assert!(offset_of!(Test_Pong, items) == 24);
+const _: () = assert!(offset_of!(Test_Pong, sender) == 32);
 
 #[link(wasm_import_module = "jettison")]
 unsafe extern "C" {

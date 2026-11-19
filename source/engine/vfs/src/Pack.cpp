@@ -288,20 +288,6 @@ class PackSource final : public Detail::Source
 };
 
 
-std::vector<std::byte> ReadWhole(const std::filesystem::path &path)
-{
-	std::ifstream file{path, std::ios::binary | std::ios::ate};
-	const std::streamoff size = file ? static_cast<std::streamoff>(file.tellg()) : -1;
-	if (size < 0)
-		throw std::runtime_error{std::format("Vfs: {} could not be opened", path.string())};
-	std::vector<std::byte> bytes(static_cast<std::size_t>(size));
-	file.seekg(0);
-	file.read(reinterpret_cast<char *>(bytes.data()), size);
-	if (file.gcount() != size)
-		throw std::runtime_error{std::format("Vfs: {} could not be read", path.string())};
-	return bytes;
-}
-
 struct ContextDeleter
 {
 	void operator()(ZSTD_CCtx *context) const
@@ -332,6 +318,21 @@ std::vector<std::byte> Compress(ZSTD_CCtx &context, std::span<const std::byte> b
 std::shared_ptr<const Detail::Source> Detail::MakePackSource(const std::filesystem::path &pack)
 {
 	return std::make_shared<PackSource>(pack);
+}
+
+
+std::vector<std::byte> Detail::ReadWhole(const std::filesystem::path &path)
+{
+	std::ifstream file{path, std::ios::binary | std::ios::ate};
+	const std::streamoff size = file ? static_cast<std::streamoff>(file.tellg()) : -1;
+	if (size < 0)
+		throw std::runtime_error{std::format("Vfs: {} could not be opened", path.string())};
+	std::vector<std::byte> bytes(static_cast<std::size_t>(size));
+	file.seekg(0);
+	file.read(reinterpret_cast<char *>(bytes.data()), size);
+	if (file.gcount() != size)
+		throw std::runtime_error{std::format("Vfs: {} could not be read", path.string())};
+	return bytes;
 }
 
 
@@ -395,6 +396,21 @@ PackSummary WritePack(
 	const std::filesystem::path partial = pack.string() + ".partial";
 	if (pack.has_parent_path())
 		std::filesystem::create_directories(pack.parent_path(), error);
+	// Removed on every way out but the rename, a source that cannot be read or a zstd failure
+	// among them. Declared before the stream, so the stream is closed first.
+	struct Discard
+	{
+		const std::filesystem::path &path;
+		bool kept{false};
+
+
+		~Discard()
+		{
+			std::error_code ignored;
+			if (!kept)
+				std::filesystem::remove(path, ignored);
+		}
+	} discard{partial};
 	std::ofstream out{partial, std::ios::binary | std::ios::trunc};
 	if (!out)
 		throw std::runtime_error{std::format("Vfs: {} could not be written", partial.string())};
@@ -409,7 +425,7 @@ PackSummary WritePack(
 	std::uint64_t offset = kHeaderSize;
 	for (const auto &[path, source] : files)
 	{
-		std::vector<std::byte> bytes = ReadWhole(source);
+		std::vector<std::byte> bytes = Detail::ReadWhole(source);
 		const std::uint64_t size = bytes.size();
 		Method method = Method::Stored;
 		std::vector<std::byte> stored;
@@ -451,17 +467,12 @@ PackSummary WritePack(
 	out.close();
 	summary.packedBytes = offset + index.size();
 	if (!out)
-	{
-		std::filesystem::remove(partial, error);
 		throw std::runtime_error{std::format("Vfs: {} could not be written", partial.string())};
-	}
 	std::filesystem::rename(partial, pack, error);
 	if (error)
-	{
-		std::filesystem::remove(partial, error);
 		throw std::runtime_error{
 		    std::format("Vfs: {} could not be put in place: {}", pack.string(), error.message())};
-	}
+	discard.kept = true;
 	return summary;
 }
 } // namespace Jettison::Vfs

@@ -251,9 +251,10 @@ out of the shared shell, and nothing in the shell becomes a release/runtime depe
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
 headless render test, from the packed assets → reference frames,
-from the staged directory, and with `--asan`, the render test and the `vfs`, `resource`, `sim`,
-`spatial`, `physics`, `space`, `ai`, `dock`, `script` and `host` suites under the sanitisers (`vfs` and
-`script` for the packs and the modules, whose bytes are a mod's; `resource` for loaders' callbacks
+from the staged directory, and with `--asan`, the render test and the `vfs`, `serialise`, `resource`,
+`sim`, `spatial`, `physics`, `space`, `ai`, `dock`, `script` and `host` suites under the sanitisers
+(`vfs` and `script` for the packs and the modules, whose bytes are a mod's; `serialise` for the binary
+reader, which parses every save and its truncations; `resource` for loaders' callbacks
 that load more, which once moved the slot `Finish` held; `host` for what a failed start-up and a
 teardown release). The simulation's state hashes are pinned in those
 suites, so running them in every tree is what holds Release and the sanitised build to the Debug

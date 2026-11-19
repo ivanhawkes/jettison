@@ -112,6 +112,22 @@ typedef struct jettison_array_Test_Inner
 	uint32_t size;
 } jettison_array_Test_Inner;
 
+/* Sim.ControllerKind */
+typedef uint8_t Sim_ControllerKind;
+#define Sim_ControllerKind_None ((Sim_ControllerKind)0u)
+#define Sim_ControllerKind_Player ((Sim_ControllerKind)1u)
+#define Sim_ControllerKind_Ai ((Sim_ControllerKind)2u)
+
+/* Sim.Controller */
+typedef struct Sim_Controller
+{
+	Sim_ControllerKind kind;
+	uint32_t slot;
+} Sim_Controller;
+_Static_assert(sizeof(Sim_Controller) == 8, "Sim.Controller is laid out as the host lays it out");
+_Static_assert(offsetof(Sim_Controller, kind) == 0, "Sim.Controller.kind");
+_Static_assert(offsetof(Sim_Controller, slot) == 4, "Sim.Controller.slot");
+
 /* Test.Pong */
 typedef struct Test_Pong
 {
@@ -119,12 +135,14 @@ typedef struct Test_Pong
 	int64_t total;
 	jettison_string text;
 	jettison_array_Test_Inner items;
+	Sim_Controller sender;
 } Test_Pong;
-_Static_assert(sizeof(Test_Pong) == 32, "Test.Pong is laid out as the host lays it out");
+_Static_assert(sizeof(Test_Pong) == 40, "Test.Pong is laid out as the host lays it out");
 _Static_assert(offsetof(Test_Pong, ship) == 0, "Test.Pong.ship");
 _Static_assert(offsetof(Test_Pong, total) == 8, "Test.Pong.total");
 _Static_assert(offsetof(Test_Pong, text) == 16, "Test.Pong.text");
 _Static_assert(offsetof(Test_Pong, items) == 24, "Test.Pong.items");
+_Static_assert(offsetof(Test_Pong, sender) == 32, "Test.Pong.sender");
 
 /* Granted by "send:Test.Pong": the command, into the game's queue, applied at the start of the next
  * step and recorded with the player's. */
