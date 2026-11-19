@@ -127,7 +127,8 @@ class Probe : public Sim::WorldService
 
 
 	std::function<void()> Load(
-	    Serialise::BinaryReader & /*reader*/, const entt::registry & /*loaded*/) override
+	    Serialise::BinaryReader & /*reader*/, const entt::registry & /*loaded*/,
+	    std::span<const entt::meta_any> /*queued*/) override
 	{
 		return [] {};
 	}

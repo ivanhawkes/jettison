@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -317,7 +318,9 @@ class PhysicsWorld final : public Sim::WorldService
 	// contacts Jolt warm-starts each step from, and with each awake body's time at rest begun again
 	// (docs/architecture.md, "Persistence"). What touches is kept, and the contacts Jolt finds
 	// again in the first step begin nothing.
-	std::function<void()> Load(Serialise::BinaryReader &reader, const entt::registry &loaded) override;
+	std::function<void()> Load(
+	    Serialise::BinaryReader &reader, const entt::registry &loaded,
+	    std::span<const entt::meta_any> queued) override;
 
 	// What Save writes as Jolt's version, in place of this build's: a save that a load rebuilds, as
 	// it would one of a Jolt upgrade, which one build's single Jolt cannot otherwise give a test. The

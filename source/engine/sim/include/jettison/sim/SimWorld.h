@@ -116,12 +116,14 @@ class WorldService
 	virtual void Save(Serialise::BinaryWriter &writer) const = 0;
 
 	// Reads a save's state against the registry the save is being loaded into, which is complete
-	// but not yet the world's, without changing the service. Returns what puts the state in place,
-	// which the world calls once that registry is its own and which does not throw. Throws
-	// FormatError, through reader.Fail, for state that does not fit, and the world is then as it
-	// was.
+	// but not yet the world's, and the commands the save queues, in the order they will run, without
+	// changing the service. A service whose state answers for queued work, such as a ledger of the
+	// requests it queued, checks the two agree. Returns what puts the state in place, which the
+	// world calls once that registry is its own and which does not throw. Throws FormatError,
+	// through reader.Fail, for state that does not fit, and the world is then as it was.
 	virtual std::function<void()> Load(
-	    Serialise::BinaryReader &reader, const entt::registry &loaded) = 0;
+	    Serialise::BinaryReader &reader, const entt::registry &loaded,
+	    std::span<const entt::meta_any> queued) = 0;
 };
 
 // A component's migrations: a chain over the binary record of one value (Serialise::BinaryRecord),

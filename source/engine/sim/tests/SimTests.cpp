@@ -11,6 +11,7 @@
 
 #include <glm/vec3.hpp>
 
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -259,7 +260,9 @@ class Tally final : public Sim::WorldService
 	}
 
 
-	std::function<void()> Load(Serialise::BinaryReader &reader, const entt::registry &loaded) override
+	std::function<void()> Load(
+	    Serialise::BinaryReader &reader, const entt::registry &loaded,
+	    std::span<const entt::meta_any> /*queued*/) override
 	{
 		std::uint64_t saved = 0;
 		reader.Read(saved);
@@ -270,6 +273,35 @@ class Tally final : public Sim::WorldService
 		if (saved < held)
 			reader.Fail("the tally is less than the holds have");
 		return [this, saved] { ore = saved; };
+	}
+};
+
+
+// State that answers for queued work, as a game's ledger of the requests it queued does: the name of
+// the ship the first Spawn queued is to make.
+class Expected final : public Sim::WorldService
+{
+  public:
+	std::string first;
+
+
+	void Save(Serialise::BinaryWriter &writer) const override
+	{
+		writer.WriteName(first);
+	}
+
+
+	std::function<void()> Load(
+	    Serialise::BinaryReader &reader, const entt::registry & /*loaded*/,
+	    std::span<const entt::meta_any> queued) override
+	{
+		std::string saved{reader.ReadName()};
+		const auto spawn = std::ranges::find_if(
+		    queued,
+		    [](const entt::meta_any &command) { return command.type() == entt::resolve<Spawn>(); });
+		if (spawn == queued.end() ? !saved.empty() : spawn->cast<const Spawn &>().name != saved)
+			reader.Fail("the queue is not the one the service expects");
+		return [this, saved = std::move(saved)] { first = saved; };
 	}
 };
 
@@ -790,6 +822,39 @@ TEST_CASE("Sim: a service's state is saved with the world, and loaded with it or
 	    refusing.Load(source.Save()), doctest::Contains("the tally is less than the holds have"),
 	    Serialise::FormatError);
 	CHECK(refusing.StateHash() == before);
+}
+
+
+TEST_CASE("Sim: a service is loaded with the commands the save queues, in order, and can refuse them")
+{
+	RegisterTypes();
+	Sim::SimWorld original{kStep, kSeed};
+	Populate(original);
+	auto owned = std::make_unique<Expected>();
+	Expected &expected = *owned;
+	original.AddService("expected", std::move(owned));
+	original.Commands().Push(Scrap{});
+	original.Commands().Push(Spawn{"first", {}});
+	original.Commands().Push(Spawn{"second", {}});
+	expected.first = "first";
+
+	Sim::SimWorld loaded{kStep, kSeed};
+	Populate(loaded);
+	auto loadedOwned = std::make_unique<Expected>();
+	const Expected &loadedExpected = *loadedOwned;
+	loaded.AddService("expected", std::move(loadedOwned));
+	loaded.Load(original.Save());
+	CHECK(loadedExpected.first == "first");
+	CHECK(loaded.Commands().Pending().size() == 3);
+
+	// The service's state and the queue disagree: the world, and the service, are as they were.
+	expected.first = "second";
+	const std::uint64_t before = loaded.StateHash();
+	CHECK_THROWS_WITH_AS(
+	    loaded.Load(original.Save()), doctest::Contains("the queue is not the one the service expects"),
+	    Serialise::FormatError);
+	CHECK(loaded.StateHash() == before);
+	CHECK(loadedExpected.first == "first");
 }
 
 

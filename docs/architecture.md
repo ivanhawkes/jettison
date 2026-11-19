@@ -375,7 +375,7 @@ gate kept by a station arrives in the station's.
 Physics is part of the simulation's state, not a service beside it (`physics/PhysicsWorld.h`, 7a).
 `PhysicsWorld::Attach` gives the world a `Sim::WorldService`: state the world keeps outside its
 registry, which it owns, saves after the components and hashes with them, and loads in two halves,
-read against the registry being loaded and then committed with it, so a save that does not fit
+read against the registry and the command queue being loaded and then committed with them, so a save that does not fit
 leaves world and physics as they were. A body is an entity with a `Physics::Body` (its kind, a
 shape by name, its mass and material), a `Sim::Transform` and a `Sim::InFrame`; the game sees no
 Jolt type. Shapes are definitions (`Physics::ShapeDefinition`, through the definition registry, so

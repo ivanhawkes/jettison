@@ -1165,7 +1165,8 @@ void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 
 
 std::function<void()> PhysicsWorld::Load(
-    Serialise::BinaryReader &reader, const entt::registry & /*loaded*/)
+    Serialise::BinaryReader &reader, const entt::registry & /*loaded*/,
+    std::span<const entt::meta_any> /*queued*/)
 {
 	// The records may name entities the save no longer has, or whose Body, frame or local frame changed
 	// after physics ran in the step the save was taken after: the next step deals with them as it

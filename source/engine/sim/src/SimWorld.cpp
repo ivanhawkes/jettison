@@ -290,8 +290,8 @@ void SimWorld::Load(std::span<const std::byte> save)
 		    loader, reader, component->migrations, version == versions.end() ? 1 : version->second);
 	}
 
-	// A service reads its state against the registry it will have, and keeps it aside until the
-	// registry is committed.
+	// A service reads its state against the registry and the queue it will have, and keeps it aside
+	// until they are committed.
 	std::vector<std::function<void()>> commits(m_services.size());
 	const auto serviceCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 	for (std::uint32_t index = 0; index < serviceCount; ++index)
@@ -304,7 +304,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 		auto &commit = commits[static_cast<std::size_t>(service - m_services.begin())];
 		if (commit)
 			reader.Fail(std::format("the save holds service '{}' twice", name));
-		commit = service->service->Load(reader, registry);
+		commit = service->service->Load(reader, registry, pending);
 		if (!commit)
 			reader.Fail(std::format("service '{}' read its state and gave nothing to commit", name));
 	}
