@@ -16,7 +16,8 @@ one, a service loaded with the commands a save queues, provisioned in
 [history](history.md#neutral-sdk-and-manifest-integration). Its N01 (2026-11-20) settled the network
 seam ([decided](decisions.md)), and N02 is done in both (2026-11-20,
 [history](history.md#neutral-sdk-and-manifest-integration)): the engine's `net`, and Manifest's
-dedicated server and TUI client on it, on the pin `65846bb`. Manifest's N03 is next.
+dedicated server and TUI client on it, on the pin `65846bb`. N03 is done in Manifest with no engine
+edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)); its W02 is next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.

@@ -266,6 +266,13 @@ resolved from its token by the verifier and its snapshot the actor's own view, a
 revokes tokens with `GenerateToken` and `DigestToken`, and the TUI's `connect` and `disconnect` play
 on the server through `Net::Client` ([Manifest's history](../../manifest/docs/history.md#n02-the-dedicated-server-and-remote-tui--2026-11-20)).
 
+Manifest's N03 (2026-11-20) needed no engine edit either, on the same pin: several clients at once,
+an actor in up to three sessions (Manifest's D-082, its fourth closed as `ServerFull` after
+admission, since a `Verifier` refuses only as `BadCredential`), a reconnect's retry under the same
+sequence, `InboundOverflow` past `maxInbound` and the world stepping with no session
+([Manifest's history](../../manifest/docs/history.md#n03-several-clients-reconnects-and-bounds--2026-11-20)).
+One session per actor, for a variant where two would both steer, would want a `Superseded` reason.
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
