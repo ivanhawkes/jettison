@@ -19,8 +19,9 @@ rounds: its findings were fixed (the commit after `96c1ace` records them), with 
 ([Manifest's handoff](../../manifest/docs/session-handoff.md)). Manifest's C01 schema contract,
 C02 definitions and C03 content set (2026-11-18) named no engine gap; its C04 (done 2026-11-19)
 named map fields, provisioned in `4d60ea0`, Manifest's pin; its C05 scenarios (done 2026-11-19)
-named none. Its C09, Jettison's ship and station definitions shared, is in progress: its one
-gap, the fit rule without a world (`Dock::Fits`), provisioned 2026-11-19; then C06.
+named none. Its C09, Jettison's ship and station definitions shared (done 2026-11-19), named
+the fit rule without a world (`Dock::Fits`), provisioned in `15e2561`, Manifest's pin. Next is
+its C06.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
