@@ -592,3 +592,14 @@ Settled on 2026-11-10:
   remove. `SaveInfo::details`, key and value strings read with the info, replace its `galaxy` and
   `system`; binary metadata sections were the alternative, which a list would have to decode and a
   version 1 save's step would have to write in a format the simulation defined for the shell.
+- **The network seam is ENet over UDP, with a game's verifier and bearer tokens** (2026-11-20, the
+  user's, with Manifest's N01; [its contract](../../manifest/docs/gameplay-and-server-plan.md#network-contract-n01-2026-11-20)). A connection has
+  reliable-ordered and unreliable-sequenced channels, so one stack carries an idle game's requests
+  and a real-time combat variant's inputs and snapshots. The engine runs the handshake (protocol
+  name, version, opaque credential) and asks the game's verifier, generates and checks bearer
+  tokens against digests, frames messages as a kind and an archive-encoded body under a size
+  limit, bounds each session's inbound queue, and sends each session the newest snapshot its
+  callback gives at a bounded rate. Connections are plaintext until libsodium encryption (a key
+  exchange in the handshake, the server's key pinned), which hosting outside a trusted network
+  waits for. TCP through Asio was the alternative, which a real-time variant would outgrow; TLS
+  does not run over UDP, and yojimbo's connect tokens would have shaped the game's accounts.

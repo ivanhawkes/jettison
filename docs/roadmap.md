@@ -13,7 +13,8 @@ Approved 2026-11-15. What is done, and what each Manifest task named of the engi
 [history](history.md#neutral-sdk-and-manifest-integration). Manifest's Stages 1 to 3 are closed
 on the pin `30ea3f3`, Stage 3 (A02 to A07) with no engine gap. That stage's cross-review named
 one, a service loaded with the commands a save queues, provisioned in
-[history](history.md#neutral-sdk-and-manifest-integration); its next is N01.
+[history](history.md#neutral-sdk-and-manifest-integration). Its N01 (2026-11-20) settled the network
+seam ([decided](decisions.md)) and named the gaps in the row below; its next is N02.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -23,7 +24,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
+| Low-level networking | N02 (before 4's remote foundation) | The gaps [N01's contract](../../manifest/docs/gameplay-and-server-plan.md#network-contract-n01-2026-11-20) names: a `net` module on ENet (server, client, reliable-ordered and unreliable-sequenced channels, timeouts, peer limit, non-blocking poll); the handshake with a game's verifier; bearer tokens on libsodium (in both identical `devenv.nix` files); framing under a size limit and a bounded inbound queue per session; the newest snapshot per session at a bounded rate. An independent consumer connects, is refused, reconnects and receives a filtered snapshot over loopback; Manifest's dedicated server builds on it without an engine edit. Encryption follows, before Manifest hosts. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
 These deliveries precede discretionary expansion of the sample. The historical space
@@ -328,6 +329,4 @@ Entries 1–31, for phases 1–13, are in [history](history.md#system-catalogue-
 
 Each is settled before the work it blocks; settled ones are under [decided](decisions.md).
 
-| Decision | Blocks | Re-enters |
-| --- | --- | --- |
-| The network seam: transport, sessions and replication against Manifest's N01 map | N01, N02 | When Manifest's N01 lands |
+None open.
