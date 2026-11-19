@@ -17,7 +17,9 @@ one, a service loaded with the commands a save queues, provisioned in
 seam ([decided](decisions.md)), and N02 is done in both (2026-11-20,
 [history](history.md#neutral-sdk-and-manifest-integration)): the engine's `net`, and Manifest's
 dedicated server and TUI client on it, on the pin `65846bb`. N03 is done in Manifest with no engine
-edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)); its W02 is next.
+edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). Its W02 is done in
+Manifest (2026-11-20), a planning task: its hosted step runs Jettison's movement systems at 1/60 s and
+names one engine gap, for W05, below; W03 is next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -27,6 +29,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
+| Movement order | W05 (Stage 4) | `dock` and `lanes` both write `Transform` and `InFrame` with no edge between them, so registration order decides theirs and, through `lanes`, `dock`'s against `cruise` ([Manifest's step](../../manifest/docs/stage-4-trading-plan.md#the-step-in-order)); an edge between them, tested in an independent consumer that registers dock, lanes and cruise and finds no conflicting pair in `Scheduler::Ambiguities`. |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
