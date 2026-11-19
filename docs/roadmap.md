@@ -20,8 +20,9 @@ rounds: its findings were fixed (the commit after `96c1ace` records them), with 
 C02 definitions and C03 content set (2026-11-18) named no engine gap; its C04 (done 2026-11-19)
 named map fields, provisioned in `4d60ea0`, Manifest's pin; its C05 scenarios (done 2026-11-19)
 named none. Its C09, Jettison's ship and station definitions shared (done 2026-11-19), named
-the fit rule without a world (`Dock::Fits`), provisioned in `15e2561`, Manifest's pin. Next is
-its C06.
+the fit rule without a world (`Dock::Fits`), provisioned in `15e2561`. Its C06, the validator on
+the host's options (done 2026-11-19), named the package rules without a world
+(`Host::DescribePackages`), provisioned in `30ea3f3`, Manifest's pin. Next is its C07.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -31,7 +32,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Content pipeline gaps | C02, C03 (2) | Each gap that Manifest's C01 schema mapping demonstrates in reflected definitions, layering or migration is provisioned with an engine fixture before C02 consumes it. C01, C02 and C03 named none (2026-11-18): layering, migration and per-mount layers are public SDK calls. C04's hull stats demonstrated one, map fields, provisioned 2026-11-19 ([history](history.md#neutral-sdk-and-manifest-integration)). C05's scenarios named none. No row of work until a later item demonstrates another. |
+| Content pipeline gaps | C02, C03 (2) | Each gap that Manifest's C01 schema mapping demonstrates in reflected definitions, layering or migration is provisioned with an engine fixture before C02 consumes it. C01, C02 and C03 named none (2026-11-18): layering, migration and per-mount layers are public SDK calls. C04's hull stats demonstrated one, map fields, provisioned 2026-11-19 ([history](history.md#neutral-sdk-and-manifest-integration)). C05's scenarios named none. C09's fit rule and C06's package rules, each without a world, provisioned 2026-11-19. No row of work until a later item demonstrates another. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above, closed by H07 | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
