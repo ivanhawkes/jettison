@@ -21,7 +21,8 @@ next touched.
   header, two in a source file, where the bodies are. The first one after an opening brace or an access label
   (`public:`) has none, since clang-format removes them there. clang-format cannot add these
   lines (`SeparateDefinitionBlocks` skips declarations and collapses two blank lines to one), so
-  `scripts/space-declarations.py` adds them; the gate runs it with `--check` and warns.
+  `scripts/space-declarations.py` adds them, run by hand, not by the gate
+  ([build and gates](build-and-gates.md#declaration-spacing)).
 
 ## Naming
 

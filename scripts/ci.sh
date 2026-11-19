@@ -117,24 +117,6 @@ skip() {
 	say "==> $1: skipped"
 }
 
-# A whitespace stage warns and does not fail the gate: its formatter fixes it, run before the next
-# change.
-warn_stage() {
-	stage "$1"
-	local fix="$2"
-	shift 2
-	local out
-	if ! out="$("$@" 2>&1)"; then
-		echo "$out"
-		summary+=("$(printf 'WARN %5ds  %s' $((SECONDS - stage_start)) "$current")")
-		current=""
-		say "warning: $(echo "$out" | tail -n 3)"
-		say "warning: run '$fix' before the next change"
-	elif [ -n "$out" ]; then
-		echo "$out"
-	fi
-}
-
 end_stage() {
 	if [ -n "$current" ]; then
 		summary+=("$(printf 'ok   %5ds  %s' $((SECONDS - stage_start)) "$current")")
@@ -183,10 +165,6 @@ stage "format gate (.clang-format, clang-format $(clang-format --version | awk '
 stage "configure + build: $preset"
 cmake --preset "$preset" ${werror[@]+"${werror[@]}"}
 cmake --build --preset "$preset"
-# As soon as the build has written the compile database and the module maps clang-query reads.
-warn_stage "declaration spacing (blank lines, $preset database)" \
-	"./scripts/space-declarations.py --build build/$preset" \
-	./scripts/space-declarations.py --check --build "build/$preset"
 stage "unit tests: $preset (CTest)"
 ctest --test-dir "build/$preset" --output-on-failure --no-tests=error -j "$jobs"
 

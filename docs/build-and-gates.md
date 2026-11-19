@@ -248,11 +248,7 @@ out of the shared shell, and nothing in the shell becomes a release/runtime depe
 `./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml` runs
 `./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
 
-Order: format gate → Debug build → declaration spacing (`scripts/space-declarations.py --check`,
-about 50 s on the Debug database, first after the build, which writes the module maps its
-`clang-query` reads; it warns and does not fail the gate, since whitespace is its formatter's to
-fix, run before the next change; without `--check` it adds the blank lines)
-→ unit tests and the dependency probe (CTest) → clang-tidy →
+Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
 headless render test, from the packed assets → reference frames,
 from the staged directory, and with `--asan`, the render test and the `vfs`, `resource`, `sim`,
@@ -459,6 +455,19 @@ libXdmcp, libXext, libXrandr, libXcursor, libXinerama, libXi, libxkbcommon and l
 `LD_LIBRARY_PATH`. `devenv.nix` builds that list in `enterShell` with `lib.makeLibraryPath`. A
 shell that predates the list fails with `X11: Failed to load Xlib`, and `smoke-test.sh` says so,
 naming the library and the variable.
+
+## Declaration spacing
+
+The blank lines above declarations ([coding standards](coding-standards.md)) are not in the gate:
+the check took about 50 s a run, for whitespace. Run it by hand from time to time, after a Debug
+build (it reads the build's compile database and module maps):
+
+```bash
+./scripts/space-declarations.py --check   # names the files missing the lines; exit 1 if any
+./scripts/space-declarations.py           # adds them
+```
+
+`--build build/<preset>` reads another build. Commit what it changes as its own formatting commit.
 
 ## Cross-review
 
