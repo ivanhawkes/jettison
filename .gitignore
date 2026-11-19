@@ -20,8 +20,7 @@ imgui.ini
 # Editor / OS
 .idea/
 .vscode/*
-!.vscode/tasks.json
-!.vscode/launch.json
+!.vscode/*.example
 *.swp
 .DS_Store
 

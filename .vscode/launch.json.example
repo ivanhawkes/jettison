@@ -3,14 +3,12 @@
     "configurations": [
         {
             "name": "Debug test",
-            "type": "cppdbg",
+            "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/clang-debug/source/test/render_test",
             "cwd": "${workspaceFolder}/build/clang-debug/source/test",
             "args": [],
-            "preLaunchTask": "CMake: build clang-debug",
-            "MIMode": "gdb",
-            "miDebuggerPath": "gdb"
+            "preLaunchTask": "CMake: build clang-debug"
         }
     ]
 }
