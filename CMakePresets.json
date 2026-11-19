@@ -9,7 +9,11 @@
 			"cacheVariables": {
 				"CMAKE_C_COMPILER": "clang",
 				"CMAKE_CXX_COMPILER": "clang++",
-				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+				"JETTISON_BUILD_TESTS": "ON",
+				"JETTISON_PRESENTATION": "ON",
+				"JETTISON_GLFW_X11": "OFF",
+				"JETTISON_PLANNED_DEPENDENCIES": "ON"
 			}
 		},
 		{

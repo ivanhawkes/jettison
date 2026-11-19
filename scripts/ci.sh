@@ -60,6 +60,7 @@ done
 [ -e /dev/dri ] || software=(--llvmpipe)
 
 # The working tree's contents through a scratch copy of the index, which the real one never sees.
+# The presets set every option a stage depends on, so a build's cache cannot hold one the key misses.
 gate_key() {
 	local index tree
 	index="$(mktemp "${TMPDIR:-/tmp}/jettison-gate-index.XXXXXX")"
@@ -70,6 +71,8 @@ gate_key() {
 	{
 		git ls-tree -r "$tree" | grep -v '\.md$'
 		clang --version
+		clang-format --version
+		clang-tidy --version
 		cmake --version
 		echo "$preset $headless_preset $smoke $release $tidy $asan ${software[*]-} ${werror[*]-}"
 	} | sha256sum | cut -d' ' -f1
