@@ -47,6 +47,7 @@ does not restate it.
 
 - Before engine integration work, read `docs/game-integration.md` and the sibling
   `../manifest` documents it lists, starting with the task queue, `docs/delivery-order.md`.
+  Read the local checkout, not GitHub, which lags and may hold work on other branches.
 - Map required gameplay mechanics to public SDK capabilities. Provision demonstrated
   reusable gaps in Jettison; leave game rules, ownership policy, prices and content in
   Manifest. Record acceptance tests in both an independent engine consumer and Manifest.
