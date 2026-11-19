@@ -11,7 +11,7 @@ built, and the work finished since are recorded in [history](history.md).
 
 Approved 2026-11-15. What is done, and what each Manifest task named of the engine, is in
 [history](history.md#neutral-sdk-and-manifest-integration). Manifest's Stages 1 and 2 are closed
-on the pin `30ea3f3`; A02 and A03 built on the pin with no engine gap, and its next task is A04, in Stage 3.
+on the pin `30ea3f3`; A02 to A04 built on the pin with no engine gap, and its next task is A05, in Stage 3.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
