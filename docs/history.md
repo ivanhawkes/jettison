@@ -227,6 +227,12 @@ The content-pipeline row, as it was closed with Manifest's Stage 2:
 | --- | --- | --- |
 | Content pipeline gaps | C02, C03 (2) | Each gap that Manifest's C01 schema mapping demonstrates in reflected definitions, layering or migration is provisioned with an engine fixture before C02 consumes it. C01, C02 and C03 named none (2026-11-18): layering, migration and per-mount layers are public SDK calls. C04's hull stats demonstrated one, map fields, provisioned 2026-11-19 ([history](history.md#neutral-sdk-and-manifest-integration)). C05's scenarios named none. C09's fit rule and C06's package rules, each without a world, provisioned 2026-11-19. No row of work until a later item demonstrates another. |
 
+The Stage 3 authority row, as it was closed with Manifest's Stage 3 (A07, 2026-11-19):
+
+| Delivery | Manifest task (stage) | Exit criterion |
+| --- | --- | --- |
+| Stage 3 authority gaps | A02–A07 (3) | Each gap Manifest's Stage 3 demonstrates in the world's state, its serialisation, the definition registry or commands is provisioned here with an engine fixture before Manifest consumes it. A02 to A07 named none: the hosted state, its admission ledger, provisioning, cargo, queries and the console are Manifest's on `SimWorld`'s registry, services, saved command queue and recording, all on pin `30ea3f3`. A07 closed the stage, its save and replay pinned to one hash in every Manifest gate build ([Manifest's delivered contract](../../manifest/docs/stage-3-authority-plan.md#delivered-a07-2026-11-19)). |
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |

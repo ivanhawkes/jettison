@@ -10,8 +10,9 @@ built, and the work finished since are recorded in [history](history.md).
 ## Current priority: neutral SDK and Manifest integration
 
 Approved 2026-11-15. What is done, and what each Manifest task named of the engine, is in
-[history](history.md#neutral-sdk-and-manifest-integration). Manifest's Stages 1 and 2 are closed
-on the pin `30ea3f3`; A02 to A06 built on the pin with no engine gap, and its next task is A07, closing Stage 3.
+[history](history.md#neutral-sdk-and-manifest-integration). Manifest's Stages 1 to 3 are closed
+on the pin `30ea3f3`, Stage 3 (A02 to A07) with no engine gap; its next is that stage's
+cross-review, then N01.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -21,7 +22,6 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Stage 3 authority gaps | A02–A07 (3) | Each gap Manifest's Stage 3 demonstrates in the world's state, its serialisation, the definition registry or commands is provisioned here with an engine fixture before Manifest consumes it. None yet. |
 | Low-level networking | N01, N02 (before 4's remote foundation) | The generic layer [scope](scope.md#network) lists, with an independent consumer's acceptance tests; Manifest's dedicated server builds on it without an engine edit. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
