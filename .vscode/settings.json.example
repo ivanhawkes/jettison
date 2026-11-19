@@ -1,0 +1,4 @@
+{
+    "C_Cpp.default.compilerPath": "${workspaceFolder}/.devenv/profile/bin/clang",
+    "lldb.library": "${workspaceFolder}/.devenv/profile/lib/liblldb.so"
+}
