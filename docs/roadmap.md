@@ -22,7 +22,8 @@ named map fields, provisioned in `4d60ea0`, Manifest's pin; its C05 scenarios (d
 named none. Its C09, Jettison's ship and station definitions shared (done 2026-11-19), named
 the fit rule without a world (`Dock::Fits`), provisioned in `15e2561`. Its C06, the validator on
 the host's options (done 2026-11-19), named the package rules without a world
-(`Host::DescribePackages`), provisioned in `30ea3f3`, Manifest's pin. Next is its C07.
+(`Host::DescribePackages`), provisioned in `30ea3f3`, Manifest's pin. Its C07, the validation
+build graph (done 2026-11-19), named none. Next is its C08, closing its Stage 2.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
