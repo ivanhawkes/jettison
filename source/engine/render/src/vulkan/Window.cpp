@@ -16,8 +16,8 @@ constexpr uint32_t kWindowHeight = 1080;
 void Window::Init(bool offscreen)
 {
 	m_offscreen = offscreen;
-	if (offscreen)
-		glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_NULL);
+	// Init hints outlive glfwTerminate, so a window after an offscreen one must reset the platform.
+	glfwInitHint(GLFW_PLATFORM, offscreen ? GLFW_PLATFORM_NULL : GLFW_ANY_PLATFORM);
 	if (!glfwInit())
 	{
 		const char *description = nullptr;

@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
+#include <vector>
 
 namespace Jettison::App
 {
@@ -226,5 +228,23 @@ std::optional<AppArguments> ParseAppArguments(
 		return std::nullopt;
 	}
 	return arguments;
+}
+
+
+std::vector<std::string> TakeDueCommands(
+    std::vector<RunCommand> &pending, std::uint64_t frame, double simulationSeconds)
+{
+	std::vector<std::string> due;
+	std::erase_if(
+	    pending,
+	    [&](RunCommand &command)
+	    {
+		    const bool now = command.simulationSeconds ? simulationSeconds >= *command.simulationSeconds
+		                                               : frame >= command.frame;
+		    if (now)
+			    due.push_back(std::move(command.line));
+		    return now;
+	    });
+	return due;
 }
 } // namespace Jettison::App

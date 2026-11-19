@@ -1143,12 +1143,10 @@ void Application::RunFrameLoop()
 
 void Application::RunCommandLine(const std::string &line)
 {
-	const std::size_t before = m_console.Lines().size();
+	const std::uint64_t errors = m_console.ErrorsPrinted();
 	m_console.Execute(line);
-	const std::vector<DevTools::ConsoleLine> lines = m_console.Lines();
-	for (std::size_t index = before; index < lines.size(); ++index)
-		if (lines[index].kind == DevTools::ConsoleLine::Kind::Error)
-			throw std::runtime_error(std::format("--run '{}': {}", line, lines[index].text));
+	if (m_console.ErrorsPrinted() != errors)
+		throw std::runtime_error(std::format("--run '{}': {}", line, m_console.LastError()));
 }
 
 
@@ -1157,19 +1155,9 @@ void Application::Tick()
 	JETTISON_PROFILE_FUNCTION();
 	const bool loading = m_pResources->Loading() != 0;
 	++m_frameIndex;
-	for (auto command = m_pendingCommands.begin(); command != m_pendingCommands.end();)
-	{
-		const bool due = command->simulationSeconds ? m_sim.Clock().Now() >= *command->simulationSeconds
-		                                            : m_frameIndex >= command->frame;
-		if (!due)
-		{
-			++command;
-			continue;
-		}
-		const std::string line = command->line;
-		command = m_pendingCommands.erase(command);
+	for (const std::string &line :
+	     TakeDueCommands(m_pendingCommands, m_frameIndex, m_sim.Clock().Now()))
 		RunCommandLine(line);
-	}
 	double deltaTime = 0.0;
 	if (m_arguments.frameStep > 0.0)
 	{

@@ -133,8 +133,8 @@ skips the build; `--references [--update]` runs the reference views in
 `source/test/frames/views.txt` ([build and gates](docs/build-and-gates.md#reference-frames)). Run
 captures one at a time: each stops the Xvfb it started, under any other still drawing.
 
-`--run "@<frame> <line>"` or `--run "@<seconds>s <line>"` runs a line later in the run (undock, then
-thrust). `render_test --offscreen` draws with no display or window at all, so outside the sandbox it
+`--run "@<frame> <line>"` or `--run "@<seconds>s <line>"` runs a line later in the run (undock, then a
+`screenshot`). `render_test --offscreen` draws with no display or window at all, so outside the sandbox it
 draws on the GPU (`--gpu 5060` on lythir, never the 5070 Ti), and `--screenshot` writes its frame;
 `./scripts/smoke-test.sh --offscreen` is the smoke test so.
 

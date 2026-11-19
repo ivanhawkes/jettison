@@ -233,4 +233,13 @@ TEST_CASE("Console: the log is captured into the lines, and a full console drops
 	console.Print("two");
 	console.Print("three");
 	CHECK(Texts(console) == std::vector<std::string>{"one", "two", "three"});
+
+	// An error is counted though more lines than the console holds follow it, as --run's check needs.
+	const std::uint64_t errors = console.ErrorsPrinted();
+	console.PrintError("four");
+	for (int line = 0; line < 5; ++line)
+		console.Print("after");
+	console.Clear();
+	CHECK(console.ErrorsPrinted() == errors + 1);
+	CHECK(console.LastError() == "four");
 }

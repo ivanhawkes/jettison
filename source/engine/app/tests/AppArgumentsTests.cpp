@@ -54,12 +54,14 @@ TEST_CASE("a screenshot is asked for with the frames before it, a fixed step and
 TEST_CASE("a console line runs before the first frame, on a frame, or at a simulation time")
 {
 	const auto arguments = Parse(
-	    {"--offscreen", "--run", "pilot chase", "--run", "@40 undock", "--run", "@2.5s thrust 1"});
+	    {"--offscreen", "--run", "pilot chase", "--run", "@40 undock", "--run",
+	     "@2.5s screenshot out.png"});
 	REQUIRE(arguments);
 	CHECK(arguments->offscreen);
 	CHECK(
 	    arguments->commands ==
-	    std::vector<RunCommand>{Line("pilot chase"), Line("undock", 40), Line("thrust 1", 0, 2.5)});
+	    std::vector<RunCommand>{
+	        Line("pilot chase"), Line("undock", 40), Line("screenshot out.png", 0, 2.5)});
 	CHECK_FALSE(Parse({})->offscreen);
 
 	CHECK_FALSE(Parse({"--run", "@40"}));
@@ -68,6 +70,19 @@ TEST_CASE("a console line runs before the first frame, on a frame, or at a simul
 	CHECK_FALSE(Parse({"--run", "@-1s undock"}));
 	CHECK_FALSE(Parse({"--run", "@soon undock"}));
 	CHECK_FALSE(Parse({"--run", "@ undock"}));
+}
+
+
+TEST_CASE("a console line is taken once, when its frame or its simulation time comes, in order")
+{
+	std::vector<RunCommand> pending{
+	    Line("at once"), Line("frame 3", 3), Line("half a second", 0, 0.5), Line("also frame 3", 3)};
+	CHECK(TakeDueCommands(pending, 1, 0.0) == std::vector<std::string>{"at once"});
+	CHECK(TakeDueCommands(pending, 2, 0.4).empty());
+	CHECK(TakeDueCommands(pending, 3, 0.4) == std::vector<std::string>{"frame 3", "also frame 3"});
+	CHECK(TakeDueCommands(pending, 4, 0.5) == std::vector<std::string>{"half a second"});
+	CHECK(pending.empty());
+	CHECK(TakeDueCommands(pending, 5, 1.0).empty());
 }
 
 

@@ -3,6 +3,7 @@
 #include <entt/entt.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <map>
@@ -85,6 +86,12 @@ class Console
 	// A copy, since the log capture may be adding to them.
 	std::vector<ConsoleLine> Lines() const;
 
+	// Every error printed, those since dropped or cleared included, and the newest one's text: what
+	// a line printed is told by these, however many lines it printed after its error.
+	std::uint64_t ErrorsPrinted() const;
+
+	std::string LastError() const;
+
 	// Lines executed, oldest first, without a repeat of the line before.
 	const std::vector<std::string> &History() const
 	{
@@ -125,6 +132,8 @@ class Console
 	std::size_t m_capacity;
 	mutable std::mutex m_linesMutex;
 	std::deque<ConsoleLine> m_lines;
+	std::uint64_t m_errorsPrinted{};
+	std::string m_lastError;
 	std::optional<Core::LogCallbackId> m_logCallback;
 
 	// Ordered, for help, vars and completion in name order.

@@ -80,7 +80,7 @@ struct AppArguments
 	// is then the same in every run. Zero for the wall clock.
 	double frameStep{0.0};
 	// Console lines run as if typed (--run), in the order given among those due on one frame: a
-	// camera placed for a screenshot, say, or a ship undocked and then thrust some frames later.
+	// camera placed for a screenshot, say, or a ship undocked and a screenshot some frames later.
 	std::vector<RunCommand> commands;
 
 	// Sound played to miniaudio's null backend, in place of the machine's device: everything sounds
@@ -103,4 +103,9 @@ struct AppArguments
 std::optional<AppArguments> ParseAppArguments(
     int argc, char **argv, const std::filesystem::path &assetSubdirectory,
     const std::filesystem::path &contentSubdirectory = {});
+
+// Removes from pending, and returns in their order, the lines due on this frame: those at or after
+// their frame, or at or after their simulation time. Each is taken once.
+std::vector<std::string> TakeDueCommands(
+    std::vector<RunCommand> &pending, std::uint64_t frame, double simulationSeconds);
 } // namespace Jettison::App

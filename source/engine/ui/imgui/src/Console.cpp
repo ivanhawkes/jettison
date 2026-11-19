@@ -276,6 +276,11 @@ void Console::BindReference(std::string_view prefix, entt::meta_any object)
 void Console::Add(ConsoleLine line)
 {
 	const std::scoped_lock lock{m_linesMutex};
+	if (line.kind == ConsoleLine::Kind::Error)
+	{
+		++m_errorsPrinted;
+		m_lastError = line.text;
+	}
 	m_lines.push_back(std::move(line));
 	while (m_lines.size() > m_capacity)
 		m_lines.pop_front();
@@ -305,6 +310,20 @@ std::vector<ConsoleLine> Console::Lines() const
 {
 	const std::scoped_lock lock{m_linesMutex};
 	return {m_lines.begin(), m_lines.end()};
+}
+
+
+std::uint64_t Console::ErrorsPrinted() const
+{
+	const std::scoped_lock lock{m_linesMutex};
+	return m_errorsPrinted;
+}
+
+
+std::string Console::LastError() const
+{
+	const std::scoped_lock lock{m_linesMutex};
+	return m_lastError;
 }
 
 
