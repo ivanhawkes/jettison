@@ -87,7 +87,10 @@ class UnsupportedTypeError : public std::logic_error
 //   entt::entity, written as its 32-bit identifier;
 //   an enumeration registered with Reflect, written as the enumerator's name;
 //   a class registered with Reflect, written as its Saved fields;
-//   a std::vector of any of these.
+//   a std::vector, std::deque or std::list of any of these, or a std::array, read only from as many;
+//   a std::map or std::unordered_map of any of these, keyed by a std::string or a registered
+//   enumeration, written as a mapping in the order of its keys' text (an enumerator's name), so the
+//   same contents write the same text and bytes whatever the container's own order.
 //
 // Reading starts from a default-constructed value, so a field the data leaves out keeps its
 // default member initialiser. A field the data names but the type does not save is an error,

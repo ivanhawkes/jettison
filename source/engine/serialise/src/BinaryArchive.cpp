@@ -235,6 +235,18 @@ class Writer
 				}
 				return;
 			}
+			case Kind::Map:
+			{
+				const std::vector<Detail::MapEntry> entries = Detail::MapEntries(value, m_path.Text());
+				Unsigned(m_payload, Count(entries.size()), 4);
+				for (const Detail::MapEntry &entry : entries)
+				{
+					const auto scope = m_path.Field(entry.text);
+					Value(entry.key);
+					Value(entry.value);
+				}
+				return;
+			}
 			case Kind::Optional:
 				if (!shape.optional->hasValue(value))
 					throw UnsupportedTypeError{std::format(
@@ -463,11 +475,23 @@ class Reader
 			case Kind::Sequence:
 			{
 				entt::meta_sequence_container elements = value.as_sequence_container();
-				elements.clear();
 				const entt::meta_type type = elements.value_type();
 				// Not reserved: a corrupt count would allocate before the data ran out. Every element
 				// reads at least one byte, so a count past the data fails at its end.
 				const std::uint32_t count = Count();
+				// A container that cannot be cleared is fixed in size, a std::array: read in place.
+				if (!elements.clear())
+				{
+					if (count != elements.size())
+						Fail(std::format("{} elements, of a sequence of {}", count, elements.size()));
+					std::uint32_t index = 0;
+					for (entt::meta_any slot : elements)
+					{
+						const auto scope = m_path.Element(index++);
+						Value(slot);
+					}
+					return;
+				}
 				for (std::uint32_t index = 0; index < count; ++index)
 				{
 					const auto scope = m_path.Element(index);
@@ -476,6 +500,25 @@ class Reader
 					if (!elements.insert(elements.end(), std::move(element)))
 						throw UnsupportedTypeError{std::format(
 						    "BinaryArchive: {}: the element could not be inserted", m_path.Text())};
+				}
+				return;
+			}
+			case Kind::Map:
+			{
+				entt::meta_associative_container entries = value.as_associative_container();
+				Detail::CheckMap(entries, m_path.Text());
+				entries.clear();
+				const std::uint32_t count = Count();
+				for (std::uint32_t index = 0; index < count; ++index)
+				{
+					const auto scope = m_path.Element(index);
+					entt::meta_any key = entries.key_type().construct();
+					Value(key);
+					entt::meta_any mapped = entries.mapped_type().construct();
+					Value(mapped);
+					const std::string text = Detail::KeyText(key);
+					if (!entries.insert(std::move(key), std::move(mapped)))
+						Fail(std::format("the key '{}' is given twice", text));
 				}
 				return;
 			}

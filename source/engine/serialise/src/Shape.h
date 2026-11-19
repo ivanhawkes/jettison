@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <jettison/reflect/Reflect.h>
 
@@ -23,6 +24,9 @@ enum class Kind : std::uint8_t
 	Enum,
 	Class,
 	Sequence,
+	// A std::map or std::unordered_map keyed by a std::string or a registered enumeration: a mapping
+	// in YAML, its entries in the order of their keys' text in both archives.
+	Map,
 	// A std::optional field: written only when it holds a value, and read as holding one when the
 	// data names it.
 	Optional,
@@ -40,6 +44,29 @@ struct Shape
 	entt::meta_any (*make)(const void *){nullptr};
 	const Reflect::OptionalTraits *optional{nullptr};
 };
+
+// A map's entry: its key's text (the string, or the enumerator's name), its key and its value.
+struct MapEntry
+{
+	std::string text;
+	entt::meta_any key;
+	entt::meta_any value;
+};
+
+// The entries of a Map value in the order of their keys' text, the order both archives write: an
+// unordered map's own order would write the same contents differently. Throws UnsupportedTypeError
+// for a set, which has no values, or a key that is neither a string nor a registered enumeration.
+std::vector<MapEntry> MapEntries(const entt::meta_any &map, std::string_view path);
+
+// The same check, for a map about to be read into.
+void CheckMap(const entt::meta_associative_container &entries, std::string_view path);
+
+// The key a text names in a map of the entries' key type, or an empty any for a name that is no
+// enumerator.
+entt::meta_any MapKey(const entt::meta_associative_container &entries, const std::string &text);
+
+// A key's text: the string, or the enumerator's name, empty for a value that is no enumerator.
+std::string KeyText(const entt::meta_any &key);
 
 // Whether a field's value is an optional holding nothing, which an archive leaves out.
 bool IsEmptyOptional(const entt::meta_any &value);

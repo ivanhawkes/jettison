@@ -7,6 +7,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -38,6 +39,7 @@ struct Market
 	std::vector<Stock> goods;
 	std::vector<std::string> tags;
 	std::optional<std::string> note;
+	std::map<std::string, std::uint32_t> prices;
 };
 // A format with a rename in its history: version 1 called the tonnes "mass".
 struct Cargo
@@ -65,7 +67,8 @@ void RegisterTypes()
 		    .Field<&Market::fees>("fees", Attribute::Saved)
 		    .Field<&Market::goods>("goods", Attribute::Saved)
 		    .Field<&Market::tags>("tags", Attribute::Saved)
-		    .Field<&Market::note>("note", Attribute::Saved);
+		    .Field<&Market::note>("note", Attribute::Saved)
+		    .Field<&Market::prices>("prices", Attribute::Saved);
 		RegisterType<Cargo>("LayerTests.Cargo")
 		    .Field<&Cargo::label>("label", Attribute::Saved)
 		    .Field<&Cargo::tonnes>("tonnes", Attribute::Saved);
@@ -88,6 +91,7 @@ goods:
   - {good: beer, stock: 55, target: 40}
 tags: [farming, hub]
 note: the base's
+prices: {wheat-seeds: 12, beer: 4}
 )";
 
 
@@ -154,6 +158,14 @@ TEST_CASE("Layers: a null removes the field, which reads as its default")
 	CHECK_FALSE(market.note.has_value());
 	CHECK(market.fees.docking == 10);
 	CHECK(market.fees.trade == 25);
+}
+
+
+TEST_CASE("Layers: a map is merged key by key, a null removing its key")
+{
+	const Market market = Layered({"version: 1\nprices: {beer: 6, wheat-seeds: ~, wine: 9}\n"});
+	CHECK(market.prices == std::map<std::string, std::uint32_t>{{"beer", 6}, {"wine", 9}});
+	CHECK(Layered({}).prices == std::map<std::string, std::uint32_t>{{"beer", 4}, {"wheat-seeds", 12}});
 }
 
 

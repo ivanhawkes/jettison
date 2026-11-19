@@ -7,6 +7,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
+#include <algorithm>
 #include <cstring>
 #include <format>
 #include <string>
@@ -139,11 +140,63 @@ Shape ShapeOf(const entt::meta_type &type, std::string_view path)
 	}
 	if (type.is_sequence_container())
 		return {Kind::Sequence};
+	if (type.is_associative_container())
+		return {Kind::Map};
 	if (type.is_class() && IsRegistered(type))
 		return {Kind::Class};
 	throw UnsupportedTypeError{std::format(
 	    "Serialise: {}: type '{}' is neither registered with Reflect nor one an archive writes", path,
 	    type.info().name())};
+}
+
+
+void CheckMap(const entt::meta_associative_container &entries, std::string_view path)
+{
+	if (!entries.mapped_type())
+		throw UnsupportedTypeError{
+		    std::format("Serialise: {}: a set is not one an archive writes, a map is", path)};
+	const Kind key = ShapeOf(entries.key_type(), path).kind;
+	if (key != Kind::String && key != Kind::Enum)
+		throw UnsupportedTypeError{std::format(
+		    "Serialise: {}: a map's key is a string or an enumeration, not '{}'", path,
+		    entries.key_type().info().name())};
+}
+
+
+std::string KeyText(const entt::meta_any &key)
+{
+	if (const auto *pText = key.try_cast<const std::string>())
+		return *pText;
+	return std::string{Reflect::EnumName(key)};
+}
+
+
+std::vector<MapEntry> MapEntries(const entt::meta_any &map, std::string_view path)
+{
+	// begin() is not const on a container, even one over a const value.
+	entt::meta_associative_container entries = map.as_associative_container();
+	CheckMap(entries, path);
+	std::vector<MapEntry> sorted;
+	sorted.reserve(entries.size());
+	for (auto [key, value] : entries)
+	{
+		std::string text = KeyText(key);
+		if (text.empty() && !key.try_cast<const std::string>())
+			throw UnsupportedTypeError{std::format(
+			    "Serialise: {}: a key is not an enumerator registered for '{}'", path,
+			    key.type().name())};
+		sorted.push_back({std::move(text), std::move(key), std::move(value)});
+	}
+	std::ranges::sort(sorted, {}, &MapEntry::text);
+	return sorted;
+}
+
+
+entt::meta_any MapKey(const entt::meta_associative_container &entries, const std::string &text)
+{
+	if (entries.key_type().info() == entt::type_id<std::string>())
+		return entt::meta_any{text};
+	return Reflect::EnumValue(entries.key_type(), text);
 }
 
 

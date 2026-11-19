@@ -198,6 +198,7 @@ class Writer
 				m_emitter << YAML::EndMap;
 				return;
 			case Kind::Sequence: Sequence(value); return;
+			case Kind::Map: Map(value); return;
 			case Kind::Optional:
 				// Fields leave an empty one out; anywhere else there is no key to leave out.
 				if (!shape.optional->hasValue(value))
@@ -261,7 +262,7 @@ class Writer
 		// Elements that are maps or sequences of their own go one to a line; a list of numbers,
 		// names or vectors goes on one, as the scene format writes a vector.
 		const Kind kind = Detail::ShapeOf(elements.value_type(), m_path.Text()).kind;
-		const bool nested = kind == Kind::Class || kind == Kind::Sequence;
+		const bool nested = kind == Kind::Class || kind == Kind::Sequence || kind == Kind::Map;
 		m_emitter << (nested ? YAML::Block : YAML::Flow) << YAML::BeginSeq;
 		std::size_t index = 0;
 		for (const entt::meta_any element : elements)
@@ -270,6 +271,22 @@ class Writer
 			Value(element);
 		}
 		m_emitter << YAML::EndSeq;
+	}
+
+
+	void Map(const entt::meta_any &value)
+	{
+		m_emitter << YAML::BeginMap;
+		for (const Detail::MapEntry &entry : Detail::MapEntries(value, m_path.Text()))
+		{
+			const auto scope = m_path.Field(entry.text);
+			m_emitter << YAML::Key;
+			if (LooksLikeAnotherType(entry.text))
+				m_emitter << YAML::DoubleQuoted;
+			m_emitter << entry.text << YAML::Value;
+			Value(entry.value);
+		}
+		m_emitter << YAML::EndMap;
 	}
 
 	YAML::Emitter m_emitter;
@@ -490,6 +507,7 @@ class Reader
 			}
 			case Kind::Class: Fields(value, node, false); return;
 			case Kind::Sequence: Sequence(value, node); return;
+			case Kind::Map: Map(value, node); return;
 			case Kind::Optional:
 			{
 				// Into the value it holds already, if any, as a nested class keeps its defaults.
@@ -609,8 +627,28 @@ class Reader
 		if (!node.IsSequence())
 			Fail(node, std::format("expected a sequence, found {}", Describe(node)));
 		entt::meta_sequence_container elements = value.as_sequence_container();
-		elements.clear();
 		const entt::meta_type type = elements.value_type();
+		// A container that cannot be cleared is fixed in size, a std::array: read in place, element
+		// by element, from exactly as many.
+		if (!elements.clear())
+		{
+			if (node.size() != elements.size())
+				Fail(
+				    node,
+				    std::format(
+				        "expected a sequence of {} elements, found {}", elements.size(), node.size()));
+			std::size_t index = 0;
+			for (entt::meta_any slot : elements)
+			{
+				const auto scope = m_path.Element(index);
+				entt::meta_any element = type.construct();
+				Value(element, node[index++]);
+				if (!slot.assign(std::move(element)))
+					throw UnsupportedTypeError{std::format(
+					    "YamlArchive: {}: the element could not be assigned", m_path.Text())};
+			}
+			return;
+		}
 		for (std::size_t index = 0; index < node.size(); ++index)
 		{
 			const auto scope = m_path.Element(index);
@@ -619,6 +657,30 @@ class Reader
 			if (!elements.insert(elements.end(), std::move(element)))
 				throw UnsupportedTypeError{
 				    std::format("YamlArchive: {}: the element could not be inserted", m_path.Text())};
+		}
+	}
+
+
+	void Map(entt::meta_any &value, const YAML::Node &node)
+	{
+		if (!node.IsMap())
+			Fail(node, std::format("expected a mapping, found {}", Describe(node)));
+		entt::meta_associative_container entries = value.as_associative_container();
+		Detail::CheckMap(entries, m_path.Text());
+		entries.clear();
+		for (const auto &entry : node)
+		{
+			if (!entry.first.IsScalar())
+				Fail(entry.first, "a key is not a scalar");
+			const std::string &text = entry.first.Scalar();
+			const auto scope = m_path.Field(text);
+			entt::meta_any key = Detail::MapKey(entries, text);
+			if (!key)
+				Fail(entry.first, std::format("'{}' is not a '{}'", text, entries.key_type().name()));
+			entt::meta_any mapped = entries.mapped_type().construct();
+			Value(mapped, entry.second);
+			if (!entries.insert(std::move(key), std::move(mapped)))
+				Fail(entry.first, "the key is given twice");
 		}
 	}
 

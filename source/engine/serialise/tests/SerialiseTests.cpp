@@ -9,11 +9,16 @@
 #include <glm/vec4.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <limits>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 using namespace Jettison::Serialise;
@@ -96,6 +101,32 @@ struct Fitting
 };
 
 
+// The containers past std::vector: maps by string and by enumerator, of leaves, classes and
+// sequences, and the fixed and double-ended sequences.
+struct Ledger
+{
+	std::map<std::string, std::int32_t> balances;
+	std::map<Good, double> prices;
+	std::unordered_map<std::string, Hold> holds;
+	std::map<std::string, std::vector<Good>> routes;
+	std::array<float, 3> weights{};
+	std::deque<std::string> log;
+
+
+	bool operator==(const Ledger &) const = default;
+};
+
+struct HoldsSet
+{
+	std::set<std::string> names;
+};
+
+struct HoldsIntegerKeys
+{
+	std::map<int, int> counts;
+};
+
+
 // The tables are global and doctest runs every case in one process, so registration happens
 // once, from whichever case runs first.
 void RegisterTypes()
@@ -134,6 +165,17 @@ void RegisterTypes()
 		    .Field<&HoldsUntyped::inner>("inner", Attribute::Saved);
 		RegisterType<VersionField>("SerialiseTests.VersionField")
 		    .Field<&VersionField::version>("version", Attribute::Saved);
+		RegisterType<Ledger>("SerialiseTests.Ledger")
+		    .Field<&Ledger::balances>("balances", Attribute::Saved)
+		    .Field<&Ledger::prices>("prices", Attribute::Saved)
+		    .Field<&Ledger::holds>("holds", Attribute::Saved)
+		    .Field<&Ledger::routes>("routes", Attribute::Saved)
+		    .Field<&Ledger::weights>("weights", Attribute::Saved)
+		    .Field<&Ledger::log>("log", Attribute::Saved);
+		RegisterType<HoldsSet>("SerialiseTests.HoldsSet")
+		    .Field<&HoldsSet::names>("names", Attribute::Saved);
+		RegisterType<HoldsIntegerKeys>("SerialiseTests.HoldsIntegerKeys")
+		    .Field<&HoldsIntegerKeys::counts>("counts", Attribute::Saved);
 		RegisterType<Fitting>("SerialiseTests.Fitting")
 		    .Field<&Fitting::name>("name", Attribute::Saved)
 		    .Field<&Fitting::range>("range", Attribute::Saved)
@@ -434,6 +476,78 @@ TEST_CASE("Serialise: binary reports a field whose length does not match its typ
 }
 
 
+// Keys YAML would read as something else, so written quoted, and an empty one.
+Ledger AwkwardLedger()
+{
+	Ledger ledger;
+	ledger.balances = {{"", -1}, {"true", 2}, {"123", 3}, {"a: b", 4}, {"zeta", 5}, {"alpha", 6}};
+	ledger.prices = {{Good::Fuel, 1.5}, {Good::Ore, 0.25}, {Good::Water, 1e-300}};
+	for (const char *name : {"stern", "bow", "keel", "aft", "midships"})
+		ledger.holds[name] = {Good::Water, 3, 2.0};
+	ledger.holds["bow"].quantity = 9;
+	ledger.routes = {{"inner", {Good::Ore, Good::Fuel}}, {"outer", {}}};
+	ledger.weights = {0.1f, -0.0f, 3.0f};
+	ledger.log = {"docked", "", "~"};
+	return ledger;
+}
+
+
+TEST_CASE("Serialise: maps and the other sequences round-trip in both archives")
+{
+	RegisterTypes();
+	const Ledger ledger = AwkwardLedger();
+	const std::string text = YamlArchive::Write(ledger, {});
+	CAPTURE(text);
+	CHECK(YamlArchive::Read<Ledger>(text, {}) == ledger);
+	CHECK(YamlArchive::Write(YamlArchive::Read<Ledger>(text, {}), {}) == text);
+	// An enumerator key is its name, and keys are written in the order of their text.
+	CHECK(text.find("prices:\n  Fuel: 1.5\n  Ore: 0.25\n  Water: 1e-300\n") != std::string::npos);
+	CHECK(text.find("aft:") < text.find("bow:"));
+	CHECK(text.find("keel:") < text.find("midships:"));
+
+	const std::vector<std::byte> bytes = BinaryArchive::Write(ledger, {});
+	CHECK(BinaryArchive::Read<Ledger>(bytes, {}) == ledger);
+	CHECK(BinaryArchive::Write(BinaryArchive::Read<Ledger>(bytes, {}), {}) == bytes);
+}
+
+
+TEST_CASE("Serialise: an unordered map writes the same text and bytes whatever its own order")
+{
+	RegisterTypes();
+	Ledger forward;
+	Ledger backward;
+	for (int index = 0; index < 64; ++index)
+		forward.holds[std::to_string(index)] = {Good::Ore, std::uint32_t(index), 0.0};
+	for (int index = 63; index >= 0; --index)
+		backward.holds[std::to_string(index)] = {Good::Ore, std::uint32_t(index), 0.0};
+	backward.holds.rehash(512);
+	CHECK(YamlArchive::Write(forward, {}) == YamlArchive::Write(backward, {}));
+	CHECK(BinaryArchive::Write(forward, {}) == BinaryArchive::Write(backward, {}));
+}
+
+
+TEST_CASE("Serialise: a map or a fixed sequence that does not fit is refused, naming the key")
+{
+	RegisterTypes();
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Read<Ledger>("version: 1\nbalances: [1, 2]\n", {}),
+	    doctest::Contains("Ledger.balances: expected a mapping, found a sequence (line 2)"),
+	    FormatError);
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Read<Ledger>("version: 1\nprices: {Gold: 1}\n", {}),
+	    doctest::Contains("Ledger.prices.Gold: 'Gold' is not a 'SerialiseTests.Good'"), FormatError);
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Read<Ledger>("version: 1\nbalances: {a: 1, a: 2}\n", {}),
+	    doctest::Contains("Ledger.balances.a: the key is given twice"), FormatError);
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Read<Ledger>("version: 1\nholds: {bow: {mass: heavy}}\n", {}),
+	    doctest::Contains("Ledger.holds.bow.mass"), FormatError);
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Read<Ledger>("version: 1\nweights: [1, 2]\n", {}),
+	    doctest::Contains("Ledger.weights: expected a sequence of 3 elements, found 2"), FormatError);
+}
+
+
 TEST_CASE("Serialise: a type an archive cannot write is a defect, reported as such")
 {
 	RegisterTypes();
@@ -449,6 +563,21 @@ TEST_CASE("Serialise: a type an archive cannot write is a defect, reported as su
 	CHECK_THROWS_WITH_AS(
 	    YamlArchive::Write(VersionField{}, {}),
 	    doctest::Contains("cannot save a field named 'version'"), UnsupportedTypeError);
+
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Write(HoldsSet{.names = {"a"}}, {}),
+	    doctest::Contains("HoldsSet.names: a set is not one an archive writes"), UnsupportedTypeError);
+	CHECK_THROWS_AS(
+	    YamlArchive::Read<HoldsSet>("version: 1\nnames: {a: 1}\n", {}), UnsupportedTypeError);
+	CHECK_THROWS_WITH_AS(
+	    BinaryArchive::Write(HoldsIntegerKeys{.counts = {{1, 2}}}, {}),
+	    doctest::Contains("HoldsIntegerKeys.counts: a map's key is a string or an enumeration"),
+	    UnsupportedTypeError);
+	Ledger contraband;
+	contraband.prices = {{Good::Contraband, 1.0}};
+	CHECK_THROWS_WITH_AS(
+	    YamlArchive::Write(contraband, {}),
+	    doctest::Contains("Ledger.prices: a key is not an enumerator"), UnsupportedTypeError);
 
 	Ship ship;
 	ship.manifest = {Good::Contraband};

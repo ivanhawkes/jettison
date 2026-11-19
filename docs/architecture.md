@@ -859,8 +859,8 @@ Definitions layer finer than a file ([decided](roadmap.md#decided)). Every mount
 definition is read (`FileSystem::ReadLayers`), not the topmost alone: a whole file
 (`defs/goods/beer.yaml`) replaces the definition and everything below it, and a patch beside it
 (`defs/goods/beer.patch.yaml`) changes what it names and keeps the rest, merged in mount order over
-the topmost whole file (`Serialise::YamlArchive::ReadLayered`): a mapping key by key, a null
-removing a field so it reads as its default, a sequence replaced, appended to when tagged `!append`,
+the topmost whole file (`Serialise::YamlArchive::ReadLayered`): a mapping key by key (a class's
+fields or a map's entries), a null removing a field so it reads as its default, a sequence replaced, appended to when tagged `!append`,
 or merged element by element, matched by a field, when tagged `!merge=<field>`:
 
 ```yaml
