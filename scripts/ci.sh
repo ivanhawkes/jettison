@@ -4,7 +4,7 @@
 # GitHub workflow check exactly the same thing a developer can reproduce locally.
 #
 # Usage: scripts/ci.sh [--skip-smoke] [--skip-release] [--skip-tidy] [--werror] [--asan]
-#                      [--llvmpipe] [--preset NAME] [--log FILE]
+#                      [--llvmpipe] [--preset NAME] [--log FILE] [--force]
 #
 #  --skip-smoke     Format + compile only (use when no display/driver is available)
 #  --skip-release   Skip the Release build and its tests (CI runs them; hooks usually do not need
@@ -17,6 +17,11 @@
 #  --preset NAME    Debug preset (default: clang-debug)
 #  --log FILE       Write the full output to FILE and print only the stages, the summary and, if a
 #                   stage fails, its errors and last lines
+#  --force          Run even when the inputs are those of a gate that passed
+#
+# A gate that passed is not run again on the same inputs: the files of the working tree, tracked or
+# untracked and not ignored, *.md aside (no stage reads them), the toolchain and the options. Its key
+# is kept under build/gate-passed when the inputs are the same at the end of the run as at its start.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -34,6 +39,7 @@ asan=0
 software=()
 werror=()
 log=""
+force=0
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -45,12 +51,37 @@ while [ "$#" -gt 0 ]; do
 	--llvmpipe) software=(--llvmpipe); shift ;;
 	--preset) preset="$2"; shift 2 ;;
 	--log) log="$2"; shift 2 ;;
-	-h | --help) sed -n '2,18p' "$0"; exit 0 ;;
+	--force) force=1; shift ;;
+	-h | --help) sed -n '2,24p' "$0"; exit 0 ;;
 	*) echo "ci: unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
 # No GPU device nodes (Claude Code's sandbox): the hardware drivers fail to enumerate, noisily.
 [ -e /dev/dri ] || software=(--llvmpipe)
+
+# The working tree's contents through a scratch copy of the index, which the real one never sees.
+gate_key() {
+	local index tree
+	index="$(mktemp "${TMPDIR:-/tmp}/jettison-gate-index.XXXXXX")"
+	cp "$(git rev-parse --git-path index)" "$index"
+	GIT_INDEX_FILE="$index" git add -A
+	tree="$(GIT_INDEX_FILE="$index" git write-tree)"
+	rm -f "$index"
+	{
+		git ls-tree -r "$tree" | grep -v '\.md$'
+		clang --version
+		cmake --version
+		echo "$preset $headless_preset $smoke $release $tidy $asan ${software[*]-} ${werror[*]-}"
+	} | sha256sum | cut -d' ' -f1
+}
+gate_passed="build/gate-passed"
+key="$(gate_key)"
+if [ "$force" -eq 0 ] && [ -e "$gate_passed/$key" ]; then
+	message="gate passed: the inputs are those of the gate passed $(date -r "$gate_passed/$key" '+%F %T') (--force runs it)"
+	[ -n "$log" ] && mkdir -p "$(dirname "$log")" && echo "$message" >"$log"
+	echo "$message"
+	exit 0
+fi
 
 # Each stage is timed, and the run ends with one line per stage whether it passed or not, so a
 # reader (or an agent) can see what ran without reading the build's output. With --log that output
@@ -134,7 +165,14 @@ finish() {
 		fi
 		echo "--- gate summary ($((SECONDS - started)) s)"
 		printf '%s\n' "${summary[@]}"
-		if [ "$status" -eq 0 ]; then echo "gate passed"; else echo "gate FAILED (exit $status)"; fi
+		if [ "$status" -ne 0 ]; then
+			echo "gate FAILED (exit $status)"
+		elif [ "$(gate_key)" = "$key" ]; then
+			mkdir -p "$gate_passed" && touch "$gate_passed/$key"
+			echo "gate passed"
+		else
+			echo "gate passed, on inputs that changed while it ran: not recorded as passed"
+		fi
 	} | if [ -n "$log" ]; then tee -a "$log" >&3; else cat; fi
 }
 trap finish EXIT

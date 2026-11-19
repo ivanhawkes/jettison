@@ -273,6 +273,14 @@ lines without ninja's progress. That is the form to read the gate in when only t
 as an agent does: a passing gate with `--werror --asan` is 20 lines, against 658 in its log with
 warm caches (2026-11-12).
 
+A gate that passed is not run again on the same inputs: its key, a digest of the working tree's
+files (tracked or untracked and not ignored, read through a scratch copy of the index), less the
+`*.md` no stage reads, with `clang --version`, `cmake --version` and the options, is kept under
+`build/gate-passed` when it is the same at the end of the run as at the start. A run on those inputs
+prints `gate passed: the inputs are those of the gate passed <time>` and exits 0 at once, so a commit
+of documentation, or a second run before a commit, costs nothing; `--force` runs it anyway. CI's
+checkout has no `build/gate-passed`, so it always runs.
+
 ```bash
 ./scripts/ci.sh --werror --asan --log build/gate.log
 ```
