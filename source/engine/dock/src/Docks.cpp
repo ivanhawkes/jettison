@@ -196,12 +196,7 @@ const PadClassDefinition *Docks::FindPadClass(std::string_view name) const
 
 bool Docks::Fits(const HullDefinition &hull, std::string_view padClass) const
 {
-	const PadClassDefinition *pad = FindPadClass(padClass);
-	const PadClassDefinition *own = FindPadClass(hull.pad);
-	// The rank orders the classes; the size is what holds the hull. Ranks are the game's data, and
-	// nothing makes a class ranked above another the larger in every dimension.
-	return pad && own && pad->rank >= own->rank && hull.length <= pad->largestHull.x &&
-	       hull.beam <= pad->largestHull.y && hull.height <= pad->largestHull.z;
+	return Dock::Fits(m_padClasses, hull, padClass);
 }
 
 

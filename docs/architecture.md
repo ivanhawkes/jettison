@@ -553,8 +553,8 @@ A station's pads are the simulation's (`dock/Docks.h`, 9c, catalogue entry 31,
 the same, so it is given by commands in their order, saved, and nothing in the module assumes one
 player. Its data are definitions: a pad class (`defs/pads`, `Dock::PadClassDefinition`, W01) has
 the largest hull it takes, its pad's size and its rank, a hull fitting a pad of its own class or one
-ranked above it whose largest hull holds it (`Docks::Fits`: the rank orders the choice, the size is
-the limit), so a game's classes, a compact berth among them, need no engine edit; a hull
+ranked above it whose largest hull holds it (`Dock::Fits`, a free function over the classes so content
+is checked with no world, which `Docks::Fits` asks: the rank orders the choice, the size is the limit), so a game's classes, a compact berth among them, need no engine edit; a hull
 (`defs/hulls`, `Dock::HullDefinition`) has a size, within its class's largest hull, the class of
 pad it lands on and its cargo hatch, and collides as the box of its size; a station's
 layout (`defs/stations`, `Dock::StationLayout`), which a station names in its system's file

@@ -249,3 +249,24 @@ TEST_CASE("Dock definitions: a pad's orientation has its normal up and its headi
 	CHECK(glm::distance(turn * glm::dvec3{0.0, 1.0, 0.0}, pad.normal) < 1.0e-9);
 	CHECK(glm::distance(turn * glm::dvec3{0.0, 0.0, -1.0}, pad.heading) < 1.0e-9);
 }
+
+
+TEST_CASE("Dock definitions: a hull's fit is asked of the pad classes alone, with no world")
+{
+	// A game's own skiff below the sample's classes, as a content validator holds them.
+	Dock::PadClasses classes = DockTests::SampleClasses();
+	classes.emplace("skiff", Dock::PadClassDefinition{0, {10.0f, 7.0f, 2.0f}, {12.0f, 14.0f}});
+	classes.at("corvette").rank = 1;
+	const Dock::HullDefinition skiff{"Skiff", 9.8f, 6.4f, 1.8f, "skiff", {}};
+	const Dock::HullDefinition transport{"Transport", 56.0f, 28.0f, 14.0f, "frigate", {}};
+	CHECK_NOTHROW(Dock::CheckHull("skiff", skiff, classes));
+	CHECK(Dock::Fits(classes, skiff, "skiff"));
+	CHECK(Dock::Fits(classes, skiff, "corvette"));
+	CHECK(Dock::Fits(classes, transport, "destroyer"));
+	CHECK_FALSE(Dock::Fits(classes, transport, "skiff"));
+	CHECK_FALSE(Dock::Fits(classes, transport, "corvette"));
+	CHECK_FALSE(Dock::Fits(classes, skiff, "berth"));
+	Dock::HullDefinition stray = skiff;
+	stray.pad = "berth";
+	CHECK_FALSE(Dock::Fits(classes, stray, "cruiser"));
+}

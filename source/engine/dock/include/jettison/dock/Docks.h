@@ -369,9 +369,7 @@ class Docks
 		return m_padClasses;
 	}
 
-	// Whether a hull lands on a pad of that class: its own, or one ranked above or level with it
-	// whose largest hull is no smaller than the hull in any dimension. A class not defined takes
-	// none.
+	// Dock::Fits over the pad classes defined.
 	bool Fits(const HullDefinition &hull, std::string_view padClass) const;
 
 	// Whether the pad offers the feature, by its place in its station's layout

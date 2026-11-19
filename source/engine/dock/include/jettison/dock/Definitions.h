@@ -28,7 +28,7 @@ namespace Jettison::Dock
 // hull that lands on one, length by beam by height in metres; a pad's width (across its heading) and
 // length (along it), with room on each side of that hull for a clamp's reach and a road beside it;
 // and its rank among the classes. A hull lands on a pad of its own class or of one ranked above it
-// that holds it (Docks::Fits), the lowest ranked first: the rank orders the choice and the largest
+// that holds it (Fits), the lowest ranked first: the rank orders the choice and the largest
 // hull is the limit, so a class ranked above a smaller one is never given the larger one's hulls.
 // defs/pads/<name>.yaml; the space sample's are corvette, frigate, destroyer and cruiser, a fighter's
 // to a liner's. Registered with Reflect as "Dock.PadClassDefinition", every field Saved and Moddable,
@@ -164,6 +164,11 @@ const Serialise::YamlMigrations &HullMigrations();
 // of those defined, a size that is positive and within its class's largest hull, and its hatch
 // within it. Throws Serialise::FormatError naming the hull.
 void CheckHull(std::string_view name, const HullDefinition &hull, const PadClasses &classes);
+
+// Whether a hull lands on a pad of that class: its own, or one ranked above or level with it whose
+// largest hull is no smaller than the hull in any dimension. A class not in those given takes none,
+// and a hull of a class not in them lands on none. Content validation asks it with no world.
+bool Fits(const PadClasses &classes, const HullDefinition &hull, std::string_view padClass);
 
 // Checks a layout the same way: boxes of positive size; at least one; each pad's normal and heading
 // of unit length and square to each other; each pad lying on the face of a deck or a pier, all of

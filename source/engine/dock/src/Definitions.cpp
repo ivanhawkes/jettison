@@ -195,6 +195,20 @@ void CheckHull(std::string_view name, const HullDefinition &hull, const PadClass
 }
 
 
+bool Fits(const PadClasses &classes, const HullDefinition &hull, std::string_view padClass)
+{
+	const auto pad = classes.find(padClass);
+	const auto own = classes.find(hull.pad);
+	if (pad == classes.end() || own == classes.end())
+		return false;
+	// The rank orders the classes; the size is what holds the hull. Ranks are the game's data, and
+	// nothing makes a class ranked above another the larger in every dimension.
+	const glm::vec3 &largest = pad->second.largestHull;
+	return pad->second.rank >= own->second.rank && hull.length <= largest.x && hull.beam <= largest.y &&
+	       hull.height <= largest.z;
+}
+
+
 double Radius(const StationLayout &layout)
 {
 	double radius = 0.0;
