@@ -228,6 +228,40 @@ TEST_CASE("Ecs: an ordering chain resolves an ambiguity even through a system th
 }
 
 
+TEST_CASE("Ecs: afterIfRegistered orders a system after one that is registered, before or after it")
+{
+	std::vector<std::string> log;
+	SystemDescription follower =
+	    Recording(log, "follower", TickPhase::Simulation, {}, Access::Of<Position>());
+	follower.afterIfRegistered = {"leader"};
+
+	// Alone, it is ordered against nothing and Validate does not ask for the leader.
+	Scheduler alone;
+	alone.Register(follower);
+	CHECK_NOTHROW(alone.Validate());
+
+	// Registered after it, as before it: the leader runs first, and their conflict is ordered.
+	for (const bool leaderFirst : {true, false})
+	{
+		Scheduler scheduler;
+		const SystemDescription leader =
+		    Recording(log, "leader", TickPhase::Simulation, {}, Access::Of<>().Writing<Position>());
+		scheduler.Register(leaderFirst ? leader : follower);
+		scheduler.Register(leaderFirst ? follower : leader);
+		CHECK(scheduler.Order(TickPhase::Simulation) == std::vector<std::string>{"leader", "follower"});
+		CHECK(scheduler.Ambiguities(TickPhase::Simulation).empty());
+	}
+
+	// And in another phase it is refused, as after's is.
+	Scheduler crossed;
+	crossed.Register(Recording(log, "leader", TickPhase::Presentation));
+	CHECK_THROWS_WITH_AS(
+	    crossed.Register(follower),
+	    doctest::Contains("'follower' runs after 'leader', which is in another phase"),
+	    std::logic_error);
+}
+
+
 TEST_CASE("Ecs: an exception from a system stops its phase there")
 {
 	std::vector<std::string> log;

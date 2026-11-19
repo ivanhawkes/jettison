@@ -304,7 +304,8 @@ struct CargoCarried
 };
 
 // The docks in a simulation world: the components, the commands, and the system "dock"
-// (kSystemName), after physics' ("physics"), which each step, in entity order:
+// (kSystemName), after physics' ("physics") and before space's lanes' when they are attached
+// (Space::LaneTravel, which orders itself), which each step, in entity order:
 //   1. Gives up what a ship can no longer hold: a pad or a place whose ship has gone, or has left
 //      its station's system or frame, and a ship's business with a station that has gone.
 //   2. Lapses each reservation whose step has come, freeing the pad.

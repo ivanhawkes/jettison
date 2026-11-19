@@ -273,6 +273,12 @@ sequence, `InboundOverflow` past `maxInbound` and the world stepping with no ses
 ([Manifest's history](../../manifest/docs/history.md#n03-several-clients-reconnects-and-bounds--2026-11-20)).
 One session per actor, for a variant where two would both steer, would want a `Superseded` reason.
 
+The movement order, provisioned ahead of Manifest's W05 (2026-11-20), the one gap its W02 named:
+
+| Delivery | Manifest task (stage) | Exit criterion |
+| --- | --- | --- |
+| Movement order | W05 (4) | `dock` and `lanes` both write `Transform` and `InFrame` with no edge between them, so registration order decided theirs and, through `lanes`, `dock`'s against `cruise` ([Manifest's step](../../manifest/docs/stage-4-trading-plan.md#the-step-in-order)); an edge between them, tested in an independent consumer that registers dock, lanes and cruise and finds no conflicting pair in `Scheduler::Ambiguities`. **Done** 2026-11-20: `Ecs::SystemDescription::afterIfRegistered` names systems one runs after when they are registered and is not ordered against when they are not, for two optional modules neither of which depends on the other; `Validate` does not ask for them, and one in another phase is refused as `after`'s is. `lanes` runs after `dock` so, giving Manifest's `dock`, `lanes`, `cruise`; a world with lanes and no docks, or docks and no lanes, is ordered as before. The sample attaches the lanes first, so its step went from `lanes`, `cruise`, `dock` to `dock`, `lanes`, `cruise`, and every pinned hash held. Met: the ecs suite orders a follower after a leader registered before or after it, validates it alone and refuses a leader in another phase; the dock suite attaches physics, steering, the spatial index, the docks, lanes and cruise in both orders and finds the three in that order and `Ambiguities` empty, and failed with the edge taken out. |
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |

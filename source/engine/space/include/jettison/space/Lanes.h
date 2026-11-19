@@ -86,8 +86,8 @@ struct LaneRefused
 };
 
 // Lane travel in a simulation world: the OnLane component, the EnterLane command, and the system
-// "lanes" (kSystemName), which runs after physics' and brings out each entity whose transit ends
-// with the step:
+// "lanes" (kSystemName), which runs after physics' and, when they are attached, the docks' ("dock"),
+// and brings out each entity whose transit ends with the step:
 //   - its Sim::InFrame names the system it arrives in, and its Transform is at the jump point
 //     arrived at, where the jump point is as the step ends, turned the way the jump point faces
 //     (Celestial::JumpPointFacing): towards its planet, with its station before it;
@@ -126,8 +126,8 @@ class LaneTravel
 
 	// Registers OnLane as a component, the EnterLane command and the "lanes" system, ordered after
 	// physics', so physics has to be attached first (Physics::PhysicsWorld::Attach), whose shapes
-	// say how far apart arrivals come out. Throws std::logic_error as SimWorld's registrations do,
-	// for one already made.
+	// say how far apart arrivals come out, and after the docks' whenever they are attached, before
+	// or after. Throws std::logic_error as SimWorld's registrations do, for one already made.
 	static LaneTravel &Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics);
 
 	// The galaxy the lanes are; resolved, as reading one does. Until it is given, every EnterLane is

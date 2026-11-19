@@ -38,11 +38,18 @@ bool Names(const std::vector<std::string> &names, std::string_view name)
 }
 
 
+// Whether the system names the other in after or afterIfRegistered.
+bool RunsAfter(const SystemDescription &system, std::string_view other)
+{
+	return Names(system.after, other) || Names(system.afterIfRegistered, other);
+}
+
+
 // Whether a constraint puts the first ahead of the second: the second runs after it, or it runs
 // before the second.
 bool Precedes(const SystemDescription &first, const SystemDescription &second)
 {
-	return Names(second.after, first.name) || Names(first.before, second.name);
+	return RunsAfter(second, first.name) || Names(first.before, second.name);
 }
 } // namespace
 
@@ -70,15 +77,15 @@ void Scheduler::Register(SystemDescription system)
 		return std::format(
 		    "Scheduler: system '{}' runs {} '{}', which is in another phase; order across phases is "
 		    "the phases' own",
-		    naming.name, Names(naming.after, named.name) ? "after" : "before", named.name);
+		    naming.name, RunsAfter(naming, named.name) ? "after" : "before", named.name);
 	};
 	for (const SystemDescription &other : m_systems)
 	{
 		if (other.phase == system.phase)
 			continue;
-		if (Names(system.after, other.name) || Names(system.before, other.name))
+		if (RunsAfter(system, other.name) || Names(system.before, other.name))
 			throw std::logic_error{crossPhase(other, system)};
-		if (Names(other.after, system.name) || Names(other.before, system.name))
+		if (RunsAfter(other, system.name) || Names(other.before, system.name))
 			throw std::logic_error{crossPhase(system, other)};
 	}
 

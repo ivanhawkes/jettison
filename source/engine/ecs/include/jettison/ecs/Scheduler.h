@@ -64,10 +64,15 @@ struct SystemDescription
 	// module's system that cannot name it, as steering goes before physics' flight model. Last, so a
 	// description naming none is written as it was.
 	std::vector<std::string> before{};
+	// Names of systems this one runs after when they are registered, and is not ordered against
+	// when they are not: how an optional module orders itself against another it does not depend
+	// on, as the lanes' system goes after the docks'. Validate does not require them.
+	std::vector<std::string> afterIfRegistered{};
 };
 
 // Registers systems and runs each phase's systems in a valid order: after every system it names
-// in after, before every system it names in before, and otherwise in registration order, so the
+// in after (and in afterIfRegistered, of those registered), before every system it names in before,
+// and otherwise in registration order, so the
 // order is the same every run. Registration happens at start-up.
 //
 // A system's after or before may name one registered later. Register throws std::logic_error for a

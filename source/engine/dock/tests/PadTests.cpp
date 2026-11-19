@@ -1,5 +1,8 @@
 #include "Fixture.h"
 
+#include <jettison/space/Cruise.h>
+#include <jettison/space/Lanes.h>
+
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/serialise/Binary.h>
@@ -146,6 +149,37 @@ TEST_CASE(
 	// Both frigate pads are still free.
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 1)).state == Dock::PadState::Free);
 	CHECK(yard.PadOf(yard.PadNumbered(yard.station, 5)).state == Dock::PadState::Free);
+}
+
+
+TEST_CASE(
+    "Docks: with space's lanes and cruise attached, nothing orders them against the docks by chance")
+{
+	// The lanes attached after the docks, as Manifest's host does, and before, as the sample does.
+	for (const bool lanesFirst : {false, true})
+	{
+		Sim::SimWorld world{DockTests::kStep, 9};
+		Physics::PhysicsWorld &physics{Fixture::Setup(world)};
+		Ai::Steering::Attach(world, physics, Spatial::SystemIndices::Attach(world));
+		if (lanesFirst)
+		{
+			Space::LaneTravel::Attach(world, physics);
+			Space::CruiseTravel::Attach(world, physics);
+		}
+		Dock::Docks::Attach(world, physics);
+		if (!lanesFirst)
+		{
+			Space::LaneTravel::Attach(world, physics);
+			Space::CruiseTravel::Attach(world, physics);
+		}
+		const Ecs::Scheduler &scheduler = world.Scheduler();
+		CHECK(scheduler.Ambiguities(Ecs::TickPhase::Simulation).empty());
+		std::vector<std::string> order = scheduler.Order(Ecs::TickPhase::Simulation);
+		std::erase_if(
+		    order, [](const std::string &name)
+		    { return name != "dock" && name != "lanes" && name != "cruise"; });
+		CHECK(order == std::vector<std::string>{"dock", "lanes", "cruise"});
+	}
 }
 
 

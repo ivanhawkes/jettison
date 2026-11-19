@@ -43,8 +43,10 @@ LaneTravel &LaneTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld
 	         .Writing<
 	             OnLane, Sim::InFrame, Sim::Transform, Physics::LocalFrame, Physics::FlightControls>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
-	     [lanes, &world](entt::registry & /*registry*/, double /*fixedStep*/)
-	     { lanes->Arrive(world); }});
+	     [lanes, &world](entt::registry & /*registry*/, double /*fixedStep*/) { lanes->Arrive(world); },
+	     {},
+	     // Dock::Docks::kSystemName: space does not depend on dock, nor dock on space.
+	     {"dock"}});
 	return *lanes;
 }
 
