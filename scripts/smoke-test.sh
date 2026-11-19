@@ -12,6 +12,7 @@
 #
 # Usage: scripts/smoke-test.sh [--preset NAME] [--build-dir DIR] [--no-build]
 #                              [--llvmpipe] [--icd PATH] [--xvfb] [--no-xvfb]
+#                              [--offscreen] [--gpu NAME]
 #
 #  --preset NAME   CMake preset to build (default: clang-headless)
 #  --build-dir DIR Build tree (default: build/<preset>)
@@ -24,6 +25,12 @@
 #  --no-xvfb       Run on the current DISPLAY / compositor session
 #  --screen GEOM   Xvfb screen geometry, WxHxD (default: 1280x720x24; keep it small for
 #                  software rendering, which is fill-rate bound)
+#  --offscreen     Draw offscreen (render_test --offscreen): no display, no Xvfb, no window on any
+#                  desktop, on the device the renderer chooses; a GPU that cannot present where it
+#                  runs, as no NVIDIA card can under Xvfb, then draws the run
+#  --gpu NAME      Part of the name of the device to draw with (render_test --gpu); offscreen on
+#                  lythir, the user's workstation, it is 5060, the card with the monitor, so that
+#                  nothing runs on the 5070 Ti kept for inference beside it
 #  --packed        Run from the engine's assets and the sample's content, each packed into one file
 #                  (assets.pack, as a shipped build has them), with the test's data mod
 #                  (source/test/mods/smoke) in the run's user mods
@@ -41,6 +48,8 @@ werror=()
 xvfb_mode="auto"
 screen="1280x720x24"
 packed=0
+offscreen=0
+gpu=""
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -89,8 +98,16 @@ while [ "$#" -gt 0 ]; do
 		packed=1
 		shift
 		;;
+	--offscreen)
+		offscreen=1
+		shift
+		;;
+	--gpu)
+		gpu="$2"
+		shift 2
+		;;
 	-h | --help)
-		sed -n '2,22p' "$0"
+		sed -n '2,36p' "$0"
 		exit 0
 		;;
 	*)
@@ -237,12 +254,21 @@ run_app() {
 	fi
 }
 
-if [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ]; }; then
+gpu_args=()
+if [ "$offscreen" -eq 1 ] && [ -z "$gpu" ] && [ "$software" -eq 0 ] && [ "$(uname -n)" = lythir ]; then
+	gpu=5060
+fi
+[ -n "$gpu" ] && gpu_args=(--gpu "$gpu")
+
+if [ "$offscreen" -eq 1 ]; then
+	echo "smoke-test: offscreen${gpu:+, on the GPU named '$gpu'}"
+	run_app env -u DISPLAY -u WAYLAND_DISPLAY "$executable" --smoke-test --offscreen ${gpu_args[@]+"${gpu_args[@]}"}
+elif [ "$xvfb_mode" = off ] || { [ "$xvfb_mode" = auto ] && [ -n "${DISPLAY:-}" ]; }; then
 	echo "smoke-test: running on DISPLAY=${DISPLAY:-unset} (native session)"
-	run_app "$executable" --smoke-test
+	run_app "$executable" --smoke-test ${gpu_args[@]+"${gpu_args[@]}"}
 else
 	headless_start_xvfb "$screen" || exit 1
-	run_app env DISPLAY="$HEADLESS_DISPLAY" "$executable" --smoke-test
+	run_app env DISPLAY="$HEADLESS_DISPLAY" "$executable" --smoke-test ${gpu_args[@]+"${gpu_args[@]}"}
 fi
 
 # A run that renders, resizes and exits cleanly is not a run the layer is happy about. Two of the

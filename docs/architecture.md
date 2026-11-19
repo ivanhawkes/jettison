@@ -1916,7 +1916,7 @@ proves it headlessly. What exists:
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
   `--content`, `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
-  written to a file, `--screenshot`, `--after-frames`, `--frame-step` and `--run`), builds
+  written to a file, `--screenshot`, `--after-frames`, `--frame-step`, `--run` and `--offscreen`), builds
   `Application`, and prints any exception the run threw. A screenshot (10a) is the swapchain image
   as the output pass left it, UI and all, copied out by a transfer pass of the plan in the frame
   asked for one and written as a PNG through stb once the frame's fence is waited on, or as the
@@ -2023,7 +2023,13 @@ proves it headlessly. What exists:
   the window and have what the renderer needs, the one with a monitor connected, as its DRM card's
   connectors say, then a discrete GPU over an integrated one over the CPU; `--gpu <name>` asks for
   one, and the log lists every device and why it was or was not chosen. `Swapchain` prefers an sRGB
-  format and owns its image views. `Renderer` runs the frame as a declared pass list
+  format and owns its image views. Offscreen (`--offscreen`, `RendererOptions::offscreen`), GLFW runs
+  on its null platform, a window with a size, input callbacks and iconify but no display, and there
+  is no surface: the device needs no present support or swapchain extension, and `Swapchain` owns
+  two `B8G8R8A8_SRGB` images it hands out in turn, which the frame draws into with no acquire, no
+  semaphores and no present, the output exported for a transfer rather than presentation. It is
+  how a run draws on a GPU that cannot present where it runs, as no NVIDIA card can under Xvfb, and
+  the frame is the swapchain's to the byte (the `orbit-offscreen` reference frame). `Renderer` runs the frame as a declared pass list
   (`render/PassList.h`): the sun's [shadow cascades](#sun-shadows), the depth prepass (off), the
   cluster passes (the index
   list's allocator zeroed by a transfer, then the cluster bounds and the light assignment in

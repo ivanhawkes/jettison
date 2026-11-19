@@ -13,8 +13,11 @@ constexpr uint32_t kWindowWidth = 1920;
 constexpr uint32_t kWindowHeight = 1080;
 
 
-void Window::Init()
+void Window::Init(bool offscreen)
 {
+	m_offscreen = offscreen;
+	if (offscreen)
+		glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_NULL);
 	if (!glfwInit())
 	{
 		const char *description = nullptr;

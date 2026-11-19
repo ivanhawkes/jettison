@@ -197,6 +197,26 @@ classes (skiff to heavy destroyer) and its dry-dock platform are its own data, n
 The commit `3f8fb1c` carries H05's code under the message of a gate change; it stays as it is (the
 user's decision, 2026-11-18), as it is pushed and Manifest's pin follows it.
 
+### Frames drawn on the GPU, offscreen
+
+Done 2026-11-20 (the user's, placed after N02; entries 21 and 28). The renderer draws with no
+surface or swapchain when asked (`--offscreen`): GLFW on its null platform, a device with no present
+support or swapchain extension needed, and `Swapchain` owning two `B8G8R8A8_SRGB` images it hands
+out in turn, drawn into with no acquire, semaphores or present and exported for a transfer, which
+`--screenshot` reads as it read the swapchain's
+([architecture](architecture.md#rendering-clustered-forward)). `--run` takes a line at a frame
+(`@40 undock`) or a simulation time (`@2.5s traffic`). `smoke-test.sh --offscreen` runs with no
+display, pinned to the 5060 Ti by name on `lythir` and by `DeviceChoice` elsewhere, and the gate's
+plain smoke test runs so unless it has `--llvmpipe` or no `/dev/dri`. Claude Code's sandbox cannot be
+given the 5060 Ti's nodes (its bubblewrap call mounts a fresh `/dev` after every bind), so the user
+excluded `ci.sh` and `smoke-test.sh` from it ([build and gates](build-and-gates.md#headless-render-test)).
+Exit as met: the plain smoke test and the shell's checks under it passed on the 5060 Ti, validation
+clean, in 29 s against 49 on lavapipe under Xvfb, at 1.3 ms a frame against 79; the gate's stage took
+35 s with its build, from 66. The rest is the jumps' CPU work, 9 to 11 s each on either device.
+The reference frames, the sanitised run and CI stay on lavapipe under Xvfb, unchanged, and a new
+view, `orbit-offscreen`, is the `orbit` view drawn offscreen on lavapipe, the same PNG to the byte.
+The gate passed with `--werror --asan` in 324 s.
+
 ### Neutral SDK and Manifest integration
 
 The current priority's rows as they were closed (approved 2026-11-15), each the Manifest task it is

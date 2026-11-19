@@ -89,6 +89,21 @@ class Swapchain
 		return m_imageViews.at(index);
 	}
 
+	// Without a surface (Window::Init's offscreen), the images are the swapchain's own, drawn into
+	// in turn and never presented: there is no VkSwapchainKHR, and nothing to acquire.
+	bool IsOffscreen() const
+	{
+		return m_pDeviceContext->GetSurface() == VK_NULL_HANDLE;
+	}
+
+	// The offscreen image the next frame draws into, the one after the last. A frame slot waits on
+	// the fence of the frame that last drew into it, as it does on a swapchain image.
+	uint32_t NextOffscreenImage()
+	{
+		m_nextImage = (m_nextImage + 1) % m_imageCount;
+		return m_nextImage;
+	}
+
 	inline bool IsMinimised() const
 	{
 		return m_extents.height <= 0 || m_extents.width <= 0;
@@ -101,6 +116,8 @@ class Swapchain
 
   private:
 	void Create();
+
+	void CreateOffscreen();
 
 	VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
 
@@ -123,5 +140,8 @@ class Swapchain
 	VkExtent2D m_extents{0, 0};
 	std::vector<VkImage> m_images;
 	std::vector<VkImageView> m_imageViews;
+	// The images when offscreen, which m_images then lists the handles of.
+	std::vector<Image> m_offscreenImages;
+	uint32_t m_nextImage{0};
 };
 } // namespace Jettison::Render

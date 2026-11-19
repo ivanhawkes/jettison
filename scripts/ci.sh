@@ -13,7 +13,8 @@
 #  --werror         Configure with JETTISON_WERROR=ON, so warnings fail the build
 #  --asan           Build clang-asan and run the smoke test (on lavapipe, whatever else is
 #                   asked), and the simulation's suites, under the sanitizers
-#  --llvmpipe       Force software Vulkan (lavapipe) for the smoke test
+#  --llvmpipe       Force software Vulkan (lavapipe) for the smoke test, on a virtual display;
+#                   without it the plain smoke test draws offscreen on the GPU the renderer chooses
 #  --preset NAME    Debug preset (default: clang-debug)
 #  --log FILE       Write the full output to FILE and print only the stages, the summary and, if a
 #                   stage fails, its errors and last lines
@@ -52,7 +53,7 @@ while [ "$#" -gt 0 ]; do
 	--preset) preset="$2"; shift 2 ;;
 	--log) log="$2"; shift 2 ;;
 	--force) force=1; shift ;;
-	-h | --help) sed -n '2,24p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
 	*) echo "ci: unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
@@ -200,8 +201,16 @@ ctest --test-dir build/clang-cpu --output-on-failure --no-tests=error -j "$jobs"
 if [ "$smoke" -eq 1 ]; then
 	# From the packed assets and with a data mod in the user's mods, as a shipped build runs; the
 	# reference frames and the sanitised run read the staged directory.
-	stage "smoke test: $headless_preset (X11 GLFW build, virtual display, packed)"
-	./scripts/smoke-test.sh --preset "$headless_preset" --build --xvfb --packed ${software[@]+"${software[@]}"} ${werror[@]+--werror}
+	# Offscreen on a GPU where there is one, since no NVIDIA card can present under Xvfb; on lavapipe
+	# under Xvfb, through the swapchain, as CI and the pre-merge hook run it (--llvmpipe), or where
+	# there are no device nodes.
+	if [ ${#software[@]} -eq 0 ]; then
+		stage "smoke test: $headless_preset (offscreen, GPU, packed)"
+		./scripts/smoke-test.sh --preset "$headless_preset" --build --offscreen --packed ${werror[@]+--werror}
+	else
+		stage "smoke test: $headless_preset (X11 GLFW build, virtual display, packed)"
+		./scripts/smoke-test.sh --preset "$headless_preset" --build --xvfb --packed ${software[@]+"${software[@]}"} ${werror[@]+--werror}
+	fi
 	# The frames phase 10 is judged by, against the references kept beside views.txt; always on
 	# lavapipe, which the references were taken on (scripts/capture.sh).
 	stage "reference frames: $headless_preset (lavapipe, virtual display)"

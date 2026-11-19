@@ -133,6 +133,11 @@ skips the build; `--references [--update]` runs the reference views in
 `source/test/frames/views.txt` ([build and gates](docs/build-and-gates.md#reference-frames)). Run
 captures one at a time: each stops the Xvfb it started, under any other still drawing.
 
+`--run "@<frame> <line>"` or `--run "@<seconds>s <line>"` runs a line later in the run (undock, then
+thrust). `render_test --offscreen` draws with no display or window at all, so outside the sandbox it
+draws on the GPU (`--gpu 5060` on lythir, never the 5070 Ti), and `--screenshot` writes its frame;
+`./scripts/smoke-test.sh --offscreen` is the smoke test so.
+
 For a frame that needs keys or the UI, run `build/clang-headless/source/test/render_test [--scene
 ...]` on `Xvfb :97 -screen 0 1920x1080x24` with lavapipe's ICD in `VK_ICD_FILENAMES`
 (`scripts/lib/headless.sh` finds it), and the console's `screenshot <file.png>` writes the next

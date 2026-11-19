@@ -163,6 +163,10 @@ class Application final : private Shell
 
 	void Tick();
 
+	// Runs a --run line as typed into the console; a line the console refuses throws, since a frame
+	// captured from the wrong place is worse than none.
+	void RunCommandLine(const std::string &line);
+
 	void PollInput();
 
 	// The frame's camera input, into the scene's orbit rigs.
@@ -374,6 +378,8 @@ class Application final : private Shell
 	// has been taken.
 	std::uint32_t m_quietFrames{0};
 	bool m_screenshotTaken{false};
+	// The --run lines given a frame or a simulation time that have not run yet, in the order given.
+	std::vector<RunCommand> m_pendingCommands;
 	// Whether this frame's render recreated the swapchain, for the headless sequence.
 	bool m_frameResized{false};
 	// The benchmark's frames so far, warm-up included, and when the timed ones began.

@@ -5,6 +5,9 @@
 # The orbit scene as it opens: Ostra Highport over Ostra, the planet's limb behind it, the hull
 # lit and reflecting the planet through the environment's capture.
 orbit --scene $PWD/source/samples/space/assets/scene/orbit.yaml
+# The same view drawn offscreen (--offscreen), with no surface or swapchain: its reference is a copy
+# of orbit.png, so the offscreen target is held to the swapchain's frame to the byte.
+orbit-offscreen --scene $PWD/source/samples/space/assets/scene/orbit.yaml --offscreen
 # Ostra whole from 20,000 km, by day: its air's blue limb, the haze thickening towards it, clouds.
 ostra --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|Ostra
 # Its night side from 14,000 km: the cities' lights, and the limb lit from behind.

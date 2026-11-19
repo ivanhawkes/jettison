@@ -252,7 +252,9 @@ out of the shared shell, and nothing in the shell becomes a release/runtime depe
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
-headless render test, from the packed assets → reference frames,
+headless render test, from the packed assets, [offscreen](#headless-render-test) on the GPU where
+there is one and on lavapipe under Xvfb with `--llvmpipe` (CI, the pre-merge hook) or where there is
+no `/dev/dri` → reference frames,
 from the staged directory, and with `--asan`, the render test and the `vfs`, `serialise`, `resource`,
 `sim`, `spatial`, `physics`, `space`, `ai`, `dock`, `script` and `host` suites under the sanitisers
 (`vfs` and `script` for the packs and the modules, whose bytes are a mod's; `serialise` for the binary
@@ -522,7 +524,24 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --no-xvfb                   # your own Wayland/X11 session
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
 ./scripts/smoke-test.sh --llvmpipe --packed         # from the two packs, with the test's data mod
+./scripts/smoke-test.sh --offscreen --packed        # no display at all, on the GPU
 ```
+
+**Offscreen.** `--offscreen` runs `render_test --offscreen` with no Xvfb and `DISPLAY` and
+`WAYLAND_DISPLAY` unset: the renderer draws into images of its own on GLFW's null platform
+([architecture](architecture.md#rendering-clustered-forward)), so a GPU that cannot present to
+Xvfb draws the run and no window opens on any desktop. On the user's workstation (`uname -n` is
+`lythir`) it adds `--gpu 5060`, the card with the monitor, so nothing runs on the 5070 Ti kept for
+inference beside it; elsewhere the renderer chooses, and `--gpu NAME` names one. The gate runs the
+plain smoke test so unless it has `--llvmpipe` or there is no `/dev/dri`, which is Claude Code's
+sandbox: its bubblewrap call mounts a fresh `/dev` after every bind, so no setting can give it a
+GPU's nodes, and `./scripts/ci.sh *` and `./scripts/smoke-test.sh *` are in the user's
+`sandbox.excludedCommands` instead. Measured 2026-11-20 on the 5060 Ti: 29 s for the three runs and
+the shell's start-up checks, against 49 on lavapipe under Xvfb, at 1.3 ms a frame on the GPU against
+79 on lavapipe. What is left is the CPU's: each jump spends 9 to 11 s reading and building the
+system it arrives in, Halcyon's 8 s of it transcoding its planet's maps to BC7, the same on either
+device. The minimize stage runs on the null platform as on X11. The sanitised run stays on lavapipe,
+since NVIDIA's driver fails under ASan.
 
 **Packed.** The gate runs the headless tree's smoke test with `--packed`: it builds
 `jettison_assets_pack`, `jettison_sample_space_pack` and `render_test_smoke_mod`
@@ -567,7 +586,7 @@ again, models and rigs included, so a model's buffers are retired while a frame 
 them and freed after it, under validation. The jump replaces the scene with another system's
 behind its fade while frames that drew the old one are in flight: the sample scene jumps to the
 galaxy's first system (the orbit scene), and the orbit scene through Halcyon's gate to Vesper, built
-from its system file alone; each is about 1.7 s on lavapipe.
+from its system file alone; each took 9 to 11 s on 2026-11-20, on lavapipe or a GPU ([offscreen](#headless-render-test)).
 
 The ground sample walks the same stages from its own content, unpacked in either run: its piloting
 stages drive its rover ahead and then turning, its pick lands on its ground, its save and load hold
@@ -689,6 +708,12 @@ the same count idle and loaded, and `dock-sequence` none. The run logs where it 
 at frame ..., fixed time ...`), so a frame that moves shows on which tick. A frame is 960×540,
 and the frame captured is the one after thirty in a row with nothing loading, unless its
 line says otherwise.
+
+The offscreen target is held to the swapchain here: `orbit-offscreen` is the `orbit` view drawn
+with `--offscreen`, on lavapipe, and its reference is a copy of `orbit.png`; it came out the same to
+the byte (2026-11-20). A console line given to `--run` as `@<frame> <line>` runs at the start of
+that frame and as `@<seconds>s <line>` at the first frame the simulation's clock has reached it, so
+a view can be of what happens after a while: `--run pilot|chase --run @20|undock`.
 
 Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under
 any other capture still drawing on it.

@@ -95,13 +95,13 @@ std::string VolumeKey(Audio::Bus bus)
 }
 
 
-// Minimizing is X11-only: on Wayland a minimized surface leaves the frame loop parked in
-// DeviceContext::WaitOnWindowResized until the window is restored, and a headless run cannot
-// arrange the restore from inside the loop it is parked in. The headless presets build GLFW's X11
-// backend, so the gated run takes the stage.
+// Minimizing is X11's and the offscreen null platform's: on Wayland a minimized surface leaves the
+// frame loop parked in DeviceContext::WaitOnWindowResized until the window is restored, and a headless
+// run cannot arrange the restore from inside the loop it is parked in. The headless presets build
+// GLFW's X11 backend, so the gated run takes the stage.
 bool CanIconifyWindow()
 {
-	return glfwGetPlatform() == GLFW_PLATFORM_X11;
+	return glfwGetPlatform() == GLFW_PLATFORM_X11 || glfwGetPlatform() == GLFW_PLATFORM_NULL;
 }
 
 
@@ -884,6 +884,7 @@ void Application::InitRenderer()
 	options.bloom = m_arguments.bloom;
 	options.gpu = m_arguments.gpu;
 	options.drawEveryFrame = m_arguments.frameStep > 0.0;
+	options.offscreen = m_arguments.offscreen;
 	m_pRenderer = Render::CreateRenderer(m_assets, *m_pResources, std::move(options));
 	m_pRenderer->Init();
 }
@@ -1117,17 +1118,11 @@ void Application::RunFrameLoop()
 	m_frameClock.Tick();
 	m_loopStart = Time::RealClock::Clock::now();
 	m_frameStart = m_loopStart;
-	// As typed into the console, and a line it refuses fails the run: a frame captured from the wrong
-	// place is worse than none.
-	for (const std::string &line : m_arguments.commands)
-	{
-		const std::size_t before = m_console.Lines().size();
-		m_console.Execute(line);
-		const std::vector<DevTools::ConsoleLine> lines = m_console.Lines();
-		for (std::size_t index = before; index < lines.size(); ++index)
-			if (lines[index].kind == DevTools::ConsoleLine::Kind::Error)
-				throw std::runtime_error(std::format("--run '{}': {}", line, lines[index].text));
-	}
+	for (const RunCommand &command : m_arguments.commands)
+		if (command.frame == 0 && !command.simulationSeconds)
+			RunCommandLine(command.line);
+		else
+			m_pendingCommands.push_back(command);
 
 	while (!glfwWindowShouldClose(m_pRenderer->GetGLFWWindow()))
 		Tick();
@@ -1146,11 +1141,35 @@ void Application::RunFrameLoop()
 }
 
 
+void Application::RunCommandLine(const std::string &line)
+{
+	const std::size_t before = m_console.Lines().size();
+	m_console.Execute(line);
+	const std::vector<DevTools::ConsoleLine> lines = m_console.Lines();
+	for (std::size_t index = before; index < lines.size(); ++index)
+		if (lines[index].kind == DevTools::ConsoleLine::Kind::Error)
+			throw std::runtime_error(std::format("--run '{}': {}", line, lines[index].text));
+}
+
+
 void Application::Tick()
 {
 	JETTISON_PROFILE_FUNCTION();
 	const bool loading = m_pResources->Loading() != 0;
 	++m_frameIndex;
+	for (auto command = m_pendingCommands.begin(); command != m_pendingCommands.end();)
+	{
+		const bool due = command->simulationSeconds ? m_sim.Clock().Now() >= *command->simulationSeconds
+		                                            : m_frameIndex >= command->frame;
+		if (!due)
+		{
+			++command;
+			continue;
+		}
+		const std::string line = command->line;
+		command = m_pendingCommands.erase(command);
+		RunCommandLine(line);
+	}
 	double deltaTime = 0.0;
 	if (m_arguments.frameStep > 0.0)
 	{

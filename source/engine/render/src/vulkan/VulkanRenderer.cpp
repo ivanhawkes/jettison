@@ -38,7 +38,7 @@ class VulkanRenderer final : public IRenderer
 	void Init() override
 	{
 		m_pWindow = std::make_shared<Window>();
-		m_pWindow->Init();
+		m_pWindow->Init(m_options.offscreen);
 
 		m_pDeviceContext = std::make_shared<DeviceContext>(m_pWindow);
 		m_pDeviceContext->SetRequestedDevice(m_options.gpu);

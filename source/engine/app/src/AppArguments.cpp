@@ -1,6 +1,7 @@
 #include <jettison/app/AppArguments.h>
 
 #include <charconv>
+#include <cstddef>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -57,6 +58,35 @@ std::optional<double> ParseSeconds(std::string_view text)
 }
 
 
+// "@<frame> <line>", "@<seconds>s <line>" or a line to run before the first frame; nothing for a
+// when that is not a positive frame or time followed by a line.
+std::optional<RunCommand> ParseRunCommand(std::string_view text)
+{
+	if (!text.starts_with('@'))
+		return RunCommand{.line = std::string{text}, .frame = 0, .simulationSeconds = std::nullopt};
+	const std::size_t space = text.find(' ');
+	if (space == std::string_view::npos || space + 1 == text.size())
+		return std::nullopt;
+	const std::string_view when = text.substr(1, space - 1);
+	RunCommand command;
+	command.line = std::string{text.substr(space + 1)};
+	if (when.ends_with('s'))
+	{
+		command.simulationSeconds = ParseSeconds(when.substr(0, when.size() - 1));
+		if (!command.simulationSeconds)
+			return std::nullopt;
+	}
+	else
+	{
+		const auto frame = ParseCount(when);
+		if (!frame)
+			return std::nullopt;
+		command.frame = *frame;
+	}
+	return command;
+}
+
+
 // The usage line names the flags this file reads, and goes to the stream the failure report
 // uses, so the two halves of one exit path arrive together.
 void PrintUsage(const char *argv0)
@@ -68,7 +98,8 @@ void PrintUsage(const char *argv0)
 	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
 	             " [--galaxy <virtual path>] [--user-dir <directory>]"
 	             " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
-	             " [--frame-step <seconds>] [--run <console command>]...\n";
+	             " [--frame-step <seconds>] [--run [@<frame> | @<seconds>s] <console command>]..."
+	             " [--offscreen]\n";
 }
 } // namespace
 
@@ -126,7 +157,17 @@ std::optional<AppArguments> ParseAppArguments(
 		else if (argument == "--screenshot" && index + 1 < argc)
 			arguments.screenshotPath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--run" && index + 1 < argc)
-			arguments.commands.emplace_back(argv[++index]);
+		{
+			auto command = ParseRunCommand(argv[++index]);
+			if (!command)
+			{
+				PrintUsage(argv[0]);
+				return std::nullopt;
+			}
+			arguments.commands.push_back(std::move(*command));
+		}
+		else if (argument == "--offscreen")
+			arguments.offscreen = true;
 		else if (argument == "--after-frames" && index + 1 < argc)
 		{
 			const auto frames = ParseCount(argv[++index]);

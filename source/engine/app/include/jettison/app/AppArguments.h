@@ -8,6 +8,18 @@
 
 namespace Jettison::App
 {
+// A console line given with --run, and when it runs: before the first frame, or, written
+// "@<frame> <line>", at the start of that frame (the first is 1), or, written "@<seconds>s <line>",
+// at the start of the first frame the simulation's clock has reached that time.
+struct RunCommand
+{
+	std::string line;
+	std::uint64_t frame{0};
+	std::optional<double> simulationSeconds;
+
+	friend bool operator==(const RunCommand &, const RunCommand &) = default;
+};
+
 // What the executable was asked to run. argv is read once, here, so the app shell is handed a
 // description of the run instead of a command line: flotsam, jetsam and render_test share the
 // shell, and none of them has to know how the flags are spelled.
@@ -67,14 +79,17 @@ struct AppArguments
 	// took to draw, and none while anything is loading (--frame-step): with a screenshot, the frame
 	// is then the same in every run. Zero for the wall clock.
 	double frameStep{0.0};
-	// Console lines run before the first frame, in the order given (--run), as if typed: a camera
-	// placed for a screenshot, say.
-	std::vector<std::string> commands;
+	// Console lines run as if typed (--run), in the order given among those due on one frame: a
+	// camera placed for a screenshot, say, or a ship undocked and then thrust some frames later.
+	std::vector<RunCommand> commands;
 
 	// Sound played to miniaudio's null backend, in place of the machine's device: everything sounds
 	// as it would, at the pace it would, and nothing is heard or touches the sound system. The
 	// headless run always plays so.
 	bool noSound{false};
+	// Drawn offscreen, with no display or surface (render/IRenderer.h, RendererOptions::offscreen):
+	// a GPU run with no window on any desktop. The console takes lines through --run alone.
+	bool offscreen{false};
 	// Where the user's files go, in place of the XDG directories: settings under <dir>/config, saves
 	// under <dir>/data. The headless run with none named uses a directory of its own it removes as it
 	// ends, so a test neither reads nor writes the settings and saves of whoever runs it.

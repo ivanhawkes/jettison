@@ -39,7 +39,8 @@ constexpr Core::Category kRender{"render"};
 void DeviceContext::Init()
 {
 	CreateInstance();
-	CreateSurface();
+	if (!m_pWindow->IsOffscreen())
+		CreateSurface();
 	PickPhysicalDevice();
 	CreateLogicalDevice();
 	CreateAllocator();
@@ -65,7 +66,8 @@ void DeviceContext::Destroy()
 	}
 	if (m_instance != VK_NULL_HANDLE)
 	{
-		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+		if (m_surface != VK_NULL_HANDLE)
+			vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 		if (m_debugMessenger != VK_NULL_HANDLE)
 			m_pfnDestroyDebugUtilsMessenger(m_instance, m_debugMessenger, nullptr);
 		vkDestroyInstance(m_instance, nullptr);
@@ -132,10 +134,10 @@ void DeviceContext::CreateInstance()
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	createInfo.pApplicationInfo = &appInfo;
 
+	// Offscreen there is no surface, so none of the window system's extensions.
 	uint32_t glfwExtensionCount = 0;
-	const char **glfwExtensions;
-
-	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+	const char **glfwExtensions =
+	    m_pWindow->IsOffscreen() ? nullptr : glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
 	std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
@@ -405,8 +407,12 @@ QueueFamilyIndices DeviceContext::FindQueueFamilies(VkPhysicalDevice device)
 			indices.graphicsFamily = i;
 		}
 
+		// Offscreen nothing is presented, and the present queue is the graphics queue.
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
+		if (m_surface == VK_NULL_HANDLE)
+			presentSupport = indices.graphicsFamily == i;
+		else
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
 		if (presentSupport)
 		{
 			m_presentQueueIndex = i;
@@ -432,14 +438,19 @@ std::string DeviceContext::Unsuitable(VkPhysicalDevice device)
 		return "no queue does graphics and compute";
 	if (!indices.presentFamily)
 		return "it cannot present to the window";
-	if (!CheckDeviceExtensionSupport(device))
+	// Offscreen the swapchain extension is neither needed nor allowed: it requires VK_KHR_surface,
+	// which the instance then does not have (VUID-vkCreateDevice-ppEnabledExtensionNames-01387).
+	if (m_surface != VK_NULL_HANDLE && !CheckDeviceExtensionSupport(device))
 		return "it has no swapchain extension";
 	// The surface is asked about only by a device that can present to it: asking one that cannot is
 	// an error to the validation layer (VUID-vkGetPhysicalDeviceSurfaceCapabilitiesKHR-surface-06211).
 	// An NVIDIA card under Xvfb is one, and was reported as such before lavapipe was picked over it.
-	const SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
-	if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty())
-		return "it offers the window no format or present mode";
+	if (m_surface != VK_NULL_HANDLE)
+	{
+		const SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
+		if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty())
+			return "it offers the window no format or present mode";
+	}
 
 	VkPhysicalDeviceProperties properties{};
 	vkGetPhysicalDeviceProperties(device, &properties);
@@ -596,7 +607,8 @@ void DeviceContext::CreateLogicalDevice()
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+	createInfo.enabledExtensionCount =
+	    m_surface != VK_NULL_HANDLE ? static_cast<uint32_t>(deviceExtensions.size()) : 0;
 	createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
 	if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_logicalDevice) != VK_SUCCESS)

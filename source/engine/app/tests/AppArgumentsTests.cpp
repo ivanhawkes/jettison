@@ -22,6 +22,13 @@ std::optional<AppArguments> Parse(std::vector<std::string> words)
 		argv.push_back(word.data());
 	return ParseAppArguments(static_cast<int>(argv.size()), argv.data(), "assets");
 }
+
+
+// A line to run before the first frame (frame 0), on a frame, or at a simulation time.
+RunCommand Line(std::string line, std::uint64_t frame = 0, std::optional<double> seconds = {})
+{
+	return {.line = std::move(line), .frame = frame, .simulationSeconds = seconds};
+}
 } // namespace
 
 
@@ -34,13 +41,33 @@ TEST_CASE("a screenshot is asked for with the frames before it, a fixed step and
 	CHECK(arguments->screenshotPath == "/tmp/shots/orbit.png");
 	CHECK(arguments->screenshotAfterFrames == 12);
 	CHECK(arguments->frameStep == doctest::Approx(0.02));
-	CHECK(arguments->commands == std::vector<std::string>{"orbit 0.5 -0.2 2000", "quit"});
+	CHECK(arguments->commands == std::vector<RunCommand>{Line("orbit 0.5 -0.2 2000"), Line("quit")});
 
 	const auto defaults = Parse({});
 	REQUIRE(defaults);
 	CHECK(defaults->screenshotPath.empty());
 	CHECK(defaults->frameStep == 0.0);
 	CHECK(defaults->commands.empty());
+}
+
+
+TEST_CASE("a console line runs before the first frame, on a frame, or at a simulation time")
+{
+	const auto arguments = Parse(
+	    {"--offscreen", "--run", "pilot chase", "--run", "@40 undock", "--run", "@2.5s thrust 1"});
+	REQUIRE(arguments);
+	CHECK(arguments->offscreen);
+	CHECK(
+	    arguments->commands ==
+	    std::vector<RunCommand>{Line("pilot chase"), Line("undock", 40), Line("thrust 1", 0, 2.5)});
+	CHECK_FALSE(Parse({})->offscreen);
+
+	CHECK_FALSE(Parse({"--run", "@40"}));
+	CHECK_FALSE(Parse({"--run", "@40 "}));
+	CHECK_FALSE(Parse({"--run", "@0 undock"}));
+	CHECK_FALSE(Parse({"--run", "@-1s undock"}));
+	CHECK_FALSE(Parse({"--run", "@soon undock"}));
+	CHECK_FALSE(Parse({"--run", "@ undock"}));
 }
 
 

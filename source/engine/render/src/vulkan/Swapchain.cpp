@@ -3,6 +3,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -21,6 +22,11 @@ void Swapchain::Init()
 
 void Swapchain::Create()
 {
+	if (IsOffscreen())
+	{
+		CreateOffscreen();
+		return;
+	}
 	SwapChainSupportDetails swapChainSupport =
 	    m_pDeviceContext->QuerySwapChainSupport(m_pDeviceContext->GetPhysicalDevice());
 
@@ -122,6 +128,35 @@ void Swapchain::Create()
 }
 
 
+// The format lavapipe's swapchain has under Xvfb, so a frame drawn offscreen is the swapchain's to
+// the byte (the orbit-offscreen reference frame holds it), and every device can render into it and
+// copy from it.
+void Swapchain::CreateOffscreen()
+{
+	const VkExtent2D window = m_pDeviceContext->GetWindow()->GetWindowExtents();
+	m_extents = {std::max(window.width, 1u), std::max(window.height, 1u)};
+	m_imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+	m_encodesSrgb = true;
+	m_canReadBack = true;
+	m_imageCount = 2;
+	m_minImageCount = m_imageCount;
+	m_maxImageCount = m_imageCount;
+	m_nextImage = 0;
+	for (uint32_t i = 0; i < m_imageCount; ++i)
+	{
+		const std::string name = "offscreen-image-" + std::to_string(i);
+		m_offscreenImages.push_back(m_pDeviceContext->CreateImage(
+		    m_extents.width, m_extents.height, 1, VK_SAMPLE_COUNT_1_BIT, m_imageFormat,
+		    VK_IMAGE_TILING_OPTIMAL,
+		    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, name));
+		m_images.push_back(m_offscreenImages.back().handle);
+		m_imageViews.push_back(m_pDeviceContext->CreateImageView(
+		    m_images[i], m_imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1));
+		m_pDeviceContext->SetDebugName(m_imageViews[i], name + "-view");
+	}
+}
+
+
 void Swapchain::Recreate()
 {
 	m_pDeviceContext->WaitOnWindowResized();
@@ -137,7 +172,11 @@ void Swapchain::Destroy()
 		vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), view, nullptr);
 	m_imageViews.clear();
 	m_images.clear();
-	vkDestroySwapchainKHR(m_pDeviceContext->GetLogicalDevice(), m_vkSwapchainHandle, nullptr);
+	for (Image &image : m_offscreenImages)
+		m_pDeviceContext->DestroyImage(image);
+	m_offscreenImages.clear();
+	if (m_vkSwapchainHandle != VK_NULL_HANDLE)
+		vkDestroySwapchainKHR(m_pDeviceContext->GetLogicalDevice(), m_vkSwapchainHandle, nullptr);
 	m_vkSwapchainHandle = VK_NULL_HANDLE;
 }
 

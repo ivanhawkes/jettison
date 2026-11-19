@@ -73,6 +73,10 @@ struct RendererOptions
 	// retried once and skipped: for a fixed-step run, whose frames must not follow the display
 	// server's timing. Not for a window a user may be resizing, where it could keep recreating.
 	bool drawEveryFrame{false};
+	// Drawn into images of the renderer's own, with no surface, no swapchain and no display (GLFW's
+	// null platform): a run on a GPU that cannot present where it runs, as no NVIDIA card can under
+	// Xvfb. The screenshot reads the image as it would the swapchain's.
+	bool offscreen{false};
 };
 
 // The renderer as the rest of the engine sees it (docs/architecture.md, "Rendering: clustered

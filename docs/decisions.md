@@ -203,6 +203,14 @@ Settled on 2026-11-10:
   with the monitor and a 5070 Ti for inference, the 5060 Ti is chosen on Wayland, and lavapipe under
   Xvfb, where neither card can present. A laptop's monitor on its integrated GPU takes the integrated
   GPU, as the device-select layer would; `--gpu` takes the discrete one.
+- **A run with no display draws offscreen, on GLFW's null platform** (2026-11-20). NVIDIA's driver
+  cannot present to Xvfb and has no `VK_EXT_headless_surface`, and the desktop is not to be given
+  windows or keys, so the frame is drawn into images of the renderer's own with no surface, on a
+  window that has a size and callbacks and no display; the swapchain stays for every run with a
+  display. The gate's plain smoke test draws so on the GPU; CI, the reference frames and the
+  sanitised run stay on lavapipe under Xvfb, through the swapchain, and one reference view holds the
+  offscreen frame to the swapchain's byte for byte. On the user's workstation the smoke test pins the
+  5060 Ti by name, so the 5070 Ti kept for inference draws nothing whatever the ranking says.
 - **x86-64 with AVX2 is the minimum CPU**: Intel Haswell (2013) or AMD Excavator (2015) and
   later. Jolt adds its AVX2 instruction-set flags publicly, so they reach every target that links
   it, and the engine accepts that rather than building Jolt for an older instruction set

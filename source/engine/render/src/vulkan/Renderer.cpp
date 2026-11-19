@@ -615,7 +615,9 @@ void Renderer::CreatePassList()
 	if (m_pSwapchain->CanReadBack())
 		m_screenshotPass = m_passes.AddPass(
 		    "screenshot", PassKind::Transfer, {{m_swapchainResource, Usage::TransferRead}});
-	m_passes.Export(m_swapchainResource, Usage::Present);
+	// Offscreen the image is read back, if at all, and never presented.
+	m_passes.Export(
+	    m_swapchainResource, m_pSwapchain->IsOffscreen() ? Usage::TransferRead : Usage::Present);
 	m_plan = m_passes.Compile();
 }
 
@@ -1858,9 +1860,15 @@ bool Renderer::Render(
 	if (frame.screenshotPending)
 		SaveScreenshot(frame);
 
+	const bool offscreen = m_pSwapchain->IsOffscreen();
 	uint32_t imageIndex = 0;
 	const auto acquire = [&]
 	{
+		if (offscreen)
+		{
+			imageIndex = m_pSwapchain->NextOffscreenImage();
+			return VK_SUCCESS;
+		}
 		return vkAcquireNextImageKHR(
 		    device, m_pSwapchain->GetVkSwapchainHandle(), UINT64_MAX, frame.imageAvailable,
 		    VK_NULL_HANDLE, &imageIndex);
@@ -1959,12 +1967,13 @@ bool Renderer::Render(
 	// The first use of the swapchain image waits at the colour-output stage (PassBarriers'
 	// source scope for Present), so the acquire's semaphore is waited on there.
 	const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	submitInfo.waitSemaphoreCount = 1;
+	// Offscreen nothing was acquired and nothing presents, so the frame's fence orders it alone.
+	submitInfo.waitSemaphoreCount = offscreen ? 0 : 1;
 	submitInfo.pWaitSemaphores = &frame.imageAvailable;
 	submitInfo.pWaitDstStageMask = &waitStage;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &frame.commandBuffer;
-	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.signalSemaphoreCount = offscreen ? 0 : 1;
 	submitInfo.pSignalSemaphores = &m_renderFinished[imageIndex];
 
 	vkResetFences(device, 1, &frame.inFlight);
@@ -1988,7 +1997,9 @@ bool Renderer::Present()
 	presentInfo.pSwapchains = &swapchain;
 	presentInfo.pImageIndices = &imageIndex;
 
-	const VkResult result = vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
+	const VkResult result = m_pSwapchain->IsOffscreen()
+	                            ? VK_SUCCESS
+	                            : vkQueuePresentKHR(m_pDeviceContext->GetPresentQueue(), &presentInfo);
 
 	// Out of date is not one answer either side of a submit. Render's acquire recreates and tries
 	// again with the frame slot untouched, because nothing was queued; the frame has been queued here,
