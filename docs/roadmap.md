@@ -26,6 +26,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
+| Frames drawn on the GPU, offscreen | none: the gate's own speed (the user's, 2026-11-14; placed next, after N02, 2026-11-20; entries 21 and 28) | Every headless run draws on lavapipe under Xvfb, about a second a frame at 1080p: Xvfb cannot present an NVIDIA Vulkan surface, NVIDIA's driver has no `VK_EXT_headless_surface` for GLFW's null platform, and the desktop, which is Wayland, can be given no keys safely. The renderer draws into an image of its own with no surface or swapchain, `--screenshot` reads it back, and `--run` takes console lines at a frame or a simulation time, to drive what a capture cannot today (undocking, then thrusting). A local run draws on the 5060 Ti and never the 5070 Ti, by `DeviceChoice`. The sandbox's `/dev` has no GPU nodes (checked 2026-11-20: `/dev/nvidia*` and `/dev/dri` absent inside it; outside, `/dev/nvidia1` is the 5060 Ti and `/dev/nvidia0` the 5070 Ti), so a GPU run is given `/dev/nvidia1`, `nvidiactl`, `nvidia-uvm` and the 5060 Ti's render node (`renderD129`, PCI 0c:00.0), or runs outside it. Met when the plain smoke test and the shell's checks under it run on the 5060 Ti in seconds; the reference frames, the sanitised smoke test (NVIDIA's driver fails under ASan) and CI stay on lavapipe. |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
@@ -99,17 +100,6 @@ SDK work above and does not transfer production game rules into Jettison.
 Cheap to add when they are wanted and costly to nothing meanwhile, but for the log, whose file a
 player's report of a problem needs and the shell does not write.
 
-- **Frames drawn on the GPU, offscreen** (the user's, 2026-11-14; entries 21 and 28). Every
-  headless run draws on lavapipe under Xvfb, about a second a frame at 1080p, since Xvfb cannot
-  present an NVIDIA Vulkan surface and NVIDIA's driver has no `VK_EXT_headless_surface` for GLFW's
-  null platform; and a window on the desktop, which is Wayland, can be given no keys safely. An
-  offscreen target, the renderer drawing into an image of its own with no surface or swapchain and
-  `--screenshot` reading it back, would let a local run draw on the monitor's card (the 5060 Ti,
-  never the 5070 Ti, by `DeviceChoice`), with timed console lines (`--run` at a frame or a
-  simulation time) to drive a scenario a capture cannot today, such as undocking and then
-  thrusting. The plain smoke test and the shell's checks under it would run in seconds; the
-  reference frames stay on lavapipe, whose images they are, the sanitised smoke test too, since
-  NVIDIA's driver fails under ASan, and so does CI. Not yet placed.
 - **A test of an acquire out of date twice** (the user's, 2026-11-18). `drawEveryFrame`'s recreate
   loop and its failure after eight are not covered: it needs fault injection under the Vulkan
   layer, which the engine does not have. Taken up when that branch is needed, if ever.
