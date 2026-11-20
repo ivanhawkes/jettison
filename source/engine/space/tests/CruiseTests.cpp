@@ -445,6 +445,58 @@ TEST_CASE("Cruise: refused, with its reason")
 }
 
 
+TEST_CASE(
+    "Cruise: a ship within a station's reach is given the flight out of it, from where it cruises")
+{
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	Physics::ShapeDefinition hub;
+	hub.halfExtents = {40.0f, 20.0f, 40.0f};
+	fixture.physics.DefineShape("hub", hub);
+	const entt::entity station = registry.create();
+	registry.emplace<Sim::Transform>(
+	    station, Sim::Transform{Fixture::Where("Ostra Highport", fixture.world.Clock().Now())});
+	registry.emplace<Sim::InFrame>(station, kHalcyon);
+	registry.emplace<Physics::OnRails>(station, Physics::OnRails{"Ostra Highport"});
+	registry.emplace<Physics::Body>(station, Physics::Body{Physics::BodyKind::Kinematic, "hub"});
+	const Celestial::StarSystem halcyon = AiTests::Halcyon();
+
+	// Beyond Pell from the station, so the way out runs through the hub and goes round it.
+	const glm::dvec3 toPell =
+	    glm::normalize(Fixture::Where("Pell", 0.0) - Fixture::Where("Ostra Highport", 0.0));
+	const entt::entity ship = fixture.Ship("Ostra Highport", -toPell * 200.0);
+	const std::optional<Ai::Destination> flight =
+	    Space::ClearOf(fixture.world, fixture.physics, halcyon, ship, station, "Pell");
+	REQUIRE(flight);
+	CHECK_FALSE(flight->waypoints.empty());
+	const glm::dvec3 origin = fixture.physics.FrameOrigin(kHalcyon, "Ostra Highport", 0.0);
+	const glm::dvec3 end = origin + flight->offset;
+	const double reach = BodyOf("Ostra Highport").radius + Space::CruiseTravel::kStationReach;
+	CHECK(
+	    glm::distance(end, Fixture::Where("Ostra Highport", 0.0)) ==
+	    doctest::Approx(reach + Space::kReachMargin));
+	CHECK(glm::dot(end - Fixture::Where("Ostra Highport", 0.0), toPell) > 0.0);
+	// Each waypoint is clear of the hub's sphere.
+	for (const glm::dvec3 &waypoint : flight->waypoints)
+		CHECK(
+		    glm::distance(origin + waypoint, Fixture::Where("Ostra Highport", 0.0)) >
+		    fixture.physics.ShapeRadius("hub"));
+
+	// Where the flight ends, the cruise is accepted; outside the reach, there is no flight to take.
+	registry.get<Sim::Transform>(ship).position = end;
+	CHECK_FALSE(Space::ClearOf(fixture.world, fixture.physics, halcyon, ship, station, "Pell"));
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
+	fixture.Run(1);
+	CHECK(registry.all_of<Space::Cruising>(ship));
+
+	// Nor for a body the system does not have, or a ship in no frame.
+	const entt::entity other = fixture.Ship("Ostra Highport", {0.0, 0.0, 500.0});
+	CHECK_FALSE(Space::ClearOf(fixture.world, fixture.physics, halcyon, other, station, "Corva"));
+	registry.remove<Physics::LocalFrame>(other);
+	CHECK_FALSE(Space::ClearOf(fixture.world, fixture.physics, halcyon, other, station, "Pell"));
+}
+
+
 TEST_CASE("Cruise: a world saved mid-cruise arrives as the one saved does")
 {
 	Fixture fixture;

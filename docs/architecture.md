@@ -357,8 +357,8 @@ faces along the leg it is on.
 Presentation shows a cruising ship as any other, from its snapshots at its system's scale: the chase
 camera stays on it, the flight panel says where it is cruising to and how long is left, and the
 shell's console sends one (`cruise <body>`). What flies a ship no one is at the helm of crosses by a task of its own: a
-trader's `cruise` (13b) flies it out of any station's reach, round the station, then sends the
-command with its own sender and runs until it arrives; a run's time across a system is the ship's
+trader's `cruise` (13b) flies it out of any station's reach, round the station (`Space::ClearOf`,
+the flight any game's ship takes from a station it left), then sends the command with its own sender and runs until it arrives; a run's time across a system is the ship's
 drive's (`Space::CrossingByCourse` with a `CourseTime`), so a trader weighs a run in the seconds it
 takes. A ship of the player's fleet no one is at the helm of follows the same tree (13d).
 

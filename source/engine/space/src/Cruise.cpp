@@ -187,6 +187,50 @@ double CruiseTravel::ArrivalDistance(const Celestial::Body &body)
 }
 
 
+std::optional<Destination> ClearOf(
+    const Sim::SimWorld &world, const Physics::PhysicsWorld &physics,
+    const Celestial::StarSystem &system, entt::entity ship, entt::entity station, std::string_view body)
+{
+	const entt::registry &registry = world.Registry();
+	const auto *inSystem = registry.try_get<Sim::InFrame>(ship);
+	const auto *frame = registry.try_get<Physics::LocalFrame>(ship);
+	const auto *transform = registry.try_get<Sim::Transform>(ship);
+	const auto *rails = registry.try_get<Physics::OnRails>(station);
+	const auto *stationBody = registry.try_get<Physics::Body>(station);
+	if (!inSystem || inSystem->frame != Sim::FrameId(system.name) || !frame || !transform || !rails ||
+	    !stationBody)
+		return std::nullopt;
+	const int left = system.Find(rails->body);
+	const int target = system.Find(body);
+	if (left < 0 || target < 0)
+		return std::nullopt;
+
+	const double now = world.Clock().Now();
+	const std::vector<Celestial::SystemPosition> bodies = Celestial::EvaluateSystem(system, now);
+	const Celestial::Body &leaving = system.bodies[static_cast<std::size_t>(left)];
+	const glm::dvec3 centre = bodies[static_cast<std::size_t>(left)].metres;
+	const glm::dvec3 at = transform->position;
+	if (glm::distance(at, centre) >= leaving.radius + CruiseTravel::kStationReach)
+		return std::nullopt;
+
+	// A point just beyond its reach, on the side of the body to cruise to.
+	const glm::dvec3 way = bodies[static_cast<std::size_t>(target)].metres - centre;
+	const glm::dvec3 out = glm::length(way) > 1.0 ? glm::normalize(way) : glm::dvec3{0.0, 0.0, 1.0};
+	const glm::dvec3 clear =
+	    centre + out * (leaving.radius + CruiseTravel::kStationReach + kReachMargin);
+	const glm::dvec3 origin = physics.FrameOrigin(inSystem->frame, frame->body, now);
+	Destination flight;
+	flight.offset = clear - origin;
+	const Sphere sphere{
+	    registry.get<Sim::Transform>(station).position, physics.ShapeRadius(stationBody->shape)};
+	const Waypoints waypoints{{sphere}, kReachClearance};
+	if (const std::optional<Course> course = waypoints.PlotCourse(at, clear))
+		for (std::size_t point = 1; point + 1 < course->points.size(); ++point)
+			flight.waypoints.push_back(course->points[point] - origin);
+	return flight;
+}
+
+
 CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics)
 {
 	RegisterTypes();

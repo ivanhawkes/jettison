@@ -57,10 +57,6 @@ constexpr double kStopSeconds = 240.0;
 // from a station's pad beyond the reach inside which a ship does not cruise (2.3 km at its
 // thrusters' 150 m/s, round the station), and in from a gate's arrival, 4.6 km off, to its ring.
 constexpr double kCruiseHandlingSeconds = 45.0;
-// A course off a station keeps this far from its sphere.
-constexpr double kStationClearance = 100.0;
-// How far past a station's reach a trader flies before it cruises.
-constexpr double kReachMargin = 300.0;
 
 
 void RegisterTypes()
@@ -400,22 +396,6 @@ class Round
 	}
 
 
-	// Appends to the flight the waypoints of a course from one point to another round a station's
-	// sphere, in the frame whose origin is given.
-	void AddCourseRound(
-	    Ai::Destination &flight, const entt::registry &registry, entt::entity station,
-	    const glm::dvec3 &from, const glm::dvec3 &to, const glm::dvec3 &origin) const
-	{
-		const Ai::Sphere sphere{
-		    registry.get<Sim::Transform>(station).position,
-		    m_physics.ShapeRadius(registry.get<Physics::Body>(station).shape)};
-		const Ai::Waypoints waypoints{{sphere}, kStationClearance};
-		if (const std::optional<Ai::Course> course = waypoints.PlotCourse(from, to))
-			for (std::size_t point = 1; point + 1 < course->points.size(); ++point)
-				flight.waypoints.push_back(course->points[point] - origin);
-	}
-
-
 	// Crosses the system to the body the argument names, the gate the route goes through next ("gate")
 	// or the market's station ("market"): flown out of any station's reach, round the station, where
 	// a cruise does not engage, then taken across by the cruise, and succeeding as it ends. Fails when
@@ -460,7 +440,6 @@ class Round
 
 		// The station whose reach the ship is within, if any.
 		const Celestial::Body *near = nullptr;
-		std::size_t nearIndex = 0;
 		for (std::size_t each = 0; each < starSystem->bodies.size(); ++each)
 			if (const Celestial::Body &body = starSystem->bodies[each];
 			    body.kind == Celestial::BodyKind::Station &&
@@ -468,7 +447,6 @@ class Round
 			        body.radius + Space::CruiseTravel::kStationReach)
 			{
 				near = &body;
-				nearIndex = each;
 				break;
 			}
 		if (near)
@@ -476,24 +454,17 @@ class Round
 			// Already flying out, from an earlier tick.
 			if (destination && !context.starting)
 				return Status::Running;
-			const auto *frame = registry.try_get<Physics::LocalFrame>(context.entity);
 			const entt::entity leaving = FindStation(registry, system, near->name);
-			if (!frame || leaving == entt::null)
+			std::optional<Ai::Destination> flight =
+			    leaving == entt::null
+			        ? std::nullopt
+			        : Space::ClearOf(
+			              context.world, m_physics, *starSystem, context.entity, leaving, name);
+			if (!flight)
 				return Status::Failure;
-			// A point just beyond its reach, on the side of the body to cruise to.
-			const glm::dvec3 centre = bodies[nearIndex].metres;
-			const glm::dvec3 way = target - centre;
-			const glm::dvec3 out =
-			    glm::length(way) > 1.0 ? glm::normalize(way) : glm::dvec3{0.0, 0.0, 1.0};
-			const glm::dvec3 clear =
-			    centre + out * (near->radius + Space::CruiseTravel::kStationReach + kReachMargin);
-			const glm::dvec3 origin = m_physics.FrameOrigin(system, frame->body, now);
-			Ai::Destination flight;
-			flight.offset = clear - origin;
-			AddCourseRound(flight, registry, leaving, at, clear, origin);
 			context.world.Apply(
 			    Ai::SetDestination{
-			        SenderOf(registry, context.entity), context.entity, std::move(flight)});
+			        SenderOf(registry, context.entity), context.entity, *std::move(flight)});
 			return Status::Running;
 		}
 

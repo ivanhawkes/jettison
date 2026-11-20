@@ -5,10 +5,12 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include <jettison/ai/Steering.h>
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/physics/Components.h>
 #include <jettison/sim/Controller.h>
@@ -119,6 +121,23 @@ struct CruiseRefused
 	std::string body;
 	Sim::Reason reason;
 };
+
+// Metres a flight out of a station's reach keeps from its sphere, and goes past the reach.
+inline constexpr double kReachClearance = 100.0;
+inline constexpr double kReachMargin = 300.0;
+
+// The flight a ship takes out of the reach of the station it left, where a Cruise is refused
+// (NearStation), so that a Cruise to the body is then accepted from beyond it: to kReachMargin beyond
+// the reach (CruiseTravel::kStationReach) on the side of the body, round the station's sphere (its
+// Physics::Body's shape) by kReachClearance, in the ship's frame (Physics::LocalFrame), for an
+// Ai::SetDestination. The station is an entity on a body's rails (Physics::OnRails), as the docks
+// build one, and the system the ship's. None for a ship outside the station's reach, and for one it
+// cannot plan from: in another system or in no frame, or with the station or the body not of the
+// system.
+std::optional<Ai::Destination> ClearOf(
+    const Sim::SimWorld &world, const Physics::PhysicsWorld &physics,
+    const Celestial::StarSystem &system, entt::entity ship, entt::entity station,
+    std::string_view body);
 
 // Cruising in a simulation world: the CruiseDrive and Cruising components, the Cruise command, and
 // the system "cruise" (kSystemName), which runs after the lanes' (after physics') and places each
