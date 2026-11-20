@@ -273,6 +273,11 @@ sequence, `InboundOverflow` past `maxInbound` and the world stepping with no ses
 ([Manifest's history](../../manifest/docs/history.md#n03-several-clients-reconnects-and-bounds--2026-11-20)).
 One session per actor, for a variant where two would both steer, would want a `Superseded` reason.
 
+Manifest's W03 (2026-11-20) needed no engine edit, on the same pin: its hosted order book settles on
+owner and venue accounts through `Sim::SimWorld`'s systems and Manifest's own command path, with
+each venue's broker quoting each turn, and its goods are counted in totes, an eighth of an IBC
+([Manifest's history](../../manifest/docs/history.md#w03-the-hosted-book-on-owner-and-venue-accounts--2026-11-20)).
+
 The movement order, provisioned ahead of Manifest's W05 (2026-11-20), the one gap its W02 named:
 
 | Delivery | Manifest task (stage) | Exit criterion |

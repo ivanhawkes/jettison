@@ -20,7 +20,9 @@ dedicated server and TUI client on it, on the pin `65846bb`. N03 is done in Mani
 edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). Its W02 is done in
 Manifest (2026-11-20), a planning task: its hosted step runs Jettison's movement systems at 1/60 s and
 names one engine gap, an order between `dock` and `lanes`, provisioned ahead of W05 (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)); W03 is next.
+[history](history.md#neutral-sdk-and-manifest-integration)). W03 is done in Manifest with no engine
+edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)); W05 is next, on a pin
+that takes the movement order.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
