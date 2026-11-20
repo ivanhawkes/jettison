@@ -40,8 +40,9 @@ step, is done in Manifest (2026-11-20), the step taken a slice at a time and sto
 provision here, the rails placed once a body, which halved a cruising step
 ([history](history.md#neutral-sdk-and-manifest-integration)). Its W09, the complete trading fixture, is
 done in Manifest with no engine edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)).
-Next is its W10, standing trade policies and NPC jobs, before which the fast-forward over quiet steps
-(below) is decided.
+The fast-forward over quiet steps it asked for after L26, its L27, is provisioned here (2026-11-20,
+[history](history.md#neutral-sdk-and-manifest-integration)); Manifest's systems' quiets and its
+console's and server's use of it are its own. Next is its W10, standing trade policies and NPC jobs.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -78,17 +79,6 @@ dearer with every save a player has and once a second player sends commands.
   player's event sends as that player, an NPC's as that NPC, and no client or script can name
   another player or an NPC. It also reaches a `Sim::Controller` nested inside a command's fields,
   which the host does not yet stamp.
-- **A fast-forward over quiet steps** (the user's, 2026-11-20, after Manifest's L26): a cruising
-  step of Manifest's is 13 µs, nearly all of it the engine's movement (Jolt's update of each frame's
-  world, the docks and their buggies, the spatial index, the cruise's placing) and under 5% the
-  game's, so a 4.49-day cruise is 23 million steps of motion a formula could place. Each system says
-  the next step it must run at (a batch due, an order lapsing, a journey ending, a contact
-  possible), and the world, while nothing but motion by formula is under way (orbits, rails, a
-  cruise placed by its time), goes straight to the soonest, to the same bits as stepping there:
-  physics, the docks and the buggies each prove themselves quiet or are placed in closed form over
-  the gap. It changes what a system tells the step, so it is dearer the more systems there are:
-  decided before Manifest's W10 adds traders' and NPC jobs' work to every step. Tested by a world
-  fast-forwarded and one stepped reaching the same state hash, the pinned hashes holding.
 
 ### Next: what the game's next slices stand on
 

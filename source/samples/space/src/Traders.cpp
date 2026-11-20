@@ -115,18 +115,27 @@ class Round
 
 	void Define(Ai::Behaviours &behaviours, const std::shared_ptr<Round> &self) const
 	{
-		const auto task = [&](std::string name, Status (Round::*method)(TaskContext &) const)
+		const auto task =
+		    [&](std::string name, Status (Round::*method)(TaskContext &) const, Ai::TaskWake wake = {})
 		{
 			behaviours.DefineTask(
-			    std::move(name),
-			    [self, method](TaskContext &context) { return ((*self).*method)(context); });
+			    std::move(name), [self, method](TaskContext &context)
+			    { return ((*self).*method)(context); }, std::move(wake));
 		};
 		task("choose-trade", &Round::ChooseTrade);
 		task("buying", &Round::Buying);
 		task("head-for", &Round::HeadFor);
 		task("leave", &Round::Leave);
 		task("jumps-left", &Round::JumpsLeft);
-		task("cruise", &Round::CruiseTo);
+		// Cruising, it runs until the step after the one its ship arrives in.
+		task(
+		    "cruise", &Round::CruiseTo,
+		    [](const Sim::SimWorld &world, entt::entity entity, std::span<const std::string>,
+		       std::uint64_t)
+		    {
+			    const auto *cruising = world.Registry().try_get<Space::Cruising>(entity);
+			    return cruising ? cruising->arrivalStep : world.Clock().Step();
+		    });
 		task("clear", &Round::ClearGate);
 		task("fly-through", &Round::FlyThrough);
 		task("jump", &Round::Jump);

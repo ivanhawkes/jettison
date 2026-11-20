@@ -197,3 +197,34 @@ TEST_CASE(
 	CHECK(sounds.Play({2, entt::meta_any{Dock::Left{ship, station, entt::null, 1}}}, audio, {}) == 0);
 	CHECK(audio.Problems() == 0);
 }
+
+
+TEST_CASE("Stations: with their ships parked, stations are passed over to the state stepping leaves")
+{
+	Stations forwarded;
+	Stations stepped;
+	Sample::SpaceGame game;
+	for (Stations *sample : {&forwarded, &stepped})
+		Sample::OpenStations(
+		    sample->world, sample->docks, sample->systems,
+		    [&](entt::entity station, std::string_view body)
+		    { game.StationOpened(sample->world, sample->docks, sample->definitions, station, body); });
+
+	// An hour: physics rests within a few steps of the stations opening, and nothing else runs.
+	constexpr std::uint64_t kEnd = 216000;
+	int calls = 0;
+	while (forwarded.world.Clock().Step() < kEnd)
+	{
+		forwarded.world.FastForward(kEnd);
+		++calls;
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
+	CHECK(calls < 10);
+	CHECK(
+	    Holding(
+	        forwarded.world.Registry(),
+	        Sample::FindStation(
+	            forwarded.world.Registry(), Sim::FrameId("Halcyon"), "Ostra Highport")) == 3);
+}

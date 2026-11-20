@@ -54,16 +54,13 @@ struct Change3
 	glm::dvec3 angular;
 	Thrust thrust;
 };
-} // namespace
 
 
-void StepFlight(entt::registry &registry, double fixedStep)
+Change3 ChangeOf(
+    const entt::registry &registry, entt::entity entity, const Handling &handling,
+    const FlightControls &controls, const Sim::Transform &transform, const Velocity &velocity,
+    double fixedStep)
 {
-	JETTISON_PROFILE_ZONE("Physics::StepFlight");
-	std::vector<Change3> changes;
-	const auto ships =
-	    registry.view<const Handling, const FlightControls, const Sim::Transform, const Velocity>();
-	for (const auto [entity, handling, controls, transform, velocity] : ships.each())
 	{
 		glm::dvec3 reference{0.0};
 		if (registry.valid(controls.reference) && controls.reference != entity)
@@ -97,8 +94,21 @@ void StepFlight(entt::registry &registry, double fixedStep)
 			thrust.linear[axis] = Share(linear[axis], positive[axis], negative[axis], fixedStep);
 			thrust.angular[axis] = Share(angular[axis], turn, turn, fixedStep);
 		}
-		changes.push_back({entity, orientation * linear, orientation * angular, thrust});
+		return {entity, orientation * linear, orientation * angular, thrust};
 	}
+}
+} // namespace
+
+
+void StepFlight(entt::registry &registry, double fixedStep)
+{
+	JETTISON_PROFILE_ZONE("Physics::StepFlight");
+	std::vector<Change3> changes;
+	const auto ships =
+	    registry.view<const Handling, const FlightControls, const Sim::Transform, const Velocity>();
+	for (const auto [entity, handling, controls, transform, velocity] : ships.each())
+		changes.push_back(
+		    ChangeOf(registry, entity, handling, controls, transform, velocity, fixedStep));
 
 	// What no longer flies fires nothing.
 	std::vector<entt::entity> grounded;
@@ -114,5 +124,23 @@ void StepFlight(entt::registry &registry, double fixedStep)
 		velocity.angular = glm::vec3{glm::dvec3{velocity.angular} + change.angular};
 		registry.emplace_or_replace<Thrust>(change.entity, change.thrust);
 	}
+}
+
+
+bool FlightAtRest(const entt::registry &registry, double fixedStep)
+{
+	for (const auto [entity, handling, controls, transform, velocity] :
+	     registry.view<const Handling, const FlightControls, const Sim::Transform, const Velocity>()
+	         .each())
+	{
+		if (const auto *body = registry.try_get<Body>(entity);
+		    body && body->kind == BodyKind::Kinematic)
+			continue;
+		const Change3 change =
+		    ChangeOf(registry, entity, handling, controls, transform, velocity, fixedStep);
+		if (change.linear != glm::dvec3{0.0} || change.angular != glm::dvec3{0.0})
+			return false;
+	}
+	return true;
 }
 } // namespace Jettison::Physics

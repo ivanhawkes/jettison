@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -46,7 +47,15 @@ LaneTravel &LaneTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld
 	     [lanes, &world](entt::registry & /*registry*/, double /*fixedStep*/) { lanes->Arrive(world); },
 	     {},
 	     // Dock::Docks::kSystemName: space does not depend on dock, nor dock on space.
-	     {"dock"}});
+	     {"dock"}},
+	    // Until the step an arrival ends at, nothing on a lane changes.
+	    {.next = [](const Sim::SimWorld &target)
+	     {
+		     std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
+		     for (const auto [entity, lane] : target.Registry().view<const OnLane>().each())
+			     next = std::min(next, lane.arrivalStep - std::min<std::uint64_t>(lane.arrivalStep, 1));
+		     return next;
+	     }});
 	return *lanes;
 }
 

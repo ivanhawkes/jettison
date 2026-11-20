@@ -118,12 +118,28 @@ void SimWorld::AddCommand(const entt::meta_type &type, Applier apply)
 }
 
 
-void SimWorld::RegisterSystem(Ecs::SystemDescription system)
+void SimWorld::RegisterSystem(Ecs::SystemDescription system, Quiet quiet)
 {
 	if (system.phase != Ecs::TickPhase::Simulation)
 		throw std::logic_error{
 		    std::format("SimWorld: system '{}' is not a simulation-phase system", system.name)};
+	std::string name = system.name;
 	m_scheduler.Register(std::move(system));
+	if (quiet.next)
+		m_quiets.insert_or_assign(std::move(name), std::move(quiet));
+	m_quietOrder.clear();
+}
+
+
+const std::vector<const Quiet *> &SimWorld::QuietInOrder()
+{
+	if (m_quietOrder.empty())
+		for (const std::string &name : m_scheduler.Order(Ecs::TickPhase::Simulation))
+		{
+			const auto found = m_quiets.find(name);
+			m_quietOrder.push_back(found == m_quiets.end() ? nullptr : &found->second);
+		}
+	return m_quietOrder;
 }
 
 
@@ -158,6 +174,38 @@ void SimWorld::Step()
 	}
 	m_scheduler.Run(Ecs::TickPhase::Simulation, m_registry, m_fixedStep);
 	m_clock.Advance(m_fixedStep);
+}
+
+
+std::uint64_t SimWorld::FastForward(std::uint64_t until)
+{
+	const std::uint64_t from = m_clock.Step();
+	if (until <= from)
+		return 0;
+	std::uint64_t to = m_commands.Pending().empty() ? until : from;
+	for (const Quiet *quiet : QuietInOrder())
+	{
+		if (to <= from)
+			break;
+		to = quiet ? std::min(to, quiet->next(*this)) : from;
+	}
+	if (to <= from)
+	{
+		Step();
+		return 1;
+	}
+
+	// The clock's time is the sum of the steps, as stepping makes it.
+	double lastBegan = m_clock.Now();
+	for (std::uint64_t step = from; step < to; ++step)
+	{
+		lastBegan = m_clock.Now();
+		m_clock.Advance(m_fixedStep);
+	}
+	for (const Quiet *quiet : QuietInOrder())
+		if (quiet && quiet->skip)
+			quiet->skip(*this, lastBegan);
+	return to - from;
 }
 
 

@@ -495,3 +495,48 @@ TEST_CASE(
 	CHECK(registry.view<Sim::Helm>().empty());
 	CHECK(counted(second) == before + 1);
 }
+
+
+TEST_CASE("Behaviour trees: steps a tree waits through are passed over, to the state ticking leaves")
+{
+	Trees forwarded;
+	Trees stepped;
+	for (Trees *trees : {&forwarded, &stepped})
+	{
+		// Asleep for its argument's steps from its first tick, which it says by its wake.
+		trees->behaviours.DefineTask(
+		    "doze",
+		    [](Ai::TaskContext &context)
+		    {
+			    if (context.starting)
+				    context.memory = context.world.Clock().Step() + std::stoull(context.arguments[0]);
+			    return context.world.Clock().Step() >= context.memory ? Status::Success
+			                                                          : Status::Running;
+		    },
+		    [](const Sim::SimWorld &, entt::entity, std::span<const std::string>, std::uint64_t memory)
+		    { return memory; });
+		trees->behaviours.DefineTree(
+		    "shift",
+		    {Composite(
+		        NodeKind::Repeat, {Composite(
+		                              NodeKind::Sequence, {WaitNode(2.0), TaskNode("doze", {"500"}),
+		                                                   TaskNode("count")})})});
+		trees->Follow("shift");
+	}
+
+	constexpr std::uint64_t kEnd = 6600;
+	int calls = 0;
+	while (forwarded.world.Clock().Step() < kEnd)
+	{
+		forwarded.world.FastForward(kEnd);
+		++calls;
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
+	// Ten rounds of 621 steps (a start, the wait's 120, the doze's 500), each a few calls.
+	const entt::registry &registry = forwarded.world.Registry();
+	CHECK(registry.get<Tally>(registry.view<Ai::Behaviour>().front()).count == 10);
+	MESSAGE(calls << " calls");
+	CHECK(calls < 60);
+}

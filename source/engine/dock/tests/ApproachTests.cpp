@@ -239,8 +239,9 @@ TEST_CASE(
 	// W01 for a pad's class saved as its name, the old build's saves loaded and saved again the same;
 	// and for the sample's classes under their ship names and the feature a docking asked for, each
 	// by its bytes alone: the old names written back, and then the feature left unsaved, gave the
-	// hash before each.
-	CHECK(first == 0x12b047dd467dac59ull);
+	// hash before each; and for the fast-forward, a kinematic body put at rest where it is while
+	// nothing dynamic shares its world, the traders' galaxy the same to the bit over half an hour.
+	CHECK(first == 0xc60d4d578c007245ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);

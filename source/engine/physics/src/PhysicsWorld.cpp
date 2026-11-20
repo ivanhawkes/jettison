@@ -21,7 +21,9 @@
 #include <cmath>
 #include <compare>
 #include <format>
+#include <limits>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
@@ -247,6 +249,22 @@ Sim::Transform OnBody(const Sim::Transform &body, const OnRails &rails)
 Sim::Transform RailsTransform(const FrameModel &model, const OnRails &rails, double simSeconds)
 {
 	return OnBody(model.BodyAt(rails.body, simSeconds), rails);
+}
+
+
+// A body's velocity from one place to the next over a step, in its world's coordinates, as Jolt's
+// sweep gives it: the difference over the step, and the turn between as an axis and an angle.
+Velocity ImpliedVelocity(
+    const glm::dvec3 &from, const glm::dquat &fromTurn, const glm::dvec3 &to, const glm::dquat &toTurn,
+    double fixedStep)
+{
+	glm::dquat turn = glm::normalize(toTurn * glm::conjugate(fromTurn));
+	if (turn.w < 0.0)
+		turn = -turn;
+	const double angle = glm::angle(turn);
+	return {
+	    glm::vec3{(to - from) / fixedStep},
+	    angle > 0.0 ? glm::vec3{glm::axis(turn) * (angle / fixedStep)} : glm::vec3{0.0f}};
 }
 
 // Two entities' bodies, first below second, as contacts are kept.
@@ -508,6 +526,10 @@ struct PhysicsWorld::Impl
 	std::map<WorldKey, std::unique_ptr<Detail::FrameWorld>> worlds;
 	// Ordered by entity, which is the order every step visits bodies in.
 	std::map<entt::entity, Record> records;
+	// The steps in a row that ended with nothing dynamic or awake and no body made or removed. Not
+	// state: it only says when a step may be passed over, to the same state, and a load starts it
+	// again.
+	std::uint64_t restingSteps{0};
 	// What touches what, and whether one of each pair is a sensor; and the contacts the last step
 	// began and ended. State, saved.
 	std::map<Pair, bool> touching;
@@ -596,14 +618,24 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	     Ecs::TickPhase::Simulation,
 	     Ecs::Access::Of<Handling, FlightControls, Sim::Transform>().Writing<Velocity>(),
 	     {},
-	     [](entt::registry &registry, double fixedStep) { StepFlight(registry, fixedStep); }});
+	     [](entt::registry &registry, double fixedStep) { StepFlight(registry, fixedStep); }},
+	    {.next = [](const Sim::SimWorld &target)
+	     {
+		     return FlightAtRest(target.Registry(), target.FixedStep())
+		                ? std::numeric_limits<std::uint64_t>::max()
+		                : target.Clock().Step();
+	     }});
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
 	     Ecs::Access::Of<Body, Sim::InFrame, OnRails, LocalFrame>().Writing<Sim::Transform, Velocity>(),
 	     {std::string{kFlightSystemName}},
 	     [&physics, &world](entt::registry &registry, double fixedStep)
-	     { physics.Step(registry, world.Clock().Now(), fixedStep); }});
+	     { physics.Step(registry, world.Clock().Now(), fixedStep); }},
+	    {.next = [&physics](const Sim::SimWorld &target)
+	     { return physics.QuietFrom(target.Registry(), target.Clock().Step()); },
+	     .skip = [&physics](Sim::SimWorld &target, double lastBegan)
+	     { physics.Skip(target.Registry(), lastBegan, target.Clock().Now(), target.FixedStep()); }});
 	return physics;
 }
 
@@ -999,6 +1031,10 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	// frame's change of speed since the last step. A frame on rails falls with its body, so beside a
 	// station that leaves the tide, a few ten-thousandths of a metre a second squared.
 	const auto step = static_cast<float>(fixedStep);
+	std::set<const Detail::FrameWorld *> moving;
+	for (const auto &[entity, record] : impl.records)
+		if (record.body.kind == BodyKind::Dynamic)
+			moving.insert(record.world);
 	std::map<std::uint64_t, std::function<glm::dvec3(const glm::dvec3 &)>> fields;
 	for (auto &[entity, record] : impl.records)
 	{
@@ -1021,9 +1057,35 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 				}
 				break;
 			case BodyKind::Kinematic:
-				bodies.MoveKinematic(
-				    record.id, Detail::ToJolt(transform.position - motion.end),
-				    Detail::ToJolt(transform.orientation).Normalized(), step);
+				if (moving.contains(record.world))
+				{
+					bodies.MoveKinematic(
+					    record.id, Detail::ToJolt(transform.position - motion.end),
+					    Detail::ToJolt(transform.orientation).Normalized(), step);
+					// A sensor never sleeps while there is anything to see.
+					if (record.body.sensor && !bodies.IsActive(record.id))
+						bodies.ActivateBody(record.id);
+				}
+				else
+				{
+					// With nothing dynamic in its world a kinematic body pushes and senses nothing, so
+					// it is put where it is, at rest and asleep: its state is then its place alone,
+					// which a fast-forward puts it at in one step, where a sweep's would be the history
+					// of every step (a gate's ring turning after its planet, a station's spin, the
+					// rounding of a place far out). MoveKinematic sweeps it on from there once
+					// something dynamic joins.
+					// Its Velocity is still what moving there implies, as a sweep's would be.
+					record.velocity = ImpliedVelocity(
+					    record.placed.position - motion.start, record.placed.orientation,
+					    transform.position - motion.end, transform.orientation, fixedStep);
+					bodies.SetPositionAndRotation(
+					    record.id, Detail::ToJolt(transform.position - motion.end),
+					    Detail::ToJolt(transform.orientation).Normalized(),
+					    JPH::EActivation::DontActivate);
+					bodies.SetLinearAndAngularVelocity(
+					    record.id, JPH::Vec3::sZero(), JPH::Vec3::sZero());
+					bodies.DeactivateBody(record.id);
+				}
 				record.placed = transform;
 				break;
 		}
@@ -1084,9 +1146,10 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		if (record.body.kind == BodyKind::Static)
 			continue;
 		const JPH::BodyInterface &bodies = record.world->Bodies();
-		record.velocity = {
-		    Detail::ToGlmFloat(bodies.GetLinearVelocity(record.id)),
-		    Detail::ToGlmFloat(bodies.GetAngularVelocity(record.id))};
+		if (record.body.kind == BodyKind::Dynamic || moving.contains(record.world))
+			record.velocity = {
+			    Detail::ToGlmFloat(bodies.GetLinearVelocity(record.id)),
+			    Detail::ToGlmFloat(bodies.GetAngularVelocity(record.id))};
 		registry.get<Velocity>(entity) = record.velocity;
 		if (record.body.kind != BodyKind::Dynamic)
 			continue;
@@ -1126,6 +1189,87 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	std::ranges::sort(
 	    impl.contacts, std::less{}, [](const ContactEvent &event)
 	    { return std::tuple{event.first, event.second, event.phase == ContactPhase::Began}; });
+
+	bool resting = moving.empty() && removals.empty() && creations.empty();
+	for (const auto &[key, world] : impl.worlds)
+		resting = resting && world->System().GetNumActiveBodies(JPH::EBodyType::RigidBody) == 0;
+	impl.restingSteps = resting ? impl.restingSteps + 1 : 0;
+}
+
+
+std::uint64_t PhysicsWorld::QuietFrom(const entt::registry &registry, std::uint64_t step) const
+{
+	const Impl &impl = *m_pImpl;
+	// Two: the first step with nothing awake still empties the contacts Jolt cached in the one before.
+	if (impl.restingSteps < 2)
+		return step;
+	std::size_t bodies = 0;
+	for (const auto [entity, body, transform] :
+	     registry.view<const Body, const Sim::Transform>().each())
+	{
+		if (SystemOf(registry, entity) == Sim::kNoFrame)
+			continue;
+		++bodies;
+		const auto found = impl.records.find(entity);
+		if (found == impl.records.end() || found->second.body != body ||
+		    KeyOf(registry, entity) != found->second.key)
+			return step;
+		// A kinematic body off rails is where the game puts it; a static one the game has moved is
+		// placed by the next step.
+		if (body.kind == BodyKind::Static ? !Detail::SameTransform(transform, found->second.placed)
+		                                  : !registry.all_of<OnRails>(entity))
+			return step;
+	}
+	if (bodies != impl.records.size())
+		return step;
+	for (const auto [entity, rails, transform] :
+	     registry.view<const OnRails, const Sim::Transform>().each())
+		if (const std::uint64_t frame = SystemOf(registry, entity);
+		    frame != Sim::kNoFrame && impl.UnknownRails(frame, rails))
+			return step;
+	return std::numeric_limits<std::uint64_t>::max();
+}
+
+
+void PhysicsWorld::Skip(entt::registry &registry, double lastBegan, double now, double fixedStep)
+{
+	Impl &impl = *m_pImpl;
+	// As Step's 1, 3 and 5 have them for the last step passed over, which ended at now: each body's
+	// place as that step began and ended, found once for everything riding on it.
+	std::map<std::pair<const FrameModel *, std::string_view>, std::pair<Sim::Transform, Sim::Transform>>
+	    bodiesAt;
+	for (const auto [entity, rails, transform] : registry.view<const OnRails, Sim::Transform>().each())
+	{
+		const std::uint64_t frame = SystemOf(registry, entity);
+		if (frame == Sim::kNoFrame)
+			continue;
+		const FrameModel *model = impl.FindFrame(frame);
+		const auto [found, made] = bodiesAt.try_emplace({model, rails.body});
+		if (made)
+			found->second = {model->BodyAt(rails.body, lastBegan), model->BodyAt(rails.body, now)};
+		const Sim::Transform before = OnBody(found->second.first, rails);
+		transform = OnBody(found->second.second, rails);
+		const auto record = impl.records.find(entity);
+		if (record == impl.records.end() || record->second.body.kind != BodyKind::Kinematic)
+			continue;
+		const glm::dvec3 start = impl.Origin(record->second.key, lastBegan);
+		const glm::dvec3 end = impl.Origin(record->second.key, now);
+		record->second.velocity = ImpliedVelocity(
+		    before.position - start, before.orientation, transform.position - end,
+		    transform.orientation, fixedStep);
+		record->second.world->Bodies().SetPositionAndRotation(
+		    record->second.id, Detail::ToJolt(transform.position - end),
+		    Detail::ToJolt(transform.orientation).Normalized(), JPH::EActivation::DontActivate);
+		record->second.placed = transform;
+		registry.get<Velocity>(entity) = record->second.velocity;
+	}
+	for (const auto &[key, world] : impl.worlds)
+	{
+		const glm::dvec3 start = impl.Origin(key, lastBegan);
+		world->frameOrigin = impl.Origin(key, now);
+		world->frameVelocity = (world->frameOrigin - start) / fixedStep;
+	}
+	impl.contacts.clear();
 }
 
 
@@ -1332,6 +1476,7 @@ std::function<void()> PhysicsWorld::Load(
 		m_pImpl->worlds = std::move(pending->worlds);
 		m_pImpl->touching = std::move(pending->touching);
 		m_pImpl->contacts = std::move(pending->contacts);
+		m_pImpl->restingSteps = 0;
 	};
 }
 

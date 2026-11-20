@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -325,7 +326,18 @@ CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsW
 	             Physics::FlightControls>(),
 	     {std::string{LaneTravel::kSystemName}},
 	     [cruises, &world](entt::registry & /*registry*/, double /*fixedStep*/)
-	     { cruises->Place(world); }});
+	     { cruises->Place(world); }},
+	    // Until the step that places an arrival, each ship is where its course has it.
+	    {.next =
+	         [](const Sim::SimWorld &target)
+	     {
+		     std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
+		     for (const auto [ship, cruising] : target.Registry().view<const Cruising>().each())
+			     next = std::min(
+			         next, cruising.arrivalStep - std::min<std::uint64_t>(cruising.arrivalStep, 1));
+		     return next;
+	     },
+	     .skip = [cruises](Sim::SimWorld &target, double /*lastBegan*/) { cruises->Skip(target); }});
 	return *cruises;
 }
 
@@ -482,6 +494,48 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 }
 
 
+namespace
+{
+// Where a cruise has its ship as the step ending at that count ends, before it arrives: along its
+// course, about its carrier's place then (origin).
+Sim::Transform Underway(const Cruising &cruising, const glm::dvec3 &origin, std::uint64_t ending)
+{
+	const double share = static_cast<double>(ending - cruising.departureStep) /
+	                     static_cast<double>(cruising.arrivalStep - cruising.departureStep);
+	double along = EaseInOutCubic(share);
+	if (cruising.profile)
+	{
+		// Covered as the profile covers it, slowed to the whole steps it was given.
+		const double length = Length(cruising.course);
+		const double seconds = 2.0 * HalfOf(*cruising.profile, length).seconds;
+		along = CruiseCovered(*cruising.profile, length, share * seconds) / length;
+	}
+	const auto [at, leg] = Along(cruising.course, along);
+	return {origin + at, Facing(leg)};
+}
+} // namespace
+
+
+void CruiseTravel::Skip(Sim::SimWorld &world) const
+{
+	entt::registry &registry = world.Registry();
+	// As the last step passed over placed them: it ended at the clock's count and time.
+	const std::uint64_t ending = world.Clock().Step();
+	const double endsAt = world.Clock().Now();
+	for (const auto [ship, cruising, inFrame] :
+	     registry.view<const Cruising, const Sim::InFrame>().each())
+	{
+		const Celestial::StarSystem &starSystem = m_systems.at(inFrame.frame);
+		const int carrier = starSystem.Find(cruising.carrier);
+		const glm::dvec3 origin =
+		    carrier < 0
+		        ? glm::dvec3{0.0}
+		        : Celestial::EvaluateBody(starSystem, static_cast<std::size_t>(carrier), endsAt).metres;
+		registry.emplace_or_replace<Sim::Transform>(ship, Underway(cruising, origin, ending));
+	}
+}
+
+
 void CruiseTravel::Place(Sim::SimWorld &world) const
 {
 	entt::registry &registry = world.Registry();
@@ -518,18 +572,7 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 
 		if (ending < cruising.arrivalStep)
 		{
-			const double share = static_cast<double>(ending - cruising.departureStep) /
-			                     static_cast<double>(cruising.arrivalStep - cruising.departureStep);
-			double along = EaseInOutCubic(share);
-			if (cruising.profile)
-			{
-				// Covered as the profile covers it, slowed to the whole steps it was given.
-				const double length = Length(cruising.course);
-				const double seconds = 2.0 * HalfOf(*cruising.profile, length).seconds;
-				along = CruiseCovered(*cruising.profile, length, share * seconds) / length;
-			}
-			const auto [at, leg] = Along(cruising.course, along);
-			registry.emplace_or_replace<Sim::Transform>(ship, Sim::Transform{origin + at, Facing(leg)});
+			registry.emplace_or_replace<Sim::Transform>(ship, Underway(cruising, origin, ending));
 			continue;
 		}
 

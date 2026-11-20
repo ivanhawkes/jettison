@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -126,7 +127,8 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	             Physics::Velocity, Physics::FlightControls, Sim::Transform, Sim::InFrame,
 	             Ai::Destination, Ai::Steered>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
-	     [docks, &world](entt::registry & /*registry*/, double /*fixedStep*/) { docks->Step(world); }});
+	     [docks, &world](entt::registry & /*registry*/, double /*fixedStep*/) { docks->Step(world); }},
+	    {.next = [docks](const Sim::SimWorld &target) { return docks->QuietFrom(target); }});
 	return *docks;
 }
 
@@ -511,6 +513,49 @@ void Docks::Step(Sim::SimWorld &world)
 
 	// 5. The decks.
 	WorkDecks(world, time);
+}
+
+
+std::uint64_t Docks::QuietFrom(const Sim::SimWorld &world) const
+{
+	const entt::registry &registry = world.Registry();
+	const std::uint64_t now = world.Clock().Step();
+	// 5: cargo carried, and the buggies carrying it.
+	if (!registry.view<const Transfer>().empty() || !registry.view<const Buggy>().empty())
+		return now;
+	// 1 and 3: what can no longer be held, and every ship on its way.
+	for (const auto [padEntity, pad] : registry.view<const Pad>().each())
+	{
+		if (pad.state == PadState::Free)
+			continue;
+		const auto *docking = registry.valid(pad.ship) ? registry.try_get<Docking>(pad.ship) : nullptr;
+		if (!docking || docking->pad != padEntity)
+			return now;
+	}
+	for (const auto [ship, docking] : registry.view<const Docking>().each())
+	{
+		const entt::entity station = docking.station;
+		if ((docking.stage != Stage::Queued && docking.stage != Stage::Docked) ||
+		    !registry.valid(station) || !registry.all_of<Station>(station) ||
+		    SystemOf(registry, ship) != SystemOf(registry, station) ||
+		    FrameOf(registry, ship) != FrameOf(registry, station))
+			return now;
+	}
+	// 4, and 1's queues: a ship queued that is not, or that a pad is free for.
+	for (const auto [stationEntity, station] : registry.view<const Station>().each())
+		for (const entt::entity ship : station.queue)
+		{
+			const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
+			if (!docking || docking->station != stationEntity || docking->stage != Stage::Queued ||
+			    FreePadFor(registry, station, ship) != entt::null)
+				return now;
+		}
+	// 2: a reservation lapses in the step its count begins.
+	std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
+	for (const auto [padEntity, pad] : registry.view<const Pad>().each())
+		if (pad.state == PadState::Reserved)
+			next = std::min(next, pad.lapses);
+	return next;
 }
 
 

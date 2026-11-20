@@ -665,3 +665,50 @@ TEST_CASE("Cruise: a world saved mid-cruise arrives as the one saved does")
 	CHECK(loaded.world.Registry().get<Physics::LocalFrame>(ship).body == "Pell");
 	CHECK(loaded.world.StateHash() == arrived);
 }
+
+
+TEST_CASE(
+    "Cruise: a cruise fast-forwarded arrives as the one stepped does, past a ship parked on rails")
+{
+	Fixture forwarded;
+	Fixture stepped;
+	for (Fixture *fixture : {&forwarded, &stepped})
+	{
+		fixture->Ship("Ostra Highport", {0.0, 0.0, 3000.0});
+		// Kinematic on Highport's rails, at an offset no coordinate's spacing divides.
+		entt::registry &registry = fixture->world.Registry();
+		const entt::entity parked = registry.create();
+		const Physics::OnRails rails{.body = "Ostra Highport", .offset = {40.3, 0.7, -12.1}};
+		registry.emplace<Sim::Transform>(
+		    parked, fixture->physics.RailsPlace(kHalcyon, rails, fixture->world.Clock().Now()));
+		registry.emplace<Sim::InFrame>(parked, kHalcyon);
+		registry.emplace<Physics::LocalFrame>(parked, "Ostra Highport");
+		registry.emplace<Physics::OnRails>(parked, rails);
+		registry.emplace<Physics::Body>(
+		    parked, Physics::Body{.kind = Physics::BodyKind::Kinematic, .shape = "hull"});
+		fixture->Run(10);
+	}
+	const entt::entity ship = forwarded.world.Registry().view<Space::CruiseDrive>().front();
+	forwarded.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
+	stepped.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
+
+	// To the step that places the arrival, then on with the ship in physics again; each stop's state
+	// as stepping leaves it.
+	std::uint64_t end = std::numeric_limits<std::uint64_t>::max();
+	int calls = 0;
+	while (forwarded.world.Clock().Step() < end)
+	{
+		forwarded.world.FastForward(end);
+		++calls;
+		if (const auto *cruising = forwarded.world.Registry().try_get<Space::Cruising>(ship);
+		    cruising && end == std::numeric_limits<std::uint64_t>::max())
+			end = cruising->arrivalStep + 120;
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
+	CHECK(forwarded.world.Registry().get<Physics::LocalFrame>(ship).body == "Pell");
+	// The cruise's 3,000-odd steps in a handful of calls, and each of the 120 after it run.
+	MESSAGE("Highport to Pell and two seconds on in " << calls << " calls");
+	CHECK(calls < 140);
+}

@@ -134,6 +134,14 @@ struct TaskContext
 // nothing of its own between ticks but its memory, so a save holds all of it.
 using Task = std::function<Status(TaskContext &context)>;
 
+// When a running task next has to be ticked, for a step to be passed over (Sim::Quiet): the first
+// step, by the clock's count, at which it may do anything but return Running with its memory and the
+// world as they are, given the world as it is and no command applied. It reads what a tick would
+// read and changes nothing. A task without one is ticked every step.
+using TaskWake = std::function<std::uint64_t(
+    const Sim::SimWorld &world, entt::entity entity, std::span<const std::string> arguments,
+    std::uint64_t memory)>;
+
 // The commands that take and leave a ship's helm (Sim::Helm), which a player flies it by: taken by
 // one that commands it (Sim::MayCommand), a player or an AI, not no one in particular; refused, with
 // a HelmRefused, for a ship another is at the helm of. Each is at one helm at a time, so taking one
@@ -197,7 +205,7 @@ class Behaviours
 	static Behaviours &Attach(Sim::SimWorld &world);
 
 	// Throws std::invalid_argument for a name already defined, or one that is empty.
-	void DefineTask(std::string name, Task task);
+	void DefineTask(std::string name, Task task, TaskWake wake = {});
 
 	// A tree, checked (CheckBehaviour), each of its tasks one defined. Throws Serialise::FormatError
 	// for one that does not fit, and std::invalid_argument for a name already defined.
@@ -216,11 +224,17 @@ class Behaviours
 	Status Tick(Sim::SimWorld &world, entt::entity entity);
 
   private:
+	struct TaskEntry
+	{
+		Task task;
+		TaskWake wake;
+	};
+
 	// A node as it is ticked: its kind and what it holds, its children by index.
 	struct Node
 	{
 		NodeKind kind{NodeKind::Task};
-		const Task *task{nullptr};
+		const TaskEntry *task{nullptr};
 		std::vector<std::string> arguments;
 		std::uint32_t count{0};
 		std::uint64_t steps{0};
@@ -232,13 +246,22 @@ class Behaviours
 
 	void Step(Sim::SimWorld &world);
 
+	// The step a tick next does anything in (Sim::Quiet): the soonest of every tree's, a tree's being
+	// where its running path ends, a wait's end or a task's wake, and the next step for a tree that
+	// finished or a node about to start.
+	std::uint64_t QuietFrom(const Sim::SimWorld &world) const;
+
+	std::uint64_t WakeOf(
+	    const Sim::SimWorld &world, entt::entity entity, const Tree &tree,
+	    const std::vector<NodeState> &states, std::uint32_t index) const;
+
 	void Flatten(const BehaviourNode &node, Tree &tree, std::string_view name, std::string path) const;
 
 	Status TickNode(
 	    Sim::SimWorld &world, entt::entity entity, const Tree &tree, std::vector<NodeState> &states,
 	    std::uint32_t index) const;
 
-	std::map<std::string, Task, std::less<>> m_tasks;
+	std::map<std::string, TaskEntry, std::less<>> m_tasks;
 	std::map<std::string, Tree, std::less<>> m_trees;
 	// Trees named by an entity and not defined, said once each; not state.
 	std::set<std::string, std::less<>> m_missing;

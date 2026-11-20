@@ -1,6 +1,7 @@
 #include "Repair.h"
 
 #include <algorithm>
+#include <limits>
 #include <string>
 
 #include <jettison/dock/Docks.h>
@@ -102,6 +103,8 @@ void RegisterRepair(
 	     Ecs::TickPhase::Simulation,
 	     Ecs::Access::Of<Dock::Hull>().Writing<Damage>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
-	     [&physics](entt::registry &registry, double) { TakeDamage(registry, physics.Contacts()); }});
+	     [&physics](entt::registry &registry, double) { TakeDamage(registry, physics.Contacts()); }},
+	    // What it reads is the step's own contacts, none in a step physics is passed over in.
+	    {.next = [](const Sim::SimWorld &) { return std::numeric_limits<std::uint64_t>::max(); }});
 }
 } // namespace Jettison::Sample

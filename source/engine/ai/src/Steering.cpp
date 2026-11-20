@@ -317,7 +317,21 @@ Steering &Steering::Attach(
 	    [steering, &world](entt::registry & /*registry*/, double /*fixedStep*/)
 	    { steering->Step(world); }};
 	system.before = {std::string{Physics::kFlightSystemName}};
-	world.RegisterSystem(std::move(system));
+	// A ship with somewhere to go in a frame is flown there every step.
+	world.RegisterSystem(
+	    std::move(system),
+	    {.next = [](const Sim::SimWorld &target)
+	     {
+		     const entt::registry &registry = target.Registry();
+		     for (const entt::entity ship :
+		          registry.view<
+		              const Steered, const Destination, const Physics::Handling,
+		              const Physics::FlightControls, const Physics::Velocity, const Physics::Body,
+		              const Sim::Transform, const Sim::InFrame>())
+			     if (registry.get<const Sim::InFrame>(ship).frame != Sim::kNoFrame)
+				     return target.Clock().Step();
+		     return std::numeric_limits<std::uint64_t>::max();
+	     }});
 	return *steering;
 }
 

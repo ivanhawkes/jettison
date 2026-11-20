@@ -444,8 +444,10 @@ so a ship flown into a station meets it as any body would. The system `physics` 
 3. What the game wrote is applied. A static or dynamic body whose `Transform` differs from where
    physics last placed it is put there; a dynamic body whose `Physics::Velocity` was written takes
    it; a kinematic body is moved towards its `Transform` over the step, so it pushes what it meets
-   with the velocity that implies. Each dynamic body then gains its system's gravity over the step,
-   from where the bodies are as it begins, less its frame's change of speed.
+   with the velocity that implies, or, in a world with nothing dynamic in it, put there at rest and
+   asleep, its `Velocity` still what the move implies (below, [quiet steps](#quiet-steps)). Each
+   dynamic body then gains its system's gravity over the step, from where the bodies are as it
+   begins, less its frame's change of speed.
 4. Each frame's world steps, in order of system and frame, on the simulation's one thread. A body
    marked `continuous` (the piloted ship) is swept rather than placed, so it cannot pass through a
    panel between two steps.
@@ -521,6 +523,47 @@ the pilot camera's chase and cockpit rigs follow (`Scene::PilotCameraComponent`)
 compression is above 1×, piloting is suspended, as it is in every game of the genre, and the assist
 holds the ship. Compression is refused near stations and other ships for the same reason, by the
 game.
+
+### Quiet steps
+
+A world can pass over steps in which nothing happens but what a formula of the clock gives
+(`SimWorld::FastForward`, the user's, 2026-11-20, [decided](decisions.md)), to the same bits as
+stepping through them: a cruise of 4.49 days is 23 million steps of motion. Each system registered
+with a `Sim::Quiet` says the first step it next has to run in, given the world as the last step left
+it and no command, and how to put what it writes where the steps passed over would have left it; a
+system without one has to run every step, so nothing is passed over while it is registered. With no
+command queued and every system's next step past the next, `FastForward(until)` adds the steps to
+the clock one at a time, as stepping does, runs each system's skip in step order, and stops before the
+soonest system's step or at `until`; otherwise it runs one step. A change made to the registry
+between steps other than by a command is not seen until a step runs.
+
+The engine's systems:
+
+- **Physics** rests once a step ends with nothing dynamic, nothing awake and no body made or removed,
+  twice, the first emptying the contacts Jolt cached; then, while the registry asks for no body made,
+  removed or placed and every kinematic body is on rails, it never has to run. In a world with nothing
+  dynamic a kinematic body pushes and senses nothing, so each step puts it where it is, at rest and
+  asleep, rather than sweeping it there: its Jolt state is its place alone, and a skip puts it there
+  once, its `Velocity` the last step's move. A sweep's would be the history of every step: a gate's
+  ring turning after its planet, a station's spin, and the place 10¹¹ m out less the frame's, rounded
+  to a grid that changes as a coordinate crosses a power of two (2 to 14 times a day by up to 30 nm at
+  the sample's stations, waking a body at rest). Once something dynamic is in its world, the body is
+  swept on from where it was put. The skip also places every entity on rails and each local frame's
+  origin and velocity over the last step.
+- **Flight** has to run while a ship's velocity would change; a kinematic body's it changes only for
+  physics to write over. `Thrust` is not state, and is left as the last step wrote it.
+- **Cruise** runs in the step that places an arrival, and its skip places each ship along its course.
+  **Lanes** run in the step an arrival ends at, **gates** at a ship at a gate, a queue to serve or a
+  clearance lapsing, **steering** while a ship has a destination in a frame, and **docks** at any ship
+  on its way, cargo carried, a queue with a pad free or a reservation lapsing. The **spatial index** is
+  not state and never has to run: a load starts it empty, so nothing reads it before its update in a
+  step.
+- **Behaviour trees** run at the soonest end of a tree's running path: a wait's end step, a task's
+  `TaskWake` (`Behaviours::DefineTask`), or the next step for a task without one, a node about to
+  start or a tree that finished. The sample's traders' `cruise` wakes as its cruise arrives.
+
+The frame loop's `Stepper` steps as before: presentation interpolates the steps it shows. A
+console's long step or an unattended server calls `FastForward`.
 
 ### Steering
 

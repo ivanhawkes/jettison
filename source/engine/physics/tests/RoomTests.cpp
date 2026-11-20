@@ -232,6 +232,112 @@ TEST_CASE("Physics: a frame's model is defined once, and rails it has no body fo
 }
 
 
+// A turntable 1 km along x, drifting at 1 m/s and turning at half a radian a second, as a gate's ring
+// turns after its planet; no gravity.
+const std::uint64_t kCarousel = Sim::FrameId("Carousel");
+
+class Carousel final : public Physics::FrameModel
+{
+  public:
+	bool HasBody(std::string_view body) const override
+	{
+		return body == "turntable";
+	}
+
+
+	Sim::Transform BodyAt(std::string_view /*body*/, double simSeconds) const override
+	{
+		return {
+		    {1000.0 + simSeconds, 0.0, 0.0},
+		    glm::angleAxis(0.5 * simSeconds, glm::dvec3{0.0, 1.0, 0.0})};
+	}
+};
+
+
+// A plate on the lift and a sensor on the turntable, each in its body's local frame, and a floor.
+void Furnish(Fixture &fixture)
+{
+	fixture.physics.DefineFrame(kCarousel, std::make_unique<Carousel>());
+	entt::registry &registry = fixture.world.Registry();
+	fixture.floor = fixture.Add(BodyKind::Static, "floor", {0.0, -0.5, 0.0});
+	const entt::entity plate = fixture.Add(BodyKind::Kinematic, "plate", {0.0, 0.0, 0.0});
+	registry.emplace<Physics::OnRails>(
+	    plate, Physics::OnRails{.body = "lift", .offset = {3.0, 1.0, 0.0}});
+	registry.emplace<Physics::LocalFrame>(plate, "lift");
+	const entt::entity ring = registry.create();
+	const Physics::OnRails rails{.body = "turntable", .offset = {5.0, 0.0, 0.0}};
+	registry.emplace<Sim::Transform>(ring, fixture.physics.RailsPlace(kCarousel, rails, 0.0));
+	registry.emplace<Sim::InFrame>(ring, kCarousel);
+	registry.emplace<Body>(ring, Body{.kind = BodyKind::Kinematic, .shape = "crate", .sensor = true});
+	registry.emplace<Physics::OnRails>(ring, rails);
+	registry.emplace<Physics::LocalFrame>(ring, "turntable");
+}
+
+
+TEST_CASE("Physics: steps with nothing dynamic are passed over to the state stepping them leaves")
+{
+	Fixture forwarded;
+	Fixture stepped;
+	Furnish(forwarded);
+	Furnish(stepped);
+
+	// Three steps to rest (a body made, then two with nothing awake), then the rest in one.
+	constexpr std::uint64_t kEnd = 20000;
+	std::vector<std::uint64_t> advanced;
+	while (forwarded.world.Clock().Step() < kEnd)
+	{
+		advanced.push_back(forwarded.world.FastForward(kEnd));
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
+	CHECK(advanced == std::vector<std::uint64_t>{1, 1, 1, kEnd - 3});
+	// Held, the turntable's sensor still turns with it, as its velocity says.
+	entt::entity ring = entt::null;
+	for (const auto [entity, local] :
+	     forwarded.world.Registry().view<const Physics::LocalFrame>().each())
+		if (local.body == "turntable")
+			ring = entity;
+	CHECK(
+	    glm::length(forwarded.world.Registry().get<Physics::Velocity>(ring).angular) ==
+	    doctest::Approx(0.5));
+
+	// Something dynamic in each frame: a crate falling onto the lift's plate, and one through the
+	// sensor. Stepped from there, both worlds go on alike, and nothing is passed over meanwhile.
+	for (Fixture *fixture : {&forwarded, &stepped})
+	{
+		entt::registry &registry = fixture->world.Registry();
+		const entt::entity crate = fixture->Add(BodyKind::Dynamic, "crate", {0.0, 6.0, 0.0});
+		registry.emplace<Physics::LocalFrame>(crate, "lift");
+		const entt::entity through = registry.create();
+		registry.emplace<Sim::Transform>(
+		    through, Sim::Transform{
+		                 fixture->physics
+		                     .RailsPlace(
+		                         kCarousel, {.body = "turntable", .offset = {5.0, 4.0, 0.0}},
+		                         fixture->world.Clock().Now())
+		                     .position,
+		                 glm::dquat{1.0, 0.0, 0.0, 0.0}});
+		registry.emplace<Sim::InFrame>(through, kCarousel);
+		registry.emplace<Physics::LocalFrame>(through, "turntable");
+		registry.emplace<Physics::Velocity>(through, Physics::Velocity{.linear = {0.0f, -5.0f, 0.0f}});
+		registry.emplace<Body>(
+		    through, Body{.kind = BodyKind::Dynamic, .shape = "crate", .mass = 50.0f});
+	}
+	bool sensed = false;
+	for (int step = 0; step < 240; ++step)
+	{
+		CHECK(forwarded.world.FastForward(kEnd + 1000) == 1);
+		stepped.world.Step();
+		sensed = sensed || std::ranges::any_of(
+		                       forwarded.physics.Contacts(),
+		                       [&](const Physics::ContactEvent &contact) { return contact.sensor; });
+	}
+	CHECK(forwarded.world.Save() == stepped.world.Save());
+	CHECK(sensed);
+}
+
+
 TEST_CASE("Physics: a room saved part-way and loaded carries on exactly as the original")
 {
 	Fixture original;

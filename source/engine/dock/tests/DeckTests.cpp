@@ -381,8 +381,9 @@ TEST_CASE(
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too, as
 	// the approach's is: a change here is a change to how buggies drive, or to what a save holds.
 	// Re-pinned in W01 for a pad's class saved as its name, and for the classes' ship names and a
-	// docking's feature, as the approach's was.
-	CHECK(first == 0x0fa9f94cab2a2c11ull);
+	// docking's feature, as the approach's was; and for the fast-forward's kinematic bodies at rest,
+	// as the approach's was.
+	CHECK(first == 0x4ea38bb47f67549aull);
 
 	Deck loaded;
 	loaded.world.Load(*save);

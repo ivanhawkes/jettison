@@ -614,3 +614,14 @@ Settled on 2026-11-10:
   libsodium is fetched and built static like the rest of the set, through robinlinden's CMake
   build of it (the user's, 2026-11-20, as N02 began). N01 had put it in both `devenv.nix` files,
   but nixpkgs ships it shared only, and its own build is autotools.
+- **Quiet steps are passed over by each system's own word, to the same bits as stepping** (the user's,
+  2026-11-20, before Manifest's W10; [architecture](architecture.md#quiet-steps)). A system says the
+  step it next has to run in and how to put what it writes where the steps between would have left
+  it (`Sim::Quiet`); one that says nothing runs every step, which keeps a game's system correct
+  before it has a quiet. A world with nothing dynamic in it puts each kinematic body where it is,
+  asleep, so a gate's ring, a spinning station and a far station's rounding are quiet. Two
+  alternatives were rejected: giving Jolt each body's place on its own frame's body exactly, which
+  ended the rounding but not a ring's or a spin's turning, and a local frame that turns with its
+  body, which would give every ship flying in it rotation's forces. Passing over steps by
+  extrapolating, or to within a tolerance, was not considered: a save and a replay must give one
+  hash.

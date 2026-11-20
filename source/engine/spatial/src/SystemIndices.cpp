@@ -4,6 +4,7 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -18,7 +19,10 @@ SystemIndices &SystemIndices::Attach(Sim::SimWorld &world, const Octree::Setting
 	     Ecs::TickPhase::Simulation,
 	     Ecs::Access::Of<Sim::Transform, Sim::InFrame>(),
 	     {},
-	     [indices](entt::registry &registry, double /*fixedStep*/) { indices->Update(registry); }});
+	     [indices](entt::registry &registry, double /*fixedStep*/) { indices->Update(registry); }},
+	    // Not state: a load starts it empty, so nothing reads it before its update in a step, which
+	    // finds every entity where the steps passed over left it.
+	    {.next = [](const Sim::SimWorld &) { return std::numeric_limits<std::uint64_t>::max(); }});
 	return *indices;
 }
 

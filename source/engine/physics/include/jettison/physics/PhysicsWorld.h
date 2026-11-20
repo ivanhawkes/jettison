@@ -194,7 +194,9 @@ class FrameModel
 //      step moves it with its orbit's velocity from the first.
 //   3. What the game wrote is applied: a static or dynamic body whose Transform was written is
 //      placed there, a dynamic body whose Velocity was written takes it, and every kinematic body
-//      is moved towards its Transform over the step. Then each dynamic body in a defined frame
+//      is moved towards its Transform over the step; in a world with nothing dynamic it is put
+//      there instead, at rest and asleep, its Velocity what the move implies, so its state is its
+//      place alone (docs/architecture.md, "Quiet steps"). Then each dynamic body in a defined frame
 //      gains what its frame's gravity gives it over the step, from where the bodies are as the
 //      step begins.
 //   4. Each frame's worlds step, in identifier order, on one thread.
@@ -334,6 +336,18 @@ class PhysicsWorld final : public Sim::WorldService
 
 	// The step from simSeconds to simSeconds + fixedStep.
 	void Step(entt::registry &registry, double simSeconds, double fixedStep);
+
+	// The step physics has to run in next (Sim::Quiet): the one about to begin, unless it has rested
+	// for two (nothing dynamic, nothing awake, no body made or removed) and the registry asks for no
+	// body to be made, removed or placed, every kinematic one being on rails. Then never: steps pass
+	// it by until something dynamic is in a world.
+	std::uint64_t QuietFrom(const entt::registry &registry, std::uint64_t step) const;
+
+	// Puts what the steps passed over would have left (Sim::Quiet): each entity on rails where its
+	// body is at now, each kinematic body there in Jolt with the velocity its last step's motion
+	// implies, and each local frame where its body is, moving as over that step, which began at
+	// lastBegan.
+	void Skip(entt::registry &registry, double lastBegan, double now, double fixedStep);
 
 	std::unique_ptr<Impl> m_pImpl;
 };

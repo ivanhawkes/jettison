@@ -237,6 +237,9 @@ class CruiseTravel
 
 	void Place(Sim::SimWorld &world) const;
 
+	// Places each cruising ship as the last step passed over would have (Sim::Quiet), none arriving.
+	void Skip(Sim::SimWorld &world) const;
+
 	const Physics::PhysicsWorld &m_physics;
 	// By Sim::FrameId; looked up, and ordered regardless.
 	std::map<std::uint64_t, Celestial::StarSystem> m_systems;

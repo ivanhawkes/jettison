@@ -409,6 +409,11 @@ class Docks
 
 	void Step(Sim::SimWorld &world);
 
+	// The step the docks next have to run in (Sim::Quiet), each of Step's parts asked whether it
+	// would change anything: none while every ship is docked or queued for a pad none is free for,
+	// no cargo is carried and no reservation is held, until the first lapses.
+	std::uint64_t QuietFrom(const Sim::SimWorld &world) const;
+
 	// The smallest free pad the ship's hull fits, the lowest numbered of those, that offers the
 	// feature the ship asked for if it asked for one (Docking::feature), or none.
 	entt::entity FreePadFor(

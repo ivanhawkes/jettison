@@ -29,6 +29,7 @@ jettison_add_module(sim
 		src/Stepper.cpp
 	TESTS
 		tests/DefinitionTests.cpp
+		tests/FastForwardTests.cpp
 		tests/ReasonTests.cpp
 		tests/SaveGameTests.cpp
 		tests/SimTests.cpp

@@ -358,3 +358,30 @@ TEST_CASE(
 	for (const Physics::ContactEvent &contact : fixture.physics.Contacts())
 		CHECK(contact.phase != Physics::ContactPhase::Began);
 }
+
+
+TEST_CASE("Lanes: a transit fast-forwarded arrives as the one stepped does")
+{
+	Fixture forwarded;
+	Fixture stepped;
+	entt::entity ship = entt::null;
+	for (Fixture *fixture : {&forwarded, &stepped})
+	{
+		ship = fixture->Ship();
+		fixture->Run(10);
+		fixture->world.Commands().Push(Space::EnterLane{{}, ship, "Halcyon Gate"});
+	}
+	const std::uint64_t end = forwarded.world.Clock().Step() + kTransitSteps + 60;
+	int calls = 0;
+	while (forwarded.world.Clock().Step() < end)
+	{
+		forwarded.world.FastForward(end);
+		++calls;
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
+	CHECK(forwarded.SystemOf(ship) == kVesper);
+	// The lane's in one call; each step after it, the ship in physics again, in its own.
+	CHECK(calls < 70);
+}

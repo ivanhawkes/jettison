@@ -126,6 +126,23 @@ class WorldService
 	    std::span<const entt::meta_any> queued) = 0;
 };
 
+class SimWorld;
+
+// How a system tells SimWorld::FastForward which steps it can be passed over in: those in which, with
+// no command applied, it would write nothing, or only what a formula of the clock gives.
+struct Quiet
+{
+	// The first step, by the count the clock reads as it begins (Time::SimClock::Step), the system
+	// has to run in, the world as the last step left it and no command applied: the clock's own count,
+	// or less, for the next step. Called between steps; changes nothing.
+	std::function<std::uint64_t(const SimWorld &)> next;
+	// Puts what the system writes where every step passed over would have left it, the clock already
+	// at the end of them; lastBegan is the time the last of them began at, since the clock's time is a
+	// sum of steps, not a product. Run in the order the step runs the systems in. Empty for a system
+	// that writes nothing in the steps it may be passed over in.
+	std::function<void(SimWorld &, double lastBegan)> skip{};
+};
+
 // A component's migrations: a chain over the binary record of one value (Serialise::BinaryRecord),
 // a step from each of its versions to the next, under the component's registered name. A step reads
 // what the version before it wrote, by the field names and the bytes the record holds, so a field
@@ -230,8 +247,9 @@ class SimWorld
 	}
 
 	// A system for the simulation phase; throws std::logic_error for one in another phase, and
-	// as Ecs::Scheduler::Register does.
-	void RegisterSystem(Ecs::SystemDescription system);
+	// as Ecs::Scheduler::Register does. One without a quiet (one with no next) has to run in every
+	// step, so no step is passed over while it is registered.
+	void RegisterSystem(Ecs::SystemDescription system, Quiet quiet = {});
 
 	// The systems registered, and the order a step runs them in.
 	const Ecs::Scheduler &Scheduler() const
@@ -290,6 +308,15 @@ class SimWorld
 	// no registered handler. An exception from a command or a system leaves the world part-way
 	// through a step, from which only a load recovers.
 	void Step();
+
+	// Steps on towards the step until, by the clock's count: when no command is queued and every
+	// system's quiet says the next step may be passed over, passes over every step before until or the
+	// first step a system has to run in, whichever is sooner, to the state stepping through them would
+	// leave, to the bit, in a few additions a step; otherwise runs one Step. Returns how many steps it
+	// advanced, none for an until the clock has reached. A change made to the registry between steps
+	// other than by a command is not seen by the systems' quiets: a Step after it shows it to them.
+	// Throws as Step does.
+	std::uint64_t FastForward(std::uint64_t until);
 
 	// A command the simulation's own agents send as a system runs, a trader's behaviour among them
 	// (Ai::Behaviours): applied at once by its handler, as the queue's are at the step's start, so it
@@ -359,6 +386,10 @@ class SimWorld
 
 	void AddCommand(const entt::meta_type &type, Applier apply);
 
+	// Each system's quiet in the order a step runs them, null for one without; made again after a
+	// registration.
+	const std::vector<const Quiet *> &QuietInOrder();
+
 	double m_fixedStep;
 	entt::registry m_registry;
 	CommandQueue m_commands;
@@ -370,6 +401,9 @@ class SimWorld
 	std::unordered_map<entt::id_type, Applier> m_applies;
 	// In the order they were shown; each fills its own entry of a snapshot.
 	std::vector<std::pair<entt::id_type, ShownCapture>> m_shown;
+	// By system name; looked up, never iterated.
+	std::unordered_map<std::string, Quiet> m_quiets;
+	std::vector<const Quiet *> m_quietOrder;
 	bool m_recording{false};
 	std::vector<AppliedCommand> m_recorded;
 	// Saved in the order they were added. After the registry, so they go before it: a service's

@@ -301,6 +301,11 @@ void RegisterTrading(Sim::SimWorld &world)
 	     {
 		     if (world.Clock().Step() % kMarketTickSteps == kMarketTickSteps - 1)
 			     TickMarkets(registry);
+	     }},
+	    {.next = [](const Sim::SimWorld &target)
+	     {
+		     const std::uint64_t step = target.Clock().Step();
+		     return step + (kMarketTickSteps - 1 - step % kMarketTickSteps);
 	     }});
 }
 

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -85,7 +86,27 @@ Gates &Gates::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics, const
 	     Ecs::Access::Of<Physics::Body, Physics::LocalFrame, Cruising>()
 	         .Writing<Gate, Transit, OnLane, Sim::InFrame, Destination>(),
 	     {std::string{LaneTravel::kSystemName}},
-	     [gates, &world](entt::registry & /*registry*/, double /*fixedStep*/) { gates->Step(world); }});
+	     [gates, &world](entt::registry & /*registry*/, double /*fixedStep*/) { gates->Step(world); }},
+	    // A ship at a gate, a queue to serve or a clearance gone are this step's; a clearance held
+	    // lapses as the step before its lapse ends.
+	    {.next = [](const Sim::SimWorld &target)
+	     {
+		     const entt::registry &registry = target.Registry();
+		     const std::uint64_t now = target.Clock().Step();
+		     if (!registry.view<const Transit>().empty())
+			     return now;
+		     std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
+		     for (const auto [gate, state] : registry.view<const Gate>().each())
+		     {
+			     const auto gone = [&](entt::entity ship) { return !registry.valid(ship); };
+			     if (std::ranges::any_of(state.queue, gone) ||
+			         (state.cleared == entt::null ? !state.queue.empty() : gone(state.cleared)))
+				     return now;
+			     if (state.cleared != entt::null)
+				     next = std::min(next, state.lapses - std::min<std::uint64_t>(state.lapses, 1));
+		     }
+		     return next;
+	     }});
 	return *gates;
 }
 

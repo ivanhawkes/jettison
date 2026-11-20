@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -179,18 +180,20 @@ Behaviours &Behaviours::Attach(Sim::SimWorld &world)
 	    [behaviours, &world](entt::registry & /*registry*/, double /*fixedStep*/)
 	    { behaviours->Step(world); }};
 	system.before = {std::string{Spatial::SystemIndices::kSystemName}};
-	world.RegisterSystem(std::move(system));
+	world.RegisterSystem(
+	    std::move(system),
+	    {.next = [behaviours](const Sim::SimWorld &target) { return behaviours->QuietFrom(target); }});
 	return *behaviours;
 }
 
 
-void Behaviours::DefineTask(std::string name, Task task)
+void Behaviours::DefineTask(std::string name, Task task, TaskWake wake)
 {
 	if (name.empty() || !task)
 		throw std::invalid_argument{"Ai: a task needs a name and a body"};
 	if (m_tasks.contains(name))
 		throw std::invalid_argument{std::format("Ai: task '{}' is already defined", name)};
-	m_tasks.emplace(std::move(name), std::move(task));
+	m_tasks.emplace(std::move(name), TaskEntry{std::move(task), std::move(wake)});
 }
 
 
@@ -295,6 +298,57 @@ void Behaviours::Step(Sim::SimWorld &world)
 }
 
 
+std::uint64_t Behaviours::QuietFrom(const Sim::SimWorld &world) const
+{
+	const entt::registry &registry = world.Registry();
+	const std::uint64_t now = world.Clock().Step();
+	std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
+	for (const auto [entity, behaviour] :
+	     registry.view<const Behaviour>(entt::exclude<Sim::Helm>).each())
+	{
+		const auto found = m_trees.find(behaviour.tree);
+		// Left alone, as Tick leaves it.
+		if (found == m_trees.end())
+			continue;
+		if (behaviour.nodes.size() != found->second.size() || behaviour.last != Status::Running)
+			return now;
+		next = std::min(next, WakeOf(world, entity, found->second, behaviour.nodes, 0));
+		if (next <= now)
+			return now;
+	}
+	return next;
+}
+
+
+std::uint64_t Behaviours::WakeOf(
+    const Sim::SimWorld &world, entt::entity entity, const Tree &tree,
+    const std::vector<NodeState> &states, std::uint32_t index) const
+{
+	const Node &node = tree[index];
+	const NodeState &state = states[index];
+	const std::uint64_t now = world.Clock().Step();
+	if (!state.running)
+		return now;
+	switch (node.kind)
+	{
+		case NodeKind::Sequence:
+		case NodeKind::Selector:
+			// Its running child is the one it stopped at.
+			return state.memory < node.children.size()
+			           ? WakeOf(world, entity, tree, states, node.children[state.memory])
+			           : now;
+		case NodeKind::Invert:
+		case NodeKind::Succeed:
+		case NodeKind::Repeat:
+		case NodeKind::Loop: return WakeOf(world, entity, tree, states, node.children[0]);
+		case NodeKind::Wait: return state.memory;
+		case NodeKind::Task:
+			return node.task->wake ? node.task->wake(world, entity, node.arguments, state.memory) : now;
+	}
+	return now;
+}
+
+
 Status Behaviours::TickNode(
     Sim::SimWorld &world, entt::entity entity, const Tree &tree, std::vector<NodeState> &states,
     std::uint32_t index) const
@@ -356,7 +410,7 @@ Status Behaviours::TickNode(
 		case NodeKind::Task:
 		{
 			TaskContext context{world, entity, node.arguments, starting, states[index].memory};
-			status = (*node.task)(context);
+			status = node.task->task(context);
 			break;
 		}
 	}
