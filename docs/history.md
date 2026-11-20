@@ -313,6 +313,13 @@ households buy and consume through the book; health, happiness, the batches and 
 Manifest's components, saved and hashed by the world like any
 ([Manifest's history](../../manifest/docs/history.md#w04-the-regional-economy--2026-11-20)).
 
+Manifest's W06 (2026-11-20), station life support and resupply, needed no engine edit, on the same
+pin: a Manifest system ordered after its travel system connects a ship to its venue's life support
+as it docks, from the `Ship::dockedAt` travel sets on observing a `Dock` docking, and lets go as it
+leaves its pad, and off it draws the ship's own oxygen and cartridges each fixed step; refills and
+cartridges come from the ship's hold, Manifest's components, saved and hashed like any
+([Manifest's history](../../manifest/docs/history.md#w06-station-life-support-and-resupply--2026-11-20)).
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
