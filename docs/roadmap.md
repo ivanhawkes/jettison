@@ -25,9 +25,10 @@ edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). W
 Manifest (2026-11-20) on the pin `377bd8d`, its ships travelling through the docks, the cruise and
 the flight out of a station's reach, with two provisions here: `Space::ClearOf`, and a steered ship's
 controls let go with its destination ([history](history.md#neutral-sdk-and-manifest-integration)).
-The cruise by acceleration for its W17 is done here (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)), Manifest's side of it, its manned and
-unmanned profiles, next on a new pin; then its W16, new onboarding.
+W17 is done in Manifest (2026-11-20) on the pin `54fb871`, its mode cruising by acceleration,
+manned or unmanned by a hull's occupants, Astralis on the power law, with one provision here, the
+cruise by acceleration ([history](history.md#neutral-sdk-and-manifest-integration)). Next is its
+W16, new onboarding.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
