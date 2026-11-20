@@ -76,6 +76,17 @@ dearer with every save a player has and once a second player sends commands.
   player's event sends as that player, an NPC's as that NPC, and no client or script can name
   another player or an NPC. It also reaches a `Sim::Controller` nested inside a command's fields,
   which the host does not yet stamp.
+- **A fast-forward over quiet steps** (the user's, 2026-11-20, after Manifest's L26): a cruising
+  step of Manifest's is 13 µs, nearly all of it the engine's movement (Jolt's update of each frame's
+  world, the docks and their buggies, the spatial index, the cruise's placing) and under 5% the
+  game's, so a 4.49-day cruise is 23 million steps of motion a formula could place. Each system says
+  the next step it must run at (a batch due, an order lapsing, a journey ending, a contact
+  possible), and the world, while nothing but motion by formula is under way (orbits, rails, a
+  cruise placed by its time), goes straight to the soonest, to the same bits as stepping there:
+  physics, the docks and the buggies each prove themselves quiet or are placed in closed form over
+  the gap. It changes what a system tells the step, so it is dearer the more systems there are:
+  decided before Manifest's W10 adds traders' and NPC jobs' work to every step. Tested by a world
+  fast-forwarded and one stepped reaching the same state hash, the pinned hashes holding.
 
 ### Next: what the game's next slices stand on
 
