@@ -33,8 +33,9 @@ onboarding, is done in Manifest with no engine edit (2026-11-20,
 (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)), and so is W04, local
 production, finite brokers and demand (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)),
 and so is W06, station life support and resupply (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)). Next is its W07, live and stale
-observations.
+[history](history.md#neutral-sdk-and-manifest-integration)), and so is W07, live and stale market
+observations (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). Next is its W08,
+company-funded cargo upgrades.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.

@@ -320,6 +320,13 @@ leaves its pad, and off it draws the ship's own oxygen and cartridges each fixed
 cartridges come from the ship's hold, Manifest's components, saved and hashed like any
 ([Manifest's history](../../manifest/docs/history.md#w06-station-life-support-and-resupply--2026-11-20)).
 
+Manifest's W07 (2026-11-20), live and stale market observations, needed no engine edit, on the same
+pin: a Manifest system ordered after its travel system refreshes each player's reports of the venues
+their docked ships are at as the step ends, from its own book and its record of fills, and the
+reports, the fills and the starting grant are Manifest's components, saved and hashed like any. A
+player's snapshot is filtered by Manifest before `net` sends it
+([Manifest's history](../../manifest/docs/history.md#w07-live-and-stale-market-observations--2026-11-20)).
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
