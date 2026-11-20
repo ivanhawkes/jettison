@@ -298,6 +298,14 @@ is parked on a `Dock` pad of the scenario's neutral public spaceport, as provisi
 home venue before, with no home region or polity
 ([Manifest's history](../../manifest/docs/history.md#w16-onboarding-at-a-neutral-spaceport--2026-11-20)).
 
+Manifest's W15 (2026-11-20), the vertical slice, needed no engine edit either, on the same pin: its
+console buys furs at Ore, sends the ship to Brine through the docks, the flight out and the cruise
+by acceleration, and sells them there, stepping the 4.49 days, 23,298,304 steps, in 9 min 35 s of
+a release build, about 25 µs a step; a server steps it in real time. A player's view of the journey
+and of the book is Manifest's, over `Host::Session` and `net`'s snapshots, which go out at most
+once an interval
+([Manifest's history](../../manifest/docs/history.md#w15-the-vertical-slice-through-the-console--2026-11-20)).
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
