@@ -38,8 +38,10 @@ observations (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integrat
 company-funded cargo upgrades (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). Its L26, the console's long
 step, is done in Manifest (2026-11-20), the step taken a slice at a time and stoppable, with one
 provision here, the rails placed once a body, which halved a cruising step
-([history](history.md#neutral-sdk-and-manifest-integration)). Next is its W09, the complete trading
-fixture.
+([history](history.md#neutral-sdk-and-manifest-integration)). Its W09, the complete trading fixture, is
+done in Manifest with no engine edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)).
+Next is its W10, standing trade policies and NPC jobs, before which the fast-forward over quiet steps
+(below) is decided.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
