@@ -634,7 +634,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	     { physics.Step(registry, world.Clock().Now(), fixedStep); }},
 	    {.next = [&physics](const Sim::SimWorld &target)
 	     { return physics.QuietFrom(target.Registry(), target.Clock().Step()); },
-	     .skip = [&physics](Sim::SimWorld &target, double lastBegan)
+	     .skip = [&physics](Sim::SimWorld &target, std::uint64_t /*passed*/, double lastBegan)
 	     { physics.Skip(target.Registry(), lastBegan, target.Clock().Now(), target.FixedStep()); }});
 	return physics;
 }

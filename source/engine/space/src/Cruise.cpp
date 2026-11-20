@@ -337,7 +337,8 @@ CruiseTravel &CruiseTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsW
 			         next, cruising.arrivalStep - std::min<std::uint64_t>(cruising.arrivalStep, 1));
 		     return next;
 	     },
-	     .skip = [cruises](Sim::SimWorld &target, double /*lastBegan*/) { cruises->Skip(target); }});
+	     .skip = [cruises](Sim::SimWorld &target, std::uint64_t /*passed*/, double /*lastBegan*/)
+	     { cruises->Skip(target); }});
 	return *cruises;
 }
 

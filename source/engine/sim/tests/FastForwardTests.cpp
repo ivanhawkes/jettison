@@ -25,6 +25,7 @@ struct Face
 {
 	double began{0.0};
 	double ended{0.0};
+	std::uint64_t steps{0};
 };
 // Counted every step: what no formula gives.
 struct Tally
@@ -50,7 +51,8 @@ void RegisterTypes()
 		    .Field<&Alarm::rung>("rung", Attribute::Saved);
 		RegisterType<Face>("FastForwardTests.Face")
 		    .Field<&Face::began>("began", Attribute::Saved)
-		    .Field<&Face::ended>("ended", Attribute::Saved);
+		    .Field<&Face::ended>("ended", Attribute::Saved)
+		    .Field<&Face::steps>("steps", Attribute::Saved);
 		RegisterType<Tally>("FastForwardTests.Tally").Field<&Tally::count>("count", Attribute::Saved);
 		RegisterType<Silence>("FastForwardTests.Silence")
 		    .Field<&Silence::alarm>("alarm", Attribute::Saved);
@@ -96,13 +98,13 @@ void Populate(Sim::SimWorld &world, const std::vector<std::uint64_t> &alarms, bo
 	     [&world](entt::registry &registry, double fixedStep)
 	     {
 		     for (const auto [entity, face] : registry.view<Face>().each())
-			     face = {world.Clock().Now(), world.Clock().Now() + fixedStep};
+			     face = {world.Clock().Now(), world.Clock().Now() + fixedStep, face.steps + 1};
 	     }},
 	    {[](const Sim::SimWorld &) { return kNever; },
-	     [](Sim::SimWorld &target, double lastBegan)
+	     [](Sim::SimWorld &target, std::uint64_t passed, double lastBegan)
 	     {
 		     for (const auto [entity, face] : target.Registry().view<Face>().each())
-			     face = {lastBegan, target.Clock().Now()};
+			     face = {lastBegan, target.Clock().Now(), face.steps + passed};
 	     }});
 	if (tally)
 		world.RegisterSystem(

@@ -136,11 +136,11 @@ struct Quiet
 	// has to run in, the world as the last step left it and no command applied: the clock's own count,
 	// or less, for the next step. Called between steps; changes nothing.
 	std::function<std::uint64_t(const SimWorld &)> next;
-	// Puts what the system writes where every step passed over would have left it, the clock already
-	// at the end of them; lastBegan is the time the last of them began at, since the clock's time is a
-	// sum of steps, not a product. Run in the order the step runs the systems in. Empty for a system
-	// that writes nothing in the steps it may be passed over in.
-	std::function<void(SimWorld &, double lastBegan)> skip{};
+	// Puts what the system writes where the steps passed over (passed of them) would have left it, the
+	// clock already at the end of them; lastBegan is the time the last of them began at, since the
+	// clock's time is a sum of steps, not a product. Run in the order the step runs the systems in.
+	// Empty for a system that writes nothing in the steps it may be passed over in.
+	std::function<void(SimWorld &, std::uint64_t passed, double lastBegan)> skip{};
 };
 
 // A component's migrations: a chain over the binary record of one value (Serialise::BinaryRecord),

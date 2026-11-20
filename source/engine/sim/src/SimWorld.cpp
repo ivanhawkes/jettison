@@ -204,7 +204,7 @@ std::uint64_t SimWorld::FastForward(std::uint64_t until)
 	}
 	for (const Quiet *quiet : QuietInOrder())
 		if (quiet && quiet->skip)
-			quiet->skip(*this, lastBegan);
+			quiet->skip(*this, to - from, lastBegan);
 	return to - from;
 }
 
