@@ -27,8 +27,9 @@ the flight out of a station's reach, with two provisions here: `Space::ClearOf`,
 controls let go with its destination ([history](history.md#neutral-sdk-and-manifest-integration)).
 W17 is done in Manifest (2026-11-20) on the pin `54fb871`, its mode cruising by acceleration,
 manned or unmanned by a hull's occupants, Astralis on the power law, with one provision here, the
-cruise by acceleration ([history](history.md#neutral-sdk-and-manifest-integration)). Next is its
-W16, new onboarding.
+cruise by acceleration ([history](history.md#neutral-sdk-and-manifest-integration)). W16, new
+onboarding, is done in Manifest with no engine edit (2026-11-20,
+[history](history.md#neutral-sdk-and-manifest-integration)). Next is its W15, the vertical slice.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
