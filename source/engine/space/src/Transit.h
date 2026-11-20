@@ -9,6 +9,8 @@
 #include <span>
 #include <vector>
 
+#include <jettison/ai/Steering.h>
+#include <jettison/physics/Flight.h>
 #include <jettison/sim/Snapshot.h>
 
 namespace Jettison::Physics
@@ -18,6 +20,17 @@ class PhysicsWorld;
 
 namespace Jettison::Space::Detail
 {
+// A steered ship's Destination given up as it leaves its frame for a lane or a cruise, its controls
+// let go with it, as Ai::ClearDestination lets them go: what steering last demanded would otherwise
+// fly it on from where it comes out. A ship with no Destination keeps its pilot's controls.
+inline void GiveUpDestination(entt::registry &registry, entt::entity ship)
+{
+	if (registry.remove<Ai::Destination>(ship) == 0)
+		return;
+	if (auto *controls = registry.try_get<Physics::FlightControls>(ship))
+		*controls = Physics::FlightControls{};
+}
+
 // A transit in whole steps, rounded up, and at least one: a lane's and a cruise's. A millionth of a
 // step is let go before rounding up, since a transit authored in seconds is rarely a whole number of
 // steps in floating point: 40 s at 60 Hz is 2400.0000000000005 steps.

@@ -91,8 +91,9 @@ struct Cruising
 // with a CruiseDrive, or on rails (clamped to a pad), a body its system does not have, a ship within
 // a station's reach (CruiseTravel::kStationReach), so docking stays in physics, a ship already
 // within reach of where it would arrive, and a course every way is blocked across. A ship sent
-// gives up its Destination, which a cruise replaces. Registered with Reflect, every field Saved, by
-// RegisterTypes.
+// gives up its Destination, which a cruise replaces, and with it what steering last demanded of its
+// controls, as Ai::ClearDestination does, so it comes out still; a pilot's controls are kept.
+// Registered with Reflect, every field Saved, by RegisterTypes.
 struct Cruise
 {
 	Sim::Controller sender;

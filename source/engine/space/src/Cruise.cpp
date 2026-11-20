@@ -364,7 +364,8 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 	cruising.arrivalStep = cruising.departureStep + steps;
 	cruising.body = *body;
 
-	registry.remove<Physics::Body, Physics::Velocity, Physics::LocalFrame, Destination>(ship);
+	registry.remove<Physics::Body, Physics::Velocity, Physics::LocalFrame>(ship);
+	Detail::GiveUpDestination(registry, ship);
 	world.Events().Emit(
 	    CruiseStarted{
 	        ship, command.body, static_cast<double>(steps) * step, course->length,

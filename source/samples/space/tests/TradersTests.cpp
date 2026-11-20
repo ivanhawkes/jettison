@@ -388,6 +388,7 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 	CHECK(loaded.world.StateHash() == original.world.StateHash());
 	// The same in every build: pinned in Debug, and checked in Release. Re-pinned in W01 for a pad's
 	// class saved as its name, the old build's saves loaded and saved again the same; and for the
-	// classes' ship names and a docking's feature, as the dock's approach was.
-	CHECK(original.world.StateHash() == 0x35988e71d33f548eULL);
+	// classes' ship names and a docking's feature, as the dock's approach was; and in W05 for a ship's
+	// controls let go with its destination as it sets out on a cruise or a lane.
+	CHECK(original.world.StateHash() == 0xd79d0a0e3d98f6ecULL);
 }

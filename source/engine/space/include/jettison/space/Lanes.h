@@ -52,7 +52,8 @@ struct OnLane
 
 // The command that sends an entity along the lane leaving its system through that jump point,
 // applied as the step begins, or as a gate applies it to a ship it has cleared. The entity gives up
-// its Destination (ai/Steering.h), which is in the system it leaves. Refused, with a LaneRefused, for a
+// its Destination (ai/Steering.h), which is in the system it leaves, and the controls steering set
+// for it, as Ai::ClearDestination does; a pilot's are kept. Refused, with a LaneRefused, for a
 // sender that does not command the entity (Sim::MayCommand), an entity not in a system of the galaxy
 // (one already on a lane is in none), a cruising one, or a jump point no lane leaves through. A gate
 // sends a ship it cleared as no one in particular, the game's rule; a player asks for a gate's

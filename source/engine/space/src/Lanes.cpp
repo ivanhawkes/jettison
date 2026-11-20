@@ -116,7 +116,7 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 	registry.emplace_or_replace<OnLane>(command.entity, lane);
 	registry.replace<Sim::InFrame>(command.entity, Sim::kNoFrame);
 	// Where it was going is in the system it left.
-	registry.remove<Destination>(command.entity);
+	Detail::GiveUpDestination(registry, command.entity);
 	world.Events().Emit(LaneEntered{command.entity, lane, exit->transitSeconds});
 }
 

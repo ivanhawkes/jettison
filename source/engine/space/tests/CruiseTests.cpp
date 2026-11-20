@@ -1,5 +1,6 @@
 #include "Systems.h"
 
+#include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -494,6 +495,33 @@ TEST_CASE(
 	CHECK_FALSE(Space::ClearOf(fixture.world, fixture.physics, halcyon, other, station, "Corva"));
 	registry.remove<Physics::LocalFrame>(other);
 	CHECK_FALSE(Space::ClearOf(fixture.world, fixture.physics, halcyon, other, station, "Pell"));
+}
+
+
+TEST_CASE(
+    "Cruise: a steered ship gives up its destination and controls with it, a piloted one keeps them")
+{
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	const entt::entity steered = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
+	const entt::entity piloted = fixture.Ship("Ostra Highport", {0.0, 0.0, -3000.0});
+	// What steering last demanded of one, and a pilot of the other.
+	registry.emplace<Ai::Destination>(steered);
+	const Physics::FlightControls demand{{0.0f, 0.0f, -0.6f}, {}, true, entt::null};
+	registry.replace<Physics::FlightControls>(steered, demand);
+	registry.replace<Physics::FlightControls>(piloted, demand);
+	fixture.world.Commands().Push(Space::Cruise{{}, steered, "Pell"});
+	fixture.world.Commands().Push(Space::Cruise{{}, piloted, "Pell"});
+	fixture.Run(1);
+	REQUIRE(registry.all_of<Space::Cruising>(steered));
+	CHECK_FALSE(registry.all_of<Ai::Destination>(steered));
+	CHECK(registry.get<Physics::FlightControls>(steered) == Physics::FlightControls{});
+	CHECK(registry.get<Physics::FlightControls>(piloted) == demand);
+
+	// And so it comes out: let go, taken against nothing.
+	while (registry.all_of<Space::Cruising>(steered))
+		fixture.Run(1);
+	CHECK(registry.get<Physics::FlightControls>(steered) == Physics::FlightControls{});
 }
 
 
