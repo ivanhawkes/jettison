@@ -26,6 +26,8 @@
     ninja
     pkg-config
     ccache # Compiler cache: CMake compiles through it when it is on the PATH (JETTISON_CCACHE)
+    shellcheck
+    lychee # Markdown link checker: lychee --offline --include-fragments '*.md' 'docs/**/*.md'
 
     # Debugging
     llvmPackages_21.lldb

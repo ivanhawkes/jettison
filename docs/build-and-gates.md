@@ -276,12 +276,14 @@ warm caches (2026-11-12).
 
 A gate that passed is not run again on the same inputs: its key, a digest of the working tree's
 files (tracked or untracked and not ignored, read through a scratch copy of the index), less the
-`*.md` no stage reads, with the versions of clang, clang-format, clang-tidy and cmake and the
+`*.md`, with the versions of clang, clang-format, clang-tidy and cmake and the
 options (the presets set every build option a stage reads, so no cached setting escapes it), is kept under
 `build/gate-passed` when it is the same at the end of the run as at the start. A run on those inputs
 prints `gate passed: the inputs are those of the gate passed <time>` and exits 0 at once, so a commit
 of documentation, or a second run before a commit, costs nothing; `--force` runs it anyway. CI's
-checkout has no `build/gate-passed`, so it always runs.
+checkout has no `build/gate-passed`, so it always runs. The one check of the `*.md`, their links
+between the repository's files and to their headings (`lychee --offline --include-fragments`),
+runs before that, on every run, failing the gate on a broken one; it takes under a second.
 
 ```bash
 ./scripts/ci.sh --werror --asan --log build/gate.log

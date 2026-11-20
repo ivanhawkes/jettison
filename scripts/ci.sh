@@ -21,8 +21,9 @@
 #  --force          Run even when the inputs are those of a gate that passed
 #
 # A gate that passed is not run again on the same inputs: the files of the working tree, tracked or
-# untracked and not ignored, *.md aside (no stage reads them), the toolchain and the options. Its key
-# is kept under build/gate-passed when the inputs are the same at the end of the run as at its start.
+# untracked and not ignored, *.md aside, the toolchain and the options. Its key is kept under
+# build/gate-passed when the inputs are the same at the end of the run as at its start. The Markdown's
+# links, the one check that reads *.md, take under a second and run first on every run.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -78,6 +79,13 @@ gate_key() {
 		echo "$preset $headless_preset $smoke $release $tidy $asan ${software[*]-} ${werror[*]-}"
 	} | sha256sum | cut -d' ' -f1
 }
+# Links between the repository's own files and to their headings; --offline leaves web links alone.
+echo "==> markdown links (lychee $(lychee --version | awk '{print $NF}'), offline)"
+if ! git ls-files -z '*.md' | xargs -0 lychee --offline --include-fragments --no-progress; then
+	echo "gate FAILED: broken markdown links" >&2
+	exit 1
+fi
+
 gate_passed="build/gate-passed"
 key="$(gate_key)"
 if [ "$force" -eq 0 ] && [ -e "$gate_passed/$key" ]; then
