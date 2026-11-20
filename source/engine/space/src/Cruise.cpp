@@ -138,13 +138,19 @@ struct Planner
 };
 
 
-// The point the share of the way along a course is at, and the leg it is on.
-std::pair<glm::dvec3, glm::dvec3> Along(const std::vector<glm::dvec3> &course, double share)
+double Length(const std::vector<glm::dvec3> &course)
 {
 	double length = 0.0;
 	for (std::size_t point = 1; point < course.size(); ++point)
 		length += glm::length(course[point] - course[point - 1]);
-	double left = length * share;
+	return length;
+}
+
+
+// The point the share of the way along a course is at, and the leg it is on.
+std::pair<glm::dvec3, glm::dvec3> Along(const std::vector<glm::dvec3> &course, double share)
+{
+	double left = Length(course) * share;
 	for (std::size_t point = 1; point < course.size(); ++point)
 	{
 		const glm::dvec3 leg = course[point] - course[point - 1];
@@ -157,6 +163,38 @@ std::pair<glm::dvec3, glm::dvec3> Along(const std::vector<glm::dvec3> &course, d
 	}
 	return {course.back(), glm::dvec3{0.0, 0.0, -1.0}};
 }
+
+
+// The first half of a cruise on a profile, to its midpoint: the seconds and metres of its boost, the
+// speed the boost reaches, and the seconds to the midpoint.
+struct Half
+{
+	double boostSeconds{0.0};
+	double boostMetres{0.0};
+	double speed{0.0};
+	double seconds{0.0};
+};
+
+
+Half HalfOf(const CruiseProfile &profile, double metres)
+{
+	const double half = metres / 2.0;
+	const auto boost = double{profile.boostAcceleration};
+	const double boostSeconds = double{profile.boostSeconds} / 2.0;
+	const double boostMetres = boost * boostSeconds * boostSeconds / 2.0;
+	if (half <= boostMetres)
+	{
+		const double seconds = std::sqrt(2.0 * half / boost);
+		return {seconds, half, boost * seconds, seconds};
+	}
+	const double speed = boost * boostSeconds;
+	const double rest = half - boostMetres;
+	// speed × t + sustained × t² / 2 = rest, by the root that does not cancel when the speed is high.
+	const double sustained =
+	    2.0 * rest /
+	    (speed + std::sqrt((speed * speed) + (2.0 * double{profile.sustainedAcceleration} * rest)));
+	return {boostSeconds, boostMetres, speed, boostSeconds + sustained};
+}
 } // namespace
 
 
@@ -164,7 +202,30 @@ double CruiseSeconds(const CruiseDrive &drive, double metres)
 {
 	if (metres <= 0.0)
 		return 0.0;
+	if (drive.profile)
+		return 2.0 * HalfOf(*drive.profile, metres).seconds;
 	return double{drive.seconds} * std::pow(metres / drive.reference, double{drive.exponent});
+}
+
+
+double CruiseCovered(const CruiseProfile &profile, double metres, double seconds)
+{
+	if (metres <= 0.0 || seconds <= 0.0)
+		return 0.0;
+	const Half half = HalfOf(profile, metres);
+	const double whole = 2.0 * half.seconds;
+	if (seconds >= whole)
+		return metres;
+	// The way out to the midpoint; the way in is its mirror.
+	const auto out = [&](double at)
+	{
+		if (at <= half.boostSeconds)
+			return double{profile.boostAcceleration} * at * at / 2.0;
+		const double on = at - half.boostSeconds;
+		return half.boostMetres + (half.speed * on) +
+		       (double{profile.sustainedAcceleration} * on * on / 2.0);
+	};
+	return seconds <= half.seconds ? out(seconds) : metres - out(whole - seconds);
 }
 
 
@@ -175,6 +236,20 @@ void CheckCruiseDrive(std::string_view name, const CruiseDrive &drive)
 		throw Serialise::FormatError{std::format(
 		    "Cruise drive '{}' has seconds or a reference that is not positive, or an exponent that "
 		    "is not above 0 and at most 1",
+		    name)};
+	if (!drive.profile)
+		return;
+	const CruiseProfile &profile = *drive.profile;
+	// Stated as what holds, so a NaN, which fails every comparison, is refused.
+	const bool valid = profile.boostAcceleration > 0.0f && std::isfinite(profile.boostAcceleration) &&
+	                   profile.sustainedAcceleration >= 0.0f &&
+	                   profile.sustainedAcceleration <= profile.boostAcceleration &&
+	                   profile.boostSeconds >= 0.0f && std::isfinite(profile.boostSeconds) &&
+	                   (profile.boostSeconds > 0.0f || profile.sustainedAcceleration > 0.0f);
+	if (!valid)
+		throw Serialise::FormatError{std::format(
+		    "Cruise drive '{}' has a profile whose boost is not positive, whose sustained acceleration "
+		    "is negative or past the boost, or whose boost seconds are negative, with neither above 0",
 		    name)};
 }
 
@@ -329,8 +404,8 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 			break;
 		}
 
-	// The time from the course, and the course from the time: the drive's time rises as the fourth
-	// root of the distance, so each round changes it by a quarter of the last's share, and the
+	// The time from the course, and the course from the time: the power law's time rises as the
+	// fourth root of the distance, so each round changes it by a quarter of the last's share, and the
 	// rounds settle well within kSolveIterations.
 	const glm::dvec3 start = from - planner.CarrierAt(t0);
 	const double step = world.FixedStep();
@@ -349,6 +424,38 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 			seconds = CruiseSeconds(*drive, course->length);
 	}
 
+	// A profile's time rises as no more than the square root of the distance, and a slow ship
+	// chasing a station round its planet may not settle, where the steps found would accelerate it
+	// past its boost: so the fewest steps in which it covers the course they give, up from the
+	// solve's by doubling and down by halving.
+	if (drive->profile)
+	{
+		const auto covers = [&](const Course &plotted, std::uint64_t count)
+		{ return CruiseSeconds(*drive, plotted.length) <= static_cast<double>(count) * step; };
+		const auto plot = [&](std::uint64_t count)
+		{ return planner.Plot(start, towards, target, t0, t0 + (static_cast<double>(count) * step)); };
+		std::uint64_t under = 0;
+		for (int round = 0; !covers(*course, steps); ++round)
+		{
+			course = plot(steps * 2);
+			if (round == kProfileDoublings || !course)
+				return refuse(Reason::NoCourse, {Sim::ReasonArgument::Identifier(command.body)});
+			under = steps;
+			steps *= 2;
+		}
+		while (steps - under > 1)
+		{
+			const std::uint64_t middle = under + ((steps - under) / 2);
+			if (std::optional<Course> plotted = plot(middle); plotted && covers(*plotted, middle))
+			{
+				steps = middle;
+				course = std::move(plotted);
+			}
+			else
+				under = middle;
+		}
+	}
+
 	const int parent = system.bodies[target].parentIndex;
 	const bool byStation =
 	    system.bodies[target].kind == Celestial::BodyKind::JumpPoint && parent >= 0 &&
@@ -363,6 +470,7 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 	cruising.departureStep = world.Clock().Step();
 	cruising.arrivalStep = cruising.departureStep + steps;
 	cruising.body = *body;
+	cruising.profile = drive->profile;
 
 	registry.remove<Physics::Body, Physics::Velocity, Physics::LocalFrame>(ship);
 	Detail::GiveUpDestination(registry, ship);
@@ -412,7 +520,15 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 		{
 			const double share = static_cast<double>(ending - cruising.departureStep) /
 			                     static_cast<double>(cruising.arrivalStep - cruising.departureStep);
-			const auto [at, leg] = Along(cruising.course, EaseInOutCubic(share));
+			double along = EaseInOutCubic(share);
+			if (cruising.profile)
+			{
+				// Covered as the profile covers it, slowed to the whole steps it was given.
+				const double length = Length(cruising.course);
+				const double seconds = 2.0 * HalfOf(*cruising.profile, length).seconds;
+				along = CruiseCovered(*cruising.profile, length, share * seconds) / length;
+			}
+			const auto [at, leg] = Along(cruising.course, along);
 			registry.emplace_or_replace<Sim::Transform>(ship, Sim::Transform{origin + at, Facing(leg)});
 			continue;
 		}

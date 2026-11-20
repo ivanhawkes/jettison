@@ -341,7 +341,10 @@ How long a cruise takes is the ship's drive (`Space::CruiseDrive`), a component 
 the sample from its hull's (`defs/drives/<hull>.yaml`, G01d; a hull file of version 1 that gives one
 still loads, its drive left out, through `Dock::HullMigrations`): the
 seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the shuttle crosses from
-Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. The bodies are on
+Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. A drive may give a
+profile in its place (`Space::CruiseProfile`), for a game played over days: a boost acceleration for
+at most a time over the whole cruise, half at each end, and a sustained one between, turning at the
+midpoint, the time its closed form. The bodies are on
 rails, so where the target will be on arrival is solved rather than chased: the time gives the
 target's place, the course to it gives the time again, in eight rounds, which the fourth root
 settles well within. The course is a few straight legs round the stars, planets and moons in the way
@@ -350,9 +353,12 @@ frame left and the target orbit (Ostra between Highport and Pell, the star betwe
 carried with it on its orbit, so the planet it goes round is where the course was plotted round
 throughout. A body in the way that only the frame left orbits is placed where it is at departure,
 one only the target orbits where it is at arrival, and any other half-way, widened by half of how
-far it moves against the carrier over the cruise. Along its course the ship eases out of its start
-and into its end, an in-out cubic of the steps run, 15 km out a second after leaving Highport, and
-faces along the leg it is on.
+far it moves against the carrier over the cruise. A profile's time rises as no more than the
+distance's square root, and a slow ship chasing a station round its planet may not settle in those
+rounds, so a profiled cruise takes the fewest whole steps found in which it covers the course they
+give, so no step accelerates past its boost. Along its course the ship eases out of its start and into
+its end, an in-out cubic of the steps run, 15 km out a second after leaving Highport, or on a profile
+covers it as the profile does, slowed to its whole steps; and faces along the leg it is on.
 
 Presentation shows a cruising ship as any other, from its snapshots at its system's scale: the chase
 camera stays on it, the flight panel says where it is cruising to and how long is left, and the

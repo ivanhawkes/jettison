@@ -25,7 +25,9 @@ edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). W
 Manifest (2026-11-20) on the pin `377bd8d`, its ships travelling through the docks, the cruise and
 the flight out of a station's reach, with two provisions here: `Space::ClearOf`, and a steered ship's
 controls let go with its destination ([history](history.md#neutral-sdk-and-manifest-integration)).
-Next is the cruise by acceleration below, for Manifest's W17, then its W16, new onboarding.
+The cruise by acceleration for its W17 is done here (2026-11-20,
+[history](history.md#neutral-sdk-and-manifest-integration)), Manifest's side of it, its manned and
+unmanned profiles, next on a new pin; then its W16, new onboarding.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -35,7 +37,6 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Cruise by acceleration | W17 (4) | A cruise's time and its motion along its course follow an acceleration profile its `Space::CruiseDrive` may give in place of the power law: a boost acceleration for at most a time over the whole cruise, half of it speeding up and half slowing down, and a sustained acceleration between, turning at the midpoint ([D-090](../../manifest/docs/decision-ledger.md#d-090)), for Manifest's slow mode while its fast Astralis keeps the power law; no step of the placed course accelerates past the boost, a drive with no profile cruises as now and the sample's hashes hold, and a save mid-cruise arrives as the one saved. An independent consumer's test checks the times of a profile against the closed form. |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 

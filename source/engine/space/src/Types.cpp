@@ -75,10 +75,15 @@ void RegisterTypes()
 		    .Field<&GatePassed::gate>("gate", Attribute::Saved)
 		    .Field<&GatePassed::reason>("reason", Attribute::Saved);
 
+		RegisterType<CruiseProfile>("Ai.CruiseProfile")
+		    .Field<&CruiseProfile::boostAcceleration>("boostAcceleration", kDefined)
+		    .Field<&CruiseProfile::boostSeconds>("boostSeconds", kDefined)
+		    .Field<&CruiseProfile::sustainedAcceleration>("sustainedAcceleration", kDefined);
 		RegisterType<CruiseDrive>("Ai.CruiseDrive", Attribute::Moddable)
 		    .Field<&CruiseDrive::seconds>("seconds", kDefined)
 		    .Field<&CruiseDrive::reference>("reference", kDefined)
-		    .Field<&CruiseDrive::exponent>("exponent", kDefined);
+		    .Field<&CruiseDrive::exponent>("exponent", kDefined)
+		    .Field<&CruiseDrive::profile>("profile", kDefined);
 		RegisterType<Cruising>("Ai.Cruising")
 		    .Field<&Cruising::target>("target", Attribute::Saved)
 		    .Field<&Cruising::frame>("frame", Attribute::Saved)
@@ -86,7 +91,8 @@ void RegisterTypes()
 		    .Field<&Cruising::course>("course", Attribute::Saved)
 		    .Field<&Cruising::departureStep>("departureStep", Attribute::Saved)
 		    .Field<&Cruising::arrivalStep>("arrivalStep", Attribute::Saved)
-		    .Field<&Cruising::body>("body", Attribute::Saved);
+		    .Field<&Cruising::body>("body", Attribute::Saved)
+		    .Field<&Cruising::profile>("profile", Attribute::Saved);
 		RegisterType<Cruise>("Ai.Cruise")
 		    .Field<&Cruise::sender>("sender", Attribute::Saved)
 		    .Field<&Cruise::ship>("ship", Attribute::Saved)

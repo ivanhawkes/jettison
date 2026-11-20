@@ -16,6 +16,7 @@
 #include <glm/geometric.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -29,7 +30,11 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 // A shuttle's drive (defs/hulls/shuttle.yaml).
-constexpr Space::CruiseDrive kDrive{40.0f, 1.0e8, 0.25f};
+constexpr Space::CruiseDrive kDrive{40.0f, 1.0e8, 0.25f, {}};
+constexpr double kStandardGravity = 9.80665;
+// A profile far past any crew's, so a test's cruise from Highport to Pell is minutes, not hours:
+// boosting 10 s at each end, sustained between.
+constexpr Space::CruiseProfile kHard{20000.0f, 20.0f, 5000.0f};
 
 // A world as a game's start-up makes one: physics, the lanes, then cruising, given the sample
 // galaxy's systems.
@@ -159,14 +164,66 @@ TEST_CASE("Cruise: a drive's time rises as the distance's fourth root")
 }
 
 
+TEST_CASE("Cruise: a profile's time and what it covers are its closed form")
+{
+	// 2 g for 4 hours, 2 at each end, and 1 g between.
+	const Space::CruiseProfile manned{
+	    static_cast<float>(2.0 * kStandardGravity), 14400.0f, static_cast<float>(kStandardGravity)};
+	const Space::CruiseDrive drive{.profile = manned};
+	const auto boost = double{manned.boostAcceleration};
+	const auto sustained = double{manned.sustainedAcceleration};
+
+	// Short of the boost's distance it is at the boost throughout: 2 √(d / a).
+	CHECK(Space::CruiseSeconds(drive, 1.0e6) == doctest::Approx(2.0 * std::sqrt(1.0e6 / boost)));
+	CHECK(Space::CruiseSeconds(drive, 0.0) == 0.0);
+
+	// Two hours at the boost and one at the sustained rate each way.
+	const double boosted = boost * 7200.0 * 7200.0 / 2.0;
+	const double speed = boost * 7200.0;
+	const double half = boosted + (speed * 3600.0) + (sustained * 3600.0 * 3600.0 / 2.0);
+	CHECK(Space::CruiseSeconds(drive, 2.0 * half) == doctest::Approx(21600.0).epsilon(1.0e-12));
+	CHECK(Space::CruiseCovered(manned, 2.0 * half, 0.0) == 0.0);
+	CHECK(Space::CruiseCovered(manned, 2.0 * half, 3600.0) == doctest::Approx(boost * 3600.0 * 1800.0));
+	CHECK(Space::CruiseCovered(manned, 2.0 * half, 7200.0) == doctest::Approx(boosted));
+	CHECK(Space::CruiseCovered(manned, 2.0 * half, 10800.0) == doctest::Approx(half));
+	CHECK(
+	    Space::CruiseCovered(manned, 2.0 * half, 21600.0 - 3600.0) ==
+	    doctest::Approx((2.0 * half) - (boost * 3600.0 * 1800.0)));
+	CHECK(Space::CruiseCovered(manned, 2.0 * half, 21600.0) == 2.0 * half);
+	CHECK(Space::CruiseCovered(manned, 2.0 * half, 1.0e9) == 2.0 * half);
+
+	// Unmanned, 12 g throughout.
+	const auto twelve = static_cast<float>(12.0 * kStandardGravity);
+	const Space::CruiseDrive unmanned{.profile = Space::CruiseProfile{twelve, 0.0f, twelve}};
+	CHECK(
+	    Space::CruiseSeconds(unmanned, 4.0e11) ==
+	    doctest::Approx(2.0 * std::sqrt(4.0e11 / double{twelve})));
+	CHECK_NOTHROW(Space::CheckCruiseDrive("manned", drive));
+	CHECK_NOTHROW(Space::CheckCruiseDrive("unmanned", unmanned));
+	CHECK_NOTHROW(Space::CheckCruiseDrive("coasting", {.profile = Space::CruiseProfile{20.0f, 60.0f}}));
+}
+
+
+TEST_CASE("Cruise: a profile of no boost, or one that is past it or never ends, is refused")
+{
+	const float infinity = std::numeric_limits<float>::infinity();
+	for (const Space::CruiseProfile profile :
+	     {Space::CruiseProfile{0.0f, 60.0f, 0.0f}, Space::CruiseProfile{infinity, 60.0f, 10.0f},
+	      Space::CruiseProfile{20.0f, -1.0f, 10.0f}, Space::CruiseProfile{20.0f, infinity, 10.0f},
+	      Space::CruiseProfile{20.0f, 60.0f, -1.0f}, Space::CruiseProfile{20.0f, 60.0f, 30.0f},
+	      Space::CruiseProfile{20.0f, 0.0f, 0.0f}})
+		CHECK_THROWS_AS(Space::CheckCruiseDrive("bad", {.profile = profile}), Serialise::FormatError);
+}
+
+
 TEST_CASE("Cruise: a drive of no time, no reference or an exponent outside (0, 1] is refused")
 {
 	CHECK_NOTHROW(Space::CheckCruiseDrive("shuttle", kDrive));
-	CHECK_NOTHROW(Space::CheckCruiseDrive("linear", {40.0f, 1.0e8, 1.0f}));
+	CHECK_NOTHROW(Space::CheckCruiseDrive("linear", {40.0f, 1.0e8, 1.0f, {}}));
 	for (const Space::CruiseDrive drive :
-	     {Space::CruiseDrive{0.0f, 1.0e8, 0.25f}, Space::CruiseDrive{40.0f, 0.0, 0.25f},
-	      Space::CruiseDrive{40.0f, 1.0e8, 0.0f}, Space::CruiseDrive{40.0f, 1.0e8, 1.5f},
-	      Space::CruiseDrive{std::numeric_limits<float>::infinity(), 1.0e8, 0.25f}})
+	     {Space::CruiseDrive{0.0f, 1.0e8, 0.25f, {}}, Space::CruiseDrive{40.0f, 0.0, 0.25f, {}},
+	      Space::CruiseDrive{40.0f, 1.0e8, 0.0f, {}}, Space::CruiseDrive{40.0f, 1.0e8, 1.5f, {}},
+	      Space::CruiseDrive{std::numeric_limits<float>::infinity(), 1.0e8, 0.25f, {}}})
 		CHECK_THROWS_AS(Space::CheckCruiseDrive("bad", drive), Serialise::FormatError);
 }
 
@@ -525,10 +582,74 @@ TEST_CASE(
 }
 
 
+TEST_CASE("Cruise: on a profile, a ship covers its course as the profile does, never past its boost")
+{
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	const entt::entity ship = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
+	const Space::CruiseDrive drive{.profile = kHard};
+	registry.replace<Space::CruiseDrive>(ship, drive);
+	fixture.Run(5);
+	fixture.Events<Space::CruiseStarted>();
+	const std::uint64_t departure = fixture.world.Clock().Step();
+	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
+	fixture.Run(1);
+	const std::vector<Space::CruiseStarted> started = fixture.Events<Space::CruiseStarted>();
+	REQUIRE(started.size() == 1);
+	const Space::Cruising cruising = registry.get<Space::Cruising>(ship);
+	REQUIRE(cruising.course.size() == 2);
+	CHECK(cruising.profile == kHard);
+	// Time enough for the course, and within a few steps of the least.
+	const double least = Space::CruiseSeconds(drive, started[0].metres);
+	CHECK(started[0].seconds >= least);
+	CHECK(started[0].seconds < least + (4.0 * kStep));
+
+	// Along a straight course from the carrier's point of view: no step accelerates past the boost,
+	// and the boost and the sustained rate are both reached.
+	const auto relative = [&]
+	{
+		return registry.get<Sim::Transform>(ship).position -
+		       Fixture::Where("Ostra", fixture.world.Clock().Now());
+	};
+	std::vector<glm::dvec3> places{cruising.course.front(), relative()};
+	double hardest = 0.0;
+	double quarter = 0.0;
+	const std::uint64_t quarterway = departure + ((started[0].arrivalStep - departure) / 4);
+	while (fixture.world.Clock().Step() + 1 < started[0].arrivalStep)
+	{
+		fixture.Run(1);
+		places.push_back(relative());
+		const std::size_t last = places.size() - 1;
+		const double acceleration =
+		    glm::length(places[last] - (2.0 * places[last - 1]) + places[last - 2]) / (kStep * kStep);
+		hardest = std::max(hardest, acceleration);
+		if (fixture.world.Clock().Step() == quarterway)
+			quarter = acceleration;
+	}
+	MESSAGE(
+	    "Highport to Pell on a profile: " << started[0].metres / 1000.0 << " km in "
+	                                      << started[0].seconds << " s, hardest " << hardest
+	                                      << " m/s², a quarter in " << quarter << " m/s²");
+	CHECK(hardest <= double{kHard.boostAcceleration} * 1.001);
+	CHECK(hardest > double{kHard.boostAcceleration} * 0.99);
+	CHECK(quarter == doctest::Approx(double{kHard.sustainedAcceleration}).epsilon(0.01));
+	CHECK(glm::distance(places.back(), cruising.course.back()) < 10.0);
+
+	fixture.Run(1);
+	CHECK(registry.get<Physics::LocalFrame>(ship).body == "Pell");
+	CHECK(registry.get<Physics::Velocity>(ship) == Physics::Velocity{});
+}
+
+
 TEST_CASE("Cruise: a world saved mid-cruise arrives as the one saved does")
 {
 	Fixture fixture;
 	const entt::entity ship = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
+	SUBCASE("on a profile")
+	{
+		fixture.world.Registry().replace<Space::CruiseDrive>(
+		    ship, Space::CruiseDrive{.profile = kHard});
+	}
 	fixture.Run(10);
 	fixture.world.Commands().Push(Space::Cruise{{}, ship, "Pell"});
 	fixture.Run(1000);

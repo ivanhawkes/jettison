@@ -257,7 +257,7 @@ TEST_CASE("Courses: a crossing costed by a time of the course's length, which ha
 	    Space::CrossingByCourse(systems, 0.0, [](double metres) { return metres / 2.0e3; }, 1.0e5);
 	CHECK(byTime(0, "Ostra Highport", "Pell") == doctest::Approx(bySpeed(0, "Ostra Highport", "Pell")));
 	// A drive's time is not linear in the length: a fourth root of it, rising slower than the speed's.
-	const Space::CruiseDrive drive{40.0f, 1.0e8, 0.25f};
+	const Space::CruiseDrive drive{40.0f, 1.0e8, 0.25f, {}};
 	const Space::CrossingCost cruised = Space::CrossingByCourse(
 	    systems, 0.0, [drive](double metres) { return Space::CruiseSeconds(drive, metres); }, 1.0e5);
 	const double seconds = cruised(0, "Ostra Highport", "Pell");
