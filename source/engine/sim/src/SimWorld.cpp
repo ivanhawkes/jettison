@@ -134,11 +134,15 @@ void SimWorld::RegisterSystem(Ecs::SystemDescription system, Quiet quiet)
 const std::vector<const Quiet *> &SimWorld::QuietInOrder()
 {
 	if (m_quietOrder.empty())
+	{
+		// As Step's first Run does: an after or a before naming no system throws here too.
+		m_scheduler.Validate();
 		for (const std::string &name : m_scheduler.Order(Ecs::TickPhase::Simulation))
 		{
 			const auto found = m_quiets.find(name);
 			m_quietOrder.push_back(found == m_quiets.end() ? nullptr : &found->second);
 		}
+	}
 	return m_quietOrder;
 }
 

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 using namespace Jettison;
@@ -175,4 +176,17 @@ TEST_CASE("Sim: a system without a quiet has every step run")
 		CHECK(world.FastForward(1000) == 1);
 	CHECK(
 	    world.Registry().view<Tally>().get<Tally>(world.Registry().view<Tally>().front()).count == 10);
+}
+
+
+TEST_CASE("Sim: a fast-forward throws for a system ordered after one never registered, as a step does")
+{
+	Sim::SimWorld world{kStep, 3};
+	Populate(world, {});
+	world.RegisterSystem(
+	    {"orphan", Ecs::TickPhase::Simulation, {}, {"missing"}, [](entt::registry &, double) {}},
+	    {.next = [](const Sim::SimWorld &) { return std::numeric_limits<std::uint64_t>::max(); }});
+	CHECK_THROWS_AS(world.FastForward(100), std::logic_error);
+	CHECK(world.Clock().Step() == 0);
+	CHECK_THROWS_AS(world.Step(), std::logic_error);
 }

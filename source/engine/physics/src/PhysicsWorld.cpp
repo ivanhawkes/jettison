@@ -633,7 +633,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	     [&physics, &world](entt::registry &registry, double fixedStep)
 	     { physics.Step(registry, world.Clock().Now(), fixedStep); }},
 	    {.next = [&physics](const Sim::SimWorld &target)
-	     { return physics.QuietFrom(target.Registry(), target.Clock().Step()); },
+	     { return physics.QuietFrom(target.Registry(), target.Clock().Step(), target.Clock().Now()); },
 	     .skip = [&physics](Sim::SimWorld &target, std::uint64_t /*passed*/, double lastBegan)
 	     { physics.Skip(target.Registry(), lastBegan, target.Clock().Now(), target.FixedStep()); }});
 	return physics;
@@ -1197,7 +1197,8 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 }
 
 
-std::uint64_t PhysicsWorld::QuietFrom(const entt::registry &registry, std::uint64_t step) const
+std::uint64_t PhysicsWorld::QuietFrom(
+    const entt::registry &registry, std::uint64_t step, double now) const
 {
 	const Impl &impl = *m_pImpl;
 	// Two: the first step with nothing awake still empties the contacts Jolt cached in the one before.
@@ -1222,11 +1223,26 @@ std::uint64_t PhysicsWorld::QuietFrom(const entt::registry &registry, std::uint6
 	}
 	if (bodies != impl.records.size())
 		return step;
+	// A body is put back where it was by a skip only if its rails are those it was placed by.
+	std::map<std::pair<const FrameModel *, std::string_view>, Sim::Transform> bodiesAt;
 	for (const auto [entity, rails, transform] :
 	     registry.view<const OnRails, const Sim::Transform>().each())
-		if (const std::uint64_t frame = SystemOf(registry, entity);
-		    frame != Sim::kNoFrame && impl.UnknownRails(frame, rails))
+	{
+		const std::uint64_t frame = SystemOf(registry, entity);
+		if (frame == Sim::kNoFrame)
+			continue;
+		if (impl.UnknownRails(frame, rails))
 			return step;
+		const auto record = impl.records.find(entity);
+		if (record == impl.records.end())
+			continue;
+		const FrameModel *model = impl.FindFrame(frame);
+		const auto [found, made] = bodiesAt.try_emplace({model, rails.body});
+		if (made)
+			found->second = model->BodyAt(rails.body, now);
+		if (!Detail::SameTransform(OnBody(found->second, rails), record->second.placed))
+			return step;
+	}
 	return std::numeric_limits<std::uint64_t>::max();
 }
 
@@ -1250,10 +1266,24 @@ void PhysicsWorld::Skip(entt::registry &registry, double lastBegan, double now, 
 		const Sim::Transform before = OnBody(found->second.first, rails);
 		transform = OnBody(found->second.second, rails);
 		const auto record = impl.records.find(entity);
-		if (record == impl.records.end() || record->second.body.kind != BodyKind::Kinematic)
+		if (record == impl.records.end())
 			continue;
 		const glm::dvec3 start = impl.Origin(record->second.key, lastBegan);
 		const glm::dvec3 end = impl.Origin(record->second.key, now);
+		if (record->second.body.kind == BodyKind::Static)
+		{
+			// As Step's 3 puts one the rails moved.
+			if (!Detail::SameTransform(transform, record->second.placed))
+			{
+				record->second.world->Bodies().SetPositionAndRotation(
+				    record->second.id, Detail::ToJolt(transform.position - start),
+				    Detail::ToJolt(transform.orientation).Normalized(),
+				    record->second.body.sensor ? JPH::EActivation::Activate
+				                               : JPH::EActivation::DontActivate);
+				record->second.placed = transform;
+			}
+			continue;
+		}
 		record->second.velocity = ImpliedVelocity(
 		    before.position - start, before.orientation, transform.position - end,
 		    transform.orientation, fixedStep);

@@ -133,9 +133,16 @@ bool FlightAtRest(const entt::registry &registry, double fixedStep)
 	     registry.view<const Handling, const FlightControls, const Sim::Transform, const Velocity>()
 	         .each())
 	{
+		// Physics writes over the velocity of a kinematic body in a frame, and only of one in a frame.
 		if (const auto *body = registry.try_get<Body>(entity);
-		    body && body->kind == BodyKind::Kinematic)
+		    body && body->kind == BodyKind::Kinematic && registry.all_of<Sim::InFrame>(entity) &&
+		    registry.get<Sim::InFrame>(entity).frame != Sim::kNoFrame)
 			continue;
+		// A reference's velocity may change from step to step (a station's on its orbit), and with it
+		// what the ship is held to.
+		if (registry.valid(controls.reference) && controls.reference != entity &&
+		    registry.all_of<Velocity>(controls.reference))
+			return false;
 		const Change3 change =
 		    ChangeOf(registry, entity, handling, controls, transform, velocity, fixedStep);
 		if (change.linear != glm::dvec3{0.0} || change.angular != glm::dvec3{0.0})

@@ -40,9 +40,10 @@ step, is done in Manifest (2026-11-20), the step taken a slice at a time and sto
 provision here, the rails placed once a body, which halved a cruising step
 ([history](history.md#neutral-sdk-and-manifest-integration)). Its W09, the complete trading fixture, is
 done in Manifest with no engine edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)).
-The fast-forward over quiet steps it asked for after L26, its L27, is provisioned here (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)); Manifest's systems' quiets and its
-console's and server's use of it are its own. Next is its W10, standing trade policies and NPC jobs.
+Its L27, the fast-forward over quiet steps it asked for after L26, is done (2026-11-20), provisioned
+here ([history](history.md#neutral-sdk-and-manifest-integration)): Manifest's systems say when they
+next run and its console and server pass over the steps between, Ore to Brine 2.4 s from 4 min 50 s.
+Next is its W10, standing trade policies and NPC jobs.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.

@@ -534,24 +534,27 @@ it and no command, and how to put what it writes where the steps passed over wou
 system without one has to run every step, so nothing is passed over while it is registered. With no
 command queued and every system's next step past the next, `FastForward(until)` adds the steps to
 the clock one at a time, as stepping does, runs each system's skip in step order, and stops before the
-soonest system's step or at `until`; otherwise it runs one step. A change made to the registry
+soonest system's step or at `until`; otherwise it runs one step. It validates the systems' order as a
+step does. A change made to the registry
 between steps other than by a command is not seen until a step runs.
 
 The engine's systems:
 
 - **Physics** rests once a step ends with nothing dynamic, nothing awake and no body made or removed,
   twice, the first emptying the contacts Jolt cached; then, while the registry asks for no body made,
-  removed or placed and every kinematic body is on rails, it never has to run. In a world with nothing
+  removed or placed, every kinematic body is on rails and every body on rails is where its rails put
+  it now (a system after physics may have changed them), it never has to run. In a world with nothing
   dynamic a kinematic body pushes and senses nothing, so each step puts it where it is, at rest and
   asleep, rather than sweeping it there: its Jolt state is its place alone, and a skip puts it there
-  once, its `Velocity` the last step's move. A sweep's would be the history of every step: a gate's
+  once, its `Velocity` the last step's move; a static body on rails is put where they have it. A sweep's would be the history of every step: a gate's
   ring turning after its planet, a station's spin, and the place 10¹¹ m out less the frame's, rounded
   to a grid that changes as a coordinate crosses a power of two (2 to 14 times a day by up to 30 nm at
   the sample's stations, waking a body at rest). Once something dynamic is in its world, the body is
   swept on from where it was put. The skip also places every entity on rails and each local frame's
   origin and velocity over the last step.
-- **Flight** has to run while a ship's velocity would change; a kinematic body's it changes only for
-  physics to write over. `Thrust` is not state, and is left as the last step wrote it.
+- **Flight** has to run while a ship's velocity would change, or while one is flown against a
+  reference with a velocity, which may change step to step; a kinematic body's in a frame it changes
+  only for physics to write over. `Thrust` is not state, and is left as the last step wrote it.
 - **Cruise** runs in the step that places an arrival, and its skip places each ship along its course.
   **Lanes** run in the step an arrival ends at, **gates** at a ship at a gate, a queue to serve or a
   clearance lapsing, **steering** while a ship has a destination in a frame, and **docks** at any ship

@@ -1,5 +1,7 @@
 #include <jettison/physics/PhysicsWorld.h>
 
+#include <jettison/physics/Flight.h>
+#include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
 #include <doctest/doctest.h>
@@ -10,6 +12,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -271,6 +274,10 @@ void Furnish(Fixture &fixture)
 	registry.emplace<Body>(ring, Body{.kind = BodyKind::Kinematic, .shape = "crate", .sensor = true});
 	registry.emplace<Physics::OnRails>(ring, rails);
 	registry.emplace<Physics::LocalFrame>(ring, "turntable");
+	// A static body the lift's rails carry in the room's own frame: placed by each step, and by a skip.
+	const entt::entity shelf = fixture.Add(BodyKind::Static, "plate", {0.0, 0.0, 0.0});
+	registry.emplace<Physics::OnRails>(
+	    shelf, Physics::OnRails{.body = "lift", .offset = {0.0, 3.0, 0.0}});
 }
 
 
@@ -292,6 +299,15 @@ TEST_CASE("Physics: steps with nothing dynamic are passed over to the state step
 		REQUIRE(forwarded.world.Save() == stepped.world.Save());
 	}
 	CHECK(advanced == std::vector<std::uint64_t>{1, 1, 1, kEnd - 3});
+	// What a cast meets is where stepping left it: the shelf, 2 m/s along with the lift.
+	const auto shelfHit = [](const Fixture &fixture)
+	{
+		const glm::dvec3 lift{kLiftSpeed * fixture.world.Clock().Now(), 3.0, 0.0};
+		return fixture.physics.CastRay(
+		    kRoom, lift + glm::dvec3{0.0, 10.0, 0.0}, {0.0, -1.0, 0.0}, 20.0);
+	};
+	REQUIRE(shelfHit(forwarded));
+	CHECK(shelfHit(forwarded)->distance == shelfHit(stepped)->distance);
 	// Held, the turntable's sensor still turns with it, as its velocity says.
 	entt::entity ring = entt::null;
 	for (const auto [entity, local] :
@@ -335,6 +351,124 @@ TEST_CASE("Physics: steps with nothing dynamic are passed over to the state step
 	}
 	CHECK(forwarded.world.Save() == stepped.world.Save());
 	CHECK(sensed);
+}
+
+
+TEST_CASE("Physics: rails changed after the physics step are a step to run, not to pass over")
+{
+	Fixture forwarded;
+	Fixture stepped;
+	for (Fixture *fixture : {&forwarded, &stepped})
+	{
+		Furnish(*fixture);
+		// A game's system after physics moves the plate along the lift's rails at step 5.
+		Sim::SimWorld &world = fixture->world;
+		world.RegisterSystem(
+		    {"shift",
+		     Ecs::TickPhase::Simulation,
+		     Ecs::Access::Of<>().Writing<Physics::OnRails>(),
+		     {std::string{Physics::PhysicsWorld::kSystemName}},
+		     [&world](entt::registry &registry, double)
+		     {
+			     if (world.Clock().Step() == 5)
+				     for (const auto [entity, rails, local] :
+				          registry.view<Physics::OnRails, const Physics::LocalFrame>().each())
+					     if (local.body == "lift")
+						     rails.offset.x += 10.0;
+		     }},
+		    {.next = [](const Sim::SimWorld &target)
+		     {
+			     return target.Clock().Step() <= 5 ? std::uint64_t{5}
+			                                       : std::numeric_limits<std::uint64_t>::max();
+		     }});
+	}
+	for (int step = 0; step < 6; ++step)
+	{
+		forwarded.world.FastForward(6);
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+	}
+	REQUIRE(forwarded.world.Clock().Step() == 6);
+	// The step after the change places the plate by its new rails, its velocity the jump's; then the
+	// lift's rails carry it, quiet again.
+	CHECK(forwarded.world.FastForward(1000) == 1);
+	stepped.world.Step();
+	CHECK(forwarded.world.Save() == stepped.world.Save());
+	CHECK(forwarded.world.FastForward(1000) > 1);
+	while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+		stepped.world.Step();
+	CHECK(forwarded.world.Save() == stepped.world.Save());
+}
+
+
+TEST_CASE("Physics: flight's change to a kinematic body in no frame is a step to run, not to pass over")
+{
+	Fixture forwarded;
+	Fixture stepped;
+	for (Fixture *fixture : {&forwarded, &stepped})
+	{
+		entt::registry &registry = fixture->world.Registry();
+		const entt::entity ship = fixture->Add(BodyKind::Kinematic, "crate", {0.0, 0.0, 0.0});
+		registry.get<Sim::InFrame>(ship).frame = Sim::kNoFrame;
+		registry.emplace<Physics::Velocity>(ship);
+		registry.emplace<Physics::Handling>(ship);
+		registry.emplace<Physics::FlightControls>(
+		    ship, Physics::FlightControls{.linear = {1.0f, 0.0f, 0.0f}, .assist = false});
+	}
+	for (int call = 0; call < 20; ++call)
+	{
+		CHECK(forwarded.world.FastForward(1000) == 1);
+		stepped.world.Step();
+	}
+	CHECK(forwarded.world.Save() == stepped.world.Save());
+}
+
+
+TEST_CASE("Physics: a ship flown against a reference on rails is flown every step")
+{
+	Fixture forwarded;
+	Fixture stepped;
+	for (Fixture *fixture : {&forwarded, &stepped})
+	{
+		Furnish(*fixture);
+		Sim::SimWorld &world = fixture->world;
+		entt::registry &registry = world.Registry();
+		// Held to the carousel's turning sensor, whose velocity turns with it: flown, with no body.
+		entt::entity ring = entt::null;
+		for (const auto [entity, local] : registry.view<const Physics::LocalFrame>().each())
+			if (local.body == "turntable")
+				ring = entity;
+		const entt::entity ship = registry.create();
+		registry.emplace<Sim::Transform>(ship);
+		registry.emplace<Physics::Velocity>(ship);
+		registry.emplace<Physics::Handling>(ship);
+		registry.emplace<Physics::FlightControls>(ship, Physics::FlightControls{.reference = ring});
+		// Its velocity the ring's at step 5, after physics: at that moment the flight model would
+		// change nothing, but the ring's goes on turning.
+		world.RegisterSystem(
+		    {"match",
+		     Ecs::TickPhase::Simulation,
+		     Ecs::Access::Of<>().Writing<Physics::Velocity>(),
+		     {std::string{Physics::PhysicsWorld::kSystemName}},
+		     [&world, ship, ring](entt::registry &target, double)
+		     {
+			     if (world.Clock().Step() == 5)
+				     target.get<Physics::Velocity>(ship).linear =
+				         target.get<Physics::Velocity>(ring).linear;
+		     }},
+		    {.next = [](const Sim::SimWorld &target)
+		     {
+			     return target.Clock().Step() <= 5 ? std::uint64_t{5}
+			                                       : std::numeric_limits<std::uint64_t>::max();
+		     }});
+	}
+	while (forwarded.world.Clock().Step() < 200)
+	{
+		forwarded.world.FastForward(200);
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
 }
 
 

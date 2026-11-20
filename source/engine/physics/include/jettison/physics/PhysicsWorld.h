@@ -339,9 +339,10 @@ class PhysicsWorld final : public Sim::WorldService
 
 	// The step physics has to run in next (Sim::Quiet): the one about to begin, unless it has rested
 	// for two (nothing dynamic, nothing awake, no body made or removed) and the registry asks for no
-	// body to be made, removed or placed, every kinematic one being on rails. Then never: steps pass
-	// it by until something dynamic is in a world.
-	std::uint64_t QuietFrom(const entt::registry &registry, std::uint64_t step) const;
+	// body to be made, removed or placed, every kinematic one being on rails and every body on rails
+	// where its rails put it now (a system after physics may have changed them). Then never: steps
+	// pass it by until something dynamic is in a world.
+	std::uint64_t QuietFrom(const entt::registry &registry, std::uint64_t step, double now) const;
 
 	// Puts what the steps passed over would have left (Sim::Quiet): each entity on rails where its
 	// body is at now, each kinematic body there in Jolt with the velocity its last step's motion
