@@ -23,6 +23,7 @@
 #include <format>
 #include <map>
 #include <stdexcept>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -235,12 +236,17 @@ WorldKey KeyOf(const entt::registry &registry, entt::entity entity)
 }
 
 
-// Where an entity on rails is at a time: its place on its body, which is where the body is and turned
-// as the body is.
+// Where an entity on rails is: its place on its body, which is where the body is and turned as the
+// body is.
+Sim::Transform OnBody(const Sim::Transform &body, const OnRails &rails)
+{
+	return {body.position + body.orientation * rails.offset, body.orientation * rails.turn};
+}
+
+
 Sim::Transform RailsTransform(const FrameModel &model, const OnRails &rails, double simSeconds)
 {
-	const Sim::Transform body = model.BodyAt(rails.body, simSeconds);
-	return {body.position + body.orientation * rails.offset, body.orientation * rails.turn};
+	return OnBody(model.BodyAt(rails.body, simSeconds), rails);
 }
 
 // Two entities' bodies, first below second, as contacts are kept.
@@ -912,9 +918,16 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	}
 
 	impl.contacts.clear();
+	// A body is placed once for everything riding on it: a station's pads, decks and buggies are
+	// dozens, and its body's orbit is the most of a step's cost.
+	std::map<std::pair<const FrameModel *, std::string_view>, Sim::Transform> bodiesAt;
 	for (const Placement &placement : placements)
-		registry.get<Sim::Transform>(placement.entity) =
-		    RailsTransform(*placement.model, *placement.rails, stepEnd);
+	{
+		const auto [found, made] = bodiesAt.try_emplace({placement.model, placement.rails->body});
+		if (made)
+			found->second = placement.model->BodyAt(placement.rails->body, stepEnd);
+		registry.get<Sim::Transform>(placement.entity) = OnBody(found->second, *placement.rails);
+	}
 
 	// Every frame's motion over the step: a world's frame starts where the last step left it, and a
 	// new one's where its body is now.

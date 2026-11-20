@@ -334,6 +334,12 @@ spawned with, which Manifest's content holds to a float above 0 and to an inerti
 arithmetic holds
 ([Manifest's history](../../manifest/docs/history.md#w08-company-funded-cargo-upgrades--2026-11-20)).
 
+The rails placed once a body, provisioned in Manifest's L26 (2026-11-20), the console's long step:
+
+| Delivery | Manifest task (stage) | Exit criterion |
+| --- | --- | --- |
+| Rails placed once a body | L26 (4) | A cruising step of Manifest's trading fixture took 26 µs in a release build, about 45% of it evaluating orbits: physics placed every entity on rails by its body's orbit, chain and all, so a station's pads, decks and buggies evaluated the same station dozens of times a step. **Done** 2026-11-20: the physics step places each rails body once, at the step's end, for everything riding on it, with the same arithmetic, so a placement is the same to the bit; the cruising step is 13 µs, Ore to Brine about 4 min 50 s of a release build. What is left is spread: Jolt's update of each frame's world, the docks, the spatial index, the cruise's placing. | Met: the physics suite's hall carries three plates on one lift's rails and places the lift once a step; every pinned hash held. |
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |

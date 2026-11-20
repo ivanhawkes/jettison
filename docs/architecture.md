@@ -434,7 +434,8 @@ relative to the reference and a rate of turn, approached as fast as the thruster
 is an acceleration and the ship coasts. It changes the ship's `Velocity`, and physics then steps it,
 so a ship flown into a station meets it as any body would. The system `physics` runs one fixed step:
 
-1. Entities on rails are put where their bodies are as the step ends.
+1. Entities on rails are put where their bodies are as the step ends, each body placed once for
+   everything that rides on it.
 2. Bodies are made for entities that gained what makes one, and removed for those that lost it,
    changed system or frame or changed their `Body` (made again, with the velocity they had). Every
    entity on rails and every body to be made is checked first, and one that cannot be is refused

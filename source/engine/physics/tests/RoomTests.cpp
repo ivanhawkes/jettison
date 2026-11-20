@@ -41,6 +41,7 @@ class Room final : public Physics::FrameModel
 
 	Sim::Transform BodyAt(std::string_view /*body*/, double simSeconds) const override
 	{
+		++placed;
 		return {{kLiftSpeed * simSeconds, 0.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0}};
 	}
 
@@ -49,6 +50,9 @@ class Room final : public Physics::FrameModel
 	{
 		return [](const glm::dvec3 &) { return kGravity; };
 	}
+
+	// How many times the lift has been placed.
+	mutable int placed{0};
 };
 
 
@@ -176,6 +180,31 @@ TEST_CASE("Physics: a plate on the room's rails carries a crate in its local fra
 	    glm::dvec3{kLiftSpeed * 3.0, 1.0, 0.0});
 	CHECK(fixture.physics.FrameOrigin(kRoom, "lift", 3.0) == glm::dvec3{kLiftSpeed * 3.0, 0.0, 0.0});
 	CHECK(fixture.physics.FrameOrigin(kRoom, "", 3.0) == glm::dvec3{0.0});
+}
+
+
+TEST_CASE("Physics: a body is placed once a step, however many entities ride on it")
+{
+	Fixture fixture;
+	auto pHall = std::make_unique<Room>();
+	const Room &hall = *pHall;
+	const std::uint64_t kHall = Sim::FrameId("Hall");
+	fixture.physics.DefineFrame(kHall, std::move(pHall));
+	entt::registry &registry = fixture.world.Registry();
+	std::vector<entt::entity> plates;
+	for (const double x : {-5.0, 0.0, 5.0})
+	{
+		plates.push_back(fixture.Add(BodyKind::Kinematic, "plate", {x, 0.0, 0.0}));
+		registry.get<Sim::InFrame>(plates.back()).frame = kHall;
+		registry.emplace<Physics::OnRails>(
+		    plates.back(), Physics::OnRails{.body = "lift", .offset = {x, 0.0, 0.0}});
+	}
+	fixture.world.Step();
+
+	const int before = hall.placed;
+	fixture.world.Step();
+	CHECK(hall.placed - before == 1);
+	CHECK(fixture.Position(plates[2]) == glm::dvec3{5.0 + kLiftSpeed * 2.0 * kStep, 0.0, 0.0});
 }
 
 
