@@ -327,6 +327,13 @@ reports, the fills and the starting grant are Manifest's components, saved and h
 player's snapshot is filtered by Manifest before `net` sends it
 ([Manifest's history](../../manifest/docs/history.md#w07-live-and-stale-market-observations--2026-11-20)).
 
+Manifest's W08 (2026-11-20), company-funded cargo upgrades, needed no engine edit, on the same pin: a
+ship's purchased systems are a Manifest component, saved and hashed like any, and its hold is computed
+from them by Manifest's effects engine. A hull's authored mass is the `Physics::Body` mass a ship is
+spawned with, which Manifest's content holds to a float above 0 and to an inertia Jolt's float
+arithmetic holds
+([Manifest's history](../../manifest/docs/history.md#w08-company-funded-cargo-upgrades--2026-11-20)).
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
