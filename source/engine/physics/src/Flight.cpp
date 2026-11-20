@@ -138,10 +138,11 @@ bool FlightAtRest(const entt::registry &registry, double fixedStep)
 		    body && body->kind == BodyKind::Kinematic && registry.all_of<Sim::InFrame>(entity) &&
 		    registry.get<Sim::InFrame>(entity).frame != Sim::kNoFrame)
 			continue;
-		// A reference's velocity may change from step to step (a station's on its orbit), and with it
-		// what the ship is held to.
-		if (registry.valid(controls.reference) && controls.reference != entity &&
-		    registry.all_of<Velocity>(controls.reference))
+		// A reference's velocity may change from step to step (a station's on its orbit), and so may
+		// the way rails turn the ship, and with either what it is held to.
+		if ((registry.valid(controls.reference) && controls.reference != entity &&
+		     registry.all_of<Velocity>(controls.reference)) ||
+		    registry.all_of<OnRails>(entity))
 			return false;
 		const Change3 change =
 		    ChangeOf(registry, entity, handling, controls, transform, velocity, fixedStep);

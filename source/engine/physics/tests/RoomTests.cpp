@@ -472,6 +472,72 @@ TEST_CASE("Physics: a ship flown against a reference on rails is flown every ste
 }
 
 
+// A spindle at the origin turning at a radian a second, square to the room as the third step ends.
+const std::uint64_t kSpindle = Sim::FrameId("Spindle");
+
+class Spindle final : public Physics::FrameModel
+{
+  public:
+	bool HasBody(std::string_view body) const override
+	{
+		return body == "spindle";
+	}
+
+
+	Sim::Transform BodyAt(std::string_view /*body*/, double simSeconds) const override
+	{
+		return {{0.0, 0.0, 0.0}, glm::angleAxis(simSeconds - 3.0 * kStep, glm::dvec3{0.0, 1.0, 0.0})};
+	}
+};
+
+
+TEST_CASE("Physics: a ship its rails turn is flown every step")
+{
+	Fixture forwarded;
+	Fixture stepped;
+	for (Fixture *fixture : {&forwarded, &stepped})
+	{
+		fixture->physics.DefineFrame(kSpindle, std::make_unique<Spindle>());
+		Sim::SimWorld &world = fixture->world;
+		entt::registry &registry = world.Registry();
+		// Flown full ahead to starboard at its top speed, with no body, on the spindle's rails.
+		const entt::entity ship = registry.create();
+		registry.emplace<Sim::Transform>(ship);
+		registry.emplace<Sim::InFrame>(ship, kSpindle);
+		registry.emplace<Physics::OnRails>(ship, Physics::OnRails{.body = "spindle"});
+		registry.emplace<Physics::Velocity>(ship);
+		registry.emplace<Physics::Handling>(ship, Physics::Handling{.maxSpeed = 1.0f});
+		registry.emplace<Physics::FlightControls>(
+		    ship, Physics::FlightControls{.linear = {1.0f, 0.0f, 0.0f}});
+		// At that speed as the third step ends, square to the room: the flight model's next change
+		// is nothing, but the rails go on turning what it is held to.
+		world.RegisterSystem(
+		    {"match",
+		     Ecs::TickPhase::Simulation,
+		     Ecs::Access::Of<>().Writing<Physics::Velocity>(),
+		     {std::string{Physics::PhysicsWorld::kSystemName}},
+		     [&world, ship](entt::registry &target, double)
+		     {
+			     if (world.Clock().Step() == 2)
+				     target.get<Physics::Velocity>(ship) =
+				         Physics::Velocity{.linear = {1.0f, 0.0f, 0.0f}};
+		     }},
+		    {.next = [](const Sim::SimWorld &target)
+		     {
+			     return target.Clock().Step() <= 2 ? std::uint64_t{2}
+			                                       : std::numeric_limits<std::uint64_t>::max();
+		     }});
+	}
+	while (forwarded.world.Clock().Step() < 100)
+	{
+		forwarded.world.FastForward(100);
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
+}
+
+
 TEST_CASE("Physics: a room saved part-way and loaded carries on exactly as the original")
 {
 	Fixture original;

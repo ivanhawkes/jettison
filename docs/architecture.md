@@ -553,8 +553,8 @@ The engine's systems:
   swept on from where it was put. The skip also places every entity on rails and each local frame's
   origin and velocity over the last step.
 - **Flight** has to run while a ship's velocity would change, or while one is flown against a
-  reference with a velocity, which may change step to step; a kinematic body's in a frame it changes
-  only for physics to write over. `Thrust` is not state, and is left as the last step wrote it.
+  reference with a velocity or is on rails, either of which may change what it is held to step to
+  step; a kinematic body's in a frame it changes only for physics to write over. `Thrust` is not state, and is left as the last step wrote it.
 - **Cruise** runs in the step that places an arrival, and its skip places each ship along its course.
   **Lanes** run in the step an arrival ends at, **gates** at a ship at a gate, a queue to serve or a
   clearance lapsing, **steering** while a ship has a destination in a frame, and **docks** at any ship

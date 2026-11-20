@@ -119,8 +119,9 @@ inline constexpr std::string_view kFlightSystemName = "flight";
 void StepFlight(entt::registry &registry, double fixedStep);
 
 // Whether the flight model's steps from the next on would leave every ship's Velocity as it is,
-// which is when a step may pass it over (Sim::Quiet): none flown against a reference with a velocity,
-// which may change step to step, and none whose next change is not nothing; a kinematic body's in a
+// which is when a step may pass it over (Sim::Quiet): none flown against a reference with a velocity
+// or on rails, either of which may change what it is held to step to step, and none whose next change
+// is not nothing; a kinematic body's in a
 // frame it changes only for physics to write over. Thrust is not state, so it is left as the last step
 // wrote it.
 bool FlightAtRest(const entt::registry &registry, double fixedStep);
