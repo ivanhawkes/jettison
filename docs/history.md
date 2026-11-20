@@ -306,6 +306,13 @@ and of the book is Manifest's, over `Host::Session` and `net`'s snapshots, which
 once an interval
 ([Manifest's history](../../manifest/docs/history.md#w15-the-vertical-slice-through-the-console--2026-11-20)).
 
+Manifest's W04 (2026-11-20), the regional economy, needed no engine edit, on the same pin: each
+region's employer works its batches in a Manifest system ordered between the expiry sweep and the
+brokers by the scheduler's declared edges, and on each turn pays wages, sells to its broker and its
+households buy and consume through the book; health, happiness, the batches and the pantries are
+Manifest's components, saved and hashed by the world like any
+([Manifest's history](../../manifest/docs/history.md#w04-the-regional-economy--2026-11-20)).
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
