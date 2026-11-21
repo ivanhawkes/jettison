@@ -43,7 +43,10 @@ done in Manifest with no engine edit (2026-11-20, [history](history.md#neutral-s
 Its L27, the fast-forward over quiet steps it asked for after L26, is done (2026-11-20), provisioned
 here ([history](history.md#neutral-sdk-and-manifest-integration)): Manifest's systems say when they
 next run and its console and server pass over the steps between, Ore to Brine 2.4 s from 4 min 50 s.
-Next is its W10, standing trade policies and NPC jobs.
+Its W10, standing trade policies and NPC jobs, is done in Manifest (2026-11-21) with one provision
+here, a stopgap for the way in to a pad, and its L28, a docked fleet's wait passed over, with no
+engine edit ([history](history.md#neutral-sdk-and-manifest-integration)). Next is its W18, the
+transport and holding charges at their real values.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.

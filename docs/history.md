@@ -353,6 +353,13 @@ pack, reaches one world hash in Debug, Release, sanitised and the TUI off; a cru
 for a ship with no `CruiseDrive`, fails its journey with the ship and cargo where they are
 ([Manifest's history](../../manifest/docs/history.md#w09-the-complete-trading-fixture--2026-11-20)).
 
+Manifest's W10 (2026-11-21), standing trade policies, autopilot and NPC jobs, on pin `0f973b2`:
+each ship's job trades through the players' own commands sent from a system, its quiet passing over
+a blocked job's wait. Its zero-client run found a ship that circled the point above its pad until the
+pad lapsed; the docks now stop a ship out along its pad's normal first, a stopgap
+([carried forward](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)). Its L28 needed no
+engine edit ([Manifest's history](../../manifest/docs/history.md#w10-standing-trade-policies-autopilot-and-npc-jobs--2026-11-21)).
+
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Public host | H02 (1) | A public host owns the VFS, the definition registry and one world, with ordered start-up, cleanup after a failed start and lifetime tests; a game's composition is passed in explicitly. **Done** 2026-11-18: `Jettison::Host` (`Session`, `Game`, `StartupError`), and the package description and engine check moved there from the shell's mounts; the host suite starts a session from a directory and its pack, fails each phase in turn with no later hook run, tears down world before game, and runs two sessions side by side and one after a failure. |
