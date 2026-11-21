@@ -391,6 +391,7 @@ TEST_CASE("Traders: a world saved part-way through the traders' rounds carries o
 	// classes' ship names and a docking's feature, as the dock's approach was; and in W05 for a ship's
 	// controls let go with its destination as it sets out on a cruise or a lane; and for the
 	// fast-forward, a kinematic body put at rest where it is while nothing dynamic shares its world,
-	// half an hour of every trader's place, runs and cargo and every market the same to the bit.
-	CHECK(original.world.StateHash() == 0x719f5a591e4fceafULL);
+	// half an hour of every trader's place, runs and cargo and every market the same to the bit; and
+	// for the way in to a pad stopped out along its normal first, as the dock's approach was.
+	CHECK(original.world.StateHash() == 0x91137B35E6F6F845ULL);
 }

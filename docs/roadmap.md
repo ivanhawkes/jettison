@@ -126,6 +126,31 @@ SDK work above and does not transfer production game rules into Jettison.
 Cheap to add when they are wanted and costly to nothing meanwhile, but for the log, whose file a
 player's report of a problem needs and the shell does not write.
 
+- **The way in to a pad, done properly** (the user's, 2026-11-21; entry 31). First in the tier:
+  every NPC and autopilot trade in Manifest docks through it. Manifest's W10 zero-client run found a
+  ship that came round its station fast and sideways overshooting the point above its pad, which is
+  only `kAboveMargin` (10 m) outside what steering keeps it from: each lap avoidance commanded it
+  out at up to 190 m/s and Arrive pulled it back, and it circled 30 to 55 m off the point at about
+  40 m/s until its 300 s reservation lapsed. In a grid of 48 starts round Highport, 2 km and 4 km
+  out, still or going across at 150 m/s, two never reached the point. Ship and station shared one
+  frame throughout. A 100 m margin alone cured that case; a waypoint out along the normal, which
+  steering passes at full speed, put a sample trader into Ostra Anchorage at 126 m/s. The stopgap
+  (`Docks::FlyInbound`, `FlyAbove`): the ship stops at a point out along the normal as far beyond
+  the point above as it stops in from its top speed, then flies straight down the normal from rest,
+  so the 10 m margin stands; from 10 km Highport's shuttle is over its pad in 117 s, 111 s before.
+  What other games do, from recollection and not checked against sources: EVE has no approach,
+  docking at once within range; Freelancer and many older games fly to a ring or entry point and
+  script the rest; X4 and Star Citizen's traffic control fly authored approach paths, holding point,
+  approach point, pad, with avoidance relaxed against the station; Elite Dangerous gives a pad and a
+  permission that lapses, limits speed near a station and flies its docking computer down a fixed
+  approach; Space Engineers' general autopilot is known for circling and overshooting its
+  waypoints, the failure here, which players work round with a slow precision mode or scripts. So
+  the solution: an approach corridor flown without stopping, at a speed that falls with the
+  distance left; the station not an obstacle on the corridor's last leg, as it is not on the way
+  down (`byHull`); Arrive damping the velocity across its line rather than pursuing; and a
+  reservation that lapses when a ship stops making progress rather than at a fixed time. Measured by
+  ships flown in from every side and speed, one queued behind another on the next pad, and no
+  arrival slower than the stopgap's.
 - **A test of an acquire out of date twice** (the user's, 2026-11-18). `drawEveryFrame`'s recreate
   loop and its failure after eight are not covered: it needs fault injection under the Vulkan
   layer, which the engine does not have. Taken up when that branch is needed, if ever.

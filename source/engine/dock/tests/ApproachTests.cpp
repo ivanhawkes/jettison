@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 
 #include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
@@ -205,8 +206,8 @@ TEST_CASE(
 TEST_CASE(
     "Docks: the same approach from the same start, and from a save part-way, reaches the same state")
 {
-	constexpr int kSaveAt = 60 * 120;
-	constexpr int kSteps = 60 * 140;
+	constexpr int kSaveAt = 60 * 125;
+	constexpr int kSteps = 60 * 145;
 	const auto run = [](std::optional<std::vector<std::byte>> &saved, int saveAt)
 	{
 		Approach approach;
@@ -240,8 +241,10 @@ TEST_CASE(
 	// and for the sample's classes under their ship names and the feature a docking asked for, each
 	// by its bytes alone: the old names written back, and then the feature left unsaved, gave the
 	// hash before each; and for the fast-forward, a kinematic body put at rest where it is while
-	// nothing dynamic shares its world, the traders' galaxy the same to the bit over half an hour.
-	CHECK(first == 0xc60d4d578c007245ull);
+	// nothing dynamic shares its world, the traders' galaxy the same to the bit over half an hour; and
+	// for the way in stopped out along the pad's normal first, then flown straight down it (117 s to
+	// the point above the pad, 23.6 s down).
+	CHECK(first == 0xfe7893b110e4086bull);
 
 	Approach loaded;
 	loaded.world.Load(*save);
@@ -289,4 +292,38 @@ TEST_CASE("Docks: a ship made again from a save of another Jolt docks as it woul
 		again.Advance();
 	CHECK_FALSE(again.Docking());
 	CHECK(again.OnlyOnThePad());
+}
+
+
+TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes over its pad in time")
+{
+	// From all round Highport 2 km out, still or at its top speed across: one that came in fast and
+	// sideways overshot the point above its pad into the station's sphere and circled it, steered
+	// out each time, until its pad lapsed, as one came round the station from below at rest did.
+	for (int side = 0; side < 12; ++side)
+		for (const double across : {0.0, 150.0})
+		{
+			CAPTURE(side);
+			CAPTURE(across);
+			Fixture fixture;
+			const entt::entity station = fixture.docks.MakeStation(
+			    fixture.world, DockTests::kHalcyon, DockTests::kHighport, "ostra-highport");
+			entt::registry &registry = fixture.world.Registry();
+			const glm::dquat axes = registry.get<Sim::Transform>(station).orientation;
+			const double angle = side * glm::two_pi<double>() / 12.0;
+			const entt::entity ship = fixture.Ship(
+			    station, "shuttle",
+			    axes * glm::dvec3{2000.0 * std::sin(angle), 2000.0 * std::cos(angle), 0.0});
+			registry.get<Physics::Velocity>(ship).linear =
+			    glm::vec3{axes * glm::dvec3{0.0, 0.0, across}};
+			fixture.world.Commands().Push(Dock::RequestPad{{}, ship, station, true});
+			bool above = false;
+			for (int step = 0; step < 60 * 120 && !above; ++step)
+			{
+				fixture.Step();
+				const auto *docking = registry.try_get<Dock::Docking>(ship);
+				above = docking && docking->stage == Dock::Stage::Descending;
+			}
+			CHECK(above);
+		}
 }

@@ -97,7 +97,8 @@ enum class Stage : std::uint8_t
 {
 	// Waiting in the station's queue for a pad.
 	Queued,
-	// Given a pad and on its way to the point above it, round the station's sphere.
+	// Given a pad and on its way to the point above it: round the station's sphere to a point further
+	// out along the pad's normal, stopped there, then straight down the normal.
 	Inbound,
 	// Coming down onto the pad from above it.
 	Descending,
@@ -325,11 +326,12 @@ struct CargoCarried
 //      once. A transfer with nothing left to carry is done.
 //
 // A ship flown in by the docks is steered (Ai::Steering): first along a course round the station's
-// sphere (Ai::Waypoints) to the point above its pad, outside that sphere along the pad's normal;
-// then down the normal onto the pad, kept clear of the station by its hull (Ai::Destination::byHull),
-// turned to the pad, slowing to stop a hand's breadth above it; and once clamped its
-// Physics::Body is kinematic, on the station's rails at its place on the pad. Undocking makes it
-// dynamic again and lifts it the same way back up.
+// sphere (Ai::Waypoints) to a point out along its pad's normal, as far beyond the point above the
+// pad as it stops in from its top speed, stopping there; then straight down the normal to the point
+// above its pad, outside that sphere; then down the normal onto the pad, kept clear of the station by
+// its hull (Ai::Destination::byHull), turned to the pad, slowing to stop a hand's breadth above it; and
+// once clamped its Physics::Body is kinematic, on the station's rails at its place on the pad.
+// Undocking makes it dynamic again and lifts it the same way back up.
 //
 // The definitions are the game's start-up, as physics' shapes are, and not state: a save names
 // layouts and hulls, and a world it is loaded into is given the same ones.
@@ -432,6 +434,8 @@ class Docks
 
 	// The destinations of each stage the docks fly a ship through.
 	void FlyInbound(Sim::SimWorld &world, entt::entity ship, double time);
+
+	void FlyAbove(Sim::SimWorld &world, entt::entity ship);
 
 	void FlyDown(Sim::SimWorld &world, entt::entity ship);
 

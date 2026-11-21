@@ -30,6 +30,11 @@ namespace Jettison::Spatial
 class SystemIndices;
 }
 
+namespace Jettison::Physics
+{
+struct Handling;
+}
+
 namespace Jettison::Ai
 {
 // Steering for local flight (docs/architecture.md, "Steering"): seek, arrive, avoidance and
@@ -71,6 +76,10 @@ glm::dvec3 Seek(const Agent &agent, const glm::dvec3 &target);
 // velocity is added, so the agent arrives at rest relative to a target that moves.
 glm::dvec3 Arrive(
     const Agent &agent, const glm::dvec3 &target, const glm::dvec3 &targetVelocity = glm::dvec3{0.0});
+
+// The acceleration steering brakes a ship at, Arrive's: a share of its weakest thruster, the rest
+// left for turning and avoiding while it does.
+double BrakingAcceleration(const Physics::Handling &handling);
 
 // The desired velocity, turned and slowed to keep the agent's hull the clearance from every
 // obstacle's:

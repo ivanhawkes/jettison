@@ -190,6 +190,14 @@ glm::dvec3 Arrive(const Agent &agent, const glm::dvec3 &target, const glm::dvec3
 }
 
 
+double BrakingAcceleration(const Physics::Handling &handling)
+{
+	return kBrakingShare * std::min(
+	                           {Capability(handling.reverse), Capability(handling.lateral),
+	                            Capability(handling.vertical)});
+}
+
+
 glm::dvec3 Avoid(
     const Agent &agent, const glm::dvec3 &desired, std::span<const Obstacle> obstacles,
     double lookahead, double clearance)
@@ -454,10 +462,7 @@ void Steering::Step(Sim::SimWorld &world)
 		                            : Capability(handling.maxSpeed);
 		const Agent agent{
 		    transform.position, glm::dvec3{registry.get<const Physics::Velocity>(ship).linear},
-		    maxSpeed,
-		    kBrakingShare * std::min(
-		                        {Capability(handling.reverse), Capability(handling.lateral),
-		                         Capability(handling.vertical)}),
+		    maxSpeed, BrakingAcceleration(handling),
 		    Radius(registry.get<const Physics::Body>(ship).shape)};
 
 		// What is near, in its frame.

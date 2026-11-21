@@ -633,8 +633,10 @@ sender (`Sim::Controller`, a player's slot or the AI), and a ship's `Sim::Contro
 command from anyone else; a refusal says why, as an event, among the given, queued, lapsed, landed,
 left and released.
 
-A ship the docks fly in (`RequestPad::fly`) is steered in two legs: a course round the station's
-sphere (`Ai::Waypoints`) to the point above its pad, outside the sphere along the pad's normal; then
+A ship the docks fly in (`RequestPad::fly`) is steered in three legs: a course round the station's
+sphere (`Ai::Waypoints`) to a point out along its pad's normal, as far beyond the point above the
+pad as it stops in from its top speed (`Ai::BrakingAcceleration`), where it stops; straight down
+the normal from rest to the point above its pad, outside the sphere; then
 down the normal, kept clear of the station by its hull and turned to the pad's heading, slowing to
 stop a quarter of a metre above its resting height. The system `dock`, after physics, clamps a ship
 within a clamp's reach of its own pad (2 m across it, a metre above or below, its top within 10° of
@@ -646,8 +648,8 @@ trader's, which cruises on and cannot within the station's radius) is steered th
 the point above, where it gives the pad up: off Highport's pad 1 that is 755 m at the lift's 20 m/s,
 39 s. One its pilot flies (`fly` false, the shell's) is lifted straight off the pad by its own
 thrusters at 20 m/s against the station, with no point to reach, and gives the pad up 40 m above it
-(`Dock::kLiftHeight`), held there for the pilot 2.7 s after the clamps open. Highport's shuttle from 10 km on its far side is over its pad in 111 s and clamped
-24 s later, touching nothing on the way.
+(`Dock::kLiftHeight`), held there for the pilot 2.7 s after the clamps open. Highport's shuttle from 10 km on its far side is over its pad in 117 s and clamped
+24 s later, touching nothing on the way. The stop is a stopgap ([carried forward](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
 
 **The station dressing** (9d) is the layout drawn, in the shell (`app/src/Dressing.h`), under the
 station's entity in the presentation scene as each system scene is built; none of it reaches a scene

@@ -1189,4 +1189,7 @@ served and lapsing, each command carrying its sender; the approach round the sta
 down the pad's normal kept clear by the hull, and the clamp, a docked ship a kinematic body on its
 station's rails; the station dressed from its layout in the shell (9d); and the deck's roads made
 from the layout, with buggies carrying a docked ship's cargo across it in the simulation and holding
-the ship until it has crossed (9e) ([architecture](architecture.md#docks)).
+the ship until it has crossed (9e) ([architecture](architecture.md#docks)). On 2026-11-21, for
+Manifest's W10, a ship flown in stops first at a point out along its pad's normal and flies straight
+down it from there, a stopgap for a ship that circled the point above its pad until the pad lapsed
+([carried forward](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).

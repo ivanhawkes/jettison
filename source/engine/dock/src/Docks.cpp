@@ -480,6 +480,11 @@ void Docks::Step(Sim::SimWorld &world)
 				{
 					if (!destination)
 						FlyInbound(world, ship, time);
+					// Stopped out along the normal, then flown down it to the point above.
+					else if (
+					    destination->arrived &&
+					    destination->offset.y > AboveHeight(registry, ship, pad))
+						FlyAbove(world, ship);
 					else if (destination->arrived)
 					{
 						docking.stage = Stage::Descending;
@@ -661,27 +666,53 @@ void Docks::FlyInbound(Sim::SimWorld &world, entt::entity ship, double time)
 	const Pad &pad = registry.get<Pad>(docking.pad);
 	const Ai::Steered &steered = Steer(registry, ship);
 
+	// Out along the pad's normal beyond the point above it, as far again as the ship stops in from its
+	// top speed, stopped at: from there the way in is straight down the normal from rest. Flown
+	// straight to the point above, a ship that came round the station fast and sideways overshot into
+	// the station's sphere, was steered out of it, and circled until its pad lapsed.
+	const Physics::Handling &handling = registry.get<Physics::Handling>(ship);
+	const double braking = Ai::BrakingAcceleration(handling);
+	const double topSpeed =
+	    handling.maxSpeed > 0.0f && std::isfinite(handling.maxSpeed) ? double{handling.maxSpeed} : 0.0;
 	Ai::Destination destination;
 	destination.entity = docking.pad;
-	destination.offset = {0.0, AboveHeight(registry, ship, pad), 0.0};
+	destination.offset = {
+	    0.0,
+	    AboveHeight(registry, ship, pad) +
+	        (braking > 0.0 ? topSpeed * topSpeed / (2.0 * braking) : 0.0),
+	    0.0};
 	destination.arrivalRadius = kAboveRadius;
 	destination.arrivalSpeed = kAboveSpeed;
 
-	// Round the station's sphere to the point above the pad, in the ship's frame: the station turns
-	// with its body, and the course is plotted again if the ship has to be flown in again.
+	// Round the station's sphere to it, in the ship's frame: the station turns with its body, and the
+	// course is plotted again if the ship has to be flown in again.
 	const std::uint64_t system = SystemOf(registry, ship);
 	const glm::dvec3 origin = m_physics.FrameOrigin(system, FrameOf(registry, ship), time);
 	const Sim::Transform &padAt = registry.get<Sim::Transform>(docking.pad);
-	const glm::dvec3 above = padAt.position + padAt.orientation * destination.offset;
+	const glm::dvec3 approach = padAt.position + padAt.orientation * destination.offset;
 	const double radius = Radius(m_layouts.at(registry.get<Station>(pad.station).layout));
 	const double clearance =
 	    m_physics.ShapeRadius(registry.get<Physics::Body>(ship).shape) + double{steered.clearance};
 	const Ai::Waypoints waypoints{
 	    {Ai::Sphere{registry.get<Sim::Transform>(pad.station).position - origin, radius}}, clearance};
-	if (const std::optional<Ai::Course> course =
-	        waypoints.PlotCourse(registry.get<Sim::Transform>(ship).position - origin, above - origin))
+	if (const std::optional<Ai::Course> course = waypoints.PlotCourse(
+	        registry.get<Sim::Transform>(ship).position - origin, approach - origin))
 		if (course->points.size() > 2)
 			destination.waypoints.assign(course->points.begin() + 1, course->points.end() - 1);
+	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
+}
+
+
+void Docks::FlyAbove(Sim::SimWorld &world, entt::entity ship)
+{
+	entt::registry &registry = world.Registry();
+	const Docking &docking = registry.get<Docking>(ship);
+	Steer(registry, ship);
+	Ai::Destination destination;
+	destination.entity = docking.pad;
+	destination.offset = {0.0, AboveHeight(registry, ship, registry.get<Pad>(docking.pad)), 0.0};
+	destination.arrivalRadius = kAboveRadius;
+	destination.arrivalSpeed = kAboveSpeed;
 	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
 }
 
