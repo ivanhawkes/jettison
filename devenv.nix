@@ -29,9 +29,15 @@
     shellcheck
     lychee # Markdown link checker: lychee --offline --include-fragments '*.md' 'docs/**/*.md'
 
-    # Debugging
+    # Debugging and profiling
     llvmPackages_21.lldb
     gdb
+    perf # Sampling profiler: perf record -e task-clock samples user space at perf_event_paranoid 2
+    hotspot # perf's data browsed: flame graphs, callers and callees
+    heaptrack # Allocations: what allocates, how often and how much
+    valgrind # Callgrind counts instructions, so two commits compare without wall-clock noise
+    kdePackages.kcachegrind # Callgrind's data browsed
+    tracy # The profiler for the client source/external pins: the two must be the same release
 
     # Go programming language.
     go

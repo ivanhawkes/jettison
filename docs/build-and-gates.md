@@ -83,8 +83,13 @@ listens on localhost only, so it costs nothing until a profiler connects. It is 
 and off, Tracy's macros and `TracyClient.cpp` compile to nothing. Tracy is fetched in every tree,
 because `profile` links it.
 The profiler that connects has to be the same version as the client: nixpkgs' `tracy` at the
-current devenv lock is 0.13.1, which is why the client is pinned there. It is not in
-`devenv.nix`'s package list; add it there, or run `nix run nixpkgs#tracy` from the shell.
+current devenv lock is 0.13.1, which is why the client is pinned there, and the shell has it.
+
+The shell's other profilers: `perf` samples, `hotspot` browses its data, `heaptrack` profiles
+allocations, and `valgrind`'s callgrind with `kcachegrind` counts instructions, so two commits
+compare without wall-clock noise. At `perf_event_paranoid` 2, `perf record -e task-clock` samples
+user space and `--call-graph fp --user-callchains` adds stacks, where plain `-g` fails; Claude
+Code's sandbox blocks perf events, so it runs outside it.
 
 Measured on 2026-11-10 (24 cores, Release, from an empty tree), the planned set adds about 45
 seconds of configure, mostly downloads, about 410 CPU-seconds of compilation (217 without it,
