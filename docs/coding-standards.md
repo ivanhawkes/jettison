@@ -199,5 +199,7 @@ features.
 
 The subject is `Area: what changed, and what it was for`, in the style of the commit history
 (`Scene round trip: the loader refused the file the writer produced`). The body records what
-was measured and why the change takes the shape it does, in plain prose. Each commit leaves the
-gate green. Commits, code, comments and documents use British spelling (serialise, colour).
+was measured and why the change takes the shape it does, in plain prose. Each commit builds, passes
+the suites of the modules it touches and is clean under clang-tidy in the files it changed; the
+gate runs once a chunk of work of a few commits is done, and its last commit leaves the gate green
+before anything is pushed. A gate failure is fixed in a further commit, not by rewriting history. Commits, code, comments and documents use British spelling (serialise, colour).

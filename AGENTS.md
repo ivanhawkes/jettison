@@ -81,7 +81,7 @@ background task.
 ```bash
 cmake --build --preset clang-debug                                   # configured already
 ctest --test-dir build/clang-debug -R '^physics$' --output-on-failure  # one suite, named per module
-./scripts/ci.sh --werror --asan --log build/gate.log                 # the gate, before a commit
+./scripts/ci.sh --werror --asan --log build/gate.log                 # the gate, before a push
 ./scripts/tidy.sh --summary                                        # the checks, one line when clean
 ```
 
@@ -96,8 +96,9 @@ holds the whole text; `--full` prints everything, `--summary` the tally.
 Run the gate as a background task and wait for it to finish rather than polling with `sleep`.
 With `--log` it prints the stages and a summary, and for a failed stage its errors; the full output
 is in the log. Warm, it takes 3 to 4 minutes (223 s on 2026-11-14), two thirds of it the
-lavapipe smoke tests and reference frames; with both caches cold, several minutes more. A commit
-leaves the gate green with `--werror --asan`.
+lavapipe smoke tests and reference frames; with both caches cold, several minutes more. The last
+commit of each chunk of work leaves the gate green with `--werror --asan` before a push
+([coding standards](docs/coding-standards.md#commits)).
 
 Nothing bounds parallelism: the builds, the suites and clang-tidy take the machine's cores. Free
 memory here is a question of whether the user's local AI is resident (`strata-host`, about 57 GiB,
