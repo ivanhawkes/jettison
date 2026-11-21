@@ -45,8 +45,9 @@ here ([history](history.md#neutral-sdk-and-manifest-integration)): Manifest's sy
 next run and its console and server pass over the steps between, Ore to Brine 2.4 s from 4 min 50 s.
 Its W10, standing trade policies and NPC jobs, is done in Manifest (2026-11-21) with one provision
 here, a stopgap for the way in to a pad, and its L28, a docked fleet's wait passed over, with no
-engine edit ([history](history.md#neutral-sdk-and-manifest-integration)). Next is its W18, the
-transport and holding charges at their real values.
+engine edit ([history](history.md#neutral-sdk-and-manifest-integration)). Its W18, W11 and W19 are
+done in Manifest with no engine edit. Next is its W21, fuel burn, which asks for a cruise's coast
+phase (the row below).
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -57,6 +58,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
+| Cruise coast phase | W21 (4) | `Space::CruiseProfile`'s optional `sustainedSeconds`: the sustained acceleration for that many seconds of the whole cruise, half at each end after the boost's, coasting between, for a burn that saves fuel ([D-107](../../manifest/docs/decision-ledger.md#d-107), [W21 plan](../../manifest/docs/stage-4-trading-plan.md#w21-plan)); none is today's profile and saves as before. `CruiseSeconds` and `CruiseCovered` in closed form, `CheckCruiseDrive` refusing negative or non-finite seconds and a profile with no speed to coast at; a world saved mid-coast arriving at the hash the one saved does, every pinned hash held, and the sample's drive cruising on one. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
 These deliveries precede discretionary expansion of the sample. The historical space
