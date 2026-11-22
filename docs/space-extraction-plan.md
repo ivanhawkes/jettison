@@ -224,10 +224,14 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
    Manifest's. Each was shown to be the names alone: with the old names, versions and dropped storages
    put back, every one returned, and Manifest's own tree passed all 54 suites on the engine so
    reverted. A save the build before wrote (`dock/tests/fixtures/saves`) loads to the state this
-   build reaches from the same start.
+   build reaches from the same start. Manifest's gate passed on the pin, `1297b9f` fetched, its
+   environment matching.
 8. **Close-out.** The allow-list empty; architecture, scope, game integration and the sample docs
    rewritten for the boundary as it is; Manifest's boundary assessment's status; the consumer matrix
-   (ground, Manifest) run; a cross-review of the whole, as at a stage's end.
+   (ground, Manifest) run; a cross-review of the whole, as at a stage's end. Slice 7 left some names
+   in the setting's words, for this slice to settle or keep: a pick's `system` field, the reasons
+   `other_system` and `destination_other_system`, the string tables' wording, and the
+   `textures/hulls` paths. `system` alone is not one of the checked words.
 
 ## Settled with the user
 
@@ -237,7 +241,8 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
   `dock-sequence` kept on the static scene's ship and pad, and the German UI frame on the engine's
   own saves screen.
 - **The cargo deck's two components kept** (2026-11-22, slice 2): `Dock.Transfer` and
-  `Dock.Buggy` stay registered with no behaviour, so the pins move once, in slice 7.
+  `Dock.Buggy` stayed registered with no behaviour, so the pins moved once, in slice 7, which
+  dropped them.
 - **Planetary rings stay in the renderer** (2026-11-22), the one named exception: atmosphere is
   neutral and rings are not, but the renderer has no extension point for a game's own passes and
   Manifest no renderer yet.
