@@ -51,7 +51,8 @@ of the time thrusting, provisioned (2026-11-22, [history](history.md#neutral-sdk
 and its slice 4 a station's reach measured where physics placed it (2026-11-22,
 [history](history.md#neutral-sdk-and-manifest-integration)); W21 is done in Manifest (2026-11-22).
 The station traffic lanes booked after it were measured and are parked ([carried
-forward](#then-robustness-tools-and-what-a-mod-can-reach), 2026-11-22).
+forward](#then-robustness-tools-and-what-a-mod-can-reach), 2026-11-22), for the space extraction (the row
+below), which is next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -61,6 +62,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
+| Space extraction | soon (the user's, 2026-11-22); before or after W12, open | The engine keeps only what has a neutral name and serves more than one genre, driven by the games; the space setting moves into Manifest and the space sample, which is rebuilt on transit, portals, slots and berths. Neutral modules use none of the setting's words (a check in the configure), the three space modules leave the engine, and every pinned hash and reference frame holds. Plan: [space extraction](space-extraction-plan.md). |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
