@@ -146,10 +146,15 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      `Seconds`, `Covered`, `Thrust` and `CheckProfile`, the closed forms moved unchanged and their
      tests with them; `Space::CruiseDrive` keeps its power law and takes a profile's time from it.
      Manifest names the neutral types; its 53 suites and every pin held on the local engine.
-   - **4b, transit.** The cruise's passage as any game's: an entity out of physics with its body
-     kept, placed each step along a path the game gives about a carrier, passed over by
-     fast-forward, and brought out at rest clear of what is there, in a frame the game names; a lift
-     and a train in the suite.
+   - **4b, transit.** **Done** 2026-11-22: the cruise's passage as any game's (`transit/Path.h`,
+     `Passage.h`): an entity out of physics with its body kept (`TakeOut`), placed each step along a
+     way about a carrier the game places (`Underway`, `Passages::Locate`), passed over by
+     fast-forward, and brought out at rest clear of what is there (`BringOut`, `ClearPlace`), in a
+     local frame the game names; `Transit::Passages` runs them, a lift on a profile and a train on a
+     moving ferry in the suite, fast-forwarded and loaded as stepped. The cruise is built on those
+     parts and keeps `Cruising`; the lanes and gates take their steps, arrivals and given-up
+     destinations from them, and space's private copies are gone. No pinned hash moved; Manifest's
+     53 suites on the local engine.
    - **4c, portals.** The lanes on them: a door between two frames and one within a frame.
    - **4d, slots and gated portals.** The gates on them: a toll booth's gated portal and a car
      park's bays.

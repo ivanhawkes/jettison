@@ -10,6 +10,8 @@
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/transit/Passage.h>
+#include <jettison/transit/Path.h>
 
 #include <algorithm>
 #include <cmath>
@@ -20,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "Transit.h"
 
 namespace Jettison::Space
 {
@@ -120,11 +121,11 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 
 	const OnLane lane{
 	    inSystem->frame, command.jumpPoint, destination, std::string{exit->arrival},
-	    world.Clock().Step() + Detail::TransitSteps(exit->transitSeconds, world.FixedStep())};
+	    world.Clock().Step() + Jettison::Transit::Steps(exit->transitSeconds, world.FixedStep())};
 	registry.emplace_or_replace<OnLane>(command.entity, lane);
 	registry.replace<Sim::InFrame>(command.entity, Sim::kNoFrame);
 	// Where it was going is in the system it left.
-	Detail::GiveUpDestination(registry, command.entity);
+	Jettison::Transit::GiveUpDestination(registry, command.entity);
 	world.Events().Emit(LaneEntered{command.entity, lane, exit->transitSeconds});
 }
 
@@ -178,7 +179,8 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 	destinations.reserve(arriving.size());
 	for (const entt::entity entity : arriving)
 		destinations.push_back(registry.get<const OnLane>(entity).to);
-	std::vector<Detail::Occupant> occupants = Detail::Occupants(registry, m_physics, destinations);
+	std::vector<Jettison::Transit::Occupant> occupants =
+	    Jettison::Transit::Occupants(registry, m_physics, destinations);
 	for (std::size_t index = 0; index < arriving.size(); ++index)
 	{
 		const auto *body = registry.try_get<const Physics::Body>(arriving[index]);
@@ -190,7 +192,7 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		// Out ahead of the ring, clear of its sensor, so the gate does not see it pass through.
 		place.position += place.orientation *
 		                  glm::dvec3{0.0, 0.0, -(Gates::kRingDepth / 2.0 + radius + kArrivalClearance)};
-		place.position = Detail::ClearPlace(occupants, to, place, radius, kArrivalClearance);
+		place.position = Jettison::Transit::ClearPlace(occupants, to, place, radius, kArrivalClearance);
 		occupants.push_back({to, place.position, radius});
 	}
 

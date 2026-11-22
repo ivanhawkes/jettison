@@ -154,6 +154,8 @@ flowchart TB
         space --> physics
         space --> ai
         space --> transit
+        transit --> physics
+        transit --> ai
     end
     subgraph T5[Hosts]
         app --> host
@@ -177,9 +179,9 @@ includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `p
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
 `ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there; it links no
 `space` or `celestial` (G01d), though its suites fly in the retired sample's star system, a copy in
-their fixtures. `transit` is travel of no genre, so far the motion profile a way is covered by in
-closed form (`Transit::MotionProfile`), its first piece from the [space
-extraction](space-extraction-plan.md). `space` is the optional space capability (W01): its
+their fixtures. `transit` is travel of no genre (below, "Transit"), from the [space
+extraction](space-extraction-plan.md): on `physics`, as a passage takes an entity's body out and
+gives it back, and on `ai`, as it gives up a steered entity's destination. `space` is the optional space capability (W01): its
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
@@ -319,6 +321,19 @@ time and each pair of a system's gates an edge at what crossing the system costs
 says; `Space::CrossingByCourse` says it from a course through the system's waypoints, round its star,
 planets and moons, at a speed.
 
+### Transit
+
+A passage (`transit/Passage.h`, slice 4b of the [space extraction](space-extraction-plan.md)) is any
+game's travel out of physics: a lift's car up its shaft, a train along its line. The entity leaves
+physics with its body kept (`Transit::TakeOut`), is placed each step along a way the game gives,
+points about a **carrier** that the game places (`Passages::Locate`), and comes out at rest in a
+local frame the game names, clear of what is there (`BringOut`, `ClearPlace`). Along the way it eases
+out of its start and into its end, or covers it as a motion profile does (`Transit::MotionProfile`,
+in closed form), slowed to its whole steps (`Transit::Underway`), so the steps before an arrival are
+quiet and fast-forward passes over them. `Transit::Passages` runs passages kept in a
+`Transit::Passage`, the suite's lift and train among them; a cruise keeps its own saved `Cruising`
+and is built on the same parts, below.
+
 ### Cruising
 
 A system is crossed by cruising ([decided](decisions.md)): Corva Refinery is 1.4 × 10⁸ m
@@ -372,7 +387,7 @@ drive's (`Space::CrossingByCourse` with a `CourseTime`), so a trader weighs a ru
 takes. A ship of the player's fleet no one is at the helm of follows the same tree (13d).
 
 An arrival is placed clear of what is there: the lanes' and the cruises' arrivals share one placement
-(`Detail::ClearPlace`, `ai/src/Transit.cpp`), at the place it would come out if that is clear of every
+(`Transit::ClearPlace`, `transit/Passage.h`), at the place it would come out if that is clear of every
 body in the system by both radii and `LaneTravel::kArrivalClearance`, or at the first place clear on
 rings about it, six more places round each than the last, in the plane across the way it faces.
 Cruises come out in entity order, each counted by the next, and a gate's ring, a sensor, is no body

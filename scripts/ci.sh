@@ -237,16 +237,17 @@ if [ "$asan" -eq 1 ]; then
 	# the spatial index steering reads; the file system's and the script host's, whose packs and
 	# modules are bytes from a mod; the archives', whose binary reader parses every save; the
 	# resource manager's, whose loaders' callbacks can move its slots; the host's, whose failed
-	# start-ups and teardowns release what each phase built; and net's, which reads a peer's packets.
+	# start-ups and teardowns release what each phase built; net's, which reads a peer's packets; and
+	# transit's, whose passages a cruise is built on, saved and loaded mid-way.
 	# The script suite's modules are built with the tree, not as its dependency, so they
 	# are named.
-	stage "unit tests: clang-asan (vfs, serialise, resource, sim, spatial, physics, space, ai, dock, script, host and net)"
+	stage "unit tests: clang-asan (vfs, serialise, resource, sim, spatial, physics, transit, space, ai, dock, script, host and net)"
 	cmake --build --preset clang-asan --target jettison_vfs_tests jettison_serialise_tests jettison_resource_tests \
-		jettison_sim_tests jettison_spatial_tests jettison_physics_tests jettison_space_tests \
+		jettison_sim_tests jettison_spatial_tests jettison_physics_tests jettison_transit_tests jettison_space_tests \
 		jettison_ai_tests jettison_dock_tests jettison_script_tests jettison_script_test_limits jettison_script_test_rogue \
 		jettison_script_test_events jettison_script_test_events_rs jettison_script_test_keys \
 		jettison_script_test_keys_rs jettison_host_tests jettison_net_tests
-	ctest --test-dir build/clang-asan -R '^(vfs|serialise|resource|sim|spatial|physics|space|ai|dock|script|host|net)$' \
+	ctest --test-dir build/clang-asan -R '^(vfs|serialise|resource|sim|spatial|physics|transit|space|ai|dock|script|host|net)$' \
 		--output-on-failure --no-tests=error -j "$jobs"
 fi
 

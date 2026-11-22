@@ -10,6 +10,7 @@
 #include <jettison/space/Cruise.h>
 #include <jettison/space/Lanes.h>
 #include <jettison/space/Types.h>
+#include <jettison/transit/Path.h>
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -21,7 +22,6 @@
 #include <stdexcept>
 #include <utility>
 
-#include "Transit.h"
 
 namespace Jettison::Space
 {
@@ -295,7 +295,8 @@ void Gates::Clear(Sim::SimWorld &world, entt::entity gate, entt::entity ship, st
 	entt::registry &registry = world.Registry();
 	Gate &state = registry.get<Gate>(gate);
 	state.cleared = ship;
-	state.lapses = world.Clock().Step() + Detail::TransitSteps(kClearanceSeconds, world.FixedStep());
+	state.lapses =
+	    world.Clock().Step() + Jettison::Transit::Steps(kClearanceSeconds, world.FixedStep());
 	registry.emplace_or_replace<Transit>(ship, Transit{gate, true});
 	world.Events().Emit(TransitCleared{ship, gate, toll, state.lapses});
 }

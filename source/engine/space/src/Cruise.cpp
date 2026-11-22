@@ -9,6 +9,8 @@
 #include <jettison/space/Lanes.h>
 #include <jettison/space/Routes.h>
 #include <jettison/space/Types.h>
+#include <jettison/transit/Passage.h>
+#include <jettison/transit/Path.h>
 
 #include <glm/geometric.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -22,7 +24,6 @@
 #include <stdexcept>
 #include <utility>
 
-#include "Transit.h"
 
 namespace Jettison::Space
 {
@@ -31,30 +32,10 @@ using Ai::Destination;
 using Ai::Sphere;
 using Ai::Steered;
 using Ai::Waypoints;
+using Jettison::Transit::Facing;
 
 namespace
 {
-// Eases out of the start and into the end: a cruise leaves its station gently enough to be seen
-// leaving, where a smoothstep is already 290 km out a second into a minute's cruise from Highport to
-// Pell. Double precision throughout, since its share of a course of 10^11 m has to place a ship
-// to the metre.
-double EaseInOutCubic(double share)
-{
-	if (share < 0.5)
-		return 4.0 * share * share * share;
-	const double rest = 2.0 - (2.0 * share);
-	return 1.0 - (rest * rest * rest / 2.0);
-}
-
-
-glm::dquat Facing(const glm::dvec3 &ahead)
-{
-	const glm::dvec3 up =
-	    std::abs(ahead.y) > 0.999999 ? glm::dvec3{1.0, 0.0, 0.0} : glm::dvec3{0.0, 1.0, 0.0};
-	return glm::quatLookAtRH(ahead, up);
-}
-
-
 // The body and every body it orbits, out to the primary.
 std::vector<std::size_t> Chain(const Celestial::StarSystem &system, int body)
 {
@@ -135,33 +116,6 @@ struct Planner
 		return Waypoints{std::move(obstacles), CruiseTravel::kCourseClearance}.PlotCourse(start, end);
 	}
 };
-
-
-double Length(const std::vector<glm::dvec3> &course)
-{
-	double length = 0.0;
-	for (std::size_t point = 1; point < course.size(); ++point)
-		length += glm::length(course[point] - course[point - 1]);
-	return length;
-}
-
-
-// The point the share of the way along a course is at, and the leg it is on.
-std::pair<glm::dvec3, glm::dvec3> Along(const std::vector<glm::dvec3> &course, double share)
-{
-	double left = Length(course) * share;
-	for (std::size_t point = 1; point < course.size(); ++point)
-	{
-		const glm::dvec3 leg = course[point] - course[point - 1];
-		const double legLength = glm::length(leg);
-		if (legLength <= 0.0)
-			continue;
-		if (left <= legLength || point + 1 == course.size())
-			return {course[point - 1] + leg * (std::min(left, legLength) / legLength), leg / legLength};
-		left -= legLength;
-	}
-	return {course.back(), glm::dvec3{0.0, 0.0, -1.0}};
-}
 
 
 } // namespace
@@ -371,7 +325,7 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 	std::uint64_t steps = 0;
 	for (int round = 0; round <= kSolveIterations; ++round)
 	{
-		steps = Detail::TransitSteps(seconds, step);
+		steps = Jettison::Transit::Steps(seconds, step);
 		course = planner.Plot(start, towards, target, t0, t0 + (static_cast<double>(steps) * step));
 		if (!course)
 			return refuse(Reason::NoCourse, {Sim::ReasonArgument::Identifier(command.body)});
@@ -425,39 +379,15 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 	cruising.course = std::move(course->points);
 	cruising.departureStep = world.Clock().Step();
 	cruising.arrivalStep = cruising.departureStep + steps;
-	cruising.body = *body;
+	cruising.body = Jettison::Transit::TakeOut(registry, ship);
 	cruising.profile = drive->profile;
 
-	registry.remove<Physics::Body, Physics::Velocity, Physics::LocalFrame>(ship);
-	Detail::GiveUpDestination(registry, ship);
 	world.Events().Emit(
 	    CruiseStarted{
 	        ship, command.body, static_cast<double>(steps) * step, course->length,
 	        cruising.arrivalStep});
 	registry.emplace_or_replace<Cruising>(ship, std::move(cruising));
 }
-
-
-namespace
-{
-// Where a cruise has its ship as the step ending at that count ends, before it arrives: along its
-// course, about its carrier's place then (origin).
-Sim::Transform Underway(const Cruising &cruising, const glm::dvec3 &origin, std::uint64_t ending)
-{
-	const double share = static_cast<double>(ending - cruising.departureStep) /
-	                     static_cast<double>(cruising.arrivalStep - cruising.departureStep);
-	double along = EaseInOutCubic(share);
-	if (cruising.profile)
-	{
-		// Covered as the profile covers it, slowed to the whole steps it was given.
-		const double length = Length(cruising.course);
-		const double seconds = Jettison::Transit::Seconds(*cruising.profile, length);
-		along = Jettison::Transit::Covered(*cruising.profile, length, share * seconds) / length;
-	}
-	const auto [at, leg] = Along(cruising.course, along);
-	return {origin + at, Facing(leg)};
-}
-} // namespace
 
 
 void CruiseTravel::Skip(Sim::SimWorld &world) const
@@ -475,7 +405,10 @@ void CruiseTravel::Skip(Sim::SimWorld &world) const
 		    carrier < 0
 		        ? glm::dvec3{0.0}
 		        : Celestial::EvaluateBody(starSystem, static_cast<std::size_t>(carrier), endsAt).metres;
-		registry.emplace_or_replace<Sim::Transform>(ship, Underway(cruising, origin, ending));
+		registry.emplace_or_replace<Sim::Transform>(
+		    ship, Jettison::Transit::Underway(
+		              cruising.course, cruising.departureStep, cruising.arrivalStep, cruising.profile,
+		              origin, ending));
 	}
 }
 
@@ -495,7 +428,7 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 	const double endsAt = world.Clock().Now() + world.FixedStep();
 	// What each arrival comes out clear of, gathered at the first: what is already in the systems
 	// the ships cruise in, and each arrival once it is placed.
-	std::optional<std::vector<Detail::Occupant>> occupants;
+	std::optional<std::vector<Jettison::Transit::Occupant>> occupants;
 	for (const entt::entity ship : ships)
 	{
 		const Cruising &cruising = registry.get<const Cruising>(ship);
@@ -516,7 +449,10 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 
 		if (ending < cruising.arrivalStep)
 		{
-			registry.emplace_or_replace<Sim::Transform>(ship, Underway(cruising, origin, ending));
+			registry.emplace_or_replace<Sim::Transform>(
+			    ship, Jettison::Transit::Underway(
+			              cruising.course, cruising.departureStep, cruising.arrivalStep,
+			              cruising.profile, origin, ending));
 			continue;
 		}
 
@@ -526,7 +462,7 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 			inSystems.reserve(ships.size());
 			for (const entt::entity other : ships)
 				inSystems.push_back(registry.get<const Sim::InFrame>(other).frame);
-			occupants = Detail::Occupants(registry, m_physics, inSystems);
+			occupants = Jettison::Transit::Occupants(registry, m_physics, inSystems);
 		}
 		const glm::dvec3 end = origin + cruising.course.back();
 		const glm::dvec3 ahead =
@@ -534,15 +470,10 @@ void CruiseTravel::Place(Sim::SimWorld &world) const
 		Sim::Transform place{
 		    end, Facing(glm::length(ahead) > 0.0 ? glm::normalize(ahead) : glm::dvec3{0.0, 0.0, -1.0})};
 		const double radius = m_physics.ShapeRadius(cruising.body.shape);
-		place.position =
-		    Detail::ClearPlace(*occupants, system, place, radius, LaneTravel::kArrivalClearance);
+		place.position = Jettison::Transit::ClearPlace(
+		    *occupants, system, place, radius, LaneTravel::kArrivalClearance);
 		occupants->push_back({system, place.position, radius});
-		registry.emplace_or_replace<Sim::Transform>(ship, place);
-		registry.emplace_or_replace<Physics::Body>(ship, cruising.body);
-		registry.emplace_or_replace<Physics::LocalFrame>(ship, cruising.frame);
-		registry.emplace_or_replace<Physics::Velocity>(ship);
-		if (auto *controls = registry.try_get<Physics::FlightControls>(ship))
-			controls->reference = entt::null;
+		Jettison::Transit::BringOut(registry, ship, place, cruising.body, cruising.frame);
 		const std::string body = cruising.target;
 		registry.remove<Cruising>(ship);
 		world.Events().Emit(CruiseEnded{ship, body});

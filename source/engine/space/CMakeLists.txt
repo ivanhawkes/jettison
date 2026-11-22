@@ -29,8 +29,6 @@ jettison_add_module(space
 		src/Lanes.cpp
 		src/Routes.cpp
 		src/StarSystemFrame.cpp
-		src/Transit.cpp
-		src/Transit.h
 		src/Types.cpp
 	TESTS
 		tests/ContactTests.cpp
