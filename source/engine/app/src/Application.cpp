@@ -1347,9 +1347,8 @@ void Application::ReportBenchmark() const
 	    "Lights {}, {} listed\n"
 	    "Transparent: {} draws; {} emitters in {} particle slots\n"
 	    "Outlines {}",
-	    !m_arguments.systemPath.empty() ? m_arguments.systemPath
-	    : m_arguments.scenePath.empty() ? std::string{m_pGame->DefaultScene()}
-	                                    : m_arguments.scenePath.filename().string(),
+	    m_arguments.scenePath.empty() ? std::string{m_pGame->DefaultScene()}
+	                                  : m_arguments.scenePath.filename().string(),
 	    m_deviceName, m_frameWidth, m_frameHeight, m_arguments.benchmarkFrames, kBenchmarkWarmUp,
 	    m_measuredFrames, m_arguments.depthPrepass ? "on" : "off",
 	    m_benchmarkAmbientOcclusion ? "on" : "off", m_arguments.bloom, passes,
@@ -1435,9 +1434,7 @@ void Application::LoadScene()
 	// The outlined proxy goes with the scene's old contents: its number may be another entity's in
 	// the new.
 	m_outlined = entt::null;
-	if (!m_arguments.systemPath.empty())
-		m_pScene->LoadSystem(m_arguments.systemPath);
-	else if (!m_arguments.scenePath.empty())
+	if (!m_arguments.scenePath.empty())
 		m_pScene->Load(m_arguments.scenePath);
 	else
 	{

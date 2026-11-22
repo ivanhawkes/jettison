@@ -189,11 +189,10 @@ TEST_CASE("Scene: a file of another version, or with a field the scene does not 
 }
 
 
-TEST_CASE("Scene: the star system, bodies, sun and orbit camera load and save as authored")
+TEST_CASE("Scene: bodies, a sun and an orbit camera load and save as authored")
 {
 	Scene scene;
 	scene.LoadText(R"(version: 2
-system: systems/test.yaml
 entities:
   - id: star
     celestial:
@@ -216,9 +215,8 @@ entities:
         pitch: 0.25
         minDistance: 20
 )");
-	CHECK(scene.StarSystem() == "systems/test.yaml");
 	const auto &registry = scene.Registry();
-	CHECK(registry.view<const CelestialBodyComponent>().size() == 2);
+	CHECK(registry.view<const BodyComponent>().size() == 2);
 	CHECK(registry.view<const SunComponent>().size() == 1);
 	for (const auto [entity, orbit] : registry.view<const OrbitCameraComponent>().each())
 	{
@@ -227,13 +225,13 @@ entities:
 	}
 
 	// A placement and a camera pose are runtime state: neither reaches the file.
-	for (const entt::entity entity : registry.view<const CelestialBodyComponent>())
+	for (const entt::entity entity : registry.view<const BodyComponent>())
 		scene.Registry().emplace<PlacementComponent>(entity, glm::dvec3{1.0e11, 2.0, 3.0});
 	UpdateOrbitCameras(scene.Registry(), 0.1);
 	const std::string first = scene.SaveText();
 	scene.LoadText(first);
 	CHECK(scene.SaveText() == first);
-	CHECK(first.find("system: systems/test.yaml") != std::string::npos);
+	CHECK(first.find("body: Dock") != std::string::npos);
 	CHECK(first.find("1e+11") == std::string::npos);
 	CHECK(first.find("100000000000") == std::string::npos);
 }

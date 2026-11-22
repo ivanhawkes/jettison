@@ -174,7 +174,7 @@ struct EntityRecord
 	std::optional<SunComponent> sun;
 	std::optional<SkyRecord> sky;
 	std::optional<ColourGradeComponent> grade;
-	std::optional<CelestialBodyComponent> celestial;
+	std::optional<BodyComponent> body;
 	std::optional<AtmosphereComponent> atmosphere;
 	std::optional<RingsComponent> rings;
 	std::optional<LightRecord> light;
@@ -189,7 +189,6 @@ struct EntityRecord
 
 struct SceneDocument
 {
-	std::optional<std::string> system;
 	std::vector<EntityRecord> entities;
 };
 
@@ -257,8 +256,7 @@ void RegisterTypes()
 		    .Field<&SkyRecord::starFlux>("starFlux", kSaved)
 		    .Field<&SkyRecord::band>("band", kSaved)
 		    .Field<&SkyRecord::nebula>("nebula", kSaved);
-		RegisterType<CelestialBodyComponent>("Scene.Celestial")
-		    .Field<&CelestialBodyComponent::body>("body", kSaved);
+		RegisterType<BodyComponent>("Scene.Celestial").Field<&BodyComponent::name>("body", kSaved);
 		RegisterType<AtmosphereComponent>("Scene.Atmosphere")
 		    .Field<&AtmosphereComponent::height>("height", kSaved)
 		    .Field<&AtmosphereComponent::rayleigh>("rayleigh", kSaved)
@@ -349,7 +347,7 @@ void RegisterTypes()
 		    .Field<&EntityRecord::sun>("sun", kSaved)
 		    .Field<&EntityRecord::sky>("sky", kSaved)
 		    .Field<&EntityRecord::grade>("grade", kSaved)
-		    .Field<&EntityRecord::celestial>("celestial", kSaved)
+		    .Field<&EntityRecord::body>("celestial", kSaved)
 		    .Field<&EntityRecord::atmosphere>("atmosphere", kSaved)
 		    .Field<&EntityRecord::rings>("rings", kSaved)
 		    .Field<&EntityRecord::light>("light", kSaved)
@@ -360,9 +358,7 @@ void RegisterTypes()
 		    .Field<&EntityRecord::transformAnimation>("transformAnimation", kSaved)
 		    .Field<&EntityRecord::animation>("animation", kSaved)
 		    .Field<&EntityRecord::clip>("clip", kSaved);
-		RegisterType<SceneDocument>("Scene")
-		    .Field<&SceneDocument::system>("system", kSaved)
-		    .Field<&SceneDocument::entities>("entities", kSaved);
+		RegisterType<SceneDocument>("Scene").Field<&SceneDocument::entities>("entities", kSaved);
 		return true;
 	}();
 	(void)registered;
@@ -538,9 +534,6 @@ void CheckParticles(const ParticlesRecord &particles, const std::string &id)
 // other refuses.
 void Validate(const SceneDocument &document)
 {
-	if (document.system)
-		CheckVirtualPath(*document.system, "a system", "(the scene)");
-
 	std::unordered_map<std::string, std::size_t> ids;
 	for (std::size_t index = 0; index < document.entities.size(); ++index)
 	{
@@ -619,9 +612,9 @@ void Validate(const SceneDocument &document)
 			if (!entity.mesh || !entity.mesh->shape)
 				Refuse("Rings are about a shape's centre, and need a mesh of one: " + id);
 		}
-		if (entity.celestial)
+		if (entity.body)
 		{
-			if (entity.celestial->body.empty())
+			if (entity.body->name.empty())
 				Refuse("Entity celestial needs a body name: " + id);
 		}
 		if (entity.mesh)
@@ -840,23 +833,6 @@ SceneFile SceneFile::Read(std::string_view text)
 }
 
 
-const std::string &SceneFile::StarSystem() const
-{
-	static const std::string kNone;
-	return m_pDocument->document.system ? *m_pDocument->document.system : kNone;
-}
-
-
-std::vector<std::string> SceneFile::CelestialBodies() const
-{
-	std::vector<std::string> bodies;
-	for (const EntityRecord &entity : m_pDocument->document.entities)
-		if (entity.celestial)
-			bodies.push_back(entity.celestial->body);
-	return bodies;
-}
-
-
 Scene::~Scene()
 {
 	Clear();
@@ -899,7 +875,6 @@ void Scene::Load(const SceneFile &file)
 
 	try
 	{
-		m_starSystem = document.system.value_or("");
 		std::unordered_map<std::string, entt::entity> entities;
 		for (const EntityRecord &record : document.entities)
 		{
@@ -938,8 +913,8 @@ void Scene::Load(const SceneFile &file)
 				m_registry.emplace<SkyComponent>(entity, ToComponent(*record.sky));
 			if (record.grade)
 				m_registry.emplace<ColourGradeComponent>(entity, *record.grade);
-			if (record.celestial)
-				m_registry.emplace<CelestialBodyComponent>(entity, *record.celestial);
+			if (record.body)
+				m_registry.emplace<BodyComponent>(entity, *record.body);
 			if (record.atmosphere)
 				m_registry.emplace<AtmosphereComponent>(entity, *record.atmosphere);
 			if (record.rings)
@@ -1016,7 +991,7 @@ std::string Scene::SaveText() const
 {
 	RegisterTypes();
 	std::vector<entt::entity> entities;
-	// What the system scene built is the system's, made again when the file is loaded.
+	// What a game built is its own, made again when the file is loaded.
 	const auto view =
 	    m_registry.view<const SceneEntityId, const TransformComponent>(entt::exclude<BuiltComponent>);
 	entities.assign(view.begin(), view.end());
@@ -1025,8 +1000,6 @@ std::string Scene::SaveText() const
 	    { return m_registry.get<SceneEntityId>(entity).value; });
 
 	SceneDocument document;
-	if (!m_starSystem.empty())
-		document.system = m_starSystem;
 	for (const entt::entity entity : entities)
 	{
 		EntityRecord record;
@@ -1054,8 +1027,8 @@ std::string Scene::SaveText() const
 			record.sky = ToRecord(*sky);
 		if (const auto *grade = m_registry.try_get<ColourGradeComponent>(entity))
 			record.grade = *grade;
-		if (const auto *celestial = m_registry.try_get<CelestialBodyComponent>(entity))
-			record.celestial = *celestial;
+		if (const auto *body = m_registry.try_get<BodyComponent>(entity))
+			record.body = *body;
 		if (const auto *atmosphere = m_registry.try_get<AtmosphereComponent>(entity))
 			record.atmosphere = *atmosphere;
 		if (const auto *rings = m_registry.try_get<RingsComponent>(entity))
@@ -1084,8 +1057,8 @@ std::string Scene::SaveText() const
 			clip.speed = player->speed;
 			clip.loop = player->looping;
 			clip.playing = player->playing;
-			// A binding to an entity the file does not hold, one the system scene built, is the
-			// builder's, made again as the file is loaded.
+			// A binding to an entity the file does not hold, one a game built, is the builder's,
+			// made again as the file is loaded.
 			for (const ClipBinding &binding : player->nodes)
 				if (const auto *bound = m_registry.valid(binding.entity)
 				                            ? m_registry.try_get<SceneEntityId>(binding.entity)
@@ -1111,15 +1084,6 @@ void Scene::Save(const std::filesystem::path &path) const
 	output << text;
 	if (!output)
 		throw std::runtime_error("Failed to write scene: " + scenePath.string());
-}
-
-
-void Scene::LoadSystem(std::string_view starSystem)
-{
-	Clear();
-	const std::string path{starSystem};
-	CheckVirtualPath(path, "a system", "(the scene)");
-	m_starSystem = path;
 }
 
 
@@ -1156,6 +1120,5 @@ void Scene::Clear()
 		for (const auto [entity, rig] : m_registry.view<const RigComponent>().each())
 			m_pResources->Release(rig.rig);
 	m_registry.clear();
-	m_starSystem.clear();
 }
 } // namespace Jettison::Scene

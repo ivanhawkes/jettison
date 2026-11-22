@@ -75,8 +75,8 @@ struct HiddenComponent
 {
 };
 
-// Runtime: an entity the system scene made rather than the scene file authored (a body the file does
-// not present, the sky or camera it lacks, a simulation entity's proxy). The writer leaves it out, so
+// Runtime: an entity a game made rather than the scene file authored (a body the file does not
+// present, the sky or camera it lacks, a simulation entity's proxy). The writer leaves it out, so
 // a scene saved from a running engine is the file that was loaded.
 struct BuiltComponent
 {
@@ -100,10 +100,10 @@ struct TransformComponent
 	glm::vec3 scale{1.0f};
 };
 
-// Where something outside the scene puts an entity this frame: the system scene, for a
-// body. It replaces the transform's translation and rotation, in double precision, and keeps its
-// scale. Runtime state, not written to the scene file, so the transform stays as authored and a
-// scene saved from a running engine is the scene that was loaded.
+// Where something outside the scene puts an entity this frame: a game, for a body. It replaces the
+// transform's translation and rotation, in double precision, and keeps its scale. Runtime state, not
+// written to the scene file, so the transform stays as authored and a scene saved from a running engine
+// is the scene that was loaded.
 struct PlacementComponent
 {
 	glm::dvec3 position{0.0};
@@ -268,11 +268,11 @@ struct NodePoseComponent
 };
 
 // A body: a round mesh of it is drawn as one, its air and rings about it and its sphere occluding
-// what is behind it. A game may place it each frame by the star system the scene names; a scene of
-// none places it as authored.
-struct CelestialBodyComponent
+// what is behind it. A game may place it each frame by its name (PlacementComponent); one the game
+// does not place stays as authored.
+struct BodyComponent
 {
-	std::string body;
+	std::string name;
 };
 
 // The scene's one directional light (docs/architecture.md, "Rules that follow"): it shines
@@ -479,7 +479,7 @@ enum class PilotView : std::uint8_t
 };
 
 // Runtime: a camera on a piloted vehicle, which the game adds and the scene file never holds, since
-// what it follows is a simulation entity's proxy (SimProxyComponent) that the system scene makes.
+// what it follows is a simulation entity's proxy (SimProxyComponent) that a game makes.
 // Both rigs follow the target's world transform every frame, so switching between them is a
 // transition from where one has the camera to where the other has it, never a swing as the chase
 // rig catches up. The target's world transform is interpolated between the simulation's steps, so

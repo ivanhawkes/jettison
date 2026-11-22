@@ -95,7 +95,7 @@ void PrintUsage(const char *argv0)
 {
 	std::cerr << "Usage: " << argv0
 	          << " [--smoke-test] [--assets <directory | pack>] [--content <directory | pack>] "
-	             "[--scene <file> | --system <virtual path>]"
+	             "[--scene <file>]"
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
 	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
 	             " [--user-dir <directory>]"
@@ -125,8 +125,6 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.content = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--scene" && index + 1 < argc)
 			arguments.scenePath = std::filesystem::absolute(argv[++index]);
-		else if (argument == "--system" && index + 1 < argc)
-			arguments.systemPath = argv[++index];
 		else if (argument == "--save-scene" && index + 1 < argc)
 			arguments.saveScenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--depth-prepass")
@@ -219,11 +217,6 @@ std::optional<AppArguments> ParseAppArguments(
 			PrintUsage(argv[0]);
 			return std::nullopt;
 		}
-	}
-	if (!arguments.scenePath.empty() && !arguments.systemPath.empty())
-	{
-		PrintUsage(argv[0]);
-		return std::nullopt;
 	}
 	return arguments;
 }

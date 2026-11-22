@@ -72,7 +72,7 @@ std::vector<SceneDrawCommand> CollectDraws(
 		    0.0};
 		const bool round = mesh.shape == Shape::Sphere || mesh.shape == Shape::IcoSphere ||
 		                   mesh.shape == Shape::CubeSphere;
-		if (round && registry.all_of<Scene::CelestialBodyComponent>(entity))
+		if (round && registry.all_of<Scene::BodyComponent>(entity))
 		{
 			draw.occluderRadius = MinScale(relative);
 			draw.atmosphere = registry.try_get<Scene::AtmosphereComponent>(entity);

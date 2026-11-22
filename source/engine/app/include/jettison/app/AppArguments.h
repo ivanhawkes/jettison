@@ -39,13 +39,9 @@ struct AppArguments
 	std::filesystem::path content;
 
 	// The scene graph file loaded at start-up (--scene), and an optional second file to write it back
-	// to. Empty for the assets' own, scene/orbit.yaml (Halcyon, the ship docked at Ostra Highport),
-	// read through the mounts.
+	// to. Empty for the game's own (Game::DefaultScene), read through the mounts.
 	std::filesystem::path scenePath;
 	std::filesystem::path saveScenePath;
-	// A star system file, by virtual path (systems/halcyon.yaml), in place of a scene: the scene is
-	// the one the system scene builds from it alone. Empty when the run loads a scene.
-	std::string systemPath;
 
 	// A measurement of the frame: this many frames timed after a warm-up, the GPU's time in each pass
 	// and the frame's counts printed, and the window closed. None when zero.
@@ -75,7 +71,7 @@ struct AppArguments
 	// is then the same in every run. Zero for the wall clock.
 	double frameStep{0.0};
 	// Console lines run as if typed (--run), in the order given among those due on one frame: a
-	// camera placed for a screenshot, say, or a ship undocked and a screenshot some frames later.
+	// camera placed for a screenshot, say, or a vehicle moved and a screenshot some frames later.
 	std::vector<RunCommand> commands;
 
 	// Sound played to miniaudio's null backend, in place of the machine's device: everything sounds
@@ -92,9 +88,8 @@ struct AppArguments
 };
 
 // Resolves the default assets and content - each the tree beside the executable, or its pack; no
-// content for no subdirectory - then reads the flags. --scene and --system together are not
-// understood. Returns nothing, having printed the usage line, when an argument is not understood; the
-// caller exits with failure.
+// content for no subdirectory - then reads the flags. Returns nothing, having printed the usage line,
+// when an argument is not understood; the caller exits with failure.
 std::optional<AppArguments> ParseAppArguments(
     int argc, char **argv, const std::filesystem::path &assetSubdirectory,
     const std::filesystem::path &contentSubdirectory = {});

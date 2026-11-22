@@ -1,7 +1,5 @@
 # The space setting's words still in the neutral modules, a file and a word a line, which the
 # space extraction removes (docs/space-extraction-plan.md); cmake/CheckNeutralWords.cmake checks it.
-app/include/jettison/app/AppArguments.h star-system
-app/include/jettison/app/AppArguments.h ship
 app/include/jettison/app/SmokeSequence.h star-system
 app/include/jettison/app/SmokeSequence.h galaxy
 app/include/jettison/app/SmokeSequence.h station
@@ -33,12 +31,3 @@ dock/src/Types.cpp ship
 dock/src/Types.cpp hull
 dock/src/Types.cpp pad
 dock/src/Types.cpp cargo
-render/include/jettison/render/Camera.h celestial
-render/src/vulkan/SceneDraws.cpp celestial
-scene/include/jettison/scene/Components.h star-system
-scene/include/jettison/scene/Components.h celestial
-scene/include/jettison/scene/Scene.h star-system
-scene/include/jettison/scene/Scene.h celestial
-scene/src/Scene.cpp star-system
-scene/src/Scene.cpp celestial
-sim/src/SaveGame.cpp galaxy

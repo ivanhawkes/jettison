@@ -7,7 +7,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include <jettison/scene/Components.h>
 
@@ -33,12 +32,6 @@ class SceneFile
 
 	~SceneFile();
 
-	// The star system it names, by virtual path; empty for a file that names none.
-	const std::string &StarSystem() const;
-
-	// The celestial bodies its entities present, in the file's order.
-	std::vector<std::string> CelestialBodies() const;
-
   private:
 	friend class Scene;
 	struct Document;
@@ -56,8 +49,8 @@ class SceneFile
 // The file is YAML through the reflection archives (serialise/Archive.h), at kFormatVersion: a field
 // it does not know is refused, naming its path and line, as is a version other than this one. The
 // loader and the writer share one check of what a file may say (Validate, in Scene.cpp), so the
-// writer cannot produce a file the loader refuses. Every path in it (the star system, a model, a
-// material) is a virtual path, found through the asset mounts, so a mod can shadow any of them.
+// writer cannot produce a file the loader refuses. Every path in it (a model, a material, a
+// clip) is a virtual path, found through the asset mounts, so a mod can shadow any of them.
 class Scene
 {
   public:
@@ -90,11 +83,6 @@ class Scene
 
 	std::string SaveText() const;
 
-	// Replaces the scene with one that authors nothing and names a star system, by virtual path,
-	// which a game then builds all of from the system file. Saved, it is a
-	// file of that system and no entities.
-	void LoadSystem(std::string_view starSystem);
-
 	// Empties the scene, releasing the rigs it loaded.
 	void Clear();
 
@@ -116,13 +104,6 @@ class Scene
 		return m_generation;
 	}
 
-	// The virtual path of the star system file the scene's celestial bodies come from; empty for a
-	// scene without one.
-	const std::string &StarSystem() const
-	{
-		return m_starSystem;
-	}
-
 	entt::registry &Registry()
 	{
 		return m_registry;
@@ -136,7 +117,6 @@ class Scene
   private:
 	Resource::ResourceManager *m_pResources;
 	entt::registry m_registry;
-	std::string m_starSystem;
 	std::uint64_t m_generation{0};
 };
 } // namespace Jettison::Scene

@@ -15,8 +15,9 @@ namespace Jettison::Sim
 {
 namespace
 {
-// Version 2 (A01): the info's world and system become details, each only if it named one.
-void MoveGalaxyAndSystem(Serialise::BinaryRecord &info)
+// Version 2 (A01): the two places version 1's info named, by the keys below, become details, each
+// only if it named one.
+void MovePlacesToDetails(Serialise::BinaryRecord &info)
 {
 	std::vector<SaveDetail> details;
 	for (const std::string_view key : {"galaxy", "system"})
@@ -190,7 +191,7 @@ const Serialise::BinaryMigrations &SaveGame::Migrations()
 		// The info is the save's first value; the world and the sections after it are as they were.
 		chain.Add(
 		    1,
-		    [](Serialise::BinaryDocument &document) { document.EditFirstRecord(MoveGalaxyAndSystem); });
+		    [](Serialise::BinaryDocument &document) { document.EditFirstRecord(MovePlacesToDetails); });
 		return chain;
 	}();
 	return migrations;

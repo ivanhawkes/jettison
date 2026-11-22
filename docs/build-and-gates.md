@@ -166,8 +166,7 @@ directory ([files, packs and mods](architecture.md#files-packs-and-mods)), which
 when there is no directory, as in a shipped build; the test content likewise
 (`jettison_test_content`, `jettison_test_content_pack`), under `build/<preset>/source/test`. `--assets <directory | pack>` selects other engine assets,
 `--content <directory | pack>` other content, and
-`--scene <file>` / `--save-scene <file>` load and write scene graphs, and `--system <virtual path>`
-(`systems/halcyon.yaml`) runs the scene a star system builds alone, in place of a scene file.
+`--scene <file>` / `--save-scene <file>` load and write scene graphs.
 `--gpu <name>` draws with the GPU whose name has that text in it (`5060`, `llvmpipe`), in place of
 the one the renderer chooses, the one with the monitor on it; the log lists the devices it saw.
 `--user-dir <directory>` puts the user's files under one directory in place of the XDG ones:

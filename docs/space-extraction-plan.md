@@ -7,7 +7,7 @@ space code. The space sample has served its purpose and is retired: what of it s
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
 station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
-Slices 1 and 2 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
+Slices 1 to 3 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
 ## Where things stand
@@ -123,7 +123,18 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 3. **Reasons, scenes and saves.** The space-only reasons to `Space.Reason` (keys from
    `reason.ai.*` to `reason.space.*`, shown to change no pinned save, or pins moved by that alone);
    the scene's placed-by-an-extension record in place of `CelestialBodyComponent` and the system path;
-   `SaveGame`'s migration supplied by the game.
+   `SaveGame`'s migration supplied by the game. **Done** 2026-11-22, in two commits: `Space::Reason`
+   ("Space.Reason") holds the 23 reasons lane travel, cruises and gates give, with its own
+   `no_such_entity` and `not_controller`, as the dock has, and their words under `reason.space.*`
+   in both tables, which move with the module in slice 6; `Ai::Reason` keeps steering's and the
+   helm's eight. No pinned hash moved, the engine's or Manifest's (its 53 suites on the local
+   engine). The scene's star-system path, `SceneFile::StarSystem` and `CelestialBodies`,
+   `Scene::LoadSystem` and `--system` are deleted, since nothing read them once the sample went;
+   `CelestialBodyComponent` is `Scene::BodyComponent`, a body by name that a game may place
+   (`PlacementComponent`), its record `celestial` until slice 7. The save's migration from
+   version 1 stays the engine's, in neutral words: version 1's info was the engine's own record,
+   and its two keys are what that version saved, so a game has nothing to supply. The list at 31:
+   the smoke sequence's jump stage's five for slice 4, the dock's 26 for slice 5.
 4. **Transit, portals, motion profiles and slots.** The neutral capabilities as an engine module, with
    an independent consumer in its suite (a lift and a train on a path, a door between two frames and
    one within a frame, a toll booth's gated portal, a car park's bays); cruises rebuilt on transit and

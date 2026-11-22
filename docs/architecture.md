@@ -1380,7 +1380,7 @@ nodes in it:
 1. **Collect and cull** (CPU). Every mesh's bounds are taken into render space in double
    precision, before anything becomes a float (`render/Culling.h`). Its level of detail is the
    coarsest whose geometric error, projected, covers under a pixel. The view keeps what is inside
-   the frustum, not wholly behind a planet's horizon (a celestial body drawn as a sphere, shrunk
+   the frustum, not wholly behind a planet's horizon (a body, `BodyComponent`, drawn as a sphere, shrunk
    by its level's error so the sphere is inside the mesh), and at least a pixel across: a draw's
    breadth, its model's radius times its transform's middle scale, projected at its nearest point,
    so a stroke of paint a metre wide is left out from a kilometre and a half at 480 lines however
@@ -1478,7 +1478,7 @@ degree against its planet in fifteen seconds.
 
 ### Atmospheres
 
-A celestial body drawn as a sphere can have air (`AtmosphereComponent`) and rings
+A body (`BodyComponent`) drawn as a sphere can have air (`AtmosphereComponent`) and rings
 (`RingsComponent`), given in a scene file (10a). Both are maths over a sphere rather than meshes or
 tables: `atmosphere.glsl` and `rings.glsl`, written in the subset of GLSL that GLM compiles, so the
 render suite runs the shaders' own source as C++ (`render/Atmosphere.h`) against integration by
@@ -1948,7 +1948,7 @@ proves it headlessly. What exists:
   no presentation module; the render shell does not start through it yet (H05).
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
   render_test and the samples call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--content`, `--scene`, `--system`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
+  `--content`, `--scene`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
   written to a file, `--screenshot`, `--after-frames`, `--frame-step`, `--run` and `--offscreen`), builds
   `Application`, and prints any exception the run threw. A screenshot (10a) is the swapchain image
   as the output pass left it, UI and all, copied out by a transfer pass of the plan in the frame
@@ -1965,11 +1965,9 @@ proves it headlessly. What exists:
   and bindings read from them), resources (the asset VFS, the base,
   the user's mods and the user's data directory writable over them ([files](#files-packs-and-mods)),
   the I/O worker, the resource manager and the rig loader, the definitions and the mods' scripts
-  ([scripts](#scripts)), which hear every event the shell takes, then the game's definitions, which
-  for the space sample read the galaxy, `systems/galaxy.yaml` unless `--galaxy` names another), scene
-  (the scene, `--system`'s star system with nothing authored, then the game's, which for the sample
-  is the system scene of the star system the scene names, read through the VFS), renderer, and window (its title and
-  size). The shell holds the renderer as `Render::IRenderer` alone and
+  ([scripts](#scripts)), which hear every event the shell takes, then the game's definitions), scene
+  (the scene file, or the game's default through the VFS, then what the game builds onto it),
+  renderer, and window (its title and size). The shell holds the renderer as `Render::IRenderer` alone and
   includes no Vulkan header. The resource manager updates once a frame, before the render.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
 - **Jumps**. J jumps out through the next of the shown system's lanes, so jumping again tours them;
@@ -2025,8 +2023,8 @@ proves it headlessly. What exists:
   loader and the writer share one check of what a file may say. It has transform, parent,
   world-transform, camera, light (a point or a spot, with a range), sun, sky, colour grade and mesh
   components (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder
-  - and optionally a material file, by virtual path), celestial bodies placed by the star system
-  the scene names (a virtual path too), an orbit camera rig, and the animation module's
+  - and optionally a material file, by virtual path), bodies (`BodyComponent`, the `celestial` record, by name, which a game may place), an
+  orbit camera rig, and the animation module's
   rotation-animation, skeleton and animation-player components, a clip file's player
   (`ClipPlayerComponent`) and an entity's layer. It names no device: a model mesh holds its rig as a
   resource handle (`RigComponent`), and `SceneUpdateSystem` poses the model once the rig is in,
