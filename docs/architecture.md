@@ -11,12 +11,12 @@ gameplay/content; Jettison provisions reusable engine capabilities after checkin
 current requirements. Small engine-local gameplay examples remain permitted for testing,
 but belong in explicit sample targets outside engine code and use public SDK interfaces.
 
-Physics' star systems and the space transit AI are the `space` module's (W01); a star system's scene
-and the jump between two were `spacescene`'s, retired with the space sample on 2026-11-22 (the
-[space extraction](space-extraction-plan.md)); the snapshot's frames are neutral (A01). The dock's pad classes are data, and every
-configure holds the neutral modules to needing none of the space capability (W01).
-Extract a neutral host, separate resources and generic modules, and make space services
-optional. No neutral engine target may depend on a sample or Manifest. Presentation
+Star systems, their orbits and the galaxy, and space transit on the engine's transit, are Manifest's
+`space` module since slice 6 of the [space extraction](space-extraction-plan.md) (2026-11-23); a star
+system's scene and the jump between two were `spacescene`'s, retired with the space sample on
+2026-11-22; the snapshot's frames are neutral (A01). The dock's berth classes are data.
+Extract a neutral host, separate resources and generic modules. No engine target may depend on a
+sample or Manifest. Presentation
 must also work without celestial content. Preserve existing regressions through explicit
 sample composition and save migrations; do not claim extraction complete from docs alone.
 
@@ -55,7 +55,6 @@ jettison/
     │   ├── ecs/                scheduler, tick phases, events, FSM utility
     │   ├── animation/          glTF rigs and clip player, TRS tracks, mechanical skins
     │   ├── sim/                simulation world, command queue, snapshots, definition registry
-    │   ├── celestial/          celestial clock, on-rails orbits, system frames, the jump-lane graph
     │   ├── scene/              presentation scene, its file, update systems, camera rigs; layers
     │   ├── spatial/            per-system spatial index, queries
     │   ├── input/              actions, contexts, bindings, devices
@@ -66,7 +65,8 @@ jettison/
     │   ├── ui/                 RmlUi integration and data binding, drawn into render's overlay
     │   │   └── imgui/          ImGui backend, console, dev tools
     │   ├── ai/                 utility AI, behaviour trees, graph pathfinding, steering
-    │   ├── dock/               stations' pads and the ships on them: given, queued, flown in, clamped
+    │   ├── transit/            motion profiles, passages out of physics, portals, slots
+    │   ├── dock/               platforms' berths and the vehicles on them: given, queued, flown in
     │   ├── script/             Wasm host: scripts, their limits, bindings from reflection
     │   ├── host/               the CPU session a game starts through: content, definitions, world
     │   ├── net/                ENet server and client: handshake, tokens, framing, snapshots
@@ -151,9 +151,6 @@ flowchart TB
     end
     subgraph T4[Presentation and simulation services]
         render; physics; audio; ui; ai; transit; dock; script; net
-        space --> physics
-        space --> ai
-        space --> transit
         transit --> physics
         transit --> ai
     end
@@ -177,25 +174,20 @@ sibling edges are `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, 
 render's public headers, and decodes a document's images with render's CPU texture decoder; it
 includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9b): steering flies a
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
-`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there; it links no
-`space` or `celestial` (G01d), though its suites fly in the retired sample's star system, a copy in
-their fixtures. `transit` is travel of no genre (below, "Transit"), from the [space
+`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there; its suites fly
+round a platform on a ferry of their own frame model. `transit` is travel of no genre (below, "Transit"), from the [space
 extraction](space-extraction-plan.md): on `physics`, as a passage takes an entity's body out and
 gives it back, and on `ai`, as it gives up a steered entity's destination; its portals take an entity
-out of its frame and bring it out at an exit, and its slots are held by one entity at a time. `space` is the optional space capability (W01): its
-edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
-transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
-saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
-neutral module depends on it. The configure holds them to that: `jettison_check_optional` stops it
-when any engine module links a sample's target, through any target and whatever either is called, and when a module other than `celestial` and `space` has one of the
-two in its link closure or includes one's header in its public headers, and a module added later
-is neutral unless it is listed there; the shell and the dock are neutral (G01). The `neutral_words`
-suite holds the neutral modules' headers and sources, outside their string literals, to none of the
-space setting's words but those `cmake/neutral-words.txt` still lists, each a file and a word, a list
-the [space extraction](space-extraction-plan.md) empties. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
+out of its frame and bring it out at an exit, and its slots are held by one entity at a time. Star
+systems as physics frames, cruising, lanes, gates and routes over the galaxy are Manifest's, built on
+`transit`, `physics` and `ai`. The configure stops when any engine module links a sample's target,
+through any target and whatever either is called (`jettison_check_dependencies`). The
+`neutral_words` suite holds the engine's headers and sources, outside their string literals, to none
+of the space setting's words but those `cmake/neutral-words.txt` lists, each a file and a word, a list
+the [space extraction](space-extraction-plan.md) has emptied. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
 search, courses round spheres (`ai/Courses.h`) and steering.
 
-The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `space`, `ai` and `dock` never
+The rule that matters most: **`sim`, `spatial`, `physics`, `ai`, `transit` and `dock` never
 include `render`, `ui`, `audio` or `input`**. Simulation code that can see the renderer eventually reads
 from it, and then it is no longer deterministic or testable without a GPU.
 

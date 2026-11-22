@@ -234,9 +234,8 @@ The CPU-only configure is in (`clang-cpu`, above, and a gate stage) and so is th
 consumer (H04, above), and the engine's assets are held to their own directories, none of the
 sample's content in them (H05, the app suite's `Game` cases), and the physics suite's room is a
 non-space physics scene, its own frame model's gravity and lift and no celestial definition (W01).
-Every configure checks the target and header dependencies (W01, `jettison_check_optional`): no
-engine module has a sample's target in its link closure, and no module but the space capability's (`celestial`, `space`)
-has one of the two in its link closure or its public headers.
+Every configure checks the target dependencies (W01, `jettison_check_dependencies`): no engine
+module has a sample's target in its link closure.
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
 development environment's three files identical to Manifest's. Desktop tools stay on the desktop,
@@ -254,7 +253,7 @@ headless render test, from the packed assets, [offscreen](#headless-render-test)
 there is one and on lavapipe under Xvfb with `--llvmpipe` (CI, the pre-merge hook) or where there is
 no `/dev/dri` → reference frames,
 from the staged directory, and with `--asan`, the render test and the `vfs`, `serialise`, `resource`,
-`sim`, `spatial`, `physics`, `space`, `ai`, `dock`, `script` and `host` suites under the sanitisers
+`sim`, `spatial`, `physics`, `transit`, `ai`, `dock`, `script` and `host` suites under the sanitisers
 (`vfs` and `script` for the packs and the modules, whose bytes are a mod's; `serialise` for the binary
 reader, which parses every save and its truncations; `resource` for loaders' callbacks
 that load more, which once moved the slot `Finish` held; `host` for what a failed start-up and a

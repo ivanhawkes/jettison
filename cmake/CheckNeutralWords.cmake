@@ -1,10 +1,10 @@
-# The space setting's words kept out of the neutral modules (docs/space-extraction-plan.md): every
-# word found in a neutral module's headers and sources, outside its string literals (a saved or
+# The space setting's words kept out of the engine's modules (docs/space-extraction-plan.md): every
+# word found in a module's headers and sources, outside its string literals (a saved or
 # reflected name keeps its old words until a migration changes it), camel case and snake case split into words,
 # has to be allowed for that file, and every allowance has to be still needed, so the list only
 # shrinks. Run by the neutral_words test, or with -DWRITE=ON to write the list as the tree has it.
 #
-#   cmake -DENGINE=<source/engine> -DALLOWED=<list> -DOPTIONAL=<module;...> [-DWRITE=ON] -P <this>
+#   cmake -DENGINE=<source/engine> -DALLOWED=<list> [-DWRITE=ON] -P <this>
 
 # The words, each a regular expression over lower case, and the name the list gives it.
 set(words
@@ -22,7 +22,7 @@ set(words
 file(GLOB modules LIST_DIRECTORIES true RELATIVE "${ENGINE}" "${ENGINE}/*")
 set(found)
 foreach(module IN LISTS modules)
-	if(NOT IS_DIRECTORY "${ENGINE}/${module}" OR module IN_LIST OPTIONAL)
+	if(NOT IS_DIRECTORY "${ENGINE}/${module}")
 		continue()
 	endif()
 	file(GLOB_RECURSE sources RELATIVE "${ENGINE}"
@@ -52,7 +52,7 @@ endforeach()
 
 if(WRITE)
 	list(JOIN found "\n" lines)
-	file(WRITE "${ALLOWED}" "# The space setting's words still in the neutral modules, a file and a word a line, which the\n# space extraction removes (docs/space-extraction-plan.md); cmake/CheckNeutralWords.cmake checks it.\n${lines}\n")
+	file(WRITE "${ALLOWED}" "# The space setting's words still in the engine's modules, a file and a word a line, which the\n# space extraction removes (docs/space-extraction-plan.md); cmake/CheckNeutralWords.cmake checks it.\n${lines}\n")
 	return()
 endif()
 

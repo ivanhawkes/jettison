@@ -26,29 +26,5 @@ reason:
     no_pilot: niemand Bestimmtes kann ein Steuer übernehmen
     helm_held: jemand anderes ist am Steuer des Schiffs
     not_at_helm: der Absender ist nicht am Steuer des Schiffs
-  space:
-    no_such_entity: dieses Schiff gibt es nicht
-    on_lane: es ist bereits auf einer Sprungroute
-    in_no_system: es ist in keinem System
-    no_galaxy: es gibt keine Galaxie
-    system_not_in_galaxy: sein System gehört nicht zur Galaxie
-    no_lane: keine Sprungroute verlässt {0} durch {1}
-    arrival_undefined: die Sprungroute endet in {0}, das nicht definiert ist
-    not_controller: der Absender befehligt das Schiff nicht
-    already_cruising: es ist bereits im Reiseflug
-    cannot_cruise: das Schiff hat keinen Reiseantrieb oder wird gehalten
-    system_undefined: sein System ist nicht definiert
-    no_such_body: "{0} hat keinen Körper namens {1}"
-    near_station: es ist zu nah an {0} für den Reiseflug
-    already_there: es ist bereits bei {0}
-    no_course: jeder Kurs nach {0} ist versperrt
-    not_a_gate: es ist kein Sprungtor
-    cannot_transit: das Schiff fliegt nicht oder wird gehalten
-    not_at_gate: das Schiff ist nicht bei {0}
-    already_cleared: das Schiff ist bereits für {0} freigegeben
-    already_queued: das Schiff wartet bereits auf {0}
-    leads_nowhere: keine Sprungroute führt durch {0}
-    not_cleared: das Schiff war für {0} nicht freigegeben
-    hull_too_large: der Rumpf passt nicht durch den Ring von {0} mit {1} m Radius
   physics:
     not_at_helm: der Absender ist nicht am Steuer des Schiffs

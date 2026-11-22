@@ -7,7 +7,7 @@ space code. The space sample has served its purpose and is retired: what of it s
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
 station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
-Slices 1 to 4 are done, and slice 5 is under way; the inventory behind the plan was taken on Jettison `ccc0ae7` and
+Slices 1 to 6 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
 ## Where things stand
@@ -196,7 +196,15 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      links a space module now.
 6. **The move.** `celestial`'s orbits, bodies and galaxy, `space`'s setting and the routes into
    Manifest's `space` module, reflected names unchanged; `celestial`, `space` and `spacescene` leave the engine and its
-   optional list. Manifest's suites and pins held on the new SDK pin.
+   optional list. Manifest's suites and pins held on the new SDK pin. **Done** 2026-11-23: both
+   modules, their suites and fixtures are Manifest's `space` (`Manifest::Space`,
+   `manifest/space/*.h`), celestial's `RegisterTypes` now `RegisterSystemTypes` beside space's;
+   the engine has no optional module, so `jettison_check_optional` is `jettison_check_dependencies`,
+   the samples' check alone, and `neutral_words` reads every module. The reasons' words under
+   `reason.space.*` left the engine's tables with the module; Manifest has no string tables yet, so
+   they wait in Jettison's history for its client (L15). Every pin held: Manifest's 54 suites, the
+   new `space` among them, on the local engine. Architecture's sections on jumps, gates, routes and
+   cruising still describe what is now Manifest's code, for slice 8 to move.
 7. **Saved names.** Every saved and reflected name still in the setting's words or the old module's
    (`"byHull"`, `Ai.OnLane`, `Ai.Cruising` and the rest) renamed at once, and `Dock.Transfer`
    and `Dock.Buggy`, kept with no behaviour since slice 2, dropped: one save version and its

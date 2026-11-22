@@ -1,2 +1,2 @@
-# The space setting's words still in the neutral modules, a file and a word a line, which the
+# The space setting's words still in the engine's modules, a file and a word a line, which the
 # space extraction removes (docs/space-extraction-plan.md); cmake/CheckNeutralWords.cmake checks it.

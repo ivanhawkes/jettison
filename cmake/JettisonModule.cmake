@@ -95,29 +95,21 @@ function(jettison_add_module name)
 endfunction()
 
 
-# jettison_check_optional(SAMPLES <directory> OPTIONAL <module>...)
+# jettison_check_dependencies(SAMPLES <directory>)
 #
 # Holds the modules to their dependencies (docs/architecture.md, "Module dependencies"), called once
 # every target is added: it stops the configure when a module has a target defined under SAMPLES in
-# its link closure, whatever the target is called; or when one not optional has an
-# optional module in its closure, reached through any target, or includes one's headers in its own
-# public headers, where a consumer would need it; or when a link of any target in a module's closure
-# has a generator expression anywhere in it that the check cannot read a target from, since a
-# helper's conditional link would otherwise drop out of the closure. A module is held to it unless
-# it is listed, so a new one is from the start. The suites are not modules: a neutral module's may
-# fly in a star system.
-function(jettison_check_optional)
-	cmake_parse_arguments(PARSE_ARGV 0 arg "" "SAMPLES" "OPTIONAL")
-	set(listed)
-	foreach(module IN LISTS arg_OPTIONAL)
-		list(APPEND listed jettison_${module})
-	endforeach()
-	list(JOIN arg_OPTIONAL "|" optional)
+# its link closure, reached through any target, whatever the target is called; or when a link of any
+# target in a module's closure has a generator expression anywhere in it that the check cannot read a
+# target from, since a helper's conditional link would otherwise drop out of the closure. A module
+# added later is held to it from the start. The suites are not modules.
+function(jettison_check_dependencies)
+	cmake_parse_arguments(PARSE_ARGV 0 arg "" "SAMPLES" "")
 	get_property(modules GLOBAL PROPERTY JETTISON_MODULES)
 	set(wrappers "BUILD_INTERFACE|BUILD_LOCAL_INTERFACE|INSTALL_INTERFACE|LINK_ONLY|TARGET_NAME")
 	foreach(target IN LISTS modules)
-		# Every target it links, through every one of them, whatever its name: a sample's library or
-		# a helper that carries an optional module need not be named jettison_*. A link wrapped in a
+		# Every target it links, through every one of them, whatever its name: a sample's library, or
+		# a helper that carries one, need not be named jettison_*. A link wrapped in a
 		# generator expression that only says where it applies is the target inside it.
 		set(closure)
 		set(pending ${target})
@@ -163,31 +155,6 @@ function(jettison_check_optional)
 				message(FATAL_ERROR
 					"${target} depends on ${linked}, a sample's, directly or through another module; "
 					"no engine module may (docs/architecture.md, Module dependencies).")
-			endif()
-		endforeach()
-
-		if(target IN_LIST listed)
-			continue()
-		endif()
-		foreach(module IN LISTS arg_OPTIONAL)
-			if(jettison_${module} IN_LIST closure)
-				message(FATAL_ERROR
-					"${target} depends on the optional '${module}', directly or through another module; "
-					"only an optional module may (docs/architecture.md, Module dependencies).")
-			endif()
-		endforeach()
-
-		get_target_property(directory ${target} SOURCE_DIR)
-		get_target_property(headers ${target} HEADER_SET)
-		foreach(header IN LISTS headers)
-			if(NOT IS_ABSOLUTE "${header}")
-				set(header "${directory}/${header}")
-			endif()
-			file(STRINGS "${header}" includes REGEX "#[ \t]*include[ \t]*<jettison/(${optional})/")
-			if(includes)
-				message(FATAL_ERROR
-					"${header}, a public header of ${target}, has '${includes}', a header of an optional "
-					"module (docs/architecture.md, Module dependencies).")
 			endif()
 		endforeach()
 	endforeach()

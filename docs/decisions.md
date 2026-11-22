@@ -582,7 +582,9 @@ Settled on 2026-11-10:
   alternative, which leaves folder names that do not show the boundary. A pad class is a definition
   ranked among the others, a hull fitting its own class's pads and those ranked above (Manifest's
   D-044); fitting by size alone was the alternative, which would let a ship onto a pad the game
-  means for another kind.
+  means for another kind. Superseded on 2026-11-23 by the [space extraction](space-extraction-plan.md):
+  `celestial` and `space` are Manifest's `space` module (slice 6), and `spacescene` went with the
+  sample (slice 2).
 - **The engine's shell is generic; gameplay is the game's, extending it** (2026-11-18, the user's,
   scheduled as G01). The rendered shell (`app`) provides what any game needs: the window,
   renderer, game UI and console, saves, mods and settings, input, the developer views, and a

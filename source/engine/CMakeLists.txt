@@ -22,7 +22,6 @@ add_subdirectory(ecs)
 # the scene.
 add_subdirectory(animation)
 add_subdirectory(sim)
-add_subdirectory(celestial)
 add_subdirectory(spatial)
 add_subdirectory(scene)
 add_subdirectory(input)
@@ -31,8 +30,6 @@ add_subdirectory(input)
 add_subdirectory(physics)
 add_subdirectory(ai)
 add_subdirectory(transit)
-# The space capability over them, which no neutral module depends on.
-add_subdirectory(space)
 add_subdirectory(dock)
 add_subdirectory(script)
 

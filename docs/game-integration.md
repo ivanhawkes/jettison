@@ -88,8 +88,9 @@ exercise gameplay, but must use the same public interfaces as an external game.
 
 These checks hold the boundary, and each exists:
 
-- **Dependency checks:** at every configure, `jettison_check_optional` refuses a core-to-sample
-  edge, and a neutral-module-to-space edge in a target closure or a public header.
+- **Dependency checks:** at every configure, `jettison_check_dependencies` refuses an
+  engine-to-sample edge in a target closure, and the `neutral_words` suite the space setting's words
+  in the engine's code; the engine has no space module since the space extraction's slice 6.
 - **Neutral start-up:** it registers no sample traders, markets or fleet. The `app` suite's `Game`
   cases check this.
 - **Engine packs:** their contents are held to the engine's own directories. No production

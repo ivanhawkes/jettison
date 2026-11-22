@@ -14,8 +14,8 @@ the next integration, and provision reusable gaps in public engine code.
 Manifest owns its production economy, progression, ownership, scenarios and assets.
 Jettison may keep a small space-trading example for automated tests, separated into
 explicit sample/test code and content. Generic consumers must not start its economy,
-link its rules or mount its data implicitly. Optional celestial and space capabilities
-may remain engine extensions, with no dependency from the neutral core back to them.
+link its rules or mount its data implicitly. The space setting, star systems and their transit
+included, is Manifest's ([space extraction](space-extraction-plan.md)).
 
 This direction, approved 2026-11-15, supersedes the earlier test of whether a feature
 would suit another space game. Ask whether its contract is reusable independently of

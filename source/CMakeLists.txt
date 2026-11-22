@@ -197,21 +197,13 @@ if(JETTISON_PRESENTATION)
 	add_subdirectory("test")
 endif()
 
-# Once every target is added (W01): no engine module needs a sample, and the space capability, star
-# systems and space transit, is optional, which a game of none links none of. Every other module is
-# neutral and is held to needing none of it.
-jettison_check_optional(
-	SAMPLES
-		"${CMAKE_CURRENT_SOURCE_DIR}/samples"
-	OPTIONAL
-		celestial
-		space)
+# Once every target is added (W01): no engine module needs a sample.
+jettison_check_dependencies(SAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/samples")
 
-# And the setting's words out of the neutral modules, but those still listed (the space extraction).
+# And the space setting's words out of the engine's modules, but those listed (the space extraction).
 if(JETTISON_BUILD_TESTS)
 	add_test(NAME neutral_words COMMAND ${CMAKE_COMMAND}
 		"-DENGINE=${CMAKE_CURRENT_SOURCE_DIR}/engine"
 		"-DALLOWED=${PROJECT_SOURCE_DIR}/cmake/neutral-words.txt"
-		"-DOPTIONAL=celestial;space"
 		-P "${PROJECT_SOURCE_DIR}/cmake/CheckNeutralWords.cmake")
 endif()

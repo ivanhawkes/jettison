@@ -1,6 +1,5 @@
 # The ground sample (docs/sample-game.md): a rover driven on the ground under gravity, a game of no
-# space composed into the shell (App::Game). It links the shell alone, which links no space module
-# (jettison_check_optional), and the smoke test runs it beside the space sample.
+# space composed into the shell (App::Game). It links the shell alone, and the smoke test runs it.
 add_library(jettison_sample_ground STATIC
 	include/jettison/sample/GroundGame.h
 	include/jettison/sample/RoverInput.h

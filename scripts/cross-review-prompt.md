@@ -6,8 +6,8 @@ here to agree. A review that finds nothing should say what you tried and why it 
 Read before judging:
 
 - `CLAUDE.md` (how the project works; it applies to you as much as to the author).
-- `docs/coding-standards.md`, all of it. The simulation modules (`sim`, `celestial`, `spatial`,
-  `physics`, `ai`, `dock`, `script`, `math`) are deterministic: no wall clock, the engine's
+- `docs/coding-standards.md`, all of it. The simulation modules (`sim`, `spatial`, `physics`,
+  `ai`, `transit`, `dock`, `script`, `math`) are deterministic: no wall clock, the engine's
   `Random`, no unordered iteration deciding an outcome, integer currency, `-ffp-contract=off`.
 - `docs/architecture.md`, and the roadmap row in `docs/roadmap.md` the change claims to serve.
 
