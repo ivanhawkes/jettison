@@ -1,7 +1,0 @@
-# A liner's display bay: no ship is given one.
-# A pad class of the docks (Dock.PadClassDefinition): metres, a hull length by beam by height
-# and a pad width by length.
-version: 1
-rank: 3
-largestHull: [300, 80, 60]
-padSize: [120, 360]

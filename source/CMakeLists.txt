@@ -191,31 +191,27 @@ add_subdirectory("tools/pack")
 
 if(JETTISON_PRESENTATION)
 	add_subdirectory("tools/flotsam")
-	# The space-trading sample, a game composed into the shell, and the runtime viewer that runs it.
-	add_subdirectory("samples/space")
 	# A game of no space, a rover on the ground, which the smoke test runs as well.
 	add_subdirectory("samples/ground")
-	add_subdirectory("samples/jetsam")
-	# The render smoke harness and the dependency probe.
+	# The render smoke harness, its test content and the dependency probe.
 	add_subdirectory("test")
 endif()
 
 # Once every target is added (W01): no engine module needs a sample, and the space capability, star
-# systems, space transit and their scenes, is optional, which a game of none links none of. Every
-# other module is neutral and is held to needing none of it.
+# systems and space transit, is optional, which a game of none links none of. Every other module is
+# neutral and is held to needing none of it.
 jettison_check_optional(
 	SAMPLES
 		"${CMAKE_CURRENT_SOURCE_DIR}/samples"
 	OPTIONAL
 		celestial
-		space
-		spacescene)
+		space)
 
 # And the setting's words out of the neutral modules, but those still listed (the space extraction).
 if(JETTISON_BUILD_TESTS)
 	add_test(NAME neutral_words COMMAND ${CMAKE_COMMAND}
 		"-DENGINE=${CMAKE_CURRENT_SOURCE_DIR}/engine"
 		"-DALLOWED=${PROJECT_SOURCE_DIR}/cmake/neutral-words.txt"
-		"-DOPTIONAL=celestial;space;spacescene"
+		"-DOPTIONAL=celestial;space"
 		-P "${PROJECT_SOURCE_DIR}/cmake/CheckNeutralWords.cmake")
 endif()

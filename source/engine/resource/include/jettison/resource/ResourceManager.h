@@ -153,7 +153,7 @@ class ResourceManager
 
 	// Resources of every type that are loading for the first time: neither ready nor failed yet. A
 	// reload in flight is not counted, since the resource still has its last value to show. What a
-	// jump waits on before its new system is shown (scene/JumpTransition.h).
+	// game waits on before a scene it changes to is shown.
 	std::size_t Loading() const;
 
 	// Drains the worker, finishing the loads it completed, and with hot reload on checks for

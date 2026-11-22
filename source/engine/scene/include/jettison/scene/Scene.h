@@ -18,9 +18,9 @@ class ResourceManager;
 
 namespace Jettison::Scene
 {
-// A scene file read and checked, not yet made into entities (Scene::Load). What a jump reads its
-// destination's scene as before it replaces the scene (scene/JumpTransition.h), so a file that is
-// refused leaves the scene that is shown as it was.
+// A scene file read and checked, not yet made into entities (Scene::Load). What a game reads the
+// scene it changes to as before it replaces the scene, so a file that is refused leaves the scene
+// that is shown as it was.
 class SceneFile
 {
   public:
@@ -90,8 +90,8 @@ class Scene
 
 	std::string SaveText() const;
 
-	// Replaces the scene with one that authors nothing and names a star system, by virtual path: the
-	// system scene (scene/SystemScene.h) then builds all of it from the system file. Saved, it is a
+	// Replaces the scene with one that authors nothing and names a star system, by virtual path,
+	// which a game then builds all of from the system file. Saved, it is a
 	// file of that system and no entities.
 	void LoadSystem(std::string_view starSystem);
 

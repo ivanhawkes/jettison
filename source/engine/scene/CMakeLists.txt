@@ -1,7 +1,7 @@
 # The presentation scene: its components, its file, the systems that animate it and compose its
 # transforms, the camera rigs and the cinematics that move through it, and the proxies of the
 # simulation's entities from its snapshots. It names no device; the renderer reads it
-# (docs/architecture.md, "Simulation and presentation"). A star system's scene is spacescene's.
+# (docs/architecture.md, "Simulation and presentation").
 jettison_add_module(scene
 	DEPENDS
 		animation

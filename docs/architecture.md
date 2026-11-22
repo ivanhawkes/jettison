@@ -11,9 +11,9 @@ gameplay/content; Jettison provisions reusable engine capabilities after checkin
 current requirements. Small engine-local gameplay examples remain permitted for testing,
 but belong in explicit sample targets outside engine code and use public SDK interfaces.
 
-Physics' star systems and the space transit AI are the `space` module's, and a star system's scene
-and the jump between two the `spacescene` module's (W01); the snapshot's frames are neutral (A01),
-and the sample's trading and content its own (H05). The dock's pad classes are data, and every
+Physics' star systems and the space transit AI are the `space` module's (W01); a star system's scene
+and the jump between two were `spacescene`'s, retired with the space sample on 2026-11-22 (the
+[space extraction](space-extraction-plan.md)); the snapshot's frames are neutral (A01). The dock's pad classes are data, and every
 configure holds the neutral modules to needing none of the space capability (W01).
 Extract a neutral host, separate resources and generic modules, and make space services
 optional. No neutral engine target may depend on a sample or Manifest. Presentation
@@ -76,16 +76,12 @@ jettison/
     │   ├── flotsam/            editor
     │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/
-    │   ├── space/              the space-trading sample as a game composed into the shell: the
-    │   │   │                   space layer (galaxy, jumps, stations, ship, piloting), trading,
-    │   │   │                   traders, fleet and shipyard, market screen (Sample::)
-    │   │   └── assets/         its content, mounted as base: definitions, systems, scenes,
-    │   │                       models, textures, sounds, the market screen and its strings
-    │   ├── ground/             a game of no space: a rover driven on the ground under gravity,
-    │   │                       its scene, keys and chase camera, and its entry point (Sample::)
-    │   └── jetsam/             the runtime entry point, the shell with the space sample
-    └── test/                   the render smoke harness (test executable), its reference
-                                frames and the data mod its packed run loads
+    │   └── ground/             a game of no space: a rover driven on the ground under gravity,
+    │                           its scene, keys and chase camera, and its entry point (Sample::)
+    └── test/                   the render smoke harness (render_test, the shell with no game),
+                                its test content (static scenes, materials, textures, models,
+                                sounds), which the engine's suites read too, and its reference
+                                frames
 ```
 
 Each engine module has the same shape:
@@ -114,9 +110,9 @@ resolves the same paths to device models through its own cache, behind `IRendere
 read from the glTF file by `animation`, which moved to the World tier, below `scene`, so the clip
 player the scene drives is no longer a sibling edge of `render`'s.
 
-The executables keep the names they already have: **Flotsam** is the editor, **Jetsam** is the
-runtime, now a sample viewer because the game has its own repository, and **render_test** is
-the render smoke harness that the gate runs. It was `test` until CTest reserved that name (see
+The executables keep the names they already have: **Flotsam** is the editor and **render_test**
+the render smoke harness that the gate runs; **Jetsam**, the runtime that ran the space sample,
+went with it (2026-11-22), the game having its own repository. It was `test` until CTest reserved that name (see
 [build and gates](build-and-gates.md#unit-tests)).
 
 ### Consumption by the game repository
@@ -151,8 +147,6 @@ flowchart TB
     subgraph T3[World]
         scene --> animation
         scene --> sim
-        spacescene --> scene
-        spacescene --> celestial
         sim; spatial; input
     end
     subgraph T4[Presentation and simulation services]
@@ -172,9 +166,7 @@ flowchart TB
 
 The World tier's listed sibling edges are `scene`'s: on `animation`, whose clip players its update
 drives, and on `sim`, whose snapshots its proxies of the simulation's entities are made from
-(`scene/SimProxies.h`, 6b); `spacescene`'s, the space capability's presentation (W01), on `scene`
-and on `celestial`, whose star systems its system scenes and jump transitions are built from, which
-no neutral module depends on; and `spatial`'s on `sim` (9b), whose components its
+(`scene/SimProxies.h`, 6b); and `spatial`'s on `sim` (9b), whose components its
 index of each system is kept from, by a simulation system. The scene reads `Sim::Snapshot` alone, never the
 world, and nothing in `sim` sees the scene. `render` depends on
 `scene` from the tier above, and reads it; the scene names no device. The Presentation tier's listed
@@ -183,13 +175,14 @@ render's public headers, and decodes a document's images with render's CPU textu
 includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9b): steering flies a
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
 `ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there; it links no
-`space` or `celestial` (G01d), though its suites fly in the sample's star system. `space` is the optional space capability (W01): its
+`space` or `celestial` (G01d), though its suites fly in the retired sample's star system, a copy in
+their fixtures. `space` is the optional space capability (W01): its
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
 neutral module depends on it. The configure holds them to that: `jettison_check_optional` stops it
-when any engine module links a sample's target, through any target and whatever either is called, and when a module other than `celestial`, `space` and `spacescene` has one of the
-three in its link closure or includes one's header in its public headers, and a module added later
+when any engine module links a sample's target, through any target and whatever either is called, and when a module other than `celestial` and `space` has one of the
+two in its link closure or includes one's header in its public headers, and a module added later
 is neutral unless it is listed there; the shell and the dock are neutral (G01). The `neutral_words`
 suite holds the neutral modules' headers and sources, outside their string literals, to none of the
 space setting's words but those `cmake/neutral-words.txt` still lists, each a file and a word, a list
@@ -226,7 +219,8 @@ the key, `reason.dock.no_pad_fits`, so two modules cannot make the same one; pre
 in the player's language ([localisation](#localisation)). The step makes no English for the player,
 and a developer reads a reason as its key and arguments (`Sim::Describe`).
 
-A star system's presentation is a **system scene** (`spacescene/SystemScene.h`, 6b), built onto the
+A star system's presentation was a **system scene** (`spacescene`, 6b, retired with the space
+sample on 2026-11-22, for Manifest to build as its graphical client needs), built onto the
 scene from the system description, around whatever a scene file authored, and from the
 simulation's snapshots. Its content is in **layers**: the environment (bodies, stations, the sky:
 what the system places), traffic (the simulation's entities, through proxies a factory the game
@@ -244,8 +238,7 @@ system's frame, and an entity on a jump lane is in none (`Sim::kNoFrame`).
 
 ### Jumps
 
-The galaxy (`celestial/Galaxy.h`; the sample's is
-`source/samples/space/assets/systems/galaxy.yaml`) is a graph: each system by name,
+The galaxy (`celestial/Galaxy.h`; the retired sample's was its `systems/galaxy.yaml`) is a graph: each system by name,
 with its system file, where one is authored a scene file, and its position in light years; each lane
 joining a jump point in one system to a jump point in another, travelled both ways, with a transit
 time in simulation seconds. A jump point is the end of one lane, so a gate says where it leads, and
@@ -254,7 +247,8 @@ credits, is the light years between its systems at the galaxy's toll per light y
 against the lanes that end in it when it is loaded.
 
 A jump replaces the system shown with another, behind an effect, without the frame loop stalling or
-the simulation stopping (`spacescene/JumpTransition.h`):
+the simulation stopping (`spacescene/JumpTransition.h`, retired with the space sample on
+2026-11-22; what follows is how it went):
 
 1. The effect rises, a fade to black in the output pass, mixed in after tonemapping and under the
    UI. Meanwhile the destination's system file and scene file are read on the I/O worker.
@@ -763,7 +757,8 @@ a step's work is bounded however soon a child succeeds. A task acts through comm
 they carry one, and are not recorded: they are the state's own consequence, which a replay sends
 again.
 
-**The sample's traders** (`samples/space/src/Traders.h`, [sample game](sample-game.md)) are the first to use
+**The sample's traders** (`samples/space/src/Traders.h`, retired with the sample on 2026-11-22, its
+record kept for Manifest's own) were the first to use
 both. Each follows `defs/behaviours/trader.yaml` and chooses its run by `defs/decisions/trade.yaml`,
 weighing a run's margin, the rivals after the same shelf and its credits a second over the route
 (`Space::PlotRoute`, crossing each system by course), and then flies it: off its pad, round the station
@@ -772,7 +767,8 @@ trade, and the wait while the buggies carry its crates. Seven trade between High
 one free pad keeps a queue; in twenty minutes of the `sample-space` suite they sell fourteen runs
 across the lane, queue five times, and no two hulls come within 35 m in flight.
 
-**The fleet** (`samples/space/src/Fleet.h`, 13d, [decided](decisions.md): a player has a fleet) is the
+**The fleet** (`samples/space/src/Fleet.h`, 13d, [decided](decisions.md): a player has a fleet;
+retired with the sample on 2026-11-22) was the
 ships a player commands (`Sim::ControlledBy`), each fitted as a trader is, with a hold, an
 `Sample::Trader` and the trader's tree, so every one they are not at the helm of trades for them, from
 their purse and from wherever it is. `Sample::BuyShip` sells a hull of `defs/shipyard` (`ShipForSale`:
@@ -889,21 +885,18 @@ out.
 The engine's assets and a game's content are two trees, each its own target and pack (H05). The
 engine's, `assets/`, are what the shell needs to start and draw with no content: the shaders and
 their programs, the fonts, the saves screen and its stylesheet, and the strings of the engine's
-modules (`numbers`, `saves`, and the `dock`, `ai` and `physics` reasons). The sample's,
-`source/samples/space/assets/` with its `mod.yaml`, are everything else: its definitions, star
-systems, scenes, models, materials, textures, clips, sequences, grades, sounds and music, the market
-screen and the strings of its goods, markets and trades. `jettison_add_assets` stages a tree as a
-target, which `jettison_use_content` gives an executable as its default content; Jetsam and the
-render test take the sample's, the `ground` executable the ground sample's, and Flotsam none,
-starting on an empty scene. The shell still names some content by convention, each optional: the
-default scene, unless the game names its own, and the music; the galaxy, the station hum and the
-materials and clip a station's dressing uses are the space sample's; content without them runs without them,
-in silence where the music is missing. Several engine suites read the sample's content as test data
-(`JETTISON_SAMPLE_ASSET_DIR`); none of the engine's code does.
+modules (`numbers`, `saves`, and the `dock`, `ai` and `physics` reasons). A game's content is
+everything else; the engine's own is the test content, `source/test/content/` with its `mod.yaml`:
+static scenes, models, materials, textures, a clip, a sequence, a grade and a few sounds.
+`jettison_add_assets` stages a tree as a target, which `jettison_use_content` gives an executable as
+its default content; the render test takes the test content, the `ground` executable the ground
+sample's, and Flotsam none, starting on an empty scene. The shell still names some content by convention, each optional: the
+default scene, unless the game names its own, and the music; content without them runs without
+them, in silence where the music is missing. Several engine suites read the test content as test
+data (`JETTISON_TEST_CONTENT_DIR`); none of the engine's code does.
 
 Nothing that reads content names a host path: the default scene is the game's
-(`Game::DefaultScene`, `scene/main.yaml` unless it names another; the space sample's is
-`scene/orbit.yaml`, Halcyon with the ship docked at Ostra Highport), through the mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
+(`Game::DefaultScene`, `scene/main.yaml` unless it names another), through the mounts, and ImGui's fonts are read through them into memory (`--scene` alone still names a file on
 disk, for the development scenes the reference views use).
 
 A pack is a directory's files in one file, each stored as it is or compressed as one zstd frame
@@ -912,9 +905,9 @@ is read and checked whole as it is mounted, and a pack that breaks its layout is
 is wrong. Its file is held open for the run and read with `pread`, so the I/O worker and the main
 thread read at once, and a pack replaced on the disk is read as it was mounted. `jettison_pack`
 writes one, and `jettison_add_pack` is the build's rule for it; the engine's assets are
-`jettison_assets_pack` (`build/<preset>/assets.pack`) and the sample's content
-`jettison_sample_space_pack` (`build/<preset>/source/samples/space/assets.pack`), which the smoke
-test runs from. The same
+`jettison_assets_pack` (`build/<preset>/assets.pack`) and the test content
+`jettison_test_content_pack` (`build/<preset>/source/test/content.pack`), which the smoke test runs
+from. The same
 files give the same bytes. A file is compressed only where zstd at level 1 saves a thirty-second of
 it, then at level 19: of the sample assets' 90.3 MB, the KTX 2 textures are zstd-supercompressed
 already and the models and music barely shrink, so 127 of 136 files are compressed and the pack is
@@ -1978,8 +1971,8 @@ proves it headlessly. What exists:
   system and then the game, so state a world callback captures from the game outlives it. It links
   no presentation module; the render shell does not start through it yet (H05).
 - **App shell** (`engine/app`). `RunRenderApplication` is the entry point Flotsam,
-  Jetsam and render_test call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
-  `--content`, `--scene`, `--system`, `--galaxy`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
+  render_test and the samples call: it parses argv (`AppArguments.cpp`: `--smoke-test`, `--assets`,
+  `--content`, `--scene`, `--system`, `--save-scene`, `--user-dir`, `--no-sound`, and for a frame
   written to a file, `--screenshot`, `--after-frames`, `--frame-step`, `--run` and `--offscreen`), builds
   `Application`, and prints any exception the run threw. A screenshot (10a) is the swapchain image
   as the output pass left it, UI and all, copied out by a transfer pass of the plan in the frame
@@ -2051,7 +2044,7 @@ proves it headlessly. What exists:
   machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML
-  (`source/samples/space/assets/scene/orbit.yaml` at real scale, the default, and `main.yaml`, the sample models) through `serialise`'s archives, at
+  (`source/test/content/scene/orbit.yaml` at real scale, and `main.yaml`, the models, the default) through `serialise`'s archives, at
   file version 2: a field the file does not know is refused, naming its path and line, and the
   loader and the writer share one check of what a file may say. It has transform, parent,
   world-transform, camera, light (a point or a spot, with a range), sun, sky, colour grade and mesh
@@ -2154,10 +2147,10 @@ proves it headlessly. What exists:
   tree and resources, the console, input and a context of the game's over the shell's, the
   definitions and the scripts, the player, the orbit cameras framed on a target, a sequence played,
   the pick cleared, and the game UI. With none, as Flotsam runs, the shell has physics and no space:
-  no galaxy, station, ship or market (`GameTests`). Jetsam and the render test compose the space
-  sample, and the `ground` executable the ground sample ([sample game](sample-game.md#the-ground-sample)).
-- **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md)):
-  the first slice of Manifest's plan, as a game composed into the shell. Its space layer
+  no galaxy, station, ship or market (`GameTests`), and so runs the render test; the `ground`
+  executable composes the ground sample ([sample game](sample-game.md#the-ground-sample)).
+- **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md);
+  retired on 2026-11-22, Manifest testing all space code, so what follows is its record): the first slice of Manifest's plan, as a game composed into the shell. Its space layer
   (`SpaceLayer`, G01b) is what the shell was of a space game: the galaxy, the system shown and the
   jumps between them, lanes, gates, cruises and routes, the stations built and dressed, the
   player's ship and fleet, piloting from behind or the seat, the console's traffic and the flight

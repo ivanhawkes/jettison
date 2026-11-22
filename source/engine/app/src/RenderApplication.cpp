@@ -9,7 +9,7 @@
 
 namespace Jettison::App
 {
-// The entry point flotsam, jetsam and render_test all call: read the command line, run the shell,
+// The entry point flotsam, render_test and the samples all call: read the command line, run the shell,
 // report what the run said. Everything that has a lifetime belongs to Application, whose destructor
 // is the lifecycle's safety net: constructed inside the try block, it tears the engine down in
 // order on every path - the frame loop's exit, an exception thrown from a frame, a start-up that

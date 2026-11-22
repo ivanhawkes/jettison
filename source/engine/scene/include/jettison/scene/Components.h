@@ -268,8 +268,8 @@ struct NodePoseComponent
 };
 
 // A body: a round mesh of it is drawn as one, its air and rings about it and its sphere occluding
-// what is behind it (render/SceneDraws). A star system, which the scene may name, places it each
-// frame (scene/SystemScene.h); a scene of none places it as authored.
+// what is behind it. A game may place it each frame by the star system the scene names; a scene of
+// none places it as authored.
 struct CelestialBodyComponent
 {
 	std::string body;

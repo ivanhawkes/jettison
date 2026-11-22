@@ -1,9 +1,0 @@
-# A cruiser, shown beside the liner on Highport's display wing, as dressing like it. A hull of the
-# docks (Dock.HullDefinition): metres, its nose along -Z.
-version: 2
-displayName: Cruiser
-length: 220
-beam: 60
-height: 40
-pad: cruiser
-hatch: [0, -20, 30]

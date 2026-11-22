@@ -14,8 +14,7 @@ get packed. How mounting, packs and layering work is in
 
 ### Lay out the directory
 
-Paths in the mod are the game's virtual paths. The smoke test's mod, `source/test/mods/smoke`, is a
-working example of each kind of file:
+Paths in the mod are the game's virtual paths, each kind of file in its place:
 
 ```
 mymod/
@@ -52,8 +51,8 @@ A script is WebAssembly, written in Rust or C against bindings generated from th
 built against another build's bindings fails to compile rather than misreading. Build the module
 with `jettison_add_script` (`source/CMakeLists.txt`) into the mod's `scripts/`, and declare it in
 `defs/scripts/<name>.yaml` with the capabilities it needs and the events and inputs it answers.
-`source/test/CMakeLists.txt` stages the smoke mod's files, builds its script
-(`source/test/scripts/smoke.rs`) and packs the result, the whole chain in one place.
+The script suite builds its own modules so (`source/engine/script/CMakeLists.txt`, its
+`tests/scripts`), in C and in Rust.
 
 ### Pack it
 

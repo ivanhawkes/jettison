@@ -1,7 +1,7 @@
 # The engine's own assets, what the shell needs to start and draw with no game's content mounted:
 # the shaders and their programs, the fonts, the saves screen and its stylesheet, and the strings of
-# the engine's modules. A game's content (the sample's is source/samples/space/assets) mounts over
-# them as "base" (app/Mounts.h).
+# the engine's modules. A game's content (the test content is source/test/content) mounts over them
+# as "base" (app/Mounts.h).
 file(GLOB JETTISON_PROGRAM_DESCRIPTORS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.program.yaml")
 jettison_add_assets(jettison_assets

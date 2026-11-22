@@ -10,6 +10,6 @@
 | [History](history.md) | Phases 0–9 as they were closed, and what each finished system became |
 | [Coding standards](coding-standards.md) | Naming, ownership, errors, determinism rules, dependencies, testing, commits |
 | [Build and gates](build-and-gates.md) | Building, the CI gate, warnings, tidy, sanitizers, the headless render test |
-| [Sample game](sample-game.md) | Small space-trading example coverage and its separation from engine and production gameplay |
+| [Samples](sample-game.md) | The ground sample, the space sample's retirement, and their separation from engine and production gameplay |
 
 A change that alters a decision recorded here updates the document in the same commit.

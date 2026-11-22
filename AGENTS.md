@@ -1,9 +1,10 @@
 # Jettison
 
 A C++20 game engine with a Vulkan renderer, intended for multiple game types. Manifest is
-its first production consumer and owns its gameplay and content. The small space-trading
-example remains automated-test/sample coverage, separate from reusable engine code: its code
-and content are in `source/samples/space` (H05). Linux, Clang 21; `docs/` records the contracts.
+its first production consumer and owns its gameplay and content, space included. The ground
+sample (`source/samples/ground`) and the test content (`source/test/content`) are the engine's
+own consumers; the space sample was retired in the space extraction. Linux, Clang 21; `docs/`
+records the contracts.
 
 ## Agent Directions
 

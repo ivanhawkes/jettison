@@ -1,7 +1,0 @@
-# How long the shuttle hull's cruises across a system take (Ai.CruiseDrive), which the sample
-# gives each ship of the hull (defs/hulls/shuttle.yaml): 40 s for 100,000 km, rising as the
-# distance's fourth root.
-version: 1
-seconds: 40
-reference: 1.0e8
-exponent: 0.25

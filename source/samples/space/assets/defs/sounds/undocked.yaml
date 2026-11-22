@@ -1,6 +1,0 @@
-# A pad's clamps letting a ship go, and the seal's air, heard from the pad as they open.
-version: 1
-clip: clamp.released
-sound: audio/effects/undocked.wav
-bus: Effects
-minDistance: 60

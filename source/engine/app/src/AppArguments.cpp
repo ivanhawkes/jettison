@@ -98,7 +98,7 @@ void PrintUsage(const char *argv0)
 	             "[--scene <file> | --system <virtual path>]"
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
 	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
-	             " [--galaxy <virtual path>] [--user-dir <directory>]"
+	             " [--user-dir <directory>]"
 	             " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
 	             " [--frame-step <seconds>] [--run [@<frame> | @<seconds>s] <console command>]..."
 	             " [--offscreen]\n";
@@ -127,8 +127,6 @@ std::optional<AppArguments> ParseAppArguments(
 			arguments.scenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--system" && index + 1 < argc)
 			arguments.systemPath = argv[++index];
-		else if (argument == "--galaxy" && index + 1 < argc)
-			arguments.galaxyPath = argv[++index];
 		else if (argument == "--save-scene" && index + 1 < argc)
 			arguments.saveScenePath = std::filesystem::absolute(argv[++index]);
 		else if (argument == "--depth-prepass")

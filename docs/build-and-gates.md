@@ -44,16 +44,12 @@ without them builds everything but the scripts, whose targets then fail saying w
 ### Scripts in the build
 
 The script suite's modules (`source/engine/script/tests/scripts`: `limits` and `rogue` in Rust,
-`events` in C and in Rust) and the smoke mod's script (`source/test/scripts/smoke.rs`) are built with
-the tree, not as the suites' dependencies, so a change to a reflected type still builds the suite
-that says the bindings are out of date. Each suite checks the bindings its scripts are built against
-byte for byte against what its types make: the script suite its own `jettison_script.h` and
-`jettison_script.rs`, the space sample's suite (`sample-space`) the shell's with the sample's,
-`source/test/scripts/jettison_script.rs`; on a
-difference it writes what they make into the build tree, to copy over. The generated header is left
-out of the format gate. The smoke mod is staged in the build tree (`source/test/mods/smoke`, its
-definitions and its built script), which the `sample-space` suite mounts as a player's unpacked mod
-and `render_test_smoke_mod` packs.
+`events` in C and in Rust) are built with the tree, not as the suite's dependency, so a change to a
+reflected type still builds the suite that says the bindings are out of date. The suite checks the
+bindings its scripts are built against, its own `jettison_script.h` and `jettison_script.rs`, byte
+for byte against what its types make; on a difference it writes what they make into the build tree,
+to copy over. The generated header is left out of the format gate. The smoke mod, a script of the
+shell's bindings that heard the space sample's trades, went with the sample (2026-11-22).
 
 ### Planned dependencies and the probe
 
@@ -240,9 +236,8 @@ consumer (H04, above), and the engine's assets are held to their own directories
 sample's content in them (H05, the app suite's `Game` cases), and the physics suite's room is a
 non-space physics scene, its own frame model's gravity and lift and no celestial definition (W01).
 Every configure checks the target and header dependencies (W01, `jettison_check_optional`): no
-engine module has a sample's target in its link closure, and no module but the space capability's (`celestial`, `space`, `spacescene`)
-has one of the three in its link closure or its public headers. The space example is the
-sample (`source/samples/space`), which composes them through the shell.
+engine module has a sample's target in its link closure, and no module but the space capability's (`celestial`, `space`)
+has one of the two in its link closure or its public headers.
 Run the relevant gates after implementation at the machine's own core count, clang-tidy
 included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
 development environment's three files identical to Manifest's. Desktop tools stay on the desktop,

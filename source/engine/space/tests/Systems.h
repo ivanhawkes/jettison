@@ -7,9 +7,9 @@
 #include <string_view>
 #include <utility>
 
-// What the AI suite's routes and lanes share: the sample galaxy's three systems in a line, Halcyon
-// to Vesper to Marrow, built in code from their files (source/samples/space/assets/systems) without the
-// bodies' spin, so a route from one end to the other is two jumps.
+// What the AI suite's routes and lanes share: the retired space sample's galaxy's three systems in a
+// line, Halcyon to Vesper to Marrow, built in code as its files had them without the bodies' spin, so a
+// route from one end to the other is two jumps.
 namespace Jettison::AiTests
 {
 inline Celestial::Body MakeBody(

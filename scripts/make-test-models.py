@@ -1,4 +1,4 @@
-# Rebuilds the test models in source/samples/space/assets/models with Blender, headless, no window:
+# Rebuilds the test models in source/test/content/models with Blender, headless, no window:
 #
 #   blender -b --factory-startup --python scripts/make-test-models.py
 #
@@ -12,7 +12,7 @@ import os
 import bpy
 
 OUT = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), '..', 'source', 'samples', 'space', 'assets', 'models')
+    os.path.dirname(os.path.abspath(__file__)), '..', 'source', 'test', 'content', 'models')
 FPS = 24
 
 

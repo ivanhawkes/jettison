@@ -165,9 +165,9 @@ ctest --test-dir build/clang-debug -R '^(devtools|render|app)$' --output-on-fail
 ./scripts/format-check.sh
 ./scripts/tidy.sh --build-dir build/clang-debug          # the whole tree, one copy per core
 clang-tidy -p build/clang-debug source/engine/ui/imgui/src/Theme.cpp          # one unit
-./scripts/capture.sh out.png --scene source/samples/space/assets/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 Ostra"
+./scripts/capture.sh out.png --scene source/test/content/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 ostra"
 ./scripts/capture.sh --references                                             # compare, at idle
-./scripts/capture.sh --references --update docked                             # record a frame
+./scripts/capture.sh --references --update orbit                              # record a frame
 nohup ./scripts/ci.sh --werror --asan --log build/gate.log > /tmp/gate-run.log 2>&1 &
 ```
 

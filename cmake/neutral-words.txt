@@ -10,13 +10,11 @@ ai/src/Ai.cpp station
 ai/src/Ai.cpp hull
 ai/src/Ai.cpp cruise
 app/include/jettison/app/AppArguments.h star-system
-app/include/jettison/app/AppArguments.h galaxy
 app/include/jettison/app/AppArguments.h ship
 app/include/jettison/app/SmokeSequence.h star-system
 app/include/jettison/app/SmokeSequence.h galaxy
 app/include/jettison/app/SmokeSequence.h station
 app/include/jettison/app/SmokeSequence.h ship
-app/src/AppArguments.cpp galaxy
 app/src/SmokeSequence.cpp ship
 dock/include/jettison/dock/Definitions.h celestial
 dock/include/jettison/dock/Definitions.h station

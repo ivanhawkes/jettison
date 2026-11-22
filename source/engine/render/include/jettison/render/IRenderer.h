@@ -128,8 +128,8 @@ class IRenderer
 	// scene's colour grade (Scene::ColourGradeComponent) is applied after it, to the display's colours.
 	virtual void SetExposure(float exposure) = 0;
 
-	// A colour over the scene, by an amount from 0 (none) to 1 (the whole frame): a jump's effect
-	// (scene/JumpTransition.h). Mixed in after tonemapping, in display light, and under the UI, so
+	// A colour over the scene, by an amount from 0 (none) to 1 (the whole frame): a game's fade between
+	// two scenes, as a jump's was. Mixed in after tonemapping, in display light, and under the UI, so
 	// the dev tools stay readable through it.
 	virtual void SetFade(const glm::vec3 &color, float amount) = 0;
 

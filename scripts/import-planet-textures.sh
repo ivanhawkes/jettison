@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Imports a planet's source maps (TGA, from the artist's pack) as KTX 2 textures under
-# source/samples/space/assets/textures/planets/<name>/, named <name>-<map>.ktx2, with KTX-Software's
+# source/test/content/textures/planets/<name>/, named <name>-<map>.ktx2, with KTX-Software's
 # ktx tool and ImageMagick from devenv:
 #
 #   scripts/import-planet-textures.sh <source-dir> <name>
@@ -33,7 +33,7 @@ if [[ ! $name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
 fi
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
-out="$repo/source/samples/space/assets/textures/planets/$name"
+out="$repo/source/test/content/textures/planets/$name"
 mkdir -p "$out"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT

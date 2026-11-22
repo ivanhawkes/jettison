@@ -8,7 +8,7 @@
 #   python3 scripts/make-grid.py
 #   ktx create --format R8G8B8_SRGB --assign-tf srgb --encode uastc --uastc-quality 2 \
 #       --uastc-rdo --zstd 19 --generate-mipmap floor-grid-color.png \
-#       source/samples/space/assets/textures/debug/floor-grid/floor-grid-color.ktx2
+#       source/test/content/textures/debug/floor-grid/floor-grid-color.ktx2
 import numpy as np
 from PIL import Image
 

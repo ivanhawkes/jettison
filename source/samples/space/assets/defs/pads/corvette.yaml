@@ -1,7 +1,0 @@
-# A fighter's pad.
-# A pad class of the docks (Dock.PadClassDefinition): metres, a hull length by beam by height
-# and a pad width by length.
-version: 1
-rank: 0
-largestHull: [25, 20, 8]
-padSize: [35, 40]

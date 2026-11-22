@@ -21,8 +21,8 @@ struct RunCommand
 };
 
 // What the executable was asked to run. argv is read once, here, so the app shell is handed a
-// description of the run instead of a command line: flotsam, jetsam and render_test share the
-// shell, and none of them has to know how the flags are spelled.
+// description of the run instead of a command line: flotsam, render_test and the samples share
+// the shell, and none of them has to know how the flags are spelled.
 struct AppArguments
 {
 	// The headless render test: the sequence of stages the shell hands to SmokeSequence.
@@ -46,11 +46,6 @@ struct AppArguments
 	// A star system file, by virtual path (systems/halcyon.yaml), in place of a scene: the scene is
 	// the one the system scene builds from it alone. Empty when the run loads a scene.
 	std::string systemPath;
-
-	// The galaxy whose systems a jump goes between, by virtual path. Without one named, the shell
-	// reads systems/galaxy.yaml if the assets have it, and runs with no jumps if they do not; a
-	// galaxy named and missing fails the start-up.
-	std::optional<std::string> galaxyPath;
 
 	// A measurement of the frame: this many frames timed after a warm-up, the GPU's time in each pass
 	// and the frame's counts printed, and the window closed. None when zero.

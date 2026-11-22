@@ -74,8 +74,8 @@ template <typename T> struct ComponentSample
 
 // The part of a world presentation may see, taken after a step: every entity with a Transform and
 // the frame it is in, and every entity's copy of each component the world shows, each sorted by
-// identifier so a lookup is a search. Presentation reads snapshots, never the world: a system scene
-// shows the entities in its own system's frame (scene/SystemScene.h), and the UI's data models read
+// identifier so a lookup is a search. Presentation reads snapshots, never the world: a game's scene
+// shows the entities in the frame it shows, and the UI's data models read
 // what the game shows, a platform's market or a vehicle's hold (ui/DataModel.h).
 struct Snapshot
 {

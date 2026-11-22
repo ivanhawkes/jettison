@@ -1,14 +1,12 @@
-# Small space-trading example
+# Samples
 
-Jettison may keep gameplay elements to exercise engine capabilities in automated tests.
-The space-trading example is that consumer, not Manifest's production game or part of
-the reusable engine contract. Its gameplay is `Sample::SpaceGame` in `source/samples/space`, a
-game composed into the shell (`App::Game`), with its space layer (`Sample::SpaceLayer`: the galaxy,
-jumps, stations, the ship and piloting, the shell's until G01b), and its content is `source/samples/space/assets`, a
-tree and pack of its own mounted as `base` over the engine's assets (H05). Jetsam and the render
-test select both explicitly; Flotsam composes no game and mounts no content unless `--content`
-names some. Keep useful command, save, script, docking and render regressions through this
-example.
+Jettison keeps small games of its own to exercise engine capabilities in automated tests; none is
+Manifest's production game or part of the reusable engine contract. The ground sample is the one
+left. The space-trading sample (`Sample::SpaceGame`, `source/samples/space`, run by Jetsam),
+which played the first slices of Manifest's plan from phase 8b, was retired on 2026-11-22 in the
+[space extraction](space-extraction-plan.md): Manifest tests all space code, the engine cases only
+it held are in the engine's suites, and its scenes, baked static, are the render test's content
+(`source/test/content`). Its code, content and what it played are in the history at `3a533dc`.
 
 ## The ground sample
 
@@ -23,8 +21,8 @@ writer leaves out, so a scene saved while it drives is the file loaded. It hears
 another game's. Its suite, `sample-ground`, drives the rover on the ground, replays a drive and a save
 taken part-way to the same state hash, reads the keys, and runs the game's hooks on a shell of its
 own: the proxy built and the scene as authored while it drives, the keys sent, and a save loaded
-with W held stopping the rover once the keys are read again. The smoke test runs it after the space
-sample's two scenes: its piloting stages drive the rover ahead and then turning, each waiting
+with W held stopping the rover once the keys are read again. The smoke test runs it after the render
+test's two scenes: its piloting stages drive the rover ahead and then turning, each waiting
 (`SmokeActions::piloting`) until it is past 1 m/s and then 10 degrees from where it faced, which the
 game logs and the smoke test reads. It has no jump, so its run has no jump stage.
 
@@ -36,55 +34,15 @@ boundary assessment and numeric contract supersede historical ideas reproduced h
 Do not assume its build status or infer current requirements from an old `idea.md`.
 
 Provision missing reusable capabilities in Jettison public APIs; implement Manifest's
-production mechanics in Manifest. The example need not converge with its economy.
-In particular, the sample's integer crates/whole-credit prices do not override Manifest's
-Decimal per-unit prices, floating quantities or whole-credit ledgers.
-
-## Existing example coverage
-
-The following inventory records implemented sample behaviour and its history. It is
-not a list of production rules every engine consumer must inherit.
-
-## What the sample plays
-
-| Plan | In the sample | Since |
-|---|---|---|
-| Goods with physical units, priced in credits | Eight goods from Manifest's data, as definitions (`source/samples/space/assets/defs/goods`): wheat seeds, flour, beer, iron, copper, phosphorus, antibiotics and electronics, from 290 to 144,000 credits. | 8b |
-| A unit of trade that hides fractions of a credit | The crate: one IBC cube of the good, its price the plan's price of a cube (copper is 7,616 kg of ingots at 10 credits a kilogram, 76,160 a crate). | 8b |
-| A market at each station, each its own economy | A market at each of the galaxy's three stations (`source/samples/space/assets/defs/markets`): Ostra Highport over a farming world, Ostra Anchorage in low orbit over a mining block of the same planet, Corva Refinery at an industrial one. Each holds a stock of every good it deals in and makes and uses it at its own rates each market tick, ten seconds, up to four times its target stock. | 8b |
-| Prices that follow scarcity | `base x 2 x target / (target + stock)`: twice the base with none on the shelf, the base at the target, a quarter of it at seven times the target and beyond. Whole credits, integer arithmetic, deterministic. | 8b |
-| A venue's charges | A listing fee in basis points on each side of the price (150 at Ostra, 120 at Corva): the ask rounded up and the bid down, so the market never pays out a fraction of a credit. | 8b |
-| A small ship, some credits | The sample's ship: a hold of twenty crates; the player's 250,000 credits, their own rather than the ship's (12c), as each trader's are. | 8b |
-| Trade when docked | A `Trade` command, buy or sell, applied in the step for the ship's owner, whose credits pay: refused, with a reason the screen words in the player's language (12c), for a sender that does not own the ship, a ship not docked at the market's station, too few crates on the shelf or in the hold, too few credits or too little room. | 8b |
-| A trader's screen | The market screen (M): the station's goods, stock, bid and ask, each good's galactic mean, what the ship holds, and the best bid among the other markets, with Buy and Sell by one crate or ten. The galactic mean starts at the good's base price and follows the galaxy's trades, the player's and the traders', weighted by their crates; a bid over it, worth selling at, and an ask under it, worth buying at, are green. Bound to the simulation's snapshots. | 8b |
-| Saved games | Markets, holds and the owners' purses are simulation state, saved with the world; the saved-games screen (L) loads one. | 8b |
-| A market's answer you hear | A trade filled and a trade refused sound on the UI bus, two notes rising and two falling (`source/samples/space/assets/defs/sounds`), mapped from the events by data. | 8c |
-| A station you come home to | Docking and undocking sound on the effects bus from the pad, as its clamps close on the ship and let it go (10d); the station hums as the ship nears it; a loop of music plays. All synthesised by `scripts/make-sample-sounds.py`, so nothing in them is anyone else's. | 8c |
-| Lanes between the systems, star gates the long hops | The ship crosses a lane: J, with the ship in the system shown, sends it through the gate, 40 s to Vesper, out at rest 4.6 km from Vesper Gate, facing Corva, and bound to the system as it was to Ostra's. Each gate is in Manifest's place for it: a moon gate about a planet (Halcyon Gate about Ostra, Vesper Gate about Corva) and a star gate about a sun (Vesper Deep Gate, Marrow Gate), facing a planet, so a ship comes out in the gate's own frame, a few kilometres from it, and crosses to a station by cruising. The console's `route` gives the way to a system and its time. | 9a |
-| Other ships about the stations | The console's `traffic` sends shuttles from a kilometre or two out to hold station on a ring about the station, up to sixteen: each flown by steering, giving way to the others, the station and the player's ship, and turned with the station once there. They choose nothing yet. | 9b |
-| Stations as trade hubs, a pad for every ship | Ostra Highport at the plan's scale, 1.5 km across, with twelve pads for the largest transports on four piers, and Corva Refinery with four for transports and two for shuttles (`source/samples/space/assets/defs/stations`), from the hulls of `source/samples/space/assets/defs/hulls`. Three ships are parked at each, and the sample's ship starts docked on Highport's first free pad. The console's `undock` lifts it 40 m off its pad, the pilot's again in under three seconds; `dock` asks for a pad and flies it in, round the station and down onto the pad, or leaves the landing to the pilot with `dock manual`. A ship waits its turn when every pad it fits is taken. | 9c |
-| A full hold takes time to load | A trade's crates and price are settled at once, and the crates then cross the deck on buggies, four a trip, three to each of Highport's pads and two to each of Corva's, out of the bay at the root of the pad's pier and along the road down its side to the ship's hatch, at 8 m/s. The ship is held on its pad until every crate for it is aboard and every one off it has been taken from its hatch: a shuttle's twenty crates are aboard Highport's pad 1, 117 m from its bay, in 45 s, and pad 3, 633 m out, in four minutes. The market screen says how many are still crossing, `undock` is refused until none are, and the console's `trade <good> <crates>` trades as the screen does. | 9e |
-| Stations that look like ports | Every pad painted (its outline, a centre line with chevrons to the bow, the keep-clear box over the hatch, its number) and floodlit from poles along its sides, a lamp on each pole green while the pad is free, amber while it is reserved and red while it holds a ship; the hub in the hull's plating, the piers in deck plating, and a door at each cargo bay. Highport's display wing, between two of its piers, shows a liner and a cruiser on cruiser bays and four fighters on corvette pads beside them. A hull's proxy is chosen by its length: the shuttle, a transport of cargo pods behind a cab, the largest transport's racked containers under a bridge, and the display ships' long hulls. | 9d |
-| Ship classes, dry docks and repair | The pad classes are named for ship classes, corvette, frigate, destroyer and cruiser (`source/samples/space/assets/defs/pads`), the cruiser's the display bays no ship is given; a save from before them has its pads renamed as it loads. A hull that meets something at 5 m/s or more is damaged by the speed, a point a metre a second (`samples/space/src/Repair.h`). Pads 11 and 12 of Highport offer a dry dock: the console's `drydock` asks the station for one and flies the ship in, and `repair`, docked there, mends the damage at 100 credits a point from the owner's purse, refused elsewhere or when the purse is short. | W01 follow-up |
-| The plan's other ships, trading | Seven traders, five transports and two shuttles, parked at Highport and Corva at the start (`samples/space/src/Traders.h`). Each chooses a run by utility (`source/samples/space/assets/defs/decisions/trade.yaml`): a good bought at one market and sold at another, weighed by its margin, by how many rivals are after the same shelf, and by its credits a second over the route, which is plotted across the lanes only for a run still in the reckoning; or, with nothing worth flying, it waits. Its behaviour tree (`source/samples/space/assets/defs/behaviours/trader.yaml`) then flies the run: off its pad, round the station and out of its reach, across the system to the gate by cruising, up to the gate and through it, across the next system to the market the same way, onto the pad the station gives it or, with every pad taken, held off the station in its place in the queue; the trade, and the wait while the buggies carry its crates. Corva's one free pad keeps a queue. They read the same markets the player does, so the player buys against them, and the console's `traders` says what each is doing and has made. | 9f |
-| A mod's rules as scripts | The smoke mod's script (`source/test/scripts/smoke.rs`, in Rust, as the shell's scripts are), from the user's mods: it hears each trade filled and says what it heard, and answers the traders' `crowding`, one over one and the rivals after the same shelf, which the mod's patch of `defs/decisions/trade.yaml` weighs a run by. The console's `scripts` says what each script loaded has done ([scripts](architecture.md#scripts)). | 11b |
-| Gates that clear a ship, for a toll | Each gate clears one ship at a time to fly through its ring, which sends the ship along its lane and charges its owner the lane's toll as it enters: 500 credits a light year between the systems it joins (`source/samples/space/assets/systems/galaxy.yaml`), so 2,000 for the moon gates' hop from Halcyon to Vesper and 6,000 for the star gates' on to Marrow; the rest wait their turn, and a clearance not flown lapses after two minutes. A ship not cleared flies through the ring and on, charged nothing. The console's `transit` asks the gate whose frame the ship is in (`cruise Vesper Gate` brings it there), the flight panel counts the clearance down, and the scene jumps with the ship as the gate sends it. The traders ask at each gate on their route, wait their turn and fly through, and weigh a run's tolls in what it makes. J and the console's `jump` stay the tools' jump, past the gate and its toll, until they go: all travel between systems is by gates. The sample opens on Halcyon, the ship docked at Ostra Highport. | 13c |
-| A system crossed at its own scale | The ship cruises to a body of its system: the console's `cruise <body>` takes the shuttle, flown more than 2 km clear of its station, from Highport to Pell, 393,000 km, in 56 s, out at rest 477 km above the moon and facing it, round Ostra when the planet is in the way; out of the lane at Vesper Gate to Corva, the gate 500,000 km off it, in about a minute; to Halcyon's star in four minutes. A ship arrives no nearer a planet than where its gravity is a gentle 1 m/s², which its assist holds against. Each hull's drive is the sample's (`source/samples/space/assets/defs/drives`), by the hull's name, and the flight panel says where the ship is cruising to, how long is left, and then what it is off. The traders cruise as the ship does (13b): to each gate on their route and from the last to their market. | 13a, 13b |
-| A fleet, and the helm of one ship | The player buys a second ship at a station where one of theirs is docked, with the console's `buy`: a shuttle for 120,000 credits, within reach of the 250,000 they start with, or a transport of forty crates for 900,000 (`source/samples/space/assets/defs/shipyard`), on the station's lowest free pad it fits. Buying takes its helm, and the ship they were flying trades on for them by the traders' tree, from their purse. They attach to any ship of the fleet (`fleet`, `attach`, ] and [), which the camera follows and the market screen trades from, and take or leave the helm of the one attached (`helm`, H): its behaviour stands down while they fly it, and only the ship at the helm answers their controls. | 13d |
-
-Two of the three stations are in Halcyon, a cruise apart, and the third is in Vesper, a lane away, so
-the arbitrage the screen shows between Ostra's grain and Corva's metal is one the player can fly: buy
-at Highport, cruise to Halcyon Gate, be cleared through and fly it, cruise from Vesper Gate to
-Corva Refinery, dock and sell; and one the traders fly too, so a shelf the
-player means to empty may be empty when the player gets there.
+production mechanics in Manifest.
 
 ## What comes next
 
-Maintain it as a small public-API regression consumer. Add gameplay
-only when a bounded example is needed to test a new engine capability.
+Maintain the ground sample as a small public-API regression consumer. Add gameplay only when a
+bounded example is needed to test a new engine capability.
 
 Manifest's order book, economic turns, skill effects, company ownership and gameplay
-scripts belong in Manifest. Do not schedule importing them into this example as an
-engine milestone. The engine supplies the mechanisms they need and proves those with
+scripts belong in Manifest. Do not schedule importing them into a sample as an engine
+milestone. The engine supplies the mechanisms they need and proves those with
 small independent fixtures plus Manifest integration tests. See the
 [roadmap](roadmap.md) for the extraction sequence and neutral consumer checks.
