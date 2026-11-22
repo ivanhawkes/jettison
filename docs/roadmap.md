@@ -50,7 +50,8 @@ done in Manifest with no engine edit. Its W21, fuel burn, asked for a cruise's c
 of the time thrusting, provisioned (2026-11-22, [history](history.md#neutral-sdk-and-manifest-integration));
 and its slice 4 a station's reach measured where physics placed it (2026-11-22,
 [history](history.md#neutral-sdk-and-manifest-integration)); W21 is done in Manifest (2026-11-22).
-The station traffic lanes (the row below) are next.
+The station traffic lanes booked after it were measured and are parked ([carried
+forward](#then-robustness-tools-and-what-a-mod-can-reach), 2026-11-22).
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -60,7 +61,6 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Station traffic lanes | after W21 (the user's, 2026-11-22) | Departures, arrivals and cruises between stations kept off one another's lines: Manifest's policies, choosing per hour, fly between the five stations of Ore's one orbit, whose ships leave, arrive and cruise along the same chords. Each station's departures leave by gates on one side and its arrivals come in by gates on another, several of each, assigned as the pads are, as an airport's departure and arrival routes are; and a cruise's way and its ends offset by its direction, as aviation's levels by heading and Freelancer's paired one-way trade lanes do, so opposite flows never share a line. With [the way in to a pad](#then-robustness-tools-and-what-a-mod-can-reach)'s corridor. Measured by ships flown both ways between neighbouring stations of one orbit, none within a hull's clearance of another, and no departure or arrival slower than today's. |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
@@ -159,6 +159,23 @@ player's report of a problem needs and the shell does not write.
   reservation that lapses when a ship stops making progress rather than at a fixed time. Measured by
   ships flown in from every side and speed, one queued behind another on the next pad, and no
   arrival slower than the stopgap's.
+- **Station traffic lanes, parked** (the user's, 2026-11-22), until the engine's space concepts are
+  decoupled from its neutral modules, since built now they would couple them further. Booked after Manifest's W21, for
+  departures, arrivals and cruises sharing one line between the five stations of Ore's one orbit, which
+  its policies hop round. Measured first on the engine as it is, by Manifest's `fixture_traffic`: six
+  starters flown both ways between Ore Highport and Vale, two sent in one step as a policy sends them
+  and two leaving Highport as two come in, came no nearer than 198 m hull to hull, between steps as
+  well as at them, against steering's 20 m clearance; leaving took 52 to 70 s and coming in 87 to 98 s.
+  Opposite flows do not share a line on an orbit: each cruise aims where its target will be, and the
+  stations move some 15° an hour, so the two ways' courses in one hour are 5,400 km apart. What is
+  shared: ships going the same way fly one line 6 to 70 m apart, kept apart by leaving seconds after
+  one another, and a departure passes some 800 m from an arrival; a station's pads bound how many
+  leave at once. Taken up after that decoupling, when `fixture_traffic` fails or traffic it does not cover asks (a
+  station of more pads, larger hulls, a busier orbit), on the design settled with the user: every
+  cruise from a station flying one of several lanes each way, kept to the right of its way as roads
+  and Freelancer's paired trade lanes do, held as pads are and kept from gate to gate, departures
+  leaving above the orbit's plane and arrivals coming in below it; the lanes first, the way in's
+  corridor after.
 - **A test of an acquire out of date twice** (the user's, 2026-11-18). `drawEveryFrame`'s recreate
   loop and its failure after eight are not covered: it needs fault injection under the Vulkan
   layer, which the engine does not have. Taken up when that branch is needed, if ever.
