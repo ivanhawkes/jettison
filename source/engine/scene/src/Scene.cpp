@@ -623,8 +623,6 @@ void Validate(const SceneDocument &document)
 		{
 			if (entity.celestial->body.empty())
 				Refuse("Entity celestial needs a body name: " + id);
-			if (!document.system)
-				Refuse("Entity '" + id + "' names a celestial body, but the scene names no system");
 		}
 		if (entity.mesh)
 			CheckMesh(*entity.mesh, id);

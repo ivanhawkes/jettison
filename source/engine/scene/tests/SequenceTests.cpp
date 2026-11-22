@@ -367,6 +367,20 @@ TEST_CASE("Sequence: a player plays its file over the camera's rig, hears its ev
 		rig();
 		system.Update(registry, 0.1, &events);
 		CHECK_FALSE(registry.all_of<SequencePlayerComponent>(camera));
+
+		// A role the game leaves unbound is the scene's entity of that id.
+		const entt::entity named = registry.create();
+		registry.emplace<SceneEntityId>(named, std::string{"ship"});
+		registry.emplace<WorldTransformComponent>(named);
+		auto &fallback = registry.emplace<SequencePlayerComponent>(camera);
+		fallback.file = "cinematics/dock.sequence.yaml";
+		fallback.roles = {{"pad", pad}};
+		system.Update(registry, 0.1, &events);
+		system.Update(registry, 0.1, &events);
+		CHECK(registry.get<SequencePlayerComponent>(camera).time == doctest::Approx(0.1));
+		registry.remove<SequencePlayerComponent>(camera);
+		rig();
+
 		registry.emplace<SequencePlayerComponent>(camera).file = "cinematics/none.sequence.yaml";
 		system.Update(registry, 0.1, &events);
 		worker.WaitIdle();

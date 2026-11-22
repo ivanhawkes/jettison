@@ -1,39 +1,37 @@
 # The reference frames scripts/capture.sh compares with, one view a line: its name (the reference
 # is <name>.png beside this file), then render_test's arguments, with $PWD the repository and a |
-# for a space within one, as in a console line given to --run.
+# for a space within one, as in a console line given to --run. The scenes are the test content's
+# (source/test/content/scene), static: what the retired space sample built, baked into the files.
 #
 # The orbit scene as it opens: Ostra Highport over Ostra, the planet's limb behind it, the hull
 # lit and reflecting the planet through the environment's capture.
-orbit --scene $PWD/source/samples/space/assets/scene/orbit.yaml
+orbit --scene $PWD/source/test/content/scene/orbit.yaml
 # The same view drawn offscreen (--offscreen), with no surface or swapchain: its reference is a copy
 # of orbit.png, so the offscreen target is held to the swapchain's frame to the byte.
-orbit-offscreen --scene $PWD/source/samples/space/assets/scene/orbit.yaml --offscreen
+orbit-offscreen --scene $PWD/source/test/content/scene/orbit.yaml --offscreen
 # Ostra whole from 20,000 km, by day: its air's blue limb, the haze thickening towards it, clouds.
-ostra --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|Ostra
+ostra --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|ostra
 # Its night side from 14,000 km: the cities' lights, and the limb lit from behind.
-ostra-night --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run orbit|3.9|-0.1|1.4e7|Ostra
+ostra-night --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|3.9|-0.1|1.4e7|ostra
 # Corva from 450,000 km: its rings' three bands and two gaps, its shadow on them, and theirs on it.
-corva --scene $PWD/source/samples/space/assets/scene/vesper.yaml --run orbit|0.8|-0.35|4.5e8|Corva
+corva --scene $PWD/source/test/content/scene/vesper.yaml --run orbit|0.8|-0.35|4.5e8|corva
 # The Vesper scene as it opens: Corva Refinery with the rings below it and Corva's limb behind.
-refinery --scene $PWD/source/samples/space/assets/scene/vesper.yaml
+refinery --scene $PWD/source/test/content/scene/vesper.yaml
 # The transparent pass's test bench three seconds in: a sphere of clear glass and a pane of amber
 # glass over the stripes, an engine's plume, smoke lit by the sun and the lamp, and sparks.
-effects --scene $PWD/source/samples/space/assets/scene/effects.yaml --after-frames 180
+effects --scene $PWD/source/test/content/scene/effects.yaml --after-frames 180
 # The post chain's test bench two seconds in: occlusion where the crates meet the deck, the selected
 # crate's amber line and the targeted pod's red glow, two lamp panels, the right one left alone by
 # bloom, and the beacon at the bright half of its blink, lighting the wall below it.
-post --scene $PWD/source/samples/space/assets/scene/post.yaml --after-frames 120 --ambient-occlusion
-# The shuttle docked on Highport's pad 1, from the chase camera: its four clamps closed on it, their
-# posts beside its wings, their arms over and their jaws at its sides.
-docked --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run pilot|chase
-# The orbit scene as it opens, graded by the sample's cold-light table: the shadows towards teal and
-# the lit planet towards amber, a little more contrast and a little less colour than orbit.png.
-graded --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run grade|cold-light
-# The docking sequence 1.5 s in, from the chase camera: swinging round the shuttle's starboard side,
-# the camera and the point it looks at 94% of the way from the chase camera's to the first shot's
-# (an ease in and out, three quarters through its blend), and the letterbox's bars as far drawn.
-dock-sequence --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run pilot|chase --run sequence|dock|1
-# The orbit scene as it opens with the market screen shown in German, every word of it from the
-# sample's tables (strings/de): its columns, the status, the goods and their crates, and the numbers
-# grouped as German groups them.
-market-de --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run language|de --run market|on
+post --scene $PWD/source/test/content/scene/post.yaml --after-frames 120 --ambient-occlusion
+# The orbit scene as it opens, graded by the cold-light table: the shadows towards teal and the lit
+# planet towards amber, a little more contrast and a little less colour than orbit.png.
+graded --scene $PWD/source/test/content/scene/orbit.yaml --run grade|cold-light
+# The docking sequence 1.5 s in, its roles the scene's ship and pad, from an orbit camera 30 m off
+# the shuttle, where the chase camera was: swinging round its starboard side, three quarters through
+# the blend to the first shot (an ease in and out), the clamps rising, and the letterbox's bars as
+# far drawn.
+dock-sequence --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|3.14|0.15|30|ship --run sequence|dock|1
+# The orbit scene with the engine's saves screen shown in German, every word of it from the engine's
+# tables (assets/strings/de): its title, the empty list's line and the footer.
+saves-de --scene $PWD/source/test/content/scene/orbit.yaml --run language|de --run saves|on

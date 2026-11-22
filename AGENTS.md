@@ -129,14 +129,15 @@ Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, f
 
 `scripts/capture.sh <out.png> [render_test arguments...]` writes a frame from inside the frame loop
 on lavapipe under Xvfb, the same to the byte every run, the camera placed with console lines:
-`--run "orbit <yaw> <pitch> <distance> [body]"` (distance from the body's centre), or behind or in
-the ship with `--run "pilot chase|cockpit"`. `--no-build`
+`--run "orbit <yaw> <pitch> <distance> [target]"` (distance from the target's centre; a target by
+the scene entity's id, as `ostra`). render_test is the shell with no game over the test content's
+static scenes (`source/test/content/scene`). `--no-build`
 skips the build; `--references [--update]` runs the reference views in
 `source/test/frames/views.txt` ([build and gates](docs/build-and-gates.md#reference-frames)). Run
 captures one at a time: each stops the Xvfb it started, under any other still drawing.
 
-`--run "@<frame> <line>"` or `--run "@<seconds>s <line>"` runs a line later in the run (undock, then a
-`screenshot`). `render_test --offscreen` draws with no display or window at all, so outside the sandbox it
+`--run "@<frame> <line>"` or `--run "@<seconds>s <line>"` runs a line later in the run (a
+`sequence`, then a `screenshot`). `render_test --offscreen` draws with no display or window at all, so outside the sandbox it
 draws on the GPU (`--gpu 5060` on lythir, never the 5070 Ti), and `--screenshot` writes its frame;
 `./scripts/smoke-test.sh --offscreen` is the smoke test so.
 

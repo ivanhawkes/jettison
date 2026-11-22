@@ -35,9 +35,10 @@ How (from the project's CLAUDE.md, which is the authority if it differs):
   and to close it, and screenshot to check it opened before typing, or the text goes to the game's
   keys. Then `xdotool type --delay 150 '...'`, then `key Return`.
 - The orbit camera: W and S orbit it in pitch (they do not zoom), A and D in yaw, E and Q zoom,
-  and C moves it to the next body (Application.cpp binds them). The default scene is
-  `scene/orbit.yaml`, Halcyon over the planet Ostra, with the ship docked at Ostra Highport; the
-  sample models' scene, `--scene assets/scene/main.yaml`, has no star system and so no ship.
+  and C moves it to the next target a game marks (Application.cpp binds them); the console's
+  `orbit` names a target by the scene entity's id. render_test is the shell with no game over the
+  test content (`source/test/content`): its default scene is `scene/main.yaml`, the models, and
+  `--scene source/test/content/scene/orbit.yaml` is Ostra Highport over the planet Ostra, static.
 - Compare with `magick compare -metric AE -fuzz 2% a.png b.png diff.png`, no keys between them.
 - `--user-dir <dir>` keeps a run's settings and saves apart.
 - Save images in the directory you were given (the session scratchpad by default), and kill

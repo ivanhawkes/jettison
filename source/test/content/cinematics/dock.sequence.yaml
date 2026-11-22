@@ -1,0 +1,32 @@
+# The ship landing on a pad: round its starboard side and low across its bow as the clamps rise,
+# straight down on it as they close, and from behind as the camera rises and is handed back to the
+# pilot's. Roles: the pad the ship is clamped to, and the ship. The pad's frame has its bow along -Z
+# and up along +Y.
+version: 1
+letterbox: 0.11
+blendOut: 2
+shots:
+  # Starting aft of the beam on the chase camera's side, so the blend from it does not cross the
+  # hull: a blend is a straight line.
+  - duration: 4.5
+    blend: 2
+    frame: pad
+    rail: [[12, 3.5, 9], [13, 2, -5], [3, 1.6, -15], [-8, 2.2, -12]]
+    look: ship
+    lookAt: [0, 1, 0]
+    fov: [40, 34]
+  # Just behind the ship, so the bow is up in the frame.
+  - duration: 3
+    frame: pad
+    rail: [[0, 38, 9], [0, 26, 6]]
+    easing: outQuad
+    look: ship
+    fov: [40]
+  - duration: 4
+    blend: 1.5
+    frame: pad
+    rail: [[-7, 2.5, 11], [-10, 4.5, 14], [-9, 7, 19]]
+    easing: inOutQuad
+    look: ship
+    lookAt: [0, 1, -3]
+    fov: [38, 45]

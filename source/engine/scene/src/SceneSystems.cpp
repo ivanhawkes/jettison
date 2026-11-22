@@ -401,14 +401,16 @@ void SequenceSystem::Update(
 		bool absent = false;
 		for (const std::string &role : sequence.roles)
 		{
+			// A role the game does not bind is the scene's entity of that id, if it has one.
 			const auto bound = player.roles.find(role);
-			const auto *world = bound != player.roles.end() && registry.valid(bound->second)
-			                        ? registry.try_get<WorldTransformComponent>(bound->second)
-			                        : nullptr;
+			entt::entity entity =
+			    bound != player.roles.end() ? bound->second : FindById(registry, role);
+			const auto *world =
+			    registry.valid(entity) ? registry.try_get<WorldTransformComponent>(entity) : nullptr;
 			if (world == nullptr)
 			{
 				unbound = role;
-				absent = bound == player.roles.end();
+				absent = bound == player.roles.end() && entity == entt::null;
 				break;
 			}
 			frames.push_back(world->matrix);

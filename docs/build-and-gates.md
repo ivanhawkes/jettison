@@ -76,7 +76,7 @@ trees run the UI's suite and draw its screens in the render test. miniaudio left
 did: audio links it, so every tree builds it, the headless trees run the audio suite with no device,
 and the render test plays to miniaudio's null backend, touching no sound system. WAMR left it when
 phase 11b did: script links it, so every tree builds it, and the headless trees run the script suite
-under the sanitisers and load the smoke mod's script in the packed render test.
+under the sanitisers.
 
 `JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
 listens on localhost only, so it costs nothing until a profiler connects. It is off by default,
@@ -167,9 +167,8 @@ tree builds in 720 steps and its 22 suites pass.
 Shaders compile as part of the build (`jettison_compile_shaders`). The engine's assets are staged
 beside the executable, and `jettison_assets_pack` packs them into `assets.pack` beside that
 directory ([files, packs and mods](architecture.md#files-packs-and-mods)), which the shell mounts
-when there is no directory, as in a shipped build; the sample's content likewise
-(`jettison_sample_space_assets`, `jettison_sample_space_pack`), under
-`build/<preset>/source/samples/space`. `--assets <directory | pack>` selects other engine assets,
+when there is no directory, as in a shipped build; the test content likewise
+(`jettison_test_content`, `jettison_test_content_pack`), under `build/<preset>/source/test`. `--assets <directory | pack>` selects other engine assets,
 `--content <directory | pack>` other content, and
 `--scene <file>` / `--save-scene <file>` load and write scene graphs, and `--system <virtual path>`
 (`systems/halcyon.yaml`) runs the scene a star system builds alone, in place of a scene file.
@@ -530,7 +529,7 @@ the run does not depend on a GPU.
 ./scripts/smoke-test.sh --no-build --xvfb           # existing tree, virtual display
 ./scripts/smoke-test.sh --no-xvfb                   # your own Wayland/X11 session
 ./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
-./scripts/smoke-test.sh --llvmpipe --packed         # from the two packs, with the test's data mod
+./scripts/smoke-test.sh --llvmpipe --packed         # from the two packs
 ./scripts/smoke-test.sh --offscreen --packed        # no display at all, on the GPU
 ```
 
@@ -543,124 +542,50 @@ inference beside it; elsewhere the renderer chooses, and `--gpu NAME` names one.
 plain smoke test so unless it has `--llvmpipe` or there is no `/dev/dri`, which is Claude Code's
 sandbox: its bubblewrap call mounts a fresh `/dev` after every bind, so no setting can give it a
 GPU's nodes, and `./scripts/ci.sh *` and `./scripts/smoke-test.sh *` are in the user's
-`sandbox.excludedCommands` instead. Measured 2026-11-20 on the 5060 Ti: 29 s for the three runs and
-the shell's start-up checks, against 49 on lavapipe under Xvfb, at 1.3 ms a frame on the GPU against
-79 on lavapipe. What is left is the CPU's: each jump spends 9 to 11 s reading and building the
-system it arrives in, Halcyon's 8 s of it transcoding its planet's maps to BC7, the same on either
-device. The minimize stage runs on the null platform as on X11. The sanitised run stays on lavapipe,
+`sandbox.excludedCommands` instead. Measured 2026-11-20 on the 5060 Ti, with the space sample's
+jumps: 29 s for the three runs and the shell's start-up checks, against 49 on lavapipe under Xvfb,
+at 1.3 ms a frame on the GPU against 79 on lavapipe. The minimize stage runs on the null platform as on X11. The sanitised run stays on lavapipe,
 since NVIDIA's driver fails under ASan.
 
 **Packed.** The gate runs the headless tree's smoke test with `--packed`: it builds
-`jettison_assets_pack`, `jettison_sample_space_pack` and `render_test_smoke_mod`
-(`source/test/mods/smoke`: a patch of beer's crate words, a patch of the traders' decision and a
-script, `smoke.rs`, packed), and runs each scene with `--assets build/<preset>/assets.pack`,
-`--content build/<preset>/source/samples/space/assets.pack` and a user directory of its own with the
-mod's pack in its mods. The run fails unless the shell says, once a scene, that it mounted the
-engine's assets, the content and the mod as packs and read the content's description,
-that the mod patched beer and the trade decision and that its script loaded; unless the script says
-it heard a trade, called from the trade's event; and if the script trapped or was left out. The sanitised run
-and the reference frames read the staged directory, so both kinds of mount are drawn from every gate.
+`jettison_assets_pack` and `jettison_test_content_pack`, and runs each scene with `--assets
+build/<preset>/assets.pack`, `--content build/<preset>/source/test/content.pack` and a user
+directory of its own. The run fails unless the shell says, once a scene, that it mounted the
+engine's assets and the content as packs and read the content's description. The sanitised run and
+the reference frames read the staged directory, so both kinds of mount are drawn from every gate.
+A mod in the user's mods, which the packed run mounted until the space sample was retired
+(2026-11-22), is the host suite's.
 
-**What it walks.** Twelve stages, the paths that have hurt this engine: resize, resize, minimize,
-restore, scene reload, pilot from behind, pilot from the seat, pick, save and load, trade, jump,
-settle. Each stage runs four frames, the pick, the trade and the jump as many as they take, inside a
-120-second watchdog. It walks
-them twice, once for the sample scene (glTF models, a skinned clip, a point light, the debug
-lines) and once for the sample's `scene/orbit.yaml` (a station over a planet at real scale, placed by
-the star system, under an orbit camera and the sun, which shadows it through four cascades, Ostra
-Highport drawn from its layout: its 104 floodlights about its pads assigned to the clusters, and its
-pads' paint, poles and lamps, hundreds of one shape and colour each, drawn as instanced draws). In the orbit scene the piloting stages, the space sample's (`Game::DriveSmoke`), fly its ship, held off
-Highport's dock in the station's frame, ahead under scripted controls: its proxy made by the traffic
-layer, the flight commands, and the pilot camera's chase and cockpit rigs on it, each eased into; the
-sample scene has no station, so they fly nothing there, and the summary's `pilots=` says how many
-did. Behind the ship, the first piloting stage sends four shuttles to Highport (the console's
-`traffic`), flown by steering over the spatial index and drawn by the traffic layer from then on.
-The save stage writes the game to the run's user mount, flushed to the disk, and loads it
-back over itself with the scene drawing it; the run fails unless the world loaded has the state hash
-of the world saved (20,980 bytes for the sample scene's world on 2026-11-12, and 27,296 for the
-orbit scene's, physics' state, the sample's ship and the four shuttles under way among it). The game UI's two screens, the market
-and the saved games, are shown from the first frame, so the overlay is drawn in every stage, over
-every resize and the reload; the save stage lists its save on one. The game UI stage is the game's
-(`Game::DriveSmoke` sets its actions); the sample's reads the market screen of the station the ship is at: its station and its first good's stock have to be the ones the
-snapshot has, and its first Buy button, pressed, sends a trade the next step answers, whose answer
-the screen then has to show, and to play on the UI bus. In the orbit scene the ship is off the dock,
-so the answer is a refusal (the trade itself is the `sample-space` suite's); the sample scene has no market, and the summary's `screens=`
-and `answers=` say what was tried. The sample scene has no sun,
-so its shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's sky is baked into its
-environment when it loads and again when the reload stage replaces it, so the bake's passes and
-the frame sets rewritten after it run under validation too. The reload also reads every resource
-again, models and rigs included, so a model's buffers are retired while a frame in flight may read
-them and freed after it, under validation. The jump replaces the scene with another system's
-behind its fade while frames that drew the old one are in flight: the sample scene jumps to the
-galaxy's first system (the orbit scene), and the orbit scene through Halcyon's gate to Vesper, built
-from its system file alone; each took 9 to 11 s on 2026-11-20, on lavapipe or a GPU ([offscreen](#headless-render-test)).
+**What it walks.** The stages that have hurt this engine: resize, resize, minimize, restore, scene
+reload, pilot from behind, pilot from the seat, pick, save and load, the game's screen, a jump, and
+settle; a stage the game does not drive passes over (`Game::DriveSmoke`). Each runs four frames, a
+pick or a piloting stage as many as it takes, inside a 120-second watchdog. `render_test` is the
+shell with no game, over the test content (`source/test/content`), and walks them twice: in
+`scene/main.yaml` (glTF models, a skinned clip, a point light, the debug lines) and in
+`scene/orbit.yaml` (a station over a planet at real scale under an orbit camera and the sun, which
+shadows it through four cascades: Ostra Highport's 104 floodlights assigned to the clusters, and its
+pads' paint, poles and lamps, hundreds of one shape and colour each, drawn as instanced draws). It
+flies nothing, picks nothing and has no screen of a game's or jump. The save stage writes the
+world to the run's user mount, flushed to the disk, and loads it back over itself with the scene
+drawing it; the run fails unless the world loaded has the state hash of the world saved. The saved
+games' screen is shown from the first frame, so the overlay is drawn in every stage, over every
+resize and the reload, and the save stage lists its save on it. The main scene has no sun, so its
+shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's
+sky is baked into its environment when it loads and again when the reload stage replaces it, so the
+bake's passes and the frame sets rewritten after it run under validation too. The reload also reads
+every resource again, models and rigs included, so a model's buffers are retired while a frame in
+flight may read them and freed after it, under validation. Until 2026-11-22 the space sample drove
+the flight, a trade on its market screen and a jump to another star system here; the trade and the
+jump are Manifest's now.
 
 The ground sample walks the same stages from its own content, unpacked in either run: its piloting
 stages drive its rover ahead and then turning, its pick lands on its ground, its save and load hold
-its world's state hash, and it drives no jump, so its run has none. Each piloting stage waits, as
-the jump does, until the game says its rover has shown it moved (`SmokeActions::piloting`): past
-1 m/s ahead, then 10 degrees turned, since a stage's four frames are fast or slow with the machine
-and the rover moves by simulation time. The game logs each, and the run fails unless it said both;
-a rover that never moves is a run the watchdog stops. The whole run took 4 seconds on a
-workstation on 2026-11-11, from about 40 before phase 5e gave lavapipe RGBA8 textures and culled
-the planet out of the shadow cascades; the script, its start-up checks and the two jumps included,
-took 15 seconds after phase 6d. Budget more on a runner.
-
-- **Window size.** The window opens at 1920×1080 normally, but at 640×480 in smoke mode,
-  because lavapipe is fill-rate bound.
-- **Minimize.** Minimizing is exercised on X11 only. On Wayland a minimized surface parks the
-  frame loop in `DeviceContext::WaitOnWindowResized` until the window is restored, which a
-  headless run cannot arrange from inside the loop it is parked in.
-- **Resize.** The gate requires one handled resize, not two. A tiling window manager owns the
-  geometry: under niri, a resize request is answered with the compositor's tile, which may
-  already be the window's size, and the stage gives up after eight frames rather than wait for
-  the watchdog. Xvfb has no window manager, so on a runner both requests land.
-
-**What it asserts.** The run is judged on what the validation layer says, not only on exit
-status. The debug build loads `VK_LAYER_KHRONOS_validation`, and `DeviceContext` installs a
-`VK_EXT_debug_utils` messenger that names every object. The script captures the stream, and any
-validation error fails the run. Debug builds also turn on the layer's synchronization validation
-(through `VK_EXT_layer_settings`, when the layer offers it), which is what checks the barriers the
-pass list derives: with them weakened, a run reports `SYNC-HAZARD-WRITE-AFTER-READ` and fails. A
-VMA allocation still live at teardown is reported on the same stream as `[vulkan:error]`, naming
-it. The loader's messages about duplicate `VK_LAYER_MESA_*` manifests
-are excluded as the machine talking: on NixOS that is the shell's Mesa against
-`/run/opengl-driver`. So is its note that Mesa's D3D12 driver (`libvulkan_dzn.so`), which exists for
-WSL, declined to start, which it does whenever every driver is loaded rather than one pinned. Device
-selection asks a device about the window's surface only once the device says it can present to it:
-an NVIDIA card under Xvfb cannot, and asking it anyway was reported as
-`VUID-vkGetPhysicalDeviceSurfaceCapabilitiesKHR-surface-06211` before lavapipe was picked over it,
-which failed every run that did not pin lavapipe (`--llvmpipe`) on a machine with an NVIDIA card. Debug-utils entry points are resolved through `vkGetInstanceProcAddr`, so a
-loader without them costs object names, not a link failure.
-
-Three verdicts are the run's own, read after teardown and reported through its exit status: the
-sequence has to have reached its last stage, the cluster check has to agree, and the game UI has to
-have logged no warning or error (RmlUi's own, a property it does not know, a variable a document
-names that no model has, through the log's `ui` category). The check reads
-back every frame's light assignment and compares it with the CPU reference
-(`render/Clusters.h`) cluster by cluster; a frame that disagrees, an index list that overflowed,
-or a run in which no cluster listed a light fails the run, and the run prints how many frames it
-compared: 21 to 24 a scene on lavapipe on 2026-11-11, every one with lights and none disagreeing,
-the count depending on how many frames the resize stages take. It also prints the most of the
-index list any frame used and the most lights any cluster listed, what the list's budget is
-measured against. Until phase 5c the first verdict was unreachable: teardown released the
-sequence before `Run` read it, so a run that stopped short of its last stage still passed.
-
-The run then prints the GPU's mean time in each declared pass. It is a record, not a verdict: the
-frames include the resizes and the reload, under the validation layer, and a runner's times vary
-too much to fail on. The frame's budget is measured with the [benchmark](#benchmark).
-
-Lavapipe is a CPU device, so it is given RGBA8 textures rather than BC7, which it would decode in
-software at every fetch (phase 5e measured the orbit scene's opaque pass at 469 ms in BC7 and 23 ms
-in RGBA8). The run therefore uploads RGBA8; transcoding to BC7 is covered by the render suite,
-without a device, and uploading it only on hardware.
-
-**What it needs.** It needs three things:
-
-- The X11 development libraries for GLFW. On Debian:
-  `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev`.
-- `Xvfb` (from `xorgserver`).
-- A Vulkan driver and the validation layers. devenv exports `VK_LAYER_PATH`.
+its world's state hash, and it drives no jump, so its run has none. Each piloting stage waits until
+the game says its rover has shown it moved (`SmokeActions::piloting`): past 1 m/s ahead, then 10
+degrees turned, since a stage's four frames are fast or slow with the machine and the rover moves by
+simulation time. The game logs each, and the run fails unless it said both; a rover that never
+moves is a run the watchdog stops. The whole run, the script's start-up checks, the packs and the
+three runs, took 33 seconds on lavapipe under Xvfb on 2026-11-22. Budget more on a runner.
 
 ## Reference frames
 
@@ -672,7 +597,7 @@ swapchain's, exact to the frame, and a console line given with `--run` places th
 `xdotool` keys held for seconds used to.
 
 ```bash
-./scripts/capture.sh out.png --scene $PWD/source/samples/space/assets/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 Ostra"
+./scripts/capture.sh out.png --scene $PWD/source/test/content/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 ostra"
 ./scripts/capture.sh --references            # compare every view with its reference
 ./scripts/capture.sh --references --update   # record a change that is meant to change a frame
 ./scripts/capture.sh --references corva      # one view
@@ -716,11 +641,21 @@ at frame ..., fixed time ...`), so a frame that moves shows on which tick. A fra
 and the frame captured is the one after thirty in a row with nothing loading, unless its
 line says otherwise.
 
+On 2026-11-22 (the space extraction) the views moved to the test content's static scenes, which hold
+what the space sample's star systems and station dressing built, baked into the files, and
+`render_test` became the shell with no game. `effects` and `post` came out the same to the byte;
+the planets' views differed by 1 to 18 pixels and `orbit` and `graded` by about 300, the bodies'
+spin now a float Euler angle. `docked` went with the sample; `dock-sequence` starts from an orbit
+camera 30 m off the shuttle, its roles the scene's `ship` and `pad` by id, the clamps rising
+rather than closed; and `saves-de`, the engine's saves screen in German (`language de`, then
+`saves on`), took `market-de`'s place. Every view was recorded again, and captured twice, none
+differed.
+
 The offscreen target is held to the swapchain here: `orbit-offscreen` is the `orbit` view drawn
 with `--offscreen`, on lavapipe, and its reference is a copy of `orbit.png`; it came out the same to
 the byte (2026-11-20). A console line given to `--run` as `@<frame> <line>` runs at the start of
 that frame and as `@<seconds>s <line>` at the first frame the simulation's clock has reached it, so
-a view can be of what happens after a while: `--run pilot|chase --run @20|undock`.
+a view can be of what happens after a while: `--run @2s|sequence|dock`.
 
 Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under
 any other capture still drawing on it.
@@ -740,12 +675,12 @@ sets bloom's, 0 for none.
 ```bash
 # Hardware: a Release tree, on the desktop session. NVIDIA's driver cannot present to Xvfb.
 build/clang-release/source/test/render_test \
-    --scene build/clang-release/source/samples/space/assets/scene/orbit.yaml --benchmark 600
+    --scene build/clang-release/source/test/content/scene/orbit.yaml --benchmark 600
 # Lavapipe: the headless tree on Xvfb, at the smoke test's size.
 VK_DRIVER_FILES=<lvp_icd.x86_64.json> DISPLAY=:<n> build/clang-headless/source/test/render_test \
-    --scene build/clang-headless/source/samples/space/assets/scene/orbit.yaml --benchmark 60 --window 640x480
+    --scene build/clang-headless/source/test/content/scene/orbit.yaml --benchmark 60 --window 640x480
 # A station with 265 more lights, written beside the orbit scene in a build tree.
-python3 scripts/make-light-budget-scene.py build/clang-release/source/samples/space/assets/scene/orbit.yaml
+python3 scripts/make-light-budget-scene.py build/clang-release/source/test/content/scene/orbit.yaml
 ```
 
 The budgets and what phase 5 measured are in [architecture](architecture.md#the-budget).

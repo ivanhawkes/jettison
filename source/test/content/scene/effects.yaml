@@ -1,0 +1,175 @@
+# The transparent pass's test bench (docs/roadmap.md, 10b): glass and particles under the sun, the
+# sky and two local lights, against a plated wall striped red, green and blue. The camera orbits the
+# bench (W, A, S, D, Q, E, or drag with the right mouse button).
+#
+#   - A sphere of clear glass and a pane of amber glass in front of the stripes: the sun's highlight
+#     and the warm lamp's on them, the sky reflected towards their edges, and the stripes seen through
+#     them, the amber pane's blue stopped.
+#   - An engine's plume to the right: light alone, blue-white and stretched along its way.
+#   - Smoke rising on the left: lit by the sun, the sky and the lamp, hiding part of what is behind.
+#   - Sparks off the wall: short orange streaks, slowed by drag, by an orange light of their own.
+version: 2
+entities:
+  - id: sun
+    transform:
+      translation: [-6.0e10, 9.0e10, 8.0e10]
+    sun:
+      color: [1, 0.95, 0.88]
+      intensity: 3.4
+  - id: sky
+    sky:
+      seed: 11
+      stars: 6000
+      starFlux: 3.0e-5
+      band:
+        normal: [0.3, 0.9, -0.3]
+        width: 0.25
+        color: [0.08, 0.07, 0.06]
+      nebula:
+        color: [0.03, 0.015, 0.04]
+        scale: 2
+  - id: bench
+  - id: wall
+    parent: bench
+    transform:
+      translation: [0, 0, -4]
+      scale: [8, 4, 0.25]
+    mesh:
+      shape: box
+      color: [0.55, 0.56, 0.6]
+      material: materials/hull.material.yaml
+  - id: stripe-red
+    parent: bench
+    transform:
+      translation: [-1.8, 0, -3.7]
+      scale: [0.5, 3, 0.05]
+    mesh:
+      shape: box
+      color: [0.8, 0.1, 0.08]
+  - id: stripe-green
+    parent: bench
+    transform:
+      translation: [0, 0, -3.7]
+      scale: [0.5, 3, 0.05]
+    mesh:
+      shape: box
+      color: [0.1, 0.7, 0.15]
+  - id: stripe-blue
+    parent: bench
+    transform:
+      translation: [1.8, 0, -3.7]
+      scale: [0.5, 3, 0.05]
+    mesh:
+      shape: box
+      color: [0.1, 0.2, 0.85]
+  - id: glass-sphere
+    parent: bench
+    transform:
+      translation: [0.9, -0.3, 0]
+      scale: [1.2, 1.2, 1.2]
+    mesh:
+      shape: icosphere
+      color: [0.08, 0.1, 0.16]
+      material: materials/glass.material.yaml
+  - id: amber-pane
+    parent: bench
+    transform:
+      translation: [-1.8, 0.4, -1.2]
+      rotation: [0, 0.35, 0]
+      scale: [1.4, 1.8, 0.02]
+    mesh:
+      shape: box
+      color: [0.6, 0.4, 0.1]
+      material: materials/glass-amber.material.yaml
+  - id: lamp
+    parent: bench
+    transform:
+      translation: [-0.5, 2.6, 1.8]
+    light:
+      type: point
+      color: [1, 0.82, 0.6]
+      intensity: 25
+      range: 12
+  # The nozzle points along +X: an emitter sends its particles along its -Z, as a spot shines.
+  - id: nozzle
+    parent: bench
+    transform:
+      translation: [3.4, -1.6, 0.5]
+      rotation: [0, -1.5707963, 0]
+      scale: [0.25, 0.25, 0.25]
+    mesh:
+      shape: icosphere
+      material: materials/engine.material.yaml
+    particles:
+      rate: 300
+      lifetime: 0.6
+      lifetimeJitter: 0.3
+      speed: 9
+      speedJitter: 0.3
+      spread: 0.07
+      radius: 0.06
+      drag: 1.5
+      size: [0.35, 0.9]
+      stretch: 0.03
+      color: [0.55, 0.75, 1, 0.7]
+      colorEnd: [0.25, 0.35, 1, 0]
+      capacity: 256
+      seed: 3
+  # Smoke rising: the emitter turned a quarter about X, so its -Z is up.
+  - id: smoke
+    parent: bench
+    transform:
+      translation: [-3.2, -2.2, 0.8]
+      rotation: [1.5707963, 0, 0]
+    particles:
+      rate: 14
+      lifetime: 5
+      lifetimeJitter: 0.3
+      speed: 0.7
+      speedJitter: 0.5
+      spread: 0.35
+      radius: 0.25
+      drag: 0.25
+      size: [0.5, 2.4]
+      color: [0, 0, 0, 0]
+      colorEnd: [0, 0, 0, 0]
+      opacity: 0.6
+      albedo: [0.55, 0.55, 0.56]
+      capacity: 128
+      seed: 5
+  # Sparks off the wall, turned half about Y so its -Z is out of the wall.
+  - id: sparks
+    parent: bench
+    transform:
+      translation: [2.9, 1.3, -3.6]
+      rotation: [0, 3.1415927, 0]
+    light:
+      type: point
+      color: [1, 0.55, 0.2]
+      intensity: 3
+      range: 4
+    particles:
+      rate: 90
+      lifetime: 0.7
+      lifetimeJitter: 0.5
+      speed: 5
+      speedJitter: 0.6
+      spread: 0.9
+      drag: 0.8
+      size: [0.05, 0.02]
+      stretch: 0.04
+      color: [1, 0.62, 0.25, 40]
+      colorEnd: [1, 0.3, 0.05, 0]
+      capacity: 128
+      seed: 9
+  - id: camera
+    camera:
+      fov: 50
+      near: 0.1
+      active: true
+      orbit:
+        target: bench
+        distance: 10
+        yaw: 0
+        pitch: 0.12
+        minDistance: 2

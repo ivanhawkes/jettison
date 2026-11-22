@@ -10,6 +10,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <jettison/animation/Rig.h>
@@ -28,6 +29,15 @@ struct SceneEntityId
 {
 	std::string value;
 };
+
+// The entity of the scene with that id, or null.
+inline entt::entity FindById(const entt::registry &registry, std::string_view id)
+{
+	for (const auto [entity, name] : registry.view<const SceneEntityId>().each())
+		if (name.value == id)
+			return entity;
+	return entt::null;
+}
 
 // The content layers within a system's scene (docs/scope.md, "Scene: layers"): for loading in
 // stages and for editor visibility.
@@ -257,9 +267,9 @@ struct NodePoseComponent
 	bool scaled{false};
 };
 
-// An entity the star system places: each frame its translation is the body's position at the
-// presentation time, and its rotation the body's spin. The scene names the system file, and the
-// system scene (scene/SystemScene.h) evaluates it.
+// A body: a round mesh of it is drawn as one, its air and rings about it and its sphere occluding
+// what is behind it (render/SceneDraws). A star system, which the scene may name, places it each
+// frame (scene/SystemScene.h); a scene of none places it as authored.
 struct CelestialBodyComponent
 {
 	std::string body;

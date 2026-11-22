@@ -242,7 +242,6 @@ entities:
 TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file loads")
 {
 	Scene scene;
-	CheckRefused(scene, "  - id: a\n    celestial:\n      body: Sun\n", "names no system");
 	CheckRefused(
 	    scene, "  - id: c\n    camera:\n      orbit:\n        target: nobody\n",
 	    "orbit target 'nobody'");

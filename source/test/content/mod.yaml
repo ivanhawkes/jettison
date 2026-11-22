@@ -1,0 +1,6 @@
+# The engine's test content (source/test/content), mounted as "base" over the engine's assets by
+# render_test and read by the engine's suites: what the log names it, and the engine it needs.
+version: 1
+name: Jettison test content
+release: 1.0.0
+engine: 0.1.0

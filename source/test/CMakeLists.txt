@@ -1,11 +1,30 @@
+# The engine's test content (content/), which render_test mounts over the engine's assets as "base"
+# and the engine's suites read: static scenes (a planet and a station at real scale, a ringed giant,
+# the transparent pass's and the post chain's benches, models and a skinned clip), their materials,
+# textures and models, a clip, a sequence, a grade and a few sounds. Its pack, content.pack beside
+# the staged tree, is built for the smoke test's packed run.
+jettison_add_assets(jettison_test_content
+	SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/content"
+	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/content"
+	DIRECTORIES animations cinematics grades materials scene
+	CONFIGURED audio models textures
+	FILES mod.yaml
+)
+set_property(TARGET jettison_test_content PROPERTY FOLDER "Test")
+jettison_add_pack(jettison_test_content_pack
+	SOURCE "${CMAKE_CURRENT_BINARY_DIR}/content"
+	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/content.pack"
+	DEPENDS jettison_test_content
+)
+
 # The render smoke harness. It was "test" until CTest arrived: CMake reserves that target name once
 # testing is enabled, and Ninja generates a phony source/test/test for the directory's tests,
 # which an executable of that name in this directory collides with.
 add_executable(render_test main.cpp)
 jettison_use_shared_assets(render_test)
-jettison_use_content(render_test jettison_sample_space_assets)
+jettison_use_content(render_test jettison_test_content)
 set_property(TARGET render_test PROPERTY FOLDER "Test")
-target_link_libraries(render_test PRIVATE Jettison::App jettison_sample_space jettison_warnings)
+target_link_libraries(render_test PRIVATE Jettison::App jettison_warnings)
 
 # One executable linking the engine and every third-party library it has or plans to have (see
 # source/external/CMakeLists.txt). The gate runs it after the Debug build. The libraries the

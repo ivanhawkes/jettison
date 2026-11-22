@@ -293,9 +293,16 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { LoadFrom(arguments.empty() ? "quicksave" : arguments[0]); });
 	m_console.RegisterCommand(
-	    "saves", "Lists the saved games",
-	    [this](DevTools::Console &console, std::span<const std::string>)
+	    "saves", "Lists the saved games, or shows or hides their screen, as L does: saves [on|off]",
+	    [this](DevTools::Console &console, std::span<const std::string> arguments)
 	    {
+		    if (!arguments.empty())
+		    {
+			    if (arguments[0] != "on" && arguments[0] != "off")
+				    throw std::invalid_argument{"takes on or off"};
+			    ShowSaves(arguments[0] == "on");
+			    return;
+		    }
 		    for (const std::string &name : ListSaves(m_assets))
 		    {
 			    const auto bytes = m_assets.Read(SavePath(name));
@@ -422,8 +429,8 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	    [this](DevTools::Console &, std::span<const std::string> arguments) { SetGrade(arguments); });
 	m_console.RegisterCommand(
 	    "orbit",
-	    "Places the orbit camera at once, in radians and metres, about the target named or the one "
-	    "it is on: orbit <yaw> <pitch> <distance> [target]",
+	    "Places the orbit camera at once, in radians and metres, about the target named, or the "
+	    "scene's entity of that id, or the one it is on: orbit <yaw> <pitch> <distance> [target]",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    { PlaceOrbitCamera(arguments); });
 
@@ -1547,6 +1554,9 @@ void Application::PlaceOrbitCamera(std::span<const std::string> arguments)
 		for (const auto [entity, target] : registry.view<const OrbitTarget>().each())
 			if (target.name == name)
 				body = entity;
+		// A scene's entity by its id where no target the game marks has the name.
+		if (body == entt::null)
+			body = Scene::FindById(registry, name);
 		if (body == entt::null)
 			throw std::invalid_argument{std::format("there is no target '{}' in the scene", name)};
 	}

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Headless smoke test: renders the scene through Vulkan, walks the shell's headless sequence
-# (resizes, a reload, flight, a pick, a save, a trade and a jump: app/src/SmokeSequence.cpp) and
-# shuts down with validation layers enabled, on a virtual X display and a software driver: the space
-# sample's two scenes in the render test, then the ground sample, a game of no space, in its own
-# executable (source/samples/ground).
+# (resizes, a reload, flight, a pick and a save: app/src/SmokeSequence.cpp) and shuts down with
+# validation layers enabled, on a virtual X display and a software driver: two of the test content's
+# scenes in the render test, the shell with no game, then the ground sample, which drives the flight
+# and the pick, in its own executable (source/samples/ground).
 #
 # The project builds GLFW Wayland-only by default, so a headless run needs the
 # 'clang-headless' preset, which turns on GLFW's X11 backend, and a Vulkan implementation
@@ -31,9 +31,8 @@
 #  --gpu NAME      Part of the name of the device to draw with (render_test --gpu); offscreen on
 #                  lythir, the user's workstation, it is 5060, the card with the monitor, so that
 #                  nothing runs on the 5070 Ti kept for inference beside it
-#  --packed        Run from the engine's assets and the sample's content, each packed into one file
-#                  (assets.pack, as a shipped build has them), with the test's data mod
-#                  (source/test/mods/smoke) in the run's user mods
+#  --packed        Run the render test from the engine's assets and the test content, each packed
+#                  into one file (assets.pack and content.pack, as a shipped build has them)
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # shellcheck source=lib/headless.sh
@@ -128,18 +127,16 @@ if [ "$build" -eq 1 ]; then
 	# of the build, 18 s of 68 after a change to a header most of the engine includes.
 	cmake --build --preset "$preset" --target render_test ground >/dev/null
 	if [ "$packed" -eq 1 ]; then
-		cmake --build --preset "$preset" --target jettison_assets_pack jettison_sample_space_pack render_test_smoke_mod >/dev/null
+		cmake --build --preset "$preset" --target jettison_assets_pack jettison_test_content_pack >/dev/null
 	fi
 fi
 
-# The packed run: every asset from the two packs, and for each scene a user directory of its own holding
-# the mod, which the shell mounts between the two and logs.
+# The packed run: every asset from the two packs, and for each scene a user directory of its own.
 if [ "$packed" -eq 1 ]; then
 	pack="$build_dir/assets.pack"
-	content="$build_dir/source/samples/space/assets.pack"
-	mod="$build_dir/source/test/mods/smoke.pack"
-	for file in "$pack" "$content" "$mod"; do
-		[ -f "$file" ] || { echo "smoke-test: no pack at $file (build jettison_assets_pack, jettison_sample_space_pack and render_test_smoke_mod)" >&2; exit 1; }
+	content="$build_dir/source/test/content.pack"
+	for file in "$pack" "$content"; do
+		[ -f "$file" ] || { echo "smoke-test: no pack at $file (build jettison_assets_pack and jettison_test_content_pack)" >&2; exit 1; }
 	done
 fi
 
@@ -202,7 +199,7 @@ run_app() {
 		echo "smoke-test: missing validation layer exits cleanly"
 		empty_assets="$(mktemp -d "${TMPDIR:-/tmp}/jettison-empty-assets.XXXXXX")"
 		startup_status=0
-		startup_output="$("$@" --assets "$empty_assets" --scene "$PWD/source/samples/space/assets/scene/main.yaml" 2>&1)" || startup_status=$?
+		startup_output="$("$@" --assets "$empty_assets" --scene "$PWD/source/test/content/scene/main.yaml" 2>&1)" || startup_status=$?
 		rmdir "$empty_assets"
 		if [ "$startup_status" -ne 1 ] || [[ "$startup_output" != *"failed to open file"* ]] ||
 			[[ "$startup_output" == *"[vulkan:error"* ]] || [[ "$startup_output" == *"Validation Error:"* ]]; then
@@ -213,23 +210,18 @@ run_app() {
 		fi
 		echo "smoke-test: missing shader exits without validation errors"
 	fi
-	# Two scenes, one log: the sample scene (glTF models, a skinned clip, the point light), named, and
-	# the default, the large-world scene (a station over a planet at real scale, placed by the star
-	# system, under an orbit camera and the sun). Each walks the whole sequence; the run fails if
-	# either does. Each jumps once: the sample scene, of no system, to the galaxy's first (the
-	# large-world scene), and the large-world scene through Halcyon's gate to Vesper, built from its
-	# system alone.
+	# Two scenes, one log: the default, the test content's scene/main.yaml (glTF models, a skinned
+	# clip, the point light), and the large-world scene, named (a station over a planet at real scale,
+	# under an orbit camera and the sun). Each walks the whole sequence; the run fails if either does.
 	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
 	status=0
-	for scene in "$PWD/source/samples/space/assets/scene/main.yaml" ""; do
+	for scene in "" "$PWD/source/test/content/scene/orbit.yaml"; do
 		scene_args=()
 		[ -n "$scene" ] && scene_args=(--scene "$scene")
 		echo "smoke-test: scene ${scene:-default}"
 		packed_args=()
 		if [ "$packed" -eq 1 ]; then
 			packed_user="$(mktemp -d "${TMPDIR:-/tmp}/jettison-smoke-user.XXXXXX")"
-			mkdir -p "$packed_user/data/mods"
-			cp "$mod" "$packed_user/data/mods/"
 			packed_args=(--assets "$PWD/$pack" --content "$PWD/$content" --user-dir "$packed_user")
 		fi
 		if ! "$@" ${packed_args[@]+"${packed_args[@]}"} ${scene_args[@]+"${scene_args[@]}"} 2>&1 | tee -a "$app_log"; then
@@ -289,31 +281,18 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 	fi
 fi
 
-# A packed run proves what it read: the engine's assets a pack, the content a pack over them,
-# described by its mod.yaml, the mod mounted over it, the mod's patches taken and its script loaded
-# from it, each said by the shell as it starts, once a scene; and that the script was called from an
-# event, a trade filled, which it says it heard, and never trapped.
+# A packed run proves what it read: the engine's assets a pack and the content a pack over them,
+# described by its mod.yaml, each said by the shell as it starts, once a scene.
 if [ "$packed" -eq 1 ] && [ -n "${app_log:-}" ]; then
-	for said in "engine: the pack " "base: the pack " "The content is Space-trading sample 1.0.0" \
-		"mod:smoke: the pack " "defs/goods/beer: patched by 'mod:smoke'" \
-		"defs/decisions/trade: patched by 'mod:smoke'" "Script 'smoke': scripts/smoke.wasm loaded"; do
+	for said in "engine: the pack " "base: the pack " "The content is Jettison test content 1.0.0"; do
 		count=$(grep -cF "$said" "$app_log" || true)
 		if [ "${count:-0}" -ne 2 ]; then
 			echo "smoke-test: FAIL (the packed run said '$said' $count times, not once a scene)" >&2
 			status=1
 		fi
 	done
-	heard=$(grep -cF "smoke: heard trade" "$app_log" || true)
-	if [ "${heard:-0}" -lt 1 ]; then
-		echo "smoke-test: FAIL (the mod's script was not called from a trade's event)" >&2
-		status=1
-	fi
-	if grep -E "Script 'smoke': .*(trapped|time limit|left out)" "$app_log" >&2; then
-		echo "smoke-test: FAIL (the mod's script trapped, or did not load)" >&2
-		status=1
-	fi
 	if [ "$status" -eq 0 ]; then
-		echo "smoke-test: the assets were read from $pack and $content, the mod in the user's mods loaded, and its script heard $heard trade(s)"
+		echo "smoke-test: the assets were read from $pack and $content"
 	fi
 fi
 
@@ -329,7 +308,7 @@ if [ -n "${app_log:-}" ] && [ -f "${app_log:-}" ]; then
 fi
 
 if [ "$status" -eq 0 ]; then
-	echo "smoke-test: PASS (the space sample's two scenes and the ground sample; window resizes, minimize/restore, a scene reload, a ship flown, a rover driven and a jump handled, validation enabled)"
+	echo "smoke-test: PASS (the test content's two scenes and the ground sample; window resizes, minimize/restore, a scene reload, a save and a rover driven, validation enabled)"
 else
 	echo "smoke-test: FAIL (exit $status)" >&2
 fi
