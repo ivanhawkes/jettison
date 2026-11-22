@@ -50,14 +50,14 @@ TEST_CASE("Saves: the saves are the user mount's, by name")
 	info.engineVersion = "0.1.0";
 	info.writtenAt = 1794476280;
 	info.step = 1200;
-	info.details = {{std::string{App::kPlaceDetail}, "Halcyon"}};
+	info.details = {{std::string{App::kPlaceDetail}, "Harbour"}};
 	Sim::SaveGame save;
 	save.info = info;
 	files.Write(App::SavePath("first"), save.Write());
 	const App::SavesScreen screen = App::BuildSavesScreen(files);
 	REQUIRE(screen.saves.size() == 2);
 	CHECK(screen.saves[0].name == "first");
-	CHECK(screen.saves[0].system == "Halcyon");
+	CHECK(screen.saves[0].place == "Harbour");
 	CHECK(screen.saves[0].written == "2026-11-12 09:38");
 	CHECK(screen.saves[0].step == 1200);
 	CHECK(screen.saves[0].engine == "0.1.0");

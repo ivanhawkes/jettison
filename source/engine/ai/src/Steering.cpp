@@ -157,7 +157,7 @@ Physics::FlightControls Controls(
 }
 
 
-std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
+std::string_view LocalFrameOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *frame = registry.try_get<Physics::LocalFrame>(entity);
 	return frame ? std::string_view{frame->body} : std::string_view{};
@@ -345,7 +345,7 @@ Steering &Steering::Attach(
 
 
 glm::dvec3 Steering::ShapeLimited(
-    std::uint64_t system, entt::entity vehicle, std::string_view shape, const Sim::Transform &at,
+    std::uint64_t frame, entt::entity vehicle, std::string_view shape, const Sim::Transform &at,
     const Agent &agent, const glm::dvec3 &velocity, const glm::dvec3 &target, double clearance) const
 {
 	const double speed = glm::length(velocity);
@@ -356,7 +356,7 @@ glm::dvec3 Steering::ShapeLimited(
 	const double reach = speed * speed / (2.0 * std::max(agent.maxAcceleration, 1.0e-6)) +
 	                     speed * kSettleSeconds + clearance + kShapeSlack;
 	const std::optional<Physics::CastHit> hit =
-	    m_physics.CastShape(system, shape, at, way, reach, {vehicle, false, std::nullopt});
+	    m_physics.CastShape(frame, shape, at, way, reach, {vehicle, false, std::nullopt});
 	if (!hit)
 		return velocity;
 	// What it meets beyond where it is going, the deck under a berth it lands on, is not in its way.
@@ -391,12 +391,13 @@ void Steering::Step(Sim::SimWorld &world)
 
 	// Each frame's origin as the step begins, as it is asked for.
 	std::map<std::pair<std::uint64_t, std::string>, glm::dvec3> origins;
-	const auto originOf = [&](std::uint64_t system, std::string_view frame) -> const glm::dvec3 &
+	const auto originOf = [&](std::uint64_t frame, std::string_view localFrame) -> const glm::dvec3 &
 	{
-		std::pair<std::uint64_t, std::string> key{system, std::string{frame}};
+		std::pair<std::uint64_t, std::string> key{frame, std::string{localFrame}};
 		auto found = origins.find(key);
 		if (found == origins.end())
-			found = origins.emplace(std::move(key), m_physics.FrameOrigin(system, frame, now)).first;
+			found =
+			    origins.emplace(std::move(key), m_physics.FrameOrigin(frame, localFrame, now)).first;
 		return found->second;
 	};
 
@@ -406,15 +407,15 @@ void Steering::Step(Sim::SimWorld &world)
 	std::vector<Obstacle> neighbours;
 	for (const entt::entity vehicle : vehicles)
 	{
-		const std::uint64_t system = registry.get<const Sim::InFrame>(vehicle).frame;
-		if (system == Sim::kNoFrame)
+		const std::uint64_t frame = registry.get<const Sim::InFrame>(vehicle).frame;
+		if (frame == Sim::kNoFrame)
 			continue;
 		const Steered &steered = registry.get<const Steered>(vehicle);
 		Destination &destination = registry.get<Destination>(vehicle);
 		const Physics::Handling &handling = registry.get<const Physics::Handling>(vehicle);
 		const Sim::Transform &transform = registry.get<const Sim::Transform>(vehicle);
-		const std::string_view frame = FrameOf(registry, vehicle);
-		const glm::dvec3 &origin = originOf(system, frame);
+		const std::string_view localFrame = LocalFrameOf(registry, vehicle);
+		const glm::dvec3 &origin = originOf(frame, localFrame);
 
 		// Where the destination is, how it moves, and which way to face there.
 		glm::dvec3 target = origin + destination.offset;
@@ -428,10 +429,10 @@ void Steering::Step(Sim::SimWorld &world)
 			std::optional<Reason> lost;
 			if (!registry.valid(entity) || !registry.all_of<Sim::Transform, Sim::InFrame>(entity))
 				lost = Reason::DestinationGone;
-			else if (registry.get<const Sim::InFrame>(entity).frame != system)
-				lost = Reason::DestinationOtherSystem;
-			else if (FrameOf(registry, entity) != frame)
+			else if (registry.get<const Sim::InFrame>(entity).frame != frame)
 				lost = Reason::DestinationOtherFrame;
+			else if (LocalFrameOf(registry, entity) != localFrame)
+				lost = Reason::DestinationOtherLocalFrame;
 			if (lost)
 			{
 				registry.remove<Destination>(vehicle);
@@ -471,7 +472,7 @@ void Steering::Step(Sim::SimWorld &world)
 		const double lookahead = std::max(0.0, double{steered.lookahead});
 		const double clearance = std::max(0.0, double{steered.clearance});
 		const double separation = std::max(0.0, double{steered.separation});
-		if (const Spatial::SpatialIndex *index = m_indices.Find(system))
+		if (const Spatial::SpatialIndex *index = m_indices.Find(frame))
 		{
 			const double reach =
 			    lookahead * 2.0 * maxSpeed + agent.radius + largest + std::max(clearance, separation);
@@ -479,7 +480,8 @@ void Steering::Step(Sim::SimWorld &world)
 			for (const entt::entity entity : near)
 			{
 				const auto *body = registry.try_get<Physics::Body>(entity);
-				if (entity == vehicle || !body || body->sensor || FrameOf(registry, entity) != frame)
+				if (entity == vehicle || !body || body->sensor ||
+				    LocalFrameOf(registry, entity) != localFrame)
 					continue;
 				if (destination.byShape)
 				{
@@ -506,7 +508,7 @@ void Steering::Step(Sim::SimWorld &world)
 		    maxSpeed);
 		if (destination.byShape)
 			velocity = ShapeLimited(
-			    system, vehicle, registry.get<const Physics::Body>(vehicle).shape, transform, agent,
+			    frame, vehicle, registry.get<const Physics::Body>(vehicle).shape, transform, agent,
 			    velocity, onCourse ? waypoint(destination.next) : target, clearance);
 
 		if (!onCourse && !destination.arrived &&

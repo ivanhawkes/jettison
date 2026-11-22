@@ -11,7 +11,7 @@ namespace Jettison::Vfs
 // A pack file: a directory's files in one file, which FileSystem mounts as it does the directory,
 // for shipping. Each file is kept on its own, stored as it is or compressed as one zstd frame with
 // its checksum, so one is read without reading the rest, and a damaged one is caught as it is
-// read. A file is compressed only where that pays: the sample assets are 87 MB, 75 MB of them
+// read. A file is compressed only where that pays: the space sample's assets were 87 MB, 75 MB of them
 // textures already zstd-supercompressed in their KTX 2 files, and zstd at level 1 saves under
 // 0.1 % on those and on the models, about half on the text (measured 2026-11-13).
 //

@@ -94,8 +94,8 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	Dock::RegisterTypes();
 	world.ShowInSnapshots<Physics::OnRails>();
 	entt::registry &registry = world.Registry();
-	const entt::entity station = registry.create();
-	registry.emplace<Physics::OnRails>(station, Physics::OnRails{"Ostra Highport", {}, {}});
+	const entt::entity platform = registry.create();
+	registry.emplace<Physics::OnRails>(platform, Physics::OnRails{"North Quay", {}, {}});
 	const entt::entity nameless = registry.create();
 	const Sim::Snapshot snapshot = Sim::Capture(world);
 	Words words;
@@ -106,11 +106,12 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	CHECK(
 	    word(
 	        Sim::MakeReason(
-	            Dock::Reason::AlreadyHoldsBerth, {Argument::Integer(12), Argument::Entity(station)})) ==
-	    "the ship already holds pad 12 at Ostra Highport");
+	            Dock::Reason::AlreadyHoldsBerth,
+	            {Argument::Integer(12), Argument::Entity(platform)})) ==
+	    "the vehicle already holds berth 12 at North Quay");
 	CHECK(
 	    word(Sim::MakeReason(Dock::Reason::OtherFrame, {Argument::Entity(nameless)})) ==
-	    "the ship is not in something's system");
+	    "the vehicle is not in something's frame");
 	CHECK(
 	    word(
 	        {"reason.test.locked",
@@ -125,8 +126,8 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	    word(
 	        Sim::MakeReason(
 	            Dock::Reason::AlreadyHoldsBerth,
-	            {Argument::Integer(1200), Argument::Entity(station)})) ==
-	    "das Schiff hat bereits Landeplattform 1.200 an Ostra Highport");
+	            {Argument::Integer(1200), Argument::Entity(platform)})) ==
+	    "das Fahrzeug hat bereits Stellplatz 1.200 an North Quay");
 	CHECK(words.strings.Problems() == 0);
 
 	// A script's reason, which no table words yet, reads as its key and is counted.

@@ -36,15 +36,15 @@ class FrameIndices
 	// SimWorld's registrations do, for one already made.
 	static FrameIndices &Attach(Sim::SimWorld &world, const Octree::Settings &settings = {});
 
-	// A system's index, or nothing for a system no entity is in.
-	const SpatialIndex *Find(std::uint64_t system) const;
+	// A frame's index, or nothing for a frame no entity is in.
+	const SpatialIndex *Find(std::uint64_t frame) const;
 
-	// The systems with entities, in identifier order.
-	std::vector<std::uint64_t> Systems() const;
+	// The frames with entities, in identifier order.
+	std::vector<std::uint64_t> Frames() const;
 
 	// Brings every index up to the registry: what the system does each step. An entity indexed
-	// that has gone, lost its Transform or its InFrame, or is in no system is removed; one that
-	// changed system moves to the other's index.
+	// that has gone, lost its Transform or its InFrame, or is in no frame is removed; one that
+	// changed frame moves to the other's index.
 	void Update(const entt::registry &registry);
 
   private:
@@ -57,7 +57,7 @@ class FrameIndices
 	struct Entry
 	{
 		entt::entity entity{entt::null};
-		std::uint64_t system{0};
+		std::uint64_t frame{0};
 		// The update that last found it.
 		std::uint64_t pass{0};
 	};

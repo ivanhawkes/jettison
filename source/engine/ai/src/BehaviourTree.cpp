@@ -240,7 +240,7 @@ void Behaviours::Flatten(
 			Refuse(name, path, std::format("the task '{}', which is not defined", node.task));
 		flat.task = &task->second;
 	}
-	// Whole steps, rounded up, as a lane's transit is; a little under a whole number of steps is
+	// Whole steps, rounded up, as a portal's transit is; a little under a whole number of steps is
 	// that number, not one more.
 	if (node.kind == NodeKind::Wait)
 		flat.steps = static_cast<std::uint64_t>(std::ceil(node.seconds / m_fixedStep - 1e-9));

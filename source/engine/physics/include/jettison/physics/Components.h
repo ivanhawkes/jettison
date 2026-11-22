@@ -101,7 +101,7 @@ struct OnRails
 };
 
 // The frame a body's physics runs in (docs/architecture.md, "Coordinate frames and units"): the
-// local frame of that body of its frame's (FrameModel), in the space sample a platform or a planet,
+// local frame of that body of its frame's (FrameModel), a platform or a moving deck,
 // which moves with the body and does not turn with it. A body without one is in the frame's own,
 // at rest at its origin. Each local frame with bodies is a Jolt world of its own, so only bodies in
 // one meet, and a body that changes local frame is made again in the other's, its velocity carried

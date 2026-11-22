@@ -5,7 +5,7 @@ saves:
   empty: "Noch keine Spielstände: F5 speichert als Schnellspeicherung."
   column:
     save: Spielstand
-    system: System
+    place: Ort
     written: Geschrieben (UTC)
     step: Schritt
   load: Laden

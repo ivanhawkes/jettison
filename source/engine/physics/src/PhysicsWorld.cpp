@@ -105,8 +105,8 @@ double BoundingRadius(const ShapeDefinition &shape)
 // frame's own. Ordered, frame first, which is the order worlds step and save in.
 struct WorldKey
 {
-	std::uint64_t system{Sim::kNoFrame};
-	std::string frame;
+	std::uint64_t frame{Sim::kNoFrame};
+	std::string localFrame;
 
 
 	friend auto operator<=>(const WorldKey &, const WorldKey &) = default;
@@ -172,10 +172,10 @@ std::optional<std::string> Unmakeable(const Body &body, const ShapeEntry *shape,
 	}
 	if (body.sensor && body.continuous)
 		return "is a sensor and continuous: a sensor is placed, not swept";
-	if (body.kind == BodyKind::Static && !key.frame.empty())
+	if (body.kind == BodyKind::Static && !key.localFrame.empty())
 		return std::format(
 		    "is static in the frame of '{}', which carries it: what a frame carries is kinematic",
-		    key.frame);
+		    key.localFrame);
 	return std::nullopt;
 }
 
@@ -225,17 +225,17 @@ JPH::BodyCreationSettings MakeSettings(
 }
 
 
-std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
+std::uint64_t FrameOf(const entt::registry &registry, entt::entity entity)
 {
-	const auto *inSystem = registry.try_get<Sim::InFrame>(entity);
-	return inSystem ? inSystem->frame : Sim::kNoFrame;
+	const auto *inFrame = registry.try_get<Sim::InFrame>(entity);
+	return inFrame ? inFrame->frame : Sim::kNoFrame;
 }
 
 
 WorldKey KeyOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *frame = registry.try_get<LocalFrame>(entity);
-	return {SystemOf(registry, entity), frame ? frame->body : std::string{}};
+	return {FrameOf(registry, entity), frame ? frame->body : std::string{}};
 }
 
 
@@ -405,17 +405,17 @@ struct PhysicsWorld::Impl
 	// takes one, and a local frame has to be a body of a defined frame.
 	std::optional<std::string> UnknownFrame(const WorldKey &key) const
 	{
-		if (key.frame.empty())
+		if (key.localFrame.empty())
 			return std::nullopt;
-		const FrameModel *model = FindFrame(key.system);
+		const FrameModel *model = FindFrame(key.frame);
 		if (!model)
 			return std::format(
-			    "is in the local frame of '{}' in frame {:#x}, which is not defined", key.frame,
-			    key.system);
-		if (!model->HasBody(key.frame))
+			    "is in the local frame of '{}' in frame {:#x}, which is not defined", key.localFrame,
+			    key.frame);
+		if (!model->HasBody(key.localFrame))
 			return std::format(
-			    "is in the local frame of '{}', which frame {:#x} has no body of", key.frame,
-			    key.system);
+			    "is in the local frame of '{}', which frame {:#x} has no body of", key.localFrame,
+			    key.frame);
 		return std::nullopt;
 	}
 
@@ -424,9 +424,9 @@ struct PhysicsWorld::Impl
 	// checked (UnknownFrame).
 	glm::dvec3 Origin(const WorldKey &key, double simSeconds) const
 	{
-		if (key.frame.empty())
+		if (key.localFrame.empty())
 			return glm::dvec3{0.0};
-		return FindFrame(key.system)->BodyAt(key.frame, simSeconds).position;
+		return FindFrame(key.frame)->BodyAt(key.localFrame, simSeconds).position;
 	}
 
 
@@ -468,10 +468,10 @@ struct PhysicsWorld::Impl
 
 	// Every local frame of the frame, with its origin as a cast sees it, in the order worlds step in.
 	template <typename Visit>
-	void ForEachFrame(std::uint64_t system, const CastOptions &options, Visit visit) const
+	void ForEachFrame(std::uint64_t frame, const CastOptions &options, Visit visit) const
 	{
-		for (auto found = worlds.lower_bound(WorldKey{system, {}});
-		     found != worlds.end() && found->first.system == system; ++found)
+		for (auto found = worlds.lower_bound(WorldKey{frame, {}});
+		     found != worlds.end() && found->first.frame == frame; ++found)
 			visit(
 			    *found->second, options.framesAt ? Origin(found->first, *options.framesAt)
 			                                     : found->second->frameOrigin);
@@ -610,7 +610,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 		    if (Finite(pick.origin) && std::isfinite(length) && length > 0.0 &&
 		        std::isfinite(pick.maxDistance) && pick.maxDistance > 0.0 && std::isfinite(pick.time))
 			    if (const std::optional<CastHit> hit = physics.CastRay(
-			            pick.system, pick.origin, pick.direction, pick.maxDistance,
+			            pick.frame, pick.origin, pick.direction, pick.maxDistance,
 			            {pick.ignore, false, pick.time}))
 				    answer = {pick.sender,   pick.request, hit->entity,
 				              hit->distance, hit->point,   hit->normal};
@@ -752,7 +752,7 @@ std::size_t PhysicsWorld::BodyCount(std::uint64_t frame) const
 {
 	std::size_t count = 0;
 	for (const auto &[key, world] : m_pImpl->worlds)
-		if (key.system == frame)
+		if (key.frame == frame)
 			count += world->BodyCount();
 	return count;
 }
@@ -761,7 +761,7 @@ std::size_t PhysicsWorld::BodyCount(std::uint64_t frame) const
 std::size_t PhysicsWorld::FrameCount(std::uint64_t frame) const
 {
 	return static_cast<std::size_t>(std::ranges::count(
-	    m_pImpl->worlds, frame, [](const auto &entry) { return entry.first.system; }));
+	    m_pImpl->worlds, frame, [](const auto &entry) { return entry.first.frame; }));
 }
 
 
@@ -769,8 +769,8 @@ std::vector<std::uint64_t> PhysicsWorld::Frames() const
 {
 	std::vector<std::uint64_t> frames;
 	for (const auto &[key, world] : m_pImpl->worlds)
-		if (frames.empty() || frames.back() != key.system)
-			frames.push_back(key.system);
+		if (frames.empty() || frames.back() != key.frame)
+			frames.push_back(key.frame);
 	return frames;
 }
 
@@ -900,7 +900,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	for (const auto [entity, rails, transform] :
 	     registry.view<const OnRails, const Sim::Transform>().each())
 	{
-		const std::uint64_t frame = SystemOf(registry, entity);
+		const std::uint64_t frame = FrameOf(registry, entity);
 		if (frame == Sim::kNoFrame)
 			continue;
 		if (const std::optional<std::string> problem = impl.UnknownRails(frame, rails))
@@ -931,7 +931,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	{
 		const Body &body = candidates.get<const Body>(entity);
 		WorldKey key = KeyOf(registry, entity);
-		if (key.system == Sim::kNoFrame ||
+		if (key.frame == Sim::kNoFrame ||
 		    (impl.records.contains(entity) && !std::ranges::binary_search(removals, entity)))
 			continue;
 		const ShapeEntry *shape = impl.FindShape(body.shape);
@@ -947,15 +947,15 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	{
 		std::map<std::uint64_t, std::size_t> counts;
 		for (const auto &[key, world] : impl.worlds)
-			counts[key.system] += world->BodyCount();
+			counts[key.frame] += world->BodyCount();
 		for (const entt::entity entity : removals)
-			--counts[impl.records.at(entity).key.system];
+			--counts[impl.records.at(entity).key.frame];
 		for (const Creation &creation : creations)
 		{
-			if (++counts[creation.key.system] > impl.settings.maxBodies)
+			if (++counts[creation.key.frame] > impl.settings.maxBodies)
 				throw std::invalid_argument{std::format(
 				    "Physics: {} cannot be a body: frame {:#x} has its {} already",
-				    Describe(creation.entity), creation.key.system, impl.settings.maxBodies)};
+				    Describe(creation.entity), creation.key.frame, impl.settings.maxBodies)};
 		}
 	}
 
@@ -1000,7 +1000,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	{
 		const auto found = impl.records.find(entity);
 		Detail::FrameWorld &world = *found->second.world;
-		if (registry.valid(entity) && SystemOf(registry, entity) == found->second.key.system)
+		if (registry.valid(entity) && FrameOf(registry, entity) == found->second.key.frame)
 			leftFrames.emplace(entity, world.frameVelocity);
 		impl.EndContacts(entity);
 		world.Bodies().RemoveBody(found->second.id);
@@ -1016,8 +1016,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		record.world = &impl.World(creation.key, motionOf(creation.key));
 		if (record.body.kind == BodyKind::Kinematic)
 			if (const auto *rails = registry.try_get<OnRails>(creation.entity))
-				record.placed =
-				    RailsTransform(*impl.FindFrame(creation.key.system), *rails, simSeconds);
+				record.placed = RailsTransform(*impl.FindFrame(creation.key.frame), *rails, simSeconds);
 		if (record.body.kind != BodyKind::Static)
 		{
 			Velocity &velocity = registry.get_or_emplace<Velocity>(creation.entity);
@@ -1112,9 +1111,9 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 			    record.id, Detail::ToJolt(velocity.linear), Detail::ToJolt(velocity.angular));
 			record.velocity = velocity;
 		}
-		if (const FrameModel *model = impl.FindFrame(record.key.system))
+		if (const FrameModel *model = impl.FindFrame(record.key.frame))
 		{
-			auto [found, made] = fields.try_emplace(record.key.system);
+			auto [found, made] = fields.try_emplace(record.key.frame);
 			if (made)
 				found->second = model->GravityAt(simSeconds);
 			if (found->second)
@@ -1144,7 +1143,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 			    Core::Severity::Warning, kPhysics,
 			    "frame {:#x} outgrew its capacities ({:#x}: manifolds 1, pairs 2, contacts 4); "
 			    "said once",
-			    key.system, static_cast<unsigned>(errors));
+			    key.frame, static_cast<unsigned>(errors));
 			impl.reportedUpdateError = true;
 		}
 	}
@@ -1218,7 +1217,7 @@ std::uint64_t PhysicsWorld::QuietFrom(
 	for (const auto [entity, body, transform] :
 	     registry.view<const Body, const Sim::Transform>().each())
 	{
-		if (SystemOf(registry, entity) == Sim::kNoFrame)
+		if (FrameOf(registry, entity) == Sim::kNoFrame)
 			continue;
 		++bodies;
 		const auto found = impl.records.find(entity);
@@ -1238,7 +1237,7 @@ std::uint64_t PhysicsWorld::QuietFrom(
 	for (const auto [entity, rails, transform] :
 	     registry.view<const OnRails, const Sim::Transform>().each())
 	{
-		const std::uint64_t frame = SystemOf(registry, entity);
+		const std::uint64_t frame = FrameOf(registry, entity);
 		if (frame == Sim::kNoFrame)
 			continue;
 		if (impl.UnknownRails(frame, rails))
@@ -1267,7 +1266,7 @@ void PhysicsWorld::Skip(entt::registry &registry, double lastBegan, double now, 
 	    bodiesAt;
 	for (const auto [entity, rails, transform] : registry.view<const OnRails, Sim::Transform>().each())
 	{
-		const std::uint64_t frame = SystemOf(registry, entity);
+		const std::uint64_t frame = FrameOf(registry, entity);
 		if (frame == Sim::kNoFrame)
 			continue;
 		const FrameModel *model = impl.FindFrame(frame);
@@ -1329,8 +1328,8 @@ void PhysicsWorld::Save(Serialise::BinaryWriter &writer) const
 	writer.WriteUnsigned(impl.worlds.size(), 4);
 	for (const auto &[key, world] : impl.worlds)
 	{
-		writer.Write(key.system);
 		writer.Write(key.frame);
+		writer.Write(key.localFrame);
 		writer.Write(world->frameOrigin);
 		writer.Write(world->frameVelocity);
 		writer.Write(world->Sequences());
@@ -1399,14 +1398,14 @@ std::function<void()> PhysicsWorld::Load(
 	for (std::uint32_t worldIndex = 0; worldIndex < worldCount; ++worldIndex)
 	{
 		WorldKey key;
-		reader.Read(key.system);
 		reader.Read(key.frame);
-		if (key.system == Sim::kNoFrame ||
+		reader.Read(key.localFrame);
+		if (key.frame == Sim::kNoFrame ||
 		    (!pending->worlds.empty() && key <= pending->worlds.rbegin()->first))
 			reader.Fail(
 			    std::format(
-			        "the physics state's worlds are not in order at {:#x} '{}'", key.system,
-			        key.frame));
+			        "the physics state's worlds are not in order at {:#x} '{}'", key.frame,
+			        key.localFrame));
 		if (const std::optional<std::string> problem = impl.UnknownFrame(key))
 			reader.Fail(std::format("a world {}", *problem));
 		std::unique_ptr<Detail::FrameWorld> world = impl.NewWorld();
@@ -1417,14 +1416,14 @@ std::function<void()> PhysicsWorld::Load(
 		if (sequences.size() > impl.settings.maxBodies)
 			reader.Fail(
 			    std::format(
-			        "frame {:#x} has {} body identifiers, more than its {}", key.system,
+			        "frame {:#x} has {} body identifiers, more than its {}", key.frame,
 			        sequences.size(), impl.settings.maxBodies));
 
 		const auto bodyCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 		if (bodyCount == 0 || bodyCount > sequences.size())
 			reader.Fail(
 			    std::format(
-			        "frame {:#x} has {} bodies for {} identifiers", key.system, bodyCount,
+			        "frame {:#x} has {} bodies for {} identifiers", key.frame, bodyCount,
 			        sequences.size()));
 		std::vector<std::uint32_t> held;
 		struct Made
@@ -1482,7 +1481,8 @@ std::function<void()> PhysicsWorld::Load(
 		    (!world->System().RestoreState(recorder) || recorder.IsFailed() || !recorder.IsEOF()))
 			reader.Fail(
 			    std::format(
-			        "frame {:#x} '{}''s Jolt state does not fit its bodies", key.system, key.frame));
+			        "frame {:#x} '{}''s Jolt state does not fit its bodies", key.frame,
+			        key.localFrame));
 		pending->worlds.emplace(std::move(key), std::move(world));
 	}
 

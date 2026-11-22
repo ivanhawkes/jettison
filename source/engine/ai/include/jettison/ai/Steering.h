@@ -42,7 +42,7 @@ namespace Jettison::Ai
 // separation. Each is a velocity, not an acceleration: flight assist (Physics::FlightControls)
 // holds a demanded velocity, reaching it as fast as the thrusters allow, so a vehicle's steering is
 // the velocity its behaviours sum to, held to its speed, and the flight model is what limits how
-// fast it gets there. Positions are in the system frame; velocities are in the frame the agent
+// fast it gets there. Positions are in the frame (Sim::InFrame); velocities are in the frame the agent
 // flies in (Physics::LocalFrame), which everything it steers about shares, since bodies in two
 // frames never meet.
 
@@ -120,8 +120,8 @@ struct Steered
 
 // Where a steered vehicle is flown to: with an entity, the offset from it in its own axes, so a place
 // off a platform's dock turns with the platform; without one, the offset is a point in the vehicle's
-// frame, metres from the frame's body in the system's axes (Physics::PhysicsWorld::FrameOrigin), so
-// a holding point by a platform moves with it on its orbit. The waypoints, in the vehicle's frame as a
+// frame, metres from the frame's body in the frame's axes (Physics::PhysicsWorld::FrameOrigin), so
+// a holding point by a platform moves with it. The waypoints, in the vehicle's frame as a
 // point is, are flown through in order on the way, each passed within the pass radius: a course
 // (Courses.h, PlotCourse) made relative to the frame. It has arrived within the arrival radius of
 // the destination, moving no faster than the arrival speed relative to it, and from then holds
@@ -145,7 +145,7 @@ struct Destination
 	// flown to one flies inside the sphere; what the sweep meets at the end of the way down is the
 	// deck it lands on, short of which the destination is, and that is not held off.
 	bool byShape{false};
-	// The way the vehicle turns to, in the entity's axes (the system's, without one), rather than to
+	// The way the vehicle turns to, in the entity's axes (the frame's, without one), rather than to
 	// the way it is going: a berth's, as it lands on it, rolled too.
 	bool face{false};
 	glm::dquat facing{1.0, 0.0, 0.0, 0.0};
@@ -176,7 +176,7 @@ struct ClearDestination
 };
 
 // Raised as a vehicle arrives, once for each destination, and as its destination is taken from it
-// because it cannot be flown to: its entity has gone, or is in another system or frame. Registered
+// because it cannot be flown to: its entity has gone, or is in another frame or local frame. Registered
 // with Reflect, every field Saved, by RegisterTypes.
 struct Arrived
 {
@@ -202,7 +202,7 @@ struct DestinationRefused
 // flight model ("flight"). Each step, for each steered vehicle with a destination, in entity order:
 //   1. Where it is flying to: its next waypoint, or the destination, where it is as the step
 //      begins. A vehicle within the pass radius of its waypoint goes on to the next.
-//   2. What is near, from its system's spatial index: every body in its frame within the distance
+//   2. What is near, from its frame's spatial index: every body in its frame within the distance
 //      two vehicles at its speed close in the lookahead, so one faster than it is seen later, widened
 //      by the largest shape (Physics::PhysicsWorld::LargestShapeRadius) and the larger of its
 //      clearance and separation. Bodies but sensors are obstacles, each the sphere of its shape's
@@ -243,7 +243,7 @@ class Steering
 	// The velocity, slowed along its way to stop the clearance short of what the vehicle's shape, swept
 	// along it, would meet before its target (Destination::byShape).
 	glm::dvec3 ShapeLimited(
-	    std::uint64_t system, entt::entity vehicle, std::string_view shape, const Sim::Transform &at,
+	    std::uint64_t frame, entt::entity vehicle, std::string_view shape, const Sim::Transform &at,
 	    const Agent &agent, const glm::dvec3 &velocity, const glm::dvec3 &target,
 	    double clearance) const;
 

@@ -7,8 +7,8 @@
 namespace Jettison::Math
 {
 // Bounding volumes, in the frame of whoever holds them. Each shape comes in float, for render-side
-// culling and picking in camera-relative space, and in double, for the simulation's system frame:
-// there positions are metres from the star, and a float is already a quarter of a metre coarse
+// culling and picking in camera-relative space, and in double, for the simulation's frames:
+// there positions are metres from a frame's origin, and a float is already a quarter of a metre coarse
 // at four thousand kilometres. Plain data; the tests in Intersect.h are the behaviour, compiled
 // once for each precision in Intersect.cpp.
 template <typename T> struct BasicAabb

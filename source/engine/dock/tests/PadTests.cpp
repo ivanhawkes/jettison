@@ -417,7 +417,7 @@ TEST_CASE(
 	        "reason.dock.not_controller()", "reason.dock.holds_nothing()",
 	        std::format("reason.dock.already_holds_berth(2, {})", platform),
 	        "reason.dock.not_a_platform()", std::format("reason.dock.no_berth_fits({})", platform),
-	        std::format("reason.dock.other_system({})", platform), "reason.dock.not_controller()"});
+	        std::format("reason.dock.other_frame({})", platform), "reason.dock.not_controller()"});
 	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{vehicle, 2}});
 }
 

@@ -649,7 +649,7 @@ constexpr std::string_view kPreamble =
     R"(/* The host API for Jettison's scripts, generated from the reflection tables of the game that wrote
  * it (Script::Header): the imports a script may be granted, and the game's types a script sees,
  * laid out as the host copies them in and out of a script's memory. Do not edit it; write it again
- * from the game, which the sample shell does with its console's "script_bindings <directory>".
+ * from the game, which the shell does with its console's "script_bindings <directory>".
  *
  * A script is a wasm32 module, compiled freestanding: clang --target=wasm32 -ffreestanding
  * -nostdlib, linked with wasm-ld --no-entry. Its handlers and inputs are exported by name
@@ -854,7 +854,7 @@ constexpr std::string_view kRustPreamble =
     R"(//! The host API for Jettison's scripts, generated from the reflection tables of the game that wrote
 //! it (Script::RustModule): the imports a script may be granted, and the game's types a script
 //! sees, laid out as the host copies them in and out of a script's memory, under the names the C
-//! header gives them. Do not edit it; write it again from the game, which the sample shell does with
+//! header gives them. Do not edit it; write it again from the game, which the shell does with
 //! its console's "script_bindings <directory>".
 //!
 //! A script is a no_std crate of one file, built as a cdylib for wasm32-unknown-unknown with

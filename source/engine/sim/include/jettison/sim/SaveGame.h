@@ -31,8 +31,8 @@ struct ModVersion
 	bool operator==(const ModVersion &) const = default;
 };
 
-// A detail of a game's in a save's info, for a list to show or a load to check: the space sample's
-// world and the frame it showed. Registered with Reflect as "Sim.SaveDetail", every field
+// A detail of a game's in a save's info, for a list to show or a load to check, as the
+// place it was saved in. Registered with Reflect as "Sim.SaveDetail", every field
 // Saved.
 struct SaveDetail
 {

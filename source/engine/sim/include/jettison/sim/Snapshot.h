@@ -37,9 +37,9 @@ struct Transform
 // each with its own origin, so two positions are comparable only in the same frame. A game of one
 // frame gives its entities none. A frame is its name hashed as Core::StringId hashes it (FrameId),
 // which a save keeps, so renaming one in the game's data moves its entities nowhere rather than into
-// another frame. An entity between frames is in none (kNoFrame) until it arrives. The space sample's
-// frames are its planetary systems, an entity passing through a portal in none. Registered with
-// Reflect, its field Saved, by RegisterTypes; a world registers it with its chain (Migrations).
+// another frame. An entity between frames, as one passing through a portal is, is in none (kNoFrame)
+// until it arrives. Registered with Reflect, its field Saved, by RegisterTypes; a world registers it
+// with its chain (Migrations).
 struct InFrame
 {
 	std::uint64_t frame{0};

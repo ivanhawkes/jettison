@@ -228,10 +228,23 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
    environment matching.
 8. **Close-out.** The allow-list empty; architecture, scope, game integration and the sample docs
    rewritten for the boundary as it is; Manifest's boundary assessment's status; the consumer matrix
-   (ground, Manifest) run; a cross-review of the whole, as at a stage's end. Slice 7 left some names
-   in the setting's words, for this slice to settle or keep: a pick's `system` field, the reasons
-   `other_system` and `destination_other_system`, the string tables' wording, and the
-   `textures/hulls` paths. `system` alone is not one of the checked words.
+   (ground, Manifest) run; a cross-review of the whole, as at a stage's end. In three parts:
+   - **8a, the last names.** **Done** 2026-11-23: what slice 7 left in the setting's words, and
+     `system` where it meant a frame, which the check cannot hold since an ECS system is the
+     engine's own word. A pick's field is `frame` (`Physics::Pick::frame`, saved "frame"), a
+     queued pick's "system" renamed as the world loads, by the field and under no new version, since
+     one would move every pinned hash for a field only a queued pick holds; physics' worlds keyed by
+     frame and local frame, `Spatial::FrameIndices::Frames`, steering's locals likewise. The
+     reasons a frame and a local frame refuse by are `other_frame` and `other_local_frame` (the
+     dock's), `destination_other_frame` and `destination_other_local_frame` (steering's); reasons
+     are carried by events and saved nowhere, so no save names the old keys. The engine's string
+     tables word a vehicle, a platform and a berth in both languages; the saves list's detail is
+     `place`, its column "Place" and "Ort"; the test content's textures are `textures/panels`;
+     production comments name the retired sample only for a measurement taken on it. No pinned hash moved, and every reference
+     frame held.
+   - **8b, the documents** rewritten for the boundary as it is.
+   - **8c, the close**: Manifest's boundary assessment, the consumer matrix, the gate and the
+     cross-review.
 
 ## Settled with the user
 

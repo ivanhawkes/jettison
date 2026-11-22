@@ -46,6 +46,10 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 2> kRenamedC
 // The components version 5 dropped, the retired loading deck's, whose storages an earlier save holds:
 // read through and left out.
 constexpr std::array<std::string_view, 2> kRetiredComponents{"Dock.Transfer", "Dock.Buggy"};
+// A queued pick's frame, which every build up to the space extraction's close-out saved as "system":
+// renamed by the field as Load reads it, under no version of its own, since a new world version would
+// move the bytes of every save for a field only a queued pick holds.
+constexpr std::string_view kPickCommand = "Physics.Pick";
 
 
 const Serialise::BinaryMigrations &Migrations()
@@ -65,8 +69,8 @@ const Serialise::BinaryMigrations &Migrations()
 		    2, [](Serialise::BinaryDocument &document)
 		    { document.payload.insert(document.payload.begin(), 4, std::byte{0}); });
 		// Version 4 (A01) renamed "Sim.InSystem" to "Sim.InFrame", a frame of the game's rather than
-		// a planetary system; its field is renamed by its own chain (InFrame::Migrations), its storage
-		// being at version 1 in the table.
+		// one of the space setting's; its field is renamed by its own chain (InFrame::Migrations), its
+		// storage being at version 1 in the table.
 		chain.Add(
 		    3,
 		    [](Serialise::BinaryDocument &document)
@@ -366,13 +370,16 @@ void SimWorld::Load(std::span<const std::byte> save)
 			reader.Fail(
 			    std::format("the save queues a command '{}', which this world does not apply", name));
 		entt::meta_any command = type.construct();
-		if (saved < kNeutralNames &&
-		    std::ranges::find(kRenamedCommands, name) != kRenamedCommands.end())
+		const bool renamed = saved < kNeutralNames &&
+		                     std::ranges::find(kRenamedCommands, name) != kRenamedCommands.end();
+		if (renamed || name == kPickCommand)
 		{
 			Serialise::BinaryRecord record = reader.ReadRecord();
 			for (const auto &[from, to] : kRenamedCommandFields)
-				if (record.Has(from))
+				if (renamed && record.Has(from))
 					record.Rename(from, to);
+			if (name == kPickCommand && record.Has("system"))
+				record.Rename("system", "frame");
 			record.ReadInto(command);
 		}
 		else

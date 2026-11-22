@@ -5,7 +5,7 @@ saves:
   empty: "There are no saves yet: F5 saves to quicksave."
   column:
     save: Save
-    system: System
+    place: Place
     written: Written (UTC)
     step: Step
   load: Load

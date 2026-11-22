@@ -101,7 +101,7 @@ class Shell
 	virtual void Resync() = 0;
 
 	// The scene shown, which is presentation's world: there once the shell has started
-	// (Game::SceneLoaded), and replaced as it reloads or a jump arrives.
+	// (Game::SceneLoaded), and replaced as it reloads or the game loads another.
 	virtual Scene::Scene &Scene() = 0;
 
 	// The newest snapshot and the one before it, which presentation shows the world between, Alpha of
@@ -218,7 +218,7 @@ class Game
 	// cycle, throws from the shell's constructor.
 	virtual void RegisterFrame(Ecs::Scheduler &frame, Shell &shell);
 
-	// The scene a run of no --scene and no --system loads, by virtual path: scene/main.yaml unless the
+	// The scene a run of no --scene loads, by virtual path: scene/main.yaml unless the
 	// game names another. Without the file the scene is empty.
 	virtual std::string_view DefaultScene() const;
 
@@ -276,7 +276,7 @@ class Game
 	virtual std::optional<std::string> Describe(entt::entity entity) const;
 
 	// Where the player's click picks, or none, the default, and the shell does not pick; and where the
-	// origin of the frame a hit is kept relative to is, in the frame's system, at a time in simulation
+	// origin of the frame a hit is kept relative to is, in its frame, at a time in simulation
 	// seconds, so a mark on a moving body moves with it.
 	virtual std::optional<PickSpace> PickIn(const Shell &shell) const;
 

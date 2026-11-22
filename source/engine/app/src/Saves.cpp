@@ -64,7 +64,7 @@ void RegisterSavesScreenTypes()
 	{
 		Reflect::RegisterType<SaveRow>("Shell.SaveRow")
 		    .Field<&SaveRow::name>("name")
-		    .Field<&SaveRow::system>("system")
+		    .Field<&SaveRow::place>("place")
 		    .Field<&SaveRow::written>("written")
 		    .Field<&SaveRow::step>("step")
 		    .Field<&SaveRow::engine>("engine")
@@ -88,8 +88,7 @@ SavesScreen BuildSavesScreen(const Vfs::FileSystem &fileSystem)
 			const auto bytes = fileSystem.Read(SavePath(name));
 			const Sim::SaveInfo info =
 			    Sim::SaveGame::ReadInfo(bytes ? *bytes : std::vector<std::byte>{});
-			const std::string_view system = info.Detail(kPlaceDetail);
-			row.system = system.empty() ? "no system" : system;
+			row.place = info.Detail(kPlaceDetail);
 			row.written = std::format(
 			    "{:%Y-%m-%d %H:%M}", std::chrono::sys_seconds{std::chrono::seconds{info.writtenAt}});
 			row.step = info.step;

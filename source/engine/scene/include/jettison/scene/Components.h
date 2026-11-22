@@ -39,11 +39,11 @@ inline entt::entity FindById(const entt::registry &registry, std::string_view id
 	return entt::null;
 }
 
-// The content layers within a system's scene (docs/scope.md, "Scene: layers"): for loading in
+// The content layers within a scene (docs/scope.md, "Scene: layers"): for loading in
 // stages and for editor visibility.
 enum class Layer : std::uint8_t
 {
-	Environment, // Bodies, platforms, the sky: what the system description places.
+	Environment, // Bodies, platforms, the sky: what the scene file places.
 	Traffic,     // Vehicles, loads, debris: what the simulation places.
 	Effects      // Beacons, markers, transient visuals.
 };
@@ -89,7 +89,7 @@ struct SimProxyComponent
 	entt::entity simEntity{entt::null};
 };
 
-// Relative to the parent, or to the system frame's origin for an entity without one. The
+// Relative to the parent, or to the frame's origin for an entity without one. The
 // translation is metres in double precision, so a scene can place a planet a hundred million
 // kilometres out and a plate on a platform beside it; rotation and scale stay float, since
 // neither grows with the distance from the origin.
@@ -117,7 +117,7 @@ struct ParentComponent
 	entt::entity entity{entt::null};
 };
 
-// The transform in the system frame, composed in double precision. The renderer takes the
+// The transform in the frame, composed in double precision. The renderer takes the
 // camera's position off it before anything becomes a float (Render::ToRenderSpace).
 struct WorldTransformComponent
 {
@@ -160,7 +160,7 @@ enum class LightType
 // cone angles are half-angles from that axis in radians, full inside the inner and dark outside the
 // outer, as glTF's KHR_lights_punctual has them. Intensity is the irradiance at one metre, in the
 // HDR target's linear units, falling off with the inverse square of the distance and windowed to
-// reach zero at the range. The star's light is SunComponent's, and the ambient light the sky's.
+// reach zero at the range. The sun's light is SunComponent's, and the ambient light the sky's.
 //
 // Its intensity can move with presentation time, as a beacon's blinks: scaled from one share of it
 // to another along a wave, as a material's animated parameter moves (render/Material.h), so a lamp's
@@ -276,7 +276,7 @@ struct BodyComponent
 };
 
 // The scene's one directional light (docs/architecture.md, "Rules that follow"): it shines
-// from the entity's position, which is normally the star's, towards whatever the camera sees, and
+// from the entity's position, which is normally the sun's, towards whatever the camera sees, and
 // lives in the frame constants rather than the light list. Linear colour times intensity.
 struct SunComponent
 {

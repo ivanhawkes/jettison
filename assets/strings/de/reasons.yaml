@@ -4,27 +4,27 @@ version: 1
 reason:
   entity: etwas
   dock:
-    vehicle_gone: das Schiff ist nicht in der Welt
-    not_controller: der Absender befehligt das Schiff nicht
-    not_a_platform: das ist keine Station
-    no_vehicle: die Docks kennen den Rumpf des Schiffs nicht
-    cannot_fly: das Schiff kann nicht fliegen
-    other_system: das Schiff ist nicht im System von {0}
-    other_frame: das Schiff ist nicht im Bezugssystem von {0}
-    already_queued: das Schiff wartet bereits auf eine Landeplattform an {0}
-    already_holds_berth: das Schiff hat bereits Landeplattform {0} an {1}
-    no_berth_fits: "{0} hat keine Landeplattform, auf die der Rumpf passt"
-    holds_nothing: das Schiff hat keine Landeplattform und wartet auf keine
-    already_leaving: das Schiff verlässt seine Landeplattform bereits
-    no_berth_offers: "{0} hat keine passende Landeplattform, die das Gewünschte bietet"
+    vehicle_gone: das Fahrzeug ist nicht in der Welt
+    not_controller: der Absender befehligt das Fahrzeug nicht
+    not_a_platform: das ist keine Plattform
+    no_vehicle: die Docks kennen die Art des Fahrzeugs nicht
+    cannot_fly: das Fahrzeug kann nicht fliegen
+    other_frame: das Fahrzeug ist nicht im Bezugssystem von {0}
+    other_local_frame: das Fahrzeug ist nicht im lokalen Bezugssystem von {0}
+    already_queued: das Fahrzeug wartet bereits auf einen Stellplatz an {0}
+    already_holds_berth: das Fahrzeug hat bereits Stellplatz {0} an {1}
+    no_berth_fits: "{0} hat keinen Stellplatz, auf den das Fahrzeug passt"
+    holds_nothing: das Fahrzeug hat keinen Stellplatz und wartet auf keinen
+    already_leaving: das Fahrzeug verlässt seinen Stellplatz bereits
+    no_berth_offers: "{0} hat keinen passenden Stellplatz, der das Gewünschte bietet"
   ai:
-    no_such_entity: dieses Schiff gibt es nicht
+    no_such_entity: dieses Fahrzeug gibt es nicht
     destination_gone: sein Ziel gibt es nicht mehr
-    destination_other_system: sein Ziel ist in einem anderen System
     destination_other_frame: sein Ziel ist in einem anderen Bezugssystem
-    not_controller: der Absender befehligt das Schiff nicht
+    destination_other_local_frame: sein Ziel ist in einem anderen lokalen Bezugssystem
+    not_controller: der Absender befehligt das Fahrzeug nicht
     no_pilot: niemand Bestimmtes kann ein Steuer übernehmen
-    helm_held: jemand anderes ist am Steuer des Schiffs
-    not_at_helm: der Absender ist nicht am Steuer des Schiffs
+    helm_held: jemand anderes ist am Steuer des Fahrzeugs
+    not_at_helm: der Absender ist nicht am Steuer des Fahrzeugs
   physics:
-    not_at_helm: der Absender ist nicht am Steuer des Schiffs
+    not_at_helm: der Absender ist nicht am Steuer des Fahrzeugs

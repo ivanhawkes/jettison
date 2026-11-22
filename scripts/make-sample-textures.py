@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-# Rebuilds the sample hull textures in source/test/content/textures/hulls/hull-panels:
+# Rebuilds the test content's panel textures in source/test/content/textures/panels:
 # painted plating (its colour) and a mask of lit windows (its emissive), both 256x256 and tileable. Writes the PNGs to the
 # current directory; the KTX 2 files are encoded from them with KTX-Software's ktx tool (nixpkgs
 # ktx-tools, the version the engine reads, in devenv):
 #
 #   python3 scripts/make-sample-textures.py
 #   ktx create --format R8G8B8_SRGB --encode uastc --uastc-quality 2 --zstd 19 \
-#       --generate-mipmap hull-panels-color.png \
-#       source/test/content/textures/hulls/hull-panels/hull-panels-color.ktx2
+#       --generate-mipmap panels-color.png \
+#       source/test/content/textures/panels/panels-color.ktx2
 #   ktx create --format R8G8B8_SRGB --encode basis-lz --clevel 2 --qlevel 192 \
-#       --generate-mipmap hull-panels-emissive.png \
-#       source/test/content/textures/hulls/hull-panels/hull-panels-emissive.ktx2
+#       --generate-mipmap panels-emissive.png \
+#       source/test/content/textures/panels/panels-emissive.ktx2
 #
-# The two encodings are Basis Universal's two modes, UASTC and ETC1S, so the sample assets take
+# The two encodings are Basis Universal's two modes, UASTC and ETC1S, so the test content takes
 # both through the transcoder. The seed is fixed: the same script makes the same images.
 import random, struct, zlib
 
@@ -73,5 +73,5 @@ for y in range(SIZE):
     hull.append(hull_row)
     lights.append(light_row)
 
-png('hull-panels-color.png', hull)
-png('hull-panels-emissive.png', lights)
+png('panels-color.png', hull)
+png('panels-emissive.png', lights)

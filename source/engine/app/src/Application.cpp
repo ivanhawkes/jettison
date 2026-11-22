@@ -309,11 +309,11 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 			    try
 			    {
 				    const Sim::SaveInfo info = Sim::SaveGame::ReadInfo(*bytes);
-				    const std::string_view system = info.Detail(kPlaceDetail);
+				    const std::string_view place = info.Detail(kPlaceDetail);
 				    console.Print(
 				        std::format(
 				            "{}: step {} in {}, by engine {}", name, info.step,
-				            system.empty() ? "no system" : system, info.engineVersion));
+				            place.empty() ? "nowhere" : place, info.engineVersion));
 			    }
 			    catch (const std::exception &error)
 			    {
@@ -1613,8 +1613,8 @@ void Application::ShowSequence(entt::registry &registry)
 	const Scene::SequencePlayerComponent *player =
 	    players.empty() ? nullptr : &players.get<const Scene::SequencePlayerComponent>(players.front());
 	m_pRenderer->SetLetterbox(player != nullptr ? player->letterbox : 0.0f);
-	// A game's fade over it, a jump's, is set after this. The renderer keeps a fade until it is set
-	// again, so the sequence's is cleared the frame it ends, and otherwise left to the game's.
+	// A game's fade over it, a change of scene's, is set after this. The renderer keeps a fade until it
+	// is set again, so the sequence's is cleared the frame it ends, and otherwise left to the game's.
 	const float fade = player != nullptr ? player->fade : 0.0f;
 	if (fade > 0.0f || m_sequenceFaded)
 		m_pRenderer->SetFade(player != nullptr ? player->fadeColor : glm::vec3{0.0f}, fade);

@@ -10,8 +10,8 @@ enum class Reason : std::uint8_t
 {
 	NoSuchEntity,
 	DestinationGone,
-	DestinationOtherSystem,
 	DestinationOtherFrame,
+	DestinationOtherLocalFrame,
 	NotController,
 	NoPilot,
 	HelmHeld,

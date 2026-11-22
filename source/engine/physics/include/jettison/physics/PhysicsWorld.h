@@ -32,9 +32,8 @@ struct PhysicsSettings
 	std::uint32_t maxBodies{8192};
 	std::uint32_t maxBodyPairs{32768};
 	std::uint32_t maxContactConstraints{16384};
-	// The fastest a body moves in its frame. Jolt's default, 500 m/s, is far below a platform's
-	// 7.7 km/s on its orbit in the space sample, and a kinematic body following one would be held to
-	// it.
+	// The fastest a body moves in its frame. Jolt's default, 500 m/s, is far below the 7.7 km/s
+	// a game's platform may go at, and a kinematic body following one would be held to it.
 	float maxLinearVelocity{1.0e5f};
 };
 
@@ -85,7 +84,7 @@ struct CastOptions
 	bool sensors{false};
 	// The simulation time to place each frame at, rather than where the last step left it, with its
 	// bodies where they are in it. Presentation shows the world between the last two steps
-	// (Sim::Stepper), and a platform's frame moves 500 m a step about the star, so a ray drawn from
+	// (Sim::Stepper), and a platform's frame may move 500 m a step, so a ray drawn from
 	// what is shown is cast at the time shown, or it misses the platform by the distance between them.
 	std::optional<double> framesAt;
 };
@@ -99,8 +98,8 @@ struct Pick
 {
 	Sim::Controller sender;
 	std::uint64_t request{0};
-	// The frame cast in (Sim::InFrame), saved as "system".
-	std::uint64_t system{0};
+	// The frame cast in (Sim::InFrame).
+	std::uint64_t frame{0};
 	glm::dvec3 origin{0.0};
 	glm::dvec3 direction{0.0, 0.0, -1.0};
 	double maxDistance{0.0};
@@ -179,9 +178,8 @@ class FrameModel
 // What moves a frame's named bodies, and what pulls in it, is the game's (FrameModel, DefineFrame),
 // its start-up as shapes are: what puts an entity on rails (OnRails) and carries a local frame, and
 // the frame's gravity, which moves only dynamic bodies. A frame with no model has no rails, no local
-// frames and no gravity. The space sample's frames are planetary systems, whose
-// orbits stay on rails, so a vehicle beside a platform falls round the planet with it rather than away
-// from it at the planet's pull.
+// frames and no gravity. Rails a frame's model moves stay on them under its gravity, so a vehicle
+// beside a platform the model carries falls with it rather than away from it.
 //
 // One fixed step, as the simulation system "physics" (kSystemName), after the flight model
 // ("flight", Flight.h), which a game's systems order themselves against with `after`:

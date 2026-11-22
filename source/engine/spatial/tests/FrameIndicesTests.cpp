@@ -87,11 +87,11 @@ TEST_CASE("System indices: each system's entities are in its own index, as the s
 		    station + glm::dvec3{Coordinate(random), Coordinate(random), Coordinate(random)},
 		    ship % 3 == 0 ? kVesper : kHalcyon));
 	const entt::entity lane = fixture.Add(station, Sim::kNoFrame);
-	CHECK(fixture.indices.Systems().empty());
+	CHECK(fixture.indices.Frames().empty());
 
 	fixture.world.Step();
 	CHECK(
-	    fixture.indices.Systems() ==
+	    fixture.indices.Frames() ==
 	    std::vector<std::uint64_t>{std::min(kHalcyon, kVesper), std::max(kHalcyon, kVesper)});
 	CHECK(
 	    fixture.indices.Find(kHalcyon)->Count() + fixture.indices.Find(kVesper)->Count() ==
@@ -135,7 +135,7 @@ TEST_CASE("System indices: each system's entities are in its own index, as the s
 			inSystem.frame = kHalcyon;
 	fixture.world.Step();
 	CHECK(fixture.indices.Find(kVesper) == nullptr);
-	CHECK(fixture.indices.Systems() == std::vector<std::uint64_t>{kHalcyon});
+	CHECK(fixture.indices.Frames() == std::vector<std::uint64_t>{kHalcyon});
 	CHECK(fixture.Found(kHalcyon, station, 1.0e5) == fixture.Expected(kHalcyon, station, 1.0e5));
 }
 

@@ -27,20 +27,20 @@ FrameIndices &FrameIndices::Attach(Sim::SimWorld &world, const Octree::Settings 
 }
 
 
-const SpatialIndex *FrameIndices::Find(std::uint64_t system) const
+const SpatialIndex *FrameIndices::Find(std::uint64_t frame) const
 {
-	const auto found = m_indices.find(system);
+	const auto found = m_indices.find(frame);
 	return found == m_indices.end() ? nullptr : &found->second;
 }
 
 
-std::vector<std::uint64_t> FrameIndices::Systems() const
+std::vector<std::uint64_t> FrameIndices::Frames() const
 {
-	std::vector<std::uint64_t> systems;
-	systems.reserve(m_indices.size());
-	for (const auto &[system, index] : m_indices)
-		systems.push_back(system);
-	return systems;
+	std::vector<std::uint64_t> frames;
+	frames.reserve(m_indices.size());
+	for (const auto &[frame, index] : m_indices)
+		frames.push_back(frame);
+	return frames;
 }
 
 
@@ -50,35 +50,35 @@ void FrameIndices::Update(const entt::registry &registry)
 	++m_pass;
 	const auto remove = [this](Entry &entry)
 	{
-		const auto index = m_indices.find(entry.system);
+		const auto index = m_indices.find(entry.frame);
 		index->second.Remove(entry.entity);
 		if (index->second.Count() == 0)
 			m_indices.erase(index);
 		entry = {};
 	};
 
-	for (const auto [entity, transform, inSystem] :
+	for (const auto [entity, transform, inFrame] :
 	     registry.view<const Sim::Transform, const Sim::InFrame>().each())
 	{
-		if (inSystem.frame == Sim::kNoFrame)
+		if (inFrame.frame == Sim::kNoFrame)
 			continue;
 		const auto slot = static_cast<std::size_t>(entt::to_entity(entity));
 		if (slot >= m_entries.size())
 			m_entries.resize(slot + 1);
 		Entry &entry = m_entries[slot];
-		if (entry.entity == entity && entry.system == inSystem.frame)
-			m_indices.at(entry.system).Update(entity, transform.position);
+		if (entry.entity == entity && entry.frame == inFrame.frame)
+			m_indices.at(entry.frame).Update(entity, transform.position);
 		else
 		{
-			// Indexed in another system, or an earlier entity at the same index.
+			// Indexed in another frame, or an earlier entity at the same index.
 			if (entry.entity != entt::null)
 				remove(entry);
-			auto index = m_indices.find(inSystem.frame);
+			auto index = m_indices.find(inFrame.frame);
 			if (index == m_indices.end())
-				index = m_indices.emplace(inSystem.frame, SpatialIndex{m_settings}).first;
+				index = m_indices.emplace(inFrame.frame, SpatialIndex{m_settings}).first;
 			index->second.Insert(entity, transform.position);
 			entry.entity = entity;
-			entry.system = inSystem.frame;
+			entry.frame = inFrame.frame;
 		}
 		entry.pass = m_pass;
 	}

@@ -129,7 +129,7 @@ class IRenderer
 	virtual void SetExposure(float exposure) = 0;
 
 	// A colour over the scene, by an amount from 0 (none) to 1 (the whole frame): a game's fade between
-	// two scenes, as a jump's was. Mixed in after tonemapping, in display light, and under the UI, so
+	// two scenes. Mixed in after tonemapping, in display light, and under the UI, so
 	// the dev tools stay readable through it.
 	virtual void SetFade(const glm::vec3 &color, float amount) = 0;
 

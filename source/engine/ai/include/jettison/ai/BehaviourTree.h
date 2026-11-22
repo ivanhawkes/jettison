@@ -49,7 +49,7 @@ enum class NodeKind : std::uint8_t
 	// ever; it fails as the child fails.
 	Repeat,
 	// Its one child, again from the start each time it succeeds, until it fails, which succeeds the
-	// loop: a loop whose child's first task is its condition, as "while a jump is left".
+	// loop: a loop whose child's first task is its condition, as "while a leg is left".
 	Loop,
 	// Running for its seconds, in whole steps rounded up, then a success.
 	Wait,

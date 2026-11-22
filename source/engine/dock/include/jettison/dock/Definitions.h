@@ -82,8 +82,8 @@ struct Box
 // definition alone, and only a display berth names one. Berths are numbered from 1 in the layout's
 // order.
 //
-// A berth's features are what it offers besides a place to land, by names that are the game's (the
-// space sample's "dry-dock", where a vehicle is repaired): the docks give a vehicle that asks for one a
+// A berth's features are what it offers besides a place to land, by names that are the game's (a
+// "dry-dock", where a vehicle is repaired): the docks give a vehicle that asks for one a
 // berth that offers it (RequestBerth::feature) and know nothing of what it is for.
 // Registered with Reflect as "Dock.BerthLayout", every field Saved and Moddable.
 struct BerthLayout

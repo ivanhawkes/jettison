@@ -15,9 +15,8 @@ class FileSystem;
 namespace Jettison::App
 {
 // The detail of a save's info (Sim::SaveInfo::details) the saves' list shows, where a game writes
-// one: the place it was saved in. `system`, as the space sample names it and the saves already
-// written have it.
-inline constexpr std::string_view kPlaceDetail = "system";
+// one: the place it was saved in.
+inline constexpr std::string_view kPlaceDetail = "place";
 
 // Where a save of that name lives on the user mount: "saves/<name>.save". A name is letters, digits,
 // '-' and '_', so it is one segment of a virtual path on any file system; throws
@@ -33,7 +32,7 @@ std::vector<std::string> ListSaves(const Vfs::FileSystem &fileSystem);
 struct SaveRow
 {
 	std::string name;
-	std::string system;
+	std::string place;
 	// When it was written, in UTC: "2026-11-12 09:38".
 	std::string written;
 	std::uint64_t step{0};

@@ -1320,7 +1320,7 @@ void Renderer::UpdateEnvironment(
 		light.bodies.push_back(body);
 
 	// A replaced scene is rebaked even when its sky is the same, so a reload proves the whole path:
-	// a jump to another system loads another sky anyway. Otherwise the bodies are rebaked as they
+	// a scene of another place loads another sky anyway. Otherwise the bodies are rebaked as they
 	// move, but no more than every sixteen frames: easing the camera to another body turns the whole
 	// sky, and a bake waits for the queue.
 	constexpr std::uint64_t kFramesBetweenBakes = 16;

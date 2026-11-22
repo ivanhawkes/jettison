@@ -7,27 +7,27 @@ reason:
   # An entity a reason names that has no name to show.
   entity: something
   dock:
-    vehicle_gone: the ship is not in the world
-    not_controller: its sender does not command the ship
-    not_a_platform: it is not a station
-    no_vehicle: the ship has no hull the docks know
-    cannot_fly: the ship is not one that flies
-    other_system: the ship is not in {0}'s system
-    other_frame: the ship is not in {0}'s frame
-    already_queued: the ship is already waiting for a pad at {0}
-    already_holds_berth: the ship already holds pad {0} at {1}
-    no_berth_fits: "{0} has no pad its hull fits"
-    holds_nothing: the ship holds no pad and waits for none
-    already_leaving: the ship is already leaving its pad
-    no_berth_offers: "{0} has no pad its hull fits that offers what it asks for"
+    vehicle_gone: the vehicle is not in the world
+    not_controller: its sender does not command the vehicle
+    not_a_platform: it is not a platform
+    no_vehicle: the vehicle is of no kind the docks know
+    cannot_fly: the vehicle is not one that flies
+    other_frame: the vehicle is not in {0}'s frame
+    other_local_frame: the vehicle is not in {0}'s local frame
+    already_queued: the vehicle is already waiting for a berth at {0}
+    already_holds_berth: the vehicle already holds berth {0} at {1}
+    no_berth_fits: "{0} has no berth the vehicle fits"
+    holds_nothing: the vehicle holds no berth and waits for none
+    already_leaving: the vehicle is already leaving its berth
+    no_berth_offers: "{0} has no berth the vehicle fits that offers what it asks for"
   ai:
-    no_such_entity: there is no such ship
+    no_such_entity: there is no such vehicle
     destination_gone: its destination has gone
-    destination_other_system: its destination is in another system
     destination_other_frame: its destination is in another frame
-    not_controller: its sender does not command the ship
+    destination_other_local_frame: its destination is in another local frame
+    not_controller: its sender does not command the vehicle
     no_pilot: no one in particular cannot take a helm
-    helm_held: someone else is at the ship's helm
-    not_at_helm: its sender is not at the ship's helm
+    helm_held: someone else is at the vehicle's helm
+    not_at_helm: its sender is not at the vehicle's helm
   physics:
-    not_at_helm: its sender is not at the ship's helm
+    not_at_helm: its sender is not at the vehicle's helm

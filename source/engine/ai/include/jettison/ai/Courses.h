@@ -13,7 +13,7 @@ namespace Jettison::Ai
 // Courses through a space at one moment, around the spheres in the way: A* (Pathfinding.h), and
 // deterministic, so the same obstacles give the same course every run.
 
-// Something a course goes round, where it is: in the space sample a star, a planet or a moon.
+// Something a course goes round, where it is: a hill, a building, a planet.
 struct Sphere
 {
 	glm::dvec3 centre{0.0};

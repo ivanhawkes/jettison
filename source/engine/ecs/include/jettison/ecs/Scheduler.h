@@ -66,7 +66,7 @@ struct SystemDescription
 	std::vector<std::string> before{};
 	// Names of systems this one runs after when they are registered, and is not ordered against
 	// when they are not: how an optional module orders itself against another it does not depend
-	// on, as the lanes' system goes after the docks'. Validate does not require them.
+	// on, as a game's travel goes after the docks'. Validate does not require them.
 	std::vector<std::string> afterIfRegistered{};
 };
 
