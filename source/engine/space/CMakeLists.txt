@@ -15,6 +15,7 @@ jettison_add_module(space
 		serialise
 		sim
 		spatial
+		transit
 	HEADERS
 		include/jettison/space/Cruise.h
 		include/jettison/space/Gates.h

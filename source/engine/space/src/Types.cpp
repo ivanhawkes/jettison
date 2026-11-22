@@ -5,6 +5,7 @@
 #include <jettison/space/Cruise.h>
 #include <jettison/space/Gates.h>
 #include <jettison/space/Lanes.h>
+#include <jettison/transit/Types.h>
 
 namespace Jettison::Space
 {
@@ -14,6 +15,7 @@ void RegisterTypes()
 	{
 		using namespace Reflect;
 		Ai::RegisterTypes();
+		Jettison::Transit::RegisterTypes();
 		RegisterEnum<Reason>("Space.Reason")
 		    .Value<Reason::NoSuchEntity>("no_such_entity")
 		    .Value<Reason::OnLane>("on_lane")
@@ -99,11 +101,6 @@ void RegisterTypes()
 		    .Field<&GatePassed::gate>("gate", Attribute::Saved)
 		    .Field<&GatePassed::reason>("reason", Attribute::Saved);
 
-		RegisterType<CruiseProfile>("Ai.CruiseProfile")
-		    .Field<&CruiseProfile::boostAcceleration>("boostAcceleration", kDefined)
-		    .Field<&CruiseProfile::boostSeconds>("boostSeconds", kDefined)
-		    .Field<&CruiseProfile::sustainedAcceleration>("sustainedAcceleration", kDefined)
-		    .Field<&CruiseProfile::thrustShare>("thrustShare", kDefined);
 		RegisterType<CruiseDrive>("Ai.CruiseDrive", Attribute::Moddable)
 		    .Field<&CruiseDrive::seconds>("seconds", kDefined)
 		    .Field<&CruiseDrive::reference>("reference", kDefined)

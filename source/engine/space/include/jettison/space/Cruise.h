@@ -15,6 +15,7 @@
 #include <jettison/physics/Components.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
+#include <jettison/transit/Profile.h>
 
 namespace Jettison::Physics
 {
@@ -34,29 +35,11 @@ namespace Jettison::Space
 // kilometres off the body, in its frame. The bodies are on rails, so where the target will be on
 // arrival is solved exactly rather than chased.
 
-// A cruise limited by acceleration, turning at the midpoint: the boost acceleration for at most
-// boostSeconds of the whole cruise, half of it speeding up from the start and half slowing down to
-// the end, and the sustained acceleration between, so a long cruise takes days where a short one
-// stays at the boost throughout. In m/s² and seconds. With a thrust share, the share of the whole
-// cruise's time the drive thrusts, above 0 and at most 1, half at each end, the boost first, and the
-// ship coasts between at the speed it reached: a share rather than seconds, so it means the same at
-// any distance. None, or 1, thrusts to the midpoint. Registered with Reflect as "Ai.CruiseProfile",
-// every field Saved and Moddable, by RegisterTypes; a profile with no share saves as one did before.
-struct CruiseProfile
-{
-	float boostAcceleration{0.0f};
-	float boostSeconds{0.0f};
-	float sustainedAcceleration{0.0f};
-	std::optional<float> thrustShare{};
-
-	bool operator==(const CruiseProfile &) const = default;
-};
-
 // How long a ship's cruises take: the seconds a cruise of the reference distance takes, rising with
 // the distance to the exponent, slower than it, so one planet's stations are about a minute apart
-// and two planets a few; or, where it has a profile, the profile's time, the power law unused. The
-// game puts one on each ship that cruises, from its own data (the space sample's defs/drives, by
-// hull). Registered with Reflect as "Ai.CruiseDrive", every field Saved and Moddable, by
+// and two planets a few; or, where it has a profile (Transit::MotionProfile), the profile's time,
+// the power law unused. The game puts one on each ship that cruises, from its own data (Manifest's
+// drives, by hull). Registered with Reflect as "Ai.CruiseDrive", every field Saved and Moddable, by
 // RegisterTypes; a drive with no profile saves as one did before profiles.
 struct CruiseDrive
 {
@@ -64,7 +47,7 @@ struct CruiseDrive
 	// In metres.
 	double reference{1.0e8};
 	float exponent{0.25f};
-	std::optional<CruiseProfile> profile;
+	std::optional<Jettison::Transit::MotionProfile> profile;
 
 	bool operator==(const CruiseDrive &) const = default;
 };
@@ -73,29 +56,9 @@ struct CruiseDrive
 // exponent, or the profile's time, at rest at both ends. None for no distance.
 double CruiseSeconds(const CruiseDrive &drive, double metres);
 
-// The metres a cruise of that many metres has covered that many seconds after setting out, on a
-// profile, from none at 0 to all of them at CruiseSeconds and after.
-double CruiseCovered(const CruiseProfile &profile, double metres, double seconds);
-
-// The seconds a cruise thrusts at each end of it: at the boost, then at the sustained acceleration.
-struct CruiseThrustSeconds
-{
-	double boost{0.0};
-	double sustained{0.0};
-
-	bool operator==(const CruiseThrustSeconds &) const = default;
-};
-
-// How long a cruise of that many metres on the profile thrusts at each end, so a game can price what
-// its burns cost: each phase's speed change is its acceleration times its seconds. None for no
-// distance.
-CruiseThrustSeconds CruiseThrust(const CruiseProfile &profile, double metres);
-
 // Checks a drive a game defines: its seconds and reference positive and finite, and its exponent
-// above 0 and at most 1, so its time rises with the distance and no faster than it; and a profile's
-// boost positive, its sustained acceleration at most the boost and not negative, its boost seconds
-// not negative, one of those two above 0 so a cruise of any length ends, its thrust share, if it has
-// one, above 0 and at most 1, and all finite. Throws Serialise::FormatError naming the drive.
+// above 0 and at most 1, so its time rises with the distance and no faster than it; and its profile,
+// if it has one, as Transit::CheckProfile does. Throws Serialise::FormatError naming the drive.
 void CheckCruiseDrive(std::string_view name, const CruiseDrive &drive);
 
 // A ship cruising: its Sim::InFrame stays its system, and it has no Physics::Body, Velocity or
@@ -122,7 +85,7 @@ struct Cruising
 	// Its body, which it has back on arrival.
 	Physics::Body body;
 	// Its drive's profile as it set out, which it covers its course by, or none to ease along it.
-	std::optional<CruiseProfile> profile;
+	std::optional<Jettison::Transit::MotionProfile> profile;
 
 	bool operator==(const Cruising &) const = default;
 };
@@ -197,7 +160,7 @@ std::optional<Ai::Destination> ClearOf(
 //   - a drive with a profile is given the fewest whole steps found, from that solve's, in which it
 //     covers the course they give (CruiseSeconds), so no step of it accelerates past the boost;
 //   - along the course it eases out of its start and into its end (an in-out cubic of the steps
-//     run), or on a profile covers it as the profile does (CruiseCovered), slowed to the whole
+//     run), or on a profile covers it as the profile does (Transit::Covered), slowed to the whole
 //     steps; carried with the carrier on its orbit, and faces along the leg it is on;
 //   - in the step that ends its cruise it is at the course's end, or if that is not clear of every
 //     body already there and of what arrived before it in the step, at the first place clear on

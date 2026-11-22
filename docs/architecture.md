@@ -150,9 +150,10 @@ flowchart TB
         sim; spatial; input
     end
     subgraph T4[Presentation and simulation services]
-        render; physics; audio; ui; ai; dock; script; net
+        render; physics; audio; ui; ai; transit; dock; script; net
         space --> physics
         space --> ai
+        space --> transit
     end
     subgraph T5[Hosts]
         app --> host
@@ -176,7 +177,9 @@ includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `p
 ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
 `ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there; it links no
 `space` or `celestial` (G01d), though its suites fly in the retired sample's star system, a copy in
-their fixtures. `space` is the optional space capability (W01): its
+their fixtures. `transit` is travel of no genre, so far the motion profile a way is covered by in
+closed form (`Transit::MotionProfile`), its first piece from the [space
+extraction](space-extraction-plan.md). `space` is the optional space capability (W01): its
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
@@ -339,11 +342,11 @@ the sample from its hull's (`defs/drives/<hull>.yaml`, G01d; a hull file of vers
 still loads, its drive left out, through `Dock::HullMigrations`): the
 seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the shuttle crosses from
 Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. A drive may give a
-profile in its place (`Space::CruiseProfile`), for a game played over days: a boost acceleration for
+profile in its place (`Transit::MotionProfile`), for a game played over days: a boost acceleration for
 at most a time over the whole cruise, half at each end, and a sustained one between, turning at the
 midpoint, the time its closed form. A profile may thrust for only a share of the cruise's time
 (`thrustShare`), half at each end, and coast between at the speed it reached: a share rather than
-seconds, so it means the same at any distance, and `CruiseThrust` gives each end's seconds at the
+seconds, so it means the same at any distance, and `Transit::Thrust` gives each end's seconds at the
 boost and the sustained rate, which a game prices its fuel from. The bodies are on
 rails, so where the target will be on arrival is solved rather than chased: the time gives the
 target's place, the course to it gives the time again, in eight rounds, which the fourth root

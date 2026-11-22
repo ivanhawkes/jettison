@@ -7,7 +7,7 @@ space code. The space sample has served its purpose and is retired: what of it s
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
 station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
-Slices 1 to 3 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
+Slices 1 to 3 are done, and slice 4 is under way; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
 ## Where things stand
@@ -139,7 +139,21 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
    an independent consumer in its suite (a lift and a train on a path, a door between two frames and
    one within a frame, a toll booth's gated portal, a car park's bays); cruises rebuilt on transit and
    the lanes and gates on portals, gated portals and slots, still in Jettison; every Manifest pin
-   held, which proves the neutral layer carries the setting.
+   held, which proves the neutral layer carries the setting. In five parts, each a commit with its
+   suites, `Cruising`, `OnLane`, `Gate` and `Transit` keeping their saved fields:
+   - **4a, motion profiles.** **Done** 2026-11-22: the neutral module `transit`, its
+     `Transit::MotionProfile` the cruise's profile (saved as "Ai.CruiseProfile" until slice 7) with
+     `Seconds`, `Covered`, `Thrust` and `CheckProfile`, the closed forms moved unchanged and their
+     tests with them; `Space::CruiseDrive` keeps its power law and takes a profile's time from it.
+     Manifest names the neutral types; its 53 suites and every pin held on the local engine.
+   - **4b, transit.** The cruise's passage as any game's: an entity out of physics with its body
+     kept, placed each step along a path the game gives about a carrier, passed over by
+     fast-forward, and brought out at rest clear of what is there, in a frame the game names; a lift
+     and a train in the suite.
+   - **4c, portals.** The lanes on them: a door between two frames and one within a frame.
+   - **4d, slots and gated portals.** The gates on them: a toll booth's gated portal and a car
+     park's bays.
+   - **4e, the smoke run's jump stage** removed with its five words, the jump being Manifest's.
 5. **Berths.** `dock` without stations' celestial tie: a station layout takes the placement its game
    gives; Manifest's pads on berths; pins held.
 6. **The move.** `celestial`'s orbits, bodies and galaxy, `space`'s setting and the routes into

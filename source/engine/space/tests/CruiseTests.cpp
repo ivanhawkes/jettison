@@ -31,12 +31,11 @@ constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 // A shuttle's drive (defs/hulls/shuttle.yaml).
 constexpr Space::CruiseDrive kDrive{40.0f, 1.0e8, 0.25f, {}};
-constexpr double kStandardGravity = 9.80665;
 // A profile far past any crew's, so a test's cruise from Highport to Pell is minutes, not hours:
 // boosting 10 s at each end, sustained between.
-constexpr Space::CruiseProfile kHard{20000.0f, 20.0f, 5000.0f};
+constexpr Transit::MotionProfile kHard{20000.0f, 20.0f, 5000.0f};
 // The same thrusting for a quarter of the cruise, coasting for the rest.
-constexpr Space::CruiseProfile kCoasting{20000.0f, 20.0f, 5000.0f, 0.25f};
+constexpr Transit::MotionProfile kCoasting{20000.0f, 20.0f, 5000.0f, 0.25f};
 
 // A world as a game's start-up makes one: physics, the lanes, then cruising, given the sample
 // galaxy's systems.
@@ -166,157 +165,15 @@ TEST_CASE("Cruise: a drive's time rises as the distance's fourth root")
 }
 
 
-TEST_CASE("Cruise: a profile's time and what it covers are its closed form")
+TEST_CASE("Cruise: a drive with a profile takes the profile's time, and a bad profile names the drive")
 {
-	// 2 g for 4 hours, 2 at each end, and 1 g between.
-	const Space::CruiseProfile manned{
-	    static_cast<float>(2.0 * kStandardGravity), 14400.0f, static_cast<float>(kStandardGravity)};
-	const Space::CruiseDrive drive{.profile = manned};
-	const auto boost = double{manned.boostAcceleration};
-	const auto sustained = double{manned.sustainedAcceleration};
-
-	// Short of the boost's distance it is at the boost throughout: 2 √(d / a).
-	CHECK(Space::CruiseSeconds(drive, 1.0e6) == doctest::Approx(2.0 * std::sqrt(1.0e6 / boost)));
-	CHECK(Space::CruiseSeconds(drive, 0.0) == 0.0);
-
-	// Two hours at the boost and one at the sustained rate each way.
-	const double boosted = boost * 7200.0 * 7200.0 / 2.0;
-	const double speed = boost * 7200.0;
-	const double half = boosted + (speed * 3600.0) + (sustained * 3600.0 * 3600.0 / 2.0);
-	CHECK(Space::CruiseSeconds(drive, 2.0 * half) == doctest::Approx(21600.0).epsilon(1.0e-12));
-	CHECK(Space::CruiseCovered(manned, 2.0 * half, 0.0) == 0.0);
-	CHECK(Space::CruiseCovered(manned, 2.0 * half, 3600.0) == doctest::Approx(boost * 3600.0 * 1800.0));
-	CHECK(Space::CruiseCovered(manned, 2.0 * half, 7200.0) == doctest::Approx(boosted));
-	CHECK(Space::CruiseCovered(manned, 2.0 * half, 10800.0) == doctest::Approx(half));
-	CHECK(
-	    Space::CruiseCovered(manned, 2.0 * half, 21600.0 - 3600.0) ==
-	    doctest::Approx((2.0 * half) - (boost * 3600.0 * 1800.0)));
-	CHECK(Space::CruiseCovered(manned, 2.0 * half, 21600.0) == 2.0 * half);
-	CHECK(Space::CruiseCovered(manned, 2.0 * half, 1.0e9) == 2.0 * half);
-
-	// Unmanned, 12 g throughout.
-	const auto twelve = static_cast<float>(12.0 * kStandardGravity);
-	const Space::CruiseDrive unmanned{.profile = Space::CruiseProfile{twelve, 0.0f, twelve}};
-	CHECK(
-	    Space::CruiseSeconds(unmanned, 4.0e11) ==
-	    doctest::Approx(2.0 * std::sqrt(4.0e11 / double{twelve})));
-	CHECK_NOTHROW(Space::CheckCruiseDrive("manned", drive));
-	CHECK_NOTHROW(Space::CheckCruiseDrive("unmanned", unmanned));
-	CHECK_NOTHROW(Space::CheckCruiseDrive("coasting", {.profile = Space::CruiseProfile{20.0f, 60.0f}}));
-}
-
-
-TEST_CASE("Cruise: a profile thrusting for a share of the cruise coasts between, in closed form")
-{
-	// 1 g throughout over Ore to Brine's 396 million km (Manifest's W21 plan): a share f reaches
-	// s = √(f / (2 − f)) of the full thrust's speed, so the cruise takes (1 + s²) / 2s times as long.
-	const auto g = static_cast<float>(kStandardGravity);
-	const double metres = 3.96e11;
-	const Space::CruiseProfile full{g, 0.0f, g};
-	const double fullSeconds = Space::CruiseSeconds({.profile = full}, metres);
-	for (const float share : {0.5f, 0.25f, 0.1f})
-	{
-		Space::CruiseProfile coasting = full;
-		coasting.thrustShare = share;
-		const double reached = std::sqrt(double{share} / (2.0 - double{share}));
-		const double seconds = Space::CruiseSeconds({.profile = coasting}, metres);
-		CHECK(
-		    seconds == doctest::Approx(fullSeconds * (1.0 + (reached * reached)) / (2.0 * reached))
-		                   .epsilon(1.0e-12));
-		const Space::CruiseThrustSeconds thrust = Space::CruiseThrust(coasting, metres);
-		CHECK(thrust.boost == 0.0);
-		CHECK(2.0 * thrust.sustained / seconds == doctest::Approx(double{share}).epsilon(1.0e-12));
-
-		// Thrusting from rest, then coasting at the speed reached to the turn and on to the burn in.
-		const double thrusted = double{g} * thrust.sustained * thrust.sustained / 2.0;
-		const double top = double{g} * thrust.sustained;
-		CHECK(Space::CruiseCovered(coasting, metres, thrust.sustained) == doctest::Approx(thrusted));
-		CHECK(
-		    Space::CruiseCovered(coasting, metres, seconds / 2.0) ==
-		    doctest::Approx(metres / 2.0).epsilon(1.0e-12));
-		CHECK(
-		    Space::CruiseCovered(coasting, metres, (seconds / 2.0) + 3600.0) ==
-		    doctest::Approx((metres / 2.0) + (top * 3600.0)).epsilon(1.0e-12));
-		CHECK(
-		    Space::CruiseCovered(coasting, metres, seconds - thrust.sustained) ==
-		    doctest::Approx(metres - thrusted));
-		CHECK(Space::CruiseCovered(coasting, metres, seconds) == metres);
-		CHECK_NOTHROW(Space::CheckCruiseDrive("coasting", {.profile = coasting}));
-	}
-	Space::CruiseProfile half = full;
-	half.thrustShare = 0.5f;
-	MESSAGE(
-	    "Ore to Brine at 1 g: " << fullSeconds / 86400.0 << " days thrusting throughout, "
-	                            << Space::CruiseSeconds({.profile = half}, metres) / 86400.0
-	                            << " at half the time");
-	CHECK(fullSeconds / 86400.0 == doctest::Approx(4.65).epsilon(0.001));
-	CHECK(
-	    Space::CruiseSeconds({.profile = half}, metres) / 86400.0 ==
-	    doctest::Approx(5.37).epsilon(0.001));
-
-	// 2 g for 4 hours, 2 at each end, and 1 g between: a quarter of a long cruise thrusts past the
-	// boost, a quarter of a short one only on it.
-	Space::CruiseProfile manned{
-	    static_cast<float>(2.0 * kStandardGravity), 14400.0f, static_cast<float>(kStandardGravity),
-	    0.25f};
-	for (const double distance : {metres, 1.0e8})
-	{
-		const double seconds = Space::CruiseSeconds({.profile = manned}, distance);
-		const Space::CruiseThrustSeconds thrust = Space::CruiseThrust(manned, distance);
-		CHECK(
-		    2.0 * (thrust.boost + thrust.sustained) / seconds ==
-		    doctest::Approx(0.25).epsilon(1.0e-12));
-		const auto boost = double{manned.boostAcceleration};
-		const double boosted = boost * thrust.boost * thrust.boost / 2.0;
-		const auto sustained = double{manned.sustainedAcceleration};
-		const double thrusted = boosted + (boost * thrust.boost * thrust.sustained) +
-		                        (sustained * thrust.sustained * thrust.sustained / 2.0);
-		CHECK(Space::CruiseCovered(manned, distance, thrust.boost) == doctest::Approx(boosted));
-		CHECK(
-		    Space::CruiseCovered(manned, distance, thrust.boost + thrust.sustained) ==
-		    doctest::Approx(thrusted));
-		CHECK(
-		    Space::CruiseCovered(manned, distance, seconds / 2.0) ==
-		    doctest::Approx(distance / 2.0).epsilon(1.0e-12));
-	}
-	CHECK(Space::CruiseThrust(manned, metres).boost == 7200.0);
-	CHECK(Space::CruiseThrust(manned, metres).sustained > 0.0);
-	CHECK(Space::CruiseThrust(manned, 1.0e8).boost < 7200.0);
-	CHECK(Space::CruiseThrust(manned, 1.0e8).sustained == 0.0);
-	CHECK(Space::CruiseThrust(manned, 0.0) == Space::CruiseThrustSeconds{});
-
-	// A share of 1 is none, to the bit, and thrusts to the midpoint.
-	const Space::CruiseProfile throughout{
-	    manned.boostAcceleration, manned.boostSeconds, manned.sustainedAcceleration};
-	manned.thrustShare = 1.0f;
-	CHECK(
-	    Space::CruiseSeconds({.profile = manned}, metres) ==
-	    Space::CruiseSeconds({.profile = throughout}, metres));
-	for (const double at : {3600.0, 7200.0, 1.0e5, 3.0e5})
-		CHECK(Space::CruiseCovered(manned, metres, at) == Space::CruiseCovered(throughout, metres, at));
-	const Space::CruiseThrustSeconds thrust = Space::CruiseThrust(throughout, metres);
-	CHECK(
-	    2.0 * (thrust.boost + thrust.sustained) ==
-	    doctest::Approx(Space::CruiseSeconds({.profile = throughout}, metres)).epsilon(1.0e-12));
-	CHECK_NOTHROW(Space::CheckCruiseDrive("throughout", {.profile = manned}));
-}
-
-
-TEST_CASE("Cruise: a profile of no boost, or one that is past it or never ends, is refused")
-{
-	const float infinity = std::numeric_limits<float>::infinity();
-	for (const Space::CruiseProfile profile :
-	     {Space::CruiseProfile{0.0f, 60.0f, 0.0f}, Space::CruiseProfile{infinity, 60.0f, 10.0f},
-	      Space::CruiseProfile{20.0f, -1.0f, 10.0f}, Space::CruiseProfile{20.0f, infinity, 10.0f},
-	      Space::CruiseProfile{20.0f, 60.0f, -1.0f}, Space::CruiseProfile{20.0f, 60.0f, 30.0f},
-	      Space::CruiseProfile{20.0f, 0.0f, 0.0f}})
-		CHECK_THROWS_AS(Space::CheckCruiseDrive("bad", {.profile = profile}), Serialise::FormatError);
-	// A thrust share not above 0 and at most 1.
-	for (const float share : {0.0f, -0.5f, 1.5f, infinity, std::numeric_limits<float>::quiet_NaN()})
-		CHECK_THROWS_AS(
-		    Space::CheckCruiseDrive(
-		        "bad", {.profile = Space::CruiseProfile{20.0f, 60.0f, 10.0f, share}}),
-		    Serialise::FormatError);
+	const Space::CruiseDrive drive{.profile = kHard};
+	for (const double metres : {0.0, 1.0e6, 3.93e8})
+		CHECK(Space::CruiseSeconds(drive, metres) == Transit::Seconds(kHard, metres));
+	CHECK_NOTHROW(Space::CheckCruiseDrive("hard", drive));
+	CHECK_THROWS_WITH_AS(
+	    Space::CheckCruiseDrive("bad", {.profile = Transit::MotionProfile{0.0f, 60.0f, 0.0f}}),
+	    doctest::Contains("Cruise drive 'bad' has a profile"), Serialise::FormatError);
 }
 
 
@@ -852,7 +709,7 @@ TEST_CASE("Cruise: on a profile with a share, a ship thrusts out, coasts, and th
 			midSpeed = glm::length(places[last] - places[last - 1]) / kStep;
 		}
 	}
-	const Space::CruiseThrustSeconds thrust = Space::CruiseThrust(kCoasting, started[0].metres);
+	const Transit::ThrustSeconds thrust = Transit::Thrust(kCoasting, started[0].metres);
 	const double top = (double{kCoasting.boostAcceleration} * thrust.boost) +
 	                   (double{kCoasting.sustainedAcceleration} * thrust.sustained);
 	MESSAGE(
