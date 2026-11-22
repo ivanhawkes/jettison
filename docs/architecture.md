@@ -2052,9 +2052,9 @@ proves it headlessly. What exists:
   ship lands on its pad and is let go, and the market screen's answers sound on the UI bus
   ([audio](#audio)). The console's `volume [bus] [volume]` sets a bus's volume and saves it with the
   settings, or lists them.
-- **Smoke sequence**. `SmokeSequence` is the render test's twelve stages (resize, resize,
+- **Smoke sequence**. `SmokeSequence` is the render test's eleven stages (resize, resize,
   minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, save and load,
-  trade, jump, settle) as a state
+  the game's screen, settle) as a state
   machine driven once per frame through the callbacks of `SmokeActions`. It names no GLFW, Vulkan or scene type, and its counters (`Passed`,
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML

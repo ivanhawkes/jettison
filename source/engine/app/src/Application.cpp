@@ -1818,8 +1818,7 @@ SmokeActions Application::MakeSmokeActions()
 		ReloadScene();
 		m_pResources->ReloadAll();
 	};
-	// The pilot's and the jump's stages are a game's to drive (DriveSmoke): the shell has nothing
-	// to fly and nowhere to jump.
+	// The pilot's stages are a game's to drive (DriveSmoke): the shell has nothing to fly.
 	actions.pilot = [](bool) { return false; };
 	actions.pick = [this]
 	{

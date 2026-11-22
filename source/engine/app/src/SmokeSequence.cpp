@@ -24,8 +24,8 @@ constexpr int kResizeSettleFrames = 8;
 // frame at these sizes, and a runner is slower than this machine.
 constexpr auto kWatchdog = std::chrono::seconds(120);
 
-// The last stage has no action: it settles and closes. A run that reaches it has walked all twelve.
-constexpr int kFinalStage = 11;
+// The last stage has no action: it settles and closes. A run that reaches it has walked all eleven.
+constexpr int kFinalStage = 10;
 
 // The frames a pick is given to be answered: the next simulation step answers it, which is a frame
 // or two at most, unless the world is not stepping, and then the sequence moves on without it.
@@ -63,20 +63,10 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 		m_actionPending = false;
 		m_frames = 0;
 	}
-	else if (m_jumpPending)
-	{
-		// A jump takes as long as its effect and its loading take, which is real seconds rather
-		// than frames; the watchdog is what stops one that never ends.
-		if (!m_actions.jumping())
-		{
-			m_jumpPending = false;
-			m_actionPending = false;
-			m_frames = 0;
-		}
-	}
 	else if (m_pilotPending)
 	{
-		// Like a jump, as long as it takes; the watchdog is what stops one that never shows.
+		// As long as it takes, which is simulation time rather than frames; the watchdog is what
+		// stops one that never shows.
 		if (!m_actions.piloting())
 		{
 			m_pilotPending = false;
@@ -119,9 +109,9 @@ void SmokeSequence::Advance(bool frameResized, int windowWidth, int windowHeight
 
 	++m_frames;
 
-	// The stages, in order: grow the window, shrink it, minimize, restore, reload the scene, fly the
-	// ship behind it and from its seat, pick, save and load, the game's screen, jump, settle. The last
-	// one has no action.
+	// The stages, in order: grow the window, shrink it, minimize, restore, reload the scene, pilot
+	// from behind and from the seat, pick, save and load, the game's screen, settle. The last one has
+	// no action.
 	if (m_stage < kFinalStage && m_frames >= kStageFrames && !m_actionPending)
 	{
 		m_actionPending = true;
@@ -176,9 +166,8 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 			break;
 		case 5:
 		case 6:
-			// The ship's proxy is made from the snapshots and followed by the rig, through a
-			// transition, while the flight commands move it; the jump that follows takes it along the
-			// lane.
+			// The piloted proxy is made from the snapshots and followed by the rig, through a
+			// transition, while the flight commands move it.
 			if (m_actions.pilot(stage == 6))
 			{
 				++m_pilots;
@@ -213,14 +202,6 @@ void SmokeSequence::Act(int stage, int windowWidth, int windowHeight)
 			m_actionPending = m_gameUiPending;
 			break;
 		}
-		case 10:
-			// The system shown is replaced by another while frames that drew it are in flight, and
-			// the new one's models, materials and environment are made under the jump's effect.
-			m_jumpPending = m_actions.jump && m_actions.jump();
-			if (m_jumpPending)
-				++m_jumps;
-			m_actionPending = m_jumpPending;
-			break;
 		default:
 			// Unreachable: Advance() only acts below the final stage.
 			break;
@@ -234,13 +215,11 @@ bool SmokeSequence::Passed() const
 	// manager can refuse the second request. The reload has to happen exactly once, because a
 	// reload is the stage that invalidates the pipeline's model resources, and a run that never
 	// reloaded has not tested that.
-	// The jump likewise, for a game that drives one: once, and over before the close. And the save: a
-	// world that does not load back as it was saved is a save that loses the game.
+	// The save likewise: a world that does not load back as it was saved is a save that loses the game.
 	// A game's screen that showed something other than the snapshot, or whose command was never
 	// answered on it, is a screen not bound to the simulation.
 	return m_resizes >= 1 && m_reloads == 1 && m_saves == 1 && m_answers == m_screens &&
-	       !m_screenWrong && (m_jumps == 1 || !m_actions.jump) && !m_jumpPending &&
-	       m_stage == kFinalStage;
+	       !m_screenWrong && m_stage == kFinalStage;
 }
 
 
@@ -249,7 +228,6 @@ std::string SmokeSequence::Summary() const
 	return "resizes=" + std::to_string(m_resizes) + ", reloads=" + std::to_string(m_reloads) +
 	       ", pilots=" + std::to_string(m_pilots) + ", picks=" + std::to_string(m_picks) +
 	       ", saves=" + std::to_string(m_saves) + ", screens=" + std::to_string(m_screens) +
-	       ", answers=" + std::to_string(m_answers) + ", jumps=" + std::to_string(m_jumps) +
-	       ", stage=" + std::to_string(m_stage);
+	       ", answers=" + std::to_string(m_answers) + ", stage=" + std::to_string(m_stage);
 }
 } // namespace Jettison::App

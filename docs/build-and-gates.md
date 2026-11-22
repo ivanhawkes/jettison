@@ -551,7 +551,7 @@ A mod in the user's mods, which the packed run mounted until the space sample wa
 (2026-11-22), is the host suite's.
 
 **What it walks.** The stages that have hurt this engine: resize, resize, minimize, restore, scene
-reload, pilot from behind, pilot from the seat, pick, save and load, the game's screen, a jump, and
+reload, pilot from behind, pilot from the seat, pick, save and load, the game's screen, and
 settle; a stage the game does not drive passes over (`Game::DriveSmoke`). Each runs four frames, a
 pick or a piloting stage as many as it takes, inside a 120-second watchdog. `render_test` is the
 shell with no game, over the test content (`source/test/content`), and walks them twice: in
@@ -559,7 +559,7 @@ shell with no game, over the test content (`source/test/content`), and walks the
 `scene/orbit.yaml` (a station over a planet at real scale under an orbit camera and the sun, which
 shadows it through four cascades: Ostra Highport's 104 floodlights assigned to the clusters, and its
 pads' paint, poles and lamps, hundreds of one shape and colour each, drawn as instanced draws). It
-flies nothing, picks nothing and has no screen of a game's or jump. The save stage writes the
+flies nothing, picks nothing and has no screen of a game's. The save stage writes the
 world to the run's user mount, flushed to the disk, and loads it back over itself with the scene
 drawing it; the run fails unless the world loaded has the state hash of the world saved. The saved
 games' screen is shown from the first frame, so the overlay is drawn in every stage, over every
@@ -570,11 +570,11 @@ bake's passes and the frame sets rewritten after it run under validation too. Th
 every resource again, models and rigs included, so a model's buffers are retired while a frame in
 flight may read them and freed after it, under validation. Until 2026-11-22 the space sample drove
 the flight, a trade on its market screen and a jump to another star system here; the trade and the
-jump are Manifest's now.
+jump are Manifest's now, and the jump stage went with it (2026-11-22).
 
 The ground sample walks the same stages from its own content, unpacked in either run: its piloting
 stages drive its rover ahead and then turning, its pick lands on its ground, its save and load hold
-its world's state hash, and it drives no jump, so its run has none. Each piloting stage waits until
+its world's state hash. Each piloting stage waits until
 the game says its rover has shown it moved (`SmokeActions::piloting`): past 1 m/s ahead, then 10
 degrees turned, since a stage's four frames are fast or slow with the machine and the rover moves by
 simulation time. The game logs each, and the run fails unless it said both; a rover that never

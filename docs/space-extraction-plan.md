@@ -170,6 +170,9 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      barrier onto a portal in the suite. The gates are built on those parts, `Gate` and `Transit`
      derived from the slot and claim and keeping their saved fields.
    - **4e, the smoke run's jump stage** removed with its five words, the jump being Manifest's.
+     **Done** 2026-11-22: `SmokeActions` has no `jump` or `jumping`, which nothing set once the
+     sample went, the sequence is eleven stages, and its piloting stage says what a game pilots
+     rather than a ship. The list at 26, the dock's, for slice 5.
 5. **Berths.** `dock` without stations' celestial tie: a station layout takes the placement its game
    gives; Manifest's pads on berths; pins held.
 6. **The move.** `celestial`'s orbits, bodies and galaxy, `space`'s setting and the routes into

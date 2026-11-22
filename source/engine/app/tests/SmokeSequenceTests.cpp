@@ -21,18 +21,14 @@ struct Market
 
 
 // Drives the sequence to its close the way the shell's frame loop does, with the window manager
-// answering each of the two resize requests or refusing it, and a jump that takes that many frames
-// (none started, when negative, and no jump stage, as a game of no galaxy has, for none), and each
-// piloting stage that many frames showing what it flew moved (over once it starts, for none), and
-// returns the verdict.
+// answering each of the two resize requests or refusing it, and each piloting stage that many frames
+// showing what it flew moved (over once it starts, for none), and returns the verdict.
 bool RunSequence(
-    bool firstResize, bool secondResize, std::optional<int> jumpFrames = 3, bool saveLoads = true,
-    Market market = {}, std::optional<int> pilotFrames = std::nullopt)
+    bool firstResize, bool secondResize, bool saveLoads = true, Market market = {},
+    std::optional<int> pilotFrames = std::nullopt)
 {
 	int requests = 0;
 	int handled = 0;
-	int jumps = 0;
-	int jumpLeft = 0;
 	int pilots = 0;
 	int pilotLeft = 0;
 	bool close = false;
@@ -45,7 +41,6 @@ bool RunSequence(
 	actions.pilot = [&](bool cockpit)
 	{
 		CHECK(cockpit == (pilots == 1));
-		CHECK(jumps == 0);
 		// The second waits for the first to have shown.
 		CHECK(pilotLeft == 0);
 		++pilots;
@@ -54,48 +49,33 @@ bool RunSequence(
 	};
 	if (pilotFrames)
 		actions.piloting = [&] { return pilotLeft > 0; };
-	if (jumpFrames)
-	{
-		actions.jump = [&]
-		{
-			if (*jumpFrames < 0)
-				return false;
-			++jumps;
-			jumpLeft = *jumpFrames;
-			return true;
-		};
-		actions.jumping = [&] { return jumpLeft > 0; };
-	}
-	// Answered two frames on, after both pilot stages and before the jump.
+	// Answered two frames on, after both pilot stages.
 	int picks = 0;
 	int pickLeft = 0;
 	actions.pick = [&]
 	{
 		CHECK(pilots == 2);
 		CHECK(pilotLeft == 0);
-		CHECK(jumps == 0);
 		++picks;
 		pickLeft = 2;
 		return true;
 	};
 	actions.picking = [&] { return pickLeft > 0; };
-	// After the pick is answered, before the jump.
+	// After the pick is answered.
 	int saves = 0;
 	actions.saveAndLoad = [&]
 	{
 		CHECK(picks == 1);
 		CHECK(pickLeft == 0);
-		CHECK(jumps == 0);
 		++saves;
 		return saveLoads;
 	};
-	// After the save, before the jump.
+	// After the save.
 	int trades = 0;
 	int tradeLeft = 0;
 	actions.gameUi = [&]() -> std::optional<bool>
 	{
 		CHECK(saves == 1);
-		CHECK(jumps == 0);
 		if (!market.present)
 			return std::nullopt;
 		++trades;
@@ -104,17 +84,10 @@ bool RunSequence(
 	};
 	actions.gameUiWaiting = [&] { return tradeLeft > 0; };
 	actions.gameUiAnswered = [&] { return !market.answerHidden; };
-	actions.close = [&]
-	{
-		// Nothing closes the window while a jump is under way.
-		CHECK(jumpLeft == 0);
-		close = true;
-	};
+	actions.close = [&] { close = true; };
 	SmokeSequence sequence{actions, true};
 	for (int frame = 0; frame < 300 && !close; ++frame)
 	{
-		if (jumpLeft > 0)
-			--jumpLeft;
 		if (pilotLeft > 0)
 			--pilotLeft;
 		if (pickLeft > 0)
@@ -129,7 +102,6 @@ bool RunSequence(
 	}
 	REQUIRE_MESSAGE(close, sequence.Summary());
 	INFO(sequence.Summary());
-	CHECK(jumps == (jumpFrames.value_or(-1) < 0 ? 0 : 1));
 	CHECK(pilots == 2);
 	CHECK(picks == 1);
 	CHECK(saves == 1);
@@ -155,37 +127,26 @@ TEST_CASE("Smoke sequence: no handled resize is a failure")
 }
 
 
-TEST_CASE(
-    "Smoke sequence: the jump is waited for however long it takes, and a run without one fails, unless "
-    "its game drives none")
-{
-	CHECK(RunSequence(true, true, 0));
-	CHECK(RunSequence(true, true, 60));
-	CHECK_FALSE(RunSequence(true, true, -1));
-	CHECK(RunSequence(true, true, std::nullopt));
-}
-
-
 TEST_CASE("Smoke sequence: a save that does not load back as it was is a failure")
 {
-	CHECK_FALSE(RunSequence(true, true, 3, false));
+	CHECK_FALSE(RunSequence(true, true, false));
 }
 
 
 TEST_CASE("Smoke sequence: a market screen has to show the snapshot's market and its trade's answer")
 {
-	CHECK(RunSequence(true, true, 3, true, {}));
+	CHECK(RunSequence(true, true, true, {}));
 	// A system with no market is not a market tested, and not a failure.
-	CHECK(RunSequence(true, true, 3, true, {.present = false}));
-	CHECK_FALSE(RunSequence(true, true, 3, true, {.screenWrong = true}));
-	CHECK_FALSE(RunSequence(true, true, 3, true, {.never = true}));
-	CHECK_FALSE(RunSequence(true, true, 3, true, {.answerHidden = true}));
+	CHECK(RunSequence(true, true, true, {.present = false}));
+	CHECK_FALSE(RunSequence(true, true, true, {.screenWrong = true}));
+	CHECK_FALSE(RunSequence(true, true, true, {.never = true}));
+	CHECK_FALSE(RunSequence(true, true, true, {.answerHidden = true}));
 }
 
 
 TEST_CASE("Smoke sequence: a piloting stage waits for what it flew to show it moved")
 {
-	CHECK(RunSequence(true, true, 3, true, {}, 0));
-	CHECK(RunSequence(true, true, 3, true, {}, 40));
-	CHECK(RunSequence(true, true, std::nullopt, true, {.present = false}, 40));
+	CHECK(RunSequence(true, true, true, {}, 0));
+	CHECK(RunSequence(true, true, true, {}, 40));
+	CHECK(RunSequence(true, true, true, {.present = false}, 40));
 }

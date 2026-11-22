@@ -232,7 +232,7 @@ run_app() {
 		if [ "$packed" -eq 1 ]; then rm -rf "$packed_user"; fi
 	done
 	# The ground sample, from its staged content, packed or not: its scene, the rover its piloting
-	# stages drive and the camera behind it, and no jump, since it has none.
+	# stages drive and the camera behind it.
 	echo "smoke-test: the ground sample"
 	ground_command=()
 	for word in "$@"; do
