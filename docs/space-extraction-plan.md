@@ -7,7 +7,7 @@ space code. The space sample has served its purpose and is retired: what of it s
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
 station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
-Planning only so far: no code has moved. The inventory behind it was taken on Jettison `ccc0ae7` and
+Slices 1 and 2 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
 ## Where things stand
@@ -111,7 +111,15 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 2. **The sample folded and retired.** Its kept tests in their new homes, render_test on the static
    scenes, the smoke run's neutral stages, the reference frames held or re-baselined once; then the
    sample, jetsam, `spacescene` and the cargo deck deleted; the lanes' and gates' suites on two
-   frames of their own rather than the sample's galaxy. Manifest's pins held.
+   frames of their own rather than the sample's galaxy. Manifest's pins held. **Done** 2026-11-22,
+   in five commits: the suites on `source/test/content` and their own fixtures; render_test the
+   shell with no game over static scenes baked once from what the sample built, every reference
+   frame recorded again (`effects` and `post` the same to the byte, the planets 1 to 18 pixels
+   off, `docked` dropped, `saves-de` for `market-de`); the sample's engine cases in the render,
+   app and sim suites; the sample, Jetsam, `spacescene`, the smoke mod and `--galaxy` deleted;
+   and the cargo deck, its two components kept registered (below). The lanes' and gates' suites
+   already built their systems in code; the dock suite flies in a copy of the sample's Halcyon and
+   stations in its fixtures, and its neutral frames fixture is slice 5's. The list at 51.
 3. **Reasons, scenes and saves.** The space-only reasons to `Space.Reason` (keys from
    `reason.ai.*` to `reason.space.*`, shown to change no pinned save, or pins moved by that alone);
    the scene's placed-by-an-extension record in place of `CelestialBodyComponent` and the system path;
@@ -127,7 +135,8 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
    Manifest's `space` module, reflected names unchanged; `celestial`, `space` and `spacescene` leave the engine and its
    optional list. Manifest's suites and pins held on the new SDK pin.
 7. **Saved names.** Every saved and reflected name still in the setting's words or the old module's
-   (`"byHull"`, `Ai.OnLane`, `Ai.Cruising` and the rest) renamed at once: one save version and its
+   (`"byHull"`, `Ai.OnLane`, `Ai.Cruising` and the rest) renamed at once, and `Dock.Transfer`
+   and `Dock.Buggy`, kept with no behaviour since slice 2, dropped: one save version and its
    rename table, so a save written before loads, and every pin moved once, shown to be the names
    alone by each hash returning with the old names put back. Before players keep saves or write
    mods against the names (the user's, 2026-11-22).
@@ -138,6 +147,12 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 ## Settled with the user
 
 - **Before W12** (2026-11-22).
+- **The static scenes baked once** (2026-11-22, slice 2): what the sample's star systems and station
+  dressing built, exported into the scene files, rather than stand-in stations; `docked` dropped,
+  `dock-sequence` kept on the static scene's ship and pad, and the German UI frame on the engine's
+  own saves screen.
+- **The cargo deck's two components kept** (2026-11-22, slice 2): `Dock.Transfer` and
+  `Dock.Buggy` stay registered with no behaviour, so the pins move once, in slice 7.
 - **Planetary rings stay in the renderer** (2026-11-22), the one named exception: atmosphere is
   neutral and rings are not, but the renderer has no extension point for a game's own passes and
   Manifest no renderer yet.
