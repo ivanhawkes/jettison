@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <vector>
 
+#include <jettison/audio/EventSounds.h>
 #include <jettison/core/Log.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/sim/DefinitionRegistry.h>
@@ -285,4 +286,37 @@ TEST_CASE("Mounts: content over the engine's assets, refused for a newer engine 
 	    App::MountAssets(
 	        missing, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user")),
 	    doctest::Contains("requires the package missing-package, which is not mounted before it"));
+}
+
+
+TEST_CASE("Mounts: a data mod in the user's directory changes the content's definitions over a pack")
+{
+	const Scratch scratch;
+	scratch.Put("engine/strings/en/numbers.yaml", "version: 1\n");
+	// The content's definitions, packed as a shipped build has them.
+	scratch.Put("content/mod.yaml", "version: 1\nname: Content\nrelease: 1.0.0\nengine: 0.1.0\n");
+	scratch.Put(
+	    "content/defs/sounds/closed.yaml",
+	    "version: 1\nclip: clamp.closed\nsound: effects/closed.wav\nvolume: 0.5\n");
+	scratch.Put("content/defs/sounds/opened.yaml", "version: 1\nclip: clamp.opened\nsound: a.wav\n");
+	Vfs::WritePack(scratch.Path("content"), scratch.Path("content.pack"));
+	// A mod that makes one louder and adds another.
+	scratch.Put("user/mods/louder/defs/sounds/closed.patch.yaml", "version: 1\nvolume: 0.9\n");
+	scratch.Put(
+	    "user/mods/louder/defs/sounds/held.yaml", "version: 1\nclip: clamp.held\nsound: b.wav\n");
+
+	Vfs::FileSystem files;
+	App::MountAssets(files, scratch.Path("engine"), scratch.Path("content.pack"), scratch.Path("user"));
+	CHECK(NamesOf(files) == std::vector<std::string>{"engine", "base", "mod:louder", "user"});
+	Audio::RegisterTypes();
+	Sim::DefinitionRegistry definitions{files};
+	definitions.Load<Audio::EventSound>(
+	    Audio::kEventSoundDirectory, Serialise::FormatVersion{Audio::kEventSoundVersion});
+	CHECK(definitions.Names<Audio::EventSound>().size() == 3);
+	const auto *closed = definitions.Find<Audio::EventSound>("closed");
+	REQUIRE(closed != nullptr);
+	CHECK(closed->volume == 0.9f);
+	CHECK(closed->sound == "effects/closed.wav");
+	// The other is the pack's.
+	CHECK(definitions.Find<Audio::EventSound>("opened")->volume == 1.0f);
 }

@@ -101,6 +101,7 @@ jettison_add_module(render
 		tests/FontFacesTests.cpp
 		tests/DrawBatchTests.cpp
 		tests/EnvironmentTests.cpp
+		tests/LargeWorldTests.cpp
 		tests/MaterialTests.cpp
 		tests/OverlayTests.cpp
 		tests/ParticleTests.cpp

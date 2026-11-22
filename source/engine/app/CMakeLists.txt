@@ -49,6 +49,7 @@ jettison_add_module(app
 		tests/AppArgumentsTests.cpp
 		tests/GameTests.cpp
 		tests/MountsTests.cpp
+		tests/ReasonsTests.cpp
 		tests/SavesTests.cpp
 		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp
@@ -61,4 +62,6 @@ if(TARGET jettison_app_tests)
 	target_compile_definitions(jettison_app_tests PRIVATE
 		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets"
 		JETTISON_TEST_CONTENT_DIR="${PROJECT_SOURCE_DIR}/source/test/content")
+	# The reasons' words are checked for every module's reasons, which the shell words.
+	target_link_libraries(jettison_app_tests PRIVATE jettison_ai jettison_dock)
 endif()

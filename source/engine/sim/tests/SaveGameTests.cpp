@@ -209,3 +209,21 @@ TEST_CASE("SaveGame: a save written by version 1 loads")
 	Play(current);
 	CHECK(loaded.Save() == current.Save());
 }
+
+
+TEST_CASE("Save: the mods a save was made with are written, read back and set against those running")
+{
+	Sim::SimWorld world{1.0 / 60.0, 1};
+	Sim::SaveGame save = Sim::SaveGame::Of(world, "Modded");
+	save.info.mods = {{"smoke", "1.0.0"}};
+	const Sim::SaveGame loaded = Sim::SaveGame::Read(save.Write());
+	CHECK(loaded.info.mods == save.info.mods);
+	CHECK(Sim::ModDifferences(loaded.info.mods, save.info.mods).empty());
+	CHECK(
+	    Sim::ModDifferences(loaded.info.mods, {}) ==
+	    std::vector<std::string>{"'smoke' 1.0.0 was enabled and is not"});
+	const std::vector<Sim::ModVersion> others{{"smoke", "1.1.0"}, {"wine", ""}};
+	CHECK(
+	    Sim::ModDifferences(loaded.info.mods, others) ==
+	    std::vector<std::string>{"'smoke' was 1.0.0 and is 1.1.0", "'wine' is enabled and was not"});
+}
