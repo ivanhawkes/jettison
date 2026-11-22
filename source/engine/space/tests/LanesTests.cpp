@@ -1,13 +1,17 @@
 #include "Systems.h"
 
+#include <jettison/ai/Steering.h>
+#include <jettison/dock/Docks.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
+#include <jettison/space/Cruise.h>
 #include <jettison/space/Gates.h>
 #include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
 #include <jettison/space/Types.h>
+#include <jettison/spatial/FrameIndices.h>
 
 #include <doctest/doctest.h>
 
@@ -385,4 +389,34 @@ TEST_CASE("Lanes: a transit fast-forwarded arrives as the one stepped does")
 	CHECK(forwarded.SystemOf(ship) == kVesper);
 	// The lane's in one call; each step after it, the ship in physics again, in its own.
 	CHECK(calls < 70);
+}
+
+
+TEST_CASE("Lanes: with the docks attached, nothing orders the lanes and cruise against them by chance")
+{
+	// The lanes attached after the docks, as Manifest's host does, and before, as the sample does.
+	for (const bool lanesFirst : {false, true})
+	{
+		Sim::SimWorld world{kStep, 9};
+		Physics::PhysicsWorld &physics{Fixture::Setup(world)};
+		Ai::Steering::Attach(world, physics, Spatial::FrameIndices::Attach(world));
+		if (lanesFirst)
+		{
+			Space::LaneTravel::Attach(world, physics);
+			Space::CruiseTravel::Attach(world, physics);
+		}
+		Dock::Docks::Attach(world, physics);
+		if (!lanesFirst)
+		{
+			Space::LaneTravel::Attach(world, physics);
+			Space::CruiseTravel::Attach(world, physics);
+		}
+		const Ecs::Scheduler &scheduler = world.Scheduler();
+		CHECK(scheduler.Ambiguities(Ecs::TickPhase::Simulation).empty());
+		std::vector<std::string> order = scheduler.Order(Ecs::TickPhase::Simulation);
+		std::erase_if(
+		    order, [](const std::string &name)
+		    { return name != "dock" && name != "lanes" && name != "cruise"; });
+		CHECK(order == std::vector<std::string>{"dock", "lanes", "cruise"});
+	}
 }

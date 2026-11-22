@@ -1,8 +1,5 @@
 #include "Fixture.h"
 
-#include <jettison/space/Cruise.h>
-#include <jettison/space/Lanes.h>
-
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/serialise/Binary.h>
@@ -21,8 +18,8 @@ using DockTests::Fixture;
 
 namespace
 {
-// A yard of every kind of berth on one deck 400 m square, on Highport's rails: 1 frigate, 2 corvette, 3
-// destroyer, 4 a corvette for display, 5 frigate. A reservation is held two seconds.
+// A yard of every kind of berth on one deck 400 m square, on the ferry's rails: 1 frigate, 2 corvette,
+// 3 destroyer, 4 a corvette for display, 5 frigate. A reservation is held two seconds.
 Dock::PlatformLayout YardLayout()
 {
 	Dock::PlatformLayout yard;
@@ -55,7 +52,7 @@ struct Yard : Fixture
 		docks.DefineVehicle("barge", {"Barge", 130.0f, 45.0f, 25.0f, "destroyer", {}});
 		docks.DefineVehicle("liner", {"Liner", 280.0f, 70.0f, 50.0f, "cruiser", {}});
 		docks.DefineLayout("yard", YardLayout());
-		platform = docks.MakePlatform(world, DockTests::kHalcyon, DockTests::kHighport, "yard");
+		platform = docks.MakePlatform(world, DockTests::kHarbour, DockTests::kFerry, "yard");
 	}
 
 
@@ -152,37 +149,6 @@ TEST_CASE(
 }
 
 
-TEST_CASE(
-    "Docks: with space's lanes and cruise attached, nothing orders them against the docks by chance")
-{
-	// The lanes attached after the docks, as Manifest's host does, and before, as the sample does.
-	for (const bool lanesFirst : {false, true})
-	{
-		Sim::SimWorld world{DockTests::kStep, 9};
-		Physics::PhysicsWorld &physics{Fixture::Setup(world)};
-		Ai::Steering::Attach(world, physics, Spatial::FrameIndices::Attach(world));
-		if (lanesFirst)
-		{
-			Space::LaneTravel::Attach(world, physics);
-			Space::CruiseTravel::Attach(world, physics);
-		}
-		Dock::Docks::Attach(world, physics);
-		if (!lanesFirst)
-		{
-			Space::LaneTravel::Attach(world, physics);
-			Space::CruiseTravel::Attach(world, physics);
-		}
-		const Ecs::Scheduler &scheduler = world.Scheduler();
-		CHECK(scheduler.Ambiguities(Ecs::TickPhase::Simulation).empty());
-		std::vector<std::string> order = scheduler.Order(Ecs::TickPhase::Simulation);
-		std::erase_if(
-		    order, [](const std::string &name)
-		    { return name != "dock" && name != "lanes" && name != "cruise"; });
-		CHECK(order == std::vector<std::string>{"dock", "lanes", "cruise"});
-	}
-}
-
-
 TEST_CASE("Docks: a game's own pad classes, a compact berth below a bay, are given by their ranks")
 {
 	DockTests::Fixture fixture{false};
@@ -205,7 +171,7 @@ TEST_CASE("Docks: a game's own pad classes, a compact berth below a bay, are giv
 	dock.berths = {{"bay", {-20.0, 10.0, 0.0}}, {"berth", {20.0, 10.0, 0.0}}};
 	docks.DefineLayout("dock", dock);
 	const entt::entity platform =
-	    docks.MakePlatform(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "dock");
+	    docks.MakePlatform(fixture.world, DockTests::kHarbour, DockTests::kFerry, "dock");
 	const entt::entity pod = fixture.Vehicle(platform, "pod", {0.0, 2000.0, 0.0});
 	const entt::entity tug = fixture.Vehicle(platform, "tug", {300.0, 2000.0, 0.0});
 	const entt::entity second = fixture.Vehicle(platform, "tug", {600.0, 2000.0, 0.0});
@@ -242,7 +208,7 @@ TEST_CASE("Docks: a class ranked above or level with a larger one is not given i
 	dock.berths = {{"short", {0.0, 10.0, 0.0}}};
 	docks.DefineLayout("dock", dock);
 	const entt::entity platform =
-	    docks.MakePlatform(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "dock");
+	    docks.MakePlatform(fixture.world, DockTests::kHarbour, DockTests::kFerry, "dock");
 	const entt::entity barge = fixture.Vehicle(platform, "barge", {0.0, 2000.0, 0.0});
 	fixture.world.Commands().Push(Dock::RequestBerth{{}, barge, platform, false});
 	fixture.Step();
@@ -271,7 +237,7 @@ TEST_CASE("Docks: a ship asking for a feature is given only a pad that offers it
 	};
 	docks.DefineLayout("yard", yard);
 	const entt::entity platform =
-	    docks.MakePlatform(fixture.world, DockTests::kHalcyon, DockTests::kHighport, "yard");
+	    docks.MakePlatform(fixture.world, DockTests::kHarbour, DockTests::kFerry, "yard");
 	const entt::registry &registry = fixture.world.Registry();
 	CHECK_FALSE(docks.Offers(registry, fixture.BerthNumbered(platform, 1), "dry-dock"));
 	CHECK(docks.Offers(registry, fixture.BerthNumbered(platform, 2), "dry-dock"));

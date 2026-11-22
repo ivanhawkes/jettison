@@ -43,3 +43,9 @@ jettison_add_module(space
 		glm
 		EnTT::EnTT
 )
+
+# The lanes order themselves after the docks by the system's name, with no link between the modules;
+# the suite attaches both to show nothing orders them by chance.
+if(TARGET jettison_space_tests)
+	target_link_libraries(jettison_space_tests PRIVATE jettison_dock)
+endif()

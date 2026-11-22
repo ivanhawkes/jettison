@@ -1,7 +1,8 @@
 #pragma once
 
+#include <glm/gtc/constants.hpp>
+
 #include <jettison/ai/Steering.h>
-#include <jettison/celestial/StarSystem.h>
 #include <jettison/dock/Docks.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
@@ -10,25 +11,47 @@
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
-#include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/FrameIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include <cmath>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
-// What the dock suites share: a world with physics, the spatial index, steering and the docks, in
-// the retired space sample's Halcyon, read from its file, and its vehicles and platforms from theirs
-// (tests/fixtures).
+// What the dock suites share: a world with physics, the spatial index, steering and the docks, in a
+// frame of their own whose one body carries the platforms, and the retired space sample's vehicles and
+// platforms read from their files (tests/fixtures).
 namespace Jettison::DockTests
 {
 inline constexpr double kStep = 1.0 / 60.0;
-inline const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
-inline constexpr std::string_view kHighport = "Ostra Highport";
+inline const std::uint64_t kHarbour = Sim::FrameId("Harbour");
+inline constexpr std::string_view kFerry = "ferry";
+// The ferry's loop: a circle of 5 km radius, round in an hour, so it moves at 8.7 m/s.
+inline constexpr double kLoopRadius = 5000.0;
+inline constexpr double kLoopSeconds = 3600.0;
+
+// The suites' frame, any game's: the ferry going round its loop, so a berth moves under a vehicle
+// flown to it, and keeping its heading, as the sample's station kept its axes in its orbit: turned,
+// it would carry a berth 200 m from its middle a metre under a vehicle lifted off it. No gravity.
+class Harbour final : public Physics::FrameModel
+{
+  public:
+	bool HasBody(std::string_view body) const override
+	{
+		return body == kFerry;
+	}
+
+
+	Sim::Transform BodyAt(std::string_view /*body*/, double simSeconds) const override
+	{
+		const double angle = glm::two_pi<double>() * simSeconds / kLoopSeconds;
+		return {{kLoopRadius * std::cos(angle), 0.0, kLoopRadius * std::sin(angle)}};
+	}
+};
 
 inline std::string ReadAsset(std::string_view path)
 {
@@ -63,7 +86,7 @@ struct Fixture
 	// With the sample's definitions loaded, or with none, for a suite that defines its own.
 	explicit Fixture(bool sample = true)
 	{
-		Space::DefineStarSystem(physics, Celestial::ReadStarSystem(ReadAsset("systems/halcyon.yaml")));
+		physics.DefineFrame(kHarbour, std::make_unique<Harbour>());
 		if (!sample)
 			return;
 		Vfs::FileSystem files;
@@ -93,8 +116,8 @@ struct Fixture
 		const entt::entity vehicle = registry.create();
 		registry.emplace<Sim::Transform>(
 		    vehicle, Sim::Transform{registry.get<Sim::Transform>(platform).position + offset});
-		registry.emplace<Sim::InFrame>(vehicle, kHalcyon);
-		registry.emplace<Physics::LocalFrame>(vehicle, std::string{kHighport});
+		registry.emplace<Sim::InFrame>(vehicle, kHarbour);
+		registry.emplace<Physics::LocalFrame>(vehicle, std::string{kFerry});
 		Physics::Body body{Physics::BodyKind::Dynamic, Dock::Docks::VehicleShape(definition), 20000.0f};
 		body.continuous = true;
 		registry.emplace<Physics::Body>(vehicle, body);

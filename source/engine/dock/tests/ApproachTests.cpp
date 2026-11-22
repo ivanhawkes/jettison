@@ -28,8 +28,7 @@ struct Approach : Fixture
 
 	Approach()
 	{
-		platform =
-		    docks.MakePlatform(world, DockTests::kHalcyon, DockTests::kHighport, "ostra-highport");
+		platform = docks.MakePlatform(world, DockTests::kHarbour, DockTests::kFerry, "ostra-highport");
 		const glm::dquat axes = world.Registry().get<Sim::Transform>(platform).orientation;
 		vehicle = Vehicle(platform, "shuttle", axes * glm::dvec3{1500.0, -9800.0, 1200.0});
 		world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
@@ -238,7 +237,7 @@ TEST_CASE(
 	std::optional<std::vector<std::byte>> save;
 	std::optional<std::vector<std::byte>> unused;
 	const auto [first, stage] = run(save, kSaveAt);
-	// Saved on the way down onto the berth, kept clear of the platform by its vehicle, and clamped by
+	// Saved on the way down onto the berth, kept clear of the platform by its shape, and clamped by
 	// the end.
 	CHECK(stage == Dock::Stage::Docked);
 	CHECK(run(unused, -1).first == first);
@@ -253,8 +252,9 @@ TEST_CASE(
 	// hash before each; and for the fast-forward, a kinematic body put at rest where it is while
 	// nothing dynamic shares its world, the traders' galaxy the same to the bit over half an hour; and
 	// for the way in stopped out along the berth's normal first, then flown straight down it (117 s to
-	// the point above the berth, 23.6 s down).
-	CHECK(first == 0xfe7893b110e4086bull);
+	// the point above the berth, 23.6 s down); and in the space extraction's 5b for the platform on
+	// the suite's own ferry rather than on the sample's orbit, the times the same.
+	CHECK(first == 0xc037f5afbeaa6c05ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);
@@ -317,7 +317,7 @@ TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes 
 			CAPTURE(across);
 			Fixture fixture;
 			const entt::entity platform = fixture.docks.MakePlatform(
-			    fixture.world, DockTests::kHalcyon, DockTests::kHighport, "ostra-highport");
+			    fixture.world, DockTests::kHarbour, DockTests::kFerry, "ostra-highport");
 			entt::registry &registry = fixture.world.Registry();
 			const glm::dquat axes = registry.get<Sim::Transform>(platform).orientation;
 			const double angle = side * glm::two_pi<double>() / 12.0;

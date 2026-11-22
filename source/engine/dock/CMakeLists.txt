@@ -30,10 +30,9 @@ jettison_add_module(dock
 		yaml-cpp::yaml-cpp
 )
 
-# The suites read the retired space sample's hulls and stations and the star system they are in
-# (tests/fixtures), which space makes a physics frame.
+# The suites read the retired space sample's vehicles and platforms (tests/fixtures), and fly in a
+# frame of their own (tests/Fixture.h).
 if(TARGET jettison_dock_tests)
 	target_compile_definitions(jettison_dock_tests PRIVATE
 		JETTISON_DOCK_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
-	target_link_libraries(jettison_dock_tests PRIVATE jettison_space)
 endif()

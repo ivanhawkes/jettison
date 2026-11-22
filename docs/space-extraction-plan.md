@@ -184,8 +184,12 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      dropped: composing a berth's place with the platform's zero offset and identity turn moved a
      pinned hash in the dock suite. Manifest names the neutral types, its messages' tests reworded; its 53 suites and every pin
      held on the local engine. The list is empty.
-   - **5b, the dock suite on neutral frames**: its flights in a frame model of its own, a platform on a
-     moving body, rather than the sample's Halcyon, and `jettison_space` off its link.
+   - **5b, the dock suite on neutral frames.** **Done** 2026-11-23: its flights in a frame model of its
+     own, platforms on a ferry going round a loop at 8.7 m/s, rather than on the sample's Highport in
+     Halcyon; `jettison_space` off its link and the system's file gone. The approach takes the same
+     117 s to the point above the berth and 23.6 s down, and the suite's one hash is pinned again for
+     it. The case ordering space's lanes and cruise after the docks is the space suite's, which links
+     the dock for it.
    - **5c, the ai suite on neutral frames**: steering's flight round a moving platform the same way.
 6. **The move.** `celestial`'s orbits, bodies and galaxy, `space`'s setting and the routes into
    Manifest's `space` module, reflected names unchanged; `celestial`, `space` and `spacescene` leave the engine and its
