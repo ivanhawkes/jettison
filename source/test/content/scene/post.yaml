@@ -11,7 +11,7 @@
 #     spreads onto the wall about it.
 #   - A beacon on the wall's top, blinking red: its glow and its light share one wave, period and
 #     phase, so the wall below it is lit while the beacon is bright.
-version: 2
+version: 3
 entities:
   - id: sun
     transform:

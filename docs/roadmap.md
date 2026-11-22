@@ -157,7 +157,7 @@ player's report of a problem needs and the shell does not write.
   waypoints, the failure here, which players work round with a slow precision mode or scripts. So
   the solution: an approach corridor flown without stopping, at a speed that falls with the
   distance left; the station not an obstacle on the corridor's last leg, as it is not on the way
-  down (`byHull`); Arrive damping the velocity across its line rather than pursuing; and a
+  down (`byShape`); Arrive damping the velocity across its line rather than pursuing; and a
   reservation that lapses when a ship stops making progress rather than at a fixed time. Measured by
   ships flown in from every side and speed, one queued behind another on the next pad, and no
   arrival slower than the stopgap's.

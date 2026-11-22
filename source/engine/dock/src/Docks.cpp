@@ -105,15 +105,11 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterComponent<Platform>();
 	world.RegisterComponent<Berth>();
 	world.RegisterComponent<Docking>();
-	world.RegisterComponent<Transfer>();
-	world.RegisterComponent<Buggy>();
 	// A berth's state is what its lamps show, a vehicle's stage and kind whether and how its berth's
 	// clamps close on it, and presentation reads snapshots.
 	world.ShowInSnapshots<Berth>();
 	world.ShowInSnapshots<Docking>();
 	world.ShowInSnapshots<Vehicle>();
-	world.ShowInSnapshots<Transfer>();
-	world.ShowInSnapshots<Buggy>();
 	world.RegisterCommand<RequestBerth>([docks](Sim::SimWorld &target, const RequestBerth &command)
 	                                    { docks->Request(target, command); });
 	world.RegisterCommand<ReleaseBerth>([docks](Sim::SimWorld &target, const ReleaseBerth &command)
@@ -134,13 +130,13 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 
 std::string Docks::VehicleShape(std::string_view vehicle)
 {
-	return "hulls/" + std::string{vehicle};
+	return "vehicles/" + std::string{vehicle};
 }
 
 
 std::string Docks::PlatformShape(std::string_view layout)
 {
-	return "stations/" + std::string{layout};
+	return "platforms/" + std::string{layout};
 }
 
 

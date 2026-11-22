@@ -260,7 +260,7 @@ TEST_CASE("Sim: a save of version 3, of InSystem, loads as InFrame")
 	const std::vector<std::byte> save = world.Save();
 
 	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(save, "Jettison.World");
-	REQUIRE(document.version == 4);
+	REQUIRE(document.version == 5);
 	document.version = 3;
 	document.Rename("Sim.InFrame", "Sim.InSystem");
 	document.Rename("frame", "system");

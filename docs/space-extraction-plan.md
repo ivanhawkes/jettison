@@ -7,7 +7,7 @@ space code. The space sample has served its purpose and is retired: what of it s
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
 station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
-Slices 1 to 6 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
+Slices 1 to 7 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
 ## Where things stand
@@ -45,7 +45,7 @@ systems only through the abstract `Physics::FrameModel`, which `space` implement
 | a pad's reservation and queue, a gate's | slots: held in command order, a queue first come first served, lapsing | parking, berths, workshop bays |
 | docks' pads, approach, clamp and release | berths: a class a vehicle fits, flown or driven in and attached to a moving platform | harbours, platforms, car parks |
 | steering, `Destination` | vehicle and agent steering (vocabulary only) | any |
-| `Physics.Thrusters`, `FlightControls`, `Sim::Helm`, `MayFly` | vehicle handling and the one at its helm, names kept: flight, thrusters and a helm are any vehicle's | flight, driving, submarines, drones |
+| `Physics.Handling` (`Physics.Thrusters` until slice 7), `FlightControls`, `Sim::Helm`, `MayFly` | vehicle handling and the one at its helm, names kept: flight, thrusters and a helm are any vehicle's | flight, driving, submarines, drones |
 | `Spatial::SystemIndices`, now `FrameIndices` | spatial indices per frame | any |
 | atmosphere, the sky from a sun, horizon culling, render space | sky and atmosphere, large-world culling and precision | every outdoor game, open worlds |
 | the app's orbit targets | an orbit camera about any target (`--galaxy` goes with the sample, `--system` and `LoadSystem` with the scene's star system) | any |
@@ -210,7 +210,21 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
    and `Dock.Buggy`, kept with no behaviour since slice 2, dropped: one save version and its
    rename table, so a save written before loads, and every pin moved once, shown to be the names
    alone by each hash returning with the old names put back. Before players keep saves or write
-   mods against the names (the user's, 2026-11-22).
+   mods against the names (the user's, 2026-11-22). **Done** 2026-11-23: the world's version 5
+   renames the engine's types in an older save (`Dock.Pad` to `Dock.Berth`, `Physics.Thrusters` to
+   `Physics.Handling` and the rest); each component's chain renames its fields (`Dock.Berth` 3,
+   `Dock.Platform`, `Dock.Docking`, `Ai.Destination` and `Physics.Body` 2, the docks' shapes from
+   `hulls/` and `stations/` to `vehicles/` and `platforms/`, the physics state's layout 5 with them);
+   a command still queued has its fields renamed as it is read; and the two retired storages are read
+   and left out. They are renamed by type rather than over the whole table, since Manifest's own
+   types share field names such as `ship` and `padClass`. The docks' definitions, the scene's
+   `body` (format 3) and the dock reasons' keys moved with them, and `Ai.CruiseProfile` is
+   `Transit.MotionProfile`. Manifest's space types are `Space.*`, and it has no saves to migrate.
+   Five engine pins moved (sim's two, physics', steering's and the dock approach's) and four of
+   Manifest's. Each was shown to be the names alone: with the old names, versions and dropped storages
+   put back, every one returned, and Manifest's own tree passed all 54 suites on the engine so
+   reverted. A save the build before wrote (`dock/tests/fixtures/saves`) loads to the state this
+   build reaches from the same start.
 8. **Close-out.** The allow-list empty; architecture, scope, game integration and the sample docs
    rewritten for the boundary as it is; Manifest's boundary assessment's status; the consumer matrix
    (ground, Manifest) run; a cross-review of the whole, as at a stage's end.

@@ -214,7 +214,7 @@ TEST_CASE("Docks: a class ranked above or level with a larger one is not given i
 	fixture.Step();
 	CHECK(fixture.NumberOf(barge) == 0);
 	REQUIRE(fixture.Events<Dock::BerthRefused>().size() == 1);
-	CHECK(fixture.Events<Dock::BerthRefused>()[0].reason.key == "reason.dock.no_pad_fits");
+	CHECK(fixture.Events<Dock::BerthRefused>()[0].reason.key == "reason.dock.no_berth_fits");
 }
 
 
@@ -262,7 +262,7 @@ TEST_CASE("Docks: a ship asking for a feature is given only a pad that offers it
 	CHECK_FALSE(registry.all_of<Dock::Docking>(fourth));
 	REQUIRE(fixture.Events<Dock::BerthRefused>().size() == 1);
 	CHECK(fixture.Events<Dock::BerthRefused>()[0].vehicle == fourth);
-	CHECK(fixture.Events<Dock::BerthRefused>()[0].reason.key == "reason.dock.no_pad_offers");
+	CHECK(fixture.Events<Dock::BerthRefused>()[0].reason.key == "reason.dock.no_berth_offers");
 
 	// The plain berth coming free is not the third's; the dry dock is.
 	fixture.world.Commands().Push(Dock::ReleaseBerth{{}, second});
@@ -291,13 +291,13 @@ TEST_CASE("Dock definitions: a layout's pad keeps its features through its file"
 	     {"dry-dock", "fuel"}},
 	    {"frigate", {0.0, 10.0, 90.0}}};
 	const auto read = Serialise::YamlArchive::Read<Dock::PlatformLayout>(
-	    Serialise::YamlArchive::Write(layout, {Dock::kDefinitionVersion}), {Dock::kDefinitionVersion});
+	    Serialise::YamlArchive::Write(layout, {Dock::kPlatformVersion}), Dock::PlatformMigrations());
 	REQUIRE(read.berths.size() == 2);
 	CHECK(read.berths[0].features == std::vector<std::string>{"dry-dock", "fuel"});
 	CHECK(read.berths[1].features.empty());
 	// A file that leaves the field out, as every one written before it does, reads as offering none.
 	const auto bare = Serialise::YamlArchive::Read<Dock::PlatformLayout>(
-	    "version: 1\npads:\n  - {class: frigate, position: [0, 10, 0]}\n", {Dock::kDefinitionVersion});
+	    "version: 1\npads:\n  - {class: frigate, position: [0, 10, 0]}\n", Dock::PlatformMigrations());
 	REQUIRE(bare.berths.size() == 1);
 	CHECK(bare.berths[0].features.empty());
 }
@@ -415,8 +415,8 @@ TEST_CASE(
 	    yard.Refusals() ==
 	    std::vector<std::string>{
 	        "reason.dock.not_controller()", "reason.dock.holds_nothing()",
-	        std::format("reason.dock.already_holds_pad(2, {})", platform),
-	        "reason.dock.not_a_station()", std::format("reason.dock.no_pad_fits({})", platform),
+	        std::format("reason.dock.already_holds_berth(2, {})", platform),
+	        "reason.dock.not_a_platform()", std::format("reason.dock.no_berth_fits({})", platform),
 	        std::format("reason.dock.other_system({})", platform), "reason.dock.not_controller()"});
 	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{vehicle, 2}});
 }
@@ -501,6 +501,9 @@ TEST_CASE("Docks: a pad saved with its class an enumerator loads with the class'
 	    old.Registry().create(),
 	    BerthV1{platform, 3, BerthClassV1::XL, true, Dock::BerthState::Holding, platform, 42});
 	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(old.Save(), "Jettison.World");
+	// As the world before the space extraction's renames saved it (version 4), under the name it gave a
+	// berth.
+	document.version = 4;
 	document.Rename("DockTests.PadV1", "Dock.Pad");
 
 	Sim::SimWorld world{DockTests::kStep, 1};

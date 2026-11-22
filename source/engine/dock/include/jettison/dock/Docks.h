@@ -50,7 +50,8 @@ struct Vehicle
 };
 
 // A platform built to a layout: its berths, in their numbers' order, and the vehicles waiting for one,
-// first come first. Registered with Reflect, every field Saved, by RegisterTypes.
+// first come first. Registered with Reflect, every field Saved, by RegisterTypes; Docks::Attach
+// registers it with its chain (Migrations).
 struct Platform
 {
 	std::string layout;
@@ -58,6 +59,9 @@ struct Platform
 	std::vector<entt::entity> queue;
 
 	bool operator==(const Platform &) const = default;
+
+	// Version 2 (the space extraction) renamed its berths' field, from "pads".
+	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
 enum class BerthState : std::uint8_t
@@ -88,7 +92,8 @@ struct Berth
 	bool operator==(const Berth &) const = default;
 
 	// Version 2 (W01) holds the berth class as its name, where version 1 held an enumerator of the
-	// closed S, M, L and XL, under the same names.
+	// closed S, M, L and XL, under the same names. Version 3 (the space extraction) renamed its fields
+	// from "station", "padClass" and "ship".
 	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
@@ -113,7 +118,8 @@ enum class Stage : std::uint8_t
 // vehicle flown by the docks (fly) is steered through each stage; one that is not is the game's or the
 // pilot's to fly, and is clamped once it is on its berth as one flown would be. The feature it asked
 // for (RequestBerth::feature) is kept, so the queue gives it only a berth that offers it. Registered
-// with Reflect, every field Saved, by RegisterTypes.
+// with Reflect, every field Saved, by RegisterTypes; Docks::Attach registers it with its chain
+// (Migrations).
 struct Docking
 {
 	entt::entity platform{entt::null};
@@ -123,37 +129,12 @@ struct Docking
 	std::string feature{};
 
 	bool operator==(const Docking &) const = default;
+
+	// Version 2 (the space extraction) renamed its fields, from "station" and "pad".
+	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
 bool IsDocked(const entt::registry &registry, entt::entity vehicle, entt::entity platform);
-
-// A docked vehicle's crates crossing the deck, and a buggy carrying them: the loading deck's, which
-// the space extraction retired with the space sample (docs/space-extraction-plan.md). Kept registered
-// with Reflect and the world, and shown in snapshots, with no behaviour, so a save's bytes and every
-// hash pinned on them hold until slice 7 drops their saved names with the rest it renames.
-struct Transfer
-{
-	std::int64_t aboard{0};
-	std::int64_t ashore{0};
-	std::uint64_t next{0};
-
-	bool operator==(const Transfer &) const = default;
-};
-
-struct Buggy
-{
-	entt::entity platform{entt::null};
-	entt::entity berth{entt::null};
-	entt::entity vehicle{entt::null};
-	std::vector<std::uint32_t> route;
-	std::uint32_t leg{0};
-	double along{0.0};
-	glm::dvec3 hatch{0.0};
-	std::int64_t crates{0};
-	bool outbound{true};
-
-	bool operator==(const Buggy &) const = default;
-};
 
 // The command that asks a platform for a berth for a vehicle, applied in the order commands are: the
 // smallest free berth its vehicle fits, the lowest numbered of those, or, with none, a place at the
@@ -302,8 +283,8 @@ class Docks
 	// in the snapshots. Throws std::logic_error as SimWorld's registrations do, for one already made.
 	static Docks &Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics);
 
-	// The physics shapes a vehicle's and a layout's bodies name, "hulls/<name>" and "stations/<name>",
-	// as saves have them.
+	// The physics shapes a vehicle's and a layout's bodies name, "vehicles/<name>" and
+	// "platforms/<name>", as saves have them.
 	static std::string VehicleShape(std::string_view vehicle);
 
 	static std::string PlatformShape(std::string_view layout);

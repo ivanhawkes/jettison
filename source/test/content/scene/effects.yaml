@@ -8,7 +8,7 @@
 #   - An engine's plume to the right: light alone, blue-white and stretched along its way.
 #   - Smoke rising on the left: lit by the sun, the sky and the lamp, hiding part of what is behind.
 #   - Sparks off the wall: short orange streaks, slowed by drag, by an orange light of their own.
-version: 2
+version: 3
 entities:
   - id: sun
     transform:

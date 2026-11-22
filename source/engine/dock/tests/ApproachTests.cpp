@@ -6,11 +6,17 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <jettison/serialise/Migration.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <optional>
+#include <string>
 #include <vector>
 
 using namespace Jettison;
@@ -253,8 +259,10 @@ TEST_CASE(
 	// nothing dynamic shares its world, the traders' galaxy the same to the bit over half an hour; and
 	// for the way in stopped out along the berth's normal first, then flown straight down it (117 s to
 	// the point above the berth, 23.6 s down); and in the space extraction's 5b for the platform on
-	// the suite's own ferry rather than on the sample's orbit, the times the same.
-	CHECK(first == 0xc037f5afbeaa6c05ull);
+	// the suite's own ferry rather than on the sample's orbit, the times the same; and in slice 7 for
+	// the saved names alone: with the old names, the world's version 4 and the transfers' and buggies'
+	// storages put back, it hashes as before.
+	CHECK(first == 0x6fad9fdf840ea5d5ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);
@@ -336,4 +344,57 @@ TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes 
 			}
 			CHECK(above);
 		}
+}
+
+
+namespace
+{
+// A harbour mid-way, the same in every build: Corva Refinery's four frigate berths given to four of
+// five transports, flown in by the docks and kept clear by their shapes, the fifth waiting, and a
+// shuttle's berth and a transport's controls asked for in commands not yet applied.
+void Harbour(Fixture &fixture)
+{
+	Sim::SimWorld &world = fixture.world;
+	const entt::entity platform =
+	    fixture.docks.MakePlatform(world, DockTests::kHarbour, DockTests::kFerry, "corva-refinery");
+	entt::entity last{entt::null};
+	for (int index = 0; index < 5; ++index)
+	{
+		last = fixture.Vehicle(platform, "transport", {-1200.0 + 600.0 * index, 900.0, 2500.0});
+		world.Commands().Push(Dock::RequestBerth{{}, last, platform, true});
+	}
+	fixture.Run(40.0);
+	const entt::entity shuttle = fixture.Vehicle(platform, "shuttle", {0.0, 700.0, -1500.0});
+	world.Commands().Push(Dock::RequestBerth{{}, shuttle, platform, true});
+	world.Commands().Push(
+	    Physics::SetFlightControls{{}, last, {{0.0f, 0.0f, -1.0f}, {}, true, platform}});
+}
+} // namespace
+
+
+TEST_CASE("Docks: a harbour saved before the space extraction's renames loads as this build runs it")
+{
+	// Written by the build before them (b7d4580), at the world's version 4: its types and fields in the
+	// space setting's words, the shapes the docks named "hulls/" and "stations/", a transfer of the
+	// retired loading deck on an entity of its own, and the shuttle's berth and the transport's
+	// controls in commands still queued.
+	std::ifstream in{
+	    std::string{JETTISON_DOCK_FIXTURE_DIR} + "/saves/harbour-version-4.world", std::ios::binary};
+	const std::vector<char> read{std::istreambuf_iterator<char>{in}, {}};
+	std::vector<std::byte> save(read.size());
+	std::memcpy(save.data(), read.data(), read.size());
+	REQUIRE(Serialise::PeekVersion(save, "Jettison.World") == 4);
+	Fixture loaded;
+	loaded.world.Load(save);
+
+	Fixture live;
+	Harbour(live);
+	// The transfer's entity, which loads with nothing on it.
+	(void)live.world.Registry().create();
+	CHECK(loaded.world.StateHash() == live.world.StateHash());
+	CHECK(loaded.world.Registry().view<Dock::Docking>().size() == 5);
+	loaded.Run(30.0);
+	live.Run(30.0);
+	CHECK(loaded.world.StateHash() == live.world.StateHash());
+	CHECK(loaded.world.Registry().view<Dock::Docking>().size() == 6);
 }

@@ -16,7 +16,7 @@ void RegisterTypes()
 		using namespace Reflect;
 		Physics::RegisterTypes();
 		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
-		RegisterType<MotionProfile>("Ai.CruiseProfile")
+		RegisterType<MotionProfile>("Transit.MotionProfile")
 		    .Field<&MotionProfile::boostAcceleration>("boostAcceleration", kDefined)
 		    .Field<&MotionProfile::boostSeconds>("boostSeconds", kDefined)
 		    .Field<&MotionProfile::sustainedAcceleration>("sustainedAcceleration", kDefined)

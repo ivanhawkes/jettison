@@ -3,12 +3,15 @@
 #include <jettison/core/Hash.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
+#include <jettison/serialise/Binary.h>
 #include <jettison/serialise/Migration.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <format>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 
 namespace Jettison::Sim
@@ -19,7 +22,30 @@ constexpr std::string_view kFormat = "Jettison.World";
 // The layout Save writes. A change to it, or to what the world saves around its components, is a
 // new version, with a step in Migrations from the one before; a change to a component's fields is
 // the component's own business, by its own version and chain (ComponentMigrations).
-constexpr Serialise::FormatVersion kVersion{4};
+constexpr Serialise::FormatVersion kVersion{5};
+// Version 5 (the space extraction) named the engine's saved types and fields in neutral words, where
+// earlier versions had the space setting's: the types here, a component's fields by its own chain, and
+// a queued command's as Load reads it.
+constexpr std::uint32_t kNeutralNames = 5;
+constexpr std::array<std::pair<std::string_view, std::string_view>, 6> kRenamedTypes{{
+    {"Physics.Thrusters", "Physics.Handling"},
+    {"Dock.Hull", "Dock.Vehicle"},
+    {"Dock.Station", "Dock.Platform"},
+    {"Dock.Pad", "Dock.Berth"},
+    {"Dock.RequestPad", "Dock.RequestBerth"},
+    {"Dock.ReleasePad", "Dock.ReleaseBerth"},
+}};
+// The commands whose fields version 5 renamed, by their names now, and the fields.
+constexpr std::array<std::string_view, 7> kRenamedCommands{
+    "Physics.SetFlightControls", "Ai.TakeHelm",       "Ai.LeaveHelm",     "Ai.SetDestination",
+    "Ai.ClearDestination",       "Dock.RequestBerth", "Dock.ReleaseBerth"};
+constexpr std::array<std::pair<std::string_view, std::string_view>, 2> kRenamedCommandFields{{
+    {"ship", "vehicle"},
+    {"station", "platform"},
+}};
+// The components version 5 dropped, the retired loading deck's, whose storages an earlier save holds:
+// read through and left out.
+constexpr std::array<std::string_view, 2> kRetiredComponents{"Dock.Transfer", "Dock.Buggy"};
 
 
 const Serialise::BinaryMigrations &Migrations()
@@ -48,9 +74,32 @@ const Serialise::BinaryMigrations &Migrations()
 			    if (std::ranges::find(document.names, "Sim.InSystem") != document.names.end())
 				    document.Rename("Sim.InSystem", "Sim.InFrame");
 		    });
+		chain.Add(
+		    4,
+		    [](Serialise::BinaryDocument &document)
+		    {
+			    for (const auto &[from, to] : kRenamedTypes)
+				    if (std::ranges::find(document.names, from) != document.names.end())
+					    document.Rename(from, to);
+		    });
 		return chain;
 	}();
 	return migrations;
+}
+
+
+// A storage of a component no world registers now: its count, then each entity and its record.
+void SkipStorage(Serialise::BinaryReader &reader)
+{
+	Detail::SnapshotInput input{reader};
+	std::uint32_t count = 0;
+	input(count);
+	for (std::uint32_t index = 0; index < count; ++index)
+	{
+		entt::entity entity{entt::null};
+		input(entity);
+		(void)reader.ReadRecord();
+	}
 }
 } // namespace
 
@@ -277,6 +326,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 	// Everything is read into locals and committed at the end, so a save that does not fit
 	// leaves the world as it was. A save of an earlier version is migrated first.
 	Serialise::BinaryReader reader{save, Migrations()};
+	const std::uint32_t saved = Serialise::PeekVersion(save, kFormat);
 	// Every storage's version is checked against its component's chain here, before anything else is
 	// read, so a component of a later build is refused by name.
 	std::vector<std::pair<std::string_view, std::uint32_t>> versions;
@@ -316,7 +366,17 @@ void SimWorld::Load(std::span<const std::byte> save)
 			reader.Fail(
 			    std::format("the save queues a command '{}', which this world does not apply", name));
 		entt::meta_any command = type.construct();
-		reader.ReadValue(command);
+		if (saved < kNeutralNames &&
+		    std::ranges::find(kRenamedCommands, name) != kRenamedCommands.end())
+		{
+			Serialise::BinaryRecord record = reader.ReadRecord();
+			for (const auto &[from, to] : kRenamedCommandFields)
+				if (record.Has(from))
+					record.Rename(from, to);
+			record.ReadInto(command);
+		}
+		else
+			reader.ReadValue(command);
 		pending.push_back(std::move(command));
 	}
 
@@ -330,6 +390,12 @@ void SimWorld::Load(std::span<const std::byte> save)
 	{
 		const std::string_view name = reader.ReadName();
 		const auto component = std::ranges::find(m_components, name, &Component::name);
+		if (component == m_components.end() &&
+		    std::ranges::find(kRetiredComponents, name) != kRetiredComponents.end())
+		{
+			SkipStorage(reader);
+			continue;
+		}
 		if (component == m_components.end())
 			reader.Fail(
 			    std::format("the save holds component '{}', which this world does not register", name));

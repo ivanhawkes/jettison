@@ -93,9 +93,9 @@ struct Fixture
 		files.AddMount({"base", JETTISON_DOCK_FIXTURE_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
 		definitions.Load<Dock::BerthClassDefinition>(
-		    Dock::kBerthClassDirectory, {Dock::kDefinitionVersion});
+		    Dock::kBerthClassDirectory, Dock::BerthClassMigrations());
 		definitions.Load<Dock::VehicleDefinition>(Dock::kVehicleDirectory, Dock::VehicleMigrations());
-		definitions.Load<Dock::PlatformLayout>(Dock::kPlatformDirectory, {Dock::kDefinitionVersion});
+		definitions.Load<Dock::PlatformLayout>(Dock::kPlatformDirectory, Dock::PlatformMigrations());
 		docks.Define(definitions);
 	}
 

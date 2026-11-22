@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/serialise/Migration.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 
@@ -124,7 +125,8 @@ struct Steered
 // point is, are flown through in order on the way, each passed within the pass radius: a course
 // (Courses.h, PlotCourse) made relative to the frame. It has arrived within the arrival radius of
 // the destination, moving no faster than the arrival speed relative to it, and from then holds
-// there. Registered with Reflect, every field Saved, by RegisterTypes.
+// there. Registered with Reflect, every field Saved, by RegisterTypes; Steering::Attach registers
+// it with its chain (Migrations).
 struct Destination
 {
 	entt::entity entity{entt::null};
@@ -152,13 +154,15 @@ struct Destination
 	bool arrived{false};
 
 	bool operator==(const Destination &) const = default;
+
+	// Version 2 (the space extraction) renamed byShape's field, from "byHull".
+	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
 // The commands that set a steered vehicle's destination, from its first waypoint, and take it away,
 // which leaves the vehicle holding still where it is. A vehicle that is no longer in the world is not
 // one to fly, and either does nothing. Refused, with a DestinationRefused, from a sender that does not
-// command the vehicle (Sim::MayCommand). Registered with Reflect, every field Saved (the vehicle as
-// "ship", its name before G01e), by RegisterTypes.
+// command the vehicle (Sim::MayCommand). Registered with Reflect, every field Saved, by RegisterTypes.
 struct SetDestination
 {
 	Sim::Controller sender;
@@ -173,7 +177,7 @@ struct ClearDestination
 
 // Raised as a vehicle arrives, once for each destination, and as its destination is taken from it
 // because it cannot be flown to: its entity has gone, or is in another system or frame. Registered
-// with Reflect, every field Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
+// with Reflect, every field Saved, by RegisterTypes.
 struct Arrived
 {
 	entt::entity vehicle{entt::null};
@@ -185,7 +189,7 @@ struct DestinationLost
 	Sim::Reason reason;
 };
 // Raised as a SetDestination or a ClearDestination is refused, saying why. Registered with Reflect,
-// every field Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
+// every field Saved, by RegisterTypes.
 struct DestinationRefused
 {
 	Sim::Controller sender;

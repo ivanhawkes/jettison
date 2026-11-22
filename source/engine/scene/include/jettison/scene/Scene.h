@@ -54,7 +54,9 @@ class SceneFile
 class Scene
 {
   public:
-	static constexpr std::uint32_t kFormatVersion = 2;
+	// Version 3 (the space extraction) names a body an entity is placed at "body", where version 2 had
+	// "celestial".
+	static constexpr std::uint32_t kFormatVersion = 3;
 
 	// The resource manager loads each model mesh's rig, and outlives the scene. A scene without one
 	// refuses a file with a model mesh, which the tests that need no assets rely on.

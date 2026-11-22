@@ -256,7 +256,7 @@ void RegisterTypes()
 		    .Field<&SkyRecord::starFlux>("starFlux", kSaved)
 		    .Field<&SkyRecord::band>("band", kSaved)
 		    .Field<&SkyRecord::nebula>("nebula", kSaved);
-		RegisterType<BodyComponent>("Scene.Celestial").Field<&BodyComponent::name>("body", kSaved);
+		RegisterType<BodyComponent>("Scene.Body").Field<&BodyComponent::name>("body", kSaved);
 		RegisterType<AtmosphereComponent>("Scene.Atmosphere")
 		    .Field<&AtmosphereComponent::height>("height", kSaved)
 		    .Field<&AtmosphereComponent::rayleigh>("rayleigh", kSaved)
@@ -347,7 +347,7 @@ void RegisterTypes()
 		    .Field<&EntityRecord::sun>("sun", kSaved)
 		    .Field<&EntityRecord::sky>("sky", kSaved)
 		    .Field<&EntityRecord::grade>("grade", kSaved)
-		    .Field<&EntityRecord::body>("celestial", kSaved)
+		    .Field<&EntityRecord::body>("body", kSaved)
 		    .Field<&EntityRecord::atmosphere>("atmosphere", kSaved)
 		    .Field<&EntityRecord::rings>("rings", kSaved)
 		    .Field<&EntityRecord::light>("light", kSaved)
@@ -615,7 +615,7 @@ void Validate(const SceneDocument &document)
 		if (entity.body)
 		{
 			if (entity.body->name.empty())
-				Refuse("Entity celestial needs a body name: " + id);
+				Refuse("Entity body needs a name: " + id);
 		}
 		if (entity.mesh)
 			CheckMesh(*entity.mesh, id);

@@ -14,8 +14,8 @@ namespace Jettison::Physics
 // What a flown vehicle's thrust can do (its thrusters): accelerations rather than forces, so
 // its handling does not change with the load it carries until a design wants it to. In its own
 // frame, which is the Sim::Transform's: +X to starboard, +Y up, and forward along -Z, as a camera
-// looks (the chase camera sits on +Z, behind). Registered with Reflect as "Physics.Thrusters", the
-// name it was saved by before G01e, every field Saved, by RegisterTypes.
+// looks (the chase camera sits on +Z, behind). Registered with Reflect as "Physics.Handling", every
+// field Saved, by RegisterTypes.
 struct Handling
 {
 	// Metres a second squared: ahead (-Z), astern (+Z), to either side (X) and up or down (Y).
@@ -64,7 +64,7 @@ struct FlightControls
 // fly, and the command does nothing. Refused, with a FlightControlsRefused, from a sender not at
 // the vehicle's helm (Sim::MayFly): a player flies only the vehicle they have the helm of, and the one
 // whose behaviour flies it, or another player's, not at all. Registered with Reflect, every field
-// Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
+// Saved, by RegisterTypes.
 struct SetFlightControls
 {
 	Sim::Controller sender;
@@ -79,8 +79,8 @@ enum class Reason : std::uint8_t
 	NotAtHelm
 };
 
-// Raised as flight controls are refused, saying why. Registered with Reflect, every field Saved (the
-// vehicle as "ship", its name before G01e), by RegisterTypes.
+// Raised as flight controls are refused, saying why. Registered with Reflect, every field Saved, by
+// RegisterTypes.
 struct FlightControlsRefused
 {
 	Sim::Controller sender;

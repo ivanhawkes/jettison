@@ -146,8 +146,7 @@ void GroundGame::PlaceCamera(entt::registry &scene, App::Shell &shell, double de
 
 bool GroundGame::Hears(const Sim::SimEvent &event) const
 {
-	// Physics' events name their vehicle "ship" in Reflect, the name their saves keep (G01e).
-	const entt::entity vehicle = App::EventEntity(event, "ship");
+	const entt::entity vehicle = App::EventEntity(event, "vehicle");
 	return vehicle != entt::null && vehicle == m_rover;
 }
 

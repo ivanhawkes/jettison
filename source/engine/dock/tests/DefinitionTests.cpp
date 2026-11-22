@@ -129,8 +129,25 @@ TEST_CASE("Dock definitions: a hull of version 1 loads, its cruise drive, the ga
 	// The current version has no drive to give.
 	CHECK_THROWS_AS(
 	    Serialise::YamlArchive::Read<Dock::VehicleDefinition>(
-	        "version: 2\ncruise: {seconds: 40}\n", Dock::VehicleMigrations()),
+	        "version: 3\ncruise: {seconds: 40}\n", Dock::VehicleMigrations()),
 	    Serialise::FormatError);
+}
+
+
+TEST_CASE("Dock definitions: a berth class and a layout of version 1, in the setting's words, load")
+{
+	Dock::RegisterTypes();
+	const auto berthClass = Serialise::YamlArchive::Read<Dock::BerthClassDefinition>(
+	    "version: 1\nrank: 1\nlargestHull: [60, 30, 15]\npadSize: [50, 90]\n",
+	    Dock::BerthClassMigrations());
+	CHECK(berthClass == Dock::BerthClassDefinition{1, {60.0f, 30.0f, 15.0f}, {50.0f, 90.0f}});
+	const auto layout = Serialise::YamlArchive::Read<Dock::PlatformLayout>(
+	    "version: 1\ndecks: [{centre: [0, 0, 0], size: [100, 20, 100]}]\n"
+	    "pads:\n  - {class: frigate, position: [0, 10, 0], display: true, ship: transport}\n",
+	    Dock::PlatformMigrations());
+	REQUIRE(layout.berths.size() == 1);
+	CHECK(layout.berths[0].berthClass == "frigate");
+	CHECK(layout.berths[0].vehicle == "transport");
 }
 
 

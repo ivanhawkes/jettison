@@ -126,6 +126,16 @@ std::string BerthName(std::size_t index)
 {
 	return std::format("berth {}", index + 1);
 }
+
+
+// A key renamed, if the node has it: a patch leaves out what it does not change.
+void RenameKey(YAML::Node &node, const char *from, const char *to)
+{
+	if (!node.IsMap() || !node[from])
+		return;
+	node[to] = node[from];
+	node.remove(from);
+}
 } // namespace
 
 
@@ -162,12 +172,51 @@ void CheckBerthClass(std::string_view name, const BerthClassDefinition &berthCla
 }
 
 
+const Serialise::YamlMigrations &BerthClassMigrations()
+{
+	static const Serialise::YamlMigrations migrations = []
+	{
+		Serialise::YamlMigrations chain{"Dock.BerthClassDefinition", {kBerthClassVersion}};
+		chain.Add(
+		    1,
+		    [](YAML::Node &root)
+		    {
+			    RenameKey(root, "largestHull", "largestVehicle");
+			    RenameKey(root, "padSize", "berthSize");
+		    });
+		return chain;
+	}();
+	return migrations;
+}
+
+
 const Serialise::YamlMigrations &VehicleMigrations()
 {
 	static const Serialise::YamlMigrations migrations = []
 	{
-		Serialise::YamlMigrations chain{"Dock.HullDefinition", {kVehicleVersion}};
+		Serialise::YamlMigrations chain{"Dock.VehicleDefinition", {kVehicleVersion}};
 		chain.Add(1, [](YAML::Node &root) { root.remove("cruise"); });
+		chain.Add(2, [](YAML::Node &root) { RenameKey(root, "pad", "berth"); });
+		return chain;
+	}();
+	return migrations;
+}
+
+
+const Serialise::YamlMigrations &PlatformMigrations()
+{
+	static const Serialise::YamlMigrations migrations = []
+	{
+		Serialise::YamlMigrations chain{"Dock.PlatformLayout", {kPlatformVersion}};
+		chain.Add(
+		    1,
+		    [](YAML::Node &root)
+		    {
+			    RenameKey(root, "pads", "berths");
+			    if (YAML::Node berths = root["berths"]; berths.IsSequence())
+				    for (YAML::Node berth : berths)
+					    RenameKey(berth, "ship", "vehicle");
+		    });
 		return chain;
 	}();
 	return migrations;

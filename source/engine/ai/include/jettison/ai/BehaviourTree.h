@@ -153,7 +153,7 @@ using TaskWake = std::function<std::uint64_t(
 // what it asked for (a berth, a portal's clearance) goes on or lapses as it would for a vehicle
 // that did not come. Left by the one at it, or by no one in particular, the game's rules, from
 // whoever is. Registered with Reflect, every
-// field Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
+// field Saved, by RegisterTypes.
 struct TakeHelm
 {
 	Sim::Controller sender;
@@ -166,7 +166,7 @@ struct LeaveHelm
 };
 
 // Raised as a helm is taken and left, by whom, and as a TakeHelm or a LeaveHelm is refused, saying
-// why. Registered with Reflect, every field Saved (the vehicle as "ship", its name before G01e), by
+// why. Registered with Reflect, every field Saved, by
 // RegisterTypes.
 struct HelmTaken
 {

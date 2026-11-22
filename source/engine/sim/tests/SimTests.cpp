@@ -378,8 +378,9 @@ TEST_CASE("Sim: the same seed and command stream give the same state, in every b
 
 	// Recorded from a Debug build and checked by the Release suite too: a change here is a change
 	// to the simulation's results or to the save layout, and either is a decision, not drift. The
-	// layout last changed in phase 12a (version 3, with each component storage's version).
-	CHECK(first.StateHash() == 0x117b1e091a3e1d08ull);
+	// layout last changed in the space extraction's slice 7 (version 5, the engine's saved names in
+	// neutral words), which moved it by the version's byte alone.
+	CHECK(first.StateHash() == 0x2e0a15d18e042773ull);
 
 	Sim::SimWorld reseeded{kStep, kSeed + 1};
 	Populate(reseeded);
@@ -452,7 +453,7 @@ TEST_CASE("Sim: a save written by version 1 loads through its migration and carr
 
 	// And it steps on to the pinned state of the whole run.
 	Run(loaded, kSteps);
-	CHECK(loaded.StateHash() == 0x117b1e091a3e1d08ull);
+	CHECK(loaded.StateHash() == 0x2e0a15d18e042773ull);
 
 	// Version 1 had no services, so a world with one has no state to give it.
 	Sim::SimWorld serviced{kStep, kSeed};
@@ -465,10 +466,10 @@ TEST_CASE("Sim: a save written by version 1 loads through its migration and carr
 	// A version this build does not know, a later one's, is refused by name.
 	std::vector<std::byte> later = current.Save();
 	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(later, "Jettison.World");
-	document.version = 5;
+	document.version = 6;
 	CHECK_THROWS_WITH_AS(
 	    loaded.Load(document.Emit()),
-	    "Jettison.World: version 5 found, version 4 expected: it was written by a later build",
+	    "Jettison.World: version 6 found, version 5 expected: it was written by a later build",
 	    Serialise::FormatVersionError);
 }
 

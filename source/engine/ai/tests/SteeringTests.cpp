@@ -560,8 +560,9 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	// decision, not drift. 9c's destination saves whether it is kept clear by its hull and which
 	// way it faces; without those fields saved the flight still hashes to 9b's 0x7b531286df2bea60.
 	// Pinned again in the space extraction's 5c for the station on the suite's own ferry rather than
-	// on the sample's orbit.
-	CHECK(first == 0x6def0361a3a806d7ull);
+	// on the sample's orbit, and in slice 7 for the saved names alone: with the old names, the world's
+	// version 4 and the dropped storages put back, it hashes as before.
+	CHECK(first == 0xcae5d971cee21f0cull);
 
 	Fixture loaded;
 	(void)Gathering(loaded);

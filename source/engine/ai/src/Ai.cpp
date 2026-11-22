@@ -5,10 +5,23 @@
 
 #include <jettison/physics/Components.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Binary.h>
 
 
 namespace Jettison::Ai
 {
+const Serialise::Migrations<Serialise::BinaryRecord> &Destination::Migrations()
+{
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
+	{
+		Serialise::Migrations<Serialise::BinaryRecord> chain{"Ai.Destination", {2}};
+		chain.Add(1, [](Serialise::BinaryRecord &record) { record.Rename("byHull", "byShape"); });
+		return chain;
+	}();
+	return migrations;
+}
+
+
 void RegisterTypes()
 {
 	static const bool registered = []
@@ -80,19 +93,19 @@ void RegisterTypes()
 		    .Field<&Behaviour::last>("last", Attribute::Saved);
 		RegisterType<TakeHelm>("Ai.TakeHelm")
 		    .Field<&TakeHelm::sender>("sender", Attribute::Saved)
-		    .Field<&TakeHelm::vehicle>("ship", Attribute::Saved);
+		    .Field<&TakeHelm::vehicle>("vehicle", Attribute::Saved);
 		RegisterType<LeaveHelm>("Ai.LeaveHelm")
 		    .Field<&LeaveHelm::sender>("sender", Attribute::Saved)
-		    .Field<&LeaveHelm::vehicle>("ship", Attribute::Saved);
+		    .Field<&LeaveHelm::vehicle>("vehicle", Attribute::Saved);
 		RegisterType<HelmTaken>("Ai.HelmTaken")
 		    .Field<&HelmTaken::controller>("controller", Attribute::Saved)
-		    .Field<&HelmTaken::vehicle>("ship", Attribute::Saved);
+		    .Field<&HelmTaken::vehicle>("vehicle", Attribute::Saved);
 		RegisterType<HelmLeft>("Ai.HelmLeft")
 		    .Field<&HelmLeft::controller>("controller", Attribute::Saved)
-		    .Field<&HelmLeft::vehicle>("ship", Attribute::Saved);
+		    .Field<&HelmLeft::vehicle>("vehicle", Attribute::Saved);
 		RegisterType<HelmRefused>("Ai.HelmRefused")
 		    .Field<&HelmRefused::sender>("sender", Attribute::Saved)
-		    .Field<&HelmRefused::vehicle>("ship", Attribute::Saved)
+		    .Field<&HelmRefused::vehicle>("vehicle", Attribute::Saved)
 		    .Field<&HelmRefused::reason>("reason", Attribute::Saved);
 
 		RegisterType<Steered>("Ai.Steered")
@@ -107,27 +120,27 @@ void RegisterTypes()
 		    .Field<&Destination::passRadius>("passRadius", Attribute::Saved)
 		    .Field<&Destination::arrivalRadius>("arrivalRadius", Attribute::Saved)
 		    .Field<&Destination::arrivalSpeed>("arrivalSpeed", Attribute::Saved)
-		    .Field<&Destination::byShape>("byHull", Attribute::Saved)
+		    .Field<&Destination::byShape>("byShape", Attribute::Saved)
 		    .Field<&Destination::face>("face", Attribute::Saved)
 		    .Field<&Destination::facing>("facing", Attribute::Saved)
 		    .Field<&Destination::next>("next", Attribute::Saved)
 		    .Field<&Destination::arrived>("arrived", Attribute::Saved);
 		RegisterType<SetDestination>("Ai.SetDestination")
 		    .Field<&SetDestination::sender>("sender", Attribute::Saved)
-		    .Field<&SetDestination::vehicle>("ship", Attribute::Saved)
+		    .Field<&SetDestination::vehicle>("vehicle", Attribute::Saved)
 		    .Field<&SetDestination::destination>("destination", Attribute::Saved);
 		RegisterType<ClearDestination>("Ai.ClearDestination")
 		    .Field<&ClearDestination::sender>("sender", Attribute::Saved)
-		    .Field<&ClearDestination::vehicle>("ship", Attribute::Saved);
+		    .Field<&ClearDestination::vehicle>("vehicle", Attribute::Saved);
 		RegisterType<Arrived>("Ai.Arrived")
-		    .Field<&Arrived::vehicle>("ship", Attribute::Saved)
+		    .Field<&Arrived::vehicle>("vehicle", Attribute::Saved)
 		    .Field<&Arrived::entity>("entity", Attribute::Saved);
 		RegisterType<DestinationLost>("Ai.DestinationLost")
-		    .Field<&DestinationLost::vehicle>("ship", Attribute::Saved)
+		    .Field<&DestinationLost::vehicle>("vehicle", Attribute::Saved)
 		    .Field<&DestinationLost::reason>("reason", Attribute::Saved);
 		RegisterType<DestinationRefused>("Ai.DestinationRefused")
 		    .Field<&DestinationRefused::sender>("sender", Attribute::Saved)
-		    .Field<&DestinationRefused::vehicle>("ship", Attribute::Saved)
+		    .Field<&DestinationRefused::vehicle>("vehicle", Attribute::Saved)
 		    .Field<&DestinationRefused::reason>("reason", Attribute::Saved);
 		return true;
 	}();

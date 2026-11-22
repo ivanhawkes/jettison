@@ -1,7 +1,7 @@
 # Ostra Highport, the farming world's trade hub (docs/sample-game.md): twelve destroyer pads for the
 # largest transports on four piers of three, reaching out from a hub along the station's +X, -X, +Z and
 # -Z, 1.5 km across, within the 2 km cluster range from its centre (docs/roadmap.md, "Decided"). A
-# station layout of the docks (Dock.StationLayout), in the station's axes, metres.
+# station layout of the docks (Dock.PlatformLayout), in the station's axes, metres.
 #
 # The hub is 200 m square and 60 m deep. Each pier is 660 m long, 120 m wide and 20 m deep, its top 10 m
 # above the station's middle; its three 80 x 180 m pads lie along it, 30 m apart and 20 m in from its
@@ -15,7 +15,7 @@
 # +X, and four corvette pads in a row beyond them for fighters. Display pads are dressing
 # (Dock.PadLayout): no ship is given one, and each names the hull drawn on it. The wing's far corner is
 # 721 m out, inside the sphere the piers' tips make, 762 m.
-version: 1
+version: 2
 displayName: Ostra Highport
 reservationSeconds: 300
 decks:
@@ -26,7 +26,7 @@ piers:
   - {centre: [-430, 0, 0], size: [660, 20, 120]}
   - {centre: [0, 0, 430], size: [120, 20, 660]}
   - {centre: [0, 0, -430], size: [120, 20, 660]}
-pads:
+berths:
   - {class: destroyer, position: [220, 10, 0], heading: [1, 0, 0]}
   - {class: destroyer, position: [430, 10, 0], heading: [1, 0, 0]}
   - {class: destroyer, position: [640, 10, 0], heading: [1, 0, 0]}
@@ -39,9 +39,9 @@ pads:
   - {class: destroyer, position: [0, 10, -220], heading: [0, 0, -1]}
   - {class: destroyer, position: [0, 10, -430], heading: [0, 0, -1], features: [dry-dock]}
   - {class: destroyer, position: [0, 10, -640], heading: [0, 0, -1], features: [dry-dock]}
-  - {class: cruiser, position: [300, 10, 180], heading: [1, 0, 0], display: true, ship: liner}
-  - {class: cruiser, position: [300, 10, 330], heading: [1, 0, 0], display: true, ship: cruiser}
-  - {class: corvette, position: [160, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
-  - {class: corvette, position: [240, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
-  - {class: corvette, position: [320, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
-  - {class: corvette, position: [400, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
+  - {class: cruiser, position: [300, 10, 180], heading: [1, 0, 0], display: true, vehicle: liner}
+  - {class: cruiser, position: [300, 10, 330], heading: [1, 0, 0], display: true, vehicle: cruiser}
+  - {class: corvette, position: [160, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}
+  - {class: corvette, position: [240, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}
+  - {class: corvette, position: [320, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}
+  - {class: corvette, position: [400, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}

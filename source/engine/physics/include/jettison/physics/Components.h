@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <string>
 
+#include <jettison/serialise/Migration.h>
+
 namespace Jettison::Physics
 {
 // How a body moves. A static body stays where its Transform puts it and is moved only by writing
@@ -23,7 +25,7 @@ enum class BodyKind : std::uint8_t
 // Sim::InFrame, it is a body in that frame's physics, and one in no frame (a vehicle in
 // transit between frames) is in none. Read when the body is made; a change to any field remakes the
 // body at the next step, keeping its velocity. Registered with Reflect, every field Saved, by
-// RegisterTypes.
+// RegisterTypes; PhysicsWorld::Attach registers it with its chain (Migrations).
 //
 // Jolt keeps a body's properties in single precision, so these are floats: a double here would
 // claim precision the body does not have.
@@ -55,6 +57,10 @@ struct Body
 	bool sensor{false};
 
 	bool operator==(const Body &) const = default;
+
+	// Version 2 (the space extraction) renamed the shapes the docks name, from "hulls/" and
+	// "stations/" to "vehicles/" and "platforms/" (Dock::Docks::VehicleShape, PlatformShape).
+	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
 // A moving body's velocity relative to its frame (LocalFrame): metres a second, and radians a second

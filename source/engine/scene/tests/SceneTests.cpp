@@ -23,7 +23,7 @@ namespace
 {
 // A scene with no models: everything in it loads and saves without assets, which is what lets the
 // round trip run without a resource manager.
-constexpr const char *kSceneWithoutModels = R"(version: 2
+constexpr const char *kSceneWithoutModels = R"(version: 3
 entities:
   - id: root
     transform:
@@ -95,7 +95,7 @@ void CheckRefused(Scene &scene, const std::string &entity, const char *reason)
 {
 	CAPTURE(entity);
 	CHECK_THROWS_WITH_AS(
-	    scene.LoadText("version: 2\nentities:\n" + entity), doctest::Contains(reason),
+	    scene.LoadText("version: 3\nentities:\n" + entity), doctest::Contains(reason),
 	    std::runtime_error);
 }
 } // namespace
@@ -132,7 +132,7 @@ TEST_CASE("Scene: a saved scene loads back to the same file, with the frame loop
 TEST_CASE("Scene: translations and the camera's position are doubles, in the file and in the world")
 {
 	Scene scene;
-	scene.LoadText(R"(version: 2
+	scene.LoadText(R"(version: 3
 entities:
   - id: planet
     transform:
@@ -172,18 +172,18 @@ TEST_CASE("Scene: a file of another version, or with a field the scene does not 
 	// A far plane and an ambient colour were retired before version 2; now they are fields like any
 	// the scene does not know, named with the line they are on.
 	CHECK_THROWS_WITH_AS(
-	    scene.LoadText("version: 2\nentities:\n  - id: camera\n    camera:\n      far: 10\n"),
+	    scene.LoadText("version: 3\nentities:\n  - id: camera\n    camera:\n      far: 10\n"),
 	    doctest::Contains(
 	        "Scene.entities[0].camera.far: 'Scene.Camera' has no saved field 'far' (line 5)"),
 	    Jettison::Serialise::FormatError);
 	CHECK_THROWS_WITH_AS(
 	    scene.LoadText(
-	        "version: 2\nentities:\n  - id: m\n    animation:\n      clip: Walk\n      time: 3\n"),
+	        "version: 3\nentities:\n  - id: m\n    animation:\n      clip: Walk\n      time: 3\n"),
 	    doctest::Contains("no saved field 'time'"), Jettison::Serialise::FormatError);
 	// A file on disk is named in its error.
 	const auto path = std::filesystem::temp_directory_path() /
 	                  ("jettison-scene-tests-" + std::to_string(::getpid()) + ".yaml");
-	std::ofstream{path} << "version: 2\nentities: 3\n";
+	std::ofstream{path} << "version: 3\nentities: 3\n";
 	CHECK_THROWS_WITH_AS(scene.Load(path), doctest::Contains(path.string()), std::runtime_error);
 	std::filesystem::remove(path);
 }
@@ -192,16 +192,16 @@ TEST_CASE("Scene: a file of another version, or with a field the scene does not 
 TEST_CASE("Scene: bodies, a sun and an orbit camera load and save as authored")
 {
 	Scene scene;
-	scene.LoadText(R"(version: 2
+	scene.LoadText(R"(version: 3
 entities:
   - id: star
-    celestial:
+    body:
       body: Sun
     sun:
       color: [1, 0.9, 0.8]
       intensity: 1.5
   - id: station
-    celestial:
+    body:
       body: Dock
   - id: camera
     camera:
@@ -263,7 +263,7 @@ TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file 
 	// A model's rig loads through the resource manager, which this scene was not given.
 	CheckRefused(scene, "  - id: m\n    mesh:\n      model: models/arm.glb\n", "resource manager");
 	CHECK_THROWS_WITH_AS(
-	    scene.LoadText("version: 2\nentities:\n  - id: m\n    mesh:\n      shape: pyramid\n"),
+	    scene.LoadText("version: 3\nentities:\n  - id: m\n    mesh:\n      shape: pyramid\n"),
 	    doctest::Contains("'pyramid' is not a 'Scene.Shape'"), Jettison::Serialise::FormatError);
 }
 
@@ -277,7 +277,7 @@ TEST_CASE(
 	{
 		CAPTURE(ShapeName(shape));
 		scene.LoadText(
-		    "version: 2\nentities:\n  - id: m\n    mesh:\n      shape: " +
+		    "version: 3\nentities:\n  - id: m\n    mesh:\n      shape: " +
 		    std::string{ShapeName(shape)} + "\n");
 		const auto meshes = scene.Registry().view<const MeshComponent>();
 		REQUIRE(meshes.size() == 1);
@@ -320,14 +320,14 @@ TEST_CASE("Scene: lights are points or spots with a range, and as many as the sc
 	    "innerConeAngle < outerConeAngle");
 	refuses("      type: spot\n      range: 5\n      outerConeAngle: 2\n", "pi / 2");
 	CHECK_THROWS_WITH_AS(
-	    scene.LoadText("version: 2\nentities:\n  - id: l\n    light:\n      type: area\n"),
+	    scene.LoadText("version: 3\nentities:\n  - id: l\n    light:\n      type: area\n"),
 	    doctest::Contains("'area' is not a 'Scene.LightType'"), Jettison::Serialise::FormatError);
 }
 
 
 TEST_CASE("Scene: a light's intensity can move with time, and is saved with its wave")
 {
-	const std::string text = "version: 2\nentities:\n"
+	const std::string text = "version: 3\nentities:\n"
 	                         "  - id: beacon\n    light:\n      intensity: 4\n      range: 6\n"
 	                         "      animation:\n        wave: Square\n        period: 1.2\n"
 	                         "        phase: 0.25\n        from: 0.1\n        to: 1\n";
@@ -363,7 +363,7 @@ TEST_CASE("Scene: a light's intensity can move with time, and is saved with its 
 TEST_CASE("Scene: outlines and masks load as given, are saved, and are checked")
 {
 	const std::string text =
-	    "version: 2\nentities:\n"
+	    "version: 3\nentities:\n"
 	    "  - id: crate\n    outline:\n      style: selected\n      color: [1, 0.5, 0, 2]\n"
 	    "  - id: pod\n    outline:\n      style: targeted\n      width: 14\n"
 	    "  - id: display\n    mask:\n      unprocessed: true\n      game: 21\n"
@@ -426,7 +426,7 @@ TEST_CASE("Scene: a scene has one sky, with a band and a nebula it can draw")
 TEST_CASE("Scene: an atmosphere and rings are over a shape, and saved as they were given")
 {
 	Scene scene;
-	scene.LoadText(R"(version: 2
+	scene.LoadText(R"(version: 3
 entities:
   - id: planet
     mesh:
@@ -479,7 +479,7 @@ entities:
 TEST_CASE("Scene: an emitter loads with its frame found, and is saved as it was given")
 {
 	Scene scene;
-	scene.LoadText(R"(version: 2
+	scene.LoadText(R"(version: 3
 entities:
   - id: station
   - id: nozzle
@@ -510,7 +510,7 @@ entities:
 	CHECK(again.SaveText() == saved);
 
 	// The emitter's own frame when it names none.
-	scene.LoadText("version: 2\nentities:\n  - id: a\n    particles: {}\n");
+	scene.LoadText("version: 3\nentities:\n  - id: a\n    particles: {}\n");
 	CHECK(
 	    scene.Registry()
 	        .get<ParticleEmitterComponent>(
@@ -580,7 +580,7 @@ namespace
 // Two clamps of the pad clamp's clip (animations/pad-clamp.clip.yaml), bound to one player on the
 // pad: each node bound to both clamps' parts, which move alike. Authored stowed but at full size, so
 // the clip's put-away clamp node can be seen to take over.
-constexpr const char *kClampScene = R"(version: 2
+constexpr const char *kClampScene = R"(version: 3
 entities:
   - id: pad
     clip:
@@ -757,7 +757,7 @@ TEST_CASE("Scene: a clip's file, name, speed and bindings are checked as the sce
 	    "not an entity of the scene");
 	// A node bound to the player's own entity is a rig of one, and the binding is saved as written.
 	scene.LoadText(
-	    "version: 2\nentities:\n  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n"
+	    "version: 3\nentities:\n  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n"
 	    "      name: close\n      nodes:\n        - {node: arm, entity: a}\n");
 	const std::string saved = scene.SaveText();
 	CHECK(saved.find("node: arm") != std::string::npos);

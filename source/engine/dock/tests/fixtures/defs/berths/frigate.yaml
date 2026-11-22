@@ -1,7 +1,7 @@
 # A transport's pad.
-# A pad class of the docks (Dock.PadClassDefinition): metres, a hull length by beam by height
+# A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
 # and a pad width by length.
-version: 1
+version: 2
 rank: 1
-largestHull: [60, 30, 15]
-padSize: [50, 90]
+largestVehicle: [60, 30, 15]
+berthSize: [50, 90]

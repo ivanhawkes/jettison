@@ -31,7 +31,7 @@ namespace Jettison::Dock
 // above it that holds it (Fits), the lowest ranked first: the rank orders the choice and the largest
 // vehicle is the limit, so a class ranked above a smaller one is never given the larger one's vehicles.
 // defs/berths/<name>.yaml; the dock suite's are corvette, frigate, destroyer and cruiser, a fighter's
-// to a liner's. Registered with Reflect as "Dock.PadClassDefinition", every field Saved and Moddable,
+// to a liner's. Registered with Reflect as "Dock.BerthClassDefinition", every field Saved and Moddable,
 // by RegisterTypes.
 struct BerthClassDefinition
 {
@@ -55,7 +55,7 @@ const BerthClassDefinition &BerthClassOf(
 // alone, a glTF file by virtual path in the vehicle's axes and metres, drawn in place of its class's
 // proxy; the simulation never reads it. How it travels between platforms is the game's, as a
 // component the game gives its vehicles. Registered with Reflect as
-// "Dock.HullDefinition", every field Saved and Moddable, by RegisterTypes.
+// "Dock.VehicleDefinition", every field Saved and Moddable, by RegisterTypes.
 struct VehicleDefinition
 {
 	std::string displayName;
@@ -85,7 +85,7 @@ struct Box
 // A berth's features are what it offers besides a place to land, by names that are the game's (the
 // space sample's "dry-dock", where a vehicle is repaired): the docks give a vehicle that asks for one a
 // berth that offers it (RequestBerth::feature) and know nothing of what it is for.
-// Registered with Reflect as "Dock.PadLayout", every field Saved and Moddable.
+// Registered with Reflect as "Dock.BerthLayout", every field Saved and Moddable.
 struct BerthLayout
 {
 	// A berth class's name.
@@ -101,7 +101,7 @@ struct BerthLayout
 // A platform's layout: the decks (its hub and the blocks about it) and the piers that reach out from
 // them, both boxes, which the platform collides as (DeckShape); and its berths. A vehicle given a berth
 // that has not landed on it in the reservation's seconds loses it. defs/platforms/<name>.yaml.
-// Registered with Reflect as "Dock.StationLayout", every field Saved and Moddable.
+// Registered with Reflect as "Dock.PlatformLayout", every field Saved and Moddable.
 struct PlatformLayout
 {
 	std::string displayName;
@@ -111,10 +111,13 @@ struct PlatformLayout
 	float reservationSeconds{300.0f};
 };
 
-inline constexpr std::uint32_t kDefinitionVersion = 1;
-// A vehicle's file is of version 2; one of version 1 may give a drive ("cruise"), the game's now,
-// and loads through VehicleMigrations with it left out.
-inline constexpr std::uint32_t kVehicleVersion = 2;
+// The definitions' files' versions. Version 2 of a berth class and of a platform layout, and 3 of a
+// vehicle (the space extraction), name their fields in the docks' words, where earlier versions had
+// the space setting's; a vehicle's version 1 may give a drive ("cruise"), the game's now, which loads
+// with it left out.
+inline constexpr std::uint32_t kBerthClassVersion = 2;
+inline constexpr std::uint32_t kVehicleVersion = 3;
+inline constexpr std::uint32_t kPlatformVersion = 2;
 inline constexpr std::string_view kBerthClassDirectory = "defs/berths";
 inline constexpr std::string_view kVehicleDirectory = "defs/vehicles";
 inline constexpr std::string_view kPlatformDirectory = "defs/platforms";
@@ -124,9 +127,11 @@ inline constexpr std::string_view kPlatformDirectory = "defs/platforms";
 // naming the class.
 void CheckBerthClass(std::string_view name, const BerthClassDefinition &berthClass);
 
-// A vehicle's files from version 1 up (Sim::DefinitionRegistry::Load), its format
-// "Dock.HullDefinition".
+// The definitions' files from version 1 up (Sim::DefinitionRegistry::Load), each format the type's
+// reflected name.
+const Serialise::YamlMigrations &BerthClassMigrations();
 const Serialise::YamlMigrations &VehicleMigrations();
+const Serialise::YamlMigrations &PlatformMigrations();
 
 // Checks a vehicle, in the one place a file read and a vehicle made in code both go through: a berth
 // class of those defined, and a size that is positive and within its class's largest vehicle. Throws

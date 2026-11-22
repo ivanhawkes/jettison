@@ -4,7 +4,7 @@
 # pads, lights and emitters placed by the file alone, the built entities numbered (built-<n>), and
 # the docked shuttle and its pad named ship and pad for the sequences' roles. The camera orbits the
 # station (W, A, S, D, Q, E, or drag with the right mouse button).
-version: 2
+version: 3
 entities:
   - id: built-0
     parent: highport
@@ -26651,7 +26651,7 @@ entities:
     sun:
       color: [1, 0.95, 0.88]
       intensity: 3.4
-    celestial:
+    body:
       body: Halcyon
   - id: halcyon-gate
     layer: effects
@@ -26659,7 +26659,7 @@ entities:
       translation: [-26522631344.146484, -12878583.061747871, -144646615911.80527]
       rotation: [-1.3124584, -0.033937275, -0.12770867]
       scale: [500, 500, 500]
-    celestial:
+    body:
       body: Halcyon Gate
     mesh:
       shape: ring
@@ -26686,14 +26686,14 @@ entities:
       translation: [-26517000628.624844, -2075900.3817013907, -144688080072.29706]
       rotation: [-0, 0, -0]
       scale: [1, 1, 1]
-    celestial:
+    body:
       body: Ostra Highport
   - id: ostra
     transform:
       translation: [-26516266920.060566, 0, -144694507833.92557]
       rotation: [0.4091, 3.0383817e-05, 9.094947e-13]
       scale: [6371000, 6371000, 6371000]
-    celestial:
+    body:
       body: Ostra
     atmosphere:
       height: 1e+05
@@ -26712,7 +26712,7 @@ entities:
       translation: [-26515460803.075268, 3544352.31599361, -144687839447.39337]
       rotation: [-0, 0, -0]
       scale: [1, 1, 1]
-    celestial:
+    body:
       body: Ostra Anchorage
   - id: pad
     parent: highport
@@ -26764,7 +26764,7 @@ entities:
       translation: [-26810091462.67064, 35564507.14333055, -144425641845.11282]
       rotation: [0.0269, 1.1090416e-06, -0]
       scale: [1737400, 1737400, 1737400]
-    celestial:
+    body:
       body: Pell
     mesh:
       shape: cubesphere

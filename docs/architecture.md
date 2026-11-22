@@ -627,7 +627,7 @@ on any faster than it can stop from before the clearance; that limit is what kee
 and the turn what takes it round.
 
 A station's sphere holds its pads, so a ship flown to one cannot keep clear of the station by its
-sphere. A destination kept clear **by its hull** (`Destination::byHull`, 9c) leaves its entity out of
+sphere. A destination kept clear **by its shape** (`Destination::byShape`, 9c) leaves its entity out of
 the obstacles, and every body on the same celestial body's rails with it (the station, and the ships
 clamped to it), and sweeps the ship's own shape along its way instead
 (`PhysicsWorld::CastShape`), closing on what the sweep meets no faster than it can stop from before
@@ -658,8 +658,9 @@ saves none (`Docks::Offers` reads the layout). A layout is checked as it is defi
 all on a deck or a pier, none overlapping another, nothing of the platform over any, out to the
 sphere that holds it all, and a vehicle shown only on a display berth. A display berth's vehicle is
 presentation's, drawn on it and never a body: no vehicle is given the berth, and `Park` refuses it.
-The saved and reflected names are still the setting's (`Dock.Pad`, `Dock.StationLayout` and the
-rest, their fields among them), until slice 7 of the [space extraction](space-extraction-plan.md) renames them.
+The saved and reflected names are the docks' own (`Dock.Berth`, `Dock.PlatformLayout` and the
+rest, their fields among them) since slice 7 of the [space extraction](space-extraction-plan.md); a
+save or a definition file written before loads through the migrations (below).
 
 `Docks::MakePlatform` builds a platform where its game places it: on the rails of a body of the
 frame's model (`Physics::FrameModel`), in that body's local frame, with an entity for each berth on
@@ -693,9 +694,9 @@ nothing on the way. The stop is a stopgap ([carried forward](roadmap.md#then-rob
 
 **Deck traffic** (9e, [decided](decisions.md)) carried a docked vehicle's crates across the deck in
 the simulation, by buggies on roads made from a layout, until the space extraction retired it with
-the space sample, its one user (2026-11-22). `Dock.Transfer` and `Dock.Buggy` stay registered
-with the world, with no behaviour, so a save's bytes and the hashes pinned on them hold until slice
-7 drops their saved names ([space extraction](space-extraction-plan.md)).
+the space sample, its one user (2026-11-22). Its two components, `Dock.Transfer` and `Dock.Buggy`,
+were dropped in slice 7 of the [space extraction](space-extraction-plan.md): an older save's storages
+of them are read and left out.
 
 ### Decisions
 
@@ -788,7 +789,7 @@ change inside a value needs the types that wrote it, and a step that has them re
 with them and writes the new.
 
 A component changes by a chain of its own (12a, [decided](decisions.md)). The world's save
-(version 4) begins with each component storage's version, so a load knows them all before it reads
+(from version 3) begins with each component storage's version, so a load knows them all before it reads
 one, and a version newer than the component's chain is refused by the component's name before
 anything else is read; a storage of an older save is at version 1, which the world's step from 2
 sets by writing an empty table. A component registered with a chain
@@ -802,7 +803,11 @@ So the old C++ type is never needed, and a struct inside a component is migrated
 steps. Adding a field or renaming one needs no version: fields are found by name, and a rename is a
 world step over the table of names, unless other types share the field's name, which that step would
 rename too: the world's version 4 renamed `Sim.InSystem` to `Sim.InFrame` over the table, and
-`InFrame`'s own version 2 renamed its field from `system` to `frame`, a name markets' fields have. A YAML step edits the parsed tree, keeping the lines a mistake is
+`InFrame`'s own version 2 renamed its field from `system` to `frame`, a name markets' fields have.
+Version 5 (the space extraction's slice 7) renamed the engine's types out of the space setting's
+words the same way (`Dock.Pad` to `Dock.Berth`, `Physics.Thrusters` to `Physics.Handling`), and their
+fields by each component's chain, since a game's types share names such as `ship`; a command still
+queued in an older save has its fields renamed as it is read. A YAML step edits the parsed tree, keeping the lines a mistake is
 reported at. Definitions migrate the same way ([decided](decisions.md)). A version newer than
 the build's, or one the chain does not reach, is refused by name before any step runs, and every
 read leaves what it was reading into as it was when the data does not fit.

@@ -375,7 +375,9 @@ TEST_CASE("Physics replay: bodies collide, and the same commands give the same s
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too: a
 	// change here is a change to physics' results or to what a save holds, and either is a
 	// decision, not drift.
-	CHECK(first.StateHash() == 0x791297f6f8f371e6ull);
+	// Pinned again in the space extraction's slice 7 for the saved names alone: with the old names, the
+	// world's version 4 and the dropped storages put back, it hashes as before.
+	CHECK(first.StateHash() == 0xc81b78eb70a70fcdull);
 }
 
 

@@ -4,7 +4,7 @@
 # pads, lights and emitters placed by the file alone, the built entities numbered (built-<n>), and
 # the docked shuttle and its pad named ship and pad for the sequences' roles. The camera orbits the
 # station (W, A, S, D, Q, E, or drag with the right mouse button).
-version: 2
+version: 3
 entities:
   - id: built-0
     parent: refinery
@@ -8693,7 +8693,7 @@ entities:
       translation: [-29651805795.196766, 350577756.30992633, -949773145.7809238]
       rotation: [0.05, 7.2722054e-05, -4.5474735e-13]
       scale: [7e+07, 7e+07, 7e+07]
-    celestial:
+    body:
       body: Corva
     atmosphere:
       height: 4e+05
@@ -8763,7 +8763,7 @@ entities:
       translation: [-29609639683.97126, 371834743.3832818, -817957924.2581706]
       rotation: [-0, 0, -0]
       scale: [1, 1, 1]
-    celestial:
+    body:
       body: Corva Refinery
   - id: ship
     layer: traffic
@@ -8779,7 +8779,7 @@ entities:
     sun:
       color: [1, 0.78, 0.6]
       intensity: 3.4
-    celestial:
+    body:
       body: Vesper
   - id: vesper-deep-gate
     layer: effects
@@ -8787,7 +8787,7 @@ entities:
       translation: [-936420970.3909281, -35029405.806443796, 349125632.0308778]
       rotation: [-1.5701901, 0.01340036, 1.5255896]
       scale: [500, 500, 500]
-    celestial:
+    body:
       body: Vesper Deep Gate
     mesh:
       shape: ring
@@ -8799,7 +8799,7 @@ entities:
       translation: [-30139176912.45814, 434165707.8293283, -1023816703.3682619]
       rotation: [-1.5453335, 0.16604133, -1.7236867]
       scale: [500, 500, 500]
-    celestial:
+    body:
       body: Vesper Gate
     mesh:
       shape: ring

@@ -4,19 +4,19 @@ version: 1
 reason:
   entity: etwas
   dock:
-    ship_gone: das Schiff ist nicht in der Welt
+    vehicle_gone: das Schiff ist nicht in der Welt
     not_controller: der Absender befehligt das Schiff nicht
-    not_a_station: das ist keine Station
-    no_hull: die Docks kennen den Rumpf des Schiffs nicht
+    not_a_platform: das ist keine Station
+    no_vehicle: die Docks kennen den Rumpf des Schiffs nicht
     cannot_fly: das Schiff kann nicht fliegen
     other_system: das Schiff ist nicht im System von {0}
     other_frame: das Schiff ist nicht im Bezugssystem von {0}
     already_queued: das Schiff wartet bereits auf eine Landeplattform an {0}
-    already_holds_pad: das Schiff hat bereits Landeplattform {0} an {1}
-    no_pad_fits: "{0} hat keine Landeplattform, auf die der Rumpf passt"
+    already_holds_berth: das Schiff hat bereits Landeplattform {0} an {1}
+    no_berth_fits: "{0} hat keine Landeplattform, auf die der Rumpf passt"
     holds_nothing: das Schiff hat keine Landeplattform und wartet auf keine
     already_leaving: das Schiff verlässt seine Landeplattform bereits
-    no_pad_offers: "{0} hat keine passende Landeplattform, die das Gewünschte bietet"
+    no_berth_offers: "{0} hat keine passende Landeplattform, die das Gewünschte bietet"
   ai:
     no_such_entity: dieses Schiff gibt es nicht
     destination_gone: sein Ziel gibt es nicht mehr

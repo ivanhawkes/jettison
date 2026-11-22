@@ -1,8 +1,8 @@
 # A transport, the frigate pads' ship: up to 60 x 30 x 15 m, and this one is nearly that. A hull of the
-# docks (Dock.HullDefinition): metres, its nose along -Z.
-version: 2
+# docks (Dock.VehicleDefinition): metres, its nose along -Z.
+version: 3
 displayName: Transport
 length: 56
 beam: 28
 height: 14
-pad: frigate
+berth: frigate

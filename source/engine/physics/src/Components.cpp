@@ -4,10 +4,37 @@
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/physics/Shape.h>
 #include <jettison/reflect/Reflect.h>
+#include <jettison/serialise/Binary.h>
 #include <jettison/sim/Snapshot.h>
+
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace Jettison::Physics
 {
+const Serialise::Migrations<Serialise::BinaryRecord> &Body::Migrations()
+{
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
+	{
+		Serialise::Migrations<Serialise::BinaryRecord> chain{"Physics.Body", {2}};
+		chain.Add(
+		    1,
+		    [](Serialise::BinaryRecord &record)
+		    {
+			    const auto shape = record.Get<std::string>("shape");
+			    for (const auto &[from, to] :
+			         {std::pair<std::string_view, std::string_view>{"hulls/", "vehicles/"},
+			          {"stations/", "platforms/"}})
+				    if (shape.starts_with(from))
+					    record.Set("shape", std::string{to} + shape.substr(from.size()));
+		    });
+		return chain;
+	}();
+	return migrations;
+}
+
+
 void RegisterTypes()
 {
 	// The tables are global, and a process may hold more than one world.
@@ -39,7 +66,7 @@ void RegisterTypes()
 		RegisterType<LocalFrame>("Physics.LocalFrame")
 		    .Field<&LocalFrame::body>("body", Attribute::Saved);
 
-		RegisterType<Handling>("Physics.Thrusters")
+		RegisterType<Handling>("Physics.Handling")
 		    .Field<&Handling::forward>("forward", Attribute::Saved)
 		    .Field<&Handling::reverse>("reverse", Attribute::Saved)
 		    .Field<&Handling::lateral>("lateral", Attribute::Saved)
@@ -54,12 +81,12 @@ void RegisterTypes()
 		    .Field<&FlightControls::reference>("reference", Attribute::Saved);
 		RegisterType<SetFlightControls>("Physics.SetFlightControls")
 		    .Field<&SetFlightControls::sender>("sender", Attribute::Saved)
-		    .Field<&SetFlightControls::vehicle>("ship", Attribute::Saved)
+		    .Field<&SetFlightControls::vehicle>("vehicle", Attribute::Saved)
 		    .Field<&SetFlightControls::controls>("controls", Attribute::Saved);
 		RegisterEnum<Reason>("Physics.Reason").Value<Reason::NotAtHelm>("not_at_helm");
 		RegisterType<FlightControlsRefused>("Physics.FlightControlsRefused")
 		    .Field<&FlightControlsRefused::sender>("sender", Attribute::Saved)
-		    .Field<&FlightControlsRefused::vehicle>("ship", Attribute::Saved)
+		    .Field<&FlightControlsRefused::vehicle>("vehicle", Attribute::Saved)
 		    .Field<&FlightControlsRefused::reason>("reason", Attribute::Saved);
 
 		RegisterEnum<ContactPhase>("Physics.ContactPhase")
