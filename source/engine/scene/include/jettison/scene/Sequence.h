@@ -26,8 +26,8 @@ namespace Jettison::Scene
 // on the same timeline. It is presentation alone: nothing in it touches the simulation, and the
 // game's camera rigs run under it the whole time, so it hands the camera back to wherever they have
 // it by then. A shot's rail and what it looks at are in the frames of roles, names the game binds to
-// the scene's entities as it plays the sequence (SequencePlayerComponent): a rail round a pad rides
-// the station as it orbits, in double precision. A file at cinematics/<name>.sequence.yaml:
+// the scene's entities as it plays the sequence (SequencePlayerComponent): a rail round a berth rides
+// the platform as it orbits, in double precision. A file at cinematics/<name>.sequence.yaml:
 //
 //   version: 1
 //   letterbox: 0.1            # each bar's share of the frame's height, eased in and out with it
@@ -40,10 +40,10 @@ namespace Jettison::Scene
 //     - duration: 4           # seconds
 //       blend: 1.5            # seconds over its start from what was shown before it: the game's
 //                             # camera, or the shot before held at its end; 0 cuts
-//       frame: pad            # the role whose frame the rail is in; none for the system's
+//       frame: berth          # the role whose frame the rail is in; none for the system's
 //       rail: [[30, 8, -20], [10, 5, -35]]   # metres, flown through at an even speed
 //       easing: inOutCubic    # how the shot's time is spent along the rail (Math::Easing)
-//       look: ship            # the role looked at, at lookAt in its frame; none for lookAt in the
+//       look: vehicle         # the role looked at, at lookAt in its frame; none for lookAt in the
 //       lookAt: [0, 1, 0]     # shot's frame
 //       fov: [40, 30]         # degrees, from the shot's start to its end; none for the camera's own
 //   events:                   # names for the game, heard as the timeline crosses them

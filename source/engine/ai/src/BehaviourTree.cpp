@@ -7,7 +7,7 @@
 #include <jettison/serialise/Archive.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 
 #include <algorithm>
 #include <cmath>
@@ -87,23 +87,23 @@ void CheckNode(std::string_view name, const BehaviourNode &node, const std::stri
 }
 
 
-// Lets the ship's controls go, from the helm or to it.
-void LetGo(entt::registry &registry, entt::entity ship)
+// Lets the vehicle's controls go, from the helm or to it.
+void LetGo(entt::registry &registry, entt::entity vehicle)
 {
-	if (auto *controls = registry.try_get<Physics::FlightControls>(ship))
+	if (auto *controls = registry.try_get<Physics::FlightControls>(vehicle))
 		*controls = Physics::FlightControls{};
 }
 
 
-void Leave(Sim::SimWorld &world, entt::entity ship)
+void Leave(Sim::SimWorld &world, entt::entity vehicle)
 {
 	entt::registry &registry = world.Registry();
-	const Sim::Controller controller = registry.get<Sim::Helm>(ship).controller;
-	registry.remove<Sim::Helm>(ship);
-	LetGo(registry, ship);
-	if (auto *behaviour = registry.try_get<Behaviour>(ship))
+	const Sim::Controller controller = registry.get<Sim::Helm>(vehicle).controller;
+	registry.remove<Sim::Helm>(vehicle);
+	LetGo(registry, vehicle);
+	if (auto *behaviour = registry.try_get<Behaviour>(vehicle))
 		behaviour->nodes.clear();
-	world.Events().Emit(HelmLeft{controller, ship});
+	world.Events().Emit(HelmLeft{controller, vehicle});
 }
 
 
@@ -123,12 +123,12 @@ void Take(Sim::SimWorld &world, const TakeHelm &command)
 		return refuse(Reason::HelmHeld);
 	// The helm it was at, in entity order, should a save hold more than one.
 	std::vector<entt::entity> held;
-	for (const auto [ship, helm] : registry.view<const Sim::Helm>().each())
-		if (ship != command.vehicle && helm.controller == command.sender)
-			held.push_back(ship);
-	std::ranges::sort(held, {}, [](entt::entity ship) { return entt::to_integral(ship); });
-	for (const entt::entity ship : held)
-		Leave(world, ship);
+	for (const auto [vehicle, helm] : registry.view<const Sim::Helm>().each())
+		if (vehicle != command.vehicle && helm.controller == command.sender)
+			held.push_back(vehicle);
+	std::ranges::sort(held, {}, [](entt::entity vehicle) { return entt::to_integral(vehicle); });
+	for (const entt::entity vehicle : held)
+		Leave(world, vehicle);
 	registry.emplace_or_replace<Sim::Helm>(command.vehicle, command.sender);
 	registry.remove<Destination>(command.vehicle);
 	LetGo(registry, command.vehicle);
@@ -166,7 +166,7 @@ Behaviours &Behaviours::Attach(Sim::SimWorld &world)
 	behaviours->m_fixedStep = world.FixedStep();
 	world.RegisterComponent<Behaviour>();
 	world.RegisterComponent<Sim::Helm>();
-	// For whose helm a ship is at: the flight panel's, and which ship a player's camera follows.
+	// For whose helm a vehicle is at: the flight panel's, and which vehicle a player's camera follows.
 	world.ShowInSnapshots<Sim::Helm>();
 	world.RegisterCommand<TakeHelm>([](Sim::SimWorld &target, const TakeHelm &command)
 	                                { Take(target, command); });
@@ -179,7 +179,7 @@ Behaviours &Behaviours::Attach(Sim::SimWorld &world)
 	    {},
 	    [behaviours, &world](entt::registry & /*registry*/, double /*fixedStep*/)
 	    { behaviours->Step(world); }};
-	system.before = {std::string{Spatial::SystemIndices::kSystemName}};
+	system.before = {std::string{Spatial::FrameIndices::kSystemName}};
 	world.RegisterSystem(
 	    std::move(system),
 	    {.next = [behaviours](const Sim::SimWorld &target) { return behaviours->QuietFrom(target); }});

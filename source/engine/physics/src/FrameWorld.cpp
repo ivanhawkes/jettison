@@ -21,7 +21,7 @@ FrameWorld::FrameWorld(const Layers &layers, const PhysicsSettings &settings)
 	m_system.Init(
 	    settings.maxBodies, 0, settings.maxBodyPairs, settings.maxContactConstraints, layers.broadPhase,
 	    *layers.objectVsBroadPhase, layers.pairs);
-	// Orbits are on rails and a ship's own thrust moves it: nothing falls.
+	// Orbits are on rails and a vehicle's own thrust moves it: nothing falls.
 	m_system.SetGravity(JPH::Vec3::sZero());
 }
 

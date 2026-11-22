@@ -33,7 +33,7 @@
 #include <jettison/space/Gates.h>
 #include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
 // The sample galaxy the traders' and the fleet's tests run in.
@@ -61,7 +61,7 @@ struct Galaxy
 	Space::LaneTravel &lanes{Space::LaneTravel::Attach(world, physics)};
 	Space::CruiseTravel &cruises{Space::CruiseTravel::Attach(world, physics)};
 	Space::Gates &gates{Space::Gates::Attach(world, physics, lanes)};
-	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
+	Spatial::FrameIndices &indices{Spatial::FrameIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
 	Ai::Behaviours &behaviours{Ai::Behaviours::Attach(world)};

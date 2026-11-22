@@ -38,8 +38,8 @@ struct Transform
 // frame gives its entities none. A frame is its name hashed as Core::StringId hashes it (FrameId),
 // which a save keeps, so renaming one in the game's data moves its entities nowhere rather than into
 // another frame. An entity between frames is in none (kNoFrame) until it arrives. The space sample's
-// frames are its star systems, an entity crossing a jump lane in none. Registered with Reflect, its
-// field Saved, by RegisterTypes; a world registers it with its chain (Migrations).
+// frames are its planetary systems, an entity passing through a portal in none. Registered with
+// Reflect, its field Saved, by RegisterTypes; a world registers it with its chain (Migrations).
 struct InFrame
 {
 	std::uint64_t frame{0};
@@ -76,7 +76,7 @@ template <typename T> struct ComponentSample
 // the frame it is in, and every entity's copy of each component the world shows, each sorted by
 // identifier so a lookup is a search. Presentation reads snapshots, never the world: a system scene
 // shows the entities in its own system's frame (scene/SystemScene.h), and the UI's data models read
-// what the game shows, a station's market or a ship's hold (ui/DataModel.h).
+// what the game shows, a platform's market or a vehicle's hold (ui/DataModel.h).
 struct Snapshot
 {
 	// The clock after the step: the steps run, and simulation seconds.

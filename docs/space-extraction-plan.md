@@ -28,8 +28,7 @@ systems only through the abstract `Physics::FrameModel`, which `space` implement
 - In neutral modules: about fifteen space-only `Ai::Reason` values; scene files' star-system path and
   `Scene::CelestialBodyComponent`, which the renderer reads; the app's `--galaxy`, `LoadSystem`, its
   smoke sequence's trade and jump, and its orbit targets; `SaveGame`'s migration naming `galaxy` and
-  `system`; ship words in public APIs (`Sim::Helm`, `MayFly`, `Physics.Thrusters`,
-  `SystemIndices`); comments throughout; and the ai and dock suites flying in the sample's systems.
+  `system`; a public API named for star systems (`Spatial::SystemIndices`); comments throughout; and the ai and dock suites flying in the sample's systems.
 - The space sample (7,310 lines of code, its assets, its suite `sample-space`), and jetsam, the
   shell running it; render_test and the smoke run play its scenes.
 
@@ -46,10 +45,10 @@ systems only through the abstract `Physics::FrameModel`, which `space` implement
 | a pad's reservation and queue, a gate's | slots: held in command order, a queue first come first served, lapsing | parking, berths, workshop bays |
 | docks' pads, approach, clamp and release | berths: a class a vehicle fits, flown or driven in and attached to a moving platform | harbours, platforms, car parks |
 | steering, `Destination` | vehicle and agent steering (vocabulary only) | any |
-| `Physics.Thrusters`, `FlightControls`, `Sim::Helm`, `MayFly` | vehicle handling and an operator's seat | flight, driving, submarines, drones |
-| `Spatial::SystemIndices` | spatial indices per frame | any |
+| `Physics.Thrusters`, `FlightControls`, `Sim::Helm`, `MayFly` | vehicle handling and the one at its helm, names kept: flight, thrusters and a helm are any vehicle's | flight, driving, submarines, drones |
+| `Spatial::SystemIndices`, now `FrameIndices` | spatial indices per frame | any |
 | atmosphere, the sky from a sun, horizon culling, render space | sky and atmosphere, large-world culling and precision | every outdoor game, open worlds |
-| the app's `--galaxy`, `LoadSystem`, orbit targets | a world to load and an orbit camera about any target | any |
+| the app's orbit targets | an orbit camera about any target (`--galaxy` goes with the sample, `--system` and `LoadSystem` with the scene's star system) | any |
 
 ## What moves to Manifest
 
@@ -104,9 +103,11 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 ## Slices
 
 1. **The check and the words.** The vocabulary check, with today's uses as its allow-list; neutral
-   names in neutral modules' C++ and comments: vehicle handling, the operator's seat, per-frame
-   indices, rails and frames described as any game's, steering's vocabulary; the app's `--world`.
-   Every pin held.
+   names in neutral modules' C++ and comments: per-frame indices (`FrameIndices`), rails and frames
+   described as any game's, steering's vocabulary (`byShape`, `ShapeLimited`). Names that are any
+   vehicle's (flight, thrusters, a helm) and geometry's convex hull stay. Every pin held. **Done**
+   2026-11-22: `neutral_words`, the list from 184 entries to 66, each left for the slice that removes
+   it (the dock's 39 for slice 5).
 2. **The sample folded and retired.** Its kept tests in their new homes, render_test on the static
    scenes, the smoke run's neutral stages, the reference frames held or re-baselined once; then the
    sample, jetsam, `spacescene` and the cargo deck deleted; the lanes' and gates' suites on two
@@ -129,13 +130,12 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
    rewritten for the boundary as it is; Manifest's boundary assessment's status; the consumer matrix
    (ground, Manifest) run; a cross-review of the whole, as at a stage's end.
 
-## Open, for the user
+## Settled with the user
 
-- **Order against W12.** Before W12, as "soon" suggests, or after it. W12 is mostly trade and touches
-  travel little, so either order works.
-- **Planetary rings.** Atmosphere is neutral, rings are not, but the renderer has no extension point
-  for a game's own passes, and Manifest no renderer yet. Keep rings in the renderer as the one named
-  exception until both exist.
+- **Before W12** (2026-11-22).
+- **Planetary rings stay in the renderer** (2026-11-22), the one named exception: atmosphere is
+  neutral and rings are not, but the renderer has no extension point for a game's own passes and
+  Manifest no renderer yet.
 
 ## Risks
 

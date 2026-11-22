@@ -12,7 +12,7 @@ namespace Jettison::Render
 {
 // Geometry made rather than loaded: a mesh's vertices and its triangle list, counter-clockwise
 // seen from outside, with normals, texture coordinates and one vertex colour. The planets and
-// stations the large-world scene shows are these, at levels of detail (GenerateLods).
+// structures the large-world scene shows are these, at levels of detail (GenerateLods).
 struct MeshData
 {
 	std::vector<Vertex> vertices;

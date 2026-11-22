@@ -16,7 +16,7 @@ namespace Jettison::Render
 // and lights outside the view, draws and lights behind a planet's horizon, and casters that cannot
 // reach a shadow cascade's map; and which level of detail each draw takes. Everything here is in
 // render space, metres from the camera, in double precision: a planet's centre is ten thousand
-// kilometres off, and its horizon is tested against a station a hundred metres away.
+// kilometres off, and its horizon is tested against a platform a hundred metres away.
 
 struct BoundingSphere
 {
@@ -25,7 +25,7 @@ struct BoundingSphere
 };
 
 // A model's bounds through a transform into render space: the centre transformed, the radius scaled
-// by the transform's largest axis, so a sphere stretched to a hull's length still holds it.
+// by the transform's largest axis, so a sphere stretched to a vehicle's length still holds it.
 BoundingSphere TransformBounds(const ModelBounds &bounds, const glm::dmat4 &renderTransform);
 
 // The transform's largest, middle and smallest scale along its own axes.
@@ -66,7 +66,7 @@ bool Occludes(const HorizonOccluder &occluder, const BoundingSphere &sphere);
 // Whether a caster can draw into a cascade's map: its sphere reaches into the prism the map's square
 // makes from its far side towards the sun, without end, since the shadow pass clamps the depth of a
 // caster further sunwards than the map to the map's sun side, and it still shadows the map. The test
-// is exact for the sphere: a planet beside the station is left out unless some of it is sunwards of
+// is exact for the sphere: a planet beside the platform is left out unless some of it is sunwards of
 // the map's far side over the square itself.
 bool CastsInto(const ShadowCascade &cascade, const BoundingSphere &sphere);
 

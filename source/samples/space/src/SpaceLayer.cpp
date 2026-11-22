@@ -42,7 +42,7 @@
 #include <jettison/space/Lanes.h>
 #include <jettison/space/Routes.h>
 #include <jettison/space/StarSystemFrame.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include "Stations.h"
@@ -163,7 +163,7 @@ SpaceLayer::SpaceLayer(SpaceGame &game, const App::ShellWorld &world, App::Shell
 	m_pLanes = &Space::LaneTravel::Attach(m_sim, m_physics);
 	m_pGates = &Space::Gates::Attach(m_sim, m_physics, *m_pLanes);
 	m_pCruises = &Space::CruiseTravel::Attach(m_sim, m_physics);
-	Spatial::SystemIndices &indices = Spatial::SystemIndices::Attach(m_sim);
+	Spatial::FrameIndices &indices = Spatial::FrameIndices::Attach(m_sim);
 	Ai::Steering::Attach(m_sim, m_physics, indices);
 	m_pDocks = &Dock::Docks::Attach(m_sim, m_physics);
 	m_pBehaviours = &Ai::Behaviours::Attach(m_sim);

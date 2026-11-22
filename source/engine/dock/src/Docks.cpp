@@ -725,7 +725,7 @@ void Docks::FlyDown(Sim::SimWorld &world, entt::entity ship)
 	Ai::Destination destination;
 	destination.entity = docking.pad;
 	destination.offset = {0.0, RestingHeight(*HullOf(registry, ship)) + kHover, 0.0};
-	destination.byHull = true;
+	destination.byShape = true;
 	destination.face = true;
 	destination.speed = kDescentSpeed;
 	destination.arrivalRadius = kLandingRadius;
@@ -742,7 +742,7 @@ void Docks::FlyUp(Sim::SimWorld &world, entt::entity ship)
 	Ai::Destination destination;
 	destination.entity = docking.pad;
 	destination.offset = {0.0, AboveHeight(registry, ship, registry.get<Pad>(docking.pad)), 0.0};
-	destination.byHull = true;
+	destination.byShape = true;
 	destination.face = true;
 	destination.speed = kLiftSpeed;
 	destination.arrivalRadius = kAboveRadius;

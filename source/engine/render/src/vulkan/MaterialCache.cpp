@@ -72,7 +72,7 @@ void MaterialCache::Init(
 	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	// A CPU takes each anisotropic tap in software, and the triplanar program fetches nine texels a
-	// pixel: on lavapipe at 640 x 480, the hull's plating on the display wing's round hulls, seen at
+	// pixel: on lavapipe at 640 x 480, the vehicle plating on the display wing's round shapes, seen at
 	// grazing angles from 1.5 km, took the orbit scene's opaque pass from 22 ms to 59 ms at 16x and
 	// back to 22 ms without it (9d). A hardware device filters at 16x.
 	samplerInfo.anisotropyEnable = m_pDeviceContext->IsCpu() ? VK_FALSE : VK_TRUE;

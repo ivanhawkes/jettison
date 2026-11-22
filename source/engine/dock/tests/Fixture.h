@@ -11,7 +11,7 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/space/StarSystemFrame.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include <cmath>
@@ -53,7 +53,7 @@ struct Fixture
 {
 	Sim::SimWorld world{kStep, 9};
 	Physics::PhysicsWorld &physics{Setup(world)};
-	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
+	Spatial::FrameIndices &indices{Spatial::FrameIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
 	std::vector<Physics::ContactEvent> collisions;

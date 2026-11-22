@@ -35,8 +35,8 @@ struct ReasonArgument
 	entt::entity entity{entt::null};
 	std::string identifier;
 	// What the identifier names: the type Reflect registered its definition under ("Shell.Good"),
-	// or empty for a name the data gives that reads as itself, a body's, a system's or a jump
-	// point's.
+	// or empty for a name the data gives that reads as itself, a body's, a system's or a
+	// portal's.
 	std::string definition;
 
 	static ReasonArgument Integer(std::int64_t value)
@@ -60,7 +60,7 @@ struct ReasonArgument
 // Registered with Reflect, every field Saved, by RegisterTypes.
 struct Reason
 {
-	// "reason.dock.no_pad_fits"; a script's is "reason.script.<script>.<name>".
+	// "reason.lift.over_capacity"; a script's is "reason.script.<script>.<name>".
 	std::string key;
 	std::vector<ReasonArgument> arguments;
 
@@ -69,8 +69,8 @@ struct Reason
 
 // The key of an enumerator of a module's reasons: an enumeration registered with Reflect as
 // "<Module>.Reason", each enumerator under the key's last part, in snake case, so
-// Dock::Reason::NoPadFits, registered as "no_pad_fits" in "Dock.Reason", is
-// "reason.dock.no_pad_fits", and two modules cannot make one key. Throws std::logic_error for an
+// Lift::Reason::OverCapacity, registered as "over_capacity" in "Lift.Reason", is
+// "reason.lift.over_capacity", and two modules cannot make one key. Throws std::logic_error for an
 // enumeration registered otherwise, or not at all, and for an enumerator not registered.
 std::string ReasonKey(const entt::meta_any &enumerator);
 

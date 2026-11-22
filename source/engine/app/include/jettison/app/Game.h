@@ -202,7 +202,7 @@ class Game
 	// The game's definitions, read through the asset tree before the mods' scripts load.
 	virtual void LoadDefinitions(Sim::DefinitionRegistry &definitions);
 
-	// Once the docks have their hulls and layouts: what the game builds on them.
+	// Once the docks have their shapes and layouts: what the game builds on them.
 	virtual void Define(const ShellWorld &world, const Sim::DefinitionRegistry &definitions);
 
 	// A save loaded into the world: what an older save of the game lacks, and what the game read of it

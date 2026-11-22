@@ -35,7 +35,7 @@ CameraPose BlendPoses(const CameraPose &from, const CameraPose &to, double share
 double SmoothingFactor(double rate, double dt);
 
 // The rigs smooth what the player moves (angles, zoom, the lag of a chase) and follow what they
-// are attached to exactly. A station at 7.7 km/s that the camera trailed by even one frame's
+// are attached to exactly. A platform at 7.7 km/s that the camera trailed by even one frame's
 // smoothing would sit 130 metres off centre and swim, so the target's position is added in
 // double precision, every frame, with no filter on it.
 
@@ -48,7 +48,7 @@ struct OrbitCameraSettings
 	double smoothing{12.0};
 };
 
-// Around a station or a planet: yaw and pitch about the target, and a distance that zooms by
+// Around a platform or a planet: yaw and pitch about the target, and a distance that zooms by
 // ratios, so a step means the same at ten metres and at ten thousand kilometres.
 class OrbitCamera
 {
@@ -97,10 +97,10 @@ struct ChaseCameraSettings
 	double smoothing{4.0};
 };
 
-// Behind a ship: the offset is in the target's frame (+Z behind, +Y above, as a ship flies along
+// Behind a vehicle: the offset is in the target's frame (+Z behind, +Y above, as a vehicle flies along
 // its -Z), and the rig's own rotation follows the target's with a lag, so a turn swings the
 // camera round rather than snapping it. Only the rotation lags; the position is the target's
-// plus the lagged offset, so speed alone never moves the ship in the frame.
+// plus the lagged offset, so speed alone never moves the vehicle in the frame.
 class ChaseCamera
 {
   public:
@@ -175,7 +175,7 @@ struct MapCameraSettings
 };
 
 // Over the system: looking down at the reference plane from a distance that zooms logarithmically,
-// from a station's approach to the whole system, about a focus that may follow a body, panned
+// from a platform's approach to the whole system, about a focus that may follow a body, panned
 // across the plane by an amount that scales with the distance.
 class MapCamera
 {

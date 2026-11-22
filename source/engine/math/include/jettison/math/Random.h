@@ -21,7 +21,7 @@ struct RandomState
 // std::random.
 //
 // PCG32 over xoshiro256**: half the state to save, and a stream selector, so one seed gives each
-// system or ship a sequence of its own that does not overlap its neighbours'. xoshiro's speed
+// frame or vehicle a sequence of its own that does not overlap its neighbours'. xoshiro's speed
 // does not show at the rate the simulation draws numbers.
 class Random
 {

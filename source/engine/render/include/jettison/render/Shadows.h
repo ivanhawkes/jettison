@@ -19,7 +19,7 @@ namespace Jettison::Render
 // around its slice of the view, whose radius depends only on the projection, so turning the camera
 // never changes a texel's size. And the map's centre is snapped to whole texels in the sun's frame,
 // measured from the camera's frame origin (CameraView::frameOrigin) in double precision rather
-// than from the camera: the station an orbit camera circles moves at kilometres a second through
+// than from the camera: the platform an orbit camera circles moves at kilometres a second through
 // the system, and a grid fixed to the system would slide under it by a fraction of a texel every
 // frame.
 

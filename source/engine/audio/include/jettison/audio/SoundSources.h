@@ -10,8 +10,8 @@
 
 namespace Jettison::Audio
 {
-// A looping sound on a presentation entity, heard from where the entity is: a station's machinery,
-// a ship's engines. A plain component; SoundSources plays it.
+// A looping sound on a presentation entity, heard from where the entity is: a platform's machinery,
+// a vehicle's engines. A plain component; SoundSources plays it.
 struct SoundComponent
 {
 	std::string sound;

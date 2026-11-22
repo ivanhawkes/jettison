@@ -32,7 +32,7 @@ struct PhysicsSettings
 	std::uint32_t maxBodies{8192};
 	std::uint32_t maxBodyPairs{32768};
 	std::uint32_t maxContactConstraints{16384};
-	// The fastest a body moves in its frame. Jolt's default, 500 m/s, is far below a station's
+	// The fastest a body moves in its frame. Jolt's default, 500 m/s, is far below a platform's
 	// 7.7 km/s on its orbit in the space sample, and a kinematic body following one would be held to
 	// it.
 	float maxLinearVelocity{1.0e5f};
@@ -80,13 +80,13 @@ struct CastOptions
 {
 	// The caster's own body, which a ray from inside it would otherwise hit at once.
 	entt::entity ignore{entt::null};
-	// Sensors are left out unless they are asked for: a ray picking a station hits its hull, not the
+	// Sensors are left out unless they are asked for: a ray picking a platform hits its shape, not the
 	// docking zone before it.
 	bool sensors{false};
 	// The simulation time to place each frame at, rather than where the last step left it, with its
 	// bodies where they are in it. Presentation shows the world between the last two steps
-	// (Sim::Stepper), and a station's frame moves 500 m a step about the star, so a ray drawn from
-	// what is shown is cast at the time shown, or it misses the station by the distance between them.
+	// (Sim::Stepper), and a platform's frame moves 500 m a step about the star, so a ray drawn from
+	// what is shown is cast at the time shown, or it misses the platform by the distance between them.
 	std::optional<double> framesAt;
 };
 
@@ -173,14 +173,14 @@ class FrameModel
 // its own, made when the first body enters it and gone when the last leaves: two frames' bodies at
 // the same coordinates are nowhere near each other, and in a local frame Jolt's coordinates are
 // metres from the frame's body and its velocities relative to the body's motion, which keeps Jolt's
-// floats and its sweeps on the small numbers that separate a ship from a station. A body that changes
-// frame or local frame is made again in the other's.
+// floats and its sweeps on the small numbers that separate a vehicle from a platform. A body that
+// changes frame or local frame is made again in the other's.
 //
 // What moves a frame's named bodies, and what pulls in it, is the game's (FrameModel, DefineFrame),
 // its start-up as shapes are: what puts an entity on rails (OnRails) and carries a local frame, and
 // the frame's gravity, which moves only dynamic bodies. A frame with no model has no rails, no local
-// frames and no gravity. The space sample's frames are star systems (space/StarSystemFrame.h), whose
-// orbits stay on rails, so a ship beside a station falls round the planet with it rather than away
+// frames and no gravity. The space sample's frames are planetary systems, whose
+// orbits stay on rails, so a vehicle beside a platform falls round the planet with it rather than away
 // from it at the planet's pull.
 //
 // One fixed step, as the simulation system "physics" (kSystemName), after the flight model
@@ -245,7 +245,7 @@ class PhysicsWorld final : public Sim::WorldService
 	// std::invalid_argument for a shape that is not defined.
 	double ShapeRadius(std::string_view name) const;
 
-	// The largest ShapeRadius of any shape defined: how far beyond a point a body's hull can reach,
+	// The largest ShapeRadius of any shape defined: how far beyond a point a body's shape can reach,
 	// which a query for what is near widens itself by. None while no shape is defined.
 	double LargestShapeRadius() const;
 
@@ -260,15 +260,15 @@ class PhysicsWorld final : public Sim::WorldService
 	glm::dvec3 Gravity(std::uint64_t frame, const glm::dvec3 &position, double simSeconds) const;
 
 	// Where a local frame (LocalFrame) is at a time, in the frame: its body's position, or none for
-	// the frame's own (an empty name). A point a ship is flown to in its local frame is this far from
-	// the frame's. Throws std::invalid_argument for a local frame a body could not be in.
+	// the frame's own (an empty name). A point a vehicle is flown to in its local frame is this far
+	// from the frame's. Throws std::invalid_argument for a local frame a body could not be in.
 	glm::dvec3 FrameOrigin(std::uint64_t frame, std::string_view local, double simSeconds) const;
 
 	// The simulation seconds every entity on rails and every body is placed for: the end of the last
 	// step or skip, so a step's systems after physics see a step on from the clock's Now and those
 	// before it see Now. None before the first after this is made or loaded, when they are placed for
-	// Now. What measures a Transform against a body's place (Celestial::EvaluateSystem) evaluates the
-	// body at this time.
+	// Now. What measures a Transform against a body's place, as its frame's model gives it, evaluates
+	// the body at this time.
 	std::optional<double> PlacedAt() const;
 
 	// Where an entity on those rails in the defined frame is at a time, as each step puts it: what a
@@ -307,8 +307,8 @@ class PhysicsWorld final : public Sim::WorldService
 	    const CastOptions &options = {}) const;
 
 	// The first body the shape meets swept from where it starts along the direction, within the
-	// distance: whether a ship fits through a gap, or how far it can go before it meets the
-	// station. A shape that starts overlapping a body meets it at once. Throws std::invalid_argument
+	// distance: whether a vehicle fits through a gap, or how far it can go before it meets the
+	// platform. A shape that starts overlapping a body meets it at once. Throws std::invalid_argument
 	// as CastRay does, and for a shape that is not defined.
 	std::optional<CastHit> CastShape(
 	    std::uint64_t frame, std::string_view shape, const Sim::Transform &start,

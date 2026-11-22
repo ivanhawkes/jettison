@@ -43,7 +43,7 @@ struct Composed
 	Space::LaneTravel &lanes{Space::LaneTravel::Attach(world, physics)};
 	Space::Gates &gates{Space::Gates::Attach(world, physics, lanes)};
 	Space::CruiseTravel &cruises{Space::CruiseTravel::Attach(world, physics)};
-	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
+	Spatial::FrameIndices &indices{Spatial::FrameIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
 	Ai::Behaviours &behaviours{Ai::Behaviours::Attach(world)};

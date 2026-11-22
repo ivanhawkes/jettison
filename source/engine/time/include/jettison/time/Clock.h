@@ -80,7 +80,7 @@ class SimClock
 	void Restore(std::uint64_t step, double now);
 
 	// 1 is real time. Must be positive and finite; pausing is SetPaused, not a factor of 0. Refused
-	// near stations and other ships by the game, not here.
+	// near platforms and other vehicles by the game, not here.
 	void SetCompression(double factor);
 
 	// A frame's real seconds as simulation seconds for the accumulator: 0 while paused, scaled by

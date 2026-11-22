@@ -7,8 +7,8 @@
 namespace Jettison::Sim
 {
 // Who sends a command and who commands an entity (docs/roadmap.md, "Decided": multiplayer in time,
-// single-player first). A command for a ship carries its sender, and the simulation refuses it from
-// a sender that does not control the ship, so a server can hold every player's commands in one
+// single-player first). A command for a vehicle carries its sender, and the simulation refuses it from
+// a sender that does not control the vehicle, so a server can hold every player's commands in one
 // queue; nothing in a simulation module assumes there is one player.
 
 enum class ControllerKind : std::uint8_t

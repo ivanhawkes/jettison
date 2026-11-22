@@ -1,4 +1,4 @@
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 
 #include <jettison/profile/Profile.h>
 #include <jettison/sim/SimWorld.h>
@@ -10,10 +10,10 @@
 
 namespace Jettison::Spatial
 {
-SystemIndices &SystemIndices::Attach(Sim::SimWorld &world, const Octree::Settings &settings)
+FrameIndices &FrameIndices::Attach(Sim::SimWorld &world, const Octree::Settings &settings)
 {
 	// Shared by the system, which the world keeps for as long as it lives.
-	std::shared_ptr<SystemIndices> indices{new SystemIndices{settings}};
+	std::shared_ptr<FrameIndices> indices{new FrameIndices{settings}};
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
@@ -27,14 +27,14 @@ SystemIndices &SystemIndices::Attach(Sim::SimWorld &world, const Octree::Setting
 }
 
 
-const SpatialIndex *SystemIndices::Find(std::uint64_t system) const
+const SpatialIndex *FrameIndices::Find(std::uint64_t system) const
 {
 	const auto found = m_indices.find(system);
 	return found == m_indices.end() ? nullptr : &found->second;
 }
 
 
-std::vector<std::uint64_t> SystemIndices::Systems() const
+std::vector<std::uint64_t> FrameIndices::Systems() const
 {
 	std::vector<std::uint64_t> systems;
 	systems.reserve(m_indices.size());
@@ -44,9 +44,9 @@ std::vector<std::uint64_t> SystemIndices::Systems() const
 }
 
 
-void SystemIndices::Update(const entt::registry &registry)
+void FrameIndices::Update(const entt::registry &registry)
 {
-	JETTISON_PROFILE_ZONE("Spatial::SystemIndices::Update");
+	JETTISON_PROFILE_ZONE("Spatial::FrameIndices::Update");
 	++m_pass;
 	const auto remove = [this](Entry &entry)
 	{

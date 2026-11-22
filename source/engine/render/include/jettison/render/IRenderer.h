@@ -33,7 +33,7 @@ class DebugDraw;
 class Overlay;
 
 // The light index list's size, as entries per cluster on average: a budget for the frame, not a cap
-// on any one cluster. 3.4 MiB at 32 x 18 x 48. Measured in 5e with 265 lights on a station, the
+// on any one cluster. 3.4 MiB at 32 x 18 x 48. Measured in 5e with 265 lights on a platform, the
 // list's busiest frame used 16 a cluster, from 20 m off, the closest the orbit camera comes; from
 // 160 m, under one.
 inline constexpr std::uint32_t kRendererLightIndicesPerCluster = 32;

@@ -104,16 +104,16 @@ void StepFlight(entt::registry &registry, double fixedStep)
 {
 	JETTISON_PROFILE_ZONE("Physics::StepFlight");
 	std::vector<Change3> changes;
-	const auto ships =
+	const auto vehicles =
 	    registry.view<const Handling, const FlightControls, const Sim::Transform, const Velocity>();
-	for (const auto [entity, handling, controls, transform, velocity] : ships.each())
+	for (const auto [entity, handling, controls, transform, velocity] : vehicles.each())
 		changes.push_back(
 		    ChangeOf(registry, entity, handling, controls, transform, velocity, fixedStep));
 
 	// What no longer flies fires nothing.
 	std::vector<entt::entity> grounded;
 	for (const entt::entity entity : registry.view<const Thrust>())
-		if (!ships.contains(entity))
+		if (!vehicles.contains(entity))
 			grounded.push_back(entity);
 	registry.remove<Thrust>(grounded.begin(), grounded.end());
 
@@ -138,8 +138,8 @@ bool FlightAtRest(const entt::registry &registry, double fixedStep)
 		    body && body->kind == BodyKind::Kinematic && registry.all_of<Sim::InFrame>(entity) &&
 		    registry.get<Sim::InFrame>(entity).frame != Sim::kNoFrame)
 			continue;
-		// A reference's velocity may change from step to step (a station's on its orbit), and so may
-		// the way rails turn the ship, and with either what it is held to.
+		// A reference's velocity may change from step to step (a platform's on its orbit), and so may
+		// the way rails turn the vehicle, and with either what it is held to.
 		if ((registry.valid(controls.reference) && controls.reference != entity &&
 		     registry.all_of<Velocity>(controls.reference)) ||
 		    registry.all_of<OnRails>(entity))

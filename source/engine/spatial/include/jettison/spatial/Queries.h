@@ -94,7 +94,7 @@ inline bool NeighbourLess(const Neighbour &a, const Neighbour &b)
 namespace Detail
 {
 // Puts a range query's results in IdentifierLess order. Above a few hundred it is a radix sort,
-// which a sensor sweep about a busy station needs: measured in 6c, std::sort of the 7,500 entities
+// which a sensor sweep about a busy platform needs: measured in 6c, std::sort of the 7,500 entities
 // such a query finds was most of the query.
 void SortByIdentifier(std::vector<entt::entity> &entities);
 

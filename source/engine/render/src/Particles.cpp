@@ -188,7 +188,7 @@ void ParticlePool::Update(
 			state.pulses = emitter.pulses;
 		}
 		const auto born = static_cast<std::uint32_t>(std::min<std::uint64_t>(births, state.capacity));
-		// One with nothing alive is neither stepped nor drawn: a parked ship's plume costs nothing.
+		// One with nothing alive is neither stepped nor drawn: a parked vehicle's plume costs nothing.
 		// What it last made dies within its lifetime, which the jitter only shortens.
 		if (born != 0)
 			state.liveUntil = m_clock + double{emitter.lifetime};

@@ -16,9 +16,9 @@ class SimWorld;
 
 namespace Jettison::Spatial
 {
-// The spatial index kept from the simulation: one SpatialIndex for each star system, of every
-// entity with a Sim::Transform and a Sim::InFrame naming that system, at its Transform's position.
-// An entity on a jump lane, in no system, is in none. Kept by the system "spatial" (kSystemName),
+// The spatial index kept from the simulation: one SpatialIndex for each frame, of every
+// entity with a Sim::Transform and a Sim::InFrame naming that frame, at its Transform's position.
+// An entity in transit, in no frame, is in none. Kept by the system "spatial" (kSystemName),
 // which a system reading it runs after: it then sees every entity where the step found it, before
 // anything in the step has moved it. Steering (ai/Steering.h) is its first reader.
 //
@@ -27,14 +27,14 @@ namespace Jettison::Spatial
 // positions alone (Queries.h), never by the order things were indexed in.
 //
 // The world holds it from Attach on, through the system it registers.
-class SystemIndices
+class FrameIndices
 {
   public:
 	static constexpr std::string_view kSystemName = "spatial";
 
 	// Registers the system "spatial", with no order of its own. Throws std::logic_error as
 	// SimWorld's registrations do, for one already made.
-	static SystemIndices &Attach(Sim::SimWorld &world, const Octree::Settings &settings = {});
+	static FrameIndices &Attach(Sim::SimWorld &world, const Octree::Settings &settings = {});
 
 	// A system's index, or nothing for a system no entity is in.
 	const SpatialIndex *Find(std::uint64_t system) const;
@@ -48,7 +48,7 @@ class SystemIndices
 	void Update(const entt::registry &registry);
 
   private:
-	explicit SystemIndices(const Octree::Settings &settings) : m_settings{settings}
+	explicit FrameIndices(const Octree::Settings &settings) : m_settings{settings}
 	{
 	}
 

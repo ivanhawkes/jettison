@@ -116,7 +116,7 @@ struct GpuRings
 };
 static_assert(sizeof(GpuRings) == 48);
 
-// One entry of the frame's bodies, std430: frame.glsl's Body, a celestial body drawn with an
+// One entry of the frame's bodies, std430: frame.glsl's Body, a body drawn with an
 // atmosphere or rings. The atmosphere's centre and radius are the body's whether or not it has air.
 struct GpuBody
 {

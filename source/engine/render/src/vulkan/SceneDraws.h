@@ -38,7 +38,7 @@ struct SceneDrawCommand
 	// The model's radius times the transform's middle scale: how wide the draw is at its narrowest
 	// that a viewer sees (Render::TooSmallToSee).
 	double breadth{0.0};
-	// A celestial body drawn as a sphere hides what is behind its horizon (Render::Occludes): this is
+	// A body drawn as a sphere hides what is behind its horizon (Render::Occludes): this is
 	// its radius, the transform's smallest scale, before the drawn level's error takes it inside the
 	// mesh. Zero for every other draw.
 	double occluderRadius{0.0};

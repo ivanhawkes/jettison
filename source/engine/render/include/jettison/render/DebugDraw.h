@@ -26,7 +26,7 @@ enum class DebugDepth
 
 // Lines the frame draws for whoever is debugging it: axes, bounds, orbits, a camera's target. Any
 // system adds to it during the frame, in the system frame and in double precision like the
-// positions they come from, so a line from a station to its planet is as good as either end; the
+// positions they come from, so a line from a platform to its planet is as good as either end; the
 // renderer makes them camera-relative when it builds the frame, and the shell clears them when
 // the next frame starts. Shapes are made of segments here, so the GPU side is one line list.
 class DebugDraw

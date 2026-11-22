@@ -184,7 +184,7 @@ JPH::BodyCreationSettings MakeSettings(
     const glm::dvec3 &origin, const Velocity &velocity, const PhysicsSettings &settings)
 {
 	// A static sensor is kinematic to Jolt, never moved but by placing it: a static sensor sees only
-	// bodies that are awake, and a ship come to rest in a docking zone would leave it as it slept.
+	// bodies that are awake, and a vehicle come to rest in a docking zone would leave it as it slept.
 	static constexpr JPH::EMotionType kMotion[] = {
 	    JPH::EMotionType::Static, JPH::EMotionType::Kinematic, JPH::EMotionType::Dynamic};
 	const bool joltStatic = body.kind == BodyKind::Static && !body.sensor;
@@ -283,7 +283,7 @@ entt::entity EntityOf(const JPH::Body &body)
 }
 
 // Where two bodies met in a step, from a contact Jolt added between them: the hardest, if their
-// shapes met in more than one place (a hull across two of a mesh's triangles).
+// shapes met in more than one place (a shape across two of a mesh's triangles).
 struct Meeting
 {
 	bool sensor{false};
@@ -442,7 +442,7 @@ struct PhysicsWorld::Impl
 
 
 	// A world made for a key on this step, its frame where it is as the step begins and moving as it
-	// did over the step before: a body made still in a station's frame is moving with the station,
+	// did over the step before: a body made still in a platform's frame is moving with the platform,
 	// and falls with it, gaining the step's gravity as the frame gains its change of speed.
 	Detail::FrameWorld &World(const WorldKey &key, const FrameMotion &motion)
 	{
@@ -959,7 +959,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	}
 
 	impl.contacts.clear();
-	// A body is placed once for everything riding on it: a station's pads, decks and buggies are
+	// A body is placed once for everything riding on it: a platform's berths, decks and buggies are
 	// dozens, and its body's orbit is the most of a step's cost.
 	std::map<std::pair<const FrameModel *, std::string_view>, Sim::Transform> bodiesAt;
 	for (const Placement &placement : placements)
@@ -1038,7 +1038,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	// besides: its frame's gravity, from where the bodies are as the step begins (semi-implicit
 	// Euler, as Jolt integrates, whose error over a low orbit's revolution is centimetres), less its
 	// frame's change of speed since the last step. A frame on rails falls with its body, so beside a
-	// station that leaves the tide, a few ten-thousandths of a metre a second squared.
+	// platform that leaves the tide, a few ten-thousandths of a metre a second squared.
 	const auto step = static_cast<float>(fixedStep);
 	std::set<const Detail::FrameWorld *> moving;
 	for (const auto &[entity, record] : impl.records)
@@ -1080,7 +1080,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 					// With nothing dynamic in its world a kinematic body pushes and senses nothing, so
 					// it is put where it is, at rest and asleep: its state is then its place alone,
 					// which a fast-forward puts it at in one step, where a sweep's would be the history
-					// of every step (a gate's ring turning after its planet, a station's spin, the
+					// of every step (a ring turning after its planet, a platform's spin, the
 					// rounding of a place far out). MoveKinematic sweeps it on from there once
 					// something dynamic joins.
 					// Its Velocity is still what moving there implies, as a sweep's would be.

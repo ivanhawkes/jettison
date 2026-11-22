@@ -15,7 +15,7 @@ namespace Jettison::Sim
 {
 namespace
 {
-// Version 2 (A01): the info's galaxy and system become details, each only if it named one.
+// Version 2 (A01): the info's world and system become details, each only if it named one.
 void MoveGalaxyAndSystem(Serialise::BinaryRecord &info)
 {
 	std::vector<SaveDetail> details;

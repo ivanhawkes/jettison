@@ -32,7 +32,7 @@ struct ModVersion
 };
 
 // A detail of a game's in a save's info, for a list to show or a load to check: the space sample's
-// galaxy and the star system it showed. Registered with Reflect as "Sim.SaveDetail", every field
+// world and the frame it showed. Registered with Reflect as "Sim.SaveDetail", every field
 // Saved.
 struct SaveDetail
 {
@@ -60,7 +60,7 @@ struct SaveInfo
 	// game's. A save from before phase 12a names none.
 	std::vector<ModVersion> mods;
 	// The game's own, by key: what a list shows of a save and a load checks first, read with the
-	// rest of the info. A save of version 1 has its galaxy and system here, as "galaxy" and
+	// rest of the info. A save of version 1 has its world and system here, as "galaxy" and
 	// "system", each only if it named one.
 	std::vector<SaveDetail> details;
 
@@ -117,7 +117,7 @@ struct SaveGame
 	// The info alone, read from the front of the file, for a list of saves. Throws as Read does.
 	static SaveInfo ReadInfo(std::span<const std::byte> bytes);
 
-	// The save game format's migrations. Version 2 (A01) moved the info's galaxy and system into its
+	// The save game format's migrations. Version 2 (A01) moved the info's world and system into its
 	// details, a step over the info's record at the front of the save.
 	static const Serialise::BinaryMigrations &Migrations();
 };

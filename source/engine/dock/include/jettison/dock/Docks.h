@@ -329,8 +329,8 @@ struct CargoCarried
 // sphere (Ai::Waypoints) to a point out along its pad's normal, as far beyond the point above the
 // pad as it stops in from its top speed, stopping there; then straight down the normal to the point
 // above its pad, outside that sphere; then down the normal onto the pad, kept clear of the station by
-// its hull (Ai::Destination::byHull), turned to the pad, slowing to stop a hand's breadth above it; and
-// once clamped its Physics::Body is kinematic, on the station's rails at its place on the pad.
+// its hull (Ai::Destination::byShape), turned to the pad, slowing to stop a hand's breadth above it;
+// and once clamped its Physics::Body is kinematic, on the station's rails at its place on the pad.
 // Undocking makes it dynamic again and lifts it the same way back up.
 //
 // The definitions are the game's start-up, as physics' shapes are, and not state: a save names

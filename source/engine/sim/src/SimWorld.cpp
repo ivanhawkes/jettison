@@ -39,7 +39,7 @@ const Serialise::BinaryMigrations &Migrations()
 		    2, [](Serialise::BinaryDocument &document)
 		    { document.payload.insert(document.payload.begin(), 4, std::byte{0}); });
 		// Version 4 (A01) renamed "Sim.InSystem" to "Sim.InFrame", a frame of the game's rather than
-		// a star system; its field is renamed by its own chain (InFrame::Migrations), its storage
+		// a planetary system; its field is renamed by its own chain (InFrame::Migrations), its storage
 		// being at version 1 in the table.
 		chain.Add(
 		    3,

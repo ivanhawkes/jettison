@@ -23,10 +23,10 @@ class SimWorld;
 namespace Jettison::Ai
 {
 // Behaviour trees for an entity's sequences (docs/architecture.md, "Decisions"): undock, fly to a
-// gate, jump, ask for a pad, wait for one, dock, trade, wait for the cargo. A tree is data, its
-// leaves tasks the game defines by name, and it is ticked in the simulation step, deterministically:
-// where each entity is in its tree is saved with the world, and a world loaded from a save carries
-// on from the same nodes.
+// door, pass through it, ask for a berth, wait for one, dock, trade, wait for the load. A tree is data,
+// its leaves tasks the game defines by name, and it is ticked in the simulation step,
+// deterministically: where each entity is in its tree is saved with the world, and a world loaded from
+// a save carries on from the same nodes.
 
 enum class Status : std::uint8_t
 {
@@ -142,16 +142,17 @@ using TaskWake = std::function<std::uint64_t(
     const Sim::SimWorld &world, entt::entity entity, std::span<const std::string> arguments,
     std::uint64_t memory)>;
 
-// The commands that take and leave a ship's helm (Sim::Helm), which a player flies it by: taken by
-// one that commands it (Sim::MayCommand), a player or an AI, not no one in particular; refused, with
-// a HelmRefused, for a ship another is at the helm of. Each is at one helm at a time, so taking one
-// leaves the one the sender was at. Taking it stands the ship's behaviour down and takes away the
-// destination it was being flown to (Steering.h), its controls let go, so it holds where it is until
-// its pilot flies it; what the game's rules fly it by goes on (the docks' approach and lift, a
-// cruise, a lane). Leaving it lets the controls go, and the ship's tree starts again from the top:
-// a task it was running when the helm was taken is not finished, and what it asked for (a pad, a
-// gate's clearance) goes on or lapses as it would for a ship that did not come. Left by the one at
-// it, or by no one in particular, the game's rules, from whoever is. Registered with Reflect, every
+// The commands that take and leave a vehicle's helm (Sim::Helm), which a player flies it by: taken
+// by one that commands it (Sim::MayCommand), a player or an AI, not no one in particular; refused,
+// with a HelmRefused, for a vehicle another is at the helm of. Each is at one helm at a time, so
+// taking one leaves the one the sender was at. Taking it stands the vehicle's behaviour down and
+// takes away the destination it was being flown to (Steering.h), its controls let go, so it holds
+// where it is until its pilot flies it; what the game's rules fly it by goes on (the docks'
+// approach and lift, a transit, a portal). Leaving it lets the controls go, and the vehicle's tree
+// starts again from the top: a task it was running when the helm was taken is not finished, and
+// what it asked for (a berth, a portal's clearance) goes on or lapses as it would for a vehicle
+// that did not come. Left by the one at it, or by no one in particular, the game's rules, from
+// whoever is. Registered with Reflect, every
 // field Saved (the vehicle as "ship", its name before G01e), by RegisterTypes.
 struct TakeHelm
 {
@@ -187,7 +188,7 @@ struct HelmRefused
 // Behaviour trees in a simulation world: the Behaviour component, and the system "behaviour"
 // (kSystemName), first in the step, before the spatial index's ("spatial"), so a tree acts on the
 // world as the step's commands do, where it is as the step begins, and what its tasks set (a
-// destination, a pad asked for) is flown and answered in the same step. Each step it ticks every
+// destination, a berth asked for) is flown and answered in the same step. Each step it ticks every
 // entity's tree, in entity order, but one someone is at the helm of (Sim::Helm), whose tree stands
 // down until it is left. An entity whose tree is not defined is left alone, saying so once. The helm
 // is the module's too: Attach registers Sim::Helm, shown in snapshots, and the TakeHelm and LeaveHelm

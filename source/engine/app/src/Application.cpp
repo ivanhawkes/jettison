@@ -72,7 +72,7 @@ constexpr Core::Category kShell{"shell"};
 
 // The player the shell's controls are for, in the first slot; their commands say so.
 constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
-// How far a pick reaches: past any station a ship is flown by.
+// How far a pick reaches: past any platform a vehicle is flown by.
 constexpr double kPickDistance = 50000.0;
 // The game UI's faces: Roboto for text, Hack for figures, and Droid Sans for a glyph neither has.
 constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
@@ -980,8 +980,8 @@ void Application::UpdateAudio(entt::registry &registry)
 		return;
 	const Render::CameraView view = Render::ActiveCameraView(registry);
 	m_pAudio->SetListener(view.position, view.orientation);
-	// The clips' events this frame, each heard from its player: a pad's clamps closing on a ship and
-	// letting it go, wherever the ship is from.
+	// The clips' events this frame, each heard from its player: a berth's clamps closing on a vehicle
+	// and letting it go, wherever the vehicle is from.
 	if (m_eventSounds)
 		for (const Scene::ClipEventFired &event : m_clipEvents)
 		{

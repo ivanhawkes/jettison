@@ -105,11 +105,11 @@ class Renderer
 	static constexpr std::uint32_t kLightIndicesPerCluster = kRendererLightIndicesPerCluster;
 	static constexpr std::uint32_t kLightIndexCapacity = kRendererLightIndexCapacity;
 	// The view depth past which no local light is assigned (docs/architecture.md, "The grid and the
-	// infinite far plane"): a station's lights from further off are its emissive panels. Chosen
+	// infinite far plane"): a platform's lights from further off are its emissive panels. Chosen
 	// with the light budget, and tuned in 5e.
 	static constexpr float kDefaultClusterRange = 2000.0f;
 	// The sun's shadow distance (render/Shadows.h): the view depth past which the sun casts no
-	// shadow. It covers a station seen whole, from its own docks to a few hundred metres out.
+	// shadow. It covers a platform seen whole, from its own docks to a few hundred metres out.
 	static constexpr float kDefaultShadowDistance = 400.0f;
 	// Each cascade's map, texels on a side.
 	static constexpr std::uint32_t kShadowMapSize = 2048;
@@ -117,7 +117,7 @@ class Renderer
 	static constexpr float kDefaultLodThreshold = 1.0f;
 	// The pixels a draw has to be across to be drawn (TooSmallToSee). Measured in 9d against Ostra
 	// Highport's dressing from 1.5 km: on lavapipe at 640 x 480 it leaves out 529 of 925 meshes, the
-	// pads' paint, poles and lamps, and takes the opaque pass from 31 ms to 22 ms, every tiny
+	// berths' paint, poles and lamps, and takes the opaque pass from 31 ms to 22 ms, every tiny
 	// triangle having shaded a block of the lit program.
 	static constexpr double kDetailPixels = 1.0;
 	// The particle pool's slots, shared by every emitter (render/Particles.h): 4 MiB of the device's.
@@ -302,7 +302,7 @@ class Renderer
 		Buffer lines{};
 		Buffer materials{};
 		Buffer instances{};
-		// The celestial bodies with an atmosphere or rings (GpuBody).
+		// The bodies with an atmosphere or rings (GpuBody).
 		Buffer bodies{};
 		// The particle emitters (GpuEmitter).
 		Buffer emitters{};
@@ -432,7 +432,7 @@ class Renderer
 	// range reaches into the cluster range, the view's frustum, and out from behind every planet.
 	void WriteLights(FrameData &frame, const entt::registry &sceneRegistry, const CameraView &camera);
 
-	// The celestial bodies drawn with an atmosphere or rings into the slot's body list, whether or
+	// The bodies drawn with an atmosphere or rings into the slot's body list, whether or
 	// not they are in view (the air over a planet behind the camera can still be), and each draw's
 	// entry in it, one more than its index, 0 for none.
 	void WriteBodies(FrameData &frame, const std::vector<SceneDrawCommand> &draws);

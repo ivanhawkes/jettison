@@ -35,7 +35,7 @@ CameraView ActiveCameraView(const entt::registry &registry)
 		view.orientation =
 		    OrientationFromAngles(camera->rotation.x, camera->rotation.y, camera->rotation.z);
 	}
-	// An orbit camera moves with what it circles, and a pilot's with the station the ship flies by,
+	// An orbit camera moves with what it circles, and a pilot's with the platform the vehicle flies by,
 	// which is where the shadows' grid is fixed. A pilot camera places the camera over its orbit rig.
 	entt::entity frame = entt::null;
 	if (cameraEntity != entt::null)

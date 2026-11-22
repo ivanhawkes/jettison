@@ -41,8 +41,8 @@ struct Course
 // straight leg between them is clear (LegClear), at its length. A waypoint inside another
 // obstacle's clearance is joined to nothing.
 //
-// Courses are straight legs, so an obstacle that moves while a ship flies the course is where it was
-// when the graph was made: a star system's bodies move slowly against a crossing, and a course is
+// Courses are straight legs, so an obstacle that moves while a vehicle flies the course is where it
+// was when the graph was made: a frame's bodies move slowly against a crossing, and a course is
 // plotted again as it goes.
 class Waypoints
 {
@@ -56,9 +56,9 @@ class Waypoints
 	// The shortest course through the waypoints from one point to another, or nothing if every way
 	// is blocked. A straight leg when it is clear. The legs to and from the ends are judged against
 	// an obstacle by its radius alone when the end is within its clearance, so a course can leave a
-	// station in low orbit, and not at all when the end is inside the obstacle, so it can start at a
-	// planet's centre. An end inside an obstacle's ring is given a waypoint of its own, straight out
-	// from the obstacle's centre through the end at the ring's distance: the leg out to it moves
+	// body on rails in low orbit, and not at all when the end is inside the obstacle, so it can start
+	// at a planet's centre. An end inside an obstacle's ring is given a waypoint of its own, straight
+	// out from the obstacle's centre through the end at the ring's distance: the leg out to it moves
 	// only away from that obstacle, and every direction is within 55° of one of the ring's corners,
 	// near enough that the leg on to that corner clears the obstacle too (a chord of the ring's
 	// sphere clears it up to 96°). Without it an end within a few thousandths of the obstacle's radius

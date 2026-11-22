@@ -9,9 +9,9 @@
 
 namespace Jettison::Ecs
 {
-// A small finite state machine for ship states and application flow (menu, loading, in system,
-// jumping): a current state and a transition table, with a hook on entry and exit. Transitions
-// are data added at construction, so a ship's states live in the game and the engine runs them.
+// A small finite state machine for vehicle states and application flow (menu, loading, in a frame,
+// transiting): a current state and a transition table, with a hook on entry and exit. Transitions
+// are data added at construction, so a vehicle's states live in the game and the engine runs them.
 //
 // State and Event need only ==: the tables are searched in order, which suits the handful of
 // entries a machine has and keeps the machine deterministic in simulation code. A transition to

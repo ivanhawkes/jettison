@@ -30,12 +30,12 @@ using YamlMigrations = Migrations<YAML::Node>;
 
 namespace Jettison::Sim
 {
-// Typed, reflected definitions loaded from data and overridable by mods: a ship class, a good, a
-// station module. The game declares each type with Reflect, its Saved fields what a file sets.
+// Typed, reflected definitions loaded from data and overridable by mods: a vehicle class, a good, a
+// platform module. The game declares each type with Reflect, its Saved fields what a file sets.
 //
 // A definition is one YAML file under a directory, in YamlArchive's form, and its name is the
-// file's path under the directory without ".yaml": "defs/ships/military/corvette.yaml" loaded
-// from "defs/ships" is "military/corvette". A mod changes definitions in layers, through the VFS's
+// file's path under the directory without ".yaml": "defs/vehicles/military/corvette.yaml" loaded
+// from "defs/vehicles" is "military/corvette". A mod changes definitions in layers, through the VFS's
 // mounts, the bottom mount's first:
 //   - a whole file at the same path replaces the definition, and everything below it;
 //   - a patch beside it, "military/corvette.patch.yaml", changes the fields it names and keeps the

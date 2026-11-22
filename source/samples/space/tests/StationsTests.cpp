@@ -27,7 +27,7 @@
 #include <jettison/sim/Snapshot.h>
 #include <jettison/space/Cruise.h>
 #include <jettison/space/StarSystemFrame.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
 using namespace Jettison;
@@ -51,7 +51,7 @@ struct Stations
 {
 	Sim::SimWorld world{kStep, 5};
 	Physics::PhysicsWorld &physics{Setup(world)};
-	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
+	Spatial::FrameIndices &indices{Spatial::FrameIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	Dock::Docks &docks{Dock::Docks::Attach(world, physics)};
 	std::vector<Celestial::StarSystem> systems{System("halcyon.yaml"), System("vesper.yaml")};

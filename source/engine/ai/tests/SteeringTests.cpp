@@ -8,7 +8,7 @@
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/space/StarSystemFrame.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 
 #include <doctest/doctest.h>
 
@@ -161,7 +161,7 @@ struct Fixture
 {
 	Sim::SimWorld world{kStep, 5};
 	Physics::PhysicsWorld &physics{Setup(world)};
-	Spatial::SystemIndices &indices{Spatial::SystemIndices::Attach(world)};
+	Spatial::FrameIndices &indices{Spatial::FrameIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	entt::entity station{entt::null};
 	// Every contact begun between two bodies, neither a sensor.

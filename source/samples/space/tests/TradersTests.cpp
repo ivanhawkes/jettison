@@ -36,7 +36,7 @@
 #include <jettison/space/Cruise.h>
 #include <jettison/space/Gates.h>
 #include <jettison/space/Lanes.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 #include <jettison/vfs/FileSystem.h>
 
 using namespace Jettison;

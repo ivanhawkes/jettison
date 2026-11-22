@@ -1,4 +1,4 @@
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 
 #include <jettison/math/Random.h>
 #include <jettison/sim/SimWorld.h>
@@ -27,15 +27,15 @@ double Coordinate(Math::Random &random)
 struct Fixture
 {
 	Sim::SimWorld world{kStep, 3};
-	Spatial::SystemIndices &indices{Setup(world)};
+	Spatial::FrameIndices &indices{Setup(world)};
 
 
-	static Spatial::SystemIndices &Setup(Sim::SimWorld &world)
+	static Spatial::FrameIndices &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
 		world.RegisterComponent<Sim::Transform>();
 		world.RegisterComponent<Sim::InFrame>();
-		return Spatial::SystemIndices::Attach(world);
+		return Spatial::FrameIndices::Attach(world);
 	}
 
 

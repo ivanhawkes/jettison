@@ -56,7 +56,7 @@ std::vector<SceneDrawCommand> CollectDraws(
 		// rounded: a planet's centre ten thousand kilometres off keeps its metres.
 		glm::dmat4 relative = world;
 		relative[3] = glm::dvec4{glm::dvec3{world[3]} - camera, 1.0};
-		// A mesh scaled to nothing, a rig's part put away (a pad's stowed clamps), is neither drawn
+		// A mesh scaled to nothing, a rig's part put away (a berth's stowed clamps), is neither drawn
 		// nor casts a shadow, which no culling by size would keep it from.
 		if (!(MaxScale(relative) > 0.0))
 			continue;

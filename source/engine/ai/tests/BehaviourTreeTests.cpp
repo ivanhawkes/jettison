@@ -7,7 +7,7 @@
 #include <jettison/serialise/Archive.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/SimWorld.h>
-#include <jettison/spatial/SystemIndices.h>
+#include <jettison/spatial/FrameIndices.h>
 
 #include <doctest/doctest.h>
 
@@ -121,7 +121,7 @@ struct Trees
 		}();
 		(void)registered;
 		world.RegisterComponent<Tally>();
-		Spatial::SystemIndices::Attach(world);
+		Spatial::FrameIndices::Attach(world);
 		return Ai::Behaviours::Attach(world);
 	}
 

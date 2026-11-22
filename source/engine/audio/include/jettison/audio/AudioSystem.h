@@ -93,7 +93,7 @@ class AudioState;
 // Positions are in the system frame in double precision, as the presentation world's are, and the
 // listener is too. Each Update places every positioned source relative to the listener, in float,
 // with the listener at the origin: audio is listener-relative as rendering is camera-relative, so a
-// station a hundred million kilometres from the primary is placed as precisely as one beside it.
+// platform a hundred million kilometres from the primary is placed as precisely as one beside it.
 //
 // Main thread only; miniaudio mixes on a thread of its own and decodes streamed music on another.
 // Its messages go to the log under the "audio" category, and the warnings and errors among them are

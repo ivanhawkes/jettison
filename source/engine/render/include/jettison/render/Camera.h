@@ -19,7 +19,7 @@ struct CameraView
 	float verticalFov{0.785398163f};
 	float nearPlane{0.1f};
 	// The origin of the local frame the camera moves in (docs/architecture.md, "Coordinate frames
-	// and units"), in the system frame: the station or body an orbit camera circles, or the system's
+	// and units"), in the system frame: the platform or body an orbit camera circles, or the system's
 	// origin. The sun's shadow maps keep their texel grid still in this frame (render/Shadows.h).
 	glm::dvec3 frameOrigin{0.0};
 };

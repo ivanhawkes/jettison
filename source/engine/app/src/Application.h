@@ -495,7 +495,7 @@ class Application final : private Shell
 	// The game UI: RmlUi, drawing into the overlay the renderer draws over the scene. Made after the
 	// window, so its size is the frame's, and released before the renderer.
 	std::unique_ptr<Ui::UiSystem> m_pUi;
-	// The game's sound, which the events of the player's own ship play through. Released before the
+	// The game's sound, which the events of the player's own vehicle play through. Released before the
 	// UI; it holds nothing of the renderer's.
 	std::unique_ptr<Audio::AudioSystem> m_pAudio;
 	std::optional<Audio::EventSounds> m_eventSounds;

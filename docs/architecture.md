@@ -190,7 +190,10 @@ saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celesti
 neutral module depends on it. The configure holds them to that: `jettison_check_optional` stops it
 when any engine module links a sample's target, through any target and whatever either is called, and when a module other than `celestial`, `space` and `spacescene` has one of the
 three in its link closure or includes one's header in its public headers, and a module added later
-is neutral unless it is listed there; the shell and the dock are neutral (G01). `ai` is the AI of no genre: utility decisions, behaviour trees, graph
+is neutral unless it is listed there; the shell and the dock are neutral (G01). The `neutral_words`
+suite holds the neutral modules' headers and sources, outside their string literals, to none of the
+space setting's words but those `cmake/neutral-words.txt` still lists, each a file and a word, a list
+the [space extraction](space-extraction-plan.md) empties. `ai` is the AI of no genre: utility decisions, behaviour trees, graph
 search, courses round spheres (`ai/Courses.h`) and steering.
 
 The rule that matters most: **`sim`, `celestial`, `spatial`, `physics`, `space`, `ai` and `dock` never
@@ -586,7 +589,7 @@ system `steering`, after `spatial` and before `flight`, sums them and sets the s
 nose towards it. Positions are in the system frame and velocities in the ship's frame, which is all
 it steers about, as bodies in two frames never meet.
 
-What is near comes from the **spatial index kept from the simulation** (`spatial/SystemIndices.h`):
+What is near comes from the **spatial index kept from the simulation** (`spatial/FrameIndices.h`):
 one octree a system, of every entity with a `Transform` and an `InFrame`, brought up to the
 registry by the system `spatial` as the step's systems begin. It is not state: it is made from the
 components each step, so a save does not hold it and a world loaded from one has it from its next
@@ -2186,7 +2189,7 @@ proves it headlessly. What exists:
   (`Routes.h`); the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`), and the gates
   that send a ship along a lane ([as above](#gates), `Gates.h`); and steering
   ([as above](#steering), `Steering.h`, 9b), over the spatial index kept from the simulation
-  (`spatial/SystemIndices.h`), all attached by the shell after physics, whose console's `traffic`
+  (`spatial/FrameIndices.h`), all attached by the shell after physics, whose console's `traffic`
   sends shuttles to hold station about the station; and utility AI and behaviour trees
   ([as above](#decisions), 9f), by which the sample's seven traders choose and fly their runs, and
   which the console's `traders` reports on.

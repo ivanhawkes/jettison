@@ -177,7 +177,7 @@ class Writer
 			digits[static_cast<std::size_t>(count++)] = static_cast<char>('0' + value % 10);
 			value /= 10;
 		} while (value != 0);
-		for (int pad = count; pad < width; ++pad)
+		for (int zero = count; zero < width; ++zero)
 			Text("0");
 		while (count > 0)
 			Text(std::string_view{&digits[static_cast<std::size_t>(--count)], 1});
@@ -250,7 +250,7 @@ class Builder
 			digits[static_cast<std::size_t>(count++)] = static_cast<char>('0' + value % 10);
 			value /= 10;
 		} while (value != 0);
-		for (int pad = count; pad < width; ++pad)
+		for (int zero = count; zero < width; ++zero)
 			Text("0");
 		while (count > 0)
 			Text(std::string_view{&digits[static_cast<std::size_t>(--count)], 1});

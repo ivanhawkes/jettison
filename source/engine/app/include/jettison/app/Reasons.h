@@ -23,7 +23,7 @@ class Game;
 // the text under its key, its arguments by position, each in words first: an integer as the
 // language writes numbers (StringTable::Number), credits among them; an entity by its name in the
 // snapshot (EntityName); an identifier by its name where the game names it (Game::NameIdentifier),
-// a hull by its definition's name, and any other as the data gives it. A key whose text has plural
+// a vehicle by its definition's name, and any other as the data gives it. A key whose text has plural
 // forms (key.one, key.other) chooses one by its first integer argument. A key no table has reads as
 // itself, and counts among the table's problems.
 std::string WordReason(
@@ -32,7 +32,7 @@ std::string WordReason(
     const Game *game = nullptr);
 
 // An entity's name in the snapshot, for a reason: the game's for it (Game::NameEntity), or the body a
-// station or a gate rides the rails of (Physics::OnRails, which the shell shows in snapshots); an
+// platform or a portal rides the rails of (Physics::OnRails, which the shell shows in snapshots); an
 // entity with neither, or one the snapshot does not have, reads as reason.entity.
 std::string EntityName(
     const Sim::Snapshot &snapshot, const Ui::StringTable &strings, entt::entity entity,

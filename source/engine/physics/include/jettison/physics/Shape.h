@@ -35,7 +35,7 @@ struct ShapeDefinition
 	// Capsule and Cylinder: half the length of the axis, along Y. A capsule's is its cylinder's,
 	// without the caps.
 	float halfHeight{0.5f};
-	// ConvexHull: the points it is the hull of.
+	// ConvexHull: the points whose convex envelope it is.
 	std::vector<glm::vec3> points;
 	// Mesh: triangles, three indices each into vertices, counter-clockwise seen from outside. A
 	// mesh has no inside, so it is for static and kinematic bodies only.

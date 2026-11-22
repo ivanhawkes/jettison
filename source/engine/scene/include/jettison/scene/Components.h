@@ -33,14 +33,14 @@ struct SceneEntityId
 // stages and for editor visibility.
 enum class Layer : std::uint8_t
 {
-	Environment, // Bodies, stations, the sky: what the system description places.
-	Traffic,     // Ships, cargo, debris: what the simulation places.
+	Environment, // Bodies, platforms, the sky: what the system description places.
+	Traffic,     // Vehicles, loads, debris: what the simulation places.
 	Effects      // Beacons, markers, transient visuals.
 };
 inline constexpr std::size_t kLayerCount = 3;
 
 // The layer an entity is in, as authored. An entity without one is in its parent's layer, and a root
-// without one is in the environment, so a station's parts are where the station is.
+// without one is in the environment, so a platform's parts are where the platform is.
 struct LayerComponent
 {
 	Layer layer{Layer::Environment};
@@ -81,7 +81,7 @@ struct SimProxyComponent
 
 // Relative to the parent, or to the system frame's origin for an entity without one. The
 // translation is metres in double precision, so a scene can place a planet a hundred million
-// kilometres out and a hull plate on a station beside it; rotation and scale stay float, since
+// kilometres out and a plate on a platform beside it; rotation and scale stay float, since
 // neither grows with the distance from the origin.
 struct TransformComponent
 {
@@ -90,7 +90,7 @@ struct TransformComponent
 	glm::vec3 scale{1.0f};
 };
 
-// Where something outside the scene puts an entity this frame: the star system, for a celestial
+// Where something outside the scene puts an entity this frame: the system scene, for a
 // body. It replaces the transform's translation and rotation, in double precision, and keeps its
 // scale. Runtime state, not written to the scene file, so the transform stays as authored and a
 // scene saved from a running engine is the scene that was loaded.
@@ -212,7 +212,7 @@ struct RigComponent
 };
 
 // A node of a clip file's (animation/ClipFile.h) bound to an entity, which the clip's tracks on that
-// node move. A node may be bound to several entities, which move alike: a pad's four clamps.
+// node move. A node may be bound to several entities, which move alike: a berth's four clamps.
 struct ClipBinding
 {
 	std::string node;
@@ -265,7 +265,7 @@ struct CelestialBodyComponent
 	std::string body;
 };
 
-// The star system's one directional light (docs/architecture.md, "Rules that follow"): it shines
+// The scene's one directional light (docs/architecture.md, "Rules that follow"): it shines
 // from the entity's position, which is normally the star's, towards whatever the camera sees, and
 // lives in the frame constants rather than the light list. Linear colour times intensity.
 struct SunComponent
@@ -274,7 +274,7 @@ struct SunComponent
 	float intensity{1.0f};
 };
 
-// The star system's sky (assets/shaders/include/sky.glsl): a starfield, the galaxy's band and a
+// The scene's sky (assets/shaders/include/sky.glsl): a starfield, a band of dense stars and a
 // nebula, made from a seed rather than painted. It is drawn behind the scene, and it is the
 // environment the scene is lit by: the renderer captures it into a cube map and prefilters that
 // for image-based lighting when the scene loads or the sky changes. A scene has at most one;
@@ -287,7 +287,7 @@ struct SkyComponent
 	float stars{6000.0f};
 	// The brightest star's flux: the irradiance it delivers, which the faintest are a tiny part of.
 	float starFlux{3.0e-5f};
-	// The galaxy's plane, seen edge-on as a band: its normal, its angular half-width in radians, and
+	// The band's plane, seen edge-on: its normal, its angular half-width in radians, and
 	// its radiance along its centre line.
 	glm::vec3 bandNormal{0.0f, 1.0f, 0.0f};
 	float bandWidth{0.2f};
@@ -310,7 +310,7 @@ struct ColourGradeComponent
 	friend bool operator==(const ColourGradeComponent &, const ColourGradeComponent &) = default;
 };
 
-// A celestial body's atmosphere (docs/architecture.md, "Atmospheres"): air over the surface of the
+// A body's atmosphere (docs/architecture.md, "Atmospheres"): air over the surface of the
 // sphere the entity's mesh draws, which scatters the sun's light towards the camera, as a limb about
 // the body seen from space and a haze over its surface, and reddens the sunlight that reaches the
 // surface at the terminator. Single scattering by Rayleigh (the air) and Mie (haze), each of a
@@ -335,7 +335,7 @@ struct AtmosphereComponent
 	friend bool operator==(const AtmosphereComponent &, const AtmosphereComponent &) = default;
 };
 
-// A celestial body's rings (docs/architecture.md, "Atmospheres"): a flat annulus of ice and dust in
+// A body's rings (docs/architecture.md, "Atmospheres"): a flat annulus of ice and dust in
 // the plane of the body's equator, the transform's XZ plane, between two radii from its centre in
 // metres. Its bands and gaps are drawn from the seed; the opacity is the densest band's, the share
 // of the light behind it that it stops. Lit by the sun, in the body's shadow, and casting its own
@@ -360,9 +360,9 @@ struct RingsComponent
 // lights and the sky, as a small dusty sphere would be.
 //
 // Particles are at rest in the frame of the entity named, its position and its turn: by default the
-// emitter's own, so they keep to it as it moves and turns, as a nozzle's glow does. A ship's exhaust,
-// left behind as it flies, is in the frame of what it flies by. Presentation's alone, as a mesh is:
-// nothing the simulation decides waits on one.
+// emitter's own, so they keep to it as it moves and turns, as a nozzle's glow does. A vehicle's
+// exhaust, left behind as it flies, is in the frame of what it flies by. Presentation's alone, as a
+// mesh is: nothing the simulation decides waits on one.
 struct ParticleEmitterComponent
 {
 	// Particles a second while it is active, and how many at once when it is first drawn active and
@@ -468,7 +468,7 @@ enum class PilotView : std::uint8_t
 	Cockpit
 };
 
-// Runtime: a camera on a piloted ship, which the game adds and the scene file never holds, since
+// Runtime: a camera on a piloted vehicle, which the game adds and the scene file never holds, since
 // what it follows is a simulation entity's proxy (SimProxyComponent) that the system scene makes.
 // Both rigs follow the target's world transform every frame, so switching between them is a
 // transition from where one has the camera to where the other has it, never a swing as the chase
@@ -476,7 +476,7 @@ enum class PilotView : std::uint8_t
 // the camera moves as smoothly as the display does. While it has one, a camera's pose is this
 // component's rather than its orbit rig's.
 //
-// The frame is the entity the ship flies by, the station whose frame its physics is in: what the
+// The frame is the entity the vehicle flies by, the platform whose frame its physics is in: what the
 // sun's shadow grid is fixed to (Render::CameraView::frameOrigin), as an orbit camera's target is.
 struct PilotCameraComponent
 {

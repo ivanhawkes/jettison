@@ -584,7 +584,7 @@ void DeviceContext::CreateLogicalDevice()
 	// Block compression where the device has it in hardware, which is every desktop GPU: Basis
 	// Universal textures transcode to BC7 then, and to RGBA8, four times the memory, without it. A CPU
 	// device (lavapipe) has BC7 but decodes it in software at every fetch: measured in phase 5e, the
-	// orbit scene's opaque pass took 469 ms at 640 x 480 with its hull plating in BC7 and 23 ms in
+	// orbit scene's opaque pass took 469 ms at 640 x 480 with its plating in BC7 and 23 ms in
 	// RGBA8, so it gets RGBA8 and keeps the memory to spend.
 	VkPhysicalDeviceFeatures supported{};
 	vkGetPhysicalDeviceFeatures(m_physicalDevice, &supported);

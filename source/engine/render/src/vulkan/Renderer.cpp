@@ -1286,7 +1286,7 @@ void Renderer::UpdateEnvironment(
 	if (pSky != nullptr)
 		sky = *pSky;
 
-	// The sun and the celestial bodies, as they are from the camera now. A body smaller on the sky
+	// The sun and the bodies, as they are from the camera now. A body smaller on the sky
 	// than a fifth of a texel of the capture is left out: it would light nothing.
 	CaptureLight light;
 	const SunView sun = FindSun(sceneRegistry, camera.position);

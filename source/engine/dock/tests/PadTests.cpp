@@ -160,7 +160,7 @@ TEST_CASE(
 	{
 		Sim::SimWorld world{DockTests::kStep, 9};
 		Physics::PhysicsWorld &physics{Fixture::Setup(world)};
-		Ai::Steering::Attach(world, physics, Spatial::SystemIndices::Attach(world));
+		Ai::Steering::Attach(world, physics, Spatial::FrameIndices::Attach(world));
 		if (lanesFirst)
 		{
 			Space::LaneTravel::Attach(world, physics);

@@ -33,7 +33,7 @@ struct GpuCaptureBody
 };
 static_assert(sizeof(GpuCaptureBody) == 128);
 
-// What lights the capture besides the sky: the sun, and the celestial bodies about the camera, in
+// What lights the capture besides the sky: the sun, and the bodies about the camera, in
 // render space at the moment of the bake, furthest first so the nearer are drawn over them.
 struct CaptureLight
 {
@@ -59,16 +59,16 @@ static_assert(sizeof(GpuCapture) == 80 + 48 + kCaptureBodies * 128);
 
 // Whether what lights the capture has moved since it was baked by more than a texel of it shows: a
 // body's direction or the sun's by more than a hundredth of a radian (a texel of the 128-square
-// capture is 0.016), a body's size on the sky by more than 2%, or a body come or gone. The station
+// capture is 0.016), a body's size on the sky by more than 2%, or a body come or gone. The platform
 // in low orbit turns a degree against the planet in fifteen seconds.
 bool CaptureMoved(const CaptureLight &baked, const CaptureLight &now);
 
-// The image-based lighting of a star system (docs/architecture.md, "The frame"): the sky captured
+// The image-based lighting of a scene (docs/architecture.md, "The frame"): the sky captured
 // into a cube map and prefiltered for the metallic-roughness BRDF, and the split sum's lookup
 // table, which depends on the BRDF alone and is made once.
 //
-// A bake renders the sky's six faces with sky_capture, with the celestial bodies about the camera
-// over it as lit spheres with their air and rings (so a hull reflects the planet it is over, and
+// A bake renders the sky's six faces with sky_capture, with the bodies about the camera
+// over it as lit spheres with their air and rings (so a vehicle reflects the planet it is over, and
 // its night side is lit by the planet's day side), builds the capture's mip chain, then renders
 // prefilter_specular into every level of the specular cube (roughness 0 to 1, one level each) and
 // prefilter_irradiance into the irradiance cube. It is a one-off on the graphics queue, as a texture

@@ -210,3 +210,12 @@ jettison_check_optional(
 		celestial
 		space
 		spacescene)
+
+# And the setting's words out of the neutral modules, but those still listed (the space extraction).
+if(JETTISON_BUILD_TESTS)
+	add_test(NAME neutral_words COMMAND ${CMAKE_COMMAND}
+		"-DENGINE=${CMAKE_CURRENT_SOURCE_DIR}/engine"
+		"-DALLOWED=${PROJECT_SOURCE_DIR}/cmake/neutral-words.txt"
+		"-DOPTIONAL=celestial;space;spacescene"
+		-P "${PROJECT_SOURCE_DIR}/cmake/CheckNeutralWords.cmake")
+endif()

@@ -9,15 +9,15 @@ jettison_add_module(spatial
 		include/jettison/spatial/Queries.h
 		include/jettison/spatial/Octree.h
 		include/jettison/spatial/SpatialIndex.h
-		include/jettison/spatial/SystemIndices.h
+		include/jettison/spatial/FrameIndices.h
 	SOURCES
 		src/Queries.cpp
 		src/Octree.cpp
-		src/SystemIndices.cpp
+		src/FrameIndices.cpp
 	TESTS
 		tests/SpatialTests.cpp
 		tests/SpatialBenchmark.cpp
-		tests/SystemIndicesTests.cpp
+		tests/FrameIndicesTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

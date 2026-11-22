@@ -14,7 +14,7 @@ namespace Jettison::Spatial
 {
 // An octree over points, the structure phase 6c kept as the spatial index (SpatialIndex.h). A
 // node's cube is split in eight when it holds more than a leaf's capacity, and its children are
-// gathered back into it when their subtree holds half that, so a station's traffic is in small
+// gathered back into it when their subtree holds half that, so a crowded body's traffic is in small
 // leaves and the space between planets in large ones.
 //
 // It can be a loose octree: each node then has a loose cube, its own grown by the looseness about
@@ -34,8 +34,8 @@ class Octree
 		// Half the root cube's side, rounded up to a power of two: 2^43 m, 59 AU, by default.
 		double halfExtent{8.796093022208e12};
 		// A leaf holding more points than this is split, unless it is at the deepest level. 64 was
-		// the best measured in 6c: at 100,000 ships 32 was within a tenth of it, and 16 a third slower
-		// to update.
+		// the best measured in 6c: at 100,000 vehicles 32 was within a tenth of it, and 16 a third
+		// slower to update.
 		std::uint32_t leafCapacity{64};
 		// 2^43 m halved 36 times is a leaf 256 m on a side.
 		std::uint32_t maxDepth{36};
