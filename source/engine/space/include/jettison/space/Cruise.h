@@ -37,13 +37,17 @@ namespace Jettison::Space
 // A cruise limited by acceleration, turning at the midpoint: the boost acceleration for at most
 // boostSeconds of the whole cruise, half of it speeding up from the start and half slowing down to
 // the end, and the sustained acceleration between, so a long cruise takes days where a short one
-// stays at the boost throughout. In m/s² and seconds. Registered with Reflect as "Ai.CruiseProfile",
-// every field Saved and Moddable, by RegisterTypes.
+// stays at the boost throughout. In m/s² and seconds. With a thrust share, the share of the whole
+// cruise's time the drive thrusts, above 0 and at most 1, half at each end, the boost first, and the
+// ship coasts between at the speed it reached: a share rather than seconds, so it means the same at
+// any distance. None, or 1, thrusts to the midpoint. Registered with Reflect as "Ai.CruiseProfile",
+// every field Saved and Moddable, by RegisterTypes; a profile with no share saves as one did before.
 struct CruiseProfile
 {
 	float boostAcceleration{0.0f};
 	float boostSeconds{0.0f};
 	float sustainedAcceleration{0.0f};
+	std::optional<float> thrustShare{};
 
 	bool operator==(const CruiseProfile &) const = default;
 };
@@ -73,11 +77,25 @@ double CruiseSeconds(const CruiseDrive &drive, double metres);
 // profile, from none at 0 to all of them at CruiseSeconds and after.
 double CruiseCovered(const CruiseProfile &profile, double metres, double seconds);
 
+// The seconds a cruise thrusts at each end of it: at the boost, then at the sustained acceleration.
+struct CruiseThrustSeconds
+{
+	double boost{0.0};
+	double sustained{0.0};
+
+	bool operator==(const CruiseThrustSeconds &) const = default;
+};
+
+// How long a cruise of that many metres on the profile thrusts at each end, so a game can price what
+// its burns cost: each phase's speed change is its acceleration times its seconds. None for no
+// distance.
+CruiseThrustSeconds CruiseThrust(const CruiseProfile &profile, double metres);
+
 // Checks a drive a game defines: its seconds and reference positive and finite, and its exponent
 // above 0 and at most 1, so its time rises with the distance and no faster than it; and a profile's
 // boost positive, its sustained acceleration at most the boost and not negative, its boost seconds
-// not negative, one of those two above 0 so a cruise of any length ends, and all finite. Throws
-// Serialise::FormatError naming the drive.
+// not negative, one of those two above 0 so a cruise of any length ends, its thrust share, if it has
+// one, above 0 and at most 1, and all finite. Throws Serialise::FormatError naming the drive.
 void CheckCruiseDrive(std::string_view name, const CruiseDrive &drive);
 
 // A ship cruising: its Sim::InFrame stays its system, and it has no Physics::Body, Velocity or

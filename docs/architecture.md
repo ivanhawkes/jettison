@@ -344,7 +344,10 @@ seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the 
 Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. A drive may give a
 profile in its place (`Space::CruiseProfile`), for a game played over days: a boost acceleration for
 at most a time over the whole cruise, half at each end, and a sustained one between, turning at the
-midpoint, the time its closed form. The bodies are on
+midpoint, the time its closed form. A profile may thrust for only a share of the cruise's time
+(`thrustShare`), half at each end, and coast between at the speed it reached: a share rather than
+seconds, so it means the same at any distance, and `CruiseThrust` gives each end's seconds at the
+boost and the sustained rate, which a game prices its fuel from. The bodies are on
 rails, so where the target will be on arrival is solved rather than chased: the time gives the
 target's place, the course to it gives the time again, in eight rounds, which the fourth root
 settles well within. The course is a few straight legs round the stars, planets and moons in the way

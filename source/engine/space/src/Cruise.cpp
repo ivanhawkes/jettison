@@ -167,18 +167,69 @@ std::pair<glm::dvec3, glm::dvec3> Along(const std::vector<glm::dvec3> &course, d
 
 
 // The first half of a cruise on a profile, to its midpoint: the seconds and metres of its boost, the
-// speed the boost reaches, and the seconds to the midpoint.
+// speed the boost reaches, the seconds, metres and speed its thrust ends at, and the seconds to the
+// midpoint, coasting from the thrust's end.
 struct Half
 {
 	double boostSeconds{0.0};
 	double boostMetres{0.0};
 	double speed{0.0};
+	double thrustSeconds{0.0};
+	double thrustMetres{0.0};
+	double topSpeed{0.0};
 	double seconds{0.0};
 };
 
 
+// The thrust a share of the cruise's time takes at each end, t of a cruise of T, so 2t = share × T
+// with T = 2t + (metres − 2x(t)) / v(t): 2(1 − share) t v(t) + 2 share x(t) = share × metres, which
+// rises with t, solved on the boost and, past it, at the sustained acceleration.
+Half Coasting(const CruiseProfile &profile, double metres, double share)
+{
+	const auto boost = double{profile.boostAcceleration};
+	const auto sustained = double{profile.sustainedAcceleration};
+	const double boostSeconds = double{profile.boostSeconds} / 2.0;
+	Half half;
+	if (const double onBoost = std::sqrt(share * metres / (boost * (2.0 - share)));
+	    onBoost <= boostSeconds)
+	{
+		half.boostSeconds = onBoost;
+		half.boostMetres = boost * onBoost * onBoost / 2.0;
+		half.speed = boost * onBoost;
+		half.thrustSeconds = onBoost;
+		half.thrustMetres = half.boostMetres;
+		half.topSpeed = half.speed;
+	}
+	else
+	{
+		const double speed = boost * boostSeconds;
+		const double boostMetres = boost * boostSeconds * boostSeconds / 2.0;
+		// a u² + b u = c in the seconds u past the boost, by the root that does not cancel.
+		const double a = sustained * (2.0 - share);
+		const double b =
+		    (2.0 * (1.0 - share) * ((boostSeconds * sustained) + speed)) + (2.0 * share * speed);
+		const double c = (share * metres) - (2.0 * (1.0 - share) * boostSeconds * speed) -
+		                 (2.0 * share * boostMetres);
+		const double past = 2.0 * c / (b + std::sqrt((b * b) + (4.0 * a * c)));
+		half.boostSeconds = boostSeconds;
+		half.boostMetres = boostMetres;
+		half.speed = speed;
+		half.thrustSeconds = boostSeconds + past;
+		half.thrustMetres = boostMetres + (speed * past) + (sustained * past * past / 2.0);
+		half.topSpeed = speed + (sustained * past);
+	}
+	half.seconds =
+	    half.thrustSeconds + (std::max(0.0, (metres / 2.0) - half.thrustMetres) / half.topSpeed);
+	return half;
+}
+
+
 Half HalfOf(const CruiseProfile &profile, double metres)
 {
+	// A share of 1 thrusts to the midpoint, as none does, and by the same sums, so its times are
+	// those of a profile saved before shares to the bit.
+	if (profile.thrustShare && *profile.thrustShare < 1.0f)
+		return Coasting(profile, metres, double{*profile.thrustShare});
 	const double half = metres / 2.0;
 	const auto boost = double{profile.boostAcceleration};
 	const double boostSeconds = double{profile.boostSeconds} / 2.0;
@@ -186,7 +237,8 @@ Half HalfOf(const CruiseProfile &profile, double metres)
 	if (half <= boostMetres)
 	{
 		const double seconds = std::sqrt(2.0 * half / boost);
-		return {seconds, half, boost * seconds, seconds};
+		const double speed = boost * seconds;
+		return {seconds, half, speed, seconds, half, speed, seconds};
 	}
 	const double speed = boost * boostSeconds;
 	const double rest = half - boostMetres;
@@ -194,7 +246,10 @@ Half HalfOf(const CruiseProfile &profile, double metres)
 	const double sustained =
 	    2.0 * rest /
 	    (speed + std::sqrt((speed * speed) + (2.0 * double{profile.sustainedAcceleration} * rest)));
-	return {boostSeconds, boostMetres, speed, boostSeconds + sustained};
+	const double seconds = boostSeconds + sustained;
+	return {boostSeconds, boostMetres, speed,
+	        seconds,      half,        speed + (double{profile.sustainedAcceleration} * sustained),
+	        seconds};
 }
 } // namespace
 
@@ -222,11 +277,22 @@ double CruiseCovered(const CruiseProfile &profile, double metres, double seconds
 	{
 		if (at <= half.boostSeconds)
 			return double{profile.boostAcceleration} * at * at / 2.0;
+		if (at > half.thrustSeconds)
+			return half.thrustMetres + (half.topSpeed * (at - half.thrustSeconds));
 		const double on = at - half.boostSeconds;
 		return half.boostMetres + (half.speed * on) +
 		       (double{profile.sustainedAcceleration} * on * on / 2.0);
 	};
 	return seconds <= half.seconds ? out(seconds) : metres - out(whole - seconds);
+}
+
+
+CruiseThrustSeconds CruiseThrust(const CruiseProfile &profile, double metres)
+{
+	if (metres <= 0.0)
+		return {};
+	const Half half = HalfOf(profile, metres);
+	return {half.boostSeconds, half.thrustSeconds - half.boostSeconds};
 }
 
 
@@ -252,6 +318,10 @@ void CheckCruiseDrive(std::string_view name, const CruiseDrive &drive)
 		    "Cruise drive '{}' has a profile whose boost is not positive, whose sustained acceleration "
 		    "is negative or past the boost, or whose boost seconds are negative, with neither above 0",
 		    name)};
+	if (profile.thrustShare && (!std::isfinite(*profile.thrustShare) || *profile.thrustShare <= 0.0f ||
+	                            *profile.thrustShare > 1.0f))
+		throw Serialise::FormatError{std::format(
+		    "Cruise drive '{}' has a profile whose thrust share is not above 0 and at most 1", name)};
 }
 
 

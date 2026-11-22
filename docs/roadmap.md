@@ -46,8 +46,9 @@ next run and its console and server pass over the steps between, Ore to Brine 2.
 Its W10, standing trade policies and NPC jobs, is done in Manifest (2026-11-21) with one provision
 here, a stopgap for the way in to a pad, and its L28, a docked fleet's wait passed over, with no
 engine edit ([history](history.md#neutral-sdk-and-manifest-integration)). Its W18, W11 and W19 are
-done in Manifest with no engine edit. Next is its W21, fuel burn, which asks for a cruise's coast
-phase (the row below).
+done in Manifest with no engine edit. Its W21, fuel burn, asked for a cruise's coast phase, a share
+of the time thrusting, provisioned (2026-11-22, [history](history.md#neutral-sdk-and-manifest-integration));
+Manifest's own slices of W21 follow on it.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -58,7 +59,6 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
-| Cruise coast phase | W21 (4) | `Space::CruiseProfile`'s optional `thrustShare`, the share of the cruise's time the drive thrusts, above 0 and at most 1, half at each end with the boost first, coasting between at the speed reached, for a burn that saves fuel ([D-107](../../manifest/docs/decision-ledger.md#d-107), [W21 plan](../../manifest/docs/stage-4-trading-plan.md#w21-plan)). A share, not seconds: the player's percentage, the same at any distance (the user's, 2026-11-22). None is today's profile and saves as before, and 1 flies as none does. `CruiseSeconds` and `CruiseCovered` in closed form, each end's thrust the one root of a quadratic on the boost or after it; `CruiseThrust`, each end's seconds at the boost and at the sustained acceleration, which a game prices its fuel from; `CheckCruiseDrive` refusing a share not above 0, past 1 or not finite; a world saved mid-coast arriving at the hash the one saved does, every pinned hash held, and the sample's drive cruising on one. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
 These deliveries precede discretionary expansion of the sample. The historical space

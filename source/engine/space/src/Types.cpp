@@ -78,7 +78,8 @@ void RegisterTypes()
 		RegisterType<CruiseProfile>("Ai.CruiseProfile")
 		    .Field<&CruiseProfile::boostAcceleration>("boostAcceleration", kDefined)
 		    .Field<&CruiseProfile::boostSeconds>("boostSeconds", kDefined)
-		    .Field<&CruiseProfile::sustainedAcceleration>("sustainedAcceleration", kDefined);
+		    .Field<&CruiseProfile::sustainedAcceleration>("sustainedAcceleration", kDefined)
+		    .Field<&CruiseProfile::thrustShare>("thrustShare", kDefined);
 		RegisterType<CruiseDrive>("Ai.CruiseDrive", Attribute::Moddable)
 		    .Field<&CruiseDrive::seconds>("seconds", kDefined)
 		    .Field<&CruiseDrive::reference>("reference", kDefined)
