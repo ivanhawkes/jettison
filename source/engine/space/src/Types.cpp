@@ -66,12 +66,12 @@ void RegisterTypes()
 
 		RegisterType<Gate>("Ai.Gate")
 		    .Field<&Gate::jumpPoint>("jumpPoint", Attribute::Saved)
-		    .Field<&Gate::cleared>("cleared", Attribute::Saved)
+		    .Field<&Gate::holder>("cleared", Attribute::Saved)
 		    .Field<&Gate::lapses>("lapses", Attribute::Saved)
 		    .Field<&Gate::queue>("queue", Attribute::Saved);
 		RegisterType<Transit>("Ai.Transit")
-		    .Field<&Transit::gate>("gate", Attribute::Saved)
-		    .Field<&Transit::cleared>("cleared", Attribute::Saved);
+		    .Field<&Transit::slot>("gate", Attribute::Saved)
+		    .Field<&Transit::held>("cleared", Attribute::Saved);
 		RegisterType<RequestTransit>("Ai.RequestTransit")
 		    .Field<&RequestTransit::sender>("sender", Attribute::Saved)
 		    .Field<&RequestTransit::ship>("ship", Attribute::Saved)

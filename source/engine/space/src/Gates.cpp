@@ -11,13 +11,13 @@
 #include <jettison/space/Lanes.h>
 #include <jettison/space/Types.h>
 #include <jettison/transit/Path.h>
+#include <jettison/transit/Slot.h>
 
 #include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <format>
-#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -48,17 +48,6 @@ bool AtGate(const entt::registry &registry, entt::entity ship, entt::entity gate
 }
 
 
-// Entities of a component in entity order, so what is done to them is the same however the storage
-// happens to be laid out, as it is not after a load.
-template <typename Component> std::vector<entt::entity> InOrder(const entt::registry &registry)
-{
-	const auto view = registry.view<const Component>();
-	std::vector<entt::entity> entities{view.begin(), view.end()};
-	std::ranges::sort(entities, {}, [](entt::entity entity) { return entt::to_integral(entity); });
-	return entities;
-}
-
-
 Sim::ReasonArgument Named(const entt::registry &registry, entt::entity gate)
 {
 	const auto *found = registry.valid(gate) ? registry.try_get<Gate>(gate) : nullptr;
@@ -85,25 +74,12 @@ Gates &Gates::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics, const
 	         .Writing<Gate, Transit, OnLane, Sim::InFrame, Destination>(),
 	     {std::string{LaneTravel::kSystemName}},
 	     [gates, &world](entt::registry & /*registry*/, double /*fixedStep*/) { gates->Step(world); }},
-	    // A ship at a gate, a queue to serve or a clearance gone are this step's; a clearance held
-	    // lapses as the step before its lapse ends.
+	    // A ship at a gate is this step's, and the slots' changes are theirs.
 	    {.next = [](const Sim::SimWorld &target)
 	     {
-		     const entt::registry &registry = target.Registry();
-		     const std::uint64_t now = target.Clock().Step();
-		     if (!registry.view<const Transit>().empty())
-			     return now;
-		     std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
-		     for (const auto [gate, state] : registry.view<const Gate>().each())
-		     {
-			     const auto gone = [&](entt::entity ship) { return !registry.valid(ship); };
-			     if (std::ranges::any_of(state.queue, gone) ||
-			         (state.cleared == entt::null ? !state.queue.empty() : gone(state.cleared)))
-				     return now;
-			     if (state.cleared != entt::null)
-				     next = std::min(next, state.lapses - std::min<std::uint64_t>(state.lapses, 1));
-		     }
-		     return next;
+		     return target.Registry().view<const Transit>().empty()
+		                ? Jettison::Transit::NextLapse<Gate>(target)
+		                : target.Clock().Step();
 	     }});
 	return *gates;
 }
@@ -176,7 +152,7 @@ std::vector<entt::entity> Gates::MakeGates(Sim::SimWorld &world, std::uint64_t s
 		Physics::Body ring{Physics::BodyKind::Kinematic, RingShape(body.radius)};
 		ring.sensor = true;
 		const entt::entity gate = registry.create();
-		registry.emplace<Gate>(gate, Gate{body.name, entt::null, 0, {}});
+		registry.emplace<Gate>(gate, Gate{{}, body.name});
 		registry.emplace<Sim::Transform>(
 		    gate, m_physics.RailsPlace(system, rails, world.Clock().Now()));
 		registry.emplace<Sim::InFrame>(gate, system);
@@ -265,8 +241,8 @@ void Gates::Request(Sim::SimWorld &world, const RequestTransit &command)
 		return refuse(because(Reason::NotAtGate, {gateName}));
 	if (const auto *held = registry.try_get<Transit>(ship))
 		return refuse(because(
-		    held->cleared ? Reason::AlreadyCleared : Reason::AlreadyQueued,
-		    {Named(registry, held->gate)}));
+		    held->held ? Reason::AlreadyCleared : Reason::AlreadyQueued,
+		    {Named(registry, held->slot)}));
 	const Celestial::Body *jumpPoint = JumpPointOf(registry, command.gate);
 	if (!jumpPoint)
 		return refuse(because(Reason::SystemUndefined));
@@ -280,40 +256,20 @@ void Gates::Request(Sim::SimWorld &world, const RequestTransit &command)
 	if (std::optional<Sim::Reason> reason = Refuses(registry, ship, *toll))
 		return refuse(std::move(*reason));
 
-	Gate &gate = registry.get<Gate>(command.gate);
-	if (gate.cleared == entt::null && gate.queue.empty())
+	if (Jettison::Transit::Free(registry.get<Gate>(command.gate)))
 		return Clear(world, command.gate, ship, *toll);
-	gate.queue.push_back(ship);
-	registry.emplace<Transit>(ship, Transit{command.gate, false});
 	world.Events().Emit(
-	    TransitQueued{ship, command.gate, static_cast<std::uint32_t>(gate.queue.size())});
+	    TransitQueued{
+	        ship, command.gate, Jettison::Transit::Wait<Gate, Transit>(registry, command.gate, ship)});
 }
 
 
 void Gates::Clear(Sim::SimWorld &world, entt::entity gate, entt::entity ship, std::int64_t toll)
 {
-	entt::registry &registry = world.Registry();
-	Gate &state = registry.get<Gate>(gate);
-	state.cleared = ship;
-	state.lapses =
+	const std::uint64_t lapses =
 	    world.Clock().Step() + Jettison::Transit::Steps(kClearanceSeconds, world.FixedStep());
-	registry.emplace_or_replace<Transit>(ship, Transit{gate, true});
-	world.Events().Emit(TransitCleared{ship, gate, toll, state.lapses});
-}
-
-
-void Gates::GiveUp(entt::registry &registry, entt::entity ship)
-{
-	const auto *transit = registry.try_get<Transit>(ship);
-	if (!transit)
-		return;
-	if (auto *gate = registry.valid(transit->gate) ? registry.try_get<Gate>(transit->gate) : nullptr)
-	{
-		if (gate->cleared == ship)
-			gate->cleared = entt::null;
-		std::erase(gate->queue, ship);
-	}
-	registry.remove<Transit>(ship);
+	Jettison::Transit::Hold<Gate, Transit>(world.Registry(), gate, ship, lapses);
+	world.Events().Emit(TransitCleared{ship, gate, toll, lapses});
 }
 
 
@@ -322,7 +278,7 @@ void Gates::Send(Sim::SimWorld &world, entt::entity gate, entt::entity ship)
 	entt::registry &registry = world.Registry();
 	const std::string jumpPoint = registry.get<Gate>(gate).jumpPoint;
 	const std::int64_t toll = TollThrough(registry, gate).value_or(0);
-	GiveUp(registry, ship);
+	Jettison::Transit::GiveUp<Gate, Transit>(registry, ship);
 	if (std::optional<Sim::Reason> reason = Refuses(registry, ship, toll))
 	{
 		world.Events().Emit(GatePassed{ship, gate, std::move(*reason)});
@@ -342,84 +298,52 @@ void Gates::Serve(Sim::SimWorld &world, entt::entity gate)
 {
 	entt::registry &registry = world.Registry();
 	const std::optional<std::int64_t> toll = TollThrough(registry, gate);
-	while (registry.get<Gate>(gate).cleared == entt::null && !registry.get<Gate>(gate).queue.empty())
-	{
-		const entt::entity ship = registry.get<Gate>(gate).queue.front();
-		GiveUp(registry, ship);
-		if (std::optional<Sim::Reason> reason =
-		        toll ? Refuses(registry, ship, *toll)
-		             : Sim::MakeReason(Reason::LeadsNowhere, {Named(registry, gate)}))
-			world.Events().Emit(TransitRefused{ship, gate, std::move(*reason)});
-		else
-			Clear(world, gate, ship, *toll);
-	}
+	Jettison::Transit::Serve<Gate, Transit>(
+	    registry, gate,
+	    [&](entt::entity ship)
+	    {
+		    if (std::optional<Sim::Reason> reason =
+		            toll ? Refuses(registry, ship, *toll)
+		                 : Sim::MakeReason(Reason::LeadsNowhere, {Named(registry, gate)}))
+			    world.Events().Emit(TransitRefused{ship, gate, std::move(*reason)});
+		    else
+			    Clear(world, gate, ship, *toll);
+	    });
 }
 
 
 void Gates::Step(Sim::SimWorld &world)
 {
 	entt::registry &registry = world.Registry();
+	const std::vector<entt::entity> gates = Jettison::Transit::InOrder<Gate>(registry);
 
 	// 1. What a ship can no longer hold.
-	for (const entt::entity gate : InOrder<Gate>(registry))
+	for (const auto [ship, gate] : Jettison::Transit::DropGone<Gate>(registry, gates))
+		world.Events().Emit(TransitLapsed{ship, gate});
+	for (const entt::entity ship : Jettison::Transit::InOrder<Transit>(registry))
 	{
-		Gate &state = registry.get<Gate>(gate);
-		const auto gone = [&](entt::entity ship) { return !registry.valid(ship); };
-		for (const entt::entity ship : state.queue)
-			if (gone(ship))
-				world.Events().Emit(TransitLapsed{ship, gate});
-		std::erase_if(state.queue, gone);
-		if (state.cleared != entt::null && gone(state.cleared))
-		{
-			world.Events().Emit(TransitLapsed{state.cleared, gate});
-			state.cleared = entt::null;
-		}
-	}
-	for (const entt::entity ship : InOrder<Transit>(registry))
-	{
-		const entt::entity gate = registry.get<Transit>(ship).gate;
+		const entt::entity gate = registry.get<Transit>(ship).slot;
 		if (registry.valid(gate) && registry.all_of<Gate>(gate) && AtGate(registry, ship, gate) &&
 		    !registry.all_of<Cruising>(ship))
 			continue;
-		GiveUp(registry, ship);
+		Jettison::Transit::GiveUp<Gate, Transit>(registry, ship);
 		world.Events().Emit(TransitLapsed{ship, gate});
 	}
 
 	// 2. Through the rings: each cleared ship touching its gate's sent, and every other body that has
 	// begun to touch one passing through.
-	const std::vector<entt::entity> gates = InOrder<Gate>(registry);
-	std::vector<std::pair<entt::entity, entt::entity>> sent;
-	for (const entt::entity gate : gates)
-		if (const entt::entity ship = registry.get<Gate>(gate).cleared;
-		    ship != entt::null && std::ranges::binary_search(m_physics.Touching(gate), ship))
-		{
-			sent.emplace_back(gate, ship);
-			Send(world, gate, ship);
-		}
-	for (const Physics::ContactEvent &contact : m_physics.Contacts())
-	{
-		if (contact.phase != Physics::ContactPhase::Began || !contact.sensor)
-			continue;
-		const bool firstIsGate = registry.valid(contact.first) && registry.all_of<Gate>(contact.first);
-		const entt::entity gate = firstIsGate ? contact.first : contact.second;
-		const entt::entity ship = firstIsGate ? contact.second : contact.first;
-		if (!registry.valid(gate) || !registry.all_of<Gate>(gate) ||
-		    std::ranges::find(sent, std::pair{gate, ship}) != sent.end())
-			continue;
+	const Jettison::Transit::Crossings crossings =
+	    Jettison::Transit::Crossed<Gate>(registry, m_physics, gates);
+	for (const auto [gate, ship] : crossings.through)
+		Send(world, gate, ship);
+	for (const auto [gate, ship] : crossings.passed)
 		world.Events().Emit(
 		    GatePassed{ship, gate, Sim::MakeReason(Reason::NotCleared, {Named(registry, gate)})});
-	}
 
 	// 3. Clearances lapsed unused, as the step ends.
-	const std::uint64_t ending = world.Clock().Step() + 1;
-	for (const entt::entity gate : gates)
-		if (const Gate &state = registry.get<Gate>(gate);
-		    state.cleared != entt::null && state.lapses <= ending)
-		{
-			const entt::entity ship = state.cleared;
-			GiveUp(registry, ship);
-			world.Events().Emit(TransitLapsed{ship, gate});
-		}
+	for (const auto [ship, gate] :
+	     Jettison::Transit::Lapse<Gate, Transit>(registry, gates, world.Clock().Step() + 1))
+		world.Events().Emit(TransitLapsed{ship, gate});
 
 	// 4. The next in each free gate's queue.
 	for (const entt::entity gate : gates)

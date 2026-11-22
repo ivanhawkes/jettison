@@ -13,6 +13,7 @@
 #include <jettison/celestial/StarSystem.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
+#include <jettison/transit/Slot.h>
 
 namespace Jettison::Physics
 {
@@ -34,30 +35,27 @@ class LaneTravel;
 // it enters. Who holds a gate is authoritative state every player sees the same, so the gate is
 // given by commands in the order the queue applies them, as a station's pad is (dock/Docks.h). What
 // a toll is drawn from, and whatever else a clearance asks of a ship's owner, are the game's
-// (TollRule); this is what any space game's gates would want unchanged.
+// (TollRule); this is what any space game's gates would want unchanged. A gate is a gated portal
+// (transit/Slot.h): its clearance a slot, and its ring the sensor a ship holding it flies through.
 
-// A jump point's gate: its ring, the ship it has cleared and the step that clearance lapses at
-// (Time::SimClock::Step), and the ships waiting for it, first come first. Free while it has cleared
-// none. Its entity is on the jump point's rails, in its frame, a kinematic sensor of the ring's
-// shape (Gates::RingShape) turned to face as the jump point does. Registered with Reflect, every
-// field Saved, by RegisterTypes, and shown in snapshots.
-struct Gate
+// A jump point's gate: its ring, and its clearance as a slot: the ship it has cleared (the holder)
+// and the step that clearance lapses at, and the ships waiting for it, first come first. Free while
+// it has cleared none. Its entity is on the jump point's rails, in its frame, a kinematic sensor of
+// the ring's shape (Gates::RingShape) turned to face as the jump point does. Registered with
+// Reflect, every field Saved ("jumpPoint", and the slot's as "cleared", "lapses" and "queue"), by
+// RegisterTypes, and shown in snapshots.
+struct Gate : Jettison::Transit::Slot
 {
 	std::string jumpPoint;
-	entt::entity cleared{entt::null};
-	std::uint64_t lapses{0};
-	std::vector<entt::entity> queue;
 
 	bool operator==(const Gate &) const = default;
 };
 
-// A ship's business with a gate: waiting in its queue, or cleared through it. Registered with
-// Reflect, every field Saved, by RegisterTypes, and shown in snapshots.
-struct Transit
+// A ship's business with a gate, its claim on the gate's slot: waiting in its queue, or cleared
+// through it (held). Registered with Reflect, every field Saved (the claim's as "gate" and
+// "cleared"), by RegisterTypes, and shown in snapshots.
+struct Transit : Jettison::Transit::Claim
 {
-	entt::entity gate{entt::null};
-	bool cleared{false};
-
 	bool operator==(const Transit &) const = default;
 };
 
@@ -213,9 +211,6 @@ class Gates
 
 	// Clears the ship through the free gate, and says so.
 	void Clear(Sim::SimWorld &world, entt::entity gate, entt::entity ship, std::int64_t toll);
-
-	// Takes the ship's business with its gate away: its clearance, freeing the gate, or its place.
-	void GiveUp(entt::registry &registry, entt::entity ship);
 
 	// Sends the cleared ship along the gate's lane and charges its owner, or lets it pass through,
 	// saying why, its clearance given up.

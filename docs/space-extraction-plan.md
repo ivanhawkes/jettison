@@ -162,8 +162,13 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      ferry and two through a lift door within the building in the suite, fast-forwarded as stepped.
      The lanes are built on those parts and keep `OnLane`. No pinned hash moved; Manifest's 53
      suites on the local engine.
-   - **4d, slots and gated portals.** The gates on them: a toll booth's gated portal and a car
-     park's bays.
+   - **4d, slots and gated portals.** **Done** 2026-11-22: a slot as any game's (`transit/Slot.h`):
+     what one entity holds at a time until it gives it up or its hold lapses, with others waiting
+     first come first (`Transit::Slot`, `Claim`; `Hold`, `Wait`, `GiveUp`, `DropGone`, `Lapse`,
+     `Serve`, `NextLapse`), and a gated portal as a slot with a sensor its holder goes through and
+     others pass (`Crossed`); a car park's bays, fast-forwarded as stepped, and a toll booth's
+     barrier onto a portal in the suite. The gates are built on those parts, `Gate` and `Transit`
+     derived from the slot and claim and keeping their saved fields.
    - **4e, the smoke run's jump stage** removed with its five words, the jump being Manifest's.
 5. **Berths.** `dock` without stations' celestial tie: a station layout takes the placement its game
    gives; Manifest's pads on berths; pins held.

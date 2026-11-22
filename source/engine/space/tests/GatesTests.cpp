@@ -242,8 +242,8 @@ TEST_CASE("Gates: a cleared ship flown through the ring is sent, and its owner c
 	CHECK(cleared[0].gate == gate);
 	CHECK(cleared[0].toll == kToll);
 	CHECK(cleared[0].lapses == asked + kClearanceSteps);
-	CHECK(fixture.GateOf(gate).cleared == ship);
-	CHECK(registry.get<Space::Transit>(ship) == Space::Transit{gate, true});
+	CHECK(fixture.GateOf(gate).holder == ship);
+	CHECK(registry.get<Space::Transit>(ship) == Space::Transit{{gate, true}});
 	// Nothing is charged until it enters.
 	CHECK(fixture.CreditsOf(ship) == 10000);
 
@@ -260,7 +260,7 @@ TEST_CASE("Gates: a cleared ship flown through the ring is sent, and its owner c
 	CHECK(fixture.CreditsOf(ship) == 10000 - kToll);
 	CHECK(registry.get<Space::OnLane>(ship).departure == "Halcyon Gate");
 	CHECK_FALSE(registry.all_of<Space::Transit>(ship));
-	CHECK(fixture.GateOf(gate).cleared == entt::null);
+	CHECK(fixture.GateOf(gate).holder == entt::null);
 
 	// Out at Vesper Gate 40 s on, ahead of its ring, which does not see it pass.
 	fixture.Run(2400 + 120);
@@ -316,8 +316,8 @@ TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and 
 	CHECK(
 	    glm::dot(through, fixture.Facing() * glm::dvec3{0.0, 0.0, -1.0}) ==
 	    doctest::Approx(600.0).epsilon(0.01));
-	CHECK(registry.get<Space::Transit>(waiting) == Space::Transit{gate, false});
-	CHECK(fixture.GateOf(gate).cleared == first);
+	CHECK(registry.get<Space::Transit>(waiting) == Space::Transit{{gate, false}});
+	CHECK(fixture.GateOf(gate).holder == first);
 }
 
 
@@ -341,7 +341,7 @@ TEST_CASE("Gates: a clearance unused lapses, and the gate clears the next in its
 	// Held to the step before it lapses.
 	fixture.Run(kClearanceSteps - 2);
 	CHECK(fixture.Events<Space::TransitLapsed>().empty());
-	CHECK(fixture.GateOf(gate).cleared == first);
+	CHECK(fixture.GateOf(gate).holder == first);
 	fixture.Run(1);
 	CHECK(fixture.world.Clock().Step() == asked + kClearanceSteps);
 	const std::vector<Sim::SimEvent> events = fixture.world.Events().Take();
@@ -353,7 +353,7 @@ TEST_CASE("Gates: a clearance unused lapses, and the gate clears the next in its
 	REQUIRE(next.size() == 1);
 	CHECK(next[0].ship == second);
 	CHECK(next[0].lapses == fixture.world.Clock().Step() - 1 + kClearanceSteps);
-	CHECK(fixture.GateOf(gate).cleared == second);
+	CHECK(fixture.GateOf(gate).holder == second);
 	CHECK(fixture.GateOf(gate).queue.empty());
 	CHECK(fixture.CreditsOf(first) == 10000);
 }
@@ -472,14 +472,14 @@ TEST_CASE("Gates: a clearance is given up as its ship leaves the gate's frame, o
 	REQUIRE(lapsed.size() == 1);
 	CHECK(lapsed[0].ship == leaving);
 	CHECK_FALSE(registry.all_of<Space::Transit>(leaving));
-	CHECK(fixture.GateOf(gate).cleared == going);
+	CHECK(fixture.GateOf(gate).holder == going);
 
 	registry.destroy(going);
 	fixture.Run(1);
 	lapsed = fixture.Events<Space::TransitLapsed>();
 	REQUIRE(lapsed.size() == 1);
 	CHECK(lapsed[0].ship == going);
-	CHECK(fixture.GateOf(gate).cleared == entt::null);
+	CHECK(fixture.GateOf(gate).holder == entt::null);
 }
 
 
@@ -495,12 +495,12 @@ TEST_CASE("Gates: a world saved with a ship cleared and one waiting goes on as t
 	const std::vector<std::byte> saved = fixture.world.Save();
 	fixture.Run(1200);
 	CHECK(fixture.world.Registry().all_of<Space::OnLane>(ship));
-	CHECK(fixture.GateOf(gate).cleared == next);
+	CHECK(fixture.GateOf(gate).holder == next);
 	const std::uint64_t hash = fixture.world.StateHash();
 
 	Fixture loaded;
 	loaded.world.Load(saved);
-	CHECK(loaded.GateOf(gate).cleared == ship);
+	CHECK(loaded.GateOf(gate).holder == ship);
 	CHECK(loaded.GateOf(gate).queue == std::vector{next});
 	loaded.Run(1200);
 	CHECK(loaded.world.StateHash() == hash);

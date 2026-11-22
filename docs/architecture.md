@@ -182,7 +182,7 @@ ship through its flight controls and keeps it clear of the bodies' shapes. The l
 their fixtures. `transit` is travel of no genre (below, "Transit"), from the [space
 extraction](space-extraction-plan.md): on `physics`, as a passage takes an entity's body out and
 gives it back, and on `ai`, as it gives up a steered entity's destination; its portals take an entity
-out of its frame and bring it out at an exit. `space` is the optional space capability (W01): its
+out of its frame and bring it out at an exit, and its slots are held by one entity at a time. `space` is the optional space capability (W01): its
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
@@ -295,7 +295,8 @@ radius and 60 m deep (`Gates::RingShape`, defined in physics as the system is), 
 to face as the jump point does (`Celestial::BodyOrientation`). It is a shared facility given in
 command order, as a pad is: `Space::RequestTransit`, with its sender, clears a ship through it at once
 if the gate is free, or puts it at the back of the gate's queue, and the ship holds an `Space::Transit`
-saying which. The engine's checks are its sender's command of the ship, the ship flying and in the
+saying which: the gate is a gated portal ([transit](#transit)), its clearance a slot and the
+ship's `Transit` its claim. The engine's checks are its sender's command of the ship, the ship flying and in the
 gate's system and frame, a lane leaving through the gate, and the hull's shape fitting the ring; the
 game's are a rule it gives (`Space::TollRule`), asked whether the ship's owner can pay the lane's toll,
 and told to charge it. Each step the system `gates`, after the lanes', gives up a clearance or a
@@ -343,6 +344,17 @@ it an arrival comes out. An arrival with a body comes out at rest that far ahead
 shape and a clearance, clear of what is there (`Transit::ComeOut`). `Transit::Portals` runs portals
 kept in a `Transit::InPortal`, the suite's door onto a moving ferry and lift door within a building
 among them; a lane keeps its own saved `OnLane` and is built on the same parts ([jumps](#jumps)).
+
+A slot (`transit/Slot.h`, slice 4d) is what one entity holds at a time, a car park's bay or a toll
+booth's lane, until it gives it up (`Transit::GiveUp`) or its hold lapses at a step, with the
+entities waiting for it first come first: a `Transit::Slot` and each claimant's `Transit::Claim`,
+or the game's own components derived from them. A game asks and serves in its own system with the
+parts given: a free slot held at once (`Hold`) or a place at the back (`Wait`); claimants gone
+dropped (`DropGone`), holds lapsed (`Lapse`) and each free slot offered to its queue from the
+front (`Serve`), the steps between quiet (`NextLapse`). A gated portal is a slot with a sensor:
+`Crossed` gives its holder touching the sensor, one inside already included, to go through, and
+every other body that began to touch it, which passes. The suite's car park and toll booth are
+games so; a gate is one, keeping its saved `Gate` and `Transit` ([gates](#gates)).
 
 ### Cruising
 

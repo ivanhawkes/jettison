@@ -5,6 +5,7 @@
 #include <jettison/transit/Passage.h>
 #include <jettison/transit/Portal.h>
 #include <jettison/transit/Profile.h>
+#include <jettison/transit/Slot.h>
 
 namespace Jettison::Transit
 {
@@ -40,6 +41,13 @@ void RegisterTypes()
 		    .Field<&PortalLeft::entity>("entity", Attribute::Saved)
 		    .Field<&PortalLeft::frame>("frame", Attribute::Saved)
 		    .Field<&PortalLeft::exit>("exit", Attribute::Saved);
+		RegisterType<Slot>("Transit.Slot")
+		    .Field<&Slot::holder>("holder", Attribute::Saved)
+		    .Field<&Slot::lapses>("lapses", Attribute::Saved)
+		    .Field<&Slot::queue>("queue", Attribute::Saved);
+		RegisterType<Claim>("Transit.Claim")
+		    .Field<&Claim::slot>("slot", Attribute::Saved)
+		    .Field<&Claim::held>("held", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;
