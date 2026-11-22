@@ -10,7 +10,6 @@
 #include <format>
 #include <optional>
 
-#include <jettison/dock/Roads.h>
 #include <jettison/serialise/Archive.h>
 
 #include <yaml-cpp/yaml.h>
@@ -189,9 +188,6 @@ void CheckHull(std::string_view name, const HullDefinition &hull, const PadClass
 		    std::format(
 		        "is {} x {} x {} m, larger than its pad's largest hull, {} x {} x {} m", hull.length,
 		        hull.beam, hull.height, largest.x, largest.y, largest.z));
-	const glm::vec3 half = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
-	if (!(glm::all(glm::lessThanEqual(glm::abs(hull.hatch), half + 0.01f))))
-		Refuse(kWhat, name, "has its cargo hatch outside its hull");
 }
 
 
@@ -278,22 +274,6 @@ void CheckLayout(std::string_view name, const StationLayout &layout, const PadCl
 			                       -kProbe, kProbe, kTouching)))
 				Refuse(kWhat, name, std::format("{} overlaps {}", padName, PadName(other)));
 	}
-	for (const Bay &bay : layout.bays)
-		if (!Finite(bay.position) || std::abs(glm::length(bay.normal) - 1.0) > kUnitTolerance)
-			Refuse(kWhat, name, "has a cargo bay whose door faces no way");
-
-	const DeckTraffic &traffic = layout.traffic;
-	if (traffic.buggies == 0 || traffic.cratesPerTrip <= 0 || !(traffic.speed > 0.0f) ||
-	    !std::isfinite(traffic.speed))
-		Refuse(
-		    kWhat, name,
-		    "has deck traffic of no buggies, no crates a trip or a speed that is not a positive one");
-	if (layout.bays.empty())
-		return;
-	const RoadGraph roads = Roads(layout, classes);
-	for (std::size_t index = 0; index < layout.pads.size(); ++index)
-		if (!layout.pads[index].display && !roads.pads[index].reached)
-			Refuse(kWhat, name, PadName(index) + " is not reached by road from a cargo bay");
 }
 
 

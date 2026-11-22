@@ -47,7 +47,6 @@ void RegisterTypes()
 		    .Field<&HullDefinition::beam>("beam", kDefined)
 		    .Field<&HullDefinition::height>("height", kDefined)
 		    .Field<&HullDefinition::pad>("pad", kDefined)
-		    .Field<&HullDefinition::hatch>("hatch", kDefined)
 		    .Field<&HullDefinition::model>("model", kDefined);
 		RegisterType<Box>("Dock.Box")
 		    .Field<&Box::centre>("centre", kDefined)
@@ -60,22 +59,12 @@ void RegisterTypes()
 		    .Field<&PadLayout::display>("display", kDefined)
 		    .Field<&PadLayout::ship>("ship", kDefined)
 		    .Field<&PadLayout::features>("features", kDefined);
-		RegisterType<Bay>("Dock.Bay")
-		    .Field<&Bay::position>("position", kDefined)
-		    .Field<&Bay::normal>("normal", kDefined);
-		RegisterType<DeckTraffic>("Dock.DeckTraffic")
-		    .Field<&DeckTraffic::buggies>("buggies", kDefined)
-		    .Field<&DeckTraffic::cratesPerTrip>("cratesPerTrip", kDefined)
-		    .Field<&DeckTraffic::speed>("speed", kDefined)
-		    .Field<&DeckTraffic::working>("working", kDefined);
 		RegisterType<StationLayout>("Dock.StationLayout", Attribute::Moddable)
 		    .Field<&StationLayout::displayName>("displayName", kDefined)
 		    .Field<&StationLayout::decks>("decks", kDefined)
 		    .Field<&StationLayout::piers>("piers", kDefined)
 		    .Field<&StationLayout::pads>("pads", kDefined)
-		    .Field<&StationLayout::bays>("bays", kDefined)
-		    .Field<&StationLayout::reservationSeconds>("reservationSeconds", kDefined)
-		    .Field<&StationLayout::traffic>("traffic", kDefined);
+		    .Field<&StationLayout::reservationSeconds>("reservationSeconds", kDefined);
 
 		RegisterType<Hull>("Dock.Hull").Field<&Hull::definition>("definition", Attribute::Saved);
 		RegisterType<Station>("Dock.Station")
@@ -107,6 +96,7 @@ void RegisterTypes()
 		    .Field<&Docking::fly>("fly", Attribute::Saved)
 		    .Field<&Docking::feature>("feature", Attribute::Saved);
 
+		// The retired cargo deck's, kept registered for a save's bytes (Docks.h).
 		RegisterType<Transfer>("Dock.Transfer")
 		    .Field<&Transfer::aboard>("aboard", Attribute::Saved)
 		    .Field<&Transfer::ashore>("ashore", Attribute::Saved)
@@ -145,7 +135,6 @@ void RegisterTypes()
 		    .Value<Reason::AlreadyHoldsPad>("already_holds_pad")
 		    .Value<Reason::NoPadFits>("no_pad_fits")
 		    .Value<Reason::HoldsNothing>("holds_nothing")
-		    .Value<Reason::CargoCrossing>("cargo_crossing")
 		    .Value<Reason::AlreadyLeaving>("already_leaving")
 		    .Value<Reason::NoPadOffers>("no_pad_offers");
 		RegisterType<PadGiven>("Dock.PadGiven", Attribute::Script)
@@ -174,11 +163,6 @@ void RegisterTypes()
 		    .Field<&Landed::station>("station", Attribute::Saved)
 		    .Field<&Landed::pad>("pad", Attribute::Saved)
 		    .Field<&Landed::number>("number", Attribute::Saved);
-		RegisterType<CargoCarried>("Dock.CargoCarried")
-		    .Field<&CargoCarried::ship>("ship", Attribute::Saved)
-		    .Field<&CargoCarried::station>("station", Attribute::Saved)
-		    .Field<&CargoCarried::pad>("pad", Attribute::Saved)
-		    .Field<&CargoCarried::number>("number", Attribute::Saved);
 		RegisterType<Left>("Dock.Left", Attribute::Script)
 		    .Field<&Left::ship>("ship", Attribute::Saved)
 		    .Field<&Left::station>("station", Attribute::Saved)

@@ -11,7 +11,6 @@
 #include <vector>
 
 #include <jettison/dock/Definitions.h>
-#include <jettison/dock/Roads.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
 
@@ -128,13 +127,10 @@ struct Docking
 
 bool IsDocked(const entt::registry &registry, entt::entity ship, entt::entity station);
 
-// A docked ship's cargo still to cross the deck: crates waiting in its pad's bay to be carried
-// aboard, and crates in its hold to be carried off, neither yet on a buggy. A trade settles its
-// crates and its price at once, as the game's market does, and the crates then cross the deck; the
-// ship stays clamped until every crate for it is aboard and every crate off it has been taken from
-// its hatch, when the transfer is done (CargoCarried) and goes. For a station whose buggies are
-// parked, the step a buggy's load is next moved. Registered with Reflect, every field Saved, by
-// RegisterTypes, and shown in snapshots.
+// A docked ship's cargo crossing the deck, and a buggy carrying it: the cargo deck's, which the space
+// extraction retired with the space sample (docs/space-extraction-plan.md). Kept registered with
+// Reflect and the world, and shown in snapshots, with no behaviour, so a save's bytes and every hash
+// pinned on them hold until slice 7 drops their saved names with the rest it renames.
 struct Transfer
 {
 	std::int64_t aboard{0};
@@ -144,14 +140,6 @@ struct Transfer
 	bool operator==(const Transfer &) const = default;
 };
 
-// A buggy on a station's deck, carrying a pad's cargo between its bay and its ship's hatch. Kinematic:
-// it is moved by the docks along its road at its station's speed, on the right of the way it goes,
-// and nothing but the deck meets it, so it has a Transform, in the system as its station is, and no
-// body. Its route is the road graph's nodes (Roads) from where it set out to where it is going, the
-// pad's hatch node being where its ship's hatch is on the deck, which it is given as it sets out; it
-// is on the edge after the node of its leg, so far along it. It comes out of the bay as there is
-// cargo to carry and goes back in once there is none. Registered with Reflect, every field Saved, by
-// RegisterTypes, and shown in snapshots, which presentation draws it from.
 struct Buggy
 {
 	entt::entity station{entt::null};
@@ -162,22 +150,10 @@ struct Buggy
 	double along{0.0};
 	glm::dvec3 hatch{0.0};
 	std::int64_t crates{0};
-	// Towards the hatch, or back to the bay.
 	bool outbound{true};
 
 	bool operator==(const Buggy &) const = default;
 };
-
-// Crates to cross the deck for a ship docked at a station: carried aboard (a positive count) or off
-// (a negative one), the game's trade having settled them. Crates bought back before they are off,
-// or sold before they are aboard, need not cross. Called from a command, as the game's trade is.
-// Returns false, doing nothing, for a ship that is not docked, or for the lowest std::int64_t,
-// which has no count of crates off to match it.
-bool Carry(entt::registry &registry, entt::entity ship, std::int64_t crates);
-
-// The crates still to cross the deck for a ship, aboard and off it together, the ones on their way
-// aboard on buggies among them: none once its transfer is done.
-std::int64_t ToCarry(const entt::registry &registry, entt::entity ship);
 
 // The command that asks a station for a pad for a ship, applied in the order commands are: the
 // smallest free pad its hull fits, the lowest numbered of those, or, with none, a place at the back
@@ -203,9 +179,8 @@ struct RequestPad
 // of the station's sphere, as a ship that goes on by steering or a cruise needs; one its pilot flies
 // is lifted straight off the pad by its thrusters, kLiftHeight, and is the pilot's in a few seconds
 // rather than the half a minute the climb out of a large station's sphere takes. Refused for a
-// sender that does not control the ship, for a ship with nothing to give up, and for a docked ship
-// whose cargo is still crossing the deck (Transfer). Registered with Reflect, every field Saved, by
-// RegisterTypes.
+// sender that does not control the ship, and for a ship with nothing to give up. Registered with
+// Reflect, every field Saved, by RegisterTypes.
 struct ReleasePad
 {
 	Sim::Controller sender;
@@ -237,8 +212,6 @@ enum class Reason : std::uint8_t
 	// The station.
 	NoPadFits,
 	HoldsNothing,
-	// The crates still to cross.
-	CargoCrossing,
 	AlreadyLeaving,
 	// The station.
 	NoPadOffers
@@ -294,16 +267,6 @@ struct Left
 	std::uint32_t number{0};
 };
 
-// A ship's transfer done: every crate for it aboard and every crate off it taken from its hatch, so it
-// may leave. Registered with Reflect, every field Saved, by RegisterTypes.
-struct CargoCarried
-{
-	entt::entity ship{entt::null};
-	entt::entity station{entt::null};
-	entt::entity pad{entt::null};
-	std::uint32_t number{0};
-};
-
 // The docks in a simulation world: the components, the commands, and the system "dock"
 // (kSystemName), after physics' ("physics") and before space's lanes' when they are attached
 // (Space::LaneTravel, which orders itself), which each step, in entity order:
@@ -316,14 +279,6 @@ struct CargoCarried
 //      clamped there, docked; one flown in that has reached the point above its pad comes down onto
 //      it; and one leaving that has reached the point above its pad gives it up.
 //   4. Serves each station's queue from the front, each ship the smallest free pad it fits.
-//   5. Works each station's deck (Deck.cpp): each buggy driven on along its route, in entity order,
-//      at its speed, no nearer the one ahead of it in its lane than kBuggyGap and short of a node
-//      another holds; one at its pad's hatch handing its crates aboard and taking a load off, and
-//      one at its bay leaving its load there and taking the next aboard or going in; then, pad by
-//      pad, a buggy sent out of each bay that is clear, while a pad's ship has cargo for one and
-//      the pad has fewer out than it is given. For a station whose buggies are parked, a buggy's
-//      load each way at each of its intervals instead, and for a pad no road reaches, the cargo at
-//      once. A transfer with nothing left to carry is done.
 //
 // A ship flown in by the docks is steered (Ai::Steering): first along a course round the station's
 // sphere (Ai::Waypoints) to a point out along its pad's normal, as far beyond the point above the
@@ -384,9 +339,6 @@ class Docks
 
 	const StationLayout *FindLayout(std::string_view name) const;
 
-	// A defined layout's roads, made as it was defined.
-	const RoadGraph *FindRoads(std::string_view layout) const;
-
 	// A station's entities in the world, for the celestial body of that name in the system, built
 	// to the layout: its kinematic body on the body's rails, in the body's frame, colliding as its
 	// layout's decks and piers, and an entity for each pad, on the same rails at its place. All of
@@ -412,8 +364,8 @@ class Docks
 	void Step(Sim::SimWorld &world);
 
 	// The step the docks next have to run in (Sim::Quiet), each of Step's parts asked whether it
-	// would change anything: none while every ship is docked or queued for a pad none is free for,
-	// no cargo is carried and no reservation is held, until the first lapses.
+	// would change anything: none while every ship is docked or queued for a pad none is free for
+	// and no reservation is held, until the first lapses.
 	std::uint64_t QuietFrom(const Sim::SimWorld &world) const;
 
 	// The smallest free pad the ship's hull fits, the lowest numbered of those, that offers the
@@ -453,25 +405,6 @@ class Docks
 
 	void Unclamp(Sim::SimWorld &world, entt::entity ship);
 
-	// Each station's deck, step 5 (Deck.cpp).
-	void WorkDecks(Sim::SimWorld &world, double time);
-
-	void DriveBuggy(Sim::SimWorld &world, entt::entity buggy, const std::vector<entt::entity> &others);
-
-	void ArriveBuggy(Sim::SimWorld &world, entt::entity buggy);
-
-	void PlaceBuggy(Sim::SimWorld &world, entt::entity buggy, double time);
-
-	void SendBuggies(Sim::SimWorld &world, entt::entity station, double time);
-
-	void MoveParked(Sim::SimWorld &world, entt::entity ship);
-
-	// Where the ship's hatch is on the deck, in the station's axes, as it is clamped to its pad.
-	glm::dvec3 HatchOnDeck(const entt::registry &registry, entt::entity ship) const;
-
-	// The length of a pad's road from its bay to that hatch.
-	double RoadLength(const RoadGraph &roads, const PadRoad &road, const glm::dvec3 &hatch) const;
-
 	const PadLayout &PadOf(const entt::registry &registry, const Pad &pad) const;
 
 	const HullDefinition *HullOf(const entt::registry &registry, entt::entity ship) const;
@@ -488,6 +421,5 @@ class Docks
 	PadClasses m_padClasses;
 	std::map<std::string, HullDefinition, std::less<>> m_hulls;
 	std::map<std::string, StationLayout, std::less<>> m_layouts;
-	std::map<std::string, RoadGraph, std::less<>> m_roads;
 };
 } // namespace Jettison::Dock

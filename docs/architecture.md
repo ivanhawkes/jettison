@@ -686,36 +686,12 @@ its events, so a ship parked as a world opens is held from its first frame and n
 display pad's hold the ship it shows. Stowed, a clamp is put away at no size, and a mesh scaled to
 nothing is neither drawn nor casts a shadow.
 
-**Deck traffic** (9e, [decided](decisions.md)) carries a docked ship's cargo across the deck in
-the simulation, so every player sees the same buggy at the same place and the buggies decide when
-the ship may leave. A layout's roads (`dock/Roads.h`, `Dock::Roads`) are made from it as it is
-defined, and are never state: a road down each pier's side, in the wider strip of its top beside its
-pads; each pad's apron, the middle of its aft edge, and its hatch on its centre line; and straight
-legs joining each bay and each apron to every road at its nearest point, and each bay to each apron,
-wherever the leg lies on the deck, passes through nothing of the station and crosses no pad. Where
-legs join a road are its nodes. Each pad is routed once, by A* (9a), from the bay nearest it by road,
-and a layout with bays is refused if a pad ships land on is not reached. Highport's twelve pads are
-each served from the bay at their pier's root, 90.6, 396.8 and 606.8 m to the hatch from the first
-pad out to the third; Corva's corvette pads on its hub's top from the hatch between them.
-
-A game's trade settles its crates and its price at once, then calls `Dock::Carry`, which gives the
-docked ship a `Dock::Transfer`: crates in the bay still to go aboard and crates in the hold still to
-come off, a purchase and a sale of the same crates before they cross netted against each other. The
-docks' step then works each deck (`dock/Deck.cpp`): a `Dock::Buggy`, an entity with a Transform and
-no body, comes out of the pad's bay while its ship has cargo for one and the pad has fewer out than
-the layout gives it (`DeckTraffic::buggies`), carrying a trip's crates aboard or going to fetch them;
-it drives its route at the layout's speed on the right of the road, never nearer the buggy ahead in
-its lane than 8 m, and holds a node while it is within 6 m of it, so the next waits short of a node
-another holds, in entity order; at the hatch it hands its crates aboard and takes a load off, at the
-bay it leaves its load and goes out again or in. The transfer is done (`Dock::CargoCarried`) once
-every crate for the ship is aboard and every one off it has been taken from its hatch, and until
-then `ReleasePad` refuses to let it go. A station whose buggies are parked (`DeckTraffic::working`
-false) has none in the simulation: its dressing draws them across each pad's stern, and a buggy's
-load each way is moved at each round trip of the pad's road shared among its buggies, the rate
-working ones would have. A pad no road reaches, at a station with no bays, has its cargo at once.
-Buggies and transfers are shown in the snapshots: the shell draws each buggy (`MakeBuggyProxy`), a
-flatbed tug whose bed carries the crates it has, interpolated as any entity is, and the market
-screen says how many crates are still crossing.
+**Deck traffic** (9e, [decided](decisions.md)) carried a docked ship's cargo across the deck in the
+simulation, by buggies on roads made from a station's layout, until the space extraction retired it
+with the space sample, its one user (2026-11-22). Its roads, buggies and transfers went, with the
+layouts' bays and traffic and the hulls' hatches; `Dock.Transfer` and `Dock.Buggy` stay
+registered with the world, with no behaviour, so a save's bytes and the hashes pinned on them hold
+until slice 7 drops their saved names ([space extraction](space-extraction-plan.md)).
 
 ### Decisions
 
@@ -2187,10 +2163,6 @@ proves it headlessly. What exists:
   ([as above](#decisions), 9f), by which the sample's seven traders choose and fly their runs, and
   which the console's `traders` reports on.
 - **Docks** (`engine/dock`, 9c to 9e). Hulls and station layouts as definitions, stations built to
-  them with their pads, pads given, queued and lapsing, the approach and the clamp, and the deck's
-  roads and buggies carrying a docked ship's cargo ([as above](#docks)). The shell builds every
-  station of the galaxy that names a layout at the start, Ostra Highport with twelve destroyer pads
-  and Corva Refinery with four frigate and two corvette, parks three ships at each, and dresses each
-  layout
-  (`app/src/Dressing.h`, 9d), its roads painted and its buggies drawn from the snapshots; a trade's
-  crates cross the deck before the ship may leave.
+  them with their pads, pads given, queued and lapsing, the approach and the clamp ([as
+  above](#docks)); the deck's roads and buggies were retired with the space sample (2026-11-22),
+  which built and dressed every station of its galaxy.

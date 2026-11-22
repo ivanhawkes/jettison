@@ -106,9 +106,8 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	world.RegisterComponent<Docking>();
 	world.RegisterComponent<Transfer>();
 	world.RegisterComponent<Buggy>();
-	// A pad's state is what its lamps show (the station dressing), a ship's stage and hull whether
-	// and how its pad's clamps close on it, a buggy is drawn where it is with what it carries, and
-	// presentation reads snapshots.
+	// A pad's state is what its lamps show, a ship's stage and hull whether and how its pad's clamps
+	// close on it, and presentation reads snapshots.
 	world.ShowInSnapshots<Pad>();
 	world.ShowInSnapshots<Docking>();
 	world.ShowInSnapshots<Hull>();
@@ -123,9 +122,8 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	     Ecs::TickPhase::Simulation,
 	     Ecs::Access::Of<Hull, Physics::LocalFrame, Physics::Handling>()
 	         .Writing<
-	             Station, Pad, Docking, Transfer, Buggy, Physics::Body, Physics::OnRails,
-	             Physics::Velocity, Physics::FlightControls, Sim::Transform, Sim::InFrame,
-	             Ai::Destination, Ai::Steered>(),
+	             Station, Pad, Docking, Physics::Body, Physics::OnRails, Physics::Velocity,
+	             Physics::FlightControls, Sim::Transform, Sim::InFrame, Ai::Destination, Ai::Steered>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
 	     [docks, &world](entt::registry & /*registry*/, double /*fixedStep*/) { docks->Step(world); }},
 	    {.next = [docks](const Sim::SimWorld &target) { return docks->QuietFrom(target); }});
@@ -173,7 +171,6 @@ void Docks::DefineLayout(std::string name, StationLayout layout)
 	if (m_layouts.contains(name))
 		throw std::invalid_argument{std::format("Dock: station layout '{}' is already defined", name)};
 	m_physics.DefineShape(StationShape(name), DeckShape(layout));
-	m_roads.emplace(name, Roads(layout, m_padClasses));
 	m_layouts.emplace(std::move(name), std::move(layout));
 }
 
@@ -227,13 +224,6 @@ const StationLayout *Docks::FindLayout(std::string_view name) const
 {
 	const auto found = m_layouts.find(name);
 	return found == m_layouts.end() ? nullptr : &found->second;
-}
-
-
-const RoadGraph *Docks::FindRoads(std::string_view layout) const
-{
-	const auto found = m_roads.find(layout);
-	return found == m_roads.end() ? nullptr : &found->second;
 }
 
 
@@ -397,8 +387,6 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 			return;
 		}
 		case Stage::Docked:
-			if (const std::int64_t crates = ToCarry(registry, ship); crates > 0)
-				return refuse(Reason::CargoCrossing, {Sim::ReasonArgument::Integer(crates)});
 			docking->fly = command.fly;
 			Unclamp(world, ship);
 			return;
@@ -515,9 +503,6 @@ void Docks::Step(Sim::SimWorld &world)
 	// 4. The queues, from the front.
 	for (const entt::entity station : Sorted<Station>(registry))
 		Serve(world, station, time);
-
-	// 5. The decks.
-	WorkDecks(world, time);
 }
 
 
@@ -525,9 +510,6 @@ std::uint64_t Docks::QuietFrom(const Sim::SimWorld &world) const
 {
 	const entt::registry &registry = world.Registry();
 	const std::uint64_t now = world.Clock().Step();
-	// 5: cargo carried, and the buggies carrying it.
-	if (!registry.view<const Transfer>().empty() || !registry.view<const Buggy>().empty())
-		return now;
 	// 1 and 3: what can no longer be held, and every ship on its way.
 	for (const auto [padEntity, pad] : registry.view<const Pad>().each())
 	{
@@ -651,8 +633,6 @@ void Docks::GiveUp(Sim::SimWorld &world, entt::entity ship, bool announce)
 	}
 	if (docking.fly || docking.stage == Stage::Leaving)
 		Hold(registry, ship);
-	// Its buggies bring back whatever they were taking to it.
-	registry.remove<Transfer>(ship);
 	registry.remove<Docking>(ship);
 	if (announce)
 		world.Events().Emit(PadReleased{ship, docking.station});

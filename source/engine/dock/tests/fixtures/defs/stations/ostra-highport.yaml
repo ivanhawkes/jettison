@@ -6,7 +6,7 @@
 # The hub is 200 m square and 60 m deep. Each pier is 660 m long, 120 m wide and 20 m deep, its top 10 m
 # above the station's middle; its three 80 x 180 m pads lie along it, 30 m apart and 20 m in from its
 # sides, their noses pointing out along it, so the largest transports on two of them are 70 m apart end
-# to end. A cargo bay's door is in the hub's wall at each pier's root, its sill on the pier's deck.
+# to end.
 # Pads 11 and 12, the two furthest out along -Z, offer a dry dock, where the sample repairs a damaged
 # ship (a pad's features, Dock.PadLayout).
 #
@@ -15,14 +15,9 @@
 # +X, and four corvette pads in a row beyond them for fighters. Display pads are dressing
 # (Dock.PadLayout): no ship is given one, and each names the hull drawn on it. The wing's far corner is
 # 721 m out, inside the sphere the piers' tips make, 762 m.
-#
-# Buggies carry a ship's cargo between its pad and the bay at its pier's root, along the road down the
-# pier's side (Dock::Roads): three a pad, four crates a trip, at 8 m/s, so a shuttle's twenty crates are
-# aboard pad 1, 117 m from its bay, in 45 s, and aboard pad 3, 633 m out, in about four minutes.
 version: 1
 displayName: Ostra Highport
 reservationSeconds: 300
-traffic: {buggies: 3, cratesPerTrip: 4, speed: 8, working: true}
 decks:
   - {centre: [0, 0, 0], size: [200, 60, 200]}
   - {centre: [280, 0, 290], size: [440, 20, 460]}
@@ -50,8 +45,3 @@ pads:
   - {class: corvette, position: [240, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
   - {class: corvette, position: [320, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
   - {class: corvette, position: [400, 10, 470], heading: [1, 0, 0], display: true, ship: fighter}
-bays:
-  - {position: [100, 10, 0], normal: [1, 0, 0]}
-  - {position: [-100, 10, 0], normal: [-1, 0, 0]}
-  - {position: [0, 10, 100], normal: [0, 0, 1]}
-  - {position: [0, 10, -100], normal: [0, 0, -1]}

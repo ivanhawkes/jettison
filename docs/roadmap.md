@@ -207,15 +207,6 @@ player's report of a problem needs and the shell does not write.
   down from outside the sphere, which a layout is checked to leave clear. Steering is measured for a
   station's traffic, sixteen ships; a busier lane's, where every ship queries the index each step,
   is measured when a game has one.
-- **Deck traffic, not yet placed** (9e): a buggy drives to its ship's hatch on the deck under the
-  hull, through whatever of the hull's proxy is lower than the buggy, as a ramp or a lift a hull
-  lowers to its hatch would not; roads run only on the tops of decks and piers, so a pad on a side
-  or an underside, which no road reaches, is refused at a station with bays; the roads' legs are
-  not checked against each other, so two that cross between nodes let buggies pass through each
-  other there, which neither sample station has; a buggy carries crates, not goods, the trade
-  having said which; and a pad's buggies are its own, not a station's pool shared out by demand.
-  A buggy is placed on its station's rails each step, which for a station's few dozen is nothing,
-  and is measured when a game has hundreds.
 - **The UI, not yet placed** (entry 23, 8b): a stylesheet or document reloaded when its file
   changes (RmlUi keeps a stylesheet for the run); a document's images decoded on the I/O worker
   rather than as the document lays out, which is on the main thread and fine for a screen's icons;

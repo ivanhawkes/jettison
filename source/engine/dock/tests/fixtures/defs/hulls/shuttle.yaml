@@ -1,5 +1,5 @@
 # The sample's ship and the console's traffic (docs/sample-game.md): ten metres long, a small
-# hauler's twenty crates. Its hatch is under the hull, aft. A hull of the docks (Dock.HullDefinition):
+# hauler's twenty crates. A hull of the docks (Dock.HullDefinition):
 # metres, its nose along -Z.
 version: 2
 displayName: Shuttle
@@ -7,4 +7,3 @@ length: 9.8
 beam: 6.4
 height: 1.8
 pad: corvette
-hatch: [0, -0.9, 3]

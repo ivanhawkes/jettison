@@ -134,10 +134,9 @@ TEST_CASE("Dock definitions: a hull of version 1 loads, its cruise drive, the ga
 }
 
 
-TEST_CASE(
-    "Dock definitions: a hull larger than its pad's largest, or with its hatch outside it, is refused")
+TEST_CASE("Dock definitions: a hull larger than its pad's largest, or of no size, is refused")
 {
-	Dock::HullDefinition fighter{"Fighter", 18.0f, 14.0f, 5.0f, "corvette", {0.0f, -2.5f, 4.0f}};
+	Dock::HullDefinition fighter{"Fighter", 18.0f, 14.0f, 5.0f, "corvette"};
 	CHECK(Refusal(fighter).empty());
 	Dock::HullDefinition longer = fighter;
 	longer.length = 26.0f;
@@ -149,9 +148,6 @@ TEST_CASE(
 	Dock::HullDefinition flat = fighter;
 	flat.height = 0.0f;
 	CHECK(Refusal(flat) == "Hull 'hull' has a length, beam or height that is not a positive size");
-	Dock::HullDefinition open = fighter;
-	open.hatch = {0.0f, -3.0f, 4.0f};
-	CHECK(Refusal(open) == "Hull 'hull' has its cargo hatch outside its hull");
 }
 
 

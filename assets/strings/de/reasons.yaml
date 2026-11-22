@@ -15,9 +15,6 @@ reason:
     already_holds_pad: das Schiff hat bereits Landeplattform {0} an {1}
     no_pad_fits: "{0} hat keine Landeplattform, auf die der Rumpf passt"
     holds_nothing: das Schiff hat keine Landeplattform und wartet auf keine
-    cargo_crossing:
-      one: die Fracht ist noch auf dem Deck unterwegs, {0} Kiste
-      other: die Fracht ist noch auf dem Deck unterwegs, {0} Kisten
     already_leaving: das Schiff verlässt seine Landeplattform bereits
     no_pad_offers: "{0} hat keine passende Landeplattform, die das Gewünschte bietet"
   ai:

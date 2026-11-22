@@ -18,9 +18,6 @@ reason:
     already_holds_pad: the ship already holds pad {0} at {1}
     no_pad_fits: "{0} has no pad its hull fits"
     holds_nothing: the ship holds no pad and waits for none
-    cargo_crossing:
-      one: its cargo is still crossing the deck, {0} crate
-      other: its cargo is still crossing the deck, {0} crates
     already_leaving: the ship is already leaving its pad
     no_pad_offers: "{0} has no pad its hull fits that offers what it asks for"
   ai:

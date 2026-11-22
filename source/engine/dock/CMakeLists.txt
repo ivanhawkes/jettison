@@ -15,18 +15,14 @@ jettison_add_module(dock
 	HEADERS
 		include/jettison/dock/Definitions.h
 		include/jettison/dock/Docks.h
-		include/jettison/dock/Roads.h
 	SOURCES
 		src/Definitions.cpp
-		src/Deck.cpp
 		src/Docks.cpp
-		src/Roads.cpp
 		src/Types.cpp
 	TESTS
 		tests/DefinitionTests.cpp
 		tests/PadTests.cpp
 		tests/ApproachTests.cpp
-		tests/DeckTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT
