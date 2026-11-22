@@ -168,6 +168,12 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
   neutral and rings are not, but the renderer has no extension point for a game's own passes and
   Manifest no renderer yet.
 
+## To revisit
+
+- **The save's migration from version 1** (the user's, 2026-11-22, slice 3): it stays the engine's,
+  in neutral words, where the plan had the game supply it. Revisit whether a game should supply it,
+  as a hook over the engine's info record, before slice 8 closes the boundary.
+
 ## Risks
 
 - Slice 4 is the large one: rebuilding cruises on transit without moving a pin needs the same
