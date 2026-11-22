@@ -155,7 +155,13 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      parts and keeps `Cruising`; the lanes and gates take their steps, arrivals and given-up
      destinations from them, and space's private copies are gone. No pinned hash moved; Manifest's
      53 suites on the local engine.
-   - **4c, portals.** The lanes on them: a door between two frames and one within a frame.
+   - **4c, portals.** **Done** 2026-11-22: a portal as any game's (`transit/Portal.h`): an entity out
+     of its frame for a set time (`Depart`) and out at an exit the game places, in any frame, the one
+     it left included, at rest ahead of the exit and clear of what is there (`ComeOut`, each `Exit`
+     from `Portals::Locate`); `Transit::Portals` runs them, a door from a building onto a moving
+     ferry and two through a lift door within the building in the suite, fast-forwarded as stepped.
+     The lanes are built on those parts and keep `OnLane`. No pinned hash moved; Manifest's 53
+     suites on the local engine.
    - **4d, slots and gated portals.** The gates on them: a toll booth's gated portal and a car
      park's bays.
    - **4e, the smoke run's jump stage** removed with its five words, the jump being Manifest's.

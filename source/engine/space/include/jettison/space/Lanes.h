@@ -30,7 +30,7 @@ namespace Jettison::Space
 // of its system through a jump point, in none for the lane's transit time, and into the system at
 // the lane's far end, at the jump point there. What sends a ship along a lane, the pilot flying
 // through the gate's ring that cleared it (Gates.h), or a tool, is the game's; this is how the
-// simulation carries it.
+// simulation carries it, as a portal (transit/Portal.h) whose exits are the galaxy's jump points.
 
 // An entity on a lane: its Sim::InFrame names no system (Sim::kNoFrame) from the step it entered
 // to the step it arrives in. Its Transform is where it left, which nothing shows, since an entity

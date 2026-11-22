@@ -10,13 +10,11 @@
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
-#include <jettison/transit/Passage.h>
 #include <jettison/transit/Path.h>
+#include <jettison/transit/Portal.h>
 
 #include <algorithm>
-#include <cmath>
 #include <format>
-#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -49,13 +47,7 @@ LaneTravel &LaneTravel::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld
 	     // Dock::Docks::kSystemName: space does not depend on dock, nor dock on space.
 	     {"dock"}},
 	    // Until the step an arrival ends at, nothing on a lane changes.
-	    {.next = [](const Sim::SimWorld &target)
-	     {
-		     std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
-		     for (const auto [entity, lane] : target.Registry().view<const OnLane>().each())
-			     next = std::min(next, lane.arrivalStep - std::min<std::uint64_t>(lane.arrivalStep, 1));
-		     return next;
-	     }});
+	    {.next = Jettison::Transit::NextArrival<OnLane>});
 	return *lanes;
 }
 
@@ -123,9 +115,8 @@ void LaneTravel::Enter(Sim::SimWorld &world, const EnterLane &command) const
 	    inSystem->frame, command.jumpPoint, destination, std::string{exit->arrival},
 	    world.Clock().Step() + Jettison::Transit::Steps(exit->transitSeconds, world.FixedStep())};
 	registry.emplace_or_replace<OnLane>(command.entity, lane);
-	registry.replace<Sim::InFrame>(command.entity, Sim::kNoFrame);
 	// Where it was going is in the system it left.
-	Jettison::Transit::GiveUpDestination(registry, command.entity);
+	Jettison::Transit::Depart(registry, command.entity);
 	world.Events().Emit(LaneEntered{command.entity, lane, exit->transitSeconds});
 }
 
@@ -134,23 +125,15 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 {
 	entt::registry &registry = world.Registry();
 	// The step being run ends at the next count.
-	const std::uint64_t ending = world.Clock().Step() + 1;
-	std::vector<entt::entity> arriving;
-	for (const auto [entity, lane] : registry.view<const OnLane>().each())
-		if (lane.arrivalStep <= ending)
-			arriving.push_back(entity);
+	const std::vector<entt::entity> arriving =
+	    Jettison::Transit::Arriving<OnLane>(registry, world.Clock().Step() + 1);
 	if (arriving.empty())
 		return;
-	std::ranges::sort(arriving, {}, [](entt::entity entity) { return entt::to_integral(entity); });
 
 	// Every arrival is placed before any is made, so a step that cannot place one changes nothing.
-	struct Arrival
-	{
-		Sim::Transform transform;
-		std::string frame;
-	};
 	const double endsAt = world.Clock().Now() + world.FixedStep();
-	std::vector<Arrival> places;
+	std::vector<std::uint64_t> destinations;
+	std::vector<Jettison::Transit::Exit> exits;
 	for (const entt::entity entity : arriving)
 	{
 		const OnLane &lane = registry.get<const OnLane>(entity);
@@ -168,47 +151,18 @@ void LaneTravel::Arrive(Sim::SimWorld &world) const
 		    parent >= 0 &&
 		    starSystem.bodies[static_cast<std::size_t>(parent)].kind == Celestial::BodyKind::Station;
 		const glm::dquat facing = Celestial::JumpPointFacing(starSystem, body, endsAt);
-		places.push_back(
-		    {{Celestial::EvaluateBody(starSystem, body, endsAt).metres, facing},
-		     atStation ? starSystem.bodies[static_cast<std::size_t>(parent)].name : lane.arrival});
-	}
-
-	// What is already in each system arrived in, where it is as the step ends; each arrival joins
-	// them once it is placed.
-	std::vector<std::uint64_t> destinations;
-	destinations.reserve(arriving.size());
-	for (const entt::entity entity : arriving)
-		destinations.push_back(registry.get<const OnLane>(entity).to);
-	std::vector<Jettison::Transit::Occupant> occupants =
-	    Jettison::Transit::Occupants(registry, m_physics, destinations);
-	for (std::size_t index = 0; index < arriving.size(); ++index)
-	{
-		const auto *body = registry.try_get<const Physics::Body>(arriving[index]);
-		if (!body)
-			continue;
-		const std::uint64_t to = registry.get<const OnLane>(arriving[index]).to;
-		const double radius = m_physics.ShapeRadius(body->shape);
-		Sim::Transform &place = places[index].transform;
+		destinations.push_back(lane.to);
 		// Out ahead of the ring, clear of its sensor, so the gate does not see it pass through.
-		place.position += place.orientation *
-		                  glm::dvec3{0.0, 0.0, -(Gates::kRingDepth / 2.0 + radius + kArrivalClearance)};
-		place.position = Jettison::Transit::ClearPlace(occupants, to, place, radius, kArrivalClearance);
-		occupants.push_back({to, place.position, radius});
+		exits.push_back(
+		    {{Celestial::EvaluateBody(starSystem, body, endsAt).metres, facing},
+		     atStation ? starSystem.bodies[static_cast<std::size_t>(parent)].name : lane.arrival,
+		     Gates::kRingDepth / 2.0});
 	}
+	Jettison::Transit::ComeOut(registry, m_physics, arriving, destinations, exits, kArrivalClearance);
 
-	for (std::size_t index = 0; index < arriving.size(); ++index)
+	for (const entt::entity entity : arriving)
 	{
-		const entt::entity entity = arriving[index];
 		const OnLane lane = registry.get<const OnLane>(entity);
-		registry.emplace_or_replace<Sim::Transform>(entity, places[index].transform);
-		registry.emplace_or_replace<Sim::InFrame>(entity, lane.to);
-		if (registry.all_of<Physics::Body>(entity))
-		{
-			registry.emplace_or_replace<Physics::LocalFrame>(entity, places[index].frame);
-			registry.emplace_or_replace<Physics::Velocity>(entity);
-		}
-		if (auto *controls = registry.try_get<Physics::FlightControls>(entity))
-			controls->reference = entt::null;
 		registry.remove<OnLane>(entity);
 		world.Events().Emit(LaneLeft{entity, lane.to, lane.arrival});
 	}

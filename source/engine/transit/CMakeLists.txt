@@ -1,6 +1,7 @@
 # Transit, of no genre (docs/architecture.md, "Transit"): motion profiles, which say in closed form
 # how far a vehicle, a lift or a train has come along its way by a time, and passages, which carry an
-# entity out of physics along a way and bring it out clear of what is there.
+# entity out of physics along a way and bring it out clear of what is there, and portals, which take
+# an entity out of its frame for a set time and bring it out at an exit in any frame.
 jettison_add_module(transit
 	DETERMINISTIC
 	DEPENDS
@@ -13,15 +14,18 @@ jettison_add_module(transit
 	HEADERS
 		include/jettison/transit/Passage.h
 		include/jettison/transit/Path.h
+		include/jettison/transit/Portal.h
 		include/jettison/transit/Profile.h
 		include/jettison/transit/Types.h
 	SOURCES
 		src/Passage.cpp
 		src/Path.cpp
+		src/Portal.cpp
 		src/Profile.cpp
 		src/Types.cpp
 	TESTS
 		tests/PassageTests.cpp
+		tests/PortalTests.cpp
 		tests/ProfileTests.cpp
 	PUBLIC_LIBRARIES
 		glm

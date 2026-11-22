@@ -3,6 +3,7 @@
 #include <jettison/physics/Components.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/transit/Passage.h>
+#include <jettison/transit/Portal.h>
 #include <jettison/transit/Profile.h>
 
 namespace Jettison::Transit
@@ -29,6 +30,16 @@ void RegisterTypes()
 		    .Field<&Passage::profile>("profile", Attribute::Saved);
 		RegisterType<PassageEnded>("Transit.PassageEnded", Attribute::Script)
 		    .Field<&PassageEnded::entity>("entity", Attribute::Saved);
+		RegisterType<InPortal>("Transit.InPortal")
+		    .Field<&InPortal::from>("from", Attribute::Saved)
+		    .Field<&InPortal::entrance>("entrance", Attribute::Saved)
+		    .Field<&InPortal::to>("to", Attribute::Saved)
+		    .Field<&InPortal::exit>("exit", Attribute::Saved)
+		    .Field<&InPortal::arrivalStep>("arrivalStep", Attribute::Saved);
+		RegisterType<PortalLeft>("Transit.PortalLeft", Attribute::Script)
+		    .Field<&PortalLeft::entity>("entity", Attribute::Saved)
+		    .Field<&PortalLeft::frame>("frame", Attribute::Saved)
+		    .Field<&PortalLeft::exit>("exit", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;

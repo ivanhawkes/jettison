@@ -181,7 +181,8 @@ ship through its flight controls and keeps it clear of the bodies' shapes. The l
 `space` or `celestial` (G01d), though its suites fly in the retired sample's star system, a copy in
 their fixtures. `transit` is travel of no genre (below, "Transit"), from the [space
 extraction](space-extraction-plan.md): on `physics`, as a passage takes an entity's body out and
-gives it back, and on `ai`, as it gives up a steered entity's destination. `space` is the optional space capability (W01): its
+gives it back, and on `ai`, as it gives up a steered entity's destination; its portals take an entity
+out of its frame and bring it out at an exit. `space` is the optional space capability (W01): its
 edge on `physics` is a star system as a physics frame (`Space::DefineStarSystem`), and on `ai` the
 transit that flies ships with steering, cruising, lanes, gates and routes over the galaxy, its types
 saved under the names they had as the AI's (`Ai.OnLane`); it depends on `celestial` below, and no
@@ -276,7 +277,7 @@ That is presentation's jump, which changes what is shown. The simulation's (`spa
 carries an entity along a lane: the command `Space::EnterLane`, from a sender that commands it (a gate
 sends a ship it cleared as no one in particular), takes it out of its system through a jump
 point (its `InFrame` none, an `Space::OnLane` saying where it is going and the step it arrives), gives
-up its destination, and the system `lanes`, after physics, brings it out at the far jump point when
+up its destination (`Transit::Depart`), and the system `lanes`, after physics, brings it out (`Transit::ComeOut`) at the far jump point when
 the transit's whole steps are run. A body comes out at rest in the gate's own frame (or that of a
 station it keeps by), facing the way the gate faces (`Celestial::JumpPointFacing`: its planet), with
 its flight controls taken against nothing. It comes out ahead of the ring, clear of its sensor by
@@ -333,6 +334,15 @@ in closed form), slowed to its whole steps (`Transit::Underway`), so the steps b
 quiet and fast-forward passes over them. `Transit::Passages` runs passages kept in a
 `Transit::Passage`, the suite's lift and train among them; a cruise keeps its own saved `Cruising`
 and is built on the same parts, below.
+
+A portal (`transit/Portal.h`, slice 4c) is a door between two levels or a teleporter: the entity
+leaves its frame for a set time, in none meanwhile (`Transit::Depart`), and comes out at a named exit
+in any frame, the one it left included. The game places its exits (`Portals::Locate`): where each
+is as the step ends, the way it faces, the local frame an arrival comes out in, and how far ahead of
+it an arrival comes out. An arrival with a body comes out at rest that far ahead, beyond its own
+shape and a clearance, clear of what is there (`Transit::ComeOut`). `Transit::Portals` runs portals
+kept in a `Transit::InPortal`, the suite's door onto a moving ferry and lift door within a building
+among them; a lane keeps its own saved `OnLane` and is built on the same parts ([jumps](#jumps)).
 
 ### Cruising
 
