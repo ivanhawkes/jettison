@@ -12,10 +12,11 @@ its current requirements drive concrete engine capability work through the
 the next integration, and provision reusable gaps in public engine code.
 
 Manifest owns its production economy, progression, ownership, scenarios and assets.
-Jettison may keep a small space-trading example for automated tests, separated into
-explicit sample/test code and content. Generic consumers must not start its economy,
-link its rules or mount its data implicitly. The space setting, star systems and their transit
-included, is Manifest's ([space extraction](space-extraction-plan.md)).
+Jettison keeps small consumers of its own for automated tests, the ground sample and the test
+content, separated into explicit sample/test code and content; generic consumers must not start a
+sample's rules or mount its data implicitly. The space setting, star systems, their orbits and
+their transit included, is Manifest's ([space extraction](space-extraction-plan.md), done
+2026-11-23).
 
 This direction, approved 2026-11-15, supersedes the earlier test of whether a feature
 would suit another space game. Ask whether its contract is reusable independently of
@@ -40,13 +41,14 @@ Linux/C++20/toolchain constraints remain. The following feature catalogue record
 space example's original scoping choices and current coverage; reasons such as "no
 humanoids" or "space has no walkable surface" describe that example, not permanent
 restrictions on future engine consumers. Reassess capabilities when a concrete consumer
-requires them. Separation is pending as listed in the roadmap.
+requires them. Where a row's capability moved to Manifest in the space extraction, the row says so.
 
 ## Verdicts
 
 **In**: built, in the phase the [roadmap](roadmap.md) gives it. **Reframed**: the need is real
 but the item as written is the wrong solution for this game. **Deferred**: possibly needed, but
-only on measured evidence or close to shipping. **Out**: not built.
+only on measured evidence or close to shipping. **Out**: not built. **Moved**: built here and moved to Manifest
+in the [space extraction](space-extraction-plan.md).
 
 ### Animation
 
@@ -68,8 +70,8 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Behaviour trees | In | Per-ship tactical sequences: undock, fly to waypoint, request docking, dock. |
 | Utility AI | In (added) | Economic choices (which trade, which route, which upgrade) are scoring problems, not trees. |
 | Navmesh | Out | Space has no walkable surface. |
-| Pathfinding | Reframed | A* over the jump-lane graph and over in-system waypoint graphs (approach corridors, lanes), not over meshes or grids. |
-| Collision avoidance | In | Steering near stations and in traffic lanes, so automated ships do not fly through each other or the player. |
+| Pathfinding | Reframed | A* over graphs (`Ai::FindPath`), as Manifest's over its jump lanes, and courses round spheres; not over meshes or grids. |
+| Collision avoidance | In | Steering near platforms and in traffic, so automated vehicles do not fly through each other or the player. |
 
 ### Audio
 
@@ -94,7 +96,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Third person orbit | In | Orbiting stations, planets and ships. |
 | First person | In | Cockpit view when piloting. |
 | Chase | In (added) | Behind the piloted ship. |
-| Map | In (added) | System map and galaxy map: top-down orbit with zoom across many orders of magnitude. |
+| Map | Moved | A system and galaxy map is Manifest's, for its graphical client; the engine gives the orbit camera's zoom across many orders of magnitude. |
 | Cinematic | In (phase 11c) | A sequence's camera, over the rigs, which run under it and take the camera back where they have it. |
 
 ### Engine runtime
@@ -107,7 +109,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Entity component system, queries | In | EnTT, already used. Upgraded from v3.6.0 (2020) to a current release in phase 1. Queries are EnTT views and groups; the engine adds no wrapper. |
 | Finite state machines | In | A small utility for ship states and application flow (menu, loading, in system, jumping). |
 | Time | In | Real clock, fixed-step simulation clock with pause and time compression, game calendar. |
-| Time of day / seasons | Reframed | Becomes the celestial clock: planet rotation and on-rails orbits of planets, moons and stations driven by simulation time. Seasons are out. |
+| Time of day / seasons | Reframed | Becomes rails driven by simulation time (`Physics::FrameModel`): Manifest's planets turn and its planets, moons and stations orbit on them. Seasons are out. |
 | Platform: Linux | In | Exists (Wayland desktop, X11 headless). |
 | Platform: Windows | Out | Dropped from the plan on 2026-11-10: the toolchain cost more than it returned. |
 | Platform: CPU | In | x86-64 with AVX2 minimum (Intel Haswell 2013, AMD Excavator 2015, and later), checked at start-up. Jolt's instruction-set flags set it. |
@@ -121,7 +123,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Frustum culling | In | Needed as soon as there is a station with modules and traffic. |
 | Planet horizon culling | In (added) | A planet hides everything behind it; a sphere test is cheap. |
 | Occlusion culling | Out | Space scenes are sparse. Not worth the work for scenes without walls. |
-| Spatial queries | In | A per-system index for simulation queries (nearest station, ships in sensor range), separate from Jolt's broadphase, which serves physics. |
+| Spatial queries | In | A per-frame index for simulation queries (nearest platform, vehicles in sensor range), separate from Jolt's broadphase, which serves physics. |
 | Raycasting | In | Mouse picking of stations, ships and UI targets, and Jolt ray queries. |
 
 ### Content, files and extension
@@ -132,12 +134,12 @@ only on measured evidence or close to shipping. **Out**: not built.
 | Scripting: Wasm | In (11b) | Sandboxed mod behaviour (events, AI considerations; missions are the game's, written as handlers). WAMR's interpreter as the runtime, scripts in C or Rust against bindings generated from reflection ([decided](decisions.md)). |
 | Scripting: native C++ | Reframed | Game logic is native C++ in the game repository. There is no native plugin loading for mods: it is unsandboxed and ABI-fragile. |
 | File system | In | A virtual file system with ordered mounts (base, DLC, mods, user), each a directory or a pack. Mods override by path, and patch definitions field by field. |
-| Streaming | Reframed | Asynchronous asset loading when a star system is entered, behind a loading transition. Not open-world streaming. |
+| Streaming | Reframed | Asynchronous asset loading when a scene is entered (a star system, in Manifest), behind a loading transition. Not open-world streaming. |
 | Compression, zipping | In (11a) | Pack files for shipping and for mods, each file its own zstd frame; development reads loose files. Mods are directories or packs, not zip archives ([decided](decisions.md)). |
 | Resource manager | In | Typed handles, asynchronous load, reference counting, hot reload in development builds. |
 | Serialisation: load, save | In | YAML for authored content (the scene format exists); a versioned binary format for saves. Both reflection-driven. |
 | Persistence | In | Save games of simulation state, versioned with migrations. Settings and keybindings saved separately. |
-| Scene: management | In | One loaded scene per star system, entered and left through jumps; the galaxy-level simulation persists across them. |
+| Scene: management | In | One loaded scene at a time, replaced by the game (in Manifest one per star system, through jumps); the simulation of every frame persists across them. |
 | Scene: layers | In | Content layers within a system (static environment, traffic, effects) for loading and editor visibility. |
 
 ### Graphics
@@ -181,7 +183,7 @@ only on measured evidence or close to shipping. **Out**: not built.
 
 | Item | Verdict | Reason |
 |---|---|---|
-| Floating origin | In | Architectural and dangerous to retrofit, so early. The simulation holds double-precision positions per star system; rendering is camera-relative in float; reversed-Z depth with an infinite far plane covers a cockpit and a planet in the same frame. |
+| Floating origin | In | Architectural and dangerous to retrofit, so early. The simulation holds double-precision positions per frame; rendering is camera-relative in float; reversed-Z depth with an infinite far plane covers a cockpit and a planet in the same frame. |
 
 ### Mathematics
 
@@ -198,7 +200,7 @@ target. The engine adds:
 | Noise | In | CPU noise (FastNoiseLite) for procedural generation; GPU noise in shaders. |
 | Random numbers | In | The engine's own seeded generator (PCG32) and distributions. `std::uniform_*_distribution` is implementation-defined: its streams differ between standard library implementations and can change between their versions, which would break saves and replays. |
 | Tangents | In | Normal mapping; MikkTSpace when glTF omits them. |
-| Orbital mechanics | In (added) | Keplerian on-rails orbits, transfer timing for route estimates. |
+| Orbital mechanics | Moved | Keplerian on-rails orbits and transfer timing are Manifest's (`space`, the space extraction's slice 6), on the engine's rails. |
 
 ### Memory and threading
 
@@ -227,7 +229,7 @@ positions.
 | Rigid body, static body | In | The piloted ship, debris, cargo pods; stations. |
 | Box, sphere, capsule, cylinder | In | Plus convex hull and mesh shapes for stations. |
 | Collision | In | Contact events feed damage and impact sound. |
-| Area | In | Sensors: docking zones, station no-fire zones, jump points. |
+| Area | In | Sensors: docking zones, no-fire zones, gated portals. |
 | Ragdoll | Out | No characters. |
 | Water, wind | Out | Space. |
 | Particles (physics) | Out | Particles are a render system. |

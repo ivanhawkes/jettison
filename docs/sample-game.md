@@ -24,7 +24,7 @@ own: the proxy built and the scene as authored while it drives, the keys sent, a
 with W held stopping the rover once the keys are read again. The smoke test runs it after the render
 test's two scenes: its piloting stages drive the rover ahead and then turning, each waiting
 (`SmokeActions::piloting`) until it is past 1 m/s and then 10 degrees from where it faced, which the
-game logs and the smoke test reads. It has no jump, so its run has no jump stage.
+game logs and the smoke test reads.
 
 ## Manifest informs capability requirements
 

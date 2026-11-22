@@ -84,7 +84,8 @@ JPH::RefConst<JPH::Shape> BuildShape(std::string_view name, const ShapeDefinitio
 			if (shape.points.size() < 4)
 				Refuse(
 				    name,
-				    std::format("is a hull of {} points, and needs at least 4", shape.points.size()));
+				    std::format(
+				        "is a convex hull of {} points, and needs at least 4", shape.points.size()));
 			JPH::Array<JPH::Vec3> points;
 			points.reserve(shape.points.size());
 			for (const glm::vec3 &point : shape.points)

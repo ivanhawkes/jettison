@@ -4,21 +4,20 @@ How the engine is laid out, how its parts depend on each other, and the handful 
 architectural rules that are expensive to change later. The [scope](scope.md) says what is
 built; the [roadmap](roadmap.md) says in what order.
 
-## Responsibility boundary and planned extraction
+## Responsibility boundary
 
-The target contract is [game integration](game-integration.md): Manifest owns production
-gameplay/content; Jettison provisions reusable engine capabilities after checking its
-current requirements. Small engine-local gameplay examples remain permitted for testing,
-but belong in explicit sample targets outside engine code and use public SDK interfaces.
-
-Star systems, their orbits and the galaxy, and space transit on the engine's transit, are Manifest's
-`space` module since slice 6 of the [space extraction](space-extraction-plan.md) (2026-11-23); a star
-system's scene and the jump between two were `spacescene`'s, retired with the space sample on
-2026-11-22; the snapshot's frames are neutral (A01). The dock's berth classes are data.
-Extract a neutral host, separate resources and generic modules. No engine target may depend on a
-sample or Manifest. Presentation
-must also work without celestial content. Preserve existing regressions through explicit
-sample composition and save migrations; do not claim extraction complete from docs alone.
+The contract is [game integration](game-integration.md): Manifest owns production gameplay and
+content, space included; Jettison provisions reusable engine capabilities after checking its current
+requirements. The engine keeps a concept only when it has a neutral name and serves more than one
+genre, the games driving it from outside ([space extraction](space-extraction-plan.md), done
+2026-11-23): frames, rails and local frames, transit, portals and slots, berths, steering, decisions,
+sky, atmosphere and large-world precision. Star systems, their orbits and the galaxy, cruising, jump
+lanes, gates and routes are Manifest's `space` module, built on those
+([Manifest's architecture](../../manifest/docs/architecture.md#space)). The engine's own consumers
+are the ground sample, a game of no space, and the test content's static scenes, which render_test
+draws with no game. No engine target may depend on a sample or on Manifest
+(`jettison_check_dependencies`), and no engine module's headers or sources use the space setting's
+words (`neutral_words`, below).
 
 ## Repository layout
 
@@ -56,7 +55,7 @@ jettison/
     │   ├── animation/          glTF rigs and clip player, TRS tracks, mechanical skins
     │   ├── sim/                simulation world, command queue, snapshots, definition registry
     │   ├── scene/              presentation scene, its file, update systems, camera rigs; layers
-    │   ├── spatial/            per-system spatial index, queries
+    │   ├── spatial/            per-frame spatial index, queries
     │   ├── input/              actions, contexts, bindings, devices
     │   ├── render/             renderer interface, frame, cameras, materials, debug draw
     │   │   └── src/vulkan/     the Vulkan backend, private, behind IRenderer.h
@@ -167,14 +166,14 @@ flowchart TB
 The World tier's listed sibling edges are `scene`'s: on `animation`, whose clip players its update
 drives, and on `sim`, whose snapshots its proxies of the simulation's entities are made from
 (`scene/SimProxies.h`, 6b); and `spatial`'s on `sim` (9b), whose components its
-index of each system is kept from, by a simulation system. The scene reads `Sim::Snapshot` alone, never the
+index of each frame is kept from, by a simulation system. The scene reads `Sim::Snapshot` alone, never the
 world, and nothing in `sim` sees the scene. `render` depends on
 `scene` from the tier above, and reads it; the scene names no device. The Presentation tier's listed
 sibling edges are `ui`'s on `render` (8b): the UI draws into `Render::Overlay`, a plain draw list in
 render's public headers, and decodes a document's images with render's CPU texture decoder; it
 includes no Vulkan header and the renderer no RmlUi one. Another is `ai`'s on `physics` (9b): steering flies a
-ship through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
-`ai` and `physics` (9c): steering flies a ship onto its pad, and physics holds it there; its suites fly
+vehicle through its flight controls and keeps it clear of the bodies' shapes. The last are `dock`'s on
+`ai` and `physics` (9c): steering flies a vehicle onto its berth, and physics holds it there; its suites fly
 round a platform on a ferry of their own frame model. `transit` is travel of no genre (below, "Transit"), from the [space
 extraction](space-extraction-plan.md): on `physics`, as a passage takes an entity's body out and
 gives it back, and on `ai`, as it gives up a steered entity's destination; its portals take an entity
@@ -195,8 +194,8 @@ from it, and then it is no longer deterministic or testable without a GPU.
 
 The game is single-player, but the simulation runs as if it were a local server.
 
-- **The simulation world** owns authoritative state in its own `entt::registry`: ships, cargo,
-  stations, markets, orders, positions in double precision. It advances in fixed steps on
+- **The simulation world** owns authoritative state in its own `entt::registry`: vehicles,
+  inventories, platforms, markets, orders, positions in double precision. It advances in fixed steps on
   simulation time, which is real time multiplied by the time-compression factor. It is
   deterministic: the same save and the same command stream produce the same state in every
   build of the engine, Debug and Release alike. It is everything a save contains.
@@ -213,107 +212,24 @@ An event that says why something was refused or given up carries a reason (`sim/
 [decided](decisions.md)), never text: a key and its arguments, each an integer, an entity or
 an identifier from the game's data. Each module's reasons are an enumeration registered with Reflect
 as `<Module>.Reason` (`Dock.Reason`, `Ai.Reason`, the shell's `Shell.Reason`), whose enumerator names
-the key, `reason.dock.no_pad_fits`, so two modules cannot make the same one; presentation words it
+the key, `reason.dock.no_berth_fits`, so two modules cannot make the same one; presentation words it
 in the player's language ([localisation](#localisation)). The step makes no English for the player,
 and a developer reads a reason as its key and arguments (`Sim::Describe`).
 
-A star system's presentation was a **system scene** (`spacescene`, 6b, retired with the space
-sample on 2026-11-22, for Manifest to build as its graphical client needs), built onto the
-scene from the system description, around whatever a scene file authored, and from the
-simulation's snapshots. Its content is in **layers**: the environment (bodies, stations, the sky:
-what the system places), traffic (the simulation's entities, through proxies a factory the game
+A scene's content is in **layers** (`Scene::Layer`): the environment (bodies, platforms, the sky:
+what the scene file places), traffic (the simulation's entities, through proxies a factory the game
 supplies makes) and effects (markers, beacons). An entity's layer is its own or its parent's, and a
-hidden layer is neither drawn nor lights the scene; the sun and the sky are always the system's.
-What the system scene builds is never saved, so a scene file is only ever what its author wrote.
+hidden layer is neither drawn nor lights the scene. What a game builds onto the scene from its own
+data is never saved, so a scene file is only ever what its author wrote. A star system's scene, and
+the jump between two, were the retired space sample's (`spacescene`, 2026-11-22), for Manifest's
+graphical client to build.
 
 The engine's frames are neutral (A01): `Sim::InFrame` names the frame an entity's `Transform` is
 in, a partition of the game's with its own origin (its name hashed by `Sim::FrameId`, so a save keeps
 it), and a game of one frame gives its entities none. Snapshots carry it, and no interpolation runs
-across a change of frame, whose two positions are from different origins. In the space sample the
-simulation is the whole **galaxy's** and each star system is a frame, named by the system's name;
-presentation shows one system of it, a system scene's traffic layer being the entities in its own
-system's frame, and an entity on a jump lane is in none (`Sim::kNoFrame`).
-
-### Jumps
-
-The galaxy (`celestial/Galaxy.h`; the retired sample's was its `systems/galaxy.yaml`) is a graph: each system by name,
-with its system file, where one is authored a scene file, and its position in light years; each lane
-joining a jump point in one system to a jump point in another, travelled both ways, with a transit
-time in simulation seconds. A jump point is the end of one lane, so a gate says where it leads, and
-a ship travels between systems only through gates ([gates](#gates)). A lane's toll, in whole
-credits, is the light years between its systems at the galaxy's toll per light year. Each system's file is checked
-against the lanes that end in it when it is loaded.
-
-A jump replaces the system shown with another, behind an effect, without the frame loop stalling or
-the simulation stopping (`spacescene/JumpTransition.h`, retired with the space sample on
-2026-11-22; what follows is how it went):
-
-1. The effect rises, a fade to black in the output pass, mixed in after tonemapping and under the
-   UI. Meanwhile the destination's system file and scene file are read on the I/O worker.
-2. Once they are read they are parsed and checked on the main thread, since the archives read the
-   reflection tables, which a registration on the main thread may be writing to
-   ([decided](decisions.md)). A destination that fails is abandoned before anything is
-   touched, and the effect lifts on the system the jump left.
-3. With the effect covering the frame, the scene is replaced (`SceneFile`, already read and
-   checked, or the system alone) and its system scene built.
-4. What it draws streams in through the resource manager as always, and the effect is held until
-   nothing is loading for the first time (`ResourceManager::Loading`), judged once a frame has been
-   drawn of it, since the renderer asks for a model when it first draws it, or for 8 s at most.
-5. The effect lifts.
-
-The effect runs in real seconds, the same at any time compression. The simulation steps through
-every frame of it, and the stepper is not resynced: the world did not change, and the new system's
-traffic is made from the same snapshots.
-
-That is presentation's jump, which changes what is shown. The simulation's (`space/Lanes.h`, 9a)
-carries an entity along a lane: the command `Space::EnterLane`, from a sender that commands it (a gate
-sends a ship it cleared as no one in particular), takes it out of its system through a jump
-point (its `InFrame` none, an `Space::OnLane` saying where it is going and the step it arrives), gives
-up its destination (`Transit::Depart`), and the system `lanes`, after physics, brings it out (`Transit::ComeOut`) at the far jump point when
-the transit's whole steps are run. A body comes out at rest in the gate's own frame (or that of a
-station it keeps by), facing the way the gate faces (`Celestial::JumpPointFacing`: its planet), with
-its flight controls taken against nothing. It comes out ahead of the ring, clear of its sensor by
-half the ring's 60 m depth, its hull and 20 m, so the gate does not see it pass through (13c); and
-clear of every body already there and of what came out before it in the step: there, or at the
-first place clear on rings about it across the way the gate faces, each a hull's breadth and 20 m
-further out (9f), so two traders through one gate a moment apart do not come out in each other.
-
-### Gates
-
-A gate sends the ships it has cleared ([decided](decisions.md); `space/Gates.h`, 13c). Each jump
-point's gate is an entity of its own, `Space::Gate`, made at a game's start (`Gates::MakeGates`) and
-saved: a kinematic sensor on the jump point's rails and in its frame, a cylinder of the ring's
-radius and 60 m deep (`Gates::RingShape`, defined in physics as the system is), turned by its rails
-to face as the jump point does (`Celestial::BodyOrientation`). It is a shared facility given in
-command order, as a pad is: `Space::RequestTransit`, with its sender, clears a ship through it at once
-if the gate is free, or puts it at the back of the gate's queue, and the ship holds an `Space::Transit`
-saying which: the gate is a gated portal ([transit](#transit)), its clearance a slot and the
-ship's `Transit` its claim. The engine's checks are its sender's command of the ship, the ship flying and in the
-gate's system and frame, a lane leaving through the gate, and the hull's shape fitting the ring; the
-game's are a rule it gives (`Space::TollRule`), asked whether the ship's owner can pay the lane's toll,
-and told to charge it. Each step the system `gates`, after the lanes', gives up a clearance or a
-place whose ship has gone, left the gate's frame or is cruising; sends a cleared ship touching its
-ring along the lane (`EnterLane`, applied then), its owner charged as it enters rather than as it is
-cleared, which frees the gate; lets every other body that began to touch a ring pass through,
-saying why (`Space::GatePassed`) and charging nothing, so traffic crossing a ring is never sent; lapses
-a clearance unused for two minutes; and clears the next in each free gate's queue. A ring is placed,
-not swept, so a ship crossing it at under its depth a step, 3.6 km/s, is seen.
-
-The sample's rule draws the toll on the ship's owner's purse (`Sample::ChargeTolls`): 500 credits a
-light year, so the moon gates' hop from Halcyon to Vesper, 4 light years, costs 2,000 and the star
-gates' 12 on to Marrow 6,000. A trader asks the gate on its route for a clearance once
-its cruise has brought it there, waits its turn, and flies in along the ring's axis and through
-(`clear`, `fly-through`, then `jump` along the lane); it weighs a run's tolls in what the run makes,
-and keeps them back from what it buys. The shell's console asks for its ship (`transit [gate]`),
-the flight panel counts the clearance down, and the scene jumps along the lane as the gate sends the
-ship. The console's `jump`, the J key and the galaxy panel's buttons are the tools' jump, which still
-sends the ship along a lane wherever it is in its system, past the gate and its toll, and which goes
-once nothing depends on it: all travel between systems is by gates.
-
-A route across the galaxy (`space/Routes.h`) is A* over its jump points, each lane an edge at its transit
-time and each pair of a system's gates an edge at what crossing the system costs, which the caller
-says; `Space::CrossingByCourse` says it from a course through the system's waypoints, round its star,
-planets and moons, at a speed.
+across a change of frame, whose two positions are from different origins. An entity between frames, as one passing through a
+portal is, is in none (`Sim::kNoFrame`). Manifest makes each star system a frame, named by the
+system's name, and its galaxy the world.
 
 ### Transit
 
@@ -325,8 +241,8 @@ local frame the game names, clear of what is there (`BringOut`, `ClearPlace`). A
 out of its start and into its end, or covers it as a motion profile does (`Transit::MotionProfile`,
 in closed form), slowed to its whole steps (`Transit::Underway`), so the steps before an arrival are
 quiet and fast-forward passes over them. `Transit::Passages` runs passages kept in a
-`Transit::Passage`, the suite's lift and train among them; a cruise keeps its own saved `Cruising`
-and is built on the same parts, below.
+`Transit::Passage`, the suite's lift and train among them; Manifest's cruise keeps its own saved
+`Space.Cruising` and is built on the same parts.
 
 A portal (`transit/Portal.h`, slice 4c) is a door between two levels or a teleporter: the entity
 leaves its frame for a set time, in none meanwhile (`Transit::Depart`), and comes out at a named exit
@@ -335,7 +251,7 @@ is as the step ends, the way it faces, the local frame an arrival comes out in, 
 it an arrival comes out. An arrival with a body comes out at rest that far ahead, beyond its own
 shape and a clearance, clear of what is there (`Transit::ComeOut`). `Transit::Portals` runs portals
 kept in a `Transit::InPortal`, the suite's door onto a moving ferry and lift door within a building
-among them; a lane keeps its own saved `OnLane` and is built on the same parts ([jumps](#jumps)).
+among them; Manifest's jump lanes keep their own saved `Space.OnLane` and are built on the same parts.
 
 A slot (`transit/Slot.h`, slice 4d) is what one entity holds at a time, a car park's bay or a toll
 booth's lane, until it gives it up (`Transit::GiveUp`) or its hold lapses at a step, with the
@@ -346,68 +262,7 @@ dropped (`DropGone`), holds lapsed (`Lapse`) and each free slot offered to its q
 front (`Serve`), the steps between quiet (`NextLapse`). A gated portal is a slot with a sensor:
 `Crossed` gives its holder touching the sensor, one inside already included, to go through, and
 every other body that began to touch it, which passes. The suite's car park and toll booth are
-games so; a gate is one, keeping its saved `Gate` and `Transit` ([gates](#gates)).
-
-### Cruising
-
-A system is crossed by cruising ([decided](decisions.md)): Corva Refinery is 1.4 × 10⁸ m
-from Corva and Corva 3 × 10¹⁰ m from Vesper, days at the flight model's 150 m/s. The command
-`Space::Cruise`, with its sender, takes a ship to a body of its system (`space/Cruise.h`, 13a): it leaves
-physics and its frame, its body kept in its `Space::Cruising` until it arrives, and stays in its system,
-placed each step along its course by the system `cruise`, after the lanes'. It arrives at rest,
-facing the body, a quarter of the body's radius and 4 km beyond it, in the body's frame or, for a
-gate that keeps by a station, the station's; physics makes its body there in the next step. A
-station's or a gate's frame falls round its planet with the ship, but a planet's own pull is the
-ship's to hold against, so a cruise to a body with gravity arrives no nearer than where it pulls at
-1 m/s², a fifteenth of a shuttle's weakest thrusters: at 1.25 radii Corva would pull at 16.6 m/s²,
-past the shuttle's 15 m/s² of reverse thrust, and the ship would fall into it. Ostra's is 20,000 km
-out, so a ship at Highport, in low orbit, is already at Ostra. A frame
-changes at a cruise's ends and a lane's and nowhere else, so nothing places a radius about a body
-where a ship would change frame. A cruise does not engage within 2 km of a station's radius, so
-docking stays in physics, and is refused with a reason.
-
-How long a cruise takes is the ship's drive (`Space::CruiseDrive`), a component the game gives it,
-the sample from its hull's (`defs/drives/<hull>.yaml`, G01d; a hull file of version 1 that gives one
-still loads, its drive left out, through `Dock::VehicleMigrations`): the
-seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the shuttle crosses from
-Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. A drive may give a
-profile in its place (`Transit::MotionProfile`), for a game played over days: a boost acceleration for
-at most a time over the whole cruise, half at each end, and a sustained one between, turning at the
-midpoint, the time its closed form. A profile may thrust for only a share of the cruise's time
-(`thrustShare`), half at each end, and coast between at the speed it reached: a share rather than
-seconds, so it means the same at any distance, and `Transit::Thrust` gives each end's seconds at the
-boost and the sustained rate, which a game prices its fuel from. The bodies are on
-rails, so where the target will be on arrival is solved rather than chased: the time gives the
-target's place, the course to it gives the time again, in eight rounds, which the fourth root
-settles well within. The course is a few straight legs round the stars, planets and moons in the way
-(`Ai::Waypoints`, 2 km clear of each), plotted relative to its **carrier**, the nearest body both the
-frame left and the target orbit (Ostra between Highport and Pell, the star between two planets), and
-carried with it on its orbit, so the planet it goes round is where the course was plotted round
-throughout. A body in the way that only the frame left orbits is placed where it is at departure,
-one only the target orbits where it is at arrival, and any other half-way, widened by half of how
-far it moves against the carrier over the cruise. A profile's time rises as no more than the
-distance's square root, and a slow ship chasing a station round its planet may not settle in those
-rounds, so a profiled cruise takes the fewest whole steps found in which it covers the course they
-give, so no step accelerates past its boost. Along its course the ship eases out of its start and into
-its end, an in-out cubic of the steps run, 15 km out a second after leaving Highport, or on a profile
-covers it as the profile does, slowed to its whole steps; and faces along the leg it is on.
-
-Presentation shows a cruising ship as any other, from its snapshots at its system's scale: the chase
-camera stays on it, the flight panel says where it is cruising to and how long is left, and the
-shell's console sends one (`cruise <body>`). What flies a ship no one is at the helm of crosses by a task of its own: a
-trader's `cruise` (13b) flies it out of any station's reach, round the station (`Space::ClearOf`,
-the flight any game's ship takes from a station it left), then sends the command with its own sender and runs until it arrives; a run's time across a system is the ship's
-drive's (`Space::CrossingByCourse` with a `CourseTime`), so a trader weighs a run in the seconds it
-takes. A ship of the player's fleet no one is at the helm of follows the same tree (13d).
-
-An arrival is placed clear of what is there: the lanes' and the cruises' arrivals share one placement
-(`Transit::ClearPlace`, `transit/Passage.h`), at the place it would come out if that is clear of every
-body in the system by both radii and `LaneTravel::kArrivalClearance`, or at the first place clear on
-rings about it, six more places round each than the last, in the plane across the way it faces.
-Cruises come out in entity order, each counted by the next, and a gate's ring, a sensor, is no body
-an arrival keeps clear of. The gates are in Manifest's places, a moon gate about a planet and a star
-gate about a sun, so a cruise to one arrives in the gate's own frame, where its ring is, and only a
-gate kept by a station arrives in the station's.
+games so; Manifest's stargates are one, keeping their saved `Space.Gate` and `Space.Transit`.
 
 ### Physics
 
@@ -420,20 +275,20 @@ shape by name, its mass and material), a `Sim::Transform` and a `Sim::InFrame`; 
 Jolt type. Shapes are definitions (`Physics::ShapeDefinition`, through the definition registry, so
 a mod can replace one), built into Jolt shapes when they are defined, and a save names them.
 
-Each **local frame** of each frame with bodies (`Sim::InFrame`, in the sample a star system) is a
+Each **local frame** of each frame with bodies (`Sim::InFrame`, in Manifest a star system) is a
 Jolt world of its own (7b), made with its first body and gone with its last (0.7 MB at the default
 capacities of 8,192 bodies). A local frame is the frame's own, at rest at its origin, or that of one
-of its bodies (`Physics::LocalFrame`, in the sample a station or a planet): it moves with the body
+of its bodies (`Physics::LocalFrame`, in Manifest a station or a planet): it moves with the body
 and does not turn with it, as the [local frame](#coordinate-frames-and-units) does. In it, Jolt's
 positions are metres from the body and its velocities are relative to the body's motion;
 `Sim::Transform` stays in the frame's coordinates, and `Physics::Velocity` is relative to the local
 frame. Every frame's positions are metres from its own origin, so bodies of two frames at the same
 coordinates must never meet, and only bodies in one local frame meet each other. A body in no frame
-(the sample's ship on a jump lane) has none; one that changes local frame is made again in the
+(one passing through a portal) has none; one that changes local frame is made again in the
 other's, its velocity carried across.
 
-Frames are what let a ship meet a station at all. Highport moves at 30 km/s about the star, 500 m a
-step. Jolt sweeps a fast body along its motion to find what it would pass through, but it finds what
+Frames are what let a vehicle meet a platform at all. A station in orbit moves at 30 km/s about its
+star, 500 m a step. Jolt sweeps a fast body along its motion to find what it would pass through, but it finds what
 to sweep against with that motion's absolute length, so a ship and a station both 500 m a step along
 their orbit never find each other however slowly they close; its broadphase keeps bounds in floats,
 8 km apart 150 million kilometres from the primary; and a float velocity at 30 km/s is 4 mm/s
@@ -445,46 +300,46 @@ are (`Physics::FrameModel`, `PhysicsWorld::DefineFrame`): a frame with none has 
 frames and no gravity, and the physics suite's room is a model of the test's, with a lift and its own
 gravity, and no star system. The model puts an entity on rails (`Physics::OnRails`), placing its
 `Transform` where the body of that name is as each step ends, carries a local frame with that body,
-and gives dynamic bodies the frame's gravity, asked once a step for a field over the frame. A star
-system is the `space` module's model (`Space::DefineStarSystem`), and the shell defines every system
-its galaxy lists: a station's kinematic body follows its orbit on rails, and each body with a
+and gives dynamic bodies the frame's gravity, asked once a step for a field over the frame. Manifest's star
+systems are models of its `space` module's (`Space::DefineStarSystem`), one for every system its
+galaxy lists: a station's kinematic body follows its orbit on rails, and each body with a
 gravitational parameter pulls as a point mass. Orbits stay on rails, so gravity moves only dynamic
 bodies; a ship beside a station falls round the planet with it, as the station's rails carry it,
 and is left with the tide. A frame's change of speed between two steps is taken off every dynamic
 body in it, and within a station's frame what is left of the planet's 8.6 m/s² is the tide's few
 ten-thousandths: a ship let drift beside Highport stays within 5 mm of where it was for a minute.
 
-The flight model runs before physics, as the system `flight` (`physics/Flight.h`). A ship is a
+The flight model runs before physics, as the system `flight` (`physics/Flight.h`). A vehicle is a
 dynamic body with `Physics::Handling` (accelerations along and about its axes, so its handling does
 not change with its mass, and with flight assist the speed and rates it is held to) and
 `Physics::FlightControls` (demands from -1 to 1, the assist, and the entity its velocity is taken
 against), which the command `Physics::SetFlightControls` sets. It carries its sender, and is taken
-only from the one at the ship's helm (`Sim::Helm`, `Sim::MayFly`, 13d) or from no one in
-particular, the game's own rules: a player flies the one ship they have the helm of, and a ship its
+only from the one at the vehicle's helm (`Sim::Helm`, `Sim::MayFly`, 13d) or from no one in
+particular, the game's own rules: a player flies the one vehicle they have the helm of, and one its
 behaviour flies, or another player's, refuses them (`FlightControlsRefused`, `reason.physics.*`). With assist, a demand is a velocity
 relative to the reference and a rate of turn, approached as fast as the thrusters allow; without, it
-is an acceleration and the ship coasts. It changes the ship's `Velocity`, and physics then steps it,
-so a ship flown into a station meets it as any body would. The system `physics` runs one fixed step:
+is an acceleration and the vehicle coasts. It changes the vehicle's `Velocity`, and physics then steps
+it, so a vehicle flown into a platform meets it as any body would. The system `physics` runs one fixed step:
 
 1. Entities on rails are put where their bodies are as the step ends, each body placed once for
    everything that rides on it. So the systems after physics see every `Transform` a step on from
    the clock's `Now`, the time `PhysicsWorld::PlacedAt` gives, and what measures one against a
-   body's place evaluates the body then: `Space::ClearOf` and a cruise's reach do, as a station's
+   body's place evaluates the body then: Manifest's `Space::ClearOf` and a cruise's reach do, as a station's
    frame moves with its planet by some 500 m a step about a star at 1 AU.
 2. Bodies are made for entities that gained what makes one, and removed for those that lost it,
-   changed system or frame or changed their `Body` (made again, with the velocity they had). Every
+   changed frame or local frame or changed their `Body` (made again, with the velocity they had). Every
    entity on rails and every body to be made is checked first, and one that cannot be is refused
-   before anything changes. A static body is in the system's frame: what a frame carries is
+   before anything changes. A static body is in the frame's own local frame: what a local frame carries is
    kinematic.
 3. What the game wrote is applied. A static or dynamic body whose `Transform` differs from where
    physics last placed it is put there; a dynamic body whose `Physics::Velocity` was written takes
    it; a kinematic body is moved towards its `Transform` over the step, so it pushes what it meets
    with the velocity that implies, or, in a world with nothing dynamic in it, put there at rest and
    asleep, its `Velocity` still what the move implies (below, [quiet steps](#quiet-steps)). Each
-   dynamic body then gains its system's gravity over the step, from where the bodies are as it
+   dynamic body then gains its frame's gravity over the step, from where the bodies are as it
    begins, less its frame's change of speed.
-4. Each frame's world steps, in order of system and frame, on the simulation's one thread. A body
-   marked `continuous` (the piloted ship) is swept rather than placed, so it cannot pass through a
+4. Each local frame's world steps, in order of frame and local frame, on the simulation's one thread.
+   A body marked `continuous` (a piloted vehicle) is swept rather than placed, so it cannot pass through a
    panel between two steps.
 5. Each moving body's `Velocity`, and each dynamic body's `Transform`, are written back, which
    presentation interpolates like any other entity's.
@@ -502,18 +357,18 @@ sleeping body's contacts. A body removed, or made again, ends what it touched in
 removes it.
 
 A **sensor** is a body marked `sensor` (`Physics::Body`): it meets nothing, reports the dynamic
-bodies that enter and leave it as contacts, and never sleeps, so it still sees a ship that has come
-to rest inside it: a gate's ring, or a zone a game's rule watches. Docking is not done with one: a
-ship lands on a pad its station gives it and is clamped there ([docks](#docks)).
+bodies that enter and leave it as contacts, and never sleeps, so it still sees a vehicle that has come
+to rest inside it: a gated portal's ring, or a zone a game's rule watches. Docking is not done with
+one: a vehicle lands on a berth its platform gives it and is clamped there ([docks](#docks)).
 
 **Casts** (`CastRay`, `CastShape`) find the first body along a ray or a convex shape swept along a
-direction, across every frame of a system, each cast in the frame's own coordinates; sensors and the
+direction, across every local frame of a frame, each cast in the local frame's own coordinates; sensors and the
 caster's own body are left out unless asked for. They read the world as the last step left it, and
 are the simulation's to call; steering (9b) keeps clear of spheres instead, below. **Picking** is a command, since presentation
 never reads the simulation's state: a click is a `Physics::Pick`, the ray through the cursor
 (`Render::ScreenRay`) from the camera presentation drew, and the next step answers it with a
 `Physics::Picked` event, a frame later. Presentation shows the world half a step behind on average,
-and a station's frame moves 500 m a step about the star, so the pick carries the time it was drawn
+and a platform's frame may move 500 m a step, so the pick carries the time it was drawn
 at (and its sender, which the answer hands back, so each player's presentation takes its own), and each frame is placed where its body was then (`CastOptions::framesAt`)
 ([decided](decisions.md)).
 
@@ -541,29 +396,29 @@ body's time at rest. What touches is kept, and the contacts Jolt finds again in 
 nothing; a body asleep sleeps on where it lay, and one in flight goes where it would have to the
 bit. Four crates thrusting in a row into a block give 1.2 mm in the first step without their
 impulses and 7.1 mm by the tenth, and rest 4.6 mm from where they would have; the physics suite's
-bay of thrown cargo, rebuilt at step 180 with three pairs touching, is 2 nm out after a step and
-57 µm two seconds on, the same pairs beginning and ending in each step. A docked ship loses nothing:
-it is a kinematic body on its station's rails, and the clamps are presentation's, so a ship rebuilt
-on its way down onto its pad docks at the same step in the same place, and one rebuilt docked stays
+bay of thrown crates, rebuilt at step 180 with three pairs touching, is 2 nm out after a step and
+57 µm two seconds on, the same pairs beginning and ending in each step. A docked vehicle loses nothing:
+it is a kinematic body on its platform's rails, and the clamps are presentation's, so a vehicle
+rebuilt on its way down onto its berth docks at the same step in the same place, and one rebuilt docked stays
 there and undocks. The physics suite's recorded runs, every kind of body and
-shape among them in one and, in the other, a ship flown through a station's docking zone into its
-hub as the station goes round its orbit, at rest in the zone and picked, are pinned to state hashes
+shape among them in one and, in the other, a vehicle flown through a platform's docking zone into
+its hub as the platform goes round, at rest in the zone and picked, are pinned to state hashes
 in Debug, Release and under the sanitisers. Jolt asserts in a Debug tree through the
 engine's assertions, and its profiler zones are Tracy's.
 
-The piloted ship crosses this boundary every frame (7b): the flight context's actions become a
+A piloted vehicle crosses this boundary every frame (7b): the flight context's actions become a
 `SetFlightControls` in the commands phase when a control moves, the flight model and Jolt advance in
-simulation steps, and the ship's proxy in the traffic layer interpolates between the last two, which
+simulation steps, and the vehicle's proxy in the traffic layer interpolates between the last two, which
 the pilot camera's chase and cockpit rigs follow (`Scene::PilotCameraComponent`). When time
 compression is above 1×, piloting is suspended, as it is in every game of the genre, and the assist
-holds the ship. Compression is refused near stations and other ships for the same reason, by the
-game.
+holds the vehicle. Compression is refused near platforms and other vehicles for the same reason, by
+the game.
 
 ### Quiet steps
 
 A world can pass over steps in which nothing happens but what a formula of the clock gives
 (`SimWorld::FastForward`, the user's, 2026-11-20, [decided](decisions.md)), to the same bits as
-stepping through them: a cruise of 4.49 days is 23 million steps of motion. Each system registered
+stepping through them: a cruise of Manifest's of 4.49 days is 23 million steps of motion. Each system registered
 with a `Sim::Quiet` says the first step it next has to run in, given the world as the last step left
 it and no command, and how to put what it writes where the steps passed over would have left it; a
 system without one has to run every step, so nothing is passed over while it is registered. With no
@@ -581,59 +436,59 @@ The engine's systems:
   it now (a system after physics may have changed them), it never has to run. In a world with nothing
   dynamic a kinematic body pushes and senses nothing, so each step puts it where it is, at rest and
   asleep, rather than sweeping it there: its Jolt state is its place alone, and a skip puts it there
-  once, its `Velocity` the last step's move; a static body on rails is put where they have it. A sweep's would be the history of every step: a gate's
-  ring turning after its planet, a station's spin, and the place 10¹¹ m out less the frame's, rounded
+  once, its `Velocity` the last step's move; a static body on rails is put where they have it. A sweep's would be the history of every step: a
+  ring turning after its planet, a platform's spin, and the place 10¹¹ m out less the frame's, rounded
   to a grid that changes as a coordinate crosses a power of two (2 to 14 times a day by up to 30 nm at
-  the sample's stations, waking a body at rest). Once something dynamic is in its world, the body is
+  the retired space sample's stations, waking a body at rest). Once something dynamic is in its world, the body is
   swept on from where it was put. The skip also places every entity on rails and each local frame's
   origin and velocity over the last step.
-- **Flight** has to run while a ship's velocity would change, or while one is flown against a
+- **Flight** has to run while a vehicle's velocity would change, or while one is flown against a
   reference with a velocity or is on rails, either of which may change what it is held to step to
   step; a kinematic body's in a frame it changes only for physics to write over. `Thrust` is not state, and is left as the last step wrote it.
-- **Cruise** runs in the step that places an arrival, and its skip places each ship along its course.
-  **Lanes** run in the step an arrival ends at, **gates** at a ship at a gate, a queue to serve or a
-  clearance lapsing, **steering** while a ship has a destination in a frame, and **docks** at any ship
-  on its way, cargo carried, a queue with a pad free or a reservation lapsing. The **spatial index** is
+- **Transit**'s passages run in the step that brings one out, their skip placing each along its way,
+  and its portals in the step an arrival ends at (`Transit::NextArrival`); a game's slots say their
+  next lapse (`NextLapse`). **Steering** runs while a vehicle has a destination in a frame, and
+  **docks** at any vehicle on its way, a queue with a berth free or a reservation lapsing. The **spatial index** is
   not state and never has to run: a load starts it empty, so nothing reads it before its update in a
   step.
 - **Behaviour trees** run at the soonest end of a tree's running path: a wait's end step, a task's
   `TaskWake` (`Behaviours::DefineTask`), or the next step for a task without one, a node about to
-  start or a tree that finished. The sample's traders' `cruise` wakes as its cruise arrives.
+  start or a tree that finished. Manifest's traders' `cruise` wakes as its cruise arrives.
 
 The frame loop's `Stepper` steps as before: presentation interpolates the steps it shows. A
 console's long step or an unattended server calls `FastForward`.
 
 ### Steering
 
-Steering (`ai/Steering.h`, 9b) flies a ship to a place: an `Ai::Destination`, a point in the ship's
-frame or an offset from an entity in the entity's own axes, with a course's waypoints on the way, and
+Steering (`ai/Steering.h`, 9b) flies a vehicle to a place: an `Ai::Destination`, a point in the
+vehicle's frame or an offset from an entity in the entity's own axes, with a course's waypoints on the way, and
 an `Ai::Steered` saying how far it keeps from what is near. Its behaviours (seek, arrive, avoid,
 separate) are velocities rather than accelerations, since the flight model's assist already holds a
 demanded velocity and reaches it as fast as the thrusters allow ([decided](decisions.md)): the
-system `steering`, after `spatial` and before `flight`, sums them and sets the ship's
+system `steering`, after `spatial` and before `flight`, sums them and sets the vehicle's
 `FlightControls`, its velocity as a share of its top speed along each of its axes and a turn of the
-nose towards it. Positions are in the system frame and velocities in the ship's frame, which is all
+nose towards it. Positions are in the frame and velocities in the vehicle's local frame, which is all
 it steers about, as bodies in two frames never meet.
 
 What is near comes from the **spatial index kept from the simulation** (`spatial/FrameIndices.h`):
-one octree a system, of every entity with a `Transform` and an `InFrame`, brought up to the
+one octree a frame, of every entity with a `Transform` and an `InFrame`, brought up to the
 registry by the system `spatial` as the step's systems begin. It is not state: it is made from the
 components each step, so a save does not hold it and a world loaded from one has it from its next
 step, and what a query returns depends on the positions alone. Every body but a sensor within reach
 is an obstacle, the sphere about its origin that holds its shape
 (`PhysicsWorld::ShapeRadius`), and the dynamic ones are neighbours to keep apart from. Avoidance turns
-a ship aside from the first obstacle it would pass within its clearance of, and never lets it close
+a vehicle aside from the first obstacle it would pass within its clearance of, and never lets it close
 on any faster than it can stop from before the clearance; that limit is what keeps it off a hull,
 and the turn what takes it round.
 
-A station's sphere holds its pads, so a ship flown to one cannot keep clear of the station by its
-sphere. A destination kept clear **by its shape** (`Destination::byShape`, 9c) leaves its entity out of
-the obstacles, and every body on the same celestial body's rails with it (the station, and the ships
-clamped to it), and sweeps the ship's own shape along its way instead
+A platform's sphere holds its berths, so a vehicle flown to one cannot keep clear of the platform by
+its sphere. A destination kept clear **by its shape** (`Destination::byShape`, 9c) leaves its entity out of
+the obstacles, and every body on the same body's rails with it (the platform, and the vehicles
+clamped to it), and sweeps the vehicle's own shape along its way instead
 (`PhysicsWorld::CastShape`), closing on what the sweep meets no faster than it can stop from before
-its clearance; what it meets beyond its target, the deck under a pad, is not in its way. A
-destination may also give the ship a **facing** in its entity's axes, which it turns to about all
-three axes, rolled too, rather than turning its nose to its velocity: a pad's heading as it lands.
+its clearance; what it meets beyond its target, the deck under a berth, is not in its way. A
+destination may also give the vehicle a **facing** in its entity's axes, which it turns to about all
+three axes, rolled too, rather than turning its nose to its velocity: a berth's heading as it lands.
 
 ### Docks
 
@@ -712,56 +567,33 @@ v + v(1 − v)(1 − 1/n) so that one weighed by many things is not marked down 
 weight; one with no considerations scores its weight, a baseline the others have to beat. The game
 offers options, each an action with its own inputs, and `Ai::Choose` scores them in order against the
 best so far, asking an option for no more inputs once it cannot beat it: an input that costs (a route
-plotted across the lanes) is worked out only for an option still in the running. The earliest of
+plotted across a map) is worked out only for an option still in the running. The earliest of
 equal options wins, and none is chosen when every one scores nothing.
 
-**Behaviour trees** (`ai/BehaviourTree.h`) are for sequences: off the pad, to the gate, through it,
-onto a pad, the trade, the wait for the cargo. A tree (`defs/behaviours`, `Ai::BehaviourDefinition`)
+**Behaviour trees** (`ai/BehaviourTree.h`) are for sequences: off the berth, to the portal, through
+it, onto a berth, the trade. A tree (`defs/behaviours`, `Ai::BehaviourDefinition`)
 is nested nodes: the engine's sequence, selector, invert, succeed, repeat, loop and wait, and tasks,
 the game's leaves, by name with arguments, defined with `Ai::Behaviours` before any tree that names
 them and checked as the tree is. The system `behaviour` ticks every entity's tree each step, in
 entity order, and runs first in the step, before `spatial` ([decided](decisions.md)): a tree
 acts on the world where it is as the step begins, as the queue's commands do, and what a task sets (a
-destination, a pad asked for) is flown and answered in the same step. Its composites remember their
+destination, a berth asked for) is flown and answered in the same step. Its composites remember their
 running child, so a running node is resumed rather than entered again from the top, and is never
 interrupted; a task needs no undoing, and an entity's place in its tree is a memory and a flag a node
 (`Ai::Behaviour`), saved with the world. The one exception is the helm (`Sim::Helm`, 13d), taken and
-left by `Ai::TakeHelm` and `LeaveHelm` from one that commands the ship, each at one helm at a time:
-while someone is at a ship's helm its tree stands down and is not ticked, taking it takes away the
+left by `Ai::TakeHelm` and `LeaveHelm` from one that commands the vehicle, each at one helm at a time:
+while someone is at a vehicle's helm its tree stands down and is not ticked, taking it takes away the
 destination it was flown to and lets its controls go, and leaving it starts the tree again from the
-top. A task it was running is left unfinished, and what it asked for (a pad, a gate's clearance) goes
-on or lapses as for a ship that did not come; the trader's tasks plan from wherever the ship is, and
-its `dock` gives up a pad its pilot was to land on and asks again for the docks to fly it. A
+top. A task it was running is left unfinished, and what it asked for (a berth, a gated portal's slot)
+goes on or lapses as for a vehicle that did not come; Manifest's traders' tasks plan from wherever
+the ship is, and their `dock` gives up a pad its pilot was to land on and asks again for the docks to
+fly it. A
 destination set or cleared (`Ai::SetDestination`, `ClearDestination`) carries its sender too. A repeat or a loop runs its child again at the next tick, so
 a step's work is bounded however soon a child succeeds. A task acts through commands applied at once
 (`Sim::SimWorld::Apply`), which meet the checks a player's do, carry the agent as their sender where
 they carry one, and are not recorded: they are the state's own consequence, which a replay sends
-again.
-
-**The sample's traders** (`samples/space/src/Traders.h`, retired with the sample on 2026-11-22, its
-record kept for Manifest's own) were the first to use
-both. Each follows `defs/behaviours/trader.yaml` and chooses its run by `defs/decisions/trade.yaml`,
-weighing a run's margin, the rivals after the same shelf and its credits a second over the route
-(`Space::PlotRoute`, crossing each system by course), and then flies it: off its pad, round the station
-to the gate, through it, onto a pad or into the queue for one, held off the station in its place, the
-trade, and the wait while the buggies carry its crates. Seven trade between Highport and Corva, whose
-one free pad keeps a queue; in twenty minutes of the `sample-space` suite they sell fourteen runs
-across the lane, queue five times, and no two hulls come within 35 m in flight.
-
-**The fleet** (`samples/space/src/Fleet.h`, 13d, [decided](decisions.md): a player has a fleet;
-retired with the sample on 2026-11-22) was the
-ships a player commands (`Sim::ControlledBy`), each fitted as a trader is, with a hold, an
-`Sample::Trader` and the trader's tree, so every one they are not at the helm of trades for them, from
-their purse and from wherever it is. `Sample::BuyShip` sells a hull of `defs/shipyard` (`ShipForSale`:
-its price, mass and hold) at a station where a ship of the buyer's fleet is docked: the ship is
-parked on the lowest numbered free pad it fits, its price drawn, and the buyer takes its helm, which
-hands the ship they were flying to its behaviour; refused, with a reason, for a hull not for sale,
-one with no free pad, a short purse, or a buyer with none of the fleet there. Attaching is
-presentation's: the shell follows one ship of the fleet, which its camera, its market screen and its
-console's commands are for, binds the station it is docked at, and shows its system, jumping there
-or along the lane it is on; it sends flight controls for the attached ship only while it is at its
-helm. A save from before the helm gives the player the helm of the ship it names
-(`GiveOldShipItsHelm`).
+again. The retired space sample's traders and fleet were the first to use both; Manifest's are their
+successors ([history](history.md)).
 
 ### Persistence
 
@@ -774,10 +606,9 @@ what a save contains beyond the engine's state is the game's ([scope](scope.md))
 first, so a list of saves reads no further. A change to the world's layout is a step in the world's
 migrations and leaves the save game's format and the game's sections alone. The shell's own section
 is what scripts keep by key (`Script.Store`, [scripts](#scripts)), and its saves' list shows the
-`system` detail where a game writes one. The space sample's section is its layer's state, under the
-name the shell gave it before G01 (`Shell.State`), and its details the galaxy's file, which its load
-must match, and the system shown (`galaxy`, `system`), which the save game's version 1 held as fields
-of the info and its step to version 2 (A01) moves into the details, an edit of the record the save begins with (`BinaryDocument::EditFirstRecord`), so
+`place` detail where a game writes one. Version 1 of the save game held the space sample's world and
+the frame it showed as fields of the info (`galaxy`, `system`), and its step to version 2 (A01) moves
+them into the details, an edit of the record the save begins with (`BinaryDocument::EditFirstRecord`), so
 the chain alone brings a version 1 save up.
 
 Every versioned format reads its earlier versions through a chain of migrations
@@ -807,7 +638,8 @@ rename too: the world's version 4 renamed `Sim.InSystem` to `Sim.InFrame` over t
 Version 5 (the space extraction's slice 7) renamed the engine's types out of the space setting's
 words the same way (`Dock.Pad` to `Dock.Berth`, `Physics.Thrusters` to `Physics.Handling`), and their
 fields by each component's chain, since a game's types share names such as `ship`; a command still
-queued in an older save has its fields renamed as it is read. A YAML step edits the parsed tree, keeping the lines a mistake is
+queued in an older save has its fields renamed as it is read, as a queued pick's `system` is its
+`frame` (8a), by the field, a world version being more than one field of one command is worth. A YAML step edits the parsed tree, keeping the lines a mistake is
 reported at. Definitions migrate the same way ([decided](decisions.md)). A version newer than
 the build's, or one the chain does not reach, is refused by name before any step runs, and every
 read leaves what it was reading into as it was when the data does not fit.
@@ -830,13 +662,13 @@ written the same way whenever the player changes one, so loading a save changes 
 binding's joystick is a number the player's bindings name after the device it was bound as
 (`input/Joysticks.h`), by its GUID, so it follows the device rather than the slot it is plugged into.
 
-Loading replaces the world only once the whole save has read: the info, the galaxy (a save of
-another galaxy is refused), the game's sections and then the world, which itself commits only at the
+Loading replaces the world only once the whole save has read: the info and its details, which a
+game may refuse a save by, the game's sections and then the world, which itself commits only at the
 end. A save made with other mods than the run's loads, the shell logging each difference
 (`Sim::ModDifferences`: a mod saved with and not enabled, one enabled and not saved with, one at
 another version, or the same mods in another order), since whether that makes another game of the
 save is the player's to judge. Presentation then resynchronises its snapshots and makes the traffic layer's proxies again
-(`SystemScene::ResetTraffic`), since a loaded world's identifiers may name other entities than they
+(`Shell::Resync`), since a loaded world's identifiers may name other entities than they
 did.
 
 ## Files, packs and mods
@@ -894,7 +726,7 @@ writes one, and `jettison_add_pack` is the build's rule for it; the engine's ass
 `jettison_test_content_pack` (`build/<preset>/source/test/content.pack`), which the smoke test runs
 from. The same
 files give the same bytes. A file is compressed only where zstd at level 1 saves a thirty-second of
-it, then at level 19: of the sample assets' 90.3 MB, the KTX 2 textures are zstd-supercompressed
+it, then at level 19: of the space sample's assets' 90.3 MB, the KTX 2 textures are zstd-supercompressed
 already and the models and music barely shrink, so 127 of 136 files are compressed and the pack is
 88.6 MB, written in about a second.
 
@@ -1207,21 +1039,21 @@ throw or a document read a variable its screen does not bind. Numbers are groupe
 
 A reason the step gives ([simulation and presentation](#simulation-and-presentation)) is worded by
 the shell (`app/src/Reasons.h`, 12c) from the table under its key, in `strings/<language>/reasons.yaml`
-for the engine's and the sample's: each argument put in words first, an integer by `Number`, an
-entity by its name in the snapshot (a market's station, or the body a station or gate rides the
-rails of), a good by its name and any other identifier as the data gives it, then formatted by
+for the engine's and a game's: each argument put in words first, an integer by `Number`, an
+entity by its name in the snapshot (a market's platform, or the body a platform rides the rails
+of), a good by its name and any other identifier as the data gives it, then formatted by
 position (`FormatArguments`); a key with plural forms is chosen by its first integer
 (`PluralArguments`). The arguments are positional as the tables' are, so the check that holds a
-translation to its base text holds it to the reason's. The `sample-space` suite holds every reason of
-the docks, the AI and the trade to a text in English and German.
+translation to its base text holds it to the reason's. The app suite words the engine's reasons in English
+and German, and Manifest's suites hold its own.
 
 The language is the player's setting (`ui.language`), not the environment's locale, so a run reads
 the same on every machine until the player chooses; `UiSystem::SetLanguage` reads the tables and
 reads every open document again, each keeping its handle and whether it is shown, since RmlUi
 translates a document's text as it reads it. The console's `language [tag]` sets it. Developer text,
-the log, the console and the dev tools, stays English. The sample ships English and German, a
-good's name and crate in the tables (`goods.<definition>.name`), and a good no table names reads as
-its definition's `displayName`, as a mod's new good does.
+the log, the console and the dev tools, stays English. The engine ships English and German; a game's
+tables add its own words, a good's name among them (`goods.<definition>.name`), and a good no table
+names reads as its definition's `displayName`, as a mod's new good does.
 
 ## Audio
 
@@ -1245,24 +1077,22 @@ page at a time as it plays, on the music bus, one piece at a time). A short soun
 it starts and shared by every play of it at once. The listener is the active camera. Audio is
 listener-relative as rendering is camera-relative: each frame `AudioSystem::Update` places every
 positioned source at its position less the listener's, as a float, with the listener at miniaudio's
-origin, so a station a hundred million kilometres from the primary is heard as precisely as one
+origin, so a platform a hundred million kilometres from the origin is heard as precisely as one
 beside it. Doppler is off, since nothing reports velocities. A source is a generational handle: one
 that ended names nothing. `Audio::SoundSources` plays the presentation world's `SoundComponent`s, a
 looping sound on an entity heard from its world transform, started as the entity gains the
-component and stopped as it loses it or goes; the shell puts the station's hum on its station so.
+component and stopped as it loses it or goes.
 
 **Events.** What a simulation event sounds like is data: an `Audio::EventSound` definition under
 `defs/sounds`, through the definition registry, names the event's type as Reflect has it, a sound, a
 bus, a volume, and the event's entity field the sound is placed at, if any. `Audio::EventSounds`
 checks every definition against the types Reflect knows as it is made, and refuses one naming an
 event or a field that is not there, by the definition's name. The game decides which events reach
-it: the shell passes on those whose `ship` field is the player's ship, the screen's answers and the
-dock's, and places a sound at an entity where presentation shows it, between the last two steps. A
+it, and the shell places a sound at an entity where presentation shows it, between the last two steps. A
 sound placed at an entity presentation cannot place plays flat rather than not at all. A definition
 may name a clip's event instead (`clip: clamp.closed`, [animation](#animation)), heard from the
-entity whose clip crossed it, for every one crossed: the shipped docking sounds are a pad's clamps
-closing and letting go (10d), heard from the pad whoever's ship it is, where they were the docks'
-`Landed` and `Left` for the player's ship alone, heard from the station.
+entity whose clip crossed it, for every one crossed: the test content's docking sounds are a berth's
+clamps closing and letting go (10d), heard from the berth whoever's vehicle it is.
 
 **Output.** To the machine's playback device, or to miniaudio's null backend when a device will not
 open, or when asked (`--no-sound`, and always in the headless run): a device that plays to nowhere
@@ -1314,8 +1144,8 @@ by then.
 
 - **Roles.** A shot's rail and what it looks at are in the frames of roles, names the game binds to
   the scene's entities as it plays the sequence (`SequencePlayerComponent::roles`), their scale taken
-  off. A rail round a pad rides the station as it orbits, in double precision, 10^8 m out as at the
-  origin.
+  off. A rail round a berth rides the platform as it moves, in double precision, 10^8 m out as at
+  the origin.
 - **Shots.** A rail is a centripetal Catmull-Rom spline through its points (Barry and Goldman's
   form, the ends reflected), which neither overshoots nor loops where the points bunch, flown at an
   even speed by a table of its length at 32 samples a span; the shot's easing spends its time along
@@ -1328,7 +1158,7 @@ by then.
   ([decided](decisions.md)), so a shot's subject stays in view; the game camera's point is along
   its view. How much of the camera is the sequence's weighs the bars too.
 - **Fade and events.** A fade's amount keyed by time, in the sequence's colour, which the shell shows
-  unless a jump's is up; and named events, on a clip of no tracks, crossed as a clip's are
+  unless a game's own is up; and named events, on a clip of no tracks, crossed as a clip's are
   (`Animation::AdvanceClip`, [animation](#animation)) and returned for the game to hear.
 
 `SequenceSystem` runs after the camera rigs (`camera.sequence`, before the streaks and the audio's
@@ -1336,10 +1166,10 @@ listener): it loads a player's file as it is first named and holds it, waits at 
 until it is in and until every role is bound to an entity with a world transform, then advances it,
 samples it over the pose the rigs left and writes the camera's pose. A file that fails, a role the
 player has no binding for, or once started an entity that has gone, is reported once and the player
-removed, the camera left to its rigs; so is a player whose sequence has ended. The shell binds
-`ship`, `pad` (the pad its ship is clamped to) and `station` each frame, since the ship's proxy is made
-by the sync, plays `cinematics/dock.sequence.yaml` as the ship lands on a pad, cuts a sequence short
-on Escape, and hides its flight readout under one; the console's `sequence <name> [seconds] | stop`
+removed, the camera left to its rigs; so is a player whose sequence has ended. A game binds
+the roles (the retired space sample bound `ship`, `pad` and `station` each frame and played
+`cinematics/dock.sequence.yaml` as its ship landed); the shell cuts a sequence short on Escape, and
+the console's `sequence <name> [seconds] | stop`
 plays one from a time, which is how the `dock-sequence` reference frame is placed.
 
 ## Coordinate frames and units
@@ -1349,9 +1179,9 @@ is (`CameraComponent` documents it).
 
 | Frame | Precision | Origin | Used by |
 |---|---|---|---|
-| Galaxy | graph, `double` | none: systems are nodes at positions in light years, jump lanes are edges (`celestial/Galaxy.h`) | jumps, tolls, route planning, the galaxy map |
-| System | `double` | the system's barycentre or primary star | simulation positions, orbits, Jolt (`JPH_DOUBLE_PRECISION`) |
-| Local | `double` | a station or planet | physics in the body's frame (`Physics::LocalFrame`), docking approaches, station-relative traffic, the sun's shadow grid (`CameraView::frameOrigin`) |
+| World | the game's | the game's: Manifest's galaxy is a graph of star systems at positions in light years | travel between frames, by portals or the game's own |
+| Frame | `double` | the frame's origin (`Sim::InFrame`; in Manifest a star system's barycentre or primary star) | simulation positions, rails, Jolt (`JPH_DOUBLE_PRECISION`) |
+| Local | `double` | a body of the frame's model: a platform or a planet | physics in the body's frame (`Physics::LocalFrame`), berth approaches, platform-relative traffic, the sun's shadow grid (`CameraView::frameOrigin`) |
 | Render | `float` | the camera | everything submitted to the GPU |
 
 Rendering is **camera-relative**: each frame subtracts the camera's double-precision position
@@ -1599,19 +1429,12 @@ same in any, and a smoky one is soft enough that its order shows little, which a
 would fix. Nor are they soft where they meet a surface, which wants the depth the opaque pass is
 still writing.
 
-The shell shows each ship proxy of the simulation's firing its thrusters (`ShipThrusters`,
-`ShowThrust`, `app/src/Dressing.h`): a plume at each engine nozzle, and a manoeuvring jet at each of
-its ports, a cluster each side of its bow and stern firing out to that side, up and down, and the
-bow's forward to push it astern. What lights them is what the thrusters fired, not what the controls
-asked: the flight model writes each ship's `Physics::Thrust` every step, the share of each axis's
-thrust that changed its velocity, which a snapshot carries and the world neither saves nor hashes,
-since nothing in the simulation reads it. A ship holding its speed in space, where nothing slows it,
-fires nothing whatever its throttle, and one holding station against a planet's pull fires a little
-all the time. An engine fires as the thrust ahead; a jet as far as its push is along the thrust fired
-and the turn it makes about the hull's middle is along the turn fired, so any layout of ports lights
-right. Each nozzle glows dimly at rest and warms towards how hard it fires over about a second,
-cooling over two and a half (its mesh's colour, on the unlit engine material), so a burn's nozzles
-are seen hot for a moment after it. A jump gets its streaks: an emitter kept ahead of the camera, sending them past it as the effect
+The flight model writes each vehicle's `Physics::Thrust` every step, the share of each axis's thrust
+that changed its velocity, which a snapshot carries and the world neither saves nor hashes, since
+nothing in the simulation reads it: a vehicle holding its speed in space fires nothing whatever its
+throttle, and one holding station against a planet's pull fires a little all the time. The retired
+space sample's shell lit a plume at each nozzle and a jet at each port from it (`ShipThrusters`), its
+nozzles warming and cooling, for Manifest's graphical client to take up. A game's transition may have streaks: an emitter kept ahead of the camera, sending them past it as the effect
 rises and lifts, which then passes through a blue-white flash on its way to black and back. The
 streaks' emitter is placed after the camera's rig has moved it, its world transform written then:
 the camera moves tens of kilometres a second with the system's bodies, and an emitter placed by the
@@ -1710,7 +1533,7 @@ A scene's look is a grade (11c, `Scene::ColourGradeComponent`, one a scene): a `
 before the fade, the bars and the UI, by a strength from 0 to 1 that mixes the graded colour with
 the ungraded. The table is looked up with the display's colour encoded sRGB, what a screenshot holds
 and a grading tool shows ([decided](decisions.md)), so a grade made in Resolve or Photoshop
-from a capture of the frame is the frame graded: the orbit scene graded by the sample's table
+from a capture of the frame is the frame graded: the orbit scene graded by the test content's table
 (`grades/cold-light.cube`) is within one level, at every pixel, of its ungraded capture put through
 the table on the CPU (`Render::SampleLut`). The table is a resource, parsed on the I/O worker and
 uploaded as a 3D image of half floats, which waits for the queue, as the environment's bake does, so
@@ -1843,7 +1666,7 @@ occlusion.
   `LightComponent` is a point or a spot with a range and, for a spot, inner and outer cone
   angles as glTF's `KHR_lights_punctual` has them (5c); a scene file that leaves out a light's
   range is refused.
-- **The sun is not a cluster light.** There is one directional light per star system, held in the
+- **The sun is not a cluster light.** There is one directional light per scene, held in the
   frame constants and shadowed with cascades.
 - **Light data lives in storage buffers**, one set per frame in flight, never in the frame UBO.
   The UBO carries only the light count and the grid's parameters.
@@ -1873,12 +1696,12 @@ systems register into, each declaring the components it reads and writes:
 
 1. **Input**: poll devices and map them to actions in the active contexts.
 2. **Commands**: turn actions and UI into simulation commands: the shell's picks (`shell.pick`), and
-   a game's, the space sample's pilot controls.
-3. **Simulation**: zero or more fixed steps (commands, AI, economy, physics, orbits), as the
+   a game's, as the ground sample's drive.
+3. **Simulation**: zero or more fixed steps (commands, AI, economy, physics, rails), as the
    accumulator allows.
-4. **Sync**: a game's stage first (the space sample's jump, which may replace the scene), then copy
-   simulation snapshots into presentation and interpolate, and a game's syncs (the sample's bodies on
-   their orbits, pads' lamps, thrusters), then the steps' events.
+4. **Sync**: a game's stage first (which may replace the scene), then copy simulation snapshots into
+   presentation and interpolate, and a game's syncs (its bodies on their rails, its own dressing),
+   then the steps' events.
 5. **Presentation**: animation, cameras, audio, particles, UI layout.
 6. **Render**: cull, collect lights, record the pass list (shadows, cluster light assignment,
    forward passes, post), submit, present. See [rendering](#rendering-clustered-forward).
@@ -1979,47 +1802,25 @@ proves it headlessly. What exists:
   renderer, and window (its title and size). The shell holds the renderer as `Render::IRenderer` alone and
   includes no Vulkan header. The resource manager updates once a frame, before the render.
   `RunFrameLoop` runs `Tick` (the scheduler's phases, from input to render) until close.
-- **Jumps**. J jumps out through the next of the shown system's lanes, so jumping again tours them;
-  the console's `jump <system>` and the Scene panel jump along a lane, or straight to any system.
-  The cameras frame the jump point arrived at. A jump along a lane takes the ship, when it is in the
-  system shown, along the simulation's lane (9a): it comes out of the far gate at rest 5 km from the
-  station there, is flown again if it was flown in, and is bound to that station, which the docks
-  built to its layout at the start, to dock at and trade with. The
-  console's `route <system>` logs the way from the ship to a system, its jumps and its time at the
-  ship's 150 m/s across each system.
-- **Piloting** (7b). The shell plays the game's part: a ship docked on a pad of the first station of
-  the system it opens on, both in the station's frame. P flies it and lets it go,
-  V switches between the chase and cockpit cameras, Z the flight assist; the keyboard, the first
-  gamepad and joystick 1 (a HOTAS) are bound by default, and a HOTAS's throttle on a joystick of its
-  own is a rebind (`app/src/Piloting.h`). An overlay gives the speed and distance from the station, and
-  whether the ship is docked. The console's `undock` lifts it 40 m off its pad and hands it back to
-  the pilot, and `dock` asks the
-  station for a pad and flies it onto the one given, or, with `dock manual`, leaves the landing to
-  the pilot, and the clamps take it once it is on the pad (9c).
-- **The fleet** (13d). The console's `buy shuttle|transport` buys a ship at the bound station, where
-  a ship of the fleet is docked, and takes its helm; `fleet` lists the fleet, where each ship is,
-  who flies it and its hold; `attach <n>`, ] and [ follow another ship of it, and `helm` or H takes
-  or leaves the attached ship's helm. P follows the attached ship from behind, and flies it only at
-  its helm; the flight panel names the ship and who flies it. A shipyard screen is held over
-  ([carried forward](roadmap.md#carried-forward)).
+- **Piloting** (7b). A game flies its vehicle through the flight context's actions, which become a
+  `Physics::SetFlightControls` as a control moves, and the pilot camera's chase and cockpit rigs
+  (`Scene::PilotCameraComponent`) follow it: the ground sample drives its rover so. The retired space
+  sample flew a ship off and onto its pad.
 - **Picking** (7c). A left click on the scene, not on a window over it, picks what is under the
   cursor, through a `Physics::Pick` the next step answers; the hit is marked where it was, with the
   surface's normal, and named in an overlay, and the log says what was picked and how far off.
 - **Saves and settings** (8a). F5 saves to `quicksave` and F9 loads it; the console's `save
   [name]`, `load [name]` and `saves` do the same by name and list them ([persistence](#persistence)).
-  A save holds the world and the shell's own section, which entities are its ship and station.
+  A save holds the world, the shell's own section (what scripts keep by key) and a game's sections.
   The console's `bind <context> <action> [bindings...]` rebinds an action, or says what it is bound
   to, and `unbind` puts it back; either writes the settings file, so a rebinding survives a restart.
-- **Cinematics and grading** (11c). The ship landing on a pad plays the docking sequence, which
-  Escape cuts short; the console's `sequence <name> [seconds] | stop` plays one, and `grade <name>
+- **Cinematics and grading** (11c). Escape cuts a sequence short; the console's `sequence <name> [seconds] | stop` plays one, and `grade <name>
   [strength] | off` grades the scene ([cinematics](#cinematics), [colour grading](#colour-grading)).
 - **Scripts** (11b). The console's `scripts` says which mods' scripts are loaded, how often each was
   called and how it trapped, and `script_bindings <directory>` writes the bindings this build's types
   make for a script's author, in C and in Rust ([scripts](#scripts)).
-- **Sound** (8c). Music plays from the start (the console's `music` stops and starts it), the
-  station the ship is bound to hums as the camera nears it, the clamps sound from the station as the
-  ship lands on its pad and is let go, and the market screen's answers sound on the UI bus
-  ([audio](#audio)). The console's `volume [bus] [volume]` sets a bus's volume and saves it with the
+- **Sound** (8c). Music plays from the start (the console's `music` stops and starts it), and
+  a game's events and its screens' answers sound as its data says ([audio](#audio)). The console's `volume [bus] [volume]` sets a bus's volume and saves it with the
   settings, or lists them.
 - **Smoke sequence**. `SmokeSequence` is the render test's eleven stages (resize, resize,
   minimize, restore, scene reload, pilot from behind, pilot from the seat, pick, save and load,
@@ -2032,7 +1833,7 @@ proves it headlessly. What exists:
   loader and the writer share one check of what a file may say. It has transform, parent,
   world-transform, camera, light (a point or a spot, with a range), sun, sky, colour grade and mesh
   components (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder
-  - and optionally a material file, by virtual path), bodies (`BodyComponent`, the `celestial` record, by name, which a game may place), an
+  - and optionally a material file, by virtual path), bodies (`BodyComponent`, the `body` record, by name, which a game may place), an
   orbit camera rig, and the animation module's
   rotation-animation, skeleton and animation-player components, a clip file's player
   (`ClipPlayerComponent`) and an entity's layer. It names no device: a model mesh holds its rig as a
@@ -2042,9 +1843,7 @@ proves it headlessly. What exists:
   transforms are doubles. Authored state and runtime state are kept apart: a rotation's angle, a
   clip player's time, a clip's pose (`NodePoseComponent`), a body's `PlacementComponent`, a rig's
   `CameraPoseComponent` and the rig handle are never saved, and the scene suite's round-trip tests hold the writer and the loader
-  to that. `SystemScene` builds the rest of a star system's scene around the file (each body it
-  does not present, a sky, a camera), places every body on its orbit, and keeps the traffic
-  layer's proxies; what it builds is never saved. The scene's layers are shown and hidden through
+  to that. What a game builds onto the scene from its own data is never saved. The scene's layers are shown and hidden through
   `Scene::SetLayerVisible`, which the update applies and the renderer honours.
 - **Animation** (`engine/animation`, [animation](#animation)). `Clip.h` is a clip's tracks and
   events and their sampling; `Rig` is a model's node hierarchy, skin joints and clips, with the clip
@@ -2111,7 +1910,7 @@ proves it headlessly. What exists:
   each pass's GPU time. Its fonts are rasterised by FreeType, as the game UI's are.
 - **Game UI** (`engine/ui`, 8b). RmlUi drawn through the renderer's overlay, documents and styles
   through the VFS, data models bound to reflected types ([UI](#ui)). The shell's own screen is the
-  saved games (L), whose Load loads a save as F9 does; the space sample adds its market (M).
+  saved games (L), whose Load loads a save as F9 does; a game adds its own.
 - **The game a program composes** (H05, `app/Game.h`). `RunRenderApplication` takes an `App::Game`,
   which the shell calls at its points: its types, commands and input actions as the shell is made, on
   the world with physics attached (`ShellWorld`); its definitions and what it builds on them; its
@@ -2129,47 +1928,27 @@ proves it headlessly. What exists:
   them, the active camera, the debug lines and whether they are shown, the screen's fade, the asset
   tree and resources, the console, input and a context of the game's over the shell's, the
   definitions and the scripts, the player, the orbit cameras framed on a target, a sequence played,
-  the pick cleared, and the game UI. With none, as Flotsam runs, the shell has physics and no space:
-  no galaxy, station, ship or market (`GameTests`), and so runs the render test; the `ground`
+  the pick cleared, and the game UI. With none, as Flotsam and render_test run, the shell has physics
+  and no game's content (`GameTests`), and so runs the render test; the `ground`
   executable composes the ground sample ([sample game](sample-game.md#the-ground-sample)).
-- **The space sample** (8b, `samples/space`, `Sample::SpaceGame`, [sample game](sample-game.md);
-  retired on 2026-11-22, Manifest testing all space code, so what follows is its record): the first slice of Manifest's plan, as a game composed into the shell. Its space layer
-  (`SpaceLayer`, G01b) is what the shell was of a space game: the galaxy, the system shown and the
-  jumps between them, lanes, gates, cruises and routes, the stations built and dressed, the
-  player's ship and fleet, piloting from behind or the seat, the console's traffic and the flight
-  panel, with their console commands, keys and render-test stages. Its reflected names keep
-  their `Shell.` prefix, which saves and the scripts' bindings carry. Eight goods
-  from its data, traded by the crate (an IBC cube) in whole credits, a market at each of the
-  galaxy's two stations that makes and uses its goods each market tick (ten seconds) and prices each
-  by scarcity, either side of the price by its listing fee; the ship starts with an empty hold of
-  twenty crates and 250,000 credits, and trades at the market of the station it is docked at
-  (`samples/space/src/Trading.h`). The credits are the owner's (12c): a `Purse` on an entity of its own with
-  an `Owner`, the player's and each trader's, found by the controller its ships are commanded by
-  (`Sim::ControlledBy`), so a fleet's ships share it, and a trade carries its sender and is refused
-  from one that does not command the ship; a save from before keeps each purse on its ship, which
-  the sample's load (`SpaceGame::UpgradeSave`) moves to the owner. Each good has a galactic mean (`GalacticPrices`, an
-  entity of its own made with the markets, saved and in the snapshots): it starts at the good's
-  base price and each trade filled anywhere, the player's or a trader's, moves it towards the price
-  paid by n / (n + 400) of the way for n crates, in whole credits, so a transport's forty crates move
-  it a tenth and ten loads half; a world saved before it is given one by its first trade. The
-  market screen shows the station's goods, the ship's hold and its owner's credits, the galactic
-  mean, a bid over it and an ask under it in green, and the best bid among the other markets; its
-  Buy and Sell send a `Trade`, which the step fills or refuses, with a reason the screen words.
+- **The space sample** (8b to G01, `samples/space`, `Sample::SpaceGame`, retired on 2026-11-22):
+  the first slice of Manifest's plan, as a game composed into the shell, its galaxy, trading,
+  traders, fleet, piloting and dressing; Manifest tests all space code now, and the sample's record
+  is in [history](history.md) for Manifest's graphical client (L15) to take up.
 - **Physics** (`engine/physics`, 7a). Jolt in double precision as a service of the simulation world,
   [as above](#physics): rigid, kinematic and static bodies of box, sphere, capsule, cylinder,
-  convex-hull and mesh shapes, a Jolt world per frame of each star system, rails and gravity from the
-  systems defined in it, and the flight model (7b), stepped in the fixed step and saved with the
-  world. The shell attaches it, for its ship.
-- **AI** (`engine/ai`, 9a). A* over a graph of indexed nodes (`Pathfinding.h`); routes across the
-  galaxy over its jump points, and courses across a system round its star, planets and moons
-  (`Routes.h`); the simulation's jump, lane travel ([as above](#jumps), `Lanes.h`), and the gates
-  that send a ship along a lane ([as above](#gates), `Gates.h`); and steering
-  ([as above](#steering), `Steering.h`, 9b), over the spatial index kept from the simulation
-  (`spatial/FrameIndices.h`), all attached by the shell after physics, whose console's `traffic`
-  sends shuttles to hold station about the station; and utility AI and behaviour trees
-  ([as above](#decisions), 9f), by which the sample's seven traders choose and fly their runs, and
-  which the console's `traders` reports on.
-- **Docks** (`engine/dock`, 9c to 9e). Hulls and station layouts as definitions, stations built to
-  them with their pads, pads given, queued and lapsing, the approach and the clamp ([as
-  above](#docks)); the deck's roads and buggies were retired with the space sample (2026-11-22),
-  which built and dressed every station of its galaxy.
+  convex-hull and mesh shapes, a Jolt world per local frame of each frame, rails and gravity from
+  the frame models defined in it, and the flight model (7b), stepped in the fixed step and saved with
+  the world. The shell attaches it.
+- **AI** (`engine/ai`, 9a). A* over a graph of indexed nodes (`Pathfinding.h`), courses round
+  spheres (`Courses.h`), steering ([as above](#steering), `Steering.h`, 9b) over the spatial index
+  kept from the simulation (`spatial/FrameIndices.h`), and utility AI and behaviour trees ([as
+  above](#decisions), 9f). Manifest's routes across its galaxy, its traders and its fleet are built on
+  them.
+- **Transit** (`engine/transit`, the space extraction's slice 4). Motion profiles, passages out of
+  physics, portals and slots ([as above](#transit)), each with a consumer of no genre in its suite: a
+  lift and a train, doors between frames and within one, a car park and a toll booth.
+- **Docks** (`engine/dock`, 9c to 9e). Vehicles, berth classes and platform layouts as definitions,
+  platforms built to them where their game places them, berths given, queued and lapsing, the
+  approach and the clamp ([as above](#docks)); the deck's roads and buggies were retired with the
+  space sample (2026-11-22).

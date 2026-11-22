@@ -242,7 +242,12 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      `place`, its column "Place" and "Ort"; the test content's textures are `textures/panels`;
      production comments name the retired sample only for a measurement taken on it. No pinned hash moved, and every reference
      frame held.
-   - **8b, the documents** rewritten for the boundary as it is.
+   - **8b, the documents.** **Done** 2026-11-23: architecture's boundary as it is, its sections on
+     jumps, gates and cruising moved to Manifest's architecture (its "Space"), the system scene, the
+     sample's traders, fleet, jumps, piloting and sounds left to the history, and the rest in the
+     words of frames, vehicles, platforms and berths, the coordinate frames World, Frame and Local;
+     scope's rows of what moved marked Moved; game integration's consumer matrix the ground sample
+     and Manifest's suites; the console's help, a shape's refusal and a comment in neutral words.
    - **8c, the close**: Manifest's boundary assessment, the consumer matrix, the gate and the
      cross-review.
 

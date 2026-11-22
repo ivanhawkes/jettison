@@ -172,7 +172,7 @@ TEST_CASE("Physics: every kind of shape is built, and one that describes none is
 	ShapeDefinition triangle = hull;
 	triangle.points.pop_back();
 	CHECK_THROWS_WITH_AS(
-	    physics.DefineShape("triangle", triangle), doctest::Contains("a hull of 3 points"),
+	    physics.DefineShape("triangle", triangle), doctest::Contains("a convex hull of 3 points"),
 	    std::invalid_argument);
 	ShapeDefinition point = hull;
 	point.points.assign(4, glm::vec3{1.0f, 2.0f, 3.0f});

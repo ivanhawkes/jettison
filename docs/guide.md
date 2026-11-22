@@ -86,7 +86,7 @@ directory kept, so take the directory out to try the pack.
 
 ### Release it
 
-Give players `mymod.pack` alone. They put it in their mods directory, which for the sample shell is
+Give players `mymod.pack` alone. They put it in their mods directory, which for the engine's shell is
 `~/.local/share/jettison/mods`; a game on the engine may keep its user data elsewhere. A mod found
 there and not yet in the player's list (`mods.yaml`) is added to its end, enabled, and the player
 orders and enables mods from there.

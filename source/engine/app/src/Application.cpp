@@ -401,8 +401,8 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	    });
 	m_console.RegisterCommand(
 	    "sequence",
-	    "Plays a cinematic in cinematics/ from a time in seconds, over the ship, its pad and its "
-	    "station, or stops the one playing: sequence <name> [seconds] | stop",
+	    "Plays a cinematic in cinematics/ from a time in seconds, on the active camera, or stops "
+	    "the one playing: sequence <name> [seconds] | stop",
 	    [this](DevTools::Console &, std::span<const std::string> arguments)
 	    {
 		    if (arguments.empty() || arguments.size() > 2)

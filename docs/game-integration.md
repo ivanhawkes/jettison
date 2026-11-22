@@ -8,17 +8,17 @@ extraction it describes (H02–H05, A01, W01) is done and is in Manifest's SDK p
 
 Jettison provides reusable game-engine capabilities for multiple game types. Manifest
 owns its production gameplay and data: companies, civilisations, economic rules, prices,
-progression, scenario content, travel policy, game UI and script permissions. Optional
-space capabilities may live in Jettison, but generic simulation, physics, AI and scene
-services must not require a space-game model or sample content.
+progression, scenario content, travel policy, game UI and script permissions. The space
+setting is Manifest's since the [space extraction](space-extraction-plan.md) (2026-11-23), and generic
+simulation, physics, AI and scene services must not require a space-game model or sample content.
 
-The small space-trading example may remain in this repository to exercise engine APIs
-and support automated testing. Put its rules, registration, scripts and content in
-explicit sample/test targets outside `source/engine`. The neutral engine cannot depend
-on them. The example is neither Manifest's production implementation nor a second
-economy that must grow in parallel with it. It has one rule beyond trading, damage and its
-repair in a dry dock (2026-11-18, the user's decision), there to exercise a pad's features. Reusable renderer resources remain engine
-assets; example markets, galaxies, ships, music and trading screens are sample assets.
+The engine's own consumers, the ground sample and the test content ([samples](sample-game.md)),
+exercise engine APIs in automated tests. A sample's rules, registration, scripts and content are in
+explicit sample/test targets outside `source/engine`, which the engine cannot depend on, and none is
+Manifest's production implementation or a second economy that must grow in parallel with it. The
+space-trading example, with its damage and its repair in a dry dock (2026-11-18) to exercise a
+berth's features, was retired on 2026-11-22, Manifest testing all space code. Reusable renderer
+resources remain engine assets; a game's markets, maps, vehicles, music and screens are its own.
 
 ## Check Manifest before implementing capabilities
 
@@ -62,14 +62,14 @@ VFS or physics integration in Manifest because its public seam needs a bounded i
 ## Remaining gaps and extraction order
 
 Slices 1–3 below are done ([history](history.md#neutral-sdk-and-manifest-integration)). What
-remains of the boundary: the shell still names some content by path, each optional (the default
-scene, the galaxy, the music, the station hum, a station's dressing), and several engine suites
-read the sample's content as test data. Slice 4 recurs with every Manifest stage.
+remains of the boundary: the shell names two pieces of content by convention, each optional (the
+default scene and the music), and several engine suites read the test content as test data. Slice 4
+recurs with every Manifest stage.
 
 Implement the boundary in reviewable slices:
 
 1. Public genre-neutral lifecycle and explicit game composition; move sample code and
-   registration out of the engine app library. Jetsam selects the small example explicitly;
+   registration out of the engine app library. A sample's executable selects its game explicitly;
    Flotsam may open that project but must not activate its economy by default.
 2. Separate engine resources from sample packs, and make samples/editor/presentation
    optional. A CPU consumer must configure without ImGui, Vulkan/glslc or sample content.
@@ -98,7 +98,9 @@ These checks hold the boundary, and each exists:
 - **The consumer matrix:**
   - a CPU race with no galaxy or transforms, served over loopback with tokens (`source/test/consumer`);
   - a non-space physics room (the `physics` suite);
-  - the explicit space sample;
+  - the ground sample, a vehicle on the ground under a frame model's gravity (`sample-ground`, and
+    its stages of the smoke run);
+  - Manifest's suites and pinned hashes on the local engine, which test all space code;
   - a CPU configure with presentation off (`clang-cpu`).
 
   These are small API tests, not new products. A new capability adds to this list.
@@ -106,5 +108,5 @@ These checks hold the boundary, and each exists:
 The implementer runs relevant presets and required gates at the machine's own core count,
 clang-tidy included, reading `MemAvailable` before a full-parallel run
 ([the gate](build-and-gates.md#the-gate)). Document actual evidence and
-remaining limitations. The planned matrix does not pass merely because the existing
-space sample works or a static linker discards unused sample symbols.
+remaining limitations. The matrix does not pass merely because one consumer works or a
+static linker discards unused sample symbols.
