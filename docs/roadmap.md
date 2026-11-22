@@ -48,9 +48,9 @@ here, a stopgap for the way in to a pad, and its L28, a docked fleet's wait pass
 engine edit ([history](history.md#neutral-sdk-and-manifest-integration)). Its W18, W11 and W19 are
 done in Manifest with no engine edit. Its W21, fuel burn, asked for a cruise's coast phase, a share
 of the time thrusting, provisioned (2026-11-22, [history](history.md#neutral-sdk-and-manifest-integration));
-Manifest's own slices of W21 follow on it, and its slice 4 a station's reach measured where physics
-placed it (2026-11-22, [history](history.md#neutral-sdk-and-manifest-integration)). The station
-traffic lanes (the row below) are next, after W21.
+and its slice 4 a station's reach measured where physics placed it (2026-11-22,
+[history](history.md#neutral-sdk-and-manifest-integration)); W21 is done in Manifest (2026-11-22).
+The station traffic lanes (the row below) are next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
