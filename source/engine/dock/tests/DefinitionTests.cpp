@@ -126,6 +126,12 @@ TEST_CASE("Dock definitions: a hull of version 1 loads, its cruise drive, the ga
 	CHECK(vehicle.displayName == "Shuttle");
 	CHECK(vehicle.length == 9.8f);
 	CHECK(vehicle.berthClass == "corvette");
+	// Version 2 had the loading deck's hatch, which went with the deck.
+	const auto hatched = Serialise::YamlArchive::Read<Dock::VehicleDefinition>(
+	    "version: 2\ndisplayName: Shuttle\nlength: 9.8\nbeam: 6.4\nheight: 1.8\npad: corvette\n"
+	    "hatch: [0, -0.9, 3]\n",
+	    Dock::VehicleMigrations());
+	CHECK(hatched.berthClass == "corvette");
 	// The current version has no drive to give.
 	CHECK_THROWS_AS(
 	    Serialise::YamlArchive::Read<Dock::VehicleDefinition>(
@@ -134,7 +140,9 @@ TEST_CASE("Dock definitions: a hull of version 1 loads, its cruise drive, the ga
 }
 
 
-TEST_CASE("Dock definitions: a berth class and a layout of version 1, in the setting's words, load")
+TEST_CASE(
+    "Dock definitions: a berth class and a layout of version 1, in the setting's words and with a "
+    "deck's traffic, load")
 {
 	Dock::RegisterTypes();
 	const auto berthClass = Serialise::YamlArchive::Read<Dock::BerthClassDefinition>(
@@ -143,7 +151,9 @@ TEST_CASE("Dock definitions: a berth class and a layout of version 1, in the set
 	CHECK(berthClass == Dock::BerthClassDefinition{1, {60.0f, 30.0f, 15.0f}, {50.0f, 90.0f}});
 	const auto layout = Serialise::YamlArchive::Read<Dock::PlatformLayout>(
 	    "version: 1\ndecks: [{centre: [0, 0, 0], size: [100, 20, 100]}]\n"
-	    "pads:\n  - {class: frigate, position: [0, 10, 0], display: true, ship: transport}\n",
+	    "pads:\n  - {class: frigate, position: [0, 10, 0], display: true, ship: transport}\n"
+	    "traffic: {buggies: 3, cratesPerTrip: 4, speed: 8, working: true}\n"
+	    "bays:\n  - {position: [100, 10, 0], normal: [1, 0, 0]}\n",
 	    Dock::PlatformMigrations());
 	REQUIRE(layout.berths.size() == 1);
 	CHECK(layout.berths[0].berthClass == "frigate");

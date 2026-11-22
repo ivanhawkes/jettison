@@ -639,7 +639,10 @@ Version 5 (the space extraction's slice 7) renamed the engine's types out of the
 words the same way (`Dock.Pad` to `Dock.Berth`, `Physics.Thrusters` to `Physics.Handling`), and their
 fields by each component's chain, since a game's types share names such as `ship`; a command still
 queued in an older save has its fields renamed as it is read, as a queued pick's `system` is its
-`frame` (8a), by the field, a world version being more than one field of one command is worth. A YAML step edits the parsed tree, keeping the lines a mistake is
+`frame` (8a), by the field, a world version being more than one field of one command is worth; a
+destination's `byHull`, which a queued `Ai.SetDestination` holds inside a record of its own, is
+renamed over the table, no other type the engine saves naming a field so. The docks' definitions of
+an earlier version drop the retired loading deck's fields (`hatch`, `bays`, `traffic`). A YAML step edits the parsed tree, keeping the lines a mistake is
 reported at. Definitions migrate the same way ([decided](decisions.md)). A version newer than
 the build's, or one the chain does not reach, is refused by name before any step runs, and every
 read leaves what it was reading into as it was when the data does not fit.
@@ -1829,7 +1832,8 @@ proves it headlessly. What exists:
   `Summary`) are the gate.
 - **Scene** (`engine/scene`). An EnTT registry loaded from and saved to YAML
   (`source/test/content/scene/orbit.yaml` at real scale, and `main.yaml`, the models, the default) through `serialise`'s archives, at
-  file version 2: a field the file does not know is refused, naming its path and line, and the
+  file version 3, a file of version 2 read through its migration (its `celestial` record is `body`):
+  a field the file does not know is refused, naming its path and line, and the
   loader and the writer share one check of what a file may say. It has transform, parent,
   world-transform, camera, light (a point or a spot, with a range), sun, sky, colour grade and mesh
   components (a glTF model by virtual path or a procedural shape - UV, ico or cube sphere, box, ring, cylinder

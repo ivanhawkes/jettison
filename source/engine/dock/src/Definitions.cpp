@@ -196,7 +196,14 @@ const Serialise::YamlMigrations &VehicleMigrations()
 	{
 		Serialise::YamlMigrations chain{"Dock.VehicleDefinition", {kVehicleVersion}};
 		chain.Add(1, [](YAML::Node &root) { root.remove("cruise"); });
-		chain.Add(2, [](YAML::Node &root) { RenameKey(root, "pad", "berth"); });
+		// The loading deck's hatch went with the deck, retired with the space sample (slice 2).
+		chain.Add(
+		    2,
+		    [](YAML::Node &root)
+		    {
+			    RenameKey(root, "pad", "berth");
+			    root.remove("hatch");
+		    });
 		return chain;
 	}();
 	return migrations;
@@ -213,6 +220,9 @@ const Serialise::YamlMigrations &PlatformMigrations()
 		    [](YAML::Node &root)
 		    {
 			    RenameKey(root, "pads", "berths");
+			    // The loading deck's bays and traffic, retired with the space sample (slice 2).
+			    root.remove("bays");
+			    root.remove("traffic");
 			    if (YAML::Node berths = root["berths"]; berths.IsSequence())
 				    for (YAML::Node berth : berths)
 					    RenameKey(berth, "ship", "vehicle");

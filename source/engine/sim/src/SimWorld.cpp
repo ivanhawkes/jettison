@@ -85,6 +85,11 @@ const Serialise::BinaryMigrations &Migrations()
 			    for (const auto &[from, to] : kRenamedTypes)
 				    if (std::ranges::find(document.names, from) != document.names.end())
 					    document.Rename(from, to);
+			    // A destination's field over the table, since a queued command holds its destination
+			    // as a record of its own, which the command's renamed fields do not reach; no other
+			    // type the engine saves names a field so.
+			    if (std::ranges::find(document.names, "byHull") != document.names.end())
+				    document.Rename("byHull", "byShape");
 		    });
 		return chain;
 	}();

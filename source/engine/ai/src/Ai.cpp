@@ -15,7 +15,14 @@ const Serialise::Migrations<Serialise::BinaryRecord> &Destination::Migrations()
 	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
 	{
 		Serialise::Migrations<Serialise::BinaryRecord> chain{"Ai.Destination", {2}};
-		chain.Add(1, [](Serialise::BinaryRecord &record) { record.Rename("byHull", "byShape"); });
+		// A world of version 4 has renamed it over its table already (SimWorld's migrations).
+		chain.Add(
+		    1,
+		    [](Serialise::BinaryRecord &record)
+		    {
+			    if (record.Has("byHull"))
+				    record.Rename("byHull", "byShape");
+		    });
 		return chain;
 	}();
 	return migrations;

@@ -763,3 +763,12 @@ TEST_CASE("Scene: a clip's file, name, speed and bindings are checked as the sce
 	CHECK(saved.find("node: arm") != std::string::npos);
 	CHECK(saved.find("time") == std::string::npos);
 }
+
+
+TEST_CASE(
+    "Scene: a file of version 2 loads, the body an entity is placed at named as version 3 names it")
+{
+	Scene scene;
+	scene.LoadText("version: 2\nentities:\n  - id: ostra\n    celestial: {body: Ostra}\n");
+	CHECK(scene.SaveText().find("body: Ostra") != std::string::npos);
+}

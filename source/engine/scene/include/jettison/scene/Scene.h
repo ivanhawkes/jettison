@@ -47,7 +47,8 @@ class SceneFile
 // makes it; the rig a model's clip player samples is loaded here, through the resource manager.
 //
 // The file is YAML through the reflection archives (serialise/Archive.h), at kFormatVersion: a field
-// it does not know is refused, naming its path and line, as is a version other than this one. The
+// it does not know is refused, naming its path and line, as is a version before 2 or after this
+// one; version 2 is read through its migration. The
 // loader and the writer share one check of what a file may say (Validate, in Scene.cpp), so the
 // writer cannot produce a file the loader refuses. Every path in it (a model, a material, a
 // clip) is a virtual path, found through the asset mounts, so a mod can shadow any of them.
