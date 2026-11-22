@@ -264,6 +264,13 @@ class PhysicsWorld final : public Sim::WorldService
 	// the frame's. Throws std::invalid_argument for a local frame a body could not be in.
 	glm::dvec3 FrameOrigin(std::uint64_t frame, std::string_view local, double simSeconds) const;
 
+	// The simulation seconds every entity on rails and every body is placed for: the end of the last
+	// step or skip, so a step's systems after physics see a step on from the clock's Now and those
+	// before it see Now. None before the first after this is made or loaded, when they are placed for
+	// Now. What measures a Transform against a body's place (Celestial::EvaluateSystem) evaluates the
+	// body at this time.
+	std::optional<double> PlacedAt() const;
+
 	// Where an entity on those rails in the defined frame is at a time, as each step puts it: what a
 	// game places an entity at before the first step that moves it, so nothing reads it elsewhere in
 	// between. Throws std::invalid_argument for a frame not defined or a body it does not have.

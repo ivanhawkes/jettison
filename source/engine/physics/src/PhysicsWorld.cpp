@@ -534,6 +534,8 @@ struct PhysicsWorld::Impl
 	// began and ended. State, saved.
 	std::map<Pair, bool> touching;
 	std::vector<ContactEvent> contacts;
+	// The end of the last step or skip, which every entity on rails and every body is placed for.
+	std::optional<double> placedAt;
 	// By frame: definitions, not state, so neither saved nor hashed.
 	std::map<std::uint64_t, std::unique_ptr<const FrameModel>> frames;
 	bool reportedUpdateError{false};
@@ -714,6 +716,12 @@ glm::dvec3 PhysicsWorld::Gravity(
 }
 
 
+std::optional<double> PhysicsWorld::PlacedAt() const
+{
+	return m_pImpl->placedAt;
+}
+
+
 glm::dvec3 PhysicsWorld::FrameOrigin(
     std::uint64_t frame, std::string_view local, double simSeconds) const
 {
@@ -878,6 +886,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	JETTISON_PROFILE_ZONE("Physics::Step");
 	Impl &impl = *m_pImpl;
 	const double stepEnd = simSeconds + fixedStep;
+	impl.placedAt = stepEnd;
 
 	// 1. Where the rails put their entities as the step ends, every one found before any is moved.
 	struct Placement
@@ -1250,6 +1259,7 @@ std::uint64_t PhysicsWorld::QuietFrom(
 void PhysicsWorld::Skip(entt::registry &registry, double lastBegan, double now, double fixedStep)
 {
 	Impl &impl = *m_pImpl;
+	impl.placedAt = now;
 	// As Step's 1, 3 and 5 have them for the last step passed over, which ended at now: each body's
 	// place as that step began and ended, found once for everything riding on it.
 	std::map<std::pair<const FrameModel *, std::string_view>, std::pair<Sim::Transform, Sim::Transform>>
@@ -1358,6 +1368,7 @@ std::function<void()> PhysicsWorld::Load(
 	// The records may name entities the save no longer has, or whose Body, frame or local frame changed
 	// after physics ran in the step the save was taken after: the next step deals with them as it
 	// would have in the world saved, so they are read as they are.
+	m_pImpl->placedAt.reset();
 	const Impl &impl = *m_pImpl;
 	const std::uint64_t layout = reader.ReadUnsigned(2);
 	if (layout != 3 && layout != kLayout)

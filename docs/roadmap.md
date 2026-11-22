@@ -48,7 +48,9 @@ here, a stopgap for the way in to a pad, and its L28, a docked fleet's wait pass
 engine edit ([history](history.md#neutral-sdk-and-manifest-integration)). Its W18, W11 and W19 are
 done in Manifest with no engine edit. Its W21, fuel burn, asked for a cruise's coast phase, a share
 of the time thrusting, provisioned (2026-11-22, [history](history.md#neutral-sdk-and-manifest-integration));
-Manifest's own slices of W21 follow on it.
+Manifest's own slices of W21 follow on it, and its slice 4 a station's reach measured where physics
+placed it (2026-11-22, [history](history.md#neutral-sdk-and-manifest-integration)). The station
+traffic lanes (the row below) are next, after W21.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -58,6 +60,7 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
+| Station traffic lanes | after W21 (the user's, 2026-11-22) | Departures, arrivals and cruises between stations kept off one another's lines: Manifest's policies, choosing per hour, fly between the five stations of Ore's one orbit, whose ships leave, arrive and cruise along the same chords. Each station's departures leave by gates on one side and its arrivals come in by gates on another, several of each, assigned as the pads are, as an airport's departure and arrival routes are; and a cruise's way and its ends offset by its direction, as aviation's levels by heading and Freelancer's paired one-way trade lanes do, so opposite flows never share a line. With [the way in to a pad](#then-robustness-tools-and-what-a-mod-can-reach)'s corridor. Measured by ships flown both ways between neighbouring stations of one orbit, none within a hull's clearance of another, and no departure or arrival slower than today's. |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 

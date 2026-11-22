@@ -659,6 +659,66 @@ TEST_CASE(
 }
 
 
+// A game's system after physics, as Manifest's travel is, sees every Transform placed for the step's
+// end; a station's frame moves with its planet by far more than the reach's margin in a step.
+TEST_CASE("Cruise: after physics in a step, a station's reach is measured where physics placed it")
+{
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	Physics::ShapeDefinition hub;
+	hub.halfExtents = {40.0f, 20.0f, 40.0f};
+	fixture.physics.DefineShape("hub", hub);
+	const entt::entity station = registry.create();
+	registry.emplace<Sim::Transform>(
+	    station, Sim::Transform{Fixture::Where("Ostra Highport", fixture.world.Clock().Now())});
+	registry.emplace<Sim::InFrame>(station, kHalcyon);
+	registry.emplace<Physics::OnRails>(station, Physics::OnRails{"Ostra Highport"});
+	registry.emplace<Physics::Body>(station, Physics::Body{Physics::BodyKind::Kinematic, "hub"});
+	const entt::entity ship = fixture.Ship("Ostra Highport", {0.0, 0.0, 500.0});
+	const Celestial::StarSystem halcyon = AiTests::Halcyon();
+	const double reach = BodyOf("Ostra Highport").radius + Space::CruiseTravel::kStationReach;
+	constexpr double kOutside = 10.0;
+
+	bool checked = false;
+	bool cleared = false;
+	bool cruising = false;
+	double moved = 0.0;
+	fixture.world.RegisterSystem(
+	    {"test.after_physics",
+	     Ecs::TickPhase::Simulation,
+	     Ecs::Access::Of<
+	         Sim::Transform, Sim::InFrame, Physics::OnRails, Physics::Body, Physics::LocalFrame,
+	         Space::CruiseDrive>()
+	         .Writing<
+	             Sim::Transform, Space::Cruising, Physics::Body, Physics::LocalFrame, Physics::Velocity,
+	             Physics::FlightControls>(),
+	     {std::string{Physics::PhysicsWorld::kSystemName}},
+	     [&](entt::registry &, double)
+	     {
+		     if (checked)
+			     return;
+		     checked = true;
+		     // Just outside the reach of the station as placed, behind it as it goes.
+		     const double now = fixture.world.Clock().Now();
+		     const glm::dvec3 placed = registry.get<const Sim::Transform>(station).position;
+		     moved = glm::distance(placed, Fixture::Where("Ostra Highport", now));
+		     const glm::dvec3 going = glm::normalize(placed - Fixture::Where("Ostra Highport", now));
+		     registry.get<Sim::Transform>(ship).position = placed - (going * (reach + kOutside));
+		     cleared = !Space::ClearOf(fixture.world, fixture.physics, halcyon, ship, station, "Pell");
+		     fixture.world.Apply(Space::Cruise{{}, ship, "Pell"});
+		     cruising = registry.all_of<Space::Cruising>(ship);
+	     }});
+	fixture.Run(1);
+	REQUIRE(checked);
+	REQUIRE(fixture.physics.PlacedAt());
+	CHECK(*fixture.physics.PlacedAt() == doctest::Approx(kStep));
+	// Measured at the clock's Now, it would be inside by all but the margin.
+	CHECK(moved > 10.0 * kOutside);
+	CHECK(cleared);
+	CHECK(cruising);
+}
+
+
 TEST_CASE(
     "Cruise: a steered ship gives up its destination and controls with it, a piloted one keeps them")
 {

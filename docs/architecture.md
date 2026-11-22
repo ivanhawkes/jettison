@@ -438,7 +438,10 @@ is an acceleration and the ship coasts. It changes the ship's `Velocity`, and ph
 so a ship flown into a station meets it as any body would. The system `physics` runs one fixed step:
 
 1. Entities on rails are put where their bodies are as the step ends, each body placed once for
-   everything that rides on it.
+   everything that rides on it. So the systems after physics see every `Transform` a step on from
+   the clock's `Now`, the time `PhysicsWorld::PlacedAt` gives, and what measures one against a
+   body's place evaluates the body then: `Space::ClearOf` and a cruise's reach do, as a station's
+   frame moves with its planet by some 500 m a step about a star at 1 AU.
 2. Bodies are made for entities that gained what makes one, and removed for those that lost it,
    changed system or frame or changed their `Body` (made again, with the velocity they had). Every
    entity on rails and every body to be made is checked first, and one that cannot be is refused

@@ -351,7 +351,8 @@ std::optional<Destination> ClearOf(
 	if (left < 0 || target < 0)
 		return std::nullopt;
 
-	const double now = world.Clock().Now();
+	// Where the bodies are as the ship's Transform has it, a step on from Now after physics.
+	const double now = physics.PlacedAt().value_or(world.Clock().Now());
 	const std::vector<Celestial::SystemPosition> bodies = Celestial::EvaluateSystem(system, now);
 	const Celestial::Body &leaving = system.bodies[static_cast<std::size_t>(left)];
 	const glm::dvec3 centre = bodies[static_cast<std::size_t>(left)].metres;
@@ -467,12 +468,19 @@ void CruiseTravel::Start(Sim::SimWorld &world, const Cruise &command) const
 	const double t0 = world.Clock().Now();
 	const glm::dvec3 from = transform->position;
 	const std::vector<Celestial::SystemPosition> bodies = Celestial::EvaluateSystem(system, t0);
+	// The reach measured where the bodies are as the ship's Transform has it (Physics::PlacedAt), a
+	// step on from t0 for a cruise applied after physics, as a station's frame moves hundreds of
+	// metres a step with its planet. The course keeps t0, as the cruise's steps count from it.
+	const double placed = m_physics.PlacedAt().value_or(t0);
+	const std::vector<Celestial::SystemPosition> placedBodies =
+	    placed == t0 ? bodies : Celestial::EvaluateSystem(system, placed);
 	for (std::size_t station = 0; station < system.bodies.size(); ++station)
 		if (system.bodies[station].kind == Celestial::BodyKind::Station &&
-		    glm::distance(from, bodies[station].metres) < system.bodies[station].radius + kStationReach)
+		    glm::distance(from, placedBodies[station].metres) <
+		        system.bodies[station].radius + kStationReach)
 			return refuse(
 			    Reason::NearStation, {Sim::ReasonArgument::Identifier(system.bodies[station].name)});
-	if (glm::distance(from, bodies[target].metres) <
+	if (glm::distance(from, placedBodies[target].metres) <
 	    ArrivalDistance(system.bodies[target]) + kStationReach)
 		return refuse(Reason::AlreadyThere, {Sim::ReasonArgument::Identifier(command.body)});
 
