@@ -827,7 +827,8 @@ SceneFile::~SceneFile() = default;
 
 namespace
 {
-// Version 2 named a body an entity is placed at "celestial" (Scene::kFormatVersion).
+// Version 2 named a body an entity is placed at "celestial", and the system it was of by its path
+// (Scene::kFormatVersion).
 const Serialise::YamlMigrations &Migrations()
 {
 	static const Serialise::YamlMigrations migrations = []
@@ -837,6 +838,9 @@ const Serialise::YamlMigrations &Migrations()
 		    2,
 		    [](YAML::Node &root)
 		    {
+			    // The path of the system a scene was of, which is the game's now (the space extraction,
+			    // slice 3).
+			    root.remove("system");
 			    YAML::Node entities = root["entities"];
 			    if (!entities.IsSequence())
 				    return;

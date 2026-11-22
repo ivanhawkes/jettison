@@ -43,6 +43,18 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 2> kRenamedC
     {"ship", "vehicle"},
     {"station", "platform"},
 }};
+// A value a renamed command holds as a record of its own, whose field version 5 renamed: the command,
+// its field, and the field renamed inside it, which a component's chain does only for its storage.
+struct NestedRename
+{
+	std::string_view command;
+	std::string_view field;
+	std::string_view from;
+	std::string_view to;
+};
+constexpr std::array<NestedRename, 1> kRenamedNestedFields{{
+    {"Ai.SetDestination", "destination", "byHull", "byShape"},
+}};
 // The components version 5 dropped, the retired loading deck's, whose storages an earlier save holds:
 // read through and left out.
 constexpr std::array<std::string_view, 2> kRetiredComponents{"Dock.Transfer", "Dock.Buggy"};
@@ -85,15 +97,29 @@ const Serialise::BinaryMigrations &Migrations()
 			    for (const auto &[from, to] : kRenamedTypes)
 				    if (std::ranges::find(document.names, from) != document.names.end())
 					    document.Rename(from, to);
-			    // A destination's field over the table, since a queued command holds its destination
-			    // as a record of its own, which the command's renamed fields do not reach; no other
-			    // type the engine saves names a field so.
-			    if (std::ranges::find(document.names, "byHull") != document.names.end())
-				    document.Rename("byHull", "byShape");
 		    });
 		return chain;
 	}();
 	return migrations;
+}
+
+
+// The field inside the command's field, read as a record, renamed, and set again as the value it
+// now is, so the command's record reads as the command is now.
+void RenameNested(
+    Serialise::BinaryRecord &record, const entt::meta_type &command, const NestedRename &rename)
+{
+	const entt::meta_data field = Reflect::FindField(command, rename.field);
+	if (!field || !record.Has(rename.field))
+		return;
+	Serialise::BinaryReader reader = record.Open(rename.field);
+	Serialise::BinaryRecord nested = reader.ReadRecord();
+	if (!nested.Has(rename.from))
+		return;
+	nested.Rename(rename.from, rename.to);
+	entt::meta_any value = field.type().construct();
+	nested.ReadInto(value);
+	record.SetValue(rename.field, value);
 }
 
 
@@ -383,6 +409,9 @@ void SimWorld::Load(std::span<const std::byte> save)
 			for (const auto &[from, to] : kRenamedCommandFields)
 				if (renamed && record.Has(from))
 					record.Rename(from, to);
+			for (const NestedRename &nested : kRenamedNestedFields)
+				if (renamed && nested.command == name)
+					RenameNested(record, type, nested);
 			if (name == kPickCommand && record.Has("system"))
 				record.Rename("system", "frame");
 			record.ReadInto(command);

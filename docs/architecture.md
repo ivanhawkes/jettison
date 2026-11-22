@@ -641,7 +641,8 @@ fields by each component's chain, since a game's types share names such as `ship
 queued in an older save has its fields renamed as it is read, as a queued pick's `system` is its
 `frame` (8a), by the field, a world version being more than one field of one command is worth; a
 destination's `byHull`, which a queued `Ai.SetDestination` holds inside a record of its own, is
-renamed over the table, no other type the engine saves naming a field so. The docks' definitions of
+renamed inside that record, so a game's own field of that name is left as it is. A scene of version 2
+drops the path of the system it was of, which is the game's. The docks' definitions of
 an earlier version drop the retired loading deck's fields (`hatch`, `bays`, `traffic`). A YAML step edits the parsed tree, keeping the lines a mistake is
 reported at. Definitions migrate the same way ([decided](decisions.md)). A version newer than
 the build's, or one the chain does not reach, is refused by name before any step runs, and every

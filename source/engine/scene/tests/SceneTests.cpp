@@ -769,6 +769,8 @@ TEST_CASE(
     "Scene: a file of version 2 loads, the body an entity is placed at named as version 3 names it")
 {
 	Scene scene;
-	scene.LoadText("version: 2\nentities:\n  - id: ostra\n    celestial: {body: Ostra}\n");
+	scene.LoadText(
+	    "version: 2\nsystem: systems/halcyon.yaml\nentities:\n  - id: ostra\n    celestial: {body: "
+	    "Ostra}\n");
 	CHECK(scene.SaveText().find("body: Ostra") != std::string::npos);
 }
