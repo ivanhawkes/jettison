@@ -1,28 +1,2 @@
 # The space setting's words still in the neutral modules, a file and a word a line, which the
 # space extraction removes (docs/space-extraction-plan.md); cmake/CheckNeutralWords.cmake checks it.
-dock/include/jettison/dock/Definitions.h celestial
-dock/include/jettison/dock/Definitions.h station
-dock/include/jettison/dock/Definitions.h ship
-dock/include/jettison/dock/Definitions.h hull
-dock/include/jettison/dock/Definitions.h cruise
-dock/include/jettison/dock/Definitions.h pad
-dock/include/jettison/dock/Docks.h celestial
-dock/include/jettison/dock/Docks.h station
-dock/include/jettison/dock/Docks.h ship
-dock/include/jettison/dock/Docks.h hull
-dock/include/jettison/dock/Docks.h cruise
-dock/include/jettison/dock/Docks.h pad
-dock/include/jettison/dock/Docks.h cargo
-dock/src/Definitions.cpp station
-dock/src/Definitions.cpp ship
-dock/src/Definitions.cpp hull
-dock/src/Definitions.cpp pad
-dock/src/Docks.cpp station
-dock/src/Docks.cpp ship
-dock/src/Docks.cpp hull
-dock/src/Docks.cpp pad
-dock/src/Types.cpp station
-dock/src/Types.cpp ship
-dock/src/Types.cpp hull
-dock/src/Types.cpp pad
-dock/src/Types.cpp cargo

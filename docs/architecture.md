@@ -376,7 +376,7 @@ docking stays in physics, and is refused with a reason.
 
 How long a cruise takes is the ship's drive (`Space::CruiseDrive`), a component the game gives it,
 the sample from its hull's (`defs/drives/<hull>.yaml`, G01d; a hull file of version 1 that gives one
-still loads, its drive left out, through `Dock::HullMigrations`): the
+still loads, its drive left out, through `Dock::VehicleMigrations`): the
 seconds a cruise of 10⁸ m takes, rising as the distance's fourth root, so the shuttle crosses from
 Highport to Pell, 3.9 × 10⁵ km, in 56 s, and to Halcyon's star in four minutes. A drive may give a
 profile in its place (`Transit::MotionProfile`), for a game played over days: a boost acceleration for
@@ -645,93 +645,65 @@ three axes, rolled too, rather than turning its nose to its velocity: a pad's he
 
 ### Docks
 
-A station's pads are the simulation's (`dock/Docks.h`, 9c, catalogue entry 31,
-[decided](decisions.md)): who holds a pad is authoritative state that every player is to see
+A platform's berths are the simulation's (`dock/Docks.h`, 9c, catalogue entry 31,
+[decided](decisions.md)): who holds a berth is authoritative state that every player is to see
 the same, so it is given by commands in their order, saved, and nothing in the module assumes one
-player. Its data are definitions: a pad class (`defs/pads`, `Dock::PadClassDefinition`, W01) has
-the largest hull it takes, its pad's size and its rank, a hull fitting a pad of its own class or one
-ranked above it whose largest hull holds it (`Dock::Fits`, a free function over the classes so content
-is checked with no world, which `Docks::Fits` asks: the rank orders the choice, the size is the limit), so a game's classes, a compact berth among them, need no engine edit; a hull
-(`defs/hulls`, `Dock::HullDefinition`) has a size, within its class's largest hull, the class of
-pad it lands on and its cargo hatch, and collides as the box of its size; a station's
-layout (`defs/stations`, `Dock::StationLayout`), which a station names in its system's file
-(`Celestial::Body::layout`), has its decks and piers as boxes, which the station collides as, its
-pads (class, place, normal, heading, the features it offers, and whether it is for display, with the
-hull it shows) and its cargo bays, each the middle of its door's sill on the deck. A pad's features
-are names of the game's (the sample's `dry-dock`): a ship that asks for one
-(`RequestPad::feature`) is given only a pad that offers it, the smallest free, and queues for one or
-is refused where none does; what a feature is for is the game's, and a pad saves none
-(`Docks::Offers` reads the layout). A layout is checked as it is defined:
-every pad all on a deck or a pier, none overlapping another, nothing of the station over any, out to
-the sphere that holds it all, and a ship shown only on a display pad. A display pad's ship is
-presentation's, drawn on it and never a body: no ship is given the pad, and `Park` refuses it.
+player. A platform is anything vehicles berth at that its game places: a station in Manifest, a
+harbour, a car park on a ferry. Its data are definitions: a berth class (`defs/berths`,
+`Dock::BerthClassDefinition`, W01) has the largest vehicle it takes, its berth's size and its rank,
+a vehicle fitting a berth of its own class or one ranked above it whose largest vehicle holds it
+(`Dock::Fits`, a free function over the classes so content is checked with no world, which
+`Docks::Fits` asks: the rank orders the choice, the size is the limit), so a game's classes, a
+compact berth among them, need no engine edit; a vehicle (`defs/vehicles`,
+`Dock::VehicleDefinition`) has a size, within its class's largest vehicle, and the class of berth
+it lands on, and collides as the box of its size; a platform's layout (`defs/platforms`,
+`Dock::PlatformLayout`) has its decks and piers as boxes, which the platform collides as, and its
+berths (class, place, normal, heading, the features it offers, and whether it is for display, with
+the vehicle it shows). A berth's features are names of the game's (a `dry-dock`): a vehicle that
+asks for one (`RequestBerth::feature`) is given only a berth that offers it, the smallest free, and
+queues for one or is refused where none does; what a feature is for is the game's, and a berth
+saves none (`Docks::Offers` reads the layout). A layout is checked as it is defined: every berth
+all on a deck or a pier, none overlapping another, nothing of the platform over any, out to the
+sphere that holds it all, and a vehicle shown only on a display berth. A display berth's vehicle is
+presentation's, drawn on it and never a body: no vehicle is given the berth, and `Park` refuses it.
+The saved and reflected names are still the setting's (`Dock.Pad`, `Dock.StationLayout` and the
+rest, their fields among them), until slice 7 of the [space extraction](space-extraction-plan.md) renames them.
 
-`Docks::MakeStation` builds a station: its kinematic body on its celestial body's rails, in its
-frame, and an entity for each pad on the same rails at its place, free, reserved for a ship until
-a step, or holding one, its class saved by name. `RequestPad` gives a ship the lowest ranked free
-pad its hull fits, the lowest numbered of those, or a place at the back of the station's queue, and
-the queue is served from the front, each ship the lowest ranked free pad it fits, as pads come free;
-a reservation not landed on in time lapses. `ReleasePad` gives a pad or a place up, or lets a docked ship go. Both carry their
-sender (`Sim::Controller`, a player's slot or the AI), and a ship's `Sim::ControlledBy` refuses a
-command from anyone else; a refusal says why, as an event, among the given, queued, lapsed, landed,
-left and released.
+`Docks::MakePlatform` builds a platform where its game places it: on the rails of a body of the
+frame's model (`Physics::FrameModel`), in that body's local frame, with an entity for each berth on
+the same rails at its place, free, reserved for a vehicle until a step, or holding one, its class
+saved by name. `RequestBerth` gives a vehicle the lowest ranked free berth it fits, the lowest
+numbered of those, or a place at the back of the platform's queue, and the queue is served from the
+front, each vehicle the lowest ranked free berth it fits, as berths come free; a reservation not
+landed on in time lapses. `ReleaseBerth` gives a berth or a place up, or lets a docked vehicle go.
+Both carry their sender (`Sim::Controller`, a player's slot or the AI), and a vehicle's
+`Sim::ControlledBy` refuses a command from anyone else; a refusal says why, as an event, among the
+given, queued, lapsed, landed, left and released.
 
-A ship the docks fly in (`RequestPad::fly`) is steered in three legs: a course round the station's
-sphere (`Ai::Waypoints`) to a point out along its pad's normal, as far beyond the point above the
-pad as it stops in from its top speed (`Ai::BrakingAcceleration`), where it stops; straight down
-the normal from rest to the point above its pad, outside the sphere; then
-down the normal, kept clear of the station by its hull and turned to the pad's heading, slowing to
-stop a quarter of a metre above its resting height. The system `dock`, after physics, clamps a ship
-within a clamp's reach of its own pad (2 m across it, a metre above or below, its top within 10° of
+A vehicle the docks fly in (`RequestBerth::fly`) is steered in three legs: a course round the
+platform's sphere (`Ai::Waypoints`) to a point out along its berth's normal, as far beyond the point
+above the berth as it stops in from its top speed (`Ai::BrakingAcceleration`), where it stops;
+straight down the normal from rest to the point above its berth, outside the sphere; then down the
+normal, kept clear of the platform by its shape and turned to the berth's heading, slowing to stop a
+quarter of a metre above its resting height. The system `dock`, after physics, clamps a vehicle
+within a clamp's reach of its own berth (2 m across it, a metre above or below, its top within 10° of
 the normal and its nose within 15° of the heading, under half a metre a second), whether the docks
-flew it or its pilot did: its body becomes kinematic, on the station's rails at its place on the pad,
-so it is held in the station's frame and out of flight. A pad clamps only the ship it was given to.
-Undocking makes the ship dynamic again and lifts it. A ship the docks fly out (`ReleasePad::fly`, a
-trader's, which cruises on and cannot within the station's radius) is steered the same way back to
-the point above, where it gives the pad up: off Highport's pad 1 that is 755 m at the lift's 20 m/s,
-39 s. One its pilot flies (`fly` false, the shell's) is lifted straight off the pad by its own
-thrusters at 20 m/s against the station, with no point to reach, and gives the pad up 40 m above it
-(`Dock::kLiftHeight`), held there for the pilot 2.7 s after the clamps open. Highport's shuttle from 10 km on its far side is over its pad in 117 s and clamped
-24 s later, touching nothing on the way. The stop is a stopgap ([carried forward](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
+flew it or its pilot did: its body becomes kinematic, on the platform's rails at its place on the
+berth, so it is held in the platform's frame and out of flight. A berth clamps only the vehicle it
+was given to. Undocking makes the vehicle dynamic again and lifts it. A vehicle the docks fly out
+(`ReleaseBerth::fly`, one that goes on by steering or in transit) is steered the same way back to the
+point above, where it gives the berth up: off the dock suite's largest platform's berth 1 that is
+755 m at the lift's 20 m/s, 39 s. One its pilot flies (`fly` false) is lifted straight off the berth
+by its own thrusters at 20 m/s against the platform, with no point to reach, and gives the berth up
+40 m above it (`Dock::kLiftHeight`), held there for the pilot 2.7 s after the clamps open. A shuttle
+from 10 km on that platform's far side is over its berth in 117 s and clamped 24 s later, touching
+nothing on the way. The stop is a stopgap ([carried forward](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
 
-**The station dressing** (9d) is the layout drawn, in the shell (`app/src/Dressing.h`), under the
-station's entity in the presentation scene as each system scene is built; none of it reaches a scene
-file, and none of it is what the station collides as, which is its layout's decks and piers whatever
-is drawn. A tall block of the layout (the hub) is drawn in the hull's plating and a flat one (a pier,
-a wing) in deck plating. Each pad is a plate on the deck, painted in the effects layer with its
-outline, a centre line with chevrons to the bow, the keep-clear box over its class's hatch and its
-number in bar segments; floodlight poles stand along its long sides, at its corners and, past 120 m,
-between them, each a spot aimed across the pad at half its class's largest hull's height with the
-intensity that puts 1.6 on it (half the sun's irradiance), and a lamp under its head in the effects
-layer showing the pad's state. The pads are shown in the snapshots (`Docks::Attach`), so the lamps
-are turned from what presentation may see, never from the world: green free, amber reserved, red
-holding a ship, blue on display. Each bay has its door, a panel up from its sill or a hatch in the
-deck. A ship's proxy, a parked ship's or a display pad's, is one of four chosen by its hull's length,
-made of procedural shapes fitted to its hull's box, or the hull's own glTF model when it names one
-(`HullDefinition::model`). Highport carries 104 floodlights: six on each destroyer pad, eight on each
-cruiser bay and four on each corvette pad, every one
-reaching no further than 900 m from the station's centre.
-
-**Docking clamps** (10d) are the dressing's too, four to a pad (`App::PadClamps`): each a post that
-telescopes out of the deck beside the hull, an arm that rises with it and swings over onto the
-hull's side, and a jaw that slides out along the arm to bite, keyframed in a clip file
-(`animations/pad-clamp.clip.yaml`, [animation](#animation)) whose `close` and `open` clips one
-player on the pad's node plays on all four, each name bound to the four parts that bear it. They
-are fitted to the hull they hold, two a side a quarter of its length fore and aft, and as tall as
-two fifths of its height, as the proxies are fitted to their hulls; the docks therefore show each
-ship's `Docking` and `Hull` in the snapshots. The clamps close while the pad's ship is at
-`Stage::Docked` and open once it is let go, which is before the pad is given up, so a ship lifts
-out of open clamps; clamps first seen are shown as they are, at the end of their clip and without
-its events, so a ship parked as a world opens is held from its first frame and not heard closing. A
-display pad's hold the ship it shows. Stowed, a clamp is put away at no size, and a mesh scaled to
-nothing is neither drawn nor casts a shadow.
-
-**Deck traffic** (9e, [decided](decisions.md)) carried a docked ship's cargo across the deck in the
-simulation, by buggies on roads made from a station's layout, until the space extraction retired it
-with the space sample, its one user (2026-11-22). Its roads, buggies and transfers went, with the
-layouts' bays and traffic and the hulls' hatches; `Dock.Transfer` and `Dock.Buggy` stay
-registered with the world, with no behaviour, so a save's bytes and the hashes pinned on them hold
-until slice 7 drops their saved names ([space extraction](space-extraction-plan.md)).
+**Deck traffic** (9e, [decided](decisions.md)) carried a docked vehicle's crates across the deck in
+the simulation, by buggies on roads made from a layout, until the space extraction retired it with
+the space sample, its one user (2026-11-22). `Dock.Transfer` and `Dock.Buggy` stay registered
+with the world, with no behaviour, so a save's bytes and the hashes pinned on them hold until slice
+7 drops their saved names ([space extraction](space-extraction-plan.md)).
 
 ### Decisions
 

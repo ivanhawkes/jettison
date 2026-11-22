@@ -7,7 +7,7 @@ space code. The space sample has served its purpose and is retired: what of it s
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
 station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
-Slices 1 to 3 are done, and slice 4 is under way; the inventory behind the plan was taken on Jettison `ccc0ae7` and
+Slices 1 to 4 are done, and slice 5 is under way; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
 ## Where things stand
@@ -174,7 +174,19 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      sample went, the sequence is eleven stages, and its piloting stage says what a game pilots
      rather than a ship. The list at 26, the dock's, for slice 5.
 5. **Berths.** `dock` without stations' celestial tie: a station layout takes the placement its game
-   gives; Manifest's pads on berths; pins held.
+   gives; Manifest's pads on berths; pins held. In three parts:
+   - **5a, berths in neutral words.** **Done** 2026-11-23: the dock's C++ in the words of any game's
+     platforms, berths and vehicles (`Dock::Platform`, `Berth`, `Vehicle`, `PlatformLayout`,
+     `BerthLayout`, `BerthClassDefinition`, `VehicleDefinition`, `RequestBerth`, `ReleaseBerth` and
+     the events `Berth*`), its saved and reflected names kept, and its refusals' messages so worded;
+     `Docks::MakePlatform` puts a platform on the rails of a body of the frame's model, which is the
+     game's placement, the star system no longer named. Rails offset from the body were tried and
+     dropped: composing a berth's place with the platform's zero offset and identity turn moved a
+     pinned hash in the dock suite. Manifest names the neutral types, its messages' tests reworded; its 53 suites and every pin
+     held on the local engine. The list is empty.
+   - **5b, the dock suite on neutral frames**: its flights in a frame model of its own, a platform on a
+     moving body, rather than the sample's Halcyon, and `jettison_space` off its link.
+   - **5c, the ai suite on neutral frames**: steering's flight round a moving platform the same way.
 6. **The move.** `celestial`'s orbits, bodies and galaxy, `space`'s setting and the routes into
    Manifest's `space` module, reflected names unchanged; `celestial`, `space` and `spacescene` leave the engine and its
    optional list. Manifest's suites and pins held on the new SDK pin.

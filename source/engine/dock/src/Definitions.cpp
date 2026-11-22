@@ -18,11 +18,11 @@ namespace Jettison::Dock
 {
 namespace
 {
-// How far a pad's face is probed into and out of the structure it lies on, and how much two shapes
-// may touch without overlapping: a pad lies flush on its deck and beside the next.
+// How far a berth's face is probed into and out of the structure it lies on, and how much two shapes
+// may touch without overlapping: a berth lies flush on its deck and beside the next.
 constexpr double kProbe = 0.05;
 constexpr double kTouching = 0.01;
-// How near to a unit length, and to square, a pad's normal and heading have to be.
+// How near to a unit length, and to square, a berth's normal and heading have to be.
 constexpr double kUnitTolerance = 1.0e-3;
 
 
@@ -37,8 +37,8 @@ bool Finite(const glm::dvec3 &vector)
 	return std::isfinite(vector.x) && std::isfinite(vector.y) && std::isfinite(vector.z);
 }
 
-// A box turned to its axes, by its centre and half its size along each: a pad's footprint, the
-// column of space above it, or a deck's box, square to the station's axes.
+// A box turned to its axes, by its centre and half its size along each: a berth's footprint, the
+// column of space above it, or a deck's box, square to the platform's axes.
 struct Oriented
 {
 	glm::dvec3 centre{0.0};
@@ -56,21 +56,21 @@ Oriented Square(const Box &box, double shrink)
 }
 
 
-// The pad's axes, as PadOrientation has them: across it, its normal, and back along its heading.
-std::array<glm::dvec3, 3> PadAxes(const PadLayout &pad)
+// The berth's axes, as BerthOrientation has them: across it, its normal, and back along its heading.
+std::array<glm::dvec3, 3> BerthAxes(const BerthLayout &berth)
 {
-	const glm::dvec3 back = -pad.heading;
-	return {glm::cross(pad.normal, back), pad.normal, back};
+	const glm::dvec3 back = -berth.heading;
+	return {glm::cross(berth.normal, back), berth.normal, back};
 }
 
 
-// The space from `from` to `to` above the pad along its normal, over its footprint, less the
+// The space from `from` to `to` above the berth along its normal, over its footprint, less the
 // shrink on every side.
-Oriented Above(const PadLayout &pad, glm::vec2 size, double from, double to, double shrink)
+Oriented Above(const BerthLayout &berth, glm::vec2 size, double from, double to, double shrink)
 {
 	Oriented oriented;
-	oriented.axes = PadAxes(pad);
-	oriented.centre = pad.position + pad.normal * ((from + to) * 0.5);
+	oriented.axes = BerthAxes(berth);
+	oriented.centre = berth.position + berth.normal * ((from + to) * 0.5);
 	oriented.half =
 	    glm::max(glm::dvec3{size.x * 0.5, (to - from) * 0.5, size.y * 0.5} - shrink, glm::dvec3{0.0});
 	return oriented;
@@ -114,7 +114,7 @@ bool Inside(const Box &box, const glm::dvec3 &point)
 }
 
 
-std::vector<Box> Structure(const StationLayout &layout)
+std::vector<Box> Structure(const PlatformLayout &layout)
 {
 	std::vector<Box> boxes = layout.decks;
 	boxes.insert(boxes.end(), layout.piers.begin(), layout.piers.end());
@@ -122,50 +122,51 @@ std::vector<Box> Structure(const StationLayout &layout)
 }
 
 
-std::string PadName(std::size_t index)
+std::string BerthName(std::size_t index)
 {
-	return std::format("pad {}", index + 1);
+	return std::format("berth {}", index + 1);
 }
 } // namespace
 
 
-const PadClassDefinition &PadClassOf(
-    const PadClasses &classes, std::string_view padClass, std::string_view namedBy)
+const BerthClassDefinition &BerthClassOf(
+    const BerthClasses &classes, std::string_view berthClass, std::string_view namedBy)
 {
 	// No class is a default: the classes are the game's, so a file has to name one.
-	if (padClass.empty())
-		throw Serialise::FormatError{std::format("{} names no pad class", namedBy)};
-	const auto found = classes.find(padClass);
+	if (berthClass.empty())
+		throw Serialise::FormatError{std::format("{} names no berth class", namedBy)};
+	const auto found = classes.find(berthClass);
 	if (found == classes.end())
 		throw Serialise::FormatError{
-		    std::format("{} names pad class '{}', which is not defined", namedBy, padClass)};
+		    std::format("{} names berth class '{}', which is not defined", namedBy, berthClass)};
 	return found->second;
 }
 
 
-void CheckPadClass(std::string_view name, const PadClassDefinition &padClass)
+void CheckBerthClass(std::string_view name, const BerthClassDefinition &berthClass)
 {
-	constexpr std::string_view kWhat = "Pad class";
-	const glm::vec3 &hull = padClass.largestHull;
-	const glm::vec2 &pad = padClass.padSize;
-	for (const float size : {hull.x, hull.y, hull.z, pad.x, pad.y})
+	constexpr std::string_view kWhat = "Berth class";
+	const glm::vec3 &vehicle = berthClass.largestVehicle;
+	const glm::vec2 &berth = berthClass.berthSize;
+	for (const float size : {vehicle.x, vehicle.y, vehicle.z, berth.x, berth.y})
 		if (!(size > 0.0f) || !std::isfinite(size))
-			Refuse(kWhat, name, "has a largest hull or a pad that is not of positive size");
-	if (hull.y > pad.x || hull.x > pad.y)
+			Refuse(kWhat, name, "has a largest vehicle or a berth that is not of positive size");
+	if (vehicle.y > berth.x || vehicle.x > berth.y)
 		Refuse(
 		    kWhat, name,
 		    std::format(
-		        "has a largest hull of {} x {} m, length by beam, that its {} x {} m pad, width by "
+		        "has a largest vehicle of {} x {} m, length by beam, that its {} x {} m berth, width "
+		        "by "
 		        "length, does not hold",
-		        hull.x, hull.y, pad.x, pad.y));
+		        vehicle.x, vehicle.y, berth.x, berth.y));
 }
 
 
-const Serialise::YamlMigrations &HullMigrations()
+const Serialise::YamlMigrations &VehicleMigrations()
 {
 	static const Serialise::YamlMigrations migrations = []
 	{
-		Serialise::YamlMigrations chain{"Dock.HullDefinition", {kHullVersion}};
+		Serialise::YamlMigrations chain{"Dock.HullDefinition", {kVehicleVersion}};
 		chain.Add(1, [](YAML::Node &root) { root.remove("cruise"); });
 		return chain;
 	}();
@@ -173,39 +174,39 @@ const Serialise::YamlMigrations &HullMigrations()
 }
 
 
-void CheckHull(std::string_view name, const HullDefinition &hull, const PadClasses &classes)
+void CheckVehicle(std::string_view name, const VehicleDefinition &vehicle, const BerthClasses &classes)
 {
-	constexpr std::string_view kWhat = "Hull";
-	const glm::vec3 size{hull.length, hull.beam, hull.height};
+	constexpr std::string_view kWhat = "Vehicle";
+	const glm::vec3 size{vehicle.length, vehicle.beam, vehicle.height};
 	for (glm::length_t index = 0; index < 3; ++index)
 		if (!(size[index] > 0.0f) || !std::isfinite(size[index]))
 			Refuse(kWhat, name, "has a length, beam or height that is not a positive size");
 	const glm::vec3 largest =
-	    PadClassOf(classes, hull.pad, std::format("{} '{}'", kWhat, name)).largestHull;
-	if (hull.length > largest.x || hull.beam > largest.y || hull.height > largest.z)
+	    BerthClassOf(classes, vehicle.berthClass, std::format("{} '{}'", kWhat, name)).largestVehicle;
+	if (vehicle.length > largest.x || vehicle.beam > largest.y || vehicle.height > largest.z)
 		Refuse(
 		    kWhat, name,
 		    std::format(
-		        "is {} x {} x {} m, larger than its pad's largest hull, {} x {} x {} m", hull.length,
-		        hull.beam, hull.height, largest.x, largest.y, largest.z));
+		        "is {} x {} x {} m, larger than its berth's largest vehicle, {} x {} x {} m",
+		        vehicle.length, vehicle.beam, vehicle.height, largest.x, largest.y, largest.z));
 }
 
 
-bool Fits(const PadClasses &classes, const HullDefinition &hull, std::string_view padClass)
+bool Fits(const BerthClasses &classes, const VehicleDefinition &vehicle, std::string_view berthClass)
 {
-	const auto pad = classes.find(padClass);
-	const auto own = classes.find(hull.pad);
-	if (pad == classes.end() || own == classes.end())
+	const auto berth = classes.find(berthClass);
+	const auto own = classes.find(vehicle.berthClass);
+	if (berth == classes.end() || own == classes.end())
 		return false;
-	// The rank orders the classes; the size is what holds the hull. Ranks are the game's data, and
+	// The rank orders the classes; the size is what holds the vehicle. Ranks are the game's data, and
 	// nothing makes a class ranked above another the larger in every dimension.
-	const glm::vec3 &largest = pad->second.largestHull;
-	return pad->second.rank >= own->second.rank && hull.length <= largest.x && hull.beam <= largest.y &&
-	       hull.height <= largest.z;
+	const glm::vec3 &largest = berth->second.largestVehicle;
+	return berth->second.rank >= own->second.rank && vehicle.length <= largest.x &&
+	       vehicle.beam <= largest.y && vehicle.height <= largest.z;
 }
 
 
-double Radius(const StationLayout &layout)
+double Radius(const PlatformLayout &layout)
 {
 	double radius = 0.0;
 	for (const Box &box : Structure(layout))
@@ -214,9 +215,9 @@ double Radius(const StationLayout &layout)
 }
 
 
-void CheckLayout(std::string_view name, const StationLayout &layout, const PadClasses &classes)
+void CheckLayout(std::string_view name, const PlatformLayout &layout, const BerthClasses &classes)
 {
-	constexpr std::string_view kWhat = "Station layout";
+	constexpr std::string_view kWhat = "Platform layout";
 	const std::vector<Box> boxes = Structure(layout);
 	if (boxes.empty())
 		Refuse(kWhat, name, "has no decks or piers");
@@ -228,56 +229,61 @@ void CheckLayout(std::string_view name, const StationLayout &layout, const PadCl
 		Refuse(kWhat, name, "has a reservation that is not a positive number of seconds");
 	const double radius = Radius(layout);
 
-	for (std::size_t index = 0; index < layout.pads.size(); ++index)
+	for (std::size_t index = 0; index < layout.berths.size(); ++index)
 	{
-		const PadLayout &pad = layout.pads[index];
-		const std::string padName = PadName(index);
-		if (!Finite(pad.position) || !Finite(pad.normal) || !Finite(pad.heading) ||
-		    std::abs(glm::length(pad.normal) - 1.0) > kUnitTolerance ||
-		    std::abs(glm::length(pad.heading) - 1.0) > kUnitTolerance)
-			Refuse(kWhat, name, padName + " has a normal or a heading that is not of unit length");
-		if (std::abs(glm::dot(pad.normal, pad.heading)) > kUnitTolerance)
-			Refuse(kWhat, name, padName + " has a heading that is not square to its normal");
-		if (!pad.ship.empty() && !pad.display)
+		const BerthLayout &berth = layout.berths[index];
+		const std::string berthName = BerthName(index);
+		if (!Finite(berth.position) || !Finite(berth.normal) || !Finite(berth.heading) ||
+		    std::abs(glm::length(berth.normal) - 1.0) > kUnitTolerance ||
+		    std::abs(glm::length(berth.heading) - 1.0) > kUnitTolerance)
+			Refuse(kWhat, name, berthName + " has a normal or a heading that is not of unit length");
+		if (std::abs(glm::dot(berth.normal, berth.heading)) > kUnitTolerance)
+			Refuse(kWhat, name, berthName + " has a heading that is not square to its normal");
+		if (!berth.vehicle.empty() && !berth.display)
 			Refuse(
 			    kWhat, name,
-			    padName + " shows a ship, which only a display pad does: a ship lands on any other");
+			    berthName +
+			        " shows a vehicle, which only a display berth does: a vehicle lands on any other");
 
 		// All of it on the structure: its middle, its corners and the middles of its sides each
 		// just under its face in a deck or a pier, and its middle not inside one.
-		const std::array<glm::dvec3, 3> axes = PadAxes(pad);
+		const std::array<glm::dvec3, 3> axes = BerthAxes(berth);
 		const glm::vec2 size =
-		    PadClassOf(classes, pad.padClass, std::format("{} '{}': {}", kWhat, name, padName)).padSize;
+		    BerthClassOf(classes, berth.berthClass, std::format("{} '{}': {}", kWhat, name, berthName))
+		        .berthSize;
 		for (const double across : {-0.5, 0.0, 0.5})
 			for (const double along : {-0.5, 0.0, 0.5})
 			{
-				const glm::dvec3 under = pad.position + axes[0] * (across * (size.x - kTouching)) +
-				                         axes[2] * (along * (size.y - kTouching)) - pad.normal * kProbe;
+				const glm::dvec3 under = berth.position + axes[0] * (across * (size.x - kTouching)) +
+				                         axes[2] * (along * (size.y - kTouching)) -
+				                         berth.normal * kProbe;
 				if (std::ranges::none_of(boxes, [&](const Box &box) { return Inside(box, under); }))
-					Refuse(kWhat, name, padName + " is not all on a deck or a pier");
+					Refuse(kWhat, name, berthName + " is not all on a deck or a pier");
 			}
 		if (std::ranges::any_of(
-		        boxes, [&](const Box &box) { return Inside(box, pad.position + pad.normal * kProbe); }))
-			Refuse(kWhat, name, padName + " is under a deck or a pier, not on one");
+		        boxes,
+		        [&](const Box &box) { return Inside(box, berth.position + berth.normal * kProbe); }))
+			Refuse(kWhat, name, berthName + " is under a deck or a pier, not on one");
 
-		// Clear above, from just over its face to beyond anything of the station.
-		const Oriented column = Above(pad, size, kProbe, kProbe + 2.0 * radius, kTouching);
+		// Clear above, from just over its face to beyond anything of the platform.
+		const Oriented column = Above(berth, size, kProbe, kProbe + 2.0 * radius, kTouching);
 		if (std::ranges::any_of(
 		        boxes, [&](const Box &box) { return Overlap(column, Square(box, kTouching)); }))
-			Refuse(kWhat, name, padName + " has the station over it");
+			Refuse(kWhat, name, berthName + " has the platform over it");
 
-		const Oriented footprint = Above(pad, size, -kProbe, kProbe, kTouching);
+		const Oriented footprint = Above(berth, size, -kProbe, kProbe, kTouching);
 		for (std::size_t other = 0; other < index; ++other)
 			if (Overlap(
-			        footprint, Above(
-			                       layout.pads[other], classes.at(layout.pads[other].padClass).padSize,
-			                       -kProbe, kProbe, kTouching)))
-				Refuse(kWhat, name, std::format("{} overlaps {}", padName, PadName(other)));
+			        footprint,
+			        Above(
+			            layout.berths[other], classes.at(layout.berths[other].berthClass).berthSize,
+			            -kProbe, kProbe, kTouching)))
+				Refuse(kWhat, name, std::format("{} overlaps {}", berthName, BerthName(other)));
 	}
 }
 
 
-Physics::ShapeDefinition DeckShape(const StationLayout &layout)
+Physics::ShapeDefinition DeckShape(const PlatformLayout &layout)
 {
 	Physics::ShapeDefinition shape;
 	shape.kind = Physics::ShapeKind::Mesh;
@@ -316,9 +322,9 @@ Physics::ShapeDefinition DeckShape(const StationLayout &layout)
 }
 
 
-glm::dquat PadOrientation(const PadLayout &pad)
+glm::dquat BerthOrientation(const BerthLayout &berth)
 {
-	const std::array<glm::dvec3, 3> axes = PadAxes(pad);
+	const std::array<glm::dvec3, 3> axes = BerthAxes(berth);
 	return glm::normalize(glm::quat_cast(glm::dmat3{axes[0], axes[1], axes[2]}));
 }
 } // namespace Jettison::Dock

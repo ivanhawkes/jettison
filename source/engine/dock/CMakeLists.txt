@@ -1,5 +1,5 @@
-# Stations' pads and the ships on them (docs/history.md, catalogue entry 31): a simulation module,
-# above ai, whose steering flies a ship in, and physics, which clamps it.
+# Platforms' berths and the vehicles on them (docs/history.md, catalogue entry 31): a simulation
+# module, above ai, whose steering flies a vehicle in, and physics, which clamps it.
 jettison_add_module(dock
 	DETERMINISTIC
 	DEPENDS

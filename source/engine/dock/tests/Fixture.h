@@ -22,7 +22,7 @@
 #include <vector>
 
 // What the dock suites share: a world with physics, the spatial index, steering and the docks, in
-// the retired space sample's Halcyon, read from its file, and its hulls and stations from theirs
+// the retired space sample's Halcyon, read from its file, and its vehicles and platforms from theirs
 // (tests/fixtures).
 namespace Jettison::DockTests
 {
@@ -38,10 +38,10 @@ inline std::string ReadAsset(std::string_view path)
 	return text.str();
 }
 
-// The space sample's pad classes (defs/pads), as a suite that defines its own hulls has them.
-inline const Dock::PadClasses &SampleClasses()
+// The space sample's berth classes (defs/berths), as a suite that defines its own vehicles has them.
+inline const Dock::BerthClasses &SampleClasses()
 {
-	static const Dock::PadClasses classes{
+	static const Dock::BerthClasses classes{
 	    {"corvette", {0, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}}},
 	    {"frigate", {1, {60.0f, 30.0f, 15.0f}, {50.0f, 90.0f}}},
 	    {"destroyer", {2, {140.0f, 50.0f, 30.0f}, {80.0f, 180.0f}}},
@@ -69,10 +69,10 @@ struct Fixture
 		Vfs::FileSystem files;
 		files.AddMount({"base", JETTISON_DOCK_FIXTURE_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
-		definitions.Load<Dock::PadClassDefinition>(
-		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});
-		definitions.Load<Dock::HullDefinition>(Dock::kHullDirectory, Dock::HullMigrations());
-		definitions.Load<Dock::StationLayout>(Dock::kStationDirectory, {Dock::kDefinitionVersion});
+		definitions.Load<Dock::BerthClassDefinition>(
+		    Dock::kBerthClassDirectory, {Dock::kDefinitionVersion});
+		definitions.Load<Dock::VehicleDefinition>(Dock::kVehicleDirectory, Dock::VehicleMigrations());
+		definitions.Load<Dock::PlatformLayout>(Dock::kPlatformDirectory, {Dock::kDefinitionVersion});
 		docks.Define(definitions);
 	}
 
@@ -85,23 +85,24 @@ struct Fixture
 		return Physics::PhysicsWorld::Attach(world);
 	}
 
-	// A ship of the hull at rest, that far from the station's centre in its frame, nose along -Z.
-	entt::entity Ship(entt::entity station, std::string_view hull, const glm::dvec3 &offset)
+	// A vehicle of the definition at rest, that far from the platform's centre in its frame, nose
+	// along -Z.
+	entt::entity Vehicle(entt::entity platform, std::string_view definition, const glm::dvec3 &offset)
 	{
 		entt::registry &registry = world.Registry();
-		const entt::entity ship = registry.create();
+		const entt::entity vehicle = registry.create();
 		registry.emplace<Sim::Transform>(
-		    ship, Sim::Transform{registry.get<Sim::Transform>(station).position + offset});
-		registry.emplace<Sim::InFrame>(ship, kHalcyon);
-		registry.emplace<Physics::LocalFrame>(ship, std::string{kHighport});
-		Physics::Body body{Physics::BodyKind::Dynamic, Dock::Docks::HullShape(hull), 20000.0f};
+		    vehicle, Sim::Transform{registry.get<Sim::Transform>(platform).position + offset});
+		registry.emplace<Sim::InFrame>(vehicle, kHalcyon);
+		registry.emplace<Physics::LocalFrame>(vehicle, std::string{kHighport});
+		Physics::Body body{Physics::BodyKind::Dynamic, Dock::Docks::VehicleShape(definition), 20000.0f};
 		body.continuous = true;
-		registry.emplace<Physics::Body>(ship, body);
-		registry.emplace<Physics::Velocity>(ship);
-		registry.emplace<Physics::Handling>(ship);
-		registry.emplace<Physics::FlightControls>(ship);
-		registry.emplace<Dock::Hull>(ship, std::string{hull});
-		return ship;
+		registry.emplace<Physics::Body>(vehicle, body);
+		registry.emplace<Physics::Velocity>(vehicle);
+		registry.emplace<Physics::Handling>(vehicle);
+		registry.emplace<Physics::FlightControls>(vehicle);
+		registry.emplace<Dock::Vehicle>(vehicle, std::string{definition});
+		return vehicle;
 	}
 
 	void Step()
@@ -129,21 +130,21 @@ struct Fixture
 		return found;
 	}
 
-	const Dock::Pad &PadOf(entt::entity pad) const
+	const Dock::Berth &BerthOf(entt::entity berth) const
 	{
-		return world.Registry().get<Dock::Pad>(pad);
+		return world.Registry().get<Dock::Berth>(berth);
 	}
 
-	entt::entity PadNumbered(entt::entity station, std::uint32_t number) const
+	entt::entity BerthNumbered(entt::entity platform, std::uint32_t number) const
 	{
-		return world.Registry().get<Dock::Station>(station).pads.at(number - 1);
+		return world.Registry().get<Dock::Platform>(platform).berths.at(number - 1);
 	}
 
-	// The number of the pad the ship holds or is on its way to, or none.
-	std::uint32_t NumberOf(entt::entity ship) const
+	// The number of the berth the vehicle holds or is on its way to, or none.
+	std::uint32_t NumberOf(entt::entity vehicle) const
 	{
-		const auto *docking = world.Registry().try_get<Dock::Docking>(ship);
-		return docking && docking->pad != entt::null ? PadOf(docking->pad).number : 0;
+		const auto *docking = world.Registry().try_get<Dock::Docking>(vehicle);
+		return docking && docking->berth != entt::null ? BerthOf(docking->berth).number : 0;
 	}
 };
 } // namespace Jettison::DockTests

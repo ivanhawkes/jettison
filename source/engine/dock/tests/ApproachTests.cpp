@@ -18,24 +18,25 @@ using DockTests::Fixture;
 
 namespace
 {
-// Ostra Highport built to its layout, and a shuttle 10 km below it, on the far side from its pads,
+// Ostra Highport built to its layout, and a shuttle 10 km below it, on the far side from its berths,
 // which face up its +Y, and off to one side.
 struct Approach : Fixture
 {
-	entt::entity station{entt::null};
-	entt::entity ship{entt::null};
+	entt::entity platform{entt::null};
+	entt::entity vehicle{entt::null};
 
 
 	Approach()
 	{
-		station = docks.MakeStation(world, DockTests::kHalcyon, DockTests::kHighport, "ostra-highport");
-		const glm::dquat axes = world.Registry().get<Sim::Transform>(station).orientation;
-		ship = Ship(station, "shuttle", axes * glm::dvec3{1500.0, -9800.0, 1200.0});
-		world.Commands().Push(Dock::RequestPad{{}, ship, station, true});
+		platform =
+		    docks.MakePlatform(world, DockTests::kHalcyon, DockTests::kHighport, "ostra-highport");
+		const glm::dquat axes = world.Registry().get<Sim::Transform>(platform).orientation;
+		vehicle = Vehicle(platform, "shuttle", axes * glm::dvec3{1500.0, -9800.0, 1200.0});
+		world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
 	}
 
-	// Where each contact the ship began was, in pad 1's axes from the middle of its face, as the pad
-	// was when they touched.
+	// Where each contact the vehicle began was, in berth 1's axes from the middle of its face, as the
+	// berth was when they touched.
 	std::vector<glm::dvec3> touched;
 
 
@@ -43,15 +44,15 @@ struct Approach : Fixture
 	{
 		const std::size_t before = collisions.size();
 		Step();
-		const Sim::Transform &pad = world.Registry().get<Sim::Transform>(PadNumbered(station, 1));
+		const Sim::Transform &berth = world.Registry().get<Sim::Transform>(BerthNumbered(platform, 1));
 		for (std::size_t index = before; index < collisions.size(); ++index)
 			touched.push_back(
-			    glm::conjugate(pad.orientation) * (collisions[index].point - pad.position));
+			    glm::conjugate(berth.orientation) * (collisions[index].point - berth.position));
 	}
 
 
-	// Whether every contact was the hull on its pad: on the pad's face, within its 80 by 180 m.
-	bool OnlyOnThePad() const
+	// Whether every contact was the vehicle on its berth: on the berth's face, within its 80 by 180 m.
+	bool OnlyOnTheBerth() const
 	{
 		return std::ranges::all_of(
 		    touched, [](const glm::dvec3 &at)
@@ -61,11 +62,11 @@ struct Approach : Fixture
 
 	const Dock::Docking *Docking() const
 	{
-		return world.Registry().try_get<Dock::Docking>(ship);
+		return world.Registry().try_get<Dock::Docking>(vehicle);
 	}
 
 
-	// Steps until the ship's stage is the one asked for, or the time is up: the seconds it took.
+	// Steps until the vehicle's stage is the one asked for, or the time is up: the seconds it took.
 	std::optional<double> RunUntil(Dock::Stage stage, double seconds)
 	{
 		for (long step = 0; step < std::lround(seconds / DockTests::kStep); ++step)
@@ -78,13 +79,13 @@ struct Approach : Fixture
 	}
 
 
-	// Where the ship is in the pad's axes, from where its hull rests on it.
+	// Where the vehicle is in the berth's axes, from where its vehicle rests on it.
 	glm::dvec3 FromRest(double height) const
 	{
 		const entt::registry &registry = world.Registry();
-		const Sim::Transform &pad = registry.get<Sim::Transform>(PadNumbered(station, 1));
-		return glm::conjugate(pad.orientation) *
-		           (registry.get<Sim::Transform>(ship).position - pad.position) -
+		const Sim::Transform &berth = registry.get<Sim::Transform>(BerthNumbered(platform, 1));
+		return glm::conjugate(berth.orientation) *
+		           (registry.get<Sim::Transform>(vehicle).position - berth.position) -
 		       glm::dvec3{0.0, height * 0.5, 0.0};
 	}
 };
@@ -98,12 +99,12 @@ TEST_CASE(
 {
 	Approach approach;
 	approach.Step();
-	REQUIRE(approach.Events<Dock::PadGiven>().size() == 1);
-	CHECK(approach.NumberOf(approach.ship) == 1);
+	REQUIRE(approach.Events<Dock::BerthGiven>().size() == 1);
+	CHECK(approach.NumberOf(approach.vehicle) == 1);
 
 	const std::optional<double> above = approach.RunUntil(Dock::Stage::Descending, 300.0);
 	REQUIRE(above);
-	// Round the station's sphere, not through it: no contact on the way.
+	// Round the platform's sphere, not through it: no contact on the way.
 	CHECK(approach.collisions.empty());
 	const std::optional<double> landed = approach.RunUntil(Dock::Stage::Docked, 120.0);
 	REQUIRE(landed);
@@ -113,17 +114,20 @@ TEST_CASE(
 	REQUIRE(events.size() == 1);
 	CHECK(events[0].number == 1);
 
-	// Clamped where its hull rests, turned to the pad, kinematic on the station's rails.
+	// Clamped where its vehicle rests, turned to the berth, kinematic on the platform's rails.
 	entt::registry &registry = approach.world.Registry();
-	CHECK(registry.get<Physics::Body>(approach.ship).kind == Physics::BodyKind::Kinematic);
+	CHECK(registry.get<Physics::Body>(approach.vehicle).kind == Physics::BodyKind::Kinematic);
 	approach.Run(5.0);
 	CHECK(glm::length(approach.FromRest(kShuttleHeight)) < 1.0e-3);
-	const Sim::Transform &pad = registry.get<Sim::Transform>(approach.PadNumbered(approach.station, 1));
+	const Sim::Transform &berth =
+	    registry.get<Sim::Transform>(approach.BerthNumbered(approach.platform, 1));
 	CHECK(
 	    glm::dot(
-	        registry.get<Sim::Transform>(approach.ship).orientation * glm::dvec3{0.0, 0.0, -1.0},
-	        pad.orientation * glm::dvec3{0.0, 0.0, -1.0}) > 0.999999);
-	CHECK(approach.PadOf(approach.PadNumbered(approach.station, 1)).state == Dock::PadState::Holding);
+	        registry.get<Sim::Transform>(approach.vehicle).orientation * glm::dvec3{0.0, 0.0, -1.0},
+	        berth.orientation * glm::dvec3{0.0, 0.0, -1.0}) > 0.999999);
+	CHECK(
+	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state ==
+	    Dock::BerthState::Holding);
 	CHECK(approach.collisions.empty());
 }
 
@@ -133,12 +137,14 @@ TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up 
 	Approach approach;
 	REQUIRE(approach.RunUntil(Dock::Stage::Docked, 420.0));
 	approach.events.clear();
-	approach.world.Commands().Push(Dock::ReleasePad{{}, approach.ship});
+	approach.world.Commands().Push(Dock::ReleaseBerth{{}, approach.vehicle});
 	approach.Advance();
 	REQUIRE(approach.Events<Dock::Left>().size() == 1);
 	CHECK(approach.Docking()->stage == Dock::Stage::Leaving);
-	// Held on its pad until it is clear: no one else is given it.
-	CHECK(approach.PadOf(approach.PadNumbered(approach.station, 1)).state == Dock::PadState::Holding);
+	// Held on its berth until it is clear: no one else is given it.
+	CHECK(
+	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state ==
+	    Dock::BerthState::Holding);
 
 	double nearest = std::numeric_limits<double>::infinity();
 	for (int step = 0; step < 60 * 120 && approach.Docking(); ++step)
@@ -147,19 +153,20 @@ TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up 
 		nearest = std::min(nearest, approach.FromRest(kShuttleHeight).y);
 	}
 	REQUIRE_FALSE(approach.Docking());
-	CHECK(approach.Events<Dock::PadReleased>().size() == 1);
-	CHECK(approach.PadOf(approach.PadNumbered(approach.station, 1)).state == Dock::PadState::Free);
+	CHECK(approach.Events<Dock::BerthReleased>().size() == 1);
+	CHECK(
+	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state == Dock::BerthState::Free);
 	CHECK(nearest > -0.01);
-	// Straight up over the pad, outside the station's sphere, and held there.
+	// Straight up over the berth, outside the platform's sphere, and held there.
 	const glm::dvec3 at = approach.FromRest(kShuttleHeight);
 	CHECK(std::hypot(at.x, at.z) < 5.0);
 	CHECK(
 	    glm::distance(
-	        approach.world.Registry().get<Sim::Transform>(approach.ship).position,
-	        approach.world.Registry().get<Sim::Transform>(approach.station).position) > 762.4);
+	        approach.world.Registry().get<Sim::Transform>(approach.vehicle).position,
+	        approach.world.Registry().get<Sim::Transform>(approach.platform).position) > 762.4);
 	// It lay on the deck as it was let go, and touched nothing else.
 	MESSAGE(approach.touched.size(), " contacts, as it was let go");
-	CHECK(approach.OnlyOnThePad());
+	CHECK(approach.OnlyOnTheBerth());
 }
 
 
@@ -170,15 +177,17 @@ TEST_CASE(
 	Approach approach;
 	REQUIRE(approach.RunUntil(Dock::Stage::Docked, 420.0));
 	approach.events.clear();
-	approach.world.Commands().Push(Dock::ReleasePad{{}, approach.ship, false});
+	approach.world.Commands().Push(Dock::ReleaseBerth{{}, approach.vehicle, false});
 	approach.Advance();
 	REQUIRE(approach.Events<Dock::Left>().size() == 1);
 	CHECK(approach.Docking()->stage == Dock::Stage::Leaving);
 	entt::registry &registry = approach.world.Registry();
-	// No point to fly to, only the thrusters firing up, against the station.
-	CHECK_FALSE(registry.all_of<Ai::Destination>(approach.ship));
-	CHECK(registry.get<Physics::FlightControls>(approach.ship).linear.y > 0.0f);
-	CHECK(approach.PadOf(approach.PadNumbered(approach.station, 1)).state == Dock::PadState::Holding);
+	// No point to fly to, only the thrusters firing up, against the platform.
+	CHECK_FALSE(registry.all_of<Ai::Destination>(approach.vehicle));
+	CHECK(registry.get<Physics::FlightControls>(approach.vehicle).linear.y > 0.0f);
+	CHECK(
+	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state ==
+	    Dock::BerthState::Holding);
 
 	int steps = 1;
 	for (; steps < 60 * 30 && approach.Docking(); ++steps)
@@ -186,20 +195,21 @@ TEST_CASE(
 	REQUIRE_FALSE(approach.Docking());
 	MESSAGE("The pad given up ", steps / 60.0, " s after the clamps opened");
 	CHECK(steps < 60 * 4);
-	CHECK(approach.Events<Dock::PadReleased>().size() == 1);
-	CHECK(approach.PadOf(approach.PadNumbered(approach.station, 1)).state == Dock::PadState::Free);
-	// Straight up off the pad, the lift's height, held for the pilot, whose controls then fly it.
+	CHECK(approach.Events<Dock::BerthReleased>().size() == 1);
+	CHECK(
+	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state == Dock::BerthState::Free);
+	// Straight up off the berth, the lift's height, held for the pilot, whose controls then fly it.
 	const glm::dvec3 at = approach.FromRest(kShuttleHeight);
 	CHECK(std::hypot(at.x, at.z) < 1.0);
 	CHECK(at.y >= Dock::kLiftHeight);
 	CHECK(at.y < Dock::kLiftHeight + 5.0);
-	CHECK(registry.get<Physics::FlightControls>(approach.ship) == Physics::FlightControls{});
+	CHECK(registry.get<Physics::FlightControls>(approach.vehicle) == Physics::FlightControls{});
 	approach.world.Commands().Push(
 	    Physics::SetFlightControls{
-	        {}, approach.ship, {{0.0f, 0.0f, -1.0f}, {}, true, approach.station}});
+	        {}, approach.vehicle, {{0.0f, 0.0f, -1.0f}, {}, true, approach.platform}});
 	approach.Run(2.0);
-	CHECK(registry.get<Physics::Velocity>(approach.ship).linear.z != 0.0f);
-	CHECK(approach.OnlyOnThePad());
+	CHECK(registry.get<Physics::Velocity>(approach.vehicle).linear.z != 0.0f);
+	CHECK(approach.OnlyOnTheBerth());
 }
 
 
@@ -228,22 +238,22 @@ TEST_CASE(
 	std::optional<std::vector<std::byte>> save;
 	std::optional<std::vector<std::byte>> unused;
 	const auto [first, stage] = run(save, kSaveAt);
-	// Saved on the way down onto the pad, kept clear of the station by its hull, and clamped by the
-	// end.
+	// Saved on the way down onto the berth, kept clear of the platform by its vehicle, and clamped by
+	// the end.
 	CHECK(stage == Dock::Stage::Docked);
 	CHECK(run(unused, -1).first == first);
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too, as
-	// steering's is: a change here is a change to how a ship is flown in, or to what a save holds.
-	// Re-pinned in 9d for Highport's display wing, six more pads and a deck more in its shape, with
-	// the approach's times unchanged (111 s to the point above the pad, 23.75 s down); and in 9e for
+	// steering's is: a change here is a change to how a vehicle is flown in, or to what a save holds.
+	// Re-pinned in 9d for Highport's display wing, six more berths and a deck more in its shape, with
+	// the approach's times unchanged (111 s to the point above the berth, 23.75 s down); and in 9e for
 	// the empty storages of transfers and buggies a save now holds, 9d's hash without them; and in
-	// W01 for a pad's class saved as its name, the old build's saves loaded and saved again the same;
-	// and for the sample's classes under their ship names and the feature a docking asked for, each
+	// W01 for a berth's class saved as its name, the old build's saves loaded and saved again the same;
+	// and for the sample's classes under their vehicle names and the feature a docking asked for, each
 	// by its bytes alone: the old names written back, and then the feature left unsaved, gave the
 	// hash before each; and for the fast-forward, a kinematic body put at rest where it is while
 	// nothing dynamic shares its world, the traders' galaxy the same to the bit over half an hour; and
-	// for the way in stopped out along the pad's normal first, then flown straight down it (117 s to
-	// the point above the pad, 23.6 s down).
+	// for the way in stopped out along the berth's normal first, then flown straight down it (117 s to
+	// the point above the berth, 23.6 s down).
 	CHECK(first == 0xfe7893b110e4086bull);
 
 	Approach loaded;
@@ -256,7 +266,7 @@ TEST_CASE(
 
 TEST_CASE("Docks: a ship made again from a save of another Jolt docks as it would have, and stays")
 {
-	// A docked ship is a kinematic body on its station's rails, and the clamps are presentation's,
+	// A docked vehicle is a kinematic body on its platform's rails, and the clamps are presentation's,
 	// so Jolt holds nothing of a docking that the records do not: the rebuild loses none of it.
 	constexpr int kSaveAt = 60 * 120;
 	const Physics::JoltVersion other{5, 5, 0, Physics::BuiltJoltVersion().features};
@@ -287,41 +297,41 @@ TEST_CASE("Docks: a ship made again from a save of another Jolt docks as it woul
 	REQUIRE(again.Docking());
 	CHECK(again.Docking()->stage == Dock::Stage::Docked);
 	CHECK(again.FromRest(kShuttleHeight) == original.FromRest(kShuttleHeight));
-	again.world.Commands().Push(Dock::ReleasePad{{}, again.ship});
+	again.world.Commands().Push(Dock::ReleaseBerth{{}, again.vehicle});
 	for (int step = 0; step < 60 * 120 && again.Docking(); ++step)
 		again.Advance();
 	CHECK_FALSE(again.Docking());
-	CHECK(again.OnlyOnThePad());
+	CHECK(again.OnlyOnTheBerth());
 }
 
 
 TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes over its pad in time")
 {
 	// From all round Highport 2 km out, still or at its top speed across: one that came in fast and
-	// sideways overshot the point above its pad into the station's sphere and circled it, steered
-	// out each time, until its pad lapsed, as one came round the station from below at rest did.
+	// sideways overshot the point above its berth into the platform's sphere and circled it, steered
+	// out each time, until its berth lapsed, as one came round the platform from below at rest did.
 	for (int side = 0; side < 12; ++side)
 		for (const double across : {0.0, 150.0})
 		{
 			CAPTURE(side);
 			CAPTURE(across);
 			Fixture fixture;
-			const entt::entity station = fixture.docks.MakeStation(
+			const entt::entity platform = fixture.docks.MakePlatform(
 			    fixture.world, DockTests::kHalcyon, DockTests::kHighport, "ostra-highport");
 			entt::registry &registry = fixture.world.Registry();
-			const glm::dquat axes = registry.get<Sim::Transform>(station).orientation;
+			const glm::dquat axes = registry.get<Sim::Transform>(platform).orientation;
 			const double angle = side * glm::two_pi<double>() / 12.0;
-			const entt::entity ship = fixture.Ship(
-			    station, "shuttle",
+			const entt::entity vehicle = fixture.Vehicle(
+			    platform, "shuttle",
 			    axes * glm::dvec3{2000.0 * std::sin(angle), 2000.0 * std::cos(angle), 0.0});
-			registry.get<Physics::Velocity>(ship).linear =
+			registry.get<Physics::Velocity>(vehicle).linear =
 			    glm::vec3{axes * glm::dvec3{0.0, 0.0, across}};
-			fixture.world.Commands().Push(Dock::RequestPad{{}, ship, station, true});
+			fixture.world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
 			bool above = false;
 			for (int step = 0; step < 60 * 120 && !above; ++step)
 			{
 				fixture.Step();
-				const auto *docking = registry.try_get<Dock::Docking>(ship);
+				const auto *docking = registry.try_get<Dock::Docking>(vehicle);
 				above = docking && docking->stage == Dock::Stage::Descending;
 			}
 			CHECK(above);

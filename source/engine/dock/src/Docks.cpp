@@ -29,23 +29,24 @@ namespace Jettison::Dock
 {
 namespace
 {
-// A clamp's reach: how far across the pad from where the hull rests, and above or below it, a ship
-// can be and be clamped, how far it can be turned from the pad, and how fast it can be moving.
-// Clamping puts it where it rests, so these are what it may be moved by.
+// A clamp's reach: how far across the berth from where the vehicle rests, and above or below it, a
+// vehicle can be and be clamped, how far it can be turned from the berth, and how fast it can be
+// moving. Clamping puts it where it rests, so these are what it may be moved by.
 constexpr double kClampAcross = 2.0;
 constexpr double kClampAbove = 1.0;
 constexpr double kClampSpeed = 0.5;
 const double kClampUp = std::cos(glm::radians(10.0));
 const double kClampNose = std::cos(glm::radians(15.0));
-// How far above its resting height a ship flown down aims to stop, a hand's breadth: the clamp
+// How far above its resting height a vehicle flown down aims to stop, a hand's breadth: the clamp
 // takes it from there, and Jolt's contacts begin a couple of centimetres before two bodies meet, so
-// a ship flown onto the deck itself would touch it first.
+// a vehicle flown onto the deck itself would touch it first.
 constexpr double kHover = 0.25;
-// Beyond the station's sphere, the ship's hull and its clearance, the point above a pad is this far
-// again, so a ship arriving there is outside what steering keeps it from, and not at its edge.
+// Beyond the platform's sphere, the vehicle's shape and its clearance, the point above a berth is
+// this far again, so a vehicle arriving there is outside what steering keeps it from, and not at its
+// edge.
 constexpr double kAboveMargin = 10.0;
-// How a ship is flown through the stages: the point above its pad it arrives at, the speed it comes
-// down and lifts at, and how near it stops above the pad.
+// How a vehicle is flown through the stages: the point above its berth it arrives at, the speed it
+// comes down and lifts at, and how near it stops above the berth.
 constexpr float kAboveRadius = 20.0f;
 constexpr float kAboveSpeed = 3.0f;
 constexpr float kDescentSpeed = 40.0f;
@@ -56,42 +57,42 @@ constexpr float kLandingSpeed = 0.2f;
 using Detail::Sorted;
 
 
-std::string_view FrameOf(const entt::registry &registry, entt::entity entity)
+std::string_view LocalFrameOf(const entt::registry &registry, entt::entity entity)
 {
 	const auto *frame = registry.try_get<Physics::LocalFrame>(entity);
 	return frame ? std::string_view{frame->body} : std::string_view{};
 }
 
 
-std::uint64_t SystemOf(const entt::registry &registry, entt::entity entity)
+std::uint64_t FrameOf(const entt::registry &registry, entt::entity entity)
 {
-	const auto *inSystem = registry.try_get<Sim::InFrame>(entity);
-	return inSystem ? inSystem->frame : Sim::kNoFrame;
+	const auto *inFrame = registry.try_get<Sim::InFrame>(entity);
+	return inFrame ? inFrame->frame : Sim::kNoFrame;
 }
 
 
-// The ship's steering, as it keeps clear, given it by default if it has none: the docks fly it.
-const Ai::Steered &Steer(entt::registry &registry, entt::entity ship)
+// The vehicle's steering, as it keeps clear, given it by default if it has none: the docks fly it.
+const Ai::Steered &Steer(entt::registry &registry, entt::entity vehicle)
 {
-	if (const auto *steered = registry.try_get<Ai::Steered>(ship))
+	if (const auto *steered = registry.try_get<Ai::Steered>(vehicle))
 		return *steered;
-	return registry.emplace<Ai::Steered>(ship);
+	return registry.emplace<Ai::Steered>(vehicle);
 }
 
 
-void Hold(entt::registry &registry, entt::entity ship)
+void Hold(entt::registry &registry, entt::entity vehicle)
 {
-	registry.remove<Ai::Destination>(ship);
-	if (auto *controls = registry.try_get<Physics::FlightControls>(ship))
+	registry.remove<Ai::Destination>(vehicle);
+	if (auto *controls = registry.try_get<Physics::FlightControls>(vehicle))
 		*controls = Physics::FlightControls{};
 }
 } // namespace
 
 
-bool IsDocked(const entt::registry &registry, entt::entity ship, entt::entity station)
+bool IsDocked(const entt::registry &registry, entt::entity vehicle, entt::entity platform)
 {
-	const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
-	return docking && docking->stage == Stage::Docked && docking->station == station;
+	const auto *docking = registry.valid(vehicle) ? registry.try_get<Docking>(vehicle) : nullptr;
+	return docking && docking->stage == Stage::Docked && docking->platform == platform;
 }
 
 
@@ -100,29 +101,29 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 	RegisterTypes();
 	// Shared by the commands and the system, which the world keeps for as long as it lives.
 	std::shared_ptr<Docks> docks{new Docks{physics}};
-	world.RegisterComponent<Hull>();
-	world.RegisterComponent<Station>();
-	world.RegisterComponent<Pad>();
+	world.RegisterComponent<Vehicle>();
+	world.RegisterComponent<Platform>();
+	world.RegisterComponent<Berth>();
 	world.RegisterComponent<Docking>();
 	world.RegisterComponent<Transfer>();
 	world.RegisterComponent<Buggy>();
-	// A pad's state is what its lamps show, a ship's stage and hull whether and how its pad's clamps
-	// close on it, and presentation reads snapshots.
-	world.ShowInSnapshots<Pad>();
+	// A berth's state is what its lamps show, a vehicle's stage and kind whether and how its berth's
+	// clamps close on it, and presentation reads snapshots.
+	world.ShowInSnapshots<Berth>();
 	world.ShowInSnapshots<Docking>();
-	world.ShowInSnapshots<Hull>();
+	world.ShowInSnapshots<Vehicle>();
 	world.ShowInSnapshots<Transfer>();
 	world.ShowInSnapshots<Buggy>();
-	world.RegisterCommand<RequestPad>([docks](Sim::SimWorld &target, const RequestPad &command)
-	                                  { docks->Request(target, command); });
-	world.RegisterCommand<ReleasePad>([docks](Sim::SimWorld &target, const ReleasePad &command)
-	                                  { docks->Release(target, command); });
+	world.RegisterCommand<RequestBerth>([docks](Sim::SimWorld &target, const RequestBerth &command)
+	                                    { docks->Request(target, command); });
+	world.RegisterCommand<ReleaseBerth>([docks](Sim::SimWorld &target, const ReleaseBerth &command)
+	                                    { docks->Release(target, command); });
 	world.RegisterSystem(
 	    {std::string{kSystemName},
 	     Ecs::TickPhase::Simulation,
-	     Ecs::Access::Of<Hull, Physics::LocalFrame, Physics::Handling>()
+	     Ecs::Access::Of<Vehicle, Physics::LocalFrame, Physics::Handling>()
 	         .Writing<
-	             Station, Pad, Docking, Physics::Body, Physics::OnRails, Physics::Velocity,
+	             Platform, Berth, Docking, Physics::Body, Physics::OnRails, Physics::Velocity,
 	             Physics::FlightControls, Sim::Transform, Sim::InFrame, Ai::Destination, Ai::Steered>(),
 	     {std::string{Physics::PhysicsWorld::kSystemName}},
 	     [docks, &world](entt::registry & /*registry*/, double /*fixedStep*/) { docks->Step(world); }},
@@ -131,249 +132,256 @@ Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 }
 
 
-std::string Docks::HullShape(std::string_view hull)
+std::string Docks::VehicleShape(std::string_view vehicle)
 {
-	return "hulls/" + std::string{hull};
+	return "hulls/" + std::string{vehicle};
 }
 
 
-std::string Docks::StationShape(std::string_view layout)
+std::string Docks::PlatformShape(std::string_view layout)
 {
 	return "stations/" + std::string{layout};
 }
 
 
-void Docks::DefinePadClass(std::string name, PadClassDefinition padClass)
+void Docks::DefineBerthClass(std::string name, BerthClassDefinition berthClass)
 {
-	CheckPadClass(name, padClass);
-	if (m_padClasses.contains(name))
-		throw std::invalid_argument{std::format("Dock: pad class '{}' is already defined", name)};
-	m_padClasses.emplace(std::move(name), padClass);
+	CheckBerthClass(name, berthClass);
+	if (m_berthClasses.contains(name))
+		throw std::invalid_argument{std::format("Dock: berth class '{}' is already defined", name)};
+	m_berthClasses.emplace(std::move(name), berthClass);
 }
 
 
-void Docks::DefineHull(std::string name, HullDefinition hull)
+void Docks::DefineVehicle(std::string name, VehicleDefinition vehicle)
 {
-	CheckHull(name, hull, m_padClasses);
-	if (m_hulls.contains(name))
-		throw std::invalid_argument{std::format("Dock: hull '{}' is already defined", name)};
+	CheckVehicle(name, vehicle, m_berthClasses);
+	if (m_vehicles.contains(name))
+		throw std::invalid_argument{std::format("Dock: vehicle '{}' is already defined", name)};
 	Physics::ShapeDefinition shape;
 	shape.kind = Physics::ShapeKind::Box;
-	shape.halfExtents = glm::vec3{hull.beam, hull.height, hull.length} * 0.5f;
-	m_physics.DefineShape(HullShape(name), shape);
-	m_hulls.emplace(std::move(name), std::move(hull));
+	shape.halfExtents = glm::vec3{vehicle.beam, vehicle.height, vehicle.length} * 0.5f;
+	m_physics.DefineShape(VehicleShape(name), shape);
+	m_vehicles.emplace(std::move(name), std::move(vehicle));
 }
 
 
-void Docks::DefineLayout(std::string name, StationLayout layout)
+void Docks::DefineLayout(std::string name, PlatformLayout layout)
 {
-	CheckLayout(name, layout, m_padClasses);
+	CheckLayout(name, layout, m_berthClasses);
 	if (m_layouts.contains(name))
-		throw std::invalid_argument{std::format("Dock: station layout '{}' is already defined", name)};
-	m_physics.DefineShape(StationShape(name), DeckShape(layout));
+		throw std::invalid_argument{std::format("Dock: platform layout '{}' is already defined", name)};
+	m_physics.DefineShape(PlatformShape(name), DeckShape(layout));
 	m_layouts.emplace(std::move(name), std::move(layout));
 }
 
 
 void Docks::Define(const Sim::DefinitionRegistry &definitions)
 {
-	for (const std::string &name : definitions.Names<PadClassDefinition>())
-		DefinePadClass(name, *definitions.Find<PadClassDefinition>(name));
-	for (const std::string &name : definitions.Names<HullDefinition>())
-		DefineHull(name, *definitions.Find<HullDefinition>(name));
-	for (const std::string &name : definitions.Names<StationLayout>())
-		DefineLayout(name, *definitions.Find<StationLayout>(name));
+	for (const std::string &name : definitions.Names<BerthClassDefinition>())
+		DefineBerthClass(name, *definitions.Find<BerthClassDefinition>(name));
+	for (const std::string &name : definitions.Names<VehicleDefinition>())
+		DefineVehicle(name, *definitions.Find<VehicleDefinition>(name));
+	for (const std::string &name : definitions.Names<PlatformLayout>())
+		DefineLayout(name, *definitions.Find<PlatformLayout>(name));
 }
 
 
-const PadClassDefinition *Docks::FindPadClass(std::string_view name) const
+const BerthClassDefinition *Docks::FindBerthClass(std::string_view name) const
 {
-	const auto found = m_padClasses.find(name);
-	return found == m_padClasses.end() ? nullptr : &found->second;
+	const auto found = m_berthClasses.find(name);
+	return found == m_berthClasses.end() ? nullptr : &found->second;
 }
 
 
-bool Docks::Fits(const HullDefinition &hull, std::string_view padClass) const
+bool Docks::Fits(const VehicleDefinition &vehicle, std::string_view berthClass) const
 {
-	return Dock::Fits(m_padClasses, hull, padClass);
+	return Dock::Fits(m_berthClasses, vehicle, berthClass);
 }
 
 
 bool Docks::Offers(
-    const entt::registry &registry, entt::entity padEntity, std::string_view feature) const
+    const entt::registry &registry, entt::entity berthEntity, std::string_view feature) const
 {
-	const auto *pad = registry.valid(padEntity) ? registry.try_get<Pad>(padEntity) : nullptr;
-	const auto *station =
-	    pad && registry.valid(pad->station) ? registry.try_get<Station>(pad->station) : nullptr;
-	const StationLayout *layout = station ? FindLayout(station->layout) : nullptr;
-	if (!layout || pad->number == 0 || pad->number > layout->pads.size())
+	const auto *berth = registry.valid(berthEntity) ? registry.try_get<Berth>(berthEntity) : nullptr;
+	const auto *platform = berth && registry.valid(berth->platform)
+	                           ? registry.try_get<Platform>(berth->platform)
+	                           : nullptr;
+	const PlatformLayout *layout = platform ? FindLayout(platform->layout) : nullptr;
+	if (!layout || berth->number == 0 || berth->number > layout->berths.size())
 		return false;
-	const std::vector<std::string> &features = layout->pads[pad->number - 1].features;
+	const std::vector<std::string> &features = layout->berths[berth->number - 1].features;
 	return std::ranges::find(features, feature) != features.end();
 }
 
 
-const HullDefinition *Docks::FindHull(std::string_view name) const
+const VehicleDefinition *Docks::FindVehicle(std::string_view name) const
 {
-	const auto found = m_hulls.find(name);
-	return found == m_hulls.end() ? nullptr : &found->second;
+	const auto found = m_vehicles.find(name);
+	return found == m_vehicles.end() ? nullptr : &found->second;
 }
 
 
-const StationLayout *Docks::FindLayout(std::string_view name) const
+const PlatformLayout *Docks::FindLayout(std::string_view name) const
 {
 	const auto found = m_layouts.find(name);
 	return found == m_layouts.end() ? nullptr : &found->second;
 }
 
 
-entt::entity Docks::MakeStation(
-    Sim::SimWorld &world, std::uint64_t system, std::string_view body, std::string_view layoutName)
+entt::entity Docks::MakePlatform(
+    Sim::SimWorld &world, std::uint64_t frame, std::string_view body, std::string_view layoutName)
 {
-	const StationLayout *layout = FindLayout(layoutName);
+	const PlatformLayout *layout = FindLayout(layoutName);
 	if (!layout)
-		throw std::invalid_argument{
-		    std::format("Dock: station '{}' is built to '{}', which is not defined", body, layoutName)};
+		throw std::invalid_argument{std::format(
+		    "Dock: platform '{}' is built to '{}', which is not defined", body, layoutName)};
 	entt::registry &registry = world.Registry();
 	const double now = world.Clock().Now();
 	const Physics::OnRails rails{std::string{body}};
-	// Placed first, so a system or a body physics does not have refuses before anything is made.
-	const Sim::Transform at = m_physics.RailsPlace(system, rails, now);
+	// Placed first, so a frame or a body physics does not have refuses before anything is made.
+	const Sim::Transform at = m_physics.RailsPlace(frame, rails, now);
 
-	const entt::entity station = registry.create();
-	registry.emplace<Sim::Transform>(station, at);
-	registry.emplace<Sim::InFrame>(station, system);
-	registry.emplace<Physics::OnRails>(station, rails);
-	registry.emplace<Physics::LocalFrame>(station, std::string{body});
+	const entt::entity platform = registry.create();
+	registry.emplace<Sim::Transform>(platform, at);
+	registry.emplace<Sim::InFrame>(platform, frame);
+	registry.emplace<Physics::OnRails>(platform, rails);
+	registry.emplace<Physics::LocalFrame>(platform, std::string{body});
 	registry.emplace<Physics::Body>(
-	    station, Physics::Body{Physics::BodyKind::Kinematic, StationShape(layoutName)});
-	Station built{std::string{layoutName}, {}, {}};
-	for (std::size_t index = 0; index < layout->pads.size(); ++index)
+	    platform, Physics::Body{Physics::BodyKind::Kinematic, PlatformShape(layoutName)});
+	Platform built{std::string{layoutName}, {}, {}};
+	for (std::size_t index = 0; index < layout->berths.size(); ++index)
 	{
-		const PadLayout &place = layout->pads[index];
-		const Physics::OnRails padRails{std::string{body}, place.position, PadOrientation(place)};
-		const entt::entity pad = registry.create();
-		registry.emplace<Sim::Transform>(pad, m_physics.RailsPlace(system, padRails, now));
-		registry.emplace<Sim::InFrame>(pad, system);
-		registry.emplace<Physics::OnRails>(pad, padRails);
-		registry.emplace<Physics::LocalFrame>(pad, std::string{body});
-		Pad made;
-		made.station = station;
+		const BerthLayout &place = layout->berths[index];
+		const Physics::OnRails berthRails{std::string{body}, place.position, BerthOrientation(place)};
+		const entt::entity berth = registry.create();
+		registry.emplace<Sim::Transform>(berth, m_physics.RailsPlace(frame, berthRails, now));
+		registry.emplace<Sim::InFrame>(berth, frame);
+		registry.emplace<Physics::OnRails>(berth, berthRails);
+		registry.emplace<Physics::LocalFrame>(berth, std::string{body});
+		Berth made;
+		made.platform = platform;
 		made.number = static_cast<std::uint32_t>(index + 1);
-		made.padClass = place.padClass;
+		made.berthClass = place.berthClass;
 		made.display = place.display;
-		registry.emplace<Pad>(pad, made);
-		built.pads.push_back(pad);
+		registry.emplace<Berth>(berth, made);
+		built.berths.push_back(berth);
 	}
-	registry.emplace<Station>(station, std::move(built));
-	return station;
+	registry.emplace<Platform>(platform, std::move(built));
+	return platform;
 }
 
 
-void Docks::Park(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity)
+void Docks::Park(Sim::SimWorld &world, entt::entity vehicle, entt::entity berthEntity)
 {
 	entt::registry &registry = world.Registry();
-	const auto *pad = registry.valid(padEntity) ? registry.try_get<Pad>(padEntity) : nullptr;
-	if (!pad || pad->state != PadState::Free || pad->display)
-		throw std::invalid_argument{"Dock: a ship is parked on a free pad that is not for display"};
-	const HullDefinition *hull = registry.valid(ship) ? HullOf(registry, ship) : nullptr;
-	const auto *body = hull ? registry.try_get<Physics::Body>(ship) : nullptr;
-	if (!body || body->kind != Physics::BodyKind::Dynamic || pad->display ||
-	    !Fits(*hull, pad->padClass) || SystemOf(registry, ship) != SystemOf(registry, pad->station))
+	const auto *berth = registry.valid(berthEntity) ? registry.try_get<Berth>(berthEntity) : nullptr;
+	if (!berth || berth->state != BerthState::Free || berth->display)
 		throw std::invalid_argument{
-		    "Dock: a ship parked is a dynamic body with a hull that fits the pad, in its system"};
-	registry.emplace_or_replace<Docking>(ship, Docking{pad->station, padEntity, Stage::Docked, false});
-	Pad &held = registry.get<Pad>(padEntity);
-	held.state = PadState::Holding;
-	held.ship = ship;
-	Clamp(world, ship, world.Clock().Now());
+		    "Dock: a vehicle is parked on a free berth that is not for display"};
+	const VehicleDefinition *definition =
+	    registry.valid(vehicle) ? VehicleOf(registry, vehicle) : nullptr;
+	const auto *body = definition ? registry.try_get<Physics::Body>(vehicle) : nullptr;
+	if (!body || body->kind != Physics::BodyKind::Dynamic || berth->display ||
+	    !Fits(*definition, berth->berthClass) ||
+	    FrameOf(registry, vehicle) != FrameOf(registry, berth->platform))
+		throw std::invalid_argument{
+		    "Dock: a vehicle parked is a dynamic body of a kind that fits the berth, in its frame"};
+	registry.emplace_or_replace<Docking>(
+	    vehicle, Docking{berth->platform, berthEntity, Stage::Docked, false});
+	Berth &held = registry.get<Berth>(berthEntity);
+	held.state = BerthState::Holding;
+	held.vehicle = vehicle;
+	Clamp(world, vehicle, world.Clock().Now());
 }
 
 
-void Docks::Request(Sim::SimWorld &world, const RequestPad &command)
+void Docks::Request(Sim::SimWorld &world, const RequestBerth &command)
 {
 	entt::registry &registry = world.Registry();
 	const auto refuse = [&](Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
 	{
 		world.Events().Emit(
-		    PadRefused{command.ship, command.station, Sim::MakeReason(reason, std::move(arguments))});
+		    BerthRefused{
+		        command.vehicle, command.platform, Sim::MakeReason(reason, std::move(arguments))});
 	};
-	const entt::entity ship = command.ship;
-	if (!registry.valid(ship))
-		return refuse(Reason::ShipGone);
-	if (!Sim::MayCommand(registry, ship, command.sender))
+	const entt::entity vehicle = command.vehicle;
+	if (!registry.valid(vehicle))
+		return refuse(Reason::VehicleGone);
+	if (!Sim::MayCommand(registry, vehicle, command.sender))
 		return refuse(Reason::NotController);
-	const entt::entity stationEntity = command.station;
-	if (!registry.valid(stationEntity) || !registry.all_of<Station>(stationEntity))
-		return refuse(Reason::NotAStation);
-	const HullDefinition *hull = HullOf(registry, ship);
-	if (!hull)
-		return refuse(Reason::NoHull);
-	const auto *body = registry.try_get<Physics::Body>(ship);
+	const entt::entity platformEntity = command.platform;
+	if (!registry.valid(platformEntity) || !registry.all_of<Platform>(platformEntity))
+		return refuse(Reason::NotAPlatform);
+	const VehicleDefinition *definition = VehicleOf(registry, vehicle);
+	if (!definition)
+		return refuse(Reason::NoVehicle);
+	const auto *body = registry.try_get<Physics::Body>(vehicle);
 	if (!body || body->kind != Physics::BodyKind::Dynamic ||
 	    !registry.all_of<Physics::Handling, Physics::FlightControls, Physics::Velocity, Sim::Transform>(
-	        ship))
+	        vehicle))
 		return refuse(Reason::CannotFly);
-	if (SystemOf(registry, ship) != SystemOf(registry, stationEntity))
-		return refuse(Reason::OtherSystem, {Sim::ReasonArgument::Entity(stationEntity)});
-	if (FrameOf(registry, ship) != FrameOf(registry, stationEntity))
-		return refuse(Reason::OtherFrame, {Sim::ReasonArgument::Entity(stationEntity)});
-	if (const auto *existing = registry.try_get<Docking>(ship))
+	if (FrameOf(registry, vehicle) != FrameOf(registry, platformEntity))
+		return refuse(Reason::OtherFrame, {Sim::ReasonArgument::Entity(platformEntity)});
+	if (LocalFrameOf(registry, vehicle) != LocalFrameOf(registry, platformEntity))
+		return refuse(Reason::OtherLocalFrame, {Sim::ReasonArgument::Entity(platformEntity)});
+	if (const auto *existing = registry.try_get<Docking>(vehicle))
 	{
-		const Sim::ReasonArgument at = Sim::ReasonArgument::Entity(existing->station);
+		const Sim::ReasonArgument at = Sim::ReasonArgument::Entity(existing->platform);
 		if (existing->stage == Stage::Queued)
 			return refuse(Reason::AlreadyQueued, {at});
-		const auto *pad =
-		    registry.valid(existing->pad) ? registry.try_get<Pad>(existing->pad) : nullptr;
+		const auto *berth =
+		    registry.valid(existing->berth) ? registry.try_get<Berth>(existing->berth) : nullptr;
 		return refuse(
-		    Reason::AlreadyHoldsPad, {Sim::ReasonArgument::Integer(pad ? pad->number : 0), at});
+		    Reason::AlreadyHoldsBerth, {Sim::ReasonArgument::Integer(berth ? berth->number : 0), at});
 	}
-	Station &station = registry.get<Station>(stationEntity);
+	Platform &platform = registry.get<Platform>(platformEntity);
 	if (std::ranges::none_of(
-	        station.pads,
-	        [&](entt::entity pad)
+	        platform.berths,
+	        [&](entt::entity berth)
 	        {
-		        const Pad &candidate = registry.get<Pad>(pad);
-		        return !candidate.display && Fits(*hull, candidate.padClass);
+		        const Berth &candidate = registry.get<Berth>(berth);
+		        return !candidate.display && Fits(*definition, candidate.berthClass);
 	        }))
-		return refuse(Reason::NoPadFits, {Sim::ReasonArgument::Entity(stationEntity)});
+		return refuse(Reason::NoBerthFits, {Sim::ReasonArgument::Entity(platformEntity)});
 	if (!command.feature.empty() && std::ranges::none_of(
-	                                    station.pads,
-	                                    [&](entt::entity pad)
+	                                    platform.berths,
+	                                    [&](entt::entity berth)
 	                                    {
-		                                    const Pad &candidate = registry.get<Pad>(pad);
+		                                    const Berth &candidate = registry.get<Berth>(berth);
 		                                    return !candidate.display &&
-		                                           Fits(*hull, candidate.padClass) &&
-		                                           Offers(registry, pad, command.feature);
+		                                           Fits(*definition, candidate.berthClass) &&
+		                                           Offers(registry, berth, command.feature);
 	                                    }))
-		return refuse(Reason::NoPadOffers, {Sim::ReasonArgument::Entity(stationEntity)});
+		return refuse(Reason::NoBerthOffers, {Sim::ReasonArgument::Entity(platformEntity)});
 
-	station.queue.push_back(ship);
+	platform.queue.push_back(vehicle);
 	registry.emplace<Docking>(
-	    ship, Docking{stationEntity, entt::null, Stage::Queued, command.fly, command.feature});
-	Serve(world, stationEntity, world.Clock().Now());
-	const std::vector<entt::entity> &queue = registry.get<Station>(stationEntity).queue;
-	if (const auto place = std::ranges::find(queue, ship); place != queue.end())
+	    vehicle, Docking{platformEntity, entt::null, Stage::Queued, command.fly, command.feature});
+	Serve(world, platformEntity, world.Clock().Now());
+	const std::vector<entt::entity> &queue = registry.get<Platform>(platformEntity).queue;
+	if (const auto place = std::ranges::find(queue, vehicle); place != queue.end())
 		world.Events().Emit(
-		    PadQueued{ship, stationEntity, static_cast<std::uint32_t>(place - queue.begin() + 1)});
+		    BerthQueued{
+		        vehicle, platformEntity, static_cast<std::uint32_t>(place - queue.begin() + 1)});
 }
 
 
-void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
+void Docks::Release(Sim::SimWorld &world, const ReleaseBerth &command)
 {
 	entt::registry &registry = world.Registry();
-	const entt::entity ship = command.ship;
-	auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
+	const entt::entity vehicle = command.vehicle;
+	auto *docking = registry.valid(vehicle) ? registry.try_get<Docking>(vehicle) : nullptr;
 	const auto refuse = [&](Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
 	{
 		world.Events().Emit(
-		    PadRefused{
-		        ship, docking ? docking->station : entt::entity{entt::null},
+		    BerthRefused{
+		        vehicle, docking ? docking->platform : entt::entity{entt::null},
 		        Sim::MakeReason(reason, std::move(arguments))});
 	};
 	if (!docking)
 		return refuse(Reason::HoldsNothing);
-	if (!Sim::MayCommand(registry, ship, command.sender))
+	if (!Sim::MayCommand(registry, vehicle, command.sender))
 		return refuse(Reason::NotController);
 	switch (docking->stage)
 	{
@@ -381,14 +389,14 @@ void Docks::Release(Sim::SimWorld &world, const ReleasePad &command)
 		case Stage::Inbound:
 		case Stage::Descending:
 		{
-			const entt::entity station = docking->station;
-			GiveUp(world, ship, true);
-			Serve(world, station, world.Clock().Now());
+			const entt::entity platform = docking->platform;
+			GiveUp(world, vehicle, true);
+			Serve(world, platform, world.Clock().Now());
 			return;
 		}
 		case Stage::Docked:
 			docking->fly = command.fly;
-			Unclamp(world, ship);
+			Unclamp(world, vehicle);
 			return;
 		case Stage::Leaving: return refuse(Reason::AlreadyLeaving);
 	}
@@ -403,54 +411,57 @@ void Docks::Step(Sim::SimWorld &world)
 	const double time = world.Clock().Now() + world.FixedStep();
 	const std::uint64_t step = world.Clock().Step();
 
-	// 1. What can no longer be held: a pad whose ship has gone or holds it no more, and a ship's
-	// business with a station that has gone, or that it is no longer beside.
-	for (const entt::entity padEntity : Sorted<Pad>(registry))
+	// 1. What can no longer be held: a berth whose vehicle has gone or holds it no more, and a
+	// vehicle's business with a platform that has gone, or that it is no longer beside.
+	for (const entt::entity berthEntity : Sorted<Berth>(registry))
 	{
-		Pad &pad = registry.get<Pad>(padEntity);
-		if (pad.state == PadState::Free)
+		Berth &berth = registry.get<Berth>(berthEntity);
+		if (berth.state == BerthState::Free)
 			continue;
-		const auto *docking = registry.valid(pad.ship) ? registry.try_get<Docking>(pad.ship) : nullptr;
-		if (!docking || docking->pad != padEntity)
+		const auto *docking =
+		    registry.valid(berth.vehicle) ? registry.try_get<Docking>(berth.vehicle) : nullptr;
+		if (!docking || docking->berth != berthEntity)
 		{
-			pad.state = PadState::Free;
-			pad.ship = entt::null;
+			berth.state = BerthState::Free;
+			berth.vehicle = entt::null;
 		}
 	}
-	for (const entt::entity ship : Sorted<Docking>(registry))
+	for (const entt::entity vehicle : Sorted<Docking>(registry))
 	{
-		const Docking &docking = registry.get<Docking>(ship);
-		const entt::entity station = docking.station;
-		if (!registry.valid(station) || !registry.all_of<Station>(station) ||
-		    SystemOf(registry, ship) != SystemOf(registry, station) ||
-		    FrameOf(registry, ship) != FrameOf(registry, station))
-			GiveUp(world, ship, true);
+		const Docking &docking = registry.get<Docking>(vehicle);
+		const entt::entity platform = docking.platform;
+		if (!registry.valid(platform) || !registry.all_of<Platform>(platform) ||
+		    FrameOf(registry, vehicle) != FrameOf(registry, platform) ||
+		    LocalFrameOf(registry, vehicle) != LocalFrameOf(registry, platform))
+			GiveUp(world, vehicle, true);
 	}
-	for (const entt::entity stationEntity : Sorted<Station>(registry))
+	for (const entt::entity platformEntity : Sorted<Platform>(registry))
 		std::erase_if(
-		    registry.get<Station>(stationEntity).queue,
-		    [&](entt::entity ship)
+		    registry.get<Platform>(platformEntity).queue,
+		    [&](entt::entity vehicle)
 		    {
-			    const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
-			    return !docking || docking->station != stationEntity || docking->stage != Stage::Queued;
+			    const auto *docking =
+			        registry.valid(vehicle) ? registry.try_get<Docking>(vehicle) : nullptr;
+			    return !docking || docking->platform != platformEntity ||
+			           docking->stage != Stage::Queued;
 		    });
 
 	// 2. Reservations that have lapsed.
-	for (const entt::entity padEntity : Sorted<Pad>(registry))
+	for (const entt::entity berthEntity : Sorted<Berth>(registry))
 	{
-		const Pad &pad = registry.get<Pad>(padEntity);
-		if (pad.state != PadState::Reserved || step < pad.lapses)
+		const Berth &berth = registry.get<Berth>(berthEntity);
+		if (berth.state != BerthState::Reserved || step < berth.lapses)
 			continue;
-		world.Events().Emit(PadLapsed{pad.ship, pad.station, padEntity, pad.number});
-		GiveUp(world, pad.ship, false);
+		world.Events().Emit(BerthLapsed{berth.vehicle, berth.platform, berthEntity, berth.number});
+		GiveUp(world, berth.vehicle, false);
 	}
 
-	// 3. Each ship on: clamped once it is on its pad, down from above it, and clear of it once it
+	// 3. Each vehicle on: clamped once it is on its berth, down from above it, and clear of it once it
 	// has lifted away.
-	for (const entt::entity ship : Sorted<Docking>(registry))
+	for (const entt::entity vehicle : Sorted<Docking>(registry))
 	{
-		Docking &docking = registry.get<Docking>(ship);
-		const auto *destination = registry.try_get<Ai::Destination>(ship);
+		Docking &docking = registry.get<Docking>(vehicle);
+		const auto *destination = registry.try_get<Ai::Destination>(vehicle);
 		switch (docking.stage)
 		{
 			case Stage::Queued:
@@ -458,51 +469,51 @@ void Docks::Step(Sim::SimWorld &world)
 			case Stage::Inbound:
 			case Stage::Descending:
 			{
-				const Pad &pad = registry.get<Pad>(docking.pad);
-				if (InClampReach(registry, ship))
+				const Berth &berth = registry.get<Berth>(docking.berth);
+				if (InClampReach(registry, vehicle))
 				{
-					Clamp(world, ship, time);
-					world.Events().Emit(Landed{ship, docking.station, docking.pad, pad.number});
+					Clamp(world, vehicle, time);
+					world.Events().Emit(Landed{vehicle, docking.platform, docking.berth, berth.number});
 				}
 				else if (docking.fly && docking.stage == Stage::Inbound)
 				{
 					if (!destination)
-						FlyInbound(world, ship, time);
+						FlyInbound(world, vehicle, time);
 					// Stopped out along the normal, then flown down it to the point above.
 					else if (
 					    destination->arrived &&
-					    destination->offset.y > AboveHeight(registry, ship, pad))
-						FlyAbove(world, ship);
+					    destination->offset.y > AboveHeight(registry, vehicle, berth))
+						FlyAbove(world, vehicle);
 					else if (destination->arrived)
 					{
 						docking.stage = Stage::Descending;
-						FlyDown(world, ship);
+						FlyDown(world, vehicle);
 					}
 				}
 				else if (docking.fly && !destination)
-					FlyDown(world, ship);
+					FlyDown(world, vehicle);
 				break;
 			}
 			case Stage::Leaving:
 				if (!docking.fly)
 				{
 					// Lifted again each step, as a SetFlightControls between would leave it.
-					if (Lifted(registry, ship))
-						GiveUp(world, ship, true);
+					if (Lifted(registry, vehicle))
+						GiveUp(world, vehicle, true);
 					else
-						Lift(registry, ship);
+						Lift(registry, vehicle);
 				}
 				else if (!destination)
-					FlyUp(world, ship);
+					FlyUp(world, vehicle);
 				else if (destination->arrived)
-					GiveUp(world, ship, true);
+					GiveUp(world, vehicle, true);
 				break;
 		}
 	}
 
 	// 4. The queues, from the front.
-	for (const entt::entity station : Sorted<Station>(registry))
-		Serve(world, station, time);
+	for (const entt::entity platform : Sorted<Platform>(registry))
+		Serve(world, platform, time);
 }
 
 
@@ -510,339 +521,346 @@ std::uint64_t Docks::QuietFrom(const Sim::SimWorld &world) const
 {
 	const entt::registry &registry = world.Registry();
 	const std::uint64_t now = world.Clock().Step();
-	// 1 and 3: what can no longer be held, and every ship on its way.
-	for (const auto [padEntity, pad] : registry.view<const Pad>().each())
+	// 1 and 3: what can no longer be held, and every vehicle on its way.
+	for (const auto [berthEntity, berth] : registry.view<const Berth>().each())
 	{
-		if (pad.state == PadState::Free)
+		if (berth.state == BerthState::Free)
 			continue;
-		const auto *docking = registry.valid(pad.ship) ? registry.try_get<Docking>(pad.ship) : nullptr;
-		if (!docking || docking->pad != padEntity)
+		const auto *docking =
+		    registry.valid(berth.vehicle) ? registry.try_get<Docking>(berth.vehicle) : nullptr;
+		if (!docking || docking->berth != berthEntity)
 			return now;
 	}
-	for (const auto [ship, docking] : registry.view<const Docking>().each())
+	for (const auto [vehicle, docking] : registry.view<const Docking>().each())
 	{
-		const entt::entity station = docking.station;
+		const entt::entity platform = docking.platform;
 		if ((docking.stage != Stage::Queued && docking.stage != Stage::Docked) ||
-		    !registry.valid(station) || !registry.all_of<Station>(station) ||
-		    SystemOf(registry, ship) != SystemOf(registry, station) ||
-		    FrameOf(registry, ship) != FrameOf(registry, station))
+		    !registry.valid(platform) || !registry.all_of<Platform>(platform) ||
+		    FrameOf(registry, vehicle) != FrameOf(registry, platform) ||
+		    LocalFrameOf(registry, vehicle) != LocalFrameOf(registry, platform))
 			return now;
 	}
-	// 4, and 1's queues: a ship queued that is not, or that a pad is free for.
-	for (const auto [stationEntity, station] : registry.view<const Station>().each())
-		for (const entt::entity ship : station.queue)
+	// 4, and 1's queues: a vehicle queued that is not, or that a berth is free for.
+	for (const auto [platformEntity, platform] : registry.view<const Platform>().each())
+		for (const entt::entity vehicle : platform.queue)
 		{
-			const auto *docking = registry.valid(ship) ? registry.try_get<Docking>(ship) : nullptr;
-			if (!docking || docking->station != stationEntity || docking->stage != Stage::Queued ||
-			    FreePadFor(registry, station, ship) != entt::null)
+			const auto *docking =
+			    registry.valid(vehicle) ? registry.try_get<Docking>(vehicle) : nullptr;
+			if (!docking || docking->platform != platformEntity || docking->stage != Stage::Queued ||
+			    FreeBerthFor(registry, platform, vehicle) != entt::null)
 				return now;
 		}
 	// 2: a reservation lapses in the step its count begins.
 	std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
-	for (const auto [padEntity, pad] : registry.view<const Pad>().each())
-		if (pad.state == PadState::Reserved)
-			next = std::min(next, pad.lapses);
+	for (const auto [berthEntity, berth] : registry.view<const Berth>().each())
+		if (berth.state == BerthState::Reserved)
+			next = std::min(next, berth.lapses);
 	return next;
 }
 
 
-entt::entity Docks::FreePadFor(
-    const entt::registry &registry, const Station &station, entt::entity ship) const
+entt::entity Docks::FreeBerthFor(
+    const entt::registry &registry, const Platform &platform, entt::entity vehicle) const
 {
-	const HullDefinition *hull = HullOf(registry, ship);
-	if (!hull)
+	const VehicleDefinition *definition = VehicleOf(registry, vehicle);
+	if (!definition)
 		return entt::null;
-	const auto *docking = registry.try_get<Docking>(ship);
+	const auto *docking = registry.try_get<Docking>(vehicle);
 	const std::string_view feature = docking ? std::string_view{docking->feature} : std::string_view{};
 	entt::entity best = entt::null;
-	for (const entt::entity padEntity : station.pads)
+	for (const entt::entity berthEntity : platform.berths)
 	{
-		const Pad &pad = registry.get<Pad>(padEntity);
-		if (pad.state != PadState::Free || pad.display || !Fits(*hull, pad.padClass) ||
-		    (!feature.empty() && !Offers(registry, padEntity, feature)))
+		const Berth &berth = registry.get<Berth>(berthEntity);
+		if (berth.state != BerthState::Free || berth.display || !Fits(*definition, berth.berthClass) ||
+		    (!feature.empty() && !Offers(registry, berthEntity, feature)))
 			continue;
 		// In number order, so the first of a class is the lowest numbered.
-		if (best == entt::null ||
-		    m_padClasses.at(pad.padClass).rank < m_padClasses.at(registry.get<Pad>(best).padClass).rank)
-			best = padEntity;
+		if (best == entt::null || m_berthClasses.at(berth.berthClass).rank <
+		                              m_berthClasses.at(registry.get<Berth>(best).berthClass).rank)
+			best = berthEntity;
 	}
 	return best;
 }
 
 
-void Docks::Serve(Sim::SimWorld &world, entt::entity stationEntity, double time)
+void Docks::Serve(Sim::SimWorld &world, entt::entity platformEntity, double time)
 {
 	entt::registry &registry = world.Registry();
-	std::vector<entt::entity> &queue = registry.get<Station>(stationEntity).queue;
+	std::vector<entt::entity> &queue = registry.get<Platform>(platformEntity).queue;
 	for (std::size_t index = 0; index < queue.size();)
 	{
-		const entt::entity pad =
-		    FreePadFor(registry, registry.get<Station>(stationEntity), queue[index]);
-		if (pad == entt::null)
+		const entt::entity berth =
+		    FreeBerthFor(registry, registry.get<Platform>(platformEntity), queue[index]);
+		if (berth == entt::null)
 		{
 			++index;
 			continue;
 		}
-		const entt::entity ship = queue[index];
+		const entt::entity vehicle = queue[index];
 		queue.erase(queue.begin() + static_cast<std::ptrdiff_t>(index));
-		Give(world, ship, pad, time);
+		Give(world, vehicle, berth, time);
 	}
 }
 
 
-void Docks::Give(Sim::SimWorld &world, entt::entity ship, entt::entity padEntity, double time)
+void Docks::Give(Sim::SimWorld &world, entt::entity vehicle, entt::entity berthEntity, double time)
 {
 	entt::registry &registry = world.Registry();
-	Pad &pad = registry.get<Pad>(padEntity);
-	const StationLayout &layout = m_layouts.at(registry.get<Station>(pad.station).layout);
-	pad.state = PadState::Reserved;
-	pad.ship = ship;
-	pad.lapses =
+	Berth &berth = registry.get<Berth>(berthEntity);
+	const PlatformLayout &layout = m_layouts.at(registry.get<Platform>(berth.platform).layout);
+	berth.state = BerthState::Reserved;
+	berth.vehicle = vehicle;
+	berth.lapses =
 	    world.Clock().Step() +
 	    static_cast<std::uint64_t>(std::ceil(double{layout.reservationSeconds} / world.FixedStep()));
-	Docking &docking = registry.get<Docking>(ship);
-	docking.pad = padEntity;
+	Docking &docking = registry.get<Docking>(vehicle);
+	docking.berth = berthEntity;
 	docking.stage = Stage::Inbound;
-	world.Events().Emit(PadGiven{ship, pad.station, padEntity, pad.number});
+	world.Events().Emit(BerthGiven{vehicle, berth.platform, berthEntity, berth.number});
 	if (docking.fly)
-		FlyInbound(world, ship, time);
+		FlyInbound(world, vehicle, time);
 }
 
 
-void Docks::GiveUp(Sim::SimWorld &world, entt::entity ship, bool announce)
+void Docks::GiveUp(Sim::SimWorld &world, entt::entity vehicle, bool announce)
 {
 	entt::registry &registry = world.Registry();
-	const Docking docking = registry.get<Docking>(ship);
-	if (registry.valid(docking.station))
-		if (auto *station = registry.try_get<Station>(docking.station))
-			std::erase(station->queue, ship);
-	if (registry.valid(docking.pad))
-		if (auto *pad = registry.try_get<Pad>(docking.pad); pad && pad->ship == ship)
+	const Docking docking = registry.get<Docking>(vehicle);
+	if (registry.valid(docking.platform))
+		if (auto *platform = registry.try_get<Platform>(docking.platform))
+			std::erase(platform->queue, vehicle);
+	if (registry.valid(docking.berth))
+		if (auto *berth = registry.try_get<Berth>(docking.berth); berth && berth->vehicle == vehicle)
 		{
-			pad->state = PadState::Free;
-			pad->ship = entt::null;
+			berth->state = BerthState::Free;
+			berth->vehicle = entt::null;
 		}
 	if (docking.stage == Stage::Docked)
 	{
-		// Sent away while clamped, along a lane: a ship again, wherever it is going.
-		Physics::Body body = registry.get<Physics::Body>(ship);
+		// Sent away while clamped, through a portal: a vehicle again, wherever it is going.
+		Physics::Body body = registry.get<Physics::Body>(vehicle);
 		body.kind = Physics::BodyKind::Dynamic;
-		registry.replace<Physics::Body>(ship, body);
-		registry.remove<Physics::OnRails>(ship);
-		registry.emplace_or_replace<Physics::Velocity>(ship);
+		registry.replace<Physics::Body>(vehicle, body);
+		registry.remove<Physics::OnRails>(vehicle);
+		registry.emplace_or_replace<Physics::Velocity>(vehicle);
 	}
 	if (docking.fly || docking.stage == Stage::Leaving)
-		Hold(registry, ship);
-	registry.remove<Docking>(ship);
+		Hold(registry, vehicle);
+	registry.remove<Docking>(vehicle);
 	if (announce)
-		world.Events().Emit(PadReleased{ship, docking.station});
+		world.Events().Emit(BerthReleased{vehicle, docking.platform});
 }
 
 
-void Docks::FlyInbound(Sim::SimWorld &world, entt::entity ship, double time)
+void Docks::FlyInbound(Sim::SimWorld &world, entt::entity vehicle, double time)
 {
 	entt::registry &registry = world.Registry();
-	const Docking &docking = registry.get<Docking>(ship);
-	const Pad &pad = registry.get<Pad>(docking.pad);
-	const Ai::Steered &steered = Steer(registry, ship);
+	const Docking &docking = registry.get<Docking>(vehicle);
+	const Berth &berth = registry.get<Berth>(docking.berth);
+	const Ai::Steered &steered = Steer(registry, vehicle);
 
-	// Out along the pad's normal beyond the point above it, as far again as the ship stops in from its
-	// top speed, stopped at: from there the way in is straight down the normal from rest. Flown
-	// straight to the point above, a ship that came round the station fast and sideways overshot into
-	// the station's sphere, was steered out of it, and circled until its pad lapsed.
-	const Physics::Handling &handling = registry.get<Physics::Handling>(ship);
+	// Out along the berth's normal beyond the point above it, as far again as the vehicle stops in from
+	// its top speed, stopped at: from there the way in is straight down the normal from rest. Flown
+	// straight to the point above, a vehicle that came round the platform fast and sideways overshot
+	// into the platform's sphere, was steered out of it, and circled until its berth lapsed.
+	const Physics::Handling &handling = registry.get<Physics::Handling>(vehicle);
 	const double braking = Ai::BrakingAcceleration(handling);
 	const double topSpeed =
 	    handling.maxSpeed > 0.0f && std::isfinite(handling.maxSpeed) ? double{handling.maxSpeed} : 0.0;
 	Ai::Destination destination;
-	destination.entity = docking.pad;
+	destination.entity = docking.berth;
 	destination.offset = {
 	    0.0,
-	    AboveHeight(registry, ship, pad) +
+	    AboveHeight(registry, vehicle, berth) +
 	        (braking > 0.0 ? topSpeed * topSpeed / (2.0 * braking) : 0.0),
 	    0.0};
 	destination.arrivalRadius = kAboveRadius;
 	destination.arrivalSpeed = kAboveSpeed;
 
-	// Round the station's sphere to it, in the ship's frame: the station turns with its body, and the
-	// course is plotted again if the ship has to be flown in again.
-	const std::uint64_t system = SystemOf(registry, ship);
-	const glm::dvec3 origin = m_physics.FrameOrigin(system, FrameOf(registry, ship), time);
-	const Sim::Transform &padAt = registry.get<Sim::Transform>(docking.pad);
-	const glm::dvec3 approach = padAt.position + padAt.orientation * destination.offset;
-	const double radius = Radius(m_layouts.at(registry.get<Station>(pad.station).layout));
+	// Round the platform's sphere to it, in the vehicle's frame: the platform turns with its body, and
+	// the course is plotted again if the vehicle has to be flown in again.
+	const std::uint64_t frame = FrameOf(registry, vehicle);
+	const glm::dvec3 origin = m_physics.FrameOrigin(frame, LocalFrameOf(registry, vehicle), time);
+	const Sim::Transform &berthAt = registry.get<Sim::Transform>(docking.berth);
+	const glm::dvec3 approach = berthAt.position + berthAt.orientation * destination.offset;
+	const double radius = Radius(m_layouts.at(registry.get<Platform>(berth.platform).layout));
 	const double clearance =
-	    m_physics.ShapeRadius(registry.get<Physics::Body>(ship).shape) + double{steered.clearance};
+	    m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape) + double{steered.clearance};
 	const Ai::Waypoints waypoints{
-	    {Ai::Sphere{registry.get<Sim::Transform>(pad.station).position - origin, radius}}, clearance};
+	    {Ai::Sphere{registry.get<Sim::Transform>(berth.platform).position - origin, radius}},
+	    clearance};
 	if (const std::optional<Ai::Course> course = waypoints.PlotCourse(
-	        registry.get<Sim::Transform>(ship).position - origin, approach - origin))
+	        registry.get<Sim::Transform>(vehicle).position - origin, approach - origin))
 		if (course->points.size() > 2)
 			destination.waypoints.assign(course->points.begin() + 1, course->points.end() - 1);
-	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
+	registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
 }
 
 
-void Docks::FlyAbove(Sim::SimWorld &world, entt::entity ship)
+void Docks::FlyAbove(Sim::SimWorld &world, entt::entity vehicle)
 {
 	entt::registry &registry = world.Registry();
-	const Docking &docking = registry.get<Docking>(ship);
-	Steer(registry, ship);
+	const Docking &docking = registry.get<Docking>(vehicle);
+	Steer(registry, vehicle);
 	Ai::Destination destination;
-	destination.entity = docking.pad;
-	destination.offset = {0.0, AboveHeight(registry, ship, registry.get<Pad>(docking.pad)), 0.0};
+	destination.entity = docking.berth;
+	destination.offset = {0.0, AboveHeight(registry, vehicle, registry.get<Berth>(docking.berth)), 0.0};
 	destination.arrivalRadius = kAboveRadius;
 	destination.arrivalSpeed = kAboveSpeed;
-	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
+	registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
 }
 
 
-void Docks::FlyDown(Sim::SimWorld &world, entt::entity ship)
+void Docks::FlyDown(Sim::SimWorld &world, entt::entity vehicle)
 {
 	entt::registry &registry = world.Registry();
-	const Docking &docking = registry.get<Docking>(ship);
-	Steer(registry, ship);
+	const Docking &docking = registry.get<Docking>(vehicle);
+	Steer(registry, vehicle);
 	Ai::Destination destination;
-	destination.entity = docking.pad;
-	destination.offset = {0.0, RestingHeight(*HullOf(registry, ship)) + kHover, 0.0};
+	destination.entity = docking.berth;
+	destination.offset = {0.0, RestingHeight(*VehicleOf(registry, vehicle)) + kHover, 0.0};
 	destination.byShape = true;
 	destination.face = true;
 	destination.speed = kDescentSpeed;
 	destination.arrivalRadius = kLandingRadius;
 	destination.arrivalSpeed = kLandingSpeed;
-	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
+	registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
 }
 
 
-void Docks::FlyUp(Sim::SimWorld &world, entt::entity ship)
+void Docks::FlyUp(Sim::SimWorld &world, entt::entity vehicle)
 {
 	entt::registry &registry = world.Registry();
-	const Docking &docking = registry.get<Docking>(ship);
-	Steer(registry, ship);
+	const Docking &docking = registry.get<Docking>(vehicle);
+	Steer(registry, vehicle);
 	Ai::Destination destination;
-	destination.entity = docking.pad;
-	destination.offset = {0.0, AboveHeight(registry, ship, registry.get<Pad>(docking.pad)), 0.0};
+	destination.entity = docking.berth;
+	destination.offset = {0.0, AboveHeight(registry, vehicle, registry.get<Berth>(docking.berth)), 0.0};
 	destination.byShape = true;
 	destination.face = true;
 	destination.speed = kLiftSpeed;
 	destination.arrivalRadius = kAboveRadius;
 	destination.arrivalSpeed = kAboveSpeed;
-	registry.emplace_or_replace<Ai::Destination>(ship, std::move(destination));
+	registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
 }
 
 
-bool Docks::InClampReach(const entt::registry &registry, entt::entity ship) const
+bool Docks::InClampReach(const entt::registry &registry, entt::entity vehicle) const
 {
-	const Docking &docking = registry.get<Docking>(ship);
-	const Sim::Transform &padAt = registry.get<Sim::Transform>(docking.pad);
-	const Sim::Transform &shipAt = registry.get<Sim::Transform>(ship);
-	const glm::dquat inverse = glm::conjugate(padAt.orientation);
-	const glm::dvec3 offset = inverse * (shipAt.position - padAt.position) -
-	                          glm::dvec3{0.0, RestingHeight(*HullOf(registry, ship)), 0.0};
+	const Docking &docking = registry.get<Docking>(vehicle);
+	const Sim::Transform &berthAt = registry.get<Sim::Transform>(docking.berth);
+	const Sim::Transform &vehicleAt = registry.get<Sim::Transform>(vehicle);
+	const glm::dquat inverse = glm::conjugate(berthAt.orientation);
+	const glm::dvec3 offset = inverse * (vehicleAt.position - berthAt.position) -
+	                          glm::dvec3{0.0, RestingHeight(*VehicleOf(registry, vehicle)), 0.0};
 	if (std::hypot(offset.x, offset.z) > kClampAcross || std::abs(offset.y) > kClampAbove)
 		return false;
-	const glm::dquat turned = inverse * shipAt.orientation;
+	const glm::dquat turned = inverse * vehicleAt.orientation;
 	if (glm::dot(turned * glm::dvec3{0.0, 1.0, 0.0}, glm::dvec3{0.0, 1.0, 0.0}) < kClampUp ||
 	    glm::dot(turned * glm::dvec3{0.0, 0.0, -1.0}, glm::dvec3{0.0, 0.0, -1.0}) < kClampNose)
 		return false;
-	const auto *velocity = registry.try_get<Physics::Velocity>(ship);
+	const auto *velocity = registry.try_get<Physics::Velocity>(vehicle);
 	return !velocity || glm::length(glm::dvec3{velocity->linear}) <= kClampSpeed;
 }
 
 
-void Docks::Clamp(Sim::SimWorld &world, entt::entity ship, double time)
+void Docks::Clamp(Sim::SimWorld &world, entt::entity vehicle, double time)
 {
 	entt::registry &registry = world.Registry();
-	Docking &docking = registry.get<Docking>(ship);
-	Pad &pad = registry.get<Pad>(docking.pad);
-	const PadLayout &place = PadOf(registry, pad);
-	const Physics::OnRails &station = registry.get<Physics::OnRails>(pad.station);
-	const glm::dquat turn = PadOrientation(place);
+	Docking &docking = registry.get<Docking>(vehicle);
+	Berth &berth = registry.get<Berth>(docking.berth);
+	const BerthLayout &place = PlaceOf(registry, berth);
+	const Physics::OnRails &platform = registry.get<Physics::OnRails>(berth.platform);
+	const glm::dquat turn = BerthOrientation(place);
 	const glm::dvec3 rest =
-	    place.position + turn * glm::dvec3{0.0, RestingHeight(*HullOf(registry, ship)), 0.0};
+	    place.position + turn * glm::dvec3{0.0, RestingHeight(*VehicleOf(registry, vehicle)), 0.0};
 	const Physics::OnRails rails{
-	    station.body, station.offset + station.turn * rest, station.turn * turn};
-	registry.emplace_or_replace<Physics::OnRails>(ship, rails);
-	registry.replace<Sim::Transform>(ship, m_physics.RailsPlace(SystemOf(registry, ship), rails, time));
-	Physics::Body body = registry.get<Physics::Body>(ship);
+	    platform.body, platform.offset + platform.turn * rest, platform.turn * turn};
+	registry.emplace_or_replace<Physics::OnRails>(vehicle, rails);
+	registry.replace<Sim::Transform>(
+	    vehicle, m_physics.RailsPlace(FrameOf(registry, vehicle), rails, time));
+	Physics::Body body = registry.get<Physics::Body>(vehicle);
 	body.kind = Physics::BodyKind::Kinematic;
-	registry.replace<Physics::Body>(ship, body);
-	registry.emplace_or_replace<Physics::Velocity>(ship);
-	Hold(registry, ship);
+	registry.replace<Physics::Body>(vehicle, body);
+	registry.emplace_or_replace<Physics::Velocity>(vehicle);
+	Hold(registry, vehicle);
 	docking.stage = Stage::Docked;
-	pad.state = PadState::Holding;
-	pad.ship = ship;
+	berth.state = BerthState::Holding;
+	berth.vehicle = vehicle;
 }
 
 
-void Docks::Unclamp(Sim::SimWorld &world, entt::entity ship)
+void Docks::Unclamp(Sim::SimWorld &world, entt::entity vehicle)
 {
 	entt::registry &registry = world.Registry();
-	Docking &docking = registry.get<Docking>(ship);
-	Physics::Body body = registry.get<Physics::Body>(ship);
+	Docking &docking = registry.get<Docking>(vehicle);
+	Physics::Body body = registry.get<Physics::Body>(vehicle);
 	body.kind = Physics::BodyKind::Dynamic;
-	registry.replace<Physics::Body>(ship, body);
-	registry.remove<Physics::OnRails>(ship);
-	registry.emplace_or_replace<Physics::Velocity>(ship);
+	registry.replace<Physics::Body>(vehicle, body);
+	registry.remove<Physics::OnRails>(vehicle);
+	registry.emplace_or_replace<Physics::Velocity>(vehicle);
 	docking.stage = Stage::Leaving;
 	world.Events().Emit(
-	    Left{ship, docking.station, docking.pad, registry.get<Pad>(docking.pad).number});
+	    Left{vehicle, docking.platform, docking.berth, registry.get<Berth>(docking.berth).number});
 	if (docking.fly)
-		FlyUp(world, ship);
+		FlyUp(world, vehicle);
 	else
-		Lift(registry, ship);
+		Lift(registry, vehicle);
 }
 
 
-void Docks::Lift(entt::registry &registry, entt::entity ship)
+void Docks::Lift(entt::registry &registry, entt::entity vehicle)
 {
-	const Docking &docking = registry.get<Docking>(ship);
-	const float maxSpeed = registry.get<Physics::Handling>(ship).maxSpeed;
-	registry.remove<Ai::Destination>(ship);
-	// Clamped, the ship's up is its pad's; with assist, a demand along it is that share of maxSpeed.
+	const Docking &docking = registry.get<Docking>(vehicle);
+	const float maxSpeed = registry.get<Physics::Handling>(vehicle).maxSpeed;
+	registry.remove<Ai::Destination>(vehicle);
+	// Clamped, the vehicle's up is its berth's; with assist, a demand along it is that share of
+	// maxSpeed.
 	registry.replace<Physics::FlightControls>(
-	    ship, Physics::FlightControls{
-	              {0.0f, std::min(kLiftSpeed / maxSpeed, 1.0f), 0.0f}, {}, true, docking.station});
+	    vehicle, Physics::FlightControls{
+	                 {0.0f, std::min(kLiftSpeed / maxSpeed, 1.0f), 0.0f}, {}, true, docking.platform});
 }
 
 
-bool Docks::Lifted(const entt::registry &registry, entt::entity ship) const
+bool Docks::Lifted(const entt::registry &registry, entt::entity vehicle) const
 {
-	const Sim::Transform &padAt = registry.get<Sim::Transform>(registry.get<Docking>(ship).pad);
-	const Sim::Transform &shipAt = registry.get<Sim::Transform>(ship);
-	const double height = (glm::conjugate(padAt.orientation) * (shipAt.position - padAt.position)).y;
-	return height - RestingHeight(*HullOf(registry, ship)) >= kLiftHeight;
+	const Sim::Transform &berthAt = registry.get<Sim::Transform>(registry.get<Docking>(vehicle).berth);
+	const Sim::Transform &vehicleAt = registry.get<Sim::Transform>(vehicle);
+	const double height =
+	    (glm::conjugate(berthAt.orientation) * (vehicleAt.position - berthAt.position)).y;
+	return height - RestingHeight(*VehicleOf(registry, vehicle)) >= kLiftHeight;
 }
 
 
-const PadLayout &Docks::PadOf(const entt::registry &registry, const Pad &pad) const
+const BerthLayout &Docks::PlaceOf(const entt::registry &registry, const Berth &berth) const
 {
-	return m_layouts.at(registry.get<Station>(pad.station).layout).pads.at(pad.number - 1);
+	return m_layouts.at(registry.get<Platform>(berth.platform).layout).berths.at(berth.number - 1);
 }
 
 
-const HullDefinition *Docks::HullOf(const entt::registry &registry, entt::entity ship) const
+const VehicleDefinition *Docks::VehicleOf(const entt::registry &registry, entt::entity vehicle) const
 {
-	const auto *hull = registry.try_get<Hull>(ship);
-	return hull ? FindHull(hull->definition) : nullptr;
+	const auto *named = registry.try_get<Vehicle>(vehicle);
+	return named ? FindVehicle(named->definition) : nullptr;
 }
 
 
-double Docks::AboveHeight(const entt::registry &registry, entt::entity ship, const Pad &pad) const
+double Docks::AboveHeight(
+    const entt::registry &registry, entt::entity vehicle, const Berth &berth) const
 {
-	const PadLayout &place = PadOf(registry, pad);
-	const auto *steered = registry.try_get<Ai::Steered>(ship);
-	const double reach = Radius(m_layouts.at(registry.get<Station>(pad.station).layout)) +
-	                     m_physics.ShapeRadius(registry.get<Physics::Body>(ship).shape) +
+	const BerthLayout &place = PlaceOf(registry, berth);
+	const auto *steered = registry.try_get<Ai::Steered>(vehicle);
+	const double reach = Radius(m_layouts.at(registry.get<Platform>(berth.platform).layout)) +
+	                     m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape) +
 	                     double{steered ? steered->clearance : Ai::Steered{}.clearance} + kAboveMargin;
-	// Where the line out along the normal from the pad crosses that sphere: |p + n h| = reach.
+	// Where the line out along the normal from the berth crosses that sphere: |p + n h| = reach.
 	const double along = glm::dot(place.position, place.normal);
 	return -along + std::sqrt(along * along - glm::dot(place.position, place.position) + reach * reach);
 }
 
 
-double Docks::RestingHeight(const HullDefinition &hull)
+double Docks::RestingHeight(const VehicleDefinition &vehicle)
 {
-	return double{hull.height} * 0.5;
+	return double{vehicle.height} * 0.5;
 }
 } // namespace Jettison::Dock

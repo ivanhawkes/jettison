@@ -106,10 +106,10 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	CHECK(
 	    word(
 	        Sim::MakeReason(
-	            Dock::Reason::AlreadyHoldsPad, {Argument::Integer(12), Argument::Entity(station)})) ==
+	            Dock::Reason::AlreadyHoldsBerth, {Argument::Integer(12), Argument::Entity(station)})) ==
 	    "the ship already holds pad 12 at Ostra Highport");
 	CHECK(
-	    word(Sim::MakeReason(Dock::Reason::OtherSystem, {Argument::Entity(nameless)})) ==
+	    word(Sim::MakeReason(Dock::Reason::OtherFrame, {Argument::Entity(nameless)})) ==
 	    "the ship is not in something's system");
 	CHECK(
 	    word(
@@ -124,7 +124,8 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	CHECK(
 	    word(
 	        Sim::MakeReason(
-	            Dock::Reason::AlreadyHoldsPad, {Argument::Integer(1200), Argument::Entity(station)})) ==
+	            Dock::Reason::AlreadyHoldsBerth,
+	            {Argument::Integer(1200), Argument::Entity(station)})) ==
 	    "das Schiff hat bereits Landeplattform 1.200 an Ostra Highport");
 	CHECK(words.strings.Problems() == 0);
 
