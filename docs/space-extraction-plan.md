@@ -91,8 +91,8 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 ## Rules for every slice
 
 - Saved and reflected names stay as they are ("Ai.Cruising", "Celestial.StarSystem",
-  "Physics.Thrusters"): C++ names change, bytes do not, so every pinned hash in Manifest holds unless
-  a slice says otherwise and shows why, as a reason's key does.
+  "Physics.Thrusters") until slice 7: C++ names change, bytes do not, so every pinned hash in
+  Manifest holds unless a slice says otherwise and shows why, as a reason's key does.
 - A vocabulary check joins `jettison_check_optional`: neutral modules' headers and sources may not
   use the setting's words (star system, celestial, galaxy, jump, station, ship, hull, cruise, orbit,
   pad, cargo) outside an allow-list, which each slice shrinks and the last empties.
@@ -126,7 +126,12 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 6. **The move.** `celestial`'s orbits, bodies and galaxy, `space`'s setting and the routes into
    Manifest's `space` module, reflected names unchanged; `celestial`, `space` and `spacescene` leave the engine and its
    optional list. Manifest's suites and pins held on the new SDK pin.
-7. **Close-out.** The allow-list empty; architecture, scope, game integration and the sample docs
+7. **Saved names.** Every saved and reflected name still in the setting's words or the old module's
+   (`"byHull"`, `Ai.OnLane`, `Ai.Cruising` and the rest) renamed at once: one save version and its
+   rename table, so a save written before loads, and every pin moved once, shown to be the names
+   alone by each hash returning with the old names put back. Before players keep saves or write
+   mods against the names (the user's, 2026-11-22).
+8. **Close-out.** The allow-list empty; architecture, scope, game integration and the sample docs
    rewritten for the boundary as it is; Manifest's boundary assessment's status; the consumer matrix
    (ground, Manifest) run; a cross-review of the whole, as at a stage's end.
 
