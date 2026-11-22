@@ -190,7 +190,10 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      117 s to the point above the berth and 23.6 s down, and the suite's one hash is pinned again for
      it. The case ordering space's lanes and cruise after the docks is the space suite's, which links
      the dock for it.
-   - **5c, the ai suite on neutral frames**: steering's flight round a moving platform the same way.
+   - **5c, the ai suite on neutral frames.** **Done** 2026-11-23: steering's flights round a station on
+     a ferry of the suite's own frame the same way, rather than round Highport in Halcyon, and
+     `jettison_space` off the suite's link; its one hash pinned again for it. No neutral module's suite
+     links a space module now.
 6. **The move.** `celestial`'s orbits, bodies and galaxy, `space`'s setting and the routes into
    Manifest's `space` module, reflected names unchanged; `celestial`, `space` and `spacescene` leave the engine and its
    optional list. Manifest's suites and pins held on the new SDK pin.

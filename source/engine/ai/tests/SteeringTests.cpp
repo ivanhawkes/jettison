@@ -1,5 +1,3 @@
-#include "Systems.h"
-
 #include <jettison/ai/Steering.h>
 #include <jettison/ai/Types.h>
 #include <jettison/math/Random.h>
@@ -7,18 +5,19 @@
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
-#include <jettison/space/StarSystemFrame.h>
 #include <jettison/spatial/FrameIndices.h>
 
 #include <doctest/doctest.h>
 
 #include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -29,8 +28,11 @@ using Ai::Obstacle;
 namespace
 {
 constexpr double kStep = 1.0 / 60.0;
-const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
-constexpr std::string_view kStation = "Ostra Highport";
+const std::uint64_t kHarbour = Sim::FrameId("Harbour");
+constexpr std::string_view kStation = "ferry";
+// The ferry's loop: a circle of 5 km radius, round in an hour, so it moves at 8.7 m/s.
+constexpr double kLoopRadius = 5000.0;
+constexpr double kLoopSeconds = 3600.0;
 
 
 // A ship of the default thrusters: 150 m/s, braking at half its weakest thruster's 15 m/s².
@@ -155,8 +157,33 @@ TEST_CASE("Steering: separation pushes apart only what is nearer than it")
 
 namespace
 {
-// A world as a game's start-up makes one: physics, the spatial index and steering, with Ostra
-// Highport a kinematic body on its rails in its own frame, and ships of a shuttle's hull.
+// The suite's frame, any game's: a ferry going round its loop, keeping its heading, which carries the
+// platform the ships are steered about; and no gravity.
+class Harbour final : public Physics::FrameModel
+{
+  public:
+	bool HasBody(std::string_view body) const override
+	{
+		return body == kStation;
+	}
+
+
+	Sim::Transform BodyAt(std::string_view /*body*/, double simSeconds) const override
+	{
+		return {StationAt(simSeconds)};
+	}
+
+
+	static glm::dvec3 StationAt(double time)
+	{
+		const double angle = glm::two_pi<double>() * time / kLoopSeconds;
+		return {kLoopRadius * std::cos(angle), 0.0, kLoopRadius * std::sin(angle)};
+	}
+};
+
+
+// A world as a game's start-up makes one: physics, the spatial index and steering, with a station a
+// kinematic body on the ferry's rails in its own frame, and ships of a shuttle's hull.
 struct Fixture
 {
 	Sim::SimWorld world{kStep, 5};
@@ -175,12 +202,12 @@ struct Fixture
 		physics.DefineShape("station", shape);
 		shape.halfExtents = {2.5f, 1.5f, 6.0f};
 		physics.DefineShape("shuttle", shape);
-		Space::DefineStarSystem(physics, AiTests::Halcyon());
+		physics.DefineFrame(kHarbour, std::make_unique<Harbour>());
 
 		entt::registry &registry = world.Registry();
 		station = registry.create();
 		registry.emplace<Sim::Transform>(station, Sim::Transform{StationAt(0.0)});
-		registry.emplace<Sim::InFrame>(station, kHalcyon);
+		registry.emplace<Sim::InFrame>(station, kHarbour);
 		registry.emplace<Physics::OnRails>(station, std::string{kStation});
 		registry.emplace<Physics::LocalFrame>(station, std::string{kStation});
 		registry.emplace<Physics::Body>(
@@ -199,9 +226,7 @@ struct Fixture
 
 	static glm::dvec3 StationAt(double time)
 	{
-		const Celestial::StarSystem halcyon = AiTests::Halcyon();
-		return Celestial::EvaluateBody(halcyon, static_cast<std::size_t>(halcyon.Find(kStation)), time)
-		    .metres;
+		return Harbour::StationAt(time);
 	}
 
 
@@ -211,7 +236,7 @@ struct Fixture
 		entt::registry &registry = world.Registry();
 		const entt::entity ship = registry.create();
 		registry.emplace<Sim::Transform>(ship, Sim::Transform{StationAt(world.Clock().Now()) + offset});
-		registry.emplace<Sim::InFrame>(ship, kHalcyon);
+		registry.emplace<Sim::InFrame>(ship, kHarbour);
 		registry.emplace<Physics::LocalFrame>(ship, std::string{kStation});
 		Physics::Body body{Physics::BodyKind::Dynamic, "shuttle", 20000.0f};
 		body.continuous = true;
@@ -317,7 +342,7 @@ TEST_CASE("Steering: a ship flies to a point by the station, arrives at rest, an
 	CHECK(arrived[0].vehicle == ship);
 	CHECK(arrived[0].entity == entt::null);
 
-	// Held there, in the station's frame as it orbits.
+	// Held there, in the station's frame as the ferry carries it round.
 	fixture.Run(10.0);
 	CHECK(glm::distance(fixture.FromStation(ship), to) < 2.0);
 	CHECK(glm::length(fixture.world.Registry().get<Physics::Velocity>(ship).linear) < 0.5f);
@@ -534,7 +559,9 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	// change here is a change to how steering flies, or to what a save holds, and either is a
 	// decision, not drift. 9c's destination saves whether it is kept clear by its hull and which
 	// way it faces; without those fields saved the flight still hashes to 9b's 0x7b531286df2bea60.
-	CHECK(first == 0x26095807ff135735ull);
+	// Pinned again in the space extraction's 5c for the station on the suite's own ferry rather than
+	// on the sample's orbit.
+	CHECK(first == 0x6def0361a3a806d7ull);
 
 	Fixture loaded;
 	(void)Gathering(loaded);

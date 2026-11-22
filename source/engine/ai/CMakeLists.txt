@@ -36,11 +36,3 @@ jettison_add_module(ai
 		glm
 		EnTT::EnTT
 )
-
-# Steering's suite flies round a station on its orbit in the space suite's Halcyon (Systems.h): the
-# test's, not the library's, which links no space module.
-if(TARGET jettison_ai_tests)
-	target_link_libraries(jettison_ai_tests PRIVATE jettison_space)
-	target_include_directories(jettison_ai_tests PRIVATE
-		"${PROJECT_SOURCE_DIR}/source/engine/space/tests")
-endif()
