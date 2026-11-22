@@ -1,7 +1,6 @@
 #include <jettison/space/Cruise.h>
 
 #include <jettison/ai/Steering.h>
-#include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/serialise/Archive.h>
@@ -29,7 +28,6 @@ namespace Jettison::Space
 {
 using Ai::Course;
 using Ai::Destination;
-using Ai::Reason;
 using Ai::Sphere;
 using Ai::Steered;
 using Ai::Waypoints;

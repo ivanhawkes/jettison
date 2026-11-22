@@ -1,7 +1,6 @@
 #include <jettison/space/Gates.h>
 
 #include <jettison/ai/Steering.h>
-#include <jettison/ai/Types.h>
 #include <jettison/celestial/Galaxy.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -27,7 +26,6 @@
 namespace Jettison::Space
 {
 using Ai::Destination;
-using Ai::Reason;
 using Ai::Steered;
 
 namespace

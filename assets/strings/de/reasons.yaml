@@ -19,15 +19,21 @@ reason:
     no_pad_offers: "{0} hat keine passende Landeplattform, die das Gewünschte bietet"
   ai:
     no_such_entity: dieses Schiff gibt es nicht
+    destination_gone: sein Ziel gibt es nicht mehr
+    destination_other_system: sein Ziel ist in einem anderen System
+    destination_other_frame: sein Ziel ist in einem anderen Bezugssystem
+    not_controller: der Absender befehligt das Schiff nicht
+    no_pilot: niemand Bestimmtes kann ein Steuer übernehmen
+    helm_held: jemand anderes ist am Steuer des Schiffs
+    not_at_helm: der Absender ist nicht am Steuer des Schiffs
+  space:
+    no_such_entity: dieses Schiff gibt es nicht
     on_lane: es ist bereits auf einer Sprungroute
     in_no_system: es ist in keinem System
     no_galaxy: es gibt keine Galaxie
     system_not_in_galaxy: sein System gehört nicht zur Galaxie
     no_lane: keine Sprungroute verlässt {0} durch {1}
     arrival_undefined: die Sprungroute endet in {0}, das nicht definiert ist
-    destination_gone: sein Ziel gibt es nicht mehr
-    destination_other_system: sein Ziel ist in einem anderen System
-    destination_other_frame: sein Ziel ist in einem anderen Bezugssystem
     not_controller: der Absender befehligt das Schiff nicht
     already_cruising: es ist bereits im Reiseflug
     cannot_cruise: das Schiff hat keinen Reiseantrieb oder wird gehalten
@@ -44,8 +50,5 @@ reason:
     leads_nowhere: keine Sprungroute führt durch {0}
     not_cleared: das Schiff war für {0} nicht freigegeben
     hull_too_large: der Rumpf passt nicht durch den Ring von {0} mit {1} m Radius
-    no_pilot: niemand Bestimmtes kann ein Steuer übernehmen
-    helm_held: jemand anderes ist am Steuer des Schiffs
-    not_at_helm: der Absender ist nicht am Steuer des Schiffs
   physics:
     not_at_helm: der Absender ist nicht am Steuer des Schiffs

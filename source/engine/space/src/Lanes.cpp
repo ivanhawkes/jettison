@@ -25,7 +25,6 @@
 namespace Jettison::Space
 {
 using Ai::Destination;
-using Ai::Reason;
 using Ai::Steered;
 
 

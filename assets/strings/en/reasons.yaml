@@ -22,15 +22,21 @@ reason:
     no_pad_offers: "{0} has no pad its hull fits that offers what it asks for"
   ai:
     no_such_entity: there is no such ship
+    destination_gone: its destination has gone
+    destination_other_system: its destination is in another system
+    destination_other_frame: its destination is in another frame
+    not_controller: its sender does not command the ship
+    no_pilot: no one in particular cannot take a helm
+    helm_held: someone else is at the ship's helm
+    not_at_helm: its sender is not at the ship's helm
+  space:
+    no_such_entity: there is no such ship
     on_lane: it is on a lane already
     in_no_system: it is in no system
     no_galaxy: there is no galaxy
     system_not_in_galaxy: its system is not one of the galaxy's
     no_lane: no lane leaves {0} through {1}
     arrival_undefined: the lane arrives in {0}, which is not defined
-    destination_gone: its destination has gone
-    destination_other_system: its destination is in another system
-    destination_other_frame: its destination is in another frame
     not_controller: its sender does not command the ship
     already_cruising: it is cruising already
     cannot_cruise: the ship has no cruise drive, or is held
@@ -47,8 +53,5 @@ reason:
     leads_nowhere: no lane leaves through {0}
     not_cleared: the ship was not cleared through {0}
     hull_too_large: the hull does not fit through {0}'s ring of {1} m radius
-    no_pilot: no one in particular cannot take a helm
-    helm_held: someone else is at the ship's helm
-    not_at_helm: its sender is not at the ship's helm
   physics:
     not_at_helm: its sender is not at the ship's helm

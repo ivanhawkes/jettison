@@ -1,7 +1,6 @@
 #include "Systems.h"
 
 #include <jettison/ai/Steering.h>
-#include <jettison/ai/Types.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/serialise/Archive.h>
@@ -10,6 +9,7 @@
 #include <jettison/space/Cruise.h>
 #include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
+#include <jettison/space/Types.h>
 
 #include <doctest/doctest.h>
 
@@ -556,53 +556,54 @@ TEST_CASE("Cruise: refused, with its reason")
 	Fixture fixture;
 	entt::registry &registry = fixture.world.Registry();
 	const entt::entity ship = fixture.Ship("Ostra Highport", {0.0, 0.0, 3000.0});
-	const auto reason = [](Ai::Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
+	const auto reason = [](Space::Reason reason, std::vector<Sim::ReasonArgument> arguments = {})
 	{ return Sim::MakeReason(reason, std::move(arguments)); };
 	const auto identifier = [](std::string name)
 	{ return Sim::ReasonArgument::Identifier(std::move(name)); };
 
-	CHECK(fixture.Refusal({{}, entt::entity{999}, "Pell"}) == reason(Ai::Reason::NoSuchEntity));
+	CHECK(fixture.Refusal({{}, entt::entity{999}, "Pell"}) == reason(Space::Reason::NoSuchEntity));
 	CHECK(
 	    fixture.Refusal({{}, ship, "Corva"}) ==
-	    reason(Ai::Reason::NoSuchBody, {identifier("Halcyon"), identifier("Corva")}));
+	    reason(Space::Reason::NoSuchBody, {identifier("Halcyon"), identifier("Corva")}));
 
 	// Commanded by a player, from another.
 	const Sim::Controller player{Sim::ControllerKind::Player, 0};
 	registry.emplace<Sim::ControlledBy>(ship, player);
 	CHECK(
 	    fixture.Refusal({{Sim::ControllerKind::Player, 1}, ship, "Pell"}) ==
-	    reason(Ai::Reason::NotController));
+	    reason(Space::Reason::NotController));
 
 	// Within a station's reach, so docking stays in physics.
 	const entt::entity docking = fixture.Ship("Ostra Highport", {0.0, 0.0, 1500.0});
 	CHECK(
 	    fixture.Refusal({{}, docking, "Pell"}) ==
-	    reason(Ai::Reason::NearStation, {identifier("Ostra Highport")}));
+	    reason(Space::Reason::NearStation, {identifier("Ostra Highport")}));
 
 	// Without a drive, and held on rails.
 	registry.remove<Space::CruiseDrive>(docking);
 	registry.get<Sim::Transform>(docking).position += glm::dvec3{0.0, 0.0, 2000.0};
-	CHECK(fixture.Refusal({{}, docking, "Pell"}) == reason(Ai::Reason::CannotCruise));
+	CHECK(fixture.Refusal({{}, docking, "Pell"}) == reason(Space::Reason::CannotCruise));
 	registry.emplace<Space::CruiseDrive>(docking, kDrive);
 	registry.emplace<Physics::OnRails>(docking, Physics::OnRails{"Ostra Highport"});
-	CHECK(fixture.Refusal({{}, docking, "Pell"}) == reason(Ai::Reason::CannotCruise));
+	CHECK(fixture.Refusal({{}, docking, "Pell"}) == reason(Space::Reason::CannotCruise));
 
 	// Already where a cruise would bring it.
 	const entt::entity near = fixture.Ship("Pell", {0.0, 2.0e6, 0.0});
 	CHECK(
-	    fixture.Refusal({{}, near, "Pell"}) == reason(Ai::Reason::AlreadyThere, {identifier("Pell")}));
+	    fixture.Refusal({{}, near, "Pell"}) ==
+	    reason(Space::Reason::AlreadyThere, {identifier("Pell")}));
 
 	// Cruising, a second cruise and a lane are refused.
 	fixture.world.Commands().Push(Space::Cruise{player, ship, "Pell"});
 	fixture.Run(1);
 	REQUIRE(registry.all_of<Space::Cruising>(ship));
-	CHECK(fixture.Refusal({player, ship, "Halcyon"}) == reason(Ai::Reason::AlreadyCruising));
+	CHECK(fixture.Refusal({player, ship, "Halcyon"}) == reason(Space::Reason::AlreadyCruising));
 	fixture.Events<Space::LaneRefused>();
 	fixture.world.Commands().Push(Space::EnterLane{{}, ship, "Halcyon Gate"});
 	fixture.Run(1);
 	const std::vector<Space::LaneRefused> lane = fixture.Events<Space::LaneRefused>();
 	REQUIRE(lane.size() == 1);
-	CHECK(lane[0].reason == reason(Ai::Reason::AlreadyCruising));
+	CHECK(lane[0].reason == reason(Space::Reason::AlreadyCruising));
 	CHECK(registry.all_of<Space::Cruising>(ship));
 }
 

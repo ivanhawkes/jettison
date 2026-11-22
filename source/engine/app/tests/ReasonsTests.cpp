@@ -23,7 +23,8 @@ using namespace Jettison;
 
 namespace
 {
-// The engine's string tables, and over them a table of the case's own with a reason of plural forms.
+// The engine's string tables, and over them a table of the case's own: a reason of plural forms and
+// one of two identifiers.
 struct Words
 {
 	std::filesystem::path scratch{
@@ -39,7 +40,7 @@ struct Words
 		std::filesystem::create_directories(scratch / "strings/en");
 		std::ofstream{scratch / "strings/en/test.yaml"}
 		    << "version: 1\nreason:\n  test:\n    crates:\n      one: '{0} crate'\n"
-		       "      other: '{0} crates'\n";
+		       "      other: '{0} crates'\n    locked: '{0} is locked from {1}'\n";
 		assets.AddMount({"engine", JETTISON_ASSET_SOURCE_DIR, false});
 		assets.AddMount({"base", scratch, false});
 		strings.Load(assets, "en");
@@ -112,10 +113,9 @@ TEST_CASE("Reasons: a reason's arguments are worded, its entities by name and it
 	    "the ship is not in something's system");
 	CHECK(
 	    word(
-	        Sim::MakeReason(
-	            Ai::Reason::NoLane,
-	            {Argument::Identifier("Halcyon"), Argument::Identifier("Vesper Gate")})) ==
-	    "no lane leaves Halcyon through Vesper Gate");
+	        {"reason.test.locked",
+	         {Argument::Identifier("Vault"), Argument::Identifier("East Hall")}}) ==
+	    "Vault is locked from East Hall");
 	CHECK(word({"reason.test.crates", {Argument::Integer(1)}}) == "1 crate");
 	CHECK(word({"reason.test.crates", {Argument::Integer(1200)}}) == "1,200 crates");
 	CHECK(words.strings.Problems() == 0);

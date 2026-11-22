@@ -1,6 +1,5 @@
 #include "Systems.h"
 
-#include <jettison/ai/Types.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/SimWorld.h>
@@ -9,6 +8,7 @@
 #include <jettison/space/Gates.h>
 #include <jettison/space/Lanes.h>
 #include <jettison/space/StarSystemFrame.h>
+#include <jettison/space/Types.h>
 
 #include <doctest/doctest.h>
 
@@ -302,7 +302,7 @@ TEST_CASE("Gates: a ship not cleared passes through the ring with a reason, and 
 	for (const Space::GatePassed &each : passed)
 	{
 		CHECK(each.gate == gate);
-		CHECK(Sim::Describe(each.reason) == "reason.ai.not_cleared('Halcyon Gate')");
+		CHECK(Sim::Describe(each.reason) == "reason.space.not_cleared('Halcyon Gate')");
 	}
 	// Through and out the far side, in Halcyon still, on its credits, and still waiting.
 	for (const entt::entity each : {ship, waiting})
@@ -381,17 +381,17 @@ TEST_CASE("Gates: what cannot be cleared through a gate is refused, saying why")
 		CHECK(found[0].ship == command.ship);
 		return Sim::Describe(found[0].reason);
 	};
-	CHECK(refused({kPilot, gone, gate}) == "reason.ai.no_such_entity()");
-	CHECK(refused({{Sim::ControllerKind::Player, 2}, ship, gate}) == "reason.ai.not_controller()");
-	CHECK(refused({kPilot, ship, ship}) == "reason.ai.not_a_gate()");
-	CHECK(refused({kPilot, elsewhere, gate}) == "reason.ai.not_at_gate('Halcyon Gate')");
-	CHECK(refused({kPilot, wide, gate}) == "reason.ai.hull_too_large('Halcyon Gate', 500)");
+	CHECK(refused({kPilot, gone, gate}) == "reason.space.no_such_entity()");
+	CHECK(refused({{Sim::ControllerKind::Player, 2}, ship, gate}) == "reason.space.not_controller()");
+	CHECK(refused({kPilot, ship, ship}) == "reason.space.not_a_gate()");
+	CHECK(refused({kPilot, elsewhere, gate}) == "reason.space.not_at_gate('Halcyon Gate')");
+	CHECK(refused({kPilot, wide, gate}) == "reason.space.hull_too_large('Halcyon Gate', 500)");
 	CHECK(refused({kPilot, poor, gate}) == "reason.test.short(2000)");
 	fixture.world.Commands().Push(Space::RequestTransit{kPilot, ship, gate});
 	fixture.Run(1);
 	CHECK(fixture.Events<Space::TransitCleared>().size() == 1);
-	CHECK(refused({kPilot, ship, gate}) == "reason.ai.already_cleared('Halcyon Gate')");
-	CHECK(refused({kPilot, elsewhere, gate}) == "reason.ai.not_at_gate('Halcyon Gate')");
+	CHECK(refused({kPilot, ship, gate}) == "reason.space.already_cleared('Halcyon Gate')");
+	CHECK(refused({kPilot, elsewhere, gate}) == "reason.space.not_at_gate('Halcyon Gate')");
 	// Nothing was taken from any of them.
 	for (const entt::entity each : {ship, wide, elsewhere})
 		CHECK(fixture.CreditsOf(each) == 10000);
@@ -413,7 +413,7 @@ TEST_CASE("Gates: a gate no lane leaves through clears nothing")
 	fixture.Run(1);
 	const std::vector<Space::TransitRefused> refused = fixture.Events<Space::TransitRefused>();
 	REQUIRE(refused.size() == 1);
-	CHECK(Sim::Describe(refused[0].reason) == "reason.ai.leads_nowhere('Vesper Deep Gate')");
+	CHECK(Sim::Describe(refused[0].reason) == "reason.space.leads_nowhere('Vesper Deep Gate')");
 }
 
 
