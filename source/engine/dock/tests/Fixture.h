@@ -22,7 +22,8 @@
 #include <vector>
 
 // What the dock suites share: a world with physics, the spatial index, steering and the docks, in
-// the sample's Halcyon, read from its file, and the sample's hulls and stations from theirs.
+// the retired space sample's Halcyon, read from its file, and its hulls and stations from theirs
+// (tests/fixtures).
 namespace Jettison::DockTests
 {
 inline constexpr double kStep = 1.0 / 60.0;
@@ -31,7 +32,7 @@ inline constexpr std::string_view kHighport = "Ostra Highport";
 
 inline std::string ReadAsset(std::string_view path)
 {
-	std::ifstream file{std::string{JETTISON_SAMPLE_ASSET_DIR} + "/" + std::string{path}};
+	std::ifstream file{std::string{JETTISON_DOCK_FIXTURE_DIR} + "/" + std::string{path}};
 	std::stringstream text;
 	text << file.rdbuf();
 	return text.str();
@@ -66,7 +67,7 @@ struct Fixture
 		if (!sample)
 			return;
 		Vfs::FileSystem files;
-		files.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR, false});
+		files.AddMount({"base", JETTISON_DOCK_FIXTURE_DIR, false});
 		Sim::DefinitionRegistry definitions{files};
 		definitions.Load<Dock::PadClassDefinition>(
 		    Dock::kPadClassDirectory, {Dock::kDefinitionVersion});

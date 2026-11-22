@@ -28,7 +28,7 @@ inline Celestial::Body MakeBody(
 
 // A Sun-like star, an Earth-like planet with a moon, a station in low orbit over the planet, and
 // the gate to Vesper keeping station 5 km above the station, as
-// source/samples/space/assets/systems/halcyon.yaml has them.
+// the retired space sample's systems/halcyon.yaml had them.
 inline Celestial::StarSystem Halcyon()
 {
 	using enum Celestial::BodyKind;
@@ -99,7 +99,7 @@ inline Celestial::JumpLane Lane(
 	return {{std::string{a}, std::string{aGate}}, {std::string{b}, std::string{bGate}}, transitSeconds};
 }
 
-// The sample galaxy (source/samples/space/assets/systems/galaxy.yaml): Halcyon to Vesper in 40 s,
+// The retired space sample's galaxy (its systems/galaxy.yaml): Halcyon to Vesper in 40 s,
 // Vesper to Marrow in 65.
 inline Celestial::Galaxy Sample()
 {

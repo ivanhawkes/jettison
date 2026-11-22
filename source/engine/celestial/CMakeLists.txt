@@ -25,8 +25,8 @@ jettison_add_module(celestial
 		glm
 )
 
-# The sample system's and galaxy's own tests read the sample's files, not copies of them.
+# The system and galaxy files' own tests read the retired space sample's files (tests/fixtures).
 if(TARGET jettison_celestial_tests)
 	target_compile_definitions(jettison_celestial_tests PRIVATE
-		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
+		JETTISON_CELESTIAL_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
 endif()

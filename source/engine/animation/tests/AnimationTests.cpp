@@ -283,7 +283,7 @@ TEST_CASE("Clip file: the pad clamp's clips, through the resource manager")
 {
 	using namespace Jettison;
 	Vfs::FileSystem assets;
-	assets.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR});
+	assets.AddMount({"base", JETTISON_TEST_CONTENT_DIR});
 	Jobs::IoWorker worker;
 	Resource::ResourceManager resources{assets, worker, {.hotReload = false, .pollInterval = {}}};
 	RegisterClipFileLoader(resources);
@@ -312,7 +312,7 @@ TEST_CASE("Rig loader: a glTF file's hierarchy, skin and clips, through the reso
 {
 	using namespace Jettison;
 	Vfs::FileSystem assets;
-	assets.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR});
+	assets.AddMount({"base", JETTISON_TEST_CONTENT_DIR});
 	Jobs::IoWorker worker;
 	Resource::ResourceManager resources{assets, worker, {.hotReload = false, .pollInterval = {}}};
 	RegisterRigLoader(resources);

@@ -16,7 +16,7 @@ namespace Jettison::SpaceTests
 inline const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 inline constexpr std::string_view kStation = "Ostra Highport";
 
-// Halcyon as its system file has it (source/samples/space/assets/systems/halcyon.yaml): a Sun-like
+// Halcyon as the retired space sample's system file had it (systems/halcyon.yaml): a Sun-like
 // star, an Earth-like planet a hundred and fifty million kilometres out, and a station in low orbit
 // over it, so the station moves at 7.7 km/s about the planet and 30 km/s about the star.
 inline Celestial::StarSystem Halcyon()

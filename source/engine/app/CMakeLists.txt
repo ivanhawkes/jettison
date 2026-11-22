@@ -56,9 +56,9 @@ jettison_add_module(app
 		glfw
 )
 
-# The game tests hold the engine's assets to what the engine ships, and the sample's content apart.
+# The game tests hold the engine's assets to what the engine ships, and the test content apart.
 if(TARGET jettison_app_tests)
 	target_compile_definitions(jettison_app_tests PRIVATE
 		JETTISON_ASSET_SOURCE_DIR="${PROJECT_SOURCE_DIR}/assets"
-		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
+		JETTISON_TEST_CONTENT_DIR="${PROJECT_SOURCE_DIR}/source/test/content")
 endif()

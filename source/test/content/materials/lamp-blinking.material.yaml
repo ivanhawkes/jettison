@@ -1,0 +1,11 @@
+# A reserved pad's state lamp (the station dressing): the lamp's, blinking, so a pad held for a ship on
+# its way reads apart from a free one at a glance. Square holds each end for half the second, bright
+# for half and dim, not dark, for the other, so the pole still shows where the lamp is.
+version: 1
+program: unlit
+animated:
+  - name: color
+    wave: Square
+    period: 1.0
+    from: [1, 1, 1, 0.4]
+    to: [1, 1, 1, 5]

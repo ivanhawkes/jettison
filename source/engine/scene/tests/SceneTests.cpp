@@ -535,19 +535,14 @@ TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig 
 {
 	namespace Animation = Jettison::Animation;
 	Jettison::Vfs::FileSystem assets;
-	assets.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR});
+	assets.AddMount({"base", JETTISON_TEST_CONTENT_DIR});
 	Jettison::Jobs::IoWorker worker;
 	Jettison::Resource::ResourceManager resources{
 	    assets, worker, {.hotReload = false, .pollInterval = {}}};
 	Animation::RegisterRigLoader(resources);
 
-	Scene orbit{&resources};
-	orbit.Load(std::filesystem::path{JETTISON_SAMPLE_ASSET_DIR} / "scene" / "orbit.yaml");
-	CHECK(orbit.StarSystem() == "systems/halcyon.yaml");
-	CHECK(assets.Exists(orbit.StarSystem()));
-
 	Scene scene{&resources};
-	scene.Load(std::filesystem::path{JETTISON_SAMPLE_ASSET_DIR} / "scene" / "main.yaml");
+	scene.Load(std::filesystem::path{JETTISON_TEST_CONTENT_DIR} / "scene" / "main.yaml");
 	const std::string authored = scene.SaveText();
 	const SceneUpdateSystem update{&resources};
 	auto &registry = scene.Registry();
@@ -580,7 +575,6 @@ TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig 
 	// The scene releases its rigs as it goes, and a stale handle is how a cache would learn so.
 	const auto rig = registry.get<RigComponent>(registry.view<const RigComponent>().front()).rig;
 	scene.Clear();
-	orbit.Clear();
 	CHECK(resources.StatusOf(rig) == Jettison::Resource::Status::Invalid);
 }
 
@@ -660,7 +654,7 @@ TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its eve
 {
 	namespace Animation = Jettison::Animation;
 	Jettison::Vfs::FileSystem assets;
-	assets.AddMount({"base", JETTISON_SAMPLE_ASSET_DIR});
+	assets.AddMount({"base", JETTISON_TEST_CONTENT_DIR});
 	Jettison::Jobs::IoWorker worker;
 	Jettison::Resource::ResourceManager resources{
 	    assets, worker, {.hotReload = false, .pollInterval = {}}};

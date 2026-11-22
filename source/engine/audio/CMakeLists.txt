@@ -26,8 +26,8 @@ jettison_add_module(audio
 		miniaudio
 )
 
-# The tests play the sounds the sample's content ships.
+# The tests play the test content's sounds (source/test/content).
 if(TARGET jettison_audio_tests)
 	target_compile_definitions(jettison_audio_tests PRIVATE
-		JETTISON_SAMPLE_ASSET_DIR="${PROJECT_SOURCE_DIR}/source/samples/space/assets")
+		JETTISON_TEST_CONTENT_DIR="${PROJECT_SOURCE_DIR}/source/test/content")
 endif()

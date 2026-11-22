@@ -178,7 +178,7 @@ TEST_CASE("Material: waves run from 0 to 1 over a period, and time-driven values
 TEST_CASE("Material: the shipped materials resolve against the programs they name")
 {
 	const std::filesystem::path assets{JETTISON_ASSET_SOURCE_DIR};
-	const std::filesystem::path content{JETTISON_SAMPLE_ASSET_DIR};
+	const std::filesystem::path content{JETTISON_TEST_CONTENT_DIR};
 	std::size_t materials = 0;
 	for (const auto &entry : std::filesystem::directory_iterator{content / "materials"})
 	{

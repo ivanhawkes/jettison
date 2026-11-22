@@ -1,0 +1,101 @@
+version: 2
+entities:
+  - id: scene-root
+    transform:
+      translation: [0, 0, 0]
+      rotation: [0, 0, 0]
+      scale: [1, 1, 1]
+  - id: main-camera
+    camera:
+      position: [2, 2, 2]
+      rotation: [-0.615479709, 0, 0.785398163]
+      fov: 45
+      near: 0.1
+      active: true
+  - id: key-light
+    transform:
+      translation: [-2, 2.5, 1]
+      rotation: [0, 0, 0]
+      scale: [1, 1, 1]
+    # About pi of irradiance at the models, three and a half metres off, so an albedo shows as itself.
+    light:
+      type: point
+      color: [1, 0.92, 0.78]
+      intensity: 40
+      range: 20
+      active: true
+  # A brighter sky than a real one, so the models' unlit sides are lit by it.
+  - id: sky
+    sky:
+      seed: 3
+      stars: 4000
+      starFlux: 4.0e-5
+      band:
+        normal: [0.2, 0.95, 0.25]
+        width: 0.35
+        color: [0.3, 0.27, 0.24]
+      nebula:
+        color: [0.12, 0.08, 0.16]
+        scale: 1.5
+  # The models stand on a plated deck: two crates, the right one turning, and the arm swinging.
+  - id: deck
+    parent: scene-root
+    transform:
+      translation: [0, -0.05, 0]
+      scale: [1.8, 0.05, 1.6]
+    mesh:
+      shape: box
+      color: [0.55, 0.56, 0.6]
+      material: materials/deck.material.yaml
+  - id: static-crate
+    parent: scene-root
+    transform:
+      translation: [-1.1, 0, 0]
+      rotation: [0, 0.4, 0]
+      scale: [1.4, 1.4, 1.4]
+    mesh:
+      model: models/crate.glb
+  - id: turning-crate
+    parent: scene-root
+    transform:
+      translation: [1.1, 0, 0]
+      rotation: [0, 0, 0]
+      scale: [1.4, 1.4, 1.4]
+    mesh:
+      model: models/crate.glb
+    transformAnimation:
+      axis: [0, 1, 0]
+      speed: 0.785398163
+  # The KTX 2 plating through the texture coordinates of a cube sphere and of a ring around it.
+  - id: plated-sphere
+    parent: scene-root
+    transform:
+      translation: [-0.3, 0.75, 1.3]
+      rotation: [0, 0.6, 0]
+      scale: [0.16, 0.16, 0.16]
+    mesh:
+      shape: cubesphere
+      material: materials/panels.material.yaml
+  - id: plated-ring
+    parent: plated-sphere
+    transform:
+      rotation: [0.35, 0, 0.2]
+      scale: [1.9, 1.9, 1.9]
+    mesh:
+      shape: ring
+      color: [0.5, 0.49, 0.47]
+      innerRadius: 0.62
+      material: materials/panels.material.yaml
+  - id: cargo-arm
+    parent: scene-root
+    transform:
+      translation: [0, 0, -0.5]
+      rotation: [0, 0, 0]
+      scale: [1, 1, 1]
+    mesh:
+      model: models/arm.glb
+    animation:
+      clip: Swing
+      speed: 1
+      loop: true
+      playing: true

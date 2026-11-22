@@ -81,13 +81,13 @@ void CheckChain(const TextureData &texture, std::size_t bytesPerTexel, std::uint
 
 std::filesystem::path Sample(const char *name)
 {
-	return std::filesystem::path{JETTISON_SAMPLE_ASSET_DIR} / "textures" / "hulls" / "hull-panels" /
+	return std::filesystem::path{JETTISON_TEST_CONTENT_DIR} / "textures" / "hulls" / "hull-panels" /
 	       name;
 }
 } // namespace
 
 
-TEST_CASE("Texture: the sample KTX 2 files transcode from UASTC and ETC1S to BC7 and to RGBA8")
+TEST_CASE("Texture: the test content's KTX 2 files transcode from UASTC and ETC1S to BC7 and to RGBA8")
 {
 	// The hull plating's colour is UASTC with zstd, its emissive ETC1S: Basis Universal's two modes.
 	for (const char *name : {"hull-panels-color.ktx2", "hull-panels-emissive.ktx2"})

@@ -1,0 +1,7 @@
+# A pad's state lamp on its floodlight poles (the station dressing): unlit, so it reads on the night
+# side as on the day side, its colour the mesh's, which the shell sets from the pad's state.
+version: 1
+program: unlit
+parameters:
+  - name: color
+    value: [1, 1, 1, 5]

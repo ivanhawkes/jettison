@@ -1,0 +1,11 @@
+# A gas giant's cloud tops: Render::MaterialDefinition (render/Material.h), on the planet program
+# with none of its maps, so the surface is the base colour all over, and the program's haze, rings
+# and terminator are drawn over it.
+version: 1
+program: planet
+parameters:
+  - name: baseColor
+    value: [0.72, 0.6, 0.46, 1]
+  # The cloud tops are matt.
+  - name: surface
+    value: [1, 0, 0, 0]
