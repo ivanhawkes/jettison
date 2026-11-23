@@ -56,8 +56,8 @@ for is done (2026-11-23, [history](history.md#neutral-sdk-and-manifest-integrati
 [its plan](space-extraction-plan.md)): the space setting is Manifest's, the space sample retired, and
 Manifest pinned to `14fc23a` with every pin held. Formats change in place until player testing
 ([decided](decisions.md)). Manifest's W12, W13 and W14 are done with no engine edit (2026-11-23,
-[history](history.md#neutral-sdk-and-manifest-integration)): its Stage 4 is closed, its cross-review
-and then its Stage 5 (R01) next.
+[history](history.md#neutral-sdk-and-manifest-integration)): its Stage 4 is closed and cross-reviewed,
+its Stage 5 (R01) next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
