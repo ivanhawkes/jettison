@@ -360,7 +360,8 @@ pad lapsed; the docks now stop a ship out along its pad's normal first, a stopga
 ([carried forward](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)). Its L28 needed no
 engine edit ([Manifest's history](../../manifest/docs/history.md#w10-standing-trade-policies-autopilot-and-npc-jobs--2026-11-21)).
 
-Manifest's W18, W11 and W19 needed no engine edit. The cruise coast phase, provisioned for Manifest's
+Manifest's W18, W11 and W19 needed no engine edit, and later W12 and W13 (2026-11-23), competitive
+procurement and regional governance, on the pin `14fc23a`. The cruise coast phase, provisioned for Manifest's
 W21 (2026-11-22), fuel burn, its slow runs coasting:
 
 | Delivery | Manifest task (stage) | Exit criterion |
