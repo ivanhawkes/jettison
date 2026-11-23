@@ -62,7 +62,9 @@ edit ([history](history.md#neutral-sdk-and-manifest-integration)); its R02, dura
 lock, is done in Manifest (2026-11-24) on the pin `ea66afe`, with two provisions here, directories
 made durably and a file lock ([history](history.md#neutral-sdk-and-manifest-integration)), and with
 them the message several datagrams long its Stage 4 review booked, which needed a limit set and no
-splitting of the engine's own. Its R03, the step journals and the catalogue, is next.
+splitting of the engine's own. Its R03, the step journals and the catalogue, is done in Manifest with
+no engine edit (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)). Its R04,
+boundary snapshots, retention and the replay from a snapshot, is next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
