@@ -17,10 +17,18 @@ inline constexpr std::string_view kPartialSuffix = ":partial";
 // flushed too, since the rename is an entry in the directory and is not on the disk until the
 // directory is. A save written and reported as saved is still there after the power goes.
 //
-// Creates the file's directory if it is missing. Throws std::runtime_error naming the path and
-// what failed, with the partial file removed and any old file as it was.
+// Creates the file's directory if it is missing, as CreateDirectoriesDurably does. Throws
+// std::runtime_error naming the path and what failed, with the partial file removed and any old file
+// as it was.
 void WriteFileDurably(const std::filesystem::path &path, std::span<const std::byte> bytes);
 
 // The same for text.
 void WriteFileDurably(const std::filesystem::path &path, std::string_view text);
+
+// Makes the directory and each one above it that is missing, flushing the parent of each as it is
+// made: a new directory is an entry in its parent, and is lost in a power cut, with everything
+// written under it, until that parent is on the disk. One that was already there is taken to be.
+// True when it made any. Throws std::runtime_error naming the directory that could not be made or
+// flushed, or the path when something other than a directory is there.
+bool CreateDirectoriesDurably(const std::filesystem::path &path);
 } // namespace Jettison::Core

@@ -1,7 +1,12 @@
 #include <jettison/core/File.h>
+#include <jettison/core/FileLock.h>
 
 #include <doctest/doctest.h>
 
+#include <signal.h>
+#include <sys/wait.h>
+
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -9,6 +14,7 @@
 #include <string>
 #include <system_error>
 #include <unistd.h>
+#include <utility>
 
 using namespace Jettison::Core;
 
@@ -77,5 +83,72 @@ TEST_CASE("File: a write that fails says where, and leaves the old file and no p
 	CHECK_THROWS_AS(
 	    WriteFileDurably(path / "under-a-file.save", std::string_view{"x"}), std::runtime_error);
 	CHECK(ReadFile(path) == "kept");
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("File: directories are made to any depth, once, and not through a file")
+{
+	const std::filesystem::path directory = Scratch();
+	const std::filesystem::path nested = directory / "worlds" / "first" / "journal";
+	CHECK(CreateDirectoriesDurably(nested));
+	CHECK(std::filesystem::is_directory(nested));
+	CHECK_FALSE(CreateDirectoriesDurably(nested));
+	CHECK_FALSE(CreateDirectoriesDurably(directory / "worlds" / "first" / ""));
+
+	WriteFileDurably(directory / "file", std::string_view{"x"});
+	CHECK_THROWS_AS(CreateDirectoriesDurably(directory / "file"), std::runtime_error);
+	CHECK_THROWS_AS(CreateDirectoriesDurably(directory / "file" / "under"), std::runtime_error);
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("FileLock: one holder at a time in a process, and the next once it lets go")
+{
+	const std::filesystem::path directory = Scratch();
+	std::filesystem::create_directories(directory);
+	const std::filesystem::path path = directory / "lock";
+	{
+		std::optional<FileLock> held = FileLock::TryAcquire(path);
+		REQUIRE(held);
+		CHECK_FALSE(FileLock::TryAcquire(path));
+		const FileLock moved = std::move(*held);
+		held.reset();
+		CHECK_FALSE(FileLock::TryAcquire(path));
+	}
+	CHECK(FileLock::TryAcquire(path));
+	CHECK_THROWS_AS((void)FileLock::TryAcquire(directory / "missing" / "lock"), std::runtime_error);
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("FileLock: another process is refused, and a killed holder's lock is free")
+{
+	const std::filesystem::path directory = Scratch();
+	std::filesystem::create_directories(directory);
+	const std::filesystem::path path = directory / "lock";
+	std::array<int, 2> ready{};
+	REQUIRE(::pipe(ready.data()) == 0);
+	const pid_t holder = ::fork();
+	REQUIRE(holder >= 0);
+	if (holder == 0)
+	{
+		const std::optional<FileLock> held = FileLock::TryAcquire(path);
+		const char answer = held ? 'y' : 'n';
+		(void)::write(ready[1], &answer, 1);
+		::pause();
+		::_exit(0);
+	}
+	char answer = 0;
+	REQUIRE(::read(ready[0], &answer, 1) == 1);
+	CHECK(answer == 'y');
+	CHECK_FALSE(FileLock::TryAcquire(path));
+
+	// No destructor runs in a killed process: the kernel lets go of the lock.
+	REQUIRE(::kill(holder, SIGKILL) == 0);
+	REQUIRE(::waitpid(holder, nullptr, 0) == holder);
+	CHECK(FileLock::TryAcquire(path));
+	::close(ready[0]);
+	::close(ready[1]);
 	std::filesystem::remove_all(directory);
 }

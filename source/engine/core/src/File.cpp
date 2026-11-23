@@ -6,9 +6,11 @@
 #include <cerrno>
 #include <cstring>
 #include <format>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <vector>
 
 namespace Jettison::Core
 {
@@ -59,7 +61,43 @@ std::string Problem(std::string_view what)
 {
 	return std::format("{}: {}", what, std::strerror(errno));
 }
+
+
+// Zero, or the errno of what failed.
+int FlushDirectory(const std::filesystem::path &directory)
+{
+	const Descriptor descriptor{::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
+	return descriptor.Get() >= 0 && ::fsync(descriptor.Get()) == 0 ? 0 : errno;
+}
 } // namespace
+
+
+bool CreateDirectoriesDurably(const std::filesystem::path &path)
+{
+	std::error_code error;
+	std::vector<std::filesystem::path> missing;
+	for (std::filesystem::path directory = path;
+	     !directory.empty() && !std::filesystem::exists(directory, error);
+	     directory = directory.parent_path())
+		missing.push_back(directory);
+
+	// Outermost first: a directory flushed into a parent that is not on the disk is lost with it.
+	for (const std::filesystem::path &directory : std::views::reverse(missing))
+	{
+		std::filesystem::create_directory(directory, error);
+		if (error)
+			throw std::runtime_error{
+			    std::format("{} could not be made: {}", directory.string(), error.message())};
+		const int problem = FlushDirectory(directory.has_parent_path() ? directory.parent_path() : ".");
+		if (problem != 0)
+			throw std::runtime_error{std::format(
+			    "{} was made, but its directory could not be flushed: {}", directory.string(),
+			    std::strerror(problem))};
+	}
+	if (!std::filesystem::is_directory(path, error))
+		throw std::runtime_error{std::format("{} is not a directory", path.string())};
+	return !missing.empty();
+}
 
 
 void WriteFileDurably(const std::filesystem::path &path, std::span<const std::byte> bytes)
@@ -73,12 +111,9 @@ void WriteFileDurably(const std::filesystem::path &path, std::span<const std::by
 		return std::runtime_error{std::format("{} could not be written: {}", path.string(), problem)};
 	};
 
-	std::error_code error;
 	const std::filesystem::path directory =
 	    path.has_parent_path() ? path.parent_path() : std::filesystem::path{"."};
-	std::filesystem::create_directories(directory, error);
-	if (error)
-		throw fail(error.message());
+	CreateDirectoriesDurably(directory);
 
 	{
 		Descriptor file{::open(partial.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644)};
@@ -99,17 +134,18 @@ void WriteFileDurably(const std::filesystem::path &path, std::span<const std::by
 			throw fail(Problem("close"));
 	}
 	// rename replaces the old file in one step on POSIX.
+	std::error_code error;
 	std::filesystem::rename(partial, path, error);
 	if (error)
 		throw fail(error.message());
 
 	// The file is complete under its name; what remains is the directory's entry for it. A failure
 	// here leaves the new file in place, which is reported, since it may not survive a power cut.
-	Descriptor parent{::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
-	if (parent.Get() < 0 || ::fsync(parent.Get()) != 0)
+	const int problem = FlushDirectory(directory);
+	if (problem != 0)
 		throw std::runtime_error{std::format(
 		    "{} was written, but its directory could not be flushed: {}", path.string(),
-		    std::strerror(errno))};
+		    std::strerror(problem))};
 }
 
 

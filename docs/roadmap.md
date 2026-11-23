@@ -59,7 +59,9 @@ Manifest pinned to `14fc23a` with every pin held. Formats change in place until 
 [history](history.md#neutral-sdk-and-manifest-integration)): its Stage 4 is closed and cross-reviewed.
 Its R01, the save and compatibility contract, is done (2026-11-24), a planning task with no engine
 edit ([history](history.md#neutral-sdk-and-manifest-integration)); its R02, durable I/O and the world
-lock, is next, and the first of its Stage 5 likely to provision here.
+lock, is provisioned here (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)):
+directories made durably and a file lock, with the message several datagrams long its Stage 4 review
+booked, which needed a limit set and no splitting of the engine's own.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -96,14 +98,6 @@ dearer with every save a player has and once a second player sends commands.
   player's event sends as that player, an NPC's as that NPC, and no client or script can name
   another player or an NPC. It also reaches a `Sim::Controller` nested inside a command's fields,
   which the host does not yet stamp.
-
-- **Messages longer than a packet** (Manifest's Stage 4 review, 2026-11-23, the user's: with the next
-  Jettison change): `net` sends each message as one ENet packet of at most `maxMessageBytes`
-  (64 KiB) and drops a longer one, and Manifest's snapshot of the trading scenario is 63,567 bytes
-  already, past the limit with ten resting orders, so a client's view freezes. Split a message into
-  fragments and reassemble it at the other end, the whole bounded as the inbound bounds are, tested
-  with a snapshot several packets long. Manifest moves to delta snapshots only if splitting is not
-  enough.
 
 ### Next: what the game's next slices stand on
 

@@ -275,6 +275,47 @@ TEST_CASE("a message over the limit is not sent")
 }
 
 
+TEST_CASE("a message several datagrams long arrives whole on either channel")
+{
+	const auto filled = [](std::size_t bytes)
+	{
+		std::vector<std::byte> body(bytes);
+		for (std::size_t index = 0; index < body.size(); ++index)
+			body[index] = static_cast<std::byte>(index * 31 >> 3);
+		return body;
+	};
+	ServerConfig config;
+	config.limits.maxMessageBytes = std::size_t{1024} * 1024 + 16;
+	Fixture fixture{config};
+	ClientConfig clientConfig = fixture.Config();
+	clientConfig.limits = config.limits;
+	Client client{clientConfig};
+	fixture.Until([&] { return client.Admitted(); }, {&client});
+	const SessionId session = fixture.pServer->Sessions().front();
+
+	// Unreliable fragments are sent at once and wait in the receiver's socket buffer, ENet's 256 KiB:
+	// on loopback 256 KiB arrived twenty times of twenty and 384 KiB never (2026-11-24).
+	const std::vector<std::byte> snapshot = filled(std::size_t{192} * 1024);
+	fixture.pServer->SendSnapshots(5, [&](SessionId) { return std::vector<std::byte>{snapshot}; });
+	fixture.Until(
+	    [&] { return fixture.Last(client, ClientEvent::Type::Snapshot).has_value(); }, {&client});
+	CHECK(fixture.Last(client, ClientEvent::Type::Snapshot)->message.body == snapshot);
+
+	// Reliable fragments are paced by ENet's window and sent again when lost.
+	const std::vector<std::byte> request = filled(std::size_t{1024} * 1024);
+	CHECK(client.Send(Channel::Reliable, 1, request));
+	std::optional<Message> received;
+	fixture.Until(
+	    [&]
+	    {
+		    received = fixture.pServer->Receive(session);
+		    return received.has_value();
+	    },
+	    {&client});
+	CHECK(received->body == request);
+}
+
+
 // A peer that is not this engine's client: what ENet lets anyone send.
 TEST_CASE("a connection that sends no hello, or anything else before one, is closed")
 {

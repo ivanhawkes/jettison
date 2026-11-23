@@ -3,6 +3,7 @@ jettison_add_module(core
 		include/jettison/core/Assert.h
 		include/jettison/core/Config.h
 		include/jettison/core/File.h
+		include/jettison/core/FileLock.h
 		include/jettison/core/Handle.h
 		include/jettison/core/Hash.h
 		include/jettison/core/Log.h
@@ -12,6 +13,7 @@ jettison_add_module(core
 		src/Assert.cpp
 		src/Config.cpp
 		src/File.cpp
+		src/FileLock.cpp
 		src/Log.cpp
 		src/StringId.cpp
 		src/Version.cpp

@@ -63,9 +63,12 @@ struct Message
 	std::vector<std::byte> body;
 };
 
-// What bounds one end. maxMessageBytes is a whole packet, kind and snapshot step included: a longer
-// one is dropped by the transport before it is reassembled, let alone decoded, and Send refuses to
-// send one. A peer not heard from for longer than timeout is closed.
+// What bounds one end. maxMessageBytes is a whole message, kind and snapshot step included, however
+// many datagrams the transport splits it into: a longer one is dropped by the transport before it is
+// reassembled, let alone decoded, and Send refuses to send one. An unreliable message's fragments are
+// sent at once and all must arrive, so it must fit the receiver's socket buffer too, the 256 KiB ENet
+// asks for: on loopback 256 KiB arrived every time and 384 KiB never (2026-11-24). A peer not heard
+// from for longer than timeout is closed.
 struct Limits
 {
 	std::size_t maxMessageBytes{std::size_t{64} * 1024};

@@ -631,7 +631,11 @@ again, and every format change from then on carries a step.
 A save is written through the VFS to the user mount, the user's data directory
 (`~/.local/share/jettison/saves/<name>.save`), whole and durably (`Core::WriteFileDurably`): to a
 partial file beside it, flushed to the disk, renamed over it, and the directory flushed, so a crash
-or a power cut leaves the save before it, and a save reported written is on the disk. Settings and
+or a power cut leaves the save before it, and a save reported written is on the disk. A directory
+made on the way is flushed into its parent as it is made (`Core::CreateDirectoriesDurably`), or a
+power cut would take it and the save in it; and a directory is held to one writing process by a
+file locked in it (`Core::FileLock`, the kernel's `flock`, let go when its process ends however it
+ends), which a game's server takes before it writes a world. Settings and
 bindings are apart from saves, in the configuration directory (`~/.config/jettison/settings.yaml`),
 written the same way whenever the player changes one, so loading a save changes none of them. A
 binding's joystick is a number the player's bindings name after the device it was bound as
@@ -852,8 +856,13 @@ whose credential is whose, what a session may do, and what it may see.
   then asks the game's verifier, which records the session's actor. Each refusal closes the
   connection with its reason, which ENet's disconnect carries, so the client reads it in its `Closed`
   event. Admission sends the welcome, and only then does either end accept a game's message.
-- **Bounds.** A packet over `Limits::maxMessageBytes` is dropped by ENet before it is reassembled
-  (`maximumPacketSize`), and `Send` refuses to make one. A malicious peer's oversize packet
+- **Bounds.** A message is one ENet packet, which ENet splits into datagrams and reassembles, so
+  `Limits::maxMessageBytes` (64 KiB unless a game sets it) is the whole message's bound and not a
+  datagram's. One over it is dropped by ENet before it is reassembled (`maximumPacketSize`), and
+  `Send` refuses to make one. A reliable message of any length under the limit arrives, paced by
+  ENet's window. An unreliable one's fragments are sent at once and must all arrive, so it must fit
+  the receiver's socket buffer, the 256 KiB ENet asks for: on loopback 256 KiB arrived every time
+  and 384 KiB never (2026-11-24), and a view past that wants deltas. A malicious peer's oversize packet
   therefore stalls its own reliable channel until it times out, rather than closing with a reason.
   A session with `maxInbound` messages still waiting is closed as `InboundOverflow` when the next
   one arrives. ENet's peer count is `maxSessions` plus `maxPending`: past it, a new connection is
