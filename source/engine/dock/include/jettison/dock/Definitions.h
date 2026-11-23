@@ -111,10 +111,8 @@ struct PlatformLayout
 	float reservationSeconds{300.0f};
 };
 
-// The definitions' files' versions. Version 2 of a berth class and of a platform layout, and 3 of a
-// vehicle (the space extraction), name their fields in the docks' words, where earlier versions had
-// the space setting's; a vehicle's version 1 may give a drive ("cruise"), the game's now, which loads
-// with it left out.
+// The definitions' files' versions, which change in place until player testing (docs/decisions.md,
+// "Formats change in place until player testing"): the files the repositories hold are written again.
 inline constexpr std::uint32_t kBerthClassVersion = 2;
 inline constexpr std::uint32_t kVehicleVersion = 3;
 inline constexpr std::uint32_t kPlatformVersion = 2;
@@ -127,8 +125,8 @@ inline constexpr std::string_view kPlatformDirectory = "defs/platforms";
 // naming the class.
 void CheckBerthClass(std::string_view name, const BerthClassDefinition &berthClass);
 
-// The definitions' files from version 1 up (Sim::DefinitionRegistry::Load), each format the type's
-// reflected name.
+// The definitions' files' chains (Sim::DefinitionRegistry::Load), each format the type's reflected
+// name, reading the current version alone.
 const Serialise::YamlMigrations &BerthClassMigrations();
 const Serialise::YamlMigrations &VehicleMigrations();
 const Serialise::YamlMigrations &PlatformMigrations();

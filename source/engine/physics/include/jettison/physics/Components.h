@@ -58,8 +58,8 @@ struct Body
 
 	bool operator==(const Body &) const = default;
 
-	// Version 2 (the space extraction) renamed the shapes the docks name, from "hulls/" and
-	// "stations/" to "vehicles/" and "platforms/" (Dock::Docks::VehicleShape, PlatformShape).
+	// Its storage's chain: the current version alone until player testing (docs/decisions.md, "Formats
+	// change in place until player testing").
 	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 

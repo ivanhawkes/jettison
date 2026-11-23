@@ -267,9 +267,9 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 
 ## To revisit
 
-- **The save's migration from version 1** (the user's, 2026-11-22, slice 3): it stays the engine's,
-  in neutral words, where the plan had the game supply it. Revisit whether a game should supply it,
-  as a hook over the engine's info record, before slice 8 closes the boundary.
+Nothing. The save's migration from version 1, left to revisit in slice 3, was deleted with every
+other step on 2026-11-23, when formats began to change in place until player testing
+([decided](decisions.md)).
 
 ## Risks
 

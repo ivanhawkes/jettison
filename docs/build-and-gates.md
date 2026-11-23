@@ -337,11 +337,11 @@ same source are not wanted twice.
 
 Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files the
 module's `jettison_add_module(... TESTS ...)` names and registered with CTest under the module's
-name. The smoke sequence's own test and the dependency probe are registered alongside them. Saves written
-by earlier versions of the engine are fixtures beside the suite that loads them
-(`source/engine/sim/tests/data`): each was written once, by the build of its version, and is never
-regenerated, since a fixture rewritten by the current build proves only that the current build reads
-itself. A format change that breaks one needs a migration, not a new fixture. The
+name. The smoke sequence's own test and the dependency probe are registered alongside them. Until
+player testing a format changes in place ([decided](decisions.md), 2026-11-23): the change rewrites
+every file of the format the two repositories hold, in the same commit, and the gate loads each of
+them (a suite, the smoke run or a reference frame), so a file left behind fails. No save written by an earlier build is kept as a fixture until
+then. The
 gate runs them with `ctest --test-dir build/<preset> --output-on-failure --no-tests=error`, so a
 tree that registered nothing fails rather than passes. The gate runs them in parallel (`-j`), which
 is what makes the suites finish in 42 seconds with the space sample's 39 of them dominating, and it is where

@@ -1,7 +1,6 @@
 #include <jettison/physics/PhysicsWorld.h>
 
 #include <jettison/serialise/Archive.h>
-#include <jettison/serialise/Migration.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/vfs/FileSystem.h>
@@ -442,23 +441,4 @@ TEST_CASE("Physics: a system full of bodies refuses the next")
 	registry.destroy(second);
 	world.Step();
 	CHECK(physics.BodyCount() == 2);
-}
-
-
-TEST_CASE("Physics: a queued pick saved with its frame as \"system\" loads with it as its frame")
-{
-	Fixture fixture;
-	Physics::Pick pick;
-	pick.request = 7;
-	pick.frame = kHalcyon;
-	pick.maxDistance = 100.0;
-	fixture.world.Commands().Push(pick);
-	const std::vector<std::byte> save = fixture.world.Save();
-
-	// As every build before the space extraction's close-out wrote it.
-	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(save, "Jettison.World");
-	document.Rename("frame", "system");
-	Fixture loaded;
-	loaded.world.Load(document.Emit());
-	CHECK(loaded.world.Save() == save);
 }

@@ -349,11 +349,10 @@ class SimWorld
 	// registered component and every service. Little-endian, in the binary archive's layout.
 	std::vector<std::byte> Save() const;
 
-	// Replaces the state with a save's. The registrations stay. A save of an earlier version is
-	// migrated to the current one first, by the world's chain of steps, one a version; a version 1
-	// save (before phase 7a) has no services' state, and loads only into a world with none. Then
-	// each component's storage saved at an earlier version of the component is read through its
-	// chain. Throws FormatError or FormatVersionError for a save that does not fit, among them one
+	// Replaces the state with a save's. The registrations stay. The world's chain and each
+	// component's read their current versions alone until player testing (docs/decisions.md,
+	// "Formats change in place until player testing"); a component's chain may still have steps of a
+	// game's. Throws FormatError or FormatVersionError for a save that does not fit, among them one
 	// without the state of every service the world has, or with a component at a version its chain
 	// does not reach, and the world is then as it was before.
 	void Load(std::span<const std::byte> save);

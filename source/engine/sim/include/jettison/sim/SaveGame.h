@@ -60,8 +60,7 @@ struct SaveInfo
 	// game's. A save from before phase 12a names none.
 	std::vector<ModVersion> mods;
 	// The game's own, by key: what a list shows of a save and a load checks first, read with the
-	// rest of the info. A save of version 1 has its world and system here, as "galaxy" and
-	// "system", each only if it named one.
+	// rest of the info.
 	std::vector<SaveDetail> details;
 
 	// The value of the first detail of the key, or empty for none.
@@ -117,8 +116,8 @@ struct SaveGame
 	// The info alone, read from the front of the file, for a list of saves. Throws as Read does.
 	static SaveInfo ReadInfo(std::span<const std::byte> bytes);
 
-	// The save game format's migrations. Version 2 (A01) moved the info's world and system into its
-	// details, a step over the info's record at the front of the save.
+	// The save game format's chain: the current version alone until player testing (docs/decisions.md,
+	// "Formats change in place until player testing").
 	static const Serialise::BinaryMigrations &Migrations();
 };
 

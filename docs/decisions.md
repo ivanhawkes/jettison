@@ -149,13 +149,14 @@ Settled on 2026-11-10:
   keeps the old ones registered under names of their own and reads with them. Every part of a save
   is versioned on its own (the save game, the world, each of the game's sections), so a change to one
   is a step in that one's chain. Saves written by earlier versions are kept as fixtures and never
-  regenerated; `world-v1.save` was written by the phase 6d build.
+  regenerated; `world-v1.save` was written by the phase 6d build. Suspended until player testing
+  (2026-11-23, below).
 - **Definitions migrate** (2026-11-12, phase 8a, the decision entry 13 left open). A definition is
   authored content that mods ship, and a mod's author is not there when the game changes a
   definition's format; refusing every file of an older version would break every mod at each change.
   A type's YAML migrations are run on its files as they load, and cost nothing for a file that is
   current. Saves hold no definitions, only their names, so a definition's format can change without
-  touching a save.
+  touching a save. Suspended until player testing (2026-11-23, below).
 - **Saves and settings are written durably** (2026-11-12, phase 8a, the fsync entry 10 left open).
   A whole-file write flushes the partial file before the rename and the directory after it: without
   the first, a power cut after the rename can leave an empty file where the save was, since the
@@ -627,3 +628,18 @@ Settled on 2026-11-10:
   body, which would give every ship flying in it rotation's forces. Passing over steps by
   extrapolating, or to within a tolerance, was not considered: a save and a replay must give one
   hash.
+
+Settled on 2026-11-23:
+
+- **Formats change in place until player testing** (the user's). Every save, definition, scene and
+  other versioned file is in Jettison's or Manifest's repository, so a format change rewrites those
+  files in the same commit rather than adding a version and a migration step for each: the cost of
+  migrations is worth paying once others hold files, not before. Versions stay as they are and are
+  still checked, so a file of another version is refused by name; a field whose meaning or type
+  changes takes a new name, so a stale file is refused rather than misread; the gate loads every file
+  the repositories hold, by a suite, the smoke run or a reference frame. The migration machinery stays, held by its own suites. The trigger is the
+  first build given to anyone outside the two repositories, a player test or a mod's author: its
+  versions become the baseline, its saves fixtures never written again, and every format change after
+  carries a step, as the two decisions above it suspends had it. The steps and fixtures written before
+  are deleted, among them what the space extraction's slice 7 added, which the cross-review of
+  2026-11-23 had found gaps in.

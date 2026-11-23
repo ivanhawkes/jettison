@@ -13,27 +13,6 @@
 
 namespace Jettison::Sim
 {
-namespace
-{
-// Version 2 (A01): the two places version 1's info named, by the keys below, become details, each
-// only if it named one.
-void MovePlacesToDetails(Serialise::BinaryRecord &info)
-{
-	std::vector<SaveDetail> details;
-	for (const std::string_view key : {"galaxy", "system"})
-	{
-		if (!info.Has(key))
-			continue;
-		auto value = info.Get<std::string>(key);
-		info.Remove(key);
-		if (!value.empty())
-			details.push_back({std::string{key}, std::move(value)});
-	}
-	info.Set("details", details);
-}
-} // namespace
-
-
 std::string_view SaveInfo::Detail(std::string_view key) const
 {
 	const auto found = std::ranges::find(details, key, &SaveDetail::key);
@@ -183,17 +162,7 @@ SaveInfo SaveGame::ReadInfo(std::span<const std::byte> bytes)
 
 const Serialise::BinaryMigrations &SaveGame::Migrations()
 {
-	// The step from version 1 writes details, whose type it needs registered whoever runs the chain.
-	RegisterSaveTypes();
-	static const Serialise::BinaryMigrations migrations = []
-	{
-		Serialise::BinaryMigrations chain{std::string{kFormat}, kVersion};
-		// The info is the save's first value; the world and the sections after it are as they were.
-		chain.Add(
-		    1,
-		    [](Serialise::BinaryDocument &document) { document.EditFirstRecord(MovePlacesToDetails); });
-		return chain;
-	}();
+	static const Serialise::BinaryMigrations migrations{std::string{kFormat}, kVersion};
 	return migrations;
 }
 } // namespace Jettison::Sim

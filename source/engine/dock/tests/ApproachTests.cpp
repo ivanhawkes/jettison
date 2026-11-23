@@ -12,11 +12,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstring>
-#include <fstream>
-#include <iterator>
 #include <limits>
 #include <optional>
-#include <string>
 #include <vector>
 
 using namespace Jettison;
@@ -344,57 +341,4 @@ TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes 
 			}
 			CHECK(above);
 		}
-}
-
-
-namespace
-{
-// A harbour mid-way, the same in every build: Corva Refinery's four frigate berths given to four of
-// five transports, flown in by the docks and kept clear by their shapes, the fifth waiting, and a
-// shuttle's berth and a transport's controls asked for in commands not yet applied.
-void Harbour(Fixture &fixture)
-{
-	Sim::SimWorld &world = fixture.world;
-	const entt::entity platform =
-	    fixture.docks.MakePlatform(world, DockTests::kHarbour, DockTests::kFerry, "corva-refinery");
-	entt::entity last{entt::null};
-	for (int index = 0; index < 5; ++index)
-	{
-		last = fixture.Vehicle(platform, "transport", {-1200.0 + 600.0 * index, 900.0, 2500.0});
-		world.Commands().Push(Dock::RequestBerth{{}, last, platform, true});
-	}
-	fixture.Run(40.0);
-	const entt::entity shuttle = fixture.Vehicle(platform, "shuttle", {0.0, 700.0, -1500.0});
-	world.Commands().Push(Dock::RequestBerth{{}, shuttle, platform, true});
-	world.Commands().Push(
-	    Physics::SetFlightControls{{}, last, {{0.0f, 0.0f, -1.0f}, {}, true, platform}});
-}
-} // namespace
-
-
-TEST_CASE("Docks: a harbour saved before the space extraction's renames loads as this build runs it")
-{
-	// Written by the build before them (b7d4580), at the world's version 4: its types and fields in the
-	// space setting's words, the shapes the docks named "hulls/" and "stations/", a transfer of the
-	// retired loading deck on an entity of its own, and the shuttle's berth and the transport's
-	// controls in commands still queued.
-	std::ifstream in{
-	    std::string{JETTISON_DOCK_FIXTURE_DIR} + "/saves/harbour-version-4.world", std::ios::binary};
-	const std::vector<char> read{std::istreambuf_iterator<char>{in}, {}};
-	std::vector<std::byte> save(read.size());
-	std::memcpy(save.data(), read.data(), read.size());
-	REQUIRE(Serialise::PeekVersion(save, "Jettison.World") == 4);
-	Fixture loaded;
-	loaded.world.Load(save);
-
-	Fixture live;
-	Harbour(live);
-	// The transfer's entity, which loads with nothing on it.
-	(void)live.world.Registry().create();
-	CHECK(loaded.world.StateHash() == live.world.StateHash());
-	CHECK(loaded.world.Registry().view<Dock::Docking>().size() == 5);
-	loaded.Run(30.0);
-	live.Run(30.0);
-	CHECK(loaded.world.StateHash() == live.world.StateHash());
-	CHECK(loaded.world.Registry().view<Dock::Docking>().size() == 6);
 }

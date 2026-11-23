@@ -128,14 +128,6 @@ std::string BerthName(std::size_t index)
 }
 
 
-// A key renamed, if the node has it: a patch leaves out what it does not change.
-void RenameKey(YAML::Node &node, const char *from, const char *to)
-{
-	if (!node.IsMap() || !node[from])
-		return;
-	node[to] = node[from];
-	node.remove(from);
-}
 } // namespace
 
 
@@ -174,61 +166,22 @@ void CheckBerthClass(std::string_view name, const BerthClassDefinition &berthCla
 
 const Serialise::YamlMigrations &BerthClassMigrations()
 {
-	static const Serialise::YamlMigrations migrations = []
-	{
-		Serialise::YamlMigrations chain{"Dock.BerthClassDefinition", {kBerthClassVersion}};
-		chain.Add(
-		    1,
-		    [](YAML::Node &root)
-		    {
-			    RenameKey(root, "largestHull", "largestVehicle");
-			    RenameKey(root, "padSize", "berthSize");
-		    });
-		return chain;
-	}();
+	static const Serialise::YamlMigrations migrations{
+	    "Dock.BerthClassDefinition", {kBerthClassVersion}};
 	return migrations;
 }
 
 
 const Serialise::YamlMigrations &VehicleMigrations()
 {
-	static const Serialise::YamlMigrations migrations = []
-	{
-		Serialise::YamlMigrations chain{"Dock.VehicleDefinition", {kVehicleVersion}};
-		chain.Add(1, [](YAML::Node &root) { root.remove("cruise"); });
-		// The loading deck's hatch went with the deck, retired with the space sample (slice 2).
-		chain.Add(
-		    2,
-		    [](YAML::Node &root)
-		    {
-			    RenameKey(root, "pad", "berth");
-			    root.remove("hatch");
-		    });
-		return chain;
-	}();
+	static const Serialise::YamlMigrations migrations{"Dock.VehicleDefinition", {kVehicleVersion}};
 	return migrations;
 }
 
 
 const Serialise::YamlMigrations &PlatformMigrations()
 {
-	static const Serialise::YamlMigrations migrations = []
-	{
-		Serialise::YamlMigrations chain{"Dock.PlatformLayout", {kPlatformVersion}};
-		chain.Add(
-		    1,
-		    [](YAML::Node &root)
-		    {
-			    RenameKey(root, "pads", "berths");
-			    // The loading deck's bays and traffic, retired with the space sample (slice 2).
-			    root.remove("bays");
-			    root.remove("traffic");
-			    if (YAML::Node berths = root["berths"]; berths.IsSequence())
-				    for (YAML::Node berth : berths)
-					    RenameKey(berth, "ship", "vehicle");
-		    });
-		return chain;
-	}();
+	static const Serialise::YamlMigrations migrations{"Dock.PlatformLayout", {kPlatformVersion}};
 	return migrations;
 }
 

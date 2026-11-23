@@ -15,22 +15,7 @@ namespace Jettison::Physics
 {
 const Serialise::Migrations<Serialise::BinaryRecord> &Body::Migrations()
 {
-	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
-	{
-		Serialise::Migrations<Serialise::BinaryRecord> chain{"Physics.Body", {2}};
-		chain.Add(
-		    1,
-		    [](Serialise::BinaryRecord &record)
-		    {
-			    const auto shape = record.Get<std::string>("shape");
-			    for (const auto &[from, to] :
-			         {std::pair<std::string_view, std::string_view>{"hulls/", "vehicles/"},
-			          {"stations/", "platforms/"}})
-				    if (shape.starts_with(from))
-					    record.Set("shape", std::string{to} + shape.substr(from.size()));
-		    });
-		return chain;
-	}();
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations{"Physics.Body", {2}};
 	return migrations;
 }
 

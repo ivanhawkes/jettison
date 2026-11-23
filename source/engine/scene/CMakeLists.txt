@@ -38,8 +38,6 @@ jettison_add_module(scene
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT
-	PRIVATE_LIBRARIES
-		yaml-cpp::yaml-cpp
 )
 
 # The scene tests load the test content's scenes and models (source/test/content).

@@ -155,7 +155,8 @@ struct Destination
 
 	bool operator==(const Destination &) const = default;
 
-	// Version 2 (the space extraction) renamed byShape's field, from "byHull".
+	// Its storage's chain: the current version alone until player testing (docs/decisions.md, "Formats
+	// change in place until player testing").
 	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 

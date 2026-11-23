@@ -246,40 +246,6 @@ TEST_CASE("Sim: a snapshot says which frame each entity is in, and no interpolat
 }
 
 
-// A world of version 3 named the component "Sim.InSystem" and its field "system", and gave its
-// storage version 1. Made here from this build's save, as only the names and the versions differ.
-TEST_CASE("Sim: a save of version 3, of InSystem, loads as InFrame")
-{
-	RegisterTypes();
-	Sim::SimWorld world{kStep, 1};
-	Populate(world);
-	world.RegisterComponent<Sim::InFrame>();
-	world.Commands().Push(Launch{0.0});
-	world.Step();
-	world.Registry().emplace<Sim::InFrame>(entt::entity{0}, Sim::FrameId("Halcyon"));
-	const std::vector<std::byte> save = world.Save();
-
-	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(save, "Jettison.World");
-	REQUIRE(document.version == 5);
-	document.version = 3;
-	document.Rename("Sim.InFrame", "Sim.InSystem");
-	document.Rename("frame", "system");
-	// The table of versions comes first: its count, then a name's index and a version each, the
-	// Transform's then InFrame's after the test's own; InFrame's is the last.
-	const auto count = std::to_integer<std::uint32_t>(document.payload[0]);
-	const std::size_t version = 4 + (count - 1) * 8 + 4;
-	REQUIRE(std::to_integer<int>(document.payload[version]) == 2);
-	document.payload[version] = std::byte{1};
-
-	Sim::SimWorld loaded{kStep, 2};
-	Populate(loaded);
-	loaded.RegisterComponent<Sim::InFrame>();
-	loaded.Load(document.Emit());
-	CHECK(loaded.Registry().get<Sim::InFrame>(entt::entity{0}).frame == Sim::FrameId("Halcyon"));
-	CHECK(loaded.Save() == save);
-}
-
-
 TEST_CASE("Sim: the stepper runs the frame's steps and keeps the states either side of the last")
 {
 	RegisterTypes();

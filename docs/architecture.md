@@ -611,51 +611,22 @@ the frame it showed as fields of the info (`galaxy`, `system`), and its step to 
 them into the details, an edit of the record the save begins with (`BinaryDocument::EditFirstRecord`), so
 the chain alone brings a version 1 save up.
 
-Every versioned format reads its earlier versions through a chain of migrations
-(`serialise/Migration.h`), a step from each version to the next, written once, when its version is
-current, and never changed after. A binary step edits the archive as a document: its table of names,
-through which a field, a component, a command or an enumerator is renamed everywhere it is used, and
-its payload, which the world's step from version 1 to 2 appends its services' empty state to. A
-change inside a value needs the types that wrote it, and a step that has them reads the old version
-with them and writes the new.
+Until player testing, formats change in place ([decided](decisions.md), 2026-11-23): every save and
+data file is in Jettison's or Manifest's repository, so a change to a format rewrites those files in
+the same commit, and adds neither a version nor a migration step. Each format keeps its version, which
+a reader still checks, so a file of another version is refused by name; a field the type does not
+save is refused with its path and line; and a field whose meaning or type changes takes a new name,
+so a file written before is refused rather than read wrongly. A field added is left at its default
+in a file without it. The world's save begins with each component storage's version, which its
+component's chain checks before anything else is read.
 
-A component changes by a chain of its own (12a, [decided](decisions.md)). The world's save
-(from version 3) begins with each component storage's version, so a load knows them all before it reads
-one, and a version newer than the component's chain is refused by the component's name before
-anything else is read; a storage of an older save is at version 1, which the world's step from 2
-sets by writing an empty table. A component registered with a chain
-(`SimWorld::RegisterComponent<T>(Sim::ComponentMigrations)`, under its registered name, or its own
-static `T::Migrations()`, which `RegisterComponent<T>()` takes) has each
-value of an older storage read as its record (`Serialise::BinaryRecord`): the field table the binary
-archive writes, each field's name and its bytes, which a step edits. A field removed is read, if the
-step wants it, and taken out; a field retyped is decoded with the reader's primitives by the layout
-the step knows, and set again; the record is then read as the type is now, by name as any value is.
-So the old C++ type is never needed, and a struct inside a component is migrated by the component's
-steps. Adding a field or renaming one needs no version: fields are found by name, and a rename is a
-world step over the table of names, unless other types share the field's name, which that step would
-rename too: the world's version 4 renamed `Sim.InSystem` to `Sim.InFrame` over the table, and
-`InFrame`'s own version 2 renamed its field from `system` to `frame`, a name markets' fields have.
-Version 5 (the space extraction's slice 7) renamed the engine's types out of the space setting's
-words the same way (`Dock.Pad` to `Dock.Berth`, `Physics.Thrusters` to `Physics.Handling`), and their
-fields by each component's chain, since a game's types share names such as `ship`; a command still
-queued in an older save has its fields renamed as it is read, as a queued pick's `system` is its
-`frame` (8a), by the field, a world version being more than one field of one command is worth; a
-destination's `byHull`, which a queued `Ai.SetDestination` holds inside a record of its own, is
-renamed inside that record, so a game's own field of that name is left as it is. A scene of version 2
-drops the path of the system it was of, which is the game's. The docks' definitions of
-an earlier version drop the retired loading deck's fields (`hatch`, `bays`, `traffic`). A YAML step edits the parsed tree, keeping the lines a mistake is
-reported at. Definitions migrate the same way ([decided](decisions.md)). A version newer than
-the build's, or one the chain does not reach, is refused by name before any step runs, and every
-read leaves what it was reading into as it was when the data does not fit.
-
-What a build wrote, every later build loads: the suites keep saves written by earlier versions as
-fixtures (`sim/tests/data`), never regenerated. `world-v1.save` was written by the phase 6d build
-(commit `a5d0c83`) and `world-v2.save`, the same world with a service's state, by phase 11's
-(`cfb86e9`); each loads, through the world's migrations, into the state this build reaches at the
-same step. `save-v1.save` is the save game's first version, written by phase 8a's, its system now a
-detail. `physics/tests/data/replay-layout3.save`, physics' layout 3 from phase 12a's build
-(`8177358`), a world of version 3 of `Sim.InSystem`, loads with Jolt's state kept and steps on to the
-bytes the run not saved reaches.
+The machinery stays for when player testing starts, and its own suites hold it, on formats of the
+tests' own (`serialise/Migration.h`, `SimWorld::RegisterComponent<T>(Sim::ComponentMigrations)`):
+a chain of steps over a document, one a version, a binary step editing the archive's table of names
+and its payload, a YAML step the parsed tree, and a component's step its record
+(`Serialise::BinaryRecord`), each field's name and its bytes. At player testing the versions then
+current become the baseline, saves written by that build become fixtures that are never written
+again, and every format change from then on carries a step.
 
 A save is written through the VFS to the user mount, the user's data directory
 (`~/.local/share/jettison/saves/<name>.save`), whole and durably (`Core::WriteFileDurably`): to a

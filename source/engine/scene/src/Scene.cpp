@@ -17,10 +17,8 @@
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
 #include <jettison/serialise/Archive.h>
-#include <jettison/serialise/Migration.h>
 #include <jettison/vfs/FileSystem.h>
 
-#include <yaml-cpp/yaml.h>
 
 namespace Jettison::Scene
 {
@@ -825,44 +823,12 @@ SceneFile &SceneFile::operator=(SceneFile &&) noexcept = default;
 SceneFile::~SceneFile() = default;
 
 
-namespace
-{
-// Version 2 named a body an entity is placed at "celestial", and the system it was of by its path
-// (Scene::kFormatVersion).
-const Serialise::YamlMigrations &Migrations()
-{
-	static const Serialise::YamlMigrations migrations = []
-	{
-		Serialise::YamlMigrations chain{"Scene", {Scene::kFormatVersion}};
-		chain.Add(
-		    2,
-		    [](YAML::Node &root)
-		    {
-			    // The path of the system a scene was of, which is the game's now (the space extraction,
-			    // slice 3).
-			    root.remove("system");
-			    YAML::Node entities = root["entities"];
-			    if (!entities.IsSequence())
-				    return;
-			    for (YAML::Node entity : entities)
-				    if (entity.IsMap() && entity["celestial"])
-				    {
-					    entity["body"] = entity["celestial"];
-					    entity.remove("celestial");
-				    }
-		    });
-		return chain;
-	}();
-	return migrations;
-}
-} // namespace
-
-
 SceneFile SceneFile::Read(std::string_view text)
 {
 	RegisterTypes();
 	auto pDocument = std::make_unique<Document>();
-	pDocument->document = Serialise::YamlArchive::Read<SceneDocument>(text, Migrations());
+	pDocument->document = Serialise::YamlArchive::Read<SceneDocument>(
+	    text, Serialise::FormatVersion{Scene::kFormatVersion});
 	Validate(pDocument->document);
 	return SceneFile{std::move(pDocument)};
 }

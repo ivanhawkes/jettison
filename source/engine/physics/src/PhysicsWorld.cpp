@@ -49,20 +49,14 @@ namespace
 {
 constexpr Core::Category kPhysics{"physics"};
 
-// The layout Save writes inside the world's save. A change to it is a new number here, which a
-// world's own version does not see. Layout 2 keys each Jolt world by its frame too, and holds where
-// the frame was (phase 7b); layout 3 holds what touches and the last step's contacts (phase 7c);
-// layout 4 holds the version of Jolt its state is of (phase 12b); layout 5 holds each body as its
-// version 2 has it, the shapes the docks name renamed (Body::Migrations, the space extraction).
+// The layout Save writes inside the world's save, which a world's own version does not see. Until
+// player testing a change to it changes it in place (docs/decisions.md, "Formats change in place
+// until player testing"), and a save of another layout is refused.
 constexpr std::uint64_t kLayout = 5;
 
 // Jolt's feature bits that change its state or its results (JoltVersion): double precision, the
 // cross-platform determinism and 32-bit object layers, JPH_VERSION_FEATURES' bits 1, 2 and 9.
 constexpr std::uint64_t kStateFeatures = 0b1'0000'0011;
-
-// What every save of layout 3 was written by: Jolt has been 5.6.0 in double precision and
-// cross-platform deterministic, with 16-bit object layers, since the engine first linked it.
-constexpr JoltVersion kLayout3Jolt{5, 6, 0, 0b11};
 
 // Jolt's scratch memory for a step: what a step of a busy frame needs, with the heap behind it
 // for one that needs more, rather than Jolt's fixed block failing.
@@ -1371,16 +1365,13 @@ std::function<void()> PhysicsWorld::Load(
 	m_pImpl->placedAt.reset();
 	const Impl &impl = *m_pImpl;
 	const std::uint64_t layout = reader.ReadUnsigned(2);
-	if (layout < 3 || layout > kLayout)
-		reader.Fail(std::format("the physics state is layout {}, not 3 to {}", layout, kLayout));
-	JoltVersion jolt = kLayout3Jolt;
-	if (layout >= 4)
-	{
-		jolt.major = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
-		jolt.minor = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
-		jolt.patch = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
-		jolt.features = reader.ReadUnsigned(8);
-	}
+	if (layout != kLayout)
+		reader.Fail(std::format("the physics state is layout {}, not {}", layout, kLayout));
+	JoltVersion jolt;
+	jolt.major = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
+	jolt.minor = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
+	jolt.patch = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
+	jolt.features = reader.ReadUnsigned(8);
 	// Another Jolt's state cannot be read, even to check it: its bodies are made from the records,
 	// which already place each one, and its bytes are passed over.
 	const bool rebuild = jolt != BuiltJoltVersion();
@@ -1439,20 +1430,12 @@ std::function<void()> PhysicsWorld::Load(
 			reader.Read(entity);
 			const auto index = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 			Record record;
-			if (layout < kLayout)
-			{
-				Serialise::BinaryRecord body = reader.ReadRecord();
-				Body::Migrations().Run(body, 1);
-				body.ReadInto(record.body);
-			}
-			else
-				reader.Read(record.body);
+			reader.Read(record.body);
 			reader.Read(record.placed);
 			reader.Read(record.velocity);
 			// Jolt's state says what sleeps, and a rebuild has to be told.
 			bool asleep = false;
-			if (layout >= 4)
-				reader.Read(asleep);
+			reader.Read(asleep);
 			if (index >= sequences.size() || std::ranges::find(held, index) != held.end())
 				reader.Fail(
 				    std::format("{} has body index {}, which is not free", Describe(entity), index));

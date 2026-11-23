@@ -44,7 +44,8 @@ struct InFrame
 {
 	std::uint64_t frame{0};
 
-	// Version 2 (A01) renamed the component, from "Sim.InSystem", and its field, from "system".
+	// Its storage's chain: the current version alone until player testing (docs/decisions.md, "Formats
+	// change in place until player testing").
 	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 

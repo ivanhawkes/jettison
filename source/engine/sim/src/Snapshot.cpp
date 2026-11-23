@@ -63,14 +63,7 @@ void RegisterTypes()
 
 const Serialise::Migrations<Serialise::BinaryRecord> &InFrame::Migrations()
 {
-	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
-	{
-		Serialise::Migrations<Serialise::BinaryRecord> chain{"Sim.InFrame", {2}};
-		// The world's version 4 renamed the component; its field is renamed here, as the name "system"
-		// is other types' fields too.
-		chain.Add(1, [](Serialise::BinaryRecord &record) { record.Rename("system", "frame"); });
-		return chain;
-	}();
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations{"Sim.InFrame", {2}};
 	return migrations;
 }
 

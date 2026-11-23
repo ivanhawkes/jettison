@@ -11,9 +11,6 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <span>
 #include <string>
 #include <tuple>
@@ -454,35 +451,6 @@ TEST_CASE("Physics replay: a save naming a shape this world does not define is r
 		CHECK_THROWS_AS(loaded.Load(std::span{save}.first(size)), Serialise::FormatError);
 		CHECK(loaded.StateHash() == ran);
 	}
-}
-
-
-TEST_CASE("Physics replay: a save of layout 3, before Jolt's version was saved, keeps Jolt's state")
-{
-	// Written by commit 8177358 from the run below at step 130, with step 150's command queued: Jolt
-	// 5.6.0, as every save of layout 3 was.
-	std::ifstream file{
-	    std::filesystem::path{JETTISON_PHYSICS_TEST_DATA} / "replay-layout3.save", std::ios::binary};
-	REQUIRE(file);
-	const std::vector<char> text{
-	    std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
-	const auto *bytes = reinterpret_cast<const std::byte *>(text.data());
-	const std::vector<std::byte> fixture{bytes, bytes + text.size()};
-
-	Sim::SimWorld loaded{kStep, 1};
-	const Physics::PhysicsWorld &physics = Populate(loaded);
-	loaded.Load(fixture);
-	CHECK(loaded.Clock().Step() == 130);
-	CHECK(physics.BodyCount() == 14);
-
-	Sim::SimWorld original{kStep, kSeed};
-	Populate(original);
-	Run(original, 130);
-	Feed(original, 150);
-	CHECK(loaded.Save() == original.Save());
-	Run(original, kSteps);
-	Run(loaded, kSteps);
-	CHECK(loaded.Save() == original.Save());
 }
 
 

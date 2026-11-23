@@ -36,10 +36,7 @@ jettison_add_module(sim
 		tests/SnapshotTests.cpp
 )
 
-# Saves written by earlier versions of the engine, which every later one has to load.
 if(TARGET jettison_sim_tests)
-	target_compile_definitions(jettison_sim_tests PRIVATE
-		JETTISON_SIM_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
 	# A definition's migration edits a YAML::Node.
 	target_link_libraries(jettison_sim_tests PRIVATE yaml-cpp::yaml-cpp)
 endif()

@@ -14,68 +14,23 @@
 
 namespace Jettison::Dock
 {
-namespace
-{
-// Version 3 of a berth, and 2 of a platform and of a docking (the space extraction), name their fields
-// in the docks' words, where earlier versions had the space setting's.
-void Rename(
-    Serialise::BinaryRecord &record,
-    std::initializer_list<std::pair<std::string_view, std::string_view>> names)
-{
-	for (const auto &[from, to] : names)
-		record.Rename(from, to);
-}
-} // namespace
-
-
 const Serialise::Migrations<Serialise::BinaryRecord> &Berth::Migrations()
 {
-	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
-	{
-		Serialise::Migrations<Serialise::BinaryRecord> chain{"Dock.Berth", {3}};
-		// An enumerator is its name in the archive's table; the class's name is the same text.
-		chain.Add(
-		    1,
-		    [](Serialise::BinaryRecord &record)
-		    {
-			    const std::string berthClass{record.Open("padClass").ReadName()};
-			    record.Set("padClass", berthClass);
-		    });
-		chain.Add(
-		    2,
-		    [](Serialise::BinaryRecord &record)
-		    {
-			    Rename(
-			        record, {{"station", "platform"}, {"padClass", "berthClass"}, {"ship", "vehicle"}});
-		    });
-		return chain;
-	}();
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations{"Dock.Berth", {3}};
 	return migrations;
 }
 
 
 const Serialise::Migrations<Serialise::BinaryRecord> &Platform::Migrations()
 {
-	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
-	{
-		Serialise::Migrations<Serialise::BinaryRecord> chain{"Dock.Platform", {2}};
-		chain.Add(1, [](Serialise::BinaryRecord &record) { Rename(record, {{"pads", "berths"}}); });
-		return chain;
-	}();
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations{"Dock.Platform", {2}};
 	return migrations;
 }
 
 
 const Serialise::Migrations<Serialise::BinaryRecord> &Docking::Migrations()
 {
-	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
-	{
-		Serialise::Migrations<Serialise::BinaryRecord> chain{"Dock.Docking", {2}};
-		chain.Add(
-		    1, [](Serialise::BinaryRecord &record)
-		    { Rename(record, {{"station", "platform"}, {"pad", "berth"}}); });
-		return chain;
-	}();
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations{"Dock.Docking", {2}};
 	return migrations;
 }
 

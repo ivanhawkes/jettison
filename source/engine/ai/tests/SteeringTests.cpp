@@ -3,7 +3,6 @@
 #include <jettison/math/Random.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
-#include <jettison/serialise/Migration.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 #include <jettison/spatial/FrameIndices.h>
@@ -571,26 +570,4 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	for (int step = 60 * 15; step < 60 * 40; ++step)
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == first);
-}
-
-
-TEST_CASE("Steering: a destination queued in a save of version 4 loads with its fields' old names")
-{
-	Ai::RegisterTypes();
-	Sim::SimWorld world{1.0 / 60.0, 1};
-	world.RegisterCommand<Ai::SetDestination>([](Sim::SimWorld &, const Ai::SetDestination &) {});
-	Ai::SetDestination command;
-	command.vehicle = entt::entity{42};
-	command.destination.byShape = true;
-	world.Commands().Push(command);
-	const std::vector<std::byte> save = world.Save();
-
-	// As a build before the world's version 5 wrote it: the destination's field is inside the
-	// command's record, not one of the command's own.
-	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(save, "Jettison.World");
-	document.version = 4;
-	document.Rename("vehicle", "ship");
-	document.Rename("byShape", "byHull");
-	world.Load(document.Emit());
-	CHECK(world.Save() == save);
 }

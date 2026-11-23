@@ -297,7 +297,8 @@ TEST_CASE("Dock definitions: a layout's pad keeps its features through its file"
 	CHECK(read.berths[1].features.empty());
 	// A file that leaves the field out, as every one written before it does, reads as offering none.
 	const auto bare = Serialise::YamlArchive::Read<Dock::PlatformLayout>(
-	    "version: 1\npads:\n  - {class: frigate, position: [0, 10, 0]}\n", Dock::PlatformMigrations());
+	    "version: 2\nberths:\n  - {class: frigate, position: [0, 10, 0]}\n",
+	    Dock::PlatformMigrations());
 	REQUIRE(bare.berths.size() == 1);
 	CHECK(bare.berths[0].features.empty());
 }
@@ -449,67 +450,4 @@ TEST_CASE("Docks: a pad clamps only the ship it was given to")
 	CHECK(landed[0].number == 2);
 	CHECK(Dock::IsDocked(yard.world.Registry(), given, yard.platform));
 	CHECK(yard.BerthOf(yard.BerthNumbered(yard.platform, 2)).state == Dock::BerthState::Holding);
-}
-
-
-namespace
-{
-// A berth as version 1 had it, its class an enumerator of the closed four.
-enum class BerthClassV1 : std::uint8_t
-{
-	S,
-	M,
-	L,
-	XL
-};
-
-struct BerthV1
-{
-	entt::entity platform{entt::null};
-	std::uint32_t number{0};
-	BerthClassV1 berthClass{BerthClassV1::S};
-	bool display{false};
-	Dock::BerthState state{Dock::BerthState::Free};
-	entt::entity vehicle{entt::null};
-	std::uint64_t lapses{0};
-};
-} // namespace
-
-
-TEST_CASE("Docks: a pad saved with its class an enumerator loads with the class's name")
-{
-	using Reflect::Attribute;
-	Dock::RegisterTypes();
-	Reflect::RegisterEnum<BerthClassV1>("DockTests.PadClassV1")
-	    .Value<BerthClassV1::S>("S")
-	    .Value<BerthClassV1::M>("M")
-	    .Value<BerthClassV1::L>("L")
-	    .Value<BerthClassV1::XL>("XL");
-	Reflect::RegisterType<BerthV1>("DockTests.PadV1")
-	    .Field<&BerthV1::platform>("station", Attribute::Saved)
-	    .Field<&BerthV1::number>("number", Attribute::Saved)
-	    .Field<&BerthV1::berthClass>("padClass", Attribute::Saved)
-	    .Field<&BerthV1::display>("display", Attribute::Saved)
-	    .Field<&BerthV1::state>("state", Attribute::Saved)
-	    .Field<&BerthV1::vehicle>("ship", Attribute::Saved)
-	    .Field<&BerthV1::lapses>("lapses", Attribute::Saved);
-
-	Sim::SimWorld old{DockTests::kStep, 1};
-	old.RegisterComponent<BerthV1>();
-	const entt::entity platform = old.Registry().create();
-	old.Registry().emplace<BerthV1>(
-	    old.Registry().create(),
-	    BerthV1{platform, 3, BerthClassV1::XL, true, Dock::BerthState::Holding, platform, 42});
-	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(old.Save(), "Jettison.World");
-	// As the world before the space extraction's renames saved it (version 4), under the name it gave a
-	// berth.
-	document.version = 4;
-	document.Rename("DockTests.PadV1", "Dock.Pad");
-
-	Sim::SimWorld world{DockTests::kStep, 1};
-	world.RegisterComponent<Dock::Berth>();
-	world.Load(document.Emit());
-	CHECK(
-	    world.Registry().get<Dock::Berth>(entt::entity{1}) ==
-	    Dock::Berth{platform, 3, "XL", true, Dock::BerthState::Holding, platform, 42});
 }

@@ -10,9 +10,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -87,16 +84,6 @@ Sim::SaveGame Saved(const Sim::SimWorld &world)
 	return save;
 }
 
-
-std::vector<std::byte> ReadFixture(const char *name)
-{
-	std::ifstream file{std::filesystem::path{JETTISON_SIM_TEST_DATA} / name, std::ios::binary};
-	REQUIRE(file);
-	const std::vector<char> text{
-	    std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
-	const auto *bytes = reinterpret_cast<const std::byte *>(text.data());
-	return {bytes, bytes + text.size()};
-}
 } // namespace
 
 
@@ -164,50 +151,6 @@ TEST_CASE("SaveGame: a save that does not fit is refused, whatever is cut from i
 	document.version = Sim::SaveGame::kVersion.version + 1;
 	CHECK_THROWS_AS(Sim::SaveGame::Read(document.Emit()), Serialise::FormatVersionError);
 	CHECK_THROWS_AS(Sim::SaveGame::ReadInfo(document.Emit()), Serialise::FormatVersionError);
-}
-
-
-// The save game's first version, as phase 8a's build wrote it (Saved, above): a save game at version
-// 1 holding a world at version 2. Every later build loads it, through whatever migrations the save
-// game and the world have gained by then.
-TEST_CASE("SaveGame: a save written by version 1 loads")
-{
-	RegisterTypes();
-	const std::vector<std::byte> fixture = ReadFixture("save-v1.save");
-	CHECK(Serialise::PeekVersion(fixture, "Jettison.Save") == 1);
-	const Sim::SaveGame save = Sim::SaveGame::Read(fixture);
-	CHECK(save.info.name == "Before the jump");
-	CHECK(save.info.engineVersion == "0.1.0");
-	CHECK(save.info.step == 10);
-	// Its galaxy and system are details now, the galaxy's only as it named none.
-	CHECK(save.info.Detail("system") == "Halcyon");
-	CHECK(Sim::SaveGame::ReadInfo(fixture).details == save.info.details);
-
-	// The chain alone brings it to this version: what it makes says so, and reads the same.
-	const std::vector<std::byte> migrated = Serialise::Migrate(fixture, Sim::SaveGame::Migrations());
-	CHECK(Serialise::PeekVersion(migrated, "Jettison.Save") == Sim::SaveGame::kVersion.version);
-	const Sim::SaveGame again = Sim::SaveGame::Read(migrated);
-	CHECK(again.info.details == save.info.details);
-	CHECK(again.info.name == save.info.name);
-	CHECK(again.world == save.world);
-	CHECK(again.sections.size() == save.sections.size());
-	CHECK(
-	    Serialise::BinaryArchive::Read<Purse>(save.FindSection("SaveGameTests.Purse")->data, {1})
-	        .credits == 125'000);
-
-	Sim::SimWorld loaded{kStep, 1};
-	Populate(loaded);
-	loaded.Load(save.world);
-	CHECK(loaded.Clock().Step() == 10);
-	CHECK(loaded.Registry().get<Freight>(entt::entity{0}).tonnes == 15);
-	CHECK(loaded.Registry().get<Freight>(entt::entity{2}).tonnes == 21);
-	CHECK_FALSE(loaded.Registry().valid(entt::entity{1}));
-
-	// It is the state this build reaches, saved as this build saves it.
-	Sim::SimWorld current{kStep, 7};
-	Populate(current);
-	Play(current);
-	CHECK(loaded.Save() == current.Save());
 }
 
 

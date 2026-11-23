@@ -60,7 +60,8 @@ struct Platform
 
 	bool operator==(const Platform &) const = default;
 
-	// Version 2 (the space extraction) renamed its berths' field, from "pads".
+	// Its storage's chain: the current version alone until player testing (docs/decisions.md, "Formats
+	// change in place until player testing").
 	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
@@ -91,9 +92,8 @@ struct Berth
 
 	bool operator==(const Berth &) const = default;
 
-	// Version 2 (W01) holds the berth class as its name, where version 1 held an enumerator of the
-	// closed S, M, L and XL, under the same names. Version 3 (the space extraction) renamed its fields
-	// from "station", "padClass" and "ship".
+	// Its storage's chain: the current version alone until player testing (docs/decisions.md, "Formats
+	// change in place until player testing").
 	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 
@@ -130,7 +130,8 @@ struct Docking
 
 	bool operator==(const Docking &) const = default;
 
-	// Version 2 (the space extraction) renamed its fields, from "station" and "pad".
+	// Its storage's chain: the current version alone until player testing (docs/decisions.md, "Formats
+	// change in place until player testing").
 	static const Serialise::Migrations<Serialise::BinaryRecord> &Migrations();
 };
 

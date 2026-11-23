@@ -12,12 +12,7 @@ namespace Jettison::Ai
 {
 const Serialise::Migrations<Serialise::BinaryRecord> &Destination::Migrations()
 {
-	static const Serialise::Migrations<Serialise::BinaryRecord> migrations = []
-	{
-		Serialise::Migrations<Serialise::BinaryRecord> chain{"Ai.Destination", {2}};
-		chain.Add(1, [](Serialise::BinaryRecord &record) { record.Rename("byHull", "byShape"); });
-		return chain;
-	}();
+	static const Serialise::Migrations<Serialise::BinaryRecord> migrations{"Ai.Destination", {2}};
 	return migrations;
 }
 

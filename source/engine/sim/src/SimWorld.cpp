@@ -19,122 +19,16 @@ namespace Jettison::Sim
 namespace
 {
 constexpr std::string_view kFormat = "Jettison.World";
-// The layout Save writes. A change to it, or to what the world saves around its components, is a
-// new version, with a step in Migrations from the one before; a change to a component's fields is
-// the component's own business, by its own version and chain (ComponentMigrations).
+// The layout Save writes. Until player testing a change to it, or to what the world saves around its
+// components, changes it in place, and the saves the repositories hold are written again
+// (docs/decisions.md, "Formats change in place until player testing"); the version stays.
 constexpr Serialise::FormatVersion kVersion{5};
-// Version 5 (the space extraction) named the engine's saved types and fields in neutral words, where
-// earlier versions had the space setting's: the types here, a component's fields by its own chain, and
-// a queued command's as Load reads it.
-constexpr std::uint32_t kNeutralNames = 5;
-constexpr std::array<std::pair<std::string_view, std::string_view>, 6> kRenamedTypes{{
-    {"Physics.Thrusters", "Physics.Handling"},
-    {"Dock.Hull", "Dock.Vehicle"},
-    {"Dock.Station", "Dock.Platform"},
-    {"Dock.Pad", "Dock.Berth"},
-    {"Dock.RequestPad", "Dock.RequestBerth"},
-    {"Dock.ReleasePad", "Dock.ReleaseBerth"},
-}};
-// The commands whose fields version 5 renamed, by their names now, and the fields.
-constexpr std::array<std::string_view, 7> kRenamedCommands{
-    "Physics.SetFlightControls", "Ai.TakeHelm",       "Ai.LeaveHelm",     "Ai.SetDestination",
-    "Ai.ClearDestination",       "Dock.RequestBerth", "Dock.ReleaseBerth"};
-constexpr std::array<std::pair<std::string_view, std::string_view>, 2> kRenamedCommandFields{{
-    {"ship", "vehicle"},
-    {"station", "platform"},
-}};
-// A value a renamed command holds as a record of its own, whose field version 5 renamed: the command,
-// its field, and the field renamed inside it, which a component's chain does only for its storage.
-struct NestedRename
-{
-	std::string_view command;
-	std::string_view field;
-	std::string_view from;
-	std::string_view to;
-};
-constexpr std::array<NestedRename, 1> kRenamedNestedFields{{
-    {"Ai.SetDestination", "destination", "byHull", "byShape"},
-}};
-// The components version 5 dropped, the retired loading deck's, whose storages an earlier save holds:
-// read through and left out.
-constexpr std::array<std::string_view, 2> kRetiredComponents{"Dock.Transfer", "Dock.Buggy"};
-// A queued pick's frame, which every build up to the space extraction's close-out saved as "system":
-// renamed by the field as Load reads it, under no version of its own, since a new world version would
-// move the bytes of every save for a field only a queued pick holds.
-constexpr std::string_view kPickCommand = "Physics.Pick";
 
 
 const Serialise::BinaryMigrations &Migrations()
 {
-	static const Serialise::BinaryMigrations migrations = []
-	{
-		Serialise::BinaryMigrations chain{std::string{kFormat}, kVersion};
-		// Version 2 (phase 7a) added the services' state after the components, as a count and each
-		// service's; a world of version 1 had none.
-		chain.Add(
-		    1, [](Serialise::BinaryDocument &document)
-		    { document.payload.insert(document.payload.end(), 4, std::byte{0}); });
-		// Version 3 (phase 12a) put each component storage's version first, as a count and a name
-		// and version each. A storage the table leaves out is at version 1, as every one of an older
-		// save is: so the step's table is empty, and the step reads no further than the front.
-		chain.Add(
-		    2, [](Serialise::BinaryDocument &document)
-		    { document.payload.insert(document.payload.begin(), 4, std::byte{0}); });
-		// Version 4 (A01) renamed "Sim.InSystem" to "Sim.InFrame", a frame of the game's rather than
-		// one of the space setting's; its field is renamed by its own chain (InFrame::Migrations), its
-		// storage being at version 1 in the table.
-		chain.Add(
-		    3,
-		    [](Serialise::BinaryDocument &document)
-		    {
-			    if (std::ranges::find(document.names, "Sim.InSystem") != document.names.end())
-				    document.Rename("Sim.InSystem", "Sim.InFrame");
-		    });
-		chain.Add(
-		    4,
-		    [](Serialise::BinaryDocument &document)
-		    {
-			    for (const auto &[from, to] : kRenamedTypes)
-				    if (std::ranges::find(document.names, from) != document.names.end())
-					    document.Rename(from, to);
-		    });
-		return chain;
-	}();
+	static const Serialise::BinaryMigrations migrations{std::string{kFormat}, kVersion};
 	return migrations;
-}
-
-
-// The field inside the command's field, read as a record, renamed, and set again as the value it
-// now is, so the command's record reads as the command is now.
-void RenameNested(
-    Serialise::BinaryRecord &record, const entt::meta_type &command, const NestedRename &rename)
-{
-	const entt::meta_data field = Reflect::FindField(command, rename.field);
-	if (!field || !record.Has(rename.field))
-		return;
-	Serialise::BinaryReader reader = record.Open(rename.field);
-	Serialise::BinaryRecord nested = reader.ReadRecord();
-	if (!nested.Has(rename.from))
-		return;
-	nested.Rename(rename.from, rename.to);
-	entt::meta_any value = field.type().construct();
-	nested.ReadInto(value);
-	record.SetValue(rename.field, value);
-}
-
-
-// A storage of a component no world registers now: its count, then each entity and its record.
-void SkipStorage(Serialise::BinaryReader &reader)
-{
-	Detail::SnapshotInput input{reader};
-	std::uint32_t count = 0;
-	input(count);
-	for (std::uint32_t index = 0; index < count; ++index)
-	{
-		entt::entity entity{entt::null};
-		input(entity);
-		(void)reader.ReadRecord();
-	}
 }
 } // namespace
 
@@ -359,9 +253,8 @@ std::vector<std::byte> SimWorld::Save() const
 void SimWorld::Load(std::span<const std::byte> save)
 {
 	// Everything is read into locals and committed at the end, so a save that does not fit
-	// leaves the world as it was. A save of an earlier version is migrated first.
+	// leaves the world as it was. A save of another version is refused.
 	Serialise::BinaryReader reader{save, Migrations()};
-	const std::uint32_t saved = Serialise::PeekVersion(save, kFormat);
 	// Every storage's version is checked against its component's chain here, before anything else is
 	// read, so a component of a later build is refused by name.
 	std::vector<std::pair<std::string_view, std::uint32_t>> versions;
@@ -401,23 +294,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 			reader.Fail(
 			    std::format("the save queues a command '{}', which this world does not apply", name));
 		entt::meta_any command = type.construct();
-		const bool renamed = saved < kNeutralNames &&
-		                     std::ranges::find(kRenamedCommands, name) != kRenamedCommands.end();
-		if (renamed || name == kPickCommand)
-		{
-			Serialise::BinaryRecord record = reader.ReadRecord();
-			for (const auto &[from, to] : kRenamedCommandFields)
-				if (renamed && record.Has(from))
-					record.Rename(from, to);
-			for (const NestedRename &nested : kRenamedNestedFields)
-				if (renamed && nested.command == name)
-					RenameNested(record, type, nested);
-			if (name == kPickCommand && record.Has("system"))
-				record.Rename("system", "frame");
-			record.ReadInto(command);
-		}
-		else
-			reader.ReadValue(command);
+		reader.ReadValue(command);
 		pending.push_back(std::move(command));
 	}
 
@@ -431,12 +308,6 @@ void SimWorld::Load(std::span<const std::byte> save)
 	{
 		const std::string_view name = reader.ReadName();
 		const auto component = std::ranges::find(m_components, name, &Component::name);
-		if (component == m_components.end() &&
-		    std::ranges::find(kRetiredComponents, name) != kRetiredComponents.end())
-		{
-			SkipStorage(reader);
-			continue;
-		}
 		if (component == m_components.end())
 			reader.Fail(
 			    std::format("the save holds component '{}', which this world does not register", name));
