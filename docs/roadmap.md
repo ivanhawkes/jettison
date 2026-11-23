@@ -59,9 +59,10 @@ Manifest pinned to `14fc23a` with every pin held. Formats change in place until 
 [history](history.md#neutral-sdk-and-manifest-integration)): its Stage 4 is closed and cross-reviewed.
 Its R01, the save and compatibility contract, is done (2026-11-24), a planning task with no engine
 edit ([history](history.md#neutral-sdk-and-manifest-integration)); its R02, durable I/O and the world
-lock, is provisioned here (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)):
-directories made durably and a file lock, with the message several datagrams long its Stage 4 review
-booked, which needed a limit set and no splitting of the engine's own.
+lock, is done in Manifest (2026-11-24) on the pin `ea66afe`, with two provisions here, directories
+made durably and a file lock ([history](history.md#neutral-sdk-and-manifest-integration)), and with
+them the message several datagrams long its Stage 4 review booked, which needed a limit set and no
+splitting of the engine's own. Its R03, the step journals and the catalogue, is next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
