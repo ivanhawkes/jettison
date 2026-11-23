@@ -51,8 +51,11 @@ of the time thrusting, provisioned (2026-11-22, [history](history.md#neutral-sdk
 and its slice 4 a station's reach measured where physics placed it (2026-11-22,
 [history](history.md#neutral-sdk-and-manifest-integration)); W21 is done in Manifest (2026-11-22).
 The station traffic lanes booked after it were measured and are parked ([carried
-forward](#then-robustness-tools-and-what-a-mod-can-reach), 2026-11-22), for the space extraction (the row
-below), which is next.
+forward](#then-robustness-tools-and-what-a-mod-can-reach), 2026-11-22). The space extraction they waited
+for is done (2026-11-23, [history](history.md#neutral-sdk-and-manifest-integration),
+[its plan](space-extraction-plan.md)): the space setting is Manifest's, the space sample retired, and
+Manifest pinned to `14fc23a` with every pin held. Formats change in place until player testing
+([decided](decisions.md)). Manifest's W12 is next.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -62,7 +65,6 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Space extraction | before W12 (the user's, 2026-11-22) | The engine keeps only what has a neutral name and serves more than one genre, driven by the games; the space setting moves into Manifest, which tests all space code, and the space sample is retired, what of it nothing else tests folded into neutral fixtures; jump lanes and gates stay as portals for Manifest's stargates. Neutral modules use none of the setting's words (a check in the configure), the three space modules and the sample leave the engine, and every Manifest pin holds. Plan: [space extraction](space-extraction-plan.md). |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 
@@ -161,8 +163,9 @@ player's report of a problem needs and the shell does not write.
   reservation that lapses when a ship stops making progress rather than at a fixed time. Measured by
   ships flown in from every side and speed, one queued behind another on the next pad, and no
   arrival slower than the stopgap's.
-- **Station traffic lanes, parked** (the user's, 2026-11-22), until the engine's space concepts are
-  decoupled from its neutral modules, since built now they would couple them further. Booked after Manifest's W21, for
+- **Station traffic lanes, parked** (the user's, 2026-11-22). They waited for the engine's space
+  concepts to leave its neutral modules, done 2026-11-23: the lanes are Manifest's `space`, on the
+  engine's slots and portals. Booked after Manifest's W21, for
   departures, arrivals and cruises sharing one line between the five stations of Ore's one orbit, which
   its policies hop round. Measured first on the engine as it is, by Manifest's `fixture_traffic`: six
   starters flown both ways between Ore Highport and Vale, two sent in one step as a policy sends them
@@ -172,7 +175,7 @@ player's report of a problem needs and the shell does not write.
   stations move some 15° an hour, so the two ways' courses in one hour are 5,400 km apart. What is
   shared: ships going the same way fly one line 6 to 70 m apart, kept apart by leaving seconds after
   one another, and a departure passes some 800 m from an arrival; a station's pads bound how many
-  leave at once. Taken up after that decoupling, when `fixture_traffic` fails or traffic it does not cover asks (a
+  leave at once. Taken up when `fixture_traffic` fails or traffic it does not cover asks (a
   station of more pads, larger hulls, a busier orbit), on the design settled with the user: every
   cruise from a station flying one of several lanes each way, kept to the right of its way as roads
   and Freelancer's paired trade lanes do, held as pads are and kept from gate to gate, departures

@@ -7,7 +7,7 @@ space code. The space sample has served its purpose and is retired: what of it s
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
 station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
-Slices 1 to 7 are done; the inventory behind the plan was taken on Jettison `ccc0ae7` and
+Done 2026-11-23, all eight slices; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
 ## Where things stand
@@ -248,8 +248,16 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      words of frames, vehicles, platforms and berths, the coordinate frames World, Frame and Local;
      scope's rows of what moved marked Moved; game integration's consumer matrix the ground sample
      and Manifest's suites; the console's help, a shape's refusal and a comment in neutral words.
-   - **8c, the close**: Manifest's boundary assessment, the consumer matrix, the gate and the
-     cross-review.
+   - **8c, the close.** **Done** 2026-11-23: Manifest's boundary assessment's status and its
+     architecture's Space section (Manifest `6df4647`); the consumer matrix, the ground sample in
+     the gate and Manifest's 54 suites on the local engine, every pin held; and a cross-review of
+     slices 1 to 8, three rounds over `b4bdb41^` to `c178f1c`. Its first two rounds found slice 7's
+     migrations short (a destination inside a queued command, the retired deck's definition
+     fields, scenes of version 2 and their system path), fixed in `db22a74` and `c178f1c`; its third
+     found the shapes' rename reaching a game's own and a passage's body, which the user settled
+     with the policy that formats change in place until player testing ([decided](decisions.md)):
+     every step and old fixture deleted (`14fc23a`), no pin moved. Manifest pinned to `14fc23a`
+     (`7302d83`), its gate passed on the fetched pin.
 
 ## Settled with the user
 
