@@ -95,6 +95,14 @@ dearer with every save a player has and once a second player sends commands.
   another player or an NPC. It also reaches a `Sim::Controller` nested inside a command's fields,
   which the host does not yet stamp.
 
+- **Messages longer than a packet** (Manifest's Stage 4 review, 2026-11-23, the user's: with the next
+  Jettison change): `net` sends each message as one ENet packet of at most `maxMessageBytes`
+  (64 KiB) and drops a longer one, and Manifest's snapshot of the trading scenario is 63,567 bytes
+  already, past the limit with ten resting orders, so a client's view freezes. Split a message into
+  fragments and reassemble it at the other end, the whole bounded as the inbound bounds are, tested
+  with a snapshot several packets long. Manifest moves to delta snapshots only if splitting is not
+  enough.
+
 ### Next: what the game's next slices stand on
 
 Consult Manifest's current stages for the next required mechanics. The engine provisions
