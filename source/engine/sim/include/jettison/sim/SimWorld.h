@@ -261,6 +261,11 @@ class SimWorld
 	// knows it by. Throws std::logic_error for a name already registered.
 	WorldService &AddService(std::string name, std::unique_ptr<WorldService> service);
 
+	// What a save holds, by the names it lists them under, in its order: the registered components,
+	// then the services. The views live as long as the world.
+	std::vector<std::string_view> ComponentNames() const;
+	std::vector<std::string_view> ServiceNames() const;
+
 	entt::registry &Registry()
 	{
 		return m_registry;

@@ -136,6 +136,26 @@ WorldService &SimWorld::AddService(std::string name, std::unique_ptr<WorldServic
 }
 
 
+std::vector<std::string_view> SimWorld::ComponentNames() const
+{
+	std::vector<std::string_view> names;
+	names.reserve(m_components.size());
+	for (const Component &component : m_components)
+		names.emplace_back(component.name);
+	return names;
+}
+
+
+std::vector<std::string_view> SimWorld::ServiceNames() const
+{
+	std::vector<std::string_view> names;
+	names.reserve(m_services.size());
+	for (const Service &service : m_services)
+		names.emplace_back(service.name);
+	return names;
+}
+
+
 void SimWorld::Step()
 {
 	// Checked before any is applied, so a step either applies all its commands or none.

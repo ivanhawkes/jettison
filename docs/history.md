@@ -397,6 +397,12 @@ Its R08 (2026-11-24), clients reconnecting to a server restarted from its journa
 recovered with none, needed none either: what it proves is its journal's and its request ledger's,
 on `net` as N02 left it ([its recovery](../../manifest/docs/stage-5-recovery-plan.md#reconnect-and-recovery-r08-2026-11-24)).
 
+A world's saved names, provisioned for Manifest's R09 (2026-11-25), the gap its R01 named:
+
+| Delivery | Manifest task (stage) | Exit criterion |
+| --- | --- | --- |
+| A world lists what its save holds | R09 (5) | Manifest's close of its Stage 5 pins its state inventory, every component and service a hosted world saves, to the names the save lists ([its inventory](../../manifest/docs/stage-5-recovery-plan.md#the-state-inventory)); a world named its components only in its save's first bytes, and its services nowhere but inside it. **Done** 2026-11-25: `SimWorld::ComponentNames` and `ServiceNames`, each in the order a save holds them, the names a save lists them under. | Met: the `sim` suite's service case reads its four components and its service back by name, in order, and a second service after the first. |
+
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01
 (2026-11-24), the save and compatibility contract, a planning task, needed none either and names no
