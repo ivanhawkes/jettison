@@ -393,6 +393,9 @@ Its R07 (2026-11-24), the distribution, needed no engine edit beyond that split:
 links its four executables to run outside the Nix toolchain on glibc 2.39 or newer, and finds its
 content from `Platform::ExecutablePath` and its writable places from `Platform::ResolvePaths`, both
 already the engine's ([its distribution](../../manifest/docs/stage-5-recovery-plan.md#the-distribution-r07-2026-11-24)).
+Its R08 (2026-11-24), clients reconnecting to a server restarted from its journal and a world
+recovered with none, needed none either: what it proves is its journal's and its request ledger's,
+on `net` as N02 left it ([its recovery](../../manifest/docs/stage-5-recovery-plan.md#reconnect-and-recovery-r08-2026-11-24)).
 
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01
