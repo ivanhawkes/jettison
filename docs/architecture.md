@@ -633,7 +633,8 @@ A save is written through the VFS to the user mount, the user's data directory
 partial file beside it, flushed to the disk, renamed over it, and the directory flushed, so a crash
 or a power cut leaves the save before it, and a save reported written is on the disk. A directory
 made on the way is flushed into its parent as it is made (`Core::CreateDirectoriesDurably`), or a
-power cut would take it and the save in it; and a directory is held to one writing process by a
+power cut would take it and the save in it, and has the permissions its caller asks for from the moment
+it is made; and a directory is held to one writing process by a
 file locked in it (`Core::FileLock`, the kernel's `flock`, let go when its process ends however it
 ends), which a game's server takes before it writes a world. Settings and
 bindings are apart from saves, in the configuration directory (`~/.config/jettison/settings.yaml`),

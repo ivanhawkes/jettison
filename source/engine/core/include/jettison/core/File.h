@@ -28,7 +28,11 @@ void WriteFileDurably(const std::filesystem::path &path, std::string_view text);
 // Makes the directory and each one above it that is missing, flushing the parent of each as it is
 // made: a new directory is an entry in its parent, and is lost in a power cut, with everything
 // written under it, until that parent is on the disk. One that was already there is taken to be.
-// True when it made any. Throws std::runtime_error naming the directory that could not be made or
-// flushed, or the path when something other than a directory is there.
-bool CreateDirectoriesDurably(const std::filesystem::path &path);
+// True when it made any. Each it makes has the permissions given, under the process's umask, from the
+// moment it is made: one made and then changed would keep what it was made with if the change were
+// cut off. Throws std::runtime_error naming the directory that could not be made or flushed, or the
+// path when something other than a directory is there.
+bool CreateDirectoriesDurably(
+    const std::filesystem::path &path,
+    std::filesystem::perms permissions = std::filesystem::perms::all);
 } // namespace Jettison::Core

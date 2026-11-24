@@ -408,13 +408,14 @@ Its R09, the close of its Stage 5 (2026-11-25), needed that provision alone
 to leave the thread that steps the world (its D-115, the user's); a writer for that, if reusable, is
 the engine's.
 
-Three gaps Manifest's Stage 5 cross-review found (2026-11-25), each provisioned here:
+Four gaps Manifest's Stage 5 cross-review found (2026-11-25), each provisioned here:
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
 | A world's saved names owned | Stage 5 review | `ComponentNames` and `ServiceNames` returned views into names a later registration could move. **Done** 2026-11-25: they return copies. | Met: the `sim` suite's service case compares copies. |
 | A server's last messages delivered | Stage 5 review | Destroying a server closes every connection at once, so the replies of a clean stop's last step were dropped. **Done** 2026-11-25: `Server::Closing`, polled after closing each session until its client has acknowledged what it was sent. | Met: the `net` suite sends a session a message, closes it, polls until it is no longer closing, and its client has the message and the reason. |
 | One XDG directory resolved alone | Stage 5 review | `ResolvePaths` resolves all four directories, so a program writing only configuration needed HOME or every XDG variable. **Done** 2026-11-25: `ResolvePath`, one directory, needing HOME only when its own variable is not absolute. | Met: the `platform` suite resolves configuration from its variable alone and refuses the cache with neither. |
+| A directory made private from the start | Stage 5 review | `CreateDirectoriesDurably` made a directory with the default mode, so a caller changed it afterwards, and a flush that failed between the two left it as made, open to everyone, and taken as already there on the next run. **Done** 2026-11-25: it takes the permissions to make each directory with, under the umask, the default every permission as before. | Met: the `core` suite makes two directories 0700 under one left 0750, and through `new/..` makes `new` and `made` 0700 and leaves the one named twice as it was. |
 
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01

@@ -1,6 +1,7 @@
 #include <jettison/core/File.h>
 
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <cerrno>
@@ -72,7 +73,7 @@ int FlushDirectory(const std::filesystem::path &directory)
 } // namespace
 
 
-bool CreateDirectoriesDurably(const std::filesystem::path &path)
+bool CreateDirectoriesDurably(const std::filesystem::path &path, std::filesystem::perms permissions)
 {
 	std::error_code error;
 	std::vector<std::filesystem::path> missing;
@@ -84,10 +85,14 @@ bool CreateDirectoriesDurably(const std::filesystem::path &path)
 	// Outermost first: a directory flushed into a parent that is not on the disk is lost with it.
 	for (const std::filesystem::path &directory : std::views::reverse(missing))
 	{
-		std::filesystem::create_directory(directory, error);
-		if (error)
-			throw std::runtime_error{
-			    std::format("{} could not be made: {}", directory.string(), error.message())};
+		// One already there is a path through a directory just made and back out, as new/..
+		if (::mkdir(directory.c_str(), static_cast<mode_t>(permissions)) != 0)
+		{
+			const int made = errno;
+			if (made != EEXIST || !std::filesystem::is_directory(directory, error))
+				throw std::runtime_error{
+				    std::format("{} could not be made: {}", directory.string(), std::strerror(made))};
+		}
 		const int problem = FlushDirectory(directory.has_parent_path() ? directory.parent_path() : ".");
 		if (problem != 0)
 			throw std::runtime_error{std::format(

@@ -103,6 +103,29 @@ TEST_CASE("File: directories are made to any depth, once, and not through a file
 }
 
 
+TEST_CASE("File: directories are made with the permissions given, and one already there kept as it is")
+{
+	using std::filesystem::perms;
+	const std::filesystem::path directory = Scratch();
+	std::filesystem::create_directories(directory);
+	constexpr perms kShared = perms::owner_all | perms::group_read | perms::group_exec;
+	std::filesystem::permissions(directory, kShared);
+	const auto mode = [](const std::filesystem::path &path)
+	{ return std::filesystem::status(path).permissions() & perms::mask; };
+
+	CHECK(CreateDirectoriesDurably(directory / "a" / "b", perms::owner_all));
+	CHECK(mode(directory) == kShared);
+	CHECK(mode(directory / "a") == perms::owner_all);
+	CHECK(mode(directory / "a" / "b") == perms::owner_all);
+	// Through one it makes and back out: the directory named so is there already, and kept.
+	CHECK(CreateDirectoriesDurably(directory / "new" / ".." / "made", perms::owner_all));
+	CHECK(mode(directory) == kShared);
+	CHECK(mode(directory / "new") == perms::owner_all);
+	CHECK(mode(directory / "made") == perms::owner_all);
+	std::filesystem::remove_all(directory);
+}
+
+
 TEST_CASE("FileLock: one holder at a time in a process, and the next once it lets go")
 {
 	const std::filesystem::path directory = Scratch();
