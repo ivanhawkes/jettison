@@ -244,8 +244,8 @@ out of the shared shell, and nothing in the shell becomes a release/runtime depe
 ## The gate
 
 `scripts/ci.sh` is the gate. The worktrunk `pre-commit` hook checks formatting, `pre-merge` runs
-`./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml` runs
-`./scripts/ci.sh --llvmpipe --werror` inside the locked devenv shell.
+`./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml` runs only
+the `clang-headless` build and its packed smoke test on lavapipe ([CI](#ci)).
 
 Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
 Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
@@ -312,10 +312,8 @@ time, since a unit is type-checked through the headers it includes, and no filte
 
 The stage's cost on CI is measured, from the job log of the run of 2026-11-16: **786 s of a 2 732 s
 gate**, 29% of it, printing one line, `252 of 252 units checked, 0 unchanged since clean` — a cold
-cache every run, at the bound of 2 jobs that has since come off. `actions/cache` now keeps the
-cache directory across runs (`JETTISON_TIDY_CACHE` in the workflow, saved with `post-if: always()`
-so a run that fails on findings still banks the units that came out clean), which is what the warm
-behaviour here — 11 units in 36 s, 12 in 0.7 s — becomes over there. The keys are per unit and
+cache every run, at the bound of 2 jobs that has since come off. CI no longer runs tidy
+([CI](#ci)). The keys are per unit and
 digest clang-tidy's version, `.clang-tidy`, the unit's compile command and the contents of every
 file it includes, so a restored entry is reused only by the unit that earned it, and a partial
 restore is safe by construction: the units it misses get checked.
@@ -698,18 +696,14 @@ the client is pinned to).
 
 The workflow follows the [devenv GitHub Actions guide](https://devenv.sh/integrations/github-actions/).
 It installs Nix on Ubuntu 24.04, enables the public `devenv` Cachix cache, installs devenv 2.4.0,
-and runs the gate in the shell described by `devenv.nix` and `devenv.lock`. It does not duplicate
-the toolchain with apt packages.
+and, in the shell described by `devenv.nix` and `devenv.lock`, builds `clang-headless` with
+warnings as errors and runs its smoke test from the packed assets on lavapipe under Xvfb. It does not
+duplicate the toolchain with apt packages.
 
-It runs on a push to `main` and by hand (`gh workflow run ci --ref <branch>`), not on every
-branch push: a run is about 45 runner minutes against the free tier's allowance, and every commit
-has already passed the gate locally. What it adds is a clean checkout on another distribution, so
-a branch is run by hand before it merges.
-
-**Status.** The gate passes locally in the locked devenv shell. The first GitHub run of the
-current workflow completed the builds, then failed when the smoke harness selected Ubuntu's
-`xvfb-run` wrapper. The harness now starts the shell's Xvfb directly, and that fix still needs
-a GitHub run.
+It is not the gate (the user's, 2026-11-25): the full gate took 45 to 60 runner minutes and failed
+on the job's timeout, and every commit has already passed it locally. What CI adds is that a clean
+checkout builds and runs on another distribution. It runs on a push to `main` and by hand
+(`gh workflow run ci --ref <branch>`).
 
 **Runner facts.**
 
@@ -728,13 +722,11 @@ a GitHub run.
   OOM in a run's log — `c++: fatal error: Killed signal terminated program`, or a suite that dies
   with no assertion — and if it appears, the bounds go back and the runner's memory is the reason on
   the record.
-- A full run's shape is recorded from the job log of 2026-11-16: a gate of 2 732 s — clang-tidy
+- The full gate's shape on the runner, from the job log of 2026-11-16: 2 732 s, clang-tidy
   **786 s**, the debug build 665 s, the release build 580 s, the lavapipe smoke test 489 s,
   reference frames 160 s, the two suites 27 s and 24 s, format 1 s, with 94 s of runner setup in
-  front. Two thirds of it is the two builds and tidy, so the bounds coming off cuts the builds and
-  `actions/cache` over tidy's cache directory answers the 786 s ([clang-tidy](#clang-tidy)). The
-  job took 47m34s against a 60-minute timeout: the margin is thin, and a run is watched, not
-  assumed.
+  front. The job took 47m34s against a 60-minute timeout, and later runs ran past it, which is why
+  CI was cut to the build and the smoke test.
 - An earlier run failed compiling ImGui's GLFW backend because `GL/gl.h` was missing. The ImGui
   target defines `GLFW_INCLUDE_NONE`, because it uses Vulkan and does not need OpenGL headers.
 
@@ -754,6 +746,6 @@ gh workflow run ci --ref feature-base           # start a run; then the newest:
 gh run list --branch feature-base --limit 1
 gh run view <id> --json jobs -q '.jobs[].steps[] | select(.conclusion=="failure") | .name'
 gh run view <id> --log-failed | grep -E "<step name>" | grep -vE "\[\[36;1m" | tail -25
-gh run watch <id> --interval 30 --exit-status &     # a run takes about 45 minutes
+gh run watch <id> --interval 30 --exit-status &
 ```
 
