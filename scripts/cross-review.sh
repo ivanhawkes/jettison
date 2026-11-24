@@ -16,7 +16,7 @@
 #  --gate-log FILE  A gate log for the reviewer to read
 #  --model NAME     The Codex model (default: Codex's own configuration)
 #  --effort LEVEL   The reviewer's reasoning effort (default: high; Codex's own default is none)
-#  --max-rounds N   Refuse a round past N (default: 2); past it the user settles what is open
+#  --max-rounds N   Refuse a round past N (default: 3); past it the user settles what is open
 #  --no-post        Do not post the summary to Discord
 #  --new            Discard this branch's earlier rounds and start again
 #
@@ -35,7 +35,7 @@ base=""
 gate_log=""
 model=()
 effort=high
-max_rounds=2
+max_rounds=3
 post=1
 fresh=0
 

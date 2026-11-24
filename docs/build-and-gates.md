@@ -489,8 +489,15 @@ not do.
 The brief says what the change is for, which roadmap row it serves and what was measured; the
 reviewer attacks those claims. A reply answers each finding by number: fixed, and what proves it,
 or disputed, with the evidence. Round 2 shows the reviewer what changed since round 1, and it marks
-each earlier finding resolved, open or withdrawn. Two rounds at most, then what is still open goes
+each earlier finding resolved, open or withdrawn. Three rounds at most, then what is still open goes
 to the user. The script exits 0 for `approve`, 1 for `changes`.
+
+A review runs when a stage of work closes, over that stage's commits, not after each task. When a
+major stage of development closes, a review of the whole codebase follows: Jettison's first, then
+Manifest's, each brief aimed at what cuts across stages (determinism and replay, save compatibility,
+trust boundaries, files and permissions, the documents against the code), since a stage's review
+reads its own diff and misses a rule repeated in three places or a bound one module sets and another
+ignores.
 
 Codex runs with `workspace-write` (it builds and runs suites in `build/`) at reasoning effort
 `high`, since its own default is `none`. It may not change the source tree. The script compares

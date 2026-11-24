@@ -110,7 +110,7 @@ The per-copy peaks and the arithmetic are in
 
 After the gate, Codex reviews the change adversarially with `scripts/cross-review.sh` (a
 background task, about ten minutes a round, no edits while it runs); answer each finding with a
-fix or evidence, two rounds at most, then the user settles what is open
+fix or evidence, three rounds at most, then the user settles what is open
 ([build and gates](docs/build-and-gates.md#cross-review)).
 
 Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, for Xvfb) and
