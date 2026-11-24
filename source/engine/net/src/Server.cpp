@@ -6,6 +6,7 @@
 #include <deque>
 #include <format>
 #include <map>
+#include <span>
 #include <stdexcept>
 #include <utility>
 
@@ -276,6 +277,21 @@ void Server::Disconnect(SessionId session, Reason reason)
 {
 	if (Impl::Session *pSession = m_pImpl->Find(session, true))
 		m_pImpl->Close(*pSession, reason, nullptr);
+}
+
+
+bool Server::Closing() const
+{
+	const std::span<const ENetPeer> peers{m_pImpl->pHost->peers, m_pImpl->pHost->peerCount};
+	return std::ranges::any_of(
+	    peers,
+	    [](const ENetPeer &peer)
+	    {
+		    return peer.state == ENET_PEER_STATE_DISCONNECT_LATER ||
+		           peer.state == ENET_PEER_STATE_DISCONNECTING ||
+		           peer.state == ENET_PEER_STATE_ACKNOWLEDGING_DISCONNECT ||
+		           peer.state == ENET_PEER_STATE_ZOMBIE;
+	    });
 }
 
 

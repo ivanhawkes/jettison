@@ -136,9 +136,9 @@ WorldService &SimWorld::AddService(std::string name, std::unique_ptr<WorldServic
 }
 
 
-std::vector<std::string_view> SimWorld::ComponentNames() const
+std::vector<std::string> SimWorld::ComponentNames() const
 {
-	std::vector<std::string_view> names;
+	std::vector<std::string> names;
 	names.reserve(m_components.size());
 	for (const Component &component : m_components)
 		names.emplace_back(component.name);
@@ -146,9 +146,9 @@ std::vector<std::string_view> SimWorld::ComponentNames() const
 }
 
 
-std::vector<std::string_view> SimWorld::ServiceNames() const
+std::vector<std::string> SimWorld::ServiceNames() const
 {
-	std::vector<std::string_view> names;
+	std::vector<std::string> names;
 	names.reserve(m_services.size());
 	for (const Service &service : m_services)
 		names.emplace_back(service.name);

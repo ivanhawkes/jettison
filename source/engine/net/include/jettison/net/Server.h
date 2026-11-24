@@ -102,6 +102,11 @@ class Server
 
 	std::vector<SessionId> Sessions() const;
 
+	// Whether a session closed here is still closing: what it was sent before is not all acknowledged,
+	// or its client has not answered the close. Poll until it is not, or a deadline passes, to have a
+	// server's last messages delivered before it is destroyed, which closes at once.
+	bool Closing() const;
+
   private:
 	struct Impl;
 	std::unique_ptr<Impl> m_pImpl;

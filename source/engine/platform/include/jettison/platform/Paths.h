@@ -24,6 +24,15 @@ struct Paths
 // An environment variable's value, or nothing when it is unset.
 using EnvironmentLookup = std::function<std::optional<std::string>(const char *name)>;
 
+// One of the directories of Paths.
+enum class Directory
+{
+	UserData,
+	Config,
+	State,
+	Cache
+};
+
 // The paths for applicationName, from the process environment. The name is one relative path
 // component ("jettison", not "games/jettison"); anything else throws std::invalid_argument.
 // Throws std::runtime_error naming the variable when HOME is needed and is not an absolute path.
@@ -32,6 +41,14 @@ Paths ResolvePaths(const std::filesystem::path &applicationName);
 // The same, from the variables environment returns, for tests and for a launcher that passes its
 // own.
 Paths ResolvePaths(const std::filesystem::path &applicationName, const EnvironmentLookup &environment);
+
+// One of them alone, as ResolvePaths resolves it, for a program that writes to only some: HOME is
+// needed only when this directory's own variable is not an absolute path.
+std::filesystem::path ResolvePath(Directory directory, const std::filesystem::path &applicationName);
+
+std::filesystem::path ResolvePath(
+    Directory directory, const std::filesystem::path &applicationName,
+    const EnvironmentLookup &environment);
 
 // The running executable, resolved through /proc/self/exe. Throws std::filesystem::filesystem_error
 // when /proc is not mounted.

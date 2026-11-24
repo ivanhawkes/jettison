@@ -20,7 +20,6 @@
 #include <span>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <vector>
 
 using namespace Jettison;
@@ -691,9 +690,9 @@ TEST_CASE("Sim: a service's state is saved with the world, and loaded with it or
 	CHECK(tally.ore > 0);
 	CHECK(
 	    original.ComponentNames() ==
-	    std::vector<std::string_view>{
+	    std::vector<std::string>{
 	        "SimTests.Position", "SimTests.Velocity", "SimTests.Hold", "SimTests.Ship"});
-	CHECK(original.ServiceNames() == std::vector<std::string_view>{"tally"});
+	CHECK(original.ServiceNames() == std::vector<std::string>{"tally"});
 
 	Sim::SimWorld loaded{kStep, 1};
 	Populate(loaded);
@@ -716,7 +715,7 @@ TEST_CASE("Sim: a service's state is saved with the world, and loaded with it or
 	Populate(more);
 	AddTally(more);
 	AddTally(more, "second");
-	CHECK(more.ServiceNames() == std::vector<std::string_view>{"tally", "second"});
+	CHECK(more.ServiceNames() == std::vector<std::string>{"tally", "second"});
 	CHECK_THROWS_WITH_AS(
 	    more.Load(save), doctest::Contains("no state for service 'second'"), Serialise::FormatError);
 

@@ -262,9 +262,9 @@ class SimWorld
 	WorldService &AddService(std::string name, std::unique_ptr<WorldService> service);
 
 	// What a save holds, by the names it lists them under, in its order: the registered components,
-	// then the services. The views live as long as the world.
-	std::vector<std::string_view> ComponentNames() const;
-	std::vector<std::string_view> ServiceNames() const;
+	// then the services. Copies, since a later registration may move the names the world holds.
+	std::vector<std::string> ComponentNames() const;
+	std::vector<std::string> ServiceNames() const;
 
 	entt::registry &Registry()
 	{

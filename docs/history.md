@@ -408,6 +408,14 @@ Its R09, the close of its Stage 5 (2026-11-25), needed that provision alone
 to leave the thread that steps the world (its D-115, the user's); a writer for that, if reusable, is
 the engine's.
 
+Three gaps Manifest's Stage 5 cross-review found (2026-11-25), each provisioned here:
+
+| Delivery | Manifest task (stage) | Exit criterion |
+| --- | --- | --- |
+| A world's saved names owned | Stage 5 review | `ComponentNames` and `ServiceNames` returned views into names a later registration could move. **Done** 2026-11-25: they return copies. | Met: the `sim` suite's service case compares copies. |
+| A server's last messages delivered | Stage 5 review | Destroying a server closes every connection at once, so the replies of a clean stop's last step were dropped. **Done** 2026-11-25: `Server::Closing`, polled after closing each session until its client has acknowledged what it was sent. | Met: the `net` suite sends a session a message, closes it, polls until it is no longer closing, and its client has the message and the reason. |
+| One XDG directory resolved alone | Stage 5 review | `ResolvePaths` resolves all four directories, so a program writing only configuration needed HOME or every XDG variable. **Done** 2026-11-25: `ResolvePath`, one directory, needing HOME only when its own variable is not absolute. | Met: the `platform` suite resolves configuration from its variable alone and refuses the cache with neither. |
+
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01
 (2026-11-24), the save and compatibility contract, a planning task, needed none either and names no

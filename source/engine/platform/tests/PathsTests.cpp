@@ -76,6 +76,19 @@ TEST_CASE("Paths: HOME is needed only for a directory with no XDG variable")
 }
 
 
+TEST_CASE("Paths: one directory alone needs HOME only when its own variable is not set")
+{
+	const EnvironmentLookup configOnly = Environment({{"XDG_CONFIG_HOME", "/c"}});
+	CHECK(ResolvePath(Directory::Config, "jettison", configOnly) == "/c/jettison");
+	CHECK_THROWS_AS(ResolvePath(Directory::Cache, "jettison", configOnly), std::runtime_error);
+	CHECK_THROWS_AS(ResolvePaths("jettison", configOnly), std::runtime_error);
+	CHECK(
+	    ResolvePath(Directory::State, "jettison", Environment({{"HOME", "/home/a"}})) ==
+	    "/home/a/.local/state/jettison");
+	CHECK_THROWS_AS(ResolvePath(Directory::UserData, "a/b", configOnly), std::invalid_argument);
+}
+
+
 TEST_CASE("Paths: the application name is one relative path component")
 {
 	const auto environment = Environment({{"HOME", "/home/pilot"}});

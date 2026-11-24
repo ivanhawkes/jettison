@@ -253,6 +253,24 @@ TEST_CASE("a session past its inbound bound is closed, and the game's reason rea
 }
 
 
+TEST_CASE("a session closed after a message is sent it first, and is closing until its client answers")
+{
+	Fixture fixture;
+	Client client{fixture.Config()};
+	fixture.Until([&] { return client.Admitted(); }, {&client});
+	const SessionId session = fixture.pServer->Sessions().front();
+	CHECK_FALSE(fixture.pServer->Closing());
+	CHECK(fixture.pServer->Send(session, Channel::Reliable, 9, Bytes("last")));
+	fixture.pServer->Disconnect(session, Reason::Shutdown);
+	CHECK(fixture.pServer->Closing());
+	fixture.Until([&] { return !fixture.pServer->Closing(); }, {&client});
+	CHECK(fixture.ClosedWith(client) == Reason::Shutdown);
+	const std::optional<ClientEvent> message = fixture.Last(client, ClientEvent::Type::Message);
+	REQUIRE(message.has_value());
+	CHECK(Text(message->message.body) == "last");
+}
+
+
 TEST_CASE("a message over the limit is not sent")
 {
 	ServerConfig config;

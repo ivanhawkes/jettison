@@ -38,6 +38,16 @@ std::filesystem::path BaseDirectory(
 }
 
 
+std::optional<std::string> ProcessVariable(const char *name)
+{
+	// Read at start-up, before any thread that could call setenv exists.
+	const char *value = std::getenv(name); // NOLINT(concurrency-mt-unsafe)
+	if (value == nullptr)
+		return std::nullopt;
+	return std::string{value};
+}
+
+
 void CheckApplicationName(const std::filesystem::path &name)
 {
 	const bool oneComponent = !name.empty() && std::distance(name.begin(), name.end()) == 1;
@@ -50,28 +60,44 @@ void CheckApplicationName(const std::filesystem::path &name)
 
 Paths ResolvePaths(const std::filesystem::path &applicationName)
 {
-	return ResolvePaths(
-	    applicationName,
-	    [](const char *name) -> std::optional<std::string>
-	    {
-		    // Read at start-up, before any thread that could call setenv exists.
-		    const char *value = std::getenv(name); // NOLINT(concurrency-mt-unsafe)
-		    if (value == nullptr)
-			    return std::nullopt;
-		    return std::string{value};
-	    });
+	return ResolvePaths(applicationName, ProcessVariable);
 }
 
 
 Paths ResolvePaths(const std::filesystem::path &applicationName, const EnvironmentLookup &environment)
 {
-	CheckApplicationName(applicationName);
 	return Paths{
-	    .userData = BaseDirectory(environment, "XDG_DATA_HOME", ".local/share") / applicationName,
-	    .config = BaseDirectory(environment, "XDG_CONFIG_HOME", ".config") / applicationName,
-	    .state = BaseDirectory(environment, "XDG_STATE_HOME", ".local/state") / applicationName,
-	    .cache = BaseDirectory(environment, "XDG_CACHE_HOME", ".cache") / applicationName,
+	    .userData = ResolvePath(Directory::UserData, applicationName, environment),
+	    .config = ResolvePath(Directory::Config, applicationName, environment),
+	    .state = ResolvePath(Directory::State, applicationName, environment),
+	    .cache = ResolvePath(Directory::Cache, applicationName, environment),
 	};
+}
+
+
+std::filesystem::path ResolvePath(Directory directory, const std::filesystem::path &applicationName)
+{
+	return ResolvePath(directory, applicationName, ProcessVariable);
+}
+
+
+std::filesystem::path ResolvePath(
+    Directory directory, const std::filesystem::path &applicationName,
+    const EnvironmentLookup &environment)
+{
+	CheckApplicationName(applicationName);
+	switch (directory)
+	{
+		case Directory::UserData:
+			return BaseDirectory(environment, "XDG_DATA_HOME", ".local/share") / applicationName;
+		case Directory::Config:
+			return BaseDirectory(environment, "XDG_CONFIG_HOME", ".config") / applicationName;
+		case Directory::State:
+			return BaseDirectory(environment, "XDG_STATE_HOME", ".local/state") / applicationName;
+		case Directory::Cache:
+			return BaseDirectory(environment, "XDG_CACHE_HOME", ".cache") / applicationName;
+	}
+	throw std::invalid_argument{"Platform: not a directory of Paths"};
 }
 
 
