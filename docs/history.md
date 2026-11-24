@@ -378,6 +378,10 @@ pin: its batches, snapshots and catalogue are `Core::WriteFileDurably`'s files u
 `FastForward` with the requests queued again. Its user settled that a crash may lose up to 30 s of
 play, so the journal is written every 30 s after the steps it records and not before each
 ([its journal](../../manifest/docs/stage-5-recovery-plan.md#the-journal-and-its-snapshots-r03-r04-2026-11-24)).
+Its R05 (2026-11-24), a clean stop, backups and restore, needed none either: a backup is the
+snapshot's bytes beside the world's identity, written with `Core::WriteFileDurably`, and a restore
+copies one into a directory holding only its `Core::FileLock` and recovers it as a start does
+([its backups](../../manifest/docs/stage-5-recovery-plan.md#shutdown-backups-and-limits-r05-2026-11-24)).
 
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01

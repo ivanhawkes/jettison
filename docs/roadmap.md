@@ -63,8 +63,9 @@ lock, is done in Manifest (2026-11-24) on the pin `ea66afe`, with two provisions
 made durably and a file lock ([history](history.md#neutral-sdk-and-manifest-integration)), and with
 them the message several datagrams long its Stage 4 review booked, which needed a limit set and no
 splitting of the engine's own. Its R03 and R04, the journal flushed every 30 s and its hourly snapshots, are done in Manifest with
-no engine edit (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)). Its R05,
-shutdown, backup and restore, is next.
+no engine edit (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)), and so is
+its R05, a clean stop, backups and restore (2026-11-24). Its R06, the runtime distribution contract,
+is next; its later workstreams wait until the user has played the first loop for a day or two.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
