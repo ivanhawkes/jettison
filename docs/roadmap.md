@@ -67,7 +67,10 @@ no engine edit (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integr
 its R05, a clean stop, backups and restore (2026-11-24). Its R06, the runtime distribution contract, is done (2026-11-24), a planning task
 ([history](history.md#neutral-sdk-and-manifest-integration)): a standalone bundle for glibc 2.39 or
 newer, with its TUI, and one engine gap, ImGui's backends out of `Devtools`, provisioned here before its R07
-(2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)). Its later workstreams wait until the user has played the first loop for a day or two.
+(2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)). Its R07, the distribution
+built, staged and run in Ubuntu 24.04 and Debian 13, is done in Manifest with no further engine edit
+(2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)); its R08, persistent
+reconnect and recovery, is next. Its later workstreams wait until the user has played the first loop for a day or two.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
