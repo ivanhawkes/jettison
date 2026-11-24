@@ -389,7 +389,7 @@ procurement, regional governance and the close of its Stage 4, on the pin `14fc2
 gap ([its contract](../../manifest/docs/stage-5-recovery-plan.md#save-and-compatibility-contract-r01-2026-11-24)):
 a world cannot list what it registers but through its save's first bytes, which Manifest's R04 may
 ask for. Its R06 (2026-11-24), the runtime distribution contract, a planning task, selects a standalone
-bundle for glibc 2.43 or newer, its TUI in it, and names one gap
+bundle for glibc 2.39 or newer, its TUI in it, and names one gap
 ([its contract](../../manifest/docs/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)):
 `imgui` carries ImGui's GLFW and Vulkan backends, so a terminal consumer of `Devtools` links
 `libvulkan.so.1`, booked on the [roadmap](roadmap.md) before its R07. The cruise coast phase, provisioned for Manifest's
