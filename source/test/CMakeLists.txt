@@ -26,6 +26,16 @@ jettison_use_content(render_test jettison_test_content)
 set_property(TARGET render_test PROPERTY FOLDER "Test")
 target_link_libraries(render_test PRIVATE Jettison::App jettison_warnings)
 
+# Devtools alone, as Manifest's terminal tool links it: no Vulkan loader or GLFW among its NEEDED,
+# and it runs with neither mapped (Manifest's runtime distribution contract, R06).
+add_executable(devtools_alone devtools_alone.cpp)
+target_link_libraries(devtools_alone PRIVATE Jettison::Devtools jettison_warnings)
+set_property(TARGET devtools_alone PROPERTY FOLDER "Test")
+if(JETTISON_BUILD_TESTS)
+	add_test(NAME devtools_alone COMMAND "${CMAKE_COMMAND}" -DREADELF=${CMAKE_READELF}
+		-DEXECUTABLE=$<TARGET_FILE:devtools_alone> -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckDevtoolsAlone.cmake")
+endif()
+
 # One executable linking the engine and every third-party library it has or plans to have (see
 # source/external/CMakeLists.txt). The gate runs it after the Debug build. The libraries the
 # engine links privately are named here as well, because the probe calls each of them directly.

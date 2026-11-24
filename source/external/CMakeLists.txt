@@ -181,20 +181,25 @@ if(JETTISON_PRESENTATION)
 	  "${imgui_SOURCE_DIR}/imgui_demo.cpp"
 	  "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
 	  "${imgui_SOURCE_DIR}/imgui_tables.cpp"
-	  "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
-	  "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
 	  "${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp"
 	)
 	target_include_directories(imgui SYSTEM PUBLIC
 	  "${imgui_SOURCE_DIR}"
-	  "${imgui_SOURCE_DIR}/backends"
 	  "${imgui_SOURCE_DIR}/misc/freetype"
 	)
-	target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
 	# ImGui rasterises its fonts with FreeType, the build RmlUi's font engine uses (above). The definition
 	# is public: ImGui's configuration has to agree in every translation unit that includes imgui.h.
 	target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
-	target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan Freetype::Freetype)
+	target_link_libraries(imgui PUBLIC Freetype::Freetype)
+	# The GLFW and Vulkan backends apart from the core, linked by render alone: a consumer of the dev
+	# tools that never draws (Manifest's terminal tool) needs no Vulkan loader or window system.
+	add_library(imgui_backends STATIC
+	  "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
+	  "${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
+	)
+	target_include_directories(imgui_backends SYSTEM PUBLIC "${imgui_SOURCE_DIR}/backends")
+	target_compile_definitions(imgui_backends PRIVATE GLFW_INCLUDE_NONE)
+	target_link_libraries(imgui_backends PUBLIC imgui glfw Vulkan::Vulkan)
 
 	# stb has no releases; this is the head of master on 2026-11-10. The image implementation is
 	# compiled once, in source/engine/render/src/vulkan/MaterialCache.cpp: nothing else in the set

@@ -66,7 +66,8 @@ splitting of the engine's own. Its R03 and R04, the journal flushed every 30 s a
 no engine edit (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)), and so is
 its R05, a clean stop, backups and restore (2026-11-24). Its R06, the runtime distribution contract, is done (2026-11-24), a planning task
 ([history](history.md#neutral-sdk-and-manifest-integration)): a standalone bundle for glibc 2.39 or
-newer, with its TUI, and one engine gap, the row below, before its R07. Its later workstreams wait until the user has played the first loop for a day or two.
+newer, with its TUI, and one engine gap, ImGui's backends out of `Devtools`, provisioned here before its R07
+(2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)). Its later workstreams wait until the user has played the first loop for a day or two.
 Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
 Provision their reusable engine capabilities here; production rules and content stay
 in Manifest. Retain the small space example as a separate automated-test consumer.
@@ -76,7 +77,6 @@ and the Manifest stage it unblocks; work them in Manifest's order.
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| ImGui's backends out of `Devtools` | R07, Stage 5 | `imgui` holds ImGui's core alone, and its GLFW and Vulkan backends are in a target only `render` links, so a consumer of `Devtools` links no window system or Vulkan ([Manifest's contract](../../manifest/docs/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)): a test executable linking `devtools` alone has no `libvulkan` or `libglfw` `NEEDED`, and Manifest's staged `manifest_tui` passes the same check. |
 | Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
 | Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
 

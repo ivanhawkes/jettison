@@ -383,6 +383,12 @@ snapshot's bytes beside the world's identity, written with `Core::WriteFileDurab
 copies one into a directory holding only its `Core::FileLock` and recovers it as a start does
 ([its backups](../../manifest/docs/stage-5-recovery-plan.md#shutdown-backups-and-limits-r05-2026-11-24)).
 
+ImGui's backends out of `Devtools`, provisioned for Manifest's R07 (2026-11-24), the gap its R06 named:
+
+| Delivery | Manifest task (stage) | Exit criterion |
+| --- | --- | --- |
+| ImGui's backends out of `Devtools` | R07 (5) | Manifest's bundle ships its TUI, which never draws, and a consumer of `Devtools` should need no window system or Vulkan ([its contract](../../manifest/docs/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)); `imgui` compiled ImGui's GLFW and Vulkan backends into itself and linked `glfw` and `Vulkan::Vulkan` publicly, so the TUI had `libvulkan.so.1` among its `NEEDED`. **Done** 2026-11-24: `imgui` is ImGui's core and its FreeType rasteriser, and `imgui_backends` the GLFW and Vulkan backends on it, linked by `render` alone, the one caller of `ImGui_ImplGlfw_*` and `ImGui_ImplVulkan_*` (`ImGuiRenderer.cpp`). | Met: `devtools_alone` (`source/test`), linking `Devtools` alone and drawing a console in one ImGui frame with no renderer, needs only `libstdc++`, `libm`, `libgcc_s` and `libc`, and runs with no Vulkan loader or GLFW among its mappings; the `devtools` suite's binary needed `libvulkan.so.1` before. Manifest's `manifest_tui` on the local engine needs neither, where on the pin `ea66afe` it needed `libvulkan.so.1`, and ran on a terminal with neither mapped. |
+
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01
 (2026-11-24), the save and compatibility contract, a planning task, needed none either and names no
@@ -392,7 +398,7 @@ ask for. Its R06 (2026-11-24), the runtime distribution contract, a planning tas
 bundle for glibc 2.39 or newer, its TUI in it, and names one gap
 ([its contract](../../manifest/docs/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)):
 `imgui` carries ImGui's GLFW and Vulkan backends, so a terminal consumer of `Devtools` links
-`libvulkan.so.1`, booked on the [roadmap](roadmap.md) before its R07. The cruise coast phase, provisioned for Manifest's
+`libvulkan.so.1`, provisioned [above](#neutral-sdk-and-manifest-integration) before its R07. The cruise coast phase, provisioned for Manifest's
 W21 (2026-11-22), fuel burn, its slow runs coasting:
 
 | Delivery | Manifest task (stage) | Exit criterion |

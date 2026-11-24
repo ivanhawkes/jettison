@@ -122,7 +122,7 @@ jettison_add_module(render
 		yaml-cpp::yaml-cpp
 		fastgltf
 		GPUOpen::VulkanMemoryAllocator
-		"$<LINK_GROUP:RESCAN,imgui>"
+		"$<LINK_GROUP:RESCAN,imgui_backends,imgui>"
 )
 
 # The cluster grid's functions are clusters.glsl compiled as C++ (Clusters.cpp), so the CPU
