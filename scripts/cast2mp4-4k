@@ -1,0 +1,238 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p asciinema-agg ffmpeg fontconfig nerd-fonts.jetbrains-mono
+
+set -euo pipefail
+
+SPEED="1.0"
+IDLE_LIMIT=""
+BG_IMAGE=""
+RADIUS="28"
+OPACITY="0.85"
+BORDER_WIDTH="3"
+BORDER_COLOR="b4befe" # Catppuccin Mocha Lavender (or try cba6f7 for Mauve)
+INPUT=""
+OUTPUT=""
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [OPTIONS] <input.cast> [output.mp4]
+
+Options:
+  -s, --speed <float>       Playback speed multiplier (default: 1.0, e.g., 2.0 for 2x)
+  -i, --idle-limit <float>  Max seconds between frames (trims long pauses)
+  -b, --background <image>  Background wallpaper (translucent terminal background with blur, shadow & border)
+  -o, --opacity <float>     Terminal background opacity with -b, 0.0-1.0 (default: 0.85; text stays opaque)
+  -r, --radius <int>        Corner radius in pixels at 4K scale (default: 28, 0 to disable)
+  -h, --help                Show this help message
+
+If <input>.ass exists next to the .cast, it is burned into the video and an
+.srt copy is written next to the .mp4 for upload as YouTube captions. Its
+timings must match the rendered video (after --speed and --idle-limit).
+EOF
+  exit 1
+}
+
+# Parse CLI flags
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -s|--speed)
+      SPEED="$2"
+      shift 2
+      ;;
+    -i|--idle-limit)
+      IDLE_LIMIT="$2"
+      shift 2
+      ;;
+    -b|--background)
+      BG_IMAGE="$2"
+      shift 2
+      ;;
+    -o|--opacity)
+      OPACITY="$2"
+      shift 2
+      ;;
+    -r|--radius)
+      RADIUS="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      ;;
+    -*)
+      echo "Unknown option: $1"
+      usage
+      ;;
+    *)
+      if [ -z "$INPUT" ]; then
+        INPUT="$1"
+      elif [ -z "$OUTPUT" ]; then
+        OUTPUT="$1"
+      else
+        echo "Too many positional arguments."
+        usage
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$INPUT" ]; then
+  usage
+fi
+
+if [ -n "$BG_IMAGE" ] && [ ! -f "$BG_IMAGE" ]; then
+  echo "Error: Background image not found: $BG_IMAGE"
+  exit 1
+fi
+
+if ! awk -v o="$OPACITY" 'BEGIN { exit !(o ~ /^[0-9]*\.?[0-9]+$/ && o >= 0 && o <= 1) }'; then
+  echo "Error: --opacity must be a number between 0.0 and 1.0: $OPACITY"
+  exit 1
+fi
+
+OUTPUT="${OUTPUT:-${INPUT%.cast}-4k.mp4}"
+SUBS="${INPUT%.cast}.ass"
+
+# Point fontconfig to the Nix store font directory so agg discovers JetBrainsMono
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+cat <<EOF > "$TMP_DIR/fonts.conf"
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+  <dir>${NIX_PROFILES:-/run/current-system/sw}/share/fonts</dir>
+$(echo "$buildInputs $nativeBuildInputs" | tr ' ' '\n' | grep -i font | sed 's|.*|<dir>&/share/fonts</dir>|')
+  <cachedir>$TMP_DIR/cache</cachedir>
+</fontconfig>
+EOF
+export FONTCONFIG_FILE="$TMP_DIR/fonts.conf"
+
+# Copied to a plain path so ffmpeg's filter syntax needs no escaping of the name.
+ASS_FILTER=""
+if [ -f "$SUBS" ]; then
+  echo "Burning in subtitles: $SUBS"
+  cp "$SUBS" "$TMP_DIR/subs.ass"
+  ASS_FILTER=",ass=$TMP_DIR/subs.ass"
+fi
+
+# Exact Catppuccin Mocha palette from your Alacritty config
+MOCHA_BG="1e1e2e"   # primary.background
+MOCHA_FG="cdd6f4"   # primary.foreground
+ANSI_0="45475a"     # normal.black
+ANSI_1="f38ba8"     # normal.red
+ANSI_2="a6e3a1"     # normal.green
+ANSI_3="f9e2af"     # normal.yellow
+ANSI_4="89b4fa"     # normal.blue
+ANSI_5="f5c2e7"     # normal.magenta
+ANSI_6="94e2d5"     # normal.cyan
+ANSI_7="bac2de"     # normal.white
+ANSI_8="585b70"     # bright.black
+ANSI_9="f38ba8"     # bright.red
+ANSI_10="a6e3a1"    # bright.green
+ANSI_11="f9e2af"    # bright.yellow
+ANSI_12="89b4fa"    # bright.blue
+ANSI_13="f5c2e7"    # bright.magenta
+ANSI_14="94e2d5"    # bright.cyan
+ANSI_15="a6adc8"    # bright.white
+
+MOCHA_THEME="${MOCHA_BG},${MOCHA_FG},${ANSI_0},${ANSI_1},${ANSI_2},${ANSI_3},${ANSI_4},${ANSI_5},${ANSI_6},${ANSI_7},${ANSI_8},${ANSI_9},${ANSI_10},${ANSI_11},${ANSI_12},${ANSI_13},${ANSI_14},${ANSI_15}"
+
+AGG_ARGS=(
+  --theme "$MOCHA_THEME"
+  --font-family "JetBrainsMono Nerd Font Mono"
+  --font-size 40
+  --line-height 1.15
+  --speed "$SPEED"
+  --fps-cap 60
+)
+
+if [ -n "$IDLE_LIMIT" ]; then
+  AGG_ARGS+=(--idle-time-limit "$IDLE_LIMIT")
+fi
+
+TMP_GIF="$TMP_DIR/render.gif"
+
+echo "Rendering ASCII (speed: ${SPEED}x${IDLE_LIMIT:+, idle-limit: ${IDLE_LIMIT}s})..."
+agg "${AGG_ARGS[@]}" "$INPUT" "$TMP_GIF"
+
+echo "Encoding 4K (3840x2160) MP4..."
+if [ -n "$BG_IMAGE" ]; then
+  R="$RADIUS"
+  BW="$BORDER_WIDTH"
+  R_OUT=$((R + BW))
+
+  # Signed distance from rounded-rect edge: <= 0 inside, > 0 outside
+  # Inner window mask. Like Alacritty's window.opacity, only the default
+  # background (#1e1e2e = 30,30,46) is translucent; text stays opaque, with
+  # anti-aliased glyph edges ramping between the two by colour distance.
+  IN_SDF="hypot(max(abs(W/2-X)-(W/2-${R}),0),max(abs(H/2-Y)-(H/2-${R}),0))-${R}"
+  BG_DIST="(abs(r(X,Y)-30)+abs(g(X,Y)-30)+abs(b(X,Y)-46))/48"
+  TERM_ALPHA="clip(0.5-(${IN_SDF}),0,1)*255*(${OPACITY}+(1-${OPACITY})*clip(${BG_DIST},0,1))"
+
+  # Border ring: border colour between the outer rounded rect and the terminal's
+  # own rounded rect (same SDF as IN_SDF, shifted by BW), so nothing opaque sits
+  # behind the translucent terminal. 1px anti-aliased feather on the outer rim.
+  OUT_SDF="hypot(max(abs(W/2-X)-(W/2-${R_OUT}),0),max(abs(H/2-Y)-(H/2-${R_OUT}),0))-${R_OUT}"
+  HOLE_SDF="hypot(max(abs(W/2-X)-(W/2-${BW}-${R}),0),max(abs(H/2-Y)-(H/2-${BW}-${R}),0))-${R}"
+  # The ring reaches 1px under the terminal edge (fading in) so no wallpaper
+  # shows through the seam between the two.
+  BORDER_ALPHA="255*clip(${HOLE_SDF}+1,0,1)*if(lte(${OUT_SDF},0),1,if(lt(${OUT_SDF},1),1-(${OUT_SDF}),0))"
+  BR=$((16#${BORDER_COLOR:0:2})); BG_=$((16#${BORDER_COLOR:2:2})); BB=$((16#${BORDER_COLOR:4:2}))
+
+  # Drop shadow: rounded rect the size of the window (layer is padded by SH_PAD),
+  # blurred, then cut out where the window sits (SH_OFF px higher in layer
+  # coordinates) so it only shows outside the window, not through it.
+  SH_PAD=80
+  SH_OFF=16
+  SHADOW_SDF="hypot(max(abs(W/2-X)-(W/2-${SH_PAD}-${R_OUT}),0),max(abs(H/2-Y)-(H/2-${SH_PAD}-${R_OUT}),0))-${R_OUT}"
+  SHADOW_ALPHA="if(lte(${SHADOW_SDF},0),180,0)"
+  CUT_SDF="hypot(max(abs(W/2-X)-(W/2-${SH_PAD}-${R_OUT}),0),max(abs(H/2-${SH_OFF}-Y)-(H/2-${SH_PAD}-${R_OUT}),0))-${R_OUT}"
+  SHADOW_CUT="if(lte(${CUT_SDF},0),0,alpha(X,Y))"
+
+  # The wallpaper, shadow and border never change, so they are composited once
+  # into a single frame and looped at 60 fps; only the terminal is processed
+  # per frame.
+  ffmpeg -y -v error -stats \
+    -i "$BG_IMAGE" \
+    -i "$TMP_GIF" \
+    -filter_complex "\
+      [0:v]scale=3840:2160:force_original_aspect_ratio=increase:flags=lanczos,crop=3840:2160,gblur=sigma=18[bg]; \
+      [1:v]pad=iw+128:ih+128:64:64:color=#${MOCHA_BG},scale=3520:1980:force_original_aspect_ratio=decrease:flags=neighbor,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='${TERM_ALPHA}'[term]; \
+      [term]split=2[term_main][term_ref]; \
+      [term_ref]trim=end_frame=1,pad=iw+$((BW*2)):ih+$((BW*2)):${BW}:${BW}:color=#${BORDER_COLOR},split=2[border_base][shadow_base]; \
+      [border_base]geq=r=${BR}:g=${BG_}:b=${BB}:a='${BORDER_ALPHA}'[border]; \
+      [shadow_base]pad=iw+$((SH_PAD*2)):ih+$((SH_PAD*2)):${SH_PAD}:${SH_PAD}:color=black@0,geq=r=17:g=17:b=27:a='${SHADOW_ALPHA}',gblur=sigma=28,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='${SHADOW_CUT}'[shadow]; \
+      [bg][shadow]overlay=(W-w)/2:(H-h)/2+${SH_OFF}[bg_sh]; \
+      [bg_sh][border]overlay=(W-w)/2:(H-h)/2,loop=loop=-1:size=1,setpts=N/(60*TB)[base]; \
+      [base][term_main]overlay=(W-w)/2:(H-h)/2:shortest=1${ASS_FILTER}[out]" \
+    -map "[out]" \
+    -r 60 \
+    -c:v libx264 \
+    -crf 16 \
+    -preset slow \
+    -pix_fmt yuv420p \
+    -movflags +faststart \
+    "$OUTPUT"
+else
+  # Solid Catppuccin Mocha background when no image is passed
+  ffmpeg -y -v error -stats \
+    -i "$TMP_GIF" \
+    -vf "pad=iw+128:ih+128:64:64:color=#${MOCHA_BG},scale=3840:2160:force_original_aspect_ratio=decrease:flags=neighbor,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:color=#${MOCHA_BG}${ASS_FILTER}" \
+    -r 60 \
+    -c:v libx264 \
+    -crf 16 \
+    -preset slow \
+    -pix_fmt yuv420p \
+    -movflags +faststart \
+    "$OUTPUT"
+fi
+
+echo "Saved 4K video to: $OUTPUT"
+
+if [ -n "$ASS_FILTER" ]; then
+  # SRT keeps only the text (and basic bold/italic); YouTube ignores styling anyway.
+  ffmpeg -v error -i "$SUBS" -f srt - | sed -E 's#</?font[^>]*>##g' > "${OUTPUT%.mp4}.srt"
+  echo "Saved YouTube captions to: ${OUTPUT%.mp4}.srt"
+fi
