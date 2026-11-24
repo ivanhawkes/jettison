@@ -372,10 +372,12 @@ Manifest's R02 is done on the pin `ea66afe` (2026-11-24): its world's directory 
 by one server on the two, its token file written durably, and its limit 192 KiB, a view of 69,829
 bytes reaching its client ([Manifest's history](../../manifest/docs/history.md#r02-durable-io-directories-and-the-world-lock--2026-11-24)).
 
-Manifest's R03 (2026-11-24), the step journals and the catalogue, needed no engine edit, on the same
-pin: its batches and catalogue are `Core::WriteFileDurably`'s files, the binary archive's records
-under `Core::Fnv1a64`, and its replay `SimWorld::FastForward` with the requests queued again
-([its journal](../../manifest/docs/stage-5-recovery-plan.md#step-journals-and-the-catalogue-r03-2026-11-24)).
+Manifest's R03 and R04 (2026-11-24), its journal and snapshots, needed no engine edit, on the same
+pin: its batches, snapshots and catalogue are `Core::WriteFileDurably`'s files under
+`Core::Fnv1a64`, a snapshot `SimWorld::Save`'s bytes, and its recovery `SimWorld::Load` and
+`FastForward` with the requests queued again. Its user settled that a crash may lose up to 30 s of
+play, so the journal is written every 30 s after the steps it records and not before each
+([its journal](../../manifest/docs/stage-5-recovery-plan.md#the-journal-and-its-snapshots-r03-r04-2026-11-24)).
 
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01
