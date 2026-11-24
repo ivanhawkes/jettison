@@ -401,7 +401,12 @@ A world's saved names, provisioned for Manifest's R09 (2026-11-25), the gap its 
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| A world lists what its save holds | R09 (5) | Manifest's close of its Stage 5 pins its state inventory, every component and service a hosted world saves, to the names the save lists ([its inventory](../../manifest/docs/stage-5-recovery-plan.md#the-state-inventory)); a world named its components only in its save's first bytes, and its services nowhere but inside it. **Done** 2026-11-25: `SimWorld::ComponentNames` and `ServiceNames`, each in the order a save holds them, the names a save lists them under. | Met: the `sim` suite's service case reads its four components and its service back by name, in order, and a second service after the first. |
+| A world lists what its save holds | R09 (5) | Manifest's close of its Stage 5 pins its state inventory, every component and service a hosted world saves, to the names the save lists ([its inventory](../../manifest/docs/stage-5-recovery-plan.md#the-state-inventory)); a world named its components only in its save's first bytes, and its services nowhere but inside it. **Done** 2026-11-25: `SimWorld::ComponentNames` and `ServiceNames`, each in the order a save holds them, the names a save lists them under. | Met: the `sim` suite's service case reads its four components and its service back by name, in order, and a second service after the first. Manifest's `host` suite pins a hosted world's 50 components and 3 services to its state inventory on the pin `13c1bec`. |
+
+Its R09, the close of its Stage 5 (2026-11-25), needed that provision alone
+([its close](../../manifest/docs/stage-5-recovery-plan.md#stage-5-closed-r09-2026-11-25)). Its saves are
+to leave the thread that steps the world (its D-115, the user's); a writer for that, if reusable, is
+the engine's.
 
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01
