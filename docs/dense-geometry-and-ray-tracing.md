@@ -25,8 +25,8 @@ scheduled apart from Manifest's queue until the user places it. The settled choi
      ambient occlusion and sharp reflections, each a switch with today's path as its fallback.
   4. **RTX Mega Geometry** (`VK_NV_cluster_acceleration_structure`) on NVIDIA only, so ray tracing
      sees the same meshlets the raster draws.
-  5. Later and conditional: a temporal foundation with glossy reflections, then a visibility
-     buffer and software raster if the anti-aliasing decision chooses temporal AA.
+  5. Later: a temporal foundation with temporal AA in place of MSAA and glossy reflections, then a
+     visibility buffer and software raster.
 - **What it costs the core.** One new CPU module (`geometry`), one new tool (`jettison_cook`) and
   one new dependency (meshoptimizer, MIT). Every GPU feature is optional and checked per device;
   a game with no dense content runs today's paths and pays for a small library compiled in.
@@ -45,7 +45,7 @@ devices before it was used ([what was checked](#facts-checked)).
 | Ray tracing (scope said Out) | In: ray queries on plain KHR acceleration structures, which lavapipe runs; Mega Geometry an accelerated path on NVIDIA |
 | Windows | Near the end of this development phase ([decisions](decisions.md#build-and-platform)); designed for Linux until then, every dependency chosen portable |
 | What justifies the work | Manifest content: ship and station kits, many instances, dense asteroid meshes (no terrain system) |
-| Anti-aliasing against a visibility buffer | Decided later, before the temporal stage ([J49](roadmap.md#j49)) |
+| Anti-aliasing against a visibility buffer | Temporal AA, replacing MSAA in [J49](roadmap.md#j49) (decided 2026-11-25); the visibility buffer follows in J50 |
 | Ray-traced effects | Sun shadows, local light shadows, ambient occlusion; reflections added at the art team's request |
 | Reflections | Sharp first, with no denoiser; glossy with a denoiser a later stage |
 | Devices without ray queries or mesh shaders | Keep today's paths as their fallback, kept under test |
@@ -380,11 +380,10 @@ flowchart TD
 ### Later, and conditional
 
 - **Temporal foundation** ([J49](roadmap.md#j49)): motion vectors, a frame history and a temporal
-  denoiser ([FidelityFX v1.1.4's](#libraries-samples-and-sdks) first), then glossy reflections and soft shadows on it. Temporal AA would stand on the
-  same history, so **the anti-aliasing decision is due before J49 starts**: keep MSAA, or add
-  temporal AA.
-- **Visibility buffer and software raster** ([J50](roadmap.md#j50)), only if that decision chooses
-  temporal AA: a 64-bit visibility buffer written by atomic max, which is order-independent, a
+  denoiser ([FidelityFX v1.1.4's](#libraries-samples-and-sdks) first), then glossy reflections and soft shadows on it. Temporal AA stands on the
+  same history and replaces MSAA (decided 2026-11-25), so the engine keeps one anti-aliasing path.
+- **Visibility buffer and software raster** ([J50](roadmap.md#j50)), which temporal AA makes
+  possible: a 64-bit visibility buffer written by atomic max, which is order-independent, a
   material resolve, and a compute raster for triangles about a pixel across. A visibility buffer
   gives one sample a pixel, which is why it waits on the decision.
 - **Not planned:** virtual shadow maps, which ray-traced sun shadows replace; the partitioned TLAS
@@ -411,11 +410,11 @@ cross-review). Each stage is usable on its own and ends with the gate green.
 | J46 | Ray-traced ambient occlusion | J42 | 1 week |
 | J47 | Sharp ray-traced reflections | J44 | 2 to 3 weeks |
 | J48 | Mega Geometry | J42, J43 | 2 to 3 weeks |
-| J49 | Temporal foundation, glossy reflections | J47; the anti-aliasing decision | 3 to 5 weeks |
-| J50 | Visibility buffer and software raster | J49, if it chose temporal AA | 6 to 11 weeks |
+| J49 | Temporal foundation and AA, glossy reflections | J47 | 3 to 5 weeks |
+| J50 | Visibility buffer and software raster | J41, J49 | 6 to 11 weeks |
 
 Track A (geometry) is J37 to J43; track B (ray tracing) is J42 and J44 to J47. Both start after J37
-and can alternate. Through J48 is about 6 to 9 months.
+and can alternate. Through J48 is about 6 to 9 months; J49 and J50 about 2 to 4 more.
 
 ```mermaid
 flowchart LR
@@ -426,7 +425,8 @@ flowchart LR
     J37 --> J42
     J42 --> J44 --> J45
     J42 --> J46
-    J44 --> J47 --> J49 -. "temporal AA chosen" .-> J50
+    J44 --> J47 --> J49 --> J50
+    J41 --> J50
     J43 --> J48
     J42 --> J48
 ```
@@ -558,16 +558,16 @@ flowchart LR
 
 ### J49. Temporal foundation and glossy reflections
 
-- **Before it starts.** The user's decision on anti-aliasing: MSAA kept, or temporal AA.
 - **Delivers.** Motion vectors, a frame history, FidelityFX v1.1.4's shadow and reflection
   denoisers (an in-house filter only where they do not fit, the reason recorded), glossy
-  reflections above the cut-off, soft sun shadows; temporal AA if chosen.
+  reflections above the cut-off, soft sun shadows; temporal AA replacing MSAA, its resolve starting
+  from the same release's FSR 3 upscaler sources (MIT, GLSL) run at native scale, as the denoisers
+  do; MSAA and its resolve removed, with the anti-aliasing setting.
 - **Exit criterion.** Reference views after a fixed number of frames; no ghosting across a cut in a
   test sequence.
 
 ### J50. Visibility buffer and software raster
 
-- **Only if** J49's decision chose temporal AA.
 - **Delivers.** The 64-bit visibility buffer, the resolve to depth, stencil, normals and IDs,
   per-material shading of it, the compute raster for small triangles.
 - **Exit criterion.** Reference views identical between hardware and software raster at their
@@ -649,7 +649,8 @@ order, logging each step with the model's name:
 | --- | --- | --- |
 | Ray-tracing geometry coarser than the raster's (the KHR path's cooked level) | Shadow acne, or light leaking at silhouettes | Rays start off the surface by the level's error; Mega Geometry removes the mismatch on NVIDIA |
 | Lavapipe's ray queries are slow | A longer gate | Few, small views; ray-traced effects off by default on a CPU device, as ambient occlusion is |
-| GPU culling's order | Images that change between runs | Compaction in index order; a visibility buffer, if built, is order-independent |
+| GPU culling's order | Images that change between runs | Compaction in index order; the visibility buffer is order-independent |
+| Temporal AA in place of MSAA | Ghosting, blur on thin struts and lines, transparent surfaces with no motion vectors | J49's exit criteria test a cut and a moving strut; reference views taken after a fixed number of frames |
 | Two paths kept in step (meshlets and indexed, rays and cascades) | Drift, a fallback quietly broken | Reference views with each path forced off; the shared GLSL sources and variants |
 | `clusterlod.h` is a demo header, not the library proper | Its API can change between releases | Pinned; wrapped in `geometry`, so one file changes |
 | The cluster extension is NVIDIA's and unratified | It may be replaced by an `EXT` | One builder behind the capability table |

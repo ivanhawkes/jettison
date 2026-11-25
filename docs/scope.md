@@ -199,13 +199,13 @@ How: [rendering](rendering.md), and
 | Atmospheres and rings | In | Scattering shells and rings seen from orbit |
 | Sky | In | A procedural sky of stars, a band and nebula, per scene |
 | Reflections | In | Image-based lighting; ray-traced sharp reflections are open ([J47](roadmap.md#j47)); screen-space reflections are out, needing most of a G-buffer |
-| Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap |
+| Anti-aliasing | In | MSAA on the HDR target today; temporal AA replaces it in [J49](roadmap.md#j49) ([decisions](decisions.md#rendering)) |
 | Colour space | In | Linear workflow, HDR targets and an sRGB swapchain; expensive to retrofit |
 | Triplanar mapping | In | Surfaces without authored texture coordinates |
 | Textures | In | KTX 2 with Basis Universal or BC7 for shipping; stb_image for development; cube maps and arrays are [J27](roadmap.md#j27) |
 | Instancing and levels of detail | In | Draws that share a model, level and material become one instanced draw |
 | Meshlets and GPU-driven drawing | Open | Models cooked into a meshlet hierarchy, culled on the GPU and drawn by mesh shaders, the indexed path the fallback ([J39](roadmap.md#j39), [J40](roadmap.md#j40)) |
-| Visibility buffer, software raster | Deferred | Only if temporal anti-aliasing is chosen before [J49](roadmap.md#j49), since a visibility buffer gives one sample a pixel ([J50](roadmap.md#j50)) |
+| Visibility buffer, software raster | Open | Temporal AA makes one sample a pixel enough ([J50](roadmap.md#j50)) |
 | Virtual shadow maps | Out | Ray-traced sun shadows serve, with the cascades as the fallback |
 | Procedural geometry | In | Spheres, cubes and cube-spheres at levels of detail |
 | Debug draw | In | Lines, boxes and spheres in world space, for any system |

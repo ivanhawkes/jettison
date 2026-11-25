@@ -344,9 +344,9 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 - **A point or spot light casts a shadow only when it opts in** (2026-11-25, the user's), and at most
   a fixed number of a pixel's lights trace one, nearest first, so a scene cannot ask for an unbounded
   cost. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
-- **The anti-aliasing question waits for the temporal stage** (2026-11-25, the user's). A visibility
-  buffer and software raster give one sample a pixel against today's MSAA; whether to add temporal AA
-  is decided before J49, and J50 is built only if it is. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **Temporal AA replaces MSAA** (2026-11-25, the user's), in J49, on the frame history the denoisers
+  need. One anti-aliasing path is kept, not two. It lets the visibility buffer and software raster
+  (J50) in, since they give one sample a pixel. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
 - **Mega Geometry is checked on Lythir, not by the gate** (2026-11-25, the user's). Lavapipe lacks
   the extension, so `scripts/mega-geometry-check.sh` compares the frames with and without it on the
   RTX 5060 Ti before a push that touches it. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
