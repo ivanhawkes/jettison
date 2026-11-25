@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -16,8 +17,12 @@
 #include <vector>
 
 #include <jettison/net/Client.h>
+#include <jettison/net/Key.h>
 #include <jettison/net/Server.h>
 #include <jettison/net/Token.h>
+
+#include "Seal.h"
+#include "Wire.h"
 
 using namespace Jettison::Net;
 using namespace std::chrono_literals;
@@ -52,6 +57,7 @@ struct Fixture
 		config.protocol = "test";
 		config.versions = {2, 3};
 		config.handshakeTimeout = 300ms;
+		config.secretKey = key.secretKey;
 		pServer = std::make_unique<Server>(
 		    config,
 		    [this](SessionId session, std::span<const std::byte> credential)
@@ -69,6 +75,7 @@ struct Fixture
 		ClientConfig config;
 		config.port = pServer->Port();
 		config.protocol = {"test", version};
+		config.serverKey = key.publicKey;
 		config.credential = Bytes(credential);
 		return config;
 	}
@@ -109,6 +116,7 @@ struct Fixture
 	}
 
 
+	ServerKey key = GenerateServerKey();
 	std::unique_ptr<Server> pServer;
 	std::map<SessionId, std::string> actors;
 	std::vector<ServerEvent> serverEvents;
@@ -131,6 +139,203 @@ TEST_CASE("a token matches its own digest and no other")
 	CHECK_FALSE(TokenMatches(GenerateToken(), digest));
 	CHECK_FALSE(TokenMatches(token, digest.substr(1)));
 	CHECK_FALSE(TokenMatches(token, ""));
+}
+
+
+TEST_CASE("a server key's public half is derived from its secret, and a malformed key is refused")
+{
+	const ServerKey key = GenerateServerKey();
+	CHECK(key.publicKey.size() == 64);
+	CHECK(key.secretKey.find_first_not_of("0123456789abcdef") == std::string::npos);
+	CHECK(key.publicKey != key.secretKey);
+	CHECK(GenerateServerKey().secretKey != key.secretKey);
+	CHECK(PublicKeyOf(key.secretKey) == key.publicKey);
+	CHECK_THROWS_AS(PublicKeyOf(key.secretKey.substr(1)), std::invalid_argument);
+	CHECK_THROWS_AS(PublicKeyOf(std::string(64, 'g')), std::invalid_argument);
+
+	ServerConfig server;
+	server.secretKey = "not a key";
+	CHECK_THROWS_AS(
+	    Server(server, [](SessionId, std::span<const std::byte>) { return true; }),
+	    std::invalid_argument);
+	ClientConfig client;
+	client.port = 1;
+	CHECK_THROWS_AS(Client{client}, std::invalid_argument);
+}
+
+
+TEST_CASE("a sealed message opens once, on its own channel, with the other end's keys only")
+{
+	const Seal::KeyPair server;
+	const Seal::KeyPair serverEphemeral;
+	const Seal::KeyPair clientEphemeral;
+	std::optional<Seal::Keys> client =
+	    Seal::Keys::ForClient(clientEphemeral, server.publicKey, serverEphemeral.publicKey);
+	std::optional<Seal::Keys> host =
+	    Seal::Keys::ForServer(server, serverEphemeral, clientEphemeral.publicKey);
+	REQUIRE(client);
+	REQUIRE(host);
+
+	const auto seal = [](Seal::Keys &keys, Channel channel, std::string_view text)
+	{
+		std::vector<std::byte> sealed(text.size() + Seal::kOverhead);
+		std::ranges::copy(Bytes(text), sealed.begin() + Seal::kCounterBytes);
+		REQUIRE(keys.Seal(channel, sealed));
+		return sealed;
+	};
+	const std::vector<std::byte> first = seal(*client, Channel::Unreliable, "credential");
+	CHECK(Text(first).find("credential") == std::string::npos);
+	CHECK_FALSE(client->Open(Channel::Unreliable, first));
+	CHECK_FALSE(host->Open(Channel::Reliable, first));
+	std::vector<std::byte> damaged = first;
+	damaged.back() ^= std::byte{1};
+	CHECK_FALSE(host->Open(Channel::Unreliable, damaged));
+	const std::optional<std::vector<std::byte>> opened = host->Open(Channel::Unreliable, first);
+	REQUIRE(opened);
+	CHECK(Text(*opened) == "credential");
+	CHECK_FALSE(host->Open(Channel::Unreliable, first));
+
+	// The count is shared by both channels, and each channel accepts only what is newer than it has
+	// opened: a late unreliable message is dropped, as the transport drops one.
+	const std::vector<std::byte> late = seal(*client, Channel::Unreliable, "late");
+	const std::vector<std::byte> request = seal(*client, Channel::Reliable, "request");
+	const std::vector<std::byte> newest = seal(*client, Channel::Unreliable, "newest");
+	CHECK(host->Open(Channel::Unreliable, newest));
+	CHECK(host->Open(Channel::Reliable, request));
+	CHECK_FALSE(host->Open(Channel::Unreliable, late));
+	const std::vector<std::byte> answer = seal(*host, Channel::Reliable, "answer");
+	CHECK(Text(*client->Open(Channel::Reliable, answer)) == "answer");
+
+	// A client that pinned another key derives keys of its own. Each is sealed to a server end as
+	// new, so only the key decides: the pinned client's first message opens, the other's does not.
+	const Seal::KeyPair other;
+	std::optional<Seal::Keys> pinned =
+	    Seal::Keys::ForClient(clientEphemeral, server.publicKey, serverEphemeral.publicKey);
+	std::optional<Seal::Keys> astray =
+	    Seal::Keys::ForClient(clientEphemeral, other.publicKey, serverEphemeral.publicKey);
+	std::optional<Seal::Keys> hostOfPinned =
+	    Seal::Keys::ForServer(server, serverEphemeral, clientEphemeral.publicKey);
+	std::optional<Seal::Keys> hostOfAstray =
+	    Seal::Keys::ForServer(server, serverEphemeral, clientEphemeral.publicKey);
+	REQUIRE((pinned && astray && hostOfPinned && hostOfAstray));
+	CHECK(hostOfPinned->Open(Channel::Reliable, seal(*pinned, Channel::Reliable, "hello")));
+	CHECK_FALSE(hostOfAstray->Open(Channel::Reliable, seal(*astray, Channel::Reliable, "hello")));
+	// A point of small order gives no keys.
+	CHECK_FALSE(Seal::Keys::ForServer(server, serverEphemeral, Seal::Key{}));
+}
+
+
+TEST_CASE("the last counter is sealed and opened once, and then nothing more is sealed")
+{
+	const Seal::KeyPair server;
+	const Seal::KeyPair serverEphemeral;
+	const Seal::KeyPair clientEphemeral;
+	std::optional<Seal::Keys> client =
+	    Seal::Keys::ForClient(clientEphemeral, server.publicKey, serverEphemeral.publicKey);
+	std::optional<Seal::Keys> host =
+	    Seal::Keys::ForServer(server, serverEphemeral, clientEphemeral.publicKey);
+	REQUIRE((client && host));
+	client->SendFrom(std::numeric_limits<std::uint64_t>::max() - 1);
+	std::vector<std::byte> penultimate(Seal::kOverhead);
+	std::vector<std::byte> last(Seal::kOverhead);
+	std::vector<std::byte> more(Seal::kOverhead);
+	REQUIRE(client->Seal(Channel::Unreliable, penultimate));
+	REQUIRE(client->Seal(Channel::Unreliable, last));
+	CHECK_FALSE(client->Seal(Channel::Unreliable, more));
+	CHECK(host->Open(Channel::Unreliable, penultimate));
+	CHECK(host->Open(Channel::Unreliable, last));
+	CHECK_FALSE(host->Open(Channel::Unreliable, last));
+	CHECK_FALSE(host->Open(Channel::Unreliable, penultimate));
+}
+
+
+// A server that does not hold the pinned key, answering a real client: one offers the pinned public
+// key as its own fresh one, which would leave the hello sealed by the server's secret alone, and one
+// offers a fresh key with a proof sealed by a key pair of its own. Neither is sent a hello.
+TEST_CASE("a client sends no hello to a server whose offer does not prove the pinned key")
+{
+	REQUIRE(enet_initialize() == 0);
+	ENetAddress listen{};
+	REQUIRE(enet_address_set_host_ip(&listen, "127.0.0.1") == 0);
+	ENetHost *pImpostor = enet_host_create(&listen, 4, 2, 0, 0);
+	REQUIRE(pImpostor != nullptr);
+	const ServerKey pinned = GenerateServerKey();
+	const std::optional<Seal::Key> pinnedKey = Seal::ParseKey(pinned.publicKey);
+	REQUIRE(pinnedKey);
+	const Seal::KeyPair own;
+	ClientConfig config;
+	config.port = pImpostor->address.port;
+	config.protocol = {"test", 3};
+	config.serverKey = pinned.publicKey;
+	config.credential = Bytes("good");
+	Client mirrored{config};
+	Client proved{config};
+
+	std::map<ENetPeer *, int> received;
+	ENetPeer *pMirrored = nullptr;
+	std::vector<std::optional<Seal::Keys>> kept;
+	std::map<Client *, std::optional<Reason>> closed;
+	const auto deadline = std::chrono::steady_clock::now() + 2s;
+	while (!closed[&mirrored] || !closed[&proved])
+	{
+		REQUIRE(std::chrono::steady_clock::now() < deadline);
+		ENetEvent event{};
+		while (enet_host_service(pImpostor, &event, 1) > 0)
+		{
+			if (event.type != ENET_EVENT_TYPE_RECEIVE)
+				continue;
+			if (++received[event.peer] == 1)
+			{
+				const std::optional<Wire::Offer> offer = Wire::ReadOffer(*event.packet);
+				REQUIRE(offer);
+				if (pMirrored == nullptr)
+				{
+					pMirrored = event.peer;
+					std::vector<std::byte> proof(Seal::kOverhead + 2);
+					ENetPacket *pOffer = Wire::MakeOffer(*pinnedKey);
+					const std::size_t length = pOffer->dataLength;
+					REQUIRE(enet_packet_resize(pOffer, length + proof.size()) == 0);
+					std::ranges::copy(proof, reinterpret_cast<std::byte *>(pOffer->data) + length);
+					enet_peer_send(event.peer, 0, pOffer);
+				}
+				else
+				{
+					const Seal::KeyPair ephemeral;
+					kept.push_back(Seal::Keys::ForServer(own, ephemeral, offer->key));
+					REQUIRE(kept.back());
+					enet_peer_send(event.peer, 0, Wire::MakeOffer(ephemeral.publicKey, *kept.back()));
+				}
+			}
+			enet_packet_destroy(event.packet);
+		}
+		for (Client *pClient : {&mirrored, &proved})
+			for (const ClientEvent &clientEvent : pClient->Poll())
+				if (clientEvent.type == ClientEvent::Type::Closed)
+					closed[pClient] = clientEvent.reason;
+	}
+	CHECK(*closed[&mirrored] == Reason::KeyMismatch);
+	CHECK(*closed[&proved] == Reason::KeyMismatch);
+	// Each sent its offer and nothing after it.
+	CHECK(received.size() == 2);
+	for (const auto &[peer, count] : received)
+		CHECK(count == 1);
+	enet_host_destroy(pImpostor);
+}
+
+
+TEST_CASE("a client that pinned another server's key is refused before its credential is judged")
+{
+	Fixture fixture;
+	ClientConfig config = fixture.Config();
+	config.serverKey = GenerateServerKey().publicKey;
+	Client astray{config};
+	CHECK(fixture.ClosedWith(astray) == Reason::KeyMismatch);
+	CHECK(fixture.actors.empty());
+	CHECK(fixture.serverEvents.empty());
+	CHECK(ReasonName(Reason::KeyMismatch) == "key mismatch");
+
+	Client pinned{fixture.Config()};
+	fixture.Until([&] { return pinned.Admitted(); }, {&pinned});
 }
 
 
@@ -331,6 +536,83 @@ TEST_CASE("a message several datagrams long arrives whole on either channel")
 	    },
 	    {&client});
 	CHECK(received->body == request);
+}
+
+
+// A peer that is not this engine's client: it records its own sealed hello, then offers the same key
+// on a second connection and replays the hello there, as someone who copied it off the wire would.
+TEST_CASE("a hello recorded on one connection does not open on another")
+{
+	Fixture fixture;
+	REQUIRE(enet_initialize() == 0);
+	ENetHost *pHost = enet_host_create(nullptr, 2, 2, 0, 0);
+	REQUIRE(pHost != nullptr);
+	ENetAddress address{};
+	REQUIRE(enet_address_set_host_ip(&address, "127.0.0.1") == 0);
+	address.port = fixture.pServer->Port();
+	const std::optional<Seal::Key> serverKey = Seal::ParseKey(fixture.key.publicKey);
+	REQUIRE(serverKey);
+	const Seal::KeyPair ephemeral;
+	std::optional<Seal::Keys> keys;
+	std::vector<std::byte> recorded;
+	bool welcomed = false;
+	std::optional<enet_uint32> replayClosed;
+	ENetPeer *pFirst = enet_host_connect(pHost, &address, 2, 0);
+	ENetPeer *pSecond = nullptr;
+
+	const auto take = [&](const ENetEvent &event)
+	{
+		if (event.peer == pFirst && !keys)
+		{
+			const std::optional<Wire::Offer> offer = Wire::ReadOffer(*event.packet);
+			REQUIRE(offer);
+			keys = Seal::Keys::ForClient(ephemeral, *serverKey, offer->key);
+			REQUIRE(keys);
+			REQUIRE(keys->Open(Channel::Reliable, offer->proof));
+			ENetPacket *pHello = Wire::MakePacket(
+			    *keys, Channel::Reliable, static_cast<MessageKind>(Wire::EngineKind::Hello),
+			    Wire::EncodeHello({"test", 3, Bytes("good")}), Limits{}.maxMessageBytes);
+			REQUIRE(pHello != nullptr);
+			const auto *pData = reinterpret_cast<const std::byte *>(pHello->data);
+			recorded.assign(pData, pData + pHello->dataLength);
+			REQUIRE(enet_peer_send(pFirst, 0, pHello) == 0);
+		}
+		else if (event.peer == pFirst && pSecond == nullptr)
+		{
+			const std::optional<std::vector<std::byte>> welcome =
+			    Wire::Open(*keys, Channel::Reliable, *event.packet);
+			welcomed = welcome && Wire::ReadMessage(*welcome)->kind ==
+			                          static_cast<MessageKind>(Wire::EngineKind::Welcome);
+			pSecond = enet_host_connect(pHost, &address, 2, 0);
+		}
+		else if (event.peer == pSecond)
+			enet_peer_send(
+			    pSecond, 0,
+			    enet_packet_create(recorded.data(), recorded.size(), ENET_PACKET_FLAG_RELIABLE));
+	};
+	fixture.Until(
+	    [&]
+	    {
+		    ENetEvent event{};
+		    while (enet_host_service(pHost, &event, 0) > 0)
+		    {
+			    if (event.type == ENET_EVENT_TYPE_CONNECT)
+				    enet_peer_send(event.peer, 0, Wire::MakeOffer(ephemeral.publicKey));
+			    if (event.type == ENET_EVENT_TYPE_RECEIVE)
+			    {
+				    take(event);
+				    enet_packet_destroy(event.packet);
+			    }
+			    if (event.type == ENET_EVENT_TYPE_DISCONNECT && event.peer == pSecond)
+				    replayClosed = event.data;
+		    }
+		    return replayClosed.has_value();
+	    },
+	    {});
+	CHECK(welcomed);
+	CHECK(*replayClosed == static_cast<enet_uint32>(Reason::KeyMismatch));
+	CHECK(fixture.actors.size() == 1);
+	enet_host_destroy(pHost);
 }
 
 

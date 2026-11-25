@@ -7,8 +7,8 @@ knows nothing of what the messages mean: the protocol, the accounts, and what a 
 see stay in the game.
 
 One stack, ENet over UDP, single-threaded and polled, serves an idle game's occasional requests and
-a real-time game's stream of inputs and snapshots. It is plaintext for now, so a game hosts on
-loopback or a trusted network until encryption lands ([J01](roadmap.md#j01)).
+a real-time game's stream of inputs and snapshots. Every message is sealed to keys the handshake
+makes with the server's key, which the client pins, so a game may host on an open network.
 
 ## Concepts
 
@@ -17,6 +17,7 @@ loopback or a trusted network until encryption lands ([J01](roadmap.md#j01)).
 | Server | `Net::Server`: listens on one IPv4 address and port, admits clients and queues their messages. |
 | Client | `Net::Client`: one connection to a server. It connects as it is made and is spent once closed; to reconnect, make another. |
 | Net session | One connection on the server, named by a `SessionId`. Ids count up from 1 and are never reused, so a reconnection is a new session. It is not a [host session](glossary.md#session) (`Host::Session`, a running world). |
+| Server key | The server's key pair (`Net::ServerKey`): the secret stays with the server, and every client pins the public half. |
 | Protocol | The game's name for its protocol and a version number (`Net::Protocol`). A server lists the versions it accepts. A message's shape changing is a new version. |
 | Credential | Bytes the client sends in its hello, opaque to the engine. Usually a bearer token. |
 | Verifier | The game's function that judges a credential and admits or refuses the session. It records whom the session stands for, the game's *actor*. |
@@ -36,10 +37,11 @@ loopback or a trusted network until encryption lands ([J01](roadmap.md#j01)).
 | `ServerFull` | `maxSessions` are already admitted. |
 | `BadCredential` | The verifier refused the credential. |
 | `HandshakeTimeout` | No hello within `handshakeTimeout` (2 s) of connecting. |
-| `BadMessage` | Anything but a hello before admission, a hello that does not decode, or a message of an engine kind. |
+| `BadMessage` | Anything but an offer and then a hello before admission, a hello that does not decode, a packet that does not open after admission, or a message of an engine kind. |
 | `InboundOverflow` | A message arrived while `maxInbound` were already waiting for the game. |
 | `Revoked` | The game closed the session because its credential was withdrawn. |
 | `Shutdown` | The game closed the session, or destroyed the server, because the server is stopping. |
+| `KeyMismatch` | The client's hello was not sealed to the server's key: it pinned another server's. The client also closes so when the server's proof, or its welcome, does not open: a server that does not hold the key it pinned. |
 
 ## How it works
 
@@ -78,15 +80,17 @@ The client is the same: `Client::Poll` returns `ClientEvent`s (`Admitted`, `Mess
 
 ### The handshake
 
-A connection carries nothing but a hello until it is admitted. This diagram shows a connection's
+A connection carries nothing but the offers and a hello until it is admitted. This diagram shows a connection's
 life on the server:
 
 ```mermaid
 stateDiagram-v2
     [*] --> Pending: ENet connects
-    Pending --> Refused: anything but a hello (BadMessage)
+    Pending --> Refused: anything but an offer (BadMessage)
+    Pending --> Offered: offer, answered with the server's and its proof
+    Offered --> Refused: a hello that does not open (KeyMismatch)
     Pending --> Refused: no hello in time (HandshakeTimeout)
-    Pending --> Checking: hello
+    Offered --> Checking: hello
     Checking --> Refused: UnknownProtocol, VersionMismatch, ServerFull, BadCredential
     Checking --> Admitted: verifier says yes, welcome sent
     Admitted --> Closed: client closes or times out (Closed)
@@ -97,14 +101,29 @@ stateDiagram-v2
     Closed --> [*]
 ```
 
-The client sends its hello as soon as ENet connects. The hello is a binary archive, format
-`jettison.hello` version 1, of the protocol's name, its version and the credential. The server
-checks, in this order:
+As soon as ENet connects, the client sends its *offer*, a fresh Curve25519 key, and the server
+answers with one of its own. Each end then derives the connection's keys, one for each direction,
+from two exchanges: the client's key with the server's own key, which the client pinned, and with
+the server's fresh one. The first means only the holder of the server's secret can open what the
+client seals; the second means a server's secret taken later opens no recorded connection, since
+both fresh secrets are wiped once the keys are made.
 
-1. the protocol's name;
-2. the version, against `ServerConfig::versions`;
-3. that fewer than `maxSessions` are admitted;
-4. the game's verifier, called once per session inside `Poll`.
+The server's offer carries a *proof*: a message with no body sealed with the connection's keys,
+which only the holder of the pinned secret can make. The client checks it before it sends anything
+more, and closes as `KeyMismatch` if it does not open. Without it, a server that did not hold the
+key could offer the pinned public key as its fresh one, and the hello it was sent would be sealed by
+the server's secret alone, to be opened by whoever took that secret later.
+
+Once the proof opens, the client sends its hello, sealed. It is a binary archive, format `jettison.hello` version 1,
+of the protocol's name, its version and the credential, so the credential never crosses the network
+in the clear. The hello's keys depend on the server's fresh key, so a hello recorded and replayed
+on another connection does not open. The server checks, in this order:
+
+1. that the hello opens, or the client pinned another key;
+2. the protocol's name;
+3. the version, against `ServerConfig::versions`;
+4. that fewer than `maxSessions` are admitted;
+5. the game's verifier, called once per session inside `Poll`.
 
 Each refusal closes the connection with its reason, which ENet's disconnect carries, so the client
 reads it in its `Closed` event. A refusal raises no `ServerEvent`: the
@@ -113,9 +132,23 @@ accept a game's message.
 
 ### The wire
 
-A packet is its kind, two bytes little-endian, then its body. A snapshot's body begins with the
-step it was taken at, eight bytes little-endian. Kinds from `kFirstEngineKind` (`0xFF00`) up
-are the engine's own: the hello, the welcome and the snapshot. Neither end sends a game's message
+A message is its kind, two bytes little-endian, then its body. A snapshot's body begins with the
+step it was taken at, eight bytes little-endian. Every message is sealed: the packet is a counter,
+eight bytes little-endian, then the message under XChaCha20-Poly1305 with the counter as its nonce
+and the channel as additional data, 24 bytes more than the message. Only the two offers go
+unsealed, each a kind and a 32-byte key. The server's is followed by its proof, a sealed message of
+the offer's kind with no body, on the reliable channel at counter 0: 26 bytes, 60 for the whole
+offer. Each end counts what it sends over both channels, and accepts on each channel only a counter
+above the last it opened there, so a packet replayed, moved to the other channel, damaged or forged
+is not opened. One that does not open closes an admitted session on the server (`BadMessage`) and is
+dropped by a client. The largest counter is sealed once and then nothing more is, so neither count
+wraps round to a nonce already used.
+
+ENet's own headers, its sequence numbers, acknowledgements and closings, are not sealed. Someone
+on the path can therefore close a connection, and the reason a closing gives is not proved to be
+the other end's; they cannot read a message or make one that opens. Kinds from
+`kFirstEngineKind` (`0xFF00`) up are the engine's own: the hello, the welcome, the snapshot and the
+offer. Neither end sends a game's message
 of one of those kinds (`Send` returns false), and a server closes a session that does
 (`BadMessage`). Changing any of this breaks every client of an earlier build.
 
@@ -135,11 +168,12 @@ and `Limits`, which both ends have:
 | `handshakeTimeout` | 2 s | Time from connecting to the hello. |
 | `maxInbound` | 256 | Messages a session may have waiting for `Receive`. One more closes it as `InboundOverflow`. |
 | `snapshotInterval` | 100 ms | The least time between two snapshots to one session. |
-| `Limits::maxMessageBytes` | 64 KiB | A whole message, kind and snapshot step included. |
+| `Limits::maxMessageBytes` | 64 KiB | A whole message before it is sealed, kind and snapshot step included. |
 | `Limits::timeout` | 5 s | Silence from a peer before it is closed. |
 
 A message is one ENet packet, which ENet splits into datagrams and reassembles, so
-`maxMessageBytes` bounds the whole message. ENet drops a longer packet before it is reassembled
+`maxMessageBytes` bounds the whole message; the packet is the 24 bytes of its seal longer, and ENet's
+limit is set to match. ENet drops a longer packet before it is reassembled
 (its `maximumPacketSize`), and `Send` refuses to make one. A peer that sends an oversize reliable
 packet therefore stalls its own reliable channel until it times out, rather than being closed with
 a reason.
@@ -173,6 +207,26 @@ A server that must deliver its last messages disconnects each session, then poll
 `Closing()` is false or a deadline of its own passes, and only then is destroyed: polling, not a
 blocking shutdown, because the game owns the loop.
 
+### Keys
+
+`Net::GenerateServerKey` makes a server's key pair, each key 64 lower-case hex characters, and
+`Net::PublicKeyOf` gives the public half of a secret one. The server is given the secret
+(`ServerConfig::secretKey`) and every client the public half (`ClientConfig::serverKey`); either
+end refuses a key that is not 64 hex characters as `std::invalid_argument` when it is made.
+
+The engine wipes the secrets it keeps once they are spent: the server's text of its secret key once
+read, each fresh key once the connection's keys are made, the credential once the hello is sealed,
+once it is judged and when a client is destroyed, and a connection's keys when it closes. A message
+is written into its packet and sealed there, so its plain text is not copied. That narrows what a
+later look at the process's memory could find; it does not close it. The hello is encoded by the
+binary archive, whose working buffers, and any buffer a growing vector leaves behind, go back to
+the allocator unwiped, and the engine does not lock its memory against swap. The caller's own
+copies of its keys and credentials are its own. Where
+the keys are kept and how a client is given its server's is the game's: a file the operator keeps
+private, and the public half in the client's configuration or its build. A secret lost or leaked is
+a new pair, and every client given the new public half, since a client connects only to the key it
+pinned.
+
 ### Tokens
 
 `Net::GenerateToken` gives a new bearer token from libsodium's random source. `Net::DigestToken`
@@ -185,9 +239,10 @@ Reason::Revoked)`.
 ## Using it
 
 The [consumer project](sample-game.md#the-consumer-project), `source/test/consumer/main.cpp`, serves
-a small race game over loopback. Its server admits by token, and the verifier records the actor:
+a small race game over loopback. Its server holds a key its players pin, admits by token, and the verifier records the actor:
 
 ```cpp
+const Net::ServerKey key = Net::GenerateServerKey();
 const std::string hareToken = Net::GenerateToken();
 const std::map<std::string, std::string> digests{{Net::DigestToken(hareToken), "hare"}};
 std::map<Net::SessionId, std::string> actors;
@@ -195,6 +250,7 @@ Net::ServerConfig config;
 config.protocol = "race";
 config.versions = {kVersion};
 config.maxInbound = 2;
+config.secretKey = key.secretKey;
 Net::Server server{
     config, [&](Net::SessionId session, std::span<const std::byte> credential)
     {
@@ -210,13 +266,14 @@ Net::Server server{
     }};
 ```
 
-A client names the port, the protocol and its credential, then polls until it is admitted or
-closed. `port` 0 on the server took an ephemeral one, which `Server::Port` reports:
+A client names the port, the protocol, the server's public key and its credential, then polls
+until it is admitted or closed. `port` 0 on the server took an ephemeral one, which `Server::Port` reports:
 
 ```cpp
 Net::ClientConfig player;
 player.port = server.Port();
 player.protocol = {"race", kVersion};
+player.serverKey = key.publicKey;
 player.credential = Bytes(hareToken);
 Net::Client client{player};
 // Poll both ends until client.Admitted(), or a Closed event gives the reason it was refused.
@@ -266,8 +323,12 @@ network contract](../../manifest/docs/server.md).
 
 ## Limits and open work
 
-- Encryption: a key exchange in the hello with the server's key pinned, then every packet sealed,
-  before a game hosts outside a trusted network ([J01](roadmap.md#j01)).
+- ENet's headers are not sealed, so someone on the path can close a connection, with any reason
+  (above).
+- Secrets are wiped where the engine keeps them, not in the serialiser's or the allocator's spent
+  buffers (above).
+- One key a server, pinned: changing it means giving every client the new one. A long-lived key that
+  signs the server's working keys is not provisioned.
 - Who a script's commands are sent as, when several players share a server ([J02](roadmap.md#j02)).
 - No IPv6: ENet 1.3 does not have it.
 - No deltas against an acknowledged snapshot, so an unreliable view must fit in 256 KiB (above).
@@ -288,8 +349,10 @@ The settled choices are in [decisions](decisions.md#networking); the scope's ver
   - `include/jettison/net/Server.h`: `Server`, `ServerConfig`, `ServerEvent`, `Verifier`,
     `SnapshotView`.
   - `include/jettison/net/Client.h`: `Client`, `ClientConfig`, `ClientEvent`.
+  - `include/jettison/net/Key.h`: `ServerKey`, `GenerateServerKey`, `PublicKeyOf`.
   - `include/jettison/net/Token.h`: `GenerateToken`, `DigestToken`, `TokenMatches`.
-  - `src/Wire.h`: the packet layout and the hello's encoding.
+  - `src/Seal.h`: the key exchange and the sealed packet, on libsodium.
+  - `src/Wire.h`: the packet layout, the offers and the hello's encoding.
 - `source/engine/net/tests/NetTests.cpp`: the `net` suite over loopback, including a raw ENet
   peer that is not the engine's client.
 - `source/test/consumer/main.cpp`: the independent consumer's served race.

@@ -2,12 +2,13 @@
 // public host and run through its whole life: definitions, commands, fixed steps, a save, a load
 // and teardown. The world holds one component, Token, and the game registers no transform, galaxy
 // or star system. Then it serves the race over loopback: players with bearer tokens, refused for a
-// bad token, a wrong version and a flood, reconnecting, placing their pieces by request and seeing
-// only their own in a snapshot. It exits non-zero at the first check that fails.
+// bad token, a wrong version, another server's key and a flood, reconnecting, placing their pieces by
+// request and seeing only their own in a snapshot. It exits non-zero at the first check that fails.
 #include <jettison/core/Assert.h>
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/host/Session.h>
 #include <jettison/net/Client.h>
+#include <jettison/net/Key.h>
 #include <jettison/net/Server.h>
 #include <jettison/net/Token.h>
 #include <jettison/reflect/Reflect.h>
@@ -222,8 +223,10 @@ int Serve()
 	Sim::SimWorld &world = pSession->World();
 	world.Commands().Push(Place{"tortoise"});
 
-	// The operator issued the hare's player a token and kept its digest; the session's actor is
-	// the verifier's to record, so no request names a piece.
+	// The operator made the server's key and gave its players the public half to pin, then issued
+	// the hare's player a token and kept its digest; the session's actor is the verifier's to
+	// record, so no request names a piece.
+	const Net::ServerKey key = Net::GenerateServerKey();
 	const std::string hareToken = Net::GenerateToken();
 	const std::map<std::string, std::string> digests{{Net::DigestToken(hareToken), "hare"}};
 	std::map<Net::SessionId, std::string> actors;
@@ -231,6 +234,7 @@ int Serve()
 	config.protocol = "race";
 	config.versions = {kVersion};
 	config.maxInbound = 2;
+	config.secretKey = key.secretKey;
 	Net::Server server{
 	    config, [&](Net::SessionId session, std::span<const std::byte> credential)
 	    {
@@ -248,6 +252,14 @@ int Serve()
 	Net::ClientConfig player;
 	player.port = server.Port();
 	player.protocol = {"race", kVersion};
+	player.serverKey = Net::GenerateServerKey().publicKey;
+	player.credential = Bytes(hareToken);
+	Net::Client astray{player};
+	if (!Expect(
+	        ClosedWith(server, astray) == Net::Reason::KeyMismatch,
+	        "a client pinning another server's key was not refused"))
+		return 1;
+	player.serverKey = key.publicKey;
 	player.credential = Bytes(Net::GenerateToken());
 	Net::Client impostor{player};
 	if (!Expect(

@@ -4,7 +4,8 @@
 
 #include <array>
 #include <span>
-#include <stdexcept>
+
+#include "Seal.h"
 
 namespace Jettison::Net
 {
@@ -16,31 +17,16 @@ constexpr std::size_t kDigestBytes = crypto_generichash_BYTES;
 static_assert(kDigestBytes == 32);
 
 
-void StartSodium()
-{
-	static const bool started = []
-	{
-		if (sodium_init() < 0)
-			throw std::runtime_error("net: libsodium did not initialise");
-		return true;
-	}();
-	(void)started;
-}
-
-
 std::string Hex(std::span<const unsigned char> bytes)
 {
-	std::string text(bytes.size() * 2 + 1, '\0');
-	sodium_bin2hex(text.data(), text.size(), bytes.data(), bytes.size());
-	text.pop_back();
-	return text;
+	return Seal::Hex(std::as_bytes(bytes));
 }
 } // namespace
 
 
 std::string GenerateToken()
 {
-	StartSodium();
+	Seal::StartSodium();
 	std::array<unsigned char, kTokenBytes> bytes{};
 	randombytes_buf(bytes.data(), bytes.size());
 	std::string token = Hex(bytes);
@@ -51,7 +37,7 @@ std::string GenerateToken()
 
 std::string DigestToken(std::string_view token)
 {
-	StartSodium();
+	Seal::StartSodium();
 	std::array<unsigned char, kDigestBytes> digest{};
 	crypto_generichash(
 	    digest.data(), digest.size(), reinterpret_cast<const unsigned char *>(token.data()),

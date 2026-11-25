@@ -186,7 +186,7 @@ engine is in [game integration](game-integration.md).
 `source/test/consumer` is that build at its smallest: the engine's independent
 [consumer](glossary.md#consumer) of the CPU engine, a race game with nothing of space in it, run
 through `Host::Session` and served over loopback by `Net::Server`, where a bad token, a wrong
-version and a flood are refused ([samples](sample-game.md#the-consumer-project)). It is not in the
+version, another server's key and a flood are refused ([samples](sample-game.md#the-consumer-project)). It is not in the
 gate, because it fetches and compiles the dependency set a second time. Run it when the module
 layout, the host or the public interface changes:
 

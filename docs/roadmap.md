@@ -30,11 +30,9 @@ it, and an item done or dropped leaves its number unused.
 Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifest now builds against
 `70cd4de`, the docs review's head; the four gaps its Stage 5 cross-review found were provisioned
 by `459af99` and the commit before it ([history](history.md)). Its later work waits until the user
-has played its first loop for a day or two. One delivery is open:
-
-| Delivery | Needed by | Exit criterion |
-| --- | --- | --- |
-| [J01. Encryption](#j01) | Manifest, before it hosts outside a trusted network ([D-081](../../manifest/docs/decision-ledger.md#d-081)) | A key exchange in the hello, with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links. A client with the wrong key is refused. The `net` suite and the consumer project run sealed. |
+has played its first loop for a day or two. No delivery is open: encryption, J01, is done
+([history](history.md)), and Manifest's adoption of it, its server's key in a file and the public
+half in its test builds' client configuration, is Manifest's.
 
 ## Waiting on you
 
@@ -52,22 +50,6 @@ order above, the most pressing first within a tier. Each says what remains, why 
 matters, what already exists, and which document describes the feature.
 
 ## Tier 1: what saves and the step's interface hold
-
-<a id="j01"></a>
-### J01. Encryption
-
-**What remains.** The [current delivery](#current-deliveries)'s exit criterion.
-
-**Why.** Connections are plaintext, which is fine on loopback or a LAN, but a bearer token crossing
-an open network can be read and reused. Manifest's
-[D-081](../../manifest/docs/decision-ledger.md#d-081) chose libsodium for this, not TLS, which does
-not run over UDP.
-
-**What exists.** `Net::Server` and `Net::Client` on ENet over UDP, plaintext
-(`source/engine/net/include/jettison/net/Server.h`). Bearer tokens on libsodium: the server keeps
-only each token's BLAKE2b digest (`net/Token.h`). The `net` module links libsodium already.
-
-**Feature doc:** [networking](networking.md).
 
 <a id="j02"></a>
 ### J02. Who a script commands as, under networked play

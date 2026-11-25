@@ -18,7 +18,11 @@ struct ClientConfig
 	std::string address{"127.0.0.1"};
 	std::uint16_t port{};
 	Protocol protocol;
-	// Opaque to the engine: what the server's verifier is given.
+	// The server's public key (Key.h), pinned: a server that cannot open the hello sealed to it
+	// refuses as KeyMismatch. An offer whose proof was not sealed by the key's holder closes the client
+	// so before the credential is sent, and a welcome not sealed by it closes the client so too.
+	std::string serverKey;
+	// Opaque to the engine: what the server's verifier is given, sealed.
 	std::vector<std::byte> credential;
 	Limits limits;
 };
@@ -47,7 +51,8 @@ struct ClientEvent
 class Client
 {
   public:
-	// Throws std::runtime_error when the address does not resolve.
+	// Throws std::invalid_argument for a server key that is not one, std::runtime_error when the
+	// address does not resolve.
 	explicit Client(ClientConfig config);
 
 	~Client();

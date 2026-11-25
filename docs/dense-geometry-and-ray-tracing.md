@@ -668,7 +668,6 @@ order, logging each step with the model's name:
 
 | Item | How |
 | --- | --- |
-| [J01](roadmap.md#j01) | None. This track waits until the user schedules it. |
 | [J05](roadmap.md#j05) | A mod's models are cooked with the shipped `jettison_cook`, or draw on the indexed path. The page file is stored in packs as it is. |
 | [J12](roadmap.md#j12) | Relies on it: `geometry` reads a model's triangles and simplifies them, which leaves J12 small after J37. |
 | [J13](roadmap.md#j13) | Interferes: streaming (J43) changes the model cache. J13 is best done before J43, or within it. |

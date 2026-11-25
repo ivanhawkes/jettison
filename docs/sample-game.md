@@ -103,7 +103,7 @@ Its scenes are the [reference frames](build-and-gates.md#reference-frames) liste
 `source/test/consumer` is the smallest game build: a separate CMake project that fetches the engine
 with presentation off and Vulkan refused. It runs a race with nothing of space in it through
 `Host::Session`: definitions, commands, steps, a save, a load and teardown. Then it serves the race
-over loopback through `Net::Server`, with bearer tokens. Its composition is shown in [a game on the
+over loopback through `Net::Server`, with bearer tokens, sealed to its server's pinned key. Its composition is shown in [a game on the
 host](simulation.md#a-game-on-the-host); how to run it is in [the consumer
 check](build-and-gates.md#the-consumer-check).
 

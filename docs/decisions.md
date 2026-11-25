@@ -281,10 +281,19 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   idle game's requests and a real-time game's inputs and snapshots; TCP would serve only the first,
   TLS does not run over UDP, and yojimbo's connect tokens would shape the game's accounts. The
   engine runs the handshake and asks the game's verifier, checks tokens against digests, frames and
-  bounds messages, and sends each session the newest snapshot at a bounded rate. Connections are
-  plaintext until libsodium encryption ([J01](roadmap.md#j01)); libsodium is fetched and built
-  static, through robinlinden's CMake build, since nixpkgs ships it shared only.
+  bounds messages, and sends each session the newest snapshot at a bounded rate. libsodium is
+  fetched and built static, through robinlinden's CMake build, since nixpkgs ships it shared only.
   [Networking](networking.md)
+- **A pinned server key, ephemeral keys each side, and the credential sent after both** (2026-11-26,
+  J01). The client pins the server's public key, so no certificate or authority is needed; the
+  connection's keys mix the client's fresh key with the server's own and with the server's fresh
+  one, so a server key stolen later opens no recorded connection. The hello, with its credential,
+  goes after the server's fresh key and its proof, a round trip later than sealing it to the
+  server's key alone would: a recorded hello replayed on a new connection does not open and cannot
+  hold one of an actor's sessions, and no credential is sent to a server that has not shown it holds
+  the pinned key now, which an offer of the pinned public key as a fresh one would otherwise get. Messages are sealed above ENet, whose headers stay plain: an attacker on the
+  path can close a connection, as one can a TCP connection under TLS, but not read or forge a
+  message. [Networking](networking.md)
 
 ## Rendering
 

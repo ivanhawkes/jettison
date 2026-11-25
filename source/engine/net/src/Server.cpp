@@ -31,6 +31,8 @@ struct Server::Impl
 		SessionId id{};
 		ENetPeer *pPeer = nullptr;
 		bool admitted = false;
+		// From the client's offer on.
+		std::optional<Seal::Keys> keys;
 		Clock::time_point connectedAt;
 		std::optional<Clock::time_point> lastSnapshot;
 		std::deque<Message> inbound;
@@ -38,11 +40,13 @@ struct Server::Impl
 
 	ServerConfig config;
 	Verifier verifier;
+	std::optional<Seal::KeyPair> key;
 	ENetHost *pHost = nullptr;
 	// A session's peer points back at its node, which the map never moves.
 	std::map<SessionId, Session> sessions;
 	std::uint32_t nextId = 1;
 	std::size_t admittedCount = 0;
+
 
 	Session *Find(SessionId id, bool admitted)
 	{
@@ -68,22 +72,19 @@ struct Server::Impl
 	}
 
 
-	void Greet(Session &session, std::span<const std::byte> body, std::vector<ServerEvent> &events)
+	void Greet(Session &session, const Wire::Hello &hello, std::vector<ServerEvent> &events)
 	{
-		const std::optional<Wire::Hello> hello = Wire::DecodeHello(body);
-		if (!hello)
-			return Close(session, Reason::BadMessage, nullptr);
-		if (hello->protocol != config.protocol)
+		if (hello.protocol != config.protocol)
 			return Close(session, Reason::UnknownProtocol, nullptr);
-		if (std::ranges::find(config.versions, hello->version) == config.versions.end())
+		if (std::ranges::find(config.versions, hello.version) == config.versions.end())
 			return Close(session, Reason::VersionMismatch, nullptr);
 		if (admittedCount >= config.maxSessions)
 			return Close(session, Reason::ServerFull, nullptr);
-		if (!verifier(session.id, hello->credential))
+		if (!verifier(session.id, hello.credential))
 			return Close(session, Reason::BadCredential, nullptr);
 
 		ENetPacket *pWelcome = Wire::MakePacket(
-		    Channel::Reliable, static_cast<MessageKind>(Wire::EngineKind::Welcome), {},
+		    *session.keys, Channel::Reliable, static_cast<MessageKind>(Wire::EngineKind::Welcome), {},
 		    config.limits.maxMessageBytes);
 		if (pWelcome == nullptr || !Wire::SendPacket(session.pPeer, Channel::Reliable, pWelcome))
 			return Close(session, Reason::Closed, nullptr);
@@ -93,19 +94,51 @@ struct Server::Impl
 	}
 
 
+	// Answers the client's offer with the server's own, an ephemeral key wiped as it goes out of
+	// scope, so a secret key taken later opens no recorded session.
+	void Answer(Session &session, const ENetPacket &packet)
+	{
+		const std::optional<Wire::Offer> offer = Wire::ReadOffer(packet);
+		if (!offer || !offer->proof.empty())
+			return Close(session, Reason::BadMessage, nullptr);
+		const Seal::KeyPair ephemeral;
+		session.keys = Seal::Keys::ForServer(*key, ephemeral, offer->key);
+		if (!session.keys)
+			return Close(session, Reason::BadMessage, nullptr);
+		ENetPacket *pOffer = Wire::MakeOffer(ephemeral.publicKey, *session.keys);
+		if (pOffer == nullptr || !Wire::SendPacket(session.pPeer, Channel::Reliable, pOffer))
+			Close(session, Reason::Closed, nullptr);
+	}
+
+
 	void Take(Session &session, const ENetEvent &event, std::vector<ServerEvent> &events)
 	{
 		const std::optional<Channel> channel = Wire::ChannelOf(event.channelID);
-		const std::optional<Wire::Received> received = Wire::ReadPacket(*event.packet);
-		if (!channel || !received)
+		if (!channel || (!session.admitted && *channel != Channel::Reliable))
+			return Close(session, Reason::BadMessage, &events);
+		if (!session.keys)
+			return Answer(session, *event.packet);
+
+		// The first sealed message is the hello: one that does not open was sealed to another key.
+		std::optional<std::vector<std::byte>> message =
+		    Wire::Open(*session.keys, *channel, *event.packet);
+		if (!message)
+			return Close(session, session.admitted ? Reason::BadMessage : Reason::KeyMismatch, &events);
+		const std::optional<Wire::Received> received = Wire::ReadMessage(*message);
+		if (!received)
 			return Close(session, Reason::BadMessage, &events);
 
 		if (!session.admitted)
 		{
-			if (*channel != Channel::Reliable ||
-			    received->kind != static_cast<MessageKind>(Wire::EngineKind::Hello))
+			if (received->kind != static_cast<MessageKind>(Wire::EngineKind::Hello))
 				return Close(session, Reason::BadMessage, nullptr);
-			return Greet(session, received->body, events);
+			// The credential is judged once, so no copy of it is kept past the verifier.
+			std::optional<Wire::Hello> hello = Wire::DecodeHello(received->body);
+			Seal::Wipe(*message);
+			if (!hello)
+				return Close(session, Reason::BadMessage, nullptr);
+			Greet(session, *hello, events);
+			return Seal::Wipe(hello->credential);
 		}
 
 		if (received->kind >= kFirstEngineKind)
@@ -162,6 +195,8 @@ Server::Server(ServerConfig config, Verifier verifier) : m_pImpl{std::make_uniqu
 	Wire::StartEnet();
 	if (!verifier)
 		throw std::invalid_argument("net: a server needs a verifier");
+	m_pImpl->key.emplace(config.secretKey);
+	Seal::Wipe(config.secretKey);
 	ENetAddress address{};
 	address.host = ENET_HOST_ANY;
 	address.port = config.port;
@@ -174,7 +209,7 @@ Server::Server(ServerConfig config, Verifier verifier) : m_pImpl{std::make_uniqu
 		throw std::runtime_error(
 		    std::format("net: cannot listen on {}:{}", config.address, config.port));
 	// A longer packet is dropped by ENet before it is reassembled.
-	m_pImpl->pHost->maximumPacketSize = config.limits.maxMessageBytes;
+	m_pImpl->pHost->maximumPacketSize = config.limits.maxMessageBytes + Seal::kOverhead;
 	m_pImpl->config = std::move(config);
 	m_pImpl->verifier = std::move(verifier);
 }
@@ -237,7 +272,8 @@ bool Server::Send(SessionId session, Channel channel, MessageKind kind, std::spa
 	Impl::Session *pSession = m_pImpl->Find(session, true);
 	if (pSession == nullptr || kind >= kFirstEngineKind)
 		return false;
-	ENetPacket *pPacket = Wire::MakePacket(channel, kind, body, m_pImpl->config.limits.maxMessageBytes);
+	ENetPacket *pPacket =
+	    Wire::MakePacket(*pSession->keys, channel, kind, body, m_pImpl->config.limits.maxMessageBytes);
 	return pPacket != nullptr && Wire::SendPacket(pSession->pPeer, channel, pPacket);
 }
 
@@ -257,8 +293,8 @@ void Server::SendSnapshots(std::uint64_t step, const SnapshotView &view)
 		if (!body || pSession == nullptr)
 			continue;
 		ENetPacket *pPacket = Wire::MakePacket(
-		    Channel::Unreliable, static_cast<MessageKind>(Wire::EngineKind::Snapshot), *body,
-		    m_pImpl->config.limits.maxMessageBytes, step);
+		    *pSession->keys, Channel::Unreliable, static_cast<MessageKind>(Wire::EngineKind::Snapshot),
+		    *body, m_pImpl->config.limits.maxMessageBytes, step);
 		if (pPacket == nullptr)
 		{
 			Core::Log(

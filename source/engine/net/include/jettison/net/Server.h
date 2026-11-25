@@ -28,6 +28,9 @@ struct ServerConfig
 	std::uint16_t port{};
 	std::string protocol;
 	std::vector<std::uint32_t> versions;
+	// The server's secret key (Key.h). A client whose pinned public key is not its own is refused as
+	// KeyMismatch.
+	std::string secretKey;
 	std::size_t maxSessions{32};
 	// Connections not yet admitted, on top of the sessions: past both, the transport ignores a new
 	// one, which times out at its client without a reason.
@@ -63,13 +66,14 @@ using Verifier = std::function<bool(SessionId, std::span<const std::byte> creden
 // server. nullopt sends nothing, and the session is asked again at the next SendSnapshots.
 using SnapshotView = std::function<std::optional<std::vector<std::byte>>(SessionId)>;
 
-// The server end, on ENet over UDP, plaintext (encryption is a later provision). Single-threaded:
+// The server end, on ENet over UDP, every message sealed to the connection's keys. Single-threaded:
 // every call is from the thread that made it, and nothing happens between calls, so the game polls
 // between its steps and the network never steps the world.
 class Server
 {
   public:
-	// Throws std::runtime_error when the address cannot be bound.
+	// Throws std::invalid_argument for a secret key that is not one, std::runtime_error when the
+	// address cannot be bound.
 	Server(ServerConfig config, Verifier verifier);
 
 	~Server();

@@ -18,7 +18,9 @@ enum class Channel : std::uint8_t
 	Unreliable
 };
 
-// Why a connection ended, as both ends report it. The first four are the handshake's refusals.
+// Why a connection ended, as both ends report it. From UnknownProtocol to HandshakeTimeout, and
+// KeyMismatch, they are the handshake's refusals. The reason travels unsealed, so one on the path
+// could close a connection with any reason, though never read or forge a message.
 enum class Reason : std::uint32_t
 {
 	// The other end closed it, or nothing was heard from it within the timeout.
@@ -28,14 +30,16 @@ enum class Reason : std::uint32_t
 	BadCredential,
 	ServerFull,
 	HandshakeTimeout,
-	// Anything but a hello before admission, a hello that does not decode, or a kind the engine
-	// keeps for itself.
+	// Anything but an offer and then a hello before admission, a hello that does not decode, a packet
+	// that does not open after admission, or a kind the engine keeps for itself.
 	BadMessage,
 	InboundOverflow,
 	// The game's reasons for closing an admitted session: its credential was revoked, or the server
 	// is stopping.
 	Revoked,
-	Shutdown
+	Shutdown,
+	// The client's hello was not sealed to the server's key: it pinned another server's.
+	KeyMismatch
 };
 
 std::string_view ReasonName(Reason reason);
@@ -63,7 +67,8 @@ struct Message
 	std::vector<std::byte> body;
 };
 
-// What bounds one end. maxMessageBytes is a whole message, kind and snapshot step included, however
+// What bounds one end. maxMessageBytes is a whole message before it is sealed, kind and snapshot step
+// included, however
 // many datagrams the transport splits it into: a longer one is dropped by the transport before it is
 // reassembled, let alone decoded, and Send refuses to send one. An unreliable message's fragments are
 // sent at once and all must arrive, so it must fit the receiver's socket buffer too, the 256 KiB ENet
