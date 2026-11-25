@@ -1,264 +1,310 @@
 # Scope
 
-What the engine builds, what it does not, and why. This replaces the old `TODO.md` list of
-typical engine building blocks: every item on that list has a verdict here.
+What the engine builds, what it leaves out, and why, area by area: each row a verdict with one line
+of reason. How a capability works is in the feature document linked at the head of each area.
 
-## Engine scope and consumer requirements
+## The test
 
-Jettison provides reusable capabilities for multiple game types without requiring a
-particular game's entities, rules or content. Manifest is the first production consumer;
-its current requirements drive concrete engine capability work through the
-[game integration workflow](game-integration.md). Inspect that checkout before planning
-the next integration, and provision reusable gaps in public engine code.
-
-Manifest owns its production economy, progression, ownership, scenarios and assets.
-Jettison keeps small consumers of its own for automated tests, the ground sample and the test
-content, separated into explicit sample/test code and content; generic consumers must not start a
-sample's rules or mount its data implicitly. The space setting, star systems, their orbits and
-their transit included, is Manifest's ([space extraction](space-extraction-plan.md), done
-2026-11-23).
-
-This direction, approved 2026-11-15, supersedes the earlier test of whether a feature
-would suit another space game. Ask whether its contract is reusable independently of
-Manifest and whether game-specific policy remains with the consumer. A different genre
-must be able to use simulation, physics, scenes and AI without inventing a galaxy.
-
-| Jettison | Manifest or another game |
-| --- | --- |
-| Deterministic worlds, scheduling, commands, RNG, snapshots | Authoritative game state, system ordering and command validation |
-| VFS, packs, reflection, YAML/binary archives and migrations | Schemas, authored identities, validation and balance |
-| Generic graphs, utility scoring, behaviour trees and spatial queries | Trader policies, progression rules and faction strategy |
-| Physics, scene, rendering, audio, input and UI binding | Game movement policy, presentation content and screens |
-| Save/load/hash and durable I/O mechanisms | Content compatibility, acknowledgement and recovery policy |
-| Wasm sandbox and generated binding machinery | Script API/capability selection and game scripts |
-
-The ask/bid order book and its settlement rules remain Manifest code. Test gameplay
-can have a tiny independent economy to exercise saves, commands and UI, but it is not
-an engine economy service or a roadmap to duplicate Manifest.
-
-Genre neutrality is a boundary, not a promise to implement every genre's features now.
-Linux/C++20/toolchain constraints remain. The following feature catalogue records the
-space example's original scoping choices and current coverage; reasons such as "no
-humanoids" or "space has no walkable surface" describe that example, not permanent
-restrictions on future engine consumers. Reassess capabilities when a concrete consumer
-requires them. Where a row's capability moved to Manifest in the space extraction, the row says so.
+A capability belongs in the engine when its contract is useful without any particular
+[game](glossary.md#game); the game's policy (its rules, prices, content and screens) stays with the
+game. So a different genre can use the simulation, physics, scenes and AI without inventing a
+galaxy. Manifest, the first production [consumer](glossary.md#consumer), drives what is built next
+([game integration](game-integration.md)); the boundary itself is in
+[architecture](architecture.md#responsibility-boundary). Neutrality is a boundary, not a promise to
+build every genre's features now: a capability marked Out is reassessed when a consumer needs it.
 
 ## Verdicts
 
-**In**: built, in the phase the [roadmap](roadmap.md) gives it. **Reframed**: the need is real
-but the item as written is the wrong solution for this game. **Deferred**: possibly needed, but
-only on measured evidence or close to shipping. **Out**: not built. **Moved**: built here and moved to Manifest
-in the [space extraction](space-extraction-plan.md).
+| Verdict | Meaning | Example |
+| --- | --- | --- |
+| In | Built. Open work on it is a backlog item, linked | Behaviour trees, with reactive nodes still open ([J03](roadmap.md#j03)) |
+| Open | Accepted but not built yet: a backlog item, linked | Encryption ([J01](roadmap.md#j01)) |
+| Reframed | The need is real, but the usual solution is the wrong one here; the row says what serves it instead | Pathfinding: A* over graphs, not over navigation meshes |
+| Deferred | Possibly needed, but built only on measured evidence or when a consumer asks | A general job system, until a profile shows a system needs it |
+| Out | Not built | Ray tracing |
+| Manifest | A game's, not the engine's: Manifest builds it on the engine's neutral parts | Orbital mechanics, on the engine's [rails](glossary.md#rails) |
 
-### Animation
+## Simulation
 
-| Item | Verdict | Reason |
-|---|---|---|
-| ozz-animation, tag-based selection | Out | Built for characters with large clip libraries. This engine has mechanical rigs and a handful of clips per model. |
-| Clips | In | The glTF clip player exists (`Model::EvaluateSkin`); it moves into `engine/animation`. Clip files (10d) keyframe the scene's own entities, and their events ("clamp closed") are data a game gives meaning to, a sound by data. |
-| Skeletons | In | Kept narrow: glTF skins for mechanical rigs, already supported by the shaders. |
-| TRS | In | Transform animation exists (`RotationAnimationComponent`); generalised to keyframed TRS tracks on any scene entity (10d), and a glTF clip on a model with no skin. |
-| Poses, FK | In | Not a public system: local pose to model pose is the hierarchy evaluation the sampler already does. |
-| IK | Out | No feet, no hands, no aiming limbs. |
-| Synchronisation | Out | Clip sync serves locomotion blending, which this engine does not have. |
-| Cinematics | In (phase 11c) | Sequences of shots on camera rails in the frames of what they show (a pad, a ship), cut or blended over the game's camera and back to it, with a fade, letterbox bars and events: the docking cutscene. Data, in `cinematics/`, which a mod replaces. |
+How: [simulation](simulation.md).
 
-### Artificial intelligence
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Deterministic world, fixed step | In | The same seed and commands give the same state, so saves, replays and networking agree ([coding standards](coding-standards.md#simulation-code)) |
+| Scheduler | In | Six phases a frame, systems ordered by name, with declared reads and writes |
+| Entity component system, queries | In | EnTT 4; queries are EnTT views and groups, with no engine wrapper |
+| Commands and events | In | [Commands](glossary.md#command) carry their sender into the step; [events](glossary.md#event) flow one way, in one ordered queue, to presentation |
+| Snapshots for presentation | In | Presentation reads copies of simulation state, never the world itself |
+| Definition registry | In | Typed, reflected [definitions](glossary.md#definition) loaded from data, which mods change in layers |
+| Finite state machines | In | `Ecs::StateMachine`: a transition table with entry and exit hooks, deterministic; no engine module uses it yet |
+| Time | In | A wall clock for presentation; a simulation clock with pause and compression; a calendar whose shape the game supplies |
+| Quiet steps and fast-forward | In | A world with nothing due skips steps it can prove do nothing |
+| Time of day, seasons | Reframed | Bodies turn and move on rails driven by simulation time; seasons are a game's |
+| Host and session | In | A [session](glossary.md#session) runs a game's start-up phases over its [packages](glossary.md#package), and fails naming the phase and the source |
+| Rollback | Deferred | No game asks for it; commands already name their sender and apply in queue order, which it would need |
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Behaviour trees | In | Per-ship tactical sequences: undock, fly to waypoint, request docking, dock. |
-| Utility AI | In (added) | Economic choices (which trade, which route, which upgrade) are scoring problems, not trees. |
-| Navmesh | Out | Space has no walkable surface. |
-| Pathfinding | Reframed | A* over graphs (`Ai::FindPath`), as Manifest's over its jump lanes, and courses round spheres; not over meshes or grids. |
-| Collision avoidance | In | Steering near platforms and in traffic, so automated vehicles do not fly through each other or the player. |
+## Scenes, cameras and spatial queries
 
-### Audio
+How: [scenes](scene.md).
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Audio | In | miniaudio: positional 3D sound for cockpit and station proximity, UI sounds, streamed music, mixer buses. |
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Scene management | In | One scene loaded at a time, replaced by the game; the simulation persists across scenes |
+| Scene layers | In | Environment, traffic and effects layers, shown and hidden as a whole |
+| Proxies of simulation entities | In | A scene shows the simulation's entities through [proxies](glossary.md#proxy) the game makes |
+| Spatial queries | In | An octree per [frame](glossary.md#frame-coordinates) for nearest, in-range and in-volume queries, apart from Jolt's broadphase |
+| Frustum culling | In | Draws and lights outside the view are skipped |
+| Horizon culling | In | A large sphere hides what is behind it, and the test is cheap |
+| Occlusion culling | Out | The consumers' scenes are open, with few occluders, so it would cost more than it saves |
+| Orbit, chase and cockpit cameras | In | Camera rigs that follow their target exactly, in double precision |
+| Map camera | In | A logarithmic zoom over a reference plane, from close by to a whole system; the map screen is the game's |
+| Cinematic camera | In | A [sequence](animation.md) takes the camera from the rigs and hands it back |
 
-### C++ weaknesses
+## Coordinates, large worlds and mathematics
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Assertions | In | First thing built: a debug-break assert, a release check, and an always-on verify. |
-| Reflection | In | EnTT's `meta`. Drives serialisation, the editor inspector, console variables and the mod data schema. |
-| Strings | In | Hashed string IDs for assets, definitions and tags; UTF-8 `std::string` everywhere else. |
-| Containers | Deferred | Standard containers until a profile names one; a flat hash map is the likely first addition. |
-| Allocation | Deferred | See Memory. |
+How: [coordinate frames and units](coordinates.md).
 
-### Cameras
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Double-precision positions in frames | In | Metres in a [frame](glossary.md#frame-coordinates), in double precision: dangerous to retrofit |
+| Camera-relative rendering, reversed-Z | In | Float precision is spent near the camera, and an infinite far plane holds a cockpit and a planet in one frame |
+| Vectors, matrices, quaternions | In | GLM, configured on its target, with `dvec3` and `dmat4` for simulation positions |
+| Bounds and intersection | In | AABBs, OBBs, spheres, rays and planes, for culling, picking and queries |
+| Splines and easing | In | Camera rails, approach paths and UI transitions |
+| Noise | In | FastNoiseLite on the CPU, deterministic, for procedural generation |
+| Random numbers | In | The engine's seeded PCG32 and its own distributions, because the standard ones differ between libraries |
+| Tangents | In | MikkTSpace, which glTF specifies, when a model omits them |
+| Orbital mechanics | Manifest | Kepler orbits and transfer timing are Manifest's, on the engine's rails |
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Third person orbit | In | Orbiting stations, planets and ships. |
-| First person | In | Cockpit view when piloting. |
-| Chase | In (added) | Behind the piloted ship. |
-| Map | Moved | A system and galaxy map is Manifest's, for its graphical client; the engine gives the orbit camera's zoom across many orders of magnitude. |
-| Cinematic | In (phase 11c) | A sequence's camera, over the rigs, which run under it and take the camera back where they have it. |
+## Physics
 
-### Engine runtime
+How: [physics](physics.md).
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Components register for tick | In | A scheduler with named phases (input, fixed-step simulation, presentation, render) that systems register into, with declared ordering. |
-| Console | In | ImGui console with commands and console variables, backed by reflection. |
-| Core / common | In | Types, handles, hashing, assertions, logging, configuration. |
-| Entity component system, queries | In | EnTT, already used. Upgraded from v3.6.0 (2020) to a current release in phase 1. Queries are EnTT views and groups; the engine adds no wrapper. |
-| Finite state machines | In | A small utility for ship states and application flow (menu, loading, in system, jumping). |
-| Time | In | Real clock, fixed-step simulation clock with pause and time compression, game calendar. |
-| Time of day / seasons | Reframed | Becomes rails driven by simulation time (`Physics::FrameModel`): Manifest's planets turn and its planets, moons and stations orbit on them. Seasons are out. |
-| Platform: Linux | In | Exists (Wayland desktop, X11 headless). |
-| Platform: Windows | Out | Dropped from the plan on 2026-11-10: the toolchain cost more than it returned. |
-| Platform: CPU | In | x86-64 with AVX2 minimum (Intel Haswell 2013, AMD Excavator 2015, and later), checked at start-up. Jolt's instruction-set flags set it. |
-| Profiling | In | Tracy, early, so later decisions are measured. |
-| Logging | In | Early. Severity, categories, sinks to the console and a file. |
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Rigid and static bodies | In | Jolt, in double precision and deterministic across builds |
+| Box, sphere, capsule, cylinder, convex hull, mesh | In | Shapes are definitions that bodies name, so a save holds no geometry; compound shapes are [J07](roadmap.md#j07) |
+| Contacts | In | Began and ended events, in entity order, for the simulation to read |
+| Sensors | In | Bodies that report overlaps and push nothing: zones, doors, gates |
+| Flight model | In | Thrust as accelerations, with an assist that holds a demanded velocity |
+| Rails and moving frames | In | The game's `FrameModel` moves a frame's bodies and gives its gravity |
+| Ray queries and picking | In | Jolt ray casts; picking a paused world is [J06](roadmap.md#j06) |
+| Ragdoll | Out | No consumer has characters |
+| Water, wind | Out | No consumer has them; a game can apply its own forces |
+| Physical particles | Out | Particles are a render effect |
 
-### Culling and spatial
+## Transit
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Frustum culling | In | Needed as soon as there is a station with modules and traffic. |
-| Planet horizon culling | In (added) | A planet hides everything behind it; a sphere test is cheap. |
-| Occlusion culling | Out | Space scenes are sparse. Not worth the work for scenes without walls. |
-| Spatial queries | In | A per-frame index for simulation queries (nearest platform, vehicles in sensor range), separate from Jolt's broadphase, which serves physics. |
-| Raycasting | In | Mouse picking of stations, ships and UI targets, and Jolt ray queries. |
+How: [transit](transit.md).
 
-### Content, files and extension
+| Item | Verdict | Why |
+| --- | --- | --- |
+| [Passages](glossary.md#passage) | In | An entity leaves physics and is carried along a way the game gives: a lift, a train, a fast crossing |
+| [Portals](glossary.md#portal) | In | An entity leaves its frame for a time and comes out at a named exit: a door, a teleporter |
+| [Slots](glossary.md#slot) | In | One holder at a time and a first-come queue: a bay, a lane, a gated portal |
+| [Motion profiles](glossary.md#motion-profile) | In | Acceleration-limited travel times, so a game can price a journey |
+| Jump lanes, cruise, stargates | Manifest | Manifest's space travel, built on passages, portals and slots |
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Extensions / mods / addons | In | Data packs mounted over the base content, plus Wasm script modules. |
-| Scripting: Wasm | In (11b) | Sandboxed mod behaviour (events, AI considerations; missions are the game's, written as handlers). WAMR's interpreter as the runtime, scripts in C or Rust against bindings generated from reflection ([decided](decisions.md)). |
-| Scripting: native C++ | Reframed | Game logic is native C++ in the game repository. There is no native plugin loading for mods: it is unsandboxed and ABI-fragile. |
-| File system | In | A virtual file system with ordered mounts (base, DLC, mods, user), each a directory or a pack. Mods override by path, and patch definitions field by field. |
-| Streaming | Reframed | Asynchronous asset loading when a scene is entered (a star system, in Manifest), behind a loading transition. Not open-world streaming. |
-| Compression, zipping | In (11a) | Pack files for shipping and for mods, each file its own zstd frame; development reads loose files. Mods are directories or packs, not zip archives ([decided](decisions.md)). |
-| Resource manager | In | Typed handles, asynchronous load, reference counting, hot reload in development builds. |
-| Serialisation: load, save | In | YAML for authored content (the scene format exists); a versioned binary format for saves. Both reflection-driven. |
-| Persistence | In | Save games of simulation state, versioned with migrations. Settings and keybindings saved separately. |
-| Scene: management | In | One loaded scene at a time, replaced by the game (in Manifest one per star system, through jumps); the simulation of every frame persists across them. |
-| Scene: layers | In | Content layers within a system (static environment, traffic, effects) for loading and editor visibility. |
+## Docks
 
-### Graphics
+How: [docks](docks.md).
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Render pipeline | In | Exists. Becomes clustered forward ([architecture](architecture.md#rendering-clustered-forward)), on dynamic rendering and a declared pass list. |
-| Deferred shading | Out | Clustered forward instead: material variety, lit transparency and MSAA without a G-buffer. |
-| PBR | In | glTF metallic-roughness, which is the same model Unreal uses. Image-based lighting from environment cubemaps. |
-| Lights: point, projected (spot) | In | Station floodlights, docking bay lights, navigation beacons. Finite ranges, assigned to clusters, so a station can carry hundreds. |
-| Light: directional sun | In (added) | The star is the key light of every scene. |
-| Shadows | In | Sun shadows on stations and ships; cascaded for close-ups. |
-| Atmosphere halo | In | An orbit-view scattering shell around planets. |
-| Sky | In | Starfield and nebula skybox, per system. |
-| Reflections | In | Through image-based lighting, with the planets added to the environment's capture (phase 10a). Screen-space reflections are out, reconsidered on 2026-11-11: they need most of a G-buffer, and where a ray leaves the screen they fall back to the environment at a seam black space makes plain ([decided](decisions.md)). |
-| Particles | In | GPU billboards: engine exhaust, debris, docking sparks, jump effects. Simulated and drawn on the GPU, in the transparent pass (phase 10b). |
-| Post processing | In | HDR, tonemapping, and a chain of post passes on the HDR target: bloom first (stars and engines are far brighter than the hull). Phase 10c. |
-| Screen-space ambient occlusion | In (added 2026-11-11) | Contact shadow in docking bays, between hull modules and under racked cargo, where the sky's light reaches in full today. From the depth prepass, which writes normals for it, attenuating the image-based light alone. Phase 10c. |
-| Stencil and object IDs | In (added 2026-11-11) | A stencil aspect on the depth target, for crisp outlines and for masking post-processing off the cockpit and HUD; and an object ID buffer from the depth prepass, for wide, soft target highlights. Phase 10c. |
-| Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap. Thin struts and antennae against black space alias worst. |
-| Colour space | In, early | Linear workflow, sRGB swapchain, HDR render targets. Expensive to retrofit. |
-| Colour grading | In (phase 11c) | A 3D LUT from a `.cube`, after the tonemap on the display's colours, so a screenshot graded in a grading tool is the frame graded; a scene's look, which a mod can replace. |
-| Triplanar / tri-blend | In | Asteroids and procedural planet surfaces without authored UVs. |
-| Glass | In (brought forward 2026-11-13) | Cockpit canopy and station windows, a thin tinted pane in the transparent pass, with particles (phase 10b). Refraction is out until the post chain's targets can give it the frame behind. |
-| Multiple UV maps | Deferred | glTF `TEXCOORD_1` for detail maps, when an asset needs it. |
-| NoRender | In | A trivial flag for collision-only and trigger meshes. |
-| Terrain, water | Out | Planets are seen from orbit. |
-| Hair, skin, cloth | Out | No characters. |
-| Global illumination | Out | A sun and image-based lighting from the system's sky are enough for space. |
-| Ray tracing | Out | Not worth the cost for this art style. |
-| Materials: shader | In | A material system over PBR parameters and texture sets, authored in data. |
-| Materials: effects and animation | In | Material parameters driven over time: emissive pulses, scrolling UVs, blinking beacons. |
-| Materials: surface type (sounds, hardness, decals) | Out | Footsteps and bullet decals do not exist here. Impact sound class lives on the physics material. |
-| Textures | In | KTX2 with BasisU or BC formats and mip chains for shipping; stb_image in development. |
-| Fonts | In | One font asset feeding RmlUi (FreeType) and ImGui. |
-| Geometry | In | Procedural meshes (spheres, rings, cylinders), mesh utilities, tangent generation, debug draw. |
-| Video playback, cinematics, diegetic video | Out | Diegetic screens, if wanted, are RmlUi documents rendered to a texture. |
-| VR | Out | |
+| Item | Verdict | Why |
+| --- | --- | --- |
+| [Platforms](glossary.md#platform), [berths](glossary.md#berth) and [berth classes](glossary.md#berth-class) | In | Who holds a berth is authoritative state, given by commands in queue order; the layout is data |
+| Docking and undocking | In | A vehicle is reserved a berth, flies to it and is held there |
+| The way in to a berth | In | A proper approach is open ([J09](roadmap.md#j09)) |
+| Berth prices, landing rights | Manifest | A game's rules |
 
-### Large worlds
+## AI
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Floating origin | In | Architectural and dangerous to retrofit, so early. The simulation holds double-precision positions per frame; rendering is camera-relative in float; reversed-Z depth with an infinite far plane covers a cockpit and a planet in the same frame. |
+How: [AI](ai.md).
 
-### Mathematics
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Behaviour trees | In | Sequences such as undock, fly, dock, trade, as data, saved where each entity is; more nodes are [J03](roadmap.md#j03) |
+| Utility AI | In | Choices that are scoring problems (which trade, which route), as data |
+| Pathfinding | Reframed | A* over graphs, and courses round spheres; not over navigation meshes or grids |
+| Steering | In | Seek, arrive, avoidance and separation, so automated vehicles keep clear; more is [J08](roadmap.md#j08) |
+| [Helm](glossary.md#helm) | In | A player takes an entity's controls and its behaviour stands down |
+| Navigation meshes | Out | No consumer walks on meshes |
+| Trader policies, faction strategy | Manifest | A game's rules |
 
-GLM (1.0.1) supplies vectors, matrices and quaternions; its configuration lives on the `glm`
-target. The engine adds:
+## Persistence
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Vectors, matrices, quaternions, points | In | GLM, plus `glm::dvec3` / `dmat4` for simulation positions. |
-| AABB, OBB | In | Culling, picking and spatial queries. |
-| Lines, rays, planes, spheres | In | Picking and culling. |
-| Bezier and splines | In | Camera rails, route display, docking approach paths. |
-| Easing functions | In | UI and camera transitions ([easings.net](https://easings.net/en)). |
-| Noise | In | CPU noise (FastNoiseLite) for procedural generation; GPU noise in shaders. |
-| Random numbers | In | The engine's own seeded generator (PCG32) and distributions. `std::uniform_*_distribution` is implementation-defined: its streams differ between standard library implementations and can change between their versions, which would break saves and replays. |
-| Tangents | In | Normal mapping; MikkTSpace when glTF omits them. |
-| Orbital mechanics | Moved | Keplerian on-rails orbits and transfer timing are Manifest's (`space`, the space extraction's slice 6), on the engine's rails. |
+How: [persistence](persistence.md).
 
-### Memory and threading
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Reflection | In | EnTT's meta, with attributes that drive saves, definitions, the console and scripts |
+| Authored content | In | YAML archives, written by reflection |
+| [Saves](glossary.md#save) | In | A versioned binary format with its own [migrations](glossary.md#migration), written durably |
+| Settings and key bindings | In | Layered configuration in the user's settings file, apart from saves |
+| What a save holds beyond the world | Manifest | The game's state, in a format of the game's, which the save carries unread |
 
-| Item | Verdict | Reason |
-|---|---|---|
-| GPU allocation | In (added) | Vulkan Memory Allocator replaces the raw `vkAllocateMemory` calls. |
-| Allocators: bucket, fixed, pool, small | Deferred | Built when Tracy shows allocation in a hot path. A per-frame linear allocator is the likely first one. |
-| Atomics | In | As needed, with the threading they serve. |
-| Job system | Deferred | One asset I/O worker comes first. A general job system (enkiTS is the candidate) arrives when the economy simulation or culling measurably needs it. Systems are written with declared reads and writes so they can be parallelised later. |
+## Files, packs and mods
 
-### Network
+How: [files, packs and mods](files-and-mods.md).
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Low-level networking | In (2026-11-18) | What a wide range of networked games share: transport, connections and sessions, message framing, bounded queues, the mechanics of an authentication handshake, and snapshot replication with a per-client visibility hook. A game's dedicated server, its protocol, how an account maps to a player, authorisation and visibility rules stay in the game (Manifest's D-057). ENet over UDP, so the same stack serves an idle game and real-time combat ([decided](decisions.md), 2026-11-20); Manifest's N01 named the gaps, and N02 built them in `net` ([architecture](architecture.md#networking)). Encryption follows, before a game hosts outside a trusted network. |
-| Rollback | Deferred | No game asks for it. The simulation stays ready for it: commands say who sent them, shared state is given in command order. |
-| Local server | Reframed | The in-process simulation/presentation split. Commands flow into the simulation through a queue, which is also the seam for replays and any later networking. |
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Virtual file system | In | Ordered mounts (the engine's assets, the game's content, mods, the user's directory), each a directory or a pack |
+| [Packs](glossary.md#pack) | In | One file per package for shipping, each file its own zstd frame, so one is read alone |
+| [Mods](glossary.md#mod) | In | Mounts over the base that replace files by path and [patch](glossary.md#patch) definitions field by field; more is [J05](roadmap.md#j05) |
+| Resource manager | In | Typed handles, loads on the I/O worker, reference counts, hot reload in development builds |
+| Streaming | Reframed | Assets load when a scene is entered, behind a transition; not open-world streaming ([J13](roadmap.md#j13)) |
+| Zip archives | Reframed | Packs instead: a mod is a directory or a pack |
+| Signed packs | Open | A pack signed as a whole ([J19](roadmap.md#j19)) |
+| Storefront integration | Out | A game may integrate a storefront's SDK; the mounts stay storefront-agnostic so it can |
 
-### Physics (Jolt)
+## Scripts
 
-Jolt is built with `JPH_DOUBLE_PRECISION`, which matches the simulation's double-precision
-positions.
+How: [scripts](scripts.md).
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Rigid body, static body | In | The piloted ship, debris, cargo pods; stations. |
-| Box, sphere, capsule, cylinder | In | Plus convex hull and mesh shapes for stations. |
-| Collision | In | Contact events feed damage and impact sound. |
-| Area | In | Sensors: docking zones, no-fire zones, gated portals. |
-| Ragdoll | Out | No characters. |
-| Water, wind | Out | Space. |
-| Particles (physics) | Out | Particles are a render system. |
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Wasm scripts | In | Sandboxed mod behaviour on WAMR's interpreter, in C or Rust, against bindings generated from reflection; more is [J04](roadmap.md#j04) |
+| Native C++ plugins | Reframed | Game logic is native C++ in the game's repository; mods get none, being unsandboxed and ABI-fragile |
+| What a script may do | Manifest | The game grants each script its commands and events |
 
-### Input and UI
+## Networking
 
-| Item | Verdict | Reason |
-|---|---|---|
-| Input system | In | Action mapping, input contexts (flight, map, UI), rebinding, gamepad and HOTAS through GLFW joysticks. |
-| UI | In | RmlUi with data binding for the game; ImGui for tools. |
+How: [networking](networking.md).
 
-### Previously out of scope
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Transport, connections, sessions | In | ENet over UDP, so the same stack serves an idle game and real-time combat |
+| Authentication handshake | In | Bearer tokens on libsodium; the server keeps digests only |
+| Snapshot replication | In | The server encodes each session's view through a visibility hook the game supplies |
+| Encryption | Open | Connections are plaintext; sealed before a game hosts outside a trusted network, the current delivery ([J01](roadmap.md#j01)) |
+| A script's sender under networked play | Open | Who a script commands as ([J02](roadmap.md#j02)) |
+| Local server | Reframed | The in-process split of simulation and presentation, with commands through a queue, serves |
+| Dedicated server, protocol, accounts, authorisation | Manifest | A game's |
 
-These stay out: blend shapes, blend spaces, human hair and facial animation. Steam and Epic
-integration are out of the **engine**. The game repository may integrate a storefront SDK
-(Steam Workshop is a natural home for data mods); the engine keeps its file system mount
-model storefront-agnostic so that is possible.
+## Rendering
 
-## Added: needs the list did not name
+How: [rendering](rendering.md), and
+[transparency, particles and post-processing](rendering-effects.md).
 
-| Item | Phase | Reason |
-|---|---|---|
-| Unit test framework | 1 | Today there is one hand-rolled test executable. doctest with CTest. |
-| Engine packaging | 1 | The game is a separate repository, so the engine exports CMake targets. |
-| Configuration and settings | 2 | Engine settings, user settings, console variables. |
-| Events and messaging | 3 | EnTT signals and dispatcher between systems; simulation events to presentation. |
-| Data definition registry | 3 | Typed, reflected definitions loaded from data packs, overridable by mods. |
-| Debug draw | 4 | Lines, boxes and spheres in world space, for every later system. |
-| Instancing and LOD | 5 | Cargo containers, asteroid fields, traffic. |
-| Editor (Flotsam) | ongoing | Grows with reflection: scene editing, inspector, definition editing. |
-| Crash handling | 11 | A backtrace and the log tail, written on a fatal signal. |
-| Localisation | 11 | String tables through the VFS. RmlUi handles text shaping. |
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Clustered forward on Vulkan | In | Material variety, lit transparency and MSAA without a G-buffer, on dynamic rendering and a declared pass list |
+| Deferred shading | Out | Clustered forward serves the same lights without a G-buffer |
+| Physically based materials | In | glTF metallic-roughness, lit by image-based lighting from the sky's capture |
+| Materials as data | In | Parameters and texture sets in YAML, some animated over time (pulses, blinks) |
+| Point and spot lights | In | Finite ranges assigned to clusters, so a scene can carry hundreds |
+| Directional sun and its shadows | In | Cascaded shadow maps, stable under a moving camera |
+| Atmospheres and rings | In | Scattering shells and rings seen from orbit |
+| Sky | In | A procedural sky of stars, a band and nebula, per scene |
+| Reflections | In | Image-based lighting; screen-space reflections are out, needing most of a G-buffer |
+| Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap |
+| Colour space | In | Linear workflow, HDR targets and an sRGB swapchain; expensive to retrofit |
+| Triplanar mapping | In | Surfaces without authored texture coordinates |
+| Textures | In | KTX 2 with Basis Universal or BC7 for shipping; stb_image for development; cube maps and arrays are [J27](roadmap.md#j27) |
+| Instancing and levels of detail | In | Draws that share a model, level and material become one instanced draw |
+| Procedural geometry | In | Spheres, cubes and cube-spheres at levels of detail |
+| Debug draw | In | Lines, boxes and spheres in world space, for any system |
+| Fonts | In | TrueType through FreeType, for the game UI and the dev tools |
+| Collision-only meshes | Open | With a glTF model's collision mesh ([J12](roadmap.md#j12)) |
+| Multiple texture coordinate sets | Deferred | When an asset needs a detail map on a second set |
+| Surface types (sounds, decals) | Out | No consumer needs footsteps or decals |
+| Terrain, water | Out | No consumer has a walkable surface |
+| Hair, skin, cloth | Out | No consumer has characters |
+| Global illumination | Out | Image-based lighting and a sun serve the consumers' scenes |
+| Ray tracing | Out | Not worth its cost for the consumers' art |
+| Video playback | Out | A screen in the world, if wanted, is a UI document drawn to a texture |
+| VR | Out | No consumer asks for it |
+
+### Effects
+
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Transparency | In | Glass as thin tinted panes, sorted back to front; refraction waits for the frame behind ([J24](roadmap.md#j24)) |
+| Particles | In | Simulated and drawn on the GPU, with the transparent draws in the opaque pass |
+| Post-processing | In | HDR, tonemapping and a chain of passes, bloom first; more is [J25](roadmap.md#j25) |
+| Ambient occlusion | In | From the depth prepass, darkening the image-based light only |
+| Stencil masks, object IDs, outlines | In | Crisp outlines, and post-processing kept off masked areas |
+| Colour grading | In | A 3D lookup table from a `.cube`, after the tonemap, so a graded screenshot is the graded frame ([J22](roadmap.md#j22)) |
+
+## UI, input and localisation
+
+How: [UI, input and localisation](ui.md).
+
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Game UI | In | RmlUi with data binding to presentation's snapshots, read through the VFS so a mod restyles it; its drawing is [J23](roadmap.md#j23) |
+| Dev tools and console | In | ImGui, with commands and console variables bound through reflection |
+| Input | In | Actions, stacked contexts, rebinding saved in settings, gamepads and joysticks named by device |
+| Localisation | In | String tables per language through the VFS, with formatting and plurals; more is [J15](roadmap.md#j15) |
+| Right-to-left and shaped scripts | Open | With the rest of localisation's open work ([J15](roadmap.md#j15)) |
+| Screens, flows, the mod menu | Manifest | A game's |
+
+## Audio
+
+How: [audio](audio.md).
+
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Positional sound, buses, music decoded as it plays | In | miniaudio behind an engine interface, listener-relative in double precision; more is [J21](roadmap.md#j21) |
+| Sounds for simulation events | In | A game maps events to sounds as data |
+
+## Animation and cinematics
+
+How: [animation and cinematics](animation.md).
+
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Clips | In | glTF clips and clip files that keyframe scene entities, with events a game gives meaning to |
+| Skeletons | In | glTF skins for mechanical rigs |
+| Transform animation | In | Keyframed position, rotation and scale tracks on any scene entity |
+| Poses, forward kinematics | In | The hierarchy evaluation the sampler already does; not a public system |
+| Cinematics | In | Shots on camera rails, cut or blended, with a fade, letterbox and events, as data a mod replaces ([J22](roadmap.md#j22)) |
+| ozz-animation, tag-based selection | Out | Made for large character clip libraries; the consumers have mechanical rigs and few clips |
+| Inverse kinematics, clip synchronisation | Out | They serve limbs and locomotion blending, which no consumer has |
+| Blend shapes, blend spaces, hair, faces | Out | No consumer has characters |
+
+More animation work is [J20](roadmap.md#j20).
+
+## Runtime: core and platform
+
+How: [runtime: core and platform](runtime.md).
+
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Assertions | In | `JETTISON_ASSERT` (debug builds), `JETTISON_VERIFY` (every build), `JETTISON_NOT_IMPLEMENTED` (throws) |
+| Logging | In | Severity, categories, and sinks to stderr, a file and the console |
+| Core types | In | Generational handles, hashed string IDs, durable file writes, file locks, the engine's version |
+| Configuration | In | Layers of defaults, the user's file and the command line, by dotted key |
+| Paths | In | Saves, settings, logs and caches where the XDG specification puts them |
+| Crash handling | In | A report of the stack and the log's tail on a fatal signal; more is [J11](roadmap.md#j11) |
+| Linux | In | Wayland on the desktop, X11 for headless runs |
+| Windows | Out | The toolchain cost more than it returned |
+| CPU baseline | In | x86-64 with AVX2, checked before any static initialiser runs ([decisions](decisions.md#build-and-platform)) |
+| Profiling | In | Tracy, compiled in on demand, with GPU zones per pass |
+| I/O worker | In | One thread reads and decodes assets, so loading does not stall the frame |
+| General job system | Deferred | Until a profile shows a system needs it; systems already declare their reads and writes for it |
+| Containers | Deferred | Standard containers until a profile names one |
+| Allocators | Deferred | Until a profile shows allocation in a hot path |
+| GPU memory | In | Vulkan Memory Allocator |
+
+## The app shell and tools
+
+How: [the app shell and tools](app-shell.md).
+
+| Item | Verdict | Why |
+| --- | --- | --- |
+| The [shell](glossary.md#shell) | In | The `app` library, which the ground sample, the editor and the render test link: a game's hooks composed over the engine, with console commands and arguments |
+| The packer | In | `jettison_pack` writes a directory as a pack |
+| Editor (Flotsam) | In | The shell with no game composed; an inspector and scene editing are not built |
+| Logging in the shell | Open | The shell's own logging set up (`InitLogging`) ([J10](roadmap.md#j10)) |
+
+## Testing and packaging
+
+How: [build and gates](build-and-gates.md).
+
+| Item | Verdict | Why |
+| --- | --- | --- |
+| Unit tests | In | doctest with CTest, one suite per module |
+| Smoke test and reference frames | In | The render test on a GPU or lavapipe, judged on validation output and exit status; reference frames on lavapipe |
+| Engine package | In | A game builds the engine from source with `FetchContent` and links its CMake targets |
+| Prebuilt SDK | Open | An installed engine for `find_package` ([J18](roadmap.md#j18)) |

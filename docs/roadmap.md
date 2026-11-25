@@ -1,413 +1,563 @@
 # Roadmap
 
-The order is set by what is expensive to change later, then by what later work stands on. It
-is not set by what looks good in a screenshot. Architectural decisions (layout, the
-simulation split, coordinate precision, colour space, serialisation) come before the systems
-that would otherwise bake in the wrong answer. "Done" means the gate covers it, with the
-commit that did it in the history. Phases 0–13, the catalogue entries for the systems they
-built, and the work finished since are recorded in [history](history.md).
+The engine's open work: what is being delivered now, then the numbered backlog. Finished work moves
+to the [history](history.md); settled choices are in [decisions](decisions.md).
 
-## Current priority: neutral SDK and Manifest integration
+## How the order is set
 
-Approved 2026-11-15. What is done, and what each Manifest task named of the engine, is in
-[history](history.md#neutral-sdk-and-manifest-integration). Manifest's Stages 1 to 3 are closed
-on the pin `30ea3f3`, Stage 3 (A02 to A07) with no engine gap. That stage's cross-review named
-one, a service loaded with the commands a save queues, provisioned in
-[history](history.md#neutral-sdk-and-manifest-integration). Its N01 (2026-11-20) settled the network
-seam ([decided](decisions.md)), and N02 is done in both (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)): the engine's `net`, and Manifest's
-dedicated server and TUI client on it, on the pin `65846bb`. N03 is done in Manifest with no engine
-edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). Its W02 is done in
-Manifest (2026-11-20), a planning task: its hosted step runs Jettison's movement systems at 1/60 s and
-names one engine gap, an order between `dock` and `lanes`, provisioned ahead of W05 (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)). W03 is done in Manifest with no engine
-edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). W05 is done in
-Manifest (2026-11-20) on the pin `377bd8d`, its ships travelling through the docks, the cruise and
-the flight out of a station's reach, with two provisions here: `Space::ClearOf`, and a steered ship's
-controls let go with its destination ([history](history.md#neutral-sdk-and-manifest-integration)).
-W17 is done in Manifest (2026-11-20) on the pin `54fb871`, its mode cruising by acceleration,
-manned or unmanned by a hull's occupants, Astralis on the power law, with one provision here, the
-cruise by acceleration ([history](history.md#neutral-sdk-and-manifest-integration)). W16, new
-onboarding, is done in Manifest with no engine edit (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)), and so is W15, the vertical slice
-(2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)), and so is W04, local
-production, finite brokers and demand (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)),
-and so is W06, station life support and resupply (2026-11-20,
-[history](history.md#neutral-sdk-and-manifest-integration)), and so is W07, live and stale market
-observations (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)), and so is W08,
-company-funded cargo upgrades (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)). Its L26, the console's long
-step, is done in Manifest (2026-11-20), the step taken a slice at a time and stoppable, with one
-provision here, the rails placed once a body, which halved a cruising step
-([history](history.md#neutral-sdk-and-manifest-integration)). Its W09, the complete trading fixture, is
-done in Manifest with no engine edit (2026-11-20, [history](history.md#neutral-sdk-and-manifest-integration)).
-Its L27, the fast-forward over quiet steps it asked for after L26, is done (2026-11-20), provisioned
-here ([history](history.md#neutral-sdk-and-manifest-integration)): Manifest's systems say when they
-next run and its console and server pass over the steps between, Ore to Brine 2.4 s from 4 min 50 s.
-Its W10, standing trade policies and NPC jobs, is done in Manifest (2026-11-21) with one provision
-here, a stopgap for the way in to a pad, and its L28, a docked fleet's wait passed over, with no
-engine edit ([history](history.md#neutral-sdk-and-manifest-integration)). Its W18, W11 and W19 are
-done in Manifest with no engine edit. Its W21, fuel burn, asked for a cruise's coast phase, a share
-of the time thrusting, provisioned (2026-11-22, [history](history.md#neutral-sdk-and-manifest-integration));
-and its slice 4 a station's reach measured where physics placed it (2026-11-22,
-[history](history.md#neutral-sdk-and-manifest-integration)); W21 is done in Manifest (2026-11-22).
-The station traffic lanes booked after it were measured and are parked ([carried
-forward](#then-robustness-tools-and-what-a-mod-can-reach), 2026-11-22). The space extraction they waited
-for is done (2026-11-23, [history](history.md#neutral-sdk-and-manifest-integration),
-[its plan](space-extraction-plan.md)): the space setting is Manifest's, the space sample retired, and
-Manifest pinned to `14fc23a` with every pin held. Formats change in place until player testing
-([decided](decisions.md)). Manifest's W12, W13 and W14 are done with no engine edit (2026-11-23,
-[history](history.md#neutral-sdk-and-manifest-integration)): its Stage 4 is closed and cross-reviewed.
-Its R01, the save and compatibility contract, is done (2026-11-24), a planning task with no engine
-edit ([history](history.md#neutral-sdk-and-manifest-integration)); its R02, durable I/O and the world
-lock, is done in Manifest (2026-11-24) on the pin `ea66afe`, with two provisions here, directories
-made durably and a file lock ([history](history.md#neutral-sdk-and-manifest-integration)), and with
-them the message several datagrams long its Stage 4 review booked, which needed a limit set and no
-splitting of the engine's own. Its R03 and R04, the journal flushed every 30 s and its hourly snapshots, are done in Manifest with
-no engine edit (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)), and so is
-its R05, a clean stop, backups and restore (2026-11-24). Its R06, the runtime distribution contract, is done (2026-11-24), a planning task
-([history](history.md#neutral-sdk-and-manifest-integration)): a standalone bundle for glibc 2.39 or
-newer, with its TUI, and one engine gap, ImGui's backends out of `Devtools`, provisioned here before its R07
-(2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)). Its R07, the distribution
-built, staged and run in Ubuntu 24.04 and Debian 13, is done in Manifest with no further engine edit
-(2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration)), and so is its R08,
-persistent reconnect and recovery (2026-11-24, [history](history.md#neutral-sdk-and-manifest-integration));
-and so is its R09, the close of its Stage 5 (2026-11-25), with one provision here, a world listing the
-names its save holds ([history](history.md#neutral-sdk-and-manifest-integration)): its Stage 5 is closed. Its later workstreams wait until the user has played the first loop for a day or two.
-Follow [game integration](game-integration.md) and inspect Manifest's current development-stage/gameplay requirements before each task.
-Provision their reusable engine capabilities here; production rules and content stay
-in Manifest. Retain the small space example as a separate automated-test consumer.
+Work is ordered by what is expensive to change later, then by what later work stands on, never by
+what looks good in a screenshot. A choice that fixes what a [save](glossary.md#save) holds, or what
+crosses into and out of the [step](glossary.md#step), comes first: each save a player keeps, and
+each player who sends [commands](glossary.md#command), makes it dearer to change.
 
-Each row carries the Manifest task it is ([delivery order](../../manifest/docs/delivery-order.md))
-and the Manifest stage it unblocks; work them in Manifest's order.
+[Manifest](game-integration.md), the engine's first production game, sets what is needed next; its
+task queue is [its delivery order](../../manifest/docs/delivery-order.md). A capability a Manifest
+task needs and the engine lacks is provisioned here as a delivery, in Manifest's order, by the
+workflow in [game integration](game-integration.md#provisioning-a-capability). Game rules, prices
+and content stay in Manifest. Work is done when the [gate](glossary.md#gate-ci) covers it and the
+history records the commit that did it.
 
-| Delivery | Manifest task (stage) | Exit criterion |
+## Current deliveries
+
+Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifest now builds against
+`459af99`, the second of two commits that provisioned the four gaps its Stage 5 cross-review found
+([history](history.md)). Its later work waits until the user has played its first loop for a day or
+two. One delivery is open:
+
+| Delivery | Needed by | Exit criterion |
 | --- | --- | --- |
-| Encryption | before Manifest hosts outside a trusted network | A key exchange in the hello with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links ([D-081](../../manifest/docs/decision-ledger.md#d-081)); a client with the wrong key is refused, and the suite and consumer run sealed. |
-| Manifest capability integration | each of the above | Each required mechanic maps to a public API or a provisioned reusable gap, with independent engine and Manifest acceptance evidence; immutable SDK pin updated after engine validation. |
+| [J01. Encryption](#j01) | Manifest, before it hosts outside a trusted network ([D-081](../../manifest/docs/decision-ledger.md#d-081)) | A key exchange in the hello, with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links. A client with the wrong key is refused. The `net` suite and the consumer project run sealed. |
 
-These deliveries precede discretionary expansion of the sample. The historical space
-features below and in [decided](decisions.md) describe existing coverage and possible extension work,
-not permission to make space gameplay a neutral engine requirement. Completed phases
-remain historical evidence, not evidence that this new boundary is already implemented.
+## The backlog
 
-## Carried forward
+Each item has a fixed ID (J01 to J29), so other documents can link it. Items are grouped in five
+tiers, in the order above, the most pressing first within a tier. Each says what remains, why it
+matters, what already exists, and which document describes the feature.
 
-Work that phases 1–13 moved on, in the order it is worth doing: by what is expensive to change later,
-then by what the game's next work stands on, as the phases were ordered. Within a tier the first is
-the most pressing. The decisions they waited on are settled, under [decided](decisions.md). Phases
-1–13's full record, and catalogue entries 1–31, are in [history](history.md).
+## Tier 1: what saves and the step's interface hold
 
-### First: what saves and the simulation's interface hold
+<a id="j01"></a>
+### J01. Encryption
 
-Each of these fixes what a save holds or the shape of what goes into and out of the step, and gets
-dearer with every save a player has and once a second player sends commands.
+**What remains.** The [current delivery](#current-deliveries)'s exit criterion.
 
-- **Who a script commands as, under networked play** (with N01, N02): the host now replaces every
-  top-level `Sim::Controller` of a script's command with the one sender `SendCommandsTo` was given,
-  and the shell gives none ([architecture](architecture.md#scripts)). With several players the
-  server is authoritative over whose context a script runs in, call by call: a handler run for a
-  player's event sends as that player, an NPC's as that NPC, and no client or script can name
-  another player or an NPC. It also reaches a `Sim::Controller` nested inside a command's fields,
-  which the host does not yet stamp.
+**Why.** Connections are plaintext, which is fine on loopback or a LAN, but a bearer token crossing
+an open network can be read and reused. Manifest's
+[D-081](../../manifest/docs/decision-ledger.md#d-081) chose libsodium for this, not TLS, which does
+not run over UDP.
 
-### Next: what the game's next slices stand on
+**What exists.** `Net::Server` and `Net::Client` on ENet over UDP, plaintext
+(`source/engine/net/include/jettison/net/Server.h`). Bearer tokens on libsodium: the server keeps
+only each token's BLAKE2b digest (`net/Token.h`). The `net` module links libsodium already.
 
-Consult Manifest's current stages for the next required mechanics. The engine provisions
-reusable capabilities; the following space-example backlog is subordinate to the neutral
-SDK work above and does not transfer production game rules into Jettison.
+**Feature doc:** [networking](networking.md).
 
-- **Manifest integration, not sample expansion** ([game integration](game-integration.md)):
-  provision public world/definition/command/persistence/script capabilities required by the
-  game's current stages. Its order book, economy and progression remain in Manifest.
-- **Decisions, not yet placed** (entry 26, 9f): reactive nodes, which tick a condition above a
-  running branch and halt what they leave, as a trader breaking off its run to flee would need, and
-  with them a task's halt; parallel nodes; a tree that names another as a subtree, where the
-  trader's tree repeats its three-node jump loop for each leg; a blackboard of the engine's, where a
-  trader's run is its own component; a command that gives an entity a tree, with its sender, where
-  the shell gives a trader its tree as it makes it; and a tree ticked less often than every step,
-  which seven traders do not need. A trader's run that cannot be made waits half a minute and
-  chooses again; what a trader does about a hull it cannot dock, a market that has gone, or the
-  player in its way beyond steering clear is the game's.
-- **Scripts, not yet placed** (entry 29, 11b): a script reading the world, which today it sees only
-  through the events it is given and an option's inputs (decided, 2026-11-13: a handler reads the
-  newest stepped snapshot, by component, as granted, and acts as its player; an input reads only its
-  inputs); a script called from a behaviour tree's task, as an input is from a consideration; a script reloaded
-  when its module changes; scripts compiled ahead of time; and the fuel a call used, which WAMR does
-  not report, for the console. A script's own reasons (`reason.script.<script>.<name>`, decided),
-  which wait for something a script refuses; and the sender of a command a script sends, which it
-  sets itself, as a `Trade`'s (12c), until a handler acts as its player.
-- **Packs and mods, not yet placed** (entry 10, 11a): the game's menu over `mods.yaml` (12a), which
-  the player edits by hand until then; a patch that removes an element from a list, rather than
-  replacing the list; a pack hot-reloaded, which is read as it was mounted; and layering for anything
-  but definitions, so a mod still replaces a scene, a system or a stylesheet whole.
-- **Picking a paused world, and under the cursor every frame** (entry 22, 7c): a pick is answered by
-  the next step, so a paused world answers when it resumes, and a hover highlight would send a
-  command a frame. Both want a query presentation makes itself, against the bodies' shapes in a
-  snapshot. Not yet placed.
-- **Physics, not yet placed** (entry 22): a shape offset in its body, and compound shapes; collision
-  filtering beyond static against moving (the game's own layers and groups); Jolt's debug renderer
-  drawn through debug draw; Jolt's job system on more than one thread, once a profile asks for it
-  (deterministic either way); the capacities tuned against real traffic; overlap queries (every body
-  in a shape) and casts that return every hit, which steering (9b) did without (below).
+<a id="j02"></a>
+### J02. Who a script commands as, under networked play
 
-### Then: robustness, tools and what a mod can reach
+**What remains.** The server decides, call by call, whose authority a [script](glossary.md#script)'s
+command carries. A handler run for a player's [event](glossary.md#event) sends as that player, and
+one run for an NPC sends as that NPC. No client or script can name another player or an NPC. The
+host also stamps a [controller](glossary.md#controller) nested inside a command's fields, not only a
+top-level one.
 
-Cheap to add when they are wanted and costly to nothing meanwhile, but for the log, whose file a
-player's report of a problem needs and the shell does not write.
+**Why.** With several players, a script that names its own sender could act for someone else. The
+sender is part of every saved and replayed command, so its rule is fixed before players rely on it.
 
-- **The way in to a pad, done properly** (the user's, 2026-11-21; entry 31). First in the tier:
-  every NPC and autopilot trade in Manifest docks through it. Manifest's W10 zero-client run found a
-  ship that came round its station fast and sideways overshooting the point above its pad, which is
-  only `kAboveMargin` (10 m) outside what steering keeps it from: each lap avoidance commanded it
-  out at up to 190 m/s and Arrive pulled it back, and it circled 30 to 55 m off the point at about
-  40 m/s until its 300 s reservation lapsed. In a grid of 48 starts round Highport, 2 km and 4 km
-  out, still or going across at 150 m/s, two never reached the point. Ship and station shared one
-  frame throughout. A 100 m margin alone cured that case; a waypoint out along the normal, which
-  steering passes at full speed, put a sample trader into Ostra Anchorage at 126 m/s. The stopgap
-  (`Docks::FlyInbound`, `FlyAbove`): the ship stops at a point out along the normal as far beyond
-  the point above as it stops in from its top speed, then flies straight down the normal from rest,
-  so the 10 m margin stands; from 10 km Highport's shuttle is over its pad in 117 s, 111 s before.
-  What other games do, from recollection and not checked against sources: EVE has no approach,
-  docking at once within range; Freelancer and many older games fly to a ring or entry point and
-  script the rest; X4 and Star Citizen's traffic control fly authored approach paths, holding point,
-  approach point, pad, with avoidance relaxed against the station; Elite Dangerous gives a pad and a
-  permission that lapses, limits speed near a station and flies its docking computer down a fixed
-  approach; Space Engineers' general autopilot is known for circling and overshooting its
-  waypoints, the failure here, which players work round with a slow precision mode or scripts. So
-  the solution: an approach corridor flown without stopping, at a speed that falls with the
-  distance left; the station not an obstacle on the corridor's last leg, as it is not on the way
-  down (`byShape`); Arrive damping the velocity across its line rather than pursuing; and a
-  reservation that lapses when a ship stops making progress rather than at a fixed time. Measured by
-  ships flown in from every side and speed, one queued behind another on the next pad, and no
-  arrival slower than the stopgap's.
-- **Station traffic lanes, parked** (the user's, 2026-11-22). They waited for the engine's space
-  concepts to leave its neutral modules, done 2026-11-23: the lanes are Manifest's `space`, on the
-  engine's slots and portals. Booked after Manifest's W21, for
-  departures, arrivals and cruises sharing one line between the five stations of Ore's one orbit, which
-  its policies hop round. Measured first on the engine as it is, by Manifest's `fixture_traffic`: six
-  starters flown both ways between Ore Highport and Vale, two sent in one step as a policy sends them
-  and two leaving Highport as two come in, came no nearer than 198 m hull to hull, between steps as
-  well as at them, against steering's 20 m clearance; leaving took 52 to 70 s and coming in 87 to 98 s.
-  Opposite flows do not share a line on an orbit: each cruise aims where its target will be, and the
-  stations move some 15° an hour, so the two ways' courses in one hour are 5,400 km apart. What is
-  shared: ships going the same way fly one line 6 to 70 m apart, kept apart by leaving seconds after
-  one another, and a departure passes some 800 m from an arrival; a station's pads bound how many
-  leave at once. Taken up when `fixture_traffic` fails or traffic it does not cover asks (a
-  station of more pads, larger hulls, a busier orbit), on the design settled with the user: every
-  cruise from a station flying one of several lanes each way, kept to the right of its way as roads
-  and Freelancer's paired trade lanes do, held as pads are and kept from gate to gate, departures
-  leaving above the orbit's plane and arrivals coming in below it; the lanes first, the way in's
-  corridor after.
-- **A test of an acquire out of date twice** (the user's, 2026-11-18). `drawEveryFrame`'s recreate
-  loop and its failure after eight are not covered: it needs fault injection under the Vulkan
-  layer, which the engine does not have. Taken up when that branch is needed, if ever.
-- **Logging in the shell** (entry 3). The app shell does not call `InitLogging`, so its reports
-  reach only the default stderr sink. The run's reports (pass timings, the cluster check, the
-  benchmark) went through `Log.h` on 2026-11-17; the failure report, usage line and teardown stay on
-  `std::cerr` ([coding standards](coding-standards.md#errors)).
-- **Crash handling, not yet placed** (entry 30, 11d): a report from a thread other than the main
-  one whose stack overflowed, which wants an alternate stack set by every thread the engine starts
-  (the I/O worker, the scripts' watchdog) and by Jolt's; each module's build ID in the report, and a
-  release's debug files kept by it, and the shell saying on its next start where a new report is
-  (decided, 2026-11-13); a report sent anywhere, which waits on players outside development; a
-  minidump, should a report's frames and tail not be enough.
-- **A destination prefetched** before it is shown (entry 21): the renderer asks for a model when it
-  first draws it, so a jump holds its effect over the new system's first frames while they stream
-  in, 0.2 to 0.4 s on lavapipe for the sample systems. Not yet placed.
-- **A glTF model's collision mesh** (entry 22, 7b): a station built to a layout collides as its
-  decks and piers (9c), as every station of the sample systems is, and one of no layout as the
-  procedural shapes the scene draws it with (`app/src/Piloting.h`); a hull collides as the box of its
-  definition's size, whether or not it names a model to be drawn with (9d). A model's triangles, read from its file on
-  the I/O worker as its rig is, or a collision mesh beside it, are not yet placed, and a model on a
-  station of no layout is reported and left out.
-- **Steering, not yet placed** (entry 26, 9b): an obstacle is the sphere about its body that holds
-  its shape, and only a destination kept clear by its hull (9c) flies inside one, by a shape cast
-  along its way, which slows it and does not turn it: a course round the inside of a station, from
-  one pad to another under a pier, is not plotted, and a docked ship's way to its pad is straight
-  down from outside the sphere, which a layout is checked to leave clear. Steering is measured for a
-  station's traffic, sixteen ships; a busier lane's, where every ship queries the index each step,
-  is measured when a game has one.
-- **The UI, not yet placed** (entry 23, 8b): a stylesheet or document reloaded when its file
-  changes (RmlUi keeps a stylesheet for the run); a document's images decoded on the I/O worker
-  rather than as the document lays out, which is on the main thread and fine for a screen's icons;
-  RmlUi's debugger in the dev tools.
-- **Localisation, not yet placed** (entry 30, 11d): numbers with fractions, dates and times in the
-  language's own form, where only a whole number's thousands are; text a document holds in an
-  attribute, which RmlUi does not hand to the table; right-to-left and shaped scripts, which RmlUi
-  can lay out with HarfBuzz and the fonts shipped cannot draw; and the player's language chosen at
-  the first start from the platform's (Steam's, the environment's), which the setting stands in for.
-- **Comments better as names** (the comment review, 2026-11-18). `kFullTurn`
-  (`animation/src/Playback.cpp`) as `glm::two_pi<float>()` and `kBelowOne`
-  (`time/src/FixedStep.cpp`) as `kLargestBelowOne` (`std::nextafter` is constexpr only from C++23),
-  each then needing no comment; and the trailing comments, which `comment-only.sh` cannot tell from
-  code and so were left: `Theme.cpp`'s glosses on the console lines' tokens and the trailing comment
-  `FontFaces.cpp` wraps over three lines.
+**What exists.** `Script::ScriptHost::SendCommandsTo(world, sender)` replaces every top-level
+`Sim::Controller` field of a script's command with the one sender given
+(`source/engine/script/include/jettison/script/ScriptHost.h`). With no sender given, a command that
+names a controller traps (`BindingError`). The shell gives none
+(`source/engine/app/src/Application.cpp`), so there a script can send only commands with no sender.
 
-### Last: presentation, when a scene asks for it
+**Feature doc:** [scripts](scripts.md).
+
+## Tier 2: what a game's next work stands on
+
+What a game reaches for as its AI, content and tools grow. None changes a save already written, but
+each is cheaper before a game builds a workaround.
+
+<a id="j03"></a>
+### J03. Behaviour trees
+
+**What remains.**
+
+| Feature | What it does |
+| --- | --- |
+| Reactive nodes | Re-check a condition above a running branch each tick, and halt the branch they leave. An NPC breaking off a run to flee needs them. |
+| A task's halt | Tells a running task it was interrupted, so it can let go of what it holds. Reactive nodes need it. |
+| Parallel nodes | Run several children at once. |
+| Subtrees | A tree that names another, so a repeated loop is written once. |
+| A blackboard | Per-entity memory that nodes read and write. Today a game keeps such state in its own component. |
+| A command giving an entity a tree | With its sender, so a tree can be assigned through the step rather than by the game as it makes the entity. |
+| A tree ticked less often | For many entities whose decisions need not run every step. |
+
+**Why.** They are the standard tools a game's AI expects; without them a game writes the same logic
+as one-off tasks, which do not save or mod as trees do.
+
+**What exists.** `Ai::NodeKind`: Sequence, Selector, Invert, Succeed, Repeat, Loop, Wait and Task
+(`source/engine/ai/include/jettison/ai/BehaviourTree.h`). A tree is data, registered with Reflect,
+every field saved and moddable. What an entity does when its task fails is the game's.
+
+**Feature doc:** [AI](ai.md).
+
+<a id="j04"></a>
+### J04. Scripts
+
+**What remains.**
+
+- Reading the world. Decided 2026-11-13: a handler reads the newest stepped
+  [snapshot](glossary.md#snapshot), by component, as its [grants](glossary.md#grant) allow, and acts
+  as its player. An input to a consideration reads only its inputs.
+- A script called from a behaviour tree's task, as an input is called from a consideration.
+- A script reloaded when its module changes.
+- Scripts compiled ahead of time.
+- The [fuel](glossary.md#fuel) a call used, shown in the console. WAMR does not report it.
+- A script's own [reasons](glossary.md#reason), as `reason.script.<script>.<name>` (decided), for
+  what a script refuses.
+
+Who a script's commands are from is [J02](#j02).
+
+**Why.** A script sees the world only through the events it is given and an option's inputs: enough
+for a handler that reacts, not for one that looks around. Reload and fuel reports are what a modder
+needs to write scripts quickly.
+
+**What exists.** WAMR's interpreter, bounded by fuel and by a wall-time
+[watchdog](glossary.md#watchdog) (`script/ScriptHost.h`). A script is granted `log`, `store` and one
+capability per command type it may send (`script/ScriptDefinition.h`, `script/Bindings.h`).
+
+**Feature doc:** [scripts](scripts.md).
+
+<a id="j05"></a>
+### J05. Packs and mods
+
+**What remains.**
+
+- A [patch](glossary.md#patch) that removes one element from a list, rather than replacing the list.
+- A [pack](glossary.md#pack) hot-reloaded. Today a pack is read as it was when it was mounted.
+- [Layering](glossary.md#layering) for more than definitions. Today a mod replaces a scene, a system
+  or a stylesheet whole.
+
+The menu over `mods.yaml` is the game's, not the engine's: a player edits the file by hand until a
+game provides one.
+
+**Why.** Each lets two mods change the same thing without one undoing the other.
+
+**What exists.** Patches merge mappings, remove keys, and append to or merge lists by a key
+([layering definitions](files-and-mods.md#layering-definitions)). Loose files reload when they
+change; packs do not (`vfs/FileSystem.h`).
+
+**Feature doc:** [files, packs and mods](files-and-mods.md).
+
+<a id="j06"></a>
+### J06. Picking a paused world, and under the cursor every frame
+
+**What remains.** A pick answered while the world is paused, and a pick under the cursor every
+frame, for a hover highlight. Both want a query that presentation makes itself, against the bodies'
+shapes in a snapshot.
+
+**Why.** A pick is a command the next step answers with an event ([decided](decisions.md#physics)),
+so a paused world answers only when it resumes, and a hover would send a command every frame.
+
+**What exists.** `Physics::Pick` and `Physics::Picked`
+(`source/engine/physics/include/jettison/physics/PhysicsWorld.h`); the shell asks the game where a
+click picks (`App::Game::PickIn`).
+
+**Feature doc:** [physics](physics.md).
+
+<a id="j07"></a>
+### J07. Physics
+
+**What remains.**
+
+| Feature | Why |
+| --- | --- |
+| A shape offset in its body, and compound shapes | Most objects are not one primitive centred on their body. |
+| Collision filtering beyond static against moving | A game's own layers and groups: what may touch what. |
+| Jolt's debug renderer drawn through debug draw | Seeing the shapes Jolt actually has. |
+| Jolt's job system on more than one thread | Once a profile asks for it. The result is deterministic either way. |
+| Capacities tuned against real traffic | The defaults are guesses. |
+| Overlap queries, and casts that return every hit | "Every body in this shape" and "everything along this ray", for triggers and AI. Steering did without. |
+
+**What exists.** Shapes are Box, Sphere, Capsule, Cylinder, ConvexHull and Mesh; a mesh is for
+static and kinematic bodies only (`source/engine/physics/include/jettison/physics/Shape.h`).
+`PhysicsWorld::CastRay` and `CastShape` return the first hit. Jolt runs on
+`JPH::JobSystemSingleThreaded` (`physics/src/PhysicsWorld.cpp`). The capacities are `maxBodies`
+8192, `maxBodyPairs` 32768 and `maxContactConstraints` 16384 (`PhysicsWorld.h`).
+
+**Feature doc:** [physics](physics.md).
+
+<a id="j08"></a>
+### J08. Steering
+
+**What remains.** A course round the inside of a [platform](glossary.md#platform), such as from one
+[berth](glossary.md#berth) to another under a pier. And steering measured for a lane busier than one
+platform's traffic, where every vehicle queries the spatial index each step.
+
+**Why.** A vehicle reaches a berth only by coming straight down from outside the platform's sphere,
+so a layout must leave that column clear. Steering has been measured for sixteen vehicles, one
+platform's traffic; a busier lane's cost is unknown.
+
+**What exists.** An obstacle is the sphere about its body that holds its shape
+(`source/engine/ai/include/jettison/ai/Steering.h`). A destination flown `byShape` sweeps the
+vehicle's own shape along its way (`PhysicsWorld::CastShape`), which slows it but does not turn it.
+
+**Feature doc:** [AI](ai.md).
+
+## Tier 3: robustness and tools
+
+Cheap to add when wanted, and costing nothing meanwhile, except the log file ([J10](#j10)), which a
+player's report of a problem needs.
+
+<a id="j09"></a>
+### J09. The way in to a berth, done properly
+
+First in the tier: every NPC and autopilot in Manifest docks through it.
+
+**What remains.** The approach, designed with the user on 2026-11-21:
+
+- an approach corridor flown without stopping, at a speed that falls with the distance left;
+- the platform not an obstacle on the corridor's last leg, as it is not on the way down (`byShape`);
+- Arrive damping the velocity across its line, rather than pursuing the point;
+- a reservation that lapses when a vehicle stops making progress, rather than after fixed seconds.
+
+It is measured by vehicles flown in from every side and speed, one queued behind another on the next
+berth, and no arrival slower than the stopgap's.
+
+**Why.** The stopgap cures a vehicle arriving fast and sideways that overshot and circled, but every
+vehicle still stops out along the normal before it comes in.
+
+**What exists.** The stopgap, in [the way in](docks.md#the-way-in) (`Dock::Docks::FlyInbound`,
+`FlyAbove`, `source/engine/dock/src/Docks.cpp`). A reservation lapses after the layout's
+`reservationSeconds`, 300 by default (`dock/Definitions.h`).
+
+**Feature doc:** [docks](docks.md).
+
+<a id="j10"></a>
+### J10. Logging in the shell
+
+**What remains.** The app shell calls `Core::InitLogging` with a log file, so a run leaves a log a
+player can send with a report.
+
+**Why.** The shell never calls it, so messages reach only the default stderr sink, Info and above.
+The failure report, the usage line and teardown stay on `std::cerr` ([coding
+standards](coding-standards.md#errors)).
+
+**What exists.** `Core::InitLogging(minimum, file)` installs stderr and an optional file sink
+(`source/engine/core/include/jettison/core/Log.h`), with tests.
+
+**Feature doc:** [runtime](runtime.md).
+
+<a id="j11"></a>
+### J11. Crash handling
+
+**What remains.**
+
+- A report from a thread other than the main one whose stack overflowed, which wants an alternate
+  signal stack on every thread the engine starts (the I/O worker, the scripts' watchdog) and on
+  Jolt's once it has threads ([J07](#j07)).
+- Each module's build ID in the report, a release's debug files kept by it, and the shell saying on
+  its next start where a new report is (decided 2026-11-13).
+- A report sent somewhere, which waits on players outside development.
+- A minidump, should a report's frames and log tail not be enough.
+
+**What exists.** `Platform::InstallCrashHandler` sets one alternate stack, for the thread that
+installs it, and writes a report with its backtrace, named by a symboliser when one is found
+(`source/engine/platform/src/Crash.cpp`).
+
+**Feature doc:** [runtime](runtime.md).
+
+<a id="j12"></a>
+### J12. A glTF model's collision mesh
+
+**What remains.** A model's triangles read from its glTF file on the I/O worker, as its rig is, or a
+collision mesh in a file beside it.
+
+**Why.** A vehicle drawn from a model collides as the box of its definition's size.
+
+**What exists.** `Physics::ShapeKind::Mesh` and `ConvexHull` take vertices given in data or code
+(`source/engine/physics/include/jettison/physics/Shape.h`). A platform built to a layout collides as
+its decks, a mesh the docks make from the layout's boxes (`dock/src/Definitions.cpp`). A
+`Dock::VehicleDefinition` has a length, beam and height, and an optional model drawn in place of its
+proxy (`dock/Definitions.h`).
+
+**Feature doc:** [physics](physics.md).
+
+<a id="j13"></a>
+### J13. A scene's models prefetched before it is shown
+
+**What remains.** A scene's models asked for before the scene is shown, so its first frames draw
+complete.
+
+**Why.** The renderer asks for a model the first frame a scene draws it, and draws nothing for it
+until the file has loaded, so after a scene switch its models appear over its first frames (0.2 to
+0.4 s on lavapipe for the retired space sample's scenes). Manifest's jump between systems is one
+user.
+
+**What exists.** `Render`'s model cache: a model file is a resource, decoded on the I/O worker and
+reloaded when it changes (`source/engine/render/src/vulkan/ModelCache.h`).
+
+**Feature doc:** [rendering](rendering.md).
+
+<a id="j14"></a>
+### J14. UI
+
+**What remains.**
+
+- A stylesheet or document reloaded when its file changes. RmlUi keeps a stylesheet for the run.
+- A document's images decoded on the I/O worker. They are decoded on the main thread as the document
+  lays out, which is fine for a screen's icons.
+- RmlUi's debugger in the dev tools.
+
+**Why.** A UI author iterates with reload and the debugger; decoding off the main thread matters
+once a screen shows large images.
+
+**Feature doc:** [UI, input and localisation](ui.md).
+
+<a id="j15"></a>
+### J15. Localisation
+
+**What remains.**
+
+- Numbers with fractions, and dates and times, in the language's own form; only a whole number's
+  thousands are.
+- Text a document holds in an attribute, which RmlUi does not hand to the string table.
+- Right-to-left and shaped scripts. RmlUi can lay them out with HarfBuzz; the fonts shipped cannot
+  draw them.
+- The player's language chosen at the first start from the platform's (Steam's, the environment's).
+  The setting stands in for it.
+
+**What exists.** `Ui::StringTable` with `Format` and `Plural`, and plural categories per language
+(`source/engine/ui/include/jettison/ui/StringTable.h`).
+
+**Feature doc:** [UI, input and localisation](ui.md).
+
+<a id="j16"></a>
+### J16. A test of an acquire out of date twice
+
+**What remains.** A test of the renderer's recreate loop when the swapchain is out of date, and of
+its failure after `kMaxRecreates` (8) tries (`source/engine/render/src/vulkan/Renderer.cpp`).
+
+**Why.** That branch is not covered: it needs fault injection under the Vulkan layer, which the
+engine lacks. Taken up when the branch is needed, if ever.
+
+**Feature doc:** [rendering](rendering.md).
+
+<a id="j17"></a>
+### J17. Comments better as names
+
+**What remains.** Found by the comment review (2026-11-18):
+
+- `kFullTurn` (`source/engine/animation/src/Playback.cpp`) as `glm::two_pi<float>()`.
+- `kBelowOne` (`source/engine/time/src/FixedStep.cpp`) as `kLargestBelowOne`. `std::nextafter` is
+  constexpr only from C++23, so the constant stays.
+- The trailing comments that `scripts/comment-only.sh` cannot tell from code, so left: the glosses
+  on the console lines' tokens in `source/engine/ui/imgui/src/Theme.cpp`, and the comment
+  `source/engine/render/src/vulkan/imgui/FontFaces.cpp` wraps over three lines.
+
+**Why.** A name that says what a value is needs no comment to explain it ([coding
+standards](coding-standards.md#comments)).
+
+<a id="j18"></a>
+### J18. A prebuilt SDK
+
+**What remains.** `JETTISON_INSTALL=ON` made a supported path, so a game can
+`find_package(Jettison)` rather than build the engine from source.
+
+**Why.** Only when a game needs a prebuilt engine; Manifest builds it from source, pinned to a
+commit.
+
+**What exists.** The option and why CMake refuses to export it:
+[installing](build-and-gates.md#installing-not-yet-supported).
+
+**Feature doc:** [build and gates](build-and-gates.md#consuming-the-engine).
+
+<a id="j19"></a>
+### J19. A pack signed as a whole
+
+**What remains.** A signature over a whole pack, checked as it mounts.
+
+**Why.** A player installs mods made by others, and nothing shows that a pack is the one its author
+released.
+
+**What exists.** Per-file checks that catch damage, not tampering
+([packs](files-and-mods.md#packs)).
+
+**Feature doc:** [files, packs and mods](files-and-mods.md).
+
+## Tier 4: presentation, when a scene asks
 
 Each is placed by the first scene or screen that needs it, and changes no data or save on the way.
 
-- **Animation, not yet placed** (entry 27, 10d): a glTF clip's events, which glTF has no place for
-  (its extras, or a clip file beside the model); one clip blended into another, so a clip changed
-  part-way, as a pad's clamps let go before they have closed, starts the new one from its first pose
-  rather than from where the rig is; the clamps fitted to the hull's box rather than its shape, so
-  on a hull drawn by its model they grip where its box's sides are; and rigs of the ships' own
-  (landing gear, a cargo hatch), which the hull proxies do not have.
-- **The audio, not yet placed** (entry 24, 8c): music that crossfades between pieces and a playlist
-  to choose them; Doppler, once something reports velocities to presentation; the ship's own sounds
-  (its engines, the cockpit's) and occlusion by hulls; a sound file streamed from its mount rather
-  than read whole, which waits on a streaming read in the VFS (entry 10; a pack's stored files could
-  be read in ranges, its compressed ones would want zstd's streaming decoder). The voice bus has
-  nothing on it yet.
-- **Cinematics and grading, not yet placed** (entry 30, 11c): a jump's cutscene, which the
-  sequencer plays as data but the jump does not yet wait on (its fade rises as it is asked for), and
-  whose arrival would bind the gate, which the shell does not; a sequence's events heard by the shell,
-  as sounds by data; a shot's roll and depth of field; a blend that steers round a hull rather than
-  along a line, which a rail is drawn to avoid today (the dock's starts on the chase camera's side);
-  and a grade blended between two tables, as a sequence's own look or a system's change of one
-  would want.
-- **The UI's drawing, not yet placed** (entry 23, 8b): RmlUi's clip masks (an element with
-  `overflow` clipped by a rounded border, or clipped while transformed), which want a stencil in the
-  output pass's rendering, where the UI is drawn into the swapchain and the depth target's stencil
-  (10c) is not attached; and its layers, filters and shaders (`filter`, `backdrop-filter`,
-  `mask-image`, gradients drawn as shaders), which want render targets of their own, as the post
-  chain's are (10c). Until then RmlUi's defaults draw nothing for them, and a screen uses none.
-- **The transparent pass, not yet placed** (entry 28, 10b): particles sorted within an emitter, on
-  the GPU, which a smoky emitter seen through itself would want; soft particles where they meet a
-  surface, which want the depth the opaque pass is still writing, so a node of their own after it;
-  refraction through glass, from a copy of the frame behind it, which the opaque pass's resolved
-  target would give were the transparent draws a node of their own after it; a glTF primitive's `BLEND` alpha mode, which draws opaque; a transparent
-  surface's shadow, tinted, which the sun's depth-only cascades cannot hold; and an emitter
-  started warm, as if it had been running, which a capture of a smoke column waits three seconds
-  for instead. A ship's thrusters are shown as its proxy's class places them, a hull drawn from a
-  model has none, and a hull's definition cannot place its own ports yet.
-- **The post chain, not yet placed** (entry 28, 10c): a transparent part of an outlined shape (a
-  canopy) is not in the depth prepass, so the shape's outline runs round the opaque parts alone; a
-  pick read from the object IDs under the mouse, which the physics ray answers today; the game UI and
-  the dev tools under a mask, since they are drawn in the output pass, where the stencil is not
-  attached; ambient occlusion at half the frame's size, or kept from frame to frame, should a
-  measured frame want it cheaper.
-- **The dev tools' theme, and what it leaves** (ui/imgui): the style is themed 2026-11-17, on
-  Catppuccin's four varieties with the spacing of a Tailwind sheet, switched live by `dev.palette`
-  and `dev.ui_scale` ([architecture](architecture.md#ui)). Not yet placed: the game
-  UI's own stylesheet in the same palette, so the market screen and the tools read as one design,
-  which is a RmlUi stylesheet over the VFS and no engine work; the palette as a player setting on the
-  game's own screen, which wants the settings screen the sample does not have; a light-attachment
-  swap noticed mid-run, which `ApplyThemeIfChanged` answers only when a setting changes; and the
-  darkest tones exact on the palette, which wants the sRGB encoding done in the UI's own shader over
-  a UNORM attachment — ImGui packs a vertex colour into 8-bit linear bytes, so `#1e1e2e` lands as
-  `#1c1c2e` and `#11111b` as `#0d0d1c`; measured over the 264 channels of the four varieties, 209
-  land exact, 33 are one step off and the most is four, all four-step cases at the dark end
-  ([architecture](architecture.md#ui)).
-- **Not yet placed** (entries 19 and 20): the sun's shadow distance and split blend tuned by
-  measurement; hysteresis between levels of detail, and levels for model files; the planets' own
-  shadows past the shadow distance (a station in eclipse), which would need an analytic test against
-  the bodies; programs that hot-reload; cube maps and texture arrays in files; normal mapping in `mesh`, which
-  waits for tangent-space vertex data (`math/Tangents.h` makes it; `planet` builds its frame from
-  the sphere and does not need it); a glTF model's own
-  metallic-roughness factors and textures; and a model file read once rather than twice, for its
-  rig and for its geometry (6a).
+<a id="j20"></a>
+### J20. Animation
 
-### The samples' backlog
+**What remains.**
 
-The space and ground samples' own loose ends and looks, for when a sample is extended. None is an
-engine requirement, and none comes before the neutral SDK work above.
+- A glTF clip's events. glTF has no place for them, so they would go in its extras or in a clip file
+  beside the model; a scene's clip files have events already (`animation/ClipFile.h`).
+- One clip blended into another. A clip changed part-way, as a berth's clamps let go before they
+  have closed, starts from its first pose, not from where the rig is.
+- A berth's clamps fitted to a vehicle's shape rather than its box, so on a vehicle drawn by its
+  model they grip where its sides are.
+- Rigs of a vehicle's own (landing gear, a hatch), which the docks' vehicle proxies lack.
 
-- **The ground sample's frames held** (the user's, 2026-11-18, after G01): `scripts/capture.sh`
-  runs `render_test` alone, so the ground sample's scene and chase camera were checked once, by eye,
-  and no reference view holds them as the space sample's are held. The script taking the executable
-  to run, and a ground view in `source/test/frames/views.txt`, would. Before L15's graphical client,
-  when a second game's look starts to matter.
+**What exists.** Rigs and their clips from glTF
+(`source/engine/animation/include/jettison/animation/Rig.h`).
 
-- **A screen to buy ships from** (the user's, 2026-11-14, as 13d began): 13d buys a ship with the
-  console's `buy <hull>` and lists and attaches to the fleet with `fleet` and `attach`, ] and [; a
-  shipyard screen of the game UI's, beside the market screen, with the hulls a station sells, their
-  prices and the purse, is held over for a later phase, as is a fleet screen.
+**Feature doc:** [animation and cinematics](animation.md).
 
-- **Cruising, not yet placed** (entries 22 and 26, 13a): a cruise to a ship rather than a body;
-  one broken off part-way, as a privateer's would be, which knowing where the ship is every step
-  allows; a course that bends round a body rather than turning at waypoints, which the ship does in
-  a step; and a body in the way placed where the ship passes it by its time alone, so a planet
-  neither end orbits is placed half-way and widened by half of its own motion. A cruise's arrivals
-  are spread clear of each other as a lane's are (13b), but a ship that comes out at rest is not
-  made to move off if another then flies into its place.
+<a id="j21"></a>
+### J21. Audio
 
-- **Gates, not yet placed** (entry 26, 13c): a ship waiting its turn at a gate is not placed, so a
-  trader waits where its cruise left it, spread from the others only as arrivals are; a clearance is
-  given up only by lapsing or by its ship leaving the gate's frame, and no command gives one up; a
-  licence or a standing, which the clearance's check takes when the game has factions (decided,
-  perhaps as an input a script answers). The console's `jump`, the J key and the galaxy panel's
-  buttons are the tools' jump, which sends the ship along a lane wherever it is, past the gate and
-  its toll, as the smoke sequence and the reference frames use it; it goes, since all travel is by
-  gates (decided, 2026-11-14), once they fly through a gate instead; the smoke sequence does not wait
-  the 40 s for the ship to come out, and the AI and app suites cover the arrival.
+**What remains.**
 
-- **The ground sample's loose ends** (the user's, 2026-11-18, after G01): its ground has no name, so
-  a pick logs it as `Entity 0x0`; and its rover is a box sliding on the ground's friction, which
-  needed 8 rad/s² to turn and drifts sideways, not a vehicle that grips. Sample polish, whenever the
-  sample is next touched; nothing stands on it.
+- Music that crossfades between pieces, and a playlist to choose them.
+- Doppler, once something reports velocities to presentation.
+- A vehicle's own sounds, and occlusion by what is in the way.
+- A sound file streamed from its mount rather than read whole. That waits on a streaming read in the
+  VFS: a pack's stored files could be read in ranges, its compressed ones would want zstd's
+  streaming decoder.
 
-- **A body's look as data** (entry 21): the system scene draws a body it builds as its kind is, from
-  a table in code. A station's look is its layout's, dressed (9d); a planet's material, air and
-  rings are a scene file's (10a), so Corva's rings are drawn in `scene/vesper.yaml` and not in the
-  Vesper a jump builds from its system file. A look per planet, moon or kind, as a scene fragment a
-  mod can shadow, is not yet placed.
+**What exists.** One piece of music at a time, read whole and decoded as it plays, and a voice bus
+with nothing on it ([audio](audio.md), `source/engine/audio/include/jettison/audio/AudioSystem.h`).
 
-- **The station dressing, not yet placed** (9d): the dressing is drawn and not collided with, so a
-  ship flown off its pad's column passes through a floodlight pole or a display ship, which the
-  column a layout is checked to keep clear never meets; a pad's look as data (its paint, its poles'
-  spacing and its floodlights' aim are the shell's, by class, in code; a reserved pad's lamps blink,
-  10c, by a material of the shell's choosing); the floodlights' shadows,
-  which the clusters' lights do not cast. The light-budget scene (`scripts/make-light-budget-scene.py`)
-  still adds its 265 lights where 5e's hand-built hub was, now inside the layout's hub, so it measures
-  the grid's cost and no longer shows anything; the dressing's 104 are the station's lights now.
+**Feature doc:** [audio](audio.md).
 
-- **A nozzle's glow, to revisit** (13e): a thruster's glow is its procedural nozzle's mesh colour,
-  which is in the shape's vertices, and the renderer keeps one model a colour (`Render::ModelCache`),
-  dropped the first frame none draws it. Shown as it was, every frame a new colour, it made and
-  uploaded a model for every nozzle every frame, jerky in a release build; it is now shown in eight
-  steps that every nozzle shares (`kGlowSteps`), which bounds the models at nine but steps the
-  ramp. The method is to be revisited: an emissive scale a draw carries per entity (a mesh's own,
-  or a material parameter set per draw), so a glow is smooth and costs no model, and a nozzle of a
-  hull drawn from a model can glow too.
+<a id="j22"></a>
+### J22. Cinematics and grading
 
-- **Air over a mesh in it** (entry 28, 10a): the haze is the planet's own surface's and the sky's,
-  not a ship's or a station's within the air, which no sample scene has yet, nor a transparent
-  draw's (10b); nor are the bodies' air and rings sorted where two overlap on the screen. Not yet
-  placed: the first scene with a ship in the air brings it, for the opaque and the transparent draws
-  alike.
+**What remains.**
 
-- **The planets' look in the environment's capture** (entry 28, 10a): the capture draws a body as
-  a sphere of its mesh's colour, without its maps or clouds, which would about double Ostra's
-  brightness in it. Not yet placed.
+- A sequence's events heard by the shell, so data alone can tie a sound to one.
+- A shot's roll, and depth of field.
+- A camera blend that steers round an object rather than along a line; a rail is drawn to avoid it.
+- A grade blended between two tables, for a sequence's own look or a scene's change of one.
 
-- **A gas giant's bands** (entry 28, 10a): Corva is one colour under its air. Not yet placed.
+**What exists.** Sequences of shots, fades, letterbox bars and named events
+(`source/engine/scene/include/jettison/scene/Sequence.h`); a colour grade as a 3D lookup table
+(`render/ColourGrade.h`).
 
-## Stubs
+**Feature doc:** [animation and cinematics](animation.md); grading in [transparency, particles and
+post-processing](rendering-effects.md).
 
-Phase 1 wrote a stub for every module in the catalogue below; the modules under
-`source/engine/` are the list. A stub is:
+<a id="j23"></a>
+### J23. The UI's drawing
 
-- the module's directory, `CMakeLists.txt` and its place in the dependency graph
-- its public header(s), with the main types and functions declared and documented: what they
-  are for, what owns what, and which phase fills them in
-- an implementation that compiles, does nothing observable, and fails loudly where doing
-  nothing would be wrong (`JETTISON_NOT_IMPLEMENTED()` from `core`)
-- one doctest test that the module links and its stub behaves as documented
+**What remains.**
 
-A stub does not invent behaviour the phase that fills it would have to undo. Where a stub holds
-configuration it was constructed with (a fixed step, a seed, a mount list), that much is real and
-tested; everything that would need an algorithm throws.
+- RmlUi's clip masks: an element with `overflow` clipped by a rounded border, or clipped while
+  transformed. They want a stencil in the output pass, which draws the UI into the swapchain without
+  the depth target's stencil.
+- RmlUi's layers, filters and shaders (`filter`, `backdrop-filter`, `mask-image`, gradients drawn as
+  shaders), which want render targets of their own, as the post chain's are.
 
-## System catalogue
+Until then RmlUi's defaults draw nothing for them, and no screen uses them.
 
-In priority order. Each entry is the brief for its stub. *Library* is the chosen dependency.
-*Stub* names what phase 1 declares.
+**Feature doc:** [UI, input and localisation](ui.md).
 
-Entries 1–31, for phases 1–13, are in [history](history.md#system-catalogue-entries-131).
+<a id="j24"></a>
+### J24. Transparent draws and particles
 
-## Open decisions
+**What remains.**
 
-Each is settled before the work it blocks; settled ones are under [decided](decisions.md).
+- Particles sorted within an emitter, on the GPU, for a smoky emitter seen through itself.
+- Soft particles where they meet a surface, which want the depth the opaque pass is still writing,
+  so a render-graph node of their own after it. The transparent draws are recorded inside `opaque`.
+- Refraction through glass, from a copy of the frame behind it, which the opaque pass's resolved
+  target would give were the transparent draws a node of their own.
+- A glTF primitive's `BLEND` alpha mode, which today draws opaque.
+- A transparent surface's tinted shadow, which the sun's depth-only cascades cannot hold.
+- An emitter started warm, as if it had been running; a capture of a smoke column waits three
+  seconds instead.
 
-None open.
+**Feature doc:** [transparency, particles and post-processing](rendering-effects.md).
+
+<a id="j25"></a>
+### J25. The post chain
+
+**What remains.**
+
+- A transparent part of an outlined shape (a canopy) in the outline. It is not in the depth prepass,
+  so the outline runs round the opaque parts alone.
+- A pick read from the object IDs under the mouse; the physics ray answers it.
+- The game UI and the dev tools under a mask. The output pass draws them without the stencil.
+- Ambient occlusion at half the frame's size, or kept from frame to frame, should a measured frame
+  want it cheaper.
+
+**Feature doc:** [transparency, particles and post-processing](rendering-effects.md).
+
+<a id="j26"></a>
+### J26. The dev tools' theme leftovers
+
+**What remains.**
+
+- The game UI's own stylesheet in the same palette, so a game's screens and the tools read as one
+  design: an RmlUi stylesheet over the VFS, no engine work.
+- The palette as a player setting on a game's own settings screen.
+- A light-attachment swap noticed mid-run. `ApplyThemeIfChanged` answers only when a setting
+  changes.
+- The darkest tones exact on the palette, which wants the sRGB encoding done in the UI's own shader
+  over a UNORM attachment: ImGui packs a vertex colour into 8-bit linear bytes, so `#1e1e2e` lands
+  as `#1c1c2e`.
+
+**What exists.** The dev tools are themed on Catppuccin's four varieties, switched live by the
+`dev.palette` and `dev.ui_scale` settings
+(`source/engine/ui/imgui/include/jettison/devtools/Theme.h`).
+
+**Feature doc:** [UI, input and localisation](ui.md).
+
+<a id="j27"></a>
+### J27. Rendering not yet placed
+
+**What remains.**
+
+| Item | Note |
+| --- | --- |
+| Shadow tuning | The sun's shadow distance and split blend tuned by measurement. |
+| Spot and point light shadows | Only the sun casts shadows. |
+| Level-of-detail hysteresis | And levels for model files. |
+| Planets' own shadows | Past the shadow distance (an object in eclipse), by an analytic test against the bodies. |
+| Programs that hot-reload | Shaders reloaded as they change. |
+| Cube maps and texture arrays in files | |
+| Normal mapping in `mesh` | Waits for tangent-space vertex data, which `math/Tangents.h` makes. A planet builds its frame from the sphere and does not need it. |
+| A glTF model's own metallic-roughness factors and textures | |
+| A model file read once | Today it is read twice, for its rig and for its geometry. |
+| An emissive scale per draw | A mesh's own, or a material parameter set per draw, so a glow can change smoothly without a model per colour. The renderer keeps one procedural model per shape and colour (`render/src/vulkan/ModelCache.h`). |
+| Air over a mesh | The haze is the planet's own surface's and the sky's, not that of a mesh within the air, nor of a transparent draw. Two bodies' air and rings are not sorted where they overlap on the screen. |
+| The environment capture's planets | The capture draws a body as a sphere of its mesh's colour, without its maps or clouds. |
+| A gas giant's bands | The test content's Corva is one colour under its air. |
+
+**Feature doc:** [rendering](rendering.md).
+
+## Tier 5: the engine's own samples
+
+Loose ends of the [samples](sample-game.md), for when a sample is next extended; none is an engine
+requirement.
+
+<a id="j28"></a>
+### J28. The ground sample's frames held
+
+**What remains.** `scripts/capture.sh` taking the executable to run, and a ground view in
+`source/test/frames/views.txt`, so a [reference frame](glossary.md#reference-frame-image) holds the
+ground sample's look.
+
+**Why.** `capture.sh` runs `render_test` alone, so the ground sample's scene and chase camera were
+checked once, by eye. It matters before Manifest's graphical client, when a second game's look
+counts.
+
+**Feature doc:** [samples](sample-game.md); [reference frames](build-and-gates.md#reference-frames).
+
+<a id="j29"></a>
+### J29. The ground sample's loose ends
+
+**What remains.**
+
+- The ground has no name, so a pick logs it as `Entity 0x0`: `GroundGame::Describe` names only the
+  rover.
+- The rover is a box sliding on the ground's friction, which needed 8 rad/s² to turn and drifts
+  sideways, not a vehicle that grips (`source/samples/ground/src/Ground.cpp`).
+
+Nothing stands on them.
+
+**Feature doc:** [samples](sample-game.md#the-ground-sample).

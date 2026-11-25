@@ -1,206 +1,194 @@
 # Build and gates
 
-How to build the engine, what the gate checks, and the facts behind each check. This
-consolidates the build sections of the old README and `.github/CI-NOTES.md`.
+How to build Jettison, how a game consumes it, and what the gate checks before a push. The rules the
+code follows are in [coding standards](coding-standards.md); why a tool was chosen is in
+[decisions](decisions.md#build-and-platform).
+
+Everything here runs inside the devenv shell (`devenv.nix`, loaded by `.envrc`). It supplies the
+compilers, CMake, Ninja, the Vulkan SDK, the profilers and every script's tools; nothing is
+installed system-wide.
+
+## Quick start
+
+```bash
+cmake --preset clang-debug                       # configure (once; fetches the dependencies)
+cmake --build --preset clang-debug               # build
+ctest --preset clang-debug -R '^physics$'        # one suite (the suites are named per module)
+build/clang-debug/source/test/render_test        # the shell over the test content, from the root
+./scripts/ci.sh --werror --asan --log build/gate.log   # the gate, before a push
+```
+
+Large media (`.glb`, images, fonts, audio) is in Git LFS. The devenv shell runs `git lfs install`
+for you; a checkout without LFS gives the render test 132-byte pointer files.
 
 ## Dependencies
 
-There are no submodules. Every third-party library is pinned in
-`source/external/CMakeLists.txt` and downloaded by `FetchContent` on the first configure. The
-comment on each pin says why it is configured the way it is, and why when it is older than
-upstream's newest release. Versions were last reviewed on 2026-11-10.
+There are no submodules. Every third-party library is pinned in `source/external/CMakeLists.txt` and
+downloaded by `FetchContent` on the first configure. Each pin's comment says why it is configured as
+it is, and why it is held back where it is older than upstream's newest release. Versions were last
+reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20.
 
-| Library | Pin | Used from | Note |
+| Library | Pin | Linked by | Note |
 |---|---|---|---|
-| EnTT | v4.0.0 | now | Requires C++20 and CMake 3.28 |
-| GLM | 1.0.3 | now | Geometry ABI asserted by the dependency probe |
-| GLFW | 3.5.1 | now | Upstream skipped 3.5.0 (bad tag) |
-| Dear ImGui | v1.93.0 (commit) | now | GLFW and Vulkan backends from the same release; fonts through `imgui_freetype` (8b) |
-| stb | master, 2026-11-10 (commit) | now | No releases |
-| yaml-cpp | 0.9.0 | now | |
-| fastgltf | v1.0.1 | now | Downloads its own simdjson 5.1.0 and simdutf |
-| spdlog | v1.17.0 | now | `SPDLOG_USE_STD_FORMAT`; core links it |
-| doctest | v2.5.3 | now | Fetched in every tree, planned set or not |
-| Tracy | v0.13.1 | now | **Held back** from 0.15.0 to match devenv's profiler; profile links it |
-| Vulkan Memory Allocator | v3.5.0 | now | Header-only; render compiles the implementation, private to it |
-| FastNoiseLite | v1.1.1 | now | Header-only; math links it, output pinned by recorded values |
-| MikkTSpace | 2020 (only commit) | now | math links it |
-| Jolt Physics | v5.6.0 | now | Double precision, deterministic across build types; physics links it privately |
-| FreeType | 2.15.0 | now | Answers RmlUi's `find_package(Freetype)`; RmlUi and ImGui both link it; ui links it, since 8b |
-| RmlUi | 6.3 | now | Private to ui, since 8b |
-| miniaudio | 0.11.26 | now | Private to audio, since 8c; Vorbis and Opus off, backends loaded at run time |
-| KTX-Software | v4.4.2 | now | **Held back** from v5.0.0-rc2, still a release candidate on 2026-11-11; render links `ktx_read`, built against the engine's zstd in place of its own copy (11a) |
-| WAMR | 2.4.5 | now | The script host's runtime, since 11b: its fast interpreter with instruction metering and the thread manager, software bounds checks, bulk memory and reference types, no libc or WASI; private to script ([decided](decisions.md)) |
-| zstd | v1.5.7 | now | The library alone, static; vfs links it privately for pack files, and `ktx_read` links it in place of the 1.5.5 it carries (11a) |
+| EnTT | v4.0.0 | `reflect`, `ecs` and the modules above | Requires C++20 and CMake 3.28 |
+| GLM | 1.0.3 | `math` and most modules | Geometry ABI asserted by the dependency probe |
+| GLFW | 3.5.1 | `render`, `app` | Upstream skipped 3.5.0 (bad tag); one window backend a tree |
+| Dear ImGui | v1.93.0 (commit) | `devtools`, `render` | GLFW and Vulkan backends from the same release; fonts through `imgui_freetype` |
+| stb | master, 2026-11-10 (commit) | `render` | No releases |
+| yaml-cpp | 0.9.0 | `core`, `serialise` and others | |
+| fastgltf | v1.0.1 | `render`, `animation` | Downloads its own simdjson 5.1.0 and simdutf |
+| spdlog | v1.17.0 | `core` | `SPDLOG_USE_STD_FORMAT` |
+| doctest | v2.5.3 | the suites | Fetched in every tree |
+| Tracy | v0.13.1 | `profile` | **Held back** from 0.15.0 to match devenv's profiler ([profiling](#profiling)) |
+| Vulkan Memory Allocator | v3.5.0 | `render`, privately | Header-only; `render` compiles the implementation |
+| FastNoiseLite | v1.1.1 | `math` | Header-only; output pinned by recorded values |
+| MikkTSpace | 2020 (only commit) | `math` | |
+| Jolt Physics | v5.6.0 | `physics`, privately | Double precision, deterministic across build types |
+| FreeType | 2.15.0 | `ui`, RmlUi, ImGui | Answers RmlUi's `find_package(Freetype)` |
+| RmlUi | 6.3 | `ui`, privately | |
+| miniaudio | 0.11.26 | `audio`, privately | Vorbis and Opus off; backends loaded at run time |
+| KTX-Software | v4.4.2 | `render` (`ktx_read` only) | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; built against the engine's zstd |
+| WAMR | 2.4.5 | `script`, privately | Fast interpreter with instruction metering; no libc or WASI ([scripts](scripts.md)) |
+| zstd | v1.5.7 | `vfs`, privately; `ktx_read` | The library alone, static |
+| ENet | v1.3.18 | `net`, privately | Reliable and unreliable channels over UDP ([networking](networking.md)) |
+| libsodium | robinlinden/libsodium-cmake 9b2848d | `net`, privately | libsodium 1.0.20 (stable branch) through a CMake wrapper, static |
 
-The Vulkan headers, loader, validation layers and `glslc` come from the devenv shell (Vulkan
-headers 1.4.363 at the current lock), not from `FetchContent`. So do the scripts' compilers (11b):
-lld's `wasm-ld`, which links every script, clang for one in C, and rustc 1.99 for one in Rust, whose
-`wasm32-unknown-unknown` library nixpkgs ships with it. `jettison_add_script` (`source/CMakeLists.txt`)
-builds a script from either; under Nix's compiler wrapper it compiles C with the clang the wrapper
-wraps, since the wrapper adds the host's flags and target to anything it compiles. A tree configured
-without them builds everything but the scripts, whose targets then fail saying what is missing.
+Three tool sets come from the devenv shell, not from `FetchContent`:
+
+- **Vulkan**: the headers, the loader, the validation layers and `glslc`.
+- **The scripts' compilers**: lld's `wasm-ld`, which links every script; clang for scripts in C;
+  rustc for scripts in Rust, with the `wasm32-unknown-unknown` library nixpkgs ships with it.
+- **The profilers** ([profiling](#profiling)).
+
+A tree configured without the scripts' compilers builds everything but the scripts, whose targets
+then fail saying what is missing.
 
 ### Scripts in the build
 
-The script suite's modules (`source/engine/script/tests/scripts`: `limits` and `rogue` in Rust,
-`events` in C and in Rust) are built with the tree, not as the suite's dependency, so a change to a
-reflected type still builds the suite that says the bindings are out of date. The suite checks the
-bindings its scripts are built against, its own `jettison_script.h` and `jettison_script.rs`, byte
-for byte against what its types make; on a difference it writes what they make into the build tree,
-to copy over. The generated header is left out of the format gate. The smoke mod, a script of the
-shell's bindings that heard the space sample's trades, went with the sample (2026-11-22).
+`jettison_add_script` (`source/CMakeLists.txt`) builds a WebAssembly [script](glossary.md#script)
+from C or Rust. Under Nix's compiler wrapper it compiles C with the clang the wrapper wraps, because
+the wrapper adds the host's flags and target to anything it compiles.
+
+The script suite's test modules (`source/engine/script/tests/scripts`) are:
+
+| Module | Languages |
+|---|---|
+| `limits` | Rust |
+| `rogue` | Rust |
+| `events` | C and Rust |
+| `keys` | C and Rust |
+
+They are built with the tree, not as the suite's dependency, so a change to a reflected type still
+builds the suite that reports the bindings out of date. The suite compares the bindings its modules
+are built against (`jettison_script.h`, `jettison_script.rs`) byte for byte with what its types
+generate. On a difference it writes the generated files into the build tree, to copy over. The
+generated C header is left out of the format check. How bindings are generated is in
+[scripts](scripts.md#what-a-script-sees-is-generated-from-reflection).
 
 ### Planned dependencies and the probe
 
-The libraries marked for a later phase are fetched before it (`JETTISON_PLANNED_DEPENDENCIES=ON`, the
-default) so the whole set is proven to link before any phase depends on it, `EXCLUDE_FROM_ALL`, so a
-tree builds one only for `dependency_probe` until the engine links it. WAMR, the last, left the set as
-phase 11b began to use it, and the set is empty; the option still builds the probe. That one executable links the `Renderer` library and every third-party
-library, makes at least one real call into each (it runs a WebAssembly function, creates a
-Jolt shape and a KTX texture, generates tangents), and asserts the GLM geometry ABI. The gate
-runs it after the Debug build.
+`JETTISON_PLANNED_DEPENDENCIES` (ON by default) proves a library links with the rest before any
+module depends on it: the library is fetched early, `EXCLUDE_FROM_ALL`, and built only for
+`dependency_probe` until the engine links it. The planned set is empty today (WAMR was the last to
+leave it); the option still builds the probe.
 
-`clang-headless`, and therefore `clang-asan`, sets `JETTISON_PLANNED_DEPENDENCIES=OFF`: those
-trees exist for the render test, which uses none of the planned libraries. KTX-Software left the
-planned set when phase 5a began to use it, so those trees fetch it too, and build `ktx_read` (not
-`ktx`): measured on 2026-11-11, 63 objects and about 75 CPU-seconds of a 1,700 CPU-second headless
-Debug build, and a 217 MiB clone on the first configure. Jolt left it when phase 7a did, and those trees build it
-too, for the physics suite they run under the sanitisers. FreeType and RmlUi left it when phase 8b
-did: ui links RmlUi, and ImGui rasterises with FreeType, so every tree builds both, and the headless
-trees run the UI's suite and draw its screens in the render test. miniaudio left it when phase 8c
-did: audio links it, so every tree builds it, the headless trees run the audio suite with no device,
-and the render test plays to miniaudio's null backend, touching no sound system. WAMR left it when
-phase 11b did: script links it, so every tree builds it, and the headless trees run the script suite
-under the sanitisers.
+`dependency_probe` (`source/test/dependency_probe.cpp`) is one executable that links
+`Jettison::App`, `Jettison::Physics` and every third-party library, ENet and libsodium included. It
+makes at least one real call into each (it runs a WebAssembly function, creates a Jolt shape and a
+KTX texture, generates tangents) and asserts the GLM geometry ABI. The gate runs it with the Debug
+suites. A new dependency is added to it ([coding standards](coding-standards.md#dependencies)).
 
-`JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`). It is on demand and
-listens on localhost only, so it costs nothing until a profiler connects. It is off by default,
-and off, Tracy's macros and `TracyClient.cpp` compile to nothing. Tracy is fetched in every tree,
-because `profile` links it.
-The profiler that connects has to be the same version as the client: nixpkgs' `tracy` at the
-current devenv lock is 0.13.1, which is why the client is pinned there, and the shell has it.
-
-The shell's other profilers: `perf` samples, `hotspot` browses its data, `heaptrack` profiles
-allocations, and `valgrind`'s callgrind with `kcachegrind` counts instructions, so two commits
-compare without wall-clock noise. At `perf_event_paranoid` 2, `perf record -e task-clock` samples
-user space and `--call-graph fp --user-callchains` adds stacks, where plain `-g` fails; Claude
-Code's sandbox blocks perf events, so it runs outside it.
-
-Measured on 2026-11-10 (24 cores, Release, from an empty tree), the planned set adds about 45
-seconds of configure, mostly downloads, about 410 CPU-seconds of compilation (217 without it,
-627 with), and about 0.7 GB of disk per tree. At the runner's four cores and Ninja's six copies that
-is the arithmetic on those CPU-seconds, about 70 s of compilation per tree, against the three and a
-half minutes the two jobs it used to bound itself to took. CI builds two trees with the set: Debug
-and Release.
+The `clang-headless`, `clang-asan` and `clang-cpu` presets turn the option off, needing no probe.
+Every library the engine links is built in every tree regardless.
 
 ### Integration rules the set follows
 
-Rules that keep every library linkable into one executable, each one learned from a library in
-this set:
+Each rule keeps every library linkable into one executable, and was learned from a library in the
+set:
 
-- **Static only.** `BUILD_SHARED_LIBS` is OFF for the dependency directory. RmlUi declares it as
-  an option defaulting to ON, which would make every later dependency shared.
-- **One copy of each library.** Before adding a dependency, check whether it compiles its own
-  copy of another (`grep` its build for vendored `.c` files). libktx compiles zstd 1.5.5 with
-  public symbols, which is why there is no standalone zstd.
-- **Options in a `block()`.** Jolt's options are called `DOUBLE_PRECISION`, `ENABLE_INSTALL`
-  and `INTERPROCEDURAL_OPTIMIZATION`. A cache entry would configure every other dependency
-  reading the same name, so options are plain variables inside a `block()` around the
-  dependency they are for. `CMAKE_POLICY_DEFAULT_CMP0077` is NEW so that a dependency declaring
-  an old CMake honours them (Tracy 0.13.1 silently discarded them before).
-- **The project's language features.** No dependency may build without RTTI or exceptions when
-  the engine derives from its classes (Jolt defaults to both off).
-- **No system libraries found by accident.** Optional codecs (FreeType's zlib, PNG and
-  HarfBuzz; miniaudio's libvorbis and libopus) are off, because each is found on a developer's
-  machine and missing on a runner. `OVERRIDE_FIND_PACKAGE` answers a dependency's
-  `find_package` for a library this set provides.
-- **No executable stack.** An assembly file without `.note.GNU-stack` marks the whole process
-  as needing an executable stack. WAMR's trampoline is assembled with `--noexecstack`.
-  `readelf -lW dependency_probe | grep GNU_STACK` should say `RW`.
-- **A dependency's warnings are not the gate.** Third-party includes are `SYSTEM`, and a
-  dependency's own `-Werror` is turned off (astc-encoder's breaks on glibc 2.44's
-  `_FORTIFY_SOURCE` warning in Debug).
-- **Instruction sets travel.** Jolt adds `-mavx2 -mbmi -mpopcnt -mlzcnt -mf16c` as public
-  options. `physics` links Jolt privately (7a), so they reach its own translation units and
-  nothing above it, and the engine's CPU baseline is x86-64 with AVX2, which is the decided minimum
-  ([roadmap](decisions.md)). A dependency that would raise it further (AVX-512, for
-  example) is a new decision, not a default.
-
-Large media (`.glb`, images, fonts, audio) is in Git LFS: run `git lfs install` before the first
-checkout. The devenv shell does this for you. A checkout without LFS gives the render test
-132-byte pointer files.
+| Rule | Why |
+|---|---|
+| **Static only.** `BUILD_SHARED_LIBS` is OFF for the dependency directory. | RmlUi declares it as an option defaulting to ON, which would make every later dependency shared. |
+| **One copy of each library.** Before adding a dependency, check whether it compiles its own copy of another (`grep` its build for vendored `.c` files). | libktx compiles zstd 1.5.5 with public symbols, so `ktx_read` is built against the engine's own zstd instead (the `ktx_read` block in `source/external/CMakeLists.txt`). |
+| **Options in a `block()`.** Options are plain variables inside a `block()` around the dependency they are for. `CMAKE_POLICY_DEFAULT_CMP0077` is NEW, so a dependency declaring an old CMake honours them. | Jolt's options are called `DOUBLE_PRECISION`, `ENABLE_INSTALL` and `INTERPROCEDURAL_OPTIMIZATION`; a cache entry would configure every other dependency reading the same name. Tracy 0.13.1 silently discarded options before CMP0077. |
+| **The project's language features.** No dependency builds without RTTI or exceptions when the engine derives from its classes. | Jolt defaults to both off. |
+| **No system libraries found by accident.** Optional codecs (FreeType's zlib, PNG and HarfBuzz; miniaudio's libvorbis and libopus) are off. `OVERRIDE_FIND_PACKAGE` answers a dependency's `find_package` for a library the set provides. | Each is found on a developer's machine and missing on a runner. |
+| **No executable stack.** WAMR's trampoline is assembled with `--noexecstack`. Check: `readelf -lW dependency_probe \| grep GNU_STACK` says `RW`. | An assembly file without `.note.GNU-stack` marks the whole process as needing an executable stack. |
+| **A dependency's warnings are not the gate.** Third-party includes are `SYSTEM`, and a dependency's own `-Werror` is turned off. | astc-encoder's breaks on glibc 2.44's `_FORTIFY_SOURCE` warning in Debug. |
+| **Instruction sets stay contained.** `physics` links Jolt privately. | Jolt adds `-mavx2 -mbmi -mpopcnt -mlzcnt -mf16c` as public options, so they reach only `physics`'s own units. The engine's minimum CPU is x86-64 with AVX2 ([decided](decisions.md#build-and-platform)); a dependency that would raise it further (AVX-512, say) is a new decision, not a default. |
+| **No OpenGL headers.** `imgui_backends` defines `GLFW_INCLUDE_NONE`. | The engine draws with Vulkan, and a runner has no `GL/gl.h`. |
 
 ## Building
 
-You need Clang, CMake 3.28 or newer, Ninja, Git, the Vulkan development libraries, `glslc`, and
-the Wayland development libraries. `devenv.nix` supplies all of them.
+You need Clang, CMake 3.28 or newer, Ninja, Git, the Vulkan development libraries, `glslc` and the
+Wayland development libraries. `devenv.nix` supplies all of them.
 
-```bash
-cmake --preset clang-debug
-cmake --build --preset clang-debug
+### Presets
 
-# Run from the root folder.
-build/clang-debug/source/test/render_test
-```
+| Preset | Build type | What it is for | Options it sets |
+|---|---|---|---|
+| `clang-debug` | Debug | Development, on Wayland | the base: tests, presentation and the planned set ON, GLFW X11 OFF |
+| `clang-release` | Release | Holding Release to Debug's results; benchmarks | as `clang-debug` |
+| `clang-headless` | Debug | The smoke test and reference frames under Xvfb | `JETTISON_GLFW_X11=ON`, planned set OFF |
+| `clang-asan` | Debug | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer | `-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all` |
+| `clang-cpu` | Debug | The CPU engine a game's server builds | `JETTISON_PRESENTATION=OFF`, `CMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON`, planned set OFF |
 
-| Preset | Tree |
-|---|---|
-| `clang-debug` | Debug, Wayland |
-| `clang-release` | Release, Wayland |
-| `clang-headless` | Debug with GLFW's X11 backend instead of Wayland: the tree the headless render test uses |
-| `clang-asan` | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer |
-| `clang-cpu` | Debug, CPU only (`JETTISON_PRESENTATION=OFF`), with `find_package(Vulkan)` disabled so a lookup fails the configure |
+Each tree is `build/<preset>`, and every preset has a build preset of its name. Only `clang-debug`
+has a test preset; for another tree, use `ctest --test-dir build/<preset>`.
 
-`JETTISON_PRESENTATION` (ON by default) builds the renderer, UI, audio and the shell (`render`,
-`audio`, `ui`, `devtools`, `app`), the assets and their shaders, Flotsam, Jetsam and the render
-harness, and fetches what only they use: Vulkan and glslc, GLFW, FreeType, RmlUi, miniaudio, ImGui,
-stb, VMA and KTX. OFF leaves the CPU modules, the host, their suites and the packer
-(`jettison_add_pack`). A fresh `clang-cpu` configure on 2026-11-18 fetched doctest, EnTT, fastgltf,
-FastNoiseLite, GLM, Jolt, mikktspace, spdlog, Tracy, WAMR, yaml-cpp and zstd and nothing else; the
-tree builds in 720 steps and its 22 suites pass.
+### CMake options
 
-Shaders compile as part of the build (`jettison_compile_shaders`). The engine's assets are staged
-beside the executable, and `jettison_assets_pack` packs them into `assets.pack` beside that
-directory ([files, packs and mods](architecture.md#files-packs-and-mods)), which the shell mounts
-when there is no directory, as in a shipped build; the test content likewise
-(`jettison_test_content`, `jettison_test_content_pack`), under `build/<preset>/source/test`. `--assets <directory | pack>` selects other engine assets,
-`--content <directory | pack>` other content, and
-`--scene <file>` / `--save-scene <file>` load and write scene graphs.
-`--gpu <name>` draws with the GPU whose name has that text in it (`5060`, `llvmpipe`), in place of
-the one the renderer chooses, the one with the monitor on it; the log lists the devices it saw.
-`--user-dir <directory>` puts the user's files under one directory in place of the XDG ones:
-settings under `<directory>/config`, saves under `<directory>/data/saves`, mods under
-`<directory>/data/mods`. The headless run with no
-`--user-dir` makes a directory of its own under the system's temporary directory and removes it as
-it ends, so the smoke test never reads or writes the settings and saves of whoever runs it.
+| Option | Default | Effect |
+|---|---|---|
+| `JETTISON_BUILD_TESTS` | ON when Jettison is the top-level project, OFF as a dependency | Builds each module's doctest suite and registers it with CTest. A game's build does not compile the engine's tests. |
+| `JETTISON_PRESENTATION` | ON | Builds the renderer, UI, audio and the shell (`render`, `audio`, `ui`, `devtools`, `app`), the assets and shaders, Flotsam, the ground sample and the render harness, and fetches what only they use (Vulkan and `glslc`, GLFW, FreeType, RmlUi, miniaudio, ImGui, stb, VMA, KTX). OFF leaves the CPU modules, the host, their suites and the packer. |
+| `JETTISON_PLANNED_DEPENDENCIES` | ON | Fetches libraries planned for later work and builds `dependency_probe` ([above](#planned-dependencies-and-the-probe)). |
+| `JETTISON_WERROR` | OFF | Adds `-Werror` to the project's warnings ([warnings](#warnings)). `ci.sh --werror` sets it. |
+| `JETTISON_CCACHE` | ON | Compiles through ccache when it is on the `PATH` ([compiler cache](#compiler-cache)). A `CMAKE_CXX_COMPILER_LAUNCHER` you set wins. |
+| `JETTISON_GLFW_X11` | OFF | Builds GLFW with its X11 backend instead of Wayland, for Xvfb ([sanitisers](#sanitisers)). |
+| `JETTISON_PROFILE` | OFF | Compiles the Tracy client in (`TRACY_ENABLE`) ([profiling](#profiling)). |
+| `JETTISON_INSTALL` | OFF | Adds install rules and the `Jettison` package; not yet a supported path ([consuming the engine](#consuming-the-engine)). |
 
-In VS Code, the default build task uses `clang-debug`. The `Debug test` launch configuration
-builds and runs `render_test` under GDB through the Native Debug (`webfreak.debug`) extension.
-Run VS Code inside the devenv shell so it finds the tools.
+### What the build produces
+
+- **Shaders** compile to SPIR-V as part of the build (`jettison_compile_shaders`); `glslc`'s
+  depfiles rebuild only the programs whose includes changed.
+- **The engine's assets** are staged beside the executable, and `jettison_assets_pack` packs them
+  into `build/<preset>/assets.pack`. The shell mounts the pack when there is no directory, as in a
+  shipped build ([files, packs and mods](files-and-mods.md)).
+- **The test content** (`source/test/content`) is staged and packed the same way
+  (`jettison_test_content`, `jettison_test_content_pack`), under `build/<preset>/source/test`.
+- **Executables**: `render_test` (the shell with no game, `source/test`), `ground` (the ground
+  sample, `source/samples/ground`), `flotsam` and `jettison_pack` (`source/tools`). Their
+  command-line arguments are in [the app shell](app-shell.md).
+
+The render harness is `render_test`, not `test`: CMake reserves `test` once testing is enabled, and
+Ninja's phony `source/test/test` would collide with it.
+
+### Editors
+
+`.vscode/` holds `tasks.json.example` and `launch.json.example`: copy them without `.example`. The
+default build task builds `clang-debug`, and the `Debug test` launch configuration builds and runs
+`render_test` under LLDB (CodeLLDB). Run VS Code inside the devenv shell so it finds the tools. For
+clangd, `compile_commands.json` at the root links to a tree's database.
 
 ## Consuming the engine
 
-The game repository builds the engine from source with `FetchContent`, pinned to a commit, and
-links `Jettison::Engine` (every module) or the `Jettison::<Module>` targets it needs:
+A game builds the engine from source with `FetchContent`, pinned to a commit, and links
+`Jettison::Engine` (every module the build has), the `Jettison::<Module>` targets it needs, or, for
+a rendered game, `Jettison::App`. The worked example is the consumer project's build, in [the
+guide](guide.md#bring-in-the-engine). A game server also sets `JETTISON_PRESENTATION OFF`, and may
+set `CMAKE_DISABLE_FIND_PACKAGE_Vulkan ON` to prove nothing looks for Vulkan. How Manifest uses the
+engine is in [game integration](game-integration.md).
 
-```cmake
-FetchContent_Declare(jettison GIT_REPOSITORY <url> GIT_TAG <commit>)
-set(JETTISON_BUILD_TESTS OFF)
-set(JETTISON_PLANNED_DEPENDENCIES OFF)
-FetchContent_MakeAvailable(jettison)
-target_link_libraries(game PRIVATE Jettison::Engine)
-```
+### The consumer check
 
-`source/test/consumer` is that build at its smallest: a project that fetches the engine from a
-directory with the presentation modules off and Vulkan refused, and runs a small race, a game with
-nothing of space in it, through `Host::Session`: a definition from its own `content/`, a component, a
-command and a system, two runs and a load reaching the same state hash, and teardown; then it serves
-the race over loopback through `Net::Server` (N02): a bad token, a wrong version and a flood refused,
-a reconnection admitted, a request placing the player's piece and a snapshot of only that piece. It is the
-exit test for packaging and for H04's independent CPU consumer, and it is not in the gate, because
-it fetches and compiles the dependency set a second time. Run it when the module layout, the host or
-the public interface changes:
+`source/test/consumer` is that build at its smallest: the engine's independent
+[consumer](glossary.md#consumer) of the CPU engine, a race game with nothing of space in it, run
+through `Host::Session` and served over loopback by `Net::Server`, where a bad token, a wrong
+version and a flood are refused ([samples](sample-game.md#the-consumer-project)). It is not in the
+gate, because it fetches and compiles the dependency set a second time. Run it when the module
+layout, the host or the public interface changes:
 
 ```bash
 cmake -S source/test/consumer -B build/consumer -G Ninja \
@@ -209,466 +197,501 @@ cmake -S source/test/consumer -B build/consumer -G Ninja \
 cmake --build build/consumer && ctest --test-dir build/consumer --output-on-failure
 ```
 
-It takes `-DJETTISON_SOURCE_DIR=<checkout>` for the working tree or `-DJETTISON_GIT_TAG=<commit>` for
-a fetch of a committed revision, and configures with neither refused: a check is of a revision it
-names, never of a branch that moves.
+It takes `-DJETTISON_SOURCE_DIR=<checkout>` for a working tree or `-DJETTISON_GIT_TAG=<commit>`, and
+refuses to configure with neither, so a check always names its revision, never a branch that moves.
 
-`JETTISON_INSTALL=ON` adds the install rules and the `Jettison` package (`JettisonConfig.cmake`,
-`JettisonTargets.cmake`) for a `find_package(Jettison)` consumer. It is off by default and not
-yet a supported path: CMake refuses to export a target whose link interface names a target
-outside the export set, and the modules link FetchContent dependencies (GLM, EnTT, GLFW, ImGui,
-yaml-cpp, fastgltf) that are not all installed alongside. Making that work means installing each
-public dependency's export, or vendoring import targets for them in `JettisonConfig.cmake.in`.
-It is done when the game needs a prebuilt engine rather than a source build, and not before.
+### Installing (not yet supported)
 
-### Required separation checks (planned)
+`JETTISON_INSTALL=ON` adds install rules and the `Jettison` package (`JettisonConfig.cmake`,
+`JettisonTargets.cmake`) for `find_package(Jettison)`. It does not work yet: CMake refuses to export
+a target whose link interface names one outside the export set, and the modules link FetchContent
+dependencies (GLM, EnTT, GLFW, ImGui, yaml-cpp, fastgltf) that are not installed. The fix is to
+install each public dependency's export, or to vendor import targets in
+`cmake/JettisonConfig.cmake.in`; it is [J18](roadmap.md#j18), for when a game needs a prebuilt
+engine.
 
-The [game integration contract](game-integration.md) requires a broader consumer matrix
-than the current two-module probe: a CPU-only non-space simulation, a simple non-space
-physics scene and the explicit space example. Test public APIs, definitions and save/load;
-check target/header dependencies and resource manifests for sample or genre leakage.
-Configure CPU-only consumption without ImGui, Vulkan/glslc or sample content installed.
-Test samples/editor/presentation disabled independently; keep sample render regressions.
+### Separation checks
 
-The CPU-only configure is in (`clang-cpu`, above, and a gate stage) and so is the non-space CPU
-consumer (H04, above), and the engine's assets are held to their own directories, none of the
-sample's content in them (H05, the app suite's `Game` cases), and the physics suite's room is a
-non-space physics scene, its own frame model's gravity and lift and no celestial definition (W01).
-Every configure checks the target dependencies (W01, `jettison_check_dependencies`): no engine
-module has a sample's target in its link closure.
-Run the relevant gates after implementation at the machine's own core count, clang-tidy
-included, reading `MemAvailable` before a full-parallel run ([the gate](#the-gate)). Keep the
-development environment's three files identical to Manifest's. Desktop tools stay on the desktop,
-out of the shared shell, and nothing in the shell becomes a release/runtime dependency.
+These keep the engine neutral and its layers apart. Why each exists is in [game
+integration](game-integration.md#enforcement); this table says where each runs.
+
+| Check | What fails it | Where it runs |
+|---|---|---|
+| `jettison_check_dependencies` (`cmake/JettisonModule.cmake`) | An engine module with a sample's target anywhere in its link closure, or a link expression the check cannot read | Every configure |
+| `neutral_words` (CTest; `cmake/CheckNeutralWords.cmake`) | A space-setting word (station, ship, cargo, galaxy, ...) in an engine module's code outside string literals, unless `cmake/neutral-words.txt` allows it for that file; or an allowance no longer needed | Every tree with tests |
+| `devtools_alone` (CTest; `source/test/CheckDevtoolsAlone.cmake`) | `Jettison::Devtools` alone needing a Vulkan loader or GLFW (its `NEEDED` entries), or failing to run | Trees with presentation |
+| The `clang-cpu` tree | A CPU module, the host or a suite needing presentation, or anything calling `find_package(Vulkan)` | The gate |
+| The consumer check | The public interface failing a game with no space in it | By hand ([above](#the-consumer-check)) |
+
+`neutral-words.txt` is empty, and the check keeps it so. To see what the tree would need:
+
+```bash
+cmake -DENGINE=source/engine -DALLOWED=cmake/neutral-words.txt -DWRITE=ON \
+  -P cmake/CheckNeutralWords.cmake
+```
+
+The development environment's three files (`devenv.nix`, `devenv.yaml`, `devenv.lock`) are kept
+identical to Manifest's. Desktop tools stay out of that shared shell, and nothing in it becomes a
+runtime dependency of a release.
 
 ## The gate
 
-`scripts/ci.sh` is the gate. The worktrunk `pre-commit` hook checks formatting, `pre-merge` runs
-`./scripts/ci.sh --skip-release --werror --llvmpipe`, and `.github/workflows/ci.yml` runs only
-the `clang-headless` build and its packed smoke test on lavapipe ([CI](#ci)).
+The [gate](glossary.md#gate-ci) is `scripts/ci.sh`: every check a commit must pass, in one local
+command. The last commit of each chunk of work passes it with `--werror --asan` before a push
+([coding standards](coding-standards.md#commits)). Hooks run parts of it:
 
-Order: format gate → Debug build → unit tests and the dependency probe (CTest) → clang-tidy →
-Release build and its unit tests → the `clang-cpu` tree's configure, build and unit tests →
-headless render test, from the packed assets, [offscreen](#headless-render-test) on the GPU where
-there is one and on lavapipe under Xvfb with `--llvmpipe` (CI, the pre-merge hook) or where there is
-no `/dev/dri` → reference frames,
-from the staged directory, and with `--asan`, the render test and the `vfs`, `serialise`, `resource`,
-`sim`, `spatial`, `physics`, `transit`, `ai`, `dock`, `script` and `host` suites under the sanitisers
-(`vfs` and `script` for the packs and the modules, whose bytes are a mod's; `serialise` for the binary
-reader, which parses every save and its truncations; `resource` for loaders' callbacks
-that load more, which once moved the slot `Finish` held; `host` for what a failed start-up and a
-teardown release). The simulation's state hashes are pinned in those
-suites, so running them in every tree is what holds Release and the sanitised build to the Debug
-build's results. The sample's traders' hash is pinned in the `sample-space` suite, which runs in Debug
-and Release but not under the sanitisers: its twenty minutes of seven traders is the gate's longest
-simulation, and every module it steps is in the sanitised suites already.
-
-Each stage is timed, and the run ends with a summary, one line per stage: `ok` with its seconds,
-`skip`, or `FAIL`, then `gate passed` or `gate FAILED`. `--log <file>` sends the build's own output
-to the file alone and prints only the stages and the summary, and, for a failed stage, its error
-lines (a compiler's `error:`, ninja's `FAILED:`, a test's assertion, a `[vulkan:error]`) and its last
-lines without ninja's progress. That is the form to read the gate in when only the verdict matters,
-as an agent does: a passing gate with `--werror --asan` is 20 lines, against 658 in its log with
-warm caches (2026-11-12).
-
-A gate that passed is not run again on the same inputs: its key, a digest of the working tree's
-files (tracked or untracked and not ignored, read through a scratch copy of the index), less the
-`*.md`, with the versions of clang, clang-format, clang-tidy and cmake and the
-options (the presets set every build option a stage reads, so no cached setting escapes it), is kept under
-`build/gate-passed` when it is the same at the end of the run as at the start. A run on those inputs
-prints `gate passed: the inputs are those of the gate passed <time>` and exits 0 at once, so a commit
-of documentation, or a second run before a commit, costs nothing; `--force` runs it anyway. CI's
-checkout has no `build/gate-passed`, so it always runs. The one check of the `*.md`, their links
-between the repository's files and to their headings (`lychee --offline --include-fragments`),
-runs before that, on every run, failing the gate on a broken one; it takes under a second.
+| Where | What runs |
+|---|---|
+| Worktrunk `pre-commit` (`.config/wt.toml`) | `./scripts/format-check.sh` |
+| Worktrunk `pre-merge` | `./scripts/ci.sh --skip-release --werror --llvmpipe` |
+| GitHub Actions | Not the gate: a build and a smoke test ([CI](#ci)) |
 
 ```bash
-./scripts/ci.sh --werror --asan --log build/gate.log
+./scripts/ci.sh --werror --asan --log build/gate.log   # the full gate, quiet
+./scripts/ci.sh --skip-smoke                           # no display or driver: no smoke test,
+                                                       # reference frames or sanitised run
+./scripts/ci.sh --llvmpipe                             # the smoke test on lavapipe under Xvfb
 ```
 
-Its builds run Ninja's default of the machine's threads plus two, every core busy, on CI as here —
-nothing bounds them. A cold gate's clang once crashed twice at this load (2026-11-14), each time on a
-file that then built alone. Other programs on the machine crashed in the same days, so it is taken as
-the machine's fault rather than the load's, and a crash of that kind is retried rather than built
-around; the reading on 2026-11-17 is that the crashes came from an unstable motherboard clock speed,
-probably, which is why the parallel bound of 2 that was set as a workaround is off — on CI as well
-as here ([CI](#ci)). What a full-parallel build costs in memory is measured: a clang copy peaks at
-1 051 MiB on `Application.cpp` and 522 MiB across the five widest units (2026-11-17, the build's own
-command, `VmHWM` over the process tree), so 26 copies want 27 GiB at the worst and 13 GiB in
-aggregate, against the machine's 62 GiB. Free memory here is a question of one process: the user's
-local AI, `strata-host`, resident at 57 GiB on 2026-11-17, leaving 3.4 GiB — a full run then would
-have thrashed. It is not always running, and when it is not the build is free to take the machine
-and the unbounded defaults are the point. When it is, `MemAvailable` says in one number which
-machine today is, and the answer to pressure is the load, not a smaller `Ninja`.
+### Stages
 
-Dependency code is silent in both directions, and has been since the checks were curated. The units
-are the project's own: `tidy.py` and the `--fix` path's `run-clang-tidy` both filter on
-`source/(engine|tools|samples|test)/.*\.(cpp|h)$`, which is 252 of the 894 units in a configured
-tree — the ~640 under `build/clang-debug/_deps` (entt, ImGui, RmlUi, Jolt, fastgltf, glm, the
-Vulkan and system headers) are never checked. Their diagnostics are off too: `HeaderFilterRegex:
-'source/(engine|tools|samples|test)/.*'` keeps them out, which a direct run of one unit reports
-plainly — "Suppressed 56 090 warnings (56 090 in non-user code)". What is paid for them is parse
-time, since a unit is type-checked through the headers it includes, and no filter changes that.
+The stages run in this order, and a stage that fails ends the run:
 
-The stage's cost on CI is measured, from the job log of the run of 2026-11-16: **786 s of a 2 732 s
-gate**, 29% of it, printing one line, `252 of 252 units checked, 0 unchanged since clean` — a cold
-cache every run, at the bound of 2 jobs that has since come off. CI no longer runs tidy
-([CI](#ci)). The keys are per unit and
-digest clang-tidy's version, `.clang-tidy`, the unit's compile command and the contents of every
-file it includes, so a restored entry is reused only by the unit that earned it, and a partial
-restore is safe by construction: the units it misses get checked.
+```mermaid
+flowchart TD
+    links["Markdown links (lychee, offline)"] --> cached{"Inputs those of a passed gate?"}
+    cached -- "yes (no --force)" --> done0["exit 0 at once"]
+    cached -- no --> format["Format check"]
+    format --> debug["clang-debug: configure and build"]
+    debug --> dtests["clang-debug: CTest (suites, probe, separation checks)"]
+    dtests --> tidy["clang-tidy over the Debug database (--skip-tidy)"]
+    tidy --> release["clang-release: build and CTest (--skip-release)"]
+    release --> cpu["clang-cpu: configure, build and CTest"]
+    cpu --> smoke["Smoke test, clang-headless, packed (--skip-smoke)"]
+    smoke --> frames["Reference frames, lavapipe (--skip-smoke)"]
+    frames --> asan["clang-asan: smoke test and sanitised suites (--asan)"]
+    asan --> passed["gate passed: key recorded"]
+```
 
-Output is capped where it is not needed. The gate runs `tidy.sh --summary`, whose whole output is
-one line clean. A plain run prints the actionable lines — `file:line:col: severity: message
-[check]` — capped to the 20 distinct ones (`--show N`, `--show 0` for none), because a header's
-finding is reported by every unit that includes it, and hands the whole text (notes, source
-excerpts, every unit's copy) to `<build-dir>/tidy-diagnostics.log`, naming it; `--full` prints it
-all as before. A narrowing conversion planted in `Theme.h`, reported by the four units that include
-it, measures the pair: 32 lines full, 1 line capped. A one-unit check through
-`clang-tidy -p build/clang-debug <file>` prints more than a terminal should — 280 635 warnings
-generated, suppressed and macro-expanded included — so it goes through
-`grep -E ': (warning|error): .*\['`, which is what the agent instructions say. `ci.sh` runs the
-checks over the debug tree only: the release tree differs by inlining, and diagnostics from the
-same source are not wanted twice.
+- **Markdown links**: `lychee --offline --include-fragments` over every tracked `*.md`, checking
+  links between the repository's files and to their headings. As the one check of the Markdown, it
+  runs on every run, in under a second. The cache that follows is
+  [below](#a-gate-that-passed-is-not-run-again).
+- **clang-tidy** checks the Debug tree alone ([clang-tidy](#clang-tidy)): Release differs by
+  inlining, and the same source's diagnostics are not wanted twice.
+- **Release**: the simulation's state hashes are [pinned](glossary.md#pin) in the suites, so running
+  them in Release holds Release to the Debug build's results.
+- **Smoke test**: from the packed assets, offscreen on the GPU or on lavapipe ([headless render
+  test](#headless-render-test)). The reference frames always use lavapipe.
+- **Sanitised run** (`--asan`): the smoke test under ASan and UBSan on lavapipe, then these suites,
+  built in `clang-asan`:
+
+| Sanitised suite | Why it runs under the sanitisers |
+|---|---|
+| `sim`, `spatial`, `physics`, `ai`, `dock`, `transit` | Their state hashes are pinned, and must be the same under the sanitisers; `transit`'s passages are saved and loaded mid-way |
+| `vfs` | Packs are bytes from a [mod](glossary.md#mod) |
+| `script` | Script modules are bytes from a mod (its test modules are built explicitly) |
+| `serialise` | The binary reader parses every save and its truncations |
+| `resource` | A loader's callback can load more and move the resource manager's slots |
+| `host` | A failed start-up and a teardown release what each phase built |
+| `net` | It reads a peer's packets |
+
+### Reading the result
+
+The run ends with a summary, a line per stage (`ok` with its seconds, `skip` or `FAIL`), then
+`gate passed` or `gate FAILED`. With `--log <file>` the build's own output goes to the file alone,
+and the terminal gets the stages, the summary and, for a failed stage, its error lines (a compiler's
+`error:`, Ninja's `FAILED:`, an assertion, a `[vulkan:error]`) and its last lines. That is the form
+for when only the verdict matters, as for an agent: a passing `--werror --asan` gate is about 20
+lines.
+
+Run the gate as a background task and wait for it to end. Warm, it takes three to four minutes, two
+thirds of it the lavapipe smoke tests and reference frames (223 s on 2026-11-14); with cold caches,
+several minutes more.
+
+### A gate that passed is not run again
+
+A run whose inputs are those of a gate that passed says so
+(`gate passed: the inputs are those of the gate passed <time>`) and exits 0 at once, so committing
+documentation, or a second run before a commit, costs nothing. `--force` runs it anyway.
+
+The key is a SHA-256 over:
+
+- the working tree's files, tracked or untracked but not ignored, less `*.md` (whose check always
+  runs), read through a scratch copy of the Git index so the real one is never touched;
+- the versions of clang, clang-format, clang-tidy and CMake;
+- the gate's options. The presets set every build option a stage reads, so no cached setting escapes
+  the key.
+
+The key is recorded under `build/gate-passed` only if it is the same at the end of the run as at the
+start, so a tree edited while the gate ran is not recorded. CI's checkout has none.
+
+### `ci.sh` options
+
+| Flag | Effect |
+|---|---|
+| `--skip-smoke` | Skip the smoke test and the reference frames (no display or driver) |
+| `--skip-release` | Skip the Release build and its tests |
+| `--skip-tidy` | Skip clang-tidy |
+| `--werror` | Configure every tree with `JETTISON_WERROR=ON` |
+| `--asan` | Add the sanitised smoke test and suites |
+| `--llvmpipe` | Run the smoke test on lavapipe under Xvfb, through the swapchain; implied with no `/dev/dri` |
+| `--preset NAME` | The Debug preset (default `clang-debug`) |
+| `--log FILE` | Full output to the file; stages, summary and a failure's errors to the terminal |
+| `--force` | Run even when the inputs are those of a passed gate |
+
+Environment: `CTEST_PARALLEL_LEVEL` overrides the suites' parallelism (default `nproc`);
+`JETTISON_CI_HEADLESS_PRESET` overrides the smoke test's preset (default `clang-headless`).
+
+### Machine-specific concurrency
+
+Nothing bounds parallelism, here or on CI: the builds run Ninja's default (the machine's threads
+plus two), the suites `nproc`, and clang-tidy a copy per thread. The memory this costs, measured on
+2026-11-17 (`VmHWM` summed over the process tree):
+
+| Process | Peak on the widest unit (`Application.cpp`) | Typical across the widest units |
+|---|---|---|
+| clang | 1,051 MiB | 522 MiB (five widest) |
+| clang-tidy | 1,151 MiB | 691 MiB (six widest) |
+
+So 26 copies of clang want 27 GiB at the worst. Read `MemAvailable`
+(`grep MemAvailable /proc/meminfo`) before a full-parallel gate. Well above about 27 GiB, run at the
+defaults; otherwise lower the machine's load or this run's job counts (`CMAKE_BUILD_PARALLEL_LEVEL`,
+`CTEST_PARALLEL_LEVEL`, `JETTISON_TIDY_JOBS`). Do not commit a bound.
+
+On the development machine the question is one process, the user's local AI (`strata-host`, about 57
+GiB, not always running): with it up, 3.4 GiB was free on 2026-11-17, and a full run thrashes.
+
+A one-off compiler crash on a file that then builds alone is the machine's fault, not the load's:
+retry it rather than build around it. Run nothing else beside a build or clang-tidy.
 
 ### Unit tests
 
-Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files the
-module's `jettison_add_module(... TESTS ...)` names and registered with CTest under the module's
-name. The smoke sequence's own test and the dependency probe are registered alongside them. Until
-player testing a format changes in place ([decided](decisions.md), 2026-11-23): the change rewrites
-every file of the format the two repositories hold, in the same commit, and the gate loads each of
-them (a suite, the smoke run or a reference frame), so a file left behind fails. No save written by an earlier build is kept as a fixture until
-then. The
-gate runs them with `ctest --test-dir build/<preset> --output-on-failure --no-tests=error`, so a
-tree that registered nothing fails rather than passes. The gate runs them in parallel (`-j`), which
-is what makes the suites finish in 42 seconds with the space sample's 39 of them dominating, and it is where
-the one load-sensitive case shows: `jobs`, "a completion can enqueue more work", checks a stage
-number after a `WaitIdle()`/`Drain()` pair, and the completion enqueues a second item, so a starved
-worker can have run that item before the pair returns and the check reads the next stage. Measured on
-2026-11-17: the gate's run failed it once, four parallel runs at full core count passed it four for
-four, and it passes alone. A run of the gate that fails only that case is the load, and re-running
-the gate is the answer; the test's own race is the suite's to fix.
+Each engine module has a doctest executable, `jettison_<module>_tests`, built from the files its
+`jettison_add_module(... TESTS ...)` names and registered with CTest under the module's name. CTest
+also has:
 
-`JETTISON_BUILD_TESTS` turns the suites on. It defaults to on when Jettison is the top-level
-project and off when it is a dependency, so the game repository's build does not compile the
-engine's tests.
+| Test | What it is |
+|---|---|
+| `sample-ground` | The ground sample's suite (`source/samples/ground`) |
+| `neutral_words`, `devtools_alone` | [Separation checks](#separation-checks) |
+| `dependency_probe` | [The probe](#planned-dependencies-and-the-probe) |
 
-The render smoke harness was called `test` until CTest arrived. CMake reserves that target name
-once testing is enabled, and Ninja generates a phony `source/test/test` for that directory's tests,
-which an executable of the same name collides with, so it is `render_test` now.
+The gate runs `ctest --test-dir build/<preset> --output-on-failure --no-tests=error -j <nproc>`, so
+a tree that registered nothing fails. Each suite writes only under a temporary directory named for
+its process, so suites run side by side.
 
 ```bash
-./scripts/format-check.sh      # clang-format >= 20 gate over the tracked sources
-./scripts/ci.sh --skip-smoke   # format gate + Debug and Release builds
-./scripts/ci.sh --llvmpipe     # everything, on the software Vulkan driver (implied with no /dev/dri)
-./scripts/ci.sh --werror       # the same, with warnings as errors
-./scripts/ci.sh --asan         # the same, plus a sanitized render test
-./scripts/ci.sh --skip-tidy    # for a machine without a configured Debug tree
-./scripts/tidy.sh --summary    # clang-tidy; needs a configured Debug tree for its database
+ctest --test-dir build/clang-debug -R '^physics$' --output-on-failure      # one suite
+build/clang-debug/source/engine/physics/jettison_physics_tests -tc='*contact*'  # one case
 ```
+
+One case is sensitive to load: `jobs`' "Jobs: a completion can enqueue more work" can read the next
+stage number when a starved worker runs the second item before `WaitIdle()`/`Drain()` returns. A
+gate that fails only that case is the load: run it again. The race is the suite's to fix.
+
+Formats change in place until player testing ([decided](decisions.md#persistence)), so the gate
+loads every file of a format the two repositories hold, and no old save is kept as a fixture.
 
 ### Warnings
 
-Each project target links the `jettison_warnings` interface library privately:
-`-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wshorten-64-to-32
+Each project target links the `jettison_warnings` interface library privately (top-level
+`CMakeLists.txt`):
+
+```text
+-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wshorten-64-to-32
 -Wimplicit-int-float-conversion -Wnon-virtual-dtor -Wextra-semi
 -Winconsistent-missing-destructor-override -Wcast-qual -Wcast-align -Wunreachable-code
--Wdocumentation`.
+-Wdocumentation
+```
 
-The flags sit on an interface target rather than in `CMAKE_CXX_FLAGS`, because
-`CMAKE_CXX_FLAGS` reaches every FetchContent dependency, and their diagnostics are not ours to
-fix. The list was measured on this tree and is clean, which is what lets `-Werror` turn on.
-`JETTISON_WERROR=ON` (`--werror`) is that switch. A developer's build leaves it off so an edit
-can be interrupted. `-Wold-style-cast` was tried and left out: this is a GLM codebase, and the
-flag costs more than it finds.
+The flags sit on an interface target because `CMAKE_CXX_FLAGS` would reach every FetchContent
+dependency, whose diagnostics are not ours to fix. The tree is clean under them, so
+`JETTISON_WERROR=ON` (`--werror`) can add `-Werror`; a developer's build leaves it off, so an edit
+in progress still builds. `-Wold-style-cast` is left out: in a GLM codebase it costs more than it
+finds.
 
 ### clang-tidy
 
-`.clang-tidy` carries a curated set, and `scripts/tidy.sh` runs it over the project's own sources
-from a configured tree's compile database.
+`.clang-tidy` holds a curated set of checks, with the measurements behind its exclusions. A check
+earns its place by being clean over the sources, or by finding something that gets fixed ([coding
+standards](coding-standards.md#language-and-toolchain)). `scripts/tidy.sh` runs it, through
+`scripts/tidy.py`, over the project's own sources from a built tree's compile database.
 
-A check of every unit is about 1,500 s of work: 2 s for a small one, 23 s for `Application.cpp`,
-spread over every check rather than in one. So `scripts/tidy.py`, which `tidy.sh` runs, checks on
-every core — one copy per thread of the machine it runs on, `JETTISON_TIDY_JOBS` to override, CI
-included, since a copy of clang-tidy peaks at 1 151 MiB on `Application.cpp` and 691 MiB across the
-six widest units (measured 2026-11-17 over the process tree, `VmHWM`, the sum of its pids'
-high-water marks), so cores are the limit there and not memory — and it skips a unit that came out
-clean before and has not changed since. A unit's key is a digest of clang-tidy's version,
-`.clang-tidy`, the unit's compile command and the contents of every file it includes, as the built
-tree's dependency record (`ninja -t deps`) lists them, with paths under the repository made
-relative, so a worktree reuses
-another's results; the cache is outside the tree (`~/.cache/jettison/tidy`, or
-`JETTISON_TIDY_CACHE`). Only clean units are cached, so a diagnostic is reported every run until it
-is fixed. A unit with no dependency record, or with a file changed since its object was built, is
-always checked and never cached: the record lists what the unit included when it was built, and an
-edit since may have included something it does not name. Measured on 2026-11-12 on
-a Ryzen 9 3900X: every unit on all cores in 93 s, against 627 s at the two jobs it ran with before (a Release build overlapping some of it);
-with nothing changed, 0.7 s; with one source changed, that unit alone. `--all` checks every unit
-whatever the cache says, and `--fix` goes through `run-clang-tidy` over every unit, so two units'
-fixes to one header are applied once.
+**What is checked.** A *unit* is one translation unit: a source file and its compile command.
+`tidy.py` checks only the units matching `source/(engine|tools|samples|test)/.*\.(cpp|h)$`, about a
+quarter of a tree's units, never those under `build/<preset>/_deps`. `HeaderFilterRegex` in
+`.clang-tidy` keeps findings in dependency headers out of the output, though each unit is still
+parsed through the headers it includes.
+
+**The cache.** A full check is about 1,500 CPU-seconds, so `tidy.py` skips a unit that came out
+clean before and has not changed since. A unit's key digests clang-tidy's version, `.clang-tidy`,
+the unit's compile command and the contents of every file it includes, as the built tree's
+dependency record (`ninja -t deps`) lists them. Paths under the repository are made relative, so one
+worktree reuses another's results.
+
+Only clean units are cached, so a finding is reported every run until it is fixed. A unit with no
+dependency record, or with a file changed since its object was built, is always checked and never
+cached, since the edit may include something the record does not name. The cache is
+`~/.cache/jettison/tidy` (or `JETTISON_TIDY_CACHE`). With nothing changed a run takes under a
+second; with one source changed, it checks that unit.
+
+**Output.** A plain run prints the actionable lines (`file:line:col: severity: message [check]`), at
+most 20 distinct ones, since every unit that includes a header reports its finding. The whole text
+(notes, source excerpts, every unit's copy) goes to `<build-dir>/tidy-diagnostics.log`, which the
+run names. The gate uses `--summary`: one line when clean.
+
+| `tidy.sh` flag | Effect |
+|---|---|
+| `--build-dir DIR` | The built tree with `compile_commands.json` (default `build/clang-debug`) |
+| `--summary` | Print the summary lines only |
+| `--all` | Check every unit, cached as clean or not |
+| `--show N` | Print at most N distinct diagnostic lines (default 20; 0 for none) |
+| `--full` | Print clang-tidy's whole output |
+| `--fix` | Apply safe fixes over every unit through `run-clang-tidy`, so two units' fixes to one header apply once; start from a clean tree to review them |
+
+Environment: `JETTISON_TIDY_JOBS` (default: one copy per thread), `JETTISON_TIDY_CACHE`.
+
+```bash
+./scripts/tidy.sh --summary                              # one line when clean
+./scripts/tidy.sh                                        # the first 20 findings
+clang-tidy -p build/clang-debug source/engine/core/src/Log.cpp 2>&1 \
+  | grep -E ': (warning|error): .*\['                    # one unit, the project's findings only
+```
+
+Raw clang-tidy on one unit prints hundreds of thousands of generated, suppressed and macro-expanded
+warnings; the `grep` keeps the project's own.
 
 ### Compiler cache
 
-Every compile goes through ccache when it is on the PATH, which the devenv shell puts it on
-(`JETTISON_CCACHE=OFF` turns it off, and a `CMAKE_CXX_COMPILER_LAUNCHER` given wins). Worktrunk
-copies no build tree into a new worktree, so each one builds four; through the cache a tree built
-before rebuilds in its link time, 17 s for a clean Release tree against 75 s compiling. The shell
-sets the cache's base directory to the checkout's parent, where the worktrees are, so paths in a
-command are hashed relative to it and a worktree finds what another compiled. A tree built with
-debug information hashes its own build directory too (ccache's `hash_dir`), which keeps the source
-paths recorded in each object true to the tree it is in: those trees share within a worktree, as a
-branch switched to and back does, and Release shares across them. The cache is 10 GB, where four
-trees' objects are 1.2 GB before compression. A check earns its place by being clean over these
-sources, or by pointing at something that gets fixed. The three checks the first run reported
-hundreds of findings against were all house style, and are excluded with their counts in the
-file: brace-less `if`, explicit `{}` member init, and enum-size advice on Vulkan-facing enums.
+Every compile goes through ccache when it is on the `PATH`, as the devenv shell puts it, so the
+fetched dependencies, most of the build, are cached too. A new worktree starts with no build trees
+(worktrunk copies none), and a full `--asan` gate builds five: debug, release, cpu, headless and
+asan. Through the cache, a clean Release tree built before rebuilds in 17 s against 75 s compiling
+(2026-11-12).
+
+`devenv.nix` sets the cache up:
+
+- `CCACHE_BASEDIR` is the checkout's parent, where the worktrees are, so paths are hashed relative
+  to it and one worktree finds what another compiled.
+- A tree with debug information also hashes its build directory (ccache's `hash_dir`), so each
+  object's recorded source paths stay true to its tree: Debug trees share within a worktree, Release
+  across them.
+- `CCACHE_MAXSIZE` is 10 GB; four trees' objects were about 1.2 GB before compression.
+
+`compile_commands.json` leaves the launcher out, so clang-tidy and clangd see the compiler's own
+command.
 
 ### Formatting
 
-Formatting drift is checked against the project's `.clang-format`. The tree has been clean since
-the format commit recorded in `.git-blame-ignore-revs`, so register that file once:
+`scripts/format-check.sh` fails if clang-format would rewrite any tracked C++ file but the generated
+`jettison_script.h`. It needs clang-format 20 or newer (`.clang-format` sets `BinPackParameters` to
+a string); the shell has LLVM 21. The style is in [coding
+standards](coding-standards.md#language-and-toolchain). The tree has been clean since the format
+commit in `.git-blame-ignore-revs`; register that file once so `git blame` skips it:
 
 ```bash
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 Claude Code formats a C++ file as soon as it writes or edits one, through a hook in
-`.claude/settings.json` (`.claude/hooks/format-edited.sh`), so its work reaches the format gate
-already formatted. The hook formats only the project's sources, not the build trees, and does
-nothing outside the devenv shell, where there may be no clang-format new enough to read
-`.clang-format`.
+`.claude/settings.json` (`.claude/hooks/format-edited.sh`). It formats only the project's sources,
+and does nothing outside the devenv shell, which may lack a new enough clang-format.
 
-### Sanitizers
+### Sanitisers
 
-The gate's sanitised smoke test runs on lavapipe whatever else it is asked: NVIDIA's driver (615.71)
-fails `vkCreateInstance` under ASan, and LeakSanitizer then reports what it allocated, which is a
-driver's and not this project's to fix.
-`./scripts/smoke-test.sh --preset clang-asan --llvmpipe` builds ASan and UBSan into the headless
-tree and runs the render test under them, with `-fno-sanitize-recover=all` so the first finding
-stops the run.
+`clang-asan` builds ASan and UBSan into the headless tree with `-fno-sanitize-recover=all`, so the
+first finding stops the run.
 
-That tree builds GLFW X11-only. With both backends compiled in, a run that uses X11 still loads
-libwayland, and LeakSanitizer reports 192 bytes in two allocations inside libwayland-client
-1.26.0 at disconnect. A suppression for that leak would hide the findings the preset exists to
-produce.
+```bash
+./scripts/smoke-test.sh --preset clang-asan --llvmpipe    # the sanitised smoke test alone
+```
 
-GLFW dlopens the X11 libraries, so the shell running the test needs libX11, libxcb, libXau,
-libXdmcp, libXext, libXrandr, libXcursor, libXinerama, libXi, libxkbcommon and libpthreadstubs on
-`LD_LIBRARY_PATH`. `devenv.nix` builds that list in `enterShell` with `lib.makeLibraryPath`. A
-shell that predates the list fails with `X11: Failed to load Xlib`, and `smoke-test.sh` says so,
-naming the library and the variable.
+- **It always runs on lavapipe.** NVIDIA's driver (615.71) fails `vkCreateInstance` under ASan, and
+  LeakSanitizer then reports the driver's allocations as leaks.
+- **Its GLFW is X11 only.** With both backends compiled in, an X11 run still loads libwayland, and
+  LeakSanitizer reports 192 bytes in libwayland-client 1.26.0 at disconnect; a suppression would
+  hide the findings the preset exists for.
+- **X11 is loaded at run time.** GLFW `dlopen`s the X11 libraries, so they must be on
+  `LD_LIBRARY_PATH`, which `devenv.nix` builds in `enterShell`. An older shell fails with
+  `X11: Failed to load Xlib`, and `smoke-test.sh` says which library and variable.
 
 ## Declaration spacing
 
-The blank lines above declarations ([coding standards](coding-standards.md)) are not in the gate:
-the check took about 50 s a run, for whitespace. Run it by hand from time to time, after a Debug
-build (it reads the build's compile database and module maps):
+The blank lines above declarations ([coding standards](coding-standards.md#declaration-spacing)) are
+not in the gate: the check took about 50 s a run, for whitespace. Run it by hand from time to time,
+after a Debug build, whose compile database and module maps it reads:
 
 ```bash
-./scripts/space-declarations.py --check   # names the files missing the lines; exit 1 if any
-./scripts/space-declarations.py           # adds them
+./scripts/space-declarations.py --check            # names the files missing them; exit 1 if any
+./scripts/space-declarations.py                    # adds them
+./scripts/space-declarations.py --build build/clang-release   # read another build
 ```
 
-`--build build/<preset>` reads another build. Commit what it changes as its own formatting commit.
-
-## Cross-review
-
-Another model reviews a change adversarially before it is committed: for now Claude writes and
-Codex (the `codex` CLI) reviews. The gate shows the change builds and its tests pass; the review
-looks for what the tests do not test, against `CLAUDE.md`, the coding standards, the architecture
-and the change's roadmap row. Git is the medium, not a chat: the reviewer reads the tree, builds,
-runs suites and writes reproductions, which a message relayed through Discord or the like could
-not do.
-
-```bash
-./scripts/cross-review.sh --brief brief.md --gate-log build/gate.log   # round 1
-./scripts/cross-review.sh --reply reply.md --gate-log build/gate.log   # round 2, after fixing
-```
-
-The brief says what the change is for, which roadmap row it serves and what was measured; the
-reviewer attacks those claims. A reply answers each finding by number: fixed, and what proves it,
-or disputed, with the evidence. Round 2 shows the reviewer what changed since round 1, and it marks
-each earlier finding resolved, open or withdrawn. Three rounds at most, then what is still open goes
-to the user. The script exits 0 for `approve`, 1 for `changes`.
-
-A review runs when a stage of work closes, over that stage's commits, not after each task. When a
-major stage of development closes, a review of the whole codebase follows: Jettison's first, then
-Manifest's, each brief aimed at what cuts across stages (determinism and replay, save compatibility,
-trust boundaries, files and permissions, the documents against the code), since a stage's review
-reads its own diff and misses a rule repeated in three places or a bound one module sets and another
-ignores.
-
-Codex runs with `workspace-write` (it builds and runs suites in `build/`) at reasoning effort
-`high`, since its own default is `none`. It may not change the source tree. The script compares
-the tree, uncommitted work included, before and after, and discards a review that changed it, so
-the author does not edit while a round runs. Rounds, transcripts and the reviewer's reproductions
-are kept in `build/reviews/<branch>/`; what a review changed goes in the commit body. A Discord
-webhook in `JETTISON_REVIEW_WEBHOOK` or `~/.config/jettison/review-webhook` gets each round's
-verdict and finding titles, to follow from a phone.
-
-The first trial (2026-11-14) reviewed the commit that closed phase 13, which had passed the gate
-and a run by hand under Xvfb. In ten minutes Codex built Debug, ran the app suite and wrote six
-scratch reproductions, each of a bug the suites had missed: a deliberately vacated helm
-retaken on load, a ship left at its last throttle when the shell attaches elsewhere, a market
-still bound to the previous station, shipyard data with zero mass or a negative price accepted, a
-scene lost by attaching during a jump, and the shuttle's eye point used in the transport. It
-marked all six blockers, which overstates the last: an obstructed view is a major.
+Commit what it changes as its own formatting commit.
 
 ## Headless render test
 
-`scripts/smoke-test.sh` runs `render_test --smoke-test`, then the ground sample's `ground
---smoke-test` (a game of no space, [sample game](sample-game.md#the-ground-sample)), with no desktop
-session. It builds the `clang-headless` preset, starts a virtual X server, and can pin Mesa's lavapipe software driver so
-the run does not depend on a GPU.
+The [smoke test](glossary.md#smoke-test), `scripts/smoke-test.sh`, runs the shell through the stages
+that have broken this engine, with the Vulkan validation layers on and no desktop session. It fails
+on a non-zero exit, any validation error or warning, or a stage that did not happen.
+
+It makes three runs:
+
+1. `render_test --smoke-test` over the test content's `scene/main.yaml` (glTF models, a skinned
+   clip, a point light, debug lines; no sun, so the shadow pass clears and draws nothing).
+2. The same over `scene/orbit.yaml` (a station over a planet at real scale under the sun: four
+   shadow cascades, a hundred clustered lights, hundreds of instanced draws).
+3. `ground --smoke-test`, the [ground sample](sample-game.md#the-ground-sample), from its own
+   content.
+
+In a Debug tree it first checks that a missing validation layer and a missing shader each exit 1
+cleanly, with no validation error.
 
 ```bash
-./scripts/smoke-test.sh --llvmpipe                  # build, Xvfb, software Vulkan
-./scripts/smoke-test.sh --no-build --xvfb           # existing tree, virtual display
-./scripts/smoke-test.sh --no-xvfb                   # your own Wayland/X11 session
-./scripts/smoke-test.sh --icd <lvp_icd.x86_64.json> # pin a driver explicitly
-./scripts/smoke-test.sh --llvmpipe --packed         # from the two packs
-./scripts/smoke-test.sh --offscreen --packed        # no display at all, on the GPU
+./scripts/smoke-test.sh --llvmpipe                       # build, then lavapipe (Xvfb if no DISPLAY)
+./scripts/smoke-test.sh --offscreen --packed             # no display at all, on the GPU, from packs
+./scripts/smoke-test.sh --no-build --xvfb                # the existing tree, on a virtual display
+./scripts/smoke-test.sh --icd /path/to/lvp_icd.x86_64.json   # pin a driver explicitly
 ```
 
-**Offscreen.** `--offscreen` runs `render_test --offscreen` with no Xvfb and `DISPLAY` and
-`WAYLAND_DISPLAY` unset: the renderer draws into images of its own on GLFW's null platform
-([architecture](architecture.md#rendering-clustered-forward)), so a GPU that cannot present to
-Xvfb draws the run and no window opens on any desktop. On the user's workstation (`uname -n` is
-`lythir`) it adds `--gpu 5060`, the card with the monitor, so nothing runs on the 5070 Ti kept for
-inference beside it; elsewhere the renderer chooses, and `--gpu NAME` names one. The gate runs the
-plain smoke test so unless it has `--llvmpipe` or there is no `/dev/dri`, which is Claude Code's
-sandbox: its bubblewrap call mounts a fresh `/dev` after every bind, so no setting can give it a
-GPU's nodes, and `./scripts/ci.sh *` and `./scripts/smoke-test.sh *` are in the user's
-`sandbox.excludedCommands` instead. Measured 2026-11-20 on the 5060 Ti, with the space sample's
-jumps: 29 s for the three runs and the shell's start-up checks, against 49 on lavapipe under Xvfb,
-at 1.3 ms a frame on the GPU against 79 on lavapipe. The minimize stage runs on the null platform as on X11. The sanitised run stays on lavapipe,
-since NVIDIA's driver fails under ASan.
+| Flag | Effect |
+|---|---|
+| `--preset NAME` | Preset to build and run (default `clang-headless`) |
+| `--build-dir DIR` | Build tree (default `build/<preset>`) |
+| `--build` / `--no-build` | Configure and build `render_test` and `ground` first (the default), or run the tree as it is |
+| `--werror` | Configure with `JETTISON_WERROR=ON` |
+| `--llvmpipe` | Pin [lavapipe](glossary.md#lavapipe), Mesa's software Vulkan driver |
+| `--icd PATH` | Pin an ICD manifest instead of finding lavapipe |
+| `--xvfb` | Run under a virtual X server (default: only when `DISPLAY` is unset) |
+| `--no-xvfb` | Run on the current display: opens windows on your desktop |
+| `--screen WxHxD` | Xvfb's screen (default `1280x720x24`; software rendering is fill-rate bound) |
+| `--offscreen` | `render_test --offscreen`: no display, Xvfb or window ([offscreen](#offscreen)) |
+| `--gpu NAME` | Part of the name of the device to draw with |
+| `--packed` | Run from `assets.pack` and `content.pack`, as a shipped build has them |
 
-**Packed.** The gate runs the headless tree's smoke test with `--packed`: it builds
-`jettison_assets_pack` and `jettison_test_content_pack`, and runs each scene with `--assets
-build/<preset>/assets.pack`, `--content build/<preset>/source/test/content.pack` and a user
-directory of its own. The run fails unless the shell says, once a scene, that it mounted the
-engine's assets and the content as packs and read the content's description. The sanitised run and
-the reference frames read the staged directory, so both kinds of mount are drawn from every gate.
-A mod in the user's mods, which the packed run mounted until the space sample was retired
-(2026-11-22), is the host suite's.
+Environment: `VK_SMOKE_VERBOSE` says so when validation reported nothing; `JETTISON_LAVAPIPE_ICD`
+(set by the shell) is where `scripts/lib/headless.sh` looks for lavapipe first.
 
-**What it walks.** The stages that have hurt this engine: resize, resize, minimize, restore, scene
-reload, pilot from behind, pilot from the seat, pick, save and load, the game's screen, and
-settle; a stage the game does not drive passes over (`Game::DriveSmoke`). Each runs four frames, a
-pick or a piloting stage as many as it takes, inside a 120-second watchdog. `render_test` is the
-shell with no game, over the test content (`source/test/content`), and walks them twice: in
-`scene/main.yaml` (glTF models, a skinned clip, a point light, the debug lines) and in
-`scene/orbit.yaml` (a station over a planet at real scale under an orbit camera and the sun, which
-shadows it through four cascades: Ostra Highport's 104 floodlights assigned to the clusters, and its
-pads' paint, poles and lamps, hundreds of one shape and colour each, drawn as instanced draws). It
-flies nothing, picks nothing and has no screen of a game's. The save stage writes the
-world to the run's user mount, flushed to the disk, and loads it back over itself with the scene
-drawing it; the run fails unless the world loaded has the state hash of the world saved. The saved
-games' screen is shown from the first frame, so the overlay is drawn in every stage, over every
-resize and the reload, and the save stage lists its save on it. The main scene has no sun, so its
-shadow pass clears the cascades and draws nothing, under the same plan and barriers. Each scene's
-sky is baked into its environment when it loads and again when the reload stage replaces it, so the
-bake's passes and the frame sets rewritten after it run under validation too. The reload also reads
-every resource again, models and rigs included, so a model's buffers are retired while a frame in
-flight may read them and freed after it, under validation. Until 2026-11-22 the space sample drove
-the flight, a trade on its market screen and a jump to another star system here; the trade and the
-jump are Manifest's now, and the jump stage went with it (2026-11-22).
+### Offscreen
 
-The ground sample walks the same stages from its own content, unpacked in either run: its piloting
-stages drive its rover ahead and then turning, its pick lands on its ground, its save and load hold
-its world's state hash. Each piloting stage waits until
-the game says its rover has shown it moved (`SmokeActions::piloting`): past 1 m/s ahead, then 10
-degrees turned, since a stage's four frames are fast or slow with the machine and the rover moves by
-simulation time. The game logs each, and the run fails unless it said both; a rover that never
-moves is a run the watchdog stops. The whole run, the script's start-up checks, the packs and the
-three runs, took 33 seconds on lavapipe under Xvfb on 2026-11-22. Budget more on a runner.
+`--offscreen` unsets `DISPLAY` and `WAYLAND_DISPLAY` and runs `render_test --offscreen`, which draws
+on the GPU with no window anywhere ([why and how](rendering.md#the-vulkan-backend)). The gate's
+plain smoke test runs so. On the user's workstation (`uname -n` is `lythir`) the script adds
+`--gpu 5060`, the card with the monitor, so nothing runs on the 5070 Ti kept for inference;
+elsewhere the renderer chooses, and `--gpu` names one.
+
+Where there is no `/dev/dri` the gate falls back to lavapipe under Xvfb. Claude Code's sandbox is
+such a place: its bubblewrap call mounts a fresh `/dev`, so no setting gives it a GPU's device
+nodes. Run `ci.sh` and `smoke-test.sh` outside the sandbox to test on the GPU.
+
+### Packed
+
+With `--packed` the script builds `jettison_assets_pack` and `jettison_test_content_pack`, and runs
+each test-content scene with `--assets build/<preset>/assets.pack` and
+`--content build/<preset>/source/test/content.pack`. The run fails unless the shell says, once a
+scene, that it mounted both as [packs](glossary.md#pack) and read the content's description. The
+gate's smoke test is packed, while the sanitised run and the reference frames read the staged
+directories, so every gate draws from both kinds of mount. The ground sample reads its staged
+content either way. A smoke run without `--user-dir` has a scratch user directory ([the app
+shell](app-shell.md#the-render-test)).
+
+### What it walks
+
+The smoke sequence walks eleven stages (window resizes, minimise and restore, a scene reload,
+piloting, a pick, a save and load, the game's screen, and a clean close), each one a path that has
+broken this engine before. The stages, what each is there to catch and what fails a run are in [the
+app shell](app-shell.md#the-render-test). A rover that never moves in the ground sample's piloting
+stages is stopped by the 120-second watchdog.
 
 ## Reference frames
 
-`scripts/capture.sh` writes frames of `render_test` to PNG files from inside its frame loop
-(`--screenshot`), on lavapipe under Xvfb, with the clocks moved a sixtieth of a second a frame and
-held while anything loads (`--frame-step`), so a view captured twice on one machine is the same to
-the byte. It replaces grabbing the virtual screen with `xwd` after a fixed wait: the frame is the
-swapchain's, exact to the frame, and a console line given with `--run` places the camera where
-`xdotool` keys held for seconds used to.
+A [reference frame](glossary.md#reference-frame-image) is a committed PNG of a view that the gate
+compares a fresh capture with, so a change that alters a picture fails until it is meant to.
+`scripts/capture.sh` captures `render_test` frames from inside the frame loop, on lavapipe under
+Xvfb: on one machine the same to the byte every run, whatever the load.
 
 ```bash
-./scripts/capture.sh out.png --scene $PWD/source/test/content/scene/orbit.yaml --run "orbit 0.8 -0.1 2.0e7 ostra"
-./scripts/capture.sh --references            # compare every view with its reference
-./scripts/capture.sh --references --update   # record a change that is meant to change a frame
-./scripts/capture.sh --references corva      # one view
+./scripts/capture.sh out.png --scene $PWD/source/test/content/scene/orbit.yaml \
+    --run "orbit 0.8 -0.1 2.0e7 ostra"                  # one frame, camera placed by a console line
+./scripts/capture.sh --references                       # compare every view with its reference
+./scripts/capture.sh --references corva                 # one view
+./scripts/capture.sh --references --update graded       # record a change meant to change a frame
 ```
 
-The gate's reference-frames stage runs the views `source/test/frames/views.txt` lists, a name and
-`render_test`'s arguments a line, all at once on one display, and fails if any pixel differs from
-its reference by more than 2% (another machine's lavapipe rounds a little differently), or if the
-validation layer reported anything. llvmpipe's vector width is pinned to 256 bits
-(`LP_NATIVE_VECTOR_WIDTH`), what it picks here, so a runner with wider vectors compiles the same
-shaders. Until 2026-11-18 a pixel in a thousand (518) was allowed; with captures the same on any
-load, that only hid stale references, `effects` 112 pixels behind the thrusters' plumes, so every
-view was recorded again and none is allowed. The frames and their differences are
-kept in `build/<preset>/frames`. The five views of phase 10a (the orbit scene as it opens, Ostra by
-day and by night, Corva and its rings, and the Vesper scene as it opens) took 23 seconds together
-on 2026-11-13, most of it each run transcoding the planet's maps on one thread; captured twice, no
-pixel differed. Phase 10b added a sixth, the transparent pass's test bench (`scene/effects.yaml`),
-captured three seconds in so its smoke has risen: a view's line may give its own `--after-frames`,
-after the script's. The six took 24 seconds, and captured twice, no pixel differed. Phase 10c added
-a seventh, the post chain's test bench (`scene/post.yaml`) two seconds in, its beacon bright, with
-`--ambient-occlusion`, which a CPU device is otherwise without; the seven took 29 seconds, and
-captured twice, no pixel differed. Phase 11c added two, placed by console lines: `graded`, the orbit
-scene through the sample's colour grade (`grade cold-light`), and `dock-sequence`, the docking
-cinematic 1.5 s in (`pilot chase`, then `sequence dock 1`); captured twice, no pixel differed, and
-every earlier reference was the same to the byte with the grade's code in the output pass. Phase 11d
-added `market-de`, the orbit scene with the market screen shown in German (`language de`, then
-`market on`), every word and number of it from the sample's tables; captured twice, no pixel
-differed. A capture is the same frame however loaded the machine is, and two things had made it
-follow the machine's timing instead, both found on `dock-sequence`, whose shot is a frame of an
-animation and so the view a slip shows: a load requested and drained in one frame was seen at the
-next tick's start only when the I/O worker was slow, and the X server's first resize, arriving at
-its own time, made the renderer skip that frame's draw and so resolve its materials a frame late.
-Either moved the shot one frame, 12,383 pixels, 24 times the allowance of the time. A fixed step now settles
-every load where it is drained (`ResourceOptions::settleLoads`, hot reload off), and an
-out-of-date acquire recreates the swapchain until the frame draws (`RendererOptions::drawEveryFrame`,
-eight recreates, then the run fails). Measured 2026-11-18: ten runs,
-five at idle and five under 24 busy loops on 24 cores, each at frame 34 with the sequence at
-1.516666 s, a frame before the idle path's old reference, which was recorded again; every view
-the same count idle and loaded, and `dock-sequence` none. The run logs where it shot (`Screenshot
-at frame ..., fixed time ...`), so a frame that moves shows on which tick. A frame is 960×540,
-and the frame captured is the one after thirty in a row with nothing loading, unless its
-line says otherwise.
+| Flag | Effect |
+|---|---|
+| `<out.png> [render_test arguments...]` | Capture one frame |
+| `--references [name...]` | Capture and compare the views (all, or those named) |
+| `--update` | With `--references`: write the captures as the new references |
+| `--preset NAME` | Preset to build and run (default `clang-headless`) |
+| `--no-build` | Run the tree as it is |
+| `--window WxH` | The frame's size (default `960x540`) |
+| `--frames N` | Frames with nothing loading before the one captured (default 30) |
+| `--icd PATH` | Pin an ICD manifest instead of finding lavapipe |
 
-On 2026-11-22 (the space extraction) the views moved to the test content's static scenes, which hold
-what the space sample's star systems and station dressing built, baked into the files, and
-`render_test` became the shell with no game. `effects` and `post` came out the same to the byte;
-the planets' views differed by 1 to 18 pixels and `orbit` and `graded` by about 300, the bodies'
-spin now a float Euler angle. `docked` went with the sample; `dock-sequence` starts from an orbit
-camera 30 m off the shuttle, its roles the scene's `ship` and `pad` by id, the clamps rising
-rather than closed; and `saves-de`, the engine's saves screen in German (`language de`, then
-`saves on`), took `market-de`'s place. Every view was recorded again, and captured twice, none
-differed.
+### How a capture is made the same every time
 
-The offscreen target is held to the swapchain here: `orbit-offscreen` is the `orbit` view drawn
-with `--offscreen`, on lavapipe, and its reference is a copy of `orbit.png`; it came out the same to
-the byte (2026-11-20). A console line given to `--run` as `@<frame> <line>` runs at the start of
-that frame and as `@<seconds>s <line>` at the first frame the simulation's clock has reached it, so
-a view can be of what happens after a while: `--run @2s|sequence|dock`.
+| Rule | Why |
+|---|---|
+| `--frame-step 1/60`: the clocks move a fixed sixtieth of a second a frame, and hold while anything loads | Simulation time does not follow the machine's speed |
+| The frame captured is the one after 30 in a row with nothing loading, unless the view says otherwise (`--after-frames`) | Loads finish before the shot |
+| A fixed step settles every load where it is drained (`ResourceOptions::settleLoads`, hot reload off) | A slow I/O worker cannot move a load to the next tick |
+| An out-of-date acquire recreates the swapchain until the frame draws (`RendererOptions::drawEveryFrame`; eight tries, then the run fails) | The X server's first resize cannot skip a frame's draw |
+| `LP_NATIVE_VECTOR_WIDTH=256` | A runner with wider vectors compiles the same shaders |
+| An empty user directory of its own, and `--no-sound` | No one's settings or saves are in the frame |
+| The frame is the swapchain's, written by `--screenshot` | Exact to the frame, unlike grabbing the screen after a wait |
 
-Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under
-any other capture still drawing on it.
+The run logs where it shot (`Screenshot at frame ..., fixed time ...`), so a frame that moves shows
+its tick.
+
+### The views
+
+`source/test/frames/views.txt` lists the views, one a line: a name, then `render_test`'s arguments.
+`$PWD` stands for the repository, and `|` for a space within one argument (a console line given to
+`--run`). The reference is `source/test/frames/<name>.png`. The scenes are the test content's static
+scenes (`source/test/content/scene`). For example:
+
+```text
+ostra --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|ostra
+effects --scene $PWD/source/test/content/scene/effects.yaml --after-frames 180
+dock-sequence --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|3.14|0.15|30|ship --run sequence|dock|1
+```
+
+A console line given to `--run` as `@<frame> <line>` runs at the start of that frame, and as
+`@<seconds>s <line>` at the first frame the simulation's clock reaches it, so a view can show what
+happens after a while (`--run @2s|sequence|dock`). The console's commands are in [the app
+shell](app-shell.md#the-console). `orbit-offscreen` is `orbit` drawn with `--offscreen`, against a
+copy of `orbit.png`.
+
+### What fails the stage
+
+The gate's stage (`capture.sh --references`) captures every view at once on one display, then fails
+if, for any view:
+
+- `render_test` exits non-zero;
+- the validation layer reported anything;
+- there is no reference;
+- any pixel differs from the reference by more than 2% (`magick compare -metric AE -fuzz 2%`). The
+  fuzz absorbs another machine's lavapipe rounding a little differently; since a capture does not
+  vary with load, a pixel past it is a change.
+
+The captures, their logs and their difference images are kept in `build/<preset>/frames`.
+
+Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under any
+other capture still drawing.
 
 ## Benchmark
 
-`render_test --benchmark <frames>` measures the frame: it draws 60 frames to warm up (the
-pipelines a material builds on its first draw, the textures' uploads), then the frames asked for,
-and prints the GPU's mean time in each declared pass and the frame's, the wall time per frame, and
-the last frame's counts (meshes, what culling left out, the instanced draws and their triangles,
-each cascade's casters, the lights, the outlines), then closes. `--window <width>x<height>` asks for
-a size, which a tiling compositor may overrule (niri gives the window its tile; the report says what
-it got); `--depth-prepass` turns the prepass on; `--ambient-occlusion` and `--no-ambient-occlusion`
-choose it in place of the device's default (on, except on a CPU device), and `--bloom <strength>`
-sets bloom's, 0 for none.
+`render_test --benchmark <frames>` measures the frame. It draws 60 frames to warm up (the pipelines
+a material builds on its first draw, the textures' uploads), then the frames asked for, and prints
+the GPU's mean time in each declared pass and the frame's, the wall time per frame, and the last
+frame's counts, then closes. The counts are the meshes and what culling left out, by reason; the
+draws and their triangles; each cascade's casters; the lights and those listed; the transparent
+draws; the emitters and their particle slots; and the outlines. The options that change what is
+drawn (`--window`, `--depth-prepass`, `--ambient-occlusion`, `--bloom`) are in [the app
+shell](app-shell.md#the-command-line). A tiling compositor may overrule `--window`; the report says
+what it got.
 
 ```bash
 # Hardware: a Release tree, on the desktop session. NVIDIA's driver cannot present to Xvfb.
@@ -681,78 +704,137 @@ VK_DRIVER_FILES=<lvp_icd.x86_64.json> DISPLAY=:<n> build/clang-headless/source/t
 python3 scripts/make-light-budget-scene.py build/clang-release/source/test/content/scene/orbit.yaml
 ```
 
-The budgets and what phase 5 measured are in [architecture](architecture.md#the-budget).
+The frame budgets are in [rendering](rendering.md).
 
-The spatial index has a benchmark of its own, a doctest case skipped in the gate: a system's traffic
-of 1,000 to 100,000 ships stepped 60 times, every ship moved in the index each step, and the time
-of each kind of query AI makes, for the octree's leaf sizes and looseness and for a walk over every
-position. What phase 6c measured with it is under [decided](decisions.md).
+The spatial index has a benchmark of its own, a doctest case the gate skips: 1,000 to 100,000 points
+stepped 60 times, each moved in the index every step, timing each kind of query for several octree
+leaf sizes and loosenesses and a walk over every position. What it showed is in
+[decisions](decisions.md#scenes).
 
 ```bash
 build/clang-release/source/engine/spatial/jettison_spatial_tests --no-skip -tc='Spatial benchmark*'
 ```
 
-For the GPU's passes on Tracy's timeline beside the CPU's zones, configure a tree with
-`-DJETTISON_PROFILE=ON` (for example `cmake --preset clang-release -B build/profile
--DJETTISON_PROFILE=ON`). Every other tree compiles the zones out. A capture without the profiler's
-window: `tracy-capture -o run.tracy -s 3` started before the run, then `tracy-csvexport -g run.tracy`
-lists the GPU zones, one per declared pass a frame (`nix shell nixpkgs#tracy`, 0.13.1, the version
-the client is pinned to).
+## Profiling
+
+`JETTISON_PROFILE=ON` compiles the Tracy client in (`TRACY_ENABLE`); what it costs, on and off, and
+the macros are in [runtime](runtime.md#profiling). Tracy is fetched in every tree, because `profile`
+links it. The profiler must be the client's version: nixpkgs' `tracy` at the current devenv lock is
+0.13.1, which is why the client is pinned there.
+
+```bash
+cmake --preset clang-release -B build/profile -DJETTISON_PROFILE=ON && cmake --build build/profile
+tracy-capture -o run.tracy -s 3 &      # start before the run, without the profiler's window
+build/profile/source/test/render_test --scene build/profile/source/test/content/scene/orbit.yaml
+tracy-csvexport -g run.tracy           # the GPU zones, one per declared pass a frame
+```
+
+The shell's other profilers:
+
+| Tool | Use |
+|---|---|
+| `perf` | Sampling. At `perf_event_paranoid` 2, `perf record -e task-clock --call-graph fp --user-callchains` samples user space with stacks, where plain `-g` fails. Claude Code's sandbox blocks perf events, so it runs outside it. |
+| `hotspot` | Browsing `perf` data |
+| `heaptrack` | Allocations |
+| `valgrind` (callgrind) and `kcachegrind` | Instruction counts, so two commits compare without wall-clock noise |
+
+## Cross-review
+
+A [cross-review](glossary.md#cross-review) is another model reviewing a change adversarially after
+the gate: Claude writes, Codex (the `codex` CLI) reviews. The gate shows that the change builds and
+its tests pass; the review looks for what the tests miss, against `AGENTS.md`, the coding standards,
+the design documents and the change's roadmap row. Git is the medium, not a chat: the reviewer reads
+the tree, builds, runs suites and writes reproductions.
+
+**When.** When a stage of work closes, over its commits, not after each task. When a major stage of
+development closes, a review of the whole codebase follows, Jettison's then Manifest's, its brief
+aimed at what cuts across stages (determinism and replay, save compatibility, trust boundaries,
+files and permissions, the documents against the code), which a review of one diff misses.
+
+**How a review runs:**
+
+1. Write a brief: what the change is for, its roadmap row, what was measured, and what you believe
+   holds. The reviewer attacks those claims.
+2. Run round 1 with `--brief`. Do not edit the tree while it runs (about ten minutes): the script
+   compares the tree, uncommitted work included, before and after, and discards a review that
+   changed it.
+3. Answer each finding by number in a reply: fixed, and what proves it; or disputed, with the
+   evidence. Write the reply outside `build/reviews/<branch>/`, since the script copies it there.
+4. Run the next round with `--reply`. The reviewer sees what changed since the last round and marks
+   each earlier finding resolved, open or withdrawn.
+5. After three rounds, what is still open goes to the user. Record what the review changed in the
+   commit body.
+
+```bash
+./scripts/cross-review.sh --brief ../brief.md --gate-log build/gate.log   # round 1
+./scripts/cross-review.sh --reply ../reply.md --gate-log build/gate.log   # round 2, after fixing
+```
+
+| Flag | Effect |
+|---|---|
+| `--brief FILE` | Round 1's brief |
+| `--reply FILE` | A later round: the answer to the last round's findings |
+| `--base REF` | What the change is measured against (default `main`); kept for later rounds |
+| `--gate-log FILE` | A gate log for the reviewer to read |
+| `--model NAME` | The Codex model (default: Codex's own configuration) |
+| `--effort LEVEL` | Reasoning effort (default `high`; Codex's own default is `none`) |
+| `--max-rounds N` | Refuse a round past N (default 3) |
+| `--no-post` | Do not post the round's summary to Discord |
+| `--new` | Discard this branch's earlier rounds and start again |
+
+| Exit status | Meaning |
+|---|---|
+| 0 | Approved |
+| 1 | Changes asked for |
+| 2 | Usage error, or a round past the limit |
+| 3 | The review failed, or changed the tree and was discarded |
+
+Codex runs with `workspace-write`, so it can build and run suites in `build/` but not change the
+source tree. Rounds are kept in `build/reviews/<branch>/`: `brief.md`, `round-N.md` (the review),
+`round-N.log` (the transcript), `reply-N.md` and `scratch/` (the reviewer's reproductions). The
+prompt is `scripts/cross-review-prompt.md`. A Discord webhook in `JETTISON_REVIEW_WEBHOOK` or
+`~/.config/jettison/review-webhook` gets each round's verdict and finding titles.
 
 ## CI
 
-The workflow follows the [devenv GitHub Actions guide](https://devenv.sh/integrations/github-actions/).
-It installs Nix on Ubuntu 24.04, enables the public `devenv` Cachix cache, installs devenv 2.4.0,
-and, in the shell described by `devenv.nix` and `devenv.lock`, builds `clang-headless` with
-warnings as errors and runs its smoke test from the packed assets on lavapipe under Xvfb. It does not
-duplicate the toolchain with apt packages.
+The workflow (`.github/workflows/ci.yml`) is not the gate: every commit has passed that locally. It
+shows that a clean checkout builds and runs on another distribution, on a push to `main` and by
+hand, with a 45-minute timeout. Why it was cut down from the full gate is in [history](history.md).
 
-It is not the gate (the user's, 2026-11-25): the full gate took 45 to 60 runner minutes and failed
-on the job's timeout, and every commit has already passed it locally. What CI adds is that a clean
-checkout builds and runs on another distribution. It runs on a push to `main` and by hand
-(`gh workflow run ci --ref <branch>`).
+1. Check out with LFS, on Ubuntu 24.04.
+2. Install Nix, enable the public `devenv` Cachix cache (no token is needed to read it), and install
+   devenv 2.4.0, following the [devenv GitHub Actions
+   guide](https://devenv.sh/integrations/github-actions/).
+3. In the devenv shell, build `clang-headless` with `JETTISON_WERROR=ON`.
+4. Run `smoke-test.sh --xvfb --llvmpipe --packed --werror`.
+5. Upload `ci.log`.
 
-**Runner facts.**
-
-- An early attempt ran out of runner disk building LLVM from source. A multi-user Nix daemon can
-  silently ignore substituters from an untrusted user
-  ([devenv caching](https://devenv.sh/binary-caching/)), so the Nix action trusts the runner user
-  and the Cachix action names the cache explicitly. No token is needed to read it.
-- Nothing bounds parallelism on the runner: `CMAKE_BUILD_PARALLEL_LEVEL`, `CTEST_PARALLEL_LEVEL` and
-  Nix's `max-jobs` were all set to 2 and all came off on 2026-11-17. The bound was a workaround for
-  crashes, and the crashes are taken to be an unstable motherboard clock speed on the development
-  machine, probably, which the runner does not have ([the gate](#the-gate)). Memory pressure was the
-  reason written down at the time and is not measured, on the runner or here: the peaks are 1 051 MiB
-  for a clang copy on the widest unit and 1 151 MiB for a copy of clang-tidy, so the runner's six
-  build copies want 6.3 GiB and its four tidy copies 4.6 GiB, on a standard hosted runner of four
-  cores and sixteen gigabytes. The signal that the arithmetic is wrong is an
-  OOM in a run's log — `c++: fatal error: Killed signal terminated program`, or a suite that dies
-  with no assertion — and if it appears, the bounds go back and the runner's memory is the reason on
-  the record.
-- The full gate's shape on the runner, from the job log of 2026-11-16: 2 732 s, clang-tidy
-  **786 s**, the debug build 665 s, the release build 580 s, the lavapipe smoke test 489 s,
-  reference frames 160 s, the two suites 27 s and 24 s, format 1 s, with 94 s of runner setup in
-  front. The job took 47m34s against a 60-minute timeout, and later runs ran past it, which is why
-  CI was cut to the build and the smoke test.
-- An earlier run failed compiling ImGui's GLFW backend because `GL/gl.h` was missing. The ImGui
-  target defines `GLFW_INCLUDE_NONE`, because it uses Vulkan and does not need OpenGL headers.
-
-**Defects the gate found on CI.**
-
-- `assets/CMakeLists.txt` copied `assets/textures`, which no fresh clone has: Git cannot record an
-  empty directory. It now copies the directories that exist and creates the empty one, and there
-  is `assets/textures/.gitkeep`.
-- devenv shell entry was fragile under automation, for three reasons: a `pnpm install` task in a
-  repository with no `package.json`, `vulkaninfo` exiting non-zero with no ICD, and
-  `wt step copy-ignored` running outside a worktrunk session. All three are fixed.
-
-**Checking CI from the command line.**
+It installs no toolchain with apt: the shell from `devenv.nix` and `devenv.lock` is the toolchain,
+as locally. Nothing bounds its parallelism; a log showing an out-of-memory kill
+(`c++: fatal error: Killed signal terminated program`, or a suite dying with no assertion) is when
+to bound it.
 
 ```bash
-gh workflow run ci --ref feature-base           # start a run; then the newest:
-gh run list --branch feature-base --limit 1
+gh workflow run ci --ref <branch>                        # start a run
+gh run list --branch <branch> --limit 1                  # find it
 gh run view <id> --json jobs -q '.jobs[].steps[] | select(.conclusion=="failure") | .name'
-gh run view <id> --log-failed | grep -E "<step name>" | grep -vE "\[\[36;1m" | tail -25
-gh run watch <id> --interval 30 --exit-status &
+gh run view <id> --log-failed | tail -40
+gh run watch <id> --interval 30 --exit-status
 ```
 
+## Other scripts
+
+| Script | What it does |
+|---|---|
+| `scripts/format-check.sh` | The format check ([formatting](#formatting)) |
+| `scripts/comment-only.sh [revision] [pathspec...]` | Fails, naming each line, if the diff against a revision (default `HEAD`) changes anything but comments and blank lines. A comment-only change runs this and the format check instead of the gate. Markdown is left out unless named. |
+| `scripts/space-declarations.py` | [Declaration spacing](#declaration-spacing) |
+| `scripts/symbolise-crash.sh <report> [build dir]` | Names the frames of a crash report written with no symboliser (a player's machine), with `addr2line` against the build that wrote it ([runtime](runtime.md)) |
+| `scripts/lib/headless.sh` | Sourced by `smoke-test.sh` and `capture.sh`: finds and pins lavapipe (`VK_DRIVER_FILES`, `VK_ICD_FILENAMES`), and starts Xvfb on a free display from `:99`, stopping it on exit |
+| `scripts/import-planet-textures.sh <source-dir> <name>` | Encodes a planet's TGA maps as KTX 2 (UASTC, zstd, mipmapped) under `source/test/content/textures/planets/<name>/` |
+| `scripts/make-grid.py`, `make-sample-textures.py` | Rebuild the debug floor grid and the panel textures as PNG; the header of each gives the `ktx create` line that encodes them |
+| `scripts/make-sample-sounds.py` | Synthesises the test content's sounds, so none is anyone else's work |
+| `scripts/make-test-models.py` | Rebuilds the test models in Blender, headless (`blender -b --factory-startup --python ...`) |
+| `scripts/make-light-budget-scene.py` | Writes the light-budget scene ([benchmark](#benchmark)) |
+| `scripts/brdf-reference.py` | Computes the reference values the render suite checks the BRDF against (about a minute) |
+| `scripts/record-claude.sh`, `scripts/cast2mp4-4k` | Record a Claude Code session in the repository, and render a recording as video |

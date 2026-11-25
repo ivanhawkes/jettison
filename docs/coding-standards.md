@@ -1,66 +1,136 @@
 # Coding standards
 
-The house rules, taken from the code as it is and from what the work on it has taught. Where
-today's code disagrees with a rule here, the rule is the target and the code is fixed when it is
-next touched.
+The house rules, taken from the code and from what the work on it has taught. Where today's code
+disagrees with a rule, the rule is the target, and the code is fixed when next touched. How the
+rules are checked is in [build and gates](build-and-gates.md).
 
 ## Language and toolchain
 
-- C++20, Clang 21, Linux on x86-64.
+- C++20, Clang 21, Linux on x86-64. Why the standard stays at C++20 is in
+  [decisions](decisions.md#build-and-platform).
+- Text is UTF-8 in `std::string`, with no wide-string types; a hashed `Core::StringId` names
+  assets, definitions and tags.
 - Formatting is `std::format`. spdlog is configured to use it rather than its bundled fmt.
-- The warnings set on `jettison_warnings` is linked privately by every project target and must
-  stay clean. `-Werror` is on in the gate. A new warning is fixed, not suppressed. A warning
-  that cannot be fixed is removed from the set with the measurement that justified it, as
-  `-Wold-style-cast` was.
-- clang-tidy uses the curated `.clang-tidy`. A check is added when it is clean over the sources
-  or finds something that gets fixed. Exclusions carry their counts.
-- clang-format uses the project `.clang-format`: Microsoft base, Allman braces, tabs for
-  indentation, 104 columns. The pre-commit hook checks it.
-- Every function and method declaration has blank lines above it, then its comment and `template`
-  line if it has them, then the declaration, so each reads as its own block: one blank line in a
-  header, two in a source file, where the bodies are. The first one after an opening brace or an access label
-  (`public:`) has none, since clang-format removes them there. clang-format cannot add these
-  lines (`SeparateDefinitionBlocks` skips declarations and collapses two blank lines to one), so
-  `scripts/space-declarations.py` adds them, run by hand, not by the gate
-  ([build and gates](build-and-gates.md#declaration-spacing)).
+- The project's warnings stay clean, so the gate's `--werror` can make them errors. A new warning
+  is fixed, not suppressed. A warning that cannot be fixed leaves the set with the measurement that
+  justified it ([build and gates](build-and-gates.md#warnings)).
+- clang-tidy runs the curated `.clang-tidy`. A check is added when it is clean over the sources or
+  finds something that gets fixed, and an exclusion says why, with its measurement where there is
+  one ([build and gates](build-and-gates.md#clang-tidy)).
+- clang-format runs the project's `.clang-format`: Microsoft base, Allman braces, tabs for
+  indentation counted as 4 columns, 104 columns a line. `scripts/format-check.sh` checks it, run by
+  the worktrunk pre-commit hook and by the gate ([build and gates](build-and-gates.md#formatting)).
+
+### Declaration spacing
+
+Every function and method declaration stands as its own block, so a reader sees where one ends:
+blank lines above it (one in a header, two in a source file), then its comment and `template` line
+if it has them, then the declaration. The first declaration after an opening brace or an access
+label (`public:`) has no blank line, since clang-format removes it there.
+
+Before:
+
+```cpp
+class ModelCache
+{
+  public:
+	ModelCache(const ModelCache &) = delete;
+	ModelCache &operator=(const ModelCache &) = delete;
+	// Registers the model loader, so a renderer is made once per resource manager.
+	void Init();
+```
+
+After (`source/engine/render/src/vulkan/ModelCache.h`):
+
+```cpp
+class ModelCache
+{
+  public:
+	ModelCache(const ModelCache &) = delete;
+
+	ModelCache &operator=(const ModelCache &) = delete;
+
+	// Registers the model loader, so a renderer is made once per resource manager.
+	void Init();
+```
+
+clang-format cannot add these lines, so `scripts/space-declarations.py` does, run by hand rather
+than by the gate ([build and gates](build-and-gates.md#declaration-spacing)).
 
 ## Naming
 
 | Thing | Style | Example |
-|---|---|---|
+| --- | --- | --- |
 | Types, enums, enum values | PascalCase | `SceneUpdateSystem`, `State::Running` |
 | Functions and methods | PascalCase | `LoadModel`, `Destroy`, `WaitOnWindowResized` |
 | Locals and parameters | camelCase | `deltaTime`, `sceneRegistry` |
 | Members | `m_` + camelCase | `m_generation` |
 | Pointer members (raw and smart) | `m_p` + PascalCase | `m_pDeviceContext` |
 | Component fields | camelCase, no prefix | `rotationSpeed`, `active` |
+| Constants | `k` + PascalCase | `kPickDistance`, `kSimStep`, `kAudio` |
 | Macros | `JETTISON_` + upper snake case | `JETTISON_ASSERT` |
 | Namespaces | `Jettison::<Module>` | `Jettison::Render` |
 | Files | PascalCase, one main type per file | `SmokeSequence.h` / `.cpp` |
-| Asset files | kebab-case | `habitable-earthlike-a-normal.ktx2` |
+| Content files | kebab-case | `habitable-earthlike-a-normal.ktx2` |
 
-Asset files under `assets/` are kebab-case: lower-case words and digits joined by hyphens, so a
-path is spelt the same on Linux and Windows and needs no quoting. A texture is
-`textures/<kind>/<asset>/<asset>-<map>.ktx2`, the asset's name repeated so a file is still
-identified once it is out of its folder; the map is one of `color`, `normal`, `height`,
-`roughness`, `metallic`, `emissive`, and `detail-` before one of them for a detail layer. A
-material is `materials/<asset>.material.yaml`. Map names are the material slots' words, spelt as
-the code spells them. Source packs keep their own names outside the repository, and an import
-script maps them (`scripts/import-planet-textures.sh`). Shader programs (`mesh_triplanar`) predate the rule.
+A constant is a `constexpr` (or `inline constexpr`) variable at namespace scope, or a
+`static constexpr` member. A log category is one too: `constexpr Core::Category kAudio{"audio"};`.
+
+### Content files
+
+Content files (textures, materials, models and sounds, under `source/test/content/` or a game's
+content root) are kebab-case: lower-case words and digits joined by hyphens, so a path is spelt the
+same on any file system and needs no quoting.
+
+- A texture is `textures/<kind>/<asset>/<asset>-<map>.ktx2`. The asset's name is repeated, so a
+  file is still identified once it is out of its folder.
+- The map is one of `color`, `normal`, `height`, `roughness`, `metallic` and `emissive`, with
+  `detail-` before one of them for a detail layer. These are the material slots' words, spelt as
+  the code spells them.
+- A material is `materials/<asset>.material.yaml`.
+
+Source packs keep their own names outside the repository, and an import script maps them
+(`scripts/import-planet-textures.sh`). Shader programs in `assets/shaders/` predate the rule and are
+snake_case (`mesh_triplanar`); fonts keep their upstream names (`Roboto-Medium.ttf`).
+
+## Constants
+
+**Every magic number in production code is a named constant, even when it is used once.** A magic
+number is a chosen value: a size, a count, a limit, a tolerance, a duration, a factor. Its name says
+what it is, and its comment says why it is that value, when that is not plain. One literal then
+cannot quietly serve two meanings, and every use of a value can be found by its name.
+
+Before:
+
+```cpp
+if (framesWaited > 60)
+	Advance();
+```
+
+After (`source/engine/app/src/SmokeSequence.cpp`):
+
+```cpp
+// The frames a pick is given to be answered: the next simulation step answers it, which is a frame
+// or two at most, unless the world is not stepping, and then the sequence moves on without it.
+constexpr int kPickFrames = 60;
+```
+
+Not magic: the arithmetic identities of a formula, such as 0, 1 and the 2 of a midpoint, and a
+conversion whose unit is named (10'000 basis points). Tests are exempt: their expected values and
+fixture numbers stay literal, where names would only bulk them up.
 
 ## Headers and includes
 
 - `#pragma once`.
 - Public headers: `#include <jettison/<module>/Name.h>`. Private headers in the same module use
   quotes.
-- Order: the file's own header, third-party, standard library, then engine headers, as
-  separate blocks.
-- Forward-declare in headers where a pointer or reference is enough; `Application.h` is the
-  model.
-- Never configure a library with a macro in a header. Configuration goes on the library's CMake
-  target. GLM's `GLM_FORCE_DEPTH_ZERO_TO_ONE` once sat in `Model.h` above the GLM includes, so
-  it reached only the translation units that included that header first, and reordering an
-  include changed the projection's depth range.
+- Order: the file's own header, third-party, standard library, then engine headers, as separate
+  blocks (`source/engine/dock/src/Docks.cpp` is the model).
+- Forward-declare in headers where a pointer or reference is enough; `Application.h` is the model.
+- Never configure a library with a macro in a header; configure it on the library's CMake target.
+  A macro in a header reaches only the files that include that header first, so reordering an
+  include changes the library's behaviour. GLM's `GLM_FORCE_DEPTH_ZERO_TO_ONE` once
+  sat in `Model.h` and changed the projection's depth range in this way.
 
 ## Comments
 
@@ -92,114 +162,187 @@ What a comment is not for, deleted on sight:
   lines speak.
 - Commented-out code or `#if 0`: history is in git.
 
-A `TODO` names the question it asks, and is resolved where it was asked. The reference style is
-`ModelCache` (`render/src/vulkan/ModelCache.h`), `RotationAnimationComponent::angle` and the GLM
-block in `source/external/CMakeLists.txt`: each names the hazard, the evidence and the reason for
-the shape. When code changes, a comment whose reason changed with it is updated or deleted in the
-same edit. A reviewer strips any new comment that fails the test.
+Before, a comment that restates the name:
+
+```cpp
+// The pick distance.
+constexpr double kPickDistance = 50000.0;
+```
+
+After, a comment that says why the value is this one (`source/engine/app/src/Application.cpp`):
+
+```cpp
+// How far a pick reaches: past any platform a vehicle is flown by.
+constexpr double kPickDistance = 50000.0;
+```
+
+A `TODO` names the question it asks, and is resolved where it was asked. When code changes, a
+comment whose reason changed with it is updated or deleted in the same edit. A reviewer strips any
+new comment that fails the test. Two more good comments: `ModelCache`
+(`source/engine/render/src/vulkan/ModelCache.h`) names a hazard, keying models on paths because a
+reload can make a new model where an old one was; the GLM block in `source/external/CMakeLists.txt`
+gives evidence, the projection's values with and without the depth-range macro.
 
 ## Ownership and lifetime
 
-- `std::unique_ptr` by default, `std::shared_ptr` only when ownership is genuinely shared,
+- `std::unique_ptr` by default, `std::shared_ptr` only when ownership is genuinely shared, and
   raw pointers and references for non-owning access.
 - GPU objects are released with an explicit `Destroy()`, called in dependency order by their
-  owner. `Application::Shutdown` is the backstop. It is idempotent and `noexcept`, and
+  owner. `Application::Shutdown` is the backstop: it is idempotent and `noexcept`, and
   `~Application` calls it. Non-GPU types use RAII.
-- Never destroy a GPU resource a submitted command buffer can still reference. Wait on the
-  frame's fence, and write down which fence it is where the destroy happens.
-- Caches are keyed on handles with generations, not on addresses. An address is reused by the
-  next allocation.
+- Never destroy a GPU resource a submitted command buffer can still reference. Wait on the frame's
+  fence, and write down which fence it is where the destroy happens.
+- Caches are keyed on something stable, such as a virtual path or a handle with a generation
+  (`Core::Handle`), never on an address. An address is reused by the next allocation, so a key on
+  it can name a different object.
 - Delete copy operations on any type that owns a resource.
 
 ## Components and state
 
-- Components are plain structs with default member initialisers and no behaviour. Systems hold
-  the behaviour.
-- **Authored state and runtime state are separate fields.** The frame loop never writes to a
-  field the scene file stores. Runtime phase lives in its own field, documented as "not written
-  to the scene file". A saved scene must equal the loaded one.
+- Components are plain structs with default member initialisers and no behaviour. Systems hold the
+  behaviour.
+- **Authored state and runtime state are separate fields.** The frame loop never writes to a field
+  the scene file stores; runtime state lives in its own field, documented as not written to the
+  file. A saved scene must equal the loaded one.
 - **One rule, one owner.** A constraint that a loader enforces lives in one function that the
   writer also uses. Every format has a round-trip test.
 
+Before, the frame loop turns the authored transform, so saving the scene records wherever the
+animation had got to:
+
+```cpp
+transform.rotation += animation.rotationAxis * animation.rotationSpeed * dt;
+```
+
+After, the phase is runtime state of its own, and the authored rotation is never written
+(`source/engine/animation/include/jettison/animation/Components.h`):
+
+```cpp
+struct RotationAnimationComponent
+{
+	glm::vec3 rotationAxis{0.0f, 1.0f, 0.0f};
+	float rotationSpeed{0.785398163f};
+
+	// The phase of the rotation, owned by the frame loop and not written to the scene file. ...
+	float angle{0.0f};
+};
+```
+
 ## Errors
 
-- Exceptions for failures at boundaries: start-up, loading, file and format errors. They carry
+- Exceptions for failures at boundaries (start-up, loading, file and format errors), carrying
   enough context to act on: the stage, the path, the version.
-- No exceptions inside per-frame or per-step hot paths. Programming errors there are
-  assertions.
+- No exceptions inside per-frame or per-step hot paths. Programming errors there are assertions.
 - Outcomes that are expected and recoverable, such as a lookup that can miss or a command the
-  simulation rejects, return `std::optional` or a small result type naming the reason. The
-  project is C++20, so there is no `std::expected`, and no stand-in library for it until a hot
-  path needs an error payload that a result enum cannot carry.
-- `JETTISON_ASSERT` checks invariants in debug builds; `JETTISON_VERIFY` checks always.
-  Neither has side effects in its condition.
-- A stub that cannot do its job fails loudly with `JETTISON_NOT_IMPLEMENTED()`. It never
-  silently succeeds.
-- Reports go through `Log.h`: `Log(Severity::Warning, kCategory, "dock {} refused", id)`, with
-  one `constexpr Category` per module or subsystem. Not `std::cerr`, and never spdlog directly.
-  The exceptions are the few places with nowhere else to go: the shell's top-level failure report
-  and usage line (`RenderApplication.cpp`, `AppArguments.cpp`), which the exit status pairs with,
-  and the application's teardown, which runs in a destructor with an exception in flight.
+  simulation refuses, return `std::optional` or a small result type naming the
+  [reason](glossary.md#reason). C++20 has no `std::expected`, and no stand-in library is added
+  until a hot path needs an error payload that a result enum cannot carry.
+- `JETTISON_ASSERT` checks invariants in debug builds; `JETTISON_VERIFY` checks in every build.
+  Neither has side effects in its condition: in a release build an assertion's condition is not
+  evaluated.
+- A stub that cannot do its job fails loudly with `JETTISON_NOT_IMPLEMENTED()`, which throws. It
+  never silently succeeds.
+- Reports go through `Log.h`, with one `constexpr Core::Category` per module or subsystem:
+  `Log(Severity::Info, kRender, "swapchain {}x{}", width, height)`. Not `std::cerr` or spdlog
+  directly, except where there is nowhere else to go: the shell's top-level failure report and usage
+  line, which the exit status pairs with (`RenderApplication.cpp`, `AppArguments.cpp`), and the
+  teardown, which runs in a destructor with an exception in flight (`Application.cpp`).
 
 ## Simulation code
 
-Code in `sim`, `spatial`, `physics`, `ai`, `transit` and `dock` must be deterministic across
-runs and across Debug and Release builds. `math` follows the same rules, because those modules call
-it and its `Random` and `Noise` output is part of the save format, and so does `script`, because a
-script answers a decision's inputs inside the step: its input calls are on a fresh instance each,
-counted in fuel rather than timed, and WAMR's interpreter is compiled with `-ffp-contract=off` too
-([architecture](architecture.md#scripts)). Its watchdog's wall clock stops a script and never decides
-what a call returns:
+The [simulation](glossary.md#simulation) must give the same result on every run and in every build
+type: saves, replays and networked play depend on the same seed and commands producing the same
+state hash.
 
-- Fixed timestep only. Never read the wall clock; use `SimClock`.
-- Random numbers come from the engine's `Random`, seeded from simulation state. Never use
+These modules are deterministic: `sim`, `spatial`, `physics`, `ai`, `transit`, `dock`, `time`,
+`math` and `script`. `time` holds `SimClock`, which the simulation reads its time from. `math` is
+in because the simulation calls it, and its `Random` and `Noise` output is part of the save format.
+`script` is in because a script answers a decision inside the step
+([scripts](scripts.md)).
+
+Each such module says so in its CMake (`source/engine/dock/CMakeLists.txt`):
+
+```cmake
+jettison_add_module(dock
+	DETERMINISTIC
+	DEPENDS
+		...
+```
+
+`DETERMINISTIC` compiles the module and its tests with `-ffp-contract=off`
+(`cmake/JettisonModule.cmake`), as Jolt does for itself under `CROSS_PLATFORM_DETERMINISTIC`.
+Otherwise the compiler may fuse a multiply and an add into one FMA instruction, and the rounding
+then depends on the optimisation level rather than on the source. WAMR's interpreter is compiled
+the same way (`source/external/wamr/CMakeLists.txt`).
+
+The rules for code in those modules:
+
+- Fixed step only. Never read the wall clock; read `Time::SimClock`. A script's watchdog uses the
+  wall clock only to stop a script, never to decide what a call returns.
+- Random numbers come from the engine's `Math::Random`, seeded from simulation state. Never use
   `std::uniform_*_distribution` or `std::rand`: their output differs between standard libraries.
-- Never let iteration order of an unordered container decide an outcome. Sort, or use an ordered
-  container.
-- Numeric representations follow each API's explicit deterministic contract. The sample
-  economy uses integer credits/crates; that is not a universal game requirement. Manifest
-  uses Decimal per-unit prices, floating continuous quantities and whole-credit balances.
-  Keep conversions checked and explicit rather than imposing the sample model on consumers.
-- Positions are `double`, in metres, in the system frame.
-- Simulation modules compile with `-ffp-contract=off`, as Jolt does for itself under
-  `CROSS_PLATFORM_DETERMINISTIC`. Otherwise the compiler may fuse a multiply and an add into one
-  FMA instruction where the instruction set allows it, and the rounding then depends on flags
-  and optimisation level rather than on the source.
+- Never let the iteration order of an unordered container, or of an EnTT storage, decide an
+  outcome. Sort, or use an ordered container. A save keeps a storage's packed order, but that order
+  is a history nobody chose: a removal moves the last element into the gap, and a view of several
+  components walks whichever storage is smallest, so an unrelated change reorders it.
+- Each API states the numeric representation its determinism rests on. Convert between
+  representations explicitly, with checks. The engine imposes no numeric model on a game.
+- Positions are `double`, in metres, in their [frame](glossary.md#frame-coordinates)
+  ([coordinate frames and units](coordinates.md)).
 - No includes from `render`, `ui`, `audio` or `input`.
+
+Before, the storage's order, a history of additions and removals, decides which berth is served
+first:
+
+```cpp
+for (const entt::entity berth : registry.view<const Berth>())
+	Serve(berth);
+```
+
+After, the entities are in identifier order, which no storage's history changes
+(`source/engine/dock/src/Sorted.h`):
+
+```cpp
+std::vector<entt::entity> entities;
+for (const entt::entity entity : registry.view<const Components...>())
+	entities.push_back(entity);
+std::ranges::sort(entities, {}, [](entt::entity entity) { return entt::to_integral(entity); });
+```
 
 ## Responsibility boundaries
 
-Follow [game integration](game-integration.md): inspect Manifest's required mechanics,
-provide reusable missing public APIs in the engine, and keep production game rules and
-data in Manifest. Test gameplay belongs in separate sample/test targets. Generic modules
-must not depend on sample code or optional space services. Prove a new shared capability
-with an independent consumer as well as its intended Manifest integration.
+Engine code provides reusable capabilities; a game's rules, policy and content stay in the game.
+Generic modules never depend on sample code or on a game's content. A new shared capability is
+proved by an independent consumer of the engine's own as well as by its Manifest integration.
+[Game integration](game-integration.md) says how a gap is found and provisioned, and
+[scope](scope.md) gives the verdict for each area.
 
 ## Dependencies
 
-Every third-party library goes through `source/external/CMakeLists.txt`. It is pinned to a tag
-or commit, fetched with `FetchContent`, declared `SYSTEM` so its warnings are not ours, and
-given a comment saying why it was chosen over the alternative. A new dependency is judged on
-the project's criteria: elegance, efficiency, modern C++ usage, interoperability and
-maintenance. It is added to `dependency_probe` with at least one real call into it, and it
-follows the integration rules in [build and gates](build-and-gates.md#integration-rules-the-set-follows):
-static, one copy of each library, options scoped in a `block()`, and the project's language
-features.
+Every third-party library goes through `source/external/CMakeLists.txt`. It is pinned to a tag or
+commit, fetched with `FetchContent`, declared `SYSTEM` so its warnings are not ours, and given a
+comment saying why it was chosen over the alternative. A new dependency is judged on the project's
+criteria: elegance, efficiency, modern C++ usage, interoperability and maintenance. It is added to
+`dependency_probe` with at least one real call into it, and it follows the
+[integration rules](build-and-gates.md#integration-rules-the-set-follows).
 
 ## Testing
 
-- Every module has a doctest suite; a phase is not done until its suite covers its exit
-  criterion.
-- Serialisation has round-trip tests. Simulation has replay tests: the same seed and command
-  stream must produce the same state hash.
-- GPU paths are covered by the headless smoke test, judged on validation-layer output as well
-  as exit status (see [build and gates](build-and-gates.md)).
+- Every module has a doctest suite; work is not done until its suite covers its exit criterion.
+- Serialisation has round-trip tests. Simulation has replay tests of the state hash
+  ([simulation code](#simulation-code)).
+- GPU paths are covered by the headless [smoke test](glossary.md#smoke-test), judged on
+  validation-layer output as well as exit status ([build and gates](build-and-gates.md)).
 
 ## Commits
 
 The subject is `Area: what changed, and what it was for`, in the style of the commit history
-(`Scene round trip: the loader refused the file the writer produced`). The body records what
-was measured and why the change takes the shape it does, in plain prose. Each commit builds, passes
-the suites of the modules it touches and is clean under clang-tidy in the files it changed; the
-gate runs once a chunk of work of a few commits is done, and its last commit leaves the gate green
-before anything is pushed. A gate failure is fixed in a further commit, not by rewriting history. Commits, code, comments and documents use British spelling (serialise, colour).
+(`Scene round trip: the loader refused the file the writer produced`). The body records what was
+measured and why the change takes the shape it does, in plain prose.
+
+Each commit builds, passes the suites of the modules it touches, and is clean under clang-tidy in
+the files it changed. The [gate](build-and-gates.md#the-gate) runs once a chunk of a few commits
+is done, and the chunk's last commit leaves it green before anything is pushed. A gate failure is
+fixed in a further commit, not by rewriting history.
+
+Commits, code, comments and documents use British spelling (serialise, colour).

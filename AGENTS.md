@@ -64,12 +64,15 @@ does not restate it.
 
 ## Where to look
 
-- **The work:** [roadmap](docs/roadmap.md). Each sub-phase row names its catalogue entries; read
-  the row and those entries, not the whole catalogue. "Carried forward" lists deferred work and
-  where it lands. Finished phases move to [history](docs/history.md), and settled decisions are
-  in [decided](docs/decisions.md).
-- **The design:** [architecture](docs/architecture.md) (layout, module graph, simulation and
-  presentation split, frames, the render frame), [scope](docs/scope.md) (what is in and out).
+- **The index:** [docs/README.md](docs/README.md) lists every document with its purpose; terms
+  are defined once, in the [glossary](docs/glossary.md).
+- **The work:** [roadmap](docs/roadmap.md): open work only, the current delivery and the backlog
+  numbered J01 to J29 in priority order. Finished work moves to [history](docs/history.md) (an
+  index of `docs/history/`), and settled decisions are in [decisions](docs/decisions.md), by feature.
+- **The design:** [architecture](docs/architecture.md) for the overview (layout, module graph,
+  simulation and presentation split, frame and tick order), then one document per feature
+  (simulation, physics, rendering, ...; see the index), and [scope](docs/scope.md) (what is in and
+  out).
 - **The rules:** [coding standards](docs/coding-standards.md), read before changing code.
 - **Building and the gate:** [build and gates](docs/build-and-gates.md).
 
@@ -113,8 +116,8 @@ background task, about ten minutes a round, no edits while it runs); answer each
 fix or evidence, three rounds at most, then the user settles what is open
 ([build and gates](docs/build-and-gates.md#cross-review)).
 
-Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, for Xvfb) and
-`clang-asan` (headless plus sanitisers). The sanitised and Xvfb runs use lavapipe.
+Presets: `clang-debug` (Wayland), `clang-release`, `clang-headless` (X11 GLFW, for Xvfb),
+`clang-asan` (headless plus sanitisers) and `clang-cpu` (no presentation: the CPU-only SDK). The sanitised and Xvfb runs use lavapipe.
 
 ## Finding things
 

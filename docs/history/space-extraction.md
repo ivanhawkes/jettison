@@ -1,12 +1,17 @@
 # Space extraction plan
 
+The plan for moving the space setting out of Jettison into Manifest, selected 2026-11-22 and done
+2026-11-23, all eight slices. It is kept as the record of what moved, what stayed under a neutral
+name and why. The boundary as it stands now is in [game integration](../game-integration.md) and
+[scope](../scope.md).
+
 Selected 2026-11-22 (the user's). The engine keeps a concept only when it has a neutral name and is
 useful in more than one genre, the games driving it from outside; what is the space setting's alone
 moves into Manifest, where future work builds a full game players can mod, and which now tests all
 space code. The space sample has served its purpose and is retired: what of it still tests something
 nothing else can (the reference frames, the smoke run, large-world precision, a few engine paths)
 is folded into neutral fixtures, and the rest goes, with whatever engine code only it used. The
-station traffic lanes wait for this ([roadmap](roadmap.md#then-robustness-tools-and-what-a-mod-can-reach)).
+station traffic lanes wait for this ([roadmap](../roadmap.md#the-backlog)).
 Done 2026-11-23, all eight slices; the inventory behind the plan was taken on Jettison `ccc0ae7` and
 Manifest `92c62a1`.
 
@@ -255,7 +260,7 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
      migrations short (a destination inside a queued command, the retired deck's definition
      fields, scenes of version 2 and their system path), fixed in `db22a74` and `c178f1c`; its third
      found the shapes' rename reaching a game's own and a passage's body, which the user settled
-     with the policy that formats change in place until player testing ([decided](decisions.md)):
+     with the policy that formats change in place until player testing ([decided](../decisions.md)):
      every step and old fixture deleted (`14fc23a`), no pin moved. Manifest pinned to `14fc23a`
      (`7302d83`), its gate passed on the fetched pin.
 
@@ -277,7 +282,7 @@ The ground sample stays, the engine's consumer of no space, and `dependency_prob
 
 Nothing. The save's migration from version 1, left to revisit in slice 3, was deleted with every
 other step on 2026-11-23, when formats began to change in place until player testing
-([decided](decisions.md)).
+([decided](../decisions.md)).
 
 ## Risks
 
