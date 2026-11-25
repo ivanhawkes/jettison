@@ -36,9 +36,6 @@ has played its first loop for a day or two. One delivery is open:
 
 What needs the user's answer or action and is not a backlog item. Each line goes when it is settled.
 
-- **Merge the docs review.** The `docs-review` branches (Jettison `1f11aa6`, Manifest `d7843df`)
-  are pushed, not merged. Manifest pins `70cd4de` on that branch: merge without squashing, or
-  re-pin Manifest to the merged commit.
 - **Three unused pieces: keep or delete?** `Scene::ProxyFactory`, declared and never called
   ([scene](scene.md#limits-and-open-work)); `Ecs::StateMachine`, which no engine module uses
   ([scope](scope.md)); and the renderer's `SetClusterRange` and `SetShadowDistance`, which no caller
