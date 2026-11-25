@@ -122,7 +122,7 @@ local frame's change of speed off every dynamic body in it: a vehicle beside a p
 the platform and feels only the tide.
 
 In Manifest, a star system is a frame model: a station's body follows its orbit on rails, and
-planets pull as point masses ([Manifest's architecture](../../manifest/docs/architecture.md)). The
+planets pull as point masses ([Manifest's space document](../../manifest/docs/space.md)). The
 physics suite's room (`source/engine/physics/tests/RoomTests.cpp`) is a model with a lift and
 its own gravity, and no star system.
 

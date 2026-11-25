@@ -3,7 +3,8 @@
 A handoff written 2026-11-17 for the session that was to settle the last two cross-review findings
 on the dev tools' theme, the theme itself committed that day. It is kept as the record of those
 findings and their answers. What the theme leaves is open work in the roadmap
-([J26](../roadmap.md#j26)). Paths, commits and commands in it are as they were then.
+([J26](../roadmap.md#j26)). Paths, commits and commands in it are as they were then. Findings F5
+and F6 are now in J26: F5's exact darks as its further work, F6 with none left.
 
 Written 2026-11-17 for a fresh session. The work is committed and the gate is green at it; what is
 left is the author's side of a closed review thread — cross-review round 2 asked for changes, the

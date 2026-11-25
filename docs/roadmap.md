@@ -17,6 +17,10 @@ workflow in [game integration](game-integration.md#provisioning-a-capability). G
 and content stay in Manifest. Work is done when the [gate](glossary.md#gate-ci) covers it and the
 history records the commit that did it.
 
+The backlog's order is the order of its list, not of its IDs. An ID is given once, when an item is
+added, and kept: an item added later takes the next number (J30 onwards) wherever its tier places
+it, and an item done or dropped leaves its number unused.
+
 ## Current deliveries
 
 Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifest now builds against
@@ -30,8 +34,8 @@ two. One delivery is open:
 
 ## The backlog
 
-Each item has a fixed ID (J01 to J29), so other documents can link it. Items are grouped in five
-tiers, in the order above, the most pressing first within a tier. Each says what remains, why it
+Each item has a fixed ID, so other documents can link it. Items are grouped in five tiers, in the
+order above, the most pressing first within a tier. Each says what remains, why it
 matters, what already exists, and which document describes the feature.
 
 ## Tier 1: what saves and the step's interface hold
@@ -93,7 +97,9 @@ each is cheaper before a game builds a workaround.
 | A tree ticked less often | For many entities whose decisions need not run every step. |
 
 **Why.** They are the standard tools a game's AI expects; without them a game writes the same logic
-as one-off tasks, which do not save or mod as trees do.
+as one-off tasks, which do not save or mod as trees do. Utility AI and behaviour trees have no
+consumer yet: Manifest chooses a job's next step with its own `Manifest::Policy::Choose`
+(`source/game/policy/src/Policy.cpp` in Manifest).
 
 **What exists.** `Ai::NodeKind`: Sequence, Selector, Invert, Succeed, Repeat, Loop, Wait and Task
 (`source/engine/ai/include/jettison/ai/BehaviourTree.h`). A tree is data, registered with Reflect,
@@ -204,15 +210,10 @@ vehicle's own shape along its way (`PhysicsWorld::CastShape`), which slows it bu
 
 **Feature doc:** [AI](ai.md).
 
-## Tier 3: robustness and tools
-
-Cheap to add when wanted, and costing nothing meanwhile, except the log file ([J10](#j10)), which a
-player's report of a problem needs.
-
 <a id="j09"></a>
 ### J09. The way in to a berth, done properly
 
-First in the tier: every NPC and autopilot in Manifest docks through it.
+In Tier 2 rather than Tier 3 because every NPC and autopilot in Manifest docks through it.
 
 **What remains.** The approach, designed with the user on 2026-11-21:
 
@@ -232,6 +233,33 @@ vehicle still stops out along the normal before it comes in.
 `reservationSeconds`, 300 by default (`dock/Definitions.h`).
 
 **Feature doc:** [docks](docks.md).
+
+<a id="j30"></a>
+### J30. The shell started through a session
+
+**What remains.** The rendered shell starts its world through `Host::Session`, so one set of
+start-up hooks serves a game's server, its tests and its client: the session's phases, its checks
+on the packages and its `Host::StartupError` naming the phase, then the shell's presentation over
+the world it made. It is done when the shell runs a game composed as a `Host::Game` beside its
+`App::Game`, and the ground sample and the render test start that way.
+
+**Why.** A game drawn on screen writes its start-up twice: `Host::Game`'s `RegisterTypes`,
+`LoadContent`, `RegisterWorld` and `CreateInitialState` for the session, and `App::Game`'s
+`Register`, `LoadDefinitions` and `Define` for the shell, which can drift apart. Manifest's
+server, console and tests start through a session; its graphical client (its L15) is the first
+program to need both.
+
+**What exists.** The shell holds its own `Sim::SimWorld`, with a fixed step of 1/60 s and its own
+seed (`source/engine/app/src/Application.h`), and reads each package's `mod.yaml` as a
+`Host::PackageDescription` (`app/src/Mounts.cpp`), as a session does
+([the host session](simulation.md#the-host-session)).
+
+**Feature doc:** [the app shell and tools](app-shell.md).
+
+## Tier 3: robustness and tools
+
+Cheap to add when wanted, or waiting on a profile, and costing nothing meanwhile, except the log
+file ([J10](#j10)), which a player's report of a problem needs.
 
 <a id="j10"></a>
 ### J10. Logging in the shell
@@ -385,6 +413,76 @@ released.
 
 **Feature doc:** [files, packs and mods](files-and-mods.md).
 
+<a id="j31"></a>
+### J31. A parallel scheduler
+
+**What remains.** Systems in one phase whose declared reads and writes do not conflict run on
+several threads, and those that conflict keep the order the scheduler fixes, so a step ends in the
+same state, to the hash, on any number of threads. It is done when a profiled phase runs in
+parallel and its [state hash](glossary.md#state-hash) matches the one-thread run's.
+
+**Why.** Every system runs on the main thread, one after another. It is deferred until a profile
+shows a phase the main thread cannot run in its frame ([scope](scope.md#runtime-core-and-platform)).
+
+**What exists.** `Ecs::Scheduler` runs a phase's systems in order on the calling thread
+(`source/engine/ecs/include/jettison/ecs/Scheduler.h`). Each system declares its access, and
+`Ambiguities(phase)` lists the pairs whose access conflicts and which no constraint orders: what a
+parallel scheduler would have to keep apart ([the scheduler](simulation.md#the-scheduler)). The
+engine's threads are in [architecture](architecture.md#threading).
+
+**Feature doc:** [simulation](simulation.md).
+
+<a id="j32"></a>
+### J32. A durable write that refuses to replace a file
+
+**What remains.** A durable write that fails when the file is already there, deciding that in the
+same rename that puts the file in place (`renameat2` with `RENAME_NOREPLACE`), with the partial
+file removed. It is done when two writers making the same new file leave one file whole and the
+other told it was refused.
+
+**Why.** `WriteFileDurably` replaces whatever file is there. A writer that must not (a new save's
+name, a world's first file) can only check first, and another writer can come between the check and
+the write. Nothing has asked for it yet.
+
+**What exists.** `Core::WriteFileDurably`: the partial file, `fsync`, the rename over the file and
+the directory's `fsync` (`source/engine/core/include/jettison/core/File.h`).
+
+**Feature doc:** [persistence](persistence.md).
+
+<a id="j33"></a>
+### J33. Fault injection under the file system calls
+
+**What remains.** A test that makes each system call under `WriteFileDurably` and
+`CreateDirectoriesDurably` fail in turn (a short or failed write, the file's `fsync`, the rename,
+the directory's `fsync`) and checks that each throws naming the path, with no partial file left
+and any old file as it was.
+
+**Why.** That is what `File.h` promises, and a save's safety rests on it, but a working disk does
+not fail on demand: the `core` suite reaches only a failed open and a file in the way of a
+directory (`source/engine/core/tests/FileTests.cpp`). Nothing has asked for it yet.
+
+**What exists.** The calls are made directly in `core/src/File.cpp`, with no seam to fail them.
+[J16](#j16) wants the same under the Vulkan layer.
+
+**Feature doc:** [persistence](persistence.md).
+
+<a id="j34"></a>
+### J34. A lock's holder named
+
+**What remains.** `FileLock` writing who holds it (the process's ID and program name) into its
+file, and a refused `TryAcquire` naming that holder, so "the world is already open" says by
+whom. The kernel's lock still decides who holds it: a name left by a crash is read, never trusted.
+
+**Why.** A refused `TryAcquire` returns nothing but `nullopt`, and the file holds nothing, so a
+player or an operator told a directory is in use cannot tell which process to stop. Nothing has
+asked for it yet.
+
+**What exists.** `Core::FileLock` on the kernel's `flock`, freed with the process however it
+ends (`source/engine/core/include/jettison/core/FileLock.h`), tested against a second process and a
+killed holder.
+
+**Feature doc:** [persistence](persistence.md).
+
 ## Tier 4: presentation, when a scene asks
 
 Each is placed by the first scene or screen that needs it, and changes no data or save on the way.
@@ -499,7 +597,9 @@ Until then RmlUi's defaults draw nothing for them, and no screen uses them.
   changes.
 - The darkest tones exact on the palette, which wants the sRGB encoding done in the UI's own shader
   over a UNORM attachment: ImGui packs a vertex colour into 8-bit linear bytes, so `#1e1e2e` lands
-  as `#1c1c2e`.
+  as `#1c1c2e`. This is the further work of the theme review's finding F5
+  ([the record](history/devtools-theme.md#f5-in-detail--the-colour-contract)); finding F6 carries
+  none, its corrected explanation committed and its stock start tested.
 
 **What exists.** The dev tools are themed on Catppuccin's four varieties, switched live by the
 `dev.palette` and `dev.ui_scale` settings

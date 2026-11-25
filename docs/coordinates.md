@@ -43,7 +43,7 @@ flowchart TD
 
 The engine has no world coordinates of its own. A game that needs them keeps them: in Manifest the
 galaxy is a graph of star systems placed in light years
-([Manifest's architecture](../../manifest/docs/architecture.md)). Moving an entity between frames is
+([Manifest's space document](../../manifest/docs/space.md)). Moving an entity between frames is
 the game's decision, made through a [portal](glossary.md#portal) or by changing its `Sim::InFrame`
 ([Transit](transit.md)).
 

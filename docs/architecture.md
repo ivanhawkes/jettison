@@ -16,7 +16,7 @@ The engine keeps a concept only when the concept has a neutral name and serves m
 genre. So the engine has coordinate frames, [rails](glossary.md#rails), transit, portals and slots,
 berths, steering, utility decisions, sky, atmosphere and large-world precision. Star systems, their
 orbits, the galaxy, cruising, jump lanes, gates and routes are Manifest's `space` module, built on
-those ([Manifest's architecture](../../manifest/docs/architecture.md#space)).
+those ([Manifest's space document](../../manifest/docs/space.md)).
 
 The engine has its own [consumers](glossary.md#consumer), so every capability is used by something
 that is not Manifest: the ground sample, the test content and the consumer project ([samples and

@@ -350,9 +350,9 @@ a holder may touch the barrier in any step, and `NextLapse` otherwise.
 Manifest's cruise is a passage on a ship's motion profile, built from the parts with its own
 component; its jump lanes are portals, also built from the parts; and its stargates are gated
 portals whose clearance is a slot, with components derived from `Transit::Slot` and
-`Transit::Claim` ([cruising](../../manifest/docs/architecture.md#cruising),
-[jumps](../../manifest/docs/architecture.md#jumps),
-[gates](../../manifest/docs/architecture.md#gates)).
+`Transit::Claim` ([cruising](../../manifest/docs/space.md#cruising),
+[jumps](../../manifest/docs/space.md#jumps),
+[gates](../../manifest/docs/space.md#gates)).
 
 ## Limits and open work
 

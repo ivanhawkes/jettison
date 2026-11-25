@@ -112,8 +112,9 @@ not an error: the shell logs it and starts on an empty scene. `--save-scene <fil
 straight back out once it has loaded.
 
 The user stage installs the crash handler before anything else of the engine starts
-([start-up](runtime.md#start-up)), and makes the data and configuration directories, mode 0700,
-when they do not exist. The resources stage builds the mount stack
+([start-up](runtime.md#start-up)), and makes the data and configuration directories when they do not exist, durably and mode 0700
+from the moment each is made, any missing directory above them included
+(`Core::CreateDirectoriesDurably`, [durable writes](persistence.md#durable-writes)). The resources stage builds the mount stack
 ([the shell's mounts](files-and-mods.md#the-shells-mounts)).
 
 ### The frame
@@ -391,6 +392,8 @@ Xvfb, and `--references` runs every reference view.
 - The shell gives scripts no sender of their own under networked play: [J02](roadmap.md#j02).
 - There is no prebuilt SDK, so a game builds the engine from source: [J18](roadmap.md#j18).
 - No reference view holds the ground sample's frames: [J28](roadmap.md#j28).
+- The shell builds its own world rather than start through `Host::Session`, so a game drawn on
+  screen writes its start-up hooks twice: [J30](roadmap.md#j30).
 
 ## Decisions
 

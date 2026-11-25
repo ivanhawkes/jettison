@@ -262,7 +262,7 @@ CHECK(fixture.ClosedWith(client) == Reason::Shutdown);
 Manifest's dedicated server and remote client are a full example: `Manifest::Remote::Server`
 (Manifest's `source/game/remote/include/manifest/remote/Server.h`) reads its tokens from a file,
 closes revoked sessions as `Revoked`, and stops through `Closing`. Its contract is [Manifest's
-network contract](../../manifest/docs/gameplay-and-server-plan.md#network-contract-n01-2026-11-20).
+network contract](../../manifest/docs/server.md).
 
 ## Limits and open work
 

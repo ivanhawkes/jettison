@@ -54,7 +54,7 @@ its limits and the backlog items that would lift them.
 
 | Document | Read it for |
 | --- | --- |
-| [Roadmap](roadmap.md) | Open work only: the current delivery and the numbered backlog, J01 to J29, in priority order |
+| [Roadmap](roadmap.md) | Open work only: the current delivery and the backlog in priority order, its items numbered from J01 |
 | [Decisions](decisions.md) | Every settled engine decision, by feature, with its date and why |
 | [History](history.md) | The index of finished work: phases, the system catalogue, the neutral SDK work, archived plans and retired decisions |
 

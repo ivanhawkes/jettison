@@ -39,7 +39,7 @@ The Stage 3 authority row, as it was closed with Manifest's Stage 3 (A07, 2026-1
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Stage 3 authority gaps | A02–A07 (3) | Each gap Manifest's Stage 3 demonstrates in the world's state, its serialisation, the definition registry or commands is provisioned here with an engine fixture before Manifest consumes it. A02 to A07 named none: the hosted state, its admission ledger, provisioning, cargo, queries and the console are Manifest's on `SimWorld`'s registry, services, saved command queue and recording, all on pin `30ea3f3`. A07 closed the stage, its save and replay pinned to one hash in every Manifest gate build ([Manifest's delivered contract](../../../manifest/docs/stage-3-authority-plan.md#delivered-a07-2026-11-19)). The stage's cross-review (2026-11-19) demonstrated one: a service could not check its state against the commands a save queues, so Manifest's request ledger loaded beside a queue it did not match. `Sim::WorldService::Load` is now given the queued commands, in the order they will run, held by the `sim` suite's service that refuses a queue it does not expect, the world left as it was. |
+| Stage 3 authority gaps | A02–A07 (3) | Each gap Manifest's Stage 3 demonstrates in the world's state, its serialisation, the definition registry or commands is provisioned here with an engine fixture before Manifest consumes it. A02 to A07 named none: the hosted state, its admission ledger, provisioning, cargo, queries and the console are Manifest's on `SimWorld`'s registry, services, saved command queue and recording, all on pin `30ea3f3`. A07 closed the stage, its save and replay pinned to one hash in every Manifest gate build ([Manifest's delivered contract](../../../manifest/docs/history/stage-3-authority-plan.md#delivered-a07-2026-11-19)). The stage's cross-review (2026-11-19) demonstrated one: a service could not check its state against the commands a save queues, so Manifest's request ledger loaded beside a queue it did not match. `Sim::WorldService::Load` is now given the queued commands, in the order they will run, held by the `sim` suite's service that refuses a queue it does not expect, the world left as it was. |
 
 The network row, as it was closed with Manifest's N02 (2026-11-20), the engine's provision first:
 
@@ -52,25 +52,25 @@ on the pin `65846bb`: its `remote` module serves a hosted world on `Net::Server`
 resolved from its token by the verifier and its snapshot the actor's own view, and `manifest
 --serve` steps the world unattended on `Time::FixedStepAccumulator`; `manifest-token` issues and
 revokes tokens with `GenerateToken` and `DigestToken`, and the TUI's `connect` and `disconnect` play
-on the server through `Net::Client` ([Manifest's history](../../../manifest/docs/history.md#n02-the-dedicated-server-and-remote-tui--2026-11-20)).
+on the server through `Net::Client` ([Manifest's history](../../../manifest/docs/history/stage-4.md#n02-the-dedicated-server-and-remote-tui--2026-11-20)).
 
 Manifest's N03 (2026-11-20) needed no engine edit either, on the same pin: several clients at once,
 an actor in up to three sessions (Manifest's D-082, its fourth closed as `ServerFull` after
 admission, since a `Verifier` refuses only as `BadCredential`), a reconnect's retry under the same
 sequence, `InboundOverflow` past `maxInbound` and the world stepping with no session
-([Manifest's history](../../../manifest/docs/history.md#n03-several-clients-reconnects-and-bounds--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#n03-several-clients-reconnects-and-bounds--2026-11-20)).
 One session per actor, for a variant where two would both steer, would want a `Superseded` reason.
 
 Manifest's W03 (2026-11-20) needed no engine edit, on the same pin: its hosted order book settles on
 owner and venue accounts through `Sim::SimWorld`'s systems and Manifest's own command path, with
 each venue's broker quoting each turn, and its goods are counted in totes, an eighth of an IBC
-([Manifest's history](../../../manifest/docs/history.md#w03-the-hosted-book-on-owner-and-venue-accounts--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w03-the-hosted-book-on-owner-and-venue-accounts--2026-11-20)).
 
 The movement order, provisioned ahead of Manifest's W05 (2026-11-20), the one gap its W02 named:
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Movement order | W05 (4) | `dock` and `lanes` both write `Transform` and `InFrame` with no edge between them, so registration order decided theirs and, through `lanes`, `dock`'s against `cruise` ([Manifest's step](../../../manifest/docs/stage-4-trading-plan.md#the-step-in-order)); an edge between them, tested in an independent consumer that registers dock, lanes and cruise and finds no conflicting pair in `Scheduler::Ambiguities`. **Done** 2026-11-20: `Ecs::SystemDescription::afterIfRegistered` names systems one runs after when they are registered and is not ordered against when they are not, for two optional modules neither of which depends on the other; `Validate` does not ask for them, and one in another phase is refused as `after`'s is. `lanes` runs after `dock` so, giving Manifest's `dock`, `lanes`, `cruise`; a world with lanes and no docks, or docks and no lanes, is ordered as before. The sample attaches the lanes first, so its step went from `lanes`, `cruise`, `dock` to `dock`, `lanes`, `cruise`, and every pinned hash held. Met: the ecs suite orders a follower after a leader registered before or after it, validates it alone and refuses a leader in another phase; the dock suite attaches physics, steering, the spatial index, the docks, lanes and cruise in both orders and finds the three in that order and `Ambiguities` empty, and failed with the edge taken out. |
+| Movement order | W05 (4) | `dock` and `lanes` both write `Transform` and `InFrame` with no edge between them, so registration order decided theirs and, through `lanes`, `dock`'s against `cruise` ([Manifest's step](../../../manifest/docs/history/stage-4-trading-plan.md#the-step-in-order)); an edge between them, tested in an independent consumer that registers dock, lanes and cruise and finds no conflicting pair in `Scheduler::Ambiguities`. **Done** 2026-11-20: `Ecs::SystemDescription::afterIfRegistered` names systems one runs after when they are registered and is not ordered against when they are not, for two optional modules neither of which depends on the other; `Validate` does not ask for them, and one in another phase is refused as `after`'s is. `lanes` runs after `dock` so, giving Manifest's `dock`, `lanes`, `cruise`; a world with lanes and no docks, or docks and no lanes, is ordered as before. The sample attaches the lanes first, so its step went from `lanes`, `cruise`, `dock` to `dock`, `lanes`, `cruise`, and every pinned hash held. Met: the ecs suite orders a follower after a leader registered before or after it, validates it alone and refuses a leader in another phase; the dock suite attaches physics, steering, the spatial index, the docks, lanes and cruise in both orders and finds the three in that order and `Ambiguities` empty, and failed with the edge taken out. |
 
 The flight out of a station's reach, provisioned in Manifest's W05 (2026-11-20), where its travel
 leaves a pad for a cruise, and the cruise by acceleration for its W17 (2026-11-20):
@@ -84,7 +84,7 @@ leaves a pad for a cruise, and the cruise by acceleration for its W17 (2026-11-2
 Manifest's W16 (2026-11-20) needed no engine edit, on the pin `54fb871`: a new player's starter ship
 is parked on a `Dock` pad of the scenario's neutral public spaceport, as provisioning parked it at a
 home venue before, with no home region or polity
-([Manifest's history](../../../manifest/docs/history.md#w16-onboarding-at-a-neutral-spaceport--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w16-onboarding-at-a-neutral-spaceport--2026-11-20)).
 
 Manifest's W15 (2026-11-20), the vertical slice, needed no engine edit either, on the same pin: its
 console buys furs at Ore, sends the ship to Brine through the docks, the flight out and the cruise
@@ -92,35 +92,35 @@ by acceleration, and sells them there, stepping the 4.49 days, 23,298,304 steps,
 a release build, about 25 µs a step; a server steps it in real time. A player's view of the journey
 and of the book is Manifest's, over `Host::Session` and `net`'s snapshots, which go out at most
 once an interval
-([Manifest's history](../../../manifest/docs/history.md#w15-the-vertical-slice-through-the-console--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w15-the-vertical-slice-through-the-console--2026-11-20)).
 
 Manifest's W04 (2026-11-20), the regional economy, needed no engine edit, on the same pin: each
 region's employer works its batches in a Manifest system ordered between the expiry sweep and the
 brokers by the scheduler's declared edges, and on each turn pays wages, sells to its broker and its
 households buy and consume through the book; health, happiness, the batches and the pantries are
 Manifest's components, saved and hashed by the world like any
-([Manifest's history](../../../manifest/docs/history.md#w04-the-regional-economy--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w04-the-regional-economy--2026-11-20)).
 
 Manifest's W06 (2026-11-20), station life support and resupply, needed no engine edit, on the same
 pin: a Manifest system ordered after its travel system connects a ship to its venue's life support
 as it docks, from the `Ship::dockedAt` travel sets on observing a `Dock` docking, and lets go as it
 leaves its pad, and off it draws the ship's own oxygen and cartridges each fixed step; refills and
 cartridges come from the ship's hold, Manifest's components, saved and hashed like any
-([Manifest's history](../../../manifest/docs/history.md#w06-station-life-support-and-resupply--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w06-station-life-support-and-resupply--2026-11-20)).
 
 Manifest's W07 (2026-11-20), live and stale market observations, needed no engine edit, on the same
 pin: a Manifest system ordered after its travel system refreshes each player's reports of the venues
 their docked ships are at as the step ends, from its own book and its record of fills, and the
 reports, the fills and the starting grant are Manifest's components, saved and hashed like any. A
 player's snapshot is filtered by Manifest before `net` sends it
-([Manifest's history](../../../manifest/docs/history.md#w07-live-and-stale-market-observations--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w07-live-and-stale-market-observations--2026-11-20)).
 
 Manifest's W08 (2026-11-20), company-funded cargo upgrades, needed no engine edit, on the same pin: a
 ship's purchased systems are a Manifest component, saved and hashed like any, and its hold is computed
 from them by Manifest's effects engine. A hull's authored mass is the `Physics::Body` mass a ship is
 spawned with, which Manifest's content holds to a float above 0 and to an inertia Jolt's float
 arithmetic holds
-([Manifest's history](../../../manifest/docs/history.md#w08-company-funded-cargo-upgrades--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w08-company-funded-cargo-upgrades--2026-11-20)).
 
 The rails placed once a body, provisioned in Manifest's L26 (2026-11-20), the console's long step:
 
@@ -139,14 +139,14 @@ one command stream from purchase to upgrade, through Jettison's departure, cruis
 flight and loaded, replayed from the engine's record of applied commands, from the directory and the
 pack, reaches one world hash in Debug, Release, sanitised and the TUI off; a cruise the engine refuses,
 for a ship with no `CruiseDrive`, fails its journey with the ship and cargo where they are
-([Manifest's history](../../../manifest/docs/history.md#w09-the-complete-trading-fixture--2026-11-20)).
+([Manifest's history](../../../manifest/docs/history/stage-4.md#w09-the-complete-trading-fixture--2026-11-20)).
 
 Manifest's W10 (2026-11-21), standing trade policies, autopilot and NPC jobs, on pin `0f973b2`:
 each ship's job trades through the players' own commands sent from a system, its quiet passing over
 a blocked job's wait. Its zero-client run found a ship that circled the point above its pad until the
 pad lapsed; the docks now stop a ship out along its pad's normal first, a stopgap
 ([carried forward](../roadmap.md#the-backlog)). Its L28 needed no
-engine edit ([Manifest's history](../../../manifest/docs/history.md#w10-standing-trade-policies-autopilot-and-npc-jobs--2026-11-21)).
+engine edit ([Manifest's history](../../../manifest/docs/history/stage-4.md#w10-standing-trade-policies-autopilot-and-npc-jobs--2026-11-21)).
 
 Durable directories and a file lock, provisioned for Manifest's R02 (2026-11-24), and with them the
 message longer than a packet that its Stage 4 review booked for the next engine change:
@@ -158,41 +158,41 @@ message longer than a packet that its Stage 4 review booked for the next engine 
 
 Manifest's R02 is done on the pin `ea66afe` (2026-11-24): its world's directory made durably and held
 by one server on the two, its token file written durably, and its limit 192 KiB, a view of 69,829
-bytes reaching its client ([Manifest's history](../../../manifest/docs/history.md#r02-durable-io-directories-and-the-world-lock--2026-11-24)).
+bytes reaching its client ([Manifest's history](../../../manifest/docs/history/stage-5.md#r02-durable-io-directories-and-the-world-lock--2026-11-24)).
 
 Manifest's R03 and R04 (2026-11-24), its journal and snapshots, needed no engine edit, on the same
 pin: its batches, snapshots and catalogue are `Core::WriteFileDurably`'s files under
 `Core::Fnv1a64`, a snapshot `SimWorld::Save`'s bytes, and its recovery `SimWorld::Load` and
 `FastForward` with the requests queued again. Its user settled that a crash may lose up to 30 s of
 play, so the journal is written every 30 s after the steps it records and not before each
-([its journal](../../../manifest/docs/stage-5-recovery-plan.md#the-journal-and-its-snapshots-r03-r04-2026-11-24)).
+([its journal](../../../manifest/docs/history/stage-5-recovery-plan.md#the-journal-and-its-snapshots-r03-r04-2026-11-24)).
 Its R05 (2026-11-24), a clean stop, backups and restore, needed none either: a backup is the
 snapshot's bytes beside the world's identity, written with `Core::WriteFileDurably`, and a restore
 copies one into a directory holding only its `Core::FileLock` and recovers it as a start does
-([its backups](../../../manifest/docs/stage-5-recovery-plan.md#shutdown-backups-and-limits-r05-2026-11-24)).
+([its backups](../../../manifest/docs/history/stage-5-recovery-plan.md#shutdown-backups-and-limits-r05-2026-11-24)).
 
 ImGui's backends out of `Devtools`, provisioned for Manifest's R07 (2026-11-24), the gap its R06 named:
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| ImGui's backends out of `Devtools` | R07 (5) | Manifest's bundle ships its TUI, which never draws, and a consumer of `Devtools` should need no window system or Vulkan ([its contract](../../../manifest/docs/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)); `imgui` compiled ImGui's GLFW and Vulkan backends into itself and linked `glfw` and `Vulkan::Vulkan` publicly, so the TUI had `libvulkan.so.1` among its `NEEDED`. **Done** 2026-11-24: `imgui` is ImGui's core and its FreeType rasteriser, and `imgui_backends` the GLFW and Vulkan backends on it, linked by `render` alone, the one caller of `ImGui_ImplGlfw_*` and `ImGui_ImplVulkan_*` (`ImGuiRenderer.cpp`). | Met: `devtools_alone` (`source/test`), linking `Devtools` alone and drawing a console in one ImGui frame with no renderer, needs only `libstdc++`, `libm`, `libgcc_s` and `libc`, and runs with no Vulkan loader or GLFW among its mappings; the `devtools` suite's binary needed `libvulkan.so.1` before. Manifest's `manifest_tui` on the local engine needs neither, where on the pin `ea66afe` it needed `libvulkan.so.1`, and ran on a terminal with neither mapped. |
+| ImGui's backends out of `Devtools` | R07 (5) | Manifest's bundle ships its TUI, which never draws, and a consumer of `Devtools` should need no window system or Vulkan ([its contract](../../../manifest/docs/history/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)); `imgui` compiled ImGui's GLFW and Vulkan backends into itself and linked `glfw` and `Vulkan::Vulkan` publicly, so the TUI had `libvulkan.so.1` among its `NEEDED`. **Done** 2026-11-24: `imgui` is ImGui's core and its FreeType rasteriser, and `imgui_backends` the GLFW and Vulkan backends on it, linked by `render` alone, the one caller of `ImGui_ImplGlfw_*` and `ImGui_ImplVulkan_*` (`ImGuiRenderer.cpp`). | Met: `devtools_alone` (`source/test`), linking `Devtools` alone and drawing a console in one ImGui frame with no renderer, needs only `libstdc++`, `libm`, `libgcc_s` and `libc`, and runs with no Vulkan loader or GLFW among its mappings; the `devtools` suite's binary needed `libvulkan.so.1` before. Manifest's `manifest_tui` on the local engine needs neither, where on the pin `ea66afe` it needed `libvulkan.so.1`, and ran on a terminal with neither mapped. |
 
 Its R07 (2026-11-24), the distribution, needed no engine edit beyond that split: its release build
 links its four executables to run outside the Nix toolchain on glibc 2.39 or newer, and finds its
 content from `Platform::ExecutablePath` and its writable places from `Platform::ResolvePaths`, both
-already the engine's ([its distribution](../../../manifest/docs/stage-5-recovery-plan.md#the-distribution-r07-2026-11-24)).
+already the engine's ([its distribution](../../../manifest/docs/history/stage-5-recovery-plan.md#the-distribution-r07-2026-11-24)).
 Its R08 (2026-11-24), clients reconnecting to a server restarted from its journal and a world
 recovered with none, needed none either: what it proves is its journal's and its request ledger's,
-on `net` as N02 left it ([its recovery](../../../manifest/docs/stage-5-recovery-plan.md#reconnect-and-recovery-r08-2026-11-24)).
+on `net` as N02 left it ([its recovery](../../../manifest/docs/history/stage-5-recovery-plan.md#reconnect-and-recovery-r08-2026-11-24)).
 
 A world's saved names, provisioned for Manifest's R09 (2026-11-25), the gap its R01 named:
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| A world lists what its save holds | R09 (5) | Manifest's close of its Stage 5 pins its state inventory, every component and service a hosted world saves, to the names the save lists ([its inventory](../../../manifest/docs/stage-5-recovery-plan.md#the-state-inventory)); a world named its components only in its save's first bytes, and its services nowhere but inside it. **Done** 2026-11-25: `SimWorld::ComponentNames` and `ServiceNames`, each in the order a save holds them, the names a save lists them under. | Met: the `sim` suite's service case reads its four components and its service back by name, in order, and a second service after the first. Manifest's `host` suite pins a hosted world's 50 components and 3 services to its state inventory on the pin `13c1bec`. |
+| A world lists what its save holds | R09 (5) | Manifest's close of its Stage 5 pins its state inventory, every component and service a hosted world saves, to the names the save lists ([its inventory](../../../manifest/docs/history/stage-5-recovery-plan.md#the-state-inventory)); a world named its components only in its save's first bytes, and its services nowhere but inside it. **Done** 2026-11-25: `SimWorld::ComponentNames` and `ServiceNames`, each in the order a save holds them, the names a save lists them under. | Met: the `sim` suite's service case reads its four components and its service back by name, in order, and a second service after the first. Manifest's `host` suite pins a hosted world's 50 components and 3 services to its state inventory on the pin `13c1bec`. |
 
 Its R09, the close of its Stage 5 (2026-11-25), needed that provision alone
-([its close](../../../manifest/docs/stage-5-recovery-plan.md#stage-5-closed-r09-2026-11-25)). Its saves are
+([its close](../../../manifest/docs/history/stage-5-recovery-plan.md#stage-5-closed-r09-2026-11-25)). Its saves are
 to leave the thread that steps the world (its D-115, the user's); a writer for that, if reusable, is
 the engine's.
 
@@ -208,18 +208,18 @@ Four gaps Manifest's Stage 5 cross-review found (2026-11-25), each provisioned h
 Manifest's W18, W11 and W19 needed no engine edit, and later W12, W13 and W14 (2026-11-23), competitive
 procurement, regional governance and the close of its Stage 4, on the pin `14fc23a`. Its R01
 (2026-11-24), the save and compatibility contract, a planning task, needed none either and names no
-gap ([its contract](../../../manifest/docs/stage-5-recovery-plan.md#save-and-compatibility-contract-r01-2026-11-24)):
+gap ([its contract](../../../manifest/docs/history/stage-5-recovery-plan.md#save-and-compatibility-contract-r01-2026-11-24)):
 a world cannot list what it registers but through its save's first bytes, which Manifest's R04 may
 ask for. Its R06 (2026-11-24), the runtime distribution contract, a planning task, selects a standalone
 bundle for glibc 2.39 or newer, its TUI in it, and names one gap
-([its contract](../../../manifest/docs/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)):
+([its contract](../../../manifest/docs/history/stage-5-recovery-plan.md#the-runtime-distribution-contract-r06-2026-11-24)):
 `imgui` carries ImGui's GLFW and Vulkan backends, so a terminal consumer of `Devtools` links
 `libvulkan.so.1`, provisioned [above](#neutral-sdk-and-manifest-integration) before its R07. The cruise coast phase, provisioned for Manifest's
 W21 (2026-11-22), fuel burn, its slow runs coasting:
 
 | Delivery | Manifest task (stage) | Exit criterion |
 | --- | --- | --- |
-| Cruise coast phase | W21 (4) | A profiled cruise may thrust for only part of its time and coast between, for a burn that saves fuel ([D-107](../../../manifest/docs/decision-ledger.md#d-107), [W21](../../../manifest/docs/stage-4-trading-plan.md#delivered-w21-2026-11-22)); the player chooses it as a percentage of the time, never in seconds (the user's, 2026-11-22). **Done** 2026-11-22: `Space::CruiseProfile`'s optional `thrustShare`, the share of the whole cruise's time the drive thrusts, above 0 and at most 1, half at each end with the boost first, the ship coasting between at the speed it reached: a share rather than seconds, so it means the same at any distance. Each end's thrust t solves 2(1 − share) t v(t) + 2 share x(t) = share × metres, which rises with t, in closed form on the boost and as a quadratic's non-cancelling root past it; `CruiseSeconds` and `CruiseCovered` take the coast, and `CruiseThrust` gives each end's seconds at the boost and at the sustained acceleration, which a game prices its fuel from. None, or a share of 1, takes the sums it took before, so its times are the same to the bit, and an empty optional is left out of a save. `CheckCruiseDrive` refuses a share not above 0, past 1 or not finite. | Met: in the space suite, a share f of 1 g throughout reaches √(f / (2 − f)) of the full speed and takes (1 + s²) / 2s as long, Ore to Brine 4.65 days at all of it and 5.37 at half, to 10⁻¹²; with the 2 g boost, a quarter of a long cruise thrusts past the boost and of a short one on it, each end's covered metres meeting the thrust's closed form; a share of 1 gives the times and covered metres of none exactly; Highport to Pell thrusting a quarter of the time on the test profile, 393,013 km in 723.2 s, hardest step 19,999.6 m/s² of a 20,000 boost, 0.014 m/s² at the midpoint, coasting at the speed reached slowed to its whole steps, ending at rest off Pell; a world saved mid-coast arrives at the hash the one saved does; each bad share is refused. In the sample suite, a mod patches the shuttle's drive (`defs/drives/shuttle.patch.yaml`) with a 1 g profile thrusting a quarter of the time, read, layered and checked as it loads, and a share of 1.5 is refused. Every pinned hash held. |
+| Cruise coast phase | W21 (4) | A profiled cruise may thrust for only part of its time and coast between, for a burn that saves fuel ([D-107](../../../manifest/docs/decision-ledger.md#d-107), [W21](../../../manifest/docs/history/stage-4-trading-plan.md#delivered-w21-2026-11-22)); the player chooses it as a percentage of the time, never in seconds (the user's, 2026-11-22). **Done** 2026-11-22: `Space::CruiseProfile`'s optional `thrustShare`, the share of the whole cruise's time the drive thrusts, above 0 and at most 1, half at each end with the boost first, the ship coasting between at the speed it reached: a share rather than seconds, so it means the same at any distance. Each end's thrust t solves 2(1 − share) t v(t) + 2 share x(t) = share × metres, which rises with t, in closed form on the boost and as a quadratic's non-cancelling root past it; `CruiseSeconds` and `CruiseCovered` take the coast, and `CruiseThrust` gives each end's seconds at the boost and at the sustained acceleration, which a game prices its fuel from. None, or a share of 1, takes the sums it took before, so its times are the same to the bit, and an empty optional is left out of a save. `CheckCruiseDrive` refuses a share not above 0, past 1 or not finite. | Met: in the space suite, a share f of 1 g throughout reaches √(f / (2 − f)) of the full speed and takes (1 + s²) / 2s as long, Ore to Brine 4.65 days at all of it and 5.37 at half, to 10⁻¹²; with the 2 g boost, a quarter of a long cruise thrusts past the boost and of a short one on it, each end's covered metres meeting the thrust's closed form; a share of 1 gives the times and covered metres of none exactly; Highport to Pell thrusting a quarter of the time on the test profile, 393,013 km in 723.2 s, hardest step 19,999.6 m/s² of a 20,000 boost, 0.014 m/s² at the midpoint, coasting at the speed reached slowed to its whole steps, ending at rest off Pell; a world saved mid-coast arrives at the hash the one saved does; each bad share is refused. In the sample suite, a mod patches the shuttle's drive (`defs/drives/shuttle.patch.yaml`) with a 1 g profile thrusting a quarter of the time, read, layered and checked as it loads, and a share of 1.5 is refused. Every pinned hash held. |
 
 Manifest's W21 slice 4, its policy choosing the burn per hour, sent traders between the stations of
 one orbit, and found one engine gap, provisioned (2026-11-22):

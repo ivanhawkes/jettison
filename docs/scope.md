@@ -295,7 +295,7 @@ How: [the app shell and tools](app-shell.md).
 | --- | --- | --- |
 | The [shell](glossary.md#shell) | In | The `app` library, which the ground sample, the editor and the render test link: a game's hooks composed over the engine, with console commands and arguments |
 | The packer | In | `jettison_pack` writes a directory as a pack |
-| Editor (Flotsam) | In | The shell with no game composed; an inspector and scene editing are not built |
+| Editor (Flotsam) | In, minimal | The shell with no game composed; an inspector and scene editing are not built. How much a game needs Flotsam is to be looked at later (the user, 2026-11-25); until then an editor is assumed needed, though each game may better ship its own over common functionality the engine provides |
 | Logging in the shell | Open | The shell's own logging set up (`InitLogging`) ([J10](roadmap.md#j10)) |
 
 ## Testing and packaging

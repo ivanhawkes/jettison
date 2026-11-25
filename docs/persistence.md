@@ -192,7 +192,7 @@ moment it is made, under the process's umask.
 the kernel's `flock`, so the lock ends with its process and a crash leaves nothing stale. It is
 advisory, refusing only another `TryAcquire`, the same process's included.
 Manifest's server takes one before it writes a world ([Manifest's
-architecture](../../manifest/docs/architecture.md)).
+saves](../../manifest/docs/persistence.md)).
 
 Saves reach these writes through `Vfs::FileSystem::Write` (the writable mount, the user's data
 directory), settings through `Core::Config::SaveUserLayer`, and the mod list through the shell's
@@ -427,12 +427,11 @@ CHECK_FALSE(FileLock::TryAcquire(path)); // refused while held, even in the same
 - **No migration steps exist** until the first build given out (above).
 - **A save holds no definitions**, only their names. A definition's format can change without a
   save's, but a save loaded with other content reads whatever the definitions now say.
-- **Not provisioned, as nothing has asked:** a write that refuses to replace an existing file, fault
-  injection under the system calls, and a lock's holder named in its file.
+- **Not provisioned, as nothing has asked:** a write that refuses to replace an existing file
+  ([J32](roadmap.md#j32)), fault injection under the system calls ([J33](roadmap.md#j33)), and a
+  lock's holder named in its file ([J34](roadmap.md#j34)).
 - **`FileLock` is for a local file system.** Over NFS, Linux emulates `flock` with a lock that does
   not refuse its own process.
-
-No backlog item is open for persistence ([roadmap](roadmap.md)).
 
 ## Decisions
 

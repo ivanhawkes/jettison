@@ -244,8 +244,9 @@ Each step has a reason:
 - **The report's head and frames go to stderr as well**, then the line `The crash report is <path>`.
   The tail goes only to the file.
 
-The report is `crash-<UTC time>-<process id>.txt` in the directory given; the shell gives
-`<state>/crashes`. Its layout, from `WriteReport` in `platform/src/Crash.cpp`:
+The report is `crash-<UTC time>-<process id>.txt` in the directory given, which installing the
+handler makes if it is missing, through `Core::CreateDirectoriesDurably`, and refuses with
+`std::runtime_error` if it cannot; the shell gives `<state>/crashes`. Its layout, from `WriteReport` in `platform/src/Crash.cpp`:
 
 ```text
 Fatal signal SIGSEGV (11), an address that is not mapped, at 0x0

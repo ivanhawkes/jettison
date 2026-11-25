@@ -67,7 +67,7 @@ does not restate it.
 - **The index:** [docs/README.md](docs/README.md) lists every document with its purpose; terms
   are defined once, in the [glossary](docs/glossary.md).
 - **The work:** [roadmap](docs/roadmap.md): open work only, the current delivery and the backlog
-  numbered J01 to J29 in priority order. Finished work moves to [history](docs/history.md) (an
+  in priority order, its items numbered from J01. Finished work moves to [history](docs/history.md) (an
   index of `docs/history/`), and settled decisions are in [decisions](docs/decisions.md), by feature.
 - **The design:** [architecture](docs/architecture.md) for the overview (layout, module graph,
   simulation and presentation split, frame and tick order), then one document per feature

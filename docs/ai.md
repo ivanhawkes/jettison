@@ -293,7 +293,7 @@ const std::optional<Ai::Path> path = Ai::FindPath(graph, 0, 4);
 ```
 
 Manifest plots its routes across its galaxy with `Ai::FindPath` and `Ai::Waypoints`
-(`source/game/space/src/Routes.cpp` in [Manifest](../../manifest/docs/architecture.md)).
+(`source/game/space/src/Routes.cpp` in [Manifest](../../manifest/docs/space.md)).
 
 ### A course round a sphere
 
@@ -459,7 +459,8 @@ trees.world.Commands().Push(Ai::LeaveHelm{one, second});
 ## Limits and open work
 
 - Utility AI and behaviour trees have no consumer outside the `ai` suite today; Manifest uses
-  pathfinding, courses and steering.
+  pathfinding, courses and steering, and chooses a job's next step with its own
+  `Manifest::Policy::Choose` ([J03](roadmap.md#j03)).
 - Behaviour trees: no reactive or parallel nodes, no task halt, no subtrees, no blackboard, no
   command giving an entity a tree, no tree ticked less often than every step
   ([J03](roadmap.md#j03)).
