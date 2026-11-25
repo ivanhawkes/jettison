@@ -28,6 +28,7 @@
     ccache # Compiler cache: CMake compiles through it when it is on the PATH (JETTISON_CCACHE)
     shellcheck
     lychee # Markdown link checker: lychee --offline --include-fragments '*.md' 'docs/**/*.md'
+    mermaid-cli # Mermaid diagrams in the docs checked: mmdc -i diagram.mmd -o diagram.svg fails on a bad one
 
     # Debugging and profiling
     llvmPackages_21.lldb
