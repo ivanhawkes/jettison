@@ -365,6 +365,8 @@ Manifest docks every ship through these commands, in its travel module
 - The way in replaces its stop along the normal, and a reservation lapses when a vehicle stops
   making progress rather than at a fixed time: [J09](roadmap.md#j09).
 - Steering's course goes round a platform's sphere, not round its inside: [J08](roadmap.md#j08).
+- A game has no say in who docks: admitting, refusing and ranking arrivals by its own rules is
+  [J35](roadmap.md#j35).
 
 ## Decisions
 

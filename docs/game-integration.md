@@ -19,7 +19,7 @@ vehicles, music and screens are its own.
 
 Manifest is a design and acceptance input, never an engine source or build dependency. It builds the
 engine from source, pinned to an engine commit
-([consuming the engine](build-and-gates.md#consuming-the-engine)): `459af99` on 2026-11-25.
+([consuming the engine](build-and-gates.md#consuming-the-engine)): `70cd4de` on 2026-11-25.
 
 ## How a game composes the engine
 
