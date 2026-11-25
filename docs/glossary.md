@@ -22,6 +22,12 @@ Bindings map device inputs to actions, and the player can rebind them, only the 
 (`Input::InputSystem`, `input/Actions.h`). See [UI, input and localisation](ui.md) and [input
 context](#input-context).
 
+### Animation layer
+
+One of the animations an entity plays at once, applied in order: a clip or a blend space, a weight
+and a joint mask, so a face or an upper body plays over what is below. Not a scene's
+[layer](#layer). Planned: see [characters](characters.md).
+
 ### Behaviour tree
 
 A tree of nodes, defined as data (`Ai::BehaviourDefinition`), that runs an entity through a sequence
@@ -42,6 +48,16 @@ class, and lands on a berth of the same rank or above whose largest vehicle hold
 lowest-ranked first. The sizes are the game's data. See
 [Docks](docks.md#which-berth-a-vehicle-fits).
 
+### Blend shape
+
+A morph target of glTF: a mesh's alternative shape as deltas from its vertices, mixed in by a
+weight, named (`jawOpen`) in the mesh's `targetNames`. Planned: see [characters](characters.md).
+
+### Blend space
+
+Clips placed at points on one or two axes (speed, or a velocity on the ground plane), blended by
+where a parameter falls among them and kept in step on [sync markers](#sync-marker). Planned: see [characters](characters.md).
+
 ### Body
 
 An entity in the physics world: one with a `Physics::Body`, a `Sim::Transform` and a `Sim::InFrame`.
@@ -54,6 +70,12 @@ enters it. Jolt holds the body itself; the component is what the save keeps. See
 One of the 31 numbered briefs for the systems the engine's first phases built, such as "entry 22"
 for physics, which code comments and older documents cite by number. Each, with what it became, is
 in [history: catalogue](history/catalogue.md).
+
+### Character controller
+
+The physics body that walks a character: a capsule moved by a wanted velocity, up steps, along
+slopes and on moving decks, over Jolt's `CharacterVirtual`. Not a [controller](#controller), who
+sends commands. Planned: see [characters](characters.md).
 
 ### Clip
 
@@ -139,6 +161,11 @@ The store of every loaded [definition](#definition), by type and name (`Sim::Def
 read through the [mounts](#mount) with [patches](#patch) [layered](#layering) and
 [migrations](#migration) run. It is filled at start-up and kept in ordered maps, so a walk over it
 is the same every run. See [Simulation](simulation.md#definitions).
+
+### Deform pass
+
+The compute pass that applies blend shapes and then skinning to each animated instance, once a
+frame, into vertices every later pass and the ray-tracing refits read. Planned: see [characters](characters.md).
 
 ### Depth pyramid
 
@@ -679,6 +706,11 @@ The text a player reads, by key, in their language (`Ui::StringTable`): YAML und
 `strings/<language>/`, nested keys joined by dots, as `market.buy`. Tables merge across mounts key
 by key, and a key a translation lacks reads the English base. Developer text (the log, the console)
 stays English. See [UI, input and localisation](ui.md).
+
+### Sync marker
+
+A clip event the engine itself reads (`foot.left`, `foot.right`), which the cook finds from a
+clip's foot contacts, so clips blended together keep their steps in phase. Planned: see [characters](characters.md).
 
 ### System
 

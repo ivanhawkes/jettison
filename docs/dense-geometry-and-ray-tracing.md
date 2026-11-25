@@ -61,7 +61,7 @@ devices before it was used ([what was checked](#facts-checked)).
 | What the cook takes | Models and the images their materials use; other files are copied through |
 | The engine's own test content | Cooked at build time, as shaders are compiled; nothing cooked is committed |
 | The engine's dense test meshes | Generated at build time, so no large binaries are committed |
-| Blend spaces and blend shapes | In scope, planned in a session of their own; this plan only notes where they meet it |
+| Blend spaces and blend shapes | Planned in [characters](characters.md), J51 to J60 |
 
 ## What exists today
 
@@ -343,11 +343,17 @@ flowchart TD
   TLAS is rebuilt every frame in render space, camera-relative, from instances within the
   ray-tracing range (off-screen casters included), as instance transforms already are. Bodies
   (planets) stay out of it: they are tested analytically, as spheres.
-- **Deforming meshes.** Skinning moves into a compute pass that writes each skinned instance's
-  vertices, which the raster then reads and its bottom-level structure is refitted from. Blend
-  shapes, planned in their own session, write through the same pass.
-- **Opaque rays, two kinds of query.** The engine has no alpha-tested geometry and transparent
-  draws cast no shadow, so every ray is opaque and no any-hit shader exists. Shadow and occlusion
+- **Deforming meshes.** The characters track's deform pass ([J51](roadmap.md#j51)) writes each
+  animated instance's vertices, blend shapes then skinning, which the raster reads and its
+  bottom-level structure is built from. An animated instance is ray traced at the level it is
+  drawn at, not at its model's ray-tracing level, so one deformed buffer serves both. While that
+  level holds, the structure is refitted each frame. When it changes (a level-of-detail switch,
+  damped by J37's hysteresis, or a budget step), the structure is rebuilt, since an update cannot
+  change vertex or primitive counts. An instance drawn at rest uses its model's shared structure.
+- **Opaque rays, two kinds of query.** Transparent draws cast no shadow, and until hair cards
+  ([J59](roadmap.md#j59)) the engine has no alpha-tested geometry, so every ray is opaque. Hair's
+  geometry is then flagged non-opaque, and the query loop tests a candidate's alpha before
+  confirming it; ray queries need no any-hit shader for that. Shadow and occlusion
   rays ask only whether anything is hit, so they stop at the first
   (`gl_RayFlagsTerminateOnFirstHitEXT`). A reflection ray needs the nearest surface, which
   traversal order does not give, so it runs to the end and shades the committed hit. A transparent
@@ -388,7 +394,7 @@ flowchart TD
   gives one sample a pixel, which is why it waits on the decision.
 - **Not planned:** virtual shadow maps, which ray-traced sun shadows replace; the partitioned TLAS
   (`VK_NV_partitioned_acceleration_structure`), until a TLAS build measures too dear; opacity
-  micromaps and any-hit shading, until content has alpha-tested surfaces; global illumination.
+  micromaps, until hair's candidate tests measure too dear; global illumination.
 
 ## Stages
 
@@ -403,7 +409,7 @@ cross-review). Each stage is usable on its own and ends with the gate green.
 | J39 | The meshlet hierarchy, cooked, and its page file | J37 | 1 to 2 weeks |
 | J40 | GPU culling and mesh-shader drawing | J39 | 3 to 5 weeks |
 | J41 | Occlusion culling | J40 | 1 to 2 weeks |
-| J42 | Ray-tracing foundation | J37 | 2 to 3 weeks |
+| J42 | Ray-tracing foundation | J37, J51 | 2 to 3 weeks |
 | J43 | Streaming | J40 | 6 to 10 weeks |
 | J44 | Ray-traced sun shadows | J42 | 1 week |
 | J45 | Ray-traced local shadows | J44 | 1 week |
@@ -413,8 +419,8 @@ cross-review). Each stage is usable on its own and ends with the gate green.
 | J49 | Temporal foundation and AA, glossy reflections | J47 | 3 to 5 weeks |
 | J50 | Visibility buffer and software raster | J41, J49 | 6 to 11 weeks |
 
-Track A (geometry) is J37 to J43; track B (ray tracing) is J42 and J44 to J47. Both start after J37
-and can alternate. Through J48 is about 6 to 9 months; J49 and J50 about 2 to 4 more.
+Track A (geometry) is J37 to J43; track B (ray tracing) is J42 and J44 to J47. Track A starts after J37 and
+track B after J37 and the characters track's J51; they can alternate. Through J48 is about 6 to 9 months; J49 and J50 about 2 to 4 more.
 
 ```mermaid
 flowchart LR
@@ -423,6 +429,7 @@ flowchart LR
     J37 --> J39 --> J40 --> J41
     J40 --> J43
     J37 --> J42
+    J51["J51 (characters)"] --> J42
     J42 --> J44 --> J45
     J42 --> J46
     J44 --> J47 --> J49 --> J50
@@ -494,10 +501,13 @@ flowchart LR
 - **Delivers.** Bottom-level structures per model from its ray-tracing level, compacted, their
   memory in `GetFrameStats`;
   the TLAS each frame within the ray-tracing range; the `acceleration-structures` pass with its
-  barriers in the pass list; skinning in compute, with refits; the bindless material table and vertex
+  barriers in the pass list; refits from J51's deform pass; the bindless material table and vertex
   fetch by buffer address that J47 needs. No effect uses it yet.
 - **Exit criterion.** Synchronisation validation clean in the smoke test with ray tracing on; a test
-  shader's ray query hits the expected instance in a fixture scene on lavapipe; the TLAS build time
+  shader's ray query hits the expected instance in a fixture scene on lavapipe; an animated
+  instance crossing a level-of-detail boundary has its structure rebuilt at the new level and
+  refitted otherwise, its ray-traced silhouette matching the level drawn, with synchronisation
+  validation clean; the same holds across the budget's steps for animated instances; the TLAS build time
   for 10,000 instances recorded on the 5060 Ti.
 
 ### J43. Streaming
@@ -599,16 +609,22 @@ the TLAS and build scratch. `GetFrameStats` and the dev tools report each share.
 by measurement in J43; lavapipe runs with a small one, so the gate exercises eviction.
 
 Part of it cannot be evicted: each model's coarsest pages (on the indexed path, its coarsest cooked
-level), its ray-tracing level and that level's bottom-level structure. On the indexed path (meshlets
+level), its ray-tracing level and that level's bottom-level structure, and each animated instance's
+vertices from the [deform pass](characters.md#the-deform-pass), at the level it is drawn at. On the indexed path (meshlets
 off, an uncooked GLB, a pair that does not match) a model's finer levels load coarsest first while
 the budget allows, and level selection stops at the finest loaded, so the indexed path gives way by
 level as the streamed path does by page. When that fixed share would pass the budget, the engine gives way in this
 order, logging each step with the model's name:
 
 1. A model's ray-tracing level drops to a coarser cooked level, the largest models first.
-2. Instances leave the TLAS, the farthest first: they draw, but cast no ray-traced shadow and
+2. Animated instances deform a coarser level, so their vertex buffers shrink, the farthest first;
+   each one's bottom-level structure is rebuilt at that level.
+3. Instances leave the TLAS, the farthest first: they draw, but cast no ray-traced shadow and
    show in no reflection.
-3. The coarsest pages and levels are never dropped, since every model must draw. If they alone pass the
+4. Animated instances stop animating, the farthest first: they draw at rest from their model's
+   shared vertices and hold no buffer of their own, and are ray traced through their model's shared
+   structure.
+5. The coarsest pages and levels are never dropped, since every model must draw. If they alone pass the
    budget, it is exceeded, and an error names the scene's total; the dev tools show it.
 
 ## How it is tested
@@ -636,12 +652,12 @@ order, logging each step with the model's name:
 | [J13](roadmap.md#j13) | Interferes: streaming (J43) changes the model cache. J13 is best done before J43, or within it. |
 | [J18](roadmap.md#j18) | A new dependency and a new tool to install with the SDK. |
 | [J19](roadmap.md#j19) | Cooked files are signed with the pack; nothing new. |
-| [J20](roadmap.md#j20) | Skinned draws stay on the indexed path; J42 moves skinning to compute, which the blend-shape session builds on. |
+| [J20](roadmap.md#j20) | Skinned draws stay on the indexed path. Its clip-events and cross-fade rows moved to the characters track |
 | [J24](roadmap.md#j24) | Transparent draws stay out of the TLAS; its tinted shadow would be the first any-hit shader. |
 | [J25](roadmap.md#j25) | J46 changes how ambient occlusion samples, not whether it runs at half size. |
 | [J27](roadmap.md#j27) | Its level-of-detail row moves to J37. Point and spot shadows come with J45 on devices with ray queries; the fallback still has none. The cook's tangents unblock its normal-mapping row. The bodies' analytic shadow test is shared with its planets' shadows row. |
 | [J28](roadmap.md#j28) | Its reference frames are recorded again as each path switches on. |
-| Blend spaces and shapes | Planned in their own session ([waiting on the user](roadmap.md#waiting-on-you)); they write through J42's compute skinning. |
+| [Characters](characters.md) | J42 needs J51's deform pass; J59's hair is the first non-opaque ray-query geometry |
 
 ## Expected issues
 

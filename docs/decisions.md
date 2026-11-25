@@ -406,6 +406,29 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   a blend; moving the point looked at along a line, as the camera's position is, keeps the subject
   in view, and only the up is slerped. The camera still moves on a line, so a rail is drawn to start
   on the game camera's side of what it circles. [Animation and cinematics](animation.md)
+- **Locomotion plays in place** (2026-11-25, the user's). The simulation moves a character through
+  the character controller; a blend space follows its velocity at a rate matched to its speed, and no
+  clip moves the simulation, so animation stays presentation. [Characters](characters.md)
+- **Players, cross-fades and layers, chosen by the game's code** (2026-11-25, the user's). No
+  animation state machine or graph is built. [Characters](characters.md)
+- **The engine's sampler is extended, ozz-animation not adopted** (2026-11-25, the user's). Blends,
+  masks and sync markers are small beside the clips, events, cook and reference frames they keep as
+  one system. [Characters](characters.md)
+- **Gaits keep in step on sync markers the cook finds** (2026-11-25, the user's). Normalised time
+  alone needs every clip to have the same steps from the same foot. [Characters](characters.md)
+- **Morphing and skinning run in one compute pass** (2026-11-25, the user's), built in the characters
+  track and reused by ray tracing, rather than in every pass's vertex shader. [Characters](characters.md)
+- **A model may have several mesh nodes** (2026-11-25, the user's), sharing one hierarchy, its clips,
+  and shape weights addressed by name. [Characters](characters.md)
+- **Faces use ARKit's 52 shape names** (2026-11-25, the user's), so lip sync, expressions and capture
+  data serve every face. [Characters](characters.md)
+- **Lip sync is made by the cook** (2026-11-25, the user's) with Rhubarb Lip Sync, an outside program
+  under MIT, from each line's audio and text, as a clip. [Characters](characters.md)
+- **Skin is pre-integrated; hair is alpha-tested cards** (2026-11-25, the user's). Neither adds a
+  pass or a buffer to the forward renderer; hair brings the first alpha-tested materials and
+  non-opaque ray-query geometry. [Characters](characters.md)
+- **The character controller is the engine's** (2026-11-25, the user's), in physics over Jolt's
+  `CharacterVirtual`, neutral of genre. [Characters](characters.md)
 
 ## Runtime: core and platform
 

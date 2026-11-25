@@ -17,8 +17,9 @@ workflow in [game integration](game-integration.md#provisioning-a-capability). G
 and content stay in Manifest. Work is done when the [gate](glossary.md#gate-ci) covers it and the
 history records the commit that did it.
 
-One track is planned apart from the backlog and scheduled on its own:
-[dense geometry and ray tracing](#a-separate-track-dense-geometry-and-ray-tracing), J36 to J50.
+Two tracks are planned apart from the backlog and scheduled on their own:
+[dense geometry and ray tracing](#a-separate-track-dense-geometry-and-ray-tracing), J36 to J50, and
+[characters](#a-separate-track-characters), J51 to J60.
 
 The backlog's order is the order of its list, not of its IDs. An ID is given once, when an item is
 added, and kept: an item added later takes the next number (J30 onwards) wherever its tier places
@@ -43,9 +44,6 @@ What needs the user's answer or action and is not a backlog item. Each line goes
   ([scene](scene.md#limits-and-open-work)); `Ecs::StateMachine`, which no engine module uses
   ([scope](scope.md)); and the renderer's `SetClusterRange` and `SetShadowDistance`, which no caller
   sets and `IRenderer` does not expose. `SetLodThreshold` stays, for levels of detail.
-- **Blend spaces and blend shapes.** In scope (2026-11-25); to be planned in a session of their own.
-  Where they meet the [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md) track is
-  recorded there.
 
 ## The backlog
 
@@ -530,13 +528,12 @@ Each is placed by the first scene or screen that needs it, and changes no data o
 
 **What remains.**
 
-- A glTF clip's events. glTF has no place for them, so they would go in its extras or in a clip file
-  beside the model; a scene's clip files have events already (`animation/ClipFile.h`).
-- One clip blended into another. A clip changed part-way, as a berth's clamps let go before they
-  have closed, starts from its first pose, not from where the rig is.
 - A berth's clamps fitted to a vehicle's shape rather than its box, so on a vehicle drawn by its
   model they grip where its sides are.
 - Rigs of a vehicle's own (landing gear, a hatch), which the docks' vehicle proxies lack.
+
+A glTF clip's events and cross-fades between clips moved to the characters track ([J54](#j54),
+[J53](#j53)).
 
 **What exists.** Rigs and their clips from glTF
 (`source/engine/animation/include/jettison/animation/Rig.h`).
@@ -716,7 +713,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |
 | <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | [J28](#j28)'s frames recorded again |
 | <a id="j41"></a>J41. Occlusion culling | Two passes against a depth pyramid; scope says In. | J40 | — |
-| <a id="j42"></a>J42. Ray-tracing foundation | Bottom-level structures per model from one cooked level, the TLAS each frame in render space, the build pass, skinning in compute with refits, the bindless material table. | J37 | [J20](#j20) and the blend-shape session build on its compute skinning |
+| <a id="j42"></a>J42. Ray-tracing foundation | Bottom-level structures per model from one cooked level, the TLAS each frame in render space, the build pass, refits from [J51](#j51)'s deform pass, the bindless material table. | J37, J51 | — |
 | <a id="j43"></a>J43. Streaming | Meshlet pages read as the view needs them, through ranged VFS reads, into a pool of fixed-size pages; the coarsest levels always loaded; one memory budget over the GPU's geometry, with an order for giving way when it cannot hold. | J40 | Changes the model cache: [J13](#j13) first, or within it |
 | <a id="j44"></a>J44. Ray-traced sun shadows | One ray towards the sun in the lit programs' ray-query variant; the cascades the fallback. | J42 | — |
 | <a id="j45"></a>J45. Ray-traced local shadows | `castsShadows` opts a point or spot light in; a bounded number per pixel, nearest first. | J44 | The ray-traced half of [J27](#j27)'s spot and point shadows |
@@ -728,3 +725,26 @@ the rows below say what each stage is, what it waits on, and which backlog items
 
 Tracks A (J37 to J43, geometry) and B (J42, J44 to J47, ray tracing) can alternate once J37 is done.
 **Feature doc:** [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).
+
+## A separate track: characters
+
+Faces that talk and emote, people who walk, and the skin, eyes and hair to shade them: the plan
+agreed on 2026-11-25, for Manifest's portraits, interiors and pilots. It is scheduled apart from the
+backlog's tiers until the user places it, after [J37](#j37) and before or beside [J42](#j42), and
+none of it is started. Its design, decisions, risks and each stage's exit criterion are in
+[characters](characters.md#stages).
+
+| Stage | What it is | Needs | Touches |
+| --- | --- | --- | --- |
+| <a id="j51"></a>J51. The deform pass and rigs with several meshes | One compute pass skins each animated instance into its own vertex buffer, which every pass reads; several mesh nodes per model. | J37 | [J42](#j42) refits from it |
+| <a id="j52"></a>J52. Blend shapes | glTF morph targets read, cooked and applied in the deform pass; weight tracks; weights set by name. | J51 | — |
+| <a id="j53"></a>J53. Poses, cross-fades and layers | Clips sampled to poses and blended; a changed clip fades from the current pose; layers by joint mask. | J51 | Takes [J20](#j20)'s cross-fade row |
+| <a id="j54"></a>J54. Clip events from the cook, sync markers and clip speed | Events in cooked glTF clips; foot contacts and each clip's speed found by the cook. | J37, J53 | Takes [J20](#j20)'s glTF-clip-events row |
+| <a id="j55"></a>J55. Blend spaces | 1D and 2D blend spaces in files, kept in step on sync markers, at a rate matched to speed; the ground sample's walker. | J54 | — |
+| <a id="j56"></a>J56. The character controller | Jolt's `CharacterVirtual` behind the physics interface: walking, steps, slopes, moving decks. | — | — |
+| <a id="j57"></a>J57. Lip sync at cook time | Rhubarb Lip Sync run by the cook on dialogue audio, mapped to ARKit-named shapes, played with the voice. | J52, J53 | A voice's play position from [J21](#j21)'s audio |
+| <a id="j58"></a>J58. Skin and eyes | Pre-integrated skin and an eye material. | J37 | — |
+| <a id="j59"></a>J59. Hair cards and alpha-tested materials | The first alpha-tested materials, in the raster passes and as non-opaque geometry for ray queries. | J51 | [J44](#j44)'s shadow rays; [J49](#j49)'s dither |
+| <a id="j60"></a>J60. Two-bone IK and look-at, later | Feet on steps, hands on controls, heads and eyes that follow a target. | J53, J56 | — |
+
+**Feature doc:** [characters](characters.md).

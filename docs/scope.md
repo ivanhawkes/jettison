@@ -89,7 +89,8 @@ How: [physics](physics.md).
 | Flight model | In | Thrust as accelerations, with an assist that holds a demanded velocity |
 | Rails and moving frames | In | The game's `FrameModel` moves a frame's bodies and gives its gravity |
 | Ray queries and picking | In | Jolt ray casts; picking a paused world is [J06](roadmap.md#j06) |
-| Ragdoll | Out | No consumer has characters |
+| Character controller | Open | Walking, steps, slopes and moving decks over Jolt's `CharacterVirtual`, in the simulation ([J56](roadmap.md#j56)) |
+| Ragdoll | Out | No consumer asks for characters that fall limp |
 | Water, wind | Out | No consumer has them; a game can apply its own forces |
 | Physical particles | Out | Particles are a render effect |
 
@@ -214,7 +215,9 @@ How: [rendering](rendering.md), and
 | Multiple texture coordinate sets | Deferred | When an asset needs a detail map on a second set |
 | Surface types (sounds, decals) | Out | No consumer needs footsteps or decals |
 | Terrain, water | Out | No consumer has a walkable surface |
-| Hair, skin, cloth | Out | No consumer has characters |
+| Skin and eyes | Open | Pre-integrated skin and an eye material, for portraits ([J58](roadmap.md#j58)) |
+| Hair | Open | Alpha-tested cards, the engine's first alpha-tested materials ([J59](roadmap.md#j59)); strands out |
+| Cloth | Out | No consumer asks for it |
 | Global illumination | Out | Image-based lighting and a sun serve the consumers' scenes |
 | Ray tracing | Open | Ray queries on plain KHR acceleration structures, which every vendor and lavapipe run; RTX Mega Geometry on NVIDIA where present ([J42](roadmap.md#j42), [J48](roadmap.md#j48), [the plan](dense-geometry-and-ray-tracing.md)) |
 | Video playback | Out | A screen in the world, if wanted, is a UI document drawn to a texture |
@@ -264,10 +267,14 @@ How: [animation and cinematics](animation.md).
 | Transform animation | In | Keyframed position, rotation and scale tracks on any scene entity |
 | Poses, forward kinematics | In | The hierarchy evaluation the sampler already does; not a public system |
 | Cinematics | In | Shots on camera rails, cut or blended, with a fade, letterbox and events, as data a mod replaces ([J22](roadmap.md#j22)) |
-| ozz-animation, tag-based selection | Out | Made for large character clip libraries; the consumers have mechanical rigs and few clips |
-| Inverse kinematics, clip synchronisation | Out | They serve limbs and locomotion blending, which no consumer has |
-| Blend shapes, blend spaces | Open | Requested on 2026-11-25; to be planned in a session of their own ([waiting on the user](roadmap.md#waiting-on-you)) |
-| Hair, faces | Out | No consumer has characters |
+| ozz-animation, tag-based selection | Out | The engine's own sampler, extended to blends and layers, serves its characters; ozz's IK solvers are a reference for [J60](roadmap.md#j60) |
+| Blend shapes | Open | glTF morph targets, driven by clips, by the game's code by name and by lip sync ([J52](roadmap.md#j52), [characters](characters.md)) |
+| Blend spaces, cross-fades, layers | Open | 1D and 2D blend spaces kept in step on sync markers, cross-fades and layers by joint mask ([J53](roadmap.md#j53) to [J55](roadmap.md#j55)) |
+| Root motion | Out | Animation never moves the simulation; locomotion plays in place, its rate matched to the controller's speed |
+| Animation state machines and graphs | Out | The game's code chooses what each layer plays |
+| Lip sync | Open | Made by the cook from dialogue audio with Rhubarb Lip Sync ([J57](roadmap.md#j57)) |
+| Two-bone IK, look-at | Open | Later, after blend spaces ([J60](roadmap.md#j60)) |
+| Crowds of animated characters | Out | Each animated instance has its own vertices: dozens, not hundreds |
 
 More animation work is [J20](roadmap.md#j20).
 

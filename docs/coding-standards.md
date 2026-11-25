@@ -329,7 +329,10 @@ criteria: elegance, efficiency, modern C++ usage, interoperability and maintenan
 Its licence must let the engine and a game on it be distributed as open source: MIT, BSD, zlib,
 Apache-2.0 and the like. A licence that forbids that, or binaries with no source, rules a library
 out however good it is (NVIDIA's RTX SDKs, FidelityFX 2; [decisions](decisions.md#build-and-platform)).
-The licence is read in the repository's own file, not taken from a summary.
+The licence is read in the repository's own file, not taken from a summary. Content committed to
+the repository (test content, samples) is the project's own or generated at build time; a model or
+sound under another's licence, even one as open as CC-BY, is not committed, since its attribution
+would travel with every copy.
 
 A fact a design rests on about an API, a driver, a device or a library (an extension's name and
 operations, a limit, what a version requires, a licence) is checked against its primary source

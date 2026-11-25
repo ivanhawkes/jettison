@@ -56,6 +56,7 @@ its limits and the backlog items that would lift them.
 | --- | --- |
 | [Roadmap](roadmap.md) | Open work only: the current delivery and the backlog in priority order, its items numbered from J01 |
 | [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md) | The plan for meshlets, the asset cook, streaming and ray-traced shadows, ambient occlusion and reflections (J36 to J50): decisions, design, stages, budgets and risks (agreed 2026-11-25) |
+| [Characters](characters.md) | The plan for blend shapes, blend spaces, layers, lip sync, a character controller, skin, eyes and hair cards (J51 to J60): decisions, facts checked, design, stages and risks (agreed 2026-11-25) |
 | [Decisions](decisions.md) | Every settled engine decision, by feature, with its date and why |
 | [History](history.md) | The index of finished work: phases, the system catalogue, the neutral SDK work, archived plans and retired decisions |
 

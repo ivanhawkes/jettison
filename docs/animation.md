@@ -403,13 +403,13 @@ A game whose own system places the camera orders it after `camera.rig` and befor
 ## Limits and open work
 
 - A glTF clip has no events, and a clip changed part-way starts from the new clip's first pose
-  rather than blending from where the rig is: [J20](roadmap.md#j20).
+  rather than blending from where the rig is: [J54](roadmap.md#j54) and [J53](roadmap.md#j53).
 - The shell does not collect a sequence's events, so none is heard yet; a shot has no roll or depth
   of field; a blend cannot steer round an obstacle; a sequence cannot blend between two colour
   grades: [J22](roadmap.md#j22).
 - A model file is parsed twice, once for its rig and once for its geometry: [J27](roadmap.md#j27).
-- No inverse kinematics, locomotion blending or animation library: the engine animates mechanical
-  rigs with a handful of clips ([scope](scope.md)).
+- No blend shapes, blend spaces, layers or IK, and one mesh node a model: planned in
+  [characters](characters.md), J51 to J60.
 
 ## Decisions
 
