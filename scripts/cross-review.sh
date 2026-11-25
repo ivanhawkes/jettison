@@ -12,7 +12,8 @@
 #                   the author believes holds. The reviewer attacks these claims.
 #  --reply FILE     A later round: the author's answer to each finding of the last round (fixed,
 #                   with what proves it, or disputed, with the evidence).
-#  --base REF       What the change is measured against (default: main); kept for later rounds
+#  --base REF       What the change is measured against (default: feature-base, where work is
+#                   merged before main); kept for later rounds
 #  --gate-log FILE  A gate log for the reviewer to read
 #  --model NAME     The Codex model (default: Codex's own configuration)
 #  --effort LEVEL   The reviewer's reasoning effort (default: high; Codex's own default is none)
@@ -68,7 +69,7 @@ if [ "$round" = 1 ]; then
 	[ -n "$brief" ] || { echo "cross-review: round 1 needs --brief FILE" >&2; exit 2; }
 	[ -z "$reply" ] || { echo "cross-review: no earlier round to reply to (use --brief)" >&2; exit 2; }
 	cp "$brief" "$dir/brief.md"
-	git rev-parse --verify "${base:-main}^{commit}" >"$dir/base"
+	git rev-parse --verify "${base:-feature-base}^{commit}" >"$dir/base"
 else
 	[ -n "$reply" ] || { echo "cross-review: round $round needs --reply FILE to round $last" >&2; exit 2; }
 	if [ "$round" -gt "$max_rounds" ]; then

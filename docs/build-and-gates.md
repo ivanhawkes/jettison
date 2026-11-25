@@ -238,7 +238,8 @@ runtime dependency of a release.
 
 The [gate](glossary.md#gate-ci) is `scripts/ci.sh`: every check a commit must pass, in one local
 command. The last commit of each chunk of work passes it with `--werror --asan` before a push
-([coding standards](coding-standards.md#commits)). Hooks run parts of it:
+([coding standards](coding-standards.md#commits)). It holds the [lanes](#lanes)' lock while it
+runs, so a gate or build started in another worktree waits for it. Hooks run parts of it:
 
 | Where | What runs |
 |---|---|
@@ -738,6 +739,39 @@ The shell's other profilers:
 | `heaptrack` | Allocations |
 | `valgrind` (callgrind) and `kcachegrind` | Instruction counts, so two commits compare without wall-clock noise |
 
+## Lanes
+
+Three worktrees of each repository, kept from task to task, so that one can wait on the gate or a
+cross-review while work goes on in another, and a third is there for a spare hour:
+
+| Lane | Jettison | Manifest |
+| --- | --- | --- |
+| A | `~/projects/jettison` | `~/projects/manifest` |
+| B | `~/projects/jettison.lane-b` | `~/projects/manifest.lane-b` |
+| C | `~/projects/jettison.lane-c` | `~/projects/manifest.lane-c` |
+
+- **Kept, not made per branch.** A lane is never removed: a task starts in a free lane with
+  `git switch -c <task> feature-base`, so the lane's build trees stay warm, Debug ones included,
+  which ccache shares within a tree only ([compiler cache](#compiler-cache)). A switch rebuilds what
+  the branches change. A free lane is parked with `git switch --detach feature-base`.
+- **Branches.** Work is cut from `feature-base` and merged back into it; only what has been
+  merged and tested there is a candidate for `main`. A branch can be checked out in one lane at a
+  time, so `feature-base` itself is only checked out to merge into it.
+- **Under `~/projects`.** `CCACHE_BASEDIR` is the checkout's parent, so a lane beside the
+  checkout shares the cache, as worktrunk's `worktree-path` (`~/projects/<repo>.<branch>`) keeps any
+  worktree it makes.
+- **Heavy work takes turns.** `scripts/heavy.sh <command>` runs a command holding one lock for
+  every lane of both repositories (`~/.cache/jettison/heavy.lock`, or `JETTISON_HEAVY_LOCK`), and
+  `scripts/ci.sh` takes it itself, so a second gate or build waits behind the first rather than
+  sharing the cores and the memory ([the gate](#the-gate)). Editing, reading and a cross-review's
+  own reasoning need no lock; the reviewer builds through `heavy.sh`.
+- **What a lane holds.** `build/lane.md` in each lane, ignored as `build/` is, says what it is on
+  and what it waits for.
+- **Manifest's lanes** build against the engine's pin, or against the engine lane of the same
+  letter with `-DJETTISON_SOURCE_DIR=~/projects/jettison.lane-<letter>`.
+
+A lane's first gate builds its trees cold, its Release ones through the shared cache.
+
 ## Cross-review
 
 A [cross-review](glossary.md#cross-review) is another model reviewing a change adversarially after
@@ -774,7 +808,7 @@ files and permissions, the documents against the code), which a review of one di
 |---|---|
 | `--brief FILE` | Round 1's brief |
 | `--reply FILE` | A later round: the answer to the last round's findings |
-| `--base REF` | What the change is measured against (default `main`); kept for later rounds |
+| `--base REF` | What the change is measured against (default `feature-base`, where work is merged before `main`); kept for later rounds |
 | `--gate-log FILE` | A gate log for the reviewer to read |
 | `--model NAME` | The Codex model (default: Codex's own configuration) |
 | `--effort LEVEL` | Reasoning effort (default `high`; Codex's own default is `none`) |

@@ -97,6 +97,11 @@ dependency headers — so what survives that grep is the project's own. A plain 
 prints at most 20 distinct diagnostics and names `build/clang-debug/tidy-diagnostics.log`, which
 holds the whole text; `--full` prints everything, `--summary` the tally.
 
+Work happens in three kept worktrees a repository, the lanes (`~/projects/jettison`,
+`jettison.lane-b`, `jettison.lane-c`, and Manifest's likewise): a task is cut from `feature-base` in
+a free lane and merged back into it, and builds and gates take turns through `scripts/heavy.sh`'s
+lock, which `scripts/ci.sh` takes itself ([lanes](docs/build-and-gates.md#lanes)).
+
 Run the gate as a background task and wait for it to finish rather than polling with `sleep`.
 With `--log` it prints the stages and a summary, and for a failed stage its errors; the full output
 is in the log. Warm, it takes 3 to 4 minutes (223 s on 2026-11-14), two thirds of it the

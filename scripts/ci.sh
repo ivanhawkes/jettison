@@ -27,6 +27,9 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# One gate or build at a time across every worktree (scripts/heavy.sh).
+[ -n "${JETTISON_HEAVY_HELD:-}" ] || exec scripts/heavy.sh scripts/ci.sh "$@"
+
 # The suites are separate processes, each writing only under a temporary directory named for its
 # process, so they run side by side, at the machine's core count; CTEST_PARALLEL_LEVEL overrides.
 # Nothing bounds them, on CI or here (docs/build-and-gates.md, "The gate", says why).
