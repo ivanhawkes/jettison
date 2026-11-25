@@ -203,8 +203,8 @@ Applied &GetApplied()
 // Whether the style is what these settings ask for, read from the style and not from a cache: two
 // fields a stock context does not have, a panel's padding on the sheet's scale and the panel's
 // ground on the palette. Nothing in the engine writes the style — the views push colours, never the
-// style (docs/architecture.md, "UI") — so these two stand for the whole of it. It is not keyed by
-// the context's address: measured, a context made after the themed one takes its address and starts
+// style (docs/ui.md, "The dev tools' theme") — so these two stand for the whole of it. It is not keyed
+// by the context's address: measured, a context made after the themed one takes its address and starts
 // stock, because ImGuiStyle's constructor writes the stock values over whatever the last context
 // left in the block, so an address key would answer "already themed" to a stock style.
 bool StyleIsApplied(const ThemeSettings &settings, bool linearise)

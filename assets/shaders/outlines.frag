@@ -5,7 +5,7 @@
 #include "outlines.glsl"
 #include "post.glsl"
 
-// The outlines over the frame (docs/architecture.md, "Outlines"), tested against the stencil so that
+// The outlines over the frame (docs/rendering-effects.md, "Outlines"), tested against the stencil so that
 // the hardware skips every pixel of an outlined shape, of the cockpit and of what post-processing
 // leaves alone before it is shaded. A pixel beside an outlined shape's, by the stencil, is on the
 // selected's line, in the colour of the outline its neighbour's ID names; and a pixel within a

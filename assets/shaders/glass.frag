@@ -6,7 +6,7 @@
 #include "lighting.glsl"
 #include "material.glsl"
 
-// Glass (docs/architecture.md, "Transparency"): a thin dielectric pane, a canopy or a window, drawn
+// Glass (docs/rendering-effects.md, "Transparency"): a thin dielectric pane, a canopy or a window, drawn
 // in the transparent pass. Its surface reflects as any dielectric does, through the one lighting
 // include, with no diffuse lobe: the sun's highlight, the clusters' lights and the environment. What
 // it does not reflect it lets through, tinted, as the second output, which BlendMode::Transmissive

@@ -5,7 +5,7 @@
 
 namespace Jettison::Platform
 {
-// Crash handling (docs/architecture.md, "Crashes"). A fatal signal - SIGSEGV, SIGBUS, SIGFPE,
+// Crash handling (docs/runtime.md, "Crash reports"). A fatal signal - SIGSEGV, SIGBUS, SIGFPE,
 // SIGILL, or SIGABRT, which a failed assertion and std::terminate end in - writes a report into a
 // directory: the signal and what it says of its cause, the thread, the build and its command line,
 // the stack's frames as a module and an offset into it, the same frames named by a symboliser when
@@ -22,7 +22,7 @@ namespace Jettison::Platform
 //
 // The handler runs on a stack of its own on the thread that installs it, so that thread's stack
 // overflowing is reported too. Another thread's overflow ends the process unreported
-// (docs/roadmap.md, "Carried forward").
+// (docs/roadmap.md, J11).
 //
 // Under the address sanitiser, whose report of a fatal signal names more than this one can, nothing
 // is installed.

@@ -13,9 +13,9 @@ constexpr CpuFeatures kHaswell{.avx2 = true, .bmi1 = true, .lzcnt = true, .popcn
 } // namespace
 
 
-// The machines the gate runs on meet the baseline by decision (docs/roadmap.md, "Decided"), so a
-// failure here is a machine the engine does not support, or a detection that has gone wrong. This
-// test executable got this far, so the start-up guard agreed.
+// The machines the gate runs on meet the baseline by decision (docs/decisions.md, "Build and
+// platform"), so a failure here is a machine the engine does not support, or a detection that has gone
+// wrong. This test executable got this far, so the start-up guard agreed.
 TEST_CASE("Cpu: this machine meets the baseline")
 {
 	const CpuFeatures features = DetectCpuFeatures();

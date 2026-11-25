@@ -13,7 +13,7 @@
 
 namespace Jettison::Render
 {
-// Materials are data (docs/architecture.md, "Rendering: clustered forward"): a file names a shader
+// Materials are data (docs/rendering.md, "Materials and programs"): a file names a shader
 // program, sets its parameters, fills its texture slots, and may drive parameters from time. The
 // program says what it takes in a descriptor beside its SPIR-V, shaders/<program>.program.yaml, so
 // a material is checked against the program it names when it loads, not when it draws.
@@ -47,7 +47,7 @@ struct ProgramTexture
 	TextureFallback fallback{TextureFallback::White};
 };
 
-// How a program's surfaces meet what is behind them (docs/architecture.md, "Transparency"). An
+// How a program's surfaces meet what is behind them (docs/rendering-effects.md, "Transparency"). An
 // opaque one covers it and lays down depth, in the opaque pass's batches, front to back. A
 // transparent one is drawn after the sky, sorted back to front with the frame's other transparent
 // draws, tested against the depth and not writing it, and casts no shadow: its fragment stage writes

@@ -1,5 +1,5 @@
-// The cluster grid and the local lights' reach (docs/architecture.md, "Rendering: clustered
-// forward"): screen tiles times depth slices, exponential in view distance from the near plane to
+// The cluster grid and the local lights' reach (docs/rendering.md, "Clustered
+// lights"): screen tiles times depth slices, exponential in view distance from the near plane to
 // the cluster range, and the tests that decide which lights a cluster lists. The bounds program
 // (cluster_bounds.comp) and the assignment program (cluster_lights.comp) compute through it, the
 // lighting include finds a fragment's cluster and attenuates its lights through it, and the

@@ -14,7 +14,7 @@
 
 namespace Jettison::Transit
 {
-// A slot, any game's (docs/architecture.md, "Transit"): what one entity holds at a time, a car
+// A slot, any game's (docs/transit.md): what one entity holds at a time, a car
 // park's bay or a toll booth's lane, until it gives it up or its hold lapses, and the entities
 // waiting for it, first come first. A gated portal is a slot with a sensor: its holder touching the
 // sensor goes through, and any other body that touches it passes, unsent (Crossed). What a hold

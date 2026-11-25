@@ -21,7 +21,7 @@ class PhysicsWorld;
 
 namespace Jettison::Transit
 {
-// A portal, any game's (docs/architecture.md, "Transit"): a door between two levels, a teleporter,
+// A portal, any game's (docs/transit.md): a door between two levels, a teleporter,
 // a way from one frame to another faster than anything could go. The entity leaves its frame for a
 // set time, in none meanwhile (Sim::kNoFrame), and comes out at a named exit the game places, in
 // any frame, the one it left included. Portals runs portals kept in an InPortal; a game whose

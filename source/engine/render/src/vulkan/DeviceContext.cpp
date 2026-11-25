@@ -568,7 +568,7 @@ void DeviceContext::CreateLogicalDevice()
 	features13.dynamicRendering = VK_TRUE;
 	features13.synchronization2 = VK_TRUE;
 	// The depth target's stencil is tested by the post passes while its depth is in another layout,
-	// or untouched (docs/architecture.md, "Masks").
+	// or untouched (docs/rendering-effects.md, "Masks").
 	VkPhysicalDeviceVulkan12Features features12{};
 	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 	features12.pNext = &features13;
@@ -722,8 +722,8 @@ VkSurfaceFormatKHR DeviceContext::FindSupportedSurfaceFormat(
 VkFormat DeviceContext::FindDepthFormat()
 {
 	// A float depth, which reversed-Z needs (D24's integer steps would throw its precision away), and
-	// a stencil beside it for the frame's masks (docs/architecture.md, "Masks"). Sampled, since the
-	// post passes read the stencil and ambient occlusion the depth.
+	// a stencil beside it for the frame's masks (docs/rendering-effects.md, "Masks"). Sampled, since
+	// the post passes read the stencil and ambient occlusion the depth.
 	return FindSupportedFormat(
 	    {VK_FORMAT_D32_SFLOAT_S8_UINT}, VK_IMAGE_TILING_OPTIMAL,
 	    VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);

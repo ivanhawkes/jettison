@@ -13,7 +13,7 @@ namespace Jettison::Scene
 // The sync phase's half for the simulation: writes each proxy's simulation transform, alpha of the
 // way from previous to current, into its TransformComponent. The position stays in double
 // precision, in its frame (Sim::InFrame); it becomes a float only when the renderer takes the camera's
-// position off it (docs/architecture.md, "Coordinate frames and units"). A proxy whose simulation
+// position off it (docs/coordinates.md). A proxy whose simulation
 // entity has no transform is left where it was: the events that say why are presentation's to act
 // on.
 void SyncSimProxies(

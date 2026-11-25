@@ -57,14 +57,14 @@ class PipelineCache;
 class Overlay;
 class OverlayRenderer;
 
-// The frame, as the declared pass list docs/architecture.md describes ("The frame"): the sun's
+// The frame, as the declared pass list docs/rendering.md describes ("The frame"): the sun's
 // shadow cascades, each a depth-only rendering of every draw into one layer of the shadow map; the
 // cluster passes (the index list's allocator zeroed, then the clusters' bounds and the lights
 // assigned to them, both in compute); the particles stepped, in compute; an opaque pass into a
 // multisampled HDR target, which draws the sky over what no surface covered, then the transparent
 // draws back to front, and is resolved into a single-sampled target as it ends; the post chain over
-// that (docs/architecture.md, "Post-processing": ambient occlusion before the opaque pass, from the
-// depth prepass, and bloom and the outlines after it); an output pass that tonemaps into the
+// that (docs/rendering-effects.md, "Post-processing": ambient occlusion before the opaque pass, from
+// the depth prepass, and bloom and the outlines after it); an output pass that tonemaps into the
 // swapchain, with the UI drawn over the result; and the cluster check's copy.
 //
 // The shadow map and the cluster grid's buffers are one set each, shared by the frames in flight as
@@ -95,7 +95,7 @@ class Renderer
 	static constexpr VkFormat kAccessFormat = VK_FORMAT_R8_UNORM;
 	static constexpr VkFormat kSeedFormat = VK_FORMAT_R16G16_UINT;
 	// Ambient occlusion's reach in metres, how dark its corners go, and the view depth past which it
-	// occludes nothing (docs/architecture.md, "Ambient occlusion").
+	// occludes nothing (docs/rendering-effects.md, "Ambient occlusion").
 	static constexpr float kAoRadius = 2.0f;
 	static constexpr float kAoIntensity = 1.0f;
 	static constexpr float kAoDistance = 1000.0f;
@@ -104,8 +104,8 @@ class Renderer
 	// The light index list's budget (render/IRenderer.h), which the shell reports against.
 	static constexpr std::uint32_t kLightIndicesPerCluster = kRendererLightIndicesPerCluster;
 	static constexpr std::uint32_t kLightIndexCapacity = kRendererLightIndexCapacity;
-	// The view depth past which no local light is assigned (docs/architecture.md, "The grid and the
-	// infinite far plane"): a platform's lights from further off are its emissive panels. Chosen
+	// The view depth past which no local light is assigned (docs/rendering.md, "Clustered
+	// lights"): a platform's lights from further off are its emissive panels. Chosen
 	// with the light budget, and tuned in 5e.
 	static constexpr float kDefaultClusterRange = 2000.0f;
 	// The sun's shadow distance (render/Shadows.h): the view depth past which the sun casts no
@@ -213,7 +213,7 @@ class Renderer
 	}
 
 	// Whether the opaque surfaces' depth is laid down before they are shaded, so each pixel is shaded
-	// once, by the surface that ends up in it (docs/architecture.md, "The frame").
+	// once, by the surface that ends up in it (docs/rendering.md, "The frame").
 	void SetDepthPrepass(bool enabled)
 	{
 		m_depthPrepass = enabled;
@@ -225,7 +225,7 @@ class Renderer
 	}
 
 	// Ambient occlusion over the opaque surfaces' image-based light, which runs the depth prepass
-	// whenever it is on (docs/architecture.md, "Ambient occlusion").
+	// whenever it is on (docs/rendering-effects.md, "Ambient occlusion").
 	void SetAmbientOcclusion(bool enabled)
 	{
 		m_ambientOcclusion = enabled;
@@ -236,7 +236,7 @@ class Renderer
 		return m_ambientOcclusion;
 	}
 
-	// The share of the frame's light bloom spreads, 0 for none (docs/architecture.md, "Bloom").
+	// The share of the frame's light bloom spreads, 0 for none (docs/rendering-effects.md, "Bloom").
 	void SetBloom(float strength)
 	{
 		m_bloom = std::max(strength, 0.0f);

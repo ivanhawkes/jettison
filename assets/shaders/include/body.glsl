@@ -1,4 +1,4 @@
-// A celestial body drawn with an atmosphere or rings (docs/architecture.md, "Atmospheres"), as the
+// A celestial body drawn with an atmosphere or rings (docs/rendering.md, "Atmospheres and rings"), as the
 // frame's body list (frame.glsl) and the environment's capture (sky.frag's CAPTURE) both carry it,
 // and what a ray along a direction from the camera picks up from it: its air, its rings, and, for
 // the capture, which draws no mesh, its surface lit by the sun.

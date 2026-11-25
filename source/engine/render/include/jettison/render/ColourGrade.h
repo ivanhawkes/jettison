@@ -14,7 +14,7 @@ class ResourceManager;
 
 namespace Jettison::Render
 {
-// A colour grade (docs/architecture.md, "Colour grading"): a 3D lookup table from a colour on the
+// A colour grade (docs/rendering-effects.md, "Colour grading"): a 3D lookup table from a colour on the
 // display to the colour it is graded to, both encoded sRGB, applied by the output pass after the
 // tonemap, under the fade and the UI. It is the space a grading tool works in on a screenshot, so a
 // frame graded here is that frame's screenshot put through the same table: grade a capture in

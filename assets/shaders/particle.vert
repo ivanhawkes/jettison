@@ -1,7 +1,7 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-// The particles drawn (docs/architecture.md, "Particles"): one instance a slot of an emitter's share
+// The particles drawn (docs/rendering-effects.md, "Particles"): one instance a slot of an emitter's share
 // of the pool, six vertices each, two triangles of a quad facing the camera. A slot holding none is
 // every vertex at one point, which draws nothing. A stretched particle is drawn out behind it along
 // its path, by the stretch's seconds of its motion, as a streak or a spark.

@@ -139,7 +139,7 @@ struct GpuInstance
 static_assert(sizeof(GpuInstance) == 80);
 
 // A slot of the particle pool, std430: particles.glsl's Particle. Device-local, shared by the frames
-// in flight, and stepped in place once a frame (docs/architecture.md, "Particles").
+// in flight, and stepped in place once a frame (docs/rendering-effects.md, "Particles").
 struct GpuParticle
 {
 	// xyz: where it is in its emitter's frame, w: its age in seconds.

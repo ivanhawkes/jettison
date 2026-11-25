@@ -18,9 +18,9 @@ struct CameraView
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
 	float verticalFov{0.785398163f};
 	float nearPlane{0.1f};
-	// The origin of the local frame the camera moves in (docs/architecture.md, "Coordinate frames
-	// and units"), in the system frame: the platform or body an orbit camera circles, or the system's
-	// origin. The sun's shadow maps keep their texel grid still in this frame (render/Shadows.h).
+	// The origin of the local frame the camera moves in (docs/coordinates.md), in the frame: the
+	// platform or body an orbit camera circles, or the system's origin. The sun's shadow maps keep
+	// their texel grid still in this frame (render/Shadows.h).
 	glm::dvec3 frameOrigin{0.0};
 };
 
@@ -31,13 +31,13 @@ using Scene::OrientationFromAngles;
 // point on the near plane has depth 1, and depth falls towards 0 as the distance grows without
 // bound, as near / distance. A float depth buffer keeps its precision where depth is near 0,
 // which is where reversing puts the far distances, so a cockpit at half a metre and a planet at
-// forty thousand kilometres share one buffer (docs/architecture.md, "Coordinate frames and
-// units"). Depth is cleared to 0 and tested with GREATER.
+// forty thousand kilometres share one buffer (docs/coordinates.md, "Depth: reversed-Z with an infinite
+// far plane"). Depth is cleared to 0 and tested with GREATER.
 glm::mat4 ReversedInfinitePerspective(float verticalFov, float aspect, float nearPlane);
 
 // The ray from the camera through a point on the screen, as a mouse picks: the point in window
 // pixels from the top left, as GLFW reports the cursor, over a window of that size, whose shape is
-// the projection's. It starts at the camera rather than the near plane, in the system frame, and
+// the projection's. It starts at the camera rather than the near plane, in the frame, and
 // its direction has unit length.
 Math::DRay ScreenRay(const CameraView &camera, const glm::dvec2 &point, const glm::dvec2 &windowSize);
 

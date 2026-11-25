@@ -61,7 +61,7 @@ namespace Jettison::App
 namespace
 {
 // Software rendering is fill-rate bound, and the window opens at 1920x1080. The headless sequence
-// is seven stages of a handful of frames, so it starts on a small window: every frame after this
+// is eleven stages of a handful of frames, so it starts on a small window: every frame after this
 // costs a quarter of what the opening size costs, and the resize stages still change the size.
 constexpr int kSmokeWindowWidth = 640;
 constexpr int kSmokeWindowHeight = 480;
@@ -647,8 +647,8 @@ void Application::RegisterFrameSystems()
 	     Access::Of<Scene::SimProxyComponent>().Writing<Scene::OutlineComponent>(),
 	     {"shell.ui"},
 	     [this](entt::registry &registry, double) { MarkScene(registry); }});
-	// The game UI, from the snapshots the sync phase took in: the market screen's data, then layout
-	// and drawing into the overlay.
+	// The game UI, from the snapshots the sync phase took in: the game's screen data (Game::UpdateUi),
+	// then layout and drawing into the overlay.
 	m_frame.Register(
 	    {"ui.update",
 	     TickPhase::Presentation,

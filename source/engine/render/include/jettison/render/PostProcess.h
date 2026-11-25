@@ -12,7 +12,7 @@ struct MaskComponent;
 
 namespace Jettison::Render
 {
-// The post chain's CPU half (docs/architecture.md, "Post-processing", "Masks" and "Outlines"): the
+// The post chain's CPU half (docs/rendering-effects.md, "Post-processing", "Masks" and "Outlines"): the
 // stencil bits a draw lays down, an object's ID, the outlines a frame draws, and the bloom levels'
 // sizes. Nothing here touches the device. The passes' arithmetic is post.glsl, which the render suite
 // runs as C++ through the functions at the end.

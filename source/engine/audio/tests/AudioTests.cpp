@@ -26,13 +26,13 @@ using Audio::Bus;
 
 namespace
 {
-// The shipped sounds, mounted on their own: the definitions under the assets' defs/sounds name the
-// shell's events, which these tests do not register.
+// The test content's sounds, mounted on their own. No definition under defs/sounds ships with them:
+// each test writes the ones it needs, for events it registers itself.
 constexpr const char *kFilled = "ui/trade-filled.wav";
 constexpr const char *kDocked = "effects/docked.wav";
 constexpr const char *kMusic = "music/drift.flac";
 
-// The shipped sounds, and a scratch mount over them for definitions a test writes.
+// The test content's sounds, and a scratch mount over them for definitions a test writes.
 class Scratch
 {
   public:
@@ -319,7 +319,7 @@ TEST_CASE("Audio: music streams, loops, and a second piece replaces the first")
 	CHECK(audio.IsPlaying(music));
 	CHECK(MixPeaks(audio, 2.0).Both() > 0.05f);
 
-	// A change of volume is eased in over a few milliseconds, so it does not click.
+	// A bus set to nothing is silent, and set back to full it is heard again.
 	audio.SetBusVolume(Bus::Music, 0.0f);
 	MixPeaks(audio, 0.1);
 	CHECK(MixPeaks(audio, 0.5).Both() == 0.0f);

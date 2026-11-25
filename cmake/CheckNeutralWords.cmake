@@ -1,4 +1,4 @@
-# The space setting's words kept out of the engine's modules (docs/space-extraction-plan.md): every
+# The space setting's words kept out of the engine's modules (docs/history/space-extraction.md): every
 # word found in a module's headers and sources, outside its string literals (a saved or
 # reflected name keeps its old words until a migration changes it), camel case and snake case split into words,
 # has to be allowed for that file, and every allowance has to be still needed, so the list only
@@ -52,7 +52,7 @@ endforeach()
 
 if(WRITE)
 	list(JOIN found "\n" lines)
-	file(WRITE "${ALLOWED}" "# The space setting's words still in the engine's modules, a file and a word a line, which the\n# space extraction removes (docs/space-extraction-plan.md); cmake/CheckNeutralWords.cmake checks it.\n${lines}\n")
+	file(WRITE "${ALLOWED}" "# The space setting's words allowed in the engine's modules, a file and a word a line: none since\n# the space extraction (docs/history/space-extraction.md); cmake/CheckNeutralWords.cmake checks it.\n${lines}\n")
 	return()
 endif()
 

@@ -14,7 +14,7 @@ enum class PixelOrder : std::uint8_t
 	Bgra
 };
 
-// A frame read back from the swapchain as the output pass left it (docs/architecture.md, "The
+// A frame read back from the swapchain as the output pass left it (docs/rendering.md, "The
 // frame"): tonemapped and encoded for the display, with the overlay and the dev tools over it. Four
 // bytes a pixel, rows from the top, with nothing between them; the fourth byte is the swapchain's
 // alpha, which the compositor ignores, and is not written.

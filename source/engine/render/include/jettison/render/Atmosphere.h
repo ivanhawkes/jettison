@@ -12,8 +12,8 @@ struct RingsComponent;
 
 namespace Jettison::Render
 {
-// A body's atmosphere and rings on the CPU (docs/architecture.md, "Atmospheres"). The functions are
-// assets/shaders/include/atmosphere.glsl and rings.glsl compiled as C++, the source the planet and
+// A body's atmosphere and rings on the CPU (docs/rendering.md, "Atmospheres and rings"). The functions
+// are assets/shaders/include/atmosphere.glsl and rings.glsl compiled as C++, the source the planet and
 // atmosphere programs run, so the render suite checks that source rather than a copy of it. Lengths
 // are metres in render space, the camera at the origin.
 

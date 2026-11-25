@@ -1,4 +1,4 @@
-// The sun's cascaded shadow maps (docs/architecture.md, "Sun shadows"): the view is cut into
+// The sun's cascaded shadow maps (docs/rendering.md, "Sun shadows"): the view is cut into
 // depth slices from the near plane to the shadow distance, and each slice has a square shadow map
 // of its own, one layer of one array image, fitted on the CPU (render/Shadows.h). Here are the
 // parts the lighting include and the CPU share: which cascade a view depth selects, how a fragment

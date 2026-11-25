@@ -33,7 +33,7 @@ struct SimEvent;
 
 namespace Jettison::Script
 {
-// The Wasm host for mod behaviour (docs/architecture.md, "Scripts"): scripts as definitions, each a
+// The Wasm host for mod behaviour (docs/scripts.md): scripts as definitions, each a
 // module read through the VFS from whichever mount has it, run by WAMR's interpreter under a fuel
 // limit and a time limit, and given only what its definition grants. It calls a script from two
 // places:

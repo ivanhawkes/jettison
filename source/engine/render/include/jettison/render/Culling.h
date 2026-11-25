@@ -12,7 +12,7 @@
 
 namespace Jettison::Render
 {
-// What the frame leaves out before anything is recorded (docs/architecture.md, "The frame"): draws
+// What the frame leaves out before anything is recorded (docs/rendering.md, "The frame"): draws
 // and lights outside the view, draws and lights behind a planet's horizon, and casters that cannot
 // reach a shadow cascade's map; and which level of detail each draw takes. Everything here is in
 // render space, metres from the camera, in double precision: a planet's centre is ten thousand

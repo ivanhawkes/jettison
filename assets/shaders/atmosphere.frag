@@ -3,7 +3,7 @@
 
 #include "frame.glsl"
 
-// The bodies' air and rings over the sky (docs/architecture.md, "Atmospheres"): drawn on
+// The bodies' air and rings over the sky (docs/rendering.md, "Atmospheres and rings"): drawn on
 // fullscreen.vert's triangle after the sky, at the far end of the depth range, so only where no
 // surface was drawn. The limb about a planet, the sky from inside its air and its rings over space
 // are here; the planet program hazes its own surface and draws the rings in front of it. What a

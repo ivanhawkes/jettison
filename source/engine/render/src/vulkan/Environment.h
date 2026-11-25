@@ -63,7 +63,7 @@ static_assert(sizeof(GpuCapture) == 80 + 48 + kCaptureBodies * 128);
 // in low orbit turns a degree against the planet in fifteen seconds.
 bool CaptureMoved(const CaptureLight &baked, const CaptureLight &now);
 
-// The image-based lighting of a scene (docs/architecture.md, "The frame"): the sky captured
+// The image-based lighting of a scene (docs/rendering.md, "The frame"): the sky captured
 // into a cube map and prefiltered for the metallic-roughness BRDF, and the split sum's lookup
 // table, which depends on the BRDF alone and is made once.
 //

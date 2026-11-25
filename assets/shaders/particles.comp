@@ -1,7 +1,7 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-// The particles' step (docs/architecture.md, "Particles"): one dispatch an emitter, one invocation a
+// The particles' step (docs/rendering-effects.md, "Particles"): one dispatch an emitter, one invocation a
 // slot of its share of the pool. A slot this frame's births reach takes one, born at its share of
 // the frame and moved on since (SpawnParticle); any other holding a particle is moved on by the
 // frame's seconds, and emptied at its lifetime (StepParticle). A new emitter's slots are emptied

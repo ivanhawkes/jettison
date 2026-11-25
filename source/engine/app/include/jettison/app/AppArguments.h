@@ -75,8 +75,8 @@ struct AppArguments
 	std::vector<RunCommand> commands;
 
 	// Sound played to miniaudio's null backend, in place of the machine's device: everything sounds
-	// as it would, at the pace it would, and nothing is heard or touches the sound system. The
-	// headless run always plays so.
+	// as it would, at the pace it would, and nothing is heard or touches the sound system. The smoke
+	// test always plays so.
 	bool noSound{false};
 	// Drawn offscreen, with no display or surface (render/IRenderer.h, RendererOptions::offscreen):
 	// a GPU run with no window on any desktop. The console takes lines through --run alone.

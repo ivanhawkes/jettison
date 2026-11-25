@@ -184,8 +184,8 @@ TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a h
 	// The vertex's packing is in the path, so the test that claims this contract goes through it: a
 	// style colour is quantised into ImDrawVert::col, 8-bit bytes, by ColorConvertFloat4ToU32, and
 	// the attachment encodes that. Measured over the 264 channels of the 88 colours the four
-	// varieties give the 22 roles, and recorded in docs/architecture.md ("UI"): 209 channels land on
-	// the palette byte, 33 are one step away, 15 two, 2 three, 5 four, so the bound is 4. The
+	// varieties give the 22 roles, and recorded in docs/ui.md ("The dev tools' theme"): 209 channels
+	// land on the palette byte, 33 are one step away, 15 two, 2 three, 5 four, so the bound is 4. The
 	// four-step cases are the darkest channels, Mocha's crust and Latte's near-black blue; a one-step
 	// case reaches the mid tones of the three lighter varieties, and Mocha's mid and light tones,
 	// which is what a captured frame reads, land exact. The bound is not the contract: the landings

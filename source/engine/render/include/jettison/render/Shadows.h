@@ -9,7 +9,7 @@
 
 namespace Jettison::Render
 {
-// The sun's cascaded shadow maps (docs/architecture.md, "Sun shadows"), fitted on the CPU each
+// The sun's cascaded shadow maps (docs/rendering.md, "Sun shadows"), fitted on the CPU each
 // frame. The cascade selection, the blend between cascades and the map lookup are
 // assets/shaders/include/shadows.glsl compiled as C++, the source the lighting include runs, so the
 // render suite checks the fit against what the GPU will select.

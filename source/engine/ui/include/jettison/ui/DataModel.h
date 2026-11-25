@@ -27,7 +27,7 @@ namespace Detail
 class DataModelState;
 }
 
-// A document's view of the game's data (docs/architecture.md, "UI"): named variables a document
+// A document's view of the game's data (docs/ui.md): named variables a document
 // reads with {{market.goods[0].ask}} and data-for="good : market.goods", and named events it calls.
 //
 // A variable is a value presentation owns, bound by address, of any type registered with Reflect or

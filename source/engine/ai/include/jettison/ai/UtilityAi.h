@@ -11,8 +11,8 @@
 
 namespace Jettison::Ai
 {
-// Utility AI for choices that are scoring problems rather than sequences (docs/architecture.md,
-// "Decisions"): which trade, which route, which upgrade. A decision is data: its actions, each
+// Utility AI for choices that are scoring problems rather than sequences (docs/ai.md,
+// "Utility AI"): which trade, which route, which upgrade. A decision is data: its actions, each
 // scored by considerations, each an input of the game's brought into [0, 1] by its range and shaped
 // by a response curve. The game offers options, each one of the decision's actions with its own
 // inputs (a trade of copper from one market to another), and the engine scores them and chooses,

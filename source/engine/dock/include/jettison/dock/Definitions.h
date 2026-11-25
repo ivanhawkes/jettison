@@ -16,7 +16,7 @@
 
 namespace Jettison::Dock
 {
-// What a platform's docks are made of, as data (docs/history.md, catalogue entry 31): the classes of
+// What a platform's docks are made of, as data (docs/history/catalogue.md, entry 31): the classes of
 // its berths, the vehicles that land on them, and its layout, which the game names for each platform
 // it makes (Docks::MakePlatform). All are definitions (Sim::DefinitionRegistry), so a mod adds a berth
 // class or a vehicle or rebuilds a platform, and a save names them and holds none.

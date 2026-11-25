@@ -1,6 +1,6 @@
 #version 450
 
-// The opaque depth prepass's colour (docs/architecture.md, "The frame"): beside the depth, each
+// The opaque depth prepass's colour (docs/rendering.md, "The frame"): beside the depth, each
 // surface's view-space normal, which ambient occlusion reads, and its object's ID, which the outlines
 // read. The normal is the mesh's, interpolated, without its material's normal map: occlusion is of the
 // shape. Its multisampled targets are read at sample zero, as the depth is, rather than resolved.

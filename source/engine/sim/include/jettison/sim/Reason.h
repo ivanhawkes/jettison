@@ -10,8 +10,8 @@
 
 namespace Jettison::Sim
 {
-// Why the step refused or gave something up, as an event carries it (docs/roadmap.md, "Decided": an
-// event says why by a reason and its arguments): a key the string tables word, and the values the
+// Why the step refused or gave something up, as an event carries it (docs/decisions.md, "Simulation":
+// an event says why by a reason and its arguments): a key the string tables word, and the values the
 // text is formatted with, so the player reads it in their language and the step makes no English.
 // The step's log lines stay English, for developers.
 //
@@ -85,6 +85,6 @@ template <typename E> Reason MakeReason(E enumerator, std::vector<ReasonArgument
 std::vector<std::string> ReasonKeys(const entt::meta_type &reasons);
 
 // The reason as a developer reads it, in a log line or a test's failure, and in no language:
-// "reason.shell.short_of_stock(entity 0x2a, 12)".
+// "reason.dock.not_controller(entity 0x2a)".
 std::string Describe(const Reason &reason);
 } // namespace Jettison::Sim

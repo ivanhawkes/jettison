@@ -11,8 +11,8 @@ struct ConsoleLine;
 
 // The style's colour roles, named as a Tailwind/shadcn stylesheet names them, so a palette is a
 // table of colour and not a scattering of literals, and the same word means the same thing in the
-// style, the console's lines and the dev tools' own controls (docs/architecture.md, "UI"). Every
-// role is one of Catppuccin's colours; which one is the palette's business.
+// style, the console's lines and the dev tools' own controls (docs/ui.md, "The dev tools' theme").
+// Every role is one of Catppuccin's colours; which one is the palette's business.
 enum class Token : std::uint8_t
 {
 	Background,   // the panel's ground, as bg-background is

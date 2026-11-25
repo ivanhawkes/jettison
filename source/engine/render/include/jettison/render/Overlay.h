@@ -62,7 +62,7 @@ struct OverlayDraw
 	std::optional<std::uint32_t> transform;
 };
 
-// Two-dimensional drawing over the frame (docs/architecture.md, "The frame"): what the game UI
+// Two-dimensional drawing over the frame (docs/rendering.md, "The frame"): what the game UI
 // (engine/ui) draws, in the output pass after tonemapping, over the scene and under the dev tools.
 // It names no device and no UI library: the UI fills it, the renderer reads it, and a test reads it
 // without either.

@@ -1,4 +1,4 @@
-# A liner, shown on Highport's display wing: no ship is given a cruiser pad (docs/scope.md), so it is
+# A liner, shown on Highport's display wing: no ship is given a cruiser pad (docs/docks.md, "Which berth a vehicle fits"), so it is
 # the layout's dressing, drawn on its pad and never flown. The largest cruiser hull is 300 x 80 x 60 m.
 # A hull of the docks (Dock.VehicleDefinition): metres, its nose along -Z.
 version: 3

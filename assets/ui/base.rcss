@@ -1,6 +1,6 @@
 /* The game UI's base: what a browser's own stylesheet gives every element, which RmlUi leaves to the
    documents, and the palette every screen shares. A mod restyles every screen by shipping its own
-   ui/base.rcss, or one screen by shipping that screen's stylesheet (docs/architecture.md, "UI"). */
+   ui/base.rcss, or one screen by shipping that screen's stylesheet (docs/ui.md). */
 
 body, div, p, h1, h2, h3, table, form {
 	display: block;

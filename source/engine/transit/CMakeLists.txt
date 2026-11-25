@@ -1,4 +1,4 @@
-# Transit, of no genre (docs/architecture.md, "Transit"): motion profiles, which say in closed form
+# Transit, of no genre (docs/transit.md): motion profiles, which say in closed form
 # how far a vehicle, a lift or a train has come along its way by a time; passages, which carry an
 # entity out of physics along a way and bring it out clear of what is there; portals, which take an
 # entity out of its frame for a set time and bring it out at an exit in any frame; and slots, which

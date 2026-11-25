@@ -1,4 +1,4 @@
-# A pad's docking clamps (docs/roadmap.md, 10d): each a post that telescopes up out of the deck
+# A pad's docking clamps (docs/history/phases.md, 10d): each a post that telescopes up out of the deck
 # beside the hull, an arm that rises with it and swings over onto the hull's side, and a jaw that
 # slides out along the arm to bite. The station dressing builds four on each pad, fitted to the hull
 # they hold, and binds them all to these names, so they move together and the pad hears its events
@@ -9,7 +9,8 @@
 # stowed, under the deck with its post flat and its arm upright, hinge 0.8 down: a mesh scaled to
 # nothing is not drawn. The arm points up its own +Y, and turns towards the hull about Z.
 #
-# The sounds are data (defs/sounds): clamp.closed as the jaws bite, clamp.released as they let go.
+# The clip's events, clamp.closed as the jaws bite and clamp.released as they let go, name the sounds
+# a game maps to them as data (docs/audio.md, "Event sounds").
 version: 1
 clips:
   - name: close

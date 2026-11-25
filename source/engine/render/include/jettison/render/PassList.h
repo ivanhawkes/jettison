@@ -7,7 +7,7 @@
 
 namespace Jettison::Render
 {
-// The frame as a declared list of passes (docs/architecture.md, "The frame"). Each pass names the
+// The frame as a declared list of passes (docs/rendering.md, "The frame"). Each pass names the
 // resources it touches and how; Compile turns that into the barriers between passes once, at
 // start-up, so a pass adds its uses rather than its synchronisation, and compute passes sit
 // beside graphics ones on the same terms. Nothing here names Vulkan: the backend reads each

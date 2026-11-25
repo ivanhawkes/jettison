@@ -86,7 +86,7 @@ function(jettison_add_pack target)
 	add_dependencies(${target} jettison_pack ${pack_DEPENDS})
 endfunction()
 
-# Compiles a script (docs/architecture.md, "Scripts") into a wasm32 module at OUTPUT, when the
+# Compiles a script (docs/scripts.md) into a wasm32 module at OUTPUT, when the
 # target is built, from C or from Rust, against the host API the game generates (jettison_script.h,
 # jettison_script.rs), which INCLUDES finds for C and a Rust crate takes in by #[path] beside it.
 # ALL builds it with the tree, as a test's modules are.

@@ -1,7 +1,7 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-// A particle's light and cover (docs/architecture.md, "Particles"): a disc, or a capsule along its
+// A particle's light and cover (docs/rendering-effects.md, "Particles"): a disc, or a capsule along its
 // streak, fading as (1 - r^2)^2 from its middle line to its edge. It adds its colour and, when its
 // emitter has an albedo, the light it scatters, lit through the one lighting include as a small
 // Lambertian sphere (ShadeVolume); and it lets through what it does not hide of what is behind it,

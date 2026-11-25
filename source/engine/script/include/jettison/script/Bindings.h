@@ -15,7 +15,7 @@
 namespace Jettison::Script
 {
 // What a script sees of the game's types is generated from the reflection tables
-// (docs/architecture.md, "Scripts"). A type registered with Reflect, with Attribute::Script, is laid
+// (docs/scripts.md). A type registered with Reflect, with Attribute::Script, is laid
 // out in a script's linear memory as a C compiler for wasm32 lays out the struct the header
 // (Header) declares for it: its fields in registration order, each at its own alignment, the
 // struct padded to its widest. The host copies an event into that layout for a handler, and a
@@ -70,7 +70,7 @@ struct ValueLayout
 	std::uint8_t count{1};
 	// The value's own type, as the engine holds it.
 	entt::meta_type type;
-	// The C name the header gives it: "int64_t", "jettison_dvec3", "Shell_Cargo".
+	// The C name the header gives it: "int64_t", "jettison_dvec3", "Dock_Box".
 	std::string cName;
 	// For a Struct, its type's layout; for an Array, its element's.
 	const TypeLayout *pStruct{nullptr};
@@ -88,7 +88,7 @@ struct FieldLayout
 struct TypeLayout
 {
 	entt::meta_type type;
-	// The registered name, "Shell.Traded", and the header's, "Shell_Traded".
+	// The registered name, "Dock.Landed", and the header's, "Dock_Landed".
 	std::string name;
 	std::string cName;
 	std::uint32_t size{0};
@@ -164,6 +164,6 @@ inline void *ObjectOf(entt::meta_any &value)
 }
 
 // The import a script sends a command of the type with, which is also the capability that grants
-// it: "send:Shell.Trade".
+// it: "send:Dock.RequestBerth".
 std::string SendImport(const entt::meta_type &command);
 } // namespace Jettison::Script

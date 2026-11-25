@@ -6,7 +6,7 @@
 
 namespace Jettison::Sim
 {
-// Who sends a command and who commands an entity (docs/roadmap.md, "Decided": multiplayer in time,
+// Who sends a command and who commands an entity (docs/decisions.md, "Simulation": multiplayer in time,
 // single-player first). A command for a vehicle carries its sender, and the simulation refuses it from
 // a sender that does not control the vehicle, so a server can hold every player's commands in one
 // queue; nothing in a simulation module assumes there is one player.
@@ -45,11 +45,11 @@ struct ControlledBy
 // rules are.
 bool MayCommand(const entt::registry &registry, entt::entity entity, const Controller &sender);
 
-// Who is at an entity's helm (docs/roadmap.md, "Decided": a player has a fleet): the one flying it by
-// its controls, which it takes from them alone (Physics::SetFlightControls), and for whom its
-// behaviour stands down (Ai::Behaviours). Taken and left by Ai::TakeHelm and Ai::LeaveHelm, by one
-// that commands the entity, each at one helm at a time. Registered with Reflect, its field Saved, by
-// RegisterTypes.
+// Who is at an entity's helm (docs/decisions.md, "Simulation": a controller commands an entity, whoever
+// holds its helm flies it): the one flying it by its controls, which it takes from them alone
+// (Physics::SetFlightControls), and for whom its behaviour stands down (Ai::Behaviours). Taken and left
+// by Ai::TakeHelm and Ai::LeaveHelm, by one that commands the entity, each at one helm at a time.
+// Registered with Reflect, its field Saved, by RegisterTypes.
 struct Helm
 {
 	Controller controller;

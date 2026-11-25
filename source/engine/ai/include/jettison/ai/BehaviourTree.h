@@ -22,7 +22,7 @@ class SimWorld;
 
 namespace Jettison::Ai
 {
-// Behaviour trees for an entity's sequences (docs/architecture.md, "Decisions"): undock, fly to a
+// Behaviour trees for an entity's sequences (docs/ai.md, "Behaviour trees"): undock, fly to a
 // door, pass through it, ask for a berth, wait for one, dock, trade, wait for the load. A tree is data,
 // its leaves tasks the game defines by name, and it is ticked in the simulation step,
 // deterministically: where each entity is in its tree is saved with the world, and a world loaded from

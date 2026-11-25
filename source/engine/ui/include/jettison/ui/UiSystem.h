@@ -45,7 +45,7 @@ namespace Detail
 class UiState;
 }
 
-// The game UI (docs/architecture.md, "UI"): RmlUi behind an engine interface, so nothing above it
+// The game UI (docs/ui.md): RmlUi behind an engine interface, so nothing above it
 // includes RmlUi. Documents, stylesheets, templates, fonts and images are read through the VFS, so a
 // mod's mount over the base restyles a screen by shadowing its stylesheet. What it draws goes into a
 // Render::Overlay, which the renderer draws over the tonemapped scene and under the dev tools; the

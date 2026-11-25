@@ -134,11 +134,11 @@ class Application final : private Shell
 
 	void InitWindow();
 
-	// The game UI over the window (docs/architecture.md, "UI"): its fonts, the saved games' data model
+	// The game UI over the window (docs/ui.md): its fonts, the saved games' data model
 	// and document, read through the asset tree, then the game's (Game::OpenUi).
 	void InitUi();
 
-	// The game's sound (docs/architecture.md, "Audio"): the mixer, its buses' volumes from the
+	// The game's sound (docs/audio.md): the mixer, its buses' volumes from the
 	// settings, the event sounds the definitions name, and the music. Needs no window.
 	void InitAudio();
 
@@ -224,7 +224,7 @@ class Application final : private Shell
 	// What the playing sequence shows over the frame: its fade and its bars.
 	void ShowSequence(entt::registry &registry);
 
-	// Picking (docs/architecture.md, "Physics"): a left click casts a ray from the camera through
+	// Picking (docs/physics.md): a left click casts a ray from the camera through
 	// the cursor, as a Physics::Pick the next step answers with a Physics::Picked, where the game says
 	// (Game::PickIn). Sends one through the point, in window pixels, and says whether it did: not
 	// where the game has no pick space.
@@ -244,7 +244,7 @@ class Application final : private Shell
 
 	void RequestClose();
 
-	// Saves (docs/architecture.md, "Persistence"): the world, the scripts' store and the game's
+	// Saves (docs/persistence.md): the world, the scripts' store and the game's
 	// sections and details (Game::WriteSave), as a Sim::SaveGame on the user mount under
 	// saves/<name>.save. Each says whether it did, and logs why not: a save that cannot be written, or
 	// one that does not load (one the game refuses, of a version this build cannot read, of a world

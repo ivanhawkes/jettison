@@ -53,7 +53,7 @@ struct MaterialBinding
 	bool transparent{false};
 };
 
-// The materials on the device (docs/architecture.md, "Rendering"): what a draw binds for its
+// The materials on the device (docs/rendering.md): what a draw binds for its
 // material, which is a pipeline for the material's program, a descriptor set (set 1) of its
 // kMaterialTextureSlots textures, and an offset into the frame's material parameters.
 //

@@ -33,7 +33,7 @@ class SimWorld;
 
 namespace Jettison::Dock
 {
-// Platforms' berths and the vehicles on them, in the simulation (docs/architecture.md, "Docks"). Who
+// Platforms' berths and the vehicles on them, in the simulation (docs/docks.md). Who
 // holds a berth is authoritative state every player sees the same, so berths are entities of their
 // platforms, saved, and given by commands in the order the queue applies them. What a berth costs, who
 // may land where and what loitering on one means are the game's; this is what any game's platforms
@@ -138,14 +138,14 @@ struct Docking
 bool IsDocked(const entt::registry &registry, entt::entity vehicle, entt::entity platform);
 
 // The command that asks a platform for a berth for a vehicle, applied in the order commands are: the
-// smallest free berth its vehicle fits, the lowest numbered of those, or, with none, a place at the
-// back of the platform's queue. Flown in by the docks if fly is set. Refused, with a BerthRefused, for
-// a sender that does not control the vehicle (Sim::MayCommand); a vehicle that is not a dynamic body
-// with a Vehicle, or is in another frame or local frame than the platform; one that already holds a
-// berth or a place; and a platform that is not one, or has no berth the vehicle fits. With a feature
-// (BerthLayout::features), only a berth that offers it is given, the smallest and lowest numbered of
-// those, and a platform with no such berth the vehicle fits refuses; with none, any berth. Registered
-// with Reflect, every field Saved, by RegisterTypes.
+// lowest-ranked free berth its vehicle fits, the lowest numbered of those, or, with none, a place at
+// the back of the platform's queue. Flown in by the docks if fly is set. Refused, with a BerthRefused,
+// for a sender that does not control the vehicle (Sim::MayCommand); a vehicle that is not a dynamic
+// body with a Vehicle, or is in another frame or local frame than the platform; one that already holds
+// a berth or a place; and a platform that is not one, or has no berth the vehicle fits. With a feature
+// (BerthLayout::features), only a berth that offers it is given, the lowest-ranked and lowest numbered
+// of those, and a platform with no such berth the vehicle fits refuses; with none, any berth.
+// Registered with Reflect, every field Saved, by RegisterTypes.
 struct RequestBerth
 {
 	Sim::Controller sender;
@@ -262,7 +262,7 @@ struct Left
 //      normal, its nose within 15° of the heading), and moving at under half a metre a second, is
 //      clamped there, docked; one flown in that has reached the point above its berth comes down onto
 //      it; and one leaving that has reached the point above its berth gives it up.
-//   4. Serves each platform's queue from the front, each vehicle the smallest free berth it fits.
+//   4. Serves each platform's queue from the front, each vehicle the lowest-ranked free berth it fits.
 //
 // A vehicle flown in by the docks is steered (Ai::Steering): first along a course round the platform's
 // sphere (Ai::Waypoints) to a point out along its berth's normal, as far beyond the point above the
@@ -354,13 +354,13 @@ class Docks
 	// and no reservation is held, until the first lapses.
 	std::uint64_t QuietFrom(const Sim::SimWorld &world) const;
 
-	// The smallest free berth the vehicle fits, the lowest numbered of those, that offers the
+	// The lowest-ranked free berth the vehicle fits, the lowest numbered of those, that offers the
 	// feature the vehicle asked for if it asked for one (Docking::feature), or none.
 	entt::entity FreeBerthFor(
 	    const entt::registry &registry, const Platform &platform, entt::entity vehicle) const;
 
-	// Gives each vehicle in the platform's queue, from the front, the smallest free berth it fits. The
-	// time is the one the world's transforms are at: the step's start in a command, its end in the
+	// Gives each vehicle in the platform's queue, from the front, the lowest-ranked free berth it fits.
+	// The time is the one the world's transforms are at: the step's start in a command, its end in the
 	// system.
 	void Serve(Sim::SimWorld &world, entt::entity platform, double time);
 

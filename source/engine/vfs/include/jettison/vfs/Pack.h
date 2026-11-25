@@ -11,8 +11,8 @@ namespace Jettison::Vfs
 // A pack file: a directory's files in one file, which FileSystem mounts as it does the directory,
 // for shipping. Each file is kept on its own, stored as it is or compressed as one zstd frame with
 // its checksum, so one is read without reading the rest, and a damaged one is caught as it is
-// read. A file is compressed only where that pays: the space sample's assets were 87 MB, 75 MB of them
-// textures already zstd-supercompressed in their KTX 2 files, and zstd at level 1 saves under
+// read. A file is compressed only where that pays: the retired space sample's assets were 87 MB, 75 MB
+// of them textures already zstd-supercompressed in their KTX 2 files, and zstd at level 1 saves under
 // 0.1 % on those and on the models, about half on the text (measured 2026-11-13).
 //
 // The layout, little-endian:
@@ -29,8 +29,8 @@ struct PackOptions
 {
 	// zstd's level for a file that compresses (1 to 22). A file is tried at level 1 first, and
 	// stored as it is unless that saves a thirty-second of it, so the level is spent on the files
-	// it helps: at 19, the sample assets pack in under a second, against 22 CPU-seconds for the
-	// whole tree at 19.
+	// it helps: over the retired space sample's assets, measured 2026-11-13, level 19 packed them in
+	// under a second, against 22 CPU-seconds for the whole tree at 19.
 	int level{19};
 	// The directories under the root to pack, as virtual paths, or every file under it when empty:
 	// a build's staged assets share their directory with the build system's own files.

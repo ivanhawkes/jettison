@@ -1,4 +1,4 @@
-// GPU particles (docs/architecture.md, "Particles"): what a particle is in the pool, what its
+// GPU particles (docs/rendering-effects.md, "Particles"): what a particle is in the pool, what its
 // emitter tells the GPU each frame, and how one is born and moves. particles.comp steps every slot of
 // an emitter once a frame, and particle.vert draws them in the transparent pass.
 //

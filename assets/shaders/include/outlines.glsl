@@ -1,4 +1,4 @@
-// The frame's outlines (docs/architecture.md, "Outlines"), as the CPU lists them
+// The frame's outlines (docs/rendering-effects.md, "Outlines"), as the CPU lists them
 // (Render::GpuOutline): an object's ID names its outline by index plus one (post.glsl's
 // ObjectOutline).
 

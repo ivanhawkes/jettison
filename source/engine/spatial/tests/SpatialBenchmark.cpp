@@ -12,7 +12,7 @@
 
 using namespace Jettison;
 
-// The measurement phase 6c chose the structure by (docs/roadmap.md, "Decided"), less the sorted
+// The measurement phase 6c chose the structure by (docs/decisions.md, "Scenes"), less the sorted
 // grid it was measured against, which commit 64d5488 has: check that out to run the comparison.
 // Skipped in the gate; run it from a Release tree with
 //

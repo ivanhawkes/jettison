@@ -355,7 +355,7 @@ endif()
 #    in v4.4.2 and still in v5.0.0-rc2, with no option to use another. A second zstd in the same
 #    executable is duplicate symbols, or two versions of one library resolving each other's calls,
 #    so ktx_read is built against the engine's zstd (below) instead: its copy is taken out of the
-#    target's sources and the engine's headers put before its own (docs/roadmap.md, "Decided").
+#    target's sources and the engine's headers put before its own (docs/decisions.md, "Files, packs and mods").
 #  - ETC unpacking is off: it is Ericsson's code under its own licence, and desktop GPUs do not
 #    need ETC. OpenGL upload, tools, tests and documentation are off. KTX 1 stays on, although
 #    the engine reads KTX 2 only: with KTX_FEATURE_KTX1 off, ktx_read's texture.c still calls
@@ -440,8 +440,8 @@ endif()
 
 # Physics, behind physics' PhysicsWorld.h (phase 7a). Every setting here is one the engine has to
 # agree with:
-#  - Double precision, because simulation positions are doubles in the system frame
-#    (docs/architecture.md). CROSS_PLATFORM_DETERMINISTIC, because the simulation must give the
+#  - Double precision, because simulation positions are doubles in a frame
+#    (docs/coordinates.md). CROSS_PLATFORM_DETERMINISTIC, because the simulation must give the
 #    same answer in every build of the engine: without it Jolt compiles with
 #    -ffp-contract=fast, and whether a multiply and an add are fused then depends on the
 #    optimisation level, so a replay recorded in a Debug build can diverge in Release. Under it
@@ -461,7 +461,7 @@ endif()
 # Jolt adds its instruction-set flags (-mavx2 -mbmi -mpopcnt -mlzcnt -mf16c) as PUBLIC compile
 # options, so they reach every target that links it. physics links it privately, so its own
 # translation units are compiled for AVX2 and nothing above it is; the engine's CPU baseline is
-# x86-64 with AVX2 either way, which is the decided minimum (docs/roadmap.md, "Decided"), and
+# x86-64 with AVX2 either way, which is the decided minimum (docs/decisions.md, "Build and platform"), and
 # USE_AVX512 stays off, because raising it is a new decision.
 block()
 	set(DOUBLE_PRECISION ON)
@@ -496,7 +496,7 @@ block()
 endblock()
 
 # Scripting (phase 11b), behind script's ScriptHost.h. WAMR was chosen over wasmtime as the phase
-# began (docs/roadmap.md, "Decided"). WAMR's top-level CMakeLists.txt is the build for WAMR's own
+# began (docs/decisions.md, "Scripts"). WAMR's top-level CMakeLists.txt is the build for WAMR's own
 # iwasm program, with AOT and WASI on by default. The library is built from WAMR's documented
 # embedding script instead, in a directory of its own, because that script sets C flags and compile
 # definitions for the whole directory it runs in; wamr/CMakeLists.txt says what is on.
@@ -543,9 +543,9 @@ block()
 	FetchContent_MakeAvailable(sodium)
 endblock()
 
-# Planned: the libraries docs/roadmap.md names for later phases, fetched before a phase depends on
-# them so the whole set is proven to link together, and EXCLUDE_FROM_ALL, so a tree builds only what
-# something links. WAMR was the last of them, and left as phase 11b began to use it; the set is
+# Planned: the libraries docs/build-and-gates.md ("Planned dependencies and the probe") names for later
+# work, fetched before a phase depends on them so the whole set is proven to link together, and
+# EXCLUDE_FROM_ALL, so a tree builds only what something links. WAMR was the last of them, and left as phase 11b began to use it; the set is
 # empty, and the option is what builds the dependency probe, which links every library the engine
 # has (source/test/CMakeLists.txt).
 #

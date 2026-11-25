@@ -102,7 +102,7 @@ class SystemInterface final : public Rml::SystemInterface
 // RmlUi's drawing, recorded into the overlay: geometry compiled once and kept here, appended to the
 // overlay each time it is drawn; textures held by the overlay, which the renderer uploads. Clip masks,
 // layers, filters and shaders are left at RmlUi's defaults, which draw nothing for them
-// (docs/roadmap.md, "Carried forward").
+// (docs/roadmap.md, J23).
 class RenderInterface final : public Rml::RenderInterface
 {
   public:

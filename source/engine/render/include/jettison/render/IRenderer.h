@@ -63,7 +63,8 @@ struct RendererOptions
 	bool depthPrepass{false};
 	// Ambient occlusion, and bloom's strength (0 for none), until the dev tools change them. Without a
 	// word either way, ambient occlusion is on, except on a CPU device: it runs the depth prepass,
-	// which in the dressed orbit scene costs lavapipe 11 ms of a 50 ms budget (docs/history.md, 10c).
+	// which in the dressed orbit scene costs lavapipe 11 ms of a 50 ms budget (docs/history/phases.md,
+	// 10c).
 	std::optional<bool> ambientOcclusion;
 	float bloom{0.04f};
 	// Part of the name of the GPU to draw with (--gpu), in place of the one the renderer would choose
@@ -79,10 +80,9 @@ struct RendererOptions
 	bool offscreen{false};
 };
 
-// The renderer as the rest of the engine sees it (docs/architecture.md, "Rendering: clustered
-// forward"): the window it draws into, the frame of a scene, the UI drawn over it, and what the
-// frame cost. No Vulkan type crosses it; the backend's objects are made and destroyed behind it
-// (render/src/vulkan).
+// The renderer as the rest of the engine sees it (docs/rendering.md): the window it draws into, the
+// frame of a scene, the UI drawn over it, and what the frame cost. No Vulkan type crosses it; the
+// backend's objects are made and destroyed behind it (render/src/vulkan).
 //
 // Nothing behind it releases a GPU object in a destructor: Destroy does, in order, after the last
 // frame's fence.
@@ -110,8 +110,8 @@ class IRenderer
 
 	// Whether the attachment the UI is drawn into encodes the colour it is given, which the dev
 	// tools' theme decodes its palette for so that a palette hex reads as it is written on an sRGB
-	// swapchain, and as authored on the UNORM one a compositor can ask for (docs/architecture.md,
-	// "UI", devtools/Theme.h). True before Init, when there is no attachment yet.
+	// swapchain, and as authored on the UNORM one a compositor can ask for (docs/ui.md, "The dev tools'
+	// theme", devtools/Theme.h). True before Init, when there is no attachment yet.
 	virtual bool UiColoursLinearised() const = 0;
 
 	// Records and submits the scene as it stands: the presentation phase has already animated it
@@ -142,18 +142,18 @@ class IRenderer
 	virtual DebugView GetDebugView() const = 0;
 
 	// Whether the opaque surfaces' depth is laid down before they are shaded, so each pixel is
-	// shaded once (docs/architecture.md, "The frame").
+	// shaded once (docs/rendering.md, "The frame").
 	virtual void SetDepthPrepass(bool enabled) = 0;
 
 	virtual bool GetDepthPrepass() const = 0;
 
 	// Ambient occlusion over the opaque surfaces' image-based light, which runs the depth prepass
-	// while it is on (docs/architecture.md, "Ambient occlusion").
+	// while it is on (docs/rendering-effects.md, "Ambient occlusion").
 	virtual void SetAmbientOcclusion(bool enabled) = 0;
 
 	virtual bool GetAmbientOcclusion() const = 0;
 
-	// The share of the frame's light bloom spreads, 0 for none (docs/architecture.md, "Bloom").
+	// The share of the frame's light bloom spreads, 0 for none (docs/rendering-effects.md, "Bloom").
 	virtual void SetBloom(float strength) = 0;
 
 	virtual float GetBloom() const = 0;

@@ -207,7 +207,7 @@ cmake --build --preset clang-cpu
 ctest --test-dir build/clang-cpu --output-on-failure --no-tests=error -j "$jobs"
 
 if [ "$smoke" -eq 1 ]; then
-	# From the packed assets and with a data mod in the user's mods, as a shipped build runs; the
+	# From the packed assets, the engine's and the test content's, as a shipped build runs; the
 	# reference frames and the sanitised run read the staged directory.
 	# Offscreen on a GPU where there is one, since no NVIDIA card can present under Xvfb; on lavapipe
 	# under Xvfb, through the swapchain, as CI and the pre-merge hook run it (--llvmpipe), or where

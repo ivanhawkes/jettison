@@ -76,7 +76,7 @@ struct OrbitTarget
 	double radius{0.0};
 };
 
-// Where a pick is cast (docs/architecture.md, "Physics"): the frame of the world's physics it is cast
+// Where a pick is cast (docs/physics.md): the frame of the world's physics it is cast
 // in, the entity it passes through, which the camera is inside, and whether what it picks is a target,
 // outlined as one (Scene::OutlineStyle::Targeted), rather than a selection.
 struct PickSpace

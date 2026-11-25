@@ -27,10 +27,10 @@ namespace Jettison::Audio
 // and adds one with a new path.
 //
 //   version: 1
-//   event: Shell.VehicleDocked     # the event's type, as Reflect names it
+//   event: Dock.Landed            # the event's type, as Reflect names it
 //   sound: audio/effects/docked.wav
 //   bus: Effects
-//   at: platform                   # the event's entity field the sound is placed at; none: flat
+//   at: berth                      # the event's entity field the sound is placed at; none: flat
 //   minDistance: 200
 //
 // A clip's event names it as the clip file does, in place of the event's type, and is heard from

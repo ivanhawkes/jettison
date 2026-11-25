@@ -17,7 +17,7 @@ struct PassTiming
 	double meanMs{0.0};
 };
 
-// What the frame drew and what it left out (docs/architecture.md, "The frame"), counted as it was
+// What the frame drew and what it left out (docs/rendering.md, "The frame"), counted as it was
 // prepared: the meshes, the instanced draws they became, and the triangles those submit.
 struct FrameStats
 {

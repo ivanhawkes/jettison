@@ -16,8 +16,8 @@ namespace Jettison::Core
 {
 // Logging: a severity, a category and a message, to sinks (stderr, a file, and callbacks such as
 // the console's). Engine code logs through here and never through spdlog directly, so categories
-// and sinks stay the engine's (docs/history.md, entry 3). spdlog writes the stderr and file sinks;
-// this file owns which messages reach them.
+// and sinks stay the engine's (docs/history/catalogue.md, entry 3). spdlog writes the stderr and file
+// sinks; this file owns which messages reach them.
 //
 // Before InitLogging is called, and after ShutdownLogging, messages at Info and above go to
 // stderr: a log line that goes nowhere is a lost report. Every function here is thread-safe.
@@ -89,8 +89,8 @@ void Log(
 }
 
 // Installs the sinks: stderr always, and the file when one is given, truncated, its directory
-// created. Messages below minimum are dropped. Called once by the app shell, and again to change
-// the sinks. Throws when the file cannot be opened.
+// created. Messages below minimum are dropped. Called once by a program before it logs (the shell does
+// not yet: docs/roadmap.md, J10), and again to change the sinks. Throws when the file cannot be opened.
 void InitLogging(Severity minimum, const std::filesystem::path &file = {});
 
 // Flushes and closes the file sink, and returns to the stderr default above. Callbacks stay

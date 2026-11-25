@@ -1,4 +1,4 @@
-# The AI that knows no genre (docs/architecture.md, "AI"): utility decisions, behaviour trees, graph
+# The AI that knows no genre (docs/ai.md): utility decisions, behaviour trees, graph
 # search, courses round spheres, and steering, which flies a body through physics' flight controls.
 # Space transit (cruise, gates, lanes, galaxy routes) is the space module's.
 jettison_add_module(ai

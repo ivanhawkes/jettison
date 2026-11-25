@@ -1,4 +1,4 @@
-// The one lighting implementation (docs/architecture.md, "Rules that follow"): every lit program
+// The one lighting implementation (docs/rendering.md): every lit program
 // shades a surface through ShadeSurface, which adds the sun, the local lights of the cluster the
 // fragment falls in and the environment, all through brdf.glsl. The sun is shadowed through its
 // cascades (shadows.glsl).
@@ -43,7 +43,7 @@ layout(set = 0, binding = 5) uniform samplerCube environmentIrradiance;
 layout(set = 0, binding = 6) uniform sampler2D brdfLut;
 
 // The share of the ambient light that reaches the opaque surface in this pixel, as the ambient
-// occlusion passes left it (docs/architecture.md, "Ambient occlusion"), or 1 in a frame without them.
+// occlusion passes left it (docs/rendering-effects.md, "Ambient occlusion"), or 1 in a frame without them.
 // The image is of the opaque surfaces, so only their programs read it.
 layout(set = 0, binding = 16) uniform sampler2D ambientAccessMap;
 

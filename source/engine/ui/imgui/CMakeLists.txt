@@ -1,4 +1,4 @@
-# The developer console and dev tools over ImGui (docs/architecture.md, ui/imgui). The console
+# The developer console and dev tools over ImGui (docs/ui.md, "The console"). The console
 # itself draws nothing and is tested as text; Views.cpp puts it on screen, and its tests run ImGui
 # with no renderer. The ImGui renderer, the Vulkan side, stays in render.
 jettison_add_module(devtools

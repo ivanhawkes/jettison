@@ -6,8 +6,8 @@
 namespace Jettison::Platform
 {
 // The start-up CPU check. The engine's baseline is x86-64 with AVX2 and the instructions that
-// come with it (docs/roadmap.md, "Decided"), set by Jolt's public instruction-set flags: once an
-// executable links Jolt, the compiler may emit them anywhere, static initialisers included.
+// come with it (docs/decisions.md, "Build and platform"), set by Jolt's public instruction-set flags:
+// once an executable links Jolt, the compiler may emit them anywhere, static initialisers included.
 //
 // So the check that matters is not a call. Every executable that links platform runs a guard
 // from .preinit_array, which the dynamic loader calls before any static initialiser: on a machine

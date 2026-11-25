@@ -16,8 +16,8 @@ struct LightComponent;
 namespace Jettison::Render
 {
 
-// The cluster grid of docs/architecture.md ("The grid and the infinite far plane") on the CPU. The
-// functions are assets/shaders/include/clusters.glsl compiled as C++, the same source the cluster
+// The cluster grid of docs/rendering.md ("Clustered lights") on the CPU.
+// The functions are assets/shaders/include/clusters.glsl compiled as C++, the same source the cluster
 // programs and the lighting include run on the GPU, so the CPU reference below and the render
 // suite's tests check that source rather than a copy of it.
 

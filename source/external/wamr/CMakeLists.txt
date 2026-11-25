@@ -15,7 +15,7 @@
 #    with either toolchain's defaults loads.
 #  - Instruction metering, the fuel: each call runs at most so many of the interpreter's
 #    instructions, counted the same on every run, so a script out of fuel stops at the same point
-#    in every build (docs/architecture.md, "Scripts").
+#    in every build (docs/scripts.md).
 #  - The thread manager, alone, without the pthread library it usually comes with: it is what lets
 #    another thread stop a call. The host's watchdog terminates a call past its time limit, and the
 #    interpreter only sees that at a branch or a call when the call's environment is in a cluster,

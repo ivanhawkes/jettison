@@ -14,9 +14,9 @@ namespace Jettison::Spatial
 // What a spatial index asks and how it answers, shared by the structure kept and any measured
 // against it.
 //
-// Entities are points in the system frame, in metres (docs/architecture.md, "Coordinate frames and
-// units"). A query for things with extent, an obstacle and its radius, widens its own radius by the
-// largest extent it cares about and tests the extent itself.
+// Entities are points in a frame, in metres (docs/coordinates.md). A query for things with extent, an
+// obstacle and its radius, widens its own radius by the largest extent it cares about and tests the
+// extent itself.
 //
 // Every structure decides membership with the functions below, and nothing else, so a structure and
 // the brute-force walk its tests compare it with agree to the last bit, and its own bounds can be

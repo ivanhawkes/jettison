@@ -24,7 +24,7 @@ namespace Jettison::Sim
 class SimWorld;
 
 // Where a simulation entity is: a position in its frame (InFrame), in metres, and an orientation,
-// both in double precision (docs/architecture.md, "Coordinate frames and units"). What physics
+// both in double precision (docs/coordinates.md). What physics
 // will write and what presentation interpolates. Registered with Reflect, both fields Saved, by
 // RegisterTypes.
 struct Transform
@@ -34,8 +34,9 @@ struct Transform
 };
 
 // Which frame an entity's Transform is in, for a world of more than one: a partition of the game's,
-// each with its own origin, so two positions are comparable only in the same frame. A game of one
-// frame gives its entities none. A frame is its name hashed as Core::StringId hashes it (FrameId),
+// each with its own origin, so two positions are comparable only in the same frame. An entity with
+// none is in no frame (kNoFrame), so physics makes it no body and the spatial index leaves it out,
+// even in a game of one frame. A frame is its name hashed as Core::StringId hashes it (FrameId),
 // which a save keeps, so renaming one in the game's data moves its entities nowhere rather than into
 // another frame. An entity between frames, as one passing through a portal is, is in none (kNoFrame)
 // until it arrives. Registered with Reflect, its field Saved, by RegisterTypes; a world registers it

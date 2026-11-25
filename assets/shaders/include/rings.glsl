@@ -1,4 +1,4 @@
-// A body's rings (docs/architecture.md, "Atmospheres"): a flat annulus in the plane of its equator,
+// A body's rings (docs/rendering.md, "Atmospheres and rings"): a flat annulus in the plane of its equator,
 // of bands and gaps drawn from a seed, lit by the sun, in the body's shadow, and casting its own
 // onto the body. The planet program composites them over the surface where they are in front of it
 // and darkens the sunlight they stand in the way of; the atmosphere program composites them over

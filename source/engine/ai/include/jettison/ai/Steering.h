@@ -38,7 +38,7 @@ struct Handling;
 
 namespace Jettison::Ai
 {
-// Steering for local flight (docs/architecture.md, "Steering"): seek, arrive, avoidance and
+// Steering for local flight (docs/ai.md, "Steering"): seek, arrive, avoidance and
 // separation. Each is a velocity, not an acceleration: flight assist (Physics::FlightControls)
 // holds a demanded velocity, reaching it as fast as the thrusters allow, so a vehicle's steering is
 // the velocity its behaviours sum to, held to its speed, and the flight model is what limits how

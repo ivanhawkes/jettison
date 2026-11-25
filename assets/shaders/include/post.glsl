@@ -1,4 +1,4 @@
-// The post passes' arithmetic (docs/architecture.md, "Post-processing" and "Outlines"): a pixel's
+// The post passes' arithmetic (docs/rendering-effects.md, "Post-processing" and "Outlines"): a pixel's
 // view-space position from the reversed, infinite depth; the ambient obscurance one sample of the
 // neighbourhood adds; the bloom chain's filters; the jump flood's choice of the nearer seed; and an
 // outline's glow over its width. The passes sample their images and call these with what they read.

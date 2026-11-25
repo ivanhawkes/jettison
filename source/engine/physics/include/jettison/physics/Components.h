@@ -100,7 +100,7 @@ struct OnRails
 	bool operator==(const OnRails &) const = default;
 };
 
-// The frame a body's physics runs in (docs/architecture.md, "Coordinate frames and units"): the
+// The frame a body's physics runs in (docs/coordinates.md): the
 // local frame of that body of its frame's (FrameModel), a platform or a moving deck,
 // which moves with the body and does not turn with it. A body without one is in the frame's own,
 // at rest at its origin. Each local frame with bodies is a Jolt world of its own, so only bodies in

@@ -89,7 +89,7 @@ struct CastOptions
 	std::optional<double> framesAt;
 };
 
-// The command that picks what is under the mouse (docs/architecture.md, "Physics"): a ray, drawn by
+// The command that picks what is under the mouse (docs/physics.md): a ray, drawn by
 // presentation from what it shows, cast against physics as the step applying it begins and answered
 // with a Picked event, so presentation never reads the simulation's state. The request is the
 // caller's, handed back in the answer with its sender, so each player's presentation takes its own
@@ -194,9 +194,9 @@ class FrameModel
 //      placed there, a dynamic body whose Velocity was written takes it, and every kinematic body
 //      is moved towards its Transform over the step; in a world with nothing dynamic it is put
 //      there instead, at rest and asleep, its Velocity what the move implies, so its state is its
-//      place alone (docs/architecture.md, "Quiet steps"). Then each dynamic body in a defined frame
-//      gains what its frame's gravity gives it over the step, from where the bodies are as the
-//      step begins.
+//      place alone (docs/simulation.md, "Quiet steps and fast-forward"). Then each dynamic body in a
+//      defined frame gains what its frame's gravity gives it over the step, from where the bodies are
+//      as the step begins.
 //   4. Each frame's worlds step, in identifier order, on one thread.
 //   5. Each moving body's Velocity, and each dynamic body's Transform, are written from it.
 //   6. The contacts the step began and ended are what Contacts() returns until the next.
@@ -204,7 +204,7 @@ class FrameModel
 // calls into Jolt, and with Jolt built CROSS_PLATFORM_DETERMINISTIC, the same results in every
 // build.
 //
-// Contacts are the simulation's to read (docs/architecture.md, "Physics"): a game system ordered
+// Contacts are the simulation's to read (docs/physics.md): a game system ordered
 // after "physics" reads the step's, and one before it reads the last step's, which a save holds,
 // so a world loaded from it hands the same contacts to the same systems. Two bodies touch while
 // Jolt has a contact between them, which begins a couple of centimetres before they meet, as
@@ -323,7 +323,7 @@ class PhysicsWorld final : public Sim::WorldService
 	// its bodies from physics' records instead, each where it was placed, moving as it was, and
 	// asleep if it was: the world steps on, but not as the one saved would have, without the
 	// contacts Jolt warm-starts each step from, and with each awake body's time at rest begun again
-	// (docs/architecture.md, "Persistence"). What touches is kept, and the contacts Jolt finds
+	// (docs/persistence.md). What touches is kept, and the contacts Jolt finds
 	// again in the first step begin nothing.
 	std::function<void()> Load(
 	    Serialise::BinaryReader &reader, const entt::registry &loaded,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Writes the light-budget scene: orbit.yaml with a few hundred more point lights over Ostra
-# Highport's hull, the station-full of lights the cluster grid is sized for (docs/architecture.md,
-# "The grid and the infinite far plane"). Phase 5e measured the grid, the cluster range and the
+# Highport's hull, the station-full of lights the cluster grid is sized for (docs/rendering.md,
+# "Clustered lights"). Phase 5e measured the grid, the cluster range and the
 # light index list's budget against it. The scene names its materials by virtual
 # path, found through the asset mounts, so it can be written anywhere; it goes beside the orbit scene
 # it is made from, in a build tree's asset copy rather than the source tree:

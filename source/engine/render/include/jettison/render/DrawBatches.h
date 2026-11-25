@@ -8,7 +8,7 @@ namespace Jettison::Render
 {
 class Model;
 
-// Instancing (docs/architecture.md, "The frame"): the draws that share a model, a level of detail and
+// Instancing (docs/rendering.md, "The frame"): the draws that share a model, a level of detail and
 // a material become one instanced draw, each instance's transform read from the frame's instance
 // buffer by gl_InstanceIndex. A skinned draw is a batch of its own, since its vertices are its own
 // pose. Nothing here touches the device, so the render suite checks the grouping and the order.
@@ -45,7 +45,7 @@ struct DrawBatch
 	std::uint32_t instanceCount{0};
 };
 
-// The transparent draws (docs/architecture.md, "Transparency"): each of a mesh's instances, or an
+// The transparent draws (docs/rendering-effects.md, "Transparency"): each of a mesh's instances, or an
 // emitter's particles, which the transparent pass blends over what is behind it, and so draws back to
 // front. A particle draw has no key; its index is the emitter's in the frame's list of them.
 struct SortedInput

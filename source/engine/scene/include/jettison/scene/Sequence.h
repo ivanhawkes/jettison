@@ -21,7 +21,7 @@ class ResourceManager;
 
 namespace Jettison::Scene
 {
-// A cinematic (docs/architecture.md, "Cinematics"): shots of a camera on rails, cut or blended one
+// A cinematic (docs/animation.md, "Sequences"): shots of a camera on rails, cut or blended one
 // into the next, over the game's own camera and back to it, with a fade, letterbox bars and events
 // on the same timeline. It is presentation alone: nothing in it touches the simulation, and the
 // game's camera rigs run under it the whole time, so it hands the camera back to wherever they have

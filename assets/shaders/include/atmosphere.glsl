@@ -1,4 +1,4 @@
-// A body's atmosphere (docs/architecture.md, "Atmospheres"): a shell of air over a sphere that
+// A body's atmosphere (docs/rendering.md, "Atmospheres and rings"): a shell of air over a sphere that
 // scatters the sun's light once on its way to the camera, by Rayleigh scattering (the air, which
 // scatters blue the most) and Mie scattering (haze, which scatters forwards, as a glow about the sun),
 // each of a density falling exponentially with height. What a ray from the camera picks up through

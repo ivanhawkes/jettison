@@ -1,6 +1,6 @@
 # Ostra Highport, the farming world's trade hub (docs/sample-game.md): twelve destroyer pads for the
 # largest transports on four piers of three, reaching out from a hub along the station's +X, -X, +Z and
-# -Z, 1.5 km across, within the 2 km cluster range from its centre (docs/roadmap.md, "Decided"). A
+# -Z, 1.5 km across, within the 2 km cluster range from its centre (docs/rendering.md, "Clustered lights"). A
 # station layout of the docks (Dock.PlatformLayout), in the station's axes, metres.
 #
 # The hub is 200 m square and 60 m deep. Each pier is 660 m long, 120 m wide and 20 m deep, its top 10 m

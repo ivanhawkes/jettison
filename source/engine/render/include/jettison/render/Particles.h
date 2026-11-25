@@ -17,9 +17,9 @@ struct ParticleEmitterComponent;
 
 namespace Jettison::Render
 {
-// The particle emitters' CPU half (docs/architecture.md, "Particles"). The particles themselves are
-// the GPU's: a pool of slots, device-local and kept from frame to frame, that particles.comp steps in
-// place and particle.vert draws. What the CPU keeps is each emitter's share of the pool, a ring its
+// The particle emitters' CPU half (docs/rendering-effects.md, "Particles"). The particles themselves
+// are the GPU's: a pool of slots, device-local and kept from frame to frame, that particles.comp steps
+// in place and particle.vert draws. What the CPU keeps is each emitter's share of the pool, a ring its
 // births go round, and the count of what it has made, so it is told each frame only how many are
 // born and where; nothing is read back. Nothing here touches the device, so the render suite checks
 // the bookkeeping, and the shaders' own source compiled as C++ (below), without one.

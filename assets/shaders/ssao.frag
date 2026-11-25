@@ -4,7 +4,7 @@
 #include "frame.glsl"
 #include "post.glsl"
 
-// Ambient occlusion (docs/architecture.md, "Ambient occlusion"): the share of the ambient light that
+// Ambient occlusion (docs/rendering-effects.md, "Ambient occlusion"): the share of the ambient light that
 // reaches each pixel's opaque surface, from the depth prepass's depth and normals at sample zero,
 // before the opaque pass shades. Scalable Ambient Obscurance's estimator (post.glsl) over a spiral of
 // samples a view-space radius across, turned a pixel's own way in a 4 x 4 pattern that the blur after

@@ -23,7 +23,7 @@ namespace Jettison::Spatial
 // for traffic stepped at 60 Hz and made every small query slower, as loose cubes overlap; it is
 // kept as a setting, at 1, for traffic that moves farther in a step.
 //
-// The root's cube is a power of two metres on a side, centred on the system's origin, so that every
+// The root's cube is a power of two metres on a side, centred on the frame's origin, so that every
 // node's centre and size, and its loose cube, are exact in double: halving them never rounds. A
 // point outside the root's cube is held by the root itself, which every query visits.
 class Octree

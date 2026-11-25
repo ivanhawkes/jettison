@@ -86,7 +86,7 @@ namespace Detail
 class AudioState;
 }
 
-// The game's sound (docs/architecture.md, "Audio"): miniaudio behind an engine interface, so nothing
+// The game's sound (docs/audio.md): miniaudio behind an engine interface, so nothing
 // above it includes miniaudio. Sounds are read through the VFS, so a mod's mount replaces one by
 // shadowing its file; miniaudio decodes WAV, FLAC and MP3.
 //

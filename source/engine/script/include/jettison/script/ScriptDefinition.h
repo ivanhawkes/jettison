@@ -16,10 +16,10 @@ namespace Jettison::Script
 // with a file and changes another's grants or fuel with a patch, as it would a good's price. It
 // names its module (a .wasm through the VFS, usually beside it in the same mod), what each call
 // may spend, what the module is granted, and which of its exports the host calls, and for what
-// (docs/architecture.md, "Scripts").
+// (docs/scripts.md).
 
 // A handler: the exported function called with each event of the type, by the type's registered
-// name ("Shell.Traded"), as void handler(const Shell_Traded *event). Registered as
+// name ("Dock.Landed"), as void handler(const Dock_Landed *event). Registered as
 // "Script.EventHandler".
 struct EventHandler
 {

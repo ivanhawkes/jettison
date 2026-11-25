@@ -39,7 +39,7 @@ inline entt::entity FindById(const entt::registry &registry, std::string_view id
 	return entt::null;
 }
 
-// The content layers within a scene (docs/scope.md, "Scene: layers"): for loading in
+// The content layers within a scene (docs/scope.md, "Scene layers"): for loading in
 // stages and for editor visibility.
 enum class Layer : std::uint8_t
 {
@@ -154,7 +154,7 @@ enum class LightType
 	Spot
 };
 
-// A local light (docs/architecture.md, "Rules that follow"): a point or a spot, shining from the
+// A local light (docs/rendering.md): a point or a spot, shining from the
 // entity's position, with a finite range past which it lights nothing, so the cluster passes can
 // assign it to the clusters it reaches and no others. A spot points along the entity's -Z, and its
 // cone angles are half-angles from that axis in radians, full inside the inner and dark outside the
@@ -275,7 +275,7 @@ struct BodyComponent
 	std::string name;
 };
 
-// The scene's one directional light (docs/architecture.md, "Rules that follow"): it shines
+// The scene's one directional light (docs/rendering.md): it shines
 // from the entity's position, which is normally the sun's, towards whatever the camera sees, and
 // lives in the frame constants rather than the light list. Linear colour times intensity.
 struct SunComponent
@@ -320,7 +320,7 @@ struct ColourGradeComponent
 	friend bool operator==(const ColourGradeComponent &, const ColourGradeComponent &) = default;
 };
 
-// A body's atmosphere (docs/architecture.md, "Atmospheres"): air over the surface of the
+// A body's atmosphere (docs/rendering.md, "Atmospheres and rings"): air over the surface of the
 // sphere the entity's mesh draws, which scatters the sun's light towards the camera, as a limb about
 // the body seen from space and a haze over its surface, and reddens the sunlight that reaches the
 // surface at the terminator. Single scattering by Rayleigh (the air) and Mie (haze), each of a
@@ -345,7 +345,7 @@ struct AtmosphereComponent
 	friend bool operator==(const AtmosphereComponent &, const AtmosphereComponent &) = default;
 };
 
-// A body's rings (docs/architecture.md, "Atmospheres"): a flat annulus of ice and dust in
+// A body's rings (docs/rendering.md, "Atmospheres and rings"): a flat annulus of ice and dust in
 // the plane of the body's equator, the transform's XZ plane, between two radii from its centre in
 // metres. Its bands and gaps are drawn from the seed; the opacity is the densest band's, the share
 // of the light behind it that it stops. Lit by the sun, in the body's shadow, and casting its own
@@ -361,7 +361,7 @@ struct RingsComponent
 	friend bool operator==(const RingsComponent &, const RingsComponent &) = default;
 };
 
-// A particle emitter (docs/architecture.md, "Particles"): sprites simulated on the GPU, born about
+// A particle emitter (docs/rendering-effects.md, "Particles"): sprites simulated on the GPU, born about
 // the entity's position and sent along its -Z, as a spot shines, within a cone, then slowed by drag,
 // and drawn in the transparent pass as discs facing the camera that fade towards their edges. Each
 // is born with the first colour and size and dies with the end ones, mixed linearly over its life.
@@ -414,7 +414,7 @@ struct ParticleEmitterComponent
 	entt::entity frame{entt::null};
 };
 
-// A mesh outlined on the screen, and every mesh under it, as one shape (docs/architecture.md,
+// A mesh outlined on the screen, and every mesh under it, as one shape (docs/rendering-effects.md,
 // "Outlines"): the selected, by a crisp line a pixel wide just outside it, or the targeted, by a soft
 // glow that fades out over its width. Either reads at any distance, since both are measured in
 // pixels, and is drawn over whatever is about the shape, under the UI. Presentation's alone: the game
@@ -439,8 +439,8 @@ struct OutlineComponent
 inline constexpr float kMaxOutlineWidth = 24.0f;
 
 // The marks a mesh, and every mesh under it, leaves in the depth target's stencil for the frame's
-// later passes (docs/architecture.md, "Masks"): whether it is the cockpit the camera sits in, which
-// outlines are not drawn over; whether post-processing leaves it as it is shaded, as a display a
+// later passes (docs/rendering-effects.md, "Masks"): whether it is the cockpit the camera sits in,
+// which outlines are not drawn over; whether post-processing leaves it as it is shaded, as a display a
 // game draws in the world wants; and five bits that are the game's, for its own passes. The engine's
 // third bit, the outlined, follows from OutlineComponent.
 struct MaskComponent

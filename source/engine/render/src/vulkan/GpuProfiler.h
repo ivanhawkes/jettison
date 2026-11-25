@@ -12,7 +12,7 @@
 
 namespace Jettison::Render
 {
-// The GPU's time per declared pass (docs/architecture.md, "The frame"), two ways. A timestamp before
+// The GPU's time per declared pass (docs/rendering.md, "The frame"), two ways. A timestamp before
 // and after each pass, in a query pool of each frame in flight, read back once the frame's fence has
 // been waited on, so the engine can report its own budget with no profiler attached; and, when Tracy
 // is compiled in (JETTISON_PROFILE), a Tracy GPU zone over the same commands, named after the pass,

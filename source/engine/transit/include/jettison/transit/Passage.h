@@ -27,7 +27,7 @@ class SimWorld;
 
 namespace Jettison::Transit
 {
-// A passage out of physics, any game's (docs/architecture.md, "Transit"): a lift's car up its shaft,
+// A passage out of physics, any game's (docs/transit.md): a lift's car up its shaft,
 // a train along its line, a vehicle carried across a frame faster than it could fly. The entity
 // leaves physics with its body kept, is placed each step along a way the game gives (Path.h) about
 // what carries it, and is brought out at rest, clear of what is there, in a local frame the game

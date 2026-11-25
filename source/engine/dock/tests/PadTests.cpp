@@ -114,8 +114,8 @@ TEST_CASE("Docks: two ships asking in one step are given pads in command order, 
 		yard.Step();
 		return std::pair{yard.Given(), std::pair{first, second}};
 	};
-	// The smallest free berth a skiff fits is berth 2, the corvette; then the frigate berths, lowest
-	// numbered first.
+	// The lowest-ranked free berth a skiff fits is berth 2, the corvette; then the frigate berths,
+	// lowest numbered first.
 	const auto [given, vehicles] = ask(false);
 	CHECK(
 	    given ==

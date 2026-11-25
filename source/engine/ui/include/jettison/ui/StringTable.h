@@ -18,7 +18,7 @@ class FileSystem;
 
 namespace Jettison::Ui
 {
-// The text a player reads, in their language (docs/architecture.md, "Localisation"): string tables
+// The text a player reads, in their language (docs/ui.md, "String tables"): string tables
 // read through the VFS, a key to a text, which documents name as [[market.buy]] and the game's code
 // formats with Format and Plural. Developer text - the log, the console, the dev tools - stays in
 // English and does not come through here.

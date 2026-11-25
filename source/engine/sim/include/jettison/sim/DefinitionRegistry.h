@@ -49,10 +49,10 @@ namespace Jettison::Sim
 // refer to definitions by name, so a save holds none, and a definition's format can change without
 // one.
 //
-// Definitions migrate (docs/roadmap.md, "Decided"): a type's files, and its patches, are each read
-// through its YAML migrations when it has them, so a mod written against an earlier version of a
-// definition still loads after the type gains a field or renames one, without its author shipping
-// it again.
+// A type's files, and its patches, are each read through its YAML migrations when it has them, so
+// a mod written against an earlier version of a definition would still load after the type gains a
+// field or renames one. No migration is written until player testing, when owned files are rewritten
+// in place instead (docs/decisions.md, "Persistence").
 //
 // Definitions are loaded at start-up and read by the simulation, so they are kept in ordered maps:
 // Names() and any walk over them is the same on every run.
