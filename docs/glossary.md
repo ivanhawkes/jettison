@@ -8,6 +8,13 @@ Terms are in alphabetical order. A word with several meanings (frame, gate, laye
 session) has an entry per meaning, or one entry that tells them apart. The [documentation
 index](README.md) lists every document.
 
+### Acceleration structure
+
+What a ray query traverses to find what a ray hits. A bottom-level structure (BLAS) holds a model's
+triangles; the top-level structure (TLAS) holds the instances that place them, rebuilt each frame. A
+CLAS, NVIDIA's cluster acceleration structure, holds one [meshlet](#meshlet), and a bottom-level
+structure can be built from CLAS references. Planned: see [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).
+
 ### Action
 
 An input the game asks about by name, such as "throttle" or "select", rather than a key or a button.
@@ -97,6 +104,14 @@ player by slot, or the simulation's own agents. An entity with `Sim::ControlledB
 only from its controller or from no one in particular (`Sim::MayCommand`). See
 [Simulation](simulation.md#commands-controllers-and-the-helm).
 
+### Cook
+
+What `jettison_cook` does to an artist's source file: a glTF or an image in the asset source tree,
+outside the game's repository, made into what the engine reads (a GLB and its [meshlet](#meshlet)
+page file, a KTX 2 texture) in the game's asset folder. A **cook settings file** beside a source
+(`big-ship.gltf.yaml`) overrides the game's `cook.yaml` and the engine's defaults for that file.
+Planned: see [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).
+
 ### Cross-review
 
 An adversarial review by a second model (Codex) of a branch's commits, after the gate, run by
@@ -124,6 +139,12 @@ The store of every loaded [definition](#definition), by type and name (`Sim::Def
 read through the [mounts](#mount) with [patches](#patch) [layered](#layering) and
 [migrations](#migration) run. It is filled at start-up and kept in ordered maps, so a walk over it
 is the same every run. See [Simulation](simulation.md#definitions).
+
+### Depth pyramid
+
+A chain of ever smaller copies of the depth buffer, each texel the farthest depth of the texels
+under it, against which a whole meshlet or instance is tested for occlusion with a few reads; also
+called a hierarchical Z-buffer (HZB). Planned: see [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).
 
 ### Destination
 
@@ -340,6 +361,19 @@ capabilities it builds on. See [game integration](game-integration.md).
 A row of Manifest's delivery order, a letter and a number such as `W05` or `M04`, naming one piece
 of Manifest's work. The engine's documents cite one only with a link to the row in [Manifest's
 delivery order](../../manifest/docs/delivery-order.md), which is the authority.
+
+### Meshlet
+
+A small cluster of a mesh's triangles (up to a few hundred), with its bounds, normal cone and error,
+culled and drawn as a unit by task and mesh shaders. Not a cluster: that word is the light grid's
+([rendering](rendering.md#clustered-lights)). Planned: see [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).
+
+### Meshlet hierarchy
+
+A model's [meshlets](#meshlet) at every level of detail, each group simplified from the one below
+with its border locked, so any cut through it is crack-free and each meshlet decides alone whether
+it is drawn. Cooked into a page file beside the model, read in pages as the view needs them.
+Planned: see [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).
 
 ### Migration
 

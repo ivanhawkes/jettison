@@ -616,13 +616,17 @@ committed images.
 ## Limits and open work
 
 - Not yet placed, all in [J27](roadmap.md#j27): shadow tuning, and bodies' shadows past the shadow
-  distance; hysteresis between levels of detail (a draw at a threshold can switch level frame to
-  frame), and levels for model files; programs and their descriptors hot-reloaded (materials and
+  distance; programs and their descriptors hot-reloaded (materials and
   textures already are); cube maps and texture arrays from files; normal mapping on meshes (the BRDF
   has it, the vertex has no tangents); a glTF model's own metallic-roughness factors (it reads its
   base-colour image only); a model file read once rather than for its mesh and again for its rig;
   an emissive scale per draw; air over a mesh; the capture's planets and a gas giant's bands.
-- No spot or point light shadows. No backlog item holds this yet.
+- Levels of detail for model files, with hysteresis between them (a draw at a threshold can switch
+  level frame to frame), are [J37](roadmap.md#j37).
+- No spot or point light shadows; ray-traced ones are [J45](roadmap.md#j45), on devices with ray
+  queries.
+- Meshlets, occlusion culling, streaming and ray tracing are planned in [dense geometry and ray
+  tracing](dense-geometry-and-ray-tracing.md).
 - The cluster range, shadow distance and level-of-detail threshold are constants of the backend;
   `IRenderer` has no setter for them.
 - A scene's models are not prefetched before it is shown ([J13](roadmap.md#j13)).

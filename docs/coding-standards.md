@@ -326,13 +326,42 @@ criteria: elegance, efficiency, modern C++ usage, interoperability and maintenan
 `dependency_probe` with at least one real call into it, and it follows the
 [integration rules](build-and-gates.md#integration-rules-the-set-follows).
 
+Its licence must let the engine and a game on it be distributed as open source: MIT, BSD, zlib,
+Apache-2.0 and the like. A licence that forbids that, or binaries with no source, rules a library
+out however good it is (NVIDIA's RTX SDKs, FidelityFX 2; [decisions](decisions.md#build-and-platform)).
+The licence is read in the repository's own file, not taken from a summary.
+
+A fact a design rests on about an API, a driver, a device or a library (an extension's name and
+operations, a limit, what a version requires, a licence) is checked against its primary source
+before code relies on it: the headers, the registry, the library's source, or the device itself
+(`vulkaninfo`). The document that uses it gives the date and the source. A claim from a search
+summary or another assistant is a lead, not a fact; the plan for [dense geometry and ray
+tracing](dense-geometry-and-ray-tracing.md#facts-checked) found several in one transcript that did not
+hold.
+
+## GPU code
+
+- **Optional device features go through one capability table.** A path that needs a feature not
+  every device has (mesh shaders, ray queries) asks the table, a setting or flag can turn it off,
+  and the log says why it is off, as device choice logs a device's reasons. Its fallback is kept
+  drawing: a reference view runs with the path forced off.
+- **A struct the GPU reads has its layout checked.** Its size and each field's offset are
+  `static_assert`ed against the GLSL declaration it must match, so a field added on one side fails
+  the build rather than a frame.
+- **What decides an image comes in a fixed order.** GPU work whose order depends on which thread
+  finishes first (atomic appends) does not decide what is drawn where depths tie: compact in index
+  order, or make the result order-independent. The reference frames depend on it.
+- **One source, variants for features.** A program that differs by a device feature is a variant of
+  the same source (`jettison_compile_shader_variant`), not a copy, so the paths cannot drift apart.
+
 ## Testing
 
 - Every module has a doctest suite; work is not done until its suite covers its exit criterion.
 - Serialisation has round-trip tests. Simulation has replay tests of the state hash
   ([simulation code](#simulation-code)).
 - GPU paths are covered by the headless [smoke test](glossary.md#smoke-test), judged on
-  validation-layer output as well as exit status ([build and gates](build-and-gates.md)).
+  validation-layer output as well as exit status ([build and gates](build-and-gates.md)). An
+  optional path is covered both on and forced off ([GPU code](#gpu-code)).
 
 ## Commits
 

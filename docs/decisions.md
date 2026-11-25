@@ -230,6 +230,17 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   Merging the YAML before it is read keeps one reader for files and patches, with its errors and
   lines, and lets a patch say what a value cannot (a field removed, a list appended to, elements
   merged by a key). Each layer migrates on its own. [Files, packs and mods](files-and-mods.md)
+- **Assets are cooked from a source tree outside the game's repository** (2026-11-25, the user's).
+  `jettison_cook` cooks models and the images they use, once or watching as a daemon, into the
+  game's asset folder, mirroring the source tree; a settings file beside a source
+  (`big-ship.gltf.yaml`) layers over the game's `cook.yaml` and the engine's defaults, merged as
+  patches are. A cooked model is a normalised GLB, which the rig and clips still read, and a meshlet
+  page file beside it; an uncooked glTF draws on the indexed path with a warning. The engine's own
+  content is cooked at build time and its dense test meshes generated, so nothing cooked or large
+  is committed. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **Device-free mesh work is the `geometry` module's** (2026-11-25, the user's). A CPU module in the
+  data tier, so the cook, which builds without presentation, the renderer and later physics
+  ([J12](roadmap.md#j12)) share one reader of a model's triangles. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
 
 ## Scripts
 
@@ -312,6 +323,33 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   so the frame is drawn into the renderer's own images with no surface. The swapchain stays for
   every run with a display, and one reference view holds the offscreen frame to the swapchain's byte
   for byte. [Rendering](rendering.md)
+- **Ray tracing comes in, on ray queries, with Mega Geometry where NVIDIA offers it** (2026-11-25, the
+  user's). The sun's and opted-in local lights' shadows, ambient occlusion and reflections are traced
+  by `VK_KHR_ray_query` inside the forward pass, on plain KHR acceleration structures, which every
+  vendor and lavapipe run. `VK_NV_cluster_acceleration_structure` is an optional accelerator behind
+  the device's capability table: no cross-vendor equivalent exists on Vulkan, and AMD's
+  `VK_AMDX_dense_geometry_format` is a compressed input for future hardware. It replaces the scope's
+  "not worth its cost", since Manifest's art now asks for dense kits and reflections. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **Today's paths stay as the fallback, kept under test** (2026-11-25, the user's). A device without
+  mesh shaders or ray queries draws as now: indexed draws, cascades, screen-space ambient occlusion,
+  the environment cube. Each new path is a switch whose off reason is logged, and reference views
+  run with each forced off. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **Models are drawn as meshlets, culled on the GPU, with occlusion culling and streaming**
+  (2026-11-25, the user's). Named meshlets because the light grid owns "cluster". Occlusion culling
+  comes in for station interiors and dense fields; virtual shadow maps stay out, ray-traced sun
+  shadows serving instead. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **Reflections are ray traced, sharp first** (2026-11-25, the user's, at the art team's request).
+  One ray a pixel below a roughness cut-off, with no denoiser; glossy reflections wait for the
+  temporal stage. Screen-space reflections stay out, as decided above. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **A point or spot light casts a shadow only when it opts in** (2026-11-25, the user's), and at most
+  a fixed number of a pixel's lights trace one, nearest first, so a scene cannot ask for an unbounded
+  cost. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **The anti-aliasing question waits for the temporal stage** (2026-11-25, the user's). A visibility
+  buffer and software raster give one sample a pixel against today's MSAA; whether to add temporal AA
+  is decided before J49, and J50 is built only if it is. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **Mega Geometry is checked on Lythir, not by the gate** (2026-11-25, the user's). Lavapipe lacks
+  the extension, so `scripts/mega-geometry-check.sh` compares the frames with and without it on the
+  RTX 5060 Ti before a push that touches it. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
 
 ## Transparency, particles and post-processing
 
@@ -406,6 +444,10 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   gates](build-and-gates.md)
 - **Linux only, on x86-64** (2026-11-10): Wayland for the desktop, X11 for the headless tests, one
   toolchain (Clang 21 from the devenv shell). [Build and gates](build-and-gates.md)
+- **Windows comes near the end of this development phase** (2026-11-25, the user's). Until then the
+  code is designed for Linux alone, with no compromise made for a Windows build; platform code stays
+  behind `platform`, and every dependency chosen builds on Windows, so the port is work, not a
+  redesign. [Scope](scope.md)
 - **x86-64 with AVX2 is the minimum CPU** (2026-11-10): Intel Haswell (2013), AMD Excavator (2015)
   and later. Jolt adds its AVX2 flags publicly, so they reach `physics`, which links it privately,
   and nothing above it; the engine accepts that rather than building Jolt for an older instruction
@@ -414,6 +456,15 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 - **KTX-Software stays on v4.4.2** (2026-11-11). Its newest tag is still v5.0.0-rc2, and v4.4.2
   reads every file the engine needs (KTX 2, Basis Universal ETC1S and UASTC, zstd supercompression);
   revisit when v5 is released. [Build and gates](build-and-gates.md)
+- **Vulkan 1.4** (2026-11-25, the user's; built in J36). Every device with mesh shaders and ray
+  queries reports 1.4 on a current driver, and it makes scalar block layout and push descriptors
+  required. Devices whose drivers stop at 1.3 (GCN 1 and 2, Mesa before 25.0) can no longer run the
+  engine. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **No dependency under a licence that forbids open-source use** (2026-11-25). NVIDIA's RTX SDKs
+  licence (NRD, RTXDI, RTXGI, RTXMG) forbids use that would put the SDK under an open-source licence,
+  and FidelityFX 2 ships as binaries only; FidelityFX v1.1.4's MIT shader sources are the denoisers'
+  starting point.
+  [Coding standards](coding-standards.md#dependencies)
 
 ## Process
 

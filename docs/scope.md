@@ -21,7 +21,7 @@ build every genre's features now: a capability marked Out is reassessed when a c
 | Open | Accepted but not built yet: a backlog item, linked | Encryption ([J01](roadmap.md#j01)) |
 | Reframed | The need is real, but the usual solution is the wrong one here; the row says what serves it instead | Pathfinding: A* over graphs, not over navigation meshes |
 | Deferred | Possibly needed, but built only on measured evidence or when a consumer asks | A general job system, until a profile shows a system needs it |
-| Out | Not built | Ray tracing |
+| Out | Not built | VR |
 | Manifest | A game's, not the engine's: Manifest builds it on the engine's neutral parts | Orbital mechanics, on the engine's [rails](glossary.md#rails) |
 
 ## Simulation
@@ -55,7 +55,7 @@ How: [scenes](scene.md).
 | Spatial queries | In | An octree per [frame](glossary.md#frame-coordinates) for nearest, in-range and in-volume queries, apart from Jolt's broadphase |
 | Frustum culling | In | Draws and lights outside the view are skipped |
 | Horizon culling | In | A large sphere hides what is behind it, and the test is cheap |
-| Occlusion culling | Out | The consumers' scenes are open, with few occluders, so it would cost more than it saves |
+| Occlusion culling | Open | Two passes against a depth pyramid, for station interiors and dense fields of instances ([J41](roadmap.md#j41)) |
 | Orbit, chase and cockpit cameras | In | Camera rigs that follow their target exactly, in double precision |
 | Map camera | In | A logarithmic zoom over a reference plane, from close by to a whole system; the map screen is the game's |
 | Cinematic camera | In | A [sequence](animation.md) takes the camera from the rigs and hands it back |
@@ -153,6 +153,7 @@ How: [files, packs and mods](files-and-mods.md).
 | [Mods](glossary.md#mod) | In | Mounts over the base that replace files by path and [patch](glossary.md#patch) definitions field by field; more is [J05](roadmap.md#j05) |
 | Resource manager | In | Typed handles, loads on the I/O worker, reference counts, hot reload in development builds |
 | Streaming | Reframed | Assets load when a scene is entered, behind a transition; not open-world streaming ([J13](roadmap.md#j13)) |
+| Geometry streaming | Open | A model's meshlet pages read as the view needs them, within a scene ([J43](roadmap.md#j43)) |
 | Zip archives | Reframed | Packs instead: a mod is a directory or a pack |
 | Signed packs | Open | A pack signed as a whole ([J19](roadmap.md#j19)) |
 | Storefront integration | Out | A game may integrate a storefront's SDK; the mounts stay storefront-agnostic so it can |
@@ -194,14 +195,18 @@ How: [rendering](rendering.md), and
 | Materials as data | In | Parameters and texture sets in YAML, some animated over time (pulses, blinks) |
 | Point and spot lights | In | Finite ranges assigned to clusters, so a scene can carry hundreds |
 | Directional sun and its shadows | In | Cascaded shadow maps, stable under a moving camera |
+| Ray-traced shadows and ambient occlusion | Open | The sun's and opted-in local lights' shadows and ambient occlusion by ray queries where the device has them; cascades and screen-space occlusion stay the fallback ([J44](roadmap.md#j44) to [J46](roadmap.md#j46)) |
 | Atmospheres and rings | In | Scattering shells and rings seen from orbit |
 | Sky | In | A procedural sky of stars, a band and nebula, per scene |
-| Reflections | In | Image-based lighting; screen-space reflections are out, needing most of a G-buffer |
+| Reflections | In | Image-based lighting; ray-traced sharp reflections are open ([J47](roadmap.md#j47)); screen-space reflections are out, needing most of a G-buffer |
 | Anti-aliasing | In | MSAA on the HDR target, which forward rendering keeps cheap |
 | Colour space | In | Linear workflow, HDR targets and an sRGB swapchain; expensive to retrofit |
 | Triplanar mapping | In | Surfaces without authored texture coordinates |
 | Textures | In | KTX 2 with Basis Universal or BC7 for shipping; stb_image for development; cube maps and arrays are [J27](roadmap.md#j27) |
 | Instancing and levels of detail | In | Draws that share a model, level and material become one instanced draw |
+| Meshlets and GPU-driven drawing | Open | Models cooked into a meshlet hierarchy, culled on the GPU and drawn by mesh shaders, the indexed path the fallback ([J39](roadmap.md#j39), [J40](roadmap.md#j40)) |
+| Visibility buffer, software raster | Deferred | Only if temporal anti-aliasing is chosen before [J49](roadmap.md#j49), since a visibility buffer gives one sample a pixel ([J50](roadmap.md#j50)) |
+| Virtual shadow maps | Out | Ray-traced sun shadows serve, with the cascades as the fallback |
 | Procedural geometry | In | Spheres, cubes and cube-spheres at levels of detail |
 | Debug draw | In | Lines, boxes and spheres in world space, for any system |
 | Fonts | In | TrueType through FreeType, for the game UI and the dev tools |
@@ -211,7 +216,7 @@ How: [rendering](rendering.md), and
 | Terrain, water | Out | No consumer has a walkable surface |
 | Hair, skin, cloth | Out | No consumer has characters |
 | Global illumination | Out | Image-based lighting and a sun serve the consumers' scenes |
-| Ray tracing | Out | Not worth its cost for the consumers' art |
+| Ray tracing | Open | Ray queries on plain KHR acceleration structures, which every vendor and lavapipe run; RTX Mega Geometry on NVIDIA where present ([J42](roadmap.md#j42), [J48](roadmap.md#j48), [the plan](dense-geometry-and-ray-tracing.md)) |
 | Video playback | Out | A screen in the world, if wanted, is a UI document drawn to a texture |
 | VR | Out | No consumer asks for it |
 
@@ -261,7 +266,8 @@ How: [animation and cinematics](animation.md).
 | Cinematics | In | Shots on camera rails, cut or blended, with a fade, letterbox and events, as data a mod replaces ([J22](roadmap.md#j22)) |
 | ozz-animation, tag-based selection | Out | Made for large character clip libraries; the consumers have mechanical rigs and few clips |
 | Inverse kinematics, clip synchronisation | Out | They serve limbs and locomotion blending, which no consumer has |
-| Blend shapes, blend spaces, hair, faces | Out | No consumer has characters |
+| Blend shapes, blend spaces | Open | Requested on 2026-11-25; to be planned in a session of their own ([waiting on the user](roadmap.md#waiting-on-you)) |
+| Hair, faces | Out | No consumer has characters |
 
 More animation work is [J20](roadmap.md#j20).
 
@@ -278,7 +284,7 @@ How: [runtime: core and platform](runtime.md).
 | Paths | In | Saves, settings, logs and caches where the XDG specification puts them |
 | Crash handling | In | A report of the stack and the log's tail on a fatal signal; more is [J11](roadmap.md#j11) |
 | Linux | In | Wayland on the desktop, X11 for headless runs |
-| Windows | Out | The toolchain cost more than it returned |
+| Windows | Deferred | Built near the end of this development phase (the user's, 2026-11-25); until then code is written for Linux with no design compromise made for Windows, and dependencies stay portable ([decisions](decisions.md#build-and-platform)) |
 | CPU baseline | In | x86-64 with AVX2, checked before any static initialiser runs ([decisions](decisions.md#build-and-platform)) |
 | Profiling | In | Tracy, compiled in on demand, with GPU zones per pass |
 | I/O worker | In | One thread reads and decodes assets, so loading does not stall the frame |
@@ -295,6 +301,7 @@ How: [the app shell and tools](app-shell.md).
 | --- | --- | --- |
 | The [shell](glossary.md#shell) | In | The `app` library, which the ground sample, the editor and the render test link: a game's hooks composed over the engine, with console commands and arguments |
 | The packer | In | `jettison_pack` writes a directory as a pack |
+| The asset cook | Open | `jettison_cook` cooks models and textures from a source tree into a game's asset folder, once or watching ([J37](roadmap.md#j37), [J38](roadmap.md#j38)) |
 | Editor (Flotsam) | In, minimal | The shell with no game composed; an inspector and scene editing are not built. How much a game needs Flotsam is to be looked at later (the user, 2026-11-25); until then an editor is assumed needed, though each game may better ship its own over common functionality the engine provides |
 | Logging in the shell | Open | The shell's own logging set up (`InitLogging`) ([J10](roadmap.md#j10)) |
 
