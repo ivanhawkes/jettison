@@ -102,11 +102,18 @@ Measured or read on 2026-11-25. Claims from the transcript that did not hold are
 | `VK_KHR_acceleration_structure`, `VK_KHR_ray_query`, `VK_KHR_ray_tracing_pipeline` | yes | yes, and `VK_KHR_ray_tracing_position_fetch` |
 | `VK_NV_cluster_acceleration_structure`, `VK_NV_partitioned_acceleration_structure` | yes | **no** |
 | `VK_EXT_cluster_acceleration_structure` | **no** (the transcript said driver 615.71.09 and later have it) | no |
-| 64-bit image and buffer atomics, `multiDrawIndirect`, `drawIndirectCount`, `bufferDeviceAddress`, `descriptorIndexing`, `samplerFilterMinmax` | yes | yes |
+| 64-bit atomics (`shaderBufferInt64Atomics`, `shaderImageInt64Atomics`), `multiDrawIndirect`, `drawIndirectCount`, `bufferDeviceAddress`, `descriptorIndexing`, `samplerFilterMinmax` | yes | yes |
 
 The RTX 5070 Ti is kept for inference and is never drawn with. `vulkaninfo` does not print the
 cluster extension's properties, so the engine reads `maxVerticesPerCluster` and
 `maxTrianglesPerCluster` itself ([J36](roadmap.md#j36)).
+
+No AMD device is at hand, so AMD's support is read from RADV's source (Mesa 26.3.1,
+`radv_physical_device.c` and `ac_gpu_info.c`, 2026-11-26), not a device. Mesh and task shaders
+need GFX10.3 (RDNA 2, RX 6000) or later; ray queries and acceleration structures are native from
+GFX10.3 too, and emulated on older chips only behind an experimental flag; 64-bit buffer and image
+atomics are on every chip. An RX 5000 (RDNA 1) or older card therefore runs with neither meshlets
+nor ray tracing, as does an NVIDIA card before Turing.
 
 ### Extensions and versions
 
@@ -129,6 +136,14 @@ cluster extension's properties, so the engine reads `maxVerticesPerCluster` and
   acceleration structures from compressed triangle blocks for future AMD hardware, on a Windows
   preview driver; it is not a cluster equivalent. Cross-vendor clustered geometry exists only in
   DirectX Raytracing, as a preview (October 2026). No RADV or Intel work was found.
+- **64-bit atomics** are optional in every version up to 1.4. `shaderBufferInt64Atomics` is a 1.2
+  feature (`VkPhysicalDeviceVulkan12Features`, from `VK_KHR_shader_atomic_int64`), optional when
+  that extension is absent, and missing from the features 1.4 makes required.
+  `shaderImageInt64Atomics` belongs to `VK_EXT_shader_image_atomic_int64`, promoted to no core
+  version (the 1.4.363 headers; the specification's versions appendix). The 5060 Ti, lavapipe and
+  RADV have both, so the visibility buffer ([J50](roadmap.md#j50)) asks the capability table for
+  one, as any optional path does. Which form Unreal's Nanite needs was not checked: the transcript
+  and a forum thread say the buffer form, unconfirmed in Epic's source.
 - **Vulkan 1.4** promotes push descriptors (required), `scalarBlockLayout` (required),
   maintenance5 and 6, dynamic rendering local read, host image copy and line rasterisation. It
   requires neither mesh shaders nor ray queries. Every device with both reports 1.4 on a current
@@ -287,9 +302,12 @@ device's reasons now.
 | Streaming | The meshlet path | The page file loaded whole |
 | Ray-traced effects | `accelerationStructure`, `rayQuery`, `bufferDeviceAddress`, `descriptorIndexing` | Cascades, no local shadows, screen-space AO, the environment cube |
 | Mega Geometry | `VK_NV_cluster_acceleration_structure` | Plain KHR bottom-level structures from one cooked level |
+| Visibility buffer and software raster | The meshlet path; `shaderBufferInt64Atomics` for a storage buffer, or `shaderImageInt64Atomics` for an R64 image, the form chosen in [J50](roadmap.md#j50) | The mesh shaders' hardware raster, as [J41](roadmap.md#j41) leaves it |
 
 Lavapipe has every path but Mega Geometry, so the gate covers them. The fallback stays under test:
-reference views run with each path forced off.
+reference views run with each path forced off. Older cards, the [devices](#devices) without mesh
+shaders or ray queries (AMD before RDNA 2, NVIDIA before Turing), run every fallback; no other path
+is planned for them (2026-11-26, the user's).
 
 ### The frame
 
@@ -442,7 +460,7 @@ flowchart LR
 
 - **Delivers.** `kApiVersion` at 1.4, the device check and its reason, `VkPhysicalDeviceVulkan14Features`
   read. A capabilities table (mesh and task shaders and their limits, ray queries, acceleration
-  structures, the cluster extension and its properties, the features above), logged at start-up,
+  structures, the cluster extension and its properties, the 64-bit atomics, the features above), logged at start-up,
   each path overridable by a setting and a flag (`--no-meshlets`, `--no-ray-tracing`,
   `--no-mega-geometry`).
 - **Exit criterion.** The gate green on lavapipe with 1.4; `DeviceChoiceTests` cover a 1.3 device
@@ -473,9 +491,10 @@ flowchart LR
 ### J39. The meshlet hierarchy, cooked, and its page file
 
 - **Delivers.** `clusterlod.h`'s hierarchy per static mesh in the cook; the page file and its reader.
-  The meshlet size chosen by measurement on both devices, among 64 vertices and 124 triangles, 128
-  and 128, and 128 and 256 (AMD's guidance), one size for raster and ray tracing unless a measured
-  gain of 15% or more argues for two.
+  The meshlet size chosen by measurement on the 5060 Ti and lavapipe, among 64 vertices and 124
+  triangles, 128 and 128, and 128 and 256 (AMD's guidance, standing in for an AMD device, which
+  [is not measured](#how-it-is-tested)), one size for raster and ray tracing unless a measured gain
+  of 15% or more argues for two.
 - **Exit criterion.** Device-free tests: every cut of the hierarchy is crack-free, errors never
   shrink towards the root, the page file round-trips, and the cook's output is the same bytes twice.
 
@@ -578,7 +597,7 @@ flowchart LR
 
 ### J50. Visibility buffer and software raster
 
-- **Delivers.** The 64-bit visibility buffer, the resolve to depth, stencil, normals and IDs,
+- **Delivers.** The 64-bit visibility buffer, on [its capability](#device-capabilities-and-paths), the resolve to depth, stencil, normals and IDs,
   per-material shading of it, the compute raster for small triangles.
 - **Exit criterion.** Reference views identical between hardware and software raster at their
   boundary; the benchmark scene faster than J41's.
@@ -639,6 +658,9 @@ order, logging each step with the model's name:
 - **The meshlet check** and the cluster check in the smoke test.
 - **Mega Geometry** by `scripts/mega-geometry-check.sh` on Lythir, before a push that touches it.
 - **The benchmark** on the 5060 Ti for the budgets, its numbers recorded in history.
+- **AMD** is not measured or drawn on, since no AMD device is at hand (2026-11-26, the user's).
+  Lavapipe, a driver that is not NVIDIA's, checks every path but Mega Geometry for correctness;
+  AMD's performance waits for someone with the hardware, whose numbers join the benchmark's.
 - **Manifest** adds acceptance scenes of its own (a station kit, an asteroid field) when it takes a
   stage up, as [game integration](game-integration.md#provisioning-a-capability) has it.
 
@@ -676,6 +698,7 @@ order, logging each step with the model's name:
 | The prepass, off by decision for its cost | Ray-traced effects with it off trace hidden fragments | Measured in J44; on whenever an effect needs it, as for ambient occlusion |
 | Load time of cooking dense models | Slow cooks for artists | The watch cooks one file at a time; measured on the generated meshes in J39 (about 0.2 s per 100,000 triangles on one core, from meshoptimizer's author) |
 | Cooked binaries in a game's repository | The repository grows | The game's choice (Git LFS or otherwise); the cook's same-bytes rule keeps churn down |
+| Tuned on NVIDIA alone | Meshlet and workgroup sizes, and the budgets, fit the 5060 Ti and may be slower on AMD | Workgroup sizes from the device's `maxPreferredTaskWorkGroupInvocations` and `maxPreferredMeshWorkGroupInvocations`, not constants; AMD's guidance among J39's sizes; measured on AMD when someone has the hardware |
 | Vulkan 1.4 drops devices at 1.3 | GCN 1 and 2 and old Mesa can no longer run | None of them has ray queries or mesh shaders; recorded in decisions |
 | Large worlds | Float precision in the TLAS | Built camera-relative each frame; bodies tested analytically, not in the TLAS |
 | Streaming under load | Popping, or a stall | Coarsest levels pinned; reads on the I/O worker; the pool's use shown |

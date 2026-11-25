@@ -721,7 +721,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 | <a id="j47"></a>J47. Sharp ray-traced reflections | One ray a pixel below a roughness cut-off, hits shaded by the sun, the environment and emission; the environment cube otherwise. | J44 | — |
 | <a id="j48"></a>J48. Mega Geometry | `VK_NV_cluster_acceleration_structure` where present: a traversal pass writing the raster's and the rays' cuts, CLAS per loaded meshlet and per-instance structures from the rays' cut, which streams like the raster's; checked on Lythir by `scripts/mega-geometry-check.sh`, outside the gate. | J42, J43 | — |
 | <a id="j49"></a>J49. Temporal foundation and glossy reflections | Motion vectors, a frame history and FidelityFX v1.1.4's denoisers (MIT); glossy reflections and soft shadows on them; temporal AA replacing MSAA. | J47 | — |
-| <a id="j50"></a>J50. Visibility buffer and software raster | A 64-bit visibility buffer, its material resolve, and a compute raster for pixel-sized triangles. | J41, J49 | — |
+| <a id="j50"></a>J50. Visibility buffer and software raster | A 64-bit visibility buffer where the device has 64-bit atomics, its material resolve, and a compute raster for pixel-sized triangles. | J41, J49 | — |
 
 Tracks A (J37 to J43, geometry) and B (J42, J44 to J47, ray tracing) can alternate once J37 is done.
 **Feature doc:** [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).

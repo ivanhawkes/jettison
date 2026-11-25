@@ -333,7 +333,11 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 - **Today's paths stay as the fallback, kept under test** (2026-11-25, the user's). A device without
   mesh shaders or ray queries draws as now: indexed draws, cascades, screen-space ambient occlusion,
   the environment cube. Each new path is a switch whose off reason is logged, and reference views
-  run with each forced off. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+  run with each forced off. Older cards (AMD before RDNA 2, NVIDIA before Turing) have neither and
+  run every fallback, with no other path planned for them (2026-11-26, the user's). [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **No AMD device measures the plan** (2026-11-26, the user's). None is at hand: lavapipe checks
+  the paths' correctness on a driver that is not NVIDIA's, and AMD's performance is measured later,
+  or by others. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
 - **Models are drawn as meshlets, culled on the GPU, with occlusion culling and streaming**
   (2026-11-25, the user's). Named meshlets because the light grid owns "cluster". Occlusion culling
   comes in for station interiors and dense fields; virtual shadow maps stay out, ray-traced sun
