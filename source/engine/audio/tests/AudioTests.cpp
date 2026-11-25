@@ -215,6 +215,9 @@ TEST_CASE("Audio: a bus's volume scales what plays on it, and master's everythin
 
 	audio.SetBusVolume(Bus::Ui, 0.5f);
 	CHECK(audio.BusVolume(Bus::Ui) == doctest::Approx(0.5f));
+	// A bus with nothing playing on it is not mixed, so the ease runs under the next sound to start.
+	audio.PlayFlat(kFilled, Bus::Ui);
+	MixPeaks(audio, 0.5);
 	audio.PlayFlat(kFilled, Bus::Ui);
 	CHECK(MixPeaks(audio, 0.5).Both() == doctest::Approx(full * 0.5f).epsilon(0.02));
 
@@ -229,6 +232,31 @@ TEST_CASE("Audio: a bus's volume scales what plays on it, and master's everythin
 
 	audio.SetBusVolume(Bus::Master, 9.0f);
 	CHECK(audio.BusVolume(Bus::Master) == 4.0f);
+}
+
+
+TEST_CASE("Audio: a bus eases to a volume over 50 ms rather than stepping to it")
+{
+	Scratch scratch;
+	AudioSystem audio(scratch.Files(), NoDevice());
+	audio.PlayMusic(kMusic);
+	const float full = MixPeaks(audio, 2.0).Both();
+	REQUIRE(full > 0.05f);
+
+	// Muted, it is still heard for the first part of the ease, and silent once it is over.
+	audio.SetBusVolume(Bus::Music, 0.0f);
+	CHECK(audio.BusVolume(Bus::Music) == 0.0f);
+	CHECK(MixPeaks(audio, 0.01).Both() > 0.0f);
+	CHECK(MixPeaks(audio, 0.03).Both() > 0.0f);
+	MixPeaks(audio, 0.03);
+	CHECK(MixPeaks(audio, 0.5).Both() == 0.0f);
+
+	// Unmuted, it rises from silence: the first few frames are quieter than the music is once there.
+	audio.SetBusVolume(Bus::Music, 1.0f);
+	CHECK(MixPeaks(audio, 0.002).Both() < 0.1f * full);
+	MixPeaks(audio, 0.05);
+	CHECK(MixPeaks(audio, 2.0).Both() > 0.05f);
+	CHECK(audio.Problems() == 0);
 }
 
 

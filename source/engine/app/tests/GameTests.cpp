@@ -387,6 +387,11 @@ TEST_CASE("Game: a game's frame system, save section and scene hooks run on the 
 		App::ApplicationProbe::Start(shell);
 		CHECK(game.loaded == 1);
 		CHECK(game.unloading == 0);
+		// The user's own directories are made private from the start (XDG).
+		for (const char *directory : {"data", "config"})
+			CHECK(
+			    (std::filesystem::status(user / directory).permissions() &
+			     std::filesystem::perms::all) == std::filesystem::perms::owner_all);
 		App::ApplicationProbe::Reload(shell);
 		CHECK(game.loaded == 2);
 		CHECK(game.unloading == 1);

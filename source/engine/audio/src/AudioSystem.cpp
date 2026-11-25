@@ -23,6 +23,10 @@ constexpr Core::Category kAudio{"audio"};
 // is always decoded before the mix reaches it.
 constexpr std::size_t kMixChunkFrames = 1024;
 constexpr std::uint32_t kChannels = 2;
+// How long a bus takes to reach a volume it is set to, by miniaudio's smoothing: long enough that a
+// step to silence does not click, short enough to be heard as at once.
+constexpr std::uint32_t kBusVolumeEaseMilliseconds = 50;
+constexpr std::uint32_t kMillisecondsPerSecond = 1000;
 
 
 std::size_t BusIndex(Bus bus)
@@ -216,8 +220,11 @@ class AudioState
 
 		for (const Bus bus : kBuses)
 		{
-			ma_sound_group *pParent = bus == Bus::Master ? nullptr : &m_buses[BusIndex(Bus::Master)];
-			Check(ma_sound_group_init(&m_engine, 0, pParent, &m_buses[BusIndex(bus)]), "a bus");
+			ma_sound_group_config group = ma_sound_group_config_init_2(&m_engine);
+			group.pInitialAttachment = bus == Bus::Master ? nullptr : &m_buses[BusIndex(Bus::Master)];
+			group.volumeSmoothTimeInPCMFrames =
+			    m_sampleRate * kBusVolumeEaseMilliseconds / kMillisecondsPerSecond;
+			Check(ma_sound_group_init_ex(&m_engine, &group, &m_buses[BusIndex(bus)]), "a bus");
 			++m_busesMade;
 		}
 		if (m_device)

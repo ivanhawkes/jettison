@@ -31,6 +31,7 @@
 #include <jettison/animation/Components.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/core/Assert.h>
+#include <jettison/core/File.h>
 #include <jettison/core/Log.h>
 #include <jettison/core/Version.h>
 #include <jettison/jobs/IoWorker.h>
@@ -798,17 +799,6 @@ void Application::Init()
 }
 
 
-namespace
-{
-// The XDG specification has a directory it names made with mode 0700 when it does not exist yet.
-void MakeUserDirectory(const std::filesystem::path &directory)
-{
-	if (std::filesystem::create_directories(directory))
-		std::filesystem::permissions(directory, std::filesystem::perms::owner_all);
-}
-} // namespace
-
-
 void Application::InitUser()
 {
 	std::filesystem::path root;
@@ -834,8 +824,9 @@ void Application::InitUser()
 	     std::format("{}, engine {}", m_windowTitle, Core::EngineVersion()),
 	     {},
 	     true});
-	MakeUserDirectory(m_userPaths.userData);
-	MakeUserDirectory(m_userPaths.config);
+	// The XDG specification has a directory it names made with mode 0700 when it does not exist yet.
+	Core::CreateDirectoriesDurably(m_userPaths.userData, std::filesystem::perms::owner_all);
+	Core::CreateDirectoriesDurably(m_userPaths.config, std::filesystem::perms::owner_all);
 	m_settings.emplace(m_userPaths.config / "settings.yaml");
 	m_settings->Load(m_input);
 	m_glfwInput.SetJoysticks(&m_settings->Joysticks());

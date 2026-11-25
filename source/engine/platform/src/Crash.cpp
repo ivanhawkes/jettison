@@ -23,8 +23,8 @@
 #include <format>
 #include <stdexcept>
 #include <string_view>
-#include <system_error>
 
+#include <jettison/core/File.h>
 #include <jettison/core/Log.h>
 
 namespace Jettison::Platform
@@ -789,13 +789,14 @@ bool InstallCrashHandler(const CrashOptions &options)
 		return false;
 	}
 
-	std::error_code error;
-	std::filesystem::create_directories(options.directory, error);
-	if (error)
-		throw std::runtime_error(
-		    std::format(
-		        "Crash handler: the directory '{}' could not be made: {}", options.directory.string(),
-		        error.message()));
+	try
+	{
+		Core::CreateDirectoriesDurably(options.directory);
+	}
+	catch (const std::runtime_error &problem)
+	{
+		throw std::runtime_error(std::format("Crash handler: {}", problem.what()));
+	}
 	std::string symboliser;
 	if (options.symbolise)
 		symboliser = options.symboliser.empty() ? FindOnPath("addr2line") : options.symboliser.string();

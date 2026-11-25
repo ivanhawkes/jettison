@@ -41,10 +41,13 @@ flowchart TD
 ```
 
 A bus's volume is a linear gain, 1 being the sound as it was made, clamped to [0, 4] by
-`SetBusVolume`. A change takes effect from the next block mixed; the engine does not turn on
-miniaudio's volume smoothing. The names `master`, `music`, `effects`, `ui` and `voice`
-(`BusName`, `BusFromName`) are the ones the settings and the console use. A source also has a
-volume of its own (`SetVolume`), under its bus's.
+`SetBusVolume`. A change eases in over 50 ms (`kBusVolumeEaseMilliseconds`, miniaudio's volume
+smoothing on each bus's sound group), so muting a bus or setting it back does not click; a source's
+own volume still steps. The ease runs as the bus mixes: a bus with nothing playing on it eases under
+the next sound to start, and one that has never mixed, as at start-up, takes the volume at once.
+`BusVolume` is the volume set, which the bus may still be easing to. The names `master`, `music`,
+`effects`, `ui` and `voice` (`BusName`, `BusFromName`) are the ones the settings and the console
+use. A source also has a volume of its own (`SetVolume`), under its bus's.
 
 ### Sources
 
@@ -325,7 +328,6 @@ music off              # stops the music; "music on" starts it, "music" toggles
 - Music crossfades and a playlist, Doppler, a vehicle's own sounds, occlusion, and a sound streamed
   from its mount rather than read whole: [J21](roadmap.md#j21).
 - The voice bus has nothing on it yet.
-- A bus's volume steps rather than eases, so a large change can click.
 - WAV, FLAC and MP3 only.
 - The test content and the ground sample ship no `defs/sounds`; only the suites exercise event
   sounds.

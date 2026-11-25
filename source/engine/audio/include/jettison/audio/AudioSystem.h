@@ -110,9 +110,12 @@ class AudioSystem
 
 	AudioSystem &operator=(const AudioSystem &) = delete;
 
-	// Linear gain, from 0; 1 is as the sound was made. Clamped to [0, 4].
+	// Linear gain, from 0; 1 is as the sound was made. Clamped to [0, 4]. The bus eases to it over
+	// 50 ms as it mixes, so muting and unmuting do not click: a bus with nothing playing on it eases
+	// under the next sound to start, and one that has never mixed takes the volume at once.
 	void SetBusVolume(Bus bus, float volume);
 
+	// The volume the bus was last set to, which it may still be easing to.
 	float BusVolume(Bus bus) const;
 
 	// A sound at a position, falling off with its distance from the listener; once, or looping until
