@@ -32,6 +32,20 @@ has played its first loop for a day or two. One delivery is open:
 | --- | --- | --- |
 | [J01. Encryption](#j01) | Manifest, before it hosts outside a trusted network ([D-081](../../manifest/docs/decision-ledger.md#d-081)) | A key exchange in the hello, with the server's public key pinned by the client, then every packet sealed, on the libsodium `net` already links. A client with the wrong key is refused. The `net` suite and the consumer project run sealed. |
 
+## Waiting on you
+
+What needs the user's answer or action and is not a backlog item. Each line goes when it is settled.
+
+- **Merge the docs review.** The `docs-review` branches (Jettison `1f11aa6`, Manifest `d7843df`)
+  are pushed, not merged. Manifest pins `70cd4de` on that branch: merge without squashing, or
+  re-pin Manifest to the merged commit.
+- **Three unused pieces: keep or delete?** `Scene::ProxyFactory`, declared and never called
+  ([scene](scene.md#limits-and-open-work)); `Ecs::StateMachine`, which no engine module uses
+  ([scope](scope.md)); and the renderer's `SetClusterRange` and `SetShadowDistance`, which no caller
+  sets and `IRenderer` does not expose. `SetLodThreshold` stays, for levels of detail.
+- **Nanite.** Read [the Nanite research](nanite-research.md) and say whether cluster levels of
+  detail become a backlog item, and where, beside [J27](#j27)'s levels for model files.
+
 ## The backlog
 
 Each item has a fixed ID, so other documents can link it. Items are grouped in five tiers, in the

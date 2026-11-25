@@ -33,6 +33,7 @@ its limits and the backlog items that would lift them.
 | [Scripts](scripts.md) | WebAssembly scripts: what they can see and do, their limits, building and hosting them (`script`) |
 | [Networking](networking.md) | The server and client over ENet: handshake, tokens, bounds, snapshots and closing (`net`) |
 | [Rendering](rendering.md) | The frame, clustered lights, sun shadows, the environment, atmospheres, materials, models, cameras and the Vulkan backend (`render`) |
+| [Nanite research](nanite-research.md) | What a Nanite-style cluster level-of-detail system would take here, and which level-of-detail setters to keep (research, 2026-11-25) |
 | [Transparency, particles and post-processing](rendering-effects.md) | Glass, particles, ambient occlusion, bloom, masks, outlines and colour grading (`render`) |
 | [UI, input and localisation](ui.md) | Input actions and bindings, the game UI (RmlUi), the console and dev tools (ImGui), string tables and languages (`ui`, `devtools`, `input`) |
 | [Audio](audio.md) | Buses, sources, positioned and event sounds (`audio`) |
