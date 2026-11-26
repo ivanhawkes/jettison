@@ -77,13 +77,15 @@ struct OrbitTarget
 };
 
 // Where a pick is cast (docs/physics.md): the frame of the world's physics it is cast
-// in, the entity it passes through, which the camera is inside, and whether what it picks is a target,
-// outlined as one (Scene::OutlineStyle::Targeted), rather than a selection.
+// in, the entity it passes through, which the camera is inside, whether what it picks is a target,
+// outlined as one (Scene::OutlineStyle::Targeted), rather than a selection, and whether static bodies
+// (the ground, buildings) are picked and hovered too, or only what moves.
 struct PickSpace
 {
 	std::uint64_t frame{0};
 	entt::entity ignore{entt::null};
 	bool targeting{false};
+	bool statics{true};
 };
 
 // What the shell shows and follows, as a game composed into it (Game) reads it. The shell outlives

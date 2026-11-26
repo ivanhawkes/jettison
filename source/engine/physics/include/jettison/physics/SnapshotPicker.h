@@ -1,0 +1,80 @@
+#pragma once
+
+#include <jettison/physics/PhysicsWorld.h>
+#include <jettison/physics/Shape.h>
+
+#include <entt/entt.hpp>
+#include <glm/vec3.hpp>
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+
+namespace Jettison::Sim
+{
+class DefinitionRegistry;
+struct Snapshot;
+} // namespace Jettison::Sim
+
+namespace Jettison::Physics
+{
+// What a pick against the snapshots may hit.
+struct PickOptions
+{
+	// The body the ray passes through: the one the camera is inside.
+	entt::entity ignore{entt::null};
+
+	// Static bodies, the ground and the buildings, picked too; left out, a pick or a hover finds only
+	// what moves.
+	bool statics{true};
+
+	// Sensors are left out unless asked for, as a cast leaves them (CastOptions).
+	bool sensors{false};
+};
+
+// A pick presentation makes for itself (docs/physics.md, "Picking"): a ray against the bodies as the
+// two newest snapshots draw them, each at the transform between them that the frame shows, so it is
+// answered at once, while the world is paused, and every frame, for what the cursor is over. It reads
+// no simulation state: the bodies (Body, which the world shows in its snapshots) and their places
+// are the snapshots', and their shapes are definitions, Jolt's own, so it hits what the step's casts
+// would. A pick the simulation answers and records is still the command Pick.
+//
+// shortcut: every body of the frame is tested, a ray against each shape; a broadphase over the
+// snapshot is the step up should a frame hold tens of thousands of bodies.
+class SnapshotPicker
+{
+  public:
+	// With the shapes defined here, as a client with no physics world of its own defines them.
+	SnapshotPicker();
+
+	// With the physics world's shapes, by their definitions, as the shell has them; the world
+	// outlives the picker.
+	explicit SnapshotPicker(const PhysicsWorld &shapes);
+
+	~SnapshotPicker();
+
+	SnapshotPicker(const SnapshotPicker &) = delete;
+
+	SnapshotPicker &operator=(const SnapshotPicker &) = delete;
+
+	// Throws as PhysicsWorld::DefineShape does.
+	void DefineShape(std::string name, const ShapeDefinition &shape);
+
+	void DefineShapes(const Sim::DefinitionRegistry &definitions);
+
+	// The first body a ray from the origin meets within the distance, in the frame, with each body
+	// placed alpha of the way from previous to current (Sim::Interpolate), as the frame draws it.
+	// Nothing for a ray of no direction or no length, and a body whose shape is not defined is passed
+	// over. A ray from inside a convex body hits it at once, as a cast's does. Ties go to the lower
+	// entity.
+	std::optional<CastHit> CastRay(
+	    const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha, std::uint64_t frame,
+	    const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
+	    const PickOptions &options = {}) const;
+
+  private:
+	struct Impl;
+	std::unique_ptr<Impl> m_pImpl;
+};
+} // namespace Jettison::Physics

@@ -60,7 +60,9 @@ class Scene;
 namespace Jettison::Physics
 {
 class PhysicsWorld;
-}
+class SnapshotPicker;
+struct CastHit;
+} // namespace Jettison::Physics
 
 namespace Jettison::App
 {
@@ -225,11 +227,18 @@ class Application final : private Shell
 	// What the playing sequence shows over the frame: its fade and its bars.
 	void ShowSequence(entt::registry &registry);
 
-	// Picking (docs/physics.md): a left click casts a ray from the camera through
-	// the cursor, as a Physics::Pick the next step answers with a Physics::Picked, where the game says
-	// (Game::PickIn). Sends one through the point, in window pixels, and says whether it did: not
-	// where the game has no pick space.
+	// Picking (docs/physics.md): a left click casts a ray from the camera through the cursor against
+	// the snapshots as they were drawn, where the game says (Game::PickIn), answered at once, paused or
+	// not. Picks through the point, in window pixels, and says whether it did: not where the game has
+	// no pick space.
 	bool Pick(const glm::dvec2 &point);
+
+	// What a ray through the window's point meets, against the snapshots as the last frame drew them,
+	// in the frame the game picks in: nothing where it picks in none, or meets nothing.
+	std::optional<Physics::CastHit> CastThrough(const glm::dvec2 &point) const;
+
+	// What the cursor is over, each frame, for its outline.
+	void Hover();
 
 	void ClearPick() override;
 
@@ -438,12 +447,17 @@ class Application final : private Shell
 	// showed, and which the pick is cast at.
 	double m_shownTime{0.0};
 
-	// A click this frame, sent in the commands phase; the last pick's request, and whether it is
-	// unanswered.
+	// A click this frame, picked in the commands phase, and the time the last pick was drawn at;
+	// where the cursor is over the scene, not a window over it, for the hover; what it is over, and
+	// the proxy outlined for it.
 	std::optional<glm::dvec2> m_clicked;
-	std::uint64_t m_pickRequest{0};
 	double m_pickTime{0.0};
-	bool m_pickPending{false};
+	std::optional<glm::dvec2> m_hoverCursor;
+	entt::entity m_hovered{entt::null};
+	entt::entity m_hoverOutlined{entt::null};
+
+	// Picks against the snapshots, with the physics world's shapes (docs/physics.md, "Picking").
+	std::unique_ptr<Physics::SnapshotPicker> m_pPicker;
 
 	// What the last answer hit, where relative to the origin of its frame (Game::PickOrigin), and its
 	// normal.

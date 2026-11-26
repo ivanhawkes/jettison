@@ -153,7 +153,7 @@ flowchart LR
 | System | What it does |
 | --- | --- |
 | `shell.input` | Clears the debug lines, polls the window, reads the shell's keys, then `Game::PollInput` |
-| `shell.pick` | Sends a click as a `Physics::Pick` command, reaching 50 km, which the next step answers |
+| `shell.pick` | Picks a click, and what the cursor is over for its outline, against the snapshots, reaching 50 km ([picking](physics.md#picking)) |
 | `sim.step` | Advances the stepper by the frame's time: zero or more [fixed steps](glossary.md#fixed-step) |
 | `sim.sync` | Places the proxies between the last two snapshots (`Game::SyncProxies` or `Scene::SyncSimProxies`) |
 | `sim.events` | Gives each event to the scripts, the event sounds, the pick (logged as `Picked … at … m` or `Picked nothing`) and `Game::TakeEvent` |
@@ -303,7 +303,7 @@ names no GLFW, Vulkan or scene type.
 | 3, 4 | Minimise, restore | A surface that reports no extent, and its return (the window manager call is skipped on Wayland) |
 | 5 | Reload the scene | Models and resources freed while a frame in flight may read them; the environment bake and the frame sets rewritten after it |
 | 6, 7 | Pilot from behind, then from the seat | What the game flies: its proxy, collisions, flight commands and the camera rig's transition |
-| 8 | Pick | A ray from the camera through the window's middle, cast by the next step and answered as an event |
+| 8 | Pick | A ray from the camera through the window's middle, against the snapshots as drawn |
 | 9 | Save and load | The world written to the user mount, flushed, and loaded back to the same state hash while the scene draws it |
 | 10 | The game's screen | A document bound to the snapshot; its control sends a command, and the next step's answer is shown |
 | 11 | Settle | Clean shutdown |
@@ -387,8 +387,6 @@ Xvfb, and `--references` runs every reference view.
 
 ## Limits and open work
 
-- A pick is a command the next step answers, so a paused world cannot be picked, and nothing
-  tracks what is under the cursor each frame: [J06](roadmap.md#j06).
 - The shell gives scripts no sender: a game names its own through `Scripts().SendCommandsTo`
   ([scripts](scripts.md#who-a-scripts-commands-are-from)).
 - There is no prebuilt SDK, so a game builds the engine from source: [J18](roadmap.md#j18).

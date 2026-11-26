@@ -18,7 +18,7 @@ build every genre's features now: a capability marked Out is reassessed when a c
 | Verdict | Meaning | Example |
 | --- | --- | --- |
 | In | Built. Open work on it is a backlog item, linked | Physics, with overlap queries still open ([J07](roadmap.md#j07)) |
-| Open | Accepted but not built yet: a backlog item, linked | A pick under the cursor every frame ([J06](roadmap.md#j06)) |
+| Open | Accepted but not built yet: a backlog item, linked | Overlap queries and casts that return every hit ([J07](roadmap.md#j07)) |
 | Reframed | The need is real, but the usual solution is the wrong one here; the row says what serves it instead | Pathfinding: A* over graphs, not over navigation meshes |
 | Deferred | Possibly needed, but built only on measured evidence or when a consumer asks | A general job system, until a profile shows a system needs it |
 | Out | Not built | VR |
@@ -88,7 +88,7 @@ How: [physics](physics.md).
 | Sensors | In | Bodies that report overlaps and push nothing: zones, doors, gates |
 | Flight model | In | Thrust as accelerations, with an assist that holds a demanded velocity |
 | Rails and moving frames | In | The game's `FrameModel` moves a frame's bodies and gives its gravity |
-| Ray queries and picking | In | Jolt ray casts; picking a paused world is [J06](roadmap.md#j06) |
+| Ray queries and picking | In | Jolt ray casts; picks against the snapshots, paused or not, and under the cursor each frame |
 | Character controller | Open | Walking, steps, slopes and moving decks over Jolt's `CharacterVirtual`, in the simulation ([J56](roadmap.md#j56)) |
 | Ragdoll | Out | No consumer asks for characters that fall limp |
 | Water, wind | Out | No consumer has them; a game can apply its own forces |

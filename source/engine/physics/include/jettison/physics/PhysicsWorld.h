@@ -244,6 +244,10 @@ class PhysicsWorld final : public Sim::WorldService
 
 	bool HasShape(std::string_view name) const;
 
+	// The definition a shape was defined by, or null for a name not defined: what a picker over the
+	// snapshots builds its own from (SnapshotPicker), a definition and not the step's state.
+	const ShapeDefinition *FindShapeDefinition(std::string_view name) const;
+
 	// The radius of the smallest sphere about the body's origin holding the shape: a box's half
 	// diagonal, a mesh's farthest vertex. What steering keeps clear of a body. Throws
 	// std::invalid_argument for a shape that is not defined.

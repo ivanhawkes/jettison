@@ -1,6 +1,7 @@
 #include <jettison/physics/PhysicsWorld.h>
 
 #include <jettison/physics/Flight.h>
+#include <jettison/physics/SnapshotPicker.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
@@ -562,4 +563,62 @@ TEST_CASE("Physics: a room saved part-way and loaded carries on exactly as the o
 	original.Run(2.0);
 	loaded.Run(2.0);
 	CHECK(loaded.world.Save() == original.world.Save());
+}
+
+
+TEST_CASE("Physics: a pick against the snapshots hits what a cast does, where the frame draws it")
+{
+	Fixture fixture;
+	fixture.world.ShowInSnapshots<Body>();
+	fixture.Stack();
+	fixture.Run(0.5);
+	const Sim::Snapshot previous = Sim::Capture(fixture.world);
+	fixture.world.Step();
+	const Sim::Snapshot current = Sim::Capture(fixture.world);
+	const Physics::SnapshotPicker picker{fixture.physics};
+	const glm::dvec3 down{0.0, -1.0, 0.0};
+	const glm::dvec3 above{0.0, 20.0, 0.0};
+
+	// At the newest snapshot, the upper crate, as the world's own cast finds it.
+	const std::optional<Physics::CastHit> picked =
+	    picker.CastRay(previous, current, 1.0, kRoom, above, down, 50.0);
+	const std::optional<Physics::CastHit> cast = fixture.physics.CastRay(kRoom, above, down, 50.0);
+	REQUIRE(picked);
+	REQUIRE(cast);
+	CHECK(picked->entity == fixture.upper);
+	CHECK(picked->entity == cast->entity);
+	CHECK(picked->distance == doctest::Approx(cast->distance).epsilon(1e-6));
+	CHECK(picked->normal.y == doctest::Approx(1.0f));
+
+	// Between the two, where the crate is drawn: its top as Sim::Interpolate places it.
+	const std::optional<Sim::Transform> drawn = Sim::Interpolate(previous, current, fixture.upper, 0.5);
+	REQUIRE(drawn);
+	const std::optional<Physics::CastHit> between =
+	    picker.CastRay(previous, current, 0.5, kRoom, above, down, 50.0);
+	REQUIRE(between);
+	CHECK(between->distance == doctest::Approx(above.y - (drawn->position.y + 1.0)).epsilon(1e-5));
+
+	// Beside the crates, the floor, which a pick of what moves leaves out.
+	const glm::dvec3 beside{10.0, 20.0, 0.0};
+	const std::optional<Physics::CastHit> floor =
+	    picker.CastRay(previous, current, 1.0, kRoom, beside, down, 50.0);
+	REQUIRE(floor);
+	CHECK(floor->entity == fixture.floor);
+	CHECK_FALSE(picker.CastRay(previous, current, 1.0, kRoom, beside, down, 50.0, {.statics = false}));
+
+	// The one it passes through, and a ray of nothing.
+	const std::optional<Physics::CastHit> past =
+	    picker.CastRay(previous, current, 1.0, kRoom, above, down, 50.0, {.ignore = fixture.upper});
+	REQUIRE(past);
+	CHECK(past->entity == fixture.lower);
+	CHECK_FALSE(picker.CastRay(previous, current, 1.0, kRoom, above, {0.0, 0.0, 0.0}, 50.0));
+	CHECK_FALSE(picker.CastRay(previous, current, 1.0, Sim::FrameId("Elsewhere"), above, down, 50.0));
+
+	// A picker of its own shapes passes over a body whose shape it has not been given.
+	Physics::SnapshotPicker own;
+	own.DefineShape("floor", Box({20.0f, 0.5f, 20.0f}));
+	const std::optional<Physics::CastHit> ownHit =
+	    own.CastRay(previous, current, 1.0, kRoom, above, down, 50.0);
+	REQUIRE(ownHit);
+	CHECK(ownHit->entity == fixture.floor);
 }

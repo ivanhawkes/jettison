@@ -192,11 +192,24 @@ simulation's state. And presentation draws [behind the
 simulation](simulation.md#snapshots-and-the-stepper), while a fast local frame can move hundreds of
 metres a step, so a ray drawn from the picture must be cast against the world as it was drawn.
 
-So a pick is the command `Physics::Pick`, carrying the ray through the cursor and the simulation
-time it was drawn at; the step casts it with each local frame placed as it was then. As a queued
+A pick the simulation answers, one a game's rule acts on, is the command `Physics::Pick`, carrying
+the ray through the cursor and the simulation time it was drawn at; the step casts it with each
+local frame placed as it was then. As a queued
 command it is in a recording, and a replay raises its answer again. The sequence shows one pick,
 answered a frame later. The answer carries the pick's sender and request number, so each player's
 presentation takes its own.
+
+A pick presentation makes for itself, what the cursor is over or what a click selects, is
+`Physics::SnapshotPicker`: a ray against the bodies as the two newest snapshots draw them, each at
+the transform between them the frame shows (`Sim::Interpolate` at the alpha drawn), so it is
+answered at once, while the world is paused, and every frame, for a hover. It reads no simulation
+state: the bodies are the snapshots' (`Body`, which the world shows in them) and their shapes are
+definitions, built as Jolt shapes from the physics world's (`PhysicsWorld::FindShapeDefinition`)
+or defined on the picker by a client with no world of its own, and each is cast against with
+Jolt's own ray test, so it hits what the step's `CastRay` would. `PickOptions` leaves out the body
+the camera is inside, sensors unless asked for, and static bodies when `statics` is false, for a
+pick of only what moves. It tests every body of the frame
+(`shortcut:` a broadphase over the snapshot, should a frame hold tens of thousands).
 
 ```mermaid
 sequenceDiagram
@@ -485,27 +498,26 @@ The dock suite collects impacts the same way, keeping beginnings that are not se
 
 ### Picking
 
-The shell pushes a pick from the camera it last drew, at the time it showed
-(`source/engine/app/src/Application.cpp`):
+The shell picks against the snapshots as the camera it last drew drew them
+(`source/engine/app/src/Application.cpp`), in the frame the game picks in (`Game::PickIn`):
 
 ```cpp
 const Math::DRay ray = Render::ScreenRay(
     Render::ActiveCameraView(m_pScene->Registry()), point, glm::dvec2{width, height});
-m_pickTime = m_shownTime;
-m_sim.Commands().Push(
-    Physics::Pick{
-        kPilot, ++m_pickRequest, space->frame, ray.origin, ray.direction, kPickDistance, m_pickTime,
-        space->ignore});
+return m_pPicker->CastRay(
+    m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha(), space->frame, ray.origin,
+    ray.direction, kPickDistance, {.ignore = space->ignore, .statics = space->statics});
 ```
 
-It then takes the `Physics::Picked` event whose sender and request match, and ignores the rest; a
-null `entity` means the ray hit nothing. The shell marks a hit where it was, with the surface's
-normal, names it in an overlay, and logs what was picked and how far off, or "Picked nothing". A
-pick reaches 50 km (`kPickDistance`).
+A click is answered as it is made, paused or not. The shell marks a hit where it was, with the
+surface's normal, names it in an overlay, and logs what was picked and how far off, or "Picked
+nothing". Each frame it picks under the cursor too, where the cursor is over the scene rather than
+a window, and outlines what it is over in a fainter, narrower line than a selection's; not in a run
+with `--frame-step`, whose frames are the same every run. A pick reaches 50 km (`kPickDistance`). A
+game whose `PickSpace` sets `statics` false picks and hovers only what moves.
 
 ## Limits and open work
 
-- Picking a paused world, and under the cursor every frame: [J06](roadmap.md#j06).
 - Shape offsets and compound shapes, collision filtering beyond static against moving, Jolt's debug
   renderer, Jolt's job system on more threads, tuned capacities, overlap queries and all-hit
   casts: [J07](roadmap.md#j07).
@@ -527,6 +539,7 @@ AVX2 flags stay inside it.
 | Header | Holds |
 | --- | --- |
 | `source/engine/physics/include/jettison/physics/PhysicsWorld.h` | `PhysicsWorld`, `PhysicsSettings`, `FrameModel`, contacts, casts, `Pick` and `Picked`, `JoltVersion` |
+| `source/engine/physics/include/jettison/physics/SnapshotPicker.h` | `SnapshotPicker`, `PickOptions`: picks against the snapshots |
 | `source/engine/physics/include/jettison/physics/Components.h` | `Body`, `BodyKind`, `Velocity`, `OnRails`, `LocalFrame`, `RegisterTypes` |
 | `source/engine/physics/include/jettison/physics/Shape.h` | `ShapeDefinition`, `ShapeKind` |
 | `source/engine/physics/include/jettison/physics/Flight.h` | `Handling`, `FlightControls`, `SetFlightControls`, `Thrust`, `Reason`, `StepFlight` |

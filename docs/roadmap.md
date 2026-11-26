@@ -32,7 +32,8 @@ Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifes
 by `459af99` and the commit before it ([history](history.md)). Its later work waits until the user
 has played its first loop for a day or two. No delivery is open: encryption, J01, a script's
 sender, J02, and dock control a game decides, J35, are done ([history](history.md)), and of the
-backlog behaviour trees, J03, scripts, J04, packs and mods, J05, and the shell's log file, J10. Manifest's adoption of encryption, its server's key in
+backlog behaviour trees, J03, scripts, J04, packs and mods, J05, picking against the snapshots, J06,
+and the shell's log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
 
 ## Waiting on you
@@ -54,22 +55,6 @@ No item is open in this tier: the last, a script's sender (J02), is done ([histo
 
 What a game reaches for as its AI, content and tools grow. None changes a save already written, but
 each is cheaper before a game builds a workaround.
-
-<a id="j06"></a>
-### J06. Picking a paused world, and under the cursor every frame
-
-**What remains.** A pick answered while the world is paused, and a pick under the cursor every
-frame, for a hover highlight. Both want a query that presentation makes itself, against the bodies'
-shapes in a snapshot.
-
-**Why.** A pick is a command the next step answers with an event ([decided](decisions.md#physics)),
-so a paused world answers only when it resumes, and a hover would send a command every frame.
-
-**What exists.** `Physics::Pick` and `Physics::Picked`
-(`source/engine/physics/include/jettison/physics/PhysicsWorld.h`); the shell asks the game where a
-click picks (`App::Game::PickIn`).
-
-**Feature doc:** [physics](physics.md).
 
 <a id="j07"></a>
 ### J07. Physics

@@ -14,6 +14,7 @@ jettison_add_module(physics
 		include/jettison/physics/Flight.h
 		include/jettison/physics/PhysicsWorld.h
 		include/jettison/physics/Shape.h
+		include/jettison/physics/SnapshotPicker.h
 	SOURCES
 		src/Components.cpp
 		src/Convert.h
@@ -25,6 +26,7 @@ jettison_add_module(physics
 		src/PhysicsWorld.cpp
 		src/Shapes.cpp
 		src/Shapes.h
+		src/SnapshotPicker.cpp
 	TESTS
 		tests/PhysicsTests.cpp
 		tests/ReplayTests.cpp

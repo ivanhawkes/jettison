@@ -99,7 +99,13 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   the simulation's state. A pick is recorded like any command, and a replay raises its answer again.
   The pick carries the simulation time its ray was drawn at, and each frame is placed there for the
   cast: presentation draws behind the simulation, and a click on a fast-moving body would otherwise
-  miss. A paused world answers when it resumes ([J06](roadmap.md#j06)). [Physics](physics.md)
+  miss. [Physics](physics.md)
+- **A pick presentation makes for itself reads the snapshots** (2026-11-26). What the cursor is over
+  and what a click selects are presentation's, answered at once against the bodies as the snapshots
+  draw them (`Physics::SnapshotPicker`), with Jolt's own ray test on shapes built from their
+  definitions, so a paused world is picked and a hover costs no command a frame. It reads no
+  simulation state, so a client with no physics world picks the same way. A pick a game's rule
+  acts on stays the command, recorded and replayed. [Physics](physics.md)
 
 ## Transit
 

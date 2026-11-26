@@ -67,6 +67,9 @@ struct ShapeEntry
 	JPH::RefConst<JPH::Shape> shape;
 	bool mesh{false};
 	double radius{0.0};
+
+	// What it was built from, for a picker that builds its own (SnapshotPicker).
+	ShapeDefinition definition;
 };
 
 
@@ -661,7 +664,7 @@ void PhysicsWorld::DefineShape(std::string name, const ShapeDefinition &shape)
 	if (m_pImpl->shapes.contains(name))
 		throw std::invalid_argument{std::format("Physics: shape '{}' is already defined", name)};
 	ShapeEntry entry{
-	    Detail::BuildShape(name, shape), shape.kind == ShapeKind::Mesh, BoundingRadius(shape)};
+	    Detail::BuildShape(name, shape), shape.kind == ShapeKind::Mesh, BoundingRadius(shape), shape};
 	m_pImpl->shapes.emplace(std::move(name), std::move(entry));
 }
 
@@ -676,6 +679,13 @@ void PhysicsWorld::DefineShapes(const Sim::DefinitionRegistry &definitions)
 bool PhysicsWorld::HasShape(std::string_view name) const
 {
 	return m_pImpl->FindShape(name) != nullptr;
+}
+
+
+const ShapeDefinition *PhysicsWorld::FindShapeDefinition(std::string_view name) const
+{
+	const ShapeEntry *entry = m_pImpl->FindShape(name);
+	return entry ? &entry->definition : nullptr;
 }
 
 

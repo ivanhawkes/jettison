@@ -37,6 +37,7 @@
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/physics/SnapshotPicker.h>
 #include <jettison/platform/Crash.h>
 #include <jettison/profile/Profile.h>
 #include <jettison/render/Camera.h>
@@ -459,6 +460,10 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 
 	// For the frame an entity's physics is in, which a game's presentation reads.
 	m_sim.ShowInSnapshots<Physics::LocalFrame>();
+
+	// What a pick against the snapshots meets: each body and its shape's name.
+	m_sim.ShowInSnapshots<Physics::Body>();
+	m_pPicker = std::make_unique<Physics::SnapshotPicker>(*m_pPhysics);
 	RegisterSavesScreenTypes();
 	m_pGame->Register(MakeShellWorld(), *this);
 	m_pGame->AddCommands(m_console, *this);
@@ -494,7 +499,8 @@ void Application::RegisterFrameSystems()
 		     PollInput();
 	     }});
 
-	// The mouse's picks, as the commands the next step applies; a game's commands go here too.
+	// The mouse's pick and what it is over, against the snapshots as last drawn; a game's commands
+	// go here too.
 	m_frame.Register(
 	    {"shell.pick",
 	     TickPhase::Commands,
@@ -506,6 +512,7 @@ void Application::RegisterFrameSystems()
 		     if (m_clicked)
 			     Pick(*m_clicked);
 		     m_clicked.reset();
+		     Hover();
 	     }});
 
 	m_frame.Register(
@@ -1471,6 +1478,10 @@ void Application::PollInput()
 	// A click on the scene, not on a window over it, ImGui's or the game UI's.
 	if (m_input.WasPressedThisFrame(m_pickAction) && !uiMouse)
 		m_clicked = m_glfwInput.Cursor();
+
+	// Not in a run with --frame-step, whose frames are the same every run wherever the cursor rests.
+	m_hoverCursor =
+	    uiMouse || m_arguments.frameStep > 0.0 ? std::nullopt : std::optional{m_glfwInput.Cursor()};
 	if (m_input.WasPressedThisFrame(m_toggleConsole))
 	{
 		m_devTools.showConsole = !m_devTools.showConsole;
@@ -1896,7 +1907,9 @@ SmokeActions Application::MakeSmokeActions()
 		glfwGetWindowSize(m_pRenderer->GetGLFWWindow(), &width, &height);
 		return Pick({width * 0.5, height * 0.5});
 	};
-	actions.picking = [this] { return m_pickPending; };
+
+	// A pick against the snapshots is answered as it is made.
+	actions.picking = [] { return false; };
 	actions.saveAndLoad = [this]
 	{
 		const std::uint64_t saved = m_sim.StateHash();
@@ -1986,27 +1999,52 @@ void Application::Shutdown() noexcept
 }
 
 
-bool Application::Pick(const glm::dvec2 &point)
+std::optional<Physics::CastHit> Application::CastThrough(const glm::dvec2 &point) const
 {
 	const std::optional<PickSpace> space = m_pGame->PickIn(*this);
 	if (!space)
-		return false;
+		return std::nullopt;
 	int width = 0;
 	int height = 0;
 	glfwGetWindowSize(m_pRenderer->GetGLFWWindow(), &width, &height);
 	if (width <= 0 || height <= 0)
-		return false;
+		return std::nullopt;
 
-	// The camera as it was drawn last frame, which is what was clicked on, and the time it showed.
+	// The camera as it was drawn last frame, which is what the cursor is over, and the snapshots and
+	// the alpha it drew them at: the commands phase comes before this frame's steps.
 	const Math::DRay ray = Render::ScreenRay(
 	    Render::ActiveCameraView(m_pScene->Registry()), point, glm::dvec2{width, height});
+	return m_pPicker->CastRay(
+	    m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha(), space->frame, ray.origin,
+	    ray.direction, kPickDistance, {.ignore = space->ignore, .statics = space->statics});
+}
+
+
+bool Application::Pick(const glm::dvec2 &point)
+{
+	if (!m_pGame->PickIn(*this))
+		return false;
 	m_pickTime = m_shownTime;
-	m_sim.Commands().Push(
-	    Physics::Pick{
-	        kPilot, ++m_pickRequest, space->frame, ray.origin, ray.direction, kPickDistance, m_pickTime,
-	        space->ignore});
-	m_pickPending = true;
+	const std::optional<Physics::CastHit> hit = CastThrough(point);
+	if (!hit)
+	{
+		m_picked.reset();
+		Core::Log(Core::Severity::Info, kShell, "Picked nothing");
+		return true;
+	}
+	m_picked = PickedMark{
+	    hit->entity, hit->distance, hit->point - m_pGame->PickOrigin(*this, m_pickTime), hit->normal};
+	Core::Log(
+	    Core::Severity::Info, kShell, "Picked {} at {:.0f} m", Describe(hit->entity), hit->distance);
 	return true;
+}
+
+
+void Application::Hover()
+{
+	const std::optional<Physics::CastHit> hit =
+	    m_hoverCursor ? CastThrough(*m_hoverCursor) : std::nullopt;
+	m_hovered = hit ? hit->entity : entt::null;
 }
 
 
@@ -2016,26 +2054,6 @@ void Application::TakeEvents()
 	{
 		m_pScripts->Dispatch(event);
 		PlayEventSound(event);
-		if (const auto *picked = event.event.try_cast<Physics::Picked>())
-		{
-			// Another player's, or an answer to a pick since superseded, is not what the mouse last
-			// asked about.
-			if (picked->sender != kPilot || picked->request != m_pickRequest)
-				continue;
-			m_pickPending = false;
-			if (picked->entity == entt::null)
-			{
-				m_picked.reset();
-				Core::Log(Core::Severity::Info, kShell, "Picked nothing");
-				continue;
-			}
-			m_picked = PickedMark{
-			    picked->entity, picked->distance,
-			    picked->point - m_pGame->PickOrigin(*this, m_pickTime), picked->normal};
-			Core::Log(
-			    Core::Severity::Info, kShell, "Picked {} at {:.0f} m", Describe(picked->entity),
-			    picked->distance);
-		}
 		m_pGame->TakeEvent(event, *this);
 	}
 }
@@ -2046,15 +2064,38 @@ void Application::MarkScene(entt::registry &registry)
 	// The outline the shell placed last frame comes off, and this frame's goes on: the proxies of the
 	// simulation's entities come and go with its snapshots, so it is placed on what is there now. An
 	// outline a scene file authored is its own, and stays.
-	if (m_outlined != entt::null && registry.valid(m_outlined))
-		registry.remove<Scene::OutlineComponent>(m_outlined);
-	m_outlined = entt::null;
+	for (entt::entity *pOutlined : {&m_outlined, &m_hoverOutlined})
+	{
+		if (*pOutlined != entt::null && registry.valid(*pOutlined))
+			registry.remove<Scene::OutlineComponent>(*pOutlined);
+		*pOutlined = entt::null;
+	}
+	const auto proxyOf = [&registry](entt::entity simEntity)
+	{
+		entt::entity proxy = entt::null;
+		if (simEntity == entt::null)
+			return proxy;
+		for (const auto [entity, sim] : registry.view<const Scene::SimProxyComponent>().each())
+			if (sim.simEntity == simEntity)
+				proxy = entity;
+		return proxy;
+	};
+
+	// What the cursor is over, a fainter, narrower line than a selection's, unless it is what is
+	// picked, which has its own.
+	if (const entt::entity hovered = proxyOf(m_hovered);
+	    hovered != entt::null && (!m_picked || m_picked->entity != m_hovered) &&
+	    !registry.all_of<Scene::OutlineComponent>(hovered))
+	{
+		constexpr glm::vec4 kHoverColour{0.6f, 0.8f, 1.0f, 0.6f};
+		constexpr float kHoverWidth = 6.0f;
+		registry.emplace<Scene::OutlineComponent>(
+		    hovered, Scene::OutlineComponent{Scene::OutlineStyle::Selected, kHoverColour, kHoverWidth});
+		m_hoverOutlined = hovered;
+	}
 	if (!m_picked)
 		return;
-	entt::entity proxy = entt::null;
-	for (const auto [entity, sim] : registry.view<const Scene::SimProxyComponent>().each())
-		if (sim.simEntity == m_picked->entity)
-			proxy = entity;
+	const entt::entity proxy = proxyOf(m_picked->entity);
 	if (proxy == entt::null || registry.all_of<Scene::OutlineComponent>(proxy))
 		return;
 
@@ -2111,8 +2152,11 @@ void Application::ClearPick()
 	if (m_outlined != entt::null && m_pScene && m_pScene->Registry().valid(m_outlined))
 		m_pScene->Registry().remove<Scene::OutlineComponent>(m_outlined);
 	m_outlined = entt::null;
+	if (m_hoverOutlined != entt::null && m_pScene && m_pScene->Registry().valid(m_hoverOutlined))
+		m_pScene->Registry().remove<Scene::OutlineComponent>(m_hoverOutlined);
+	m_hoverOutlined = entt::null;
+	m_hovered = entt::null;
 	m_picked.reset();
-	m_pickPending = false;
 }
 
 
