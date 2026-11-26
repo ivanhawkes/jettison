@@ -57,7 +57,9 @@ Three tool sets come from the devenv shell, not from `FetchContent`:
 
 - **Vulkan**: the headers, the loader, the validation layers and `glslc`.
 - **The scripts' compilers**: lld's `wasm-ld`, which links every script; clang for scripts in C;
-  rustc for scripts in Rust, with the `wasm32-unknown-unknown` library nixpkgs ships with it.
+  rustc for scripts in Rust, with the `wasm32-unknown-unknown` library nixpkgs ships with it; and
+  WAMR's ahead-of-time compiler, `wamrc`, built by `nix/wamrc.nix` from WAMR's release above
+  against LLVM 18, since nixpkgs' `wamr` builds only the runtime. The two releases move together.
 - **The profilers** ([profiling](#profiling)).
 
 A tree configured without the scripts' compilers builds everything but the scripts, whose targets

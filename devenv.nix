@@ -22,6 +22,7 @@
     llvmPackages_21.clang-tools
     llvmPackages_21.lld # wasm-ld, which links scripts (phase 11b): the script suite's and the sample mods'
     rustc # Scripts in Rust (phase 11b): its wasm32-unknown-unknown library comes with it, linked by wasm-ld
+    (callPackage ./nix/wamrc.nix { }) # WAMR's ahead-of-time compiler, at the engine's WAMR release
     cmake
     ninja
     pkg-config
