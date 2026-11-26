@@ -441,6 +441,25 @@ TEST_CASE("Docks: a reservation not landed on in time lapses, and the pad goes t
 }
 
 
+TEST_CASE("Docks: a reservation held two seconds is kept by a ship flown in for longer, coming nearer")
+{
+	// A skiff flown in from 2 km over the yard, which takes far longer than the reservation's two
+	// seconds: it is put off while the skiff comes nearer, so the skiff lands.
+	Yard yard;
+	const entt::entity skiff = yard.Waiting("skiff");
+	yard.world.Commands().Push(Dock::RequestBerth{{}, skiff, yard.platform, true});
+	const auto docked = [&]
+	{
+		const auto *docking = yard.world.Registry().try_get<Dock::Docking>(skiff);
+		return docking && docking->stage == Dock::Stage::Docked;
+	};
+	for (int step = 0; step < 60 * 120 && !docked(); ++step)
+		yard.Step();
+	CHECK(docked());
+	CHECK(yard.Events<Dock::BerthLapsed>().empty());
+}
+
+
 TEST_CASE("Docks: a display pad is never given, and a ship parked holds its pad")
 {
 	Yard yard;

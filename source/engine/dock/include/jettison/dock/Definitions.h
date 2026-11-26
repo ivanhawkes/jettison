@@ -109,7 +109,9 @@ struct PlatformLayout
 	std::vector<Box> decks;
 	std::vector<Box> piers;
 	std::vector<BerthLayout> berths;
-	float reservationSeconds{300.0f};
+
+	// How long a vehicle given a berth may go without coming kProgress nearer it before it loses it.
+	float reservationSeconds{60.0f};
 };
 
 // The definitions' files' versions, which change in place until player testing (docs/decisions.md,
@@ -152,6 +154,9 @@ bool Fits(const BerthClasses &classes, const VehicleDefinition &vehicle, std::st
 // among the decks and piers, and needs headroom for it: twice its class's largest vehicle's height and
 // kCoverMargin more. Throws Serialise::FormatError naming the layout and what does not fit.
 void CheckLayout(std::string_view name, const PlatformLayout &layout, const BerthClasses &classes);
+
+// How much nearer its berth a vehicle has to come than it has been for its reservation to be put off.
+inline constexpr double kProgress = 1.0;
 
 // The room over a covered berth past twice its largest vehicle's height.
 inline constexpr double kCoverMargin = 4.0;

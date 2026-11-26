@@ -574,8 +574,8 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	// on the sample's orbit, and in slice 7 for the saved names alone: with the old names, the world's
 	// version 4 and the dropped storages put back, it hashes as before. Pinned again for J08's
 	// waypointsOnEntity, the saved bytes alone: with the field not saved, it hashes to
-	// 0xcae5d971cee21f0c.
-	CHECK(first == 0x160522fb8e1f5cf2ull);
+	// 0xcae5d971cee21f0c; and for J09's corridor likewise, unsaved hashing to 0x160522fb8e1f5cf2.
+	CHECK(first == 0xef370cda6f4f3e57ull);
 
 	Fixture loaded;
 	(void)Gathering(loaded);

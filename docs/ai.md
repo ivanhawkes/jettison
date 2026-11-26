@@ -94,6 +94,7 @@ speed, braking acceleration, radius):
 | `Arrive` | The fastest velocity it can still stop at the target from, √(2ad); in the last metres no faster than the distance a second, so it does not oscillate; plus the target's own velocity |
 | `Avoid` | The desired velocity, turned aside from the first obstacle it would pass within the clearance of, and slowed so it never closes on any obstacle faster than it can stop before the clearance |
 | `Separate` | A gentle push away from each neighbour nearer than the separation |
+| `ArriveAlong` | Down a line to the target: along it as `Arrive`, across it drawn back onto the line, and no faster along than it comes back onto it, so it neither circles the point nor reaches the end off the line |
 
 Each behaviour is a velocity, not an acceleration: the flight model's assist holds a demanded
 velocity and reaches it as fast as the thrusters allow ([physics](physics.md#the-flight-model)), so
@@ -131,6 +132,7 @@ since bodies in two frames never meet ([Coordinate frames and units](coordinates
 | `entity` | none | With an entity, `offset` is in the entity's own axes, so the place turns and moves with it. Without one, `offset` is a point in the vehicle's frame, from the frame's body |
 | `offset` | 0 | Where, as above |
 | `waypoints` | none | Points flown through in order first, relative to the frame's origin: a course made relative to the frame |
+| `corridor` | false | Flown as a corridor: the course no faster than it can stop in the whole way left, each waypoint no faster than its turn allows, and past them down the line from the last waypoint (`ArriveAlong`); the docks' way in |
 | `waypointsOnEntity` | false | The waypoints in the entity's axes, as `offset` is, so a course in among a platform's decks turns with it |
 | `speed` | 0 (top speed) | Metres a second; never more than `Handling::maxSpeed` |
 | `passRadius` | 40 m | How near a waypoint counts as passed |
@@ -144,8 +146,8 @@ fly inside it. A destination with `byShape` leaves out of the obstacles its enti
 on the same body's [rails](glossary.md#rails) (the platform and the vehicles clamped to it).
 Instead it sweeps the vehicle's own shape along its way (`PhysicsWorld::CastShape`) and slows to
 stop the clearance short of what the sweep meets; what lies beyond its target, such as the deck
-under a berth, is not in its way. The [docks](docks.md#the-way-in) use this, with `face`, for the
-last leg down onto a berth.
+under a berth, is not in its way. The [docks](docks.md#the-way-in) use this, with `face` and
+`corridor`, for the way in onto a berth.
 
 **Commands and events.** `Ai::SetDestination` gives a vehicle a destination, from its first
 waypoint; `Ai::ClearDestination` takes it away, leaving the vehicle holding still where it is. Both
@@ -510,7 +512,6 @@ trees.world.Commands().Push(Ai::LeaveHelm{one, second});
   `Manifest::Policy::Choose`.
 - A course among a platform's decks goes round the structure, not round a vehicle docked on another
   berth, which only the shape sweep stops it short of ([docks](docks.md#a-covered-berth)).
-- The way in to a berth, which steering flies for the docks ([J09](roadmap.md#j09)).
 - An obstacle is a sphere, found through the spatial index; physics' overlap queries and all-hit
   casts ([physics](physics.md#casts-and-picking)) are there for a game that wants them.
 - Pathfinding is over graphs only, not meshes or grids ([scope](scope.md)).

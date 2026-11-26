@@ -114,7 +114,7 @@ How: [docks](docks.md).
 | --- | --- | --- |
 | [Platforms](glossary.md#platform), [berths](glossary.md#berth) and [berth classes](glossary.md#berth-class) | In | Who holds a berth is authoritative state, given by commands in queue order; the layout is data |
 | Docking and undocking | In | A vehicle is reserved a berth, flies to it and is held there |
-| The way in to a berth | In | A proper approach is open ([J09](roadmap.md#j09)) |
+| The way in to a berth | In | A corridor down the berth's normal, flown without stopping; covered berths flown to among the decks |
 | Berth prices, landing rights | Manifest | A game's rules |
 
 ## AI

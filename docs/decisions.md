@@ -135,13 +135,16 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   vehicle names its own class, and fits a berth of that rank or above whose largest vehicle holds
   it; the lowest-ranked free berth is given first. Fitting by size alone would let a vehicle onto a
   berth the game means for another kind. [Docks](docks.md)
-- **A vehicle comes down onto its berth from outside the platform's sphere** (2026-11-12). The docks
-  fly it round the platform's sphere by a course (`Ai::Waypoints`) to a point above the berth along
-  its normal, then straight down. Steering already goes round a sphere, so no course over the
-  platform's own hull is plotted, and the shape cast on the way stops the vehicle short of anything
-  there ([J09](roadmap.md#j09)). A covered berth, under a pier, is flown to among the decks and piers
-  by a course round their boxes, in the berth's axes, and is allowed where its headroom is twice its
-  largest vehicle's height and 4 m more (2026-11-26). [Docks](docks.md)
+- **A vehicle comes down onto its berth from outside the platform's sphere, down a corridor**
+  (2026-11-12; the corridor 2026-11-26, the user's design of 2026-11-21). The docks fly it round the
+  platform's sphere by a course (`Ai::Waypoints`) to the mouth of a corridor out along the berth's
+  normal, and down the corridor onto the berth without stopping: the speed falls with the way left,
+  the velocity across the line is damped rather than the point pursued, and the platform is no
+  obstacle on it (`byShape`), as approach paths in other games relax avoidance against the
+  station. A reservation lapses when the vehicle stops coming nearer, not at a fixed time. A covered
+  berth, under a pier, is flown to among the decks and piers by a course round their boxes, in the
+  berth's axes, and is allowed where its headroom is twice its largest vehicle's height and 4 m
+  more. [Docks](docks.md)
 - **A docked vehicle is a kinematic body on its platform's rails** (2026-11-12), not a dynamic one
   held by its assist or a constraint. On rails (`Physics::OnRails`) it is exactly where its berth is
   at every step in every build, and meets nothing kinematic, so a deck and its vehicles make no

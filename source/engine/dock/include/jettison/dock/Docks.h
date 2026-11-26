@@ -79,9 +79,10 @@ enum class BerthState : std::uint8_t
 
 // A berth, an entity of its platform's, on the platform's rails at its place on the deck
 // (Physics::OnRails) and in its frame, so a vehicle's destination by it turns and moves with the
-// platform. The vehicle it is reserved for or holds, and the step its reservation lapses at
-// (Time::SimClock::Step). Registered with Reflect, every field Saved, by RegisterTypes; Docks::Attach
-// registers it with its chain (Migrations).
+// platform. The vehicle it is reserved for or holds; the step its reservation lapses at
+// (Time::SimClock::Step), put off each time the vehicle comes nearer it than it has been, so only a
+// vehicle that stops making progress loses it; and the nearest it has come, in metres. Registered with
+// Reflect, every field Saved, by RegisterTypes; Docks::Attach registers it with its chain (Migrations).
 struct Berth
 {
 	entt::entity platform{entt::null};
@@ -93,6 +94,7 @@ struct Berth
 	BerthState state{BerthState::Free};
 	entt::entity vehicle{entt::null};
 	std::uint64_t lapses{0};
+	double nearest{0.0};
 
 	bool operator==(const Berth &) const = default;
 
@@ -105,10 +107,10 @@ enum class Stage : std::uint8_t
 {
 	// Waiting in the platform's queue for a berth.
 	Queued,
-	// Given a berth and on its way to the point above it: round the platform's sphere to a point
-	// further out along the berth's normal, stopped there, then straight down the normal.
+	// Given a berth and on its way to it: round the platform's sphere to the mouth of its corridor out
+	// along its normal; under a cover, among the decks and piers to the point over it.
 	Inbound,
-	// Coming down onto the berth from above it.
+	// Coming down onto the berth: down its corridor without stopping, or from the point over it.
 	Descending,
 	// Clamped to the berth: held in the platform's frame, on its rails, out of flight.
 	Docked,
@@ -403,8 +405,6 @@ class Docks
 	// The destinations of each stage the docks fly a vehicle through.
 	void FlyInbound(Sim::SimWorld &world, entt::entity vehicle, double time);
 
-	void FlyAbove(Sim::SimWorld &world, entt::entity vehicle);
-
 	void FlyDown(Sim::SimWorld &world, entt::entity vehicle);
 
 	void FlyUp(Sim::SimWorld &world, entt::entity vehicle);
@@ -451,6 +451,9 @@ class Docks
 	// Where a vehicle of the definition rests on the berth: its centre half its height above the deck,
 	// in the berth's axes.
 	static double RestingHeight(const VehicleDefinition &vehicle);
+
+	// The steps a reservation lasts with no progress: the layout's reservationSeconds, rounded up.
+	static std::uint64_t ReservationSteps(const Sim::SimWorld &world, const PlatformLayout &layout);
 
 	Physics::PhysicsWorld &m_physics;
 	BerthClasses m_berthClasses;

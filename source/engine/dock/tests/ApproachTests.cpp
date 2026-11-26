@@ -224,7 +224,7 @@ TEST_CASE(
 TEST_CASE(
     "Docks: the same approach from the same start, and from a save part-way, reaches the same state")
 {
-	constexpr int kSaveAt = 60 * 125;
+	constexpr int kSaveAt = 60 * 100;
 	constexpr int kSteps = 60 * 145;
 	const auto run = [](std::optional<std::vector<std::byte>> &saved, int saveAt)
 	{
@@ -266,8 +266,10 @@ TEST_CASE(
 	// the point above the berth, 23.6 s down); and in the space extraction's 5b for the platform on
 	// the suite's own ferry rather than on the sample's orbit, the times the same; and in slice 7 for
 	// the saved names alone: with the old names, the world's version 4 and the transfers' and buggies'
-	// storages put back, it hashes as before.
-	CHECK(first == 0x6fad9fdf840ea5d5ull);
+	// storages put back, it hashes as before; and in J09 for the way in flown as a corridor without
+	// stopping, a reservation put off while the vehicle comes nearer (87 s to the corridor, 30 s down,
+	// against the stopgap's 117 and 24).
+	CHECK(first == 0x7ec1f1e21c5561b0ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);
@@ -281,7 +283,7 @@ TEST_CASE("Docks: a ship made again from a save of another Jolt docks as it woul
 {
 	// A docked vehicle is a kinematic body on its platform's rails, and the clamps are presentation's,
 	// so Jolt holds nothing of a docking that the records do not: the rebuild loses none of it.
-	constexpr int kSaveAt = 60 * 120;
+	constexpr int kSaveAt = 60 * 100;
 	const Physics::JoltVersion other{5, 5, 0, Physics::BuiltJoltVersion().features};
 	Approach original;
 	for (int step = 0; step < kSaveAt; ++step)
@@ -318,11 +320,13 @@ TEST_CASE("Docks: a ship made again from a save of another Jolt docks as it woul
 }
 
 
-TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes over its pad in time")
+TEST_CASE("Docks: a ship flown in from any side, at rest or going across, lands on its pad in time")
 {
-	// From all round Highport 2 km out, still or at its top speed across: one that came in fast and
-	// sideways overshot the point above its berth into the platform's sphere and circled it, steered
-	// out each time, until its berth lapsed, as one came round the platform from below at rest did.
+	// From all round Highport 2 km out, still or at its top speed across, down a corridor without
+	// stopping: one that came in fast and sideways once overshot the point above its berth into the
+	// platform's sphere and circled it until its berth lapsed, and the stopgap that cured it, a stop
+	// out along the normal, took up to 92 s to the clamp from here; the corridor takes no more than
+	// 80, touching nothing.
 	for (int side = 0; side < 12; ++side)
 		for (const double across : {0.0, 150.0})
 		{
@@ -340,14 +344,15 @@ TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes 
 			registry.get<Physics::Velocity>(vehicle).linear =
 			    glm::vec3{axes * glm::dvec3{0.0, 0.0, across}};
 			fixture.world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
-			bool above = false;
-			for (int step = 0; step < 60 * 120 && !above; ++step)
+			bool docked = false;
+			for (int step = 0; step < 60 * 80 && !docked; ++step)
 			{
 				fixture.Step();
 				const auto *docking = registry.try_get<Dock::Docking>(vehicle);
-				above = docking && docking->stage == Dock::Stage::Descending;
+				docked = docking && docking->stage == Dock::Stage::Docked;
 			}
-			CHECK(above);
+			CHECK(docked);
+			CHECK(fixture.collisions.empty());
 		}
 }
 
@@ -404,4 +409,69 @@ TEST_CASE("Docks: a ship flown in under a pier lands on its covered pad and is f
 	    glm::length(
 	        fixture.world.Registry().get<Sim::Transform>(vehicle).position -
 	        fixture.world.Registry().get<Sim::Transform>(platform).position) > Dock::Radius(layout));
+}
+
+
+TEST_CASE("Docks: two ships flown in together land on the next pads, each down its own corridor")
+{
+	// Side by side 2 km off Highport, given pads 1 and 2, 210 m apart along one pier.
+	Fixture fixture;
+	const entt::entity platform = fixture.docks.MakePlatform(
+	    fixture.world, DockTests::kHarbour, DockTests::kFerry, "ostra-highport");
+	entt::registry &registry = fixture.world.Registry();
+	const glm::dquat axes = registry.get<Sim::Transform>(platform).orientation;
+	const entt::entity first =
+	    fixture.Vehicle(platform, "shuttle", axes * glm::dvec3{1200.0, 1500.0, 0.0});
+	const entt::entity second =
+	    fixture.Vehicle(platform, "shuttle", axes * glm::dvec3{1260.0, 1500.0, 0.0});
+	fixture.world.Commands().Push(Dock::RequestBerth{{}, first, platform, true});
+	fixture.world.Commands().Push(Dock::RequestBerth{{}, second, platform, true});
+	fixture.Step();
+	CHECK(fixture.NumberOf(first) == 1);
+	CHECK(fixture.NumberOf(second) == 2);
+	const auto docked = [&](entt::entity vehicle)
+	{ return registry.get<Dock::Docking>(vehicle).stage == Dock::Stage::Docked; };
+	for (int step = 0; step < 60 * 120 && !(docked(first) && docked(second)); ++step)
+		fixture.Step();
+	CHECK(docked(first));
+	CHECK(docked(second));
+	CHECK(fixture.collisions.empty());
+}
+
+
+// The way in measured from all round Highport, 2 and 4 km out, still or going across at 150 m/s: the
+// seconds to the clamp, and the contacts on the way. Skipped in the gate; run it from a Release tree
+// with
+//
+//   build/clang-release/source/engine/dock/jettison_dock_tests --no-skip -tc='Docks benchmark*'
+TEST_CASE("Docks benchmark: the way in from every side" * doctest::skip())
+{
+	for (const double distance : {2000.0, 4000.0})
+		for (int side = 0; side < 12; ++side)
+			for (const double across : {0.0, 150.0})
+			{
+				Fixture fixture;
+				const entt::entity platform = fixture.docks.MakePlatform(
+				    fixture.world, DockTests::kHarbour, DockTests::kFerry, "ostra-highport");
+				entt::registry &registry = fixture.world.Registry();
+				const glm::dquat axes = registry.get<Sim::Transform>(platform).orientation;
+				const double angle = side * glm::two_pi<double>() / 12.0;
+				const entt::entity vehicle = fixture.Vehicle(
+				    platform, "shuttle",
+				    axes * glm::dvec3{distance * std::sin(angle), distance * std::cos(angle), 0.0});
+				registry.get<Physics::Velocity>(vehicle).linear =
+				    glm::vec3{axes * glm::dvec3{0.0, 0.0, across}};
+				fixture.world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
+				std::optional<double> docked;
+				for (int step = 0; step < 60 * 400 && !docked; ++step)
+				{
+					fixture.Step();
+					const auto *docking = registry.try_get<Dock::Docking>(vehicle);
+					if (docking && docking->stage == Dock::Stage::Docked)
+						docked = static_cast<double>(step + 1) * DockTests::kStep;
+				}
+				MESSAGE(
+				    distance, " m, side ", side, ", across ", across, " m/s: ", docked ? *docked : -1.0,
+				    " s, ", fixture.collisions.size(), " contacts");
+			}
 }

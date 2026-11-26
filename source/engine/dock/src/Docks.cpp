@@ -72,6 +72,10 @@ constexpr double kWayOutReach = 1.0;
 
 constexpr Core::Category kDock{"dock"};
 
+// How far past the point above a berth its corridor's mouth is, as a share of the platform's radius:
+// room out along the normal for a vehicle that came round the sphere to turn down the corridor.
+constexpr double kMouthShare = 1.0;
+
 using Detail::Sorted;
 
 
@@ -476,8 +480,23 @@ void Docks::Step(Sim::SimWorld &world)
 	// 2. Reservations that have lapsed.
 	for (const entt::entity berthEntity : Sorted<Berth>(registry))
 	{
-		const Berth &berth = registry.get<Berth>(berthEntity);
-		if (berth.state != BerthState::Reserved || step < berth.lapses)
+		Berth &berth = registry.get<Berth>(berthEntity);
+		if (berth.state != BerthState::Reserved)
+			continue;
+
+		// Put off while the vehicle comes nearer: a reservation is lost by a vehicle that has stopped
+		// making progress, not by one still on its way.
+		const double distance = glm::distance(
+		    registry.get<Sim::Transform>(berth.vehicle).position,
+		    registry.get<Sim::Transform>(berthEntity).position);
+		if (distance < berth.nearest - kProgress)
+		{
+			berth.nearest = distance;
+			berth.lapses =
+			    step +
+			    ReservationSteps(world, m_layouts.at(registry.get<Platform>(berth.platform).layout));
+		}
+		if (step < berth.lapses)
 			continue;
 		world.Events().Emit(BerthLapsed{berth.vehicle, berth.platform, berthEntity, berth.number});
 		GiveUp(world, berth.vehicle, false);
@@ -507,12 +526,12 @@ void Docks::Step(Sim::SimWorld &world)
 					if (!destination)
 						FlyInbound(world, vehicle, time);
 
-					// Stopped out along the normal, then flown down it to the point above.
+					// Into the corridor once past the course round the sphere; under a cover, once
+					// over the berth, then flown down onto it.
 					else if (
-					    destination->arrived &&
-					    destination->offset.y > AboveHeight(registry, vehicle, berth))
-						FlyAbove(world, vehicle);
-					else if (destination->arrived)
+					    destination->corridor && destination->next >= destination->waypoints.size())
+						docking.stage = Stage::Descending;
+					else if (!destination->corridor && destination->arrived)
 					{
 						docking.stage = Stage::Descending;
 						FlyDown(world, vehicle);
@@ -656,9 +675,10 @@ void Docks::Give(Sim::SimWorld &world, entt::entity vehicle, entt::entity berthE
 	const PlatformLayout &layout = m_layouts.at(registry.get<Platform>(berth.platform).layout);
 	berth.state = BerthState::Reserved;
 	berth.vehicle = vehicle;
-	berth.lapses =
-	    world.Clock().Step() +
-	    static_cast<std::uint64_t>(std::ceil(double{layout.reservationSeconds} / world.FixedStep()));
+	berth.lapses = world.Clock().Step() + ReservationSteps(world, layout);
+	berth.nearest = glm::distance(
+	    registry.get<Sim::Transform>(vehicle).position,
+	    registry.get<Sim::Transform>(berthEntity).position);
 	Docking &docking = registry.get<Docking>(vehicle);
 	docking.berth = berthEntity;
 	docking.stage = Stage::Inbound;
@@ -736,54 +756,37 @@ void Docks::FlyInbound(Sim::SimWorld &world, entt::entity vehicle, double time)
 		return;
 	}
 
-	// Out along the berth's normal beyond the point above it, as far again as the vehicle stops in from
-	// its top speed, stopped at: from there the way in is straight down the normal from rest. Flown
-	// straight to the point above, a vehicle that came round the platform fast and sideways overshot
-	// into the platform's sphere, was steered out of it, and circled until its berth lapsed.
-	const Physics::Handling &handling = registry.get<Physics::Handling>(vehicle);
-	const double braking = Ai::BrakingAcceleration(handling);
-	const double topSpeed =
-	    handling.maxSpeed > 0.0f && std::isfinite(handling.maxSpeed) ? double{handling.maxSpeed} : 0.0;
+	// Round the platform's sphere to the corridor's mouth, out along the berth's normal past the point
+	// above it by the platform's radius again, and down the corridor onto the berth without stopping:
+	// the course at a speed that falls with the way left, the corridor flown along its line, the
+	// velocity across it damped (Ai::Destination::corridor), and the platform not an obstacle on it,
+	// as it is not on the way down (byShape). In the berth's axes, so it turns with the platform; it
+	// is plotted again if the vehicle has to be flown in again.
+	const PlatformLayout &layout = m_layouts.at(registry.get<Platform>(berth.platform).layout);
+	const double radius = Radius(layout);
+	const Sim::Transform &berthAt = registry.get<Sim::Transform>(docking.berth);
+	const glm::dvec3 mouth = {0.0, AboveHeight(registry, vehicle, berth) + radius * kMouthShare, 0.0};
 	Ai::Destination destination;
 	destination.entity = docking.berth;
-	destination.offset = {
-	    0.0,
-	    AboveHeight(registry, vehicle, berth) +
-	        (braking > 0.0 ? topSpeed * topSpeed / (2.0 * braking) : 0.0),
-	    0.0};
-	destination.arrivalRadius = kAboveRadius;
-	destination.arrivalSpeed = kAboveSpeed;
-
-	// Round the platform's sphere to it, in the vehicle's frame: the platform turns with its body, and
-	// the course is plotted again if the vehicle has to be flown in again.
-	const std::uint64_t frame = FrameOf(registry, vehicle);
-	const glm::dvec3 origin = m_physics.FrameOrigin(frame, LocalFrameOf(registry, vehicle), time);
-	const Sim::Transform &berthAt = registry.get<Sim::Transform>(docking.berth);
-	const glm::dvec3 approach = berthAt.position + berthAt.orientation * destination.offset;
-	const double radius = Radius(m_layouts.at(registry.get<Platform>(berth.platform).layout));
+	destination.offset = {0.0, RestingHeight(*VehicleOf(registry, vehicle)) + kHover, 0.0};
+	destination.waypointsOnEntity = true;
+	destination.corridor = true;
+	destination.byShape = true;
+	destination.face = true;
+	destination.arrivalRadius = kLandingRadius;
+	destination.arrivalSpeed = kLandingSpeed;
 	const double clearance =
 	    m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape) + double{steered.clearance};
 	const Ai::Waypoints waypoints{
-	    {Ai::Sphere{registry.get<Sim::Transform>(berth.platform).position - origin, radius}},
-	    clearance};
+	    {Ai::Sphere{registry.get<Sim::Transform>(berth.platform).position, radius}}, clearance};
+	const glm::dquat inverse = glm::conjugate(berthAt.orientation);
 	if (const std::optional<Ai::Course> course = waypoints.PlotCourse(
-	        registry.get<Sim::Transform>(vehicle).position - origin, approach - origin))
-		if (course->points.size() > 2)
-			destination.waypoints.assign(course->points.begin() + 1, course->points.end() - 1);
-	registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
-}
-
-
-void Docks::FlyAbove(Sim::SimWorld &world, entt::entity vehicle)
-{
-	entt::registry &registry = world.Registry();
-	const Docking &docking = registry.get<Docking>(vehicle);
-	Steer(registry, vehicle);
-	Ai::Destination destination;
-	destination.entity = docking.berth;
-	destination.offset = {0.0, AboveHeight(registry, vehicle, registry.get<Berth>(docking.berth)), 0.0};
-	destination.arrivalRadius = kAboveRadius;
-	destination.arrivalSpeed = kAboveSpeed;
+	        registry.get<Sim::Transform>(vehicle).position,
+	        berthAt.position + berthAt.orientation * mouth))
+		for (std::size_t point = 1; point + 1 < course->points.size(); ++point)
+			destination.waypoints.push_back(inverse * (course->points[point] - berthAt.position));
+	destination.waypoints.push_back(mouth);
+	(void)time;
 	registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
 }
 
@@ -1032,6 +1035,12 @@ double Docks::AboveHeight(
 	// Where the line out along the normal from the berth crosses that sphere: |p + n h| = reach.
 	const double along = glm::dot(place.position, place.normal);
 	return -along + std::sqrt(along * along - glm::dot(place.position, place.position) + reach * reach);
+}
+
+
+std::uint64_t Docks::ReservationSteps(const Sim::SimWorld &world, const PlatformLayout &layout)
+{
+	return static_cast<std::uint64_t>(std::ceil(double{layout.reservationSeconds} / world.FixedStep()));
 }
 
 

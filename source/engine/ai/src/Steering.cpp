@@ -194,6 +194,45 @@ glm::dvec3 Arrive(const Agent &agent, const glm::dvec3 &target, const glm::dvec3
 }
 
 
+namespace
+{
+// How much sooner than it reaches the end of a corridor a vehicle is back on its line (ArriveAlong).
+constexpr double kLineSpare = 2.0;
+} // namespace
+
+
+glm::dvec3 ArriveAlong(
+    const Agent &agent, const glm::dvec3 &start, const glm::dvec3 &target,
+    const glm::dvec3 &targetVelocity)
+{
+	const glm::dvec3 line = target - start;
+	const double length = glm::length(line);
+	if (length <= 0.0)
+		return Arrive(agent, target, targetVelocity);
+	const glm::dvec3 along = line / length;
+
+	// How far it has still to go along the line, and how far off it it is.
+	const glm::dvec3 from = agent.position - target;
+	const double left = -glm::dot(from, along);
+	const glm::dvec3 off = from + along * left;
+	const double offset = glm::length(off);
+	double closing = std::min(agent.maxSpeed, ClosingSpeed(std::abs(left), agent.maxAcceleration));
+	const double back = std::min(agent.maxSpeed, ClosingSpeed(offset, agent.maxAcceleration));
+
+	// No faster down the line than it comes back onto it, with time to spare, so it is on the line
+	// before the end of it: the way narrows to the target as a cone does.
+	if (offset > 0.0 && back > 0.0)
+		closing = std::min(closing, back * std::abs(left) / (offset * kLineSpare));
+	glm::dvec3 velocity = along * (left >= 0.0 ? closing : -closing);
+	if (offset > 0.0)
+		velocity -= off * (back / offset);
+	const double speed = glm::length(velocity);
+	if (speed > agent.maxSpeed)
+		velocity *= agent.maxSpeed / speed;
+	return targetVelocity + velocity;
+}
+
+
 double BrakingAcceleration(const Physics::Handling &handling)
 {
 	return kBrakingShare * std::min(
@@ -517,8 +556,44 @@ void Steering::Step(Sim::SimWorld &world)
 		}
 
 		const bool onCourse = destination.next < destination.waypoints.size();
-		const glm::dvec3 desired =
-		    onCourse ? Seek(agent, waypoint(destination.next)) : Arrive(agent, target, targetVelocity);
+		glm::dvec3 desired{0.0};
+		if (onCourse)
+		{
+			desired = Seek(agent, waypoint(destination.next));
+
+			// In a corridor, no faster than it can still stop in the whole way left, and come to
+			// the waypoint no faster than its turn there allows: as fast as the way after it lets it
+			// go straight on, slowing as the turn sharpens, to a stop for one that turns back.
+			if (destination.corridor)
+			{
+				const auto last = static_cast<std::uint32_t>(destination.waypoints.size() - 1);
+				const glm::dvec3 corner = waypoint(destination.next);
+				const glm::dvec3 after =
+				    destination.next < last ? waypoint(destination.next + 1) : target;
+				double beyond = glm::distance(corner, after);
+				for (std::uint32_t index = destination.next + 1; index < last; ++index)
+					beyond += glm::distance(waypoint(index), waypoint(index + 1));
+				if (destination.next < last)
+					beyond += glm::distance(waypoint(last), target);
+				const glm::dvec3 in = corner - agent.position;
+				const glm::dvec3 out = after - corner;
+				const double turn =
+				    glm::length(in) > 0.0 && glm::length(out) > 0.0
+				        ? (1.0 + glm::dot(glm::normalize(in), glm::normalize(out))) * 0.5
+				        : 1.0;
+				const double atCorner =
+				    std::min(agent.maxSpeed, ClosingSpeed(beyond, agent.maxAcceleration)) * turn;
+				const double toCorner = glm::length(in);
+				desired = HeldTo(
+				    desired, std::sqrt(atCorner * atCorner + 2.0 * agent.maxAcceleration * toCorner));
+			}
+		}
+		else if (destination.corridor && !destination.waypoints.empty())
+			desired = ArriveAlong(
+			    agent, waypoint(static_cast<std::uint32_t>(destination.waypoints.size() - 1)), target,
+			    targetVelocity);
+		else
+			desired = Arrive(agent, target, targetVelocity);
 		glm::dvec3 velocity = HeldTo(
 		    Avoid(agent, desired, obstacles, lookahead, clearance) +
 		        Separate(agent, neighbours, separation),

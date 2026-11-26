@@ -39,7 +39,7 @@ a world a save is loaded into must be given the same ones.
 | --- | --- | --- | --- |
 | Berth class | `defs/berths` | `Dock::BerthClassDefinition` | `rank`; `largestVehicle` (length, beam, height in metres); `berthSize` (width across the heading, length along it) |
 | Vehicle | `defs/vehicles` | `Dock::VehicleDefinition` | `displayName`; `length`, `beam`, `height`; `berth` (its berth class); `model` (a glTF path, presentation's alone) |
-| Layout | `defs/platforms` | `Dock::PlatformLayout` | `displayName`; `decks` and `piers` (boxes: `centre`, `size`); `berths`; `reservationSeconds` (default 300) |
+| Layout | `defs/platforms` | `Dock::PlatformLayout` | `displayName`; `decks` and `piers` (boxes: `centre`, `size`); `berths`; `reservationSeconds` (default 60: the seconds a vehicle may come no nearer before it loses its berth) |
 
 Each berth of a layout has a `class`, a `position` (the middle of its face on the deck), a `normal`
 (the way a vehicle lands down it, default +Y), a `heading` (the way a docked vehicle's nose points,
@@ -129,9 +129,10 @@ The docks answer with [events](glossary.md#event), each naming the vehicle and t
 refusal's reason is a `Dock::Reason`, worded by the string tables under `reason.dock.<name>`
 (`assets/strings/<language>/reasons.yaml`), for example `reason.dock.no_berth_fits`.
 
-A reservation lasts the layout's `reservationSeconds`, rounded up to whole
-[steps](glossary.md#step); a vehicle that has not landed by then loses the berth to the next in the
-queue. The queue is served from the front as berths come free, each vehicle given the best free
+A reservation is kept while its vehicle makes progress: each time the vehicle comes 1 m nearer the
+berth than it has been (`Dock::kProgress`), its lapse is put off by the layout's
+`reservationSeconds` (60 by default), rounded up to whole [steps](glossary.md#step). A vehicle that
+comes no nearer for that long, stuck or circling, loses the berth to the next in the queue. The queue is served from the front as berths come free, each vehicle given the best free
 berth it fits, so a small vehicle behind a large one can take a berth the large one does not fit.
 
 ### Dock control a game decides
@@ -161,7 +162,7 @@ stateDiagram-v2
     [*] --> Queued: RequestBerth, no berth free
     [*] --> Inbound: RequestBerth, berth given
     Queued --> Inbound: berth comes free
-    Inbound --> Descending: flown in, reached the point above
+    Inbound --> Descending: flown in, into the corridor
     Inbound --> Docked: in clamp reach
     Descending --> Docked: in clamp reach
     Docked --> Leaving: ReleaseBerth
@@ -177,22 +178,30 @@ clamp reach, and is clamped then just as a flown vehicle is.
 ### The way in
 
 A berth lies inside the platform's bounding sphere, so a vehicle cannot keep clear of the sphere
-and still reach it. The docks therefore fly a vehicle in (`RequestBerth::fly`) in three legs, by
-[steering](ai.md#steering) (`Ai::Destination`, `Ai::Steered`):
+and still reach it. The docks therefore fly a vehicle in (`RequestBerth::fly`) by
+[steering](ai.md#steering), as one destination flown as a corridor (`Ai::Destination::corridor`),
+without stopping:
 
-1. **Round the sphere.** A course round the platform's sphere (`Ai::Waypoints`) to a point out along
-   the berth's normal. That point lies beyond the *point above the berth* by the distance the
-   vehicle stops in from its top speed (`Ai::BrakingAcceleration`). The vehicle stops there.
-2. **Down to the point above.** Straight down the normal, from rest, to the point above the berth.
-   That point is outside the sphere by the vehicle's own size and steering clearance, and by 10 m
-   more (`kAboveMargin`), so a vehicle arriving there is not at the edge of what steering avoids.
-3. **Onto the berth.** Down the normal at up to 40 m/s, turned to the berth's heading about all
-   three axes, kept clear of the platform by its shape (`Ai::Destination::byShape`). It slows to
-   stop a quarter of a metre above its resting height (`kHover`), since Jolt's contacts begin a
-   little before two bodies meet. The clamp takes it from there.
+1. **Round the sphere** (`Stage::Inbound`). A course round the platform's sphere (`Ai::Waypoints`)
+   to the corridor's mouth, out along the berth's normal past the *point above the berth* by the
+   platform's radius again (`kMouthShare`). The point above is outside the sphere by the vehicle's
+   own size and steering clearance, and by 10 m more (`kAboveMargin`). The course is flown no faster
+   than the vehicle can stop in the whole way left, and each waypoint is come to no faster than its
+   turn allows, to a stop for one that turns back, so it comes to the mouth slow enough to turn down.
+2. **Down the corridor** (`Stage::Descending`). Along the line from the mouth onto the berth
+   (`Ai::ArriveAlong`): along it, as fast as it can still stop at the berth; across it, drawn back
+   onto the line, and no faster along than it comes back onto it, so it is on the line before the
+   end. Turned to the berth's heading about all three axes, and kept clear of the platform by its
+   shape (`Ai::Destination::byShape`), not its sphere. It slows to stop a quarter of a metre above
+   its resting height (`kHover`), since Jolt's contacts begin a little before two bodies meet. The
+   clamp takes it from there.
 
-The stop out along the normal is a stopgap: a vehicle flown straight to the point above, fast and
-sideways, overshot into the sphere and circled until its reservation lapsed.
+The course is in the berth's axes (`waypointsOnEntity`), so it turns with the platform. Flown in
+from all round Highport, 2 and 4 km out, still or going across at 150 m/s, every vehicle lands,
+touching nothing, 12 to 26 s sooner than the stop out along the normal the corridor replaced (the
+`dock` suite's `Docks benchmark`, 2026-11-26). Without the corridor, a vehicle flown straight to
+the point above, fast and sideways, overshot into the sphere and circled until its reservation
+lapsed.
 
 ### A covered berth
 
@@ -399,8 +408,6 @@ Manifest docks every ship through these commands, in its travel module
 
 ## Limits and open work
 
-- The way in replaces its stop along the normal, and a reservation lapses when a vehicle stops
-  making progress rather than at a fixed time: [J09](roadmap.md#j09).
 - A course among the decks goes round the structure, not round a vehicle docked on another covered
   berth; only the shape sweep stops it short of one.
 

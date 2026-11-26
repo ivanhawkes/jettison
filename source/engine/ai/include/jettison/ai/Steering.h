@@ -80,6 +80,15 @@ glm::dvec3 Seek(const Agent &agent, const glm::dvec3 &target);
 glm::dvec3 Arrive(
     const Agent &agent, const glm::dvec3 &target, const glm::dvec3 &targetVelocity = glm::dvec3{0.0});
 
+// Down the line from start to the target, as a corridor into a berth is flown: along the line, the
+// fastest speed it can still stop at the target from, as Arrive's; across it, back towards the line
+// at the speed it can still stop on the line from. So a vehicle that comes onto the line fast and
+// sideways is drawn onto it, its velocity across it damped, rather than pursuing the target round
+// in circles. The target's velocity is added. A line of no length is Arrive.
+glm::dvec3 ArriveAlong(
+    const Agent &agent, const glm::dvec3 &start, const glm::dvec3 &target,
+    const glm::dvec3 &targetVelocity = glm::dvec3{0.0});
+
 // The acceleration steering brakes a vehicle at, Arrive's: a share of its weakest thruster, the rest
 // left for turning and avoiding while it does.
 double BrakingAcceleration(const Physics::Handling &handling);
@@ -153,6 +162,12 @@ struct Destination
 	// flown to one flies inside the sphere; what the sweep meets at the end of the way down is the
 	// deck it lands on, short of which the destination is, and that is not held off.
 	bool byShape{false};
+
+	// Flown as a corridor (docs/ai.md, "Steering"): the course at a speed that falls with the whole
+	// way left, through its waypoints to the destination, and past them down the line from the last
+	// waypoint to the destination (ArriveAlong), so it runs in without stopping and is drawn onto the
+	// line rather than circling the point.
+	bool corridor{false};
 
 	// The way the vehicle turns to, in the entity's axes (the frame's, without one), rather than to
 	// the way it is going: a berth's, as it lands on it, rolled too.

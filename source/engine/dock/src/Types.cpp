@@ -89,7 +89,8 @@ void RegisterTypes()
 		    .Field<&Berth::display>("display", Attribute::Saved)
 		    .Field<&Berth::state>("state", Attribute::Saved)
 		    .Field<&Berth::vehicle>("vehicle", Attribute::Saved)
-		    .Field<&Berth::lapses>("lapses", Attribute::Saved);
+		    .Field<&Berth::lapses>("lapses", Attribute::Saved)
+		    .Field<&Berth::nearest>("nearest", Attribute::Saved);
 		RegisterEnum<Stage>("Dock.Stage")
 		    .Value<Stage::Queued>("Queued")
 		    .Value<Stage::Inbound>("Inbound")

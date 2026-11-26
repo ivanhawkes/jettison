@@ -33,7 +33,8 @@ by `459af99` and the commit before it ([history](history.md)). Its later work wa
 has played its first loop for a day or two. No delivery is open: encryption, J01, a script's
 sender, J02, and dock control a game decides, J35, are done ([history](history.md)), and of the
 backlog behaviour trees, J03, scripts, J04, packs and mods, J05, picking against the snapshots, J06,
-steering, J08, and the shell's log file, J10. Manifest's adoption of encryption, its server's key in
+overlap queries and all-hit casts of J07, steering, J08, the way in to a berth, J09, and the shell's
+log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
 
 ## Waiting on you
@@ -77,30 +78,6 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs o
 8192, `maxBodyPairs` 32768 and `maxContactConstraints` 16384 (`PhysicsWorld.h`).
 
 **Feature doc:** [physics](physics.md).
-
-<a id="j09"></a>
-### J09. The way in to a berth, done properly
-
-In Tier 2 rather than Tier 3 because every NPC and autopilot in Manifest docks through it.
-
-**What remains.** The approach, designed with the user on 2026-11-21:
-
-- an approach corridor flown without stopping, at a speed that falls with the distance left;
-- the platform not an obstacle on the corridor's last leg, as it is not on the way down (`byShape`);
-- Arrive damping the velocity across its line, rather than pursuing the point;
-- a reservation that lapses when a vehicle stops making progress, rather than after fixed seconds.
-
-It is measured by vehicles flown in from every side and speed, one queued behind another on the next
-berth, and no arrival slower than the stopgap's.
-
-**Why.** The stopgap cures a vehicle arriving fast and sideways that overshot and circled, but every
-vehicle still stops out along the normal before it comes in.
-
-**What exists.** The stopgap, in [the way in](docks.md#the-way-in) (`Dock::Docks::FlyInbound`,
-`FlyAbove`, `source/engine/dock/src/Docks.cpp`). A reservation lapses after the layout's
-`reservationSeconds`, 300 by default (`dock/Definitions.h`).
-
-**Feature doc:** [docks](docks.md).
 
 <a id="j30"></a>
 ### J30. The shell started through a session
