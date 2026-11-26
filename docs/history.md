@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-26 | Scripts, J04: a handler reads the snapshot, a script answers a tree's task, a rebuilt module is loaded again, the fuel a call used is counted, and a script's reasons are its own; `wamrc` in the devenv, AOT dropped ([neutral SDK](history/neutral-sdk.md#j04-scripts)) |
 | 2026-11-26 | Packs and mods, J05: a patch takes elements out of a list, a pack is reopened when its file changes, and scenes and stylesheets layer ([neutral SDK](history/neutral-sdk.md#j05-packs-and-mods)) |
 | 2026-11-26 | Behaviour trees, J03: reactive and parallel nodes, a task's halt, subtrees, a blackboard, a command giving an entity a tree, and trees ticked less often ([neutral SDK](history/neutral-sdk.md#j03-behaviour-trees)) |
 | 2026-11-26 | Logging in the shell, J10: the run's log is `jettison.log` in the state directory, at `Info` and above, truncated each run ([runtime](runtime.md#logging)) |

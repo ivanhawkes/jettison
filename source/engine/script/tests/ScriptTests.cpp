@@ -606,6 +606,49 @@ TEST_CASE("Script: a tree's task a script answers is ticked inside the step, kee
 }
 
 
+TEST_CASE("Script: a script whose module changes is loaded again, and one that no longer loads is kept")
+{
+	World world;
+	const std::filesystem::path scratch =
+	    std::filesystem::path{JETTISON_SCRIPT_TEST_OUTPUT} / "reloaded-scripts";
+	std::filesystem::remove_all(scratch);
+	std::filesystem::create_directories(scratch);
+	const std::filesystem::path modules{JETTISON_SCRIPT_TEST_MODULES};
+	const std::filesystem::path live = scratch / "live.wasm";
+	std::filesystem::copy_file(modules / kEventModules[0], live);
+	Vfs::FileSystem files = Modules();
+	files.AddMount({"scratch", scratch, false});
+	Script::ScriptHost host{files};
+	host.SendCommandsTo(world.world, kScripts);
+	host.Load("events", Events("live.wasm"));
+	const auto pings = [&] { return host.Call("events", "pings", {}); };
+
+	host.Dispatch(Sim::SimEvent{1, entt::meta_any{Ping{}}});
+	CHECK(pings() == std::vector<std::int32_t>{1});
+	CHECK(host.ReloadChanged() == 0);
+	CHECK(pings() == std::vector<std::int32_t>{1});
+
+	// The module rebuilt, here as the same script in Rust: its handlers start again.
+	const Said said;
+	std::filesystem::copy_file(
+	    modules / kEventModules[1], live, std::filesystem::copy_options::overwrite_existing);
+	CHECK(host.ReloadChanged() == 1);
+	CHECK(said.Contains("Script 'events': its module changed, and it was loaded again"));
+	CHECK(pings() == std::vector<std::int32_t>{0});
+
+	// A module that no longer loads leaves the one before it running, and is not tried again until
+	// it changes again.
+	std::ofstream{live, std::ios::binary | std::ios::trunc} << "not a module";
+	CHECK(host.ReloadChanged() == 0);
+	CHECK(said.Contains("the script loaded before it is kept"));
+	CHECK(pings() == std::vector<std::int32_t>{0});
+	CHECK(host.Scripts().size() == 1);
+	const Said again;
+	CHECK(host.ReloadChanged() == 0);
+	CHECK_FALSE(again.Contains("kept"));
+}
+
+
 TEST_CASE("Script: a command whose memory does not read is refused, and nothing is sent")
 {
 	for (const char *module : kEventModules)

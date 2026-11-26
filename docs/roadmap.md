@@ -31,7 +31,8 @@ Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifes
 `70cd4de`, the docs review's head; the four gaps its Stage 5 cross-review found were provisioned
 by `459af99` and the commit before it ([history](history.md)). Its later work waits until the user
 has played its first loop for a day or two. No delivery is open: encryption, J01, a script's
-sender, J02, and dock control a game decides, J35, are done ([history](history.md)). Manifest's adoption of encryption, its server's key in
+sender, J02, and dock control a game decides, J35, are done ([history](history.md)), and of the
+backlog behaviour trees, J03, scripts, J04, packs and mods, J05, and the shell's log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
 
 ## Waiting on you
@@ -53,21 +54,6 @@ No item is open in this tier: the last, a script's sender (J02), is done ([histo
 
 What a game reaches for as its AI, content and tools grow. None changes a save already written, but
 each is cheaper before a game builds a workaround.
-
-<a id="j04"></a>
-### J04. Scripts
-
-**What remains.**
-
-- A script reloaded when its module changes.
-
-**Why.** Reload is what a modder needs to write scripts quickly.
-
-**What exists.** WAMR's interpreter, bounded by fuel and by a wall-time
-[watchdog](glossary.md#watchdog) (`script/ScriptHost.h`). A script is granted `log`, `store` and one
-capability per command type it may send (`script/ScriptDefinition.h`, `script/Bindings.h`).
-
-**Feature doc:** [scripts](scripts.md).
 
 <a id="j06"></a>
 ### J06. Picking a paused world, and under the cursor every frame

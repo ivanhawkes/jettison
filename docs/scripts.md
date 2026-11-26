@@ -27,9 +27,10 @@ mod's grants or fuel with a [patch](glossary.md#patch)
 | `module` | none | The `.wasm`'s virtual path, read through the VFS, usually from the same mod |
 | `fuel` | 100,000 | The interpreter's instructions one call may run before it traps |
 | `memoryPages` | 16 | The most the module's memory may grow to, in 64 KiB pages |
-| `capabilities` | none | What the module may import: `log`, `store`, `send:<Command>` |
+| `capabilities` | none | What the module may import: `log`, `store`, `send:<Command>`, `read:<Component>` |
 | `events` | none | Handlers: `{event: <registered name>, function: <export>}` |
 | `inputs` | none | Inputs it answers: `{input: <name>, function: <export>}` |
+| `tasks` | none | Tree tasks it answers: `{task: <name>, function: <export>, halt: <export>}` ([below](#a-trees-task)) |
 
 A definition's fuel and pages must lie within the host's ceilings (below), or it does not load.
 
@@ -218,21 +219,34 @@ the diagram shows. A failure throws `ScriptError` naming the script and keeps no
 flowchart TD
     D[defs/scripts/name.yaml] --> L{fuel and pages within the host's limits?}
     L -- no --> X[ScriptError: left out, logged]
-    L -- yes --> G{every grant known, each send: a command the world applies?}
+    L -- yes --> G{every grant known, each send: a command the world applies, each read: a component it shows?}
     G -- no --> X
-    G -- yes --> H{each handler an event scripts see, each input answered once?}
+    G -- yes --> H{each handler an event scripts see, each input and task answered once?}
     H -- no --> X
     H -- yes --> M{module read and parsed?}
     M -- no --> X
     M -- yes --> I{every import granted, from module jettison, with the host's signature?}
     I -- no --> X
-    I -- yes --> E{every handler and input exported with its signature?}
+    I -- yes --> E{every handler, input and task exported with its signature?}
     E -- no --> X
     E -- yes --> N[handlers' instance made: loaded]
 ```
 
-A handler is exported as `void f(const T *event)`, and an input as `double f(void)`. A `send:`
-grant needs a world that applies the command, given by `SendCommandsTo`.
+A handler is exported as `void f(const T *event)`, an input as `double f(void)`, and a task and
+its halt as `void f(Script_TaskContext *context)`. A `send:` grant needs a world that applies the
+command, and a `read:` grant one that shows the component, given by `SendCommandsTo`.
+
+### Loading again
+
+A modder rebuilds a script while the game runs. `ScriptHost::ReloadChanged` looks at each loaded
+script's module, as the resource manager looks at a file it loaded
+([resources](files-and-mods.md#resources)): a changed file, or another mount's file now shadowing
+it, loads the script again by the same checks. A script loaded again keeps its keys and makes its
+handlers' instance afresh, so what a handler counted in memory is gone, and its inputs and tasks
+answer from the new module from then on; a run that reloads is not one a replay repeats. A module
+that no longer loads leaves the script loaded before it running, logged, and is not tried again
+until the file changes again. The shell looks every 500 ms where it hot-reloads its resources, and
+never in a run with `--frame-step` (the frame system `scripts.reload`).
 
 ### The two call paths
 
@@ -470,14 +484,13 @@ The shell's console has two commands for script authors:
 | Command | What it does |
 | --- | --- |
 | `script_bindings <directory>` | Writes `jettison_script.h` and `jettison_script.rs` for this build's types |
-| `scripts` | Lists each loaded script: its calls, its traps, whether it is stopped, and its last trap |
+| `scripts` | Lists each loaded script: its calls, its traps, the fuel its last call and its dearest used, whether it is stopped, and its last trap |
 
 Write the bindings from the build a mod targets, and build the mod's scripts against them
 ([the guide](guide.md#build-the-script-if-there-is-one)).
 
 ## Limits and open work
 
-- A script reloaded when its module changes: [J04](roadmap.md#j04).
 - Scripts are not compiled ahead of time, and only a profile that finds them dear brings that
   back: WAMR's compiled code counts no fuel, so only handlers, outside the step, could run so.
   `wamrc` is in the devenv for then ([build and gates](build-and-gates.md#dependencies)).
@@ -490,8 +503,9 @@ The settled choices are in [decisions](decisions.md#scripts).
 
 | Path | Holds |
 | --- | --- |
-| `source/engine/script/include/jettison/script/ScriptHost.h` | `ScriptHost`, `HostLimits`, `ScriptStore`, `ScriptStatus`, `ScriptError` |
-| `source/engine/script/include/jettison/script/ScriptDefinition.h` | `ScriptDefinition`, `EventHandler`, `InputFunction` |
+| `source/engine/script/include/jettison/script/ScriptHost.h` | `ScriptHost`, `HostLimits`, `ScriptStore`, `ScriptStatus`, `ScriptError`, `TaskCall` |
+| `source/engine/script/include/jettison/script/ScriptDefinition.h` | `ScriptDefinition`, `EventHandler`, `InputFunction`, `TaskFunction`, `TaskContext`, `TaskStatus` |
+| `source/external/wamr/fuel-left.patch` | The change to WAMR that hands back the fuel a call left |
 | `source/engine/script/include/jettison/script/Bindings.h` | The layouts, `Header` and `RustModule` |
 | `source/engine/script/tests/` | The suite, its types (`TestTypes.h`) and its C and Rust modules (`scripts/`) |
 | `source/external/wamr/CMakeLists.txt` | WAMR's build options, and why each |

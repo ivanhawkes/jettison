@@ -18,7 +18,7 @@ build every genre's features now: a capability marked Out is reassessed when a c
 | Verdict | Meaning | Example |
 | --- | --- | --- |
 | In | Built. Open work on it is a backlog item, linked | Physics, with overlap queries still open ([J07](roadmap.md#j07)) |
-| Open | Accepted but not built yet: a backlog item, linked | A script reloaded when its module changes ([J04](roadmap.md#j04)) |
+| Open | Accepted but not built yet: a backlog item, linked | A pick under the cursor every frame ([J06](roadmap.md#j06)) |
 | Reframed | The need is real, but the usual solution is the wrong one here; the row says what serves it instead | Pathfinding: A* over graphs, not over navigation meshes |
 | Deferred | Possibly needed, but built only on measured evidence or when a consumer asks | A general job system, until a profile shows a system needs it |
 | Out | Not built | VR |
@@ -165,7 +165,7 @@ How: [scripts](scripts.md).
 
 | Item | Verdict | Why |
 | --- | --- | --- |
-| Wasm scripts | In | Sandboxed mod behaviour on WAMR's interpreter, in C or Rust, against bindings generated from reflection; more is [J04](roadmap.md#j04) |
+| Wasm scripts | In | Sandboxed mod behaviour on WAMR's interpreter, in C or Rust, against bindings generated from reflection: handlers that read the snapshot, inputs, and tree tasks; reloaded as they change |
 | Native C++ plugins | Reframed | Game logic is native C++ in the game's repository; mods get none, being unsandboxed and ABI-fragile |
 | What a script may do | Manifest | The game grants each script its commands and events |
 

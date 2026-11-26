@@ -492,6 +492,11 @@ struct ScriptHost::Script
 	std::vector<std::uint8_t> bytes;
 	wasm_module_t module{nullptr};
 
+	// The module's file as it was read, and as it was when a reload of it was refused: what
+	// ReloadChanged compares.
+	std::optional<Vfs::FileInfo> moduleInfo;
+	std::optional<Vfs::FileInfo> refusedInfo;
+
 	// The pages its memory may grow to: its definition's, or fewer where the module says so (WAMR
 	// holds a module that never grows its memory to the pages it starts with).
 	std::uint32_t memoryPages{0};
@@ -975,6 +980,7 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 			        "task '{}' is answered by script '{}' already", task.task, other->second->name));
 	}
 
+	pScript->moduleInfo = m_fileSystem.Find(definition.module);
 	const std::optional<std::vector<std::byte>> bytes = m_fileSystem.Read(definition.module);
 	if (!bytes)
 		throw fail(std::format("there is no module at '{}'", definition.module));
@@ -1094,6 +1100,44 @@ std::size_t ScriptHost::LoadAll(const Sim::DefinitionRegistry &definitions)
 		}
 	}
 	return loaded;
+}
+
+
+std::size_t ScriptHost::ReloadChanged()
+{
+	// A pack rebuilt on the disk is opened again first, as the resource manager does before it looks.
+	m_fileSystem.Refresh();
+
+	// Gathered first, since loading a script again replaces its entry.
+	std::vector<std::pair<std::string, ScriptDefinition>> changed;
+	for (const auto &[name, pScript] : m_pImpl->scripts)
+	{
+		const std::optional<Vfs::FileInfo> info = m_fileSystem.Find(pScript->definition.module);
+		if (info == pScript->moduleInfo || (pScript->refusedInfo && info == pScript->refusedInfo))
+			continue;
+		changed.emplace_back(name, pScript->definition);
+	}
+	std::size_t reloaded = 0;
+	for (const auto &[name, definition] : changed)
+	{
+		try
+		{
+			Load(name, definition);
+			++reloaded;
+			Core::Log(
+			    Core::Severity::Info, kScript,
+			    "Script '{}': its module changed, and it was loaded again", name);
+		}
+		catch (const ScriptError &error)
+		{
+			Script &kept = *m_pImpl->scripts.find(name)->second;
+			kept.refusedInfo = m_fileSystem.Find(definition.module);
+			Core::Log(
+			    Core::Severity::Warning, kScript, "{}; the script loaded before it is kept",
+			    error.what());
+		}
+	}
+	return reloaded;
 }
 
 

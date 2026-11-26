@@ -648,6 +648,24 @@ void Application::RegisterFrameSystems()
 		     JETTISON_PROFILE_ZONE("resource.update");
 		     m_pResources->Update();
 	     }});
+
+	// A mod's script rebuilt while the game runs is loaded again, as the resources are, and only
+	// where they are: not in a run with --frame-step, whose frames are the same every run.
+	m_frame.Register(
+	    {"scripts.reload",
+	     TickPhase::Presentation,
+	     {},
+	     {"resource.update"},
+	     [this](entt::registry &, double)
+	     {
+		     if (!m_scriptReload)
+			     return;
+		     const auto now = std::chrono::steady_clock::now();
+		     if (now - m_lastScriptPoll < m_scriptPoll)
+			     return;
+		     m_lastScriptPoll = now;
+		     m_pScripts->ReloadChanged();
+	     }});
 	m_frame.Register(
 	    {"shell.ui",
 	     TickPhase::Presentation,
@@ -887,6 +905,8 @@ void Application::InitResources()
 	if (m_arguments.frameStep > 0.0)
 		resourceOptions = {.hotReload = false, .settleLoads = true};
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker, resourceOptions);
+	m_scriptReload = resourceOptions.hotReload;
+	m_scriptPoll = resourceOptions.pollInterval;
 	Animation::RegisterRigLoader(*m_pResources);
 	Animation::RegisterClipFileLoader(*m_pResources);
 	m_definitions.emplace(m_assets);

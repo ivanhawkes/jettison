@@ -194,6 +194,15 @@ class ScriptHost
 	// out, as a mod that cannot be mounted is, and the rest load. Returns how many did.
 	std::size_t LoadAll(const Sim::DefinitionRegistry &definitions);
 
+	// Loads again each script whose module has changed since it loaded, its file or the mount that
+	// shadows it, as the resource manager reloads a file: for a modder rebuilding a script while the
+	// game runs, in development. A script loaded again keeps its keys, its handlers' instance made
+	// afresh, and answers its inputs and tasks from the new module from then on, so a run that
+	// reloads is not one a replay repeats. One whose new module does not load stays as it was, the
+	// failure logged, and is tried again only once the module changes again. Returns how many were
+	// loaded again.
+	std::size_t ReloadChanged();
+
 	void Unload(std::string_view name);
 
 	void UnloadAll();

@@ -162,6 +162,7 @@ flowchart LR
 | `audio.update` | The listener at the camera, clip events, sources and the mixer ([audio](audio.md)) |
 | `scene.debug` | Each mesh's axes and each light, when F2 shows them |
 | `resource.update` | Finishes loads and hot reloads, so a reloaded file draws this frame |
+| `scripts.reload` | Loads again a script whose module changed, where resources hot-reload ([scripts](scripts.md#loading-again)) |
 | `shell.ui`, `shell.marks`, `ui.update` | The dev tools and the pick's marker (where it hit, the surface's normal, and an overlay naming it and its distance); the outline on what is picked; the game UI (`Game::UpdateUi`) |
 | `render` | Draws the scene, the debug lines and the UI overlay |
 | `shell.smoke`, `shell.benchmark` | Advance the render test's sequence and the benchmark, when asked for |
@@ -269,7 +270,7 @@ messages are in it. A game adds its own commands in `Game::AddCommands`. The she
 | `orbit <yaw> <pitch> <distance> [target]` | Places the orbit camera at once, in radians and metres, about a target or a scene entity's id |
 | `sequence <name> [seconds]`, `sequence stop` | Plays a cinematic from `cinematics/` on the active camera, or stops it |
 | `grade <name> [strength]`, `grade off` | Grades the frame by a `.cube` table in `grades/` |
-| `scripts` | Lists the loaded scripts, their calls and traps ([scripts](scripts.md)) |
+| `scripts` | Lists the loaded scripts, their calls, traps and fuel ([scripts](scripts.md)) |
 | `script_bindings <directory>` | Writes the C and Rust bindings for this build's types |
 | `crash fault, assert or exception` | Ends the run as a defect would, to see the crash report |
 

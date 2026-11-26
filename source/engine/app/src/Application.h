@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <glm/vec2.hpp>
@@ -427,6 +428,11 @@ class Application final : private Shell
 	// event TakeEvents takes, and answering the traders' inputs they name. After the world, so it goes
 	// before it, and no step runs once it has.
 	std::unique_ptr<Script::ScriptHost> m_pScripts;
+
+	// Whether and how often the scripts' modules are looked at for a change: the resources' rule.
+	bool m_scriptReload{false};
+	std::chrono::milliseconds m_scriptPoll{0};
+	std::chrono::steady_clock::time_point m_lastScriptPoll;
 
 	// The simulation time presentation showed last frame, which the camera a pick is drawn from
 	// showed, and which the pick is cast at.
