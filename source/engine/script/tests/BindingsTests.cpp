@@ -177,7 +177,13 @@ TEST_CASE(
 	CHECK(
 	    module.find(
 	        "#[link_name = \"send:Test.Pong\"]\n    pub fn jettison_send_Test_Pong(command: *const "
-	        "Test_Pong);") != std::string::npos);
+	        "Test_Pong<'_>);") != std::string::npos);
+
+	// A component that holds a string is given to f for any lifetime, so f cannot answer with it.
+	CHECK(
+	    module.find(
+	        "pub fn read_Test_Hold<R>(entity: jettison_entity, f: impl for<'a> FnOnce(&'a "
+	        "Test_Hold<'a>) -> R) -> Option<R>") != std::string::npos);
 	CHECK(module.find("pub const Test_Mood_Cross: Test_Mood = 1;") != std::string::npos);
 
 	// A field named for a keyword is a raw identifier.

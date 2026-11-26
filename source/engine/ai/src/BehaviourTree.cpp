@@ -17,6 +17,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 
@@ -377,8 +378,10 @@ Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 
 bool Behaviours::Stopped(entt::entity entity) const
 {
-	const auto ticking = std::ranges::find(m_ticking, entity, &Ticking::entity);
-	return ticking != m_ticking.end() && ticking->stopped;
+	// The innermost of its ticks: one begun after a stop ticks the tree the stop left.
+	const auto innermost = m_ticking | std::views::reverse;
+	const auto ticking = std::ranges::find(innermost, entity, &Ticking::entity);
+	return ticking != innermost.end() && ticking->stopped;
 }
 
 
@@ -387,10 +390,16 @@ void Behaviours::Stop(Sim::SimWorld &world, entt::entity entity)
 	entt::registry &registry = world.Registry();
 
 	// Its tree is being ticked, its nodes the tick's: halted as the tick ends (Tick).
-	if (const auto ticking = std::ranges::find(m_ticking, entity, &Ticking::entity);
-	    ticking != m_ticking.end())
+	// Every one of its ticks, where a task ticked its own entity again.
+	bool ticked = false;
+	for (Ticking &ticking : m_ticking)
+		if (ticking.entity == entity)
+		{
+			ticking.stopped = true;
+			ticked = true;
+		}
+	if (ticked)
 	{
-		ticking->stopped = true;
 		if (auto *behaviour = registry.try_get<Behaviour>(entity))
 			behaviour->nodes.clear();
 		return;

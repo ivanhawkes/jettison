@@ -6,17 +6,24 @@ mod jettison;
 
 use jettison::*;
 
-/// Reads the pinged ship's hold, and its own, which it has none of, and sends what it read.
+/// Reads the pinged ship's hold, and its own, which it has none of, and sends what it read: from
+/// inside the read, since the hold's owner is the host's only until it returns.
 #[unsafe(export_name = "on_look")]
 pub extern "C" fn on_look(ping: &Test_Ping) {
-    let read = read_Test_Hold(ping.ship, |hold| (hold.cargo, hold.owner));
-    let none = read_Test_Hold(JETTISON_NO_ENTITY, |_| ());
-    let (total, text) = match (read, none) {
-        (Some(found), None) => found,
-        _ => (-1, jettison_string::new("")),
-    };
+    let none = read_Test_Hold(JETTISON_NO_ENTITY, |_| ()).is_none();
+    let read = read_Test_Hold(ping.ship, |hold| {
+        if none {
+            send(ping.ship, hold.cargo, hold.owner);
+        }
+    });
+    if read.is_none() || !none {
+        send(ping.ship, -1, jettison_string::new(""));
+    }
+}
+
+fn send(ship: jettison_entity, total: i64, text: jettison_string) {
     send_Test_Pong(&Test_Pong {
-        ship: ping.ship,
+        ship,
         total,
         text,
         items: jettison_array_Test_Inner::new(&[]),

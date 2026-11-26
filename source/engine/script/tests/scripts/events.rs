@@ -52,7 +52,7 @@ pub extern "C" fn bad_send(ping: &Test_Ping) {
     send_Test_Pong(&Test_Pong {
         ship: ping.ship,
         total: 0,
-        text: jettison_string { data: 0x7fff_fff0 as *const u8, size: 100 },
+        text: unsafe { jettison_string::from_raw(0x7fff_fff0 as *const u8, 100) },
         items: jettison_array_Test_Inner::new(&[]),
         sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
         order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 }, amount: 0 },

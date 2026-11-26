@@ -868,8 +868,20 @@ void Application::InitUser()
 	                  ? Platform::ResolvePaths("jettison")
 	                  : Platform::Paths{root / "data", root / "config", root / "state", root / "cache"};
 
-	// Before anything else of the engine starts, so a crash in its start-up is reported too. The state
-	// directory is the logs' (Platform::Paths).
+	// The state directory holds the crash reports and the log (Platform::Paths): made first, 0700 as
+	// the XDG directories below are, rather than with the umask's mode by whichever writes to it first.
+	// A read-only one is no reason to refuse to play; what it costs is said once the log is open.
+	std::string noState;
+	try
+	{
+		Core::CreateDirectoriesDurably(m_userPaths.state, std::filesystem::perms::owner_all);
+	}
+	catch (const std::exception &e)
+	{
+		noState = e.what();
+	}
+
+	// Before anything else of the engine starts, so a crash in its start-up is reported too.
 	Platform::InstallCrashHandler(
 	    {m_userPaths.state / "crashes",
 	     std::format("{}, engine {}", m_windowTitle, Core::EngineVersion()),
@@ -877,17 +889,17 @@ void Application::InitUser()
 	     true});
 
 	// The file is the player's to send with a report, so its failure to open costs the run no more than
-	// a warning: a read-only state directory is no reason to refuse to play. Its directory is made
-	// first, 0700 as the XDG directories below are, rather than left to the log with the umask's mode.
+	// a warning.
 	try
 	{
-		Core::CreateDirectoriesDurably(m_userPaths.state, std::filesystem::perms::owner_all);
 		Core::InitLogging(kRunLogMinimum, RunLogPath(m_userPaths));
 	}
 	catch (const std::exception &e)
 	{
 		Core::Log(Core::Severity::Warning, kShell, "No log file: {}", e.what());
 	}
+	if (!noState.empty())
+		Core::Log(Core::Severity::Warning, kShell, "The state directory was not made: {}", noState);
 
 	// The XDG specification has a directory it names made with mode 0700 when it does not exist yet.
 	Core::CreateDirectoriesDurably(m_userPaths.userData, std::filesystem::perms::owner_all);

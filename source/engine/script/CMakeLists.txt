@@ -38,6 +38,15 @@ if(TARGET jettison_script_tests)
 			SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/${source}"
 			INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts")
 	endwhile()
+	# A component read kept past its read, in each of three ways, is refused as the script compiles.
+	if(JETTISON_RUSTC)
+		add_test(NAME script_read_kept
+			COMMAND ${JETTISON_RUSTC} --edition 2024 --target wasm32-unknown-unknown --crate-type lib
+				--emit=metadata -o "${CMAKE_CURRENT_BINARY_DIR}/kept.rmeta"
+				"${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/kept.rs")
+		set_tests_properties(script_read_kept PROPERTIES
+			PASS_REGULAR_EXPRESSION "lifetime may not live long enough.*aborting due to 3 previous errors")
+	endif()
 	target_compile_definitions(jettison_script_tests PRIVATE
 		JETTISON_SCRIPT_TEST_MODULES="${script_test_modules}"
 		JETTISON_SCRIPT_TEST_SOURCES="${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts"

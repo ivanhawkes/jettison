@@ -78,9 +78,10 @@ not judged against it, and from an end nearer a box than the clearance, a leg ke
 as the end is, both measured along the box's axes as the clearance is (the most the end is outside
 the box along any one), so a course can start or end just over a deck under a pier, or beside its
 corner. Such an end is given a waypoint straight out from each of the box's faces to its ring. A
-course is given the radius of what flies it: from an end nearer a box than that, as a vehicle
-resting on a deck is, the only ways out are straight out from the box's faces, so it lifts off
-before it goes anywhere.
+course is told how near a box an end is resting on it: from an end that near, as a vehicle on a
+deck is, the only ways out are straight out from the box's faces, so it lifts off before it goes
+anywhere. The docks give it the vehicle's resting height and half its hover, short of where any
+point over a berth is, so a vehicle under a low roof still goes out level.
 
 A sphere or a box that moves while a vehicle flies the course stays where it was in the graph, so a
 caller plots again as the vehicle goes, or makes the course in an entity's axes (below).

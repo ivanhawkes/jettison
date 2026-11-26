@@ -428,10 +428,11 @@ TEST_CASE("Docks: a ship flown in under a pier lands on its covered pad and is f
 }
 
 
-TEST_CASE("Docks: a ship its pilot lifts from under a low roof stops short of the roof")
+TEST_CASE("Docks: a long, low ship under a low roof is lifted or flown out without meeting it")
 {
-	// A berth 8 m under a pier, the least its class allows a 2 m-high vehicle, lifted off by its own
-	// thrusters: it slows to the point over the berth, and is let go there without meeting the roof.
+	// A berth 8 m under a pier, the least its class allows a vehicle 20 m long and 2 m high, whose
+	// sphere would not fit under it. Lifted off by its own thrusters, it slows to the point over the
+	// berth and is let go there; flown out by the docks, it goes level under the pier.
 	Fixture fixture{false};
 	fixture.docks.DefineBerthClass("small", {0, {20.0f, 4.0f, 2.0f}, {10.0f, 30.0f}});
 	fixture.docks.DefineVehicle("long", {"long", 20.0f, 4.0f, 2.0f, "small", {}});
@@ -442,18 +443,30 @@ TEST_CASE("Docks: a ship its pilot lifts from under a low roof stops short of th
 	fixture.docks.DefineLayout("roof", layout);
 	const entt::entity platform =
 	    fixture.docks.MakePlatform(fixture.world, DockTests::kHarbour, DockTests::kFerry, "roof");
-	const entt::entity vehicle = fixture.Vehicle(platform, "long", {0.0, 200.0, 0.0});
-	fixture.docks.Park(fixture.world, vehicle, fixture.BerthNumbered(platform, 1));
-	fixture.Step();
-	fixture.world.Apply(Dock::ReleaseBerth{{}, vehicle, false});
+	entt::registry &registry = fixture.world.Registry();
 
 	// Let go, it is a body on the deck again; what it meets after that is the roof, if anything.
-	fixture.Step();
-	const std::size_t before = fixture.collisions.size();
-	for (int step = 0; step < 60 * 10; ++step)
+	const auto leaves = [&](bool fly)
+	{
+		const entt::entity vehicle = fixture.Vehicle(platform, "long", {0.0, 200.0, 0.0});
+		fixture.docks.Park(fixture.world, vehicle, fixture.BerthNumbered(platform, 1));
 		fixture.Step();
-	CHECK_FALSE(fixture.world.Registry().all_of<Dock::Docking>(vehicle));
-	CHECK(fixture.collisions.size() == before);
+		fixture.world.Apply(Dock::ReleaseBerth{{}, vehicle, fly});
+		fixture.Step();
+		const std::size_t before = fixture.collisions.size();
+		for (int step = 0; step < 60 * 60 && registry.all_of<Dock::Docking>(vehicle); ++step)
+			fixture.Step();
+		CHECK_FALSE(registry.all_of<Dock::Docking>(vehicle));
+		CHECK(fixture.collisions.size() == before);
+	};
+	SUBCASE("lifted by its pilot")
+	{
+		leaves(false);
+	}
+	SUBCASE("flown out")
+	{
+		leaves(true);
+	}
 }
 
 

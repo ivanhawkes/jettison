@@ -750,6 +750,33 @@ std::vector<entt::meta_type> All(
 }
 
 
+bool Borrows(const ValueLayout &value);
+
+
+// Whether a type holds a string or an array, directly or in a struct it holds.
+bool Borrows(const TypeLayout &layout)
+{
+	return std::ranges::any_of(
+	    layout.fields, [](const FieldLayout &field) { return Borrows(field.value); });
+}
+
+
+// Whether a value points into memory it does not own, a string or an array, or holds one that does:
+// its Rust type has that memory's lifetime, 'a, so safe code keeps it no longer than the memory.
+bool Borrows(const ValueLayout &value)
+{
+	return value.kind == ValueKind::String || value.kind == ValueKind::Array ||
+	       (value.kind == ValueKind::Struct && Borrows(*value.pStruct));
+}
+
+
+// The lifetime a type's Rust name is written with: none for one that borrows nothing.
+std::string_view Lifetime(bool borrows, std::string_view lifetime)
+{
+	return borrows ? lifetime : std::string_view{};
+}
+
+
 // The Rust module's name for a value: the C header's for every type it declares itself, and Rust's
 // own for a scalar, so a script in either language names the game's types the same way.
 std::string RustName(const ValueLayout &value)
@@ -763,7 +790,7 @@ std::string RustName(const ValueLayout &value)
 			case ValueKind::Float: return value.width == 4 ? "f32" : "f64";
 			default: break;
 		}
-	return value.cName;
+	return value.cName + std::string{Lifetime(Borrows(value), "<'a>")};
 }
 
 
@@ -791,8 +818,8 @@ class RustWriter
 			Needs(field.value);
 
 		m_text += std::format(
-		    "/// {}\n#[repr(C)]\n#[derive(Clone, Copy)]\npub struct {} {{\n", layout.name,
-		    layout.cName);
+		    "/// {}\n#[repr(C)]\n#[derive(Clone, Copy)]\npub struct {}{} {{\n", layout.name,
+		    layout.cName, Lifetime(Borrows(layout), "<'a>"));
 		for (const FieldLayout &field : layout.fields)
 			m_text += std::format("    pub {}: {},\n", RustField(field.name), RustName(field.value));
 		if (layout.fields.empty())
@@ -830,11 +857,14 @@ class RustWriter
 			Needs(*value.element);
 			if (m_declared.insert(value.cName).second)
 				m_text += std::format(
-				    "#[repr(C)]\n#[derive(Clone, Copy)]\npub struct {0} {{\n    pub data: *const {1},\n"
-				    "    pub size: u32,\n}}\n"
-				    "impl {0} {{\n    pub const fn new(items: &[{1}]) -> Self {{\n"
-				    "        Self {{ data: items.as_ptr(), size: items.len() as u32 }}\n    }}\n"
-				    "    pub fn as_slice(&self) -> &[{1}] {{\n"
+				    "/// The items, and their count: the memory's they are in, for its lifetime.\n"
+				    "#[repr(C)]\n#[derive(Clone, Copy)]\npub struct {0}<'a> {{\n    data: *const {1},\n"
+				    "    size: u32,\n    items: PhantomData<&'a [{1}]>,\n}}\n"
+				    "impl<'a> {0}<'a> {{\n    pub const fn new(items: &'a [{1}]) -> Self {{\n"
+				    "        Self {{ data: items.as_ptr(), size: items.len() as u32, items: "
+				    "PhantomData "
+				    "}}\n    }}\n"
+				    "    pub fn as_slice(&self) -> &'a [{1}] {{\n"
 				    "        if self.size == 0 {{ &[] }} else {{ unsafe {{ "
 				    "slice::from_raw_parts(self.data, self.size as usize) }} }}\n"
 				    "    }}\n}}\n\n",
@@ -879,29 +909,36 @@ constexpr std::string_view kRustPreamble =
 //! script that calls it. The module brings the crate's panic handler, a trap.
 #![allow(non_camel_case_types, non_upper_case_globals, non_snake_case, dead_code)]
 
+use core::marker::PhantomData;
 use core::mem::{offset_of, size_of};
 use core::slice;
 
 pub type jettison_entity = u32;
 pub const JETTISON_NO_ENTITY: jettison_entity = 0xffff_ffff;
 
-/// A string's bytes, not terminated, and their count. An event's strings are the host's copy,
-/// valid for the handler's call.
+/// A string's bytes, not terminated, and their count: the memory's they are in, for its lifetime.
+/// An event's strings are the host's copy, valid for the handler's call; a read's, for f's.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct jettison_string {
-    pub data: *const u8,
-    pub size: u32,
+pub struct jettison_string<'a> {
+    data: *const u8,
+    size: u32,
+    text: PhantomData<&'a [u8]>,
 }
-impl jettison_string {
-    pub const fn new(text: &str) -> Self {
-        Self { data: text.as_ptr(), size: text.len() as u32 }
+impl<'a> jettison_string<'a> {
+    pub const fn new(text: &'a str) -> Self {
+        Self { data: text.as_ptr(), size: text.len() as u32, text: PhantomData }
     }
-    pub fn as_bytes(&self) -> &[u8] {
+    /// # Safety
+    /// The host checks what a script sends, but a string read here must be size bytes at data.
+    pub const unsafe fn from_raw(data: *const u8, size: u32) -> Self {
+        Self { data, size, text: PhantomData }
+    }
+    pub fn as_bytes(&self) -> &'a [u8] {
         if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
     }
     /// The text, or nothing where it is not UTF-8.
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'a str {
         core::str::from_utf8(self.as_bytes()).unwrap_or("")
     }
 }
@@ -995,16 +1032,15 @@ std::string RustModule(
 		    "    /// Granted by \"{0}\": the command, into the game's queue, applied at the start of "
 		    "the\n"
 		    "    /// next step and recorded with the player's.\n"
-		    "    #[link_name = \"{0}\"]\n    pub fn jettison_send_{1}(command: *const {1});\n",
-		    SendImport(pLayout->type), pLayout->cName);
+		    "    #[link_name = \"{0}\"]\n    pub fn jettison_send_{1}(command: *const {1}{2});\n",
+		    SendImport(pLayout->type), pLayout->cName, Lifetime(Borrows(*pLayout), "<'_>"));
 	for (const TypeLayout *pLayout : read)
 		text += std::format(
 		    "    /// Granted by \"{0}\", for a handler: the entity's {1} in the newest snapshot, or\n"
 		    "    /// null for one that has none there. It is the handler's until it returns.\n"
 		    "    #[link_name = \"{0}\"]\n    pub fn jettison_read_{1}(entity: jettison_entity) -> "
-		    "*const "
-		    "{1};\n",
-		    ReadImport(pLayout->type), pLayout->cName);
+		    "*const {1}{2};\n",
+		    ReadImport(pLayout->type), pLayout->cName, Lifetime(Borrows(*pLayout), "<'static>"));
 	text += "}\n\n";
 	text += "pub fn log(severity: i32, text: &str) {\n"
 	        "    unsafe { jettison_log(severity, text.as_ptr(), text.len() as u32) }\n}\n\n";
@@ -1025,14 +1061,17 @@ std::string RustModule(
 		text += std::format(
 		    "\npub fn send_{0}(command: &{0}) {{\n    unsafe {{ jettison_send_{0}(command) }}\n}}\n",
 		    pLayout->cName);
+
+	// A read that borrows is given to f for any lifetime at all, so f's answer cannot hold it.
 	for (const TypeLayout *pLayout : read)
 		text += std::format(
 		    "\n/// The entity's {0} in the newest snapshot, given to f, whose answer is returned: the\n"
 		    "/// copy is the host's only until the call returns, so f may not keep it.\n"
-		    "pub fn read_{0}<R>(entity: jettison_entity, f: impl FnOnce(&{0}) -> R) -> Option<R> "
-		    "{{\n"
+		    "pub fn read_{0}<R>(entity: jettison_entity, f: impl {1}FnOnce(&{2}{0}{3}) -> R) -> "
+		    "Option<R> {{\n"
 		    "    unsafe {{ jettison_read_{0}(entity).as_ref() }}.map(f)\n}}\n",
-		    pLayout->cName);
+		    pLayout->cName, Lifetime(Borrows(*pLayout), "for<'a> "), Lifetime(Borrows(*pLayout), "'a "),
+		    Lifetime(Borrows(*pLayout), "<'a>"));
 	return text;
 }
 } // namespace Jettison::Script

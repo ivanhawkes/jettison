@@ -44,6 +44,9 @@ const double kClampNose = std::cos(glm::radians(15.0));
 // a vehicle flown onto the deck itself would touch it first.
 constexpr double kHover = 0.25;
 
+// The share of the hover within which a course's end is resting on a deck (Docks::CourseAmong).
+constexpr double kRestingShare = 0.5;
+
 // Beyond the platform's sphere, the vehicle's shape and its clearance, the point above a berth is
 // this far again, so a vehicle arriving there is outside what steering keeps it from, and not at its
 // edge.
@@ -1029,10 +1032,14 @@ std::optional<Ai::Course> Docks::CourseAmong(
 		    {platformAt.position + platformAt.orientation * box.centre, box.size * 0.5,
 		     platformAt.orientation});
 	const auto *steered = registry.try_get<Ai::Steered>(vehicle);
-	const double radius = m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape);
-	const double clearance = radius + double{steered ? steered->clearance : Ai::Steered{}.clearance};
+	const double clearance = m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape) +
+	                         double{steered ? steered->clearance : Ai::Steered{}.clearance};
+
+	// Resting on a deck within half its hover of its resting height: nearer than any point over a
+	// berth is, which is a hover above it or more, so a course from there leaves it level.
+	const double resting = RestingHeight(*VehicleOf(registry, vehicle)) + kHover * kRestingShare;
 	const Ai::Waypoints waypoints{
-	    {}, clearance, WaysOut(registry, vehicle, berth), std::move(boxes), radius};
+	    {}, clearance, WaysOut(registry, vehicle, berth), std::move(boxes), resting};
 	return waypoints.PlotCourse(from, to);
 }
 

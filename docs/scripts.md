@@ -58,7 +58,9 @@ fields in registration order, each at its own alignment, the struct padded to it
 From the same layouts the host writes the bindings a script is compiled against, a C header
 (`jettison_script.h`) and a Rust module (`jettison_script.rs`), each asserting every struct's size
 and every field's offset, so a script built against another build's types fails to compile rather
-than misread memory.
+than misread memory. In Rust a string, an array and a struct that holds either carry the lifetime
+of the memory they point into, `'a`, with their pointer and count private: made from a `&str` or a
+slice, or from a raw pointer only in `unsafe` (`jettison_string::from_raw`).
 
 Every pointer and count a script hands back is checked against its memory's bounds, and every bool
 and enumerator against its legal values. Only bytes cross the boundary.
@@ -89,7 +91,9 @@ A handler reads the world through the newest stepped [snapshot](glossary.md#snap
 step's state ([why](decisions.md#scripts)). A script granted `read:<Component>` imports
 `jettison_read_<Component>`, which takes an entity and returns its copy of the component as the
 snapshot has it, or null for an entity with none there; in Rust, `read_<Component>(entity, f)`
-gives the copy to `f` and returns what `f` answers, so safe code cannot keep a reference to it. The component
+gives the copy to `f` for any lifetime at all and returns what `f` answers, so safe code can keep
+nothing of it, the copy, a string in it or a reference: each is refused as the script compiles
+(the suite's `kept.rs`). The component
 is one Reflect marks `Script` and the world shows in its snapshots
 (`Sim::SimWorld::ShowInSnapshots`), or the grant does not load. The game gives the host the
 snapshot once, `ScriptHost::ReadFrom`, as the shell gives its stepper's current one, the one after

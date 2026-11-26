@@ -13,29 +13,36 @@
 //! script that calls it. The module brings the crate's panic handler, a trap.
 #![allow(non_camel_case_types, non_upper_case_globals, non_snake_case, dead_code)]
 
+use core::marker::PhantomData;
 use core::mem::{offset_of, size_of};
 use core::slice;
 
 pub type jettison_entity = u32;
 pub const JETTISON_NO_ENTITY: jettison_entity = 0xffff_ffff;
 
-/// A string's bytes, not terminated, and their count. An event's strings are the host's copy,
-/// valid for the handler's call.
+/// A string's bytes, not terminated, and their count: the memory's they are in, for its lifetime.
+/// An event's strings are the host's copy, valid for the handler's call; a read's, for f's.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct jettison_string {
-    pub data: *const u8,
-    pub size: u32,
+pub struct jettison_string<'a> {
+    data: *const u8,
+    size: u32,
+    text: PhantomData<&'a [u8]>,
 }
-impl jettison_string {
-    pub const fn new(text: &str) -> Self {
-        Self { data: text.as_ptr(), size: text.len() as u32 }
+impl<'a> jettison_string<'a> {
+    pub const fn new(text: &'a str) -> Self {
+        Self { data: text.as_ptr(), size: text.len() as u32, text: PhantomData }
     }
-    pub fn as_bytes(&self) -> &[u8] {
+    /// # Safety
+    /// The host checks what a script sends, but a string read here must be size bytes at data.
+    pub const unsafe fn from_raw(data: *const u8, size: u32) -> Self {
+        Self { data, size, text: PhantomData }
+    }
+    pub fn as_bytes(&self) -> &'a [u8] {
         if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
     }
     /// The text, or nothing where it is not UTF-8.
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'a str {
         core::str::from_utf8(self.as_bytes()).unwrap_or("")
     }
 }
@@ -59,17 +66,19 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     core::arch::wasm32::unreachable()
 }
 
+/// The items, and their count: the memory's they are in, for its lifetime.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct jettison_array_jettison_string {
-    pub data: *const jettison_string,
-    pub size: u32,
+pub struct jettison_array_jettison_string<'a> {
+    data: *const jettison_string<'a>,
+    size: u32,
+    items: PhantomData<&'a [jettison_string<'a>]>,
 }
-impl jettison_array_jettison_string {
-    pub const fn new(items: &[jettison_string]) -> Self {
-        Self { data: items.as_ptr(), size: items.len() as u32 }
+impl<'a> jettison_array_jettison_string<'a> {
+    pub const fn new(items: &'a [jettison_string<'a>]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32, items: PhantomData }
     }
-    pub fn as_slice(&self) -> &[jettison_string] {
+    pub fn as_slice(&self) -> &'a [jettison_string<'a>] {
         if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
     }
 }
@@ -83,9 +92,9 @@ pub const Script_TaskStatus_Failure: Script_TaskStatus = 2;
 /// Script.TaskContext
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Script_TaskContext {
+pub struct Script_TaskContext<'a> {
     pub entity: jettison_entity,
-    pub arguments: jettison_array_jettison_string,
+    pub arguments: jettison_array_jettison_string<'a>,
     pub starting: bool,
     pub memory: u64,
     pub status: Script_TaskStatus,
@@ -100,25 +109,27 @@ const _: () = assert!(offset_of!(Script_TaskContext, status) == 24);
 /// Test.Hold
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Test_Hold {
+pub struct Test_Hold<'a> {
     pub cargo: i64,
-    pub owner: jettison_string,
+    pub owner: jettison_string<'a>,
 }
 const _: () = assert!(size_of::<Test_Hold>() == 16);
 const _: () = assert!(offset_of!(Test_Hold, cargo) == 0);
 const _: () = assert!(offset_of!(Test_Hold, owner) == 8);
 
+/// The items, and their count: the memory's they are in, for its lifetime.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct jettison_array_int32_t {
-    pub data: *const i32,
-    pub size: u32,
+pub struct jettison_array_int32_t<'a> {
+    data: *const i32,
+    size: u32,
+    items: PhantomData<&'a [i32]>,
 }
-impl jettison_array_int32_t {
-    pub const fn new(items: &[i32]) -> Self {
-        Self { data: items.as_ptr(), size: items.len() as u32 }
+impl<'a> jettison_array_int32_t<'a> {
+    pub const fn new(items: &'a [i32]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32, items: PhantomData }
     }
-    pub fn as_slice(&self) -> &[i32] {
+    pub fn as_slice(&self) -> &'a [i32] {
         if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
     }
 }
@@ -142,12 +153,12 @@ const _: () = assert!(offset_of!(Test_Inner, weight) == 4);
 /// Test.Ping
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Test_Ping {
+pub struct Test_Ping<'a> {
     pub ship: jettison_entity,
     pub count: i64,
     pub value: f64,
-    pub text: jettison_string,
-    pub numbers: jettison_array_int32_t,
+    pub text: jettison_string<'a>,
+    pub numbers: jettison_array_int32_t<'a>,
     pub inner: Test_Inner,
     pub r#where: jettison_dvec3,
     pub flag: bool,
@@ -163,17 +174,19 @@ const _: () = assert!(offset_of!(Test_Ping, inner) == 40);
 const _: () = assert!(offset_of!(Test_Ping, r#where) == 48);
 const _: () = assert!(offset_of!(Test_Ping, flag) == 72);
 
+/// The items, and their count: the memory's they are in, for its lifetime.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct jettison_array_Test_Inner {
-    pub data: *const Test_Inner,
-    pub size: u32,
+pub struct jettison_array_Test_Inner<'a> {
+    data: *const Test_Inner,
+    size: u32,
+    items: PhantomData<&'a [Test_Inner]>,
 }
-impl jettison_array_Test_Inner {
-    pub const fn new(items: &[Test_Inner]) -> Self {
-        Self { data: items.as_ptr(), size: items.len() as u32 }
+impl<'a> jettison_array_Test_Inner<'a> {
+    pub const fn new(items: &'a [Test_Inner]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32, items: PhantomData }
     }
-    pub fn as_slice(&self) -> &[Test_Inner] {
+    pub fn as_slice(&self) -> &'a [Test_Inner] {
         if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
     }
 }
@@ -206,17 +219,19 @@ const _: () = assert!(size_of::<Test_Order>() == 12);
 const _: () = assert!(offset_of!(Test_Order, by) == 0);
 const _: () = assert!(offset_of!(Test_Order, amount) == 8);
 
+/// The items, and their count: the memory's they are in, for its lifetime.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct jettison_array_Test_Order {
-    pub data: *const Test_Order,
-    pub size: u32,
+pub struct jettison_array_Test_Order<'a> {
+    data: *const Test_Order,
+    size: u32,
+    items: PhantomData<&'a [Test_Order]>,
 }
-impl jettison_array_Test_Order {
-    pub const fn new(items: &[Test_Order]) -> Self {
-        Self { data: items.as_ptr(), size: items.len() as u32 }
+impl<'a> jettison_array_Test_Order<'a> {
+    pub const fn new(items: &'a [Test_Order]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32, items: PhantomData }
     }
-    pub fn as_slice(&self) -> &[Test_Order] {
+    pub fn as_slice(&self) -> &'a [Test_Order] {
         if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
     }
 }
@@ -230,12 +245,12 @@ pub const Sim_ReasonValue_Identifier: Sim_ReasonValue = 2;
 /// Sim.ReasonArgument
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Sim_ReasonArgument {
+pub struct Sim_ReasonArgument<'a> {
     pub kind: Sim_ReasonValue,
     pub integer: i64,
     pub entity: jettison_entity,
-    pub identifier: jettison_string,
-    pub definition: jettison_string,
+    pub identifier: jettison_string<'a>,
+    pub definition: jettison_string<'a>,
 }
 const _: () = assert!(size_of::<Sim_ReasonArgument>() == 40);
 const _: () = assert!(offset_of!(Sim_ReasonArgument, kind) == 0);
@@ -244,17 +259,19 @@ const _: () = assert!(offset_of!(Sim_ReasonArgument, entity) == 16);
 const _: () = assert!(offset_of!(Sim_ReasonArgument, identifier) == 20);
 const _: () = assert!(offset_of!(Sim_ReasonArgument, definition) == 28);
 
+/// The items, and their count: the memory's they are in, for its lifetime.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct jettison_array_Sim_ReasonArgument {
-    pub data: *const Sim_ReasonArgument,
-    pub size: u32,
+pub struct jettison_array_Sim_ReasonArgument<'a> {
+    data: *const Sim_ReasonArgument<'a>,
+    size: u32,
+    items: PhantomData<&'a [Sim_ReasonArgument<'a>]>,
 }
-impl jettison_array_Sim_ReasonArgument {
-    pub const fn new(items: &[Sim_ReasonArgument]) -> Self {
-        Self { data: items.as_ptr(), size: items.len() as u32 }
+impl<'a> jettison_array_Sim_ReasonArgument<'a> {
+    pub const fn new(items: &'a [Sim_ReasonArgument<'a>]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32, items: PhantomData }
     }
-    pub fn as_slice(&self) -> &[Sim_ReasonArgument] {
+    pub fn as_slice(&self) -> &'a [Sim_ReasonArgument<'a>] {
         if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
     }
 }
@@ -262,9 +279,9 @@ impl jettison_array_Sim_ReasonArgument {
 /// Sim.Reason
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Sim_Reason {
-    pub key: jettison_string,
-    pub arguments: jettison_array_Sim_ReasonArgument,
+pub struct Sim_Reason<'a> {
+    pub key: jettison_string<'a>,
+    pub arguments: jettison_array_Sim_ReasonArgument<'a>,
 }
 const _: () = assert!(size_of::<Sim_Reason>() == 16);
 const _: () = assert!(offset_of!(Sim_Reason, key) == 0);
@@ -273,15 +290,15 @@ const _: () = assert!(offset_of!(Sim_Reason, arguments) == 8);
 /// Test.Pong
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Test_Pong {
+pub struct Test_Pong<'a> {
     pub ship: jettison_entity,
     pub total: i64,
-    pub text: jettison_string,
-    pub items: jettison_array_Test_Inner,
+    pub text: jettison_string<'a>,
+    pub items: jettison_array_Test_Inner<'a>,
     pub sender: Sim_Controller,
     pub order: Test_Order,
-    pub orders: jettison_array_Test_Order,
-    pub why: Sim_Reason,
+    pub orders: jettison_array_Test_Order<'a>,
+    pub why: Sim_Reason<'a>,
 }
 const _: () = assert!(size_of::<Test_Pong>() == 80);
 const _: () = assert!(offset_of!(Test_Pong, ship) == 0);
@@ -314,11 +331,11 @@ unsafe extern "C" {
     /// Granted by "send:Test.Pong": the command, into the game's queue, applied at the start of the
     /// next step and recorded with the player's.
     #[link_name = "send:Test.Pong"]
-    pub fn jettison_send_Test_Pong(command: *const Test_Pong);
+    pub fn jettison_send_Test_Pong(command: *const Test_Pong<'_>);
     /// Granted by "read:Test.Hold", for a handler: the entity's Test_Hold in the newest snapshot, or
     /// null for one that has none there. It is the handler's until it returns.
     #[link_name = "read:Test.Hold"]
-    pub fn jettison_read_Test_Hold(entity: jettison_entity) -> *const Test_Hold;
+    pub fn jettison_read_Test_Hold(entity: jettison_entity) -> *const Test_Hold<'static>;
 }
 
 pub fn log(severity: i32, text: &str) {
@@ -347,6 +364,6 @@ pub fn send_Test_Pong(command: &Test_Pong) {
 
 /// The entity's Test_Hold in the newest snapshot, given to f, whose answer is returned: the
 /// copy is the host's only until the call returns, so f may not keep it.
-pub fn read_Test_Hold<R>(entity: jettison_entity, f: impl FnOnce(&Test_Hold) -> R) -> Option<R> {
+pub fn read_Test_Hold<R>(entity: jettison_entity, f: impl for<'a> FnOnce(&'a Test_Hold<'a>) -> R) -> Option<R> {
     unsafe { jettison_read_Test_Hold(entity).as_ref() }.map(f)
 }

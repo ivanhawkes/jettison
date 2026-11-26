@@ -888,6 +888,34 @@ TEST_CASE(
 }
 
 
+TEST_CASE(
+    "Behaviour trees: a tree stopped inside a tick of its own entity's, begun by its task, is halted")
+{
+	// The task ticks its own entity's tree again, and in that tick gives the entity its tree again:
+	// neither tick writes its nodes over the new tree's.
+	Trees trees;
+	int depth = 0;
+	trees.behaviours.DefineTask(
+	    "again",
+	    [&](Ai::TaskContext &context)
+	    {
+		    ++context.memory;
+		    ++depth;
+		    if (depth == 1)
+			    (void)trees.behaviours.Tick(context.world, context.entity);
+		    else
+			    context.world.Apply(Ai::AssignBehaviour{{}, context.entity, "again"});
+		    --depth;
+		    return Status::Running;
+	    },
+	    {}, [&](Ai::TaskContext &) { trees.trace.emplace_back("!"); });
+	trees.behaviours.DefineTree("again", {TaskNode("again")});
+	const entt::entity ship = trees.Follow("again");
+	CHECK(trees.behaviours.Tick(trees.world, ship) == Status::Failure);
+	CHECK(trees.world.Registry().get<Ai::Behaviour>(ship).nodes.empty());
+}
+
+
 TEST_CASE("Behaviour trees: an interval or a wait longer than a run counts in steps is refused")
 {
 	Trees trees;

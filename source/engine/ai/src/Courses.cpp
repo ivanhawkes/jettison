@@ -75,9 +75,9 @@ double OutsideBox(const Box &box, const glm::dvec3 &point)
 // hair less so a leg level with the end is clear. Measured as LegIntoBox grows the box, so the end
 // itself is never inside the margin it is held to, beside a corner as much as a face.
 //
-// An end nearer than the radius is held to the radius: every leg from it is into the box, but those
-// straight out from its faces, which PlotCourse judges without the box (Escapes).
-double Keep(const Box &box, double clearance, std::span<const glm::dvec3> ends, double radius)
+// An end resting on the box, nearer it than resting, is held to resting: every leg from it is into
+// the box, but those straight out from its faces, which PlotCourse judges without the box (Escapes).
+double Keep(const Box &box, double clearance, std::span<const glm::dvec3> ends, double resting)
 {
 	constexpr double kLevel = 1.0 - 1.0e-6;
 	double keep = clearance;
@@ -86,7 +86,7 @@ double Keep(const Box &box, double clearance, std::span<const glm::dvec3> ends, 
 		const double outside = OutsideBox(box, end);
 		if (outside <= 0.0)
 			return -1.0;
-		keep = std::min(keep, outside < radius ? radius : outside * kLevel);
+		keep = std::min(keep, outside < resting ? resting : outside * kLevel);
 	}
 	return keep;
 }
@@ -128,7 +128,7 @@ constexpr std::size_t kNoBox = std::numeric_limits<std::size_t>::max();
 
 bool LegClearOfEnds(
     const glm::dvec3 &a, const glm::dvec3 &b, std::span<const Sphere> obstacles, double clearance,
-    std::span<const glm::dvec3> ends, std::span<const Box> boxes, double radius = 0.0,
+    std::span<const glm::dvec3> ends, std::span<const Box> boxes, double resting = 0.0,
     std::size_t without = kNoBox)
 {
 	for (const Sphere &obstacle : obstacles)
@@ -141,7 +141,7 @@ bool LegClearOfEnds(
 	{
 		if (index == without)
 			continue;
-		const double keep = Keep(boxes[index], clearance, ends, radius);
+		const double keep = Keep(boxes[index], clearance, ends, resting);
 		if (keep >= 0.0 && LegIntoBox(a, b, boxes[index], keep))
 			return false;
 	}
@@ -167,13 +167,13 @@ bool LegClear(
 
 Waypoints::Waypoints(
     std::vector<Sphere> obstacles, double clearance, std::vector<glm::dvec3> extraPoints,
-    std::vector<Box> boxes, double radius)
+    std::vector<Box> boxes, double resting)
     : m_obstacles{std::move(obstacles)}, m_boxes{std::move(boxes)}, m_clearance{clearance},
-      m_radius{radius}, m_points{std::move(extraPoints)}
+      m_resting{resting}, m_points{std::move(extraPoints)}
 {
-	if (!std::isfinite(radius) || radius < 0.0 || radius > clearance)
+	if (!std::isfinite(resting) || resting < 0.0 || resting > clearance)
 		throw std::invalid_argument{
-		    std::format("Ai: a radius of {} m is not a radius within the clearance", radius)};
+		    std::format("Ai: resting {} m off a box is not a distance within the clearance", resting)};
 	if (!std::isfinite(clearance) || clearance < 0.0)
 		throw std::invalid_argument{
 		    std::format("Ai: a clearance of {} m is not a distance", clearance)};
@@ -228,7 +228,7 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 	if (!Finite(from) || !Finite(to))
 		throw std::invalid_argument{"Ai: a course from or to nowhere"};
 	const std::array<glm::dvec3, 2> both{from, to};
-	if (LegClearOfEnds(from, to, m_obstacles, m_clearance, both, m_boxes, m_radius))
+	if (LegClearOfEnds(from, to, m_obstacles, m_clearance, both, m_boxes, m_resting))
 		return Course{{from, to}, glm::length(to - from)};
 
 	// The graph's waypoints, then each end's escapes from the rings it is inside, then the ends.
@@ -300,7 +300,7 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 			    { return each.point == other && each.end == end && each.away; });
 			const std::size_t without = escape != escapes.end() ? escape->box : kNoBox;
 			if (LegClearOfEnds(
-			        at, points[other], m_obstacles, m_clearance, self, m_boxes, m_radius, without))
+			        at, points[other], m_obstacles, m_clearance, self, m_boxes, m_resting, without))
 				Join(graph, node, other, glm::length(points[other] - at));
 		}
 	}
