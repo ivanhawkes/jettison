@@ -312,34 +312,48 @@ class Watchdog
 	Watchdog &operator=(const Watchdog &) = delete;
 
 
+	// A call made from inside another, through an import (a task asking the game for an input a
+	// script answers), is watched in its place until it returns, and is held to the outer call's
+	// deadline as well as its own.
 	void Arm(wasm_module_inst_t instance, std::chrono::milliseconds limit)
 	{
 		const std::scoped_lock lock{m_mutex};
-		m_running = instance;
-		m_deadline = std::chrono::steady_clock::now() + limit;
-		m_fired = false;
+		std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + limit;
+		if (!m_calls.empty())
+			deadline = std::min(deadline, m_calls.back().deadline);
+		m_calls.push_back({instance, deadline, false});
 	}
 
 
-	// Whether it stopped the call.
+	// Whether it stopped the call; the call it was made from, if any, is watched again.
 	bool Disarm()
 	{
 		const std::scoped_lock lock{m_mutex};
-		m_running = nullptr;
-		return m_fired;
+		const bool fired = m_calls.back().fired;
+		m_calls.pop_back();
+		return fired;
 	}
 
   private:
+	struct Watched
+	{
+		wasm_module_inst_t instance{nullptr};
+		std::chrono::steady_clock::time_point deadline;
+		bool fired{false};
+	};
+
+
 	void Watch()
 	{
 		std::unique_lock lock{m_mutex};
 		while (!m_stop)
 		{
 			m_wake.wait_for(lock, kWatchPeriod);
-			if (m_running != nullptr && !m_fired && std::chrono::steady_clock::now() >= m_deadline)
+			if (!m_calls.empty() && !m_calls.back().fired &&
+			    std::chrono::steady_clock::now() >= m_calls.back().deadline)
 			{
-				wasm_runtime_terminate(m_running);
-				m_fired = true;
+				wasm_runtime_terminate(m_calls.back().instance);
+				m_calls.back().fired = true;
 			}
 		}
 	}
@@ -347,9 +361,9 @@ class Watchdog
 	std::mutex m_mutex;
 	std::condition_variable m_wake;
 	bool m_stop{false};
-	wasm_module_inst_t m_running{nullptr};
-	std::chrono::steady_clock::time_point m_deadline;
-	bool m_fired{false};
+
+	// The calls running, the innermost last.
+	std::vector<Watched> m_calls;
 	std::thread m_thread;
 };
 
@@ -823,6 +837,7 @@ bool Run(
 	if (pFunction == nullptr)
 		throw std::logic_error{std::format("Script '{}' has no export '{}'", script.name, function)};
 	script.refusal.clear();
+	const std::size_t reads = script.reads.size();
 	const std::uint32_t fuel = std::min<std::uint32_t>(script.definition.fuel, INT32_MAX);
 	wasm_runtime_set_instruction_count_limit(instance.environment, static_cast<int>(fuel));
 	watchdog.Arm(instance.instance, limit);
@@ -830,9 +845,11 @@ bool Run(
 	    wasm_runtime_call_wasm(instance.environment, pFunction, argumentCells, cells.data());
 	const bool stopped = watchdog.Disarm();
 	++script.status.calls;
-	for (const std::uint64_t read : script.reads)
-		wasm_runtime_module_free(instance.instance, read);
-	script.reads.clear();
+
+	// This call's reads alone: a call made from inside another leaves the outer one's.
+	for (std::size_t index = reads; index < script.reads.size(); ++index)
+		wasm_runtime_module_free(instance.instance, script.reads[index]);
+	script.reads.resize(reads);
 	const int left = wasm_runtime_get_instruction_count_left(instance.environment);
 	script.status.lastFuel = fuel - static_cast<std::uint32_t>(std::max(left, 0));
 	script.status.mostFuel = std::max(script.status.mostFuel, script.status.lastFuel);
@@ -1128,7 +1145,7 @@ std::size_t ScriptHost::ReloadChanged()
 			    Core::Severity::Info, kScript,
 			    "Script '{}': its module changed, and it was loaded again", name);
 		}
-		catch (const ScriptError &error)
+		catch (const std::exception &error)
 		{
 			Script &kept = *m_pImpl->scripts.find(name)->second;
 			kept.refusedInfo = m_fileSystem.Find(definition.module);
@@ -1256,11 +1273,18 @@ double ScriptHost::Input(std::string_view input, const Inputs &game)
 		Core::Log(Core::Severity::Error, kScript, "{}; it is not called again this run", error.what());
 		return 0.0;
 	}
+
+	// Made from inside another of the script's calls, through an import, that call's own is put
+	// back after, so it is held to its rules still.
+	const Inputs *const enclosingGame = script.pGame;
+	const TaskCall *const enclosingTask = script.pTask;
 	script.pGame = &game;
+	script.pTask = nullptr;
 	std::array<std::uint32_t, 2> cells{};
 	const bool returned =
 	    Run(script, *pInstance, *m_pImpl->pWatchdog, m_limits.time, answer->function, cells, 0);
-	script.pGame = nullptr;
+	script.pGame = enclosingGame;
+	script.pTask = enclosingTask;
 	if (!returned)
 		return 0.0;
 	double value = 0.0;
@@ -1326,12 +1350,14 @@ std::optional<TaskStatus> ScriptHost::Impl::Tick(
 		return trapped(std::format("no room in its heap for a task's {} bytes", size));
 	host.m_bindings.Write(layout, &context, pInstance->Memory(), static_cast<std::uint32_t>(offset));
 
+	const Inputs *const enclosingGame = script.pGame;
+	const TaskCall *const enclosingTask = script.pTask;
 	script.pTask = &call;
 	script.pGame = &call.game;
 	std::array<std::uint32_t, 1> cells{static_cast<std::uint32_t>(offset)};
 	const bool returned = Run(script, *pInstance, *pWatchdog, Limits().time, function, cells, 1);
-	script.pTask = nullptr;
-	script.pGame = nullptr;
+	script.pTask = enclosingTask;
+	script.pGame = enclosingGame;
 	if (!returned)
 		return std::nullopt;
 	TaskContext after;

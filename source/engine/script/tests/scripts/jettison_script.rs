@@ -345,7 +345,8 @@ pub fn send_Test_Pong(command: &Test_Pong) {
     unsafe { jettison_send_Test_Pong(command) }
 }
 
-/// The entity's Test_Hold in the newest snapshot, which the handler may hold until it returns.
-pub fn read_Test_Hold(entity: jettison_entity) -> Option<&'static Test_Hold> {
-    unsafe { jettison_read_Test_Hold(entity).as_ref() }
+/// The entity's Test_Hold in the newest snapshot, given to f, whose answer is returned: the
+/// copy is the host's only until the call returns, so f may not keep it.
+pub fn read_Test_Hold<R>(entity: jettison_entity, f: impl FnOnce(&Test_Hold) -> R) -> Option<R> {
+    unsafe { jettison_read_Test_Hold(entity).as_ref() }.map(f)
 }

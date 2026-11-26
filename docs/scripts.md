@@ -87,14 +87,20 @@ not granted, from any module, is refused as it loads, naming the import.
 
 A handler reads the world through the newest stepped [snapshot](glossary.md#snapshot), never the
 step's state ([why](decisions.md#scripts)). A script granted `read:<Component>` imports
-`jettison_read_<Component>` (`read_<Component>` in Rust), which takes an entity and returns its
-copy of the component as the snapshot has it, or null for an entity with none there. The component
+`jettison_read_<Component>`, which takes an entity and returns its copy of the component as the
+snapshot has it, or null for an entity with none there; in Rust, `read_<Component>(entity, f)`
+gives the copy to `f` and returns what `f` answers, so safe code cannot keep a reference to it. The component
 is one Reflect marks `Script` and the world shows in its snapshots
 (`Sim::SimWorld::ShowInSnapshots`), or the grant does not load. The game gives the host the
 snapshot once, `ScriptHost::ReadFrom`, as the shell gives its stepper's current one, the one after
 the step whose events it dispatches. A read is laid out as an event is, in the host's heap in the
 script's memory, and is the handler's until it returns; the host frees it then. An input may not
 read: its answer is the option's inputs' alone, so a read while answering one traps.
+
+A call may be made from inside another, through an import: a task asks the game for an input that a
+script answers. The inner call is held to its own rules, and the outer call's are put back as it
+returns, so a task that asked for an input still may not read; the watchdog watches the inner call
+in the outer's place, by the earlier of their deadlines, and each call frees only its own reads.
 
 WAMR is built without its libc (`printf`, `malloc` and the rest) and without WASI, so a script
 has no files, clock or environment beyond what is granted. It is built with bulk memory and

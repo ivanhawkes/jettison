@@ -296,7 +296,9 @@ class Behaviours
 	Status Tick(Sim::SimWorld &world, entt::entity entity);
 
 	// Halts the running tasks of the entity's tree and starts it again from the top at its next tick,
-	// as taking its helm or giving it another tree does.
+	// as taking its helm or giving it another tree does. Asked by a command one of the tree's own tasks
+	// applies as it is ticked, the rest of that tick does nothing and the halts come as it ends, since
+	// until then its nodes are the tick's.
 	void Stop(Sim::SimWorld &world, entt::entity entity);
 
   private:
@@ -364,6 +366,13 @@ class Behaviours
 
 	// Trees named by an entity and not defined, said once each; not state.
 	std::set<std::string, std::less<>> m_missing;
+
+	// The entity whose tree is being ticked, and whether a command applied by one of its tasks has
+	// stopped it (Stop, an AssignBehaviour or its helm taken): its nodes are the tick's own copy until
+	// the tick ends, so the stop's halts wait for that, and the rest of the tick does nothing. Not
+	// state: both are clear between ticks.
+	entt::entity m_ticking{entt::null};
+	bool m_tickStopped{false};
 	double m_fixedStep{0.0};
 };
 } // namespace Jettison::Ai

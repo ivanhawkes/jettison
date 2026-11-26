@@ -530,6 +530,22 @@ TEST_CASE("Script: a handler reads an entity's component as the newest snapshot 
 		const Said said;
 		CHECK(host.Input("reads", [](std::string_view) { return 0.0; }) == 0.0);
 		CHECK(said.Contains("reads trapped: read a 'Test.Hold' while answering an input"));
+
+		// Nor may a task, even once an input it asked for, which the same script answers, has
+		// come back: the task's own rules are put back after it.
+		Script::ScriptDefinition tasked = definition;
+		tasked.tasks = {{"peek", "peek", ""}};
+		host.Load("reads", tasked);
+		Script::TaskCall call{
+		    ship,
+		    {},
+		    true,
+		    7,
+		    [&](std::string_view) { return host.Input("reads", [](std::string_view) { return 0.0; }); },
+		    std::nullopt};
+		CHECK(host.Task("peek", call) == Script::TaskStatus::Failure);
+		CHECK(call.memory == 7);
+		CHECK(said.Contains("peek trapped: read a 'Test.Hold' while running a task"));
 	}
 }
 
@@ -646,6 +662,16 @@ TEST_CASE("Script: a script whose module changes is loaded again, and one that n
 	const Said again;
 	CHECK(host.ReloadChanged() == 0);
 	CHECK_FALSE(again.Contains("kept"));
+
+	// A module that cannot be read at all is kept from as well, not thrown out of the reload.
+	std::filesystem::copy_file(
+	    modules / kEventModules[0], live, std::filesystem::copy_options::overwrite_existing);
+	std::filesystem::permissions(live, std::filesystem::perms::none);
+	CHECK(host.ReloadChanged() == 0);
+	CHECK(again.Contains("the script loaded before it is kept"));
+	CHECK(pings() == std::vector<std::int32_t>{0});
+	std::filesystem::permissions(
+	    live, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
 }
 
 

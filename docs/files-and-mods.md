@@ -183,7 +183,12 @@ already begun finishes on the old one. The resource manager calls it before each
 ([resources](#resources)), so a development run sees a rebuilt mod without a restart; every file
 in a rewritten pack counts as changed, since a pack has one time. A pack that does not open, a
 copy half written or a damaged one, keeps the old pack and logs a warning, once, and is tried again
-when the file changes again. With no `Refresh`, as in a shipped build, a pack stays as mounted.
+when the file changes again. That holds for a pack replaced by a new file, as `WritePack` writes
+one, renamed over the old: the old file is still open, and read. A pack written over in place has no
+old file left to read, so its files fail to read until it is whole again, and the warning says so.
+A file's info in a pack carries how many times the pack has been opened again, so even a pack
+written to keep its time and its files' sizes counts as changed. With no `Refresh`, as in a shipped
+build, a pack stays as mounted.
 
 `Vfs::WritePack` writes a pack, the same files always giving the same bytes, beside the output and
 renamed over it once complete, so a reader never finds half a pack. Files whose

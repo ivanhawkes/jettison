@@ -334,7 +334,19 @@ Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 	std::vector<NodeState> states = std::move(behaviour->nodes);
 	if (states.size() != tree.nodes.size())
 		states.assign(tree.nodes.size(), NodeState{});
+	m_ticking = entity;
+	m_tickStopped = false;
 	const Status status = TickNode(world, entity, tree, states, 0);
+	m_ticking = entt::null;
+
+	// Stopped by its own task's command: halted now its nodes are whole again, and what the command
+	// left (a new tree, from its top, or none) stands.
+	if (m_tickStopped)
+	{
+		m_tickStopped = false;
+		Halt(world, entity, tree, states, 0);
+		return Status::Failure;
+	}
 	if (auto *after = registry.try_get<Behaviour>(entity); after && after->tree == found->first)
 	{
 		after->nodes = std::move(states);
@@ -347,6 +359,15 @@ Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 void Behaviours::Stop(Sim::SimWorld &world, entt::entity entity)
 {
 	entt::registry &registry = world.Registry();
+
+	// Its tree is being ticked, its nodes the tick's: halted as the tick ends (Tick).
+	if (entity == m_ticking)
+	{
+		m_tickStopped = true;
+		if (auto *behaviour = registry.try_get<Behaviour>(entity))
+			behaviour->nodes.clear();
+		return;
+	}
 	auto *behaviour = registry.try_get<Behaviour>(entity);
 	if (!behaviour)
 		return;
@@ -392,8 +413,13 @@ void Behaviours::Assign(Sim::SimWorld &world, const AssignBehaviour &command)
 
 std::uint64_t Behaviours::DueFrom(std::uint64_t step, entt::entity entity, const Tree &tree)
 {
-	const std::uint64_t phase = (step + entt::to_entity(entity)) % tree.every;
-	return phase == 0 ? step : step + tree.every - phase;
+	// Never stays never, rather than wrapping round to a step soon.
+	constexpr std::uint64_t kNever = std::numeric_limits<std::uint64_t>::max();
+	const std::uint64_t phase = (step % tree.every + entt::to_entity(entity) % tree.every) % tree.every;
+	if (phase == 0)
+		return step;
+	const std::uint64_t ahead = tree.every - phase;
+	return step > kNever - ahead ? kNever : step + ahead;
 }
 
 
@@ -490,6 +516,9 @@ Status Behaviours::TickNode(
     Sim::SimWorld &world, entt::entity entity, const Tree &tree, std::vector<NodeState> &states,
     std::uint32_t index) const
 {
+	// Stopped part-way through by one of its tasks' commands: nothing more of the tick is done.
+	if (m_tickStopped)
+		return Status::Failure;
 	const Node &node = tree.nodes[index];
 	const bool starting = !states[index].running;
 	if (starting)

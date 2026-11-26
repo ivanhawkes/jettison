@@ -419,6 +419,13 @@ CastHit ShapeHit(
 }
 
 
+// Whether a hit comes before another: nearer, or as near and of a lower entity.
+bool Before(const CastHit &a, const CastHit &b)
+{
+	return std::tie(a.distance, a.entity) < std::tie(b.distance, b.entity);
+}
+
+
 // Each body once, at its nearest hit, nearest first and a tie by entity.
 void NearestPerBody(std::vector<CastHit> &hits)
 {
@@ -926,9 +933,12 @@ std::optional<CastHit> PhysicsWorld::CastRay(
 		    JPH::RayCastResult hit;
 		    if (!world.System().GetNarrowPhaseQueryNoLock().CastRay(ray, hit, {}, {}, filter))
 			    return;
-		    if (nearest && nearest->distance <= static_cast<double>(hit.mFraction) * maxDistance)
-			    return;
-		    nearest = RayHit(world, ray, hit, frameOrigin, maxDistance);
+
+		    // Nearest first and a tie by entity, as CastRayAll orders them, whichever local frame
+		    // is searched first.
+		    const CastHit found = RayHit(world, ray, hit, frameOrigin, maxDistance);
+		    if (!nearest || Before(found, *nearest))
+			    nearest = found;
 	    });
 	return nearest;
 }
@@ -988,9 +998,9 @@ std::optional<CastHit> PhysicsWorld::CastShape(
 		    if (!collector.HadHit())
 			    return;
 		    const JPH::ShapeCastResult &hit = collector.mHit;
-		    if (nearest && nearest->distance <= static_cast<double>(hit.mFraction) * maxDistance)
-			    return;
-		    nearest = ShapeHit(world, hit, at, frameOrigin, along, maxDistance);
+		    const CastHit found = ShapeHit(world, hit, at, frameOrigin, along, maxDistance);
+		    if (!nearest || Before(found, *nearest))
+			    nearest = found;
 	    });
 	return nearest;
 }
@@ -1058,7 +1068,13 @@ std::vector<entt::entity> PhysicsWorld::OverlapSphere(
 		throw std::invalid_argument{std::format(
 		    "Physics: a sphere of radius {} at ({}, {}, {}) is not a shape to overlap", radius,
 		    centre.x, centre.y, centre.z)};
-	const JPH::Ref<JPH::SphereShape> sphere = new JPH::SphereShape(static_cast<float>(radius));
+
+	// Checked as Jolt holds it, a float: a radius too small or too large for one is refused too.
+	const auto inFloat = static_cast<float>(radius);
+	if (!(inFloat > 0.0f) || !std::isfinite(inFloat))
+		throw std::invalid_argument{
+		    std::format("Physics: a sphere of radius {} is past what a float holds", radius)};
+	const JPH::Ref<JPH::SphereShape> sphere = new JPH::SphereShape(inFloat);
 	return m_pImpl->Overlapping(frame, *sphere, {centre, glm::dquat{1.0, 0.0, 0.0, 0.0}}, options);
 }
 

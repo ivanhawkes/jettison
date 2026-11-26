@@ -13,6 +13,8 @@
 
 #include <cstdint>
 #include <format>
+#include <limits>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -801,4 +803,58 @@ TEST_CASE(
 	// Fewer calls than steps: the steps between an interval's three ticks are passed over.
 	MESSAGE(calls << " calls");
 	CHECK(calls < static_cast<int>(kEnd));
+}
+
+
+TEST_CASE(
+    "Behaviour trees: a tree its own task gives again is halted after the tick and starts from the top")
+{
+	// On its second tick the task gives its entity its own tree again, as a command applied at once.
+	Trees trees;
+	int ticks = 0;
+	trees.behaviours.DefineTask(
+	    "again",
+	    [&](Ai::TaskContext &context)
+	    {
+		    ++context.memory;
+		    if (++ticks == 2)
+			    context.world.Apply(Ai::AssignBehaviour{{}, context.entity, "errand"});
+		    return Status::Running;
+	    },
+	    {}, [&](Ai::TaskContext &) { trees.trace.emplace_back("!"); });
+	trees.behaviours.DefineTree("errand", {TaskNode("again")});
+	const entt::entity ship = trees.Follow("errand");
+	CHECK(trees.Tick(ship, Status::Running).empty());
+
+	// Halted as its tick ends, and the tree it was given again has nothing of the old run.
+	CHECK(trees.Tick(ship, Status::Failure) == Trace{"!"});
+	CHECK(trees.world.Registry().get<Ai::Behaviour>(ship).nodes.empty());
+	CHECK(trees.Tick(ship, Status::Running).empty());
+	CHECK(trees.world.Registry().get<Ai::Behaviour>(ship).nodes.at(0).memory == 1);
+}
+
+
+TEST_CASE("Behaviour trees: a task that never wakes leaves an interval tree's steps passed over")
+{
+	Trees trees;
+	trees.behaviours.DefineTask(
+	    "forever", [](Ai::TaskContext &) { return Status::Running; },
+	    [](const Sim::SimWorld &, entt::entity, std::span<const std::string>, std::uint64_t)
+	    { return std::numeric_limits<std::uint64_t>::max(); });
+	Ai::BehaviourDefinition idle{TaskNode("forever")};
+	idle.interval = 6.0 * kStep;
+	trees.behaviours.DefineTree("idle", idle);
+	trees.Follow("idle");
+	trees.world.Step();
+
+	// To step 1,000 in a few calls, not one a step: never is not rounded round to a step soon.
+	constexpr std::uint64_t kEnd = 1000;
+	int calls = 0;
+	while (trees.world.Clock().Step() < kEnd && calls < 100)
+	{
+		trees.world.FastForward(kEnd);
+		++calls;
+	}
+	CHECK(trees.world.Clock().Step() == kEnd);
+	CHECK(calls < 5);
 }

@@ -75,7 +75,9 @@ structure's parts. Each is ringed by its eight corners, pushed out 1.5 times the
 of its axes, so a leg along an edge or across a face of the ring passes it by half the clearance to
 spare. A leg is clear of a box when it keeps the clearance from every side. An end inside a box is
 not judged against it, and from an end nearer a box than the clearance, a leg keeps as far from it
-as the end is, so a course can start or end just over a deck under a pier. Such an end is given a
+as the end is, both measured along the box's axes as the clearance is (the most the end is outside
+the box along any one), so a course can start or end just over a deck under a pier, or beside its
+corner. Such an end is given a
 waypoint straight out from each of the box's faces to its ring.
 
 A sphere or a box that moves while a vehicle flies the course stays where it was in the graph, so a
@@ -243,7 +245,14 @@ than ticking its children again from the first. A repeat or loop starts its chil
 next tick, so one step's work is bounded however soon a child succeeds. A running node is left
 before it finishes only by a reactive node moving off its branch, a parallel once decided, an
 `Ai::AssignBehaviour`, or its [helm](#the-helm) taken; each halts the nodes it leaves, telling their
-tasks so.
+tasks so. A reactive node halts the branch it leaves after the one that took over has ticked, as
+reactive nodes do in other behaviour-tree libraries (BehaviorTree.CPP's halt the children after the
+one that answered): checking each tick what comes first is what lets a running branch carry on, and
+a branch halted before its replacement had answered would start again every tick. So a halt lets go
+of what its own task still holds and nothing its replacement has just taken: a halt that clears a
+vehicle's destination checks first that it is still the one its task set. A tree stopped by one of
+its own tasks' commands (an `AssignBehaviour` for its own entity, its helm taken) does nothing more
+of that tick and is halted as the tick ends, since until then its nodes are the tick's.
 
 **Tasks.** A task (`Ai::Task`) is a function `Status(TaskContext &)`. Its context gives the world,
 the entity, the node's arguments, `starting` (its first tick since it last finished) and a 64-bit

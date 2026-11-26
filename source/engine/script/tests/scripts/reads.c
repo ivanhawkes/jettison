@@ -21,3 +21,13 @@ JETTISON_EXPORT("reads") double reads(void)
 {
 	return jettison_read_Test_Hold(0) == 0 ? 0.0 : 1.0;
 }
+
+
+/* A tree's task that asks the game for an input, which may be one this script answers, and then
+ * reads, which a task may not, however it was called. */
+JETTISON_EXPORT("peek") void peek(Script_TaskContext *context)
+{
+	jettison_input("reads", 5);
+	context->memory = jettison_read_Test_Hold(0) == 0 ? 1 : 2;
+	context->status = Script_TaskStatus_Success;
+}

@@ -404,3 +404,26 @@ TEST_CASE("Pack: a pack that changes and does not open keeps the old one until i
 	files.Refresh();
 	CHECK(Text(files.Read("note.txt")) == "third");
 }
+
+
+TEST_CASE("Pack: a pack replaced keeping its time and its files' sizes still changes their info")
+{
+	// The same sizes and the time put back: what the file system reads changes, and so must what
+	// the resource manager and the scripts tell a change by.
+	const Scratch scratch;
+	scratch.Put("assets/note.txt", "first");
+	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
+	const auto time = std::filesystem::last_write_time(scratch.Path("base.pack"));
+	FileSystem files;
+	files.AddMount({"base", scratch.Path("base.pack")});
+	const auto before = files.Find("note.txt");
+
+	scratch.Put("assets/note.txt", "other");
+	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
+	std::filesystem::last_write_time(scratch.Path("base.pack"), time);
+	files.Refresh();
+	CHECK(Text(files.Read("note.txt")) == "other");
+	REQUIRE(files.Find("note.txt"));
+	CHECK(files.Find("note.txt")->size == before->size);
+	CHECK(files.Find("note.txt") != before);
+}

@@ -20,13 +20,16 @@ class Source;
 }
 
 // Enough to tell that the file a path names has changed, or that another mount's now shadows it
-// (the resource manager's hot reload). A file in a pack has the pack's time and its own size, so a
-// pack written again changes every file's info, and the resource manager reloads them all.
+// (the resource manager's hot reload, a script's reload). A file in a pack has the pack's time, its
+// own size and how many times the pack has been opened again (FileSystem::Refresh), so a pack
+// replaced changes every file's info, even one written to keep its time and its files' sizes, and
+// the resource manager reloads them all.
 struct FileInfo
 {
 	std::size_t mount{0};
 	std::filesystem::file_time_type time{};
 	std::uintmax_t size{0};
+	std::uint64_t revision{0};
 
 	bool operator==(const FileInfo &) const = default;
 };

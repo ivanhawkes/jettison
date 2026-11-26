@@ -180,3 +180,15 @@ TEST_CASE(
 		CHECK(Ai::LegClear(out->points[leg - 1], out->points[leg], {}, 0.0, structure));
 	CHECK(Ai::LegClear(out->points[out->points.size() - 2], under, {}, 2.9, structure));
 }
+
+
+TEST_CASE("Courses: from beside a box's corner, nearer it than the clearance, a course still goes out")
+{
+	// Just off the corner of a deck, 1 m out along x and y: every leg out was once refused, the
+	// start held inside a margin measured round the corner rather than along each axis.
+	const std::vector<Ai::Box> deck{{glm::dvec3{0.0}, {20.0, 2.0, 20.0}}};
+	const Ai::Waypoints waypoints{{}, 5.0, {}, deck};
+	const auto out = waypoints.PlotCourse({21.0, 3.0, 0.0}, {100.0, 100.0, 0.0});
+	REQUIRE(out);
+	CHECK(out->points.size() == 2);
+}

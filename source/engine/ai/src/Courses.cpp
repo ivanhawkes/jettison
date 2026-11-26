@@ -60,26 +60,29 @@ glm::dvec3 InBox(const Box &box, const glm::dvec3 &point)
 }
 
 
-// How far a point is outside the box, 0 inside it.
-double DistanceToBox(const Box &box, const glm::dvec3 &point)
+// How far a point is outside the box as LegIntoBox grows it, by the same margin along each of its
+// axes: the most it is outside along any one, none or less inside it.
+double OutsideBox(const Box &box, const glm::dvec3 &point)
 {
-	return glm::length(glm::max(glm::abs(InBox(box, point)) - box.half, glm::dvec3{0.0}));
+	const glm::dvec3 outside = glm::abs(InBox(box, point)) - box.half;
+	return std::max({outside.x, outside.y, outside.z});
 }
 
 
 // The margin a leg keeps from a box, as Keep's for a sphere: none judged (negative) for an end
-// inside it, and for an end nearer it than the clearance no more than that end's own distance, a
-// hair less so a leg level with the end is clear.
+// inside it, and for an end nearer it than the clearance no more than that end is outside it, a
+// hair less so a leg level with the end is clear. Measured as LegIntoBox grows the box, so the end
+// itself is never inside the margin it is held to, beside a corner as much as a face.
 double Keep(const Box &box, double clearance, std::span<const glm::dvec3> ends)
 {
 	constexpr double kLevel = 1.0 - 1.0e-6;
 	double keep = clearance;
 	for (const glm::dvec3 &end : ends)
 	{
-		const double distance = DistanceToBox(box, end);
-		if (distance <= 0.0)
+		const double outside = OutsideBox(box, end);
+		if (outside <= 0.0)
 			return -1.0;
-		keep = std::min(keep, distance * kLevel);
+		keep = std::min(keep, outside * kLevel);
 	}
 	return keep;
 }
@@ -231,8 +234,7 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 			// Inside the box's ring and not in the box: straight out from each face to the ring.
 			const glm::dvec3 local = InBox(box, point);
 			const glm::dvec3 ring = box.half + kRingScale * m_clearance;
-			if (DistanceToBox(box, point) <= 0.0 ||
-			    glm::any(glm::greaterThanEqual(glm::abs(local), ring)))
+			if (OutsideBox(box, point) <= 0.0 || glm::any(glm::greaterThanEqual(glm::abs(local), ring)))
 				continue;
 			for (glm::length_t axis = 0; axis < 3; ++axis)
 				for (const double side : {-1.0, 1.0})

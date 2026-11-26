@@ -103,10 +103,11 @@ std::optional<CastHit> SnapshotPicker::CastRay(
 		if (pShape == nullptr || !place)
 			continue;
 
-		// In the body's own frame, where its shape is: metres from it, so floats hold them.
+		// In the body's own frame, from its shape's centre of mass, as Jolt casts against a shape:
+		// metres from it, so floats hold them.
 		const glm::dquat inverse = glm::inverse(place->orientation);
 		const JPH::RayCast ray{
-		    Detail::ToJolt(glm::vec3{inverse * (origin - place->position)}),
+		    Detail::ToJolt(glm::vec3{inverse * (origin - place->position)}) - pShape->GetCenterOfMass(),
 		    Detail::ToJolt(glm::vec3{inverse * reach})};
 		JPH::RayCastResult hit;
 		if (!pShape->CastRay(ray, JPH::SubShapeIDCreator{}, hit))

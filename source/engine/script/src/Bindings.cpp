@@ -1027,10 +1027,11 @@ std::string RustModule(
 		    pLayout->cName);
 	for (const TypeLayout *pLayout : read)
 		text += std::format(
-		    "\n/// The entity's {0} in the newest snapshot, which the handler may hold until it "
-		    "returns.\n"
-		    "pub fn read_{0}(entity: jettison_entity) -> Option<&'static {0}> {{\n"
-		    "    unsafe {{ jettison_read_{0}(entity).as_ref() }}\n}}\n",
+		    "\n/// The entity's {0} in the newest snapshot, given to f, whose answer is returned: the\n"
+		    "/// copy is the host's only until the call returns, so f may not keep it.\n"
+		    "pub fn read_{0}<R>(entity: jettison_entity, f: impl FnOnce(&{0}) -> R) -> Option<R> "
+		    "{{\n"
+		    "    unsafe {{ jettison_read_{0}(entity).as_ref() }}.map(f)\n}}\n",
 		    pLayout->cName);
 	return text;
 }

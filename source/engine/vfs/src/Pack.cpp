@@ -130,7 +130,9 @@ Signature SignatureOf(const struct stat &status)
 class PackSource final : public Detail::Source
 {
   public:
-	explicit PackSource(const std::filesystem::path &pack) : m_name{pack.string()}
+	// The revision is how many times the pack's file has been opened again before this.
+	explicit PackSource(const std::filesystem::path &pack, std::uint64_t revision = 0)
+	    : m_name{pack.string()}, m_revision{revision}
 	{
 		m_descriptor = ::open(pack.c_str(), O_RDONLY | O_CLOEXEC);
 		if (m_descriptor < 0)
@@ -178,7 +180,7 @@ class PackSource final : public Detail::Source
 		const Entry *entry = Lookup(virtualPath);
 		if (!entry)
 			return std::nullopt;
-		return FileInfo{0, m_time, entry->size};
+		return FileInfo{0, m_time, entry->size, m_revision};
 	}
 
 
@@ -320,6 +322,7 @@ class PackSource final : public Detail::Source
 	int m_descriptor{-1};
 	std::uint64_t m_fileSize{0};
 	std::filesystem::file_time_type m_time{};
+	std::uint64_t m_revision{0};
 	Signature m_signature;
 
 	// Sorted by path.
@@ -369,19 +372,26 @@ class ReopeningPackSource final : public Detail::Source
 			return;
 		try
 		{
-			m_current = std::make_shared<const PackSource>(m_path);
+			m_current = std::make_shared<const PackSource>(m_path, ++m_revision);
 			Core::Log(
 			    Core::Severity::Info, kVfs, "the pack {} changed and was opened again",
 			    m_path.string());
 		}
 		catch (const std::runtime_error &problem)
 		{
-			// A pack caught mid-copy or damaged keeps the old one, and is tried again only once the
-			// file changes again, so a broken pack is reported once rather than every check.
+			// Tried again only once the file changes again, so a broken pack is reported once rather
+			// than every check. A pack replaced by a new file (as WritePack writes one, renamed over
+			// it) is read as it was until then, from the old file this still holds open; one written
+			// over in place has no old file left to read, so its reads fail until it is whole.
 			m_refused = onDisk;
+			const Signature &held = m_current->Stamp();
+			const bool inPlace = onDisk.device == held.device && onDisk.inode == held.inode;
 			Core::Log(
-			    Core::Severity::Warning, kVfs,
-			    "the pack {} changed but cannot be opened, so the old one is kept: {}", m_path.string(),
+			    Core::Severity::Warning, kVfs, "the pack {} changed but cannot be opened, so {}: {}",
+			    m_path.string(),
+			    inPlace
+			        ? "it was written over in place, and its files fail to read until it is whole again"
+			        : "the one before it is kept",
 			    problem.what());
 		}
 	}
@@ -397,6 +407,7 @@ class ReopeningPackSource final : public Detail::Source
 	mutable std::mutex m_mutex;
 	mutable std::shared_ptr<const PackSource> m_current;
 	mutable Signature m_refused;
+	mutable std::uint64_t m_revision{0};
 };
 
 

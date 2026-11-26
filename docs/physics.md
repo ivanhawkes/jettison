@@ -183,7 +183,7 @@ made again, ends every contact it had in the step that removes it.
 `CastRay` finds the first body along a ray. `CastShape` finds the first body a defined shape
 meets, swept along a direction: whether a vehicle fits through a gap, or how far it can go. Both
 search every local frame of one frame, and both return a `CastHit` (entity, distance, point,
-normal) or nothing. `CastOptions` leaves out the caster's own body (`ignore`) and, unless
+normal) or nothing; of two hits as near, the lower entity's, whichever local frame is searched first. `CastOptions` leaves out the caster's own body (`ignore`) and, unless
 asked for, sensors. Casts read the world as the last step left it, and are for the simulation's
 systems to call. Steering sweeps a vehicle's shape with `CastShape` ([AI](ai.md)).
 

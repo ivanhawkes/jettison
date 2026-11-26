@@ -730,3 +730,60 @@ TEST_CASE("Physics: casts that return every hit, and overlaps, find the stack in
 	CHECK(again.physics.CastRayAll(kRoom, above, down, 50.0).back().distance == ray.back().distance);
 	CHECK(again.physics.Overlap(kRoom, "crate", across) == std::vector{again.lower, again.upper});
 }
+
+
+TEST_CASE("Physics: a pick meets a hull off its body's centre where the world's cast does")
+{
+	Fixture fixture;
+	fixture.world.ShowInSnapshots<Body>();
+	Physics::ShapeDefinition hull;
+	hull.kind = Physics::ShapeKind::ConvexHull;
+	for (const float x : {9.0f, 11.0f})
+		for (const float y : {-1.0f, 1.0f})
+			for (const float z : {-1.0f, 1.0f})
+				hull.points.emplace_back(x, y, z);
+	fixture.physics.DefineShape("off", hull);
+	fixture.Add(BodyKind::Static, "off", {0.0, 5.0, 0.0});
+	fixture.world.Step();
+	const Sim::Snapshot snapshot = Sim::Capture(fixture.world);
+	const Physics::SnapshotPicker picker{fixture.physics};
+	const glm::dvec3 above{10.0, 20.0, 0.0};
+	const std::optional<Physics::CastHit> cast =
+	    fixture.physics.CastRay(kRoom, above, {0.0, -1.0, 0.0}, 50.0);
+	const std::optional<Physics::CastHit> picked =
+	    picker.CastRay(snapshot, snapshot, 1.0, kRoom, above, {0.0, -1.0, 0.0}, 50.0);
+	REQUIRE(cast);
+	REQUIRE(picked);
+	CHECK(picked->distance == doctest::Approx(cast->distance).epsilon(1e-6));
+}
+
+
+TEST_CASE("Physics: casts tied in two local frames give the lower entity, as their all-hit lists do")
+{
+	// A crate in the room and one on the lift, their tops level: whichever frame is searched first.
+	Fixture fixture;
+	const entt::entity room = fixture.Add(BodyKind::Static, "crate", {0.0, 0.0, 0.0});
+	const entt::entity lift = fixture.Add(BodyKind::Kinematic, "crate", {0.0, 0.0, 0.0});
+	fixture.world.Registry().emplace<Physics::LocalFrame>(lift, "lift");
+	fixture.world.Step();
+	const glm::dvec3 above{0.5, 20.0, 0.0};
+	const std::optional<Physics::CastHit> first =
+	    fixture.physics.CastRay(kRoom, above, {0.0, -1.0, 0.0}, 50.0);
+	const std::vector<Physics::CastHit> all =
+	    fixture.physics.CastRayAll(kRoom, above, {0.0, -1.0, 0.0}, 50.0);
+	REQUIRE(first);
+	REQUIRE(all.size() >= 2);
+	CHECK(all[0].distance == doctest::Approx(all[1].distance));
+	CHECK(first->entity == all[0].entity);
+	CHECK(first->entity == std::min(room, lift));
+}
+
+
+TEST_CASE("Physics: a sphere too small for a float to hold is refused, not handed to Jolt")
+{
+	Fixture fixture;
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.OverlapSphere(kRoom, {0.0, 0.0, 0.0}, 1.0e-100), std::invalid_argument);
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.OverlapSphere(kRoom, {0.0, 0.0, 0.0}, 1.0e100), std::invalid_argument);
+}
