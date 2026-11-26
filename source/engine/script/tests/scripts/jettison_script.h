@@ -62,6 +62,34 @@ void jettison_store(const char *key, uint32_t key_size, const void *data, uint32
 JETTISON_IMPORT("load")
 int32_t jettison_load(const char *key, uint32_t key_size, void *buffer, uint32_t capacity);
 
+typedef struct jettison_array_jettison_string
+{
+	const jettison_string *data;
+	uint32_t size;
+} jettison_array_jettison_string;
+
+/* Script.TaskStatus */
+typedef uint8_t Script_TaskStatus;
+#define Script_TaskStatus_Running ((Script_TaskStatus)0u)
+#define Script_TaskStatus_Success ((Script_TaskStatus)1u)
+#define Script_TaskStatus_Failure ((Script_TaskStatus)2u)
+
+/* Script.TaskContext */
+typedef struct Script_TaskContext
+{
+	jettison_entity entity;
+	jettison_array_jettison_string arguments;
+	bool starting;
+	uint64_t memory;
+	Script_TaskStatus status;
+} Script_TaskContext;
+_Static_assert(sizeof(Script_TaskContext) == 32, "Script.TaskContext is laid out as the host lays it out");
+_Static_assert(offsetof(Script_TaskContext, entity) == 0, "Script.TaskContext.entity");
+_Static_assert(offsetof(Script_TaskContext, arguments) == 4, "Script.TaskContext.arguments");
+_Static_assert(offsetof(Script_TaskContext, starting) == 12, "Script.TaskContext.starting");
+_Static_assert(offsetof(Script_TaskContext, memory) == 16, "Script.TaskContext.memory");
+_Static_assert(offsetof(Script_TaskContext, status) == 24, "Script.TaskContext.status");
+
 /* Test.Hold */
 typedef struct Test_Hold
 {

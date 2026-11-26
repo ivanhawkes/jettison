@@ -1,5 +1,7 @@
 #pragma once
 
+#include <entt/entt.hpp>
+
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -40,6 +42,42 @@ struct InputFunction
 	bool operator==(const InputFunction &) const = default;
 };
 
+// A task the script ticks for a behaviour tree's task of that name (Ai::BehaviourTree::DefineTask,
+// through ScriptHost::Task): the exported function, as void task(Script_TaskContext *context), and
+// the one called when the task is left running, if it has one (Ai::TaskHalt), as
+// void halt(const Script_TaskContext *context). Registered as "Script.TaskFunction".
+struct TaskFunction
+{
+	std::string task;
+	std::string function;
+	std::string halt;
+
+	bool operator==(const TaskFunction &) const = default;
+};
+
+// What a task is when the script's tick returns, as Ai::Status says it. Registered as
+// "Script.TaskStatus".
+enum class TaskStatus : std::uint8_t
+{
+	Running,
+	Success,
+	Failure
+};
+
+// What a task the script answers is given at each tick, in its memory as Script_TaskContext: the
+// entity whose tree ticks it, the node's arguments, whether this is its first tick since it last
+// finished, and the 64-bit memory the tree saves for it, which the script may change. The script
+// writes the status, which is Running as it is given. Registered as "Script.TaskContext", for
+// scripts to see (Reflect::Attribute::Script).
+struct TaskContext
+{
+	entt::entity entity{entt::null};
+	std::vector<std::string> arguments;
+	bool starting{false};
+	std::uint64_t memory{0};
+	TaskStatus status{TaskStatus::Running};
+};
+
 // Registered as "Script.ScriptDefinition", Moddable, every field Saved.
 struct ScriptDefinition
 {
@@ -60,6 +98,7 @@ struct ScriptDefinition
 	std::vector<std::string> capabilities;
 	std::vector<EventHandler> events;
 	std::vector<InputFunction> inputs;
+	std::vector<TaskFunction> tasks;
 
 	bool operator==(const ScriptDefinition &) const = default;
 };

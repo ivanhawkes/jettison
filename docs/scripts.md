@@ -100,9 +100,9 @@ has no files, clock or environment beyond what is granted. It is built with bulk
 reference types, which clang and rustc emit by default, and without SIMD, threads, AOT or JIT, so a
 module that uses SIMD is refused at load (`source/external/wamr/CMakeLists.txt`).
 
-### Two kinds of call: handlers and inputs
+### Three kinds of call: handlers, inputs and tasks
 
-The host calls a script from two places, one outside the step and one inside it
+The host calls a script from three places, one outside the step and two inside it
 ([why](decisions.md#scripts)).
 
 - **Handlers** run in [presentation](glossary.md#presentation). Once a frame the shell gives the
@@ -114,10 +114,54 @@ The host calls a script from two places, one outside the step and one inside it
   an input ([utility AI](ai.md#utility-ai)), and a script that answers the name works the value out.
   Each input call is made on a fresh instance, so its answer depends only on the option's inputs.
   An input call may not `send`, `store` or `load`.
+- **Tasks** run inside the simulation too. A behaviour tree's task names a task a script answers
+  ([behaviour trees](ai.md#behaviour-trees)), and each tick of it is a call on a fresh instance, as
+  an input's is (below).
 
 Neither the `ai` module nor a decision knows scripts exist. The game wraps its own inputs with
 `ScriptHost::WithScripts`, which routes an input a script answers to the script and any other to
-the game. Only one script may answer a given input.
+the game, and defines a tree's task for each of `ScriptHost::Tasks()`. Only one script may answer a
+given input or task.
+
+### A tree's task
+
+A definition's `tasks` names each task the script answers, `{task: <name>, function: <export>,
+halt: <export>}`, the halt optional. The export is `void task(Script_TaskContext *context)`: the
+context holds the entity whose tree ticks it, the node's arguments, `starting` (its first tick since
+it last finished) and the 64-bit `memory` the tree saves for it, and the script writes `memory` and
+`status` (`Script_TaskStatus_Running` as it is given, `Success` or `Failure`). The halt takes
+the same context when its tree leaves the task running ([interrupting with a
+halt](ai.md#behaviour-trees)).
+
+A tick is inside the step, so it is held to an input's rules: each starts from the module as it was
+instantiated, and what it keeps between ticks is the tree's memory, which the save holds. Its
+commands are applied at once, as a tree's task's are, each `Sim::Controller` in them the sender the
+game gives the call (the agent); it may ask the game for inputs through `input`, and may not
+`store`, `load` or `read`. A tick that traps is a `Failure`, and the memory stays as it was. A
+tick costs an instance and its heap, about 41 µs (Release, 2026-11-13, for an input with a heap), so
+a tree ticked less often ([an interval](ai.md#behaviour-trees)) suits one.
+
+The game wraps the host's `Task` and `HaltTask` as its tree's task and halt:
+
+```cpp
+for (const std::string &task : scripts.Tasks())
+	tree.DefineTask(
+	    task,
+	    [&scripts, task](Ai::TaskContext &context)
+	    {
+		    Script::TaskCall call{
+		        context.entity, context.arguments, context.starting, context.memory,
+		        InputsOf(context.entity), Sim::Controller{Sim::ControllerKind::Ai, Slot(context.entity)}};
+		    const Script::TaskStatus status = scripts.Task(task, call);
+		    context.memory = call.memory;
+		    return status == Script::TaskStatus::Success   ? Ai::Status::Success
+		           : status == Script::TaskStatus::Failure ? Ai::Status::Failure
+		                                                   : Ai::Status::Running;
+	    });
+```
+
+`InputsOf` and `Slot` are the game's: what it lets the entity's tasks know, and which agent the
+entity is.
 
 ### What a script keeps
 
@@ -433,7 +477,6 @@ Write the bindings from the build a mod targets, and build the mod's scripts aga
 
 ## Limits and open work
 
-- A script called from a behaviour tree's task: [J04](roadmap.md#j04).
 - A script reloaded when its module changes: [J04](roadmap.md#j04).
 - Scripts are not compiled ahead of time, and only a profile that finds them dear brings that
   back: WAMR's compiled code counts no fuel, so only handlers, outside the step, could run so.

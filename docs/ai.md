@@ -226,6 +226,7 @@ the entity, the node's arguments, `starting` (its first tick since it last finis
 applied at once ([a step](simulation.md#a-step)), carrying the agent as their sender where they
 carry one. A task may be defined with a halt (`Ai::TaskHalt`), called with its context when it is
 left running, so it can let go of what it holds (a berth asked for); its memory is discarded after.
+A mod's script may answer a task, which the game defines in its trees ([scripts](scripts.md#a-trees-task)).
 
 **The blackboard.** `Ai::Blackboard` is an entity's memory that its tasks share, by key: integers
 and entities, saved with the world and kept when its tree starts again or is changed. A task reads
@@ -484,7 +485,6 @@ trees.world.Commands().Push(Ai::LeaveHelm{one, second});
 - Utility AI and behaviour trees have no consumer outside the `ai` suite today; Manifest uses
   pathfinding, courses and steering, and chooses a job's next step with its own
   `Manifest::Policy::Choose`.
-- A script called from a tree's task, as an input is from a consideration ([J04](roadmap.md#j04)).
 - Steering: no course round the inside of a platform, and no measurement yet for a lane busier than
   a platform's traffic ([J08](roadmap.md#j08)).
 - The way in to a berth, which steering flies for the docks ([J09](roadmap.md#j09)).

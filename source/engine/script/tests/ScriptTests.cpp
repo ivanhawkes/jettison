@@ -534,6 +534,78 @@ TEST_CASE("Script: a handler reads an entity's component as the newest snapshot 
 }
 
 
+TEST_CASE("Script: a tree's task a script answers is ticked inside the step, keeping the tree's memory")
+{
+	constexpr Sim::Controller kTrader{Sim::ControllerKind::Ai, 4};
+	for (const char *module : kEventModules)
+	{
+		CAPTURE(module);
+		World world;
+		const Vfs::FileSystem files = Modules();
+		Script::ScriptHost host{files};
+		host.SendCommandsTo(world.world, kScripts);
+		Script::ScriptDefinition definition = Events(module);
+		definition.tasks = {{"haggle", "haggle", "let_go"}};
+		host.Load("events", definition);
+		CHECK(host.AnswersTask("haggle"));
+		CHECK(host.Tasks() == std::vector<std::string>{"haggle"});
+
+		double price = 5.0;
+		const std::array<std::string, 1> arguments{"wine"};
+		Script::TaskCall call{
+		    entt::entity{12},
+		    arguments,
+		    true,
+		    99,
+		    [&](std::string_view input)
+		    {
+			    if (input != "price")
+				    throw std::invalid_argument{"no such input"};
+			    return price;
+		    },
+		    kTrader};
+
+		// Each tick starts from the module, so what it counts is the tree's memory, not its own.
+		CHECK(host.Task("haggle", call) == Script::TaskStatus::Running);
+		CHECK(call.memory == 1);
+		call.starting = false;
+		CHECK(host.Task("haggle", call) == Script::TaskStatus::Running);
+		price = 20.0;
+		CHECK(host.Task("haggle", call) == Script::TaskStatus::Success);
+		CHECK(call.memory == 3);
+
+		// What it sends is applied at once, as a tree's task's commands are, from the game's sender.
+		CHECK(Queued(world.world).empty());
+		REQUIRE(world.applied.size() == 1);
+		CHECK(world.applied[0].total == 3);
+		CHECK(world.applied[0].text == "wine");
+		CHECK(world.applied[0].sender == kTrader);
+
+		price = 5.0;
+		call.starting = true;
+		CHECK(host.Task("haggle", call) == Script::TaskStatus::Running);
+		call.starting = false;
+		CHECK(host.Task("haggle", call) == Script::TaskStatus::Running);
+		CHECK(host.Task("haggle", call) == Script::TaskStatus::Failure);
+
+		// Left running, it is told so by its halt.
+		call.memory = 7;
+		host.HaltTask("haggle", call);
+		REQUIRE(world.applied.size() == 2);
+		CHECK(world.applied[1].total == -7);
+
+		// A tick that traps fails, and leaves the memory as it was.
+		const Said said;
+		call.game = {};
+		call.memory = 5;
+		CHECK(host.Task("haggle", call) == Script::TaskStatus::Failure);
+		CHECK(call.memory == 5);
+		CHECK(said.Contains("haggle trapped: asked for input 'price', which the game gives none of"));
+		CHECK_THROWS_AS((void)host.Task("barter", call), std::invalid_argument);
+	}
+}
+
+
 TEST_CASE("Script: a command whose memory does not read is refused, and nothing is sent")
 {
 	for (const char *module : kEventModules)
@@ -720,7 +792,8 @@ TEST_CASE("Script: every script the registry defines loads, and one that does no
 	const Said said;
 	CHECK(host.LoadAll(definitions) == 1);
 	CHECK(said.Contains(
-	    "Script 'events': events.wasm loaded, 1 handler(s), 1 input(s), granted log, send:Test.Pong"));
+	    "Script 'events': events.wasm loaded, 1 handler(s), 1 input(s), 0 task(s), granted log, "
+	    "send:Test.Pong"));
 	CHECK(said.Contains(
 	    "Script 'rogue': it imports 'abort' from 'env', which the host does not offer; it is left "
 	    "out"));

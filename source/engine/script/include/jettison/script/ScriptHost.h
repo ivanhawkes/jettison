@@ -57,6 +57,25 @@ namespace Jettison::Script
 // A host is used from one thread, the one that made it; its watchdog is the only other.
 using Inputs = std::function<double(std::string_view input)>;
 
+// A task's tick as the game hands it over from its tree (Ai::TaskContext), for a task a script
+// answers (ScriptHost::Task).
+struct TaskCall
+{
+	entt::entity entity{entt::null};
+	std::span<const std::string> arguments;
+	bool starting{false};
+
+	// The tree's memory for the task, which the tick leaves as the script wrote it.
+	std::uint64_t memory{0};
+
+	// The game's inputs for the entity, which the script asks through its input import; with none,
+	// an input it asks for traps.
+	Inputs game;
+
+	// Who the commands it sends are from, as a tree's tasks command: the agent.
+	std::optional<Sim::Controller> sender;
+};
+
 // The ceilings a definition's asking stays within, and the time limit, which is the host's alone.
 struct HostLimits
 {
@@ -192,6 +211,25 @@ class ScriptHost
 	// The scripts' inputs over the game's: an input a script answers is the script's, and any other
 	// the game's. The host outlives what it returns.
 	Inputs WithScripts(Inputs game);
+
+	bool AnswersTask(std::string_view task) const;
+
+	// The tasks the loaded scripts answer, in name order: what a game defines in its trees, each a
+	// task that calls Task.
+	std::vector<std::string> Tasks() const;
+
+	// Ticks a tree's task that a script answers. The tick is inside the step, so it is held to the
+	// simulation's rules as an input is: it starts from the module as it was instantiated, and what
+	// it keeps is the memory the tree saves. Its commands are applied at once
+	// (Sim::SimWorld::Apply), as a tree's task's are, each Sim::Controller in them the call's
+	// sender; it may ask the game for inputs, and may not store, load or read. Failure for a tick
+	// that trapped or a script stopped, the memory then as it was. Throws std::invalid_argument for
+	// a task no script answers.
+	TaskStatus Task(std::string_view task, TaskCall &call);
+
+	// Tells a task a script answers that its tree has left it running (Ai::TaskHalt), so it can let
+	// go of what it holds, by its halt, if its script exports one; as Task, its status unread.
+	void HaltTask(std::string_view task, TaskCall &call);
 
 	// Calls an export taking and returning i32s, under the script's limits: the console's and the
 	// tests' way in. Nothing when the call trapped, the reason logged; throws std::invalid_argument

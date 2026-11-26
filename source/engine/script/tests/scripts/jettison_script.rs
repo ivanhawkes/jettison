@@ -59,6 +59,44 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     core::arch::wasm32::unreachable()
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct jettison_array_jettison_string {
+    pub data: *const jettison_string,
+    pub size: u32,
+}
+impl jettison_array_jettison_string {
+    pub const fn new(items: &[jettison_string]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32 }
+    }
+    pub fn as_slice(&self) -> &[jettison_string] {
+        if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
+    }
+}
+
+/// Script.TaskStatus
+pub type Script_TaskStatus = u8;
+pub const Script_TaskStatus_Running: Script_TaskStatus = 0;
+pub const Script_TaskStatus_Success: Script_TaskStatus = 1;
+pub const Script_TaskStatus_Failure: Script_TaskStatus = 2;
+
+/// Script.TaskContext
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Script_TaskContext {
+    pub entity: jettison_entity,
+    pub arguments: jettison_array_jettison_string,
+    pub starting: bool,
+    pub memory: u64,
+    pub status: Script_TaskStatus,
+}
+const _: () = assert!(size_of::<Script_TaskContext>() == 32);
+const _: () = assert!(offset_of!(Script_TaskContext, entity) == 0);
+const _: () = assert!(offset_of!(Script_TaskContext, arguments) == 4);
+const _: () = assert!(offset_of!(Script_TaskContext, starting) == 12);
+const _: () = assert!(offset_of!(Script_TaskContext, memory) == 16);
+const _: () = assert!(offset_of!(Script_TaskContext, status) == 24);
+
 /// Test.Hold
 #[repr(C)]
 #[derive(Clone, Copy)]

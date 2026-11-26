@@ -433,6 +433,7 @@ struct ScriptHost::Impl
 	ScriptHost &host;
 	std::map<std::string, std::unique_ptr<Script>, std::less<>> scripts;
 	std::map<std::string, Script *, std::less<>> answers;
+	std::map<std::string, Script *, std::less<>> tasks;
 
 	// Every script's keys, loaded or not.
 	ScriptStore store;
@@ -455,6 +456,11 @@ struct ScriptHost::Impl
 	void Send(const entt::meta_type &type, std::uint32_t offset, wasm_exec_env_t environment);
 
 
+	// One tick of a task, or its halt, on an instance of its own: the status the script wrote, or
+	// nothing for a tick that trapped or a script stopped, the call's memory then as it was.
+	std::optional<TaskStatus> Tick(Script &script, std::string_view function, TaskCall &call);
+
+
 	// The entity's copy of a component in the snapshot the host reads, written into the calling
 	// script's heap as the component's layout says: its offset there, or 0 for an entity with none.
 	std::uint32_t Read(const entt::meta_type &type, entt::entity entity, wasm_exec_env_t environment);
@@ -463,6 +469,7 @@ struct ScriptHost::Impl
 	~Impl()
 	{
 		answers.clear();
+		tasks.clear();
 		scripts.clear();
 		pWatchdog.reset();
 		Runtime::Get().Release();
@@ -501,7 +508,9 @@ struct ScriptHost::Script
 	std::vector<Handler> handlers;
 
 	// While it answers an input: the game's inputs for the option, which its input import reads.
+	// While it ticks a task, the game's inputs for the entity too, and the tick.
 	const Inputs *pGame{nullptr};
+	const TaskCall *pTask{nullptr};
 
 	// What its reads copied into its heap during the call, freed as the call ends.
 	std::vector<std::uint64_t> reads;
@@ -540,6 +549,16 @@ HostScript *CallingScript(wasm_exec_env_t environment)
 }
 
 
+// What a call inside the step is, for a refusal: "answering an input", "running a task", or empty
+// for a call outside it.
+std::string_view InStep(const HostScript &script)
+{
+	if (script.pTask != nullptr)
+		return "running a task";
+	return script.pGame != nullptr ? "answering an input" : "";
+}
+
+
 // Traps the call with a host function's refusal, keeping the whole message for the log.
 void Refuse(wasm_exec_env_t environment, HostScript &script, std::string message)
 {
@@ -570,7 +589,14 @@ double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t
 	{
 		Refuse(
 		    environment, *pScript,
-		    std::format("asked for input '{}' outside an input of its own", name));
+		    std::format("asked for input '{}' outside an input or a task of its own", name));
+		return 0.0;
+	}
+	if (!*pScript->pGame)
+	{
+		Refuse(
+		    environment, *pScript,
+		    std::format("asked for input '{}', which the game gives none of", name));
 		return 0.0;
 	}
 
@@ -619,7 +645,8 @@ void StoreNative(
 
 	// An input reads only its option's inputs, so its answer is theirs alone.
 	if (pScript->pGame != nullptr)
-		return Refuse(environment, *pScript, std::format("stored '{}' while answering an input", key));
+		return Refuse(
+		    environment, *pScript, std::format("stored '{}' while {}", key, InStep(*pScript)));
 	if (const auto bad = BadKey(key))
 		return Refuse(environment, *pScript, std::format("store: {}", *bad));
 	ScriptKeys &keys = pScript->pHost->store[pScript->name];
@@ -661,7 +688,7 @@ std::int32_t LoadNative(
 	const std::string_view key = Text(pKey, keySize);
 	if (pScript->pGame != nullptr)
 	{
-		Refuse(environment, *pScript, std::format("loaded '{}' while answering an input", key));
+		Refuse(environment, *pScript, std::format("loaded '{}' while {}", key, InStep(*pScript)));
 		return -1;
 	}
 	const ScriptStore &store = pScript->pHost->store;
@@ -684,7 +711,9 @@ void SendNative(wasm_exec_env_t environment, std::uint32_t offset)
 		return;
 	const auto *pType =
 	    static_cast<const entt::meta_type *>(wasm_runtime_get_function_attachment(environment));
-	if (pScript->pGame != nullptr)
+
+	// A task's commands are applied at once, as a tree's task's are; an input's answer is all it gives.
+	if (pScript->pGame != nullptr && pScript->pTask == nullptr)
 	{
 		Refuse(
 		    environment, *pScript, std::format("sent a '{}' while answering an input", pType->name()));
@@ -709,11 +738,13 @@ std::uint32_t ReadNative(wasm_exec_env_t environment, std::uint32_t entity)
 	const auto *pType =
 	    static_cast<const entt::meta_type *>(wasm_runtime_get_function_attachment(environment));
 
-	// An input's answer depends on the option's inputs alone, never on what the world shows.
+	// A call inside the step reads nothing of what presentation sees: an input's answer is the
+	// option's inputs', and a task's tick what the game gives it.
 	if (pScript->pGame != nullptr)
 	{
 		Refuse(
-		    environment, *pScript, std::format("read a '{}' while answering an input", pType->name()));
+		    environment, *pScript,
+		    std::format("read a '{}' while {}", pType->name(), InStep(*pScript)));
 		return 0;
 	}
 	try
@@ -898,7 +929,7 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 		Runtime::Get().EnsureSend(type);
 		allowed.insert(capability);
 	}
-	if (!definition.inputs.empty())
+	if (!definition.inputs.empty() || !definition.tasks.empty())
 		allowed.emplace(kInputImport);
 
 	auto pScript = std::make_unique<Script>();
@@ -929,6 +960,19 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 			throw fail(
 			    std::format(
 			        "input '{}' is answered by script '{}' already", input.input, other->second->name));
+	}
+	std::set<std::string_view> tasks;
+	for (const TaskFunction &task : definition.tasks)
+	{
+		if (task.task.empty() || task.function.empty())
+			throw fail("a task needs a name and a function");
+		if (!tasks.insert(task.task).second)
+			throw fail(std::format("it answers task '{}' twice", task.task));
+		if (const auto other = m_pImpl->tasks.find(task.task);
+		    other != m_pImpl->tasks.end() && other->second->name != name)
+			throw fail(
+			    std::format(
+			        "task '{}' is answered by script '{}' already", task.task, other->second->name));
 	}
 
 	const std::optional<std::vector<std::byte>> bytes = m_fileSystem.Read(definition.module);
@@ -1001,6 +1045,20 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 			        "its input '{}' is not exported as double {}(void)", input.function,
 			        input.function));
 	}
+	for (const TaskFunction &task : definition.tasks)
+		for (const std::string &function : {task.function, task.halt})
+		{
+			if (function.empty())
+				continue;
+			wasm_function_inst_t pFunction =
+			    wasm_runtime_lookup_function(pScript->pHandlers->instance, function.c_str());
+			if (pFunction == nullptr ||
+			    !HasSignature(pFunction, pScript->pHandlers->instance, kOneI32, {}))
+				throw fail(
+				    std::format(
+				        "its task '{}' is not exported as void {}(Script_TaskContext *)", function,
+				        function));
+		}
 
 	if (!m_pImpl->pWatchdog)
 		m_pImpl->pWatchdog = std::make_unique<Watchdog>();
@@ -1008,9 +1066,13 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 	Script &loaded = *m_pImpl->scripts.emplace(std::string{name}, std::move(pScript)).first->second;
 	for (const InputFunction &input : loaded.definition.inputs)
 		m_pImpl->answers.emplace(input.input, &loaded);
+	for (const TaskFunction &task : loaded.definition.tasks)
+		m_pImpl->tasks.emplace(task.task, &loaded);
 	Core::Log(
-	    Core::Severity::Info, kScript, "Script '{}': {} loaded, {} handler(s), {} input(s), granted {}",
-	    loaded.name, loaded.definition.module, loaded.handlers.size(), loaded.definition.inputs.size(),
+	    Core::Severity::Info, kScript,
+	    "Script '{}': {} loaded, {} handler(s), {} input(s), {} task(s), granted {}", loaded.name,
+	    loaded.definition.module, loaded.handlers.size(), loaded.definition.inputs.size(),
+	    loaded.definition.tasks.size(),
 	    loaded.definition.capabilities.empty() ? std::string{"nothing"}
 	                                           : Join(loaded.definition.capabilities));
 }
@@ -1040,8 +1102,9 @@ void ScriptHost::Unload(std::string_view name)
 	const auto found = m_pImpl->scripts.find(name);
 	if (found == m_pImpl->scripts.end())
 		return;
-	std::erase_if(
-	    m_pImpl->answers, [&](const auto &answer) { return answer.second == found->second.get(); });
+	const auto ours = [&](const auto &entry) { return entry.second == found->second.get(); };
+	std::erase_if(m_pImpl->answers, ours);
+	std::erase_if(m_pImpl->tasks, ours);
 	m_pImpl->scripts.erase(found);
 }
 
@@ -1049,6 +1112,7 @@ void ScriptHost::Unload(std::string_view name)
 void ScriptHost::UnloadAll()
 {
 	m_pImpl->answers.clear();
+	m_pImpl->tasks.clear();
 	m_pImpl->scripts.clear();
 }
 
@@ -1177,6 +1241,107 @@ Inputs ScriptHost::WithScripts(Inputs game)
 }
 
 
+std::optional<TaskStatus> ScriptHost::Impl::Tick(
+    Script &script, std::string_view function, TaskCall &call)
+{
+	if (script.status.stopped)
+		return std::nullopt;
+
+	// As an input's, each tick starts from the module as it was instantiated: the tick is inside
+	// the step, and what it keeps is the memory the tree saves.
+	std::unique_ptr<Instance> pInstance;
+	try
+	{
+		pInstance = Instantiate(script, script.module);
+	}
+	catch (const ScriptError &error)
+	{
+		script.status.stopped = true;
+		Core::Log(Core::Severity::Error, kScript, "{}; it is not called again this run", error.what());
+		return std::nullopt;
+	}
+	const TypeLayout &layout = host.m_bindings.Layout(entt::resolve<TaskContext>());
+	TaskContext context{
+	    call.entity,
+	    {call.arguments.begin(), call.arguments.end()},
+	    call.starting,
+	    call.memory,
+	    TaskStatus::Running};
+	const std::uint32_t size = host.m_bindings.SizeOf(layout, &context);
+	void *pNative = nullptr;
+	const std::uint64_t offset = wasm_runtime_module_malloc(pInstance->instance, size, &pNative);
+	const auto trapped = [&](std::string why)
+	{
+		++script.status.traps;
+		script.status.lastTrap = std::format("{}: {}", function, why);
+		Core::Log(
+		    Core::Severity::Error, kScript, "Script '{}': {}", script.name, script.status.lastTrap);
+		return std::nullopt;
+	};
+	if (offset == 0)
+		return trapped(std::format("no room in its heap for a task's {} bytes", size));
+	host.m_bindings.Write(layout, &context, pInstance->Memory(), static_cast<std::uint32_t>(offset));
+
+	script.pTask = &call;
+	script.pGame = &call.game;
+	std::array<std::uint32_t, 1> cells{static_cast<std::uint32_t>(offset)};
+	const bool returned = Run(script, *pInstance, *pWatchdog, Limits().time, function, cells, 1);
+	script.pTask = nullptr;
+	script.pGame = nullptr;
+	if (!returned)
+		return std::nullopt;
+	TaskContext after;
+	try
+	{
+		host.m_bindings.Read(layout, pInstance->Memory(), static_cast<std::uint32_t>(offset), &after);
+	}
+	catch (const BindingError &error)
+	{
+		return trapped(error.what());
+	}
+	call.memory = after.memory;
+	return after.status;
+}
+
+
+bool ScriptHost::AnswersTask(std::string_view task) const
+{
+	return m_pImpl->tasks.contains(task);
+}
+
+
+std::vector<std::string> ScriptHost::Tasks() const
+{
+	std::vector<std::string> tasks;
+	for (const auto &[task, pScript] : m_pImpl->tasks)
+		tasks.push_back(task);
+	return tasks;
+}
+
+
+TaskStatus ScriptHost::Task(std::string_view task, TaskCall &call)
+{
+	const auto found = m_pImpl->tasks.find(task);
+	if (found == m_pImpl->tasks.end())
+		throw std::invalid_argument{std::format("Script: no script answers task '{}'", task)};
+	Script &script = *found->second;
+	const auto answer = std::ranges::find(script.definition.tasks, task, &TaskFunction::task);
+	return m_pImpl->Tick(script, answer->function, call).value_or(TaskStatus::Failure);
+}
+
+
+void ScriptHost::HaltTask(std::string_view task, TaskCall &call)
+{
+	const auto found = m_pImpl->tasks.find(task);
+	if (found == m_pImpl->tasks.end())
+		throw std::invalid_argument{std::format("Script: no script answers task '{}'", task)};
+	Script &script = *found->second;
+	const auto answer = std::ranges::find(script.definition.tasks, task, &TaskFunction::task);
+	if (!answer->halt.empty())
+		(void)m_pImpl->Tick(script, answer->halt, call);
+}
+
+
 std::optional<std::vector<std::int32_t>> ScriptHost::Call(
     std::string_view name, std::string_view function, std::span<const std::int32_t> arguments)
 {
@@ -1235,7 +1400,14 @@ void ScriptHost::Impl::Send(
 	        wasm_memory_get_cur_page_count(memory) * wasm_memory_get_bytes_per_page(memory))};
 	entt::meta_any command = type.construct();
 	host.m_bindings.Read(layout, bytes, offset, ObjectOf(command));
-	Stamp(command, {host.m_calling, CallingScript(environment)->name, type.name()});
+	const HostScript &script = *CallingScript(environment);
+	if (script.pTask != nullptr)
+	{
+		Stamp(command, {script.pTask->sender, script.name, type.name()});
+		host.m_pWorld->Apply(command);
+		return;
+	}
+	Stamp(command, {host.m_calling, script.name, type.name()});
 	host.m_pWorld->Commands().Push(std::move(command));
 }
 

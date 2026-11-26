@@ -18,13 +18,28 @@ void RegisterTypes()
 		RegisterType<InputFunction>("Script.InputFunction", Attribute::Moddable)
 		    .Field<&InputFunction::input>("input", kDefined)
 		    .Field<&InputFunction::function>("function", kDefined);
+		RegisterType<TaskFunction>("Script.TaskFunction", Attribute::Moddable)
+		    .Field<&TaskFunction::task>("task", kDefined)
+		    .Field<&TaskFunction::function>("function", kDefined)
+		    .Field<&TaskFunction::halt>("halt", kDefined);
+		RegisterEnum<TaskStatus>("Script.TaskStatus")
+		    .Value<TaskStatus::Running>("Running")
+		    .Value<TaskStatus::Success>("Success")
+		    .Value<TaskStatus::Failure>("Failure");
+		RegisterType<TaskContext>("Script.TaskContext", Attribute::Script)
+		    .Field<&TaskContext::entity>("entity")
+		    .Field<&TaskContext::arguments>("arguments")
+		    .Field<&TaskContext::starting>("starting")
+		    .Field<&TaskContext::memory>("memory")
+		    .Field<&TaskContext::status>("status");
 		RegisterType<ScriptDefinition>("Script.ScriptDefinition", Attribute::Moddable)
 		    .Field<&ScriptDefinition::module>("module", kDefined)
 		    .Field<&ScriptDefinition::fuel>("fuel", kDefined)
 		    .Field<&ScriptDefinition::memoryPages>("memoryPages", kDefined)
 		    .Field<&ScriptDefinition::capabilities>("capabilities", kDefined)
 		    .Field<&ScriptDefinition::events>("events", kDefined)
-		    .Field<&ScriptDefinition::inputs>("inputs", kDefined);
+		    .Field<&ScriptDefinition::inputs>("inputs", kDefined)
+		    .Field<&ScriptDefinition::tasks>("tasks", kDefined);
 		return true;
 	}();
 	(void)registered;

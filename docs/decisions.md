@@ -266,7 +266,9 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   so each stays proven; the engine's shell has no scripts of its own. [Scripts](scripts.md)
 - **An input call starts from the module as it was instantiated** (2026-11-13). An input is answered
   inside the step, so its answer may depend only on its inputs, never on anything a script kept,
-  which a save does not hold. A handler, called outside the step, keeps its instance. A trap is not
+  which a save does not hold. A tree's task a script answers is ticked so too (2026-11-26), keeping
+  only the memory its tree saves, and its commands are applied at once, as a task's are. A handler,
+  called outside the step, keeps its instance. A trap is not
   a script's end, since a call would trap the same way again; only a call past the time limit stops
   a script, the one outcome that depends on the machine. [Scripts](scripts.md)
 - **A script keeps what it hands the host by key** (2026-11-13). A script stores bytes under its own

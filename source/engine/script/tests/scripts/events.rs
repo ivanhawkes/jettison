@@ -79,6 +79,42 @@ pub extern "C" fn bad_reason(ping: &Test_Ping) {
     });
 }
 
+/// A tree's task: counts its ticks in the tree's memory, and once the game's price is past ten sends
+/// what it counted and succeeds; it fails at its third tick without.
+#[unsafe(export_name = "haggle")]
+pub extern "C" fn haggle(context: &mut Script_TaskContext) {
+    if context.starting {
+        context.memory = 0;
+    }
+    context.memory += 1;
+    if input("price") > 10.0 {
+        let text = context.arguments.as_slice().first().copied().unwrap_or(jettison_string::new(""));
+        send_Test_Pong(&pong(context.entity, context.memory as i64, text));
+        context.status = Script_TaskStatus_Success;
+    } else if context.memory >= 3 {
+        context.status = Script_TaskStatus_Failure;
+    }
+}
+
+/// Its halt, as its tree leaves it running: says how far it had counted.
+#[unsafe(export_name = "let_go")]
+pub extern "C" fn let_go(context: &Script_TaskContext) {
+    send_Test_Pong(&pong(context.entity, -(context.memory as i64), jettison_string::new("")));
+}
+
+fn pong(ship: jettison_entity, total: i64, text: jettison_string) -> Test_Pong {
+    Test_Pong {
+        ship,
+        total,
+        text,
+        items: jettison_array_Test_Inner::new(&[]),
+        sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
+        order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 }, amount: 0 },
+        orders: jettison_array_Test_Order::new(&[]),
+        why: Sim_Reason { key: jettison_string::new(""), arguments: jettison_array_Sim_ReasonArgument::new(&[]) },
+    }
+}
+
 #[unsafe(export_name = "doubled")]
 pub extern "C" fn doubled() -> f64 {
     2.0 * input("base")

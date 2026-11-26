@@ -59,11 +59,9 @@ each is cheaper before a game builds a workaround.
 
 **What remains.**
 
-- A script called from a behaviour tree's task, as an input is called from a consideration.
 - A script reloaded when its module changes.
 
-**Why.** A tree's task is where an NPC's script would act, and reload is what a modder needs to
-write scripts quickly.
+**Why.** Reload is what a modder needs to write scripts quickly.
 
 **What exists.** WAMR's interpreter, bounded by fuel and by a wall-time
 [watchdog](glossary.md#watchdog) (`script/ScriptHost.h`). A script is granted `log`, `store` and one

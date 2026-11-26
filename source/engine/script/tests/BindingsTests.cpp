@@ -1,6 +1,7 @@
 #include "TestTypes.h"
 
 #include <jettison/script/Bindings.h>
+#include <jettison/script/ScriptDefinition.h>
 
 #include <doctest/doctest.h>
 
@@ -155,7 +156,8 @@ TEST_CASE(
 {
 	ScriptTest::RegisterTypes();
 	Script::Bindings bindings;
-	const std::array types{entt::resolve<Ping>()};
+	Script::RegisterTypes();
+	const std::array types{entt::resolve<Ping>(), entt::resolve<Script::TaskContext>()};
 	const std::array commands{entt::resolve<Pong>()};
 	const std::array reads{entt::resolve<ScriptTest::Hold>()};
 	const std::string header = Script::Header(bindings, types, commands, reads);
