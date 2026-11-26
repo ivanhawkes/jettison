@@ -16,6 +16,7 @@
 #include <format>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -30,11 +31,19 @@ constexpr Core::Category kBehaviour{"behaviour"};
 constexpr std::uint64_t kParallelFinished = (std::uint64_t{1} << kParallelChildren) - 1;
 
 
+// The most steps a wait or an interval may be: more than any run has, and every count up to it a
+// double holds exactly, so the conversion is defined.
+constexpr double kMostSteps = 9007199254740992.0;
+
+
 // Whole steps, rounded up, as a portal's transit is; a little under a whole number of steps is that
-// number, not one more.
-std::uint64_t WholeSteps(double seconds, double fixedStep)
+// number, not one more. Nothing for a span of more than kMostSteps.
+std::optional<std::uint64_t> WholeSteps(double seconds, double fixedStep)
 {
-	return static_cast<std::uint64_t>(std::ceil(seconds / fixedStep - 1e-9));
+	const double steps = std::ceil(seconds / fixedStep - 1e-9);
+	if (!(steps <= kMostSteps))
+		return std::nullopt;
+	return static_cast<std::uint64_t>(std::max(steps, 0.0));
 }
 
 
@@ -252,7 +261,12 @@ void Behaviours::DefineTree(std::string name, const BehaviourDefinition &tree)
 		throw std::invalid_argument{std::format("Ai: behaviour '{}' is already defined", name)};
 	CheckBehaviour(name, tree);
 	Tree flat;
-	flat.every = std::max<std::uint64_t>(1, WholeSteps(tree.interval, m_fixedStep));
+	const std::optional<std::uint64_t> every = WholeSteps(tree.interval, m_fixedStep);
+	if (!every)
+		Refuse(
+		    name, "root",
+		    std::format("an interval of {} s, more steps than a run counts", tree.interval));
+	flat.every = std::max<std::uint64_t>(1, *every);
 	Flatten(tree.root, flat, name, "root");
 	m_trees.emplace(name, std::move(flat));
 	m_definitions.emplace(std::move(name), tree);
@@ -301,7 +315,13 @@ void Behaviours::Flatten(
 	}
 
 	if (node.kind == NodeKind::Wait)
-		flat.steps = WholeSteps(node.seconds, m_fixedStep);
+	{
+		const std::optional<std::uint64_t> steps = WholeSteps(node.seconds, m_fixedStep);
+		if (!steps)
+			Refuse(
+			    name, path, std::format("a wait of {} s, more steps than a run counts", node.seconds));
+		flat.steps = *steps;
+	}
 	nodes.push_back(std::move(flat));
 	for (std::size_t child = 0; child < node.children.size(); ++child)
 	{
@@ -334,16 +354,15 @@ Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 	std::vector<NodeState> states = std::move(behaviour->nodes);
 	if (states.size() != tree.nodes.size())
 		states.assign(tree.nodes.size(), NodeState{});
-	m_ticking = entity;
-	m_tickStopped = false;
+	m_ticking.push_back({entity, false});
 	const Status status = TickNode(world, entity, tree, states, 0);
-	m_ticking = entt::null;
+	const bool stopped = m_ticking.back().stopped;
+	m_ticking.pop_back();
 
 	// Stopped by its own task's command: halted now its nodes are whole again, and what the command
 	// left (a new tree, from its top, or none) stands.
-	if (m_tickStopped)
+	if (stopped)
 	{
-		m_tickStopped = false;
 		Halt(world, entity, tree, states, 0);
 		return Status::Failure;
 	}
@@ -356,14 +375,22 @@ Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 }
 
 
+bool Behaviours::Stopped(entt::entity entity) const
+{
+	const auto ticking = std::ranges::find(m_ticking, entity, &Ticking::entity);
+	return ticking != m_ticking.end() && ticking->stopped;
+}
+
+
 void Behaviours::Stop(Sim::SimWorld &world, entt::entity entity)
 {
 	entt::registry &registry = world.Registry();
 
 	// Its tree is being ticked, its nodes the tick's: halted as the tick ends (Tick).
-	if (entity == m_ticking)
+	if (const auto ticking = std::ranges::find(m_ticking, entity, &Ticking::entity);
+	    ticking != m_ticking.end())
 	{
-		m_tickStopped = true;
+		ticking->stopped = true;
 		if (auto *behaviour = registry.try_get<Behaviour>(entity))
 			behaviour->nodes.clear();
 		return;
@@ -436,9 +463,21 @@ void Behaviours::Step(Sim::SimWorld &world)
 			entities.push_back(entity);
 	}
 	std::ranges::sort(entities, {}, [](entt::entity entity) { return entt::to_integral(entity); });
+
+	// Asked again as each comes, since a task of one before it applies its commands at once: one
+	// given another tree, not due this step, or whose helm was taken is not ticked.
 	for (const entt::entity entity : entities)
-		if (registry.valid(entity))
-			Tick(world, entity);
+	{
+		if (!registry.valid(entity) || registry.all_of<Sim::Helm>(entity))
+			continue;
+		const auto *behaviour = registry.try_get<Behaviour>(entity);
+		if (!behaviour)
+			continue;
+		const auto found = m_trees.find(behaviour->tree);
+		if (found != m_trees.end() && DueFrom(now, entity, found->second) != now)
+			continue;
+		Tick(world, entity);
+	}
 }
 
 
@@ -517,7 +556,7 @@ Status Behaviours::TickNode(
     std::uint32_t index) const
 {
 	// Stopped part-way through by one of its tasks' commands: nothing more of the tick is done.
-	if (m_tickStopped)
+	if (Stopped(entity))
 		return Status::Failure;
 	const Node &node = tree.nodes[index];
 	const bool starting = !states[index].running;

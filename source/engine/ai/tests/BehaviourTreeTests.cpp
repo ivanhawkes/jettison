@@ -858,3 +858,74 @@ TEST_CASE("Behaviour trees: a task that never wakes leaves an interval tree's st
 	CHECK(trees.world.Clock().Step() == kEnd);
 	CHECK(calls < 5);
 }
+
+
+TEST_CASE(
+    "Behaviour trees: a tree stopped by its task after that task ticked another's is still halted")
+{
+	// The outer task ticks a second entity's tree through Tick, then gives its own entity its tree
+	// again: the stop is the outer tick's, kept apart from the inner one's.
+	Trees trees;
+	trees.behaviours.DefineTree("idle", {TaskNode("succeed", {"other"})});
+	const entt::entity other = trees.Follow("idle");
+	int ticks = 0;
+	trees.behaviours.DefineTask(
+	    "outer",
+	    [&](Ai::TaskContext &context)
+	    {
+		    ++context.memory;
+		    (void)trees.behaviours.Tick(context.world, other);
+		    if (++ticks == 2)
+			    context.world.Apply(Ai::AssignBehaviour{{}, context.entity, "outer"});
+		    return Status::Running;
+	    },
+	    {}, [&](Ai::TaskContext &) { trees.trace.emplace_back("!"); });
+	trees.behaviours.DefineTree("outer", {TaskNode("outer")});
+	const entt::entity ship = trees.Follow("outer");
+	CHECK(trees.Tick(ship, Status::Running) == Trace{"other+"});
+	CHECK(trees.Tick(ship, Status::Failure) == Trace{"other+", "!"});
+	CHECK(trees.world.Registry().get<Ai::Behaviour>(ship).nodes.empty());
+}
+
+
+TEST_CASE("Behaviour trees: an interval or a wait longer than a run counts in steps is refused")
+{
+	Trees trees;
+	Ai::BehaviourDefinition forever{TaskNode("succeed")};
+	forever.interval = 1.0e100;
+	CHECK_THROWS_AS(trees.behaviours.DefineTree("forever", forever), Serialise::FormatError);
+	CHECK_THROWS_AS(trees.behaviours.DefineTree("ages", {WaitNode(1.0e100)}), Serialise::FormatError);
+}
+
+
+TEST_CASE(
+    "Behaviour trees: a tree changed by an earlier entity's task this step is ticked as it now is")
+{
+	// The first entity's task gives the second a tree due only every sixth step, and the third's
+	// helm is taken: neither is then ticked this step, though both were due as the step began.
+	Trees trees;
+	trees.behaviours.DefineTree("tally", {TaskNode("count")});
+	Ai::BehaviourDefinition slow{TaskNode("count")};
+	slow.interval = 6.0 * kStep;
+	trees.behaviours.DefineTree("slow", slow);
+	entt::entity second = entt::null;
+	entt::entity third = entt::null;
+	trees.behaviours.DefineTask(
+	    "change",
+	    [&](Ai::TaskContext &context)
+	    {
+		    context.world.Apply(Ai::AssignBehaviour{{}, second, "slow"});
+		    context.world.Registry().emplace_or_replace<Sim::Helm>(third, Sim::Helm{});
+		    return Status::Success;
+	    });
+	trees.behaviours.DefineTree("change", {TaskNode("change")});
+	trees.Follow("change");
+	second = trees.Follow("tally");
+	third = trees.Follow("tally");
+
+	// The second's phase in a six-step interval puts it off this step (its due step is not 0).
+	REQUIRE(entt::to_entity(second) % 6 != 0);
+	trees.world.Step();
+	CHECK_FALSE(trees.world.Registry().all_of<Tally>(second));
+	CHECK_FALSE(trees.world.Registry().all_of<Tally>(third));
+}

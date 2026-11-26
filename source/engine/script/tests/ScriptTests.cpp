@@ -672,6 +672,16 @@ TEST_CASE("Script: a script whose module changes is loaded again, and one that n
 	CHECK(pings() == std::vector<std::int32_t>{0});
 	std::filesystem::permissions(
 	    live, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+
+	// A module gone is told of once, not at every reload after.
+	std::filesystem::remove(live);
+	const Said gone;
+	CHECK(host.ReloadChanged() == 0);
+	CHECK(gone.Contains("the script loaded before it is kept"));
+	CHECK(pings() == std::vector<std::int32_t>{0});
+	const Said quiet;
+	CHECK(host.ReloadChanged() == 0);
+	CHECK_FALSE(quiet.Contains("kept"));
 }
 
 

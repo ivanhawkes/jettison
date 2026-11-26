@@ -787,3 +787,29 @@ TEST_CASE("Physics: a sphere too small for a float to hold is refused, not hande
 	CHECK_THROWS_AS(
 	    (void)fixture.physics.OverlapSphere(kRoom, {0.0, 0.0, 0.0}, 1.0e100), std::invalid_argument);
 }
+
+
+TEST_CASE("Physics: casts tied within one local frame give the lower entity, whichever body came first")
+{
+	// The higher entity's body made a step before the lower one's, level with it.
+	Fixture fixture;
+	entt::registry &registry = fixture.world.Registry();
+	const entt::entity lower = registry.create();
+	const entt::entity higher = fixture.Add(BodyKind::Static, "crate", {0.0, 0.0, 0.0});
+	fixture.world.Step();
+	registry.emplace<Sim::Transform>(lower, Sim::Transform{{0.0, 0.0, 0.0}});
+	registry.emplace<Sim::InFrame>(lower, kRoom);
+	registry.emplace<Body>(lower, Body{.kind = BodyKind::Static, .shape = "crate"});
+	fixture.world.Step();
+	const glm::dvec3 above{0.5, 20.0, 0.0};
+	const std::optional<Physics::CastHit> ray =
+	    fixture.physics.CastRay(kRoom, above, {0.0, -1.0, 0.0}, 50.0);
+	REQUIRE(ray);
+	CHECK(ray->entity == lower);
+	CHECK(fixture.physics.CastRayAll(kRoom, above, {0.0, -1.0, 0.0}, 50.0).front().entity == lower);
+	const std::optional<Physics::CastHit> swept =
+	    fixture.physics.CastShape(kRoom, "plate", Sim::Transform{above}, {0.0, -1.0, 0.0}, 50.0);
+	REQUIRE(swept);
+	CHECK(swept->entity == lower);
+	(void)higher;
+}

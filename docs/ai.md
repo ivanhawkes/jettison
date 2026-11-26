@@ -77,8 +77,10 @@ spare. A leg is clear of a box when it keeps the clearance from every side. An e
 not judged against it, and from an end nearer a box than the clearance, a leg keeps as far from it
 as the end is, both measured along the box's axes as the clearance is (the most the end is outside
 the box along any one), so a course can start or end just over a deck under a pier, or beside its
-corner. Such an end is given a
-waypoint straight out from each of the box's faces to its ring.
+corner. Such an end is given a waypoint straight out from each of the box's faces to its ring. A
+course is given the radius of what flies it: from an end nearer a box than that, as a vehicle
+resting on a deck is, the only ways out are straight out from the box's faces, so it lifts off
+before it goes anywhere.
 
 A sphere or a box that moves while a vehicle flies the course stays where it was in the graph, so a
 caller plots again as the vehicle goes, or makes the course in an entity's axes (below).
@@ -272,6 +274,11 @@ starts the new one from the top in the same step, and answers with `Ai::Behaviou
 refused with `Ai::BehaviourRefused`, as `reason.ai.no_such_entity`, `reason.ai.not_controller`, or
 `reason.ai.no_such_tree` for a tree not defined. A game may still give an entity `Ai::Behaviour` as
 it makes it.
+
+**Ticked as it is.** The system finds the trees due as a step begins, then asks again of each as
+its turn comes, since a task before it applies its commands at once: a tree given another, not due
+this step, or one whose helm was just taken, is not ticked. A wait or an interval of more steps than
+a run counts (2^53) is refused as its tree is defined.
 
 **Quiet steps.** A task may be defined with a wake (`Ai::TaskWake`): given the world and its memory,
 the first step at which it might do anything but return `Running` unchanged. The system then lets

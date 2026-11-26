@@ -419,13 +419,6 @@ CastHit ShapeHit(
 }
 
 
-// Whether a hit comes before another: nearer, or as near and of a lower entity.
-bool Before(const CastHit &a, const CastHit &b)
-{
-	return std::tie(a.distance, a.entity) < std::tie(b.distance, b.entity);
-}
-
-
 // Each body once, at its nearest hit, nearest first and a tie by entity.
 void NearestPerBody(std::vector<CastHit> &hits)
 {
@@ -920,27 +913,12 @@ std::optional<CastHit> PhysicsWorld::CastRay(
     std::uint64_t frame, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
     const CastOptions &options) const
 {
-	const glm::dvec3 along = CastDirection(origin, direction, maxDistance);
-	const CastBodies filter{options};
-	std::optional<CastHit> nearest;
-	m_pImpl->ForEachFrame(
-	    frame, options,
-	    [&](const Detail::FrameWorld &world, const glm::dvec3 &frameOrigin)
-	    {
-		    // In the frame's coordinates, which are metres from its body.
-		    const JPH::RRayCast ray{
-		        Detail::ToJolt(origin - frameOrigin), Detail::ToJolt(glm::vec3{along * maxDistance})};
-		    JPH::RayCastResult hit;
-		    if (!world.System().GetNarrowPhaseQueryNoLock().CastRay(ray, hit, {}, {}, filter))
-			    return;
-
-		    // Nearest first and a tie by entity, as CastRayAll orders them, whichever local frame
-		    // is searched first.
-		    const CastHit found = RayHit(world, ray, hit, frameOrigin, maxDistance);
-		    if (!nearest || Before(found, *nearest))
-			    nearest = found;
-	    });
-	return nearest;
+	// The first of every hit, so a tie, between local frames or within one, goes to the lower
+	// entity as the all-hit list orders it, whichever Jolt met first.
+	std::vector<CastHit> hits = CastRayAll(frame, origin, direction, maxDistance, options);
+	if (hits.empty())
+		return std::nullopt;
+	return hits.front();
 }
 
 
@@ -972,37 +950,11 @@ std::optional<CastHit> PhysicsWorld::CastShape(
     std::uint64_t frame, std::string_view shape, const Sim::Transform &start,
     const glm::dvec3 &direction, double maxDistance, const CastOptions &options) const
 {
-	const glm::dvec3 along = CastDirection(start.position, direction, maxDistance);
-	const ShapeEntry *entry = m_pImpl->FindShape(shape);
-	if (!entry)
-		throw std::invalid_argument{std::format("Physics: shape '{}' is not defined", shape)};
-
-	// Jolt sweeps convex shapes alone.
-	if (entry->mesh)
-		throw std::invalid_argument{
-		    std::format("Physics: shape '{}' is a mesh, which has no inside to sweep", shape)};
-	const CastBodies filter{options};
-	std::optional<CastHit> nearest;
-	m_pImpl->ForEachFrame(
-	    frame, options,
-	    [&](const Detail::FrameWorld &world, const glm::dvec3 &frameOrigin)
-	    {
-		    const JPH::RVec3 at = Detail::ToJolt(start.position - frameOrigin);
-		    const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
-		        entry->shape, JPH::Vec3::sOne(),
-		        JPH::RMat44::sRotationTranslation(Detail::ToJolt(start.orientation).Normalized(), at),
-		        Detail::ToJolt(glm::vec3{along * maxDistance}));
-		    JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
-		    world.System().GetNarrowPhaseQueryNoLock().CastShape(
-		        cast, JPH::ShapeCastSettings{}, at, collector, {}, {}, filter);
-		    if (!collector.HadHit())
-			    return;
-		    const JPH::ShapeCastResult &hit = collector.mHit;
-		    const CastHit found = ShapeHit(world, hit, at, frameOrigin, along, maxDistance);
-		    if (!nearest || Before(found, *nearest))
-			    nearest = found;
-	    });
-	return nearest;
+	// The first of every hit, as CastRay's is.
+	std::vector<CastHit> hits = CastShapeAll(frame, shape, start, direction, maxDistance, options);
+	if (hits.empty())
+		return std::nullopt;
+	return hits.front();
 }
 
 

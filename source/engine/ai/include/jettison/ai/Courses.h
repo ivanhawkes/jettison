@@ -65,9 +65,13 @@ class Waypoints
 	// The obstacles, the clearance in metres, and any waypoints of the caller's own, which are the
 	// graph's first nodes, before the obstacles' rings, then the boxes'. Throws
 	// std::invalid_argument for an obstacle, a box or a clearance that is negative or not finite.
+	//
+	// The radius is that of what flies the course, no more than the clearance: from an end nearer a
+	// box than that, as a vehicle resting on a deck is, the way out is straight out from the box's
+	// faces alone, not along it.
 	Waypoints(
 	    std::vector<Sphere> obstacles, double clearance, std::vector<glm::dvec3> extraPoints = {},
-	    std::vector<Box> boxes = {});
+	    std::vector<Box> boxes = {}, double radius = 0.0);
 
 	// The shortest course through the waypoints from one point to another, or nothing if every way
 	// is blocked. A straight leg when it is clear. The legs to and from the ends are judged against
@@ -116,6 +120,7 @@ class Waypoints
 	std::vector<Sphere> m_obstacles;
 	std::vector<Box> m_boxes;
 	double m_clearance;
+	double m_radius{0.0};
 	std::vector<glm::dvec3> m_points;
 	Graph m_graph;
 };

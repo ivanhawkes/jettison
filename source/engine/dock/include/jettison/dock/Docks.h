@@ -428,10 +428,17 @@ class Docks
 	    const entt::registry &registry, entt::entity vehicle, const Berth &berth) const;
 
 	// A vehicle its pilot flies, lifted off its berth by its own thrusters, straight up at the lift's
-	// speed against the platform; and whether it is kLiftHeight off it.
-	static void Lift(entt::registry &registry, entt::entity vehicle);
+	// speed against the platform, slowing under a cover to stop at the point over the berth; and
+	// whether it is as high as it is lifted, kLiftHeight off the berth or that point.
+	void Lift(entt::registry &registry, entt::entity vehicle) const;
 
 	bool Lifted(const entt::registry &registry, entt::entity vehicle) const;
+
+	// How high the vehicle's centre is over its berth, along the berth's normal, and how high it is
+	// lifted to.
+	double HeightOver(const entt::registry &registry, entt::entity vehicle) const;
+
+	double LiftHeight(const entt::registry &registry, entt::entity vehicle) const;
 
 	bool InClampReach(const entt::registry &registry, entt::entity vehicle) const;
 

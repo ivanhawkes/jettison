@@ -250,8 +250,8 @@ script's module, as the resource manager looks at a file it loaded
 it, loads the script again by the same checks. A script loaded again keeps its keys and makes its
 handlers' instance afresh, so what a handler counted in memory is gone, and its inputs and tasks
 answer from the new module from then on; a run that reloads is not one a replay repeats. A module
-that no longer loads leaves the script loaded before it running, logged, and is not tried again
-until the file changes again. The shell looks every 500 ms where it hot-reloads its resources, and
+that no longer loads, cannot be read or has gone leaves the script loaded before it running, logged
+once, and is not tried again until the file changes again. The shell looks every 500 ms where it hot-reloads its resources, and
 never in a run with `--frame-step` (the frame system `scripts.reload`).
 
 ### The two call paths

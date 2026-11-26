@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -73,7 +74,10 @@ double OutsideBox(const Box &box, const glm::dvec3 &point)
 // inside it, and for an end nearer it than the clearance no more than that end is outside it, a
 // hair less so a leg level with the end is clear. Measured as LegIntoBox grows the box, so the end
 // itself is never inside the margin it is held to, beside a corner as much as a face.
-double Keep(const Box &box, double clearance, std::span<const glm::dvec3> ends)
+//
+// An end nearer than the radius is held to the radius: every leg from it is into the box, but those
+// straight out from its faces, which PlotCourse judges without the box (Escapes).
+double Keep(const Box &box, double clearance, std::span<const glm::dvec3> ends, double radius)
 {
 	constexpr double kLevel = 1.0 - 1.0e-6;
 	double keep = clearance;
@@ -82,7 +86,7 @@ double Keep(const Box &box, double clearance, std::span<const glm::dvec3> ends)
 		const double outside = OutsideBox(box, end);
 		if (outside <= 0.0)
 			return -1.0;
-		keep = std::min(keep, outside * kLevel);
+		keep = std::min(keep, outside < radius ? radius : outside * kLevel);
 	}
 	return keep;
 }
@@ -118,9 +122,14 @@ bool LegIntoBox(const glm::dvec3 &a, const glm::dvec3 &b, const Box &box, double
 }
 
 
+// The box the leg is judged without, if any: an escape's own, which it leaves straight out of.
+constexpr std::size_t kNoBox = std::numeric_limits<std::size_t>::max();
+
+
 bool LegClearOfEnds(
     const glm::dvec3 &a, const glm::dvec3 &b, std::span<const Sphere> obstacles, double clearance,
-    std::span<const glm::dvec3> ends, std::span<const Box> boxes)
+    std::span<const glm::dvec3> ends, std::span<const Box> boxes, double radius = 0.0,
+    std::size_t without = kNoBox)
 {
 	for (const Sphere &obstacle : obstacles)
 	{
@@ -128,10 +137,12 @@ bool LegClearOfEnds(
 		if (keep >= 0.0 && DistanceToSegment(a, b, obstacle.centre) < keep)
 			return false;
 	}
-	for (const Box &box : boxes)
+	for (std::size_t index = 0; index < boxes.size(); ++index)
 	{
-		const double keep = Keep(box, clearance, ends);
-		if (keep >= 0.0 && LegIntoBox(a, b, box, keep))
+		if (index == without)
+			continue;
+		const double keep = Keep(boxes[index], clearance, ends, radius);
+		if (keep >= 0.0 && LegIntoBox(a, b, boxes[index], keep))
 			return false;
 	}
 	return true;
@@ -156,10 +167,13 @@ bool LegClear(
 
 Waypoints::Waypoints(
     std::vector<Sphere> obstacles, double clearance, std::vector<glm::dvec3> extraPoints,
-    std::vector<Box> boxes)
+    std::vector<Box> boxes, double radius)
     : m_obstacles{std::move(obstacles)}, m_boxes{std::move(boxes)}, m_clearance{clearance},
-      m_points{std::move(extraPoints)}
+      m_radius{radius}, m_points{std::move(extraPoints)}
 {
+	if (!std::isfinite(radius) || radius < 0.0 || radius > clearance)
+		throw std::invalid_argument{
+		    std::format("Ai: a radius of {} m is not a radius within the clearance", radius)};
 	if (!std::isfinite(clearance) || clearance < 0.0)
 		throw std::invalid_argument{
 		    std::format("Ai: a clearance of {} m is not a distance", clearance)};
@@ -214,7 +228,7 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 	if (!Finite(from) || !Finite(to))
 		throw std::invalid_argument{"Ai: a course from or to nowhere"};
 	const std::array<glm::dvec3, 2> both{from, to};
-	if (LegClearOfEnds(from, to, m_obstacles, m_clearance, both, m_boxes))
+	if (LegClearOfEnds(from, to, m_obstacles, m_clearance, both, m_boxes, m_radius))
 		return Course{{from, to}, glm::length(to - from)};
 
 	// The graph's waypoints, then each end's escapes from the rings it is inside, then the ends.
@@ -228,10 +242,24 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 			if (distance > 0.0 && distance < ring)
 				points.push_back(obstacle.centre + out * (ring / distance));
 		}
-	for (const glm::dvec3 &point : both)
-		for (const Box &box : m_boxes)
+
+	// Which end each box escape is from, and the box, which the leg to it leaves straight out of.
+	struct Escape
+	{
+		std::size_t point{0};
+		std::size_t end{0};
+		std::size_t box{0};
+
+		// Straight out of a face the end is outside of, away from the box: the leg judged without it.
+		bool away{false};
+	};
+	std::vector<Escape> escapes;
+	for (std::size_t end = 0; end < both.size(); ++end)
+		for (std::size_t index = 0; index < m_boxes.size(); ++index)
 		{
 			// Inside the box's ring and not in the box: straight out from each face to the ring.
+			const glm::dvec3 &point = both[end];
+			const Box &box = m_boxes[index];
 			const glm::dvec3 local = InBox(box, point);
 			const glm::dvec3 ring = box.half + kRingScale * m_clearance;
 			if (OutsideBox(box, point) <= 0.0 || glm::any(glm::greaterThanEqual(glm::abs(local), ring)))
@@ -241,6 +269,8 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 				{
 					glm::dvec3 out = local;
 					out[axis] = side * ring[axis];
+					const bool away = side * local[axis] > box.half[axis];
+					escapes.push_back({points.size(), end, index, away});
 					points.push_back(box.centre + box.orientation * out);
 				}
 		}
@@ -261,9 +291,18 @@ std::optional<Course> Waypoints::PlotCourse(const glm::dvec3 &from, const glm::d
 	{
 		const glm::dvec3 &at = points[node];
 		const std::array<glm::dvec3, 1> self{at};
+		const std::size_t end = node - start;
 		for (NodeId other = 0; other < start; ++other)
-			if (LegClearOfEnds(at, points[other], m_obstacles, m_clearance, self, m_boxes))
+		{
+			// Its own escape straight out of a face of a box is judged without that box.
+			const auto escape = std::ranges::find_if(
+			    escapes, [&](const Escape &each)
+			    { return each.point == other && each.end == end && each.away; });
+			const std::size_t without = escape != escapes.end() ? escape->box : kNoBox;
+			if (LegClearOfEnds(
+			        at, points[other], m_obstacles, m_clearance, self, m_boxes, m_radius, without))
 				Join(graph, node, other, glm::length(points[other] - at));
+		}
 	}
 
 	const std::optional<Path> path =

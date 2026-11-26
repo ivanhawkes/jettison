@@ -509,6 +509,7 @@ struct ScriptHost::Script
 	// The module's file as it was read, and as it was when a reload of it was refused: what
 	// ReloadChanged compares.
 	std::optional<Vfs::FileInfo> moduleInfo;
+	bool refused{false};
 	std::optional<Vfs::FileInfo> refusedInfo;
 
 	// The pages its memory may grow to: its definition's, or fewer where the module says so (WAMR
@@ -1130,7 +1131,9 @@ std::size_t ScriptHost::ReloadChanged()
 	for (const auto &[name, pScript] : m_pImpl->scripts)
 	{
 		const std::optional<Vfs::FileInfo> info = m_fileSystem.Find(pScript->definition.module);
-		if (info == pScript->moduleInfo || (pScript->refusedInfo && info == pScript->refusedInfo))
+
+		// A module gone, as much as one that would not load, is tried again only once it changes.
+		if (info == pScript->moduleInfo || (pScript->refused && info == pScript->refusedInfo))
 			continue;
 		changed.emplace_back(name, pScript->definition);
 	}
@@ -1148,6 +1151,7 @@ std::size_t ScriptHost::ReloadChanged()
 		catch (const std::exception &error)
 		{
 			Script &kept = *m_pImpl->scripts.find(name)->second;
+			kept.refused = true;
 			kept.refusedInfo = m_fileSystem.Find(definition.module);
 			Core::Log(
 			    Core::Severity::Warning, kScript, "{}; the script loaded before it is kept",

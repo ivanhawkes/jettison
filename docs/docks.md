@@ -247,7 +247,9 @@ berth stays held until the vehicle is clear, so no one else is given it meanwhil
 - **Flown out** (`fly` true): steered back up the normal at 20 m/s to the point above the berth,
   outside the sphere, where it gives the berth up. This suits a vehicle that goes on by steering or
   in [transit](transit.md).
-- **Lifted** (`fly` false): its own thrusters push it straight up at 20 m/s, against the platform.
+- **Lifted** (`fly` false): its own thrusters push it straight up at 20 m/s, against the platform;
+  under a cover, slowing to stop at the point over the berth, where it gives the berth up, so it
+  does not climb on into the roof.
   It gives the berth up `Dock::kLiftHeight` (40 m) above where it rested, clear of the clamps and of
   a vehicle on the next berth, and its controls are left neutral for the pilot: a few seconds,
   against the half a minute the climb out of a large platform's sphere takes.

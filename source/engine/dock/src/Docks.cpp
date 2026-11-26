@@ -930,33 +930,59 @@ void Docks::Unclamp(Sim::SimWorld &world, entt::entity vehicle)
 }
 
 
-void Docks::Lift(entt::registry &registry, entt::entity vehicle)
+void Docks::Lift(entt::registry &registry, entt::entity vehicle) const
 {
 	const Docking &docking = registry.get<Docking>(vehicle);
-	const float maxSpeed = registry.get<Physics::Handling>(vehicle).maxSpeed;
+	const Physics::Handling &handling = registry.get<Physics::Handling>(vehicle);
 	registry.remove<Ai::Destination>(vehicle);
+
+	// Under a cover, slowing to stop at the point over the berth, braking as steering brakes, so it
+	// does not climb on into the roof once it is let go there.
+	double speed = kLiftSpeed;
+	if (CoveredHeight(registry, vehicle, registry.get<Berth>(docking.berth)))
+		speed = std::min(
+		    speed, std::sqrt(
+		               2.0 * Ai::BrakingAcceleration(handling) *
+		               std::max(0.0, LiftHeight(registry, vehicle) - HeightOver(registry, vehicle))));
 
 	// Clamped, the vehicle's up is its berth's; with assist, a demand along it is that share of
 	// maxSpeed.
 	registry.replace<Physics::FlightControls>(
 	    vehicle, Physics::FlightControls{
-	                 {0.0f, std::min(kLiftSpeed / maxSpeed, 1.0f), 0.0f}, {}, true, docking.platform});
+	                 {0.0f, std::min(static_cast<float>(speed) / handling.maxSpeed, 1.0f), 0.0f},
+	                 {},
+	                 true,
+	                 docking.platform});
 }
 
 
-bool Docks::Lifted(const entt::registry &registry, entt::entity vehicle) const
+double Docks::HeightOver(const entt::registry &registry, entt::entity vehicle) const
 {
 	const Sim::Transform &berthAt = registry.get<Sim::Transform>(registry.get<Docking>(vehicle).berth);
 	const Sim::Transform &vehicleAt = registry.get<Sim::Transform>(vehicle);
-	const double height =
-	    (glm::conjugate(berthAt.orientation) * (vehicleAt.position - berthAt.position)).y;
+	return (glm::conjugate(berthAt.orientation) * (vehicleAt.position - berthAt.position)).y;
+}
+
+
+double Docks::LiftHeight(const entt::registry &registry, entt::entity vehicle) const
+{
 	const double rest = RestingHeight(*VehicleOf(registry, vehicle));
 
 	// Under a cover, as high as the point over the berth, which is as far as straight up goes.
 	if (const std::optional<double> covered =
 	        CoveredHeight(registry, vehicle, registry.get<Berth>(registry.get<Docking>(vehicle).berth)))
-		return height >= std::min(*covered, rest + kLiftHeight);
-	return height - rest >= kLiftHeight;
+		return std::min(*covered, rest + kLiftHeight);
+	return rest + kLiftHeight;
+}
+
+
+bool Docks::Lifted(const entt::registry &registry, entt::entity vehicle) const
+{
+	// Under a cover it slows to the point over the berth, so it is there once within a hover of it.
+	const bool covered =
+	    CoveredHeight(registry, vehicle, registry.get<Berth>(registry.get<Docking>(vehicle).berth))
+	        .has_value();
+	return HeightOver(registry, vehicle) >= LiftHeight(registry, vehicle) - (covered ? kHover : 0.0);
 }
 
 
@@ -1003,9 +1029,10 @@ std::optional<Ai::Course> Docks::CourseAmong(
 		    {platformAt.position + platformAt.orientation * box.centre, box.size * 0.5,
 		     platformAt.orientation});
 	const auto *steered = registry.try_get<Ai::Steered>(vehicle);
-	const double clearance = m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape) +
-	                         double{steered ? steered->clearance : Ai::Steered{}.clearance};
-	const Ai::Waypoints waypoints{{}, clearance, WaysOut(registry, vehicle, berth), std::move(boxes)};
+	const double radius = m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape);
+	const double clearance = radius + double{steered ? steered->clearance : Ai::Steered{}.clearance};
+	const Ai::Waypoints waypoints{
+	    {}, clearance, WaysOut(registry, vehicle, berth), std::move(boxes), radius};
 	return waypoints.PlotCourse(from, to);
 }
 
