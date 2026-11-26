@@ -64,14 +64,10 @@ each is cheaper before a game builds a workaround.
   as its player. An input to a consideration reads only its inputs.
 - A script called from a behaviour tree's task, as an input is called from a consideration.
 - A script reloaded when its module changes.
-- Scripts compiled ahead of time.
-- The [fuel](glossary.md#fuel) a call used, shown in the console. WAMR does not report it.
-- A script's own [reasons](glossary.md#reason), as `reason.script.<script>.<name>` (decided), for
-  what a script refuses.
 
 **Why.** A script sees the world only through the events it is given and an option's inputs: enough
-for a handler that reacts, not for one that looks around. Reload and fuel reports are what a modder
-needs to write scripts quickly.
+for a handler that reacts, not for one that looks around. Reload is what a modder needs to write
+scripts quickly.
 
 **What exists.** WAMR's interpreter, bounded by fuel and by a wall-time
 [watchdog](glossary.md#watchdog) (`script/ScriptHost.h`). A script is granted `log`, `store` and one

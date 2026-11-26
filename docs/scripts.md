@@ -134,6 +134,12 @@ the same instruction in every build. The time limit covers what fuel cannot see:
 or a definition with fuel enough for seconds. A [watchdog](glossary.md#watchdog) thread
 looks at the running call every 5 ms and terminates one past the limit.
 
+The fuel each call used is counted: `ScriptStatus`'s `lastFuel`, and `mostFuel`, the most
+one call has used, which the console's `scripts` command prints beside the calls and traps, so a
+modder can set a definition's fuel from what its calls take. A call out of fuel used all of it.
+WAMR's interpreter keeps what is left to itself, so the engine's build patches it to hand the
+count back as a call ends (`source/external/wamr/fuel-left.patch`).
+
 Memory bounds are checked in software. WAMR's hardware checks would reserve 8 GiB of address space
 an instance and install a SIGSEGV handler of their own, beneath the sanitisers and the engine's
 [crash handler](runtime.md#crash-reports).
@@ -212,6 +218,17 @@ gives that one alone.
 
 The shell gives none, so its scripts send only commands that name no sender until the game sets its
 rule through `Scripts().SendCommandsTo`.
+
+### A script's own reasons
+
+A command a game lets scripts send may say why, as a `Sim::Reason` field
+([events and reasons](simulation.md#events-and-reasons)): a trade refused, a berth turned down. The script gives the
+reason's name and its arguments, and the host makes the key `reason.script.<script>.<name>`, in
+every reason the command holds, wherever it nests, as it writes the sender. A script therefore words
+only its own reasons, never an engine module's or another script's. A name is lower-case letters,
+digits and underscores, as a module's enumerators are named; any other traps, and an empty key is
+no reason and stays empty. The mod words its reasons in its own string tables, under
+`reason.script.<script>`, beside the engine's in `strings/<language>/reasons.yaml`.
 
 ### Traps and stops
 
@@ -406,10 +423,9 @@ Write the bindings from the build a mod targets, and build the mod's scripts aga
   [J04](roadmap.md#j04).
 - A script called from a behaviour tree's task: [J04](roadmap.md#j04).
 - A script reloaded when its module changes: [J04](roadmap.md#j04).
-- Scripts compiled ahead of time: [J04](roadmap.md#j04).
-- The fuel a call used, for the console (WAMR does not report it): [J04](roadmap.md#j04).
-- A script's own [reasons](glossary.md#reason), under `reason.script.<script>.<name>`:
-  [J04](roadmap.md#j04).
+- Scripts are not compiled ahead of time, and only a profile that finds them dear brings that
+  back: WAMR's compiled code counts no fuel, so only handlers, outside the step, could run so.
+  `wamrc` is in the devenv for then ([build and gates](build-and-gates.md#dependencies)).
 
 ## Decisions
 

@@ -113,6 +113,11 @@ struct ScriptStatus
 	// Past its time limit, and not called again.
 	bool stopped{false};
 
+	// The fuel its last call used, and the most one call has used, of its definition's fuel: what
+	// a modder sets the fuel by. A call out of fuel used all of it.
+	std::uint32_t lastFuel{0};
+	std::uint32_t mostFuel{0};
+
 	// What it keeps by key: the keys, and their bytes and the values' together.
 	std::size_t storedKeys{0};
 	std::size_t storedBytes{0};

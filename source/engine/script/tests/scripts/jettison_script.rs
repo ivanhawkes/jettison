@@ -172,6 +172,55 @@ impl jettison_array_Test_Order {
     }
 }
 
+/// Sim.ReasonValue
+pub type Sim_ReasonValue = u8;
+pub const Sim_ReasonValue_Integer: Sim_ReasonValue = 0;
+pub const Sim_ReasonValue_Entity: Sim_ReasonValue = 1;
+pub const Sim_ReasonValue_Identifier: Sim_ReasonValue = 2;
+
+/// Sim.ReasonArgument
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Sim_ReasonArgument {
+    pub kind: Sim_ReasonValue,
+    pub integer: i64,
+    pub entity: jettison_entity,
+    pub identifier: jettison_string,
+    pub definition: jettison_string,
+}
+const _: () = assert!(size_of::<Sim_ReasonArgument>() == 40);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, kind) == 0);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, integer) == 8);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, entity) == 16);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, identifier) == 20);
+const _: () = assert!(offset_of!(Sim_ReasonArgument, definition) == 28);
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct jettison_array_Sim_ReasonArgument {
+    pub data: *const Sim_ReasonArgument,
+    pub size: u32,
+}
+impl jettison_array_Sim_ReasonArgument {
+    pub const fn new(items: &[Sim_ReasonArgument]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32 }
+    }
+    pub fn as_slice(&self) -> &[Sim_ReasonArgument] {
+        if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
+    }
+}
+
+/// Sim.Reason
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Sim_Reason {
+    pub key: jettison_string,
+    pub arguments: jettison_array_Sim_ReasonArgument,
+}
+const _: () = assert!(size_of::<Sim_Reason>() == 16);
+const _: () = assert!(offset_of!(Sim_Reason, key) == 0);
+const _: () = assert!(offset_of!(Sim_Reason, arguments) == 8);
+
 /// Test.Pong
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -183,8 +232,9 @@ pub struct Test_Pong {
     pub sender: Sim_Controller,
     pub order: Test_Order,
     pub orders: jettison_array_Test_Order,
+    pub why: Sim_Reason,
 }
-const _: () = assert!(size_of::<Test_Pong>() == 64);
+const _: () = assert!(size_of::<Test_Pong>() == 80);
 const _: () = assert!(offset_of!(Test_Pong, ship) == 0);
 const _: () = assert!(offset_of!(Test_Pong, total) == 8);
 const _: () = assert!(offset_of!(Test_Pong, text) == 16);
@@ -192,6 +242,7 @@ const _: () = assert!(offset_of!(Test_Pong, items) == 24);
 const _: () = assert!(offset_of!(Test_Pong, sender) == 32);
 const _: () = assert!(offset_of!(Test_Pong, order) == 40);
 const _: () = assert!(offset_of!(Test_Pong, orders) == 52);
+const _: () = assert!(offset_of!(Test_Pong, why) == 60);
 
 #[link(wasm_import_module = "jettison")]
 unsafe extern "C" {

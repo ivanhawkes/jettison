@@ -72,7 +72,15 @@ TEST_CASE("Script bindings: a value written into a script's memory reads back as
 	ScriptTest::RegisterTypes();
 	Script::Bindings bindings;
 	const Script::TypeLayout &layout = bindings.Layout(entt::resolve<Pong>());
-	Pong pong{entt::entity{7}, -40, "copper", {{Mood::Cross, 3}, {Mood::Calm, -2}}, {}, {}, {}};
+	Pong pong{
+	    entt::entity{7},
+	    -40,
+	    "copper",
+	    {{Mood::Cross, 3}, {Mood::Calm, -2}},
+	    {},
+	    {},
+	    {},
+	    {"too_far", {Sim::ReasonArgument::Identifier("ostra")}}};
 	const std::uint32_t size = bindings.SizeOf(layout, &pong);
 	CHECK(size >= layout.size + 6 + 2 * 8);
 
@@ -92,6 +100,7 @@ TEST_CASE("Script bindings: a value written into a script's memory reads back as
 	CHECK(read.total == -40);
 	CHECK(read.text == "copper");
 	CHECK(read.items == pong.items);
+	CHECK(read.why == pong.why);
 
 	SUBCASE("a pointer past the end of memory is refused, naming the field")
 	{

@@ -200,6 +200,22 @@ TEST_CASE("Script: the fuel a call needs is the same on every run")
 	CHECK(first > 1000);
 	CHECK(first < 1'000'000);
 	CHECK(least() == first);
+
+	// What a call used is said, for the console: the least it runs on, and all of it out of fuel.
+	Script::ScriptHost host{files};
+	host.Load("limits", Limits());
+	const std::array turns{1000};
+	REQUIRE(host.Call("limits", "burn", turns));
+	const auto status = [&] { return host.Scripts().front(); };
+	CHECK(status().lastFuel == first);
+	CHECK(status().mostFuel == first);
+	const std::array fewer{10};
+	REQUIRE(host.Call("limits", "burn", fewer));
+	CHECK(status().lastFuel < first);
+	CHECK(status().mostFuel == first);
+	CHECK_FALSE(host.Call("limits", "spin", {}).has_value());
+	CHECK(status().lastFuel == Limits().fuel);
+	CHECK(status().mostFuel == Limits().fuel);
 }
 
 
@@ -433,6 +449,11 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 		CHECK(sent[0].sender == kScripts);
 		CHECK(sent[0].order == ScriptTest::Order{kScripts, 1});
 		CHECK(sent[0].orders == std::vector<ScriptTest::Order>{{kScripts, 2}});
+
+		// The script names one of its own reasons, which the host keys under the script's name.
+		CHECK(
+		    sent[0].why ==
+		    Sim::Reason{"reason.script.events.too_far", {Sim::ReasonArgument::Integer(100)}});
 		CHECK(sent[1].total == 106);
 		CHECK(sent[1].text.empty());
 
@@ -465,6 +486,30 @@ TEST_CASE("Script: a command whose memory does not read is refused, and nothing 
 		    "bad_send trapped: Script: Test.Pong.text: 100 bytes at 2147483632 are past the end"));
 		CHECK(Queued(world.world).empty());
 		CHECK(Traps(host, "events") == 1);
+	}
+}
+
+
+TEST_CASE("Script: a command giving a reason by a name not a reason's is refused, and nothing is sent")
+{
+	for (const char *module : kEventModules)
+	{
+		CAPTURE(module);
+		World world;
+		const Vfs::FileSystem files = Modules();
+		Script::ScriptHost host{files};
+		host.SendCommandsTo(world.world, kScripts);
+		Script::ScriptDefinition definition = Events(module);
+		definition.events = {{"Test.Ping", "bad_reason"}};
+		host.Load("events", definition);
+		const Said said;
+		host.Dispatch(Sim::SimEvent{1, entt::meta_any{Ping{}}});
+
+		// A key of the engine's own is not a name a script's reason may have.
+		CHECK(said.Contains(
+		    "bad_reason trapped: Script: a 'Test.Pong' gives the reason 'reason.dock.not_controller', "
+		    "which is not a reason's name"));
+		CHECK(Queued(world.world).empty());
 	}
 }
 

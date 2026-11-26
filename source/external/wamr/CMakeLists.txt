@@ -27,6 +27,10 @@
 #    operation, which signals the thread, and scripts have no blocking operation to wake.
 #  - Its messages through the engine's log: os_printf calls jettison_wamr_vprintf (print.cpp), which
 #    the script module points at Log.h.
+#  - One change to WAMR's source, fuel-left.patch: the fast interpreter keeps the fuel left in a local
+#    and never reports it, so the patch writes it back to the call's environment as the call ends,
+#    and wasm_runtime_get_instruction_count_left reads it, for the fuel a call used (the console's
+#    scripts command). It is applied to the fetched tree once; a later configure finds it applied.
 
 set(WAMR_ROOT_DIR "${wamr_SOURCE_DIR}")
 set(WAMR_BUILD_PLATFORM linux)
@@ -47,6 +51,21 @@ set(WAMR_BUILD_THREAD_MGR 1)
 set(WAMR_DISABLE_HW_BOUND_CHECK 1)
 set(WAMR_DISABLE_WAKEUP_BLOCKING_OP 1)
 set(WAMR_BH_VPRINTF jettison_wamr_vprintf)
+
+find_package(Git REQUIRED)
+set(wamr_patch "${CMAKE_CURRENT_SOURCE_DIR}/fuel-left.patch")
+execute_process(
+	COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${wamr_patch}"
+	WORKING_DIRECTORY "${WAMR_ROOT_DIR}"
+	RESULT_VARIABLE wamr_patched
+	OUTPUT_QUIET ERROR_QUIET)
+if(NOT wamr_patched EQUAL 0)
+	execute_process(
+		COMMAND "${GIT_EXECUTABLE}" apply "${wamr_patch}"
+		WORKING_DIRECTORY "${WAMR_ROOT_DIR}"
+		COMMAND_ERROR_IS_FATAL ANY)
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${wamr_patch}")
 
 include("${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake")
 

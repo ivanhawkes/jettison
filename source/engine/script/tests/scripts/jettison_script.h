@@ -144,6 +144,44 @@ typedef struct jettison_array_Test_Order
 	uint32_t size;
 } jettison_array_Test_Order;
 
+/* Sim.ReasonValue */
+typedef uint8_t Sim_ReasonValue;
+#define Sim_ReasonValue_Integer ((Sim_ReasonValue)0u)
+#define Sim_ReasonValue_Entity ((Sim_ReasonValue)1u)
+#define Sim_ReasonValue_Identifier ((Sim_ReasonValue)2u)
+
+/* Sim.ReasonArgument */
+typedef struct Sim_ReasonArgument
+{
+	Sim_ReasonValue kind;
+	int64_t integer;
+	jettison_entity entity;
+	jettison_string identifier;
+	jettison_string definition;
+} Sim_ReasonArgument;
+_Static_assert(sizeof(Sim_ReasonArgument) == 40, "Sim.ReasonArgument is laid out as the host lays it out");
+_Static_assert(offsetof(Sim_ReasonArgument, kind) == 0, "Sim.ReasonArgument.kind");
+_Static_assert(offsetof(Sim_ReasonArgument, integer) == 8, "Sim.ReasonArgument.integer");
+_Static_assert(offsetof(Sim_ReasonArgument, entity) == 16, "Sim.ReasonArgument.entity");
+_Static_assert(offsetof(Sim_ReasonArgument, identifier) == 20, "Sim.ReasonArgument.identifier");
+_Static_assert(offsetof(Sim_ReasonArgument, definition) == 28, "Sim.ReasonArgument.definition");
+
+typedef struct jettison_array_Sim_ReasonArgument
+{
+	const Sim_ReasonArgument *data;
+	uint32_t size;
+} jettison_array_Sim_ReasonArgument;
+
+/* Sim.Reason */
+typedef struct Sim_Reason
+{
+	jettison_string key;
+	jettison_array_Sim_ReasonArgument arguments;
+} Sim_Reason;
+_Static_assert(sizeof(Sim_Reason) == 16, "Sim.Reason is laid out as the host lays it out");
+_Static_assert(offsetof(Sim_Reason, key) == 0, "Sim.Reason.key");
+_Static_assert(offsetof(Sim_Reason, arguments) == 8, "Sim.Reason.arguments");
+
 /* Test.Pong */
 typedef struct Test_Pong
 {
@@ -154,8 +192,9 @@ typedef struct Test_Pong
 	Sim_Controller sender;
 	Test_Order order;
 	jettison_array_Test_Order orders;
+	Sim_Reason why;
 } Test_Pong;
-_Static_assert(sizeof(Test_Pong) == 64, "Test.Pong is laid out as the host lays it out");
+_Static_assert(sizeof(Test_Pong) == 80, "Test.Pong is laid out as the host lays it out");
 _Static_assert(offsetof(Test_Pong, ship) == 0, "Test.Pong.ship");
 _Static_assert(offsetof(Test_Pong, total) == 8, "Test.Pong.total");
 _Static_assert(offsetof(Test_Pong, text) == 16, "Test.Pong.text");
@@ -163,6 +202,7 @@ _Static_assert(offsetof(Test_Pong, items) == 24, "Test.Pong.items");
 _Static_assert(offsetof(Test_Pong, sender) == 32, "Test.Pong.sender");
 _Static_assert(offsetof(Test_Pong, order) == 40, "Test.Pong.order");
 _Static_assert(offsetof(Test_Pong, orders) == 52, "Test.Pong.orders");
+_Static_assert(offsetof(Test_Pong, why) == 60, "Test.Pong.why");
 
 /* Granted by "send:Test.Pong": the command, into the game's queue, applied at the start of the next
  * step and recorded with the player's. */

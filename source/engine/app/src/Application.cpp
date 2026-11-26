@@ -231,7 +231,9 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	    "exception",
 	    [](DevTools::Console &, std::span<const std::string> arguments) { Crash(arguments); });
 	m_console.RegisterCommand(
-	    "scripts", "Says which mods' scripts are loaded, how often each was called, and how it trapped",
+	    "scripts",
+	    "Says which mods' scripts are loaded, how often each was called, the fuel its calls used, and "
+	    "how it trapped",
 	    [this](DevTools::Console &console, std::span<const std::string>)
 	    {
 		    const std::vector<Script::ScriptStatus> scripts = m_pScripts->Scripts();
@@ -240,7 +242,8 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 		    for (const Script::ScriptStatus &script : scripts)
 			    console.Print(
 			        std::format(
-			            "{}: {} call(s), {} trap(s){}{}", script.name, script.calls, script.traps,
+			            "{}: {} call(s), {} trap(s), fuel {} last call and {} the most{}{}",
+			            script.name, script.calls, script.traps, script.lastFuel, script.mostFuel,
 			            script.stopped ? ", stopped" : "",
 			            script.lastTrap.empty() ? "" : std::format(" (last: {})", script.lastTrap)));
 	    });

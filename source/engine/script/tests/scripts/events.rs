@@ -20,6 +20,13 @@ pub extern "C" fn on_ping(ping: &Test_Ping) {
     }
     let items = [ping.inner, Test_Inner { mood: Test_Mood_Cross, weight: pings }];
     let orders = [Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_Player, slot: 3 }, amount: 2 }];
+    let why = [Sim_ReasonArgument {
+        kind: Sim_ReasonValue_Integer,
+        integer: ping.count,
+        entity: JETTISON_NO_ENTITY,
+        identifier: jettison_string::new(""),
+        definition: jettison_string::new(""),
+    }];
     send_Test_Pong(&Test_Pong {
         ship: ping.ship,
         total,
@@ -29,6 +36,7 @@ pub extern "C" fn on_ping(ping: &Test_Ping) {
         sender: Sim_Controller { kind: Sim_ControllerKind_Player, slot: 1 },
         order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_Player, slot: 2 }, amount: 1 },
         orders: jettison_array_Test_Order::new(&orders),
+        why: Sim_Reason { key: jettison_string::new("too_far"), arguments: jettison_array_Sim_ReasonArgument::new(&why) },
     });
     log(JETTISON_INFO, ping.text.as_str());
 }
@@ -49,6 +57,25 @@ pub extern "C" fn bad_send(ping: &Test_Ping) {
         sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
         order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 }, amount: 0 },
         orders: jettison_array_Test_Order::new(&[]),
+        why: Sim_Reason { key: jettison_string::new(""), arguments: jettison_array_Sim_ReasonArgument::new(&[]) },
+    });
+}
+
+/// Gives a reason under a name that is not one, as if it were the engine's.
+#[unsafe(export_name = "bad_reason")]
+pub extern "C" fn bad_reason(ping: &Test_Ping) {
+    send_Test_Pong(&Test_Pong {
+        ship: ping.ship,
+        total: 0,
+        text: jettison_string::new(""),
+        items: jettison_array_Test_Inner::new(&[]),
+        sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
+        order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 }, amount: 0 },
+        orders: jettison_array_Test_Order::new(&[]),
+        why: Sim_Reason {
+            key: jettison_string::new("reason.dock.not_controller"),
+            arguments: jettison_array_Sim_ReasonArgument::new(&[]),
+        },
     });
 }
 
@@ -78,6 +105,7 @@ pub extern "C" fn sends() -> f64 {
         sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
         order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 }, amount: 0 },
         orders: jettison_array_Test_Order::new(&[]),
+        why: Sim_Reason { key: jettison_string::new(""), arguments: jettison_array_Sim_ReasonArgument::new(&[]) },
     });
     1.0
 }

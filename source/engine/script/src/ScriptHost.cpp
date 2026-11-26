@@ -6,6 +6,7 @@
 #include <jettison/sim/CommandQueue.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/Events.h>
+#include <jettison/sim/Reason.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -46,47 +47,92 @@ constexpr std::uint64_t kTrapsLogged = 10;
 constexpr std::chrono::milliseconds kWatchPeriod{5};
 
 
-// Every Sim::Controller the object holds set to the sender: its fields, the classes they nest and
-// the elements of its arrays, at any depth, since a game may read a sender anywhere in a command.
-// Throws BindingError, naming the command, for one met with no sender to set.
-void Stamp(
-    entt::meta_any &object, const std::optional<Sim::Controller> &sender, std::string_view command)
+// What the host writes over a command a script sends, wherever the command holds it: its fields,
+// the classes they nest and the elements of its arrays, at any depth.
+//   - Each Sim::Controller becomes the sender the game gives for the call, since a game may read a
+//     sender anywhere in a command.
+//   - Each Sim::Reason's key, which the script gives as the name of one of its own reasons,
+//     becomes reason.script.<script>.<name>, so a script words only its own reasons and cannot
+//     give an engine module's or another script's (docs/decisions.md, "Simulation"). An empty key
+//     is no reason, and stays empty.
+struct Stamping
 {
-	const entt::meta_type controller = entt::resolve<Sim::Controller>();
-	const auto set = [&](entt::meta_any &value)
+	const std::optional<Sim::Controller> &sender;
+	std::string_view script;
+	std::string_view command;
+};
+
+constexpr std::string_view kScriptReasons = "reason.script.";
+
+
+// A reason's name as a key's last part, in snake case as a module's enumerators are named.
+bool IsReasonName(std::string_view name)
+{
+	return !name.empty() &&
+	       std::ranges::all_of(
+	           name,
+	           [](char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'; });
+}
+
+
+// Whether a value of the type may hold what Stamp writes.
+bool MayHoldStamped(const entt::meta_type &type)
+{
+	return type == entt::resolve<Sim::Controller>() || type == entt::resolve<Sim::Reason>() ||
+	       type.is_sequence_container() || (type.is_class() && !Reflect::Fields(type).empty());
+}
+
+
+void Stamp(entt::meta_any &object, const Stamping &stamping);
+
+
+// Throws BindingError, naming the command, for a controller met with no sender to set, or a reason
+// whose name is not a key's last part.
+void StampValue(entt::meta_any &value, const Stamping &stamping)
+{
+	if (value.type() == entt::resolve<Sim::Controller>())
 	{
-		if (!sender)
+		if (!stamping.sender)
 			throw BindingError{std::format(
 			    "Script: a '{}' names its sender, and the host gives scripts none to send as",
-			    command)};
-		if (!value.assign(*sender))
-			throw BindingError{std::format("Script: the sender of a '{}' could not be set", command)};
-	};
+			    stamping.command)};
+		if (!value.assign(*stamping.sender))
+			throw BindingError{
+			    std::format("Script: the sender of a '{}' could not be set", stamping.command)};
+	}
+	else if (auto *pReason = value.try_cast<Sim::Reason>())
+	{
+		if (pReason->key.empty())
+			return;
+		if (!IsReasonName(pReason->key))
+			throw BindingError{std::format(
+			    "Script: a '{}' gives the reason '{}', which is not a reason's name: lower-case "
+			    "letters, digits and underscores",
+			    stamping.command, pReason->key)};
+		pReason->key = std::format("{}{}.{}", kScriptReasons, stamping.script, pReason->key);
+	}
+	else if (value.type().is_sequence_container())
+		for (entt::meta_any element : value.as_sequence_container())
+			StampValue(element, stamping);
+	else
+		Stamp(value, stamping);
+}
 
+
+void Stamp(entt::meta_any &object, const Stamping &stamping)
+{
 	// An enumeration's enumerators are its data too, so only a class's fields are walked.
 	if (!object.type().is_class())
 		return;
 	for (const entt::meta_data &field : Reflect::Fields(object.type()))
 	{
-		const entt::meta_type type = field.type();
-		if (type != controller && !type.is_sequence_container() &&
-		    (!type.is_class() || Reflect::Fields(type).empty()))
+		if (!MayHoldStamped(field.type()))
 			continue;
 		entt::meta_any value = field.get(object);
-		if (type == controller)
-			set(value);
-		else if (type.is_sequence_container())
-			for (entt::meta_any element : value.as_sequence_container())
-			{
-				if (element.type() == controller)
-					set(element);
-				else
-					Stamp(element, sender, command);
-			}
-		else
-			Stamp(value, sender, command);
+		StampValue(value, stamping);
 		if (!field.set(object, value))
-			throw BindingError{std::format("Script: the sender of a '{}' could not be set", command)};
+			throw BindingError{std::format(
+			    "Script: what the host writes over a '{}' could not be set", stamping.command)};
 	}
 }
 
@@ -689,14 +735,16 @@ bool Run(
 	if (pFunction == nullptr)
 		throw std::logic_error{std::format("Script '{}' has no export '{}'", script.name, function)};
 	script.refusal.clear();
-	wasm_runtime_set_instruction_count_limit(
-	    instance.environment,
-	    static_cast<int>(std::min<std::uint32_t>(script.definition.fuel, INT32_MAX)));
+	const std::uint32_t fuel = std::min<std::uint32_t>(script.definition.fuel, INT32_MAX);
+	wasm_runtime_set_instruction_count_limit(instance.environment, static_cast<int>(fuel));
 	watchdog.Arm(instance.instance, limit);
 	const bool returned =
 	    wasm_runtime_call_wasm(instance.environment, pFunction, argumentCells, cells.data());
 	const bool stopped = watchdog.Disarm();
 	++script.status.calls;
+	const int left = wasm_runtime_get_instruction_count_left(instance.environment);
+	script.status.lastFuel = fuel - static_cast<std::uint32_t>(std::max(left, 0));
+	script.status.mostFuel = std::max(script.status.mostFuel, script.status.lastFuel);
 	if (returned)
 	{
 		// The watchdog may have looked as the call returned: what it set would end the next call.
@@ -1116,7 +1164,7 @@ void ScriptHost::Impl::Send(
 	        wasm_memory_get_cur_page_count(memory) * wasm_memory_get_bytes_per_page(memory))};
 	entt::meta_any command = type.construct();
 	host.m_bindings.Read(layout, bytes, offset, ObjectOf(command));
-	Stamp(command, host.m_calling, type.name());
+	Stamp(command, {host.m_calling, CallingScript(environment)->name, type.name()});
 	host.m_pWorld->Commands().Push(std::move(command));
 }
 

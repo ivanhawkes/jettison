@@ -2,6 +2,7 @@
 
 #include <jettison/reflect/Reflect.h>
 #include <jettison/sim/Controller.h>
+#include <jettison/sim/Reason.h>
 #include <jettison/sim/Snapshot.h>
 
 #include <entt/entt.hpp>
@@ -63,6 +64,9 @@ struct Pong
 	Jettison::Sim::Controller sender;
 	Order order;
 	std::vector<Order> orders;
+
+	// The name of one of the script's reasons, which the host makes reason.script.<script>.<name>.
+	Jettison::Sim::Reason why;
 };
 
 inline void RegisterTypes()
@@ -91,7 +95,8 @@ inline void RegisterTypes()
 		    .Field<&Pong::items>("items", Attribute::Saved)
 		    .Field<&Pong::sender>("sender", Attribute::Saved)
 		    .Field<&Pong::order>("order", Attribute::Saved)
-		    .Field<&Pong::orders>("orders", Attribute::Saved);
+		    .Field<&Pong::orders>("orders", Attribute::Saved)
+		    .Field<&Pong::why>("why", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;

@@ -27,8 +27,9 @@ the game's ([Process](#process)).
   `reason.lift.over_capacity`) and a list of positional arguments, each an integer, an entity or an
   identifier. The step makes no English, so the player reads it in their language; two modules
   cannot make one key; and the string tables' check holds a translation to the arguments. The step's
-  log lines stay English, for developers. A script's own reasons (`reason.script.<script>.<name>`)
-  are decided and not built ([J04](roadmap.md#j04)). [Simulation](simulation.md)
+  log lines stay English, for developers. A script's own reasons are `reason.script.<script>.<name>`:
+  it names them, and the host writes the prefix, so no script gives another's or a module's.
+  [Simulation](simulation.md)
 - **Quiet steps are passed over by each system's own word, to the same bits as stepping**
   (2026-11-20, the user's). A system says the next step it must run in and how to write what the
   steps between would have left (`Sim::Quiet`); one that says nothing runs every step, so a game's
@@ -256,8 +257,9 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   (`WAMR_BUILD_INSTRUCTION_METERING`), the deterministic fuel the simulation needs, and its thread
   manager lets a watchdog stop a call. wasmtime is Rust built by cargo, or a prebuilt library
   outside the sanitised build, and its JIT's speed is not needed: a handler call costs 0.27 µs
-  (Release). WAMR's ahead-of-time compiler is the next step should a profile find scripts dear
-  ([J04](roadmap.md#j04)). [Scripts](scripts.md)
+  (Release). WAMR's ahead-of-time compiler is the next step should a profile find scripts dear, and
+  for handlers alone: its compiled code counts no fuel (2026-11-26), so a call inside the step
+  would lose the bound that makes it the same on every machine. [Scripts](scripts.md)
 - **Scripts are C or Rust** (2026-11-13). Both compile to wasm32 with the devenv's toolchain (clang
   with wasm-ld, and nixpkgs' rustc) against bindings generated for each from the same layouts. The
   script suite runs its host API modules in both languages (`source/engine/script/tests/scripts`),

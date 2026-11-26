@@ -12,6 +12,8 @@ JETTISON_EXPORT("on_ping") void on_ping(const Test_Ping *ping)
 		total += ping->numbers.data[index];
 	Test_Inner items[2] = {ping->inner, {.mood = Test_Mood_Cross, .weight = s_pings}};
 	Test_Order orders[1] = {{.by = {.kind = Sim_ControllerKind_Player, .slot = 3}, .amount = 2}};
+	Sim_ReasonArgument why[1] = {
+	    {.kind = Sim_ReasonValue_Integer, .integer = ping->count, .entity = JETTISON_NO_ENTITY}};
 	/* As players, which the host does not let it be, at the top and nested. */
 	Test_Pong pong = {
 	    .ship = ping->ship,
@@ -20,7 +22,8 @@ JETTISON_EXPORT("on_ping") void on_ping(const Test_Ping *ping)
 	    .items = {items, 2},
 	    .sender = {.kind = Sim_ControllerKind_Player, .slot = 1},
 	    .order = {.by = {.kind = Sim_ControllerKind_Player, .slot = 2}, .amount = 1},
-	    .orders = {orders, 1}};
+	    .orders = {orders, 1},
+	    .why = {.key = {"too_far", 7}, .arguments = {why, 1}}};
 	if (ping->flag)
 		pong.total += (int64_t)(ping->where.x + ping->where.y + ping->where.z);
 	jettison_send_Test_Pong(&pong);
@@ -36,6 +39,13 @@ JETTISON_EXPORT("pings") int32_t pings(void)
 JETTISON_EXPORT("bad_send") void bad_send(const Test_Ping *ping)
 {
 	Test_Pong pong = {.ship = ping->ship, .text = {(const char *)0x7ffffff0, 100}};
+	jettison_send_Test_Pong(&pong);
+}
+
+/* Gives a reason under a name that is not one, as if it were the engine's. */
+JETTISON_EXPORT("bad_reason") void bad_reason(const Test_Ping *ping)
+{
+	Test_Pong pong = {.ship = ping->ship, .why = {.key = {"reason.dock.not_controller", 26}}};
 	jettison_send_Test_Pong(&pong);
 }
 
