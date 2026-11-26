@@ -113,6 +113,7 @@ TEST_CASE("Texture: the panels' seams survive the transcode, dark against the pl
 {
 	const TextureData texture =
 	    DecodeKtx2(ReadBytes(Sample("panels-color.ktx2")), TranscodeTarget::Rgba8, "hull-panels-color");
+
 	// Texel (0, 0) is on a seam, (16, 16) in the middle of a plate.
 	const std::size_t plate = (std::size_t{16} * 256 + 16) * 4;
 	CHECK(Texel(texture, 0, 0) < 100);
@@ -205,6 +206,7 @@ TEST_CASE("Texture: a texture changed on disk reloads through the resource manag
 		files.AddMount({"base", directory, false});
 		Jobs::IoWorker worker;
 		Resource::ResourceManager manager{files, worker, {.hotReload = false, .pollInterval = {}}};
+
 		// The loader the renderer registers, less its GPU finish: decode only.
 		manager.RegisterLoader(
 		    Resource::Loader<TextureData>{

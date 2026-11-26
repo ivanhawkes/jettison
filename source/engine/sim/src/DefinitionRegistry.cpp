@@ -130,6 +130,7 @@ void DefinitionRegistry::LoadWith(
 		{
 			definitions.emplace(name, read(layers));
 		}
+
 		// A definition of a version the type's migrations do not reach is refused like any file that
 		// does not fit. The archive's errors name the layers, each a file and its mount.
 		catch (const std::runtime_error &error)

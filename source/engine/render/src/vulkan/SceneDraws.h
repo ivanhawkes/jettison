@@ -25,31 +25,39 @@ class ModelCache;
 struct SceneDrawCommand
 {
 	const Model *model{};
+
 	// In render space: metres from the camera, as a float.
 	glm::mat4 renderTransform{1.0f};
 	const Animation::SkeletonComponent *skeleton{};
+
 	// The mesh's material path; empty for the model's own. Points into the scene, which outlives
 	// the frame's draw list.
 	const std::string *material{};
+
 	// The model's bounds in render space, taken in double precision, and the transform's largest
 	// scale, which its levels' errors are measured in.
 	BoundingSphere bounds;
 	double scale{1.0};
+
 	// The model's radius times the transform's middle scale: how wide the draw is at its narrowest
 	// that a viewer sees (Render::TooSmallToSee).
 	double breadth{0.0};
+
 	// A body drawn as a sphere hides what is behind its horizon (Render::Occludes): this is
 	// its radius, the transform's smallest scale, before the drawn level's error takes it inside the
 	// mesh. Zero for every other draw.
 	double occluderRadius{0.0};
+
 	// Such a body's air and rings, which point into the scene, and its spin axis in render space,
 	// the transform's Y axis, which the rings' plane is square to.
 	const Scene::AtmosphereComponent *atmosphere{};
 	const Scene::RingsComponent *rings{};
 	glm::vec3 spinAxis{0.0f, 1.0f, 0.0f};
+
 	// The mesh's colour: what it shows without its material, and the albedo the environment's
 	// capture draws its sphere with.
 	glm::vec3 color{1.0f};
+
 	// The outline the mesh is drawn inside, its own or its nearest ancestor's, and the entity that
 	// has it, which the frame's outlines are told apart by; and the stencil bits it lays down
 	// (render/PostProcess.h), from that outline and from the nearest mask.

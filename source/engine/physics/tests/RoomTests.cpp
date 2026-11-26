@@ -30,6 +30,7 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kRoom = Sim::FrameId("Room");
 const glm::dvec3 kGravity{0.0, -9.81, 0.0};
+
 // The lift's speed along x, from the room's origin at the start.
 constexpr double kLiftSpeed = 2.0;
 
@@ -176,6 +177,7 @@ TEST_CASE("Physics: a plate on the room's rails carries a crate in its local fra
 	CHECK(fixture.Position(crate).y == doctest::Approx(1.25).epsilon(0.02));
 	CHECK(fixture.Touches(plate, crate));
 	CHECK(fixture.Position(floor).x == 0.0);
+
 	// The room's own and the lift's.
 	CHECK(fixture.physics.FrameCount(kRoom) == 2);
 	CHECK(
@@ -274,6 +276,7 @@ void Furnish(Fixture &fixture)
 	registry.emplace<Body>(ring, Body{.kind = BodyKind::Kinematic, .shape = "crate", .sensor = true});
 	registry.emplace<Physics::OnRails>(ring, rails);
 	registry.emplace<Physics::LocalFrame>(ring, "turntable");
+
 	// A static body the lift's rails carry in the room's own frame: placed by each step, and by a skip.
 	const entt::entity shelf = fixture.Add(BodyKind::Static, "plate", {0.0, 0.0, 0.0});
 	registry.emplace<Physics::OnRails>(
@@ -299,6 +302,7 @@ TEST_CASE("Physics: steps with nothing dynamic are passed over to the state step
 		REQUIRE(forwarded.world.Save() == stepped.world.Save());
 	}
 	CHECK(advanced == std::vector<std::uint64_t>{1, 1, 1, kEnd - 3});
+
 	// What a cast meets is where stepping left it: the shelf, 2 m/s along with the lift.
 	const auto shelfHit = [](const Fixture &fixture)
 	{
@@ -308,6 +312,7 @@ TEST_CASE("Physics: steps with nothing dynamic are passed over to the state step
 	};
 	REQUIRE(shelfHit(forwarded));
 	CHECK(shelfHit(forwarded)->distance == shelfHit(stepped)->distance);
+
 	// Held, the turntable's sensor still turns with it, as its velocity says.
 	entt::entity ring = entt::null;
 	for (const auto [entity, local] :
@@ -361,6 +366,7 @@ TEST_CASE("Physics: rails changed after the physics step are a step to run, not 
 	for (Fixture *fixture : {&forwarded, &stepped})
 	{
 		Furnish(*fixture);
+
 		// A game's system after physics moves the plate along the lift's rails at step 5.
 		Sim::SimWorld &world = fixture->world;
 		world.RegisterSystem(
@@ -389,6 +395,7 @@ TEST_CASE("Physics: rails changed after the physics step are a step to run, not 
 			stepped.world.Step();
 	}
 	REQUIRE(forwarded.world.Clock().Step() == 6);
+
 	// The step after the change places the plate by its new rails, its velocity the jump's; then the
 	// lift's rails carry it, quiet again.
 	CHECK(forwarded.world.FastForward(1000) == 1);
@@ -433,6 +440,7 @@ TEST_CASE("Physics: a ship flown against a reference on rails is flown every ste
 		Furnish(*fixture);
 		Sim::SimWorld &world = fixture->world;
 		entt::registry &registry = world.Registry();
+
 		// Held to the carousel's turning sensor, whose velocity turns with it: flown, with no body.
 		entt::entity ring = entt::null;
 		for (const auto [entity, local] : registry.view<const Physics::LocalFrame>().each())
@@ -443,6 +451,7 @@ TEST_CASE("Physics: a ship flown against a reference on rails is flown every ste
 		registry.emplace<Physics::Velocity>(ship);
 		registry.emplace<Physics::Handling>(ship);
 		registry.emplace<Physics::FlightControls>(ship, Physics::FlightControls{.reference = ring});
+
 		// Its velocity the ring's at step 5, after physics: at that moment the flight model would
 		// change nothing, but the ring's goes on turning.
 		world.RegisterSystem(
@@ -500,6 +509,7 @@ TEST_CASE("Physics: a ship its rails turn is flown every step")
 		fixture->physics.DefineFrame(kSpindle, std::make_unique<Spindle>());
 		Sim::SimWorld &world = fixture->world;
 		entt::registry &registry = world.Registry();
+
 		// Flown full ahead to starboard at its top speed, with no body, on the spindle's rails.
 		const entt::entity ship = registry.create();
 		registry.emplace<Sim::Transform>(ship);
@@ -509,6 +519,7 @@ TEST_CASE("Physics: a ship its rails turn is flown every step")
 		registry.emplace<Physics::Handling>(ship, Physics::Handling{.maxSpeed = 1.0f});
 		registry.emplace<Physics::FlightControls>(
 		    ship, Physics::FlightControls{.linear = {1.0f, 0.0f, 0.0f}});
+
 		// At that speed as the third step ends, square to the room: the flight model's next change
 		// is nothing, but the rails go on turning what it is held to.
 		world.RegisterSystem(

@@ -82,6 +82,7 @@ TEST_CASE("Ray against Obb: tested in the box's own frame")
 	CHECK(
 	    *Intersect(Ray{glm::vec3{0.0f, 0.0f, 10.0f}, down}, box) ==
 	    doctest::Approx(10.0f - std::sqrt(2.0f)));
+
 	// Outside the unturned cube, inside the turned one.
 	CHECK(Intersect(Ray{glm::vec3{1.2f, 0.0f, 10.0f}, down}, box).has_value());
 	CHECK_FALSE(Intersect(Ray{glm::vec3{1.5f, 0.0f, 10.0f}, down}, box).has_value());
@@ -117,6 +118,7 @@ TEST_CASE("Ray against Plane: in front, behind, and parallel")
 	    doctest::Approx(5.0f * std::sqrt(2.0f)));
 	CHECK_FALSE(Intersect(Ray{start, glm::vec3{0.0f, 1.0f, 0.0f}}, ground).has_value());
 	CHECK_FALSE(Intersect(Ray{start, glm::vec3{1.0f, 0.0f, 0.0f}}, ground).has_value());
+
 	// dot(normal, p) + distance == 0: this is the plane y = 2.
 	CHECK(
 	    *Intersect(

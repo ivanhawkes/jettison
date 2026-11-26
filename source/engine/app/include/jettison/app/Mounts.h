@@ -18,6 +18,7 @@ namespace Jettison::App
 // Where the user's mods are, under the user's data directory: each a directory, or a pack of one
 // (vfs/Pack.h), its identifier the directory's name or the pack's without ".pack".
 inline constexpr std::string_view kModDirectory = "mods";
+
 // The player's list of mods, beside settings.yaml in the configuration directory.
 inline constexpr std::string_view kModListFile = "mods.yaml";
 inline constexpr std::uint32_t kModFormatVersion = 1;
@@ -29,6 +30,7 @@ struct ModEntry
 	std::string mod;
 	bool enabled{true};
 };
+
 // The player's list (mods.yaml), in mount order, a later mod winning where two change one file:
 // written by the game's menu, and by MountAssets as it adds a mod it finds and the list does not
 // name. Registered as "Shell.ModList", at version 1.

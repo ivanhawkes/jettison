@@ -14,6 +14,7 @@ namespace
 {
 constexpr std::int64_t kSecondsPerHour = 3600;
 constexpr std::int64_t kSecondsPerMinute = 60;
+
 // 2^53: past it, a double no longer holds every whole second, so the moment a date names is no
 // longer the one it was computed from. Two hundred and eighty million years of simulation time.
 constexpr double kLargestExactSecond = 9007199254740992.0;

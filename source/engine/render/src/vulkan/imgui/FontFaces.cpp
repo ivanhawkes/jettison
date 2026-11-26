@@ -36,12 +36,14 @@ DevToolFaces LoadDevToolFaces(const Vfs::FileSystem &assets, float size)
 		std::vector<std::byte> &data = faces.m_bytes.emplace_back(std::move(*bytes));
 		ImFontConfig config;
 		config.FontDataOwnedByAtlas = false;
+
 		// The name AddFontFromFileTTF would have derived, by hand, because the memory loader leaves
 		// it empty and the console reads the name (FontFaces.h says why). ImFontConfig's name is 40
 		// bytes and a face's file is called less than that, so snprintf has room for the terminator;
 		// snprintf and not std::format_to because the buffer is a fixed C array of that size.
 		const int written = std::snprintf(config.Name, sizeof(config.Name), "%s", file);
 		static_cast<void>(written); // the assert below is compiled out of a release build, and the
+
 		// standard's own rule is that a check a run depends on goes through Log::Error; this one is
 		// a development assert on an internal invariant, so it stays an assert and the value is read.
 		IM_ASSERT(written > 0 && written < static_cast<int>(sizeof(config.Name)));
@@ -54,6 +56,7 @@ DevToolFaces LoadDevToolFaces(const Vfs::FileSystem &assets, float size)
 		add(file, faces.m_pMono);
 	for (const char *file : kUiFaces)
 		add(file, faces.m_pUi);
+
 	// The UI face is the face everything that does not ask for mono draws in, and it is named, not
 	// ordered: ImGui's default face is the first one added, Fonts[0], unless this says otherwise
 	// (FontFaces.h). Null leaves ImGui's own default, which is what a run with no faces wants.

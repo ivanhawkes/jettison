@@ -80,6 +80,7 @@ glm::dvec3 ClearPlace(
 	};
 	if (clear(place.position))
 		return place.position;
+
 	// Six places on the first ring, twelve on the second and so on.
 	constexpr int kRingPlaces = 6;
 	const double spacing = 2.0 * radius + clearance;
@@ -101,6 +102,7 @@ glm::dvec3 ClearPlace(
 Passages &Passages::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &physics, Locate locate)
 {
 	RegisterTypes();
+
 	// Shared by the system and its quiet, which the world keeps for as long as it lives.
 	std::shared_ptr<Passages> passages{new Passages{physics, std::move(locate)}};
 	world.RegisterComponent<Passage>();
@@ -162,6 +164,7 @@ glm::dvec3 Passages::Origin(std::uint64_t frame, const Passage &passage, double 
 void Passages::Skip(Sim::SimWorld &world) const
 {
 	entt::registry &registry = world.Registry();
+
 	// As the last step passed over placed them: it ended at the clock's count and time.
 	const std::uint64_t ending = world.Clock().Step();
 	const double endsAt = world.Clock().Now();
@@ -187,6 +190,7 @@ void Passages::Place(Sim::SimWorld &world) const
 	// The step being run ends at the next count, and at this time.
 	const std::uint64_t ending = world.Clock().Step() + 1;
 	const double endsAt = world.Clock().Now() + world.FixedStep();
+
 	// What each arrival comes out clear of, gathered at the first.
 	std::optional<std::vector<Occupant>> occupants;
 	for (const entt::entity entity : entities)

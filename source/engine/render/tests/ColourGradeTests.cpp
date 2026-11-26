@@ -183,6 +183,7 @@ TEST_CASE("Colour grade: the output pass's lookup, through a trilinear filter, i
 			for (int channel = 0; channel < 3; ++channel)
 				CHECK(sampled[channel] == doctest::Approx(expected[channel]).epsilon(1e-5));
 		}
+
 		// The ends of the range are the centres of the first and last texels.
 		CHECK(
 		    Post::LutCoordinate(glm::vec3{0.0f}, static_cast<float>(size)).x ==

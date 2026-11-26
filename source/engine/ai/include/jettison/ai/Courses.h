@@ -29,6 +29,7 @@ struct Course
 {
 	// From the start to the end, both included, with the waypoints between.
 	std::vector<glm::dvec3> points;
+
 	// In metres.
 	double length{0.0};
 };

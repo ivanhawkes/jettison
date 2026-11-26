@@ -111,13 +111,16 @@ struct Record
 {
 	WorldKey key;
 	JPH::BodyID id;
+
 	// What the body was made from, so a change to the entity's Body is seen.
 	Body body;
+
 	// Where physics last put the body, or last saw the game put it, in its frame: a Transform
 	// that differs was written by the game. Exact, and compared with what the game wrote rather than
 	// with Jolt's position, which comes back through the body's centre of mass and need not round to
 	// it.
 	Sim::Transform placed;
+
 	// The same, for a moving body's velocity, relative to its frame.
 	Velocity velocity;
 	Detail::FrameWorld *world{nullptr};
@@ -146,6 +149,7 @@ std::optional<std::string> Unmakeable(const Body &body, const ShapeEntry *shape,
 {
 	if (!shape)
 		return std::format("names shape '{}', which is not defined", body.shape);
+
 	// Also what keeps a body from being made again every step: a NaN is unequal to itself, so a
 	// Body holding one would never match the one its body was made from.
 	for (const float value : {body.friction, body.restitution, body.linearDamping, body.angularDamping})
@@ -283,6 +287,7 @@ struct Meeting
 {
 	bool sensor{false};
 	glm::dvec3 point{0.0};
+
 	// From the first of the pair towards the second.
 	glm::vec3 normal{0.0f};
 	float speed{0.0f};
@@ -318,6 +323,7 @@ class ContactRecorder final : public JPH::ContactListener
 			sum += on1;
 		const auto count = static_cast<float>(manifold.mRelativeContactPointsOn1.size());
 		const JPH::RVec3 point = manifold.mBaseOffset + (count > 0.0f ? sum / count : sum);
+
 		// Jolt's normal is the way body 2 is pushed out, from body 1; the bodies' velocities are as
 		// they were before the contact was solved.
 		const float closing = (body1.GetPointVelocity(point) - body2.GetPointVelocity(point))
@@ -499,6 +505,7 @@ struct PhysicsWorld::Impl
 		const JPH::BodyCreationSettings creation = MakeSettings(
 		    entity, record.body, shape, record.placed, world.frameOrigin, record.velocity, settings);
 		const JPH::Body *made = world.Bodies().CreateBodyWithID(id, creation);
+
 		// Capacity was checked, and the identifier is one the world holds free for it.
 		JETTISON_VERIFY(made != nullptr);
 		world.Bodies().AddBody(
@@ -510,27 +517,35 @@ struct PhysicsWorld::Impl
 	PhysicsSettings settings;
 	Detail::Layers layers;
 	JPH::TempAllocatorImplWithMallocFallback scratch{kTempAllocatorBytes};
+
 	// The simulation's one thread, as the threading rules have it (docs/architecture.md).
 	JPH::JobSystemSingleThreaded jobs{JPH::cMaxPhysicsJobs};
+
 	// Before the worlds, whose bodies hold the shapes, so it goes after them.
 	std::map<std::string, ShapeEntry, std::less<>> shapes;
+
 	// Every world's listener, which Jolt's callbacks write to as a world steps: mutable, since a
 	// world read from a save is given it before the load is committed. Before the worlds, which
 	// point to it.
 	mutable ContactRecorder recorder;
 	std::map<WorldKey, std::unique_ptr<Detail::FrameWorld>> worlds;
+
 	// Ordered by entity, which is the order every step visits bodies in.
 	std::map<entt::entity, Record> records;
+
 	// The steps in a row that ended with nothing dynamic or awake and no body made or removed. Not
 	// state: it only says when a step may be passed over, to the same state, and a load starts it
 	// again.
 	std::uint64_t restingSteps{0};
+
 	// What touches what, and whether one of each pair is a sensor; and the contacts the last step
 	// began and ended. State, saved.
 	std::map<Pair, bool> touching;
 	std::vector<ContactEvent> contacts;
+
 	// The end of the last step or skip, which every entity on rails and every body is placed for.
 	std::optional<double> placedAt;
+
 	// By frame: definitions, not state, so neither saved nor hashed.
 	std::map<std::uint64_t, std::unique_ptr<const FrameModel>> frames;
 	bool reportedUpdateError{false};
@@ -568,6 +583,7 @@ PhysicsWorld::~PhysicsWorld() = default;
 PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &settings)
 {
 	RegisterTypes();
+
 	// Held before it is handed over, so the world's WorldService need not be cast back down.
 	std::unique_ptr<PhysicsWorld> owned{new PhysicsWorld{settings}};
 	PhysicsWorld &physics = *owned;
@@ -598,6 +614,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	    [&physics](Sim::SimWorld &target, const Pick &pick)
 	    {
 		    Picked answer{pick.sender, pick.request};
+
 		    // A ray presentation drew of nothing, a degenerate camera's, is answered with nothing
 		    // rather than stopping the step.
 		    const double length = glm::length(pick.direction);
@@ -837,6 +854,7 @@ std::optional<CastHit> PhysicsWorld::CastShape(
 	const ShapeEntry *entry = m_pImpl->FindShape(shape);
 	if (!entry)
 		throw std::invalid_argument{std::format("Physics: shape '{}' is not defined", shape)};
+
 	// Jolt sweeps convex shapes alone.
 	if (entry->mesh)
 		throw std::invalid_argument{
@@ -863,6 +881,7 @@ std::optional<CastHit> PhysicsWorld::CastShape(
 			    return;
 		    const JPH::BodyLockRead lock{world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID2};
 		    JETTISON_VERIFY(lock.Succeeded());
+
 		    // Jolt's axis is the way the body hit would be pushed out of the shape: the surface faces
 		    // back against it.
 		    const JPH::Vec3 axis = hit.mPenetrationAxis;
@@ -954,6 +973,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 	}
 
 	impl.contacts.clear();
+
 	// A body is placed once for everything riding on it: a platform's berths, decks and buggies are
 	// dozens, and its body's orbit is the most of a step's cost.
 	std::map<std::pair<const FrameModel *, std::string_view>, Sim::Transform> bodiesAt;
@@ -1065,6 +1085,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 					bodies.MoveKinematic(
 					    record.id, Detail::ToJolt(transform.position - motion.end),
 					    Detail::ToJolt(transform.orientation).Normalized(), step);
+
 					// A sensor never sleeps while there is anything to see.
 					if (record.body.sensor && !bodies.IsActive(record.id))
 						bodies.ActivateBody(record.id);
@@ -1204,6 +1225,7 @@ std::uint64_t PhysicsWorld::QuietFrom(
     const entt::registry &registry, std::uint64_t step, double now) const
 {
 	const Impl &impl = *m_pImpl;
+
 	// Two: the first step with nothing awake still empties the contacts Jolt cached in the one before.
 	if (impl.restingSteps < 2)
 		return step;
@@ -1218,6 +1240,7 @@ std::uint64_t PhysicsWorld::QuietFrom(
 		if (found == impl.records.end() || found->second.body != body ||
 		    KeyOf(registry, entity) != found->second.key)
 			return step;
+
 		// A kinematic body off rails is where the game puts it; a static one the game has moved is
 		// placed by the next step.
 		if (body.kind == BodyKind::Static ? !Detail::SameTransform(transform, found->second.placed)
@@ -1226,6 +1249,7 @@ std::uint64_t PhysicsWorld::QuietFrom(
 	}
 	if (bodies != impl.records.size())
 		return step;
+
 	// A body is put back where it was by a skip only if its rails are those it was placed by.
 	std::map<std::pair<const FrameModel *, std::string_view>, Sim::Transform> bodiesAt;
 	for (const auto [entity, rails, transform] :
@@ -1254,6 +1278,7 @@ void PhysicsWorld::Skip(entt::registry &registry, double lastBegan, double now, 
 {
 	Impl &impl = *m_pImpl;
 	impl.placedAt = now;
+
 	// As Step's 1, 3 and 5 have them for the last step passed over, which ended at now: each body's
 	// place as that step began and ended, found once for everything riding on it.
 	std::map<std::pair<const FrameModel *, std::string_view>, std::pair<Sim::Transform, Sim::Transform>>
@@ -1372,6 +1397,7 @@ std::function<void()> PhysicsWorld::Load(
 	jolt.minor = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
 	jolt.patch = static_cast<std::uint32_t>(reader.ReadUnsigned(2));
 	jolt.features = reader.ReadUnsigned(8);
+
 	// Another Jolt's state cannot be read, even to check it: its bodies are made from the records,
 	// which already place each one, and its bytes are passed over.
 	const bool rebuild = jolt != BuiltJoltVersion();
@@ -1433,6 +1459,7 @@ std::function<void()> PhysicsWorld::Load(
 			reader.Read(record.body);
 			reader.Read(record.placed);
 			reader.Read(record.velocity);
+
 			// Jolt's state says what sleeps, and a rebuild has to be told.
 			bool asleep = false;
 			reader.Read(asleep);

@@ -138,6 +138,7 @@ bool FlightAtRest(const entt::registry &registry, double fixedStep)
 		    body && body->kind == BodyKind::Kinematic && registry.all_of<Sim::InFrame>(entity) &&
 		    registry.get<Sim::InFrame>(entity).frame != Sim::kNoFrame)
 			continue;
+
 		// A reference's velocity may change from step to step (a platform's on its orbit), and so may
 		// the way rails turn the vehicle, and with either what it is held to.
 		if ((registry.valid(controls.reference) && controls.reference != entity &&

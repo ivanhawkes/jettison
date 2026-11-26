@@ -17,9 +17,11 @@ struct BatchKey
 {
 	const Model *model{};
 	std::uint32_t lod{0};
+
 	// The draw's named material, or null for the model's own; the shadow pass, which binds none,
 	// passes null for every draw.
 	const void *material{};
+
 	// The stencil bits its draws write (render/PostProcess.h), which are the draw's reference, so
 	// draws that differ in them are not one draw; the passes that write none pass 0.
 	std::uint8_t stencil{0};
@@ -30,8 +32,10 @@ struct BatchKey
 struct BatchInput
 {
 	BatchKey key;
+
 	// The draw's index in the frame's draw list.
 	std::uint32_t draw{0};
+
 	// How far its bounds' nearest point is from the camera, in metres; what the batches are ordered by.
 	double distance{0.0};
 	bool instanced{true};
@@ -40,6 +44,7 @@ struct BatchInput
 struct DrawBatch
 {
 	BatchKey key;
+
 	// A run of the frame's instances, from this index of BuildBatches' `instances`.
 	std::uint32_t firstInstance{0};
 	std::uint32_t instanceCount{0};
@@ -51,11 +56,14 @@ struct DrawBatch
 struct SortedInput
 {
 	BatchKey key;
+
 	// The draw's index in the frame's draw list, or the emitter's.
 	std::uint32_t index{0};
+
 	// How far its centre is from the camera, in metres.
 	double distance{0.0};
 	bool particles{false};
+
 	// Whether it may share an instanced draw with its neighbours of the same key: a level of one
 	// primitive, since an instanced draw lays down each primitive for every instance before the next,
 	// and the far instance's second would land over the near one's first.

@@ -87,6 +87,7 @@ TEST_CASE("Shadows: the splits run from the near plane to the shadow distance")
 		CHECK(split > previous);
 		previous = split;
 	}
+
 	// Between even and logarithmic: the first cascade is far nearer than a quarter of the distance.
 	CHECK(splits[0] < kSettings.distance / 4.0f);
 
@@ -107,6 +108,7 @@ TEST_CASE("Shadows: each cascade's map holds every point that selects it, with t
 			const CameraView camera = MakeCamera(kStation, {120.0, 40.0, -90.0}, yaw, pitch);
 			const SunShadows shadows = FitSunShadows(camera, kAspect, kTowardsSun, kSettings);
 			const glm::vec4 splits = shadows.Splits();
+
 			// The snap moves the map by up to half a texel, and the border is the filter's and the
 			// normal offset's.
 			const double margin = (kShadowBorderTexels - 0.5 - 0.01) / kSettings.resolution;
@@ -148,6 +150,7 @@ TEST_CASE("Shadows: a depth selects its cascade, and a band's depths are inside 
 		CHECK(ShadowCascadeBlend(split * 0.85f, split) == 0.0f);
 		CHECK(ShadowCascadeBlend(split * 0.95f, split) == doctest::Approx(0.5f));
 		CHECK(ShadowCascadeBlend(split, split) == 1.0f);
+
 		// A fragment in the band also samples the next cascade, which has to have been fitted from
 		// the band's start.
 		if (index + 1 < kShadowCascades)
@@ -164,10 +167,12 @@ TEST_CASE("Shadows: a map is reversed, the sun's side at 1")
 	const glm::vec3 sunwards = point + glm::vec3{kTowardsSun} * 10.0f;
 	CHECK(
 	    ShadowMapCoordinate(cascade.matrix, sunwards).z > ShadowMapCoordinate(cascade.matrix, point).z);
+
 	// Moving along the sun's rays moves nothing across the map.
 	CHECK(
 	    ShadowMapCoordinate(cascade.matrix, sunwards).x ==
 	    doctest::Approx(ShadowMapCoordinate(cascade.matrix, point).x).epsilon(1e-5));
+
 	// Far enough towards the sun, a caster is past the map's near side; the pass clamps it to 1.
 	const glm::vec3 overhead = point + glm::vec3{kTowardsSun} * 2000.0f;
 	CHECK(ShadowMapCoordinate(cascade.matrix, overhead).z > 1.0f);
@@ -214,6 +219,7 @@ TEST_CASE("Shadows: a point still in the camera's frame stays on the same place 
 				CAPTURE(index);
 				const glm::dvec2 before = TexelOf(reference.cascades[index], first, kStation + point);
 				const glm::dvec2 after = TexelOf(shadows.cascades[index], camera, station + point);
+
 				// A thousandth of a texel: the float the GPU is given, and nothing else.
 				CHECK(FractionApart(before.x, after.x) < 1.0e-3);
 				CHECK(FractionApart(before.y, after.y) < 1.0e-3);

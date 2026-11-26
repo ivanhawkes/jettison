@@ -52,9 +52,11 @@ struct Agent
 	glm::dvec3 position{0.0};
 	glm::dvec3 velocity{0.0};
 	double maxSpeed{0.0};
+
 	// The acceleration it can count on to slow down with, whichever way it faces: what it brakes
 	// for an arrival and before an obstacle with.
 	double maxAcceleration{0.0};
+
 	// Of a sphere about its position holding its shape.
 	double radius{0.0};
 };
@@ -110,8 +112,10 @@ struct Steered
 {
 	// Seconds ahead it looks for what it would meet.
 	float lookahead{5.0f};
+
 	// Metres kept between its shape and any obstacle's, a platform's or a vehicle's.
 	float clearance{20.0f};
+
 	// Metres it keeps from other vehicles' shapes as it holds position.
 	float separation{40.0f};
 
@@ -132,11 +136,13 @@ struct Destination
 	entt::entity entity{entt::null};
 	glm::dvec3 offset{0.0};
 	std::vector<glm::dvec3> waypoints;
+
 	// Metres a second; none is the thrusters' maxSpeed, which is also the most.
 	float speed{0.0f};
 	float passRadius{40.0f};
 	float arrivalRadius{5.0f};
 	float arrivalSpeed{1.0f};
+
 	// The entity is kept clear of by its shape rather than its sphere: it, and every body on the
 	// rails of the same body (what is fixed to a platform: the platform, and the vehicles
 	// clamped to it), are left out of the obstacles, and the vehicle's own shape is swept along its way
@@ -145,10 +151,12 @@ struct Destination
 	// flown to one flies inside the sphere; what the sweep meets at the end of the way down is the
 	// deck it lands on, short of which the destination is, and that is not held off.
 	bool byShape{false};
+
 	// The way the vehicle turns to, in the entity's axes (the frame's, without one), rather than to
 	// the way it is going: a berth's, as it lands on it, rolled too.
 	bool face{false};
 	glm::dquat facing{1.0, 0.0, 0.0, 0.0};
+
 	// The waypoint it is flying to, or the waypoints' count once it is past them.
 	std::uint32_t next{0};
 	bool arrived{false};
@@ -189,6 +197,7 @@ struct DestinationLost
 	entt::entity vehicle{entt::null};
 	Sim::Reason reason;
 };
+
 // Raised as a SetDestination or a ClearDestination is refused, saying why. Registered with Reflect,
 // every field Saved, by RegisterTypes.
 struct DestinationRefused
@@ -250,6 +259,7 @@ class Steering
 
 	const Physics::PhysicsWorld &m_physics;
 	const Spatial::FrameIndices &m_indices;
+
 	// Each shape's ShapeRadius, as it is asked for: shapes are definitions, the same every run.
 	std::map<std::string, double, std::less<>> m_radii;
 };

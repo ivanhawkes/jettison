@@ -37,6 +37,7 @@ constexpr std::array kSignals{SIGSEGV, SIGBUS, SIGFPE, SIGILL, SIGABRT};
 constexpr std::size_t kMaxFrames = 64;
 constexpr std::size_t kMaxModules = 16;
 constexpr std::size_t kPathBytes = 1024;
+
 // The handler's stack: its own buffers are statics, so it needs little, but the symboliser's vfork
 // child borrows it until it execs.
 constexpr std::size_t kStackBytes = std::size_t{128} * 1024;
@@ -67,6 +68,7 @@ bool g_installed = false;
 std::array<struct sigaction, kSignals.size()> g_previous{};
 std::terminate_handler g_previousTerminate = nullptr;
 alignas(16) std::array<std::byte, kStackBytes> g_stack{};
+
 // The thread writing a report: a second thread's fatal signal waits for the first to end the
 // process, and the same thread's, a fault inside the handler, ends it at once.
 std::atomic<pid_t> g_reporting{0};
@@ -344,6 +346,7 @@ template <typename Out> void WriteTime(Out &writer, std::int64_t seconds, bool c
 struct Module
 {
 	std::array<char, kPathBytes> path{};
+
 	// What a frame's address is less to give the symboliser the address in the file: where the
 	// module is loaded, or zero for an executable that is not position-independent.
 	std::uintptr_t bias{0};
@@ -354,6 +357,7 @@ struct Frame
 {
 	std::uintptr_t address{0};
 	int module{-1};
+
 	// The address in the module's file, as its symbols have it.
 	std::uintptr_t offset{0};
 };
@@ -448,6 +452,7 @@ void ReadMapping(const char *text, const char *&currentPath, std::uintptr_t &cur
 		if (readable)
 		{
 			std::uint16_t type = 0;
+
 			// NOLINTNEXTLINE(performance-no-int-to-ptr): the address is the mapping's, from the kernel.
 			std::memcpy(&type, reinterpret_cast<const void *>(start + offsetof(Elf64_Ehdr, e_type)), 2);
 			fixed = type == ET_EXEC;
@@ -479,6 +484,7 @@ void FindModules() noexcept
 	if (maps < 0)
 		return;
 	std::size_t lineLength = 0;
+
 	// The current mapping at offset 0's path is in the line buffer only while its line is, so it is
 	// kept here, apart from it.
 	static std::array<char, kPathBytes> s_currentPath{};

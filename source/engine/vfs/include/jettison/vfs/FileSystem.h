@@ -95,6 +95,7 @@ class FileSystem
 
   private:
 	std::vector<Mount> m_mounts;
+
 	// One a mount, in the same order; shared, so a file system copied reads the same open packs.
 	std::vector<std::shared_ptr<const Detail::Source>> m_sources;
 };

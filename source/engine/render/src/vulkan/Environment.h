@@ -28,6 +28,7 @@ GpuSky PackSky(const Scene::SkyComponent &sky);
 struct GpuCaptureBody
 {
 	GpuBody body{};
+
 	// rgb: the surface's albedo, linear.
 	glm::vec4 albedo{0.0f};
 };
@@ -39,6 +40,7 @@ struct CaptureLight
 {
 	// xyz: towards the sun, w: 1 when there is one.
 	glm::vec4 sunDirection{0.0f};
+
 	// rgb: the sun's irradiance, w: its angular radius in radians.
 	glm::vec4 sunLight{0.0f};
 	std::vector<GpuCaptureBody> bodies;
@@ -51,6 +53,7 @@ struct GpuCapture
 	GpuSky sky{};
 	alignas(16) glm::vec4 sunDirection{0.0f};
 	alignas(16) glm::vec4 sunLight{0.0f};
+
 	// x: the bodies.
 	alignas(16) glm::uvec4 counts{0u};
 	GpuCaptureBody bodies[kCaptureBodies]{};
@@ -80,6 +83,7 @@ class Environment
   public:
 	static constexpr VkFormat kCubeFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	static constexpr VkFormat kBrdfLutFormat = VK_FORMAT_R16G16_SFLOAT;
+
 	// Kept small for lavapipe, where the gate bakes twice a scene, though the bake is not yet timed:
 	// the sky's glow is smooth at these sizes, and the stars, which are not, are averaged away by
 	// every level above the first.

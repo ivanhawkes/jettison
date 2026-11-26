@@ -46,6 +46,7 @@ TEST_CASE("Draw batches: draws sharing a model, a level and a material are one i
 	CHECK(batches[0].key == hull);
 	CHECK(batches[0].instanceCount == 1);
 	CHECK(instances[batches[0].firstInstance] == 7);
+
 	// A tie on distance goes to the lower draw index.
 	CHECK(instances[batches[1].firstInstance] == 5);
 	CHECK(instances[batches[2].firstInstance] == 6);
@@ -119,6 +120,7 @@ TEST_CASE("Draw batches: the transparent draws go back to front, neighbours of o
 	CHECK(batches[5].batch.instanceCount == 1);
 	CHECK(instances[batches[5].batch.firstInstance] == 4);
 	CHECK(instances[batches[6].batch.firstInstance] == 5);
+
 	// Appended after what was there: one instance for each mesh draw, none for an emitter.
 	CHECK(instances.front() == 99);
 	CHECK(instances.size() == 1 + 6);

@@ -123,8 +123,10 @@ struct TaskContext
 	Sim::SimWorld &world;
 	entt::entity entity;
 	std::span<const std::string> arguments;
+
 	// Its first tick since it last finished, when it sends what it then waits on.
 	bool starting;
+
 	// Its own memory while it runs, saved with the tree: a step it began at, a count.
 	std::uint64_t &memory;
 };
@@ -264,6 +266,7 @@ class Behaviours
 
 	std::map<std::string, TaskEntry, std::less<>> m_tasks;
 	std::map<std::string, Tree, std::less<>> m_trees;
+
 	// Trees named by an entity and not defined, said once each; not state.
 	std::set<std::string, std::less<>> m_missing;
 	double m_fixedStep{0.0};

@@ -338,6 +338,7 @@ TEST_CASE("Game: the shell with no game composed into it registers no market, tr
 		CAPTURE(name);
 		CHECK_FALSE(Reflect::Resolve(name));
 	}
+
 	// The shell's own world is registered all the same.
 	CHECK(Reflect::Resolve("Sim.Transform"));
 }
@@ -357,6 +358,7 @@ TEST_CASE("Game: the engine's assets are the engine's, and none of the test cont
 		const std::filesystem::path path = entry.path().lexically_relative(engine);
 		CAPTURE(path.string());
 		CHECK(std::ranges::find(kEngine, path.begin()->string()) != kEngine.end());
+
 		// A file of the engine's the content ships again would be the content's to change, not the
 		// engine's: an engine path is the content's at most to read.
 		CHECK_FALSE(std::filesystem::exists(content / path));
@@ -387,6 +389,7 @@ TEST_CASE("Game: a game's frame system, save section and scene hooks run on the 
 		App::ApplicationProbe::Start(shell);
 		CHECK(game.loaded == 1);
 		CHECK(game.unloading == 0);
+
 		// The user's own directories are made private from the start (XDG).
 		for (const char *directory : {"data", "config"})
 			CHECK(

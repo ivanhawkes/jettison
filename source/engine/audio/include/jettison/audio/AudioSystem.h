@@ -77,6 +77,7 @@ struct AudioCounters
 {
 	// Sounds started, by bus (indexed by Bus).
 	std::array<std::uint64_t, kBuses.size()> started{};
+
 	// Sounds that could not be played: a file missing or one miniaudio cannot decode.
 	std::uint64_t failed{0};
 };

@@ -224,6 +224,7 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 		blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC1_ALPHA;
 		blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 	}
+
 	// The second target, when there is one, takes what is written whole.
 	VkPipelineColorBlendAttachmentState secondAttachment{};
 	secondAttachment.colorWriteMask = blendAttachment.colorWriteMask;

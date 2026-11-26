@@ -32,23 +32,28 @@ enum class BodyKind : std::uint8_t
 struct Body
 {
 	BodyKind kind{BodyKind::Dynamic};
+
 	// A shape defined in the physics world, by name (PhysicsWorld::DefineShape).
 	std::string shape;
+
 	// In kilograms, for a dynamic body, whose inertia is the shape's scaled to it. Static and
 	// kinematic bodies do not use it.
 	float mass{0.0f};
 	float friction{0.2f};
 	float restitution{0.0f};
+
 	// The fraction of velocity lost a second. Space has no drag, so both are zero unless a design
 	// wants them.
 	float linearDamping{0.0f};
 	float angularDamping{0.0f};
+
 	// A dynamic body swept along its motion each step rather than placed at its end, so it cannot
 	// pass through what it meets: a piloted vehicle, which approaches a platform at tens of metres a
 	// second and would cross a thin panel between two steps. Jolt sweeps it against each body by
 	// their relative motion, so a vehicle and a platform both moving at a planet's orbital speed are
 	// swept by the little that separates them. It costs a cast a step, so a load goes without.
 	bool continuous{false};
+
 	// A body that meets nothing and reports what enters it (PhysicsWorld::Contacts): a doorway, or
 	// a zone a game's rule watches. It detects dynamic bodies, never static or kinematic ones, and
 	// pushes none. A sensor never sleeps, so a vehicle come to rest inside it is still reported inside;

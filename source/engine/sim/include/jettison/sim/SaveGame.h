@@ -47,18 +47,23 @@ struct SaveDetail
 struct SaveInfo
 {
 	std::string name;
+
 	// Core::EngineVersion() of the build that wrote it, for a report of a save that does not load;
 	// what reads a save is its format versions, not this.
 	std::string engineVersion;
+
 	// When it was written, in seconds since the Unix epoch by the wall clock: the caller's to set,
 	// since the simulation never reads the wall clock, and no part of the state.
 	std::int64_t writtenAt{0};
+
 	// The world's clock as it was saved.
 	std::uint64_t step{0};
 	double time{0.0};
+
 	// The mods enabled as it was saved, in mount order: the caller's to set, as the mods are the
 	// game's. A save from before phase 12a names none.
 	std::vector<ModVersion> mods;
+
 	// The game's own, by key: what a list shows of a save and a load checks first, read with the
 	// rest of the info.
 	std::vector<SaveDetail> details;

@@ -23,12 +23,15 @@ TEST_CASE("Debug draw: shapes become segments, made camera-relative when the fra
 	const std::uint32_t tested = draw.Build(far, vertices);
 	CHECK(tested == 2 * 29);
 	REQUIRE(vertices.size() == 2 * 32);
+
 	// The line a metre long a hundred and fifty million kilometres out is a metre long.
 	CHECK(vertices[0].position == glm::vec3{0.0f});
 	CHECK(vertices[1].position == glm::vec3{1.0f, 0.0f, 0.0f});
+
 	// Every circle point is ten metres from the centre.
 	for (std::uint32_t index = 2 + 24; index < tested; ++index)
 		CHECK(glm::length(vertices[index].position) == doctest::Approx(10.0f));
+
 	// The overlay comes last: the axes' X arm, in red.
 	CHECK(vertices[tested + 1].position == glm::vec3{5.0f, 0.0f, 0.0f});
 	CHECK(vertices[tested].color.r == 1.0f);

@@ -32,6 +32,7 @@ struct PackOptions
 	// it helps: over the retired space sample's assets, measured 2026-11-13, level 19 packed them in
 	// under a second, against 22 CPU-seconds for the whole tree at 19.
 	int level{19};
+
 	// The directories under the root to pack, as virtual paths, or every file under it when empty:
 	// a build's staged assets share their directory with the build system's own files.
 	std::vector<std::string> directories;
@@ -43,6 +44,7 @@ struct PackSummary
 	std::size_t compressed{0};
 	std::uintmax_t bytes{0};
 	std::uintmax_t packedBytes{0};
+
 	// Files under the directory whose names no virtual path could have, so nothing could read
 	// them, and left out.
 	std::vector<std::string> skipped;

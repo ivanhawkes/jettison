@@ -15,8 +15,10 @@ class Console;
 struct ConsoleViewState
 {
 	std::array<char, 512> input{};
+
 	// Into Console::History, counted back from the newest; -1 is the line being typed.
 	int historyIndex{-1};
+
 	// Set when the window opens, so typing goes straight to the input.
 	bool focusInput{true};
 	std::size_t linesSeen{0};

@@ -17,21 +17,26 @@ struct SmokeActions
 	std::function<void()> iconify;
 	std::function<void()> restore;
 	std::function<void()> reload;
+
 	// Pilots what the game gives to fly, behind it or from its seat, and says whether there was
 	// anything to fly: false in a scene with nothing to pilot. A game may send traffic alongside,
 	// flown by steering.
 	std::function<bool(bool cockpit)> pilot;
+
 	// Then whether what was flown has still to show it moved as the stage asked, which the stage waits
 	// for, as long as it takes, since it moves by simulation time and a stage's frames are fast or
 	// slow with the machine. Left empty by a game whose stage is over once it starts.
 	std::function<bool()> piloting;
+
 	// Picks through the middle of the window, and says whether a pick was sent: false in a scene of
 	// no physics frame. Then whether it is still unanswered.
 	std::function<bool()> pick;
 	std::function<bool()> picking;
+
 	// Saves the game to the user mount and loads it back, and says whether the world loaded is the
 	// world saved, by its state hash.
 	std::function<bool()> saveAndLoad;
+
 	// The game's: shows a screen of its, checks it shows what the snapshot has, and presses a control
 	// that sends a command: none where the game has no screen to drive here, false where the screen
 	// does not show what the snapshot has. Then whether the command's answer is still to come, and
@@ -99,15 +104,20 @@ class SmokeSequence
 	int m_stage{0};
 	int m_resizes{0};
 	int m_reloads{0};
+
 	// The piloting stages that had something to fly. Not a verdict: the shell has nothing to pilot.
 	int m_pilots{0};
+
 	// The picks answered. Not a verdict either: a pick needs a physics frame to be cast in.
 	int m_picks{0};
 	bool m_pickPending{false};
+
 	// A piloting stage's action is pending until the game says what it flew has shown it moved.
 	bool m_pilotPending{false};
+
 	// Saves that loaded back to the state saved.
 	int m_saves{0};
+
 	// The game's screens that showed the snapshot and sent their command, and the answers among them
 	// the screen then showed: a verdict, every screen tried has to be answered.
 	int m_screens{0};

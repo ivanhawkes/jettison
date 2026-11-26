@@ -25,8 +25,10 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kBuilding = Sim::FrameId("Building");
 const std::uint64_t kHarbour = Sim::FrameId("Harbour");
+
 // The ferry's speed along x, from the harbour's origin at the start.
 constexpr double kFerrySpeed = 3.0;
+
 // Metres past a door's frame that an arrival comes out.
 constexpr double kDoorDepth = 0.5;
 const glm::dvec3 kRoof{0.0, 40.0, 0.0};
@@ -130,6 +132,7 @@ TEST_CASE("Portal: a door from a building's street comes out on a moving ferry, 
 	CHECK(portal.arrivalStep - fixture.world.Clock().Step() == Transit::Steps(2.0, kStep));
 	CHECK(registry.get<Sim::InFrame>(car).frame == Sim::kNoFrame);
 	CHECK(registry.all_of<Physics::Body>(car));
+
 	// In no frame, it is in no doorway to go through again.
 	CHECK_THROWS_AS(
 	    Transit::Portals::Enter(fixture.world, car, "street", kHarbour, "gangway", 2.0),
@@ -172,6 +175,7 @@ TEST_CASE("Portal: two through a lift's door at once come out apart on the roof,
 	{
 		first = fixture->Car({0.0, 0.0, 0.0}, Physics::BodyKind::Dynamic);
 		second = fixture->Car({0.0, 0.0, 10.0}, Physics::BodyKind::Dynamic);
+
 		// Already where the first would come out.
 		const double out =
 		    kDoorDepth + fixture->physics.ShapeRadius("car") + Transit::Portals::kArrivalClearance;
@@ -209,9 +213,11 @@ TEST_CASE("Portal: two through a lift's door at once come out apart on the roof,
 		CHECK(registry.get<Physics::LocalFrame>(car).body.empty());
 		CHECK(glm::length(registry.get<Physics::Velocity>(car).linear) < 0.5);
 		places.push_back(registry.get<Sim::Transform>(car).position);
+
 		// On rings across the way the door faces, so as far along x as the door's out.
 		CHECK(places.back().x == doctest::Approx(out).epsilon(0.01));
 	}
+
 	// Apart from each other and from the parked car, give or take what physics has done since.
 	CHECK(glm::distance(places[0], places[1]) >= apart - 0.1);
 	CHECK(glm::distance(places[0], registry.get<Sim::Transform>(parked).position) >= apart - 0.1);

@@ -23,6 +23,7 @@ TEST_CASE("RealClock: a long frame is clamped, and an instant before the last is
 	RealClock clock{RealClock::Duration{0.1}};
 	const auto start = RealClock::Clock::now();
 	clock.Tick(start);
+
 	// A breakpoint held for a minute.
 	CHECK(clock.Tick(start + 60s).count() == doctest::Approx(0.1));
 	CHECK(clock.Tick(start + 30s).count() == 0.0);
@@ -69,6 +70,7 @@ TEST_CASE("SimClock: pausing stops the scaled delta, and compression multiplies 
 	clock.SetPaused(true);
 	CHECK(clock.Paused());
 	CHECK(clock.ScaledDelta(0.5) == 0.0);
+
 	// Compression survives a pause.
 	clock.SetPaused(false);
 	CHECK(clock.ScaledDelta(0.5) == 2.0);
@@ -95,6 +97,7 @@ TEST_CASE("SimClock: a restored clock carries on from the step and time it was g
 	clock.Advance(0.1);
 	restored.Advance(0.1);
 	CHECK(restored.Step() == clock.Step());
+
 	// Bit for bit: eight additions of 0.1 are not 0.8.
 	CHECK(restored.Now() == clock.Now());
 	CHECK(restored.Now() != 0.8);

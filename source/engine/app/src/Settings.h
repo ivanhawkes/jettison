@@ -59,6 +59,7 @@ class Settings
 
   private:
 	std::filesystem::path m_file;
+
 	// The file did not read, and has not been put aside yet.
 	bool m_unread{false};
 	Core::Config m_config;

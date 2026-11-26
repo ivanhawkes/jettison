@@ -139,6 +139,7 @@ void Flatten(const YAML::Node &node, const std::string &prefix, const std::strin
 	for (const auto &pair : node)
 	{
 		const auto name = pair.first.as<std::string>();
+
 		// The root's version is the file's, not a text.
 		if (prefix.empty() && name == "version")
 			continue;
@@ -248,6 +249,7 @@ void StringTable::Load(const Vfs::FileSystem &files, std::string_view language)
 		    std::format("Strings: '{}' is not a language, as \"de\" or \"pt-BR\" is", language)};
 
 	Entries base = ReadLanguage(files, kBaseLanguage);
+
 	// A build that shipped without its tables would otherwise show every key as itself.
 	if (base.empty())
 		throw std::runtime_error{std::format(

@@ -135,10 +135,12 @@ TEST_CASE("Clusters: the slices are exponential in depth, from the near plane to
 		CHECK(farDepth / nearDepth == Approx(ratio).epsilon(1e-4));
 		CHECK(ClusterSlice(std::sqrt(nearDepth * farDepth), view.nearPlane, view.range) == slice);
 	}
+
 	// Outside the grid: no cluster, so no local light.
 	CHECK(ClusterSlice(0.4f, view.nearPlane, view.range) == kClusterSlices);
 	CHECK(ClusterSlice(view.range, view.nearPlane, view.range) == kClusterSlices);
 	CHECK(ClusterAt({10.0f, 10.0f}, 5000.0f, view) == kClusterCount);
+
 	// The last tile reaches the edge, and a pixel on it is in the last column and row: 480 pixels in
 	// 18 rows is 26 2/3 a row, rounded up.
 	CHECK(ClusterTileSize(view.viewport) == glm::vec2{20.0f, 27.0f});
@@ -180,6 +182,7 @@ TEST_CASE("Clusters: a cluster's bounds hold every point the projection draws in
 TEST_CASE("Clusters: a light that lights any point of a cluster is assigned to it")
 {
 	const ClusterView view = MakeView(0.5f, 400.0f);
+
 	// A turned view, so the test sees the lights move from render space into view space.
 	const glm::mat3 rotation{
 	    glm::rotate(glm::mat4{1.0f}, 0.7f, glm::normalize(glm::vec3{0.3f, 1.0f, -0.2f}))};
@@ -193,6 +196,7 @@ TEST_CASE("Clusters: a light that lights any point of a cluster is assigned to i
 		    static_cast<std::uint32_t>(random.Range(0, static_cast<std::int32_t>(kClusterCount) - 1));
 		const ClusterBox bounds = ClusterBoundsOf(cluster, view);
 		const glm::vec3 inside = SampleCluster(cluster, view, random);
+
 		// Lights near the cluster, often enough just reaching it, and a spot aimed roughly at it.
 		const float range = random.Range(0.5f, 2.0f) * glm::length(bounds.maximum - bounds.minimum);
 		const glm::vec3 offset{
@@ -217,6 +221,7 @@ TEST_CASE("Clusters: a light that lights any point of a cluster is assigned to i
 		if (lightsCluster)
 			CHECK(reaches);
 	}
+
 	// The trials are set up to straddle the edge: some light their cluster and some do not.
 	CHECK(lit > 50);
 	CHECK(reached < 400);
@@ -227,6 +232,7 @@ TEST_CASE("Clusters: a light far from a cluster, or facing away from it, is not 
 {
 	const ClusterView view = MakeView();
 	const glm::mat3 identity{1.0f};
+
 	// The cluster in the middle of the view, about ten metres out.
 	const std::uint32_t cluster = ClusterAt({320.0f, 240.0f}, 10.0f, view);
 	const ClusterBox bounds = ClusterBoundsOf(cluster, view);
@@ -234,6 +240,7 @@ TEST_CASE("Clusters: a light far from a cluster, or facing away from it, is not 
 	CHECK(LightReachesCluster(Point(center, 0.1f), identity, bounds));
 	CHECK_FALSE(
 	    LightReachesCluster(Point(center + glm::vec3{0.0f, 20.0f, 0.0f}, 5.0f), identity, bounds));
+
 	// A spot five metres to the side: aimed at the cluster it reaches it, aimed away it does not.
 	const glm::vec3 beside = center + glm::vec3{5.0f, 0.0f, 0.0f};
 	CHECK(LightReachesCluster(Spot(beside, center - beside, 8.0f, 0.1f, 0.4f), identity, bounds));
@@ -252,6 +259,7 @@ TEST_CASE("Clusters: the falloff is the inverse square near a light, and reaches
 		    Approx(1.0f / (distance * distance)).epsilon(1e-3));
 	CHECK(RangeAttenuation(kRange * kRange, kRange) == 0.0f);
 	CHECK(RangeAttenuation(4.0f * kRange * kRange, kRange) == 0.0f);
+
 	// Smooth into zero, and never rising with distance.
 	float previous = RangeAttenuation(0.0f, kRange);
 	for (int step = 1; step <= 200; ++step)
@@ -262,6 +270,7 @@ TEST_CASE("Clusters: the falloff is the inverse square near a light, and reaches
 		previous = attenuation;
 	}
 	CHECK(RangeAttenuation(0.99f * 0.99f * kRange * kRange, kRange) < 1e-5f);
+
 	// Inside the bulb the inverse square stops climbing, so a surface at the light stays finite.
 	CHECK(RangeAttenuation(0.0f, kRange) == Approx(400.0f));
 	CHECK(RangeAttenuation(1e-6f, kRange) == RangeAttenuation(0.0f, kRange));

@@ -104,6 +104,7 @@ TEST_CASE("the assets are the staged directory, or its pack where there is none"
 	std::error_code error;
 	std::filesystem::remove_all(root, error);
 	std::filesystem::create_directories(root);
+
 	// An absolute subdirectory is where it says, wherever the executable is.
 	const auto parse = [&root]
 	{
@@ -117,6 +118,7 @@ TEST_CASE("the assets are the staged directory, or its pack where there is none"
 	CHECK(parse()->assets == root / "assets.pack");
 	std::filesystem::create_directories(root / "assets");
 	CHECK(parse()->assets == root / "assets");
+
 	// No scene named is the assets' own, read through the mounts.
 	CHECK(parse()->scenePath.empty());
 	CHECK(Parse({"--assets", "/opt/jettison/base.pack"})->assets == "/opt/jettison/base.pack");

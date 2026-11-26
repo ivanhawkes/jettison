@@ -123,6 +123,7 @@ const std::unordered_map<entt::id_type, Leaf> &Leaves()
 		    entt::type_id<glm::dvec3>().hash(), Make<glm::dvec3, double, 3>("jettison_dvec3"));
 		table.emplace(
 		    entt::type_id<glm::dvec4>().hash(), Make<glm::dvec4, double, 4>("jettison_dvec4"));
+
 		// x, y, z then w: GLM's storage order, as the archives hold a quaternion.
 		table.emplace(entt::type_id<glm::quat>().hash(), Make<glm::quat, float, 4>("jettison_quat"));
 		table.emplace(
@@ -247,6 +248,7 @@ std::uint64_t Extra(const ValueLayout &value, const void *pValue)
 		case ValueKind::Array:
 		{
 			entt::meta_sequence_container elements = Sequence(value.type, pValue);
+
 			// The elements' block at its alignment, then what each element points at.
 			std::uint64_t extra =
 			    value.element->align - 1 + std::uint64_t{elements.size()} * value.element->size;
@@ -393,6 +395,7 @@ class Reader
 			{
 				const std::uint32_t data = LoadU32(m_memory, at);
 				const std::uint32_t count = LoadU32(m_memory, at + 4);
+
 				// Checked whole before anything is added, so a wild count allocates nothing.
 				Extent(m_memory, data, count, value.element->size, path);
 				entt::meta_sequence_container elements = Sequence(value.type, pValue);
@@ -500,6 +503,7 @@ const TypeLayout &Bindings::Layout(const entt::meta_type &type)
 	{
 		const std::string name{field.name()};
 		const std::string path = std::format("{}.{}", type.name(), name);
+
 		// A field the layout cannot hold is left out, and said to be.
 		ValueLayout value;
 		try

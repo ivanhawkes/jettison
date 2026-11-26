@@ -160,6 +160,7 @@ TEST_CASE("Reflect: a name that is not registered resolves to nothing")
 	using Jettison::Reflect::Resolve;
 	CHECK_FALSE(Resolve("NoSuchType"));
 	CHECK_FALSE(Resolve(""));
+
 	// EnTT knows every type it has seen, registered or not; Reflect does not count those.
 	CHECK_FALSE(Jettison::Reflect::Fields(entt::resolve<Unregistered>()).size());
 }
@@ -193,6 +194,7 @@ TEST_CASE("Reflect: registering a type twice, or a name twice, throws naming it"
 	builder.Field<&Twice::a>("a");
 	CHECK_THROWS_WITH_AS(
 	    builder.Field<&Twice::b>("a"), doctest::Contains("already has a field 'a'"), RegistrationError);
+
 	// The rejected field did not replace the first one.
 	const Twice twice{.a = 1, .b = 2};
 	CHECK(FindField(Resolve("ReflectTests.Twice"), "a").get(twice).cast<int>() == 1);
@@ -235,6 +237,7 @@ TEST_CASE("Reflect: an enumeration converts between its values and their names")
 
 	CHECK(EnumName(entt::meta_any{DockState::Docked}) == "Docked");
 	CHECK(EnumName(entt::meta_any{DockState::Free}) == "Free");
+
 	// Departing was not registered, so it has no name to write.
 	CHECK(EnumName(entt::meta_any{DockState::Departing}).empty());
 	CHECK(EnumName(entt::meta_any{42}).empty());

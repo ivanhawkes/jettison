@@ -270,6 +270,7 @@ bool UiSystem::Key(Input::InputCode key, bool pressed, Modifiers modifiers)
 	const Rml::Input::KeyIdentifier identifier = ToRmlKey(key.code);
 	if (identifier == Rml::Input::KI_UNKNOWN)
 		return false;
+
 	// RmlUi answers whether the key went on to the context's default handling, so a key that a
 	// focused element consumed reads false; what the game asks is whether the UI took it.
 	const bool propagated =
@@ -291,6 +292,7 @@ bool UiSystem::Text(char32_t character)
 bool UiSystem::WantsMouse() const
 {
 	const Rml::Element *pHover = m_pState->pContext->GetHoverElement();
+
 	// The context's root is hovered when no document is under the mouse.
 	return pHover != nullptr && pHover != m_pState->pContext->GetRootElement();
 }

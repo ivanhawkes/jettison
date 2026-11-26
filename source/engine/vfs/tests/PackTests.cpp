@@ -109,6 +109,7 @@ void PutBase(const Scratch &scratch)
 	scratch.Put("assets/textures/noise.ktx2", Noise(8192));
 	scratch.Put("assets/empty.txt", "");
 	scratch.Put("assets/defs/ships/military/corvette.yaml", "version: 1\n");
+
 	// A sibling whose name begins as the directory's does, which a listing of defs must leave out.
 	scratch.Put("assets/defs2/other.yaml", "other");
 }
@@ -158,9 +159,11 @@ TEST_CASE("Pack: a file is compressed where that pays and stored where it does n
 	const Scratch scratch;
 	PutBase(scratch);
 	const PackSummary summary = WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
+
 	// The text alone: the noise does not shrink, and the small files are too small to.
 	CHECK(summary.compressed == 1);
 	CHECK(summary.packedBytes < summary.bytes);
+
 	// The same files give the same bytes.
 	WritePack(scratch.Path("assets"), scratch.Path("again.pack"));
 	CHECK(scratch.Contents("base.pack") == scratch.Contents("again.pack"));
@@ -195,6 +198,7 @@ TEST_CASE("Pack: a pack that cannot be written leaves nothing behind it, and the
 	const std::string before = scratch.Contents("base.pack");
 	scratch.Put("assets/locked.yaml", "locked");
 	std::filesystem::permissions(scratch.Path("assets/locked.yaml"), std::filesystem::perms::none);
+
 	// Root reads it anyway, and the case is not made.
 	if (std::ifstream{scratch.Path("assets/locked.yaml")})
 		return;
@@ -315,10 +319,12 @@ TEST_CASE("Pack: a damaged pack is refused, saying what is wrong")
 	std::string layout = whole;
 	layout[8] = '\x02';
 	refused(layout, "its layout is 2");
+
 	// The index's first path, "defs/goods/beer.yaml", given a segment no virtual path has.
 	std::string path = whole;
 	path.replace(path.find("defs/goods/beer.yaml"), 4, "..//");
 	refused(path, "not a virtual path");
+
 	// Its second, "defs/ships/military/corvette.yaml", made to sort before the first.
 	std::string order = whole;
 	order[order.find("defs/ships/military")] = 'a';
@@ -332,6 +338,7 @@ TEST_CASE("Pack: a damaged file in a pack is caught as it is read")
 	PutBase(scratch);
 	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
 	std::string bytes = scratch.Contents("base.pack");
+
 	// The compressed text is the first file's bytes, straight after the 32-byte header; one in its
 	// middle changed fails its checksum, or its decoding.
 	bytes[32 + 14] = static_cast<char>(bytes[32 + 14] ^ 0x5a);
@@ -342,6 +349,7 @@ TEST_CASE("Pack: a damaged file in a pack is caught as it is read")
 	CHECK_THROWS_WITH_AS(
 	    (void)files.Read("defs/goods/beer.yaml"), doctest::Contains("defs/goods/beer.yaml"),
 	    std::runtime_error);
+
 	// The rest still read.
 	CHECK(Text(files.Read("defs/ships/military/corvette.yaml")) == "version: 1\n");
 }

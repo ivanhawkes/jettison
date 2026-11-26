@@ -34,8 +34,10 @@ struct ShadowSettings
 {
 	// The view depth at which the last cascade ends, in metres. Past it the sun casts no shadow.
 	float distance{400.0f};
+
 	// The practical split scheme's blend, from even splits (0) to logarithmic ones (1).
 	float splitBlend{0.8f};
+
 	// Each cascade's map is this many texels on a side, a power of two.
 	std::uint32_t resolution{2048};
 };
@@ -44,8 +46,10 @@ struct ShadowCascade
 {
 	// Render space to the map: x and y its NDC, z the reversed depth (shadows.glsl).
 	glm::mat4 matrix{1.0f};
+
 	// The view depth at which the cascade ends.
 	float split{0.0f};
+
 	// The sphere around the cascade's slice of the view, and a texel's size, both in metres.
 	float radius{0.0f};
 	float texelSize{0.0f};

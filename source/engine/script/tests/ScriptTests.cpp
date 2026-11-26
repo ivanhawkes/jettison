@@ -86,6 +86,7 @@ Script::ScriptDefinition Limits()
 
 // The host API's module, in C and in Rust: each test of it runs against both.
 constexpr std::array<const char *, 2> kEventModules{"events.wasm", "events_rs.wasm"};
+
 // Who the game has scripts command as.
 constexpr Sim::Controller kScripts{Sim::ControllerKind::Ai, 9};
 
@@ -174,6 +175,7 @@ TEST_CASE("Script: a call out of fuel traps, and the script is called again afte
 TEST_CASE("Script: the fuel a call needs is the same on every run")
 {
 	const Vfs::FileSystem files = Modules();
+
 	// The least fuel burn(1000) runs on, found by halving.
 	const auto least = [&]
 	{
@@ -416,6 +418,7 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 		ping.flag = false;
 		ping.text.clear();
 		host.Dispatch(Sim::SimEvent{6, entt::meta_any{ping}});
+
 		// An event no script handles goes nowhere.
 		host.Dispatch(Sim::SimEvent{6, entt::meta_any{Inner{}}});
 
@@ -425,10 +428,12 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 		CHECK(sent[0].total == 106 + 7);
 		CHECK(sent[0].text == "a ping");
 		CHECK(sent[0].items == std::vector<Inner>{{Mood::Cross, 9}, {Mood::Cross, 1}});
+
 		// The script names a player as the sender; the host's replaces it.
 		CHECK(sent[0].sender == kScripts);
 		CHECK(sent[1].total == 106);
 		CHECK(sent[1].text.empty());
+
 		// The second ping is the handler's second: what it counted was kept.
 		CHECK(sent[1].items[1].weight == 2);
 		CHECK(host.Call("events", "pings", {}) == std::vector<std::int32_t>{2});
@@ -504,6 +509,7 @@ TEST_CASE(
 		CHECK(host.Answers("doubled"));
 		CHECK_FALSE(host.Answers("base"));
 		CHECK(host.Input("doubled", game) == 42.0);
+
 		// The same answer every call: nothing the last call did is seen by the next.
 		CHECK(host.Input("answers", game) == 1.0);
 		CHECK(host.Input("answers", game) == 1.0);
@@ -618,6 +624,7 @@ TEST_CASE("Script: a script keeps bytes by key, past its instance, its unloading
 		const std::array seven{7};
 		CHECK(host.Call("keys", "remember", seven));
 		CHECK(CallOne(host, "held") == 2);
+
 		// A script unloaded keeps its keys for when it loads again.
 		host.Unload("keys");
 		CHECK(host.Store().at("keys").size() == 1);

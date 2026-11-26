@@ -107,6 +107,7 @@ constexpr std::uint64_t kSeed = 0x0b0d1e5;
 constexpr std::uint64_t kSteps = 300;
 const std::uint64_t kHalcyon = Sim::FrameId("Halcyon");
 const std::uint64_t kVesper = Sim::FrameId("Vesper");
+
 // The bay's half width, inside.
 constexpr float kBay = 30.0f;
 
@@ -120,6 +121,7 @@ ShapeDefinition Bay()
 		for (const float y : {-kBay, kBay})
 			for (const float z : {-kBay, kBay})
 				shape.vertices.emplace_back(x, y, z);
+
 	// Vertex index bits: 4 is x, 2 is y, 1 is z. Each face is wound counter-clockwise seen from
 	// inside the cube.
 	shape.indices = {0, 2, 3, 0, 3, 1, 4, 5, 7, 4, 7, 6, 0, 1, 5, 0, 5, 4,
@@ -244,6 +246,7 @@ void Feed(Sim::SimWorld &world, std::uint64_t step)
 			commands.Push(
 			    Launch{
 			        "paddle", BodyKind::Kinematic, 0.0f, {0.0, -10.0, 0.0}, {}, {}, 3.14159, kHalcyon});
+
 			// 2 to 9: cargo, thrown.
 			constexpr std::array kCargo{"crate", "ball",  "capsule", "drum",
 			                            "shard", "crate", "ball",    "shard"};
@@ -262,6 +265,7 @@ void Feed(Sim::SimWorld &world, std::uint64_t step)
 				        0.0,
 				        kHalcyon});
 			}
+
 			// 10 and 11: two crates meeting in Vesper, at the coordinates the bay has in Halcyon.
 			commands.Push(
 			    Launch{
@@ -365,6 +369,7 @@ TEST_CASE("Physics replay: bodies collide, and the same commands give the same s
 	CHECK(inside == 8);
 	CHECK(physics.BodyCount(kHalcyon) == 10);
 	CHECK(physics.BodyCount(kVesper) == 3);
+
 	// Vesper's crates met and parted, at the coordinates where the bay's walls are in Halcyon.
 	CHECK(registry.get<Velocity>(Id(10)).linear.x < 0.0f);
 	CHECK(registry.get<Velocity>(Id(11)).linear.x > 0.0f);
@@ -383,6 +388,7 @@ TEST_CASE("Physics replay: a world saved part-way and loaded carries on exactly 
 	Sim::SimWorld original{kStep, kSeed};
 	Populate(original);
 	Run(original, 130);
+
 	// Commands still queued are part of the save.
 	Feed(original, 150);
 	const std::vector<std::byte> save = original.Save();

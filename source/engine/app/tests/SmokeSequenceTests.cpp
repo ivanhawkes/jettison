@@ -37,10 +37,12 @@ bool RunSequence(
 	actions.iconify = [] {};
 	actions.restore = [] {};
 	actions.reload = [] {};
+
 	// The chase camera, then the cockpit.
 	actions.pilot = [&](bool cockpit)
 	{
 		CHECK(cockpit == (pilots == 1));
+
 		// The second waits for the first to have shown.
 		CHECK(pilotLeft == 0);
 		++pilots;
@@ -49,6 +51,7 @@ bool RunSequence(
 	};
 	if (pilotFrames)
 		actions.piloting = [&] { return pilotLeft > 0; };
+
 	// Answered two frames on, after both pilot stages.
 	int picks = 0;
 	int pickLeft = 0;
@@ -61,6 +64,7 @@ bool RunSequence(
 		return true;
 	};
 	actions.picking = [&] { return pickLeft > 0; };
+
 	// After the pick is answered.
 	int saves = 0;
 	actions.saveAndLoad = [&]
@@ -70,6 +74,7 @@ bool RunSequence(
 		++saves;
 		return saveLoads;
 	};
+
 	// After the save.
 	int trades = 0;
 	int tradeLeft = 0;
@@ -136,6 +141,7 @@ TEST_CASE("Smoke sequence: a save that does not load back as it was is a failure
 TEST_CASE("Smoke sequence: a market screen has to show the snapshot's market and its trade's answer")
 {
 	CHECK(RunSequence(true, true, true, {}));
+
 	// A system with no market is not a market tested, and not a failure.
 	CHECK(RunSequence(true, true, true, {.present = false}));
 	CHECK_FALSE(RunSequence(true, true, true, {.screenWrong = true}));

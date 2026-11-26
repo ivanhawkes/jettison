@@ -27,11 +27,13 @@ int FixedStepAccumulator::Accumulate(double scaledDelta)
 {
 	JETTISON_ASSERT(scaledDelta >= 0.0);
 	m_accumulated += scaledDelta;
+
 	// The quotient can round to the next whole number when the remainder is a hair short of a
 	// step, which leaves the remainder a hair below zero; it is clamped rather than carried as
 	// debt into the next frame.
 	const double whole = std::floor(m_accumulated / m_fixedStep);
 	m_accumulated = std::max(0.0, m_accumulated - whole * m_fixedStep);
+
 	// Compared as doubles before the conversion: a debugger pause can make whole too large for an
 	// int.
 	if (whole <= static_cast<double>(m_maxStepsPerFrame))

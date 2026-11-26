@@ -73,6 +73,7 @@ bool InsideClipVolume(const CameraView &camera, const glm::dvec3 &point)
 	    ReversedInfinitePerspective(camera.verticalFov, static_cast<float>(kAspect), camera.nearPlane)};
 	const glm::dmat4 view{glm::mat4_cast(glm::conjugate(camera.orientation))};
 	const glm::dvec4 clip = projection * view * glm::dvec4{point, 1.0};
+
 	// Reversed: depth is 1 on the near plane and falls towards 0 at infinity.
 	return clip.w > 0.0 && std::abs(clip.x) <= clip.w && std::abs(clip.y) <= clip.w && clip.z <= clip.w;
 }
@@ -119,6 +120,7 @@ TEST_CASE("Culling: a sphere the frustum leaves out has no point inside the view
 			REQUIRE_FALSE(InsideClipVolume(camera, point));
 		}
 	}
+
 	// The view covers a fraction of the space around the camera, so most spheres are left out.
 	CHECK(culled > 1000);
 	CHECK(kept > 100);
@@ -136,6 +138,7 @@ TEST_CASE("Culling: a sphere whose centre is in view is kept, whatever its size"
 		    forward * double{random.Range(1.0f, 1.0e7f)}, double{random.Range(0.0f, 1.0f)}};
 		CHECK(Intersects(ViewFrustum(camera, kAspect), sphere));
 	}
+
 	// Behind the camera, and clear of the near plane, nothing is.
 	const CameraView camera;
 	CHECK_FALSE(Intersects(ViewFrustum(camera, kAspect), {{0.0, 0.0, 5.0}, 1.0}));
@@ -176,17 +179,21 @@ TEST_CASE("Culling: what a planet's horizon hides is behind the planet along eve
 TEST_CASE("Culling: a station over the planet is hidden from the far side, and not from above")
 {
 	const double radius = 6.371e6;
+
 	// The camera 400 km up; a station as high on the far side of the planet, and one beside the camera.
 	const HorizonOccluder planet{{{0.0, -(radius + 4.0e5), 0.0}, radius}};
 	const BoundingSphere farSide{{0.0, -2.0 * (radius + 4.0e5), 0.0}, 100.0};
 	const BoundingSphere beside{{200.0, 0.0, 0.0}, 100.0};
+
 	// How far the horizon is from the camera.
 	const double horizon = std::sqrt((radius + 4.0e5) * (radius + 4.0e5) - radius * radius);
 	CHECK(Occludes(planet, farSide));
 	CHECK_FALSE(Occludes(planet, beside));
+
 	// The planet's own bounds are never hidden by itself, and a camera inside it hides nothing.
 	CHECK_FALSE(Occludes(planet, {planet.sphere.center, radius * 1.001}));
 	CHECK_FALSE(Occludes({{{0.0, 0.0, 0.0}, 10.0}}, farSide));
+
 	// A sphere straddling the horizon's plane is not wholly behind it.
 	const glm::dvec3 tangent = glm::normalize(glm::dvec3{radius, -horizon, 0.0});
 	CHECK_FALSE(Occludes(planet, {tangent * horizon * 1.5, 1.0e5}));
@@ -257,10 +264,12 @@ TEST_CASE("Culling: a level of detail is the coarsest whose projected error is u
 	camera.verticalFov = glm::radians(60.0f);
 	camera.nearPlane = 0.5f;
 	const LodSelection selection = MakeLodSelection(camera, 1080.0, 1.0);
+
 	// 1080 pixels over twice tan(30 degrees).
 	CHECK(selection.pixelsPerRadian == doctest::Approx(1080.0 / (2.0 * std::tan(glm::radians(30.0)))));
 
 	const std::vector<ModelLod> lods{{0, 1, 0.0f}, {1, 1, 0.001f}, {2, 1, 0.004f}, {3, 1, 0.016f}};
+
 	// An error of e metres at distance d covers e * pixelsPerRadian / d pixels: the level whose error
 	// times the scale is under d / pixelsPerRadian.
 	const double scale = 10.0;
@@ -273,8 +282,10 @@ TEST_CASE("Culling: a level of detail is the coarsest whose projected error is u
 		if (chosen + 1 < lods.size())
 			CHECK(ProjectedError(lods[chosen + 1].error * scale, sphere, selection) > 1.0);
 	}
+
 	// From inside the bounds, the distance is the near plane's, and the finest level is drawn.
 	CHECK(SelectLod(lods, scale, {{0.0, 0.0, 0.0}, 10.0}, selection) == 0u);
+
 	// Far enough off, the coarsest.
 	CHECK(SelectLod(lods, scale, {{0.0, 0.0, -1.0e6}, 10.0}, selection) == 3u);
 }
@@ -320,8 +331,10 @@ TEST_CASE("Culling: a draw narrower than a pixel in two of its directions is too
 	// lines: under a pixel across however long it is. From 300 m, it is seen.
 	CHECK_FALSE(seen({0.5, 0.02, 90.0}, 1500.0));
 	CHECK(seen({0.5, 0.02, 90.0}, 300.0));
+
 	// The pad's plate it is painted on, as thin and 80 m wide, is seen from as far.
 	CHECK(seen({40.0, 0.025, 90.0}, 1500.0));
+
 	// So is anything near the camera, however small.
 	CHECK(seen({0.01, 0.01, 0.01}, 0.0));
 }

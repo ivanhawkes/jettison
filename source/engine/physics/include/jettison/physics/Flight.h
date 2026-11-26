@@ -23,8 +23,10 @@ struct Handling
 	float reverse{15.0f};
 	float lateral{15.0f};
 	float vertical{15.0f};
+
 	// Radians a second squared about the vehicle's X (pitch), Y (yaw) and Z (roll).
 	glm::vec3 angularAcceleration{2.5f, 2.0f, 3.5f};
+
 	// With flight assist, the speed the vehicle is held to relative to its reference, along each of its
 	// axes, and how fast it is let turn about each.
 	float maxSpeed{150.0f};

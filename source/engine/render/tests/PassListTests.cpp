@@ -175,6 +175,7 @@ TEST_CASE("Pass list: transfer passes fill before compute and copy out after the
 	    reset->before ==
 	    std::vector<Usage>{
 	        Usage::StorageWriteCompute, Usage::StorageReadFragment, Usage::TransferRead});
+
 	// The copy waits on the compute write, which the fragment read before it did not make
 	// visible to transfers.
 	const Barrier *readback = Find(plan.passes[3].barriers, indices);

@@ -105,10 +105,12 @@ void GpuProfiler::Collect(std::uint32_t slot)
 {
 	if (m_pool == VK_NULL_HANDLE || !m_slotRecorded[slot])
 		return;
+
 	// Once: a slot waited on again before it records another frame has nothing new.
 	m_slotRecorded[slot] = false;
 	const auto passes = static_cast<std::uint32_t>(m_passNames.size());
 	std::vector<std::uint64_t> stamps(std::size_t{2} * passes);
+
 	// The slot's fence has been waited on, so every query its frame wrote is available.
 	const VkResult result = vkGetQueryPoolResults(
 	    m_pDeviceContext->GetLogicalDevice(), m_pool, slot * 2 * passes, 2 * passes,

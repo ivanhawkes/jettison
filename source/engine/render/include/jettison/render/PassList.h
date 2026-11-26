@@ -94,6 +94,7 @@ struct PassPlan
 {
 	// In the order the passes were added, each with the barriers recorded before it.
 	std::vector<PlannedPass> passes;
+
 	// After the last pass: what leaves each exported resource in its final use.
 	std::vector<Barrier> final;
 };

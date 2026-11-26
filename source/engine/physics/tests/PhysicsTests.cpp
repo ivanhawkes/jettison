@@ -149,6 +149,7 @@ TEST_CASE("Physics: every kind of shape is built, and one that describes none is
 	ShapeDefinition cylinder;
 	cylinder.kind = ShapeKind::Cylinder;
 	cylinder.radius = 2.0f;
+
 	// Thinner than Jolt's rounded edge: the edge is made to fit.
 	cylinder.halfHeight = 0.02f;
 	ShapeDefinition hull;
@@ -286,6 +287,7 @@ TEST_CASE("Physics: a kinematic station on its orbit stops a ship that flies int
 	station.shape = "hull";
 	const glm::dvec3 origin{1.496e11, 0.0, 4.2e7};
 	const entt::entity hub = fixture.Add(station, origin);
+
 	// The ship keeps pace with the station, closing on it at 5 m/s from 19 m off its face.
 	const entt::entity ship =
 	    fixture.Add(Dynamic("crate"), origin - glm::dvec3{30.0, 0.0, 0.0}, {7705.0f, 0.0f, 0.0f});
@@ -293,6 +295,7 @@ TEST_CASE("Physics: a kinematic station on its orbit stops a ship that flies int
 	fixture.Run(6.0);
 	const double gap = fixture.Position(hub).x - fixture.Position(ship).x;
 	CHECK(fixture.Position(hub).x == doctest::Approx(origin.x + kOrbitalSpeed * 6.0));
+
 	// Against the station's face, at the station's speed: Jolt's speed limit is the settings',
 	// not its own 500 m/s.
 	CHECK(gap == doctest::Approx(11.0).epsilon(0.01));
@@ -345,6 +348,7 @@ TEST_CASE("Physics: a body is in its system's world, and leaves it with its enti
 {
 	Fixture fixture;
 	entt::registry &registry = fixture.world.Registry();
+
 	// Two systems' balls at the same coordinates are a system apart; two in one system overlap and
 	// are pushed out of each other.
 	const entt::entity here = fixture.Add(Dynamic("ball"), {0.0, 0.0, 0.0});
@@ -437,6 +441,7 @@ TEST_CASE("Physics: a system full of bodies refuses the next")
 	world.Step();
 	add(20.0);
 	CHECK_THROWS_WITH_AS(world.Step(), doctest::Contains("has its 2 already"), std::invalid_argument);
+
 	// One leaving makes room in the same step.
 	registry.destroy(second);
 	world.Step();

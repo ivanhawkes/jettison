@@ -23,6 +23,7 @@
 namespace
 {
 constexpr Jettison::Core::Category kTestLog{"test"};
+
 // What a child exits with when the build's sanitiser keeps the signals and nothing was installed.
 constexpr int kNotInstalled = 3;
 
@@ -132,6 +133,7 @@ TEST_CASE("Crash: a fault writes a report of the signal, the frames and the log'
 	CHECK(Has(report, "\nBuild the platform suite 1.2.3\n"));
 	CHECK(Has(report, "\nCommand "));
 	CHECK(Has(report, "jettison_platform_tests"));
+
 	// Frame 0 is the instruction that faulted, in this executable.
 	CHECK(Has(report, "\n  #00 0x"));
 	CHECK(Has(report, "/jettison_platform_tests+0x"));
@@ -143,6 +145,7 @@ TEST_CASE("Crash: a fault writes a report of the signal, the frames and the log'
 	}
 	CHECK(Has(report, "The log's tail:\n["));
 	CHECK(Has(report, "[info] [test] the line before the fault (CrashTests.cpp:"));
+
 	// stderr has the head and the frames, and where the report is, not the tail.
 	CHECK(Has(crashed.stderrText, "Fatal signal SIGSEGV (11)"));
 	CHECK(Has(crashed.stderrText, "/jettison_platform_tests+0x"));

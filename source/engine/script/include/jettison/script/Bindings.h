@@ -68,10 +68,13 @@ struct ValueLayout
 	std::uint32_t align{1};
 	std::uint8_t width{0};
 	std::uint8_t count{1};
+
 	// The value's own type, as the engine holds it.
 	entt::meta_type type;
+
 	// The C name the header gives it: "int64_t", "jettison_dvec3", "Dock_Box".
 	std::string cName;
+
 	// For a Struct, its type's layout; for an Array, its element's.
 	const TypeLayout *pStruct{nullptr};
 	std::shared_ptr<const ValueLayout> element;
@@ -88,12 +91,14 @@ struct FieldLayout
 struct TypeLayout
 {
 	entt::meta_type type;
+
 	// The registered name, "Dock.Landed", and the header's, "Dock_Landed".
 	std::string name;
 	std::string cName;
 	std::uint32_t size{0};
 	std::uint32_t align{1};
 	std::vector<FieldLayout> fields;
+
 	// The fields a script does not see, by name, with the reason.
 	std::vector<std::string> omitted;
 };
@@ -133,6 +138,7 @@ class Bindings
 
 	// Keyed by EnTT's type hash; looked up and never iterated for an outcome.
 	std::map<entt::id_type, std::unique_ptr<TypeLayout>> m_layouts;
+
 	// The types being laid out, to refuse one that holds itself.
 	std::vector<entt::id_type> m_making;
 };

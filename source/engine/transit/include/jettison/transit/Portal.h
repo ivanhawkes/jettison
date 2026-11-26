@@ -84,9 +84,11 @@ struct InPortal
 	// The frame it left (Sim::FrameId) and the entrance it went in by.
 	std::uint64_t from{0};
 	std::string entrance;
+
 	// The frame it comes out in, the one it left or another, and the exit it comes out of.
 	std::uint64_t to{0};
 	std::string exit;
+
 	// The clock's step count once it has come out (Time::SimClock::Step): it comes out as the step
 	// before that one ends.
 	std::uint64_t arrivalStep{0};
@@ -114,6 +116,7 @@ class Portals
 {
   public:
 	static constexpr std::string_view kSystemName = "portals";
+
 	// Metres an arrival keeps from what is already there.
 	static constexpr double kArrivalClearance = 1.0;
 

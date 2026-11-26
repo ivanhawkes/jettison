@@ -166,6 +166,7 @@ void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCa
 	bool gamepadRead = false;
 	bool hasGamepad = false;
 	std::array<JoystickState, Input::kJoystickCount> joysticks{};
+
 	// Which slot each binding's joystick number reads: the map's answer for the devices plugged in
 	// now, or the slot of that number with no map.
 	std::array<std::optional<std::uint8_t>, Input::kJoystickCount> slots{};
@@ -185,6 +186,7 @@ void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCa
 			const int id = GLFW_JOYSTICK_1 + *slots[number];
 			int axes = 0;
 			int buttons = 0;
+
 			// Null, with counts of zero, for a slot with nothing in it.
 			const float *axis = glfwGetJoystickAxes(id, &axes);
 			const unsigned char *button = glfwGetJoystickButtons(id, &buttons);
@@ -218,6 +220,7 @@ void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCa
 					hasGamepad = glfwJoystickIsGamepad(GLFW_JOYSTICK_1) == GLFW_TRUE &&
 					             glfwGetGamepadState(GLFW_JOYSTICK_1, &gamepad) == GLFW_TRUE;
 				}
+
 				// A gamepad unplugged reads as released and centred, not as frozen where it was.
 				if (code.device == Input::Device::GamepadButton && code.code >= 0 &&
 				    code.code <= GLFW_GAMEPAD_BUTTON_LAST)
@@ -233,6 +236,7 @@ void GlfwInput::Feed(GLFWwindow *window, Input::InputSystem &input, bool mouseCa
 			{
 				if (code.joystick >= Input::kJoystickCount || code.code < 0)
 					break;
+
 				// One unplugged, or an axis or button it does not have, reads centred and released.
 				const JoystickState &state = joystick(code.joystick);
 				const auto index = static_cast<std::size_t>(code.code);

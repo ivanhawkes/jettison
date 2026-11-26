@@ -519,14 +519,15 @@ first finding stops the run.
 
 ## Declaration spacing
 
-The blank lines above declarations ([coding standards](coding-standards.md#declaration-spacing)) are
-not in the gate: the check took about 50 s a run, for whitespace. Run it by hand from time to time,
+The blank lines above declarations and above a comment that follows code
+([coding standards](coding-standards.md#declaration-spacing)) are not in the gate: the check took about 50 s a run, for whitespace. Run it by hand from time to time,
 after a Debug build, whose compile database and module maps it reads:
 
 ```bash
 ./scripts/space-declarations.py --check            # names the files missing them; exit 1 if any
 ./scripts/space-declarations.py                    # adds them
 ./scripts/space-declarations.py --build build/clang-release   # read another build
+./scripts/space-declarations.py --root ../manifest  # another repository, its own build/clang-debug
 ```
 
 Commit what it changes as its own formatting commit.

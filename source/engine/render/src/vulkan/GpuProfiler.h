@@ -82,6 +82,7 @@ class GpuProfiler
 	std::uint32_t m_framesInFlight{0};
 	std::vector<std::string> m_passNames;
 	VkQueryPool m_pool{VK_NULL_HANDLE};
+
 	// Nanoseconds a timestamp tick is, and the bits of it that count.
 	double m_period{1.0};
 	std::uint64_t m_validMask{~std::uint64_t{0}};

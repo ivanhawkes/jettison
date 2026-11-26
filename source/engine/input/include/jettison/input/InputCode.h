@@ -35,6 +35,7 @@ struct InputCode
 {
 	Device device{Device::Keyboard};
 	std::int32_t code{0};
+
 	// Which joystick, numbered from 0, for a joystick's button or axis; 0 otherwise. JoystickMap
 	// (Joysticks.h) says which connected device answers to a number.
 	std::uint8_t joystick{0};
@@ -105,6 +106,7 @@ struct Binding
 	std::optional<InputCode> negative{};
 	float scale{1.0f};
 	float deadZone{0.0f};
+
 	// For a vector action: 0 drives x, 1 drives y.
 	std::uint8_t component{0};
 

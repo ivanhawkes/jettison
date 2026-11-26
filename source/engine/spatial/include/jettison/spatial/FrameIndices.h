@@ -58,6 +58,7 @@ class FrameIndices
 	{
 		entt::entity entity{entt::null};
 		std::uint64_t frame{0};
+
 		// The update that last found it.
 		std::uint64_t pass{0};
 	};

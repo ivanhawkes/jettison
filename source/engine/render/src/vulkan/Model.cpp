@@ -52,6 +52,7 @@ std::unique_ptr<Model> Model::FromMeshes(std::vector<MeshLevel> levels, std::str
 		if (level.vertices.empty() || level.indices.empty())
 			throw std::runtime_error(
 			    "A procedural model needs vertices and indices: " + std::string{name});
+
 		// One vertex and index buffer for every level, so a level is a run of indices into it.
 		const auto base = static_cast<uint32_t>(model.m_vertices.size());
 		const auto firstIndex = static_cast<uint32_t>(model.m_indices.size());
@@ -74,6 +75,7 @@ void Model::Upload(DeviceContext &deviceContext, const std::string &name)
 	m_indexBuffer = deviceContext.CreateDeviceBuffer(
 	    m_indices.data(), static_cast<VkDeviceSize>(sizeof(m_indices[0])) * m_indices.size(),
 	    VK_BUFFER_USAGE_INDEX_BUFFER_BIT, name + "-index");
+
 	// The device has its copy; the primitives keep their index counts, and the bounds are made.
 	std::vector<Vertex>{}.swap(m_vertices);
 	std::vector<uint32_t>{}.swap(m_indices);
@@ -101,6 +103,7 @@ void Model::ComputeBounds()
 		minimum = glm::min(minimum, vertex.pos);
 		maximum = glm::max(maximum, vertex.pos);
 	}
+
 	// Around the box's centre, out to the furthest vertex: tighter than the box's own corners.
 	m_bounds.center = (minimum + maximum) * 0.5f;
 	float radiusSquared = 0.0f;

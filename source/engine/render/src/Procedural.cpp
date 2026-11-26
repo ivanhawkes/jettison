@@ -18,12 +18,15 @@ namespace
 // Enough for a planet's limb to read as round from low orbit: chords 0.45 km short of the
 // surface on an Earth-sized body, about a pixel from 400 km at 1080p.
 constexpr int kSphereSegments = 256;
+
 // 10 242 vertices, edges 1.2 degrees of arc long: about the UV sphere's chord at the equator.
 constexpr int kIcoSubdivisions = 6;
+
 // 64 x 64 cells a face: 1.4 degrees of arc a cell at a face's middle.
 constexpr int kCubeSphereSegments = 64;
 constexpr int kRingSegments = 256;
 constexpr int kCylinderSegments = 64;
+
 // Levels of detail a shape other than a box has, each half the resolution of the one before.
 constexpr int kLodLevels = 5;
 
@@ -146,6 +149,7 @@ MeshData IcoSphere(int subdivisions, const glm::vec3 &color)
 {
 	if (subdivisions < 0 || subdivisions > 9)
 		throw std::invalid_argument("An ico sphere takes from 0 to 9 subdivisions");
+
 	// The twelve corners are the cyclic permutations of (0, +-1, +-golden ratio).
 	const auto golden = static_cast<float>((1.0 + std::sqrt(5.0)) / 2.0);
 	std::vector<glm::vec3> positions{
@@ -226,6 +230,7 @@ MeshData CubeSphere(int segments, const glm::vec3 &color)
 				    cube.z *
 				        std::sqrt(
 				            1.0f - squared.x / 2.0f - squared.y / 2.0f + squared.x * squared.y / 3.0f)};
+
 				// The mapping lands on the sphere to within float rounding; the normalise is for the
 				// normal, which has to be unit length.
 				const glm::vec3 unit = glm::normalize(sphere);
@@ -247,11 +252,13 @@ MeshData CubeSphere(int segments, const glm::vec3 &color)
 MeshData Ring(int segments, float innerRadius, const glm::vec3 &color)
 {
 	CheckSegments(segments, 3, "ring");
+
 	// NaN is refused too.
 	if (std::isnan(innerRadius) || innerRadius < 0.0f || innerRadius >= 1.0f)
 		throw std::invalid_argument("A ring's inner radius is from 0 up to, not including, 1");
 	MeshData mesh;
 	const auto columns = static_cast<std::uint32_t>(segments + 1);
+
 	// The face up, then the face down: the same rim, the other normal and the other winding.
 	for (const float side : {1.0f, -1.0f})
 	{
@@ -274,6 +281,7 @@ MeshData Ring(int segments, float innerRadius, const glm::vec3 &color)
 		{
 			const std::uint32_t inner = base + segment;
 			const std::uint32_t outer = inner + columns;
+
 			// Azimuth runs anticlockwise seen from +Y, so inner, outer, next outer faces up.
 			if (side > 0.0f)
 				mesh.indices.insert(
@@ -352,6 +360,7 @@ float SphereTessellationError(const MeshData &mesh)
 		const glm::dvec3 b{mesh.vertices[mesh.indices[triangle + 1]].pos};
 		const glm::dvec3 c{mesh.vertices[mesh.indices[triangle + 2]].pos};
 		const glm::dvec3 normal = glm::cross(b - a, c - a);
+
 		// A UV sphere's pole triangles have two corners at the pole and no area.
 		const double area = glm::length(normal);
 		if (area < 1e-12)

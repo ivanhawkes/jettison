@@ -46,6 +46,7 @@ TEST_CASE("Particles: an emitter keeps its share of the pool while it is drawn, 
 	ParticlePool pool{256};
 	ParticleEmitterComponent small;
 	small.capacity = 10;
+
 	// A particle each on its first frame, so each is drawn: one with nothing alive is not.
 	small.burst = 1;
 	ParticleEmitterComponent large;
@@ -59,6 +60,7 @@ TEST_CASE("Particles: an emitter keeps its share of the pool while it is drawn, 
 	CHECK(draws[0].gpu.slots.y == 10u);
 	CHECK(draws[1].gpu.slots.x == 64u);
 	CHECK(pool.UsedSlots() == 256u);
+
 	// A new emitter's slots are emptied on its first frame, and not after.
 	CHECK(draws[0].gpu.spawn.z == 1u);
 	draws = Step(pool, {At(1, small, {}), At(2, large, {})}, 0.0);
@@ -111,6 +113,7 @@ TEST_CASE("Particles: births follow the rate across frames, with a burst first a
 	{
 		const auto draws = Step(pool, {At(1, emitter, {})}, 1.0 / 60.0);
 		REQUIRE(draws.size() == 1);
+
 		// Each frame's births follow on from the last's, round the ring, numbered in order.
 		CHECK(draws[0].gpu.spawn.x == serial);
 		CHECK(draws[0].gpu.slots.z == cursor);
@@ -118,6 +121,7 @@ TEST_CASE("Particles: births follow the rate across frames, with a burst first a
 		serial += draws[0].gpu.slots.w;
 		cursor = (cursor + draws[0].gpu.slots.w) % emitter.capacity;
 	}
+
 	// A second at 30 a second, and the first frame's burst; the carry may hold back the last one.
 	CHECK(born >= 34u);
 	CHECK(born <= 35u);
@@ -144,6 +148,7 @@ TEST_CASE("Particles: births follow the rate across frames, with a burst first a
 	Step(pool, {At(1, emitter, {})}, 0.25);
 	CHECK(Step(pool, {At(1, emitter, {})}, 0.1).empty());
 	CHECK(pool.UsedSlots() == 128u);
+
 	// Born into again, its slots are not emptied: nothing has been stepped since they were.
 	emitter.pulses = 3;
 	draws = Step(pool, {At(1, emitter, {})}, 0.1);
@@ -158,6 +163,7 @@ TEST_CASE("Particles: an emitter is placed in its particles' frame, and moves th
 	ParticlePool pool{256};
 	ParticleEmitterComponent emitter;
 	emitter.spread = 0.5f;
+
 	// The frame a scaled, turned body far off; the emitter a little way from it, pointing along X.
 	const glm::dvec3 centre{1.0e9, 0.0, 0.0};
 	const glm::dmat4 frame = glm::scale(
@@ -176,11 +182,13 @@ TEST_CASE("Particles: an emitter is placed in its particles' frame, and moves th
 	pool.Update(std::vector{input}, camera, 0.1, draws);
 	REQUIRE(draws.size() == 1);
 	const GpuEmitter &gpu = draws[0].gpu;
+
 	// The frame's scale is not in it, and its centre is taken off the camera's in double precision.
 	CHECK(glm::length(glm::vec3{gpu.frameToRender[0]}) == Approx(1.0));
 	CHECK(gpu.frameToRender[3].z == Approx(-50.0));
 	CHECK(gpu.origin.y == Approx(10.0));
 	CHECK(gpu.axis.w == Approx(std::cos(0.5)));
+
 	// Sent along the world's +X, the emitter's -Z: in the frame, turned a quarter about Y, that is +Z.
 	CHECK(gpu.axis.z == Approx(1.0).epsilon(1e-6));
 	CHECK(gpu.inherited.y == Approx(0.0));
@@ -225,6 +233,7 @@ TEST_CASE("Particles: particles.glsl's births are in the cone, the sphere and th
 		meanRandom += random;
 	}
 	CHECK(meanRandom / 2000.0 == Approx(0.5).epsilon(0.03));
+
 	// The same serial is the same particle, and another is not.
 	CHECK(SpawnParticle(emitter, 3, 0, 1).positionAge == SpawnParticle(emitter, 3, 0, 1).positionAge);
 	CHECK(SpawnParticle(emitter, 3, 0, 1).positionAge != SpawnParticle(emitter, 4, 0, 1).positionAge);
@@ -253,11 +262,14 @@ TEST_CASE(
 		stepped = StepParticle(stepped, 0.1f, 0.7f);
 	CHECK(stepped.positionAge.x == Approx(once.positionAge.x).epsilon(1e-5));
 	CHECK(stepped.velocityLifetime.x == Approx(once.velocityLifetime.x).epsilon(1e-5));
+
 	// Drag: e^-0.7 of the speed left, and the distance its integral.
 	CHECK(once.velocityLifetime.x == Approx(10.0 * std::exp(-0.7)).epsilon(1e-5));
 	CHECK(once.positionAge.x == Approx(10.0 * (1.0 - std::exp(-0.7)) / 0.7).epsilon(1e-5));
+
 	// Without drag, it coasts.
 	CHECK(StepParticle(start, 2.0f, 0.0f).positionAge.x == Approx(20.0));
+
 	// At its lifetime the slot holds none.
 	CHECK(StepParticle(start, 5.0f, 0.0f).velocityLifetime.w == 0.0f);
 	CHECK(StepParticle(start, 4.9f, 0.0f).velocityLifetime.w == 5.0f);

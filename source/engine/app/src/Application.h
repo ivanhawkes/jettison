@@ -315,6 +315,7 @@ class Application final : private Shell
 
 	AppArguments m_arguments;
 	std::string m_windowTitle;
+
 	// The game composed into the shell, or the shell's own Game, which does nothing.
 	Game m_noGame;
 	Game *m_pGame;
@@ -324,6 +325,7 @@ class Application final : private Shell
 	// run with none named makes a directory of its own (m_scratchUser) and removes it in Shutdown.
 	Platform::Paths m_userPaths;
 	std::filesystem::path m_scratchUser;
+
 	// The settings file in the configuration directory, read in InitUser, and the joysticks' names
 	// in it, which the input feed reads its devices through.
 	std::optional<Settings> m_settings;
@@ -332,8 +334,10 @@ class Application final : private Shell
 	// writable, which saves go to. The scene's files and the renderer's
 	// programs are found through it, so a mount added above the base can replace one.
 	Vfs::FileSystem m_assets;
+
 	// The mods mounted, in order, with their versions: what a save records it was made with.
 	std::vector<Sim::ModVersion> m_mods;
+
 	// The resources read from it on the I/O worker - the scene's rigs, the renderer's models,
 	// materials and textures - which hot-reload in a development build. Updated once a frame,
 	// before the render. The worker outlives the manager, and the manager the scene and the
@@ -353,35 +357,46 @@ class Application final : private Shell
 
 	// The scene's update: made with the resource manager, which it reads the rigs from.
 	std::optional<Scene::SceneUpdateSystem> m_sceneUpdateSystem;
+
 	// The clips' events the scene's update crossed this frame, for the audio's update to play.
 	std::vector<Scene::ClipEventFired> m_clipEvents;
+
 	// The cinematics' player, after the camera rigs; made with the resource manager it reads them
 	// from.
 	std::optional<Scene::SequenceSystem> m_sequences;
+
 	// Whether the last frame showed a sequence's fade, which the next clears once it is over.
 	bool m_sequenceFaded{false};
 
 	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
 	// include the time start-up took.
 	Time::RealClock m_frameClock;
+
 	// When the frame started, read once and handed to everything the frame times.
 	Time::RealClock::Clock::time_point m_frameStart{};
+
 	// When the frame loop started: the presentation time the materials' time-driven parameters
 	// read is the frame's start less this, in seconds, as a double.
 	Time::RealClock::Clock::time_point m_loopStart{};
+
 	// The clocks' seconds since the loop started, when each frame moves them a fixed step
 	// (AppArguments::frameStep).
 	double m_fixedTime{0.0};
+
 	// Frames ticked, held ones included: against m_fixedTime, how many a load held.
 	std::uint64_t m_frameIndex{0};
+
 	// Frames in a row begun with nothing loading, and whether the screenshot the run was asked for
 	// has been taken.
 	std::uint32_t m_quietFrames{0};
 	bool m_screenshotTaken{false};
+
 	// The --run lines given a frame or a simulation time that have not run yet, in the order given.
 	std::vector<RunCommand> m_pendingCommands;
+
 	// Whether this frame's render recreated the swapchain, for the headless sequence.
 	bool m_frameResized{false};
+
 	// The benchmark's frames so far, warm-up included, and when the timed ones began.
 	std::uint32_t m_benchmarkFrame{0};
 	Time::RealClock::Clock::time_point m_benchmarkStart{};
@@ -400,11 +415,14 @@ class Application final : private Shell
 	static constexpr std::uint64_t kSimSeed = 0;
 	Sim::SimWorld m_sim{kSimStep, kSimSeed};
 	Sim::Stepper m_simStepper{m_sim};
+
 	// Attached in the constructor, and the world's from then on.
 	Physics::PhysicsWorld *m_pPhysics{nullptr};
+
 	// The definitions, the engine's and the game's (Game::LoadDefinitions), read through the asset tree
 	// in InitResources.
 	std::optional<Sim::DefinitionRegistry> m_definitions;
+
 	// The mods' scripts (defs/scripts), made beside the definitions in InitResources: given every
 	// event TakeEvents takes, and answering the traders' inputs they name. After the world, so it goes
 	// before it, and no step runs once it has.
@@ -413,12 +431,14 @@ class Application final : private Shell
 	// The simulation time presentation showed last frame, which the camera a pick is drawn from
 	// showed, and which the pick is cast at.
 	double m_shownTime{0.0};
+
 	// A click this frame, sent in the commands phase; the last pick's request, and whether it is
 	// unanswered.
 	std::optional<glm::dvec2> m_clicked;
 	std::uint64_t m_pickRequest{0};
 	double m_pickTime{0.0};
 	bool m_pickPending{false};
+
 	// What the last answer hit, where relative to the origin of its frame (Game::PickOrigin), and its
 	// normal.
 	struct PickedMark
@@ -429,6 +449,7 @@ class Application final : private Shell
 		glm::vec3 normal{0.0f};
 	};
 	std::optional<PickedMark> m_picked;
+
 	// The outline on what was picked, placed on its proxy each frame (MarkScene), and the proxy the
 	// shell placed it on, to take it off again.
 	entt::entity m_outlined{entt::null};
@@ -445,10 +466,12 @@ class Application final : private Shell
 	Input::ActionId m_toggleConsole;
 	Input::ActionId m_back;
 	Input::ActionId m_toggleDebugDraw;
+
 	// F3: the lights-per-cluster heat map in place of the shaded scene; F4: the sun's shadow cascades.
 	Input::ActionId m_toggleClusterHeat;
 	Input::ActionId m_toggleShadowCascades;
 	Input::ActionId m_toggleAmbientAccess;
+
 	// The orbit camera: W, A, S and D turn it, Q and E zoom, the right mouse button drags it, and C
 	// moves it to the next target.
 	Input::ActionId m_cameraOrbit;
@@ -456,17 +479,22 @@ class Application final : private Shell
 	Input::ActionId m_cameraDrag;
 	Input::ActionId m_cameraLook;
 	Input::ActionId m_cameraNext;
+
 	// The wheel zooms the orbit camera too, a step a notch.
 	Input::ActionId m_cameraWheel;
+
 	// L: the saved games, shown and hidden.
 	Input::ActionId m_toggleSaves;
+
 	// F5 saves to "quicksave", and F9 loads it.
 	Input::ActionId m_quickSave;
 	Input::ActionId m_quickLoad;
+
 	// The left mouse button: pick what is under the cursor.
 	Input::ActionId m_pickAction;
 	GlfwInput m_glfwInput;
 	bool m_consoleContext{false};
+
 	// The game's context, and the one pushed.
 	std::string m_gameContext;
 	std::string m_pushedGameContext;
@@ -475,6 +503,7 @@ class Application final : private Shell
 	// references to it: members go in reverse order, so the console is destroyed first and its
 	// references never outlast what they refer to.
 	DevTools::ThemeSettings m_theme;
+
 	// The console captures the log from construction, so start-up's messages are in it.
 	DevTools::Console m_console;
 	DevTools::DevToolsState m_devTools;
@@ -492,15 +521,18 @@ class Application final : private Shell
 	// The renderer's cluster check over the run, which the headless run turns on and judges once the
 	// renderer is gone: copied out of it as the frame loop ends.
 	Render::ClusterCheckTotals m_clusterChecks;
+
 	// The game UI: RmlUi, drawing into the overlay the renderer draws over the scene. Made after the
 	// window, so its size is the frame's, and released before the renderer.
 	std::unique_ptr<Ui::UiSystem> m_pUi;
+
 	// The game's sound, which the events of the player's own vehicle play through. Released before the
 	// UI; it holds nothing of the renderer's.
 	std::unique_ptr<Audio::AudioSystem> m_pAudio;
 	std::optional<Audio::EventSounds> m_eventSounds;
 	Audio::SoundSources m_soundSources;
 	Audio::SourceHandle m_music;
+
 	// The warnings and errors the audio logged over the run, and the sounds that would not play,
 	// which the headless run holds at none.
 	std::size_t m_audioProblems{0};
@@ -508,8 +540,10 @@ class Application final : private Shell
 	Ui::DocumentHandle m_savesDocument;
 	bool m_showSaves{false};
 	SavesScreen m_savesScreen;
+
 	// The warnings and errors RmlUi logged over the run, which the headless run holds at none.
 	std::size_t m_uiProblems{0};
+
 	// The frame's size the UI was last given, in pixels.
 	glm::ivec2 m_uiSize{0};
 
@@ -518,6 +552,7 @@ class Application final : private Shell
 	bool m_benchmarkAmbientOcclusion{false};
 	Render::FrameStats m_frameStats;
 	std::uint64_t m_measuredFrames{0};
+
 	// What the benchmark ran on: the device, and the frame's size in pixels.
 	std::string m_deviceName;
 	std::uint32_t m_frameWidth{0};

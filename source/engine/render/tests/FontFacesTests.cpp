@@ -112,6 +112,7 @@ TEST_CASE("Fonts: a pack with no faces leaves the loader with none, and ImGui's 
 {
 	const HeadlessImGui imgui;
 	ImGuiIO &io = ImGui::GetIO();
+
 	// An assets tree with no fonts in it, on a scratch mount: the loader is asked for faces, gets
 	// none, and says so, and the run draws in ImGui's own face — which is how every test and a run
 	// with an asset pack that ships no faces at all looks.
@@ -129,6 +130,7 @@ TEST_CASE("Fonts: a pack with no faces leaves the loader with none, and ImGui's 
 	CHECK(faces.m_pUi == nullptr);
 	CHECK(faces.m_bytes.empty());
 	CHECK(io.FontDefault == nullptr); // named null, which is how ImGui's own default is asked for
+
 	// ImGui adds its own face to the atlas, and a frame needs the atlas built, which a backend
 	// normally does: no backend here, so the frame's own requirement is met the way the dev tools'
 	// tests meet it.

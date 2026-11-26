@@ -25,6 +25,7 @@ Input::ActionId Named(
 	try
 	{
 		const Input::ActionId action = input.Action(arguments[1]);
+
 		// Throws for a context that is not defined.
 		(void)input.Bindings(arguments[0], action);
 		return action;
@@ -47,6 +48,7 @@ void Settings::Load(Input::InputSystem &input)
 	try
 	{
 		m_config.LoadLayer(Core::ConfigLayer::User, m_file);
+
 		// Both parsed before either applies: the joysticks into a map of their own first.
 		Input::JoystickMap joysticks;
 		joysticks.Load(m_config);

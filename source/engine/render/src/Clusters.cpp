@@ -113,6 +113,7 @@ GpuLight PackLight(
 	packed.colorIntensity = glm::vec4{light.color, light.intensity};
 	if (light.type != Scene::LightType::Spot)
 		return packed;
+
 	// KHR_lights_punctual's form of the cone's falloff: a scale and offset on the cosine, so the
 	// fragment does one multiply-add rather than two cosines.
 	const float cosInner = std::cos(light.innerConeAngle);
@@ -134,6 +135,7 @@ ClusterCheck CheckClusterAssignment(
 		check.mismatch = std::format("the grid has {} clusters, not {}", grid.size(), kClusterCount);
 		return check;
 	}
+
 	// The clusters that reserved last lost their lights, in an order the atomic adds chose, so a
 	// cluster's list says nothing about the reference past this point.
 	check.overflowed = reserved > indices.size();

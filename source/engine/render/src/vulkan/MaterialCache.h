@@ -48,6 +48,7 @@ struct MaterialBinding
 	VkPipeline pipeline{VK_NULL_HANDLE};
 	VkDescriptorSet set{VK_NULL_HANDLE};
 	std::uint32_t parameterOffset{0};
+
 	// Its program's blend is ProgramBlend::Transparent: drawn in the transparent pass, sorted back to
 	// front, and casting no shadow. A model's own material never is.
 	bool transparent{false};
@@ -127,6 +128,7 @@ class MaterialCache
 	struct NamedMaterial
 	{
 		Resource::ResourceHandle<MaterialDefinition> definition;
+
 		// What the set and the resolution were built from; a revision that moves rebuilds them.
 		std::uint32_t definitionRevision{0};
 		std::array<Resource::ResourceHandle<TextureResource>, kMaterialTextureSlots> textures{};
@@ -136,8 +138,10 @@ class MaterialCache
 		bool transparent{false};
 		VkDescriptorPool pool{VK_NULL_HANDLE};
 		VkDescriptorSet set{VK_NULL_HANDLE};
+
 		// Set when the definition at definitionRevision cannot be drawn; a reload clears it.
 		bool failed{false};
+
 		// The last frame that resolved it, and the last that evaluated its parameters.
 		std::uint64_t resolvedFrame{0};
 		std::uint64_t parameterFrame{~std::uint64_t{0}};
@@ -200,6 +204,7 @@ class MaterialCache
 	RenderState m_sceneState;
 	RenderState m_transparentState;
 	VkSampler m_sampler{VK_NULL_HANDLE};
+
 	// The empty-slot textures, by TextureFallback.
 	std::array<Image, 3> m_fallbackImages{};
 	std::array<VkImageView, 3> m_fallbackViews{};

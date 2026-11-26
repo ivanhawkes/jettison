@@ -142,6 +142,7 @@ TEST_CASE("Definitions: every file under a directory is a definition, named by i
 	CHECK(hauler->mass == 4.5e5);
 	CHECK(hauler->cargo == 800);
 	CHECK(hauler->role == Role::Hauler);
+
 	// Left out, so the default.
 	CHECK(registry.Find<ShipClass>("military/corvette")->cargo == 0);
 	CHECK(registry.Find<ShipClass>("military/corvette")->role == Role::Fighter);
@@ -165,6 +166,7 @@ TEST_CASE("Definitions: a mod overrides a definition by its path, and adds new o
 	CHECK(
 	    registry.Names<ShipClass>() ==
 	    std::vector<std::string>{"fighter", "hauler", "military/corvette", "racer"});
+
 	// The whole definition is the mod's: nothing of the base's hauler is left.
 	CHECK(registry.Find<ShipClass>("hauler")->displayName == "Heavy Hauler");
 	CHECK(registry.Find<ShipClass>("hauler")->cargo == 2000);
@@ -204,6 +206,7 @@ TEST_CASE("Definitions: a file of an earlier version is migrated, so an old mod 
 	RegisterTypes();
 	const Scratch scratch;
 	PutBase(scratch);
+
 	// Version 2 gives a mass in kilograms where version 1 gave tonnes. The base was written at
 	// version 1, and a mod at 2.
 	scratch.Put("mod/defs/ships/racer.yaml", "version: 2\ndisplayName: Racer\nmass: 3000\n");
@@ -239,6 +242,7 @@ TEST_CASE("Definitions: a mod's patch changes the fields it names, and every mod
 	PutBase(scratch);
 	scratch.Put("mod/defs/ships/hauler.patch.yaml", "version: 1\ncargo: 1000\n");
 	scratch.Put("later/defs/ships/hauler.patch.yaml", "version: 1\ndisplayName: Big Hauler\n");
+
 	// A mod's patch goes over its own whole file too.
 	scratch.Put("mod/defs/ships/racer.yaml", "version: 1\ndisplayName: Racer\nmass: 3000\n");
 	scratch.Put("mod/defs/ships/racer.patch.yaml", "version: 1\nmass: ~\nrole: Fighter\n");
@@ -264,6 +268,7 @@ TEST_CASE("Definitions: a mod's patch changes the fields it names, and every mod
 	const auto *racer = registry.Find<ShipClass>("racer");
 	CHECK(racer->mass == 0.0);
 	CHECK(racer->role == Role::Fighter);
+
 	// What each mod changed in another's definition, or in its own, is said, naming the mods; a
 	// definition a mod adds is not another's. Replacing one is said too.
 	CHECK(

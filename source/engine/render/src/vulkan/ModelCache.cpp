@@ -94,6 +94,7 @@ void ModelCache::Destroy()
 void ModelCache::BeginFrame(std::uint64_t frameNumber)
 {
 	m_frame = frameNumber;
+
 	// As the material cache's: frame N's slot fence has been waited on, so frames up to
 	// N - kFramesInFlight are done, and an item retired at frame R was last recorded by frame R.
 	const auto done = std::stable_partition(

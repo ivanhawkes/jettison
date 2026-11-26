@@ -106,6 +106,7 @@ TEST_CASE(
 
 	const std::optional<double> above = approach.RunUntil(Dock::Stage::Descending, 300.0);
 	REQUIRE(above);
+
 	// Round the platform's sphere, not through it: no contact on the way.
 	CHECK(approach.collisions.empty());
 	const std::optional<double> landed = approach.RunUntil(Dock::Stage::Docked, 120.0);
@@ -143,6 +144,7 @@ TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up 
 	approach.Advance();
 	REQUIRE(approach.Events<Dock::Left>().size() == 1);
 	CHECK(approach.Docking()->stage == Dock::Stage::Leaving);
+
 	// Held on its berth until it is clear: no one else is given it.
 	CHECK(
 	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state ==
@@ -159,6 +161,7 @@ TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up 
 	CHECK(
 	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state == Dock::BerthState::Free);
 	CHECK(nearest > -0.01);
+
 	// Straight up over the berth, outside the platform's sphere, and held there.
 	const glm::dvec3 at = approach.FromRest(kShuttleHeight);
 	CHECK(std::hypot(at.x, at.z) < 5.0);
@@ -166,6 +169,7 @@ TEST_CASE("Docks: undocking lifts a ship clear of its pad, and gives the pad up 
 	    glm::distance(
 	        approach.world.Registry().get<Sim::Transform>(approach.vehicle).position,
 	        approach.world.Registry().get<Sim::Transform>(approach.platform).position) > 762.4);
+
 	// It lay on the deck as it was let go, and touched nothing else.
 	MESSAGE(approach.touched.size(), " contacts, as it was let go");
 	CHECK(approach.OnlyOnTheBerth());
@@ -184,6 +188,7 @@ TEST_CASE(
 	REQUIRE(approach.Events<Dock::Left>().size() == 1);
 	CHECK(approach.Docking()->stage == Dock::Stage::Leaving);
 	entt::registry &registry = approach.world.Registry();
+
 	// No point to fly to, only the thrusters firing up, against the platform.
 	CHECK_FALSE(registry.all_of<Ai::Destination>(approach.vehicle));
 	CHECK(registry.get<Physics::FlightControls>(approach.vehicle).linear.y > 0.0f);
@@ -200,6 +205,7 @@ TEST_CASE(
 	CHECK(approach.Events<Dock::BerthReleased>().size() == 1);
 	CHECK(
 	    approach.BerthOf(approach.BerthNumbered(approach.platform, 1)).state == Dock::BerthState::Free);
+
 	// Straight up off the berth, the lift's height, held for the pilot, whose controls then fly it.
 	const glm::dvec3 at = approach.FromRest(kShuttleHeight);
 	CHECK(std::hypot(at.x, at.z) < 1.0);
@@ -240,10 +246,12 @@ TEST_CASE(
 	std::optional<std::vector<std::byte>> save;
 	std::optional<std::vector<std::byte>> unused;
 	const auto [first, stage] = run(save, kSaveAt);
+
 	// Saved on the way down onto the berth, kept clear of the platform by its shape, and clamped by
 	// the end.
 	CHECK(stage == Dock::Stage::Docked);
 	CHECK(run(unused, -1).first == first);
+
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too, as
 	// steering's is: a change here is a change to how a vehicle is flown in, or to what a save holds.
 	// Re-pinned in 9d for Highport's display wing, six more berths and a deck more in its shape, with

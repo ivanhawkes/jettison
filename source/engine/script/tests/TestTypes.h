@@ -49,6 +49,7 @@ struct Pong
 	std::int64_t total{0};
 	std::string text;
 	std::vector<Inner> items;
+
 	// Whatever the script writes, the host's sender.
 	Jettison::Sim::Controller sender;
 };

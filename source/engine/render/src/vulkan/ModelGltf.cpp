@@ -67,6 +67,7 @@ void Model::ReadGltf(std::span<const std::byte> bytes, const std::string &path)
 	if (parsed.error() != fastgltf::Error::None)
 		throw std::runtime_error("Failed to parse glTF model: " + path);
 	const fastgltf::Asset &asset = parsed.get();
+
 	// A resource's decode has the file's bytes and nothing beside them.
 	for (const auto &buffer : asset.buffers)
 		if (std::holds_alternative<fastgltf::sources::URI>(buffer.data))
@@ -89,6 +90,7 @@ void Model::ReadGltf(std::span<const std::byte> bytes, const std::string &path)
 	const auto meshIndex = *asset.nodes[*meshNode].meshIndex;
 	if (meshIndex >= asset.meshes.size())
 		throw std::runtime_error("glTF mesh index is out of range: " + path);
+
 	// The skin's joints, which the vertices' joint indices are into; the rig that poses them is the
 	// animation module's.
 	std::size_t skinJoints = 0;

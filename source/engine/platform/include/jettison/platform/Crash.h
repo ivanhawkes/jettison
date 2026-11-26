@@ -30,8 +30,10 @@ struct CrashOptions
 {
 	// Where reports go, made as the handler is installed: crash-<UTC time>-<process id>.txt.
 	std::filesystem::path directory;
+
 	// The build, as the report names it: what the game is and the engine's version.
 	std::string build;
+
 	// What names the frames: addr2line, GNU's or LLVM's, or anything taking the same arguments.
 	// Empty finds addr2line on PATH as the handler is installed; with none, the report's frames are
 	// modules and offsets, which scripts/symbolise-crash.sh names against the build that wrote it.

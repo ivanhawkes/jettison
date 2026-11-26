@@ -27,6 +27,7 @@ TEST_CASE("CubicBezier: starts and ends on its end points, and the Bernstein wei
 	const glm::vec3 p3{1.0f, 0.0f, 0.0f};
 	CheckNear(CubicBezier(p0, p1, p2, p3, 0.0f), p0);
 	CheckNear(CubicBezier(p0, p1, p2, p3, 1.0f), p3);
+
 	// 1/8 p0 + 3/8 p1 + 3/8 p2 + 1/8 p3.
 	CheckNear(CubicBezier(p0, p1, p2, p3, 0.5f), glm::vec3{0.5f, 0.75f, 0.0f});
 	CheckNear(CubicBezier(p0, p1, p2, p3, 2.0f), p3);
@@ -106,6 +107,7 @@ TEST_CASE("Ease: the shapes, at hand-computed points")
 	// OutBack's constant, 1.70158, is the one that makes it overshoot by a tenth. The peak is at
 	// t = 1 - 2 c / (3 (c + 1)).
 	CHECK(Ease(Easing::OutBack, 1.0f - 2.0f * 1.70158f / (3.0f * 2.70158f)) == doctest::Approx(1.1f));
+
 	// OutElastic's first crest, where the sine is 1: (10 t - 0.75) 2 pi / 3 = pi / 2.
 	CHECK(Ease(Easing::OutElastic, 0.15f) == doctest::Approx(1.0f + std::pow(2.0f, -1.5f)));
 }

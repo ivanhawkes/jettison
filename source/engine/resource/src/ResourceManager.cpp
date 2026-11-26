@@ -52,6 +52,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		std::string error;
 		std::uint32_t revision{0};
 		Stamp stamp;
+
 		// The latest load or reload started for the slot. A result carrying another ticket was
 		// overtaken, or the slot was released while it was in flight, and is dropped.
 		std::uint64_t ticket{0};
@@ -189,6 +190,7 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 			++slot.revision;
 			return;
 		}
+
 		// A reload that fails keeps the value it would have replaced: in development a half-saved
 		// file should not take the resource away.
 		const bool kept = slot.value != nullptr;
@@ -306,6 +308,7 @@ void ResourceManager::ReleaseRaw(std::type_index type, RawHandle handle)
 
 	pool.byPath.erase(slot.path);
 	State::Retire(pool, slot);
+
 	// A load still in flight finds the generation changed and drops its result.
 	State::Slot freed;
 	freed.generation = NextGeneration(slot.generation);

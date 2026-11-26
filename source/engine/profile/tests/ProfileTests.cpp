@@ -35,6 +35,7 @@ TEST_CASE("Profile: zones, plots and frame marks compile in either build")
 		JETTISON_PROFILE_ZONE("test");
 		CHECK(ProfiledFunction() == 1);
 	}
+
 	// Each of these is ambiguous between Tracy's three plot overloads without PlotValue.
 	const int count = 3;
 	const std::size_t bytes = 4096;

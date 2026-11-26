@@ -195,6 +195,7 @@ void DrawConsole(Console &console, ConsoleViewState &state, const ThemeSettings 
 		        ImGuiWindowFlags_HorizontalScrollbar))
 		{
 			const std::vector<ConsoleLine> lines = console.Lines();
+
 			// Follow new lines only for a reader already at the bottom.
 			const bool follow = ImGui::GetScrollY() >= ImGui::GetScrollMaxY();
 			for (const ConsoleLine &line : lines)
@@ -226,6 +227,7 @@ void DrawConsole(Console &console, ConsoleViewState &state, const ThemeSettings 
 		ImGui::SetKeyboardFocusHere();
 		state.focusInput = false;
 	}
+
 	// The scope closes before End(): a window's font pushes are inherited by Begin and must be
 	// popped before it ends, which ImGui checks (measured: the smoke run asserts "Missing PopFont()"
 	// when the pop lands after End, in a build with ImGui's assertions on).
@@ -238,6 +240,7 @@ void DrawConsole(Console &console, ConsoleViewState &state, const ThemeSettings 
 			console.Execute(state.input.data());
 			state.input.fill('\0');
 			state.historyIndex = -1;
+
 			// Enter takes the focus away; give it back for the next line.
 			ImGui::SetKeyboardFocusHere(-1);
 		}
@@ -262,6 +265,7 @@ void DrawDevTools(Console &console, DevToolsState &state, ThemeSettings &setting
 		    static_cast<std::size_t>(index) < PaletteVariants().size())
 			settings.palette = PaletteVariants()[static_cast<std::size_t>(index)];
 		ImGui::Checkbox("Console mono", &settings.consoleMono);
+
 		// The design's root font size, which the spacing and the radii go with: a dev on a 4K panel
 		// reads the console without squinting, and the whole style stays in proportion. The band is
 		// what a developer is offered; `dev.ui_scale` answers to any number, and ApplyTheme keeps the

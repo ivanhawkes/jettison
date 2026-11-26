@@ -18,6 +18,7 @@ void SortByIdentifier(std::vector<entt::entity> &entities)
 		std::ranges::sort(entities, IdentifierLess);
 		return;
 	}
+
 	// Least significant byte first, each pass stable. A byte every identifier shares (the
 	// version's, mostly) is skipped.
 	std::vector<entt::entity> scratch(entities.size());

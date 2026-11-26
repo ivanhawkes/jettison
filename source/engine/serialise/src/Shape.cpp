@@ -72,6 +72,7 @@ const std::unordered_map<entt::id_type, Shape> &LeafShapes()
 	{
 		std::unordered_map<entt::id_type, Shape> table;
 		Add<bool>(table, Leaf<bool, bool, 1>());
+
 		// Every standard integer type, by name rather than by width: std::int64_t is long here
 		// and long long elsewhere, and a field of either must find its codec.
 		Add<signed char>(table, Leaf<signed char, signed char, 1>());
@@ -92,11 +93,13 @@ const std::unordered_map<entt::id_type, Shape> &LeafShapes()
 		Add<glm::dvec2>(table, Leaf<glm::dvec2, double, 2>());
 		Add<glm::dvec3>(table, Leaf<glm::dvec3, double, 3>());
 		Add<glm::dvec4>(table, Leaf<glm::dvec4, double, 4>());
+
 		// A quaternion is its components in GLM's storage order, x, y, z then w: the order a
 		// save holds them in is the order the type holds them in, and GLM_FORCE_QUAT_DATA_WXYZ
 		// would change both.
 		Add<glm::quat>(table, Leaf<glm::quat, float, 4>());
 		Add<glm::dquat>(table, Leaf<glm::dquat, double, 4>());
+
 		// An entity is its 32-bit identifier, index and version together: what a component that
 		// refers to another entity holds, restored as it was by a world's loader.
 		static_assert(std::is_same_v<std::underlying_type_t<entt::entity>, std::uint32_t>);

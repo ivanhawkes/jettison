@@ -58,6 +58,7 @@ struct OverlayDraw
 	glm::vec2 translation{0.0f};
 	OverlayTextureId texture{kNoOverlayTexture};
 	std::optional<OverlayRect> scissor;
+
 	// An index into Transforms().
 	std::optional<std::uint32_t> transform;
 };

@@ -71,6 +71,7 @@ template <typename State, typename Event> class StateMachine
 
 		const State to = transition->to;
 		m_dispatching = true;
+
 		// Cleared however the hooks leave, so a hook that throws does not lock the machine.
 		const struct Reset
 		{

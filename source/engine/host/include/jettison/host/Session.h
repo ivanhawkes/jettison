@@ -119,6 +119,7 @@ struct Options
 	// writable mount is refused. A package's required packages are matched against the names of
 	// the sources before it.
 	std::vector<Vfs::Mount> content;
+
 	// Seconds.
 	double fixedStep{};
 	std::uint64_t seed{};

@@ -64,6 +64,7 @@ class OverlayRenderer
 	struct Retired
 	{
 		DeviceTexture texture;
+
 		// Frames still to go before nothing in flight reads it.
 		std::uint32_t frames{0};
 	};
@@ -71,6 +72,7 @@ class OverlayRenderer
 	{
 		Buffer vertices{};
 		Buffer indices{};
+
 		// The draws as Prepare found them, with each draw's texture's set resolved.
 		std::vector<OverlayDraw> draws;
 		std::vector<VkDescriptorSet> sets;

@@ -169,6 +169,7 @@ TEST_CASE("Scene: a file of another version, or with a field the scene does not 
 	CHECK_THROWS_WITH_AS(
 	    scene.LoadText("version: 1\nentities: []\n"), doctest::Contains("version 1"),
 	    Jettison::Serialise::FormatVersionError);
+
 	// A far plane and an ambient colour were retired before version 2; now they are fields like any
 	// the scene does not know, named with the line they are on.
 	CHECK_THROWS_WITH_AS(
@@ -180,6 +181,7 @@ TEST_CASE("Scene: a file of another version, or with a field the scene does not 
 	    scene.LoadText(
 	        "version: 3\nentities:\n  - id: m\n    animation:\n      clip: Walk\n      time: 3\n"),
 	    doctest::Contains("no saved field 'time'"), Jettison::Serialise::FormatError);
+
 	// A file on disk is named in its error.
 	const auto path = std::filesystem::temp_directory_path() /
 	                  ("jettison-scene-tests-" + std::to_string(::getpid()) + ".yaml");
@@ -260,6 +262,7 @@ TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file 
 	    "needs a model");
 	CheckRefused(
 	    scene, "  - id: m\n    transformAnimation:\n      axis: [0, 0, 0]\n", "cannot be zero");
+
 	// A model's rig loads through the resource manager, which this scene was not given.
 	CheckRefused(scene, "  - id: m\n    mesh:\n      model: models/arm.glb\n", "resource manager");
 	CHECK_THROWS_WITH_AS(
@@ -339,10 +342,12 @@ TEST_CASE("Scene: a light's intensity can move with time, and is saved with its 
 	REQUIRE(light.animation);
 	CHECK(light.animation->wave == Wave::Square);
 	CHECK(light.animation->period == 1.2);
+
 	// A quarter of a cycle in, the square is low until halfway, then high; a whole cycle on, the same.
 	CHECK(LightIntensityAt(light, 0.0) == doctest::Approx(0.4f));
 	CHECK(LightIntensityAt(light, 0.4) == doctest::Approx(4.0f));
 	CHECK(LightIntensityAt(light, 0.4 + 1.2 * 3.0) == doctest::Approx(4.0f));
+
 	// A light without one shines as it is at any time.
 	CHECK(LightIntensityAt(LightComponent{}, 12.5) == LightComponent{}.intensity);
 
@@ -543,6 +548,7 @@ TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig 
 	const std::string authored = scene.SaveText();
 	const SceneUpdateSystem update{&resources};
 	auto &registry = scene.Registry();
+
 	// Until the rigs are in, nothing is posed, so nothing is drawn.
 	update.Update(registry, 0.0f);
 	CHECK(registry.view<const Animation::SkeletonComponent>().empty());
@@ -561,11 +567,13 @@ TEST_CASE("Scene: the shipped scenes load, and each model is posed once its rig 
 		if (!skeleton->jointMatrices.empty())
 		{
 			++skinned;
+
 			// The arm swings: its clip has moved on from the start.
 			CHECK(registry.get<Animation::AnimationPlayerComponent>(entity).time > 0.0f);
 		}
 	}
 	CHECK(skinned == 1);
+
 	// None of it reaches the file.
 	CHECK(scene.SaveText() == authored);
 
@@ -664,6 +672,7 @@ TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its eve
 	std::vector<ClipEventFired> events;
 	{
 		const SceneUpdateSystem update{&resources};
+
 		// Until the file is in, the rig is as authored: stowed.
 		update.Update(registry, 0.1f, &events);
 		CHECK(registry.view<const NodePoseComponent>().empty());
@@ -701,6 +710,7 @@ TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its eve
 		CHECK(jawA.y == doctest::Approx(0.852).epsilon(0.01));
 		CHECK(jawB.x == doctest::Approx(-jawA.x));
 		CHECK(jawB.y == doctest::Approx(jawA.y));
+
 		// The pose and the phase are the runtime's, and the file is what was authored.
 		CHECK(scene.SaveText() == authored);
 		CHECK(registry.get<TransformComponent>(Find(registry, "arm-a")).translation.y == -0.8);
@@ -713,6 +723,7 @@ TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its eve
 		update.Update(registry, 0.1f, &events);
 		REQUIRE(events.size() == 1);
 		CHECK(events[0].name == "clamp.released");
+
 		// Stowed at the open's end, the clamp is put away at no size, which is not drawn.
 		for (int frame = 0; frame < 20; ++frame)
 			update.Update(registry, 0.1f, &events);
@@ -732,6 +743,7 @@ TEST_CASE("Scene: a clip file's clip moves the entities bound to it, and its eve
 		CHECK_FALSE(opening.playable);
 		CHECK(registry.view<const NodePoseComponent>().empty());
 	}
+
 	// The system held the file while it lived, and let it go with it.
 	CHECK(resources.Loading() == 0);
 }
@@ -755,6 +767,7 @@ TEST_CASE("Scene: a clip's file, name, speed and bindings are checked as the sce
 	    "  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n      name: close\n      "
 	    "nodes:\n        - {entity: a}\n",
 	    "not an entity of the scene");
+
 	// A node bound to the player's own entity is a rig of one, and the binding is saved as written.
 	scene.LoadText(
 	    "version: 3\nentities:\n  - id: a\n    clip:\n      file: animations/pad-clamp.clip.yaml\n"

@@ -9,8 +9,10 @@ glm::mat4 ReversedInfinitePerspective(float verticalFov, float aspect, float nea
 	const float focal = 1.0f / std::tan(verticalFov * 0.5f);
 	glm::mat4 projection{0.0f};
 	projection[0][0] = focal / aspect;
+
 	// Vulkan's clip space has y down.
 	projection[1][1] = -focal;
+
 	// clip.z = near and clip.w = -z, so depth = near / -z: 1 on the near plane, 0 at infinity.
 	projection[3][2] = nearPlane;
 	projection[2][3] = -1.0f;

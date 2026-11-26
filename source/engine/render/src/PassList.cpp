@@ -114,6 +114,7 @@ std::optional<Barrier> Apply(State &state, PassResource resource, Usage use, con
 		state = {use};
 		return barrier;
 	}
+
 	// A read that has already been made visible at this stage, with the image still in its
 	// layout: a read in another layout since then has moved it.
 	if (std::ranges::find(state, use) != state.end() && LayoutOf(use) == LayoutOf(state.back()))

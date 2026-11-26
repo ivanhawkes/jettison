@@ -24,6 +24,7 @@ UsageScope DestinationScope(Usage usage)
 			    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 			    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 			    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
 		// A multisample resolve reads its source and writes its target at the colour-output stage, as
 		// colour accesses, whether the attachments are colour or depth and stencil (the spec's render
 		// pass chapter), so an aspect that is resolved from or into is synchronised there too.
@@ -64,6 +65,7 @@ UsageScope DestinationScope(Usage usage)
 			    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
 			    VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
 			    VK_IMAGE_LAYOUT_GENERAL};
+
 		// Every transfer command, fills as well as copies: vkCmdFillBuffer is a clear, which the
 		// copy stage alone does not cover.
 		case Usage::TransferRead:

@@ -220,6 +220,7 @@ TEST_CASE("a sealed message opens once, on its own channel, with the other end's
 	REQUIRE((pinned && astray && hostOfPinned && hostOfAstray));
 	CHECK(hostOfPinned->Open(Channel::Reliable, seal(*pinned, Channel::Reliable, "hello")));
 	CHECK_FALSE(hostOfAstray->Open(Channel::Reliable, seal(*astray, Channel::Reliable, "hello")));
+
 	// A point of small order gives no keys.
 	CHECK_FALSE(Seal::Keys::ForServer(server, serverEphemeral, Seal::Key{}));
 }
@@ -315,6 +316,7 @@ TEST_CASE("a client sends no hello to a server whose offer does not prove the pi
 	}
 	CHECK(*closed[&mirrored] == Reason::KeyMismatch);
 	CHECK(*closed[&proved] == Reason::KeyMismatch);
+
 	// Each sent its offer and nothing after it.
 	CHECK(received.size() == 2);
 	for (const auto &[peer, count] : received)
@@ -489,6 +491,7 @@ TEST_CASE("a message over the limit is not sent")
 	CHECK_FALSE(client.Send(Channel::Unreliable, 1, std::vector<std::byte>(127)));
 	const SessionId session = fixture.pServer->Sessions().front();
 	CHECK_FALSE(fixture.pServer->Send(session, Channel::Reliable, 1, std::vector<std::byte>(127)));
+
 	// A snapshot's step counts against the limit too.
 	fixture.pServer->SendSnapshots(1, [](SessionId) { return std::vector<std::byte>(119); });
 	CHECK(fixture.pServer->Send(session, Channel::Reliable, 1, std::vector<std::byte>(4)));

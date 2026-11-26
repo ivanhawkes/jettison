@@ -29,6 +29,7 @@ namespace
 {
 constexpr std::array<char, 8> kMagic{'J', 'E', 'T', 'P', 'A', 'C', 'K', '\0'};
 constexpr std::size_t kHeaderSize = 8 + 4 + 4 + 8 + 8;
+
 // A record's fixed part: its path's length, its method, its offset and its two sizes.
 constexpr std::size_t kRecordSize = 4 + 1 + 8 + 8 + 8;
 
@@ -283,6 +284,7 @@ class PackSource final : public Detail::Source
 	int m_descriptor{-1};
 	std::uint64_t m_fileSize{0};
 	std::filesystem::file_time_type m_time{};
+
 	// Sorted by path.
 	std::vector<Entry> m_entries;
 };
@@ -383,6 +385,7 @@ PackSummary WritePack(
 			throw std::runtime_error{
 			    std::format("Vfs: {} could not be listed: {}", root.string(), error.message())};
 	}
+
 	// Directories named twice, or one inside another, pack their files once.
 	std::ranges::sort(files);
 	const auto repeated =
@@ -396,6 +399,7 @@ PackSummary WritePack(
 	const std::filesystem::path partial = pack.string() + ".partial";
 	if (pack.has_parent_path())
 		std::filesystem::create_directories(pack.parent_path(), error);
+
 	// Removed on every way out but the rename, a source that cannot be read or a zstd failure
 	// among them. Declared before the stream, so the stream is closed first.
 	struct Discard
@@ -414,6 +418,7 @@ PackSummary WritePack(
 	std::ofstream out{partial, std::ios::binary | std::ios::trunc};
 	if (!out)
 		throw std::runtime_error{std::format("Vfs: {} could not be written", partial.string())};
+
 	// The header is written again once the index's place is known.
 	const std::vector<std::byte> blank(kHeaderSize);
 	out.write(reinterpret_cast<const char *>(blank.data()), static_cast<std::streamsize>(blank.size()));

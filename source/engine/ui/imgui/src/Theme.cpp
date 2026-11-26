@@ -212,6 +212,7 @@ bool StyleIsApplied(const ThemeSettings &settings, bool linearise)
 	const ImGuiStyle &style = ImGui::GetStyle();
 	const float scale = ScaleFor(settings);
 	const Rgba ground = PaletteColour(settings.palette, Token::Background, kPanelAlpha, linearise);
+
 	// The same expressions ApplyTheme writes, so the comparison is exact; a fresh context fails it,
 	// measured, at padding 8 against 12 and a colour of its own against the palette's.
 	return style.WindowPadding.x == kPanelPadding * scale && style.WindowRounding == kRound * scale &&

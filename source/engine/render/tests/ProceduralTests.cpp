@@ -31,6 +31,7 @@ std::vector<std::uint32_t> Weld(const MeshData &mesh)
 	for (std::size_t index = 0; index < mesh.vertices.size(); ++index)
 	{
 		const glm::vec3 &position = mesh.vertices[index].pos;
+
 		// A grid of a millionth: far finer than any shape's spacing, far coarser than its rounding.
 		const auto key = std::make_tuple(
 		    std::lround(position.x * 1e6f), std::lround(position.y * 1e6f),
@@ -133,6 +134,7 @@ TEST_CASE("Procedural: every closed shape is watertight, wound outwards, and of 
 		const char *name;
 		MeshData mesh;
 		double volume;
+
 		// How close a faceted shape's volume comes to the smooth one's.
 		double tolerance;
 	};
@@ -202,6 +204,7 @@ TEST_CASE("Procedural: a ring is a flat annulus with a face up and a face down")
 	const std::size_t segments = 32;
 	const float inner = 0.6f;
 	const MeshData mesh = Ring(static_cast<int>(segments), inner, glm::vec3{1.0f});
+
 	// Two faces of two rims, a column per segment and one for the seam; two triangles a segment
 	// a face.
 	CHECK(mesh.vertices.size() == 4 * (segments + 1));
@@ -209,6 +212,7 @@ TEST_CASE("Procedural: a ring is a flat annulus with a face up and a face down")
 	CHECK(IndicesInRange(mesh));
 	CHECK(NormalsAreUnit(mesh));
 	CHECK(WindingMatchesNormals(mesh));
+
 	// The two faces cover each other exactly, wound opposite ways: they enclose nothing.
 	CHECK(std::abs(SignedVolume(mesh)) < 1e-6);
 
@@ -261,6 +265,7 @@ TEST_CASE(
 			CHECK(mesh.indices.size() < lods[level - 1].mesh.indices.size());
 			CHECK(lods[level].error > lods[level - 1].error);
 		}
+
 		// The furthest any point of a level is from the round surface it stands for, over a grid of
 		// points on each facet, or for a cylinder and a ring on each edge of the outer rim. The error
 		// bounds it, and closely: the bound is the facet's plane, and the sphere's deepest point under

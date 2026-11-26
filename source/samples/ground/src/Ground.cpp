@@ -70,6 +70,7 @@ entt::entity MakeGround(Sim::SimWorld &world, Sim::Controller player)
 	body.mass = 800.0f;
 	registry.emplace<Physics::Body>(rover, body);
 	registry.emplace<Physics::Velocity>(rover);
+
 	// Driven ahead and astern and turned, never lifted or rolled: gravity and the ground hold the
 	// rest. The ground's grip resists a turn, so 2 rad/s² turned it not at all, and 8 does.
 	registry.emplace<Physics::Handling>(

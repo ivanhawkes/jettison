@@ -51,6 +51,7 @@ glm::dmat4 ComputeWorldTransform(
 		local = glm::scale(local, glm::dvec3{transform.scale});
 		return Finish(entity, registry, local, computed, active);
 	}
+
 	// A clip's pose replaces the authored transform path by path, and the rotation animation's
 	// phase joins the rotation here: neither is accumulated in TransformComponent, so the authored
 	// transform stays authored, and a scene saved from a running engine writes the pose its author
@@ -345,6 +346,7 @@ void UpdatePilotCameras(entt::registry &registry, double deltaTime)
 		                        : nullptr;
 		if (!world)
 			continue;
+
 		// The rotation without the scale, as the scene's debug axes take it.
 		const glm::dmat3 basis{
 		    glm::normalize(glm::dvec3{world->matrix[0]}), glm::normalize(glm::dvec3{world->matrix[1]}),

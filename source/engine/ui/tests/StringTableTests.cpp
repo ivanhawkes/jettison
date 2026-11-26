@@ -149,6 +149,7 @@ TEST_CASE("Strings: arguments format by position, and a count chooses its plural
 	CHECK(strings.Plural("market.crossing", 23) == "; 23 ящика");
 	CHECK(strings.Plural("market.crossing", 12) == "; 12 ящиков");
 	CHECK(strings.Plural("market.crossing", 25) == "; 25 ящиков");
+
 	// What the translation lacks is the base's.
 	CHECK(strings.Text("market.title") == "Market");
 
@@ -176,6 +177,7 @@ TEST_CASE("Strings: arguments known only as the game runs format as a call's do"
 	strings.Load(scratch.Files(), "ru");
 	const std::vector<std::string> pays{"Corva Refinery", "81,200"};
 	CHECK(strings.FormatArguments("market.pays", pays) == "81,200 платит Corva Refinery");
+
 	// The count chooses the form, and the arguments say what it reads.
 	CHECK(
 	    strings.PluralArguments("market.crossing", 23, std::vector<std::string>{"23"}) == "; 23 ящика");
@@ -234,6 +236,7 @@ TEST_CASE("Strings: a mod's file changes the strings it names, and a mod's new f
 	    strings.Load(scratch.Files(), "en"),
 	    doctest::Contains("'market.title' is in both mod:strings/en/again.yaml and"),
 	    std::runtime_error);
+
 	// And the table before it stays.
 	CHECK(strings.Text("market.title") == "Exchange");
 }
@@ -297,6 +300,7 @@ TEST_CASE(
 	CHECK(strings.Text("market.pays") == "{0} pays {1}");
 	CHECK(strings.Text("market.hold") == "Hold {{screen.used}} / {{screen.capacity}} crates");
 	CHECK(!strings.Find("market.unknown"));
+
 	// A form may name fewer arguments than its base: "a crate" for one.
 	CHECK(strings.Plural("market.crossing", 1) == "; eine Kiste");
 	CHECK(strings.Plural("market.crossing", 2) == "; 2 crates crossing the deck");

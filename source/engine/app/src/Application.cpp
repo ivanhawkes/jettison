@@ -66,6 +66,7 @@ namespace
 // costs a quarter of what the opening size costs, and the resize stages still change the size.
 constexpr int kSmokeWindowWidth = 640;
 constexpr int kSmokeWindowHeight = 480;
+
 // Frames a benchmark draws before it times any: the pipelines a material builds on its first draw,
 // the textures' uploads, and the driver's own warming up are not the frame it is measuring.
 constexpr std::uint32_t kBenchmarkWarmUp = 60;
@@ -73,8 +74,10 @@ constexpr Core::Category kShell{"shell"};
 
 // The player the shell's controls are for, in the first slot; their commands say so.
 constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
+
 // How far a pick reaches: past any platform a vehicle is flown by.
 constexpr double kPickDistance = 50000.0;
+
 // The game UI's faces: Roboto for text, Hack for figures, and Droid Sans for a glyph neither has.
 constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/Roboto-Medium.ttf", false},
@@ -436,6 +439,7 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	    { PlaceOrbitCamera(arguments); });
 
 	DevTools::RegisterThemeTypes();
+
 	// The dev tools' palette, scale and mono console, as variables of their own: a dev on a 4K panel
 	// and one on a laptop settle for one run's settings each, without a rebuild.
 	m_console.BindVariables("dev", m_theme);
@@ -445,8 +449,10 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	m_sim.RegisterComponent<Sim::InFrame>();
 	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
 	m_sim.RegisterComponent<Sim::ControlledBy>();
+
 	// For what a reason says of an entity on rails, by its body's name (Reasons.h).
 	m_sim.ShowInSnapshots<Physics::OnRails>();
+
 	// For the frame an entity's physics is in, which a game's presentation reads.
 	m_sim.ShowInSnapshots<Physics::LocalFrame>();
 	RegisterSavesScreenTypes();
@@ -523,11 +529,13 @@ void Application::RegisterFrameSystems()
 		     const Sim::Snapshot &previous = m_simStepper.Previous();
 		     const Sim::Snapshot &current = m_simStepper.Current();
 		     m_shownTime = previous.time + (current.time - previous.time) * m_simStepper.Alpha();
+
 		     // A game that keeps the proxies itself makes and unmakes them; otherwise the scene shows
 		     // only the proxies it has.
 		     if (!m_pGame->SyncProxies(*this))
 			     Scene::SyncSimProxies(registry, previous, current, m_simStepper.Alpha());
 	     }});
+
 	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
 	// handlers replace this system.
 	m_frame.Register(
@@ -551,6 +559,7 @@ void Application::RegisterFrameSystems()
 		     m_clipEvents.clear();
 		     m_sceneUpdateSystem->Update(registry, static_cast<float>(deltaTime), &m_clipEvents);
 	     }});
+
 	// After the world transforms, which the rigs follow, and before anything that reads the pose.
 	m_frame.Register(
 	    {"camera.rig",
@@ -567,6 +576,7 @@ void Application::RegisterFrameSystems()
 		     Scene::UpdateOrbitCameras(registry, deltaTime);
 		     Scene::UpdatePilotCameras(registry, deltaTime);
 	     }});
+
 	// A cinematic over where the rigs left the camera, and what it shows over the frame.
 	m_frame.Register(
 	    {"camera.sequence",
@@ -580,6 +590,7 @@ void Application::RegisterFrameSystems()
 		     m_sequences->Update(registry, deltaTime);
 		     ShowSequence(registry);
 	     }});
+
 	// After the cameras, so the listener is where this frame's camera is, and after the world
 	// transforms the sources follow.
 	m_frame.Register(
@@ -607,6 +618,7 @@ void Application::RegisterFrameSystems()
 		              .each())
 		     {
 			     const glm::dvec3 origin{world.matrix[3]};
+
 			     // The rotation without the scale: a mesh scaled twelve times would otherwise
 			     // draw axes twelve times as long.
 			     const glm::dmat3 basis{
@@ -619,6 +631,7 @@ void Application::RegisterFrameSystems()
 				     DrawLight(m_debugDraw, *light, origin, -basis[2]);
 		     }
 	     }});
+
 	// Before the render, so a texture or material that finished loading, or reloaded, draws this
 	// frame.
 	m_frame.Register(
@@ -641,6 +654,7 @@ void Application::RegisterFrameSystems()
 		     JETTISON_PROFILE_ZONE("shell.ui");
 		     DrawUI();
 	     }});
+
 	// What is picked outlined, on the proxies the sync phase left (MarkScene).
 	m_frame.Register(
 	    {"shell.marks",
@@ -648,6 +662,7 @@ void Application::RegisterFrameSystems()
 	     Access::Of<Scene::SimProxyComponent>().Writing<Scene::OutlineComponent>(),
 	     {"shell.ui"},
 	     [this](entt::registry &registry, double) { MarkScene(registry); }});
+
 	// The game UI, from the snapshots the sync phase took in: the game's screen data (Game::UpdateUi),
 	// then layout and drawing into the overlay.
 	m_frame.Register(
@@ -680,6 +695,7 @@ void Application::RegisterFrameSystems()
 		     m_frameResized = m_pRenderer->Render(
 		         *m_pScene, m_debugDraw, m_pUi ? m_pUi->Overlay() : kNoOverlay, presentationTime);
 	     }});
+
 	// After the render, so the frame it judges is the one just submitted; its reload stage
 	// replaces the scene, which nothing after it in the frame reads.
 	m_frame.Register(
@@ -725,6 +741,7 @@ void Application::Run()
 {
 	Init();
 	RunFrameLoop();
+
 	// The verdict is read after teardown: the counters are the sequence's own, so nothing of the
 	// engine has to stay alive to read them, and a run that fails the gate is a run that should
 	// report on a device it has already released.
@@ -732,6 +749,7 @@ void Application::Run()
 		throw std::runtime_error(
 		    "Model rendering smoke test did not complete its sequence (" + m_smokeSequence->Summary() +
 		    ")");
+
 	// Every frame's light assignment was read back and compared with the CPU's. A run in which no
 	// cluster listed a light proved nothing about the assignment, so it fails as well.
 	if (m_arguments.benchmarkFrames != 0)
@@ -747,12 +765,14 @@ void Application::Run()
 		    Core::Severity::Info, kShell, "GPU ms per pass over {} frames:{}", m_measuredFrames,
 		    passes);
 	}
+
 	// A document RmlUi complained of, a stylesheet property it does not know or a variable it could
 	// not find, draws on regardless; the gate does not let it.
 	if (m_smokeSequence && m_uiProblems != 0)
 		throw std::runtime_error(
 		    "The game UI logged " + std::to_string(m_uiProblems) +
 		    " warnings and errors (see the log)");
+
 	// A sound that would not play, or a warning from miniaudio, is a sound the player would not hear.
 	if (m_smokeSequence && m_audioProblems != 0)
 		throw std::runtime_error(
@@ -789,6 +809,7 @@ void Application::Init()
 	InitWindow();
 	InitUi();
 	InitAudio();
+
 	// The headless run renders the dev tools, the demo window and the console: the UI path is part of
 	// what the render test exercises, and an interactive run starts without it and asks for it with F1.
 	m_showUI = m_arguments.smokeTest;
@@ -817,6 +838,7 @@ void Application::InitUser()
 	m_userPaths = root.empty()
 	                  ? Platform::ResolvePaths("jettison")
 	                  : Platform::Paths{root / "data", root / "config", root / "state", root / "cache"};
+
 	// Before anything else of the engine starts, so a crash in its start-up is reported too. The state
 	// directory is the logs' (Platform::Paths).
 	Platform::InstallCrashHandler(
@@ -824,6 +846,7 @@ void Application::InitUser()
 	     std::format("{}, engine {}", m_windowTitle, Core::EngineVersion()),
 	     {},
 	     true});
+
 	// The XDG specification has a directory it names made with mode 0700 when it does not exist yet.
 	Core::CreateDirectoriesDurably(m_userPaths.userData, std::filesystem::perms::owner_all);
 	Core::CreateDirectoriesDurably(m_userPaths.config, std::filesystem::perms::owner_all);
@@ -840,6 +863,7 @@ void Application::InitResources()
 		    m_assets, m_arguments.assets, m_arguments.content, m_userPaths.userData,
 		    m_userPaths.config / kModListFile);
 	m_pIoWorker = std::make_unique<Jobs::IoWorker>();
+
 	// A fixed step's frames are the same every run only if each load ends on a frame the count sets,
 	// and a reload would change one mid-run.
 	Resource::ResourceOptions resourceOptions;
@@ -892,6 +916,7 @@ void Application::InitWindow()
 {
 	GLFWwindow *const window = m_pRenderer->GetGLFWWindow();
 	glfwSetWindowTitle(window, m_windowTitle.c_str());
+
 	// The renderer has initialised the ImGui backend, whose callbacks the wheel's is installed over.
 	m_glfwInput.Attach(window);
 	if (m_arguments.smokeTest)
@@ -910,6 +935,7 @@ void Application::InitUi()
 	    static_cast<int>(m_pRenderer->FrameHeight()));
 	for (const auto &[font, fallback] : kUiFonts)
 		m_pUi->LoadFont(font, fallback);
+
 	// The player's language, or the base's: the setting, and not the environment's locale, so a run
 	// reads the same on every machine until the player chooses.
 	m_pUi->SetLanguage(m_settings->Values()
@@ -927,6 +953,7 @@ void Application::InitUi()
 			    ShowSaves(false);
 	    });
 	m_savesDocument = m_pUi->LoadDocument("ui/saves.rml");
+
 	// The headless run shows the screens from its first frame, so the overlay's path is drawn in every
 	// stage the render test walks, and the save stage lists its save on one of them.
 	ShowSaves(m_arguments.smokeTest);
@@ -952,6 +979,7 @@ void Application::InitAudio()
 	Core::Log(
 	    Core::Severity::Info, kShell, "{} event sounds for {} events", m_eventSounds->Sounds(),
 	    m_eventSounds->Events());
+
 	// Content with no music, as the engine with none runs, starts in silence and says nothing.
 	if (m_assets.Find(kMusic))
 		m_music = m_pAudio->PlayMusic(kMusic);
@@ -978,6 +1006,7 @@ void Application::UpdateAudio(entt::registry &registry)
 		return;
 	const Render::CameraView view = Render::ActiveCameraView(registry);
 	m_pAudio->SetListener(view.position, view.orientation);
+
 	// The clips' events this frame, each heard from its player: a berth's clamps closing on a vehicle
 	// and letting it go, wherever the vehicle is from.
 	if (m_eventSounds)
@@ -1001,6 +1030,7 @@ void Application::PlayEventSound(const Sim::SimEvent &event)
 		return;
 	if (!m_pGame->Hears(event))
 		return;
+
 	// Where presentation shows the entity this frame: between the last two steps, as the scene does.
 	m_eventSounds->Play(
 	    event, *m_pAudio,
@@ -1109,6 +1139,7 @@ void Application::UpdateGameUi()
 void Application::RunFrameLoop()
 {
 	m_state = State::Running;
+
 	// The sequence's frames, and its watchdog, start here: the window is on screen, the scene is
 	// loaded, and the frames it counts are the frames of the run it is testing.
 	if (m_arguments.smokeTest)
@@ -1171,6 +1202,7 @@ void Application::Tick()
 		m_frameStart = Time::RealClock::Clock::now();
 		deltaTime = m_frameClock.Tick(m_frameStart).count();
 	}
+
 	// The screenshot the run was asked for, of the frame after a run of them with nothing loading;
 	// the run ends with it, and the renderer writes it as it is destroyed.
 	m_quietFrames = loading ? 0 : m_quietFrames + 1;
@@ -1180,11 +1212,13 @@ void Application::Tick()
 		m_pRenderer->RequestScreenshot(m_arguments.screenshotPath);
 	for (const Ecs::TickPhase phase : Ecs::kTickPhases)
 		m_frame.Run(phase, m_pScene->Registry(), deltaTime);
+
 	// Taken once a frame has drawn it; a frame that drew nothing leaves the request for the next.
 	if (shoot && !m_pRenderer->ScreenshotRequested())
 	{
 		m_screenshotTaken = true;
 		RequestClose();
+
 		// Where the run's clocks were when the frame was taken, so two captures that differ can be
 		// told apart by their timelines before their pixels.
 		std::string sequences;
@@ -1360,6 +1394,7 @@ void Application::PollInput()
 	const bool uiMouse = (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) ||
 	                     (m_pUi && m_pUi->WantsMouse());
 	m_glfwInput.Feed(m_pRenderer->GetGLFWWindow(), m_input, uiMouse);
+
 	// The console may have been closed by its window's own button last frame.
 	SyncContexts();
 	m_input.Poll();
@@ -1370,6 +1405,7 @@ void Application::PollInput()
 		m_showUI = !m_showUI;
 	if (m_input.WasPressedThisFrame(m_toggleDebugDraw))
 		m_showSceneDebug = !m_showSceneDebug;
+
 	// Each debug view's key shows it, or the shaded scene again when it is already showing.
 	const auto toggleView = [this](Render::DebugView view)
 	{
@@ -1391,6 +1427,7 @@ void Application::PollInput()
 	if (m_input.WasPressedThisFrame(m_toggleSaves) && !(m_pUi && m_pUi->WantsKeyboard()))
 		ShowSaves(!m_showSaves);
 	m_pGame->PollInput(m_input, *this);
+
 	// A click on the scene, not on a window over it, ImGui's or the game UI's.
 	if (m_input.WasPressedThisFrame(m_pickAction) && !uiMouse)
 		m_clicked = m_glfwInput.Cursor();
@@ -1474,6 +1511,7 @@ void Application::DriveCameras(entt::registry &registry, double deltaTime)
 	glm::dvec2 turn = glm::dvec2{keys} * kTurnRate * deltaTime;
 	if (m_input.IsPressed(m_cameraDrag))
 		turn -= glm::dvec2{m_input.Vector(m_cameraLook)} * kDragRate;
+
 	// A notch of the wheel is an eighth nearer, or further.
 	constexpr double kWheelRatio = 0.875;
 	const double zoom = std::exp(-double{m_input.Axis(m_cameraZoom)} * kZoomRate * deltaTime) *
@@ -1483,6 +1521,7 @@ void Application::DriveCameras(entt::registry &registry, double deltaTime)
 		orbit.rig.Orbit(turn.x, turn.y);
 		orbit.rig.Zoom(zoom);
 	}
+
 	// In the seat, a drag looks about, and letting go looks ahead again.
 	for (const auto [entity, pilot] : registry.view<Scene::PilotCameraComponent>().each())
 	{
@@ -1542,6 +1581,7 @@ void Application::PlaceOrbitCamera(std::span<const std::string> arguments)
 		for (const auto [entity, target] : registry.view<const OrbitTarget>().each())
 			if (target.name == name)
 				body = entity;
+
 		// A scene's entity by its id where no target the game marks has the name.
 		if (body == entt::null)
 			body = Scene::FindById(registry, name);
@@ -1553,6 +1593,7 @@ void Application::PlaceOrbitCamera(std::span<const std::string> arguments)
 	{
 		if (body != entt::null)
 			orbit.target = body;
+
 		// Placed exactly where it is asked, not eased there, and allowed in as far as it was asked:
 		// a frame is placed to be captured.
 		orbit.yaw = values[0];
@@ -1604,6 +1645,7 @@ void Application::ShowSequence(entt::registry &registry)
 	const Scene::SequencePlayerComponent *player =
 	    players.empty() ? nullptr : &players.get<const Scene::SequencePlayerComponent>(players.front());
 	m_pRenderer->SetLetterbox(player != nullptr ? player->letterbox : 0.0f);
+
 	// A game's fade over it, a change of scene's, is set after this. The renderer keeps a fade until it
 	// is set again, so the sequence's is cleared the frame it ends, and otherwise left to the game's.
 	const float fade = player != nullptr ? player->fade : 0.0f;
@@ -1655,6 +1697,7 @@ void Application::SetGrade(std::span<const std::string> arguments)
 		    !(strength <= 1.0f))
 			throw std::invalid_argument{std::format("'{}' is not a strength from 0 to 1", text)};
 	}
+
 	// A name is a table in grades/; a path is taken as it is.
 	const std::string &name = arguments[0];
 	Scene::ColourGradeComponent grade{
@@ -1664,6 +1707,7 @@ void Application::SetGrade(std::span<const std::string> arguments)
 		registry.replace<Scene::ColourGradeComponent>(graded.front(), std::move(grade));
 		return;
 	}
+
 	// The scene's own grade, on its active camera, which a scene saved from the Scene panel keeps.
 	for (const auto [entity, camera] : registry.view<const Scene::CameraComponent>().each())
 		if (camera.active)
@@ -1696,6 +1740,7 @@ void Application::SyncContexts()
 {
 	if (m_devTools.showConsole == m_consoleContext && m_gameContext == m_pushedGameContext)
 		return;
+
 	// Down to the shell's, then up again in order, so the console is always on top.
 	if (m_consoleContext)
 		m_input.PopContext();
@@ -1764,6 +1809,7 @@ bool Application::LoadFrom(std::string_view name)
 		if (!bytes)
 			throw std::runtime_error(std::format("there is no save '{}'", name));
 		const Sim::SaveGame save = Sim::SaveGame::Read(*bytes);
+
 		// Everything read before the world is replaced, so a save that does not fit changes nothing.
 		// A save from before scripts kept keys holds none.
 		const Sim::SaveSection *keys = save.FindSection(Script::kStoreSection);
@@ -1772,6 +1818,7 @@ bool Application::LoadFrom(std::string_view name)
 		m_sim.Load(save.world);
 		m_pGame->Loaded(*this);
 		m_pScripts->SetStore(std::move(store));
+
 		// Other mods may make another game of the save, which is the player's to judge: it loads.
 		for (const std::string &difference : Sim::ModDifferences(save.info.mods, m_mods))
 			Core::Log(
@@ -1800,6 +1847,7 @@ SmokeActions Application::MakeSmokeActions()
 	{ glfwSetWindowSize(m_pRenderer->GetGLFWWindow(), width, height); };
 	actions.iconify = [this] { glfwIconifyWindow(m_pRenderer->GetGLFWWindow()); };
 	actions.restore = [this] { glfwRestoreWindow(m_pRenderer->GetGLFWWindow()); };
+
 	// The reload is the whole Load() path: the scene cleared and read again, so the renderer releases
 	// what the new contents do not draw and keeps what they do. Every resource is read again too,
 	// which is the hot-reload path a changed file takes - a model or texture uploaded over one a
@@ -1809,6 +1857,7 @@ SmokeActions Application::MakeSmokeActions()
 		ReloadScene();
 		m_pResources->ReloadAll();
 	};
+
 	// The pilot's stages are a game's to drive (DriveSmoke): the shell has nothing to fly.
 	actions.pilot = [](bool) { return false; };
 	actions.pick = [this]
@@ -1831,6 +1880,7 @@ SmokeActions Application::MakeSmokeActions()
 			    loaded, saved);
 		return loaded == saved;
 	};
+
 	// The game UI's stage is the game's (DriveSmoke): the shell has no screen of its own to drive.
 	actions.gameUi = [] { return std::optional<bool>{}; };
 	actions.gameUiWaiting = [] { return false; };
@@ -1855,6 +1905,7 @@ void Application::Shutdown() noexcept
 	{
 		// The window's callbacks go before the window does.
 		m_glfwInput.Detach();
+
 		// The UI holds no device object: the renderer's copies of its textures go with the renderer.
 		if (m_pAudio)
 			m_soundSources.Clear(*m_pAudio);
@@ -1879,6 +1930,7 @@ void Application::Shutdown() noexcept
 	}
 
 	m_pRenderer.reset();
+
 	// What the game holds of the scene and the resources goes first. The scene's rigs are resource
 	// handles, released as it goes; then the manager, which holds no GPU object once the renderer
 	// has released its handles, goes before the worker it posts to.
@@ -1893,6 +1945,7 @@ void Application::Shutdown() noexcept
 		std::error_code ignored;
 		std::filesystem::remove_all(m_scratchUser, ignored);
 	}
+
 	// The smoke sequence is not reset: Run reads its verdict after this returns, and it holds
 	// nothing of the engine's. Resetting it here once made that verdict unreachable, so a sequence
 	// that never reached its last stage passed the gate.
@@ -1911,6 +1964,7 @@ bool Application::Pick(const glm::dvec2 &point)
 	glfwGetWindowSize(m_pRenderer->GetGLFWWindow(), &width, &height);
 	if (width <= 0 || height <= 0)
 		return false;
+
 	// The camera as it was drawn last frame, which is what was clicked on, and the time it showed.
 	const Math::DRay ray = Render::ScreenRay(
 	    Render::ActiveCameraView(m_pScene->Registry()), point, glm::dvec2{width, height});
@@ -1971,6 +2025,7 @@ void Application::MarkScene(entt::registry &registry)
 			proxy = entity;
 	if (proxy == entt::null || registry.all_of<Scene::OutlineComponent>(proxy))
 		return;
+
 	// What was picked is selected, a line about it; as the game's target, a glow.
 	Scene::OutlineComponent outline;
 	if (const std::optional<PickSpace> space = m_pGame->PickIn(*this); space && space->targeting)
@@ -1988,6 +2043,7 @@ void Application::DrawPicked()
 {
 	if (!m_picked)
 		return;
+
 	// Where it was hit, carried with its frame (Game::PickOrigin), and the surface's normal there; a
 	// marker that keeps its size on the screen, about a hundredth of the distance across.
 	const glm::dvec3 at = m_pGame->PickOrigin(*this, m_shownTime) + m_picked->local;

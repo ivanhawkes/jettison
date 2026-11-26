@@ -33,6 +33,7 @@ struct AppArguments
 	// stages beside the executable, or, where there is none, the pack of the same name beside it, as
 	// a shipped build has; --assets names either.
 	std::filesystem::path assets;
+
 	// The game's content over them, its definitions, scenes, models and sounds, mounted as "base"
 	// under the user's mods: found as the assets are, from the program's own subdirectory, and named
 	// with --content. Empty for none, as Flotsam runs: the engine with no game's content.
@@ -46,16 +47,20 @@ struct AppArguments
 	// A measurement of the frame: this many frames timed after a warm-up, the GPU's time in each pass
 	// and the frame's counts printed, and the window closed. None when zero.
 	std::uint32_t benchmarkFrames{0};
+
 	// The window's size, in place of the default; the smoke test's own wins over it.
 	std::optional<std::uint32_t> windowWidth;
 	std::optional<std::uint32_t> windowHeight;
+
 	// The opaque depth prepass, which the renderer runs without when not asked for.
 	bool depthPrepass{false};
+
 	// Ambient occlusion (--ambient-occlusion, --no-ambient-occlusion; the renderer's choice for the
 	// device without either) and bloom's strength (--bloom, 0 for none), as the renderer starts; the
 	// dev tools change both.
 	std::optional<bool> ambientOcclusion;
 	float bloom{0.04f};
+
 	// Part of the name of the GPU to draw with, in place of the one the renderer chooses (the one
 	// with the monitor on it, then a discrete one): "5060", "llvmpipe". Start-up fails, listing the
 	// GPUs, when no usable one has it.
@@ -66,10 +71,12 @@ struct AppArguments
 	// none. The console's screenshot command writes one without ending the run.
 	std::filesystem::path screenshotPath;
 	std::uint32_t screenshotAfterFrames{30};
+
 	// Seconds each frame moves the clocks on, the simulation's and presentation's, however long it
 	// took to draw, and none while anything is loading (--frame-step): with a screenshot, the frame
 	// is then the same in every run. Zero for the wall clock.
 	double frameStep{0.0};
+
 	// Console lines run as if typed (--run), in the order given among those due on one frame: a
 	// camera placed for a screenshot, say, or a vehicle moved and a screenshot some frames later.
 	std::vector<RunCommand> commands;
@@ -78,9 +85,11 @@ struct AppArguments
 	// as it would, at the pace it would, and nothing is heard or touches the sound system. The smoke
 	// test always plays so.
 	bool noSound{false};
+
 	// Drawn offscreen, with no display or surface (render/IRenderer.h, RendererOptions::offscreen):
 	// a GPU run with no window on any desktop. The console takes lines through --run alone.
 	bool offscreen{false};
+
 	// Where the user's files go, in place of the XDG directories: settings under <dir>/config, saves
 	// under <dir>/data. The headless run with none named uses a directory of its own it removes as it
 	// ends, so a test neither reads nor writes the settings and saves of whoever runs it.

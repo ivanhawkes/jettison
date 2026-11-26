@@ -45,12 +45,15 @@ struct ScriptDefinition
 {
 	// The module's virtual path.
 	std::string module;
+
 	// The interpreter's instructions a call may run before it traps: the same count on every run,
 	// so a script out of fuel stops at the same place in every build.
 	std::uint32_t fuel{100'000};
+
 	// The most the module's linear memory may grow to, in 64 KiB pages, its stack and the host's
 	// heap for what it is given among them.
 	std::uint32_t memoryPages{16};
+
 	// What the module may import beyond answering inputs: "log"; "store", for the imports store and
 	// load, which keep bytes by key in the game's saves; and "send:<Command>" for each command it may
 	// send, by the command's registered name.

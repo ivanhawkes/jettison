@@ -30,6 +30,7 @@ using Detail::Shape;
 using Reflect::Attribute;
 
 constexpr std::string_view kVersionKey = "version";
+
 // A patch's tags for a sequence that adds to the one below it (YamlArchive::ReadLayered).
 constexpr std::string_view kAppendTag = "!append";
 constexpr std::string_view kMergeTag = "!merge=";
@@ -86,6 +87,7 @@ template <typename T> bool ParseFloat(std::string_view text, T &value)
 		value = negative ? -std::numeric_limits<T>::infinity() : std::numeric_limits<T>::infinity();
 		return true;
 	}
+
 	// from_chars also reads "inf" and "nan", which YAML calls strings.
 	const bool startsANumber =
 	    !text.empty() &&
@@ -259,6 +261,7 @@ class Writer
 	{
 		// begin() is not const on a container, even one over a const value.
 		entt::meta_sequence_container elements = value.as_sequence_container();
+
 		// Elements that are maps or sequences of their own go one to a line; a list of numbers,
 		// names or vectors goes on one, as the scene format writes a vector.
 		const Kind kind = Detail::ShapeOf(elements.value_type(), m_path.Text()).kind;
@@ -325,6 +328,7 @@ class Reader
 			return document;
 		if (!migrations)
 			throw FormatVersionError{m_path.Text(), found, expected.version};
+
 		// The tree is the archive's own, parsed for this read, so the steps edit it in place: a copy
 		// (YAML::Clone) would lose the lines every node was read from.
 		YAML::Node migrated = document;
@@ -348,6 +352,7 @@ class Reader
 				continue;
 			const Path::Scope scope = m_path.Field(key);
 			const YAML::Node value = entry.second;
+
 			// Looked up through a const node: the mutable operator[] would add the key. A yaml-cpp
 			// node assigned to is made an alias of what it is given, so the nodes below are
 			// constructed, never assigned, and only a mapping's own slot is (below[key] = ...).
@@ -381,6 +386,7 @@ class Reader
 				Patch(existing, value, false);
 			else if (existing)
 				below[key] = value;
+
 			// A key new to the mapping is the patch's own node, so a field the type does not save
 			// is reported at its line. yaml-cpp finds a node key by identity, never by its text, so
 			// this is for keys known to be absent.
@@ -628,6 +634,7 @@ class Reader
 			Fail(node, std::format("expected a sequence, found {}", Describe(node)));
 		entt::meta_sequence_container elements = value.as_sequence_container();
 		const entt::meta_type type = elements.value_type();
+
 		// A container that cannot be cleared is fixed in size, a std::array: read in place, element
 		// by element, from exactly as many.
 		if (!elements.clear())

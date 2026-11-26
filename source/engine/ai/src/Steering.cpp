@@ -27,16 +27,20 @@ namespace
 // the distance over this: an approach that slows as it nears, where √(2ad) alone, its slope
 // unbounded at the end, would be overshot a step at a time.
 constexpr double kSettleSeconds = 1.0;
+
 // The soonest an avoidance plans to have made up its shortfall by, so a threat already at hand is
 // turned from fast but not at an unbounded speed.
 constexpr double kSoonestSeconds = 0.5;
+
 // The share of a vehicle's weakest thruster it brakes with, and of its angular acceleration it stops
 // a turn with: the rest is for turning and avoiding while it does.
 constexpr double kBrakingShare = 0.5;
 constexpr double kTurnShare = 0.5;
+
 // Below this speed a vehicle holds its heading rather than turn to a velocity that is mostly the
 // last few centimetres of an arrival.
 constexpr double kFacingSpeed = 1.0;
+
 // How much further than its target a vehicle kept clear by its shape may meet something, in metres, and
 // still be going to its target rather than into what it meets: a landing's target hovers a little
 // above the deck.
@@ -285,6 +289,7 @@ Steering &Steering::Attach(
     Sim::SimWorld &world, const Physics::PhysicsWorld &physics, const Spatial::FrameIndices &indices)
 {
 	RegisterTypes();
+
 	// Shared by the commands and the system, which the world keeps for as long as it lives.
 	std::shared_ptr<Steering> steering{new Steering{physics, indices}};
 	world.RegisterComponent<Steered>();
@@ -325,6 +330,7 @@ Steering &Steering::Attach(
 	    [steering, &world](entt::registry & /*registry*/, double /*fixedStep*/)
 	    { steering->Step(world); }};
 	system.before = {std::string{Physics::kFlightSystemName}};
+
 	// A vehicle with somewhere to go in a frame is flown there every step.
 	world.RegisterSystem(
 	    std::move(system),
@@ -352,6 +358,7 @@ glm::dvec3 Steering::ShapeLimited(
 	if (speed <= 1.0e-6)
 		return velocity;
 	const glm::dvec3 way = velocity / speed;
+
 	// As far as it could need to stop from this speed, and the clearance past that.
 	const double reach = speed * speed / (2.0 * std::max(agent.maxAcceleration, 1.0e-6)) +
 	                     speed * kSettleSeconds + clearance + kShapeSlack;
@@ -359,6 +366,7 @@ glm::dvec3 Steering::ShapeLimited(
 	    m_physics.CastShape(frame, shape, at, way, reach, {vehicle, false, std::nullopt});
 	if (!hit)
 		return velocity;
+
 	// What it meets beyond where it is going, the deck under a berth it lands on, is not in its way.
 	if (glm::distance(at.position, target) <= hit->distance + kShapeSlack)
 		return velocity;
@@ -421,6 +429,7 @@ void Steering::Step(Sim::SimWorld &world)
 		glm::dvec3 target = origin + destination.offset;
 		glm::dvec3 targetVelocity{0.0};
 		glm::dquat facing = destination.facing;
+
 		// The rails of what is kept clear of by its shape, none if nothing is.
 		std::string_view shapeRails;
 		if (destination.entity != entt::null)

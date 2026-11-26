@@ -182,6 +182,7 @@ ClipFile ReadClipFile(std::string_view text, std::string_view name)
 			clip.events.push_back({eventRecord.time, eventRecord.name});
 			clip.duration = std::max(clip.duration, eventRecord.time);
 		}
+
 		// In time order, which playback crosses them in; events at one time keep the file's order.
 		std::ranges::stable_sort(clip.events, {}, &ClipEvent::time);
 		if (!(clip.duration > 0.0f))

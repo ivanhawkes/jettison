@@ -45,6 +45,7 @@ Frustum ViewFrustum(const CameraView &camera, double aspect)
 	const glm::dvec3 forward = camera.orientation * glm::dvec3{0.0, 0.0, -1.0};
 	const double tanY = std::tan(double{camera.verticalFov} * 0.5);
 	const double tanX = tanY * aspect;
+
 	// A point at depth d along the view is inside the left side when its offset to the right is more
 	// than -d tan(x), which is a plane through the camera with normal right + tan(x) forward.
 	const auto side = [](const glm::dvec3 &across, const glm::dvec3 &along, double slope)
@@ -75,11 +76,13 @@ bool Occludes(const HorizonOccluder &occluder, const BoundingSphere &sphere)
 	if (distance <= radius || radius <= 0.0)
 		return false;
 	const glm::dvec3 axis = occluder.sphere.center / distance;
+
 	// The horizon is the circle the lines of sight graze; its plane is this far along the axis.
 	const double horizon = (distance * distance - radius * radius) / distance;
 	const double along = glm::dot(sphere.center, axis);
 	if (along - sphere.radius < horizon)
 		return false;
+
 	// Inside the cone: the sphere's angle off the axis, and its own angular radius, within the cone's.
 	const double offAxis = std::atan2(glm::length(glm::cross(sphere.center, axis)), along);
 	const double extent = std::asin(std::min(sphere.radius / glm::length(sphere.center), 1.0));
@@ -97,6 +100,7 @@ bool CastsInto(const ShadowCascade &cascade, const BoundingSphere &sphere)
 	const glm::dmat4 matrix{cascade.matrix};
 	const auto row = [&](int index)
 	{ return glm::dvec3{matrix[0][index], matrix[1][index], matrix[2][index]}; };
+
 	// How far outside the square the sphere's centre is across the sun, in metres.
 	double outsideSquared = 0.0;
 	for (int axis = 0; axis < 2; ++axis)
@@ -109,6 +113,7 @@ bool CastsInto(const ShadowCascade &cascade, const BoundingSphere &sphere)
 	const double radiusSquared = sphere.radius * sphere.radius;
 	if (outsideSquared > radiusSquared)
 		return false;
+
 	// Over the square, the sphere reaches furthest sunwards where it is nearest the square, by the
 	// half chord there; it shadows the map unless even that is beyond the far side.
 	const double depth = glm::dot(row(2), sphere.center) + matrix[3][2];

@@ -32,9 +32,11 @@ template <typename T> struct Loader
 	// touches nothing the main thread owns.
 	std::function<std::unique_ptr<T>(std::span<const std::byte> bytes, std::string_view virtualPath)>
 	    decode;
+
 	// On the main thread, optional: what has to happen there before the value is visible, such as
 	// a GPU upload. Throws like decode.
 	std::function<void(T &value, std::string_view virtualPath)> finish;
+
 	// On the main thread, optional: the manager is done with a value that finish made ready,
 	// because a reload replaced it or its last reference was released, and drops it after this
 	// returns. For a value holding what a destructor must not free on the spot, such as a GPU image
@@ -63,6 +65,7 @@ struct ResourceOptions
 	bool hotReload{true};
 #endif
 	std::chrono::milliseconds pollInterval{500};
+
 	// Update() returns with no first load in flight, those a finish asks for included, so the frame a
 	// load ends on is set by the frame count and not by how fast the worker ran: for a run whose
 	// frames must be the same every time (AppArguments::frameStep). It blocks the calling thread.
@@ -203,6 +206,7 @@ class ResourceManager
 	void ReleaseRaw(std::type_index type, RawHandle handle);
 
 	struct State;
+
 	// Shared so a completion can tell, through a weak pointer, that the manager has gone.
 	std::shared_ptr<State> m_pState;
 };

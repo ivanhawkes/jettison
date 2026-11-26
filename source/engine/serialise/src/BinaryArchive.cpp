@@ -28,6 +28,7 @@ using Reflect::Attribute;
 
 constexpr std::array<std::byte, 4> kMagic{
     std::byte{'J'}, std::byte{'T'}, std::byte{'S'}, std::byte{'N'}};
+
 // The layout described in Archive.h. A change to it is a new revision, read or refused here; a
 // change to what a type saves is the type's own version, which FormatVersion carries.
 constexpr std::uint16_t kLayoutRevision = 1;
@@ -100,6 +101,7 @@ class Writer
 		{
 			const auto scope = m_path.Field(field.name());
 			Unsigned(m_payload, Intern(field.name()), 4);
+
 			// The length is patched in once the value is written.
 			const std::size_t lengthAt = m_payload.size();
 			Unsigned(m_payload, 0, 4);
@@ -305,6 +307,7 @@ class Reader
 			    std::format(
 			        "binary layout revision {} found, revision {} expected", revision,
 			        kLayoutRevision));
+
 		// Not reserved, for the reason Value gives for a sequence.
 		const std::uint32_t count = Count();
 		for (std::uint32_t index = 0; index < count; ++index)
@@ -361,6 +364,7 @@ class Reader
 			const std::size_t start = m_offset;
 			entt::meta_any member = field.get(value);
 			Value(member);
+
 			// The length catches a field whose type changed size, which would otherwise shift
 			// every field after it.
 			if (m_offset - start != length)
@@ -448,6 +452,7 @@ class Reader
 				for (std::uint8_t index = 0; index < shape.count; ++index)
 				{
 					const std::uint64_t bits = Unsigned(shape.width);
+
 					// Any other byte in a bool is undefined behaviour once it is read as one.
 					if (shape.kind == Kind::Bool && bits > 1)
 						Fail(std::format("{} is not a bool", bits));
@@ -476,9 +481,11 @@ class Reader
 			{
 				entt::meta_sequence_container elements = value.as_sequence_container();
 				const entt::meta_type type = elements.value_type();
+
 				// Not reserved: a corrupt count would allocate before the data ran out. Every element
 				// reads at least one byte, so a count past the data fails at its end.
 				const std::uint32_t count = Count();
+
 				// A container that cannot be cleared is fixed in size, a std::array: read in place.
 				if (!elements.clear())
 				{
@@ -537,6 +544,7 @@ class Reader
 	std::span<const std::byte> m_bytes;
 	std::size_t m_offset{0};
 	std::vector<std::string> m_names;
+
 	// The table names index: the archive's own, or a record's.
 	const std::vector<std::string> *m_pNames{&m_names};
 	Path m_path;
@@ -619,6 +627,7 @@ struct BinaryReader::Impl
 	std::string name;
 	std::vector<std::byte> migrated;
 	Reader reader;
+
 	// The table the records read share, copied from the archive's at the first.
 	std::shared_ptr<std::vector<std::string>> pRecordNames;
 };
@@ -672,6 +681,7 @@ namespace
 std::vector<BinaryRecord::Field> TakeFields(Reader &reader)
 {
 	std::vector<BinaryRecord::Field> fields;
+
 	// Not reserved, for the reason Reader::Value gives for a sequence.
 	const std::uint32_t count = reader.Count();
 	for (std::uint32_t index = 0; index < count; ++index)
@@ -796,6 +806,7 @@ void BinaryRecord::SetValue(std::string_view name, const entt::meta_any &value)
 	Writer writer{std::format("{}.{}", m_context, name)};
 	writer.Preload(*m_pNames);
 	writer.Value(value);
+
 	// The names the value added go after the ones the table had, so the indices it wrote hold.
 	const std::vector<std::string> &names = writer.Names();
 	m_pNames->insert(
@@ -953,6 +964,7 @@ void BinaryDocument::EditFirstRecord(const std::function<void(BinaryRecord &)> &
 {
 	Reader reader{payload, format, names};
 	BinaryRecord record;
+
 	// Its own copy of the table, which a field set adds to, so an edit that throws changes nothing.
 	record.m_pNames = std::make_shared<std::vector<std::string>>(names);
 	record.m_context = format;

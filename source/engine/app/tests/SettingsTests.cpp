@@ -113,6 +113,7 @@ TEST_CASE("Settings: a file that does not read leaves the defaults, and a bind t
 	Shell shell;
 	App::Settings settings{file};
 	settings.Load(shell.input);
+
 	// Nothing of it applied, the good binding included.
 	CHECK(shell.input.Bindings("shell", shell.jump) == std::vector<Binding>{{Character('j')}});
 

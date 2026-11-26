@@ -28,6 +28,7 @@ TEST_CASE("Joysticks: with nothing named, a joystick's number is the devices in 
 	CHECK(slots[0] == 0);
 	CHECK(slots[1] == 1);
 	CHECK_FALSE(slots[2]);
+
 	// A gap in the slots closes up, as the devices left are taken in order.
 	const auto gap = map.Assign(std::vector<JoystickDevice>{{3, kThrottle}, {1, kStick}});
 	CHECK(gap[0] == 1);
@@ -39,14 +40,17 @@ TEST_CASE("Joysticks: a named number is its device wherever it is plugged in, an
 {
 	JoystickMap map;
 	map.Name(1, kThrottle);
+
 	// The throttle alone, in GLFW's first slot: still Joystick2, and Joystick1 has nothing.
 	auto slots = map.Assign(std::vector<JoystickDevice>{{0, kThrottle}});
 	CHECK_FALSE(slots[0]);
 	CHECK(slots[1] == 0);
+
 	// The stick back, after it: the stick is the number no name claims.
 	slots = map.Assign(std::vector<JoystickDevice>{{0, kThrottle}, {1, kStick}});
 	CHECK(slots[0] == 1);
 	CHECK(slots[1] == 0);
+
 	// Unplugged, the throttle's number answers to nothing; the others carry on.
 	slots = map.Assign(std::vector<JoystickDevice>{{1, kStick}});
 	CHECK(slots[0] == 1);
@@ -73,6 +77,7 @@ TEST_CASE("Joysticks: a joystick the player binds is named after the device it i
 	const ActionId throttle = input.DefineAction("throttle", ActionType::Axis);
 	const ActionId fire = input.DefineAction("fire", ActionType::Button);
 	input.DefineContext("flight");
+
 	// A default names no device: it is the engine's choice, not the player's.
 	input.Bind("flight", fire, {Joysticks::Button(0, 0)});
 	input.Rebind("flight", throttle, {{Joysticks::Axis(1, 2)}});

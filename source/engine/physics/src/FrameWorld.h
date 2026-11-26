@@ -38,6 +38,7 @@ class Layers
 
 	JPH::ObjectLayerPairFilterTable pairs{2};
 	JPH::BroadPhaseLayerInterfaceTable broadPhase{2, 2};
+
 	// Made from the two above once they are filled in: it tabulates them when it is constructed.
 	std::optional<JPH::ObjectVsBroadPhaseLayerFilterTable> objectVsBroadPhase;
 };

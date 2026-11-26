@@ -94,6 +94,7 @@ class Race : public Host::Game
 			    JETTISON_VERIFY(definitions.Find<Piece>(command.piece) != nullptr);
 			    target.Registry().emplace<Token>(target.Registry().create(), command.piece, 0);
 		    });
+
 		// A piece goes its stride, and a die the world's generator rolls may add a square.
 		world.RegisterSystem(
 		    {"advance",

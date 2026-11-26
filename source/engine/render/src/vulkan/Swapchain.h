@@ -140,6 +140,7 @@ class Swapchain
 	VkExtent2D m_extents{0, 0};
 	std::vector<VkImage> m_images;
 	std::vector<VkImageView> m_imageViews;
+
 	// The images when offscreen, which m_images then lists the handles of.
 	std::vector<Image> m_offscreenImages;
 	uint32_t m_nextImage{0};

@@ -94,6 +94,7 @@ TEST_CASE("Ecs: before constraints put a system ahead of one that does not name 
 		system.before = std::move(before);
 		return system;
 	};
+
 	// flight and physics are another module's, which knows nothing of steering; index names a
 	// system registered after it.
 	scheduler.Register(Recording(log, "flight"));
@@ -104,6 +105,7 @@ TEST_CASE("Ecs: before constraints put a system ahead of one that does not name 
 	CHECK(
 	    scheduler.Order(TickPhase::Simulation) ==
 	    std::vector<std::string>{"index", "steering", "flight", "physics"});
+
 	// A before orders as an after does: nothing here is ambiguous.
 	CHECK(scheduler.Ambiguities(TickPhase::Simulation).empty());
 
@@ -163,6 +165,7 @@ TEST_CASE("Ecs: registration errors are found at registration, and the scheduler
 	CHECK_THROWS_WITH_AS(
 	    scheduler.Register(Recording(log, "a")), doctest::Contains("already registered"),
 	    std::logic_error);
+
 	// c closes a -> c -> b -> a.
 	CHECK_THROWS_WITH_AS(
 	    scheduler.Register(Recording(log, "c", TickPhase::Simulation, {"b"})),
@@ -172,6 +175,7 @@ TEST_CASE("Ecs: registration errors are found at registration, and the scheduler
 	CHECK_THROWS_WITH_AS(
 	    scheduler.Register(Recording(log, "late", TickPhase::Render, {"a"})),
 	    doctest::Contains("'late' runs after 'a', which is in another phase"), std::logic_error);
+
 	// The other direction: a waits for a c that turns up in another phase.
 	CHECK_THROWS_WITH_AS(
 	    scheduler.Register(Recording(log, "c", TickPhase::Render)),
@@ -361,6 +365,7 @@ TEST_CASE(
 	CHECK_THROWS_WITH_AS(
 	    machine.Dispatch(Order::Dock), "StateMachine: Dispatch was called from a hook",
 	    std::logic_error);
+
 	// The state had changed before the entry hook threw.
 	CHECK(machine.Current() == Flight::Docked);
 	machine.OnEnter(Flight::Docked, [] {});

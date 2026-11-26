@@ -49,6 +49,7 @@ class ImGuiRenderer
 	{
 		return m_coloursLinearised;
 	}
+
 	// The size the UI's fonts are rasterised at, and the size the theme's spacing and radii are set
 	// against: the two have to agree, so one number is stated here and Theme.cpp says why 16 px.
 	static constexpr float kFontSize = 16.0f;
@@ -70,6 +71,7 @@ class ImGuiRenderer
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;
 	const Vfs::FileSystem *m_pAssets{nullptr};
+
 	// The dev tools' faces, which ImGui reads glyphs from as it draws them, for as long as its
 	// context, and the faces themselves (vulkan/imgui/FontFaces.h).
 	DevToolFaces m_faces;

@@ -28,6 +28,7 @@ TEST_CASE("BRDF: GGX, Smith and Schlick give the specification's values")
 {
 	CHECK(Glsl::DistributionGgx(1.0f, 0.25f) == Approx(5.092958).epsilon(1e-5));
 	CHECK(Glsl::DistributionGgx(0.9f, 0.5f) == Approx(0.5165482).epsilon(1e-5));
+
 	// Head-on, the visibility term is 1 / 4 at any roughness: G is 1, and the BRDF's denominator 4.
 	for (const float alpha : {0.01f, 0.3f, 1.0f})
 		CHECK(Glsl::VisibilitySmithGgx(1.0f, 1.0f, alpha) == Approx(0.25).epsilon(1e-6));
@@ -80,6 +81,7 @@ TEST_CASE("BRDF: the metallic-roughness BRDF matches the specification at a refe
 
 	// Nothing from behind the surface.
 	CHECK(Glsl::EvaluateBrdf(surface, normal, view, -light) == glm::vec3{0.0f});
+
 	// And reciprocal: the BRDF itself, the result over n.l, is the same with view and light swapped.
 	const glm::vec3 swapped = Glsl::EvaluateBrdf(surface, normal, light, view);
 	const glm::vec3 forward = reflected / glm::dot(normal, light);
@@ -92,6 +94,7 @@ TEST_CASE("BRDF: the metallic-roughness BRDF matches the specification at a refe
 TEST_CASE("BRDF: the split sum's lookup table integrates the specular lobe")
 {
 	constexpr unsigned kSamples = 1024;
+
 	// A mirror reflects along one direction, so the scale and bias are Schlick's weights at n.v.
 	const glm::vec2 mirror = Glsl::IntegrateSpecularBrdf(0.5f, 0.0f, kSamples);
 	CHECK(mirror.x == Approx(0.96875).epsilon(1e-4));
@@ -135,6 +138,7 @@ TEST_CASE("BRDF: the samplers draw what the bake passes take them to")
 		CHECK(glm::length(cosine) == Approx(1.0).epsilon(1e-5));
 		CHECK(cosine.z >= 0.0f);
 	}
+
 	// A mirror's half vectors are the normal.
 	CHECK(Glsl::ImportanceSampleGgx(glm::vec2{0.3f, 0.7f}, 0.0f).z == Approx(1.0));
 }
@@ -162,6 +166,7 @@ TEST_CASE("Tonemap: PBR Neutral keeps colours below its knee and compresses what
 		last = mapped.x;
 	}
 	CHECK(last > 0.999f);
+
 	// A saturated highlight is pulled towards white rather than clipped to its hue.
 	const glm::vec3 hot = Glsl::TonemapPbrNeutral(glm::vec3{40.0f, 4.0f, 0.4f});
 	CHECK(hot.x < 1.0f);

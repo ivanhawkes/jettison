@@ -53,6 +53,7 @@ ENetPacket *MakeOffer(const Seal::Key &key, Seal::Keys &keys);
 struct Offer
 {
 	Seal::Key key{};
+
 	// Empty in the client's offer. A view of the packet, which it must not outlive.
 	std::span<const std::byte> proof;
 };

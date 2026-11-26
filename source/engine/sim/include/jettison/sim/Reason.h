@@ -34,6 +34,7 @@ struct ReasonArgument
 	std::int64_t integer{0};
 	entt::entity entity{entt::null};
 	std::string identifier;
+
 	// What the identifier names: the type Reflect registered its definition under ("Shell.Good"),
 	// or empty for a name the data gives that reads as itself, a body's, a system's or a
 	// portal's.

@@ -32,6 +32,7 @@ struct PhysicsSettings
 	std::uint32_t maxBodies{8192};
 	std::uint32_t maxBodyPairs{32768};
 	std::uint32_t maxContactConstraints{16384};
+
 	// The fastest a body moves in its frame. Jolt's default, 500 m/s, is far below the 7.7 km/s
 	// a game's platform may go at, and a kinematic body following one would be held to it.
 	float maxLinearVelocity{1.0e5f};
@@ -55,6 +56,7 @@ struct ContactEvent
 	ContactPhase phase{ContactPhase::Began};
 	entt::entity first{entt::null};
 	entt::entity second{entt::null};
+
 	// One of them is a sensor, so nothing was pushed.
 	bool sensor{false};
 	glm::dvec3 point{0.0};
@@ -79,9 +81,11 @@ struct CastOptions
 {
 	// The caster's own body, which a ray from inside it would otherwise hit at once.
 	entt::entity ignore{entt::null};
+
 	// Sensors are left out unless they are asked for: a ray picking a platform hits its shape, not the
 	// docking zone before it.
 	bool sensors{false};
+
 	// The simulation time to place each frame at, rather than where the last step left it, with its
 	// bodies where they are in it. Presentation shows the world between the last two steps
 	// (Sim::Stepper), and a platform's frame may move 500 m a step, so a ray drawn from
@@ -98,11 +102,13 @@ struct Pick
 {
 	Sim::Controller sender;
 	std::uint64_t request{0};
+
 	// The frame cast in (Sim::InFrame).
 	std::uint64_t frame{0};
 	glm::dvec3 origin{0.0};
 	glm::dvec3 direction{0.0, 0.0, -1.0};
 	double maxDistance{0.0};
+
 	// The simulation time the ray was drawn at (CastOptions::framesAt).
 	double time{0.0};
 	entt::entity ignore{entt::null};

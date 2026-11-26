@@ -108,6 +108,7 @@ struct PlacementComponent
 {
 	glm::dvec3 position{0.0};
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
+
 	// The body's radius in metres, or 0 when it has none: the sky draws the sun's disc this size.
 	double radius{0.0};
 };
@@ -129,6 +130,7 @@ struct WorldTransformComponent
 struct CameraComponent
 {
 	glm::dvec3 position{2.0, 2.0, 2.0};
+
 	// Scene coordinates are right-handed and Y-up. Radians: pitch about X, roll about view, yaw about
 	// Y.
 	glm::vec3 rotation{-0.615479709f, 0.0f, 0.785398163f};
@@ -144,6 +146,7 @@ struct CameraPoseComponent
 {
 	glm::dvec3 position{0.0};
 	glm::dquat orientation{1.0, 0.0, 0.0, 0.0};
+
 	// The vertical field of view, when a cinematic sets one; 0 for CameraComponent's.
 	float verticalFovDegrees{0.0f};
 };
@@ -168,9 +171,11 @@ enum class LightType
 struct LightAnimation
 {
 	Wave wave{Wave::Square};
+
 	// Seconds per cycle, above zero, and where in its cycle the wave starts, in cycles.
 	double period{1.0};
 	double phase{0.0};
+
 	// The share of the intensity at the wave's 0 and at its 1.
 	float from{0.0f};
 	float to{1.0f};
@@ -204,6 +209,7 @@ struct MeshComponent
 	std::string model;
 	std::optional<Shape> shape;
 	glm::vec3 color{1.0f};
+
 	// A ring's inner radius, against its outer radius of one.
 	float innerRadius{0.5f};
 	std::string material;
@@ -247,6 +253,7 @@ struct ClipPlayerComponent
 	// clip's end, it shows the rig there without the events that would have brought it there
 	// (Animation::AdvanceClip), as a rig first seen at the end of its clip is.
 	float time{0.0f};
+
 	// Runtime: the file's revision and the clip the bindings were last checked for, and whether
 	// they can play it.
 	std::uint32_t revision{0};
@@ -293,16 +300,20 @@ struct SunComponent
 struct SkyComponent
 {
 	std::uint32_t seed{1};
+
 	// About how many stars the sky has, over the whole sphere.
 	float stars{6000.0f};
+
 	// The brightest star's flux: the irradiance it delivers, which the faintest are a tiny part of.
 	float starFlux{3.0e-5f};
+
 	// The band's plane, seen edge-on: its normal, its angular half-width in radians, and
 	// its radiance along its centre line.
 	glm::vec3 bandNormal{0.0f, 1.0f, 0.0f};
 	float bandWidth{0.2f};
 	glm::vec3 bandColor{0.0f};
 	glm::vec3 nebulaColor{0.0f};
+
 	// How many times the nebula's pattern repeats around the sky: larger is smaller clouds.
 	float nebulaScale{2.0f};
 
@@ -334,11 +345,13 @@ struct AtmosphereComponent
 	double height{100000.0};
 	glm::vec3 rayleigh{5.802e-6f, 13.558e-6f, 33.1e-6f};
 	float rayleighHeight{8000.0f};
+
 	// Mie scattering, and its extinction, which is scattering and absorption both and is not less
 	// than it.
 	float mie{3.996e-6f};
 	float mieExtinction{4.44e-6f};
 	float mieHeight{1200.0f};
+
 	// The phase function's anisotropy, from -1 to 1: towards 1, the glow about the sun is tighter.
 	float mieAnisotropy{0.8f};
 
@@ -380,34 +393,46 @@ struct ParticleEmitterComponent
 	float rate{10.0f};
 	std::uint32_t burst{0};
 	std::uint32_t pulses{0};
+
 	// Seconds each lives, and the share by which each is shortened at random, from 0 to 1.
 	float lifetime{1.0f};
 	float lifetimeJitter{0.0f};
+
 	// Metres a second at birth, and the share by which each is slowed at random, from 0 to 1.
 	float speed{1.0f};
 	float speedJitter{0.0f};
+
 	// The cone's half-angle about -Z, in radians, from 0 (a line) to pi (every way).
 	float spread{0.0f};
+
 	// Born anywhere within a sphere of this radius about the entity, in metres.
 	float radius{0.0f};
+
 	// The share of its speed each loses a second, as an exponential: 1 is about two thirds.
 	float drag{0.0f};
+
 	// Its diameter in metres at birth and at death.
 	glm::vec2 size{0.1f, 0.1f};
+
 	// The seconds of its path behind it that it is drawn out along, in perspective, for streaks and
 	// sparks; 0 for a round sprite.
 	float stretch{0.0f};
+
 	// rgb: linear colour, a: intensity, at birth and at death.
 	glm::vec4 color{1.0f};
 	glm::vec4 colorEnd{1.0f, 1.0f, 1.0f, 0.0f};
+
 	// The share of what is behind it that it hides, at its middle: 0 adds light alone, as a flame.
 	float opacity{0.0f};
+
 	// The share of the light on it that it scatters, by colour: 0 for one that is not lit.
 	glm::vec3 albedo{0.0f};
+
 	// The most alive at once: a new particle past it takes the oldest's place.
 	std::uint32_t capacity{256};
 	std::uint32_t seed{1};
 	bool active{true};
+
 	// The entity whose frame the particles are at rest in, null for the emitter's own, and the file's
 	// id for it; the entity is runtime state, as an orbit camera's target is.
 	std::string frameId;
@@ -428,8 +453,10 @@ enum class OutlineStyle : std::uint8_t
 struct OutlineComponent
 {
 	OutlineStyle style{OutlineStyle::Selected};
+
 	// rgb: linear colour, a: intensity, in the HDR target's linear units.
 	glm::vec4 color{1.0f, 0.75f, 0.2f, 1.0f};
+
 	// The glow's width in pixels, from 1 to kMaxOutlineWidth; the selected line is a pixel wide.
 	float width{12.0f};
 };
@@ -447,6 +474,7 @@ struct MaskComponent
 {
 	bool cockpit{false};
 	bool unprocessed{false};
+
 	// Bits 3 to 7 of the stencil, as a number from 0 to 31.
 	std::uint8_t game{0};
 };
@@ -465,6 +493,7 @@ struct OrbitCameraComponent
 	double minDistance{1.0};
 
 	entt::entity target{entt::null};
+
 	// Braced, so the component can be value-initialised: the rig's constructor is explicit.
 	OrbitCamera rig{};
 	CameraTransition transition;
@@ -508,6 +537,7 @@ struct SequencePlayerComponent
 	// the player starts (SequenceSystem).
 	std::string file;
 	std::map<std::string, entt::entity, std::less<>> roles;
+
 	// Seconds into the sequence: set before the first update to start part-way through.
 	double time{0.0};
 
@@ -517,6 +547,7 @@ struct SequencePlayerComponent
 	float fade{0.0f};
 	float letterbox{0.0f};
 	float weight{0.0f};
+
 	// Runtime: whether the update has shown its first frame, from which its time runs.
 	bool started{false};
 };

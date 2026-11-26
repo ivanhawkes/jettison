@@ -71,6 +71,7 @@ std::vector<std::string> ModDifferences(
 	for (const ModVersion &mod : running)
 		if (named(saved, mod.mod) == saved.end())
 			differences.push_back(std::format("{} is enabled and was not", shown(mod)));
+
 	// The same mods: then only their order can differ, which decides which of two changing one file
 	// wins.
 	if (differences.empty() &&
@@ -135,6 +136,7 @@ SaveGame SaveGame::Read(std::span<const std::byte> bytes)
 	reader.Read(save.info);
 	save.world = reader.ReadBytes();
 	const auto count = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
+
 	// A section is at least its name's index and its count.
 	if (count > reader.Remaining() / 8)
 		reader.Fail("the count of sections is more than the data holds");

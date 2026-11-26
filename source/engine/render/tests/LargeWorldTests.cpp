@@ -32,6 +32,7 @@ constexpr double kPlanetMass = 3.986004418e14;
 constexpr double kStationOrbit = 6.791e6;
 constexpr double kInclination = 0.9;
 
+
 glm::dvec3 PlanetAt(double time)
 {
 	const double angle = glm::two_pi<double>() * time / kYear;
@@ -113,6 +114,7 @@ Errors Measure(
     entt::registry &scene, entt::entity planet, entt::entity station, double startTime, int frames)
 {
 	const Scene::SceneUpdateSystem update;
+
 	// The station's boxes' corners, and points on the planet: under the station, on the limb, and
 	// between.
 	std::array<glm::vec3, 8> corners;
@@ -150,6 +152,7 @@ Errors Measure(
 					{
 						const glm::dvec3 direction =
 						    glm::normalize(up * std::cos(angle) + across * (side * std::sin(angle)));
+
 						// Into the planet's own frame, where the mesh's unit sphere is.
 						points.emplace_back(
 						    glm::inverse(glm::dmat3{world.matrix}) * direction *
@@ -198,6 +201,7 @@ TEST_CASE(
 {
 	entt::registry scene;
 	const entt::entity planet = Body(scene, glm::vec3{6.371e6f}, Scene::Shape::Sphere);
+
 	// The station's hub, 60 metres long, with a panel 30 metres off its side.
 	const entt::entity station = Body(scene, {6.0f, 6.0f, 30.0f}, Scene::Shape::Box);
 	const entt::entity panel = scene.create();
@@ -208,6 +212,7 @@ TEST_CASE(
 
 	const entt::entity camera = scene.create();
 	scene.emplace<Scene::CameraComponent>(camera, glm::dvec3{0.0}, glm::vec3{0.0f}, 50.0f, 0.5f, true);
+
 	// Out along the station's radial, looking back past it, so the planet beneath it is in the
 	// frame too.
 	constexpr double kStart = 1.0e8;
@@ -228,11 +233,13 @@ TEST_CASE(
 	    "following the station: station ", near.station, " px over ", near.stationSamples,
 	    " samples, planet ", near.planet, " px over ", near.planetSamples,
 	    "; without the floating origin ", near.naive, " px");
+
 	// Every frame has station corners and points on the planet in view.
 	CHECK(near.stationSamples >= 600 * 8);
 	CHECK(near.planetSamples >= 600 * 3);
 	CHECK(near.station < 0.01);
 	CHECK(near.planet < 0.01);
+
 	// The measure can see jitter: the same frames made floats in the system frame first are
 	// thousands of pixels out.
 	CHECK(near.naive > 100.0);

@@ -30,6 +30,7 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kHarbour = Sim::FrameId("Harbour");
 constexpr std::string_view kStation = "ferry";
+
 // The ferry's loop: a circle of 5 km radius, round in an hour, so it moves at 8.7 m/s.
 constexpr double kLoopRadius = 5000.0;
 constexpr double kLoopSeconds = 3600.0;
@@ -71,6 +72,7 @@ TEST_CASE("Steering: seek goes at full speed, and arrive slows to stop at the ta
 	CHECK(glm::length(Ai::Arrive(agent, {0.0, 0.0, -5000.0})) == doctest::Approx(150.0));
 	CHECK(glm::length(Ai::Arrive(agent, {0.0, 0.0, -100.0})) == doctest::Approx(std::sqrt(1500.0)));
 	CHECK(Ai::Arrive(agent, {0.0, 3.0, 0.0}) == glm::dvec3{0.0, 3.0, 0.0});
+
 	// A target that moves is arrived at relative to it.
 	CHECK(Ai::Arrive(agent, {0.0, 0.0, 0.0}, {1.0, 2.0, 3.0}) == glm::dvec3{1.0, 2.0, 3.0});
 
@@ -100,6 +102,7 @@ TEST_CASE("Steering: avoidance turns aside from what is ahead and leaves the res
 	CHECK(turned.y < -10.0);
 	CHECK(turned.x == 0.0);
 	CHECK(turned.z == doctest::Approx(-60.0));
+
 	// Further than the lookahead, moving away, or passing clear: as desired.
 	CHECK(Ai::Avoid(agent, ahead, station, 4.0, 20.0) == ahead);
 	CHECK(Ai::Avoid(agent, -ahead, station, 8.0, 20.0) == -ahead);
@@ -147,6 +150,7 @@ TEST_CASE("Steering: separation pushes apart only what is nearer than it")
 {
 	const Agent agent = Ship({0.0, 0.0, 0.0});
 	const std::vector<Obstacle> near{{{20.0, 0.0, 0.0}, {}, 7.0}, {{0.0, -30.0, 0.0}, {}, 7.0}};
+
 	// 34 m short of the 54 m along x, and 24 m along y.
 	CHECK(Ai::Separate(agent, near, 40.0) == glm::dvec3{-34.0, 24.0, 0.0});
 	CHECK(Ai::Separate(agent, near, 7.0) == glm::dvec3{-1.0, 0.0, 0.0});
@@ -191,6 +195,7 @@ struct Fixture
 	Spatial::FrameIndices &indices{Spatial::FrameIndices::Attach(world)};
 	Ai::Steering &steering{Ai::Steering::Attach(world, physics, indices)};
 	entt::entity station{entt::null};
+
 	// Every contact begun between two bodies, neither a sensor.
 	std::vector<Physics::ContactEvent> collisions;
 
@@ -335,6 +340,7 @@ TEST_CASE("Steering: a ship flies to a point by the station, arrives at rest, an
 	fixture.Step();
 	const std::optional<double> took = fixture.RunUntilArrived(std::span{&ship, 1}, 120.0);
 	REQUIRE(took);
+
 	// 1.2 km at up to 150 m/s, accelerating and braking: about 20 s.
 	CHECK(*took < 30.0);
 	const std::vector<Ai::Arrived> arrived = fixture.Events<Ai::Arrived>();
@@ -367,6 +373,7 @@ TEST_CASE("Steering: a ship whose way is through the station flies round it with
 	}
 	CHECK(fixture.world.Registry().get<Ai::Destination>(ship).arrived);
 	CHECK(fixture.collisions.empty());
+
 	// The station's 82 m sphere, the ship's 6.7 m and the 20 m clearance.
 	CHECK(nearest > 100.0);
 }
@@ -402,6 +409,7 @@ TEST_CASE("Steering: a destination by an entity is its offset in the entity's ax
 {
 	Fixture fixture;
 	entt::registry &registry = fixture.world.Registry();
+
 	// The station turned a quarter about Y: its +X is the system's -Z.
 	registry.get<Physics::OnRails>(fixture.station).turn =
 	    glm::angleAxis(glm::radians(90.0), glm::dvec3{0.0, 1.0, 0.0});
@@ -479,6 +487,7 @@ std::vector<entt::entity> Gathering(Fixture &fixture)
 			    random.NextDouble() * 2.0 - 1.0, random.NextDouble() * 2.0 - 1.0,
 			    random.NextDouble() * 2.0 - 1.0};
 		const double distance = 1000.0 + random.NextDouble() * 1000.0;
+
 		// Its place is across the ring from where it starts, more or less, so the ways cross.
 		const double angle = glm::two_pi<double>() * (static_cast<double>(index) / kShips + 0.5);
 		const glm::dvec3 place{250.0 * std::cos(angle), 0.0, 250.0 * std::sin(angle)};
@@ -555,6 +564,7 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	std::optional<std::vector<std::byte>> unused;
 	const std::uint64_t first = run(save, 60 * 15);
 	CHECK(run(unused, -1) == first);
+
 	// Recorded from a Debug build and checked by the Release suite and under the sanitisers too: a
 	// change here is a change to how steering flies, or to what a save holds, and either is a
 	// decision, not drift. 9c's destination saves whether it is kept clear by its hull and which

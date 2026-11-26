@@ -75,10 +75,12 @@ struct Rgba
 struct ThemeSettings
 {
 	Palette palette{Palette::Mocha};
+
 	// 1 is the design's body text of 16 px, Tailwind's text-base; the spacing and the radii are
 	// set against that and scale with it. ApplyTheme keeps it inside the band a style survives
 	// (0.25 to 4), which the console's variable cannot be trusted to respect.
 	float uiScale{1.0f};
+
 	// The console's lines in a mono face, as a code block is, rather than the UI face.
 	bool consoleMono{true};
 

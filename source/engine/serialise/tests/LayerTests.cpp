@@ -41,6 +41,7 @@ struct Market
 	std::optional<std::string> note;
 	std::map<std::string, std::uint32_t> prices;
 };
+
 // A format with a rename in its history: version 1 called the tonnes "mass".
 struct Cargo
 {
@@ -143,6 +144,7 @@ TEST_CASE("Layers: a patch changes the fields it names and keeps the rest")
 	const Market market = Layered({"version: 1\nfeeBps: 200\nfees: {trade: 30}\n"});
 	CHECK(market.station == "Ostra Highport");
 	CHECK(market.feeBps == 200);
+
 	// A mapping is merged key by key.
 	CHECK(market.fees.docking == 15);
 	CHECK(market.fees.trade == 30);
@@ -180,6 +182,7 @@ TEST_CASE("Layers: a sequence replaces the one below, or adds to it when tagged 
 	REQUIRE(block.goods.size() == 3);
 	CHECK(block.goods[2].good == "wine");
 	CHECK(block.goods[0].good == "wheat-seeds");
+
 	// Over nothing, it is the sequence.
 	const Market removed = Layered({"version: 1\ntags: ~\n", "version: 1\ntags: !append [new]\n"});
 	CHECK(removed.tags == std::vector<std::string>{"new"});
@@ -196,6 +199,7 @@ goods: !merge=good
 	REQUIRE(market.goods.size() == 3);
 	CHECK(market.goods[0].good == "wheat-seeds");
 	CHECK(market.goods[0].stock == 90);
+
 	// Beer keeps its place and its stock, and takes the patch's target.
 	CHECK(market.goods[1].good == "beer");
 	CHECK(market.goods[1].stock == 55);
@@ -236,6 +240,7 @@ TEST_CASE("Layers: a patch that does not fit is refused, naming its layer")
 	const std::string unmatched = Refusal("version: 1\ngoods: !merge=good\n  - {stock: 3}\n");
 	CHECK(unmatched.find("has no 'good'") != std::string::npos);
 	CHECK(unmatched.find("Market.goods[0]") != std::string::npos);
+
 	// A misspelt field is found once the layers are merged, at its line in the patch.
 	const std::string misspelt = Refusal("version: 1\n\nfeeBsp: 200\n");
 	CHECK(misspelt.find("feeBsp") != std::string::npos);
@@ -247,6 +252,7 @@ TEST_CASE("Layers: each layer is migrated on its own before it is merged")
 {
 	RegisterTypes();
 	YamlMigrations migrations{"LayerTests.Cargo", {2}};
+
 	// A step edits what the data has: a patch that does not name the old field is left alone.
 	migrations.Add(
 	    1,

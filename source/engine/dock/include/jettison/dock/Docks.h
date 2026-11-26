@@ -83,6 +83,7 @@ struct Berth
 {
 	entt::entity platform{entt::null};
 	std::uint32_t number{0};
+
 	// Its berth class's name (BerthClassDefinition).
 	std::string berthClass;
 	bool display{false};

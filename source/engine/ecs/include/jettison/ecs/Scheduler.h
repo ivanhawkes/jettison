@@ -60,10 +60,12 @@ struct SystemDescription
 	Access access;
 	std::vector<std::string> after; // Names of systems this one runs after, within its phase.
 	std::function<void(entt::registry &, double deltaTime)> run;
+
 	// Names of systems this one runs before, within its phase: what a module puts ahead of another
 	// module's system that cannot name it, as steering goes before physics' flight model. Last, so a
 	// description naming none is written as it was.
 	std::vector<std::string> before{};
+
 	// Names of systems this one runs after when they are registered, and is not ordered against
 	// when they are not: how an optional module orders itself against another it does not depend
 	// on, as a game's travel goes after the docks'. Validate does not require them.
@@ -109,6 +111,7 @@ class Scheduler
 	std::vector<std::size_t> Sort(TickPhase phase) const;
 
 	std::vector<SystemDescription> m_systems;
+
 	// Run order per phase, rebuilt by Register.
 	std::vector<std::vector<std::size_t>> m_order;
 	mutable bool m_validated{false};

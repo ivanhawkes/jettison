@@ -103,6 +103,7 @@ TEST_CASE("Sequence: a file's shots, roles and timeline are read as written")
 	CHECK(sequence.shots[1].look == 1);
 	CHECK(sequence.shots[1].easing == Math::Easing::InOutCubic);
 	CHECK(sequence.shots[1].fovFrom == 0.0f);
+
 	// The events in time order, on a timeline as long as the sequence.
 	REQUIRE(sequence.timeline.events.size() == 2);
 	CHECK(sequence.timeline.events[0].name == "early");
@@ -189,6 +190,7 @@ TEST_CASE("Sequence: a rail is flown at an even speed through its points")
 		    RailPoint(curve, (index + 1) / double{kSteps}) - RailPoint(curve, index / double{kSteps}));
 		CHECK(covered == doctest::Approx(step).epsilon(0.01));
 	}
+
 	// A rail of one point holds the camera there.
 	const Sequence held = ReadSequence(OneShot("duration: 1\n    rail: [[1, 2, 3]]"), "held");
 	CheckNear(RailPoint(held.shots.front(), 0.7), {1.0, 2.0, 3.0});
@@ -198,6 +200,7 @@ TEST_CASE("Sequence: a rail is flown at an even speed through its points")
 TEST_CASE("Sequence: the game's camera blends in and out, shots cut and blend, and the bars follow")
 {
 	const Sequence sequence = ReadSequence(kDock, "cinematics/dock.sequence.yaml");
+
 	// The pad at rest at the origin, the ship 2 m along its -Z.
 	const std::vector<glm::dmat4> roles{
 	    glm::dmat4{1.0}, glm::translate(glm::dmat4{1.0}, glm::dvec3{0.0, 0.0, -2.0})};
@@ -209,10 +212,12 @@ TEST_CASE("Sequence: the game's camera blends in and out, shots cut and blend, a
 	CHECK(view.weight == 0.0f);
 	CHECK(view.letterbox == 0.0f);
 	CHECK(view.verticalFovDegrees == 45.0f);
+
 	// Half-way through the blend, half of each: the bars at half their height.
 	view = SampleSequence(sequence, 0.5, roles, game, 45.0f);
 	CHECK(view.weight == doctest::Approx(0.5f));
 	CHECK(view.letterbox == doctest::Approx(0.05f));
+
 	// Past it, the shot's own: on the rail, linear, looking at the pad, its field of view narrowing.
 	view = SampleSequence(sequence, 1.5, roles, game, 45.0f);
 	CHECK(view.weight == 1.0f);
@@ -221,16 +226,19 @@ TEST_CASE("Sequence: the game's camera blends in and out, shots cut and blend, a
 	CheckNear(view.pose.position, onRail);
 	CheckNear(Forward(view.pose), glm::normalize(-onRail));
 	CHECK(view.verticalFovDegrees == doctest::Approx(45.0f));
+
 	// The second shot is cut to: overhead, looking down at the ship's point a metre above it, with
 	// the game's field of view, since it sets none.
 	view = SampleSequence(sequence, 2.0, roles, game, 45.0f);
 	CheckNear(view.pose.position, {0.0, 20.0, 0.0});
 	CheckNear(Forward(view.pose), glm::normalize(glm::dvec3{0.0, -19.0, -2.0}));
 	CHECK(view.verticalFovDegrees == 45.0f);
+
 	// The fade's keys, linear between them.
 	CHECK(SampleSequence(sequence, 1.75, roles, game, 45.0f).fade == doctest::Approx(0.5f));
 	CHECK(SampleSequence(sequence, 2.0, roles, game, 45.0f).fade == 1.0f);
 	CHECK(SampleSequence(sequence, 3.0, roles, game, 45.0f).fade == 0.0f);
+
 	// Handed back over the last second: half-way at 4.5 s, and the game's camera exactly at the end.
 	view = SampleSequence(sequence, 4.5, roles, game, 45.0f);
 	CHECK(view.weight == doctest::Approx(0.5f));
@@ -256,6 +264,7 @@ TEST_CASE("Sequence: the game's camera blends in and out, shots cut and blend, a
 TEST_CASE("Sequence: a rail in a moving frame rides it, far from the origin, and looks at another")
 {
 	const Sequence sequence = ReadSequence(kDock, "cinematics/dock.sequence.yaml");
+
 	// The pad on a station 1e8 m out, turned a quarter about +Y and scaled, as a station drawn by a
 	// model may be: the scale is not the rail's.
 	const glm::dvec3 station{1.0e8, -3.0e6, 4.0e7};
@@ -268,9 +277,11 @@ TEST_CASE("Sequence: a rail in a moving frame rides it, far from the origin, and
 	const std::vector<glm::dmat4> roles{pad, ship};
 	const CameraPose game{station, {1.0, 0.0, 0.0, 0.0}};
 	const SequenceView view = SampleSequence(sequence, 1.5, roles, game, 45.0f);
+
 	// The rail's point turned a quarter about +Y: x to -z, z to x.
 	const glm::dvec3 point = RailPoint(sequence.shots[0], 0.75);
 	CheckNear(view.pose.position, station + glm::dvec3{point.z, point.y, -point.x}, 1e-6);
+
 	// Overhead, 20 m above the pad, looking at the ship 30 m along +Z of it.
 	const SequenceView overhead = SampleSequence(sequence, 3.0, roles, game, 45.0f);
 	CheckNear(overhead.pose.position, station + glm::dvec3{0.0, 20.0, 0.0}, 1e-6);
@@ -308,6 +319,7 @@ TEST_CASE("Sequence: a player plays its file over the camera's rig, hears its ev
 
 		SequenceSystem system{resources};
 		std::vector<SequenceEventFired> events;
+
 		// Until it is in, the player waits, and the camera is the rig's.
 		rig();
 		system.Update(registry, 0.1, &events);

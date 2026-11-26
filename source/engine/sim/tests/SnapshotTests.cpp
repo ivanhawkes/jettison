@@ -114,6 +114,7 @@ TEST_CASE("Sim: a snapshot holds every transform, sorted, at the step it was tak
 	world.Commands().Push(Launch{10.0});
 	world.Commands().Push(Launch{20.0});
 	world.Step();
+
 	// An entity without a transform is not presentation's to see.
 	const entt::entity hidden = world.Registry().create();
 	world.Registry().destroy(entt::entity{1});
@@ -142,6 +143,7 @@ TEST_CASE("Sim: a snapshot carries a copy of each component the world shows, and
 	world.Commands().Push(Launch{0.0});
 	world.Commands().Push(Launch{10.0});
 	world.Step();
+
 	// Shown whether or not the entity has a transform: a market is not somewhere.
 	const entt::entity unplaced = world.Registry().create();
 	world.Registry().emplace<Drift>(unplaced, 3.0);
@@ -156,9 +158,11 @@ TEST_CASE("Sim: a snapshot carries a copy of each component the world shows, and
 	CHECK(snapshot.Get<Drift>(entt::entity{0})->speed == 2.0);
 	CHECK(snapshot.Get<Drift>(unplaced)->speed == 3.0);
 	CHECK(snapshot.Get<Drift>(entt::null) == nullptr);
+
 	// A copy: the world moving on does not move the snapshot.
 	world.Registry().get<Drift>(entt::entity{0}).speed = 5.0;
 	CHECK(snapshot.Get<Drift>(entt::entity{0})->speed == 2.0);
+
 	// The world shows no transform this way, so there are none to find.
 	CHECK(snapshot.Components<Sim::Transform>().empty());
 	CHECK(snapshot.Get<Sim::Transform>(entt::entity{0}) == nullptr);
@@ -256,6 +260,7 @@ TEST_CASE("Sim: the stepper runs the frame's steps and keeps the states either s
 	CHECK(stepper.Current().step == 0);
 
 	world.Commands().Push(Launch{0.0});
+
 	// Two and a half steps: two run, and presentation is half way from the first to the second.
 	CHECK(stepper.Advance(2.5 * kStep) == 2);
 	CHECK(world.Clock().Step() == 2);
@@ -286,6 +291,7 @@ TEST_CASE("Sim: the stepper runs the frame's steps and keeps the states either s
 	CHECK(stepper.Advance(kStep) == 4);
 	CHECK(stepper.Previous().step == 6);
 	CHECK(stepper.Current().step == 7);
+
 	// The accumulator's cap holds under compression too.
 	world.SetCompression(100.0);
 	CHECK(stepper.Advance(kStep) == stepper.Accumulator().MaxStepsPerFrame());

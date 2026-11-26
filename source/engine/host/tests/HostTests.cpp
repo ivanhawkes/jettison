@@ -253,6 +253,7 @@ TEST_CASE("Host: a session runs the game's hooks in phase order and is ready onc
 
 		session.Shutdown();
 		CHECK_FALSE(session.Running());
+
 		// The world goes before the game, whose state its callbacks may hold.
 		CHECK(
 		    log ==

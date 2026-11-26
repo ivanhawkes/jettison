@@ -59,6 +59,7 @@ class GroundGame final : public App::Game
 	entt::entity m_rover{entt::null};
 	Physics::FlightControls m_sent;
 	Scene::ChaseCamera m_camera{{.offset = {0.0, 3.0, 9.0}, .lookAhead = 6.0, .smoothing = 4.0}};
+
 	// What the render test drives with, over the keys: none until its piloting stage.
 	std::optional<Physics::FlightControls> m_smokeControls;
 };

@@ -63,6 +63,7 @@ Portals &Portals::Attach(Sim::SimWorld &world, const Physics::PhysicsWorld &phys
 	if (!locate)
 		throw std::invalid_argument{"Transit: portals need the game's exits placed"};
 	RegisterTypes();
+
 	// Shared by the system, which the world keeps for as long as it lives.
 	std::shared_ptr<Portals> portals{new Portals{physics, std::move(locate)}};
 	world.RegisterComponent<InPortal>();
@@ -102,11 +103,13 @@ void Portals::Enter(
 void Portals::Arrive(Sim::SimWorld &world) const
 {
 	entt::registry &registry = world.Registry();
+
 	// The step being run ends at the next count, and at this time.
 	const std::vector<entt::entity> arriving = Arriving<InPortal>(registry, world.Clock().Step() + 1);
 	if (arriving.empty())
 		return;
 	const double endsAt = world.Clock().Now() + world.FixedStep();
+
 	// Every exit is placed before any arrival is made, so one the game does not have changes nothing.
 	std::vector<std::uint64_t> frames;
 	std::vector<Exit> exits;

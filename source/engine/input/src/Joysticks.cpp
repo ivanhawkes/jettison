@@ -76,6 +76,7 @@ std::array<std::optional<std::uint8_t>, kJoystickCount> JoystickMap::Assign(
 			}
 		}
 	}
+
 	// Then the numbers no name claims take the devices left, in slot order.
 	std::size_t device = 0;
 	for (std::uint8_t joystick = 0; joystick < kJoystickCount; ++joystick)

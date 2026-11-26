@@ -38,6 +38,7 @@ void ImGuiRenderer::Init(GLFWwindow *window, VkFormat colorFormat, uint32_t fram
 	ImGuiIO &io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 	m_faces = LoadDevToolFaces(*m_pAssets, kFontSize);
+
 	// No style is set here. The shell applies the dev tools' theme once the renderer is made
 	// (devtools/Theme.h, Application::DrawUI), because the palette is presentation's to choose and
 	// the renderer's to report the attachment for, not the backend's to fix.
@@ -61,6 +62,7 @@ void ImGuiRenderer::InitVulkanBackend(VkFormat colorFormat, uint32_t frameCount)
 	initInfo.QueueFamily = m_pDeviceContext->GetGraphicsQueueIndex();
 	initInfo.Queue = m_pDeviceContext->GetGraphicsQueue();
 	initInfo.DescriptorPool = m_descriptorPool;
+
 	// The backend asks for at least two; its vertex buffers are cycled one set per frame.
 	initInfo.MinImageCount = std::max(frameCount, 2u);
 	initInfo.ImageCount = initInfo.MinImageCount;

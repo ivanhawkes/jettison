@@ -66,6 +66,7 @@ TEST_CASE("Material: a material and a program round-trip through the YAML archiv
 	REQUIRE(material.animated.size() == 1);
 	CHECK(material.animated[0].wave == Wave::Triangle);
 	CHECK(material.animated[0].period == 4.0);
+
 	// Left out, so the default member initialiser.
 	CHECK(material.animated[0].phase == 0.0);
 
@@ -81,6 +82,7 @@ TEST_CASE("Material: a material and a program round-trip through the YAML archiv
 	REQUIRE(programAgain.textures.size() == 2);
 	CHECK(programAgain.textures[1].fallback == TextureFallback::FlatNormal);
 	CHECK(programAgain.parameters[1].name == "emissive");
+
 	// Left out, a program is opaque; a transparent one says so, and keeps saying so.
 	CHECK(program.blend == ProgramBlend::Opaque);
 	const ProgramDefinition glass =
@@ -103,6 +105,7 @@ TEST_CASE("Material: reading refuses what the format alone would let through")
 	CHECK_THROWS_AS(
 	    ReadMaterial("version: 1\nprogram: mesh\ntextures:\n  - slot: baseColor\n", "pathless"),
 	    FormatError);
+
 	// A misspelt key is an error, not a field quietly left at its default.
 	CHECK_THROWS_AS(ReadMaterial("version: 1\nprogramme: mesh\n", "misspelt"), FormatError);
 
@@ -153,6 +156,7 @@ TEST_CASE("Material: waves run from 0 to 1 over a period, and time-driven values
 	CHECK(EvaluateWave(Wave::Saw, 0.75) == doctest::Approx(0.75));
 	CHECK(EvaluateWave(Wave::Square, 0.49) == 0.0f);
 	CHECK(EvaluateWave(Wave::Square, 0.51) == 1.0f);
+
 	// Whole cycles fall away, negative ones too.
 	CHECK(EvaluateWave(Wave::Saw, 3.25) == doctest::Approx(0.25));
 	CHECK(EvaluateWave(Wave::Saw, -0.75) == doctest::Approx(0.25));
@@ -160,6 +164,7 @@ TEST_CASE("Material: waves run from 0 to 1 over a period, and time-driven values
 	const ProgramDefinition program = ReadProgram(kProgram, "lit.program.yaml");
 	const ResolvedMaterial resolved = ResolveMaterial(program, ReadMaterial(kMaterial, "test"), "test");
 	std::vector<glm::vec4> parameters{glm::vec4{-1.0f}};
+
 	// A quarter of the way through the triangle's period: halfway up.
 	EvaluateParameters(resolved, 1.0, parameters);
 	REQUIRE(parameters.size() == 3);

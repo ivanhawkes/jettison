@@ -62,8 +62,10 @@ struct Ship
 	std::vector<std::string> tags;
 	std::vector<std::vector<int>> grid;
 	std::vector<Good> manifest;
+
 	// A default that differs from Hold's own, which a read must keep when the data leaves it out.
 	Hold spare{.good = Good::Fuel, .quantity = 7, .mass = 1.5};
+
 	// Runtime state: not Saved, so never written, and refused if a file names it.
 	int reservedBy{0};
 
@@ -234,8 +236,10 @@ TEST_CASE("Serialise: YAML round-trips every field type, awkward values included
 	CAPTURE(text);
 	const Ship read = YamlArchive::Read<Ship>(text, {});
 	CHECK(read == ship);
+
 	// The sign of zero survives too, which == does not see.
 	CHECK(std::signbit(read.heading.x));
+
 	// Writing what was read gives the same text: nothing drifts on a second pass.
 	CHECK(YamlArchive::Write(read, {}) == text);
 }
@@ -255,9 +259,11 @@ TEST_CASE("Serialise: YAML writes the version, then Saved fields in registration
 	ship.reservedBy = 99;
 	const std::string text = YamlArchive::Write(ship, {});
 	CAPTURE(text);
+
 	// Vectors and lists of leaves go on one line, as the scene format writes them; a float is
 	// its shortest decimal, not its nine-digit expansion.
 	CHECK(text.find("heading: [0, 0.5, 1]\n") != std::string::npos);
+
 	// x, y, z, w: GLM's storage order, not the w-first order its constructor takes.
 	CHECK(text.find("attitude: [0, 0, 0, 1]\n") != std::string::npos);
 	CHECK(text.find("fuelHistory: [0.1, 0.2]\n") != std::string::npos);
@@ -312,8 +318,10 @@ TEST_CASE("Serialise: YAML fields the data leaves out keep their defaults, neste
 	    {});
 	CHECK(read.name == "Drifter");
 	CHECK(read.heading == glm::vec3{0.0f, 0.0f, 1.0f});
+
 	// The owner's default for spare, not Hold's.
 	CHECK(read.spare == Hold{Good::Fuel, 9, 1.5});
+
 	// An element starts from the element type's default.
 	REQUIRE(read.holds.size() == 1);
 	CHECK(read.holds[0] == Hold{Good::Ore, 5, 0.0});
@@ -337,6 +345,7 @@ TEST_CASE("Serialise: YAML that does not fit the type is refused, naming the fie
 	refuse(
 	    "version: 1\nspeed: 4\n",
 	    "SerialiseTests.Ship.speed: 'SerialiseTests.Ship' has no saved field 'speed' (line 2)");
+
 	// Not Saved, so not readable either: a file cannot set runtime state.
 	refuse("version: 1\nreservedBy: 4\n", "has no saved field 'reservedBy'");
 	refuse(
@@ -404,6 +413,7 @@ TEST_CASE("Serialise: binary is little-endian, with its names in a table")
 	// The quantity's four bytes, least significant first, somewhere after the header.
 	const std::array<std::byte, 4> quantity{std::byte{4}, std::byte{3}, std::byte{2}, std::byte{1}};
 	CHECK(std::ranges::search(bytes, quantity).begin() != bytes.end());
+
 	// Names are text, the enumerator's included.
 	const std::string asText(reinterpret_cast<const char *>(bytes.data()), bytes.size());
 	CHECK(asText.find("quantity") != std::string::npos);
@@ -450,6 +460,7 @@ TEST_CASE("Serialise: binary reports a field whose length does not match its typ
 {
 	RegisterTypes();
 	std::vector<std::byte> bytes = BinaryArchive::Write(Hold{Good::Ore, 9, 0.0}, {});
+
 	// The quantity's record: its name's index (2, after "good" and "Ore"), then its length, 4.
 	const std::array<std::byte, 8> record{std::byte{2}, {}, {}, {}, std::byte{4}, {}, {}, {}};
 	const auto found = std::ranges::search(bytes, record);
@@ -500,6 +511,7 @@ TEST_CASE("Serialise: maps and the other sequences round-trip in both archives")
 	CAPTURE(text);
 	CHECK(YamlArchive::Read<Ledger>(text, {}) == ledger);
 	CHECK(YamlArchive::Write(YamlArchive::Read<Ledger>(text, {}), {}) == text);
+
 	// An enumerator key is its name, and keys are written in the order of their text.
 	CHECK(text.find("prices:\n  Fuel: 1.5\n  Ore: 0.25\n  Water: 1e-300\n") != std::string::npos);
 	CHECK(text.find("aft:") < text.find("bow:"));
@@ -608,6 +620,7 @@ TEST_CASE("Serialise: binary streams carry a sequence of values under a format's
 	double number = 0.0;
 	reader.Read(number);
 	CHECK(number == 2.5);
+
 	// Read into an existing object, through a reference, as a world's loader reads a component.
 	Hold hold{Good::Ore, 1, 9.0};
 	reader.Read(hold);
@@ -649,6 +662,7 @@ TEST_CASE("Serialise: an optional field is written when it holds a value and lef
 	    .offset = glm::vec3{1.0f, -2.0f, 0.5f},
 	    .hold = Hold{Good::Fuel, 3, 0.25}};
 	const std::string text = YamlArchive::Write(full, {1});
+
 	// A value that equals the type's default is still written: holding one is what the field says.
 	CHECK(text.find("range: 0\n") != std::string::npos);
 	CHECK(text.find("label: \"\"") != std::string::npos);

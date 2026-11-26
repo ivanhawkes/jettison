@@ -30,6 +30,7 @@ namespace Jettison::DockTests
 inline constexpr double kStep = 1.0 / 60.0;
 inline const std::uint64_t kHarbour = Sim::FrameId("Harbour");
 inline constexpr std::string_view kFerry = "ferry";
+
 // The ferry's loop: a circle of 5 km radius, round in an hour, so it moves at 8.7 m/s.
 inline constexpr double kLoopRadius = 5000.0;
 inline constexpr double kLoopSeconds = 3600.0;
@@ -44,7 +45,6 @@ class Harbour final : public Physics::FrameModel
 	{
 		return body == kFerry;
 	}
-
 
 	Sim::Transform BodyAt(std::string_view /*body*/, double simSeconds) const override
 	{

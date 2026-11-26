@@ -122,6 +122,7 @@ class BinaryRecord
 
 	std::vector<Field> m_fields;
 	std::shared_ptr<std::vector<std::string>> m_pNames;
+
 	// What errors name the record as: the format it was read from.
 	std::string m_context;
 };

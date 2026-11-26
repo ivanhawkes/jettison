@@ -56,6 +56,7 @@ class SceneUpdateSystem
 
   private:
 	Resource::ResourceManager *m_pResources;
+
 	// Each clip file a player has named, loaded as it is first named and held while the system
 	// lives: a handful of small files a game, which a rig built again plays without waiting. A cache,
 	// so an update that fills it is still const.

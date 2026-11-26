@@ -61,10 +61,12 @@ struct HostLimits
 {
 	std::uint32_t fuel{10'000'000};
 	std::uint32_t memoryPages{256};
+
 	// What a script may keep by key (ScriptStore): its keys and their bytes together, and how many
 	// keys, so no mod grows every save. A key is 1 to kMaxKeyBytes bytes.
 	std::uint32_t storeBytes{64 * 1024};
 	std::uint32_t storeKeys{256};
+
 	// A call's wall time. Fuel bounds what a script does; this bounds what fuel cannot see (a
 	// machine stalled, a definition with fuel enough for seconds), well past what the most fuel
 	// takes in a sanitised Debug build.
@@ -107,11 +109,14 @@ struct ScriptStatus
 	std::string name;
 	std::uint64_t calls{0};
 	std::uint64_t traps{0};
+
 	// Past its time limit, and not called again.
 	bool stopped{false};
+
 	// What it keeps by key: the keys, and their bytes and the values' together.
 	std::size_t storedKeys{0};
 	std::size_t storedBytes{0};
+
 	// The last trap's message, or the reason it stopped.
 	std::string lastTrap;
 };

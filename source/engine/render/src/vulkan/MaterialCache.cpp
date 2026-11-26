@@ -71,6 +71,7 @@ void MaterialCache::Init(
 	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
 	// A CPU takes each anisotropic tap in software, and the triplanar program fetches nine texels a
 	// pixel: on lavapipe at 640 x 480, the vehicle plating on the display wing's round shapes, seen at
 	// grazing angles from 1.5 km, took the orbit scene's opaque pass from 22 ms to 59 ms at 16x and
@@ -116,6 +117,7 @@ void MaterialCache::RegisterLoaders()
 	        [this](TextureResource &texture, std::string_view path)
 	        {
 		        Upload(texture.data, "texture-" + std::string{path}, texture.image, texture.view);
+
 		        // The device has its copy; the CPU one is a texture's worth of memory for nothing.
 		        std::vector<std::byte>{}.swap(texture.data.bytes);
 	        },
@@ -156,6 +158,7 @@ void MaterialCache::Destroy()
 	}
 	vkDestroySampler(device, m_sampler, nullptr);
 	m_sampler = VK_NULL_HANDLE;
+
 	// The pipelines are the pipeline cache's, which destroys them.
 	m_programs.clear();
 	m_pDefaultProgram = nullptr;
@@ -208,6 +211,7 @@ void MaterialCache::ReleaseUnresolved()
 void MaterialCache::BeginFrame(std::uint64_t frameNumber, std::vector<glm::vec4> &parameters)
 {
 	m_frame = frameNumber;
+
 	// Frame N's slot fence has been waited on, so frames up to N - kFramesInFlight are done; an
 	// item retired at frame R was last recorded by frame R at the latest.
 	const auto done = std::stable_partition(
@@ -278,11 +282,13 @@ bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &mater
 			const MaterialDefinition &definition = *m_resources.TryGet(material.definition);
 			const Program &program = GetProgram(definition.program);
 			ResolvedMaterial resolved = ResolveMaterial(program.definition, definition, virtualPath);
+
 			// Every path is checked before any is loaded, so a bad one cannot strand the handles
 			// taken before it.
 			for (const std::string &path : resolved.textures)
 				if (!path.empty() && !Vfs::FileSystem::IsValidPath(path))
 					throw std::runtime_error("texture '" + path + "' is not a virtual path");
+
 			// The new textures are loaded before the old ones are released, so one both name keeps
 			// its slot rather than being freed and read again.
 			std::array<Resource::ResourceHandle<TextureResource>, kMaterialTextureSlots> textures{};
@@ -321,6 +327,7 @@ bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &mater
 			const Resource::Status status = m_resources.StatusOf(texture);
 			if (status == Resource::Status::Loading)
 				return false;
+
 			// A texture that failed (the resource manager said why) draws as its slot's fallback
 			// until a reload fixes it.
 			if (status == Resource::Status::Ready)

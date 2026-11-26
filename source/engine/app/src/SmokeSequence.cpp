@@ -30,6 +30,7 @@ constexpr int kFinalStage = 10;
 // The frames a pick is given to be answered: the next simulation step answers it, which is a frame
 // or two at most, unless the world is not stepping, and then the sequence moves on without it.
 constexpr int kPickFrames = 60;
+
 // The game's command is answered by the next step, as a pick is.
 constexpr int kGameUiFrames = 60;
 

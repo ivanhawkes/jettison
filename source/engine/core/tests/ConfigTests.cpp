@@ -108,10 +108,12 @@ TEST_CASE("Config: keys are dotted segments, and none is both a value and a map"
 	config.Set(ConfigLayer::User, "render.vsync", "true");
 	CHECK_THROWS_AS(config.Set(ConfigLayer::User, "render", "x"), std::invalid_argument);
 	CHECK_THROWS_AS(config.Set(ConfigLayer::User, "render.vsync.mode", "x"), std::invalid_argument);
+
 	// A sibling that shares the first characters of a segment is a different key.
 	config.Set(ConfigLayer::User, "renderer", "vulkan");
 	config.Set(ConfigLayer::User, "render.vsync", "false");
 	CHECK(config.GetBool("render.vsync") == false);
+
 	// Layers are separate files, so the rule holds within one layer.
 	config.Set(ConfigLayer::Defaults, "render", "x");
 }
@@ -223,6 +225,7 @@ TEST_CASE("Config: a key unset from a layer shows the layer below it")
 	config.SetNumber(ConfigLayer::User, "audio.music", 0.25);
 	config.Unset(ConfigLayer::User, "audio.music");
 	CHECK(config.GetNumber("audio.music") == 0.8);
+
 	// Nothing to unset is not an error.
 	config.Unset(ConfigLayer::User, "audio.music");
 	config.Unset(ConfigLayer::CommandLine, "render.vsync");

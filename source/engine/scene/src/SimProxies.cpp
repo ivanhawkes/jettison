@@ -21,6 +21,7 @@ void SyncSimProxies(
 		if (!shown)
 			continue;
 		transform.translation = shown->position;
+
 		// The scene's rotation is Euler angles applied about x, then y, then z, which is the
 		// order extractEulerAngleXYZ reads them back in.
 		const glm::mat4 rotation = glm::mat4_cast(glm::quat{shown->orientation});

@@ -56,6 +56,7 @@ TEST_CASE("a screenshot is written as the RGB of its pixels, top row first, in e
 	for (const PixelOrder order : {PixelOrder::Rgba, PixelOrder::Bgra})
 	{
 		CAPTURE(static_cast<int>(order));
+
 		// In a directory that is not there yet, which is made.
 		const std::filesystem::path path = scratch.path / "shots" / "frame.png";
 		REQUIRE(WriteScreenshot(path, Frame(order)));

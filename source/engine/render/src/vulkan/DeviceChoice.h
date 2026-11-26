@@ -34,8 +34,10 @@ struct DeviceCandidate
 {
 	std::string name;
 	DeviceType type{DeviceType::Other};
+
 	// Why it cannot be drawn with, or empty when it can.
 	std::string unsuitable;
+
 	// Whether a monitor is connected to it, as its DRM card's connectors say; nothing when that cannot
 	// be told (a CPU device has no card; a driver may not say which card it is).
 	std::optional<bool> drivesDisplay;
@@ -45,6 +47,7 @@ struct DeviceChoice
 {
 	// Into the candidates, or nothing when none can be drawn with.
 	std::optional<std::size_t> index;
+
 	// Why it was chosen, or why nothing was, for the log and the error.
 	std::string reason;
 };

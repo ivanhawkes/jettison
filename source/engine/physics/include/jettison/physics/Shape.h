@@ -28,15 +28,20 @@ enum class ShapeKind : std::uint8_t
 struct ShapeDefinition
 {
 	ShapeKind kind{ShapeKind::Box};
+
 	// Box: half of each side.
 	glm::vec3 halfExtents{0.5f};
+
 	// Sphere, Capsule and Cylinder.
 	float radius{0.5f};
+
 	// Capsule and Cylinder: half the length of the axis, along Y. A capsule's is its cylinder's,
 	// without the caps.
 	float halfHeight{0.5f};
+
 	// ConvexHull: the points whose convex envelope it is.
 	std::vector<glm::vec3> points;
+
 	// Mesh: triangles, three indices each into vertices, counter-clockwise seen from outside. A
 	// mesh has no inside, so it is for static and kinematic bodies only.
 	std::vector<glm::vec3> vertices;

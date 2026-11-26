@@ -55,12 +55,15 @@ struct RenderState
 	bool depthTest{true};
 	bool depthWrite{true};
 	VkCompareOp depthCompare{VK_COMPARE_OP_LESS};
+
 	// Depth clamped to the viewport's range rather than clipped by it, so a caster nearer the sun
 	// than a shadow map reaches is still drawn (the device is required to have depthClamp).
 	bool depthClamp{false};
+
 	// The rasteriser's depth bias, constant and by slope; none when both are zero.
 	float depthBiasConstant{0.0f};
 	float depthBiasSlope{0.0f};
+
 	// The stencil test, with the reference set per draw as dynamic state when it is on: what a
 	// fragment's stencil is compared with, under the compare mask, and what is written, under the
 	// write mask, where it passes both tests.
@@ -71,9 +74,11 @@ struct RenderState
 	std::uint8_t stencilWriteMask{0};
 	BlendMode blend{BlendMode::Opaque};
 	VkFormat colorFormat{VK_FORMAT_UNDEFINED};
+
 	// A second colour target, written as it is, never blended: the depth prepass's object IDs.
 	VkFormat secondColorFormat{VK_FORMAT_UNDEFINED};
 	VkFormat depthFormat{VK_FORMAT_UNDEFINED};
+
 	// The rendering's stencil attachment, which is the depth target's own aspect where both are
 	// attached.
 	VkFormat stencilFormat{VK_FORMAT_UNDEFINED};

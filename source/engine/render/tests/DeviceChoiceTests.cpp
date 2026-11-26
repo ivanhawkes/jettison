@@ -55,9 +55,11 @@ TEST_CASE(
 	CHECK(ChooseDevice(candidates).index == 2u);
 	candidates.pop_back();
 	CHECK(ChooseDevice(candidates).index == 1u);
+
 	// Two of a type keep Vulkan's order, which the device-select layer puts the display's first in.
 	candidates = {Gpu("First", std::nullopt), Gpu("Second", std::nullopt)};
 	CHECK(ChooseDevice(candidates).index == 0u);
+
 	// A laptop's monitor on its integrated GPU: that one, over the discrete GPU beside it.
 	integrated.drivesDisplay = true;
 	candidates = {Gpu("GeForce", false), integrated};
@@ -111,8 +113,10 @@ TEST_CASE("Device choice: a monitor is connected when one of the card's connecto
 
 	CHECK(DrivesDisplay(226, 0, sysfs) == false);
 	CHECK(DrivesDisplay(226, 1, sysfs) == true);
+
 	// A compute card with no connectors has no monitor.
 	CHECK(DrivesDisplay(226, 2, sysfs) == false);
+
 	// A node sysfs does not know, or one that is not a DRM card, says nothing.
 	CHECK_FALSE(DrivesDisplay(226, 9, sysfs));
 	std::filesystem::create_directories(sysfs / "devices" / "input" / "event3");

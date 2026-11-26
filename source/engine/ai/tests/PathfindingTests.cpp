@@ -167,6 +167,7 @@ TEST_CASE("Pathfinding: a grid round a wall, with and without an estimate, again
 	const Graph graph = Grid(kWidth, kHeight, walls);
 	constexpr NodeId kStart = 0;
 	constexpr NodeId kGoal = 8;
+
 	// The Manhattan distance is consistent on a grid of unit steps.
 	const auto manhattan = [](NodeId node)
 	{
@@ -203,6 +204,7 @@ TEST_CASE("Pathfinding: random graphs, against every pair's least cost, the same
 		{
 			const auto from = static_cast<NodeId>(random.Range(0, count - 1));
 			const auto to = static_cast<NodeId>(random.Range(0, count - 1));
+
 			// Whole costs, and some of none, so ties are common and sums exact.
 			graph.adjacency[from].push_back({to, static_cast<double>(random.Range(0, 9))});
 		}

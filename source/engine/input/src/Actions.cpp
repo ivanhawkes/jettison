@@ -224,6 +224,7 @@ float InputSystem::Read(InputCode input, float deadZone) const
 	if (found == m_raw.end())
 		return 0.0f;
 	const Raw &raw = found->second;
+
 	// Latched only by a button pressed since the last poll, which reads as held for this one.
 	const float value = (raw.latched ? 1.0f : raw.value) + raw.delta;
 	return std::abs(value) < deadZone ? 0.0f : value;
@@ -247,6 +248,7 @@ void InputSystem::Poll()
 	{
 		const Context &context = m_contexts[position];
 		std::vector<InputCode> claims;
+
 		// The actions this context binds, overridden or not, each once and in index order.
 		std::vector<std::uint32_t> actions;
 		actions.reserve(context.defaults.size() + context.overrides.size());
@@ -359,6 +361,7 @@ void InputSystem::LoadBindings(const Core::Config &config)
 			if (!bindings)
 				throw std::runtime_error{
 				    std::format("Input: {} is '{}', which is not bindings", key, *text)};
+
 			// Data, not code: a binding that does not suit the action is the file's error.
 			try
 			{

@@ -55,6 +55,7 @@ TEST_CASE("Script bindings: a type is laid out as a C compiler for wasm32 lays o
 	CHECK(OffsetOf(ping, "flag") == 72);
 	CHECK(ping.size == 80);
 	CHECK(ping.align == 8);
+
 	// An optional is not one a script's memory holds, and is said to be left out.
 	REQUIRE(ping.omitted.size() == 1);
 	CHECK(ping.omitted[0].starts_with("hidden"));
@@ -78,6 +79,7 @@ TEST_CASE("Script bindings: a value written into a script's memory reads back as
 	std::vector<std::byte> memory(4096);
 	constexpr std::uint32_t kAt = 1000;
 	bindings.Write(layout, &pong, memory, kAt);
+
 	// The struct holds pointers into the same memory, as a script sees them.
 	std::uint32_t text = 0;
 	std::memcpy(&text, memory.data() + kAt + 16, 4);
@@ -160,6 +162,7 @@ TEST_CASE(
 	        "#[link_name = \"send:Test.Pong\"]\n    pub fn jettison_send_Test_Pong(command: *const "
 	        "Test_Pong);") != std::string::npos);
 	CHECK(module.find("pub const Test_Mood_Cross: Test_Mood = 1;") != std::string::npos);
+
 	// A field named for a keyword is a raw identifier.
 	CHECK(module.find("pub r#where: jettison_dvec3,") != std::string::npos);
 

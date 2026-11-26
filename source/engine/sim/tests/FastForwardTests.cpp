@@ -21,6 +21,7 @@ struct Alarm
 	std::uint64_t at{0};
 	bool rung{false};
 };
+
 // When the last step began and ended: what a formula of the clock gives.
 struct Face
 {
@@ -28,6 +29,7 @@ struct Face
 	double ended{0.0};
 	std::uint64_t steps{0};
 };
+
 // Counted every step: what no formula gives.
 struct Tally
 {
@@ -163,6 +165,7 @@ TEST_CASE("Sim: a fast-forward with a command queued runs one step")
 	world.Commands().Push(Silence{alarm});
 	CHECK(world.FastForward(10000) == 1);
 	CHECK(world.Registry().get<Alarm>(alarm).rung);
+
 	// Silenced, nothing is left to run for.
 	CHECK(world.FastForward(10000) == 9999);
 }

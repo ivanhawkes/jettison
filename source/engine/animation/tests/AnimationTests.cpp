@@ -134,6 +134,7 @@ TEST_CASE("Playback: a looping clip wraps, a one-shot clip clamps, a paused clip
 TEST_CASE("Playback: a clip's events fire once each as it is played forwards and held at its end")
 {
 	const Clip clip = MakeEventClip();
+
 	// The start's on the first advance from it, the middle's as it is reached, the end's as the end
 	// is reached, and nothing more while the clip is held there.
 	auto [names, time] = Play(clip, 0.0f, {0.25f, 0.25f, 0.25f, 0.25f, 0.25f}, false);
@@ -179,6 +180,7 @@ TEST_CASE("Playback: a time past a clip's end shows the end without its events")
 	auto [names, time] = Play(clip, std::numeric_limits<float>::max(), {0.1f, 0.1f}, false);
 	CHECK(names.empty());
 	CHECK(time == 1.0f);
+
 	// Played back from there, it meets the end's event first, as if it had got there.
 	std::tie(names, time) = Play(clip, time, {-0.1f}, false);
 	CHECK(names == Names{"end"});
@@ -235,6 +237,7 @@ clips:
 	const glm::vec3 turned = glm::quat{half.w, half.x, half.y, half.z} * glm::vec3{1.0f, 0.0f, 0.0f};
 	CHECK(turned.x == doctest::Approx(0.70710678f));
 	CHECK(turned.y == doctest::Approx(0.70710678f));
+
 	// A step holds its key; a cubic track with flat tangents eases from one value to the next.
 	CHECK(Sample(clip.tracks[1], 0.49f).y == 0.0f);
 	CHECK(Sample(clip.tracks[1], 0.5f).y == 2.0f);
@@ -254,6 +257,7 @@ TEST_CASE("Clip file: a track or an event the player could not play is refused, 
 	const std::string track =
 	    "  - name: a\n    tracks:\n      - {node: arm, path: translation, times: [0, 1], values: [[0, "
 	    "0, 0], [1, 0, 0]]}\n";
+
 	// Two clips of one name, a track on no node, two of one path on a node.
 	refused(track + track);
 	refused(
@@ -262,6 +266,7 @@ TEST_CASE("Clip file: a track or an event the player could not play is refused, 
 	refused(
 	    track + "      - {node: arm, path: translation, times: [0, 2], values: [[0, 0, 0], [1, 0, "
 	            "0]]}\n");
+
 	// Times that fall, a value short, a cubic rotation.
 	refused(
 	    "  - name: a\n    tracks:\n      - {node: arm, path: scale, times: [1, 0], values: [[1, 1, "
@@ -272,6 +277,7 @@ TEST_CASE("Clip file: a track or an event the player could not play is refused, 
 	refused(
 	    "  - name: a\n    tracks:\n      - {node: arm, path: rotation, interpolation: cubic, "
 	    "times: [0], values: [[0, 0, 0], [0, 0, 0], [0, 0, 0]]}\n");
+
 	// An event of no name, one before the start, and a clip with nothing after its start.
 	refused(track + "    events:\n      - {time: 0.5}\n");
 	refused(track + "    events:\n      - {time: -1, name: early}\n");

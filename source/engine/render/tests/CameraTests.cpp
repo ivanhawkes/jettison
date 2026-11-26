@@ -22,14 +22,17 @@ TEST_CASE("Camera: reversed-Z puts the near plane at 1 and infinity at 0, monoto
 	const glm::mat4 projection = ReversedInfinitePerspective(glm::radians(60.0f), 16.0f / 9.0f, 0.5f);
 	CHECK(Project(projection, {0.0f, 0.0f, -0.5f}).z == doctest::Approx(1.0f));
 	CHECK(Project(projection, {0.0f, 0.0f, -1.0f}).z == doctest::Approx(0.5f));
+
 	// Forty thousand kilometres: still in front, still above zero, still in order.
 	const float planet = Project(projection, {0.0f, 0.0f, -4.0e7f}).z;
 	const float beyond = Project(projection, {0.0f, 0.0f, -4.1e7f}).z;
 	CHECK(planet > 0.0f);
 	CHECK(beyond < planet);
 	CHECK(beyond > 0.0f);
+
 	// Vulkan's y is down: a point above the axis lands in the top half.
 	CHECK(Project(projection, {0.0f, 1.0f, -10.0f}).y < 0.0f);
+
 	// The edge of the vertical field of view is the edge of the screen.
 	CHECK(
 	    Project(projection, {0.0f, std::tan(glm::radians(30.0f)) * 10.0f, -10.0f}).y ==
@@ -46,6 +49,7 @@ TEST_CASE("Camera: the scene's angles give the view direction the renderer has a
 	CHECK(forward.x == doctest::Approx(-std::sin(yaw) * std::cos(pitch)));
 	CHECK(forward.y == doctest::Approx(std::sin(pitch)));
 	CHECK(forward.z == doctest::Approx(-std::cos(yaw) * std::cos(pitch)));
+
 	// Level: the camera's right has no height.
 	CHECK(std::abs((orientation * glm::dvec3{1.0, 0.0, 0.0}).y) < 1e-12);
 
@@ -98,6 +102,7 @@ TEST_CASE("Camera: a screen ray passes through what is drawn at that point on th
 	    ReversedInfinitePerspective(camera.verticalFov, static_cast<float>(window.x / window.y), 0.1f);
 	const glm::vec3 ndc =
 	    Project(projection * RenderViewMatrix(camera), ToRenderSpace(point, camera.position));
+
 	// Vulkan's y is down, as a window's is.
 	const glm::dvec2 pixel{(ndc.x + 1.0) * 0.5 * window.x, (ndc.y + 1.0) * 0.5 * window.y};
 	const Jettison::Math::DRay ray = ScreenRay(camera, pixel, window);

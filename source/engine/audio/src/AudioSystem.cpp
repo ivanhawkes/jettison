@@ -23,6 +23,7 @@ constexpr Core::Category kAudio{"audio"};
 // is always decoded before the mix reaches it.
 constexpr std::size_t kMixChunkFrames = 1024;
 constexpr std::uint32_t kChannels = 2;
+
 // How long a bus takes to reach a volume it is set to, by miniaudio's smoothing: long enough that a
 // step to silence does not click, short enough to be heard as at once.
 constexpr std::uint32_t kBusVolumeEaseMilliseconds = 50;
@@ -67,6 +68,7 @@ ma_result OnOpen(ma_vfs *pVfs, const char *pPath, ma_uint32 openMode, ma_vfs_fil
 	std::optional<std::vector<std::byte>> bytes = bridge.pFiles->Read(pPath);
 	if (!bytes)
 		return MA_DOES_NOT_EXIST;
+
 	// miniaudio holds the file by an opaque pointer until it closes it, which takes it back.
 	*pFile = std::make_unique<OpenFile>(OpenFile{std::move(*bytes), 0}).release();
 	return MA_SUCCESS;
@@ -174,6 +176,7 @@ class AudioState
 		resources.decodedFormat = ma_format_f32;
 		resources.decodedChannels = 0;
 		resources.decodedSampleRate = options.sampleRate;
+
 		// With no device, nothing mixes until Mix asks, so the jobs that decode a streamed sound's
 		// next page run there, on the caller's thread, and the output is the same every run.
 		const bool device = options.output != Output::None;
@@ -231,6 +234,7 @@ class AudioState
 			Core::Log(
 			    Core::Severity::Info, kAudio, "Playing through {} at {} Hz",
 			    ma_get_backend_name(ma_engine_get_device(&m_engine)->pContext->backend), m_sampleRate);
+
 		// Slot 0 is the empty handle's.
 		m_sources.emplace_back();
 	}
@@ -274,6 +278,7 @@ class AudioState
 			return {};
 		}
 		ma_sound_set_looping(pSound.get(), loop ? MA_TRUE : MA_FALSE);
+
 		// Nothing reports velocities, and a Doppler shift from positions alone would follow the
 		// floating origin's jumps.
 		ma_sound_set_doppler_factor(pSound.get(), 0.0f);
@@ -335,6 +340,7 @@ class AudioState
 		std::string_view message(pMessage);
 		while (!message.empty() && (message.back() == '\n' || message.back() == '\r'))
 			message.remove_suffix(1);
+
 		// miniaudio's info is a device's details, line by line: debug here, with one line of the
 		// engine's own at info saying what plays through what.
 		Core::Severity severity = Core::Severity::Debug;
@@ -365,6 +371,7 @@ class AudioState
 	SourceHandle m_music;
 	glm::dvec3 m_listenerPosition{0.0};
 	AudioCounters m_counters;
+
 	// miniaudio logs from its own threads too.
 	std::atomic<std::size_t> m_problems{0};
 };
@@ -431,6 +438,7 @@ SourceHandle AudioSystem::Play(
 	ma_sound_set_rolloff(pSound, falloff.rolloff);
 	pSource->positioned = true;
 	pSource->position = position;
+
 	// Placed before it starts, so its first frames are mixed where it is.
 	m_pState->Place(*pSource);
 	ma_sound_start(pSound);
@@ -503,6 +511,7 @@ std::size_t AudioSystem::Playing() const
 void AudioSystem::SetListener(const glm::dvec3 &position, const glm::dquat &orientation)
 {
 	m_pState->m_listenerPosition = position;
+
 	// The listener stays at the origin; only its orientation is miniaudio's.
 	const glm::vec3 forward(orientation * glm::dvec3(0.0, 0.0, -1.0));
 	const glm::vec3 up(orientation * glm::dvec3(0.0, 1.0, 0.0));
@@ -521,6 +530,7 @@ void AudioSystem::Update()
 		Detail::Source &source = sources[index];
 		if (!source.pSound)
 			continue;
+
 		// A looping sound is never at its end; one that ended is let go, so its handle names nothing.
 		if (ma_sound_at_end(source.pSound.get()) != MA_FALSE)
 		{
@@ -546,6 +556,7 @@ std::size_t AudioSystem::Mix(std::span<float> interleaved)
 		ma_uint64 read = 0;
 		ma_engine_read_pcm_frames(
 		    &m_pState->m_engine, interleaved.data() + written * kChannels, chunk, &read);
+
 		// The engine mixes silence when nothing plays, so it always fills what it was asked for.
 		written += static_cast<std::size_t>(read);
 		if (read == 0)

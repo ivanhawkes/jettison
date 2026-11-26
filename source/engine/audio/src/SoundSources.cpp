@@ -38,6 +38,7 @@ void SoundSources::Update(const entt::registry &registry, AudioSystem &audio)
 		const SourceHandle source =
 		    audio.Play(component.sound, component.bus, position, true, component.falloff);
 		audio.SetVolume(source, component.volume);
+
 		// Kept when it would not play too (an empty handle), so a missing file is reported once and
 		// not tried again every frame.
 		m_playing[entity] = {source, component.sound};

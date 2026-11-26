@@ -43,6 +43,7 @@ void RegisterPackageTypes()
 	static const bool registered = []
 	{
 		using Reflect::Attribute;
+
 		// The name it had in the shell, kept so a package's tooling that names it still reads.
 		Reflect::RegisterType<PackageDescription>("Shell.ModDescription")
 		    .Field<&PackageDescription::name>("name", Attribute::Saved)

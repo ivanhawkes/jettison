@@ -124,6 +124,7 @@ TEST_CASE("Spatial: an empty index finds nothing")
 TEST_CASE("Spatial: a query keeps what is on its boundary, and orders what it finds")
 {
 	Spatial::SpatialIndex index;
+
 	// Inserted out of identifier order, in different cells and at the same place.
 	index.Insert(Entity(7), {100.0, 0.0, 0.0});
 	index.Insert(Entity(3), {-100.0, 0.0, 0.0});
@@ -186,6 +187,7 @@ TEST_CASE("Spatial: queries agree with brute force through every change")
 	Spatial::Test::Traffic traffic(42, 0, 4);
 	Math::Random random(7, 1);
 	entt::registry registry;
+
 	// Small leaves, so that a few thousand points make a deep tree; loose and not.
 	Octree::Settings settings{
 	    .halfExtent = 1.0e12, .leafCapacity = 4, .maxDepth = 36, .looseness = 1.0};
@@ -223,6 +225,7 @@ TEST_CASE("Spatial: queries agree with brute force through every change")
 		for (int query = 0; query < 40; ++query)
 		{
 			CAPTURE(query);
+
 			// From a ship, a station or open space, at the scales the game asks: avoidance, sensors,
 			// a whole region.
 			const std::vector<entt::entity> entities = reference.Entities();
@@ -293,18 +296,21 @@ TEST_CASE("Spatial: a loose octree leaves a point in its leaf while it stays in 
 	index.Insert(Entity(1), {10.0, 10.0, 10.0});
 	index.Insert(Entity(2), {-10.0, -10.0, -10.0});
 	index.Insert(Entity(3), {-20.0, -20.0, -20.0});
+
 	// The root split into eight cubes 1024 m on a side, each with a loose cube reaching 512 m past
 	// its own.
 	CHECK(index.NodeCount() == 9);
 	index.Update(Entity(1), {-500.0, -500.0, -500.0});
 	CHECK(index.NodeCount() == 9);
 	CHECK(index.QueryNearest({-500.0, -500.0, -500.0}, 1) == std::vector<Neighbour>{{Entity(1), 0.0}});
+
 	// Past its loose cube, it is placed again, with the other two, and that octant splits.
 	index.Update(Entity(1), {-600.0, -600.0, -600.0});
 	CHECK(index.NodeCount() == 17);
 	CHECK(
 	    index.QueryBox({glm::dvec3{-700.0}, glm::dvec3{-550.0}}) ==
 	    std::vector<entt::entity>{Entity(1)});
+
 	// Down to half a leaf, the tree gathers back into the root.
 	index.Remove(Entity(2));
 	CHECK(index.NodeCount() == 17);

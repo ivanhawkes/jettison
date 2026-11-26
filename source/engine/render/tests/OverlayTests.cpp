@@ -44,6 +44,7 @@ TEST_CASE("Overlay: each draw runs over its own indices, counted from its own ve
 	CHECK(overlay.Draws()[1].indexCount == 6);
 	CHECK(overlay.Draws()[1].vertexOffset == 4);
 	CHECK(overlay.Draws()[1].translation.x == 3.0f);
+
 	// The indices are kept as given: the draw's vertex offset is what moves them.
 	CHECK(overlay.Indices()[6] == 0);
 

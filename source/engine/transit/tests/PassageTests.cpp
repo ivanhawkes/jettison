@@ -28,8 +28,10 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kBuilding = Sim::FrameId("Building");
 const std::uint64_t kHarbour = Sim::FrameId("Harbour");
+
 // A lift's: 1.2 m/s² for two seconds at each end, at its speed between.
 constexpr Transit::MotionProfile kLift{1.2f, 4.0f, 0.0f};
+
 // The ferry's speed along x, from the harbour's origin at the start.
 constexpr double kFerrySpeed = 3.0;
 
@@ -125,6 +127,7 @@ TEST_CASE("Passage: a lift's car rises on its profile out of physics and comes o
 	Fixture fixture;
 	entt::registry &registry = fixture.world.Registry();
 	const entt::entity car = fixture.Car(kBuilding, {0.0, 0.0, 0.0}, Physics::BodyKind::Dynamic);
+
 	// Another car already at the top, where the first would come out.
 	const entt::entity parked = fixture.Car(kBuilding, {0.0, 40.0, 0.0}, Physics::BodyKind::Static);
 	fixture.world.Step();
@@ -203,6 +206,7 @@ TEST_CASE("Passage: a train on a moving ferry, fast-forwarded and loaded, arrive
 		}
 		REQUIRE(forwarded.world.Save() == stepped.world.Save());
 	}
+
 	// The passage's 1,800 steps in a handful of calls, and each of the 60 after it run.
 	MESSAGE("The train's passage and a second on in " << calls << " calls");
 	CHECK(calls < 70);
@@ -245,6 +249,7 @@ TEST_CASE("Passage: a way is any game's, and an arrival comes out on rings clear
 	const Sim::Transform place{{0.0, 0.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0}};
 	const std::vector<Transit::Occupant> occupants{
 	    {kBuilding, {0.0, 0.0, 0.0}, 1.0}, {kHarbour, {}, 50.0}};
+
 	// The other frame's occupant is nowhere near; this one's moves it a ring out.
 	const glm::dvec3 out = Transit::ClearPlace(occupants, kBuilding, place, 1.0, 0.5);
 	CHECK(glm::length(out) == doctest::Approx(2.5));

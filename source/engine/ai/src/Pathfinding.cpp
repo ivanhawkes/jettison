@@ -60,6 +60,7 @@ std::optional<Path> FindPath(const Graph &graph, NodeId start, NodeId goal, cons
 	std::vector<double> cost(count, std::numeric_limits<double>::infinity());
 	std::vector<NodeId> previous(count, kNone);
 	std::vector<bool> closed(count, false);
+
 	// Ordered by estimated cost, then by node: the pair's own order, so a tie is the lower index.
 	using Open = std::pair<double, NodeId>;
 	std::priority_queue<Open, std::vector<Open>, std::greater<>> open;
@@ -69,6 +70,7 @@ std::optional<Path> FindPath(const Graph &graph, NodeId start, NodeId goal, cons
 	{
 		const NodeId node = open.top().second;
 		open.pop();
+
 		// A node is pushed again each time a cheaper way in is found; the entries it left are stale.
 		if (closed[node])
 			continue;

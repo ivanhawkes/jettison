@@ -25,6 +25,7 @@ struct ModelPrimitive
 {
 	uint32_t firstIndex{};
 	uint32_t indexCount{};
+
 	// The primitive's own base colour image, encoded as the file had it, until the material cache
 	// makes the primitive's material from it.
 	std::vector<std::byte> baseColorImageData;
@@ -79,6 +80,7 @@ class Model
 	}
 
 	std::vector<ModelPrimitive> m_primitives{};
+
 	// Finest first; a model file has the one level, of every primitive.
 	std::vector<ModelLod> m_lods{};
 	ModelBounds m_bounds{};

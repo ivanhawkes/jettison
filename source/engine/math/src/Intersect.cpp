@@ -153,6 +153,7 @@ Frustum FrustumFromMatrix(const glm::mat4 &viewProjection)
 		const glm::vec4 &plane = coefficients[index];
 		const glm::vec3 normal{plane};
 		const float length = glm::length(normal);
+
 		// Measured against the distance, because the coefficients carry the matrix's scale.
 		if (length <= std::abs(plane.w) * 1e-6f)
 			frustum.planes[index] = {glm::vec3{0.0f}, 1.0f};

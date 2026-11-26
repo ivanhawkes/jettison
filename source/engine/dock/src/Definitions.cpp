@@ -22,6 +22,7 @@ namespace
 // may touch without overlapping: a berth lies flush on its deck and beside the next.
 constexpr double kProbe = 0.05;
 constexpr double kTouching = 0.01;
+
 // How near to a unit length, and to square, a berth's normal and heading have to be.
 constexpr double kUnitTolerance = 1.0e-3;
 
@@ -210,6 +211,7 @@ bool Fits(const BerthClasses &classes, const VehicleDefinition &vehicle, std::st
 	const auto own = classes.find(vehicle.berthClass);
 	if (berth == classes.end() || own == classes.end())
 		return false;
+
 	// The rank orders the classes; the size is what holds the vehicle. Ranks are the game's data, and
 	// nothing makes a class ranked above another the larger in every dimension.
 	const glm::vec3 &largest = berth->second.largestVehicle;
@@ -302,6 +304,7 @@ Physics::ShapeDefinition DeckShape(const PlatformLayout &layout)
 	for (const Box &box : Structure(layout))
 	{
 		const auto base = static_cast<std::uint32_t>(shape.vertices.size());
+
 		// Corner i has bit 0 for +X, bit 1 for +Y and bit 2 for +Z.
 		for (std::uint32_t corner = 0; corner < 8; ++corner)
 		{
@@ -309,6 +312,7 @@ Physics::ShapeDefinition DeckShape(const PlatformLayout &layout)
 			    (corner & 1u) ? 0.5 : -0.5, (corner & 2u) ? 0.5 : -0.5, (corner & 4u) ? 0.5 : -0.5};
 			shape.vertices.emplace_back(box.centre + sign * box.size);
 		}
+
 		// Each face's corners round it, then wound to face out.
 		for (std::uint32_t axis = 0; axis < 3; ++axis)
 			for (const std::uint32_t side : {0u, 1u})

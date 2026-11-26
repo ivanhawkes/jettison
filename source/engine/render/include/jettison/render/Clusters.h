@@ -31,8 +31,10 @@ struct ClusterView
 {
 	// The viewport, in pixels.
 	glm::vec2 viewport{1.0f};
+
 	// The projection matrix's [0][0] and [1][1].
 	glm::vec2 projectionScale{1.0f};
+
 	// The grid's depth range: the camera's near plane to the cluster range, view depths in metres.
 	float nearPlane{0.1f};
 	float range{1.0f};
@@ -86,10 +88,13 @@ struct ClusterCheck
 	// The clusters that list a light, and the entries listed, over the whole grid.
 	std::uint32_t litClusters{0};
 	std::uint32_t entries{0};
+
 	// The most lights any one cluster lists.
 	std::uint32_t mostLights{0};
+
 	// The index list ran out: the GPU reserved more entries than it holds.
 	bool overflowed{false};
+
 	// The first cluster that disagrees, described; empty when they agree.
 	std::string mismatch;
 
@@ -107,10 +112,12 @@ struct ClusterCheckTotals
 	std::uint64_t frames{0};
 	std::uint64_t litFrames{0};
 	std::uint64_t failures{0};
+
 	// The most entries of the index list any frame used, and the most lights any cluster listed: what
 	// the list's budget (kRendererLightIndicesPerCluster, render/IRenderer.h) is measured against.
 	std::uint32_t peakEntries{0};
 	std::uint32_t peakClusterLights{0};
+
 	// What the first failure was.
 	std::string firstFailure;
 };

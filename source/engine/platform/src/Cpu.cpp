@@ -58,6 +58,7 @@ CpuFeatures DetectCpuFeatures()
 	// Initialises the compiler runtime's CPU model now: its own constructor has not run yet when
 	// the guard calls this.
 	__builtin_cpu_init();
+
 	// Aggregate initialisation, not the default constructor: that is an inline function, and the
 	// guard may not call one.
 	return CpuFeatures{

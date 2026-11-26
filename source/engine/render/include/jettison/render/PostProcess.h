@@ -43,6 +43,7 @@ struct GpuOutline
 {
 	// rgb: linear colour, a: intensity.
 	glm::vec4 color{0.0f};
+
 	// x: 0 for the selected's line, 1 for the targeted's glow; y: the glow's width in pixels.
 	glm::vec4 style{0.0f};
 };

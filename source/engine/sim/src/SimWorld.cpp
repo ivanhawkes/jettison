@@ -19,6 +19,7 @@ namespace Jettison::Sim
 namespace
 {
 constexpr std::string_view kFormat = "Jettison.World";
+
 // The layout Save writes. Until player testing a change to it, or to what the world saves around its
 // components, changes it in place, and the saves the repositories hold are written again
 // (docs/decisions.md, "Formats change in place until player testing"); the version stays.
@@ -230,6 +231,7 @@ bool SimWorld::Accepts(const entt::meta_type &type) const
 std::vector<std::byte> SimWorld::Save() const
 {
 	Serialise::BinaryWriter writer{kFormat};
+
 	// First, so a load knows every storage's version before it reads one. Each is written, at 1 too,
 	// so a save says what it holds without a reader knowing the default.
 	writer.WriteUnsigned(m_components.size(), 4);
@@ -275,6 +277,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 	// Everything is read into locals and committed at the end, so a save that does not fit
 	// leaves the world as it was. A save of another version is refused.
 	Serialise::BinaryReader reader{save, Migrations()};
+
 	// Every storage's version is checked against its component's chain here, before anything else is
 	// read, so a component of a later build is refused by name.
 	std::vector<std::pair<std::string_view, std::uint32_t>> versions;
@@ -288,6 +291,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 		if (std::ranges::find(versions, name, &std::pair<std::string_view, std::uint32_t>::first) !=
 		    versions.end())
 			reader.Fail(std::format("the save gives component '{}' a version twice", name));
+
 		// A component the world does not register is refused where its storage is.
 		if (const auto component = std::ranges::find(m_components, name, &Component::name);
 		    component != m_components.end())
@@ -366,6 +370,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 	reader.End();
 
 	registry.ctx().emplace<Math::Random>(Math::Random::FromState(random));
+
 	// The events raised so far belong to the state being replaced.
 	registry.ctx().emplace<EventQueue>();
 	m_registry = std::move(registry);
@@ -375,6 +380,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 		m_commands.Push(std::move(command));
 	for (const std::function<void()> &commit : commits)
 		commit();
+
 	// What was recorded led to the state just replaced.
 	m_recorded.clear();
 }

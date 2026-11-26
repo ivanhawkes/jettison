@@ -131,6 +131,7 @@ class InputSystem
 	{
 		std::string name;
 		bool opaque{false};
+
 		// By action index; ordered so Poll and SaveBindings walk them the same way every time.
 		std::map<std::uint32_t, std::vector<Binding>> defaults;
 		std::map<std::uint32_t, std::vector<Binding>> overrides;
@@ -154,6 +155,7 @@ class InputSystem
 
 	std::vector<ActionState> m_actions;
 	std::vector<Context> m_contexts;
+
 	// Indices into m_contexts, bottom first.
 	std::vector<std::size_t> m_stack;
 	std::map<InputCode, Raw> m_raw;

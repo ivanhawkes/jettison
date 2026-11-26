@@ -120,12 +120,14 @@ TEST_CASE("Theme: every palette colours every role, and the palette is what is a
 			}
 			CHECK(ToByte(colour.r) == ByteOf(palette, Token(token), 0));
 		}
+
 		// A role is not a copy of its neighbour's colour by accident: the panels are distinguishable.
 		CHECK(
 		    PaletteTokens(palette)[static_cast<std::size_t>(Token::Background)].b !=
 		    PaletteTokens(palette)[static_cast<std::size_t>(Token::Foreground)].b);
 		CHECK(PaletteName(palette).size() > 1);
 	}
+
 	// The roles pinned to the hexes the palette publishes, in the order the enum names them: the
 	// table is read by index, so an entry out of step with the enum shows up as a control drawn in
 	// the wrong colour, and these are the ones that would be missed.
@@ -164,6 +166,7 @@ TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a h
 	CHECK(DecodeSrgb(0xcd / 255.0f) == doctest::Approx(0.610496f).epsilon(0.001f)); // text
 	CHECK(DecodeSrgb(0x00 / 255.0f) == 0.0f);
 	CHECK(DecodeSrgb(0xff / 255.0f) == doctest::Approx(1.0f));
+
 	// The linear part, under sRGB's knee, where a power of a near-zero loses its precision.
 	CHECK(DecodeSrgb(0.04045f / 2.0f) == doctest::Approx(0.04045f / 2.0f / 12.92f));
 
@@ -172,6 +175,7 @@ TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a h
 	const Rgba linear = PaletteColour(Palette::Mocha, Token::Background, kAlpha, true);
 	const Rgba authored = PaletteColour(Palette::Mocha, Token::Background, kAlpha, false);
 	CHECK(ToByte(authored.r) == 0x1e);
+
 	// What the attachment does to what the theme hands it: the hex again, and not lighter.
 	for (const int channel : {0, 1, 2})
 		CHECK(
@@ -218,6 +222,7 @@ TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a h
 		}
 	MESSAGE("worst byte-step deviation through the vertex packing: " << worst);
 	CHECK(worst <= 4);
+
 	// The distribution the document quotes, counted here rather than asserted from an example.
 	CHECK(channels == 264); // 22 roles, 4 varieties, 3 channels
 	CHECK(steps[0] == 209);
@@ -239,18 +244,22 @@ TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a h
 		return ToByte(
 		    EncodeSrgb(static_cast<float>(bytes[static_cast<std::size_t>(channel)]) / 255.0f));
 	};
+
 	// The four-step cases, the darkest channels of all: Mocha's crust, on which the primary colour's
 	// text sits, and Latte's near-black red of its blue.
 	CHECK(landed(Palette::Mocha, Token::Sunken, 0) == 0x0d); // #11111b crust
 	CHECK(landed(Palette::Mocha, Token::Sunken, 2) == 0x1c); // ... to #0d0d1c
 	CHECK(landed(Palette::Latte, Token::Info, 0) == 0x00);   // #04a5e5 blue, to #00a5e5
+
 	// Two steps, at the panel grounds of the dark varieties: Mocha's base and Macchiato's.
 	CHECK(landed(Palette::Mocha, Token::Background, 0) == 0x1c);     // #1e1e2e to #1c1c2e
 	CHECK(landed(Palette::Macchiato, Token::Background, 0) == 0x22); // #24273a
+
 	// One step, and it reaches the mid tones of the lighter varieties.
 	CHECK(landed(Palette::Macchiato, Token::Subtle, 2) == 0x63); // #494d64 to #494d63
 	CHECK(landed(Palette::Frappe, Token::Subtle, 1) == 0x56);    // #51576d to #51566d
 	CHECK(landed(Palette::Latte, Token::Foreground, 0) == 0x4b); // #4c4f69 to #4b4f69
+
 	// Mocha's mid and light tones, the two the captured frame measures, land on the palette itself.
 	CHECK(landed(Palette::Mocha, Token::Foreground, 0) == ByteOf(Palette::Mocha, Token::Foreground, 0));
 	CHECK(landed(Palette::Mocha, Token::Subtle, 2) == ByteOf(Palette::Mocha, Token::Subtle, 2));
@@ -284,6 +293,7 @@ TEST_CASE("Theme: the style names every colour a dev tools window draws with")
 		if (same)
 			left.push_back(colour);
 	}
+
 	// Not one role is left in the stock theme's colours, which is the point of naming them from
 	// the dark style rather than painting over it a few at a time.
 	CHECK(left.empty());
@@ -320,6 +330,7 @@ TEST_CASE("Theme: the metrics are the design's spacing scale, and scale with its
 	CHECK(style.FramePadding.x == 15.0f);
 	CHECK(style.WindowRounding == 12.0f);
 	CHECK(style.ScrollbarSize == 15.0f);
+
 	// A scale of nothing is a dev's mistake, not a style with no size to draw at.
 	ThemeSettings broken;
 	broken.uiScale = 0.0f;
@@ -345,6 +356,7 @@ TEST_CASE("Theme: a console change is applied once, and a new context is never s
 		CHECK(AppliedTheme().uiScale == 1.25f);
 		CHECK_FALSE(ApplyThemeIfChanged(settings, false));
 	}
+
 	// A run that tears its renderer down and builds another: the new context has no style, and
 	// the remembered settings must not be taken as applied to it.
 	HeadlessImGui fresh;
@@ -398,6 +410,7 @@ TEST_CASE("Theme: a console line has a colour for every kind and every severity"
 			roles.push_back(token);
 			CHECK(token < Token::Count);
 		}
+
 	// The words of the design: what was sent, what it cost, what went wrong.
 	ConsoleLine input;
 	input.kind = ConsoleLine::Kind::Input;
@@ -420,6 +433,7 @@ TEST_CASE("Theme: a console line has a colour for every kind and every severity"
 	ConsoleLine answer;
 	answer.kind = ConsoleLine::Kind::Output;
 	CHECK(LineToken(answer) == Token::Foreground);
+
 	// ColourOf reads the palette the style was built from, so a view cannot drift from the style.
 	{
 		HeadlessImGui imgui;
@@ -440,6 +454,7 @@ TEST_CASE("Theme: a scale typed into the console cannot drive a metric outside w
 	REQUIRE(scalable.size() > 100);
 	HeadlessImGui imgui;
 	ImGuiIO &io = ImGui::GetIO();
+
 	// A face that rasterises at any size, as the app's do, because the frame below is drawn at the
 	// sizes the clamped scales ask for: ImGui's embedded face is ProggyClean, a bitmap face with one
 	// native size of 13 px, and a frame at 4 px asks it for glyphs it cannot bake — measured, the
@@ -449,6 +464,7 @@ TEST_CASE("Theme: a scale typed into the console cannot drive a metric outside w
 	REQUIRE(
 	    io.Fonts->AddFontFromMemoryTTF(
 	        scalable.data(), static_cast<int>(scalable.size()), 16.0f, &face) != nullptr);
+
 	// The atlas is built before the frames below, as a renderer's backend does: ImGui asks for it by
 	// name, and a frame without it is a user error it reports by asserting.
 	REQUIRE(io.Fonts->Build());
@@ -461,6 +477,7 @@ TEST_CASE("Theme: a scale typed into the console cannot drive a metric outside w
 	Console console;
 	ThemeSettings theme;
 	console.BindVariables("dev", theme);
+
 	// The band is measured: 0.01 gives WindowMinSize {0.8, 0.6}, and NewFrame asserts "Invalid style
 	// setting!"; the console reaches it, the one path the dev tools' slider cannot bound. A scale of
 	// 0, of a negative, of 1e9 and of a word that parses as a float are the same class of mistake.
@@ -513,6 +530,7 @@ TEST_CASE(
 	    "mono: " << std::string{mono->GetDebugName()} << ", unnamed: \""
 	             << std::string{ui->GetDebugName()} << "\"");
 	CHECK(MonoFont() == mono);
+
 	// The two facts the render module's own test proves its loader settles, recorded here so the
 	// rule's contract is read against them: a memory load has no name of its own, and the face drawn
 	// with is the first one added, not the last (io.FontDefault is unset in this context).

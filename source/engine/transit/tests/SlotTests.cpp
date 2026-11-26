@@ -27,8 +27,10 @@ namespace
 {
 constexpr double kStep = 1.0 / 60.0;
 const std::uint64_t kTown = Sim::FrameId("Town");
+
 // Seconds a car pays for, at a bay or a booth.
 constexpr double kPaid = 10.0;
+
 // Seconds through the booth to the motorway beyond.
 constexpr double kThrough = 1.0;
 const glm::dvec3 kBeyond{0.0, 0.0, -40.0};
@@ -41,6 +43,7 @@ struct Fixture
 	Sim::SimWorld world{kStep, 7};
 	Physics::PhysicsWorld &physics;
 	std::vector<std::string> happened;
+
 
 	Fixture() : physics{Physics::PhysicsWorld::Attach(Setup(world))}
 	{
@@ -75,6 +78,7 @@ struct Fixture
 		     }});
 	}
 
+
 	static Sim::SimWorld &Setup(Sim::SimWorld &world)
 	{
 		Sim::RegisterTypes();
@@ -86,16 +90,19 @@ struct Fixture
 		return world;
 	}
 
+
 	void Log(std::string_view what, entt::entity car, entt::entity slot)
 	{
 		happened.push_back(
 		    std::format("{} {} {}", what, entt::to_integral(car), entt::to_integral(slot)));
 	}
 
+
 	std::uint64_t PaidUntil() const
 	{
 		return world.Clock().Step() + Transit::Steps(kPaid, kStep);
 	}
+
 
 	// The game's ask: the slot at once if it is free, or else a place in its queue.
 	void Ask(entt::entity car, entt::entity slot)
@@ -111,6 +118,7 @@ struct Fixture
 			        "waits{}", Transit::Wait<Transit::Slot, Transit::Claim>(registry, slot, car)),
 			    car, slot);
 	}
+
 
 	void Run()
 	{
@@ -140,12 +148,14 @@ struct Fixture
 			    });
 	}
 
+
 	entt::entity Bay()
 	{
 		const entt::entity bay = world.Registry().create();
 		world.Registry().emplace<Transit::Slot>(bay);
 		return bay;
 	}
+
 
 	entt::entity Booth()
 	{
@@ -159,6 +169,7 @@ struct Fixture
 		registry.emplace<Physics::Body>(booth, barrier);
 		return booth;
 	}
+
 
 	entt::entity Car(const glm::dvec3 &at)
 	{
@@ -250,6 +261,7 @@ TEST_CASE("Slot: a toll booth's gated portal sends the car holding it through, a
 	Fixture fixture;
 	entt::registry &registry = fixture.world.Registry();
 	const entt::entity booth = fixture.Booth();
+
 	// Three cars already at the barrier: one paid, one waiting its turn, and one that has not paid.
 	const entt::entity paid = fixture.Car({-4.0, 0.0, 0.0});
 	const entt::entity waiting = fixture.Car({0.0, 0.0, 0.0});

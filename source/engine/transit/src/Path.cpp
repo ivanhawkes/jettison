@@ -11,6 +11,7 @@ namespace
 {
 // Of a step, let go before rounding up (Steps).
 constexpr double kStepTolerance = 1.0e-6;
+
 // How near the y axis a direction is for Facing to take x as its up.
 constexpr double kAlongUp = 0.999999;
 } // namespace

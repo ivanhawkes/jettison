@@ -62,6 +62,7 @@ struct VehicleDefinition
 	float length{10.0f};
 	float beam{6.0f};
 	float height{2.0f};
+
 	// Its berth class's name.
 	std::string berthClass;
 	std::string model{};
@@ -128,7 +129,9 @@ void CheckBerthClass(std::string_view name, const BerthClassDefinition &berthCla
 // The definitions' files' chains (Sim::DefinitionRegistry::Load), each format the type's reflected
 // name, reading the current version alone.
 const Serialise::YamlMigrations &BerthClassMigrations();
+
 const Serialise::YamlMigrations &VehicleMigrations();
+
 const Serialise::YamlMigrations &PlatformMigrations();
 
 // Checks a vehicle, in the one place a file read and a vehicle made in code both go through: a berth

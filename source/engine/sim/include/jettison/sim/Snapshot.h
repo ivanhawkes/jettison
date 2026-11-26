@@ -63,6 +63,7 @@ struct TransformSample
 {
 	entt::entity entity{entt::null};
 	Transform transform;
+
 	// The entity's InFrame, or kNoFrame for one that has none.
 	std::uint64_t frame{kNoFrame};
 };
@@ -85,6 +86,7 @@ struct Snapshot
 	std::uint64_t step{0};
 	double time{0.0};
 	std::vector<TransformSample> transforms;
+
 	// By EnTT's type hash: a std::vector<ComponentSample<T>> for each component shown.
 	std::map<entt::id_type, std::any> shown;
 

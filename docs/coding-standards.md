@@ -54,8 +54,38 @@ class ModelCache
 	void Init();
 ```
 
+Inside a body, a class or a namespace, a comment that follows the end of a statement or a block
+starts a new block of code, so it has one blank line above it: the code before it stands as its own
+block. A comment right after an opening brace, a label, another comment, or within a statement that
+goes on (an argument list, an initialiser) has none, and nor does the last block before a closing
+brace.
+
+Before:
+
+```cpp
+	m_pSwapchain->Recreate();
+	// The pipelines were built for the swapchain's format, and the surface is the same one, so
+	// the format is too; a surface that changed its mind would need them rebuilt.
+	if (m_pSwapchain->GetImageFormat() != format)
+```
+
+After (`source/engine/render/src/vulkan/Renderer.cpp`):
+
+```cpp
+	m_pSwapchain->Recreate();
+
+	// The pipelines were built for the swapchain's format, and the surface is the same one, so
+	// the format is too; a surface that changed its mind would need them rebuilt.
+	if (m_pSwapchain->GetImageFormat() != format)
+```
+
 clang-format cannot add these lines, so `scripts/space-declarations.py` does, run by hand rather
-than by the gate ([build and gates](build-and-gates.md#declaration-spacing)).
+than by the gate ([build and gates](build-and-gates.md#declaration-spacing)). Manifest follows the
+same rules, run with `--root`.
+
+No formatting change, by hand or by a script, reaches inside a string or other literal: a raw string
+holding generated code, a shader or a test's expected text is data, and spacing it changes what the
+program says. The spacing script skips raw string literals for that reason.
 
 ## Naming
 

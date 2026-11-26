@@ -121,6 +121,7 @@ void Take(Sim::SimWorld &world, const TakeHelm &command)
 	if (const auto *helm = registry.try_get<Sim::Helm>(command.vehicle);
 	    helm && helm->controller != command.sender)
 		return refuse(Reason::HelmHeld);
+
 	// The helm it was at, in entity order, should a save hold more than one.
 	std::vector<entt::entity> held;
 	for (const auto [vehicle, helm] : registry.view<const Sim::Helm>().each())
@@ -161,11 +162,13 @@ void CheckBehaviour(std::string_view name, const BehaviourDefinition &behaviour)
 Behaviours &Behaviours::Attach(Sim::SimWorld &world)
 {
 	RegisterTypes();
+
 	// Shared by the system, which the world keeps for as long as it lives.
 	std::shared_ptr<Behaviours> behaviours{new Behaviours{}};
 	behaviours->m_fixedStep = world.FixedStep();
 	world.RegisterComponent<Behaviour>();
 	world.RegisterComponent<Sim::Helm>();
+
 	// For whose helm a vehicle is at: the flight panel's, and which vehicle a player's camera follows.
 	world.ShowInSnapshots<Sim::Helm>();
 	world.RegisterCommand<TakeHelm>([](Sim::SimWorld &target, const TakeHelm &command)
@@ -240,6 +243,7 @@ void Behaviours::Flatten(
 			Refuse(name, path, std::format("the task '{}', which is not defined", node.task));
 		flat.task = &task->second;
 	}
+
 	// Whole steps, rounded up, as a portal's transit is; a little under a whole number of steps is
 	// that number, not one more.
 	if (node.kind == NodeKind::Wait)
@@ -270,6 +274,7 @@ Status Behaviours::Tick(Sim::SimWorld &world, entt::entity entity)
 		return Status::Failure;
 	}
 	const Tree &tree = found->second;
+
 	// Its own copy while it is ticked: a task may add or take components, the Behaviour among them.
 	std::vector<NodeState> states = std::move(behaviour->nodes);
 	if (states.size() != tree.size())
@@ -307,6 +312,7 @@ std::uint64_t Behaviours::QuietFrom(const Sim::SimWorld &world) const
 	     registry.view<const Behaviour>(entt::exclude<Sim::Helm>).each())
 	{
 		const auto found = m_trees.find(behaviour.tree);
+
 		// Left alone, as Tick leaves it.
 		if (found == m_trees.end())
 			continue;
@@ -390,6 +396,7 @@ Status Behaviours::TickNode(
 			break;
 		case NodeKind::Repeat:
 			status = child(0);
+
 			// The next run starts at the next tick, so a child that succeeds at once is not run without
 			// end in one step.
 			if (status == Status::Success)

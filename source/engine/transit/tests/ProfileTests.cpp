@@ -153,6 +153,7 @@ TEST_CASE("Profile: one of no boost, or past it, or that never ends, is refused"
 	      Transit::MotionProfile{20.0f, 60.0f, -1.0f}, Transit::MotionProfile{20.0f, 60.0f, 30.0f},
 	      Transit::MotionProfile{20.0f, 0.0f, 0.0f}})
 		CHECK_THROWS_AS(Transit::CheckProfile("bad", profile), Serialise::FormatError);
+
 	// A thrust share not above 0 and at most 1.
 	for (const float share : {0.0f, -0.5f, 1.5f, infinity, std::numeric_limits<float>::quiet_NaN()})
 		CHECK_THROWS_AS(

@@ -16,6 +16,7 @@ template <typename T> bool Intersects(const BasicSphere<T> &a, const BasicSphere
 template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const BasicAabb<T> &box);
 template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const BasicObb<T> &box);
 template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const BasicSphere<T> &sphere);
+
 // A ray parallel to the plane misses it, including one that lies in it.
 template <typename T> std::optional<T> Intersect(const BasicRay<T> &ray, const BasicPlane<T> &plane);
 

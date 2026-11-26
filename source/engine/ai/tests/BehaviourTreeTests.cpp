@@ -88,6 +88,7 @@ struct Trees
 			    trace.push_back(named(context) + "-");
 			    return Status::Failure;
 		    });
+
 		// Runs for as many ticks as its second argument says, then succeeds, counting in its memory.
 		behaviours.DefineTask(
 		    "run",
@@ -97,6 +98,7 @@ struct Trees
 			    const auto ticks = static_cast<std::uint64_t>(std::stoi(context.arguments[1]));
 			    return ++context.memory >= ticks ? Status::Success : Status::Running;
 		    });
+
 		// Counts on the entity, so a save has it; and fails once it has counted to its argument.
 		behaviours.DefineTask(
 		    "count",
@@ -176,6 +178,7 @@ TEST_CASE(
 	CHECK(trees.Tick(ship, Status::Running) == Trace{"undock+", "fly^"});
 	CHECK(trees.Tick(ship, Status::Running) == Trace{"fly."});
 	CHECK(trees.Tick(ship, Status::Success) == Trace{"fly.", "dock+"});
+
 	// Finished, it starts again from the top, and the task from its first tick.
 	CHECK(trees.Tick(ship, Status::Running) == Trace{"undock+", "fly^"});
 	CHECK(trees.world.Registry().get<Ai::Behaviour>(ship).last == Status::Running);
@@ -205,6 +208,7 @@ TEST_CASE("Behaviour trees: decorators invert, succeed, repeat and loop, a run a
 	CHECK(trees.Tick(thrice, Status::Running) == Trace{"a+"});
 	CHECK(trees.Tick(thrice, Status::Running) == Trace{"a+"});
 	CHECK(trees.Tick(thrice, Status::Success) == Trace{"a+"});
+
 	// For ever, until the child fails, which fails it.
 	trees.behaviours.DefineTree("forever", {Composite(NodeKind::Repeat, {TaskNode("count", {"4"})})});
 	const entt::entity forever = trees.Follow("forever");
@@ -237,6 +241,7 @@ TEST_CASE("Behaviour trees: the system ticks every tree each step, and a wait co
 	    {Composite(
 	        NodeKind::Repeat,
 	        {Composite(NodeKind::Sequence, {TaskNode("count"), WaitNode(0.5), TaskNode("count")})})});
+
 	// Under a step is one; a little over a whole number of steps is the next.
 	trees.behaviours.DefineTree(
 	    "blink",
@@ -252,6 +257,7 @@ TEST_CASE("Behaviour trees: the system ticks every tree each step, and a wait co
 	CHECK(counted(pause) == 1);
 	CHECK(counted(blink) == 1);
 	CHECK_FALSE(trees.world.Registry().all_of<Tally>(idle));
+
 	// Thirty steps of waiting, the half second at sixty a step, then the second count; the next
 	// run begins a step later.
 	for (int step = 1; step < 30; ++step)
@@ -261,6 +267,7 @@ TEST_CASE("Behaviour trees: the system ticks every tree each step, and a wait co
 	CHECK(counted(pause) == 2);
 	trees.world.Step();
 	CHECK(counted(pause) == 3);
+
 	// One step's wait and a step to start again: a count every other step.
 	CHECK(counted(blink) == 16);
 
@@ -387,6 +394,7 @@ TEST_CASE(
 	const auto setup = [&](Trees &trees)
 	{
 		trees.world.RegisterComponent<Sim::ControlledBy>();
+
 		// A count, then three ticks' running: a count every third step.
 		trees.behaviours.DefineTree(
 		    "rounds",
@@ -399,6 +407,7 @@ TEST_CASE(
 	entt::registry &registry = trees.world.Registry();
 	const entt::entity first = trees.Follow("rounds");
 	const entt::entity second = trees.Follow("rounds");
+
 	// No one commands it: any player may take its helm.
 	const entt::entity free = trees.Follow("rounds");
 	registry.emplace<Sim::ControlledBy>(first, one);
@@ -534,6 +543,7 @@ TEST_CASE("Behaviour trees: steps a tree waits through are passed over, to the s
 			stepped.world.Step();
 		REQUIRE(forwarded.world.Save() == stepped.world.Save());
 	}
+
 	// Ten rounds of 621 steps (a start, the wait's 120, the doze's 500), each a few calls.
 	const entt::registry &registry = forwarded.world.Registry();
 	CHECK(registry.get<Tally>(registry.view<Ai::Behaviour>().front()).count == 10);

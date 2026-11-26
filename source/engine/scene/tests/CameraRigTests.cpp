@@ -33,6 +33,7 @@ TEST_CASE("Camera rigs: a look rotation points -Z forward and keeps +Y up")
 	const glm::dquat look = LookRotation({1.0, 0.0, 0.0});
 	CHECK(glm::length(look * glm::dvec3{0.0, 0.0, -1.0} - glm::dvec3{1.0, 0.0, 0.0}) < 1e-12);
 	CHECK((look * glm::dvec3{0.0, 1.0, 0.0}).y == doctest::Approx(1.0));
+
 	// Straight down still has a roll.
 	const glm::dquat down = LookRotation({0.0, -1.0, 0.0});
 	CHECK(glm::length(down * glm::dvec3{0.0, 0.0, -1.0} - glm::dvec3{0.0, -1.0, 0.0}) < 1e-12);
@@ -54,6 +55,7 @@ TEST_CASE("Camera rigs: the orbit camera follows its target exactly, and smooths
 {
 	OrbitCamera orbit{{.minDistance = 5.0, .maxDistance = 1.0e8}};
 	orbit.Place(0.4, 0.2, 100.0);
+
 	// A station 150 million kilometres out, doing 7.7 km/s.
 	const glm::dvec3 start{1.496e11, 2.0e6, -6.8e6};
 	const glm::dvec3 velocity{7700.0, 0.0, 0.0};
@@ -65,8 +67,10 @@ TEST_CASE("Camera rigs: the orbit camera follows its target exactly, and smooths
 		const CameraPose pose = orbit.Update(1.0 / 60.0);
 		if (frame == 0)
 			offset = pose.position - target;
+
 		// The same offset from the target, to the bit the doubles keep, every frame.
 		CHECK(glm::length((pose.position - target) - offset) < 1e-4);
+
 		// Doubles a hundred and fifty million kilometres out are 30 micrometres apart, which the
 		// subtraction in AimError rounds to: 3e-7 radians over the hundred metres.
 		CHECK(AimError(pose, target) < 1e-6);
@@ -81,6 +85,7 @@ TEST_CASE("Camera rigs: the orbit camera follows its target exactly, and smooths
 	for (int frame = 0; frame < 600; ++frame)
 		orbit.Update(1.0 / 60.0);
 	CHECK(orbit.Distance() == doctest::Approx(5.0).epsilon(1e-6));
+
 	// Pitch stops short of the pole.
 	orbit.Orbit(0.0, 10.0);
 	for (int frame = 0; frame < 600; ++frame)
@@ -161,6 +166,7 @@ TEST_CASE("Camera rigs: the map zooms by ratios from a station to the whole syst
 	CHECK(map.Distance() == doctest::Approx(before / 8.0).epsilon(1e-6));
 	const CameraPose pose = map.Update(1.0 / 60.0);
 	CHECK(AimError(pose, planet) < 1e-9);
+
 	// Looking down at the plane.
 	CHECK(Forward(pose).y < 0.0);
 
@@ -199,6 +205,7 @@ TEST_CASE("Camera rigs: a pilot camera follows its ship's world transform throug
 {
 	entt::registry registry;
 	const entt::entity ship = registry.create();
+
 	// A ship 10 km out, nose along -Z turned a quarter turn to port, so it points along -X.
 	const glm::dquat heading = glm::angleAxis(glm::radians(90.0), glm::dvec3{0.0, 1.0, 0.0});
 	glm::dmat4 matrix = glm::mat4_cast(heading);
@@ -210,6 +217,7 @@ TEST_CASE("Camera rigs: a pilot camera follows its ship's world transform throug
 
 	Jettison::Scene::UpdatePilotCameras(registry, 1.0 / 60.0);
 	const auto &chase = registry.get<Jettison::Scene::CameraPoseComponent>(camera);
+
 	// Behind it, which is +X of it, above it, and looking along its nose.
 	CHECK(chase.position.x > 1.0e4 + 10.0);
 	CHECK(chase.position.y > 0.0);

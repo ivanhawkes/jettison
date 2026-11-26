@@ -28,16 +28,20 @@ struct ServerConfig
 	std::uint16_t port{};
 	std::string protocol;
 	std::vector<std::uint32_t> versions;
+
 	// The server's secret key (Key.h). A client whose pinned public key is not its own is refused as
 	// KeyMismatch.
 	std::string secretKey;
 	std::size_t maxSessions{32};
+
 	// Connections not yet admitted, on top of the sessions: past both, the transport ignores a new
 	// one, which times out at its client without a reason.
 	std::size_t maxPending{8};
 	std::chrono::milliseconds handshakeTimeout{2000};
+
 	// Messages a session may have waiting for Receive; one more closes it with InboundOverflow.
 	std::size_t maxInbound{256};
+
 	// The least time between two snapshots to one session.
 	std::chrono::milliseconds snapshotInterval{100};
 	Limits limits;

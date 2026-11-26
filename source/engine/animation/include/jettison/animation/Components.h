@@ -29,6 +29,7 @@ struct SkeletonComponent
 struct AnimationPlayerComponent
 {
 	std::string clipName;
+
 	// The phase of the clip, owned by the frame loop and not written to the scene file.
 	float time{0.0f};
 	float playbackSpeed{1.0f};

@@ -79,6 +79,7 @@ float AdvanceClip(
 	if (!looping)
 	{
 		const float to = std::clamp(time + delta, 0.0f, duration);
+
 		// The end reached includes the event there; anywhere short of it, the next advance has it.
 		const bool reachedEnd = delta > 0.0f ? to == duration : to == 0.0f;
 		if (to != time)
@@ -102,6 +103,7 @@ float AdvanceClip(
 		Cross(clip, time, to, true, false, crossed);
 		return to;
 	}
+
 	// Wrapped once, through the end and the start, which are one moment.
 	if (delta > 0.0f)
 	{

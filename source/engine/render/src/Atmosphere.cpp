@@ -75,6 +75,7 @@ GpuRings PackRings(const Scene::RingsComponent &rings, const glm::vec3 &normal)
 	GpuRings packed;
 	packed.normalInner = glm::vec4{glm::normalize(normal), static_cast<float>(rings.innerRadius)};
 	packed.colorOuter = glm::vec4{rings.color, static_cast<float>(rings.outerRadius)};
+
 	// The seed is a float in the shader, exact to 2^24.
 	packed.shape = glm::vec4{rings.opacity, static_cast<float>(rings.seed % (1u << 24)), 1.0f, 0.0f};
 	return packed;

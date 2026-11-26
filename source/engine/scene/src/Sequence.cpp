@@ -57,6 +57,7 @@ void RegisterTypes()
 	static const bool registered = []
 	{
 		using namespace Reflect;
+
 		// The easings by the names of easings.net, which nothing else reads from a file yet.
 		RegisterEnum<Math::Easing>("Math.Easing")
 		    .Value<Math::Easing::Linear>("linear")
@@ -184,6 +185,7 @@ SequenceShot ToShot(
 		shot.fovFrom = record.fov.front();
 		shot.fovTo = record.fov.back();
 	}
+
 	// The length along the spline at each sample, which RailPoint walks to fly it evenly.
 	shot.lengths.push_back(0.0);
 	for (std::size_t span = 0; span + 1 < shot.rail.size(); ++span)
@@ -336,6 +338,7 @@ Sequence ReadSequence(std::string_view text, std::string_view name)
 			Refuse(name, std::format("its event '{}' is not within it", event.name));
 		sequence.timeline.events.push_back({static_cast<float>(event.time), event.name});
 	}
+
 	// In time order, which playback crosses them in; events at one time keep the file's order.
 	std::ranges::stable_sort(sequence.timeline.events, {}, &Animation::ClipEvent::time);
 	return sequence;
@@ -347,6 +350,7 @@ glm::dvec3 RailPoint(const SequenceShot &shot, double share)
 	if (shot.rail.size() == 1)
 		return shot.rail.front();
 	const double length = std::clamp(share, 0.0, 1.0) * shot.lengths.back();
+
 	// The samples either side of the length, and the share of the way between them.
 	const auto after = std::ranges::upper_bound(shot.lengths, length);
 	const auto sample = static_cast<std::size_t>(

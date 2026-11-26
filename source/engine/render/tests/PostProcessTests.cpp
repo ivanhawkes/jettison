@@ -29,6 +29,7 @@ TEST_CASE("Post: a pixel's view position is the point the projection put there")
 	{
 		const glm::vec4 clip = projection * glm::vec4{point, 1.0f};
 		const glm::vec3 ndc = glm::vec3{clip} / clip.w;
+
 		// The pixel whose centre the point lands on, and its depth there.
 		const glm::vec2 pixel = (glm::vec2{ndc} * 0.5f + 0.5f) * viewport - 0.5f;
 		const glm::vec3 back = Post::ViewPositionAt(pixel, ndc.z, viewport, scale, nearPlane);
@@ -36,6 +37,7 @@ TEST_CASE("Post: a pixel's view position is the point the projection put there")
 		CHECK(back.y == doctest::Approx(point.y).epsilon(1e-4));
 		CHECK(back.z == doctest::Approx(point.z).epsilon(1e-4));
 	}
+
 	// A metre at ten metres, on 480 lines at 60 degrees: 480 / 2 / tan(30 degrees) / 10 pixels.
 	CHECK(
 	    Post::ScreenRadius(1.0f, 10.0f, 480.0f, scale.y) ==
@@ -56,6 +58,7 @@ float FloorAccess(float x, float wall, float radius)
 	{
 		const glm::vec3 sample = Post::AoSpiralSample(index, 0.3f);
 		glm::vec3 q = p + glm::vec3{sample.x, 0.0f, sample.y} * (sample.z * radius);
+
 		// Past the foot of the wall, the surface the camera sees is the wall's face, as high as the
 		// sample is far past the foot.
 		if (q.x > wall)
@@ -70,6 +73,7 @@ float FloorAccess(float x, float wall, float radius)
 TEST_CASE("Post: a flat surface is not occluded, and a corner more the nearer it is")
 {
 	const float radius = 2.0f;
+
 	// The wall far off: the floor alone, every sample in its plane.
 	CHECK(FloorAccess(0.0f, 100.0f, radius) == doctest::Approx(1.0f));
 	const float far = FloorAccess(0.0f, 1.0f, radius);
@@ -79,10 +83,12 @@ TEST_CASE("Post: a flat surface is not occluded, and a corner more the nearer it
 	CHECK(near < far);
 	CHECK(foot < near);
 	CHECK(foot >= 0.0f);
+
 	// A point below the floor's plane, the floor's own quantised depth, is under the bias.
 	CHECK(
 	    Post::ObscuranceSample(
 	        {0.0f, 0.0f, -10.0f}, {0.0f, 1.0f, 0.0f}, {0.3f, 0.01f, -10.0f}, radius) == 0.0f);
+
 	// Nothing past the radius counts.
 	CHECK(
 	    Post::ObscuranceSample(
@@ -100,6 +106,7 @@ TEST_CASE("Post: every pixel of a 4 x 4 turns its spiral its own way, and the pa
 			CHECK(Post::AoPixelAngle(x + 4, y + 8) == Post::AoPixelAngle(x, y));
 		}
 	CHECK(angles.size() == 16);
+
 	// The spiral's samples reach out from the middle to the radius.
 	CHECK(Post::AoSpiralSample(0, 0.0f).z < Post::AoSpiralSample(Post::AoSamples() - 1, 0.0f).z);
 	CHECK(Post::AoSpiralSample(Post::AoSamples() - 1, 0.0f).z < 1.0f);
@@ -113,6 +120,7 @@ TEST_CASE("Post: the blur keeps to a surface, and specular occlusion leaves the 
 	CHECK(Post::AoBlurWeight(10.0f, 11.0f) == 0.0f);
 	CHECK(Post::SpecularAccess(0.7f, 1.0f, 0.5f) == doctest::Approx(1.0f));
 	CHECK(Post::SpecularAccess(0.7f, 0.0f, 1.0f) == doctest::Approx(0.0f).epsilon(0.01));
+
 	// A mirror square on slips past what darkens a rough surface.
 	CHECK(Post::SpecularAccess(1.0f, 0.5f, 0.0f) > Post::SpecularAccess(1.0f, 0.5f, 1.0f));
 }
@@ -132,6 +140,7 @@ TEST_CASE("Post: the bloom filters keep a flat image, and the first one tames a 
 		CHECK(kept.z == doctest::Approx(grey.z));
 	}
 	CHECK(Post::BloomUpsample(up).y == doctest::Approx(grey.y));
+
 	// The top level of a flat frame holds every level's copy of it, and applying it keeps the frame.
 	const glm::vec3 top = grey * float(Post::BloomLevels());
 	CHECK(Post::ApplyBloom(grey, top, 0.3f).x == doctest::Approx(grey.x));
@@ -155,6 +164,7 @@ TEST_CASE("Post: the jump flood finds each pixel's nearest seed, as a search of 
 	std::vector<glm::uvec2> grid(std::size_t{kWidth} * kHeight, none);
 	std::vector<glm::uvec2> seeds;
 	Math::Random random{7, 0};
+
 	// Two blobs and a scatter, as outlined shapes and their stray pixels would be.
 	for (int y = 0; y < kHeight; ++y)
 		for (int x = 0; x < kWidth; ++x)
@@ -210,6 +220,7 @@ TEST_CASE("Post: the jump flood finds each pixel's nearest seed, as a search of 
 			if (distance - nearest < 1e-4f)
 				++exact;
 		}
+
 	// Jump flooding can miss the nearest by a little where two seeds' regions meet; within a glow's
 	// widest reach it misses by under a pixel, and almost never at all.
 	CHECK(worst < 1.0f);

@@ -16,10 +16,13 @@ inline constexpr std::uint32_t kPackageFormatVersion = 1;
 struct PackageDescription
 {
 	std::string name;
+
 	// Its own version, which a save records it by ("version" in the file is the format's).
 	std::string release;
+
 	// The oldest engine version the package runs on, "major.minor.patch"; empty for any.
 	std::string engine;
+
 	// The packages that must be mounted before it, by mount name; "requires" in the file.
 	std::vector<std::string> required;
 };

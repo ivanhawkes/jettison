@@ -209,6 +209,7 @@ TEST_CASE("Resource: the count of first loads in flight, which a reload and a fa
 	CHECK(manager.Loading() == 0);
 	const auto other = manager.Load<Text>("other.txt");
 	CHECK(manager.Loading() == 1);
+
 	// Released while in flight, it is no longer anything's to wait for.
 	manager.Release(other);
 	CHECK(manager.Loading() == 0);
@@ -289,6 +290,7 @@ TEST_CASE("Resource: a missing file or bad data fails the resource, with the rea
 	CHECK(manager.TryGet(missing) == nullptr);
 	CHECK(manager.StatusOf(bad) == Status::Failed);
 	CHECK(manager.ErrorOf(bad) == "the text is bad");
+
 	// A failed resource still holds its reference until it is released.
 	manager.Release(bad);
 	CHECK(manager.StatusOf(bad) == Status::Invalid);
@@ -444,6 +446,7 @@ TEST_CASE("Resource: hot reload retries a failed resource once its file appears,
 {
 	const Scratch scratch;
 	Jobs::IoWorker worker;
+
 	// A zero interval polls on every Update.
 	Resource::ResourceManager manager{scratch.Files(), worker, {.hotReload = true, .pollInterval = {}}};
 	manager.RegisterLoader(TextLoader());

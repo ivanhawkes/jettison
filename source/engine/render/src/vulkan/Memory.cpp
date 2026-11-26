@@ -123,6 +123,7 @@ Buffer DeviceContext::CreateDeviceBuffer(
 	{
 		WriteBuffer(staging, data, size);
 		buffer = CreateBuffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, MemoryUse::Device, name);
+
 		// CopyBuffer waits for the queue, so the staging buffer is free to go when it returns.
 		CopyBuffer(staging.handle, buffer.handle, size);
 	}

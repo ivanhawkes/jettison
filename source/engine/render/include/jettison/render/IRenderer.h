@@ -57,23 +57,28 @@ struct RendererOptions
 	// Fails Init on a device without the debug messenger, so a gated run cannot pass with the
 	// validation layer's messages going nowhere. Only a debug build has the messenger.
 	bool requireDebugMessenger{false};
+
 	// Each frame's light assignment copied out and compared with the CPU's (CheckClusterAssignment),
 	// once the frame's fence says it is done. It costs a copy of the grid and the index list a frame.
 	bool clusterCheck{false};
 	bool depthPrepass{false};
+
 	// Ambient occlusion, and bloom's strength (0 for none), until the dev tools change them. Without a
 	// word either way, ambient occlusion is on, except on a CPU device: it runs the depth prepass,
 	// which in the dressed orbit scene costs lavapipe 11 ms of a 50 ms budget (docs/history/phases.md,
 	// 10c).
 	std::optional<bool> ambientOcclusion;
 	float bloom{0.04f};
+
 	// Part of the name of the GPU to draw with (--gpu), in place of the one the renderer would choose
 	// (render/src/vulkan/DeviceChoice.h); Init fails, listing the GPUs, when no usable one has it.
 	std::string gpu;
+
 	// A frame whose acquire finds the swapchain out of date is recreated until it draws, rather than
 	// retried once and skipped: for a fixed-step run, whose frames must not follow the display
 	// server's timing. Not for a window a user may be resizing, where it could keep recreating.
 	bool drawEveryFrame{false};
+
 	// Drawn into images of the renderer's own, with no surface, no swapchain and no display (GLFW's
 	// null platform): a run on a GPU that cannot present where it runs, as no NVIDIA card can under
 	// Xvfb. The screenshot reads the image as it would the swapchain's.

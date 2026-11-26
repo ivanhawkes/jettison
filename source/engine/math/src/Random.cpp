@@ -67,6 +67,7 @@ double Random::NextDouble()
 std::int32_t Random::Range(std::int32_t min, std::int32_t max)
 {
 	JETTISON_ASSERT(min <= max);
+
 	// In unsigned arithmetic, where the span of the whole int32 range wraps to 0.
 	const std::uint32_t span = static_cast<std::uint32_t>(max) - static_cast<std::uint32_t>(min) + 1U;
 	if (span == 0U)

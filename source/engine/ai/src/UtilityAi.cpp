@@ -81,6 +81,7 @@ double Respond(const ResponseCurve &curve, double x)
 			break;
 		case Curve::Step: value = along >= 0.0 ? 1.0 : 0.0; break;
 	}
+
 	// A NaN, from an input that is not a number, is worth nothing.
 	value = std::isnan(value) ? 0.0 : std::clamp(value, 0.0, 1.0);
 	return curve.invert ? 1.0 - value : value;

@@ -47,6 +47,7 @@ void CopyToImage(
 	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	vkCmdPipelineBarrier2(commandBuffer, &dependency);
+
 	// Waits for the queue, so the staging buffer is free to go after it.
 	deviceContext.EndSingleTimeCommands(commandBuffer);
 }

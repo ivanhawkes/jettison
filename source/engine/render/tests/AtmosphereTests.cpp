@@ -102,6 +102,7 @@ Reference TraceByBruteForce(const Air &air, glm::dvec3 camera, glm::dvec3 direct
 		const double height = glm::length(point) - kEarthRadius;
 		const double rayleighDensity = std::exp(-height / air.rayleighHeight);
 		const double mieDensity = std::exp(-height / air.mieHeight);
+
 		// To the middle of this step, from the entry.
 		const glm::dvec2 toHere = columns + glm::dvec2{rayleighDensity, mieDensity} * (0.5 * step);
 		columns += glm::dvec2{rayleighDensity, mieDensity} * step;
@@ -168,6 +169,7 @@ TEST_CASE("the Chapman column matches the column of air integrated along the ray
 			const float column = AtmosphereColumn(
 			    static_cast<float>(radius), static_cast<float>(mu), static_cast<float>(kEarthRadius),
 			    static_cast<float>(kScaleHeight));
+
 			// Schüler's own measure is a few per cent at worst, grazing.
 			CHECK(column == doctest::Approx(reference).epsilon(0.03));
 		}
@@ -182,14 +184,17 @@ TEST_CASE("the sun's light through an atmosphere is reddened towards the horizon
 	const glm::vec3 overhead = AtmosphereSunTransmittance(atmosphere, ground, {0.0f, 1.0f, 0.0f});
 	const glm::vec3 low =
 	    AtmosphereSunTransmittance(atmosphere, ground, glm::normalize(glm::vec3{1.0f, 0.05f, 0.0f}));
+
 	// Straight down, Earth's air takes about a quarter of the blue and a twentieth of the red.
 	CHECK(
 	    overhead.z == doctest::Approx(std::exp(-(33.1e-6 * 8000.0 + 4.44e-6 * 1200.0))).epsilon(1e-3));
 	CHECK(overhead.x > overhead.y);
 	CHECK(overhead.y > overhead.z);
 	CHECK(low.x < overhead.x);
+
 	// Low in the sky the red comes through and the blue does not.
 	CHECK(low.x > 4.0f * low.z);
+
 	// Below the horizon, seen from 10 km up: the ray to it meets the ground.
 	const glm::vec3 high{0.0f, static_cast<float>(kEarthRadius + 10000.0), 0.0f};
 	CHECK(
@@ -209,11 +214,13 @@ TEST_CASE(
 		glm::dvec3 camera;
 		glm::dvec3 direction;
 		glm::dvec3 toSun;
+
 		// Measured on 2026-11-12 with 8 samples a half: within 1.7% of the reference from orbit, and
 		// 7.6% from the ground under the sun, where the haze's glow about it is 1.2 km deep along a ray
 		// of 100 km (1.5% at 16 samples). The camera is in orbit, so the samples are not doubled.
 		double inscatteredShare{0.025};
 	};
+
 	// From orbit 400 km up, as the station sees the planet, and from the ground.
 	const glm::dvec3 orbit{0.0, kEarthRadius + 400000.0, 0.0};
 	const glm::dvec3 ground{0.0, kEarthRadius + 10.0, 0.0};
@@ -231,6 +238,7 @@ TEST_CASE(
 	for (const Case &ray : cases)
 	{
 		INFO(std::string{ray.name});
+
 		// The body's centre in render space, where the camera is at the origin.
 		const GpuAtmosphere atmosphere =
 		    PackAtmosphere(earth, glm::vec3{-ray.camera}, static_cast<float>(kEarthRadius));
@@ -253,16 +261,19 @@ TEST_CASE("a ray stopped short by a surface picks up only the air in front of it
 	    PackAtmosphere(earth, glm::vec3{-camera}, static_cast<float>(kEarthRadius));
 	const glm::vec3 down{0.0f, -1.0f, 0.0f};
 	const glm::vec3 sun{0.0f, 1.0f, 0.0f};
+
 	// Above the shell, a surface 300 km below the camera has no air in front of it.
 	const AtmosphereSample above = TraceAtmosphere(atmosphere, down, 300000.0f, sun);
 	CHECK(above.inscattered == glm::vec3{0.0f});
 	CHECK(above.transmittance == glm::vec3{1.0f});
+
 	// One that is 1 km above the ground has nearly all the air in front of it that the ground does.
 	const AtmosphereSample ground = TraceAtmosphere(atmosphere, down, 1.0e12f, sun);
 	const AtmosphereSample short_ = TraceAtmosphere(atmosphere, down, 399000.0f, sun);
 	CHECK(short_.inscattered.z < ground.inscattered.z);
 	CHECK(short_.inscattered.z > 0.8f * ground.inscattered.z);
 	CHECK(short_.transmittance.z > ground.transmittance.z);
+
 	// A body with no atmosphere passes everything.
 	GpuAtmosphere none = atmosphere;
 	none.shell.y = 0.0f;
@@ -306,6 +317,7 @@ TEST_CASE("rings cover nothing outside their radii, and no more than their opaci
 		total += coverage;
 		++samples;
 	}
+
 	// Banded: some of them near the densest, some all but empty, the gap among them.
 	CHECK(densest > 0.6f);
 	CHECK(thinnest < 0.1f);
@@ -337,6 +349,7 @@ TEST_CASE("rings shade the body where they are between it and the sun, and the b
 {
 	const GpuRings rings = GiantRings();
 	const glm::vec3 centre{0.0f};
+
 	// A ray from above the plane straight down meets it at its own distance and radius.
 	const RingCrossing crossing =
 	    IntersectRings(rings, centre, {1.5f * kGiantRadius, 1.0e7f, 0.0f}, {0.0f, -1.0f, 0.0f});
@@ -374,6 +387,7 @@ TEST_CASE("the rings' shadow is softened by how much of them a pixel's way to th
 {
 	const GpuRings rings = GiantRings();
 	const glm::vec3 centre{0.0f};
+
 	// The sun three degrees above the plane: a point a little south of the equator looks across the
 	// rings at a grazing angle, and its neighbours a pixel away look at other bands.
 	const glm::vec3 toSun = glm::normalize(glm::vec3{1.0f, 0.0524f, 0.0f});
@@ -385,6 +399,7 @@ TEST_CASE("the rings' shadow is softened by how much of them a pixel's way to th
 	{
 		const glm::vec3 point = kGiantRadius * glm::vec3{std::cos(latitude), std::sin(latitude), 0.0f};
 		const float sharp = RingSunlight(rings, centre, point, toSun);
+
 		// A pixel half a per cent of the radius across, as Corva is from 300,000 km at 960 by 540.
 		const float soft = RingSunlight(rings, centre, point, toSun, 0.005f * kGiantRadius);
 		if (previousSharp >= 0.0f)

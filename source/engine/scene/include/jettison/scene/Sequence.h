@@ -60,15 +60,18 @@ struct SequenceShot
 {
 	double duration{0.0};
 	double blend{0.0};
+
 	// Indices into Sequence::roles, or kNoRole.
 	std::size_t frame{kNoRole};
 	std::size_t look{kNoRole};
+
 	// The rail's points, and the length along it at each of its samples, kRailSamples a span and the
 	// last point's: a rail of one point holds the camera there.
 	std::vector<glm::dvec3> rail;
 	std::vector<double> lengths;
 	Math::Easing easing{Math::Easing::InOutCubic};
 	glm::dvec3 lookAt{0.0};
+
 	// Degrees at the start and the end; 0 for the camera's own.
 	float fovFrom{0.0f};
 	float fovTo{0.0f};
@@ -90,6 +93,7 @@ struct Sequence
 	float letterbox{0.0f};
 	glm::vec3 fadeColor{0.0f};
 	std::vector<SequenceFadeKey> fade;
+
 	// The events, as a clip of no tracks, so playback crosses them as it crosses a clip's
 	// (Animation::AdvanceClip). Its duration is the sequence's.
 	Animation::Clip timeline;
@@ -115,8 +119,10 @@ glm::dvec3 RailPoint(const SequenceShot &shot, double share);
 struct SequenceView
 {
 	CameraPose pose;
+
 	// The game camera's where no shot sets one.
 	float verticalFovDegrees{0.0f};
+
 	// How much of the camera is the sequence's, from 0 (the game's) to 1.
 	float weight{0.0f};
 	float fade{0.0f};

@@ -122,6 +122,7 @@ bool SystemInterface::LogMessage(Rml::Log::Type type, const Rml::String &message
 	if (severity >= Core::Severity::Warning && type != Rml::Log::LT_ALWAYS)
 		++m_problems;
 	Core::Log(severity, kUi, "{}", message);
+
 	// True carries on: a failed RmlUi assertion is reported, not a trap into a debugger.
 	return true;
 }
@@ -183,6 +184,7 @@ Rml::TextureHandle RenderInterface::LoadTexture(Rml::Vector2i &dimensions, const
 		const auto bytes = m_files.Read(source);
 		if (!bytes)
 			throw std::runtime_error("there is no such file");
+
 		// Decoded here, on the main thread, as RmlUi lays out the element that shows it: a screen's
 		// images are small, and the layout needs their size before the frame goes on.
 		const Render::TextureData decoded = Render::DecodeImage(*bytes, true, source);
@@ -191,6 +193,7 @@ Rml::TextureHandle RenderInterface::LoadTexture(Rml::Vector2i &dimensions, const
 		texture.texels.assign(
 		    decoded.bytes.begin() + static_cast<std::ptrdiff_t>(top.offset),
 		    decoded.bytes.begin() + static_cast<std::ptrdiff_t>(top.offset + top.size));
+
 		// RmlUi draws with alpha premultiplied, and a file holds it straight.
 		for (std::size_t texel = 0; texel + 3 < texture.texels.size(); texel += 4)
 		{

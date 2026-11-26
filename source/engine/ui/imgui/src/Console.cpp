@@ -219,6 +219,7 @@ void Console::CaptureLog()
 {
 	if (m_logCallback)
 		return;
+
 	// Called with the logging lock held, from whichever thread logged: it only copies the message
 	// in, under the console's own lock.
 	m_logCallback = Core::AddLogCallback(

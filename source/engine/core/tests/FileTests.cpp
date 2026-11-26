@@ -117,6 +117,7 @@ TEST_CASE("File: directories are made with the permissions given, and one alread
 	CHECK(mode(directory) == kShared);
 	CHECK(mode(directory / "a") == perms::owner_all);
 	CHECK(mode(directory / "a" / "b") == perms::owner_all);
+
 	// Through one it makes and back out: the directory named so is there already, and kept.
 	CHECK(CreateDirectoriesDurably(directory / "new" / ".." / "made", perms::owner_all));
 	CHECK(mode(directory) == kShared);
@@ -137,6 +138,7 @@ TEST_CASE("File: a file is written with the permissions given, over a file and a
 
 	WriteFileDurably(path, std::string_view{"open"}, kFilePermissions);
 	std::filesystem::permissions(path, kFilePermissions);
+
 	// A partial a crash left, open to everyone, is not reused.
 	std::filesystem::path partial = path;
 	partial += kPartialSuffix;

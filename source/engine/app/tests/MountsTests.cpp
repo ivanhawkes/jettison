@@ -86,6 +86,7 @@ TEST_CASE("Mounts: the engine's assets, then the user's mods by their identifier
 	Vfs::WritePack(scratch.Path("mod-source"), scratch.Path("user/mods/a-pack.pack"));
 	scratch.Put("user/mods/readme.txt", "not a mod");
 	scratch.Put("user/mods/c-damaged.pack", "not a pack either");
+
 	// A directory and a pack of one identifier: the directory is the mod.
 	scratch.Put("user/mods/a-pack/defs/goods/ale.yaml", "version: 1\n");
 
@@ -106,6 +107,7 @@ TEST_CASE("Mounts: the engine's assets, then the user's mods by their identifier
 	CHECK(files.Find("defs/goods/ale.yaml")->mount == 1);
 	CHECK_FALSE(files.Find("defs/goods/mead.yaml"));
 	CHECK(files.Find("defs/goods/wine.yaml")->mount == 2);
+
 	// The second a-pack, the damaged pack and the stray file are reported, and the rest still mount.
 	REQUIRE(said.size() == 3);
 	CHECK(said[0].find("readme.txt is not a mod") != std::string::npos);
@@ -177,6 +179,7 @@ TEST_CASE("Mounts: the player's list orders the mods and enables them, and a mod
 	scratch.Put("user/mods/beta/defs/goods/beer.yaml", "version: 1\n");
 	scratch.Put("user/mods/gamma/defs/goods/beer.yaml", "version: 1\n");
 	scratch.Put("user/mods/delta/mod.yaml", "version: 1\nname: Delta\n");
+
 	// Gamma before alpha, beta disabled, and one the player has since taken out of the directory.
 	const std::filesystem::path list = scratch.Path("config/mods.yaml");
 	scratch.Put(
@@ -243,6 +246,7 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 	    std::vector<std::string>{"engine", "mod:base-goods", "mod:needs-base", "mod:zz-later", "user"});
 	CHECK(mounted.front() == Sim::ModVersion{"base-goods", "1.0.0"});
 	CHECK(reported.Contains("written for engine 0.2.0, newer than this build's 0.1.0"));
+
 	// A mod whose requirement was left out is left out with it; one that would need reordering is not
 	// reordered.
 	CHECK(reported.Contains("requires the mod future, which is not mounted before it"));
@@ -293,6 +297,7 @@ TEST_CASE("Mounts: a data mod in the user's directory changes the content's defi
 {
 	const Scratch scratch;
 	scratch.Put("engine/strings/en/numbers.yaml", "version: 1\n");
+
 	// The content's definitions, packed as a shipped build has them.
 	scratch.Put("content/mod.yaml", "version: 1\nname: Content\nrelease: 1.0.0\nengine: 0.1.0\n");
 	scratch.Put(
@@ -300,6 +305,7 @@ TEST_CASE("Mounts: a data mod in the user's directory changes the content's defi
 	    "version: 1\nclip: clamp.closed\nsound: effects/closed.wav\nvolume: 0.5\n");
 	scratch.Put("content/defs/sounds/opened.yaml", "version: 1\nclip: clamp.opened\nsound: a.wav\n");
 	Vfs::WritePack(scratch.Path("content"), scratch.Path("content.pack"));
+
 	// A mod that makes one louder and adds another.
 	scratch.Put("user/mods/louder/defs/sounds/closed.patch.yaml", "version: 1\nvolume: 0.9\n");
 	scratch.Put(
@@ -317,6 +323,7 @@ TEST_CASE("Mounts: a data mod in the user's directory changes the content's defi
 	REQUIRE(closed != nullptr);
 	CHECK(closed->volume == 0.9f);
 	CHECK(closed->sound == "effects/closed.wav");
+
 	// The other is the pack's.
 	CHECK(definitions.Find<Audio::EventSound>("opened")->volume == 1.0f);
 }

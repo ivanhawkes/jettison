@@ -30,6 +30,7 @@ struct Client::Impl
 
 	ClientConfig config;
 	Seal::Key serverKey{};
+
 	// Wiped once the server's offer has made the keys, so a recorded session cannot be opened later.
 	std::optional<Seal::KeyPair> ephemeral{std::in_place};
 	std::optional<Seal::Keys> keys;
@@ -52,6 +53,7 @@ struct Client::Impl
 		ENetPacket *pPacket = Wire::MakePacket(
 		    *keys, Channel::Reliable, static_cast<MessageKind>(Wire::EngineKind::Hello), body,
 		    config.limits.maxMessageBytes);
+
 		// The credential is sent once, so no copy is kept past the hello.
 		Seal::Wipe(body);
 		Seal::Wipe(hello.credential);
@@ -111,9 +113,11 @@ struct Client::Impl
 			return Answer(*event.packet, events);
 		const std::optional<std::vector<std::byte>> message =
 		    Wire::Open(*keys, *channel, *event.packet);
+
 		// The welcome is the first sealed message, and only the pinned key's holder can seal it.
 		if (!message && state == State::Connecting)
 			return Abandon(Reason::KeyMismatch, events);
+
 		// A server's packet this end cannot read is dropped: a client has nothing to report it to.
 		std::optional<Wire::Received> received;
 		if (message)

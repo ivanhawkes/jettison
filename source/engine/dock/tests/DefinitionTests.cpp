@@ -89,6 +89,7 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 	CHECK(docks.FindVehicle("liner")->berthClass == "cruiser");
 	CHECK(docks.FindVehicle("cruiser")->berthClass == "cruiser");
 	CHECK(Dock::Radius(*highport) == doctest::Approx(762.4).epsilon(0.001));
+
 	// Its deck as the platform collides: twelve triangles a box, every one facing out of its box.
 	const Physics::ShapeDefinition deck = Dock::DeckShape(*highport);
 	CHECK(deck.indices.size() == 6 * 12 * 3);
@@ -140,6 +141,7 @@ TEST_CASE("Dock definitions: a pad off its deck, under it, overlapping another o
 	Dock::PlatformLayout off = Slab();
 	off.berths[0].position.x = 90.0;
 	CHECK(Refusal(off) == "Platform layout 'slab' berth 1 is not all on a deck or a pier");
+
 	// Its middle inside the deck, and then on the deck's underside, facing down.
 	Dock::PlatformLayout under = Slab();
 	under.berths[0].position.y = 0.0;

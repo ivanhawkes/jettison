@@ -154,6 +154,7 @@ void DeviceContext::CreateInstance()
 	if (wantDebugUtils)
 	{
 		messengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+
 		// Errors and warnings only. Validation's info messages name every object the engine
 		// creates, which buries the two lines that matter under a message per buffer, and the
 		// smoke test reads this stream as pass/fail.
@@ -307,6 +308,7 @@ void DeviceContext::SetObjectName(VkObjectType type, uint64_t handle, const std:
 	nameInfo.objectHandle = handle;
 	nameInfo.pObjectName = name.c_str();
 	const VkResult result = m_pfnSetDebugUtilsObjectName(m_logicalDevice, &nameInfo);
+
 	// A name is diagnostics. A failure to set one is not a reason to stop a frame, and it is
 	// not silent either: this is the only place the engine would learn that names are absent.
 	if (result != VK_SUCCESS && result != VK_ERROR_EXTENSION_NOT_PRESENT)
@@ -321,6 +323,7 @@ void DeviceContext::BeginDebugLabel(VkCommandBuffer commandBuffer, const std::st
 	VkDebugUtilsLabelEXT label{};
 	label.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
 	label.pLabelName = name.c_str();
+
 	// No device argument: the command-buffer label entry points of VK_EXT_debug_utils take the
 	// command buffer alone. The Vulkan 1.3 core promotion is what adds the device parameter,
 	// and that entry point has a different name.
@@ -438,10 +441,12 @@ std::string DeviceContext::Unsuitable(VkPhysicalDevice device)
 		return "no queue does graphics and compute";
 	if (!indices.presentFamily)
 		return "it cannot present to the window";
+
 	// Offscreen the swapchain extension is neither needed nor allowed: it requires VK_KHR_surface,
 	// which the instance then does not have (VUID-vkCreateDevice-ppEnabledExtensionNames-01387).
 	if (m_surface != VK_NULL_HANDLE && !CheckDeviceExtensionSupport(device))
 		return "it has no swapchain extension";
+
 	// The surface is asked about only by a device that can present to it: asking one that cannot is
 	// an error to the validation layer (VUID-vkGetPhysicalDeviceSurfaceCapabilitiesKHR-surface-06211).
 	// An NVIDIA card under Xvfb is one, and was reported as such before lavapipe was picked over it.
@@ -567,6 +572,7 @@ void DeviceContext::CreateLogicalDevice()
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	features13.dynamicRendering = VK_TRUE;
 	features13.synchronization2 = VK_TRUE;
+
 	// The depth target's stencil is tested by the post passes while its depth is in another layout,
 	// or untouched (docs/rendering-effects.md, "Masks").
 	VkPhysicalDeviceVulkan12Features features12{};
@@ -577,10 +583,13 @@ void DeviceContext::CreateLogicalDevice()
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	deviceFeatures.pNext = &features12;
 	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
+
 	// The sun's shadow pass clamps the depth of casters nearer the sun than its maps reach.
 	deviceFeatures.features.depthClamp = VK_TRUE;
+
 	// The transparent pass blends what a surface lets through by colour (BlendMode::Transmissive).
 	deviceFeatures.features.dualSrcBlend = VK_TRUE;
+
 	// Block compression where the device has it in hardware, which is every desktop GPU: Basis
 	// Universal textures transcode to BC7 then, and to RGBA8, four times the memory, without it. A CPU
 	// device (lavapipe) has BC7 but decodes it in software at every fetch: measured in phase 5e, the

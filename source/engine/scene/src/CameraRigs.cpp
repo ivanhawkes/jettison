@@ -40,6 +40,7 @@ glm::dquat OrientationFromAngles(double pitch, double roll, double yaw)
 	const glm::dvec3 worldUp{0.0, 1.0, 0.0};
 	const glm::dvec3 right = glm::normalize(glm::cross(forward, worldUp));
 	const glm::dvec3 up = glm::cross(right, forward);
+
 	// Columns: the camera's +X, +Y and +Z (which is backwards) in the system frame.
 	const glm::dquat level = glm::quat_cast(glm::dmat3{right, up, -forward});
 	return glm::angleAxis(roll, forward) * level;
@@ -96,6 +97,7 @@ CameraPose OrbitCamera::Update(double dt)
 {
 	m_yaw = Approach(m_yaw, m_goalYaw, m_settings.smoothing, dt);
 	m_pitch = Approach(m_pitch, m_goalPitch, m_settings.smoothing, dt);
+
 	// In the logarithm, so zooming in from far away does not cover most of the way in one frame.
 	m_distance =
 	    std::exp(Approach(std::log(m_distance), std::log(m_goalDistance), m_settings.smoothing, dt));

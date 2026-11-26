@@ -45,13 +45,16 @@ TEST_CASE("Utility AI: each curve gives its known values, clamped to [0, 1] and 
 	using Ai::ResponseCurve;
 	CHECK(Respond({}, 0.25) == doctest::Approx(0.25));
 	CHECK(Respond({Curve::Linear, 2.0, 1.0, 0.25, 0.0, false}, 0.5) == doctest::Approx(0.5));
+
 	// Past one, and below nothing, it is held there.
 	CHECK(Respond({Curve::Linear, 2.0, 1.0, 0.0, 0.0, false}, 0.9) == 1.0);
 	CHECK(Respond({Curve::Linear, -1.0, 1.0, 0.0, 0.5, false}, 0.9) == 0.0);
+
 	// A quadratic falls off slowly near nothing; below its shift it is nothing, not a square.
 	CHECK(Respond({Curve::Power, 1.0, 2.0, 0.0, 0.0, false}, 0.5) == doctest::Approx(0.25));
 	CHECK(Respond({Curve::Power, 1.0, 2.0, 0.5, 0.0, false}, 0.25) == 0.0);
 	CHECK(Respond({Curve::Power, 1.0, 0.5, 0.0, 0.0, false}, 0.25) == doctest::Approx(0.5));
+
 	// An S about its shift.
 	const ResponseCurve logistic{Curve::Logistic, 10.0, 1.0, 0.5, 0.0, false};
 	CHECK(Respond(logistic, 0.5) == doctest::Approx(0.5));
@@ -72,12 +75,15 @@ TEST_CASE("Utility AI: each curve gives its known values, clamped to [0, 1] and 
 TEST_CASE("Utility AI: a score is the product of its considerations made up for their number")
 {
 	Table table{{{"a", 0.5}, {"b", 0.5}, {"c", 1.0}}};
+
 	// One consideration needs no making up.
 	CHECK(Ai::Score({"one", 1.0, {Linear("a")}}, table.Inputs()) == doctest::Approx(0.5));
+
 	// Two at a half each: 0.5 + 0.5 x 0.5 x 0.5 = 0.625 each, not 0.25 together.
 	CHECK(
 	    Ai::Score({"two", 1.0, {Linear("a"), Linear("b")}}, table.Inputs()) ==
 	    doctest::Approx(0.625 * 0.625));
+
 	// The weight scales it; none at all scores the weight.
 	CHECK(Ai::Score({"weighed", 2.0, {Linear("a")}}, table.Inputs()) == doctest::Approx(1.0));
 	CHECK(Ai::Score({"idle", 0.3, {}}, table.Inputs()) == doctest::Approx(0.3));
@@ -110,14 +116,17 @@ TEST_CASE(
 	const auto choice = Ai::Choose(decision, options);
 	REQUIRE(choice);
 	CHECK(choice->option == 1);
+
 	// 0.5 and 0.9, each made up for two: 0.625 x 0.945.
 	CHECK(choice->score == doctest::Approx(0.625 * 0.945));
+
 	// The equal one after it asked for both and did not beat it; the slow one, first, set the bar.
 	CHECK(same.asked == 2);
 
 	// Nothing to gain: the wait's baseline wins over a trade worth nothing.
 	const std::vector<Ai::Option> idle{{"trade", never.Inputs()}, {"wait", {}}};
 	CHECK(Ai::Choose(decision, idle)->option == 1);
+
 	// And with no baseline, nothing is chosen.
 	CHECK_FALSE(Ai::Choose(decision, std::vector<Ai::Option>{{"trade", never.Inputs()}}));
 	CHECK_FALSE(Ai::Choose(decision, {}));

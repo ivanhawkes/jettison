@@ -39,6 +39,7 @@ Dock::PlatformLayout YardLayout()
 struct Yard : Fixture
 {
 	entt::entity platform{entt::null};
+
 	// Vehicles wait 2 km above the yard, apart, where nothing flies them.
 	int vehicles{0};
 
@@ -114,6 +115,7 @@ TEST_CASE("Docks: two ships asking in one step are given pads in command order, 
 		yard.Step();
 		return std::pair{yard.Given(), std::pair{first, second}};
 	};
+
 	// The lowest-ranked free berth a skiff fits is berth 2, the corvette; then the frigate berths,
 	// lowest numbered first.
 	const auto [given, vehicles] = ask(false);
@@ -143,6 +145,7 @@ TEST_CASE(
 	REQUIRE(queued.size() == 1);
 	CHECK(queued[0].vehicle == second);
 	CHECK(queued[0].place == 1);
+
 	// Both frigate berths are still free.
 	CHECK(yard.BerthOf(yard.BerthNumbered(yard.platform, 1)).state == Dock::BerthState::Free);
 	CHECK(yard.BerthOf(yard.BerthNumbered(yard.platform, 5)).state == Dock::BerthState::Free);
@@ -189,6 +192,7 @@ TEST_CASE("Docks: a class ranked above or level with a larger one is not given i
 {
 	DockTests::Fixture fixture{false};
 	Dock::Docks &docks = fixture.docks;
+
 	// Each is a class by itself; the ranks are the game's, and these do not follow the sizes.
 	docks.DefineBerthClass("long", {0, {140.0f, 50.0f, 30.0f}, {80.0f, 180.0f}});
 	docks.DefineBerthClass("short", {1, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}});
@@ -198,6 +202,7 @@ TEST_CASE("Docks: a class ranked above or level with a larger one is not given i
 	CHECK_FALSE(docks.Fits(*docks.FindVehicle("barge"), "short"));
 	CHECK_FALSE(docks.Fits(*docks.FindVehicle("barge"), "level"));
 	CHECK(docks.Fits(*docks.FindVehicle("barge"), "long"));
+
 	// Level in rank and within its largest vehicle: a pod lands on a long berth, and on a short one.
 	CHECK(docks.Fits(*docks.FindVehicle("pod"), "long"));
 	CHECK(docks.Fits(*docks.FindVehicle("pod"), "short"));
@@ -225,6 +230,7 @@ TEST_CASE("Docks: a ship asking for a feature is given only a pad that offers it
 	for (const auto &[name, berthClass] : DockTests::SampleClasses())
 		docks.DefineBerthClass(name, berthClass);
 	docks.DefineVehicle("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "corvette", {}});
+
 	// Berth 1 a plain corvette's, berth 2 a frigate's that offers a dry dock, berth 3 one for display
 	// that says it does, which no vehicle is given.
 	Dock::PlatformLayout yard;
@@ -295,6 +301,7 @@ TEST_CASE("Dock definitions: a layout's pad keeps its features through its file"
 	REQUIRE(read.berths.size() == 2);
 	CHECK(read.berths[0].features == std::vector<std::string>{"dry-dock", "fuel"});
 	CHECK(read.berths[1].features.empty());
+
 	// A file that leaves the field out, as every one written before it does, reads as offering none.
 	const auto bare = Serialise::YamlArchive::Read<Dock::PlatformLayout>(
 	    "version: 2\nberths:\n  - {class: frigate, position: [0, 10, 0]}\n",
@@ -317,6 +324,7 @@ TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 	for (const entt::entity vehicle : {first, second, barge, waiting, skiff, small, last})
 		yard.Ask(vehicle);
 	yard.Step();
+
 	// The skiff behind the waiting hauler takes the corvette berth, which the hauler does not fit; the
 	// next skiff finds nothing, the display berth being no one's.
 	CHECK(
@@ -344,6 +352,7 @@ TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 TEST_CASE("Docks: a reservation not landed on in time lapses, and the pad goes to the next in line")
 {
 	Yard yard;
+
 	// The frigate and destroyer berths held by vehicles parked on them, which hold them for good.
 	for (const auto &[vehicle, number] :
 	     std::vector<std::pair<std::string, std::uint32_t>>{{"hauler", 1}, {"hauler", 5}, {"barge", 3}})
@@ -383,6 +392,7 @@ TEST_CASE("Docks: a display pad is never given, and a ship parked holds its pad"
 	CHECK(yard.Given().empty());
 	CHECK(yard.Events<Dock::BerthQueued>().size() == 1);
 	CHECK(yard.BerthOf(yard.BerthNumbered(yard.platform, 4)).state == Dock::BerthState::Free);
+
 	// The parked vehicles are clamped where they rest, out of flight.
 	const entt::entity parked = yard.BerthOf(yard.BerthNumbered(yard.platform, 2)).vehicle;
 	CHECK(Dock::IsDocked(yard.world.Registry(), parked, yard.platform));

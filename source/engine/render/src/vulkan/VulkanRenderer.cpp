@@ -81,6 +81,7 @@ class VulkanRenderer final : public IRenderer
 			m_pDeviceContext->Destroy();
 		if (m_pWindow)
 			m_pWindow->Destroy();
+
 		// The references go after the calls: nothing in the backend releases a GPU object in a
 		// destructor, so the order of the resets carries nothing.
 		m_pImGuiRenderer.reset();

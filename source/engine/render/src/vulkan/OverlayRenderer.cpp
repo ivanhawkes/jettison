@@ -134,6 +134,7 @@ void OverlayRenderer::Destroy()
 		Free(retired.texture);
 	m_retired.clear();
 	Free(m_white);
+
 	// The pipeline is the cache's.
 	m_pipeline = VK_NULL_HANDLE;
 	if (device == VK_NULL_HANDLE)
@@ -323,6 +324,7 @@ void OverlayRenderer::EnsureCapacity(
 {
 	if (bytes <= buffer.size)
 		return;
+
 	// The slot's fence has been waited on, so no submission in flight reads the buffer.
 	VkDeviceSize size = std::max<VkDeviceSize>(buffer.size, 4096);
 	while (size < bytes)

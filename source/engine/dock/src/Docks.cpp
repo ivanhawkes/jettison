@@ -37,14 +37,17 @@ constexpr double kClampAbove = 1.0;
 constexpr double kClampSpeed = 0.5;
 const double kClampUp = std::cos(glm::radians(10.0));
 const double kClampNose = std::cos(glm::radians(15.0));
+
 // How far above its resting height a vehicle flown down aims to stop, a hand's breadth: the clamp
 // takes it from there, and Jolt's contacts begin a couple of centimetres before two bodies meet, so
 // a vehicle flown onto the deck itself would touch it first.
 constexpr double kHover = 0.25;
+
 // Beyond the platform's sphere, the vehicle's shape and its clearance, the point above a berth is
 // this far again, so a vehicle arriving there is outside what steering keeps it from, and not at its
 // edge.
 constexpr double kAboveMargin = 10.0;
+
 // How a vehicle is flown through the stages: the point above its berth it arrives at, the speed it
 // comes down and lifts at, and how near it stops above the berth.
 constexpr float kAboveRadius = 20.0f;
@@ -99,12 +102,14 @@ bool IsDocked(const entt::registry &registry, entt::entity vehicle, entt::entity
 Docks &Docks::Attach(Sim::SimWorld &world, Physics::PhysicsWorld &physics)
 {
 	RegisterTypes();
+
 	// Shared by the commands and the system, which the world keeps for as long as it lives.
 	std::shared_ptr<Docks> docks{new Docks{physics}};
 	world.RegisterComponent<Vehicle>();
 	world.RegisterComponent<Platform>();
 	world.RegisterComponent<Berth>();
 	world.RegisterComponent<Docking>();
+
 	// A berth's state is what its lamps show, a vehicle's stage and kind whether and how its berth's
 	// clamps close on it, and presentation reads snapshots.
 	world.ShowInSnapshots<Berth>();
@@ -235,6 +240,7 @@ entt::entity Docks::MakePlatform(
 	entt::registry &registry = world.Registry();
 	const double now = world.Clock().Now();
 	const Physics::OnRails rails{std::string{body}};
+
 	// Placed first, so a frame or a body physics does not have refuses before anything is made.
 	const Sim::Transform at = m_physics.RailsPlace(frame, rails, now);
 
@@ -403,6 +409,7 @@ void Docks::Step(Sim::SimWorld &world)
 {
 	JETTISON_PROFILE_ZONE("Dock::Docks::Step");
 	entt::registry &registry = world.Registry();
+
 	// Physics has placed everything where it is as the step ends.
 	const double time = world.Clock().Now() + world.FixedStep();
 	const std::uint64_t step = world.Clock().Step();
@@ -475,6 +482,7 @@ void Docks::Step(Sim::SimWorld &world)
 				{
 					if (!destination)
 						FlyInbound(world, vehicle, time);
+
 					// Stopped out along the normal, then flown down it to the point above.
 					else if (
 					    destination->arrived &&
@@ -517,6 +525,7 @@ std::uint64_t Docks::QuietFrom(const Sim::SimWorld &world) const
 {
 	const entt::registry &registry = world.Registry();
 	const std::uint64_t now = world.Clock().Step();
+
 	// 1 and 3: what can no longer be held, and every vehicle on its way.
 	for (const auto [berthEntity, berth] : registry.view<const Berth>().each())
 	{
@@ -536,6 +545,7 @@ std::uint64_t Docks::QuietFrom(const Sim::SimWorld &world) const
 		    LocalFrameOf(registry, vehicle) != LocalFrameOf(registry, platform))
 			return now;
 	}
+
 	// 4, and 1's queues: a vehicle queued that is not, or that a berth is free for.
 	for (const auto [platformEntity, platform] : registry.view<const Platform>().each())
 		for (const entt::entity vehicle : platform.queue)
@@ -546,6 +556,7 @@ std::uint64_t Docks::QuietFrom(const Sim::SimWorld &world) const
 			    FreeBerthFor(registry, platform, vehicle) != entt::null)
 				return now;
 		}
+
 	// 2: a reservation lapses in the step its count begins.
 	std::uint64_t next = std::numeric_limits<std::uint64_t>::max();
 	for (const auto [berthEntity, berth] : registry.view<const Berth>().each())
@@ -570,6 +581,7 @@ entt::entity Docks::FreeBerthFor(
 		if (berth.state != BerthState::Free || berth.display || !Fits(*definition, berth.berthClass) ||
 		    (!feature.empty() && !Offers(registry, berthEntity, feature)))
 			continue;
+
 		// In number order, so the first of a class is the lowest numbered.
 		if (best == entt::null || m_berthClasses.at(berth.berthClass).rank <
 		                              m_berthClasses.at(registry.get<Berth>(best).berthClass).rank)
@@ -810,6 +822,7 @@ void Docks::Lift(entt::registry &registry, entt::entity vehicle)
 	const Docking &docking = registry.get<Docking>(vehicle);
 	const float maxSpeed = registry.get<Physics::Handling>(vehicle).maxSpeed;
 	registry.remove<Ai::Destination>(vehicle);
+
 	// Clamped, the vehicle's up is its berth's; with assist, a demand along it is that share of
 	// maxSpeed.
 	registry.replace<Physics::FlightControls>(
@@ -849,6 +862,7 @@ double Docks::AboveHeight(
 	const double reach = Radius(m_layouts.at(registry.get<Platform>(berth.platform).layout)) +
 	                     m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape) +
 	                     double{steered ? steered->clearance : Ai::Steered{}.clearance} + kAboveMargin;
+
 	// Where the line out along the normal from the berth crosses that sphere: |p + n h| = reach.
 	const double along = glm::dot(place.position, place.normal);
 	return -along + std::sqrt(along * along - glm::dot(place.position, place.position) + reach * reach);

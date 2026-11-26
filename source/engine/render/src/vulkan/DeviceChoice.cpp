@@ -119,6 +119,7 @@ std::optional<bool> DrivesDisplay(
 	    std::filesystem::canonical(sysfs / "dev" / "char" / std::format("{}:{}", major, minor), error);
 	if (error || node.parent_path().filename() != "drm")
 		return std::nullopt;
+
 	// A card with no connectors at all, a compute card's, has no monitor either.
 	const std::string card = node.filename().string();
 	for (const auto &entry : std::filesystem::directory_iterator{node, error})

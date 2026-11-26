@@ -139,6 +139,7 @@ TEST_CASE("SaveGame: a save that does not fit is refused, whatever is cut from i
 	std::vector<std::byte> longer = bytes;
 	longer.push_back(std::byte{0});
 	CHECK_THROWS_AS(Sim::SaveGame::Read(longer), Serialise::FormatError);
+
 	// A world's save is not a save game.
 	CHECK_THROWS_AS(Sim::SaveGame::Read(world.Save()), Serialise::FormatError);
 

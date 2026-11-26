@@ -79,6 +79,7 @@ struct MaterialParameter
 struct MaterialTexture
 {
 	std::string slot;
+
 	// A virtual path (assets/, through the VFS).
 	std::string path;
 };
@@ -89,8 +90,10 @@ struct AnimatedParameter
 {
 	std::string name;
 	Wave wave{Wave::Sine};
+
 	// Seconds per cycle, above zero.
 	double period{1.0};
+
 	// Where in its cycle the wave starts, in cycles.
 	double phase{0.0};
 	glm::vec4 from{0.0f};
@@ -133,6 +136,7 @@ struct ResolvedMaterial
 	// The program's parameters, in its order: the material's value, or the program's default.
 	std::vector<glm::vec4> parameters;
 	std::vector<Animation> animations;
+
 	// Per binding, the texture's virtual path, or empty for the slot's fallback.
 	std::array<std::string, kMaterialTextureSlots> textures;
 	std::array<TextureFallback, kMaterialTextureSlots> fallbacks{};

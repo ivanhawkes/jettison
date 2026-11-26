@@ -145,6 +145,7 @@ void Octree::Update(entt::entity entity, const glm::dvec3 &position)
 	const std::uint32_t index = m_slots.Find(entity);
 	Item &item = m_items[index];
 	const Node &node = m_nodes[item.node];
+
 	// The root holds everything while it is a leaf, and what is outside its cube once it is not.
 	const bool stays = item.node == 0 ? node.firstChild == kNone || !InRootCube(position)
 	                                  : InBox(position, node.loose);

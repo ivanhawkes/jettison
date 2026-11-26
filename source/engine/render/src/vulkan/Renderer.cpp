@@ -64,6 +64,7 @@ struct ParticlePushConstants
 {
 	uint32_t emitter{0};
 };
+
 // And its workgroup, as particles.glsl declares it.
 constexpr uint32_t kParticleGroupSize = 64;
 
@@ -86,15 +87,19 @@ std::optional<PixelOrder> ScreenshotOrder(VkFormat format)
 
 // Room for this many lights before the first frame that has more grows the list.
 constexpr VkDeviceSize kInitialLights = 16;
+
 // The cluster programs' workgroup, as cluster_bounds.comp and cluster_lights.comp declare it.
 constexpr uint32_t kClusterGroupSize = 64;
+
 // And for this many material parameters, which are vec4s.
 constexpr VkDeviceSize kInitialMaterialParameters = 64;
+
 // And for this many instances, the view's and the cascades' together.
 constexpr VkDeviceSize kInitialInstances = 256;
 
 // What the sky draws the sun as when the scene does not say how large it is: the Sun from 1 AU.
 constexpr double kDefaultSunAngularRadius = 0.004652;
+
 // The shadow pass's slope-scaled depth bias, in the depth one texel's slope covers: negative, since
 // the maps are reversed and away from the sun is towards 0. With the lighting include's normal offset
 // it keeps a lit surface from shadowing itself.
@@ -124,6 +129,7 @@ SunView FindSun(const entt::registry &sceneRegistry, const glm::dvec3 &camera)
 		glm::dvec3 position{0.0};
 		if (const auto *worldTransform = sceneRegistry.try_get<Scene::WorldTransformComponent>(entity))
 			position = glm::dvec3(worldTransform->matrix[3]);
+
 		// The direction is taken in double precision: the sun is a hundred million kilometres
 		// away, and its own offset is too large for a float to subtract from.
 		const glm::dvec3 towards = position - camera;
@@ -188,15 +194,18 @@ void Renderer::Init()
 	m_pProfiler->Init();
 	CreateTargets();
 	CreateClusterBuffers();
+
 	// Never cleared: an emitter empties its own share of it before its first births.
 	m_particles = m_pDeviceContext->CreateBuffer(
 	    VkDeviceSize{kParticleSlots} * sizeof(GpuParticle), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 	    MemoryUse::Device, "particles");
 	CreateShadowMap();
+
 	// Before the frames: their sets name its cubes and lookup table.
 	m_pEnvironment = std::make_unique<Environment>(m_pDeviceContext, *m_pPipelines);
 	m_pEnvironment->Init();
 	CreateFrames();
+
 	// The output set's grade is the identity's until a scene names one, so the set is whole.
 	ReplaceGrade(IdentityLut(kMinLutSize), "identity");
 	WritePostSets();
@@ -230,6 +239,7 @@ void Renderer::Destroy()
 		m_pDeviceContext->DestroyBuffer(frame.outlines);
 		m_pDeviceContext->DestroyBuffer(frame.gridReadback);
 		m_pDeviceContext->DestroyBuffer(frame.indexReadback);
+
 		// The device is idle, so the last frames' screenshots are drawn: a run that asks for one and
 		// ends on the next frame still writes it.
 		if (frame.screenshotPending)
@@ -254,12 +264,14 @@ void Renderer::Destroy()
 	m_gradeStrength = 0.0f;
 	if (m_pProfiler)
 		m_pProfiler->Destroy();
+
 	// Before the pipelines, one of which is its.
 	if (m_pOverlay)
 		m_pOverlay->Destroy();
 	if (m_pEnvironment)
 		m_pEnvironment->Destroy();
 	m_bakedSky.reset();
+
 	// Before the materials: a model going takes its own materials with it.
 	if (m_pModels)
 		m_pModels->Destroy();
@@ -363,12 +375,14 @@ void Renderer::CreateLayouts()
 	    {16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
+
 	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
 	std::array<VkDescriptorSetLayoutBinding, kMaterialTextureSlots> materialBindings{};
 	for (uint32_t slot = 0; slot < kMaterialTextureSlots; ++slot)
 		materialBindings[slot] = {
 		    slot, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
 	m_materialSetLayout = createSetLayout(materialBindings, "material-set-layout");
+
 	// What a post pass reads: the frame, the depth prepass's targets, the stencil, a level of bloom.
 	std::array<VkDescriptorSetLayoutBinding, kPostBindings> postBindings{};
 	for (uint32_t binding = 0; binding < kPostBindings; ++binding)
@@ -459,6 +473,7 @@ void Renderer::CreateLayouts()
 	if (vkCreateSampler(device, &samplerInfo, nullptr, &m_outputSampler) != VK_SUCCESS)
 		throw std::runtime_error("failed to create the output sampler");
 	m_pDeviceContext->SetDebugName(m_outputSampler, "output-sampler");
+
 	// The bloom chain's taps fall between texels, and filter four of them each.
 	samplerInfo.magFilter = VK_FILTER_LINEAR;
 	samplerInfo.minFilter = VK_FILTER_LINEAR;
@@ -488,6 +503,7 @@ void Renderer::CreatePassList()
 {
 	m_shadowMapResource = m_passes.AddImage("sun-shadows");
 	m_hdrMsaaResource = m_passes.AddImage("hdr-msaa");
+
 	// The depth target's two aspects, each its own resource so each has its own layout: ambient
 	// occlusion reads the depth while nothing holds the stencil, and the post passes test the
 	// resolved stencil while its depth is left as the opaque pass resolved it.
@@ -509,10 +525,12 @@ void Renderer::CreatePassList()
 	m_clusterGridResource = m_passes.AddBuffer("cluster-grid");
 	m_lightIndicesResource = m_passes.AddBuffer("light-indices");
 	m_particlesResource = m_passes.AddBuffer("particles");
+
 	// Every cascade, one rendering each into its own layer, cleared and then drawn into. A scene
 	// without a sun only clears them, so the plan and its barriers are the same either way.
 	m_shadowPass = m_passes.AddPass(
 	    "sun-shadows", PassKind::Graphics, {{m_shadowMapResource, Usage::DepthAttachment}});
+
 	// The opaque surfaces' depth, normals and object IDs, laid down for the opaque pass to test
 	// against and for ambient occlusion and the outlines to read, in a frame that asks for any of
 	// them; otherwise it records nothing and the opaque pass clears the depth itself, so the plan and
@@ -522,10 +540,12 @@ void Renderer::CreatePassList()
 	    {{m_depthResource, Usage::DepthAttachment},
 	     {m_normalsResource, Usage::ColorAttachment},
 	     {m_objectIdsResource, Usage::ColorAttachment}});
+
 	// The index list's allocator is zeroed by a fill, so the assignment can reserve from it with
 	// atomic adds; a fill is a transfer, and the plan orders it after the last frame's reads.
 	m_clusterResetPass = m_passes.AddPass(
 	    "cluster-reset", PassKind::Transfer, {{m_lightIndicesResource, Usage::TransferWrite}});
+
 	// Recorded only when the bounds are stale; its barriers are recorded either way, and a buffer
 	// keeps its contents between frames (render/PassList.h).
 	m_clusterBoundsPass = m_passes.AddPass(
@@ -535,10 +555,12 @@ void Renderer::CreatePassList()
 	    {{m_clusterBoundsResource, Usage::StorageReadCompute},
 	     {m_clusterGridResource, Usage::StorageWriteCompute},
 	     {m_lightIndicesResource, Usage::StorageWriteCompute}});
+
 	// Every emitter's slots stepped and its births made, in place: the buffer keeps its contents from
 	// frame to frame, and this frame's reads wait on the last frame's draws.
 	m_particlePass = m_passes.AddPass(
 	    "particles", PassKind::Compute, {{m_particlesResource, Usage::StorageWriteCompute}});
+
 	// Ambient occlusion, before the opaque pass shades: the prepass's depth and normals read at sample
 	// zero, and the result blurred. Recorded in a frame that has it on.
 	m_ssaoPass = m_passes.AddPass(
@@ -551,6 +573,7 @@ void Renderer::CreatePassList()
 	    {{m_depthResource, Usage::SampledFragment},
 	     {m_accessResource, Usage::SampledFragment},
 	     {m_accessBlurredResource, Usage::ColorAttachment}});
+
 	// The resolves are the opaque pass's: dynamic rendering resolves the multisampled colour into the
 	// single-sampled target as the pass ends, and the depth and stencil to sample zero, as attachment
 	// writes; the stencil is what the post passes test.
@@ -567,6 +590,7 @@ void Renderer::CreatePassList()
 	     {m_clusterGridResource, Usage::StorageReadFragment},
 	     {m_lightIndicesResource, Usage::StorageReadFragment},
 	     {m_particlesResource, Usage::StorageReadVertex}});
+
 	// Bloom: down the chain from the frame, then back up it, each level adding the one below. Each
 	// step is a pass of its own, so the plan orders a level's reads after its writes; recorded in a
 	// frame with bloom on.
@@ -580,6 +604,7 @@ void Renderer::CreatePassList()
 		    "bloom-up-" + std::to_string(level + 1), PassKind::Graphics,
 		    {{m_bloomResources[level + 1], Usage::SampledFragment},
 		     {m_bloomResources[level], Usage::ColorAttachment}});
+
 	// The outlines, after bloom has read the frame, so they do not bloom: the jump flood's seeds and
 	// steps, from one of its targets to the other, and then the outlines over the frame, tested
 	// against the stencil. Recorded in a frame with any to draw, the flood in one with a glow.
@@ -604,17 +629,20 @@ void Renderer::CreatePassList()
 	     {m_bloomResources[0], Usage::SampledFragment},
 	     {m_resolvedStencilResource, Usage::StencilRead},
 	     {m_swapchainResource, Usage::ColorAttachment}});
+
 	// The cluster check's copy. It is in every frame's plan, checked or not, and records its copies
 	// only when the check is on: the plan the gate's synchronization validation runs is then the
 	// plan every run has, and the barriers it costs an unchecked frame wait on work that is done.
 	m_clusterReadbackPass = m_passes.AddPass(
 	    "cluster-readback", PassKind::Transfer,
 	    {{m_clusterGridResource, Usage::TransferRead}, {m_lightIndicesResource, Usage::TransferRead}});
+
 	// A screenshot's copy of what the output pass wrote, before the image is presented. In every
 	// frame's plan, as the cluster check's is, and recorded only in a frame asked for one.
 	if (m_pSwapchain->CanReadBack())
 		m_screenshotPass = m_passes.AddPass(
 		    "screenshot", PassKind::Transfer, {{m_swapchainResource, Usage::TransferRead}});
+
 	// Offscreen the image is read back, if at all, and never presented.
 	m_passes.Export(
 	    m_swapchainResource, m_pSwapchain->IsOffscreen() ? Usage::TransferRead : Usage::Present);
@@ -842,6 +870,7 @@ void Renderer::CreateFrames()
 		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS ||
 		    vkCreateFence(device, &fenceInfo, nullptr, &frame.inFlight) != VK_SUCCESS)
 			throw std::runtime_error("failed to create a frame's semaphore and fence");
+
 		// The two frame-loop waits in Render read differently, one per frame and one per image,
 		// and a message that names the fence is how a reader tells which one fired.
 		m_pDeviceContext->SetDebugName(frame.imageAvailable, "image-available-" + slot);
@@ -1042,6 +1071,7 @@ void Renderer::CreatePipelines()
 	base.depthFormat = m_depthFormat;
 	base.stencilFormat = m_depthFormat;
 	base.samples = m_pDeviceContext->GetMsaaSamples();
+
 	// An opaque surface writes its draw's stencil bits wherever it is drawn, whatever was there: the
 	// reference is the batch's (render/PostProcess.h's StencilBits).
 	RenderState mesh = base;
@@ -1049,6 +1079,7 @@ void Renderer::CreatePipelines()
 	mesh.stencilCompare = VK_COMPARE_OP_ALWAYS;
 	mesh.stencilPass = VK_STENCIL_OP_REPLACE;
 	mesh.stencilWriteMask = 0xff;
+
 	// What a transparent program draws with (ProgramBlend::Transparent), after the sky: tested
 	// against the opaque surfaces' depth and writing none, so what is behind it is still drawn and
 	// blended; both faces, so a canopy is seen from inside; and what it adds and what it lets through
@@ -1057,6 +1088,7 @@ void Renderer::CreatePipelines()
 	transparent.cullMode = VK_CULL_MODE_NONE;
 	transparent.depthWrite = false;
 	transparent.blend = BlendMode::Transmissive;
+
 	// Every scene program is built against the mesh layout and one of these states, by the material
 	// cache: the default program here, the ones materials name when a material first draws.
 	m_pMaterials->Init(m_materialSetLayout, m_meshLayout, mesh, transparent);
@@ -1071,6 +1103,7 @@ void Renderer::CreatePipelines()
 	sky.depthWrite = false;
 	sky.depthCompare = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	m_skyPipeline = m_pPipelines->Get({"sky", sky, m_meshLayout});
+
 	// The bodies' air and rings, over the sky where it was drawn and nowhere else: a surface in
 	// front of the limb is not behind the air, and the planet program hazes its own surface. Its
 	// colour is premultiplied by what it lets through of what is behind it, as one minus its alpha.
@@ -1132,6 +1165,7 @@ void Renderer::CreatePipelines()
 	m_ssaoBlurPipeline = m_pPipelines->Get({"ssao_blur", post, m_postLayout});
 	post.colorFormat = kHdrFormat;
 	m_bloomDownPipeline = m_pPipelines->Get({"bloom_down", post, m_postLayout});
+
 	// The way up adds to what the way down left in the level.
 	RenderState bloomUp = post;
 	bloomUp.blend = BlendMode::Additive;
@@ -1139,6 +1173,7 @@ void Renderer::CreatePipelines()
 	post.colorFormat = kSeedFormat;
 	m_outlineSeedPipeline = m_pPipelines->Get({"outline_seed", post, m_postLayout});
 	m_outlineFloodPipeline = m_pPipelines->Get({"outline_flood", post, m_postLayout});
+
 	// Over the frame, premultiplied, wherever the stencil's engine bits are all clear: not on an
 	// outlined shape, the cockpit, or what post-processing leaves alone.
 	RenderState outlines = post;
@@ -1186,6 +1221,7 @@ void Renderer::RecreateSwapchain()
 	check_vk_result(m_pDeviceContext->WaitIdle());
 	const VkFormat format = m_pSwapchain->GetImageFormat();
 	m_pSwapchain->Recreate();
+
 	// The pipelines were built for the swapchain's format, and the surface is the same one, so
 	// the format is too; a surface that changed its mind would need them rebuilt.
 	if (m_pSwapchain->GetImageFormat() != format)
@@ -1193,6 +1229,7 @@ void Renderer::RecreateSwapchain()
 	DestroyTargets();
 	CreateTargets();
 	WritePostSets();
+
 	// The frame sets name the ambient access, which is one of the targets.
 	for (const FrameData &frame : m_frames)
 		WriteFrameSet(frame);
@@ -1258,6 +1295,7 @@ void Renderer::ReplaceGrade(const ColourLut &lut, const std::string &name)
 	Image image;
 	VkImageView view = VK_NULL_HANDLE;
 	Render::UploadGrade(*m_pDeviceContext, lut, "grade:" + name, image, view);
+
 	// The upload waited for the queue, so no submission in flight reads the grade it replaces, and
 	// the output set may name the new one.
 	vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), m_gradeView, nullptr);
@@ -1314,6 +1352,7 @@ void Renderer::UpdateEnvironment(
 		body.albedo = glm::vec4{draw.color, 1.0f};
 		bodies.emplace_back(distance, body);
 	}
+
 	// Furthest first, and the draws' order behind that, so the list is the same from frame to frame.
 	std::ranges::stable_sort(bodies, std::greater{}, &std::pair<double, GpuCaptureBody>::first);
 	for (const auto &[distance, body] : bodies)
@@ -1332,6 +1371,7 @@ void Renderer::UpdateEnvironment(
 	m_bakedSky = sky;
 	m_bakedLight = std::move(light);
 	m_bakedFrame = m_frameNumber;
+
 	// The bake waited for the queue, so neither slot's set is read by a submission in flight.
 	for (const FrameData &frame : m_frames)
 		WriteFrameSet(frame);
@@ -1343,6 +1383,7 @@ void Renderer::EnsureCapacity(
 {
 	if (bytes <= buffer.size)
 		return;
+
 	// The slot's fence has been waited on, so no submission in flight reads this buffer or the
 	// frame set that points at it; the set is rewritten before this frame records against it.
 	VkDeviceSize size = std::max<VkDeviceSize>(buffer.size, 1);
@@ -1523,6 +1564,7 @@ void Renderer::SelectLods(const std::vector<SceneDrawCommand> &draws)
 		m_drawLods[drawIndex] = lod;
 		if (draw.occluderRadius <= 0.0)
 			continue;
+
 		// The level's flat triangles dip inside the sphere they stand for by its error, so the sphere
 		// that hides nothing the mesh does not is that much smaller; and a millionth smaller again, for
 		// the bounds' centre, which is the box around the float vertices' and a planet's radius from
@@ -1566,6 +1608,7 @@ void Renderer::WriteInstances(
 	m_outlineScratch.clear();
 	m_outlineOwners.clear();
 	m_drawOutlines.assign(draws.size(), kMaxOutlines);
+
 	// A kept draw's outline, numbered by the entity that has it in the order the draws first name it,
 	// so every mesh under one outline is one shape to it.
 	const auto keepOutline = [&](std::size_t drawIndex)
@@ -1615,6 +1658,7 @@ void Renderer::WriteInstances(
 			++m_frameStats.detailCulled;
 			continue;
 		}
+
 		// A transparent material's draw goes back to front with the others, by its centre. It writes
 		// no stencil, and is not in the prepass, so it is no part of an outlined shape.
 		if (const MaterialBinding *material = m_drawMaterials[drawIndex];
@@ -1652,6 +1696,7 @@ void Renderer::WriteInstances(
 				if (draw.model == nullptr || draw.model->m_lods.empty())
 					continue;
 				const bool skinned = draw.Skinned();
+
 				// What lets light through casts no shadow.
 				if (const MaterialBinding *material = m_drawMaterials[drawIndex];
 				    material != nullptr && material->transparent)
@@ -1711,6 +1756,7 @@ void Renderer::WriteLights(
 	{
 		if (!light.active)
 			continue;
+
 		// Collected camera-relative, like every other position the GPU sees. A spot points along its
 		// entity's -Z, the world transform's third column without its scale.
 		glm::dvec3 position{0.0};
@@ -1724,6 +1770,7 @@ void Renderer::WriteLights(
 		}
 		else if (const auto *transform = sceneRegistry.try_get<Scene::TransformComponent>(entity))
 			position = transform->translation;
+
 		// The distance is taken in double precision, before anything becomes a float: a light whose
 		// range ends short of the grid's far end from here reaches no cluster. Nor does one whose reach
 		// is outside the view, or wholly behind a planet: every surface it could light is too.
@@ -1736,6 +1783,7 @@ void Renderer::WriteLights(
 		                                              m_occluders, [&](const HorizonOccluder &occluder)
 		                                              { return Occludes(occluder, reach); }))
 			continue;
+
 		// A light whose intensity moves with time shines as it does at this frame's moment.
 		Scene::LightComponent shining = light;
 		shining.intensity = Scene::LightIntensityAt(light, m_presentationTime);
@@ -1760,6 +1808,7 @@ void Renderer::WriteBodies(FrameData &frame, const std::vector<SceneDrawCommand>
 		const SceneDrawCommand &draw = draws[drawIndex];
 		if (draw.atmosphere == nullptr && draw.rings == nullptr)
 			continue;
+
 		// The transform's translation, not the bounds' centre, which is the box's about the float
 		// vertices and a metre or so off for a planet.
 		const glm::vec3 centre{draw.renderTransform[3]};
@@ -1802,6 +1851,7 @@ void Renderer::CheckClusters(FrameData &frame)
 	                           "the light index list overflowed: {} entries reserved for {}", list[0],
 	                           kLightIndexCapacity)
 	                     : "the GPU's light assignment disagrees with the CPU's: " + check.mismatch;
+
 	// Reported once, and counted after: a frame loop that disagrees once disagrees every frame.
 	if (m_clusterChecks.failures++ == 0)
 	{
@@ -1851,6 +1901,7 @@ bool Renderer::Render(
 	FrameData &frame = m_frames[m_currentFrame];
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
 	vkWaitForFences(device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX);
+
 	// The slot's last frame is done, and with it everything retired long enough ago to free.
 	m_pMaterials->BeginFrame(m_frameNumber, m_materialParameters);
 	m_pModels->BeginFrame(m_frameNumber);
@@ -1873,6 +1924,7 @@ bool Renderer::Render(
 		    device, m_pSwapchain->GetVkSwapchainHandle(), UINT64_MAX, frame.imageAvailable,
 		    VK_NULL_HANDLE, &imageIndex);
 	};
+
 	// Recreated and acquired again rather than the frame skipped: when the display server's resize
 	// arrives is its own timing, and a frame that draws nothing resolves no material, so a fixed-step
 	// run's loads, and the frame it shoots, would follow that timing (12,383 pixels of dock-sequence
@@ -1899,6 +1951,7 @@ bool Renderer::Render(
 	}
 	if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR)
 		throw std::runtime_error("failed to acquire a swapchain image");
+
 	// Present reads this index, and it is the only writer: a recreate can change the image count
 	// behind it, and the next acquire replaces it before the next present looks at it.
 	m_presentImageIndex = imageIndex;
@@ -1912,6 +1965,7 @@ bool Renderer::Render(
 	// the new contents' own, into queues that wait out the frames in flight.
 	const bool sceneReplaced = m_sceneGeneration && *m_sceneGeneration != scene.Generation();
 	m_sceneGeneration = scene.Generation();
+
 	// A replaced scene's emitters are other emitters, whatever their entities are numbered.
 	if (sceneReplaced)
 		m_particlePool.Clear();
@@ -1925,6 +1979,7 @@ bool Renderer::Render(
 	UpdateEnvironment(scene.Registry(), sceneReplaced, camera, draws);
 	UpdateGrade(scene.Registry());
 	std::vector<uint32_t> jointOffsets;
+
 	// The materials first: a draw's batch is keyed on the one it resolved to.
 	WriteMaterials(frame, draws, presentationTime);
 	if (sceneReplaced)
@@ -1964,9 +2019,11 @@ bool Renderer::Render(
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
 	// The first use of the swapchain image waits at the colour-output stage (PassBarriers'
 	// source scope for Present), so the acquire's semaphore is waited on there.
 	const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
 	// Offscreen nothing was acquired and nothing presents, so the frame's fence orders it alone.
 	submitInfo.waitSemaphoreCount = offscreen ? 0 : 1;
 	submitInfo.pWaitSemaphores = &frame.imageAvailable;
@@ -2066,6 +2123,7 @@ void Renderer::Record(FrameData &frame, uint32_t imageIndex, const ImGuiRenderer
 	{
 		RecordBarriers(commandBuffer, planned.barriers, bound);
 		m_pDeviceContext->BeginDebugLabel(commandBuffer, std::string{m_passes.PassName(planned.pass)});
+
 		// A GPU zone per declared pass, on Tracy's timeline when it is compiled in, and a timestamp
 		// either side for the engine's own timings. The pass list's names are std::strings, so the
 		// view's data is terminated.
@@ -2170,6 +2228,7 @@ void Renderer::RecordShadows(const FrameData &frame, VkCommandBuffer commandBuff
 		depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 		depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
 		// Reversed: 0 is the far side of the map from the sun.
 		depth.clearValue.depthStencil = {0.0f, 0};
 
@@ -2186,6 +2245,7 @@ void Renderer::RecordShadows(const FrameData &frame, VkCommandBuffer commandBuff
 			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline);
+
 			// The shadow program reads the frame set alone: the cascades' matrices, the instances and
 			// the skin palette. No material set is bound, since it has no fragment stage to read one.
 			vkCmdBindDescriptorSets(
@@ -2203,6 +2263,7 @@ void Renderer::RecordDepthPrepass(const FrameData &frame, VkCommandBuffer comman
 {
 	if (!m_framePrepass)
 		return;
+
 	// The normals and IDs are kept for the passes that read them at sample zero; where no surface is,
 	// the ID is 0, which names nothing.
 	std::array<VkRenderingAttachmentInfo, 2> colors{};
@@ -2224,6 +2285,7 @@ void Renderer::RecordDepthPrepass(const FrameData &frame, VkCommandBuffer comman
 	depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 	depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
 	// Reversed-Z: the far end of the infinite frustum is depth 0.
 	depth.clearValue.depthStencil = {0.0f, 0};
 
@@ -2255,6 +2317,7 @@ void Renderer::RecordClusterBounds(const FrameData &frame, VkCommandBuffer comma
 	    commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_clusterLayout, 0, 1, &frame.frameSet, 0,
 	    nullptr);
 	vkCmdDispatch(commandBuffer, (kClusterCount + kClusterGroupSize - 1) / kClusterGroupSize, 1, 1);
+
 	// Every frame after this one reads what this dispatch writes, in submission order, and the
 	// plan's barriers order their reads after it.
 	m_clusterBoundsView = m_frameClusterView;
@@ -2279,6 +2342,7 @@ void Renderer::RecordParticles(const FrameData &frame, VkCommandBuffer commandBu
 	vkCmdBindDescriptorSets(
 	    commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleLayout, 0, 1, &frame.frameSet, 0,
 	    nullptr);
+
 	// Every emitter, in view or not: what it made goes on moving while the camera looks away. Each
 	// dispatch touches its own share of the pool alone, so none waits on another.
 	for (std::size_t emitter = 0; emitter < m_emitterDraws.size(); ++emitter)
@@ -2301,6 +2365,7 @@ void Renderer::RecordClusterReadback(FrameData &frame, VkCommandBuffer commandBu
 	vkCmdCopyBuffer(commandBuffer, m_clusterGrid.handle, frame.gridReadback.handle, 1, &grid);
 	const VkBufferCopy list{0, 0, m_lightIndices.size};
 	vkCmdCopyBuffer(commandBuffer, m_lightIndices.handle, frame.indexReadback.handle, 1, &list);
+
 	// The copies made available to the host, which reads them once the slot's fence is waited on;
 	// the fence alone makes device writes visible to the device, not to the host's reads.
 	VkMemoryBarrier2 toHost{};
@@ -2344,6 +2409,7 @@ void Renderer::RecordScreenshot(
 	vkCmdCopyImageToBuffer(
 	    commandBuffer, m_pSwapchain->GetImage(imageIndex), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 	    frame.screenshotReadback.handle, 1, &region);
+
 	// As the cluster check's copies are: made available to the host, which reads them after the fence.
 	VkMemoryBarrier2 toHost{};
 	toHost.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
@@ -2414,6 +2480,7 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 	depth.resolveImageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 	depth.loadOp = m_framePrepass ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
 	// Reversed-Z: the far end of the infinite frustum is depth 0.
 	depth.clearValue.depthStencil = {0.0f, 0};
 	VkRenderingAttachmentInfo stencil = depth;
@@ -2432,17 +2499,20 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 
 	vkCmdBeginRendering(commandBuffer, &rendering);
 	SetViewport(commandBuffer);
+
 	// Every scene program shares the mesh layout, so set 0 stays bound across pipeline changes.
 	vkCmdBindDescriptorSets(
 	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
 	    nullptr);
 	VkPipeline boundPipeline = VK_NULL_HANDLE;
 	const Model *boundModel = nullptr;
+
 	// Front to back, batch by batch (render/DrawBatches.h).
 	for (const DrawBatch &batch : m_viewBatches)
 		RecordMeshBatch(commandBuffer, batch, boundPipeline, boundModel, true);
 
 	m_pDeviceContext->BeginDebugLabel(commandBuffer, "sky");
+
 	// The sky program shares the mesh layout, so the frame set is still bound.
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyPipeline);
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -2454,6 +2524,7 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 		m_pDeviceContext->EndDebugLabel(commandBuffer);
 	}
+
 	// In this rendering, as the sky is, so the multisampled target stays where it is rather than
 	// being stored and loaded again for a node of their own.
 	if (!m_transparentBatches.empty())
@@ -2498,10 +2569,12 @@ void Renderer::RecordMeshBatch(
 		boundModel = &model;
 	}
 	const auto *pNamed = static_cast<const MaterialBinding *>(batch.key.material);
+
 	// A model's own material is the default program at its defaults, the frame's first block.
 	const DrawPushConstants pushConstants{pNamed != nullptr ? pNamed->parameterOffset : 0u, 0u};
 	vkCmdPushConstants(
 	    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
+
 	// The opaque surfaces' pipelines write it, as dynamic state; the transparent ones' have no stencil
 	// test, and setting state a pipeline does not take is an error to the validation layer.
 	if (opaque)
@@ -2545,6 +2618,7 @@ void Renderer::RecordTransparent(VkCommandBuffer commandBuffer)
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particlePipeline);
 			boundPipeline = m_particlePipeline;
 		}
+
 		// The emitter's index where a mesh draw has its material's offset; its slots are instances,
 		// from its first.
 		const DrawPushConstants pushConstants{sorted.emitter, 0u};
@@ -2564,6 +2638,7 @@ void Renderer::RecordOutput(
 	color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	color.imageView = m_pSwapchain->GetImageView(imageIndex);
 	color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
 	// The triangle covers every pixel, so what was there before does not matter.
 	color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -2589,6 +2664,7 @@ void Renderer::RecordOutput(
 	vkCmdPushConstants(
 	    commandBuffer, m_postLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(output), &output);
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
 	// The UI goes over the scene after exposure, single-sampled, in the swapchain's format: the game's
 	// overlay, then the dev tools over it.
 	m_pOverlay->Record(commandBuffer, m_currentFrame, m_targets.extent);
@@ -2606,6 +2682,7 @@ void Renderer::RecordFullscreen(
 	color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	color.loadOp = pass.load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
 	// Tested and not written, so not stored either: a store would be a write the pass list does not
 	// know of.
 	VkRenderingAttachmentInfo stencil{};
@@ -2666,6 +2743,7 @@ void Renderer::RecordBloom(
 {
 	if (m_bloom <= 0.0f)
 		return;
+
 	// The way down reads the level above, the frame for the first; the way up the level below.
 	const VkExtent2D source = down ? (level == 0 ? m_targets.extent : m_targets.bloomExtents[level - 1])
 	                               : m_targets.bloomExtents[level + 1];

@@ -17,8 +17,10 @@ struct TangentMesh
 {
 	// One per input index, into the output vertices.
 	std::vector<std::uint32_t> indices;
+
 	// Per output vertex.
 	std::vector<std::uint32_t> sourceVertices;
+
 	// Per output vertex: xyz along increasing U, w the sign of the bitangent, cross(normal,
 	// tangent) * w, which points along increasing V.
 	std::vector<glm::vec4> tangents;

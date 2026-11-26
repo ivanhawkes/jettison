@@ -40,6 +40,7 @@ std::array<float, kShadowCascades> ShadowSplits(float nearPlane, const ShadowSet
 		const double even = nearDepth + (distance - nearDepth) * share;
 		splits[cascade] = static_cast<float>(blend * logarithmic + (1.0 - blend) * even);
 	}
+
 	// Exactly, rather than as the formula rounds it.
 	splits.back() = static_cast<float>(distance);
 	return splits;
@@ -66,6 +67,7 @@ SunShadows FitSunShadows(
 	const double tanHalf = std::tan(double{camera.verticalFov} * 0.5);
 	const double slopeSquared = tanHalf * tanHalf * (1.0 + double{aspect} * double{aspect});
 	const glm::dvec3 forward = camera.orientation * glm::dvec3{0.0, 0.0, -1.0};
+
 	// The frame origin in render space, taken in double precision: both are system positions.
 	const glm::dvec3 origin = camera.frameOrigin - camera.position;
 	const double resolution = settings.resolution;
@@ -76,12 +78,14 @@ SunShadows FitSunShadows(
 		ShadowCascade &cascade = shadows.cascades[index];
 		const double nearDepth = Glsl::ShadowCascadeStart(index, splitVector, camera.nearPlane);
 		const double farDepth = splits[index];
+
 		// The smallest sphere through the slice's eight corners is centred on the axis where the
 		// near and far corners are equally far off, or at the far cap when that is further.
 		const double along = std::min((farDepth + nearDepth) * (1.0 + slopeSquared) * 0.5, farDepth);
 		const double radius = std::max(
 		    std::sqrt(nearDepth * nearDepth * slopeSquared + (along - nearDepth) * (along - nearDepth)),
 		    std::sqrt(farDepth * farDepth * slopeSquared + (farDepth - along) * (farDepth - along)));
+
 		// The map covers the sphere and its border. Half the map is then exactly resolution / 2
 		// texels, a power of two, so a centre on whole texels puts every texel edge on them too.
 		const double halfExtent = radius * resolution / (resolution - 2.0 * kShadowBorderTexels);

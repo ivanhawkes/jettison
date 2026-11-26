@@ -428,6 +428,7 @@ void CheckLight(const LightRecord &light, const std::string &id)
 	}
 	const float inner = light.innerConeAngle.value_or(LightComponent{}.innerConeAngle);
 	const float outer = light.outerConeAngle.value_or(LightComponent{}.outerConeAngle);
+
 	// KHR_lights_punctual's rule, and the cone test's: the culling assumes a cone no wider than a
 	// hemisphere.
 	constexpr float kQuarterTurn = 1.5707964f;
@@ -626,6 +627,7 @@ void Validate(const SceneDocument &document)
 			if (particles->frame && !exists(*particles->frame, id))
 				Refuse("Invalid particles frame '" + *particles->frame + "' in scene");
 		}
+
 		// A mesh is not part of what a rotation animation runs on: the update system walks the
 		// transform, so an entity with nothing to draw can still spin. The clip player is the one
 		// that needs a model, for a rig to sample.
@@ -645,6 +647,7 @@ void Validate(const SceneDocument &document)
 				Refuse("Entity '" + id + "' plays a clip of no name");
 			if (!std::isfinite(clip->speed))
 				Refuse("Entity '" + id + "' plays its clip at a speed that is not finite");
+
 			// A node bound to the player's own entity is a rig of one.
 			for (const ClipNodeRecord &node : clip->nodes)
 				if (node.node.empty() || !ids.contains(node.entity))
@@ -992,6 +995,7 @@ std::string Scene::SaveText() const
 {
 	RegisterTypes();
 	std::vector<entt::entity> entities;
+
 	// What a game built is its own, made again when the file is loaded.
 	const auto view =
 	    m_registry.view<const SceneEntityId, const TransformComponent>(entt::exclude<BuiltComponent>);
@@ -1058,6 +1062,7 @@ std::string Scene::SaveText() const
 			clip.speed = player->speed;
 			clip.loop = player->looping;
 			clip.playing = player->playing;
+
 			// A binding to an entity the file does not hold, one a game built, is the builder's,
 			// made again as the file is loaded.
 			for (const ClipBinding &binding : player->nodes)

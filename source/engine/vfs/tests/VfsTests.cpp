@@ -122,8 +122,10 @@ TEST_CASE("Vfs: a later mount shadows an earlier one path by path")
 	CHECK(fileSystem.Exists("models/Avocado.glb"));
 	CHECK_FALSE(fileSystem.Exists("models/Missing.glb"));
 	CHECK_FALSE(fileSystem.Read("models/Missing.glb"));
+
 	// A directory is not a file.
 	CHECK_FALSE(fileSystem.Exists("models"));
+
 	// An empty file is a file, read as no bytes.
 	scratch.Put("base/empty.txt", "");
 	CHECK(fileSystem.Read("empty.txt")->empty());
@@ -183,6 +185,7 @@ TEST_CASE("Vfs: writes go to the user mount, replace a file whole, and shadow th
 	fileSystem.Write("saves/slot1.bin", Bytes("second"));
 	CHECK(Text(fileSystem.Read("saves/slot1.bin")) == "second");
 	CHECK_FALSE(std::filesystem::exists(scratch.Path("user/saves/slot1.bin:partial")));
+
 	// The base file is untouched.
 	std::ifstream base{scratch.Path("base/settings.yaml")};
 	CHECK(std::string{std::istreambuf_iterator<char>{base}, {}} == "base settings");
@@ -200,6 +203,7 @@ TEST_CASE("Vfs: enumeration lists every file under a directory once, sorted, acr
 	scratch.Put("mod/other/readme.txt", "");
 	FileSystem fileSystem = scratch.Mounted();
 	fileSystem.Write("defs/ships/custom.yaml", Bytes(""));
+
 	// An interrupted write leaves a partial file, which is not listed.
 	scratch.Put("user/defs/ships/broken.yaml:partial", "");
 
@@ -222,6 +226,7 @@ TEST_CASE("Vfs: mounts are checked as they are added")
 	CHECK_THROWS_AS(fileSystem.AddMount({"", scratch.Path("base"), false}), std::invalid_argument);
 	CHECK_THROWS_AS(
 	    fileSystem.AddMount({"missing", scratch.Path("missing"), false}), std::runtime_error);
+
 	// A file mounts as a pack, and one that is not a pack is refused, naming the mount.
 	scratch.Put("notes.txt", "not a pack");
 	CHECK_THROWS_WITH_AS(
@@ -231,6 +236,7 @@ TEST_CASE("Vfs: mounts are checked as they are added")
 
 	fileSystem.AddMount({"base", scratch.Path("base"), false});
 	CHECK_THROWS_AS(fileSystem.AddMount({"base", scratch.Path("mod"), false}), std::invalid_argument);
+
 	// No writable mount yet.
 	CHECK_THROWS_AS(fileSystem.Write("save.bin", Bytes("x")), std::logic_error);
 

@@ -21,6 +21,7 @@ FrameWorld::FrameWorld(const Layers &layers, const PhysicsSettings &settings)
 	m_system.Init(
 	    settings.maxBodies, 0, settings.maxBodyPairs, settings.maxContactConstraints, layers.broadPhase,
 	    *layers.objectVsBroadPhase, layers.pairs);
+
 	// Orbits are on rails and a vehicle's own thrust moves it: nothing falls.
 	m_system.SetGravity(JPH::Vec3::sZero());
 }
@@ -48,6 +49,7 @@ void FrameWorld::Release(const JPH::BodyID &id)
 {
 	const std::uint32_t index = id.GetIndex();
 	JETTISON_ASSERT(index < m_sequences.size() && !m_free.contains(index));
+
 	// Wraps at 256, as Jolt's own sequence numbers do.
 	++m_sequences[index];
 	m_free.insert(index);

@@ -33,10 +33,12 @@ struct SaveRow
 {
 	std::string name;
 	std::string place;
+
 	// When it was written, in UTC: "2026-11-12 09:38".
 	std::string written;
 	std::uint64_t step{0};
 	std::string engine;
+
 	// Why the save cannot be read, or empty.
 	std::string problem;
 

@@ -34,6 +34,7 @@ void DebugDraw::Circle(
 	if (segments < 3 || glm::length(normal) == 0.0)
 		return;
 	const glm::dvec3 axis = glm::normalize(normal);
+
 	// Any vector not along the axis gives the circle's plane.
 	const glm::dvec3 helper =
 	    std::abs(axis.y) < 0.9 ? glm::dvec3{0.0, 1.0, 0.0} : glm::dvec3{1.0, 0.0, 0.0};
@@ -70,6 +71,7 @@ void DebugDraw::Box(
 		    corner & 1 ? 1.0 : -1.0, corner & 2 ? 1.0 : -1.0, corner & 4 ? 1.0 : -1.0};
 		corners[static_cast<std::size_t>(corner)] = center + orientation * (sign * halfExtents);
 	}
+
 	// Corners that differ in exactly one bit share an edge.
 	for (int corner = 0; corner < 8; ++corner)
 		for (const int bit : {1, 2, 4})

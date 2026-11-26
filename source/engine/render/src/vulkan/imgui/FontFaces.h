@@ -32,8 +32,10 @@ class ImGuiRenderer;
 struct DevToolFaces
 {
 	std::vector<std::vector<std::byte>> m_bytes;
+
 	// The mono face the console pushes for its lines, the first of the mono files the assets carry.
 	ImFont *m_pMono{nullptr};
+
 	// The face the UI is drawn in, and the one named in `io.FontDefault`.
 	ImFont *m_pUi{nullptr};
 };

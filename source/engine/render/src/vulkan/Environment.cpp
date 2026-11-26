@@ -204,6 +204,7 @@ void Environment::Destroy()
 	vkDestroyImageView(device, m_brdfLutView, nullptr);
 	m_brdfLutView = VK_NULL_HANDLE;
 	m_pDeviceContext->DestroyImage(m_brdfLut);
+
 	// The pipelines are the pipeline cache's, which destroys them.
 	m_capturePipeline = VK_NULL_HANDLE;
 	m_specularPipeline = VK_NULL_HANDLE;
@@ -307,6 +308,7 @@ void Environment::RenderFace(
 	color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	color.imageView = target;
 	color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
 	// The triangle covers every texel.
 	color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -366,6 +368,7 @@ void Environment::Bake(const Scene::SkyComponent *pSky, const CaptureLight &ligh
 
 	Cube specular;
 	Cube irradiance;
+
 	// What only the bake uses, freed when it is done.
 	Cube capture;
 	Buffer skyBuffer{};
@@ -381,6 +384,7 @@ void Environment::Bake(const Scene::SkyComponent *pSky, const CaptureLight &ligh
 		m_pDeviceContext->DestroyBuffer(skyBuffer);
 		DestroyCube(capture);
 	};
+
 	// 2D views of each level of each face of a cube, to render into, made before recording begins
 	// so nothing between the begin and the submit can throw. By level, then face.
 	const auto faceViewsOf = [&](const Cube &cube, std::uint32_t levels)
@@ -409,6 +413,7 @@ void Environment::Bake(const Scene::SkyComponent *pSky, const CaptureLight &ligh
 			sky.sky = PackSky(*pSky);
 			sky.sunDirection = light.sunDirection;
 			sky.sunLight = light.sunLight;
+
 			// The nearest, last in the list, are the ones kept.
 			const std::size_t first =
 			    light.bodies.size() > kCaptureBodies ? light.bodies.size() - kCaptureBodies : 0;
@@ -500,6 +505,7 @@ void Environment::Bake(const Scene::SkyComponent *pSky, const CaptureLight &ligh
 				    commandBuffer, faceViews[captureFaces + face], kCaptureSize, m_capturePipeline,
 				    m_captureLayout, captureSet, &push, sizeof(push));
 			}
+
 			// Its mip chain, each level a linear blit of the one before, all six faces at once.
 			Barrier(
 			    commandBuffer, capture.image.handle, 0, 1, 6, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -568,6 +574,7 @@ void Environment::Bake(const Scene::SkyComponent *pSky, const CaptureLight &ligh
 			AttachmentToSampled(commandBuffer, irradiance.image.handle, 1, 6);
 		}
 		m_pDeviceContext->EndDebugLabel(commandBuffer);
+
 		// Waits for the queue: every frame submitted before this one is done with it too.
 		m_pDeviceContext->EndSingleTimeCommands(commandBuffer);
 	}

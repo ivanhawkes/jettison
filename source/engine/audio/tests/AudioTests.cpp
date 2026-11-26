@@ -215,6 +215,7 @@ TEST_CASE("Audio: a bus's volume scales what plays on it, and master's everythin
 
 	audio.SetBusVolume(Bus::Ui, 0.5f);
 	CHECK(audio.BusVolume(Bus::Ui) == doctest::Approx(0.5f));
+
 	// A bus with nothing playing on it is not mixed, so the ease runs under the next sound to start.
 	audio.PlayFlat(kFilled, Bus::Ui);
 	MixPeaks(audio, 0.5);
@@ -305,6 +306,7 @@ TEST_CASE("Audio: a sound is placed relative to the listener, as precisely far f
 		audio.Play(kDocked, Bus::Effects, listener + glm::dvec3{30.0, 0.0, -40.0}, false, falloff);
 		return MixPeaks(audio, 1.2);
 	};
+
 	// A hundred million kilometres out, where a float has a step of eight kilometres.
 	const Peaks home = heard({0.0, 0.0, 0.0});
 	const Peaks out = heard({1.0e11, 0.0, -1.0e11});
@@ -323,11 +325,13 @@ TEST_CASE("Audio: a source follows the position it is given")
 	MixPeaks(audio, 0.05);
 	audio.SetPosition(source, {-10.0, 0.0, 0.0});
 	audio.Update();
+
 	// miniaudio pans to the new place over a few milliseconds rather than with a click; the loop's
 	// next start, 1.1 s in, is heard from there.
 	MixPeaks(audio, 0.2);
 	const Peaks moved = MixPeaks(audio, 1.2);
 	CHECK(moved.left > 2.0f * moved.right);
+
 	// A looping sound plays past its length.
 	CHECK(audio.IsPlaying(source));
 }
@@ -374,6 +378,7 @@ TEST_CASE("Audio: a sound that cannot be played is reported and counted, not thr
 	CHECK(audio.Counters().failed == 3);
 	CHECK(audio.Problems() >= 3);
 	CHECK(audio.Playing() == 0);
+
 	// A handle to nothing is ignored.
 	audio.SetVolume({}, 1.0f);
 	audio.Stop({});
@@ -383,6 +388,7 @@ TEST_CASE("Audio: a sound that cannot be played is reported and counted, not thr
 TEST_CASE("Audio: Mix is refused with a device, which mixes on its own")
 {
 	Scratch scratch;
+
 	// The null backend is a device that plays to nowhere, at the pace a sound card would.
 	AudioSystem audio(scratch.Files(), {.output = Audio::Output::Null});
 	CHECK(audio.HasDevice());
@@ -425,6 +431,7 @@ TEST_CASE("Audio: an event plays the sounds its definitions map it to, placed at
 	CHECK(asked == std::vector{station});
 	CHECK(audio.Counters().started[static_cast<std::size_t>(Bus::Effects)] == 1);
 	CHECK(audio.Counters().started[static_cast<std::size_t>(Bus::Ui)] == 1);
+
 	// The docked sound is at the station, on the listener's right; the chime is flat, in both ears.
 	const Peaks heard = MixPeaks(audio, 1.2);
 	CHECK(heard.right > 1.5f * heard.left);
@@ -520,6 +527,7 @@ TEST_CASE("Audio: a presentation entity's sound starts, follows it, and stops wh
 	registry.emplace<Audio::SoundComponent>(
 	    station, Audio::SoundComponent{kDocked, Bus::Effects, 1.0f, {.minDistance = 10.0f}});
 	sources.Update(registry, audio);
+
 	// No transform yet: not placed, so not played.
 	CHECK(sources.Size() == 0);
 

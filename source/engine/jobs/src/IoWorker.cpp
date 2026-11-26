@@ -33,6 +33,7 @@ struct IoWorker::State
 	std::deque<Item> pending;
 	std::deque<Finished> finished;
 	bool busy{false};
+
 	// Declared last, so it is destroyed, and joined, first: the thread uses everything above.
 	std::jthread thread;
 
@@ -43,6 +44,7 @@ struct IoWorker::State
 		for (;;)
 		{
 			workAvailable.wait(lock, stop, [this] { return !pending.empty(); });
+
 			// Checked after the wait, not by its result: with work pending the wait returns true
 			// even once stop is requested, and the destructor drops what has not started.
 			if (stop.stop_requested())
@@ -61,6 +63,7 @@ struct IoWorker::State
 			{
 				error = std::current_exception();
 			}
+
 			// The work item's captures are released here, on the worker, so what they hold (a
 			// file's bytes, say) is freed off the main thread.
 			item.work = nullptr;
@@ -108,6 +111,7 @@ void IoWorker::Drain()
 			item = std::move(m_pState->finished.front());
 			m_pState->finished.pop_front();
 		}
+
 		// Outside the lock, so a completion can enqueue more work.
 		if (item.error)
 			std::rethrow_exception(item.error);

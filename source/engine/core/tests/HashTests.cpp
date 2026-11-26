@@ -61,6 +61,7 @@ TEST_CASE("StringId: development builds name the text an ID came from")
 	CHECK(id.Text() == "<unknown>");
 #else
 	CHECK(id.Text() == "definitions/ships/hauler");
+
 	// Made only at compile time: not in the table, until run-time code hashes the same text.
 	constexpr StringId compileTimeOnly{"never/hashed/at/run/time"};
 	CHECK(compileTimeOnly.Text() == "<unknown>");

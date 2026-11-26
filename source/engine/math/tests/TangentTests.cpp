@@ -54,6 +54,7 @@ TEST_CASE("GenerateTangents: a mirrored UV seam splits the vertices on it")
 	const std::array<glm::vec2, 6> texCoords{glm::vec2{1.0f, 0.0f}, glm::vec2{0.0f, 0.0f},
 	                                         glm::vec2{0.0f, 1.0f}, glm::vec2{1.0f, 1.0f},
 	                                         glm::vec2{1.0f, 0.0f}, glm::vec2{1.0f, 1.0f}};
+
 	// Left quad, then right quad, both wound anticlockwise seen from +Z.
 	const std::array<std::uint32_t, 12> indices{0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2};
 

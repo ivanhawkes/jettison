@@ -114,6 +114,7 @@ TEST_CASE("Views: a line typed into the console window and entered is executed")
 	// The window opens with the input focused.
 	frame();
 	frame();
+
 	// The opening key is filtered out, as it would be typed by the key that opened the console.
 	ImGui::GetIO().AddInputCharactersUTF8("`say hi");
 	frame();

@@ -35,6 +35,7 @@ void StringId::Record([[maybe_unused]] std::string_view text) const
 	Table &table = GetTable();
 	const std::scoped_lock lock{table.mutex};
 	const auto [entry, inserted] = table.texts.try_emplace(m_hash, text);
+
 	// Two names, one ID: everything keyed on it would confuse the two. Rename one of them.
 	JETTISON_VERIFY(inserted || entry->second == text);
 #endif

@@ -24,10 +24,12 @@ namespace Jettison::Sample
 namespace
 {
 constexpr Core::Category kGround{"ground"};
+
 // What the render test's piloting stages wait for the rover to show: driven past this speed, then
 // turned past this far from where it faced.
 constexpr double kSmokeSpeed = 1.0;
 constexpr double kSmokeTurnDegrees = 10.0;
+
 // The detail that marks a save as the ground sample's.
 constexpr std::string_view kSaveDetail = "ground";
 } // namespace
@@ -101,6 +103,7 @@ void GroundGame::BindProxy(App::Shell &shell)
 		proxies.get<Scene::SimProxyComponent>(proxies.front()).simEntity = m_rover;
 		return;
 	}
+
 	// Built, not authored: the proxy's transform is the rover's, which the scene writer leaves out, so
 	// a scene saved while the rover drives is the file that was loaded.
 	const entt::entity proxy = scene.create();
@@ -183,6 +186,7 @@ void GroundGame::DriveSmoke(App::SmokeActions &actions, App::Shell &shell)
 		if (rover == nullptr || velocity == nullptr)
 			return true;
 		const double speed = glm::length(glm::dvec3{velocity->linear});
+
 		// It starts facing -Z, so a turn left is towards -X.
 		const glm::dvec3 ahead = rover->orientation * glm::dvec3{0.0, 0.0, -1.0};
 		const double turned = std::atan2(-ahead.x, -ahead.z) * 180.0 / glm::pi<double>();

@@ -72,6 +72,7 @@ ENetPacket *MakePacket(
 	const std::size_t header = kKindBytes + (step ? kStepBytes : 0);
 	if (body.size() > limit || header > limit - body.size())
 		return nullptr;
+
 	// Unreliable fragments, so a snapshot longer than the MTU is dropped whole rather than sent
 	// reliably, which would hold back the newer ones behind it.
 	const enet_uint32 flags =
@@ -79,6 +80,7 @@ ENetPacket *MakePacket(
 	ENetPacket *pPacket = enet_packet_create(nullptr, header + body.size() + Seal::kOverhead, flags);
 	if (pPacket == nullptr)
 		throw std::bad_alloc();
+
 	// The message is written where it is sealed, so its plain text is never copied.
 	auto *pMessage = reinterpret_cast<std::byte *>(pPacket->data) + Seal::kCounterBytes;
 	PutLittleEndian(pMessage, kind, kKindBytes);

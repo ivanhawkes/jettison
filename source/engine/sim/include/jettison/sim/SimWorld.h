@@ -136,6 +136,7 @@ struct Quiet
 	// has to run in, the world as the last step left it and no command applied: the clock's own count,
 	// or less, for the next step. Called between steps; changes nothing.
 	std::function<std::uint64_t(const SimWorld &)> next;
+
 	// Puts what the system writes where the steps passed over (passed of them) would have left it, the
 	// clock already at the end of them; lastBegan is the time the last of them began at, since the
 	// clock's time is a sum of steps, not a product. Run in the order the step runs the systems in.
@@ -238,6 +239,7 @@ class SimWorld
 			    samples = std::move(copied);
 		    });
 	}
+
 	// What the snapshots copy, by EnTT's type hash: Capture runs each.
 	using ShownCapture = std::function<void(const entt::registry &, std::any &)>;
 
@@ -264,6 +266,7 @@ class SimWorld
 	// What a save holds, by the names it lists them under, in its order: the registered components,
 	// then the services. Copies, since a later registration may move the names the world holds.
 	std::vector<std::string> ComponentNames() const;
+
 	std::vector<std::string> ServiceNames() const;
 
 	entt::registry &Registry()
@@ -399,17 +402,22 @@ class SimWorld
 	CommandQueue m_commands;
 	Time::SimClock m_clock;
 	Ecs::Scheduler m_scheduler;
+
 	// Saved in registration order, which the game keeps the same from run to run.
 	std::vector<Component> m_components;
+
 	// Keyed by EnTT's type ID; looked up, never iterated, so no outcome depends on its order.
 	std::unordered_map<entt::id_type, Applier> m_applies;
+
 	// In the order they were shown; each fills its own entry of a snapshot.
 	std::vector<std::pair<entt::id_type, ShownCapture>> m_shown;
+
 	// By system name; looked up, never iterated.
 	std::unordered_map<std::string, Quiet> m_quiets;
 	std::vector<const Quiet *> m_quietOrder;
 	bool m_recording{false};
 	std::vector<AppliedCommand> m_recorded;
+
 	// Saved in the order they were added. After the registry, so they go before it: a service's
 	// destructor may still look at the entities its state names.
 	std::vector<Service> m_services;

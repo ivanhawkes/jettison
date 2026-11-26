@@ -43,6 +43,7 @@ TEST_CASE(
 	CHECK(accumulator.Accumulate(10.25 * kStep) == 8);
 	CHECK(accumulator.DroppedTime() == doctest::Approx(2.0 * kStep));
 	CHECK(accumulator.Alpha() == doctest::Approx(0.25));
+
 	// The next frame starts from the kept fraction, not from the dropped steps.
 	CHECK(accumulator.Accumulate(0.75 * kStep) == 1);
 }

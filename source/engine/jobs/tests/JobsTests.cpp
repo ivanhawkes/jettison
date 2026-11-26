@@ -44,6 +44,7 @@ TEST_CASE("Jobs: work runs on the worker, completions on the thread that drains,
 		    });
 	}
 	worker.WaitIdle();
+
 	// WaitIdle has synchronised with the worker, so its writes are visible here.
 	CHECK(offMain);
 	REQUIRE(ran.size() == 100);
@@ -70,6 +71,7 @@ TEST_CASE("Jobs: work that throws skips its completion, and Drain rethrows it on
 
 	CHECK_THROWS_WITH_AS(worker.Drain(), "disk on fire", std::runtime_error);
 	CHECK(finished == std::vector<std::string>{"before"});
+
 	// The worker survived, and the next drain carries on where the last stopped.
 	worker.Drain();
 	CHECK(finished == std::vector<std::string>{"before", "after"});
@@ -119,6 +121,7 @@ TEST_CASE("Jobs: destruction finishes the item in progress and drops the rest")
 			worker.Enqueue([&] { ++started; }, [] { FAIL("no completion runs after destruction"); });
 		while (started.load() == 0)
 			std::this_thread::yield();
+
 		// The first item is running. It is let go 100 ms from now, by which time the destructor
 		// below has requested stop: the margin is for a loaded machine under the sanitisers.
 		releaser = std::thread{[&]
@@ -128,6 +131,7 @@ TEST_CASE("Jobs: destruction finishes the item in progress and drops the rest")
 		                       }};
 	}
 	releaser.join();
+
 	// The destructor joined after the first item, before any of the other ten began.
 	CHECK(started.load() == 1);
 }

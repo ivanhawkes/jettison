@@ -26,6 +26,7 @@ struct WindowEvent
 		Wheel,
 	};
 	Kind kind{Kind::Key};
+
 	// GLFW's key or button number, and whether it went down.
 	int code{0};
 	bool pressed{false};
@@ -100,8 +101,10 @@ class GlfwInput
 
 	GLFWwindow *m_pWindow{nullptr};
 	const Input::JoystickMap *m_pJoysticks{nullptr};
+
 	// Where the cursor was at the last feed; none before the first, so it starts with no motion.
 	std::optional<glm::dvec2> m_cursor;
+
 	// The wheel's steps since the last feed.
 	glm::dvec2 m_wheel{0.0};
 	std::vector<WindowEvent> m_events;

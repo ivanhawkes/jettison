@@ -80,16 +80,21 @@ struct Passage
 {
 	// The local frame it arrives in (Physics::LocalFrame), or none for the frame's own.
 	std::string frame;
+
 	// What its way moves with, which the game's Locate places, or none for the frame's origin.
 	std::string carrier;
+
 	// Its way (Path.h), at least one point.
 	std::vector<glm::dvec3> path;
+
 	// The clock's step counts as it set out and once it has arrived (Time::SimClock::Step): it
 	// arrives as the step before the second ends.
 	std::uint64_t departureStep{0};
 	std::uint64_t arrivalStep{0};
+
 	// Its body, which it has back on arrival.
 	Physics::Body body;
+
 	// The profile it covers its way by, or none to ease along it.
 	std::optional<MotionProfile> profile;
 
@@ -116,6 +121,7 @@ class Passages
 {
   public:
 	static constexpr std::string_view kSystemName = "transit";
+
 	// Metres an arrival keeps from what is already there.
 	static constexpr double kArrivalClearance = 1.0;
 

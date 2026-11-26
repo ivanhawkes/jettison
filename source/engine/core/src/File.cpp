@@ -145,6 +145,7 @@ void WriteFileDurably(
 		if (!file.Close())
 			throw fail(Problem("close"));
 	}
+
 	// rename replaces the old file in one step on POSIX.
 	std::error_code error;
 	std::filesystem::rename(partial, path, error);

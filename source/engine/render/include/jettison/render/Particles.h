@@ -30,6 +30,7 @@ struct EmitterInput
 	// What keeps its slots from frame to frame: its entity.
 	std::uint64_t key{0};
 	const Scene::ParticleEmitterComponent *emitter{};
+
 	// The emitter's world transform, and the entity its particles are at rest in, and that entity's
 	// world transform (the emitter's own, when it names none), in the system frame.
 	glm::dmat4 world{1.0};
@@ -92,18 +93,24 @@ class ParticlePool
 	{
 		Range range;
 		std::uint32_t capacity{0};
+
 		// The slot, as an index into its own, its next birth takes; and how many it has made.
 		std::uint32_t cursor{0};
 		std::uint32_t serial{0};
+
 		// The share of a birth carried from frame to frame at its rate.
 		double carry{0.0};
 		std::uint32_t pulses{0};
+
 		// Its burst has been made, on its first frame active.
 		bool burst{false};
+
 		// Its slots have not yet been emptied.
 		bool fresh{true};
+
 		// The pool's clock when the last particle it made dies.
 		double liveUntil{0.0};
+
 		// Where it was in its frame at the last frame, and which frame that was.
 		glm::dvec3 previous{0.0};
 		std::uint64_t frameKey{0};
@@ -118,10 +125,13 @@ class ParticlePool
 	std::uint32_t m_used{0};
 	std::uint32_t m_refused{0};
 	std::uint64_t m_frame{0};
+
 	// The seconds the pool has stepped through.
 	double m_clock{0.0};
+
 	// Ordered by key, so which emitter is given room first is the same every run.
 	std::map<std::uint64_t, State> m_emitters;
+
 	// The free ranges, by their first slot, none touching another.
 	std::vector<Range> m_free;
 };

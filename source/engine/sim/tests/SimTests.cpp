@@ -45,6 +45,7 @@ struct Hold
 struct Ship
 {
 	std::string name;
+
 	// Another entity, which the save keeps as its identifier.
 	entt::entity escort{entt::null};
 };
@@ -160,6 +161,7 @@ void Populate(Sim::SimWorld &world, bool withHold = true)
 		     for (auto [entity, position, velocity] : registry.view<Position, const Velocity>().each())
 			     position.value += velocity.value * delta;
 	     }});
+
 	// Draws from the world's generator once per ship, in the order the view visits them: that
 	// order is part of the state a save must keep.
 	world.RegisterSystem(
@@ -218,6 +220,7 @@ void Feed(Sim::SimWorld &world, std::uint64_t step)
 			break;
 		case 12:
 			commands.Push(Spawn{"Tenacity", {-3.0, 7.0, 11.0}});
+
 			// Still names the scrapped ship: rejected.
 			commands.Push(SetVelocity{ship(1), {1.0, 1.0, 1.0}});
 			break;
@@ -263,6 +266,7 @@ class Tally final : public Sim::WorldService
 	{
 		std::uint64_t saved = 0;
 		reader.Read(saved);
+
 		// Checked against the registry it will have, not the one it has.
 		std::uint64_t held = 0;
 		for (auto [entity, hold] : loaded.view<const Hold>().each())
@@ -356,6 +360,7 @@ TEST_CASE("Sim: a step applies the commands, runs the systems in order, and adva
 
 	world.Commands().Push(SetVelocity{ship, {30.0, 0.0, 0.0}});
 	world.Step();
+
 	// The command applied before integrate ran, so the ship moved by one step's worth.
 	CHECK(world.Registry().get<Position>(ship).value.x == doctest::Approx(2.0));
 }
@@ -392,6 +397,7 @@ TEST_CASE("Sim: a world saved part-way and loaded carries on exactly as the orig
 	Sim::SimWorld original{kStep, kSeed};
 	Populate(original);
 	Run(original, 15);
+
 	// Commands still queued are part of the save.
 	Feed(original, 15);
 	original.Commands().Push(Sell{entt::entity{0}, 2, 99});
@@ -427,6 +433,7 @@ struct CargoV1
 	std::string grade;
 	float value{0.0f};
 };
+
 // Version 2: the grade gone, a fine grade's tonnes counted half again, and the value in whole
 // credits, as the simulation keeps currency.
 struct Cargo
@@ -434,6 +441,7 @@ struct Cargo
 	std::uint32_t tonnes{0};
 	std::int64_t value{0};
 };
+
 // Version 3, a later build's, for the refusal.
 struct CargoV3
 {
@@ -473,6 +481,7 @@ Sim::ComponentMigrations CargoMigrations()
 				    record.Set("tonnes", record.Get<std::uint32_t>("tonnes") * 3 / 2);
 			    record.Remove("grade");
 		    }
+
 		    // A float's bits, read with the reader's primitives by the layout version 1 had.
 		    if (record.Has("value"))
 		    {
@@ -497,6 +506,7 @@ std::vector<std::byte> SavedCargo()
 	registry.emplace<CargoV1>(first, 40u, "fine", 1250.6f);
 	const entt::entity second = registry.create();
 	registry.emplace<CargoV1>(second, 12u, "coarse", 99.4f);
+
 	// One saved before it had a value, which the step leaves out.
 	const entt::entity third = registry.create();
 	registry.emplace<CargoV1>(third, 7u, "", 0.0f);
@@ -597,6 +607,7 @@ TEST_CASE("Sim: the recorded commands replay a session from its start")
 TEST_CASE("Sim: a system's own command is applied at once and not recorded, so a replay sends it again")
 {
 	RegisterTypes();
+
 	// A broker that sells a ship's ore as it reaches ten, by the same command a player sends.
 	const auto broker = [](Sim::SimWorld &world)
 	{
@@ -623,6 +634,7 @@ TEST_CASE("Sim: a system's own command is applied at once and not recorded, so a
 	broker(session);
 	session.SetRecording(true);
 	Run(session, kSteps);
+
 	// Only what was fed is recorded: the broker's sales are the state's own.
 	CHECK(session.Recorded().size() == 12);
 	std::int64_t credits = 0;
@@ -813,6 +825,7 @@ TEST_CASE("Sim: a command's sender may command what it controls, and what no one
 	CHECK(Sim::MayCommand(registry, owned, one));
 	CHECK_FALSE(Sim::MayCommand(registry, owned, two));
 	CHECK_FALSE(Sim::MayCommand(registry, owned, trader));
+
 	// The game's own rules, which are no one's in particular.
 	CHECK(Sim::MayCommand(registry, owned, {}));
 }
@@ -830,6 +843,7 @@ TEST_CASE("Sim: flight controls fly an entity only from the one at its helm, or 
 	registry.emplace<Sim::Helm>(flown, one);
 	CHECK(Sim::MayFly(registry, flown, one));
 	CHECK_FALSE(Sim::MayFly(registry, flown, two));
+
 	// Its owner commands it, but no one is at its helm: its behaviour flies it.
 	CHECK_FALSE(Sim::MayFly(registry, unflown, one));
 	CHECK(Sim::MayFly(registry, unflown, {}));

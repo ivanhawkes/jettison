@@ -237,6 +237,7 @@ TEST_CASE("Ui: a document draws into the overlay, and its glyphs are textures th
 
 	const Ui::DocumentHandle document = ui.LoadDocument("ui/market.rml");
 	ui.Update(0.0);
+
 	// Hidden, it draws nothing.
 	CHECK(ui.Overlay().Draws().empty());
 
@@ -259,6 +260,7 @@ TEST_CASE("Ui: a document draws into the overlay, and its glyphs are textures th
 	CHECK(ui.OpenDocuments() == 0);
 	CHECK(ui.Overlay().Draws().empty());
 	CHECK(ui.ElementText(document, "station").empty());
+
 	// A handle to a closed document names nothing, whatever reuses its slot.
 	const Ui::DocumentHandle again = ui.LoadDocument("ui/market.rml");
 	CHECK_FALSE(again == document);
@@ -311,6 +313,7 @@ TEST_CASE("Ui: the mouse over a shown document's element is the UI's, and elsewh
 	CHECK(ui.WantsMouse());
 	ui.MouseMove({400.0f, 400.0f}, {});
 	CHECK_FALSE(ui.WantsMouse());
+
 	// No element that takes text has focus, so keys are the game's.
 	CHECK_FALSE(ui.WantsKeyboard());
 	CHECK_FALSE(ui.Text(U'x'));
@@ -327,6 +330,7 @@ TEST_CASE("Ui: what cannot work is refused when it is set up, by name")
 	RegisterTypes();
 	Scratch scratch;
 	Ui::UiSystem ui{scratch.Files(), 640, 480};
+
 	// RmlUi is one instance a process.
 	CHECK_THROWS_AS(Ui::UiSystem(scratch.Files(), 640, 480), std::logic_error);
 

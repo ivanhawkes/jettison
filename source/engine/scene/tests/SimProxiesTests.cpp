@@ -37,6 +37,7 @@ TEST_CASE(
 	const auto ship = entt::entity{7};
 	const glm::dquat from = glm::angleAxis(0.2, glm::normalize(glm::dvec3{1.0, 2.0, 3.0}));
 	const glm::dquat to = glm::angleAxis(1.4, glm::normalize(glm::dvec3{-3.0, 1.0, 0.5}));
+
 	// A system position a float cannot hold to the metre: the scene keeps it whole.
 	const Sim::Snapshot previous{4, 0.4, {{ship, {{1.0e12, 2.0, -4.0}, from}}}, {}};
 	const Sim::Snapshot current{5, 0.5, {{ship, {{1.0e12 + 10.0, 4.0, -8.0}, to}}}, {}};
@@ -45,6 +46,7 @@ TEST_CASE(
 	const entt::entity proxy = presentation.create();
 	presentation.emplace<Scene::SimProxyComponent>(proxy, ship);
 	presentation.emplace<Scene::TransformComponent>(proxy);
+
 	// A proxy whose entity the snapshots do not hold stays where it was.
 	const entt::entity orphan = presentation.create();
 	presentation.emplace<Scene::SimProxyComponent>(orphan, entt::entity{8});

@@ -39,6 +39,7 @@ TEST_CASE("Saves: the saves are the user mount's, by name")
 	const std::vector<std::byte> bytes{std::byte{1}};
 	files.Write(App::SavePath("second"), bytes);
 	files.Write(App::SavePath("first"), bytes);
+
 	// Not saves: another extension, and a name no save could have.
 	files.Write("saves/notes.txt", bytes);
 	files.Write("saves/a.b.save", bytes);

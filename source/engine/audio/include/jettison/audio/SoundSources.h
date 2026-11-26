@@ -42,6 +42,7 @@ class SoundSources
 		SourceHandle source;
 		std::string sound;
 	};
+
 	// Ordered, so the sources start in the same order every run.
 	std::map<entt::entity, Playing> m_playing;
 };

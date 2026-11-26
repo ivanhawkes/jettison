@@ -148,6 +148,7 @@ TEST_CASE("Input: an axis sums its bindings, with a dead zone, and is clamped")
 	input.SetAxis(LeftY, 0.05f);
 	input.Poll();
 	CHECK(input.Axis(fixture.throttle) == 0.0f);
+
 	// Stick forward is negative on GLFW's Y; the binding's scale turns it round.
 	input.SetAxis(LeftY, -0.6f);
 	input.Poll();
@@ -192,10 +193,12 @@ TEST_CASE("Input: a higher context claims its inputs, and an opaque one hides ev
 	input.AddAxisDelta(MouseX, 3.0f);
 	input.AddAxisDelta(MouseY, 4.0f);
 	input.Poll();
+
 	// W pans the map, so the flight context under it does not throttle; space is not the map's.
 	CHECK(input.Axis(fixture.throttle) == 0.0f);
 	CHECK(input.Vector(fixture.pan) == glm::vec2{15.0f, -3.0f});
 	CHECK(input.IsPressed(fixture.fire));
+
 	// Motion is per poll.
 	input.Poll();
 	CHECK(input.Vector(fixture.pan) == glm::vec2{0.0f, 1.0f});
@@ -236,6 +239,7 @@ TEST_CASE("Input: rebinds override the defaults, and only they are saved and loa
 	CHECK(other.input.Bindings("flight", other.fire) == std::vector<Binding>{{Keys::Enter}});
 	other.input.ResetBindings("flight", other.fire);
 	CHECK(other.input.Bindings("flight", other.fire).size() == 2);
+
 	// Saved again, the reset is taken out of the settings, so it stays reset when they are loaded.
 	other.input.SaveBindings(config);
 	CHECK_FALSE(config.GetString("input.flight.fire"));
@@ -246,6 +250,7 @@ TEST_CASE("Input: rebinds override the defaults, and only they are saved and loa
 	CHECK_THROWS_WITH_AS(
 	    other.input.LoadBindings(bad), "Input: input.map.pan is 'y:Key.Banana', which is not bindings",
 	    std::runtime_error);
+
 	// Nothing was applied, the good key included.
 	CHECK(other.input.Bindings("flight", other.fire).size() == 2);
 	bad.Set(Jettison::Core::ConfigLayer::User, "input.map.pan", "Key.W");
@@ -274,6 +279,7 @@ TEST_CASE("Input: setup mistakes are refused at the call")
 	CHECK_THROWS_AS(input.PopContext(), std::logic_error);
 
 	const std::vector<InputCode> bound = input.BoundInputs();
+
 	// W, S, the stick, space, the left button, the mouse's two axes and escape.
 	CHECK(bound.size() == 8);
 	CHECK(std::ranges::is_sorted(bound));

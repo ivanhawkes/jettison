@@ -62,6 +62,7 @@ TEST_CASE("Courses: a clear leg is straight, and a planet in the way is gone rou
 	CHECK(round->length == doctest::Approx(2.0 * std::sqrt(100.0 + 2.25)));
 	CHECK(round->length == doctest::Approx(Length(*round)));
 	CHECK(Clear(*round, planet, 0.0));
+
 	// No shorter than going round the sphere itself: the tangents from each end and the arc between.
 	const double tangent = std::sqrt(100.0 - 1.0);
 	const double arc = std::numbers::pi - (2.0 * std::acos(1.0 / 10.0));
@@ -72,6 +73,7 @@ TEST_CASE("Courses: a clear leg is straight, and a planet in the way is gone rou
 TEST_CASE("Courses: a clearance keeps a course off a planet, and every way blocked is none")
 {
 	const std::vector<Sphere> planet{{glm::dvec3{0.0}, 1.0}};
+
 	// Passing 2 from the centre is clear by 1, not by a clearance of 1.5.
 	const glm::dvec3 from{-10.0, 2.0, 0.0};
 	const glm::dvec3 to{10.0, 2.0, 0.0};

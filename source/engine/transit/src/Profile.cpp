@@ -48,6 +48,7 @@ Half Coasting(const MotionProfile &profile, double metres, double share)
 	{
 		const double speed = boost * boostSeconds;
 		const double boostMetres = boost * boostSeconds * boostSeconds / 2.0;
+
 		// a u² + b u = c in the seconds u past the boost, by the root that does not cancel.
 		const double a = sustained * (2.0 - share);
 		const double b =
@@ -86,6 +87,7 @@ Half HalfOf(const MotionProfile &profile, double metres)
 	}
 	const double speed = boost * boostSeconds;
 	const double rest = half - boostMetres;
+
 	// speed × t + sustained × t² / 2 = rest, by the root that does not cancel when the speed is high.
 	const double sustained =
 	    2.0 * rest /
@@ -112,6 +114,7 @@ double Covered(const MotionProfile &profile, double metres, double seconds)
 	const double whole = 2.0 * half.seconds;
 	if (seconds >= whole)
 		return metres;
+
 	// The way out to the midpoint; the way in is its mirror.
 	const auto out = [&](double at)
 	{

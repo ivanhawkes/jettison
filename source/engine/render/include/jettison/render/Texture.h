@@ -29,6 +29,7 @@ struct TextureLevel
 {
 	std::uint32_t width{0};
 	std::uint32_t height{0};
+
 	// Where the level's texels are in TextureData::bytes.
 	std::size_t offset{0};
 	std::size_t size{0};
@@ -41,6 +42,7 @@ struct TextureData
 	TextureFormat format{TextureFormat::Rgba8Srgb};
 	std::uint32_t width{0};
 	std::uint32_t height{0};
+
 	// The largest first, down to 1x1 for a chain this module built.
 	std::vector<TextureLevel> levels;
 	std::vector<std::byte> bytes;

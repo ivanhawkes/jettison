@@ -43,6 +43,7 @@ struct OrbitCameraSettings
 {
 	double minDistance{1.0};
 	double maxDistance{1.0e12};
+
 	// Short of straight up and down, where yaw would spin the view about its own axis.
 	double maxPitch{1.5};
 	double smoothing{12.0};
@@ -92,6 +93,7 @@ class OrbitCamera
 struct ChaseCameraSettings
 {
 	glm::dvec3 offset{0.0, 4.0, 18.0};
+
 	// How far ahead of the target, along its forward, the camera looks.
 	double lookAhead{20.0};
 	double smoothing{4.0};
@@ -167,6 +169,7 @@ struct MapCameraSettings
 {
 	double minDistance{1.0e3};
 	double maxDistance{1.0e13};
+
 	// Each zoom step multiplies or divides the distance by this.
 	double zoomRatio{1.25};
 	double minPitch{0.2};

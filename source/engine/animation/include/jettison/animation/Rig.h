@@ -37,6 +37,7 @@ struct Rig
 	std::vector<RigNode> nodes;
 	std::vector<SkinJoint> joints;
 	std::vector<Clip> clips;
+
 	// The node carrying the mesh the skin deforms. Joint matrices are relative to it.
 	std::size_t meshNodeIndex{};
 

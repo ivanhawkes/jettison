@@ -239,6 +239,7 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 		if (m_kind == Kind::Sequence)
 		{
 			entt::meta_sequence_container container = m_type.from_void(pValue).as_sequence_container();
+
 			// A document asks an array its length by name, as RmlUi's own arrays answer it.
 			if (address.index < 0 && address.name == "size")
 				return Rml::MakeLiteralIntVariable(static_cast<int>(container.size()));
@@ -250,6 +251,7 @@ class ReflectedDefinition final : public Rml::VariableDefinition
 				return {};
 			}
 			const entt::meta_any element = container[static_cast<std::size_t>(address.index)];
+
 			// The element is a reference into the bound value, which the model may write through.
 			return Rml::DataVariable{m_element, const_cast<void *>(element.base().data())};
 		}

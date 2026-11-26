@@ -31,6 +31,7 @@ struct Server::Impl
 		SessionId id{};
 		ENetPeer *pPeer = nullptr;
 		bool admitted = false;
+
 		// From the client's offer on.
 		std::optional<Seal::Keys> keys;
 		Clock::time_point connectedAt;
@@ -42,6 +43,7 @@ struct Server::Impl
 	Verifier verifier;
 	std::optional<Seal::KeyPair> key;
 	ENetHost *pHost = nullptr;
+
 	// A session's peer points back at its node, which the map never moves.
 	std::map<SessionId, Session> sessions;
 	std::uint32_t nextId = 1;
@@ -132,6 +134,7 @@ struct Server::Impl
 		{
 			if (received->kind != static_cast<MessageKind>(Wire::EngineKind::Hello))
 				return Close(session, Reason::BadMessage, nullptr);
+
 			// The credential is judged once, so no copy of it is kept past the verifier.
 			std::optional<Wire::Hello> hello = Wire::DecodeHello(received->body);
 			Seal::Wipe(*message);
@@ -208,6 +211,7 @@ Server::Server(ServerConfig config, Verifier verifier) : m_pImpl{std::make_uniqu
 	if (m_pImpl->pHost == nullptr)
 		throw std::runtime_error(
 		    std::format("net: cannot listen on {}:{}", config.address, config.port));
+
 	// A longer packet is dropped by ENet before it is reassembled.
 	m_pImpl->pHost->maximumPacketSize = config.limits.maxMessageBytes + Seal::kOverhead;
 	m_pImpl->config = std::move(config);
@@ -281,6 +285,7 @@ bool Server::Send(SessionId session, Channel channel, MessageKind kind, std::spa
 void Server::SendSnapshots(std::uint64_t step, const SnapshotView &view)
 {
 	const Clock::time_point now = Clock::now();
+
 	// By id, so a view that disconnects a session leaves the rest to be asked.
 	for (const SessionId id : Sessions())
 	{

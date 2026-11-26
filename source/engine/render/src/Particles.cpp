@@ -90,6 +90,7 @@ void ParticlePool::Free(const Range &range)
 	m_used -= range.count;
 	const auto after = std::ranges::lower_bound(m_free, range.first, {}, &Range::first);
 	const auto at = m_free.insert(after, range);
+
 	// Joined to the free range after it, then to the one before.
 	if (const auto next = at + 1; next != m_free.end() && at->first + at->count == next->first)
 	{
@@ -188,6 +189,7 @@ void ParticlePool::Update(
 			state.pulses = emitter.pulses;
 		}
 		const auto born = static_cast<std::uint32_t>(std::min<std::uint64_t>(births, state.capacity));
+
 		// One with nothing alive is neither stepped nor drawn: a parked vehicle's plume costs nothing.
 		// What it last made dies within its lifetime, which the jitter only shortens.
 		if (born != 0)

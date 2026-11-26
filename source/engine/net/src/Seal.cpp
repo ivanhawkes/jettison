@@ -194,6 +194,7 @@ bool Keys::Seal(Channel channel, std::span<std::byte> packet)
 	if (m_spent)
 		return false;
 	const std::uint64_t counter = m_nextSent;
+
 	// The last counter is used once, and then nothing more is sealed, rather than the count wrapping.
 	if (counter == std::numeric_limits<std::uint64_t>::max())
 		m_spent = true;

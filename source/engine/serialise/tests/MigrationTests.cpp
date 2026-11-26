@@ -26,6 +26,7 @@ struct Cargo
 	std::uint32_t tonnes{0};
 	std::string origin{"unknown"};
 };
+
 // What the old versions wrote, kept as types for the step that needs to read them, under names of
 // their own: a type is a format's root only when it is read as one.
 struct CargoV1
@@ -141,6 +142,7 @@ TEST_CASE("Migration: binary data of every earlier version is read as the curren
 	CHECK(
 	    Migrate(Written(CargoV1{"Halcyon ore", 40}, 1), migrations) ==
 	    BinaryArchive::Write(Cargo{"Halcyon ore", 40, "Halcyon"}, {3}));
+
 	// And the streams read it the same way.
 	const std::vector<std::byte> old = Written(CargoV1{"Halcyon ore", 40}, 1);
 	BinaryReader reader{old, migrations};
@@ -192,8 +194,10 @@ TEST_CASE("Migration: a version the chain does not reach is refused before any s
 	CHECK_THROWS_AS(
 	    BinaryArchive::Read<Cargo>(Written(CargoV2{"Vesper ice", 12}, 2), FormatVersion{3}),
 	    FormatVersionError);
+
 	// Data that is not the format's is a FormatError, whatever its version.
 	CHECK_THROWS_AS(Migrate(BinaryArchive::Write(CargoV1{}, {1}), CargoMigrations()), FormatError);
+
 	// And a chain is the format's alone.
 	CHECK_THROWS_AS(
 	    BinaryArchive::Read<CargoV1>(BinaryArchive::Write(CargoV1{}, {1}), CargoMigrations()),
@@ -399,6 +403,7 @@ TEST_CASE("BinaryRecord: a value's fields edited as bytes, then read as the type
 TEST_CASE("Migration: a step edits the record a document begins with, and what follows it is kept")
 {
 	RegisterTypes();
+
 	// Version 2's cargo, and a count after it that the step knows nothing of.
 	BinaryWriter writer{kCargo};
 	writer.Write(CargoV2{"Halcyon ore", 40});

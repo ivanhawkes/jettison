@@ -32,12 +32,16 @@ namespace
 {
 constexpr Core::Category kScript{"script"};
 constexpr const char *kHostModule = "jettison";
+
 // The interpreter's operand stack and call frames, a call's.
 constexpr std::uint32_t kStackBytes = 64 * 1024;
+
 // The host's heap in a handler's memory, where an event is copied for it.
 constexpr std::uint32_t kHeapBytes = 64 * 1024;
+
 // The traps a script logs one by one before the rest are counted.
 constexpr std::uint64_t kTrapsLogged = 10;
+
 // How often the watchdog looks at the call running.
 constexpr std::chrono::milliseconds kWatchPeriod{5};
 
@@ -123,6 +127,7 @@ class Runtime
 		if (--m_users > 0)
 			return;
 		wasm_runtime_destroy();
+
 		// WAMR's lists of natives went with it; the next start registers its own.
 		m_sends.clear();
 	}
@@ -164,6 +169,7 @@ class Runtime
 	}
 
 	int m_users{0};
+
 	// WAMR keeps these pointers: the arrays live as long as the process.
 	std::array<NativeSymbol, 4> m_fixed;
 	std::map<entt::id_type, std::unique_ptr<Send>> m_sends;
@@ -319,6 +325,7 @@ struct ScriptHost::Impl
 	ScriptHost &host;
 	std::map<std::string, std::unique_ptr<Script>, std::less<>> scripts;
 	std::map<std::string, Script *, std::less<>> answers;
+
 	// Every script's keys, loaded or not.
 	ScriptStore store;
 
@@ -360,12 +367,15 @@ struct ScriptHost::Script
 	ScriptHost::Impl *pHost{nullptr};
 	std::string name;
 	ScriptDefinition definition;
+
 	// The module's bytes, which WAMR may refer to for as long as the module is loaded.
 	std::vector<std::uint8_t> bytes;
 	wasm_module_t module{nullptr};
+
 	// The pages its memory may grow to: its definition's, or fewer where the module says so (WAMR
 	// holds a module that never grows its memory to the pages it starts with).
 	std::uint32_t memoryPages{0};
+
 	// The handlers' instance, kept from call to call, so a handler may count what it has seen.
 	std::unique_ptr<Instance> pHandlers;
 
@@ -379,6 +389,7 @@ struct ScriptHost::Script
 
 	// While it answers an input: the game's inputs for the option, which its input import reads.
 	const Inputs *pGame{nullptr};
+
 	// What a host function refused, in full; WAMR keeps 128 bytes of a trap's message.
 	std::string refusal;
 	ScriptStatus status;
@@ -446,6 +457,7 @@ double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t
 		    std::format("asked for input '{}' outside an input of its own", name));
 		return 0.0;
 	}
+
 	// The game's inputs throw for a name they do not know; nothing may unwind through the
 	// interpreter's frames, so it is a trap instead.
 	try
@@ -488,6 +500,7 @@ void StoreNative(
 	if (pScript == nullptr)
 		return;
 	const std::string_view key = Text(pKey, keySize);
+
 	// An input reads only its option's inputs, so its answer is theirs alone.
 	if (pScript->pGame != nullptr)
 		return Refuse(environment, *pScript, std::format("stored '{}' while answering an input", key));
@@ -882,6 +895,7 @@ void ScriptHost::Dispatch(const Sim::SimEvent &event)
 		{
 			if (handler.event != id || script.status.stopped)
 				continue;
+
 			// A trap made the instance again; the handlers' instance is whatever it is now.
 			Instance &instance = *script.pHandlers;
 			const std::uint32_t size = m_bindings.SizeOf(*handler.pLayout, ObjectOf(event.event));
@@ -908,6 +922,7 @@ void ScriptHost::Dispatch(const Sim::SimEvent &event)
 			}
 			if (script.status.stopped)
 				break;
+
 			// A trap leaves the shadow stack where it was and the heap as it was: the handlers start
 			// again from the module, and what they had kept is lost.
 			try
@@ -1126,6 +1141,7 @@ ScriptStore ReadStore(std::span<const std::byte> bytes)
 {
 	Serialise::BinaryReader reader{bytes, kStoreSection, {kStoreVersion}};
 	ScriptStore store;
+
 	// A script is at least its name and its count; a key at least its two counts.
 	const auto scripts = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 	if (scripts > reader.Remaining() / 8)

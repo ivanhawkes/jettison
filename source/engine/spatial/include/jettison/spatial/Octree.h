@@ -33,12 +33,15 @@ class Octree
 	{
 		// Half the root cube's side, rounded up to a power of two: 2^43 m, 59 AU, by default.
 		double halfExtent{8.796093022208e12};
+
 		// A leaf holding more points than this is split, unless it is at the deepest level. 64 was
 		// the best measured in 6c: at 100,000 vehicles 32 was within a tenth of it, and 16 a third
 		// slower to update.
 		std::uint32_t leafCapacity{64};
+
 		// 2^43 m halved 36 times is a leaf 256 m on a side.
 		std::uint32_t maxDepth{36};
+
 		// The loose cube's half side over the cube's: 1 is a plain octree. With steps of a second
 		// (sixty times the 60 Hz step's motion), 2 saved a quarter of the update and cost 2.5 to 4
 		// times as much on a 5 km avoidance query and on nearest queries.
@@ -114,14 +117,18 @@ class Octree
 	{
 		glm::dvec3 centre{0.0};
 		double halfSize{0.0};
+
 		// Its cube grown by the looseness: what a query tests and what a point may wander in.
 		Math::DAabb loose{};
 		std::uint32_t parent{kNone};
+
 		// The first of eight children, consecutive; kNone for a leaf.
 		std::uint32_t firstChild{kNone};
 		std::uint32_t depth{0};
+
 		// The points in this node and below it.
 		std::uint32_t subtreeCount{0};
+
 		// Indices into m_items. Only a leaf holds points, but for the root, which also holds those
 		// outside its cube.
 		std::vector<std::uint32_t> items;
@@ -154,10 +161,12 @@ class Octree
 	void MakeNode(std::uint32_t index, std::uint32_t parent, const glm::dvec3 &centre, double halfSize);
 
 	Settings m_settings;
+
 	// Node 0 is the root. Children are allocated eight at a time, and a freed block of eight is
 	// reused before the vector grows.
 	std::vector<Node> m_nodes;
 	std::vector<std::uint32_t> m_freeBlocks;
+
 	// Dense: a removed item's place is taken by the last.
 	std::vector<Item> m_items;
 	Detail::EntitySlots m_slots;

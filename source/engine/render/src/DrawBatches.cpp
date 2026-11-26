@@ -34,6 +34,7 @@ void BuildBatches(
     std::vector<std::uint32_t> &instances)
 {
 	std::vector<BatchInput> sorted{inputs.begin(), inputs.end()};
+
 	// The instanced draws by key and then nearest first; the others after, each its own batch.
 	std::sort(
 	    sorted.begin(), sorted.end(),
@@ -62,6 +63,7 @@ void BuildBatches(
 		else
 			groups.push_back({index, index + 1});
 	}
+
 	// Each group's first member is its nearest.
 	std::sort(
 	    groups.begin(), groups.end(), [&](const Group &left, const Group &right)
