@@ -249,7 +249,8 @@ if [ "$asan" -eq 1 ]; then
 		jettison_sim_tests jettison_spatial_tests jettison_physics_tests jettison_transit_tests \
 		jettison_ai_tests jettison_dock_tests jettison_script_tests jettison_script_test_limits jettison_script_test_rogue \
 		jettison_script_test_events jettison_script_test_events_rs jettison_script_test_keys \
-		jettison_script_test_keys_rs jettison_host_tests jettison_net_tests
+		jettison_script_test_keys_rs jettison_script_test_reads jettison_script_test_reads_rs \
+		jettison_host_tests jettison_net_tests
 	ctest --test-dir build/clang-asan -R '^(vfs|serialise|resource|sim|spatial|physics|transit|ai|dock|script|host|net)$' \
 		--output-on-failure --no-tests=error -j "$jobs"
 fi
