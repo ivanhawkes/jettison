@@ -51,6 +51,7 @@
 #include <jettison/sim/SaveGame.h>
 #include <jettison/sim/Snapshot.h>
 
+#include "RunLog.h"
 #include "Saves.h"
 #include <jettison/app/Game.h>
 #include <jettison/app/Mounts.h>
@@ -846,6 +847,19 @@ void Application::InitUser()
 	     std::format("{}, engine {}", m_windowTitle, Core::EngineVersion()),
 	     {},
 	     true});
+
+	// The file is the player's to send with a report, so its failure to open costs the run no more than
+	// a warning: a read-only state directory is no reason to refuse to play. Its directory is made
+	// first, 0700 as the XDG directories below are, rather than left to the log with the umask's mode.
+	try
+	{
+		Core::CreateDirectoriesDurably(m_userPaths.state, std::filesystem::perms::owner_all);
+		Core::InitLogging(kRunLogMinimum, RunLogPath(m_userPaths));
+	}
+	catch (const std::exception &e)
+	{
+		Core::Log(Core::Severity::Warning, kShell, "No log file: {}", e.what());
+	}
 
 	// The XDG specification has a directory it names made with mode 0700 when it does not exist yet.
 	Core::CreateDirectoriesDurably(m_userPaths.userData, std::filesystem::perms::owner_all);
@@ -1940,6 +1954,9 @@ void Application::Shutdown() noexcept
 	m_sequences.reset();
 	m_pResources.reset();
 	m_pIoWorker.reset();
+
+	// Closes the log file, which a headless run's scratch directory holds, before that goes.
+	Core::ShutdownLogging();
 	if (!m_scratchUser.empty())
 	{
 		std::error_code ignored;

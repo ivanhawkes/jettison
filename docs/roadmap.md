@@ -229,23 +229,7 @@ seed (`source/engine/app/src/Application.h`), and reads each package's `mod.yaml
 
 ## Tier 3: robustness and tools
 
-Cheap to add when wanted, or waiting on a profile, and costing nothing meanwhile, except the log
-file ([J10](#j10)), which a player's report of a problem needs.
-
-<a id="j10"></a>
-### J10. Logging in the shell
-
-**What remains.** The app shell calls `Core::InitLogging` with a log file, so a run leaves a log a
-player can send with a report.
-
-**Why.** The shell never calls it, so messages reach only the default stderr sink, Info and above.
-The failure report, the usage line and teardown stay on `std::cerr` ([coding
-standards](coding-standards.md#errors)).
-
-**What exists.** `Core::InitLogging(minimum, file)` installs stderr and an optional file sink
-(`source/engine/core/include/jettison/core/Log.h`), with tests.
-
-**Feature doc:** [runtime](runtime.md).
+Cheap to add when wanted, or waiting on a profile, and costing nothing meanwhile.
 
 <a id="j11"></a>
 ### J11. Crash handling

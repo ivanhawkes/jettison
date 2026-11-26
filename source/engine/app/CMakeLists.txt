@@ -40,6 +40,7 @@ jettison_add_module(app
 		src/Mounts.cpp
 		src/Reasons.cpp
 		src/RenderApplication.cpp
+		src/RunLog.h
 		src/Saves.cpp
 		src/Saves.h
 		src/Settings.cpp
@@ -50,6 +51,7 @@ jettison_add_module(app
 		tests/GameTests.cpp
 		tests/MountsTests.cpp
 		tests/ReasonsTests.cpp
+		tests/RunLogTests.cpp
 		tests/SavesTests.cpp
 		tests/SettingsTests.cpp
 		tests/SmokeSequenceTests.cpp

@@ -89,8 +89,9 @@ void Log(
 }
 
 // Installs the sinks: stderr always, and the file when one is given, truncated, its directory
-// created. Messages below minimum are dropped. Called once by a program before it logs (the shell does
-// not yet: docs/roadmap.md, J10), and again to change the sinks. Throws when the file cannot be opened.
+// created. Messages below minimum are dropped. Called once by a program before it logs (the shell
+// does, in Application::InitUser), and again to change the sinks. Throws when the file cannot be
+// opened.
 void InitLogging(Severity minimum, const std::filesystem::path &file = {});
 
 // Flushes and closes the file sink, and returns to the stderr default above. Callbacks stay

@@ -76,6 +76,14 @@ A callback (`AddLogCallback`) sees each `LogRecord` on the thread that logged it
 held, so it must not log and should return quickly. The devtools console registers one for its log
 view ([the console](ui.md#the-console)).
 
+The shell calls `InitLogging` when it resolves the user directories (`Application::InitUser`), with
+`Info` as the minimum and `jettison.log` in the `state` directory (`app/src/RunLog.h`):
+`~/.local/state/jettison/jettison.log`, or `<directory>/state/jettison.log` under `--user-dir`. A run
+truncates it, so it holds the run a report is about, and the player sends it with the report; the
+crash reports are beside it in `crashes/`. A file that cannot be opened costs a warning on stderr, not
+the run. The failure report, the usage line and teardown stay on `std::cerr` ([coding
+standards](coding-standards.md#errors)).
+
 The log tail is a 64 KiB ring of lines in the file's format, filled whether or not there is a file.
 A crash handler reads it without the log's lock: `WriteLogTail` calls only `write(2)`, and the ring
 publishes its byte count after its bytes, so a reader sees whole data and skips to the first whole
@@ -171,7 +179,7 @@ writes outside its asset tree. It follows the XDG base directory specification (
 | `state` | `XDG_STATE_HOME` | `~/.local/state/<name>` | Logs, console history, crash reports |
 | `cache` | `XDG_CACHE_HOME` | `~/.cache/<name>` | Shader caches, thumbnails |
 
-Today the shell uses `userData`, `config` and, for crash reports, `state`; nothing uses `cache` yet.
+Today the shell uses `userData`, `config` and, for the log and crash reports, `state`; nothing uses `cache` yet.
 A variable that is empty or relative is ignored, as the specification says; `HOME` is needed only
 then, and resolving throws without it. The name must be one path component. `ResolvePath(Directory,
 name)` resolves one directory alone. Resolving touches nothing on disk: a writer creates its
@@ -440,8 +448,6 @@ the steps a frame ran:
 
 ## Limits and open work
 
-- The shell does not call `InitLogging`, so it has no log file and logs only to stderr at `Info` and
-  above: [J10](roadmap.md#j10).
 - Another thread's stack overflow goes unreported, and reports carry no build IDs, are sent nowhere
   and have no minidump: [J11](roadmap.md#j11).
 - The shell fills only the user configuration layer. Defaults live in the code that reads each key;

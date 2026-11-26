@@ -386,7 +386,6 @@ Xvfb, and `--references` runs every reference view.
 
 ## Limits and open work
 
-- The shell does not start logging through `Core::InitLogging`: [J10](roadmap.md#j10).
 - A pick is a command the next step answers, so a paused world cannot be picked, and nothing
   tracks what is under the cursor each frame: [J06](roadmap.md#j06).
 - The shell gives scripts no sender: a game names its own through `Scripts().SendCommandsTo`
