@@ -36,7 +36,7 @@ How: [simulation](simulation.md).
 | Commands and events | In | [Commands](glossary.md#command) carry their sender into the step; [events](glossary.md#event) flow one way, in one ordered queue, to presentation |
 | Snapshots for presentation | In | Presentation reads copies of simulation state, never the world itself |
 | Definition registry | In | Typed, reflected [definitions](glossary.md#definition) loaded from data, which mods change in layers |
-| Finite state machines | In | `Ecs::StateMachine`: a transition table with entry and exit hooks, deterministic; no engine module uses it yet |
+| Finite state machines | Deferred | A game keeps its own; the unused `Ecs::StateMachine` was deleted on 2026-11-26, to be written again when one is shared |
 | Time | In | A wall clock for presentation; a simulation clock with pause and compression; a calendar whose shape the game supplies |
 | Quiet steps and fast-forward | In | A world with nothing due skips steps it can prove do nothing |
 | Time of day, seasons | Reframed | Bodies turn and move on rails driven by simulation time; seasons are a game's |

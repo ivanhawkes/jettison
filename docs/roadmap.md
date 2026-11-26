@@ -37,11 +37,7 @@ a file and the public half in its test builds' client configuration, is Manifest
 ## Waiting on you
 
 What needs the user's answer or action and is not a backlog item. Each line goes when it is settled.
-
-- **Three unused pieces: keep or delete?** `Scene::ProxyFactory`, declared and never called
-  ([scene](scene.md#limits-and-open-work)); `Ecs::StateMachine`, which no engine module uses
-  ([scope](scope.md)); and the renderer's `SetClusterRange` and `SetShadowDistance`, which no caller
-  sets and `IRenderer` does not expose. `SetLodThreshold` stays, for levels of detail.
+Nothing waits on the user now.
 
 ## The backlog
 

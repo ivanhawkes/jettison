@@ -4,7 +4,6 @@ jettison_add_module(ecs
 		reflect
 	HEADERS
 		include/jettison/ecs/Scheduler.h
-		include/jettison/ecs/StateMachine.h
 	SOURCES
 		src/Scheduler.cpp
 	TESTS

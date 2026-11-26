@@ -1,5 +1,4 @@
 #include <jettison/ecs/Scheduler.h>
-#include <jettison/ecs/StateMachine.h>
 
 #include <doctest/doctest.h>
 
@@ -282,92 +281,4 @@ TEST_CASE("Ecs: an exception from a system stops its phase there")
 	CHECK_THROWS_WITH_AS(
 	    scheduler.Run(TickPhase::Simulation, registry, 0.0), "bad step", std::runtime_error);
 	CHECK(log == std::vector<std::string>{"first"});
-}
-
-namespace
-{
-enum class Flight
-{
-	Docked,
-	Undocking,
-	Flying,
-};
-enum class Order
-{
-	Undock,
-	Clear,
-	Dock,
-	Abort,
-};
-
-
-StateMachine<Flight, Order> FlightMachine()
-{
-	StateMachine<Flight, Order> machine{Flight::Docked};
-	machine.AddTransition(Flight::Docked, Order::Undock, Flight::Undocking);
-	machine.AddTransition(Flight::Undocking, Order::Clear, Flight::Flying);
-	machine.AddTransition(Flight::Undocking, Order::Abort, Flight::Docked);
-	machine.AddTransition(Flight::Flying, Order::Dock, Flight::Docked);
-	return machine;
-}
-} // namespace
-
-
-TEST_CASE("Ecs: a state machine follows its table, and ignores an event with no transition")
-{
-	StateMachine<Flight, Order> machine = FlightMachine();
-	CHECK(machine.Current() == Flight::Docked);
-	CHECK_FALSE(machine.CanDispatch(Order::Dock));
-	CHECK_FALSE(machine.Dispatch(Order::Dock));
-	CHECK(machine.Current() == Flight::Docked);
-
-	CHECK(machine.CanDispatch(Order::Undock));
-	CHECK(machine.Dispatch(Order::Undock) == Flight::Undocking);
-	CHECK(machine.Dispatch(Order::Clear) == Flight::Flying);
-	CHECK(machine.Dispatch(Order::Dock) == Flight::Docked);
-	CHECK(machine.Current() == Flight::Docked);
-}
-
-
-TEST_CASE("Ecs: a state machine runs exit, then entry, hooks; and refuses a second answer")
-{
-	StateMachine<Flight, Order> machine = FlightMachine();
-	std::vector<std::string> log;
-	machine.OnExit(Flight::Docked, [&] { log.emplace_back("exit docked"); });
-	machine.OnEnter(Flight::Undocking, [&] { log.emplace_back("enter undocking"); });
-	machine.OnExit(Flight::Undocking, [&] { log.emplace_back("exit undocking"); });
-	machine.OnEnter(Flight::Docked, [&] { log.emplace_back("enter docked"); });
-
-	(void)machine.Dispatch(Order::Undock);
-	(void)machine.Dispatch(Order::Abort);
-	CHECK(
-	    log ==
-	    std::vector<std::string>{"exit docked", "enter undocking", "exit undocking", "enter docked"});
-
-	CHECK_THROWS_AS(
-	    machine.AddTransition(Flight::Docked, Order::Undock, Flight::Flying), std::logic_error);
-}
-
-
-TEST_CASE(
-    "Ecs: a self-transition runs both hooks; a hook cannot dispatch, and one that throws leaves it "
-    "usable")
-{
-	StateMachine<Flight, Order> machine{Flight::Flying};
-	machine.AddTransition(Flight::Flying, Order::Clear, Flight::Flying);
-	machine.AddTransition(Flight::Flying, Order::Dock, Flight::Docked);
-	int entries = 0;
-	machine.OnEnter(Flight::Flying, [&] { ++entries; });
-	CHECK(machine.Dispatch(Order::Clear) == Flight::Flying);
-	CHECK(entries == 1);
-
-	machine.OnEnter(Flight::Docked, [&] { (void)machine.Dispatch(Order::Clear); });
-	CHECK_THROWS_WITH_AS(
-	    machine.Dispatch(Order::Dock), "StateMachine: Dispatch was called from a hook",
-	    std::logic_error);
-
-	// The state had changed before the entry hook threw.
-	CHECK(machine.Current() == Flight::Docked);
-	machine.OnEnter(Flight::Docked, [] {});
-	CHECK_FALSE(machine.Dispatch(Order::Clear));
 }

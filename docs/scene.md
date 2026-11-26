@@ -393,8 +393,6 @@ CHECK(index.QuerySphere({0.0, 0.0, 0.0}, 100.0) ==
 - A scene's models are not prefetched before it is shown: [J13](roadmap.md#j13).
 - Layers are for visibility only; nothing loads a scene layer by layer.
 - No test covers layer visibility (`SetLayerVisible`, `HiddenComponent`).
-- `Scene::ProxyFactory` (`scene/SimProxies.h`) is declared but nothing calls it; games build proxies
-  in `Game::SceneLoaded` or `Game::SyncProxies`.
 - The spatial index holds points; an entity's extent is the querying system's to test.
 - A model file is read twice, once for its rig and once for its geometry: [J27](roadmap.md#j27).
 

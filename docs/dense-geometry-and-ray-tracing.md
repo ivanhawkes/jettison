@@ -83,11 +83,8 @@ devices before it was used ([what was checked](#facts-checked)).
 | Device | Vulkan 1.3, dynamic rendering and synchronization2 required; no optional features | Vulkan 1.4; one table of optional capabilities, each logged and overridable ([J36](roadmap.md#j36)) |
 | Shaders | `glslc --target-env=vulkan1.3`, with variants built by `jettison_compile_shader_variant` | Variants for mesh shaders and ray queries, from the same sources |
 
-The level-of-detail setters: no caller sets `Renderer::SetLodThreshold`, `SetClusterRange` or
-`SetShadowDistance`, and `IRenderer` exposes none of them. Only the first concerns levels of
-detail, and it is the knob the meshlet cut uses, so it moves to `IRenderer` in
-[J37](roadmap.md#j37). The other two set how far the light grid and the cascades reach; whether
-they stay is a separate question, [waiting on the user](roadmap.md#waiting-on-you).
+The level-of-detail setter: no caller sets `Renderer::SetLodThreshold`, and `IRenderer` does not
+expose it. It is the knob the meshlet cut uses, so it moves to `IRenderer` in [J37](roadmap.md#j37).
 
 ## Facts checked
 

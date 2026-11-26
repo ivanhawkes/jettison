@@ -205,19 +205,6 @@ class Renderer
 		return m_debugView;
 	}
 
-	// The grid's far end, in metres of view depth; it is never less than twice the near plane.
-	void SetClusterRange(float range)
-	{
-		m_clusterRange = range;
-	}
-
-	// The view depth past which the sun casts no shadow, in metres; never less than twice the near
-	// plane.
-	void SetShadowDistance(float distance)
-	{
-		m_shadowSettings.distance = distance;
-	}
-
 	// The pixels a level of detail's error may cover where it is drawn (render/Culling.h).
 	void SetLodThreshold(float pixels)
 	{

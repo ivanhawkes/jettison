@@ -2,8 +2,6 @@
 
 #include <entt/entt.hpp>
 
-#include <functional>
-
 #include <jettison/sim/Snapshot.h>
 
 namespace Jettison::Scene
@@ -19,10 +17,4 @@ namespace Jettison::Scene
 void SyncSimProxies(
     entt::registry &presentation, const Sim::Snapshot &previous, const Sim::Snapshot &current,
     double alpha);
-
-// Makes the presentation of a simulation entity the scene has no proxy for: the game's to supply,
-// since only it knows what a vehicle looks like. Returns the proxy's root, which the caller then makes
-// the entity's proxy, or null to leave the entity unshown while it stays in the snapshots.
-using ProxyFactory = std::function<entt::entity(entt::registry &presentation, entt::entity simEntity)>;
-
 } // namespace Jettison::Scene

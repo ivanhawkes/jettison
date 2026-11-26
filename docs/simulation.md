@@ -312,14 +312,6 @@ The rendered shell does not start through a session: it builds its own world wit
 Manifest's server, console and tests start through `Host::Session` ([game
 integration](game-integration.md)).
 
-### State machines
-
-`Ecs::StateMachine<State, Event>` is a small finite state machine: a current state, a table of
-transitions added at construction, and a hook on entry and exit. It needs only `==` of its types and
-searches its tables in order, so it is deterministic. It refuses a second transition on one event
-from one state, and a `Dispatch` from inside a hook. A transition to the state it starts from runs
-both hooks. No engine module uses it yet.
-
 ## Using it
 
 ### A game on the host
@@ -466,7 +458,7 @@ The settled decisions on stepping, reasons, controllers and quiet steps are in
 | Module | Key headers |
 | --- | --- |
 | `sim` | `source/engine/sim/include/jettison/sim/SimWorld.h` (the world, `Quiet`, `WorldService`), `CommandQueue.h`, `Events.h`, `Reason.h`, `Controller.h`, `Snapshot.h`, `Stepper.h`, `DefinitionRegistry.h`, `SaveGame.h` ([persistence](persistence.md)) |
-| `ecs` | `source/engine/ecs/include/jettison/ecs/Scheduler.h`, `StateMachine.h` |
+| `ecs` | `source/engine/ecs/include/jettison/ecs/Scheduler.h` |
 | `time` | `source/engine/time/include/jettison/time/Clock.h`, `FixedStep.h`, `Calendar.h` |
 | `host` | `source/engine/host/include/jettison/host/Session.h`, `Package.h` |
 
