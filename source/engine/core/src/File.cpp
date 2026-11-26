@@ -105,7 +105,9 @@ bool CreateDirectoriesDurably(const std::filesystem::path &path, std::filesystem
 }
 
 
-void WriteFileDurably(const std::filesystem::path &path, std::span<const std::byte> bytes)
+void WriteFileDurably(
+    const std::filesystem::path &path, std::span<const std::byte> bytes,
+    std::filesystem::perms permissions)
 {
 	std::filesystem::path partial = path;
 	partial += kPartialSuffix;
@@ -121,7 +123,12 @@ void WriteFileDurably(const std::filesystem::path &path, std::span<const std::by
 	CreateDirectoriesDurably(directory);
 
 	{
-		Descriptor file{::open(partial.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644)};
+		// One a crash left is removed, not reused, since an open of a file there keeps its mode.
+		std::error_code stale;
+		std::filesystem::remove(partial, stale);
+		Descriptor file{::open(
+		    partial.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,
+		    static_cast<mode_t>(permissions))};
 		if (file.Get() < 0)
 			throw fail(Problem("open"));
 		for (std::size_t written = 0; written < bytes.size();)
@@ -154,8 +161,9 @@ void WriteFileDurably(const std::filesystem::path &path, std::span<const std::by
 }
 
 
-void WriteFileDurably(const std::filesystem::path &path, std::string_view text)
+void WriteFileDurably(
+    const std::filesystem::path &path, std::string_view text, std::filesystem::perms permissions)
 {
-	WriteFileDurably(path, std::as_bytes(std::span{text.data(), text.size()}));
+	WriteFileDurably(path, std::as_bytes(std::span{text.data(), text.size()}), permissions);
 }
 } // namespace Jettison::Core

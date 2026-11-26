@@ -11,19 +11,31 @@ namespace Jettison::Core
 // colon in it, which no virtual path can have (Vfs::FileSystem), so nothing reads it as content.
 inline constexpr std::string_view kPartialSuffix = ":partial";
 
+// What a durable write gives the file unless told otherwise: 0644, its owner's to write, everyone's to
+// read.
+inline constexpr std::filesystem::perms kFilePermissions =
+    std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
+    std::filesystem::perms::group_read | std::filesystem::perms::others_read;
+
 // Writes a whole file, replacing any file there, so that a reader, a crash or a power cut finds
 // either the old file or the new one and never part of either: the bytes go to the partial file
 // beside it, which is flushed to the disk (fsync), renamed over the file, and the directory then
 // flushed too, since the rename is an entry in the directory and is not on the disk until the
 // directory is. A save written and reported as saved is still there after the power goes.
 //
-// Creates the file's directory if it is missing, as CreateDirectoriesDurably does. Throws
-// std::runtime_error naming the path and what failed, with the partial file removed and any old file
-// as it was.
-void WriteFileDurably(const std::filesystem::path &path, std::span<const std::byte> bytes);
+// The file has the permissions given, under the process's umask, from the moment its partial file is
+// made, which is made anew, so a secret is never open to others on its way to the disk; a file it
+// replaces takes them. Creates the file's directory if it is missing, as CreateDirectoriesDurably
+// does. Throws std::runtime_error naming the path and what failed, with the partial file removed and
+// any old file as it was.
+void WriteFileDurably(
+    const std::filesystem::path &path, std::span<const std::byte> bytes,
+    std::filesystem::perms permissions = kFilePermissions);
 
 // The same for text.
-void WriteFileDurably(const std::filesystem::path &path, std::string_view text);
+void WriteFileDurably(
+    const std::filesystem::path &path, std::string_view text,
+    std::filesystem::perms permissions = kFilePermissions);
 
 // Makes the directory and each one above it that is missing, flushing the parent of each as it is
 // made: a new directory is an entry in its parent, and is lost in a power cut, with everything

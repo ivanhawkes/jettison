@@ -180,7 +180,10 @@ mod list are all written whole through `Core::WriteFileDurably` (`core/File.h`):
 3. It is renamed over the target.
 4. The directory is flushed, since the rename is an entry in the directory.
 
-Why both flushes are needed is [decided](decisions.md#persistence). On failure it throws
+The partial file is made anew with the permissions the caller gives, 0644 unless told otherwise
+(`Core::kFilePermissions`), so a file a game keeps private, such as a server's secret key at 0600,
+is never open to others on its way. Why both flushes are needed is
+[decided](decisions.md#persistence). On failure it throws
 `std::runtime_error` naming the path, with the partial file removed and the old file as it was.
 
 A missing directory is made by `Core::CreateDirectoriesDurably`, outermost first, each one's parent

@@ -126,6 +126,30 @@ TEST_CASE("File: directories are made with the permissions given, and one alread
 }
 
 
+TEST_CASE("File: a file is written with the permissions given, over a file and a partial left open")
+{
+	using std::filesystem::perms;
+	const std::filesystem::path directory = Scratch();
+	const std::filesystem::path path = directory / "secret";
+	constexpr perms kPrivate = perms::owner_read | perms::owner_write;
+	const auto mode = [](const std::filesystem::path &file)
+	{ return std::filesystem::status(file).permissions() & perms::mask; };
+
+	WriteFileDurably(path, std::string_view{"open"}, kFilePermissions);
+	std::filesystem::permissions(path, kFilePermissions);
+	// A partial a crash left, open to everyone, is not reused.
+	std::filesystem::path partial = path;
+	partial += kPartialSuffix;
+	std::ofstream{partial} << "left";
+	std::filesystem::permissions(partial, kFilePermissions);
+	WriteFileDurably(path, std::string_view{"private"}, kPrivate);
+	CHECK(ReadFile(path) == "private");
+	CHECK(mode(path) == kPrivate);
+	CHECK_FALSE(std::filesystem::exists(partial));
+	std::filesystem::remove_all(directory);
+}
+
+
 TEST_CASE("FileLock: one holder at a time in a process, and the next once it lets go")
 {
 	const std::filesystem::path directory = Scratch();
