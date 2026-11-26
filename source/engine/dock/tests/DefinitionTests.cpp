@@ -134,7 +134,8 @@ TEST_CASE("Dock definitions: a hull larger than its pad's largest, or of no size
 }
 
 
-TEST_CASE("Dock definitions: a pad off its deck, under it, overlapping another or overhung is refused")
+TEST_CASE(
+    "Dock definitions: a pad off its deck, under it, overlapping another or covered too low is refused")
 {
 	CHECK(Refusal(Slab()).empty());
 
@@ -157,12 +158,21 @@ TEST_CASE("Dock definitions: a pad off its deck, under it, overlapping another o
 	two.berths[1].position.z = 30.0;
 	CHECK(Refusal(two) == "Platform layout 'slab' berth 2 overlaps berth 1");
 
-	// A block standing on the deck beside the berth is fine; one over it is not.
+	// A block standing on the deck beside the berth is fine, and so is one far over it, under which
+	// a frigate (15 m high) is flown in; one 15 m over it leaves less than the 34 m that needs.
 	Dock::PlatformLayout overhung = Slab();
 	overhung.decks.push_back({{60.0, 40.0, 0.0}, {40.0, 60.0, 40.0}});
 	CHECK(Refusal(overhung).empty());
 	overhung.decks.push_back({{0.0, 200.0, 0.0}, {10.0, 10.0, 10.0}});
-	CHECK(Refusal(overhung) == "Platform layout 'slab' berth 1 has the platform over it");
+	CHECK(Refusal(overhung).empty());
+	CHECK(
+	    Dock::Headroom(overhung, overhung.berths[0], {50.0f, 90.0f}) ==
+	    doctest::Approx(185.01).epsilon(1e-4));
+	CHECK(std::isinf(Dock::Headroom(Slab(), Slab().berths[0], {50.0f, 90.0f})));
+	overhung.decks.back().centre.y = 30.0;
+	CHECK(
+	    Refusal(overhung) ==
+	    "Platform layout 'slab' berth 1 has the platform 15.0 m over it, where its class needs 34.0 m");
 
 	Dock::PlatformLayout skew = Slab();
 	skew.berths[0].heading = {0.0, 0.6, -0.8};

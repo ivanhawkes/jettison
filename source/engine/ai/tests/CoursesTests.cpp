@@ -3,6 +3,8 @@
 #include <doctest/doctest.h>
 
 #include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <cmath>
 #include <limits>
@@ -125,4 +127,56 @@ TEST_CASE("Courses: an obstacle or a clearance that is not one is refused")
 	CHECK_THROWS_AS(Ai::Waypoints({}, 0.0, {glm::dvec3{nan}}), std::invalid_argument);
 	const Ai::Waypoints none{{}, 0.0};
 	CHECK_THROWS_AS((void)none.PlotCourse(glm::dvec3{nan}, glm::dvec3{0.0}), std::invalid_argument);
+}
+
+
+TEST_CASE("Courses: a box in the way is gone round by its corners, by the clearance at least")
+{
+	// A deck 40 m across and 4 m thick, turned a quarter about y, which a square box looks the same
+	// for, and a clearance of 2 m.
+	const std::vector<Ai::Box> deck{
+	    {glm::dvec3{0.0},
+	     {20.0, 2.0, 20.0},
+	     glm::angleAxis(glm::half_pi<double>(), glm::dvec3{0, 1, 0})}};
+	constexpr double kClearance = 2.0;
+	CHECK_FALSE(Ai::LegClear({-30.0, 0.0, 0.0}, {30.0, 0.0, 0.0}, {}, kClearance, deck));
+	CHECK(Ai::LegClear({-30.0, 4.5, 0.0}, {30.0, 4.5, 0.0}, {}, kClearance, deck));
+	CHECK_FALSE(Ai::LegClear({-30.0, 3.5, 0.0}, {30.0, 3.5, 0.0}, {}, kClearance, deck));
+
+	const Ai::Waypoints waypoints{{}, kClearance, {}, deck};
+	REQUIRE(waypoints.Points().size() == 8);
+	const auto round = waypoints.PlotCourse({-30.0, 0.0, 0.0}, {30.0, 0.0, 0.0});
+	REQUIRE(round);
+	REQUIRE(round->points.size() > 2);
+	for (std::size_t leg = 2; leg + 1 < round->points.size(); ++leg)
+		CHECK(Ai::LegClear(round->points[leg - 1], round->points[leg], {}, kClearance, deck));
+
+	// The same every time.
+	const auto again = waypoints.PlotCourse({-30.0, 0.0, 0.0}, {30.0, 0.0, 0.0});
+	REQUIRE(again);
+	CHECK(again->points == round->points);
+}
+
+
+TEST_CASE(
+    "Courses: from just over a deck under a pier, a course goes out from under it, as near as it began")
+{
+	// A deck whose top is at y = 0, and a pier over it from y = 6 to 8 reaching to x = 30; the point
+	// 3 m over the deck under the pier is nearer both than the clearance.
+	const std::vector<Ai::Box> structure{
+	    {{0.0, -2.0, 0.0}, {40.0, 2.0, 40.0}}, {{15.0, 7.0, 0.0}, {15.0, 1.0, 10.0}}};
+	constexpr double kClearance = 5.0;
+	const glm::dvec3 under{20.0, 3.0, 0.0};
+	const glm::dvec3 away{0.0, 60.0, 0.0};
+	const Ai::Waypoints waypoints{{}, kClearance, {}, structure};
+	const auto out = waypoints.PlotCourse(away, under);
+	REQUIRE(out);
+	REQUIRE(out->points.size() > 2);
+	CHECK(out->points.back() == under);
+
+	// No leg meets the structure, and the last, from under the pier, comes no nearer it than the end
+	// is: 3 m from the deck and the pier.
+	for (std::size_t leg = 1; leg < out->points.size(); ++leg)
+		CHECK(Ai::LegClear(out->points[leg - 1], out->points[leg], {}, 0.0, structure));
+	CHECK(Ai::LegClear(out->points[out->points.size() - 2], under, {}, 2.9, structure));
 }

@@ -127,15 +127,17 @@ struct Steered
 // frame, metres from the frame's body in the frame's axes (Physics::PhysicsWorld::FrameOrigin), so
 // a holding point by a platform moves with it. The waypoints, in the vehicle's frame as a
 // point is, are flown through in order on the way, each passed within the pass radius: a course
-// (Courses.h, PlotCourse) made relative to the frame. It has arrived within the arrival radius of
-// the destination, moving no faster than the arrival speed relative to it, and from then holds
-// there. Registered with Reflect, every field Saved, by RegisterTypes; Steering::Attach registers
-// it with its chain (Migrations).
+// (Courses.h, PlotCourse) made relative to the frame; or, with waypointsOnEntity, in the entity's
+// own axes as the offset is, so a course in among a platform's decks turns with it. It has arrived
+// within the arrival radius of the destination, moving no faster than the arrival speed relative to it,
+// and from then holds there. Registered with Reflect, every field Saved, by RegisterTypes;
+// Steering::Attach registers it with its chain (Migrations).
 struct Destination
 {
 	entt::entity entity{entt::null};
 	glm::dvec3 offset{0.0};
 	std::vector<glm::dvec3> waypoints;
+	bool waypointsOnEntity{false};
 
 	// Metres a second; none is the thrusters' maxSpeed, which is also the most.
 	float speed{0.0f};

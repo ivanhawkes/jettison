@@ -12,6 +12,7 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/ai/Courses.h>
 #include <jettison/dock/Definitions.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/Reason.h>
@@ -407,6 +408,24 @@ class Docks
 	void FlyDown(Sim::SimWorld &world, entt::entity vehicle);
 
 	void FlyUp(Sim::SimWorld &world, entt::entity vehicle);
+
+	// A covered berth's way in and out (docs/docks.md, "A covered berth"): the height over it a
+	// vehicle is flown to among the decks and piers, midway up its headroom (Headroom), or nothing
+	// for a berth with nothing over it, which is come down onto from outside the sphere.
+	std::optional<double> CoveredHeight(
+	    const entt::registry &registry, entt::entity vehicle, const Berth &berth) const;
+
+	// The shortest course among the platform's decks and piers between two places in the vehicle's
+	// frame, round them by its shape's radius and its clearance, with the ways out from under the
+	// berth's cover (straight out along its four sides, past the platform's sphere) among its
+	// waypoints; nothing if every way is blocked.
+	std::optional<Ai::Course> CourseAmong(
+	    const entt::registry &registry, entt::entity vehicle, const Berth &berth,
+	    const glm::dvec3 &from, const glm::dvec3 &to) const;
+
+	// The ways out from under a covered berth, in the vehicle's frame.
+	std::vector<glm::dvec3> WaysOut(
+	    const entt::registry &registry, entt::entity vehicle, const Berth &berth) const;
 
 	// A vehicle its pilot flies, lifted off its berth by its own thrusters, straight up at the lift's
 	// speed against the platform; and whether it is kLiftHeight off it.

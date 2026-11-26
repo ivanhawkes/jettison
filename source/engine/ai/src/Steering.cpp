@@ -430,8 +430,11 @@ void Steering::Step(Sim::SimWorld &world)
 		glm::dvec3 targetVelocity{0.0};
 		glm::dquat facing = destination.facing;
 
-		// The rails of what is kept clear of by its shape, none if nothing is.
+		// The rails of what is kept clear of by its shape, none if nothing is; and where the
+		// waypoints are reckoned from, and how they are turned.
 		std::string_view shapeRails;
+		glm::dvec3 course = origin;
+		glm::dquat courseTurn{1.0, 0.0, 0.0, 0.0};
 		if (destination.entity != entt::null)
 		{
 			const entt::entity entity = destination.entity;
@@ -450,6 +453,11 @@ void Steering::Step(Sim::SimWorld &world)
 				continue;
 			}
 			const Sim::Transform &at = registry.get<const Sim::Transform>(entity);
+			if (destination.waypointsOnEntity)
+			{
+				course = at.position;
+				courseTurn = at.orientation;
+			}
 			const glm::dvec3 offset = at.orientation * destination.offset;
 			target = at.position + offset;
 			facing = at.orientation * destination.facing;
@@ -461,7 +469,7 @@ void Steering::Step(Sim::SimWorld &world)
 				    glm::dvec3{moving->linear} + glm::cross(glm::dvec3{moving->angular}, offset);
 		}
 		const auto waypoint = [&](std::uint32_t index)
-		{ return origin + destination.waypoints[index]; };
+		{ return course + courseTurn * destination.waypoints[index]; };
 		while (destination.next < destination.waypoints.size() &&
 		       glm::distance(transform.position, waypoint(destination.next)) <=
 		           double{destination.passRadius})

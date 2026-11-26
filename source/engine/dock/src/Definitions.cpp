@@ -8,6 +8,7 @@
 #include <array>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <optional>
 
 #include <jettison/serialise/Archive.h>
@@ -115,6 +116,15 @@ bool Inside(const Box &box, const glm::dvec3 &point)
 }
 
 
+std::string BerthName(std::size_t index)
+{
+	return std::format("berth {}", index + 1);
+}
+
+
+} // namespace
+
+
 std::vector<Box> Structure(const PlatformLayout &layout)
 {
 	std::vector<Box> boxes = layout.decks;
@@ -123,13 +133,28 @@ std::vector<Box> Structure(const PlatformLayout &layout)
 }
 
 
-std::string BerthName(std::size_t index)
+double Headroom(const PlatformLayout &layout, const BerthLayout &berth, glm::vec2 berthSize)
 {
-	return std::format("berth {}", index + 1);
+	// Halved this often, the height is found to within the sphere's diameter over 2^40.
+	constexpr int kHalvings = 40;
+	const std::vector<Box> boxes = Structure(layout);
+	const auto covered = [&](double to)
+	{
+		const Oriented column = Above(berth, berthSize, kProbe, to, kTouching);
+		return std::ranges::any_of(
+		    boxes, [&](const Box &box) { return Overlap(column, Square(box, kTouching)); });
+	};
+	double clear = kProbe;
+	double over = kProbe + 2.0 * Radius(layout);
+	if (!covered(over))
+		return std::numeric_limits<double>::infinity();
+	for (int halving = 0; halving < kHalvings; ++halving)
+	{
+		const double middle = (clear + over) * 0.5;
+		(covered(middle) ? over : clear) = middle;
+	}
+	return clear;
 }
-
-
-} // namespace
 
 
 const BerthClassDefinition &BerthClassOf(
@@ -241,8 +266,6 @@ void CheckLayout(std::string_view name, const PlatformLayout &layout, const Bert
 			Refuse(kWhat, name, "has a deck or a pier that is not a box of positive size");
 	if (!(layout.reservationSeconds > 0.0f) || !std::isfinite(layout.reservationSeconds))
 		Refuse(kWhat, name, "has a reservation that is not a positive number of seconds");
-	const double radius = Radius(layout);
-
 	for (std::size_t index = 0; index < layout.berths.size(); ++index)
 	{
 		const BerthLayout &berth = layout.berths[index];
@@ -279,11 +302,17 @@ void CheckLayout(std::string_view name, const PlatformLayout &layout, const Bert
 		        [&](const Box &box) { return Inside(box, berth.position + berth.normal * kProbe); }))
 			Refuse(kWhat, name, berthName + " is under a deck or a pier, not on one");
 
-		// Clear above, from just over its face to beyond anything of the platform.
-		const Oriented column = Above(berth, size, kProbe, kProbe + 2.0 * radius, kTouching);
-		if (std::ranges::any_of(
-		        boxes, [&](const Box &box) { return Overlap(column, Square(box, kTouching)); }))
-			Refuse(kWhat, name, berthName + " has the platform over it");
+		// Clear above, from just over its face to beyond anything of the platform, or covered with room
+		// under the cover to be flown in among the decks and piers.
+		const double headroom = Headroom(layout, berth, size);
+		const double needed =
+		    2.0 * double{classes.at(berth.berthClass).largestVehicle.z} + kCoverMargin;
+		if (headroom < needed)
+			Refuse(
+			    kWhat, name,
+			    std::format(
+			        "{} has the platform {:.1f} m over it, where its class needs {:.1f} m", berthName,
+			        headroom, needed));
 
 		const Oriented footprint = Above(berth, size, -kProbe, kProbe, kTouching);
 		for (std::size_t other = 0; other < index; ++other)

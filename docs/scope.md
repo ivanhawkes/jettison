@@ -126,7 +126,7 @@ How: [AI](ai.md).
 | Behaviour trees | In | Sequences such as undock, fly, dock, trade, as data, saved where each entity is, with reactive and parallel nodes, subtrees, a blackboard and trees ticked less often |
 | Utility AI | In | Choices that are scoring problems (which trade, which route), as data |
 | Pathfinding | Reframed | A* over graphs, and courses round spheres; not over navigation meshes or grids |
-| Steering | In | Seek, arrive, avoidance and separation, so automated vehicles keep clear; more is [J08](roadmap.md#j08) |
+| Steering | In | Seek, arrive, avoidance and separation, so automated vehicles keep clear; courses round spheres and among a structure's boxes |
 | [Helm](glossary.md#helm) | In | A player takes an entity's controls and its behaviour stands down |
 | Navigation meshes | Out | No consumer walks on meshes |
 | Trader policies, faction strategy | Manifest | A game's rules |

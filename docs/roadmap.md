@@ -33,7 +33,7 @@ by `459af99` and the commit before it ([history](history.md)). Its later work wa
 has played its first loop for a day or two. No delivery is open: encryption, J01, a script's
 sender, J02, and dock control a game decides, J35, are done ([history](history.md)), and of the
 backlog behaviour trees, J03, scripts, J04, packs and mods, J05, picking against the snapshots, J06,
-and the shell's log file, J10. Manifest's adoption of encryption, its server's key in
+steering, J08, and the shell's log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
 
 ## Waiting on you
@@ -77,23 +77,6 @@ static and kinematic bodies only (`source/engine/physics/include/jettison/physic
 8192, `maxBodyPairs` 32768 and `maxContactConstraints` 16384 (`PhysicsWorld.h`).
 
 **Feature doc:** [physics](physics.md).
-
-<a id="j08"></a>
-### J08. Steering
-
-**What remains.** A course round the inside of a [platform](glossary.md#platform), such as from one
-[berth](glossary.md#berth) to another under a pier. And steering measured for a lane busier than one
-platform's traffic, where every vehicle queries the spatial index each step.
-
-**Why.** A vehicle reaches a berth only by coming straight down from outside the platform's sphere,
-so a layout must leave that column clear. Steering has been measured for sixteen vehicles, one
-platform's traffic; a busier lane's cost is unknown.
-
-**What exists.** An obstacle is the sphere about its body that holds its shape
-(`source/engine/ai/include/jettison/ai/Steering.h`). A destination flown `byShape` sweeps the
-vehicle's own shape along its way (`PhysicsWorld::CastShape`), which slows it but does not turn it.
-
-**Feature doc:** [AI](ai.md).
 
 <a id="j09"></a>
 ### J09. The way in to a berth, done properly

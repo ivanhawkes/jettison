@@ -70,8 +70,16 @@ latitude, so a course can leave a body in low orbit or start at a planet's centr
 within a sphere's clearance is judged by the radius alone, and an end inside the sphere is not
 judged against it.
 
-A sphere that moves while a vehicle flies the course stays where it was in the graph, so a caller
-plots again as the vehicle goes.
+Boxes are obstacles too (`Ai::Box`: a deck or a pier, turned as it is), for a course in among a
+structure's parts. Each is ringed by its eight corners, pushed out 1.5 times the clearance along each
+of its axes, so a leg along an edge or across a face of the ring passes it by half the clearance to
+spare. A leg is clear of a box when it keeps the clearance from every side. An end inside a box is
+not judged against it, and from an end nearer a box than the clearance, a leg keeps as far from it
+as the end is, so a course can start or end just over a deck under a pier. Such an end is given a
+waypoint straight out from each of the box's faces to its ring.
+
+A sphere or a box that moves while a vehicle flies the course stays where it was in the graph, so a
+caller plots again as the vehicle goes, or makes the course in an entity's axes (below).
 
 ### Steering
 
@@ -122,7 +130,8 @@ since bodies in two frames never meet ([Coordinate frames and units](coordinates
 | --- | --- | --- |
 | `entity` | none | With an entity, `offset` is in the entity's own axes, so the place turns and moves with it. Without one, `offset` is a point in the vehicle's frame, from the frame's body |
 | `offset` | 0 | Where, as above |
-| `waypoints` | none | Points flown through in order first, in the frame as `offset` is: a course made relative to the frame |
+| `waypoints` | none | Points flown through in order first, relative to the frame's origin: a course made relative to the frame |
+| `waypointsOnEntity` | false | The waypoints in the entity's axes, as `offset` is, so a course in among a platform's decks turns with it |
 | `speed` | 0 (top speed) | Metres a second; never more than `Handling::maxSpeed` |
 | `passRadius` | 40 m | How near a waypoint counts as passed |
 | `arrivalRadius`, `arrivalSpeed` | 5 m, 1 m/s | Within this distance and no faster than this, relative to the destination, it has arrived, and from then holds there |
@@ -148,6 +157,20 @@ the string tables under `reason.ai.<name>`.
 
 A steered vehicle with a destination, in a frame, keeps the system running every step: no step is
 then [quiet](glossary.md#quiet-step).
+
+**What it costs.** Each vehicle queries the spatial index and avoids what it finds every step, so the
+cost grows with how many each sees. Two streams flying opposite ways down a lane 2 km long and 200 m
+across, measured in Release on 2026-11-26 (the `ai` suite's `Steering benchmark`, which the gate
+skips):
+
+| Ships | Step | Steering's share | A ship |
+| --- | --- | --- | --- |
+| 16 | 0.03 ms | 0.02 ms | 1.1 µs |
+| 64 | 0.27 ms | 0.23 ms | 3.6 µs |
+| 256 | 4.3 ms | 4.1 ms | 16 µs |
+
+None touched. A lane of 256 in one place costs a quarter of a 60 Hz frame, where a platform's own
+traffic (sixteen vehicles) is nothing.
 
 ### Utility AI
 
@@ -485,8 +508,8 @@ trees.world.Commands().Push(Ai::LeaveHelm{one, second});
 - Utility AI and behaviour trees have no consumer outside the `ai` suite today; Manifest uses
   pathfinding, courses and steering, and chooses a job's next step with its own
   `Manifest::Policy::Choose`.
-- Steering: no course round the inside of a platform, and no measurement yet for a lane busier than
-  a platform's traffic ([J08](roadmap.md#j08)).
+- A course among a platform's decks goes round the structure, not round a vehicle docked on another
+  berth, which only the shape sweep stops it short of ([docks](docks.md#a-covered-berth)).
 - The way in to a berth, which steering flies for the docks ([J09](roadmap.md#j09)).
 - An obstacle is a sphere, found through the spatial index; overlap queries and all-hit casts are
   physics' open work ([J07](roadmap.md#j07)).

@@ -14,6 +14,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -571,8 +572,10 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	// way it faces; without those fields saved the flight still hashes to 9b's 0x7b531286df2bea60.
 	// Pinned again in the space extraction's 5c for the station on the suite's own ferry rather than
 	// on the sample's orbit, and in slice 7 for the saved names alone: with the old names, the world's
-	// version 4 and the dropped storages put back, it hashes as before.
-	CHECK(first == 0xcae5d971cee21f0cull);
+	// version 4 and the dropped storages put back, it hashes as before. Pinned again for J08's
+	// waypointsOnEntity, the saved bytes alone: with the field not saved, it hashes to
+	// 0xcae5d971cee21f0c.
+	CHECK(first == 0x160522fb8e1f5cf2ull);
 
 	Fixture loaded;
 	(void)Gathering(loaded);
@@ -580,4 +583,54 @@ TEST_CASE("Steering: the same start gives the same flight, and a save part-way c
 	for (int step = 60 * 15; step < 60 * 40; ++step)
 		loaded.Step();
 	CHECK(loaded.world.StateHash() == first);
+}
+
+
+// Steering measured for a lane busier than a platform's traffic (docs/ai.md, "Steering"): two
+// streams of ships flying opposite ways down a lane 2 km long and 200 m across, beside the station,
+// each querying the spatial index and avoiding the others every step. Skipped in the gate; run it
+// from a Release tree with
+//
+//   build/clang-release/source/engine/ai/jettison_ai_tests --no-skip -tc='Steering benchmark*'
+TEST_CASE("Steering benchmark: a lane of ships, each avoiding the others every step" * doctest::skip())
+{
+	using Clock = std::chrono::steady_clock;
+	constexpr int kSteps = 600;
+	constexpr double kLane = 1000.0;
+	constexpr double kWidth = 200.0;
+	constexpr double kBeside = 1500.0;
+	for (const int count : {16, 64, 256})
+	{
+		Fixture fixture;
+		Math::Random random{2026};
+		std::vector<entt::entity> ships;
+		for (int index = 0; index < count; ++index)
+		{
+			const double side = index % 2 == 0 ? 1.0 : -1.0;
+			const double across = (random.NextDouble() - 0.5) * kWidth;
+			const double up = (random.NextDouble() - 0.5) * kWidth;
+			const double along = random.NextDouble() * kLane * 0.5;
+			ships.push_back(fixture.Ship(
+			    {kBeside + across, up, side * (kLane - along)},
+			    Point({kBeside + across, up, -side * kLane}, 80.0f)));
+		}
+		const auto run = [&]
+		{
+			const Clock::time_point start = Clock::now();
+			for (int step = 0; step < kSteps; ++step)
+				fixture.Step();
+			return std::chrono::duration<double, std::milli>(Clock::now() - start).count() / kSteps;
+		};
+		const double steered = run();
+		const std::size_t contacts = fixture.collisions.size();
+
+		// The same ships coasting on with no destination, which steering leaves alone: the rest of
+		// the step, physics' mostly.
+		for (const entt::entity ship : ships)
+			fixture.world.Registry().remove<Ai::Destination>(ship);
+		const double coasting = run();
+		MESSAGE(
+		    count, " ships: ", steered, " ms a step, steering ", steered - coasting, " ms of it, ",
+		    (steered - coasting) * 1000.0 / count, " us a ship; ", contacts, " contacts steered");
+	}
 }

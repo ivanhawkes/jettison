@@ -146,11 +146,22 @@ bool Fits(const BerthClasses &classes, const VehicleDefinition &vehicle, std::st
 
 // Checks a layout the same way: boxes of positive size; at least one; each berth's normal and heading
 // of unit length and square to each other; each berth lying on the face of a deck or a pier, all of
-// it on the structure; no two berths overlapping; nothing of the platform over any berth, between it
-// and the sphere about the platform that holds it all (Radius), so a vehicle comes down onto it from
-// outside that sphere straight along its normal; and each berth of a class of those defined. Throws
-// Serialise::FormatError naming the layout and what does not fit.
+// it on the structure; no two berths overlapping; and each berth of a class of those defined. A berth
+// with nothing of the platform over it, between it and the sphere about the platform that holds it all
+// (Radius), is come down onto from outside that sphere; one covered, under a pier say, is flown to
+// among the decks and piers, and needs headroom for it: twice its class's largest vehicle's height and
+// kCoverMargin more. Throws Serialise::FormatError naming the layout and what does not fit.
 void CheckLayout(std::string_view name, const PlatformLayout &layout, const BerthClasses &classes);
+
+// The room over a covered berth past twice its largest vehicle's height.
+inline constexpr double kCoverMargin = 4.0;
+
+// How far above the berth, along its normal, the first of the platform over its footprint of that
+// size is: infinity for a berth with nothing over it, out to beyond the platform's sphere.
+double Headroom(const PlatformLayout &layout, const BerthLayout &berth, glm::vec2 berthSize);
+
+// The layout's decks and piers, together.
+std::vector<Box> Structure(const PlatformLayout &layout);
 
 // The radius of the smallest sphere about the platform's centre holding its decks and piers.
 double Radius(const PlatformLayout &layout);

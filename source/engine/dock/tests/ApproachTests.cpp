@@ -350,3 +350,58 @@ TEST_CASE("Docks: a ship flown in from any side, at rest or going across, comes 
 			CHECK(above);
 		}
 }
+
+
+TEST_CASE("Docks: a ship flown in under a pier lands on its covered pad and is flown out from under it")
+{
+	// A deck 400 m square with its top at y = 10, a corvette berth on it, and a pier 40 m over the
+	// berth reaching out past it on every side, so it is come to and left from among them.
+	Fixture fixture;
+	Dock::PlatformLayout layout;
+	layout.decks = {{{0.0, 0.0, 0.0}, {400.0, 20.0, 400.0}}};
+	layout.piers = {{{0.0, 55.0, -50.0}, {200.0, 10.0, 200.0}}};
+	layout.berths = {{"corvette", {0.0, 10.0, 0.0}}};
+	fixture.docks.DefineLayout("covered", layout);
+	const entt::entity platform =
+	    fixture.docks.MakePlatform(fixture.world, DockTests::kHarbour, DockTests::kFerry, "covered");
+	const entt::entity vehicle = fixture.Vehicle(platform, "shuttle", {300.0, 400.0, 300.0});
+	fixture.world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
+
+	const auto stage = [&] { return fixture.world.Registry().get<Dock::Docking>(vehicle).stage; };
+	const auto runUntil = [&](Dock::Stage wanted, double seconds)
+	{
+		for (long step = 0; step < std::lround(seconds / DockTests::kStep); ++step)
+		{
+			fixture.Step();
+			if (!fixture.world.Registry().all_of<Dock::Docking>(vehicle) || stage() == wanted)
+				return true;
+		}
+		return false;
+	};
+	REQUIRE(runUntil(Dock::Stage::Docked, 600.0));
+	REQUIRE(stage() == Dock::Stage::Docked);
+
+	// It came in under the pier, touching nothing on the way but its berth.
+	const Sim::Transform &berth =
+	    fixture.world.Registry().get<Sim::Transform>(fixture.BerthNumbered(platform, 1));
+	for (const Physics::ContactEvent &contact : fixture.collisions)
+		CHECK(std::abs((glm::conjugate(berth.orientation) * (contact.point - berth.position)).y) < 0.1);
+
+	// Flown out from under the pier by the shortest way out, touching nothing once it is let go, and
+	// its berth given up beyond the platform's sphere.
+	fixture.world.Commands().Push(Dock::ReleaseBerth{{}, vehicle});
+	fixture.Step();
+	const std::size_t released = fixture.collisions.size();
+	for (long step = 0; step < std::lround(300.0 / DockTests::kStep) &&
+	                    fixture.world.Registry().all_of<Dock::Docking>(vehicle);
+	     ++step)
+	{
+		fixture.Step();
+	}
+	CHECK_FALSE(fixture.world.Registry().all_of<Dock::Docking>(vehicle));
+	CHECK(fixture.collisions.size() == released);
+	CHECK(
+	    glm::length(
+	        fixture.world.Registry().get<Sim::Transform>(vehicle).position -
+	        fixture.world.Registry().get<Sim::Transform>(platform).position) > Dock::Radius(layout));
+}

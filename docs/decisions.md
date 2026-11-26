@@ -139,7 +139,9 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   fly it round the platform's sphere by a course (`Ai::Waypoints`) to a point above the berth along
   its normal, then straight down. Steering already goes round a sphere, so no course over the
   platform's own hull is plotted, and the shape cast on the way stops the vehicle short of anything
-  there ([J09](roadmap.md#j09)). [Docks](docks.md)
+  there ([J09](roadmap.md#j09)). A covered berth, under a pier, is flown to among the decks and piers
+  by a course round their boxes, in the berth's axes, and is allowed where its headroom is twice its
+  largest vehicle's height and 4 m more (2026-11-26). [Docks](docks.md)
 - **A docked vehicle is a kinematic body on its platform's rails** (2026-11-12), not a dynamic one
   held by its assist or a constraint. On rails (`Physics::OnRails`) it is exactly where its berth is
   at every step in every build, and meets nothing kinematic, so a deck and its vehicles make no

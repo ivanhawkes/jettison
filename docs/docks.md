@@ -54,11 +54,14 @@ what does not fit. A name defined twice throws `std::invalid_argument`.
 - A vehicle names a defined berth class, and its size is positive and within that class's largest
   vehicle.
 - A layout has at least one deck or pier, all boxes of positive size. Each berth's normal and
-  heading are unit length and square to each other. Each berth lies wholly on a deck or a pier,
-  overlaps no other berth, and has nothing of the platform over it out to the platform's bounding
-  sphere (`Dock::Radius`). Only a display berth may name a vehicle.
+  heading are unit length and square to each other. Each berth lies wholly on a deck or a pier and
+  overlaps no other berth. A berth with something of the platform over it, within the platform's
+  bounding sphere (`Dock::Radius`), is covered, and needs headroom under the cover
+  (`Dock::Headroom`) of twice its class's largest vehicle's height and 4 m more
+  (`Dock::kCoverMargin`). Only a display berth may name a vehicle.
 
-The clear column over each berth lets a vehicle come straight down onto it from outside the sphere.
+A clear column over a berth lets a vehicle come straight down onto it from outside the sphere; a
+covered berth is flown to among the decks and piers ([below](#a-covered-berth)).
 
 Defining a vehicle also defines its physics shape, `vehicles/<name>`: a box of its size, whatever it
 is drawn as. Defining a layout defines `platforms/<name>`, a mesh of its decks and piers
@@ -190,6 +193,23 @@ and still reach it. The docks therefore fly a vehicle in (`RequestBerth::fly`) i
 
 The stop out along the normal is a stopgap: a vehicle flown straight to the point above, fast and
 sideways, overshot into the sphere and circled until its reservation lapsed.
+
+### A covered berth
+
+A berth with the platform over it, one under a pier, cannot be come down onto from outside the
+sphere. The docks fly a vehicle to it among the decks and piers instead, by a course round their
+boxes (`Ai::Waypoints` with `Ai::Box`es, [courses](ai.md#courses)), clear of them by the vehicle's
+shape and its steering clearance:
+
+1. **In among them.** To the point over the berth midway up its headroom, at 20 m/s, each waypoint
+   passed within 5 m, since a course among decks turns within metres of them. The course is in the
+   berth's axes (`Ai::Destination::waypointsOnEntity`), so it turns with the platform, and the
+   vehicle is kept clear by its shape (`byShape`), not the platform's sphere. The berth's four ways
+   out from under the cover, straight along its sides past the sphere, are among the waypoints.
+2. **Onto the berth**, as for any berth.
+
+Flown out, it goes up to the same point and out by the shortest way out, giving the berth up past
+the sphere. Lifted by its pilot, it gives the berth up at that point, as high as straight up goes.
 
 ### The clamp
 
@@ -381,7 +401,8 @@ Manifest docks every ship through these commands, in its travel module
 
 - The way in replaces its stop along the normal, and a reservation lapses when a vehicle stops
   making progress rather than at a fixed time: [J09](roadmap.md#j09).
-- Steering's course goes round a platform's sphere, not round its inside: [J08](roadmap.md#j08).
+- A course among the decks goes round the structure, not round a vehicle docked on another covered
+  berth; only the shape sweep stops it short of one.
 
 ## Decisions
 

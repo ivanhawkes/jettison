@@ -15,6 +15,7 @@
 
 #include <jettison/ai/Courses.h>
 #include <jettison/ai/Steering.h>
+#include <jettison/core/Log.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -56,6 +57,20 @@ constexpr float kDescentSpeed = 40.0f;
 constexpr float kLiftSpeed = 20.0f;
 constexpr float kLandingRadius = 0.25f;
 constexpr float kLandingSpeed = 0.2f;
+
+// A covered berth's way in (docs/docks.md, "A covered berth"): how far up its headroom the point over
+// it is, how near that point counts as reached, and how far beyond the platform's sphere, as a share
+// of its diameter, its ways out from under the cover reach.
+constexpr double kCoveredShare = 0.5;
+constexpr float kCoveredRadius = 2.0f;
+
+// The speed among them, and how near a waypoint counts as passed: a course among decks turns
+// within metres of them, so a corner is taken slowly and close, not at speed 40 m wide of it.
+constexpr float kCoveredSpeed = 20.0f;
+constexpr float kCoveredPass = 5.0f;
+constexpr double kWayOutReach = 1.0;
+
+constexpr Core::Category kDock{"dock"};
 
 using Detail::Sorted;
 
@@ -690,6 +705,37 @@ void Docks::FlyInbound(Sim::SimWorld &world, entt::entity vehicle, double time)
 	const Berth &berth = registry.get<Berth>(docking.berth);
 	const Ai::Steered &steered = Steer(registry, vehicle);
 
+	// Under a cover, among the decks and piers to the point over the berth, in the berth's axes so
+	// the course turns with the platform, and kept clear of the structure by the vehicle's shape.
+	if (const std::optional<double> covered = CoveredHeight(registry, vehicle, berth))
+	{
+		const Sim::Transform &berthAt = registry.get<Sim::Transform>(docking.berth);
+		Ai::Destination destination;
+		destination.entity = docking.berth;
+		destination.offset = {0.0, *covered, 0.0};
+		destination.waypointsOnEntity = true;
+		destination.byShape = true;
+		destination.speed = kCoveredSpeed;
+		destination.passRadius = kCoveredPass;
+		destination.arrivalRadius = kCoveredRadius;
+		destination.arrivalSpeed = kAboveSpeed;
+		const glm::dvec3 over = berthAt.position + berthAt.orientation * destination.offset;
+		if (const std::optional<Ai::Course> course = CourseAmong(
+		        registry, vehicle, berth, registry.get<Sim::Transform>(vehicle).position, over))
+		{
+			const glm::dquat inverse = glm::conjugate(berthAt.orientation);
+			for (std::size_t point = 1; point + 1 < course->points.size(); ++point)
+				destination.waypoints.push_back(inverse * (course->points[point] - berthAt.position));
+		}
+		else
+			Core::Log(
+			    Core::Severity::Warning, kDock,
+			    "No way in among the decks and piers to berth {} was found; it is flown straight to",
+			    berth.number);
+		registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
+		return;
+	}
+
 	// Out along the berth's normal beyond the point above it, as far again as the vehicle stops in from
 	// its top speed, stopped at: from there the way in is straight down the normal from rest. Flown
 	// straight to the point above, a vehicle that came round the platform fast and sideways overshot
@@ -764,6 +810,47 @@ void Docks::FlyUp(Sim::SimWorld &world, entt::entity vehicle)
 	entt::registry &registry = world.Registry();
 	const Docking &docking = registry.get<Docking>(vehicle);
 	Steer(registry, vehicle);
+
+	// From under a cover, up to the point over the berth and out by the shortest way out from under
+	// it, beyond the platform's sphere, where it gives the berth up.
+	const Berth &berth = registry.get<Berth>(docking.berth);
+	if (const std::optional<double> covered = CoveredHeight(registry, vehicle, berth))
+	{
+		const Sim::Transform &berthAt = registry.get<Sim::Transform>(docking.berth);
+		const glm::dvec3 over = berthAt.position + berthAt.orientation * glm::dvec3{0.0, *covered, 0.0};
+		std::optional<Ai::Course> shortest;
+		for (const glm::dvec3 &out : WaysOut(registry, vehicle, berth))
+			if (std::optional<Ai::Course> course = CourseAmong(registry, vehicle, berth, over, out);
+			    course && (!shortest || course->length < shortest->length))
+				shortest = std::move(course);
+		Ai::Destination destination;
+		destination.entity = docking.berth;
+		destination.waypointsOnEntity = true;
+		destination.byShape = true;
+		destination.speed = kCoveredSpeed;
+		destination.passRadius = kCoveredPass;
+		destination.arrivalRadius = kAboveRadius;
+		destination.arrivalSpeed = kAboveSpeed;
+		const glm::dquat inverse = glm::conjugate(berthAt.orientation);
+		destination.waypoints.emplace_back(0.0, *covered, 0.0);
+		if (shortest)
+		{
+			for (std::size_t point = 1; point + 1 < shortest->points.size(); ++point)
+				destination.waypoints.push_back(inverse * (shortest->points[point] - berthAt.position));
+			destination.offset = inverse * (shortest->points.back() - berthAt.position);
+		}
+		else
+		{
+			Core::Log(
+			    Core::Severity::Warning, kDock,
+			    "No way out from among the decks and piers from berth {} was found; it is flown up",
+			    berth.number);
+			destination.offset = {0.0, AboveHeight(registry, vehicle, berth), 0.0};
+		}
+		registry.emplace_or_replace<Ai::Destination>(vehicle, std::move(destination));
+		return;
+	}
+
 	Ai::Destination destination;
 	destination.entity = docking.berth;
 	destination.offset = {0.0, AboveHeight(registry, vehicle, registry.get<Berth>(docking.berth)), 0.0};
@@ -860,7 +947,63 @@ bool Docks::Lifted(const entt::registry &registry, entt::entity vehicle) const
 	const Sim::Transform &vehicleAt = registry.get<Sim::Transform>(vehicle);
 	const double height =
 	    (glm::conjugate(berthAt.orientation) * (vehicleAt.position - berthAt.position)).y;
-	return height - RestingHeight(*VehicleOf(registry, vehicle)) >= kLiftHeight;
+	const double rest = RestingHeight(*VehicleOf(registry, vehicle));
+
+	// Under a cover, as high as the point over the berth, which is as far as straight up goes.
+	if (const std::optional<double> covered =
+	        CoveredHeight(registry, vehicle, registry.get<Berth>(registry.get<Docking>(vehicle).berth)))
+		return height >= std::min(*covered, rest + kLiftHeight);
+	return height - rest >= kLiftHeight;
+}
+
+
+std::optional<double> Docks::CoveredHeight(
+    const entt::registry &registry, entt::entity vehicle, const Berth &berth) const
+{
+	const BerthLayout &place = PlaceOf(registry, berth);
+	const double headroom = Headroom(
+	    m_layouts.at(registry.get<Platform>(berth.platform).layout), place,
+	    m_berthClasses.at(place.berthClass).berthSize);
+	if (!std::isfinite(headroom))
+		return std::nullopt;
+	return std::max(RestingHeight(*VehicleOf(registry, vehicle)) + kHover, headroom * kCoveredShare);
+}
+
+
+std::vector<glm::dvec3> Docks::WaysOut(
+    const entt::registry &registry, entt::entity vehicle, const Berth &berth) const
+{
+	const Sim::Transform &berthAt = registry.get<Sim::Transform>(registry.get<Docking>(vehicle).berth);
+	const double reach =
+	    2.0 * Radius(m_layouts.at(registry.get<Platform>(berth.platform).layout)) * kWayOutReach;
+	const glm::dvec3 over =
+	    berthAt.position +
+	    berthAt.orientation *
+	        glm::dvec3{0.0, CoveredHeight(registry, vehicle, berth).value_or(0.0), 0.0};
+	std::vector<glm::dvec3> ways;
+	for (const glm::dvec3 &side :
+	     {glm::dvec3{1.0, 0.0, 0.0}, glm::dvec3{-1.0, 0.0, 0.0}, glm::dvec3{0.0, 0.0, 1.0},
+	      glm::dvec3{0.0, 0.0, -1.0}})
+		ways.push_back(over + berthAt.orientation * (side * reach));
+	return ways;
+}
+
+
+std::optional<Ai::Course> Docks::CourseAmong(
+    const entt::registry &registry, entt::entity vehicle, const Berth &berth, const glm::dvec3 &from,
+    const glm::dvec3 &to) const
+{
+	const Sim::Transform &platformAt = registry.get<Sim::Transform>(berth.platform);
+	std::vector<Ai::Box> boxes;
+	for (const Box &box : Structure(m_layouts.at(registry.get<Platform>(berth.platform).layout)))
+		boxes.push_back(
+		    {platformAt.position + platformAt.orientation * box.centre, box.size * 0.5,
+		     platformAt.orientation});
+	const auto *steered = registry.try_get<Ai::Steered>(vehicle);
+	const double clearance = m_physics.ShapeRadius(registry.get<Physics::Body>(vehicle).shape) +
+	                         double{steered ? steered->clearance : Ai::Steered{}.clearance};
+	const Ai::Waypoints waypoints{{}, clearance, WaysOut(registry, vehicle, berth), std::move(boxes)};
+	return waypoints.PlotCourse(from, to);
 }
 
 
