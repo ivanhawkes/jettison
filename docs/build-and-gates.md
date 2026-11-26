@@ -741,22 +741,33 @@ The shell's other profilers:
 
 ## Lanes
 
-Three worktrees of each repository, kept from task to task, so that one can wait on the gate or a
-cross-review while work goes on in another, and a third is there for a spare hour:
+Three worktrees of each repository, kept from task to task. The primary checkout is where work is
+merged and where the agent orchestrates from; the two lanes beside it hold the work, so one can wait
+on the gate or a cross-review while the next task starts in the other.
 
-| Lane | Jettison | Manifest |
-| --- | --- | --- |
-| A | `~/projects/jettison` | `~/projects/manifest` |
-| B | `~/projects/jettison.lane-b` | `~/projects/manifest.lane-b` |
-| C | `~/projects/jettison.lane-c` | `~/projects/manifest.lane-c` |
+| Lane | Jettison | Manifest | Role |
+| --- | --- | --- | --- |
+| Primary | `~/projects/jettison` | `~/projects/manifest` | On `feature-base`, clean: merges, and the orchestration |
+| B | `~/projects/jettison.lane-b` | `~/projects/manifest.lane-b` | A task, written, gated and reviewed there |
+| C | `~/projects/jettison.lane-c` | `~/projects/manifest.lane-c` | A task, written, gated and reviewed there |
 
-- **Kept, not made per branch.** A lane is never removed: a task starts in a free lane with
-  `git switch -c <task> feature-base`, so the lane's build trees stay warm, Debug ones included,
-  which ccache shares within a tree only ([compiler cache](#compiler-cache)). A switch rebuilds what
-  the branches change. A free lane is parked with `git switch --detach feature-base`.
-- **Branches.** Work is cut from `feature-base` and merged back into it; only what has been
-  merged and tested there is a candidate for `main`. A branch can be checked out in one lane at a
-  time, so `feature-base` itself is only checked out to merge into it.
+- **Starting a task.** `scripts/lanes.sh` lists every lane of both repositories: its branch, how
+  far it is from `feature-base`, the files its work changes and its note. A task goes to a free lane
+  (detached at `feature-base`, nothing changed), with `git switch -c <task> feature-base`.
+- **Clashes, before the work starts.** The task's plan names the files and modules it will change
+  and compares them with what `lanes.sh` lists for the other lane, the same repository's and the
+  other repository's: the same file, the same module or a public header the other's work includes.
+  Any overlap is told to the user before the work begins, with how it would be resolved (wait, take
+  the other lane's branch first, or merge by hand). The roadmap, the history and the decisions are
+  edited by most tasks, so a clash there is expected and resolved at the merge.
+- **Merging.** In the primary checkout, `git merge --ff-only <task>`, then the branch is deleted and
+  its lane parked with `git switch --detach feature-base`. A task cut before another merged is
+  rebased onto `feature-base` in its lane and gated again there before it merges, so what lands on
+  `feature-base` is what was gated. Only work merged and tested on `feature-base` is a candidate for
+  `main`, which the user decides.
+- **Kept, not made per branch.** A lane is never removed, so its build trees stay warm, Debug ones
+  included, which ccache shares within a tree only ([compiler cache](#compiler-cache)). A switch
+  rebuilds what the branches change.
 - **Under `~/projects`.** `CCACHE_BASEDIR` is the checkout's parent, so a lane beside the
   checkout shares the cache, as worktrunk's `worktree-path` (`~/projects/<repo>.<branch>`) keeps any
   worktree it makes.
@@ -766,11 +777,12 @@ cross-review while work goes on in another, and a third is there for a spare hou
   sharing the cores and the memory ([the gate](#the-gate)). Editing, reading and a cross-review's
   own reasoning need no lock; the reviewer builds through `heavy.sh`.
 - **What a lane holds.** `build/lane.md` in each lane, ignored as `build/` is, says what it is on
-  and what it waits for.
+  and what it waits for; `lanes.sh` prints it.
 - **Manifest's lanes** build against the engine's pin, or against the engine lane of the same
   letter with `-DJETTISON_SOURCE_DIR=~/projects/jettison.lane-<letter>`.
 
-A lane's first gate builds its trees cold, its Release ones through the shared cache.
+A lane's first gate builds its trees cold, its Release ones through the shared cache: 18 minutes
+for each of lanes B and C (2026-11-26), against about 2 warm.
 
 ## Cross-review
 
