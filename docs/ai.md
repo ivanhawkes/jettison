@@ -511,8 +511,8 @@ trees.world.Commands().Push(Ai::LeaveHelm{one, second});
 - A course among a platform's decks goes round the structure, not round a vehicle docked on another
   berth, which only the shape sweep stops it short of ([docks](docks.md#a-covered-berth)).
 - The way in to a berth, which steering flies for the docks ([J09](roadmap.md#j09)).
-- An obstacle is a sphere, found through the spatial index; overlap queries and all-hit casts are
-  physics' open work ([J07](roadmap.md#j07)).
+- An obstacle is a sphere, found through the spatial index; physics' overlap queries and all-hit
+  casts ([physics](physics.md#casts-and-picking)) are there for a game that wants them.
 - Pathfinding is over graphs only, not meshes or grids ([scope](scope.md)).
 
 ## Decisions

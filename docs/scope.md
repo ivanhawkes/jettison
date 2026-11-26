@@ -17,8 +17,8 @@ build every genre's features now: a capability marked Out is reassessed when a c
 
 | Verdict | Meaning | Example |
 | --- | --- | --- |
-| In | Built. Open work on it is a backlog item, linked | Physics, with overlap queries still open ([J07](roadmap.md#j07)) |
-| Open | Accepted but not built yet: a backlog item, linked | Overlap queries and casts that return every hit ([J07](roadmap.md#j07)) |
+| In | Built. Open work on it is a backlog item, linked | Physics, with shape offsets and compound shapes still open ([J07](roadmap.md#j07)) |
+| Open | Accepted but not built yet: a backlog item, linked | A shape offset in its body, and compound shapes ([J07](roadmap.md#j07)) |
 | Reframed | The need is real, but the usual solution is the wrong one here; the row says what serves it instead | Pathfinding: A* over graphs, not over navigation meshes |
 | Deferred | Possibly needed, but built only on measured evidence or when a consumer asks | A general job system, until a profile shows a system needs it |
 | Out | Not built | VR |

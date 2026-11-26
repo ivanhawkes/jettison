@@ -622,3 +622,111 @@ TEST_CASE("Physics: a pick against the snapshots hits what a cast does, where th
 	REQUIRE(ownHit);
 	CHECK(ownHit->entity == fixture.floor);
 }
+
+
+Physics::CastOptions Ignoring(entt::entity entity)
+{
+	Physics::CastOptions options;
+	options.ignore = entity;
+	return options;
+}
+
+
+TEST_CASE("Physics: casts that return every hit, and overlaps, find the stack in order")
+{
+	Fixture fixture;
+	fixture.Stack();
+	fixture.Run(4.0);
+	const glm::dvec3 down{0.0, -1.0, 0.0};
+	const glm::dvec3 above{0.0, 20.0, 0.0};
+	const std::vector<entt::entity> stack{fixture.upper, fixture.lower, fixture.floor};
+	const auto entities = [](const std::vector<Physics::CastHit> &hits)
+	{
+		std::vector<entt::entity> found;
+		found.reserve(hits.size());
+		for (const Physics::CastHit &hit : hits)
+			found.push_back(hit.entity);
+		return found;
+	};
+
+	// A ray down through the stack: the upper crate, the lower and the floor, the first as CastRay.
+	const std::vector<Physics::CastHit> ray = fixture.physics.CastRayAll(kRoom, above, down, 50.0);
+	const std::optional<Physics::CastHit> first = fixture.physics.CastRay(kRoom, above, down, 50.0);
+	REQUIRE(first);
+	CHECK(entities(ray) == stack);
+	CHECK(ray.front().entity == first->entity);
+	CHECK(ray.front().distance == first->distance);
+	CHECK(ray.front().point == first->point);
+	CHECK(ray.front().normal == first->normal);
+	CHECK(ray[1].distance == doctest::Approx(18.0).epsilon(0.01));
+	CHECK(ray[2].distance == doctest::Approx(20.0).epsilon(0.01));
+	CHECK(
+	    entities(fixture.physics.CastRayAll(kRoom, above, down, 50.0, Ignoring(fixture.lower))) ==
+	    std::vector{fixture.upper, fixture.floor});
+	CHECK(
+	    entities(fixture.physics.CastRayAll(kRoom, above, down, 19.0)) ==
+	    std::vector{fixture.upper, fixture.lower});
+	CHECK(fixture.physics.CastRayAll(kRoom, above, {0.0, 1.0, 0.0}, 50.0).empty());
+	CHECK(fixture.physics.CastRayAll(Sim::FrameId("Elsewhere"), above, down, 50.0).empty());
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.CastRayAll(kRoom, above, {0.0, 0.0, 0.0}, 50.0), std::invalid_argument);
+	CHECK_THROWS_AS((void)fixture.physics.CastRayAll(kRoom, above, down, 0.0), std::invalid_argument);
+
+	// A plate swept down the same way meets the same bodies, each once.
+	const Sim::Transform start{above, glm::dquat{1.0, 0.0, 0.0, 0.0}};
+	const std::vector<Physics::CastHit> sweep =
+	    fixture.physics.CastShapeAll(kRoom, "plate", start, down, 50.0);
+	const std::optional<Physics::CastHit> swept =
+	    fixture.physics.CastShape(kRoom, "plate", start, down, 50.0);
+	REQUIRE(swept);
+	CHECK(entities(sweep) == stack);
+	CHECK(sweep.front().entity == swept->entity);
+	CHECK(sweep.front().distance == swept->distance);
+	CHECK(sweep.front().point == swept->point);
+	CHECK(
+	    entities(
+	        fixture.physics.CastShapeAll(kRoom, "plate", start, down, 50.0, Ignoring(fixture.upper))) ==
+	    std::vector{fixture.lower, fixture.floor});
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.CastShapeAll(kRoom, "nothing", start, down, 50.0), std::invalid_argument);
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.CastShapeAll(kRoom, "plate", start, {}, 50.0), std::invalid_argument);
+
+	// A crate's volume placed across the join of the two crates overlaps both and not the floor.
+	const Sim::Transform across{{0.0, 2.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0}};
+	CHECK(fixture.physics.Overlap(kRoom, "crate", across) == std::vector{fixture.lower, fixture.upper});
+	CHECK(
+	    fixture.physics.Overlap(kRoom, "crate", across, Ignoring(fixture.lower)) ==
+	    std::vector{fixture.upper});
+	CHECK(
+	    fixture.physics.Overlap(kRoom, "crate", {{0.0, -0.5, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0}}) ==
+	    std::vector{fixture.floor, fixture.lower});
+	CHECK(fixture.physics.Overlap(kRoom, "crate", {{30.0, 10.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0}})
+	          .empty());
+	CHECK_THROWS_AS((void)fixture.physics.Overlap(kRoom, "nothing", across), std::invalid_argument);
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.Overlap(
+	        kRoom, "crate", {{std::nan(""), 0.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0}}),
+	    std::invalid_argument);
+
+	// A sphere needs no shape defined, and around nothing finds nothing.
+	CHECK(
+	    fixture.physics.OverlapSphere(kRoom, {0.0, 2.0, 0.0}, 0.5) ==
+	    std::vector{fixture.lower, fixture.upper});
+	CHECK(fixture.physics.OverlapSphere(kRoom, {0.0, 10.0, 0.0}, 1.0).empty());
+	CHECK_THROWS_AS((void)fixture.physics.OverlapSphere(kRoom, {}, 0.0, {}), std::invalid_argument);
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.OverlapSphere(kRoom, {}, std::numeric_limits<double>::infinity()),
+	    std::invalid_argument);
+	CHECK_THROWS_AS(
+	    (void)fixture.physics.OverlapSphere(kRoom, {0.0, std::nan(""), 0.0}, 1.0),
+	    std::invalid_argument);
+
+	// The same again, in a world made the same way, is the same answers.
+	Fixture again;
+	again.Stack();
+	again.Run(4.0);
+	CHECK(entities(again.physics.CastRayAll(kRoom, above, down, 50.0)) == stack);
+	CHECK(again.physics.CastRayAll(kRoom, above, down, 50.0).back().distance == ray.back().distance);
+	CHECK(again.physics.Overlap(kRoom, "crate", across) == std::vector{again.lower, again.upper});
+}

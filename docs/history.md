@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-26 | Overlap queries and casts that return every hit, J07: `Overlap`, `OverlapSphere`, `CastRayAll` and `CastShapeAll` ([neutral SDK](history/neutral-sdk.md#j07-queries)) |
 | 2026-11-26 | Steering among a structure, J08: courses round boxes, a covered berth flown to among a platform's decks and piers, and steering measured for 256 ships in one lane ([neutral SDK](history/neutral-sdk.md#j08-steering)) |
 | 2026-11-26 | Picking against the snapshots, J06: a click answered at once, paused or not, a hover outline every frame, and static bodies left out where a game asks ([neutral SDK](history/neutral-sdk.md#j06-picking)) |
 | 2026-11-26 | Scripts, J04: a handler reads the snapshot, a script answers a tree's task, a rebuilt module is loaded again, the fuel a call used is counted, and a script's reasons are its own; `wamrc` in the devenv, AOT dropped ([neutral SDK](history/neutral-sdk.md#j04-scripts)) |

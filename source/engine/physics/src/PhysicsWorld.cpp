@@ -8,10 +8,12 @@
 #include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
 
@@ -381,6 +383,55 @@ glm::dvec3 CastDirection(const glm::dvec3 &origin, const glm::dvec3 &direction, 
 		    maxDistance, length, origin.x, origin.y, origin.z)};
 	return direction / length;
 }
+
+
+// The hit of a ray on a body of a frame's world, as a cast reports it.
+CastHit RayHit(
+    const Detail::FrameWorld &world, const JPH::RRayCast &ray, const JPH::RayCastResult &hit,
+    const glm::dvec3 &frameOrigin, double maxDistance)
+{
+	const JPH::BodyLockRead lock{world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID};
+	JETTISON_VERIFY(lock.Succeeded());
+	const JPH::RVec3 point = ray.GetPointOnRay(hit.mFraction);
+	return {
+	    EntityOf(lock.GetBody()), static_cast<double>(hit.mFraction) * maxDistance,
+	    frameOrigin + Detail::ToGlm(point),
+	    Detail::ToGlmFloat(lock.GetBody().GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, point))};
+}
+
+
+// The hit of a swept shape, started at a point of a frame's world, on a body there.
+CastHit ShapeHit(
+    const Detail::FrameWorld &world, const JPH::ShapeCastResult &hit, const JPH::RVec3 &at,
+    const glm::dvec3 &frameOrigin, const glm::dvec3 &along, double maxDistance)
+{
+	const JPH::BodyLockRead lock{world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID2};
+	JETTISON_VERIFY(lock.Succeeded());
+
+	// Jolt's axis is the way the body hit would be pushed out of the shape: the surface faces
+	// back against it.
+	const JPH::Vec3 axis = hit.mPenetrationAxis;
+	const glm::vec3 normal =
+	    axis.LengthSq() > 0.0f ? Detail::ToGlmFloat(-axis.Normalized()) : glm::vec3{-along};
+	return {
+	    EntityOf(lock.GetBody()), static_cast<double>(hit.mFraction) * maxDistance,
+	    frameOrigin + Detail::ToGlm(at + hit.mContactPointOn2), normal};
+}
+
+
+// Each body once, at its nearest hit, nearest first and a tie by entity.
+void NearestPerBody(std::vector<CastHit> &hits)
+{
+	std::ranges::sort(
+	    hits, [](const CastHit &a, const CastHit &b)
+	    { return std::tie(a.entity, a.distance) < std::tie(b.entity, b.distance); });
+	const auto [tail, end] = std::ranges::unique(
+	    hits, [](const CastHit &a, const CastHit &b) { return a.entity == b.entity; });
+	hits.erase(tail, end);
+	std::ranges::sort(
+	    hits, [](const CastHit &a, const CastHit &b)
+	    { return std::tie(a.distance, a.entity) < std::tie(b.distance, b.entity); });
+}
 } // namespace
 
 struct PhysicsWorld::Impl
@@ -478,6 +529,39 @@ struct PhysicsWorld::Impl
 			visit(
 			    *found->second, options.framesAt ? Origin(found->first, *options.framesAt)
 			                                     : found->second->frameOrigin);
+	}
+
+
+	// The bodies the shape, placed at a point of the frame, overlaps across every local frame, in
+	// entity order and each once.
+	std::vector<entt::entity> Overlapping(
+	    std::uint64_t frame, const JPH::Shape &shape, const Sim::Transform &at,
+	    const CastOptions &options) const
+	{
+		const CastBodies filter{options};
+		std::vector<entt::entity> overlapped;
+		ForEachFrame(
+		    frame, options,
+		    [&](const Detail::FrameWorld &world, const glm::dvec3 &frameOrigin)
+		    {
+			    const JPH::RVec3 base = Detail::ToJolt(at.position - frameOrigin);
+			    JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+			    world.System().GetNarrowPhaseQueryNoLock().CollideShape(
+			        &shape, JPH::Vec3::sOne(),
+			        JPH::RMat44::sRotationTranslation(Detail::ToJolt(at.orientation).Normalized(), base)
+			            .PreTranslated(shape.GetCenterOfMass()),
+			        JPH::CollideShapeSettings{}, base, collector, {}, {}, filter);
+			    for (const JPH::CollideShapeResult &hit : collector.mHits)
+			    {
+				    const JPH::BodyLockRead lock{
+				        world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID2};
+				    JETTISON_VERIFY(lock.Succeeded());
+				    overlapped.push_back(EntityOf(lock.GetBody()));
+			    }
+		    });
+		std::ranges::sort(overlapped);
+		overlapped.erase(std::ranges::unique(overlapped).begin(), overlapped.end());
+		return overlapped;
 	}
 
 
@@ -842,17 +926,35 @@ std::optional<CastHit> PhysicsWorld::CastRay(
 		    JPH::RayCastResult hit;
 		    if (!world.System().GetNarrowPhaseQueryNoLock().CastRay(ray, hit, {}, {}, filter))
 			    return;
-		    const double distance = static_cast<double>(hit.mFraction) * maxDistance;
-		    if (nearest && nearest->distance <= distance)
+		    if (nearest && nearest->distance <= static_cast<double>(hit.mFraction) * maxDistance)
 			    return;
-		    const JPH::BodyLockRead lock{world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID};
-		    JETTISON_VERIFY(lock.Succeeded());
-		    const JPH::RVec3 point = ray.GetPointOnRay(hit.mFraction);
-		    nearest = CastHit{
-		        EntityOf(lock.GetBody()), distance, frameOrigin + Detail::ToGlm(point),
-		        Detail::ToGlmFloat(lock.GetBody().GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, point))};
+		    nearest = RayHit(world, ray, hit, frameOrigin, maxDistance);
 	    });
 	return nearest;
+}
+
+
+std::vector<CastHit> PhysicsWorld::CastRayAll(
+    std::uint64_t frame, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
+    const CastOptions &options) const
+{
+	const glm::dvec3 along = CastDirection(origin, direction, maxDistance);
+	const CastBodies filter{options};
+	std::vector<CastHit> hits;
+	m_pImpl->ForEachFrame(
+	    frame, options,
+	    [&](const Detail::FrameWorld &world, const glm::dvec3 &frameOrigin)
+	    {
+		    const JPH::RRayCast ray{
+		        Detail::ToJolt(origin - frameOrigin), Detail::ToJolt(glm::vec3{along * maxDistance})};
+		    JPH::AllHitCollisionCollector<JPH::CastRayCollector> collector;
+		    world.System().GetNarrowPhaseQueryNoLock().CastRay(
+		        ray, JPH::RayCastSettings{}, collector, {}, {}, filter);
+		    for (const JPH::RayCastResult &hit : collector.mHits)
+			    hits.push_back(RayHit(world, ray, hit, frameOrigin, maxDistance));
+	    });
+	NearestPerBody(hits);
+	return hits;
 }
 
 
@@ -886,22 +988,78 @@ std::optional<CastHit> PhysicsWorld::CastShape(
 		    if (!collector.HadHit())
 			    return;
 		    const JPH::ShapeCastResult &hit = collector.mHit;
-		    const double distance = static_cast<double>(hit.mFraction) * maxDistance;
-		    if (nearest && nearest->distance <= distance)
+		    if (nearest && nearest->distance <= static_cast<double>(hit.mFraction) * maxDistance)
 			    return;
-		    const JPH::BodyLockRead lock{world.System().GetBodyLockInterfaceNoLock(), hit.mBodyID2};
-		    JETTISON_VERIFY(lock.Succeeded());
-
-		    // Jolt's axis is the way the body hit would be pushed out of the shape: the surface faces
-		    // back against it.
-		    const JPH::Vec3 axis = hit.mPenetrationAxis;
-		    const glm::vec3 normal =
-		        axis.LengthSq() > 0.0f ? Detail::ToGlmFloat(-axis.Normalized()) : glm::vec3{-along};
-		    nearest = CastHit{
-		        EntityOf(lock.GetBody()), distance,
-		        frameOrigin + Detail::ToGlm(at + hit.mContactPointOn2), normal};
+		    nearest = ShapeHit(world, hit, at, frameOrigin, along, maxDistance);
 	    });
 	return nearest;
+}
+
+
+std::vector<CastHit> PhysicsWorld::CastShapeAll(
+    std::uint64_t frame, std::string_view shape, const Sim::Transform &start,
+    const glm::dvec3 &direction, double maxDistance, const CastOptions &options) const
+{
+	const glm::dvec3 along = CastDirection(start.position, direction, maxDistance);
+	const ShapeEntry *entry = m_pImpl->FindShape(shape);
+	if (!entry)
+		throw std::invalid_argument{std::format("Physics: shape '{}' is not defined", shape)};
+
+	// Jolt sweeps convex shapes alone.
+	if (entry->mesh)
+		throw std::invalid_argument{
+		    std::format("Physics: shape '{}' is a mesh, which has no inside to sweep", shape)};
+	const CastBodies filter{options};
+	std::vector<CastHit> hits;
+	m_pImpl->ForEachFrame(
+	    frame, options,
+	    [&](const Detail::FrameWorld &world, const glm::dvec3 &frameOrigin)
+	    {
+		    const JPH::RVec3 at = Detail::ToJolt(start.position - frameOrigin);
+		    const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
+		        entry->shape, JPH::Vec3::sOne(),
+		        JPH::RMat44::sRotationTranslation(Detail::ToJolt(start.orientation).Normalized(), at),
+		        Detail::ToJolt(glm::vec3{along * maxDistance}));
+		    JPH::AllHitCollisionCollector<JPH::CastShapeCollector> collector;
+		    world.System().GetNarrowPhaseQueryNoLock().CastShape(
+		        cast, JPH::ShapeCastSettings{}, at, collector, {}, {}, filter);
+		    for (const JPH::ShapeCastResult &hit : collector.mHits)
+			    hits.push_back(ShapeHit(world, hit, at, frameOrigin, along, maxDistance));
+	    });
+	NearestPerBody(hits);
+	return hits;
+}
+
+
+std::vector<entt::entity> PhysicsWorld::Overlap(
+    std::uint64_t frame, std::string_view shape, const Sim::Transform &at,
+    const CastOptions &options) const
+{
+	const ShapeEntry *entry = m_pImpl->FindShape(shape);
+	if (!entry)
+		throw std::invalid_argument{std::format("Physics: shape '{}' is not defined", shape)};
+
+	// Jolt collides convex shapes against others.
+	if (entry->mesh)
+		throw std::invalid_argument{
+		    std::format("Physics: shape '{}' is a mesh, which has no inside to overlap", shape)};
+	if (!Finite(at.position))
+		throw std::invalid_argument{std::format(
+		    "Physics: an overlap at ({}, {}, {}) is not a place", at.position.x, at.position.y,
+		    at.position.z)};
+	return m_pImpl->Overlapping(frame, *entry->shape, at, options);
+}
+
+
+std::vector<entt::entity> PhysicsWorld::OverlapSphere(
+    std::uint64_t frame, const glm::dvec3 &centre, double radius, const CastOptions &options) const
+{
+	if (!Finite(centre) || !std::isfinite(radius) || radius <= 0.0)
+		throw std::invalid_argument{std::format(
+		    "Physics: a sphere of radius {} at ({}, {}, {}) is not a shape to overlap", radius,
+		    centre.x, centre.y, centre.z)};
+	const JPH::Ref<JPH::SphereShape> sphere = new JPH::SphereShape(static_cast<float>(radius));
+	return m_pImpl->Overlapping(frame, *sphere, {centre, glm::dquat{1.0, 0.0, 0.0, 0.0}}, options);
 }
 
 

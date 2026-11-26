@@ -68,11 +68,11 @@ each is cheaper before a game builds a workaround.
 | Jolt's debug renderer drawn through debug draw | Seeing the shapes Jolt actually has. |
 | Jolt's job system on more than one thread | Once a profile asks for it. The result is deterministic either way. |
 | Capacities tuned against real traffic | The defaults are guesses. |
-| Overlap queries, and casts that return every hit | "Every body in this shape" and "everything along this ray", for triggers and AI. Steering did without. |
 
 **What exists.** Shapes are Box, Sphere, Capsule, Cylinder, ConvexHull and Mesh; a mesh is for
 static and kinematic bodies only (`source/engine/physics/include/jettison/physics/Shape.h`).
-`PhysicsWorld::CastRay` and `CastShape` return the first hit. Jolt runs on
+`PhysicsWorld::CastRay` and `CastShape` return the first hit, `CastRayAll` and `CastShapeAll` every
+body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs on
 `JPH::JobSystemSingleThreaded` (`physics/src/PhysicsWorld.cpp`). The capacities are `maxBodies`
 8192, `maxBodyPairs` 32768 and `maxContactConstraints` 16384 (`PhysicsWorld.h`).
 

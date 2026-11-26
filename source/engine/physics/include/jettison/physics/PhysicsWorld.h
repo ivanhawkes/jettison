@@ -322,6 +322,34 @@ class PhysicsWorld final : public Sim::WorldService
 	    std::uint64_t frame, std::string_view shape, const Sim::Transform &start,
 	    const glm::dvec3 &direction, double maxDistance, const CastOptions &options = {}) const;
 
+	// Every body a ray from the origin meets within the distance, across every local frame of the
+	// frame, each once at its nearest hit, nearest first and a tie by entity: the first is what
+	// CastRay returns. What AI and triggers ask for "everything along this ray". Throws
+	// std::invalid_argument as CastRay does.
+	std::vector<CastHit> CastRayAll(
+	    std::uint64_t frame, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
+	    const CastOptions &options = {}) const;
+
+	// Every body the shape meets swept as CastShape sweeps it, each once at its first contact,
+	// nearest first and a tie by entity. Throws std::invalid_argument as CastShape does.
+	std::vector<CastHit> CastShapeAll(
+	    std::uint64_t frame, std::string_view shape, const Sim::Transform &start,
+	    const glm::dvec3 &direction, double maxDistance, const CastOptions &options = {}) const;
+
+	// Every body the defined shape, placed there, overlaps, across every local frame of the frame,
+	// each once in entity order: what is in a trigger's volume. Throws std::invalid_argument for a
+	// shape that is not defined or is a mesh, which Jolt does not collide as the moving shape, and
+	// for a position that is not finite.
+	std::vector<entt::entity> Overlap(
+	    std::uint64_t frame, std::string_view shape, const Sim::Transform &at,
+	    const CastOptions &options = {}) const;
+
+	// The same for a sphere of the radius about the centre, with no shape defined for it. Throws
+	// std::invalid_argument for a radius that is not positive and finite, or a centre that is not.
+	std::vector<entt::entity> OverlapSphere(
+	    std::uint64_t frame, const glm::dvec3 &centre, double radius,
+	    const CastOptions &options = {}) const;
+
 	// Every frame's bodies, each with what it was made from and was last placed at, and Jolt's own
 	// state, under its version: positions, velocities, sleep, and the contacts each step starts
 	// from; and the contacts as the engine sees them, what touches and what the last step began and

@@ -187,6 +187,16 @@ normal) or nothing. `CastOptions` leaves out the caster's own body (`ignore`) an
 asked for, sensors. Casts read the world as the last step left it, and are for the simulation's
 systems to call. Steering sweeps a vehicle's shape with `CastShape` ([AI](ai.md)).
 
+Four queries return more than one body. `CastRayAll` and `CastShapeAll` return every body the cast
+meets within the distance, each once at its nearest hit, nearest first and a tie by entity, so the
+first is what `CastRay` or `CastShape` returns; they are for "everything along this ray". `Overlap`
+returns every body a defined shape, placed at a `Sim::Transform`, overlaps, and `OverlapSphere` the same
+for a sphere of a radius, with no shape defined; both answer in entity order, each body once, across
+every local frame, for a trigger's volume or what is near a point. `CastOptions` (`ignore`,
+`sensors`, `framesAt`) applies to all four. A mesh shape is refused as `CastShape` refuses it, Jolt
+colliding convex shapes against others, and a bad direction, distance, radius or place throws
+`std::invalid_argument`.
+
 Picking, what is under the mouse, cannot call `CastRay`, because presentation never reads the
 simulation's state. And presentation draws [behind the
 simulation](simulation.md#snapshots-and-the-stepper), while a fast local frame can move hundreds of
@@ -519,8 +529,7 @@ game whose `PickSpace` sets `statics` false picks and hovers only what moves.
 ## Limits and open work
 
 - Shape offsets and compound shapes, collision filtering beyond static against moving, Jolt's debug
-  renderer, Jolt's job system on more threads, tuned capacities, overlap queries and all-hit
-  casts: [J07](roadmap.md#j07).
+  renderer, Jolt's job system on more threads, tuned capacities: [J07](roadmap.md#j07).
 - A glTF model's triangles as a collision mesh (`Mesh` shapes exist; reading them from a model
   does not): [J12](roadmap.md#j12).
 
@@ -538,7 +547,7 @@ AVX2 flags stay inside it.
 
 | Header | Holds |
 | --- | --- |
-| `source/engine/physics/include/jettison/physics/PhysicsWorld.h` | `PhysicsWorld`, `PhysicsSettings`, `FrameModel`, contacts, casts, `Pick` and `Picked`, `JoltVersion` |
+| `source/engine/physics/include/jettison/physics/PhysicsWorld.h` | `PhysicsWorld`, `PhysicsSettings`, `FrameModel`, contacts, casts and overlaps, `Pick` and `Picked`, `JoltVersion` |
 | `source/engine/physics/include/jettison/physics/SnapshotPicker.h` | `SnapshotPicker`, `PickOptions`: picks against the snapshots |
 | `source/engine/physics/include/jettison/physics/Components.h` | `Body`, `BodyKind`, `Velocity`, `OnRails`, `LocalFrame`, `RegisterTypes` |
 | `source/engine/physics/include/jettison/physics/Shape.h` | `ShapeDefinition`, `ShapeKind` |
