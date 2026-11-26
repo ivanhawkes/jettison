@@ -276,8 +276,9 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   handlers run outside the step. Each script is held to 64 KiB and 256 keys, past which a store is
   refused, so no mod grows every save. [Scripts](scripts.md)
 - **A handler reads the snapshot, and its commands carry a sender the host gives** (2026-11-13; the
-  sender corrected 2026-11-25). A handler is to read the newest stepped snapshot through imports
-  generated from reflection, never the step's state; that is not built ([J04](roadmap.md#j04)).
+  sender corrected 2026-11-25). A handler reads the newest stepped snapshot, a component at a time
+  as it is granted (`read:<Component>`), through imports generated from reflection, never the
+  step's state, which a handler outside the step could see half way; an input reads nothing.
   Every `Sim::Controller` in a script's command, nested ones included, is replaced by the sender the
   game names for the event its handler runs for (`ScriptHost::SendCommandsTo`'s `Sender`, decided
   2026-11-26), and with none such a command is refused, so a script cannot command as a player, an

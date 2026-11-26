@@ -59,15 +59,11 @@ each is cheaper before a game builds a workaround.
 
 **What remains.**
 
-- Reading the world. Decided 2026-11-13: a handler reads the newest stepped
-  [snapshot](glossary.md#snapshot), by component, as its [grants](glossary.md#grant) allow, and acts
-  as its player. An input to a consideration reads only its inputs.
 - A script called from a behaviour tree's task, as an input is called from a consideration.
 - A script reloaded when its module changes.
 
-**Why.** A script sees the world only through the events it is given and an option's inputs: enough
-for a handler that reacts, not for one that looks around. Reload is what a modder needs to write
-scripts quickly.
+**Why.** A tree's task is where an NPC's script would act, and reload is what a modder needs to
+write scripts quickly.
 
 **What exists.** WAMR's interpreter, bounded by fuel and by a wall-time
 [watchdog](glossary.md#watchdog) (`script/ScriptHost.h`). A script is granted `log`, `store` and one

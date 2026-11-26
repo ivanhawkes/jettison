@@ -59,6 +59,17 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     core::arch::wasm32::unreachable()
 }
 
+/// Test.Hold
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Test_Hold {
+    pub cargo: i64,
+    pub owner: jettison_string,
+}
+const _: () = assert!(size_of::<Test_Hold>() == 16);
+const _: () = assert!(offset_of!(Test_Hold, cargo) == 0);
+const _: () = assert!(offset_of!(Test_Hold, owner) == 8);
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct jettison_array_int32_t {
@@ -266,6 +277,10 @@ unsafe extern "C" {
     /// next step and recorded with the player's.
     #[link_name = "send:Test.Pong"]
     pub fn jettison_send_Test_Pong(command: *const Test_Pong);
+    /// Granted by "read:Test.Hold", for a handler: the entity's Test_Hold in the newest snapshot, or
+    /// null for one that has none there. It is the handler's until it returns.
+    #[link_name = "read:Test.Hold"]
+    pub fn jettison_read_Test_Hold(entity: jettison_entity) -> *const Test_Hold;
 }
 
 pub fn log(severity: i32, text: &str) {
@@ -290,4 +305,9 @@ pub fn load(key: &str, buffer: &mut [u8]) -> Option<usize> {
 
 pub fn send_Test_Pong(command: &Test_Pong) {
     unsafe { jettison_send_Test_Pong(command) }
+}
+
+/// The entity's Test_Hold in the newest snapshot, which the handler may hold until it returns.
+pub fn read_Test_Hold(entity: jettison_entity) -> Option<&'static Test_Hold> {
+    unsafe { jettison_read_Test_Hold(entity).as_ref() }
 }

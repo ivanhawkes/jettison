@@ -30,7 +30,7 @@ if(TARGET jettison_script_tests)
 	# Rust, as scripts are written for the shell, and the host API's module in C as well, the same
 	# calls made from each: <module> <source>.
 	set(modules limits limits.rs rogue rogue.rs events events.c events_rs events.rs keys keys.c keys_rs
-		keys.rs)
+		keys.rs reads reads.c reads_rs reads.rs)
 	while(modules)
 		list(POP_FRONT modules name source)
 		jettison_add_script(jettison_script_test_${name} ALL

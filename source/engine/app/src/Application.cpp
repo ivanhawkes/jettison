@@ -894,6 +894,9 @@ void Application::InitResources()
 	Script::LoadDefinitions(*m_definitions);
 	m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
 	m_pScripts->SendCommandsTo(m_sim);
+
+	// The stepper's current snapshot is the one after the step whose events the scripts are given.
+	m_pScripts->ReadFrom(m_simStepper.Current());
 	m_pScripts->LoadAll(*m_definitions);
 	m_pGame->Define(MakeShellWorld(), *m_definitions);
 	m_sceneUpdateSystem.emplace(m_pResources.get());

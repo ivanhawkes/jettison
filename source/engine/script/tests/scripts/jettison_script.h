@@ -62,6 +62,16 @@ void jettison_store(const char *key, uint32_t key_size, const void *data, uint32
 JETTISON_IMPORT("load")
 int32_t jettison_load(const char *key, uint32_t key_size, void *buffer, uint32_t capacity);
 
+/* Test.Hold */
+typedef struct Test_Hold
+{
+	int64_t cargo;
+	jettison_string owner;
+} Test_Hold;
+_Static_assert(sizeof(Test_Hold) == 16, "Test.Hold is laid out as the host lays it out");
+_Static_assert(offsetof(Test_Hold, cargo) == 0, "Test.Hold.cargo");
+_Static_assert(offsetof(Test_Hold, owner) == 8, "Test.Hold.owner");
+
 typedef struct jettison_array_int32_t
 {
 	const int32_t *data;
@@ -207,4 +217,8 @@ _Static_assert(offsetof(Test_Pong, why) == 60, "Test.Pong.why");
 /* Granted by "send:Test.Pong": the command, into the game's queue, applied at the start of the next
  * step and recorded with the player's. */
 JETTISON_IMPORT("send:Test.Pong") void jettison_send_Test_Pong(const Test_Pong *command);
+
+/* Granted by "read:Test.Hold", for a handler: the entity's Test_Hold in the newest snapshot, or null
+ * for one that has none there. It is the handler's until it returns. */
+JETTISON_IMPORT("read:Test.Hold") const Test_Hold *jettison_read_Test_Hold(jettison_entity entity);
 

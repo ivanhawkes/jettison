@@ -144,18 +144,19 @@ class Bindings
 };
 
 // The C header a script author compiles against: the host's imports, every type given (and every
-// type their fields hold), in name order, each with its size and offsets asserted, and an import
-// to send each command given. Commands are among the types; each is declared once. Generated, so
-// the same tables give the same text.
+// type their fields hold), in name order, each with its size and offsets asserted, an import to send
+// each command given, and one to read each component given from the newest snapshot. Commands and
+// components are among the types; each is declared once. Generated, so the same tables give the
+// same text.
 std::string Header(
     Bindings &bindings, std::span<const entt::meta_type> types,
-    std::span<const entt::meta_type> commands);
+    std::span<const entt::meta_type> commands, std::span<const entt::meta_type> reads = {});
 
 // The same, as a Rust module (jettison_script.rs) for a script written in Rust: the same names, the
 // same layouts asserted, the imports in an extern block, and a safe function over each.
 std::string RustModule(
     Bindings &bindings, std::span<const entt::meta_type> types,
-    std::span<const entt::meta_type> commands);
+    std::span<const entt::meta_type> commands, std::span<const entt::meta_type> reads = {});
 
 // The object a meta_any holds: what the layouts read and write through. The mutable one is for an
 // any that owns its object or refers to it mutably, as a value the host constructs does.
@@ -172,4 +173,8 @@ inline void *ObjectOf(entt::meta_any &value)
 // The import a script sends a command of the type with, which is also the capability that grants
 // it: "send:Dock.RequestBerth".
 std::string SendImport(const entt::meta_type &command);
+
+// The import a script reads an entity's copy of a component with, and the capability that grants
+// it: "read:Dock.Platform".
+std::string ReadImport(const entt::meta_type &component);
 } // namespace Jettison::Script

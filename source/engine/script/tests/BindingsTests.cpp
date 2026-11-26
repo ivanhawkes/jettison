@@ -157,15 +157,21 @@ TEST_CASE(
 	Script::Bindings bindings;
 	const std::array types{entt::resolve<Ping>()};
 	const std::array commands{entt::resolve<Pong>()};
-	const std::string header = Script::Header(bindings, types, commands);
+	const std::array reads{entt::resolve<ScriptTest::Hold>()};
+	const std::string header = Script::Header(bindings, types, commands, reads);
 	CHECK(
 	    header.find(
 	        "JETTISON_IMPORT(\"send:Test.Pong\") void jettison_send_Test_Pong(const Test_Pong "
 	        "*command);") != std::string::npos);
+	CHECK(
+	    header.find(
+	        "JETTISON_IMPORT(\"read:Test.Hold\") const Test_Hold "
+	        "*jettison_read_Test_Hold(jettison_entity "
+	        "entity);") != std::string::npos);
 	CHECK(header.find("#define Test_Mood_Cross ((Test_Mood)1u)") != std::string::npos);
 	CHECK(header.find("hidden (") != std::string::npos);
 
-	const std::string module = Script::RustModule(bindings, types, commands);
+	const std::string module = Script::RustModule(bindings, types, commands, reads);
 	CHECK(
 	    module.find(
 	        "#[link_name = \"send:Test.Pong\"]\n    pub fn jettison_send_Test_Pong(command: *const "

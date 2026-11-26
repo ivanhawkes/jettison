@@ -53,6 +53,13 @@ struct Ping
 	bool flag{false};
 };
 
+// A component the world shows in its snapshots, which a handler granted it reads.
+struct Hold
+{
+	std::int64_t cargo{0};
+	std::string owner;
+};
+
 struct Pong
 {
 	entt::entity ship{entt::null};
@@ -88,6 +95,9 @@ inline void RegisterTypes()
 		    .Field<&Ping::where>("where")
 		    .Field<&Ping::hidden>("hidden")
 		    .Field<&Ping::flag>("flag");
+		RegisterType<Hold>("Test.Hold", Attribute::Script)
+		    .Field<&Hold::cargo>("cargo", Attribute::Saved)
+		    .Field<&Hold::owner>("owner", Attribute::Saved);
 		RegisterType<Pong>("Test.Pong", Attribute::Script)
 		    .Field<&Pong::ship>("ship", Attribute::Saved)
 		    .Field<&Pong::total>("total", Attribute::Saved)

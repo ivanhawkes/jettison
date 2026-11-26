@@ -29,6 +29,7 @@ namespace Jettison::Sim
 class DefinitionRegistry;
 class SimWorld;
 struct SimEvent;
+struct Snapshot;
 } // namespace Jettison::Sim
 
 namespace Jettison::Script
@@ -156,6 +157,14 @@ class ScriptHost
 	// The same, every call's sender the one given, or none.
 	void SendCommandsTo(Sim::SimWorld &world, std::optional<Sim::Controller> sender = std::nullopt);
 
+	// What a handler reads the world through: the newest stepped snapshot, never the step's state
+	// (docs/decisions.md, "Scripts"). A script granted "read:<Component>", for a component Reflect
+	// marks Script and the world given to SendCommandsTo shows in its snapshots, reads an entity's
+	// copy of it here, as the snapshot is when the read is made, so a stepper's current snapshot is
+	// given once; it outlives the host or is given again. Without one a read finds nothing. An input
+	// may not read: its answer is the option's inputs' alone.
+	void ReadFrom(const Sim::Snapshot &snapshot);
+
 	// Loads a script under its name: its definition checked against the host's limits, its module
 	// read and parsed, every import checked against what it is granted, every handler's and input's
 	// export against its signature, and an instance made. Throws ScriptError naming the script and
@@ -206,8 +215,8 @@ class ScriptHost
 	std::size_t LoadedModules() const;
 
 	// The bindings for script authors over every class Reflect marks Script, with a send import for
-	// each that the world applies: the C header (Script::Header) and the Rust module
-	// (Script::RustModule).
+	// each that the world applies and a read import for each it shows: the C header (Script::Header)
+	// and the Rust module (Script::RustModule).
 	std::string WriteHeader();
 
 	std::string WriteRustModule();
@@ -218,13 +227,16 @@ class ScriptHost
 	struct Script;
 
   private:
-	// The types among these the world applies as commands.
+	// The types among these the world applies as commands, and those it shows in its snapshots.
 	std::vector<entt::meta_type> Commands(std::span<const entt::meta_type> types) const;
+
+	std::vector<entt::meta_type> Reads(std::span<const entt::meta_type> types) const;
 
 	const Vfs::FileSystem &m_fileSystem;
 	HostLimits m_limits;
 	Sim::SimWorld *m_pWorld{nullptr};
 	Sender m_sender;
+	const Sim::Snapshot *m_pSnapshot{nullptr};
 
 	// The sender the call running now sends as.
 	std::optional<Sim::Controller> m_calling;

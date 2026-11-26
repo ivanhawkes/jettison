@@ -81,11 +81,26 @@ void SimWorld::AddComponent(const entt::meta_type &type, Component component)
 }
 
 
-void SimWorld::AddShown(entt::id_type type, ShownCapture capture)
+void SimWorld::AddShown(ShownComponent shown)
 {
-	if (std::ranges::any_of(m_shown, [type](const auto &shown) { return shown.first == type; }))
+	if (Shows(shown.type))
 		throw std::logic_error("SimWorld: a component is shown in snapshots twice");
-	m_shown.emplace_back(type, std::move(capture));
+	m_shown.push_back(std::move(shown));
+}
+
+
+bool SimWorld::Shows(entt::id_type type) const
+{
+	return std::ranges::any_of(
+	    m_shown, [type](const ShownComponent &shown) { return shown.type == type; });
+}
+
+
+const void *SimWorld::FindShown(const Snapshot &snapshot, entt::id_type type, entt::entity entity) const
+{
+	const auto found = std::ranges::find_if(
+	    m_shown, [type](const ShownComponent &shown) { return shown.type == type; });
+	return found != m_shown.end() ? found->find(snapshot, entity) : nullptr;
 }
 
 

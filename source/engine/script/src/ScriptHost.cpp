@@ -171,6 +171,9 @@ double InputNative(wasm_exec_env_t environment, const char *pName, std::uint32_t
 void SendNative(wasm_exec_env_t environment, std::uint32_t offset);
 
 
+std::uint32_t ReadNative(wasm_exec_env_t environment, std::uint32_t entity);
+
+
 void StoreNative(
     wasm_exec_env_t environment, const char *pKey, std::uint32_t keySize, const std::byte *pData,
     std::uint32_t size);
@@ -220,33 +223,47 @@ class Runtime
 		wasm_runtime_destroy();
 
 		// WAMR's lists of natives went with it; the next start registers its own.
-		m_sends.clear();
+		m_typed.clear();
 	}
 
 
 	// The send native for a command type, registered the first time it is asked for.
 	void EnsureSend(const entt::meta_type &type)
 	{
-		const entt::id_type id = type.info().hash();
-		if (m_sends.contains(id))
-			return;
-		auto pSend = std::make_unique<Send>();
-		pSend->type = type;
-		pSend->name = SendImport(type);
-		pSend->symbol = NativeSymbol{
-		    pSend->name.c_str(), reinterpret_cast<void *>(&SendNative), "(i)", &pSend->type};
-		if (!wasm_runtime_register_natives(kHostModule, &pSend->symbol, 1))
-			throw std::runtime_error{std::format("Script: '{}' could not be registered", pSend->name)};
-		m_sends.emplace(id, std::move(pSend));
+		EnsureTyped(SendImport(type), type, reinterpret_cast<void *>(&SendNative), "(i)");
+	}
+
+
+	// The read native for a component, likewise: an entity in, the copy's offset out.
+	void EnsureRead(const entt::meta_type &type)
+	{
+		EnsureTyped(ReadImport(type), type, reinterpret_cast<void *>(&ReadNative), "(i)i");
 	}
 
   private:
-	struct Send
+	// A native for one type, which it is given as its attachment.
+	struct Typed
 	{
 		entt::meta_type type;
 		std::string name;
 		NativeSymbol symbol{};
 	};
+
+
+	void EnsureTyped(
+	    std::string name, const entt::meta_type &type, void *pFunction, const char *pSignature)
+	{
+		if (m_typed.contains(name))
+			return;
+		auto pTyped = std::make_unique<Typed>();
+		pTyped->type = type;
+		pTyped->name = std::move(name);
+		pTyped->symbol = NativeSymbol{pTyped->name.c_str(), pFunction, pSignature, &pTyped->type};
+		if (!wasm_runtime_register_natives(kHostModule, &pTyped->symbol, 1))
+			throw std::runtime_error{std::format("Script: '{}' could not be registered", pTyped->name)};
+		const std::string_view key = pTyped->name;
+		m_typed.emplace(key, std::move(pTyped));
+	}
 
 
 	Runtime()
@@ -263,7 +280,7 @@ class Runtime
 
 	// WAMR keeps these pointers: the arrays live as long as the process.
 	std::array<NativeSymbol, 4> m_fixed;
-	std::map<entt::id_type, std::unique_ptr<Send>> m_sends;
+	std::map<std::string_view, std::unique_ptr<Typed>, std::less<>> m_typed;
 };
 
 // Stops a call past its time limit. It looks every few milliseconds rather than being woken for
@@ -438,6 +455,11 @@ struct ScriptHost::Impl
 	void Send(const entt::meta_type &type, std::uint32_t offset, wasm_exec_env_t environment);
 
 
+	// The entity's copy of a component in the snapshot the host reads, written into the calling
+	// script's heap as the component's layout says: its offset there, or 0 for an entity with none.
+	std::uint32_t Read(const entt::meta_type &type, entt::entity entity, wasm_exec_env_t environment);
+
+
 	~Impl()
 	{
 		answers.clear();
@@ -480,6 +502,9 @@ struct ScriptHost::Script
 
 	// While it answers an input: the game's inputs for the option, which its input import reads.
 	const Inputs *pGame{nullptr};
+
+	// What its reads copied into its heap during the call, freed as the call ends.
+	std::vector<std::uint64_t> reads;
 
 	// What a host function refused, in full; WAMR keeps 128 bytes of a trap's message.
 	std::string refusal;
@@ -674,6 +699,33 @@ void SendNative(wasm_exec_env_t environment, std::uint32_t offset)
 		Refuse(environment, *pScript, error.what());
 	}
 }
+
+
+std::uint32_t ReadNative(wasm_exec_env_t environment, std::uint32_t entity)
+{
+	HostScript *pScript = CallingScript(environment);
+	if (pScript == nullptr)
+		return 0;
+	const auto *pType =
+	    static_cast<const entt::meta_type *>(wasm_runtime_get_function_attachment(environment));
+
+	// An input's answer depends on the option's inputs alone, never on what the world shows.
+	if (pScript->pGame != nullptr)
+	{
+		Refuse(
+		    environment, *pScript, std::format("read a '{}' while answering an input", pType->name()));
+		return 0;
+	}
+	try
+	{
+		return pScript->pHost->Read(*pType, entt::entity{entity}, environment);
+	}
+	catch (const std::exception &error)
+	{
+		Refuse(environment, *pScript, error.what());
+		return 0;
+	}
+}
 } // namespace
 
 
@@ -742,6 +794,9 @@ bool Run(
 	    wasm_runtime_call_wasm(instance.environment, pFunction, argumentCells, cells.data());
 	const bool stopped = watchdog.Disarm();
 	++script.status.calls;
+	for (const std::uint64_t read : script.reads)
+		wasm_runtime_module_free(instance.instance, read);
+	script.reads.clear();
 	const int left = wasm_runtime_get_instruction_count_left(instance.environment);
 	script.status.lastFuel = fuel - static_cast<std::uint32_t>(std::max(left, 0));
 	script.status.mostFuel = std::max(script.status.mostFuel, script.status.lastFuel);
@@ -813,10 +868,26 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 			allowed.emplace(kLoadImport);
 			continue;
 		}
+		constexpr std::string_view kRead = "read:";
+		if (capability.starts_with(kRead))
+		{
+			const entt::meta_type type =
+			    Reflect::Resolve(std::string_view{capability}.substr(kRead.size()));
+			if (!type || !Reflect::HasAll(Reflect::AttributesOf(type), Reflect::Attribute::Script))
+				throw fail(std::format("'{}' grants a type scripts do not see", capability));
+			if (m_pWorld == nullptr || !m_pWorld->Shows(type.info().hash()))
+				throw fail(std::format("'{}' grants a component the world does not show", capability));
+			m_bindings.Layout(type);
+			Runtime::Get().EnsureRead(type);
+			allowed.insert(capability);
+			continue;
+		}
 		constexpr std::string_view kSend = "send:";
 		if (!capability.starts_with(kSend))
 			throw fail(
-			    std::format("'{}' is not a capability: log, store, or send:<command>", capability));
+			    std::format(
+			        "'{}' is not a capability: log, store, send:<command> or read:<component>",
+			        capability));
 		const entt::meta_type type =
 		    Reflect::Resolve(std::string_view{capability}.substr(kSend.size()));
 		if (!type || !Reflect::HasAll(Reflect::AttributesOf(type), Reflect::Attribute::Script))
@@ -1169,6 +1240,34 @@ void ScriptHost::Impl::Send(
 }
 
 
+std::uint32_t ScriptHost::Impl::Read(
+    const entt::meta_type &type, entt::entity entity, wasm_exec_env_t environment)
+{
+	if (host.m_pSnapshot == nullptr || host.m_pWorld == nullptr)
+		return 0;
+	const void *pComponent = host.m_pWorld->FindShown(*host.m_pSnapshot, type.info().hash(), entity);
+	if (pComponent == nullptr)
+		return 0;
+	HostScript &script = *CallingScript(environment);
+	wasm_module_inst_t instance = wasm_runtime_get_module_inst(environment);
+	const TypeLayout &layout = host.m_bindings.Layout(type);
+	const std::uint32_t size = host.m_bindings.SizeOf(layout, pComponent);
+	void *pNative = nullptr;
+	const std::uint64_t offset = wasm_runtime_module_malloc(instance, size, &pNative);
+	if (offset == 0)
+		throw BindingError{
+		    std::format("Script: no room in its heap for a '{}' of {} bytes", type.name(), size)};
+	script.reads.push_back(offset);
+	wasm_memory_inst_t memory = wasm_runtime_get_default_memory(instance);
+	const std::span<std::byte> bytes{
+	    static_cast<std::byte *>(wasm_memory_get_base_address(memory)),
+	    static_cast<std::size_t>(
+	        wasm_memory_get_cur_page_count(memory) * wasm_memory_get_bytes_per_page(memory))};
+	host.m_bindings.Write(layout, pComponent, bytes, static_cast<std::uint32_t>(offset));
+	return static_cast<std::uint32_t>(offset);
+}
+
+
 std::vector<ScriptStatus> ScriptHost::Scripts() const
 {
 	std::vector<ScriptStatus> statuses;
@@ -1288,14 +1387,20 @@ std::vector<entt::meta_type> ScriptHost::ScriptTypes()
 std::string ScriptHost::WriteHeader()
 {
 	const std::vector<entt::meta_type> types = ScriptTypes();
-	return Header(m_bindings, types, Commands(types));
+	return Header(m_bindings, types, Commands(types), Reads(types));
 }
 
 
 std::string ScriptHost::WriteRustModule()
 {
 	const std::vector<entt::meta_type> types = ScriptTypes();
-	return RustModule(m_bindings, types, Commands(types));
+	return RustModule(m_bindings, types, Commands(types), Reads(types));
+}
+
+
+void ScriptHost::ReadFrom(const Sim::Snapshot &snapshot)
+{
+	m_pSnapshot = &snapshot;
 }
 
 
@@ -1306,5 +1411,15 @@ std::vector<entt::meta_type> ScriptHost::Commands(std::span<const entt::meta_typ
 		if (m_pWorld != nullptr && m_pWorld->Accepts(type))
 			commands.push_back(type);
 	return commands;
+}
+
+
+std::vector<entt::meta_type> ScriptHost::Reads(std::span<const entt::meta_type> types) const
+{
+	std::vector<entt::meta_type> reads;
+	for (const entt::meta_type &type : types)
+		if (m_pWorld != nullptr && m_pWorld->Shows(type.info().hash()))
+			reads.push_back(type);
+	return reads;
 }
 } // namespace Jettison::Script

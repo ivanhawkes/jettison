@@ -76,10 +76,24 @@ the definition:
 | `log` | `log` | A line in the game's log, under the script's name |
 | `store` | `store`, `load` | Keep bytes under a key, and read them back (below) |
 | `send:<Command>` | `send:<Command>` | Put a command of that registered type into the world's queue |
+| `read:<Component>` | `read:<Component>` | Read an entity's copy of a component from the newest snapshot (below) |
 | (answering inputs) | `input` | Ask the game for one of the option's other inputs |
 
 The `input` import is allowed when the definition lists inputs. A module that imports anything
 not granted, from any module, is refused as it loads, naming the import.
+
+### Reading the world
+
+A handler reads the world through the newest stepped [snapshot](glossary.md#snapshot), never the
+step's state ([why](decisions.md#scripts)). A script granted `read:<Component>` imports
+`jettison_read_<Component>` (`read_<Component>` in Rust), which takes an entity and returns its
+copy of the component as the snapshot has it, or null for an entity with none there. The component
+is one Reflect marks `Script` and the world shows in its snapshots
+(`Sim::SimWorld::ShowInSnapshots`), or the grant does not load. The game gives the host the
+snapshot once, `ScriptHost::ReadFrom`, as the shell gives its stepper's current one, the one after
+the step whose events it dispatches. A read is laid out as an event is, in the host's heap in the
+script's memory, and is the handler's until it returns; the host frees it then. An input may not
+read: its answer is the option's inputs' alone, so a read while answering one traps.
 
 WAMR is built without its libc (`printf`, `malloc` and the rest) and without WASI, so a script
 has no files, clock or environment beyond what is granted. It is built with bulk memory and
@@ -419,8 +433,6 @@ Write the bindings from the build a mod targets, and build the mod's scripts aga
 
 ## Limits and open work
 
-- A script reading the world (decided: the newest snapshot, by component, as granted):
-  [J04](roadmap.md#j04).
 - A script called from a behaviour tree's task: [J04](roadmap.md#j04).
 - A script reloaded when its module changes: [J04](roadmap.md#j04).
 - Scripts are not compiled ahead of time, and only a profile that finds them dear brings that

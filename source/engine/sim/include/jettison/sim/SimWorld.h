@@ -227,26 +227,44 @@ class SimWorld
 	template <typename T> void ShowInSnapshots()
 	{
 		AddShown(
-		    entt::type_hash<T>::value(),
-		    [](const entt::registry &registry, std::any &samples)
-		    {
-			    std::vector<ComponentSample<T>> copied;
-			    for (const auto [entity, value] : registry.view<const T>().each())
-				    copied.push_back({entity, value});
-			    std::ranges::sort(
-			        copied, {},
-			        [](const ComponentSample<T> &sample) { return entt::to_integral(sample.entity); });
-			    samples = std::move(copied);
-		    });
+		    {entt::type_hash<T>::value(),
+		     [](const entt::registry &registry, std::any &samples)
+		     {
+			     std::vector<ComponentSample<T>> copied;
+			     for (const auto [entity, value] : registry.view<const T>().each())
+				     copied.push_back({entity, value});
+			     std::ranges::sort(
+			         copied, {},
+			         [](const ComponentSample<T> &sample) { return entt::to_integral(sample.entity); });
+			     samples = std::move(copied);
+		     },
+		     [](const Snapshot &snapshot, entt::entity entity) -> const void *
+		     { return snapshot.Get<T>(entity); }});
 	}
 
-	// What the snapshots copy, by EnTT's type hash: Capture runs each.
+	// A component the snapshots copy, by EnTT's type hash: how Capture copies it, and how one
+	// entity's copy is found in a snapshot without its type, as a script's read finds it
+	// (Script::ScriptHost).
 	using ShownCapture = std::function<void(const entt::registry &, std::any &)>;
+	using ShownFind = const void *(*)(const Snapshot &snapshot, entt::entity entity);
 
-	const std::vector<std::pair<entt::id_type, ShownCapture>> &Shown() const
+	struct ShownComponent
+	{
+		entt::id_type type{0};
+		ShownCapture capture;
+		ShownFind find{nullptr};
+	};
+
+	const std::vector<ShownComponent> &Shown() const
 	{
 		return m_shown;
 	}
+
+	bool Shows(entt::id_type type) const;
+
+	// The entity's copy, in the snapshot, of the shown component of that type hash; null for an
+	// entity that has none there, or a type the world does not show.
+	const void *FindShown(const Snapshot &snapshot, entt::id_type type, entt::entity entity) const;
 
 	// A system for the simulation phase; throws std::logic_error for one in another phase, and
 	// as Ecs::Scheduler::Register does. One without a quiet (one with no next) has to run in every
@@ -389,7 +407,7 @@ class SimWorld
 
 	void AddComponent(const entt::meta_type &type, Component component);
 
-	void AddShown(entt::id_type type, ShownCapture capture);
+	void AddShown(ShownComponent shown);
 
 	void AddCommand(const entt::meta_type &type, Applier apply);
 
@@ -410,7 +428,7 @@ class SimWorld
 	std::unordered_map<entt::id_type, Applier> m_applies;
 
 	// In the order they were shown; each fills its own entry of a snapshot.
-	std::vector<std::pair<entt::id_type, ShownCapture>> m_shown;
+	std::vector<ShownComponent> m_shown;
 
 	// By system name; looked up, never iterated.
 	std::unordered_map<std::string, Quiet> m_quiets;

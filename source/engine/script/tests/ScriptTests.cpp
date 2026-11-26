@@ -118,6 +118,7 @@ struct World
 		ScriptTest::RegisterTypes();
 		world.RegisterCommand<Pong>([this](Sim::SimWorld &, const Pong &pong)
 		                            { applied.push_back(pong); });
+		world.ShowInSnapshots<ScriptTest::Hold>();
 	}
 };
 
@@ -357,10 +358,18 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 	definition.capabilities.emplace_back("fly");
 	CHECK(
 	    refused(definition) ==
-	    "Script 'events': 'fly' is not a capability: log, store, or send:<command>");
+	    "Script 'events': 'fly' is not a capability: log, store, send:<command> or read:<component>");
 	definition = Events();
 	definition.capabilities.emplace_back("send:Test.Ping");
 	CHECK(refused(definition) == "Script 'events': 'send:Test.Ping' grants a command nothing applies");
+	definition = Events();
+	definition.capabilities.emplace_back("read:Test.Pong");
+	CHECK(
+	    refused(definition) ==
+	    "Script 'events': 'read:Test.Pong' grants a component the world does not show");
+	definition = Events();
+	definition.capabilities.emplace_back("read:Test.Inner");
+	CHECK(refused(definition) == "Script 'events': 'read:Test.Inner' grants a type scripts do not see");
 	definition = Events();
 	definition.events.push_back({"Test.Inner", "on_ping"});
 	CHECK(
@@ -464,6 +473,63 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 		// Applied as the step starts, as a player's are.
 		world.world.Step();
 		CHECK(world.applied.size() == 2);
+	}
+}
+
+
+// The suite's module for reading the world, in C and in Rust.
+constexpr std::array<const char *, 2> kReadModules{"reads.wasm", "reads_rs.wasm"};
+
+
+TEST_CASE("Script: a handler reads an entity's component as the newest snapshot has it, as granted")
+{
+	for (const char *module : kReadModules)
+	{
+		CAPTURE(module);
+		World world;
+		entt::registry &registry = world.world.Registry();
+		const entt::entity ship = registry.create();
+		registry.emplace<ScriptTest::Hold>(ship, 40, "Ostra");
+		Sim::Snapshot snapshot = Sim::Capture(world.world);
+
+		const Vfs::FileSystem files = Modules();
+		Script::ScriptHost host{files};
+		host.SendCommandsTo(world.world, kScripts);
+		host.ReadFrom(snapshot);
+		Script::ScriptDefinition definition;
+		definition.module = module;
+		definition.capabilities = {"send:Test.Pong", "read:Test.Hold"};
+		definition.events = {{"Test.Ping", "on_look"}};
+		definition.inputs = {{"reads", "reads"}};
+		host.Load("reads", definition);
+
+		Ping ping;
+		ping.ship = ship;
+		host.Dispatch(Sim::SimEvent{1, entt::meta_any{ping}});
+
+		// The snapshot, never the world: what the world changes after it is read at the next.
+		registry.get<ScriptTest::Hold>(ship).cargo = 41;
+		host.Dispatch(Sim::SimEvent{2, entt::meta_any{ping}});
+		snapshot = Sim::Capture(world.world);
+		host.Dispatch(Sim::SimEvent{3, entt::meta_any{ping}});
+
+		// A ship with no hold reads as none.
+		ping.ship = registry.create();
+		host.Dispatch(Sim::SimEvent{4, entt::meta_any{ping}});
+
+		const std::vector<Pong> sent = Queued(world.world);
+		REQUIRE(sent.size() == 4);
+		CHECK(sent[0].total == 40);
+		CHECK(sent[0].text == "Ostra");
+		CHECK(sent[1].total == 40);
+		CHECK(sent[2].total == 41);
+		CHECK(sent[3].total == -1);
+		CHECK(Traps(host, "reads") == 0);
+
+		// An input's answer is the option's inputs' alone, so it may not read.
+		const Said said;
+		CHECK(host.Input("reads", [](std::string_view) { return 0.0; }) == 0.0);
+		CHECK(said.Contains("reads trapped: read a 'Test.Hold' while answering an input"));
 	}
 }
 

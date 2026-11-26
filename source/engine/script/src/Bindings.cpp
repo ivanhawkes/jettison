@@ -569,6 +569,12 @@ std::string SendImport(const entt::meta_type &command)
 	return std::format("send:{}", command.name());
 }
 
+
+std::string ReadImport(const entt::meta_type &component)
+{
+	return std::format("read:{}", component.name());
+}
+
 namespace
 {
 // Declares what a header needs before a type: the structs its fields hold and the arrays of them,
@@ -732,11 +738,14 @@ std::vector<const TypeLayout *> Sorted(Bindings &bindings, std::span<const entt:
 }
 
 
-std::vector<entt::meta_type> Both(
-    std::span<const entt::meta_type> types, std::span<const entt::meta_type> commands)
+// The types, the commands and the components read, together: what the bindings declare.
+std::vector<entt::meta_type> All(
+    std::span<const entt::meta_type> types, std::span<const entt::meta_type> commands,
+    std::span<const entt::meta_type> reads)
 {
 	std::vector<entt::meta_type> all{types.begin(), types.end()};
 	all.insert(all.end(), commands.begin(), commands.end());
+	all.insert(all.end(), reads.begin(), reads.end());
 	return all;
 }
 
@@ -922,10 +931,10 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 
 std::string Header(
     Bindings &bindings, std::span<const entt::meta_type> types,
-    std::span<const entt::meta_type> commands)
+    std::span<const entt::meta_type> commands, std::span<const entt::meta_type> reads)
 {
 	HeaderWriter writer;
-	for (const TypeLayout *pLayout : Sorted(bindings, Both(types, commands)))
+	for (const TypeLayout *pLayout : Sorted(bindings, All(types, commands, reads)))
 		writer.Type(*pLayout);
 
 	std::string text{kPreamble};
@@ -937,18 +946,25 @@ std::string Header(
 		    " * step and recorded with the player's. */\n"
 		    "JETTISON_IMPORT(\"{0}\") void jettison_send_{1}(const {1} *command);\n\n",
 		    SendImport(pLayout->type), pLayout->cName);
+	for (const TypeLayout *pLayout : Sorted(bindings, reads))
+		text += std::format(
+		    "/* Granted by \"{0}\", for a handler: the entity's {1} in the newest snapshot, or null\n"
+		    " * for one that has none there. It is the handler's until it returns. */\n"
+		    "JETTISON_IMPORT(\"{0}\") const {1} *jettison_read_{1}(jettison_entity entity);\n\n",
+		    ReadImport(pLayout->type), pLayout->cName);
 	return text;
 }
 
 
 std::string RustModule(
     Bindings &bindings, std::span<const entt::meta_type> types,
-    std::span<const entt::meta_type> commands)
+    std::span<const entt::meta_type> commands, std::span<const entt::meta_type> reads)
 {
 	RustWriter writer;
-	for (const TypeLayout *pLayout : Sorted(bindings, Both(types, commands)))
+	for (const TypeLayout *pLayout : Sorted(bindings, All(types, commands, reads)))
 		writer.Type(*pLayout);
 	const std::vector<const TypeLayout *> sent = Sorted(bindings, commands);
+	const std::vector<const TypeLayout *> read = Sorted(bindings, reads);
 
 	std::string text{kRustPreamble};
 	text += writer.Take();
@@ -981,6 +997,14 @@ std::string RustModule(
 		    "    /// next step and recorded with the player's.\n"
 		    "    #[link_name = \"{0}\"]\n    pub fn jettison_send_{1}(command: *const {1});\n",
 		    SendImport(pLayout->type), pLayout->cName);
+	for (const TypeLayout *pLayout : read)
+		text += std::format(
+		    "    /// Granted by \"{0}\", for a handler: the entity's {1} in the newest snapshot, or\n"
+		    "    /// null for one that has none there. It is the handler's until it returns.\n"
+		    "    #[link_name = \"{0}\"]\n    pub fn jettison_read_{1}(entity: jettison_entity) -> "
+		    "*const "
+		    "{1};\n",
+		    ReadImport(pLayout->type), pLayout->cName);
 	text += "}\n\n";
 	text += "pub fn log(severity: i32, text: &str) {\n"
 	        "    unsafe { jettison_log(severity, text.as_ptr(), text.len() as u32) }\n}\n\n";
@@ -1000,6 +1024,13 @@ std::string RustModule(
 	for (const TypeLayout *pLayout : sent)
 		text += std::format(
 		    "\npub fn send_{0}(command: &{0}) {{\n    unsafe {{ jettison_send_{0}(command) }}\n}}\n",
+		    pLayout->cName);
+	for (const TypeLayout *pLayout : read)
+		text += std::format(
+		    "\n/// The entity's {0} in the newest snapshot, which the handler may hold until it "
+		    "returns.\n"
+		    "pub fn read_{0}(entity: jettison_entity) -> Option<&'static {0}> {{\n"
+		    "    unsafe {{ jettison_read_{0}(entity).as_ref() }}\n}}\n",
 		    pLayout->cName);
 	return text;
 }
