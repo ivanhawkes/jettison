@@ -344,7 +344,7 @@ class Writer
 class Reader
 {
   public:
-	explicit Reader(std::span<const std::byte> memory) : m_memory{memory}
+	explicit Reader(std::span<const std::byte> memory) : m_memory{memory}, m_left{memory.size()}
 	{
 	}
 
@@ -386,6 +386,7 @@ class Reader
 			{
 				const std::span<const std::byte> bytes =
 				    Extent(m_memory, LoadU32(m_memory, at), LoadU32(m_memory, at + 4), 1, path);
+				Spend(bytes.size(), path);
 				static_cast<std::string *>(pValue)->assign(
 				    reinterpret_cast<const char *>(bytes.data()), bytes.size());
 				return;
@@ -398,6 +399,7 @@ class Reader
 
 				// Checked whole before anything is added, so a wild count allocates nothing.
 				Extent(m_memory, data, count, value.element->size, path);
+				Spend(std::uint64_t{count} * std::max(value.element->size, 1U), path);
 				entt::meta_sequence_container elements = Sequence(value.type, pValue);
 				elements.clear();
 				const entt::meta_type type = elements.value_type();
@@ -416,7 +418,19 @@ class Reader
 		}
 	}
 
+	// Strings and arrays may point at the same bytes, so each read is paid for from the memory's
+	// size: a value cannot make the host copy more than the script's memory could hold apart.
+	void Spend(std::uint64_t bytes, std::string_view path)
+	{
+		if (bytes > m_left)
+			throw BindingError{std::format(
+			    "Script: {}: the value reads more than the script's {} bytes of memory", path,
+			    m_memory.size())};
+		m_left -= bytes;
+	}
+
 	std::span<const std::byte> m_memory;
+	std::uint64_t m_left;
 };
 } // namespace
 

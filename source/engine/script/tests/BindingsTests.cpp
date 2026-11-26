@@ -119,6 +119,17 @@ TEST_CASE("Script bindings: a value written into a script's memory reads back as
 		    bindings.Read(layout, memory, kAt, &read), doctest::Contains("Test.Pong.items"),
 		    Script::BindingError);
 	}
+	SUBCASE("strings and arrays reading more than memory holds in all are refused")
+	{
+		// The text points at the whole memory, so the items have nothing left to read.
+		const std::uint32_t whole = 0;
+		const auto count = static_cast<std::uint32_t>(memory.size());
+		std::memcpy(memory.data() + kAt + 16, &whole, 4);
+		std::memcpy(memory.data() + kAt + 20, &count, 4);
+		CHECK_THROWS_WITH_AS(
+		    bindings.Read(layout, memory, kAt, &read), doctest::Contains("Test.Pong.items"),
+		    Script::BindingError);
+	}
 	SUBCASE("an enumerator not registered is refused")
 	{
 		std::uint32_t items = 0;

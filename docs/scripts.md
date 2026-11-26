@@ -63,7 +63,9 @@ of the memory they point into, `'a`, with their pointer and count private: made 
 slice, or from a raw pointer only in `unsafe` (`jettison_string::from_raw`).
 
 Every pointer and count a script hands back is checked against its memory's bounds, and every bool
-and enumerator against its legal values. Only bytes cross the boundary.
+and enumerator against its legal values. The strings and arrays of one value read no more bytes in
+all than the script's memory holds, so pointers that share bytes cannot make the host copy more
+than the script could have written. Only bytes cross the boundary.
 
 The engine's own events that scripts see today are `Transit.PassageEnded`, `Transit.PortalLeft`,
 `Dock.BerthGiven`, `Dock.BerthRefused`, `Dock.Landed` and `Dock.Left` ([Transit](transit.md),

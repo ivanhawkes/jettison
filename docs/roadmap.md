@@ -312,6 +312,26 @@ killed holder.
 
 **Feature doc:** [persistence](persistence.md).
 
+<a id="j61"></a>
+### J61. Flown in under a low cover from any side
+
+**What remains.** A vehicle flown in to a covered berth with the least headroom its class allows
+lands from any start touching nothing but its berth. The user finds the cause and its fix by flying
+the approaches in the GUI; it is done when they have.
+
+**Why.** The J02 to J09 cross-review (2026-11-27) flew the `dock` suite's long, low vehicle under a
+low roof (`source/engine/dock/tests/ApproachTests.cpp`) from other starts, in the platform's axes.
+From 400 m up over the +X, +Z corner, the test's start, it lands touching nothing. From 400 m up
+over the two −Z corners, and 150 m out along +X, it touches the deck beside its berth. From over
+the middle it meets the cover's underside, and from 20 m up 300 m out along −Z it holds until its
+reservation lapses. Highport's 48 landings touch nothing, so no Manifest task meets it yet.
+
+**What exists.** The course among the decks and piers, and the shape sweep that slows a vehicle
+short of what it meets and holds it between a deck and a roof
+(`source/engine/ai/src/Steering.cpp`, [steering](ai.md#steering)).
+
+**Feature doc:** [docks](docks.md#a-covered-berth).
+
 ## Tier 4: presentation, when a scene asks
 
 Each is placed by the first scene or screen that needs it, and changes no data or save on the way.

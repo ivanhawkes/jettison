@@ -478,19 +478,28 @@ TEST_CASE(
 			const auto *docking = registry.try_get<Dock::Docking>(vehicle);
 			return docking && docking->stage == Dock::Stage::Docked;
 		};
+		// Each contact in the berth's axes from the middle of its face, as the berth was then.
+		std::vector<glm::dvec3> touched;
 		for (int step = 0; step < 60 * 180 && !docked(); ++step)
+		{
+			const std::size_t before = fixture.collisions.size();
 			fixture.Step();
+			const Sim::Transform &berth =
+			    registry.get<Sim::Transform>(fixture.BerthNumbered(platform, 1));
+			for (std::size_t index = before; index < fixture.collisions.size(); ++index)
+				touched.push_back(
+				    glm::conjugate(berth.orientation) *
+				    (fixture.collisions[index].point - berth.position));
+		}
 		REQUIRE(docked());
 
-		// Touching nothing but its berth, 20 by 4 m, its top 10 m up.
-		const glm::dvec3 berth =
-		    registry.get<Sim::Transform>(fixture.BerthNumbered(platform, 1)).position;
-		for (const auto &contact : fixture.collisions)
+		// Touching nothing but its berth: on its face, within its 10 m across and 30 m along.
+		for (const glm::dvec3 &at : touched)
 		{
-			const glm::dvec3 at = contact.point - berth;
 			CAPTURE(at);
 			CHECK(std::abs(at.y) < 0.1);
-			CHECK(std::hypot(at.x, at.z) < 10.5);
+			CHECK(std::abs(at.x) < 5.0);
+			CHECK(std::abs(at.z) < 15.0);
 		}
 	}
 }

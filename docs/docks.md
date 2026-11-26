@@ -412,6 +412,9 @@ Manifest docks every ship through these commands, in its travel module
 
 - A course among the decks goes round the structure, not round a vehicle docked on another covered
   berth; only the shape sweep stops it short of one.
+- Under a cover with the least headroom its class allows, a vehicle flown in lands touching nothing
+  from some starts, not all: from others it touches the deck beside its berth or the cover's
+  underside, or holds until its reservation lapses ([J61](roadmap.md#j61)).
 
 ## Decisions
 

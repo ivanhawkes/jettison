@@ -127,8 +127,9 @@ class Bindings
 
 	// Reads the struct at offset in memory into the object, which is of the layout's type. Fields
 	// the layout leaves out keep their values. Throws BindingError naming the field for a pointer or
-	// a struct out of memory's bounds, a bool that is not 0 or 1, or an enumerator not registered;
-	// the object may then be part written.
+	// a struct out of memory's bounds, a bool that is not 0 or 1, an enumerator not registered, or
+	// strings and arrays that read more bytes in all than memory holds, as pointers sharing bytes
+	// would; the object may then be part written.
 	void Read(
 	    const TypeLayout &layout, std::span<const std::byte> memory, std::uint32_t offset,
 	    void *pObject) const;
