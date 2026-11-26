@@ -146,6 +146,32 @@ const _: () = assert!(size_of::<Sim_Controller>() == 8);
 const _: () = assert!(offset_of!(Sim_Controller, kind) == 0);
 const _: () = assert!(offset_of!(Sim_Controller, slot) == 4);
 
+/// Test.Order
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Test_Order {
+    pub by: Sim_Controller,
+    pub amount: i32,
+}
+const _: () = assert!(size_of::<Test_Order>() == 12);
+const _: () = assert!(offset_of!(Test_Order, by) == 0);
+const _: () = assert!(offset_of!(Test_Order, amount) == 8);
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct jettison_array_Test_Order {
+    pub data: *const Test_Order,
+    pub size: u32,
+}
+impl jettison_array_Test_Order {
+    pub const fn new(items: &[Test_Order]) -> Self {
+        Self { data: items.as_ptr(), size: items.len() as u32 }
+    }
+    pub fn as_slice(&self) -> &[Test_Order] {
+        if self.size == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.size as usize) } }
+    }
+}
+
 /// Test.Pong
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -155,13 +181,17 @@ pub struct Test_Pong {
     pub text: jettison_string,
     pub items: jettison_array_Test_Inner,
     pub sender: Sim_Controller,
+    pub order: Test_Order,
+    pub orders: jettison_array_Test_Order,
 }
-const _: () = assert!(size_of::<Test_Pong>() == 40);
+const _: () = assert!(size_of::<Test_Pong>() == 64);
 const _: () = assert!(offset_of!(Test_Pong, ship) == 0);
 const _: () = assert!(offset_of!(Test_Pong, total) == 8);
 const _: () = assert!(offset_of!(Test_Pong, text) == 16);
 const _: () = assert!(offset_of!(Test_Pong, items) == 24);
 const _: () = assert!(offset_of!(Test_Pong, sender) == 32);
+const _: () = assert!(offset_of!(Test_Pong, order) == 40);
+const _: () = assert!(offset_of!(Test_Pong, orders) == 52);
 
 #[link(wasm_import_module = "jettison")]
 unsafe extern "C" {

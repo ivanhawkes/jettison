@@ -429,8 +429,10 @@ TEST_CASE("Script: an event is copied in for its handler, which sends a command 
 		CHECK(sent[0].text == "a ping");
 		CHECK(sent[0].items == std::vector<Inner>{{Mood::Cross, 9}, {Mood::Cross, 1}});
 
-		// The script names a player as the sender; the host's replaces it.
+		// The script names players as the sender and in its orders; the host's replaces each.
 		CHECK(sent[0].sender == kScripts);
+		CHECK(sent[0].order == ScriptTest::Order{kScripts, 1});
+		CHECK(sent[0].orders == std::vector<ScriptTest::Order>{{kScripts, 2}});
 		CHECK(sent[1].total == 106);
 		CHECK(sent[1].text.empty());
 
@@ -483,6 +485,59 @@ TEST_CASE("Script: a command naming its sender is refused where the host gives s
 		    "on_ping trapped: Script: a 'Test.Pong' names its sender, and the host gives scripts "
 		    "none"));
 		CHECK(Queued(world.world).empty());
+		CHECK(Traps(host, "events") == 1);
+	}
+}
+
+
+TEST_CASE("Script: a handler commands as the controller the game names for its event, and no other")
+{
+	constexpr Sim::Controller kPlayer{Sim::ControllerKind::Player, 1};
+	constexpr Sim::Controller kTrader{Sim::ControllerKind::Ai, 4};
+	for (const char *module : kEventModules)
+	{
+		CAPTURE(module);
+		World world;
+		const Vfs::FileSystem files = Modules();
+		Script::ScriptHost host{files};
+
+		// The game's rule: a ping is for whoever commands its ship, and a ship no one does is no one's.
+		int asked = 0;
+		host.SendCommandsTo(
+		    world.world,
+		    [&](const Sim::SimEvent &event) -> std::optional<Sim::Controller>
+		    {
+			    ++asked;
+			    const auto *pPing = event.event.try_cast<Ping>();
+			    if (pPing && pPing->ship == entt::entity{12})
+				    return kPlayer;
+			    if (pPing && pPing->ship == entt::entity{13})
+				    return kTrader;
+			    return std::nullopt;
+		    });
+		host.Load("events", Events(module));
+		const Said said;
+		for (const auto ship : {12U, 13U, 14U})
+		{
+			Ping ping;
+			ping.ship = entt::entity{ship};
+			host.Dispatch(Sim::SimEvent{1, entt::meta_any{ping}});
+		}
+
+		// Asked once an event, and not for one no script handles.
+		host.Dispatch(Sim::SimEvent{1, entt::meta_any{Inner{}}});
+		CHECK(asked == 3);
+
+		const std::vector<Pong> sent = Queued(world.world);
+		REQUIRE(sent.size() == 2);
+		for (const auto &[pong, sender] : {std::pair{sent[0], kPlayer}, std::pair{sent[1], kTrader}})
+		{
+			CHECK(pong.sender == sender);
+			CHECK(pong.order.by == sender);
+			REQUIRE(pong.orders.size() == 1);
+			CHECK(pong.orders[0].by == sender);
+		}
+		CHECK(said.Contains("on_ping trapped: Script: a 'Test.Pong' names its sender"));
 		CHECK(Traps(host, "events") == 1);
 	}
 }

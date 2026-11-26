@@ -132,13 +132,23 @@ class ScriptHost
 
 	ScriptHost &operator=(const ScriptHost &) = delete;
 
+	// Who a handler's commands are from, the game's to say call by call: for the event it was called
+	// for, the controller the event is for (the player whose vehicle docked, the agent whose order
+	// filled), or none. Asked once an event, before its first handler; an export called through Call
+	// is asked with an event of no type.
+	using Sender = std::function<std::optional<Sim::Controller>(const Sim::SimEvent &event)>;
+
 	// Where scripts' commands go: the world's queue, for a command type the world applies and
 	// Reflect marks Script. Without a world, a definition granting a command does not load.
 	//
-	// A command's sender is the host's to say, not the script's: each of its fields that is a
-	// Sim::Controller is replaced by the sender given, the game's choice of who scripts command as.
-	// With none given, a command with such a field is refused as it is sent, a trap, so a script
-	// cannot command as no one in particular (which MayCommand lets command anything) or as a player.
+	// A command's sender is the host's to say, not the script's: every Sim::Controller it holds, in
+	// its fields, the classes they nest and the elements of its arrays, is replaced by the sender the
+	// game gives for the call. With none, a command holding one is refused as it is sent, a trap, so
+	// a script cannot command as no one in particular (which MayCommand lets command anything), nor as
+	// a player or an NPC the game did not name.
+	void SendCommandsTo(Sim::SimWorld &world, Sender sender);
+
+	// The same, every call's sender the one given, or none.
 	void SendCommandsTo(Sim::SimWorld &world, std::optional<Sim::Controller> sender = std::nullopt);
 
 	// Loads a script under its name: its definition checked against the host's limits, its module
@@ -209,7 +219,10 @@ class ScriptHost
 	const Vfs::FileSystem &m_fileSystem;
 	HostLimits m_limits;
 	Sim::SimWorld *m_pWorld{nullptr};
-	std::optional<Sim::Controller> m_sender;
+	Sender m_sender;
+
+	// The sender the call running now sends as.
+	std::optional<Sim::Controller> m_calling;
 	Bindings m_bindings;
 	struct Impl;
 	std::unique_ptr<Impl> m_pImpl;

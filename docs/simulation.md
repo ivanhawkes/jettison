@@ -448,7 +448,6 @@ CHECK(replay.StateHash() == session.StateHash());
 
 ## Limits and open work
 
-- Who a script's commands are sent as, under networked play, is open: [J02](roadmap.md#j02).
 - Behaviour trees ticked less often than every step, and their other gaps: [J03](roadmap.md#j03).
 - Systems run on the main thread; a parallel scheduler is deferred until a profile shows the need:
   [J31](roadmap.md#j31).

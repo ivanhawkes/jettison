@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-26 | A script's sender, J02: the game names it per event, and every controller in a command is stamped ([neutral SDK](history/neutral-sdk.md#j02-script-sender)) |
 | 2026-11-26 | Encryption, J01: every message sealed to keys made with the server's pinned key ([neutral SDK](history/neutral-sdk.md#j01-encryption)) |
 | 2026-11-25 | The documentation restructured: a document per feature, a glossary, history in this folder, the backlog renumbered J01–J29 ([architecture notes](history/architecture-notes.md)) |
 | 2026-11-25 | Manifest's Stage 5 closed: a world lists what its save holds, and the Stage 5 review's four gaps provisioned ([neutral SDK](history/neutral-sdk.md)) |

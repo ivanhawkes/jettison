@@ -30,9 +30,9 @@ it, and an item done or dropped leaves its number unused.
 Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifest now builds against
 `70cd4de`, the docs review's head; the four gaps its Stage 5 cross-review found were provisioned
 by `459af99` and the commit before it ([history](history.md)). Its later work waits until the user
-has played its first loop for a day or two. No delivery is open: encryption, J01, is done
-([history](history.md)), and Manifest's adoption of it, its server's key in a file and the public
-half in its test builds' client configuration, is Manifest's.
+has played its first loop for a day or two. No delivery is open: encryption, J01, and a script's
+sender, J02, are done ([history](history.md)). Manifest's adoption of encryption, its server's key in
+a file and the public half in its test builds' client configuration, is Manifest's.
 
 ## Waiting on you
 
@@ -51,25 +51,7 @@ matters, what already exists, and which document describes the feature.
 
 ## Tier 1: what saves and the step's interface hold
 
-<a id="j02"></a>
-### J02. Who a script commands as, under networked play
-
-**What remains.** The server decides, call by call, whose authority a [script](glossary.md#script)'s
-command carries. A handler run for a player's [event](glossary.md#event) sends as that player, and
-one run for an NPC sends as that NPC. No client or script can name another player or an NPC. The
-host also stamps a [controller](glossary.md#controller) nested inside a command's fields, not only a
-top-level one.
-
-**Why.** With several players, a script that names its own sender could act for someone else. The
-sender is part of every saved and replayed command, so its rule is fixed before players rely on it.
-
-**What exists.** `Script::ScriptHost::SendCommandsTo(world, sender)` replaces every top-level
-`Sim::Controller` field of a script's command with the one sender given
-(`source/engine/script/include/jettison/script/ScriptHost.h`). With no sender given, a command that
-names a controller traps (`BindingError`). The shell gives none
-(`source/engine/app/src/Application.cpp`), so there a script can send only commands with no sender.
-
-**Feature doc:** [scripts](scripts.md).
+No item is open in this tier: the last, a script's sender (J02), is done ([history](history.md)).
 
 ## Tier 2: what a game's next work stands on
 
@@ -116,8 +98,6 @@ every field saved and moddable. What an entity does when its task fails is the g
 - The [fuel](glossary.md#fuel) a call used, shown in the console. WAMR does not report it.
 - A script's own [reasons](glossary.md#reason), as `reason.script.<script>.<name>` (decided), for
   what a script refuses.
-
-Who a script's commands are from is [J02](#j02).
 
 **Why.** A script sees the world only through the events it is given and an option's inputs: enough
 for a handler that reacts, not for one that looks around. Reload and fuel reports are what a modder

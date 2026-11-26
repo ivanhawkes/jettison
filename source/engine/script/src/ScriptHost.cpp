@@ -46,6 +46,51 @@ constexpr std::uint64_t kTrapsLogged = 10;
 constexpr std::chrono::milliseconds kWatchPeriod{5};
 
 
+// Every Sim::Controller the object holds set to the sender: its fields, the classes they nest and
+// the elements of its arrays, at any depth, since a game may read a sender anywhere in a command.
+// Throws BindingError, naming the command, for one met with no sender to set.
+void Stamp(
+    entt::meta_any &object, const std::optional<Sim::Controller> &sender, std::string_view command)
+{
+	const entt::meta_type controller = entt::resolve<Sim::Controller>();
+	const auto set = [&](entt::meta_any &value)
+	{
+		if (!sender)
+			throw BindingError{std::format(
+			    "Script: a '{}' names its sender, and the host gives scripts none to send as",
+			    command)};
+		if (!value.assign(*sender))
+			throw BindingError{std::format("Script: the sender of a '{}' could not be set", command)};
+	};
+
+	// An enumeration's enumerators are its data too, so only a class's fields are walked.
+	if (!object.type().is_class())
+		return;
+	for (const entt::meta_data &field : Reflect::Fields(object.type()))
+	{
+		const entt::meta_type type = field.type();
+		if (type != controller && !type.is_sequence_container() &&
+		    (!type.is_class() || Reflect::Fields(type).empty()))
+			continue;
+		entt::meta_any value = field.get(object);
+		if (type == controller)
+			set(value);
+		else if (type.is_sequence_container())
+			for (entt::meta_any element : value.as_sequence_container())
+			{
+				if (element.type() == controller)
+					set(element);
+				else
+					Stamp(element, sender, command);
+			}
+		else
+			Stamp(value, sender, command);
+		if (!field.set(object, value))
+			throw BindingError{std::format("Script: the sender of a '{}' could not be set", command)};
+	}
+}
+
+
 // WAMR's messages, a line at a time: os_printf is called with pieces of a line.
 int PrintToLog(const char *format, va_list arguments)
 {
@@ -595,10 +640,17 @@ ScriptHost::ScriptHost(const Vfs::FileSystem &fileSystem, HostLimits limits)
 ScriptHost::~ScriptHost() = default;
 
 
-void ScriptHost::SendCommandsTo(Sim::SimWorld &world, std::optional<Sim::Controller> sender)
+void ScriptHost::SendCommandsTo(Sim::SimWorld &world, Sender sender)
 {
 	m_pWorld = &world;
-	m_sender = sender;
+	m_sender = std::move(sender);
+}
+
+
+void ScriptHost::SendCommandsTo(Sim::SimWorld &world, std::optional<Sim::Controller> sender)
+{
+	SendCommandsTo(
+	    world, sender ? Sender{[sender](const Sim::SimEvent &) { return sender; }} : Sender{});
 }
 
 namespace
@@ -888,6 +940,7 @@ void ScriptHost::Dispatch(const Sim::SimEvent &event)
 	if (!type)
 		return;
 	const entt::id_type id = type.info().hash();
+	bool asked = false;
 	for (const auto &[name, pScript] : m_pImpl->scripts)
 	{
 		Script &script = *pScript;
@@ -895,6 +948,11 @@ void ScriptHost::Dispatch(const Sim::SimEvent &event)
 		{
 			if (handler.event != id || script.status.stopped)
 				continue;
+			if (!asked)
+			{
+				m_calling = m_sender ? m_sender(event) : std::nullopt;
+				asked = true;
+			}
 
 			// A trap made the instance again; the handlers' instance is whatever it is now.
 			Instance &instance = *script.pHandlers;
@@ -1014,6 +1072,7 @@ std::optional<std::vector<std::int32_t>> ScriptHost::Call(
 	    wasm_runtime_lookup_function(instance.instance, std::string{function}.c_str());
 	if (pFunction == nullptr)
 		throw std::invalid_argument{std::format("Script '{}' does not export '{}'", name, function)};
+	m_calling = m_sender ? m_sender(Sim::SimEvent{}) : std::nullopt;
 	const std::vector<wasm_valkind_t> parameters(arguments.size(), WASM_I32);
 	const std::uint32_t results = wasm_func_get_result_count(pFunction, instance.instance);
 	const std::vector<wasm_valkind_t> resultKinds(results, WASM_I32);
@@ -1057,19 +1116,7 @@ void ScriptHost::Impl::Send(
 	        wasm_memory_get_cur_page_count(memory) * wasm_memory_get_bytes_per_page(memory))};
 	entt::meta_any command = type.construct();
 	host.m_bindings.Read(layout, bytes, offset, ObjectOf(command));
-	const entt::meta_type controller = entt::resolve<Sim::Controller>();
-	for (const entt::meta_data &field : Reflect::Fields(type))
-	{
-		if (field.type() != controller)
-			continue;
-		if (!host.m_sender)
-			throw BindingError{std::format(
-			    "Script: a '{}' names its sender, and the host gives scripts none to send as",
-			    type.name())};
-		if (!field.set(command, *host.m_sender))
-			throw BindingError{
-			    std::format("Script: the sender of a '{}' could not be set", type.name())};
-	}
+	Stamp(command, host.m_calling, type.name());
 	host.m_pWorld->Commands().Push(std::move(command));
 }
 

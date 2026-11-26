@@ -30,6 +30,15 @@ struct Inner
 	bool operator==(const Inner &) const = default;
 };
 
+// A sender nested in a command, which the host stamps as it does a top-level one.
+struct Order
+{
+	Jettison::Sim::Controller by;
+	std::int32_t amount{0};
+
+	bool operator==(const Order &) const = default;
+};
+
 struct Ping
 {
 	entt::entity ship{entt::null};
@@ -50,8 +59,10 @@ struct Pong
 	std::string text;
 	std::vector<Inner> items;
 
-	// Whatever the script writes, the host's sender.
+	// Whatever the script writes, the host's sender, here and in each order.
 	Jettison::Sim::Controller sender;
+	Order order;
+	std::vector<Order> orders;
 };
 
 inline void RegisterTypes()
@@ -62,6 +73,7 @@ inline void RegisterTypes()
 		Jettison::Sim::RegisterTypes();
 		RegisterEnum<Mood>("Test.Mood").Value<Mood::Calm>("Calm").Value<Mood::Cross>("Cross");
 		RegisterType<Inner>("Test.Inner").Field<&Inner::mood>("mood").Field<&Inner::weight>("weight");
+		RegisterType<Order>("Test.Order").Field<&Order::by>("by").Field<&Order::amount>("amount");
 		RegisterType<Ping>("Test.Ping", Attribute::Script)
 		    .Field<&Ping::ship>("ship")
 		    .Field<&Ping::count>("count")
@@ -77,7 +89,9 @@ inline void RegisterTypes()
 		    .Field<&Pong::total>("total", Attribute::Saved)
 		    .Field<&Pong::text>("text", Attribute::Saved)
 		    .Field<&Pong::items>("items", Attribute::Saved)
-		    .Field<&Pong::sender>("sender", Attribute::Saved);
+		    .Field<&Pong::sender>("sender", Attribute::Saved)
+		    .Field<&Pong::order>("order", Attribute::Saved)
+		    .Field<&Pong::orders>("orders", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;

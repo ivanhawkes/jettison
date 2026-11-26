@@ -128,6 +128,22 @@ _Static_assert(sizeof(Sim_Controller) == 8, "Sim.Controller is laid out as the h
 _Static_assert(offsetof(Sim_Controller, kind) == 0, "Sim.Controller.kind");
 _Static_assert(offsetof(Sim_Controller, slot) == 4, "Sim.Controller.slot");
 
+/* Test.Order */
+typedef struct Test_Order
+{
+	Sim_Controller by;
+	int32_t amount;
+} Test_Order;
+_Static_assert(sizeof(Test_Order) == 12, "Test.Order is laid out as the host lays it out");
+_Static_assert(offsetof(Test_Order, by) == 0, "Test.Order.by");
+_Static_assert(offsetof(Test_Order, amount) == 8, "Test.Order.amount");
+
+typedef struct jettison_array_Test_Order
+{
+	const Test_Order *data;
+	uint32_t size;
+} jettison_array_Test_Order;
+
 /* Test.Pong */
 typedef struct Test_Pong
 {
@@ -136,13 +152,17 @@ typedef struct Test_Pong
 	jettison_string text;
 	jettison_array_Test_Inner items;
 	Sim_Controller sender;
+	Test_Order order;
+	jettison_array_Test_Order orders;
 } Test_Pong;
-_Static_assert(sizeof(Test_Pong) == 40, "Test.Pong is laid out as the host lays it out");
+_Static_assert(sizeof(Test_Pong) == 64, "Test.Pong is laid out as the host lays it out");
 _Static_assert(offsetof(Test_Pong, ship) == 0, "Test.Pong.ship");
 _Static_assert(offsetof(Test_Pong, total) == 8, "Test.Pong.total");
 _Static_assert(offsetof(Test_Pong, text) == 16, "Test.Pong.text");
 _Static_assert(offsetof(Test_Pong, items) == 24, "Test.Pong.items");
 _Static_assert(offsetof(Test_Pong, sender) == 32, "Test.Pong.sender");
+_Static_assert(offsetof(Test_Pong, order) == 40, "Test.Pong.order");
+_Static_assert(offsetof(Test_Pong, orders) == 52, "Test.Pong.orders");
 
 /* Granted by "send:Test.Pong": the command, into the game's queue, applied at the start of the next
  * step and recorded with the player's. */

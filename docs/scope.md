@@ -18,7 +18,7 @@ build every genre's features now: a capability marked Out is reassessed when a c
 | Verdict | Meaning | Example |
 | --- | --- | --- |
 | In | Built. Open work on it is a backlog item, linked | Behaviour trees, with reactive nodes still open ([J03](roadmap.md#j03)) |
-| Open | Accepted but not built yet: a backlog item, linked | A script's sender under networked play ([J02](roadmap.md#j02)) |
+| Open | Accepted but not built yet: a backlog item, linked | A script reloaded when its module changes ([J04](roadmap.md#j04)) |
 | Reframed | The need is real, but the usual solution is the wrong one here; the row says what serves it instead | Pathfinding: A* over graphs, not over navigation meshes |
 | Deferred | Possibly needed, but built only on measured evidence or when a consumer asks | A general job system, until a profile shows a system needs it |
 | Out | Not built | VR |
@@ -179,7 +179,7 @@ How: [networking](networking.md).
 | Authentication handshake | In | Bearer tokens on libsodium; the server keeps digests only |
 | Snapshot replication | In | The server encodes each session's view through a visibility hook the game supplies |
 | Encryption | In | Every message sealed to keys made with the server's pinned key, on libsodium; TLS does not run over UDP |
-| A script's sender under networked play | Open | Who a script commands as ([J02](roadmap.md#j02)) |
+| A script's sender under networked play | In | The game names a handler's sender per event, and every controller in its command is stamped ([scripts](scripts.md#who-a-scripts-commands-are-from)) |
 | Local server | Reframed | The in-process split of simulation and presentation, with commands through a queue, serves |
 | Dedicated server, protocol, accounts, authorisation | Manifest | A game's |
 

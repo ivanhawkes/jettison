@@ -11,13 +11,16 @@ JETTISON_EXPORT("on_ping") void on_ping(const Test_Ping *ping)
 	for (uint32_t index = 0; index < ping->numbers.size; ++index)
 		total += ping->numbers.data[index];
 	Test_Inner items[2] = {ping->inner, {.mood = Test_Mood_Cross, .weight = s_pings}};
-	/* As a player, which the host does not let it be. */
+	Test_Order orders[1] = {{.by = {.kind = Sim_ControllerKind_Player, .slot = 3}, .amount = 2}};
+	/* As players, which the host does not let it be, at the top and nested. */
 	Test_Pong pong = {
 	    .ship = ping->ship,
 	    .total = total,
 	    .text = ping->text,
 	    .items = {items, 2},
-	    .sender = {.kind = Sim_ControllerKind_Player, .slot = 1}};
+	    .sender = {.kind = Sim_ControllerKind_Player, .slot = 1},
+	    .order = {.by = {.kind = Sim_ControllerKind_Player, .slot = 2}, .amount = 1},
+	    .orders = {orders, 1}};
 	if (ping->flag)
 		pong.total += (int64_t)(ping->where.x + ping->where.y + ping->where.z);
 	jettison_send_Test_Pong(&pong);

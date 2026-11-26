@@ -269,10 +269,10 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 - **A handler reads the snapshot, and its commands carry a sender the host gives** (2026-11-13; the
   sender corrected 2026-11-25). A handler is to read the newest stepped snapshot through imports
   generated from reflection, never the step's state; that is not built ([J04](roadmap.md#j04)).
-  Every `Sim::Controller` in a script's command is replaced by the sender the game gave
-  `ScriptHost::SendCommandsTo`, and with none such a command is refused, so a script cannot command
-  as a player or as no one in particular. Who that sender is under networked play is open
-  ([J02](roadmap.md#j02)). [Scripts](scripts.md)
+  Every `Sim::Controller` in a script's command, nested ones included, is replaced by the sender the
+  game names for the event its handler runs for (`ScriptHost::SendCommandsTo`'s `Sender`, decided
+  2026-11-26), and with none such a command is refused, so a script cannot command as a player, an
+  NPC or no one in particular. [Scripts](scripts.md)
 
 ## Networking
 

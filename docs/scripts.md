@@ -200,12 +200,18 @@ calls the handler, and reads each command it sends out into the engine's type.
 
 ### Who a script's commands are from
 
-A command's sender is the host's to say, not the script's. Each top-level `Sim::Controller` field
-of a command a script sends is replaced by the sender the game gave `SendCommandsTo`
-([controller](glossary.md#controller)). With none given, such a command traps. A script can
-therefore command neither as no one in particular, which may command anything, nor as a player.
-The shell gives none today, so its scripts cannot yet send a command that has a sender
-([J02](roadmap.md#j02)).
+A command's sender is the host's to say, not the script's. The game gives `SendCommandsTo` a
+`Sender`, which the host asks once an event, before the event's first handler, for the
+[controller](glossary.md#controller) the event is for: the player whose ship docked, the NPC whose
+order filled, or none. Every `Sim::Controller` the command holds is replaced by that answer: its
+fields, the classes they nest and the elements of its arrays, since a game may read a sender anywhere
+in a command. With none, such a command traps. A script can therefore command neither as no one in
+particular, which may command anything, nor as a player or an NPC the game did not name. An export
+called through `Call` is asked with an event of no type, and a game with one sender for every call
+gives that one alone.
+
+The shell gives none, so its scripts send only commands that name no sender until the game sets its
+rule through `Scripts().SendCommandsTo`.
 
 ### Traps and stops
 
@@ -396,8 +402,6 @@ Write the bindings from the build a mod targets, and build the mod's scripts aga
 
 ## Limits and open work
 
-- Who a script commands as under networked play, per call, and a sender nested in a command's
-  fields: [J02](roadmap.md#j02).
 - A script reading the world (decided: the newest snapshot, by component, as granted):
   [J04](roadmap.md#j04).
 - A script called from a behaviour tree's task: [J04](roadmap.md#j04).

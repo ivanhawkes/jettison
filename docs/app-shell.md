@@ -389,7 +389,8 @@ Xvfb, and `--references` runs every reference view.
 - The shell does not start logging through `Core::InitLogging`: [J10](roadmap.md#j10).
 - A pick is a command the next step answers, so a paused world cannot be picked, and nothing
   tracks what is under the cursor each frame: [J06](roadmap.md#j06).
-- The shell gives scripts no sender of their own under networked play: [J02](roadmap.md#j02).
+- The shell gives scripts no sender: a game names its own through `Scripts().SendCommandsTo`
+  ([scripts](scripts.md#who-a-scripts-commands-are-from)).
 - There is no prebuilt SDK, so a game builds the engine from source: [J18](roadmap.md#j18).
 - No reference view holds the ground sample's frames: [J28](roadmap.md#j28).
 - The shell builds its own world rather than start through `Host::Session`, so a game drawn on

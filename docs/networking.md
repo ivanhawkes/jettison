@@ -329,7 +329,6 @@ network contract](../../manifest/docs/server.md).
   buffers (above).
 - One key a server, pinned: changing it means giving every client the new one. A long-lived key that
   signs the server's working keys is not provisioned.
-- Who a script's commands are sent as, when several players share a server ([J02](roadmap.md#j02)).
 - No IPv6: ENet 1.3 does not have it.
 - No deltas against an acknowledged snapshot, so an unreliable view must fit in 256 KiB (above).
 - A real-time game's inputs at step rate need nothing new until a game measures them.

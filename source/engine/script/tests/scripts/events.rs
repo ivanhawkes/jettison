@@ -19,13 +19,16 @@ pub extern "C" fn on_ping(ping: &Test_Ping) {
         total += (ping.r#where.x + ping.r#where.y + ping.r#where.z) as i64;
     }
     let items = [ping.inner, Test_Inner { mood: Test_Mood_Cross, weight: pings }];
+    let orders = [Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_Player, slot: 3 }, amount: 2 }];
     send_Test_Pong(&Test_Pong {
         ship: ping.ship,
         total,
         text: ping.text,
         items: jettison_array_Test_Inner::new(&items),
-        // As a player, which the host does not let it be.
+        // As players, which the host does not let it be, at the top and nested.
         sender: Sim_Controller { kind: Sim_ControllerKind_Player, slot: 1 },
+        order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_Player, slot: 2 }, amount: 1 },
+        orders: jettison_array_Test_Order::new(&orders),
     });
     log(JETTISON_INFO, ping.text.as_str());
 }
@@ -44,6 +47,8 @@ pub extern "C" fn bad_send(ping: &Test_Ping) {
         text: jettison_string { data: 0x7fff_fff0 as *const u8, size: 100 },
         items: jettison_array_Test_Inner::new(&[]),
         sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
+        order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 }, amount: 0 },
+        orders: jettison_array_Test_Order::new(&[]),
     });
 }
 
@@ -71,6 +76,8 @@ pub extern "C" fn sends() -> f64 {
         text: jettison_string::new(""),
         items: jettison_array_Test_Inner::new(&[]),
         sender: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 },
+        order: Test_Order { by: Sim_Controller { kind: Sim_ControllerKind_None, slot: 0 }, amount: 0 },
+        orders: jettison_array_Test_Order::new(&[]),
     });
     1.0
 }
