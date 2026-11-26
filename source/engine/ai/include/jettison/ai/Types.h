@@ -4,8 +4,9 @@
 
 namespace Jettison::Ai
 {
-// Why steering or a helm refuses an entity or gives a destination up (Sim::Reason), each worded by
-// the string tables under reason.ai.<name>. Registered with Reflect as "Ai.Reason" by RegisterTypes.
+// Why steering, a helm or a behaviour refuses an entity or gives a destination up (Sim::Reason), each
+// worded by the string tables under reason.ai.<name>. Registered with Reflect as "Ai.Reason" by
+// RegisterTypes.
 enum class Reason : std::uint8_t
 {
 	NoSuchEntity,
@@ -15,7 +16,9 @@ enum class Reason : std::uint8_t
 	NotController,
 	NoPilot,
 	HelmHeld,
-	NotAtHelm
+	NotAtHelm,
+	// The tree's name.
+	NoSuchTree
 };
 
 // Registers the module's types with Reflect: steering's (Steering.h), the behaviour trees'

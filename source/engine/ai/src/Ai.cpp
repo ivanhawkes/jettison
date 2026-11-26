@@ -31,7 +31,8 @@ void RegisterTypes()
 		    .Value<Reason::NotController>("not_controller")
 		    .Value<Reason::NoPilot>("no_pilot")
 		    .Value<Reason::HelmHeld>("helm_held")
-		    .Value<Reason::NotAtHelm>("not_at_helm");
+		    .Value<Reason::NotAtHelm>("not_at_helm")
+		    .Value<Reason::NoSuchTree>("no_such_tree");
 		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
 		RegisterEnum<Curve>("Ai.Curve")
 		    .Value<Curve::Linear>("Linear")
@@ -64,21 +65,27 @@ void RegisterTypes()
 		RegisterEnum<NodeKind>("Ai.NodeKind")
 		    .Value<NodeKind::Sequence>("Sequence")
 		    .Value<NodeKind::Selector>("Selector")
+		    .Value<NodeKind::ReactiveSequence>("ReactiveSequence")
+		    .Value<NodeKind::ReactiveSelector>("ReactiveSelector")
+		    .Value<NodeKind::Parallel>("Parallel")
 		    .Value<NodeKind::Invert>("Invert")
 		    .Value<NodeKind::Succeed>("Succeed")
 		    .Value<NodeKind::Repeat>("Repeat")
 		    .Value<NodeKind::Loop>("Loop")
 		    .Value<NodeKind::Wait>("Wait")
-		    .Value<NodeKind::Task>("Task");
+		    .Value<NodeKind::Task>("Task")
+		    .Value<NodeKind::Subtree>("Subtree");
 		RegisterType<BehaviourNode>("Ai.BehaviourNode", Attribute::Moddable)
 		    .Field<&BehaviourNode::kind>("kind", kDefined)
 		    .Field<&BehaviourNode::task>("task", kDefined)
 		    .Field<&BehaviourNode::arguments>("arguments", kDefined)
 		    .Field<&BehaviourNode::count>("count", kDefined)
 		    .Field<&BehaviourNode::seconds>("seconds", kDefined)
+		    .Field<&BehaviourNode::tree>("tree", kDefined)
 		    .Field<&BehaviourNode::children>("children", kDefined);
 		RegisterType<BehaviourDefinition>("Ai.BehaviourDefinition", Attribute::Moddable)
-		    .Field<&BehaviourDefinition::root>("root", kDefined);
+		    .Field<&BehaviourDefinition::root>("root", kDefined)
+		    .Field<&BehaviourDefinition::interval>("interval", kDefined);
 		RegisterType<NodeState>("Ai.NodeState")
 		    .Field<&NodeState::memory>("memory", Attribute::Saved)
 		    .Field<&NodeState::running>("running", Attribute::Saved);
@@ -86,6 +93,21 @@ void RegisterTypes()
 		    .Field<&Behaviour::tree>("tree", Attribute::Saved)
 		    .Field<&Behaviour::nodes>("nodes", Attribute::Saved)
 		    .Field<&Behaviour::last>("last", Attribute::Saved);
+		RegisterType<Blackboard>("Ai.Blackboard")
+		    .Field<&Blackboard::integers>("integers", Attribute::Saved)
+		    .Field<&Blackboard::entities>("entities", Attribute::Saved);
+		RegisterType<AssignBehaviour>("Ai.AssignBehaviour")
+		    .Field<&AssignBehaviour::sender>("sender", Attribute::Saved)
+		    .Field<&AssignBehaviour::entity>("entity", Attribute::Saved)
+		    .Field<&AssignBehaviour::tree>("tree", Attribute::Saved);
+		RegisterType<BehaviourAssigned>("Ai.BehaviourAssigned")
+		    .Field<&BehaviourAssigned::sender>("sender", Attribute::Saved)
+		    .Field<&BehaviourAssigned::entity>("entity", Attribute::Saved)
+		    .Field<&BehaviourAssigned::tree>("tree", Attribute::Saved);
+		RegisterType<BehaviourRefused>("Ai.BehaviourRefused")
+		    .Field<&BehaviourRefused::sender>("sender", Attribute::Saved)
+		    .Field<&BehaviourRefused::entity>("entity", Attribute::Saved)
+		    .Field<&BehaviourRefused::reason>("reason", Attribute::Saved);
 		RegisterType<TakeHelm>("Ai.TakeHelm")
 		    .Field<&TakeHelm::sender>("sender", Attribute::Saved)
 		    .Field<&TakeHelm::vehicle>("vehicle", Attribute::Saved);

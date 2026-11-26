@@ -440,7 +440,6 @@ CHECK(replay.StateHash() == session.StateHash());
 
 ## Limits and open work
 
-- Behaviour trees ticked less often than every step, and their other gaps: [J03](roadmap.md#j03).
 - Systems run on the main thread; a parallel scheduler is deferred until a profile shows the need:
   [J31](roadmap.md#j31).
 - The rendered shell builds its own world rather than start through `Host::Session`:

@@ -29,5 +29,6 @@ reason:
     no_pilot: no one in particular cannot take a helm
     helm_held: someone else is at the vehicle's helm
     not_at_helm: its sender is not at the vehicle's helm
+    no_such_tree: there is no behaviour {0}
   physics:
     not_at_helm: its sender is not at the vehicle's helm

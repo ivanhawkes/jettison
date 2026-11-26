@@ -54,32 +54,6 @@ No item is open in this tier: the last, a script's sender (J02), is done ([histo
 What a game reaches for as its AI, content and tools grow. None changes a save already written, but
 each is cheaper before a game builds a workaround.
 
-<a id="j03"></a>
-### J03. Behaviour trees
-
-**What remains.**
-
-| Feature | What it does |
-| --- | --- |
-| Reactive nodes | Re-check a condition above a running branch each tick, and halt the branch they leave. An NPC breaking off a run to flee needs them. |
-| A task's halt | Tells a running task it was interrupted, so it can let go of what it holds. Reactive nodes need it. |
-| Parallel nodes | Run several children at once. |
-| Subtrees | A tree that names another, so a repeated loop is written once. |
-| A blackboard | Per-entity memory that nodes read and write. Today a game keeps such state in its own component. |
-| A command giving an entity a tree | With its sender, so a tree can be assigned through the step rather than by the game as it makes the entity. |
-| A tree ticked less often | For many entities whose decisions need not run every step. |
-
-**Why.** They are the standard tools a game's AI expects; without them a game writes the same logic
-as one-off tasks, which do not save or mod as trees do. Utility AI and behaviour trees have no
-consumer yet: Manifest chooses a job's next step with its own `Manifest::Policy::Choose`
-(`source/game/policy/src/Policy.cpp` in Manifest).
-
-**What exists.** `Ai::NodeKind`: Sequence, Selector, Invert, Succeed, Repeat, Loop, Wait and Task
-(`source/engine/ai/include/jettison/ai/BehaviourTree.h`). A tree is data, registered with Reflect,
-every field saved and moddable. What an entity does when its task fails is the game's.
-
-**Feature doc:** [AI](ai.md).
-
 <a id="j04"></a>
 ### J04. Scripts
 

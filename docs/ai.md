@@ -187,41 +187,63 @@ leaves.
 | --- | --- |
 | `Sequence` | Its children in order until one fails, which fails it; succeeds once all have |
 | `Selector` | Its children in order until one succeeds, which succeeds it; fails once all have |
+| `ReactiveSequence` | A sequence ticked from its first child every tick, so a condition before a running child is checked again; the running child it no longer reaches is halted |
+| `ReactiveSelector` | A selector ticked from its first child every tick, so an earlier branch takes over once it no longer fails; the running one is halted |
+| `Parallel` | Every child each tick, until `count` have succeeded (with none, all), which succeeds it, or `count` can no longer be reached, which fails it; the children still running are halted. At most 32 children |
 | `Invert` | Its one child, success and failure swapped |
 | `Succeed` | Its one child, failure taken as success |
 | `Repeat` | Its one child again each time it succeeds, `count` times or, with none, for ever; fails as the child fails |
 | `Loop` | Its one child again each time it succeeds, until it fails, which succeeds the loop ("while a leg is left") |
 | `Wait` | Running for `seconds`, in whole steps rounded up, then succeeds |
 | `Task` | The game's task named `task`, given the node's `arguments` |
+| `Subtree` | The tree named `tree`, defined before this one, in its place as if written there |
 
 `Ai::CheckBehaviour` checks a tree's shape: a sequence or selector has a child or more, a decorator
-exactly one, a wait or task none; a wait's seconds are finite and not negative; and no node sets a
-field its kind does not use. A fault throws `Serialise::FormatError` naming the node by its path
+exactly one, a wait, task or subtree none; a wait's seconds and the tree's `interval` are finite and
+not negative; a parallel needs no more successes than it has children; and no node sets a field its
+kind does not use. A fault throws `Serialise::FormatError` naming the node by its path
 of child indices (`root.2.0`).
 
 **Ticking.** `Ai::Behaviours::Attach` registers the `Ai::Behaviour` component and the system
 `behaviour`. An entity follows a tree by having `Ai::Behaviour` with the tree's name. Each step the
 system ticks the root of every entity's tree once, in entity order, except one someone is at the
 [helm](#the-helm) of, so a finished tree starts again from the top at the next. An entity naming an
-undefined tree is left alone, with one warning per tree name.
+undefined tree is left alone, with one warning per tree name. A tree whose definition sets
+`interval` (seconds, in whole steps rounded up) is ticked once in that many steps, for many entities
+whose decisions need not run every step; each entity's tick falls on a step set by its index, so
+they are spread over the interval, and what it waits on is noticed up to an interval late.
 
-**Resuming, never interrupting.** A sequence or selector resumes its running child rather than
-ticking its children again from the first, and no node leaves a running child, so a task waiting on
-its command's answer is never left half done. A repeat or loop starts its child's next run at the
-next tick, so one step's work is bounded however soon a child succeeds. Reactive nodes, which would
-break off a running branch, are open work ([J03](roadmap.md#j03)).
+**Resuming, and interrupting with a halt.** A sequence or selector resumes its running child rather
+than ticking its children again from the first. A repeat or loop starts its child's next run at the
+next tick, so one step's work is bounded however soon a child succeeds. A running node is left
+before it finishes only by a reactive node moving off its branch, a parallel once decided, an
+`Ai::AssignBehaviour`, or its [helm](#the-helm) taken; each halts the nodes it leaves, telling their
+tasks so.
 
 **Tasks.** A task (`Ai::Task`) is a function `Status(TaskContext &)`. Its context gives the world,
 the entity, the node's arguments, `starting` (its first tick since it last finished) and a 64-bit
 `memory` saved with the tree, which is all a task keeps between ticks. A task acts by commands
 applied at once ([a step](simulation.md#a-step)), carrying the agent as their sender where they
-carry one.
+carry one. A task may be defined with a halt (`Ai::TaskHalt`), called with its context when it is
+left running, so it can let go of what it holds (a berth asked for); its memory is discarded after.
+
+**The blackboard.** `Ai::Blackboard` is an entity's memory that its tasks share, by key: integers
+and entities, saved with the world and kept when its tree starts again or is changed. A task reads
+and writes it through the registry.
+
+**Giving an entity a tree.** `Ai::AssignBehaviour` names the tree an entity follows, or none to take
+it away, from a sender that commands it (`Sim::MayCommand`). It halts the old tree's running tasks,
+starts the new one from the top in the same step, and answers with `Ai::BehaviourAssigned`. It is
+refused with `Ai::BehaviourRefused`, as `reason.ai.no_such_entity`, `reason.ai.not_controller`, or
+`reason.ai.no_such_tree` for a tree not defined. A game may still give an entity `Ai::Behaviour` as
+it makes it.
 
 **Quiet steps.** A task may be defined with a wake (`Ai::TaskWake`): given the world and its memory,
 the first step at which it might do anything but return `Running` unchanged. The system then lets
 the world [fast-forward](glossary.md#fast-forward) to the soonest of every tree's wake: a wait's
-end, a task's wake, or the next step for a task without one, a node about to start or a tree that
-finished. A task with no wake is ticked every step.
+end, a task's wake, or the next step for a task without one, a node about to start, a tree that
+finished or a reactive node, each put off to the tree's next tick where it has an interval. A task
+with no wake is ticked every step its tree is.
 
 **Saved state.** Where an entity is in its tree is one `Ai::NodeState` a node, in depth-first order:
 a running flag and a memory (a composite's running child, a repeat's runs, a wait's end step, a
@@ -238,7 +260,7 @@ and `Ai::LeaveHelm`. The state diagram shows a vehicle's tree and its helm.
 ```mermaid
 stateDiagram-v2
     [*] --> Ticking
-    Ticking --> StoodDown: TakeHelm (destination taken, controls let go)
+    Ticking --> StoodDown: TakeHelm (tasks halted, destination taken, controls let go)
     StoodDown --> Ticking: LeaveHelm (tree starts again from the top)
 ```
 
@@ -247,8 +269,9 @@ sender is at one helm at a time, so taking one leaves the one the sender was at.
 the vehicle's tree down, takes away its steering destination and lets its controls go, so it holds
 where it is until its pilot flies it. What the game's rules fly it by goes on: the docks' approach
 and lift, a [passage](glossary.md#passage), a [portal](glossary.md#portal). Leaving it lets the
-controls go again and starts the tree from the top. A task that was running is not finished, and
-what it asked for (a berth, a portal's slot) goes on or lapses as for a vehicle that did not come.
+controls go again and starts the tree from the top. A task that was running is halted, and
+what it asked for and did not let go of (a berth, a portal's slot) goes on or lapses as for a
+vehicle that did not come.
 
 The helm is left by the one at it, or by no one in particular, the game's own rules. Refusals come
 as `Ai::HelmRefused`, with these reasons:
@@ -270,7 +293,7 @@ vehicle whose helm they hold. A game that uses the helm without behaviour trees 
 
 The module is `DETERMINISTIC` ([coding standards](coding-standards.md#simulation-code)): its
 systems walk entities in entity order and its definitions are kept in ordered maps. `Ai::Steered`,
-`Ai::Destination`, `Ai::Behaviour` and `Sim::Helm` are saved with the world, and the commands and
+`Ai::Destination`, `Ai::Behaviour`, `Ai::Blackboard` and `Sim::Helm` are saved with the world, and the commands and
 events are reflected, so a session can be recorded and replayed.
 
 ## Using it
@@ -460,10 +483,7 @@ trees.world.Commands().Push(Ai::LeaveHelm{one, second});
 
 - Utility AI and behaviour trees have no consumer outside the `ai` suite today; Manifest uses
   pathfinding, courses and steering, and chooses a job's next step with its own
-  `Manifest::Policy::Choose` ([J03](roadmap.md#j03)).
-- Behaviour trees: no reactive or parallel nodes, no task halt, no subtrees, no blackboard, no
-  command giving an entity a tree, no tree ticked less often than every step
-  ([J03](roadmap.md#j03)).
+  `Manifest::Policy::Choose`.
 - A script called from a tree's task, as an input is from a consideration ([J04](roadmap.md#j04)).
 - Steering: no course round the inside of a platform, and no measurement yet for a lane busier than
   a platform's traffic ([J08](roadmap.md#j08)).

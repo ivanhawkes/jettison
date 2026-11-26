@@ -99,6 +99,29 @@ struct Trees
 			    return ++context.memory >= ticks ? Status::Success : Status::Running;
 		    });
 
+		// Runs until it is halted, which it says.
+		behaviours.DefineTask(
+		    "hold",
+		    [this, named](Ai::TaskContext &context)
+		    {
+			    trace.push_back(named(context) + (context.starting ? "^" : "."));
+			    return Status::Running;
+		    },
+		    {}, [this, named](Ai::TaskContext &context) { trace.push_back(named(context) + "!"); });
+
+		// Succeeds while the entity's blackboard holds its argument as an integer not zero.
+		behaviours.DefineTask(
+		    "while",
+		    [this, named](Ai::TaskContext &context)
+		    {
+			    const auto *board = context.world.Registry().try_get<Ai::Blackboard>(context.entity);
+			    const auto found = board ? board->integers.find(context.arguments[0])
+			                             : decltype(board->integers.end()){};
+			    const bool holds = board && found != board->integers.end() && found->second != 0;
+			    trace.push_back(named(context) + (holds ? "+" : "-"));
+			    return holds ? Status::Success : Status::Failure;
+		    });
+
 		// Counts on the entity, so a save has it; and fails once it has counted to its argument.
 		behaviours.DefineTask(
 		    "count",
@@ -549,4 +572,233 @@ TEST_CASE("Behaviour trees: steps a tree waits through are passed over, to the s
 	CHECK(registry.get<Tally>(registry.view<Ai::Behaviour>().front()).count == 10);
 	MESSAGE(calls << " calls");
 	CHECK(calls < 60);
+}
+
+
+TEST_CASE(
+    "Behaviour trees: reactive nodes check what comes before a running branch each tick, and halt it")
+{
+	Trees trees;
+
+	// It works while it is fit, and stops once it is not.
+	trees.behaviours.DefineTree(
+	    "work",
+	    {Composite(
+	        NodeKind::ReactiveSequence, {TaskNode("while", {"fit"}), TaskNode("hold", {"work"})})});
+
+	// An NPC on an errand breaks off to flee while it is threatened, and goes back to it after.
+	trees.behaviours.DefineTree(
+	    "errand",
+	    {Composite(
+	        NodeKind::ReactiveSelector, {Composite(
+	                                         NodeKind::ReactiveSequence, {TaskNode("while", {"threat"}),
+	                                                                      TaskNode("hold", {"flee"})}),
+	                                     TaskNode("hold", {"errand"})})});
+	entt::registry &registry = trees.world.Registry();
+	const entt::entity worker = trees.Follow("work");
+	registry.emplace<Ai::Blackboard>(worker).integers["fit"] = 1;
+	CHECK(trees.Tick(worker, Status::Running) == Trace{"fit+", "work^"});
+	CHECK(trees.Tick(worker, Status::Running) == Trace{"fit+", "work."});
+	registry.get<Ai::Blackboard>(worker).integers["fit"] = 0;
+	CHECK(trees.Tick(worker, Status::Failure) == Trace{"fit-", "work!"});
+
+	const entt::entity npc = trees.Follow("errand");
+	CHECK(trees.Tick(npc, Status::Running) == Trace{"threat-", "errand^"});
+	CHECK(trees.Tick(npc, Status::Running) == Trace{"threat-", "errand."});
+	registry.emplace<Ai::Blackboard>(npc).integers["threat"] = 1;
+	CHECK(trees.Tick(npc, Status::Running) == Trace{"threat+", "flee^", "errand!"});
+	CHECK(trees.Tick(npc, Status::Running) == Trace{"threat+", "flee."});
+	registry.get<Ai::Blackboard>(npc).integers["threat"] = 0;
+	CHECK(trees.Tick(npc, Status::Running) == Trace{"threat-", "flee!", "errand^"});
+}
+
+
+TEST_CASE("Behaviour trees: a parallel runs its children together, and halts those left once decided")
+{
+	Trees trees;
+	trees.behaviours.DefineTree(
+	    "escort",
+	    {Composite(
+	        NodeKind::Parallel, {TaskNode("hold", {"guard"}), TaskNode("run", {"fly", "2"})}, 1)});
+	trees.behaviours.DefineTree(
+	    "all",
+	    {Composite(NodeKind::Parallel, {TaskNode("succeed", {"a"}), TaskNode("run", {"b", "2"})})});
+	trees.behaviours.DefineTree(
+	    "both", {Composite(NodeKind::Parallel, {TaskNode("fail", {"a"}), TaskNode("hold", {"b"})})});
+
+	// One success of two is enough: the guard is halted as the flight ends.
+	const entt::entity escort = trees.Follow("escort");
+	CHECK(trees.Tick(escort, Status::Running) == Trace{"guard^", "fly^"});
+	CHECK(trees.Tick(escort, Status::Success) == Trace{"guard.", "fly.", "guard!"});
+	CHECK(trees.Tick(escort, Status::Running) == Trace{"guard^", "fly^"});
+
+	// With no count every child must succeed, and one finished is not ticked again.
+	const entt::entity all = trees.Follow("all");
+	CHECK(trees.Tick(all, Status::Running) == Trace{"a+", "b^"});
+	CHECK(trees.Tick(all, Status::Success) == Trace{"b."});
+
+	// A failure it cannot make up for fails it at once.
+	CHECK(trees.Tick(trees.Follow("both"), Status::Failure) == Trace{"a-", "b^", "b!"});
+
+	BehaviourNode greedy = Composite(NodeKind::Parallel, {TaskNode("succeed"), TaskNode("succeed")}, 3);
+	CHECK_THROWS_WITH_AS(
+	    trees.behaviours.DefineTree("greedy", {greedy}),
+	    "Behaviour 'greedy' has, at root, a parallel needing 3 of its 2 children",
+	    Serialise::FormatError);
+	BehaviourNode crowd = Composite(NodeKind::Parallel, {});
+	crowd.children.assign(Ai::kParallelChildren + 1, TaskNode("succeed"));
+	CHECK_THROWS_WITH_AS(
+	    trees.behaviours.DefineTree("crowd", {crowd}),
+	    "Behaviour 'crowd' has, at root, a parallel with 33 children, more than 32",
+	    Serialise::FormatError);
+}
+
+
+TEST_CASE("Behaviour trees: a subtree is the tree it names in its place, one defined before it")
+{
+	Trees trees;
+	trees.behaviours.DefineTree(
+	    "leg",
+	    {Composite(NodeKind::Sequence, {TaskNode("succeed", {"a"}), TaskNode("succeed", {"b"})})});
+	BehaviourNode leg;
+	leg.kind = NodeKind::Subtree;
+	leg.tree = "leg";
+	trees.behaviours.DefineTree("trip", {Composite(NodeKind::Sequence, {leg, leg})});
+	CHECK(trees.behaviours.NodeCount("trip") == 7);
+	CHECK(trees.Tick(trees.Follow("trip"), Status::Success) == Trace{"a+", "b+", "a+", "b+"});
+
+	BehaviourNode later = leg;
+	later.tree = "later";
+	CHECK_THROWS_WITH_AS(
+	    trees.behaviours.DefineTree("early", {later}),
+	    "Behaviour 'early' has, at root, the tree 'later', which is not defined",
+	    Serialise::FormatError);
+	BehaviourNode nameless;
+	nameless.kind = NodeKind::Subtree;
+	CHECK_THROWS_WITH_AS(
+	    trees.behaviours.DefineTree("nameless", {nameless}),
+	    "Behaviour 'nameless' has, at root, a subtree that names no tree", Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    trees.behaviours.DefineTree("slow", {TaskNode("succeed"), -1.0}),
+	    "Behaviour 'slow' has an interval of -1 seconds", Serialise::FormatError);
+}
+
+
+TEST_CASE(
+    "Behaviour trees: a command gives an entity a tree, halting the one it had; the helm halts it too, "
+    "and the blackboard is kept")
+{
+	const Sim::Controller one{Sim::ControllerKind::Player, 1};
+	const Sim::Controller two{Sim::ControllerKind::Player, 2};
+	Trees trees;
+	trees.world.RegisterComponent<Sim::ControlledBy>();
+	trees.behaviours.DefineTree("watch", {TaskNode("hold", {"watch"})});
+	trees.behaviours.DefineTree("patrol", {TaskNode("hold", {"patrol"})});
+	entt::registry &registry = trees.world.Registry();
+	const entt::entity guard = registry.create();
+	registry.emplace<Sim::ControlledBy>(guard, one);
+	registry.emplace<Ai::Blackboard>(guard).entities["post"] = guard;
+	const entt::entity gone = registry.create();
+	registry.destroy(gone);
+	const auto id = [](entt::entity entity) { return entt::to_integral(entity); };
+	const auto step = [&]
+	{
+		trees.world.Step();
+		std::vector<std::string> said = std::exchange(trees.trace, {});
+		for (const Sim::SimEvent &event : trees.world.Events().Take())
+			if (const auto *assigned = event.event.try_cast<Ai::BehaviourAssigned>())
+				said.push_back(std::format("assigned {} '{}'", id(assigned->entity), assigned->tree));
+			else if (const auto *refused = event.event.try_cast<Ai::BehaviourRefused>())
+				said.push_back(std::format("refused {} {}", id(refused->entity), refused->reason.key));
+		return said;
+	};
+
+	// Applied before the step's trees are ticked, so the tree starts in the same step.
+	trees.world.Commands().Push(Ai::AssignBehaviour{one, guard, "watch"});
+	CHECK(step() == Trace{"watch^", std::format("assigned {} 'watch'", id(guard))});
+	trees.world.Commands().Push(Ai::AssignBehaviour{one, guard, "patrol"});
+	CHECK(step() == Trace{"watch!", "patrol^", std::format("assigned {} 'patrol'", id(guard))});
+
+	trees.world.Commands().Push(Ai::AssignBehaviour{two, guard, "watch"});
+	trees.world.Commands().Push(Ai::AssignBehaviour{one, guard, "nowhere"});
+	trees.world.Commands().Push(Ai::AssignBehaviour{one, gone, "watch"});
+	CHECK(
+	    step() == Trace{
+	                  "patrol.", std::format("refused {} reason.ai.not_controller", id(guard)),
+	                  std::format("refused {} reason.ai.no_such_tree", id(guard)),
+	                  std::format("refused {} reason.ai.no_such_entity", id(gone))});
+
+	// No tree, from the game's rules: it follows none, and keeps what it remembered.
+	trees.world.Commands().Push(Ai::AssignBehaviour{{}, guard, ""});
+	CHECK(step() == Trace{"patrol!", std::format("assigned {} ''", id(guard))});
+	CHECK_FALSE(registry.all_of<Ai::Behaviour>(guard));
+	CHECK(registry.get<Ai::Blackboard>(guard).entities.at("post") == guard);
+
+	// Taking the helm halts the running task; leaving it starts the tree from the top.
+	trees.world.Commands().Push(Ai::AssignBehaviour{one, guard, "watch"});
+	step();
+	trees.world.Commands().Push(Ai::TakeHelm{one, guard});
+	CHECK(step() == Trace{"watch!"});
+	CHECK(step().empty());
+	trees.world.Commands().Push(Ai::LeaveHelm{one, guard});
+	CHECK(step() == Trace{"watch^"});
+
+	// The blackboard is saved with the world.
+	Trees loaded;
+	loaded.world.RegisterComponent<Sim::ControlledBy>();
+	loaded.behaviours.DefineTree("watch", {TaskNode("hold", {"watch"})});
+	loaded.behaviours.DefineTree("patrol", {TaskNode("hold", {"patrol"})});
+	loaded.world.Load(trees.world.Save());
+	CHECK(loaded.world.Registry().get<Ai::Blackboard>(guard) == registry.get<Ai::Blackboard>(guard));
+	CHECK(loaded.world.StateHash() == trees.world.StateHash());
+}
+
+
+TEST_CASE(
+    "Behaviour trees: a tree with an interval is ticked once in it, its entities spread over it, and "
+    "the steps between passed over")
+{
+	Trees spread;
+	Trees forwarded;
+	Trees stepped;
+	for (Trees *trees : {&spread, &forwarded, &stepped})
+	{
+		// A tenth of a second: six steps.
+		trees->behaviours.DefineTree("slow", {TaskNode("count"), 0.1});
+		for (int entity = 0; entity < 3; ++entity)
+			trees->Follow("slow");
+	}
+	const auto counts = [](const Trees &trees)
+	{
+		const entt::registry &registry = trees.world.Registry();
+		std::vector<std::int64_t> counted;
+		for (const auto [entity, behaviour] : registry.view<const Ai::Behaviour>().each())
+		{
+			const auto *tally = registry.try_get<Tally>(entity);
+			counted.push_back(tally ? tally->count : 0);
+		}
+		std::ranges::sort(counted);
+		return counted;
+	};
+	spread.world.Step();
+	CHECK(counts(spread) == std::vector<std::int64_t>{0, 0, 1});
+	for (int step = 1; step < 6; ++step)
+		spread.world.Step();
+	CHECK(counts(spread) == std::vector<std::int64_t>{1, 1, 1});
+
+	constexpr std::uint64_t kEnd = 600;
+	int calls = 0;
+	while (forwarded.world.Clock().Step() < kEnd)
+	{
+		forwarded.world.FastForward(kEnd);
+		++calls;
+		while (stepped.world.Clock().Step() < forwarded.world.Clock().Step())
+			stepped.world.Step();
+		REQUIRE(forwarded.world.Save() == stepped.world.Save());
+	}
+	CHECK(counts(stepped) == std::vector<std::int64_t>{100, 100, 100});
+
+	// Fewer calls than steps: the steps between an interval's three ticks are passed over.
+	MESSAGE(calls << " calls");
+	CHECK(calls < static_cast<int>(kEnd));
 }

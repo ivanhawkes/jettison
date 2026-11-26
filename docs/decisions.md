@@ -167,11 +167,12 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   handler and checks. They are not queued, because the queue is what a session records, and a replay
   would apply them twice (its trees send them again); the trees run first in the step, so their
   commands find the world as queued ones do. [AI](ai.md)
-- **Behaviour trees resume their running child, and nothing interrupts it** (2026-11-12). A sequence
-  or a selector goes back to the running child rather than starting from the first, and no node
-  leaves a running one, so a task waiting on an answer is never left half done and needs no undoing.
-  An entity's place in its tree is a memory and a flag a node, saved with the world; reactive nodes
-  wait for a game's tree that needs them ([J03](roadmap.md#j03)). [AI](ai.md)
+- **Behaviour trees resume their running child, and interrupt one only with a halt** (2026-11-12;
+  the halt 2026-11-26). A sequence or a selector goes back to the running child rather than starting
+  from the first. Only a reactive node, a parallel once decided, a new tree or a helm taken leaves a
+  running node, and each tells its tasks so (`Ai::TaskHalt`), so a task waiting on an answer can let
+  go of what it holds. An entity's place in its tree is a memory and a flag a node, saved with the
+  world. [AI](ai.md)
 
 ## Persistence
 

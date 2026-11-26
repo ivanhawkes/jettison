@@ -26,5 +26,6 @@ reason:
     no_pilot: niemand Bestimmtes kann ein Steuer übernehmen
     helm_held: jemand anderes ist am Steuer des Fahrzeugs
     not_at_helm: der Absender ist nicht am Steuer des Fahrzeugs
+    no_such_tree: es gibt kein Verhalten {0}
   physics:
     not_at_helm: der Absender ist nicht am Steuer des Fahrzeugs

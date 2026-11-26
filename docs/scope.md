@@ -17,7 +17,7 @@ build every genre's features now: a capability marked Out is reassessed when a c
 
 | Verdict | Meaning | Example |
 | --- | --- | --- |
-| In | Built. Open work on it is a backlog item, linked | Behaviour trees, with reactive nodes still open ([J03](roadmap.md#j03)) |
+| In | Built. Open work on it is a backlog item, linked | Physics, with overlap queries still open ([J07](roadmap.md#j07)) |
 | Open | Accepted but not built yet: a backlog item, linked | A script reloaded when its module changes ([J04](roadmap.md#j04)) |
 | Reframed | The need is real, but the usual solution is the wrong one here; the row says what serves it instead | Pathfinding: A* over graphs, not over navigation meshes |
 | Deferred | Possibly needed, but built only on measured evidence or when a consumer asks | A general job system, until a profile shows a system needs it |
@@ -123,7 +123,7 @@ How: [AI](ai.md).
 
 | Item | Verdict | Why |
 | --- | --- | --- |
-| Behaviour trees | In | Sequences such as undock, fly, dock, trade, as data, saved where each entity is; more nodes are [J03](roadmap.md#j03) |
+| Behaviour trees | In | Sequences such as undock, fly, dock, trade, as data, saved where each entity is, with reactive and parallel nodes, subtrees, a blackboard and trees ticked less often |
 | Utility AI | In | Choices that are scoring problems (which trade, which route), as data |
 | Pathfinding | Reframed | A* over graphs, and courses round spheres; not over navigation meshes or grids |
 | Steering | In | Seek, arrive, avoidance and separation, so automated vehicles keep clear; more is [J08](roadmap.md#j08) |
