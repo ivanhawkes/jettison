@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-26 | Dock control a game decides, J35: a game's rules admit or refuse a request and rank a platform's queue ([neutral SDK](history/neutral-sdk.md#j35-dock-control)) |
 | 2026-11-26 | Unused code deleted, as the user chose: `Scene::ProxyFactory`, `Ecs::StateMachine` and its tests, and the renderer's `SetClusterRange` and `SetShadowDistance`; each is written again if wanted |
 | 2026-11-26 | A script's sender, J02: the game names it per event, and every controller in a command is stamped ([neutral SDK](history/neutral-sdk.md#j02-script-sender)) |
 | 2026-11-26 | Encryption, J01: every message sealed to keys made with the server's pinned key ([neutral SDK](history/neutral-sdk.md#j01-encryption)) |

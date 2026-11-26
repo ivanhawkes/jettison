@@ -349,6 +349,70 @@ TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 }
 
 
+namespace
+{
+// A game's mark on a vehicle its rules serve first.
+struct Favoured
+{
+};
+} // namespace
+
+
+TEST_CASE("Docks: a game's rules refuse a vehicle with its own reason and move another up the queue")
+{
+	Yard yard;
+	const entt::entity rival = yard.Waiting("hauler");
+	const entt::entity docked = yard.Waiting("barge");
+	const entt::entity early = yard.Waiting("barge");
+	const entt::entity late = yard.Waiting("barge");
+	const entt::entity favoured = yard.Waiting("barge");
+	yard.world.Registry().emplace<Favoured>(favoured);
+	yard.docks.SetControl(
+	    {.admit = [rival](const Sim::SimWorld &, const Dock::RequestBerth &request)
+	         -> std::optional<Sim::Reason>
+	     {
+		     if (request.vehicle == rival)
+			     return Sim::Reason{
+			         "reason.test.rival", {Sim::ReasonArgument::Entity(request.platform)}};
+		     return std::nullopt;
+	     },
+	     .rank = [](const Sim::SimWorld &world, entt::entity, entt::entity vehicle) -> std::int64_t
+	     { return world.Registry().all_of<Favoured>(vehicle) ? 1 : 0; }});
+
+	// A barge fits only berth 3, so every barge after the first waits for it.
+	for (const entt::entity vehicle : {rival, docked, early, late, favoured})
+		yard.Ask(vehicle);
+	yard.Step();
+	const std::vector<Dock::BerthRefused> refused = yard.Events<Dock::BerthRefused>();
+	REQUIRE(refused.size() == 1);
+	CHECK(refused[0].vehicle == rival);
+	CHECK(refused[0].reason.key == "reason.test.rival");
+	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{docked, 3}});
+	std::vector<std::pair<entt::entity, std::uint32_t>> places;
+	for (const Dock::BerthQueued &queued : yard.Events<Dock::BerthQueued>())
+		places.emplace_back(queued.vehicle, queued.place);
+	CHECK(
+	    places ==
+	    std::vector<std::pair<entt::entity, std::uint32_t>>{{early, 1}, {late, 2}, {favoured, 1}});
+
+	// The queue saved keeps the order they asked in: the rank is the rule's, asked as it is served.
+	CHECK(
+	    yard.world.Registry().get<Dock::Platform>(yard.platform).queue ==
+	    std::vector<entt::entity>{early, late, favoured});
+
+	// The favoured barge asked last and is served first; the others in the order they asked.
+	for (const entt::entity next : {favoured, early, late})
+	{
+		const entt::entity holder =
+		    yard.world.Registry().get<Dock::Berth>(yard.BerthNumbered(yard.platform, 3)).vehicle;
+		yard.events.clear();
+		yard.world.Commands().Push(Dock::ReleaseBerth{{}, holder});
+		yard.Step();
+		CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{next, 3}});
+	}
+}
+
+
 TEST_CASE("Docks: a reservation not landed on in time lapses, and the pad goes to the next in line")
 {
 	Yard yard;

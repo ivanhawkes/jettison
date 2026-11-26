@@ -298,6 +298,12 @@ void Docks::Park(Sim::SimWorld &world, entt::entity vehicle, entt::entity berthE
 }
 
 
+void Docks::SetControl(Control control)
+{
+	m_control = std::move(control);
+}
+
+
 void Docks::Request(Sim::SimWorld &world, const RequestBerth &command)
 {
 	entt::registry &registry = world.Registry();
@@ -356,12 +362,15 @@ void Docks::Request(Sim::SimWorld &world, const RequestBerth &command)
 		                                           Offers(registry, berth, command.feature);
 	                                    }))
 		return refuse(Reason::NoBerthOffers, {Sim::ReasonArgument::Entity(platformEntity)});
+	if (m_control.admit)
+		if (std::optional<Sim::Reason> refused = m_control.admit(world, command))
+			return world.Events().Emit(BerthRefused{vehicle, platformEntity, std::move(*refused)});
 
 	platform.queue.push_back(vehicle);
 	registry.emplace<Docking>(
 	    vehicle, Docking{platformEntity, entt::null, Stage::Queued, command.fly, command.feature});
 	Serve(world, platformEntity, world.Clock().Now());
-	const std::vector<entt::entity> &queue = registry.get<Platform>(platformEntity).queue;
+	const std::vector<entt::entity> queue = Ranked(world, platformEntity);
 	if (const auto place = std::ranges::find(queue, vehicle); place != queue.end())
 		world.Events().Emit(
 		    BerthQueued{
@@ -594,20 +603,34 @@ entt::entity Docks::FreeBerthFor(
 void Docks::Serve(Sim::SimWorld &world, entt::entity platformEntity, double time)
 {
 	entt::registry &registry = world.Registry();
-	std::vector<entt::entity> &queue = registry.get<Platform>(platformEntity).queue;
-	for (std::size_t index = 0; index < queue.size();)
+	for (const entt::entity vehicle : Ranked(world, platformEntity))
 	{
 		const entt::entity berth =
-		    FreeBerthFor(registry, registry.get<Platform>(platformEntity), queue[index]);
+		    FreeBerthFor(registry, registry.get<Platform>(platformEntity), vehicle);
 		if (berth == entt::null)
-		{
-			++index;
 			continue;
-		}
-		const entt::entity vehicle = queue[index];
-		queue.erase(queue.begin() + static_cast<std::ptrdiff_t>(index));
+		std::erase(registry.get<Platform>(platformEntity).queue, vehicle);
 		Give(world, vehicle, berth, time);
 	}
+}
+
+
+std::vector<entt::entity> Docks::Ranked(const Sim::SimWorld &world, entt::entity platform) const
+{
+	std::vector<entt::entity> queue = world.Registry().get<Platform>(platform).queue;
+	if (!m_control.rank)
+		return queue;
+
+	// Asked once a vehicle, not in a comparison, so a rule that answers differently twice cannot break
+	// the sort.
+	std::vector<std::pair<std::int64_t, entt::entity>> ranked;
+	ranked.reserve(queue.size());
+	for (const entt::entity vehicle : queue)
+		ranked.emplace_back(m_control.rank(world, platform, vehicle), vehicle);
+	std::ranges::stable_sort(
+	    ranked, std::ranges::greater{}, [](const auto &entry) { return entry.first; });
+	std::ranges::transform(ranked, queue.begin(), [](const auto &entry) { return entry.second; });
+	return queue;
 }
 
 

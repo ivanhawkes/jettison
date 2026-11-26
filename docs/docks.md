@@ -131,6 +131,23 @@ A reservation lasts the layout's `reservationSeconds`, rounded up to whole
 queue. The queue is served from the front as berths come free, each vehicle given the best free
 berth it fits, so a small vehicle behind a large one can take a berth the large one does not fit.
 
+### Dock control a game decides
+
+Who may dock and who is served first are the game's rules, not the engine's. A game gives them as a
+`Dock::Control` (`Docks::SetControl`), at start-up as it gives its definitions:
+
+| Rule | Asked | Its answer |
+| --- | --- | --- |
+| `admit` | For a request that has passed the docks' own checks above | A `Sim::Reason` of the game's own (`reason.<game>.<name>`) refuses it with a `BerthRefused` carrying that reason; none admits it |
+| `rank` | For every vehicle in a platform's queue, each time the queue is served, and as a vehicle is queued for its `BerthQueued` place | A number: the higher served first, equal numbers in the order they asked |
+
+With no rules set, every request that fits is admitted and the queue is served first come, first
+served. The queue a save holds stays in the order the vehicles asked; the rank is asked again each
+time it is served, so a rule reads the game's own saved state and saves nothing of its own. A rule
+reads the world and never changes it, and must give the same answer on every run, as any of the
+step's code must ([coding standards](coding-standards.md#simulation-code)). `Docks::Park`, a world's
+initial state, asks neither.
+
 ### A vehicle's stages
 
 `Dock::Docking::stage` records how far a vehicle has got. The diagram shows the stages and what
@@ -365,8 +382,6 @@ Manifest docks every ship through these commands, in its travel module
 - The way in replaces its stop along the normal, and a reservation lapses when a vehicle stops
   making progress rather than at a fixed time: [J09](roadmap.md#j09).
 - Steering's course goes round a platform's sphere, not round its inside: [J08](roadmap.md#j08).
-- A game has no say in who docks: admitting, refusing and ranking arrivals by its own rules is
-  [J35](roadmap.md#j35).
 
 ## Decisions
 

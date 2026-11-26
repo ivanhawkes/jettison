@@ -5,7 +5,9 @@
 #include <glm/vec3.hpp>
 
 #include <cstdint>
+#include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -143,10 +145,10 @@ bool IsDocked(const entt::registry &registry, entt::entity vehicle, entt::entity
 // the back of the platform's queue. Flown in by the docks if fly is set. Refused, with a BerthRefused,
 // for a sender that does not control the vehicle (Sim::MayCommand); a vehicle that is not a dynamic
 // body with a Vehicle, or is in another frame or local frame than the platform; one that already holds
-// a berth or a place; and a platform that is not one, or has no berth the vehicle fits. With a feature
-// (BerthLayout::features), only a berth that offers it is given, the lowest-ranked and lowest numbered
-// of those, and a platform with no such berth the vehicle fits refuses; with none, any berth.
-// Registered with Reflect, every field Saved, by RegisterTypes.
+// a berth or a place; and a platform that is not one, or has no berth the vehicle fits; then by the
+// game's rules (Control). With a feature (BerthLayout::features), only a berth that offers it is given,
+// the lowest-ranked and lowest numbered of those, and a platform with no such berth the vehicle fits
+// refuses; with none, any berth. Registered with Reflect, every field Saved, by RegisterTypes.
 struct RequestBerth
 {
 	Sim::Controller sender;
@@ -251,6 +253,24 @@ struct Left
 	std::uint32_t number{0};
 };
 
+// A game's own rules for who docks (docs/docks.md, "Dock control a game decides"). The engine has no
+// rule of admission or rank: with neither set, every request that fits is admitted and the queue is
+// served first come, first served. Both are the game's start-up, as definitions are, and read the world
+// without changing it, so a step decides the same on every run as long as the rules read only saved
+// state.
+//
+// admit is asked once a request has passed the docks' own checks, and a reason refuses it with a
+// BerthRefused carrying that reason. rank is asked of every vehicle in a platform's queue each time the
+// queue is served, and as a vehicle is queued for its place: the higher served first, equal ranks in
+// the order they asked. Docks::Park, a world's initial state, asks neither.
+struct Control
+{
+	std::function<std::optional<Sim::Reason>(const Sim::SimWorld &world, const RequestBerth &request)>
+	    admit;
+	std::function<std::int64_t(const Sim::SimWorld &world, entt::entity platform, entt::entity vehicle)>
+	    rank;
+};
+
 // The docks in a simulation world: the components, the commands, and the system "dock"
 // (kSystemName), after physics' ("physics") and before a game's that order themselves after it, which
 // each step, in entity order:
@@ -263,7 +283,8 @@ struct Left
 //      normal, its nose within 15° of the heading), and moving at under half a metre a second, is
 //      clamped there, docked; one flown in that has reached the point above its berth comes down onto
 //      it; and one leaving that has reached the point above its berth gives it up.
-//   4. Serves each platform's queue from the front, each vehicle the lowest-ranked free berth it fits.
+//   4. Serves each platform's queue in the game's rank (Control) and then the order they asked,
+//      each vehicle the lowest-ranked free berth it fits.
 //
 // A vehicle flown in by the docks is steered (Ai::Steering): first along a course round the platform's
 // sphere (Ai::Waypoints) to a point out along its berth's normal, as far beyond the point above the
@@ -339,6 +360,9 @@ class Docks
 	// for a berth that is not free, a display berth among them, or a vehicle that cannot be put on it.
 	void Park(Sim::SimWorld &world, entt::entity vehicle, entt::entity berth);
 
+	// Replaces the game's rules for who docks; a request or a queue served after it follows them.
+	void SetControl(Control control);
+
   private:
 	explicit Docks(Physics::PhysicsWorld &physics) : m_physics{physics}
 	{
@@ -364,6 +388,10 @@ class Docks
 	// The time is the one the world's transforms are at: the step's start in a command, its end in the
 	// system.
 	void Serve(Sim::SimWorld &world, entt::entity platform, double time);
+
+	// The platform's queue in the order it is served: by the game's rank (Control::rank), the higher
+	// first, and in the order they asked within a rank.
+	std::vector<entt::entity> Ranked(const Sim::SimWorld &world, entt::entity platform) const;
 
 	void Give(Sim::SimWorld &world, entt::entity vehicle, entt::entity berth, double time);
 
@@ -409,5 +437,6 @@ class Docks
 	BerthClasses m_berthClasses;
 	std::map<std::string, VehicleDefinition, std::less<>> m_vehicles;
 	std::map<std::string, PlatformLayout, std::less<>> m_layouts;
+	Control m_control;
 };
 } // namespace Jettison::Dock

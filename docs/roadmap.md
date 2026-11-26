@@ -30,8 +30,8 @@ it, and an item done or dropped leaves its number unused.
 Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifest now builds against
 `70cd4de`, the docs review's head; the four gaps its Stage 5 cross-review found were provisioned
 by `459af99` and the commit before it ([history](history.md)). Its later work waits until the user
-has played its first loop for a day or two. No delivery is open: encryption, J01, and a script's
-sender, J02, are done ([history](history.md)). Manifest's adoption of encryption, its server's key in
+has played its first loop for a day or two. No delivery is open: encryption, J01, a script's
+sender, J02, and dock control a game decides, J35, are done ([history](history.md)). Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
 
 ## Waiting on you
@@ -226,29 +226,6 @@ seed (`source/engine/app/src/Application.h`), and reads each package's `mod.yaml
 ([the host session](simulation.md#the-host-session)).
 
 **Feature doc:** [the app shell and tools](app-shell.md).
-
-<a id="j35"></a>
-### J35. Dock control a game decides
-
-**What remains.** An interface through which a game sets its own rules for who docks: admitting or
-refusing a vehicle's request for a berth, with a reason the game names, and ranking a platform's
-queue. The engine supplies only the core functions: it asks the game's rule at a request and as
-the queue moves, and carries out the answer through the berth events it already raises. No rule
-of admission, priority, rank, fee or standing is the engine's. It is done when a consumer that is
-not Manifest refuses a vehicle and moves another up the queue by its own rule, with no rule set
-the docks serve first come, first served as today, and `Docks::Park` stays the trusted path for
-a world's initial state.
-
-**Why.** Manifest's private ports (its L04) let an owner admit, refuse and rank arrivals, and
-every ordinary arrival, player or NPC, must pass that rule. Other games will want other rules, so
-the engine provides the seam and the game the policy.
-
-**What exists.** The docks refuse a request only for control, frame or fit, and serve the queue
-first come, first served (`Dock::Docks::Request`, `BerthQueued`, `BerthRefused`,
-`source/engine/dock/include/jettison/dock/Docks.h`;
-[asking for a berth](docks.md#asking-for-a-berth-and-giving-it-up)).
-
-**Feature doc:** [docks](docks.md).
 
 ## Tier 3: robustness and tools
 
