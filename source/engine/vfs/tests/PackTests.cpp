@@ -355,7 +355,7 @@ TEST_CASE("Pack: a damaged file in a pack is caught as it is read")
 }
 
 
-TEST_CASE("Pack: a pack replaced on the disk while mounted is read as it was mounted")
+TEST_CASE("Pack: a pack replaced on the disk is read as it was mounted until the file system refreshes")
 {
 	const Scratch scratch;
 	scratch.Put("assets/note.txt", "first");
@@ -368,4 +368,39 @@ TEST_CASE("Pack: a pack replaced on the disk while mounted is read as it was mou
 	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
 	CHECK(Text(files.Read("note.txt")) == "first");
 	CHECK_FALSE(files.Exists("aaa-first.txt"));
+	const auto before = files.Find("note.txt");
+
+	// Refreshed, the new pack is read, and its files' info shows the change.
+	files.Refresh();
+	CHECK(Text(files.Read("note.txt")) == "second, and at another size");
+	CHECK(files.Exists("aaa-first.txt"));
+	CHECK(files.Find("note.txt") != before);
+}
+
+
+TEST_CASE("Pack: a pack that changes and does not open keeps the old one until it changes again")
+{
+	const Scratch scratch;
+	scratch.Put("assets/note.txt", "first");
+	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
+	FileSystem files;
+	files.AddMount({"base", scratch.Path("base.pack")});
+
+	// Not a pack: refused, and the one mounted is read as before, however often it is asked.
+	scratch.Put("scratch.pack", "half written");
+	std::filesystem::rename(scratch.Path("scratch.pack"), scratch.Path("base.pack"));
+	files.Refresh();
+	files.Refresh();
+	CHECK(Text(files.Read("note.txt")) == "first");
+
+	// The same bad file is not tried again, but a changed one is.
+	scratch.Put("assets/note.txt", "third");
+	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
+	files.Refresh();
+	CHECK(Text(files.Read("note.txt")) == "third");
+
+	// A pack taken away is no change to act on.
+	std::filesystem::remove(scratch.Path("base.pack"));
+	files.Refresh();
+	CHECK(Text(files.Read("note.txt")) == "third");
 }

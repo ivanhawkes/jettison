@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <format>
+#include <iterator>
 #include <ranges>
 #include <stdexcept>
 #include <system_error>
@@ -15,6 +16,10 @@ namespace Jettison::Vfs
 {
 namespace
 {
+// A patch of a file is named for it, the marker before its extension.
+constexpr std::string_view kPatchMarker = ".patch";
+
+
 void Validate(std::string_view virtualPath)
 {
 	if (!FileSystem::IsValidPath(virtualPath))
@@ -204,6 +209,59 @@ std::vector<Layer> FileSystem::ReadLayers(std::string_view virtualPath) const
 			layers.push_back({index, std::move(*bytes)});
 	}
 	return layers;
+}
+
+
+void FileSystem::Refresh() const
+{
+	for (const auto &source : m_sources)
+		source->Refresh();
+}
+
+
+std::string FileSystem::PatchPath(std::string_view virtualPath)
+{
+	Validate(virtualPath);
+	const std::size_t name = virtualPath.rfind('/') + 1;
+	const std::size_t dot = virtualPath.rfind('.');
+	if (dot == std::string_view::npos || dot <= name)
+		throw std::invalid_argument{
+		    std::format("Vfs: '{}' has no extension to patch beside", virtualPath)};
+	return std::format("{}{}{}", virtualPath.substr(0, dot), kPatchMarker, virtualPath.substr(dot));
+}
+
+
+std::optional<PatchedFile> FileSystem::ReadPatched(std::string_view virtualPath) const
+{
+	const std::string patchPath = PatchPath(virtualPath);
+
+	// Each mount's whole file, then its patch, the bottom mount's first.
+	std::vector<PatchedLayer> sources;
+	for (const bool patch : {false, true})
+	{
+		const std::string path = patch ? patchPath : std::string{virtualPath};
+		for (Layer &layer : ReadLayers(path))
+			sources.push_back(
+			    {layer.mount, patch, std::format("{} in '{}'", path, m_mounts[layer.mount].name),
+			     std::move(layer.bytes)});
+	}
+	if (sources.empty())
+		return std::nullopt;
+	std::ranges::stable_sort(
+	    sources, {}, [](const PatchedLayer &source) { return std::pair{source.mount, source.patch}; });
+
+	// A whole file replaces everything below it; the patches above the topmost one are merged into
+	// it in order.
+	const auto whole = std::ranges::find_if(
+	    sources.rbegin(), sources.rend(), [](const PatchedLayer &source) { return !source.patch; });
+	if (whole == sources.rend())
+		throw std::runtime_error{
+		    std::format("Vfs: {} patches a file that no mount has a whole file for", patchPath)};
+	PatchedFile file;
+	file.replaced = std::prev(whole.base())->mount != sources.front().mount;
+	file.layers.assign(
+	    std::make_move_iterator(std::prev(whole.base())), std::make_move_iterator(sources.end()));
+	return file;
 }
 
 

@@ -44,6 +44,8 @@ whether a mount is a directory or a pack.
 | `Exists`, `Find` | Whether a file is there; `Find` also gives its mount index, time and size |
 | `Read` | The topmost file's bytes, or none |
 | `ReadLayers` | The file at the path in every mount that has one, the bottom mount's first |
+| `ReadPatched` | A file with its patches, by the layering rules below: the topmost whole file, then the patches over it in mount order |
+| `Refresh` | Opens again each pack whose file has changed on the disk ([packs](#packs)) |
 | `Write` | Writes to the writable mount, replacing a file whole and durably |
 | `Enumerate` | Every file under a directory, across all mounts, each once, sorted |
 
@@ -54,8 +56,8 @@ reader, crash or power cut finds half a file ([durable writes](persistence.md#du
 `Enumerate` leaves out a file whose name is not a valid virtual path, since nothing could read it.
 A symbolic link inside a mounted directory is followed.
 
-Mounts are added at start-up, before anything reads; after that the `const` calls are safe from
-any thread, so the I/O worker and the main thread read at once.
+Mounts are added at start-up, before anything reads; after that the `const` calls, `Refresh` too, are
+safe from any thread, so the I/O worker and the main thread read at once.
 
 ### The shell's mounts
 
@@ -173,9 +175,15 @@ it is unless that saves at least a thirty-second of it, then compresses the file
 chosen level, 19 by default. KTX 2 textures are already supercompressed, and glTF models and music
 barely shrink, so the high level is spent only where it helps.
 
-The pack's file stays open for the run and is read with `pread`, which keeps no file position, so
-two threads read at once. A pack replaced on the disk while mounted is still read as it was
-mounted, rather than at the old offsets of the new file.
+The pack's file stays open and is read with `pread`, which keeps no file position, so two threads
+read at once. A pack replaced on the disk is still read as it was mounted, rather than at the old
+offsets of the new file, until `FileSystem::Refresh`: it opens the file again when its time, size
+or inode is no longer the open pack's, and reads from the new pack from then on, while a read
+already begun finishes on the old one. The resource manager calls it before each hot-reload check
+([resources](#resources)), so a development run sees a rebuilt mod without a restart; every file
+in a rewritten pack counts as changed, since a pack has one time. A pack that does not open, a
+copy half written or a damaged one, keeps the old pack and logs a warning, once, and is tried again
+when the file changes again. With no `Refresh`, as in a shipped build, a pack stays as mounted.
 
 `Vfs::WritePack` writes a pack, the same files always giving the same bytes, beside the output and
 renamed over it once complete, so a reader never finds half a pack. Files whose
@@ -221,7 +229,13 @@ its line numbers, and a patch can say things a value cannot:
 | `~` (null) | Removes the key, so the field reads as its default |
 | A sequence tagged `!append` | Added to the end of the sequence below |
 | A sequence of mappings tagged `!merge=<field>` | Merged element by element, matched by that field; an unmatched element is appended |
+| A sequence of scalars tagged `!remove` | Takes out each element of the sequence below that equals one listed |
+| A sequence tagged `!remove=<field>` | Takes out each element of the sequence below whose `<field>` equals a listed scalar |
 | Anything else (a scalar, an untagged sequence) | Replaces what is below |
+
+A `!remove` that names what is not in the sequence below is refused, naming the layer and the
+value (`'mining' is not in the sequence below it`), as a patch naming what is not there is a
+modder's mistake. A mod that wants a list as it likes replaces it whole.
 
 Every patch has its own `version`, and each layer is checked against its type's
 [format version](glossary.md#format-version) on its own before it is merged, so a
@@ -232,11 +246,26 @@ The registry logs each definition a mount changes, naming the mounts, such as
 `defs/ships/hauler: patched by 'mod', 'later'` or `replaced by 'later'`. An error names the file
 and its mount, and the previous set of definitions stays loaded.
 
-Other data layers in its own way. A string table is one flat mapping, so a mod's file at the same
-path merges key by key with no `.patch.yaml` ([string tables](ui.md#string-tables)). A script is a
-definition, so a mod adds one with a file and changes another's grants with a patch
-([scripts](scripts.md#a-script-is-a-definition)). A scene, a model or a stylesheet is replaced whole
-by shadowing.
+The rules are one function, `FileSystem::ReadPatched`, which the registry and the other readers
+share, so a patch is named, ordered and refused the same everywhere it applies (a patch with no
+whole file under it throws, naming the patch).
+
+Other data layers in its own way:
+
+- A scene is read as a definition is, through `Scene::Load(files, path)` or `SceneFile::Read`: a
+  mod's `scene/main.patch.yaml` changes the base's scene, entity by entity with `!merge=id`,
+  `!append` and `!remove=id`, and a whole `scene/main.yaml` replaces it. `--scene` names a file on
+  disk and is read as it was.
+- A stylesheet is replaced whole by shadowing, or changed by a `<name>.patch.rcss` beside it, which
+  is appended after the text below it, the base's whole file first and each patch in mount order,
+  so its rules win by the cascade. The same rules apply, a patch with no whole file under it being
+  refused ([UI](ui.md)).
+- A string table is one flat mapping, so a mod's file at the same path merges key by key with no
+  `.patch.yaml` ([string tables](ui.md#string-tables)).
+- A script is a definition, so a mod adds one with a file and changes another's grants with a patch
+  ([scripts](scripts.md#a-script-is-a-definition)).
+- A model or any other file is replaced whole by shadowing. The engine reads no YAML "system" of
+  its own: a game's star systems are its content, layered as it chooses.
 
 ### Resources
 
@@ -266,7 +295,8 @@ handles go stale rather than name the next resource
 missing file or a throw in `decode` or `finish` fails the resource, and `ErrorOf` keeps the
 reason.
 
-Hot reload is on in development builds. Every 500 ms, `Update()` compares each loaded file's
+Hot reload is on in development builds. Every 500 ms, `Update()` first calls `FileSystem::Refresh`, so
+a pack rewritten on the disk is opened again, then compares each loaded file's
 `FileInfo` (mount, time and size) with what it read; a changed file, or a mod's file that now
 shadows it or no longer does, starts a reload. A reload keeps the handle and raises `RevisionOf`,
 which a cache rebuilds on. A reload that fails keeps the last good value. For a run with
@@ -316,6 +346,19 @@ definitions.Load<Audio::EventSound>(
 const auto *closed = definitions.Find<Audio::EventSound>("closed");
 // closed->volume is the patch's 0.9; closed->sound is still the pack's "effects/closed.wav".
 ```
+
+### Taking elements out of a list
+
+A patch over the market of the next example, whose `goods` hold wheat seeds and beer, that drops the beer and a tag, from `LayerTests.cpp`:
+
+```yaml
+version: 1
+goods: !remove=good [beer]
+tags: !remove [hub]
+```
+
+Each listed value is matched against the `good` of each element below, and against each scalar of
+`tags`; what is left keeps its order.
 
 ### Merging a list by key
 
@@ -414,10 +457,6 @@ manager.Release(handle);
 
 ## Limits and open work
 
-- A patch cannot remove one element from a list, only replace the list: [J05](roadmap.md#j05).
-- A pack is not hot-reloaded; it is read as it was mounted: [J05](roadmap.md#j05).
-- Only definitions and string tables layer; a scene, a system or a stylesheet is replaced whole:
-  [J05](roadmap.md#j05).
 - The menu over `mods.yaml` is the game's to build; until then the player edits the file.
 - A pack is not signed as a whole, and a stored file in it is not checked: [J19](roadmap.md#j19).
 - The file system reads a file whole; there is no streaming read for long audio:

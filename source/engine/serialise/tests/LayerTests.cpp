@@ -209,6 +209,47 @@ goods: !merge=good
 }
 
 
+TEST_CASE("Layers: a sequence tagged !remove or !remove= takes elements out of the one below")
+{
+	CHECK(Layered({"version: 1\ntags: !remove [hub]\n"}).tags == std::vector<std::string>{"farming"});
+
+	// By a field: beer goes, the wheat seeds stay, and the order of what is left is kept.
+	const Market market = Layered({"version: 1\ngoods: !remove=good [beer]\n"});
+	REQUIRE(market.goods.size() == 1);
+	CHECK(market.goods[0].good == "wheat-seeds");
+
+	// Layers compose: a later patch may remove what an earlier one appended.
+	const Market appended = Layered(
+	    {"version: 1\ntags: !append [refinery]\n", "version: 1\ntags: !remove [farming, refinery]\n"});
+	CHECK(appended.tags == std::vector<std::string>{"hub"});
+
+	// Everything may go.
+	CHECK(Layered({"version: 1\ngoods: !remove=good [wheat-seeds, beer]\n"}).goods.empty());
+}
+
+
+TEST_CASE("Layers: a !remove of what is not below is refused, naming its layer and the value")
+{
+	const std::string missing = Refusal("version: 1\ntags: !remove [farming, mining]\n");
+	CHECK(missing.find("first: ") == 0);
+	CHECK(missing.find("'mining' is not in the sequence below it") != std::string::npos);
+	CHECK(missing.find("Market.tags[1]") != std::string::npos);
+	CHECK(
+	    Refusal("version: 1\ngoods: !remove=good [wine]\n").find("'wine' is not in") !=
+	    std::string::npos);
+	CHECK(Refusal("version: 1\ngoods: !remove [beer]\n").find("'beer' is not in") != std::string::npos);
+	CHECK(
+	    Refusal("version: 1\ntags: !remove hub\n").find("tagged !remove is a sequence") !=
+	    std::string::npos);
+	CHECK(
+	    Refusal("version: 1\nstation: !remove [x]\n").find("is over 'Ostra Highport' below it") !=
+	    std::string::npos);
+	CHECK(
+	    Refusal("version: 1\ngoods: !remove=good [{good: beer}]\n").find("is a scalar") !=
+	    std::string::npos);
+}
+
+
 TEST_CASE("Layers: patches apply in order, each over the layers below it")
 {
 	const Market market = Layered(

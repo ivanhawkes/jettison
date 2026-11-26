@@ -837,6 +837,25 @@ SceneFile SceneFile::Read(std::string_view text)
 }
 
 
+std::optional<SceneFile> SceneFile::Read(const Vfs::FileSystem &files, std::string_view virtualPath)
+{
+	const std::optional<Vfs::PatchedFile> found = files.ReadPatched(virtualPath);
+	if (!found)
+		return std::nullopt;
+	RegisterTypes();
+	std::vector<Serialise::YamlLayer> layers;
+	layers.reserve(found->layers.size());
+	for (const Vfs::PatchedLayer &layer : found->layers)
+		layers.push_back(
+		    {layer.name, {reinterpret_cast<const char *>(layer.bytes.data()), layer.bytes.size()}});
+	auto pDocument = std::make_unique<Document>();
+	pDocument->document = Serialise::YamlArchive::ReadLayered<SceneDocument>(
+	    layers, Serialise::FormatVersion{Scene::kFormatVersion});
+	Validate(pDocument->document);
+	return SceneFile{std::move(pDocument)};
+}
+
+
 Scene::~Scene()
 {
 	Clear();
@@ -869,6 +888,25 @@ void Scene::LoadText(std::string_view text)
 		throw;
 	}
 	Load(*file);
+}
+
+
+bool Scene::Load(const Vfs::FileSystem &files, std::string_view virtualPath)
+{
+	std::optional<SceneFile> file;
+	try
+	{
+		file = SceneFile::Read(files, virtualPath);
+	}
+	catch (const std::exception &error)
+	{
+		Clear();
+		throw std::runtime_error(std::format("Scene '{}': {}", virtualPath, error.what()));
+	}
+	if (!file)
+		return false;
+	Load(*file);
+	return true;
 }
 
 

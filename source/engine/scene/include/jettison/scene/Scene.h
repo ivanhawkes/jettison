@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -13,6 +14,11 @@
 namespace Jettison::Resource
 {
 class ResourceManager;
+}
+
+namespace Jettison::Vfs
+{
+class FileSystem;
 }
 
 namespace Jettison::Scene
@@ -25,6 +31,12 @@ class SceneFile
   public:
 	// Throws, as Scene::LoadText does, for a file the scene would refuse.
 	static SceneFile Read(std::string_view text);
+
+	// The scene at the virtual path as the mounts layer it: a mod's whole file replaces the base's,
+	// and a `.patch.yaml` beside it changes what it names, as a definition's does
+	// (Vfs::FileSystem::ReadPatched, YamlArchive::ReadLayered). Nullopt when no mount has the scene.
+	// Throws as Read does, and for a patch with no whole file under it.
+	static std::optional<SceneFile> Read(const Vfs::FileSystem &files, std::string_view virtualPath);
 
 	SceneFile(SceneFile &&) noexcept;
 
@@ -73,6 +85,11 @@ class Scene
 	void Load(const std::filesystem::path &path);
 
 	void LoadText(std::string_view text);
+
+	// Replaces the scene with the layered scene at the virtual path (SceneFile::Read), and returns
+	// whether a mount had one: with none the scene is left as it was. A file that fails leaves the
+	// scene empty, as LoadText does, and the exception names the path.
+	bool Load(const Vfs::FileSystem &files, std::string_view virtualPath);
 
 	// Replaces the scene with a file already read and checked; it fails only where making the
 	// entities does (a model, whose rig this scene has no resource manager to load), and then

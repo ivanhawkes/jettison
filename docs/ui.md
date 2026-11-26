@@ -132,7 +132,9 @@ warnings and errors are counted as problems.
 
 Documents, stylesheets, templates, fonts and images are all read through the
 [virtual file system](files-and-mods.md). A mod's mount over the base therefore restyles a screen
-by shadowing its stylesheet, with no code. RmlUi keeps a stylesheet for the rest of the run once it
+by shadowing its stylesheet, with no code, or changes it with a `<name>.patch.rcss` beside it, which
+is appended after the stylesheet below it so its rules win
+([layering](files-and-mods.md#layering-definitions)). RmlUi keeps a stylesheet for the rest of the run once it
 has read it, so mods are mounted before the UI is made, as the shell does. Fonts are FreeType's, one
 build that RmlUi's font engine and ImGui's rasteriser (`imgui_freetype`) both link. The shell loads
 Roboto Medium and Hack, with Droid Sans as the fallback face for any glyph the others lack

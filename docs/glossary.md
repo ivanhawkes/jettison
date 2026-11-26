@@ -368,7 +368,8 @@ and the sky ignore layers ([Scenes](scene.md#layers)). The [VFS](files-and-mods.
 How several [mounts](#mount) combine into one view of the files and definitions. For a plain file,
 the topmost mount that has the path wins. For a [definition](#definition), a whole file replaces the
 one below, a [patch](#patch) changes only the fields it names, and a new path adds a definition;
-string tables merge key by key. See [Files, packs and mods](files-and-mods.md).
+a scene layers the same way, a stylesheet's patch is appended to it, and string tables merge key by
+key. See [Files, packs and mods](files-and-mods.md).
 
 ### Local frame
 
@@ -475,9 +476,9 @@ See [Transit](transit.md).
 
 ### Patch
 
-A file beside a [definition](#definition) that changes only the fields it names:
+A file beside a [definition](#definition), a scene or a stylesheet that changes only what it names:
 `military/corvette.patch.yaml` over `military/corvette.yaml`. Two mods can then each change one
-definition without copying it. See [Files, packs and mods](files-and-mods.md#layering-definitions).
+definition without copying it, and a patch may add to a list or take elements out of it. See [Files, packs and mods](files-and-mods.md#layering-definitions).
 
 ### Phase label
 

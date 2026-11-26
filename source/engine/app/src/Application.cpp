@@ -1482,24 +1482,13 @@ void Application::LoadScene()
 	{
 		// The content's own scene, through the mounts, so a packed build and a mod's scene are read
 		// as a directory's; without one, as the engine with no content runs, the scene is empty.
+		// A mod's patch beside the scene is applied too (Scene::Load).
 		const std::string_view scene = m_pGame->DefaultScene();
-		const auto bytes = m_assets.Read(scene);
-		if (!bytes)
+		if (!m_pScene->Load(m_assets, scene))
 		{
 			Core::Log(
 			    Core::Severity::Info, kShell, "The content has no {}, so the scene is empty", scene);
 			m_pScene->Clear();
-		}
-		else
-		{
-			try
-			{
-				m_pScene->LoadText({reinterpret_cast<const char *>(bytes->data()), bytes->size()});
-			}
-			catch (const std::exception &error)
-			{
-				throw std::runtime_error(std::format("Scene '{}': {}", scene, error.what()));
-			}
 		}
 	}
 	m_simStepper.Resync();

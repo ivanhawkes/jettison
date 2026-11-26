@@ -5,9 +5,10 @@
 
 #include <algorithm>
 #include <format>
-#include <iterator>
+#include <optional>
 #include <set>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,15 +21,6 @@ constexpr Core::Category kDefinitions{"definitions"};
 constexpr std::string_view kExtension = ".yaml";
 constexpr std::string_view kPatchExtension = ".patch.yaml";
 
-// One mount's file for a definition: its whole file, or its patch.
-struct Source
-{
-	std::size_t mount{0};
-	bool patch{false};
-	std::string path;
-	std::vector<std::byte> bytes;
-};
-
 
 std::string_view Text(const std::vector<std::byte> &bytes)
 {
@@ -37,10 +29,10 @@ std::string_view Text(const std::vector<std::byte> &bytes)
 
 
 // "patched by 'mod:a', 'mod:b'": the mounts named, in order.
-std::string MountNames(const Vfs::FileSystem &fileSystem, std::span<const Source> sources)
+std::string MountNames(const Vfs::FileSystem &fileSystem, std::span<const Vfs::PatchedLayer> sources)
 {
 	std::string names;
-	for (const Source &source : sources)
+	for (const Vfs::PatchedLayer &source : sources)
 		names +=
 		    std::format("{}'{}'", names.empty() ? "" : ", ", fileSystem.Mounts()[source.mount].name);
 	return names;
@@ -98,34 +90,24 @@ void DefinitionRegistry::LoadWith(
 	Definitions definitions;
 	for (const std::string &name : names)
 	{
-		// Each mount's whole file, then its patch, the bottom mount's first. A whole file replaces
-		// everything below it; the patches above the topmost one are merged into it in order.
-		std::vector<Source> sources;
-		for (const bool patch : {false, true})
+		// The shared rules of a layered file (Vfs::FileSystem::ReadPatched).
+		std::optional<Vfs::PatchedFile> file;
+		try
 		{
-			std::string path = prefix + name + std::string{patch ? kPatchExtension : kExtension};
-			for (Vfs::Layer &layer : m_fileSystem.ReadLayers(path))
-				sources.push_back({layer.mount, patch, path, std::move(layer.bytes)});
+			file = m_fileSystem.ReadPatched(prefix + name + std::string{kExtension});
 		}
-		std::ranges::stable_sort(
-		    sources, {}, [](const Source &source) { return std::pair{source.mount, source.patch}; });
-		const auto whole = std::ranges::find_if(
-		    sources.rbegin(), sources.rend(), [](const Source &source) { return !source.patch; });
-		if (whole == sources.rend())
-			throw Serialise::FormatError{std::format(
-			    "Definitions: {}{} patches a definition that no mount has a whole file for", prefix,
-			    name + std::string{kPatchExtension})};
-		const std::span<const Source> layered{std::prev(whole.base()), sources.end()};
+		catch (const std::runtime_error &error)
+		{
+			throw Serialise::FormatError{std::format("Definitions: {}", error.what())};
+		}
+		if (!file)
+			continue;
+		const std::span<const Vfs::PatchedLayer> layered{file->layers};
 
 		std::vector<Serialise::YamlLayer> layers;
-		std::vector<std::string> layerNames;
 		layers.reserve(layered.size());
-		layerNames.reserve(layered.size());
-		for (const Source &source : layered)
-			layerNames.push_back(
-			    std::format("{} in '{}'", source.path, m_fileSystem.Mounts()[source.mount].name));
-		for (std::size_t index = 0; index < layered.size(); ++index)
-			layers.push_back({layerNames[index], Text(layered[index].bytes)});
+		for (const Vfs::PatchedLayer &layer : layered)
+			layers.push_back({layer.name, Text(layer.bytes)});
 		try
 		{
 			definitions.emplace(name, read(layers));
@@ -139,16 +121,15 @@ void DefinitionRegistry::LoadWith(
 		}
 
 		// What a mod changes is said, so a player whose game differs can see which mod did it.
-		if (layered.front().mount != sources.front().mount || layered.size() > 1)
+		if (file->replaced || layered.size() > 1)
 		{
-			const std::span<const Source> patches = layered.subspan(1);
-			const bool replaced = layered.front().mount != sources.front().mount;
+			const std::span<const Vfs::PatchedLayer> patches = layered.subspan(1);
 			Core::Log(
 			    Core::Severity::Info, kDefinitions, "{}{}: {}{}{}", prefix, name,
-			    replaced
+			    file->replaced
 			        ? std::format("replaced by '{}'", m_fileSystem.Mounts()[layered.front().mount].name)
 			        : std::string{},
-			    replaced && !patches.empty() ? " and " : "",
+			    file->replaced && !patches.empty() ? " and " : "",
 			    patches.empty() ? std::string{} : "patched by " + MountNames(m_fileSystem, patches));
 		}
 	}

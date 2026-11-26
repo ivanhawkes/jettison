@@ -36,7 +36,8 @@ can then each change one field of the same definition, and a mod copies nothing 
 A patch sits beside the definition it changes, named `<name>.patch.yaml`, in the definition's own
 form with a `version` of its own. It is merged into what is below by the rules in
 [layering definitions](files-and-mods.md#layering-definitions): `~` removes a field, `!append`
-adds to a list, `!merge=<field>` merges a list's records by a key, and anything else replaces.
+adds to a list, `!merge=<field>` merges a list's records by a key, `!remove` and `!remove=<field>`
+take elements out, and anything else replaces.
 
 A patch that sets one field and removes another, from the definition suite
 (`source/engine/sim/tests/DefinitionTests.cpp`):
@@ -63,7 +64,8 @@ goods: !merge=good
 ```
 
 What the second does is in [merging a list by key](files-and-mods.md#merging-a-list-by-key). A patch
-cannot yet remove one element from a list ([J05](roadmap.md#j05)).
+takes elements out of a list with `!remove` (scalars) or `!remove=<field>` (records), and one that
+names an element not there is refused ([taking elements out](files-and-mods.md#taking-elements-out-of-a-list)).
 
 ### Describe the mod
 
@@ -151,8 +153,6 @@ the end of the player's `mods.yaml`, enabled, where the player orders and enable
   [J18](roadmap.md#j18), [installing](build-and-gates.md#installing-not-yet-supported).
 - A file stored uncompressed in a pack is not checked, and the pack is not signed as a whole:
   [J19](roadmap.md#j19).
-- A pack is read as it was mounted: replacing it on the disk takes a restart to see
-  ([J05](roadmap.md#j05)).
 
 ## Composing a game on the engine
 

@@ -328,7 +328,7 @@ TEST_CASE("Definitions: a patch is refused, naming it and its mount, when it doe
 	scratch.Put("mod/defs/ships/ghost.patch.yaml", "version: 1\ncargo: 1\n");
 	CHECK_THROWS_WITH_AS(
 	    registry.Load<ShipClass>("defs/ships", {1}),
-	    doctest::Contains("defs/ships/ghost.patch.yaml patches a definition that no mount has"),
+	    doctest::Contains("defs/ships/ghost.patch.yaml patches a file that no mount has"),
 	    Serialise::FormatError);
 	CHECK(registry.Count() == 3);
 }

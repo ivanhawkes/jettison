@@ -362,6 +362,8 @@ void ResourceManager::ReloadAll()
 
 void ResourceManager::CheckForChanges()
 {
+	// A pack rewritten on the disk is opened again first, so the stamps below are the new one's.
+	m_pState->fileSystem.Refresh();
 	for (auto &[type, pool] : m_pState->pools)
 	{
 		for (std::uint32_t index = 0; index < pool.slots.size(); ++index)

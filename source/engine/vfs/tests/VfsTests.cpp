@@ -170,6 +170,59 @@ TEST_CASE("Vfs: every mount's file at a path is read as a layer, the bottom moun
 }
 
 
+TEST_CASE("Vfs: a patched file is the topmost whole file and the patches over it, in mount order")
+{
+	const Scratch scratch;
+	scratch.Put("base/defs/ship.yaml", "base ship");
+	scratch.Put("base/defs/ship.patch.yaml", "base patch");
+	scratch.Put("mod/defs/ship.patch.yaml", "mod patch");
+	scratch.Put("base/defs/ore.yaml", "base ore");
+	scratch.Put("mod/defs/ore.yaml", "mod ore");
+	scratch.Put("base/defs/ore.patch.yaml", "patch below the mod's ore");
+	scratch.Put("mod/defs/ghost.patch.yaml", "patches nothing");
+	scratch.Put("base/defs/only.yaml", "only");
+	FileSystem fileSystem = scratch.Mounted();
+
+	// A mount's patch goes over its own whole file, then the later mounts' patches.
+	std::optional<Jettison::Vfs::PatchedFile> ship = fileSystem.ReadPatched("defs/ship.yaml");
+	REQUIRE(ship.has_value());
+	REQUIRE(ship->layers.size() == 3);
+	CHECK(Text(ship->layers[0].bytes) == "base ship");
+	CHECK_FALSE(ship->layers[0].patch);
+	CHECK(Text(ship->layers[1].bytes) == "base patch");
+	CHECK(Text(ship->layers[2].bytes) == "mod patch");
+	CHECK(ship->layers[2].patch);
+	CHECK(ship->layers[2].name == "defs/ship.patch.yaml in 'mod'");
+	CHECK_FALSE(ship->replaced);
+
+	// A whole file in a later mount replaces the whole file below it and the patches there.
+	std::optional<Jettison::Vfs::PatchedFile> ore = fileSystem.ReadPatched("defs/ore.yaml");
+	REQUIRE(ore.has_value());
+	REQUIRE(ore->layers.size() == 1);
+	CHECK(Text(ore->layers[0].bytes) == "mod ore");
+	CHECK(ore->replaced);
+
+	CHECK_FALSE(fileSystem.ReadPatched("defs/only.yaml")->replaced);
+	CHECK_FALSE(fileSystem.ReadPatched("defs/none.yaml").has_value());
+	CHECK_THROWS_WITH_AS(
+	    (void)fileSystem.ReadPatched("defs/ghost.yaml"),
+	    doctest::Contains("defs/ghost.patch.yaml patches a file that no mount has a whole file for"),
+	    std::runtime_error);
+}
+
+
+TEST_CASE("Vfs: a patch is named for its file, before the extension")
+{
+	CHECK(FileSystem::PatchPath("defs/ship.yaml") == "defs/ship.patch.yaml");
+	CHECK(FileSystem::PatchPath("ui/panel.rcss") == "ui/panel.patch.rcss");
+	CHECK(FileSystem::PatchPath("a.b/c.d.yaml") == "a.b/c.d.patch.yaml");
+	CHECK_THROWS_AS((void)FileSystem::PatchPath("defs/ship"), std::invalid_argument);
+	CHECK_THROWS_AS((void)FileSystem::PatchPath("a.b/ship"), std::invalid_argument);
+	CHECK_THROWS_AS((void)FileSystem::PatchPath(".yaml"), std::invalid_argument);
+	CHECK_THROWS_AS((void)FileSystem::PatchPath("../x.yaml"), std::invalid_argument);
+}
+
+
 TEST_CASE("Vfs: writes go to the user mount, replace a file whole, and shadow the base")
 {
 	const Scratch scratch;

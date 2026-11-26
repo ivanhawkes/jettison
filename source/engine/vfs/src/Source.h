@@ -26,6 +26,11 @@ class Source
 
 	// Appends every file under the directory (a valid virtual path, or empty for the root).
 	virtual void List(std::string_view virtualDirectory, std::vector<std::string> &paths) const = 0;
+
+	// Picks up a change to what the source reads from, where it can; a directory has none to pick up.
+	virtual void Refresh() const
+	{
+	}
 };
 
 std::shared_ptr<const Source> MakeDirectorySource(std::filesystem::path root);

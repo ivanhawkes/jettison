@@ -8,7 +8,10 @@
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <jettison/core/Log.h>
 #include <jettison/render/Texture.h>
@@ -19,6 +22,32 @@ namespace Jettison::Ui::Detail
 namespace
 {
 constexpr Core::Category kUi{"ui"};
+
+// A stylesheet a mod's `<name>.patch.rcss` is appended to, so its rules come after the text below
+// them and win by the cascade; a mod that wants none of the base's replaces the whole file instead.
+constexpr std::string_view kStylesheetExtension = ".rcss";
+
+// A line between the texts, so a patch is not glued to a last line the file left unterminated.
+constexpr std::byte kStylesheetSeparator{'\n'};
+
+
+// The stylesheet as the mounts layer it (Vfs::FileSystem::ReadPatched): the topmost whole file,
+// then each patch over it in mount order.
+std::optional<std::vector<std::byte>> ReadStylesheet(
+    const Vfs::FileSystem &files, const std::string &path)
+{
+	std::optional<Vfs::PatchedFile> found = files.ReadPatched(path);
+	if (!found)
+		return std::nullopt;
+	std::vector<std::byte> text;
+	for (Vfs::PatchedLayer &layer : found->layers)
+	{
+		if (!text.empty())
+			text.push_back(kStylesheetSeparator);
+		text.insert(text.end(), layer.bytes.begin(), layer.bytes.end());
+	}
+	return text;
+}
 
 static_assert(sizeof(Rml::Vertex) == sizeof(Render::OverlayVertex));
 static_assert(offsetof(Rml::Vertex, colour) == offsetof(Render::OverlayVertex, color));
@@ -34,7 +63,8 @@ Rml::FileHandle FileInterface::Open(const Rml::String &path)
 		// it does not have, not a reason to stop.
 		if (!Vfs::FileSystem::IsValidPath(path))
 			return 0;
-		auto bytes = m_files.Read(path);
+		auto bytes =
+		    path.ends_with(kStylesheetExtension) ? ReadStylesheet(m_files, path) : m_files.Read(path);
 		if (!bytes)
 			return 0;
 		const Rml::FileHandle handle = m_next++;

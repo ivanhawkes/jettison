@@ -297,6 +297,31 @@ TEST_CASE("Ui: a mod's mount over the base restyles a screen by shadowing its st
 }
 
 
+TEST_CASE("Ui: a mod's patch.rcss is appended to the stylesheet below it, and its rules win")
+{
+	Scratch scratch;
+	scratch.Put(
+	    "base/ui/panel.rml", "<rml><head><link type=\"text/rcss\" href=\"panel.rcss\"/></head>"
+	                         "<body><div id=\"panel\"/></body></rml>");
+	scratch.Put(
+	    "base/ui/panel.rcss",
+	    "#panel { display: block; width: 100px; height: 50px; background-color: #336699; }");
+
+	// The patch comes after the base's rule, so its width wins.
+	scratch.Put("mod/ui/panel.patch.rcss", "#panel { width: 200px; }");
+	const auto drawnWidth = [&scratch]
+	{
+		Ui::UiSystem ui{scratch.Files(), 640, 480};
+		const Ui::DocumentHandle document = ui.LoadDocument("ui/panel.rml");
+		ui.Show(document);
+		ui.Update(0.0);
+		CHECK(ui.Problems() == 0);
+		return DrawnWidth(ui.Overlay());
+	};
+	CHECK(drawnWidth() == doctest::Approx(200.0f));
+}
+
+
 TEST_CASE("Ui: the mouse over a shown document's element is the UI's, and elsewhere the scene's")
 {
 	Scratch scratch;

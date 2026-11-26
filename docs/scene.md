@@ -81,7 +81,9 @@ Loading replaces the scene. `Scene::Load` and `Scene::LoadText` clear it first, 
 fails leaves it empty, with the error naming the file. A game that must keep the shown scene when a
 new file is bad reads it first with `SceneFile::Read`, which checks it without touching the scene,
 then calls `Scene::Load(const SceneFile &)`, which fails only where making entities does: a model,
-in a scene built without a resource manager.
+in a scene built without a resource manager. The game's scene is read through the mounts
+(`Scene::Load(files, path)`, `SceneFile::Read(files, path)`), so a mod's `.patch.yaml` beside it
+changes it and a whole file replaces it ([layering](files-and-mods.md#layering-definitions)).
 
 A scene built with a `Resource::ResourceManager` loads each model's rig through it (the model's
 node hierarchy, which places the mesh within its file). One built without refuses a file with a

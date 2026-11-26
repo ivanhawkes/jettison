@@ -1,5 +1,6 @@
 #include <jettison/vfs/Pack.h>
 
+#include <jettison/core/Log.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include <zstd.h>
@@ -13,6 +14,7 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <stdexcept>
 #include <string_view>
@@ -27,6 +29,8 @@ namespace Jettison::Vfs
 {
 namespace
 {
+constexpr Core::Category kVfs{"vfs"};
+
 constexpr std::array<char, 8> kMagic{'J', 'E', 'T', 'P', 'A', 'C', 'K', '\0'};
 constexpr std::size_t kHeaderSize = 8 + 4 + 4 + 8 + 8;
 
@@ -95,9 +99,34 @@ class Cursor
 	std::size_t m_at{0};
 };
 
-// The pack's file stays open for the run, so a pack replaced on the disk while it is mounted is
-// read as it was, rather than at the old offsets of the new one. Reads are pread, which keeps no
-// position, so the main thread and the I/O worker read at once.
+// What tells one pack file from another on the disk: a pack written in place changes its time or
+// size, and one renamed over it, as WritePack does, its inode.
+struct Signature
+{
+	std::uint64_t device{0};
+	std::uint64_t inode{0};
+	std::uint64_t size{0};
+	std::int64_t seconds{0};
+	std::int64_t nanoseconds{0};
+
+
+	bool operator==(const Signature &) const = default;
+};
+
+
+Signature SignatureOf(const struct stat &status)
+{
+	return {
+	    static_cast<std::uint64_t>(status.st_dev), static_cast<std::uint64_t>(status.st_ino),
+	    static_cast<std::uint64_t>(status.st_size), static_cast<std::int64_t>(status.st_mtim.tv_sec),
+	    static_cast<std::int64_t>(status.st_mtim.tv_nsec)};
+}
+
+
+// The pack's file stays open for as long as this reads it, so a pack replaced on the disk is read
+// as it was, rather than at the old offsets of the new one (ReopeningPackSource opens the new one
+// beside it). Reads are pread, which keeps no position, so the main thread and the I/O worker read
+// at once.
 class PackSource final : public Detail::Source
 {
   public:
@@ -113,6 +142,7 @@ class PackSource final : public Detail::Source
 			if (::fstat(m_descriptor, &status) != 0)
 				Fail(std::format("it could not be read: {}", std::generic_category().message(errno)));
 			m_fileSize = static_cast<std::uint64_t>(status.st_size);
+			m_signature = SignatureOf(status);
 			std::error_code error;
 			m_time = std::filesystem::last_write_time(pack, error);
 			ReadIndex();
@@ -135,6 +165,12 @@ class PackSource final : public Detail::Source
 
 
 	PackSource &operator=(const PackSource &) = delete;
+
+
+	const Signature &Stamp() const
+	{
+		return m_signature;
+	}
 
 
 	std::optional<FileInfo> Find(std::string_view virtualPath) const override
@@ -284,9 +320,83 @@ class PackSource final : public Detail::Source
 	int m_descriptor{-1};
 	std::uint64_t m_fileSize{0};
 	std::filesystem::file_time_type m_time{};
+	Signature m_signature;
 
 	// Sorted by path.
 	std::vector<Entry> m_entries;
+};
+
+
+// A pack that follows its file: Refresh opens the file again when it is no longer the one this
+// holds, so a rebuilt mod is seen without a restart (the resource manager's hot reload asks for it
+// before it compares each loaded file). The pack replaced stays open for any read that began on
+// it, which holds its own reference.
+class ReopeningPackSource final : public Detail::Source
+{
+  public:
+	explicit ReopeningPackSource(std::filesystem::path pack)
+	    : m_path{std::move(pack)}, m_current{std::make_shared<const PackSource>(m_path)}
+	{
+	}
+
+
+	std::optional<FileInfo> Find(std::string_view virtualPath) const override
+	{
+		return Current()->Find(virtualPath);
+	}
+
+
+	std::optional<std::vector<std::byte>> Read(std::string_view virtualPath) const override
+	{
+		return Current()->Read(virtualPath);
+	}
+
+
+	void List(std::string_view virtualDirectory, std::vector<std::string> &paths) const override
+	{
+		Current()->List(virtualDirectory, paths);
+	}
+
+
+	void Refresh() const override
+	{
+		struct stat status{};
+		if (::stat(m_path.c_str(), &status) != 0)
+			return;
+		const Signature onDisk = SignatureOf(status);
+		const std::scoped_lock lock{m_mutex};
+		if (onDisk == m_current->Stamp() || onDisk == m_refused)
+			return;
+		try
+		{
+			m_current = std::make_shared<const PackSource>(m_path);
+			Core::Log(
+			    Core::Severity::Info, kVfs, "the pack {} changed and was opened again",
+			    m_path.string());
+		}
+		catch (const std::runtime_error &problem)
+		{
+			// A pack caught mid-copy or damaged keeps the old one, and is tried again only once the
+			// file changes again, so a broken pack is reported once rather than every check.
+			m_refused = onDisk;
+			Core::Log(
+			    Core::Severity::Warning, kVfs,
+			    "the pack {} changed but cannot be opened, so the old one is kept: {}", m_path.string(),
+			    problem.what());
+		}
+	}
+
+  private:
+	std::shared_ptr<const PackSource> Current() const
+	{
+		const std::scoped_lock lock{m_mutex};
+		return m_current;
+	}
+
+	std::filesystem::path m_path;
+	mutable std::mutex m_mutex;
+	mutable std::shared_ptr<const PackSource> m_current;
+	mutable Signature m_refused;
 };
 
 
@@ -319,7 +429,7 @@ std::vector<std::byte> Compress(ZSTD_CCtx &context, std::span<const std::byte> b
 
 std::shared_ptr<const Detail::Source> Detail::MakePackSource(const std::filesystem::path &pack)
 {
-	return std::make_shared<PackSource>(pack);
+	return std::make_shared<ReopeningPackSource>(pack);
 }
 
 

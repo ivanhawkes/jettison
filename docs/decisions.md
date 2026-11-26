@@ -230,7 +230,13 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   a definition changes what it names over every layer below, and a whole file still replaces one.
   Merging the YAML before it is read keeps one reader for files and patches, with its errors and
   lines, and lets a patch say what a value cannot (a field removed, a list appended to, elements
-  merged by a key). Each layer migrates on its own. [Files, packs and mods](files-and-mods.md)
+  merged by a key, elements removed). Each layer migrates on its own. Scenes layer so too, and a
+  stylesheet's `<name>.patch.rcss` is appended to it (2026-11-26); one function,
+  `FileSystem::ReadPatched`, holds the rules. [Files, packs and mods](files-and-mods.md)
+- **A pack is reopened when its file changes, on request** (2026-11-26). `FileSystem::Refresh`
+  opens a changed pack again, and only the resource manager's hot-reload check asks, so a shipped
+  build reads a pack as mounted and no thread or file watcher is added. A pack that does not open
+  keeps the old one. [Files, packs and mods](files-and-mods.md#packs)
 - **Assets are cooked from a source tree outside the game's repository** (2026-11-25, the user's).
   `jettison_cook` cooks models and the images they use, once or watching as a daemon, into the
   game's asset folder, mirroring the source tree; a settings file beside a source

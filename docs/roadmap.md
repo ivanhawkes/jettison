@@ -79,27 +79,6 @@ capability per command type it may send (`script/ScriptDefinition.h`, `script/Bi
 
 **Feature doc:** [scripts](scripts.md).
 
-<a id="j05"></a>
-### J05. Packs and mods
-
-**What remains.**
-
-- A [patch](glossary.md#patch) that removes one element from a list, rather than replacing the list.
-- A [pack](glossary.md#pack) hot-reloaded. Today a pack is read as it was when it was mounted.
-- [Layering](glossary.md#layering) for more than definitions. Today a mod replaces a scene, a system
-  or a stylesheet whole.
-
-The menu over `mods.yaml` is the game's, not the engine's: a player edits the file by hand until a
-game provides one.
-
-**Why.** Each lets two mods change the same thing without one undoing the other.
-
-**What exists.** Patches merge mappings, remove keys, and append to or merge lists by a key
-([layering definitions](files-and-mods.md#layering-definitions)). Loose files reload when they
-change; packs do not (`vfs/FileSystem.h`).
-
-**Feature doc:** [files, packs and mods](files-and-mods.md).
-
 <a id="j06"></a>
 ### J06. Picking a paused world, and under the cursor every frame
 

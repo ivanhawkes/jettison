@@ -130,6 +130,10 @@ class YamlArchive
 	//   - a sequence of mappings tagged !merge=<field> is merged into the one below it element by
 	//     element, matched by that field: an element that matches one below is merged into it as a
 	//     mapping is, and one that does not is appended;
+	//   - a sequence tagged !remove, of scalars, takes each equal element out of the one below it, and
+	//     one tagged !remove=<field> takes out each element whose field equals a listed scalar; a value
+	//     the sequence below does not hold is an error, as a patch naming what is not there is a
+	//     mistake;
 	//   - anything else, a scalar or an untagged sequence, replaces what is below it.
 	// The merged document is then read as one. An error in a layer, or in merging it, throws
 	// FormatError naming the layer; an error in reading the merged document names every layer, and

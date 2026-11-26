@@ -163,6 +163,69 @@ entities:
 }
 
 
+TEST_CASE("Scene: a mod's patch beside a scene changes it, and a mod's whole scene replaces it")
+{
+	const auto directory =
+	    std::filesystem::temp_directory_path() / ("jettison-scene-layers-" + std::to_string(getpid()));
+	std::filesystem::remove_all(directory);
+	const auto put = [&directory](const std::string &path, const std::string &text)
+	{
+		std::filesystem::create_directories((directory / path).parent_path());
+		std::ofstream{directory / path, std::ios::binary} << text;
+	};
+	put("base/scene/main.yaml", R"(version: 3
+entities:
+  - id: light
+    light:
+      color: [1, 1, 1]
+      intensity: 18
+      range: 12
+      active: true
+  - id: spinner
+    transformAnimation:
+      axis: [0, 1, 0]
+      speed: 0.5
+)");
+	put("base/scene/other.yaml", "version: 3\nentities: []\n");
+	put("mod/scene/other.yaml", "version: 3\nentities:\n  - id: only-in-the-mod\n");
+	put("mod/scene/main.patch.yaml", R"(version: 3
+entities: !merge=id
+  - id: light
+    light:
+      intensity: 99
+  - id: added
+    transform:
+      translation: [1, 2, 3]
+)");
+	put("mod/scene/ghost.patch.yaml", "version: 3\nentities: []\n");
+	put("later/scene/main.patch.yaml", "version: 3\nentities: !remove=id [spinner]\n");
+
+	Jettison::Vfs::FileSystem files;
+	files.AddMount({"base", directory / "base"});
+	files.AddMount({"mod", directory / "mod"});
+	files.AddMount({"later", directory / "later"});
+
+	Scene scene;
+	CHECK(scene.Load(files, "scene/main.yaml"));
+	const std::string saved = scene.SaveText();
+	CHECK(saved.find("intensity: 99") != std::string::npos);
+	CHECK(saved.find("id: added") != std::string::npos);
+	CHECK(saved.find("id: spinner") == std::string::npos);
+
+	// A whole file in a mod replaces the base's.
+	CHECK(scene.Load(files, "scene/other.yaml"));
+	CHECK(scene.SaveText().find("only-in-the-mod") != std::string::npos);
+
+	// No scene is no change; a patch of nothing is refused, naming the scene and the patch.
+	CHECK_FALSE(scene.Load(files, "scene/absent.yaml"));
+	CHECK_THROWS_WITH_AS(
+	    (void)scene.Load(files, "scene/ghost.yaml"),
+	    doctest::Contains("scene/ghost.patch.yaml patches a file that no mount has"),
+	    std::runtime_error);
+	std::filesystem::remove_all(directory);
+}
+
+
 TEST_CASE("Scene: a file of another version, or with a field the scene does not save, is refused")
 {
 	Scene scene;

@@ -35,6 +35,11 @@ constexpr std::string_view kVersionKey = "version";
 constexpr std::string_view kAppendTag = "!append";
 constexpr std::string_view kMergeTag = "!merge=";
 
+// ... and for one that takes elements out of it: scalars equal to the listed ones, or elements
+// whose named field equals one of them.
+constexpr std::string_view kRemoveTag = "!remove";
+constexpr std::string_view kRemoveByTag = "!remove=";
+
 // Numbers are formatted and parsed here rather than by yaml-cpp, whose stream conversions write
 // a fixed precision and accept what a stream accepts. std::to_chars writes the shortest text
 // that reads back to the same value, and std::from_chars must consume the whole scalar.
@@ -360,7 +365,19 @@ class Reader
 			const YAML::Node existing = constBelow[key];
 			const std::string &tag = value.Tag();
 
-			if (tag == kAppendTag || tag.starts_with(kMergeTag))
+			if (tag == kRemoveTag || tag.starts_with(kRemoveByTag))
+			{
+				if (!value.IsSequence())
+					Fail(value, std::format("a value tagged {} is a sequence", tag));
+				if (!existing || !existing.IsSequence())
+					Fail(
+					    value,
+					    std::format(
+					        "a sequence tagged {} is over {} below it", tag, Describe(existing)));
+				below[key] = RemoveFrom(
+				    existing, value, tag == kRemoveTag ? "" : tag.substr(kRemoveByTag.size()));
+			}
+			else if (tag == kAppendTag || tag.starts_with(kMergeTag))
 			{
 				if (!value.IsSequence())
 					Fail(value, std::format("a value tagged {} is a sequence", tag));
@@ -393,6 +410,51 @@ class Reader
 			else
 				below[entry.first] = value;
 		}
+	}
+
+
+	// The sequence below without the elements a patch tagged !remove (or !remove=<field>) lists, as a
+	// new node: yaml-cpp cannot take an element out of a sequence. Naming what the sequence below
+	// does not hold is the modder's mistake, so it is refused rather than ignored.
+	YAML::Node RemoveFrom(const YAML::Node &below, const YAML::Node &patch, std::string_view field)
+	{
+		const std::string name{field};
+		const auto keyOf = [&name](const YAML::Node &element) -> const std::string *
+		{
+			if (name.empty())
+				return element.IsScalar() ? &element.Scalar() : nullptr;
+			if (!element.IsMap())
+				return nullptr;
+			const YAML::Node key = element[name];
+			return key && key.IsScalar() ? &key.Scalar() : nullptr;
+		};
+
+		std::vector<bool> removed(below.size(), false);
+		for (std::size_t index = 0; index < patch.size(); ++index)
+		{
+			const Path::Scope scope = m_path.Element(index);
+			const YAML::Node listed = patch[index];
+			if (!listed.IsScalar())
+				Fail(listed, "an element to remove is a scalar");
+			bool found = false;
+			for (std::size_t candidate = 0; candidate < below.size(); ++candidate)
+			{
+				const std::string *key = keyOf(below[candidate]);
+				if (key && *key == listed.Scalar())
+				{
+					removed[candidate] = true;
+					found = true;
+				}
+			}
+			if (!found)
+				Fail(listed, std::format("'{}' is not in the sequence below it", listed.Scalar()));
+		}
+
+		YAML::Node kept{YAML::NodeType::Sequence};
+		for (std::size_t index = 0; index < below.size(); ++index)
+			if (!removed[index])
+				kept.push_back(below[index]);
+		return kept;
 	}
 
 

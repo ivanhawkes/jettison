@@ -3,6 +3,7 @@
 
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/vfs/FileSystem.h>
+#include <jettison/vfs/Pack.h>
 
 #include <doctest/doctest.h>
 
@@ -79,6 +80,12 @@ class Scratch
 	const Vfs::FileSystem &Files() const
 	{
 		return m_fileSystem;
+	}
+
+
+	std::filesystem::path Path(const std::string &name) const
+	{
+		return m_directory / name;
 	}
 
   private:
@@ -439,6 +446,38 @@ TEST_CASE(
 	CHECK(manager.TryGet(handle)->contents == "hello again");
 	CHECK(manager.RevisionOf(handle) == 4);
 	CHECK(manager.ErrorOf(handle).empty());
+}
+
+
+TEST_CASE("Resource: hot reload reads a pack written again, and keeps the old one if it is damaged")
+{
+	const Scratch scratch;
+	scratch.Put("src/greeting.txt", "hello");
+	Vfs::WritePack(scratch.Path("src"), scratch.Path("mod.pack"));
+	Vfs::FileSystem files;
+	files.AddMount({"mod", scratch.Path("mod.pack")});
+	Jobs::IoWorker worker;
+	Resource::ResourceManager manager{files, worker, NoHotReload()};
+	manager.RegisterLoader(TextLoader());
+	const auto handle = manager.Load<Text>("greeting.txt");
+	Settle(worker, manager);
+	CHECK(manager.TryGet(handle)->contents == "hello");
+
+	// The sizes differ at each step, so the change is seen whatever the clock's resolution.
+	scratch.Put("src/greeting.txt", "hello from a new pack");
+	Vfs::WritePack(scratch.Path("src"), scratch.Path("mod.pack"));
+	manager.CheckForChanges();
+	Settle(worker, manager);
+	CHECK(manager.TryGet(handle)->contents == "hello from a new pack");
+	CHECK(manager.RevisionOf(handle) == 2);
+
+	// A pack that does not open leaves the old one, and no reload.
+	scratch.Put("broken.pack", "not a pack at all");
+	std::filesystem::rename(scratch.Path("broken.pack"), scratch.Path("mod.pack"));
+	manager.CheckForChanges();
+	Settle(worker, manager);
+	CHECK(manager.TryGet(handle)->contents == "hello from a new pack");
+	CHECK(manager.RevisionOf(handle) == 2);
 }
 
 
