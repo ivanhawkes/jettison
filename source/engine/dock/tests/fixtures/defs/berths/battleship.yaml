@@ -1,0 +1,7 @@
+# One of the capital classes: a size, whatever the vehicle on it does.
+# A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
+# and a pad width by length.
+version: 2
+rank: 8
+largestVehicle: [450, 120, 90]
+berthSize: [180, 540]

@@ -1,0 +1,8 @@
+# A titan-class hull, 950 x 240 x 190 m, within its pad's largest.
+# A hull of the docks (Dock.VehicleDefinition): metres, its nose along -Z.
+version: 3
+displayName: Titan
+length: 950
+beam: 240
+height: 190
+berth: titan

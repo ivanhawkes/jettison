@@ -1,0 +1,7 @@
+# The smallest class: a size, whatever the vehicle on it does.
+# A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
+# and a pad width by length.
+version: 2
+rank: 0
+largestVehicle: [7, 5, 1.8]
+berthSize: [6, 8]

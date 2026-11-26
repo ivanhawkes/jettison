@@ -1,0 +1,7 @@
+# A class between the cruiser's and the battleship's: a size, whatever the vehicle on it does.
+# A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
+# and a pad width by length.
+version: 2
+rank: 7
+largestVehicle: [380, 90, 70]
+berthSize: [140, 440]

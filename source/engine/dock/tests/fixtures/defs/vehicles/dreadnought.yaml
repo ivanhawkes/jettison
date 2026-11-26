@@ -1,0 +1,8 @@
+# A dreadnought-class hull, 580 x 150 x 110 m, within its pad's largest.
+# A hull of the docks (Dock.VehicleDefinition): metres, its nose along -Z.
+version: 3
+displayName: Dreadnought
+length: 580
+beam: 150
+height: 110
+berth: dreadnought

@@ -30,9 +30,9 @@ namespace Jettison::Dock
 // it; and its rank among the classes. A vehicle lands on a berth of its own class or of one ranked
 // above it that holds it (Fits), the lowest ranked first: the rank orders the choice and the largest
 // vehicle is the limit, so a class ranked above a smaller one is never given the larger one's vehicles.
-// defs/berths/<name>.yaml; the dock suite's are corvette, frigate, destroyer and cruiser, a fighter's
-// to a liner's. Registered with Reflect as "Dock.BerthClassDefinition", every field Saved and Moddable,
-// by RegisterTypes.
+// defs/berths/<name>.yaml; the dock suite's are the eleven size classes, shuttle to titan, each a size
+// whatever its vehicles do. Registered with Reflect as "Dock.BerthClassDefinition", every field Saved
+// and Moddable, by RegisterTypes.
 struct BerthClassDefinition
 {
 	std::uint32_t rank{0};

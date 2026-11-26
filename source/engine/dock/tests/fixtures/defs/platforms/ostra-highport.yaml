@@ -1,18 +1,18 @@
-# Ostra Highport, the farming world's trade hub (docs/sample-game.md): twelve destroyer pads for the
-# largest transports on four piers of three, reaching out from a hub along the station's +X, -X, +Z and
+# Ostra Highport, the farming world's trade hub (docs/sample-game.md): twelve destroyer pads on four
+# piers of three, reaching out from a hub along the station's +X, -X, +Z and
 # -Z, 1.5 km across, within the 2 km cluster range from its centre (docs/rendering.md, "Clustered lights"). A
 # station layout of the docks (Dock.PlatformLayout), in the station's axes, metres.
 #
 # The hub is 200 m square and 60 m deep. Each pier is 660 m long, 120 m wide and 20 m deep, its top 10 m
 # above the station's middle; its three 80 x 180 m pads lie along it, 30 m apart and 20 m in from its
-# sides, their noses pointing out along it, so the largest transports on two of them are 70 m apart end
+# sides, their noses pointing out along it, so the largest destroyers on two of them are 70 m apart end
 # to end.
 # Pads 11 and 12, the two furthest out along -Z, offer a dry dock, where the sample repairs a damaged
 # ship (a pad's features, Dock.PadLayout).
 #
 # The display wing fills the quarter between the +X and +Z piers, 440 x 460 m and as deep as they are,
-# joined to both and to the hub's corner: two cruiser bays for a liner and a cruiser, noses out along
-# +X, and four corvette pads in a row beyond them for fighters. Display pads are dressing
+# joined to both and to the hub's corner: two cruiser bays, each showing a cruiser, noses out along
+# +X, and four corvette pads in a row beyond them, each showing a corvette. Display pads are dressing
 # (Dock.PadLayout): no ship is given one, and each names the hull drawn on it. The wing's far corner is
 # 721 m out, inside the sphere the piers' tips make, 762 m.
 version: 2
@@ -39,9 +39,9 @@ berths:
   - {class: destroyer, position: [0, 10, -220], heading: [0, 0, -1]}
   - {class: destroyer, position: [0, 10, -430], heading: [0, 0, -1], features: [dry-dock]}
   - {class: destroyer, position: [0, 10, -640], heading: [0, 0, -1], features: [dry-dock]}
-  - {class: cruiser, position: [300, 10, 180], heading: [1, 0, 0], display: true, vehicle: liner}
+  - {class: cruiser, position: [300, 10, 180], heading: [1, 0, 0], display: true, vehicle: cruiser}
   - {class: cruiser, position: [300, 10, 330], heading: [1, 0, 0], display: true, vehicle: cruiser}
-  - {class: corvette, position: [160, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}
-  - {class: corvette, position: [240, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}
-  - {class: corvette, position: [320, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}
-  - {class: corvette, position: [400, 10, 470], heading: [1, 0, 0], display: true, vehicle: fighter}
+  - {class: corvette, position: [160, 10, 470], heading: [1, 0, 0], display: true, vehicle: corvette}
+  - {class: corvette, position: [240, 10, 470], heading: [1, 0, 0], display: true, vehicle: corvette}
+  - {class: corvette, position: [320, 10, 470], heading: [1, 0, 0], display: true, vehicle: corvette}
+  - {class: corvette, position: [400, 10, 470], heading: [1, 0, 0], display: true, vehicle: corvette}

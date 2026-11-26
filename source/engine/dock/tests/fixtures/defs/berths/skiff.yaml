@@ -1,0 +1,7 @@
+# A class a little larger than the shuttle's: a size, whatever the vehicle on it does.
+# A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
+# and a pad width by length.
+version: 2
+rank: 1
+largestVehicle: [9.8, 6.4, 1.8]
+berthSize: [8, 10]

@@ -48,10 +48,10 @@ struct Yard : Fixture
 	{
 		for (const auto &[name, berthClass] : DockTests::SampleClasses())
 			docks.DefineBerthClass(name, berthClass);
-		docks.DefineVehicle("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "corvette", {}});
-		docks.DefineVehicle("hauler", {"Hauler", 50.0f, 25.0f, 12.0f, "frigate", {}});
-		docks.DefineVehicle("barge", {"Barge", 130.0f, 45.0f, 25.0f, "destroyer", {}});
-		docks.DefineVehicle("liner", {"Liner", 280.0f, 70.0f, 50.0f, "cruiser", {}});
+		docks.DefineVehicle("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "skiff", {}});
+		docks.DefineVehicle("frigate", {"Frigate", 50.0f, 25.0f, 12.0f, "frigate", {}});
+		docks.DefineVehicle("destroyer", {"Destroyer", 130.0f, 45.0f, 25.0f, "destroyer", {}});
+		docks.DefineVehicle("cruiser", {"Cruiser", 280.0f, 70.0f, 50.0f, "cruiser", {}});
 		docks.DefineLayout("yard", YardLayout());
 		platform = docks.MakePlatform(world, DockTests::kHarbour, DockTests::kFerry, "yard");
 	}
@@ -135,12 +135,12 @@ TEST_CASE(
     "destroyer")
 {
 	Yard yard;
-	const entt::entity barge = yard.Waiting("barge");
-	const entt::entity second = yard.Waiting("barge");
-	yard.Ask(barge);
+	const entt::entity destroyer = yard.Waiting("destroyer");
+	const entt::entity second = yard.Waiting("destroyer");
+	yard.Ask(destroyer);
 	yard.Ask(second);
 	yard.Step();
-	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{barge, 3}});
+	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{destroyer, 3}});
 	const std::vector<Dock::BerthQueued> queued = yard.Events<Dock::BerthQueued>();
 	REQUIRE(queued.size() == 1);
 	CHECK(queued[0].vehicle == second);
@@ -197,11 +197,11 @@ TEST_CASE("Docks: a class ranked above or level with a larger one is not given i
 	docks.DefineBerthClass("long", {0, {140.0f, 50.0f, 30.0f}, {80.0f, 180.0f}});
 	docks.DefineBerthClass("short", {1, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}});
 	docks.DefineBerthClass("level", {0, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}});
-	docks.DefineVehicle("barge", {"Barge", 130.0f, 45.0f, 25.0f, "long", {}});
+	docks.DefineVehicle("destroyer", {"Destroyer", 130.0f, 45.0f, 25.0f, "long", {}});
 	docks.DefineVehicle("pod", {"Pod", 18.0f, 12.0f, 5.0f, "level", {}});
-	CHECK_FALSE(docks.Fits(*docks.FindVehicle("barge"), "short"));
-	CHECK_FALSE(docks.Fits(*docks.FindVehicle("barge"), "level"));
-	CHECK(docks.Fits(*docks.FindVehicle("barge"), "long"));
+	CHECK_FALSE(docks.Fits(*docks.FindVehicle("destroyer"), "short"));
+	CHECK_FALSE(docks.Fits(*docks.FindVehicle("destroyer"), "level"));
+	CHECK(docks.Fits(*docks.FindVehicle("destroyer"), "long"));
 
 	// Level in rank and within its largest vehicle: a pod lands on a long berth, and on a short one.
 	CHECK(docks.Fits(*docks.FindVehicle("pod"), "long"));
@@ -214,10 +214,10 @@ TEST_CASE("Docks: a class ranked above or level with a larger one is not given i
 	docks.DefineLayout("dock", dock);
 	const entt::entity platform =
 	    docks.MakePlatform(fixture.world, DockTests::kHarbour, DockTests::kFerry, "dock");
-	const entt::entity barge = fixture.Vehicle(platform, "barge", {0.0, 2000.0, 0.0});
-	fixture.world.Commands().Push(Dock::RequestBerth{{}, barge, platform, false});
+	const entt::entity destroyer = fixture.Vehicle(platform, "destroyer", {0.0, 2000.0, 0.0});
+	fixture.world.Commands().Push(Dock::RequestBerth{{}, destroyer, platform, false});
 	fixture.Step();
-	CHECK(fixture.NumberOf(barge) == 0);
+	CHECK(fixture.NumberOf(destroyer) == 0);
 	REQUIRE(fixture.Events<Dock::BerthRefused>().size() == 1);
 	CHECK(fixture.Events<Dock::BerthRefused>()[0].reason.key == "reason.dock.no_berth_fits");
 }
@@ -229,7 +229,7 @@ TEST_CASE("Docks: a ship asking for a feature is given only a pad that offers it
 	Dock::Docks &docks = fixture.docks;
 	for (const auto &[name, berthClass] : DockTests::SampleClasses())
 		docks.DefineBerthClass(name, berthClass);
-	docks.DefineVehicle("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "corvette", {}});
+	docks.DefineVehicle("skiff", {"Skiff", 9.8f, 6.4f, 1.8f, "skiff", {}});
 
 	// Berth 1 a plain corvette's, berth 2 a frigate's that offers a dry dock, berth 3 one for display
 	// that says it does, which no vehicle is given.
@@ -314,29 +314,29 @@ TEST_CASE("Dock definitions: a layout's pad keeps its features through its file"
 TEST_CASE("Docks: a full station's queue is served in order as pads come free")
 {
 	Yard yard;
-	const entt::entity first = yard.Waiting("hauler");
-	const entt::entity second = yard.Waiting("hauler");
-	const entt::entity barge = yard.Waiting("barge");
-	const entt::entity waiting = yard.Waiting("hauler");
+	const entt::entity first = yard.Waiting("frigate");
+	const entt::entity second = yard.Waiting("frigate");
+	const entt::entity destroyer = yard.Waiting("destroyer");
+	const entt::entity waiting = yard.Waiting("frigate");
 	const entt::entity skiff = yard.Waiting("skiff");
 	const entt::entity small = yard.Waiting("skiff");
-	const entt::entity last = yard.Waiting("hauler");
-	for (const entt::entity vehicle : {first, second, barge, waiting, skiff, small, last})
+	const entt::entity last = yard.Waiting("frigate");
+	for (const entt::entity vehicle : {first, second, destroyer, waiting, skiff, small, last})
 		yard.Ask(vehicle);
 	yard.Step();
 
-	// The skiff behind the waiting hauler takes the corvette berth, which the hauler does not fit; the
-	// next skiff finds nothing, the display berth being no one's.
+	// The skiff behind the waiting frigate takes the corvette berth, which the frigate does not fit;
+	// the next skiff finds nothing, the display berth being no one's.
 	CHECK(
 	    yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{
-	                        {first, 1}, {second, 5}, {barge, 3}, {skiff, 2}});
+	                        {first, 1}, {second, 5}, {destroyer, 3}, {skiff, 2}});
 	REQUIRE(
 	    yard.world.Registry().get<Dock::Platform>(yard.platform).queue ==
 	    std::vector<entt::entity>{waiting, small, last});
 
 	// Berths come free one at a time, and each goes to the first in the queue it fits.
 	yard.events.clear();
-	yard.world.Commands().Push(Dock::ReleaseBerth{{}, barge});
+	yard.world.Commands().Push(Dock::ReleaseBerth{{}, destroyer});
 	yard.Step();
 	CHECK(yard.Given() == std::vector<std::pair<entt::entity, std::uint32_t>>{{waiting, 3}});
 	yard.events.clear();
@@ -361,11 +361,11 @@ struct Favoured
 TEST_CASE("Docks: a game's rules refuse a vehicle with its own reason and move another up the queue")
 {
 	Yard yard;
-	const entt::entity rival = yard.Waiting("hauler");
-	const entt::entity docked = yard.Waiting("barge");
-	const entt::entity early = yard.Waiting("barge");
-	const entt::entity late = yard.Waiting("barge");
-	const entt::entity favoured = yard.Waiting("barge");
+	const entt::entity rival = yard.Waiting("frigate");
+	const entt::entity docked = yard.Waiting("destroyer");
+	const entt::entity early = yard.Waiting("destroyer");
+	const entt::entity late = yard.Waiting("destroyer");
+	const entt::entity favoured = yard.Waiting("destroyer");
 	yard.world.Registry().emplace<Favoured>(favoured);
 	yard.docks.SetControl(
 	    {.admit = [rival](const Sim::SimWorld &, const Dock::RequestBerth &request)
@@ -379,7 +379,7 @@ TEST_CASE("Docks: a game's rules refuse a vehicle with its own reason and move a
 	     .rank = [](const Sim::SimWorld &world, entt::entity, entt::entity vehicle) -> std::int64_t
 	     { return world.Registry().all_of<Favoured>(vehicle) ? 1 : 0; }});
 
-	// A barge fits only berth 3, so every barge after the first waits for it.
+	// A destroyer fits only berth 3, so every destroyer after the first waits for it.
 	for (const entt::entity vehicle : {rival, docked, early, late, favoured})
 		yard.Ask(vehicle);
 	yard.Step();
@@ -400,7 +400,7 @@ TEST_CASE("Docks: a game's rules refuse a vehicle with its own reason and move a
 	    yard.world.Registry().get<Dock::Platform>(yard.platform).queue ==
 	    std::vector<entt::entity>{early, late, favoured});
 
-	// The favoured barge asked last and is served first; the others in the order they asked.
+	// The favoured destroyer asked last and is served first; the others in the order they asked.
 	for (const entt::entity next : {favoured, early, late})
 	{
 		const entt::entity holder =
@@ -418,8 +418,8 @@ TEST_CASE("Docks: a reservation not landed on in time lapses, and the pad goes t
 	Yard yard;
 
 	// The frigate and destroyer berths held by vehicles parked on them, which hold them for good.
-	for (const auto &[vehicle, number] :
-	     std::vector<std::pair<std::string, std::uint32_t>>{{"hauler", 1}, {"hauler", 5}, {"barge", 3}})
+	for (const auto &[vehicle, number] : std::vector<std::pair<std::string, std::uint32_t>>{
+	         {"frigate", 1}, {"frigate", 5}, {"destroyer", 3}})
 		yard.docks.Park(yard.world, yard.Waiting(vehicle), yard.BerthNumbered(yard.platform, number));
 	const entt::entity late = yard.Waiting("skiff");
 	const entt::entity next = yard.Waiting("skiff");
@@ -464,7 +464,7 @@ TEST_CASE("Docks: a display pad is never given, and a ship parked holds its pad"
 {
 	Yard yard;
 	for (const auto &[vehicle, number] : std::vector<std::pair<std::string, std::uint32_t>>{
-	         {"hauler", 1}, {"skiff", 2}, {"barge", 3}, {"hauler", 5}})
+	         {"frigate", 1}, {"skiff", 2}, {"destroyer", 3}, {"frigate", 5}})
 		yard.docks.Park(yard.world, yard.Waiting(vehicle), yard.BerthNumbered(yard.platform, number));
 	CHECK_THROWS_AS(
 	    yard.docks.Park(yard.world, yard.Waiting("skiff"), yard.BerthNumbered(yard.platform, 4)),
@@ -497,7 +497,7 @@ TEST_CASE(
 	yard.Ask(vehicle, one);
 	yard.Ask(vehicle, one);
 	yard.world.Commands().Push(Dock::RequestBerth{{}, vehicle, vehicle, false});
-	yard.Ask(yard.Waiting("liner"));
+	yard.Ask(yard.Waiting("cruiser"));
 	const entt::entity away = yard.Waiting("skiff");
 	registry.replace<Sim::InFrame>(away, Sim::FrameId("Vesper"));
 	registry.remove<Physics::LocalFrame>(away);

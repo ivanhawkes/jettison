@@ -1,7 +1,7 @@
-# A fighter's pad.
+# The middle of the small classes: a size, whatever the vehicle on it does.
 # A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
 # and a pad width by length.
 version: 2
-rank: 0
+rank: 3
 largestVehicle: [25, 20, 8]
 berthSize: [35, 40]

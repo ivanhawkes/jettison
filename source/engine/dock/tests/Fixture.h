@@ -61,14 +61,22 @@ inline std::string ReadAsset(std::string_view path)
 	return text.str();
 }
 
-// The space sample's berth classes (defs/berths), as a suite that defines its own vehicles has them.
+// The fixtures' berth classes (defs/berths), one a size class, as a suite that defines its own
+// vehicles has them.
 inline const Dock::BerthClasses &SampleClasses()
 {
 	static const Dock::BerthClasses classes{
-	    {"corvette", {0, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}}},
-	    {"frigate", {1, {60.0f, 30.0f, 15.0f}, {50.0f, 90.0f}}},
-	    {"destroyer", {2, {140.0f, 50.0f, 30.0f}, {80.0f, 180.0f}}},
-	    {"cruiser", {3, {300.0f, 80.0f, 60.0f}, {120.0f, 360.0f}}},
+	    {"shuttle", {0, {7.0f, 5.0f, 1.8f}, {6.0f, 8.0f}}},
+	    {"skiff", {1, {9.8f, 6.4f, 1.8f}, {8.0f, 10.0f}}},
+	    {"cutter", {2, {16.0f, 10.0f, 4.0f}, {20.0f, 22.0f}}},
+	    {"corvette", {3, {25.0f, 20.0f, 8.0f}, {35.0f, 40.0f}}},
+	    {"frigate", {4, {60.0f, 30.0f, 15.0f}, {50.0f, 90.0f}}},
+	    {"destroyer", {5, {140.0f, 50.0f, 30.0f}, {80.0f, 180.0f}}},
+	    {"cruiser", {6, {300.0f, 80.0f, 60.0f}, {120.0f, 360.0f}}},
+	    {"battlecruiser", {7, {380.0f, 90.0f, 70.0f}, {140.0f, 440.0f}}},
+	    {"battleship", {8, {450.0f, 120.0f, 90.0f}, {180.0f, 540.0f}}},
+	    {"dreadnought", {9, {600.0f, 160.0f, 120.0f}, {240.0f, 720.0f}}},
+	    {"titan", {10, {1000.0f, 250.0f, 200.0f}, {360.0f, 1100.0f}}},
 	};
 	return classes;
 }

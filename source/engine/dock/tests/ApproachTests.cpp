@@ -33,7 +33,7 @@ struct Approach : Fixture
 	{
 		platform = docks.MakePlatform(world, DockTests::kHarbour, DockTests::kFerry, "ostra-highport");
 		const glm::dquat axes = world.Registry().get<Sim::Transform>(platform).orientation;
-		vehicle = Vehicle(platform, "shuttle", axes * glm::dvec3{1500.0, -9800.0, 1200.0});
+		vehicle = Vehicle(platform, "skiff", axes * glm::dvec3{1500.0, -9800.0, 1200.0});
 		world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
 	}
 
@@ -268,8 +268,10 @@ TEST_CASE(
 	// the saved names alone: with the old names, the world's version 4 and the transfers' and buggies'
 	// storages put back, it hashes as before; and in J09 for the way in flown as a corridor without
 	// stopping, a reservation put off while the vehicle comes nearer (87 s to the corridor, 30 s down,
-	// against the stopgap's 117 and 24).
-	CHECK(first == 0x7ec1f1e21c5561b0ull);
+	// against the stopgap's 117 and 24); and for the fixtures named by size class, the skiff flown in
+	// place of the shuttle of the same size, by its bytes alone: the old names put back, with the new
+	// classes and ranks, gave the hash before.
+	CHECK(first == 0x46e6ab172843e8a4ull);
 
 	Approach loaded;
 	loaded.world.Load(*save);
@@ -339,7 +341,7 @@ TEST_CASE("Docks: a ship flown in from any side, at rest or going across, lands 
 			const glm::dquat axes = registry.get<Sim::Transform>(platform).orientation;
 			const double angle = side * glm::two_pi<double>() / 12.0;
 			const entt::entity vehicle = fixture.Vehicle(
-			    platform, "shuttle",
+			    platform, "skiff",
 			    axes * glm::dvec3{2000.0 * std::sin(angle), 2000.0 * std::cos(angle), 0.0});
 			registry.get<Physics::Velocity>(vehicle).linear =
 			    glm::vec3{axes * glm::dvec3{0.0, 0.0, across}};
@@ -375,7 +377,7 @@ TEST_CASE("Docks: a ship flown in under a pier lands on its covered pad and is f
 		    fixture.world, DockTests::kHarbour, DockTests::kFerry, "covered");
 		entt::registry &registry = fixture.world.Registry();
 		const entt::entity vehicle =
-		    fixture.Vehicle(platform, "shuttle", start + glm::dvec3{0.0, 10.0, 0.0});
+		    fixture.Vehicle(platform, "skiff", start + glm::dvec3{0.0, 10.0, 0.0});
 		fixture.world.Commands().Push(Dock::RequestBerth{{}, vehicle, platform, true});
 
 		// Each contact the vehicle began, in the berth's axes as the berth was then.
@@ -514,9 +516,9 @@ TEST_CASE("Docks: two ships flown in together land on the next pads, each down i
 	entt::registry &registry = fixture.world.Registry();
 	const glm::dquat axes = registry.get<Sim::Transform>(platform).orientation;
 	const entt::entity first =
-	    fixture.Vehicle(platform, "shuttle", axes * glm::dvec3{1200.0, 1500.0, 0.0});
+	    fixture.Vehicle(platform, "skiff", axes * glm::dvec3{1200.0, 1500.0, 0.0});
 	const entt::entity second =
-	    fixture.Vehicle(platform, "shuttle", axes * glm::dvec3{1260.0, 1500.0, 0.0});
+	    fixture.Vehicle(platform, "skiff", axes * glm::dvec3{1260.0, 1500.0, 0.0});
 	fixture.world.Commands().Push(Dock::RequestBerth{{}, first, platform, true});
 	fixture.world.Commands().Push(Dock::RequestBerth{{}, second, platform, true});
 	fixture.Step();
@@ -550,7 +552,7 @@ TEST_CASE("Docks benchmark: the way in from every side" * doctest::skip())
 				const glm::dquat axes = registry.get<Sim::Transform>(platform).orientation;
 				const double angle = side * glm::two_pi<double>() / 12.0;
 				const entt::entity vehicle = fixture.Vehicle(
-				    platform, "shuttle",
+				    platform, "skiff",
 				    axes * glm::dvec3{distance * std::sin(angle), distance * std::cos(angle), 0.0});
 				registry.get<Physics::Velocity>(vehicle).linear =
 				    glm::vec3{axes * glm::dvec3{0.0, 0.0, across}};

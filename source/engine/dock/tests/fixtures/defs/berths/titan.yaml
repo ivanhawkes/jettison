@@ -1,0 +1,7 @@
+# The largest class: a size, whatever the vehicle on it does.
+# A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
+# and a pad width by length.
+version: 2
+rank: 10
+largestVehicle: [1000, 250, 200]
+berthSize: [360, 1100]

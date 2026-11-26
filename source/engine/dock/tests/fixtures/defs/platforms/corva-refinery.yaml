@@ -1,6 +1,5 @@
-# Corva Refinery, over the industrial giant (docs/sample-game.md): four frigate pads for transports on
-# two piers along the station's +X and -X, and two corvette pads for shuttles on the hub's top, 600 m
-# across. A station layout of the docks (Dock.PlatformLayout), in the station's axes, metres.
+# Corva Refinery, over the industrial giant (docs/sample-game.md): four frigate pads on two piers
+# along the station's +X and -X, and two corvette pads on the hub's top, 600 m across. A station layout of the docks (Dock.PlatformLayout), in the station's axes, metres.
 #
 # The hub is 120 m square and 40 m deep. Each pier is 240 m long, 80 m wide and 16 m deep, its top 8 m
 # above the station's middle, with two 50 x 90 m pads along it 20 m apart, their noses pointing out

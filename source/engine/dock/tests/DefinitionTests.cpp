@@ -56,13 +56,16 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 {
 	DockTests::Fixture fixture;
 	const Dock::Docks &docks = fixture.docks;
-	const Dock::VehicleDefinition *shuttle = docks.FindVehicle("shuttle");
-	REQUIRE(shuttle);
 	CHECK(docks.DefinedBerthClasses() == DockTests::SampleClasses());
-	CHECK(shuttle->berthClass == "corvette");
-	CHECK(fixture.physics.HasShape(Dock::Docks::VehicleShape("shuttle")));
-	REQUIRE(docks.FindVehicle("heavy-transport"));
-	CHECK(docks.FindVehicle("heavy-transport")->berthClass == "destroyer");
+
+	// A vehicle of each size class's name, on that class's berths.
+	for (const auto &[name, berthClass] : DockTests::SampleClasses())
+	{
+		const Dock::VehicleDefinition *vehicle = docks.FindVehicle(name);
+		REQUIRE_MESSAGE(vehicle, name);
+		CHECK(vehicle->berthClass == name);
+		CHECK(fixture.physics.HasShape(Dock::Docks::VehicleShape(name)));
+	}
 
 	// Twelve destroyer berths at Highport, a kilometre and a half across: within the 2 km cluster range
 	// from its centre, and inside the gates at 5 and 6 km. Its display wing's six beyond them, two
@@ -86,8 +89,6 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 		CHECK(docks.Fits(*shown, berth.berthClass));
 	}
 	CHECK(std::ranges::count(highport->berths, "cruiser", &Dock::BerthLayout::berthClass) == 2);
-	CHECK(docks.FindVehicle("liner")->berthClass == "cruiser");
-	CHECK(docks.FindVehicle("cruiser")->berthClass == "cruiser");
 	CHECK(Dock::Radius(*highport) == doctest::Approx(762.4).epsilon(0.001));
 
 	// Its deck as the platform collides: twelve triangles a box, every one facing out of its box.
@@ -119,16 +120,16 @@ TEST_CASE("Dock definitions: the sample's hulls and stations load, and are at th
 
 TEST_CASE("Dock definitions: a hull larger than its pad's largest, or of no size, is refused")
 {
-	Dock::VehicleDefinition fighter{"Fighter", 18.0f, 14.0f, 5.0f, "corvette"};
-	CHECK(Refusal(fighter).empty());
-	Dock::VehicleDefinition longer = fighter;
+	Dock::VehicleDefinition corvette{"Corvette", 18.0f, 14.0f, 5.0f, "corvette"};
+	CHECK(Refusal(corvette).empty());
+	Dock::VehicleDefinition longer = corvette;
 	longer.length = 26.0f;
 	CHECK(
 	    Refusal(longer) ==
 	    "Vehicle 'hull' is 26 x 14 x 5 m, larger than its berth's largest vehicle, 25 x 20 x 8 m");
 	longer.berthClass = "frigate";
 	CHECK(Refusal(longer).empty());
-	Dock::VehicleDefinition flat = fighter;
+	Dock::VehicleDefinition flat = corvette;
 	flat.height = 0.0f;
 	CHECK(Refusal(flat) == "Vehicle 'hull' has a length, beam or height that is not a positive size");
 }
@@ -189,7 +190,7 @@ TEST_CASE(
 
 	// A vehicle shown is the dressing of a display berth: on any other, a vehicle lands.
 	Dock::PlatformLayout shown = Slab();
-	shown.berths[0].vehicle = "transport";
+	shown.berths[0].vehicle = "frigate";
 	CHECK(
 	    Refusal(shown) == "Platform layout 'slab' berth 1 shows a vehicle, which only a display berth "
 	                      "does: a vehicle lands on any "
@@ -246,18 +247,16 @@ TEST_CASE("Dock definitions: a pad's orientation has its normal up and its headi
 
 TEST_CASE("Dock definitions: a hull's fit is asked of the pad classes alone, with no world")
 {
-	// A game's own skiff below the sample's classes, as a content validator holds them.
-	Dock::BerthClasses classes = DockTests::SampleClasses();
-	classes.emplace("skiff", Dock::BerthClassDefinition{0, {10.0f, 7.0f, 2.0f}, {12.0f, 14.0f}});
-	classes.at("corvette").rank = 1;
+	// The classes as a content validator holds them.
+	const Dock::BerthClasses &classes = DockTests::SampleClasses();
 	const Dock::VehicleDefinition skiff{"Skiff", 9.8f, 6.4f, 1.8f, "skiff", {}};
-	const Dock::VehicleDefinition transport{"Transport", 56.0f, 28.0f, 14.0f, "frigate", {}};
+	const Dock::VehicleDefinition frigate{"Frigate", 56.0f, 28.0f, 14.0f, "frigate", {}};
 	CHECK_NOTHROW(Dock::CheckVehicle("skiff", skiff, classes));
 	CHECK(Dock::Fits(classes, skiff, "skiff"));
 	CHECK(Dock::Fits(classes, skiff, "corvette"));
-	CHECK(Dock::Fits(classes, transport, "destroyer"));
-	CHECK_FALSE(Dock::Fits(classes, transport, "skiff"));
-	CHECK_FALSE(Dock::Fits(classes, transport, "corvette"));
+	CHECK(Dock::Fits(classes, frigate, "destroyer"));
+	CHECK_FALSE(Dock::Fits(classes, frigate, "skiff"));
+	CHECK_FALSE(Dock::Fits(classes, frigate, "corvette"));
 	CHECK_FALSE(Dock::Fits(classes, skiff, "berth"));
 	Dock::VehicleDefinition stray = skiff;
 	stray.berthClass = "berth";

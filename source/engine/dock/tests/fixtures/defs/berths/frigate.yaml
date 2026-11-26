@@ -1,7 +1,7 @@
-# A transport's pad.
+# The class the corridor and approach suites land on most: a size, whatever the vehicle on it does.
 # A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
 # and a pad width by length.
 version: 2
-rank: 1
+rank: 4
 largestVehicle: [60, 30, 15]
 berthSize: [50, 90]

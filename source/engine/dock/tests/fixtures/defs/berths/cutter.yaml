@@ -1,0 +1,7 @@
+# A class between the skiff's and the corvette's: a size, whatever the vehicle on it does.
+# A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
+# and a pad width by length.
+version: 2
+rank: 2
+largestVehicle: [16, 10, 4]
+berthSize: [20, 22]

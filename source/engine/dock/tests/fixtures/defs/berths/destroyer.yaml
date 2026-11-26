@@ -1,7 +1,7 @@
-# The largest transport's pad.
+# The largest class a standard station takes: a size, whatever the vehicle on it does.
 # A pad class of the docks (Dock.BerthClassDefinition): metres, a hull length by beam by height
 # and a pad width by length.
 version: 2
-rank: 2
+rank: 5
 largestVehicle: [140, 50, 30]
 berthSize: [80, 180]
