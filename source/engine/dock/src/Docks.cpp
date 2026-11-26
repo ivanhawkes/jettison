@@ -1036,8 +1036,10 @@ std::optional<Ai::Course> Docks::CourseAmong(
 	                         double{steered ? steered->clearance : Ai::Steered{}.clearance};
 
 	// Resting on a deck within half its hover of its resting height: nearer than any point over a
-	// berth is, which is a hover above it or more, so a course from there leaves it level.
-	const double resting = RestingHeight(*VehicleOf(registry, vehicle)) + kHover * kRestingShare;
+	// berth is, which is a hover above it or more, so a course from there leaves it level. Never more
+	// than the clearance, which a small vehicle steered close may have less of.
+	const double resting =
+	    std::min(clearance, RestingHeight(*VehicleOf(registry, vehicle)) + kHover * kRestingShare);
 	const Ai::Waypoints waypoints{
 	    {}, clearance, WaysOut(registry, vehicle, berth), std::move(boxes), resting};
 	return waypoints.PlotCourse(from, to);

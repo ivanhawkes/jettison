@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "RunLog.h"
 
 #include <doctest/doctest.h>
 
@@ -8,11 +9,14 @@
 #include <array>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include <jettison/core/Log.h>
 #include <jettison/ecs/Scheduler.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/render/IRenderer.h>
@@ -41,6 +45,12 @@ struct ApplicationProbe
 	static void Reload(Application &shell)
 	{
 		shell.ReloadScene();
+	}
+
+
+	static void Shutdown(Application &shell)
+	{
+		shell.Shutdown();
 	}
 
 
@@ -365,6 +375,28 @@ TEST_CASE("Game: the engine's assets are the engine's, and none of the test cont
 		++files;
 	}
 	CHECK(files > 0);
+}
+
+
+TEST_CASE("Game: what the shell reports after its teardown is in the run's log file")
+{
+	// Run reports the benchmark, the GPU's timings and the cluster check once the frame loop has
+	// torn the engine down: the log is still open then, and closes with the shell.
+	const auto user =
+	    std::filesystem::temp_directory_path() / ("jettison-log-tests-" + std::to_string(getpid()));
+	std::error_code error;
+	std::filesystem::remove_all(user, error);
+	{
+		App::Application shell{WindowlessArguments(user), "Reports"};
+		App::ApplicationProbe::Start(shell);
+		App::ApplicationProbe::Shutdown(shell);
+		constexpr Core::Category kTest{"test"};
+		Core::Log(Core::Severity::Info, kTest, "Reported after the teardown");
+	}
+	std::ifstream log{user / "state" / App::kRunLogFile};
+	const std::string text{std::istreambuf_iterator<char>{log}, {}};
+	CHECK(text.find("Reported after the teardown") != std::string::npos);
+	std::filesystem::remove_all(user, error);
 }
 
 

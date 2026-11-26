@@ -151,7 +151,10 @@ fly inside it. A destination with `byShape` leaves out of the obstacles its enti
 on the same body's [rails](glossary.md#rails) (the platform and the vehicles clamped to it).
 Instead it sweeps the vehicle's own shape along its way (`PhysicsWorld::CastShape`) and slows to
 stop the clearance short of what the sweep meets; what lies beyond its target, such as the deck
-under a berth, is not in its way. The [docks](docks.md#the-way-in) use this, with `face` and
+under a berth, is not in its way. Within the clearance it backs out, unless the sweep back the
+other way is as near something, as between a deck and the roof over it, when it holds still and
+turns as it was going to. It comes to each waypoint no faster than its turn there allows, as a
+corridor does: a course among a structure turns close by it. The [docks](docks.md#the-way-in) use this, with `face` and
 `corridor`, for the way in onto a berth.
 
 **Commands and events.** `Ai::SetDestination` gives a vehicle a destination, from its first
@@ -278,7 +281,9 @@ it makes it.
 
 **Ticked as it is.** The system finds the trees due as a step begins, then asks again of each as
 its turn comes, since a task before it applies its commands at once: a tree given another, not due
-this step, or one whose helm was just taken, is not ticked. A wait or an interval of more steps than
+this step, or one whose helm was just taken, is not ticked. Then it finds again those a task made
+due, given a tree or its helm let go, and ticks them in the same step, until none is left; no tree is
+ticked twice in a step. A wait or an interval of more steps than
 a run counts (2^53) is refused as its tree is defined.
 
 **Quiet steps.** A task may be defined with a wake (`Ai::TaskWake`): given the world and its memory,

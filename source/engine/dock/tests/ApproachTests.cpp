@@ -428,11 +428,13 @@ TEST_CASE("Docks: a ship flown in under a pier lands on its covered pad and is f
 }
 
 
-TEST_CASE("Docks: a long, low ship under a low roof is lifted or flown out without meeting it")
+TEST_CASE(
+    "Docks: a long, low ship under a low roof is lifted, flown out and flown in without meeting it")
 {
 	// A berth 8 m under a pier, the least its class allows a vehicle 20 m long and 2 m high, whose
 	// sphere would not fit under it. Lifted off by its own thrusters, it slows to the point over the
-	// berth and is let go there; flown out by the docks, it goes level under the pier.
+	// berth and is let go there; flown out and in by the docks, it goes level under the pier, slowing
+	// for the corner beside the deck's face it comes down to.
 	Fixture fixture{false};
 	fixture.docks.DefineBerthClass("small", {0, {20.0f, 4.0f, 2.0f}, {10.0f, 30.0f}});
 	fixture.docks.DefineVehicle("long", {"long", 20.0f, 4.0f, 2.0f, "small", {}});
@@ -466,6 +468,30 @@ TEST_CASE("Docks: a long, low ship under a low roof is lifted or flown out witho
 	SUBCASE("flown out")
 	{
 		leaves(true);
+	}
+	SUBCASE("flown in")
+	{
+		const entt::entity vehicle = fixture.Vehicle(platform, "long", {300.0, 400.0, 300.0});
+		fixture.world.Apply(Dock::RequestBerth{{}, vehicle, platform, true});
+		const auto docked = [&]
+		{
+			const auto *docking = registry.try_get<Dock::Docking>(vehicle);
+			return docking && docking->stage == Dock::Stage::Docked;
+		};
+		for (int step = 0; step < 60 * 180 && !docked(); ++step)
+			fixture.Step();
+		REQUIRE(docked());
+
+		// Touching nothing but its berth, 20 by 4 m, its top 10 m up.
+		const glm::dvec3 berth =
+		    registry.get<Sim::Transform>(fixture.BerthNumbered(platform, 1)).position;
+		for (const auto &contact : fixture.collisions)
+		{
+			const glm::dvec3 at = contact.point - berth;
+			CAPTURE(at);
+			CHECK(std::abs(at.y) < 0.1);
+			CHECK(std::hypot(at.x, at.z) < 10.5);
+		}
 	}
 }
 

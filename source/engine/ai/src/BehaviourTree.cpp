@@ -463,29 +463,40 @@ void Behaviours::Step(Sim::SimWorld &world)
 {
 	entt::registry &registry = world.Registry();
 	const std::uint64_t now = world.Clock().Step();
-	std::vector<entt::entity> entities;
-	for (const auto [entity, behaviour] :
-	     registry.view<const Behaviour>(entt::exclude<Sim::Helm>).each())
-	{
-		const auto found = m_trees.find(behaviour.tree);
-		if (found == m_trees.end() || DueFrom(now, entity, found->second) == now)
-			entities.push_back(entity);
-	}
-	std::ranges::sort(entities, {}, [](entt::entity entity) { return entt::to_integral(entity); });
-
-	// Asked again as each comes, since a task of one before it applies its commands at once: one
-	// given another tree, not due this step, or whose helm was taken is not ticked.
-	for (const entt::entity entity : entities)
+	const auto order = [](entt::entity entity) { return entt::to_integral(entity); };
+	const auto due = [&](entt::entity entity)
 	{
 		if (!registry.valid(entity) || registry.all_of<Sim::Helm>(entity))
-			continue;
+			return false;
 		const auto *behaviour = registry.try_get<Behaviour>(entity);
 		if (!behaviour)
-			continue;
+			return false;
 		const auto found = m_trees.find(behaviour->tree);
-		if (found != m_trees.end() && DueFrom(now, entity, found->second) != now)
-			continue;
-		Tick(world, entity);
+		return found == m_trees.end() || DueFrom(now, entity, found->second) == now;
+	};
+
+	// Those due, in entity order, each asked again as it comes, since a task of one before it applies
+	// its commands at once: one given another tree, not due this step, or whose helm was taken is
+	// not ticked. Then those a task made due (a tree given, a helm let go), until none is left, each
+	// ticked once. A round with no tick changes nothing, so its first is ticked: they end.
+	std::vector<entt::entity> ticked;
+	for (;;)
+	{
+		std::vector<entt::entity> entities;
+		for (const auto [entity, behaviour] :
+		     registry.view<const Behaviour>(entt::exclude<Sim::Helm>).each())
+			if (!std::ranges::binary_search(ticked, order(entity), {}, order) && due(entity))
+				entities.push_back(entity);
+		if (entities.empty())
+			return;
+		std::ranges::sort(entities, {}, order);
+		for (const entt::entity entity : entities)
+			if (due(entity))
+			{
+				Tick(world, entity);
+				ticked.push_back(entity);
+			}
+		std::ranges::sort(ticked, {}, order);
 	}
 }
 

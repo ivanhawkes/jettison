@@ -763,6 +763,15 @@ Application::~Application()
 	// everything it made, on the path that returns from Run() and on the one that throws out of
 	// it. Shutdown() is noexcept and idempotent, so a loop that already tore down costs nothing.
 	Shutdown();
+
+	// The log is closed last, so what Run reports after the teardown is in the file too; then the
+	// headless run's scratch directory, which holds it, goes.
+	Core::ShutdownLogging();
+	if (!m_scratchUser.empty())
+	{
+		std::error_code ignored;
+		std::filesystem::remove_all(m_scratchUser, ignored);
+	}
 }
 
 
@@ -1994,14 +2003,6 @@ void Application::Shutdown() noexcept
 	m_sequences.reset();
 	m_pResources.reset();
 	m_pIoWorker.reset();
-
-	// Closes the log file, which a headless run's scratch directory holds, before that goes.
-	Core::ShutdownLogging();
-	if (!m_scratchUser.empty())
-	{
-		std::error_code ignored;
-		std::filesystem::remove_all(m_scratchUser, ignored);
-	}
 
 	// The smoke sequence is not reset: Run reads its verdict after this returns, and it holds
 	// nothing of the engine's. Resetting it here once made that verdict unreachable, so a sequence

@@ -916,6 +916,36 @@ TEST_CASE(
 }
 
 
+TEST_CASE("Behaviour trees: a tree a task makes due this step is ticked this step, and once")
+{
+	// The first entity's task gives the second its first tree, due every step, and lets the third's
+	// helm go: both are ticked in the step, as an assignment starts its tree in the step it comes in.
+	Trees trees;
+	trees.behaviours.DefineTree("tally", {TaskNode("count")});
+	entt::entity third = entt::null;
+	entt::entity second = entt::null;
+	int changes = 0;
+	trees.behaviours.DefineTask(
+	    "change",
+	    [&](Ai::TaskContext &context)
+	    {
+		    ++changes;
+		    context.world.Apply(Ai::AssignBehaviour{{}, second, "tally"});
+		    context.world.Registry().remove<Sim::Helm>(third);
+		    return Status::Success;
+	    });
+	trees.behaviours.DefineTree("change", {TaskNode("change")});
+	trees.Follow("change");
+	second = trees.world.Registry().create();
+	third = trees.Follow("tally");
+	trees.world.Registry().emplace<Sim::Helm>(third);
+	trees.world.Step();
+	CHECK(changes == 1);
+	CHECK(trees.world.Registry().all_of<Tally>(second));
+	CHECK(trees.world.Registry().all_of<Tally>(third));
+}
+
+
 TEST_CASE("Behaviour trees: an interval or a wait longer than a run counts in steps is refused")
 {
 	Trees trees;

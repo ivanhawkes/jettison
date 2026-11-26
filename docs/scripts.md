@@ -83,7 +83,9 @@ the definition:
 | (answering inputs) | `input` | Ask the game for one of the option's other inputs |
 
 The `input` import is allowed when the definition lists inputs. A module that imports anything
-not granted, from any module, is refused as it loads, naming the import.
+not granted, from any module, is refused as it loads, naming the import. So is one that would run
+code as it is instantiated, before any call's fuel and time limit: one with a start function, or
+exporting `_initialize`, `__post_instantiate` or `__wasm_call_ctors`, which WAMR calls then.
 
 ### Reading the world
 

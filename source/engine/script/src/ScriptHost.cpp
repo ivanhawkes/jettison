@@ -804,6 +804,41 @@ void ScriptHost::SendCommandsTo(Sim::SimWorld &world, std::optional<Sim::Control
 
 namespace
 {
+// The exports WAMR calls as it instantiates a module (wasm_runtime.c,
+// execute_post_instantiate_functions), as it does the start function.
+constexpr std::array<std::string_view, 3> kInstantiationCalls{
+    "_initialize", "__post_instantiate", "__wasm_call_ctors"};
+
+// The id of a module's start section (WebAssembly core specification, 5.5.10).
+constexpr std::uint8_t kStartSection = 8;
+
+// The bytes of a module's magic number and version, before its sections.
+constexpr std::size_t kModuleHeader = 8;
+
+
+// Whether a module WAMR has loaded, so whose sections are whole, has a start section.
+bool HasStart(std::span<const std::uint8_t> module)
+{
+	std::size_t at = kModuleHeader;
+	while (at < module.size())
+	{
+		const std::uint8_t id = module[at++];
+		std::uint64_t size = 0;
+		for (unsigned shift = 0; at < module.size(); shift += 7)
+		{
+			const std::uint8_t byte = module[at++];
+			size |= std::uint64_t{byte & 0x7fu} << shift;
+			if ((byte & 0x80u) == 0)
+				break;
+		}
+		if (id == kStartSection)
+			return true;
+		at += size;
+	}
+	return false;
+}
+
+
 std::unique_ptr<Instance> Instantiate(
     HostScript &script, wasm_module_t module, std::uint32_t heapBytes = kHeapBytes)
 {
@@ -1011,12 +1046,23 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 	if (pScript->module == nullptr)
 		throw fail(std::format("'{}' is not a module it can run: {}", definition.module, error.data()));
 
+	// WAMR runs a start function and these exports as it instantiates, before a call's fuel and time
+	// limit are set, so a module with any of them is refused rather than run unbounded.
+	if (HasStart(pScript->bytes))
+		throw fail(std::format("its module '{}' has a start function", definition.module));
 	pScript->memoryPages = definition.memoryPages;
 	const std::int32_t exports = wasm_runtime_get_export_count(pScript->module);
 	for (std::int32_t index = 0; index < exports; ++index)
 	{
 		wasm_export_t exported{};
 		wasm_runtime_get_export_type(pScript->module, index, &exported);
+		if (exported.kind == WASM_IMPORT_EXPORT_KIND_FUNC && exported.name != nullptr &&
+		    std::ranges::find(kInstantiationCalls, std::string_view{exported.name}) !=
+		        kInstantiationCalls.end())
+			throw fail(
+			    std::format(
+			        "its module '{}' exports '{}', which would run as it is instantiated",
+			        definition.module, exported.name));
 		if (exported.kind != WASM_IMPORT_EXPORT_KIND_MEMORY)
 			continue;
 		const std::uint32_t initial = wasm_memory_type_get_init_page_count(exported.u.memory_type);

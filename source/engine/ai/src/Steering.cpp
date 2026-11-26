@@ -410,6 +410,16 @@ glm::dvec3 Steering::ShapeLimited(
 	if (glm::distance(at.position, target) <= hit->distance + kShapeSlack)
 		return velocity;
 	const double allowed = ClosingSpeed(hit->distance - clearance, agent.maxAcceleration);
+
+	// Within the clearance it backs out, unless that way is as near something else, as a vehicle
+	// between a deck and the roof over it is: it holds there, turning as it was going to.
+	if (allowed < 0.0)
+	{
+		const std::optional<Physics::CastHit> behind = m_physics.CastShape(
+		    frame, shape, at, -way, clearance + kShapeSlack, {vehicle, false, std::nullopt});
+		if (behind && behind->distance < clearance)
+			return glm::dvec3{0.0};
+	}
 	return speed > allowed ? velocity * (allowed / speed) : velocity;
 }
 
@@ -561,10 +571,12 @@ void Steering::Step(Sim::SimWorld &world)
 		{
 			desired = Seek(agent, waypoint(destination.next));
 
-			// In a corridor, no faster than it can still stop in the whole way left, and come to
-			// the waypoint no faster than its turn there allows: as fast as the way after it lets it
-			// go straight on, slowing as the turn sharpens, to a stop for one that turns back.
-			if (destination.corridor)
+			// In a corridor, or among what it is kept clear of by its shape, no faster than it can
+			// still stop in the whole way left, and come to the waypoint no faster than its turn
+			// there allows: as fast as the way after it lets it go straight on, slowing as the turn
+			// sharpens, to a stop for one that turns back. A course among a structure's boxes turns
+			// close by them, where carrying on past the waypoint would take it into one.
+			if (destination.corridor || destination.byShape)
 			{
 				const auto last = static_cast<std::uint32_t>(destination.waypoints.size() - 1);
 				const glm::dvec3 corner = waypoint(destination.next);

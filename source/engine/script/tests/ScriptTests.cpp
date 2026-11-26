@@ -333,6 +333,18 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 	    std::filesystem::path{JETTISON_SCRIPT_TEST_OUTPUT} / "garbage-scripts";
 	std::filesystem::create_directories(scratch);
 	std::ofstream{scratch / "garbage.wasm"} << "not a module";
+
+	// Modules that would run as they are instantiated: one function, () -> (), its body empty, made
+	// the start function, or exported as one WAMR calls then.
+	const auto module = [&](std::string_view name, std::string_view between)
+	{
+		using namespace std::string_view_literals;
+		std::ofstream out{scratch / name, std::ios::binary};
+		out << "\0asm\x01\0\0\0"sv << "\x01\x04\x01\x60\0\0"sv << "\x03\x02\x01\0"sv << between
+		    << "\x0a\x04\x01\x02\0\x0b"sv;
+	};
+	module("starts.wasm", std::string_view{"\x08\x01\0", 3});
+	module("initialised.wasm", std::string_view{"\x07\x16\x01\x12__post_instantiate\0\0", 24});
 	Vfs::FileSystem files = Modules();
 	files.AddMount({"scratch", scratch, false});
 	Script::ScriptHost host{files};
@@ -405,6 +417,12 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 	definition.module = "garbage.wasm";
 	CHECK(refused(definition)
 	          .starts_with("Script 'events': 'garbage.wasm' is not a module it can run: "));
+	definition.module = "starts.wasm";
+	CHECK(refused(definition) == "Script 'events': its module 'starts.wasm' has a start function");
+	definition.module = "initialised.wasm";
+	CHECK(
+	    refused(definition) == "Script 'events': its module 'initialised.wasm' exports "
+	                           "'__post_instantiate', which would run as it is instantiated");
 
 	// A second script may not answer an input the first does.
 	host.Load("events", Events());

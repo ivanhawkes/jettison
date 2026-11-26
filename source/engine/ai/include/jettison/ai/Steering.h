@@ -158,7 +158,8 @@ struct Destination
 	// rails of the same body (what is fixed to a platform: the platform, and the vehicles
 	// clamped to it), are left out of the obstacles, and the vehicle's own shape is swept along its way
 	// instead (Physics::PhysicsWorld::CastShape), closing on what the sweep meets no faster than it
-	// can stop from before its clearance. A platform's sphere holds every berth on it, so a vehicle
+	// can stop from before its clearance, and coming to each waypoint no faster than its turn there
+	// allows, as a corridor does. A platform's sphere holds every berth on it, so a vehicle
 	// flown to one flies inside the sphere; what the sweep meets at the end of the way down is the
 	// deck it lands on, short of which the destination is, and that is not held off.
 	bool byShape{false};
