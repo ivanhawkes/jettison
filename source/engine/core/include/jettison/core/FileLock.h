@@ -7,14 +7,14 @@
 
 namespace Jettison::Core
 {
+// The most of a lock file's holder that FileLock::HolderOf reads: a program name is shorter than this.
+inline constexpr std::size_t kHolderLimit = 256;
+
 // A file held locked, so that one process at a time works in the directory it stands for, as a
 // world's one writer does. The lock is the kernel's (flock) and goes with the process however it
 // ends, so a crash leaves nothing stale to clear. It is advisory: it refuses only another
 // TryAcquire, the same process's included. For a local file system: over NFS
 // Linux stands flock on a lock that does not refuse its own process.
-// The most of a lock file's holder that HolderOf reads: a program name is shorter than this.
-inline constexpr std::size_t kHolderLimit = 256;
-
 class FileLock
 {
   public:
