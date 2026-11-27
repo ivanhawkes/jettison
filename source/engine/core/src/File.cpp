@@ -13,16 +13,23 @@
 #include <cstdint>
 #include <cstring>
 #include <format>
+#include <mutex>
+#include <random>
 #include <ranges>
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <unordered_set>
 #include <vector>
 
 namespace Jettison::Core
 {
 namespace
 {
+// The bits of a process mark each of its two draws of std::random_device gives.
+constexpr unsigned kMarkHalfBits = 32;
+
+
 class Descriptor
 {
   public:
@@ -77,24 +84,39 @@ enum class Replace : std::uint8_t
 };
 
 
-// A name to write a file under that no other writer of it uses: <name>:partial.<process ID>.<count>.
+// This process's mark in its partial files' names, drawn once: a process given the ID a crashed one
+// had cannot draw that one's mark too, so it never meets a partial of its own name.
+std::uint64_t ProcessMark()
+{
+	static const std::uint64_t mark = []
+	{
+		std::random_device source;
+		return (std::uint64_t{source()} << kMarkHalfBits) | source();
+	}();
+	return mark;
+}
+
+
+// A name to write a file under that no other writer of it uses:
+// <name>:partial.<process ID>.<process mark>.<count>.
 std::filesystem::path UniquePartial(const std::filesystem::path &path)
 {
 	static std::atomic<unsigned> counter;
 	std::filesystem::path partial = path;
-	partial += std::format("{}.{}.{}", kPartialSuffix, ::getpid(), counter++);
+	partial += std::format("{}.{}.{:x}.{}", kPartialSuffix, ::getpid(), ProcessMark(), counter++);
 	return partial;
 }
 
 
-// Whether a partial file in the directory is one a writer of the path left that is gone: the
-// <name>:partial of a write before partials were named for their writers, or one named for a process
-// that no longer runs. One of a process that runs, this one's other writers' included, is in use.
-bool Abandoned(const std::string &entry, const std::string &prefix)
+// Whether a directory's entry is a partial file a writer that is gone left: the <name>:partial of a
+// write before partials were named for their writers, or one named for a process that no longer
+// runs. One of a process that runs, this one's other writers' included, may be in use.
+bool Abandoned(std::string_view entry)
 {
-	if (!entry.starts_with(prefix))
+	const std::size_t at = entry.find(kPartialSuffix);
+	if (at == std::string_view::npos)
 		return false;
-	const std::string_view rest = std::string_view{entry}.substr(prefix.size());
+	const std::string_view rest = entry.substr(at + kPartialSuffix.size());
 	if (rest.empty())
 		return true;
 	::pid_t writer = 0;
@@ -105,14 +127,30 @@ bool Abandoned(const std::string &entry, const std::string &prefix)
 }
 
 
-// The partial files writers of the path left as they crashed, removed so they do not gather.
-void RemoveAbandoned(const std::filesystem::path &path, const std::filesystem::path &directory)
+// Whether this is the process's first write into the directory. A partial a crash left is an
+// earlier process's, so the first write's look at the directory finds every one there is, and a
+// later write need not look again.
+bool FirstWriteIn(const std::filesystem::path &directory)
 {
-	const std::string prefix = path.filename().string() + std::string{kPartialSuffix};
+	static std::mutex mutex;
+	static std::unordered_set<std::string> seen;
+	std::error_code error;
+	const std::filesystem::path absolute = std::filesystem::absolute(directory, error);
+	const std::scoped_lock lock{mutex};
+	return seen.insert((error ? directory : absolute).lexically_normal().string()).second;
+}
+
+
+// The partial files in the directory that writers which are gone left, removed so they do not
+// gather: once a process, by FirstWriteIn.
+void RemoveAbandoned(const std::filesystem::path &directory)
+{
+	if (!FirstWriteIn(directory))
+		return;
 	std::error_code error;
 	for (std::filesystem::directory_iterator entry{directory, error};
 	     !error && entry != std::filesystem::directory_iterator{}; entry.increment(error))
-		if (std::error_code ignored; Abandoned(entry->path().filename().string(), prefix))
+		if (std::error_code ignored; Abandoned(entry->path().filename().string()))
 			std::filesystem::remove(entry->path(), ignored);
 }
 
@@ -173,10 +211,14 @@ void WriteDurably(
     std::filesystem::perms permissions, Replace replace)
 {
 	const std::filesystem::path partial = UniquePartial(path);
+
+	// Only a partial this write made is removed on its failure; one an open found there is not its.
+	bool made = false;
 	const auto fail = [&](const std::string &problem)
 	{
 		std::error_code ignored;
-		std::filesystem::remove(partial, ignored);
+		if (made)
+			std::filesystem::remove(partial, ignored);
 		return std::runtime_error{std::format("{} could not be written: {}", path.string(), problem)};
 	};
 
@@ -185,13 +227,15 @@ void WriteDurably(
 	CreateDirectoriesDurably(directory);
 
 	{
-		// One a crash left is removed, not reused, since an open of a file there keeps its mode.
-		RemoveAbandoned(path, directory);
+		// The partial's name is new, so its open (O_EXCL) makes it with the mode given and never takes
+		// a file a crash left, which the first write into the directory removes.
+		RemoveAbandoned(directory);
 		Descriptor file{::open(
 		    partial.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,
 		    static_cast<mode_t>(permissions))};
 		if (file.Get() < 0)
 			throw fail(Problem("open"));
+		made = true;
 		for (std::size_t written = 0; written < bytes.size();)
 		{
 			const ::ssize_t count = ::write(file.Get(), bytes.data() + written, bytes.size() - written);

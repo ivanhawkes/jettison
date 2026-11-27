@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -253,6 +254,22 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 	CHECK(reported.Contains("requires the mod zz-later, which is not mounted before it"));
 	CHECK(reported.Contains("misspelt is left out"));
 	CHECK(reported.lines.size() == 4);
+}
+
+
+TEST_CASE("Mounts: a mod named as one of the shell's own mounts is left out, and the rest mount")
+{
+	const Scratch scratch;
+	scratch.Put("assets/defs/goods/beer.yaml", "version: 1\n");
+	for (const char *name : {"base", "engine", "fine", "user"})
+		scratch.Put(std::string{"user/mods/"} + name + "/mod.yaml", "version: 1\n");
+
+	const Reported reported;
+	Vfs::FileSystem files;
+	App::MountAssets(files, scratch.Path("assets"), {}, scratch.Path("user"));
+	CHECK(NamesOf(files) == std::vector<std::string>{"engine", "mod:fine", "user"});
+	for (const char *name : {"base", "engine", "user"})
+		CHECK(reported.Contains(std::format("its name is the shell's own mount, {}", name)));
 }
 
 

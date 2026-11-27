@@ -26,6 +26,12 @@ namespace
 constexpr Core::Category kMounts{"mounts"};
 constexpr std::string_view kPackExtension = ".pack";
 
+// The shell's own mounts' names, which a mod may not take: a session mounts a mod under its
+// identifier, beside them.
+constexpr std::string_view kEngineMount = "engine";
+constexpr std::string_view kContentMount = "base";
+constexpr std::string_view kUserMount = "user";
+
 
 // A mod's identifier: its directory's name, or its pack's without the extension, so a mod is the same
 // mod to a save and to another's requirement whether it is packed or not.
@@ -153,14 +159,14 @@ std::vector<Sim::ModVersion> MountAssets(
     const std::filesystem::path &userData, const std::filesystem::path &modList)
 {
 	RegisterModTypes();
-	files.AddMount({"engine", assets});
+	files.AddMount({std::string{kEngineMount}, assets});
 	if (!content.empty())
 	{
 		try
 		{
 			// Only the engine's assets are mounted before it, as Host::Session holds a source to.
 			for (const std::string &required : Describe(content, "The content").required)
-				if (required != "engine")
+				if (required != kEngineMount)
 					throw std::runtime_error{std::format(
 					    "it requires the package {}, which is not mounted before it", required)};
 		}
@@ -169,7 +175,7 @@ std::vector<Sim::ModVersion> MountAssets(
 			throw std::runtime_error{
 			    std::format("The content {} does not start: {}", content.string(), problem.what())};
 		}
-		files.AddMount({"base", content});
+		files.AddMount({std::string{kContentMount}, content});
 	}
 
 	const std::vector<std::filesystem::path> found = FindMods(userData);
@@ -227,6 +233,9 @@ std::vector<Sim::ModVersion> MountAssets(
 		}
 		try
 		{
+			if (entry.mod == kEngineMount || entry.mod == kContentMount || entry.mod == kUserMount)
+				throw std::runtime_error{
+				    std::format("its name is the shell's own mount, {}", entry.mod)};
 			const Host::PackageDescription description =
 			    Describe(*pPath, std::format("The mod {}", entry.mod));
 			for (const std::string &required : description.required)
@@ -244,7 +253,7 @@ std::vector<Sim::ModVersion> MountAssets(
 		}
 	}
 
-	files.AddMount({"user", userData, true});
+	files.AddMount({std::string{kUserMount}, userData, true});
 	for (const Vfs::Mount &mount : files.Mounts())
 		Core::Log(
 		    Core::Severity::Info, kMounts, "{}: the {} {}", mount.name,

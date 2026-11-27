@@ -129,7 +129,7 @@ integration](game-integration.md#checking-manifest-before-a-capability)).
 ## Limits and open work
 
 - The ground sample's look is not held by a reference frame: [J28](roadmap.md#j28).
-- The ground has no name in the log, and the rover slides rather than grips: [J29](roadmap.md#j29).
+- The rover slides rather than grips: [J29](roadmap.md#j29).
 
 ## Source
 

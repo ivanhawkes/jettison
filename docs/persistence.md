@@ -175,16 +175,22 @@ A save reported written must survive a crash or a power cut that follows it. Sav
 mod list are all written whole through `Core::WriteFileDurably` (`core/File.h`):
 
 1. The bytes go to a partial file beside the target, the write's own,
-   `<name>:partial.<process ID>.<count>`. The colon makes it a name no virtual path can have, so
-   nothing reads it as content; the writer's own name means two writers of one file at once never
-   write into one partial, where one could rename the other's half-written bytes into place.
+   `<name>:partial.<process ID>.<mark>.<count>`, the mark a number the process draws once. The colon
+   makes it a name no virtual path can have, so nothing reads it as content; the writer's own name
+   means two writers of one file at once never write into one partial, where one could rename the
+   other's half-written bytes into place, and the mark that a process given a crashed one's ID never
+   meets that one's partial.
 2. The partial file is flushed to the disk (`fsync`).
 3. It is renamed over the target.
 4. The directory is flushed, since the rename is an entry in the directory.
 
-Before it writes, it removes the partial files of the same target that a writer which no longer
-runs left, as a crash leaves them (one named for a process that runs is another writer's, and
-kept). The partial file is made anew with the permissions the caller gives, 0644 unless told otherwise
+A process's first write into a directory removes the partial files there that writers which no
+longer run left, as a crash leaves them, and the older shared `<name>:partial`; one named for a
+process that runs is another writer's, and kept. A crash's partial is an earlier process's, so one
+look at a directory a process is enough, and a write after it does not list the directory again. A
+failed write removes its own partial and never one it did not make.
+
+The partial file is made anew with the permissions the caller gives, 0644 unless told otherwise
 (`Core::kFilePermissions`), so a file a game keeps private, such as a server's secret key at 0600,
 is never open to others on its way. Why both flushes are needed is
 [decided](decisions.md#persistence). On failure it throws

@@ -8,10 +8,12 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -92,6 +94,20 @@ struct ApplicationProbe
 	static void ShowSequence(Application &shell)
 	{
 		shell.ShowSequence(shell.m_pScene->Registry());
+	}
+
+
+	// The game UI made over a renderer of the test's, as InitUi makes it once a window is open.
+	static void OpenUi(Application &shell, std::unique_ptr<Render::IRenderer> renderer)
+	{
+		shell.m_pRenderer = std::move(renderer);
+		shell.InitUi();
+	}
+
+
+	static std::string Language(Application &shell)
+	{
+		return std::string{shell.m_pUi->Strings().Language()};
 	}
 
 
@@ -377,10 +393,16 @@ App::AppArguments WindowlessArguments(const std::filesystem::path &user)
 
 TEST_CASE("Game: the shell with no game composed into it registers no market, trader, fleet or ship")
 {
-	// The shell as Flotsam makes it: its world's systems attached, its commands and console's, and no
-	// game. Nothing of the space-trading sample is in this suite's link, so a type of the sample's
-	// that resolved would be the shell's own registering it.
-	const App::Application shell{App::AppArguments{}, "Neutral"};
+	// The shell as Flotsam makes it, started: its own world, its commands and console's, and no game.
+	// Nothing of the space-trading sample is in this suite's link, so a type of the sample's that
+	// resolved would be the shell's own registering it.
+	const auto user =
+	    std::filesystem::temp_directory_path() / ("jettison-neutral-tests-" + std::to_string(getpid()));
+	std::error_code error;
+	std::filesystem::remove_all(user, error);
+	App::Application shell{WindowlessArguments(user), "Neutral"};
+	App::ApplicationProbe::Start(shell);
+	const Sim::SimWorld &world = App::ApplicationProbe::World(shell);
 	constexpr std::array<std::string_view, 9> kSample{
 	    "Shell.Market", "Shell.MarketDefinition", "Shell.Good",
 	    "Shell.Trade",  "Shell.Trader",           "Shell.Hold",
@@ -391,8 +413,15 @@ TEST_CASE("Game: the shell with no game composed into it registers no market, tr
 		CHECK_FALSE(Reflect::Resolve(name));
 	}
 
-	// The shell's own world is registered all the same.
-	CHECK(Reflect::Resolve("Sim.Transform"));
+	// The world is what the shell draws and picks with, physics alone: no component of the sample's,
+	// and no service but physics.
+	const std::vector<std::string> components = world.ComponentNames();
+	CHECK(std::ranges::find(components, "Sim.Transform") != components.end());
+	for (const std::string_view name : kSample)
+		CHECK(std::ranges::find(components, name) == components.end());
+	CHECK(world.ServiceNames() == std::vector<std::string>{"physics"});
+	App::ApplicationProbe::Shutdown(shell);
+	std::filesystem::remove_all(user, error);
 }
 
 
@@ -508,13 +537,135 @@ TEST_CASE("Game: the shell starts a game's world through a session, as its serve
 		App::Application shell{
 		    WindowlessArguments(user), "Worlds", &game, std::make_unique<SeamWorld>()};
 		App::ApplicationProbe::Start(shell);
-		const Sim::SimWorld &world = App::ApplicationProbe::World(shell);
+		Sim::SimWorld &world = App::ApplicationProbe::World(shell);
 		CHECK(world.Registry().view<const Physics::Body>().size() == 1);
 		CHECK(world.Shows(entt::type_hash<Physics::Body>::value()));
 		CHECK(world.Shows(entt::type_hash<Physics::LocalFrame>::value()));
 		CHECK(game.loaded == 1);
+
+		// The world its server would start, alone over the same content, is the same to the byte, and
+		// stays so as both step.
+		Host::Session server{
+		    {{{"engine", JETTISON_ASSET_SOURCE_DIR}}, 1.0 / 60.0, 0}, std::make_unique<SeamWorld>()};
+		CHECK(world.Save() == server.World().Save());
+		constexpr int kSteps = 5;
+		for (int step = 0; step < kSteps; ++step)
+		{
+			world.Step();
+			server.World().Step();
+		}
+		CHECK(world.Save() == server.World().Save());
 	}
 	std::filesystem::remove_all(user, error);
+}
+
+
+namespace
+{
+// The locale's variables set for a test, and put back as they were when it ends.
+class Locale
+{
+  public:
+	Locale(const char *all, const char *messages, const char *lang)
+	{
+		for (std::size_t at = 0; at < kVariables.size(); ++at)
+		{
+			const char *was = std::getenv(kVariables[at]);
+			m_was[at] = was != nullptr ? std::optional<std::string>{was} : std::nullopt;
+		}
+		Set({all, messages, lang});
+	}
+
+
+	~Locale()
+	{
+		for (std::size_t at = 0; at < kVariables.size(); ++at)
+			if (m_was[at])
+				::setenv(kVariables[at], m_was[at]->c_str(), 1);
+			else
+				::unsetenv(kVariables[at]);
+	}
+
+
+	Locale(const Locale &) = delete;
+
+
+	Locale &operator=(const Locale &) = delete;
+
+  private:
+	static constexpr std::array<const char *, 3> kVariables{"LC_ALL", "LC_MESSAGES", "LANG"};
+
+
+	static void Set(const std::array<const char *, 3> &values)
+	{
+		for (std::size_t at = 0; at < kVariables.size(); ++at)
+			if (values[at] != nullptr)
+				::setenv(kVariables[at], values[at], 1);
+			else
+				::unsetenv(kVariables[at]);
+	}
+
+	std::array<std::optional<std::string>, 3> m_was;
+};
+
+
+// The language a windowless shell's screens are in once its UI is made, in the user directory given.
+std::string LanguageOf(App::AppArguments arguments)
+{
+	App::Application shell{std::move(arguments), "Language"};
+	App::ApplicationProbe::Start(shell);
+	App::ApplicationProbe::OpenUi(shell, std::make_unique<FadeRenderer>());
+	return App::ApplicationProbe::Language(shell);
+}
+} // namespace
+
+
+TEST_CASE("Game: the first start takes the locale's language and keeps it; a test's run never does")
+{
+	const auto root =
+	    std::filesystem::temp_directory_path() / ("jettison-locale-tests-" + std::to_string(getpid()));
+	std::error_code error;
+	std::filesystem::remove_all(root, error);
+	const auto settings = [](const std::filesystem::path &user)
+	{
+		std::ifstream file{user / "config" / "settings.yaml"};
+		return std::string{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+	};
+
+	// LC_ALL over LANG, the language's table for a region with none, and the choice kept.
+	{
+		const Locale locale{"de_AT.UTF-8", nullptr, "en_GB.UTF-8"};
+		CHECK(LanguageOf(WindowlessArguments(root / "first")) == "de");
+	}
+	CHECK(settings(root / "first").find("language: de") != std::string::npos);
+
+	// Kept: a later start in another locale reads the setting.
+	{
+		const Locale locale{nullptr, "en_GB.UTF-8", nullptr};
+		CHECK(LanguageOf(WindowlessArguments(root / "first")) == "de");
+	}
+
+	// A run of a fixed frame step, as a reference frame's, never reads the locale.
+	{
+		const Locale locale{"de_DE.UTF-8", nullptr, nullptr};
+		App::AppArguments arguments = WindowlessArguments(root / "fixed");
+		arguments.frameStep = 1.0 / 60.0;
+		CHECK(LanguageOf(arguments) == "en");
+	}
+	CHECK(settings(root / "fixed").find("language") == std::string::npos);
+
+	// A settings file that cannot be written costs the choice being kept, not the start.
+	{
+		const Locale locale{nullptr, nullptr, "de_DE.UTF-8"};
+		std::filesystem::create_directories(root / "locked" / "config");
+		std::filesystem::permissions(
+		    root / "locked" / "config",
+		    std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec);
+		CHECK(LanguageOf(WindowlessArguments(root / "locked")) == "de");
+		std::filesystem::permissions(root / "locked" / "config", std::filesystem::perms::owner_all);
+	}
+	CHECK(settings(root / "locked").empty());
+	std::filesystem::remove_all(root, error);
 }
 
 

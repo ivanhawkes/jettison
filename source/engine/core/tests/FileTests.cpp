@@ -143,7 +143,7 @@ TEST_CASE("File: a file is written with the permissions given, over a file and a
 	WriteFileDurably(path, std::string_view{"open"}, kFilePermissions);
 	std::filesystem::permissions(path, kFilePermissions);
 
-	// A partial a crash left, open to everyone, is not reused.
+	// A partial a crash left, open to everyone, is not the write's: its own is new, made private.
 	std::filesystem::path partial = path;
 	partial += kPartialSuffix;
 	std::ofstream{partial} << "left";
@@ -151,16 +151,16 @@ TEST_CASE("File: a file is written with the permissions given, over a file and a
 	WriteFileDurably(path, std::string_view{"private"}, kPrivate);
 	CHECK(ReadFile(path) == "private");
 	CHECK(mode(path) == kPrivate);
-	CHECK_FALSE(std::filesystem::exists(partial));
 	std::filesystem::remove_all(directory);
 }
 
 
-TEST_CASE("File: a partial a writer that is gone left is removed, and one a running writer has is not")
+TEST_CASE("File: partials writers that are gone left are removed, and one a running writer has is not")
 {
-	const std::filesystem::path directory = Scratch();
+	// A directory this process has not written into: its first write is the one that looks.
+	const std::filesystem::path directory = Scratch() / "abandoned";
+	std::filesystem::create_directories(directory);
 	const std::filesystem::path path = directory / "slot.save";
-	WriteFileDurably(path, std::string_view{"first"});
 
 	// A process that has ended, whose ID nothing runs under once it is reaped.
 	const ::pid_t gone = ::fork();
@@ -168,25 +168,27 @@ TEST_CASE("File: a partial a writer that is gone left is removed, and one a runn
 	if (gone == 0)
 		::_exit(0);
 	::waitpid(gone, nullptr, 0);
-	const auto partialOf = [&](::pid_t writer)
+	const auto partialOf = [&](const std::filesystem::path &target, ::pid_t writer)
 	{
-		std::filesystem::path partial = path;
-		partial += std::format("{}.{}.0", kPartialSuffix, writer);
+		std::filesystem::path partial = target;
+		partial += std::format("{}.{}.0.0", kPartialSuffix, writer);
 		std::ofstream{partial} << "left";
 		return partial;
 	};
-	const std::filesystem::path abandoned = partialOf(gone);
-	const std::filesystem::path running = partialOf(::getpid());
-	std::filesystem::path other = directory / "other.save";
-	other += kPartialSuffix;
-	std::ofstream{other} << "another file's";
+	const std::filesystem::path abandoned = partialOf(path, gone);
+	const std::filesystem::path otherAbandoned = partialOf(directory / "other.save", gone);
+	const std::filesystem::path running = partialOf(path, ::getpid());
+	std::filesystem::path shared = directory / "older.save";
+	shared += kPartialSuffix;
+	std::ofstream{shared} << "the name every writer shared";
 
-	WriteFileDurably(path, std::string_view{"second"});
-	CHECK(ReadFile(path) == "second");
+	WriteFileDurably(path, std::string_view{"written"});
+	CHECK(ReadFile(path) == "written");
 	CHECK_FALSE(std::filesystem::exists(abandoned));
-	CHECK(std::filesystem::exists(running));
-	CHECK(std::filesystem::exists(other));
-	std::filesystem::remove_all(directory);
+	CHECK_FALSE(std::filesystem::exists(otherAbandoned));
+	CHECK_FALSE(std::filesystem::exists(shared));
+	CHECK(ReadFile(running) == "left");
+	std::filesystem::remove_all(directory.parent_path());
 }
 
 
