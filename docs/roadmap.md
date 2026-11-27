@@ -18,7 +18,7 @@ and content stay in Manifest. Work is done when the [gate](glossary.md#gate-ci) 
 history records the commit that did it.
 
 Three tracks are planned apart from the backlog and scheduled on their own:
-[dense geometry and ray tracing](#a-separate-track-dense-geometry-and-ray-tracing), J36 to J50,
+[dense geometry and ray tracing](#a-separate-track-dense-geometry-and-ray-tracing), J36 to J50 and J68,
 [characters](#a-separate-track-characters), J51 to J60, and [the art standards'
 support](#a-separate-track-the-art-standards-support), J64 to J67.
 
@@ -499,7 +499,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |
 | <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | [J28](#j28)'s frames recorded again |
 | <a id="j41"></a>J41. Occlusion culling | Two passes against a depth pyramid; scope says In. | J40 | — |
-| <a id="j42"></a>J42. Ray-tracing foundation | Bottom-level structures per model from one cooked level, the TLAS each frame in render space, the build pass, refits from [J51](#j51)'s deform pass, the bindless material table. | J37, J51 | — |
+| <a id="j42"></a>J42. Ray-tracing foundation | Bottom-level structures per model from one cooked level, the TLAS each frame in render space, the build pass, refits from [J51](#j51)'s deform pass, hits' materials read through [J68](#j68)'s texture table. | J37, J51, J68 | — |
 | <a id="j43"></a>J43. Streaming | Meshlet pages read as the view needs them, through ranged VFS reads, into a pool of fixed-size pages; the coarsest levels always loaded; one memory budget over the GPU's geometry, with an order for giving way when it cannot hold. | J40 | Changes the model cache: [J13](#j13) first, or within it |
 | <a id="j44"></a>J44. Ray-traced sun shadows | One ray towards the sun in the lit programs' ray-query variant; the cascades the fallback. | J42 | — |
 | <a id="j45"></a>J45. Ray-traced local shadows | `castsShadows` opts a point or spot light in; a bounded number per pixel, nearest first. | J44 | The ray-traced half of [J27](#j27)'s spot and point shadows |
@@ -508,6 +508,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 | <a id="j48"></a>J48. Mega Geometry | `VK_NV_cluster_acceleration_structure` where present: a traversal pass writing the raster's and the rays' cuts, CLAS per loaded meshlet and per-instance structures from the rays' cut, which streams like the raster's; checked on Lythir by `scripts/mega-geometry-check.sh`, outside the gate. | J42, J43 | — |
 | <a id="j49"></a>J49. Temporal foundation and glossy reflections | Motion vectors, a frame history and FidelityFX v1.1.4's denoisers (MIT); glossy reflections and soft shadows on them; temporal AA replacing MSAA. | J47 | — |
 | <a id="j50"></a>J50. Visibility buffer and software raster | A 64-bit visibility buffer where the device has 64-bit atomics, its material resolve, and a compute raster for pixel-sized triangles. | J41, J49 | — |
+| <a id="j68"></a>J68. Bindless textures | Every material texture in one descriptor array, indexed by slot from the frame's material buffer; set 1's eight fixed slots and the descriptor pool per material removed; descriptor indexing required at device choice. | — | Lifts the slot count [J64](#j64) holds its sets to |
 
 Tracks A (J37 to J43, geometry) and B (J42, J44 to J47, ray tracing) can alternate once J37 is done.
 **Feature doc:** [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md).

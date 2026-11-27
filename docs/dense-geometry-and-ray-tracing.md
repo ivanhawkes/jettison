@@ -3,7 +3,7 @@
 The plan for meshlet levels of detail drawn by mesh shaders, an asset cook, geometry streaming and
 ray-traced shadows, ambient occlusion and reflections, with RTX Mega Geometry as an optional
 accelerator. Agreed with the user on 2026-11-25; nothing in it is built yet. Its stages are
-[J36 to J50](roadmap.md#a-separate-track-dense-geometry-and-ray-tracing) on the roadmap, a track
+[J36 to J50 and J68](roadmap.md#a-separate-track-dense-geometry-and-ray-tracing) on the roadmap, a track
 scheduled apart from Manifest's queue until the user places it. The settled choices are also in
 [decisions](decisions.md#rendering), each linking back here; the research this plan replaces
 (the Nanite study of 2026-11-25) is folded into it.
@@ -111,6 +111,15 @@ need GFX10.3 (RDNA 2, RX 6000) or later; ray queries and acceleration structures
 GFX10.3 too, and emulated on older chips only behind an experimental flag; 64-bit buffer and image
 atomics are on every chip. An RX 5000 (RDNA 1) or older card therefore runs with neither meshlets
 nor ray tracing, as does an NVIDIA card before Turing.
+
+Descriptor indexing ([J68](roadmap.md#j68)) is not among the core versions' required features: from
+1.2 it is required only of a driver that also exposes `VK_EXT_descriptor_indexing` (the
+specification's feature requirements, read 2026-11-27). Mesa's drivers (main, 2026-11-27): RADV has
+it on every GCN and RDNA chip, NVK on every chip it gives 1.3 (Maxwell onwards), ANV on Skylake
+onwards; `hasvk`, Intel's Ivy Bridge to Broadwell driver, has none of it, yet reports 1.3 on
+Broadwell, so a Broadwell is the one device today's 1.3 check accepts that J68 would refuse. The
+Roadmap 2022 profile requires it, and AMD's Windows driver claims that profile on RX Vega and RDNA.
+NVIDIA's own driver is not checked: no source, and no device older than the 5060 Ti at hand.
 
 ### Extensions and versions
 
@@ -297,7 +306,7 @@ device's reasons now.
 | Meshlet drawing | `meshShader`, `taskShader`, `multiDrawIndirect`, `drawIndirectCount` | The indexed path with the cooked levels of detail |
 | Occlusion culling | The meshlet path, `samplerFilterMinmax` | Frustum and horizon culling |
 | Streaming | The meshlet path | The page file loaded whole |
-| Ray-traced effects | `accelerationStructure`, `rayQuery`, `bufferDeviceAddress`, `descriptorIndexing` | Cascades, no local shadows, screen-space AO, the environment cube |
+| Ray-traced effects | `accelerationStructure`, `rayQuery`, `bufferDeviceAddress` (descriptor indexing is required, [J68](roadmap.md#j68)) | Cascades, no local shadows, screen-space AO, the environment cube |
 | Mega Geometry | `VK_NV_cluster_acceleration_structure` | Plain KHR bottom-level structures from one cooked level |
 | Visibility buffer and software raster | The meshlet path; `shaderBufferInt64Atomics` for a storage buffer, or `shaderImageInt64Atomics` for an R64 image, the form chosen in [J50](roadmap.md#j50) | The mesh shaders' hardware raster, as [J41](roadmap.md#j41) leaves it |
 
@@ -424,7 +433,7 @@ cross-review). Each stage is usable on its own and ends with the gate green.
 | J39 | The meshlet hierarchy, cooked, and its page file | J37 | 1 to 2 weeks |
 | J40 | GPU culling and mesh-shader drawing | J39 | 3 to 5 weeks |
 | J41 | Occlusion culling | J40 | 1 to 2 weeks |
-| J42 | Ray-tracing foundation | J37, J51 | 2 to 3 weeks |
+| J42 | Ray-tracing foundation | J37, J51, J68 | 2 to 3 weeks |
 | J43 | Streaming | J40 | 6 to 10 weeks |
 | J44 | Ray-traced sun shadows | J42 | 1 week |
 | J45 | Ray-traced local shadows | J44 | 1 week |
@@ -433,6 +442,7 @@ cross-review). Each stage is usable on its own and ends with the gate green.
 | J48 | Mega Geometry | J42, J43 | 2 to 3 weeks |
 | J49 | Temporal foundation and AA, glossy reflections | J47 | 3 to 5 weeks |
 | J50 | Visibility buffer and software raster | J41, J49 | 6 to 11 weeks |
+| J68 | Bindless textures | | 1 to 2 weeks |
 
 Track A (geometry) is J37 to J43; track B (ray tracing) is J42 and J44 to J47. Track A starts after J37 and
 track B after J37 and the characters track's J51; they can alternate. Through J48 is about 6 to 9 months; J49 and J50 about 2 to 4 more.
@@ -445,6 +455,7 @@ flowchart LR
     J40 --> J43
     J37 --> J42
     J51["J51 (characters)"] --> J42
+    J68 --> J42
     J42 --> J44 --> J45
     J42 --> J46
     J44 --> J47 --> J49 --> J50
@@ -517,8 +528,8 @@ flowchart LR
 - **Delivers.** Bottom-level structures per model from its ray-tracing level, compacted, their
   memory in `GetFrameStats`;
   the TLAS each frame within the ray-tracing range; the `acceleration-structures` pass with its
-  barriers in the pass list; refits from J51's deform pass; the bindless material table and vertex
-  fetch by buffer address that J47 needs. No effect uses it yet.
+  barriers in the pass list; refits from J51's deform pass; vertex fetch by buffer address and the
+  material table over J68's texture array, which J47 needs. No effect uses it yet.
 - **Exit criterion.** Synchronisation validation clean in the smoke test with ray tracing on; a test
   shader's ray query hits the expected instance in a fixture scene on lavapipe; an animated
   instance crossing a level-of-detail boundary has its structure rebuilt at the new level and
@@ -598,6 +609,22 @@ flowchart LR
   per-material shading of it, the compute raster for small triangles.
 - **Exit criterion.** Reference views identical between hardware and software raster at their
   boundary; the benchmark scene faster than J41's.
+
+### J68. Bindless textures
+
+- **Delivers.** One array of sampled images in a set bound once a frame (partially bound, updated
+  after bind): a texture takes an index when its resource finishes and frees it when it retires, and
+  the fallbacks hold fixed indices. A material's slot indices sit in the frame's material buffer
+  beside its parameters, and `material.glsl` samples by slot, `nonuniformEXT` where an index can
+  vary within a draw. Set 1 and `MaterialCache`'s descriptor pool per material go; the slot count
+  becomes a named constant of the program format, not the layout's. Device choice requires the
+  descriptor-indexing features and names the one missing ([which devices have them](#devices)). Needs nothing in this track, so it may
+  come first: it lifts today's eight-slot limit, and J42's material table and J50's per-material
+  shading index the same array.
+- **Exit criterion.** The reference views unchanged on lavapipe; a fixture program with more than
+  eight slots draws; the smoke test's reload stage reloads and retires textures with synchronisation
+  validation clean; `DeviceChoiceTests` cover a device without descriptor indexing refused with its
+  reason.
 
 ## Performance budgets
 
