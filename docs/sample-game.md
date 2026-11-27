@@ -16,10 +16,11 @@ space-trading sample was retired on 2026-11-22, Manifest testing all space code
 
 ## The ground sample
 
-A game of no space, composed into the [shell](glossary.md#shell) through `App::Game`, to prove
-that the shell serves a game that is not Manifest's: its own scene, input, camera, saves and
-smoke-test stages, with nothing of space linked. `Sample::GroundGame`
-(`source/samples/ground/include/jettison/sample/GroundGame.h`) is run by the `ground` executable,
+A game of no space, composed into the [shell](glossary.md#shell), to prove that the shell serves a
+game that is not Manifest's: its own world, scene, input, camera, saves and smoke-test stages, with
+nothing of space linked. Its world, `Sample::GroundWorld`, is a `Host::Game` the shell starts
+through a session; its presentation, `Sample::GroundGame`, is an `App::Game` over it
+(`source/samples/ground/include/jettison/sample/GroundGame.h`). Both are run by the `ground` executable,
 with its content mounted as `base` over the engine's assets. It links the shell alone
 (`Jettison::App`).
 
@@ -50,14 +51,22 @@ drawn as its physics shape has it:
 
 ### The hooks it uses
 
+Its world's hooks are `Host::Game`'s ([the host session](simulation.md#the-host-session)):
+
+| Hook | What `GroundWorld` does |
+| --- | --- |
+| `RegisterTypes` | The simulation's types |
+| `RegisterWorld` | The components the shell draws, physics, the helm, and the ground's and the rover's shapes and gravity, in the order the shell registered its own before |
+| `CreateInitialState` | The ground and the rover on it, the local player (`App::kLocalPlayer`) at its helm |
+
 `App::Game` (`source/engine/app/include/jettison/app/Game.h`) is the contract the sample exists to
 exercise. Every hook does nothing by default. These are the ones the ground sample overrides:
 
 | Hook | When the shell calls it | What the ground sample does |
 | --- | --- | --- |
-| `Register` | As the shell is made: the game's types, components, commands, systems and input actions | The ground's and the rover's shapes and gravity, the helm, the drive keys |
+| `Register` | As the shell is made: the game's input actions | The drive keys |
 | `RegisterFrame` | Once the shell's frame systems are registered | Its camera system, after the shell's rigs |
-| `SceneLoaded` | Each scene loaded, as it starts and as it reloads | Makes the rover on the first scene, binds its proxy, takes the drive context |
+| `SceneLoaded` | Each scene loaded, as it starts and as it reloads | Binds the rover's proxy, takes the drive context |
 | `Loaded` | A save loaded into the world | Finds the rover again and takes the saved controls as the last sent |
 | `WriteSave`, `ReadSave` | A save written; a save about to load | Marks its saves with a `ground` detail, and refuses a save without it |
 | `PollInput` | The input phase | Sends the rover's controls when the keys change |
@@ -66,12 +75,13 @@ exercise. Every hook does nothing by default. These are the ones the ground samp
 | `PickIn` | Where a click picks | In the ground's frame |
 | `DriveSmoke` | The render test's stages | Drives the rover ahead, then turning |
 
-The other hooks (definitions, UI, panels, events taken, names for reasons, proxies synced by the
+The other hooks (UI, panels, events taken, names for reasons, proxies synced by the
 game, shutdown) are described in [the app shell](app-shell.md).
 
 ### Its tests
 
-Its suite, `sample-ground` (`source/samples/ground/tests/GroundTests.cpp`), checks that:
+Its suite, `sample-ground` (`source/samples/ground/tests/GroundTests.cpp`), starts the world through
+a session over the sample's content, as the shell does, and checks that:
 
 - the rover drives ahead and turns on the ground, under gravity, at its helm;
 - the same drive gives the same world, and a save taken part-way carries on to it;

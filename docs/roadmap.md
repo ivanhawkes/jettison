@@ -31,10 +31,10 @@ Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifes
 `70cd4de`, the docs review's head; the four gaps its Stage 5 cross-review found were provisioned
 by `459af99` and the commit before it ([history](history.md)). The user plays its first loop in its
 graphical client ([its L15](../../manifest/docs/delivery-order.md#l15)), not in the terminal UI,
-which is mainly for administration (decided 2026-11-27), so the next delivery is the one L15 stands
-on: the shell started through a session, [J30](#j30). No delivery is open: encryption, J01, a script's
-sender, J02, and dock control a game decides, J35, are done ([history](history.md)), and of the
-backlog behaviour trees, J03, scripts, J04, packs and mods, J05, picking against the snapshots, J06,
+which is mainly for administration (decided 2026-11-27); the engine work L15 stands on, the shell
+started through a session, J30, is done. No delivery is open: encryption, J01, a script's sender,
+J02, and dock control a game decides, J35, are done ([history](history.md)), and of the backlog
+behaviour trees, J03, scripts, J04, packs and mods, J05, picking against the snapshots, J06,
 overlap queries and all-hit casts of J07, steering, J08, the way in to a berth, J09, and the shell's
 log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
@@ -81,27 +81,22 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs o
 
 **Feature doc:** [physics](physics.md).
 
-<a id="j30"></a>
-### J30. The shell started through a session
+<a id="j62"></a>
+### J62. Mods' scripts run in the session
 
-**What remains.** The rendered shell starts its world through `Host::Session`, so one set of
-start-up hooks serves a game's server, its tests and its client: the session's phases, its checks
-on the packages and its `Host::StartupError` naming the phase, then the shell's presentation over
-the world it made. It is done when the shell runs a game composed as a `Host::Game` beside its
-`App::Game`, and the ground sample and the render test start that way.
+**What remains.** A mod's scripts loaded and run beside the world inside `Host::Session`, so a
+dedicated server runs them as a client playing alone does, their commands checked there like any
+other.
 
-**Why.** A game drawn on screen writes its start-up twice: `Host::Game`'s `RegisterTypes`,
-`LoadContent`, `RegisterWorld` and `CreateInitialState` for the session, and `App::Game`'s
-`Register`, `LoadDefinitions` and `Define` for the shell, which can drift apart. Manifest's
-server, console and tests start through a session; its graphical client (its L15) is the first
-program to need both.
+**Why.** The world is the server's alone and a client is not trusted (the user, 2026-11-27), yet a
+script answers an NPC's tree and sends commands, and today only the rendered shell loads scripts: a
+dedicated server runs none of a mod's.
 
-**What exists.** The shell holds its own `Sim::SimWorld`, with a fixed step of 1/60 s and its own
-seed (`source/engine/app/src/Application.h`), and reads each package's `mod.yaml` as a
-`Host::PackageDescription` (`app/src/Mounts.cpp`), as a session does
-([the host session](simulation.md#the-host-session)).
+**What exists.** `Script::ScriptHost`, which the shell makes once its session has started the
+world (`source/engine/app/src/Application.cpp`), and the scripts' definitions, loaded in the
+session's content phase ([scripts](scripts.md)).
 
-**Feature doc:** [the app shell and tools](app-shell.md).
+**Feature doc:** [scripts](scripts.md).
 
 ## Tier 3: robustness and tools
 

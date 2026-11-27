@@ -50,6 +50,7 @@
 #include <jettison/scene/SimProxies.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/SaveGame.h>
+#include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
 
 #include "RunLog.h"
@@ -74,8 +75,100 @@ constexpr int kSmokeWindowHeight = 480;
 constexpr std::uint32_t kBenchmarkWarmUp = 60;
 constexpr Core::Category kShell{"shell"};
 
-// The player the shell's controls are for, in the first slot; their commands say so.
-constexpr Sim::Controller kPilot{Sim::ControllerKind::Player, 0};
+// The shell's own world, where no game gives one: what the shell draws and picks, physics alone.
+class EngineWorld final : public Host::Game
+{
+  public:
+	void RegisterTypes() override
+	{
+		Sim::RegisterTypes();
+	}
+
+
+	void RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry & /*definitions*/) override
+	{
+		world.RegisterComponent<Sim::Transform>();
+		world.RegisterComponent<Sim::InFrame>();
+		Physics::PhysicsWorld::Attach(world);
+		world.RegisterComponent<Sim::ControlledBy>();
+	}
+};
+
+
+// The game's world with what the shell reads beside it: the mods' scripts' definitions, and the
+// physics components a pick and a reason read in the snapshots. The world itself is the game's alone,
+// so it is the one the game's server starts.
+class ShellComposition final : public Host::Game
+{
+  public:
+	explicit ShellComposition(std::unique_ptr<Host::Game> game) : m_pGame{std::move(game)}
+	{
+	}
+
+
+	void RegisterTypes() override
+	{
+		Sim::RegisterTypes();
+		m_pGame->RegisterTypes();
+	}
+
+
+	void LoadContent(
+	    const Vfs::FileSystem &files, std::span<const Host::Package> packages,
+	    Sim::DefinitionRegistry &definitions) override
+	{
+		m_pGame->LoadContent(files, packages, definitions);
+		Script::LoadDefinitions(definitions);
+	}
+
+
+	void RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry &definitions) override
+	{
+		m_pGame->RegisterWorld(world, definitions);
+		if (world.FindService(Physics::PhysicsWorld::kServiceName) == nullptr)
+			return;
+		ShowOnce<Physics::OnRails>(world);
+		ShowOnce<Physics::LocalFrame>(world);
+		ShowOnce<Physics::Body>(world);
+	}
+
+
+	void CreateInitialState(Sim::SimWorld &world) override
+	{
+		m_pGame->CreateInitialState(world);
+	}
+
+  private:
+	// For what a reason says of an entity on rails, by its body's name (Reasons.h); for the frame an
+	// entity's physics is in, which a game's presentation reads; and for what a pick against the
+	// snapshots meets: each body and its shape's name. Unless the game's world shows it already.
+	template <typename T> static void ShowOnce(Sim::SimWorld &world)
+	{
+		if (!world.Shows(entt::type_hash<T>::value()))
+			world.ShowInSnapshots<T>();
+	}
+
+	std::unique_ptr<Host::Game> m_pGame;
+};
+
+
+// The asset tree's read-only sources as the session mounts them: a mod by its identifier, which is
+// what another mod's requirement names, and the user's writable directory left to the shell.
+std::vector<Vfs::Mount> SessionMounts(const Vfs::FileSystem &assets)
+{
+	constexpr std::string_view kModPrefix = "mod:";
+	std::vector<Vfs::Mount> mounts;
+	for (const Vfs::Mount &mount : assets.Mounts())
+	{
+		if (mount.writable)
+			continue;
+		Vfs::Mount source = mount;
+		if (source.name.starts_with(kModPrefix))
+			source.name.erase(0, kModPrefix.size());
+		mounts.push_back(std::move(source));
+	}
+	return mounts;
+}
 
 // How far a pick reaches: past any platform a vehicle is flown by.
 constexpr double kPickDistance = 50000.0;
@@ -167,9 +260,11 @@ void Crash(std::span<const std::string> arguments)
 } // namespace
 
 
-Application::Application(AppArguments arguments, std::string windowTitle, Game *game)
+Application::Application(
+    AppArguments arguments, std::string windowTitle, Game *game, std::unique_ptr<Host::Game> world)
     : m_arguments{std::move(arguments)}, m_windowTitle{std::move(windowTitle)},
-      m_pGame{game != nullptr ? game : &m_noGame}
+      m_pGame{game != nullptr ? game : &m_noGame},
+      m_pWorldGame{world ? std::move(world) : std::make_unique<EngineWorld>()}
 {
 	m_toggleUi = m_input.DefineAction("toggle_ui", Input::ActionType::Button);
 	m_toggleConsole = m_input.DefineAction("toggle_console", Input::ActionType::Button);
@@ -450,22 +545,8 @@ Application::Application(AppArguments arguments, std::string windowTitle, Game *
 	m_console.BindVariables("dev", m_theme);
 
 	Sim::RegisterTypes();
-	m_sim.RegisterComponent<Sim::Transform>();
-	m_sim.RegisterComponent<Sim::InFrame>();
-	m_pPhysics = &Physics::PhysicsWorld::Attach(m_sim);
-	m_sim.RegisterComponent<Sim::ControlledBy>();
-
-	// For what a reason says of an entity on rails, by its body's name (Reasons.h).
-	m_sim.ShowInSnapshots<Physics::OnRails>();
-
-	// For the frame an entity's physics is in, which a game's presentation reads.
-	m_sim.ShowInSnapshots<Physics::LocalFrame>();
-
-	// What a pick against the snapshots meets: each body and its shape's name.
-	m_sim.ShowInSnapshots<Physics::Body>();
-	m_pPicker = std::make_unique<Physics::SnapshotPicker>(*m_pPhysics);
 	RegisterSavesScreenTypes();
-	m_pGame->Register(MakeShellWorld(), *this);
+	m_pGame->Register(*this);
 	m_pGame->AddCommands(m_console, *this);
 	RegisterFrameSystems();
 }
@@ -523,7 +604,7 @@ void Application::RegisterFrameSystems()
 	     [this](entt::registry &, double deltaTime)
 	     {
 		     JETTISON_PROFILE_ZONE("sim.step");
-		     const int steps = m_simStepper.Advance(deltaTime);
+		     const int steps = m_simStepper->Advance(deltaTime);
 		     JETTISON_PROFILE_PLOT("sim.steps", steps);
 	     }});
 
@@ -537,14 +618,14 @@ void Application::RegisterFrameSystems()
 	     [this](entt::registry &registry, double)
 	     {
 		     JETTISON_PROFILE_ZONE("sim.sync");
-		     const Sim::Snapshot &previous = m_simStepper.Previous();
-		     const Sim::Snapshot &current = m_simStepper.Current();
-		     m_shownTime = previous.time + (current.time - previous.time) * m_simStepper.Alpha();
+		     const Sim::Snapshot &previous = m_simStepper->Previous();
+		     const Sim::Snapshot &current = m_simStepper->Current();
+		     m_shownTime = previous.time + (current.time - previous.time) * m_simStepper->Alpha();
 
 		     // A game that keeps the proxies itself makes and unmakes them; otherwise the scene shows
 		     // only the proxies it has.
 		     if (!m_pGame->SyncProxies(*this))
-			     Scene::SyncSimProxies(registry, previous, current, m_simStepper.Alpha());
+			     Scene::SyncSimProxies(registry, previous, current, m_simStepper->Alpha());
 	     }});
 
 	// Every frame, so the queue does not grow with events nothing turns into sound or UI; a game's
@@ -937,16 +1018,22 @@ void Application::InitResources()
 	m_scriptPoll = resourceOptions.pollInterval;
 	Animation::RegisterRigLoader(*m_pResources);
 	Animation::RegisterClipFileLoader(*m_pResources);
-	m_definitions.emplace(m_assets);
-	m_pGame->LoadDefinitions(*m_definitions);
-	Script::LoadDefinitions(*m_definitions);
+
+	// Its failure is a Host::StartupError, which names the phase and the source it was reading.
+	m_pSession = std::make_unique<Host::Session>(
+	    Host::Options{SessionMounts(m_assets), kSimStep, kSimSeed},
+	    std::make_unique<ShellComposition>(std::move(m_pWorldGame)));
+	Sim::SimWorld &world = m_pSession->World();
+	m_simStepper.emplace(world);
+	if (auto *physics = dynamic_cast<Physics::PhysicsWorld *>(
+	        world.FindService(Physics::PhysicsWorld::kServiceName)))
+		m_pPicker = std::make_unique<Physics::SnapshotPicker>(*physics);
 	m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
-	m_pScripts->SendCommandsTo(m_sim);
+	m_pScripts->SendCommandsTo(world);
 
 	// The stepper's current snapshot is the one after the step whose events the scripts are given.
-	m_pScripts->ReadFrom(m_simStepper.Current());
-	m_pScripts->LoadAll(*m_definitions);
-	m_pGame->Define(MakeShellWorld(), *m_definitions);
+	m_pScripts->ReadFrom(m_simStepper->Current());
+	m_pScripts->LoadAll(m_pSession->Definitions());
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterSequenceLoader(*m_pResources);
 	m_sequences.emplace(*m_pResources);
@@ -1041,9 +1128,10 @@ void Application::InitAudio()
 	// After the docking and trading events are registered, in the constructor: a definition naming an
 	// event Reflect does not know is refused here, by name.
 	Audio::RegisterTypes();
-	m_definitions->Load<Audio::EventSound>(
+	m_soundDefinitions.emplace(m_assets);
+	m_soundDefinitions->Load<Audio::EventSound>(
 	    Audio::kEventSoundDirectory, Serialise::FormatVersion{Audio::kEventSoundVersion});
-	m_eventSounds.emplace(*m_definitions);
+	m_eventSounds.emplace(*m_soundDefinitions);
 	Core::Log(
 	    Core::Severity::Info, kShell, "{} event sounds for {} events", m_eventSounds->Sounds(),
 	    m_eventSounds->Events());
@@ -1105,7 +1193,7 @@ void Application::PlayEventSound(const Sim::SimEvent &event)
 	    [this](entt::entity entity) -> std::optional<glm::dvec3>
 	    {
 		    const std::optional<Sim::Transform> at = Sim::Interpolate(
-		        m_simStepper.Previous(), m_simStepper.Current(), entity, m_simStepper.Alpha());
+		        m_simStepper->Previous(), m_simStepper->Current(), entity, m_simStepper->Alpha());
 		    return at ? std::optional{at->position} : std::nullopt;
 	    });
 }
@@ -1253,7 +1341,7 @@ void Application::Tick()
 	const bool loading = m_pResources->Loading() != 0;
 	++m_frameIndex;
 	for (const std::string &line :
-	     TakeDueCommands(m_pendingCommands, m_frameIndex, m_sim.Clock().Now()))
+	     TakeDueCommands(m_pendingCommands, m_frameIndex, m_pSession->World().Clock().Now()))
 		RunCommandLine(line);
 	double deltaTime = 0.0;
 	if (m_arguments.frameStep > 0.0)
@@ -1549,7 +1637,7 @@ void Application::LoadScene()
 			m_pScene->Clear();
 		}
 	}
-	m_simStepper.Resync();
+	m_simStepper->Resync();
 	m_pGame->SceneLoaded(*this);
 }
 
@@ -1837,7 +1925,7 @@ bool Application::SaveTo(std::string_view name)
 	try
 	{
 		const std::string path = SavePath(name);
-		Sim::SaveGame save = Sim::SaveGame::Of(m_sim, std::string{name});
+		Sim::SaveGame save = Sim::SaveGame::Of(m_pSession->World(), std::string{name});
 		save.info.writtenAt = std::chrono::duration_cast<std::chrono::seconds>(
 		                          std::chrono::system_clock::now().time_since_epoch())
 		                          .count();
@@ -1876,7 +1964,7 @@ bool Application::LoadFrom(std::string_view name)
 		const Sim::SaveSection *keys = save.FindSection(Script::kStoreSection);
 		Script::ScriptStore store = keys ? Script::ReadStore(keys->data) : Script::ScriptStore{};
 		m_pGame->ReadSave(save, *this);
-		m_sim.Load(save.world);
+		m_pSession->World().Load(save.world);
 		m_pGame->Loaded(*this);
 		m_pScripts->SetStore(std::move(store));
 
@@ -1887,7 +1975,7 @@ bool Application::LoadFrom(std::string_view name)
 			    difference);
 
 		ClearPick();
-		m_simStepper.Resync();
+		m_simStepper->Resync();
 		Core::Log(
 		    Core::Severity::Info, kShell, "Loaded '{}' at step {}, saved by engine {}", name,
 		    save.info.step, save.info.engineVersion);
@@ -1933,10 +2021,10 @@ SmokeActions Application::MakeSmokeActions()
 	actions.picking = [] { return false; };
 	actions.saveAndLoad = [this]
 	{
-		const std::uint64_t saved = m_sim.StateHash();
+		const std::uint64_t saved = m_pSession->World().StateHash();
 		if (!SaveTo("smoke") || !LoadFrom("smoke"))
 			return false;
-		const std::uint64_t loaded = m_sim.StateHash();
+		const std::uint64_t loaded = m_pSession->World().StateHash();
 		if (loaded != saved)
 			Core::Log(
 			    Core::Severity::Error, kShell, "The save loaded as {:#018x}, and was {:#018x} saved",
@@ -2004,6 +2092,13 @@ void Application::Shutdown() noexcept
 	m_pResources.reset();
 	m_pIoWorker.reset();
 
+	// What holds into the world goes before the session that owns it.
+	m_pScripts.reset();
+	m_pPicker.reset();
+	m_simStepper.reset();
+	if (m_pSession)
+		m_pSession->Shutdown();
+
 	// The smoke sequence is not reset: Run reads its verdict after this returns, and it holds
 	// nothing of the engine's. Resetting it here once made that verdict unreachable, so a sequence
 	// that never reached its last stage passed the gate.
@@ -2027,9 +2122,11 @@ std::optional<Physics::CastHit> Application::CastThrough(const glm::dvec2 &point
 	// the alpha it drew them at: the commands phase comes before this frame's steps.
 	const Math::DRay ray = Render::ScreenRay(
 	    Render::ActiveCameraView(m_pScene->Registry()), point, glm::dvec2{width, height});
+	if (!m_pPicker)
+		return std::nullopt;
 	return m_pPicker->CastRay(
-	    m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha(), space->frame, ray.origin,
-	    ray.direction, kPickDistance, {.ignore = space->ignore, .statics = space->statics});
+	    m_simStepper->Previous(), m_simStepper->Current(), m_simStepper->Alpha(), space->frame,
+	    ray.origin, ray.direction, kPickDistance, {.ignore = space->ignore, .statics = space->statics});
 }
 
 
@@ -2063,7 +2160,7 @@ void Application::Hover()
 
 void Application::TakeEvents()
 {
-	for (const Sim::SimEvent &event : m_sim.Events().Take())
+	for (const Sim::SimEvent &event : m_pSession->World().Events().Take())
 	{
 		m_pScripts->Dispatch(event);
 		PlayEventSound(event);
@@ -2155,7 +2252,8 @@ void Application::DrawPicked()
 
 std::string Application::Word(const Sim::Reason &reason) const
 {
-	return WordReason(reason, m_simStepper.Current(), *m_definitions, m_pUi->Strings(), m_pGame);
+	return WordReason(
+	    reason, m_simStepper->Current(), m_pSession->Definitions(), m_pUi->Strings(), m_pGame);
 }
 
 
@@ -2189,13 +2287,13 @@ const AppArguments &Application::Arguments() const
 
 Sim::SimWorld &Application::World()
 {
-	return m_sim;
+	return m_pSession->World();
 }
 
 
 void Application::Resync()
 {
-	m_simStepper.Resync();
+	m_simStepper->Resync();
 }
 
 
@@ -2208,19 +2306,19 @@ Scene::Scene &Application::Scene()
 
 const Sim::Snapshot &Application::Snapshot() const
 {
-	return m_simStepper.Current();
+	return m_simStepper->Current();
 }
 
 
 const Sim::Snapshot &Application::Previous() const
 {
-	return m_simStepper.Previous();
+	return m_simStepper->Previous();
 }
 
 
 double Application::Alpha() const
 {
-	return m_simStepper.Alpha();
+	return m_simStepper->Alpha();
 }
 
 
@@ -2286,7 +2384,7 @@ void Application::SetGameContext(std::string_view context)
 
 const Sim::DefinitionRegistry &Application::Definitions() const
 {
-	return *m_definitions;
+	return m_pSession->Definitions();
 }
 
 
@@ -2298,7 +2396,7 @@ Script::ScriptHost &Application::Scripts()
 
 Sim::Controller Application::Player() const
 {
-	return kPilot;
+	return kLocalPlayer;
 }
 
 
@@ -2319,11 +2417,5 @@ Ui::UiSystem *Application::GameUi()
 bool Application::SmokeTest() const
 {
 	return m_arguments.smokeTest;
-}
-
-
-ShellWorld Application::MakeShellWorld()
-{
-	return {m_sim, *m_pPhysics};
 }
 } // namespace Jettison::App

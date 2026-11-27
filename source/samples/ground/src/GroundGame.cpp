@@ -35,11 +35,32 @@ constexpr std::string_view kSaveDetail = "ground";
 } // namespace
 
 
-void GroundGame::Register(const App::ShellWorld &world, App::Shell &shell)
+void GroundWorld::RegisterTypes()
 {
-	world.world.RegisterComponent<Sim::Helm>();
-	DefineGround(world.physics);
+	Sim::RegisterTypes();
+}
 
+
+// In the order the shell registered its own before a game's, so a save from before the session reads.
+void GroundWorld::RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry & /*definitions*/)
+{
+	world.RegisterComponent<Sim::Transform>();
+	world.RegisterComponent<Sim::InFrame>();
+	Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
+	world.RegisterComponent<Sim::ControlledBy>();
+	world.RegisterComponent<Sim::Helm>();
+	DefineGround(physics);
+}
+
+
+void GroundWorld::CreateInitialState(Sim::SimWorld &world)
+{
+	MakeGround(world, App::kLocalPlayer);
+}
+
+
+void GroundGame::Register(App::Shell &shell)
+{
 	m_input.emplace(shell.Input());
 }
 
@@ -60,11 +81,6 @@ void GroundGame::RegisterFrame(Ecs::Scheduler &frame, App::Shell &shell)
 
 void GroundGame::SceneLoaded(App::Shell &shell)
 {
-	if (FindRover(shell.World().Registry()) == entt::null)
-	{
-		MakeGround(shell.World(), shell.Player());
-		shell.Resync();
-	}
 	BindProxy(shell);
 	shell.SetGameContext(RoverInput::kContext);
 }

@@ -16,9 +16,11 @@ to the module). A program reaches it through one call, `App::RunRenderApplicatio
 whatever exception the run threw; it returns the program's exit status.
 
 The shell owns the [simulation](glossary.md#simulation) world and the
-[presentation](glossary.md#presentation) side. It runs the world as a local server: a
-`Sim::SimWorld` stepped 60 times a second with seed 0, with [physics](physics.md) attached. The
-scene shows that world through [proxies](glossary.md#proxy) placed from
+[presentation](glossary.md#presentation) side. It runs the world as a local server: the game's
+`Host::Game` started through a `Host::Session` ([the host session](simulation.md#the-host-session)),
+as the game's server and tests start it, stepped 60 times a second with seed 0. The world is the
+game's alone, so the shell's is the server's to the byte; with no game's world given, the shell's
+own is [physics](physics.md) and the components it draws. The scene shows that world through [proxies](glossary.md#proxy) placed from
 [snapshots](glossary.md#snapshot), and never holds a reference into it ([proxies of the
 simulation](scene.md#proxies-of-the-simulation)). The renderer is held as `Render::IRenderer` alone,
 so the shell includes no Vulkan header ([rendering](rendering.md)).
@@ -29,16 +31,25 @@ and the dev tools, and nothing of any genre; the app suite holds it to that
 
 ### The game a program composes
 
-A [game](glossary.md#game) plugs into the shell as an `App::Game` (`app/Game.h`): a class of
-virtual hooks, each called at one point of the shell's life and doing nothing by default, so a game
-overrides only those it needs. It reads and drives the shell through `App::Shell`, an interface the
-shell implements.
+A [game](glossary.md#game) composes itself into the shell twice over, each part once: its world as a
+`Host::Game` (types, content, world and initial state, the same class its server starts), and its
+presentation as an `App::Game` (`app/Game.h`). `RunRenderApplication` takes both.
+
+The shell starts the `Host::Game` in its resources stage. It adds to it only what the shell reads
+beside the world: the mods' scripts' definitions in the content phase, and, where the world has
+physics, `Physics::Body`, `OnRails` and `LocalFrame` in the snapshots, for the pick and the
+reasons, unless the world shows them already. A world the shell is to draw registers
+`Sim::Transform` and `Sim::InFrame`, and attaches physics for what it picks; the ground sample's
+`GroundWorld` does, and Manifest's world does. A start that fails is a `Host::StartupError`
+naming its phase and source, which the run prints.
+
+`App::Game` is a class of virtual hooks, each called at one point of the shell's life and doing
+nothing by default, so a game overrides only those it needs. It reads and drives the shell through
+`App::Shell`, an interface the shell implements.
 
 | Hook | When the shell calls it | What a game does there |
 | --- | --- | --- |
-| `Register` | As the shell is made, after its own systems attach | Registers components, commands and systems on the world (`ShellWorld`: the world and its physics); defines input actions |
-| `LoadDefinitions` | Start-up, before the mods' scripts load | Loads its [definitions](glossary.md#definition) |
-| `Define` | Start-up, once the definitions and scripts are loaded | Builds what it needs from the definitions |
+| `Register` | As the shell is made, before the world is | Defines its input actions |
 | `AddCommands` | As the shell is made | Adds console commands |
 | `RegisterFrame` | As the shell is made, after the shell's frame systems | Adds frame systems, ordered against the shell's by name |
 | `DefaultScene` | Each scene load with no `--scene` | Names the scene to load; `scene/main.yaml` by default |
@@ -57,16 +68,14 @@ shell implements.
 `App::Shell` gives the game what presentation needs: the command line, the world (and `Resync`
 after changing it outside a step), the scene, the newest two snapshots with `Alpha` (the fraction
 between them shown this frame), the active camera, debug lines, a screen fade, the assets and
-resources, the console, input and the game's input context, the definitions, the scripts, the local
-player's [controller](glossary.md#controller), the orbit framing, cinematics, the pick and the game
+resources, the console, input and the game's input context, the session's definitions, the scripts,
+the local player's [controller](glossary.md#controller) (`App::kLocalPlayer`, which a world's
+initial state seats where the player plays), the orbit framing, cinematics, the pick and the game
 UI. What it returns is not kept past the call, but the shell outlives everything a hook registers
 with it, so a frame system or a console command may keep a reference to it.
 
-`App::Game` is the rendered shell's seam. A program with no window composes a game through
-`Host::Session` and `Host::Game` instead ([the host session](simulation.md#the-host-session)); the
-shell builds its own world rather than start through a session. The two seams meet in the data:
-both read each package's `mod.yaml` as a `Host::PackageDescription`, and both load definitions
-through `Sim::DefinitionRegistry`.
+A program with no window starts the same `Host::Game` through `Host::Session` itself, with no
+`App::Game` ([the host session](simulation.md#the-host-session)).
 
 ### The programs
 
@@ -89,8 +98,8 @@ built even with presentation off, so a CPU-only build can pack content.
 ### Start-up
 
 The shell is built in two parts. Its constructor defines the shell's input actions and console
-commands, registers the simulation's types, attaches physics, and calls the game's `Register`,
-`AddCommands` and `RegisterFrame`. It then validates the frame's order, so a game's system that
+commands, registers the simulation's types, and calls the game's `Register`, `AddCommands` and
+`RegisterFrame`; the world comes later, in the resources stage. It then validates the frame's order, so a game's system that
 names a missing system, or closes a cycle, fails before any window opens. `Init` then runs the
 stages the diagram shows, with the game's hooks within them. A stage that throws ends the run with
 its message (`RenderApplication.cpp`), which says what failed but not in which stage.
@@ -98,7 +107,7 @@ its message (`RenderApplication.cpp`), which says what failed but not in which s
 ```mermaid
 flowchart TD
     U["User: the user's directories, the crash handler, settings.yaml and its bindings"]
-    R["Resources: the mounts and mods.yaml, the I/O worker, the resource manager,<br/>the definitions (Game::LoadDefinitions), the mods' scripts, then Game::Define"]
+    R["Resources: the mounts and mods.yaml, the I/O worker, the resource manager,<br/>the world's session (Host::Game's phases), then the mods' scripts on its world"]
     S["Scene: --scene, or Game::DefaultScene through the mounts; Game::SceneLoaded"]
     G["Renderer: the device, the swapchain and the frame"]
     W["Window: its title, input, and its size"]
@@ -115,7 +124,10 @@ The user stage installs the crash handler before anything else of the engine sta
 ([start-up](runtime.md#start-up)), and makes the data and configuration directories when they do not exist, durably and mode 0700
 from the moment each is made, any missing directory above them included
 (`Core::CreateDirectoriesDurably`, [durable writes](persistence.md#durable-writes)). The resources stage builds the mount stack
-([the shell's mounts](files-and-mods.md#the-shells-mounts)).
+([the shell's mounts](files-and-mods.md#the-shells-mounts)); the session mounts the same sources but
+the user's writable directory, a mod under its identifier, so definitions are read from the content
+and the mods alone. The event sounds' definitions are presentation's, read through the whole tree
+as the audio stage starts.
 
 ### The frame
 
@@ -344,7 +356,7 @@ display, under Xvfb when there is none, or offscreen
 ### A program's main
 
 A program is a `main` that calls `RunRenderApplication` with its window title, the engine's assets,
-its game and its content. The two directories are where the build staged them, relative to the
+its world (`Host::Game`), its game (`App::Game`) and its content. The two directories are where the build staged them, relative to the
 executable: `JETTISON_ASSET_SUBDIRECTORY` and `JETTISON_CONTENT_SUBDIRECTORY`, defined by
 `jettison_use_shared_assets` and `jettison_use_content`. Flotsam's is one line
 (`source/tools/flotsam/main.cpp`):
@@ -391,8 +403,8 @@ Xvfb, and `--references` runs every reference view.
   ([scripts](scripts.md#who-a-scripts-commands-are-from)).
 - There is no prebuilt SDK, so a game builds the engine from source: [J18](roadmap.md#j18).
 - No reference view holds the ground sample's frames: [J28](roadmap.md#j28).
-- The shell builds its own world rather than start through `Host::Session`, so a game drawn on
-  screen writes its start-up hooks twice: [J30](roadmap.md#j30).
+- The mods' scripts are the shell's, loaded beside the session's world, so a program that starts a
+  session with no shell runs none of them.
 
 ## Decisions
 
@@ -403,7 +415,7 @@ be is in [history](history.md).
 
 | Module or tool | Key files |
 | --- | --- |
-| `app` (`source/engine/app`) | `app/RenderApplication.h` (the entry point), `app/Game.h` (`Game`, `Shell`, `ShellWorld`, `PickSpace`, `OrbitTarget`), `app/AppArguments.h`, `app/Mounts.h`, `app/Reasons.h`, `app/SmokeSequence.h`; private `src/Application.h`, `src/Settings.h`, `src/Saves.h` |
+| `app` (`source/engine/app`) | `app/RenderApplication.h` (the entry point), `app/Game.h` (`Game`, `Shell`, `kLocalPlayer`, `PickSpace`, `OrbitTarget`), `app/AppArguments.h`, `app/Mounts.h`, `app/Reasons.h`, `app/SmokeSequence.h`; private `src/Application.h`, `src/Settings.h`, `src/Saves.h` |
 | Flotsam | `source/tools/flotsam/main.cpp` |
 | The packer | `source/tools/pack/main.cpp`, `vfs/Pack.h` ([files, packs and mods](files-and-mods.md#packs)) |
 | The render test | `source/test/main.cpp`, `source/test/CMakeLists.txt`, `scripts/smoke-test.sh`, `scripts/capture.sh` |

@@ -5,12 +5,14 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include <jettison/app/AppArguments.h>
 #include <jettison/app/Game.h>
+#include <jettison/host/Session.h>
 #include <jettison/input/Actions.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
@@ -31,24 +33,20 @@ namespace
 constexpr double kStep = 1.0 / 60.0;
 constexpr Sim::Controller kPlayer{Sim::ControllerKind::Player, 0};
 
+// The ground sample's world, started through a session over its content as the shell starts it.
+std::unique_ptr<Host::Session> StartGround()
+{
+	return std::make_unique<Host::Session>(
+	    Host::Options{{{"base", JETTISON_GROUND_CONTENT}}, kStep, 1},
+	    std::make_unique<Sample::GroundWorld>());
+}
+
+
 struct Fixture
 {
-	Sim::SimWorld world{kStep, 1};
-	entt::entity rover{entt::null};
-
-
-	// With the ground and the rover made, or none, for a save to be loaded into.
-	explicit Fixture(bool make = true)
-	{
-		Sim::RegisterTypes();
-		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InFrame>();
-		Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
-		world.RegisterComponent<Sim::Helm>();
-		Sample::DefineGround(physics);
-		if (make)
-			rover = Sample::MakeGround(world, kPlayer);
-	}
+	std::unique_ptr<Host::Session> session{StartGround()};
+	Sim::SimWorld &world{session->World()};
+	entt::entity rover{Sample::FindRover(world.Registry())};
 
 
 	void Drive(const Physics::FlightControls &controls, int steps)
@@ -113,7 +111,7 @@ TEST_CASE("Ground: the same drive gives the same world, and a save taken part-wa
 	second.Drive(turning, 120);
 	CHECK(second.world.StateHash() == first.world.StateHash());
 
-	Fixture loaded{false};
+	Fixture loaded;
 	loaded.world.Load(saved);
 	loaded.rover = Sample::FindRover(loaded.world.Registry());
 	REQUIRE(loaded.rover == first.rover);
@@ -148,18 +146,15 @@ TEST_CASE("Ground: W and S drive the rover, and A and D turn it, in the game's c
 
 namespace
 {
-// The shell as the ground game reads it, without a window: a world with physics, the sample's scene,
+// The shell as the ground game reads it, without a window: the sample's world started through a
+// session, its scene,
 // the input with the game's context pushed, and the snapshots taken again on a resync. What the game
 // does not read throws.
 class TestShell final : public App::Shell
 {
   public:
-	TestShell() : world{kStep, 1}
+	TestShell()
 	{
-		Sim::RegisterTypes();
-		world.RegisterComponent<Sim::Transform>();
-		world.RegisterComponent<Sim::InFrame>();
-		physics = &Physics::PhysicsWorld::Attach(world);
 		scene.Load(JETTISON_GROUND_SCENE);
 	}
 
@@ -327,8 +322,8 @@ class TestShell final : public App::Shell
 	}
 
 	App::AppArguments arguments;
-	Sim::SimWorld world;
-	Physics::PhysicsWorld *physics{nullptr};
+	std::unique_ptr<Host::Session> session{StartGround()};
+	Sim::SimWorld &world{session->World()};
 	Scene::Scene scene;
 	Input::InputSystem input;
 	Sim::Snapshot snapshot;
@@ -354,7 +349,7 @@ TEST_CASE("Ground: the game drives its rover from the keys, through a save held 
 	using Input::Keys::Character;
 	TestShell shell;
 	Sample::GroundGame game;
-	game.Register({shell.world, *shell.physics}, shell);
+	game.Register(shell);
 	game.SceneLoaded(shell);
 	const entt::entity rover = Sample::FindRover(shell.world.Registry());
 	REQUIRE(rover != entt::null);

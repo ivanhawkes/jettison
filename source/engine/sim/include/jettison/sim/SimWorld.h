@@ -287,6 +287,9 @@ class SimWorld
 
 	std::vector<std::string> ServiceNames() const;
 
+	// The service registered under the name, or null for none: how a host finds what a game attached.
+	WorldService *FindService(std::string_view name);
+
 	entt::registry &Registry()
 	{
 		return m_registry;

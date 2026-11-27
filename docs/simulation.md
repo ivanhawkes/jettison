@@ -307,10 +307,10 @@ The content phase reads each source's `mod.yaml` as a `Host::PackageDescription`
 `Host::DescribePackages` runs the same check with no world, for a validator ([files, packs and
 mods](files-and-mods.md#packages-and-modyaml)).
 
-The rendered shell does not start through a session: it builds its own world with a fixed step of
-1/60 s and composes the game through `App::Game` ([the app shell and tools](app-shell.md)).
-Manifest's server, console and tests start through `Host::Session` ([game
-integration](game-integration.md)).
+The rendered shell starts its world through a session too, with a fixed step of 1/60 s, and
+composes the game's presentation over it through `App::Game` ([the game a program
+composes](app-shell.md#the-game-a-program-composes)). Manifest's server, console and tests start
+through `Host::Session` ([game integration](game-integration.md)).
 
 ## Using it
 
@@ -442,8 +442,6 @@ CHECK(replay.StateHash() == session.StateHash());
 
 - Systems run on the main thread; a parallel scheduler is deferred until a profile shows the need:
   [J31](roadmap.md#j31).
-- The rendered shell builds its own world rather than start through `Host::Session`:
-  [J30](roadmap.md#j30).
 - `Time::Calendar` has no months until a game needs them.
 
 ## Decisions

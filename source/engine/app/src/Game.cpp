@@ -5,17 +5,7 @@
 
 namespace Jettison::App
 {
-void Game::Register(const ShellWorld & /*world*/, Shell & /*shell*/)
-{
-}
-
-
-void Game::LoadDefinitions(Sim::DefinitionRegistry & /*definitions*/)
-{
-}
-
-
-void Game::Define(const ShellWorld & /*world*/, const Sim::DefinitionRegistry & /*definitions*/)
+void Game::Register(Shell & /*shell*/)
 {
 }
 

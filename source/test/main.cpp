@@ -6,5 +6,6 @@
 int main(int argc, char **argv)
 {
 	return Jettison::App::RunRenderApplication(
-	    argc, argv, "Test", JETTISON_ASSET_SUBDIRECTORY, nullptr, JETTISON_CONTENT_SUBDIRECTORY);
+	    argc, argv, "Test", JETTISON_ASSET_SUBDIRECTORY, nullptr, nullptr,
+	    JETTISON_CONTENT_SUBDIRECTORY);
 }

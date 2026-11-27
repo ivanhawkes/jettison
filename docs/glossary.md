@@ -638,7 +638,8 @@ world, made in start-up phases ([the host session](simulation.md#the-host-sessio
 ### Shell
 
 The engine's windowed application (`RunRenderApplication`, `App::Shell`): the window, renderer,
-input, UI, scene and frame loop, into which an `App::Game` is composed. With no game it is
+input, UI, scene and frame loop. It starts a game's world, its `Host::Game`, through a session, and
+composes the game's `App::Game` over it. With no game it is
 `render_test` or `flotsam`. A game reaches it through the `Shell` interface its hooks are given. See
 [The app shell and tools](app-shell.md).
 

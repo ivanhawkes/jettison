@@ -172,6 +172,13 @@ std::vector<std::string> SimWorld::ServiceNames() const
 }
 
 
+WorldService *SimWorld::FindService(std::string_view name)
+{
+	const auto found = std::ranges::find(m_services, name, &Service::name);
+	return found == m_services.end() ? nullptr : found->service.get();
+}
+
+
 void SimWorld::Step()
 {
 	// Checked before any is applied, so a step either applies all its commands or none.

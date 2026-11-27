@@ -298,20 +298,49 @@ the file; the game builds it.
 
 #### Its entry point
 
-`main` hands the shell the game and says where the two staged trees are
-(`source/samples/ground/main.cpp`):
+`main` hands the shell the game's world and its presentation, and says where the two staged trees
+are (`source/samples/ground/main.cpp`):
 
 ```cpp
 int main(int argc, char **argv)
 {
 	Jettison::Sample::GroundGame game;
 	return Jettison::App::RunRenderApplication(
-	    argc, argv, "Ground", JETTISON_ASSET_SUBDIRECTORY, &game, JETTISON_CONTENT_SUBDIRECTORY);
+	    argc, argv, "Ground", JETTISON_ASSET_SUBDIRECTORY,
+	    std::make_unique<Jettison::Sample::GroundWorld>(), &game, JETTISON_CONTENT_SUBDIRECTORY);
 }
 ```
 
-The game outlives the run, so it lives in `main`. Every hook of `App::Game` is listed in
+The world, a `Host::Game`, is the shell's to start through a session, as a server would start it;
+the game outlives the run, so it lives in `main`. Every hook of `App::Game` is listed in
 [the app shell](app-shell.md#the-game-a-program-composes).
+
+#### Its world
+
+`GroundWorld` registers the components the shell draws, attaches physics, and registers the
+[helm](glossary.md#helm), the shapes and the gravity (`source/samples/ground/src/Ground.cpp`); its
+initial state is the ground with the rover on it, the local player at the helm:
+
+```cpp
+void GroundWorld::RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry & /*definitions*/)
+{
+	world.RegisterComponent<Sim::Transform>();
+	world.RegisterComponent<Sim::InFrame>();
+	Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
+	world.RegisterComponent<Sim::ControlledBy>();
+	world.RegisterComponent<Sim::Helm>();
+	DefineGround(physics);
+}
+
+
+void GroundWorld::CreateInitialState(Sim::SimWorld &world)
+{
+	MakeGround(world, App::kLocalPlayer);
+}
+```
+
+Shapes and frames are defined as the world is made, not as the scene loads, because a save names
+them and the world it loads into must already have them.
 
 #### The hooks it uses
 
@@ -323,10 +352,10 @@ sequenceDiagram
     participant Shell
     participant Game as GroundGame
     participant World as SimWorld
-    Shell->>Game: Register (helm, shapes, frame, keys)
+    Shell->>Game: Register (keys)
     Shell->>Game: RegisterFrame (ground.camera)
-    Shell->>Game: SceneLoaded
-    Game->>World: MakeGround, then Shell::Resync
+    Shell->>World: the session starts GroundWorld (MakeGround)
+    Shell->>Game: SceneLoaded (the rover's proxy)
     loop Each frame
         Shell->>Game: PollInput
         Game->>World: SetFlightControls, when the keys change
@@ -335,35 +364,15 @@ sequenceDiagram
     end
 ```
 
-**`Register`** registers the [helm](glossary.md#helm), the shapes and the gravity on the physics the
-shell attached (`source/samples/ground/src/Ground.cpp`), and the keys:
+**`Register`** defines the keys: `RoverInput` defines two axes in the game's context, `rover`
+(`source/samples/ground/src/RoverInput.cpp`).
 
-```cpp
-void GroundGame::Register(const App::ShellWorld &world, App::Shell &shell)
-{
-	world.world.RegisterComponent<Sim::Helm>();
-	DefineGround(world.physics);
-
-	m_input.emplace(shell.Input());
-}
-```
-
-Shapes and frames are defined as the world is made, not as the scene loads, because a save names
-them and the world it loads into must already have them. `RoverInput` defines two axes in the
-game's context, `rover` (`source/samples/ground/src/RoverInput.cpp`).
-
-**`SceneLoaded`** makes the ground and the rover the first time, with the player at the helm, and
-asks the shell to take snapshots again. Each time, it binds a [proxy](glossary.md#proxy) to the
-rover and takes its input context:
+**`SceneLoaded`** binds a [proxy](glossary.md#proxy) to the rover each time a scene loads, and
+takes its input context:
 
 ```cpp
 void GroundGame::SceneLoaded(App::Shell &shell)
 {
-	if (FindRover(shell.World().Registry()) == entt::null)
-	{
-		MakeGround(shell.World(), shell.Player());
-		shell.Resync();
-	}
 	BindProxy(shell);
 	shell.SetGameContext(RoverInput::kContext);
 }

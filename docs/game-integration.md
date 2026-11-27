@@ -29,14 +29,14 @@ engine never finds a game by itself.
 | Seam | For | Header |
 | --- | --- | --- |
 | `Host::Session` and `Host::Game` | A game with no presentation: a server, a tool, a test. The [session](glossary.md#session) owns one game's file system, definitions and world. | `source/engine/host/include/jettison/host/Session.h` |
-| `App::Game`, passed to `App::RunRenderApplication` | A game drawn on screen: the [shell](glossary.md#shell) with its renderer, UI, audio and dev tools, and the game's hooks at the shell's points. | `source/engine/app/include/jettison/app/Game.h` |
+| `App::Game`, passed to `App::RunRenderApplication` with the `Host::Game` | A game drawn on screen: the [shell](glossary.md#shell) starts the game's `Host::Game` through a session, and draws it with its renderer, UI, audio and dev tools, with the game's presentation hooks at the shell's points. | `source/engine/app/include/jettison/app/Game.h` |
 
 `Host::Session` runs the game's hooks in a fixed order of phases and names the phase that fails
 ([the host session](simulation.md#the-host-session)); the consumer project composes a small race
 this way ([a game on the host](simulation.md#a-game-on-the-host)). `App::Game` is the same idea for
 the shell: every hook does nothing by default, so a game overrides only what it needs, and the
-shell with no game is the engine with nothing of a game in it. A program's `main` passes its game
-to `RunRenderApplication` ([a program's main](app-shell.md#a-programs-main)); the hooks the ground
+shell with no game is the engine with nothing of a game in it. A program's `main` passes its world and
+its game to `RunRenderApplication` ([a program's main](app-shell.md#a-programs-main)); the hooks the ground
 sample uses are in [samples](sample-game.md#the-hooks-it-uses).
 
 ## Checking Manifest before a capability

@@ -23,10 +23,6 @@ namespace Jettison::Input
 {
 class InputSystem;
 }
-namespace Jettison::Physics
-{
-class PhysicsWorld;
-}
 namespace Jettison::Render
 {
 class DebugDraw;
@@ -67,6 +63,10 @@ namespace Jettison::App
 struct AppArguments;
 struct SmokeActions;
 
+// The player the shell's controls are for, in the first slot, which Shell::Player returns: whom a
+// game's initial state (Host::Game::CreateInitialState) seats where the player plays.
+inline constexpr Sim::Controller kLocalPlayer{Sim::ControllerKind::Player, 0};
+
 // A scene entity the shell's orbit camera frames, out to three of its radii in metres and no nearer
 // than 50 m: C moves the camera from one to the next, in entity order, and the console's orbit names
 // one. A game marks them; not written to the scene file.
@@ -97,6 +97,8 @@ class Shell
 	// The command line the shell was started with.
 	virtual const AppArguments &Arguments() const = 0;
 
+	// The world the game's Host::Game composed, which the shell starts through a Host::Session in its
+	// resources stage: not there before it.
 	virtual Sim::SimWorld &World() = 0;
 
 	// The snapshots taken again from the world, after a game changed it outside a step.
@@ -140,6 +142,7 @@ class Shell
 	// empty name for none.
 	virtual void SetGameContext(std::string_view context) = 0;
 
+	// The session's definitions, as the game's Host::Game::LoadContent loaded them.
 	virtual const Sim::DefinitionRegistry &Definitions() const = 0;
 
 	// The mods' scripts, loaded with the definitions.
@@ -180,32 +183,19 @@ class Shell
 	~Shell() = default;
 };
 
-// The simulation the shell attaches to its world, which a game's own is built on: physics.
-struct ShellWorld
-{
-	Sim::SimWorld &world;
-	Physics::PhysicsWorld &physics;
-};
-
-// A game composed into the shell (RunRenderApplication): its types, definitions and world, its
-// commands and its UI, at the shell's points. The shell without one is the engine with no game: no
-// market, trader or fleet of the game's is registered, and nothing here is called. Every hook does
-// nothing by default.
+// A game's presentation composed into the shell (RunRenderApplication): its input, commands, scenes,
+// UI and saves' details, at the shell's points. Its world is not here: the game composes that once,
+// as the Host::Game its server and tests start too, and the shell starts it through a Host::Session.
+// The shell without one draws the world with nothing of a game's over it. Every hook does nothing by
+// default.
 class Game
 {
   public:
 	virtual ~Game() = default;
 
-	// As the shell is made, after its own systems attach: the game's types, components, commands and
-	// systems on the world, and its input actions (Shell::Input), bound before the settings'
-	// bindings are read.
-	virtual void Register(const ShellWorld &world, Shell &shell);
-
-	// The game's definitions, read through the asset tree before the mods' scripts load.
-	virtual void LoadDefinitions(Sim::DefinitionRegistry &definitions);
-
-	// Once the docks have their shapes and layouts: what the game builds on them.
-	virtual void Define(const ShellWorld &world, const Sim::DefinitionRegistry &definitions);
+	// As the shell is made, before its world is: the game's input actions (Shell::Input), bound
+	// before the settings' bindings are read.
+	virtual void Register(Shell &shell);
 
 	// A save loaded into the world: what an older save of the game lacks, and what the game read of it
 	// (ReadSave) applied.

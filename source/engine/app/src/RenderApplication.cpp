@@ -3,9 +3,11 @@
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 #include "Application.h"
 #include <jettison/app/AppArguments.h>
+#include <jettison/host/Session.h>
 
 namespace Jettison::App
 {
@@ -16,7 +18,7 @@ namespace Jettison::App
 // failed - before this function's handler prints.
 int RunRenderApplication(
     int argc, char **argv, const char *windowTitle, const std::filesystem::path &assetSubdirectory,
-    Game *game, const std::filesystem::path &contentSubdirectory)
+    std::unique_ptr<Host::Game> world, Game *game, const std::filesystem::path &contentSubdirectory)
 {
 	const auto arguments = ParseAppArguments(argc, argv, assetSubdirectory, contentSubdirectory);
 	if (!arguments)
@@ -24,7 +26,7 @@ int RunRenderApplication(
 
 	try
 	{
-		Application application{*arguments, windowTitle, game};
+		Application application{*arguments, windowTitle, game, std::move(world)};
 		application.Run();
 	}
 	catch (const std::exception &e)

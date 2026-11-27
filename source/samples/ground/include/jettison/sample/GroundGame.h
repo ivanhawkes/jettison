@@ -5,26 +5,40 @@
 #include <optional>
 
 #include <jettison/app/Game.h>
+#include <jettison/host/Session.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/sample/RoverInput.h>
 #include <jettison/scene/CameraRigs.h>
 
 namespace Jettison::Sample
 {
-// The ground sample (docs/sample-game.md): a game of no space composed into the shell, which links no
-// space module. A rover on a slab of ground under gravity, driven by the player's keys through the
-// flight model, and a camera of the game's behind it. Its scene is scene/main.yaml in its content.
+// The ground sample's world (docs/sample-game.md), as the shell starts it through a session: the
+// shell's components and physics, the helm, the ground's and the rover's shapes and gravity, and the
+// ground with the rover on it, the local player at its helm.
+class GroundWorld final : public Host::Game
+{
+  public:
+	void RegisterTypes() override;
+
+	void RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry &definitions) override;
+
+	void CreateInitialState(Sim::SimWorld &world) override;
+};
+
+// The ground sample's presentation (docs/sample-game.md): a game of no space composed into the shell,
+// which links no space module, over its world (GroundWorld). The rover driven by the player's keys
+// through the flight model, and a camera of the game's behind it. Its scene is scene/main.yaml in its
+// content.
 class GroundGame final : public App::Game
 {
   public:
-	// The ground and the rover's shapes and gravity, the helm, and the drive keys (RoverInput).
-	void Register(const App::ShellWorld &world, App::Shell &shell) override;
+	// The drive keys (RoverInput).
+	void Register(App::Shell &shell) override;
 
 	// The camera behind the rover, after the shell's rigs.
 	void RegisterFrame(Ecs::Scheduler &frame, App::Shell &shell) override;
 
-	// The rover made on the first scene, its proxy made in the scene (BindProxy), and the drive
-	// context taken.
+	// The rover's proxy made in the scene (BindProxy), and the drive context taken.
 	void SceneLoaded(App::Shell &shell) override;
 
 	// The rover found again, and its controls as the save has them taken as the ones last sent, so

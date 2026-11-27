@@ -11,6 +11,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -18,6 +20,9 @@
 
 #include <jettison/core/Log.h>
 #include <jettison/ecs/Scheduler.h>
+#include <jettison/host/Session.h>
+#include <jettison/physics/Components.h>
+#include <jettison/physics/PhysicsWorld.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/render/IRenderer.h>
 #include <jettison/scene/Components.h>
@@ -74,7 +79,7 @@ struct ApplicationProbe
 
 	static Sim::SimWorld &World(Application &shell)
 	{
-		return shell.m_sim;
+		return shell.m_pSession->World();
 	}
 
 
@@ -144,6 +149,43 @@ class SeamGame final : public App::Game
 	std::vector<std::byte> read;
 	int loaded{0};
 	int unloading{0};
+};
+
+
+// A world of the game's own, as its server would start it: the shell's components with physics, a body
+// in it, and the body shown in the snapshots already, which the shell then does not show again; or a
+// content phase that fails.
+class SeamWorld final : public Host::Game
+{
+  public:
+	void LoadContent(
+	    const Vfs::FileSystem & /*files*/, std::span<const Host::Package> /*packages*/,
+	    Sim::DefinitionRegistry & /*definitions*/) override
+	{
+		if (failContent)
+			throw std::runtime_error{"no market"};
+	}
+
+
+	void RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry & /*definitions*/) override
+	{
+		world.RegisterComponent<Sim::Transform>();
+		world.RegisterComponent<Sim::InFrame>();
+		Physics::PhysicsWorld::Attach(world);
+		world.RegisterComponent<Sim::ControlledBy>();
+		world.ShowInSnapshots<Physics::Body>();
+	}
+
+
+	void CreateInitialState(Sim::SimWorld &world) override
+	{
+		entt::registry &registry = world.Registry();
+		const entt::entity crate = registry.create();
+		registry.emplace<Sim::Transform>(crate);
+		registry.emplace<Physics::Body>(crate, Physics::Body{Physics::BodyKind::Static, "crate"});
+	}
+
+	bool failContent{false};
 };
 
 
@@ -450,6 +492,52 @@ TEST_CASE("Game: a game's frame system, save section and scene hooks run on the 
 		CHECK_FALSE(App::ApplicationProbe::Load(shell, "seams"));
 		CHECK(game.read.empty());
 		CHECK(world.StateHash() == stepped);
+	}
+	std::filesystem::remove_all(user, error);
+}
+
+
+TEST_CASE("Game: the shell starts a game's world through a session, as its server would")
+{
+	const auto user =
+	    std::filesystem::temp_directory_path() / ("jettison-world-tests-" + std::to_string(getpid()));
+	std::error_code error;
+	std::filesystem::remove_all(user, error);
+	SeamGame game;
+	{
+		App::Application shell{
+		    WindowlessArguments(user), "Worlds", &game, std::make_unique<SeamWorld>()};
+		App::ApplicationProbe::Start(shell);
+		const Sim::SimWorld &world = App::ApplicationProbe::World(shell);
+		CHECK(world.Registry().view<const Physics::Body>().size() == 1);
+		CHECK(world.Shows(entt::type_hash<Physics::Body>::value()));
+		CHECK(world.Shows(entt::type_hash<Physics::LocalFrame>::value()));
+		CHECK(game.loaded == 1);
+	}
+	std::filesystem::remove_all(user, error);
+}
+
+
+TEST_CASE("Game: a game's world that fails to start names the phase it failed in")
+{
+	const auto user =
+	    std::filesystem::temp_directory_path() / ("jettison-failed-tests-" + std::to_string(getpid()));
+	std::error_code error;
+	std::filesystem::remove_all(user, error);
+	{
+		auto world = std::make_unique<SeamWorld>();
+		world->failContent = true;
+		App::Application shell{WindowlessArguments(user), "Worlds", nullptr, std::move(world)};
+		try
+		{
+			App::ApplicationProbe::Start(shell);
+			FAIL("the start did not fail");
+		}
+		catch (const Host::StartupError &failure)
+		{
+			CHECK(failure.FailedPhase() == Host::Phase::Content);
+			CHECK(std::string_view{failure.what()}.find("no market") != std::string_view::npos);
+		}
 	}
 	std::filesystem::remove_all(user, error);
 }

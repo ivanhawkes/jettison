@@ -452,14 +452,15 @@ suite's modules are in [scripts in the build](build-and-gates.md#scripts-in-the-
 
 ### Host scripts in a game
 
-The shell wires the host up as it loads definitions
+The shell loads the scripts' definitions in its session's content phase
+(`Script::LoadDefinitions`), and wires the host up once the session has started its world
 (`source/engine/app/src/Application.cpp`):
 
 ```cpp
-Script::LoadDefinitions(*m_definitions);
 m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
-m_pScripts->SendCommandsTo(m_sim);
-m_pScripts->LoadAll(*m_definitions);
+m_pScripts->SendCommandsTo(world);
+m_pScripts->ReadFrom(m_simStepper->Current());
+m_pScripts->LoadAll(m_pSession->Definitions());
 ```
 
 It then gives the host every event it takes from the simulation (`Dispatch`), writes the keys

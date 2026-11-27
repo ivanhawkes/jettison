@@ -21,6 +21,7 @@
 #include <jettison/devtools/Theme.h>
 #include <jettison/devtools/Views.h>
 #include <jettison/ecs/Scheduler.h>
+#include <jettison/host/Session.h>
 #include <jettison/input/Actions.h>
 #include <jettison/platform/Paths.h>
 #include <jettison/render/Clusters.h>
@@ -88,7 +89,10 @@ class Application final : private Shell
 	friend struct ApplicationProbe;
 
   public:
-	Application(AppArguments arguments, std::string windowTitle, Game *game = nullptr);
+	// The world is the game's (Host::Game), started in the resources stage; none is the shell's own.
+	Application(
+	    AppArguments arguments, std::string windowTitle, Game *game = nullptr,
+	    std::unique_ptr<Host::Game> world = {});
 
 	~Application();
 
@@ -122,6 +126,8 @@ class Application final : private Shell
 	// settings and bindings read from them.
 	void InitUser();
 
+	// The mounts, the resource manager, the world's session over the mounts (Host::Session) and the
+	// mods' scripts on its world.
 	void InitResources();
 
 	void InitScene();
@@ -320,15 +326,14 @@ class Application final : private Shell
 
 	bool SmokeTest() const override;
 
-	// The world's physics as a game's hooks are given it.
-	ShellWorld MakeShellWorld();
-
 	AppArguments m_arguments;
 	std::string m_windowTitle;
 
-	// The game composed into the shell, or the shell's own Game, which does nothing.
+	// The game composed into the shell, or the shell's own Game, which does nothing; and its world,
+	// held until the session starts it.
 	Game m_noGame;
 	Game *m_pGame;
+	std::unique_ptr<Host::Game> m_pWorldGame;
 	State m_state{State::Uninitialised};
 
 	// The user's directories: the XDG ones, or the ones under AppArguments::userDirectory. The headless
@@ -417,21 +422,19 @@ class Application final : private Shell
 	// Each system runs on the scene's registry, which is the presentation world.
 	Ecs::Scheduler m_frame;
 
-	// The authoritative world, run as if it were a local server: the scene shows it through
-	// Scene::SimProxyComponents, from the stepper's snapshots, and never holds a reference into it.
-	// Physics alone in the shell; a game registers its components, commands and systems on it.
-	// Sixty steps a second, and the seed is fixed until a game or a save chooses one.
+	// The authoritative world, run as if it were a local server: the game's Host::Game started through
+	// a session over the asset tree's read-only mounts, as its server starts it, so the world is the
+	// server's to the byte. The scene shows it through Scene::SimProxyComponents, from the stepper's
+	// snapshots, and never holds a reference into it. Sixty steps a second, and the seed is fixed
+	// until a game or a save chooses one. Made in InitResources; what follows holds into it.
 	static constexpr double kSimStep = 1.0 / 60.0;
 	static constexpr std::uint64_t kSimSeed = 0;
-	Sim::SimWorld m_sim{kSimStep, kSimSeed};
-	Sim::Stepper m_simStepper{m_sim};
+	std::unique_ptr<Host::Session> m_pSession;
+	std::optional<Sim::Stepper> m_simStepper;
 
-	// Attached in the constructor, and the world's from then on.
-	Physics::PhysicsWorld *m_pPhysics{nullptr};
-
-	// The definitions, the engine's and the game's (Game::LoadDefinitions), read through the asset tree
-	// in InitResources.
-	std::optional<Sim::DefinitionRegistry> m_definitions;
+	// The event sounds' definitions (Audio::EventSound), presentation's alone, read through the
+	// asset tree in InitAudio.
+	std::optional<Sim::DefinitionRegistry> m_soundDefinitions;
 
 	// The mods' scripts (defs/scripts), made beside the definitions in InitResources: given every
 	// event TakeEvents takes, and answering the traders' inputs they name. After the world, so it goes
@@ -456,7 +459,8 @@ class Application final : private Shell
 	entt::entity m_hovered{entt::null};
 	entt::entity m_hoverOutlined{entt::null};
 
-	// Picks against the snapshots, with the physics world's shapes (docs/physics.md, "Picking").
+	// Picks against the snapshots, with the physics world's shapes (docs/physics.md, "Picking"): null
+	// for a world with no physics, which nothing picks in.
 	std::unique_ptr<Physics::SnapshotPicker> m_pPicker;
 
 	// What the last answer hit, where relative to the origin of its frame (Game::PickOrigin), and its
