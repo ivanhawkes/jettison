@@ -27,11 +27,10 @@ namespace Jettison::Core
 {
 namespace
 {
-// The bits of a process mark each of its two draws of std::random_device gives, and the mark as a
-// partial's name writes it: in hexadecimal, every digit written.
+// The bits of a process mark each of its two draws of std::random_device gives, and the base a
+// partial's name writes the mark in.
 constexpr unsigned kMarkHalfBits = 32;
 constexpr int kHexadecimal = 16;
-constexpr std::ptrdiff_t kMarkDigits = 16;
 
 
 class Descriptor
@@ -101,19 +100,24 @@ std::uint64_t ProcessMark()
 }
 
 
-// A name in the path's directory to write it under that no other writer uses, bounded in length:
-// :partial.<process ID>.<process mark>.<count>.
-std::filesystem::path UniquePartial(const std::filesystem::path &path)
+// A partial's name: :partial.<process ID>.<process mark>.<count>, the mark every hexadecimal digit.
+std::string PartialName(::pid_t writer, std::uint64_t mark, unsigned count)
 {
-	static std::atomic<unsigned> counter;
-	return path.parent_path() /
-	       std::format("{}.{}.{:016x}.{}", kPartialPrefix, ::getpid(), ProcessMark(), counter++);
+	return std::format("{}.{}.{:016x}.{}", kPartialPrefix, writer, mark, count);
 }
 
 
-// Whether a directory's entry is a partial file a writer that is gone left: exactly the name
-// UniquePartial gives, of a process that no longer runs. One of a process that runs, this one's other
-// writers' included, may be in use, and any other name is not a partial at all.
+// A name in the path's directory to write it under that no other writer uses, bounded in length.
+std::filesystem::path UniquePartial(const std::filesystem::path &path)
+{
+	static std::atomic<unsigned> counter;
+	return path.parent_path() / PartialName(::getpid(), ProcessMark(), counter++);
+}
+
+
+// Whether a directory's entry is a partial file a writer that is gone left: a name PartialName gives,
+// spelt as it spells it, of a process that no longer runs. One of a process that runs, this one's
+// other writers' included, may be in use, and any other name, a near one included, is not a partial.
 bool Abandoned(std::string_view entry)
 {
 	if (!entry.starts_with(kPartialPrefix) || entry.size() == kPartialPrefix.size() ||
@@ -123,16 +127,15 @@ bool Abandoned(std::string_view entry)
 	::pid_t writer = 0;
 	const auto [afterWriter, writerError] =
 	    std::from_chars(entry.data() + kPartialPrefix.size() + 1, end, writer);
-	if (writerError != std::errc{} || afterWriter == end || *afterWriter != '.')
+	if (writerError != std::errc{} || writer <= 0 || afterWriter == end || *afterWriter != '.')
 		return false;
 	std::uint64_t mark = 0;
 	const auto [afterMark, markError] = std::from_chars(afterWriter + 1, end, mark, kHexadecimal);
-	if (markError != std::errc{} || afterMark - (afterWriter + 1) != kMarkDigits || afterMark == end ||
-	    *afterMark != '.')
+	if (markError != std::errc{} || afterMark == end || *afterMark != '.')
 		return false;
 	unsigned count = 0;
 	const auto [afterCount, countError] = std::from_chars(afterMark + 1, end, count);
-	if (countError != std::errc{} || afterCount != end)
+	if (countError != std::errc{} || afterCount != end || entry != PartialName(writer, mark, count))
 		return false;
 	return ::kill(writer, 0) != 0 && errno == ESRCH;
 }

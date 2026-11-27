@@ -172,12 +172,25 @@ TEST_CASE("File: partials writers that are gone left are removed, and nothing el
 	const std::filesystem::path running = put(directory / partialName(::getpid()));
 	const std::filesystem::path notes = put(directory / "notes:partial");
 	const std::filesystem::path shorter = put(directory / (partialName(gone) + "x"));
+
+	// Names no writer gives, however near: a process group's negative ID, digits padded, a mark in
+	// capitals.
+	const std::vector<std::filesystem::path> near{
+	    put(directory / std::format("{}.-{}.{:016x}.0", kPartialPrefix, gone, 0)),
+	    put(directory / std::format("{}.0{}.{:016x}.0", kPartialPrefix, gone, 0)),
+	    put(directory / std::format("{}.{}.{:016x}.00", kPartialPrefix, gone, 0)),
+	    put(directory / std::format("{}.{}.{:016X}.0", kPartialPrefix, gone, 0xabcdefULL))};
 	WriteFileDurably(directory / "slot.save", std::string_view{"written"});
 	CHECK(ReadFile(directory / "slot.save") == "written");
 	CHECK_FALSE(std::filesystem::exists(abandoned));
 	CHECK(ReadFile(running) == "left");
 	CHECK(ReadFile(notes) == "left");
 	CHECK(ReadFile(shorter) == "left");
+	for (const std::filesystem::path &kept : near)
+	{
+		CAPTURE(kept);
+		CHECK(ReadFile(kept) == "left");
+	}
 
 	// A file named as a gone writer's partial is never taken for one when it is the file written.
 	const std::filesystem::path own = Scratch() / "own";
