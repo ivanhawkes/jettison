@@ -11,6 +11,7 @@
 #include <format>
 #include <stdexcept>
 #include <system_error>
+#include <utility>
 
 namespace Jettison::Host
 {
@@ -87,6 +88,28 @@ bool HoldsWorld(const std::filesystem::path &source)
 	return std::ranges::any_of(
 	    kWorldDirectories,
 	    [&](std::string_view directory) { return !alone.Enumerate(directory).empty(); });
+}
+
+
+Vfs::PackSummary WriteServerPack(
+    const std::filesystem::path &directory, const std::filesystem::path &pack, int level)
+{
+	const std::optional<PackageDescription> description = DescribePackage(directory);
+	if (description && description->side == Side::Client)
+		throw std::runtime_error{std::format(
+		    "{} is for the client alone (side: client): a server has no use for it",
+		    directory.string())};
+	Vfs::PackOptions options{.level = level, .paths = {}};
+	std::error_code error;
+	for (const std::string_view world : kWorldDirectories)
+		if (std::filesystem::is_directory(directory / world, error))
+			options.paths.emplace_back(world);
+	if (options.paths.empty())
+		throw std::runtime_error{std::format(
+		    "{} holds no world content, under defs or scripts, for a server", directory.string())};
+	if (description)
+		options.paths.emplace_back(kPackageDescriptionFile);
+	return Vfs::WritePack(directory, pack, std::move(options));
 }
 
 

@@ -92,8 +92,6 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs o
 
 **What remains.** The split the user settled (2026-11-27, [decisions](decisions.md#files-packs-and-mods)):
 
-- The packer making a server pack of a package's world directories alone (`defs/`, `scripts/`,
-  the cooked collision shapes), for a dedicated server's bundle.
 - On connecting, the server sends its packages and a hash of its world content, and a client that
   holds other content says which package differs rather than show a world it cannot read.
 

@@ -33,9 +33,9 @@ struct PackOptions
 	// under a second, against 22 CPU-seconds for the whole tree at 19.
 	int level{19};
 
-	// The directories under the root to pack, as virtual paths, or every file under it when empty:
-	// a build's staged assets share their directory with the build system's own files.
-	std::vector<std::string> directories;
+	// The directories and files under the root to pack, as virtual paths, or every file under it
+	// when empty: a build's staged assets share their directory with the build system's own files.
+	std::vector<std::string> paths;
 };
 
 struct PackSummary
@@ -50,13 +50,13 @@ struct PackSummary
 	std::vector<std::string> skipped;
 };
 
-// Packs every regular file under the directory, or under the directories the options name,
-// recursively, its path under the directory its virtual path, so the pack mounted reads as the
-// directory does. The same files give the same bytes. The pack is written beside the output, its
-// directory made if it is missing, and renamed over it once complete, so a reader never finds half
-// of one. Throws std::invalid_argument for a level out of range or a directory to pack that is not
-// a virtual path, and std::runtime_error for a directory that cannot be read or a pack that cannot
-// be written.
+// Packs every regular file under the directory, or the files and every file under the directories
+// the options name, recursively, its path under the directory its virtual path, so the pack mounted
+// reads as the directory does. The same files give the same bytes. The pack is written beside the
+// output, its directory made if it is missing, and renamed over it once complete, so a reader never
+// finds half of one. Throws std::invalid_argument for a level out of range or a path to pack that is
+// not a virtual path, and std::runtime_error for a path that is neither a directory nor a file, a
+// directory that cannot be read or a pack that cannot be written.
 PackSummary WritePack(
     const std::filesystem::path &directory, const std::filesystem::path &pack,
     PackOptions options = {});

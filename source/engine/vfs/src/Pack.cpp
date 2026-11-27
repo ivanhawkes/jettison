@@ -470,22 +470,25 @@ PackSummary WritePack(
 	if (!std::filesystem::is_directory(directory, error))
 		throw std::runtime_error{std::format("Vfs: {} is not a directory to pack", directory.string())};
 
-	std::vector<std::filesystem::path> roots;
-	for (const std::string &subdirectory : options.directories)
-	{
-		if (!FileSystem::IsValidPath(subdirectory))
-			throw std::invalid_argument{
-			    std::format("Vfs: '{}' is not a virtual path to pack", subdirectory)};
-		roots.push_back(directory / subdirectory);
-		if (!std::filesystem::is_directory(roots.back(), error))
-			throw std::runtime_error{
-			    std::format("Vfs: {} is not a directory to pack", roots.back().string())};
-	}
-	if (roots.empty())
-		roots.push_back(directory);
-
 	PackSummary summary;
 	std::vector<std::pair<std::string, std::filesystem::path>> files;
+	std::vector<std::filesystem::path> roots;
+	for (const std::string &path : options.paths)
+	{
+		if (!FileSystem::IsValidPath(path))
+			throw std::invalid_argument{std::format("Vfs: '{}' is not a virtual path to pack", path)};
+		const std::filesystem::path named = directory / path;
+		if (std::filesystem::is_regular_file(named, error))
+			files.emplace_back(path, named);
+		else if (std::filesystem::is_directory(named, error))
+			roots.push_back(named);
+		else
+			throw std::runtime_error{
+			    std::format("Vfs: {} is neither a directory nor a file to pack", named.string())};
+	}
+	if (options.paths.empty())
+		roots.push_back(directory);
+
 	for (const std::filesystem::path &root : roots)
 	{
 		for (auto entry =

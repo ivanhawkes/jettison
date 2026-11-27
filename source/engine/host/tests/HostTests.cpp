@@ -496,6 +496,48 @@ TEST_CASE("Host: a server's session leaves out a package for the client alone, w
 }
 
 
+TEST_CASE("Host: a server pack holds a package's description and world, and none of its presentation")
+{
+	const Scratch scratch;
+	PutContent(scratch);
+	scratch.Put("content/scripts/rain.wasm", "rain");
+	scratch.Put("content/textures/barn.png", "red");
+	scratch.Put("content/strings/en/farm.yaml", "version: 1\n");
+	const Vfs::PackSummary summary =
+	    Host::WriteServerPack(scratch.Path("content"), scratch.Path("server.pack"));
+	CHECK(summary.files == 3);
+	Vfs::FileSystem packed;
+	packed.AddMount({"farm", scratch.Path("server.pack")});
+	CHECK(
+	    packed.Enumerate("") ==
+	    std::vector<std::string>{"defs/crops/wheat.yaml", "mod.yaml", "scripts/rain.wasm"});
+	CHECK(Host::DescribePackage(scratch.Path("server.pack"))->name == "Farm");
+
+	// A server session runs on it as on the directory.
+	std::vector<std::string> log;
+	Host::Options options = OptionsFor(scratch.Path("server.pack"));
+	options.server = true;
+	Host::Session session{std::move(options), std::make_unique<Recorder>(log)};
+	CHECK(session.Definitions().Find<Crop>("wheat")->displayName == "Wheat");
+
+	// Neither a package for the client alone nor one with no world has a server pack.
+	scratch.Put("paint/mod.yaml", "version: 1\nside: client\n");
+	scratch.Put("paint/textures/barn.png", "red");
+	scratch.Put("bare/textures/barn.png", "red");
+	for (const char *source : {"paint", "bare"})
+	{
+		CAPTURE(source);
+		CHECK_THROWS_AS(
+		    Host::WriteServerPack(scratch.Path(source), scratch.Path("no.pack")), std::runtime_error);
+		CHECK_FALSE(std::filesystem::exists(scratch.Path("no.pack")));
+	}
+
+	// One with no description packs its world alone.
+	scratch.Put("plain/defs/crops/wheat.yaml", "version: 1\ndisplayName: Wheat\nyield: 7\n");
+	CHECK(Host::WriteServerPack(scratch.Path("plain"), scratch.Path("plain.pack")).files == 1);
+}
+
+
 TEST_CASE("Host: an engine version is compared by its numbers")
 {
 	CHECK(Host::EngineAtLeast("0.1.0", "0.1"));

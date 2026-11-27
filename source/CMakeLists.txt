@@ -62,11 +62,13 @@ endfunction()
 
 # Packs a directory into a pack file (vfs/Pack.h), which the VFS mounts as it would the directory,
 # when the target is built: a game's assets for shipping, a mod for its players. DIRECTORIES names
-# the directories under SOURCE to pack, every file under it when none are named; DEPENDS, the
+# the directories under SOURCE to pack, every file under it when none are named; SERVER packs what a
+# server reads of a package instead, its mod.yaml and world directories, and takes no DIRECTORIES
+# (docs/files-and-mods.md, "Packs"); DEPENDS, the
 # targets that stage what it packs. The packer runs whenever the target is built, since what it
 # reads is a tree another target writes; for the sample assets, about a second.
 function(jettison_add_pack target)
-	cmake_parse_arguments(PARSE_ARGV 1 pack "" "SOURCE;OUTPUT;LEVEL" "DIRECTORIES;DEPENDS")
+	cmake_parse_arguments(PARSE_ARGV 1 pack "SERVER" "SOURCE;OUTPUT;LEVEL" "DIRECTORIES;DEPENDS")
 	if(NOT pack_SOURCE OR NOT pack_OUTPUT)
 		message(FATAL_ERROR "jettison_add_pack(${target}) needs SOURCE and OUTPUT")
 	endif()
@@ -77,6 +79,9 @@ function(jettison_add_pack target)
 	foreach(directory IN LISTS pack_DIRECTORIES)
 		list(APPEND flags --directory ${directory})
 	endforeach()
+	if(pack_SERVER)
+		list(APPEND flags --server)
+	endif()
 	add_custom_target(${target}
 		COMMAND jettison_pack "${pack_SOURCE}" "${pack_OUTPUT}" ${flags}
 		BYPRODUCTS "${pack_OUTPUT}"

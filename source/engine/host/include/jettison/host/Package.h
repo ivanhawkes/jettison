@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 
+#include <jettison/vfs/Pack.h>
+
 namespace Jettison::Host
 {
 inline constexpr std::string_view kPackageDescriptionFile = "mod.yaml";
@@ -63,4 +65,11 @@ bool HoldsWorld(const std::filesystem::path &source);
 // Throws std::runtime_error, saying why, for a description that cannot be mounted as it says: one
 // for the client alone whose source holds world content.
 void CheckSide(const PackageDescription &description, const std::filesystem::path &source);
+
+// Packs what a server reads of a package directory, its mod.yaml and its world directories, and
+// leaves its presentation out, for a dedicated server's bundle. Throws std::runtime_error for a
+// package for the client alone or one with no world, and as Vfs::WritePack does.
+Vfs::PackSummary WriteServerPack(
+    const std::filesystem::path &directory, const std::filesystem::path &pack,
+    int level = Vfs::PackOptions{}.level);
 } // namespace Jettison::Host

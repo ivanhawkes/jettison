@@ -170,10 +170,10 @@ TEST_CASE("Pack: a file is compressed where that pays and stored where it does n
 	CHECK_FALSE(std::filesystem::exists(scratch.Path("base.pack.partial")));
 
 	CHECK_THROWS_AS(
-	    WritePack(scratch.Path("assets"), scratch.Path("bad.pack"), {.level = 0, .directories = {}}),
+	    WritePack(scratch.Path("assets"), scratch.Path("bad.pack"), {.level = 0, .paths = {}}),
 	    std::invalid_argument);
 	CHECK_THROWS_AS(
-	    WritePack(scratch.Path("assets"), scratch.Path("bad.pack"), {.level = 23, .directories = {}}),
+	    WritePack(scratch.Path("assets"), scratch.Path("bad.pack"), {.level = 23, .paths = {}}),
 	    std::invalid_argument);
 	CHECK_THROWS_AS(WritePack(scratch.Path("missing"), scratch.Path("bad.pack")), std::runtime_error);
 }
@@ -209,30 +209,29 @@ TEST_CASE("Pack: a pack that cannot be written leaves nothing behind it, and the
 }
 
 
-TEST_CASE("Pack: the directories named are packed, each file once, and nothing beside them")
+TEST_CASE("Pack: the directories and files named are packed, each file once, and nothing beside them")
 {
 	const Scratch scratch;
 	PutBase(scratch);
 	scratch.Put("assets/CMakeFiles/rules.ninja", "the build system's");
+	scratch.Put("assets/mod.yaml", "version: 1\n");
 	const PackSummary summary = WritePack(
 	    scratch.Path("assets"), scratch.Path("base.pack"),
-	    {.level = 19, .directories = {"defs", "textures", "defs/ships"}});
-	CHECK(summary.files == 3);
+	    {.level = 19, .paths = {"defs", "textures", "defs/ships", "mod.yaml", "defs/goods/beer.yaml"}});
+	CHECK(summary.files == 4);
 	FileSystem packed;
 	packed.AddMount({"base", scratch.Path("base.pack")});
 	CHECK(
-	    packed.Enumerate("") ==
-	    std::vector<std::string>{
-	        "defs/goods/beer.yaml", "defs/ships/military/corvette.yaml", "textures/noise.ktx2"});
+	    packed.Enumerate("") == std::vector<std::string>{
+	                                "defs/goods/beer.yaml", "defs/ships/military/corvette.yaml",
+	                                "mod.yaml", "textures/noise.ktx2"});
 
 	CHECK_THROWS_AS(
 	    WritePack(
-	        scratch.Path("assets"), scratch.Path("bad.pack"),
-	        {.level = 19, .directories = {"../assets"}}),
+	        scratch.Path("assets"), scratch.Path("bad.pack"), {.level = 19, .paths = {"../assets"}}),
 	    std::invalid_argument);
 	CHECK_THROWS_AS(
-	    WritePack(
-	        scratch.Path("assets"), scratch.Path("bad.pack"), {.level = 19, .directories = {"sounds"}}),
+	    WritePack(scratch.Path("assets"), scratch.Path("bad.pack"), {.level = 19, .paths = {"sounds"}}),
 	    std::runtime_error);
 }
 

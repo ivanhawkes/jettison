@@ -429,7 +429,8 @@ By hand, with the packer tool (`source/tools/pack`):
 ```bash
 cmake --build --preset clang-debug --target jettison_pack
 build/clang-debug/source/tools/pack/jettison_pack path/to/mymod mymod.pack
-# --level <1-22> sets zstd's level; --directory <virtual path>, repeated, packs only those.
+# --level <1-22> sets zstd's level; --directory <virtual path>, repeated, packs only those, each a
+# directory or a file; --server packs what a server reads: mod.yaml, defs/ and scripts/.
 ```
 
 In the build, as the test content is packed in `source/test/CMakeLists.txt`:
@@ -441,6 +442,10 @@ jettison_add_pack(jettison_test_content_pack
 	DEPENDS jettison_test_content
 )
 ```
+
+A dedicated server's bundle packs a package's world alone, with `SERVER` (`Host::WriteServerPack`): its
+`mod.yaml`, `defs/` and `scripts/`, and none of its presentation. A package for the client alone, or
+one with no world, has no server pack, and the packer says so.
 
 The engine's assets pack the same way as `jettison_assets_pack`, to `build/<preset>/assets.pack`.
 Neither is built by default; `./scripts/smoke-test.sh --packed` builds both and runs the render test
@@ -475,7 +480,7 @@ manager.Release(handle);
 - The file system reads a file whole; there is no streaming read for long audio:
   [J21](roadmap.md#j21).
 - A scene's models are not prefetched before it is shown: [J13](roadmap.md#j13).
-- No server pack, and no check that a client holds the server's content: [J63](roadmap.md#j63).
+- No check that a client holds the server's content: [J63](roadmap.md#j63).
 
 ## Decisions
 
