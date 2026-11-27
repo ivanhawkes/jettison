@@ -153,7 +153,7 @@ How: [files, packs and mods](files-and-mods.md).
 | [Packs](glossary.md#pack) | In | One file per package for shipping, each file its own zstd frame, so one is read alone |
 | [Mods](glossary.md#mod) | In | Mounts over the base that replace files by path and [patch](glossary.md#patch) definitions, scenes and stylesheets; a pack is hot-reloaded in development |
 | Resource manager | In | Typed handles, loads on the I/O worker, reference counts, hot reload in development builds |
-| Streaming | Reframed | Assets load when a scene is entered, behind a transition; not open-world streaming ([J13](roadmap.md#j13)) |
+| Streaming | Reframed | Assets load when a scene is entered, behind a transition; not open-world streaming ([J13](history.md#j13)) |
 | Geometry streaming | Open | A model's meshlet pages read as the view needs them, within a scene ([J43](roadmap.md#j43)) |
 | Zip archives | Reframed | Packs instead: a mod is a directory or a pack |
 | Signed packs | Open | A pack signed as a whole ([J19](roadmap.md#j19)) |
