@@ -205,8 +205,8 @@ once a screen shows large images.
 - Text a document holds in an attribute, which RmlUi does not hand to the string table.
 - Right-to-left and shaped scripts. RmlUi can lay them out with HarfBuzz; the fonts shipped cannot
   draw them.
-- The player's language chosen at the first start from the platform's (Steam's, the environment's).
-  The setting stands in for it.
+- The player's language chosen at the first start from Steam's, once the shell has Steam; the
+  environment's locale is read today.
 
 **What exists.** `Ui::StringTable` with `Format` and `Plural`, and plural categories per language
 (`source/engine/ui/include/jettison/ui/StringTable.h`).
@@ -524,12 +524,10 @@ counts.
 
 **What remains.**
 
-- The ground has no name, so a pick logs it as `Entity 0x0`: `GroundGame::Describe` names only the
-  rover.
 - The rover is a box sliding on the ground's friction, which needed 8 rad/s² to turn and drifts
   sideways, not a vehicle that grips (`source/samples/ground/src/Ground.cpp`).
 
-Nothing stands on them.
+Nothing stands on it.
 
 **Feature doc:** [samples](sample-game.md#the-ground-sample).
 

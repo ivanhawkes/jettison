@@ -1,8 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include <jettison/core/Config.h>
 #include <jettison/input/Joysticks.h>
@@ -81,4 +83,10 @@ BindResult Bind(Input::InputSystem &input, std::span<const std::string> argument
 
 // The console's "unbind <context> <action>": back to the defaults.
 BindResult Unbind(Input::InputSystem &input, std::span<const std::string> arguments);
+
+// The language of the tables there are that a POSIX locale names (pt_BR.UTF-8): the region's table
+// where there is one, else the language's, as pt-BR then pt. None for the C locale, or for one no
+// table is in.
+std::optional<std::string> LanguageOfLocale(
+    std::string_view locale, std::span<const std::string> languages);
 } // namespace Jettison::App

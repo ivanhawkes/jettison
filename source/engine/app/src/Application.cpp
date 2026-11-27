@@ -75,6 +75,16 @@ constexpr int kSmokeWindowHeight = 480;
 constexpr std::uint32_t kBenchmarkWarmUp = 60;
 constexpr Core::Category kShell{"shell"};
 
+// The locale the messages are in, by the variables in POSIX's order; empty for none.
+std::string_view MessagesLocale()
+{
+	for (const char *variable : {"LC_ALL", "LC_MESSAGES", "LANG"})
+		if (const char *value = std::getenv(variable); value != nullptr && *value != '\0')
+			return value;
+	return {};
+}
+
+
 // The shell's own world, where no game gives one: what the shell draws and picks, physics alone.
 class EngineWorld final : public Host::Game
 {
@@ -1091,11 +1101,28 @@ void Application::InitUi()
 	for (const auto &[font, fallback] : kUiFonts)
 		m_pUi->LoadFont(font, fallback);
 
-	// The player's language, or the base's: the setting, and not the environment's locale, so a run
-	// reads the same on every machine until the player chooses.
-	m_pUi->SetLanguage(m_settings->Values()
-	                       .GetString(kLanguageKey)
-	                       .value_or(std::string{Ui::StringTable::kBaseLanguage}));
+	// The player's language: the setting; at the first start with none, the environment's locale's,
+	// kept as the setting from then on. A test's run (the smoke test, a fixed frame step) reads the
+	// base's on every machine until it is set.
+	std::optional<std::string> language = m_settings->Values().GetString(kLanguageKey);
+	if (!language && !m_arguments.smokeTest && m_arguments.frameStep <= 0.0)
+	{
+		language = LanguageOfLocale(MessagesLocale(), Ui::StringTable::Languages(m_assets));
+		if (language)
+		{
+			m_settings->Values().Set(Core::ConfigLayer::User, kLanguageKey, *language);
+			try
+			{
+				SaveSettings();
+			}
+			catch (const std::exception &e)
+			{
+				// The run reads its language all the same; the next start chooses it again.
+				Core::Log(Core::Severity::Warning, kShell, "The language is not kept: {}", e.what());
+			}
+		}
+	}
+	m_pUi->SetLanguage(language.value_or(std::string{Ui::StringTable::kBaseLanguage}));
 
 	Ui::DataModel &saves = m_pUi->CreateDataModel("saves");
 	m_pSavesModel = &saves;

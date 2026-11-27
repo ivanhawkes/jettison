@@ -434,8 +434,10 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 - **String tables merge key by key, and the language is a setting** (2026-11-13). A mod's table at
   the same path changes the keys it names and keeps the rest, with no patch files. Arguments are
   `std::format`'s, by position, and a translation is held to its base text's arguments as it is
-  read, so no translation can make a format throw. The language is the player's setting, not the
-  locale, so a run reads the same on every machine. [UI, input and localisation](ui.md)
+  read, so no translation can make a format throw. The language is the player's setting, chosen at
+  the first start from the environment's locale and kept (2026-11-27, the user's); a test's run (the
+  smoke test, a fixed frame step) never reads the locale, so it reads the same on every machine.
+  [UI, input and localisation](ui.md)
 
 ## Audio
 

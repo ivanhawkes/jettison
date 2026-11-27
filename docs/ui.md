@@ -260,9 +260,13 @@ No translation can make a format throw or make a document read a variable its sc
 
 ### The language
 
-The language is the player's setting, `ui.language` in the settings file, not the environment's
-locale. A run, a [reference frame](glossary.md#reference-frame-image) or the smoke test therefore
-reads the same on every machine until the player chooses. `UiSystem::SetLanguage` reads the
+The language is the player's setting, `ui.language` in the settings file. At the first start, with
+none set, an interactive run takes the environment's locale (`LC_ALL`, `LC_MESSAGES`, then
+`LANG`): its region's table where there is one, else its language's (`pt_BR.UTF-8` reads `pt-BR`,
+then `pt`), kept as the setting from then on; a locale no table is in leaves the base's, unkept.
+The smoke test and a run of a fixed frame step never read the locale, so a
+[reference frame](glossary.md#reference-frame-image) or the smoke test reads the same on every
+machine. `UiSystem::SetLanguage` reads the
 tables and reloads every open document, each keeping its handle and whether it is shown, because
 RmlUi translates a document's text as it reads it. If the tables fail to load, it throws and the
 language before it stays. The console's `language [tag]` lists the languages or sets one and saves

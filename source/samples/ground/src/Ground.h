@@ -37,4 +37,7 @@ entt::entity MakeGround(Sim::SimWorld &world, Sim::Controller player);
 
 // The rover, the one entity the world has with Physics::Handling, or null for none.
 entt::entity FindRover(const entt::registry &world);
+
+// The ground, the static body of the ground's shape, or null for none.
+entt::entity FindGround(const entt::registry &world);
 } // namespace Jettison::Sample

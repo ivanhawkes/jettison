@@ -1,5 +1,6 @@
 #include "Settings.h"
 
+#include <algorithm>
 #include <format>
 #include <stdexcept>
 #include <system_error>
@@ -135,5 +136,22 @@ BindResult Unbind(Input::InputSystem &input, std::span<const std::string> argume
 	        "{}.{} is back to {}", arguments[0], arguments[1],
 	        Input::FormatBindings(input.Bindings(arguments[0], action))),
 	    true};
+}
+
+
+std::optional<std::string> LanguageOfLocale(
+    std::string_view locale, std::span<const std::string> languages)
+{
+	// The codeset and the modifier say nothing of the language: pt_BR.UTF-8@euro is pt_BR's.
+	locale = locale.substr(0, locale.find_first_of(".@"));
+	if (locale.empty() || locale == "C" || locale == "POSIX")
+		return std::nullopt;
+	std::string tag{locale};
+	std::ranges::replace(tag, '_', '-');
+	const std::string primary = tag.substr(0, tag.find('-'));
+	for (const std::string &wanted : {tag, primary})
+		if (std::ranges::find(languages, wanted) != languages.end())
+			return wanted;
+	return std::nullopt;
 }
 } // namespace Jettison::App

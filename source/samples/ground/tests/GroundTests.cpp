@@ -353,6 +353,8 @@ TEST_CASE("Ground: the game drives its rover from the keys, through a save held 
 	game.SceneLoaded(shell);
 	const entt::entity rover = Sample::FindRover(shell.world.Registry());
 	REQUIRE(rover != entt::null);
+	CHECK(game.Describe(rover) == "the rover");
+	CHECK(game.Describe(Sample::FindGround(shell.world.Registry())) == "the ground");
 	const auto controls = [&] { return shell.world.Registry().get<Physics::FlightControls>(rover); };
 
 	// The rover's proxy is the game's, built rather than authored, so the scene written while the rover

@@ -112,6 +112,7 @@ void GroundGame::ReadSave(const Sim::SaveGame &save, App::Shell & /*shell*/)
 void GroundGame::BindProxy(App::Shell &shell)
 {
 	m_rover = FindRover(shell.World().Registry());
+	m_ground = FindGround(shell.World().Registry());
 	entt::registry &scene = shell.Scene().Registry();
 	const auto proxies = scene.view<Scene::SimProxyComponent>();
 	if (!proxies.empty())
@@ -172,8 +173,12 @@ bool GroundGame::Hears(const Sim::SimEvent &event) const
 
 std::optional<std::string> GroundGame::Describe(entt::entity entity) const
 {
-	if (entity != entt::null && entity == m_rover)
+	if (entity == entt::null)
+		return std::nullopt;
+	if (entity == m_rover)
 		return "the rover";
+	if (entity == m_ground)
+		return "the ground";
 	return std::nullopt;
 }
 

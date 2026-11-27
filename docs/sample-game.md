@@ -71,7 +71,7 @@ exercise. Every hook does nothing by default. These are the ones the ground samp
 | `WriteSave`, `ReadSave` | A save written; a save about to load | Marks its saves with a `ground` detail, and refuses a save without it |
 | `PollInput` | The input phase | Sends the rover's controls when the keys change |
 | `Hears` | Each event: whether the player hears it | The physics events that name the rover; the sample maps no sounds to them yet (it has no `defs/sounds`) |
-| `Describe` | An entity named in the log | Names the rover |
+| `Describe` | An entity named in the log | Names the rover and the ground |
 | `PickIn` | Where a click picks | In the ground's frame |
 | `DriveSmoke` | The render test's stages | Drives the rover ahead, then turning |
 

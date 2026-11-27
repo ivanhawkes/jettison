@@ -1,6 +1,8 @@
 #include "Ground.h"
 
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
@@ -14,6 +16,9 @@ namespace Jettison::Sample
 namespace
 {
 constexpr glm::vec3 kGroundHalfExtents{200.0f, 0.5f, 200.0f};
+
+// The ground's shape, by the name its body gives it.
+constexpr std::string_view kGroundShape = "ground";
 
 class GroundModel final : public Physics::FrameModel
 {
@@ -48,7 +53,7 @@ void DefineGround(Physics::PhysicsWorld &physics)
 {
 	Physics::ShapeDefinition box;
 	box.halfExtents = kGroundHalfExtents;
-	physics.DefineShape("ground", box);
+	physics.DefineShape(std::string{kGroundShape}, box);
 	box.halfExtents = kRoverHalfExtents;
 	physics.DefineShape("rover", box);
 	physics.DefineFrame(GroundFrame(), std::make_unique<GroundModel>());
@@ -61,7 +66,8 @@ entt::entity MakeGround(Sim::SimWorld &world, Sim::Controller player)
 	const entt::entity ground = registry.create();
 	registry.emplace<Sim::Transform>(ground, Sim::Transform{{0.0, -kGroundHalfExtents.y, 0.0}});
 	registry.emplace<Sim::InFrame>(ground, GroundFrame());
-	registry.emplace<Physics::Body>(ground, Physics::Body{Physics::BodyKind::Static, "ground"});
+	registry.emplace<Physics::Body>(
+	    ground, Physics::Body{Physics::BodyKind::Static, std::string{kGroundShape}});
 
 	const entt::entity rover = registry.create();
 	registry.emplace<Sim::Transform>(rover, Sim::Transform{{0.0, kRoverHalfExtents.y, 0.0}});
@@ -92,5 +98,14 @@ entt::entity FindRover(const entt::registry &world)
 {
 	const auto rovers = world.view<const Physics::Handling>();
 	return rovers.empty() ? entt::entity{entt::null} : rovers.front();
+}
+
+
+entt::entity FindGround(const entt::registry &world)
+{
+	for (const auto [entity, body] : world.view<const Physics::Body>().each())
+		if (body.kind == Physics::BodyKind::Static && body.shape == kGroundShape)
+			return entity;
+	return entt::null;
 }
 } // namespace Jettison::Sample

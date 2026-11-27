@@ -71,6 +71,7 @@ class GroundGame final : public App::Game
 
 	std::optional<RoverInput> m_input;
 	entt::entity m_rover{entt::null};
+	entt::entity m_ground{entt::null};
 	Physics::FlightControls m_sent;
 	Scene::ChaseCamera m_camera{{.offset = {0.0, 3.0, 9.0}, .lookAhead = 6.0, .smoothing = 4.0}};
 

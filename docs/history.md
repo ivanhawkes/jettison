@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-27 | The player's language from the locale at the first start, J15's bullet, and the ground sample's ground named, J29's ([UI](ui.md#the-language), [samples](sample-game.md#the-hooks-it-uses)) |
 | 2026-11-27 | The shell started through a session, J30: a game's world composed once, as a `Host::Game`, and started by its server, its tests and its client alike ([neutral SDK](history/neutral-sdk.md#j30-shell-session)) |
 | 2026-11-26 | The way in to a berth, J09: a corridor down the berth's normal flown without stopping, and a reservation kept while its vehicle comes nearer ([neutral SDK](history/neutral-sdk.md#j09-way-in)) |
 | 2026-11-26 | Overlap queries and casts that return every hit, J07: `Overlap`, `OverlapSphere`, `CastRayAll` and `CastShapeAll` ([neutral SDK](history/neutral-sdk.md#j07-queries)) |

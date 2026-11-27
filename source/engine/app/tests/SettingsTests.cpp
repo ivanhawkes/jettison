@@ -148,3 +148,16 @@ TEST_CASE("Settings: a file that does not read leaves the defaults, and a bind t
 	CHECK(next.input.Bindings("shell", next.jump) == std::vector<Binding>{{Character('l')}});
 	std::filesystem::remove_all(directory);
 }
+
+
+TEST_CASE("Settings: the locale's language is the region's table, else the language's, else none")
+{
+	const std::vector<std::string> languages{"de", "en", "pt-BR"};
+	CHECK(App::LanguageOfLocale("pt_BR.UTF-8", languages) == "pt-BR");
+	CHECK(App::LanguageOfLocale("de_AT.UTF-8@euro", languages) == "de");
+	CHECK(App::LanguageOfLocale("en", languages) == "en");
+	CHECK(App::LanguageOfLocale("fr_FR.UTF-8", languages) == std::nullopt);
+	CHECK(App::LanguageOfLocale("C.UTF-8", languages) == std::nullopt);
+	CHECK(App::LanguageOfLocale("POSIX", languages) == std::nullopt);
+	CHECK(App::LanguageOfLocale("", languages) == std::nullopt);
+}
