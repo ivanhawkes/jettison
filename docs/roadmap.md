@@ -29,8 +29,10 @@ it, and an item done or dropped leaves its number unused.
 
 Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifest now builds against
 `70cd4de`, the docs review's head; the four gaps its Stage 5 cross-review found were provisioned
-by `459af99` and the commit before it ([history](history.md)). Its later work waits until the user
-has played its first loop for a day or two. No delivery is open: encryption, J01, a script's
+by `459af99` and the commit before it ([history](history.md)). The user plays its first loop in its
+graphical client ([its L15](../../manifest/docs/delivery-order.md#l15)), not in the terminal UI,
+which is mainly for administration (decided 2026-11-27), so the next delivery is the one L15 stands
+on: the shell started through a session, [J30](#j30). No delivery is open: encryption, J01, a script's
 sender, J02, and dock control a game decides, J35, are done ([history](history.md)), and of the
 backlog behaviour trees, J03, scripts, J04, packs and mods, J05, picking against the snapshots, J06,
 overlap queries and all-hit casts of J07, steering, J08, the way in to a berth, J09, and the shell's
