@@ -289,7 +289,7 @@ target_link_libraries(ground PRIVATE jettison_sample_ground jettison_warnings)
 | --- | --- |
 | `jettison_add_assets(<target> SOURCE OUTPUT [DIRECTORIES] [CONFIGURED] [FILES])` | Stages a tree of content beside the build. `DIRECTORIES` are copied again on every build, so an edit reaches the running program, which hot-reloads it; `CONFIGURED` ones, large and rarely changed, only when CMake configures; `FILES` are single files such as `mod.yaml` |
 | `jettison_use_shared_assets(<executable>)` | Points the executable at the engine's staged assets (`JETTISON_ASSET_SUBDIRECTORY`), read from the `jettison_assets` target, so it works from a game that fetches the engine as from the engine's own tree; the engine needs `JETTISON_PRESENTATION` ON, or it stops with a message |
-| `jettison_use_content(<executable> <assets target>)` | Makes a staged tree the executable's default content, mounted as `base` (`JETTISON_CONTENT_SUBDIRECTORY`); `--content` names another |
+| `jettison_use_content(<executable> <assets target>)` | Makes a staged tree the executable's default content, mounted under its `mod.yaml`'s `identifier`, `base` when it has none (`JETTISON_CONTENT_SUBDIRECTORY`); `--content` names another |
 | `jettison_add_pack(<target> SOURCE OUTPUT [DIRECTORIES] [SERVER] [LEVEL] [DEPENDS])` | Packs a staged tree for shipping; `SERVER`, its world alone, for a dedicated server |
 
 The content tree is small. `assets/mod.yaml` describes it as a package, and `assets/scene/main.yaml`
