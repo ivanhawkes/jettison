@@ -665,6 +665,15 @@ TEST_CASE("Game: the first start takes the locale's language and keeps it; a tes
 		std::filesystem::permissions(root / "locked" / "config", std::filesystem::perms::owner_all);
 	}
 	CHECK(settings(root / "locked").empty());
+
+	// Settings the language cannot be put in (ui a value of its own) cost it being kept, not the start.
+	{
+		const Locale locale{nullptr, nullptr, "de_DE.UTF-8"};
+		std::filesystem::create_directories(root / "taken" / "config");
+		std::ofstream{root / "taken" / "config" / "settings.yaml"} << "ui: old-setting\n";
+		CHECK(LanguageOf(WindowlessArguments(root / "taken")) == "de");
+	}
+	CHECK(settings(root / "taken") == "ui: old-setting\n");
 	std::filesystem::remove_all(root, error);
 }
 

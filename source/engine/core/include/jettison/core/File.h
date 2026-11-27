@@ -8,13 +8,14 @@
 
 namespace Jettison::Core
 {
-// What a file being written is called until it is complete: beside the file, under a name with a
-// colon in it, which no virtual path can have (Vfs::FileSystem), so nothing reads it as content. A
-// write names its own after it, <name>:partial.<process ID>.<mark>.<count>, the mark drawn once a
-// process, since writers of the same file at once would otherwise write into one, and one could
-// rename the other's half-written bytes into place. A process's first write into a directory removes
-// the partials there that writers which no longer run left.
-inline constexpr std::string_view kPartialSuffix = ":partial";
+// What a file being written is called until it is complete: a file in its directory named
+// :partial.<process ID>.<mark>.<count>, the mark 16 hexadecimal digits a process draws once. Its
+// length is bounded whatever the file's name, and its colon is a name no virtual path can have
+// (Vfs::FileSystem), so nothing reads it as content. Each write has its own, since writers of the
+// same file at once would otherwise write into one, and one could rename the other's half-written
+// bytes into place. A process's first write into a directory removes the partials there, in exactly
+// that form, of writers which no longer run, and never the file it writes.
+inline constexpr std::string_view kPartialPrefix = ":partial";
 
 // What a durable write gives the file unless told otherwise: 0644, its owner's to write, everyone's to
 // read.

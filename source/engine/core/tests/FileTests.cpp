@@ -50,9 +50,7 @@ TEST_CASE("File: a durable write makes its directory, replaces the file whole, a
 	CHECK(ReadFile(path) == "first, and longer");
 	WriteFileDurably(path, std::string_view{"second"});
 	CHECK(ReadFile(path) == "second");
-	std::filesystem::path partial = path;
-	partial += kPartialSuffix;
-	CHECK_FALSE(std::filesystem::exists(partial));
+	CHECK(std::distance(std::filesystem::directory_iterator{path.parent_path()}, {}) == 1);
 
 	// Nothing at all is a file too.
 	WriteFileDurably(path, std::string_view{});
@@ -143,11 +141,7 @@ TEST_CASE("File: a file is written with the permissions given, over a file and a
 	WriteFileDurably(path, std::string_view{"open"}, kFilePermissions);
 	std::filesystem::permissions(path, kFilePermissions);
 
-	// A partial a crash left, open to everyone, is not the write's: its own is new, made private.
-	std::filesystem::path partial = path;
-	partial += kPartialSuffix;
-	std::ofstream{partial} << "left";
-	std::filesystem::permissions(partial, kFilePermissions);
+	// Its partial is new, so made private, whatever is open to everyone beside it.
 	WriteFileDurably(path, std::string_view{"private"}, kPrivate);
 	CHECK(ReadFile(path) == "private");
 	CHECK(mode(path) == kPrivate);
@@ -155,40 +149,58 @@ TEST_CASE("File: a file is written with the permissions given, over a file and a
 }
 
 
-TEST_CASE("File: partials writers that are gone left are removed, and one a running writer has is not")
+TEST_CASE("File: partials writers that are gone left are removed, and nothing else is")
 {
-	// A directory this process has not written into: its first write is the one that looks.
-	const std::filesystem::path directory = Scratch() / "abandoned";
-	std::filesystem::create_directories(directory);
-	const std::filesystem::path path = directory / "slot.save";
-
 	// A process that has ended, whose ID nothing runs under once it is reaped.
 	const ::pid_t gone = ::fork();
 	REQUIRE(gone >= 0);
 	if (gone == 0)
 		::_exit(0);
 	::waitpid(gone, nullptr, 0);
-	const auto partialOf = [&](const std::filesystem::path &target, ::pid_t writer)
+	const auto partialName = [](::pid_t writer)
+	{ return std::format("{}.{}.{:016x}.0", kPartialPrefix, writer, 0); };
+	const auto put = [](const std::filesystem::path &file)
 	{
-		std::filesystem::path partial = target;
-		partial += std::format("{}.{}.0.0", kPartialSuffix, writer);
-		std::ofstream{partial} << "left";
-		return partial;
+		std::ofstream{file} << "left";
+		return file;
 	};
-	const std::filesystem::path abandoned = partialOf(path, gone);
-	const std::filesystem::path otherAbandoned = partialOf(directory / "other.save", gone);
-	const std::filesystem::path running = partialOf(path, ::getpid());
-	std::filesystem::path shared = directory / "older.save";
-	shared += kPartialSuffix;
-	std::ofstream{shared} << "the name every writer shared";
 
-	WriteFileDurably(path, std::string_view{"written"});
-	CHECK(ReadFile(path) == "written");
+	// Directories this process has not written into: each one's first write is the one that looks.
+	const std::filesystem::path directory = Scratch() / "abandoned";
+	std::filesystem::create_directories(directory);
+	const std::filesystem::path abandoned = put(directory / partialName(gone));
+	const std::filesystem::path running = put(directory / partialName(::getpid()));
+	const std::filesystem::path notes = put(directory / "notes:partial");
+	const std::filesystem::path shorter = put(directory / (partialName(gone) + "x"));
+	WriteFileDurably(directory / "slot.save", std::string_view{"written"});
+	CHECK(ReadFile(directory / "slot.save") == "written");
 	CHECK_FALSE(std::filesystem::exists(abandoned));
-	CHECK_FALSE(std::filesystem::exists(otherAbandoned));
-	CHECK_FALSE(std::filesystem::exists(shared));
 	CHECK(ReadFile(running) == "left");
+	CHECK(ReadFile(notes) == "left");
+	CHECK(ReadFile(shorter) == "left");
+
+	// A file named as a gone writer's partial is never taken for one when it is the file written.
+	const std::filesystem::path own = Scratch() / "own";
+	std::filesystem::create_directories(own);
+	const std::filesystem::path target = put(own / partialName(gone));
+	CHECK_THROWS_AS(WriteNewFileDurably(target, std::string_view{"over"}), FileExistsError);
+	CHECK(ReadFile(target) == "left");
 	std::filesystem::remove_all(directory.parent_path());
+}
+
+
+TEST_CASE("File: a file of a name as long as a file system allows is written, by both writes")
+{
+	// NAME_MAX on Linux's file systems, as the name a write's partial must not lengthen.
+	constexpr std::size_t kLongestName = 255;
+	const std::filesystem::path directory = Scratch();
+	const std::filesystem::path path = directory / std::string(kLongestName, 'n');
+	WriteFileDurably(path, std::string_view{"replaced"});
+	CHECK(ReadFile(path) == "replaced");
+	std::filesystem::remove(path);
+	WriteNewFileDurably(path, std::string_view{"new"});
+	CHECK(ReadFile(path) == "new");
+	std::filesystem::remove_all(directory);
 }
 
 

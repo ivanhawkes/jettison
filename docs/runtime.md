@@ -438,7 +438,7 @@ the steps a frame ran:
 [this](entt::registry &, double deltaTime)
 {
 	JETTISON_PROFILE_ZONE("sim.step");
-	const int steps = m_simStepper.Advance(deltaTime);
+	const int steps = m_simStepper->Advance(deltaTime);
 	JETTISON_PROFILE_PLOT("sim.steps", steps);
 }
 ```

@@ -174,19 +174,21 @@ queue it will have, and hands back what puts that state in place once they are c
 A save reported written must survive a crash or a power cut that follows it. Saves, settings and the
 mod list are all written whole through `Core::WriteFileDurably` (`core/File.h`):
 
-1. The bytes go to a partial file beside the target, the write's own,
-   `<name>:partial.<process ID>.<mark>.<count>`, the mark a number the process draws once. The colon
-   makes it a name no virtual path can have, so nothing reads it as content; the writer's own name
-   means two writers of one file at once never write into one partial, where one could rename the
-   other's half-written bytes into place, and the mark that a process given a crashed one's ID never
-   meets that one's partial.
+1. The bytes go to a partial file in the target's directory, the write's own,
+   `:partial.<process ID>.<mark>.<count>`, the mark 16 hexadecimal digits the process draws once. Its
+   length is bounded, so a target of the longest name a file system allows is still written; its
+   colon makes it a name no virtual path can have, so nothing reads it as content. A partial of its
+   own means two writers of one file at once never write into one, where one could rename the other's
+   half-written bytes into place, and the mark that a process given a crashed one's ID never meets
+   that one's partial.
 2. The partial file is flushed to the disk (`fsync`).
 3. It is renamed over the target.
 4. The directory is flushed, since the rename is an entry in the directory.
 
 A process's first write into a directory removes the partial files there that writers which no
-longer run left, as a crash leaves them, and the older shared `<name>:partial`; one named for a
-process that runs is another writer's, and kept. A crash's partial is an earlier process's, so one
+longer run left, as a crash leaves them: files named exactly so, never another file, and never the
+file the write is writing, whatever its name. One named for a process that runs is another
+writer's, and kept. A crash's partial is an earlier process's, so one
 look at a directory a process is enough, and a write after it does not list the directory again. A
 failed write removes its own partial and never one it did not make.
 

@@ -1110,9 +1110,9 @@ void Application::InitUi()
 		language = LanguageOfLocale(MessagesLocale(), Ui::StringTable::Languages(m_assets));
 		if (language)
 		{
-			m_settings->Values().Set(Core::ConfigLayer::User, kLanguageKey, *language);
 			try
 			{
+				m_settings->Values().Set(Core::ConfigLayer::User, kLanguageKey, *language);
 				SaveSettings();
 			}
 			catch (const std::exception &e)
@@ -1152,8 +1152,8 @@ void Application::InitAudio()
 	for (const Audio::Bus bus : Audio::kBuses)
 		m_pAudio->SetBusVolume(bus, SettingVolume(bus));
 
-	// After the docking and trading events are registered, in the constructor: a definition naming an
-	// event Reflect does not know is refused here, by name.
+	// After the world's session has registered every event type, in the resources stage: a definition
+	// naming an event Reflect does not know is refused here, by name.
 	Audio::RegisterTypes();
 	m_soundDefinitions.emplace(m_assets);
 	m_soundDefinitions->Load<Audio::EventSound>(

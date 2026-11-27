@@ -516,7 +516,7 @@ The shell picks against the snapshots as the camera it last drew drew them
 const Math::DRay ray = Render::ScreenRay(
     Render::ActiveCameraView(m_pScene->Registry()), point, glm::dvec2{width, height});
 return m_pPicker->CastRay(
-    m_simStepper.Previous(), m_simStepper.Current(), m_simStepper.Alpha(), space->frame, ray.origin,
+    m_simStepper->Previous(), m_simStepper->Current(), m_simStepper->Alpha(), space->frame, ray.origin,
     ray.direction, kPickDistance, {.ignore = space->ignore, .statics = space->statics});
 ```
 

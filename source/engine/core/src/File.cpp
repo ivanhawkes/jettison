@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cerrno>
 #include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <format>
@@ -26,8 +27,11 @@ namespace Jettison::Core
 {
 namespace
 {
-// The bits of a process mark each of its two draws of std::random_device gives.
+// The bits of a process mark each of its two draws of std::random_device gives, and the mark as a
+// partial's name writes it: in hexadecimal, every digit written.
 constexpr unsigned kMarkHalfBits = 32;
+constexpr int kHexadecimal = 16;
+constexpr std::ptrdiff_t kMarkDigits = 16;
 
 
 class Descriptor
@@ -97,31 +101,38 @@ std::uint64_t ProcessMark()
 }
 
 
-// A name to write a file under that no other writer of it uses:
-// <name>:partial.<process ID>.<process mark>.<count>.
+// A name in the path's directory to write it under that no other writer uses, bounded in length:
+// :partial.<process ID>.<process mark>.<count>.
 std::filesystem::path UniquePartial(const std::filesystem::path &path)
 {
 	static std::atomic<unsigned> counter;
-	std::filesystem::path partial = path;
-	partial += std::format("{}.{}.{:x}.{}", kPartialSuffix, ::getpid(), ProcessMark(), counter++);
-	return partial;
+	return path.parent_path() /
+	       std::format("{}.{}.{:016x}.{}", kPartialPrefix, ::getpid(), ProcessMark(), counter++);
 }
 
 
-// Whether a directory's entry is a partial file a writer that is gone left: the <name>:partial of a
-// write before partials were named for their writers, or one named for a process that no longer
-// runs. One of a process that runs, this one's other writers' included, may be in use.
+// Whether a directory's entry is a partial file a writer that is gone left: exactly the name
+// UniquePartial gives, of a process that no longer runs. One of a process that runs, this one's other
+// writers' included, may be in use, and any other name is not a partial at all.
 bool Abandoned(std::string_view entry)
 {
-	const std::size_t at = entry.find(kPartialSuffix);
-	if (at == std::string_view::npos)
+	if (!entry.starts_with(kPartialPrefix) || entry.size() == kPartialPrefix.size() ||
+	    entry[kPartialPrefix.size()] != '.')
 		return false;
-	const std::string_view rest = entry.substr(at + kPartialSuffix.size());
-	if (rest.empty())
-		return true;
+	const char *const end = entry.data() + entry.size();
 	::pid_t writer = 0;
-	const auto [end, error] = std::from_chars(rest.data() + 1, rest.data() + rest.size(), writer);
-	if (rest.front() != '.' || error != std::errc{} || end == rest.data() + rest.size() || *end != '.')
+	const auto [afterWriter, writerError] =
+	    std::from_chars(entry.data() + kPartialPrefix.size() + 1, end, writer);
+	if (writerError != std::errc{} || afterWriter == end || *afterWriter != '.')
+		return false;
+	std::uint64_t mark = 0;
+	const auto [afterMark, markError] = std::from_chars(afterWriter + 1, end, mark, kHexadecimal);
+	if (markError != std::errc{} || afterMark - (afterWriter + 1) != kMarkDigits || afterMark == end ||
+	    *afterMark != '.')
+		return false;
+	unsigned count = 0;
+	const auto [afterCount, countError] = std::from_chars(afterMark + 1, end, count);
+	if (countError != std::errc{} || afterCount != end)
 		return false;
 	return ::kill(writer, 0) != 0 && errno == ESRCH;
 }
@@ -141,16 +152,17 @@ bool FirstWriteIn(const std::filesystem::path &directory)
 }
 
 
-// The partial files in the directory that writers which are gone left, removed so they do not
-// gather: once a process, by FirstWriteIn.
-void RemoveAbandoned(const std::filesystem::path &directory)
+// The partial files in the target's directory that writers which are gone left, removed so they do
+// not gather: once a process, by FirstWriteIn, and never the target itself, whatever its name.
+void RemoveAbandoned(const std::filesystem::path &target, const std::filesystem::path &directory)
 {
 	if (!FirstWriteIn(directory))
 		return;
 	std::error_code error;
 	for (std::filesystem::directory_iterator entry{directory, error};
 	     !error && entry != std::filesystem::directory_iterator{}; entry.increment(error))
-		if (std::error_code ignored; Abandoned(entry->path().filename().string()))
+		if (std::error_code ignored; entry->path().filename() != target.filename() &&
+		                             Abandoned(entry->path().filename().string()))
 			std::filesystem::remove(entry->path(), ignored);
 }
 
@@ -229,7 +241,7 @@ void WriteDurably(
 	{
 		// The partial's name is new, so its open (O_EXCL) makes it with the mode given and never takes
 		// a file a crash left, which the first write into the directory removes.
-		RemoveAbandoned(directory);
+		RemoveAbandoned(path, directory);
 		Descriptor file{::open(
 		    partial.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,
 		    static_cast<mode_t>(permissions))};
