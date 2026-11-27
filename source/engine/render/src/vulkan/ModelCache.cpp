@@ -134,6 +134,20 @@ const Model *ModelCache::Resolve(const Scene::MeshComponent &mesh)
 }
 
 
+bool ModelCache::Prefetch(const Scene::MeshComponent &mesh)
+{
+	if (mesh.shape)
+		return true;
+	auto found = m_files.find(mesh.model);
+	if (found == m_files.end())
+		found =
+		    m_files.emplace(mesh.model, FileModel{m_resources.Load<Model>(mesh.model), m_frame}).first;
+	found->second.resolvedFrame = m_frame;
+	const Resource::Status status = m_resources.StatusOf(found->second.handle);
+	return status == Resource::Status::Ready || status == Resource::Status::Failed;
+}
+
+
 void ModelCache::ReleaseUnresolved()
 {
 	std::erase_if(

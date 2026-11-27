@@ -148,22 +148,6 @@ proxy (`dock/Definitions.h`).
 
 **Feature doc:** [physics](physics.md).
 
-<a id="j13"></a>
-### J13. A scene's models prefetched before it is shown
-
-**What remains.** A scene's models asked for before the scene is shown, so its first frames draw
-complete.
-
-**Why.** The renderer asks for a model the first frame a scene draws it, and draws nothing for it
-until the file has loaded, so after a scene switch its models appear over its first frames (0.2 to
-0.4 s on lavapipe for the retired space sample's scenes). Manifest's jump between systems is one
-user.
-
-**What exists.** `Render`'s model cache: a model file is a resource, decoded on the I/O worker and
-reloaded when it changes (`source/engine/render/src/vulkan/ModelCache.h`).
-
-**Feature doc:** [rendering](rendering.md).
-
 <a id="j14"></a>
 ### J14. UI
 
@@ -482,7 +466,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 | <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | [J28](#j28)'s frames recorded again |
 | <a id="j41"></a>J41. Occlusion culling | Two passes against a depth pyramid; scope says In. | J40 | — |
 | <a id="j42"></a>J42. Ray-tracing foundation | Bottom-level structures per model from one cooked level, the TLAS each frame in render space, the build pass, refits from [J51](#j51)'s deform pass, hits' materials read through [J68](history.md#j68)'s texture table. | J37, J51, J68 | — |
-| <a id="j43"></a>J43. Streaming | Meshlet pages read as the view needs them, through ranged VFS reads, into a pool of fixed-size pages; the coarsest levels always loaded; one memory budget over the GPU's geometry, with an order for giving way when it cannot hold. | J40 | Changes the model cache: [J13](#j13) first, or within it |
+| <a id="j43"></a>J43. Streaming | Meshlet pages read as the view needs them, through ranged VFS reads, into a pool of fixed-size pages; the coarsest levels always loaded; one memory budget over the GPU's geometry, with an order for giving way when it cannot hold. | J40 | Changes the model cache, whose prefetch a scene's load holds for ([J13](history.md#j13)) |
 | <a id="j44"></a>J44. Ray-traced sun shadows | One ray towards the sun in the lit programs' ray-query variant; the cascades the fallback. | J42 | — |
 | <a id="j45"></a>J45. Ray-traced local shadows | `castsShadows` opts a point or spot light in; a bounded number per pixel, nearest first. | J44 | The ray-traced half of [J27](#j27)'s spot and point shadows |
 | <a id="j46"></a>J46. Ray-traced ambient occlusion | Rays in the existing ambient-occlusion pass, with its inputs and blur. | J42 | — |

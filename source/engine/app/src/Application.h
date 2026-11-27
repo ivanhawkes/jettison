@@ -233,6 +233,10 @@ class Application final : private Shell
 	// What the playing sequence shows over the frame: its fade and its bars.
 	void ShowSequence(entt::registry &registry);
 
+	// Asks for the loaded scene's models and keeps it behind a full fade until they are in, or
+	// kPrefetchSeconds have passed, then puts back the fade a game set.
+	void HoldForModels();
+
 	// Picking (docs/physics.md): a left click casts a ray from the camera through the cursor against
 	// the snapshots as they were drawn, where the game says (Game::PickIn), answered at once, paused or
 	// not. Picks through the point, in window pixels, and says whether it did: not where the game has
@@ -303,6 +307,8 @@ class Application final : private Shell
 	bool DebugShown() const override;
 
 	void SetFade(const glm::vec3 &colour, float amount) override;
+
+	bool SceneReady() const override;
 
 	Vfs::FileSystem &Assets() override;
 
@@ -382,6 +388,13 @@ class Application final : private Shell
 
 	// Whether the last frame showed a sequence's fade, which the next clears once it is over.
 	bool m_sequenceFaded{false};
+
+	// A scene loaded and its model files not all settled yet (SceneReady), since when, and the fade a
+	// game or sequence set, put back once they are.
+	bool m_prefetching{false};
+	std::chrono::steady_clock::time_point m_prefetchStart{};
+	glm::vec3 m_fadeColour{0.0f};
+	float m_fadeAmount{0.0f};
 
 	// The frame delta for animation. Ticked once when the loop starts, so the first frame does not
 	// include the time start-up took.

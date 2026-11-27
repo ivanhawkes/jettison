@@ -136,6 +136,11 @@ class IRenderer
 	    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
 	    double presentationTime) = 0;
 
+	// Asks for every model file the scene's meshes name, so each loads before the scene draws it; true
+	// once each has loaded or failed. The shell calls it each frame after a scene loads, and holds the
+	// scene behind a full fade until it is true (App::Shell::SceneReady).
+	virtual bool PrefetchScene(const Scene::Scene &scene) = 0;
+
 	// The linear scale applied to the HDR target on its way to the display, before tonemapping. The
 	// scene's colour grade (Scene::ColourGradeComponent) is applied after it, to the display's colours.
 	virtual void SetExposure(float exposure) = 0;

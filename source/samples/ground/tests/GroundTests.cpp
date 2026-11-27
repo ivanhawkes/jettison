@@ -224,6 +224,12 @@ class TestShell final : public App::Shell
 	}
 
 
+	bool SceneReady() const override
+	{
+		return true;
+	}
+
+
 	Vfs::FileSystem &Assets() override
 	{
 		throw std::logic_error{"not read"};

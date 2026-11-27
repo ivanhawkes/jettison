@@ -63,6 +63,10 @@ namespace Jettison::App
 struct AppArguments;
 struct SmokeActions;
 
+// The longest the shell holds a scene just loaded behind its fade for its models (Shell::SceneReady),
+// in seconds; past it, the scene is shown as it stands and the wait logged.
+inline constexpr double kPrefetchSeconds = 5.0;
+
 // The player the shell's controls are for, in the first slot, which Shell::Player returns: whom a
 // game's initial state (Host::Game::CreateInitialState) seats where the player plays.
 inline constexpr Sim::Controller kLocalPlayer{Sim::ControllerKind::Player, 0};
@@ -128,6 +132,11 @@ class Shell
 	// The screen faded towards a colour, by 0 (none) to 1 (all of it), until it is set again; nothing
 	// until the window is open.
 	virtual void SetFade(const glm::vec3 &colour, float amount) = 0;
+
+	// Whether the scene loaded last has every model file it names loaded, or failed: until then the
+	// shell holds it behind a full fade, for kPrefetchSeconds at most, so its first frame shown draws
+	// complete. A game can wait on it too, holding an effect over a change of scene.
+	virtual bool SceneReady() const = 0;
 
 	// The asset tree, its mounts and the user's writable one, and the resources read through it.
 	virtual Vfs::FileSystem &Assets() = 0;

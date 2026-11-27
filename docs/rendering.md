@@ -351,6 +351,12 @@ its loader's `finish` on the main thread, and reloaded when its file changes. A 
 (`render/Procedural.h`: UV, ico and cube spheres, rings, cylinders, boxes) is made on first use,
 each with five levels of detail but the box, which has one.
 
+A scene's models are asked for as it loads (`IRenderer::PrefetchScene`), not the first frame that
+draws each, and the shell holds the scene behind a full fade until every model file it names has
+loaded or failed, `App::kPrefetchSeconds` (5 s) at most, so the first frame shown draws complete;
+past it, the scene is shown as it stands and the wait is logged. A game can wait on the same
+(`Shell::SceneReady`), holding its own effect over a change of scene.
+
 Textures decode on the I/O worker with no device (`render/Texture.h`):
 
 - **KTX 2** files transcode from Basis Universal to BC7, or to RGBA8 on a device without block
@@ -661,7 +667,6 @@ committed images.
   tracing](dense-geometry-and-ray-tracing.md).
 - The cluster range, shadow distance and level-of-detail threshold are constants of the backend;
   `IRenderer` has no setter for them.
-- A scene's models are not prefetched before it is shown ([J13](roadmap.md#j13)).
 - An acquire that finds the swapchain out of date twice has no test ([J16](roadmap.md#j16)).
 - Transparency and the post chain have their own open work ([J24](roadmap.md#j24),
   [J25](roadmap.md#j25)).

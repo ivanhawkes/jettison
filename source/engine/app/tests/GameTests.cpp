@@ -260,6 +260,12 @@ class FadeRenderer final : public Render::IRenderer
 	}
 
 
+	bool PrefetchScene(const Scene::Scene & /*scene*/) override
+	{
+		return true;
+	}
+
+
 	void SetLetterbox(float /*share*/) override
 	{
 	}

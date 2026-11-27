@@ -1915,6 +1915,15 @@ void Renderer::WriteMaterials(FrameData &frame, const std::vector<SceneDrawComma
 }
 
 
+bool Renderer::PrefetchScene(const Scene::Scene &scene)
+{
+	bool settled = true;
+	for (const auto [entity, mesh] : scene.Registry().view<const Scene::MeshComponent>().each())
+		settled = m_pModels->Prefetch(mesh) && settled;
+	return settled;
+}
+
+
 bool Renderer::Render(
     const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
     ImGuiRenderer &imguiRenderer, double presentationTime)

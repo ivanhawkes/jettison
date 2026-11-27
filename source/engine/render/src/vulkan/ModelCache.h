@@ -62,6 +62,11 @@ class ModelCache
 	// does not draw.
 	void ReleaseUnresolved();
 
+	// Asks for the mesh's model file now, as Resolve does, without drawing it, and says whether it is
+	// settled: loaded, or failed (which draws nothing, and the resource manager reports). A shape is
+	// made as it is first resolved, so it is settled.
+	bool Prefetch(const Scene::MeshComponent &mesh);
+
   private:
 	struct FileModel
 	{

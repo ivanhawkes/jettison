@@ -679,7 +679,7 @@ order, logging each step with the model's name:
 | Item | How |
 | --- | --- |
 | [J12](roadmap.md#j12) | Relies on it: `geometry` reads a model's triangles and simplifies them, which leaves J12 small after J37. |
-| [J13](roadmap.md#j13) | Interferes: streaming (J43) changes the model cache. J13 is best done before J43, or within it. |
+| [J13](history.md#j13) | Done: a scene's load waits on the model cache's prefetch, which streaming (J43) keeps when it changes the cache. |
 | [J18](roadmap.md#j18) | A new dependency and a new tool to install with the SDK. |
 | [J19](roadmap.md#j19) | Cooked files are signed with the pack; nothing new. |
 | [J20](roadmap.md#j20) | Skinned draws stay on the indexed path. Its clip-events and cross-fade rows moved to the characters track |

@@ -392,7 +392,6 @@ CHECK(index.QuerySphere({0.0, 0.0, 0.0}, 100.0) ==
 
 ## Limits and open work
 
-- A scene's models are not prefetched before it is shown: [J13](roadmap.md#j13).
 - Layers are for visibility only; nothing loads a scene layer by layer.
 - No test covers layer visibility (`SetLayerVisible`, `HiddenComponent`).
 - The spatial index holds points; an entity's extent is the querying system's to test.

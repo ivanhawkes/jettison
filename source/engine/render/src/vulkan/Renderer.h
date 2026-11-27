@@ -170,6 +170,10 @@ class Renderer
 	    const Scene::Scene &scene, const DebugDraw &debugDraw, const Overlay &overlay,
 	    ImGuiRenderer &imguiRenderer, double presentationTime);
 
+	// Asks for every model file the scene's meshes name; true once each has loaded or failed
+	// (IRenderer::PrefetchScene).
+	bool PrefetchScene(const Scene::Scene &scene);
+
 	// What the UI is drawn into: the swapchain's format, single-sampled.
 	VkFormat GetOutputFormat() const
 	{

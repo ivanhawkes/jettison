@@ -495,7 +495,6 @@ manager.Release(handle);
 - A pack is not signed as a whole, and a stored file in it is not checked: [J19](roadmap.md#j19).
 - The file system reads a file whole; there is no streaming read for long audio:
   [J21](roadmap.md#j21).
-- A scene's models are not prefetched before it is shown: [J13](roadmap.md#j13).
 
 ## Decisions
 

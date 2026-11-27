@@ -825,6 +825,7 @@ void Application::RegisterFrameSystems()
 		     const double presentationTime =
 		         std::chrono::duration<double>(m_frameStart - m_loopStart).count();
 		     static const Render::Overlay kNoOverlay;
+		     HoldForModels();
 		     m_frameResized = m_pRenderer->Render(
 		         *m_pScene, m_debugDraw, m_pUi ? m_pUi->Overlay() : kNoOverlay, presentationTime);
 	     }});
@@ -1686,6 +1687,14 @@ void Application::LoadScene()
 		}
 	}
 	m_simStepper->Resync();
+
+	// Its models asked for now, and the scene held behind a full fade until they are in (J13).
+	if (m_pRenderer)
+	{
+		m_prefetching = true;
+		m_prefetchStart = std::chrono::steady_clock::now();
+		HoldForModels();
+	}
 	m_pGame->SceneLoaded(*this);
 }
 
@@ -2393,8 +2402,43 @@ bool Application::DebugShown() const
 
 void Application::SetFade(const glm::vec3 &colour, float amount)
 {
-	if (m_pRenderer)
+	m_fadeColour = colour;
+	m_fadeAmount = amount;
+	if (m_pRenderer && !m_prefetching)
 		m_pRenderer->SetFade(colour, amount);
+}
+
+
+bool Application::SceneReady() const
+{
+	return !m_prefetching;
+}
+
+
+void Application::HoldForModels()
+{
+	if (!m_prefetching || !m_pRenderer)
+		return;
+	const bool settled = m_pRenderer->PrefetchScene(*m_pScene);
+	const bool late = std::chrono::steady_clock::now() - m_prefetchStart >
+	                  std::chrono::duration<double>{kPrefetchSeconds};
+	if (!settled && !late)
+	{
+		m_pRenderer->SetFade(glm::vec3{0.0f}, 1.0f);
+		return;
+	}
+	if (!settled)
+		Core::Log(
+		    Core::Severity::Warning, kShell,
+		    "The scene is shown with models still loading, after {} s", kPrefetchSeconds);
+	else
+		Core::Log(
+		    Core::Severity::Debug, kShell, "The scene's models are in, {} ms after it loaded",
+		    std::chrono::duration_cast<std::chrono::milliseconds>(
+		        std::chrono::steady_clock::now() - m_prefetchStart)
+		        .count());
+	m_prefetching = false;
+	m_pRenderer->SetFade(m_fadeColour, m_fadeAmount);
 }
 
 
