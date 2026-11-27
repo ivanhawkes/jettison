@@ -33,12 +33,17 @@ Manifest's Stage 5 closed on the engine's commit `13c1bec` (2026-11-25). Manifes
 by `459af99` and the commit before it ([history](history.md)). The user plays its first loop in its
 graphical client ([its L15](../../manifest/docs/delivery-order.md#l15)), not in the terminal UI,
 which is mainly for administration (decided 2026-11-27); the engine work L15 stands on, the shell
-started through a session, J30, is done. No delivery is open: encryption, J01, a script's sender,
+started through a session, J30, is done. Encryption, J01, a script's sender,
 J02, and dock control a game decides, J35, are done ([history](history.md)), and of the backlog
 behaviour trees, J03, scripts, J04, packs and mods, J05, picking against the snapshots, J06,
 overlap queries and all-hit casts of J07, steering, J08, the way in to a berth, J09, and the shell's
 log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
+
+Two deliveries are placed (the user's, 2026-11-27), each in its own lane: the server's pack, client-side mods
+and the content handshake, [J63](#j63), in lane B, for Manifest's graphical client on a server
+([its L15a](../../manifest/docs/delivery-order.md#l15a)); and in lane C the device's capabilities,
+[J36](#j36), then bindless textures, [J68](#j68), from the dense-geometry track.
 
 ## Waiting on you
 
@@ -487,7 +492,7 @@ Nothing stands on it.
 Meshlets drawn by mesh shaders, an asset cook, streaming, and ray-traced shadows, ambient occlusion
 and reflections, with RTX Mega Geometry on NVIDIA: the plan agreed on 2026-11-25, for Manifest's
 station kits, instance fields and asteroids. It is scheduled apart from the backlog's tiers until
-the user places it, and none of it is started. Its design, decisions, budgets, risks and each
+the user places it; J36 and J68 were placed on 2026-11-27 ([current deliveries](#current-deliveries)), and none of it is started. Its design, decisions, budgets, risks and each
 stage's exit criterion are in [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md#stages);
 the rows below say what each stage is, what it waits on, and which backlog items it touches.
 
