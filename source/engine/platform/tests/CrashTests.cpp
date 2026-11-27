@@ -248,7 +248,8 @@ TEST_CASE("Crash: the reports written since the last start are named once, oldes
 	std::filesystem::remove_all(directory);
 	CHECK(Jettison::Platform::TakeNewCrashReports(directory).empty());
 	std::filesystem::create_directories(directory);
-	const auto put = [&](const std::string &name) { std::ofstream{directory / name} << "Fatal signal"; };
+	const auto put = [&](const std::string &name)
+	{ std::ofstream{directory / name} << "Fatal signal"; };
 	put("crash-20261127T101500Z-12.txt");
 	put("crash-20261127T091500Z-11.txt");
 	put("notes.txt");

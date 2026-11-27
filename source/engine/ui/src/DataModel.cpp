@@ -334,8 +334,9 @@ void Detail::RegisterTransforms(Rml::DataModelConstructor &constructor, const St
 	    [&strings](const Rml::VariantList &arguments)
 	    {
 		    return arguments.empty() ? Rml::Variant{}
-		                             : Rml::Variant{strings.Date(std::chrono::sys_days{
-		                                   std::chrono::days{arguments[0].Get<std::int64_t>()}})};
+		                             : Rml::Variant{strings.Date(
+		                                   std::chrono::sys_days{
+		                                       std::chrono::days{arguments[0].Get<std::int64_t>()}})};
 	    });
 
 	// {{clock.minutes | time}}: minutes since midnight, as the language writes the time of day.

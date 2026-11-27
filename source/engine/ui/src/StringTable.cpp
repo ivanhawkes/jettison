@@ -471,8 +471,7 @@ std::string StringTable::Decimal(double value, unsigned digits) const
 {
 	const std::string text = std::format("{:.{}f}", std::abs(value), digits);
 	const std::size_t point = text.find('.');
-	std::string result =
-	    Grouped(text.substr(0, point), Find("numbers.thousands").value_or(kThousands));
+	std::string result = Grouped(text.substr(0, point), Find("numbers.thousands").value_or(kThousands));
 	if (point != std::string::npos)
 		result.append(Find("numbers.decimal").value_or(kDecimal)).append(text.substr(point + 1));
 

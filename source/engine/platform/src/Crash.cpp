@@ -984,7 +984,9 @@ std::vector<std::filesystem::path> TakeNewCrashReports(const std::filesystem::pa
 	std::string seen;
 	if (std::ifstream in{mark}; in)
 		std::getline(in, seen);
-	std::erase_if(reports, [&](const std::filesystem::path &report) { return report.filename().string() <= seen; });
+	std::erase_if(
+	    reports,
+	    [&](const std::filesystem::path &report) { return report.filename().string() <= seen; });
 	if (reports.empty())
 		return reports;
 	try
@@ -995,7 +997,8 @@ std::vector<std::filesystem::path> TakeNewCrashReports(const std::filesystem::pa
 	catch (const std::exception &problem)
 	{
 		Core::Log(
-		    Core::Severity::Warning, kCrash, "The crash reports are not marked seen: {}", problem.what());
+		    Core::Severity::Warning, kCrash, "The crash reports are not marked seen: {}",
+		    problem.what());
 	}
 	return reports;
 }
