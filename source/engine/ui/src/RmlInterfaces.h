@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <jettison/render/Overlay.h>
@@ -70,7 +71,15 @@ class SystemInterface final : public Rml::SystemInterface
 
 	bool LogMessage(Rml::Log::Type type, const Rml::String &message) override;
 
+	// Every text RmlUi reads passes here, a data view's included, so a character no face loaded maps
+	// is found here too: logged once a character, naming the language, and counted a problem.
 	int TranslateString(Rml::String &translated, const Rml::String &input) override;
+
+	// The characters a face loaded maps.
+	void Cover(const std::vector<char32_t> &characters)
+	{
+		m_covered.insert(characters.begin(), characters.end());
+	}
 
 	StringTable &Strings()
 	{
@@ -94,9 +103,13 @@ class SystemInterface final : public Rml::SystemInterface
 	}
 
   private:
+	void CheckCovered(const Rml::String &text);
+
 	double m_time{0.0};
 	std::size_t m_problems{0};
 	StringTable m_strings;
+	std::unordered_set<char32_t> m_covered;
+	std::unordered_set<char32_t> m_uncovered;
 };
 
 // RmlUi's drawing, recorded into the overlay: geometry compiled once and kept here, appended to the

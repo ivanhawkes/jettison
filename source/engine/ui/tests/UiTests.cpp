@@ -167,6 +167,143 @@ float DrawnWidth(const Render::Overlay &overlay)
 		}
 	return right - left;
 }
+
+
+// Big-endian words, as TrueType's tables are written.
+class Words
+{
+  public:
+	void U16(std::uint32_t value)
+	{
+		m_bytes.push_back(static_cast<char>((value >> 8) & 0xff));
+		m_bytes.push_back(static_cast<char>(value & 0xff));
+	}
+
+	void U32(std::uint32_t value)
+	{
+		U16(value >> 16);
+		U16(value & 0xffff);
+	}
+
+	void Pad()
+	{
+		while (m_bytes.size() % 4 != 0)
+			m_bytes.push_back('\0');
+	}
+
+	std::string &Bytes()
+	{
+		return m_bytes;
+	}
+
+  private:
+	std::string m_bytes;
+};
+
+
+// A TrueType font of the suite's own, written here so it is generated and carries no one's licence:
+// the family "Fixture", whose one glyph, a square 800 units wide of a 1000-unit em, is mapped from 日
+// (U+65E5), which none of the engine's fonts has.
+std::string FixtureFont()
+{
+	constexpr std::uint32_t kDay = 0x65e5;
+	std::vector<std::pair<std::string, std::string>> tables;
+	const auto table = [&tables](std::string tag, auto &&write)
+	{
+		Words words;
+		write(words);
+		tables.emplace_back(std::move(tag), std::move(words.Bytes()));
+	};
+	const auto negative = [](int value) { return static_cast<std::uint32_t>(value) & 0xffff; };
+
+	table(
+	    "cmap",
+	    [&](Words &w)
+	    {
+		    w.U16(0), w.U16(1), w.U16(3), w.U16(1), w.U32(12); // one subtable, Windows Unicode
+		    w.U16(4), w.U16(32), w.U16(0), w.U16(4), w.U16(4), w.U16(1), w.U16(0); // format 4, 2 runs
+		    w.U16(kDay), w.U16(0xffff), w.U16(0);                                    // ends, pad
+		    w.U16(kDay), w.U16(0xffff);                                              // starts
+		    w.U16(negative(1 - static_cast<int>(kDay))), w.U16(1);                   // deltas: glyph 1
+		    w.U16(0), w.U16(0);                                                      // range offsets
+	    });
+	table(
+	    "glyf",
+	    [&](Words &w)
+	    {
+		    w.U16(1), w.U16(100), w.U16(0), w.U16(900), w.U16(800); // one contour and its bounds
+		    w.U16(3), w.U16(0);                                     // its last point, no instructions
+		    w.U16(0x0101), w.U16(0x0101);                           // four points on the curve
+		    w.U16(100), w.U16(0), w.U16(800), w.U16(0);             // x, as deltas
+		    w.U16(0), w.U16(800), w.U16(0), w.U16(negative(-800));  // y
+		    w.U16(0);                                               // to an even length
+	    });
+	table(
+	    "head",
+	    [&](Words &w)
+	    {
+		    w.U32(0x00010000), w.U32(0x00010000), w.U32(0), w.U32(0x5f0f3cf5);
+		    w.U16(0x000b), w.U16(1000);                       // flags, units per em
+		    w.U32(0), w.U32(0), w.U32(0), w.U32(0);           // created, modified
+		    w.U16(0), w.U16(0), w.U16(1000), w.U16(800);      // bounds
+		    w.U16(0), w.U16(8), w.U16(2), w.U16(0), w.U16(0); // style, smallest size, hint, short loca
+	    });
+	table(
+	    "hhea",
+	    [&](Words &w)
+	    {
+		    w.U32(0x00010000), w.U16(800), w.U16(negative(-200)), w.U16(0), w.U16(1000);
+		    w.U16(0), w.U16(0), w.U16(1000), w.U16(1), w.U16(0), w.U16(0);
+		    w.U16(0), w.U16(0), w.U16(0), w.U16(0), w.U16(0), w.U16(2); // two metrics
+	    });
+	table("hmtx", [&](Words &w) { w.U16(500), w.U16(0), w.U16(1000), w.U16(100); });
+	table("loca", [&](Words &w) { w.U16(0), w.U16(0), w.U16(18); }); // halved offsets
+	table(
+	    "maxp",
+	    [&](Words &w)
+	    {
+		    w.U32(0x00010000), w.U16(2), w.U16(4), w.U16(1), w.U16(0), w.U16(0), w.U16(2);
+		    for (int field = 0; field < 8; ++field)
+			    w.U16(0);
+	    });
+	table(
+	    "name",
+	    [&](Words &w)
+	    {
+		    const std::string family = "Fixture";
+		    const std::string style = "Regular";
+		    const auto length = [](const std::string &text)
+		    { return static_cast<std::uint32_t>(text.size() * 2); };
+		    w.U16(0), w.U16(2), w.U16(30);
+		    w.U16(3), w.U16(1), w.U16(0x409), w.U16(1), w.U16(length(family)), w.U16(0);
+		    w.U16(3), w.U16(1), w.U16(0x409), w.U16(2), w.U16(length(style)), w.U16(length(family));
+		    for (const char letter : family + style)
+			    w.U16(static_cast<unsigned char>(letter));
+	    });
+
+	Words font;
+	const auto count = static_cast<std::uint32_t>(tables.size());
+	font.U32(0x00010000), font.U16(count), font.U16(128), font.U16(3), font.U16(count * 16 - 128);
+	std::uint32_t offset = 12 + 16 * count;
+	for (auto &[tag, bytes] : tables)
+	{
+		Words padded;
+		padded.Bytes() = bytes;
+		padded.Pad();
+		bytes = padded.Bytes();
+		std::uint32_t sum = 0;
+		for (std::size_t at = 0; at < bytes.size(); at += 4)
+			for (std::size_t byte = 0; byte < 4; ++byte)
+				sum += static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[at + byte]))
+				       << (24 - 8 * byte);
+		font.Bytes() += tag;
+		font.U32(sum), font.U32(offset), font.U32(static_cast<std::uint32_t>(bytes.size()));
+		offset += static_cast<std::uint32_t>(bytes.size());
+	}
+	for (const auto &[tag, bytes] : tables)
+		font.Bytes() += bytes;
+	return font.Bytes();
+}
 } // namespace
 
 
@@ -265,6 +402,46 @@ TEST_CASE("Ui: a document draws into the overlay, and its glyphs are textures th
 	const Ui::DocumentHandle again = ui.LoadDocument("ui/market.rml");
 	CHECK_FALSE(again == document);
 	CHECK_FALSE(ui.IsShown(document));
+}
+
+
+TEST_CASE("Ui: a game's face under fonts/ draws what the engine's lack, and what none has is logged")
+{
+	Scratch scratch;
+	scratch.Put("base/fonts/fixture.ttf", FixtureFont());
+	scratch.Put("base/fonts/LICENSE.txt", "Not a face, so not read as one.");
+	scratch.Put(
+	    "base/ui/day.rml",
+	    "<rml><head><style>body { font-family: Droid Sans; font-size: 20px; }</style></head>"
+	    "<body><p id=\"day\">日日</p></body></rml>");
+	std::size_t problems = 0;
+	const auto drawnWidth = [&scratch, &problems](bool gameFonts)
+	{
+		// The engine's fallback face first, as the shell loads it, then the game's after it.
+		Ui::UiSystem ui{scratch.Files(), 640, 480};
+		ui.LoadFont("fonts/DroidSans.ttf", true);
+
+		// The engine's own fonts, in the bottom mount, are not read again.
+		if (gameFonts)
+			CHECK(ui.LoadFallbackFonts("fonts", 1) == 1);
+		// Read twice, so its character is met twice.
+		ui.LoadDocument("ui/day.rml");
+		const Ui::DocumentHandle document = ui.LoadDocument("ui/day.rml");
+		ui.Show(document);
+		ui.Update(0.0);
+		problems = ui.Problems();
+		return DrawnWidth(ui.Overlay());
+	};
+
+	// Two of the fixture's squares, 16 px each at 20 px and an advance of 20 px apart: 36 px across.
+	const float drawn = drawnWidth(true);
+	CHECK(problems == 0);
+	CHECK(drawn == doctest::Approx(36.0f).epsilon(0.1));
+
+	// Without it the two draw as Droid Sans's replacement, and the character is one problem, logged
+	// once however often a document has it.
+	CHECK(drawnWidth(false) != doctest::Approx(drawn));
+	CHECK(problems == 1);
 }
 
 

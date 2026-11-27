@@ -11,6 +11,7 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -189,6 +190,12 @@ constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/Hack-Regular.ttf", false},
     {"fonts/DroidSans.ttf", true},
 }};
+
+// The faces a game or a mod ships under fonts/, for the scripts the engine's fonts lack, are fallback
+// faces after the engine's; the engine's assets are the bottom mount (Mounts.h), so its own fonts
+// there are not read again.
+constexpr std::string_view kGameFontDirectory = "fonts";
+constexpr std::size_t kFirstGameMount = 1;
 
 // The shell's music, played from the content where it has it.
 constexpr std::string_view kMusic = "audio/music/drift.flac";
@@ -1113,6 +1120,7 @@ void Application::InitUi()
 	    static_cast<int>(m_pRenderer->FrameHeight()));
 	for (const auto &[font, fallback] : kUiFonts)
 		m_pUi->LoadFont(font, fallback);
+	m_pUi->LoadFallbackFonts(kGameFontDirectory, kFirstGameMount);
 
 	// The player's language: the setting; at the first start with none, the environment's locale's,
 	// kept as the setting from then on. A test's run (the smoke test, a fixed frame step) reads the

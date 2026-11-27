@@ -68,9 +68,16 @@ class UiSystem
 	UiSystem &operator=(const UiSystem &) = delete;
 
 	// A TrueType or OpenType face by virtual path, under the family name the file gives; a fallback
-	// face is searched for a glyph no other face has. Throws std::runtime_error naming the file for
-	// one that is missing or that FreeType cannot read.
+	// face is searched, in the order loaded, for a glyph no other face has. Throws std::runtime_error
+	// naming the file for one that is missing or that FreeType cannot read. Once a face is loaded, a
+	// character in a document's text that no face has is logged, once, and counted a problem.
 	void LoadFont(std::string_view virtualPath, bool fallback = false);
+
+	// Every TrueType and OpenType file under the directory whose topmost file is in the mount of that
+	// index or one above it, as a fallback face, in path order: the faces a game or a mod ships for
+	// the scripts the engine's fonts lack, loaded after the engine's. Returns how many; throws as
+	// LoadFont does.
+	std::size_t LoadFallbackFonts(std::string_view virtualDirectory, std::size_t firstMount);
 
 	// A data model, which every document that names it (data-model="market") reads. Before the
 	// documents that read it are loaded; throws std::logic_error for a name already made.
@@ -139,8 +146,8 @@ class UiSystem
 	// not have: the smoke sequence presses a screen's buttons with it.
 	bool Click(DocumentHandle document, std::string_view id);
 
-	// The warnings and errors RmlUi has logged, the strings asked for that no table has, and the
-	// translations refused.
+	// The warnings and errors RmlUi has logged, the strings asked for that no table has, the
+	// translations refused, and the characters a text has that no face loaded has.
 	std::size_t Problems() const;
 
   private:

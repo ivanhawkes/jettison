@@ -20,7 +20,7 @@ files through the virtual file system, and the rule that a screen never reads th
 | Overlay | The game UI's drawing as a plain draw list (`Render::Overlay`), which the renderer draws over the tonemapped scene. |
 | String table | The player's text by key, per language, from YAML under `strings/<language>/`. |
 | Base language | English, `en`. It must have every key; every other language falls back to it. |
-| Problem | A warning or error RmlUi logged, a key no table has, or a translation refused. The [smoke test](glossary.md#smoke-test) holds the count at none. |
+| Problem | A warning or error RmlUi logged, a key no table has, a translation refused, or a character in a document's text that no font loaded has. The [smoke test](glossary.md#smoke-test) holds the count at none. |
 | Console | The developer's command line: the log, commands, and variables bound through reflection. |
 | Dev tools | The ImGui windows F1 opens: the Dev tools window (checkboxes for the console and ImGui's demo and metrics, and the theme's palette, console mono face and scale), the Renderer and Scene panels, and a game's own panels (`Game::DrawPanels`). |
 
@@ -139,6 +139,24 @@ has read it, so mods are mounted before the UI is made, as the shell does. Fonts
 build that RmlUi's font engine and ImGui's rasteriser (`imgui_freetype`) both link. The shell loads
 Roboto Medium and Hack, with Droid Sans as the fallback face for any glyph the others lack
 (`UiSystem::LoadFont`).
+
+**A game's fonts.** The engine's faces cover Latin, Greek and Cyrillic, and no Chinese, Japanese or
+Korean. A game whose tables need another script ships the face itself: every `.ttf` and `.otf`
+under `fonts/` in its content or a mod is loaded as a fallback face after Droid Sans, in path order
+(`UiSystem::LoadFallbackFonts`, from the mount above the engine's), so RmlUi draws a character
+the document's own family lacks from the first of them that has it. A document names no game
+face: it keeps its family, and the fallback fills in. For Manifest's Japanese table that is a Noto
+Sans JP subset of Manifest's, whose licence travels with the game, not the engine. A character no face loaded has would draw as
+a box, RmlUi's replacement, and RmlUi says nothing; the UI therefore reads each face's characters
+as it loads it (FreeType, RmlUi's own) and checks every text RmlUi reads against them, data views'
+included. Such a character is logged once, with the language it was read in, and counted as a
+problem, so the smoke test fails on it:
+
+```text
+No font loaded has U+65E5 '日', which the 'ja' text draws as a box: a game ships a face for it under fonts/
+```
+
+The dev tools' ImGui faces are not checked: developer text stays English.
 
 **Drawing.** RmlUi's compiled geometry stays in the UI and is copied into a `Render::Overlay`
 (`render/Overlay.h`) each time it is drawn. The overlay is a plain draw list: vertices in the
@@ -462,7 +480,9 @@ language.
 ### Adding a language, or changing words in a mod
 
 To add a language, put a directory of tables under `strings/<tag>/` in a mod or the game's assets,
-with the same file names and keys as the base. Keys it lacks read in English. The German tables
+with the same file names and keys as the base. Keys it lacks read in English. A script the engine's
+fonts lack needs a face under `fonts/` beside the tables ([a game's fonts](#the-game-ui)); a
+subset of the characters the tables use keeps it small. The German tables
 the engine ships are the pattern (`assets/strings/de/`):
 
 ```yaml
@@ -529,7 +549,8 @@ to be is in [history](history.md).
 - Module `ui` (`source/engine/ui`), with RmlUi private to it: `ui/UiSystem.h`,
   `ui/DataModel.h`, `ui/StringTable.h`; `src/RmlInterfaces.cpp` (RmlUi's file, system and
   render interfaces over the VFS, the log and the overlay). Tests: `UiTests.cpp`,
-  `StringTableTests.cpp`, which run RmlUi with no device.
+  `StringTableTests.cpp`, which run RmlUi with no device; `UiTests.cpp` writes a font of its own
+  for a game's fallback face, generated, so it carries no one's licence.
 - Module `devtools` (`source/engine/ui/imgui`): `devtools/Console.h`, `devtools/Views.h`,
   `devtools/Theme.h`. Tests: `ConsoleTests.cpp`, `ViewTests.cpp`, `ThemeTests.cpp`, which run
   ImGui with no renderer.

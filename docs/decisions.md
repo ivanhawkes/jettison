@@ -462,6 +462,13 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   the first start from the environment's locale and kept (2026-11-27, the user's); a test's run (the
   smoke test, a fixed frame step) never reads the locale, so it reads the same on every machine.
   [UI, input and localisation](ui.md)
+- **A game ships the fonts for its scripts** (2026-11-27, the user's). The engine's fonts (Roboto,
+  Hack, Droid Sans) have no Chinese, Japanese or Korean, so Manifest's Japanese table drew as boxes.
+  Every face under a game's or a mod's `fonts/` is loaded as a fallback after the engine's, and a
+  character no face has is logged and counted a problem. Rejected: the engine shipping a CJK face,
+  which would put several megabytes and a third-party licence into every game's assets for the
+  scripts one game uses, and a choice of subset only the game can make. [UI, input and
+  localisation](ui.md#the-game-ui)
 
 ## Audio
 

@@ -1,6 +1,7 @@
 # The game UI: RmlUi behind UiSystem.h and DataModel.h, which name no RmlUi type, so RmlUi is a
-# private library. It draws into render's Overlay, a plain draw list the renderer reads, so the edge
-# to render is to its CPU side only (docs/ui.md). The tests run RmlUi with no device.
+# private library; FreeType, RmlUi's own, reads which characters a face has. It draws into render's
+# Overlay, a plain draw list the renderer reads, so the edge to render is to its CPU side only
+# (docs/ui.md). The tests run RmlUi with no device.
 jettison_add_module(ui
 	DEPENDS
 		core
@@ -26,6 +27,7 @@ jettison_add_module(ui
 		EnTT::EnTT
 		glm
 	PRIVATE_LIBRARIES
+		Freetype::Freetype
 		RmlUi::Core
 		yaml-cpp::yaml-cpp
 )

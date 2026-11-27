@@ -1,10 +1,12 @@
 #include "RmlInterfaces.h"
 
 #include <RmlUi/Core/Log.h>
+#include <RmlUi/Core/StringUtilities.h>
 
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <exception>
@@ -29,6 +31,9 @@ constexpr std::string_view kStylesheetExtension = ".rcss";
 
 // A line between the texts, so a patch is not glued to a last line the file left unterminated.
 constexpr std::byte kStylesheetSeparator{'\n'};
+
+// RmlUi draws no character below the space, so none of them needs a face.
+constexpr char32_t kFirstDrawnCharacter = U' ';
 
 
 // The stylesheet as the mounts layer it (Vfs::FileSystem::ReadPatched): the topmost whole file,
@@ -161,14 +166,32 @@ bool SystemInterface::LogMessage(Rml::Log::Type type, const Rml::String &message
 int SystemInterface::TranslateString(Rml::String &translated, const Rml::String &input)
 {
 	// Most of a document's text has no key, and is the same text back.
-	if (input.find("[[") == Rml::String::npos)
-	{
-		translated = input;
-		return 0;
-	}
 	int replaced = 0;
-	translated = m_strings.Translate(input, replaced);
+	translated = input.find("[[") == Rml::String::npos ? input : m_strings.Translate(input, replaced);
+	CheckCovered(translated);
 	return replaced;
+}
+
+
+void SystemInterface::CheckCovered(const Rml::String &text)
+{
+	// With no face loaded RmlUi draws no text at all: a test's run, not a script missing its font.
+	if (m_covered.empty())
+		return;
+	for (Rml::StringIteratorU8 it{text}; it; ++it)
+	{
+		const auto character = static_cast<char32_t>(*it);
+		if (character < kFirstDrawnCharacter || m_covered.contains(character) ||
+		    !m_uncovered.insert(character).second)
+			continue;
+		++m_problems;
+		Core::Log(
+		    Core::Severity::Warning, kUi,
+		    "No font loaded has U+{:04X} '{}', which the '{}' text draws as a box: a game ships a face "
+		    "for it under fonts/",
+		    static_cast<std::uint32_t>(character), Rml::StringUtilities::ToUTF8(*it),
+		    m_strings.Language());
+	}
 }
 
 

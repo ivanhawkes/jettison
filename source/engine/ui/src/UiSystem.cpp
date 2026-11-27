@@ -2,13 +2,21 @@
 
 #include <RmlUi/Core.h>
 
+#include <ft2build.h>
+#include <freetype/freetype.h>
+
+#include <algorithm>
+#include <array>
 #include <format>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <jettison/core/Log.h>
 #include <jettison/render/Overlay.h>
+#include <jettison/vfs/FileSystem.h>
 
 #include "UiState.h"
 
@@ -20,6 +28,32 @@ constexpr Core::Category kUi{"ui"};
 
 // RmlUi is one instance a process.
 bool g_live = false;
+
+// The files LoadFallbackFonts loads: what RmlUi's FreeType reads.
+constexpr std::array<std::string_view, 2> kFontExtensions{".ttf", ".otf"};
+
+
+// The characters a face maps, read with a FreeType of its own, since RmlUi's font engine answers a
+// character no face has with its replacement and says nothing.
+std::vector<char32_t> Characters(const std::vector<std::byte> &bytes)
+{
+	std::vector<char32_t> characters;
+	FT_Library library = nullptr;
+	if (FT_Init_FreeType(&library) != 0)
+		return characters;
+	FT_Face face = nullptr;
+	const auto *data = reinterpret_cast<const FT_Byte *>(bytes.data());
+	if (FT_New_Memory_Face(library, data, static_cast<FT_Long>(bytes.size()), 0, &face) == 0)
+	{
+		FT_UInt glyph = 0;
+		for (FT_ULong character = FT_Get_First_Char(face, &glyph); glyph != 0;
+		     character = FT_Get_Next_Char(face, character, &glyph))
+			characters.push_back(static_cast<char32_t>(character));
+		FT_Done_Face(face);
+	}
+	FT_Done_FreeType(library);
+	return characters;
+}
 
 
 int KeyModifiers(Modifiers modifiers)
@@ -113,6 +147,25 @@ void UiSystem::LoadFont(std::string_view virtualPath, bool fallback)
 {
 	if (!Rml::LoadFontFace(std::string{virtualPath}, fallback))
 		throw std::runtime_error(std::format("UiSystem: the font '{}' did not load", virtualPath));
+	if (const std::optional<std::vector<std::byte>> bytes = m_pState->files.Read(virtualPath))
+		m_pState->system.Cover(Characters(*bytes));
+}
+
+
+std::size_t UiSystem::LoadFallbackFonts(std::string_view virtualDirectory, std::size_t firstMount)
+{
+	std::size_t loaded = 0;
+	for (const std::string &path : m_pState->files.Enumerate(virtualDirectory))
+	{
+		const std::optional<Vfs::FileInfo> found = m_pState->files.Find(path);
+		const bool font = std::ranges::any_of(
+		    kFontExtensions, [&path](std::string_view extension) { return path.ends_with(extension); });
+		if (!font || !found || found->mount < firstMount)
+			continue;
+		LoadFont(path, true);
+		++loaded;
+	}
+	return loaded;
 }
 
 
