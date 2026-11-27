@@ -402,9 +402,11 @@ The subject is `Area: what changed, and what it was for`, in the style of the co
 (`Scene round trip: the loader refused the file the writer produced`). The body records what was
 measured and why the change takes the shape it does, in plain prose.
 
-Each commit builds, passes the suites of the modules it touches, and is clean under clang-tidy in
-the files it changed. The [gate](build-and-gates.md#the-gate) runs once a chunk of a few commits
-is done, and the chunk's last commit leaves it green before anything is pushed. A gate failure is
-fixed in a further commit, not by rewriting history.
+Each commit builds and passes the suites of the modules it touches, or a local run that shows it
+working. Work is done in batches of a few pieces, each in its own lane
+([batches](build-and-gates.md#batches)): clang-tidy, the format and whitespace checks and the full
+[gate](build-and-gates.md#the-gate) run once, on `feature-base` after the batch's pieces are merged,
+and their findings are fixed there together, before anything is pushed. A gate failure is fixed in
+a further commit, not by rewriting history.
 
 Commits, code, comments and documents use British spelling (serialise, colour).

@@ -239,8 +239,8 @@ runtime dependency of a release.
 ## The gate
 
 The [gate](glossary.md#gate-ci) is `scripts/ci.sh`: every check a commit must pass, in one local
-command. The last commit of each chunk of work passes it with `--werror --asan` before a push
-([coding standards](coding-standards.md#commits)). It holds the [lanes](#lanes)' lock while it
+command. It runs with `--werror --asan` once a batch's pieces are merged into `feature-base`, and
+passes before a push ([batches](#batches), [coding standards](coding-standards.md#commits)). It holds the [lanes](#lanes)' lock while it
 runs, so a gate or build started in another worktree waits for it. Hooks run parts of it:
 
 | Where | What runs |
@@ -751,8 +751,8 @@ on the gate or a cross-review while the next task starts in the other.
 | Lane | Jettison | Manifest | Role |
 | --- | --- | --- | --- |
 | Primary | `~/projects/jettison` | `~/projects/manifest` | On `feature-base`, clean: merges, and the orchestration |
-| B | `~/projects/jettison.lane-b` | `~/projects/manifest.lane-b` | A task, written, gated and reviewed there |
-| C | `~/projects/jettison.lane-c` | `~/projects/manifest.lane-c` | A task, written, gated and reviewed there |
+| B | `~/projects/jettison.lane-b` | `~/projects/manifest.lane-b` | A task, written and checked there, gated with its batch |
+| C | `~/projects/jettison.lane-c` | `~/projects/manifest.lane-c` | A task, written and checked there, gated with its batch |
 
 - **Starting a task.** `scripts/lanes.sh` lists every lane of both repositories: its branch, how
   far it is from `feature-base`, the files its work changes and its note. A task goes to a free lane
@@ -765,9 +765,19 @@ on the gate or a cross-review while the next task starts in the other.
   edited by most tasks, so a clash there is expected and resolved at the merge.
 - **Merging.** In the primary checkout, `git merge --ff-only <task>`, then the branch is deleted and
   its lane parked with `git switch --detach feature-base`. A task cut before another merged is
-  rebased onto `feature-base` in its lane and gated again there before it merges, so what lands on
-  `feature-base` is what was gated. Only work merged and tested on `feature-base` is a candidate for
-  `main`, which the user decides.
+  rebased onto `feature-base` in its lane, its suites run again, and then it merges. Only work merged
+  and gated on `feature-base` is pushed, and only that is a candidate for `main`, which the user
+  decides.
+- <a id="batches"></a>**Batches** (the user's, 2026-11-27). Asked to continue with the roadmap, the
+  orchestrator reads `lanes.sh`: which lanes are free, and whether each one's work is committed and
+  merged so its lane can be parked and used again. It picks two to four pieces that can be done at
+  once with little risk of a clash (other modules and files, no public header in common), and they
+  are done together; a lane gone idle may take a smaller piece, finished and committed to merge with
+  the rest. In a lane, a piece is ready to merge when it builds and a local check shows it complete
+  and working: its suites, or the program run. No clang-tidy, format check or gate runs in a lane.
+  Once every piece is merged, the gate runs once on `feature-base`, tidy and the format check with
+  it, and what they find is fixed there as one batch, then pushed. Fewer gates make the cycle
+  faster; small, low-clash batches keep the merges orderly.
 - **Kept, not made per branch.** A lane is never removed, so its build trees stay warm, Debug ones
   included, which ccache shares within a tree only ([compiler cache](#compiler-cache)). A switch
   rebuilds what the branches change.

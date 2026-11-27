@@ -98,8 +98,8 @@ prints at most 20 distinct diagnostics and names `build/clang-debug/tidy-diagnos
 holds the whole text; `--full` prints everything, `--summary` the tally.
 
 Work happens in kept worktrees, the lanes: the primary checkout (`~/projects/jettison`, and
-Manifest's) stays on `feature-base` for merges and orchestration, and each task is written, gated and
-reviewed in `jettison.lane-b` or `jettison.lane-c` (Manifest's likewise), cut from `feature-base` and
+Manifest's) stays on `feature-base` for merges and orchestration, and each task is written and
+checked in `jettison.lane-b` or `jettison.lane-c` (Manifest's likewise), cut from `feature-base` and
 merged back by fast-forward. `scripts/lanes.sh` picks a free lane and shows what the other lanes
 change; a task's plan warns of any clash with them before the work begins. Builds and gates take
 turns through `scripts/heavy.sh`'s lock, which `scripts/ci.sh` takes itself
@@ -108,9 +108,10 @@ turns through `scripts/heavy.sh`'s lock, which `scripts/ci.sh` takes itself
 Run the gate as a background task and wait for it to finish rather than polling with `sleep`.
 With `--log` it prints the stages and a summary, and for a failed stage its errors; the full output
 is in the log. Warm, it takes 3 to 4 minutes (223 s on 2026-11-14), two thirds of it the
-lavapipe smoke tests and reference frames; with both caches cold, several minutes more. The last
-commit of each chunk of work leaves the gate green with `--werror --asan` before a push
-([coding standards](docs/coding-standards.md#commits)).
+lavapipe smoke tests and reference frames; with both caches cold, several minutes more. Work runs in
+batches across the lanes, and the gate, with `--werror --asan`, tidy and the format check, runs once
+on `feature-base` after a batch is merged, green before a push
+([batches](docs/build-and-gates.md#batches)).
 
 Nothing bounds parallelism: the builds, the suites and clang-tidy take the machine's cores. Free
 memory here is a question of whether the user's local AI is resident (`strata-host`, about 57 GiB,
