@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 
 #include <array>
+#include <atomic>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -14,8 +15,10 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 using namespace Jettison::Core;
 
@@ -149,6 +152,78 @@ TEST_CASE("File: a file is written with the permissions given, over a file and a
 	CHECK(ReadFile(path) == "private");
 	CHECK(mode(path) == kPrivate);
 	CHECK_FALSE(std::filesystem::exists(partial));
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("File: a new file is written, and one already there is refused and left as it was")
+{
+	const std::filesystem::path directory = Scratch();
+	const std::filesystem::path path = directory / "new";
+	WriteNewFileDurably(path, std::string_view{"first"});
+	CHECK(ReadFile(path) == "first");
+
+	try
+	{
+		WriteNewFileDurably(path, std::string_view{"second"});
+		FAIL("the write over a file did not throw");
+	}
+	catch (const FileExistsError &refused)
+	{
+		CHECK(std::string{refused.what()}.find(path.string()) != std::string::npos);
+	}
+	CHECK(ReadFile(path) == "first");
+	CHECK(std::distance(std::filesystem::directory_iterator{directory}, {}) == 1);
+
+	// A directory is a file in the way too.
+	std::filesystem::create_directories(directory / "dir");
+	CHECK_THROWS_AS(WriteNewFileDurably(directory / "dir", std::string_view{"x"}), FileExistsError);
+	CHECK(std::filesystem::is_directory(directory / "dir"));
+
+	// The write that replaces still does.
+	WriteFileDurably(path, std::string_view{"replaced"});
+	CHECK(ReadFile(path) == "replaced");
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("File: of writers making the same new file at once, one wins whole and the rest are refused")
+{
+	constexpr int kWriters = 8;
+	constexpr int kRounds = 25;
+	constexpr std::size_t kSize = 1 << 16;
+	const std::filesystem::path directory = Scratch();
+	for (int round = 0; round < kRounds; ++round)
+	{
+		const std::filesystem::path path = directory / ("new" + std::to_string(round));
+		std::atomic<int> won{0};
+		std::atomic<int> refused{0};
+		std::vector<std::thread> writers;
+		writers.reserve(kWriters);
+		for (int writer = 0; writer < kWriters; ++writer)
+			writers.emplace_back(
+			    [&, writer]
+			    {
+				    const std::string text(kSize, static_cast<char>('a' + writer));
+				    try
+				    {
+					    WriteNewFileDurably(path, text);
+					    ++won;
+				    }
+				    catch (const FileExistsError &)
+				    {
+					    ++refused;
+				    }
+			    });
+		for (std::thread &writer : writers)
+			writer.join();
+		CHECK(won == 1);
+		CHECK(refused == kWriters - 1);
+		const std::string content = ReadFile(path);
+		CHECK(content == std::string(kSize, content.empty() ? '\0' : content.front()));
+	}
+	// Each round left its one file and no partial.
+	CHECK(std::distance(std::filesystem::directory_iterator{directory}, {}) == kRounds);
 	std::filesystem::remove_all(directory);
 }
 

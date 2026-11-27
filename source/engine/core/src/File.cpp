@@ -4,7 +4,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <stdio.h>
+
+#include <atomic>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <format>
 #include <ranges>
@@ -64,6 +68,31 @@ std::string Problem(std::string_view what)
 }
 
 
+enum class Replace : std::uint8_t
+{
+	Allowed,
+	Refused,
+};
+
+
+// A name to write a file under that no other writer of it uses.
+std::filesystem::path UniquePartial(const std::filesystem::path &path)
+{
+	static std::atomic<unsigned> counter;
+	std::filesystem::path partial = path;
+	partial += std::format("{}.{}.{}", kPartialSuffix, ::getpid(), counter++);
+	return partial;
+}
+
+
+// Zero, or the errno of what failed. The one Linux-specific call here: Windows has no rename that
+// refuses to replace, short of MoveFileEx without its replace flag.
+int RenameWithoutReplacing(const std::filesystem::path &from, const std::filesystem::path &to)
+{
+	return ::renameat2(AT_FDCWD, from.c_str(), AT_FDCWD, to.c_str(), RENAME_NOREPLACE) == 0 ? 0 : errno;
+}
+
+
 // Zero, or the errno of what failed.
 int FlushDirectory(const std::filesystem::path &directory)
 {
@@ -105,12 +134,17 @@ bool CreateDirectoriesDurably(const std::filesystem::path &path, std::filesystem
 }
 
 
-void WriteFileDurably(
+namespace
+{
+void WriteDurably(
     const std::filesystem::path &path, std::span<const std::byte> bytes,
-    std::filesystem::perms permissions)
+    std::filesystem::perms permissions, Replace replace)
 {
 	std::filesystem::path partial = path;
-	partial += kPartialSuffix;
+	if (replace == Replace::Allowed)
+		partial += kPartialSuffix;
+	else
+		partial = UniquePartial(path);
 	const auto fail = [&](const std::string &problem)
 	{
 		std::error_code ignored;
@@ -146,11 +180,21 @@ void WriteFileDurably(
 			throw fail(Problem("close"));
 	}
 
-	// rename replaces the old file in one step on POSIX.
-	std::error_code error;
-	std::filesystem::rename(partial, path, error);
-	if (error)
-		throw fail(error.message());
+	if (replace == Replace::Allowed)
+	{
+		// rename replaces the old file in one step on POSIX.
+		std::error_code error;
+		std::filesystem::rename(partial, path, error);
+		if (error)
+			throw fail(error.message());
+	}
+	else if (const int problem = RenameWithoutReplacing(partial, path); problem == EEXIST)
+	{
+		const std::runtime_error refused = fail("a file is already there");
+		throw FileExistsError{refused.what()};
+	}
+	else if (problem != 0)
+		throw fail(std::strerror(problem));
 
 	// The file is complete under its name; what remains is the directory's entry for it. A failure
 	// here leaves the new file in place, which is reported, since it may not survive a power cut.
@@ -162,9 +206,35 @@ void WriteFileDurably(
 }
 
 
+} // namespace
+
+
+void WriteFileDurably(
+    const std::filesystem::path &path, std::span<const std::byte> bytes,
+    std::filesystem::perms permissions)
+{
+	WriteDurably(path, bytes, permissions, Replace::Allowed);
+}
+
+
 void WriteFileDurably(
     const std::filesystem::path &path, std::string_view text, std::filesystem::perms permissions)
 {
 	WriteFileDurably(path, std::as_bytes(std::span{text.data(), text.size()}), permissions);
+}
+
+
+void WriteNewFileDurably(
+    const std::filesystem::path &path, std::span<const std::byte> bytes,
+    std::filesystem::perms permissions)
+{
+	WriteDurably(path, bytes, permissions, Replace::Refused);
+}
+
+
+void WriteNewFileDurably(
+    const std::filesystem::path &path, std::string_view text, std::filesystem::perms permissions)
+{
+	WriteNewFileDurably(path, std::as_bytes(std::span{text.data(), text.size()}), permissions);
 }
 } // namespace Jettison::Core

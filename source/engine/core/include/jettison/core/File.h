@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <span>
+#include <stdexcept>
 #include <string_view>
 
 namespace Jettison::Core
@@ -34,6 +35,32 @@ void WriteFileDurably(
 
 // The same for text.
 void WriteFileDurably(
+    const std::filesystem::path &path, std::string_view text,
+    std::filesystem::perms permissions = kFilePermissions);
+
+// What WriteNewFileDurably throws when a file is already there, so a writer that lost the race to
+// make a file can tell it from a write that failed.
+class FileExistsError : public std::runtime_error
+{
+  public:
+	using std::runtime_error::runtime_error;
+};
+
+// WriteFileDurably for a file that must not be there yet: the same writes, but the rename that puts
+// the file in place fails if any file is there (renameat2 with RENAME_NOREPLACE, Linux only), so
+// that of two writers making the same file one leaves it whole and the other is refused, with no
+// check between the two for a writer to come into. Throws FileExistsError naming the path when a file
+// is there, and any other failure as WriteFileDurably does; either way the partial file is removed and
+// a file already there is as it was. The partial file is named for its writer
+// (`<name>:partial.<process ID>.<count>`), since writers of the same file at once would otherwise
+// write into one; a crash leaves it behind, to be removed by hand. Needs a file system that
+// supports the flag (ext4, xfs, btrfs and tmpfs do), or it throws for the file system.
+void WriteNewFileDurably(
+    const std::filesystem::path &path, std::span<const std::byte> bytes,
+    std::filesystem::perms permissions = kFilePermissions);
+
+// The same for text.
+void WriteNewFileDurably(
     const std::filesystem::path &path, std::string_view text,
     std::filesystem::perms permissions = kFilePermissions);
 

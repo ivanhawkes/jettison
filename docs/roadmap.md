@@ -270,23 +270,6 @@ engine's threads are in [architecture](architecture.md#threading).
 
 **Feature doc:** [simulation](simulation.md).
 
-<a id="j32"></a>
-### J32. A durable write that refuses to replace a file
-
-**What remains.** A durable write that fails when the file is already there, deciding that in the
-same rename that puts the file in place (`renameat2` with `RENAME_NOREPLACE`), with the partial
-file removed. It is done when two writers making the same new file leave one file whole and the
-other told it was refused.
-
-**Why.** `WriteFileDurably` replaces whatever file is there. A writer that must not (a new save's
-name, a world's first file) can only check first, and another writer can come between the check and
-the write. Nothing has asked for it yet.
-
-**What exists.** `Core::WriteFileDurably`: the partial file, `fsync`, the rename over the file and
-the directory's `fsync` (`source/engine/core/include/jettison/core/File.h`).
-
-**Feature doc:** [persistence](persistence.md).
-
 <a id="j33"></a>
 ### J33. Fault injection under the file system calls
 

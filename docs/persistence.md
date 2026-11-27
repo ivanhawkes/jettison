@@ -186,6 +186,18 @@ is never open to others on its way. Why both flushes are needed is
 [decided](decisions.md#persistence). On failure it throws
 `std::runtime_error` naming the path, with the partial file removed and the old file as it was.
 
+<a id="a-write-that-refuses-to-replace"></a>
+`Core::WriteNewFileDurably` is the same write for a file that must not be there yet, a new save's name
+or a world's first file. It decides in the rename that puts the file in place, `renameat2` with
+`RENAME_NOREPLACE` (Linux; the one call is in `core/src/File.cpp`), so there is no check for another
+writer to come between: of two writers making the same file one leaves it whole and the other gets
+`Core::FileExistsError`, a `std::runtime_error` naming the path, with its partial file removed. A file
+already there is as it was, a directory in the way included. Its partial file is named for its writer,
+`<name>:partial.<process ID>.<count>`, since two writers of one file at once would otherwise write
+into the same partial and one could rename the other's half-written bytes into place. A crash leaves
+that partial behind, and nothing removes it. The file system must support the flag (ext4, xfs, btrfs
+and tmpfs do); on one that does not, the write throws naming the path and the reason.
+
 A missing directory is made by `Core::CreateDirectoriesDurably`, outermost first, each one's parent
 flushed as it is made: a new directory is an entry in its parent, and is lost with everything under
 it until that parent is on the disk. Each directory has the permissions its caller asks for from the
@@ -437,8 +449,10 @@ CHECK(FileLock::HolderOf(path) == "1234 manifest-server"); // for the message: p
 - **No migration steps exist** until the first build given out (above).
 - **A save holds no definitions**, only their names. A definition's format can change without a
   save's, but a save loaded with other content reads whatever the definitions now say.
-- **Not provisioned, as nothing has asked:** a write that refuses to replace an existing file
-  ([J32](roadmap.md#j32)) and fault injection under the system calls ([J33](roadmap.md#j33)).
+- **Not provisioned, as nothing has asked:** fault injection under the system calls
+  ([J33](roadmap.md#j33)).
+- **`WriteNewFileDurably` is Linux only** until the Windows port, which has no rename that refuses to
+  replace (`MoveFileEx` without its replace flag does the same).
 - **`FileLock` is for a local file system.** Over NFS, Linux emulates `flock` with a lock that does
   not refuse its own process.
 
@@ -457,7 +471,7 @@ The settled choices are in [decisions](decisions.md#persistence); a save naming 
 | | `serialise/Migration.h` | `Migrations`, `BinaryDocument`, `Migrate`, `PeekVersion` |
 | `sim` | `sim/SaveGame.h` | `SaveGame`, `SaveInfo`, `SaveSection`, `ModDifferences` |
 | | `sim/SimWorld.h` | `SimWorld::Save`, `Load`, `RegisterComponent`, `ComponentMigrations`, `WorldService` |
-| `core` | `core/File.h`, `core/FileLock.h` | `WriteFileDurably`, `CreateDirectoriesDurably`, `FileLock` |
+| `core` | `core/File.h`, `core/FileLock.h` | `WriteFileDurably`, `WriteNewFileDurably`, `CreateDirectoriesDurably`, `FileLock` |
 | `app` | `app/Game.h`, `app/src/Saves.h`, `app/src/Settings.h` | The game's save hooks, save paths and the saves screen, settings |
 
 Headers are under `source/engine/<module>/include/jettison/`, and `app/src` under `source/engine/`.
