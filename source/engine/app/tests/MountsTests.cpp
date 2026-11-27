@@ -275,6 +275,38 @@ TEST_CASE("Mounts: a mod for the client alone mounts, unless it holds world cont
 }
 
 
+TEST_CASE("Mounts: content mounts as its identifier, which a mod may require, or else as base")
+{
+	const Scratch scratch;
+	scratch.Put("engine/strings/en/numbers.yaml", "version: 1\n");
+	scratch.Put("content/mod.yaml", "version: 1\nidentifier: farm\n");
+	scratch.Put("content/defs/crops/wheat.yaml", "version: 1\n");
+	scratch.Put("user/mods/overlay/mod.yaml", "version: 1\nrequires: [farm]\n");
+	scratch.Put("user/mods/farm/mod.yaml", "version: 1\n");
+
+	const Reported reported;
+	Vfs::FileSystem files;
+	(void)App::MountAssets(files, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user"));
+	CHECK(NamesOf(files) == std::vector<std::string>{"engine", "farm", "mod:overlay", "user"});
+	CHECK(reported.Contains("its name is the shell's own mount, farm"));
+
+	// With none, base, which the overlay's requirement does not name.
+	scratch.Put("content/mod.yaml", "version: 1\n");
+	std::filesystem::remove_all(scratch.Path("user/mods/farm"));
+	Vfs::FileSystem plain;
+	(void)App::MountAssets(plain, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user"));
+	CHECK(NamesOf(plain) == std::vector<std::string>{"engine", "base", "user"});
+	CHECK(reported.Contains("requires the mod farm, which is not mounted before it"));
+
+	// An identifier that is the shell's own mount's name stops the start-up.
+	scratch.Put("content/mod.yaml", "version: 1\nidentifier: user\n");
+	Vfs::FileSystem clash;
+	CHECK_THROWS_WITH(
+	    App::MountAssets(clash, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user")),
+	    doctest::Contains("one of the shell's own mount names"));
+}
+
+
 TEST_CASE("Mounts: a mod named as one of the shell's own mounts is left out, and the rest mount")
 {
 	const Scratch scratch;

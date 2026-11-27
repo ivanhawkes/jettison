@@ -55,7 +55,8 @@ void RegisterPackageTypes()
 		    .Field<&PackageDescription::release>("release", Attribute::Saved)
 		    .Field<&PackageDescription::engine>("engine", Attribute::Saved)
 		    .Field<&PackageDescription::required>("requires", Attribute::Saved)
-		    .Field<&PackageDescription::side>("side", Attribute::Saved);
+		    .Field<&PackageDescription::side>("side", Attribute::Saved)
+		    .Field<&PackageDescription::identifier>("identifier", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;

@@ -31,6 +31,7 @@ constexpr std::string_view kPackExtension = ".pack";
 constexpr std::string_view kEngineMount = "engine";
 constexpr std::string_view kContentMount = "base";
 constexpr std::string_view kUserMount = "user";
+constexpr std::string_view kModPrefix = "mod:";
 
 
 // A mod's identifier: its directory's name, or its pack's without the extension, so a mod is the same
@@ -162,22 +163,35 @@ std::vector<Sim::ModVersion> MountAssets(
 {
 	RegisterModTypes();
 	files.AddMount({std::string{kEngineMount}, assets});
+
+	// The content's name, its description's identifier or the default, which a mod's requires names.
+	std::string contentMount{kContentMount};
 	if (!content.empty())
 	{
 		try
 		{
+			const Host::PackageDescription description = Describe(content, "The content");
+
 			// Only the engine's assets are mounted before it, as Host::Session holds a source to.
-			for (const std::string &required : Describe(content, "The content").required)
+			for (const std::string &required : description.required)
 				if (required != kEngineMount)
 					throw std::runtime_error{std::format(
 					    "it requires the package {}, which is not mounted before it", required)};
+			if (!description.identifier.empty())
+			{
+				if (description.identifier == kEngineMount || description.identifier == kUserMount ||
+				    description.identifier.starts_with(kModPrefix))
+					throw std::runtime_error{std::format(
+					    "its identifier, {}, is one of the shell's own mount names", description.identifier)};
+				contentMount = description.identifier;
+			}
 		}
 		catch (const std::exception &problem)
 		{
 			throw std::runtime_error{
 			    std::format("The content {} does not start: {}", content.string(), problem.what())};
 		}
-		files.AddMount({std::string{kContentMount}, content});
+		files.AddMount({contentMount, content});
 	}
 
 	const std::vector<std::filesystem::path> found = FindMods(userData);
@@ -235,16 +249,18 @@ std::vector<Sim::ModVersion> MountAssets(
 		}
 		try
 		{
-			if (entry.mod == kEngineMount || entry.mod == kContentMount || entry.mod == kUserMount)
+			if (entry.mod == kEngineMount || entry.mod == contentMount || entry.mod == kUserMount)
 				throw std::runtime_error{
 				    std::format("its name is the shell's own mount, {}", entry.mod)};
 			const Host::PackageDescription description =
 			    Describe(*pPath, std::format("The mod {}", entry.mod));
+			// A mod may require the content, by its name, or a mod mounted before it.
 			for (const std::string &required : description.required)
-				if (std::ranges::find(mounted, required, &Sim::ModVersion::mod) == mounted.end())
+				if (!(required == contentMount && !content.empty()) &&
+				    std::ranges::find(mounted, required, &Sim::ModVersion::mod) == mounted.end())
 					throw std::runtime_error{std::format(
 					    "it requires the mod {}, which is not mounted before it", required)};
-			files.AddMount({"mod:" + entry.mod, *pPath});
+			files.AddMount({std::string{kModPrefix} + entry.mod, *pPath});
 			mounted.push_back({entry.mod, description.release});
 		}
 		catch (const std::exception &problem)

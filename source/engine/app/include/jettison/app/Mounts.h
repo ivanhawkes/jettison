@@ -40,7 +40,8 @@ struct ModList
 };
 
 // The shell's mounts, bottom to top: the engine's assets (a directory or a pack) as "engine"; the
-// game's content over them (likewise), unless there is none, as "base"; the user's mods
+// game's content over them (likewise), unless there is none, as its description's identifier
+// (Host::PackageDescription), "base" when it has none, which a mod's requires may name; the user's mods
 // in the data directory, as "mod:<identifier>"; the user's data directory itself, writable, as "user",
 // where saves go. The mods are in the list's order and only those it enables; a mod found and not
 // listed is added at the end, enabled, in the order of the identifiers' bytes, and the list written

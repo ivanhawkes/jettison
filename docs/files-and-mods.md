@@ -77,7 +77,9 @@ flowchart BT
    game: the compiled shaders and programs, the fonts, the saves screen and its stylesheets, and
    the engine's string tables. By default the staged directory beside the executable or, failing
    that, `assets.pack` beside it; `--assets` names either.
-2. **`base`**: the game's content, its definitions, scenes, models and sounds. It is found the same
+2. **`base`**, or the content's `identifier`: the game's content, its definitions, scenes, models and
+   sounds, under the name its `mod.yaml` gives, so a mod can require it and a server's session names
+   it the same. It is found the same
    way from the program's own subdirectory, or named with `--content`. Flotsam runs with none.
 3. **`mod:<identifier>`**: each enabled mod, in the player's order (below).
 4. **`user`**: the user's data directory, writable and last.
@@ -118,6 +120,7 @@ A package may describe itself in `mod.yaml` at its root (`Host::PackageDescripti
 | `engine` | The oldest engine version it runs on, `major.minor.patch`; empty for any |
 | `requires` | The mods that must be mounted before it, by identifier |
 | `side` | `both`, the default, or `client`: a cosmetic package, which a server leaves out and players need not match |
+| `identifier` | A game's content only: the name it mounts under, which a mod's `requires` names it by (`manifest`); `base` when left out |
 
 A mod with no `mod.yaml` still mounts, under its identifier and of no release. A field the
 description does not have, such as a misspelt `relase`, makes it fail to read. The engine version

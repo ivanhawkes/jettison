@@ -223,6 +223,11 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 
 ## Files, packs and mods
 
+- **A game's content mounts under its own identifier** (2026-11-27, the user's). The shell mounts a
+  game's content under its `mod.yaml`'s `identifier`, `base` when it has none, so a mod's
+  `requires` can name it (`manifest`) and a dedicated server's session, which names it the same,
+  agrees with the client on the world content's packages. Overlays requiring `base` instead was
+  rejected. [Files, packs and mods](files-and-mods.md#the-shells-mounts)
 - **Pack files are compressed with zstd, one copy shared with libktx** (2026-11-13). libktx compiles
   its own zstd with public symbols and no option for another, so the engine builds zstd 1.5.7 once
   and builds `ktx_read` against it, taking libktx's copy out of its sources in

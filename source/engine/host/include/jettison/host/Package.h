@@ -44,6 +44,11 @@ struct PackageDescription
 	std::vector<std::string> required;
 
 	Side side{Side::Both};
+
+	// The name a game's content mounts under, which a mod's requires names it by ("manifest"); empty
+	// for the shell's default, "base". A mod's own is its directory's or pack's name, so a mod's is
+	// not read.
+	std::string identifier;
 };
 
 // Reflects PackageDescription. Safe to call any number of times, by any number of sessions.
