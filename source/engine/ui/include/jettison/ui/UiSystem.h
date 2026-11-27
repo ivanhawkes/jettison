@@ -74,7 +74,7 @@ class UiSystem
 	void LoadFont(std::string_view virtualPath, bool fallback = false);
 
 	// Every TrueType and OpenType file under the directory whose topmost file is in the mount of that
-	// index or one above it, as a fallback face, in path order: the faces a game or a mod ships for
+	// index or one above it, as a fallback face, in path order: the faces a game or a mod supplies for
 	// the scripts the engine's fonts lack, loaded after the engine's. Returns how many; throws as
 	// LoadFont does.
 	std::size_t LoadFallbackFonts(std::string_view virtualDirectory, std::size_t firstMount);

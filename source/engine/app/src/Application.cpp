@@ -191,9 +191,9 @@ constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
     {"fonts/DroidSans.ttf", true},
 }};
 
-// The faces a game or a mod ships under fonts/, for the scripts the engine's fonts lack, are fallback
-// faces after the engine's; the engine's assets are the bottom mount (Mounts.h), so its own fonts
-// there are not read again.
+// The faces a game or a mod supplies under fonts/, for the scripts the engine's fonts lack, are
+// fallback faces after the engine's; the engine's assets are the bottom mount (Mounts.h), so its own
+// fonts there are not read again.
 constexpr std::string_view kGameFontDirectory = "fonts";
 constexpr std::size_t kFirstGameMount = 1;
 
