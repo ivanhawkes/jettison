@@ -212,7 +212,7 @@ How: [rendering](rendering.md), and
 | Debug draw | In | Lines, boxes and spheres in world space, for any system |
 | Fonts | In | TrueType through FreeType, for the game UI and the dev tools |
 | Collision-only meshes | Open | With a glTF model's collision mesh ([J12](roadmap.md#j12)) |
-| Multiple texture coordinate sets | Deferred | When an asset needs a detail map on a second set |
+| Multiple texture coordinate sets | Open | Up to eight a mesh, named by role and fetched by vertex pulling ([J64](roadmap.md#j64)) |
 | Surface types (sounds, decals) | Out | No consumer needs footsteps or decals |
 | Terrain, water | Out | No consumer has a walkable surface |
 | Skin and eyes | Open | Pre-integrated skin and an eye material, for portraits ([J58](roadmap.md#j58)) |

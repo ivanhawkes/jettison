@@ -10,8 +10,8 @@
 // built with TRIPLANAR defined).
 layout(set = 1, binding = 0) uniform sampler2D baseColorTexture;
 layout(set = 1, binding = 1) uniform sampler2D emissiveTexture;
-// glTF's packing: roughness in green, metallic in blue.
-layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessTexture;
+// The orm map, glTF's packing: occlusion in red (not read yet), roughness in green, metallic in blue.
+layout(set = 1, binding = 2) uniform sampler2D ormTexture;
 
 // The parameters, in the descriptor's order.
 const uint kBaseColor = 0u;
@@ -56,11 +56,11 @@ void main()
 	vec3 projected = fragObjectPosition * triplanar.x;
 	vec4 baseTexel = SampleTriplanar(baseColorTexture, projected, weights);
 	vec3 emissiveTexel = SampleTriplanar(emissiveTexture, projected, weights).rgb;
-	vec4 surfaceTexel = SampleTriplanar(metallicRoughnessTexture, projected, weights);
+	vec4 surfaceTexel = SampleTriplanar(ormTexture, projected, weights);
 #else
 	vec4 baseTexel = texture(baseColorTexture, fragTexCoord);
 	vec3 emissiveTexel = texture(emissiveTexture, fragTexCoord).rgb;
-	vec4 surfaceTexel = texture(metallicRoughnessTexture, fragTexCoord);
+	vec4 surfaceTexel = texture(ormTexture, fragTexCoord);
 #endif
 	vec4 albedo = baseTexel * MaterialParameter(kBaseColor) * vec4(fragColor, 1.0);
 	Surface surface = Surface(

@@ -114,9 +114,9 @@ same on any file system and needs no quoting.
 
 - A texture is `textures/<kind>/<asset>/<asset>-<map>.ktx2`. The asset's name is repeated, so a
   file is still identified once it is out of its folder.
-- The map is one of `color`, `normal`, `height`, `roughness`, `metallic` and `emissive`, with
-  `detail-` before one of them for a detail layer. These are the material slots' words, spelt as
-  the code spells them.
+- The map is one of `color`, `normal`, `orm`, `height`, `roughness`, `metallic` and `emissive`, with
+  `detail-` before one of them for a detail layer. These are the material slots' words, spelt as the
+  code spells them.
 - A material is `materials/<asset>.material.yaml`.
 
 Source packs keep their own names outside the repository, and an import script maps them

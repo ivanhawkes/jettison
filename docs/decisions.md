@@ -329,6 +329,18 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 
 ## Rendering
 
+- **Texture coordinate sets by role, fetched by vertex pulling** (2026-11-27, the user's). A mesh
+  carries up to eight sets, each named by a role in its asset's cook settings, and a material's slot
+  reads a role; the shaders fetch only the sets a material reads, from per-mesh streams, on the
+  indexed, mesh-shader and ray-traced paths alike. A fixed vertex with every set, or a variant per
+  count of sets, was rejected. [Roadmap J64](roadmap.md#j64)
+- **The material library holds the look** (2026-11-27, the user's). A glTF material's name binds the
+  library material of that name, and the glTF's own material values are not read, so a shared
+  material changes in one file. [Roadmap J65](roadmap.md#j65)
+- **Manifest defines the art standards** (2026-11-27, the user's). Names, layout, scale and
+  authoring rules are Manifest's [art standards](../../manifest/docs/art-standards.md); the engine
+  supports the workflow and its test content follows them. [Roadmap J64 to
+  J67](roadmap.md#a-separate-track-the-art-standards-support)
 - **Clustered forward rendering** (2026-11-10). Lights are assigned to view-space clusters in
   compute, and every surface is shaded once in its own material program. There is no G-buffer:
   ambient occlusion reads the depth prepass's depth and normals instead. [Rendering](rendering.md)

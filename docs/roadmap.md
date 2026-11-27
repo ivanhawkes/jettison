@@ -17,9 +17,10 @@ workflow in [game integration](game-integration.md#provisioning-a-capability). G
 and content stay in Manifest. Work is done when the [gate](glossary.md#gate-ci) covers it and the
 history records the commit that did it.
 
-Two tracks are planned apart from the backlog and scheduled on their own:
-[dense geometry and ray tracing](#a-separate-track-dense-geometry-and-ray-tracing), J36 to J50, and
-[characters](#a-separate-track-characters), J51 to J60.
+Three tracks are planned apart from the backlog and scheduled on their own:
+[dense geometry and ray tracing](#a-separate-track-dense-geometry-and-ray-tracing), J36 to J50,
+[characters](#a-separate-track-characters), J51 to J60, and [the art standards'
+support](#a-separate-track-the-art-standards-support), J64 to J67.
 
 The backlog's order is the order of its list, not of its IDs. An ID is given once, when an item is
 added, and kept: an item added later takes the next number (J30 onwards) wherever its tier places
@@ -146,11 +147,11 @@ installs it, and writes a report with its backtrace, named by a symboliser when 
 ### J12. A glTF model's collision mesh
 
 **What remains.** A model's collision shape baked into a file of its own beside the model: the
-model's own collision mesh where its author made one, or else convex hulls simplified from the drawn
-mesh. The file is world content, kept in the server's pack, which holds no models, and read by
-physics as it is, so the client and the server collide with the same bytes. The cook
-([J37](#j37)) bakes it once it exists; until then a small tool does, so this waits on none of the
-dense-geometry track.
+model's own collision mesh where its author made one (its `collision-` nodes, [J66](#j66)), or else
+convex hulls simplified from the drawn mesh. The file is world content, kept in the server's pack,
+which holds no models, and read by physics as it is, so the client and the server collide with the
+same bytes. The cook ([J37](#j37)) bakes it once it exists; until then a small tool does, so this
+waits on none of the dense-geometry track.
 
 **Why.** A vehicle drawn from a model collides as the box of its definition's size. Physics is the
 server's, and the server reads no model, so the shape cannot be read from the glTF at run time
@@ -443,7 +444,6 @@ Until then RmlUi's defaults draw nothing for them, and no screen uses them.
 | Programs that hot-reload | Shaders reloaded as they change. |
 | Cube maps and texture arrays in files | |
 | Normal mapping in `mesh` | Waits for tangent-space vertex data, which `math/Tangents.h` makes. A planet builds its frame from the sphere and does not need it. |
-| A glTF model's own metallic-roughness factors and textures | |
 | A model file read once | Today it is read twice, for its rig and for its geometry. |
 | An emissive scale per draw | A mesh's own, or a material parameter set per draw, so a glow can change smoothly without a model per colour. The renderer keeps one procedural model per shape and colour (`render/src/vulkan/ModelCache.h`). |
 | Air over a mesh | The haze is the planet's own surface's and the sky's, not that of a mesh within the air, nor of a transparent draw. Two bodies' air and rings are not sorted where they overlap on the screen. |
@@ -534,3 +534,101 @@ none of it is started. Its design, decisions, risks and each stage's exit criter
 | <a id="j60"></a>J60. Two-bone IK and look-at, later | Feet on steps, hands on controls, heads and eyes that follow a target. | J53, J56 | — |
 
 **Feature doc:** [characters](characters.md).
+
+## A separate track: the art standards' support
+
+What Jettison builds so Manifest's assets can follow its [art
+standards](../../manifest/docs/art-standards.md), which Manifest defines and the engine's test
+content follows too (decided 2026-11-27). Each stands on the cook, [J37](#j37), and is scheduled
+with the dense-geometry track until the user places it; none is started.
+
+<a id="j64"></a>
+### J64. Texture coordinate sets by role, fetched by vertex pulling
+
+**What remains.** The shaders fetch vertex attributes from per-mesh streams by buffer address
+(vertex pulling), not through a fixed vertex layout: one stream a texture-coordinate set, up to
+eight a mesh, each quantised by the cook to 16 bits over its own range. An asset's cook settings
+name its sets by role in their order (`uvSets: [unique, trim, decal]`), and a material's texture
+slot names the role it reads (`uv: trim`, `unique` when unset). The material cache resolves roles to
+set indices when a material binds to a mesh, so a shader fetches only the sets its slots read. The
+cook refuses a mesh with more than one set and no `uvSets`, a mesh with more than eight sets, and a
+material reading a role its mesh lacks, each error naming the files. Vertex colour sets (`COLOR_n`,
+`colorSets`) go the same way. The indexed path, the mesh shaders ([J40](#j40)), the deform pass
+([J51](#j51)) and ray-traced hit shading ([J47](#j47)) read the same streams.
+
+**Why.** Some of Manifest's assets need six sets, and a library material is shared by assets whose
+sets differ in number and order ([texture coordinate
+sets](../../manifest/docs/art-standards.md#texture-coordinate-sets)). A fixed vertex holding eight
+sets pays them on every vertex, in memory the meshlets, ray-tracing levels and deformed instances
+all hold; a shader variant per count of sets multiplies the pipelines and splits a shared material
+in two. Mesh shaders and hit shading pull vertices by address anyway, so one path serves all three
+([decisions](decisions.md#rendering)). Eight is a material's slot count: a ninth set could never be
+read.
+
+**What exists.** `Render::Vertex` has one `texCoord` and one `color`
+(`source/engine/render/include/jettison/render/Mesh.h`), bound as fixed attributes
+(`render/src/vulkan/Model.cpp`); the glTF loader reads `TEXCOORD_0` alone
+(`render/src/vulkan/ModelGltf.cpp`). Triplanar programs need no set.
+
+**Feature doc:** [rendering](rendering.md#models-and-textures).
+
+<a id="j65"></a>
+### J65. The material library
+
+**What remains.** A glTF material's name binds the library material of that name: the cook finds
+`<name>.material.yaml` under `materials/`, refuses a name found twice or not at all (naming the
+model and the name), and writes the material's virtual path into the cooked GLB's material extras,
+which the model loader reads. A mesh component's `material` still overrides it. The glTF's own
+material values are not read. An uncooked GLB keeps today's behaviour, its base-colour image
+through `mesh`, with a warning naming the cook.
+
+**Why.** A shared material, a trim sheet's, is changed in one file for every asset that uses it,
+and a model's look is data a mod can shadow ([decisions](decisions.md#rendering)). It takes
+[J27](#j27)'s row for a glTF model's own factors and textures, which the library replaces.
+
+**What exists.** `MeshComponent` names a material file; a model without one draws its own
+base-colour texture through `mesh` ([materials and programs](rendering.md#materials-and-programs)).
+
+**Feature doc:** [rendering](rendering.md#materials-and-programs).
+
+<a id="j66"></a>
+### J66. The cook reads the standard's names
+
+**What remains.**
+
+- **Map words.** A texture's colour space from its map word (`color` and `emissive` sRGB, the rest
+  linear), not from a `.linear.png` name; a map word the standard lacks is refused, naming the file.
+  16-bit PNG sources for `normal` and `height`.
+- **`orm`.** The `orm` slot's red channel read as occlusion in `mesh`, beneath ray-traced and
+  screen-space occlusion (the slot was renamed from `metallicRoughness` on 2026-11-27). A `mask`
+  slot for programs that take one.
+- **Material extensions.** A glTF source using a material extension is refused, naming it.
+- **Role nodes.** `collision-` nodes kept out of the drawn mesh and handed to [J12](#j12)'s
+  collision file; `socket-` nodes kept in the cooked GLB, their transforms found by name on the
+  model.
+
+**Why.** The [art standards](../../manifest/docs/art-standards.md#names) name maps and nodes by
+role, so the source tree carries no engine-specific suffixes and the cook checks what an artist
+could get wrong.
+
+**What exists.** The [content-file rule](coding-standards.md#content-files)'s map words; the
+development PNG loader's `.linear.png` ([models and textures](rendering.md#models-and-textures)).
+
+**Feature doc:** [rendering](rendering.md#models-and-textures).
+
+<a id="j67"></a>
+### J67. The test content in the standard's layout
+
+**What remains.** `source/test/content` laid out and named as the [art
+standards](../../manifest/docs/art-standards.md#files) have it: materials in class folders
+(`materials/<class>/<name>.material.yaml`), maps by the standard's words. The [content-file
+rule](coding-standards.md#content-files) becomes a pointer to the art standards, keeping the
+engine's exceptions (shader programs, fonts). Needs [J66](#j66) for `orm`.
+
+**Why.** One standard serves Manifest and the engine's own consumers, so the test content is the
+standard's first example.
+
+**What exists.** The test content's eleven materials, flat under `materials/`, and its textures
+under `textures/<kind>/<asset>/`.
+
+**Feature doc:** [samples and test consumers](sample-game.md).

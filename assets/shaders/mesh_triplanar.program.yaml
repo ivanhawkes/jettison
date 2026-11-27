@@ -17,5 +17,5 @@ textures:
     fallback: White
   - name: emissive
     fallback: White
-  - name: metallicRoughness
+  - name: orm
     fallback: White

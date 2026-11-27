@@ -9,8 +9,8 @@ parameters:
   # rgb: colour, a: intensity in the HDR target's linear units.
   - name: emissive
     default: [0, 0, 0, 0]
-  # x: metallic, y: perceptual roughness, each 0 to 1 and multiplied by the metallicRoughness
-  # texture's blue and green channels, as glTF packs them.
+  # x: metallic, y: perceptual roughness, each 0 to 1 and multiplied by the orm texture's
+  # blue and green channels, as glTF packs them.
   - name: metallicRoughness
     default: [0, 0.6, 0, 0]
 textures:
@@ -18,5 +18,6 @@ textures:
     fallback: White
   - name: emissive
     fallback: White
-  - name: metallicRoughness
+  # Occlusion, roughness and metallic in red, green and blue, glTF's packing; red is not read yet.
+  - name: orm
     fallback: White
