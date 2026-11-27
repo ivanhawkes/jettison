@@ -1,5 +1,6 @@
 #include <jettison/host/Package.h>
 #include <jettison/host/Session.h>
+#include <jettison/host/WorldContent.h>
 
 #include <doctest/doctest.h>
 
@@ -535,6 +536,58 @@ TEST_CASE("Host: a server pack holds a package's description and world, and none
 	// One with no description packs its world alone.
 	scratch.Put("plain/defs/crops/wheat.yaml", "version: 1\ndisplayName: Wheat\nyield: 7\n");
 	CHECK(Host::WriteServerPack(scratch.Path("plain"), scratch.Path("plain.pack")).files == 1);
+}
+
+
+TEST_CASE("Host: a client's world content is checked against its server's, naming what differs")
+{
+	const Scratch scratch;
+	PutContent(scratch);
+	scratch.Put("engine/textures/white.png", "white");
+	scratch.Put("rain/mod.yaml", "version: 1\nrelease: 2.0.0\n");
+	scratch.Put("rain/scripts/rain.wasm", "rain");
+	scratch.Put("paint/mod.yaml", "version: 1\nside: client\n");
+	scratch.Put("paint/textures/barn.png", "red");
+	scratch.Put("old-rain/mod.yaml", "version: 1\nrelease: 1.0.0\n");
+	scratch.Put("old-rain/scripts/rain.wasm", "rain");
+	scratch.Put("odd-rain/mod.yaml", "version: 1\nrelease: 2.0.0\n");
+	scratch.Put("odd-rain/scripts/rain.wasm", "drizzle");
+	scratch.Put("hail/defs/crops/hail.yaml", "version: 1\n");
+	const auto contentOf = [&](std::vector<std::pair<std::string, std::string>> sources)
+	{
+		Vfs::FileSystem files;
+		for (const auto &[mount, source] : sources)
+			files.AddMount({mount, scratch.Path(source)});
+		return Host::DescribeWorldContent(files);
+	};
+
+	// Packages of presentation alone, the client's own and the engine's assets, are not the world's.
+	const Host::WorldContent served = contentOf({{"farm", "content"}, {"rain", "rain"}});
+	const Host::WorldContent held =
+	    contentOf({{"engine", "engine"}, {"farm", "content"}, {"rain", "rain"}, {"paint", "paint"}});
+	REQUIRE(served.packages.size() == 2);
+	CHECK(served.packages[0].mount == "farm");
+	CHECK(served.packages[0].release == "1.2.0");
+	CHECK(served.packages[1].release == "2.0.0");
+	CHECK(held == served);
+	CHECK(Host::ContentDifference(held, served) == std::nullopt);
+	CHECK(Host::DecodeWorldContent(Host::EncodeWorldContent(served)) == served);
+	CHECK_THROWS(Host::DecodeWorldContent(std::vector<std::byte>(4, std::byte{0x7f})));
+
+	const auto differs = [&](const Host::WorldContent &client, std::string_view says)
+	{
+		const std::optional<std::string> difference = Host::ContentDifference(client, served);
+		REQUIRE(difference.has_value());
+		CAPTURE(*difference);
+		CHECK(difference->find(says) != std::string::npos);
+	};
+	differs(contentOf({{"farm", "content"}}), "The server runs on 'rain' 2.0.0, which this client");
+	differs(contentOf({{"farm", "content"}, {"rain", "old-rain"}}), "holds 'rain' 1.0.0, and the server");
+	differs(contentOf({{"farm", "content"}, {"rain", "odd-rain"}}), "'rain' 2.0.0 is not the server's");
+	differs(
+	    contentOf({{"farm", "content"}, {"rain", "rain"}, {"hail", "hail"}}),
+	    "holds 'hail', which changes the world");
+	differs(contentOf({{"rain", "rain"}, {"farm", "content"}}), "in another order");
 }
 
 

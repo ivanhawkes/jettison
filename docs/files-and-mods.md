@@ -132,6 +132,19 @@ one that does is refused: left out as a mod, a start-up failure as content. A se
 (`Host::Options::server`) leaves the client's packages out, logged, before its content phase checks the
 rest, so a world package that requires a cosmetic one fails there.
 
+### The server's world content
+
+A client must run on the definitions its server plays by. `Host::DescribeWorldContent` lists the
+packages a file system's world comes from, in mount order: each package holding world content, by
+its mount name, its release and a digest of its world files' paths and bytes. A package of
+presentation alone (the engine's assets, a client's cosmetic mod) is not listed, so it need not
+match. A server's game sends the list, `Host::EncodeWorldContent`'s bytes, in its own welcome to a
+client it admits; the client compares it with its own, and `Host::ContentDifference` names the first
+package that differs (one the server runs on and the client lacks, another release, other world
+files, one only the client holds, or another order), which the client shows rather than a world it
+cannot read. The engine's handshake does not carry it: what a welcome holds is the game's
+([networking](networking.md#the-handshake)).
+
 ### The player's mod list
 
 A mod is a directory or a `.pack` file in the mods directory. Its identifier is the directory's
@@ -480,7 +493,6 @@ manager.Release(handle);
 - The file system reads a file whole; there is no streaming read for long audio:
   [J21](roadmap.md#j21).
 - A scene's models are not prefetched before it is shown: [J13](roadmap.md#j13).
-- No check that a client holds the server's content: [J63](roadmap.md#j63).
 
 ## Decisions
 
@@ -494,7 +506,7 @@ is in [history](history.md).
 | `vfs` | `source/engine/vfs/include/jettison/vfs/FileSystem.h`, `Mount.h`, `Pack.h` |
 | `resource` | `source/engine/resource/include/jettison/resource/ResourceManager.h`, `ResourceHandle.h` |
 | `app` (the shell's mounts) | `source/engine/app/include/jettison/app/Mounts.h` |
-| `host` (package descriptions) | `source/engine/host/include/jettison/host/Package.h` |
+| `host` (package descriptions, the world content) | `source/engine/host/include/jettison/host/Package.h`, `WorldContent.h` |
 | `sim` (definitions) | `source/engine/sim/include/jettison/sim/DefinitionRegistry.h` |
 | `serialise` (the merge) | `source/engine/serialise/include/jettison/serialise/Archive.h` (`YamlArchive::ReadLayered`) |
 | The packer | `source/tools/pack/main.cpp`; `jettison_add_assets`, `jettison_use_content` and `jettison_add_pack` in `source/CMakeLists.txt` |

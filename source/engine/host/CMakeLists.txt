@@ -10,9 +10,11 @@ jettison_add_module(host
 	HEADERS
 		include/jettison/host/Package.h
 		include/jettison/host/Session.h
+		include/jettison/host/WorldContent.h
 	SOURCES
 		src/Package.cpp
 		src/Session.cpp
+		src/WorldContent.cpp
 	TESTS
 		tests/HostTests.cpp
 )

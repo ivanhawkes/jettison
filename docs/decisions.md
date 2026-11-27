@@ -268,7 +268,7 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   needs the world's definitions to show and pre-check what it sends. The packer makes a server pack
   without the presentation directories; a mod whose `mod.yaml` says `side: client` is cosmetic,
   which a server ignores and players need not match; and a client checks on connecting that it holds
-  the server's world content ([J63](roadmap.md#j63)). [Files, packs and mods](files-and-mods.md)
+  the server's world content ([files, packs and mods](files-and-mods.md#the-servers-world-content)). [Files, packs and mods](files-and-mods.md)
 
 ## Scripts
 

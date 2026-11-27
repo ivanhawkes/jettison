@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-27 | The server's pack, client-side mods and the content check, J63: `side: client` packages a server leaves out, `Host::WriteServerPack` (the packer's `--server`) for a dedicated server's bundle, and `Host::WorldContent`, which a client checks against its server's, naming the package that differs ([files, packs and mods](files-and-mods.md#the-servers-world-content)) |
 | 2026-11-27 | A durable write that refuses to replace a file, J32: `WriteNewFileDurably` decides it in the rename itself (`renameat2`, `RENAME_NOREPLACE`) and throws `FileExistsError` naming the path ([persistence](persistence.md#a-write-that-refuses-to-replace)) |
 | 2026-11-27 | A lock's holder named, J34: `FileLock` writes its process ID and program name into its file, and `FileLock::HolderOf` reads them for a refused caller's message ([persistence](persistence.md#a-locks-holder)) |
 | 2026-11-27 | Comments better as names, J17: `kFullTurn` is `glm::two_pi<float>()` and `kBelowOne` is `kLargestBelowOne` ([after phase 13](history/after-phase-13.md#the-comment-review)) |

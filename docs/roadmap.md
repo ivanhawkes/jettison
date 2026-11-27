@@ -40,10 +40,11 @@ overlap queries and all-hit casts of J07, steering, J08, the way in to a berth, 
 log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
 
-Two deliveries are placed (the user's, 2026-11-27), each in its own lane: the server's pack, client-side mods
-and the content handshake, [J63](#j63), in lane B, for Manifest's graphical client on a server
-([its L15a](../../manifest/docs/delivery-order.md#l15a)); and in lane C the device's capabilities,
-[J36](#j36), then bindless textures, [J68](#j68), from the dense-geometry track.
+Two deliveries were placed (the user's, 2026-11-27), each in its own lane. The server's pack,
+client-side mods and the content check, J63, are done ([history](history.md)), for Manifest's
+graphical client on a server ([its L15a](../../manifest/docs/delivery-order.md#l15a)). In lane C: the
+device's capabilities, [J36](#j36), then bindless textures, [J68](#j68), from the dense-geometry
+track.
 
 ## Waiting on you
 
@@ -86,24 +87,6 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs o
 8192, `maxBodyPairs` 32768 and `maxContactConstraints` 16384 (`PhysicsWorld.h`).
 
 **Feature doc:** [physics](physics.md).
-
-<a id="j63"></a>
-### J63. The server's pack, client-side mods and the content handshake
-
-**What remains.** The split the user settled (2026-11-27, [decisions](decisions.md#files-packs-and-mods)):
-
-- On connecting, the server sends its packages and a hash of its world content, and a client that
-  holds other content says which package differs rather than show a world it cannot read.
-
-**Why.** A server needs no models, textures or sounds, and a client must draw with the definitions
-the server plays by. Wanted with Manifest's graphical client playing on a server ([its
-L15](../../manifest/docs/delivery-order.md#l15)).
-
-**What exists.** Packages and `mod.yaml` (`Host::PackageDescription`), the packer
-(`source/tools/pack/main.cpp`), and the content directories by kind
-([files, packs and mods](files-and-mods.md)).
-
-**Feature doc:** [files, packs and mods](files-and-mods.md).
 
 <a id="j62"></a>
 ### J62. Mods' scripts run in the session

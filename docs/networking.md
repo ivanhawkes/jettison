@@ -128,7 +128,8 @@ on another connection does not open. The server checks, in this order:
 Each refusal closes the connection with its reason, which ENet's disconnect carries, so the client
 reads it in its `Closed` event. A refusal raises no `ServerEvent`: the
 game only hears of sessions it admitted. Admission sends the welcome, and only then does either end
-accept a game's message.
+accept a game's message. A game checks that a client runs on the server's world content with its own
+first message, as [files, packs and mods](files-and-mods.md#the-servers-world-content) sets out.
 
 ### The wire
 
