@@ -194,7 +194,13 @@ moment it is made, under the process's umask.
 `Core::FileLock` (`core/FileLock.h`) holds a directory to one writing process: a file locked with
 the kernel's `flock`, so the lock ends with its process and a crash leaves nothing stale. It is
 advisory, refusing only another `TryAcquire`, the same process's included.
-Manifest's server takes one before it writes a world ([Manifest's
+
+<a id="a-locks-holder"></a>
+Once it holds the lock it writes who does into the file, `<process ID> <program name>`, over what a
+crashed holder left, so a refused caller can say by whom: `FileLock::HolderOf(path)` reads the file's
+first line (at most `kHolderLimit` bytes) for the message. The kernel's lock alone decides who holds
+it. What the file says is never trusted: after a crash it still names the dead holder, until the next
+one writes its own, and a file that does not read gives an empty string. Manifest's server takes one before it writes a world ([Manifest's
 saves](../../manifest/docs/persistence.md)).
 
 Saves reach these writes through `Vfs::FileSystem::Write` (the writable mount, the user's data
@@ -423,6 +429,7 @@ From `source/engine/core/tests/FileTests.cpp`:
 std::optional<FileLock> held = FileLock::TryAcquire(path);
 REQUIRE(held);
 CHECK_FALSE(FileLock::TryAcquire(path)); // refused while held, even in the same process
+CHECK(FileLock::HolderOf(path) == "1234 manifest-server"); // for the message: process ID, program
 ```
 
 ## Limits and open work
@@ -431,8 +438,7 @@ CHECK_FALSE(FileLock::TryAcquire(path)); // refused while held, even in the same
 - **A save holds no definitions**, only their names. A definition's format can change without a
   save's, but a save loaded with other content reads whatever the definitions now say.
 - **Not provisioned, as nothing has asked:** a write that refuses to replace an existing file
-  ([J32](roadmap.md#j32)), fault injection under the system calls ([J33](roadmap.md#j33)), and a
-  lock's holder named in its file ([J34](roadmap.md#j34)).
+  ([J32](roadmap.md#j32)) and fault injection under the system calls ([J33](roadmap.md#j33)).
 - **`FileLock` is for a local file system.** Over NFS, Linux emulates `flock` with a lock that does
   not refuse its own process.
 

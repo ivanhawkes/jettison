@@ -7,7 +7,9 @@
 #include <cerrno>
 #include <cstring>
 #include <format>
+#include <fstream>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace Jettison::Core
@@ -19,12 +21,32 @@ std::optional<FileLock> FileLock::TryAcquire(const std::filesystem::path &path)
 	if (lock.m_descriptor < 0)
 		throw std::runtime_error{
 		    std::format("{} could not be opened to lock: {}", path.string(), std::strerror(errno))};
-	if (::flock(lock.m_descriptor, LOCK_EX | LOCK_NB) == 0)
-		return lock;
-	if (errno == EWOULDBLOCK)
-		return std::nullopt;
-	throw std::runtime_error{
-	    std::format("{} could not be locked: {}", path.string(), std::strerror(errno))};
+	if (::flock(lock.m_descriptor, LOCK_EX | LOCK_NB) != 0)
+	{
+		if (errno == EWOULDBLOCK)
+			return std::nullopt;
+		throw std::runtime_error{
+		    std::format("{} could not be locked: {}", path.string(), std::strerror(errno))};
+	}
+
+	// Written over before it is cut to length, so that a reader never finds the file empty.
+	const std::string holder = std::format("{} {}\n", ::getpid(), program_invocation_short_name);
+	const ::ssize_t written = ::pwrite(lock.m_descriptor, holder.data(), holder.size(), 0);
+	if (written != static_cast<::ssize_t>(holder.size()) ||
+	    ::ftruncate(lock.m_descriptor, static_cast<::off_t>(holder.size())) != 0)
+		throw std::runtime_error{std::format(
+		    "{} could not be written with its holder: {}", path.string(), std::strerror(errno))};
+	return lock;
+}
+
+
+std::string FileLock::HolderOf(const std::filesystem::path &path)
+{
+	std::ifstream file{path, std::ios::binary};
+	std::string holder(kHolderLimit, '\0');
+	file.read(holder.data(), static_cast<std::streamsize>(holder.size()));
+	holder.resize(static_cast<std::size_t>(file.gcount()));
+	return holder.substr(0, holder.find('\n'));
 }
 
 

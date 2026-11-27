@@ -304,23 +304,6 @@ directory (`source/engine/core/tests/FileTests.cpp`). Nothing has asked for it y
 
 **Feature doc:** [persistence](persistence.md).
 
-<a id="j34"></a>
-### J34. A lock's holder named
-
-**What remains.** `FileLock` writing who holds it (the process's ID and program name) into its
-file, and a refused `TryAcquire` naming that holder, so "the world is already open" says by
-whom. The kernel's lock still decides who holds it: a name left by a crash is read, never trusted.
-
-**Why.** A refused `TryAcquire` returns nothing but `nullopt`, and the file holds nothing, so a
-player or an operator told a directory is in use cannot tell which process to stop. Nothing has
-asked for it yet.
-
-**What exists.** `Core::FileLock` on the kernel's `flock`, freed with the process however it
-ends (`source/engine/core/include/jettison/core/FileLock.h`), tested against a second process and a
-killed holder.
-
-**Feature doc:** [persistence](persistence.md).
-
 <a id="j61"></a>
 ### J61. Flown in under a low cover from any side
 

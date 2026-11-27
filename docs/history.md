@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-27 | A lock's holder named, J34: `FileLock` writes its process ID and program name into its file, and `FileLock::HolderOf` reads them for a refused caller's message ([persistence](persistence.md#a-locks-holder)) |
 | 2026-11-27 | Comments better as names, J17: `kFullTurn` is `glm::two_pi<float>()` and `kBelowOne` is `kLargestBelowOne` ([after phase 13](history/after-phase-13.md#the-comment-review)) |
 | 2026-11-27 | The player's language from the locale at the first start, J15's bullet, and the ground sample's ground named, J29's ([UI](ui.md#the-language), [samples](sample-game.md#the-hooks-it-uses)) |
 | 2026-11-27 | The shell started through a session, J30: a game's world composed once, as a `Host::Game`, and started by its server, its tests and its client alike ([neutral SDK](history/neutral-sdk.md#j30-shell-session)) |

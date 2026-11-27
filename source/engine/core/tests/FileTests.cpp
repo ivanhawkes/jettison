@@ -8,6 +8,7 @@
 
 #include <array>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
@@ -171,6 +172,19 @@ TEST_CASE("FileLock: one holder at a time in a process, and the next once it let
 }
 
 
+TEST_CASE("FileLock: a lock file that does not read, or says too much, gives what it can")
+{
+	const std::filesystem::path directory = Scratch();
+	std::filesystem::create_directories(directory);
+	CHECK(FileLock::HolderOf(directory / "missing").empty());
+	std::ofstream{directory / "long"} << std::string(kHolderLimit * 2, 'x') << "\nsecond line\n";
+	CHECK(FileLock::HolderOf(directory / "long") == std::string(kHolderLimit, 'x'));
+	std::ofstream{directory / "short"} << "7 left\nsecond line\n";
+	CHECK(FileLock::HolderOf(directory / "short") == "7 left");
+	std::filesystem::remove_all(directory);
+}
+
+
 TEST_CASE("FileLock: another process is refused, and a killed holder's lock is free")
 {
 	const std::filesystem::path directory = Scratch();
@@ -193,10 +207,22 @@ TEST_CASE("FileLock: another process is refused, and a killed holder's lock is f
 	CHECK(answer == 'y');
 	CHECK_FALSE(FileLock::TryAcquire(path));
 
-	// No destructor runs in a killed process: the kernel lets go of the lock.
+	// The refused caller reads the holder's ID and program name, here the same program's.
+	const std::string described = std::format("{} {}", holder, program_invocation_short_name);
+	CHECK(FileLock::HolderOf(path) == described);
+
+	// No destructor runs in a killed process: the kernel lets go of the lock, and the file still says
+	// who held it until the next holder writes its own over it.
 	REQUIRE(::kill(holder, SIGKILL) == 0);
 	REQUIRE(::waitpid(holder, nullptr, 0) == holder);
-	CHECK(FileLock::TryAcquire(path));
+	CHECK(FileLock::HolderOf(path) == described);
+	{
+		const std::optional<FileLock> next = FileLock::TryAcquire(path);
+		REQUIRE(next);
+		CHECK(
+		    FileLock::HolderOf(path) ==
+		    std::format("{} {}", ::getpid(), program_invocation_short_name));
+	}
 	::close(ready[0]);
 	::close(ready[1]);
 	std::filesystem::remove_all(directory);
