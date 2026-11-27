@@ -222,10 +222,10 @@ std::string FixtureFont()
 	    {
 		    w.U16(0), w.U16(1), w.U16(3), w.U16(1), w.U32(12); // one subtable, Windows Unicode
 		    w.U16(4), w.U16(32), w.U16(0), w.U16(4), w.U16(4), w.U16(1), w.U16(0); // format 4, 2 runs
-		    w.U16(kDay), w.U16(0xffff), w.U16(0);                                    // ends, pad
-		    w.U16(kDay), w.U16(0xffff);                                              // starts
-		    w.U16(negative(1 - static_cast<int>(kDay))), w.U16(1);                   // deltas: glyph 1
-		    w.U16(0), w.U16(0);                                                      // range offsets
+		    w.U16(kDay), w.U16(0xffff), w.U16(0);                                  // ends, pad
+		    w.U16(kDay), w.U16(0xffff);                                            // starts
+		    w.U16(negative(1 - static_cast<int>(kDay))), w.U16(1);                 // deltas: glyph 1
+		    w.U16(0), w.U16(0);                                                    // range offsets
 	    });
 	table(
 	    "glyf",
