@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -106,6 +107,23 @@ class StringTable
 	// numbers.thousands: 1,250,000 in English, 1.250.000 in German. What a document's
 	// {{value | thousands}} shows.
 	std::string Number(std::int64_t value) const;
+
+	// A number with a fraction as the language writes it, rounded to the digits asked for after the
+	// table's numbers.decimal, its whole part grouped as Number's: 1,250.50 in English, 1.250,50 in
+	// German. What a document's {{value | decimal(2)}} shows. The digits are std::format's, so a
+	// machine's locale never changes them.
+	std::string Decimal(double value, unsigned digits) const;
+
+	// A date as the table's numbers.date writes it, the year {0}, the month {1} and the day {2}:
+	// 11/27/2026 in English, 27.11.2026 in German. What {{days | date}} shows, for a count of days
+	// since 1970-01-01. A table with no numbers.date writes 2026-11-27.
+	std::string Date(std::chrono::year_month_day date) const;
+
+	// A time of day as the table's numbers.time writes it: the hour {0} on the clock numbers.clock
+	// counts, "12" or "24", the minute {1}, and on a 12-hour clock numbers.am or numbers.pm {2}:
+	// 3:05 PM in English, 15:05 in German. What {{minutes | time}} shows, for minutes since
+	// midnight; a time past a day is taken within its day. A table with no numbers.time writes 15:05.
+	std::string Time(std::chrono::minutes timeOfDay) const;
 
 	// Each [[key]] in the text replaced with the key's text, as RmlUi asks of a document's text;
 	// returns how many were.

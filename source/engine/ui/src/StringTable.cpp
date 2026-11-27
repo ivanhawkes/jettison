@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -19,6 +20,16 @@ constexpr Core::Category kStrings{"strings"};
 constexpr int kFormatVersion = 1;
 constexpr std::string_view kExtension = ".yaml";
 constexpr std::array<std::string_view, 6> kCategories{"zero", "one", "two", "few", "many", "other"};
+
+// The forms a table with no numbers.* keys reads in: English's separators, ISO 8601's date and time.
+constexpr std::string_view kThousands = ",";
+constexpr std::string_view kDecimal = ".";
+constexpr std::string_view kIsoDate = "{0}-{1:02}-{2:02}";
+constexpr std::string_view kIsoTime = "{0:02}:{1:02}";
+constexpr std::string_view kTwelveHourClock = "12";
+
+// Digits grouped in threes, the thousands; the lakh's grouping of Indian languages is not read.
+constexpr std::ptrdiff_t kGroupDigits = 3;
 
 
 // The first Count arguments, as std::vformat takes them: the store make_format_args returns refers
@@ -102,6 +113,16 @@ std::optional<References> FindReferences(std::string_view text)
 		}
 	}
 	return references;
+}
+
+
+// The digits of a whole number with the separator between each group of them, from the right.
+std::string Grouped(std::string digits, std::string_view separator)
+{
+	const auto size = static_cast<std::ptrdiff_t>(digits.size());
+	for (std::ptrdiff_t at = size - kGroupDigits; at > 0; at -= kGroupDigits)
+		digits.insert(static_cast<std::size_t>(at), separator);
+	return digits;
 }
 
 
@@ -438,13 +459,52 @@ std::string StringTable::FormatSpan(
 
 std::string StringTable::Number(std::int64_t value) const
 {
-	const std::string_view separator = Find("numbers.thousands").value_or(",");
 	const std::uint64_t magnitude =
 	    value < 0 ? 0 - static_cast<std::uint64_t>(value) : static_cast<std::uint64_t>(value);
-	std::string digits = std::to_string(magnitude);
-	for (auto at = static_cast<std::ptrdiff_t>(digits.size()) - 3; at > 0; at -= 3)
-		digits.insert(static_cast<std::size_t>(at), separator);
+	const std::string digits =
+	    Grouped(std::to_string(magnitude), Find("numbers.thousands").value_or(kThousands));
 	return value < 0 ? "-" + digits : digits;
+}
+
+
+std::string StringTable::Decimal(double value, unsigned digits) const
+{
+	const std::string text = std::format("{:.{}f}", std::abs(value), digits);
+	const std::size_t point = text.find('.');
+	std::string result =
+	    Grouped(text.substr(0, point), Find("numbers.thousands").value_or(kThousands));
+	if (point != std::string::npos)
+		result.append(Find("numbers.decimal").value_or(kDecimal)).append(text.substr(point + 1));
+
+	// What rounds to nothing is not negative: -0.001 to two digits is 0.00.
+	const bool negative = std::signbit(value) && text.find_first_not_of("0.") != std::string::npos;
+	return negative ? "-" + result : result;
+}
+
+
+std::string StringTable::Date(std::chrono::year_month_day date) const
+{
+	const int year{date.year()};
+	const unsigned month{date.month()};
+	const unsigned day{date.day()};
+	return FormatText(
+	    "numbers.date", Find("numbers.date").value_or(kIsoDate),
+	    std::make_format_args(year, month, day));
+}
+
+
+std::string StringTable::Time(std::chrono::minutes timeOfDay) const
+{
+	const std::chrono::hh_mm_ss clock{timeOfDay - std::chrono::floor<std::chrono::days>(timeOfDay)};
+	const bool twelveHour = Find("numbers.clock") == kTwelveHourClock;
+	const auto hour = (twelveHour ? std::chrono::make12(clock.hours()) : clock.hours()).count();
+	const auto minute = clock.minutes().count();
+	const std::string_view period =
+	    twelveHour ? Find(std::chrono::is_pm(clock.hours()) ? "numbers.pm" : "numbers.am").value_or("")
+	               : "";
+	return FormatText(
+	    "numbers.time", Find("numbers.time").value_or(kIsoTime),
+	    std::make_format_args(hour, minute, period));
 }
 
 

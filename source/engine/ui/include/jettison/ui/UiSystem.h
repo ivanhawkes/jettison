@@ -142,6 +142,11 @@ class UiSystem
 	// read. Empty for an element the document does not have.
 	std::string ElementText(DocumentHandle document, std::string_view id) const;
 
+	// An element's attribute as the document holds it now, a [[key]] in it translated: empty for an
+	// element or an attribute the document does not have.
+	std::string ElementAttribute(
+	    DocumentHandle document, std::string_view id, std::string_view name) const;
+
 	// A click on the element, as the mouse would make one, and false for an element the document does
 	// not have: the smoke sequence presses a screen's buttons with it.
 	bool Click(DocumentHandle document, std::string_view id);

@@ -1,4 +1,9 @@
-# How Japanese writes a number: its thousands grouped by this (StringTable::Number).
+# How Japanese writes a number, a date and a time of day (StringTable::Number, Decimal, Date and
+# Time; their arguments are in en/numbers.yaml).
 version: 1
 numbers:
   thousands: ","
+  decimal: "."
+  date: "{0}/{1:02}/{2:02}"
+  time: "{0}:{1:02}"
+  clock: "24"

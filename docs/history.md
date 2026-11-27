@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-27 | Numbers with fractions, dates and times in the language's form, and attribute text translated, two of J15's bullets: `StringTable::Decimal`, `Date` and `Time` from the tables' `numbers.decimal`, `date`, `time`, `clock`, `am` and `pm` for English, German, French and Japanese, no machine locale read, and documents' `decimal(n)`, `date` and `time` transforms; an attribute holding a `[[key]]` (a placeholder, a title, a value) translated as its element is made. The ui suite checks each form in each language and a document's attributes in two; the reference views and the smoke test unchanged on lavapipe ([UI](ui.md#string-tables)) |
 | 2026-11-27 | A crash report named on the next start, J11's bullet: `Platform::TakeNewCrashReports`, and the shell's warning naming each report written since the start before ([runtime](runtime.md#installing-the-crash-handler)) |
 | 2026-11-27 | <a id="j13"></a>A scene's models asked for as it loads, J13: `IRenderer::PrefetchScene`, and the shell holding the scene behind a full fade until its model files are in, 5 s at most, `Shell::SceneReady` for a game to wait on; the reference views unchanged and the smoke test's reload passing ([rendering](rendering.md#models-and-textures)) |
 | 2026-11-27 | Staged assets that hold what their source does: `jettison_add_assets` removes, as the tree is configured, a staged file gone from its source, which had left a fetching game's build reading tables the engine had deleted |

@@ -167,15 +167,13 @@ once a screen shows large images.
 
 **What remains.**
 
-- Numbers with fractions, and dates and times, in the language's own form; only a whole number's
-  thousands are.
-- Text a document holds in an attribute, which RmlUi does not hand to the string table.
 - Right-to-left and shaped scripts. RmlUi can lay them out with HarfBuzz; the fonts shipped cannot
   draw them.
 - The player's language chosen at the first start from Steam's, once the shell has Steam; the
   environment's locale is read today.
 
-**What exists.** `Ui::StringTable` with `Format` and `Plural`, and plural categories per language
+**What exists.** `Ui::StringTable` with `Format`, `Plural`, `Number`, `Decimal`, `Date` and
+`Time`, plural categories per language, and attribute text translated as element text is
 (`source/engine/ui/include/jettison/ui/StringTable.h`).
 
 **Feature doc:** [UI, input and localisation](ui.md).

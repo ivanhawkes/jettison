@@ -1,4 +1,12 @@
-# How English writes a number: its thousands grouped by this (StringTable::Number).
+# How English writes a number, a date and a time of day (StringTable::Number, Decimal, Date and
+# Time). date formats the year {0}, the month {1} and the day {2}; time the hour {0} on the clock
+# clock counts ("12" or "24"), the minute {1}, and am or pm {2} on a 12-hour clock.
 version: 1
 numbers:
   thousands: ","
+  decimal: "."
+  date: "{1}/{2}/{0}"
+  time: "{0}:{1:02} {2}"
+  clock: "12"
+  am: AM
+  pm: PM

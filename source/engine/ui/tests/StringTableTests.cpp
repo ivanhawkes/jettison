@@ -8,6 +8,7 @@
 
 #include <unistd.h>
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -85,6 +86,9 @@ struct Screen
 {
 	std::string station;
 	std::int64_t used{0};
+	double price{0.0};
+	std::int64_t day{0};
+	std::int64_t minutes{0};
 };
 
 
@@ -94,7 +98,10 @@ void RegisterScreen()
 	{
 		Reflect::RegisterType<Screen>("StringTableTests.Screen")
 		    .Field<&Screen::station>("station")
-		    .Field<&Screen::used>("used");
+		    .Field<&Screen::used>("used")
+		    .Field<&Screen::price>("price")
+		    .Field<&Screen::day>("day")
+		    .Field<&Screen::minutes>("minutes");
 		return true;
 	}();
 	(void)registered;
@@ -307,6 +314,58 @@ TEST_CASE(
 }
 
 
+TEST_CASE("Strings: a fraction, a date and a time in each of the engine's languages, from its tables")
+{
+	using namespace std::chrono;
+	const Scratch scratch{true};
+	struct Expected
+	{
+		const char *language;
+		const char *price;
+		const char *large;
+		const char *date;
+		const char *afternoon;
+		const char *midnight;
+	};
+	for (const Expected &expected : {
+	         Expected{"en", "1,250.50", "-1,234,567.9", "11/27/2026", "3:05 PM", "12:05 AM"},
+	         Expected{"de", "1.250,50", "-1.234.567,9", "27.11.2026", "15:05", "00:05"},
+	         Expected{"fr", "1\u00A0250,50", "-1\u00A0234\u00A0567,9", "27/11/2026", "15:05", "00:05"},
+	         Expected{"ja", "1,250.50", "-1,234,567.9", "2026/11/27", "15:05", "0:05"},
+	     })
+	{
+		CAPTURE(expected.language);
+		StringTable strings;
+		strings.Load(scratch.Files(), expected.language);
+		CHECK(strings.Decimal(1250.5, 2) == expected.price);
+		CHECK(strings.Decimal(-1234567.89, 1) == expected.large);
+		CHECK(strings.Date(2026y / November / 27d) == expected.date);
+		CHECK(strings.Time(15h + 5min) == expected.afternoon);
+		CHECK(strings.Time(5min) == expected.midnight);
+		CHECK(strings.Problems() == 0);
+	}
+}
+
+
+TEST_CASE("Strings: a fraction rounds to the digits asked, and a table with no forms reads ISO's")
+{
+	using namespace std::chrono;
+	const Scratch scratch;
+	scratch.Put("base/strings/en/market.yaml", kEnglish);
+	StringTable strings;
+	strings.Load(scratch.Files(), "en");
+	CHECK(strings.Decimal(0.125, 2) == "0.12");
+	CHECK(strings.Decimal(2.5, 0) == "2");
+	CHECK(strings.Decimal(-0.001, 2) == "0.00");
+	CHECK(strings.Decimal(999.999, 2) == "1,000.00");
+	CHECK(strings.Date(2026y / March / 4d) == "2026-03-04");
+	CHECK(strings.Time(15h + 5min) == "15:05");
+	CHECK(strings.Time(-1min) == "23:59");
+	CHECK(strings.Time(25h) == "01:00");
+	CHECK(strings.Problems() == 0);
+}
+
+
 TEST_CASE("Strings: a text's [[keys]] are replaced, and what is not a key is left")
 {
 	const Scratch scratch;
@@ -335,21 +394,29 @@ TEST_CASE("Ui: a document's keys read in the language set, and again in another,
 	    "version: 1\n"
 	    "test:\n"
 	    "  title: Market\n"
+	    "  name: Your name\n"
+	    "  close: Close the market\n"
 	    "  docked: \"Docked at <span id='at'>{{screen.station}}</span>\"\n");
 	scratch.Put(
 	    "base/strings/de/test.yaml",
 	    "version: 1\n"
 	    "test:\n"
 	    "  title: Markt\n"
+	    "  name: Ihr Name\n"
+	    "  close: Markt schließen\n"
 	    "  docked: \"<span id='at'>{{screen.station}}</span>: angedockt\"\n");
 	scratch.Put(
 	    "base/test.rml", R"rml(<rml><head><style>body { font-family: Droid Sans; }</style></head>
 <body data-model="test"><h1 id="title">[[test.title]]</h1><p id="docked">[[test.docked]]</p>
-<p id="missing">[[test.missing]]</p></body></rml>)rml");
+<p id="missing">[[test.missing]]</p>
+<input id="name" type="text" placeholder="[[test.name]]" value="[[test.title]], [[test.title]]"/>
+<button id="close" title="[[test.close]]" data-attr-tag="'[[test.close]]'">x</button>
+<p id="price">{{screen.price | decimal(2)}}</p><p id="whole">{{screen.price | decimal}}</p>
+<p id="day">{{screen.day | date}}</p><p id="time">{{screen.minutes | time}}</p></body></rml>)rml");
 
 	Ui::UiSystem ui{scratch.Files(), 640, 480};
 	ui.LoadFont("fonts/DroidSans.ttf", true);
-	Screen screen{"Ostra Highport", 3};
+	Screen screen{"Ostra Highport", 3, 1250.5, 20'784, 15 * 60 + 5};
 	ui.CreateDataModel("test").Bind("screen", &screen);
 	ui.SetLanguage("en");
 	const Ui::DocumentHandle document = ui.LoadDocument("test.rml");
@@ -359,6 +426,15 @@ TEST_CASE("Ui: a document's keys read in the language set, and again in another,
 	CHECK(ui.ElementText(document, "at") == "Ostra Highport");
 	CHECK(ui.ElementText(document, "docked").starts_with("Docked at <span"));
 	CHECK(ui.ElementText(document, "missing") == "test.missing");
+	CHECK(ui.ElementAttribute(document, "name", "placeholder") == "Your name");
+	CHECK(ui.ElementAttribute(document, "name", "value") == "Market, Market");
+	CHECK(ui.ElementAttribute(document, "close", "title") == "Close the market");
+	CHECK(ui.ElementAttribute(document, "close", "data-attr-tag") == "'[[test.close]]'");
+	CHECK(ui.ElementAttribute(document, "close", "tag") == "[[test.close]]");
+	CHECK(ui.ElementText(document, "price") == "1,250.50");
+	CHECK(ui.ElementText(document, "whole") == "1,250");
+	CHECK(ui.ElementText(document, "day") == "11/27/2026");
+	CHECK(ui.ElementText(document, "time") == "3:05 PM");
 	CHECK(ui.Problems() == 1);
 
 	ui.SetLanguage("de");
@@ -369,6 +445,11 @@ TEST_CASE("Ui: a document's keys read in the language set, and again in another,
 	CHECK(ui.ElementText(document, "title") == "Markt");
 	CHECK(ui.ElementText(document, "at") == "Ostra Highport");
 	CHECK(ui.ElementText(document, "docked").ends_with("</span>: angedockt"));
+	CHECK(ui.ElementAttribute(document, "name", "placeholder") == "Ihr Name");
+	CHECK(ui.ElementAttribute(document, "close", "title") == "Markt schließen");
+	CHECK(ui.ElementText(document, "price") == "1.250,50");
+	CHECK(ui.ElementText(document, "day") == "27.11.2026");
+	CHECK(ui.ElementText(document, "time") == "15:05");
 	CHECK_THROWS_AS(ui.SetLanguage("not a language"), std::runtime_error);
 	CHECK(ui.Strings().Language() == "de");
 }

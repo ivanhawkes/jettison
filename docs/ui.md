@@ -261,16 +261,39 @@ decide it.
 **In documents.** A document names a key as `[[saves.title]]`. RmlUi hands every text it reads to
 the UI's system interface (`TranslateString`), and the table replaces the keys before RmlUi
 parses the text for markup and data expressions. A translation may therefore move
-`{{screen.used}}` within its sentence or wrap a word in a `<span>`. Text in an element's
-attribute is not handed over ([J15](roadmap.md#j15)).
+`{{screen.used}}` within its sentence or wrap a word in a `<span>`. An attribute that holds a key,
+`placeholder="[[saves.name]]"`, a `title` or a `value`, is handed over the same way as its element
+is made (a plugin's `OnElementCreate`, `Detail::AttributeTranslator`), so it reads in the language
+too and is reread by `SetLanguage`'s reload. A `data-` attribute is an expression, not text, and an
+attribute a data binding sets (`data-attr-title`) is not translated; a binding that wants words
+binds them already translated.
 
 **In code.** The game formats its text with `Format`, which takes `std::format`'s positional
 arguments (`{0}`, `{1:>8}`), so a translation orders them its own way. `Plural` chooses
 `key.one`, `key.few`, `key.other` and the rest by the CLDR's plural rule for a whole number in
-the language, with the count as `{0}`. `Number` writes a whole number with its thousands grouped
-by the table's `numbers.thousands`, and documents get the same as the `thousands` transform
-(`{{value | thousands}}`). `FormatArguments` and `PluralArguments` do the same for arguments
+the language, with the count as `{0}`. `FormatArguments` and `PluralArguments` do the same for arguments
 known only at run time, already in words, up to eight of them.
+
+**Numbers, dates and times.** The table's `numbers.*` keys (`strings/<language>/numbers.yaml`) hold
+the language's forms, so a game's language adds its own; no `std::locale` or C library locale is
+read, so a machine's locale never changes them.
+
+| Call | Document transform | Keys | English | German | French | Japanese |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Number(1250000)` | `{{v \| thousands}}` | `thousands` | 1,250,000 | 1.250.000 | 1 250 000 | 1,250,000 |
+| `Decimal(1250.5, 2)` | `{{v \| decimal(2)}}` | `thousands`, `decimal` | 1,250.50 | 1.250,50 | 1 250,50 | 1,250.50 |
+| `Date(2026y / November / 27d)` | `{{days \| date}}` | `date` | 11/27/2026 | 27.11.2026 | 27/11/2026 | 2026/11/27 |
+| `Time(15h + 5min)` | `{{minutes \| time}}` | `time`, `clock`, `am`, `pm` | 3:05 PM | 15:05 | 15:05 | 15:05 |
+
+French groups by a no-break space. `Decimal` rounds to the digits after the point the caller asks for (`std::format`'s, the same on
+every machine), and a value that rounds to nothing has no minus sign. `numbers.date` formats the
+year `{0}`, the month `{1}` and the day `{2}`; `numbers.time` the hour `{0}` on the clock
+`numbers.clock` counts (`"12"` or `"24"`), the minute `{1}`, and on a 12-hour clock `numbers.am` or
+`numbers.pm` as `{2}`. These are held to the base's text as every translation is, which is why the
+base, English, names all three. A document's `date` takes days since 1970-01-01, its `time` minutes
+since midnight, and `decimal` with no digits asked writes none. A table with none of these keys
+writes English's separators and ISO 8601's `2026-11-27` and `15:05`. Month and weekday names are
+not written.
 
 **Refused translations.** A translation that names an argument or a data expression its base text
 does not, or holds a brace that is neither, is refused as it is read, and the base's text stands.
@@ -490,6 +513,10 @@ the engine ships are the pattern (`assets/strings/de/`):
 version: 1
 numbers:
   thousands: "."
+  decimal: ","
+  date: "{2:02}.{1:02}.{0}"
+  time: "{0:02}:{1:02}"
+  clock: "24"
 ```
 
 To change words, a mod ships the same file path holding only the keys it changes. `language de`
@@ -527,8 +554,8 @@ The theme's `dev.` variables ([the dev tools' theme](#the-dev-tools-theme)) are 
 
 - No stylesheet or document reload, images decoded on the I/O worker or RmlUi's debugger:
   [J14](roadmap.md#j14).
-- Fractions, dates, attribute text, right-to-left and shaped scripts, and a first-start language
-  from the platform: [J15](roadmap.md#j15).
+- Right-to-left and shaped scripts, and a first-start language from the platform:
+  [J15](roadmap.md#j15).
 - RmlUi's clip masks, layers, filters and shaders draw nothing: [J23](roadmap.md#j23).
 - The game UI's stylesheet in the dev tools' palette, the palette as a player setting, and exact
   darks: [J26](roadmap.md#j26).

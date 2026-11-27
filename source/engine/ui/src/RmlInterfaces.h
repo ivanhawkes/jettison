@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RmlUi/Core/FileInterface.h>
+#include <RmlUi/Core/Plugin.h>
 #include <RmlUi/Core/RenderInterface.h>
 #include <RmlUi/Core/SystemInterface.h>
 
@@ -110,6 +111,28 @@ class SystemInterface final : public Rml::SystemInterface
 	StringTable m_strings;
 	std::unordered_set<char32_t> m_covered;
 	std::unordered_set<char32_t> m_uncovered;
+};
+
+// RmlUi hands a document's element text to the system interface, but not its attributes: this hands
+// it each attribute holding a [[key]] as the element is made, a placeholder, a title or a value, so
+// it reads in the language as element text does. A data-* attribute is an expression, not text, and
+// is left as it is.
+class AttributeTranslator final : public Rml::Plugin
+{
+  public:
+	explicit AttributeTranslator(SystemInterface &system) : m_system{system}
+	{
+	}
+
+	int GetEventClasses() override
+	{
+		return EVT_ELEMENT;
+	}
+
+	void OnElementCreate(Rml::Element *element) override;
+
+  private:
+	SystemInterface &m_system;
 };
 
 // RmlUi's drawing, recorded into the overlay: geometry compiled once and kept here, appended to the

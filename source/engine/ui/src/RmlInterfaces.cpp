@@ -1,5 +1,6 @@
 #include "RmlInterfaces.h"
 
+#include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/Log.h>
 #include <RmlUi/Core/StringUtilities.h>
 
@@ -31,6 +32,9 @@ constexpr std::string_view kStylesheetExtension = ".rcss";
 
 // A line between the texts, so a patch is not glued to a last line the file left unterminated.
 constexpr std::byte kStylesheetSeparator{'\n'};
+
+// An attribute RmlUi reads as a data binding's expression (data-if, data-attr-id), never as text.
+constexpr std::string_view kDataAttributePrefix = "data-";
 
 // RmlUi draws no character below the space, so none of them needs a face.
 constexpr char32_t kFirstDrawnCharacter = U' ';
@@ -170,6 +174,25 @@ int SystemInterface::TranslateString(Rml::String &translated, const Rml::String 
 	translated = input.find("[[") == Rml::String::npos ? input : m_strings.Translate(input, replaced);
 	CheckCovered(translated);
 	return replaced;
+}
+
+
+void AttributeTranslator::OnElementCreate(Rml::Element *element)
+{
+	Rml::ElementAttributes translated;
+	for (const auto &[name, value] : element->GetAttributes())
+	{
+		if (name.starts_with(kDataAttributePrefix) || value.GetType() != Rml::Variant::STRING)
+			continue;
+		const auto &text = value.GetReference<Rml::String>();
+		if (text.find("[[") == Rml::String::npos)
+			continue;
+		Rml::String result;
+		if (m_system.TranslateString(result, text) > 0)
+			translated.emplace(name, std::move(result));
+	}
+	if (!translated.empty())
+		element->SetAttributes(translated);
 }
 
 

@@ -3,6 +3,8 @@
 #include <RmlUi/Core/Log.h>
 #include <RmlUi/Core/Variant.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <format>
@@ -311,6 +313,39 @@ void Detail::RegisterTransforms(Rml::DataModelConstructor &constructor, const St
 	    {
 		    return arguments.empty() ? Rml::Variant{}
 		                             : Rml::Variant{strings.Number(arguments[0].Get<std::int64_t>())};
+	    });
+
+	// {{good.price | decimal(2)}}: 1,250.50, with as many digits after the point as it asks, none
+	// when it asks none.
+	constructor.RegisterTransformFunc(
+	    "decimal",
+	    [&strings](const Rml::VariantList &arguments)
+	    {
+		    if (arguments.empty())
+			    return Rml::Variant{};
+		    const int digits = arguments.size() > 1 ? std::max(arguments[1].Get<int>(), 0) : 0;
+		    return Rml::Variant{
+		        strings.Decimal(arguments[0].Get<double>(), static_cast<unsigned>(digits))};
+	    });
+
+	// {{save.day | date}}: days since 1970-01-01, as the language writes the date.
+	constructor.RegisterTransformFunc(
+	    "date",
+	    [&strings](const Rml::VariantList &arguments)
+	    {
+		    return arguments.empty() ? Rml::Variant{}
+		                             : Rml::Variant{strings.Date(std::chrono::sys_days{
+		                                   std::chrono::days{arguments[0].Get<std::int64_t>()}})};
+	    });
+
+	// {{clock.minutes | time}}: minutes since midnight, as the language writes the time of day.
+	constructor.RegisterTransformFunc(
+	    "time",
+	    [&strings](const Rml::VariantList &arguments)
+	    {
+		    return arguments.empty() ? Rml::Variant{}
+		                             : Rml::Variant{strings.Time(
+		                                   std::chrono::minutes{arguments[0].Get<std::int64_t>()})};
 	    });
 }
 

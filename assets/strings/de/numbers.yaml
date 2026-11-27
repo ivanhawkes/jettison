@@ -1,4 +1,9 @@
-# How German writes a number: its thousands grouped by this (StringTable::Number).
+# How German writes a number, a date and a time of day (StringTable::Number, Decimal, Date and
+# Time; their arguments are in en/numbers.yaml).
 version: 1
 numbers:
   thousands: "."
+  decimal: ","
+  date: "{2:02}.{1:02}.{0}"
+  time: "{0:02}:{1:02}"
+  clock: "24"

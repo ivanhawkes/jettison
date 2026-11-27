@@ -71,9 +71,10 @@ class DataModelState
 	std::set<std::string, std::less<>> bound;
 };
 
-// The transforms every document may apply to a value, {{credits | thousands}}, in the string table's
-// language. RmlUi keeps them for every model of the context at once, so they are registered with the
-// first model made; the table outlives them.
+// The transforms every document may apply to a value, {{credits | thousands}}, {{price | decimal(2)}},
+// {{day | date}} and {{minutes | time}}, in the string table's language. RmlUi keeps them for every
+// model of the context at once, so they are registered with the first model made; the table outlives
+// them.
 void RegisterTransforms(Rml::DataModelConstructor &constructor, const StringTable &strings);
 
 struct DocumentSlot
@@ -95,6 +96,7 @@ class UiState
 	Render::Overlay overlay;
 	FileInterface fileInterface;
 	SystemInterface system;
+	AttributeTranslator attributes{system};
 	RenderInterface render;
 	Rml::Context *pContext{nullptr};
 	std::vector<DocumentSlot> documents;

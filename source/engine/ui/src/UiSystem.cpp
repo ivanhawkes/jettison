@@ -124,6 +124,9 @@ UiSystem::UiSystem(const Vfs::FileSystem &files, int width, int height)
 	if (!Rml::Initialise())
 		throw std::runtime_error("UiSystem: RmlUi did not initialise");
 	g_live = true;
+
+	// Rml::Shutdown unregisters it, before the state that holds it goes.
+	Rml::RegisterPlugin(&m_pState->attributes);
 	m_pState->pContext = Rml::CreateContext("main", {width, height});
 	if (!m_pState->pContext)
 	{
@@ -381,6 +384,15 @@ std::string UiSystem::ElementText(DocumentHandle document, std::string_view id) 
 	Rml::ElementDocument *pDocument = m_pState->Find(document);
 	Rml::Element *pElement = pDocument ? pDocument->GetElementById(std::string{id}) : nullptr;
 	return pElement ? pElement->GetInnerRML() : std::string{};
+}
+
+
+std::string UiSystem::ElementAttribute(
+    DocumentHandle document, std::string_view id, std::string_view name) const
+{
+	Rml::ElementDocument *pDocument = m_pState->Find(document);
+	Rml::Element *pElement = pDocument ? pDocument->GetElementById(std::string{id}) : nullptr;
+	return pElement ? pElement->GetAttribute<Rml::String>(std::string{name}, {}) : std::string{};
 }
 
 
