@@ -10,8 +10,8 @@ namespace Jettison::Time
 {
 namespace
 {
-// The largest double below 1.
-constexpr double kBelowOne = 1.0 - std::numeric_limits<double>::epsilon() / 2.0;
+// std::nextafter is constexpr only from C++23.
+constexpr double kLargestBelowOne = 1.0 - std::numeric_limits<double>::epsilon() / 2.0;
 } // namespace
 
 
@@ -47,6 +47,6 @@ double FixedStepAccumulator::Alpha() const
 {
 	// The opposite rounding can leave the remainder a hair at or above one step; it is a step the
 	// next frame hands out, and until then the interpolation stays below 1.
-	return std::min(m_accumulated / m_fixedStep, kBelowOne);
+	return std::min(m_accumulated / m_fixedStep, kLargestBelowOne);
 }
 } // namespace Jettison::Time

@@ -224,21 +224,6 @@ engine lacks. Taken up when the branch is needed, if ever.
 
 **Feature doc:** [rendering](rendering.md).
 
-<a id="j17"></a>
-### J17. Comments better as names
-
-**What remains.** Found by the comment review (2026-11-18):
-
-- `kFullTurn` (`source/engine/animation/src/Playback.cpp`) as `glm::two_pi<float>()`.
-- `kBelowOne` (`source/engine/time/src/FixedStep.cpp`) as `kLargestBelowOne`. `std::nextafter` is
-  constexpr only from C++23, so the constant stays.
-- The trailing comments that `scripts/comment-only.sh` cannot tell from code, so left: the glosses
-  on the console lines' tokens in `source/engine/ui/imgui/src/Theme.cpp`, and the comment
-  `source/engine/render/src/vulkan/imgui/FontFaces.cpp` wraps over three lines.
-
-**Why.** A name that says what a value is needs no comment to explain it ([coding
-standards](coding-standards.md#comments)).
-
 <a id="j18"></a>
 ### J18. A prebuilt SDK
 

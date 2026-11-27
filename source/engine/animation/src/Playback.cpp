@@ -3,13 +3,12 @@
 #include <algorithm>
 #include <cmath>
 
+#include <glm/gtc/constants.hpp>
+
 namespace Jettison::Animation
 {
 namespace
 {
-constexpr float kFullTurn = 6.28318531f;
-
-
 // The events between from and to, each end included or not, in the order met going from one to
 // the other.
 void Cross(
@@ -43,7 +42,8 @@ void Cross(
 
 void AdvanceRotation(RotationAnimationComponent &animation, float frameTime)
 {
-	animation.angle = std::fmod(animation.angle + animation.rotationSpeed * frameTime, kFullTurn);
+	animation.angle =
+	    std::fmod(animation.angle + animation.rotationSpeed * frameTime, glm::two_pi<float>());
 }
 
 

@@ -54,6 +54,10 @@ back. About 9,100 comment lines in 427 C++ files (10% of 89,000), plus the YAML,
   repository sweep for banners, labels and commented-out code, found two restatements, both cut;
   the test holds. `Crash.cpp`'s two markers stay: they bound the signal handler's code.
   What it left for later is carried forward ([roadmap](../roadmap.md#the-backlog)).
+- **J17, done 2026-11-27.** The two comments better as names: `kFullTurn` in `Playback.cpp` is
+  `glm::two_pi<float>()`, and `kBelowOne` in `FixedStep.cpp` is `kLargestBelowOne`, its comment cut
+  to why it is a constant. The trailing comments that `scripts/comment-only.sh` cannot tell from
+  code (`Theme.cpp`, `FontFaces.cpp`) were left, as the row said.
 
 ## Reference frames that hold under load
 
