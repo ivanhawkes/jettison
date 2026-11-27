@@ -43,7 +43,7 @@ a file and the public half in its test builds' client configuration, is Manifest
 Deliveries placed by the user on 2026-11-27, each in its own lane: the server's pack, client-side
 mods and the content check, J63, the device's capabilities, J36, and bindless textures, J68, from
 the dense-geometry track, are done ([history](history.md)). J63 serves Manifest's graphical client
-on a server ([its L15a](../../manifest/docs/delivery-order.md#l15a)).
+on a server ([its graphical client](../../manifest/docs/roadmap.md#the-graphical-client)).
 
 ## Waiting on you
 
