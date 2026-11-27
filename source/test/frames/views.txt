@@ -32,6 +32,9 @@ graded --scene $PWD/source/test/content/scene/orbit.yaml --run grade|cold-light
 # the blend to the first shot (an ease in and out), the clamps rising, and the letterbox's bars as
 # far drawn.
 dock-sequence --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|3.14|0.15|30|ship --run sequence|dock|1
+# The texture table's bench: the sixteen-slot fixture program on a board, each slot in a cell of a four
+# by four grid from the bottom left, seven textures past the eighth slot and four fallbacks among them.
+slots --scene $PWD/source/test/content/scene/slots.yaml
 # The orbit scene with the engine's saves screen shown in German, every word of it from the engine's
 # tables (assets/strings/de): its title, the empty list's line and the footer.
 saves-de --scene $PWD/source/test/content/scene/orbit.yaml --run language|de --run saves|on

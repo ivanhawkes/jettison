@@ -320,7 +320,9 @@ and the material sampler. A texture takes an element when its upload finishes an
 with its image, once no frame in flight can read it, so an element is only written while no
 submission reads it; the fallbacks hold elements 0 to 2, by `TextureFallback`. A draw's material
 is one for all its instances, so a slot's index is uniform across the draw and needs no
-`nonuniformEXT`. A full table fails the texture's load, naming it.
+`nonuniformEXT`. A full table fails the texture's load, naming it. The test content's fixture
+program `slots` reads all sixteen slots, one a cell of a grid, its index non-uniform, and the
+`slots` reference view draws it.
 
 | Program | For |
 | --- | --- |

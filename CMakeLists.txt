@@ -36,17 +36,18 @@ endif()
 # The renderer, UI, audio and the shell on them, with the assets, the editor, the sample and the
 # render harness. OFF is the CPU engine a game's server or tests build: the simulation modules, the
 # host and the packer, configured without Vulkan, glslc, a window system or ImGui. The shader
-# functions below need glslc only when called, which only the assets do.
+# functions below need glslc only when called, which only the assets and the test content do.
 option(JETTISON_PRESENTATION "Build the renderer, UI, audio and the executables on them" ON)
 if(JETTISON_PRESENTATION)
 	find_package(Vulkan REQUIRED COMPONENTS glslc)
 endif()
 
-# Compiles each GLSL source to SPIR-V beside it in the build tree. Every program sees the shared
-# includes in shaders/include (the frame layout, the vertex inputs, the colour helpers), and glslc
-# writes a depfile naming the includes each one read, so editing an include rebuilds the programs
+# Compiles each GLSL source to SPIR-V beside it in the build tree. Every program, the test content's
+# fixtures as the engine's own, sees the shared includes in assets/shaders/include (the frame
+# layout, the vertex inputs, the colour helpers), and glslc writes a depfile naming the includes each one read, so editing an include rebuilds the programs
 # that use it and no others. The depfiles are kept under CMakeFiles, out of the staged assets, which
 # are packed as they are (jettison_add_pack).
+set(JETTISON_SHADER_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/assets/shaders/include")
 function(jettison_compile_shaders target)
 	set(shader_outputs)
 	foreach(shader IN LISTS ARGN)
@@ -58,7 +59,7 @@ function(jettison_compile_shaders target)
 			OUTPUT "${output}"
 			COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}" "${depfile_directory}"
 			COMMAND Vulkan::glslc --target-env=vulkan1.3
-				-I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/include"
+				-I "${JETTISON_SHADER_INCLUDE_DIR}"
 				-MD -MF "${depfile}"
 				"${CMAKE_CURRENT_SOURCE_DIR}/${shader}" -o "${output}"
 			DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${shader}" Vulkan::glslc
@@ -94,7 +95,7 @@ function(jettison_compile_shader_variant target)
 		OUTPUT "${output}"
 		COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}" "${depfile_directory}"
 		COMMAND Vulkan::glslc --target-env=vulkan1.3 -fshader-stage=${stage}
-			-I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/include"
+			-I "${JETTISON_SHADER_INCLUDE_DIR}"
 			${defines}
 			-MD -MF "${depfile}"
 			"${CMAKE_CURRENT_SOURCE_DIR}/${variant_SOURCE}" -o "${output}"

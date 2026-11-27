@@ -347,7 +347,7 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   of those today's 1.3 check accepts, that leaves out Intel's Broadwell on `hasvk`, and NVIDIA's own
   driver is unchecked ([devices](dense-geometry-and-ray-tracing.md#devices)); those limits are
   accepted. Raising the fixed slot count to sixteen, past the per-stage sampler minimum, was
-  rejected. [Roadmap J68](roadmap.md#j68)
+  rejected. [J68](history.md#j68)
 - **Clustered forward rendering** (2026-11-10). Lights are assigned to view-space clusters in
   compute, and every surface is shaded once in its own material program. There is no G-buffer:
   ambient occlusion reads the depth prepass's depth and normals instead. [Rendering](rendering.md)

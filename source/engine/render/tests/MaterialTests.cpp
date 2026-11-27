@@ -192,7 +192,10 @@ TEST_CASE("Material: the shipped materials resolve against the programs they nam
 			continue;
 		CAPTURE(name);
 		const MaterialDefinition material = ReadMaterial(ReadFile(entry.path()), name);
-		const auto programPath = assets / "shaders" / (material.program + ".program.yaml");
+		// The engine's programs, or a fixture of the test content's (the sixteen-slot one).
+		auto programPath = assets / "shaders" / (material.program + ".program.yaml");
+		if (!std::filesystem::is_regular_file(programPath))
+			programPath = content / "shaders" / (material.program + ".program.yaml");
 		REQUIRE(std::filesystem::is_regular_file(programPath));
 		const ProgramDefinition program = ReadProgram(ReadFile(programPath), material.program);
 		const ResolvedMaterial resolved = ResolveMaterial(program, material, name);

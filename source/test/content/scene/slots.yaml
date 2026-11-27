@@ -1,0 +1,23 @@
+# The texture table's test bench: a board drawn with the sixteen-slot fixture
+# (materials/slots.material.yaml), each of its slots in a cell of a four by four grid on the face
+# turned to the camera.
+version: 3
+entities:
+  - id: board
+    transform:
+      scale: [3, 3, 0.05]
+    mesh:
+      shape: box
+      color: [1, 1, 1]
+      material: materials/slots.material.yaml
+  - id: camera
+    camera:
+      fov: 50
+      near: 0.1
+      active: true
+      orbit:
+        target: board
+        distance: 8
+        yaw: 0
+        pitch: 0
+        minDistance: 2

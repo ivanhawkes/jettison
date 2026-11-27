@@ -1,0 +1,30 @@
+# The sixteen-slot fixture (shaders/slots.program.yaml) with a texture in twelve of its slots, seven
+# of them past the eighth, and three textures each in two slots; slots 3, 4, 5 and 14 are left to
+# their fallbacks, white, black, a flat normal and black.
+version: 1
+program: slots
+textures:
+  - slot: slot0
+    path: textures/panels/panels-color.ktx2
+  - slot: slot1
+    path: textures/panels/panels-emissive.ktx2
+  - slot: slot2
+    path: textures/debug/floor-grid/floor-grid-color.ktx2
+  - slot: slot6
+    path: textures/planets/habitable-earthlike-a/habitable-earthlike-a-color.ktx2
+  - slot: slot7
+    path: textures/planets/habitable-earthlike-a/habitable-earthlike-a-normal.ktx2
+  - slot: slot8
+    path: textures/planets/habitable-earthlike-a/habitable-earthlike-a-height.ktx2
+  - slot: slot9
+    path: textures/planets/habitable-earthlike-a/habitable-earthlike-a-roughness.ktx2
+  - slot: slot10
+    path: textures/planets/habitable-earthlike-a/habitable-earthlike-a-detail-color.ktx2
+  - slot: slot11
+    path: textures/planets/habitable-earthlike-a/habitable-earthlike-a-detail-normal.ktx2
+  - slot: slot12
+    path: textures/debug/floor-grid/floor-grid-color.ktx2
+  - slot: slot13
+    path: textures/panels/panels-emissive.ktx2
+  - slot: slot15
+    path: textures/panels/panels-color.ktx2

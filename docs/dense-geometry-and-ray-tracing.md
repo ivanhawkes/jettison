@@ -2,7 +2,7 @@
 
 The plan for meshlet levels of detail drawn by mesh shaders, an asset cook, geometry streaming and
 ray-traced shadows, ambient occlusion and reflections, with RTX Mega Geometry as an optional
-accelerator. Agreed with the user on 2026-11-25; only J36 is built. Its stages are
+accelerator. Agreed with the user on 2026-11-25; J36 and J68 are built. Its stages are
 [J36 to J50 and J68](roadmap.md#a-separate-track-dense-geometry-and-ray-tracing) on the roadmap, a track
 scheduled apart from Manifest's queue until the user places it. The settled choices are also in
 [decisions](decisions.md#rendering), each linking back here; the research this plan replaces
@@ -112,12 +112,12 @@ GFX10.3 too, and emulated on older chips only behind an experimental flag; 64-bi
 atomics are on every chip. An RX 5000 (RDNA 1) or older card therefore runs with neither meshlets
 nor ray tracing, as does an NVIDIA card before Turing.
 
-Descriptor indexing ([J68](roadmap.md#j68)) is not among the core versions' required features: from
+Descriptor indexing ([J68](history.md#j68)) is not among the core versions' required features: from
 1.2 it is required only of a driver that also exposes `VK_EXT_descriptor_indexing` (the
 specification's feature requirements, read 2026-11-27). Mesa's drivers (main, 2026-11-27): RADV has
 it on every GCN and RDNA chip, NVK on every chip it gives 1.3 (Maxwell onwards), ANV on Skylake
 onwards; `hasvk`, Intel's Ivy Bridge to Broadwell driver, has none of it, yet reports 1.3 on
-Broadwell, so a Broadwell is the one device today's 1.3 check accepts that J68 would refuse. The
+Broadwell, so a Broadwell is the one device the 1.3 check accepted that J68 refuses. The
 Roadmap 2022 profile requires it, and AMD's Windows driver claims that profile on RX Vega and RDNA.
 NVIDIA's own driver is not checked: no source, and no device older than the 5060 Ti at hand.
 
@@ -306,7 +306,7 @@ device's reasons now.
 | Meshlet drawing | `meshShader`, `taskShader`, `multiDrawIndirect`, `drawIndirectCount` | The indexed path with the cooked levels of detail |
 | Occlusion culling | The meshlet path, `samplerFilterMinmax` | Frustum and horizon culling |
 | Streaming | The meshlet path | The page file loaded whole |
-| Ray-traced effects | `accelerationStructure`, `rayQuery`, `bufferDeviceAddress` (descriptor indexing is required, [J68](roadmap.md#j68)) | Cascades, no local shadows, screen-space AO, the environment cube |
+| Ray-traced effects | `accelerationStructure`, `rayQuery`, `bufferDeviceAddress` (descriptor indexing is required, [J68](history.md#j68)) | Cascades, no local shadows, screen-space AO, the environment cube |
 | Mega Geometry | `VK_NV_cluster_acceleration_structure` | Plain KHR bottom-level structures from one cooked level |
 | Visibility buffer and software raster | The meshlet path; `shaderBufferInt64Atomics` for a storage buffer, or `shaderImageInt64Atomics` for an R64 image, the form chosen in [J50](roadmap.md#j50) | The mesh shaders' hardware raster, as [J41](roadmap.md#j41) leaves it |
 
@@ -607,19 +607,10 @@ Done 2026-11-27 ([history](history.md#j36)). The table is `Render::DeviceCapabil
 
 ### J68. Bindless textures
 
-- **Delivers.** One array of sampled images in a set bound once a frame (partially bound, updated
-  after bind): a texture takes an index when its resource finishes and frees it when it retires, and
-  the fallbacks hold fixed indices. A material's slot indices sit in the frame's material buffer
-  beside its parameters, and `material.glsl` samples by slot, `nonuniformEXT` where an index can
-  vary within a draw. Set 1 and `MaterialCache`'s descriptor pool per material go; the slot count
-  becomes a named constant of the program format, not the layout's. Device choice requires the
-  descriptor-indexing features and names the one missing ([which devices have them](#devices)). Needs nothing in this track, so it may
-  come first: it lifts today's eight-slot limit, and J42's material table and J50's per-material
-  shading index the same array.
-- **Exit criterion.** The reference views unchanged on lavapipe; a fixture program with more than
-  eight slots draws; the smoke test's reload stage reloads and retires textures with synchronisation
-  validation clean; `DeviceChoiceTests` cover a device without descriptor indexing refused with its
-  reason.
+Done 2026-11-27 ([history](history.md#j68)). The table is `MaterialCache`'s
+([rendering](rendering.md#the-texture-table)); the reason a device is refused is
+`DescriptorIndexingUnsuitable` (`render/src/vulkan/DeviceChoice.h`). No draw indexes it
+non-uniformly yet but the sixteen-slot fixture, `source/test/content/shaders/slots.frag`.
 
 ## Performance budgets
 

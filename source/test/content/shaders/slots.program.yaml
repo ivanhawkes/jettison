@@ -1,0 +1,41 @@
+# slots.frag, with mesh.vert built with UNLIT as its vertex stage: Render::ProgramDefinition
+# (render/Material.h). A fixture of the test content, not a program a game draws with: the format's
+# sixteen texture slots, each shown in a cell of a grid, so a view sees every one sampled.
+version: 1
+parameters:
+  # rgb: colour, a: intensity in the HDR target's linear units.
+  - name: color
+    default: [1, 1, 1, 1]
+textures:
+  - name: slot0
+    fallback: White
+  - name: slot1
+    fallback: White
+  - name: slot2
+    fallback: White
+  - name: slot3
+    fallback: White
+  - name: slot4
+    fallback: Black
+  - name: slot5
+    fallback: FlatNormal
+  - name: slot6
+    fallback: White
+  - name: slot7
+    fallback: White
+  - name: slot8
+    fallback: White
+  - name: slot9
+    fallback: White
+  - name: slot10
+    fallback: White
+  - name: slot11
+    fallback: White
+  - name: slot12
+    fallback: White
+  - name: slot13
+    fallback: White
+  - name: slot14
+    fallback: Black
+  - name: slot15
+    fallback: White

@@ -1,6 +1,7 @@
 # The engine's test content (content/), which render_test mounts over the engine's assets as "base"
 # and the engine's suites read: static scenes (a planet and a station at real scale, a ringed giant,
-# the transparent pass's and the post chain's benches, models and a skinned clip), their materials,
+# the transparent pass's and the post chain's benches, the texture table's, models and a skinned
+# clip), a fixture program of sixteen texture slots, their materials,
 # textures and models, a clip, a sequence, a grade and a few sounds. Its pack, content.pack beside
 # the staged tree, is built for the smoke test's packed run.
 jettison_add_assets(jettison_test_content
@@ -8,8 +9,12 @@ jettison_add_assets(jettison_test_content
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/content"
 	DIRECTORIES animations cinematics grades materials scene
 	CONFIGURED audio models textures
-	FILES mod.yaml
+	FILES mod.yaml shaders/slots.program.yaml
 )
+# The fixture programs, compiled into the staged tree beside their descriptors.
+jettison_compile_shaders(jettison_test_content content/shaders/slots.frag)
+jettison_compile_shader_variant(jettison_test_content
+	SOURCE ../../assets/shaders/mesh.vert OUTPUT content/shaders/slots.vert DEFINES UNLIT)
 set_property(TARGET jettison_test_content PROPERTY FOLDER "Test")
 jettison_add_pack(jettison_test_content_pack
 	SOURCE "${CMAKE_CURRENT_BINARY_DIR}/content"
