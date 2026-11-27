@@ -257,7 +257,7 @@ std::vector<Sim::ModVersion> MountAssets(
 			    Describe(*pPath, std::format("The mod {}", entry.mod));
 			// A mod may require the content, by its name, or a mod mounted before it.
 			for (const std::string &required : description.required)
-				if (!(required == contentMount && !content.empty()) &&
+				if ((required != contentMount || content.empty()) &&
 				    std::ranges::find(mounted, required, &Sim::ModVersion::mod) == mounted.end())
 					throw std::runtime_error{std::format(
 					    "it requires the mod {}, which is not mounted before it", required)};
