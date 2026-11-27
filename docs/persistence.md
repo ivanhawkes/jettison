@@ -196,7 +196,14 @@ The partial file is made anew with the permissions the caller gives, 0644 unless
 (`Core::kFilePermissions`), so a file a game keeps private, such as a server's secret key at 0600,
 is never open to others on its way. Why both flushes are needed is
 [decided](decisions.md#persistence). On failure it throws
-`std::runtime_error` naming the path, with the partial file removed and the old file as it was.
+`std::runtime_error` naming the path, with the partial file removed and the old file as it was;
+only a failed flush of the directory, after the rename, leaves the new file in place, and says so.
+
+The `core` suite fails each system call under the writes in turn (the partial's open, a write, a
+write cut short and then failed, the file's `fsync` and `close`, the rename, the directory's open and
+`fsync`, and `mkdir`) and checks the error names the path and the files are as promised. File.cpp
+makes them through a table of the calls (`core/src/SystemCalls.h`, private to the module) that only
+a test changes.
 
 <a id="a-write-that-refuses-to-replace"></a>
 `Core::WriteNewFileDurably` is the same write for a file that must not be there yet, a new save's name
@@ -458,8 +465,6 @@ CHECK(FileLock::HolderOf(path) == "1234 manifest-server"); // for the message: p
 - **No migration steps exist** until the first build given out (above).
 - **A save holds no definitions**, only their names. A definition's format can change without a
   save's, but a save loaded with other content reads whatever the definitions now say.
-- **Not provisioned, as nothing has asked:** fault injection under the system calls
-  ([J33](roadmap.md#j33)).
 - **`WriteNewFileDurably` is Linux only** until the Windows port, which has no rename that refuses to
   replace (`MoveFileEx` without its replace flag does the same).
 - **`FileLock` is for a local file system.** Over NFS, Linux emulates `flock` with a lock that does

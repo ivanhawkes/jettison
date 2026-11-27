@@ -1,13 +1,18 @@
 #include <jettison/core/File.h>
 #include <jettison/core/FileLock.h>
 
+#include "SystemCalls.h"
+
 #include <doctest/doctest.h>
 
+#include <fcntl.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include <array>
 #include <atomic>
+#include <cerrno>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -39,6 +44,123 @@ std::string ReadFile(const std::filesystem::path &path)
 	std::ifstream file{path, std::ios::binary};
 	return {std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
 }
+
+// Puts the system's own calls back when a test that failed one is done, however it ends.
+class Restore
+{
+  public:
+	Restore() = default;
+
+
+	Restore(const Restore &) = delete;
+
+
+	Restore &operator=(const Restore &) = delete;
+
+
+	~Restore()
+	{
+		FileSystemCalls() = m_saved;
+	}
+
+  private:
+	SystemCalls m_saved = FileSystemCalls();
+};
+
+
+bool IsDirectory(int descriptor)
+{
+	struct stat status{};
+	return ::fstat(descriptor, &status) == 0 && S_ISDIR(status.st_mode);
+}
+
+
+int Fail(int error)
+{
+	errno = error;
+	return -1;
+}
+
+
+// The writes a short write allows before the disk fills.
+int shortWritesLeft = 0;
+
+
+// One of the calls under a durable write, failed as a full or failing disk fails it. A failure after
+// the rename leaves the new file in place, since only the directory's entry for it is not yet sure.
+struct Fault
+{
+	const char *call;
+	void (*apply)(SystemCalls &calls);
+	bool afterRename;
+};
+
+
+const std::array kFaults{
+    Fault{
+        "the partial's open",
+        [](SystemCalls &calls)
+        {
+	        calls.open = [](const char *path, int flags, mode_t mode)
+	        { return (flags & O_DIRECTORY) != 0 ? ::open(path, flags, mode) : Fail(EACCES); };
+        },
+        false},
+    Fault{
+        "a write", [](SystemCalls &calls)
+        { calls.write = [](int, const void *, size_t) -> ssize_t { return Fail(ENOSPC); }; }, false},
+    Fault{
+        "a short write, then a failed one",
+        [](SystemCalls &calls)
+        {
+	        shortWritesLeft = 1;
+	        calls.write = [](int descriptor, const void *bytes, size_t) -> ssize_t
+	        { return shortWritesLeft-- > 0 ? ::write(descriptor, bytes, 1) : Fail(ENOSPC); };
+        },
+        false},
+    Fault{
+        "the file's fsync",
+        [](SystemCalls &calls)
+        {
+	        calls.fsync = [](int descriptor)
+	        { return IsDirectory(descriptor) ? ::fsync(descriptor) : Fail(EIO); };
+        },
+        false},
+    Fault{
+        "the file's close",
+        [](SystemCalls &calls)
+        {
+	        calls.close = [](int descriptor)
+	        {
+		        const bool directory = IsDirectory(descriptor);
+		        return ::close(descriptor) == 0 && directory ? 0 : Fail(EIO);
+	        };
+        },
+        false},
+    Fault{
+        "the rename",
+        [](SystemCalls &calls)
+        {
+	        calls.rename = [](const char *, const char *) { return Fail(EXDEV); };
+	        calls.renameat2 = [](int, const char *, int, const char *, unsigned) { return Fail(EIO); };
+        },
+        false},
+    Fault{
+        "the directory's open",
+        [](SystemCalls &calls)
+        {
+	        calls.open = [](const char *path, int flags, mode_t mode)
+	        { return (flags & O_DIRECTORY) != 0 ? Fail(EMFILE) : ::open(path, flags, mode); };
+        },
+        true},
+    Fault{
+        "the directory's fsync",
+        [](SystemCalls &calls)
+        {
+	        calls.fsync = [](int descriptor)
+	        { return IsDirectory(descriptor) ? Fail(EIO) : ::fsync(descriptor); };
+        },
+        true},
+};
 } // namespace
 
 
@@ -285,6 +407,109 @@ TEST_CASE("File: of writers making the same new file at once, one wins whole and
 	}
 	// Each round left its one file and no partial.
 	CHECK(std::distance(std::filesystem::directory_iterator{directory}, {}) == kRounds);
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE(
+    "File: each call under a durable write that fails throws naming the path, and leaves no partial")
+{
+	const std::filesystem::path directory = Scratch();
+	const std::filesystem::path path = directory / "slot.save";
+	for (const Fault &fault : kFaults)
+	{
+		CAPTURE(fault.call);
+		for (const bool replacing : {true, false})
+		{
+			CAPTURE(replacing);
+			std::filesystem::remove_all(directory);
+			if (replacing)
+				WriteFileDurably(path, std::string_view{"kept"});
+			else
+				CreateDirectoriesDurably(directory);
+			{
+				const Restore restore;
+				fault.apply(FileSystemCalls());
+				try
+				{
+					if (replacing)
+						WriteFileDurably(path, std::string_view{"new"});
+					else
+						WriteNewFileDurably(path, std::string_view{"new"});
+					FAIL("the write should have failed");
+				}
+				catch (const FileExistsError &)
+				{
+					FAIL("a failed write is not a file already there");
+				}
+				catch (const std::runtime_error &error)
+				{
+					CHECK(std::string{error.what()}.find(path.string()) != std::string::npos);
+				}
+			}
+			if (fault.afterRename)
+				CHECK(ReadFile(path) == "new");
+			else if (replacing)
+				CHECK(ReadFile(path) == "kept");
+			else
+				CHECK_FALSE(std::filesystem::exists(path));
+			CHECK(
+			    std::distance(std::filesystem::directory_iterator{directory}, {}) ==
+			    (replacing || fault.afterRename ? 1 : 0));
+		}
+	}
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("File: writes cut short are carried on until the file is whole")
+{
+	const std::filesystem::path directory = Scratch();
+	const std::filesystem::path path = directory / "slot.save";
+	{
+		const Restore restore;
+		FileSystemCalls().write = [](int descriptor, const void *bytes, size_t)
+		{ return ::write(descriptor, bytes, 1); };
+		WriteFileDurably(path, std::string_view{"whole, a byte at a time"});
+	}
+	CHECK(ReadFile(path) == "whole, a byte at a time");
+	CHECK(std::distance(std::filesystem::directory_iterator{directory}, {}) == 1);
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("File: a directory that cannot be made or flushed is named, and the ones under it not made")
+{
+	const std::filesystem::path directory = Scratch();
+	const std::filesystem::path outer = directory / "outer";
+	const std::filesystem::path path = outer / "inner";
+	std::filesystem::create_directories(directory);
+	const auto failure = [](const std::filesystem::path &target)
+	{
+		try
+		{
+			CreateDirectoriesDurably(target);
+		}
+		catch (const std::runtime_error &error)
+		{
+			return std::string{error.what()};
+		}
+		return std::string{};
+	};
+	{
+		const Restore restore;
+		FileSystemCalls().mkdir = [](const char *, mode_t) { return Fail(ENOSPC); };
+		CHECK(failure(path).find(outer.string()) != std::string::npos);
+		CHECK_FALSE(std::filesystem::exists(outer));
+	}
+	{
+		// A directory made is reported, since it may not survive a power cut, and is left made.
+		const Restore restore;
+		FileSystemCalls().fsync = [](int) { return Fail(EIO); };
+		CHECK(failure(path).find(outer.string() + " was made") != std::string::npos);
+		CHECK(std::filesystem::is_directory(outer));
+		CHECK_FALSE(std::filesystem::exists(path));
+	}
 	std::filesystem::remove_all(directory);
 }
 

@@ -1,5 +1,7 @@
 #include <jettison/core/File.h>
 
+#include "SystemCalls.h"
+
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -33,6 +35,17 @@ constexpr unsigned kMarkHalfBits = 32;
 constexpr int kHexadecimal = 16;
 
 
+constinit SystemCalls systemCalls{
+    .open = [](const char *path, int flags, mode_t mode) { return ::open(path, flags, mode); },
+    .write = ::write,
+    .fsync = ::fsync,
+    .close = ::close,
+    .rename = ::rename,
+    .renameat2 = ::renameat2,
+    .mkdir = ::mkdir,
+};
+
+
 class Descriptor
 {
   public:
@@ -44,7 +57,7 @@ class Descriptor
 	~Descriptor()
 	{
 		if (m_descriptor >= 0)
-			::close(m_descriptor);
+			systemCalls.close(m_descriptor);
 	}
 
 
@@ -66,7 +79,7 @@ class Descriptor
 	{
 		const int descriptor = m_descriptor;
 		m_descriptor = -1;
-		return ::close(descriptor) == 0;
+		return systemCalls.close(descriptor) == 0;
 	}
 
   private:
@@ -174,17 +187,26 @@ void RemoveAbandoned(const std::filesystem::path &target, const std::filesystem:
 // refuses to replace, short of MoveFileEx without its replace flag.
 int RenameWithoutReplacing(const std::filesystem::path &from, const std::filesystem::path &to)
 {
-	return ::renameat2(AT_FDCWD, from.c_str(), AT_FDCWD, to.c_str(), RENAME_NOREPLACE) == 0 ? 0 : errno;
+	return systemCalls.renameat2(AT_FDCWD, from.c_str(), AT_FDCWD, to.c_str(), RENAME_NOREPLACE) == 0
+	           ? 0
+	           : errno;
 }
 
 
 // Zero, or the errno of what failed.
 int FlushDirectory(const std::filesystem::path &directory)
 {
-	const Descriptor descriptor{::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
-	return descriptor.Get() >= 0 && ::fsync(descriptor.Get()) == 0 ? 0 : errno;
+	const Descriptor descriptor{
+	    systemCalls.open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0)};
+	return descriptor.Get() >= 0 && systemCalls.fsync(descriptor.Get()) == 0 ? 0 : errno;
 }
 } // namespace
+
+
+SystemCalls &FileSystemCalls()
+{
+	return systemCalls;
+}
 
 
 bool CreateDirectoriesDurably(const std::filesystem::path &path, std::filesystem::perms permissions)
@@ -200,7 +222,7 @@ bool CreateDirectoriesDurably(const std::filesystem::path &path, std::filesystem
 	for (const std::filesystem::path &directory : std::views::reverse(missing))
 	{
 		// One already there is a path through a directory just made and back out, as new/..
-		if (::mkdir(directory.c_str(), static_cast<mode_t>(permissions)) != 0)
+		if (systemCalls.mkdir(directory.c_str(), static_cast<mode_t>(permissions)) != 0)
 		{
 			const int made = errno;
 			if (made != EEXIST || !std::filesystem::is_directory(directory, error))
@@ -245,7 +267,7 @@ void WriteDurably(
 		// The partial's name is new, so its open (O_EXCL) makes it with the mode given and never takes
 		// a file a crash left, which the first write into the directory removes.
 		RemoveAbandoned(path, directory);
-		Descriptor file{::open(
+		Descriptor file{systemCalls.open(
 		    partial.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,
 		    static_cast<mode_t>(permissions))};
 		if (file.Get() < 0)
@@ -253,14 +275,15 @@ void WriteDurably(
 		made = true;
 		for (std::size_t written = 0; written < bytes.size();)
 		{
-			const ::ssize_t count = ::write(file.Get(), bytes.data() + written, bytes.size() - written);
+			const ::ssize_t count =
+			    systemCalls.write(file.Get(), bytes.data() + written, bytes.size() - written);
 			if (count < 0 && errno == EINTR)
 				continue;
 			if (count < 0)
 				throw fail(Problem("write"));
 			written += static_cast<std::size_t>(count);
 		}
-		if (::fsync(file.Get()) != 0)
+		if (systemCalls.fsync(file.Get()) != 0)
 			throw fail(Problem("fsync"));
 		if (!file.Close())
 			throw fail(Problem("close"));
@@ -269,10 +292,8 @@ void WriteDurably(
 	if (replace == Replace::Allowed)
 	{
 		// rename replaces the old file in one step on POSIX.
-		std::error_code error;
-		std::filesystem::rename(partial, path, error);
-		if (error)
-			throw fail(error.message());
+		if (systemCalls.rename(partial.c_str(), path.c_str()) != 0)
+			throw fail(Problem("rename"));
 	}
 	else if (const int problem = RenameWithoutReplacing(partial, path); problem == EEXIST)
 	{

@@ -33,7 +33,8 @@ inline constexpr std::filesystem::perms kFilePermissions =
 // made, which is its own and made anew, so a secret is never open to others on its way to the disk; a
 // file it replaces takes them. Creates the file's directory if it is missing, as
 // CreateDirectoriesDurably does. Throws std::runtime_error naming the path and what failed, with the
-// partial file removed and any old file as it was.
+// partial file removed and any old file as it was, except that the directory's flush fails after the
+// rename: then the new file is in place, and the error says it was written but may not survive.
 void WriteFileDurably(
     const std::filesystem::path &path, std::span<const std::byte> bytes,
     std::filesystem::perms permissions = kFilePermissions);

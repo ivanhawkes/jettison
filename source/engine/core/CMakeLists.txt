@@ -16,6 +16,7 @@ jettison_add_module(core
 		src/FileLock.cpp
 		src/Log.cpp
 		src/StringId.cpp
+		src/SystemCalls.h
 		src/Version.cpp
 	TESTS
 		tests/AssertTests.cpp
