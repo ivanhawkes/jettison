@@ -1,0 +1,31 @@
+# Why the simulation refused something, in French.
+# (its strings/en/reasons.yaml).
+version: 1
+reason:
+  entity: "quelque chose"
+  dock:
+    vehicle_gone: "le véhicule n’est pas dans le monde"
+    not_controller: "l’expéditeur ne commande pas le véhicule"
+    not_a_platform: "ce n’est pas une plateforme"
+    no_vehicle: "les docks ne connaissent pas ce type de véhicule"
+    cannot_fly: "le véhicule ne vole pas"
+    other_frame: "le véhicule n’est pas dans le référentiel de {0}"
+    other_local_frame: "le véhicule n’est pas dans le référentiel local de {0}"
+    already_queued: "le véhicule attend déjà un poste à quai à {0}"
+    already_holds_berth: "le véhicule occupe déjà le poste {0} à {1}"
+    no_berth_fits: "{0} n’a aucun poste adapté au véhicule"
+    holds_nothing: "le véhicule n’occupe aucun poste et n’en attend aucun"
+    already_leaving: "le véhicule quitte déjà son poste"
+    no_berth_offers: "{0} n’a aucun poste adapté au véhicule qui offre ce qu’il demande"
+  ai:
+    no_such_entity: "ce véhicule n’existe pas"
+    destination_gone: "sa destination a disparu"
+    destination_other_frame: "sa destination est dans un autre référentiel"
+    destination_other_local_frame: "sa destination est dans un autre référentiel local"
+    not_controller: "l’expéditeur ne commande pas le véhicule"
+    no_pilot: "personne en particulier ne peut prendre les commandes"
+    helm_held: "quelqu’un d’autre est aux commandes du véhicule"
+    not_at_helm: "l’expéditeur n’est pas aux commandes du véhicule"
+    no_such_tree: "il n’y a pas de comportement {0}"
+  physics:
+    not_at_helm: "l’expéditeur n’est pas aux commandes du véhicule"

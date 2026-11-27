@@ -1,0 +1,12 @@
+# The engine's saves screen in French.
+version: 1
+saves:
+  title: "Parties sauvegardées"
+  empty: "Aucune sauvegarde pour l’instant : F5 fait une sauvegarde rapide."
+  column:
+    save: "Sauvegarde"
+    place: "Lieu"
+    written: "Écrite (UTC)"
+    step: "Étape"
+  load: "Charger"
+  footer: "L ferme cette liste."

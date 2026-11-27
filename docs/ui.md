@@ -270,8 +270,10 @@ machine. `UiSystem::SetLanguage` reads the
 tables and reloads every open document, each keeping its handle and whether it is shown, because
 RmlUi translates a document's text as it reads it. If the tables fail to load, it throws and the
 language before it stays. The console's `language [tag]` lists the languages or sets one and saves
-the setting. The engine ships English and German tables for its own text: the saves screen, the
-number format and the engine's reasons.
+the setting. The engine ships English, German, French and Japanese tables for its own text: the saves screen,
+the number format and the engine's reasons (the user's, 2026-11-27, so every game has them; a game
+adds its own languages beside them). Japanese draws only with a font that has its characters, which a
+game supplies.
 
 ### Wording a reason
 
@@ -539,4 +541,4 @@ to be is in [history](history.md).
   `source/engine/app/include/jettison/app/Reasons.h` (`WordReason`), `source/engine/app/src/Saves.h`
   (the saves screen's data).
 - Assets: `assets/ui` (`base.rcss`, `saves.rml`, `saves.rcss`), `assets/strings/en`,
-  `assets/strings/de`.
+  `assets/strings/de`, `assets/strings/fr`, `assets/strings/ja`.

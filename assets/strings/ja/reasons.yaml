@@ -1,0 +1,31 @@
+# Why the simulation refused something, in Japanese.
+# (its strings/en/reasons.yaml).
+version: 1
+reason:
+  entity: "何か"
+  dock:
+    vehicle_gone: "機体がワールドに存在しません"
+    not_controller: "送信者はその機体を指揮していません"
+    not_a_platform: "それはプラットフォームではありません"
+    no_vehicle: "ドックはその種類の機体を知りません"
+    cannot_fly: "その機体は飛行できません"
+    other_frame: "機体は{0}の座標系にありません"
+    other_local_frame: "機体は{0}のローカル座標系にありません"
+    already_queued: "機体はすでに{0}でバースを待っています"
+    already_holds_berth: "機体はすでに{1}のバース{0}を確保しています"
+    no_berth_fits: "{0}には機体に合うバースがありません"
+    holds_nothing: "機体はバースを確保しておらず、待ってもいません"
+    already_leaving: "機体はすでにバースを離れようとしています"
+    no_berth_offers: "{0}には、機体に合い、求めるものを備えたバースがありません"
+  ai:
+    no_such_entity: "その機体は存在しません"
+    destination_gone: "目的地がなくなりました"
+    destination_other_frame: "目的地は別の座標系にあります"
+    destination_other_local_frame: "目的地は別のローカル座標系にあります"
+    not_controller: "送信者はその機体を指揮していません"
+    no_pilot: "特定の誰かが操縦を引き継ぐことはできません"
+    helm_held: "他の誰かが機体を操縦しています"
+    not_at_helm: "送信者は機体を操縦していません"
+    no_such_tree: "振る舞い{0}は存在しません"
+  physics:
+    not_at_helm: "送信者は機体を操縦していません"

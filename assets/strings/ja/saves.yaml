@@ -1,0 +1,12 @@
+# The engine's saves screen in Japanese.
+version: 1
+saves:
+  title: "セーブデータ"
+  empty: "セーブデータはまだありません。F5でクイックセーブします。"
+  column:
+    save: "セーブ"
+    place: "場所"
+    written: "保存日時（UTC）"
+    step: "ステップ"
+  load: "ロード"
+  footer: "Lでこの一覧を閉じます。"
