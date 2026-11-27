@@ -174,13 +174,17 @@ queue it will have, and hands back what puts that state in place once they are c
 A save reported written must survive a crash or a power cut that follows it. Saves, settings and the
 mod list are all written whole through `Core::WriteFileDurably` (`core/File.h`):
 
-1. The bytes go to a partial file beside the target, `<name>:partial`. The colon makes it a name no
-   virtual path can have, so nothing reads it as content.
+1. The bytes go to a partial file beside the target, the write's own,
+   `<name>:partial.<process ID>.<count>`. The colon makes it a name no virtual path can have, so
+   nothing reads it as content; the writer's own name means two writers of one file at once never
+   write into one partial, where one could rename the other's half-written bytes into place.
 2. The partial file is flushed to the disk (`fsync`).
 3. It is renamed over the target.
 4. The directory is flushed, since the rename is an entry in the directory.
 
-The partial file is made anew with the permissions the caller gives, 0644 unless told otherwise
+Before it writes, it removes the partial files of the same target that a writer which no longer
+runs left, as a crash leaves them (one named for a process that runs is another writer's, and
+kept). The partial file is made anew with the permissions the caller gives, 0644 unless told otherwise
 (`Core::kFilePermissions`), so a file a game keeps private, such as a server's secret key at 0600,
 is never open to others on its way. Why both flushes are needed is
 [decided](decisions.md#persistence). On failure it throws
@@ -192,10 +196,7 @@ or a world's first file. It decides in the rename that puts the file in place, `
 `RENAME_NOREPLACE` (Linux; the one call is in `core/src/File.cpp`), so there is no check for another
 writer to come between: of two writers making the same file one leaves it whole and the other gets
 `Core::FileExistsError`, a `std::runtime_error` naming the path, with its partial file removed. A file
-already there is as it was, a directory in the way included. Its partial file is named for its writer,
-`<name>:partial.<process ID>.<count>`, since two writers of one file at once would otherwise write
-into the same partial and one could rename the other's half-written bytes into place. A crash leaves
-that partial behind, and nothing removes it. The file system must support the flag (ext4, xfs, btrfs
+already there is as it was, a directory in the way included. The file system must support the flag (ext4, xfs, btrfs
 and tmpfs do); on one that does not, the write throws naming the path and the reason.
 
 A missing directory is made by `Core::CreateDirectoriesDurably`, outermost first, each one's parent

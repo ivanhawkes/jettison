@@ -1,6 +1,7 @@
 #include <jettison/core/File.h>
 
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -8,6 +9,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <charconv>
 #include <cstdint>
 #include <cstring>
 #include <format>
@@ -75,13 +77,43 @@ enum class Replace : std::uint8_t
 };
 
 
-// A name to write a file under that no other writer of it uses.
+// A name to write a file under that no other writer of it uses: <name>:partial.<process ID>.<count>.
 std::filesystem::path UniquePartial(const std::filesystem::path &path)
 {
 	static std::atomic<unsigned> counter;
 	std::filesystem::path partial = path;
 	partial += std::format("{}.{}.{}", kPartialSuffix, ::getpid(), counter++);
 	return partial;
+}
+
+
+// Whether a partial file in the directory is one a writer of the path left that is gone: the
+// <name>:partial of a write before partials were named for their writers, or one named for a process
+// that no longer runs. One of a process that runs, this one's other writers' included, is in use.
+bool Abandoned(const std::string &entry, const std::string &prefix)
+{
+	if (!entry.starts_with(prefix))
+		return false;
+	const std::string_view rest = std::string_view{entry}.substr(prefix.size());
+	if (rest.empty())
+		return true;
+	::pid_t writer = 0;
+	const auto [end, error] = std::from_chars(rest.data() + 1, rest.data() + rest.size(), writer);
+	if (rest.front() != '.' || error != std::errc{} || end == rest.data() + rest.size() || *end != '.')
+		return false;
+	return ::kill(writer, 0) != 0 && errno == ESRCH;
+}
+
+
+// The partial files writers of the path left as they crashed, removed so they do not gather.
+void RemoveAbandoned(const std::filesystem::path &path, const std::filesystem::path &directory)
+{
+	const std::string prefix = path.filename().string() + std::string{kPartialSuffix};
+	std::error_code error;
+	for (std::filesystem::directory_iterator entry{directory, error};
+	     !error && entry != std::filesystem::directory_iterator{}; entry.increment(error))
+		if (std::error_code ignored; Abandoned(entry->path().filename().string(), prefix))
+			std::filesystem::remove(entry->path(), ignored);
 }
 
 
@@ -140,11 +172,7 @@ void WriteDurably(
     const std::filesystem::path &path, std::span<const std::byte> bytes,
     std::filesystem::perms permissions, Replace replace)
 {
-	std::filesystem::path partial = path;
-	if (replace == Replace::Allowed)
-		partial += kPartialSuffix;
-	else
-		partial = UniquePartial(path);
+	const std::filesystem::path partial = UniquePartial(path);
 	const auto fail = [&](const std::string &problem)
 	{
 		std::error_code ignored;
@@ -158,8 +186,7 @@ void WriteDurably(
 
 	{
 		// One a crash left is removed, not reused, since an open of a file there keeps its mode.
-		std::error_code stale;
-		std::filesystem::remove(partial, stale);
+		RemoveAbandoned(path, directory);
 		Descriptor file{::open(
 		    partial.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,
 		    static_cast<mode_t>(permissions))};

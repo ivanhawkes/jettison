@@ -9,7 +9,10 @@
 namespace Jettison::Core
 {
 // What a file being written is called until it is complete: beside the file, under a name with a
-// colon in it, which no virtual path can have (Vfs::FileSystem), so nothing reads it as content.
+// colon in it, which no virtual path can have (Vfs::FileSystem), so nothing reads it as content. A
+// write names its own after it, <name>:partial.<process ID>.<count>, since writers of the same file
+// at once would otherwise write into one, and one could rename the other's half-written bytes into
+// place; each write first removes those a writer that no longer runs left.
 inline constexpr std::string_view kPartialSuffix = ":partial";
 
 // What a durable write gives the file unless told otherwise: 0644, its owner's to write, everyone's to
@@ -25,10 +28,10 @@ inline constexpr std::filesystem::perms kFilePermissions =
 // directory is. A save written and reported as saved is still there after the power goes.
 //
 // The file has the permissions given, under the process's umask, from the moment its partial file is
-// made, which is made anew, so a secret is never open to others on its way to the disk; a file it
-// replaces takes them. Creates the file's directory if it is missing, as CreateDirectoriesDurably
-// does. Throws std::runtime_error naming the path and what failed, with the partial file removed and
-// any old file as it was.
+// made, which is its own and made anew, so a secret is never open to others on its way to the disk; a
+// file it replaces takes them. Creates the file's directory if it is missing, as
+// CreateDirectoriesDurably does. Throws std::runtime_error naming the path and what failed, with the
+// partial file removed and any old file as it was.
 void WriteFileDurably(
     const std::filesystem::path &path, std::span<const std::byte> bytes,
     std::filesystem::perms permissions = kFilePermissions);
@@ -51,10 +54,8 @@ class FileExistsError : public std::runtime_error
 // that of two writers making the same file one leaves it whole and the other is refused, with no
 // check between the two for a writer to come into. Throws FileExistsError naming the path when a file
 // is there, and any other failure as WriteFileDurably does; either way the partial file is removed and
-// a file already there is as it was. The partial file is named for its writer
-// (`<name>:partial.<process ID>.<count>`), since writers of the same file at once would otherwise
-// write into one; a crash leaves it behind, to be removed by hand. Needs a file system that
-// supports the flag (ext4, xfs, btrfs and tmpfs do), or it throws for the file system.
+// a file already there is as it was. Needs a file system that supports the flag (ext4, xfs, btrfs and
+// tmpfs do), or it throws for the file system.
 void WriteNewFileDurably(
     const std::filesystem::path &path, std::span<const std::byte> bytes,
     std::filesystem::perms permissions = kFilePermissions);
