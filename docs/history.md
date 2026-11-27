@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-27 | Staged assets that hold what their source does: `jettison_add_assets` removes, as the tree is configured, a staged file gone from its source, which had left a fetching game's build reading tables the engine had deleted |
 | 2026-11-27 | A game's fonts for the scripts the engine's lack, the user's choice over the engine shipping a CJK face: every `.ttf` and `.otf` under a game's or a mod's `fonts/` a fallback face after the engine's (`UiSystem::LoadFallbackFonts`), and a character no face has logged once with its language and counted a problem; the ui suite draws a generated face's glyph Droid Sans lacks ([UI](ui.md#the-game-ui)) |
 | 2026-11-27 | The engine's own text in French and Japanese beside English and German, its saves screen, number format and reasons, moved from Manifest's copies ([UI](ui.md#the-language)) |
 | 2026-11-27 | A game's content mounted under its `mod.yaml`'s `identifier`, `base` when it has none, and a mod's `requires` able to name it, so an overlay of Manifest's that requires `manifest` mounts in the shell ([files, packs and mods](files-and-mods.md#the-shells-mounts)) |

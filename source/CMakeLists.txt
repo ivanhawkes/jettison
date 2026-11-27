@@ -28,8 +28,11 @@ endfunction()
 # and again by every build of the target, so an edit to a scene, a clip or a material reaches the
 # build's copy, which the running app reads and hot-reloads from; the CONFIGURED directories, large
 # and rarely changed (sounds, fonts, models), at configure time only, a file added to them
-# reconfiguring the tree; and FILES, paths under SOURCE (a package's mod.yaml), at both. The target
-# keeps OUTPUT as JETTISON_ASSET_DIRECTORY, which jettison_use_content reads.
+# reconfiguring the tree; and FILES, paths under SOURCE (a package's mod.yaml), at both. A file
+# staged before and gone from SOURCE since is removed as the tree is configured, which a file removed
+# from a staged directory does through its glob, so the copy holds what SOURCE does and no file a
+# reader would still find. The target keeps OUTPUT as JETTISON_ASSET_DIRECTORY, which
+# jettison_use_content reads.
 function(jettison_add_assets target)
 	cmake_parse_arguments(PARSE_ARGV 1 assets "" "SOURCE;OUTPUT" "DIRECTORIES;CONFIGURED;FILES")
 	if(NOT assets_SOURCE OR NOT assets_OUTPUT)
@@ -38,6 +41,14 @@ function(jettison_add_assets target)
 	set(globs)
 	foreach(directory IN LISTS assets_DIRECTORIES assets_CONFIGURED)
 		list(APPEND globs "${assets_SOURCE}/${directory}/*")
+		file(GLOB_RECURSE stale RELATIVE "${assets_OUTPUT}/${directory}" "${assets_OUTPUT}/${directory}/*")
+		file(GLOB_RECURSE kept RELATIVE "${assets_SOURCE}/${directory}" "${assets_SOURCE}/${directory}/*")
+		if(kept)
+			list(REMOVE_ITEM stale ${kept})
+		endif()
+		foreach(path IN LISTS stale)
+			file(REMOVE "${assets_OUTPUT}/${directory}/${path}")
+		endforeach()
 		file(COPY "${assets_SOURCE}/${directory}" DESTINATION "${assets_OUTPUT}")
 	endforeach()
 	file(GLOB_RECURSE staged CONFIGURE_DEPENDS ${globs})
