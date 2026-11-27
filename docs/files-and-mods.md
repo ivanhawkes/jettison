@@ -117,12 +117,20 @@ A package may describe itself in `mod.yaml` at its root (`Host::PackageDescripti
 | `release` | The package's own version, which a save records it by |
 | `engine` | The oldest engine version it runs on, `major.minor.patch`; empty for any |
 | `requires` | The mods that must be mounted before it, by identifier |
+| `side` | `both`, the default, or `client`: a cosmetic package, which a server leaves out and players need not match |
 
 A mod with no `mod.yaml` still mounts, under its identifier and of no release. A field the
 description does not have, such as a misspelt `relase`, makes it fail to read. The engine version
 is the project's version in the top `CMakeLists.txt` (`Core::EngineVersion`). The content is held
 stricter than a mod: content for a newer engine stops the start-up, since a game cannot run without
 it, and content may require only `engine`, the one mount below it.
+
+A package's world is what a server reads, under `defs/` and `scripts/` (`Host::kWorldDirectories`);
+the rest (models, textures, scenes, UI, sounds and string tables) is presentation
+([decisions](decisions.md#files-packs-and-mods)). A package for the client alone may hold no world, so
+one that does is refused: left out as a mod, a start-up failure as content. A server's session
+(`Host::Options::server`) leaves the client's packages out, logged, before its content phase checks the
+rest, so a world package that requires a cosmetic one fails there.
 
 ### The player's mod list
 
@@ -467,8 +475,7 @@ manager.Release(handle);
 - The file system reads a file whole; there is no streaming read for long audio:
   [J21](roadmap.md#j21).
 - A scene's models are not prefetched before it is shown: [J13](roadmap.md#j13).
-- A package's world and presentation directories are mounted alike everywhere: no server pack, no
-  client-side mod, no check that a client holds the server's content: [J63](roadmap.md#j63).
+- No server pack, and no check that a client holds the server's content: [J63](roadmap.md#j63).
 
 ## Decisions
 

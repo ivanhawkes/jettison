@@ -4,6 +4,7 @@
 #include <jettison/serialise/Archive.h>
 #include <jettison/vfs/FileSystem.h>
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstddef>
@@ -44,12 +45,16 @@ void RegisterPackageTypes()
 	{
 		using Reflect::Attribute;
 
+		Reflect::RegisterEnum<Side>("Host.Side")
+		    .Value<Side::Both>("both")
+		    .Value<Side::Client>("client");
 		// The name it had in the shell, kept so a package's tooling that names it still reads.
 		Reflect::RegisterType<PackageDescription>("Shell.ModDescription")
 		    .Field<&PackageDescription::name>("name", Attribute::Saved)
 		    .Field<&PackageDescription::release>("release", Attribute::Saved)
 		    .Field<&PackageDescription::engine>("engine", Attribute::Saved)
-		    .Field<&PackageDescription::required>("requires", Attribute::Saved);
+		    .Field<&PackageDescription::required>("requires", Attribute::Saved)
+		    .Field<&PackageDescription::side>("side", Attribute::Saved);
 		return true;
 	}();
 	(void)registered;
@@ -72,5 +77,23 @@ std::optional<PackageDescription> DescribePackage(const std::filesystem::path &s
 bool EngineAtLeast(std::string_view engine, std::string_view required)
 {
 	return VersionNumbers(engine) >= VersionNumbers(required);
+}
+
+
+bool HoldsWorld(const std::filesystem::path &source)
+{
+	Vfs::FileSystem alone;
+	alone.AddMount({"package", source});
+	return std::ranges::any_of(
+	    kWorldDirectories,
+	    [&](std::string_view directory) { return !alone.Enumerate(directory).empty(); });
+}
+
+
+void CheckSide(const PackageDescription &description, const std::filesystem::path &source)
+{
+	if (description.side == Side::Client && HoldsWorld(source))
+		throw std::runtime_error{
+		    "it is for the client alone (side: client) yet holds world content, under defs or scripts"};
 }
 } // namespace Jettison::Host

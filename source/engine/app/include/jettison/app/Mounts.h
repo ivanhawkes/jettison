@@ -49,12 +49,13 @@ struct ModList
 // bytes. It is logged, with what each mount is.
 //
 // One bad mod does not stop the game: a mod that cannot be mounted (a damaged pack), whose
-// description does not read, is for a newer engine, or needs a mod not mounted before it, is
-// reported and left out; anything else in the mods directory is reported and ignored; a list that
-// does not read is reported, every mod found mounts, and the list is left as it is for its player to
-// mend. Throws as Vfs::FileSystem::AddMount does for the assets, the content or the user's
-// directory, and for content whose description (Host::PackageDescription) does not read or is for a
-// newer engine: a game does not start on content it cannot run.
+// description does not read, is for a newer engine, needs a mod not mounted before it, or is for the
+// client alone (Host::Side) and holds world content, is reported and left out; anything else in the
+// mods directory is reported and ignored; a list that does not read is reported, every mod found
+// mounts, and the list is left as it is for its player to mend. Throws as Vfs::FileSystem::AddMount
+// does for the assets, the content or the user's directory, and for content whose description
+// (Host::PackageDescription) does not read or is for a newer engine: a game does not start on content
+// it cannot run.
 //
 // Returns the mods mounted, in order, with their versions, which a save records.
 //

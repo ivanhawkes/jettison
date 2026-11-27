@@ -257,6 +257,24 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 }
 
 
+TEST_CASE("Mounts: a mod for the client alone mounts, unless it holds world content")
+{
+	const Scratch scratch;
+	scratch.Put("assets/defs/goods/beer.yaml", "version: 1\n");
+	scratch.Put("user/mods/paint/mod.yaml", "version: 1\nside: client\n");
+	scratch.Put("user/mods/paint/textures/bottle.png", "green");
+	scratch.Put("user/mods/sneaky/mod.yaml", "version: 1\nside: client\n");
+	scratch.Put("user/mods/sneaky/defs/goods/beer.yaml", "version: 1\n");
+
+	const Reported reported;
+	Vfs::FileSystem files;
+	(void)App::MountAssets(files, scratch.Path("assets"), {}, scratch.Path("user"));
+	CHECK(NamesOf(files) == std::vector<std::string>{"engine", "mod:paint", "user"});
+	CHECK(reported.Contains("sneaky is left out: it is for the client alone"));
+	CHECK(reported.lines.size() == 1);
+}
+
+
 TEST_CASE("Mounts: a mod named as one of the shell's own mounts is left out, and the rest mount")
 {
 	const Scratch scratch;

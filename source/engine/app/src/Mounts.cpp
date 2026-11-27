@@ -119,8 +119,9 @@ std::optional<ModList> ReadList(const std::filesystem::path &path, bool &readabl
 }
 
 
-// The package's description, or an empty one for none; throws for one that does not read or is for
-// a newer engine than this build, and logs what it names.
+// The package's description, or an empty one for none; throws for one that does not read, is for a
+// newer engine than this build, or is for the client alone and holds world content, and logs what it
+// names.
 Host::PackageDescription Describe(const std::filesystem::path &source, std::string_view mount)
 {
 	const Host::PackageDescription description =
@@ -129,6 +130,7 @@ Host::PackageDescription Describe(const std::filesystem::path &source, std::stri
 		throw std::runtime_error{std::format(
 		    "it was written for engine {}, newer than this build's {}", description.engine,
 		    Core::EngineVersion())};
+	Host::CheckSide(description, source);
 	if (!description.name.empty())
 		Core::Log(
 		    Core::Severity::Info, kMounts, "{} is {}{}", mount, description.name,

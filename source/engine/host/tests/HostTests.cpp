@@ -412,6 +412,90 @@ TEST_CASE("Host: a package reads the same from its directory and its pack")
 }
 
 
+TEST_CASE("Host: a server's session leaves out a package for the client alone, which holds no world")
+{
+	const Scratch scratch;
+	PutContent(scratch);
+	scratch.Put("paint/mod.yaml", "version: 1\nname: Paint\nside: client\n");
+	scratch.Put("paint/textures/barn.png", "red");
+	scratch.Put("both/mod.yaml", "version: 1\nside: both\n");
+	scratch.Put("both/scripts/rain.wasm", "rain");
+	scratch.Put("sneaky/mod.yaml", "version: 1\nside: client\n");
+	scratch.Put("sneaky/defs/crops/wheat.yaml", "version: 1\ndisplayName: Gold\nyield: 99\n");
+	scratch.Put("needs-paint/mod.yaml", "version: 1\nrequires: [paint]\n");
+	scratch.Put("elsewhere/mod.yaml", "version: 1\nside: elsewhere\n");
+
+	CHECK_FALSE(Host::HoldsWorld(scratch.Path("paint")));
+	CHECK(Host::HoldsWorld(scratch.Path("both")));
+	CHECK(Host::HoldsWorld(scratch.Path("sneaky")));
+	CHECK(Host::DescribePackage(scratch.Path("paint"))->side == Host::Side::Client);
+	CHECK(Host::DescribePackage(scratch.Path("both"))->side == Host::Side::Both);
+	CHECK(Host::DescribePackage(scratch.Path("content"))->side == Host::Side::Both);
+
+	const auto optionsWith = [&](std::vector<std::string> sources, bool server)
+	{
+		Host::Options options = OptionsFor(scratch.Path("content"));
+		for (const std::string &source : sources)
+			options.content.push_back({source, scratch.Path(source)});
+		options.server = server;
+		return options;
+	};
+	std::vector<std::string> log;
+
+	// A client mounts the cosmetic package; a server leaves it out, as if it were not given.
+	{
+		Host::Session client{optionsWith({"paint", "both"}, false), std::make_unique<Recorder>(log)};
+		CHECK(client.Packages().size() == 3);
+		CHECK(client.Files().Exists("textures/barn.png"));
+	}
+	{
+		Host::Session server{optionsWith({"paint", "both"}, true), std::make_unique<Recorder>(log)};
+		REQUIRE(server.Packages().size() == 2);
+		CHECK(server.Packages()[1].mount == "both");
+		CHECK_FALSE(server.Files().Exists("textures/barn.png"));
+		CHECK(server.Files().Exists("scripts/rain.wasm"));
+	}
+
+	// One for the client alone that would change the world is refused on either side, as is a world
+	// package a server cannot run because what it requires is the client's.
+	for (const bool server : {false, true})
+	{
+		CAPTURE(server);
+		CHECK(
+		    FailedPhase(
+		        [&]
+		        {
+			        Host::Session session{
+			            optionsWith({"sneaky"}, server), std::make_unique<Recorder>(log)};
+		        }) == (server ? std::nullopt : std::optional{Host::Phase::Content}));
+		CHECK(
+		    FailedPhase(
+		        [&]
+		        {
+			        Host::Session session{
+			            optionsWith({"paint", "needs-paint"}, server), std::make_unique<Recorder>(log)};
+		        }) == (server ? std::optional{Host::Phase::Content} : std::nullopt));
+		CHECK(
+		    FailedPhase(
+		        [&]
+		        {
+			        Host::Session session{
+			            optionsWith({"elsewhere"}, server), std::make_unique<Recorder>(log)};
+		        }) == Host::Phase::Content);
+	}
+	try
+	{
+		Host::Session session{optionsWith({"sneaky"}, false), std::make_unique<Host::Game>()};
+		FAIL("started");
+	}
+	catch (const Host::StartupError &error)
+	{
+		CHECK(error.Source() == std::filesystem::absolute(scratch.Path("sneaky")).lexically_normal());
+		CHECK(std::string{error.what()}.find("for the client alone") != std::string::npos);
+	}
+}
+
+
 TEST_CASE("Host: an engine version is compared by its numbers")
 {
 	CHECK(Host::EngineAtLeast("0.1.0", "0.1"));

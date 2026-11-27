@@ -69,9 +69,10 @@ struct Package
 };
 
 // Each source of the file system as a package, in mount order, checked as a session's content phase
-// checks them before the game's hook: a package for a newer engine, or one requiring a package that
-// is not mounted before it, is refused. For a tool that loads a game's content with no world, such
-// as a validator. Throws StartupError for the content phase, naming the source.
+// checks them before the game's hook: a package for a newer engine, one requiring a package that is
+// not mounted before it, or one for the client alone that holds world content, is refused. For a tool
+// that loads a game's content with no world, such as a validator. Throws StartupError for the content
+// phase, naming the source.
 std::vector<Package> DescribePackages(const Vfs::FileSystem &files);
 
 // What a game composes into a session: one hook a phase, each called once, in phase order. A hook
@@ -123,6 +124,10 @@ struct Options
 	// Seconds.
 	double fixedStep{};
 	std::uint64_t seed{};
+
+	// A server's session: the sources whose package is for the client alone (side: client) are left
+	// out, and logged, before the content phase checks the rest.
+	bool server{};
 };
 
 // The owner of one game's file system, definitions and world. Constructing a session starts it: a
@@ -156,6 +161,9 @@ class Session
 	Game &GetGame();
 
   private:
+	// Mounts the file system again without the sources for the client alone.
+	void LeaveOutClientPackages();
+
 	// Declared in the order they are built: a constructor that throws destroys them in reverse, the
 	// order Shutdown keeps.
 	std::unique_ptr<Game> m_pGame;

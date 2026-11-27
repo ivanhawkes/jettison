@@ -1,6 +1,7 @@
 #include <jettison/host/Session.h>
 
 #include <jettison/core/Assert.h>
+#include <jettison/core/Log.h>
 #include <jettison/core/Version.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
@@ -16,6 +17,9 @@ namespace Jettison::Host
 {
 namespace
 {
+constexpr Core::Category kHost{"host"};
+
+
 std::string Message(Phase phase, const std::filesystem::path &source, std::string_view cause)
 {
 	return source.empty() ? std::format("Start-up failed in the {} phase: {}", NameOf(phase), cause)
@@ -73,6 +77,7 @@ Package Describe(const Vfs::Mount &mount, std::span<const Package> before)
 		if (std::ranges::find(before, required, &Package::mount) == before.end())
 			throw std::runtime_error{
 			    std::format("it requires the package '{}', which is not a source before it", required)};
+	CheckSide(description, mount.source);
 	return package;
 }
 } // namespace
@@ -125,8 +130,10 @@ Session::Session(Options options, std::unique_ptr<Game> game) : m_pGame{std::mov
 		    m_pGame->RegisterTypes();
 	    });
 
-	m_pDefinitions = std::make_unique<Sim::DefinitionRegistry>(*m_pFiles);
+	if (options.server)
+		LeaveOutClientPackages();
 	m_packages = DescribePackages(*m_pFiles);
+	m_pDefinitions = std::make_unique<Sim::DefinitionRegistry>(*m_pFiles);
 	Run(Phase::Content, {}, [&] { m_pGame->LoadContent(*m_pFiles, m_packages, *m_pDefinitions); });
 
 	Run(Phase::World, {},
@@ -143,6 +150,24 @@ Session::Session(Options options, std::unique_ptr<Game> game) : m_pGame{std::mov
 Session::~Session()
 {
 	Shutdown();
+}
+
+
+void Session::LeaveOutClientPackages()
+{
+	auto kept = std::make_unique<Vfs::FileSystem>();
+	for (const Vfs::Mount &mount : m_pFiles->Mounts())
+	{
+		std::optional<PackageDescription> description;
+		Run(Phase::Content, mount.source, [&] { description = DescribePackage(mount.source); });
+		if (description && description->side == Side::Client)
+			Core::Log(
+			    Core::Severity::Info, kHost, "{} is for the client alone and left out of the server",
+			    mount.name);
+		else
+			kept->AddMount(mount);
+	}
+	m_pFiles = std::move(kept);
 }
 
 

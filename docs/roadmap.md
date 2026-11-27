@@ -94,7 +94,6 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs o
 
 - The packer making a server pack of a package's world directories alone (`defs/`, `scripts/`,
   the cooked collision shapes), for a dedicated server's bundle.
-- `side: client` in `mod.yaml`: a cosmetic mod a server ignores and players need not match.
 - On connecting, the server sends its packages and a hash of its world content, and a client that
   holds other content says which package differs rather than show a world it cannot read.
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -11,6 +12,20 @@ namespace Jettison::Host
 {
 inline constexpr std::string_view kPackageDescriptionFile = "mod.yaml";
 inline constexpr std::uint32_t kPackageFormatVersion = 1;
+
+// The directories that hold the world, which a server reads: definitions and scripts. The rest of a
+// package (models, textures, scenes, UI, sounds, string tables) is presentation. Cooked collision
+// shapes join them once the cook writes them (J12).
+inline constexpr std::array<std::string_view, 2> kWorldDirectories{"defs", "scripts"};
+
+// Which side of a networked game a package is for ("side" in mod.yaml): both, the default, or the
+// client alone, as a cosmetic mod is. A server leaves a client's package out, and its players need not
+// match it, so it may hold no world content.
+enum class Side : std::uint8_t
+{
+	Both,
+	Client,
+};
 
 // What a package (a directory or a pack) says of itself in mod.yaml at its root.
 struct PackageDescription
@@ -25,6 +40,8 @@ struct PackageDescription
 
 	// The packages that must be mounted before it, by mount name; "requires" in the file.
 	std::vector<std::string> required;
+
+	Side side{Side::Both};
 };
 
 // Reflects PackageDescription. Safe to call any number of times, by any number of sessions.
@@ -38,4 +55,12 @@ std::optional<PackageDescription> DescribePackage(const std::filesystem::path &s
 // Whether the version is the required one or later. Throws std::invalid_argument for either that is
 // not one to three numbers separated by dots.
 bool EngineAtLeast(std::string_view engine, std::string_view required);
+
+// Whether a directory or pack holds a file under any of kWorldDirectories. Throws as
+// DescribePackage does for a source that cannot be mounted.
+bool HoldsWorld(const std::filesystem::path &source);
+
+// Throws std::runtime_error, saying why, for a description that cannot be mounted as it says: one
+// for the client alone whose source holds world content.
+void CheckSide(const PackageDescription &description, const std::filesystem::path &source);
 } // namespace Jettison::Host
