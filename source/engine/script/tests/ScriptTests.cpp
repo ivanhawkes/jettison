@@ -1079,7 +1079,7 @@ class ScriptedGame final : public Host::Game
 	}
 
 
-	void RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry &) override
+	void RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry & /*definitions*/) override
 	{
 		world.RegisterCommand<Pong>([this](Sim::SimWorld &, const Pong &pong)
 		                            { m_applied.push_back(pong); });
