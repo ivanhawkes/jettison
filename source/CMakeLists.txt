@@ -10,8 +10,14 @@ add_subdirectory("external")
 # tree and has no assets directory.
 set(JETTISON_ASSET_BINARY_DIR "${PROJECT_BINARY_DIR}/assets")
 
+# Read from the jettison_assets target, not from a variable of this directory's scope, which a
+# function called from a fetching game's tree does not see.
 function(jettison_use_shared_assets target)
-    file(RELATIVE_PATH asset_subdirectory "${CMAKE_CURRENT_BINARY_DIR}" "${JETTISON_ASSET_BINARY_DIR}")
+    if(NOT TARGET jettison_assets)
+        message(FATAL_ERROR "jettison_use_shared_assets(${target}) needs JETTISON_PRESENTATION ON: the engine's assets are not built without it")
+    endif()
+    get_property(asset_directory TARGET jettison_assets PROPERTY JETTISON_ASSET_DIRECTORY)
+    file(RELATIVE_PATH asset_subdirectory "${CMAKE_CURRENT_BINARY_DIR}" "${asset_directory}")
     target_compile_definitions(${target} PRIVATE
         "JETTISON_ASSET_SUBDIRECTORY=\"${asset_subdirectory}\"")
     add_dependencies(${target} jettison_assets)

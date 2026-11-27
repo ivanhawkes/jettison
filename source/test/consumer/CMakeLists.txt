@@ -33,9 +33,15 @@ endif()
 # The engine's own tests and probe are the engine's business; the planned set is not needed to
 # link what exists.
 set(JETTISON_BUILD_TESTS OFF)
-# No window, renderer or sample content: the CPU engine a server builds.
-set(JETTISON_PRESENTATION OFF)
-set(CMAKE_DISABLE_FIND_PACKAGE_Vulkan ON)
+# No window, renderer or sample content: the CPU engine a server builds, unless the check is of the
+# engine's assets (CONSUMER_ASSETS), which only a build with presentation stages.
+option(CONSUMER_ASSETS "Also check jettison_use_shared_assets from this project's scope" OFF)
+if(CONSUMER_ASSETS)
+	set(JETTISON_PRESENTATION ON)
+else()
+	set(JETTISON_PRESENTATION OFF)
+	set(CMAKE_DISABLE_FIND_PACKAGE_Vulkan ON)
+endif()
 set(JETTISON_PLANNED_DEPENDENCIES OFF)
 FetchContent_MakeAvailable(jettison)
 
@@ -46,3 +52,11 @@ target_compile_definitions(consumer PRIVATE CONSUMER_CONTENT="${CMAKE_CURRENT_SO
 
 enable_testing()
 add_test(NAME consumer COMMAND consumer)
+
+# Links nothing of the engine: only the definition and the staged assets are under test, so the
+# renderer is configured and not compiled.
+if(CONSUMER_ASSETS)
+	add_executable(consumer_assets assets_main.cpp)
+	jettison_use_shared_assets(consumer_assets)
+	add_test(NAME consumer_assets COMMAND consumer_assets)
+endif()

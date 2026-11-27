@@ -202,6 +202,11 @@ cmake --build build/consumer && ctest --test-dir build/consumer --output-on-fail
 It takes `-DJETTISON_SOURCE_DIR=<checkout>` for a working tree or `-DJETTISON_GIT_TAG=<commit>`, and
 refuses to configure with neither, so a check always names its revision, never a branch that moves.
 
+`-DCONSUMER_ASSETS=ON` configures the engine with presentation (more to fetch, nothing of it compiled)
+and adds `consumer_assets`, an executable that calls `jettison_use_shared_assets` from the
+consumer's own scope and, as the `consumer_assets` test, finds the engine's staged `fonts`, `strings`
+and `ui` where the definition says. Run it when that function or the assets' staging changes.
+
 ### Installing (not yet supported)
 
 `JETTISON_INSTALL=ON` adds install rules and the `Jettison` package (`JettisonConfig.cmake`,
