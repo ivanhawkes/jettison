@@ -139,6 +139,13 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
 	endif()
 endif()
 
+# Every executable and library linked here carries a GNU build ID, which a crash report lists for
+# each module, so the debug files kept for a stripped release are found by it (docs/runtime.md,
+# "Crash reports").
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	add_link_options(LINKER:--build-id=sha1)
+endif()
+
 # Installing and exporting the package is off by default: the game consumes the engine through
 # FetchContent (source/test/consumer is that build at its smallest), and an install export has to
 # carry every third-party target the modules link, which the FetchContent dependencies do not all

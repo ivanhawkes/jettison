@@ -1,6 +1,7 @@
 #include <jettison/script/ScriptHost.h>
 
 #include <jettison/core/Log.h>
+#include <jettison/platform/Crash.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Binary.h>
 #include <jettison/sim/CommandQueue.h>
@@ -345,6 +346,7 @@ class Watchdog
 
 	void Watch()
 	{
+		const Platform::ThreadCrashStack crashStack;
 		std::unique_lock lock{m_mutex};
 		while (!m_stop)
 		{

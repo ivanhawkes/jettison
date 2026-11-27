@@ -114,17 +114,16 @@ Cheap to add when wanted, or waiting on a profile, and costing nothing meanwhile
 
 **What remains.**
 
-- A report from a thread other than the main one whose stack overflowed, which wants an alternate
-  signal stack on every thread the engine starts (the I/O worker, the scripts' watchdog) and on
-  Jolt's once it has threads ([J07](#j07)).
-- Each module's build ID in the report, a release's debug files kept by it, and the shell saying on
-  its next start where a new report is (decided 2026-11-13).
+- A crash stack on Jolt's threads once it has them ([J07](#j07)).
+- The shell saying on its next start where a new report is (decided 2026-11-13).
 - A report sent somewhere, which waits on players outside development.
 - A minidump, should a report's frames and log tail not be enough.
 
-**What exists.** `Platform::InstallCrashHandler` sets one alternate stack, for the thread that
-installs it, and writes a report with its backtrace, named by a symboliser when one is found
-(`source/engine/platform/src/Crash.cpp`).
+**What exists.** `Platform::InstallCrashHandler` writes a report with its backtrace and each
+module's build ID, named by a symboliser when one is found, on a stack of its own on the thread that
+installs it and on each holding a `Platform::ThreadCrashStack` (the I/O worker, the scripts'
+watchdog) (`source/engine/platform/src/Crash.cpp`); `scripts/symbolise-crash.sh` finds a stripped
+release's debug files by build ID.
 
 **Feature doc:** [runtime](runtime.md).
 

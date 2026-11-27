@@ -267,6 +267,10 @@ Frames, as module+offset:
   #00 <address>  <module>+<offset>
   ...
 
+Modules:
+  <module> build-id <hex>
+  ...
+
 Frames, named by <symboliser>:
   ...
 
@@ -276,7 +280,12 @@ The log's tail:
 
 A machine without `addr2line`, such as a player's, writes only modules and offsets, which
 `scripts/symbolise-crash.sh <report> [build directory]` names later against the build that wrote
-the report. Under the address sanitiser nothing is installed and `InstallCrashHandler` returns
+the report, finding each module's debug file by the GNU build ID the report lists for it
+(`<directory>/.build-id/<2 digits>/<rest>.debug`, the layout a stripped release's kept debug files
+have), else by its name. Every binary the engine links carries a SHA-1 build ID
+(`--build-id=sha1`). The handler runs on a stack of its own on the thread that installs it and on
+each thread holding a `Platform::ThreadCrashStack`, as the I/O worker and the scripts' watchdog do,
+so any of those overflowing its stack is reported. Under the address sanitiser nothing is installed and `InstallCrashHandler` returns
 false, since the sanitiser's report names more. Tracy's crash handler is compiled out
 (`TRACY_NO_CRASH_HANDLER`), so there is only one. The console's `crash fault | assert |
 exception` command crashes the shell each way, to see a report.

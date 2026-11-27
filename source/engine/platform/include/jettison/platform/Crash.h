@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
+#include <memory>
 #include <string>
 
 namespace Jettison::Platform
@@ -20,9 +22,12 @@ namespace Jettison::Platform
 // vfork and exec, which run no fork handlers; the report is on the disk before it starts, and the
 // process is ended by SIGALRM if the handler has not finished in 30 seconds.
 //
-// The handler runs on a stack of its own on the thread that installs it, so that thread's stack
-// overflowing is reported too. Another thread's overflow ends the process unreported
-// (docs/roadmap.md, J11).
+// The handler runs on a stack of its own on the thread that installs it, and on every thread that
+// holds a ThreadCrashStack, so their stacks overflowing are reported too; the engine's threads hold
+// one. Another thread's overflow ends the process unreported.
+//
+// Each module in the frames is listed with its GNU build ID, read from its loaded ELF notes, so the
+// debug files kept for a stripped release are found by it (scripts/symbolise-crash.sh).
 //
 // Under the address sanitiser, whose report of a fatal signal names more than this one can, nothing
 // is installed.
@@ -50,4 +55,22 @@ bool InstallCrashHandler(const CrashOptions &options);
 
 // Puts back the signals' actions and the terminate handler as they were before it was installed.
 void UninstallCrashHandler() noexcept;
+
+// A stack of its own for the crash handler on the thread that makes it, so that thread's stack
+// overflowing is reported; given up as it is destroyed, on the same thread. Made first thing in a
+// thread the engine starts. Harmless with no handler installed, and under the address sanitiser.
+class ThreadCrashStack
+{
+  public:
+	ThreadCrashStack();
+
+	~ThreadCrashStack();
+
+	ThreadCrashStack(const ThreadCrashStack &) = delete;
+
+	ThreadCrashStack &operator=(const ThreadCrashStack &) = delete;
+
+  private:
+	std::unique_ptr<std::byte[]> m_pStack;
+};
 } // namespace Jettison::Platform

@@ -2,6 +2,7 @@ jettison_add_module(script
 	DETERMINISTIC
 	DEPENDS
 		core
+		platform
 		reflect
 		serialise
 		sim

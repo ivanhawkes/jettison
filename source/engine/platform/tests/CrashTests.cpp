@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -152,6 +153,58 @@ TEST_CASE("Crash: a fault writes a report of the signal, the frames and the log'
 	CHECK(Has(crashed.stderrText, "The crash report is "));
 	CHECK(!Has(crashed.stderrText, "The log's tail"));
 	CHECK(!Has(crashed.stderrText, "the line before the fault (CrashTests.cpp:"));
+}
+
+
+// Not inlined, and using its frame after the call, so each call takes stack and none is a jump.
+[[gnu::noinline]] int Recurse(int depth)
+{
+	std::array<volatile char, 1024> frame{};
+	frame[0] = static_cast<char>(depth);
+	if (depth == std::numeric_limits<int>::max())
+		return 0;
+	return Recurse(depth + 1) + frame[0];
+}
+
+
+TEST_CASE("Crash: another thread's stack overflowing is reported when it holds a crash stack")
+{
+	const Crashed crashed = CrashInChild(
+	    "overflow",
+	    []
+	    {
+		    std::thread{[]
+		                {
+			                const Jettison::Platform::ThreadCrashStack crashStack;
+			                (void)Recurse(0);
+		                }}
+		        .join();
+	    });
+	if (crashed.exitStatus == kNotInstalled)
+		return;
+	INFO("The report:\n", crashed.report);
+	CHECK(crashed.signal == SIGSEGV);
+	REQUIRE(crashed.reports == 1);
+	CHECK(Has(crashed.report, "Fatal signal SIGSEGV (11)"));
+	CHECK(!Has(crashed.report, ", the main thread"));
+}
+
+
+TEST_CASE("Crash: the report lists each module of its frames with its build ID")
+{
+	const Crashed crashed = CrashInChild("modules", [] { WriteThroughNull(); });
+	if (crashed.exitStatus == kNotInstalled)
+		return;
+	REQUIRE(crashed.reports == 1);
+	INFO("The report:\n", crashed.report);
+	CHECK(Has(crashed.report, "\nModules:\n  "));
+
+	// The engine's executables are linked with a SHA-1 build ID: 40 hex digits.
+	const std::size_t at = crashed.report.find("/jettison_platform_tests build-id ");
+	REQUIRE(at != std::string::npos);
+	const std::string id = crashed.report.substr(at + std::string{"/jettison_platform_tests build-id "}.size(), 41);
+	CHECK(id.find_first_not_of("0123456789abcdef") == 40);
+	CHECK(id[40] == '\n');
 }
 
 

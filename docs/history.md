@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-27 | Crash reports from the engine's other threads, and build IDs, two of J11's bullets: `Platform::ThreadCrashStack` on the I/O worker and the scripts' watchdog, every binary linked with a SHA-1 build ID, each module's in the report, and `scripts/symbolise-crash.sh` finding debug files by it ([runtime](runtime.md#crash-reports)) |
 | 2026-11-27 | The server's pack, client-side mods and the content check, J63: `side: client` packages a server leaves out, `Host::WriteServerPack` (the packer's `--server`) for a dedicated server's bundle, and `Host::WorldContent`, which a client checks against its server's, naming the package that differs ([files, packs and mods](files-and-mods.md#the-servers-world-content)) |
 | 2026-11-27 | A durable write that refuses to replace a file, J32: `WriteNewFileDurably` decides it in the rename itself (`renameat2`, `RENAME_NOREPLACE`) and throws `FileExistsError` naming the path ([persistence](persistence.md#a-write-that-refuses-to-replace)) |
 | 2026-11-27 | A lock's holder named, J34: `FileLock` writes its process ID and program name into its file, and `FileLock::HolderOf` reads them for a refused caller's message ([persistence](persistence.md#a-locks-holder)) |

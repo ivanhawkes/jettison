@@ -1,5 +1,7 @@
 #include <jettison/jobs/IoWorker.h>
 
+#include <jettison/platform/Crash.h>
+
 #include <condition_variable>
 #include <deque>
 #include <exception>
@@ -40,6 +42,7 @@ struct IoWorker::State
 
 	void Run(const std::stop_token &stop)
 	{
+		const Platform::ThreadCrashStack crashStack;
 		std::unique_lock lock{mutex};
 		for (;;)
 		{

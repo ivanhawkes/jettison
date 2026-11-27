@@ -193,6 +193,7 @@ flowchart TB
     transit --> ai
     dock --> ai
     script --> sim
+    script --> platform
     animation --> resource
     animation --> serialise
     sim --> math
@@ -213,6 +214,7 @@ flowchart TB
     profile --> core
     time --> core
     jobs --> core
+    jobs --> platform
     reflect --> core
     vfs --> core
     math --> core

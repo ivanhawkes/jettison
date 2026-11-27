@@ -343,9 +343,18 @@ template <typename Out> void WriteTime(Out &writer, std::int64_t seconds, bool c
 	writer.Decimal(static_cast<std::uint64_t>(inDay % 60), 2).Text("Z");
 }
 
+// A build ID's bytes at most: GNU's are 20 (SHA-1), and a hash of another size is cut to this.
+constexpr std::size_t kBuildIdBytes = 32;
+constexpr std::uint32_t kBuildIdNote = 3; // NT_GNU_BUILD_ID
+constexpr std::array<char, 4> kGnuName{'G', 'N', 'U', '\0'};
+
 struct Module
 {
 	std::array<char, kPathBytes> path{};
+
+	// Its first mapping, at its file's offset 0, where its ELF header and notes are read from.
+	std::uintptr_t header{0};
+	std::uintptr_t headerEnd{0};
 
 	// What a frame's address is less to give the symboliser the address in the file: where the
 	// module is loaded, or zero for an executable that is not position-independent.
@@ -411,7 +420,8 @@ bool SamePath(const char *a, const char *b) noexcept
 }
 
 
-int FindModule(const char *path, std::uintptr_t bias) noexcept
+int FindModule(
+    const char *path, std::uintptr_t bias, std::uintptr_t header, std::uintptr_t headerEnd) noexcept
 {
 	for (std::size_t index = 0; index < g_scratch.moduleCount; ++index)
 		if (SamePath(g_scratch.modules[index].path.data(), path))
@@ -421,6 +431,8 @@ int FindModule(const char *path, std::uintptr_t bias) noexcept
 	Module &module = g_scratch.modules[g_scratch.moduleCount];
 	Builder{module.path.data(), module.path.size()}.Text({path, Length(path)});
 	module.bias = bias;
+	module.header = header;
+	module.headerEnd = headerEnd;
 	module.frames = 0;
 	return static_cast<int>(g_scratch.moduleCount++);
 }
@@ -428,7 +440,9 @@ int FindModule(const char *path, std::uintptr_t bias) noexcept
 
 // One line of /proc/self/maps: "start-end perms offset device inode   path". The mappings are in
 // address order, and a file's are together, the one at its offset 0 first: where it is loaded.
-void ReadMapping(const char *text, const char *&currentPath, std::uintptr_t &currentBase) noexcept
+void ReadMapping(
+    const char *text, const char *&currentPath, std::uintptr_t &currentBase,
+    std::uintptr_t &currentHeader, std::uintptr_t &currentHeaderEnd) noexcept
 {
 	const char *cursor = text;
 	const std::uintptr_t start = ParseHex(cursor);
@@ -459,6 +473,8 @@ void ReadMapping(const char *text, const char *&currentPath, std::uintptr_t &cur
 		}
 		currentPath = path;
 		currentBase = fixed ? 0 : start;
+		currentHeader = readable ? start : 0;
+		currentHeaderEnd = readable ? end : 0;
 	}
 	for (std::size_t index = 0; index < g_scratch.frameCount; ++index)
 	{
@@ -467,7 +483,8 @@ void ReadMapping(const char *text, const char *&currentPath, std::uintptr_t &cur
 			continue;
 		const bool known = currentPath != nullptr && SamePath(currentPath, path);
 		const std::uintptr_t bias = known ? currentBase : start - offset;
-		frame.module = FindModule(path, bias);
+		frame.module =
+		    FindModule(path, bias, known ? currentHeader : 0, known ? currentHeaderEnd : 0);
 		if (frame.module >= 0)
 		{
 			frame.offset =
@@ -490,6 +507,8 @@ void FindModules() noexcept
 	static std::array<char, kPathBytes> s_currentPath{};
 	const char *currentPath = nullptr;
 	std::uintptr_t currentBase = 0;
+	std::uintptr_t currentHeader = 0;
+	std::uintptr_t currentHeaderEnd = 0;
 	for (;;)
 	{
 		const ssize_t count = ::read(maps, g_scratch.read.data(), g_scratch.read.size());
@@ -508,7 +527,8 @@ void FindModules() noexcept
 			}
 			g_scratch.line[lineLength] = '\0';
 			const char *before = currentPath;
-			ReadMapping(g_scratch.line.data(), currentPath, currentBase);
+			ReadMapping(
+			    g_scratch.line.data(), currentPath, currentBase, currentHeader, currentHeaderEnd);
 			if (currentPath != before && currentPath != nullptr)
 			{
 				Builder{s_currentPath.data(), s_currentPath.size()}.Text(
@@ -576,6 +596,65 @@ void Symbolise(int report, std::size_t moduleIndex) noexcept
 		return;
 	int status = 0;
 	while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+}
+
+
+// Whether [address, address + size) lies within the module's first mapping, so it can be read.
+bool InHeader(const Module &module, std::uintptr_t address, std::size_t size) noexcept
+{
+	return module.header != 0 && address >= module.header && address <= module.headerEnd &&
+	       size <= module.headerEnd - address;
+}
+
+
+// The module's GNU build ID from the notes its loaded program headers point to, in its first
+// mapping, as hex: none when it has none there, or its header is not mapped.
+void WriteBuildId(Writer &writer, const Module &module) noexcept
+{
+	Elf64_Ehdr header{};
+	if (!InHeader(module, module.header, sizeof header))
+		return;
+	// NOLINTNEXTLINE(performance-no-int-to-ptr): the addresses are the mapping's, from the kernel.
+	std::memcpy(&header, reinterpret_cast<const void *>(module.header), sizeof header);
+	for (std::size_t index = 0; index < header.e_phnum; ++index)
+	{
+		Elf64_Phdr program{};
+		const std::uintptr_t at = module.header + header.e_phoff + index * sizeof(Elf64_Phdr);
+		if (!InHeader(module, at, sizeof program))
+			return;
+		// NOLINTNEXTLINE(performance-no-int-to-ptr)
+		std::memcpy(&program, reinterpret_cast<const void *>(at), sizeof program);
+		if (program.p_type != PT_NOTE)
+			continue;
+		std::uintptr_t note = module.bias + program.p_vaddr;
+		const std::uintptr_t notesEnd = note + program.p_memsz;
+		while (note + sizeof(Elf64_Nhdr) <= notesEnd && InHeader(module, note, sizeof(Elf64_Nhdr)))
+		{
+			Elf64_Nhdr head{};
+			// NOLINTNEXTLINE(performance-no-int-to-ptr)
+			std::memcpy(&head, reinterpret_cast<const void *>(note), sizeof head);
+			const std::uintptr_t name = note + sizeof head;
+			const std::uintptr_t description = name + ((head.n_namesz + 3U) & ~std::uintptr_t{3});
+			note = description + ((head.n_descsz + 3U) & ~std::uintptr_t{3});
+			if (head.n_type != kBuildIdNote || head.n_namesz != kGnuName.size() ||
+			    !InHeader(module, name, kGnuName.size()) ||
+			    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+			    std::memcmp(reinterpret_cast<const void *>(name), kGnuName.data(), kGnuName.size()) != 0)
+				continue;
+			const std::size_t bytes = head.n_descsz < kBuildIdBytes ? head.n_descsz : kBuildIdBytes;
+			if (!InHeader(module, description, bytes))
+				return;
+			constexpr std::string_view kDigits = "0123456789abcdef";
+			writer.Text(" build-id ");
+			for (std::size_t offset = 0; offset < bytes; ++offset)
+			{
+				// NOLINTNEXTLINE(performance-no-int-to-ptr)
+				const auto byte = *reinterpret_cast<const std::uint8_t *>(description + offset);
+				writer.Text(kDigits.substr(byte >> 4U, 1)).Text(kDigits.substr(byte & 0xFU, 1));
+			}
+			return;
+		}
+	}
 }
 
 
@@ -694,6 +773,14 @@ void WriteReport(int signal, const siginfo_t &info, const ucontext_t &context) n
 			    .Hex(frame.offset);
 		else
 			writer.Text("?");
+		writer.Text("\n");
+	}
+
+	writer.Text("\nModules:\n");
+	for (std::size_t module = 0; module < g_scratch.moduleCount; ++module)
+	{
+		writer.Text("  ").Text(g_scratch.modules[module].path.data());
+		WriteBuildId(writer, g_scratch.modules[module]);
 		writer.Text("\n");
 	}
 
@@ -851,6 +938,28 @@ bool InstallCrashHandler(const CrashOptions &options)
 	    Core::Severity::Debug, kCrash, "Crash reports go to {}{}", g_settings.directory.data(),
 	    symboliser.empty() ? ", their frames unnamed" : ", their frames named by " + symboliser);
 	return true;
+}
+
+
+ThreadCrashStack::ThreadCrashStack()
+{
+	if (kSanitised)
+		return;
+	m_pStack = std::make_unique<std::byte[]>(kStackBytes);
+	stack_t stack{};
+	stack.ss_sp = m_pStack.get();
+	stack.ss_size = kStackBytes;
+	::sigaltstack(&stack, nullptr);
+}
+
+
+ThreadCrashStack::~ThreadCrashStack()
+{
+	if (!m_pStack)
+		return;
+	stack_t stack{};
+	stack.ss_flags = SS_DISABLE;
+	::sigaltstack(&stack, nullptr);
 }
 
 
