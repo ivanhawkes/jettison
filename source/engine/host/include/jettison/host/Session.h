@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <jettison/host/Package.h>
+#include <jettison/script/ScriptHost.h>
 #include <jettison/vfs/Mount.h>
 
 namespace Jettison::Vfs
@@ -34,6 +35,7 @@ enum class Phase
 	Types,
 	Content,
 	World,
+	Scripts,
 	InitialState,
 };
 
@@ -109,6 +111,14 @@ class Game
 	{
 	}
 
+	// Who the mods' scripts' commands are from, call by call, for a session whose options ask for
+	// scripts (Script::ScriptHost::SendCommandsTo): asked once, in the scripts phase. With none, a
+	// command that holds a controller is refused as a script sends it.
+	virtual Script::ScriptHost::Sender ScriptSender()
+	{
+		return {};
+	}
+
 	virtual void CreateInitialState(Sim::SimWorld & /*world*/)
 	{
 	}
@@ -128,12 +138,18 @@ struct Options
 	// A server's session: the sources whose package is for the client alone (side: client) are left
 	// out, and logged, before the content phase checks the rest.
 	bool server{};
+
+	// The mods' scripts, run beside the world under these limits: their definitions (defs/scripts)
+	// loaded after the game's content, and a script host made once the world is registered, its
+	// commands sent into the world's queue as the game's sender says. None for no scripts.
+	std::optional<Script::HostLimits> scripts{};
 };
 
 // The owner of one game's file system, definitions and world. Constructing a session starts it: a
 // constructed session is ready. On a failed start the constructor throws StartupError, having
-// released everything it acquired. Shutdown destroys the world, then the definitions, then the file
-// system, then the game, since each holds references into those before it.
+// released everything it acquired. Shutdown destroys the scripts, then the world, then the
+// definitions, then the file system, then the game, since each holds references into those before
+// it.
 class Session
 {
   public:
@@ -160,6 +176,10 @@ class Session
 
 	Game &GetGame();
 
+	// The mods' scripts, for a session whose options ask for them. What drives the world gives the
+	// host the events it takes (Dispatch) and a snapshot to read (ReadFrom), as the shell does.
+	Script::ScriptHost &Scripts();
+
   private:
 	// Mounts the file system again without the sources for the client alone.
 	void LeaveOutClientPackages();
@@ -171,5 +191,6 @@ class Session
 	std::vector<Package> m_packages;
 	std::unique_ptr<Sim::DefinitionRegistry> m_pDefinitions;
 	std::unique_ptr<Sim::SimWorld> m_pWorld;
+	std::unique_ptr<Script::ScriptHost> m_pScripts;
 };
 } // namespace Jettison::Host

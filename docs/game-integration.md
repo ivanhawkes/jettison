@@ -28,7 +28,7 @@ engine never finds a game by itself.
 
 | Seam | For | Header |
 | --- | --- | --- |
-| `Host::Session` and `Host::Game` | A game with no presentation: a server, a tool, a test. The [session](glossary.md#session) owns one game's file system, definitions and world. | `source/engine/host/include/jettison/host/Session.h` |
+| `Host::Session` and `Host::Game` | A game with no presentation: a server, a tool, a test. The [session](glossary.md#session) owns one game's file system, definitions and world, and the mods' scripts when the game asks for them. | `source/engine/host/include/jettison/host/Session.h` |
 | `App::Game`, passed to `App::RunRenderApplication` with the `Host::Game` | A game drawn on screen: the [shell](glossary.md#shell) starts the game's `Host::Game` through a session, and draws it with its renderer, UI, audio and dev tools, with the game's presentation hooks at the shell's points. | `source/engine/app/include/jettison/app/Game.h` |
 
 `Host::Session` runs the game's hooks in a fixed order of phases and names the phase that fails

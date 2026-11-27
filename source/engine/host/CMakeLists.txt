@@ -1,9 +1,10 @@
-# The CPU host a game starts through: one session's file system, definitions and world, built in
-# phases from the game's explicit composition, with no window, renderer or sample content.
+# The CPU host a game starts through: one session's file system, definitions, world and scripts,
+# built in phases from the game's explicit composition, with no window, renderer or sample content.
 jettison_add_module(host
 	DEPENDS
 		core
 		reflect
+		script
 		serialise
 		sim
 		vfs

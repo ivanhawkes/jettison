@@ -48,6 +48,9 @@ if(TARGET jettison_script_tests)
 		set_tests_properties(script_read_kept PROPERTIES
 			PASS_REGULAR_EXPRESSION "lifetime may not live long enough.*aborting due to 3 previous errors")
 	endif()
+	# The suite runs scripts in a host session too, as a server does; host is above script, so the
+	# suite links it rather than the module.
+	target_link_libraries(jettison_script_tests PRIVATE jettison_host)
 	target_compile_definitions(jettison_script_tests PRIVATE
 		JETTISON_SCRIPT_TEST_MODULES="${script_test_modules}"
 		JETTISON_SCRIPT_TEST_SOURCES="${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts"

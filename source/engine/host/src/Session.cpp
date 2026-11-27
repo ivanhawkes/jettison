@@ -3,6 +3,7 @@
 #include <jettison/core/Assert.h>
 #include <jettison/core/Log.h>
 #include <jettison/core/Version.h>
+#include <jettison/script/ScriptDefinition.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/vfs/FileSystem.h>
@@ -101,6 +102,7 @@ std::string_view NameOf(Phase phase)
 		case Phase::Types: return "types";
 		case Phase::Content: return "content";
 		case Phase::World: return "world";
+		case Phase::Scripts: return "scripts";
 		case Phase::InitialState: return "initial state";
 	}
 	return "unknown";
@@ -134,7 +136,13 @@ Session::Session(Options options, std::unique_ptr<Game> game) : m_pGame{std::mov
 		LeaveOutClientPackages();
 	m_packages = DescribePackages(*m_pFiles);
 	m_pDefinitions = std::make_unique<Sim::DefinitionRegistry>(*m_pFiles);
-	Run(Phase::Content, {}, [&] { m_pGame->LoadContent(*m_pFiles, m_packages, *m_pDefinitions); });
+	Run(Phase::Content, {},
+	    [&]
+	    {
+		    m_pGame->LoadContent(*m_pFiles, m_packages, *m_pDefinitions);
+		    if (options.scripts)
+			    Script::LoadDefinitions(*m_pDefinitions);
+	    });
 
 	Run(Phase::World, {},
 	    [&]
@@ -142,6 +150,17 @@ Session::Session(Options options, std::unique_ptr<Game> game) : m_pGame{std::mov
 		    m_pWorld = std::make_unique<Sim::SimWorld>(options.fixedStep, options.seed);
 		    m_pGame->RegisterWorld(*m_pWorld, *m_pDefinitions);
 	    });
+
+	// After the world, whose commands a script's grants name; a script that does not load is logged
+	// and left out, as a mod that cannot be mounted is.
+	if (options.scripts)
+		Run(Phase::Scripts, {},
+		    [&]
+		    {
+			    m_pScripts = std::make_unique<Script::ScriptHost>(*m_pFiles, *options.scripts);
+			    m_pScripts->SendCommandsTo(*m_pWorld, m_pGame->ScriptSender());
+			    m_pScripts->LoadAll(*m_pDefinitions);
+		    });
 
 	Run(Phase::InitialState, {}, [&] { m_pGame->CreateInitialState(*m_pWorld); });
 }
@@ -173,6 +192,7 @@ void Session::LeaveOutClientPackages()
 
 void Session::Shutdown() noexcept
 {
+	m_pScripts.reset();
 	m_pWorld.reset();
 	m_pDefinitions.reset();
 	m_packages.clear();
@@ -218,5 +238,12 @@ Game &Session::GetGame()
 {
 	JETTISON_ASSERT(m_pGame);
 	return *m_pGame;
+}
+
+
+Script::ScriptHost &Session::Scripts()
+{
+	JETTISON_ASSERT(m_pScripts);
+	return *m_pScripts;
 }
 } // namespace Jettison::Host

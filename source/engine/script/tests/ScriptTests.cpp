@@ -1,6 +1,7 @@
 #include "TestTypes.h"
 
 #include <jettison/core/Log.h>
+#include <jettison/host/Session.h>
 #include <jettison/script/ScriptHost.h>
 #include <jettison/serialise/Binary.h>
 #include <jettison/serialise/Migration.h>
@@ -8,6 +9,7 @@
 #include <jettison/sim/Events.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/vfs/FileSystem.h>
+#include <jettison/vfs/Mount.h>
 
 #include <doctest/doctest.h>
 
@@ -15,6 +17,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -1057,4 +1060,82 @@ TEST_CASE("Script: a store's section that does not fit is refused")
 	Serialise::BinaryDocument document = Serialise::BinaryDocument::Parse(fits, Script::kStoreSection);
 	document.version = Script::kStoreVersion + 1;
 	CHECK_THROWS_AS(Script::ReadStore(document.Emit()), Serialise::FormatVersionError);
+}
+
+
+// A game whose world applies the suite's command, keeping what it is sent, and whose scripts
+// command as kScripts.
+class ScriptedGame final : public Host::Game
+{
+  public:
+	explicit ScriptedGame(std::vector<Pong> &applied) : m_applied{applied}
+	{
+	}
+
+
+	void RegisterTypes() override
+	{
+		ScriptTest::RegisterTypes();
+	}
+
+
+	void RegisterWorld(Sim::SimWorld &world, const Sim::DefinitionRegistry &) override
+	{
+		world.RegisterCommand<Pong>([this](Sim::SimWorld &, const Pong &pong)
+		                            { m_applied.push_back(pong); });
+	}
+
+
+	Script::ScriptHost::Sender ScriptSender() override
+	{
+		return [](const Sim::SimEvent &) { return std::optional{kScripts}; };
+	}
+
+  private:
+	std::vector<Pong> &m_applied;
+};
+
+
+TEST_CASE("Script: a session runs a mod's scripts beside its world, a server's as a client's")
+{
+	// A mod for both sides: its script's definition and its module.
+	const std::filesystem::path mod =
+	    std::filesystem::path{JETTISON_SCRIPT_TEST_OUTPUT} / "session-mod";
+	std::filesystem::remove_all(mod);
+	std::filesystem::create_directories(mod / "defs/scripts");
+	std::filesystem::copy_file(
+	    std::filesystem::path{JETTISON_SCRIPT_TEST_MODULES} / kEventModules[0], mod / "events.wasm");
+	std::ofstream{mod / "mod.yaml"} << "version: 1\nside: both\n";
+	std::ofstream{mod / "defs/scripts/events.yaml"}
+	    << "version: 1\nmodule: events.wasm\ncapabilities: [log, send:Test.Pong]\n"
+	       "events:\n  - {event: Test.Ping, function: on_ping}\n"
+	       "inputs:\n  - {input: doubled, function: doubled}\n";
+
+	for (const bool server : {false, true})
+	{
+		CAPTURE(server);
+		std::vector<Pong> applied;
+		Host::Options options{{Vfs::Mount{"rain", mod, false}}, 1.0 / 60.0, 1};
+		options.server = server;
+		options.scripts = Script::HostLimits{};
+		Host::Session session{std::move(options), std::make_unique<ScriptedGame>(applied)};
+		REQUIRE(session.Scripts().Scripts().size() == 1);
+
+		// The world's events, given to the scripts as whatever drives the world takes them.
+		Ping ping;
+		ping.count = 3;
+		session.Scripts().Dispatch(Sim::SimEvent{1, entt::meta_any{ping}});
+		CHECK(applied.empty());
+		session.World().Step();
+		REQUIRE(applied.size() == 1);
+		CHECK(applied[0].total == 3);
+		CHECK(applied[0].sender == kScripts);
+	}
+
+	// A session that does not ask for scripts loads none of them.
+	std::vector<Pong> applied;
+	Host::Session bare{
+	    Host::Options{{Vfs::Mount{"rain", mod, false}}, 1.0 / 60.0, 1},
+	    std::make_unique<ScriptedGame>(applied)};
+	CHECK(bare.Definitions().Find<Script::ScriptDefinition>("events") == nullptr);
 }

@@ -631,8 +631,8 @@ the camera back to the game's rigs at the end. The console's `sequence` command 
 
 ### Session
 
-An overloaded word. A host session (`Host::Session`) owns one game's file system, definitions and
-world, made in start-up phases ([the host session](simulation.md#the-host-session)). A net session
+An overloaded word. A host session (`Host::Session`) owns one game's file system, definitions,
+world and scripts, made in start-up phases ([the host session](simulation.md#the-host-session)). A net session
 (`Net::SessionId`) is one admitted connection on a server ([Networking](networking.md)).
 
 ### Shell

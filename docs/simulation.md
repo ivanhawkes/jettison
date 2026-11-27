@@ -283,8 +283,8 @@ system, so a mod replaces, patches or adds a definition by its mounts
 ### The host session
 
 `Host::Session` is the CPU host a game starts through: one game's file system, definitions and
-world, with no window, renderer or sample content. A server, a tool or a test runs a game through
-it. A game composes itself as a `Host::Game`, with one hook a phase, run in order:
+world, and the mods' scripts when it is asked for them, with no window, renderer or sample content.
+A server, a tool or a test runs a game through it. A game composes itself as a `Host::Game`, with one hook a phase, run in order:
 
 ```mermaid
 flowchart LR
@@ -292,15 +292,21 @@ flowchart LR
     M --> T["Types: Game::RegisterTypes"]
     T --> C["Content: packages checked, Game::LoadContent"]
     C --> W["World: SimWorld made, Game::RegisterWorld"]
-    W --> I["Initial state: Game::CreateInitialState"]
+    W --> S["Scripts: ScriptHost made, Game::ScriptSender, every script loaded"]
+    S --> I["Initial state: Game::CreateInitialState"]
 ```
 
 A constructed session is ready. A phase that throws becomes a `Host::StartupError` naming the phase
 and the source being read; no later hook runs, and the session has released what it built. Options
 are refused with no content source, a writable mount or a step that is not positive. `Shutdown()` is
-idempotent and destroys the world, the definitions, the file system and then the game, so state a
-world callback captures from the game outlives the world. Reflection is process-wide, so
+idempotent and destroys the scripts, the world, the definitions, the file system and then the game,
+so state a world callback captures from the game outlives the world. Reflection is process-wide, so
 `RegisterTypes` must be safe to run again for a second session.
+
+The scripts phase runs only for options whose `scripts` holds the script host's limits: the
+content phase then loads the scripts' definitions after the game's, and the session owns the
+`Script::ScriptHost`, sending its commands into the world's queue as the game's `ScriptSender`
+says ([host scripts in a game](scripts.md#host-scripts-in-a-game)).
 
 The content phase reads each source's `mod.yaml` as a `Host::PackageDescription` and refuses a
 [package](glossary.md#package) for a newer engine or one requiring a package not mounted before it.

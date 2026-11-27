@@ -120,9 +120,9 @@ module that uses SIMD is refused at load (`source/external/wamr/CMakeLists.txt`)
 The host calls a script from three places, one outside the step and two inside it
 ([why](decisions.md#scripts)).
 
-- **Handlers** run in [presentation](glossary.md#presentation). Once a frame the shell gives the
-  host the simulation's events, and the host calls every script with a handler for each event's
-  type, in name order. A handler acts by sending commands, which are queued for the next step and
+- **Handlers** run in [presentation](glossary.md#presentation). Once a frame the shell, or a
+  server's loop, gives the host the simulation's events, and the host calls every script with a
+  handler for each event's type, in name order. A handler acts by sending commands, which are queued for the next step and
   recorded with the player's, so a replay needs no script to run. A handler's instance is kept from
   call to call, so it may count what it has seen.
 - **Inputs** run inside the [simulation](glossary.md#simulation). A utility-AI consideration names
@@ -302,8 +302,9 @@ particular, which may command anything, nor as a player or an NPC the game did n
 called through `Call` is asked with an event of no type, and a game with one sender for every call
 gives that one alone.
 
-The shell gives none, so its scripts send only commands that name no sender until the game sets its
-rule through `Scripts().SendCommandsTo`.
+A session that runs scripts asks its game for the `Sender` once, `Host::Game::ScriptSender`
+([host scripts in a game](#host-scripts-in-a-game)); a game that gives none has its scripts send
+only commands that name no sender.
 
 ### A script's own reasons
 
@@ -452,21 +453,32 @@ suite's modules are in [scripts in the build](build-and-gates.md#scripts-in-the-
 
 ### Host scripts in a game
 
-The shell loads the scripts' definitions in its session's content phase
-(`Script::LoadDefinitions`), and wires the host up once the session has started its world
-(`source/engine/app/src/Application.cpp`):
+The scripts run in the [host session](simulation.md#the-host-session), beside the world, so a
+dedicated server runs a mod's scripts as a client playing alone does, and their commands go into
+the world's queue as any other's. A session whose `Host::Options::scripts` holds the host's limits
+loads the scripts' definitions after the game's content (`Script::LoadDefinitions`), then, in its
+scripts phase once the world is registered, makes the `ScriptHost` over its own file system, gives
+it the world and the game's `Host::Game::ScriptSender`, and loads every script
+(`source/engine/host/src/Session.cpp`). A script that does not load is logged and left out; the
+host goes before the world on shutdown. A server's session loads the scripts of the packages it
+keeps, the client's alone left out.
+
+What drives the world does the rest, as the shell does (`source/engine/app/src/Application.cpp`):
 
 ```cpp
-m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
-m_pScripts->SendCommandsTo(world);
-m_pScripts->ReadFrom(m_simStepper->Current());
-m_pScripts->LoadAll(m_pSession->Definitions());
+Host::Options options{SessionMounts(m_assets), kSimStep, kSimSeed};
+options.scripts = Script::HostLimits{};
+m_pSession = std::make_unique<Host::Session>(std::move(options), std::move(game));
+m_simStepper.emplace(m_pSession->World());
+m_pSession->Scripts().ReadFrom(m_simStepper->Current());
 ```
 
-It then gives the host every event it takes from the simulation (`Dispatch`), writes the keys
-into each save (`AddSection(Script::kStoreSection, Script::WriteStore(...))`), and restores them
-on a load (`SetStore(Script::ReadStore(...))`). A game reaches the host through
-`App::Shell::Scripts()`.
+It gives the host every event it takes from the simulation (`Dispatch`), writes the keys into
+each save (`AddSection(Script::kStoreSection, Script::WriteStore(...))`), and restores them on a
+load (`SetStore(Script::ReadStore(...))`). A game reaches the host through
+`Host::Session::Scripts()`, or in the shell `App::Shell::Scripts()`. The script suite starts a
+session with a both-side mod's script, as a client and as a server, and the world applies the
+command its handler sends, from the game's sender.
 
 To let scripts send a game's command, register the command with `Reflect::Attribute::Script` and
 with the world (`SimWorld::RegisterCommand`). To let a script answer a consideration, give the

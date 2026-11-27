@@ -310,6 +310,13 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   game names for the event its handler runs for (`ScriptHost::SendCommandsTo`'s `Sender`, decided
   2026-11-26), and with none such a command is refused, so a script cannot command as a player, an
   NPC or no one in particular. [Scripts](scripts.md)
+- **The session runs the mods' scripts, not the shell** (2026-11-27). The world is the server's
+  alone and a client is not trusted, yet a script answers an NPC's tree and sends commands, so the
+  scripts run where the world does: `Host::Session` owns the `ScriptHost` when its options ask for
+  scripts, made once the world is registered and before its initial state, and the shell takes the
+  session's. The game says whose authority a script's command carries through
+  `Host::Game::ScriptSender`; the session drives no loop, so what steps the world gives the host
+  its events and a snapshot, as the shell does. [Scripts](scripts.md#host-scripts-in-a-game)
 
 ## Networking
 

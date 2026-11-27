@@ -449,11 +449,6 @@ class Application final : private Shell
 	// asset tree in InitAudio.
 	std::optional<Sim::DefinitionRegistry> m_soundDefinitions;
 
-	// The mods' scripts (defs/scripts), made beside the definitions in InitResources: given every
-	// event TakeEvents takes, and answering the traders' inputs they name. After the world, so it goes
-	// before it, and no step runs once it has.
-	std::unique_ptr<Script::ScriptHost> m_pScripts;
-
 	// Whether and how often the scripts' modules are looked at for a change: the resources' rule.
 	bool m_scriptReload{false};
 	std::chrono::milliseconds m_scriptPoll{0};

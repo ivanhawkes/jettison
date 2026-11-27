@@ -67,7 +67,7 @@ jettison/
     │   ├── transit/            motion profiles, passages, portals, slots
     │   ├── dock/               platforms' berths and the vehicles on them
     │   ├── script/             the WebAssembly host: scripts, their limits, bindings
-    │   ├── host/               the CPU session a game starts through: content, definitions, world
+    │   ├── host/               the CPU session a game starts through: content, definitions, world, scripts
     │   ├── net/                ENet server and client: handshake, tokens, framing, snapshots
     │   ├── render/             renderer interface, frame data, cameras, materials, debug draw
     │   │   └── src/vulkan/     the Vulkan backend, private, behind IRenderer.h
@@ -182,9 +182,8 @@ flowchart TB
     app --> host
     app --> physics
     app --> platform
-    app --> script
     app --> ui
-    host --> sim
+    host --> script
     net --> serialise
     physics --> profile
     physics --> sim

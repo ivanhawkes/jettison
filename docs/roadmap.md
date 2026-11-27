@@ -87,23 +87,6 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs o
 
 **Feature doc:** [physics](physics.md).
 
-<a id="j62"></a>
-### J62. Mods' scripts run in the session
-
-**What remains.** A mod's scripts loaded and run beside the world inside `Host::Session`, so a
-dedicated server runs them as a client playing alone does, their commands checked there like any
-other.
-
-**Why.** The world is the server's alone and a client is not trusted (the user, 2026-11-27), yet a
-script answers an NPC's tree and sends commands, and today only the rendered shell loads scripts: a
-dedicated server runs none of a mod's.
-
-**What exists.** `Script::ScriptHost`, which the shell makes once its session has started the
-world (`source/engine/app/src/Application.cpp`), and the scripts' definitions, loaded in the
-session's content phase ([scripts](scripts.md)).
-
-**Feature doc:** [scripts](scripts.md).
-
 ## Tier 3: robustness and tools
 
 Cheap to add when wanted, or waiting on a profile, and costing nothing meanwhile.

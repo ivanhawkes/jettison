@@ -106,9 +106,9 @@ class EngineWorld final : public Host::Game
 };
 
 
-// The game's world with what the shell reads beside it: the mods' scripts' definitions, and the
-// physics components a pick and a reason read in the snapshots. The world itself is the game's alone,
-// so it is the one the game's server starts.
+// The game's world with what the shell reads beside it: the physics components a pick and a reason
+// read in the snapshots. The world itself is the game's alone, so it is the one the game's server
+// starts.
 class ShellComposition final : public Host::Game
 {
   public:
@@ -129,7 +129,6 @@ class ShellComposition final : public Host::Game
 	    Sim::DefinitionRegistry &definitions) override
 	{
 		m_pGame->LoadContent(files, packages, definitions);
-		Script::LoadDefinitions(definitions);
 	}
 
 
@@ -141,6 +140,12 @@ class ShellComposition final : public Host::Game
 		ShowOnce<Physics::OnRails>(world);
 		ShowOnce<Physics::LocalFrame>(world);
 		ShowOnce<Physics::Body>(world);
+	}
+
+
+	Script::ScriptHost::Sender ScriptSender() override
+	{
+		return m_pGame->ScriptSender();
 	}
 
 
@@ -355,7 +360,7 @@ Application::Application(
 	    "how it trapped",
 	    [this](DevTools::Console &console, std::span<const std::string>)
 	    {
-		    const std::vector<Script::ScriptStatus> scripts = m_pScripts->Scripts();
+		    const std::vector<Script::ScriptStatus> scripts = m_pSession->Scripts().Scripts();
 		    if (scripts.empty())
 			    console.Print("No scripts are loaded");
 		    for (const Script::ScriptStatus &script : scripts)
@@ -378,8 +383,8 @@ Application::Application(
 		    const std::filesystem::path directory{arguments[0]};
 		    std::filesystem::create_directories(directory);
 		    for (const auto &[name, text] :
-		         {std::pair{"jettison_script.h", m_pScripts->WriteHeader()},
-		          std::pair{"jettison_script.rs", m_pScripts->WriteRustModule()}})
+		         {std::pair{"jettison_script.h", m_pSession->Scripts().WriteHeader()},
+		          std::pair{"jettison_script.rs", m_pSession->Scripts().WriteRustModule()}})
 		    {
 			    std::ofstream file{directory / name, std::ios::binary};
 			    file << text;
@@ -775,7 +780,7 @@ void Application::RegisterFrameSystems()
 		     if (now - m_lastScriptPoll < m_scriptPoll)
 			     return;
 		     m_lastScriptPoll = now;
-		     m_pScripts->ReloadChanged();
+		     m_pSession->Scripts().ReloadChanged();
 	     }});
 	m_frame.Register(
 	    {"shell.ui",
@@ -1052,20 +1057,19 @@ void Application::InitResources()
 	Animation::RegisterClipFileLoader(*m_pResources);
 
 	// Its failure is a Host::StartupError, which names the phase and the source it was reading.
+	// The session runs the mods' scripts, as the game's server does.
+	Host::Options options{SessionMounts(m_assets), kSimStep, kSimSeed};
+	options.scripts = Script::HostLimits{};
 	m_pSession = std::make_unique<Host::Session>(
-	    Host::Options{SessionMounts(m_assets), kSimStep, kSimSeed},
-	    std::make_unique<ShellComposition>(std::move(m_pWorldGame)));
+	    std::move(options), std::make_unique<ShellComposition>(std::move(m_pWorldGame)));
 	Sim::SimWorld &world = m_pSession->World();
 	m_simStepper.emplace(world);
 	if (auto *physics = dynamic_cast<Physics::PhysicsWorld *>(
 	        world.FindService(Physics::PhysicsWorld::kServiceName)))
 		m_pPicker = std::make_unique<Physics::SnapshotPicker>(*physics);
-	m_pScripts = std::make_unique<Script::ScriptHost>(m_assets);
-	m_pScripts->SendCommandsTo(world);
 
 	// The stepper's current snapshot is the one after the step whose events the scripts are given.
-	m_pScripts->ReadFrom(m_simStepper->Current());
-	m_pScripts->LoadAll(m_pSession->Definitions());
+	m_pSession->Scripts().ReadFrom(m_simStepper->Current());
 	m_sceneUpdateSystem.emplace(m_pResources.get());
 	Scene::RegisterSequenceLoader(*m_pResources);
 	m_sequences.emplace(*m_pResources);
@@ -1995,7 +1999,8 @@ bool Application::SaveTo(std::string_view name)
 		                          std::chrono::system_clock::now().time_since_epoch())
 		                          .count();
 		save.info.mods = m_mods;
-		save.AddSection(std::string{Script::kStoreSection}, Script::WriteStore(m_pScripts->Store()));
+		save.AddSection(
+		    std::string{Script::kStoreSection}, Script::WriteStore(m_pSession->Scripts().Store()));
 		m_pGame->WriteSave(save, *this);
 		const std::vector<std::byte> bytes = save.Write();
 		m_assets.Write(path, bytes);
@@ -2031,7 +2036,7 @@ bool Application::LoadFrom(std::string_view name)
 		m_pGame->ReadSave(save, *this);
 		m_pSession->World().Load(save.world);
 		m_pGame->Loaded(*this);
-		m_pScripts->SetStore(std::move(store));
+		m_pSession->Scripts().SetStore(std::move(store));
 
 		// Other mods may make another game of the save, which is the player's to judge: it loads.
 		for (const std::string &difference : Sim::ModDifferences(save.info.mods, m_mods))
@@ -2157,8 +2162,8 @@ void Application::Shutdown() noexcept
 	m_pResources.reset();
 	m_pIoWorker.reset();
 
-	// What holds into the world goes before the session that owns it.
-	m_pScripts.reset();
+	// What holds into the world goes before the session that owns it. The scripts are the session's:
+	// they read the stepper's snapshot only when called, and nothing calls them past here.
 	m_pPicker.reset();
 	m_simStepper.reset();
 	if (m_pSession)
@@ -2227,7 +2232,7 @@ void Application::TakeEvents()
 {
 	for (const Sim::SimEvent &event : m_pSession->World().Events().Take())
 	{
-		m_pScripts->Dispatch(event);
+		m_pSession->Scripts().Dispatch(event);
 		PlayEventSound(event);
 		m_pGame->TakeEvent(event, *this);
 	}
@@ -2437,8 +2442,8 @@ void Application::HoldForModels()
 	}
 	if (!settled)
 		Core::Log(
-		    Core::Severity::Warning, kShell,
-		    "The scene is shown with models still loading, after {} s", kPrefetchSeconds);
+		    Core::Severity::Warning, kShell, "The scene is shown with models still loading, after {} s",
+		    kPrefetchSeconds);
 	else
 		Core::Log(
 		    Core::Severity::Debug, kShell, "The scene's models are in, {} ms after it loaded",
@@ -2490,7 +2495,7 @@ const Sim::DefinitionRegistry &Application::Definitions() const
 
 Script::ScriptHost &Application::Scripts()
 {
-	return *m_pScripts;
+	return m_pSession->Scripts();
 }
 
 

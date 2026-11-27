@@ -35,9 +35,9 @@ A [game](glossary.md#game) composes itself into the shell twice over, each part 
 `Host::Game` (types, content, world and initial state, the same class its server starts), and its
 presentation as an `App::Game` (`app/Game.h`). `RunRenderApplication` takes both.
 
-The shell starts the `Host::Game` in its resources stage. It adds to it only what the shell reads
-beside the world: the mods' scripts' definitions in the content phase, and, where the world has
-physics, `Physics::Body`, `OnRails` and `LocalFrame` in the snapshots, for the pick and the
+The shell starts the `Host::Game` in its resources stage, in a session that runs the mods'
+scripts, as a server's does ([host scripts in a game](scripts.md#host-scripts-in-a-game)). It adds
+to the game only what the shell reads beside the world: where the world has physics, `Physics::Body`, `OnRails` and `LocalFrame` in the snapshots, for the pick and the
 reasons, unless the world shows them already. A world the shell is to draw registers
 `Sim::Transform` and `Sim::InFrame`, and attaches physics for what it picks; the ground sample's
 `GroundWorld` does, and Manifest's world does. A start that fails is a `Host::StartupError`
@@ -107,7 +107,7 @@ its message (`RenderApplication.cpp`), which says what failed but not in which s
 ```mermaid
 flowchart TD
     U["User: the user's directories, the crash handler, settings.yaml and its bindings"]
-    R["Resources: the mounts and mods.yaml, the I/O worker, the resource manager,<br/>the world's session (Host::Game's phases), then the mods' scripts on its world"]
+    R["Resources: the mounts and mods.yaml, the I/O worker, the resource manager,<br/>the world's session (Host::Game's phases, the mods' scripts among them)"]
     S["Scene: --scene, or Game::DefaultScene through the mounts; Game::SceneLoaded"]
     G["Renderer: the device, the swapchain and the frame"]
     W["Window: its title, input, and its size"]
