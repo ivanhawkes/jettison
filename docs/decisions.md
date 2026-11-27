@@ -341,6 +341,13 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   authoring rules are Manifest's [art standards](../../manifest/docs/art-standards.md); the engine
   supports the workflow and its test content follows them. [Roadmap J64 to
   J67](roadmap.md#a-separate-track-the-art-standards-support)
+- **Bindless textures, with descriptor indexing required** (2026-11-27, the user's). Every material
+  texture is in one descriptor array, indexed by slot from the material buffer, so a program's slot
+  count is not the descriptor layout's. Device choice refuses a device without descriptor indexing:
+  of those today's 1.3 check accepts, that leaves out Intel's Broadwell on `hasvk`, and NVIDIA's own
+  driver is unchecked ([devices](dense-geometry-and-ray-tracing.md#devices)); those limits are
+  accepted. Raising the fixed slot count to sixteen, past the per-stage sampler minimum, was
+  rejected. [Roadmap J68](roadmap.md#j68)
 - **Clustered forward rendering** (2026-11-10). Lights are assigned to view-space clusters in
   compute, and every surface is shaded once in its own material program. There is no G-buffer:
   ambient occlusion reads the depth prepass's depth and normals instead. [Rendering](rendering.md)
