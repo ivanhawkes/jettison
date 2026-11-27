@@ -52,6 +52,8 @@ jettison_add_module(render
 		src/Screenshot.cpp
 		src/Shadows.cpp
 		src/Texture.cpp
+		src/vulkan/DeviceCapabilities.cpp
+		src/vulkan/DeviceCapabilities.h
 		src/vulkan/DeviceChoice.cpp
 		src/vulkan/DeviceChoice.h
 		src/vulkan/DeviceContext.cpp
@@ -97,6 +99,7 @@ jettison_add_module(render
 		tests/ColourGradeTests.cpp
 		tests/CullingTests.cpp
 		tests/DebugDrawTests.cpp
+		tests/DeviceCapabilitiesTests.cpp
 		tests/DeviceChoiceTests.cpp
 		tests/FontFacesTests.cpp
 		tests/DrawBatchTests.cpp

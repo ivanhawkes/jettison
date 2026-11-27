@@ -40,11 +40,10 @@ overlap queries and all-hit casts of J07, steering, J08, the way in to a berth, 
 log file, J10. Manifest's adoption of encryption, its server's key in
 a file and the public half in its test builds' client configuration, is Manifest's.
 
-Two deliveries were placed (the user's, 2026-11-27), each in its own lane. The server's pack,
-client-side mods and the content check, J63, are done ([history](history.md)), for Manifest's
-graphical client on a server ([its L15a](../../manifest/docs/delivery-order.md#l15a)). In lane C: the
-device's capabilities, [J36](#j36), then bindless textures, [J68](#j68), from the dense-geometry
-track.
+Deliveries placed by the user on 2026-11-27, each in its own lane: the server's pack, client-side
+mods and the content check, J63, and the device's capabilities, J36, are done ([history](history.md));
+bindless textures, [J68](#j68), from the dense-geometry track, follow J36 in lane C. J63 serves
+Manifest's graphical client on a server ([its L15a](../../manifest/docs/delivery-order.md#l15a)).
 
 ## Waiting on you
 
@@ -471,13 +470,12 @@ Nothing stands on it.
 Meshlets drawn by mesh shaders, an asset cook, streaming, and ray-traced shadows, ambient occlusion
 and reflections, with RTX Mega Geometry on NVIDIA: the plan agreed on 2026-11-25, for Manifest's
 station kits, instance fields and asteroids. It is scheduled apart from the backlog's tiers until
-the user places it; J36 and J68 were placed on 2026-11-27 ([current deliveries](#current-deliveries)), and none of it is started. Its design, decisions, budgets, risks and each
+the user places it; J36 and J68 were placed on 2026-11-27 ([current deliveries](#current-deliveries)), and only J36 is built. Its design, decisions, budgets, risks and each
 stage's exit criterion are in [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md#stages);
 the rows below say what each stage is, what it waits on, and which backlog items it touches.
 
 | Stage | What it is | Needs | Touches |
 | --- | --- | --- | --- |
-| <a id="j36"></a>J36. Vulkan 1.4 and the device's capabilities | `kApiVersion` at 1.4, and one table of the optional device features (mesh shaders, ray queries, acceleration structures, the cluster extension and their limits), logged, each path overridable by a setting and a flag. | — | — |
 | <a id="j37"></a>J37. The geometry module, the cook, and levels of detail for model files | meshoptimizer added; the CPU module `geometry`; `jettison_cook` cooking models and textures once, with layered settings files and a cook record over each source's references; the cooked GLB's reader for models, rigs and KTX 2 textures; the engine's content cooked at build time, dense test meshes generated; levels of detail and hysteresis for model files; `SetLodThreshold` on `IRenderer`. | J36 | Takes [J27](#j27)'s level-of-detail row; leaves [J12](#j12) small |
 | <a id="j38"></a>J38. The cook's watch mode | `jettison_cook --watch`: the artists' daemon, cooking a source tree outside the game's repository into its asset folder as files change. | J37 | — |
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |

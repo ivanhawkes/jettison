@@ -196,6 +196,12 @@ constexpr std::string_view kMusic = "audio/music/drift.flac";
 // The language the screens are in (StringTable), in the settings.
 constexpr std::string_view kLanguageKey = "ui.language";
 
+// The optional render paths the player turns off with false (RendererOptions::meshlets), in the
+// settings.
+constexpr std::string_view kMeshletsKey = "render.meshlets";
+constexpr std::string_view kRayTracingKey = "render.rayTracing";
+constexpr std::string_view kMegaGeometryKey = "render.megaGeometry";
+
 
 // A bus's volume in the settings: audio.master, audio.music, ...
 std::string VolumeKey(Audio::Bus bus)
@@ -1070,6 +1076,13 @@ void Application::InitRenderer()
 	options.ambientOcclusion = m_arguments.ambientOcclusion;
 	options.bloom = m_arguments.bloom;
 	options.gpu = m_arguments.gpu;
+
+	// A flag turns a path off for the run; the setting, for every run.
+	const auto allowed = [this](bool flagged, std::string_view key)
+	{ return !flagged && m_settings->Values().GetBool(key).value_or(true); };
+	options.meshlets = allowed(m_arguments.noMeshlets, kMeshletsKey);
+	options.rayTracing = allowed(m_arguments.noRayTracing, kRayTracingKey);
+	options.megaGeometry = allowed(m_arguments.noMegaGeometry, kMegaGeometryKey);
 	options.drawEveryFrame = m_arguments.frameStep > 0.0;
 	options.offscreen = m_arguments.offscreen;
 	m_pRenderer = Render::CreateRenderer(m_assets, *m_pResources, std::move(options));

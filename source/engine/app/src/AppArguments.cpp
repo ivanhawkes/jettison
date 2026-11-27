@@ -99,7 +99,7 @@ void PrintUsage(const char *argv0)
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
 	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
 	             " [--user-dir <directory>]"
-	             " [--gpu <name>] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
+	             " [--gpu <name>] [--no-meshlets] [--no-ray-tracing] [--no-mega-geometry] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
 	             " [--frame-step <seconds>] [--run [@<frame> | @<seconds>s] <console command>]..."
 	             " [--offscreen]\n";
 }
@@ -146,6 +146,12 @@ std::optional<AppArguments> ParseAppArguments(
 			}
 			arguments.bloom = strength;
 		}
+		else if (argument == "--no-meshlets")
+			arguments.noMeshlets = true;
+		else if (argument == "--no-ray-tracing")
+			arguments.noRayTracing = true;
+		else if (argument == "--no-mega-geometry")
+			arguments.noMegaGeometry = true;
 		else if (argument == "--no-sound")
 			arguments.noSound = true;
 		else if (argument == "--gpu" && index + 1 < argc)

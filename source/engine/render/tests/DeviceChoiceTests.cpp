@@ -23,6 +23,27 @@ DeviceCandidate Gpu(std::string name, std::optional<bool> monitor, std::string u
 } // namespace
 
 
+TEST_CASE("Device choice: a Vulkan 1.3 device is refused with the version it reports")
+{
+	constexpr std::uint32_t kVulkan14 = (1u << 22) | (4u << 12);
+	constexpr std::uint32_t kVulkan13Driver = (1u << 22) | (3u << 12) | 280u;
+	constexpr std::uint32_t kVulkan14Driver = (1u << 22) | (4u << 12) | 363u;
+
+	const std::string reason = ApiVersionUnsuitable(kVulkan13Driver, kVulkan14);
+	CHECK(reason == "it is Vulkan 1.3, and the engine needs 1.4");
+	CHECK(ApiVersionUnsuitable(kVulkan14Driver, kVulkan14).empty());
+	CHECK(ApiVersionUnsuitable(kVulkan14, kVulkan14).empty());
+
+	// The reason travels as the candidate's, so the choice lists it and skips the device.
+	const std::vector<DeviceCandidate> only{Gpu("Radeon HD 7970", false, reason)};
+	const DeviceChoice choice = ChooseDevice(only);
+	CHECK_FALSE(choice.index);
+	CHECK(choice.reason.find("it is Vulkan 1.3, and the engine needs 1.4") != std::string::npos);
+	const std::vector<DeviceCandidate> withSoftware{Gpu("Radeon HD 7970", false, reason), kSoftware};
+	CHECK(ChooseDevice(withSoftware).index == 1u);
+}
+
+
 TEST_CASE("Device choice: the GPU with the monitor, over one kept for compute listed before it")
 {
 	// Two NVIDIA cards, the second with the monitor: the first is for inference, and Vulkan may list

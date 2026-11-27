@@ -2,7 +2,7 @@
 
 The plan for meshlet levels of detail drawn by mesh shaders, an asset cook, geometry streaming and
 ray-traced shadows, ambient occlusion and reflections, with RTX Mega Geometry as an optional
-accelerator. Agreed with the user on 2026-11-25; nothing in it is built yet. Its stages are
+accelerator. Agreed with the user on 2026-11-25; only J36 is built. Its stages are
 [J36 to J50 and J68](roadmap.md#a-separate-track-dense-geometry-and-ray-tracing) on the roadmap, a track
 scheduled apart from Manifest's queue until the user places it. The settled choices are also in
 [decisions](decisions.md#rendering), each linking back here; the research this plan replaces
@@ -80,7 +80,7 @@ devices before it was used ([what was checked](#facts-checked)).
 | Ambient occlusion | The `ambient-occlusion` pass from the prepass's depth and normals, then a blur | The same pass, inputs and blur, sampling the scene with rays ([J46](roadmap.md#j46)) |
 | Reflections | The environment cube; screen-space reflections out by decision | Ray-traced sharp reflections below a roughness cut-off ([J47](roadmap.md#j47)); screen-space reflections stay out |
 | Assets | `jettison_pack` packs files as they are; textures made by import scripts (`scripts/import-planet-textures.sh`, `ktx create`) | `jettison_cook` cooks models and textures before packing |
-| Device | Vulkan 1.3, dynamic rendering and synchronization2 required; no optional features | Vulkan 1.4; one table of optional capabilities, each logged and overridable ([J36](roadmap.md#j36)) |
+| Device | Vulkan 1.3, dynamic rendering and synchronization2 required; no optional features | Vulkan 1.4; one table of optional capabilities, each logged and overridable ([J36](history.md#j36)) |
 | Shaders | `glslc --target-env=vulkan1.3`, with variants built by `jettison_compile_shader_variant` | Variants for mesh shaders and ray queries, from the same sources |
 
 The level-of-detail setter: no caller sets `Renderer::SetLodThreshold`, and `IRenderer` does not
@@ -103,7 +103,7 @@ Measured or read on 2026-11-25. Claims from the transcript that did not hold are
 
 The RTX 5070 Ti is kept for inference and is never drawn with. `vulkaninfo` does not print the
 cluster extension's properties, so the engine reads `maxVerticesPerCluster` and
-`maxTrianglesPerCluster` itself ([J36](roadmap.md#j36)).
+`maxTrianglesPerCluster` itself ([J36](history.md#j36)).
 
 No AMD device is at hand, so AMD's support is read from RADV's source (Mesa 26.3.1,
 `radv_physical_device.c` and `ac_gpu_info.c`, 2026-11-26), not a device. Mesh and task shaders
@@ -297,7 +297,7 @@ flowchart LR
 
 ### Device capabilities and paths
 
-[J36](roadmap.md#j36) makes one table of what the device offers. Each optional path asks it, a
+[J36](history.md#j36) makes one table of what the device offers. Each optional path asks it, a
 setting or flag can turn it off, and the log says why a path is off, as device choice logs a
 device's reasons now.
 
@@ -466,13 +466,8 @@ flowchart LR
 
 ### J36. Vulkan 1.4 and the device's capabilities
 
-- **Delivers.** `kApiVersion` at 1.4, the device check and its reason, `VkPhysicalDeviceVulkan14Features`
-  read. A capabilities table (mesh and task shaders and their limits, ray queries, acceleration
-  structures, the cluster extension and its properties, the 64-bit atomics, the features above), logged at start-up,
-  each path overridable by a setting and a flag (`--no-meshlets`, `--no-ray-tracing`,
-  `--no-mega-geometry`).
-- **Exit criterion.** The gate green on lavapipe with 1.4; `DeviceChoiceTests` cover a 1.3 device
-  refused with its reason; the table logged on both devices matches the [facts](#devices).
+Done 2026-11-27 ([history](history.md#j36)). The table is `Render::DeviceCapabilities` and the paths
+`Render::DevicePaths` (`render/src/vulkan/DeviceCapabilities.h`); the 5060 Ti's log was not checked.
 
 ### J37. The geometry module, the cook, and levels of detail for model files
 

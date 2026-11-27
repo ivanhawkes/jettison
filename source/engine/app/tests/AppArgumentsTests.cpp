@@ -51,6 +51,23 @@ TEST_CASE("a screenshot is asked for with the frames before it, a fixed step and
 }
 
 
+TEST_CASE("each optional render path has a flag that turns it off")
+{
+	const auto defaults = Parse({});
+	REQUIRE(defaults);
+	CHECK_FALSE(defaults->noMeshlets);
+	CHECK_FALSE(defaults->noRayTracing);
+	CHECK_FALSE(defaults->noMegaGeometry);
+
+	const auto arguments = Parse({"--no-meshlets", "--no-mega-geometry"});
+	REQUIRE(arguments);
+	CHECK(arguments->noMeshlets);
+	CHECK_FALSE(arguments->noRayTracing);
+	CHECK(arguments->noMegaGeometry);
+	CHECK(Parse({"--no-ray-tracing"})->noRayTracing);
+}
+
+
 TEST_CASE("a console line runs before the first frame, on a frame, or at a simulation time")
 {
 	const auto arguments = Parse(

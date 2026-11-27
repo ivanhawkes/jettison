@@ -1,6 +1,6 @@
 # Rendering
 
-The `render` module draws a [scene](glossary.md#scene) on the GPU with Vulkan 1.3. Each
+The `render` module draws a [scene](glossary.md#scene) on the GPU with Vulkan 1.4. Each
 [frame](glossary.md#frame-rendering) it reads the scene's components as
 [presentation](glossary.md#presentation) left them, culls and batches what is in view, lights it,
 and writes it to the window with the UI over it. It owns the window, the device, the swapchain, the
@@ -368,9 +368,22 @@ The backend is private (`source/engine/render/src/vulkan`). `CreateRenderer` mak
 
 - **`DeviceContext`** holds the instance, the device, the debug messenger (with synchronisation
   validation in Debug builds), object names and the VMA allocator every buffer and image comes from.
-- **The device** must offer anisotropic sampling, depth clamp, dual-source blending, separate depth
-  and stencil layouts, dynamic rendering and synchronization2. Lavapipe has them all, so the
-  headless render test on lavapipe covers every pass.
+- **The device** must report Vulkan 1.4 (`DeviceContext::kApiVersion`; a device that reports 1.3 is
+  ruled out with "it is Vulkan 1.3, and the engine needs 1.4") and offer anisotropic sampling, depth
+  clamp, dual-source blending, separate depth and stencil layouts, dynamic rendering and
+  synchronization2. Lavapipe has them all, so the headless render test on lavapipe covers every pass.
+- <a id="the-device-and-its-capabilities"></a>**Its capabilities** (`DeviceCapabilities.h`) are read once
+  when the device is chosen and logged: the 1.4 features, `multiDrawIndirect`, `drawIndirectCount`,
+  `bufferDeviceAddress`, `descriptorIndexing`, `samplerFilterMinmax`, the 64-bit atomics, mesh and task
+  shaders with their limits, ray queries and acceleration structures, and
+  `VK_NV_cluster_acceleration_structure` with the size of a cluster. `ChoosePaths` turns them into
+  three optional paths, each logged with why it is off: meshlets (`meshShader`, `taskShader`,
+  `multiDrawIndirect`, `drawIndirectCount`), ray tracing (`accelerationStructure`, `rayQuery`,
+  `bufferDeviceAddress`) and Mega Geometry (the cluster extension, and the ray tracing path). The
+  player turns one off with `--no-meshlets`, `--no-ray-tracing` or `--no-mega-geometry`, or with
+  `false` in the settings `render.meshlets`, `render.rayTracing` or `render.megaGeometry`
+  (`RendererOptions`). No path uses the table yet; the paths of
+  [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md#device-capabilities-and-paths) will.
 - **`Swapchain`** prefers an sRGB format and owns its image views.
 - **`Renderer`** runs the pass list. The frame constants, skin palette, light list, material
   parameters, instance buffer and command buffer exist once per frame in flight. The render targets,

@@ -36,6 +36,22 @@ int TypeRank(DeviceType type)
 }
 
 
+// The fields of VK_MAKE_API_VERSION's encoding, as many as the reason names: variant (3 bits), major
+// (7), minor (10), patch (12).
+constexpr std::uint32_t kVersionMinorShift = 12;
+constexpr std::uint32_t kVersionMajorShift = 22;
+constexpr std::uint32_t kVersionMinorMask = 0x3ff;
+constexpr std::uint32_t kVersionMajorMask = 0x7f;
+
+
+std::string VersionText(std::uint32_t version)
+{
+	return std::format(
+	    "{}.{}", (version >> kVersionMajorShift) & kVersionMajorMask,
+	    (version >> kVersionMinorShift) & kVersionMinorMask);
+}
+
+
 std::string Describe(const DeviceCandidate &candidate)
 {
 	const std::string_view display = !candidate.drivesDisplay   ? "display unknown"
@@ -57,6 +73,15 @@ std::string_view DeviceTypeName(DeviceType type)
 		case DeviceType::Other: return "other";
 	}
 	return "other";
+}
+
+
+std::string ApiVersionUnsuitable(std::uint32_t reported, std::uint32_t required)
+{
+	if (reported >= required)
+		return {};
+	return std::format(
+	    "it is Vulkan {}, and the engine needs {}", VersionText(reported), VersionText(required));
 }
 
 

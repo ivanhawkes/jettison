@@ -66,6 +66,13 @@ struct AppArguments
 	// GPUs, when no usable one has it.
 	std::string gpu;
 
+	// An optional render path turned off (--no-meshlets, --no-ray-tracing, --no-mega-geometry), over
+	// the settings render.meshlets, render.rayTracing and render.megaGeometry, which turn one off
+	// with false; the device's own lack of one is the renderer's to report.
+	bool noMeshlets{false};
+	bool noRayTracing{false};
+	bool noMegaGeometry{false};
+
 	// A frame written to a PNG and the run ended (--screenshot): the frame after this many in a row
 	// drawn with nothing loading (--after-frames), so what the scene streams in is in it. Empty for
 	// none. The console's screenshot command writes one without ending the run.

@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "vulkan/DeviceCapabilities.h"
 #include "vulkan/Window.h"
 
 // The Vulkan Memory Allocator's handles, declared as it declares them (VK_DEFINE_HANDLE), so this
@@ -88,9 +89,10 @@ class DeviceContext
   public:
 	// The Vulkan version the instance asks for, and the one VMA and ImGui are told about. 1.3 for
 	// dynamic rendering, which the declared pass list records passes with instead of render pass
-	// objects, and for synchronization2, which its barriers are written in. Both are core there,
-	// and lavapipe, where the gate runs, has both.
-	static constexpr uint32_t kApiVersion = VK_API_VERSION_1_3;
+	// objects, and for synchronization2, which its barriers are written in; 1.4 because every device
+	// with mesh shaders and ray queries reports it, and it makes push descriptors and scalar block
+	// layout required (docs/decisions.md, "Vulkan 1.4"). Lavapipe, where the gate runs, has both.
+	static constexpr uint32_t kApiVersion = VK_API_VERSION_1_4;
 
 	// The most samples the HDR target is given. Every device supports four for colour and depth
 	// attachments (the spec's required minimum), and a 1080p RGBA16F target at eight costs 66 MB
@@ -112,6 +114,12 @@ class DeviceContext
 	void SetRequestedDevice(std::string name)
 	{
 		m_requestedDevice = std::move(name);
+	}
+
+	// Which optional paths the player allows (DeviceCapabilities.h). Before Init.
+	void SetPathSettings(const PathSettings &settings)
+	{
+		m_pathSettings = settings;
 	}
 
 	void Init();
@@ -253,6 +261,18 @@ class DeviceContext
 	inline bool IsCpu() const
 	{
 		return m_cpu;
+	}
+
+	// What the chosen device offers, read once and logged when it was chosen, and which optional
+	// paths that and the player's settings leave on. No path asks them yet.
+	const DeviceCapabilities &Capabilities() const
+	{
+		return m_capabilities;
+	}
+
+	const DevicePaths &Paths() const
+	{
+		return m_paths;
 	}
 
 	// The physical device's name, for a report of what a measurement ran on.
@@ -453,6 +473,9 @@ class DeviceContext
 	VkSampleCountFlagBits m_msaaSamples{VK_SAMPLE_COUNT_1_BIT};
 	std::string m_deviceName;
 	std::string m_requestedDevice;
+	PathSettings m_pathSettings;
+	DeviceCapabilities m_capabilities;
+	DevicePaths m_paths;
 	bool m_blockCompression{false};
 	bool m_cpu{false};
 

@@ -74,6 +74,13 @@ struct RendererOptions
 	// (render/src/vulkan/DeviceChoice.h); Init fails, listing the GPUs, when no usable one has it.
 	std::string gpu;
 
+	// The optional paths the player allows (--no-meshlets, --no-ray-tracing, --no-mega-geometry, and the
+	// settings render.meshlets, render.rayTracing and render.megaGeometry): false turns one off on
+	// a device that offers it, and the log says so. A path the device lacks is off whatever these say.
+	bool meshlets{true};
+	bool rayTracing{true};
+	bool megaGeometry{true};
+
 	// A frame whose acquire finds the swapchain out of date is recreated until it draws, rather than
 	// retried once and skipped: for a fixed-step run, whose frames must not follow the display
 	// server's timing. Not for a window a user may be resizing, where it could keep recreating.

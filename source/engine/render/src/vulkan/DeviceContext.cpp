@@ -459,8 +459,8 @@ std::string DeviceContext::Unsuitable(VkPhysicalDevice device)
 
 	VkPhysicalDeviceProperties properties{};
 	vkGetPhysicalDeviceProperties(device, &properties);
-	if (properties.apiVersion < kApiVersion)
-		return "it is not Vulkan 1.3";
+	if (std::string tooOld = ApiVersionUnsuitable(properties.apiVersion, kApiVersion); !tooOld.empty())
+		return tooOld;
 	VkPhysicalDeviceVulkan13Features features13{};
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	VkPhysicalDeviceVulkan12Features features12{};
@@ -546,6 +546,11 @@ void DeviceContext::PickPhysicalDevice()
 	Core::Log(Core::Severity::Info, kRender, "Drawing with {}", choice.reason);
 	m_physicalDevice = devices[*choice.index];
 	m_msaaSamples = GetMaxUsableSampleCount();
+
+	m_capabilities = ReadCapabilities(m_physicalDevice);
+	m_paths = ChoosePaths(m_capabilities, m_pathSettings);
+	for (const std::string &line : DescribeCapabilities(m_capabilities, m_paths))
+		Core::Log(Core::Severity::Info, kRender, "{}", line);
 }
 
 

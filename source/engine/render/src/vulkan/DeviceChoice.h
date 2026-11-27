@@ -65,4 +65,10 @@ std::optional<bool> DrivesDisplay(
     std::int64_t major, std::int64_t minor, const std::filesystem::path &sysfs = "/sys");
 
 std::string_view DeviceTypeName(DeviceType type);
+
+// Why a device that reports this Vulkan version (VK_MAKE_API_VERSION's encoding, as
+// VkPhysicalDeviceProperties::apiVersion gives it) cannot be drawn with, when it is older than the
+// one the engine asks for (a version with patch 0, so a 1.4.363 device is a 1.4 device); empty when
+// it is not.
+std::string ApiVersionUnsuitable(std::uint32_t reported, std::uint32_t required);
 } // namespace Jettison::Render

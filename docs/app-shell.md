@@ -219,6 +219,7 @@ and ends the program with failure.
 | `--user-dir <directory>` | Settings in `<dir>/config`, saves and mods in `<dir>/data`, crash reports under `<dir>/state` |
 | `--no-sound` | Plays to miniaudio's null backend: everything sounds as it would, unheard |
 | `--gpu <name>` | Draws with the GPU whose name contains it ("5060", "llvmpipe"); fails, listing the GPUs, if none |
+| `--no-meshlets`, `--no-ray-tracing`, `--no-mega-geometry` | Turns that optional render path off for the run, over the settings `render.meshlets`, `render.rayTracing` and `render.megaGeometry` (false turns one off for every run) |
 | `--offscreen` | Draws with no display or window; console lines come only through `--run` |
 | `--window <width>x<height>` | The window's size |
 | `--depth-prepass` | Runs the opaque depth prepass even when nothing else needs it |
