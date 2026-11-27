@@ -467,6 +467,8 @@ manager.Release(handle);
 - The file system reads a file whole; there is no streaming read for long audio:
   [J21](roadmap.md#j21).
 - A scene's models are not prefetched before it is shown: [J13](roadmap.md#j13).
+- A package's world and presentation directories are mounted alike everywhere: no server pack, no
+  client-side mod, no check that a client holds the server's content: [J63](roadmap.md#j63).
 
 ## Decisions
 

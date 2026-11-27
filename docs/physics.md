@@ -531,8 +531,8 @@ game whose `PickSpace` sets `statics` false picks and hovers only what moves.
 
 - Shape offsets and compound shapes, collision filtering beyond static against moving, Jolt's debug
   renderer, Jolt's job system on more threads, tuned capacities: [J07](roadmap.md#j07).
-- A glTF model's triangles as a collision mesh (`Mesh` shapes exist; reading them from a model
-  does not): [J12](roadmap.md#j12).
+- A model's collision shape, baked beside it as world content the server reads (`Mesh` and
+  `ConvexHull` shapes exist; nothing bakes them from a model): [J12](roadmap.md#j12).
 
 ## Decisions
 

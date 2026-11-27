@@ -260,6 +260,15 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 - **Device-free mesh work is the `geometry` module's** (2026-11-25, the user's). A CPU module in the
   data tier, so the cook, which builds without presentation, the renderer and later physics
   ([J12](roadmap.md#j12)) share one reader of a model's triangles. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+- **A package holds both sides, split by directory; the server's bundle leaves presentation out**
+  (2026-11-27, the user's). The world is the server's alone and a client is not trusted, so what a
+  server reads (`defs/`, `scripts/`, and cooked collision shapes) is the world's, and models,
+  textures, scenes, UI, sounds and string tables are presentation's. One package a mod, not a client
+  and a server tree: most mods span both sides (a ship is a definition and a model), and a client
+  needs the world's definitions to show and pre-check what it sends. The packer makes a server pack
+  without the presentation directories; a mod whose `mod.yaml` says `side: client` is cosmetic,
+  which a server ignores and players need not match; and a client checks on connecting that it holds
+  the server's world content ([J63](roadmap.md#j63)). [Files, packs and mods](files-and-mods.md)
 
 ## Scripts
 

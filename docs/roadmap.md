@@ -81,6 +81,27 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs o
 
 **Feature doc:** [physics](physics.md).
 
+<a id="j63"></a>
+### J63. The server's pack, client-side mods and the content handshake
+
+**What remains.** The split the user settled (2026-11-27, [decisions](decisions.md#files-packs-and-mods)):
+
+- The packer making a server pack of a package's world directories alone (`defs/`, `scripts/`,
+  the cooked collision shapes), for a dedicated server's bundle.
+- `side: client` in `mod.yaml`: a cosmetic mod a server ignores and players need not match.
+- On connecting, the server sends its packages and a hash of its world content, and a client that
+  holds other content says which package differs rather than show a world it cannot read.
+
+**Why.** A server needs no models, textures or sounds, and a client must draw with the definitions
+the server plays by. Wanted with Manifest's graphical client playing on a server ([its
+L15](../../manifest/docs/delivery-order.md#l15)).
+
+**What exists.** Packages and `mod.yaml` (`Host::PackageDescription`), the packer
+(`source/tools/pack/main.cpp`), and the content directories by kind
+([files, packs and mods](files-and-mods.md)).
+
+**Feature doc:** [files, packs and mods](files-and-mods.md).
+
 <a id="j62"></a>
 ### J62. Mods' scripts run in the session
 
@@ -124,10 +145,16 @@ installs it, and writes a report with its backtrace, named by a symboliser when 
 <a id="j12"></a>
 ### J12. A glTF model's collision mesh
 
-**What remains.** A model's triangles read from its glTF file on the I/O worker, as its rig is, or a
-collision mesh in a file beside it.
+**What remains.** A model's collision shape baked into a file of its own beside the model: the
+model's own collision mesh where its author made one, or else convex hulls simplified from the drawn
+mesh. The file is world content, kept in the server's pack, which holds no models, and read by
+physics as it is, so the client and the server collide with the same bytes. The cook
+([J37](#j37)) bakes it once it exists; until then a small tool does, so this waits on none of the
+dense-geometry track.
 
-**Why.** A vehicle drawn from a model collides as the box of its definition's size.
+**Why.** A vehicle drawn from a model collides as the box of its definition's size. Physics is the
+server's, and the server reads no model, so the shape cannot be read from the glTF at run time
+(decided 2026-11-27).
 
 **What exists.** `Physics::ShapeKind::Mesh` and `ConvexHull` take vertices given in data or code
 (`source/engine/physics/include/jettison/physics/Shape.h`). A platform built to a layout collides as
