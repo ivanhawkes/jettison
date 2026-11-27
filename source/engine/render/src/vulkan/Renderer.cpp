@@ -308,7 +308,7 @@ void Renderer::Destroy()
 	vkDestroyPipelineLayout(device, m_postLayout, nullptr);
 	vkDestroyPipelineLayout(device, m_meshLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, m_postSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(device, m_materialSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device, m_textureSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, m_frameSetLayout, nullptr);
 	m_outputSampler = VK_NULL_HANDLE;
 	m_linearSampler = VK_NULL_HANDLE;
@@ -320,7 +320,7 @@ void Renderer::Destroy()
 	m_particleLayout = VK_NULL_HANDLE;
 	m_meshLayout = VK_NULL_HANDLE;
 	m_postSetLayout = VK_NULL_HANDLE;
-	m_materialSetLayout = VK_NULL_HANDLE;
+	m_textureSetLayout = VK_NULL_HANDLE;
 	m_frameSetLayout = VK_NULL_HANDLE;
 	m_imagesInFlight.clear();
 }
@@ -330,10 +330,13 @@ void Renderer::CreateLayouts()
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
 	const auto createSetLayout =
-	    [&](std::span<const VkDescriptorSetLayoutBinding> bindings, const char *name)
+	    [&](std::span<const VkDescriptorSetLayoutBinding> bindings, const char *name,
+	        const void *pNext = nullptr, VkDescriptorSetLayoutCreateFlags flags = 0)
 	{
 		VkDescriptorSetLayoutCreateInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		info.pNext = pNext;
+		info.flags = flags;
 		info.bindingCount = static_cast<uint32_t>(bindings.size());
 		info.pBindings = bindings.data();
 		VkDescriptorSetLayout layout = VK_NULL_HANDLE;
@@ -376,12 +379,25 @@ void Renderer::CreateLayouts()
 	}};
 	m_frameSetLayout = createSetLayout(frameBindings, "frame-set-layout");
 
-	// assets/shaders/include/material.glsl: every scene program's textures, by slot.
-	std::array<VkDescriptorSetLayoutBinding, kMaterialTextureSlots> materialBindings{};
-	for (uint32_t slot = 0; slot < kMaterialTextureSlots; ++slot)
-		materialBindings[slot] = {
-		    slot, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
-	m_materialSetLayout = createSetLayout(materialBindings, "material-set-layout");
+	// assets/shaders/include/material.glsl: the texture table, every material texture in one array
+	// (MaterialCache), and the sampler they are read with. Elements are written as textures finish,
+	// with the set bound and a frame in flight reading others, and those no texture holds are unbound.
+	const std::array<VkDescriptorSetLayoutBinding, 2> textureBindings{{
+	    {0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, DeviceContext::kTextureTableSize,
+	     VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	    {1, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+	}};
+	const std::array<VkDescriptorBindingFlags, 2> textureFlags{
+	    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+	        VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT,
+	    0};
+	VkDescriptorSetLayoutBindingFlagsCreateInfo textureFlagsInfo{};
+	textureFlagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+	textureFlagsInfo.bindingCount = static_cast<uint32_t>(textureFlags.size());
+	textureFlagsInfo.pBindingFlags = textureFlags.data();
+	m_textureSetLayout = createSetLayout(
+	    textureBindings, "texture-table-layout", &textureFlagsInfo,
+	    VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT);
 
 	// What a post pass reads: the frame, the depth prepass's targets, the stencil, a level of bloom.
 	std::array<VkDescriptorSetLayoutBinding, kPostBindings> postBindings{};
@@ -391,7 +407,7 @@ void Renderer::CreateLayouts()
 		    nullptr};
 	m_postSetLayout = createSetLayout(postBindings, "post-set-layout");
 
-	const std::array<VkDescriptorSetLayout, 2> meshSets{m_frameSetLayout, m_materialSetLayout};
+	const std::array<VkDescriptorSetLayout, 2> meshSets{m_frameSetLayout, m_textureSetLayout};
 	const VkPushConstantRange drawRange{kDrawStages, 0, sizeof(DrawPushConstants)};
 	VkPipelineLayoutCreateInfo meshInfo{};
 	meshInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1091,7 +1107,7 @@ void Renderer::CreatePipelines()
 
 	// Every scene program is built against the mesh layout and one of these states, by the material
 	// cache: the default program here, the ones materials name when a material first draws.
-	m_pMaterials->Init(m_materialSetLayout, m_meshLayout, mesh, transparent);
+	m_pMaterials->Init(m_textureSetLayout, m_meshLayout, mesh, transparent);
 	m_pModels->Init();
 
 	// The sky is drawn after the surfaces, at the far end of the reversed-Z range, where nothing
@@ -1884,6 +1900,11 @@ void Renderer::WriteMaterials(FrameData &frame, const std::vector<SceneDrawComma
 		if (draws[drawIndex].material != nullptr && !draws[drawIndex].material->empty())
 			m_drawMaterials[drawIndex] =
 			    m_pMaterials->Resolve(*draws[drawIndex].material, time, m_materialParameters);
+
+	// A draw with no material of its own to draw, or one not drawable yet, draws its model's.
+	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
+		if (m_drawMaterials[drawIndex] == nullptr && draws[drawIndex].model != nullptr)
+			m_pMaterials->EnsureModel(*draws[drawIndex].model, m_materialParameters);
 	if (m_materialParameters.size() > std::numeric_limits<uint32_t>::max())
 		throw std::runtime_error("The frame's material parameters exceed the Vulkan draw offset range");
 	const VkDeviceSize bytes = m_materialParameters.size() * sizeof(glm::vec4);
@@ -2247,7 +2268,7 @@ void Renderer::RecordShadows(const FrameData &frame, VkCommandBuffer commandBuff
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline);
 
 			// The shadow program reads the frame set alone: the cascades' matrices, the instances and
-			// the skin palette. No material set is bound, since it has no fragment stage to read one.
+			// the skin palette. The texture table is not bound, since it has no fragment stage to read it.
 			vkCmdBindDescriptorSets(
 			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
 			    nullptr);
@@ -2500,10 +2521,12 @@ void Renderer::RecordOpaque(const FrameData &frame, VkCommandBuffer commandBuffe
 	vkCmdBeginRendering(commandBuffer, &rendering);
 	SetViewport(commandBuffer);
 
-	// Every scene program shares the mesh layout, so set 0 stays bound across pipeline changes.
+	// Every scene program shares the mesh layout, so the frame set and the texture table stay bound
+	// across pipeline changes, the transparent draws' included.
+	const std::array<VkDescriptorSet, 2> sceneSets{frame.frameSet, m_pMaterials->GetTextureSet()};
 	vkCmdBindDescriptorSets(
-	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
-	    nullptr);
+	    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0,
+	    static_cast<uint32_t>(sceneSets.size()), sceneSets.data(), 0, nullptr);
 	VkPipeline boundPipeline = VK_NULL_HANDLE;
 	const Model *boundModel = nullptr;
 
@@ -2570,11 +2593,6 @@ void Renderer::RecordMeshBatch(
 	}
 	const auto *pNamed = static_cast<const MaterialBinding *>(batch.key.material);
 
-	// A model's own material is the default program at its defaults, the frame's first block.
-	const DrawPushConstants pushConstants{pNamed != nullptr ? pNamed->parameterOffset : 0u, 0u};
-	vkCmdPushConstants(
-	    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
-
 	// The opaque surfaces' pipelines write it, as dynamic state; the transparent ones' have no stencil
 	// test, and setting state a pipeline does not take is an error to the validation layer.
 	if (opaque)
@@ -2591,9 +2609,11 @@ void Renderer::RecordMeshBatch(
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline);
 			boundPipeline = material.pipeline;
 		}
-		vkCmdBindDescriptorSets(
-		    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 1, 1, &material.set, 0,
-		    nullptr);
+
+		// A model's own materials are a block each primitive, its base-colour texture differing.
+		const DrawPushConstants pushConstants{material.parameterOffset, 0u};
+		vkCmdPushConstants(
+		    commandBuffer, m_meshLayout, kDrawStages, 0, sizeof(DrawPushConstants), &pushConstants);
 		const ModelPrimitive &primitive = model.m_primitives[primitiveIndex];
 		vkCmdDrawIndexed(
 		    commandBuffer, primitive.indexCount, batch.instanceCount, primitive.firstIndex, 0,

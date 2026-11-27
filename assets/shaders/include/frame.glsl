@@ -77,7 +77,7 @@ layout(std430, set = 0, binding = 12) readonly buffer BodyList
 	Body bodies[];
 };
 
-// Binding 3 is the frame's material parameters, which material.glsl declares for the programs that
+// Binding 3 is the frame's material blocks, which material.glsl declares for the programs that
 // read them, and bindings 4 to 6 are the environment, which lighting.glsl declares. Bindings 7 to 9
 // are the cluster grid, one set shared by the frames in flight as the render targets are: 7 the
 // clusters' bounds, which only the compute programs read, and 8 and 9 each cluster's offset and

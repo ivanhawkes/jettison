@@ -1,8 +1,10 @@
 #include "vulkan/MaterialCache.h"
 
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <exception>
+#include <format>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -22,6 +24,10 @@ constexpr Core::Category kRender{"render"};
 
 // The program every draw without a material of its own uses.
 constexpr const char *kDefaultProgram = "mesh";
+
+// A material block's slot indices go four to a vec4 (assets/shaders/include/material.glsl).
+constexpr std::size_t kSlotsPerVector = 4;
+static_assert(kMaterialTextureSlots % kSlotsPerVector == 0);
 
 
 // The address of a Model is the key its materials live under, so it is the identifier a reader of
@@ -50,10 +56,9 @@ MaterialCache::MaterialCache(
 
 
 void MaterialCache::Init(
-    VkDescriptorSetLayout materialLayout, VkPipelineLayout sceneLayout, const RenderState &sceneState,
+    VkDescriptorSetLayout textureLayout, VkPipelineLayout sceneLayout, const RenderState &sceneState,
     const RenderState &transparentState)
 {
-	m_layout = materialLayout;
 	m_sceneLayout = sceneLayout;
 	m_sceneState = sceneState;
 	m_transparentState = transparentState;
@@ -87,14 +92,46 @@ void MaterialCache::Init(
 		throw std::runtime_error("failed to create texture sampler");
 	m_pDeviceContext->SetDebugName(m_sampler, "material-sampler");
 
-	// By TextureFallback: white, black, and a flat tangent-space normal (0, 0, 1), stored as
-	// unsigned bytes and so linear.
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	const std::array<VkDescriptorPoolSize, 2> poolSizes{{
+	    {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, DeviceContext::kTextureTableSize},
+	    {VK_DESCRIPTOR_TYPE_SAMPLER, 1},
+	}};
+	VkDescriptorPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+	poolInfo.maxSets = 1;
+	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolInfo.pPoolSizes = poolSizes.data();
+	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_texturePool) != VK_SUCCESS)
+		throw std::runtime_error("failed to create the texture table's descriptor pool");
+	m_pDeviceContext->SetDebugName(m_texturePool, "texture-table-pool");
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = m_texturePool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &textureLayout;
+	if (vkAllocateDescriptorSets(device, &allocInfo, &m_textureSet) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate the texture table");
+	m_pDeviceContext->SetDebugName(m_textureSet, "texture-table");
+	const VkDescriptorImageInfo samplerInfoWrite{m_sampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED};
+	VkWriteDescriptorSet write{};
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.dstSet = m_textureSet;
+	write.dstBinding = 1;
+	write.descriptorCount = 1;
+	write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+	write.pImageInfo = &samplerInfoWrite;
+	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+
+	// By TextureFallback, which is their order in the empty table and so their elements: white,
+	// black, and a flat tangent-space normal (0, 0, 1), stored as unsigned bytes and so linear.
 	const std::array<TextureData, 3> fallbacks{
 	    SolidTexture(255, 255, 255, 255, true), SolidTexture(0, 0, 0, 255, true),
 	    SolidTexture(128, 128, 255, 255, false)};
 	const std::array<const char *, 3> names{"fallback-white", "fallback-black", "fallback-normal"};
 	for (std::size_t index = 0; index < fallbacks.size(); ++index)
-		Upload(fallbacks[index], names[index], m_fallbackImages[index], m_fallbackViews[index]);
+		(void)Upload(fallbacks[index], names[index], m_fallbackImages[index], m_fallbackViews[index]);
 
 	RegisterLoaders();
 	m_pDefaultProgram = &GetProgram(kDefaultProgram);
@@ -116,16 +153,18 @@ void MaterialCache::RegisterLoaders()
 	        },
 	        [this](TextureResource &texture, std::string_view path)
 	        {
-		        Upload(texture.data, "texture-" + std::string{path}, texture.image, texture.view);
+		        texture.texture =
+		            Upload(texture.data, "texture-" + std::string{path}, texture.image, texture.view);
 
 		        // The device has its copy; the CPU one is a texture's worth of memory for nothing.
 		        std::vector<std::byte>{}.swap(texture.data.bytes);
 	        },
 	        [this](TextureResource &texture)
 	        {
-		        Retire({m_frame, texture.image, texture.view, VK_NULL_HANDLE});
+		        Retire({m_frame, texture.image, texture.view, texture.texture});
 		        texture.image = {};
 		        texture.view = VK_NULL_HANDLE;
+		        texture.texture = kNoTexture;
 	        }});
 	m_resources.RegisterLoader(
 	    Resource::Loader<MaterialDefinition>{
@@ -158,6 +197,11 @@ void MaterialCache::Destroy()
 	}
 	vkDestroySampler(device, m_sampler, nullptr);
 	m_sampler = VK_NULL_HANDLE;
+	vkDestroyDescriptorPool(device, m_texturePool, nullptr);
+	m_texturePool = VK_NULL_HANDLE;
+	m_textureSet = VK_NULL_HANDLE;
+	m_freeTextures.clear();
+	m_nextTexture = 0;
 
 	// The pipelines are the pipeline cache's, which destroys them.
 	m_programs.clear();
@@ -170,8 +214,8 @@ void MaterialCache::Forget(const Model &model)
 	const auto found = m_models.find(&model);
 	if (found == m_models.end())
 		return;
-	for (const ModelMaterial &material : found->second)
-		Retire({m_frame, material.image, material.view, material.pool});
+	for (const ModelMaterial &material : found->second.primitives)
+		Retire({m_frame, material.image, material.view, material.texture});
 	m_models.erase(found);
 }
 
@@ -182,9 +226,8 @@ void MaterialCache::ForgetAll()
 	for (auto &[model, materials] : m_models)
 	{
 		(void)model;
-		for (ModelMaterial &material : materials)
+		for (ModelMaterial &material : materials.primitives)
 		{
-			vkDestroyDescriptorPool(device, material.pool, nullptr);
 			vkDestroyImageView(device, material.view, nullptr);
 			m_pDeviceContext->DestroyImage(material.image);
 		}
@@ -223,7 +266,8 @@ void MaterialCache::BeginFrame(std::uint64_t frameNumber, std::vector<glm::vec4>
 
 	parameters.clear();
 	if (m_pDefaultProgram != nullptr)
-		EvaluateParameters(m_pDefaultProgram->defaults, 0.0, parameters);
+		AppendBlock(
+		    FallbackSlots(m_pDefaultProgram->defaults), m_pDefaultProgram->defaults, 0.0, parameters);
 }
 
 
@@ -258,7 +302,7 @@ const MaterialCache::Binding *MaterialCache::Resolve(
 	if (material.parameterFrame != m_frame)
 	{
 		material.binding.parameterOffset = static_cast<std::uint32_t>(parameters.size());
-		EvaluateParameters(material.resolved, time, parameters);
+		AppendBlock(material.slots, material.resolved, time, parameters);
 		material.parameterFrame = m_frame;
 	}
 	return &material.binding;
@@ -272,7 +316,6 @@ bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &mater
 		return false;
 
 	const std::uint32_t revision = m_resources.RevisionOf(material.definition);
-	bool rebuild = material.set == VK_NULL_HANDLE;
 	if (revision != material.definitionRevision)
 	{
 		material.definitionRevision = revision;
@@ -299,11 +342,9 @@ bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &mater
 				if (!texture.IsNull())
 					m_resources.Release(texture);
 			material.textures = textures;
-			material.textureRevisions = {};
 			material.resolved = std::move(resolved);
 			material.pipeline = program.pipeline;
 			material.transparent = program.definition.blend == ProgramBlend::Transparent;
-			rebuild = true;
 		}
 		catch (const std::exception &error)
 		{
@@ -316,44 +357,25 @@ bool MaterialCache::Refresh(const std::string &virtualPath, NamedMaterial &mater
 	if (material.failed)
 		return false;
 
-	std::array<VkImageView, kMaterialTextureSlots> views{};
-	for (std::size_t binding = 0; binding < kMaterialTextureSlots; ++binding)
+	// A reload's texture replaces its old one's element in the slot, which the old one keeps until no
+	// frame in flight reads it.
+	TextureSlots slots = FallbackSlots(material.resolved);
+	for (std::size_t slot = 0; slot < kMaterialTextureSlots; ++slot)
 	{
-		const auto &texture = material.textures[binding];
-		std::uint32_t textureRevision = 0;
-		views[binding] = FallbackView(material.resolved.fallbacks[binding]);
-		if (!texture.IsNull())
-		{
-			const Resource::Status status = m_resources.StatusOf(texture);
-			if (status == Resource::Status::Loading)
-				return false;
+		const auto &texture = material.textures[slot];
+		if (texture.IsNull())
+			continue;
+		const Resource::Status status = m_resources.StatusOf(texture);
+		if (status == Resource::Status::Loading)
+			return false;
 
-			// A texture that failed (the resource manager said why) draws as its slot's fallback
-			// until a reload fixes it.
-			if (status == Resource::Status::Ready)
-			{
-				views[binding] = m_resources.TryGet(texture)->view;
-				textureRevision = m_resources.RevisionOf(texture);
-			}
-		}
-		if (textureRevision != material.textureRevisions[binding])
-		{
-			material.textureRevisions[binding] = textureRevision;
-			rebuild = true;
-		}
+		// A texture that failed (the resource manager said why) draws as its slot's fallback until a
+		// reload fixes it.
+		if (status == Resource::Status::Ready)
+			slots[slot] = m_resources.TryGet(texture)->texture;
 	}
-
-	if (rebuild)
-	{
-		// Sets are never written in place: a frame in flight may have the old one bound.
-		if (material.pool != VK_NULL_HANDLE)
-			Retire({m_frame, {}, VK_NULL_HANDLE, material.pool});
-		material.pool = VK_NULL_HANDLE;
-		material.set = VK_NULL_HANDLE;
-		AllocateSet(views, "material-" + virtualPath, material.pool, material.set);
-	}
+	material.slots = slots;
 	material.binding.pipeline = material.pipeline;
-	material.binding.set = material.set;
 	material.binding.transparent = material.transparent;
 	return true;
 }
@@ -366,104 +388,117 @@ void MaterialCache::ReleaseNamed(NamedMaterial &material)
 			m_resources.Release(texture);
 	if (!material.definition.IsNull())
 		m_resources.Release(material.definition);
-	if (material.pool != VK_NULL_HANDLE)
-		Retire({m_frame, {}, VK_NULL_HANDLE, material.pool});
 	material = {};
 }
 
 
-MaterialCache::Binding MaterialCache::Ensure(const Model &model, std::size_t primitiveIndex)
+void MaterialCache::EnsureModel(const Model &model, std::vector<glm::vec4> &parameters)
 {
-	if (primitiveIndex >= model.m_primitives.size())
+	ModelMaterials &materials = m_models[&model];
+	if (materials.parameterFrame == m_frame)
+		return;
+	std::size_t count = 0;
+	for (const ModelLod &lod : model.m_lods)
+		count = std::max<std::size_t>(count, lod.primitiveCount);
+	if (count > model.m_primitives.size())
 		throw std::runtime_error("Model primitive index is out of range");
-	auto &materials = m_models[&model];
-	const Binding binding{m_pDefaultProgram->pipeline, VK_NULL_HANDLE, 0};
-	if (primitiveIndex < materials.size())
-		return {binding.pipeline, materials[primitiveIndex].set, 0};
-	if (primitiveIndex != materials.size())
-		throw std::runtime_error("Model primitive materials must be created in order");
-
-	const std::string name = ModelKey(&model) + "-p" + std::to_string(primitiveIndex);
-	ModelMaterial material;
-	std::array<VkImageView, kMaterialTextureSlots> views{};
-	for (std::size_t slot = 0; slot < kMaterialTextureSlots; ++slot)
-		views[slot] = FallbackView(m_pDefaultProgram->defaults.fallbacks[slot]);
-	const auto &imageData = model.m_primitives[primitiveIndex].baseColorImageData;
-	try
+	while (materials.primitives.size() < count)
 	{
+		const std::size_t primitive = materials.primitives.size();
+		const std::string name = ModelKey(&model) + "-p" + std::to_string(primitive);
+		ModelMaterial material;
+		const auto &imageData = model.m_primitives[primitive].baseColorImageData;
 		if (!imageData.empty())
 		{
 			// glTF says a base-colour image is sRGB.
 			const TextureData texture = DecodeImage(imageData, true, name);
-			Upload(texture, "texture-" + name, material.image, material.view);
-			views[0] = material.view;
+			material.texture = Upload(texture, "texture-" + name, material.image, material.view);
 		}
-		AllocateSet(views, name, material.pool, material.set);
+		materials.primitives.push_back(material);
 	}
-	catch (...)
+
+	const ResolvedMaterial &defaults = m_pDefaultProgram->defaults;
+	for (ModelMaterial &material : materials.primitives)
 	{
-		vkDestroyImageView(m_pDeviceContext->GetLogicalDevice(), material.view, nullptr);
-		m_pDeviceContext->DestroyImage(material.image);
-		throw;
+		TextureSlots slots = FallbackSlots(defaults);
+		if (material.texture != kNoTexture)
+			slots[0] = material.texture;
+		material.parameterOffset = static_cast<std::uint32_t>(parameters.size());
+		AppendBlock(slots, defaults, 0.0, parameters);
 	}
-	materials.push_back(material);
-	return {binding.pipeline, material.set, 0};
+	materials.parameterFrame = m_frame;
 }
 
 
-void MaterialCache::AllocateSet(
-    const std::array<VkImageView, kMaterialTextureSlots> &views, const std::string &name,
-    VkDescriptorPool &pool, VkDescriptorSet &set)
+MaterialCache::Binding MaterialCache::Ensure(const Model &model, std::size_t primitiveIndex) const
 {
-	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
-	const VkDescriptorPoolSize poolSize{
-	    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kMaterialTextureSlots};
-	VkDescriptorPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = 1;
-	poolInfo.pPoolSizes = &poolSize;
-	poolInfo.maxSets = 1;
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &pool) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create a material descriptor pool");
-	m_pDeviceContext->SetDebugName(pool, name + "-pool");
-
-	VkDescriptorSetAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = pool;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &m_layout;
-	if (vkAllocateDescriptorSets(device, &allocInfo, &set) != VK_SUCCESS)
-	{
-		vkDestroyDescriptorPool(device, pool, nullptr);
-		pool = VK_NULL_HANDLE;
-		throw std::runtime_error("Failed to allocate a material descriptor set");
-	}
-	m_pDeviceContext->SetDebugName(set, name + "-set");
-
-	std::array<VkDescriptorImageInfo, kMaterialTextureSlots> images{};
-	for (std::size_t binding = 0; binding < kMaterialTextureSlots; ++binding)
-		images[binding] = {m_sampler, views[binding], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-	VkWriteDescriptorSet write{};
-	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write.dstSet = set;
-	write.dstBinding = 0;
-	write.descriptorCount = static_cast<uint32_t>(images.size());
-	write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	write.pImageInfo = images.data();
-	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+	const auto found = m_models.find(&model);
+	if (found == m_models.end() || found->second.parameterFrame != m_frame ||
+	    primitiveIndex >= found->second.primitives.size())
+		throw std::runtime_error("A model's own material was drawn before it was placed this frame");
+	return {m_pDefaultProgram->pipeline, found->second.primitives[primitiveIndex].parameterOffset};
 }
 
 
-VkImageView MaterialCache::FallbackView(TextureFallback fallback) const
-{
-	return m_fallbackViews[static_cast<std::size_t>(fallback)];
-}
-
-
-void MaterialCache::Upload(
+std::uint32_t MaterialCache::Upload(
     const TextureData &data, const std::string &name, Image &image, VkImageView &view)
 {
 	UploadTexture(*m_pDeviceContext, data, name, image, view);
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	std::uint32_t texture = m_nextTexture;
+	if (!m_freeTextures.empty())
+	{
+		texture = m_freeTextures.back();
+		m_freeTextures.pop_back();
+	}
+	else if (m_nextTexture < DeviceContext::kTextureTableSize)
+		++m_nextTexture;
+	else
+	{
+		vkDestroyImageView(device, view, nullptr);
+		m_pDeviceContext->DestroyImage(image);
+		image = {};
+		view = VK_NULL_HANDLE;
+		throw std::runtime_error(std::format(
+		    "the texture table's {} elements are all held, and '{}' needs one",
+		    DeviceContext::kTextureTableSize, name));
+	}
+
+	// No submission reads the element: a new one never was, and one given back waited out the frames
+	// in flight (Free).
+	const VkDescriptorImageInfo info{VK_NULL_HANDLE, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+	VkWriteDescriptorSet write{};
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.dstSet = m_textureSet;
+	write.dstBinding = 0;
+	write.dstArrayElement = texture;
+	write.descriptorCount = 1;
+	write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	write.pImageInfo = &info;
+	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);	return texture;
+}
+
+
+void MaterialCache::AppendBlock(
+    const TextureSlots &slots, const ResolvedMaterial &material, double time,
+    std::vector<glm::vec4> &parameters)
+{
+	// The indices' bits in floats' places, since the buffer is the parameters' vec4s: the shader
+	// reads them back as uints, and nothing on the way does arithmetic on them.
+	for (std::size_t slot = 0; slot < slots.size(); slot += kSlotsPerVector)
+		parameters.emplace_back(
+		    std::bit_cast<float>(slots[slot]), std::bit_cast<float>(slots[slot + 1]),
+		    std::bit_cast<float>(slots[slot + 2]), std::bit_cast<float>(slots[slot + 3]));
+	EvaluateParameters(material, time, parameters);
+}
+
+
+MaterialCache::TextureSlots MaterialCache::FallbackSlots(const ResolvedMaterial &material)
+{
+	TextureSlots slots{};
+	for (std::size_t slot = 0; slot < kMaterialTextureSlots; ++slot)
+		slots[slot] = static_cast<std::uint32_t>(material.fallbacks[slot]);
+	return slots;
 }
 
 
@@ -476,9 +511,10 @@ void MaterialCache::Retire(Retired retired)
 void MaterialCache::Free(Retired &retired)
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
-	vkDestroyDescriptorPool(device, retired.pool, nullptr);
 	vkDestroyImageView(device, retired.view, nullptr);
 	m_pDeviceContext->DestroyImage(retired.image);
+	if (retired.texture != kNoTexture)
+		m_freeTextures.push_back(retired.texture);
 	retired = {};
 }
 } // namespace Jettison::Render

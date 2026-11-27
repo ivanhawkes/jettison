@@ -1,5 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
 
 #include "draw.glsl"
 #include "frame.glsl"
@@ -15,7 +16,7 @@
 // one from inside, and since each pane's light is added and what is behind multiplied, the order of
 // the two changes only how much of the far one's reflection the near one tints. Its vertex stage is
 // mesh.vert, built as glass.vert.
-layout(set = 1, binding = 0) uniform sampler2D tintTexture;
+const uint kTintTexture = 0u;
 
 // rgb: what it lets through at normal incidence, by colour, multiplied by the texture.
 const uint kTint = 0u;
@@ -41,7 +42,7 @@ void main()
 	    Surface(vec3(0.0), 0.0, clamp(MaterialParameter(kSurface).x, 0.0, 1.0));
 	vec3 reflected = ShadeTransparentSurface(surface, normal, fragRenderPosition);
 	vec3 reflectance = SpecularReflectance(surface, normal, fragRenderPosition);
-	vec3 tint = MaterialParameter(kTint).rgb * texture(tintTexture, fragTexCoord).rgb;
+	vec3 tint = MaterialParameter(kTint).rgb * MaterialTexture(kTintTexture, fragTexCoord).rgb;
 	vec4 emissive = MaterialParameter(kEmissive);
 	outColor = vec4(reflected + emissive.rgb * emissive.a, 0.0);
 	outThrough = vec4(tint * (vec3(1.0) - reflectance), 1.0);

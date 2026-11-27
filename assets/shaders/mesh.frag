@@ -1,17 +1,18 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
 
 #include "draw.glsl"
 #include "frame.glsl"
 #include "lighting.glsl"
 #include "material.glsl"
 
-// The material's textures (mesh.program.yaml, and mesh_triplanar.program.yaml, which is this file
-// built with TRIPLANAR defined).
-layout(set = 1, binding = 0) uniform sampler2D baseColorTexture;
-layout(set = 1, binding = 1) uniform sampler2D emissiveTexture;
+// The texture slots (mesh.program.yaml, and mesh_triplanar.program.yaml, which is this file built
+// with TRIPLANAR defined).
+const uint kBaseColorTexture = 0u;
+const uint kEmissiveTexture = 1u;
 // The orm map, glTF's packing: occlusion in red (not read yet), roughness in green, metallic in blue.
-layout(set = 1, binding = 2) uniform sampler2D ormTexture;
+const uint kOrmTexture = 2u;
 
 // The parameters, in the descriptor's order.
 const uint kBaseColor = 0u;
@@ -37,11 +38,11 @@ layout(location = 0) out vec4 outColor;
 
 #ifdef TRIPLANAR
 // The texture projected along each object axis, weighted by how squarely the surface faces it.
-vec4 SampleTriplanar(sampler2D textureSampler, vec3 position, vec3 weights)
+vec4 SampleTriplanar(uint slot, vec3 position, vec3 weights)
 {
-	return texture(textureSampler, position.zy) * weights.x +
-	       texture(textureSampler, position.xz) * weights.y +
-	       texture(textureSampler, position.xy) * weights.z;
+	return MaterialTexture(slot, position.zy) * weights.x +
+	       MaterialTexture(slot, position.xz) * weights.y +
+	       MaterialTexture(slot, position.xy) * weights.z;
 }
 #endif
 
@@ -54,13 +55,13 @@ void main()
 	vec3 weights = pow(abs(normalize(fragObjectNormal)), vec3(max(triplanar.y, 1.0)));
 	weights /= max(weights.x + weights.y + weights.z, 0.0001);
 	vec3 projected = fragObjectPosition * triplanar.x;
-	vec4 baseTexel = SampleTriplanar(baseColorTexture, projected, weights);
-	vec3 emissiveTexel = SampleTriplanar(emissiveTexture, projected, weights).rgb;
-	vec4 surfaceTexel = SampleTriplanar(ormTexture, projected, weights);
+	vec4 baseTexel = SampleTriplanar(kBaseColorTexture, projected, weights);
+	vec3 emissiveTexel = SampleTriplanar(kEmissiveTexture, projected, weights).rgb;
+	vec4 surfaceTexel = SampleTriplanar(kOrmTexture, projected, weights);
 #else
-	vec4 baseTexel = texture(baseColorTexture, fragTexCoord);
-	vec3 emissiveTexel = texture(emissiveTexture, fragTexCoord).rgb;
-	vec4 surfaceTexel = texture(ormTexture, fragTexCoord);
+	vec4 baseTexel = MaterialTexture(kBaseColorTexture, fragTexCoord);
+	vec3 emissiveTexel = MaterialTexture(kEmissiveTexture, fragTexCoord).rgb;
+	vec4 surfaceTexel = MaterialTexture(kOrmTexture, fragTexCoord);
 #endif
 	vec4 albedo = baseTexel * MaterialParameter(kBaseColor) * vec4(fragColor, 1.0);
 	Surface surface = Surface(

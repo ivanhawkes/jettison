@@ -590,7 +590,7 @@ class Renderer
 	// parameters, the environment, the cluster grid, the shadow map), set 1 of the scene programs
 	// (a material's textures), and set 0 of the output program (the resolved HDR target).
 	VkDescriptorSetLayout m_frameSetLayout{VK_NULL_HANDLE};
-	VkDescriptorSetLayout m_materialSetLayout{VK_NULL_HANDLE};
+	VkDescriptorSetLayout m_textureSetLayout{VK_NULL_HANDLE};
 
 	// Set 1 of the post programs: the images a post pass reads, by binding.
 	VkDescriptorSetLayout m_postSetLayout{VK_NULL_HANDLE};

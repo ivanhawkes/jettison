@@ -308,9 +308,19 @@ session hours long animates as smoothly as its first minute.
 A program's descriptor, `assets/shaders/<program>.program.yaml`, lists its parameters (vec4s, with
 defaults), its texture slots (each with a fallback: white, black or a flat normal) and its blend,
 opaque or transparent. A material is checked against its program when it loads, not when it draws.
-Every scene program shares one layout: up to eight texture slots in descriptor set 1, and up to
-eight parameters in the frame's material buffer. A new program is therefore data plus GLSL, not a
-new code path.
+Every scene program shares one layout. Its texture slots, up to sixteen (`kMaterialTextureSlots`,
+the program format's limit), and up to eight parameters are a block in the frame's material
+buffer: an index into the texture table for each slot, then the parameters, which
+`material.glsl` reads from the draw's offset (`MaterialTexture`, `MaterialParameter`). A new
+program is therefore data plus GLSL, not a new code path.
+
+<a id="the-texture-table"></a>**The texture table** is descriptor set 1, bound with the frame's set:
+one array of `kTextureTableSize` (4096) sampled images, partially bound and updated after bind,
+and the material sampler. A texture takes an element when its upload finishes and gives it back,
+with its image, once no frame in flight can read it, so an element is only written while no
+submission reads it; the fallbacks hold elements 0 to 2, by `TextureFallback`. A draw's material
+is one for all its instances, so a slot's index is uniform across the draw and needs no
+`nonuniformEXT`. A full table fails the texture's load, naming it.
 
 | Program | For |
 | --- | --- |
@@ -324,10 +334,11 @@ A variant is a compile-time define on one source, built under its own name by
 `jettison_compile_shader_variant`. `PipelineCache` makes a graphics pipeline per program and
 render state, and a compute pipeline per program, finding the SPIR-V through the asset VFS.
 
-`MaterialCache` loads materials and their textures through the resource manager, and rebuilds a
-material's descriptor set when either reloads. A material that cannot be drawn (its program missing,
+`MaterialCache` loads materials and their textures through the resource manager, and takes a
+texture's new element into the material's block when it reloads. A material that cannot be drawn (its program missing,
 or a parameter its program lacks) is logged once, and the draw falls back to the model's own. A
-model without a material draws with its own base-colour texture through `mesh`.
+model without a material draws with its own base-colour texture through `mesh`, a block for each
+of its primitives.
 
 ### Models and textures
 
@@ -350,8 +361,8 @@ A CPU device is given RGBA8 rather than BC7, and its material sampler takes no a
 decodes BC7 and filters anisotropically in software at every fetch, each of which multiplied the
 opaque pass's cost (measured 2026-11-11 and 2026-11-12, [decided](decisions.md#rendering)).
 
-Nothing a frame in flight may read is freed on the spot. A model, texture or descriptor pool a
-reload replaced waits in a queue for `kFramesInFlight` frames.
+Nothing a frame in flight may read is freed on the spot. A model, or a texture and its element of
+the table, that a reload replaced waits in a queue for `kFramesInFlight` frames.
 
 ### Cameras
 
@@ -371,7 +382,7 @@ The backend is private (`source/engine/render/src/vulkan`). `CreateRenderer` mak
 - **The device** must report Vulkan 1.4 (`DeviceContext::kApiVersion`; a device that reports 1.3 is
   ruled out with "it is Vulkan 1.3, and the engine needs 1.4") and offer anisotropic sampling, depth
   clamp, dual-source blending, separate depth and stencil layouts, dynamic rendering and
-  synchronization2, and the descriptor indexing the [texture table](#materials-and-programs) needs:
+  synchronization2, and the descriptor indexing the [texture table](#the-texture-table) needs:
   `runtimeDescriptorArray`, `descriptorBindingPartiallyBound`,
   `descriptorBindingSampledImageUpdateAfterBind`, `descriptorBindingUpdateUnusedWhilePending`,
   `shaderSampledImageArrayDynamicIndexing` and `shaderSampledImageArrayNonUniformIndexing`, with

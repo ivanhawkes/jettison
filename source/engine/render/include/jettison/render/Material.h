@@ -18,10 +18,12 @@ namespace Jettison::Render
 // program says what it takes in a descriptor beside its SPIR-V, shaders/<program>.program.yaml, so
 // a material is checked against the program it names when it loads, not when it draws.
 //
-// On the device every scene program shares one layout: set 1 holds kMaterialTextureSlots combined
-// image samplers, in the program's slot order, and a material's parameters are vec4s in the
-// frame's material buffer, in the program's parameter order.
-constexpr std::size_t kMaterialTextureSlots = 8;
+// The program format's limits. On the device a material is a block in the frame's material buffer:
+// an index into the texture table for each of its kMaterialTextureSlots slots, in the program's slot
+// order, then its parameters as vec4s, in the program's parameter order
+// (assets/shaders/include/material.glsl, which repeats the slot count). The table is one descriptor
+// array, so the slot count is not the descriptor layout's.
+constexpr std::size_t kMaterialTextureSlots = 16;
 constexpr std::size_t kMaxMaterialParameters = 8;
 constexpr std::uint32_t kMaterialFormatVersion = 1;
 constexpr std::uint32_t kProgramFormatVersion = 1;
@@ -110,8 +112,8 @@ struct MaterialDefinition
 };
 
 // Read and written through Serialise::YamlArchive; reading also checks what the format alone does
-// not: a program is named, names are not repeated, periods are positive, and a program fits the
-// device layout. Throws Serialise::FormatError naming the file.
+// not: a program is named, names are not repeated, periods are positive, and a program is within the
+// format's limits. Throws Serialise::FormatError naming the file.
 ProgramDefinition ReadProgram(std::string_view text, std::string_view name);
 
 std::string WriteProgram(const ProgramDefinition &program);
