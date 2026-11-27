@@ -459,9 +459,10 @@ std::uint32_t MaterialCache::Upload(
 		m_pDeviceContext->DestroyImage(image);
 		image = {};
 		view = VK_NULL_HANDLE;
-		throw std::runtime_error(std::format(
-		    "the texture table's {} elements are all held, and '{}' needs one",
-		    DeviceContext::kTextureTableSize, name));
+		throw std::runtime_error(
+		    std::format(
+		        "the texture table's {} elements are all held, and '{}' needs one",
+		        DeviceContext::kTextureTableSize, name));
 	}
 
 	// No submission reads the element: a new one never was, and one given back waited out the frames
@@ -475,7 +476,8 @@ std::uint32_t MaterialCache::Upload(
 	write.descriptorCount = 1;
 	write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 	write.pImageInfo = &info;
-	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);	return texture;
+	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+	return texture;
 }
 
 

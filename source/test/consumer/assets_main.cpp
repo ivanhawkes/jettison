@@ -8,11 +8,12 @@
 int main()
 {
 	const std::filesystem::path assets{JETTISON_ASSET_SUBDIRECTORY};
-	for (const char* directory : {"fonts", "strings", "ui"})
+	for (const char *directory : {"fonts", "strings", "ui"})
 	{
 		if (!std::filesystem::is_directory(assets / directory))
 		{
-			std::fprintf(stderr, "consumer_assets: no %s in %s\n", directory, JETTISON_ASSET_SUBDIRECTORY);
+			std::fprintf(
+			    stderr, "consumer_assets: no %s in %s\n", directory, JETTISON_ASSET_SUBDIRECTORY);
 			return 1;
 		}
 	}

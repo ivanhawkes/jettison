@@ -483,8 +483,7 @@ void ReadMapping(
 			continue;
 		const bool known = currentPath != nullptr && SamePath(currentPath, path);
 		const std::uintptr_t bias = known ? currentBase : start - offset;
-		frame.module =
-		    FindModule(path, bias, known ? currentHeader : 0, known ? currentHeaderEnd : 0);
+		frame.module = FindModule(path, bias, known ? currentHeader : 0, known ? currentHeaderEnd : 0);
 		if (frame.module >= 0)
 		{
 			frame.offset =
@@ -639,7 +638,8 @@ void WriteBuildId(Writer &writer, const Module &module) noexcept
 			if (head.n_type != kBuildIdNote || head.n_namesz != kGnuName.size() ||
 			    !InHeader(module, name, kGnuName.size()) ||
 			    // NOLINTNEXTLINE(performance-no-int-to-ptr)
-			    std::memcmp(reinterpret_cast<const void *>(name), kGnuName.data(), kGnuName.size()) != 0)
+			    std::memcmp(reinterpret_cast<const void *>(name), kGnuName.data(), kGnuName.size()) !=
+			        0)
 				continue;
 			const std::size_t bytes = head.n_descsz < kBuildIdBytes ? head.n_descsz : kBuildIdBytes;
 			if (!InHeader(module, description, bytes))

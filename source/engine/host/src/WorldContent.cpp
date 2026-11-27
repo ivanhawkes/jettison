@@ -105,7 +105,8 @@ std::optional<std::string> ContentDifference(const WorldContent &held, const Wor
 			return std::format(
 			    "This client holds {}, and the server runs on {}", Named(*ours), Named(package));
 		if (ours->digest != package.digest)
-			return std::format("This client's {} is not the server's: its world content differs", Named(*ours));
+			return std::format(
+			    "This client's {} is not the server's: its world content differs", Named(*ours));
 	}
 	for (const WorldPackage &package : held.packages)
 		if (find(served, package.mount) == served.packages.end())

@@ -182,7 +182,8 @@ std::vector<Sim::ModVersion> MountAssets(
 				if (description.identifier == kEngineMount || description.identifier == kUserMount ||
 				    description.identifier.starts_with(kModPrefix))
 					throw std::runtime_error{std::format(
-					    "its identifier, {}, is one of the shell's own mount names", description.identifier)};
+					    "its identifier, {}, is one of the shell's own mount names",
+					    description.identifier)};
 				contentMount = description.identifier;
 			}
 		}

@@ -103,7 +103,10 @@ class MaterialCache
 	    VkDescriptorSetLayout textureLayout, VkPipelineLayout sceneLayout,
 	    const RenderState &sceneState, const RenderState &transparentState);
 
-	VkDescriptorSet GetTextureSet() const { return m_textureSet; }
+	VkDescriptorSet GetTextureSet() const
+	{
+		return m_textureSet;
+	}
 
 	// Releases every handle and frees everything, queued or not: the device has to be idle. The
 	// resource manager outlives this, and its loaders must not run after it.
@@ -208,7 +211,8 @@ class MaterialCache
 
 	// Uploads the texture and gives it an element of the table, which this writes. Throws, having
 	// freed what it made, when either fails: the table is full when every element is held.
-	std::uint32_t Upload(const TextureData &data, const std::string &name, Image &image, VkImageView &view);
+	std::uint32_t Upload(
+	    const TextureData &data, const std::string &name, Image &image, VkImageView &view);
 
 	// A material's block: its slots' elements, then its parameters at a presentation time.
 	static void AppendBlock(

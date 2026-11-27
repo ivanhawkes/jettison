@@ -286,7 +286,8 @@ TEST_CASE("Mounts: content mounts as its identifier, which a mod may require, or
 
 	const Reported reported;
 	Vfs::FileSystem files;
-	(void)App::MountAssets(files, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user"));
+	(void)App::MountAssets(
+	    files, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user"));
 	CHECK(NamesOf(files) == std::vector<std::string>{"engine", "farm", "mod:overlay", "user"});
 	CHECK(reported.Contains("its name is the shell's own mount, farm"));
 
@@ -294,7 +295,8 @@ TEST_CASE("Mounts: content mounts as its identifier, which a mod may require, or
 	scratch.Put("content/mod.yaml", "version: 1\n");
 	std::filesystem::remove_all(scratch.Path("user/mods/farm"));
 	Vfs::FileSystem plain;
-	(void)App::MountAssets(plain, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user"));
+	(void)App::MountAssets(
+	    plain, scratch.Path("engine"), scratch.Path("content"), scratch.Path("user"));
 	CHECK(NamesOf(plain) == std::vector<std::string>{"engine", "base", "user"});
 	CHECK(reported.Contains("requires the mod farm, which is not mounted before it"));
 

@@ -329,9 +329,9 @@ void Renderer::Destroy()
 void Renderer::CreateLayouts()
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
-	const auto createSetLayout =
-	    [&](std::span<const VkDescriptorSetLayoutBinding> bindings, const char *name,
-	        const void *pNext = nullptr, VkDescriptorSetLayoutCreateFlags flags = 0)
+	const auto createSetLayout = [&](std::span<const VkDescriptorSetLayoutBinding> bindings,
+	                                 const char *name, const void *pNext = nullptr,
+	                                 VkDescriptorSetLayoutCreateFlags flags = 0)
 	{
 		VkDescriptorSetLayoutCreateInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -2268,7 +2268,8 @@ void Renderer::RecordShadows(const FrameData &frame, VkCommandBuffer commandBuff
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline);
 
 			// The shadow program reads the frame set alone: the cascades' matrices, the instances and
-			// the skin palette. The texture table is not bound, since it has no fragment stage to read it.
+			// the skin palette. The texture table is not bound, since it has no fragment stage to read
+			// it.
 			vkCmdBindDescriptorSets(
 			    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshLayout, 0, 1, &frame.frameSet, 0,
 			    nullptr);

@@ -582,7 +582,8 @@ TEST_CASE("Host: a client's world content is checked against its server's, namin
 		CHECK(difference->find(says) != std::string::npos);
 	};
 	differs(contentOf({{"farm", "content"}}), "The server runs on 'rain' 2.0.0, which this client");
-	differs(contentOf({{"farm", "content"}, {"rain", "old-rain"}}), "holds 'rain' 1.0.0, and the server");
+	differs(
+	    contentOf({{"farm", "content"}, {"rain", "old-rain"}}), "holds 'rain' 1.0.0, and the server");
 	differs(contentOf({{"farm", "content"}, {"rain", "odd-rain"}}), "'rain' 2.0.0 is not the server's");
 	differs(
 	    contentOf({{"farm", "content"}, {"rain", "rain"}, {"hail", "hail"}}),

@@ -202,7 +202,8 @@ TEST_CASE("Crash: the report lists each module of its frames with its build ID")
 	// The engine's executables are linked with a SHA-1 build ID: 40 hex digits.
 	const std::size_t at = crashed.report.find("/jettison_platform_tests build-id ");
 	REQUIRE(at != std::string::npos);
-	const std::string id = crashed.report.substr(at + std::string{"/jettison_platform_tests build-id "}.size(), 41);
+	const std::string id =
+	    crashed.report.substr(at + std::string{"/jettison_platform_tests build-id "}.size(), 41);
 	CHECK(id.find_first_not_of("0123456789abcdef") == 40);
 	CHECK(id[40] == '\n');
 }

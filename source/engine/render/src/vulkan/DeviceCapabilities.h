@@ -34,7 +34,8 @@ struct DeviceCapabilities
 	bool descriptorIndexing{false};
 	bool samplerFilterMinmax{false};
 
-	// 64-bit atomics: the storage buffer form (1.2), and the image form (VK_EXT_shader_image_atomic_int64).
+	// 64-bit atomics: the storage buffer form (1.2), and the image form
+	// (VK_EXT_shader_image_atomic_int64).
 	bool shaderBufferInt64Atomics{false};
 	bool shaderImageInt64Atomics{false};
 

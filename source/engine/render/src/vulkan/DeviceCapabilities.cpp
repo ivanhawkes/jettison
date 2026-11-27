@@ -91,9 +91,11 @@ DeviceCapabilities ReadCapabilities(VkPhysicalDevice_T *device)
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR structureFeatures{};
 	structureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	VkPhysicalDeviceShaderImageAtomicInt64FeaturesEXT imageAtomicFeatures{};
-	imageAtomicFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_IMAGE_ATOMIC_INT64_FEATURES_EXT;
+	imageAtomicFeatures.sType =
+	    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_IMAGE_ATOMIC_INT64_FEATURES_EXT;
 	VkPhysicalDeviceClusterAccelerationStructureFeaturesNV clusterFeatures{};
-	clusterFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_ACCELERATION_STRUCTURE_FEATURES_NV;
+	clusterFeatures.sType =
+	    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_ACCELERATION_STRUCTURE_FEATURES_NV;
 
 	VkPhysicalDeviceMeshShaderPropertiesEXT meshProperties{};
 	meshProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT;
@@ -167,8 +169,7 @@ DeviceCapabilities ReadCapabilities(VkPhysicalDevice_T *device)
 	capabilities.maxGeometryCount = structureProperties.maxGeometryCount;
 	capabilities.maxInstanceCount = structureProperties.maxInstanceCount;
 	capabilities.maxPrimitiveCount = structureProperties.maxPrimitiveCount;
-	capabilities.clusterAccelerationStructure =
-	    clusterFeatures.clusterAccelerationStructure == VK_TRUE;
+	capabilities.clusterAccelerationStructure = clusterFeatures.clusterAccelerationStructure == VK_TRUE;
 	capabilities.maxVerticesPerCluster = clusterProperties.maxVerticesPerCluster;
 	capabilities.maxTrianglesPerCluster = clusterProperties.maxTrianglesPerCluster;
 	return capabilities;
@@ -208,32 +209,39 @@ std::vector<std::string> DescribeCapabilities(
 	const DeviceCapabilities &c = capabilities;
 	std::vector<std::string> lines;
 	lines.push_back(std::format("Vulkan {}", VersionText(c.apiVersion)));
-	lines.push_back(std::format(
-	    "Vulkan 1.4 features: pushDescriptor {}, maintenance5 {}, maintenance6 {}, "
-	    "dynamicRenderingLocalRead {}, hostImageCopy {}",
-	    YesNo(c.pushDescriptor), YesNo(c.maintenance5), YesNo(c.maintenance6),
-	    YesNo(c.dynamicRenderingLocalRead), YesNo(c.hostImageCopy)));
-	lines.push_back(std::format(
-	    "Features: multiDrawIndirect {}, drawIndirectCount {}, bufferDeviceAddress {}, "
-	    "descriptorIndexing {}, samplerFilterMinmax {}, shaderBufferInt64Atomics {}, "
-	    "shaderImageInt64Atomics {}",
-	    YesNo(c.multiDrawIndirect), YesNo(c.drawIndirectCount), YesNo(c.bufferDeviceAddress),
-	    YesNo(c.descriptorIndexing), YesNo(c.samplerFilterMinmax), YesNo(c.shaderBufferInt64Atomics),
-	    YesNo(c.shaderImageInt64Atomics)));
-	lines.push_back(std::format(
-	    "Mesh shaders: mesh {}, task {}; at most {} vertices and {} primitives, workgroups of {} "
-	    "invocations (preferred {}) for mesh and {} (preferred {}) for task",
-	    YesNo(c.meshShader), YesNo(c.taskShader), c.maxMeshOutputVertices, c.maxMeshOutputPrimitives,
-	    c.maxMeshWorkGroupInvocations, c.maxPreferredMeshWorkGroupInvocations,
-	    c.maxTaskWorkGroupInvocations, c.maxPreferredTaskWorkGroupInvocations));
-	lines.push_back(std::format(
-	    "Ray tracing: rayQuery {}, accelerationStructure {}; at most {} geometries, {} instances, {} "
-	    "primitives",
-	    YesNo(c.rayQuery), YesNo(c.accelerationStructure), c.maxGeometryCount, c.maxInstanceCount,
-	    c.maxPrimitiveCount));
-	lines.push_back(std::format(
-	    "Cluster acceleration structures: {}; at most {} vertices and {} triangles a cluster",
-	    YesNo(c.clusterAccelerationStructure), c.maxVerticesPerCluster, c.maxTrianglesPerCluster));
+	lines.push_back(
+	    std::format(
+	        "Vulkan 1.4 features: pushDescriptor {}, maintenance5 {}, maintenance6 {}, "
+	        "dynamicRenderingLocalRead {}, hostImageCopy {}",
+	        YesNo(c.pushDescriptor), YesNo(c.maintenance5), YesNo(c.maintenance6),
+	        YesNo(c.dynamicRenderingLocalRead), YesNo(c.hostImageCopy)));
+	lines.push_back(
+	    std::format(
+	        "Features: multiDrawIndirect {}, drawIndirectCount {}, bufferDeviceAddress {}, "
+	        "descriptorIndexing {}, samplerFilterMinmax {}, shaderBufferInt64Atomics {}, "
+	        "shaderImageInt64Atomics {}",
+	        YesNo(c.multiDrawIndirect), YesNo(c.drawIndirectCount), YesNo(c.bufferDeviceAddress),
+	        YesNo(c.descriptorIndexing), YesNo(c.samplerFilterMinmax),
+	        YesNo(c.shaderBufferInt64Atomics), YesNo(c.shaderImageInt64Atomics)));
+	lines.push_back(
+	    std::format(
+	        "Mesh shaders: mesh {}, task {}; at most {} vertices and {} primitives, workgroups of {} "
+	        "invocations (preferred {}) for mesh and {} (preferred {}) for task",
+	        YesNo(c.meshShader), YesNo(c.taskShader), c.maxMeshOutputVertices,
+	        c.maxMeshOutputPrimitives, c.maxMeshWorkGroupInvocations,
+	        c.maxPreferredMeshWorkGroupInvocations, c.maxTaskWorkGroupInvocations,
+	        c.maxPreferredTaskWorkGroupInvocations));
+	lines.push_back(
+	    std::format(
+	        "Ray tracing: rayQuery {}, accelerationStructure {}; at most {} geometries, {} instances, "
+	        "{} "
+	        "primitives",
+	        YesNo(c.rayQuery), YesNo(c.accelerationStructure), c.maxGeometryCount, c.maxInstanceCount,
+	        c.maxPrimitiveCount));
+	lines.push_back(
+	    std::format(
+	        "Cluster acceleration structures: {}; at most {} vertices and {} triangles a cluster",
+	        YesNo(c.clusterAccelerationStructure), c.maxVerticesPerCluster, c.maxTrianglesPerCluster));
 	lines.push_back("Path " + PathText("meshlets", paths.meshlets));
 	lines.push_back("Path " + PathText("ray tracing", paths.rayTracing));
 	lines.push_back("Path " + PathText("mega geometry", paths.megaGeometry));

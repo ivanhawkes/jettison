@@ -72,7 +72,8 @@ TEST_CASE("Device choice: a device without descriptor indexing is refused with w
 	    "it binds 1024 sampled images updated after bind, and the texture table needs 4096");
 
 	// The reason is the candidate's, so the choice skips the device for the CPU one and says why.
-	const std::vector<DeviceCandidate> withSoftware{Gpu("Intel HD Graphics 5500", true, reason), kSoftware};
+	const std::vector<DeviceCandidate> withSoftware{
+	    Gpu("Intel HD Graphics 5500", true, reason), kSoftware};
 	CHECK(ChooseDevice(withSoftware).index == 1u);
 	const std::vector<DeviceCandidate> only{Gpu("Intel HD Graphics 5500", true, reason)};
 	const DeviceChoice choice = ChooseDevice(only);

@@ -99,7 +99,8 @@ void PrintUsage(const char *argv0)
 	             " [--save-scene <file>] [--benchmark <frames>] [--window <width>x<height>]"
 	             " [--depth-prepass] [--[no-]ambient-occlusion] [--bloom <strength>]"
 	             " [--user-dir <directory>]"
-	             " [--gpu <name>] [--no-meshlets] [--no-ray-tracing] [--no-mega-geometry] [--no-sound] [--screenshot <file.png> [--after-frames <n>]]"
+	             " [--gpu <name>] [--no-meshlets] [--no-ray-tracing] [--no-mega-geometry] [--no-sound] "
+	             "[--screenshot <file.png> [--after-frames <n>]]"
 	             " [--frame-step <seconds>] [--run [@<frame> | @<seconds>s] <console command>]..."
 	             " [--offscreen]\n";
 }
