@@ -475,7 +475,24 @@ std::string DeviceContext::Unsuitable(VkPhysicalDevice device)
 	    !features13.dynamicRendering || !features13.synchronization2)
 		return "it lacks anisotropic sampling, depth clamp, dual-source blending, separate depth and "
 		       "stencil layouts, dynamic rendering or synchronization2";
-	return {};
+
+	VkPhysicalDeviceVulkan12Properties properties12{};
+	properties12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
+	VkPhysicalDeviceProperties2 properties2{};
+	properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	properties2.pNext = &properties12;
+	vkGetPhysicalDeviceProperties2(device, &properties2);
+	const DescriptorIndexing indexing{
+	    features12.runtimeDescriptorArray == VK_TRUE,
+	    features12.descriptorBindingPartiallyBound == VK_TRUE,
+	    features12.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE,
+	    features12.descriptorBindingUpdateUnusedWhilePending == VK_TRUE,
+	    features.features.shaderSampledImageArrayDynamicIndexing == VK_TRUE,
+	    features12.shaderSampledImageArrayNonUniformIndexing == VK_TRUE,
+	    std::min(
+	        properties12.maxPerStageDescriptorUpdateAfterBindSampledImages,
+	        properties12.maxDescriptorSetUpdateAfterBindSampledImages)};
+	return DescriptorIndexingUnsuitable(indexing, kTextureTableSize);
 }
 
 
@@ -584,6 +601,14 @@ void DeviceContext::CreateLogicalDevice()
 	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 	features12.pNext = &features13;
 	features12.separateDepthStencilLayouts = VK_TRUE;
+
+	// The texture table (MaterialCache): one array of every material texture, partially bound, an
+	// element written as its texture finishes while a frame in flight reads others.
+	features12.runtimeDescriptorArray = VK_TRUE;
+	features12.descriptorBindingPartiallyBound = VK_TRUE;
+	features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+	features12.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+	features12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	VkPhysicalDeviceFeatures2 deviceFeatures{};
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	deviceFeatures.pNext = &features12;
@@ -594,6 +619,9 @@ void DeviceContext::CreateLogicalDevice()
 
 	// The transparent pass blends what a surface lets through by colour (BlendMode::Transmissive).
 	deviceFeatures.features.dualSrcBlend = VK_TRUE;
+
+	// A material's slot indexes the texture table by a value from the material buffer.
+	deviceFeatures.features.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
 
 	// Block compression where the device has it in hardware, which is every desktop GPU: Basis
 	// Universal textures transcode to BC7 then, and to RGBA8, four times the memory, without it. A CPU

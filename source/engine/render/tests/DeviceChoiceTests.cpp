@@ -44,6 +44,46 @@ TEST_CASE("Device choice: a Vulkan 1.3 device is refused with the version it rep
 }
 
 
+TEST_CASE("Device choice: a device without descriptor indexing is refused with what it lacks")
+{
+	// Lavapipe's, from vulkaninfo (Mesa 26.2.5, 2026-11-27).
+	DescriptorIndexing indexing{true, true, true, true, true, true, 1'015'808};
+	CHECK(DescriptorIndexingUnsuitable(indexing, 4096).empty());
+
+	// Intel's hasvk on a Broadwell reports Vulkan 1.3 and none of descriptor indexing: the first
+	// feature missing is named.
+	const DescriptorIndexing none{};
+	const std::string reason = DescriptorIndexingUnsuitable(none, 4096);
+	CHECK(reason == "it lacks descriptor indexing's runtimeDescriptorArray");
+
+	indexing.descriptorBindingUpdateUnusedWhilePending = false;
+	CHECK(
+	    DescriptorIndexingUnsuitable(indexing, 4096) ==
+	    "it lacks descriptor indexing's descriptorBindingUpdateUnusedWhilePending");
+	indexing.descriptorBindingUpdateUnusedWhilePending = true;
+	indexing.shaderSampledImageArrayDynamicIndexing = false;
+	CHECK(
+	    DescriptorIndexingUnsuitable(indexing, 4096) ==
+	    "it lacks descriptor indexing's shaderSampledImageArrayDynamicIndexing");
+	indexing.shaderSampledImageArrayDynamicIndexing = true;
+	indexing.maxUpdateAfterBindSampledImages = 1024;
+	CHECK(
+	    DescriptorIndexingUnsuitable(indexing, 4096) ==
+	    "it binds 1024 sampled images updated after bind, and the texture table needs 4096");
+
+	// The reason is the candidate's, so the choice skips the device for the CPU one and says why.
+	const std::vector<DeviceCandidate> withSoftware{Gpu("Intel HD Graphics 5500", true, reason), kSoftware};
+	CHECK(ChooseDevice(withSoftware).index == 1u);
+	const std::vector<DeviceCandidate> only{Gpu("Intel HD Graphics 5500", true, reason)};
+	const DeviceChoice choice = ChooseDevice(only);
+	CHECK_FALSE(choice.index);
+	CHECK(
+	    choice.reason ==
+	    "no GPU can be drawn with; Intel HD Graphics 5500: it lacks descriptor indexing's "
+	    "runtimeDescriptorArray");
+}
+
+
 TEST_CASE("Device choice: the GPU with the monitor, over one kept for compute listed before it")
 {
 	// Two NVIDIA cards, the second with the monitor: the first is for inference, and Vulkan may list

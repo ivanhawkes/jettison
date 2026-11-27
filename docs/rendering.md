@@ -371,7 +371,13 @@ The backend is private (`source/engine/render/src/vulkan`). `CreateRenderer` mak
 - **The device** must report Vulkan 1.4 (`DeviceContext::kApiVersion`; a device that reports 1.3 is
   ruled out with "it is Vulkan 1.3, and the engine needs 1.4") and offer anisotropic sampling, depth
   clamp, dual-source blending, separate depth and stencil layouts, dynamic rendering and
-  synchronization2. Lavapipe has them all, so the headless render test on lavapipe covers every pass.
+  synchronization2, and the descriptor indexing the [texture table](#materials-and-programs) needs:
+  `runtimeDescriptorArray`, `descriptorBindingPartiallyBound`,
+  `descriptorBindingSampledImageUpdateAfterBind`, `descriptorBindingUpdateUnusedWhilePending`,
+  `shaderSampledImageArrayDynamicIndexing` and `shaderSampledImageArrayNonUniformIndexing`, with
+  `kTextureTableSize` sampled images a stage. A device without one is ruled out naming it ("it lacks
+  descriptor indexing's runtimeDescriptorArray"). Lavapipe has them all, so the headless render test
+  on lavapipe covers every pass.
 - <a id="the-device-and-its-capabilities"></a>**Its capabilities** (`DeviceCapabilities.h`) are read once
   when the device is chosen and logged: the 1.4 features, `multiDrawIndirect`, `drawIndirectCount`,
   `bufferDeviceAddress`, `descriptorIndexing`, `samplerFilterMinmax`, the 64-bit atomics, mesh and task

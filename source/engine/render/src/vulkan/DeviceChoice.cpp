@@ -1,12 +1,14 @@
 #include "vulkan/DeviceChoice.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <format>
 #include <fstream>
 #include <string>
 #include <system_error>
 #include <tuple>
+#include <utility>
 
 namespace Jettison::Render
 {
@@ -82,6 +84,29 @@ std::string ApiVersionUnsuitable(std::uint32_t reported, std::uint32_t required)
 		return {};
 	return std::format(
 	    "it is Vulkan {}, and the engine needs {}", VersionText(reported), VersionText(required));
+}
+
+
+std::string DescriptorIndexingUnsuitable(const DescriptorIndexing &indexing, std::uint32_t textures)
+{
+	const std::array<std::pair<bool, std::string_view>, 6> features{{
+	    {indexing.runtimeDescriptorArray, "runtimeDescriptorArray"},
+	    {indexing.descriptorBindingPartiallyBound, "descriptorBindingPartiallyBound"},
+	    {indexing.descriptorBindingSampledImageUpdateAfterBind,
+	     "descriptorBindingSampledImageUpdateAfterBind"},
+	    {indexing.descriptorBindingUpdateUnusedWhilePending, "descriptorBindingUpdateUnusedWhilePending"},
+	    {indexing.shaderSampledImageArrayDynamicIndexing, "shaderSampledImageArrayDynamicIndexing"},
+	    {indexing.shaderSampledImageArrayNonUniformIndexing,
+	     "shaderSampledImageArrayNonUniformIndexing"},
+	}};
+	for (const auto &[offered, name] : features)
+		if (!offered)
+			return std::format("it lacks descriptor indexing's {}", name);
+	if (indexing.maxUpdateAfterBindSampledImages < textures)
+		return std::format(
+		    "it binds {} sampled images updated after bind, and the texture table needs {}",
+		    indexing.maxUpdateAfterBindSampledImages, textures);
+	return {};
 }
 
 

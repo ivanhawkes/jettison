@@ -71,4 +71,26 @@ std::string_view DeviceTypeName(DeviceType type);
 // one the engine asks for (a version with patch 0, so a 1.4.363 device is a 1.4 device); empty when
 // it is not.
 std::string ApiVersionUnsuitable(std::uint32_t reported, std::uint32_t required);
+
+// What of descriptor indexing a device offers, as its features and limits name it: what the texture
+// table (render/vulkan/MaterialCache.h) needs, one array of sampled images partially bound, written
+// while a frame in flight reads other elements of it, and indexed by an expression rather than a
+// constant.
+struct DescriptorIndexing
+{
+	bool runtimeDescriptorArray{false};
+	bool descriptorBindingPartiallyBound{false};
+	bool descriptorBindingSampledImageUpdateAfterBind{false};
+	bool descriptorBindingUpdateUnusedWhilePending{false};
+	bool shaderSampledImageArrayDynamicIndexing{false};
+	bool shaderSampledImageArrayNonUniformIndexing{false};
+
+	// The lesser of maxPerStageDescriptorUpdateAfterBindSampledImages and
+	// maxDescriptorSetUpdateAfterBindSampledImages.
+	std::uint32_t maxUpdateAfterBindSampledImages{0};
+};
+
+// Why a device with this descriptor indexing cannot hold a texture table of `textures` images: the
+// first feature it lacks, by its Vulkan name, or the limit too low; empty when it can.
+std::string DescriptorIndexingUnsuitable(const DescriptorIndexing &indexing, std::uint32_t textures);
 } // namespace Jettison::Render

@@ -94,6 +94,11 @@ class DeviceContext
 	// layout required (docs/decisions.md, "Vulkan 1.4"). Lavapipe, where the gate runs, has both.
 	static constexpr uint32_t kApiVersion = VK_API_VERSION_1_4;
 
+	// The sampled images the texture table holds (MaterialCache), every material texture and model's
+	// own image at once. Device choice requires a stage to reach as many in update-after-bind sets;
+	// lavapipe and the RTX 5060 Ti reach a million.
+	static constexpr uint32_t kTextureTableSize = 4096;
+
 	// The most samples the HDR target is given. Every device supports four for colour and depth
 	// attachments (the spec's required minimum), and a 1080p RGBA16F target at eight costs 66 MB
 	// more than at four, for an edge quality the resolve barely shows.
