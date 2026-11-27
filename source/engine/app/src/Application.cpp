@@ -1002,6 +1002,10 @@ void Application::InitUser()
 	     {},
 	     true});
 
+	// The reports a crash left since the last start, named once now that the log is open (below).
+	const std::vector<std::filesystem::path> crashed =
+	    Platform::TakeNewCrashReports(m_userPaths.state / "crashes");
+
 	// The file is the player's to send with a report, so its failure to open costs the run no more than
 	// a warning.
 	try
@@ -1014,6 +1018,10 @@ void Application::InitUser()
 	}
 	if (!noState.empty())
 		Core::Log(Core::Severity::Warning, kShell, "The state directory was not made: {}", noState);
+	for (const std::filesystem::path &report : crashed)
+		Core::Log(
+		    Core::Severity::Warning, kShell, "A run before this one crashed; its report is {}",
+		    report.string());
 
 	// The XDG specification has a directory it names made with mode 0700 when it does not exist yet.
 	Core::CreateDirectoriesDurably(m_userPaths.userData, std::filesystem::perms::owner_all);

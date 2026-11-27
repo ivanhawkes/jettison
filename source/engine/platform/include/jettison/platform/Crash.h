@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace Jettison::Platform
 {
@@ -55,6 +57,14 @@ bool InstallCrashHandler(const CrashOptions &options);
 
 // Puts back the signals' actions and the terminate handler as they were before it was installed.
 void UninstallCrashHandler() noexcept;
+
+// The reports in the directory written since this was last asked, oldest first, which it marks seen
+// (kSeenReportsFile beside them names the newest), so a program names each once, on its next start.
+// None for a directory that does not exist; a mark that cannot be written is logged, and the reports
+// named again next time.
+std::vector<std::filesystem::path> TakeNewCrashReports(const std::filesystem::path &directory);
+
+inline constexpr std::string_view kSeenReportsFile = "seen";
 
 // A stack of its own for the crash handler on the thread that makes it, so that thread's stack
 // overflowing is reported; given up as it is destroyed, on the same thread. Made first thing in a

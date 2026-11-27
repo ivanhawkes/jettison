@@ -114,7 +114,6 @@ Cheap to add when wanted, or waiting on a profile, and costing nothing meanwhile
 **What remains.**
 
 - A crash stack on Jolt's threads once it has them ([J07](#j07)).
-- The shell saying on its next start where a new report is (decided 2026-11-13).
 - A report sent somewhere, which waits on players outside development.
 - A minidump, should a report's frames and log tail not be enough.
 

@@ -242,6 +242,29 @@ TEST_CASE("Crash: an exception that goes uncaught is logged, then reported as an
 }
 
 
+TEST_CASE("Crash: the reports written since the last start are named once, oldest first")
+{
+	const std::filesystem::path directory = TemporaryDirectory("seen");
+	std::filesystem::remove_all(directory);
+	CHECK(Jettison::Platform::TakeNewCrashReports(directory).empty());
+	std::filesystem::create_directories(directory);
+	const auto put = [&](const std::string &name) { std::ofstream{directory / name} << "Fatal signal"; };
+	put("crash-20261127T101500Z-12.txt");
+	put("crash-20261127T091500Z-11.txt");
+	put("notes.txt");
+	CHECK(
+	    Jettison::Platform::TakeNewCrashReports(directory) ==
+	    std::vector<std::filesystem::path>{
+	        directory / "crash-20261127T091500Z-11.txt", directory / "crash-20261127T101500Z-12.txt"});
+	CHECK(Jettison::Platform::TakeNewCrashReports(directory).empty());
+	put("crash-20261127T111500Z-13.txt");
+	CHECK(
+	    Jettison::Platform::TakeNewCrashReports(directory) ==
+	    std::vector<std::filesystem::path>{directory / "crash-20261127T111500Z-13.txt"});
+	std::filesystem::remove_all(directory);
+}
+
+
 TEST_CASE("Crash: a directory that cannot be made is refused as the handler is installed")
 {
 	CHECK_THROWS_AS(

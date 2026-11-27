@@ -10,6 +10,7 @@
 #include <ucontext.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cerrno>
@@ -21,6 +22,7 @@
 #include <ctime>
 #include <exception>
 #include <format>
+#include <fstream>
 #include <stdexcept>
 #include <string_view>
 
@@ -960,6 +962,42 @@ ThreadCrashStack::~ThreadCrashStack()
 	stack_t stack{};
 	stack.ss_flags = SS_DISABLE;
 	::sigaltstack(&stack, nullptr);
+}
+
+
+std::vector<std::filesystem::path> TakeNewCrashReports(const std::filesystem::path &directory)
+{
+	std::error_code error;
+	std::vector<std::filesystem::path> reports;
+	for (const auto &entry : std::filesystem::directory_iterator{directory, error})
+	{
+		const std::string name = entry.path().filename().string();
+		if (entry.is_regular_file(error) && name.starts_with("crash-") && name.ends_with(".txt"))
+			reports.push_back(entry.path());
+	}
+	if (reports.empty())
+		return reports;
+
+	// A report's name begins with its UTC time, so the names sort as they were written.
+	std::ranges::sort(reports);
+	const std::filesystem::path mark = directory / kSeenReportsFile;
+	std::string seen;
+	if (std::ifstream in{mark}; in)
+		std::getline(in, seen);
+	std::erase_if(reports, [&](const std::filesystem::path &report) { return report.filename().string() <= seen; });
+	if (reports.empty())
+		return reports;
+	try
+	{
+		const std::string newest = reports.back().filename().string() + "\n";
+		Core::WriteFileDurably(mark, newest);
+	}
+	catch (const std::exception &problem)
+	{
+		Core::Log(
+		    Core::Severity::Warning, kCrash, "The crash reports are not marked seen: {}", problem.what());
+	}
+	return reports;
 }
 
 

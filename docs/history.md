@@ -29,6 +29,7 @@ Newest first; each line links the file that records it.
 
 | Date | Milestone |
 | --- | --- |
+| 2026-11-27 | A crash report named on the next start, J11's bullet: `Platform::TakeNewCrashReports`, and the shell's warning naming each report written since the start before ([runtime](runtime.md#installing-the-crash-handler)) |
 | 2026-11-27 | <a id="j13"></a>A scene's models asked for as it loads, J13: `IRenderer::PrefetchScene`, and the shell holding the scene behind a full fade until its model files are in, 5 s at most, `Shell::SceneReady` for a game to wait on; the reference views unchanged and the smoke test's reload passing ([rendering](rendering.md#models-and-textures)) |
 | 2026-11-27 | Staged assets that hold what their source does: `jettison_add_assets` removes, as the tree is configured, a staged file gone from its source, which had left a fetching game's build reading tables the engine had deleted |
 | 2026-11-27 | A game's fonts for the scripts the engine's lack, the user's choice over the engine shipping a CJK face: every `.ttf` and `.otf` under a game's or a mod's `fonts/` a fallback face after the engine's (`UiSystem::LoadFallbackFonts`), and a character no face has logged once with its language and counted a problem; the ui suite draws a generated face's glyph Droid Sans lacks ([UI](ui.md#the-game-ui)) |

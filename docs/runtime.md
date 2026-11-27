@@ -418,6 +418,10 @@ Platform::InstallCrashHandler(
 A program built on the engine without the shell calls it the same way, from the main thread, before
 it starts other threads.
 
+On its next start the shell names each report a crash left since the start before, once, as a warning
+in the log: `Platform::TakeNewCrashReports` returns the reports newer than the one a `seen` file beside
+them names, and marks the newest seen.
+
 ### Work on the I/O worker
 
 From `source/engine/jobs/tests/JobsTests.cpp`: a failing item skips its completion, and `Drain`
