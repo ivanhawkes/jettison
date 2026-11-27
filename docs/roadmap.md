@@ -218,23 +218,6 @@ engine's threads are in [architecture](architecture.md#threading).
 
 **Feature doc:** [simulation](simulation.md).
 
-<a id="j33"></a>
-### J33. Fault injection under the file system calls
-
-**What remains.** A test that makes each system call under `WriteFileDurably` and
-`CreateDirectoriesDurably` fail in turn (a short or failed write, the file's `fsync`, the rename,
-the directory's `fsync`) and checks that each throws naming the path, with no partial file left
-and any old file as it was.
-
-**Why.** That is what `File.h` promises, and a save's safety rests on it, but a working disk does
-not fail on demand: the `core` suite reaches only a failed open and a file in the way of a
-directory (`source/engine/core/tests/FileTests.cpp`). Nothing has asked for it yet.
-
-**What exists.** The calls are made directly in `core/src/File.cpp`, with no seam to fail them.
-[J16](#j16) wants the same under the Vulkan layer.
-
-**Feature doc:** [persistence](persistence.md).
-
 <a id="j61"></a>
 ### J61. Flown in under a low cover from any side
 
