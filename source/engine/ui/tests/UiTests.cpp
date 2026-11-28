@@ -475,6 +475,48 @@ TEST_CASE("Ui: a game's face under fonts/ draws what the engine's lack, and what
 }
 
 
+TEST_CASE("Ui: an em draws in its family's italic, and text in a face no font loaded is a problem")
+{
+	Scratch scratch;
+	scratch.Put(
+	    "base/ui/emphasis.rml", "<rml><head><link type=\"text/rcss\" href=\"base.rcss\"/></head>"
+	                            "<body><p>Plain <em>kept</em> and <em>light</em></p></body></rml>");
+	std::size_t problems = 0;
+	std::size_t problemsLater = 0;
+	const auto drawnWidth = [&scratch, &problems, &problemsLater](bool italic)
+	{
+		Ui::UiSystem ui{scratch.Files(), 640, 480};
+		ui.LoadFont("fonts/Roboto-Medium.ttf");
+		if (italic)
+			ui.LoadFont("fonts/Roboto-Italic.ttf");
+		const Ui::DocumentHandle document = ui.LoadDocument("ui/emphasis.rml");
+		ui.Show(document);
+		ui.Update(0.0);
+		problems = ui.Problems();
+		const float width = DrawnWidth(ui.Overlay());
+		ui.Update(0.1);
+		ui.Update(0.2);
+		problemsLater = ui.Problems();
+		return width;
+	};
+
+	// With the italic the emphasised words draw past the plain ones, and nothing is reported.
+	const float drawn = drawnWidth(true);
+	CHECK(problems == 0);
+
+	// Without it RmlUi gives the ems no face, so they draw as nothing: only "Plain" and "and" are
+	// left. RmlUi logs a warning for each text it lays out with no face, naming the element and the
+	// face, which is counted a problem: one for each em, and none again for frames that lay nothing
+	// out.
+	const float plain = drawnWidth(false);
+	MESSAGE("with the italic " << drawn << " px, without " << plain << " px");
+	CHECK(plain > 0.0f);
+	CHECK(drawn > plain + 40.0f);
+	CHECK(problems == 2);
+	CHECK(problemsLater == problems);
+}
+
+
 TEST_CASE("Ui: the theme set picks the base stylesheet's @media block of its name, Mocha with none")
 {
 	Scratch scratch;

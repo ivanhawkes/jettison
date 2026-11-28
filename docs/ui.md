@@ -138,8 +138,12 @@ is appended after the stylesheet below it so its rules win
 the shell mounts them; a file changed under a mount already there is read again in development
 ([reloading](#reloading-and-the-debugger)). Fonts are FreeType's, one build that RmlUi's font engine
 and ImGui's rasteriser (`imgui_freetype`) both link. The shell loads
-Roboto Medium and Hack, with Droid Sans as the fallback face for any glyph the others lack
-(`UiSystem::LoadFont`).
+Roboto Medium, Roboto Italic and Hack, with Droid Sans as the fallback face for any glyph the others
+lack (`UiSystem::LoadFont`). RmlUi picks a face by family and style, the nearest weight within the
+style, and gives a style its family has no face of none at all: its text draws as nothing, and the
+fallback does not fill in, since that is per glyph within a face. Roboto Italic is there for `em`;
+RmlUi logs each text it lays out with no face, naming the element and the face it asked for, which
+counts as a problem.
 
 **A game's fonts.** The engine's faces cover Latin, Greek and Cyrillic, and no Chinese, Japanese or
 Korean. A game whose tables need another script ships the face itself: every `.ttf` and `.otf`

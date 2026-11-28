@@ -528,6 +528,14 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   which would put several megabytes and a third-party licence into every game's assets for the
   scripts one game uses, and a choice of subset only the game can make. [UI, input and
   localisation](ui.md#the-game-ui)
+- **`em` draws in Roboto Italic, Tracy's copy** (2026-11-28). RmlUi gives a style its family has no
+  face of nothing to draw with, so the engine loads an italic of its UI family. Roboto Italic 3.009
+  is taken from the Tracy pin (`profiler/src/font`), the family's only italic among the dependencies,
+  under the SIL Open Font License its name table states, which travels beside it
+  (`assets/fonts/Roboto-Italic-OFL.txt`). It is the regular weight beside the UI's Medium, as no
+  Medium Italic is in any dependency. A text with no face was already reported: RmlUi logs each one
+  it lays out, naming the element and the face, and the UI counts it a problem, so no font engine of
+  the engine's own wraps RmlUi's to report it again. [UI, input and localisation](ui.md#the-game-ui)
 - **The game UI follows the palette by RmlUi's themes** (2026-11-28). The base's plain rules are
   Mocha's, and each other variety is an `@media (theme: <name>)` block restating the rules that
   carry a colour, activated by the palette's name; Mocha has no block, so a run that never changes

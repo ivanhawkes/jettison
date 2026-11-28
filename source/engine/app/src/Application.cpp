@@ -171,9 +171,12 @@ class ShellComposition final : public Host::Game
 // How far a pick reaches: past any platform a vehicle is flown by.
 constexpr double kPickDistance = 50000.0;
 
-// The game UI's faces: Roboto for text, Hack for figures, and Droid Sans for a glyph neither has.
-constexpr std::array<std::pair<std::string_view, bool>, 3> kUiFonts{{
+// The game UI's faces: Roboto for text and its italic for emphasis, Hack for figures, and Droid Sans
+// for a glyph none has. RmlUi gives a style no face of a family that lacks its style, so an em
+// with no italic would draw as nothing.
+constexpr std::array<std::pair<std::string_view, bool>, 4> kUiFonts{{
     {"fonts/Roboto-Medium.ttf", false},
+    {"fonts/Roboto-Italic.ttf", false},
     {"fonts/Hack-Regular.ttf", false},
     {"fonts/DroidSans.ttf", true},
 }};
