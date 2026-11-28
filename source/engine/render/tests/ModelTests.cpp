@@ -15,6 +15,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -335,5 +336,44 @@ TEST_CASE("Model: the generated asteroid at the reference views' distances, each
 		for (int frame = 0; frame < 20; ++frame)
 			swaying = choose(held * (frame % 2 == 0 ? 1.02 : 0.98), swaying);
 		CHECK(swaying == start);
+	}
+}
+
+
+TEST_CASE("Model: a file's missing normals are its faces' summed, as the cook makes them")
+{
+	// A tetrahedron with no normals, each corner shared by three faces at angles.
+	const std::string text = R"({"asset": {"version": "2.0"}, "nodes": [{"mesh": 0}],
+		"scenes": [{"nodes": [0]}], "scene": 0,
+		"buffers": [{"byteLength": 72, "uri": "data:application/octet-stream;base64,)"
+	                         "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAA"
+	                         "AIA/AAACAAEAAAABAAMAAAADAAIAAQACAAMA"
+	                         R"("}],
+		"bufferViews": [{"buffer": 0, "byteLength": 48}, {"buffer": 0, "byteOffset": 48, "byteLength": 24}],
+		"accessors": [
+			{"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3", "min": [0, 0, 0], "max": [1, 1, 1]},
+			{"bufferView": 1, "componentType": 5123, "count": 12, "type": "SCALAR"}],
+		"meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1}]}]})";
+	std::vector<std::byte> bytes(text.size());
+	std::memcpy(bytes.data(), text.data(), text.size());
+	const auto source = Geometry::GltfFile::Parse(bytes, "tetrahedron.gltf");
+	const auto uncooked = Model::FromGltf(*source);
+	const auto cooked = Model::FromGltf(
+	    *Geometry::GltfFile::Parse(Geometry::CookModel(*source, {}, "key"), "tetrahedron.glb"));
+	REQUIRE(uncooked->Vertices().size() == 4);
+	REQUIRE(cooked->Vertices().size() == 4);
+
+	// The origin's three faces sum to the direction away from the other corners.
+	const glm::vec3 origin = glm::normalize(glm::vec3{-1.0f});
+	for (const Vertex &vertex : uncooked->Vertices())
+	{
+		CAPTURE(vertex.pos);
+		if (vertex.pos == glm::vec3{0.0f})
+			CHECK(glm::length(vertex.normal - origin) < 1e-6f);
+
+		// The cook keeps positions as floats and stores normals in 16 bits.
+		const auto match = std::ranges::find(cooked->Vertices(), vertex.pos, &Vertex::pos);
+		REQUIRE(match != cooked->Vertices().end());
+		CHECK(glm::length(match->normal - vertex.normal) < 1e-4f);
 	}
 }

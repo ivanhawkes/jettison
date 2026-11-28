@@ -441,8 +441,8 @@ buffer, or sparse, or with no view and more than 256 MiB of zeros; an accessor o
 component type its use does not allow (glTF 2.0's tables, with `KHR_mesh_quantization`'s); an
 index naming what the file lacks, or nodes that are not trees; a primitive's attributes of
 different counts; a compressed view outside its buffers, against the extension's limits on stride
-and count, or decoding to more than 256 MiB, or into a fallback that reaches past 1 GiB, which is
-made only as long as its views reach (`GltfFile.h` lists every refusal).
+and count, or decoding to more than 256 MiB, or into fallbacks that reach past 1 GiB together, each
+made only as long as its views reach and none before every view is checked (`GltfFile.h` lists every refusal).
 
 - **Extensions.** `EXT_meshopt_compression` and `KHR_mesh_quantization`, used and required, beside
   the source's own ([decided](decisions.md#rendering)). `asset.generator` is `Jettison's cook
@@ -467,8 +467,8 @@ made only as long as its views reach (`GltfFile.h` lists every refusal).
 
 - **Levels.** A mesh's primitives are its levels in turn, finest first, each holding every source
   primitive in its order with its material: level `k`'s primitive `p` is primitive `k × P + p`.
-  Each level's indices are a view of their own in the codec's triangle mode, 16-bit up to 65,536
-  vertices and 32-bit past them. A level is simplified from the finest (`meshopt_simplify`, borders
+  Each level's indices are a view of their own in the codec's triangle mode, 16-bit up to 65,535
+  vertices (glTF forbids the index 65535) and 32-bit past them. A level is simplified from the finest (`meshopt_simplify`, borders
   locked so primitives that meet stay joined) to `reduction` of the level before it's triangles
   (`LodSettings`, a half by default), within `maxError` of the mesh's extent (5%), at most
   `maxLevels` (5); one that keeps more than 90% of the last level's ends them, and a primitive that

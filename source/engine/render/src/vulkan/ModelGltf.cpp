@@ -8,6 +8,7 @@
 #include <fastgltf/tools.hpp>
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <optional>
 #include <span>
@@ -232,6 +233,9 @@ void Model::ReadGltf(const Geometry::GltfFile &file)
 
 	std::vector<ReadPrimitive> read;
 
+	// Whether each vertex's normal is made here, its file having none.
+	std::vector<bool> madeNormals;
+
 	// Every level has the finest's materials, which the material cache makes from its primitives.
 	const auto levels = file.Levels(meshIndex);
 	for (const auto &primitive : asset.meshes[meshIndex].primitives)
@@ -252,6 +256,8 @@ void Model::ReadGltf(const Geometry::GltfFile &file)
 			const std::vector<Vertex> vertices = ReadVertices(asset, primitive, skinJoints);
 			read.push_back({&primitive, m_vertices.size(), vertices.size()});
 			m_vertices.insert(m_vertices.end(), vertices.begin(), vertices.end());
+			madeNormals.resize(
+			    m_vertices.size(), primitive.findAttribute("NORMAL") == primitive.attributes.end());
 			shared = std::prev(read.end());
 		}
 		const std::size_t vertexOffset = shared->vertexOffset;
@@ -278,21 +284,17 @@ void Model::ReadGltf(const Geometry::GltfFile &file)
 		m_primitives.push_back(std::move(modelPrimitive));
 	}
 
+	// Each made normal is its vertex's triangles' face normals summed, as the cook makes them
+	// (geometry's Cook.cpp), so a cooked and an uncooked file shade alike.
 	for (std::size_t index = 0; index + 2 < m_indices.size(); index += 3)
 	{
-		Vertex &a = m_vertices[m_indices[index]];
-		Vertex &b = m_vertices[m_indices[index + 1]];
-		Vertex &c = m_vertices[m_indices[index + 2]];
-		const glm::vec3 faceNormal = glm::cross(b.pos - a.pos, c.pos - a.pos);
-		if (glm::dot(faceNormal, faceNormal) > 0.0f)
-		{
-			if (glm::dot(a.normal, a.normal) == 0.0f)
-				a.normal += faceNormal;
-			if (glm::dot(b.normal, b.normal) == 0.0f)
-				b.normal += faceNormal;
-			if (glm::dot(c.normal, c.normal) == 0.0f)
-				c.normal += faceNormal;
-		}
+		const std::array corners{m_indices[index], m_indices[index + 1], m_indices[index + 2]};
+		const glm::vec3 faceNormal = glm::cross(
+		    m_vertices[corners[1]].pos - m_vertices[corners[0]].pos,
+		    m_vertices[corners[2]].pos - m_vertices[corners[0]].pos);
+		for (const std::uint32_t corner : corners)
+			if (madeNormals[corner])
+				m_vertices[corner].normal += faceNormal;
 	}
 	for (Vertex &vertex : m_vertices)
 	{

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <exception>
+#include <filesystem>
 #include <vector>
 
 #include "CookTree.h"
@@ -22,15 +23,20 @@ constexpr Core::Category kCook{"cook"};
 // on.
 constexpr std::chrono::milliseconds kSettle{250};
 
+// The longest a cook waits after the first change for the source to settle, so changes that never
+// stop (a build or a git checkout writing the tree, a tool saving every 100 ms) cannot hold it back:
+// long beside one save's burst of files, short beside the cook an artist then waits on. A cook in
+// mid-burst refuses a half-written source, keeping its outputs, and the burst's next change cooks it.
+constexpr std::chrono::seconds kMostSettle{2};
+
 // How long a wait for a change lasts before stop is looked at again.
 constexpr std::chrono::milliseconds kStopCheck{100};
 
 
-bool IsSourceChange(const fs::path &path, const fs::path &source)
+bool HasSourceChange(const std::vector<fs::path> &paths, const fs::path &source)
 {
-	const fs::path relative = path.lexically_relative(source);
-	return std::ranges::none_of(
-	    relative, [](const fs::path &part) { return part.string().starts_with('.'); });
+	return std::ranges::any_of(
+	    paths, [&](const fs::path &path) { return !IsHidden(path.lexically_relative(source)); });
 }
 
 
@@ -56,15 +62,22 @@ void WatchTree(const fs::path &source, const fs::path &output, const std::atomic
 	Platform::DirectoryWatcher watcher{source};
 	Cook(source, output);
 	Core::Log(Core::Severity::Info, kCook, "watching {}", source.string());
+	using Clock = std::chrono::steady_clock;
 	while (!stop)
 	{
-		if (std::ranges::none_of(
-		        watcher.Wait(kStopCheck),
-		        [&](const fs::path &path) { return IsSourceChange(path, source); }))
+		if (!HasSourceChange(watcher.Wait(kStopCheck), source))
 			continue;
 
-		// Any change at all, a hidden one too, keeps the tree unsettled.
-		while (!stop && !watcher.Wait(kSettle).empty()) {}
+		// Only a change that could start a cook keeps the tree unsettled, and only until the deadline.
+		const Clock::time_point deadline = Clock::now() + kMostSettle;
+		Clock::time_point cookAt = Clock::now() + kSettle;
+		while (!stop && Clock::now() < cookAt)
+		{
+			const auto left = std::chrono::ceil<std::chrono::milliseconds>(cookAt - Clock::now());
+			if (HasSourceChange(
+			        watcher.Wait(std::clamp(left, std::chrono::milliseconds{0}, kStopCheck)), source))
+				cookAt = std::min(Clock::now() + kSettle, deadline);
+		}
 		if (!stop)
 			Cook(source, output);
 	}

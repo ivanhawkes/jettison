@@ -15,6 +15,7 @@
 #include <format>
 #include <fstream>
 #include <iterator>
+#include <span>
 #include <string>
 #include <thread>
 #include <vector>
@@ -63,12 +64,12 @@ void WriteText(const fs::path &path, const std::string &text)
 }
 
 
-// A PNG of 8 by 8 pixels, its colours shifted by shade.
-void WritePng(const fs::path &path, int shade)
+// A PNG of side by side pixels, its colours shifted by shade.
+void WritePng(const fs::path &path, int shade, int side = 8)
 {
 	std::vector<unsigned char> pixels;
-	for (int y = 0; y < 8; ++y)
-		for (int x = 0; x < 8; ++x)
+	for (int y = 0; y < side; ++y)
+		for (int x = 0; x < side; ++x)
 			pixels.insert(
 			    pixels.end(), {static_cast<unsigned char>(x * 32), static_cast<unsigned char>(y * 32),
 			                   static_cast<unsigned char>(shade)});
@@ -80,7 +81,7 @@ void WritePng(const fs::path &path, int shade)
 		    const auto *pBytes = static_cast<const unsigned char *>(pData);
 		    out.insert(out.end(), pBytes, pBytes + size);
 	    },
-	    &png, 8, 8, 3, pixels.data(), 8 * 3);
+	    &png, side, side, 3, pixels.data(), side * 3);
 	Write(path, png.data(), png.size());
 }
 
@@ -190,6 +191,41 @@ bool IsKtx2(const std::vector<std::byte> &bytes)
 	constexpr unsigned char kIdentifier[] = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB};
 	return bytes.size() > sizeof kIdentifier &&
 	       std::memcmp(bytes.data(), kIdentifier, sizeof kIdentifier) == 0;
+}
+
+
+// A KTX 2 file's colour primaries, from its data format descriptor's first block (KHR_DF_PRIMARIES_:
+// 0 unspecified, 1 BT.709).
+int Primaries(std::span<const std::byte> ktx2)
+{
+	std::uint32_t descriptor{};
+	REQUIRE(ktx2.size() > 52);
+	std::memcpy(&descriptor, ktx2.data() + 48, sizeof descriptor);
+	REQUIRE(ktx2.size() > descriptor + 13);
+	return std::to_integer<int>(ktx2[descriptor + 13]);
+}
+
+
+// The model's first image, the KTX 2 file in its GLB.
+std::vector<std::byte> ModelImage(const Fixture &fixture)
+{
+	const auto model = fixture.Model();
+	const auto &asset = model->Asset();
+	const auto &view = std::get<fastgltf::sources::BufferView>(asset.images[0].data);
+	const auto bytes = fastgltf::DefaultBufferDataAdapter{}(asset, view.bufferViewIndex);
+	return {bytes.begin(), bytes.end()};
+}
+
+
+// The fixture's model with one edit to its text.
+void EditModel(const Fixture &fixture, const std::string &from, const std::string &to)
+{
+	const fs::path gltf = fixture.source / "models" / "terrain.gltf";
+	std::string text = ReadText(gltf);
+	const auto found = text.find(from);
+	REQUIRE(found != std::string::npos);
+	text.replace(found, from.size(), to);
+	WriteText(gltf, text);
 }
 
 
@@ -613,4 +649,77 @@ TEST_CASE(
 
 	// Beside it, with a name that starts as the source's does, is no overlap.
 	CHECK(Cook::CookTree(fixture.source, fixture.root / "source-cooked").refusals.empty());
+}
+
+
+TEST_CASE("A model's image whose sides are not multiples of 4 is refused, naming the model and image")
+{
+	const Fixture fixture{"image-sides"};
+	WritePng(fixture.source / "models" / "textures" / "terrain-color.png", 0, 6);
+	WritePng(fixture.source / "textures" / "odd-color.png", 0, 6);
+	const Cook::CookReport report = fixture.Run();
+	CHECK(report.refusals.size() == 1);
+	CHECK(Mentions(report.refusals, "models/terrain.gltf image 0: it is 6 by 6"));
+	CHECK(!fs::exists(fixture.output / "models" / "terrain.glb"));
+
+	// A loose image is no model's, so KHR_texture_basisu's rule is not its.
+	CHECK(IsKtx2(Read(fixture.output / "textures" / "odd-color.ktx2")));
+}
+
+
+TEST_CASE("A data image's colour primaries are unspecified, in a model and loose, and colour's BT.709")
+{
+	const Fixture fixture{"primaries"};
+	WritePng(fixture.source / "textures" / "panel-normal.png", 64);
+	REQUIRE(fixture.Run().refusals.empty());
+	CHECK(Primaries(Read(fixture.output / "textures" / "panel-color.ktx2")) == 1);
+	CHECK(Primaries(Read(fixture.output / "textures" / "panel-normal.ktx2")) == 0);
+	CHECK(Primaries(ModelImage(fixture)) == 1);
+
+	EditModel(
+	    fixture, R"("pbrMetallicRoughness":{"baseColorTexture":{"index":0}})",
+	    R"("normalTexture":{"index":0})");
+	REQUIRE(fixture.Run().refusals.empty());
+	CHECK(Primaries(ModelImage(fixture)) == 0);
+}
+
+
+TEST_CASE("A model's reference with a hidden part is refused, naming it, as the watch would miss it")
+{
+	const Fixture fixture{"hidden-reference"};
+	fs::create_directories(fixture.source / "models" / ".data");
+	fs::rename(
+	    fixture.source / "models" / "terrain.bin", fixture.source / "models" / ".data" / "terrain.bin");
+	EditModel(fixture, R"("uri":"terrain.bin")", R"("uri":".data/terrain.bin")");
+	const Cook::CookReport report = fixture.Run();
+	CHECK(report.refusals.size() == 1);
+	CHECK(Mentions(
+	    report.refusals, "models/terrain.gltf: it references '.data/terrain.bin', which is hidden"));
+	CHECK(!fs::exists(fixture.output / "models" / "terrain.glb"));
+}
+
+
+TEST_CASE("The watch cooks within a bound while a file changes without end, hidden or not")
+{
+	for (const char *churned : {".swap", "notes/churn.txt"})
+	{
+		CAPTURE(churned);
+		const Fixture fixture{"watch-churn"};
+		const Watching watching{fixture};
+		REQUIRE(Eventually([&] { return fs::exists(fixture.output / "cook-record.yaml"); }));
+
+		// Written every 50 ms, inside the settle, until the edit beside it is cooked.
+		std::jthread churn{[&](const std::stop_token &stop)
+		                   {
+			                   for (int count = 0; !stop.stop_requested(); ++count)
+			                   {
+				                   WriteText(fixture.source / churned, std::to_string(count));
+				                   std::this_thread::sleep_for(std::chrono::milliseconds{50});
+			                   }
+		                   }};
+		std::this_thread::sleep_for(std::chrono::milliseconds{300});
+		WriteText(fixture.source / "notes" / "read-me.txt", "Edited.\n");
+		CHECK(Eventually(
+		    [&] { return ReadText(fixture.output / "notes" / "read-me.txt") == "Edited.\n"; }));
+	}
 }

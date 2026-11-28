@@ -282,7 +282,7 @@ at build time below. As built:
   `collision/rover.collision`), written before its GLB. A model's buffers and images are beside it
   or below it, never `..` (`GltfFile::Parse` reads a `.gltf`'s buffers from its directory and
   refuses one outside it). Hidden files (a leading dot) are not sources, so a source tree can be a
-  git checkout.
+  git checkout, and a model that references one is refused, naming it.
 - **Symbolic links.** Neither tree's root needs to be a real directory. A link in the source that
   leads out of the tree, to a file or a directory, is refused, naming it, since the watch cannot
   see what it leads to change; one to a file within the tree cooks as that file, and one to a
@@ -300,7 +300,10 @@ at build time below. As built:
   otherwise (one named as both is refused); a loose image is sRGB when its map is `color` or
   `emissive` (not `detail-color`, which the import script encodes as data). Mipmaps are a box
   filter, in linear light for colour, where `ktx create` uses its own resampler. Normal maps are
-  taken with green up, as the [content-file rule](coding-standards.md#content-files) says.
+  taken with green up, as the [content-file rule](coding-standards.md#content-files) says. A data
+  image's colour primaries are unspecified, as KHR_texture_basisu requires in a model; a model's
+  image whose sides are not multiples of 4, which the extension also requires, is refused, naming
+  the model and the image, for its source to be resized.
 - **The record** is `cook-record.yaml` in the output, each source's key a 64-bit FNV-1a
   (`Core::Fnv1a64`, `HashCombine`) of its bytes, its references' paths and bytes, its settings
   layers' names and text and `Cook::kCookVersion`. A copied file has no settings layers, so
@@ -313,7 +316,8 @@ at build time below. As built:
   sanitised trees.
 - **Checked by** the `cook` suite (`source/tools/cook/tests`), over a tree it writes: layered and
   refused settings, the record, refused names and glTF, skipping, deletion, cooking again on a
-  changed buffer, image or `cook.yaml`, the same bytes twice, copies and collision files.
+  changed buffer, image or `cook.yaml`, the same bytes twice, copies and collision files, a hidden
+  reference and an image's sides refused, and data images' primaries.
 
 **Built (J37d): the engine's content cooked by the build.** `source/test/CMakeLists.txt` stages
 `source/test/content` as the cook's source tree, `build/<preset>/source/test/content-source`;
@@ -338,12 +342,13 @@ committed, and the content logs no uncooked model.
 **Built (J38): the watch.** `jettison_cook <source> <output> --watch` (`Cook::WatchTree`,
 `Watch.h`, which documents the contract) watches the source through `Platform::DirectoryWatcher`
 ([runtime](runtime.md#watching-a-directory)), cooks the tree once, then runs the same `CookTree`
-again each time the source has been quiet for 250 ms after a change, until SIGINT or SIGTERM. The
+again each time the source has been quiet for 250 ms after a change, or 2 s after the first while
+changes go on, until SIGINT or SIGTERM. The
 record decides what is cooked again, so the watch has no rules of its own: an edited, added or
 renamed source is cooked, a deleted or renamed one's outputs deleted, a changed buffer, image or
 settings file cooks every source that uses it, and a refused source (a glTF half-written mid-save)
 is logged with its outputs kept while the watch goes on. A change under a hidden path starts no
-cook. An editor's save, written to a temporary name and renamed, is a change like any other.
+cook and holds none back. An editor's save, written to a temporary name and renamed, is a change like any other.
 
 - **Threads.** `CookTree` cooks its sources on as many threads as the machine runs, one source a
   thread, in the watch and once alike: the models first, then the rest, each source's outcome taken
@@ -353,7 +358,8 @@ cook. An editor's save, written to a temporary name and renamed, is a change lik
   flag, runs alone.
 - **Checked by** the `cook` suite: a watch over a fixture tree follows an edit, an addition, an
   editor's save, a rename, a deletion, a file in a new directory and a buffer edited alone, each
-  polled for within a bound; and a broken model leaves its outputs while a change beside it is
+  polled for within a bound, also while a hidden or a visible file is written every 50 ms; and a
+  broken model leaves its outputs while a change beside it is
   cooked, the model cooked again once whole. A render_test run on the watch's output
   (`--offscreen --content <output>`, the `main.yaml` scene) drew the arm where the crates were
   0.7 s after `crate.glb`'s source was replaced, through the resource manager's hot reload, with no

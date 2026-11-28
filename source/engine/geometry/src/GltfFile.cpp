@@ -14,6 +14,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <numeric>
 #include <span>
 #include <stdexcept>
 #include <system_error>
@@ -199,10 +200,11 @@ bool InRange(std::size_t offset, std::size_t length, std::size_t size)
 // bytes, the large asteroid's 81,920 triangles, measured 2026-11-28).
 constexpr std::size_t kMaxDecodedViewBytes = std::size_t{256} * 1024 * 1024;
 
-// The most a fallback buffer decodes to, its furthest view's end, so a view's offset cannot make it
-// large when the views are small: four views at their limit, 470 times the large asteroid's buffer
-// (2,275,520 bytes).
-constexpr std::size_t kMaxDecodedBufferBytes = 4 * kMaxDecodedViewBytes;
+// The most a file's fallback buffers decode to together, each to its furthest view's end, so neither
+// a view's offset nor many buffers can make the reader allocate more: four views at their limit, 470
+// times the large asteroid's buffer (2,275,520 bytes). A 2 KB file of four fallbacks at this size once
+// made the reader allocate 4 GiB.
+constexpr std::size_t kMaxDecodedFileBytes = 4 * kMaxDecodedViewBytes;
 
 // The most an accessor with no view, all zeros by glTF, reads as: a reader makes its elements as it
 // does a view's, so it is held to what one decoded view may hold.
@@ -211,13 +213,21 @@ constexpr std::size_t kMaxZeroAccessorBytes = kMaxDecodedViewBytes;
 
 // Each compressed view decoded into its fallback buffer, which then holds the bytes the file's
 // accessors read, as an uncompressed file's buffer does. A fallback is made only as long as its views
-// reach, whatever length it declares.
+// reach, whatever length it declares, and only once every view and the total have been checked, so a
+// file refused before decoding costs no allocation.
 void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 {
 	const auto isFallback = [&](std::size_t index)
 	{
 		return index < asset.buffers.size() &&
 		       std::holds_alternative<fastgltf::sources::Fallback>(asset.buffers[index].data);
+	};
+	const auto tooLarge = [&]
+	{
+		return std::runtime_error(
+		    std::format(
+		        "A glTF file's fallback buffers decode to more than {} bytes: {}", kMaxDecodedFileBytes,
+		        name));
 	};
 	std::vector<std::size_t> extents(asset.buffers.size());
 	for (const auto &view : asset.bufferViews)
@@ -237,16 +247,23 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 			        "A compressed glTF view decodes to more than {} bytes: {}", kMaxDecodedViewBytes,
 			        name));
 		if (compressed.count * compressed.byteStride != view.byteLength ||
-		    !InRange(view.byteOffset, view.byteLength, asset.buffers[view.bufferIndex].byteLength))
+		    !InRange(view.byteOffset, view.byteLength, asset.buffers[view.bufferIndex].byteLength) ||
+		    !InRange(
+		        compressed.byteOffset, compressed.byteLength,
+		        BufferBytes(asset, compressed.bufferIndex).size()))
 			throw std::runtime_error("A compressed glTF view is out of its buffers' range: " + name);
+		if (compressed.filter != fastgltf::MeshoptCompressionFilter::None)
+			throw std::runtime_error(
+			    "A compressed glTF view uses a filter, which the cook never writes: " + name);
+
+		// Each extent held to the total too, so their sum cannot wrap.
 		auto &extent = extents[view.bufferIndex];
 		extent = std::max(extent, view.byteOffset + view.byteLength);
-		if (extent > kMaxDecodedBufferBytes)
-			throw std::runtime_error(
-			    std::format(
-			        "A glTF fallback buffer decodes to more than {} bytes: {}", kMaxDecodedBufferBytes,
-			        name));
+		if (extent > kMaxDecodedFileBytes)
+			throw tooLarge();
 	}
+	if (std::accumulate(extents.begin(), extents.end(), std::size_t{0}) > kMaxDecodedFileBytes)
+		throw tooLarge();
 
 	std::vector<std::vector<std::byte>> decoded(asset.buffers.size());
 	for (std::size_t index = 0; index < asset.buffers.size(); ++index)
@@ -257,12 +274,6 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 			continue;
 		const fastgltf::CompressedBufferView &compressed = *view.meshoptCompression;
 		const auto source = BufferBytes(asset, compressed.bufferIndex);
-		if (!InRange(compressed.byteOffset, compressed.byteLength, source.size()))
-			throw std::runtime_error("A compressed glTF view is out of its buffers' range: " + name);
-		if (compressed.filter != fastgltf::MeshoptCompressionFilter::None)
-			throw std::runtime_error(
-			    "A compressed glTF view uses a filter, which the cook never writes: " + name);
-
 		const auto *pSource =
 		    reinterpret_cast<const unsigned char *>(source.data() + compressed.byteOffset);
 		void *pTarget = decoded[view.bufferIndex].data() + view.byteOffset;

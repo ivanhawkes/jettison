@@ -53,6 +53,14 @@ constexpr std::string_view kWriter = "Jettison's cook (jettison_cook)";
 constexpr std::array<unsigned char, 12> kKtx2Identifier{0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32,
                                                         0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
 
+// Where a KTX 2 header holds pixelWidth and pixelHeight (the KTX 2 specification, "Header").
+constexpr std::size_t kPixelWidthOffset = 20;
+
+constexpr std::size_t kPixelHeightOffset = 24;
+
+// What KHR_texture_basisu requires both sides of a model's image to be multiples of.
+constexpr std::uint32_t kBasisuSideMultiple = 4;
+
 struct Level
 {
 	std::uint32_t width{};
@@ -200,6 +208,12 @@ std::vector<std::byte> EncodeTexture(
 	ktxTexture2 *pCreated = nullptr;
 	Check(ktxTexture2_Create(&info, KTX_TEXTURE_CREATE_ALLOC_STORAGE, &pCreated), name, "creating it");
 	const std::unique_ptr<ktxTexture2, TextureDeleter> pTexture{pCreated};
+
+	// libktx gives every format BT.709; UASTC encoding keeps the primaries set here.
+	if (colourSpace == ColourSpace::Linear)
+		Check(
+		    ktxTexture2_SetPrimaries(pTexture.get(), KHR_DF_PRIMARIES_UNSPECIFIED), name,
+		    "unspecifying its primaries");
 	for (std::size_t index = 0; index < levels.size(); ++index)
 		Check(
 		    ktxTexture_SetImageFromMemory(
@@ -243,5 +257,24 @@ std::vector<std::byte> EncodeTexture(
 	const std::unique_ptr<ktx_uint8_t, decltype(&std::free)> pOwned{pBytes, &std::free};
 	const auto *pFirst = reinterpret_cast<const std::byte *>(pBytes);
 	return {pFirst, pFirst + size};
+}
+
+
+void CheckModelImage(std::span<const std::byte> ktx2, std::string_view name)
+{
+	std::uint32_t width = 0;
+	std::uint32_t height = 0;
+	if (ktx2.size() >= kPixelHeightOffset + sizeof height)
+	{
+		std::memcpy(&width, ktx2.data() + kPixelWidthOffset, sizeof width);
+		std::memcpy(&height, ktx2.data() + kPixelHeightOffset, sizeof height);
+	}
+	if (width == 0 || height == 0 || width % kBasisuSideMultiple != 0 ||
+	    height % kBasisuSideMultiple != 0)
+		throw std::runtime_error(
+		    std::format(
+		        "{}: it is {} by {}, and KHR_texture_basisu needs an image in a model to have sides "
+		        "that are multiples of {}; resize the source",
+		        name, width, height, kBasisuSideMultiple));
 }
 } // namespace Jettison::Cook

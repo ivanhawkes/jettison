@@ -246,7 +246,14 @@ std::string ReferencePath(const fs::path &root, const std::string &modelPath, co
 		    std::format(
 		        "{}: it references '{}', which is not a file beside it or below it", modelPath,
 		        uri.string()));
-	return (directory / relative).lexically_normal().generic_string();
+	const fs::path path = (directory / relative).lexically_normal();
+	if (IsHidden(path))
+		throw std::runtime_error(
+		    std::format(
+		        "{}: it references '{}', which is hidden and so no source; move it to a path with no "
+		        "leading dot",
+		        modelPath, uri.string()));
+	return path.generic_string();
 }
 
 
@@ -477,7 +484,7 @@ class TreeCook
 		for (auto entry = fs::recursive_directory_iterator{m_source};
 		     entry != fs::recursive_directory_iterator{}; ++entry)
 		{
-			if (entry->path().filename().string().starts_with('.'))
+			if (IsHidden(entry->path().filename()))
 			{
 				entry.disable_recursion_pending();
 				continue;
@@ -725,9 +732,13 @@ class TreeCook
 		std::vector<Bytes> images;
 		images.reserve(asset.images.size());
 		for (std::size_t index = 0; index < asset.images.size(); ++index)
+		{
+			const std::string name = std::format("{} image {}", source.path, index);
 			images.push_back(EncodeTexture(
-			    ImageBytes(asset, asset.images[index], m_source, source.path),
-			    std::format("{} image {}", source.path, index), spaces[index], settings.textures));
+			    ImageBytes(asset, asset.images[index], m_source, source.path), name, spaces[index],
+			    settings.textures));
+			CheckModelImage(images.back(), name);
+		}
 		const Bytes model = Geometry::CookModel(*pFile, settings.lod, key, images);
 
 		const std::string &collision = source.outputs[1];
@@ -779,6 +790,13 @@ class TreeCook
 	CookReport m_report;
 };
 } // namespace
+
+
+bool IsHidden(const std::filesystem::path &relative)
+{
+	return std::ranges::any_of(
+	    relative, [](const fs::path &part) { return part.string().starts_with('.'); });
+}
 
 
 void CheckTrees(const std::filesystem::path &source, const std::filesystem::path &output)

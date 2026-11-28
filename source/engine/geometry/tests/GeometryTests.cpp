@@ -5,6 +5,7 @@
 #include <fastgltf/tools.hpp>
 #include <glm/glm.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -13,6 +14,7 @@
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -302,17 +304,78 @@ std::string TriangleAccessors(const std::string &accessors, const std::string &r
 
 // The triangle's positions as one view compressed with these parameters, decoding into buffer 1.
 std::string Compressed(
-    const char *mode, std::size_t stride, std::size_t count, const char *offset = "0")
+    const char *mode, std::size_t stride, std::size_t count, const char *offset = "0",
+    const char *source = "0")
 {
 	return WithTriangleData(
 	    R"(,{"byteLength":36}],"extensionsUsed":["EXT_meshopt_compression"],)"
 	    R"("extensionsRequired":["EXT_meshopt_compression"],"bufferViews":[{"buffer":1,"byteLength":)" +
-	    std::to_string(stride * count) +
-	    R"(,"extensions":{"EXT_meshopt_compression":{"buffer":0,"byteOffset":)" + offset +
-	    R"(,"byteLength":36,"byteStride":)" + std::to_string(stride) + R"(,"count":)" +
-	    std::to_string(count) + R"(,"mode":")" + mode +
+	    std::to_string(stride * count) + R"(,"extensions":{"EXT_meshopt_compression":{"buffer":)" +
+	    source + R"(,"byteOffset":)" + offset + R"(,"byteLength":36,"byteStride":)" +
+	    std::to_string(stride) + R"(,"count":)" + std::to_string(count) + R"(,"mode":")" + mode +
 	    R"("}}}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}],)" +
 	    OneMesh(R"({"POSITION":0})"));
+}
+
+
+// A strip of triangles over this many vertices, each vertex used, with no normals.
+std::vector<std::byte> MakeStrip(std::uint32_t vertexCount)
+{
+	std::vector<glm::vec3> positions;
+	positions.reserve(vertexCount);
+	for (std::uint32_t vertex = 0; vertex < vertexCount; ++vertex)
+	{
+		const std::uint32_t column = vertex / 2;
+		positions.emplace_back(static_cast<float>(column), static_cast<float>(vertex % 2), 0.0f);
+	}
+	std::vector<std::uint32_t> indices;
+	for (std::uint32_t first = 0; first + 2 < vertexCount; ++first)
+		indices.insert(indices.end(), {first, first + 1, first + 2});
+	fastgltf::Asset asset;
+	std::vector<std::byte> bytes;
+	Append(bytes, positions);
+	Append(bytes, indices);
+	fastgltf::Buffer buffer{};
+	buffer.byteLength = bytes.size();
+	buffer.data = fastgltf::sources::Vector{std::move(bytes)};
+	asset.buffers.push_back(std::move(buffer));
+	const std::size_t positionBytes = positions.size() * sizeof(glm::vec3);
+	asset.bufferViews.push_back({});
+	asset.bufferViews[0].byteLength = positionBytes;
+	asset.bufferViews.push_back({});
+	asset.bufferViews[1].byteOffset = positionBytes;
+	asset.bufferViews[1].byteLength = indices.size() * sizeof(std::uint32_t);
+	for (const auto &[view, count, type, component] :
+	     {std::tuple{
+	          std::size_t{0}, positions.size(), fastgltf::AccessorType::Vec3,
+	          fastgltf::ComponentType::Float},
+	      std::tuple{
+	          std::size_t{1}, indices.size(), fastgltf::AccessorType::Scalar,
+	          fastgltf::ComponentType::UnsignedInt}})
+	{
+		fastgltf::Accessor accessor{};
+		accessor.bufferViewIndex = view;
+		accessor.count = count;
+		accessor.type = type;
+		accessor.componentType = component;
+		asset.accessors.push_back(std::move(accessor));
+	}
+	fastgltf::Primitive primitive{};
+	primitive.attributes = {{"POSITION", 0}};
+	primitive.indicesAccessor = 1;
+	fastgltf::Mesh mesh{};
+	mesh.primitives.push_back(std::move(primitive));
+	asset.meshes.push_back(std::move(mesh));
+	fastgltf::Node node{};
+	node.meshIndex = 0;
+	asset.nodes.push_back(std::move(node));
+	asset.scenes.push_back({{0}, "scene"});
+	asset.defaultScene = 0;
+
+	fastgltf::Exporter exporter;
+	auto written = exporter.writeGltfBinary(asset);
+	REQUIRE(written.error() == fastgltf::Error::None);
+	return std::move(written.get().output);
 }
 
 
@@ -777,7 +840,32 @@ TEST_CASE("A fallback buffer is made as long as its views reach, and one reachin
 	    R"({"buffer":1,)", R"({"buffer":1,"byteOffset":1099511627776,)");
 	CHECK_THROWS_WITH_AS(
 	    Geometry::GltfFile::Parse(far, "far.glb"),
-	    doctest::Contains("fallback buffer decodes to more than 1073741824 bytes: far.glb"),
+	    doctest::Contains("fallback buffers decode to more than 1073741824 bytes: far.glb"),
+	    std::runtime_error);
+
+	// Four fallbacks of four views at the view's limit, each naming the same 16 bytes (bomb.gltf, 2
+	// KB): refused on the views alone, before 4 GiB is allocated for them.
+	std::string buffers =
+	    R"("buffers":[{"byteLength":16,"uri":"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAA=="})";
+	std::string views = R"("bufferViews":[)";
+	for (int buffer = 1; buffer <= 4; ++buffer)
+	{
+		buffers +=
+		    R"(,{"byteLength":1073741824,"extensions":{"EXT_meshopt_compression":{"fallback":true}}})";
+		for (int view = 0; view < 4; ++view)
+			views +=
+			    std::string{buffer == 1 && view == 0 ? "" : ","} + R"({"buffer":)" +
+			    std::to_string(buffer) + R"(,"byteOffset":)" + std::to_string(view * 268435456) +
+			    R"(,"byteLength":268435456,"byteStride":4,"extensions":{"EXT_meshopt_compression":)"
+			    R"({"buffer":0,"byteLength":16,"byteStride":4,"count":67108864,"mode":"ATTRIBUTES"}}})";
+	}
+	const std::string bomb =
+	    R"({"asset":{"version":"2.0"},"extensionsUsed":["EXT_meshopt_compression"],)"
+	    R"("extensionsRequired":["EXT_meshopt_compression"],"scenes":[{"nodes":[]}],)" +
+	    buffers + "]," + views + "]}";
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(AsBytes(bomb), "bomb.gltf"),
+	    doctest::Contains("fallback buffers decode to more than 1073741824 bytes: bomb.gltf"),
 	    std::runtime_error);
 
 	// A view that would decode to more than its limit.
@@ -890,6 +978,9 @@ TEST_CASE("An index naming what the file lacks, or nodes that are not trees, is 
 	         R"(],"bufferViews":[{"buffer":5,"byteLength":36}],"accessors":)" + positions + "," +
 	         position),
 	     "buffer view 0 names buffer 5"},
+	    // A compressed view's source out of range (badbuf.gltf), once a std::out_of_range naming no
+	    // file.
+	    {Compressed("ATTRIBUTES", 4, 9, "0", "7"), "buffer view 0 names buffer 7"},
 	    {TriangleAccessors(
 	         R"([{"bufferView":4,"componentType":5126,"count":3,"type":"VEC3"}])", position),
 	     "accessor 0 names buffer view 4"},
@@ -984,4 +1075,28 @@ TEST_CASE("An accessor with no view is held to a decoded view's bytes")
 	    Geometry::GltfFile::Parse(AsBytes(zeros("22369622")), "zeros.gltf"),
 	    doctest::Contains("has no view"), std::runtime_error);
 	CHECK(Geometry::GltfFile::Parse(AsBytes(zeros("22369621")), "zeros.gltf"));
+}
+
+
+TEST_CASE(
+    "Indices are 16-bit up to 65,535 vertices, so none is 65535, which glTF forbids, and 32-bit past")
+{
+	Geometry::LodSettings settings;
+	settings.maxLevels = 1;
+	for (const auto &[vertices, type] :
+	     {std::pair{65535u, fastgltf::ComponentType::UnsignedShort},
+	      std::pair{65536u, fastgltf::ComponentType::UnsignedInt}})
+	{
+		CAPTURE(vertices);
+		const auto file = Cook(MakeStrip(vertices), "strip.glb", settings);
+		const auto &asset = file->Asset();
+		const auto &primitive = asset.meshes[0].primitives[0];
+		REQUIRE(asset.accessors[primitive.findAttribute("POSITION")->accessorIndex].count == vertices);
+		const auto &indices = asset.accessors[*primitive.indicesAccessor];
+		CHECK(indices.componentType == type);
+		std::uint32_t largest = 0;
+		fastgltf::iterateAccessor<std::uint32_t>(
+		    asset, indices, [&](std::uint32_t index) { largest = std::max(largest, index); });
+		CHECK(largest == vertices - 1);
+	}
 }

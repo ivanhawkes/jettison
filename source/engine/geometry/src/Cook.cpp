@@ -51,8 +51,9 @@ constexpr int kVertexCodecLevel = 2;
 // little drawing, so it ends the levels.
 constexpr double kLeastReduction = 0.9;
 
-// 16-bit indices reach this many vertices.
-constexpr std::size_t kShortIndexVertices = std::size_t{std::numeric_limits<std::uint16_t>::max()} + 1;
+// The most vertices 16-bit indices are written for: glTF forbids an index of 65535, its type's largest
+// value, which some APIs read as a primitive restart, so the largest index is then 65534.
+constexpr std::size_t kMaxShortIndexVertices = std::numeric_limits<std::uint16_t>::max();
 
 constexpr float kSnorm16 = 32767.0f;
 
@@ -658,7 +659,7 @@ std::size_t AddIndices(
     fastgltf::Asset &out, Writer &writer, std::span<const std::uint32_t> indices,
     std::size_t vertexCount)
 {
-	const bool shortIndices = vertexCount <= kShortIndexVertices;
+	const bool shortIndices = vertexCount <= kMaxShortIndexVertices;
 	std::vector<unsigned char> encoded(meshopt_encodeIndexBufferBound(indices.size(), vertexCount));
 	encoded.resize(
 	    meshopt_encodeIndexBuffer(encoded.data(), encoded.size(), indices.data(), indices.size()));

@@ -39,15 +39,15 @@ class GltfFile
 	// for another extension, bytes that are not glTF, a buffer's URI that is absolute, climbs out of
 	// the directory (..) or leads out of it through a symbolic link (FileWithin), a buffer file that
 	// cannot be read or is shorter than the buffer, a compressed view whose stride or count breaks
-	// EXT_meshopt_compression, that lies outside its buffers, that decodes to more than 256 MiB or
-	// into a fallback buffer past 1 GiB, or that does not decode, a view outside its buffer, an
-	// accessor that is sparse, lies outside its view or buffer, has no view and more than 256 MiB of
-	// elements, or is a type or component type glTF 2.0 (with KHR_mesh_quantization) does not allow
-	// its use, any index naming what the file lacks, nodes that are not trees, a primitive whose
-	// attributes differ in count, and levels that are empty, whose finest error is not 0, that have an
-	// error past a float's range or less than the finer level's, or do not cover their mesh's
-	// primitives. A file it returns can be read by fastgltf's accessor tools, as the type its use
-	// allows and at any index it holds, without reading outside its buffers.
+	// EXT_meshopt_compression, that lies outside its buffers, that decodes to more than 256 MiB, or
+	// that does not decode, fallback buffers that decode to more than 1 GiB together, a view outside
+	// its buffer, an accessor that is sparse, lies outside its view or buffer, has no view and more
+	// than 256 MiB of elements, or is a type or component type glTF 2.0 (with KHR_mesh_quantization)
+	// does not allow its use, any index naming what the file lacks, nodes that are not trees, a
+	// primitive whose attributes differ in count, and levels that are empty, whose finest error is not
+	// 0, that have an error past a float's range or less than the finer level's, or do not cover their
+	// mesh's primitives. A file it returns can be read by fastgltf's accessor tools, as the type its
+	// use allows and at any index it holds, without reading outside its buffers.
 	static std::unique_ptr<GltfFile> Parse(
 	    std::span<const std::byte> bytes, std::string_view name,
 	    const std::filesystem::path &directory = {});

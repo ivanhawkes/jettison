@@ -9,7 +9,7 @@
 namespace Jettison::Cook
 {
 // Part of every cook key, so a change to what the cook writes cooks every source again.
-inline constexpr std::uint32_t kCookVersion = 2;
+inline constexpr std::uint32_t kCookVersion = 3;
 
 // The game's settings, at the source root (Settings.h).
 inline constexpr std::string_view kGameSettingsName = "cook.yaml";
@@ -34,6 +34,10 @@ struct CookReport
 // would see each record it writes as a change and cook forever. CookTree and WatchTree call it first.
 void CheckTrees(const std::filesystem::path &source, const std::filesystem::path &output);
 
+// Whether a path relative to the source has a hidden part, a name with a leading dot: no source, so
+// neither cooked, referenced by a model nor watched.
+bool IsHidden(const std::filesystem::path &relative);
+
 // Cooks the source tree into the output tree once (docs/dense-geometry-and-ray-tracing.md, "The
 // cook"). A source's output is at its relative path: a model (.gltf, .glb) as the engine's GLB
 // (Geometry::CookModel), its images KTX 2 inside it, with its collision file
@@ -50,10 +54,12 @@ void CheckTrees(const std::filesystem::path &source, const std::filesystem::path
 //
 // A source the cook cannot take is refused, naming it, and the rest are cooked: a name that breaks
 // the content-file rule (docs/coding-standards.md, "Content files"), a model that does not read, a
-// reference out of the model's directory, bad settings, two sources with one output (a file a model
-// references has none, and a model keeps its outputs against a source that is not one). A refused
-// source's outputs from an earlier run are kept. Throws std::runtime_error, before anything is cooked,
-// for trees CheckTrees refuses, a source that is not a directory or a record that does not read.
+// reference out of the model's directory or with a hidden part, a model's image whose sides are not
+// multiples of 4 (KHR_texture_basisu requires them), bad settings, two sources with one output (a file
+// a model references has none, and a model keeps its outputs against a source that is not one). A
+// refused source's outputs from an earlier run are kept. Throws std::runtime_error, before anything is
+// cooked, for trees CheckTrees refuses, a source that is not a directory or a record that does not
+// read.
 //
 // Symbolic links: either root may be one, and is resolved. In the source, a link to a file within the
 // tree is a source like any other, a link to a directory within it is not walked (its files are
