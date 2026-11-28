@@ -253,7 +253,7 @@ TEST_CASE("Physics: a compound shape and its parts' offsets and turns are read f
 	Physics::RegisterTypes();
 	Sim::DefinitionRegistry definitions{fileSystem};
 	definitions.Load<ShapeDefinition>("shapes", Serialise::FormatVersion{1});
-	const ShapeDefinition *dumbbell = definitions.Find<ShapeDefinition>("dumbbell");
+	const auto *dumbbell = definitions.Find<ShapeDefinition>("dumbbell");
 	REQUIRE(dumbbell);
 	CHECK(dumbbell->kind == ShapeKind::Compound);
 	CHECK(dumbbell->offset == glm::vec3{0.0f, 1.0f, 0.0f});
@@ -855,6 +855,7 @@ TEST_CASE("Physics: a cast or an overlap as a layer hits only what a body of tha
 	const auto entities = [](const std::vector<Physics::CastHit> &hits)
 	{
 		std::vector<entt::entity> found;
+		found.reserve(hits.size());
 		for (const Physics::CastHit &hit : hits)
 			found.push_back(hit.entity);
 		return found;

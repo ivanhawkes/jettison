@@ -178,10 +178,10 @@ std::uint32_t PartOf(const JPH::Shape &shape, const JPH::SubShapeID &id)
 	// An offset is Jolt's decoration, which passes a sub-shape's identifier through as it is.
 	const JPH::Shape *pShape = &shape;
 	if (pShape->GetSubType() == JPH::EShapeSubType::RotatedTranslated)
-		pShape = static_cast<const JPH::DecoratedShape *>(pShape)->GetInnerShape();
+		pShape = JPH::StaticCast<JPH::DecoratedShape>(pShape)->GetInnerShape();
 	if (pShape->GetSubType() != JPH::EShapeSubType::StaticCompound)
 		return 0;
 	JPH::SubShapeID remainder;
-	return static_cast<const JPH::CompoundShape *>(pShape)->GetSubShapeIndexFromID(id, remainder);
+	return JPH::StaticCast<JPH::CompoundShape>(pShape)->GetSubShapeIndexFromID(id, remainder);
 }
 } // namespace Jettison::Physics::Detail
