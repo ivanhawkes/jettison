@@ -318,19 +318,12 @@ std::string Compressed(
 }
 
 
-// A strip of triangles over this many vertices, each vertex used, with no normals.
-std::vector<std::byte> MakeStrip(std::uint32_t vertexCount)
+// A mesh of these triangles and no normals, its one set of vertices named by this many primitives,
+// and the mesh by this many nodes.
+std::vector<std::byte> MakeMesh(
+    const std::vector<glm::vec3> &positions, const std::vector<std::uint32_t> &indices,
+    std::size_t primitives = 1, std::size_t nodes = 1)
 {
-	std::vector<glm::vec3> positions;
-	positions.reserve(vertexCount);
-	for (std::uint32_t vertex = 0; vertex < vertexCount; ++vertex)
-	{
-		const std::uint32_t column = vertex / 2;
-		positions.emplace_back(static_cast<float>(column), static_cast<float>(vertex % 2), 0.0f);
-	}
-	std::vector<std::uint32_t> indices;
-	for (std::uint32_t first = 0; first + 2 < vertexCount; ++first)
-		indices.insert(indices.end(), {first, first + 1, first + 2});
 	fastgltf::Asset asset;
 	std::vector<std::byte> bytes;
 	Append(bytes, positions);
@@ -360,15 +353,21 @@ std::vector<std::byte> MakeStrip(std::uint32_t vertexCount)
 		accessor.componentType = component;
 		asset.accessors.push_back(std::move(accessor));
 	}
-	fastgltf::Primitive primitive{};
-	primitive.attributes = {{"POSITION", 0}};
-	primitive.indicesAccessor = 1;
 	fastgltf::Mesh mesh{};
-	mesh.primitives.push_back(std::move(primitive));
+	for (std::size_t index = 0; index < primitives; ++index)
+	{
+		fastgltf::Primitive primitive{};
+		primitive.attributes = {{"POSITION", 0}};
+		primitive.indicesAccessor = 1;
+		mesh.primitives.push_back(std::move(primitive));
+	}
 	asset.meshes.push_back(std::move(mesh));
-	fastgltf::Node node{};
-	node.meshIndex = 0;
-	asset.nodes.push_back(std::move(node));
+	for (std::size_t index = 0; index < nodes; ++index)
+	{
+		fastgltf::Node node{};
+		node.meshIndex = 0;
+		asset.nodes.push_back(std::move(node));
+	}
 	asset.scenes.push_back({{0}, "scene"});
 	asset.defaultScene = 0;
 
@@ -376,6 +375,48 @@ std::vector<std::byte> MakeStrip(std::uint32_t vertexCount)
 	auto written = exporter.writeGltfBinary(asset);
 	REQUIRE(written.error() == fastgltf::Error::None);
 	return std::move(written.get().output);
+}
+
+
+// A strip of triangles over this many vertices, each vertex used, with no normals.
+std::vector<std::byte> MakeStrip(std::uint32_t vertexCount)
+{
+	std::vector<glm::vec3> positions;
+	positions.reserve(vertexCount);
+	for (std::uint32_t vertex = 0; vertex < vertexCount; ++vertex)
+	{
+		const std::uint32_t column = vertex / 2;
+		positions.emplace_back(static_cast<float>(column), static_cast<float>(vertex % 2), 0.0f);
+	}
+	std::vector<std::uint32_t> indices;
+	for (std::uint32_t first = 0; first + 2 < vertexCount; ++first)
+		indices.insert(indices.end(), {first, first + 1, first + 2});
+	return MakeMesh(positions, indices);
+}
+
+
+// A square grid of side by side vertices, two triangles a cell, gently bumped so the simplifier has
+// something to keep and much to take away (share.py's), with no normals.
+std::vector<std::byte> MakeGrid(std::uint32_t side, std::size_t primitives = 1, std::size_t nodes = 1)
+{
+	std::vector<glm::vec3> positions;
+	for (std::uint32_t row = 0; row < side; ++row)
+		for (std::uint32_t column = 0; column < side; ++column)
+		{
+			const auto x = static_cast<float>(column);
+			const auto z = static_cast<float>(row);
+			positions.emplace_back(x, 0.1f * std::sin(0.3f * x) * std::cos(0.3f * z), z);
+		}
+	std::vector<std::uint32_t> indices;
+	for (std::uint32_t row = 0; row + 1 < side; ++row)
+		for (std::uint32_t column = 0; column + 1 < side; ++column)
+		{
+			const std::uint32_t corner = (row * side) + column;
+			indices.insert(
+			    indices.end(),
+			    {corner, corner + side, corner + 1, corner + 1, corner + side, corner + side + 1});
+		}
+	return MakeMesh(positions, indices, primitives, nodes);
 }
 
 
@@ -1152,15 +1193,35 @@ TEST_CASE("What a file's primitives give its readers is held to a view's worth, 
 	};
 	const std::string one = R"([{"attributes":{"POSITION":0}}])";
 	const std::string two = R"([{"attributes":{"POSITION":0}},{"attributes":{"POSITION":0}}])";
+	const std::string apart = R"([{"attributes":{"POSITION":0}},{"attributes":{"POSITION":1}}])";
 	const std::string half = "11184811";
+
+	// A clip of one sampler of a million keys, named by this many channels, each of which the rig
+	// reader reads apart (anim.py's, 128 channels, made it take 2.5 GiB).
+	const auto clip = [](int channels)
+	{
+		std::string named;
+		for (int channel = 0; channel < channels; ++channel)
+			named += std::string{channel == 0 ? "" : ","} +
+			         R"({"sampler":0,"target":{"node":0,"path":"translation"}})";
+		return TriangleAccessors(
+		    R"([{"bufferView":0,"componentType":5126,"type":"VEC3","count":3},)"
+		    R"({"bufferView":0,"componentType":5126,"type":"SCALAR","count":1000000},)"
+		    R"({"bufferView":0,"componentType":5126,"type":"VEC3","count":1000000}])",
+		    OneMesh(R"({"POSITION":0})") +
+		        R"(,"animations":[{"samplers":[{"input":1,"output":2}],"channels":[)" + named + "]}]");
+	};
 	const std::pair<std::string, const char *> refused[] = {
-	    // Two primitives naming one accessor (z2k2.gltf), which the bake and the cook read twice.
-	    {file(half, two, R"([{"mesh":0}])"), "more than 22369621 vertices"},
+	    // Two primitives naming two accessors, which every reader reads apart.
+	    {file(half, apart, R"([{"mesh":0}])", half),
+	     "primitives give its readers more than 22369621 vertices"},
 	    // One mesh in two nodes, which the bake reads twice.
-	    {file(half, one, R"([{"mesh":0,"children":[1]},{"mesh":0}])"), "more than 22369621 vertices"},
-	    {file("22369622", one, R"([{"mesh":0}])"), "more than 22369621 vertices"},
+	    {file(half, one, R"([{"mesh":0,"children":[1]},{"mesh":0}])"),
+	     "primitives give its readers more than 22369621 vertices"},
+	    {file("22369622", one, R"([{"mesh":0}])"),
+	     "primitives give its readers more than 22369621 vertices"},
 	    {file("3", R"([{"attributes":{"POSITION":0},"indices":1}])", R"([{"mesh":0}])", "67108865"),
-	     "more than 67108864 indices"},
+	     "primitives give its readers more than 67108864 indices"},
 	    // A primitive with no indices is drawn by as many as its vertices.
 	    {TriangleAccessors(
 	         R"([{"bufferView":0,"componentType":5126,"type":"VEC3","count":22369618},)"
@@ -1169,22 +1230,27 @@ TEST_CASE("What a file's primitives give its readers is held to a view's worth, 
 	         R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}},)"
 	         R"({"attributes":{"POSITION":2},"indices":1}]}],"nodes":[{"mesh":0}],)"
 	         R"("scenes":[{"nodes":[0]}],"scene":0)"),
-	     "more than 67108864 indices"},
+	     "primitives give its readers more than 67108864 indices"},
+	    {clip(9), "clips give its readers more than 16777216 keys"},
 	};
 	for (const auto &[gltf, reason] : refused)
 	{
-		CAPTURE(gltf);
+		CAPTURE(gltf.substr(0, 1000));
 		CHECK_THROWS_WITH_AS(
 		    Geometry::GltfFile::Parse(AsBytes(gltf), "reads.gltf"),
-		    doctest::Contains(
-		        std::string{"primitives give its readers "} + reason + " together: reads.gltf"),
-		    std::runtime_error);
+		    doctest::Contains(std::string{reason} + " together: reads.gltf"), std::runtime_error);
 	}
 
-	// Within the limit, it is the bounds that refuse these counts.
-	CHECK_THROWS_WITH_AS(
-	    Geometry::GltfFile::Parse(AsBytes(file(half, one, R"([{"mesh":0}])")), "reads.gltf"),
-	    doctest::Contains("outside its view or buffer"), std::runtime_error);
+	// Within the limits, it is the bounds that refuse these counts: two primitives naming one
+	// accessor, as a cooked file's levels do (z2k2.gltf), are read once by the renderer and the bake.
+	for (const std::string &gltf :
+	     {file(half, one, R"([{"mesh":0}])"), file(half, two, R"([{"mesh":0}])"), clip(8)})
+	{
+		CAPTURE(gltf.substr(0, 1000));
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "reads.gltf"),
+		    doctest::Contains("outside its view or buffer"), std::runtime_error);
+	}
 }
 
 
@@ -1209,4 +1275,122 @@ TEST_CASE(
 		    asset, indices, [&](std::uint32_t index) { largest = std::max(largest, index); });
 		CHECK(largest == vertices - 1);
 	}
+}
+
+
+TEST_CASE("A cooked file is one the reader takes, its levels' vertices counted once, or it is refused")
+{
+	// Twelve levels at most, as levels.yaml gave the grid of 2,250,000 vertices that cooked to a file
+	// the reader refused, its eleven levels each counting the grid's vertices (grid.py).
+	Geometry::LodSettings settings;
+	settings.maxLevels = 12;
+	const auto cooked = Cook(MakeGrid(40), "grid.glb", settings);
+	const auto &asset = cooked->Asset();
+	const std::size_t levels = cooked->Levels(0).size();
+	REQUIRE(levels >= 5);
+	const auto &primitives = asset.meshes[0].primitives;
+	const std::size_t vertices =
+	    asset.accessors[primitives[0].findAttribute("POSITION")->accessorIndex].count;
+	std::size_t indices = 0;
+	for (const auto &primitive : primitives)
+		indices += asset.accessors[*primitive.indicesAccessor].count;
+
+	// As many nodes naming the mesh, each a read, as its levels' indices allow: its vertices are
+	// within the limit counted once, and past it counted for every level.
+	const std::size_t nodes = 67108864 / indices;
+	REQUIRE(nodes * vertices <= 22369621);
+	REQUIRE(nodes * vertices * levels > 22369621);
+	CHECK(Cook(MakeGrid(40, 1, nodes), "grid.glb", settings)->Levels(0).size() == levels);
+
+	// As many as the source's own indices allow, which its levels' pass: refused, naming the source.
+	const auto bytes = MakeGrid(40, 1, 67108864 / (39 * 39 * 6));
+	const auto source = Geometry::GltfFile::Parse(bytes, "past.glb");
+	CHECK_THROWS_WITH_AS(
+	    Geometry::CookModel(*source, settings, "key"), doctest::Contains("Cannot cook past.glb: "),
+	    std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    Geometry::CookModel(*source, settings, "key"), doctest::Contains("more than 67108864 indices"),
+	    std::runtime_error);
+}
+
+
+TEST_CASE("Primitives that share their vertices are read once, but the cook reads them apart")
+{
+	// A thousand primitives with no indices naming one accessor of 22,401 vertices, all zero: within
+	// the limit read once, and past it read apart, as the cook reads each.
+	std::string primitives;
+	for (int primitive = 0; primitive < 1000; ++primitive)
+		primitives += std::string{primitive == 0 ? "" : ","} + R"({"attributes":{"POSITION":0}})";
+	const std::string gltf =
+	    R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":268812,)"
+	    R"("uri":"data:application/octet-stream;base64,)" +
+	    std::string(358416, 'A') +
+	    R"("}],"bufferViews":[{"buffer":0,"byteLength":268812}],)"
+	    R"("accessors":[{"bufferView":0,"componentType":5126,"count":22401,"type":"VEC3"}],)"
+	    R"("meshes":[{"primitives":[)" +
+	    primitives + R"(]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0})";
+	const auto source = Geometry::GltfFile::Parse(AsBytes(gltf), "soup.gltf");
+	CHECK_THROWS_WITH_AS(
+	    Geometry::CookModel(*source, {}, "key"),
+	    doctest::Contains("Cannot cook soup.gltf: its primitives' vertices are more than 22369621"),
+	    std::runtime_error);
+}
+
+
+TEST_CASE("Primitives that share their vertices are given normals summed once over them all")
+{
+	// share.py's mesh, many primitives naming one grid's vertices and indices, with no normals: each
+	// primitive summed all of them: 1,600 of share.py's took 22.9 s in a Debug build, and these 1,000
+	// 2.3 s, 0.12 s summed once (measured 2026-11-28).
+	Geometry::LodSettings settings;
+	settings.maxLevels = 1;
+	constexpr std::size_t kPrimitives = 1000;
+	const auto one = Cook(MakeGrid(17), "one.glb", settings);
+	const auto many = Cook(MakeGrid(17, kPrimitives), "many.glb", settings);
+	const auto normals = [](const fastgltf::Asset &asset, const fastgltf::Primitive &primitive)
+	{
+		const auto &accessor = asset.accessors[primitive.findAttribute("NORMAL")->accessorIndex];
+		std::vector<glm::vec3> read(accessor.count);
+		fastgltf::iterateAccessorWithIndex<glm::vec3>(
+		    asset, accessor, [&](glm::vec3 normal, std::size_t index) { read[index] = normal; });
+		return read;
+	};
+	const auto expected = normals(one->Asset(), one->Asset().meshes[0].primitives[0]);
+	const auto &primitives = many->Asset().meshes[0].primitives;
+	REQUIRE(primitives.size() == kPrimitives);
+	float farthest = 0.0f;
+	for (const auto &primitive : primitives)
+	{
+		const auto read = normals(many->Asset(), primitive);
+		REQUIRE(read.size() == expected.size());
+		for (std::size_t vertex = 0; vertex < read.size(); ++vertex)
+			farthest = std::max(farthest, glm::length(read[vertex] - expected[vertex]));
+	}
+	CHECK(farthest < 1e-4f);
+}
+
+
+TEST_CASE("Compressed views naming the same bytes of a stream are refused before any is decoded")
+{
+	// overlap.gltf: four views of 256 MiB in one fallback, each naming the same 256 KiB of stream,
+	// which made the reader allocate 1 GiB before the stream failed to decode.
+	std::string views;
+	for (int view = 0; view < 4; ++view)
+		views += std::string{view == 0 ? "" : ","} + R"({"buffer":1,"byteOffset":)" +
+		         std::to_string(view * 268435456) +
+		         R"(,"byteLength":268435456,"byteStride":4,"extensions":{"EXT_meshopt_compression":)"
+		         R"({"buffer":0,"byteLength":262146,"byteStride":4,"count":67108864,)"
+		         R"("mode":"ATTRIBUTES"}}})";
+	const std::string overlap =
+	    R"({"asset":{"version":"2.0"},"extensionsUsed":["EXT_meshopt_compression"],)"
+	    R"("extensionsRequired":["EXT_meshopt_compression"],"scenes":[{"nodes":[]}],)"
+	    R"("buffers":[{"byteLength":262146,"uri":"data:application/octet-stream;base64,)" +
+	    std::string(349528, 'A') +
+	    R"("},{"byteLength":1073741824,"extensions":{"EXT_meshopt_compression":{"fallback":true}}}],)"
+	    R"("bufferViews":[)" +
+	    views + "]}";
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(AsBytes(overlap), "overlap.gltf"),
+	    doctest::Contains("name the same bytes of a stream, which the cook never writes: overlap.gltf"),
+	    std::runtime_error);
 }

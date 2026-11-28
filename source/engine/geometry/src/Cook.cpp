@@ -220,23 +220,27 @@ glm::vec3 Vec3At(const Stream &stream, std::size_t vertex)
 }
 
 
-// The renderer's normals for a primitive with none (render's ModelGltf.cpp): each vertex's
-// triangles' face normals summed, over the mesh's primitives that share its vertices (SameVertices) in
-// their order, so a cooked and an uncooked file shade alike. Read before any primitive's vertices are
-// reordered, so the sharing primitives' indices are into the same vertices.
-void AddNormals(Primitive &primitive, std::span<const Primitive> mesh)
+// The renderer's normals for primitives with none (render's ModelGltf.cpp): each vertex's triangles'
+// face normals summed, over the mesh's primitives that share its vertices (sharing, FirstSharing's) in
+// their order, so a cooked and an uncooked file shade alike. Summed once for each set of sharing
+// primitives, each given a copy, and before any primitive's vertices are reordered, so the sharing
+// primitives' indices are into the same vertices.
+void AddNormals(std::vector<Primitive> &primitives, std::span<const std::size_t> sharing)
 {
-	const Stream &positions = primitive.streams.front();
-	std::vector<glm::vec3> normals(primitive.vertexCount, glm::vec3{0.0f});
-	for (const Primitive &sharing : mesh)
+	std::map<std::size_t, std::vector<glm::vec3>> sums;
+	for (std::size_t index = 0; index < primitives.size(); ++index)
 	{
-		if (!SameVertices(*sharing.pSource, *primitive.pSource))
+		const Primitive &primitive = primitives[index];
+		if (FindStream(primitives[index].streams, "NORMAL"))
 			continue;
-		for (std::size_t index = 0; index + 2 < sharing.indices.size(); index += 3)
+		const Stream &positions = primitive.streams.front();
+		auto &normals =
+		    sums.try_emplace(sharing[index], primitive.vertexCount, glm::vec3{0.0f}).first->second;
+		for (std::size_t corner = 0; corner + 2 < primitive.indices.size(); corner += 3)
 		{
-			const std::uint32_t a = sharing.indices[index];
-			const std::uint32_t b = sharing.indices[index + 1];
-			const std::uint32_t c = sharing.indices[index + 2];
+			const std::uint32_t a = primitive.indices[corner];
+			const std::uint32_t b = primitive.indices[corner + 1];
+			const std::uint32_t c = primitive.indices[corner + 2];
 			const glm::vec3 face = glm::cross(
 			    Vec3At(positions, b) - Vec3At(positions, a),
 			    Vec3At(positions, c) - Vec3At(positions, a));
@@ -245,15 +249,17 @@ void AddNormals(Primitive &primitive, std::span<const Primitive> mesh)
 			normals[c] += face;
 		}
 	}
-	Stream stream{"NORMAL", 3, std::vector<float>(primitive.vertexCount * 3)};
-	for (std::size_t vertex = 0; vertex < primitive.vertexCount; ++vertex)
-	{
-		const glm::vec3 normal = glm::dot(normals[vertex], normals[vertex]) > 0.0f
-		                             ? glm::normalize(normals[vertex])
-		                             : glm::vec3{0, 0, 1};
-		std::memcpy(stream.values.data() + (vertex * 3), &normal, sizeof normal);
-	}
-	primitive.streams.push_back(std::move(stream));
+	for (auto &[first, normals] : sums)
+		for (glm::vec3 &normal : normals)
+			normal = glm::dot(normal, normal) > 0.0f ? glm::normalize(normal) : glm::vec3{0, 0, 1};
+	for (std::size_t index = 0; index < primitives.size(); ++index)
+		if (const auto found = sums.find(sharing[index]); found != sums.end())
+		{
+			const std::vector<glm::vec3> &normals = found->second;
+			Stream stream{"NORMAL", 3, std::vector<float>(normals.size() * 3)};
+			std::memcpy(stream.values.data(), normals.data(), stream.values.size() * sizeof(float));
+			primitives[index].streams.push_back(std::move(stream));
+		}
 }
 
 
@@ -708,9 +714,7 @@ fastgltf::Mesh CookMesh(
 				    source.Name(), mesh.name, primitives.size(), stream.name);
 		primitives.push_back(std::move(read));
 	}
-	for (Primitive &read : primitives)
-		if (!FindStream(read.streams, "NORMAL"))
-			AddNormals(read, primitives);
+	AddNormals(primitives, FirstSharing(mesh));
 	for (Primitive &read : primitives)
 	{
 		AddTangents(source, read);
@@ -802,6 +806,24 @@ std::vector<std::byte> CookModel(
 		                "it has {} images and was given {} to replace them", asset.images.size(),
 		                ktxImages.size()));
 
+	// Primitives that share their vertices are read apart here, each cooked on its own, so the source
+	// is held to the reader's limit counted so before any is read.
+	std::size_t vertices = 0;
+	for (const fastgltf::Mesh &mesh : asset.meshes)
+		for (const fastgltf::Primitive &primitive : mesh.primitives)
+			if (const auto position = primitive.findAttribute("POSITION");
+			    position != primitive.attributes.end())
+			{
+				vertices += asset.accessors[position->accessorIndex].count;
+				if (vertices > kMaxReadVertices)
+					throw Error(
+					    source,
+					    std::format(
+					        "its primitives' vertices are more than {} read apart, as the cook reads "
+					        "them",
+					        kMaxReadVertices));
+			}
+
 	fastgltf::Asset out;
 	out.assetInfo = asset.assetInfo;
 	out.assetInfo.generator = kGenerator;
@@ -882,6 +904,17 @@ std::vector<std::byte> CookModel(
 		    source,
 		    std::format(
 		        "fastgltf could not write it ({})", fastgltf::getErrorMessage(written.error())));
+
+	// What it writes is held to what the reader takes, whose limits a source within them can cook past:
+	// every level's indices are read, and tangents split vertices on seams.
+	try
+	{
+		GltfFile::Parse(written.get().output, source.Name());
+	}
+	catch (const std::runtime_error &error)
+	{
+		throw Error(source, std::format("the reader would refuse what it cooks to: {}", error.what()));
+	}
 	return std::move(written.get().output);
 }
 } // namespace Jettison::Geometry

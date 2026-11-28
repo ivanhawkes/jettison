@@ -132,7 +132,8 @@ or GLB model, through the library function `Bake::CollisionShape`, which the coo
 ([J37](history.md#j37)) calls for every model it cooks. It reads the model through `geometry`'s
 reader (`Geometry::GltfFile`, [the cooked model](rendering.md#the-cooked-model)), so a buffer comes
 only from within the model's directory and every view and accessor is held to its buffer before it
-is read, and it refuses, naming the model, a node its scene reaches twice, shared or in a cycle:
+is read, and primitives that share their vertices read them once, as the reader counts them. It
+refuses, naming the model, a node its scene reaches twice, shared or in a cycle:
 
 | The model's mesh nodes | Their parts |
 | --- | --- |
@@ -433,9 +434,10 @@ checks what Jolt cannot judge: the state's last step is none or the world's fixe
 next step divides by to warm-start its contacts, and its gravity is none, gravity being physics'
 own. Jolt's restore is patched to refuse, without asserting, a body, contact or count that does not
 fit and a value its steps cannot take: one not finite, a rotation not normalised, bounds past its
-limit (`source/external/CMakeLists.txt`). `ReplayTests.cpp`
-cuts a saved state short at every byte and corrupts every byte, and each is refused or loads and
-steps.
+limit, or a cached pair of bodies' movement that is not finite, with which Jolt would reuse their
+contacts wherever the bodies are (`source/external/CMakeLists.txt`). `ReplayTests.cpp` cuts a
+saved state short at every fourth byte and makes one of four changes to each byte, and each is
+refused or loads and steps; a NaN in a cached pair's movement is refused.
 
 Jolt asserts through the engine's assertions in a Debug tree, and its profiler zones appear on
 Tracy's timeline (`source/engine/physics/src/JoltProfile.cpp`).
@@ -487,7 +489,9 @@ physics.DefineFrame(kRoom, std::make_unique<Room>());
 
 `Attach` takes optional `PhysicsSettings`, Jolt's capacities per frame: 8,192 bodies by
 default, and a speed limit of 100 km/s rather than Jolt's 500 m/s. Each world costs about 0.7 MB at
-the default capacities (measured 2026-11-11).
+the default capacities (measured 2026-11-11). A dynamic body is made with its velocity clamped to
+that limit and to Jolt's default limit on turning, 47 rad/s, as Jolt clamps it as it steps, since
+Jolt asserts on one past them; a save's velocity that is not finite is refused.
 
 ### A frame model
 

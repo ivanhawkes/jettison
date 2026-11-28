@@ -49,8 +49,9 @@ bool IsValid(const LodSettings &settings);
 //
 // The same source, settings, key and images give the same bytes. Throws std::runtime_error naming the
 // source for what it cannot cook: a primitive that is not triangles or has morph targets, a model
-// with no scene, an image that is not embedded and not replaced, ktxImages not one for each image, and
-// settings out of range.
+// with no scene, an image that is not embedded and not replaced, ktxImages not one for each image,
+// settings out of range, primitives whose vertices, read apart where they share them, pass
+// kMaxReadVertices, and what GltfFile::Parse would refuse to read of what it cooks to.
 std::vector<std::byte> CookModel(
     const GltfFile &source, const LodSettings &settings, std::string_view cookKey,
     std::span<const std::vector<std::byte>> ktxImages = {});

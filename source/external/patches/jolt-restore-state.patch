@@ -236,7 +236,7 @@ index 509bddb..ff49ff4 100644
  		}
  	}
 diff --git a/Jolt/Physics/Constraints/ContactConstraintManager.cpp b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
-index efb7aee..bb0398d 100644
+index efb7aee..6f82172 100644
 --- a/Jolt/Physics/Constraints/ContactConstraintManager.cpp
 +++ b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
 @@ -247,11 +247,13 @@ void ContactConstraintManager::CachedContactPoint::SaveState(StateRecorder &inSt
@@ -270,7 +270,22 @@ index efb7aee..bb0398d 100644
  }
  
  ////////////////////////////////////////////////////////////////////////////////////////////////////////
-@@ -562,13 +567,13 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -282,10 +287,13 @@ void ContactConstraintManager::CachedBodyPair::SaveState(StateRecorder &inStream
+ 	inStream.Write(mDeltaRotation);
+ }
+ 
+-void ContactConstraintManager::CachedBodyPair::RestoreState(StateRecorder &inStream)
++bool ContactConstraintManager::CachedBodyPair::RestoreState(StateRecorder &inStream)
+ {
+ 	inStream.Read(mDeltaPosition);
+ 	inStream.Read(mDeltaRotation);
++
++	// A NaN makes both checks that discard the cached contacts false, so they would be reused wherever the bodies are
++	return isfinite(Vec3(mDeltaPosition).LengthSq()) && isfinite(Vec3(mDeltaRotation).LengthSq());
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////
+@@ -562,13 +570,13 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  		inReadCache.GetAllBodyPairsSorted(all_bp);
  
  	// Read amount of body pairs
@@ -287,7 +302,7 @@ index efb7aee..bb0398d 100644
  	{
  		// Read key
  		BodyPair body_pair_key;
-@@ -581,6 +586,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -581,6 +589,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  		{
  			// Create new entry for this body pair
  			uint64 body_pair_hash = body_pair_key.GetHash();
@@ -300,7 +315,17 @@ index efb7aee..bb0398d 100644
  			BPKeyValue *bp_kv = Create(contact_allocator, body_pair_key, body_pair_hash);
  			if (bp_kv == nullptr)
  			{
-@@ -607,7 +618,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -593,7 +607,8 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 			// Read body pair
+ 			if (inStream.IsValidating() && i < all_bp.size())
+ 				memcpy(&bp, &all_bp[i]->GetValue(), sizeof(CachedBodyPair));
+-			bp.RestoreState(inStream);
++			if (!bp.RestoreState(inStream))
++				success = false;
+ 
+ 			// When validating, get all existing manifolds
+ 			Array<const MKeyValue *> all_m;
+@@ -607,7 +622,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  			inStream.Read(num_manifolds);
  
  			uint32 handle = ManifoldMap::cInvalidHandle;
@@ -309,7 +334,7 @@ index efb7aee..bb0398d 100644
  			{
  				// Read key
  				SubShapeIDPair sub_shape_key;
-@@ -621,6 +632,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -621,6 +636,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  				if (inStream.IsValidating() && j < all_m.size())
  					num_contact_points = all_m[j]->GetValue().mNumContactPoints;
  				inStream.Read(num_contact_points);
@@ -322,7 +347,7 @@ index efb7aee..bb0398d 100644
  
  				// Read manifold
  				MKeyValue *m_kv = Create(contact_allocator, sub_shape_key, sub_shape_key_hash, num_contact_points);
-@@ -636,13 +653,15 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -636,13 +657,15 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  					memcpy(&cm, &all_m[j]->GetValue(), CachedManifold::sGetRequiredTotalSize(num_contact_points));
  					cm.mNumContactPoints = uint16(num_contact_points); // Restore num contact points
  				}
@@ -340,7 +365,7 @@ index efb7aee..bb0398d 100644
  			}
  			bp.mFirstCachedManifold = handle;
  		}
-@@ -653,7 +672,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -653,7 +676,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  			bp.RestoreState(inStream);
  			uint32 num_manifolds = 0;
  			inStream.Read(num_manifolds);
@@ -349,7 +374,7 @@ index efb7aee..bb0398d 100644
  			{
  				SubShapeIDPair sub_shape_key;
  				inStream.Read(sub_shape_key);
-@@ -673,12 +692,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -673,12 +696,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  		inReadCache.GetAllCCDManifoldsSorted(all_m);
  
  	// Read amount of CCD manifolds
@@ -364,7 +389,7 @@ index efb7aee..bb0398d 100644
  	{
  		// Read key
  		SubShapeIDPair sub_shape_key;
-@@ -691,6 +710,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -691,6 +714,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  		{
  			// Create CCD manifold
  			uint64 sub_shape_key_hash = sub_shape_key.GetHash();
@@ -377,7 +402,7 @@ index efb7aee..bb0398d 100644
  			MKeyValue *m_kv = Create(contact_allocator, sub_shape_key, sub_shape_key_hash, 0);
  			if (m_kv == nullptr)
  			{
-@@ -709,7 +734,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+@@ -709,7 +738,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
  		mIsFinalized = true;
  #endif
  
@@ -387,7 +412,7 @@ index efb7aee..bb0398d 100644
  
  ////////////////////////////////////////////////////////////////////////////////////////////////////////
 diff --git a/Jolt/Physics/Constraints/ContactConstraintManager.h b/Jolt/Physics/Constraints/ContactConstraintManager.h
-index d76f3fc..f891757 100644
+index d76f3fc..e2dfe11 100644
 --- a/Jolt/Physics/Constraints/ContactConstraintManager.h
 +++ b/Jolt/Physics/Constraints/ContactConstraintManager.h
 @@ -265,9 +265,9 @@ private:
@@ -414,6 +439,18 @@ index d76f3fc..f891757 100644
  
  		/// Handle to next cached contact points in ManifoldCache::mCachedManifolds for the same body pair
  		uint32					mNextWithSameBodyPair;
+@@ -335,9 +335,9 @@ private:
+ 	class CachedBodyPair
+ 	{
+ 	public:
+-		/// Saving / restoring state for replay
++		/// Saving / restoring state for replay, restoring returns false if the state is not valid
+ 		void					SaveState(StateRecorder &inStream) const;
+-		void					RestoreState(StateRecorder &inStream);
++		bool					RestoreState(StateRecorder &inStream);
+ 
+ 		/// Local space position difference from Body A to Body B.
+ 		/// Note: this value is read through sLoadFloat3Unsafe
 diff --git a/Jolt/Physics/PhysicsSystem.cpp b/Jolt/Physics/PhysicsSystem.cpp
 index de4d0ee..e9f32db 100644
 --- a/Jolt/Physics/PhysicsSystem.cpp

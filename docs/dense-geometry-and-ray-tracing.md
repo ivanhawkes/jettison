@@ -236,7 +236,11 @@ flowchart LR
   ray-tracing level's error, quantisation and texture encoding.
 - **What it checks.** File names follow the [content-file rule](coding-standards.md#content-files),
   and a source that breaks it is refused, naming the file; a glTF the cook cannot read is refused
-  with fastgltf's error and the path; a settings key it does not know is an error, not ignored.
+  with fastgltf's error and the path; a settings key it does not know is an error, not ignored. A
+  model is refused, naming it, when its primitives' vertices, which the cook reads apart where they
+  share them, pass the reader's limit, and when `GltfFile::Parse` refuses what it cooks to: every
+  level's indices are read, and tangents split vertices, so a source within the reader's limits
+  can cook past them ([the cooked model](rendering.md#the-cooked-model)).
 - **The cook record.** A file in the output names each source with its cook key: hashes of the
   source, of every file it references (a glTF's buffers and images), of each settings layer that
   applies (the engine's defaults, `cook.yaml`, its own settings file) and the cook's version. A

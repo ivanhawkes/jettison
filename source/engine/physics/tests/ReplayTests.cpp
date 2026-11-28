@@ -11,8 +11,10 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <span>
 #include <string>
 #include <tuple>
@@ -342,6 +344,66 @@ void Run(Sim::SimWorld &world, std::uint64_t until)
 		world.Step();
 	}
 }
+
+
+// Where a world's Jolt state lies in a save: a vector of bytes after its count, which begins with
+// Jolt's flags for a whole state and the length of the last step as a float.
+struct JoltState
+{
+	std::size_t at;
+	std::uint32_t size;
+};
+
+
+std::vector<JoltState> JoltStates(const std::vector<std::byte> &save)
+{
+	const auto step = static_cast<float>(kStep);
+	std::array<std::byte, 1 + sizeof step> head{std::byte{0x0f}};
+	std::memcpy(&head[1], &step, sizeof step);
+	std::vector<JoltState> states;
+	for (std::size_t at = sizeof(std::uint32_t); at + head.size() <= save.size(); ++at)
+	{
+		std::uint32_t size = 0;
+		std::memcpy(&size, &save[at - sizeof size], sizeof size);
+		if (std::equal(head.begin(), head.end(), save.begin() + static_cast<std::ptrdiff_t>(at)) &&
+		    size >= head.size() && size <= save.size() - at)
+			states.push_back({at, size});
+	}
+	return states;
+}
+
+
+// The save with a world's state replaced, its count with it.
+std::vector<std::byte> WithState(
+    const std::vector<std::byte> &save, const JoltState &state, std::span<const std::byte> bytes)
+{
+	const auto begin = save.begin() + static_cast<std::ptrdiff_t>(state.at - sizeof state.size);
+	std::vector<std::byte> changed(save.begin(), begin);
+	const auto size = static_cast<std::uint32_t>(bytes.size());
+	const auto *count = reinterpret_cast<const std::byte *>(&size);
+	changed.insert(changed.end(), count, count + sizeof size);
+	changed.insert(changed.end(), bytes.begin(), bytes.end());
+	changed.insert(
+	    changed.end(), save.begin() + static_cast<std::ptrdiff_t>(state.at + state.size), save.end());
+	return changed;
+}
+
+
+// Whether the world loads the save; one it loads is stepped on, which a state Jolt should have
+// refused would fail by asserting.
+bool LoadsAndSteps(Sim::SimWorld &world, const std::vector<std::byte> &save)
+{
+	try
+	{
+		world.Load(save);
+	}
+	catch (const Serialise::FormatError &)
+	{
+		return false;
+	}
+	Run(world, 190);
+	return true;
+}
 } // namespace
 
 
@@ -471,63 +533,21 @@ TEST_CASE("Physics replay: a Jolt state cut short or corrupted is refused, or lo
 	Run(original, 180);
 	const std::vector<std::byte> save = original.Save();
 
-	// Each world's Jolt state is a vector of bytes after its count, and begins with Jolt's flags for
-	// a whole state and the length of the last step as a float.
-	struct State
-	{
-		std::size_t at;
-		std::uint32_t size;
-	};
-	const auto step = static_cast<float>(kStep);
-	std::array<std::byte, 1 + sizeof step> head{std::byte{0x0f}};
-	std::memcpy(&head[1], &step, sizeof step);
-	std::vector<State> states;
-	for (std::size_t at = sizeof(std::uint32_t); at + head.size() <= save.size(); ++at)
-	{
-		std::uint32_t size = 0;
-		std::memcpy(&size, &save[at - sizeof size], sizeof size);
-		if (std::equal(head.begin(), head.end(), save.begin() + static_cast<std::ptrdiff_t>(at)) &&
-		    size >= head.size() && size <= save.size() - at)
-			states.push_back({at, size});
-	}
+	const std::vector<JoltState> states = JoltStates(save);
 	REQUIRE(states.size() == 2);
-
-	// The save with a world's state replaced, its count with it.
-	const auto with = [&save](const State &state, std::span<const std::byte> bytes)
-	{
-		const auto begin = save.begin() + static_cast<std::ptrdiff_t>(state.at - sizeof state.size);
-		std::vector<std::byte> changed(save.begin(), begin);
-		const auto size = static_cast<std::uint32_t>(bytes.size());
-		const auto *count = reinterpret_cast<const std::byte *>(&size);
-		changed.insert(changed.end(), count, count + sizeof size);
-		changed.insert(changed.end(), bytes.begin(), bytes.end());
-		changed.insert(
-		    changed.end(), save.begin() + static_cast<std::ptrdiff_t>(state.at + state.size),
-		    save.end());
-		return changed;
-	};
+	const auto with = [&save](const JoltState &state, std::span<const std::byte> bytes)
+	{ return WithState(save, state, bytes); };
 
 	// One world loads every save in turn: a refused load leaves it as it was, and an accepted one is
 	// stepped on, which a state Jolt should have refused would fail by asserting.
 	Sim::SimWorld loaded{kStep, 1};
 	Populate(loaded);
 	const auto load = [&loaded](const std::vector<std::byte> &bytes)
-	{
-		try
-		{
-			loaded.Load(bytes);
-		}
-		catch (const Serialise::FormatError &)
-		{
-			return false;
-		}
-		Run(loaded, 190);
-		return true;
-	};
+	{ return LoadsAndSteps(loaded, bytes); };
 	const auto set = [](std::vector<std::byte> &bytes, std::size_t at, std::uint32_t value)
 	{ std::memcpy(&bytes[at], &value, std::min(sizeof value, bytes.size() - at)); };
 
-	for (const State &state : states)
+	for (const JoltState &state : states)
 	{
 		CAPTURE(state.at);
 		const std::span<const std::byte> bytes{&save[state.at], state.size};
@@ -576,6 +596,63 @@ TEST_CASE("Physics replay: a Jolt state cut short or corrupted is refused, or lo
 			}
 			load(with(state, changed));
 		}
+	}
+}
+
+
+TEST_CASE("Physics replay: a contact cache's movement that is not finite is refused")
+{
+	Sim::SimWorld original{kStep, kSeed};
+	Populate(original);
+	Run(original, 180);
+	const std::vector<std::byte> save = original.Save();
+	const std::vector<JoltState> states = JoltStates(save);
+	REQUIRE(states.size() == 2);
+
+	// Jolt 5.6's layout in double precision (BodyManager, Body and MotionProperties::SaveState): the
+	// flags, last step and gravity, the count of bodies, then each body's identifier and whether it
+	// is active, its position and rotation, and for any but a static body its velocities, force,
+	// torque, sleep test offset, spheres and timer, and whether it may sleep. The bay is Halcyon's one
+	// static body. The contact cache follows: its count of body pairs, then the first pair's key and
+	// how the pair had moved when it was cached, a position and a rotation, which Jolt compares with
+	// how it has moved since to reuse the pair's contacts, so that a NaN reuses them wherever it is.
+	constexpr std::size_t kBodies = 1 + 4 + 12;
+	constexpr std::size_t kStaticBody = 4 + 1 + 24 + 16;
+	constexpr std::size_t kMovingBody =
+	    kStaticBody + (std::size_t{4} * 12) + 24 + (std::size_t{3} * 16) + 4 + 1;
+	const auto read = [](std::span<const std::byte> bytes, std::size_t at)
+	{
+		std::uint32_t value = 0;
+		std::memcpy(&value, &bytes[at], sizeof value);
+		return value;
+	};
+	const auto halcyon = std::ranges::find_if(
+	    states,
+	    [&](const JoltState &state) { return read({&save[state.at], state.size}, kBodies) > 2; });
+	REQUIRE(halcyon != states.end());
+	const std::span<const std::byte> bytes{&save[halcyon->at], halcyon->size};
+	const std::size_t pairs = kBodies + 4 + kStaticBody + ((read(bytes, kBodies) - 1) * kMovingBody);
+	const std::size_t moved = pairs + 4 + 8;
+	REQUIRE(moved + 24 <= bytes.size());
+	REQUIRE(read(bytes, pairs) >= 1);
+	REQUIRE(read(bytes, pairs + 4) != read(bytes, pairs + 8));
+	for (std::size_t component = 0; component < 6; ++component)
+	{
+		float value = 0.0f;
+		std::memcpy(&value, &bytes[moved + (component * sizeof value)], sizeof value);
+		REQUIRE(std::abs(value) <= 2.0f * kBay);
+	}
+
+	Sim::SimWorld loaded{kStep, 1};
+	Populate(loaded);
+	REQUIRE(LoadsAndSteps(loaded, WithState(save, *halcyon, bytes)));
+	for (std::size_t component = 0; component < 6; ++component)
+	{
+		CAPTURE(component);
+		std::vector<std::byte> changed{bytes.begin(), bytes.end()};
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		std::memcpy(&changed[moved + (component * sizeof nan)], &nan, sizeof nan);
+		CHECK_FALSE(LoadsAndSteps(loaded, WithState(save, *halcyon, changed)));
 	}
 }
 

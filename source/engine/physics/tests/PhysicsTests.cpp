@@ -572,6 +572,24 @@ TEST_CASE("Physics: two bodies meet, and part as their restitution has them")
 }
 
 
+TEST_CASE("Physics: a body made faster than Jolt's limits is made at them, as Jolt steps it")
+{
+	// A save's velocity past them made Jolt assert as it made the body (the save fuzz target's
+	// save-crash-angular.bin), and so would a game's.
+	Fixture fixture;
+	const entt::entity spun = fixture.Add(Dynamic("ball"), {0.0, 0.0, 0.0});
+	fixture.world.Registry().emplace<Velocity>(
+	    spun, glm::vec3{2.0e5f, 0.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 1000.0f});
+	fixture.world.Step();
+	REQUIRE(fixture.physics.BodyCount() == 1);
+
+	// The settings' speed limit, and Jolt's default limit on turning (BodyCreationSettings).
+	const Velocity &velocity = fixture.world.Registry().get<Velocity>(spun);
+	CHECK(glm::length(velocity.linear) == doctest::Approx(1.0e5f).epsilon(0.01));
+	CHECK(glm::length(velocity.angular) == doctest::Approx(0.25f * 3.14159265f * 60.0f).epsilon(0.01));
+}
+
+
 TEST_CASE("Physics: a kinematic station on its orbit stops a ship that flies into it")
 {
 	// The station moves at 7.7 km/s along x, as Halcyon's station does about its planet, its

@@ -521,7 +521,8 @@ endforeach()
 # reads as it comes. A manifold of more than four contact points overruns the contact constraint
 # the next step copies it into, a static body marked active is a null motion properties, a body
 # listed twice joins the active list twice, a repeated cache key, a bool's byte other than 0 or 1, a
-# rotation not normalised or bounds past cLargeFloat each assert or misbehave, and a count from the
+# rotation not normalised or bounds past cLargeFloat each assert or misbehave, a cached body pair's
+# movement that is not finite has its contacts reused wherever the bodies are, and a count from the
 # stream runs on past a failed read. The patch refuses each without asserting, bounds the counts by
 # the world's own, and stops at a failed read; it refuses nothing Jolt saves. Found by physics'
 # suite corrupting a saved state byte by byte (ReplayTests.cpp, 2026-11-28). Unfixed in Jolt's

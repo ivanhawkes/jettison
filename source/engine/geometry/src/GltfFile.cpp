@@ -19,6 +19,7 @@
 #include <span>
 #include <stdexcept>
 #include <system_error>
+#include <tuple>
 #include <utility>
 #include <variant>
 
@@ -57,17 +58,16 @@ constexpr std::size_t kMaxDecodedFileBytes = 4 * kMaxDecodedViewBytes;
 // read it sixteen times, whole, for 2 GiB.
 constexpr std::size_t kMaxBufferFileBytes = kMaxDecodedFileBytes;
 
-// The most vertices, and indices, a file's primitives give its readers together, each primitive
-// counted as often as a reader reads it: once for each node naming its mesh, as the bake reads them,
-// and once for a mesh no node names, which the cook still cooks; a primitive with no indices is drawn
-// by as many as it has vertices. As many as one decoded view at its limit holds, so naming one
-// accessor from many primitives or nodes costs no more than one primitive of that view: a 500-byte
-// file of four primitives naming 22 million vertices each once made the cook take 5.8 GiB. A cooked
-// file's levels each name their source primitive's vertices, so a model of five levels is read back
-// from at most a fifth of this, 4.5 million vertices, 108 times the large asteroid's 41,350.
-constexpr std::size_t kMaxReadVertices = kMaxDecodedViewBytes / sizeof(std::array<float, 3>);
+// The read limits are a decoded view's worth: float positions, or 32-bit indices.
+static_assert(kMaxReadVertices == kMaxDecodedViewBytes / sizeof(std::array<float, 3>));
 
-constexpr std::size_t kMaxReadIndices = kMaxDecodedViewBytes / sizeof(std::uint32_t);
+static_assert(kMaxReadIndices == kMaxDecodedViewBytes / sizeof(std::uint32_t));
+
+// The most keys a file's clips give the rig reader together, each channel's sampler's times and
+// values counted, since it reads them for each channel: as many of its four-float values as a
+// decoded view at its limit holds. A 16 MB file of one sampler of a million keys named by 128
+// channels once made it take 2.5 GiB (anim.py); arm.glb's clip has 318.
+constexpr std::size_t kMaxReadKeys = kMaxDecodedViewBytes / sizeof(std::array<float, 4>);
 
 // meshoptimizer 1.3's vertex codec (vertexcodec.cpp), whose decoder refuses a version past 1
 // (kDecodeVertexVersion, lines 126 and 1836): version 1 reads a control byte for each 4 bytes of a
@@ -349,6 +349,7 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 		        name));
 	};
 	std::vector<std::size_t> extents(asset.buffers.size());
+	std::vector<std::tuple<std::size_t, std::size_t, std::size_t>> streams;
 	for (const auto &view : asset.bufferViews)
 	{
 		if (!view.meshoptCompression)
@@ -386,9 +387,22 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 		extent = std::max(extent, view.byteOffset + view.byteLength);
 		if (extent > kMaxDecodedFileBytes)
 			throw tooLarge();
+		streams.emplace_back(compressed.bufferIndex, compressed.byteOffset, compressed.byteLength);
 	}
 	if (std::accumulate(extents.begin(), extents.end(), std::size_t{0}) > kMaxDecodedFileBytes)
 		throw tooLarge();
+
+	// Each view's stream bytes bound what it decodes to (LeastCompressedBytes) only if no other view
+	// names them: four views of one stream once decoded 1 GiB from 256 KiB of it.
+	std::ranges::sort(streams);
+	for (std::size_t index = 1; index < streams.size(); ++index)
+	{
+		const auto [buffer, offset, length] = streams[index - 1];
+		if (std::get<0>(streams[index]) == buffer && std::get<1>(streams[index]) < offset + length)
+			throw std::runtime_error(
+			    "Compressed glTF views name the same bytes of a stream, which the cook never writes: " +
+			    name);
+	}
 
 	std::vector<std::vector<std::byte>> decoded(asset.buffers.size());
 	for (std::size_t index = 0; index < asset.buffers.size(); ++index)
@@ -578,8 +592,8 @@ void CheckHierarchy(const fastgltf::Asset &asset, const std::string &name)
 }
 
 
-// What a file's primitives give its readers to make, held to kMaxReadVertices and kMaxReadIndices by
-// their counts alone, before any bytes are read for them.
+// What a file's primitives and clips give its readers to make, held to kMaxReadVertices,
+// kMaxReadIndices and kMaxReadKeys by their counts alone, before any bytes are read for them.
 void CheckReads(const fastgltf::Asset &asset, const std::string &name)
 {
 	std::vector<std::size_t> reads(asset.meshes.size());
@@ -589,34 +603,47 @@ void CheckReads(const fastgltf::Asset &asset, const std::string &name)
 	std::size_t vertices = 0;
 	std::size_t indices = 0;
 	const auto add = [&](std::size_t &total, std::size_t count, std::size_t times, std::size_t most,
-	                     std::string_view what)
+	                     std::string_view holder, std::string_view what)
 	{
 		if (count > (most - total) / times)
 			throw std::runtime_error(
 			    std::format(
-			        "glTF model's primitives give its readers more than {} {} together: {}", most, what,
+			        "glTF model's {} give its readers more than {} {} together: {}", holder, most, what,
 			        name));
 		total += count * times;
 	};
 	for (std::size_t mesh = 0; mesh < asset.meshes.size(); ++mesh)
 	{
+		const auto &primitives = asset.meshes[mesh].primitives;
+		const std::vector<std::size_t> sharing = FirstSharing(asset.meshes[mesh]);
 		std::size_t meshVertices = 0;
 		std::size_t meshIndices = 0;
-		for (const fastgltf::Primitive &primitive : asset.meshes[mesh].primitives)
+		for (std::size_t at = 0; at < primitives.size(); ++at)
 		{
+			const fastgltf::Primitive &primitive = primitives[at];
 			const auto position = primitive.findAttribute("POSITION");
 			const std::size_t count = position == primitive.attributes.end()
 			                              ? 0
 			                              : asset.accessors[position->accessorIndex].count;
-			add(meshVertices, count, 1, kMaxReadVertices, "vertices");
+			if (sharing[at] == at)
+				add(meshVertices, count, 1, kMaxReadVertices, "primitives", "vertices");
 			add(meshIndices,
 			    primitive.indicesAccessor ? asset.accessors[*primitive.indicesAccessor].count : count,
-			    1, kMaxReadIndices, "indices");
+			    1, kMaxReadIndices, "primitives", "indices");
 		}
 		const std::size_t times = std::max(reads[mesh], std::size_t{1});
-		add(vertices, meshVertices, times, kMaxReadVertices, "vertices");
-		add(indices, meshIndices, times, kMaxReadIndices, "indices");
+		add(vertices, meshVertices, times, kMaxReadVertices, "primitives", "vertices");
+		add(indices, meshIndices, times, kMaxReadIndices, "primitives", "indices");
 	}
+
+	std::size_t keys = 0;
+	for (const fastgltf::Animation &animation : asset.animations)
+		for (const fastgltf::AnimationChannel &channel : animation.channels)
+		{
+			const fastgltf::AnimationSampler &sampler = animation.samplers[channel.samplerIndex];
+			for (const std::size_t accessor : {sampler.inputAccessor, sampler.outputAccessor})
+				add(keys, asset.accessors[accessor].count, 1, kMaxReadKeys, "clips", "keys");
+		}
 }
 
 
@@ -798,6 +825,23 @@ bool SameVertices(const fastgltf::Primitive &a, const fastgltf::Primitive &b)
 	    a.attributes, b.attributes,
 	    [](const fastgltf::Attribute &left, const fastgltf::Attribute &right)
 	    { return left.name == right.name && left.accessorIndex == right.accessorIndex; });
+}
+
+
+std::vector<std::size_t> FirstSharing(const fastgltf::Mesh &mesh)
+{
+	using Vertices = std::vector<std::pair<std::string_view, std::size_t>>;
+	std::map<Vertices, std::size_t> first;
+	std::vector<std::size_t> sharing;
+	sharing.reserve(mesh.primitives.size());
+	for (std::size_t index = 0; index < mesh.primitives.size(); ++index)
+	{
+		Vertices vertices;
+		for (const fastgltf::Attribute &attribute : mesh.primitives[index].attributes)
+			vertices.emplace_back(attribute.name, attribute.accessorIndex);
+		sharing.push_back(first.try_emplace(std::move(vertices), index).first->second);
+	}
+	return sharing;
 }
 
 

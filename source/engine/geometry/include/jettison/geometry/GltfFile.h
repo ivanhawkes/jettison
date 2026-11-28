@@ -13,11 +13,25 @@
 namespace fastgltf
 {
 class Asset;
+struct Mesh;
 struct Primitive;
 } // namespace fastgltf
 
 namespace Jettison::Geometry
 {
+// The most vertices, and indices, a file's primitives give its readers together, each primitive
+// counted as often as a reader reads it: once for each node naming its mesh, as the bake reads them,
+// and once for a mesh no node names, which the cook still cooks; primitives that share their vertices
+// (FirstSharing) for their vertices once, as the renderer and the bake read them, a cooked file's
+// levels among them; and a primitive with no indices drawn by as many as it has vertices. As many as
+// a decoded view at its limit (256 MiB) holds, so naming one accessor from many primitives or nodes
+// costs no more than one primitive of that view: a 500-byte file of four primitives naming 22 million
+// vertices each once made the cook take 5.8 GiB. The cook, which reads sharing primitives apart,
+// holds its source to kMaxReadVertices counted so, and what it writes to Parse.
+inline constexpr std::size_t kMaxReadVertices = 22'369'621;
+
+inline constexpr std::size_t kMaxReadIndices = 67'108'864;
+
 // A level of detail of one mesh: a run of its primitives and its geometric error, the furthest its
 // surface strays from the finest level's, in the mesh's own units. Every level has the primitives
 // the first has, in the same order and with the same materials.
@@ -44,14 +58,15 @@ class GltfFile
 	// 1 GiB together, a compressed view whose stride or count breaks EXT_meshopt_compression, that
 	// lies outside its buffers, that decodes to more than 256 MiB, whose bytes are fewer than
 	// meshoptimizer 1.3's codec needs for what it claims to decode to, or that does not decode,
-	// fallback buffers that decode to more than 1 GiB together, a view outside its buffer, an accessor
-	// with no view, that is sparse, lies outside its view or buffer, or is a type or component type
-	// glTF 2.0 (with KHR_mesh_quantization) does not allow its use, primitives that give the readers
-	// more than 22,369,621 vertices or 67,108,864 indices together (each counted once for every node
-	// naming its mesh, and once if none does; a primitive with no indices as many as its vertices),
-	// any index naming what the file lacks, nodes that are not trees, a primitive whose attributes
-	// differ in count, and levels that are empty, whose finest error is not 0, that have an error past
-	// a float's range or less than the finer level's, or do not cover their mesh's primitives. A file
+	// fallback buffers that decode to more than 1 GiB together, compressed views that name the same
+	// bytes of a stream, a view outside its buffer, an accessor with no view, that is sparse, lies
+	// outside its view or buffer, or is a type or component type glTF 2.0 (with KHR_mesh_quantization)
+	// does not allow its use, primitives that give the readers more than kMaxReadVertices vertices or
+	// kMaxReadIndices indices together, clips whose channels give the rig reader more than 16,777,216
+	// keys together (each channel's sampler's times and values), any index naming what the file
+	// lacks, nodes that are not trees, a primitive whose attributes differ in count, and levels that
+	// are empty, whose finest error is not 0, that have an error past a float's range or less than the
+	// finer level's, or do not cover their mesh's primitives. A file
 	// it returns can be read by fastgltf's accessor tools, as the type its use allows and at any index
 	// it holds, without reading outside its buffers.
 	static std::unique_ptr<GltfFile> Parse(
@@ -103,6 +118,11 @@ class GltfFile
 // vertices. A normal the renderer or the cook makes is summed over all such primitives' triangles, so
 // a cooked and an uncooked file shade alike across the split.
 bool SameVertices(const fastgltf::Primitive &a, const fastgltf::Primitive &b);
+
+// For each of a mesh's primitives, the first that shares its vertices (SameVertices), itself if no
+// earlier one does: found through a sorted map, so a mesh of many primitives costs no more than
+// sorting them.
+std::vector<std::size_t> FirstSharing(const fastgltf::Mesh &mesh);
 
 // The file at relative within directory, by its weakly canonical path: relative is relative, with no
 // "..", and leads to a path within directory with symbolic links followed, since a link inside it can

@@ -442,12 +442,15 @@ no view (all zeros, of no use to a reader); an accessor of a type or component t
 not allow (glTF 2.0's tables, with `KHR_mesh_quantization`'s); an index naming what the file lacks,
 or nodes that are not trees; a primitive's attributes of different counts; primitives that give the
 readers more than 22,369,621 vertices or 67,108,864 indices together (a 256 MiB view's worth, each
-primitive counted for every node naming its mesh, so a cooked file's levels each count, and a
-five-level model is read back from at most 4.5 million vertices); a compressed view outside its
-buffers, against the extension's limits on stride and count, decoding to more than 256 MiB, or to
-more than meshoptimizer 1.3's codec can make of its bytes (1,024 times them for attributes), or into
-fallbacks that reach past 1 GiB together, each made only as long as its views reach and none before
-every view is checked; a `.gltf`'s buffer files declared longer than 1 GiB together, each read once
+primitive counted for every node naming its mesh, and primitives that share their vertices,
+`Geometry::FirstSharing`, as a cooked file's levels do, counted once for them, as the renderer and
+the bake read them); clips whose channels give the rig reader more than 16,777,216 keys together,
+each channel's sampler's times and values counted; a compressed view outside its buffers, against
+the extension's limits on stride and count, decoding to more than 256 MiB, or to more than
+meshoptimizer 1.3's codec can make of its bytes (1,024 times them for attributes), or into fallbacks
+that reach past 1 GiB together, each made only as long as its views reach and none before every
+view is checked; compressed views that name the same bytes of a stream, which would multiply that
+bound; a `.gltf`'s buffer files declared longer than 1 GiB together, each read once
 and only as far as its buffers declare (`GltfFile.h` lists every refusal).
 
 - **Extensions.** `EXT_meshopt_compression` and `KHR_mesh_quantization`, used and required, beside

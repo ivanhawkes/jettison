@@ -238,8 +238,8 @@ std::optional<std::string> Unmakeable(
 
 JPH::BodyCreationSettings MakeSettings(
     entt::entity entity, const Body &body, const ShapeEntry &shape, const Sim::Transform &transform,
-    const glm::dvec3 &origin, const Velocity &velocity, const PhysicsSettings &settings,
-    std::uint32_t layer, const JPH::GroupFilter &groups)
+    const glm::dvec3 &origin, const PhysicsSettings &settings, std::uint32_t layer,
+    const JPH::GroupFilter &groups)
 {
 	// A static sensor is kinematic to Jolt, never moved but by placing it: a static sensor sees only
 	// bodies that are awake, and a vehicle come to rest in a docking zone would leave it as it slept.
@@ -274,8 +274,6 @@ JPH::BodyCreationSettings MakeSettings(
 		case BodyKind::Dynamic:
 			creation.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 			creation.mMassPropertiesOverride.mMass = body.mass;
-			creation.mLinearVelocity = Detail::ToJolt(velocity.linear);
-			creation.mAngularVelocity = Detail::ToJolt(velocity.angular);
 			if (body.continuous)
 				creation.mMotionQuality = JPH::EMotionQuality::LinearCast;
 			break;
@@ -676,12 +674,21 @@ struct PhysicsWorld::Impl
 	    const ShapeEntry &shape, bool asleep = false) const
 	{
 		const JPH::BodyCreationSettings creation = MakeSettings(
-		    entity, record.body, shape, record.placed, world.frameOrigin, record.velocity, settings,
+		    entity, record.body, shape, record.placed, world.frameOrigin, settings,
 		    LayerNumber(record.body.layer), *groups);
-		const JPH::Body *made = world.Bodies().CreateBodyWithID(id, creation);
+		JPH::Body *made = world.Bodies().CreateBodyWithID(id, creation);
 
 		// Capacity was checked, and the identifier is one the world holds free for it.
 		JETTISON_VERIFY(made != nullptr);
+
+		// Jolt asserts on a velocity it is made with past its limits, which a game or a save can give
+		// (the save fuzz target's save-crash-angular.bin), and clamps one to them as it steps, so
+		// the body is given its velocity clamped so. Not yet in the world, it needs no lock.
+		if (creation.mMotionType == JPH::EMotionType::Dynamic)
+		{
+			made->SetLinearVelocityClamped(Detail::ToJolt(record.velocity.linear));
+			made->SetAngularVelocityClamped(Detail::ToJolt(record.velocity.angular));
+		}
 		world.Bodies().AddBody(
 		    id, asleep || (record.body.kind == BodyKind::Static && !record.body.sensor)
 		            ? JPH::EActivation::DontActivate
@@ -1800,6 +1807,10 @@ std::function<void()> PhysicsWorld::Load(
 			reader.Read(record.body);
 			reader.Read(record.placed);
 			reader.Read(record.velocity);
+			const auto finite = [](const glm::vec3 &vector)
+			{ return std::isfinite(vector.x) && std::isfinite(vector.y) && std::isfinite(vector.z); };
+			if (!finite(record.velocity.linear) || !finite(record.velocity.angular))
+				reader.Fail(std::format("{} has a velocity that is not finite", Describe(entity)));
 
 			// Jolt's state says what sleeps, and a rebuild has to be told.
 			bool asleep = false;

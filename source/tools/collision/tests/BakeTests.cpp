@@ -9,6 +9,7 @@
 
 #include <doctest/doctest.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -194,4 +195,25 @@ TEST_CASE("Bake: a model is read as geometry reads one, its scene's nodes each o
 	    Bake::CollisionShape(model("outside.gltf", R"([{"mesh": 0}])", "../outside.bin")),
 	    doctest::Contains("outside its directory"), std::runtime_error);
 	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("Bake: primitives that share their vertices read them once, as geometry counts them")
+{
+	const std::filesystem::path path = std::filesystem::temp_directory_path() /
+	                                   ("jettison-bake-shared-" + std::to_string(getpid()) + ".gltf");
+
+	// A tetrahedron's four corners, named by two primitives, as a mesh split by material is.
+	std::ofstream{path} << R"({"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}],
+		"nodes": [{"name": "collision-mesh-pair", "mesh": 0}],
+		"buffers": [{"byteLength": 48, "uri": "data:application/octet-stream;base64,)"
+	                       R"(AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/"}],
+		"bufferViews": [{"buffer": 0, "byteLength": 48}],
+		"accessors": [{"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3"}],
+		"meshes": [{"primitives": [{"attributes": {"POSITION": 0}}, {"attributes": {"POSITION": 0}}]}]})";
+	const ShapeDefinition shape = Bake::CollisionShape(path);
+	std::filesystem::remove(path);
+	REQUIRE(shape.parts.size() == 1);
+	CHECK(shape.parts[0].vertices.size() == 4);
+	CHECK(shape.parts[0].indices == std::vector<std::uint32_t>{0, 1, 2, 3, 0, 1, 2, 3});
 }

@@ -36,18 +36,27 @@ void ReadTriangles(
     const std::filesystem::path &model, const fastgltf::Asset &asset, const fastgltf::Node &node,
     const glm::mat4 &transform, Physics::ShapeDefinition &part)
 {
-	for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives)
+	// Primitives that share their vertices read them once, as GltfFile counts them.
+	const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+	const std::vector<std::size_t> sharing = Geometry::FirstSharing(mesh);
+	std::vector<std::uint32_t> bases(mesh.primitives.size());
+	for (std::size_t at = 0; at < mesh.primitives.size(); ++at)
 	{
+		const fastgltf::Primitive &primitive = mesh.primitives[at];
 		if (primitive.type != fastgltf::PrimitiveType::Triangles)
 			Refuse(model, std::format("has a primitive of node '{}' that is not triangles", node.name));
 		const auto position = primitive.findAttribute("POSITION");
 		if (position == primitive.attributes.end())
 			Refuse(model, std::format("has a primitive of node '{}' with no positions", node.name));
 		const fastgltf::Accessor &positions = asset.accessors[position->accessorIndex];
-		const auto base = static_cast<std::uint32_t>(part.vertices.size());
-		fastgltf::iterateAccessor<glm::vec3>(
-		    asset, positions,
-		    [&](glm::vec3 vertex) { part.vertices.emplace_back(transform * glm::vec4{vertex, 1.0f}); });
+		if (sharing[at] == at)
+		{
+			bases[at] = static_cast<std::uint32_t>(part.vertices.size());
+			fastgltf::iterateAccessor<glm::vec3>(
+			    asset, positions, [&](glm::vec3 vertex)
+			    { part.vertices.emplace_back(transform * glm::vec4{vertex, 1.0f}); });
+		}
+		const std::uint32_t base = bases[sharing[at]];
 		const auto count = static_cast<std::uint32_t>(positions.count);
 		if (!primitive.indicesAccessor)
 		{
