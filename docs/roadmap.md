@@ -209,6 +209,40 @@ short of what it meets and holds it between a deck and a roof
 
 **Feature doc:** [docks](docks.md#a-covered-berth).
 
+<a id="j69"></a>
+### J69. Loose ends from J37 and the loading hardening
+
+**What remains.**
+
+- Saves: a non-finite frame velocity is not refused (it reaches Jolt only on the next step, which
+  the save fuzz target never takes); and a game writing a transform past Jolt's range during a normal
+  step still meets Jolt's assertion, as a save once did (`PhysicsWorld::Step`).
+- `CrashTests.cpp:273` fails in the sanitised tree: `InstallCrashHandler` returns under the address
+  sanitiser before it checks its directory. The platform suite is not in the gate's sanitised run.
+- One font crash found by fuzzing has its RmlUi patch but no regression test: its input was a mutated
+  third-party font, not the project's to commit.
+- UBSan's alignment check is off for WAMR, whose interpreter reads unaligned by design
+  (`source/external/wamr/CMakeLists.txt`).
+- The asteroid reference views show small bright fragments apart from the rock and a banded crater
+  rim, possibly shadow acne.
+- `cook-record.yaml` is packed into the test content's `content.pack` (the packer cannot leave a file
+  out); `jettison_cook`'s command-line exit codes have no test; texture slots from material
+  extensions (specular colour and the like) are encoded as linear.
+- Not reported upstream: the bugs the fuzz-time patches fix (RmlUi, MikkTSpace, ENet, WAMR, and
+  libktx's method types and ETC1S tables), and round 3's additions to the Jolt patch as a comment on
+  jrouwe/JoltPhysics#2264. Each only if it meets the bar: real, reproducible, unreported, and still
+  on the project's main branch.
+- Fuzzing past the gate's corpus replay: the save target for ten minutes and every other target for
+  two, which J37's hardening stopped short of.
+
+**Why.** None blocks a game today; each is a crash, a gap in a check or a test, or a report owed.
+
+**What exists.** The loading rule and each loader's checks ([files and mods](files-and-mods.md)), the
+fuzz targets ([fuzzing](build-and-gates.md#fuzzing)), the patches and their upstream state
+(`source/external/CMakeLists.txt`), and the hardening's record ([history](history.md#loading-bytes)).
+
+**Feature doc:** [build and gates](build-and-gates.md#fuzzing).
+
 ## Tier 4: presentation, when a scene asks
 
 Each is placed by the first scene or screen that needs it, and changes no data or save on the way.
